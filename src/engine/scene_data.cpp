@@ -3,12 +3,12 @@
 #include "soc_core.h"
 #include "engine_read_stream.h"
 ASSERTNAME
-static_assert(transNil == -1 && transCut == 0 && transLim == THREE_MM_SCENE_TRANSITION_LIMIT,
+static_assert(transNil == -1 && transCut == 0 && transLim == MM_SCENE_TRANSITION_LIMIT,
               "scene transition encoding");
 static_assert(sevtAddActr == 0 && sevtPlaySnd == 1 && sevtAddTbox == 2 && sevtChngCamera == 3 && sevtSetBkgd == 4 &&
                   sevtPause == 5,
               "scene event encoding");
-static_assert(kboCur == THREE_MM_SCENE_GROUP_NATIVE_ORDER && kboOther == THREE_MM_SCENE_GROUP_OTHER_ORDER,
+static_assert(kboCur == MM_SCENE_GROUP_NATIVE_ORDER && kboOther == MM_SCENE_GROUP_OTHER_ORDER,
               "Scene group byte order markers");
 namespace
 {
@@ -17,59 +17,59 @@ bool NativeBig()
     const unsigned short one = 1;
     return *reinterpret_cast<const byte *>(&one) == 0;
 }
-void GetNameValue(const ThreeMMMovieTitle *name, PString out)
+void GetNameValue(const MMMovieTitle *name, PString out)
 {
-    out->SetRgch(const_cast<achar *>(static_cast<const achar *>(three_mm_movie_title_text(name))), name->count);
+    out->SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(name))), name->count);
 }
-void SetNameValue(ThreeMMMovieTitle *name, PString value)
+void SetNameValue(MMMovieTitle *name, PString value)
 {
-    AssertDo(three_mm_movie_title_set(name, value->Prgch(), value->Cch()), "bad scene name");
+    AssertDo(mm_movie_title_set(name, value->Prgch(), value->Cch()), "bad scene name");
 }
 struct Host
 {
     PChunkyFile file;
     DataBlock block;
 };
-ThreeMMSceneIO SceneIO(Host *host)
+MMSceneIO SceneIO(Host *host)
 {
     return {host,
-            [](void *c, ThreeMMU32 number, ThreeMMReadStream *stream) -> int {
+            [](void *c, MMU32 number, MMReadStream *stream) -> int {
                 auto h = static_cast<Host *>(c);
                 if (!h->file->FFind(kctgScen, number, &h->block) || !h->block.FUnpackData())
                     return 0;
                 *stream = EngineReadStream::FromBlock(h->block);
                 return 1;
             },
-            [](void *c, ThreeMMU32 number, ThreeMMMovieTitle *name) {
+            [](void *c, MMU32 number, MMMovieTitle *name) {
                 String value;
                 GetNameValue(name, &value);
                 static_cast<Host *>(c)->file->FGetName(kctgScen, number, &value);
                 SetNameValue(name, &value);
             },
-            [](void *c, ThreeMMU32 number, const unsigned char *bytes) -> int {
+            [](void *c, MMU32 number, const unsigned char *bytes) -> int {
                 return static_cast<Host *>(c)->file->FPutPv(const_cast<unsigned char *>(bytes), 16, kctgScen, number);
             },
-            [](void *c, ThreeMMU32 number, const ThreeMMMovieTitle *name) -> int {
+            [](void *c, MMU32 number, const MMMovieTitle *name) -> int {
                 String value;
                 GetNameValue(name, &value);
                 return static_cast<Host *>(c)->file->FSetName(kctgScen, number, &value);
             }};
 }
-ThreeMMSceneGroupServices Groups()
+MMSceneGroupServices Groups()
 {
-    return {[](void *g) -> ThreeMMU32 { return static_cast<PGeneralGroup>(g)->CbFixed(); },
-            [](void *g) -> ThreeMMU32 { return static_cast<PGeneralGroup>(g)->IvMac(); },
-            [](void *g, ThreeMMU32 i, unsigned char *bytes) { static_cast<PGeneralGroup>(g)->GetFixed(i, bytes); },
-            [](void *g, ThreeMMU32 i) -> ThreeMMI32 { return static_cast<PGeneralGroup>(g)->Cb(i); },
-            [](void *g, ThreeMMU32 i) -> const void * { return static_cast<PGeneralGroup>(g)->QvGet(i); }};
+    return {[](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbFixed(); },
+            [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->IvMac(); },
+            [](void *g, MMU32 i, unsigned char *bytes) { static_cast<PGeneralGroup>(g)->GetFixed(i, bytes); },
+            [](void *g, MMU32 i) -> MMI32 { return static_cast<PGeneralGroup>(g)->Cb(i); },
+            [](void *g, MMU32 i) -> const void * { return static_cast<PGeneralGroup>(g)->QvGet(i); }};
 }
-ThreeMMSceneEventIO Events(Host *host)
+MMSceneEventIO Events(Host *host)
 {
     return {
         host,
         Groups(),
-        [](void *g) -> ThreeMMU32 { return static_cast<PGeneralGroup>(g)->CbOnFile(); },
-        [](void *c, ThreeMMU32 scene, int start, ThreeMMU32 *number) -> int {
+        [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbOnFile(); },
+        [](void *c, MMU32 scene, int start, MMU32 *number) -> int {
             ChildChunkIdentification child;
             if (!static_cast<Host *>(c)->file->FGetKidChidCtg(kctgScen, scene, start, start ? kctgStartGg : kctgFrmGg,
                                                               &child))
@@ -77,23 +77,23 @@ ThreeMMSceneEventIO Events(Host *host)
             *number = child.cki.cno;
             return 1;
         },
-        [](void *c, int start, ThreeMMU32 bytes, ThreeMMU32 *number) -> int {
+        [](void *c, int start, MMU32 bytes, MMU32 *number) -> int {
             auto h = static_cast<Host *>(c);
             return h->file->FAdd(bytes, start ? kctgStartGg : kctgFrmGg, number, &h->block);
         },
         [](void *c, void *g) -> int { return static_cast<PGeneralGroup>(g)->FWrite(&static_cast<Host *>(c)->block); },
-        [](void *c, ThreeMMU32 scene, int start, ThreeMMU32 number) -> int {
+        [](void *c, MMU32 scene, int start, MMU32 number) -> int {
             return static_cast<Host *>(c)->file->FAdoptChild(kctgScen, scene, start ? kctgStartGg : kctgFrmGg, number,
                                                              start);
         },
-        [](void *c, ThreeMMU32 scene, int start, ThreeMMU32 number, int linked) {
+        [](void *c, MMU32 scene, int start, MMU32 number, int linked) {
             auto file = static_cast<Host *>(c)->file;
             if (linked)
                 file->DeleteChild(kctgScen, scene, start ? kctgStartGg : kctgFrmGg, number, start);
             else
                 file->Delete(start ? kctgStartGg : kctgFrmGg, number);
         },
-        [](void *c, int start, ThreeMMU32 number) {
+        [](void *c, int start, MMU32 number) {
             static_cast<Host *>(c)->file->SetLoner(start ? kctgStartGg : kctgFrmGg, number, fFalse);
         }};
 }
@@ -116,29 +116,29 @@ bool SceneData::FRead(PChunkyFile file, ChunkNumber number)
 {
     Host host = {file};
     const auto io = SceneIO(&host);
-    return three_mm_scene_read(this, number, &io) != 0;
+    return mm_scene_read(this, number, &io) != 0;
 }
 bool SceneData::FWrite(PChunkyFile file, ChunkNumber number)
 {
     Host host = {file};
     const auto io = SceneIO(&host);
-    return three_mm_scene_write(this, number, koskCur, NativeBig(), &io) != 0;
+    return mm_scene_write(this, number, koskCur, NativeBig(), &io) != 0;
 }
-bool SceneData::FReadTransition(PChunkyFile file, ChunkNumber number, ThreeMMI32 *out)
+bool SceneData::FReadTransition(PChunkyFile file, ChunkNumber number, MMI32 *out)
 {
     Host host = {file};
     const auto io = SceneIO(&host);
-    return three_mm_scene_transition_read(number, sizeof(achar), out, &io) != 0;
+    return mm_scene_transition_read(number, sizeof(achar), out, &io) != 0;
 }
-bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, ThreeMMI32 transition)
+bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, MMI32 transition)
 {
     Host host = {file};
     const auto io = SceneIO(&host);
-    return three_mm_scene_transition_write(number, sizeof(achar), transition, koskCur, NativeBig(), &io) != 0;
+    return mm_scene_transition_write(number, sizeof(achar), transition, koskCur, NativeBig(), &io) != 0;
 }
 static PGeneralGroup ReadSceneEvents(PDataBlock block, short *byteOrder, int layout)
 {
-    const ThreeMMSceneReadGroupServices services = {
+    const MMSceneReadGroupServices services = {
         block, Groups(),
         [](void *p, int *order) -> void * {
             short bo;
@@ -150,7 +150,7 @@ static PGeneralGroup ReadSceneEvents(PDataBlock block, short *byteOrder, int lay
         [](void *, void *group) { static_cast<PGeneralGroup>(group)->Release(); }};
     int order;
     auto group =
-        static_cast<PGeneralGroup>(three_mm_scene_read_event_group(layout, NativeBig(), &order, &services));
+        static_cast<PGeneralGroup>(mm_scene_read_event_group(layout, NativeBig(), &order, &services));
     if (group && byteOrder)
         *byteOrder = static_cast<short>(order);
     return group;
@@ -161,25 +161,25 @@ PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool 
 }
 PGeneralGroup SceneData::PggReadEventHeaders(PDataBlock block, short *byteOrder)
 {
-    return ReadSceneEvents(block, byteOrder, THREE_MM_SCENE_GROUP_HEADERS_ONLY);
+    return ReadSceneEvents(block, byteOrder, MM_SCENE_GROUP_HEADERS_ONLY);
 }
 bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts)
 {
     Host host = {file};
     const auto io = Events(&host);
-    return three_mm_scene_write_events(number, frames, starts, &io) != 0;
+    return mm_scene_write_events(number, frames, starts, &io) != 0;
 }
 bool SceneData::FCreate(PChunkyFile file, ChunkNumber *number)
 {
     Host host = {file};
-    const ThreeMMSceneCreateServices services = {
+    const MMSceneCreateServices services = {
         SceneIO(&host),
         Events(&host),
-        [](void *) -> void * { return GeneralGroup::PggNew(THREE_MM_SCENE_EVENT_BYTES); },
+        [](void *) -> void * { return GeneralGroup::PggNew(MM_SCENE_EVENT_BYTES); },
         [](void *g) { static_cast<PGeneralGroup>(g)->Release(); },
-        [](void *c, ThreeMMU32 bytes, ThreeMMU32 *number) -> int {
+        [](void *c, MMU32 bytes, MMU32 *number) -> int {
             return static_cast<Host *>(c)->file->FAdd(bytes, kctgScen, number);
         },
-        [](void *c, ThreeMMU32 number) { static_cast<Host *>(c)->file->Delete(kctgScen, number); }};
-    return three_mm_scene_create(this, number, koskCur, NativeBig(), &services) != 0;
+        [](void *c, MMU32 number) { static_cast<Host *>(c)->file->Delete(kctgScen, number); }};
+    return mm_scene_create(this, number, koskCur, NativeBig(), &services) != 0;
 }

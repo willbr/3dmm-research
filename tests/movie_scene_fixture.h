@@ -97,12 +97,12 @@ static bool TestMovieScenes()
 #ifdef _WIN64
     const auto *bytes = reinterpret_cast<const unsigned char *>(client->trace.data());
     const auto byteCount = (client->trace.size)() * sizeof(LegacyLong);
-    ThreeMMU32 hash = 2166136261U;
+    MMU32 hash = 2166136261U;
     for (size_t i = 0; i < byteCount; ++i)
         hash = (hash ^ bytes[i]) * 16777619U;
     ok = ok && byteCount == 1064 && hash == 0xe62aac8fU;
 #endif
-    if (const char *path = std::getenv("THREE_MM_MOVIE_SCENE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_MOVIE_SCENE_SNAPSHOT"))
     {
         FILE *file = std::fopen(path, "wb");
         if (!file)

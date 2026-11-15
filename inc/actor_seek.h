@@ -3,7 +3,7 @@
 #ifndef ACTOR_SEEK_H
 #define ACTOR_SEEK_H
 #include "actor_timeline.h"
-#include "three_mm/actor_timeline.h"
+#include "mm/actor_timeline.h"
 
 enum class ActorSeekCommandKind
 {
@@ -46,6 +46,6 @@ class ActorSeekEvaluator
     ActorFrameState &_state;
     const ActorTrack &_track;
     ActorStepSource _steps;
-    ThreeMMActorSeek _sequence = {};
+    MMActorSeek _sequence = {};
 };
 #endif

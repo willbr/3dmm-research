@@ -84,7 +84,7 @@ class MovieSceneUndo : public MovieSceneUndo_PAR
     TAG _tag;
     PScene _pscen;
     MUNST _munst;
-    ThreeMMMovieSceneUndoServices _Services();
+    MMMovieSceneUndoServices _Services();
     MovieSceneUndo(void)
     {
     }
@@ -141,13 +141,13 @@ struct Movie::SaveHost
     explicit SaveHost(PMovie value) : movie(value) {}
 };
 
-ThreeMMMovieSaveServices Movie::_SaveServices(SaveHost *host)
+MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
 {
-    static_assert(kctgScen == THREE_MM_SAVE_SCENE && kctgGst == THREE_MM_SAVE_TABLE &&
-        kctgMtrl == THREE_MM_SAVE_MATERIAL && kctgTmpl == THREE_MM_SAVE_TEMPLATE &&
-        kctgMsnd == THREE_MM_SAVE_SOUND && ksidUseCrf == 0 && kchidGstSource == 1 && cnoNil == 0xffffffffU,
+    static_assert(kctgScen == MM_SAVE_SCENE && kctgGst == MM_SAVE_TABLE &&
+        kctgMtrl == MM_SAVE_MATERIAL && kctgTmpl == MM_SAVE_TEMPLATE &&
+        kctgMsnd == MM_SAVE_SOUND && ksidUseCrf == 0 && kchidGstSource == 1 && cnoNil == 0xffffffffU,
         "Movie save ABI");
-    ThreeMMMovieSaveServices s = {};
+    MMMovieSaveServices s = {};
     s.context = host;
     s.data = &_data;
     s.scenes = &_scenes;
@@ -173,7 +173,7 @@ ThreeMMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         return file;
     };
     s.release_archive = [](void *p) { auto file = static_cast<PChunkyFile>(p); ReleasePpo(&file); };
-    s.new_resources = [](void *, void *p, ThreeMMU32 cache) -> void * {
+    s.new_resources = [](void *, void *p, MMU32 cache) -> void * {
         return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(p), cache);
     };
     s.is_temp = [](void *p) -> int { return static_cast<PChunkyFile>(p)->FTemp(); };
@@ -183,12 +183,12 @@ ThreeMMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.persistent = [](void *p) {
         AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
     };
-    s.first_root = [](void *p) -> ThreeMMU32 {
+    s.first_root = [](void *p) -> MMU32 {
         ChunkIdentification chunk;
         AssertDo(static_cast<PChunkyFile>(p)->FGetCkiCtg(kctgMvie, 0, &chunk), "Missing saved movie root");
         return chunk.cno;
     };
-    s.create_root = [](void *, void *p, ThreeMMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
+    s.create_root = [](void *, void *p, MMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
     s.release_saved = [](void *p) { auto file = static_cast<PFileObject>(p); ReleasePpo(&file); };
@@ -209,37 +209,37 @@ ThreeMMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.set_container_name = [](void *p, void *path) { static_cast<SaveHost *>(p)->movie->_containerName = *static_cast<PFilename>(path); };
     s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
     s.document_dirty = [](void *p, int dirty) { static_cast<SaveHost *>(p)->movie->_fDirty = dirty != 0; };
-    s.write_scene = [](void *p, void *scene, ThreeMMU32 *number) -> int {
+    s.write_scene = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<SaveHost *>(p)->movie->_data.Resources(), number);
     };
-    s.child = [](void *p, ThreeMMU32 root, ThreeMMU32 type, ThreeMMU32 slot, ThreeMMU32 *number) -> int {
+    s.child = [](void *p, MMU32 root, MMU32 type, MMU32 slot, MMU32 *number) -> int {
         ChildChunkIdentification child;
         bool found = static_cast<PChunkyFile>(p)->FGetKidChidCtg(kctgMvie, root, slot, type, &child);
         if (found) *number = child.cki.cno;
         return found;
     };
-    s.adopt = [](void *p, ThreeMMU32 root, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 slot) -> int {
+    s.adopt = [](void *p, MMU32 root, MMU32 type, MMU32 number, MMU32 slot) -> int {
         return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie, root, type, number, slot);
     };
-    s.delete_child = [](void *p, ThreeMMU32 root, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 slot) {
+    s.delete_child = [](void *p, MMU32 root, MMU32 type, MMU32 number, MMU32 slot) {
         static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie, root, type, number, slot);
     };
-    s.delete_chunk = [](void *p, ThreeMMU32 type, ThreeMMU32 number) { static_cast<PChunkyFile>(p)->Delete(type, number); };
-    s.actor_count = [](void *p) -> ThreeMMI32 { return static_cast<PRollCallTable>(p)->IvMac(); };
-    s.actor_refs = [](void *p, ThreeMMI32 index, ThreeMMTag *tag) -> ThreeMMI32 {
+    s.delete_chunk = [](void *p, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(p)->Delete(type, number); };
+    s.actor_count = [](void *p) -> MMI32 { return static_cast<PRollCallTable>(p)->IvMac(); };
+    s.actor_refs = [](void *p, MMI32 index, MMTag *tag) -> MMI32 {
         RollCallActorEntry actor;
         static_cast<PRollCallTable>(p)->GetExtra(index, &actor);
         *tag = TagToCore(actor.tagTmpl);
         return actor.cactRef;
     };
-    s.erase_actor = [](void *p, ThreeMMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
-    s.close_tag = [](void *, ThreeMMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
+    s.erase_actor = [](void *p, MMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
+    s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->_pmcc->UpdateRollCall(); };
-    s.write_rollcall = [](void *, void *p, ThreeMMU32 root, void *table, ThreeMMU32 *number) -> int {
+    s.write_rollcall = [](void *, void *p, MMU32 root, void *table, MMU32 *number) -> int {
         return MovieData::FWriteRollCall(static_cast<PChunkyFile>(p), root, static_cast<PRollCallTable>(table), number);
     };
-    s.source_bytes = [](void *) -> ThreeMMU32 { return vptagm->CbSourceNames(); };
-    s.add_sources = [](void *p, void *file, ThreeMMU32 bytes, ThreeMMU32 *number) -> int {
+    s.source_bytes = [](void *) -> MMU32 { return vptagm->CbSourceNames(); };
+    s.add_sources = [](void *p, void *file, MMU32 bytes, MMU32 *number) -> int {
         return static_cast<PChunkyFile>(file)->FAdd(bytes, kctgGst, number, &static_cast<SaveHost *>(p)->sources);
     };
     s.write_sources = [](void *p) -> int { return vptagm->FWriteSourceNames(&static_cast<SaveHost *>(p)->sources); };
@@ -258,36 +258,36 @@ ThreeMMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.package = [](void *p, void *working, void *destination) -> int {
         return static_cast<SaveHost *>(p)->movie->_container->Save(static_cast<PFilename>(working), static_cast<PFilename>(destination));
     };
-    s.source_archive = [](void *, ThreeMMI32 source) -> int {
+    s.source_archive = [](void *, MMI32 source) -> int {
         Filename path;
         return vptagm && vptagm->SourceArchive(source, kftgContent, 0, &path);
     };
     s.new_tags = [](void *) -> void * { return TagList::PtaglNew(); };
-    s.scene_tags = [](void *p, ThreeMMU32 scene, void *tags) -> int {
+    s.scene_tags = [](void *p, MMU32 scene, void *tags) -> int {
         return Scene::FAddTagsToTagl(static_cast<PChunkyFile>(p), scene, static_cast<PTagList>(tags));
     };
-    s.tag_count = [](void *p) -> ThreeMMI32 { return static_cast<PTagList>(p)->Ctag(); };
-    s.tag = [](void *p, ThreeMMI32 index, ThreeMMTag *value) { TAG tag; static_cast<PTagList>(p)->GetTag(index, &tag); *value = TagToCore(tag); };
+    s.tag_count = [](void *p) -> MMI32 { return static_cast<PTagList>(p)->Ctag(); };
+    s.tag = [](void *p, MMI32 index, MMTag *value) { TAG tag; static_cast<PTagList>(p)->GetTag(index, &tag); *value = TagToCore(tag); };
     s.release_tags = [](void *p) { auto tags = static_cast<PTagList>(p); ReleasePpo(&tags); };
-    s.chunk = [](void *p, ThreeMMU32 type, ThreeMMI32 index, ThreeMMU32 *number) -> int {
+    s.chunk = [](void *p, MMU32 type, MMI32 index, MMU32 *number) -> int {
         ChunkIdentification chunk;
         if (!static_cast<PChunkyFile>(p)->FGetCkiCtg(type, index, &chunk)) return 0;
         *number = chunk.cno;
         return 1;
     };
-    s.toss_cache = [](void *p, ThreeMMU32 type, ThreeMMU32 number) {
+    s.toss_cache = [](void *p, MMU32 type, MMU32 number) {
         auto reader = type == kctgMtrl ? Material_MTRL::FReadMtrl : Template::FReadTmpl;
         static_cast<SaveHost *>(p)->movie->_data.Resources()->FSetCrep(crepToss, type, number, reader);
     };
-    s.child_count = [](void *p, ThreeMMU32 root) -> ThreeMMI32 { return static_cast<PChunkyFile>(p)->Ckid(kctgMvie, root); };
-    s.references = [](void *p, ThreeMMU32 type, ThreeMMU32 number) -> ThreeMMI32 { return static_cast<PChunkyFile>(p)->CckiRef(type, number); };
-    s.child_at = [](void *p, ThreeMMU32 root, ThreeMMI32 index, ThreeMMChunkChild *value) -> int {
+    s.child_count = [](void *p, MMU32 root) -> MMI32 { return static_cast<PChunkyFile>(p)->Ckid(kctgMvie, root); };
+    s.references = [](void *p, MMU32 type, MMU32 number) -> MMI32 { return static_cast<PChunkyFile>(p)->CckiRef(type, number); };
+    s.child_at = [](void *p, MMU32 root, MMI32 index, MMChunkChild *value) -> int {
         ChildChunkIdentification child;
         if (!static_cast<PChunkyFile>(p)->FGetKid(kctgMvie, root, index, &child)) return 0;
         value->type = child.cki.ctg; value->number = child.cki.cno; value->slot = child.chid;
         return 1;
     };
-    s.sound_child = [](void *p, ThreeMMU32 number) -> int {
+    s.sound_child = [](void *p, MMU32 number) -> int {
         ChildChunkIdentification child;
         return static_cast<PChunkyFile>(p)->FGetKidChid(kctgMsnd, number, kchidSnd, &child);
     };
@@ -311,8 +311,8 @@ ThreeMMMovieSaveServices Movie::_SaveServices(SaveHost *host)
  ****************************************************/
 Movie::Movie(void) : _clok(khidMvieClock)
 {
-    three_mm_movie_scenes_init(&_scenes);
-    three_mm_movie_save_init(&_save);
+    mm_movie_scenes_init(&_scenes);
+    mm_movie_save_init(&_save);
     _playback.wait = witNil;
     _playback.transition = transNil;
     _playback.fadeOriginalVolume = 0;
@@ -335,7 +335,7 @@ bool Movie::_FSetPfilSave(PFilename pfni)
     AssertPo(pfni, 0);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return three_mm_movie_save_bind(pfni, &services) != 0;
+    return mm_movie_save_bind(pfni, &services) != 0;
 }
 
 /****************************************************
@@ -554,14 +554,14 @@ void Movie::Flush(void)
 {
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    three_mm_movie_save_flush(&services);
+    mm_movie_save_flush(&services);
 }
 
 void Movie::ForceSaveAs(void)
 {
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    three_mm_movie_save_release(1, &services);
+    mm_movie_save_release(1, &services);
 }
 
 /****************************************************
@@ -582,7 +582,7 @@ void Movie::_DoSndGarbageCollection(bool fPurgeAll)
     AssertThis(0);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    three_mm_movie_save_sounds(fPurgeAll, &services);
+    mm_movie_save_sounds(fPurgeAll, &services);
 }
 
 /****************************************************
@@ -601,7 +601,7 @@ Movie::~Movie(void)
     _data.ReleaseResources();
     SaveHost saveHost(this);
     auto saveServices = _SaveServices(&saveHost);
-    three_mm_movie_save_release(0, &saveServices);
+    mm_movie_save_release(0, &saveServices);
 
     if (FPlaying())
     {
@@ -631,7 +631,7 @@ Movie::~Movie(void)
         // Release open scene.
         //
         auto services = _SceneServices();
-        three_mm_movie_scene_close_open(&services);
+        mm_movie_scene_close_open(&services);
     }
 
     //
@@ -735,7 +735,7 @@ PTagList Movie::_PtaglFetch(void)
     Assert(_data.Resources(), "need pcrfAutosave");
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return static_cast<PTagList>(three_mm_movie_save_tags(&services));
+    return static_cast<PTagList>(mm_movie_save_tags(&services));
 }
 
 /****************************************************
@@ -752,85 +752,85 @@ PTagList Movie::_PtaglFetch(void)
  *	 fTrue if successful, else fFalse if out of range.
  *
  ****************************************************/
-ThreeMMMovieRollCallServices Movie::_RollCallServices()
+MMMovieRollCallServices Movie::_RollCallServices()
 {
-    static_assert(fbrwsProp == THREE_MM_MOVIE_PROP && fbrwsTdt == THREE_MM_MOVIE_TEXT && aridNil == -1, "Roll-call ABI");
-    ThreeMMMovieRollCallServices s = {};
+    static_assert(fbrwsProp == MM_MOVIE_PROP && fbrwsTdt == MM_MOVIE_TEXT && aridNil == -1, "Roll-call ABI");
+    MMMovieRollCallServices s = {};
     s.context = this;
     s.data = &_data;
-    s.count = [](void *p) -> ThreeMMI32 { return static_cast<PRollCallTable>(p)->storage.count; };
-    s.row = [](void *p, ThreeMMI32 index, ThreeMMRollCallActor *out) {
-        AssertDo(three_mm_rollcall_table_extra(&static_cast<PRollCallTable>(p)->storage, index, out), "bad actor row");
+    s.count = [](void *p) -> MMI32 { return static_cast<PRollCallTable>(p)->storage.count; };
+    s.row = [](void *p, MMI32 index, MMRollCallActor *out) {
+        AssertDo(mm_rollcall_table_extra(&static_cast<PRollCallTable>(p)->storage, index, out), "bad actor row");
     };
-    s.put = [](void *p, ThreeMMI32 index, const ThreeMMRollCallActor *value) {
-        AssertDo(three_mm_rollcall_table_set_extra(&static_cast<PRollCallTable>(p)->storage, index, value), "bad actor row");
+    s.put = [](void *p, MMI32 index, const MMRollCallActor *value) {
+        AssertDo(mm_rollcall_table_set_extra(&static_cast<PRollCallTable>(p)->storage, index, value), "bad actor row");
     };
-    s.name = [](void *p, ThreeMMI32 index, void *out) { static_cast<PRollCallTable>(p)->GetStn(index, static_cast<PString>(out)); };
-    s.rename = [](void *p, ThreeMMI32 index, const void *name) -> int {
+    s.name = [](void *p, MMI32 index, void *out) { static_cast<PRollCallTable>(p)->GetStn(index, static_cast<PString>(out)); };
+    s.rename = [](void *p, MMI32 index, const void *name) -> int {
         auto value = const_cast<PString>(static_cast<const String *>(name));
-        return three_mm_rollcall_table_rename(&static_cast<PRollCallTable>(p)->storage, index, value->Prgch(), value->Cch());
+        return mm_rollcall_table_rename(&static_cast<PRollCallTable>(p)->storage, index, value->Prgch(), value->Cch());
     };
-    s.append = [](void *p, const void *name, const ThreeMMRollCallActor *row) -> int {
+    s.append = [](void *p, const void *name, const MMRollCallActor *row) -> int {
         auto value = const_cast<PString>(static_cast<const String *>(name));
         AssertPo(value, 0);
-        return three_mm_rollcall_table_add(&static_cast<PRollCallTable>(p)->storage, value->Prgch(), value->Cch(), row);
+        return mm_rollcall_table_add(&static_cast<PRollCallTable>(p)->storage, value->Prgch(), value->Cch(), row);
     };
-    s.erase = [](void *p, ThreeMMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
-    s.actor_id = [](void *p) -> ThreeMMI32 { return static_cast<PActor>(p)->Arid(); };
-    s.set_actor_id = [](void *p, ThreeMMI32 id) { static_cast<PActor>(p)->SetArid(id); };
-    s.actor_tag = [](void *p, ThreeMMTag *out) { TAG tag; static_cast<PActor>(p)->GetTagTmpl(&tag); *out = TagToCore(tag); };
+    s.erase = [](void *p, MMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
+    s.actor_id = [](void *p) -> MMI32 { return static_cast<PActor>(p)->Arid(); };
+    s.set_actor_id = [](void *p, MMI32 id) { static_cast<PActor>(p)->SetArid(id); };
+    s.actor_tag = [](void *p, MMTag *out) { TAG tag; static_cast<PActor>(p)->GetTagTmpl(&tag); *out = TagToCore(tag); };
     s.is_prop = [](void *p) -> int { return static_cast<PActor>(p)->FIsPropBrws(); };
     s.is_text = [](void *p) -> int { return static_cast<PActor>(p)->FIsTdt(); };
-    s.same_tag = [](const ThreeMMTag *a, const ThreeMMTag *b) -> int {
+    s.same_tag = [](const MMTag *a, const MMTag *b) -> int {
         TAG first, second; TagFromCore(&first, *a); TagFromCore(&second, *b);
         return TagManager::FcmpCompareTags(&first, &second) == fcmpEq;
     };
-    s.open_tag = [](void *, ThreeMMTag *value, void *resources) {
+    s.open_tag = [](void *, MMTag *value, void *resources) {
         TAG tag; TagFromCore(&tag, *value);
         AssertDo(TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources)), "Should never fail when not copying the tag");
         *value = TagToCore(tag);
     };
-    s.duplicate_tag = [](const ThreeMMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::DupTag(&tag); };
-    s.close_tag = [](ThreeMMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
+    s.duplicate_tag = [](const MMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::DupTag(&tag); };
+    s.close_tag = [](MMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
     s.changed = [](void *p) { static_cast<PMovie>(p)->Pmcc()->UpdateRollCall(); };
     s.diagnostic = [](void *, int issue) {
         switch (issue)
         {
-        case THREE_MM_ROLLCALL_NO_ACTOR: Bug("no such actor"); break;
-        case THREE_MM_ROLLCALL_BAD_REMOVE: Bug("Tried to remove an invalid actor"); break;
-        case THREE_MM_ROLLCALL_UNDERFLOW: Assert(false, "Too many removes"); break;
+        case MM_ROLLCALL_NO_ACTOR: Bug("no such actor"); break;
+        case MM_ROLLCALL_BAD_REMOVE: Bug("Tried to remove an invalid actor"); break;
+        case MM_ROLLCALL_UNDERFLOW: Assert(false, "Too many removes"); break;
         }
     };
     return s;
 }
 
-ThreeMMMovieUndoServices Movie::_UndoServices()
+MMMovieUndoServices Movie::_UndoServices()
 {
-    static_assert(undoDisabled == THREE_MM_MOVIE_UNDO_DISABLED && undoUndo == THREE_MM_MOVIE_UNDO_READY, "Movie undo ABI");
-    ThreeMMMovieUndoServices s = {};
+    static_assert(undoDisabled == MM_MOVIE_UNDO_DISABLED && undoUndo == MM_MOVIE_UNDO_READY, "Movie undo ABI");
+    MMMovieUndoServices s = {};
     s.context = this;
     s.bind_movie = [](void *p, void *u) { static_cast<PMovieUndo>(u)->SetPmvie(static_cast<PMovie>(p)); };
-    s.bind_scene = [](void *u, ThreeMMI32 index) { auto undo = static_cast<PMovieUndo>(u); undo->SetIscen(index); AssertPo(undo, 0); };
-    s.bind_frame = [](void *u, ThreeMMI32 frame) { static_cast<PMovieUndo>(u)->SetNfrm(frame); };
-    s.scene_index = [](void *p) -> ThreeMMI32 { return static_cast<PMovie>(p)->Iscen(); };
-    s.frame = [](void *p) -> ThreeMMI32 { return static_cast<PMovie>(p)->Pscen()->Nfrm(); };
+    s.bind_scene = [](void *u, MMI32 index) { auto undo = static_cast<PMovieUndo>(u); undo->SetIscen(index); AssertPo(undo, 0); };
+    s.bind_frame = [](void *u, MMI32 frame) { static_cast<PMovieUndo>(u)->SetNfrm(frame); };
+    s.scene_index = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->Iscen(); };
+    s.frame = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->Pscen()->Nfrm(); };
     s.commit = [](void *p, void *u) -> int { return static_cast<PMovie>(p)->DocumentBase::FAddUndo(static_cast<PMovieUndo>(u)); };
     s.clear = [](void *p) { static_cast<PMovie>(p)->Movie_PAR::ClearUndo(); };
     s.notify = [](void *p, int mode) { static_cast<PMovie>(p)->Pmcc()->SetUndo(mode); };
     return s;
 }
 
-ThreeMMMovieEditServices Movie::_EditServices()
+MMMovieEditServices Movie::_EditServices()
 {
     static_assert(rOne == 65536 && vlmNil == -1 && styNil == 0, "Movie edit scalar/sound ABI");
-    ThreeMMMovieEditServices s = {};
+    MMMovieEditServices s = {};
     s.context = this; s.data = &_data; s.scenes = &_scenes;
     s.rollcall = _RollCallServices(); s.undo = _UndoServices();
     s.selected_actor = [](void *p) -> void * { return static_cast<PScene>(p)->PactrSelected(); };
-    s.actor_from_id = [](void *p, ThreeMMI32 id) -> void * { return static_cast<PScene>(p)->PactrFromArid(id); };
+    s.actor_from_id = [](void *p, MMI32 id) -> void * { return static_cast<PScene>(p)->PactrFromArid(id); };
     s.select_actor = [](void *p, void *actor) { static_cast<PScene>(p)->SelectActr(static_cast<PActor>(actor)); };
     s.first_view = [](void *p) -> void * { return static_cast<PMovieView>(static_cast<PMovie>(p)->PddgGet(0)); };
-    s.new_actor = [](void *, const ThreeMMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return Actor::PactrNew(&tag); };
+    s.new_actor = [](void *, const MMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return Actor::PactrNew(&tag); };
     s.actor_visible = [](void *p) -> int { return static_cast<PActor>(p)->FIsInView(); };
     s.core_onstage = [](void *p) -> int { return static_cast<PActor>(p)->FAddOnStageCore(); };
     s.duplicate_actor = [](void *p, int reset) -> void * {
@@ -839,62 +839,62 @@ ThreeMMMovieEditServices Movie::_EditServices()
     s.release_actor = [](void *p) { auto actor = static_cast<PActor>(p); ReleasePpo(&actor); };
     s.restore_actor = [](void *p, void *copy) { static_cast<PActor>(p)->Restore(static_cast<PActor>(copy)); };
     s.add_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FAddActr(static_cast<PActor>(actor)); };
-    s.remove_actor = [](void *p, ThreeMMI32 id) -> int { return static_cast<PScene>(p)->FRemActr(id); };
-    s.apply_actor = [](void *p, int kind, const ThreeMMMovieEditRequest *q) -> int {
+    s.remove_actor = [](void *p, MMI32 id) -> int { return static_cast<PScene>(p)->FRemActr(id); };
+    s.apply_actor = [](void *p, int kind, const MMMovieEditRequest *q) -> int {
         auto actor = static_cast<PActor>(p); AssertPo(actor, 0);
         TAG tag; if (q->tag) TagFromCore(&tag, *q->tag);
         switch (kind)
         {
-        case THREE_MM_MOVIE_EDIT_ROTATE: return actor->FRotate(q->rotation[0], q->rotation[1], q->rotation[2], q->forward != 0);
-        case THREE_MM_MOVIE_EDIT_SQUASH: return actor->FPull(q->pull[0], q->pull[1], q->pull[2]);
-        case THREE_MM_MOVIE_EDIT_TIME: return actor->FSoonerLater(q->shift);
-        case THREE_MM_MOVIE_EDIT_SCALE: return actor->FScale(q->factor);
-        case THREE_MM_MOVIE_EDIT_COSTUME: return actor->FSetCostume(q->part, q->tag ? &tag : nullptr, q->costume, tribool(q->custom));
-        case THREE_MM_MOVIE_EDIT_ACTOR_SOUND: return actor->FSetSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), tribool(q->cel), q->volume, q->style);
-        case THREE_MM_MOVIE_EDIT_ONSTAGE: return actor->FAddOnStage();
+        case MM_MOVIE_EDIT_ROTATE: return actor->FRotate(q->rotation[0], q->rotation[1], q->rotation[2], q->forward != 0);
+        case MM_MOVIE_EDIT_SQUASH: return actor->FPull(q->pull[0], q->pull[1], q->pull[2]);
+        case MM_MOVIE_EDIT_TIME: return actor->FSoonerLater(q->shift);
+        case MM_MOVIE_EDIT_SCALE: return actor->FScale(q->factor);
+        case MM_MOVIE_EDIT_COSTUME: return actor->FSetCostume(q->part, q->tag ? &tag : nullptr, q->costume, tribool(q->custom));
+        case MM_MOVIE_EDIT_ACTOR_SOUND: return actor->FSetSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), tribool(q->cel), q->volume, q->style);
+        case MM_MOVIE_EDIT_ONSTAGE: return actor->FAddOnStage();
         default: Bug("Invalid Movie actor primitive"); return 0;
         }
     };
-    s.apply_scene = [](void *p, int kind, const ThreeMMMovieEditRequest *q) -> int {
+    s.apply_scene = [](void *p, int kind, const MMMovieEditRequest *q) -> int {
         auto scene = static_cast<PScene>(p);
         TAG tag; if (q->tag) TagFromCore(&tag, *q->tag);
         switch (kind)
         {
-        case THREE_MM_MOVIE_EDIT_CAMERA: return scene->FChangeCam(q->camera);
-        case THREE_MM_MOVIE_EDIT_PAUSE: return scene->FPause(WaitReason(q->reason), q->delay);
-        case THREE_MM_MOVIE_EDIT_TRANSITION: return scene->FSetTransition(TRANS(q->transition));
-        case THREE_MM_MOVIE_EDIT_BACKGROUND_SOUND: return scene->FAddSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), q->volume, q->style);
+        case MM_MOVIE_EDIT_CAMERA: return scene->FChangeCam(q->camera);
+        case MM_MOVIE_EDIT_PAUSE: return scene->FPause(WaitReason(q->reason), q->delay);
+        case MM_MOVIE_EDIT_TRANSITION: return scene->FSetTransition(TRANS(q->transition));
+        case MM_MOVIE_EDIT_BACKGROUND_SOUND: return scene->FAddSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), q->volume, q->style);
         default: Bug("Invalid Movie scene primitive"); return 0;
         }
     };
-    s.frame = [](void *p) -> ThreeMMI32 { return static_cast<PScene>(p)->Nfrm(); };
-    s.undo_count = [](void *p) -> ThreeMMI32 { return static_cast<PMovie>(p)->CundbUndo(); };
+    s.frame = [](void *p) -> MMI32 { return static_cast<PScene>(p)->Nfrm(); };
+    s.undo_count = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->CundbUndo(); };
     s.last_undo = [](void *p) -> void * {
         auto movie = static_cast<PMovie>(p); PUndoBase undo;
         movie->_pglpundb->Get(movie->_ipundbLimDone - 1, &undo); return undo;
     };
     s.actor_undo = [](void *p) -> int { return static_cast<PUndoBase>(p)->FIs(kclsActorUndo); };
     s.time_undo = [](void *p) -> int { return static_cast<PActorUndo>(p)->FSoonerLater(); };
-    s.time_undo_frame = [](void *p, ThreeMMI32 frame) { static_cast<PActorUndo>(p)->SetNfrmLast(frame); };
+    s.time_undo_frame = [](void *p, MMI32 frame) { static_cast<PActorUndo>(p)->SetNfrmLast(frame); };
     s.place_actor = [](void *p, int entire) { static_cast<PMovieView>(p)->StartPlaceActor(entire != 0); };
     s.placement_undo = [](void *p, void *owned) { static_cast<PMovieView>(p)->SetActrUndo(static_cast<PActor>(owned)); };
     s.paste_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FPasteActr(static_cast<PActor>(actor)); };
     s.paste_route = [](void *p, void *source) -> int { return static_cast<PActor>(p)->FPasteRte(static_cast<PActor>(source)); };
     s.create_actor_undo = [](void *p, void *copy) -> int { return static_cast<PActor>(p)->FCreateUndo(static_cast<PActor>(copy)); };
     s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
-    s.cache_tag = [](void *, const ThreeMMTag *value, int background) -> int {
+    s.cache_tag = [](void *, const MMTag *value, int background) -> int {
         TAG tag; TagFromCore(&tag, *value); return background ? Background::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
     };
     s.default_title = [](void *p) { static_cast<PMovie>(p)->_SetTitle(); };
     s.empty_scene = [](void *p) -> int { return static_cast<PScene>(p)->FIsEmpty(); };
-    s.new_scene = [](void *p, ThreeMMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
-    s.remove_scene = [](void *p, ThreeMMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
-    s.background = [](void *p, const ThreeMMTag *value, int undoable) -> int {
+    s.new_scene = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
+    s.remove_scene = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
+    s.background = [](void *p, const MMTag *value, int undoable) -> int {
         TAG tag, old; TagFromCore(&tag, *value); auto scene = static_cast<PMovie>(p)->Pscen();
         return undoable ? scene->FSetBkgd(&tag) : scene->FSetBkgdCore(&tag, &old);
     };
     s.new_scene_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
-    s.configure_scene_undo = [](void *, void *p, ThreeMMI32 index, const ThreeMMTag *value) {
+    s.configure_scene_undo = [](void *, void *p, MMI32 index, const MMTag *value) {
         auto undo = static_cast<PMovieSceneUndo>(p); TAG tag; TagFromCore(&tag, *value);
         undo->SetMunst(munstInsScen); undo->SetIscen(index); undo->SetTag(&tag);
     };
@@ -902,9 +902,9 @@ ThreeMMMovieEditServices Movie::_EditServices()
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
     s.play_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
     s.flush_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
-    s.fetch_sound = [](void *, const ThreeMMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd); };
-    s.sound_volume = [](void *p) -> ThreeMMI32 { return static_cast<PMovieSoundMSND>(p)->Vlm(); };
-    s.sound_style = [](void *p) -> ThreeMMI32 { return static_cast<PMovieSoundMSND>(p)->Sty(); };
+    s.fetch_sound = [](void *, const MMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd); };
+    s.sound_volume = [](void *p) -> MMI32 { return static_cast<PMovieSoundMSND>(p)->Vlm(); };
+    s.sound_style = [](void *p) -> MMI32 { return static_cast<PMovieSoundMSND>(p)->Sty(); };
     s.release_sound = [](void *p) { auto sound = static_cast<PMovieSoundMSND>(p); ReleasePpo(&sound); };
     s.dirty = [](void *p) { static_cast<PMovie>(p)->SetDirty(); };
     s.invalidate = [](void *p, int bars) { if (bars) static_cast<PMovie>(p)->InvalViewsAndScb(); else static_cast<PMovie>(p)->InvalViews(); };
@@ -912,9 +912,9 @@ ThreeMMMovieEditServices Movie::_EditServices()
     s.diagnostic = [](void *, int issue) {
         switch (issue)
         {
-        case THREE_MM_MOVIE_EDIT_NO_ACTOR: PushErc(ercSocNoActrSelected); break;
-        case THREE_MM_MOVIE_EDIT_ROLLCALL_FAILED: AssertDo(false, "Should never fail"); break;
-        case THREE_MM_MOVIE_EDIT_BACKGROUND_FAILED: Bug("warning: set background failed."); break;
+        case MM_MOVIE_EDIT_NO_ACTOR: PushErc(ercSocNoActrSelected); break;
+        case MM_MOVIE_EDIT_ROLLCALL_FAILED: AssertDo(false, "Should never fail"); break;
+        case MM_MOVIE_EDIT_BACKGROUND_FAILED: Bug("warning: set background failed."); break;
         }
     };
     return s;
@@ -926,9 +926,9 @@ bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG
     AssertPvCb(parid, size(long));
     AssertVarMem(pcactRef);
     const auto services = _RollCallServices();
-    ThreeMMI32 id, refs;
-    ThreeMMTag tag;
-    if (!three_mm_movie_rollcall_get(iarid, &id, pstn, &refs, ptagTmpl ? &tag : nullptr, &services)) return false;
+    MMI32 id, refs;
+    MMTag tag;
+    if (!mm_movie_rollcall_get(iarid, &id, pstn, &refs, ptagTmpl ? &tag : nullptr, &services)) return false;
     *parid = id; *pcactRef = refs;
     if (ptagTmpl) TagFromCore(ptagTmpl, tag);
     return true;
@@ -952,7 +952,7 @@ bool Movie::FChooseArid(long arid)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    return three_mm_movie_choose_actor(arid, &services) != 0;
+    return mm_movie_choose_actor(arid, &services) != 0;
 }
 
 /****************************************************
@@ -970,7 +970,7 @@ long Movie::AridSelected(void)
 {
     AssertThis(0);
     const auto services = _EditServices();
-    return three_mm_movie_selected_actor(&services);
+    return mm_movie_selected_actor(&services);
 }
 
 /****************************************************
@@ -989,7 +989,7 @@ bool Movie::FGetName(long arid, PString pstn)
 {
     AssertThis(0); AssertPo(pstn, 0);
     const auto services = _RollCallServices();
-    return three_mm_movie_rollcall_name(arid, pstn, &services) != 0;
+    return mm_movie_rollcall_name(arid, pstn, &services) != 0;
 }
 
 /****************************************************
@@ -1008,7 +1008,7 @@ bool Movie::FNameActr(long arid, PString pstn)
 {
     AssertThis(0); AssertIn(arid, 0, 500); AssertPo(pstn, 0);
     const auto services = _RollCallServices();
-    return three_mm_movie_rollcall_rename(arid, pstn, &services) != 0;
+    return mm_movie_rollcall_rename(arid, pstn, &services) != 0;
 }
 
 /****************************************************
@@ -1026,7 +1026,7 @@ bool Movie::FIsPropBrwsIarid(long iarid)
 {
     AssertThis(0); AssertIn(iarid, 0, _data.Actors()->IvMac());
     const auto services = _RollCallServices();
-    return three_mm_movie_rollcall_has(iarid, THREE_MM_MOVIE_PROP, &services) != 0;
+    return mm_movie_rollcall_has(iarid, MM_MOVIE_PROP, &services) != 0;
 }
 
 /****************************************************
@@ -1044,7 +1044,7 @@ bool Movie::FIsIaridTdt(long iarid)
 {
     AssertThis(0); AssertIn(iarid, 0, _data.Actors()->IvMac());
     const auto services = _RollCallServices();
-    return three_mm_movie_rollcall_has(iarid, THREE_MM_MOVIE_TEXT, &services) != 0;
+    return mm_movie_rollcall_has(iarid, MM_MOVIE_TEXT, &services) != 0;
 }
 
 /****************************************************
@@ -1064,7 +1064,7 @@ void Movie::ChangeActrTag(long arid, PTAG ptag)
     AssertThis(0); AssertIn(arid, 0, 500); AssertVarMem(ptag);
     const auto services = _RollCallServices();
     const auto tag = TagToCore(*ptag);
-    three_mm_movie_rollcall_change_tag(arid, &tag, &services);
+    mm_movie_rollcall_change_tag(arid, &tag, &services);
 }
 
 /****************************************************
@@ -1083,7 +1083,7 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
 {
     AssertThis(0); AssertPo(pactr, 0); AssertNilOrPo(pstn, 0);
     const auto services = _RollCallServices();
-    return three_mm_movie_rollcall_add(pactr, pstn, &services) != 0;
+    return mm_movie_rollcall_add(pactr, pstn, &services) != 0;
 }
 
 /****************************************************
@@ -1102,7 +1102,7 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
 {
     AssertThis(0); AssertPo(pactr, 0);
     const auto services = _RollCallServices();
-    three_mm_movie_rollcall_remove(pactr, fDelIfOnlyRef, &services);
+    mm_movie_rollcall_remove(pactr, fDelIfOnlyRef, &services);
 }
 
 /****************************************************
@@ -1118,11 +1118,11 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
  *  same scene is still open (if possible).
  *
  ****************************************************/
-ThreeMMMovieSceneServices Movie::_SceneServices()
+MMMovieSceneServices Movie::_SceneServices()
 {
-    static_assert(munstInsScen == THREE_MM_MOVIE_INSERT_SCENE && munstRemScen == THREE_MM_MOVIE_REMOVE_SCENE &&
+    static_assert(munstInsScen == MM_MOVIE_INSERT_SCENE && munstRemScen == MM_MOVIE_REMOVE_SCENE &&
         ivNil == -1, "Movie scene ABI");
-    ThreeMMMovieSceneServices s = {};
+    MMMovieSceneServices s = {};
     s.context = this;
     s.state = &_scenes;
     s.count = &_data.sceneCount;
@@ -1143,7 +1143,7 @@ ThreeMMMovieSceneServices Movie::_SceneServices()
         }
 #endif
     };
-    s.read = [](void *p, ThreeMMI32 index) -> void * {
+    s.read = [](void *p, MMI32 index) -> void * {
         auto movie = static_cast<PMovie>(p);
         ChildChunkIdentification kid;
         AssertDo(movie->_data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, movie->_data.movieNumber,
@@ -1168,31 +1168,31 @@ ThreeMMMovieSceneServices Movie::_SceneServices()
     s.scene_change = [](void *p) { static_cast<PMovie>(p)->_pmcc->SceneChange(); };
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
     s.file = [](void *p) -> void * { return static_cast<PMovie>(p)->_data.Resources()->Pcfl(); };
-    s.write = [](void *p, void *scene, ThreeMMU32 *number) -> int {
+    s.write = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
     };
-    s.scene_number = [](void *p, void *file, ThreeMMI32 index) -> ThreeMMU32 {
+    s.scene_number = [](void *p, void *file, MMI32 index) -> MMU32 {
         ChildChunkIdentification kid;
         AssertDo(static_cast<PChunkyFile>(file)->FGetKidChidCtg(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
             index, kctgScen, &kid), "Should never fail");
         return kid.cki.cno;
     };
-    s.move_child = [](void *p, void *file, ThreeMMI32 from, ThreeMMI32 to) {
+    s.move_child = [](void *p, void *file, MMI32 from, MMI32 to) {
         auto movie = static_cast<PMovie>(p);
         auto archive = static_cast<PChunkyFile>(file);
         ChildChunkIdentification kid;
         AssertDo(archive->FGetKidChidCtg(kctgMvie, movie->_data.movieNumber, from, kctgScen, &kid), "Should never fail");
         archive->ChangeChid(kctgMvie, movie->_data.movieNumber, kctgScen, kid.cki.cno, from, to);
     };
-    s.adopt = [](void *p, void *file, ThreeMMU32 number, ThreeMMI32 index) -> int {
+    s.adopt = [](void *p, void *file, MMU32 number, MMI32 index) -> int {
         return static_cast<PChunkyFile>(file)->FAdoptChild(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
             kctgScen, number, index);
     };
-    s.delete_child = [](void *p, void *file, ThreeMMU32 number, ThreeMMI32 index) {
+    s.delete_child = [](void *p, void *file, MMU32 number, MMI32 index) {
         static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
             kctgScen, number, index);
     };
-    s.delete_chunk = [](void *, void *file, ThreeMMU32 number) { static_cast<PChunkyFile>(file)->Delete(kctgScen, number); };
+    s.delete_chunk = [](void *, void *file, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(kctgScen, number); };
     s.save = [](void *file) { static_cast<PChunkyFile>(file)->FSave(kctgSoc); };
     s.remove_actors = [](void *scene) { static_cast<PScene>(scene)->RemActrsFromRollCall(); };
     s.add_actors = [](void *scene) { static_cast<PScene>(scene)->FAddActrsToRollCall(); };
@@ -1203,7 +1203,7 @@ ThreeMMMovieSceneServices Movie::_SceneServices()
     s.play_sound = [](void *p) { static_cast<PMovie>(p)->_pmsq->PlayMsq(); };
     s.flush_sound = [](void *p) { static_cast<PMovie>(p)->_pmsq->FlushMsq(); };
     s.new_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
-    s.configure_undo = [](void *, void *p, ThreeMMI32 index, void *scene) {
+    s.configure_undo = [](void *, void *p, MMI32 index, void *scene) {
         auto undo = static_cast<PMovieSceneUndo>(p);
         undo->SetIscen(index);
         undo->SetPscen(static_cast<PScene>(scene));
@@ -1221,7 +1221,7 @@ bool Movie::FSwitchScen(long iscen)
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
     Assert(iscen == ivNil || _data.Resources(), "Invalid save file");
     auto services = _SceneServices();
-    return three_mm_movie_scene_switch(iscen, &services) != 0;
+    return mm_movie_scene_switch(iscen, &services) != 0;
 }
 
 /****************************************************
@@ -1240,78 +1240,78 @@ bool Movie::FNewScenInsCore(long iscen)
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
     auto services = _SceneServices();
-    return three_mm_movie_scene_new(iscen, &services) != 0;
+    return mm_movie_scene_new(iscen, &services) != 0;
 }
 
 /******************************************************************************
     Native resource primitives for the shared C movie sound controller.
 
 ************************************************************ PETED ***********/
-ThreeMMMovieSoundServices Movie::_SoundServices()
+MMMovieSoundServices Movie::_SoundServices()
 {
-    static_assert(kctgMvie==THREE_MM_SOUND_MOVIE && kctgScen==THREE_MM_SOUND_SCENE &&
-        kctgMsnd==THREE_MM_SOUND_CHUNK && kctgSoc==THREE_MM_SOUND_CREATOR && kchidSnd==0 && ksidUseCrf==0,"Movie sound ABI");
-    static_assert(sizeof(TAG)==sizeof(ThreeMMTag) && sizeof(ChunkNumber)==sizeof(ThreeMMU32) &&
-        sizeof(ChildChunkID)==sizeof(ThreeMMU32),"Movie sound record ABI");
-    ThreeMMMovieSoundServices s{}; s.context=this;
-    s.read=[](void *p,ThreeMMMovieSoundState *state) {
+    static_assert(kctgMvie==MM_SOUND_MOVIE && kctgScen==MM_SOUND_SCENE &&
+        kctgMsnd==MM_SOUND_CHUNK && kctgSoc==MM_SOUND_CREATOR && kchidSnd==0 && ksidUseCrf==0,"Movie sound ABI");
+    static_assert(sizeof(TAG)==sizeof(MMTag) && sizeof(ChunkNumber)==sizeof(MMU32) &&
+        sizeof(ChildChunkID)==sizeof(MMU32),"Movie sound record ABI");
+    MMMovieSoundServices s{}; s.context=this;
+    s.read=[](void *p,MMMovieSoundState *state) {
         auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_scenes.index;
     };
     s.file=[](void *p)->void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.count=[](void *p,ThreeMMU32 type,ThreeMMU32 number)->ThreeMMI32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
-    s.child=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMI32 index,ThreeMMChunkChild *out) {
+    s.count=[](void *p,MMU32 type,MMU32 number)->MMI32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
+    s.child=[](void *p,MMU32 type,MMU32 number,MMI32 index,MMChunkChild *out) {
         ChildChunkIdentification child; bool ok=static_cast<PChunkyFile>(p)->FGetKid(type,number,index,&child);
         if (ok) *out={child.cki.ctg,child.cki.cno,child.chid}; return int(ok);
     };
-    s.find=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMU32 slot,ThreeMMU32 childType,ThreeMMU32 *out) {
+    s.find=[](void *p,MMU32 type,MMU32 number,MMU32 slot,MMU32 childType,MMU32 *out) {
         ChildChunkIdentification child; bool ok=static_cast<PChunkyFile>(p)->FGetKidChidCtg(type,number,slot,childType,&child);
         if (ok) *out=child.cki.cno; return int(ok);
     };
-    s.adopt=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMU32 childType,ThreeMMU32 child,ThreeMMU32 slot) {
+    s.adopt=[](void *p,MMU32 type,MMU32 number,MMU32 childType,MMU32 child,MMU32 slot) {
         return int(static_cast<PChunkyFile>(p)->FAdoptChild(type,number,childType,child,slot));
     };
-    s.open_tag=[](void *,ThreeMMTag *v,void *cache) {
+    s.open_tag=[](void *,MMTag *v,void *cache) {
         TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FOpenTag(&tag,static_cast<PChunkyResourceFile>(cache));
         std::memcpy(v,&tag,sizeof(tag)); return int(ok);
     };
-    s.close_tag=[](void *,ThreeMMTag *v) { TAG tag; std::memcpy(&tag,v,sizeof(tag)); TagManager::CloseTag(&tag); std::memcpy(v,&tag,sizeof(tag)); };
-    s.save_tag=[](void *,ThreeMMTag *v,void *cache,int redirect) {
+    s.close_tag=[](void *,MMTag *v) { TAG tag; std::memcpy(&tag,v,sizeof(tag)); TagManager::CloseTag(&tag); std::memcpy(v,&tag,sizeof(tag)); };
+    s.save_tag=[](void *,MMTag *v,void *cache,int redirect) {
         TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FSaveTag(&tag,static_cast<PChunkyResourceFile>(cache),redirect!=0);
         std::memcpy(v,&tag,sizeof(tag)); return int(ok);
     };
     s.ensure_autosave=[](void *p) { return int(static_cast<PMovie>(p)->FEnsureAutosave()); };
     s.use_temp=[](void *p) { return int(static_cast<PMovie>(p)->_FUseTempFile()); };
     s.inspect_source=[](void *p) { Filename filename; static_cast<PChunkyFile>(p)->GetFni(&filename); };
-    s.copy_chunk=[](void *p,ThreeMMU32 type,ThreeMMU32 number,void *destination,ThreeMMU32 *out) {
+    s.copy_chunk=[](void *p,MMU32 type,MMU32 number,void *destination,MMU32 *out) {
         ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=static_cast<PChunkyFile>(p)->FCopy(type,number,static_cast<PChunkyFile>(destination),&value);
         std::memcpy(out,&value,sizeof(value)); return int(ok);
     };
-    s.delete_chunk=[](void *p,ThreeMMU32 type,ThreeMMU32 number) { static_cast<PChunkyFile>(p)->Delete(type,number); };
-    s.save_file=[](void *p,ThreeMMU32 creator) { return int(static_cast<PChunkyFile>(p)->FSave(creator)); };
+    s.delete_chunk=[](void *p,MMU32 type,MMU32 number) { static_cast<PChunkyFile>(p)->Delete(type,number); };
+    s.save_file=[](void *p,MMU32 creator) { return int(static_cast<PChunkyFile>(p)->FSave(creator)); };
     s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
-    s.copy_midi=[](void *p,void *destination,ThreeMMU32 *out,void *name) {
+    s.copy_midi=[](void *p,void *destination,MMU32 *out,void *name) {
         ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=MovieSoundMSND::FCopyMidi(static_cast<PFileObject>(p),static_cast<PChunkyFile>(destination),&value,static_cast<PString>(name));
         std::memcpy(out,&value,sizeof(value)); return int(ok);
     };
-    s.copy_wave=[](void *p,void *destination,ThreeMMI32 style,ThreeMMU32 *out,void *name) {
+    s.copy_wave=[](void *p,void *destination,MMI32 style,MMU32 *out,void *name) {
         ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=MovieSoundMSND::FCopyWave(static_cast<PFileObject>(p),static_cast<PChunkyFile>(destination),style,&value,static_cast<PString>(name));
         std::memcpy(out,&value,sizeof(value)); return int(ok);
     };
     s.has_bad_sound_error=[](void *) { return int(vpers->FIn(ercSocBadSoundFile)); };
     s.mark_gc=[](void *p) { static_cast<PMovie>(p)->_fGCSndsOnClose=true; };
-    s.sound_count=[](void *p)->ThreeMMI32 { return static_cast<PChunkyFile>(p)->CckiCtg(kctgMsnd); };
-    s.sound_at=[](void *p,ThreeMMI32 index,ThreeMMU32 *out) {
+    s.sound_count=[](void *p)->MMI32 { return static_cast<PChunkyFile>(p)->CckiCtg(kctgMsnd); };
+    s.sound_at=[](void *p,MMI32 index,MMU32 *out) {
         ChunkIdentification chunk; bool ok=static_cast<PChunkyFile>(p)->FGetCkiCtg(kctgMsnd,index,&chunk);
         if (ok) *out=chunk.cno; return int(ok);
     };
-    s.references=[](void *p,ThreeMMU32 type,ThreeMMU32 number)->ThreeMMI32 { return static_cast<PChunkyFile>(p)->CckiRef(type,number); };
-    s.child_at_slot=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMU32 slot) { ChildChunkIdentification child; return int(static_cast<PChunkyFile>(p)->FGetKidChid(type,number,slot,&child)); };
+    s.references=[](void *p,MMU32 type,MMU32 number)->MMI32 { return static_cast<PChunkyFile>(p)->CckiRef(type,number); };
+    s.child_at_slot=[](void *p,MMU32 type,MMU32 number,MMU32 slot) { ChildChunkIdentification child; return int(static_cast<PChunkyFile>(p)->FGetKidChid(type,number,slot,&child)); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
-        case THREE_MM_SOUND_BAD_CHILD_ENUM: Bug("ChunkyFile returned bogus ckid"); break;
-        case THREE_MM_SOUND_NO_CURRENT_SCENE: Bug("Scene chunk doesn't exist!"); break;
-        case THREE_MM_SOUND_CANNOT_COPY: PushErc(ercSocCantCopyMsnd); break;
-        case THREE_MM_SOUND_BAD_CHUNK_ENUM: Bug("Should never fail"); break;
+        case MM_SOUND_BAD_CHILD_ENUM: Bug("ChunkyFile returned bogus ckid"); break;
+        case MM_SOUND_NO_CURRENT_SCENE: Bug("Scene chunk doesn't exist!"); break;
+        case MM_SOUND_CANNOT_COPY: PushErc(ercSocCantCopyMsnd); break;
+        case MM_SOUND_BAD_CHUNK_ENUM: Bug("Should never fail"); break;
         default: Bug("Unknown movie sound diagnostic"); break;
         }
     };
@@ -1335,7 +1335,7 @@ ThreeMMMovieSoundServices Movie::_SoundServices()
 bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
 {
     AssertThis(0); AssertPo(pcfl,0); const auto services=_SoundServices();
-    return three_mm_movie_sound_adopt(pcfl,cnoScen,&services)!=0;
+    return mm_movie_sound_adopt(pcfl,cnoScen,&services)!=0;
 }
 
 /****************************************************
@@ -1357,14 +1357,14 @@ bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
 bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PChunkyResourceFile pcrf)
 {
     AssertThis(0); AssertVarMem(ptag); AssertNilOrVarMem(pcrf); const auto services=_SoundServices();
-    ThreeMMTag tag; std::memcpy(&tag,ptag,sizeof(tag)); bool ok=three_mm_movie_sound_resolve(&tag,chid,cnoScen,pcrf,&services)!=0;
+    MMTag tag; std::memcpy(&tag,ptag,sizeof(tag)); bool ok=mm_movie_sound_resolve(&tag,chid,cnoScen,pcrf,&services)!=0;
     std::memcpy(ptag,&tag,sizeof(tag)); return ok;
 }
 bool Movie::FSaveTagSnd(TAG *ptag)
 {
     AssertVarMem(ptag);
-    ThreeMMTag tag; std::memcpy(&tag,ptag,sizeof(tag)); const auto services=_SoundServices();
-    bool ok=three_mm_movie_sound_save(&tag,&services)!=0; std::memcpy(ptag,&tag,sizeof(tag)); return ok;
+    MMTag tag; std::memcpy(&tag,ptag,sizeof(tag)); const auto services=_SoundServices();
+    bool ok=mm_movie_sound_save(&tag,&services)!=0; std::memcpy(ptag,&tag,sizeof(tag)); return ok;
 }
 
 /****************************************************
@@ -1383,7 +1383,7 @@ bool Movie::FSaveTagSnd(TAG *ptag)
 bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 {
     AssertThis(0); AssertVarMem(pchid); const auto services=_SoundServices();
-    ThreeMMU32 child; std::memcpy(&child,pchid,sizeof(child)); bool ok=three_mm_movie_sound_child(cno,&child,&services)!=0;
+    MMU32 child; std::memcpy(&child,pchid,sizeof(child)); bool ok=mm_movie_sound_child(cno,&child,&services)!=0;
     std::memcpy(pchid,&child,sizeof(child)); return ok;
 }
 
@@ -1404,8 +1404,8 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertThis(0); AssertVarMem(pfilSrc); AssertVarMem(pcno); AssertNilOrPo(pstn,0); Assert(_data.Resources()!=nullptr,"Bad working file.");
-    const auto services=_SoundServices(); ThreeMMU32 number; std::memcpy(&number,pcno,sizeof(number));
-    bool ok=three_mm_movie_sound_import(pfilSrc,sty,&number,pstn,&services)!=0; std::memcpy(pcno,&number,sizeof(number)); return ok;
+    const auto services=_SoundServices(); MMU32 number; std::memcpy(&number,pcno,sizeof(number));
+    bool ok=mm_movie_sound_import(pfilSrc,sty,&number,pstn,&services)!=0; std::memcpy(pcno,&number,sizeof(number)); return ok;
 }
 
 /****************************************************
@@ -1423,7 +1423,7 @@ bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno,
 bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
 {
     AssertBaseThis(0); AssertPo(pcflSrc,0); AssertVarMem(pcnoDest); const auto services=_SoundServices();
-    ThreeMMU32 number; std::memcpy(&number,pcnoDest,sizeof(number)); bool ok=three_mm_movie_sound_copy(pcflSrc,cnoSrc,&number,&services)!=0;
+    MMU32 number; std::memcpy(&number,pcnoDest,sizeof(number)); bool ok=mm_movie_sound_copy(pcflSrc,cnoSrc,&number,&services)!=0;
     std::memcpy(pcnoDest,&number,sizeof(number)); return ok;
 }
 
@@ -1462,7 +1462,7 @@ bool Movie::FRemScenCore(long iscen)
     AssertIn(iscen, 0, Cscen());
     Assert(_data.Resources(), "Bad working file.");
     auto services = _SceneServices();
-    return three_mm_movie_scene_remove(iscen, &services) != 0;
+    return mm_movie_scene_remove(iscen, &services) != 0;
 }
 
 /****************************************************
@@ -1484,7 +1484,7 @@ bool Movie::FRemScen(long iscen)
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
     auto services = _SceneServices();
-    return three_mm_movie_scene_remove_undoable(iscen, &services) != 0;
+    return mm_movie_scene_remove_undoable(iscen, &services) != 0;
 }
 
 /****************************************************
@@ -1499,9 +1499,9 @@ bool Movie::FRemScen(long iscen)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-ThreeMMMovieContentServices Movie::_ContentServices()
+MMMovieContentServices Movie::_ContentServices()
 {
-    ThreeMMMovieContentServices s = {};
+    MMMovieContentServices s = {};
     s.edit = _EditServices();
     s.ensure = [](void *p, void **out) -> int {
         PChunkyResourceFile resources = nullptr;
@@ -1512,46 +1512,46 @@ ThreeMMMovieContentServices Movie::_ContentServices()
     s.make_valid = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
     s.use_temp = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
     s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.write_material = [](void *p, void *file, ThreeMMU32 *out) -> int {
+    s.write_material = [](void *p, void *file, MMU32 *out) -> int {
         ChunkNumber number; bool ok = static_cast<PMaterial_MTRL>(p)->FWrite(static_cast<PChunkyFile>(file), kctgMtrl, &number);
         if (ok) *out = number;
         return ok;
     };
-    s.new_text = [](const void *name, ThreeMMI32 shape, const void *font) -> void * {
+    s.new_text = [](const void *name, MMI32 shape, const void *font) -> void * {
         return ThreeDText::PtdtNew(const_cast<PString>(static_cast<const String *>(name)), shape,
                                   const_cast<PTAG>(static_cast<const TAG *>(font)));
     };
-    s.write_text = [](void *p, void *file, ThreeMMU32 *out) -> int {
+    s.write_text = [](void *p, void *file, MMU32 *out) -> int {
         ChunkNumber number; bool ok = static_cast<PThreeDText>(p)->FWrite(static_cast<PChunkyFile>(file), kctgTmpl, &number);
         if (ok) *out = number;
         return ok;
     };
     s.release_text = [](void *p) { auto text = static_cast<PThreeDText>(p); ReleasePpo(&text); };
-    s.open_tag = [](ThreeMMTag *value, void *resources) -> int {
+    s.open_tag = [](MMTag *value, void *resources) -> int {
         TAG tag; TagFromCore(&tag, *value);
         bool ok = TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources));
         *value = TagToCore(tag); return ok;
     };
-    s.close_tag = [](ThreeMMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
-    s.length = [](const void *name) -> ThreeMMI32 { return const_cast<PString>(static_cast<const String *>(name))->Cch(); };
-    s.character = [](const void *name, ThreeMMI32 i) -> ThreeMMI32 {
+    s.close_tag = [](MMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
+    s.length = [](const void *name) -> MMI32 { return const_cast<PString>(static_cast<const String *>(name))->Cch(); };
+    s.character = [](const void *name, MMI32 i) -> MMI32 {
         return static_cast<unsigned char>(const_cast<PString>(static_cast<const String *>(name))->Psz()[i]);
     };
-    s.change_template = [](void *p, const ThreeMMTag *value) -> int {
+    s.change_template = [](void *p, const MMTag *value) -> int {
         TAG tag; TagFromCore(&tag, *value); return static_cast<PActor>(p)->FChangeTagTmpl(&tag);
     };
     s.new_caption = [](void *scene, const void *bounds, int story) -> void * {
         return TextBox::PtboxNew(static_cast<PScene>(scene), const_cast<RC *>(static_cast<const RC *>(bounds)), story != 0);
     };
-    s.default_font = [](void *p) -> ThreeMMI32 { return static_cast<PMovie>(p)->Pmcc()->DypTboxDef(); };
-    s.caption_font = [](void *p, ThreeMMI32 font) { static_cast<PTBOX>(p)->SetDypFontDef(font); };
+    s.default_font = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->Pmcc()->DypTboxDef(); };
+    s.caption_font = [](void *p, MMI32 font) { static_cast<PTBOX>(p)->SetDypFontDef(font); };
     s.add_caption = [](void *p, void *caption) -> int { return static_cast<PScene>(p)->FAddTbox(static_cast<PTBOX>(caption)); };
     s.remove_caption = [](void *p, void *caption) -> int { return static_cast<PScene>(p)->FRemTbox(static_cast<PTBOX>(caption)); };
     s.select_caption = [](void *p, void *caption) { static_cast<PScene>(p)->SelectTbox(static_cast<PTBOX>(caption)); };
     s.attach_caption = [](void *p) { static_cast<PTBOX>(p)->AttachToMouse(); };
     s.release_caption = [](void *p) { auto caption = static_cast<PTBOX>(p); ReleasePpo(&caption); };
     s.selected_caption = [](void *p) -> void * { return static_cast<PScene>(p)->PtboxSelected(); };
-    s.caption_at = [](void *p, ThreeMMI32 i) -> void * { return static_cast<PScene>(p)->PtboxFromItbox(i); };
+    s.caption_at = [](void *p, MMI32 i) -> void * { return static_cast<PScene>(p)->PtboxFromItbox(i); };
     s.hide_caption = [](void *p) -> int { return static_cast<PTBOX>(p)->FHide(); };
     s.visible_caption = [](void *p) -> int { return static_cast<PTBOX>(p)->FIsVisible(); };
     s.missing_caption = [](void *) { PushErc(ercSocNoTboxSelected); };
@@ -1562,8 +1562,8 @@ bool Movie::FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag)
 {
     AssertThis(0); AssertPo(pmtrl, 0); AssertVarMem(ptag);
     const auto services = _ContentServices();
-    ThreeMMTag tag = {}; int written;
-    bool ok = three_mm_movie_insert_material(pmtrl, &tag, &written, &services) != 0;
+    MMTag tag = {}; int written;
+    bool ok = mm_movie_insert_material(pmtrl, &tag, &written, &services) != 0;
     if (written) TagFromCore(ptag, tag); else TrashVar(ptag);
     return ok;
 }
@@ -1584,7 +1584,7 @@ bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
     AssertThis(0);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return three_mm_movie_save_ensure(ppcrf, ppcrf ? +[](void *output, void *resources) {
+    return mm_movie_save_ensure(ppcrf, ppcrf ? +[](void *output, void *resources) {
         *static_cast<PChunkyResourceFile *>(output) = static_cast<PChunkyResourceFile>(resources);
     } : nullptr, &services) != 0;
 }
@@ -1607,7 +1607,7 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
     AssertThis(0); AssertPo(pstn, 0); Assert(pstn->Cch() > 0, "can't insert 0-length ThreeDText");
     AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     const auto services = _ContentServices();
-    return three_mm_movie_insert_text(pstn, tdts, ptagTdf, &services) != 0;
+    return mm_movie_insert_text(pstn, tdts, ptagTdf, &services) != 0;
 }
 
 /****************************************************
@@ -1630,7 +1630,7 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
     AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     Assert(pactr == Pscen()->PactrSelected(), 0);
     const auto services = _ContentServices();
-    return three_mm_movie_change_text(pactr, pstn, tdts, ptagTdf, &services) != 0;
+    return mm_movie_change_text(pactr, pstn, tdts, ptagTdf, &services) != 0;
 }
 
 /****************************************************
@@ -1648,7 +1648,7 @@ bool Movie::_FCloseCurrentScene(void)
 {
     AssertThis(0);
     auto services = _SceneServices();
-    return three_mm_movie_scene_close(&services) != 0;
+    return mm_movie_scene_close(&services) != 0;
 }
 
 /****************************************************
@@ -1667,7 +1667,7 @@ bool Movie::_FUseTempFile(void)
     AssertThis(0);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return three_mm_movie_save_temporary(&services) != 0;
+    return mm_movie_save_temporary(&services) != 0;
 }
 
 /****************************************************
@@ -1686,7 +1686,7 @@ bool Movie::_FMakeCrfValid(void)
     AssertThis(0);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return three_mm_movie_save_resources(&services) != 0;
+    return mm_movie_save_resources(&services) != 0;
 }
 
 /****************************************************
@@ -1708,7 +1708,7 @@ bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
     AssertNilOrPo(pfni, ffniFile);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return three_mm_movie_autosave(pfni, fCleanRollCall, &services) != 0;
+    return mm_movie_autosave(pfni, fCleanRollCall, &services) != 0;
 }
 
 /****************************************************
@@ -1729,7 +1729,7 @@ bool Movie::FGetFni(Filename *pfni)
     AssertPo(pfni, 0);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return three_mm_movie_save_name(pfni, &services) != 0;
+    return mm_movie_save_name(pfni, &services) != 0;
 }
 
 /***************************************************************************
@@ -1746,7 +1746,7 @@ bool Movie::FGetFni(Filename *pfni)
 bool Movie::FSave(long cid)
 {
     AssertThis(0);
-    return Movie_PAR::FSave(three_mm_movie_save_command(cid, cidSave, cidSaveAs, &_save));
+    return Movie_PAR::FSave(mm_movie_save_command(cid, cidSave, cidSaveAs, &_save));
 }
 
 /****************************************************
@@ -1767,7 +1767,7 @@ bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
     AssertNilOrPo(pfni, ffniFile);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return three_mm_movie_save_to(pfni, fSetFni, &services) != 0;
+    return mm_movie_save_to(pfni, fSetFni, &services) != 0;
 }
 
 /***************************************************************************
@@ -1799,7 +1799,7 @@ bool Movie::_FNeedsContainer()
 {
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return three_mm_movie_needs_container(&services) != 0;
+    return mm_movie_needs_container(&services) != 0;
 }
 
 /****************************************************
@@ -1853,7 +1853,7 @@ bool Movie::FAddUndo(PMovieUndo pmunb)
 {
     AssertThis(0);
     const auto services = _UndoServices();
-    return three_mm_movie_undo_add(pmunb, &services) != 0;
+    return mm_movie_undo_add(pmunb, &services) != 0;
 }
 
 /****************************************************
@@ -1871,7 +1871,7 @@ void Movie::ClearUndo(void)
 {
     AssertThis(0);
     const auto services = _UndoServices();
-    three_mm_movie_undo_clear(&services);
+    mm_movie_undo_clear(&services);
 }
 
 /***************************************************************************
@@ -1889,9 +1889,9 @@ bool Movie::FChangeCam(long icam)
 {
     AssertThis(0); AssertPo(Pscen(), 0); AssertIn(icam, 0, kccamMax);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
+    MMMovieEditRequest q = {};
     q.camera = icam;
-    return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_CAMERA, &q, &services) != 0;
+    return mm_movie_edit_scene(MM_MOVIE_EDIT_CAMERA, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -1910,7 +1910,7 @@ bool Movie::FInsTbox(RC *prc, bool fStory)
 {
     AssertThis(0); AssertPvCb(prc, size(RC)); AssertPo(Pscen(), 0);
     const auto services = _ContentServices();
-    return three_mm_movie_insert_caption(prc, fStory, &services) != 0;
+    return mm_movie_insert_caption(prc, fStory, &services) != 0;
 }
 
 /***************************************************************************
@@ -1928,7 +1928,7 @@ bool Movie::FNukeTbox(void)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _ContentServices();
-    return three_mm_movie_remove_caption(0, &services) != 0;
+    return mm_movie_remove_caption(0, &services) != 0;
 }
 
 /***************************************************************************
@@ -1946,7 +1946,7 @@ bool Movie::FHideTbox(void)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _ContentServices();
-    return three_mm_movie_remove_caption(1, &services) != 0;
+    return mm_movie_remove_caption(1, &services) != 0;
 }
 
 /***************************************************************************
@@ -1964,7 +1964,7 @@ void Movie::SelectTbox(long itbox)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _ContentServices();
-    three_mm_movie_select_caption(itbox, &services);
+    mm_movie_select_caption(itbox, &services);
 }
 
 /***************************************************************************
@@ -2080,7 +2080,7 @@ bool Movie::FInsActr(PTAG ptag)
     AssertThis(0); AssertPvCb(ptag, size(TAG)); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
     const auto tag = TagToCore(*ptag);
-    return three_mm_movie_insert_actor(&tag, &services) != 0;
+    return mm_movie_insert_actor(&tag, &services) != 0;
 }
 
 /***************************************************************************
@@ -2099,7 +2099,7 @@ bool Movie::FAddOnstage(long arid)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    return three_mm_movie_onstage(arid, &services) != 0;
+    return mm_movie_onstage(arid, &services) != 0;
 }
 
 /***************************************************************************
@@ -2117,9 +2117,9 @@ bool Movie::FRemActr()
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
+    MMMovieEditRequest q = {};
 
-    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_REMOVE, &q, &services) != 0;
+    return mm_movie_edit_actor(MM_MOVIE_EDIT_REMOVE, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2140,9 +2140,9 @@ bool Movie::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
+    MMMovieEditRequest q = {};
     q.rotation[0] = xa; q.rotation[1] = ya; q.rotation[2] = za; q.forward = fFromHereFwd;
-    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_ROTATE, &q, &services) != 0;
+    return mm_movie_edit_actor(MM_MOVIE_EDIT_ROTATE, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2160,9 +2160,9 @@ bool Movie::FSquashStretchActr(BRS brs)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
+    MMMovieEditRequest q = {};
     q.factor = brs;
-    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_SQUASH, &q, &services) != 0;
+    return mm_movie_edit_actor(MM_MOVIE_EDIT_SQUASH, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2180,9 +2180,9 @@ bool Movie::FSoonerLaterActr(long nfrm)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
+    MMMovieEditRequest q = {};
     q.frame = nfrm;
-    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_TIME, &q, &services) != 0;
+    return mm_movie_edit_actor(MM_MOVIE_EDIT_TIME, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2200,9 +2200,9 @@ bool Movie::FScaleActr(BRS brs)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
+    MMMovieEditRequest q = {};
     q.factor = brs;
-    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_SCALE, &q, &services) != 0;
+    return mm_movie_edit_actor(MM_MOVIE_EDIT_SCALE, &q, &services) != 0;
 }
 
 /****************************************************
@@ -2224,9 +2224,9 @@ bool Movie::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
-    ThreeMMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.loop = fLoop; q.queue = fQueue; q.volume = vlm; q.style = sty;
-    return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &services) != 0;
+    MMMovieEditRequest q = {};
+    MMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.loop = fLoop; q.queue = fQueue; q.volume = vlm; q.style = sty;
+    return mm_movie_edit_scene(MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &services) != 0;
 }
 
 /****************************************************
@@ -2249,9 +2249,9 @@ bool Movie::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnC
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
-    ThreeMMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.loop = fLoop; q.queue = fQueue; q.cel = fActnCel; q.volume = vlm; q.style = sty;
-    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_ACTOR_SOUND, &q, &services) != 0;
+    MMMovieEditRequest q = {};
+    MMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.loop = fLoop; q.queue = fQueue; q.cel = fActnCel; q.volume = vlm; q.style = sty;
+    return mm_movie_edit_actor(MM_MOVIE_EDIT_ACTOR_SOUND, &q, &services) != 0;
 }
 
 /****************************************************
@@ -2274,7 +2274,7 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
     AssertPo(pscen, 0);
     Assert(pscen->Pmvie() == this, "Cannot insert a scene from another movie");
     auto services = _SceneServices();
-    return three_mm_movie_scene_insert(iscen, pscen, &services) != 0;
+    return mm_movie_scene_insert(iscen, pscen, &services) != 0;
 }
 
 /***************************************************************************
@@ -2293,7 +2293,7 @@ bool Movie::FAddScen(PTAG ptag)
     AssertThis(0); AssertPvCb(ptag, size(TAG));
     const auto services = _EditServices();
     const auto tag = TagToCore(*ptag);
-    return three_mm_movie_add_background(&tag, &services) != 0;
+    return mm_movie_add_background(&tag, &services) != 0;
 }
 
 /***************************************************************************
@@ -2891,9 +2891,9 @@ bool Movie::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
-    ThreeMMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.part = ibprt; q.costume = cmid; q.custom = fCustom;
-    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_COSTUME, &q, &services) != 0;
+    MMMovieEditRequest q = {};
+    MMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.part = ibprt; q.costume = cmid; q.custom = fCustom;
+    return mm_movie_edit_actor(MM_MOVIE_EDIT_COSTUME, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2912,12 +2912,12 @@ bool Movie::FPause(WaitReason wit, long dts)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
+    MMMovieEditRequest q = {};
     q.reason = wit; q.delay = dts;
-    return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_PAUSE, &q, &services) != 0;
+    return mm_movie_edit_scene(MM_MOVIE_EDIT_PAUSE, &q, &services) != 0;
 }
 
-static SceneDescriptor NativeComposeScene(const ThreeMMComposeScene &value)
+static SceneDescriptor NativeComposeScene(const MMComposeScene &value)
 {
     SceneDescriptor scene = {};
     scene.imvied=value.movie; scene.cno=value.number; scene.chid=value.child;
@@ -2925,40 +2925,40 @@ static SceneDescriptor NativeComposeScene(const ThreeMMComposeScene &value)
     scene.trans=TRANS(value.transition); scene.fNuked=value.deleted!=0;
     return scene;
 }
-static MovieDescriptor NativeComposeMovie(const ThreeMMComposeMovie &value)
+static MovieDescriptor NativeComposeMovie(const MMComposeMovie &value)
 {
     return {static_cast<PChunkyResourceFile>(value.resources),value.number,value.actor_limit};
 }
-static ThreeMMMovieComposeServices ComposeListServices()
+static MMMovieComposeServices ComposeListServices()
 {
-    ThreeMMMovieComposeServices s = {};
+    MMMovieComposeServices s = {};
     s.new_list=[](int movies)->void* { return DynamicArray::PglNew(movies?sizeof(MovieDescriptor):sizeof(SceneDescriptor)); };
     s.duplicate_movies=[](void *p)->void* { return static_cast<PDynamicArray>(p)->PglDup(); };
-    s.count=[](void *p)->ThreeMMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
-    s.scene=[](void *p,ThreeMMI32 index,ThreeMMComposeScene *out) {
+    s.count=[](void *p)->MMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
+    s.scene=[](void *p,MMI32 index,MMComposeScene *out) {
         SceneDescriptor scene; static_cast<PDynamicArray>(p)->Get(index,&scene);
-        *out={static_cast<ThreeMMI32>(scene.imvied),scene.cno,scene.chid,scene.pmbmp,scene.trans,scene.fNuked};
+        *out={static_cast<MMI32>(scene.imvied),scene.cno,scene.chid,scene.pmbmp,scene.trans,scene.fNuked};
     };
-    s.movie=[](void *p,ThreeMMI32 index,ThreeMMComposeMovie *out) {
+    s.movie=[](void *p,MMI32 index,MMComposeMovie *out) {
         MovieDescriptor movie; static_cast<PDynamicArray>(p)->Get(index,&movie);
-        *out={movie.pcrf,movie.cno,static_cast<ThreeMMI32>(movie.aridLim)};
+        *out={movie.pcrf,movie.cno,static_cast<MMI32>(movie.aridLim)};
     };
-    s.insert_scene=[](void *p,ThreeMMI32 index,const ThreeMMComposeScene *value)->int {
+    s.insert_scene=[](void *p,MMI32 index,const MMComposeScene *value)->int {
         auto scene=NativeComposeScene(*value); return static_cast<PDynamicArray>(p)->FInsert(index,&scene);
     };
-    s.append_movie=[](void *p,const ThreeMMComposeMovie *value,ThreeMMI32 *out)->int {
+    s.append_movie=[](void *p,const MMComposeMovie *value,MMI32 *out)->int {
         auto movie=NativeComposeMovie(*value); LegacyLong index;
         bool ok=static_cast<PDynamicArray>(p)->FAdd(&movie,&index); if(ok) *out=index; return ok;
     };
-    s.put_movie=[](void *p,ThreeMMI32 index,const ThreeMMComposeMovie *value) {
+    s.put_movie=[](void *p,MMI32 index,const MMComposeMovie *value) {
         auto movie=NativeComposeMovie(*value); static_cast<PDynamicArray>(p)->Put(index,&movie);
     };
-    s.erase=[](void *p,ThreeMMI32 index) { static_cast<PDynamicArray>(p)->Delete(index); };
+    s.erase=[](void *p,MMI32 index) { static_cast<PDynamicArray>(p)->Delete(index); };
     s.retain=[](void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.release=[](void *p) { static_cast<BASE *>(p)->Release(); };
     return s;
 }
-ThreeMMMovieComposeServices Movie::_ComposeServices()
+MMMovieComposeServices Movie::_ComposeServices()
 {
     static_assert(kctgMvie==0x4d564945U && kctgActr==0x41435452U && cnoNil==0xffffffffU, "Movie composition ABI");
     auto s=ComposeListServices(); s.context=this; s.data=&_data; s.scenes=&_scenes;
@@ -2969,32 +2969,32 @@ ThreeMMMovieComposeServices Movie::_ComposeServices()
     s.use_temporary=[](void *p)->int { return static_cast<PMovie>(p)->_FUseTempFile(); };
     s.autosave=[](void *p)->int { return static_cast<PMovie>(p)->FAutoSave(nullptr,false); };
     s.file=[](void *p)->void* { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.scene_child=[](void *p,ThreeMMU32 movie,ThreeMMU32 child,ThreeMMU32 *out)->int {
+    s.scene_child=[](void *p,MMU32 movie,MMU32 child,MMU32 *out)->int {
         ChildChunkIdentification kid; bool ok=static_cast<PChunkyFile>(p)->FGetKidChidCtg(kctgMvie,movie,child,kctgScen,&kid);
         if(ok) *out=kid.cki.cno; return ok;
     };
-    s.read_transition=[](void *p,ThreeMMU32 number,ThreeMMI32 *out)->int {
+    s.read_transition=[](void *p,MMU32 number,MMI32 *out)->int {
         TRANS value; bool ok=Scene::FTransOnFile(static_cast<PChunkyResourceFile>(p),number,&value);
         if(ok) *out=value; return ok;
     };
-    s.transition=[](void *p)->ThreeMMI32 { return static_cast<PScene>(p)->Trans(); };
-    s.read_thumbnail=[](void *p,ThreeMMU32 number)->void* {
+    s.transition=[](void *p)->MMI32 { return static_cast<PScene>(p)->Trans(); };
+    s.read_thumbnail=[](void *p,MMU32 number)->void* {
         auto file=static_cast<PChunkyFile>(p); ChildChunkIdentification child; DataBlock block;
         if(!file->FGetKidChidCtg(kctgScen,number,0,kctgThumbMbmp,&child)) { Bug("Scene doesn't have a thumbnail"); return nullptr; }
         if(!file->FFind(child.cki.ctg,child.cki.cno,&block)) return nullptr;
         return MaskedBitmapMBMP::PmbmpRead(&block);
     };
     s.thumbnail=[](void *p)->void* { return static_cast<PScene>(p)->PmbmpThumbnail(); };
-    s.clone_movie=[](void *p,ThreeMMU32 number,void *out,ThreeMMU32 *copied)->int {
+    s.clone_movie=[](void *p,MMU32 number,void *out,MMU32 *copied)->int {
         ChunkNumber value; bool ok=static_cast<PChunkyFile>(p)->FClone(kctgMvie,number,static_cast<PChunkyFile>(out),&value);
         if(ok) *copied=value; return ok;
     };
-    s.delete_movie=[](void *p,ThreeMMU32 number) { static_cast<PChunkyFile>(p)->Delete(kctgMvie,number); };
-    s.adopt_scene=[](void *p,ThreeMMU32 movie,ThreeMMU32 scene,ThreeMMU32 child)->int {
+    s.delete_movie=[](void *p,MMU32 number) { static_cast<PChunkyFile>(p)->Delete(kctgMvie,number); };
+    s.adopt_scene=[](void *p,MMU32 movie,MMU32 scene,MMU32 child)->int {
         return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie,movie,kctgScen,scene,child);
     };
-    s.adopt_sounds=[](void *p,void *file,ThreeMMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
-    s.read_scene=[](void *p,void *resources,ThreeMMU32 scene)->void* {
+    s.adopt_sounds=[](void *p,void *file,MMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
+    s.read_scene=[](void *p,void *resources,MMU32 scene)->void* {
         return Scene::PscenRead(static_cast<PMovie>(p),static_cast<PChunkyResourceFile>(resources),scene);
     };
     s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };
@@ -3002,20 +3002,20 @@ ThreeMMMovieComposeServices Movie::_ComposeServices()
     s.remove_actors=[](void *p) { static_cast<PScene>(p)->RemActrsFromRollCall(true); };
     s.actor_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableActorTools(); };
     s.text_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableTboxTools(); };
-    s.delete_scene_child=[](void *p,ThreeMMU32 movie,ThreeMMU32 scene,ThreeMMU32 child) { static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie,movie,kctgScen,scene,child); };
-    s.change_child=[](void *p,ThreeMMU32 movie,ThreeMMU32 scene,ThreeMMU32 before,ThreeMMU32 after) { static_cast<PChunkyFile>(p)->ChangeChid(kctgMvie,movie,kctgScen,scene,before,after); };
-    s.write_transition=[](void *p,ThreeMMU32 number,ThreeMMI32 transition)->int { return Scene::FSetTransOnFile(static_cast<PChunkyResourceFile>(p),number,TRANS(transition)); };
-    s.set_transition=[](void *p,ThreeMMI32 transition) { static_cast<PScene>(p)->SetTransitionCore(TRANS(transition)); };
+    s.delete_scene_child=[](void *p,MMU32 movie,MMU32 scene,MMU32 child) { static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie,movie,kctgScen,scene,child); };
+    s.change_child=[](void *p,MMU32 movie,MMU32 scene,MMU32 before,MMU32 after) { static_cast<PChunkyFile>(p)->ChangeChid(kctgMvie,movie,kctgScen,scene,before,after); };
+    s.write_transition=[](void *p,MMU32 number,MMI32 transition)->int { return Scene::FSetTransOnFile(static_cast<PChunkyResourceFile>(p),number,TRANS(transition)); };
+    s.set_transition=[](void *p,MMI32 transition) { static_cast<PScene>(p)->SetTransitionCore(TRANS(transition)); };
     s.dirty=[](void *p) { static_cast<PMovie>(p)->SetDirty(); };
     s.scene_nuked=[](void *p) { static_cast<PMovie>(p)->Pmcc()->SceneNuked(); };
     s.invalidate=[](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
     s.rollcall_changed=[](void *p) { static_cast<PMovie>(p)->Pmcc()->UpdateRollCall(); };
     s.diagnostic=[](void *,int issue) {
         switch(issue) {
-        case THREE_MM_COMPOSE_MISSING_SCENE: AssertDo(false,"Not enough scene chunks for movie"); break;
-        case THREE_MM_COMPOSE_BAD_BASE: Assert(false,"Invalid DynamicArray of MVIEDs"); break;
-        case THREE_MM_COMPOSE_IMPORT_ACTORS: PushErc(ercSocNoImportRollCall); break;
-        case THREE_MM_COMPOSE_REMOVE_ACTORS: PushErc(ercSocNoNukeRollCall); break;
+        case MM_COMPOSE_MISSING_SCENE: AssertDo(false,"Not enough scene chunks for movie"); break;
+        case MM_COMPOSE_BAD_BASE: Assert(false,"Invalid DynamicArray of MVIEDs"); break;
+        case MM_COMPOSE_IMPORT_ACTORS: PushErc(ercSocNoImportRollCall); break;
+        case MM_COMPOSE_REMOVE_ACTORS: PushErc(ercSocNoNukeRollCall); break;
         }
     };
 #ifdef DEBUG
@@ -3028,24 +3028,24 @@ ThreeMMMovieComposeServices Movie::_ComposeServices()
         }
     };
 #endif
-    s.read_rollcall=[](void *p,ThreeMMU32 number)->void* {
+    s.read_rollcall=[](void *p,MMU32 number)->void* {
         PRollCallTable table=nullptr; return Movie::FReadRollCall(static_cast<PChunkyResourceFile>(p),number,&table)?table:nullptr;
     };
-    s.actor_count=[](void *p)->ThreeMMI32 { return static_cast<PRollCallTable>(p)->storage.count; };
-    s.actor=[](void *p,ThreeMMI32 index,ThreeMMRollCallActor *out) { AssertDo(three_mm_rollcall_table_extra(&static_cast<PRollCallTable>(p)->storage,index,out),"Bad roll-call row"); };
-    s.append_actor=[](void *p,void *source,ThreeMMI32 index,const ThreeMMRollCallActor *row)->int {
+    s.actor_count=[](void *p)->MMI32 { return static_cast<PRollCallTable>(p)->storage.count; };
+    s.actor=[](void *p,MMI32 index,MMRollCallActor *out) { AssertDo(mm_rollcall_table_extra(&static_cast<PRollCallTable>(p)->storage,index,out),"Bad roll-call row"); };
+    s.append_actor=[](void *p,void *source,MMI32 index,const MMRollCallActor *row)->int {
         auto from=&static_cast<PRollCallTable>(source)->storage; auto to=&static_cast<PRollCallTable>(p)->storage;
-        const void *name; ThreeMMU32 characters;
-        if(!three_mm_rollcall_table_name(from,index,&name,&characters)) return 0;
+        const void *name; MMU32 characters;
+        if(!mm_rollcall_table_name(from,index,&name,&characters)) return 0;
         Assert(from->unit==to->unit && from->encoding==to->encoding,"Roll-call name domain changed");
-        return three_mm_rollcall_table_add(to,name,characters,row);
+        return mm_rollcall_table_add(to,name,characters,row);
     };
-    s.erase_actor=[](void *p,ThreeMMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
-    s.close_tag=[](ThreeMMTag *value) { TAG tag; TagFromCore(&tag,*value); TagManager::CloseTag(&tag); *value=TagToCore(tag); };
-    s.adjust_actor=[](void *p,ThreeMMU32 number,ThreeMMI32 offset)->int { return Actor::FAdjustAridOnFile(static_cast<PChunkyFile>(p),number,offset); };
+    s.erase_actor=[](void *p,MMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
+    s.close_tag=[](MMTag *value) { TAG tag; TagFromCore(&tag,*value); TagManager::CloseTag(&tag); *value=TagToCore(tag); };
+    s.adjust_actor=[](void *p,MMU32 number,MMI32 offset)->int { return Actor::FAdjustAridOnFile(static_cast<PChunkyFile>(p),number,offset); };
     s.graph.context=_data.Resources()?_data.Resources()->Pcfl():nullptr;
-    s.graph.children=[](void *p,ThreeMMU32 type,ThreeMMU32 number)->ThreeMMU32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
-    s.graph.child=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMU32 i,ThreeMMChunkChild *out)->int {
+    s.graph.children=[](void *p,MMU32 type,MMU32 number)->MMU32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
+    s.graph.child=[](void *p,MMU32 type,MMU32 number,MMU32 i,MMChunkChild *out)->int {
         ChildChunkIdentification child; if(!static_cast<PChunkyFile>(p)->FGetKid(type,number,i,&child)) return 0;
         *out={child.cki.ctg,child.cki.cno,child.chid}; return 1;
     };
@@ -3101,9 +3101,9 @@ void CompositeMovie::MarkMem(void)
 bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
 {
     AssertThis(0); AssertVarMem(pcmvi); AssertVarMem(piscendIns);
-    ThreeMMCompositeMovie state={pcmvi->pglscend,pcmvi->pglmvied};
-    ThreeMMI32 insertion=*piscendIns; const auto services=_ComposeServices();
-    bool ok=three_mm_movie_compose_add(&state,&insertion,&services)!=0;
+    MMCompositeMovie state={pcmvi->pglscend,pcmvi->pglmvied};
+    MMI32 insertion=*piscendIns; const auto services=_ComposeServices();
+    bool ok=mm_movie_compose_add(&state,&insertion,&services)!=0;
     pcmvi->pglscend=static_cast<PDynamicArray>(state.scenes); pcmvi->pglmvied=static_cast<PDynamicArray>(state.movies);
     *piscendIns=insertion; return ok;
 }
@@ -3130,8 +3130,8 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
 bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 {
     AssertThis(0); AssertVarMem(pcmvi); AssertPo(pcmvi->pglmvied,0); AssertPo(pcmvi->pglscend,0);
-    const ThreeMMCompositeMovie state={pcmvi->pglscend,pcmvi->pglmvied}; const auto services=_ComposeServices();
-    return three_mm_movie_compose_apply(&state,&services)!=0;
+    const MMCompositeMovie state={pcmvi->pglscend,pcmvi->pglmvied}; const auto services=_ComposeServices();
+    return mm_movie_compose_apply(&state,&services)!=0;
 }
 
 /******************************************************************************
@@ -3150,7 +3150,7 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 {
     AssertThis(0); const auto services=_ComposeServices();
-    return three_mm_movie_compose_merge(cno,aridMin,&services)!=0;
+    return mm_movie_compose_merge(cno,aridMin,&services)!=0;
 }
 
 /******************************************************************************
@@ -3168,8 +3168,8 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 void CompositeMovie::Empty(void)
 {
     AssertNilOrPo(pglscend,0); AssertNilOrPo(pglmvied,0);
-    ThreeMMCompositeMovie state={pglscend,pglmvied}; const auto services=ComposeListServices();
-    three_mm_composite_empty(&state,&services);
+    MMCompositeMovie state={pglscend,pglmvied}; const auto services=ComposeListServices();
+    mm_composite_empty(&state,&services);
     pglscend=static_cast<PDynamicArray>(state.scenes); pglmvied=static_cast<PDynamicArray>(state.movies);
 }
 
@@ -3188,9 +3188,9 @@ bool Movie::FSetTransition(TRANS trans)
 {
     AssertThis(0); AssertPo(Pscen(), 0); AssertIn(trans, 0, transLim);
     const auto services = _EditServices();
-    ThreeMMMovieEditRequest q = {};
+    MMMovieEditRequest q = {};
     q.transition = trans;
-    return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_TRANSITION, &q, &services) != 0;
+    return mm_movie_edit_scene(MM_MOVIE_EDIT_TRANSITION, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -3208,7 +3208,7 @@ bool Movie::FPasteActr(PActor pactr)
 {
     AssertThis(0); AssertPo(pactr, 0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    return three_mm_movie_paste_actor(pactr, &services) != 0;
+    return mm_movie_paste_actor(pactr, &services) != 0;
 }
 
 /***************************************************************************
@@ -3226,7 +3226,7 @@ bool Movie::FPasteActrPath(PActor pactr)
 {
     AssertThis(0); AssertPo(pactr, 0); AssertPo(Pscen(), 0);
     const auto services = _EditServices();
-    return three_mm_movie_paste_route(pactr, &services) != 0;
+    return mm_movie_paste_route(pactr, &services) != 0;
 }
 
 /***************************************************************************
@@ -3349,7 +3349,7 @@ void Movie::ResetTitle(void)
 
     Filename fni;
 
-    three_mm_movie_title_set(&_data.title, nullptr, 0);
+    mm_movie_title_set(&_data.title, nullptr, 0);
     _SetTitle(FGetFni(&fni) ? &fni : pvNil);
 }
 
@@ -3613,7 +3613,7 @@ long Movie::LwSetMoviePos(long lwScene, long lwFrame)
 bool Movie::FUnusedSndsUser(bool *pfHaveValid)
 {
     AssertThis(0); AssertNilOrVarMem(pfHaveValid); const auto services=_SoundServices(); int valid=0;
-    bool unused=three_mm_movie_sound_unused(pfHaveValid?&valid:nullptr,&services)!=0;
+    bool unused=mm_movie_sound_unused(pfHaveValid?&valid:nullptr,&services)!=0;
     if (pfHaveValid) *pfHaveValid=valid!=0; return unused;
 }
 
@@ -3631,21 +3631,21 @@ bool Movie::FUnusedSndsUser(bool *pfHaveValid)
 void Movie::_SetTitle(PFilename filename)
 {
     struct Host { PMovie movie; PFilename filename; } host = {this, filename};
-    const ThreeMMMovieTitleServices services = {&host,
-        [](void *c, ThreeMMMovieTitle *title) {
+    const MMMovieTitleServices services = {&host,
+        [](void *c, MMMovieTitle *title) {
             String value; static_cast<Host *>(c)->filename->GetLeaf(&value);
-            AssertDo(three_mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad leaf title");
+            AssertDo(mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad leaf title");
         },
-        [](void *c, ThreeMMMovieTitle *title) {
+        [](void *c, MMMovieTitle *title) {
             String value; static_cast<Host *>(c)->movie->Pmcc()->GetStn(idsEngineDefaultTitle, &value);
-            AssertDo(three_mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad default title");
+            AssertDo(mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad default title");
         },
-        [](void *c, ThreeMMMovieTitle *title) {
-            String value; value.SetRgch(const_cast<achar *>(static_cast<const achar *>(three_mm_movie_title_text(title))), title->count);
+        [](void *c, MMMovieTitle *title) {
+            String value; value.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(title))), title->count);
             static_cast<Host *>(c)->movie->Pmcc()->UpdateTitle(&value);
-            AssertDo(three_mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad notified title");
+            AssertDo(mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad notified title");
         }};
-    three_mm_movie_title_choose(&_data.title, filename != nullptr, &services);
+    mm_movie_title_choose(&_data.title, filename != nullptr, &services);
 }
 
 //
@@ -7259,16 +7259,16 @@ MovieSceneUndo::~MovieSceneUndo(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-ThreeMMMovieSceneUndoServices MovieSceneUndo::_Services()
+MMMovieSceneUndoServices MovieSceneUndo::_Services()
 {
-    ThreeMMMovieSceneUndoServices s = {};
+    MMMovieSceneUndoServices s = {};
     s.context = _pmvie;
-    s.create = [](void *p, ThreeMMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
-    s.remove = [](void *p, ThreeMMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
-    s.insert = [](void *p, ThreeMMI32 index, void *scene) -> int {
+    s.create = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
+    s.remove = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
+    s.insert = [](void *p, MMI32 index, void *scene) -> int {
         return static_cast<PMovie>(p)->FInsScenCore(index, static_cast<PScene>(scene));
     };
-    s.background = [](void *p, const ThreeMMTag *value) -> int {
+    s.background = [](void *p, const MMTag *value) -> int {
         TAG tag, old;
         TagFromCore(&tag, *value);
         return static_cast<PMovie>(p)->Pscen()->FSetBkgdCore(&tag, &old);
@@ -7288,9 +7288,9 @@ bool MovieSceneUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     auto services = _Services();
-    ThreeMMTag tag = {};
+    MMTag tag = {};
     if (_munst == munstInsScen) tag = TagToCore(_tag);
-    return three_mm_movie_scene_undo(_munst, _iscen, _pscen, &tag, 1, &services) != 0;
+    return mm_movie_scene_undo(_munst, _iscen, _pscen, &tag, 1, &services) != 0;
 }
 
 /****************************************************
@@ -7308,7 +7308,7 @@ bool MovieSceneUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     auto services = _Services();
-    return three_mm_movie_scene_undo(_munst, _iscen, _pscen, nullptr, 0, &services) != 0;
+    return mm_movie_scene_undo(_munst, _iscen, _pscen, nullptr, 0, &services) != 0;
 }
 
 #ifdef DEBUG

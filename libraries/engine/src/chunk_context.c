@@ -1,17 +1,17 @@
 /* Container links converted from Kauai BaseLinkedList.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/chunk_context.h"
+#include "mm/chunk_context.h"
 #include <string.h>
-void three_mm_chunk_context_init(ThreeMMChunkContext *context)
+void mm_chunk_context_init(MMChunkContext *context)
 {
     context->first = NULL;
 }
-void three_mm_chunk_link_init(ThreeMMChunkLink *link, void *owner)
+void mm_chunk_link_init(MMChunkLink *link, void *owner)
 {
     memset(link, 0, sizeof(*link));
     link->owner = owner;
 }
-int three_mm_chunk_context_valid(const ThreeMMChunkLink *link)
+int mm_chunk_context_valid(const MMChunkLink *link)
 {
     if (!link || !link->owner)
         return 0;
@@ -20,38 +20,38 @@ int three_mm_chunk_context_valid(const ThreeMMChunkLink *link)
     return link->previous && *link->previous == link &&
            (!link->next || (link->next->context == link->context && link->next->previous == &link->next));
 }
-int three_mm_chunk_context_attach(ThreeMMChunkContext *context, ThreeMMChunkLink *link)
+int mm_chunk_context_attach(MMChunkContext *context, MMChunkLink *link)
 {
-    if (!context || !three_mm_chunk_context_valid(link) || link->context ||
+    if (!context || !mm_chunk_context_valid(link) || link->context ||
         (context->first && context->first->previous != &context->first))
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     link->next = context->first;
     link->previous = &context->first;
     link->context = context;
     if (link->next)
         link->next->previous = &link->next;
     context->first = link;
-    return THREE_MM_CHUNK_OK;
+    return MM_CHUNK_OK;
 }
-int three_mm_chunk_context_detach(ThreeMMChunkLink *link)
+int mm_chunk_context_detach(MMChunkLink *link)
 {
-    if (!three_mm_chunk_context_valid(link))
-        return THREE_MM_CHUNK_BAD_FILE;
+    if (!mm_chunk_context_valid(link))
+        return MM_CHUNK_BAD_FILE;
     if (!link->context)
-        return THREE_MM_CHUNK_OK;
+        return MM_CHUNK_OK;
     *link->previous = link->next;
     if (link->next)
         link->next->previous = link->previous;
     link->previous = NULL;
     link->next = NULL;
     link->context = NULL;
-    return THREE_MM_CHUNK_OK;
+    return MM_CHUNK_OK;
 }
-void *three_mm_chunk_context_first(const ThreeMMChunkContext *context)
+void *mm_chunk_context_first(const MMChunkContext *context)
 {
     return context && context->first ? context->first->owner : NULL;
 }
-void *three_mm_chunk_context_next(const ThreeMMChunkLink *link)
+void *mm_chunk_context_next(const MMChunkLink *link)
 {
     return link && link->next ? link->next->owner : NULL;
 }

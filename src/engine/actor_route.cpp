@@ -13,7 +13,7 @@ void ActorRouteEvaluator::Advance(const ActorTrack &track, BRS step, RouteLocati
     auto value = EngineActorMotion::Location(*location);
     const auto services = EngineActorMotion::Services();
     int ended;
-    three_mm_actor_route_advance(track.Route(), track.Events(), step, &value, nextEvent, frame, firstFrame, clamp,
+    mm_actor_route_advance(track.Route(), track.Events(), step, &value, nextEvent, frame, firstFrame, clamp,
                                  &ended, &services);
     std::memcpy(location, &value, sizeof(value));
     if (end)
@@ -26,8 +26,8 @@ void ActorRouteEvaluator::Position(const ActorTrack &track, const RouteLocation 
     AssertVarMem(position);
     const auto value = EngineActorMotion::Location(*location);
     const auto services = EngineActorMotion::Services();
-    ThreeMMActorPoint out;
-    three_mm_actor_route_position(track.Route(), &value, &out, &services);
+    MMActorPoint out;
+    mm_actor_route_position(track.Route(), &value, &out, &services);
     std::memcpy(position, &out, sizeof(out));
 }
 void ActorRouteEvaluator::Interpolate(const RoutePoint *first, const RoutePoint *second, BRS fraction,
@@ -37,7 +37,7 @@ void ActorRouteEvaluator::Interpolate(const RoutePoint *first, const RoutePoint 
     AssertVarMem(const_cast<RoutePoint *>(second));
     AssertVarMem(position);
     const auto a = EngineActorMotion::Point(*first), b = EngineActorMotion::Point(*second);
-    ThreeMMActorPoint out;
-    three_mm_actor_interpolate(&a, &b, fraction, &out);
+    MMActorPoint out;
+    mm_actor_interpolate(&a, &b, fraction, &out);
     std::memcpy(position, &out, sizeof(out));
 }

@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <limits>
 
-using namespace ThreeMM;
+using namespace MM;
 void Check(bool value, int line)
 {
     if (!value)

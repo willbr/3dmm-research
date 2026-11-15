@@ -12,8 +12,8 @@
 
 #ifndef SOCUTIL_H
 #define SOCUTIL_H
-#include "three_mm/actor_undo.h"
-#include "three_mm/actor_group_undo.h"
+#include "mm/actor_undo.h"
+#include "mm/actor_group_undo.h"
 
 extern "C"
 {
@@ -103,9 +103,9 @@ class ActorUndo : public ActorUndo_PAR
     long _nfrmLast;
     String _stn; // actor's name
     struct UndoContext;
-    ThreeMMActorUndoState _UndoState() const;
-    void _PublishUndo(const ThreeMMActorUndoState &);
-    static ThreeMMActorUndoServices _UndoServices(UndoContext *);
+    MMActorUndoState _UndoState() const;
+    void _PublishUndo(const MMActorUndoState &);
+    static MMActorUndoServices _UndoServices(UndoContext *);
     ActorUndo(void)
     {
     }
@@ -171,8 +171,8 @@ class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
 
   protected:
     PDynamicArray _pglpaund; // List of PActorUndo. Owned (each child is AddRef'd).
-    ThreeMMActorGroupState _GroupState() const;
-    static ThreeMMActorGroupServices _GroupServices(ActorMoveGroupUndo *);
+    MMActorGroupState _GroupState() const;
+    static MMActorGroupServices _GroupServices(ActorMoveGroupUndo *);
     ActorMoveGroupUndo(void)
     {
     }
@@ -211,8 +211,8 @@ class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
     //             extra      = long arid.
     PVirtualStringTable _pgstNames;
     struct GroupContext;
-    ThreeMMActorGroupState _GroupState() const;
-    static ThreeMMActorGroupServices _GroupServices(GroupContext *);
+    MMActorGroupState _GroupState() const;
+    static MMActorGroupServices _GroupServices(GroupContext *);
     ActorRenameGroupUndo(void)
     {
     }

@@ -1,14 +1,14 @@
 /* Source discovery converted from engine tagman.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/source_discovery.h"
-int three_mm_source_discover_local(ThreeMMI32 sid, const ThreeMMSourceDiscovery *s, int *exists)
+#include "mm/source_discovery.h"
+int mm_source_discover_local(MMI32 sid, const MMSourceDiscovery *s, int *exists)
 {
     int access;
     *exists = 0;
     access = s->access(s->context, sid);
-    if (access != THREE_MM_SOURCE_LEGACY)
+    if (access != MM_SOURCE_LEGACY)
     {
-        *exists = access == THREE_MM_SOURCE_AVAILABLE;
+        *exists = access == MM_SOURCE_AVAILABLE;
         return 1;
     }
     if (!s->names(s->context, sid))
@@ -20,12 +20,12 @@ int three_mm_source_discover_local(ThreeMMI32 sid, const ThreeMMSourceDiscovery 
     *exists = 1;
     return 1;
 }
-int three_mm_source_discover_media(ThreeMMI32 sid, const ThreeMMSourceDiscovery *s, int *changed)
+int mm_source_discover_media(MMI32 sid, const MMSourceDiscovery *s, int *changed)
 {
     int access = s->access(s->context, sid);
-    if (access != THREE_MM_SOURCE_LEGACY)
+    if (access != MM_SOURCE_LEGACY)
     {
-        *changed = access == THREE_MM_SOURCE_AVAILABLE;
+        *changed = access == MM_SOURCE_AVAILABLE;
         return *changed;
     }
     *changed = 0;

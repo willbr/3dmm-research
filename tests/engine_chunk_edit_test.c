@@ -1,4 +1,4 @@
-#include "three_mm/chunk_edit.h"
+#include "mm/chunk_edit.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,25 +13,25 @@ static void check(int value, int line)
 #define CHECK(x) check((x), __LINE__)
 typedef struct Node
 {
-    ThreeMMChunkEntry entry;
+    MMChunkEntry entry;
     int runtime;
     char name[16];
-    ThreeMMChunkChild children[4];
+    MMChunkChild children[4];
 } Node;
 typedef struct Fixture
 {
     Node nodes[32];
-    ThreeMMU32 count;
-    ThreeMMChunkEdit edit;
-    ThreeMMChunkLocation output;
-    ThreeMMChunkLocation freed[32];
+    MMU32 count;
+    MMChunkEdit edit;
+    MMChunkLocation output;
+    MMChunkLocation freed[32];
     int frees, resets, clears, outputs, extra, fail;
     int file, output_added, next, total, begun, issues[5], delete_root, descends, descendant;
-    ThreeMMChunkDeleteEvent events[16];
+    MMChunkDeleteEvent events[16];
     int skips[16];
     char log[256];
     int logs;
-    ThreeMMU32 stored_numbers[32];
+    MMU32 stored_numbers[32];
     int stores;
 } Fixture;
 static void log_event(Fixture *f, char ch)
@@ -39,23 +39,23 @@ static void log_event(Fixture *f, char ch)
     CHECK(f->logs < 255);
     f->log[f->logs++] = ch;
 }
-static ThreeMMU32 count(void *ctx)
+static MMU32 count(void *ctx)
 {
     return ((Fixture *)ctx)->count;
 }
-static void entry(void *ctx, ThreeMMU32 i, ThreeMMChunkEntry *entry)
+static void entry(void *ctx, MMU32 i, MMChunkEntry *entry)
 {
     Fixture *f = (Fixture *)ctx;
     CHECK(i < f->count);
     *entry = f->nodes[i].entry;
 }
-static void child(void *ctx, ThreeMMU32 p, ThreeMMU32 i, ThreeMMChunkChild *out)
+static void child(void *ctx, MMU32 p, MMU32 i, MMChunkChild *out)
 {
     Fixture *f = (Fixture *)ctx;
     CHECK(p < f->count && i < f->nodes[p].entry.child_count && i < 4);
     *out = f->nodes[p].children[i];
 }
-static int insert(void *ctx, ThreeMMU32 i)
+static int insert(void *ctx, MMU32 i)
 {
     Fixture *f = (Fixture *)ctx;
     log_event(f, 'I');
@@ -67,7 +67,7 @@ static int insert(void *ctx, ThreeMMU32 i)
     ++f->count;
     return 1;
 }
-static void store(void *ctx, ThreeMMU32 i, const ThreeMMChunkEntry *record, int initialize)
+static void store(void *ctx, MMU32 i, const MMChunkEntry *record, int initialize)
 {
     Fixture *f = (Fixture *)ctx;
     CHECK(i < f->count);
@@ -78,7 +78,7 @@ static void store(void *ctx, ThreeMMU32 i, const ThreeMMChunkEntry *record, int 
     CHECK(f->stores < 32);
     f->stored_numbers[f->stores++] = record->number;
 }
-static void erase(void *ctx, ThreeMMU32 i)
+static void erase(void *ctx, MMU32 i)
 {
     Fixture *f = (Fixture *)ctx;
     CHECK(i < f->count);
@@ -86,7 +86,7 @@ static void erase(void *ctx, ThreeMMU32 i)
     --f->count;
     memmove(f->nodes + i, f->nodes + i + 1, (f->count - i) * sizeof(Node));
 }
-static int allocate(void *ctx, ThreeMMU32 bytes, ThreeMMChunkLocation *out)
+static int allocate(void *ctx, MMU32 bytes, MMChunkLocation *out)
 {
     Fixture *f = (Fixture *)ctx;
     log_event(f, 'A');
@@ -99,26 +99,26 @@ static int allocate(void *ctx, ThreeMMU32 bytes, ThreeMMChunkLocation *out)
     out->flags = bytes && f->extra ? 1 : 0;
     return 1;
 }
-static void free_space(void *ctx, int extra, ThreeMMU32 offset, ThreeMMU32 bytes)
+static void free_space(void *ctx, int extra, MMU32 offset, MMU32 bytes)
 {
     Fixture *f = (Fixture *)ctx;
-    ThreeMMChunkLocation *out;
+    MMChunkLocation *out;
     log_event(f, 'F');
     CHECK(f->frees < 32);
     out = f->freed + f->frees++;
     memset(out, 0, sizeof(*out));
     out->offset = offset;
     out->bytes = bytes;
-    out->flags = (ThreeMMU32)extra;
+    out->flags = (MMU32)extra;
 }
-static int write(void *ctx, const ThreeMMChunkLocation *where, int added)
+static int write(void *ctx, const MMChunkLocation *where, int added)
 {
     Fixture *f = (Fixture *)ctx;
     log_event(f, 'W');
     CHECK(f->outputs == 1 && f->output.offset == where->offset && f->output_added == added);
     return f->fail != 3;
 }
-static void output(void *ctx, const ThreeMMChunkLocation *where, int added)
+static void output(void *ctx, const MMChunkLocation *where, int added)
 {
     Fixture *f = (Fixture *)ctx;
     f->output_added = added;
@@ -135,23 +135,23 @@ static void output(void *ctx, const ThreeMMChunkLocation *where, int added)
         log_event(f, 'C');
     }
 }
-static void reset(void *ctx, ThreeMMU32 type, ThreeMMU32 number)
+static void reset(void *ctx, MMU32 type, MMU32 number)
 {
     Fixture *f = (Fixture *)ctx;
-    ThreeMMU32 i;
+    MMU32 i;
     log_event(f, 'R');
     ++f->resets;
     for (i = 0; i < f->count; ++i)
         if (f->nodes[i].entry.type == type && f->nodes[i].entry.number == number)
             f->nodes[i].runtime = 0;
 }
-static void begin(void *ctx, ThreeMMU32 type, ThreeMMU32 number)
+static void begin(void *ctx, MMU32 type, MMU32 number)
 {
     Fixture *f = (Fixture *)ctx;
-    CHECK(type == 10 && number == (ThreeMMU32)f->delete_root && !f->begun);
+    CHECK(type == 10 && number == (MMU32)f->delete_root && !f->begun);
     ++f->begun;
 }
-static int next(void *ctx, int skip, ThreeMMChunkDeleteEvent *out)
+static int next(void *ctx, int skip, MMChunkDeleteEvent *out)
 {
     Fixture *f = (Fixture *)ctx;
     CHECK(f->begun == 1);
@@ -167,11 +167,11 @@ static void issue(void *ctx, int kind)
     CHECK(kind >= 0 && kind < 5);
     ++f->issues[kind];
 }
-static int insert_child(void *context, ThreeMMU32 parent, ThreeMMU32 i, const ThreeMMChunkChild *child)
+static int insert_child(void *context, MMU32 parent, MMU32 i, const MMChunkChild *child)
 {
     Fixture *f = (Fixture *)context;
     Node *n = f->nodes + parent;
-    ThreeMMU32 count = n->entry.child_count;
+    MMU32 count = n->entry.child_count;
     CHECK(parent < f->count && i <= count && count < 4);
     if (f->fail == 4)
         return 0;
@@ -180,23 +180,23 @@ static int insert_child(void *context, ThreeMMU32 parent, ThreeMMU32 i, const Th
     n->entry.variable_bytes += 12;
     return 1;
 }
-static void erase_child(void *context, ThreeMMU32 parent, ThreeMMU32 i)
+static void erase_child(void *context, MMU32 parent, MMU32 i)
 {
     Fixture *f = (Fixture *)context;
     Node *n = f->nodes + parent;
-    ThreeMMU32 count = n->entry.child_count;
+    MMU32 count = n->entry.child_count;
     CHECK(parent < f->count && i <= count && count < 4);
-    memmove(n->children + i, n->children + i + 1, (count - i) * sizeof(ThreeMMChunkChild));
-    memset(n->children + count, 0, sizeof(ThreeMMChunkChild));
+    memmove(n->children + i, n->children + i + 1, (count - i) * sizeof(MMChunkChild));
+    memset(n->children + count, 0, sizeof(MMChunkChild));
     n->entry.variable_bytes -= 12;
 }
-static void put_child(void *context, ThreeMMU32 parent, ThreeMMU32 i, const ThreeMMChunkChild *child)
+static void put_child(void *context, MMU32 parent, MMU32 i, const MMChunkChild *child)
 {
     Fixture *f = (Fixture *)context;
     CHECK(parent < f->count && i < f->nodes[parent].entry.child_count);
     f->nodes[parent].children[i] = *child;
 }
-static int descendant(void *context, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 target_type, ThreeMMU32 target)
+static int descendant(void *context, MMU32 type, MMU32 number, MMU32 target_type, MMU32 target)
 {
     Fixture *f = (Fixture *)context;
     CHECK(type == 10 && target_type == 10 && number == 1 && target == 0);
@@ -227,7 +227,7 @@ static void init(Fixture *f)
     f->edit.put_child = put_child;
     f->edit.descendant = descendant;
 }
-static void node(Fixture *f, unsigned i, ThreeMMU32 number, ThreeMMU32 flags, ThreeMMU32 parents)
+static void node(Fixture *f, unsigned i, MMU32 number, MMU32 flags, MMU32 parents)
 {
     Node *n = f->nodes + i;
     n->entry.type = 10;
@@ -264,18 +264,18 @@ static void put_cases(void)
                     }
                     old = f.nodes[0];
                     fails = fail && (!existing || fail != 1);
-                    result = three_mm_chunk_put(&f.edit, 10, 5, zero ? 0 : 9);
+                    result = mm_chunk_put(&f.edit, 10, 5, zero ? 0 : 9);
                     CHECK(!strcmp(f.log, !fails      ? (existing ? "AOWFSR" : "IASOW")
                                          : existing  ? (fail == 2 ? "A" : "AOWFC")
                                          : fail == 1 ? "IC"
                                          : fail == 2 ? "IAEC"
                                                      : "IASOWSFREC"));
-                    CHECK(result == (!fails      ? THREE_MM_CHUNK_OK
-                                     : fail == 1 ? THREE_MM_CHUNK_MEMORY
-                                                 : THREE_MM_CHUNK_IO));
+                    CHECK(result == (!fails      ? MM_CHUNK_OK
+                                     : fail == 1 ? MM_CHUNK_MEMORY
+                                                 : MM_CHUNK_IO));
                     if (fails)
                     {
-                        CHECK(f.count == (ThreeMMU32)existing);
+                        CHECK(f.count == (MMU32)existing);
                         if (existing)
                             CHECK(!memcmp(f.nodes, &old, sizeof(old)));
                         CHECK(f.clears == (!existing || fail == 3));
@@ -283,7 +283,7 @@ static void put_cases(void)
                         CHECK(f.frees == (fail == 3) && f.resets == (!existing && fail == 3));
                         if (fail == 3)
                             CHECK(f.freed[0].offset == (zero ? 0U : 200U) &&
-                                  f.freed[0].flags == (ThreeMMU32)(extra && !zero));
+                                  f.freed[0].flags == (MMU32)(extra && !zero));
                     }
                     else
                     {
@@ -305,36 +305,36 @@ static void put_cases(void)
                 }
     init(&f);
     f.edit.write = NULL;
-    CHECK(three_mm_chunk_put(&f.edit, 10, 5, 3) == THREE_MM_CHUNK_OK && f.outputs == 1);
+    CHECK(mm_chunk_put(&f.edit, 10, 5, 3) == MM_CHUNK_OK && f.outputs == 1);
     init(&f);
     f.edit.output = NULL;
-    CHECK(three_mm_chunk_add(&f.edit, 10, 0, 0, 0, NULL) == THREE_MM_CHUNK_OK && !f.outputs);
+    CHECK(mm_chunk_add(&f.edit, 10, 0, 0, 0, NULL) == MM_CHUNK_OK && !f.outputs);
 }
 static void simple(void)
 {
     Fixture f;
-    ThreeMMU32 position, number;
+    MMU32 position, number;
     int remove;
     init(&f);
     node(&f, 0, 0, 0, 0);
     node(&f, 1, 1, 0, 0);
     node(&f, 2, 3, 0, 0);
-    CHECK(three_mm_chunk_unique(&f.edit, 10, &position, &number) == THREE_MM_CHUNK_OK && position == 2 && number == 2);
-    CHECK(three_mm_chunk_unique(&f.edit, 9, &position, &number) == THREE_MM_CHUNK_OK && !position && !number);
-    CHECK(three_mm_chunk_unique(&f.edit, 11, &position, &number) == THREE_MM_CHUNK_OK && position == 3 && !number);
+    CHECK(mm_chunk_unique(&f.edit, 10, &position, &number) == MM_CHUNK_OK && position == 2 && number == 2);
+    CHECK(mm_chunk_unique(&f.edit, 9, &position, &number) == MM_CHUNK_OK && !position && !number);
+    CHECK(mm_chunk_unique(&f.edit, 11, &position, &number) == MM_CHUNK_OK && position == 3 && !number);
     f.nodes[0].entry.parent_count = 1;
-    CHECK(three_mm_chunk_decrement(&f.edit, 0, &remove) == THREE_MM_CHUNK_OK && remove);
+    CHECK(mm_chunk_decrement(&f.edit, 0, &remove) == MM_CHUNK_OK && remove);
     remove = 123;
-    CHECK(three_mm_chunk_decrement(&f.edit, 0, &remove) == THREE_MM_CHUNK_BAD_FILE && remove == 123);
+    CHECK(mm_chunk_decrement(&f.edit, 0, &remove) == MM_CHUNK_BAD_FILE && remove == 123);
     f.nodes[0].entry.parent_count = 1;
     f.nodes[0].entry.flags = 2;
-    CHECK(three_mm_chunk_decrement(&f.edit, 0, &remove) == THREE_MM_CHUNK_OK && !remove);
+    CHECK(mm_chunk_decrement(&f.edit, 0, &remove) == MM_CHUNK_OK && !remove);
     f.logs = 0;
     memset(f.log, 0, sizeof(f.log));
-    CHECK(three_mm_chunk_remove(&f.edit, 0) == THREE_MM_CHUNK_OK && !strcmp(f.log, "FRE") && f.count == 2);
-    CHECK(three_mm_chunk_remove(&f.edit, 2) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_put(NULL, 0, 0, 0) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_add(&f.edit, 10, 5, 10, 3, NULL) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_remove(&f.edit, 0) == MM_CHUNK_OK && !strcmp(f.log, "FRE") && f.count == 2);
+    CHECK(mm_chunk_remove(&f.edit, 2) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_put(NULL, 0, 0, 0) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_add(&f.edit, 10, 5, 10, 3, NULL) == MM_CHUNK_BAD_FILE);
 }
 static void event(Fixture *f, unsigned i, unsigned number, unsigned flags, int skip)
 {
@@ -363,16 +363,16 @@ static void deletes(void)
         event(&f, 5, 3, 3, 0);
         event(&f, 6, 2, 2, !loner ? 0 : 1);
         event(&f, 7, 0, 6, 1);
-        CHECK(three_mm_chunk_delete(&f.edit, 10, 0) == THREE_MM_CHUNK_OK && f.count == (ThreeMMU32)loner);
+        CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_OK && f.count == (MMU32)loner);
         if (loner)
             CHECK(f.nodes[0].entry.number == 3 && !f.nodes[0].entry.parent_count && f.nodes[0].entry.flags == 2);
         CHECK(f.frees == (loner ? 3 : 4) && !f.issues[0] && !f.issues[1]);
     }
     init(&f);
     node(&f, 0, 0, 2, 1);
-    CHECK(three_mm_chunk_delete(&f.edit, 10, 0) == THREE_MM_CHUNK_OK && !f.begun && !f.nodes[0].entry.flags);
-    CHECK(three_mm_chunk_delete(&f.edit, 10, 0) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_delete(&f.edit, 10, 99) == THREE_MM_CHUNK_NOT_FOUND);
+    CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_OK && !f.begun && !f.nodes[0].entry.flags);
+    CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_delete(&f.edit, 10, 99) == MM_CHUNK_NOT_FOUND);
     /* Failed traversal allocation: drop duplicate child references in reverse
      * order, but do not recursively delete newly unreferenced descendants. */
     init(&f);
@@ -387,16 +387,16 @@ static void deletes(void)
     event(&f, 0, 0, 5, 0);
     event(&f, 1, 1, 11, 0);
     event(&f, 2, 0, 6, 0);
-    CHECK(three_mm_chunk_delete(&f.edit, 10, 0) == THREE_MM_CHUNK_OK && f.count == 2);
+    CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_OK && f.count == 2);
     CHECK(f.nodes[0].entry.number == 2 && !f.nodes[0].entry.parent_count && !f.nodes[0].entry.flags);
     CHECK(f.nodes[1].entry.number == 3 && !f.nodes[1].entry.parent_count && !f.nodes[1].entry.flags);
     CHECK(f.stores == 5 && f.stored_numbers[2] == 3 && f.stored_numbers[3] == 2 && f.stored_numbers[4] == 2);
-    CHECK(f.issues[THREE_MM_EDIT_LOW_MEMORY] == 1 && f.frees == 2);
+    CHECK(f.issues[MM_EDIT_LOW_MEMORY] == 1 && f.frees == 2);
 }
 static void links(void)
 {
     Fixture f;
-    ThreeMMChunkChild key;
+    MMChunkChild key;
     Node parent, target;
     int risk;
     init(&f);
@@ -406,41 +406,41 @@ static void links(void)
     key.type = 10;
     key.number = 1;
     key.slot = 9;
-    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 0, 3) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 0, 3) == MM_CHUNK_OK);
     CHECK(f.nodes[0].entry.child_count == 1 && f.nodes[0].entry.variable_bytes == 28 &&
           f.nodes[1].entry.parent_count == 1 && f.nodes[1].entry.flags == 22);
-    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == THREE_MM_CHUNK_OK && f.descends == 1 &&
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_OK && f.descends == 1 &&
           f.nodes[1].entry.flags == 22);
     parent = f.nodes[0];
     target = f.nodes[1];
     key.slot = 1;
-    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == MM_CHUNK_BAD_FILE);
     CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));
     f.fail = 4;
-    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == THREE_MM_CHUNK_MEMORY &&
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_MEMORY &&
           !memcmp(&parent, f.nodes, sizeof(parent)));
     f.fail = 0;
-    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_OK);
     CHECK(f.nodes[0].entry.child_count == 2 && f.nodes[0].entry.variable_bytes == 40 &&
           f.nodes[1].entry.parent_count == 2 && f.nodes[1].entry.flags == 20);
     key.slot = 9;
-    CHECK(three_mm_chunk_change_slot(&f.edit, 10, 0, &key, 0) == THREE_MM_CHUNK_OK &&
+    CHECK(mm_chunk_change_slot(&f.edit, 10, 0, &key, 0) == MM_CHUNK_OK &&
           f.nodes[0].children[0].slot == 0 && f.nodes[0].children[1].slot == 1);
     key.slot = 0;
-    CHECK(three_mm_chunk_change_slot(&f.edit, 10, 0, &key, 10) == THREE_MM_CHUNK_OK &&
+    CHECK(mm_chunk_change_slot(&f.edit, 10, 0, &key, 10) == MM_CHUNK_OK &&
           f.nodes[0].children[0].slot == 1 && f.nodes[0].children[1].slot == 10);
     key.slot = 10;
     parent = f.nodes[0];
-    CHECK(three_mm_chunk_change_slot(&f.edit, 10, 0, &key, 1) == THREE_MM_CHUNK_BAD_FILE &&
+    CHECK(mm_chunk_change_slot(&f.edit, 10, 0, &key, 1) == MM_CHUNK_BAD_FILE &&
           !memcmp(&parent, f.nodes, sizeof(parent)));
-    CHECK(three_mm_chunk_change_slot(&f.edit, 99, 99, &key, 10) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_change_slot(&f.edit, 99, 99, &key, 10) == MM_CHUNK_OK);
     key.slot = 1;
-    CHECK(three_mm_chunk_unlink(&f.edit, 10, 0, &key) == THREE_MM_CHUNK_OK && f.nodes[1].entry.parent_count == 1 &&
+    CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_OK && f.nodes[1].entry.parent_count == 1 &&
           !f.begun);
     key.slot = 10;
     f.delete_root = 1;
     event(&f, 0, 1, 7, 0);
-    CHECK(three_mm_chunk_unlink(&f.edit, 10, 0, &key) == THREE_MM_CHUNK_OK && f.count == 1 && f.begun == 1);
+    CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_OK && f.count == 1 && f.begun == 1);
     CHECK(!f.nodes[0].entry.child_count && f.nodes[0].entry.variable_bytes == 16 &&
           !strcmp(f.nodes[0].name, "retained"));
     init(&f);
@@ -450,51 +450,51 @@ static void links(void)
     parent = f.nodes[0];
     target = f.nodes[1];
     key.slot = 5;
-    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == THREE_MM_CHUNK_BAD_FILE); /* Child-reference overflow. */
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == MM_CHUNK_BAD_FILE); /* Child-reference overflow. */
     CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));
     for (risk = 1; risk <= 2; ++risk)
     {
         f.descendant = risk;
-        CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == THREE_MM_CHUNK_BAD_FILE);
-        CHECK(f.issues[THREE_MM_EDIT_CYCLE_RISK] == risk && !memcmp(&parent, f.nodes, sizeof(parent)));
+        CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_BAD_FILE);
+        CHECK(f.issues[MM_EDIT_CYCLE_RISK] == risk && !memcmp(&parent, f.nodes, sizeof(parent)));
     }
-    CHECK(three_mm_chunk_unlink(&f.edit, 10, 0, &key) == THREE_MM_CHUNK_NOT_FOUND);
-    CHECK(three_mm_chunk_adopt(&f.edit, 10, 99, &key, 1, 3) == THREE_MM_CHUNK_NOT_FOUND);
+    CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_NOT_FOUND);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 99, &key, 1, 3) == MM_CHUNK_NOT_FOUND);
 }
 static void flag_cases(void)
 {
     Fixture f;
     Node original;
-    ThreeMMU32 flag;
-    for (flag = THREE_MM_CHUNK_PACKED; flag <= THREE_MM_CHUNK_FOREST; flag *= 4)
+    MMU32 flag;
+    for (flag = MM_CHUNK_PACKED; flag <= MM_CHUNK_FOREST; flag *= 4)
     {
         init(&f);
         node(&f, 0, 5, 2, 1);
         original = f.nodes[0];
-        CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, flag, 0) == THREE_MM_CHUNK_OK && !f.resets && !f.stores);
-        CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, flag, 1) == THREE_MM_CHUNK_OK && f.resets == 1 && f.stores == 1 &&
+        CHECK(mm_chunk_set_flag(&f.edit, 10, 5, flag, 0) == MM_CHUNK_OK && !f.resets && !f.stores);
+        CHECK(mm_chunk_set_flag(&f.edit, 10, 5, flag, 1) == MM_CHUNK_OK && f.resets == 1 && f.stores == 1 &&
               !f.nodes[0].runtime);
         original.entry.flags |= flag;
         original.runtime = 0;
         CHECK(!memcmp(&f.nodes[0], &original, sizeof(original)));
-        CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, flag, 1) == THREE_MM_CHUNK_OK && f.resets == 1 && f.stores == 1);
-        CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, flag, 0) == THREE_MM_CHUNK_OK && f.resets == 2 && f.stores == 2 &&
+        CHECK(mm_chunk_set_flag(&f.edit, 10, 5, flag, 1) == MM_CHUNK_OK && f.resets == 1 && f.stores == 1);
+        CHECK(mm_chunk_set_flag(&f.edit, 10, 5, flag, 0) == MM_CHUNK_OK && f.resets == 2 && f.stores == 2 &&
               f.nodes[0].entry.flags == 2);
     }
     init(&f);
     node(&f, 0, 5, 0, 1);
-    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 2, 1) == THREE_MM_CHUNK_OK && f.nodes[0].entry.flags == 2 &&
+    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 1) == MM_CHUNK_OK && f.nodes[0].entry.flags == 2 &&
           !f.resets && f.nodes[0].runtime == 99);
-    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == THREE_MM_CHUNK_OK && !f.nodes[0].entry.flags && !f.begun &&
+    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && !f.nodes[0].entry.flags && !f.begun &&
           f.count == 1 && !f.resets);
-    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == THREE_MM_CHUNK_OK && f.count == 1 && !f.begun);
-    CHECK(three_mm_chunk_set_flag(&f.edit, 99, 5, 4, 1) == THREE_MM_CHUNK_NOT_FOUND);
-    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 1, 1) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && f.count == 1 && !f.begun);
+    CHECK(mm_chunk_set_flag(&f.edit, 99, 5, 4, 1) == MM_CHUNK_NOT_FOUND);
+    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 1, 1) == MM_CHUNK_BAD_FILE);
     init(&f);
     node(&f, 0, 5, 2, 0);
     f.delete_root = 5;
     event(&f, 0, 5, 7, 0);
-    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == THREE_MM_CHUNK_OK && !f.count && f.begun == 1);
+    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && !f.count && f.begun == 1);
 }
 int main(void)
 {

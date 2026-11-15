@@ -1,32 +1,32 @@
 #include "scene_sound_fixture.h"
-#include "three_mm/scene_sound_edit.h"
+#include "mm/scene_sound_edit.h"
 typedef struct EditEvent
 {
-    ThreeMMI32 frame, bytes;
+    MMI32 frame, bytes;
     int kind;
     void *data;
 } EditEvent;
 typedef struct Undo
 {
-    ThreeMMSceneSoundUndo state;
+    MMSceneSoundUndo state;
     int refs;
 } Undo;
 typedef struct List
 {
     int count;
-    ThreeMMTag tags[8];
+    MMTag tags[8];
 } List;
 typedef struct Editor
 {
     Fixture base; /* Packet fixture context is the initial member. */
-    ThreeMMSceneState data;
-    ThreeMMSceneRuntime runtime;
-    ThreeMMSceneOwner owner;
-    ThreeMMSceneSoundEditServices s;
-    ThreeMMSceneSoundUndoServices us;
+    MMSceneState data;
+    MMSceneRuntime runtime;
+    MMSceneOwner owner;
+    MMSceneSoundEditServices s;
+    MMSceneSoundUndoServices us;
     EditEvent events[8];
     int count, group_live, dirty, indicator, indicators, actor_count, actor_calls, actor_values[3];
-    ThreeMMTag tags[3];
+    MMTag tags[3];
     Undo *active;
     int alloc_calls, fail_at, fail_insert, fail_put, fail_child, fail_list, fail_resize, fail_new_undo, fail_commit;
     int list_live, undo_live, commits, clears, issues[5], event_plays, publications, published_metadata,
@@ -34,10 +34,10 @@ typedef struct Editor
     int input_resolve_fail, input_fetch_fail, input_mutate, packet_fetch_fail, closes, releases;
     int check_query_release, released_query_checked;
     int fail_switch, fail_seek, fail_get, fail_restore, flushes, queue_plays, switched, seeks;
-    ThreeMMI32 published_volume;
+    MMI32 published_volume;
     void *published_list;
 } Editor;
-static void *edit_allocate(void *p, ThreeMMI32 bytes)
+static void *edit_allocate(void *p, MMI32 bytes)
 {
     Editor *e = (Editor *)p;
     void *out;
@@ -46,10 +46,10 @@ static void *edit_allocate(void *p, ThreeMMI32 bytes)
     e->base.fail = 0;
     return out;
 }
-static void close_tag(void *p, void *packet, ThreeMMI32 index)
+static void close_tag(void *p, void *packet, MMI32 index)
 {
     Editor *e = (Editor *)p;
-    Record *r = at((ThreeMMSceneSound *)packet, index);
+    Record *r = at((MMSceneSound *)packet, index);
     ++e->closes;
     if (!r->tag.sid && r->tag.cache)
     {
@@ -58,7 +58,7 @@ static void close_tag(void *p, void *packet, ThreeMMI32 index)
         r->tag.cache = NULL;
     }
 }
-static void release_packet(void *p, ThreeMMSceneSound *packet)
+static void release_packet(void *p, MMSceneSound *packet)
 {
     Editor *e = (Editor *)p;
     int i;
@@ -74,7 +74,7 @@ static void release_packet(void *p, ThreeMMSceneSound *packet)
         close_tag(e, packet, i);
     raw_free(&e->base, packet);
 }
-static void *resource(Editor *e, ThreeMMU32 number)
+static void *resource(Editor *e, MMU32 number)
 {
     CHECK(number > 0 && number <= 3);
     ++e->base.resources;
@@ -92,26 +92,26 @@ static void *packet_fetch(void *p, void *record)
     Record *r = (Record *)record;
     return e->packet_fetch_fail == (int)r->tag.number ? NULL : resource(e, r->tag.number);
 }
-static void *data_at(void *p, void *group, ThreeMMI32 index)
+static void *data_at(void *p, void *group, MMI32 index)
 {
     Editor *e = (Editor *)p;
     CHECK(group == e && index >= 0 && index < e->count);
     return e->events[index].data;
 }
-static ThreeMMI32 size_at(void *p, void *group, ThreeMMI32 index)
+static MMI32 size_at(void *p, void *group, MMI32 index)
 {
     Editor *e = (Editor *)p;
     CHECK(group == e && index >= 0 && index < e->count);
     return e->events[index].bytes;
 }
-static void event_at(void *p, void *group, ThreeMMI32 index, ThreeMMI32 *frame, int *kind)
+static void event_at(void *p, void *group, MMI32 index, MMI32 *frame, int *kind)
 {
     Editor *e = (Editor *)p;
     CHECK(group == e && index >= 0 && index < e->count);
     *frame = e->events[index].frame;
     *kind = e->events[index].kind;
 }
-static int insert_event(void *p, ThreeMMI32 index, ThreeMMI32 frame, int kind, ThreeMMI32 bytes, const void *data)
+static int insert_event(void *p, MMI32 index, MMI32 frame, int kind, MMI32 bytes, const void *data)
 {
     Editor *e = (Editor *)p;
     void *copy;
@@ -140,7 +140,7 @@ static int insert_event(void *p, ThreeMMI32 index, ThreeMMI32 frame, int kind, T
     ++e->group_live;
     return 1;
 }
-static int put_event(void *p, ThreeMMI32 index, ThreeMMI32 bytes, const void *data)
+static int put_event(void *p, MMI32 index, MMI32 bytes, const void *data)
 {
     Editor *e = (Editor *)p;
     void *copy;
@@ -155,7 +155,7 @@ static int put_event(void *p, ThreeMMI32 index, ThreeMMI32 bytes, const void *da
     e->events[index].bytes = bytes;
     return 1;
 }
-static void erase_event(void *p, ThreeMMI32 index)
+static void erase_event(void *p, MMI32 index)
 {
     Editor *e = (Editor *)p;
     CHECK(index >= 0 && index < e->count);
@@ -164,7 +164,7 @@ static void erase_event(void *p, ThreeMMI32 index)
     --e->count;
     --e->group_live;
 }
-static void *allocate_records(void *p, ThreeMMI32 bytes)
+static void *allocate_records(void *p, MMI32 bytes)
 {
     void *out = edit_allocate(p, bytes);
     if (out)
@@ -175,13 +175,13 @@ static void free_raw(void *p, void *value)
 {
     raw_free(&((Editor *)p)->base, value);
 }
-static void input_tag(void *p, void *tags, ThreeMMI32 index, ThreeMMTag *out)
+static void input_tag(void *p, void *tags, MMI32 index, MMTag *out)
 {
     (void)p;
     CHECK(index >= 0 && index < 3);
-    *out = ((ThreeMMTag *)tags)[index];
+    *out = ((MMTag *)tags)[index];
 }
-static int child(void *p, ThreeMMU32 number, ThreeMMU32 *out)
+static int child(void *p, MMU32 number, MMU32 *out)
 {
     Editor *e = (Editor *)p;
     if (e->child_changes_frame)
@@ -191,26 +191,26 @@ static int child(void *p, ThreeMMU32 number, ThreeMMU32 *out)
     *out = number;
     return 1;
 }
-static ThreeMMU32 unused_child(void *p)
+static MMU32 unused_child(void *p)
 {
     (void)p;
     return 0xccccccccU;
 }
-static int resolve_input(void *p, void *tags, ThreeMMI32 index, ThreeMMU32 child)
+static int resolve_input(void *p, void *tags, MMI32 index, MMU32 child)
 {
     Editor *e = (Editor *)p;
-    ThreeMMTag *tag = (ThreeMMTag *)tags + index;
+    MMTag *tag = (MMTag *)tags + index;
     CHECK(child > 0 && child <= 3);
     if (e->input_mutate && index == 0)
         tag->number = 3;
     return !(e->input_resolve_fail & (1 << index));
 }
-static void *fetch_input(void *p, void *tags, ThreeMMI32 index)
+static void *fetch_input(void *p, void *tags, MMI32 index)
 {
     Editor *e = (Editor *)p;
-    return e->input_fetch_fail == index + 1 ? NULL : resource(e, ((ThreeMMTag *)tags)[index].number);
+    return e->input_fetch_fail == index + 1 ? NULL : resource(e, ((MMTag *)tags)[index].number);
 }
-static void *new_list(void *p, ThreeMMI32 count)
+static void *new_list(void *p, MMI32 count)
 {
     Editor *e = (Editor *)p;
     void *out;
@@ -222,7 +222,7 @@ static void *new_list(void *p, ThreeMMI32 count)
     ++e->list_live;
     return out;
 }
-static int resize_list(void *p, void *list, ThreeMMI32 count)
+static int resize_list(void *p, void *list, MMI32 count)
 {
     Editor *e = (Editor *)p;
     if (e->fail_resize)
@@ -230,7 +230,7 @@ static int resize_list(void *p, void *list, ThreeMMI32 count)
     ((List *)list)->count = count;
     return 1;
 }
-static void put_tag(void *p, void *list, ThreeMMI32 index, const ThreeMMTag *tag)
+static void put_tag(void *p, void *list, MMI32 index, const MMTag *tag)
 {
     (void)p;
     CHECK(index >= 0 && index < ((List *)list)->count);
@@ -243,7 +243,7 @@ static void release_list(void *p, void *list)
     --e->list_live;
     free(list);
 }
-static void publish_query(void *p, void *list, int metadata, ThreeMMI32 volume, int loop)
+static void publish_query(void *p, void *list, int metadata, MMI32 volume, int loop)
 {
     Editor *e = (Editor *)p;
     ++e->publications;
@@ -255,11 +255,11 @@ static void publish_query(void *p, void *list, int metadata, ThreeMMI32 volume, 
         CHECK(loop == 1);
     }
 }
-static ThreeMMI32 actors(void *p)
+static MMI32 actors(void *p)
 {
     return ((Editor *)p)->actor_count;
 }
-static int actor_sound(void *p, ThreeMMI32 index)
+static int actor_sound(void *p, MMI32 index)
 {
     Editor *e = (Editor *)p;
     ++e->actor_calls;
@@ -289,7 +289,7 @@ static void undo_release(void *p, void *value)
     CHECK(u->refs > 0);
     if (!--u->refs)
     {
-        three_mm_scene_sound_undo_dispose(&u->state, &e->s.values);
+        mm_scene_sound_undo_dispose(&u->state, &e->s.values);
         --e->undo_live;
         free(u);
     }
@@ -306,7 +306,7 @@ static void *new_undo(void *p)
     ++e->undo_live;
     return u;
 }
-static ThreeMMSceneSoundUndo *undo_state(void *p, void *u)
+static MMSceneSoundUndo *undo_state(void *p, void *u)
 {
     (void)p;
     return &((Undo *)u)->state;
@@ -332,25 +332,25 @@ static void clear_undo(void *p)
     if (u)
         undo_release(e, u);
 }
-static void owner_publish(void *p, void *scene, const ThreeMMSceneOwner *owner)
+static void owner_publish(void *p, void *scene, const MMSceneOwner *owner)
 {
     Editor *e = (Editor *)p;
     CHECK(scene == e && owner == &e->owner);
 }
-static ThreeMMI32 packet_count(void *p, void *value)
+static MMI32 packet_count(void *p, void *value)
 {
     (void)p;
-    return ((ThreeMMSceneSound *)value)->ctagc;
+    return ((MMSceneSound *)value)->ctagc;
 }
-static ThreeMMI32 packet_style(void *p, void *value)
+static MMI32 packet_style(void *p, void *value)
 {
     (void)p;
-    return ((ThreeMMSceneSound *)value)->sty;
+    return ((MMSceneSound *)value)->sty;
 }
-static int packet_open(void *p, void *value, ThreeMMI32 index)
+static int packet_open(void *p, void *value, MMI32 index)
 {
     (void)p;
-    return at((ThreeMMSceneSound *)value, index)->tag.cache != NULL;
+    return at((MMSceneSound *)value, index)->tag.cache != NULL;
 }
 static void packet_free(void *p, void *value)
 {
@@ -359,19 +359,19 @@ static void packet_free(void *p, void *value)
 static int event_style(void *p, void *value)
 {
     (void)p;
-    return ((ThreeMMSceneSound *)value)->sty;
+    return ((MMSceneSound *)value)->sty;
 }
 static void *event_duplicate(void *p, void *value)
 {
     Editor *e = (Editor *)p;
-    return three_mm_scene_sound_duplicate((ThreeMMSceneSound *)value, &e->base.s);
+    return mm_scene_sound_duplicate((MMSceneSound *)value, &e->base.s);
 }
 static void event_play(void *p, void *value)
 {
     Editor *e = (Editor *)p;
     ++e->event_plays;
-    e->base.packet = (ThreeMMSceneSound *)value;
-    three_mm_scene_sound_play(e->base.packet, 0, &e->base.s);
+    e->base.packet = (MMSceneSound *)value;
+    mm_scene_sound_play(e->base.packet, 0, &e->base.s);
 }
 static int switch_scene(void *p)
 {
@@ -393,31 +393,31 @@ static void play_queue(void *p)
 {
     ++((Editor *)p)->queue_plays;
 }
-static int undo_get(void *p, ThreeMMI32 style, int *found, ThreeMMSceneSound **out)
+static int undo_get(void *p, MMI32 style, int *found, MMSceneSound **out)
 {
     Editor *e = (Editor *)p;
     if (e->fail_get)
         return 0;
-    return three_mm_scene_sound_get(style, found, out, &e->s);
+    return mm_scene_sound_get(style, found, out, &e->s);
 }
-static void undo_remove(void *p, ThreeMMI32 style)
+static void undo_remove(void *p, MMI32 style)
 {
     Editor *e = (Editor *)p;
-    three_mm_scene_sound_remove(style, &e->s);
+    mm_scene_sound_remove(style, &e->s);
 }
-static int undo_restore(void *p, const ThreeMMSceneSound *value)
+static int undo_restore(void *p, const MMSceneSound *value)
 {
     Editor *e = (Editor *)p;
     if (e->fail_restore)
         return 0;
-    return three_mm_scene_sound_restore(value->fLoop != 0, 0, value->vlm, value->sty, value->ctagc,
+    return mm_scene_sound_restore(value->fLoop != 0, 0, value->vlm, value->sty, value->ctagc,
                                         (const unsigned char *)value + 16, &e->s);
 }
 static void editor_init(Editor *e)
 {
     int i;
-    ThreeMMSceneSoundEditServices *s;
-    ThreeMMSceneEventServices *v;
+    MMSceneSoundEditServices *s;
+    MMSceneEventServices *v;
     memset(e, 0, sizeof(*e));
     init(&e->base);
     e->base.s.allocate = edit_allocate;
@@ -425,8 +425,8 @@ static void editor_init(Editor *e)
     e->base.s.group_size = size_at;
     e->base.s.resolve = packet_resolve;
     e->base.s.fetch = packet_fetch;
-    three_mm_scene_runtime_init(&e->runtime);
-    three_mm_scene_owner_init(&e->owner, NULL);
+    mm_scene_runtime_init(&e->runtime);
+    mm_scene_owner_init(&e->owner, NULL);
     e->data.firstFrame = e->data.currentFrame = 1;
     e->data.lastFrame = 10;
     for (i = 0; i < 3; ++i)
@@ -465,7 +465,7 @@ static void editor_init(Editor *e)
     v->runtime = &e->runtime;
     v->data = &e->data;
     v->owner = &e->owner;
-    e->owner.owned[THREE_MM_SCENE_FRAMES] = e;
+    e->owner.owned[MM_SCENE_FRAMES] = e;
     v->event = event_at;
     v->payload = data_at;
     v->sound_style = event_style;
@@ -491,21 +491,21 @@ static void editor_init(Editor *e)
     e->us.restore = undo_restore;
     e->us.diagnostic = diagnostic;
 }
-static ThreeMMSceneSound *frame_packet(Editor *e, int index)
+static MMSceneSound *frame_packet(Editor *e, int index)
 {
-    CHECK(index >= 0 && index < e->count && e->events[index].kind == THREE_MM_SCENE_PLAY_SOUND);
-    return (ThreeMMSceneSound *)e->events[index].data;
+    CHECK(index >= 0 && index < e->count && e->events[index].kind == MM_SCENE_PLAY_SOUND);
+    return (MMSceneSound *)e->events[index].data;
 }
 static void seed(Editor *e, int style)
 {
-    ThreeMMSceneSound *p = make(&e->base, 1);
+    MMSceneSound *p = make(&e->base, 1);
     p->sty = style;
     p->fLoop = 0;
     ++e->runtime.next_event;
-    CHECK(insert_event(e, e->count, 1, THREE_MM_SCENE_PLAY_SOUND, three_mm_scene_sound_size(1, sizeof(Record)), p));
+    CHECK(insert_event(e, e->count, 1, MM_SCENE_PLAY_SOUND, mm_scene_sound_size(1, sizeof(Record)), p));
     if (style == 4)
     {
-        e->owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND] = three_mm_scene_sound_duplicate(p, &e->base.s);
+        e->owner.owned[MM_SCENE_BACKGROUND_SOUND] = mm_scene_sound_duplicate(p, &e->base.s);
         e->runtime.background_frame = 1;
     }
     raw_free(&e->base, p);
@@ -515,10 +515,10 @@ static void editor_clean(Editor *e)
 {
     int i, j;
     clear_undo(e);
-    three_mm_scene_owner_drop(&e->owner, e, THREE_MM_SCENE_BACKGROUND_SOUND, &e->s.events.owners);
+    mm_scene_owner_drop(&e->owner, e, MM_SCENE_BACKGROUND_SOUND, &e->s.events.owners);
     for (i = e->count - 1; i >= 0; --i)
     {
-        if (e->events[i].kind == THREE_MM_SCENE_PLAY_SOUND)
+        if (e->events[i].kind == MM_SCENE_PLAY_SOUND)
             for (j = 0; j < frame_packet(e, i)->ctagc; ++j)
                 close_tag(e, e->events[i].data, j);
         erase_event(e, i);
@@ -529,17 +529,17 @@ static void editor_clean(Editor *e)
 static void additions(void)
 {
     Editor e;
-    ThreeMMSceneSound *p;
+    MMSceneSound *p;
     int failure;
     editor_init(&e);
-    CHECK(three_mm_scene_sound_add(0, 0, 83, 2, 3, e.tags, &e.s));
+    CHECK(mm_scene_sound_add(0, 0, 83, 2, 3, e.tags, &e.s));
     p = frame_packet(&e, 0);
     CHECK(p->ctagc == 3 && p->vlm == 83 && e.base.plays == 3 && e.dirty == 2 && e.runtime.next_event == 1);
     CHECK(e.base.refs[1] == 1 && e.base.refs[3] == 1 && !e.base.starts[1] && !e.base.queues[1] && e.base.queues[2]);
-    CHECK(three_mm_scene_sound_add(0, 1, 29, 2, 1, e.tags, &e.s));
+    CHECK(mm_scene_sound_add(0, 1, 29, 2, 1, e.tags, &e.s));
     p = frame_packet(&e, 0);
     CHECK(p->ctagc == 4 && p->vlm == 83 && e.base.volumes[1] == 29 && e.base.refs[1] == 2 && e.runtime.next_event == 1);
-    CHECK(three_mm_scene_sound_add(1, 0, 56, 2, 1, e.tags, &e.s));
+    CHECK(mm_scene_sound_add(1, 0, 56, 2, 1, e.tags, &e.s));
     p = frame_packet(&e, 0);
     CHECK(p->ctagc == 1 && p->fLoop == 1 && e.base.refs[1] == 1 && !e.base.refs[3]);
     editor_clean(&e);
@@ -548,82 +548,82 @@ static void additions(void)
         editor_init(&e);
         seed(&e, 2);
         e.fail_at = failure;
-        CHECK(!three_mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
+        CHECK(!mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
         CHECK(e.count == 1 && e.base.refs[1] == 1 && !e.dirty);
         editor_clean(&e);
         editor_init(&e);
         seed(&e, 2);
         e.fail_at = failure;
-        CHECK(!three_mm_scene_sound_add(0, 1, 70, 2, 1, e.tags, &e.s));
+        CHECK(!mm_scene_sound_add(0, 1, 70, 2, 1, e.tags, &e.s));
         CHECK(e.count == 1 && e.base.refs[1] == 1 && !e.dirty);
         editor_clean(&e);
     }
     editor_init(&e);
     seed(&e, 2);
     e.fail_put = 1;
-    CHECK(!three_mm_scene_sound_add(0, 1, 70, 2, 1, e.tags, &e.s));
+    CHECK(!mm_scene_sound_add(0, 1, 70, 2, 1, e.tags, &e.s));
     CHECK(e.base.refs[1] == 1 && e.base.live == 0 && frame_packet(&e, 0)->ctagc == 1);
     editor_clean(&e);
     editor_init(&e);
     seed(&e, 2);
     e.fail_insert = 1;
-    CHECK(!three_mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
+    CHECK(!mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
     CHECK(e.dirty == 1 && e.base.refs[1] == 1 && e.runtime.next_event == 1);
     editor_clean(&e);
     editor_init(&e);
     seed(&e, 2);
     e.fail_child = 1;
-    CHECK(!three_mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
+    CHECK(!mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
     CHECK(!e.dirty && e.base.refs[1] == 1);
-    CHECK(!three_mm_scene_sound_add(0, 1, 70, 2, 1, e.tags, &e.s));
+    CHECK(!mm_scene_sound_add(0, 1, 70, 2, 1, e.tags, &e.s));
     CHECK(e.base.refs[1] == 1 && !e.base.live);
     editor_clean(&e);
     editor_init(&e);
     e.input_resolve_fail = 1;
     e.input_fetch_fail = 2;
-    CHECK(three_mm_scene_sound_add(0, 0, 30, 2, 3, e.tags, &e.s));
+    CHECK(mm_scene_sound_add(0, 0, 30, 2, 3, e.tags, &e.s));
     CHECK(e.base.plays == 1 && e.base.queues[3] && !e.base.starts[3]);
     editor_clean(&e);
     editor_init(&e);
     e.input_mutate = 1;
-    CHECK(three_mm_scene_sound_add(0, 0, 30, 2, 1, e.tags, &e.s));
+    CHECK(mm_scene_sound_add(0, 0, 30, 2, 1, e.tags, &e.s));
     CHECK(e.tags[0].number == 3 && at(frame_packet(&e, 0), 0)->tag.number == 1 && e.base.volumes[3] == 30);
     editor_clean(&e);
     editor_init(&e);
     e.child_changes_frame = 1;
-    CHECK(three_mm_scene_sound_add(0, 0, 30, 4, 1, e.tags, &e.s));
+    CHECK(mm_scene_sound_add(0, 0, 30, 4, 1, e.tags, &e.s));
     CHECK(e.events[0].frame == 1 && e.runtime.background_frame == 1 && e.data.currentFrame == 7);
     editor_clean(&e);
     editor_init(&e);
     e.fail_at = 3; /* MIDI cache duplicate fails after array+packet allocation. */
-    CHECK(three_mm_scene_sound_add(0, 0, 30, 4, 1, e.tags, &e.s));
-    CHECK(e.count == 1 && !e.owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND] && e.indicator);
+    CHECK(mm_scene_sound_add(0, 0, 30, 4, 1, e.tags, &e.s));
+    CHECK(e.count == 1 && !e.owner.owned[MM_SCENE_BACKGROUND_SOUND] && e.indicator);
     editor_clean(&e);
     editor_init(&e);
-    CHECK(!three_mm_scene_sound_add(0, 1, 30, 2, 3, e.tags, &e.s) && !e.alloc_calls);
+    CHECK(!mm_scene_sound_add(0, 1, 30, 2, 3, e.tags, &e.s) && !e.alloc_calls);
     editor_clean(&e);
 }
 static void queries(void)
 {
     Editor e;
-    ThreeMMSceneSound *p;
+    MMSceneSound *p;
     void *list;
-    ThreeMMI32 volume;
+    MMI32 volume;
     int found, loop;
     editor_init(&e);
-    p = (ThreeMMSceneSound *)&e;
+    p = (MMSceneSound *)&e;
     found = 1;
-    CHECK(three_mm_scene_sound_get(2, &found, &p, &e.s) && !found && p == (ThreeMMSceneSound *)&e);
+    CHECK(mm_scene_sound_get(2, &found, &p, &e.s) && !found && p == (MMSceneSound *)&e);
     volume = -17;
     loop = 7;
     list = &e;
-    CHECK(three_mm_scene_sound_query(2, &list, &volume, &loop, &e.s) && !list && volume == -17 && loop == 7);
+    CHECK(mm_scene_sound_query(2, &list, &volume, &loop, &e.s) && !list && volume == -17 && loop == 7);
     seed(&e, 2);
     frame_packet(&e, 0)->fLoop = 0x01000000;
     e.s.query_context = &e;
     e.s.publish_query = publish_query;
     e.check_query_release = 1;
-    CHECK(three_mm_scene_sound_query(2, &list, &volume, &loop, &e.s));
+    CHECK(mm_scene_sound_query(2, &list, &volume, &loop, &e.s));
     CHECK(list && volume == 80 && loop == 1 && e.base.refs[1] == 1);
     CHECK(e.publications == 3 && e.published_metadata && e.published_volume == 80 && e.published_list == list);
     CHECK(e.released_query_checked == 1);
@@ -631,18 +631,18 @@ static void queries(void)
     CHECK(((List *)list)->tags[0].cache == &e.base);
     release_list(&e, list);
     e.fail_at = e.alloc_calls + 1;
-    p = (ThreeMMSceneSound *)&e;
-    CHECK(!three_mm_scene_sound_get(2, &found, &p, &e.s) && !found && !p);
+    p = (MMSceneSound *)&e;
+    CHECK(!mm_scene_sound_get(2, &found, &p, &e.s) && !found && !p);
     e.fail_at = 0;
     e.fail_list = 1;
     volume = -17;
     loop = 7;
-    CHECK(!three_mm_scene_sound_query(2, &list, &volume, &loop, &e.s) && !list && volume == -17 && loop == 7 &&
+    CHECK(!mm_scene_sound_query(2, &list, &volume, &loop, &e.s) && !list && volume == -17 && loop == 7 &&
           e.base.refs[1] == 1);
     e.fail_list = 0;
     e.fail_resize = 1;
-    CHECK(!three_mm_scene_sound_query(2, &list, &volume, &loop, &e.s) && !list && !e.list_live && e.base.refs[1] == 1);
-    CHECK(e.issues[THREE_MM_SCENE_SOUND_LIST_RESIZE] == 1);
+    CHECK(!mm_scene_sound_query(2, &list, &volume, &loop, &e.s) && !list && !e.list_live && e.base.refs[1] == 1);
+    CHECK(e.issues[MM_SCENE_SOUND_LIST_RESIZE] == 1);
     editor_clean(&e);
 }
 static void indicators_and_restore(void)
@@ -653,40 +653,40 @@ static void indicators_and_restore(void)
     e.actor_count = 3;
     e.actor_values[1] = 1;
     e.runtime.disabled = 65535;
-    three_mm_scene_sound_update_indicator(&e.s);
+    mm_scene_sound_update_indicator(&e.s);
     CHECK(e.indicator && e.actor_calls == 2);
     seed(&e, 4);
     e.actor_calls = 0;
-    three_mm_scene_sound_update_indicator(&e.s);
+    mm_scene_sound_update_indicator(&e.s);
     CHECK(e.indicator && !e.actor_calls);
-    three_mm_scene_sound_volume(4, 45, &e.s);
+    mm_scene_sound_volume(4, 45, &e.s);
     CHECK(frame_packet(&e, 0)->vlm == 45 &&
-          ((ThreeMMSceneSound *)e.owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND])->vlm == 80);
-    three_mm_scene_sound_remove(4, &e.s);
-    CHECK(!e.count && !e.owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND] && e.indicator &&
+          ((MMSceneSound *)e.owner.owned[MM_SCENE_BACKGROUND_SOUND])->vlm == 80);
+    mm_scene_sound_remove(4, &e.s);
+    CHECK(!e.count && !e.owner.owned[MM_SCENE_BACKGROUND_SOUND] && e.indicator &&
           e.runtime.background_frame == 1);
     e.actor_values[1] = 0;
-    three_mm_scene_sound_update_indicator(&e.s);
+    mm_scene_sound_update_indicator(&e.s);
     CHECK(!e.indicator);
     editor_clean(&e);
     editor_init(&e);
     seed(&e, 2);
     e.data.currentFrame = 2;
-    missing = e.issues[THREE_MM_SCENE_SOUND_MISSING];
-    three_mm_scene_sound_volume(2, 20, &e.s);
-    CHECK(e.issues[THREE_MM_SCENE_SOUND_MISSING] == missing + 2 && frame_packet(&e, 0)->vlm == 80);
-    three_mm_scene_sound_remove(2, &e.s);
-    CHECK(e.count == 1 && e.issues[THREE_MM_SCENE_SOUND_STYLE_MISSING] == 1);
+    missing = e.issues[MM_SCENE_SOUND_MISSING];
+    mm_scene_sound_volume(2, 20, &e.s);
+    CHECK(e.issues[MM_SCENE_SOUND_MISSING] == missing + 2 && frame_packet(&e, 0)->vlm == 80);
+    mm_scene_sound_remove(2, &e.s);
+    CHECK(e.count == 1 && e.issues[MM_SCENE_SOUND_STYLE_MISSING] == 1);
     editor_clean(&e);
     editor_init(&e);
     e.packet_fetch_fail = 2;
-    CHECK(three_mm_scene_sound_restore(0, 0, 66, 2, 3, e.base.input, &e.s));
+    CHECK(mm_scene_sound_restore(0, 0, 66, 2, 3, e.base.input, &e.s));
     CHECK(e.event_plays == 1 && e.base.plays == 1 && e.count == 1);
-    CHECK(!three_mm_scene_sound_restore(0, 1, 66, 2, 1, e.base.input, &e.s) &&
-          e.issues[THREE_MM_SCENE_SOUND_QUEUE_RESTORE] == 1);
+    CHECK(!mm_scene_sound_restore(0, 1, 66, 2, 1, e.base.input, &e.s) &&
+          e.issues[MM_SCENE_SOUND_QUEUE_RESTORE] == 1);
     e.runtime.disabled |= 1;
-    CHECK(three_mm_scene_sound_restore(0, 0, 20, 4, 1, e.base.input, &e.s));
-    CHECK(e.owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND]);
+    CHECK(mm_scene_sound_restore(0, 0, 20, 4, 1, e.base.input, &e.s));
+    CHECK(e.owner.owned[MM_SCENE_BACKGROUND_SOUND]);
     editor_clean(&e);
 }
 static void transactions(void)
@@ -698,7 +698,7 @@ static void transactions(void)
         editor_init(&e);
         seed(&e, 2);
         e.fail_at = failure;
-        CHECK(!three_mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s));
+        CHECK(!mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s));
         CHECK(e.base.refs[1] == 1 && !e.undo_live && e.count == 1);
         CHECK(e.clears == (failure > 2));
         editor_clean(&e);
@@ -706,34 +706,34 @@ static void transactions(void)
     editor_init(&e);
     seed(&e, 2);
     e.fail_new_undo = 1;
-    CHECK(!three_mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s) && !e.undo_live && !e.commits);
+    CHECK(!mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s) && !e.undo_live && !e.commits);
     editor_clean(&e);
     editor_init(&e);
     seed(&e, 2);
     e.fail_commit = 1;
-    CHECK(!three_mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s) && !e.undo_live && !e.clears &&
+    CHECK(!mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s) && !e.undo_live && !e.clears &&
           frame_packet(&e, 0)->vlm == 80);
     editor_clean(&e);
     editor_init(&e);
-    CHECK(three_mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s));
+    CHECK(mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s));
     CHECK(e.active && !e.active->state.sound && e.active->state.style == 2);
     editor_clean(&e);
     editor_init(&e);
     seed(&e, 2);
     e.data.currentFrame = 2;
-    CHECK(three_mm_scene_sound_add(0, 0, 60, 2, 1, e.tags, &e.s));
+    CHECK(mm_scene_sound_add(0, 0, 60, 2, 1, e.tags, &e.s));
     CHECK(e.count == 2);
-    CHECK(three_mm_scene_sound_remove_undo(2, &e.s) && e.count == 1 && e.active->state.sound && e.events[0].frame == 1);
+    CHECK(mm_scene_sound_remove_undo(2, &e.s) && e.count == 1 && e.active->state.sound && e.events[0].frame == 1);
     editor_clean(&e);
     editor_init(&e);
-    CHECK(!three_mm_scene_sound_remove_undo(2, &e.s) && !e.undo_live && !e.commits);
+    CHECK(!mm_scene_sound_remove_undo(2, &e.s) && !e.undo_live && !e.commits);
     editor_clean(&e);
     for (failure = 1; failure <= 2; ++failure)
     {
         editor_init(&e);
         seed(&e, 2);
         e.fail_at = failure;
-        CHECK(!three_mm_scene_sound_remove_undo(2, &e.s) && !e.undo_live && e.count == 1 && e.base.refs[1] == 1);
+        CHECK(!mm_scene_sound_remove_undo(2, &e.s) && !e.undo_live && e.count == 1 && e.base.refs[1] == 1);
         editor_clean(&e);
     }
 }
@@ -741,7 +741,7 @@ static void swaps(void)
 {
     Editor e;
     Undo *u;
-    ThreeMMSceneSound *p;
+    MMSceneSound *p;
     int i, mode;
     editor_init(&e);
     seed(&e, 2);
@@ -750,7 +750,7 @@ static void swaps(void)
     e.active = u;
     for (i = 0; i < 4; ++i)
     {
-        CHECK(three_mm_scene_sound_undo_swap(&u->state, &e.us));
+        CHECK(mm_scene_sound_undo_swap(&u->state, &e.us));
         CHECK((e.count == 0) == (u->state.sound != NULL));
     }
     CHECK(e.queue_plays == 4 && e.flushes == 4);
@@ -759,11 +759,11 @@ static void swaps(void)
     seed(&e, 2);
     u = (Undo *)new_undo(&e);
     e.active = u;
-    CHECK(three_mm_scene_sound_undo_set(&u->state, frame_packet(&e, 0), &e.s.values));
+    CHECK(mm_scene_sound_undo_set(&u->state, frame_packet(&e, 0), &e.s.values));
     frame_packet(&e, 0)->vlm = 31;
-    CHECK(three_mm_scene_sound_undo_swap(&u->state, &e.us));
+    CHECK(mm_scene_sound_undo_swap(&u->state, &e.us));
     CHECK(frame_packet(&e, 0)->vlm == 80 && u->state.sound->vlm == 31);
-    CHECK(three_mm_scene_sound_undo_swap(&u->state, &e.us));
+    CHECK(mm_scene_sound_undo_swap(&u->state, &e.us));
     CHECK(frame_packet(&e, 0)->vlm == 31 && u->state.sound->vlm == 80);
     editor_clean(&e);
     for (mode = 0; mode < 5; ++mode)
@@ -778,7 +778,7 @@ static void swaps(void)
         e.fail_get = mode == 2;
         if (mode == 3)
         {
-            CHECK(three_mm_scene_sound_undo_set(&u->state, frame_packet(&e, 0), &e.s.values));
+            CHECK(mm_scene_sound_undo_set(&u->state, frame_packet(&e, 0), &e.s.values));
             e.fail_restore = 1;
         }
         if (mode == 4)
@@ -786,7 +786,7 @@ static void swaps(void)
             e.alloc_calls = 0;
             e.fail_at = 2;
         } /* current clone succeeds, saved clone fails */
-        CHECK(!three_mm_scene_sound_undo_swap(&u->state,
+        CHECK(!mm_scene_sound_undo_swap(&u->state,
                                               &e.us)); /* clear destroys u: sanitizer checks no later access. */
         CHECK(!e.active && !e.undo_live && e.clears == 1 && !e.queue_plays);
         CHECK(e.count == (mode == 3 ? 0 : 1));
@@ -796,45 +796,45 @@ static void swaps(void)
     u = (Undo *)new_undo(&e);
     e.active = u;
     u->state.style = 2;
-    CHECK(!three_mm_scene_sound_undo_swap(&u->state, &e.us) && e.active && !e.clears);
+    CHECK(!mm_scene_sound_undo_swap(&u->state, &e.us) && e.active && !e.clears);
     editor_clean(&e);
     editor_init(&e);
     seed(&e, 2);
     u = (Undo *)new_undo(&e);
     e.active = u;
-    CHECK(three_mm_scene_sound_undo_set(&u->state, frame_packet(&e, 0), &e.s.values));
+    CHECK(mm_scene_sound_undo_set(&u->state, frame_packet(&e, 0), &e.s.values));
     p = u->state.sound;
     e.fail_at = e.alloc_calls + 1;
-    CHECK(!three_mm_scene_sound_undo_set(&u->state, frame_packet(&e, 0), &e.s.values) && u->state.sound == p);
+    CHECK(!mm_scene_sound_undo_set(&u->state, frame_packet(&e, 0), &e.s.values) && u->state.sound == p);
     editor_clean(&e);
 }
 static void background(void)
 {
     Editor e;
     int overflow;
-    ThreeMMU32 offset;
+    MMU32 offset;
     editor_init(&e);
-    three_mm_scene_sound_background_play(&e.s);
+    mm_scene_sound_background_play(&e.s);
     CHECK(!e.base.plays);
     seed(&e, 4);
     e.data.currentFrame = 3;
-    three_mm_scene_sound_background_play(&e.s);
+    mm_scene_sound_background_play(&e.s);
     CHECK(e.base.starts[1] == 333);
-    CHECK(three_mm_scene_sound_background_offset(2, 1, &overflow) == 166 && !overflow);
-    CHECK(three_mm_scene_sound_background_offset(1, 2, &overflow) == (ThreeMMU32)(0U - 166U) && !overflow);
-    offset = three_mm_scene_sound_background_offset(2147483647, 0, &overflow);
+    CHECK(mm_scene_sound_background_offset(2, 1, &overflow) == 166 && !overflow);
+    CHECK(mm_scene_sound_background_offset(1, 2, &overflow) == (MMU32)(0U - 166U) && !overflow);
+    offset = mm_scene_sound_background_offset(2147483647, 0, &overflow);
     CHECK(overflow && offset == 1431655598U);
-    CHECK(three_mm_scene_sound_background_offset((-2147483647 - 1), 2147483647, &overflow) == 166 && !overflow);
+    CHECK(mm_scene_sound_background_offset((-2147483647 - 1), 2147483647, &overflow) == 166 && !overflow);
     e.data.currentFrame = 2147483647;
     e.runtime.background_frame = 0;
-    three_mm_scene_sound_background_play(&e.s);
-    CHECK(e.issues[THREE_MM_SCENE_SOUND_OFFSET_OVERFLOW] == 1 && e.base.starts[1] == offset);
+    mm_scene_sound_background_play(&e.s);
+    CHECK(e.issues[MM_SCENE_SOUND_OFFSET_OVERFLOW] == 1 && e.base.starts[1] == offset);
     editor_clean(&e);
 }
 int main(void)
 {
     Fixture f;
-    ThreeMMSceneSound *p;
+    MMSceneSound *p;
     init(&f);
     p = make(&f, 1);
     drop(&f, p);

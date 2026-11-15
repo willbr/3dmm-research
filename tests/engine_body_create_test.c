@@ -1,4 +1,4 @@
-#include "three_mm/body_create.h"
+#include "mm/body_create.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,16 +7,16 @@ typedef struct List { int count; short values[8]; } List;
 typedef struct Part { int role,parent,model; } Part;
 typedef struct Fixture
 {
-    ThreeMMBodyShape body;
-    ThreeMMBodyCreateServices s;
+    MMBodyShape body;
+    MMBodyCreateServices s;
     List sets,parents,copy;
     int fail,highlight,installed,created,released,duplicated,material_alloc,actor_alloc;
     int initialized,linked,hidden,models,materials,freed,sets_released,disposed;
     int events[64],event_count;
 } Fixture;
 static void event(Fixture *f,int n) { CHECK(f->event_count<64); f->events[f->event_count++]=n; }
-static void read_body(void *p,void *body,ThreeMMBodyShape *b) { Fixture *f=p; CHECK(body==&f->body); *b=f->body; }
-static void write_body(void *p,void *body,const ThreeMMBodyShape *b) { Fixture *f=p; CHECK(body==&f->body); f->body=*b; }
+static void read_body(void *p,void *body,MMBodyShape *b) { Fixture *f=p; CHECK(body==&f->body); *b=f->body; }
+static void write_body(void *p,void *body,const MMBodyShape *b) { Fixture *f=p; CHECK(body==&f->body); f->body=*b; }
 static void *highlight(void *p) { Fixture *f=p; return f->highlight?&f->highlight:NULL; }
 static void *allocate_highlight(void *p) { Fixture *f=p; event(f,1); return f->fail==1?NULL:&f->highlight; }
 static void install_highlight(void *p,void *h) { Fixture *f=p; CHECK(h==&f->highlight); f->highlight=1; ++f->installed; event(f,2); }
@@ -24,7 +24,7 @@ static void *create(void *p) { Fixture *f=p; CHECK(f->highlight); ++f->created; 
 static void release(void *p,void *object)
 {
     Fixture *f=p;
-    if (object==&f->body) { ++f->released; three_mm_body_shape_dispose(object,&f->s); ++f->disposed; }
+    if (object==&f->body) { ++f->released; mm_body_shape_dispose(object,&f->s); ++f->disposed; }
     else { CHECK(object==&f->copy && !f->body.actors && !f->body.materials); ++f->sets_released; event(f,12); }
 }
 static void *duplicate(void *p,void *sets)
@@ -32,28 +32,28 @@ static void *duplicate(void *p,void *sets)
     Fixture *f=p; CHECK(sets==&f->sets); ++f->duplicated; event(f,4);
     if (f->fail==3) return NULL; f->copy=f->sets; return &f->copy;
 }
-static ThreeMMI32 count(void *p,void *list) { (void)p; return ((List *)list)->count; }
-static ThreeMMI32 item(void *p,void *list,ThreeMMI32 i) { (void)p; CHECK(i>=0 && i<((List *)list)->count); return ((List *)list)->values[i]; }
-static int allocate_materials(void *p,ThreeMMI32 n,void **out)
+static MMI32 count(void *p,void *list) { (void)p; return ((List *)list)->count; }
+static MMI32 item(void *p,void *list,MMI32 i) { (void)p; CHECK(i>=0 && i<((List *)list)->count); return ((List *)list)->values[i]; }
+static int allocate_materials(void *p,MMI32 n,void **out)
 {
     Fixture *f=p; CHECK(f->body.set_count==n && f->body.sets==&f->copy); ++f->material_alloc; event(f,5);
     if (f->fail==4) { *out=NULL; return 0; }
     *out=calloc((size_t)n+1,sizeof(int)); CHECK(*out); return 1;
 }
-static int allocate_actors(void *p,ThreeMMI32 n,void **out)
+static int allocate_actors(void *p,MMI32 n,void **out)
 {
     Fixture *f=p; CHECK(n==f->body.part_count+2 && f->body.materials); ++f->actor_alloc; event(f,6);
     if (f->fail==5) { *out=NULL; return 0; }
     *out=calloc((size_t)n,sizeof(Part)); CHECK(*out); return 1;
 }
-static void initialize(void *p,void *body,void *actors,ThreeMMI32 i,int role)
+static void initialize(void *p,void *body,void *actors,MMI32 i,int role)
 {
     Fixture *f=p; Part *parts=actors; CHECK(body==&f->body && f->body.actors==actors);
-    CHECK(i==f->initialized++ && role==(i<2?i:THREE_MM_BODY_PART)); parts[i].role=role; parts[i].parent=-1;
+    CHECK(i==f->initialized++ && role==(i<2?i:MM_BODY_PART)); parts[i].role=role; parts[i].parent=-1;
     if (i>=2) parts[i].model=1;
     event(f,7);
 }
-static void link_actor(void *p,void *actors,ThreeMMI32 parent,ThreeMMI32 child)
+static void link_actor(void *p,void *actors,MMI32 parent,MMI32 child)
 {
     Fixture *f=p; Part *parts=actors; CHECK(parent>=0 && parent<child && child==f->linked+1);
     parts[child].parent=parent; ++f->linked; event(f,8);
@@ -63,13 +63,13 @@ static void hide_body(void *p,void *body)
     Fixture *f=p; CHECK(body==&f->body && !f->body.hidden && f->body.actors);
     f->body.hidden=1; ++f->hidden; event(f,9);
 }
-static void release_model(void *p,void *actors,ThreeMMI32 i)
+static void release_model(void *p,void *actors,MMI32 i)
 {
     Fixture *f=p; Part *parts=actors;
     CHECK(f->body.hidden && i==f->models++ && !f->materials && !f->freed);
     CHECK(parts[i+2].model); parts[i+2].model=0; event(f,10);
 }
-static void remove_material(void *p,void *body,ThreeMMI32 i)
+static void remove_material(void *p,void *body,MMI32 i)
 {
     Fixture *f=p; CHECK(body==&f->body && f->models==f->body.part_count && i==f->materials++ && !f->freed); event(f,11);
 }
@@ -96,7 +96,7 @@ int main(void)
     for (n=0;n<=6;n+=6) for (fail=0;fail<=5;++fail) for (warm=0;warm<2;++warm)
     {
         void *body; setup(&f,n,fail); f.highlight=warm;
-        body=three_mm_body_create(&f.parents,&f.sets,&f.s);
+        body=mm_body_create(&f.parents,&f.sets,&f.s);
         ok=!fail || (warm && fail==1); CHECK((body!=NULL)==ok);
         CHECK(f.installed==(!warm && fail!=1));
         if (body)
@@ -117,12 +117,12 @@ int main(void)
     for (mode=0;mode<2;++mode) for (fail=3;fail<=5;++fail)
     {
         setup(&f,6,fail); f.body.hidden=7;
-        ok=mode?three_mm_body_initialize(&f.body,&f.parents,&f.sets,&f.s):
-            three_mm_body_shape_initialize(&f.body,&f.parents,&f.sets,&f.s);
+        ok=mode?mm_body_initialize(&f.body,&f.parents,&f.sets,&f.s):
+            mm_body_shape_initialize(&f.body,&f.parents,&f.sets,&f.s);
         CHECK(!ok && !f.released && !f.freed && f.body.hidden==(mode?1:7));
         CHECK((f.body.sets!=NULL)==(fail>3)); CHECK((f.body.materials!=NULL)==(fail>4));
         CHECK(f.body.set_count==(fail>3?5:0) && f.body.part_count==(fail>4?6:0));
-        three_mm_body_shape_dispose(&f.body,&f.s);
+        mm_body_shape_dispose(&f.body,&f.s);
         CHECK(!f.body.sets && !f.body.materials && !f.body.actors && !f.hidden);
         CHECK(!f.materials && !f.models && f.freed==(fail==5));
     }

@@ -2,14 +2,14 @@
 
 A read-only SDL3 / Dear ImGui desktop browser for `.3mm`, `.3cn` and other
 chunky archives. It uses the same archive readers as Studio and `3mm dump`.
-It also renders actors, props, 3D models and scenes through `ThreeMM::Preview`.
+It also renders actors, props, 3D models and scenes through `MM::Preview`.
 
 Build from an initialized MSVC shell on Windows, or a C/C++ build environment
 on macOS/Linux:
 
 ```console
 cmake -S . -B out/inspector -DCMAKE_BUILD_TYPE=Debug -DBUILD_INSPECTOR=ON -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF
-cmake --build out/inspector --config Debug --target three-mm-inspector --parallel 4
+cmake --build out/inspector --config Debug --target mm-inspector --parallel 4
 ctest --test-dir out/inspector -C Debug -R inspector-data --output-on-failure
 ```
 
@@ -96,12 +96,12 @@ downloaded source directories (`SDL/LICENSE.txt`, `imgui/LICENSE.txt`);
 redistributed binaries must include these notices.
 
 `inspector-data` is a presentation adapter over the shared
-[`ThreeMM::Archive`](../../libraries/archive/README.md) API. The archive library
+[`MM::Archive`](../../libraries/archive/README.md) API. The archive library
 owns all legacy objects, decoding, text conversion and diagnostic defaults.
 The adapter formats typed records for display; it includes no legacy headers.
-The `three-mm-inspector` application owns SDL events, file dialogs, ImGui and
+The `mm-inspector` application owns SDL events, file dialogs, ImGui and
 rendering. It links no Studio/Kauai GUI runtime and adds no SDL types to core.
-`ThreeMM::Preview` separately owns the BRender runtime and returns RGBA pixels;
+`MM::Preview` separately owns the BRender runtime and returns RGBA pixels;
 its public headers expose only standard C++ types. Template, pose, costume,
 resource resolution and scene rendering stay behind that boundary.
 

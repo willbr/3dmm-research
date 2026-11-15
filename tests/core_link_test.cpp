@@ -18,9 +18,9 @@
 #include "codec.h"
 #if defined(TEST_ENGINE_CORE)
 #include "actor_frame_fixture.h"
-#include "three_mm/actor_motion.h"
-#include "three_mm/actor_pose.h"
-#include "three_mm/actor_effect.h"
+#include "mm/actor_motion.h"
+#include "mm/actor_pose.h"
+#include "mm/actor_effect.h"
 #include "actor_sound.h"
 #include "studio_preferences.h"
 #endif
@@ -122,7 +122,7 @@ static void TestReadOnlyEmptyChunkSave()
 static void TestChunkPersistence()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_CHUNK_SAVE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_CHUNK_SAVE_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr);
     }
@@ -334,7 +334,7 @@ static void TestChunkPersistence()
 static void TestChunkTableBaseline()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_TABLE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_TABLE_SNAPSHOT"))
     { snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr); }
     for (int width : {20, 32})
     {
@@ -367,7 +367,7 @@ static void TestChunkTableBaseline()
 static void TestContainerRegistry()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_CONTEXT_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_CONTEXT_SNAPSHOT"))
     { snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr); }
     auto original = ChunkyFile::PcflFirst();
     auto a = ChunkyFile::PcflCreateTemp(), b = ChunkyFile::PcflCreateTemp(), c = ChunkyFile::PcflCreateTemp();
@@ -393,7 +393,7 @@ static void TestContainerRegistry()
 static void TestContainerConstruction()
 {
     FILE *snapshot=nullptr;
-    if(const char *path=std::getenv("THREE_MM_CONTAINER_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
+    if(const char *path=std::getenv("MM_CONTAINER_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
     for(int mode=0;mode<3;++mode)
     {
         Filename reference,name;Check(reference.FGetTemp());
@@ -421,7 +421,7 @@ static void TestContainerConstruction()
 static void TestContainerLifecycle()
 {
     FILE *snapshot=nullptr;
-    if(const char *path=std::getenv("THREE_MM_LIFECYCLE_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
+    if(const char *path=std::getenv("MM_LIFECYCLE_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
     for(int writable=0;writable<2;++writable)
     {
         Filename name;Check(name.FGetTemp());auto file=ChunkyFile::PcflCreate(&name,fcflWriteEnable);Check(file!=nullptr);
@@ -449,7 +449,7 @@ static void TestContainerLifecycle()
 static void TestStorageRouting()
 {
     FILE *snapshot=nullptr;
-    if(const char *path=std::getenv("THREE_MM_STORAGE_ROUTING_SNAPSHOT")) {snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
+    if(const char *path=std::getenv("MM_STORAGE_ROUTING_SNAPSHOT")) {snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
     const LegacyUlong modes[]={fcflNil,fcflWriteEnable,fcflReadFromExtra,fcflWriteEnable|fcflReadFromExtra,fcflWriteEnable|fcflAddToExtra};
     byte payload[64];for(unsigned i=0;i<sizeof(payload);++i)payload[i]=static_cast<byte>(i*17+3);
     for(int mode=0;mode<5;++mode)
@@ -486,7 +486,7 @@ static void TestStorageRouting()
 static void TestFreeMapLoading()
 {
     FILE *snapshot=nullptr;
-    if(const char *path=std::getenv("THREE_MM_LOADING_SNAPSHOT")) { snapshot=std::fopen(path,"wb"); Check(snapshot!=nullptr); }
+    if(const char *path=std::getenv("MM_LOADING_SNAPSHOT")) { snapshot=std::fopen(path,"wb"); Check(snapshot!=nullptr); }
     Filename original; Check(original.FGetTemp());
     auto file=ChunkyFile::PcflCreate(&original,fcflWriteEnable); Check(file!=nullptr);
     byte payload[64]={};
@@ -523,7 +523,7 @@ static void TestFreeMapLoading()
 static void TestForestTransfer()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_FOREST_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_FOREST_SNAPSHOT"))
     { snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr); }
     auto source = ChunkyFile::PcflCreateTemp(); Check(source != nullptr);
     Check(source->FPutPv(const_cast<char *>("root"), 4, 'ROOT', 7));
@@ -592,7 +592,7 @@ static void TestForestTransfer()
 static void TestStringWire()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_STRING_WIRE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_STRING_WIRE_SNAPSHOT"))
     { snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr); }
     for (int kind = 0; kind < 4; ++kind)
         for (unsigned length : {0U,1U,31U,255U})
@@ -679,7 +679,7 @@ static void TestCommandReplay()
 class MemoryStreamProbe : public MemoryByteStream
 {
   public:
-    ThreeMMU32 Capacity() const { return _buffer.storage.buffers[0].capacity; }
+    MMU32 Capacity() const { return _buffer.storage.buffers[0].capacity; }
 };
 
 static void TestDataStreams()
@@ -776,7 +776,7 @@ static void TestBlockCopies()
     for (unsigned i = 0; i < sizeof(bytes); ++i) bytes[i] = static_cast<byte>(i * 29 + i / 256);
     std::memset(seed, 0xcc, sizeof(seed));
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_BLOCK_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_BLOCK_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr);
     }
@@ -887,7 +887,7 @@ static void TestBlockMaterialization()
     byte bytes[4096], actual[4096];
     for (unsigned i = 0; i < sizeof(bytes); ++i) bytes[i] = static_cast<byte>(i * 19);
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_MATERIALIZE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_MATERIALIZE_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr);
     }
@@ -953,7 +953,7 @@ static void TestFilePolicies()
 {
     byte input[8192], actual[8192], original[8192];
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_FILE_POLICY_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_FILE_POLICY_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr);
     }
@@ -1039,7 +1039,7 @@ static void TestPieceEdits()
     LegacyLong length = 0;
     unsigned state = 12345;
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_PIECE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_PIECE_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         Check(snapshot != nullptr);
@@ -1478,7 +1478,7 @@ static bool MissingSource(const MissingSourceRequest &request)
 static void TestMoviePersistence()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_MOVIE_OWNER_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_MOVIE_OWNER_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         Check(snapshot);
@@ -1489,7 +1489,7 @@ static void TestMoviePersistence()
                           static_cast<uint32_t>(movie.sceneCount), static_cast<uint32_t>(movie.Actors()->IvMac()),
                           static_cast<uint32_t>(movie.Resources()->CactRef()), static_cast<uint32_t>(movie.title.count)};
         Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
-        Check(std::fwrite(three_mm_movie_title_text(&movie.title), sizeof(achar), movie.title.count, snapshot) == static_cast<size_t>(movie.title.count));
+        Check(std::fwrite(mm_movie_title_text(&movie.title), sizeof(achar), movie.title.count, snapshot) == static_cast<size_t>(movie.title.count));
         ChildChunkIdentification child;
         DataBlock block;
         auto file = movie.Resources()->Pcfl();
@@ -1621,7 +1621,7 @@ static void TestRollCallStorageBaseline()
     Check(file && MovieData::FCreateRoot(file, &root));
     Check(MovieData::FWriteRollCall(file, root, table, &number));
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_ROLLCALL_STORAGE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
+    if (const char *path = std::getenv("MM_ROLLCALL_STORAGE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
     DataBlock block; Check(file->FFind(kctgGst, number, &block));
     byte bytes[2048]; auto length = block.Cb(); Check(length <= sizeof(bytes) && block.FReadRgb(bytes, length, 0));
     if (snapshot) Check(std::fwrite(bytes, 1, length, snapshot) == static_cast<size_t>(length));
@@ -1647,10 +1647,10 @@ static void TestMovieRootBaseline()
     DataBlock block; Check(file->FFind(kctgMvie, root, &block));
     MovieFilePrefix prefix; Check(block.FReadRgb(&prefix, sizeof(prefix), 0));
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_MOVIE_ROOT_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
+    if (const char *path = std::getenv("MM_MOVIE_ROOT_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
     if (snapshot) Check(std::fwrite(&prefix, sizeof(prefix), 1, snapshot) == 1);
     const auto record = [&](ChunkNumber requested, bool optional) {
-        ThreeMMMovieHeader header = {-77, -77, -77, -77};
+        MMMovieHeader header = {-77, -77, -77, -77};
         bool ok = MovieData::FVerifyVersion(file, optional ? nullptr : &requested, &header);
         uint32_t row[] = {ok, requested, static_cast<uint32_t>(header.system), static_cast<uint32_t>(header.current_version),
                           static_cast<uint32_t>(header.backward_version), static_cast<uint32_t>(header.big_endian)};
@@ -1772,14 +1772,14 @@ static void TestScenePersistence()
     ChunkNumber number;
     Check(scene.FCreate(file, &number));
     FILE *sceneSnapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_SCENE_DATA_SNAPSHOT")) { sceneSnapshot = std::fopen(path, "wb"); Check(sceneSnapshot); }
+    if (const char *path = std::getenv("MM_SCENE_DATA_SNAPSHOT")) { sceneSnapshot = std::fopen(path, "wb"); Check(sceneSnapshot); }
     const auto recordScene = [&](SceneData &state) {
         if (!sceneSnapshot) return;
         uint32_t fields[] = {static_cast<uint32_t>(state.firstFrame), static_cast<uint32_t>(state.lastFrame),
                              static_cast<uint32_t>(state.currentFrame), static_cast<uint32_t>(state.transition),
                              static_cast<uint32_t>(state.name.count)};
         Check(std::fwrite(fields, sizeof(fields), 1, sceneSnapshot) == 1);
-        Check(std::fwrite(three_mm_movie_title_text(&state.name), sizeof(achar), state.name.count, sceneSnapshot) == static_cast<size_t>(state.name.count));
+        Check(std::fwrite(mm_movie_title_text(&state.name), sizeof(achar), state.name.count, sceneSnapshot) == static_cast<size_t>(state.name.count));
         DataBlock saved;
         for (int part = 0; part < 3; ++part)
         {
@@ -1914,7 +1914,7 @@ static void TestScenePersistence()
 static void TestActorPersistence()
 {
     FILE *actorSnapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_ACTOR_DATA_SNAPSHOT")) { actorSnapshot = std::fopen(path, "wb"); Check(actorSnapshot); }
+    if (const char *path = std::getenv("MM_ACTOR_DATA_SNAPSHOT")) { actorSnapshot = std::fopen(path, "wb"); Check(actorSnapshot); }
     const auto recordBlock = [&](DataBlock &value) {
         if (!actorSnapshot) return;
         uint32_t length = value.Cb(); byte bytes[8192]; Check(length <= sizeof(bytes) && value.FReadRgb(bytes, length, 0));
@@ -2129,7 +2129,7 @@ static void TestActorPersistence()
 static void TestActorTrackOwnership()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_ACTOR_TRACK_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_ACTOR_TRACK_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         Check(snapshot != nullptr);
@@ -2246,7 +2246,7 @@ static void TestActorTrackOwnership()
 static void TestActorRouteEvaluation()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_ACTOR_ROUTE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
+    if (const char *path = std::getenv("MM_ACTOR_ROUTE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
     auto record = [&](const void *p, size_t n) { if (snapshot) Check(std::fwrite(p, 1, n, snapshot) == n); };
     auto advance = [&](const ActorTrack &track, BRS step, RouteLocation *location, LegacyLong next, LegacyLong frame,
                        LegacyLong first, bool clamp, bool *end = nullptr) {
@@ -2336,7 +2336,7 @@ static void TestActorRouteEvaluation()
                 Check(location == expected[frame]);
         }
     }
-    ThreeMMU32 seed = 1234567;
+    MMU32 seed = 1234567;
     for (int i = 0; i < 4096; ++i)
     {
         seed = seed * 1664525u + 1013904223u; BRS a; std::memcpy(&a, &seed, 4);
@@ -2344,7 +2344,7 @@ static void TestActorRouteEvaluation()
         // Explicit small divisors exercise reciprocal and saturation paths.
         if (i < 17) b = i - 8;
         BRS values[] = {BrsMul(a, b), BrsDiv(a, b)};
-        Check(three_mm_fixed_mul(a,b)==values[0] && three_mm_fixed_div(a,b)==values[1]);
+        Check(mm_fixed_mul(a,b)==values[0] && mm_fixed_div(a,b)==values[1]);
         record(values, sizeof(values));
     }
     if (snapshot) Check(std::fclose(snapshot) == 0);
@@ -2354,7 +2354,7 @@ static void TestActorValueEvaluation()
 {
     ActorFrameState state;
     FILE *stateSnapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_ACTOR_STATE_SNAPSHOT")) { stateSnapshot = std::fopen(path, "wb"); Check(stateSnapshot); }
+    if (const char *path = std::getenv("MM_ACTOR_STATE_SNAPSHOT")) { stateSnapshot = std::fopen(path, "wb"); Check(stateSnapshot); }
     auto recordState = [&]() {
         if (!stateSnapshot) return;
         auto bytes = [&](const void *p, size_t n) { Check(std::fwrite(p, 1, n, stateSnapshot) == n); };
@@ -2466,28 +2466,28 @@ static void TestSoundQueueIdentity()
             {
                 LegacyLong object=static_cast<LegacyLong>(0x7abc0000u | id);
                 LegacyLong expected=(actor ? sqnActr : sqnBkgd) | (style << ksqnStyShift) | SwLow(object);
-                Check(three_mm_sound_queue_number(style,object,actor)==expected);
+                Check(mm_sound_queue_number(style,object,actor)==expected);
                 Check(SoundPlaybackQueue::QueueNumber(style,object,actor!=0)==expected);
             }
 }
 static void TestActorSoundStorage()
 {
     FILE *before = nullptr, *after = nullptr;
-    if (const char *p = std::getenv("THREE_MM_ACTOR_SOUND_EXPECTED")) { before = std::fopen(p, "wb"); Check(before); }
-    if (const char *p = std::getenv("THREE_MM_ACTOR_SOUND_SNAPSHOT")) { after = std::fopen(p, "wb"); Check(after); }
+    if (const char *p = std::getenv("MM_ACTOR_SOUND_EXPECTED")) { before = std::fopen(p, "wb"); Check(before); }
+    if (const char *p = std::getenv("MM_ACTOR_SOUND_SNAPSHOT")) { after = std::fopen(p, "wb"); Check(after); }
     auto native = DynamicArray::PglNew(sizeof(ActorEvent::SoundMotionMatch), 2);
     Check(native);
     ActorSoundList list;
     Check(list.FCreate());
-    ThreeMMU32 seed = 67119;
+    MMU32 seed = 67119;
     auto next = [&]() { seed = seed * 1664525u + 1013904223u; return seed; };
-    auto fields = [](const ActorEvent::SoundMotionMatch &r, ThreeMMU32 *v) {
-        const ThreeMMU32 data[] = {static_cast<ThreeMMU32>(r.aev.aet), static_cast<ThreeMMU32>(r.aev.nfrm),
-            static_cast<ThreeMMU32>(r.aev.rtel.irpt), static_cast<ThreeMMU32>(r.aev.rtel.dwrOffset),
-            static_cast<ThreeMMU32>(r.aev.rtel.dnfrm), static_cast<ThreeMMU32>(r.aevsnd.fLoop),
-            static_cast<ThreeMMU32>(r.aevsnd.fQueue), static_cast<ThreeMMU32>(r.aevsnd.vlm),
-            static_cast<ThreeMMU32>(r.aevsnd.celn), static_cast<ThreeMMU32>(r.aevsnd.sty),
-            static_cast<ThreeMMU32>(r.aevsnd.fNoSound), r.aevsnd.chid, static_cast<ThreeMMU32>(r.aevsnd.tag.sid),
+    auto fields = [](const ActorEvent::SoundMotionMatch &r, MMU32 *v) {
+        const MMU32 data[] = {static_cast<MMU32>(r.aev.aet), static_cast<MMU32>(r.aev.nfrm),
+            static_cast<MMU32>(r.aev.rtel.irpt), static_cast<MMU32>(r.aev.rtel.dwrOffset),
+            static_cast<MMU32>(r.aev.rtel.dnfrm), static_cast<MMU32>(r.aevsnd.fLoop),
+            static_cast<MMU32>(r.aevsnd.fQueue), static_cast<MMU32>(r.aevsnd.vlm),
+            static_cast<MMU32>(r.aevsnd.celn), static_cast<MMU32>(r.aevsnd.sty),
+            static_cast<MMU32>(r.aevsnd.fNoSound), r.aevsnd.chid, static_cast<MMU32>(r.aevsnd.tag.sid),
             r.aevsnd.tag.pcrf != nullptr, r.aevsnd.tag.ctg, r.aevsnd.tag.cno};
         std::memcpy(v, data, sizeof(data));
     };
@@ -2508,9 +2508,9 @@ static void TestActorSoundStorage()
             if (old.aevsnd.celn == row.aevsnd.celn && old.aevsnd.sty == row.aevsnd.sty) { replace = j; break; }
         }
         if (replace >= 0) native->Put(replace, &row); else Check(native->FAdd(&row));
-        ThreeMMActorMotionSound input;
+        MMActorMotionSound input;
         std::memcpy(&input, &row, sizeof(input));
-        Check(three_mm_actor_sounds_insert(list.Core(), &input.event, &input.sound));
+        Check(mm_actor_sounds_insert(list.Core(), &input.event, &input.sound));
         if (i % 13 == 0 && native->IvMac()) { native->Delete(0); list.Delete(0); }
         if (i % 17 == 0)
         {
@@ -2520,14 +2520,14 @@ static void TestActorSoundStorage()
         }
         if (i % 61 == 0) { Check(native->FSetIvMac(0)); list.Clear(); }
         Check(native->IvMac() == list.IvMac() && list.Valid());
-        const ThreeMMU32 count = static_cast<ThreeMMU32>(list.IvMac());
+        const MMU32 count = static_cast<MMU32>(list.IvMac());
         if (before) Check(std::fwrite(&count, 1, sizeof(count), before) == sizeof(count));
         if (after) Check(std::fwrite(&count, 1, sizeof(count), after) == sizeof(count));
         for (LegacyLong j = 0; j < list.IvMac(); ++j)
         {
             ActorEvent::SoundMotionMatch a, b;
             native->Get(j, &a); list.Get(j, &b);
-            ThreeMMU32 expected[16], actual[16]; fields(a, expected); fields(b, actual);
+            MMU32 expected[16], actual[16]; fields(a, expected); fields(b, actual);
             Check(!std::memcmp(expected, actual, sizeof(actual)));
             if (before) Check(std::fwrite(expected, 1, sizeof(expected), before) == sizeof(expected));
             if (after) Check(std::fwrite(actual, 1, sizeof(actual), after) == sizeof(actual));
@@ -2540,29 +2540,29 @@ static void TestActorSoundStorage()
 static void TestActorEntranceOrientation()
 {
     FILE *before = nullptr, *after = nullptr;
-    if (const char *path = std::getenv("THREE_MM_ACTOR_ENTRANCE_EXPECTED"))
+    if (const char *path = std::getenv("MM_ACTOR_ENTRANCE_EXPECTED"))
     {
         before = std::fopen(path, "wb");
         Check(before);
     }
-    if (const char *path = std::getenv("THREE_MM_ACTOR_ENTRANCE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_ACTOR_ENTRANCE_SNAPSHOT"))
     {
         after = std::fopen(path, "wb");
         Check(after);
     }
-    ThreeMMU32 seed = 88917;
+    MMU32 seed = 88917;
     auto next = [&]() { seed = seed * 1664525u + 1013904223u; return seed; };
     for (int i = 0; i < 256; ++i)
     {
-        ThreeMMActorState value;
-        three_mm_actor_state_init(&value);
+        MMActorState value;
+        mm_actor_state_init(&value);
         value.onStage = value.useCurrentRotation = 1;
         value.transform.aevpull.rScaleY = 131072;
         value.transform.rScaleStep = 196608;
         for (auto &row : value.transform.bmat34Cur.m)
             for (auto &cell : row)
-                cell = static_cast<ThreeMMI32>(next() & 0x3fffff) - 0x200000;
-        ThreeMMActorEntrance add = {};
+                cell = static_cast<MMI32>(next() & 0x3fffff) - 0x200000;
+        MMActorEntrance add = {};
         add.x = i < 4 ? 0 : static_cast<unsigned short>(next());
         add.y = i < 4 ? 0 : static_cast<unsigned short>(next());
         add.z = i < 4 ? 0 : static_cast<unsigned short>(next());
@@ -2578,9 +2578,9 @@ static void TestActorEntranceOrientation()
         expected.transform.xaPath = add.x;
         expected.transform.yaPath = add.y;
         expected.transform.zaPath = add.z;
-        three_mm_actor_add_orientation(&value, &add, i & 1);
+        mm_actor_add_orientation(&value, &add, i & 1);
         Check(std::memcmp(&expected, &value, sizeof(value)) == 0);
-        auto record = [](FILE *file, const ThreeMMActorState &state) {
+        auto record = [](FILE *file, const MMActorState &state) {
             if (!file) return;
             Check(std::fwrite(&state.transform.bmat34Cur, 1, 48, file) == 48);
             const unsigned short angles[] = {state.transform.xaPath, state.transform.yaPath, state.transform.zaPath};
@@ -2595,33 +2595,33 @@ static void TestActorEntranceOrientation()
 static void TestActorMathBaseline()
 {
     FILE *file=nullptr;
-    if(const char *path=std::getenv("THREE_MM_ACTOR_MATH_SNAPSHOT")) { file=std::fopen(path,"wb"); Check(file); }
+    if(const char *path=std::getenv("MM_ACTOR_MATH_SNAPSHOT")) { file=std::fopen(path,"wb"); Check(file); }
     auto record=[&](const void *p,size_t n) { if(file) Check(std::fwrite(p,1,n,file)==n); };
-    for(unsigned a=0;a<65536;++a) { BRS values[]={BR_SIN(static_cast<BRA>(a)),BR_COS(static_cast<BRA>(a))}; Check(values[0]==three_mm_angle_sin(static_cast<unsigned short>(a)) && values[1]==three_mm_angle_cos(static_cast<unsigned short>(a))); record(values,sizeof(values)); }
-    ThreeMMU32 seed=77123;
+    for(unsigned a=0;a<65536;++a) { BRS values[]={BR_SIN(static_cast<BRA>(a)),BR_COS(static_cast<BRA>(a))}; Check(values[0]==mm_angle_sin(static_cast<unsigned short>(a)) && values[1]==mm_angle_cos(static_cast<unsigned short>(a))); record(values,sizeof(values)); }
+    MMU32 seed=77123;
     auto scalar=[&]() -> BRS { seed=seed*1664525u+1013904223u; return static_cast<BRS>(seed&0x3fffff)-0x200000; };
     for(int i=0;i<4096;++i) {
         BRS v[6]; for(auto &x:v) x=scalar();
-        BRS mac=BR_MAC3(v[0],v[1],v[2],v[3],v[4],v[5]); Check(mac==three_mm_fixed_mac3(v[0],v[1],v[2],v[3],v[4],v[5])); record(&mac,4);
-        BRA angle=BR_ATAN2(v[0],v[1]); Check(angle==three_mm_angle_atan2(v[0],v[1])); record(&angle,2);
+        BRS mac=BR_MAC3(v[0],v[1],v[2],v[3],v[4],v[5]); Check(mac==mm_fixed_mac3(v[0],v[1],v[2],v[3],v[4],v[5])); record(&mac,4);
+        BRA angle=BR_ATAN2(v[0],v[1]); Check(angle==mm_angle_atan2(v[0],v[1])); record(&angle,2);
     }
     for(int i=0;i<128;++i) {
         BMAT34 a,b,out; for(auto &row:a.m) for(auto &x:row) x=scalar(); for(auto &row:b.m) for(auto &x:row) x=scalar();
-        ThreeMMActorMatrix ca,cb,co;
+        MMActorMatrix ca,cb,co;
         std::memcpy(&ca,&a,sizeof(ca)); std::memcpy(&cb,&b,sizeof(cb));
-        three_mm_matrix_multiply(&co,&ca,&cb);
+        mm_matrix_multiply(&co,&ca,&cb);
         BrMatrix34Mul(&out,&a,&b); Check(std::memcmp(&out,&co,sizeof(co))==0); record(&out,sizeof(out));
-        BMAT34 alias=a; ThreeMMActorMatrix calias=ca;
-        BrMatrix34Mul(&alias,&alias,&b); three_mm_matrix_multiply(&calias,&calias,&cb); Check(std::memcmp(&alias,&calias,sizeof(calias))==0);
+        BMAT34 alias=a; MMActorMatrix calias=ca;
+        BrMatrix34Mul(&alias,&alias,&b); mm_matrix_multiply(&calias,&calias,&cb); Check(std::memcmp(&alias,&calias,sizeof(calias))==0);
         alias=b; calias=cb;
-        BrMatrix34Mul(&alias,&a,&alias); three_mm_matrix_multiply(&calias,&ca,&calias); Check(std::memcmp(&alias,&calias,sizeof(calias))==0);
+        BrMatrix34Mul(&alias,&a,&alias); mm_matrix_multiply(&calias,&ca,&calias); Check(std::memcmp(&alias,&calias,sizeof(calias))==0);
         BRA angle=static_cast<BRA>(scalar());
-        BrMatrix34PostRotateX(&out,angle); three_mm_matrix_rotate(&co,THREE_MM_MATRIX_X,angle,0); Check(std::memcmp(&out,&co,sizeof(co))==0);
-        BrMatrix34PostRotateY(&out,static_cast<BRA>(angle+1234)); three_mm_matrix_rotate(&co,THREE_MM_MATRIX_Y,static_cast<unsigned short>(angle+1234),0); Check(std::memcmp(&out,&co,sizeof(co))==0);
-        BrMatrix34PostRotateZ(&out,static_cast<BRA>(angle+4567)); three_mm_matrix_rotate(&co,THREE_MM_MATRIX_Z,static_cast<unsigned short>(angle+4567),0); Check(std::memcmp(&out,&co,sizeof(co))==0);
-        BrMatrix34PreRotateX(&out,static_cast<BRA>(angle+9876)); three_mm_matrix_rotate(&co,THREE_MM_MATRIX_X,static_cast<unsigned short>(angle+9876),1); Check(std::memcmp(&out,&co,sizeof(co))==0);
+        BrMatrix34PostRotateX(&out,angle); mm_matrix_rotate(&co,MM_MATRIX_X,angle,0); Check(std::memcmp(&out,&co,sizeof(co))==0);
+        BrMatrix34PostRotateY(&out,static_cast<BRA>(angle+1234)); mm_matrix_rotate(&co,MM_MATRIX_Y,static_cast<unsigned short>(angle+1234),0); Check(std::memcmp(&out,&co,sizeof(co))==0);
+        BrMatrix34PostRotateZ(&out,static_cast<BRA>(angle+4567)); mm_matrix_rotate(&co,MM_MATRIX_Z,static_cast<unsigned short>(angle+4567),0); Check(std::memcmp(&out,&co,sizeof(co))==0);
+        BrMatrix34PreRotateX(&out,static_cast<BRA>(angle+9876)); mm_matrix_rotate(&co,MM_MATRIX_X,static_cast<unsigned short>(angle+9876),1); Check(std::memcmp(&out,&co,sizeof(co))==0);
         BrMatrix34PostScale(&out,BR_SCALAR(1.5),BR_SCALAR(-0.75),BR_SCALAR(0.5));
-        three_mm_matrix_scale(&co,BR_SCALAR(1.5),BR_SCALAR(-0.75),BR_SCALAR(0.5)); Check(std::memcmp(&out,&co,sizeof(co))==0); record(&out,sizeof(out));
+        mm_matrix_scale(&co,BR_SCALAR(1.5),BR_SCALAR(-0.75),BR_SCALAR(0.5)); Check(std::memcmp(&out,&co,sizeof(co))==0); record(&out,sizeof(out));
     }
     if(file) Check(std::fclose(file)==0);
 }
@@ -2629,7 +2629,7 @@ static void TestActorMathBaseline()
 static void TestActorPoseEvaluation()
 {
     FILE *snapshot=nullptr;
-    if(const char *path=std::getenv("THREE_MM_ACTOR_POSE_SNAPSHOT")) { snapshot=std::fopen(path,"wb"); Check(snapshot); }
+    if(const char *path=std::getenv("MM_ACTOR_POSE_SNAPSHOT")) { snapshot=std::fopen(path,"wb"); Check(snapshot); }
     auto record=[&](const void *p,size_t n) { if(snapshot) Check(std::fwrite(p,1,n,snapshot)==n); };
     auto outputs=[&](BMAT34 *m,BRA *x,BRA *y,BRA *z,LegacyUlong *axes) {
         LegacyLong present[]={m!=nullptr,x!=nullptr,y!=nullptr,z!=nullptr,axes!=nullptr}; record(present,sizeof(present));
@@ -2777,7 +2777,7 @@ static void TestActorPoseEvaluation()
     Check(x == aZero && y == aZero && z == aZero && axes == 0 && matrix.m[0][0] == rOne);
     point={{rZero,rZero,rZero},BR_SCALAR(4)}; track.Route()->Put(0,&point);
     // Exact matrices and field records across varied rest/path/scale combinations.
-    ThreeMMU32 seed=12345;
+    MMU32 seed=12345;
     auto next=[&]() { seed=seed*1664525u+1013904223u; return seed; };
     for(int i=0;i<256;++i) {
         RouteDistancePoint endpoint={{static_cast<BRS>(next()%0x60000)-0x30000,static_cast<BRS>(next()%0x60000)-0x30000,static_cast<BRS>(next()%0x60000)-0x30000},rZero};
@@ -2839,7 +2839,7 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
 {
     if (!actorFrameSnapshotInitialized) {
         actorFrameSnapshotInitialized = true;
-        if (const char *path = std::getenv("THREE_MM_ACTOR_FRAME_SNAPSHOT")) { actorFrameSnapshot = std::fopen(path,"wb"); Check(actorFrameSnapshot); }
+        if (const char *path = std::getenv("MM_ACTOR_FRAME_SNAPSHOT")) { actorFrameSnapshot = std::fopen(path,"wb"); Check(actorFrameSnapshot); }
     }
     LegacyLong inputValues[] = {inputs.firstFrame,inputs.step,inputs.stepSucceeded,inputs.recording,inputs.rejoining,inputs.displayFrame,inputs.suppressSounds,dirty};
     RecordActorFrameBytes(inputValues,sizeof(inputValues)); RecordActorFrameState(state);
@@ -3162,7 +3162,7 @@ struct StepProbe
 
 static void TestActorTimeline()
 {
-    if (const char *path=std::getenv("THREE_MM_ACTOR_TIMELINE_SNAPSHOT")) { actorTimelineSnapshot=std::fopen(path,"wb"); Check(actorTimelineSnapshot); }
+    if (const char *path=std::getenv("MM_ACTOR_TIMELINE_SNAPSHOT")) { actorTimelineSnapshot=std::fopen(path,"wb"); Check(actorTimelineSnapshot); }
     auto record=[&](const void *p,size_t n) { RecordActorTimelineBytes(actorTimelineSnapshot,p,n); };
     auto cache=[&](const ActorTrack &t) { LegacyLong count=t.Events()->IvMac(); record(&count,4); for(LegacyLong i=0;i<count;++i) { ActorEvent::Base e; t.Events()->GetFixed(i,&e); record(&e,sizeof(e)); } };
     auto lifetime=[&](const ActorTrack &t,LegacyLong first,bool rejoining,const ActorStepSource &steps,LegacyLong *last,LegacyLong bound=klwMax) {
@@ -3340,7 +3340,7 @@ struct SeekTrace
 static bool RunCoreSeek(ActorFrameState &state, ActorTrack &track, LegacyLong first, LegacyLong last, LegacyLong target,
                         const ActorStepSource &steps, SeekTrace &trace)
 {
-    if (!actorSeekSnapshot) if (const char *path=std::getenv("THREE_MM_ACTOR_SEEK_SNAPSHOT")) { actorSeekSnapshot=std::fopen(path,"wb"); Check(actorSeekSnapshot); }
+    if (!actorSeekSnapshot) if (const char *path=std::getenv("MM_ACTOR_SEEK_SNAPSHOT")) { actorSeekSnapshot=std::fopen(path,"wb"); Check(actorSeekSnapshot); }
     auto record=[&](const void *p,size_t n) { RecordActorTimelineBytes(actorSeekSnapshot,p,n); };
     LegacyLong inputs[]={201,first,last,target}; record(inputs,sizeof(inputs)); RecordActorFrameState(state,actorSeekSnapshot);
     ActorSeekEvaluator evaluator(state, track, first, last, target, steps);
@@ -4264,7 +4264,7 @@ static void TestMaterialHeaders()
 static void TestSourceNamesBaseline()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_SOURCE_NAMES_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_SOURCE_NAMES_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         Check(snapshot);
@@ -4307,7 +4307,7 @@ static void TestSourceNamesBaseline()
 static void TestTagOwnershipBaseline()
 {
     FILE *snapshot=nullptr;
-    if(const char *path=std::getenv("THREE_MM_TAG_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot);}
+    if(const char *path=std::getenv("MM_TAG_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot);}
     auto a=ChunkyFile::PcflCreateTemp(),b=ChunkyFile::PcflCreateTemp();Check(a&&b);
     Check(a->FPutPv(nullptr,0,'TAGR',7)&&a->FPutPv(nullptr,0,'TAGC',8)&&a->FAdoptChild('TAGR',7,'TAGC',8,9));
     auto ca=ChunkyResourceFile::PcrfNew(a,128),cb=ChunkyResourceFile::PcrfNew(b,128);Check(ca&&cb);
@@ -4338,7 +4338,7 @@ static void TestTagOwnershipBaseline()
 
 static void TestEngineServices()
 {
-    if(const char *path=std::getenv("THREE_MM_SOURCE_SNAPSHOT")){sourceSnapshot=std::fopen(path,"wb");Check(sourceSnapshot);}
+    if(const char *path=std::getenv("MM_SOURCE_SNAPSHOT")){sourceSnapshot=std::fopen(path,"wb");Check(sourceSnapshot);}
 
     // Clear caches without an Application or native window existing.
     Filename root;

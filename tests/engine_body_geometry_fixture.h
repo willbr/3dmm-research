@@ -36,12 +36,12 @@ class BodyGeometryFixtureAccess : public Body
     static void ResetSearch(PBody target)
     {
         auto member = &BodyGeometryFixtureAccess::_geometry;
-        three_mm_body_search_begin(&(target->*member));
+        mm_body_search_begin(&(target->*member));
     }
     static void Closest(PBody a, PBody b, LegacyLong *out)
     {
-        ThreeMMBodyPick pick;
-        three_mm_body_pick_begin(&pick);
+        MMBodyPick pick;
+        mm_body_pick_begin(&pick);
         BVEC3 v = {};
         _FFilter(a->PbactRoot() + 1, nullptr, nullptr, &v, &v, BR_SCALAR(3), 0, &pick);
         _FFilter(b->PbactRoot() + 2, nullptr, nullptr, &v, &v, BR_SCALAR(3), 0, &pick);
@@ -57,17 +57,17 @@ class BodyGeometryFixtureAccess : public Body
 static bool TestBodyGeometry()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_BODY_GEOMETRY_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_BODY_GEOMETRY_SNAPSHOT"))
         if (!(snapshot = std::fopen(path, "wb")))
             return false;
     bool ok = true;
     int cases = 0;
-    ThreeMMU32 fingerprint = 2166136261U, bytes = 0;
+    MMU32 fingerprint = 2166136261U, bytes = 0;
     auto record = [&](const void *p, size_t n) {
         auto data = static_cast<const unsigned char *>(p);
         for (size_t i = 0; i < n; ++i)
             fingerprint = (fingerprint ^ data[i]) * 16777619U;
-        bytes += static_cast<ThreeMMU32>(n);
+        bytes += static_cast<MMU32>(n);
         return !snapshot || std::fwrite(p, 1, n, snapshot) == n;
     };
     BRV vertices[4] = {};

@@ -1,7 +1,7 @@
 // Licensed under the MIT License.
 #ifndef STUDIO_VXP_STORE_H
 #define STUDIO_VXP_STORE_H
-#include "three_mm/v3dmm.h"
+#include "mm/v3dmm.h"
 #include <memory>
 namespace StudioV3dmm
 {
@@ -33,7 +33,7 @@ class Store
     {
         return root;
     }
-    Installation Install(const ThreeMM::V3dmm::Range &source);
+    Installation Install(const MM::V3dmm::Range &source);
     // Metadata listing performs no package I/O. Resolve only applied packages;
     // unchanged, previously verified files reuse their persisted fingerprints.
     Installation Resolve(const std::string &hash, bool forceValidation = false);

@@ -1,8 +1,8 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_audio.h"
 #include "wave_codec.h"
-#include "three_mm/wave.h"
-#include "three_mm/collection_storage.h"
+#include "mm/wave.h"
+#include "mm/collection_storage.h"
 #include "compressed_wave.h"
 #include <SDL3/SDL.h>
 #define SDL_MAIN_HANDLED
@@ -63,16 +63,16 @@ bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uin
     if (bytes > INT_MAX)
         return false;
     WavePCM pcm;
-    ThreeMMWaveImportServices services = {};
+    MMWaveImportServices services = {};
     services.context = &pcm;
-    services.load = [](void *context, const void *data, ThreeMMU32 bytes, ThreeMMU32 *decoded) -> int {
+    services.load = [](void *context, const void *data, MMU32 bytes, MMU32 *decoded) -> int {
         auto &pcm = *static_cast<WavePCM *>(context);
         if (!pcm.Load(data, bytes))
             return 0;
         *decoded = pcm.bytes;
         return 1;
     };
-    services.convert_u8 = [](void *context, unsigned char **samples, ThreeMMI32 *count) -> int {
+    services.convert_u8 = [](void *context, unsigned char **samples, MMI32 *count) -> int {
         auto &pcm = *static_cast<WavePCM *>(context);
         const SDL_AudioSpec destination = {SDL_AUDIO_U8, 1, 11025};
         int bytes = 0;
@@ -82,14 +82,14 @@ bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uin
         return ok;
     };
     services.release_samples = [](void *, unsigned char *samples) { SDL_free(samples); };
-    ThreeMMWaveBuffer scratch;
-    three_mm_wave_buffer_init(&scratch, nullptr);
+    MMWaveBuffer scratch;
+    mm_wave_buffer_init(&scratch, nullptr);
     bool ok = false;
     try
     {
         const unsigned char *selected;
-        ThreeMMU32 count;
-        if (three_mm_wave_prepare(data, static_cast<ThreeMMU32>(bytes), &services, &scratch, &selected, &count))
+        MMU32 count;
+        if (mm_wave_prepare(data, static_cast<MMU32>(bytes), &services, &scratch, &selected, &count))
         {
             std::vector<std::uint8_t> result(selected, selected + count);
             wave.swap(result);
@@ -99,7 +99,7 @@ bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uin
     catch (const std::bad_alloc &)
     {
     }
-    three_mm_wave_buffer_dispose(&scratch);
+    mm_wave_buffer_dispose(&scratch);
     return ok;
 }
 

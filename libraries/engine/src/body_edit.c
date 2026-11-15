@@ -1,11 +1,11 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/body_edit.h"
+#include "mm/body_edit.h"
 #include <stddef.h>
-void *three_mm_body_duplicate(void *body,const ThreeMMBodyEditServices *s)
+void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
 {
-    const ThreeMMBodyCreateServices *c=&s->shape;
-    ThreeMMBodyShape b,d;
-    ThreeMMI32 i,j;
+    const MMBodyCreateServices *c=&s->shape;
+    MMBodyShape b,d;
+    MMI32 i,j;
     int visible,generic;
     void *copy,*material;
     c->read(c->context,body,&b); visible=!b.hidden;
@@ -45,31 +45,31 @@ fail:
     if (copy) c->release(c->context,copy);
     return NULL;
 }
-void three_mm_body_restore(void *body,void *replacement,const ThreeMMBodyEditServices *s)
+void mm_body_restore(void *body,void *replacement,const MMBodyEditServices *s)
 {
-    const ThreeMMBodyCreateServices *c=&s->shape;
-    ThreeMMBodyShape b;
-    ThreeMMI32 hidden,i;
+    const MMBodyCreateServices *c=&s->shape;
+    MMBodyShape b;
+    MMI32 hidden,i;
     c->read(c->context,body,&b); hidden=b.hidden;
     s->swap_bodies(c->context,body,replacement); c->read(c->context,body,&b);
     for (i=0;i<b.part_count+2;++i) s->identify(c->context,body,b.actors,i);
     if (!hidden) { s->show(c->context,body); c->read(c->context,body,&b); }
     b.hidden=hidden; c->write(c->context,body,&b);
 }
-int three_mm_body_change_shape(void *body,void *parents,void *sets,const ThreeMMBodyEditServices *s)
+int mm_body_change_shape(void *body,void *parents,void *sets,const MMBodyEditServices *s)
 {
-    const ThreeMMBodyCreateServices *c=&s->shape;
-    ThreeMMBodyShape b,d;
-    ThreeMMI32 hidden,i,n;
+    const MMBodyCreateServices *c=&s->shape;
+    MMBodyShape b,d;
+    MMI32 hidden,i,n;
     void *copy,*material,*model;
     int generic;
     c->read(c->context,body,&b); hidden=b.hidden;
-    copy=three_mm_body_duplicate(body,s);
+    copy=mm_body_duplicate(body,s);
     if (!copy) return 0;
-    three_mm_body_shape_dispose(body,c);
-    if (!three_mm_body_shape_initialize(body,parents,sets,c))
+    mm_body_shape_dispose(body,c);
+    if (!mm_body_shape_initialize(body,parents,sets,c))
     {
-        three_mm_body_restore(body,copy,s);
+        mm_body_restore(body,copy,s);
         if (!hidden) s->show(c->context,body);
         c->release(c->context,copy); return 0;
     }

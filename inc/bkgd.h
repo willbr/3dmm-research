@@ -17,14 +17,14 @@
 #include <cstdint>
 
 #include "background_data.h"
-#include "three_mm/background_camera.h"
-#include "three_mm/background_resource.h"
+#include "mm/background_camera.h"
+#include "mm/background_resource.h"
 
 /****************************************
     Background Default Sound
 ****************************************/
 // Authoring wire layout: 28 bytes with TAGOnFile. Runtime decoding uses
-// three_mm_background_sound_read and never copies the stored pointer slot.
+// mm_background_sound_read and never copies the stored pointer slot.
 struct BackgroundDefaultSoundOnFile
 {
     int16_t bo;
@@ -49,18 +49,18 @@ class Background : public Background_PAR
     MARKMEM
 
   protected:
-    ThreeMMBackgroundResource _resource; // C-owned arrays, palette, sound and light policy.
-    ThreeMMBackgroundCameraState _camera; // C-owned camera metadata/placement list.
+    MMBackgroundResource _resource; // C-owned arrays, palette, sound and light policy.
+    MMBackgroundCameraState _camera; // C-owned camera metadata/placement list.
     String _stn;            // name of this background
 
   protected:
     Background(void)
     {
-        three_mm_background_camera_init(&_camera);
-        three_mm_background_resource_init(&_resource);
+        mm_background_camera_init(&_camera);
+        mm_background_resource_init(&_resource);
     }
-    ThreeMMBackgroundCameraServices _CameraServices(void *host);
-    ThreeMMBackgroundServices _ResourceServices(void *host);
+    MMBackgroundCameraServices _CameraServices(void *host);
+    MMBackgroundServices _ResourceServices(void *host);
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:

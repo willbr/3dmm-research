@@ -26,7 +26,7 @@ find_package(BRender REQUIRED)
 
 # Options
 add_library(kauai-wave-codec STATIC kauai/src/wave_codec.cpp)
-target_link_libraries(kauai-wave-codec PUBLIC three-mm-engine-c89)
+target_link_libraries(kauai-wave-codec PUBLIC mm-engine-c89)
 target_include_directories(kauai-wave-codec PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
 add_executable(wave-codec-test EXCLUDE_FROM_ALL tests/wave_codec_test.cpp)
 target_link_libraries(wave-codec-test PRIVATE kauai-wave-codec)
@@ -37,14 +37,14 @@ add_executable(recording-data-test EXCLUDE_FROM_ALL tests/recording_data_test.cp
 target_link_libraries(recording-data-test PRIVATE kauai-recording-data)
 add_library(kauai-audio-mixer STATIC kauai/src/audio_mixer.cpp)
 target_include_directories(kauai-audio-mixer PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
-target_link_libraries(kauai-audio-mixer PUBLIC Threads::Threads three-mm-engine-c89)
+target_link_libraries(kauai-audio-mixer PUBLIC Threads::Threads mm-engine-c89)
 add_executable(audio-mixer-test EXCLUDE_FROM_ALL tests/audio_mixer_test.cpp)
 target_link_libraries(audio-mixer-test PRIVATE kauai-audio-mixer)
 add_executable(audio-runtime-trace-test EXCLUDE_FROM_ALL tests/audio_runtime_trace.cpp)
 target_link_libraries(audio-runtime-trace-test PRIVATE kauai-audio-mixer)
 add_executable(midi-runtime-trace-test EXCLUDE_FROM_ALL tests/midi_runtime_trace.cpp kauai/src/midi_render.cpp)
 target_include_directories(midi-runtime-trace-test PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src")
-target_link_libraries(midi-runtime-trace-test PRIVATE three-mm-engine-c89 Threads::Threads)
+target_link_libraries(midi-runtime-trace-test PRIVATE mm-engine-c89 Threads::Threads)
 add_library(kauai-damage STATIC kauai/src/damage_map.cpp)
 target_include_directories(kauai-damage PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
 add_executable(damage-map-test EXCLUDE_FROM_ALL tests/damage_map_test.cpp)
@@ -126,7 +126,7 @@ if(KAUAI_MIDI_SYNTH OR BUILD_MARCUS)
   include(TinySoundFontDependency)
   add_library(kauai-midi-synth STATIC kauai/src/midi_synth.cpp kauai/src/midi_render.cpp)
   target_include_directories(kauai-midi-synth PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src" PRIVATE "${KAUAI_TSF_INCLUDE_DIR}")
-  target_link_libraries(kauai-midi-synth PUBLIC Threads::Threads three-mm-engine-c89)
+  target_link_libraries(kauai-midi-synth PUBLIC Threads::Threads mm-engine-c89)
   add_executable(midi-synth-test EXCLUDE_FROM_ALL tests/midi_synth_test.cpp)
   target_link_libraries(midi-synth-test PRIVATE kauai-midi-synth)
   install(FILES "${KAUAI_MIDI_BANK_FILE}" DESTINATION assets RENAME GeneralUserGS.sf2)
@@ -384,7 +384,7 @@ target_sources(movie-save-load-test PRIVATE
 )
 target_link_libraries(movie-save-load-test PRIVATE engine)
 if(WIN32 AND SOC_X86 AND AudioMan_FOUND)
-  target_compile_definitions(movie-save-load-test PRIVATE THREE_MM_TEST_NATIVE_AUDIOMAN)
+  target_compile_definitions(movie-save-load-test PRIVATE MM_TEST_NATIVE_AUDIOMAN)
 endif()
 target_link_options(movie-save-load-test
   BEFORE PRIVATE
@@ -462,53 +462,53 @@ target_sources(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/inspect_c
 target_include_directories(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/inc")
 target_link_libraries(inspect-chunks PRIVATE kauai-core)
 
-add_library(three-mm-expansion STATIC EXCLUDE_FROM_ALL libraries/expansion/src/nick_expansion.cpp)
-target_include_directories(three-mm-expansion PUBLIC "${PROJECT_SOURCE_DIR}/libraries/expansion/include")
-target_link_libraries(three-mm-expansion PRIVATE engine-core)
-target_compile_features(three-mm-expansion PUBLIC cxx_std_17)
+add_library(mm-expansion STATIC EXCLUDE_FROM_ALL libraries/expansion/src/nick_expansion.cpp)
+target_include_directories(mm-expansion PUBLIC "${PROJECT_SOURCE_DIR}/libraries/expansion/include")
+target_link_libraries(mm-expansion PRIVATE engine-core)
+target_compile_features(mm-expansion PUBLIC cxx_std_17)
 add_executable(nick-expansion EXCLUDE_FROM_ALL src/tools/nick_expansion.cpp)
-target_link_libraries(nick-expansion PRIVATE three-mm-expansion kauai-core)
+target_link_libraries(nick-expansion PRIVATE mm-expansion kauai-core)
 add_executable(nick-expansion-test EXCLUDE_FROM_ALL tests/nick_expansion_test.cpp)
-target_link_libraries(nick-expansion-test PRIVATE three-mm-expansion engine-core)
+target_link_libraries(nick-expansion-test PRIVATE mm-expansion engine-core)
 
 include(PackDependencies)
-add_library(three-mm-vfs STATIC libraries/content/src/content_vfs.c)
-set_target_properties(three-mm-vfs PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-target_include_directories(three-mm-vfs PUBLIC "${PROJECT_SOURCE_DIR}/libraries/content/include")
+add_library(mm-vfs STATIC libraries/content/src/content_vfs.c)
+set_target_properties(mm-vfs PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_include_directories(mm-vfs PUBLIC "${PROJECT_SOURCE_DIR}/libraries/content/include")
 add_executable(content-vfs-test EXCLUDE_FROM_ALL tests/content_vfs_test.c)
 set_target_properties(content-vfs-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-target_link_libraries(content-vfs-test PRIVATE three-mm-vfs)
-add_library(three-mm-content STATIC libraries/content/src/content_vfs.cpp)
-target_link_libraries(three-mm-content PUBLIC three-mm-vfs)
-target_compile_features(three-mm-content PUBLIC cxx_std_17)
-target_include_directories(three-mm-content PUBLIC "${PROJECT_SOURCE_DIR}/libraries/content/include")
-add_library(three-mm-v3dmm STATIC libraries/v3dmm/src/v3dmm.cpp libraries/v3dmm/src/publish.cpp)
-target_compile_features(three-mm-v3dmm PUBLIC cxx_std_17)
-target_include_directories(three-mm-v3dmm PUBLIC "${PROJECT_SOURCE_DIR}/libraries/v3dmm/include")
-target_link_libraries(three-mm-v3dmm PRIVATE miniz)
+target_link_libraries(content-vfs-test PRIVATE mm-vfs)
+add_library(mm-content STATIC libraries/content/src/content_vfs.cpp)
+target_link_libraries(mm-content PUBLIC mm-vfs)
+target_compile_features(mm-content PUBLIC cxx_std_17)
+target_include_directories(mm-content PUBLIC "${PROJECT_SOURCE_DIR}/libraries/content/include")
+add_library(mm-v3dmm STATIC libraries/v3dmm/src/v3dmm.cpp libraries/v3dmm/src/publish.cpp)
+target_compile_features(mm-v3dmm PUBLIC cxx_std_17)
+target_include_directories(mm-v3dmm PUBLIC "${PROJECT_SOURCE_DIR}/libraries/v3dmm/include")
+target_link_libraries(mm-v3dmm PRIVATE miniz)
 add_library(studio-pack-store STATIC src/studio/pack_store.cpp src/studio/pack_import.cpp src/studio/pack_hash.cpp)
 include(SQLiteDependency)
 target_link_libraries(studio-pack-store PRIVATE package-sqlite)
 target_sources(studio-pack-store PRIVATE src/studio/vxp_store.cpp)
-target_link_libraries(studio-pack-store PUBLIC three-mm-v3dmm)
-target_link_libraries(studio-pack-store PUBLIC three-mm-content)
+target_link_libraries(studio-pack-store PUBLIC mm-v3dmm)
+target_link_libraries(studio-pack-store PUBLIC mm-content)
 target_compile_features(studio-pack-store PUBLIC cxx_std_17)
 target_include_directories(studio-pack-store PUBLIC "${PROJECT_SOURCE_DIR}/inc" "${PROJECT_SOURCE_DIR}/src/studio")
-target_link_libraries(studio-pack-store PRIVATE ThreeMM::Archive three-mm-expansion studio-iso-cache miniz nlohmann_json::nlohmann_json)
+target_link_libraries(studio-pack-store PRIVATE MM::Archive mm-expansion studio-iso-cache miniz nlohmann_json::nlohmann_json)
 add_executable(studio-packs-test EXCLUDE_FROM_ALL tests/studio_packs_test.cpp)
-target_link_libraries(studio-packs-test PRIVATE studio-pack-store three-mm-expansion engine-core studio-iso-cache)
+target_link_libraries(studio-packs-test PRIVATE studio-pack-store mm-expansion engine-core studio-iso-cache)
 add_executable(v3dmm-test EXCLUDE_FROM_ALL tests/v3dmm_test.cpp)
 target_link_libraries(v3dmm-test PRIVATE studio-pack-store engine-core miniz)
 
 # Read-only normalized archive dump, with bounded core record decoding.
-add_executable(three-mm EXCLUDE_FROM_ALL src/tools/three_mm.cpp)
-set_target_properties(three-mm PROPERTIES OUTPUT_NAME 3mm)
-target_link_libraries(three-mm PRIVATE ThreeMM::Archive)
+add_executable(mm EXCLUDE_FROM_ALL src/tools/mm.cpp)
+set_target_properties(mm PROPERTIES OUTPUT_NAME 3mm)
+target_link_libraries(mm PRIVATE MM::Archive)
 if(MINGW)
-  target_link_options(three-mm PRIVATE -municode)
+  target_link_options(mm PRIVATE -municode)
 endif()
-add_executable(three-mm-fixture EXCLUDE_FROM_ALL tests/three_mm_fixture.cpp)
-target_link_libraries(three-mm-fixture PRIVATE engine-core)
+add_executable(mm-fixture EXCLUDE_FROM_ALL tests/mm_fixture.cpp)
+target_link_libraries(mm-fixture PRIVATE engine-core)
 add_executable(platform-services-test EXCLUDE_FROM_ALL tests/platform_services_test.cpp)
 target_link_libraries(platform-services-test PRIVATE kauai-core)
 add_executable(file-services-test EXCLUDE_FROM_ALL tests/file_services_test.cpp)
@@ -550,7 +550,7 @@ target_link_libraries(text-services-test PRIVATE kauai-core)
 add_executable(text-portable-test EXCLUDE_FROM_ALL tests/text_services_test.cpp kauai/src/platform_text.cpp kauai/src/text_utf8.cpp)
 target_include_directories(text-portable-test PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src")
 target_compile_definitions(text-portable-test PRIVATE KAUAI_PORTABLE_TEXT)
-target_link_libraries(text-portable-test PRIVATE Threads::Threads three-mm-engine-c89)
+target_link_libraries(text-portable-test PRIVATE Threads::Threads mm-engine-c89)
 add_executable(string-compat-test EXCLUDE_FROM_ALL tests/string_compat_test.cpp)
 target_link_libraries(string-compat-test PRIVATE kauai-core)
 add_executable(picture-data-test EXCLUDE_FROM_ALL tests/picture_data_test.cpp)
@@ -932,7 +932,7 @@ target_compile_definitions(kauai-core PUBLIC
 find_package(Threads REQUIRED)
 target_link_libraries(kauai-core
   PUBLIC
-    three-mm-engine-c89
+    mm-engine-c89
     Threads::Threads
     $<$<PLATFORM_ID:Windows>:advapi32>
     $<$<PLATFORM_ID:Windows>:mpr>
@@ -1117,7 +1117,7 @@ target_include_directories(engine-core PUBLIC
   # brender wrapper headers (BMAT34 alias, etc); the gui-side bwld.cpp
   # is NOT linked from engine-core, so we just need the include path.
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/bren/inc>)
-target_link_libraries(engine-core PUBLIC kauai-core brender-core three-mm-engine-c89)
+target_link_libraries(engine-core PUBLIC kauai-core brender-core mm-engine-c89)
 add_executable(script-name-test EXCLUDE_FROM_ALL tests/script_name_test.cpp)
 target_link_libraries(script-name-test PRIVATE kauai-core)
 add_executable(brender-list-test EXCLUDE_FROM_ALL tests/brender_list_test.c)
@@ -1139,7 +1139,7 @@ target_compile_definitions(studio-runtime-compile-check PRIVATE KAUAI_SDL3)
 target_include_directories(studio-runtime-compile-check PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/studio")
 target_link_libraries(studio-runtime-compile-check PRIVATE engine-core studio-content)
 target_link_libraries(studio-runtime-compile-check PRIVATE studio-mcp-io)
-target_link_libraries(studio-runtime-compile-check PRIVATE three-mm-v3dmm)
+target_link_libraries(studio-runtime-compile-check PRIVATE mm-v3dmm)
 if(TARGET SDL3::SDL3-static)
   target_link_libraries(studio-runtime-compile-check PRIVATE SDL3::SDL3-static)
 endif()
@@ -1154,35 +1154,35 @@ add_executable(kidspace-descriptor-test EXCLUDE_FROM_ALL tests/kidspace_descript
 target_link_libraries(kidspace-descriptor-test PRIVATE kauai-core)
 
 # Public archive boundary: legacy include paths/definitions stay private.
-add_library(three-mm-archive STATIC EXCLUDE_FROM_ALL
+add_library(mm-archive STATIC EXCLUDE_FROM_ALL
   libraries/archive/src/archive.cpp libraries/archive/src/diagnostics.cpp
   libraries/archive/src/legacy_diagnostics.cpp)
-add_library(ThreeMM::Archive ALIAS three-mm-archive)
-target_include_directories(three-mm-archive PUBLIC "${PROJECT_SOURCE_DIR}/libraries/archive/include")
-target_compile_features(three-mm-archive PUBLIC cxx_std_14)
-target_link_libraries(three-mm-archive PRIVATE engine-core)
-add_library(three-mm-preview STATIC EXCLUDE_FROM_ALL
+add_library(MM::Archive ALIAS mm-archive)
+target_include_directories(mm-archive PUBLIC "${PROJECT_SOURCE_DIR}/libraries/archive/include")
+target_compile_features(mm-archive PUBLIC cxx_std_14)
+target_link_libraries(mm-archive PRIVATE engine-core)
+add_library(mm-preview STATIC EXCLUDE_FROM_ALL
   libraries/archive/src/preview.cpp libraries/archive/src/preview_actor.cpp
   libraries/archive/src/preview_background.cpp libraries/archive/src/preview_background_mesh.cpp
   libraries/archive/src/preview_presentation.cpp)
-add_library(ThreeMM::Preview ALIAS three-mm-preview)
-target_include_directories(three-mm-preview PRIVATE "${PROJECT_SOURCE_DIR}/src/engine")
-target_link_libraries(three-mm-preview PUBLIC ThreeMM::Archive PRIVATE engine-core)
+add_library(MM::Preview ALIAS mm-preview)
+target_include_directories(mm-preview PRIVATE "${PROJECT_SOURCE_DIR}/src/engine")
+target_link_libraries(mm-preview PUBLIC MM::Archive PRIVATE engine-core)
 add_executable(preview-api-test EXCLUDE_FROM_ALL tests/preview_api_test.cpp tests/preview_api_include_order.cpp)
-target_link_libraries(preview-api-test PRIVATE ThreeMM::Preview)
+target_link_libraries(preview-api-test PRIVATE MM::Preview)
 add_executable(preview-scene-fixture EXCLUDE_FROM_ALL tests/preview_scene_fixture.cpp)
 target_link_libraries(preview-scene-fixture PRIVATE engine-core)
 add_executable(preview-scene-test EXCLUDE_FROM_ALL tests/preview_scene_test.cpp)
-target_link_libraries(preview-scene-test PRIVATE ThreeMM::Preview)
+target_link_libraries(preview-scene-test PRIVATE MM::Preview)
 add_executable(preview-background-test EXCLUDE_FROM_ALL tests/preview_background_test.cpp)
-target_link_libraries(preview-background-test PRIVATE ThreeMM::Preview)
+target_link_libraries(preview-background-test PRIVATE MM::Preview)
 add_executable(preview-background-mesh-test EXCLUDE_FROM_ALL tests/preview_background_mesh_test.cpp)
 target_include_directories(preview-background-mesh-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src"
   "${PROJECT_SOURCE_DIR}/bren/lib/zb" "${PROJECT_SOURCE_DIR}/bren/lib/fw")
-target_link_libraries(preview-background-mesh-test PRIVATE ThreeMM::Preview engine-core)
+target_link_libraries(preview-background-mesh-test PRIVATE MM::Preview engine-core)
 add_executable(preview-actor-tree-test EXCLUDE_FROM_ALL tests/preview_actor_tree_test.cpp)
 target_include_directories(preview-actor-tree-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src")
-target_link_libraries(preview-actor-tree-test PRIVATE ThreeMM::Preview engine-core)
+target_link_libraries(preview-actor-tree-test PRIVATE MM::Preview engine-core)
 add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-background-test
   preview-background-mesh-test preview-actor-tree-test preview-scene-fixture)
 add_executable(mbmp-pixels-test EXCLUDE_FROM_ALL tests/mbmp_pixels_test.cpp)
@@ -1190,14 +1190,14 @@ add_executable(portfolio-data-test EXCLUDE_FROM_ALL tests/portfolio_data_test.cp
 target_link_libraries(portfolio-data-test PRIVATE engine-core)
 target_link_libraries(mbmp-pixels-test PRIVATE kauai-core)
 add_executable(archive-api-test EXCLUDE_FROM_ALL tests/archive_api_test.cpp tests/archive_api_include_order.cpp)
-target_link_libraries(archive-api-test PRIVATE ThreeMM::Archive)
+target_link_libraries(archive-api-test PRIVATE MM::Archive)
 add_executable(inspector-gst-fixture EXCLUDE_FROM_ALL tests/inspector_gst_fixture.cpp)
 target_link_libraries(inspector-gst-fixture PRIVATE kauai-core)
 
 # Presentation adapters consume only the public archive API.
 add_library(inspector-data STATIC EXCLUDE_FROM_ALL src/inspector/archive.cpp)
 target_include_directories(inspector-data PUBLIC "${PROJECT_SOURCE_DIR}/src/inspector")
-target_link_libraries(inspector-data PUBLIC ThreeMM::Archive)
+target_link_libraries(inspector-data PUBLIC MM::Archive)
 if(BUILD_INSPECTOR)
   add_subdirectory(src/inspector)
 endif()
@@ -1502,7 +1502,7 @@ add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnosti
   global-cleanup-test
   preview-checks
   mbmp-pixels-test
-  actor-render-test sparse-costume-test extract-bmdl inspect-chunks three-mm three-mm-fixture
+  actor-render-test sparse-costume-test extract-bmdl inspect-chunks mm mm-fixture
   nick-expansion nick-expansion-test
   platform-services-test file-services-test user-services-test settings-store-test filename-test text-services-test
   text-portable-test string-compat-test kauai-core-link-test brender-core-link-test engine-core-link-test)
@@ -1681,7 +1681,7 @@ if(BUILD_TESTING)
     add_test(NAME video-sdl-host COMMAND ${CMAKE_COMMAND} -E env SDL_AUDIODRIVER=dummy $<TARGET_FILE:video-sdl-host-test> "${PROJECT_BINARY_DIR}/video-sdl-fixture.avi")
   endif()
   add_test(NAME archive-api COMMAND ${CMAKE_COMMAND}
-    -DTEST_EXE=$<TARGET_FILE:archive-api-test> -DFIXTURE_EXE=$<TARGET_FILE:three-mm-fixture>
+    -DTEST_EXE=$<TARGET_FILE:archive-api-test> -DFIXTURE_EXE=$<TARGET_FILE:mm-fixture>
     -DGST_FIXTURE_EXE=$<TARGET_FILE:inspector-gst-fixture>
     -DTEST_DIR=${PROJECT_BINARY_DIR}/archive-api-test -P ${PROJECT_SOURCE_DIR}/tests/check_archive_api.cmake)
   add_test(NAME picture-data COMMAND picture-data-test)
@@ -1839,11 +1839,11 @@ if(BUILD_TESTING)
     add_test(NAME settings-store-posix COMMAND settings-store-posix-test)
   endif()
   add_test(NAME platform-services COMMAND platform-services-test)
-  add_test(NAME three-mm-dump
-    COMMAND ${CMAKE_COMMAND} -DDUMP_EXE=$<TARGET_FILE:three-mm>
-      -DFIXTURE_EXE=$<TARGET_FILE:three-mm-fixture>
-      -DTEST_DIR=${PROJECT_BINARY_DIR}/three-mm-test
-      -P ${PROJECT_SOURCE_DIR}/tests/check_three_mm.cmake)
+  add_test(NAME mm-dump
+    COMMAND ${CMAKE_COMMAND} -DDUMP_EXE=$<TARGET_FILE:mm>
+      -DFIXTURE_EXE=$<TARGET_FILE:mm-fixture>
+      -DTEST_DIR=${PROJECT_BINARY_DIR}/mm-test
+      -P ${PROJECT_SOURCE_DIR}/tests/check_mm.cmake)
   add_test(NAME geometry COMMAND geometry-test)
   if(TARGET dialog-sdl-test)
     add_dependencies(core-checks file-dialog-sdl-test)
@@ -1938,7 +1938,7 @@ if(BUILD_TESTING)
       AND EXISTS "${TEST_MAIN_CHK}")
     set(preview_gui_args)
     if(BUILD_INSPECTOR)
-      list(APPEND preview_gui_args -DGUI_EXE=$<TARGET_FILE:three-mm-inspector>)
+      list(APPEND preview_gui_args -DGUI_EXE=$<TARGET_FILE:mm-inspector>)
     endif()
     add_test(NAME asset-previews COMMAND ${CMAKE_COMMAND}
       -DAPI_EXE=$<TARGET_FILE:preview-api-test>

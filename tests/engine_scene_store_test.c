@@ -1,8 +1,8 @@
-#include "three_mm/scene_store.h"
+#include "mm/scene_store.h"
 #include "scene_sound_fixture.h"
 typedef union StorePayload {
     void *pointer;
-    ThreeMMTag tag;
+    MMTag tag;
     unsigned char bytes[192];
 } StorePayload;
 typedef struct StoreEvent
@@ -10,7 +10,7 @@ typedef struct StoreEvent
     unsigned char fixed[8];
     int bytes;
     StorePayload payload;
-    ThreeMMSceneSound *sound;
+    MMSceneSound *sound;
 } StoreEvent;
 typedef struct StoreGroup
 {
@@ -20,15 +20,15 @@ typedef struct StoreGroup
 typedef struct StoreFixture
 {
     Fixture packets;
-    ThreeMMSceneStoreServices s;
-    ThreeMMSceneCollectServices collect;
-    ThreeMMSceneOwner owner;
+    MMSceneStoreServices s;
+    MMSceneCollectServices collect;
+    MMSceneOwner owner;
     StoreGroup runtime[2], temp[2], wire[2], list;
     int attempts, fail, created, live, deleted, thumb_deleted, with_thumb, thumb, updated, old_thumb;
     int written, metadata, diagnostics, missing_background, empty_list, list_error, no_background;
     int log[512], used, adopted, adoptions, objects, swap, collected, tag_limit;
-    ThreeMMU32 actor_id, text_id;
-    ThreeMMTag tags[24];
+    MMU32 actor_id, text_id;
+    MMTag tags[24];
 } StoreFixture;
 static void note(StoreFixture *f, int n)
 {
@@ -40,17 +40,17 @@ static int step(StoreFixture *f, int n)
     note(f, n);
     return ++f->attempts != f->fail;
 }
-static ThreeMMI32 count(void *p, void *g)
+static MMI32 count(void *p, void *g)
 {
     (void)p;
     return ((StoreGroup *)g)->count;
 }
-static void fixed(void *p, void *g, ThreeMMI32 i, unsigned char *b)
+static void fixed(void *p, void *g, MMI32 i, unsigned char *b)
 {
     (void)p;
     memcpy(b, ((StoreGroup *)g)->events[i].fixed, 8);
 }
-static void *data(void *p, void *g, ThreeMMI32 i, ThreeMMI32 *bytes)
+static void *data(void *p, void *g, MMI32 i, MMI32 *bytes)
 {
     StoreEvent *e = &((StoreGroup *)g)->events[i];
     (void)p;
@@ -72,42 +72,42 @@ static void free_raw(void *p, void *value)
     note(f, 30);
     raw_free(&f->packets, value);
 }
-static void *packet_allocate(void *p, ThreeMMI32 bytes)
+static void *packet_allocate(void *p, MMI32 bytes)
 {
     StoreFixture *f = (StoreFixture *)p;
     return step(f, 31) ? allocate(&f->packets, bytes) : NULL;
 }
-static void *packet_data(void *p, void *g, ThreeMMI32 i)
+static void *packet_data(void *p, void *g, MMI32 i)
 {
-    ThreeMMI32 bytes;
+    MMI32 bytes;
     return data(p, g, i, &bytes);
 }
-static ThreeMMI32 packet_size(void *p, void *g, ThreeMMI32 i)
+static MMI32 packet_size(void *p, void *g, MMI32 i)
 {
-    ThreeMMI32 bytes;
+    MMI32 bytes;
     data(p, g, i, &bytes);
     return bytes;
 }
-static void release_packet(void *p, ThreeMMSceneSound *sound)
+static void release_packet(void *p, MMSceneSound *sound)
 {
     StoreFixture *f = (StoreFixture *)p;
     note(f, 32);
     drop(&f->packets, sound);
 }
-static int add_scene(void *p, ThreeMMU32 *number)
+static int add_scene(void *p, MMU32 *number)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(*number == 0xffffffffUL);
     *number = 42;
     return step(f, 1);
 }
-static int add_scene_unchanged(void *p, ThreeMMU32 *number)
+static int add_scene_unchanged(void *p, MMU32 *number)
 {
     (void)p;
     CHECK(*number == 0xffffffffUL);
     return 0;
 }
-static void delete_scene(void *p, ThreeMMU32 number)
+static void delete_scene(void *p, MMU32 number)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(number == 42);
@@ -126,7 +126,7 @@ static void *new_group(void *p)
     ++f->live;
     return g;
 }
-static int insert(void *p, void *g, ThreeMMI32 i, ThreeMMI32 frame, int kind, ThreeMMI32 bytes, const void *value)
+static int insert(void *p, void *g, MMI32 i, MMI32 frame, int kind, MMI32 bytes, const void *value)
 {
     StoreFixture *f = (StoreFixture *)p;
     StoreGroup *group = (StoreGroup *)g;
@@ -142,20 +142,20 @@ static int insert(void *p, void *g, ThreeMMI32 i, ThreeMMI32 frame, int kind, Th
     ++group->count;
     return 1;
 }
-static int sound_child(void *p, ThreeMMU32 scene, ThreeMMU32 child)
+static int sound_child(void *p, MMU32 scene, MMU32 child)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(scene == 42);
     note(f, 50 + (int)child);
     return child == 3 || (f->adopted & (1 << child));
 }
-static int sound_exists(void *p, ThreeMMU32 number)
+static int sound_exists(void *p, MMU32 number)
 {
     StoreFixture *f = (StoreFixture *)p;
     note(f, 60 + (int)number);
     return number != 4;
 }
-static int adopt_sound(void *p, ThreeMMU32 scene, ThreeMMU32 number, ThreeMMU32 child)
+static int adopt_sound(void *p, MMU32 scene, MMU32 number, MMU32 child)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(scene == 42 && number == 1 && child == 1);
@@ -165,41 +165,41 @@ static int adopt_sound(void *p, ThreeMMU32 scene, ThreeMMU32 number, ThreeMMU32 
     ++f->adoptions;
     return 1;
 }
-static int add_child(void *p, ThreeMMU32 scene, int kind, ThreeMMU32 id, ThreeMMU32 *number)
+static int add_child(void *p, MMU32 scene, int kind, MMU32 id, MMU32 *number)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(scene == 42);
-    if (kind == THREE_MM_SCENE_ADD_ACTOR)
+    if (kind == MM_SCENE_ADD_ACTOR)
         CHECK(id == f->actor_id++);
     else
-        CHECK(kind == THREE_MM_SCENE_ADD_TEXT && id == f->text_id++);
-    *number = 80 + (ThreeMMU32)kind * 4 + id;
+        CHECK(kind == MM_SCENE_ADD_TEXT && id == f->text_id++);
+    *number = 80 + (MMU32)kind * 4 + id;
     return step(f, 71 + kind);
 }
-static void *object(void *p, void *g, ThreeMMI32 i)
+static void *object(void *p, void *g, MMI32 i)
 {
     (void)p;
     return ((StoreGroup *)g)->events[i].payload.pointer;
 }
-static int write_object(void *p, void *value, int kind, ThreeMMU32 number, ThreeMMU32 scene)
+static int write_object(void *p, void *value, int kind, MMU32 number, MMU32 scene)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(value == f && scene == 42 && number >= 80);
     ++f->objects;
     return step(f, 75 + kind);
 }
-static int save_background(void *p, void *g, ThreeMMI32 i, ThreeMMTag *tag)
+static int save_background(void *p, void *g, MMI32 i, MMTag *tag)
 {
     StoreFixture *f = (StoreFixture *)p;
-    ThreeMMTag *input = &((StoreGroup *)g)->events[i].payload.tag;
+    MMTag *input = &((StoreGroup *)g)->events[i].payload.tag;
     input->number += 10;
     *tag = *input;
     return step(f, 80);
 }
-static int write_events(void *p, ThreeMMU32 scene, void *frames, void *starts)
+static int write_events(void *p, MMU32 scene, void *frames, void *starts)
 {
     StoreFixture *f = (StoreFixture *)p;
-    ThreeMMU32 n;
+    MMU32 n;
     StoreGroup *a = (StoreGroup *)frames, *b = (StoreGroup *)starts;
     CHECK(scene == 42 && a->count == 4 && b->count == 6);
     CHECK(a->events[0].bytes == 96 && b->events[0].bytes == 4 && b->events[1].bytes == 4);
@@ -225,15 +225,15 @@ static void update_thumbnail(void *p)
     CHECK(f->written && !f->updated);
     f->updated = 1;
     note(f, 82);
-    f->owner.owned[THREE_MM_SCENE_THUMBNAIL] = f->with_thumb ? &f->thumb : NULL;
+    f->owner.owned[MM_SCENE_THUMBNAIL] = f->with_thumb ? &f->thumb : NULL;
 }
-static ThreeMMI32 thumbnail_size(void *p, void *thumbnail)
+static MMI32 thumbnail_size(void *p, void *thumbnail)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(thumbnail == &f->thumb && f->updated);
     return 65;
 }
-static int add_thumbnail(void *p, ThreeMMI32 bytes, ThreeMMU32 *number)
+static int add_thumbnail(void *p, MMI32 bytes, MMU32 *number)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(bytes == 65);
@@ -246,24 +246,24 @@ static int write_thumbnail(void *p, void *thumbnail)
     CHECK(thumbnail == &f->thumb);
     return step(f, 84);
 }
-static int adopt_thumbnail(void *p, ThreeMMU32 scene, ThreeMMU32 number)
+static int adopt_thumbnail(void *p, MMU32 scene, MMU32 number)
 {
     CHECK(scene == 42 && number == 55);
     return step((StoreFixture *)p, 85);
 }
-static void delete_thumbnail(void *p, ThreeMMU32 number)
+static void delete_thumbnail(void *p, MMU32 number)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(number == 55);
     ++f->thumb_deleted;
     note(f, 86);
 }
-static void clear_loner(void *p, ThreeMMU32 number)
+static void clear_loner(void *p, MMU32 number)
 {
     CHECK(number == 55);
     note((StoreFixture *)p, 87);
 }
-static int write_metadata(void *p, ThreeMMU32 scene)
+static int write_metadata(void *p, MMU32 scene)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(scene == 42 && f->updated);
@@ -279,7 +279,7 @@ static void diagnostic(void *p, int start)
 static void event(StoreGroup *g, int kind, const void *value, int bytes)
 {
     StoreEvent *e = &g->events[g->count++];
-    ThreeMMI32 frame = 3;
+    MMI32 frame = 3;
     memcpy(e->fixed, &frame, 4);
     memcpy(e->fixed + 4, &kind, 4);
     e->bytes = bytes;
@@ -287,11 +287,11 @@ static void event(StoreGroup *g, int kind, const void *value, int bytes)
 }
 static void init_store(StoreFixture *f)
 {
-    ThreeMMSceneStoreServices *s;
-    ThreeMMSceneStoreGroups *g;
-    ThreeMMSceneSound *sound;
-    ThreeMMI32 pause[] = {3, 230}, camera = 0x12345678, frame = 3, kind = 1;
-    ThreeMMTag tag;
+    MMSceneStoreServices *s;
+    MMSceneStoreGroups *g;
+    MMSceneSound *sound;
+    MMI32 pause[] = {3, 230}, camera = 0x12345678, frame = 3, kind = 1;
+    MMTag tag;
     void *ptr;
     int i;
     memset(f, 0, sizeof(*f));
@@ -373,10 +373,10 @@ static void clean_store(StoreFixture *f)
 static void test_store(void)
 {
     StoreFixture f;
-    ThreeMMU32 number;
+    MMU32 number;
     int attempts, fail, j, last, background_called;
     init_store(&f);
-    CHECK(three_mm_scene_store(&number, &f.s) && number == 42 && !f.deleted && f.metadata);
+    CHECK(mm_scene_store(&number, &f.s) && number == 42 && !f.deleted && f.metadata);
     attempts = f.attempts;
     CHECK(f.log[f.used - 2] == 110 && f.log[f.used - 1] == 111);
     CHECK(f.packets.refs[1] == 2 && f.packets.refs[3] == 2 && f.packets.refs[4] == 2);
@@ -385,7 +385,7 @@ static void test_store(void)
     {
         init_store(&f);
         f.fail = fail;
-        CHECK(!three_mm_scene_store(&number, &f.s) && number == 42 && f.deleted == 1);
+        CHECK(!mm_scene_store(&number, &f.s) && number == 42 && f.deleted == 1);
         last = -1;
         for (j = 0; j < f.used; ++j)
             if (f.log[j] == 90)
@@ -407,14 +407,14 @@ static void test_store(void)
     }
     init_store(&f);
     f.with_thumb = 0;
-    CHECK(three_mm_scene_store(&number, &f.s) && f.updated && f.metadata);
+    CHECK(mm_scene_store(&number, &f.s) && f.updated && f.metadata);
     clean_store(&f);
     init_store(&f);
     f.s.add_scene = add_scene_unchanged;
-    CHECK(!three_mm_scene_store(&number, &f.s) && number == 0xffffffffUL && !f.deleted);
+    CHECK(!mm_scene_store(&number, &f.s) && number == 0xffffffffUL && !f.deleted);
     clean_store(&f);
 }
-static void wire_word(void *p, ThreeMMU32 value, int swap)
+static void wire_word(void *p, MMU32 value, int swap)
 {
     unsigned char b[4];
     int i;
@@ -422,18 +422,18 @@ static void wire_word(void *p, ThreeMMU32 value, int swap)
     for (i = 0; i < 4; ++i)
         ((unsigned char *)p)[i] = b[swap ? 3 - i : i];
 }
-static void wire_event(StoreFixture *f, int start, int kind, const ThreeMMU32 *words, int n)
+static void wire_event(StoreFixture *f, int start, int kind, const MMU32 *words, int n)
 {
     StoreGroup *g = &f->wire[start];
     StoreEvent *e = &g->events[g->count++];
     int i;
     e->bytes = n * 4;
     wire_word(e->fixed, 3, f->swap);
-    wire_word(e->fixed + 4, (ThreeMMU32)kind, f->swap);
+    wire_word(e->fixed + 4, (MMU32)kind, f->swap);
     for (i = 0; i < n; ++i)
         wire_word(e->payload.bytes + i * 4, words[i], f->swap);
 }
-static void *read_group(void *p, ThreeMMU32 scene, int start, int *swap)
+static void *read_group(void *p, MMU32 scene, int start, int *swap)
 {
     StoreFixture *f = (StoreFixture *)p;
     StoreGroup *g = &f->wire[start];
@@ -446,13 +446,13 @@ static void *read_group(void *p, ThreeMMU32 scene, int start, int *swap)
     *swap = f->swap;
     return g;
 }
-static int actor_child(void *p, ThreeMMU32 scene, ThreeMMU32 id, ThreeMMU32 *number)
+static int actor_child(void *p, MMU32 scene, MMU32 id, MMU32 *number)
 {
     CHECK(scene == 42 && id == 7);
     *number = 77;
     return step((StoreFixture *)p, 6);
 }
-static void *actor_tags(void *p, ThreeMMU32 number, int *error)
+static void *actor_tags(void *p, MMU32 number, int *error)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(number == 77);
@@ -463,13 +463,13 @@ static void *actor_tags(void *p, ThreeMMU32 number, int *error)
     ++f->live;
     return &f->list;
 }
-static void list_tag(void *p, void *list, ThreeMMI32 i, ThreeMMTag *tag)
+static void list_tag(void *p, void *list, MMI32 i, MMTag *tag)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(list == &f->list);
     *tag = f->packets.input[i].tag;
 }
-static int collect_tag(void *p, const ThreeMMTag *tag)
+static int collect_tag(void *p, const MMTag *tag)
 {
     StoreFixture *f = (StoreFixture *)p;
     if (!step(f, 8))
@@ -478,7 +478,7 @@ static int collect_tag(void *p, const ThreeMMTag *tag)
     f->tags[f->collected++] = *tag;
     return 1;
 }
-static int background(void *p, ThreeMMTag *tag)
+static int background(void *p, MMTag *tag)
 {
     StoreFixture *f = (StoreFixture *)p;
     CHECK(!tag->cache);
@@ -486,7 +486,7 @@ static int background(void *p, ThreeMMTag *tag)
     f->tags[f->collected++] = *tag;
     return step(f, 9);
 }
-static int collect_child(void *p, const ThreeMMTag *tag, ThreeMMU32 child, ThreeMMU32 type)
+static int collect_child(void *p, const MMTag *tag, MMU32 child, MMU32 type)
 {
     CHECK(tag->number == 29 && child == 0x12345678U && type == 23);
     return step((StoreFixture *)p, 10);
@@ -500,8 +500,8 @@ static void collect_diagnostic(void *p, int start, int missing)
 }
 static void init_collect(StoreFixture *f, int swap)
 {
-    ThreeMMSceneCollectServices *s;
-    ThreeMMU32 child[] = {7}, bg[] = {1, 999, 23, 9}, camera[] = {0x12345678U},
+    MMSceneCollectServices *s;
+    MMU32 child[] = {7}, bg[] = {1, 999, 23, 9}, camera[] = {0x12345678U},
                sound[] = {80, 2, 0, 2, 1, 0, 999, 23, 1, 2, 3, 999, 23, 2}, pause[] = {3, 230};
     memset(f, 0, sizeof(*f));
     init(&f->packets);
@@ -542,11 +542,11 @@ static void test_collect(void)
 {
     StoreFixture f;
     int attempts, fail, swap;
-    ThreeMMU32 child = 7;
+    MMU32 child = 7;
     for (swap = 0; swap < 2; ++swap)
     {
         init_collect(&f, swap);
-        CHECK(three_mm_scene_collect_tags(42, &f.collect));
+        CHECK(mm_scene_collect_tags(42, &f.collect));
         attempts = f.attempts;
         CHECK(f.collected == 6 && !f.live && !f.diagnostics && f.tags[4].cache == NULL && f.tags[5].cache == NULL);
         clean(&f.packets);
@@ -554,47 +554,47 @@ static void test_collect(void)
         {
             init_collect(&f, swap);
             f.fail = fail;
-            CHECK(!three_mm_scene_collect_tags(42, &f.collect));
+            CHECK(!mm_scene_collect_tags(42, &f.collect));
             CHECK(!f.live && f.collected < 6);
             clean(&f.packets);
         }
         init_collect(&f, swap);
         f.empty_list = 1;
-        CHECK(three_mm_scene_collect_tags(42, &f.collect) && f.collected == 4 && !f.live);
+        CHECK(mm_scene_collect_tags(42, &f.collect) && f.collected == 4 && !f.live);
         clean(&f.packets);
         init_collect(&f, swap);
         f.list_error = 1;
-        CHECK(!three_mm_scene_collect_tags(42, &f.collect) && f.log[f.used - 2] == 122 && f.log[f.used - 1] == 121 &&
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && f.log[f.used - 2] == 122 && f.log[f.used - 1] == 121 &&
               !f.live);
         clean(&f.packets);
         init_collect(&f, swap);
         f.list_error = f.empty_list = 1;
-        CHECK(!three_mm_scene_collect_tags(42, &f.collect) && !f.live && !f.collected);
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && !f.collected);
         clean(&f.packets);
         init_collect(&f, swap);
         f.wire[1].count = 1;
-        CHECK(!three_mm_scene_collect_tags(42, &f.collect) && f.missing_background == 1 && !f.live);
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && f.missing_background == 1 && !f.live);
         clean(&f.packets);
         init_collect(&f, swap);
         f.wire[1].events[0].bytes = 0;
-        CHECK(!three_mm_scene_collect_tags(42, &f.collect) && !f.live);
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live);
         clean(&f.packets);
         init_collect(&f, swap);
         f.wire[1].events[1].bytes = 20;
-        CHECK(!three_mm_scene_collect_tags(42, &f.collect) && !f.live && f.collected == 2);
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && f.collected == 2);
         clean(&f.packets);
         init_collect(&f, swap);
         f.wire[0].events[0].bytes = 0;
-        CHECK(!three_mm_scene_collect_tags(42, &f.collect) && !f.live && f.collected == 4);
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && f.collected == 4);
         clean(&f.packets);
         init_collect(&f, swap);
         f.wire[0].events[1].bytes = 16;
-        CHECK(!three_mm_scene_collect_tags(42, &f.collect) && !f.live);
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live);
         clean(&f.packets);
         init_collect(&f, swap);
         wire_event(&f, 1, 3, &child, 1);
         wire_event(&f, 0, 0, &child, 1);
-        CHECK(three_mm_scene_collect_tags(42, &f.collect) && f.diagnostics == 2 && !f.live);
+        CHECK(mm_scene_collect_tags(42, &f.collect) && f.diagnostics == 2 && !f.live);
         clean(&f.packets);
     }
 }

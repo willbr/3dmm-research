@@ -8,7 +8,7 @@ class BodyCreateFixtureAccess : public Body
 static bool TestBodyCreation()
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_BODY_CREATE_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_BODY_CREATE_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     short parents[6][7]={{-1},{-1},{-1,0,1,2,3,4},{-1,0,0,1,2,2},{-1,-1,0,-1,1,3},{-1,0,0,1,1,2,2}};

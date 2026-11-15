@@ -1,4 +1,4 @@
-#include "three_mm/scene_control.h"
+#include "mm/scene_control.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,23 +14,23 @@
 typedef struct Object
 {
     int id, story, visible, valid, view;
-    ThreeMMI32 first, last;
+    MMI32 first, last;
 } Object;
 typedef struct Undo
 {
-    ThreeMMSceneTitleUndo title;
-    ThreeMMSceneTransitionUndo transition;
+    MMSceneTitleUndo title;
+    MMSceneTransitionUndo transition;
 } Undo;
 typedef struct Host
 {
-    ThreeMMSceneState data, other;
+    MMSceneState data, other;
     Undo *undo;
     Object objects[8];
     int actors, texts;
     int trace[128], traces, fail, allocations, releases, dead;
     unsigned char header[16];
-    ThreeMMMemoryStream memory;
-    ThreeMMMovieTitle file_name;
+    MMMemoryStream memory;
+    MMMovieTitle file_name;
 } Host;
 static void event(Host *h, int value)
 {
@@ -42,20 +42,20 @@ static void expect(Host *h, const int *values, int n)
     CHECK(h->traces == n && !memcmp(h->trace, values, n * sizeof(*values)));
     h->traces = 0;
 }
-static void text(ThreeMMMovieTitle *t, const char *s)
+static void text(MMMovieTitle *t, const char *s)
 {
     unsigned short wide[256];
-    ThreeMMU32 i, n = (ThreeMMU32)strlen(s);
+    MMU32 i, n = (MMU32)strlen(s);
     for (i = 0; i < n; ++i)
         wide[i] = (unsigned char)s[i];
-    CHECK(three_mm_movie_title_set(t, t->unit == 1 ? (const void *)s : wide, n));
+    CHECK(mm_movie_title_set(t, t->unit == 1 ? (const void *)s : wide, n));
 }
 static void init(Host *h, unsigned unit)
 {
     int i;
     memset(h, 0, sizeof(*h));
-    CHECK(three_mm_scene_init(&h->data, unit));
-    CHECK(three_mm_scene_init(&h->other, unit));
+    CHECK(mm_scene_init(&h->data, unit));
+    CHECK(mm_scene_init(&h->other, unit));
     text(&h->data.name, "old");
     text(&h->other.name, "other");
     h->data.transition = 2;
@@ -80,13 +80,13 @@ static void *new_undo(void *p, int kind)
     ++h->allocations;
     return h->undo;
 }
-static ThreeMMSceneTitleUndo *title(void *p, void *u)
+static MMSceneTitleUndo *title(void *p, void *u)
 {
     Host *h = (Host *)p;
     CHECK(u == h->undo);
     return &h->undo->title;
 }
-static ThreeMMSceneTransitionUndo *transition(void *p, void *u)
+static MMSceneTransitionUndo *transition(void *p, void *u)
 {
     Host *h = (Host *)p;
     CHECK(u == h->undo);
@@ -114,9 +114,9 @@ static void release(void *p, void *u)
     free(h->undo);
     h->undo = NULL;
 }
-static ThreeMMScenePropertyServices properties(Host *h)
+static MMScenePropertyServices properties(Host *h)
 {
-    ThreeMMScenePropertyServices s;
+    MMScenePropertyServices s;
     s.context = h;
     s.data = &h->data;
     s.new_undo = new_undo;
@@ -140,7 +140,7 @@ static int seek(void *p)
     event(h, 21);
     return h->fail != 2;
 }
-static ThreeMMSceneState *scene(void *p)
+static MMSceneState *scene(void *p)
 {
     Host *h = (Host *)p;
     CHECK(!h->dead);
@@ -161,9 +161,9 @@ static void clear(void *p)
     h->undo = NULL;
     h->dead = 1;
 }
-static ThreeMMScenePropertyUndoServices navigation(Host *h)
+static MMScenePropertyUndoServices navigation(Host *h)
 {
-    ThreeMMScenePropertyUndoServices s;
+    MMScenePropertyUndoServices s;
     s.context = h;
     s.switch_scene = switch_scene;
     s.seek = seek;
@@ -175,8 +175,8 @@ static ThreeMMScenePropertyUndoServices navigation(Host *h)
 static void test_properties(void)
 {
     Host h;
-    ThreeMMScenePropertyServices s;
-    ThreeMMMovieTitle name;
+    MMScenePropertyServices s;
+    MMMovieTitle name;
     unsigned unit;
     int kind, fail;
     for (unit = 1; unit <= 2; ++unit)
@@ -186,9 +186,9 @@ static void test_properties(void)
                 init(&h, unit);
                 s = properties(&h);
                 h.fail = fail;
-                CHECK(three_mm_movie_title_init(&name, unit));
+                CHECK(mm_movie_title_init(&name, unit));
                 text(&name, "new title");
-                CHECK((kind ? three_mm_scene_name_edit(&name, &s) : three_mm_scene_transition_edit(3, &s)) == !fail);
+                CHECK((kind ? mm_scene_name_edit(&name, &s) : mm_scene_transition_edit(3, &s)) == !fail);
                 CHECK(h.allocations == h.releases && !h.undo);
                 CHECK(h.data.transition == (!kind && !fail ? 3 : 2));
                 CHECK(h.data.name.count == (kind && !fail ? 9 : 3));
@@ -208,19 +208,19 @@ static void test_properties(void)
     /* Full counted native payload, including empty and 255-unit strings. */
     for (unit = 1; unit <= 2; ++unit)
     {
-        ThreeMMScenePropertyUndoServices n;
+        MMScenePropertyUndoServices n;
         int i;
         init(&h, unit);
         n = navigation(&h);
         h.undo = (Undo *)calloc(1, sizeof(Undo));
         CHECK(h.undo);
-        CHECK(three_mm_movie_title_init(&h.undo->title.name, unit));
-        CHECK(three_mm_scene_title_swap(&h.undo->title, &n));
+        CHECK(mm_movie_title_init(&h.undo->title.name, unit));
+        CHECK(mm_scene_title_swap(&h.undo->title, &n));
         CHECK(h.other.name.count == 0 && h.undo->title.name.count == 5);
         h.traces = 0;
-        CHECK(three_mm_scene_title_swap(&h.undo->title, &n));
+        CHECK(mm_scene_title_swap(&h.undo->title, &n));
         CHECK(h.other.name.count == 5 && h.undo->title.name.count == 0);
-        CHECK(three_mm_movie_title_init(&name, unit));
+        CHECK(mm_movie_title_init(&name, unit));
         for (i = 0; i < 255; ++i)
             if (unit == 2)
                 name.text[i] = (unsigned short)(0x1200 + i);
@@ -229,7 +229,7 @@ static void test_properties(void)
         name.count = 255;
         h.other.name = name;
         h.traces = 0;
-        CHECK(three_mm_scene_title_swap(&h.undo->title, &n));
+        CHECK(mm_scene_title_swap(&h.undo->title, &n));
         CHECK(h.undo->title.name.count == 255 && !memcmp(h.undo->title.name.text, name.text, 255 * unit));
         free(h.undo);
     }
@@ -237,7 +237,7 @@ static void test_properties(void)
 static void test_swaps(void)
 {
     Host h;
-    ThreeMMScenePropertyUndoServices s;
+    MMScenePropertyUndoServices s;
     int kind, fail;
     for (kind = 0; kind < 2; ++kind)
         for (fail = 0; fail < 3; ++fail)
@@ -250,8 +250,8 @@ static void test_swaps(void)
             CHECK(h.undo);
             h.undo->title.name = h.data.name;
             h.undo->transition.transition = 2;
-            ok = kind ? three_mm_scene_title_swap(&h.undo->title, &s)
-                      : three_mm_scene_transition_swap(&h.undo->transition, &s);
+            ok = kind ? mm_scene_title_swap(&h.undo->title, &s)
+                      : mm_scene_transition_swap(&h.undo->transition, &s);
             CHECK(ok == (fail == 0 || (kind && fail == 2)));
             if (ok)
             {
@@ -285,18 +285,18 @@ static void test_swaps(void)
             }
         }
 }
-static ThreeMMI32 count(void *p, int text_kind)
+static MMI32 count(void *p, int text_kind)
 {
     Host *h = (Host *)p;
     return text_kind ? h->texts : h->actors;
 }
-static void *object(void *p, int text_kind, ThreeMMI32 i)
+static void *object(void *p, int text_kind, MMI32 i)
 {
     Host *h = (Host *)p;
     CHECK(i >= 0 && i < (text_kind ? h->texts : h->actors));
     return h->objects + i;
 }
-static int lifetime(void *p, int text_kind, void *o, ThreeMMI32 *first, ThreeMMI32 *last)
+static int lifetime(void *p, int text_kind, void *o, MMI32 *first, MMI32 *last)
 {
     Host *h = (Host *)p;
     Object *v = (Object *)o;
@@ -341,9 +341,9 @@ static void clean(void *p, void *o)
 {
     event((Host *)p, 100 + ((Object *)o)->id);
 }
-static ThreeMMScenePlaybackServices playback(Host *h)
+static MMScenePlaybackServices playback(Host *h)
 {
-    ThreeMMScenePlaybackServices s;
+    MMScenePlaybackServices s;
     s.context = h;
     s.data = &h->data;
     s.count = count;
@@ -361,12 +361,12 @@ static ThreeMMScenePlaybackServices playback(Host *h)
 static void test_playback(void)
 {
     Host h;
-    ThreeMMScenePlaybackServices s;
+    MMScenePlaybackServices s;
     init(&h, 1);
     s = playback(&h);
     h.actors = 3;
     h.objects[1].valid = 0;
-    CHECK(!three_mm_scene_start_playing(&s));
+    CHECK(!mm_scene_start_playing(&s));
     {
         const int e[] = {30, 31};
         expect(&h, e, 2);
@@ -379,48 +379,48 @@ static void test_playback(void)
     h.objects[3].first = 0;
     h.objects[4].valid = 0;
     h.objects[5].view = 0;
-    CHECK(three_mm_scene_start_playing(&s));
+    CHECK(mm_scene_start_playing(&s));
     {
         const int e[] = {30, 31, 32, 50, 60, 70, 80, 51, 61, 51, 52, 52, 42, 72,
                          82, 53, 53, 43, 54, 54, 44, 55, 55, 45, 75, 90, 91};
         expect(&h, e, 27);
     }
-    three_mm_scene_stop_playing(&s);
+    mm_scene_stop_playing(&s);
     {
         const int e[] = {92, 100, 101, 102, 103, 104, 105};
         expect(&h, e, 7);
     }
     h.texts = h.actors = 0;
-    CHECK(three_mm_scene_start_playing(&s));
+    CHECK(mm_scene_start_playing(&s));
     {
         const int e[] = {91};
         expect(&h, e, 1);
     }
-    three_mm_scene_stop_playing(&s);
+    mm_scene_stop_playing(&s);
     {
         const int e[] = {92};
         expect(&h, e, 1);
     }
 }
-static int read(void *p, ThreeMMU32 number, ThreeMMReadStream *out)
+static int read(void *p, MMU32 number, MMReadStream *out)
 {
     Host *h = (Host *)p;
     CHECK(number == 7);
     event(h, 110);
     if (h->fail == 1)
         return 0;
-    CHECK(three_mm_memory_stream_init(&h->memory, h->header, 16));
+    CHECK(mm_memory_stream_init(&h->memory, h->header, 16));
     *out = h->memory.stream;
     return 1;
 }
-static void load_name(void *p, ThreeMMU32 number, ThreeMMMovieTitle *name)
+static void load_name(void *p, MMU32 number, MMMovieTitle *name)
 {
     Host *h = (Host *)p;
     CHECK(number == 7);
     event(h, 111);
     *name = h->file_name;
 }
-static int put(void *p, ThreeMMU32 number, const unsigned char *bytes)
+static int put(void *p, MMU32 number, const unsigned char *bytes)
 {
     Host *h = (Host *)p;
     CHECK(number == 7);
@@ -430,7 +430,7 @@ static int put(void *p, ThreeMMU32 number, const unsigned char *bytes)
     memcpy(h->header, bytes, 16);
     return 1;
 }
-static int set_name(void *p, ThreeMMU32 number, const ThreeMMMovieTitle *name)
+static int set_name(void *p, MMU32 number, const MMMovieTitle *name)
 {
     Host *h = (Host *)p;
     CHECK(number == 7);
@@ -441,9 +441,9 @@ static int set_name(void *p, ThreeMMU32 number, const ThreeMMMovieTitle *name)
 static void test_files(void)
 {
     Host h;
-    ThreeMMSceneIO io;
-    ThreeMMSceneState decoded;
-    ThreeMMI32 value;
+    MMSceneIO io;
+    MMSceneState decoded;
+    MMI32 value;
     unsigned unit;
     int big, fail;
     for (unit = 1; unit <= 2; ++unit)
@@ -454,7 +454,7 @@ static void test_files(void)
                 h.data.firstFrame = -2;
                 h.data.lastFrame = 19;
                 h.file_name = h.other.name;
-                CHECK(three_mm_scene_encode_header(&h.data, 0x303, big, h.header));
+                CHECK(mm_scene_encode_header(&h.data, 0x303, big, h.header));
                 io.context = &h;
                 io.read = read;
                 io.load_name = load_name;
@@ -462,10 +462,10 @@ static void test_files(void)
                 io.set_name = set_name;
                 value = 99;
                 h.fail = fail;
-                CHECK(three_mm_scene_transition_read(7, unit, &value, &io) == (fail != 1));
+                CHECK(mm_scene_transition_read(7, unit, &value, &io) == (fail != 1));
                 CHECK(value == (fail == 1 ? 99 : 2));
                 h.traces = 0;
-                CHECK(three_mm_scene_transition_write(7, unit, 4, 0x303, big, &io) == (fail == 0));
+                CHECK(mm_scene_transition_write(7, unit, 4, 0x303, big, &io) == (fail == 0));
                 if (fail == 1)
                 {
                     const int e[] = {110};
@@ -484,20 +484,20 @@ static void test_files(void)
                 h.fail = 0;
                 h.traces = 0;
                 value = 99;
-                CHECK(three_mm_scene_transition_read(7, unit, &value, &io));
+                CHECK(mm_scene_transition_read(7, unit, &value, &io));
                 CHECK(value == ((fail == 0 || fail == 3) ? 4 : 2));
-                CHECK(three_mm_scene_init(&decoded, unit));
-                CHECK(three_mm_scene_decode_header(&h.memory.stream, &decoded));
+                CHECK(mm_scene_init(&decoded, unit));
+                CHECK(mm_scene_decode_header(&h.memory.stream, &decoded));
                 CHECK(decoded.firstFrame == -2 && decoded.lastFrame == 19);
                 h.traces = 0;
-                CHECK(!three_mm_scene_transition_write(7, unit, 5, 0x303, big, &io));
+                CHECK(!mm_scene_transition_write(7, unit, 5, 0x303, big, &io));
                 {
                     const int e[] = {110, 111};
                     expect(&h, e, 2);
                 }
                 h.header[0] = h.header[1] = 0;
                 value = 99;
-                CHECK(!three_mm_scene_transition_read(7, unit, &value, &io) && value == 99);
+                CHECK(!mm_scene_transition_read(7, unit, &value, &io) && value == 99);
             }
 }
 int main(void)

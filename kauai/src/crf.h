@@ -19,7 +19,7 @@
 #ifndef CHRES_H
 #define CHRES_H
 
-#include "three_mm/resource_cache.h"
+#include "mm/resource_cache.h"
 
 namespace Chunky
 {
@@ -49,8 +49,8 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     MARKMEM
 
   private:
-    ThreeMMResourceObject _resource;
-    static const ThreeMMResourceObjectServices *_ObjectServices();
+    MMResourceObject _resource;
+    static const MMResourceObjectServices *_ObjectServices();
 
     friend class ChunkyResourceFile;
 
@@ -129,8 +129,8 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
 
   protected:
     friend class ChunkyResourceManager;
-    ThreeMMResourceCache _cache;
-    ThreeMMResourceServices _Services();
+    MMResourceCache _cache;
+    MMResourceServices _Services();
     ChunkyResourceFile(PChunkyFile pcfl, LegacyLong cbMax);
 
   public:
@@ -174,8 +174,8 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
     MARKMEM
 
   protected:
-    ThreeMMResourceManager _manager;
-    static ThreeMMResourceManagerServices _Services();
+    MMResourceManager _manager;
+    static MMResourceManagerServices _Services();
     ChunkyResourceManager(void);
 
   public:

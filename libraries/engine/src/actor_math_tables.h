@@ -1,8 +1,8 @@
 /* Original BRender fixed386.asm lookup tables, retained through fixed_fallback.c.
  * Copyright (c) 1992,1993-1995 Argonaut Technologies Limited. All rights reserved. */
-#ifndef THREE_MM_ACTOR_MATH_TABLES_H
-#define THREE_MM_ACTOR_MATH_TABLES_H
-static const ThreeMMI32 sin_table[322] = {
+#ifndef MM_ACTOR_MATH_TABLES_H
+#define MM_ACTOR_MATH_TABLES_H
+static const MMI32 sin_table[322] = {
     0,      804,    1607,   2410,   3211,   4011,   4807,   5601,   6392,   7179,   7961,   8739,   9511,   10278,
     11038,  11792,  12539,  13278,  14009,  14732,  15446,  16150,  16845,  17530,  18204,  18867,  19519,  20159,
     20787,  21402,  22004,  22594,  23169,  23731,  24278,  24811,  25329,  25831,  26318,  26789,  27244,  27683,

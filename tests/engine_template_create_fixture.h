@@ -64,7 +64,7 @@ class TemplateCreateFixtureAccess : public Template
 };
 static bool TestTemplateConstruction()
 {
-    FILE *snapshot=nullptr; if (const char *path=std::getenv("THREE_MM_TEMPLATE_CREATE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
+    FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_TEMPLATE_CREATE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     bool ok=true; int loaded=0,bodies=0;
     for (int shape=0;ok && shape<2;++shape) for (int variant=0;ok && variant<8;++variant)

@@ -110,7 +110,7 @@ struct Access : Scene
         Value(d.currentFrame);
         Value(d.firstFrame);
         Value(d.lastFrame);
-#ifdef THREE_MM_ENGINE_SCENE_RUNTIME_H
+#ifdef MM_ENGINE_SCENE_RUNTIME_H
         auto &r = s->*&Access::_runtime;
         Value(r.next_event);
         Value(r.disabled);
@@ -134,7 +134,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto name = std::getenv("THREE_MM_SCENE_EVENTS_SNAPSHOT"))
+    if (auto name = std::getenv("MM_SCENE_EVENTS_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);

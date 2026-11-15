@@ -1,6 +1,6 @@
 /* Actor seek control converted from engine actor_seek.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/actor_timeline.h"
+#include "mm/actor_timeline.h"
 enum
 {
     INITIALIZE,
@@ -9,7 +9,7 @@ enum
     FRAMES,
     DONE
 };
-void three_mm_actor_seek_init(ThreeMMActorSeek *q, ThreeMMI32 first, ThreeMMI32 last, ThreeMMI32 target)
+void mm_actor_seek_init(MMActorSeek *q, MMI32 first, MMI32 last, MMI32 target)
 {
     q->firstFrame = first;
     q->lastFrame = last;
@@ -17,9 +17,9 @@ void three_mm_actor_seek_init(ThreeMMActorSeek *q, ThreeMMI32 first, ThreeMMI32 
     q->phase = INITIALIZE;
     q->midPath = q->waiting = 0;
     q->success = 1;
-    q->pending = THREE_MM_ACTOR_SEEK_FINISHED;
+    q->pending = MM_ACTOR_SEEK_FINISHED;
 }
-static int command(ThreeMMActorSeek *q, ThreeMMActorSeekCommand *out, int kind, int display)
+static int command(MMActorSeek *q, MMActorSeekCommand *out, int kind, int display)
 {
     q->pending = kind;
     q->waiting = 1;
@@ -27,39 +27,39 @@ static int command(ThreeMMActorSeek *q, ThreeMMActorSeekCommand *out, int kind, 
     out->displayFrame = display;
     return 1;
 }
-static void rewind_state(ThreeMMActorSeek *q, ThreeMMActorState *state, void *route, void *events,
-                         const ThreeMMActorMotionServices *s)
+static void rewind_state(MMActorSeek *q, MMActorState *state, void *route, void *events,
+                         const MMActorMotionServices *s)
 {
-    ThreeMMI32 index, entrance = -1;
-    ThreeMMActorEvent event;
+    MMI32 index, entrance = -1;
+    MMActorEvent event;
     if (q->midPath)
         for (index = state->nextEvent - 1; index >= 0; --index)
         {
             s->event(events, index, &event);
-            if (event.aet == THREE_MM_ACTOR_ADD && event.nfrm <= q->targetFrame)
+            if (event.aet == MM_ACTOR_ADD && event.nfrm <= q->targetFrame)
             {
                 entrance = index;
                 break;
             }
         }
-    three_mm_actor_state_rewind(state, route, s);
+    mm_actor_state_rewind(state, route, s);
     if (q->midPath)
     {
         state->firstEventInFrame = state->nextEvent = state->addEvent = entrance;
         s->event(events, entrance, &event);
         state->location = event.rtel;
         state->frame = event.nfrm;
-        state->location.dnfrm = three_mm_fixed_sub(state->location.dnfrm, 1);
-        three_mm_actor_route_position(route, &state->location, &state->position, s);
+        state->location.dnfrm = mm_fixed_sub(state->location.dnfrm, 1);
+        mm_actor_route_position(route, &state->location, &state->position, s);
     }
     else
         state->frame = q->targetFrame < q->firstFrame ? q->targetFrame : q->firstFrame;
 }
-int three_mm_actor_seek_next(ThreeMMActorSeek *q, ThreeMMActorState *state, void *route, void *events,
-                             ThreeMMActorSeekCommand *out, const ThreeMMActorTimelineServices *s)
+int mm_actor_seek_next(MMActorSeek *q, MMActorState *state, void *route, void *events,
+                             MMActorSeekCommand *out, const MMActorTimelineServices *s)
 {
-    ThreeMMActorEvent event;
-    ThreeMMActorQuickSeekResult result;
+    MMActorEvent event;
+    MMActorQuickSeekResult result;
     if (q->waiting)
         return 0;
     while (q->phase != DONE)
@@ -77,11 +77,11 @@ int three_mm_actor_seek_next(ThreeMMActorSeek *q, ThreeMMActorState *state, void
                     s->motion.event_count(events) > 0 && state->nextEvent > 0 && q->targetFrame > q->firstFrame;
                 q->phase = REWIND;
                 if (q->targetFrame < q->firstFrame && state->onStage)
-                    return command(q, out, THREE_MM_ACTOR_SEEK_HIDE, 0);
+                    return command(q, out, MM_ACTOR_SEEK_HIDE, 0);
             }
             else
             {
-                state->frame = three_mm_fixed_add(state->frame, 1);
+                state->frame = mm_fixed_add(state->frame, 1);
                 state->firstEventInFrame = state->nextEvent;
                 q->phase = PREPARE;
             }
@@ -92,7 +92,7 @@ int three_mm_actor_seek_next(ThreeMMActorSeek *q, ThreeMMActorState *state, void
                 s->motion.event(events, state->nextEvent - 1, &event);
                 if (event.nfrm < q->targetFrame)
                 {
-                    result = three_mm_actor_quick_backup(state, route, events, q->lastFrame, q->targetFrame, s);
+                    result = mm_actor_quick_backup(state, route, events, q->lastFrame, q->targetFrame, s);
                     if (!result.success)
                     {
                         q->success = 0;
@@ -103,14 +103,14 @@ int three_mm_actor_seek_next(ThreeMMActorSeek *q, ThreeMMActorState *state, void
                     {
                         q->phase = DONE;
                         if (result.applyEffects)
-                            return command(q, out, THREE_MM_ACTOR_SEEK_QUICK_EFFECTS, 0);
+                            return command(q, out, MM_ACTOR_SEEK_QUICK_EFFECTS, 0);
                         break;
                     }
                 }
             }
             rewind_state(q, state, route, events, &s->motion);
             q->phase = PREPARE;
-            return command(q, out, THREE_MM_ACTOR_SEEK_RESET_COSTUME, 0);
+            return command(q, out, MM_ACTOR_SEEK_RESET_COSTUME, 0);
         case PREPARE:
             if (q->targetFrame < q->firstFrame)
                 q->phase = DONE;
@@ -123,22 +123,22 @@ int three_mm_actor_seek_next(ThreeMMActorSeek *q, ThreeMMActorState *state, void
                 q->phase = FRAMES;
             break;
         case FRAMES:
-            return command(q, out, THREE_MM_ACTOR_SEEK_FRAME, state->frame == q->targetFrame);
+            return command(q, out, MM_ACTOR_SEEK_FRAME, state->frame == q->targetFrame);
         case DONE:
             break;
         }
-    out->kind = THREE_MM_ACTOR_SEEK_FINISHED;
+    out->kind = MM_ACTOR_SEEK_FINISHED;
     out->displayFrame = 0;
     return 1;
 }
-int three_mm_actor_seek_complete(ThreeMMActorSeek *q, ThreeMMActorState *state, int success)
+int mm_actor_seek_complete(MMActorSeek *q, MMActorState *state, int success)
 {
     if (!q->waiting)
         return 0;
     q->waiting = 0;
-    if (q->pending == THREE_MM_ACTOR_SEEK_QUICK_EFFECTS)
+    if (q->pending == MM_ACTOR_SEEK_QUICK_EFFECTS)
         q->success = success;
-    else if (q->pending == THREE_MM_ACTOR_SEEK_FRAME)
+    else if (q->pending == MM_ACTOR_SEEK_FRAME)
     {
         if (!success)
             q->success = 0;
@@ -146,7 +146,7 @@ int three_mm_actor_seek_complete(ThreeMMActorSeek *q, ThreeMMActorState *state, 
             q->phase = DONE;
         else
         {
-            state->frame = three_mm_fixed_add(state->frame, 1);
+            state->frame = mm_fixed_add(state->frame, 1);
             state->firstEventInFrame = state->nextEvent;
         }
     }

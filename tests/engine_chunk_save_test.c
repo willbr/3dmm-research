@@ -1,4 +1,4 @@
-#include "three_mm/chunk_save.h"
+#include "mm/chunk_save.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,25 +14,25 @@ static void check(int value, int line)
 typedef struct File
 {
     int refs, temporary;
-    ThreeMMU32 size;
+    MMU32 size;
     unsigned char bytes[1024];
 } File;
 typedef struct Fixture
 {
-    ThreeMMChunkSaveState state, mirror;
-    ThreeMMChunkSaveIndex index;
-    ThreeMMChunkSaveServices io;
-    ThreeMMChunkEntry entries[4], original[4];
+    MMChunkSaveState state, mirror;
+    MMChunkSaveIndex index;
+    MMChunkSaveServices io;
+    MMChunkEntry entries[4], original[4];
     File main, extra, output[4];
     int main_map, extra_map, fail, created, copies, indexes, renames, swaps, places, published;
 } Fixture;
-static void entry(void *context, ThreeMMU32 position, ThreeMMChunkEntry *out)
+static void entry(void *context, MMU32 position, MMChunkEntry *out)
 {
     Fixture *f = (Fixture *)context;
     CHECK(position < f->index.count);
     *out = f->entries[position];
 }
-static void place(void *context, ThreeMMU32 position, ThreeMMU32 offset, ThreeMMU32 flags)
+static void place(void *context, MMU32 position, MMU32 offset, MMU32 flags)
 {
     Fixture *f = (Fixture *)context;
     CHECK(f->copies == 3); /* No index edits before every nonempty copy succeeds. */
@@ -52,7 +52,7 @@ static void *create(void *context)
     out->temporary = 1;
     return out;
 }
-static int resize(void *context, void *file, ThreeMMU32 bytes)
+static int resize(void *context, void *file, MMU32 bytes)
 {
     Fixture *f = (Fixture *)context;
     File *out = (File *)file;
@@ -62,7 +62,7 @@ static int resize(void *context, void *file, ThreeMMU32 bytes)
     out->size = bytes;
     return 1;
 }
-static int copy(void *context, void *source, ThreeMMU32 from, void *destination, ThreeMMU32 to, ThreeMMU32 bytes)
+static int copy(void *context, void *source, MMU32 from, void *destination, MMU32 to, MMU32 bytes)
 {
     Fixture *f = (Fixture *)context;
     File *in = (File *)source, *out = (File *)destination;
@@ -100,17 +100,17 @@ static void set_temp(void *context, void *file, int temporary)
     CHECK(file && ((File *)file)->refs == 1);
     ((File *)file)->temporary = temporary;
 }
-static void publish(void *context, const ThreeMMChunkSaveState *state)
+static void publish(void *context, const MMChunkSaveState *state)
 {
     Fixture *f = (Fixture *)context;
     f->mirror = *state;
     ++f->published;
 }
-static int write_index(void *context, const ThreeMMChunkSaveState *state, ThreeMMU32 creator)
+static int write_index(void *context, const MMChunkSaveState *state, MMU32 creator)
 {
     Fixture *f = (Fixture *)context;
     unsigned i;
-    ThreeMMU32 offset = 128;
+    MMU32 offset = 128;
     CHECK(creator == 0x53415645UL);
     CHECK(!memcmp(&f->mirror, state, sizeof(*state)));
     ++f->indexes;
@@ -196,7 +196,7 @@ static void init(Fixture *f, int invalid, int temporary)
 static void matrix(void)
 {
     Fixture f;
-    ThreeMMChunkSaveState before;
+    MMChunkSaveState before;
     int named, invalid, temporary, fail, result;
     unsigned i;
     for (named = 0; named < 2; ++named)
@@ -209,10 +209,10 @@ static void matrix(void)
                     init(&f, invalid, temporary);
                     f.fail = fail;
                     before = f.state;
-                    result = three_mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, named);
-                    CHECK(result == (!fail       ? THREE_MM_CHUNK_OK
-                                     : fail == 1 ? THREE_MM_CHUNK_MEMORY
-                                                 : THREE_MM_CHUNK_IO));
+                    result = mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, named);
+                    CHECK(result == (!fail       ? MM_CHUNK_OK
+                                     : fail == 1 ? MM_CHUNK_MEMORY
+                                                 : MM_CHUNK_IO));
                     if (fail && fail <= 5)
                     {
                         CHECK(!memcmp(&before, &f.state, sizeof(before)) &&
@@ -248,7 +248,7 @@ static void matrix(void)
                         /* Retry against recovered extra storage, or the retained
                          * temporary for a main file without a valid CHN2 header. */
                         f.fail = f.copies = f.places = f.indexes = f.renames = f.swaps = 0;
-                        CHECK(three_mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, named) == THREE_MM_CHUNK_OK);
+                        CHECK(mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, named) == MM_CHUNK_OK);
                         CHECK(f.created == 2 && f.state.main_file == f.output + 1 && !f.state.invalid_main);
                         CHECK(!f.output[0].refs && f.output[1].refs == 1 && !f.main.refs && !f.extra.refs);
                         CHECK(!memcmp(f.output[0].bytes + 128, f.output[1].bytes + 128, 10));
@@ -258,7 +258,7 @@ static void matrix(void)
 static void validation(void)
 {
     Fixture f;
-    ThreeMMChunkSaveState before;
+    MMChunkSaveState before;
     int test;
     for (test = 0; test < 6; ++test)
     {
@@ -281,7 +281,7 @@ static void validation(void)
             f.state.invalid_main = 1;
         }
         before = f.state;
-        CHECK(three_mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, test != 5) == THREE_MM_CHUNK_BAD_FILE);
+        CHECK(mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, test != 5) == MM_CHUNK_BAD_FILE);
         CHECK(!f.created && !f.places && !memcmp(&before, &f.state, sizeof(before)));
     }
     init(&f, 0, 0);
@@ -292,26 +292,26 @@ static void validation(void)
     memset(&f.io, 0, sizeof(f.io));
     f.io.context = &f;
     f.io.write_index = write_index;
-    CHECK(three_mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, 0) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, 0) == MM_CHUNK_OK);
     CHECK(f.indexes == 1 && !f.created && !f.places && f.main_map == 1);
     f.fail = 6;
-    CHECK(three_mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, 0) == THREE_MM_CHUNK_IO);
+    CHECK(mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, 0) == MM_CHUNK_IO);
     CHECK(f.indexes == 2 && f.main_map == 1);
-    CHECK(three_mm_chunk_save(NULL, &f.index, &f.io, 0, 0) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_save(&f.state, NULL, &f.io, 0, 0) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_save(&f.state, &f.index, NULL, 0, 0) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_save(NULL, &f.index, &f.io, 0, 0) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_save(&f.state, NULL, &f.io, 0, 0) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_save(&f.state, &f.index, NULL, 0, 0) == MM_CHUNK_BAD_FILE);
     init(&f, 1, 0);
     f.index.count = 0; /* Empty forest, with no valid old main reference. */
     f.state.main_file = NULL;
     f.main.refs = 0;
     f.mirror = f.state;
-    CHECK(three_mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, 1) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_save(&f.state, &f.index, &f.io, 0x53415645UL, 1) == MM_CHUNK_OK);
     CHECK(f.state.main_end == 128 && f.state.main_file == f.output && !f.state.invalid_main);
     CHECK(!f.copies && !f.places && f.output[0].temporary && !f.extra.refs);
 }
 typedef struct CopyFixture
 {
-    ThreeMMChunkEntry original[4], source[4], target[4];
+    MMChunkEntry original[4], source[4], target[4];
     unsigned char main[256], extra[256], output[256];
     int pinned, pins, unpins, copies, inserts, finished, fail;
 } CopyFixture;
@@ -329,14 +329,14 @@ static void copy_unpin(void *context)
     f->pinned = 0;
     ++f->unpins;
 }
-static void copy_entry(void *context, ThreeMMU32 i, ThreeMMChunkEntry *record)
+static void copy_entry(void *context, MMU32 i, MMChunkEntry *record)
 {
     CopyFixture *f = (CopyFixture *)context;
     CHECK(f->pinned && i < 4);
     *record = f->source[i];
 }
-static int copy_payload(void *context, void *source, ThreeMMU32 from, void *destination, ThreeMMU32 to,
-                        ThreeMMU32 bytes)
+static int copy_payload(void *context, void *source, MMU32 from, void *destination, MMU32 to,
+                        MMU32 bytes)
 {
     CopyFixture *f = (CopyFixture *)context;
     CHECK(f->pinned && destination == f->output && to + bytes <= sizeof(f->output));
@@ -350,10 +350,10 @@ static int copy_payload(void *context, void *source, ThreeMMU32 from, void *dest
     }
     return f->fail != f->copies;
 }
-static int copy_insert(void *context, ThreeMMU32 i, const ThreeMMChunkEntry *record)
+static int copy_insert(void *context, MMU32 i, const MMChunkEntry *record)
 {
     CopyFixture *f = (CopyFixture *)context;
-    CHECK(f->pinned && i == (ThreeMMU32)f->inserts && f->copies == f->inserts + 1);
+    CHECK(f->pinned && i == (MMU32)f->inserts && f->copies == f->inserts + 1);
     CHECK(record->flags == (f->original[i].flags & ~1U));
     CHECK(record->type == f->original[i].type && record->number == f->original[i].number &&
           record->child_count == f->original[i].child_count && record->parent_count == f->original[i].parent_count &&
@@ -364,7 +364,7 @@ static int copy_insert(void *context, ThreeMMU32 i, const ThreeMMChunkEntry *rec
     f->target[i] = *record;
     return 1;
 }
-static int copy_finish(void *context, ThreeMMU32 end, ThreeMMU32 creator)
+static int copy_finish(void *context, MMU32 end, MMU32 creator)
 {
     CopyFixture *f = (CopyFixture *)context;
     CHECK(!f->pinned && f->pins == 1 && f->unpins == 1 && creator == 0x434f5059UL);
@@ -375,8 +375,8 @@ static int copy_finish(void *context, ThreeMMU32 end, ThreeMMU32 creator)
 static void copies(void)
 {
     CopyFixture f;
-    ThreeMMChunkSaveIndex index;
-    ThreeMMChunkCopyServices io;
+    MMChunkSaveIndex index;
+    MMChunkCopyServices io;
     int fail, i, result;
     for (fail = 0; fail <= 11; ++fail)
     {
@@ -390,8 +390,8 @@ static void copies(void)
         for (i = 0; i < 4; ++i)
         {
             f.source[i].type = 123;
-            f.source[i].number = (ThreeMMU32)i;
-            f.source[i].offset = (ThreeMMU32)(i * 3);
+            f.source[i].number = (MMU32)i;
+            f.source[i].offset = (MMU32)(i * 3);
             f.source[i].bytes = i == 1 ? 0 : i == 2 ? 5 : i == 0 ? 3 : 2;
             f.source[i].flags = i % 2 ? 19 : 4;
             f.source[i].child_count = f.source[i].parent_count = 1;
@@ -413,11 +413,11 @@ static void copies(void)
         io.copy = copy_payload;
         io.insert = copy_insert;
         io.finish = copy_finish;
-        result = three_mm_chunk_save_copy(&index, &io, 0x434f5059UL);
-        CHECK(result == (!fail || fail == 11      ? THREE_MM_CHUNK_OK
-                         : fail == 10             ? THREE_MM_CHUNK_BAD_FILE
-                         : fail <= 4 || fail == 9 ? THREE_MM_CHUNK_IO
-                                                  : THREE_MM_CHUNK_MEMORY));
+        result = mm_chunk_save_copy(&index, &io, 0x434f5059UL);
+        CHECK(result == (!fail || fail == 11      ? MM_CHUNK_OK
+                         : fail == 10             ? MM_CHUNK_BAD_FILE
+                         : fail <= 4 || fail == 9 ? MM_CHUNK_IO
+                                                  : MM_CHUNK_MEMORY));
         CHECK(!f.pinned && f.pins == 1 && f.unpins == 1 && !memcmp(f.source, f.original, sizeof(f.source)));
         CHECK(f.finished == (!fail || fail == 9 || fail == 11));
         if (!fail)
@@ -428,9 +428,9 @@ static void copies(void)
         }
     }
     io.pin = NULL;
-    CHECK(three_mm_chunk_save_copy(&index, &io, 0) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_save_copy(NULL, &io, 0) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_save_copy(&index, NULL, 0) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_save_copy(&index, &io, 0) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_save_copy(NULL, &io, 0) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_save_copy(&index, NULL, 0) == MM_CHUNK_BAD_FILE);
 }
 int main(void)
 {

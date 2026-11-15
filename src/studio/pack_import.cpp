@@ -2,7 +2,7 @@
 #include "studio_packs.h"
 #include "pack_hash.h"
 #include "iso_cache.h"
-#include "three_mm/nick_expansion.h"
+#include "mm/nick_expansion.h"
 #include <nlohmann/json.hpp>
 #include <miniz.h>
 #include <algorithm>
@@ -111,7 +111,7 @@ std::set<std::string> Export(const fs::path &source, const fs::path &destination
 {
     fs::create_directory(destination);
     std::string error;
-    Require(ThreeMM::ExportNickImages(source.string(), destination.string(), error), error);
+    Require(MM::ExportNickImages(source.string(), destination.string(), error), error);
     std::set<std::string> names;
     for (const auto &entry : fs::directory_iterator(destination))
         names.insert(entry.path().filename().string());
@@ -120,7 +120,7 @@ std::set<std::string> Export(const fs::path &source, const fs::path &destination
 std::string State(const fs::path &source, const fs::path &destination)
 {
     std::string error;
-    Require(ThreeMM::WriteNickNonImageState(source.string(), destination.string(), error), error);
+    Require(MM::WriteNickNonImageState(source.string(), destination.string(), error), error);
     return HashFile(destination);
 }
 bool Digest(const Json &value)
@@ -200,8 +200,8 @@ void ImportISO(Id id, const fs::path &iso, const fs::path &baseISO, const fs::pa
         Write(root / "source" / file.first, file.second);
     Write(root / "base.chk", base);
     std::string error;
-    ThreeMM::NickConversionStats stats;
-    Require(ThreeMM::ConvertNickExpansion((root / "source").string(), (root / "base.chk").string(),
+    MM::NickConversionStats stats;
+    Require(MM::ConvertNickExpansion((root / "source").string(), (root / "base.chk").string(),
                                           (root / "baseline").string(), stats, error),
             error);
     if (State(root / "baseline", root / "baseline.state") != manifest.at("non_image_state_sha256"))
@@ -229,7 +229,7 @@ void ImportISO(Id id, const fs::path &iso, const fs::path &baseISO, const fs::pa
         if (image.size() != size || Hash(image.data(), image.size()) != row.at("sha256"))
             throw std::runtime_error("Historical image verification failed");
     }
-    Require(ThreeMM::ReplaceNickImages((root / "baseline").string(), (root / "corrections").string(),
+    Require(MM::ReplaceNickImages((root / "baseline").string(), (root / "corrections").string(),
                                        (root / "final").string(), error),
             error);
     if (State(root / "final", root / "final.state") != manifest.at("non_image_state_sha256") ||

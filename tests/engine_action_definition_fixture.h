@@ -37,7 +37,7 @@ class ActionDefinitionFixtureAccess : public ActionDefinition
 };
 static bool TestActionDefinition()
 {
-    FILE *snapshot=nullptr; if (const char *path=std::getenv("THREE_MM_ACTION_DEFINITION_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
+    FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_ACTION_DEFINITION_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     bool ok=true; int attempts=0,loaded=0,copied=0;
     const int counts[]={0,1,3};

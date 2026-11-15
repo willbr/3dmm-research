@@ -26,13 +26,13 @@
  *
  * Ryan C. Gordon <icculus@clutteredmind.org>
  */
-#ifndef THREE_MM_PHYSFS_ZIP_ORDER_H
-#define THREE_MM_PHYSFS_ZIP_ORDER_H
-#include "three_mm/v3dmm.h"
+#ifndef MM_PHYSFS_ZIP_ORDER_H
+#define MM_PHYSFS_ZIP_ORDER_H
+#include "mm/v3dmm.h"
 #include <cstring>
 #include <utility>
 
-namespace ThreeMM::V3dmm::Detail
+namespace MM::V3dmm::Detail
 {
 inline void SortZipMembers(std::vector<Member> &entries, std::size_t lo, std::size_t hi)
 {
@@ -117,5 +117,5 @@ inline std::vector<Member> SelectZipMembers(const std::vector<Member> &entries)
             result.push_back(entry);
     return result;
 }
-} // namespace ThreeMM::V3dmm::Detail
+} // namespace MM::V3dmm::Detail
 #endif

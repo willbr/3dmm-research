@@ -22,26 +22,26 @@ RTCLASS(Codec)
     codec. cfmt is the default compression format.
 ***************************************************************************/
 namespace {
-const ThreeMMCodecServices *CodecServices()
+const MMCodecServices *CodecServices()
 {
-    static const ThreeMMCodecServices services = {nullptr,
+    static const MMCodecServices services = {nullptr,
     [](void *, void *codec) { static_cast<PCodec>(codec)->AddRef(); },
     [](void *, void *codec) { auto native = static_cast<PCodec>(codec); ReleasePpo(&native); },
-    [](void *, void *codec, int encode, ThreeMMI32 format) -> int { return static_cast<PCodec>(codec)->FCanDo(encode != 0, format); }};
+    [](void *, void *codec, int encode, MMI32 format) -> int { return static_cast<PCodec>(codec)->FCanDo(encode != 0, format); }};
     return &services;
 }
 }
 CodecManager::CodecManager(PCodec pcodc, LegacyLong cfmt)
 {
     AssertNilOrPo(pcodc, 0); Assert(cfmtNil != cfmt, "nil default compression format");
-    AssertDo(three_mm_codec_registry_init(&_registry, CodecServices(), KauaiCopyAllocator(), pcodc, cfmt) == THREE_MM_STORAGE_OK,
+    AssertDo(mm_codec_registry_init(&_registry, CodecServices(), KauaiCopyAllocator(), pcodc, cfmt) == MM_STORAGE_OK,
         "invalid codec registry");
     AssertThis(0);
 }
 CodecManager::~CodecManager(void)
 {
     AssertThis(0);
-    AssertDo(three_mm_codec_registry_dispose(&_registry) == THREE_MM_STORAGE_OK, "invalid codec registry disposal");
+    AssertDo(mm_codec_registry_dispose(&_registry) == MM_STORAGE_OK, "invalid codec registry disposal");
 }
 #ifdef DEBUG
 void CodecManager::AssertValid(LegacyUlong grf)
@@ -55,20 +55,20 @@ void CodecManager::MarkMem(void)
 {
     AssertValid(0); CodecManager_PAR::MarkMem();
     MarkMemObj(static_cast<PCodec>(_registry.default_codec));
-    for (ThreeMMU32 i = _registry.count; i-- > 0;)
-        MarkMemObj(static_cast<PCodec>(three_mm_codec_registry_at(&_registry, i)));
+    for (MMU32 i = _registry.count; i-- > 0;)
+        MarkMemObj(static_cast<PCodec>(mm_codec_registry_at(&_registry, i)));
     MarkPv(_registry.storage.buffers[0].data);
 }
 #endif
 void CodecManager::SetCfmtDefault(LegacyLong cfmt)
 {
     AssertThis(0);
-    if (three_mm_codec_registry_default(&_registry, cfmt) != THREE_MM_STORAGE_OK) Bug("can't set default compression to nil");
+    if (mm_codec_registry_default(&_registry, cfmt) != MM_STORAGE_OK) Bug("can't set default compression to nil");
 }
 bool CodecManager::FRegisterCodec(PCodec pcodc)
 {
     AssertThis(0); AssertPo(pcodc, 0);
-    return three_mm_codec_registry_add(&_registry, pcodc) == THREE_MM_STORAGE_OK;
+    return mm_codec_registry_add(&_registry, pcodc) == MM_STORAGE_OK;
 }
 
 /***************************************************************************
@@ -90,24 +90,24 @@ bool CodecManager::FCanDo(LegacyLong cfmt, bool fEncode)
     compressed).
 ***************************************************************************/
 namespace {
-int ReadPackedHeader(void *context, ThreeMMU32 offset, void *bytes, size_t count)
+int ReadPackedHeader(void *context, MMU32 offset, void *bytes, size_t count)
 {
     if (offset > 0x7fffffffUL || count > 0x7fffffffUL) return 0;
     return static_cast<PDataBlock>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count), offset, true);
 }
 } // namespace
-void *CodecManager::_FindDecoder(void *context, ThreeMMI32 format)
+void *CodecManager::_FindDecoder(void *context, MMI32 format)
 {
     PCodec codec = nullptr;
     if (format == cfmtNil) return nullptr;
     return static_cast<CodecManager *>(context)->_FFindCodec(false, format, &codec) ? codec : nullptr;
 }
-int CodecManager::_ConvertDecoder(void *codec, ThreeMMI32 format, const void *input, ThreeMMU32 bytes,
-                                  void *output, ThreeMMU32 capacity, ThreeMMI32 *written)
+int CodecManager::_ConvertDecoder(void *codec, MMI32 format, const void *input, MMU32 bytes,
+                                  void *output, MMU32 capacity, MMI32 *written)
 {
     LegacyLong count = *written;
     const bool ok = static_cast<PCodec>(codec)->FConvert(false, format, const_cast<void *>(input), bytes, output, capacity, &count);
-    *written = static_cast<ThreeMMI32>(count);
+    *written = static_cast<MMI32>(count);
     return ok;
 }
 bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, LegacyLong *pcfmt)
@@ -116,25 +116,25 @@ bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, LegacyLong *pcfmt)
     AssertPo(pblck, 0);
     AssertVarMem(pcfmt);
     TrashVar(pcfmt);
-    const ThreeMMReadStream input = {pblck, static_cast<ThreeMMU32>(pblck->Cb(true)), ReadPackedHeader};
-    ThreeMMI32 format;
-    if (three_mm_packed_format(&input, &format) != THREE_MM_DATA_OK) return false;
+    const MMReadStream input = {pblck, static_cast<MMU32>(pblck->Cb(true)), ReadPackedHeader};
+    MMI32 format;
+    if (mm_packed_format(&input, &format) != MM_DATA_OK) return false;
     *pcfmt = format;
     return true;
 }
 
-void *CodecManager::_FindEncoder(void *context, ThreeMMI32 format)
+void *CodecManager::_FindEncoder(void *context, MMI32 format)
 {
     PCodec codec = nullptr;
     if (format == cfmtNil) return nullptr;
     return static_cast<CodecManager *>(context)->_FFindCodec(true, format, &codec) ? codec : nullptr;
 }
-int CodecManager::_ConvertEncoder(void *codec, ThreeMMI32 format, const void *input, ThreeMMU32 bytes,
-                                  void *output, ThreeMMU32 capacity, ThreeMMI32 *written)
+int CodecManager::_ConvertEncoder(void *codec, MMI32 format, const void *input, MMU32 bytes,
+                                  void *output, MMU32 capacity, MMI32 *written)
 {
     LegacyLong count = *written;
     const bool ok = static_cast<PCodec>(codec)->FConvert(true, format, const_cast<void *>(input), bytes, output, capacity, &count);
-    *written = static_cast<ThreeMMI32>(count);
+    *written = static_cast<MMI32>(count);
     return ok;
 }
 
@@ -144,7 +144,7 @@ int CodecManager::_ConvertEncoder(void *codec, ThreeMMI32 format, const void *in
 bool CodecManager::_FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc)
 {
     AssertThis(0); AssertVarMem(ppcodc); Assert(cfmtNil != cfmt, "nil cfmt");
-    auto codec = static_cast<PCodec>(three_mm_codec_registry_find(&_registry, fEncode, cfmt));
+    auto codec = static_cast<PCodec>(mm_codec_registry_find(&_registry, fEncode, cfmt));
     if (!codec) return fFalse;
     *ppcodc = codec; return fTrue;
 }
@@ -153,8 +153,8 @@ bool CodecManager::_FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc)
     Compress or decompress an hq of data. Note that the value of *phq
     may change. cfmt should be cfmtNil to decompress.
 ***************************************************************************/
-int CodecManager::_CodeHandleBytes(void *context, const void *input, ThreeMMU32 bytes, void *output,
-                                  ThreeMMU32 capacity, ThreeMMI32 *written)
+int CodecManager::_CodeHandleBytes(void *context, const void *input, MMU32 bytes, void *output,
+                                  MMU32 capacity, MMI32 *written)
 {
     const auto call = static_cast<HandleCodeContext *>(context);
     LegacyLong count = *written;
@@ -170,10 +170,10 @@ bool CodecManager::_FCodePhq(LegacyLong cfmt, HQ *phq)
 
     HandleCodeContext context = {this, cfmt};
     int shrinkFailed = 0;
-    const int result = three_mm_handle_code(KauaiHandleServices(), phq, &context, _CodeHandleBytes, &shrinkFailed);
+    const int result = mm_handle_code(KauaiHandleServices(), phq, &context, _CodeHandleBytes, &shrinkFailed);
     Assert(!shrinkFailed, "HQ shrink failed");
-    if (result == THREE_MM_DATA_WRONG_SIZE) Bug("why is the final size larger?");
-    return result == THREE_MM_DATA_OK;
+    if (result == MM_DATA_WRONG_SIZE) Bug("why is the final size larger?");
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -189,13 +189,13 @@ bool CodecManager::_FCode(LegacyLong cfmt, void *pvSrc, LegacyLong cbSrc, void *
     AssertPvCb(pvDst, cbDst);
     AssertVarMem(pcbDst);
 
-    ThreeMMI32 count = 0;
-    const ThreeMMPackedDecoder encoder = {this, _FindEncoder, _ConvertEncoder};
-    const ThreeMMPackedDecoder decoder = {this, _FindDecoder, _ConvertDecoder};
+    MMI32 count = 0;
+    const MMPackedDecoder encoder = {this, _FindEncoder, _ConvertEncoder};
+    const MMPackedDecoder decoder = {this, _FindDecoder, _ConvertDecoder};
     const int result = cfmt != cfmtNil ?
-        three_mm_packed_encode(&encoder, cfmt, pvSrc, cbSrc, pvDst, cbDst, &count) :
-        three_mm_packed_decode(&decoder, pvSrc, cbSrc, pvDst, cbDst, &count);
-    if (result != THREE_MM_DATA_ARGUMENT && result != THREE_MM_DATA_NOT_ENCODED) *pcbDst = count;
-    if (result == THREE_MM_DATA_WRONG_SIZE) Bug("codec produced wrong size");
-    return result == THREE_MM_DATA_OK;
+        mm_packed_encode(&encoder, cfmt, pvSrc, cbSrc, pvDst, cbDst, &count) :
+        mm_packed_decode(&decoder, pvSrc, cbSrc, pvDst, cbDst, &count);
+    if (result != MM_DATA_ARGUMENT && result != MM_DATA_NOT_ENCODED) *pcbDst = count;
+    if (result == MM_DATA_WRONG_SIZE) Bug("codec produced wrong size");
+    return result == MM_DATA_OK;
 }

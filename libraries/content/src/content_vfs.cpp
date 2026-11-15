@@ -1,11 +1,11 @@
-#include "three_mm/content_vfs.hpp"
+#include "mm/content_vfs.hpp"
 #include <cstdint>
 #include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
 
-namespace ThreeMM::Content
+namespace MM::Content
 {
 namespace
 {
@@ -28,7 +28,7 @@ void *OpenFile(void *, const char *location)
         return nullptr;
     }
 }
-std::size_t ReadAt(void *, void *handle, ThreeMMVfsPosition position, void *buffer, std::size_t capacity)
+std::size_t ReadAt(void *, void *handle, MMVfsPosition position, void *buffer, std::size_t capacity)
 {
     auto &stream = *static_cast<std::ifstream *>(handle);
     const auto offset = (std::uint64_t(position.high) << 32) | position.low;
@@ -45,10 +45,10 @@ void CloseFile(void *, void *handle)
 {
     delete static_cast<std::ifstream *>(handle);
 }
-void Mount(ThreeMMVfs *vfs, const std::string &source, const std::vector<File> &files, bool replace)
+void Mount(MMVfs *vfs, const std::string &source, const std::vector<File> &files, bool replace)
 {
     std::vector<std::string> locations;
-    std::vector<ThreeMMVfsMount> mounts;
+    std::vector<MMVfsMount> mounts;
     locations.reserve(files.size());
     mounts.reserve(files.size());
     for (const auto &file : files)
@@ -58,28 +58,28 @@ void Mount(ThreeMMVfs *vfs, const std::string &source, const std::vector<File> &
         locations.push_back(std::filesystem::absolute(file.physical).lexically_normal().u8string());
         mounts.push_back({file.name.c_str(), locations.back().c_str()});
     }
-    const auto error = three_mm_vfs_mount(vfs, source.c_str(), mounts.data(), mounts.size(), replace);
-    if (error != THREE_MM_VFS_OK)
-        throw std::runtime_error(std::string(three_mm_vfs_error(error)) + " in " + source);
+    const auto error = mm_vfs_mount(vfs, source.c_str(), mounts.data(), mounts.size(), replace);
+    if (error != MM_VFS_OK)
+        throw std::runtime_error(std::string(mm_vfs_error(error)) + " in " + source);
 }
 } // namespace
 std::string SourceKey(const std::string &title, const std::string &folder)
 {
     std::vector<char> output(title.size() + folder.size() + 32);
-    return three_mm_vfs_source_key(title.c_str(), folder.c_str(), output.data(), output.size())
+    return mm_vfs_source_key(title.c_str(), folder.c_str(), output.data(), output.size())
                ? std::string(output.data())
                : std::string();
 }
 Vfs::Vfs()
 {
-    const ThreeMMVfsProvider provider{nullptr, OpenFile, ReadAt, CloseFile};
-    vfs = three_mm_vfs_create(&provider);
+    const MMVfsProvider provider{nullptr, OpenFile, ReadAt, CloseFile};
+    vfs = mm_vfs_create(&provider);
     if (!vfs)
         throw std::bad_alloc();
 }
 Vfs::~Vfs()
 {
-    three_mm_vfs_destroy(vfs);
+    mm_vfs_destroy(vfs);
 }
 Vfs::Vfs(Vfs &&other) noexcept : vfs(std::exchange(other.vfs, nullptr))
 {
@@ -88,7 +88,7 @@ Vfs &Vfs::operator=(Vfs &&other) noexcept
 {
     if (this != &other)
     {
-        three_mm_vfs_destroy(vfs);
+        mm_vfs_destroy(vfs);
         vfs = std::exchange(other.vfs, nullptr);
     }
     return *this;
@@ -114,14 +114,14 @@ void Vfs::MountDirectory(const std::string &source, const std::filesystem::path 
 }
 bool Vfs::Mounted(const std::string &source) const
 {
-    return three_mm_vfs_mounted(vfs, source.c_str()) != 0;
+    return mm_vfs_mounted(vfs, source.c_str()) != 0;
 }
 std::vector<File> Vfs::Entries(const std::string &source) const
 {
     std::vector<File> result;
-    ThreeMMVfsMount file;
+    MMVfsMount file;
     std::size_t cursor = 0;
-    while (three_mm_vfs_next(vfs, source.c_str(), &cursor, &file))
+    while (mm_vfs_next(vfs, source.c_str(), &cursor, &file))
         result.push_back({file.name, std::filesystem::u8path(file.location)});
     return result;
 }
@@ -139,7 +139,7 @@ std::vector<std::filesystem::path> Vfs::Files(const std::string &source, const s
 }
 std::filesystem::path Vfs::Resolve(const std::string &source, const std::string &name) const
 {
-    const auto location = three_mm_vfs_resolve(vfs, source.c_str(), name.c_str());
+    const auto location = mm_vfs_resolve(vfs, source.c_str(), name.c_str());
     if (!location)
         throw std::runtime_error("Content file is not mounted: " + source + "/" + name);
     return std::filesystem::u8path(location);
@@ -151,4 +151,4 @@ std::ifstream Vfs::Open(const std::string &source, const std::string &name) cons
         throw std::runtime_error("Cannot open mounted content: " + source + "/" + name);
     return stream;
 }
-} // namespace ThreeMM::Content
+} // namespace MM::Content

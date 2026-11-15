@@ -1,5 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/nick_expansion.h"
+#include "mm/nick_expansion.h"
 #include "nick_metadata.h"
 #include <algorithm>
 #include <array>
@@ -16,7 +16,7 @@
 #include "soc_core.h"
 #undef size
 
-namespace ThreeMM
+namespace MM
 {
 namespace
 {
@@ -625,4 +625,4 @@ bool WriteNickNonImageState(const std::string &source, const std::string &output
         return false;
     }
 }
-} // namespace ThreeMM
+} // namespace MM

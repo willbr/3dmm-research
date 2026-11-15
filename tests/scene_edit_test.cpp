@@ -107,7 +107,7 @@ struct Access : Scene
         Value(d.firstFrame);
         Value(d.lastFrame);
         Value(d.name.count);
-        Record(three_mm_movie_title_text(&d.name), d.name.count * d.name.unit);
+        Record(mm_movie_title_text(&d.name), d.name.count * d.name.unit);
         auto &r = p->*&Access::_runtime;
         Value(r.next_event);
         Value(r.disabled);
@@ -209,7 +209,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto name = std::getenv("THREE_MM_SCENE_EDIT_SNAPSHOT"))
+    if (auto name = std::getenv("MM_SCENE_EDIT_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);
@@ -364,7 +364,7 @@ int main()
             vpers->Clear();
             vpcex->FlushCid(cidSceneLoaded);
         }
-#ifdef THREE_MM_ENGINE_SCENE_EDIT_H
+#ifdef MM_ENGINE_SCENE_EDIT_H
     // Resource ownership corrections are outside the frozen behavior trace.
     recording = false;
     auto references = observed->CactRef();

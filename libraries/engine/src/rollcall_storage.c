@@ -1,21 +1,21 @@
 /* Roll-call storage converted from engine movie_data.cpp and Kauai groups2.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/rollcall_storage.h"
-#include "three_mm/text.h"
+#include "mm/rollcall_storage.h"
+#include "mm/text.h"
 #include <string.h>
-static int reserve(void *context, ThreeMMStringTable *view, ThreeMMU32 first, ThreeMMU32 second)
+static int reserve(void *context, MMStringTable *view, MMU32 first, MMU32 second)
 {
-    ThreeMMRollCallTable *t = (ThreeMMRollCallTable *)context;
-    int result = three_mm_storage_ensure(&t->storage, first, second, 0);
+    MMRollCallTable *t = (MMRollCallTable *)context;
+    int result = mm_storage_ensure(&t->storage, first, second, 0);
     view->strings = t->storage.buffers[0].data;
     view->entries = t->storage.buffers[1].data;
     view->string_capacity = t->storage.buffers[0].capacity;
     view->entry_capacity = t->storage.buffers[1].capacity;
-    return result == THREE_MM_STORAGE_OK;
+    return result == MM_STORAGE_OK;
 }
-static ThreeMMStringTable view(ThreeMMRollCallTable *t)
+static MMStringTable view(MMRollCallTable *t)
 {
-    ThreeMMStringTable v;
+    MMStringTable v;
     memset(&v, 0, sizeof(v));
     v.strings = t->storage.buffers[0].data;
     v.entries = t->storage.buffers[1].data;
@@ -31,40 +31,40 @@ static ThreeMMStringTable view(ThreeMMRollCallTable *t)
     v.reserve = reserve;
     return v;
 }
-static void apply(ThreeMMRollCallTable *t, const ThreeMMStringTable *v)
+static void apply(MMRollCallTable *t, const MMStringTable *v)
 {
     t->count = v->count;
     t->bytes = v->bytes;
 }
-int three_mm_rollcall_table_init(ThreeMMRollCallTable *t, ThreeMMU32 extra, unsigned unit, int encoding, int trash,
-                                 const ThreeMMStorageAllocator *a)
+int mm_rollcall_table_init(MMRollCallTable *t, MMU32 extra, unsigned unit, int encoding, int trash,
+                                 const MMStorageAllocator *a)
 {
-    if (!t || (unit != 1 && unit != 2) || extra % 4 || extra > THREE_MM_STORAGE_LIMIT - 8)
-        return THREE_MM_STORAGE_ARGUMENT;
+    if (!t || (unit != 1 && unit != 2) || extra % 4 || extra > MM_STORAGE_LIMIT - 8)
+        return MM_STORAGE_ARGUMENT;
     memset(t, 0, sizeof(*t));
-    if (three_mm_storage_init(&t->storage, a) != THREE_MM_STORAGE_OK)
-        return THREE_MM_STORAGE_ARGUMENT;
+    if (mm_storage_init(&t->storage, a) != MM_STORAGE_OK)
+        return MM_STORAGE_ARGUMENT;
     t->stride = extra + 4;
     t->unit = unit;
     t->encoding = encoding;
     t->trash_unused = trash;
     t->storage.min_grow[0] = 120;
-    t->storage.min_grow[1] = t->stride <= THREE_MM_STORAGE_LIMIT / 12 ? t->stride * 12 : THREE_MM_STORAGE_LIMIT - 1;
-    return THREE_MM_STORAGE_OK;
+    t->storage.min_grow[1] = t->stride <= MM_STORAGE_LIMIT / 12 ? t->stride * 12 : MM_STORAGE_LIMIT - 1;
+    return MM_STORAGE_OK;
 }
-int three_mm_rollcall_table_dispose(ThreeMMRollCallTable *t)
+int mm_rollcall_table_dispose(MMRollCallTable *t)
 {
-    int result = three_mm_storage_dispose(&t->storage);
-    if (result == THREE_MM_STORAGE_OK)
+    int result = mm_storage_dispose(&t->storage);
+    if (result == MM_STORAGE_OK)
         t->count = t->bytes = 0;
     return result;
 }
-int three_mm_rollcall_table_name(ThreeMMRollCallTable *t, ThreeMMU32 i, const void **text, ThreeMMU32 *count)
+int mm_rollcall_table_name(MMRollCallTable *t, MMU32 i, const void **text, MMU32 *count)
 {
-    ThreeMMStringTable v = view(t);
-    return three_mm_strings_get(&v, i, text, count);
+    MMStringTable v = view(t);
+    return mm_strings_get(&v, i, text, count);
 }
-int three_mm_rollcall_table_extra(ThreeMMRollCallTable *t, ThreeMMU32 i, void *out)
+int mm_rollcall_table_extra(MMRollCallTable *t, MMU32 i, void *out)
 {
     if (i >= t->count || (!out && t->stride > 4))
         return 0;
@@ -72,7 +72,7 @@ int three_mm_rollcall_table_extra(ThreeMMRollCallTable *t, ThreeMMU32 i, void *o
         memcpy(out, t->storage.buffers[1].data + i * t->stride + 4, t->stride - 4);
     return 1;
 }
-int three_mm_rollcall_table_set_extra(ThreeMMRollCallTable *t, ThreeMMU32 i, const void *extra)
+int mm_rollcall_table_set_extra(MMRollCallTable *t, MMU32 i, const void *extra)
 {
     if (i >= t->count || (!extra && t->stride > 4))
         return 0;
@@ -80,32 +80,32 @@ int three_mm_rollcall_table_set_extra(ThreeMMRollCallTable *t, ThreeMMU32 i, con
         memcpy(t->storage.buffers[1].data + i * t->stride + 4, extra, t->stride - 4);
     return 1;
 }
-int three_mm_rollcall_table_add(ThreeMMRollCallTable *t, const void *text, ThreeMMU32 count, const void *extra)
+int mm_rollcall_table_add(MMRollCallTable *t, const void *text, MMU32 count, const void *extra)
 {
-    ThreeMMStringTable v = view(t);
-    int ok = three_mm_strings_add(&v, text, count, extra, NULL);
+    MMStringTable v = view(t);
+    int ok = mm_strings_add(&v, text, count, extra, NULL);
     apply(t, &v);
     return ok;
 }
-int three_mm_rollcall_table_rename(ThreeMMRollCallTable *t, ThreeMMU32 i, const void *text, ThreeMMU32 count)
+int mm_rollcall_table_rename(MMRollCallTable *t, MMU32 i, const void *text, MMU32 count)
 {
-    ThreeMMStringTable v = view(t);
-    int ok = three_mm_strings_put(&v, i, text, count);
+    MMStringTable v = view(t);
+    int ok = mm_strings_put(&v, i, text, count);
     apply(t, &v);
     return ok;
 }
-int three_mm_rollcall_table_delete(ThreeMMRollCallTable *t, ThreeMMU32 i)
+int mm_rollcall_table_delete(MMRollCallTable *t, MMU32 i)
 {
-    ThreeMMStringTable v = view(t);
-    int ok = three_mm_strings_delete(&v, i);
+    MMStringTable v = view(t);
+    int ok = mm_strings_delete(&v, i);
     apply(t, &v);
     return ok;
 }
-static ThreeMMCollectionHeader header(const ThreeMMRollCallTable *t)
+static MMCollectionHeader header(const MMRollCallTable *t)
 {
-    ThreeMMCollectionHeader h;
+    MMCollectionHeader h;
     memset(&h, 0, sizeof(h));
-    h.kind = THREE_MM_COLLECTION_STRINGS;
+    h.kind = MM_COLLECTION_STRINGS;
     h.width = t->stride;
     h.count = t->count;
     h.bytes = t->bytes;
@@ -113,60 +113,60 @@ static ThreeMMCollectionHeader header(const ThreeMMRollCallTable *t)
     h.system = t->encoding;
     return h;
 }
-int three_mm_rollcall_table_read(ThreeMMRollCallTable *t, const ThreeMMReadStream *stream, ThreeMMStringConvert convert,
+int mm_rollcall_table_read(MMRollCallTable *t, const MMReadStream *stream, MMStringConvert convert,
                                  void *context, int *big)
 {
-    ThreeMMCollectionHeader h;
-    ThreeMMStringTable v;
+    MMCollectionHeader h;
+    MMStringTable v;
     int result, ok;
     const unsigned short one = 1;
     if (t->count || t->bytes)
-        return THREE_MM_STORAGE_ARGUMENT;
-    result = three_mm_collection_header_read(stream, THREE_MM_COLLECTION_STRINGS, 0, &h);
-    if (result != THREE_MM_STORAGE_OK)
+        return MM_STORAGE_ARGUMENT;
+    result = mm_collection_header_read(stream, MM_COLLECTION_STRINGS, 0, &h);
+    if (result != MM_STORAGE_OK)
         return result;
-    result = three_mm_storage_read(&t->storage, stream, h.header_bytes, h.first_bytes, h.second_bytes);
-    if (result != THREE_MM_STORAGE_OK)
+    result = mm_storage_read(&t->storage, stream, h.header_bytes, h.first_bytes, h.second_bytes);
+    if (result != MM_STORAGE_OK)
         return result;
     t->stride = h.width;
     t->count = h.count;
     t->bytes = h.bytes;
     v = view(t);
     if ((h.big_endian != 0) != (*(const unsigned char *)&one == 0))
-        three_mm_strings_swap_offsets(&v);
-    ok = h.system == t->encoding || three_mm_strings_translate(&v, h.system, t->encoding, convert, context);
+        mm_strings_swap_offsets(&v);
+    ok = h.system == t->encoding || mm_strings_translate(&v, h.system, t->encoding, convert, context);
     apply(t, &v);
     if (!ok)
-        return THREE_MM_STORAGE_ARGUMENT;
+        return MM_STORAGE_ARGUMENT;
     /* Different-width translation formerly compacted the host's two buffers. */
-    if ((h.system == THREE_MM_TEXT_MAC || h.system == THREE_MM_TEXT_WINDOWS ? 1U : 2U) != t->unit)
-        three_mm_storage_ensure(&t->storage, t->bytes, t->count * t->stride, 1);
+    if ((h.system == MM_TEXT_MAC || h.system == MM_TEXT_WINDOWS ? 1U : 2U) != t->unit)
+        mm_storage_ensure(&t->storage, t->bytes, t->count * t->stride, 1);
     if (big)
         *big = h.big_endian;
-    return THREE_MM_STORAGE_OK;
+    return MM_STORAGE_OK;
 }
-ThreeMMU32 three_mm_rollcall_table_wire_size(const ThreeMMRollCallTable *t)
+MMU32 mm_rollcall_table_wire_size(const MMRollCallTable *t)
 {
-    ThreeMMCollectionHeader h = header(t);
-    if (three_mm_collection_layout(&h) != THREE_MM_STORAGE_OK)
+    MMCollectionHeader h = header(t);
+    if (mm_collection_layout(&h) != MM_STORAGE_OK)
         return 0;
     return h.header_bytes + h.first_bytes + h.second_bytes;
 }
-int three_mm_rollcall_table_write(ThreeMMRollCallTable *t, const ThreeMMStorageWriter *writer, int big)
+int mm_rollcall_table_write(MMRollCallTable *t, const MMStorageWriter *writer, int big)
 {
-    ThreeMMCollectionHeader h = header(t);
-    ThreeMMStringTable v = view(t);
+    MMCollectionHeader h = header(t);
+    MMStringTable v = view(t);
     unsigned char bytes[20];
     const unsigned short one = 1;
     int swap = (big != 0) != (*(const unsigned char *)&one == 0), result;
     h.big_endian = big != 0;
-    result = three_mm_collection_header_write(&h, bytes, sizeof(bytes));
-    if (result != THREE_MM_STORAGE_OK)
+    result = mm_collection_header_write(&h, bytes, sizeof(bytes));
+    if (result != MM_STORAGE_OK)
         return result;
     if (swap)
-        three_mm_strings_swap_offsets(&v);
-    result = three_mm_storage_write(&t->storage, writer, bytes, 20, t->bytes, t->count * t->stride);
+        mm_strings_swap_offsets(&v);
+    result = mm_storage_write(&t->storage, writer, bytes, 20, t->bytes, t->count * t->stride);
     if (swap)
-        three_mm_strings_swap_offsets(&v);
+        mm_strings_swap_offsets(&v);
     return result;
 }

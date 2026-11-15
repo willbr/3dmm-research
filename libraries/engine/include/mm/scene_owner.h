@@ -1,0 +1,92 @@
+/* Scene ownership and lifecycle converted from engine/scene.cpp.
+ * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#ifndef MM_ENGINE_SCENE_OWNER_H
+#define MM_ENGINE_SCENE_OWNER_H
+#include "scene_data.h"
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    enum
+    {
+        MM_SCENE_FRAMES,
+        MM_SCENE_STARTS,
+        MM_SCENE_ACTORS,
+        MM_SCENE_TEXTS,
+        MM_SCENE_SELECTION,
+        MM_SCENE_BACKGROUND,
+        MM_SCENE_THUMBNAIL,
+        MM_SCENE_BACKGROUND_SOUND,
+        MM_SCENE_OWNERS,
+        MM_SCENE_DEFAULT_DISABLED = 2
+    };
+    enum
+    {
+        MM_SCENE_BAD_START,
+        MM_SCENE_BAD_FRAME,
+        MM_SCENE_UNKNOWN_EVENT,
+        MM_SCENE_BAD_SOUND,
+        MM_SCENE_BAD_PAYLOAD,
+        MM_SCENE_TEXT_HIDE_FAILED
+    };
+    typedef struct MMSceneOwner
+    {
+        void *movie; /* Borrowed; no reference cycle. */
+        void *owned[MM_SCENE_OWNERS];
+    } MMSceneOwner;
+    typedef struct MMSceneSoundServices
+    {
+        void *context;
+        MMI32 (*count)(void *, void *), (*style)(void *, void *);
+        int (*open)(void *, void *, MMI32 index);
+        void (*close)(void *, void *, MMI32 index), (*free)(void *, void *);
+        void (*diagnostic)(void *, int issue);
+    } MMSceneSoundServices;
+    typedef struct MMSceneOwnerServices
+    {
+        void *context;
+        MMI32 pointer_bytes, sound_header_bytes, sound_tag_bytes;
+        void *(*create_scene)(void *, void *movie), *(*create_slot)(void *, int kind);
+        MMSceneOwner *(*state)(void *, void *scene);
+        void (*publish)(void *, void *scene, const MMSceneOwner *);
+        void (*reset_cursor)(void *, void *scene);
+        int (*can_notify)(void *);
+        void (*loaded)(void *, void *scene);
+        void (*release)(void *, void *object);
+        MMI32 (*count)(void *, void *group), (*kind)(void *, void *group, MMI32 index);
+        void *(*data)(void *, void *group, MMI32 index, MMI32 *bytes);
+        void *(*object)(void *, void *group, MMI32 index);
+        void *(*list_at)(void *, void *list, MMI32 index);
+        void (*actor_visibility)(void *, void *actor, int show), (*lights_off)(void *, void *background);
+        int (*text_lifetime)(void *, void *text, MMI32 *first);
+        int (*text_seek)(void *, void *text, MMI32 frame);
+        void (*diagnostic)(void *, int issue);
+        MMSceneSoundServices sound;
+    } MMSceneOwnerServices;
+    /* Unique owning state; callbacks cannot reenter lifecycle operations or
+     * replace the same scene's owners. Native fields are published borrowed
+     * views. Set transfers a new reference into a vacant slot; drop releases
+     * just that owner, not embedded event references. Publish follows release,
+     * retaining legacy visibility during destruction callbacks. Dispose/unwind
+     * support partial construction; close/visibility require initialized lists. */
+    void mm_scene_owner_init(MMSceneOwner *, void *movie);
+    void mm_scene_owner_set(MMSceneOwner *, void *scene, int slot, void *,
+                                  const MMSceneOwnerServices *);
+    void mm_scene_owner_drop(MMSceneOwner *, void *scene, int slot, const MMSceneOwnerServices *);
+    void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *);
+    void mm_scene_owner_dispose(MMSceneOwner *, void *scene, const MMSceneOwnerServices *);
+    /* Read-failure cleanup walks only completed prefixes, in reverse order.
+     * Valid sound payload size is variable bytes, excluding fixed event bytes. */
+    void mm_scene_owner_unwind(MMSceneOwner *, void *scene, MMI32 starts, MMI32 frames,
+                                     const MMSceneOwnerServices *);
+    void mm_scene_owner_actors(MMSceneOwner *, int show, const MMSceneOwnerServices *);
+    void mm_scene_owner_hide_texts(MMSceneOwner *, const MMSceneOwnerServices *);
+    void mm_scene_owner_close(void **scene, const MMSceneOwnerServices *);
+    /* Owned background/undo SSEs close only opened tags, then free and publish
+     * NULL. Frame SSEs are embedded and close all tags without freeing payloads.
+     * Sound allocations must match their header count and native tag stride. */
+    void mm_scene_sound_release(void **sound, const MMSceneSoundServices *);
+#ifdef __cplusplus
+}
+#endif
+#endif

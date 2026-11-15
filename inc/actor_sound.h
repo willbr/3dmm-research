@@ -2,11 +2,11 @@
 #ifndef ACTOR_SOUND_H
 #define ACTOR_SOUND_H
 #include "actor_data.h"
-#include "three_mm/actor_sound.h"
+#include "mm/actor_sound.h"
 // Temporary native value facade. Storage, cloning and sound policy belong to C.
 class ActorSoundList
 {
-    ThreeMMActorSounds _core;
+    MMActorSounds _core;
   public:
     ActorSoundList();
     ~ActorSoundList();
@@ -20,7 +20,7 @@ class ActorSoundList
     void Get(LegacyLong, ActorEvent::SoundMotionMatch *) const;
     void Put(LegacyLong, const ActorEvent::SoundMotionMatch *);
     void Delete(LegacyLong);
-    ThreeMMActorSounds *Core() { return &_core; }
+    MMActorSounds *Core() { return &_core; }
     bool Valid() const;
 };
 #endif

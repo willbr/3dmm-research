@@ -1,15 +1,15 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/font_resource.h"
+#include "mm/font_resource.h"
 #include <string.h>
-static ThreeMMU32 word(const unsigned char *p,int big)
-{ ThreeMMU32 value=0; int i; for (i=0;i<4;++i) value=(value<<8)|p[big?i:3-i]; return value; }
-static ThreeMMI32 signed_word(const unsigned char *p,int big)
-{ ThreeMMU32 bits=word(p,big); ThreeMMI32 value; memcpy(&value,&bits,4); return value; }
-static void put(unsigned char *p,int bytes,ThreeMMU32 value,int big)
+static MMU32 word(const unsigned char *p,int big)
+{ MMU32 value=0; int i; for (i=0;i<4;++i) value=(value<<8)|p[big?i:3-i]; return value; }
+static MMI32 signed_word(const unsigned char *p,int big)
+{ MMU32 bits=word(p,big); MMI32 value; memcpy(&value,&bits,4); return value; }
+static void put(unsigned char *p,int bytes,MMU32 value,int big)
 { int i; for (i=0;i<bytes;++i) { p[big?bytes-1-i:i]=(unsigned char)value; value>>=8; } }
-int three_mm_font_fetch(void *block,void *out,void *size,const ThreeMMFontResourceServices *s)
+int mm_font_fetch(void *block,void *out,void *size,const MMFontResourceServices *s)
 {
-    ThreeMMI32 bytes,base; void *object; ThreeMMFontResource *font;
+    MMI32 bytes,base; void *object; MMFontResource *font;
     bytes=s->packed(s->context,block)?s->object_size(s->context)+2048:s->block_size(s->context,block);
     memcpy(size,&bytes,4); if (!out) return 1;
     object=s->create(s->context);
@@ -22,9 +22,9 @@ fail:
     s->invalidate(s->context,out,sizeof(object)); s->invalidate(s->context,size,4);
     if (object) s->release(s->context,object); return 0;
 }
-int three_mm_font_initialize(ThreeMMFontResource *font,void *block,const ThreeMMFontResourceServices *s)
+int mm_font_initialize(MMFontResource *font,void *block,const MMFontResourceServices *s)
 {
-    unsigned char header[12]; ThreeMMI32 bytes; int big,current;
+    unsigned char header[12]; MMI32 bytes; int big,current;
     if (!s->unpack(s->context,block)) return 0;
     if (s->block_size(s->context,block)<12) { s->bad_font(s->context); return 0; }
     if (!s->read(s->context,block,header,12,0)) return 0;
@@ -43,16 +43,16 @@ int three_mm_font_initialize(ThreeMMFontResource *font,void *block,const ThreeMM
     if (!s->allocate(s->context,bytes,0,&font->heights) || !s->read(s->context,block,font->heights,bytes,12+bytes)) return 0;
     return 1;
 }
-void three_mm_font_dispose(ThreeMMFontResource *font,const ThreeMMFontResourceServices *s)
+void mm_font_dispose(MMFontResource *font,const MMFontResourceServices *s)
 { s->free_memory(s->context,&font->widths); s->free_memory(s->context,&font->heights); }
-ThreeMMI32 three_mm_font_width(const ThreeMMFontResource *font,ThreeMMI32 i)
-{ ThreeMMI32 value; memcpy(&value,(const unsigned char *)font->widths+i*4,4); return value; }
-ThreeMMI32 three_mm_font_height(const ThreeMMFontResource *font,ThreeMMI32 i)
-{ ThreeMMI32 value; memcpy(&value,(const unsigned char *)font->heights+i*4,4); return value; }
-int three_mm_font_author(void *cache,void *children,void *out,const ThreeMMFontResourceServices *s)
+MMI32 mm_font_width(const MMFontResource *font,MMI32 i)
+{ MMI32 value; memcpy(&value,(const unsigned char *)font->widths+i*4,4); return value; }
+MMI32 mm_font_height(const MMFontResource *font,MMI32 i)
+{ MMI32 value; memcpy(&value,(const unsigned char *)font->heights+i*4,4); return value; }
+int mm_font_author(void *cache,void *children,void *out,const MMFontResourceServices *s)
 {
-    ThreeMMI32 count,i,letter=-1,bytes,n,width,height,maximum=0; ThreeMMU32 largest=0,number=0;
-    void *widths=NULL,*heights=NULL,*model=NULL,*block,*file; ThreeMMFontChild child,replacement; ThreeMMFontChunk chunk;
+    MMI32 count,i,letter=-1,bytes,n,width,height,maximum=0; MMU32 largest=0,number=0;
+    void *widths=NULL,*heights=NULL,*model=NULL,*block,*file; MMFontChild child,replacement; MMFontChunk chunk;
     unsigned char header[12]; int big=s->host_big_endian;
     count=s->child_count(s->context,children);
     for (i=0;i<count;++i)
@@ -61,15 +61,15 @@ int three_mm_font_author(void *cache,void *children,void *out,const ThreeMMFontR
         if (child.id==105) letter=i;
     }
     if (largest>=0x0ffffffeUL) goto fail;
-    n=(ThreeMMI32)largest+1; bytes=n*4;
+    n=(MMI32)largest+1; bytes=n*4;
     if (!s->allocate(s->context,bytes,1,&widths) || !s->allocate(s->context,bytes,1,&heights)) goto fail;
-    file=s->file(s->context,cache); block=s->add(s->context,file,12+bytes+bytes,THREE_MM_FONT_TYPE,&number);
+    file=s->file(s->context,cache); block=s->add(s->context,file,12+bytes+bytes,MM_FONT_TYPE,&number);
     if (!block) goto fail;
     for (i=0;i<count;++i)
     {
         s->child_at(s->context,children,i,&child); model=s->fetch_model(s->context,cache,child.type,child.number);
         if (!model) goto fail;
-        if (!s->adopt(s->context,file,THREE_MM_FONT_TYPE,number,&child)) goto fail;
+        if (!s->adopt(s->context,file,MM_FONT_TYPE,number,&child)) goto fail;
         if (!s->model_width(s->context,model) && child.id==32 && letter!=-1)
         {
             s->release(s->context,model); model=NULL;
@@ -81,18 +81,18 @@ int three_mm_font_author(void *cache,void *children,void *out,const ThreeMMFontR
         if (height>maximum) maximum=height;
         s->release(s->context,model); model=NULL;
     }
-    put(header,2,1,big); put(header+2,2,s->system,big); put(header+4,4,(ThreeMMU32)n,big); put(header+8,4,(ThreeMMU32)maximum,big);
+    put(header,2,1,big); put(header+2,2,s->system,big); put(header+4,4,(MMU32)n,big); put(header+8,4,(MMU32)maximum,big);
     if (!s->write(s->context,block,header,12,0) || !s->write(s->context,block,widths,bytes,12) || !s->write(s->context,block,heights,bytes,12+bytes)) goto fail;
     s->free_memory(s->context,&widths); s->free_memory(s->context,&heights);
-    chunk.type=THREE_MM_FONT_TYPE; chunk.number=number; if (out) memcpy(out,&chunk,8); return 1;
+    chunk.type=MM_FONT_TYPE; chunk.number=number; if (out) memcpy(out,&chunk,8); return 1;
 fail:
     if (model) s->release(s->context,model);
     s->free_memory(s->context,&widths); s->free_memory(s->context,&heights);
     if (out) s->invalidate(s->context,out,8); return 0;
 }
-void *three_mm_font_model(void *object,ThreeMMU32 id,const ThreeMMFontResourceServices *s)
+void *mm_font_model(void *object,MMU32 id,const MMFontResourceServices *s)
 {
-    void *cache,*file; ThreeMMFontChunk chunk; ThreeMMFontChild child;
+    void *cache,*file; MMFontChunk chunk; MMFontChild child;
     s->binding(s->context,object,&cache,&chunk); file=s->file(s->context,cache);
     if (!s->child_id(s->context,file,chunk.type,chunk.number,id,&child)) { s->missing_model(s->context,id); return NULL; }
     return s->fetch_model(s->context,cache,child.type,child.number);

@@ -3,7 +3,7 @@
 static bool TestActorPaste(PMovie parent)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_PASTE_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_PASTE_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     bool ok=true;
     for (int mode=0;ok && mode<64;++mode)

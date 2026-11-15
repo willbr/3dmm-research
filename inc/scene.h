@@ -18,18 +18,18 @@
 
 #ifndef SCEN_H
 #define SCEN_H
-#include "three_mm/scene_owner.h"
-#include "three_mm/scene_runtime.h"
-#include "three_mm/scene_events.h"
-#include "three_mm/scene_sound_edit.h"
-#include "three_mm/scene_load.h"
-#include "three_mm/scene_store.h"
-#include "three_mm/scene_edit.h"
-#include "three_mm/scene_content.h"
-#include "three_mm/scene_selection.h"
-#include "three_mm/scene_chop.h"
-#include "three_mm/scene_control.h"
-#include "three_mm/scene_thumbnail.h"
+#include "mm/scene_owner.h"
+#include "mm/scene_runtime.h"
+#include "mm/scene_events.h"
+#include "mm/scene_sound_edit.h"
+#include "mm/scene_load.h"
+#include "mm/scene_store.h"
+#include "mm/scene_edit.h"
+#include "mm/scene_content.h"
+#include "mm/scene_selection.h"
+#include "mm/scene_chop.h"
+#include "mm/scene_control.h"
+#include "mm/scene_thumbnail.h"
 
 //
 // Undo object for actor operations
@@ -54,7 +54,7 @@ class SceneActorUndo : public SceneActorUndo_PAR
     ASSERT
 
   protected:
-    ThreeMMSceneActorUndo _content = {};
+    MMSceneActorUndo _content = {};
     SceneActorUndo(void)
     {
     }
@@ -72,7 +72,7 @@ class SceneActorUndo : public SceneActorUndo_PAR
         _content.operation = ut;
     }
 
-    ThreeMMSceneActorUndo *CoreState()
+    MMSceneActorUndo *CoreState()
     {
         return &_content;
     }
@@ -130,8 +130,8 @@ class Scene : public Scene_PAR
 
   protected:
     typedef struct SceneEvent *PSEV;
-    ThreeMMSceneOwner _owner; // Owns references; native pointer fields are borrowed views.
-    static ThreeMMSceneOwnerServices _OwnerServices();
+    MMSceneOwner _owner; // Owns references; native pointer fields are borrowed views.
+    static MMSceneOwnerServices _OwnerServices();
     void _PublishOwners();
     void _SetOwner(int slot, void *object);
     void _DropOwner(int slot);
@@ -146,17 +146,17 @@ class Scene : public Scene_PAR
     //   _runtime.next_event is the index into the GeneralGroup of a sev with nfrm > nCurFrm.
     //
     PGeneralGroup _pggsevFrm;   // List of events that occur in frames.
-    ThreeMMSceneRuntime _runtime; // C-owned cursor, effect mask and background-sound frame.
-    ThreeMMSceneRuntimeServices _RuntimeServices();
-    ThreeMMSceneEventServices _EventServices();
-    ThreeMMSceneSoundEditServices _SoundEditServices();
-    ThreeMMSceneEditServices _EditServices();
-    ThreeMMSceneContentServices _ContentServices();
-    ThreeMMSceneSelectionServices _SelectionServices();
-    ThreeMMSceneChopServices _ChopServices();
-    ThreeMMScenePropertyServices _PropertyServices();
-    ThreeMMScenePlaybackServices _PlaybackServices();
-    ThreeMMSceneThumbnailServices _ThumbnailServices(void *graphics);
+    MMSceneRuntime _runtime; // C-owned cursor, effect mask and background-sound frame.
+    MMSceneRuntimeServices _RuntimeServices();
+    MMSceneEventServices _EventServices();
+    MMSceneSoundEditServices _SoundEditServices();
+    MMSceneEditServices _EditServices();
+    MMSceneContentServices _ContentServices();
+    MMSceneSelectionServices _SelectionServices();
+    MMSceneChopServices _ChopServices();
+    MMScenePropertyServices _PropertyServices();
+    MMScenePlaybackServices _PlaybackServices();
+    MMSceneThumbnailServices _ThumbnailServices(void *graphics);
 
     //
     // Global information
@@ -166,7 +166,7 @@ class Scene : public Scene_PAR
     PGeneralGroup _pggsevStart;     // List of frame independent events.
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
-    ThreeMMSceneSelection _selection = {}; // Authoritative borrowed primary selection.
+    MMSceneSelection _selection = {}; // Authoritative borrowed primary selection.
     PActor _pactrSelected; // Published typed view of _selection.actor.
     PDynamicArray _pglpactrSelExtra; // Additional selected actors (excluding primary). pvNil when no extras.
     PTBOX _ptboxSelected;            // Published typed view of _selection.text.

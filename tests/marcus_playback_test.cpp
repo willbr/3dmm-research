@@ -127,8 +127,8 @@ void WaveformPeaks()
     for (const auto &column : columns)
         CHECK(column.minimum == 0 && column.maximum == 0);
 
-    ThreeMM::Preview unopened;
-    ThreeMM::PreviewSoundCue cue;
+    MM::Preview unopened;
+    MM::PreviewSoundCue cue;
     MarcusWaveformCache cache;
     MarcusWaveformInfo info;
     cue.silent = true;
@@ -198,7 +198,7 @@ void CarryScheduling()
     first.last_frame = 15;
     later.first_frame = -5;
     later.last_frame = 0;
-    auto read = [](const ThreeMM::PreviewSoundCue &cue) {
+    auto read = [](const MM::PreviewSoundCue &cue) {
         MarcusWaveformInfo audio = {};
         audio.kind = cue.silent ? MARCUS_WAVEFORM_SILENT : cue.style == MARCUS_SOUND_MUSIC
                      ? MARCUS_WAVEFORM_MIDI : MARCUS_WAVEFORM_SAMPLED;
@@ -206,7 +206,7 @@ void CarryScheduling()
         audio.resolved_chunk = cue.sound.number;
         return audio;
     };
-    ThreeMM::PreviewSoundCue music, effect, speech, loop;
+    MM::PreviewSoundCue music, effect, speech, loop;
     music.frame = 10; music.style = MARCUS_SOUND_MUSIC; music.loop = true; music.sound.number = 100;
     effect.frame = 13; effect.style = MARCUS_SOUND_EFFECT; effect.sound.number = 1;
     speech.frame = 14; speech.style = MARCUS_SOUND_SPEECH; speech.actorSound = true;
@@ -273,9 +273,9 @@ void PresentationClock()
     MarcusScene first = {}, later = {};
     first.first_frame = 10; first.last_frame = 15;
     later.first_frame = -5; later.last_frame = 0;
-    ThreeMM::PreviewSoundCue cue;
+    MM::PreviewSoundCue cue;
     cue.frame = 10; cue.style = MARCUS_SOUND_EFFECT;
-    auto read = [](const ThreeMM::PreviewSoundCue &) {
+    auto read = [](const MM::PreviewSoundCue &) {
         MarcusWaveformInfo audio = {};
         audio.kind = MARCUS_WAVEFORM_SAMPLED; audio.seconds = 20;
         return audio;
@@ -301,8 +301,8 @@ void PresentationClock()
     CHECK(std::abs(timeline.Scene(0).TimeAt(16) - 20.5) < 1e-6);
     timeline.Append(later, {}, read);
     CHECK(timeline.Resume(1, -5).empty()); // Sound-wait audio has completed.
-    ThreeMM::PreviewPresentation presentation;
-    ThreeMM::Error error;
+    MM::PreviewPresentation presentation;
+    MM::Error error;
     for (int transition = 0; transition <= 5; ++transition)
     {
         presentation.transition = transition;
@@ -556,15 +556,15 @@ void Fixture(const char *path)
 }
 MarcusSoundTiming FixtureTiming(const char *path, const char *resources)
 {
-    ThreeMM::Archive archive;
-    ThreeMM::Preview preview;
-    ThreeMM::Error error;
+    MM::Archive archive;
+    MM::Preview preview;
+    MM::Error error;
     CHECK(archive.Open(path, error) && preview.Open(path, resources, error));
     for (const auto &chunk : archive.Chunks())
         if (chunk.id.type == kctgScen)
         {
             CHECK(preview.Select(chunk.id, error));
-            ThreeMM::PreviewPresentation presentation;
+            MM::PreviewPresentation presentation;
             MarcusSoundTiming timing;
             CHECK(preview.ReadPresentation(presentation, error));
             CHECK(MarcusPlayback::ReadTiming(presentation, timing, error));

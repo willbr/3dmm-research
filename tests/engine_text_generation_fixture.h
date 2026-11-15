@@ -46,7 +46,7 @@ class TextGenerationFixtureAccess : public ThreeDText
 };
 static bool TestTextGeneration()
 {
-    FILE *snapshot=nullptr; if (const char *path=std::getenv("THREE_MM_TEXT_GENERATION_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
+    FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_TEXT_GENERATION_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,4*1024*1024):nullptr;
     std::vector<byte> wire(12+256*8); int16_t order=kboCur,system=koskCur; int32_t count=256; BRS maximum=BR_SCALAR(4);

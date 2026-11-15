@@ -1,11 +1,11 @@
 /* Body geometry/render policy converted from engine body.cpp and body_world.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/body_geometry.h"
+#include "mm/body_geometry.h"
 #include <string.h>
-void *three_mm_body_from_actor(void *actor, ThreeMMI32 *set, const ThreeMMBodyGeometryServices *s)
+void *mm_body_from_actor(void *actor, MMI32 *set, const MMBodyGeometryServices *s)
 {
     void *body = s->owner(s->context, actor);
-    ThreeMMI32 i, n;
+    MMI32 i, n;
     if (!body)
     {
         if (s->missing_owner)
@@ -25,26 +25,26 @@ void *three_mm_body_from_actor(void *actor, ThreeMMI32 *set, const ThreeMMBodyGe
     }
     return body;
 }
-void three_mm_body_geometry_init(ThreeMMBodyGeometry *g)
+void mm_body_geometry_init(MMBodyGeometry *g)
 {
     memset(g, 0, sizeof(*g));
 }
-static int empty(const ThreeMMBodyRect *r)
+static int empty(const MMBodyRect *r)
 {
     return r->bottom <= r->top || r->right <= r->left;
 }
-int three_mm_body_in_view(const ThreeMMBodyGeometry *g)
+int mm_body_in_view(const MMBodyGeometry *g)
 {
     return !empty(&g->bounds);
 }
-void three_mm_body_clear_bounds(ThreeMMBodyGeometry *g)
+void mm_body_clear_bounds(MMBodyGeometry *g)
 {
     memset(&g->bounds, 0, sizeof(g->bounds));
 }
-void three_mm_body_rendered(void *actor, const ThreeMMBodyRect *r, const ThreeMMBodyGeometryServices *s)
+void mm_body_rendered(void *actor, const MMBodyRect *r, const MMBodyGeometryServices *s)
 {
-    void *body = three_mm_body_from_actor(actor, NULL, s);
-    ThreeMMBodyRect *bounds;
+    void *body = mm_body_from_actor(actor, NULL, s);
+    MMBodyRect *bounds;
     if (!body || empty(r))
         return;
     bounds = &s->state(s->context, body)->bounds;
@@ -62,54 +62,54 @@ void three_mm_body_rendered(void *actor, const ThreeMMBodyRect *r, const ThreeMM
             bounds->bottom = r->bottom;
     }
 }
-void three_mm_body_prepare_render(void *actor, const ThreeMMBodyGeometryServices *s)
+void mm_body_prepare_render(void *actor, const MMBodyGeometryServices *s)
 {
-    void *body = three_mm_body_from_actor(actor, NULL, s), *highlight;
-    ThreeMMBodyGeometry *g;
-    ThreeMMBodyBounds bounds;
+    void *body = mm_body_from_actor(actor, NULL, s), *highlight;
+    MMBodyGeometry *g;
+    MMBodyBounds bounds;
     if (!body)
         return;
     g = s->state(s->context, body);
-    if (three_mm_body_in_view(g))
+    if (mm_body_in_view(g))
     {
         g->last_visible = g->bounds;
-        three_mm_body_clear_bounds(g);
+        mm_body_clear_bounds(g);
     }
     highlight = s->highlight(s->context, body);
     if (s->actor_type(s->context, highlight) == s->model_type)
     {
-        three_mm_body_bounds(body, 0, &bounds, s);
+        mm_body_bounds(body, 0, &bounds, s);
         s->highlight_matrix(s->context, body, &bounds);
     }
 }
-void three_mm_body_render_rect(void *actor, ThreeMMBodyRect *out, const ThreeMMBodyGeometryServices *s)
+void mm_body_render_rect(void *actor, MMBodyRect *out, const MMBodyGeometryServices *s)
 {
-    void *body = three_mm_body_from_actor(actor, NULL, s);
+    void *body = mm_body_from_actor(actor, NULL, s);
     if (body)
         *out = s->state(s->context, body)->bounds;
 }
-void three_mm_body_visible_rect(const ThreeMMBodyGeometry *g, ThreeMMBodyRect *out)
+void mm_body_visible_rect(const MMBodyGeometry *g, MMBodyRect *out)
 {
-    *out = three_mm_body_in_view(g) ? g->bounds : g->last_visible;
+    *out = mm_body_in_view(g) ? g->bounds : g->last_visible;
 }
 /* C89 permits implementation-defined rounding for negative division. The
  * unsigned magnitude defines truncation toward zero, including INT32_MIN. */
-static ThreeMMI32 half(ThreeMMI32 value)
+static MMI32 half(MMI32 value)
 {
-    return value < 0 ? -(ThreeMMI32)((0U - (ThreeMMU32)value) / 2U) : value / 2;
+    return value < 0 ? -(MMI32)((0U - (MMU32)value) / 2U) : value / 2;
 }
-void three_mm_body_center(const ThreeMMBodyGeometry *g, ThreeMMI32 *x, ThreeMMI32 *y)
+void mm_body_center(const MMBodyGeometry *g, MMI32 *x, MMI32 *y)
 {
-    ThreeMMBodyRect r;
-    three_mm_body_visible_rect(g, &r);
+    MMBodyRect r;
+    mm_body_visible_rect(g, &r);
     /* Native signed sums wrap before truncation toward zero. */
-    *x = half(three_mm_fixed_add(r.left, r.right));
-    *y = half(three_mm_fixed_add(r.top, r.bottom));
+    *x = half(mm_fixed_add(r.left, r.right));
+    *y = half(mm_fixed_add(r.top, r.bottom));
 }
-void three_mm_body_transform_bounds(const ThreeMMBodyBounds *in, const ThreeMMActorMatrix *m, ThreeMMBodyBounds *out)
+void mm_body_transform_bounds(const MMBodyBounds *in, const MMActorMatrix *m, MMBodyBounds *out)
 {
-    ThreeMMBodyBounds b = *in, result;
-    ThreeMMI32 point[3], v;
+    MMBodyBounds b = *in, result;
+    MMI32 point[3], v;
     unsigned i, j;
     for (j = 0; j < 3; ++j)
     {
@@ -127,8 +127,8 @@ void three_mm_body_transform_bounds(const ThreeMMBodyBounds *in, const ThreeMMAc
             point[i - 5] = b.min[i - 5];
         for (j = 0; j < 3; ++j)
         {
-            v = three_mm_fixed_add(
-                three_mm_fixed_mac3(point[0], m->m[0][j], point[1], m->m[1][j], point[2], m->m[2][j]), m->m[3][j]);
+            v = mm_fixed_add(
+                mm_fixed_mac3(point[0], m->m[0][j], point[1], m->m[1][j], point[2], m->m[2][j]), m->m[3][j]);
             if (v < result.min[j])
                 result.min[j] = v;
             if (v > result.max[j])
@@ -137,12 +137,12 @@ void three_mm_body_transform_bounds(const ThreeMMBodyBounds *in, const ThreeMMAc
     }
     *out = result;
 }
-void three_mm_body_bounds(void *body, int world, ThreeMMBodyBounds *out, const ThreeMMBodyGeometryServices *s)
+void mm_body_bounds(void *body, int world, MMBodyBounds *out, const MMBodyGeometryServices *s)
 {
     void *highlight = s->highlight(s->context, body);
     int type = s->actor_type(s->context, highlight);
-    ThreeMMBodyBounds bounds;
-    ThreeMMActorMatrix matrix;
+    MMBodyBounds bounds;
+    MMActorMatrix matrix;
     s->set_actor_type(s->context, highlight, s->none_type);
     s->local_bounds(s->context, body, &bounds);
     s->set_actor_type(s->context, highlight, type);
@@ -150,25 +150,25 @@ void three_mm_body_bounds(void *body, int world, ThreeMMBodyBounds *out, const T
     if (world)
     {
         s->root_matrix(s->context, body, &matrix);
-        three_mm_body_transform_bounds(&bounds, &matrix, out);
+        mm_body_transform_bounds(&bounds, &matrix, out);
     }
 }
-void three_mm_body_position(void *body, ThreeMMI32 out[3], const ThreeMMBodyGeometryServices *s)
+void mm_body_position(void *body, MMI32 out[3], const MMBodyGeometryServices *s)
 {
-    ThreeMMActorMatrix matrix;
+    MMActorMatrix matrix;
     s->root_matrix(s->context, body, &matrix);
     memcpy(out, matrix.m[3], 3 * sizeof(*out));
 }
-void three_mm_body_pick_begin(ThreeMMBodyPick *p)
+void mm_body_pick_begin(MMBodyPick *p)
 {
     p->body = NULL;
     p->actor = NULL;
     p->depth = 2147483647L;
 }
-int three_mm_body_pick_visit(ThreeMMBodyPick *p, void *actor, ThreeMMI32 depth, const ThreeMMBodyGeometryServices *s)
+int mm_body_pick_visit(MMBodyPick *p, void *actor, MMI32 depth, const MMBodyGeometryServices *s)
 {
-    void *body = three_mm_body_from_actor(actor, NULL, s);
-    if (depth < p->depth && body && three_mm_body_in_view(s->state(s->context, body)))
+    void *body = mm_body_from_actor(actor, NULL, s);
+    if (depth < p->depth && body && mm_body_in_view(s->state(s->context, body)))
     {
         p->body = body;
         p->actor = actor;
@@ -176,9 +176,9 @@ int three_mm_body_pick_visit(ThreeMMBodyPick *p, void *actor, ThreeMMI32 depth, 
     }
     return 0;
 }
-void *three_mm_body_pick_result(const ThreeMMBodyPick *p, ThreeMMI32 *set, const ThreeMMBodyGeometryServices *s)
+void *mm_body_pick_result(const MMBodyPick *p, MMI32 *set, const MMBodyGeometryServices *s)
 {
-    ThreeMMI32 i, n;
+    MMI32 i, n;
     if (p->body && set)
     {
         *set = -1;
@@ -192,16 +192,16 @@ void *three_mm_body_pick_result(const ThreeMMBodyPick *p, ThreeMMI32 *set, const
     }
     return p->body;
 }
-void three_mm_body_search_begin(ThreeMMBodyGeometry *g)
+void mm_body_search_begin(MMBodyGeometry *g)
 {
     g->found = 0;
     g->set = -1;
 }
-int three_mm_body_search_visit(void *target, void *actor, const ThreeMMBodyGeometryServices *s)
+int mm_body_search_visit(void *target, void *actor, const MMBodyGeometryServices *s)
 {
-    ThreeMMI32 set;
-    void *body = three_mm_body_from_actor(actor, &set, s);
-    ThreeMMBodyGeometry *g;
+    MMI32 set;
+    void *body = mm_body_from_actor(actor, &set, s);
+    MMBodyGeometry *g;
     if (!body || target != body)
         return 0;
     g = s->state(s->context, target);

@@ -1,4 +1,4 @@
-#include "three_mm/world_export.h"
+#include "mm/world_export.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,10 +21,10 @@ typedef struct Actor
 } Actor;
 typedef struct Fixture
 {
-    ThreeMMWorldBuffers b;
-    ThreeMMWorldExportServices s;
+    MMWorldBuffers b;
+    MMWorldExportServices s;
     Object *working, *bitmap, *source, *rgb, *depth;
-    ThreeMMWorldMaterial material, original;
+    MMWorldMaterial material, original;
     Actor root, model;
     int phase, fail, live, material_live, bounds, locks, options, late, flat, no_texture;
     int rasters, writes, width, height, current, bad_pixels, short_source, bad_depth_late;
@@ -42,7 +42,7 @@ static int phase(Fixture *f)
 static Object *object(Fixture *f, int kind, int width, int height)
 {
     Object *o = (Object *)calloc(1, sizeof(*o));
-    int depth = kind == SOURCE_Z || kind == THREE_MM_WORLD_DEPTH_WORKING;
+    int depth = kind == SOURCE_Z || kind == MM_WORLD_DEPTH_WORKING;
     assert(o);
     o->kind = kind;
     o->refs = 1;
@@ -72,31 +72,31 @@ static void release(void *context, void *p)
     free(o);
     --f->live;
 }
-static void *create(void *p, int kind, ThreeMMI32 width, ThreeMMI32 height)
+static void *create(void *p, int kind, MMI32 width, MMI32 height)
 {
     Fixture *f = (Fixture *)p;
     Object *o;
     if (phase(f))
         return NULL;
     o = object(f, kind, width, height);
-    if (kind == THREE_MM_WORLD_RGB_WORKING)
+    if (kind == MM_WORLD_RGB_WORKING)
         f->rgb = o;
-    if (kind == THREE_MM_WORLD_DEPTH_WORKING)
+    if (kind == MM_WORLD_DEPTH_WORKING)
         f->depth = o;
     return o;
 }
-static void *fetch(void *p, void *cache, int kind, ThreeMMU32 type, ThreeMMU32 number)
+static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
 {
     Fixture *f = (Fixture *)p;
-    Object *o = kind == THREE_MM_WORLD_RGB_BACKGROUND ? f->bitmap : f->source;
-    assert(cache == &f->cache && type == (kind == THREE_MM_WORLD_RGB_BACKGROUND ? 11U : 22U));
-    assert(number == (kind == THREE_MM_WORLD_RGB_BACKGROUND ? 33U : 44U));
+    Object *o = kind == MM_WORLD_RGB_BACKGROUND ? f->bitmap : f->source;
+    assert(cache == &f->cache && type == (kind == MM_WORLD_RGB_BACKGROUND ? 11U : 22U));
+    assert(number == (kind == MM_WORLD_RGB_BACKGROUND ? 33U : 44U));
     if (phase(f))
         return NULL;
     ++o->refs;
     return o;
 }
-static void depth_span(void *p, void *depth, ThreeMMWorldDepthSpan *out)
+static void depth_span(void *p, void *depth, MMWorldDepthSpan *out)
 {
     Fixture *f = (Fixture *)p;
     Object *o = (Object *)depth;
@@ -115,8 +115,8 @@ static void draw_bitmap(void *p, void *port, void *bitmap)
     assert(o->width == source->width && o->height == source->height);
     memcpy(o->pixels, source->pixels, (size_t)o->bytes);
 }
-static void copy_rgb(void *p, void *source, void *destination, ThreeMMI32 sw, ThreeMMI32 sh, ThreeMMI32 dw,
-                     ThreeMMI32 dh)
+static void copy_rgb(void *p, void *source, void *destination, MMI32 sw, MMI32 sh, MMI32 dw,
+                     MMI32 dh)
 {
     Object *src = (Object *)source, *dst = (Object *)destination;
     int x, y;
@@ -126,7 +126,7 @@ static void copy_rgb(void *p, void *source, void *destination, ThreeMMI32 sw, Th
         for (x = 0; x < dw; ++x)
             dst->pixels[y * dst->row + x] = src->pixels[(y * sh / dh) * src->row + x * sw / dw];
 }
-static int lock(void *p, void *port, ThreeMMWorldPixels *out)
+static int lock(void *p, void *port, MMWorldPixels *out)
 {
     Fixture *f = (Fixture *)p;
     Object *o = (Object *)port;
@@ -165,12 +165,12 @@ static void material_enum(void *p, int (*visit)(void *, void *), void *argument)
     Fixture *f = (Fixture *)p;
     visit(argument, &f->material);
 }
-static void material_read(void *p, void *m, ThreeMMWorldMaterial *out)
+static void material_read(void *p, void *m, MMWorldMaterial *out)
 {
     (void)p;
-    *out = *(ThreeMMWorldMaterial *)m;
+    *out = *(MMWorldMaterial *)m;
 }
-static void material_write(void *p, const ThreeMMWorldMaterial *in)
+static void material_write(void *p, const MMWorldMaterial *in)
 {
     Fixture *f = (Fixture *)p;
     f->material = *in;
@@ -243,7 +243,7 @@ static void flush(void *p)
     assert(f->bounds && f->material.flags == 20 && !f->material_live);
     event(f, 402);
 }
-static void raster(void *p, const ThreeMMWorldPixelView *rgb, const ThreeMMWorldPixelView *z)
+static void raster(void *p, const MMWorldPixelView *rgb, const MMWorldPixelView *z)
 {
     Fixture *f = (Fixture *)p;
     int x, y, scale = rgb->width / f->b.width;
@@ -258,15 +258,15 @@ static void raster(void *p, const ThreeMMWorldPixelView *rgb, const ThreeMMWorld
         {
             int index = y * f->depth->row + x * 2;
             assert(f->rgb->pixels[y * f->rgb->row + x] ==
-                   (f->b.owners[THREE_MM_WORLD_CACHE] ? 0x10 + (y / scale) * 3 + x / scale : 0));
-            assert(f->depth->pixels[index] == (f->b.owners[THREE_MM_WORLD_CACHE] ? 0x20 + x / scale : 255));
-            assert(f->depth->pixels[index + 1] == (f->b.owners[THREE_MM_WORLD_CACHE] ? 0x80 + y / scale : 255));
+                   (f->b.owners[MM_WORLD_CACHE] ? 0x10 + (y / scale) * 3 + x / scale : 0));
+            assert(f->depth->pixels[index] == (f->b.owners[MM_WORLD_CACHE] ? 0x20 + x / scale : 255));
+            assert(f->depth->pixels[index + 1] == (f->b.owners[MM_WORLD_CACHE] ? 0x80 + y / scale : 255));
         }
     ++f->rasters;
     event(f, 500);
     f->rgb->pixels[0] = 99;
 }
-static int write(void *p, const ThreeMMWorldPixels *pixels, void *palette_object, ThreeMMI32 width, ThreeMMI32 height)
+static int write(void *p, const MMWorldPixels *pixels, void *palette_object, MMI32 width, MMI32 height)
 {
     Fixture *f = (Fixture *)p;
     Object *pal = (Object *)palette_object;
@@ -280,13 +280,13 @@ static int write(void *p, const ThreeMMWorldPixels *pixels, void *palette_object
 }
 static void init(Fixture *f)
 {
-    ThreeMMWorldBufferServices *b;
-    ThreeMMWorldRenderServices *r;
-    ThreeMMWorldMaterialServices *m;
+    MMWorldBufferServices *b;
+    MMWorldRenderServices *r;
+    MMWorldMaterialServices *m;
     int x, y;
     memset(f, 0, sizeof(*f));
     f->bounds = f->flat = f->no_texture = 1;
-    f->working = object(f, THREE_MM_WORLD_RGB_WORKING, 2, 1);
+    f->working = object(f, MM_WORLD_RGB_WORKING, 2, 1);
     f->working->locks = 1; /* Retained renderer lock belongs to the world. */
     f->bitmap = object(f, BITMAP, 3, 2);
     f->source = object(f, SOURCE_Z, 3, 2);
@@ -304,8 +304,8 @@ static void init(Fixture *f)
     f->b.buffer_height = 1;
     f->b.half_x = f->b.half_y = 1;
     f->b.scale = 4;
-    f->b.owners[THREE_MM_WORLD_CACHE] = &f->cache;
-    f->b.owners[THREE_MM_WORLD_RGB_WORKING] = f->working;
+    f->b.owners[MM_WORLD_CACHE] = &f->cache;
+    f->b.owners[MM_WORLD_RGB_WORKING] = f->working;
     f->b.rgb_type = 11;
     f->b.z_type = 22;
     f->b.rgb_number = 33;
@@ -376,26 +376,26 @@ static void balanced(Fixture *f)
 static void transactions(void)
 {
     Fixture f;
-    ThreeMMWorldBuffers before;
+    MMWorldBuffers before;
     int fail, scale, scenario, i;
     for (scale = 1; scale <= 16; ++scale)
     {
         init(&f);
         before = f.b;
-        assert(three_mm_world_export_scaled(&f.b, scale, &f.s));
+        assert(mm_world_export_scaled(&f.b, scale, &f.s));
         assert(f.rasters == 1 && f.writes == 1 && f.width == 3 * scale && f.height == 2 * scale);
         assert(f.phase == 10 && f.options == 2 && !memcmp(&before, &f.b, sizeof(before)));
         for (i = 0; i < f.working->bytes; ++i)
             assert(f.working->pixels[i] == 0x55);
-        assert(f.events[f.n - 3] == 1000 + PALETTE && f.events[f.n - 2] == 1000 + THREE_MM_WORLD_RGB_WORKING &&
-               f.events[f.n - 1] == 1000 + THREE_MM_WORLD_DEPTH_WORKING);
+        assert(f.events[f.n - 3] == 1000 + PALETTE && f.events[f.n - 2] == 1000 + MM_WORLD_RGB_WORKING &&
+               f.events[f.n - 1] == 1000 + MM_WORLD_DEPTH_WORKING);
         balanced(&f);
     }
     for (fail = 1; fail <= 10; ++fail)
     {
         init(&f);
         f.fail = fail;
-        assert(!three_mm_world_export_scaled(&f.b, 2, &f.s));
+        assert(!mm_world_export_scaled(&f.b, 2, &f.s));
         assert(f.phase == fail && f.rasters == (fail >= 8) && f.writes == (fail == 10));
         balanced(&f);
     }
@@ -404,7 +404,7 @@ static void transactions(void)
         init(&f);
         f.fail = fail;
         f.current = 1;
-        assert(three_mm_world_export_current(&f.b, &f.s) == (fail == 0));
+        assert(mm_world_export_current(&f.b, &f.s) == (fail == 0));
         assert(!f.rasters && !f.options && (fail || (f.width == 2 && f.height == 1)));
         assert(f.locks == (fail == 1 ? 0 : 1));
         balanced(&f);
@@ -413,7 +413,7 @@ static void transactions(void)
     {
         init(&f);
         if (scenario == 0)
-            f.b.owners[THREE_MM_WORLD_CACHE] = NULL;
+            f.b.owners[MM_WORLD_CACHE] = NULL;
         if (scenario == 1)
             f.short_source = 1;
         if (scenario == 2)
@@ -427,41 +427,41 @@ static void transactions(void)
             f.late = 1;
             f.flat = f.no_texture = 0;
         }
-        assert(three_mm_world_export_scaled(&f.b, 3, &f.s) == (scenario == 0 || scenario == 5));
+        assert(mm_world_export_scaled(&f.b, 3, &f.s) == (scenario == 0 || scenario == 5));
         balanced(&f);
     }
     init(&f);
-    assert(!three_mm_world_export_scaled(&f.b, 17, &f.s));
+    assert(!mm_world_export_scaled(&f.b, 17, &f.s));
     assert(!f.phase);
     balanced(&f);
 }
 static void dimensions(void)
 {
-    ThreeMMWorldBuffers b;
-    ThreeMMI32 scale, width, height;
+    MMWorldBuffers b;
+    MMI32 scale, width, height;
     int request;
     memset(&b, 0, sizeof(b));
     b.width = 640;
     b.height = 480;
     for (request = 1; request <= 16; ++request)
     {
-        assert(three_mm_world_export_size(&b, request, &scale, &width, &height));
+        assert(mm_world_export_size(&b, request, &scale, &width, &height));
         assert(scale == (request > 6 ? 6 : request) && width == 640 * scale && height == 480 * scale);
     }
     scale = width = height = 123;
-    assert(!three_mm_world_export_size(&b, 0, &scale, &width, &height));
-    assert(!three_mm_world_export_size(&b, 17, &scale, &width, &height));
+    assert(!mm_world_export_size(&b, 0, &scale, &width, &height));
+    assert(!mm_world_export_size(&b, 17, &scale, &width, &height));
     b.height = 4097;
-    assert(!three_mm_world_export_size(&b, 1, &scale, &width, &height));
+    assert(!mm_world_export_size(&b, 1, &scale, &width, &height));
     assert(scale == 123 && width == 123 && height == 123);
     b.height = b.width = 4096;
-    assert(three_mm_world_export_size(&b, 16, &scale, &width, &height) && scale == 1 && width == 4096 &&
+    assert(mm_world_export_size(&b, 16, &scale, &width, &height) && scale == 1 && width == 4096 &&
            height == 4096);
 }
 static void depth_copy(void)
 {
     unsigned char src[16], dst[3200];
-    ThreeMMWorldDepthSpan source, destination;
+    MMWorldDepthSpan source, destination;
     int scale, x, y, row, height;
     memset(src, 0xcc, sizeof(src));
     for (y = 0; y < 2; ++y)
@@ -481,16 +481,16 @@ static void depth_copy(void)
         memset(dst, 0xcc, sizeof(dst));
         destination.row = row;
         destination.bytes = row * height;
-        assert(three_mm_world_depth_resample(&source, &destination, 3 * scale, height, scale, 0, 0));
+        assert(mm_world_depth_resample(&source, &destination, 3 * scale, height, scale, 0, 0));
         for (y = 0; y < height; ++y)
             for (x = 0; x < row; ++x)
                 assert(dst[y * row + x] == (x < row - 2 ? src[(y / scale) * 8 + (x / 2 / scale) * 2 + x % 2] : 0xcc));
         assert(dst[row * height] == 0xcc);
     }
     source.bytes = 13;
-    assert(!three_mm_world_depth_resample(&source, &destination, 48, 32, 16, 0, 0));
+    assert(!mm_world_depth_resample(&source, &destination, 48, 32, 16, 0, 0));
     assert(dst[3136] == 0xcc);
-    assert(!three_mm_world_depth_resample(&source, &destination, 48, 32, 17, 0, 0));
+    assert(!mm_world_depth_resample(&source, &destination, 48, 32, 17, 0, 0));
 }
 int main(void)
 {

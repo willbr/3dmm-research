@@ -1,4 +1,4 @@
-#include "three_mm/content_vfs.h"
+#include "mm/content_vfs.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -6,17 +6,17 @@ typedef struct Entry
 {
     char *source, *name, *location;
 } Entry;
-struct ThreeMMVfs
+struct MMVfs
 {
     Entry *entries;
     size_t count;
-    ThreeMMVfsProvider provider;
+    MMVfsProvider provider;
 };
-struct ThreeMMVfsFile
+struct MMVfsFile
 {
-    ThreeMMVfsProvider provider;
+    MMVfsProvider provider;
     void *handle;
-    ThreeMMVfsPosition position;
+    MMVfsPosition position;
 };
 static unsigned char fold(unsigned char ch)
 {
@@ -62,7 +62,7 @@ static const char *known(const char *text, size_t length)
             return aliases[i][1];
     return NULL;
 }
-int three_mm_vfs_source_key(const char *title, const char *folder, char *output, size_t capacity)
+int mm_vfs_source_key(const char *title, const char *folder, char *output, size_t capacity)
 {
     const char *slash, *backslash, *key;
     size_t title_length, folder_length, length, i;
@@ -110,7 +110,7 @@ static char *source_key(const char *source)
         return NULL;
     capacity = strlen(source) + 32;
     key = (char *)malloc(capacity);
-    if (key && !three_mm_vfs_source_key(source, NULL, key, capacity))
+    if (key && !mm_vfs_source_key(source, NULL, key, capacity))
     {
         free(key);
         key = NULL;
@@ -154,15 +154,15 @@ static int compare(const void *left, const void *right)
     order = strcmp(a->source, b->source);
     return order ? order : strcmp(a->name, b->name);
 }
-ThreeMMVfs *three_mm_vfs_create(const ThreeMMVfsProvider *provider)
+MMVfs *mm_vfs_create(const MMVfsProvider *provider)
 {
-    ThreeMMVfs *vfs;
-    vfs = (ThreeMMVfs *)calloc(1, sizeof(*vfs));
+    MMVfs *vfs;
+    vfs = (MMVfs *)calloc(1, sizeof(*vfs));
     if (vfs && provider)
         vfs->provider = *provider;
     return vfs;
 }
-void three_mm_vfs_destroy(ThreeMMVfs *vfs)
+void mm_vfs_destroy(MMVfs *vfs)
 {
     if (vfs)
     {
@@ -170,7 +170,7 @@ void three_mm_vfs_destroy(ThreeMMVfs *vfs)
         free(vfs);
     }
 }
-const char *three_mm_vfs_error(int error)
+const char *mm_vfs_error(int error)
 {
     static const char *messages[] = {"Success",
                                      "Insufficient memory for content mounts",
@@ -180,20 +180,20 @@ const char *three_mm_vfs_error(int error)
                                      "Cannot open mounted content"};
     return error >= 0 && error < (int)(sizeof(messages) / sizeof(messages[0])) ? messages[error] : "VFS error";
 }
-int three_mm_vfs_mount(ThreeMMVfs *vfs, const char *source, const ThreeMMVfsMount *files, size_t count, int replace)
+int mm_vfs_mount(MMVfs *vfs, const char *source, const MMVfsMount *files, size_t count, int replace)
 {
     Entry *next;
     char *key;
     size_t capacity, used, i, j;
     int error;
     if (!vfs || !source || !source[0] || (count && !files))
-        return THREE_MM_VFS_NAME;
+        return MM_VFS_NAME;
     if (count > (size_t)-1 / sizeof(Entry) - vfs->count)
-        return THREE_MM_VFS_MEMORY;
+        return MM_VFS_MEMORY;
     capacity = vfs->count + count;
     next = (Entry *)calloc(capacity ? capacity : 1, sizeof(*next));
     key = source_key(source);
-    error = THREE_MM_VFS_MEMORY;
+    error = MM_VFS_MEMORY;
     used = 0;
     if (!next || !key)
         goto fail;
@@ -209,7 +209,7 @@ int three_mm_vfs_mount(ThreeMMVfs *vfs, const char *source, const ThreeMMVfsMoun
         if (!files[i].name || !files[i].name[0] || !files[i].location || !files[i].location[0] ||
             !strcmp(files[i].name, ".") || !strcmp(files[i].name, "..") || strpbrk(files[i].name, "/\\:"))
         {
-            error = THREE_MM_VFS_NAME;
+            error = MM_VFS_NAME;
             goto fail;
         }
         for (j = 0; j < used; ++j)
@@ -219,7 +219,7 @@ int three_mm_vfs_mount(ThreeMMVfs *vfs, const char *source, const ThreeMMVfsMoun
         {
             if (strcmp(next[j].name, files[i].name))
             {
-                error = THREE_MM_VFS_CASE;
+                error = MM_VFS_CASE;
                 goto fail;
             }
             continue;
@@ -233,14 +233,14 @@ int three_mm_vfs_mount(ThreeMMVfs *vfs, const char *source, const ThreeMMVfsMoun
     vfs->entries = next;
     vfs->count = used;
     free(key);
-    return THREE_MM_VFS_OK;
+    return MM_VFS_OK;
 fail:
     if (next)
         release(next, capacity);
     free(key);
     return error;
 }
-int three_mm_vfs_next(const ThreeMMVfs *vfs, const char *source, size_t *cursor, ThreeMMVfsMount *file)
+int mm_vfs_next(const MMVfs *vfs, const char *source, size_t *cursor, MMVfsMount *file)
 {
     char *key;
     const Entry *entry;
@@ -263,35 +263,35 @@ int three_mm_vfs_next(const ThreeMMVfs *vfs, const char *source, size_t *cursor,
     free(key);
     return 0;
 }
-int three_mm_vfs_mounted(const ThreeMMVfs *vfs, const char *source)
+int mm_vfs_mounted(const MMVfs *vfs, const char *source)
 {
     size_t cursor;
-    ThreeMMVfsMount file;
+    MMVfsMount file;
     cursor = 0;
-    return three_mm_vfs_next(vfs, source, &cursor, &file);
+    return mm_vfs_next(vfs, source, &cursor, &file);
 }
-const char *three_mm_vfs_resolve(const ThreeMMVfs *vfs, const char *source, const char *name)
+const char *mm_vfs_resolve(const MMVfs *vfs, const char *source, const char *name)
 {
     size_t cursor;
-    ThreeMMVfsMount file;
+    MMVfsMount file;
     if (!name)
         return NULL;
     cursor = 0;
-    while (three_mm_vfs_next(vfs, source, &cursor, &file))
+    while (mm_vfs_next(vfs, source, &cursor, &file))
         if (equal(name, file.name))
             return file.location;
     return NULL;
 }
-ThreeMMVfsFile *three_mm_vfs_open(const ThreeMMVfs *vfs, const char *source, const char *name)
+MMVfsFile *mm_vfs_open(const MMVfs *vfs, const char *source, const char *name)
 {
     const char *location;
-    ThreeMMVfsFile *file;
+    MMVfsFile *file;
     if (!vfs || !vfs->provider.open || !vfs->provider.read_at || !vfs->provider.close)
         return NULL;
-    location = three_mm_vfs_resolve(vfs, source, name);
+    location = mm_vfs_resolve(vfs, source, name);
     if (!location)
         return NULL;
-    file = (ThreeMMVfsFile *)calloc(1, sizeof(*file));
+    file = (MMVfsFile *)calloc(1, sizeof(*file));
     if (!file)
         return NULL;
     file->provider = vfs->provider;
@@ -303,7 +303,7 @@ ThreeMMVfsFile *three_mm_vfs_open(const ThreeMMVfs *vfs, const char *source, con
     }
     return file;
 }
-size_t three_mm_vfs_read(ThreeMMVfsFile *file, void *buffer, size_t capacity)
+size_t mm_vfs_read(MMVfsFile *file, void *buffer, size_t capacity)
 {
     size_t count;
     unsigned long old;
@@ -322,20 +322,20 @@ size_t three_mm_vfs_read(ThreeMMVfsFile *file, void *buffer, size_t capacity)
         ++file->position.high;
     return count;
 }
-int three_mm_vfs_seek(ThreeMMVfsFile *file, ThreeMMVfsPosition position)
+int mm_vfs_seek(MMVfsFile *file, MMVfsPosition position)
 {
     if (!file || position.high > 0xffffffffUL || position.low > 0xffffffffUL)
         return 0;
     file->position = position;
     return 1;
 }
-ThreeMMVfsPosition three_mm_vfs_tell(const ThreeMMVfsFile *file)
+MMVfsPosition mm_vfs_tell(const MMVfsFile *file)
 {
-    ThreeMMVfsPosition zero;
+    MMVfsPosition zero;
     zero.high = zero.low = 0;
     return file ? file->position : zero;
 }
-void three_mm_vfs_close(ThreeMMVfsFile *file)
+void mm_vfs_close(MMVfsFile *file)
 {
     if (file)
     {

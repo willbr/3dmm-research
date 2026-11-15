@@ -1,7 +1,7 @@
 /* Temporary native services for the C89 actor timeline/seek evaluator. */
 #pragma once
 #include "engine_actor_motion.h"
-#include "three_mm/actor_timeline.h"
+#include "mm/actor_timeline.h"
 namespace EngineActorTimeline
 {
 struct Host
@@ -12,28 +12,28 @@ struct Host
     LegacyLong *lastFrame = nullptr;
 };
 void Diagnostic(void *, int fault);
-inline ThreeMMActorTimelineServices Services(Host *host)
+inline MMActorTimelineServices Services(Host *host)
 {
-    ThreeMMActorTimelineServices s = {EngineActorMotion::Services(),
+    MMActorTimelineServices s = {EngineActorMotion::Services(),
                                       host,
                                       nullptr,
-                                      [](void *g, ThreeMMI32 i, const ThreeMMActorEvent *e) {
+                                      [](void *g, MMI32 i, const MMActorEvent *e) {
                                           static_cast<PGeneralGroup>(g)->PutFixed(i,
-                                                                                  const_cast<ThreeMMActorEvent *>(e));
+                                                                                  const_cast<MMActorEvent *>(e));
                                       },
                                       Diagnostic,
-                                      [](void *p, const ThreeMMActorState *state) {
+                                      [](void *p, const MMActorState *state) {
                                           auto h = static_cast<Host *>(p);
                                           if (h->state)
                                               EngineActorMotion::Publish(*h->state, *state);
                                       },
-                                      [](void *p, ThreeMMI32 frame) {
+                                      [](void *p, MMI32 frame) {
                                           auto h = static_cast<Host *>(p);
                                           if (h->lastFrame)
                                               *h->lastFrame = frame;
                                       }};
     if (host->steps->resolve)
-        s.resolve = [](void *p, ThreeMMI32 action, ThreeMMI32 cel, ThreeMMI32 *step) -> int {
+        s.resolve = [](void *p, MMI32 action, MMI32 cel, MMI32 *step) -> int {
             auto h = static_cast<Host *>(p);
             BRS value = *step;
             BRS *output = h->stepOutput ? h->stepOutput : &value;

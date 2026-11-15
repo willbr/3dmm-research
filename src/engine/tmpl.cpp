@@ -73,51 +73,51 @@ RTCLASS(Template)
     Create a new action
 ***************************************************************************/
 struct ActionDefinitionContext { DataBlock block; };
-ThreeMMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *context)
+MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *context)
 {
-    ThreeMMActionDefinitionServices s = {}; s.context = context;
+    MMActionDefinitionServices s = {}; s.context = context;
     const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
     static_assert(sizeof(AnimationCel) == 8 && sizeof(CelPartSpec) == 4 && sizeof(BMAT34) == 48, "action ABI");
     s.state = [](void *, void *object) { return &static_cast<PActionDefinition>(object)->_action; };
     s.create = [](void *) -> void * { return NewObj ActionDefinition; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.duplicate = [](void *, void *table, int kind) -> void * {
-        return kind == THREE_MM_ACTION_CELS ? static_cast<void *>(static_cast<PGeneralGroup>(table)->PggDup()) :
+        return kind == MM_ACTION_CELS ? static_cast<void *>(static_cast<PGeneralGroup>(table)->PggDup()) :
             static_cast<void *>(static_cast<PDynamicArray>(table)->PglDup());
     };
-    s.find = [](void *p, void *file, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+    s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
         auto block = &static_cast<ActionDefinitionContext *>(p)->block;
         return static_cast<PChunkyFile>(file)->FFind(type, number, block) ? block : nullptr;
     };
     s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block, int packed) -> ThreeMMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
+    s.block_size = [](void *, void *block, int packed) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
     s.block_read = [](void *, void *block, void *out, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(out, static_cast<LegacyLong>(count), 0); };
-    s.child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 childType, ThreeMMU32 *out) -> int {
+    s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 childType, MMU32 *out) -> int {
         ChildChunkIdentification child; if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, 0, childType, &child)) return false;
         *out = child.cki.cno; return true;
     };
     s.read_table = [](void *, void *block, int kind, int *other) -> void * {
         short order = kboCur; void *result;
-        if (kind == THREE_MM_ACTION_CELS) result = GeneralGroup::PggRead(static_cast<PDataBlock>(block), &order);
+        if (kind == MM_ACTION_CELS) result = GeneralGroup::PggRead(static_cast<PDataBlock>(block), &order);
         else result = DynamicArray::PglRead(static_cast<PDataBlock>(block), &order);
         *other = order == kboOther; return result;
     };
-    s.count = [](void *, void *table) -> ThreeMMI32 { return static_cast<GroupBase *>(table)->IvMac(); };
-    s.table_size = [](void *, void *table) -> ThreeMMI32 { return static_cast<GroupBase *>(table)->CbOnFile(); };
-    s.fixed = [](void *, void *group, ThreeMMI32 index) { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvFixedGet(index)); };
-    s.variable = [](void *, void *group, ThreeMMI32 index) { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvGet(index)); };
-    s.variable_size = [](void *, void *group, ThreeMMI32 index) -> ThreeMMI32 { return static_cast<PGeneralGroup>(group)->Cb(index); };
-    s.data = [](void *, void *list, ThreeMMI32 index) { return static_cast<unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(index)); };
+    s.count = [](void *, void *table) -> MMI32 { return static_cast<GroupBase *>(table)->IvMac(); };
+    s.table_size = [](void *, void *table) -> MMI32 { return static_cast<GroupBase *>(table)->CbOnFile(); };
+    s.fixed = [](void *, void *group, MMI32 index) { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvFixedGet(index)); };
+    s.variable = [](void *, void *group, MMI32 index) { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvGet(index)); };
+    s.variable_size = [](void *, void *group, MMI32 index) -> MMI32 { return static_cast<PGeneralGroup>(group)->Cb(index); };
+    s.data = [](void *, void *list, MMI32 index) { return static_cast<unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(index)); };
     s.validate_wire_sounds = [](void *, void *list) { Assert(static_cast<PDynamicArray>(list)->CbEntry() == sizeof(TAGOnFile), "kctgGlms entry size drift"); };
-    s.create_sounds = [](void *, ThreeMMI32 count) -> void * { return DynamicArray::PglNew(sizeof(TAG), count); };
-    s.append_sound = [](void *, void *list, const ThreeMMTag *tag) -> int { TAG native; TagFromCore(&native, *tag); return static_cast<PDynamicArray>(list)->FAdd(&native); };
-    s.read_sound = [](void *, void *list, ThreeMMI32 index, ThreeMMTag *out) {
+    s.create_sounds = [](void *, MMI32 count) -> void * { return DynamicArray::PglNew(sizeof(TAG), count); };
+    s.append_sound = [](void *, void *list, const MMTag *tag) -> int { TAG native; TagFromCore(&native, *tag); return static_cast<PDynamicArray>(list)->FAdd(&native); };
+    s.read_sound = [](void *, void *list, MMI32 index, MMTag *out) {
         TAG tag; static_cast<PDynamicArray>(list)->Get(index, &tag); *out = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
     };
     s.clear_sound_type = [](void *, void *out) { static_cast<PTAG>(out)->ctg = ctgNil; };
-    s.publish_sound = [](void *, void *out, const ThreeMMTag *tag) { TagFromCore(static_cast<PTAG>(out), *tag); };
-    s.initialize = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PActionDefinition>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
-    s.object_size = [](void *) -> ThreeMMI32 { return sizeof(ActionDefinition); };
+    s.publish_sound = [](void *, void *out, const MMTag *tag) { TagFromCore(static_cast<PTAG>(out), *tag); };
+    s.initialize = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PActionDefinition>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
+    s.object_size = [](void *) -> MMI32 { return sizeof(ActionDefinition); };
     s.invalidate = [](void *, void *out, size_t count) {
 #ifdef DEBUG
         FillPb(out, static_cast<LegacyLong>(count), kbGarbage);
@@ -133,7 +133,7 @@ PActionDefinition ActionDefinition::PactnNew(PGeneralGroup pggcel, PDynamicArray
 {
     AssertPo(pggcel, 0); AssertPo(pglbmat34, 0);
     ActionDefinitionContext context; auto s = _Services(&context);
-    return static_cast<PActionDefinition>(three_mm_action_create(pggcel, pglbmat34, grfactn, &s));
+    return static_cast<PActionDefinition>(mm_action_create(pggcel, pglbmat34, grfactn, &s));
 }
 
 /***************************************************************************
@@ -143,7 +143,7 @@ bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, C
 {
     AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
     ActionDefinitionContext context; auto s = _Services(&context);
-    return three_mm_action_fetch(pcrf->Pcfl(), ctg, cno, pblck, ppbaco, pcb, &s) != 0;
+    return mm_action_fetch(pcrf->Pcfl(), ctg, cno, pblck, ppbaco, pcb, &s) != 0;
 }
 
 /***************************************************************************
@@ -153,7 +153,7 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
 {
     AssertPo(pcfl, 0);
     ActionDefinitionContext context; auto s = _Services(&context);
-    return three_mm_action_initialize(&_action, pcfl, ctg, cno, &s) != 0;
+    return mm_action_initialize(&_action, pcfl, ctg, cno, &s) != 0;
 }
 
 /***************************************************************************
@@ -163,7 +163,7 @@ ActionDefinition::~ActionDefinition(void)
 {
     AssertBaseThis(0);
     ActionDefinitionContext context; auto s = _Services(&context);
-    three_mm_action_dispose(&_action, &s);
+    mm_action_dispose(&_action, &s);
 }
 
 /***************************************************************************
@@ -172,14 +172,14 @@ ActionDefinition::~ActionDefinition(void)
 LegacyLong ActionDefinition::Ccel(void)
 {
     ActionDefinitionContext context; auto s = _Services(&context);
-    return three_mm_action_cel_count(&_action, &s);
+    return mm_action_cel_count(&_action, &s);
 }
 
 void ActionDefinition::GetCel(LegacyLong icel, AnimationCel *pcel)
 {
     AssertThis(0); AssertIn(icel, 0, Ccel()); AssertVarMem(pcel);
     ActionDefinitionContext context; auto s = _Services(&context);
-    three_mm_action_get_cel(&_action, icel, pcel, &s);
+    mm_action_get_cel(&_action, icel, pcel, &s);
 }
 
 /***************************************************************************
@@ -190,7 +190,7 @@ void ActionDefinition::GetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcp
     AssertThis(0); AssertIn(icel, 0, Ccel());
     AssertIn(icps, 0, static_cast<PGeneralGroup>(_action.cels)->Cb(icel) / sizeof(CelPartSpec)); AssertVarMem(pcps);
     ActionDefinitionContext context; auto s = _Services(&context);
-    three_mm_action_get_part(&_action, icel, icps, pcps, &s);
+    mm_action_get_part(&_action, icel, icps, pcps, &s);
 }
 
 /***************************************************************************
@@ -201,7 +201,7 @@ void ActionDefinition::GetSnd(LegacyLong icel, PTAG ptag)
 {
     AssertThis(0); AssertIn(icel, 0, Ccel()); AssertVarMem(ptag);
     ActionDefinitionContext context; auto s = _Services(&context);
-    three_mm_action_get_sound(&_action, icel, ptag, &s);
+    mm_action_get_sound(&_action, icel, ptag, &s);
 }
 
 /***************************************************************************
@@ -211,7 +211,7 @@ void ActionDefinition::GetMatrix(LegacyLong imat34, BMAT34 *pbmat34)
 {
     AssertThis(0); AssertIn(imat34, 0, static_cast<PDynamicArray>(_action.matrices)->IvMac()); AssertVarMem(pbmat34);
     ActionDefinitionContext context; auto s = _Services(&context);
-    three_mm_action_get_matrix(&_action, imat34, pbmat34, &s);
+    mm_action_get_matrix(&_action, imat34, pbmat34, &s);
 }
 
 #ifdef DEBUG
@@ -244,19 +244,19 @@ void ActionDefinition::MarkMem(void)
 ***************************************************************************/
 struct TemplateCreateContext { DataBlock block; };
 
-ThreeMMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *context)
+MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *context)
 {
-    ThreeMMTemplateCreateServices s = {}; s.context = context; s.system = koskCur;
+    MMTemplateCreateServices s = {}; s.context = context; s.system = koskCur;
     const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
 #ifdef DEBUG
     s.debug_checks = 1;
 #endif
-    s.read = [](void *, void *object, ThreeMMTemplateState *state) {
+    s.read = [](void *, void *object, MMTemplateState *state) {
         auto t = static_cast<PTemplate>(object);
         *state = {t->_pglibactPar, t->_pglibset, t->_pggcmid, t->_cbset, t->_ccmid, t->_cactn,
                   t->_xaRest, t->_yaRest, t->_zaRest, t->_grftmpl};
     };
-    s.write = [](void *, void *object, const ThreeMMTemplateState *state) {
+    s.write = [](void *, void *object, const MMTemplateState *state) {
         auto t = static_cast<PTemplate>(object);
         t->_pglibactPar = static_cast<PDynamicArray>(state->parents); t->_pglibset = static_cast<PDynamicArray>(state->sets);
         t->_pggcmid = static_cast<PGeneralGroup>(state->costumes); t->_cbset = state->set_count;
@@ -265,35 +265,35 @@ ThreeMMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *c
         t->_zaRest = static_cast<BRA>(state->z); t->_grftmpl = state->flags;
     };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 childType, ThreeMMTemplateChild *out) -> int {
+    s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMTemplateChild *out) -> int {
         ChildChunkIdentification child;
         if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, id, childType, &child)) return 0;
         *out = {child.cki.ctg, child.cki.cno, child.chid}; return 1;
     };
-    s.enumerate = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMI32 index, ThreeMMTemplateChild *out) -> int {
+    s.enumerate = [](void *, void *file, MMU32 type, MMU32 number, MMI32 index, MMTemplateChild *out) -> int {
         ChildChunkIdentification child;
         if (!static_cast<PChunkyFile>(file)->FGetKid(type, number, index, &child)) return 0;
         *out = {child.cki.ctg, child.cki.cno, child.chid}; return 1;
     };
-    s.find = [](void *p, void *file, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+    s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
         auto ctx = static_cast<TemplateCreateContext *>(p);
         return static_cast<PChunkyFile>(file)->FFind(type, number, &ctx->block) ? &ctx->block : nullptr;
     };
     s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block, int packed) -> ThreeMMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
+    s.block_size = [](void *, void *block, int packed) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
     s.block_read = [](void *, void *block, void *bytes, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(bytes, static_cast<LegacyLong>(count), 0); };
-    s.read_name = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PChunkyFile>(file)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn); };
-    s.add_chunk = [](void *, void *file, ThreeMMU32 type, const void *data, size_t count, ThreeMMU32 *out) -> int {
+    s.read_name = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PChunkyFile>(file)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn); };
+    s.add_chunk = [](void *, void *file, MMU32 type, const void *data, size_t count, MMU32 *out) -> int {
         ChunkNumber number; CopyPb(out, &number, sizeof(number));
         const bool ok = static_cast<PChunkyFile>(file)->FAddPv(const_cast<void *>(data), static_cast<LegacyLong>(count), type, &number);
         CopyPb(&number, out, sizeof(number)); return ok;
     };
-    s.set_name = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PChunkyFile>(file)->FSetName(type, number, &static_cast<PTemplate>(object)->_stn); };
-    s.delete_chunk = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number) { static_cast<PChunkyFile>(file)->Delete(type, number); };
+    s.set_name = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PChunkyFile>(file)->FSetName(type, number, &static_cast<PTemplate>(object)->_stn); };
+    s.delete_chunk = [](void *, void *file, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(type, number); };
     s.create = [](void *, int text) -> void * { return text ? static_cast<PTemplate>(NewObj ThreeDText) : NewObj Template; };
-    s.initialize = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
-    s.object_size = [](void *, int text) -> ThreeMMI32 { return static_cast<ThreeMMI32>(text ? sizeof(ThreeDText) : sizeof(Template)); };
-    s.table_size = [](void *, void *table) -> ThreeMMI32 { return static_cast<GroupBase *>(table)->CbOnFile(); };
+    s.initialize = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
+    s.object_size = [](void *, int text) -> MMI32 { return static_cast<MMI32>(text ? sizeof(ThreeDText) : sizeof(Template)); };
+    s.table_size = [](void *, void *table) -> MMI32 { return static_cast<GroupBase *>(table)->CbOnFile(); };
     s.invalidate = [](void *, void *out, size_t count) {
 #ifdef DEBUG
         FillPb(out, static_cast<LegacyLong>(count), kbGarbage);
@@ -301,45 +301,45 @@ ThreeMMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *c
         (void)out; (void)count;
 #endif
     };
-    s.header = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PTemplate>(object)->_FReadTmplf(static_cast<PChunkyFile>(file), type, number); };
+    s.header = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PTemplate>(object)->_FReadTmplf(static_cast<PChunkyFile>(file), type, number); };
     s.read_table = [](void *, void *block, int kind, int *other) -> void * {
         short order = kboCur; void *result;
-        if (kind == THREE_MM_TEMPLATE_COSTUMES) result = GeneralGroup::PggRead(static_cast<PDataBlock>(block), &order);
+        if (kind == MM_TEMPLATE_COSTUMES) result = GeneralGroup::PggRead(static_cast<PDataBlock>(block), &order);
         else result = DynamicArray::PglRead(static_cast<PDataBlock>(block), &order);
         *other = order == kboOther; return result;
     };
-    s.validate_table = [](void *, void *table, int kind, ThreeMMI32 expected) {
-        if (kind == THREE_MM_TEMPLATE_COSTUMES) {
+    s.validate_table = [](void *, void *table, int kind, MMI32 expected) {
+        if (kind == MM_TEMPLATE_COSTUMES) {
             auto group = static_cast<PGeneralGroup>(table); Assert(group->CbFixed() == sizeof(int32_t), "Bad Template _pggcmid");
             Assert(group->IvMac() == expected, "Bad Template _pggcmid");
         } else Assert(static_cast<PDynamicArray>(table)->CbEntry() == sizeof(short), "Bad Template part list");
     };
-    s.count = [](void *, void *list) -> ThreeMMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
-    s.item = [](void *, void *list, ThreeMMI32 i) -> ThreeMMI32 { short value; static_cast<PDynamicArray>(list)->Get(i, &value); return value; };
+    s.count = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
+    s.item = [](void *, void *list, MMI32 i) -> MMI32 { short value; static_cast<PDynamicArray>(list)->Get(i, &value); return value; };
     s.list_data = [](void *, void *list) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(0)); };
-    s.fixed_data = [](void *, void *group, ThreeMMI32 row) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvFixedGet(row)); };
-    s.variable_data = [](void *, void *group, ThreeMMI32 row) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvGet(row)); };
+    s.fixed_data = [](void *, void *group, MMI32 row) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvFixedGet(row)); };
+    s.variable_data = [](void *, void *group, MMI32 row) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvGet(row)); };
     s.create_cache = [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); };
     s.create_costumes = [](void *) -> void * { return GeneralGroup::PggNew(sizeof(int32_t)); };
-    s.fetch_custom = [](void *, void *cache, ThreeMMU32 type, ThreeMMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, CustomMaterial_CMTL::FReadCmtl); };
-    s.custom_set = [](void *, void *custom) -> ThreeMMI32 { return static_cast<PCustomMaterial_CMTL>(custom)->Ibset(); };
-    s.append_costumes = [](void *, void *group, const ThreeMMI32 *ids, ThreeMMI32 count) -> int {
-        int32_t fixed = count; return static_cast<PGeneralGroup>(group)->FAdd(count * sizeof(int32_t), nullptr, const_cast<ThreeMMI32 *>(ids), &fixed);
+    s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, CustomMaterial_CMTL::FReadCmtl); };
+    s.custom_set = [](void *, void *custom) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(custom)->Ibset(); };
+    s.append_costumes = [](void *, void *group, const MMI32 *ids, MMI32 count) -> int {
+        int32_t fixed = count; return static_cast<PGeneralGroup>(group)->FAdd(count * sizeof(int32_t), nullptr, const_cast<MMI32 *>(ids), &fixed);
     };
     s.create_body = [](void *, void *parents, void *sets) -> void * { return Body::PbodyNew(static_cast<PDynamicArray>(parents), static_cast<PDynamicArray>(sets)); };
     s.default_costume = [](void *, void *object, void *body) -> int { return static_cast<PTemplate>(object)->FSetDefaultCost(static_cast<PBody>(body)); };
-    s.costume_id = [](void *, void *object, ThreeMMI32 set, ThreeMMI32 index) -> ThreeMMI32 { return static_cast<PTemplate>(object)->CmidOfBset(set, index); };
-    s.custom = [](void *, void *object, ThreeMMI32 id) -> void * { return static_cast<PTemplate>(object)->PcmtlFetch(id); };
-    s.allocate_refs = [](void *, ThreeMMI32 count, void **out) -> int { return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal); };
+    s.costume_id = [](void *, void *object, MMI32 set, MMI32 index) -> MMI32 { return static_cast<PTemplate>(object)->CmidOfBset(set, index); };
+    s.custom = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->PcmtlFetch(id); };
+    s.allocate_refs = [](void *, MMI32 count, void **out) -> int { return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal); };
     s.apply_custom = [](void *, void *body, void *custom) { static_cast<PBody>(body)->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(custom)); };
     s.free_memory = [](void *, void **data) { FreePpv(data); };
     s.diagnostic = [](void *, int code) {
         switch (code) {
-        case THREE_MM_TEMPLATE_BAD_ORDER: Assert(false, "freaky tmplf!"); break;
-        case THREE_MM_TEMPLATE_OBSOLETE: Warn("Obsolete GLDC structure...get rid of it"); break;
-        case THREE_MM_TEMPLATE_BUILD_COSTUMES: Warn("missing GGCM...building one on the fly"); break;
-        case THREE_MM_TEMPLATE_COSTUME_LIMIT: Assert(false, "legacy costume table exceeds 50 entries per set"); break;
-        case THREE_MM_TEMPLATE_WRONG_SET: Assert(false, "ibset's don't match"); break;
+        case MM_TEMPLATE_BAD_ORDER: Assert(false, "freaky tmplf!"); break;
+        case MM_TEMPLATE_OBSOLETE: Warn("Obsolete GLDC structure...get rid of it"); break;
+        case MM_TEMPLATE_BUILD_COSTUMES: Warn("missing GGCM...building one on the fly"); break;
+        case MM_TEMPLATE_COSTUME_LIMIT: Assert(false, "legacy costume table exceeds 50 entries per set"); break;
+        case MM_TEMPLATE_WRONG_SET: Assert(false, "ibset's don't match"); break;
         }
     };
     return s;
@@ -349,9 +349,9 @@ bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumb
 {
     AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
     TemplateCreateContext context; auto s = _CreateServices(&context);
-    void *object; ThreeMMI32 bytes;
+    void *object; MMI32 bytes;
     if (ppbaco) CopyPb(ppbaco, &object, sizeof(object));
-    const bool ok = three_mm_template_fetch(pcrf->Pcfl(), ctg, cno, pblck, ppbaco ? &object : nullptr, &bytes, &s) != 0;
+    const bool ok = mm_template_fetch(pcrf->Pcfl(), ctg, cno, pblck, ppbaco ? &object : nullptr, &bytes, &s) != 0;
     if (ppbaco) CopyPb(&object, ppbaco, sizeof(object));
     CopyPb(&bytes, pcb, sizeof(bytes));
     return ok;
@@ -364,7 +364,7 @@ bool Template::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno
 {
     AssertBaseThis(0);
     TemplateCreateContext context; auto s = _CreateServices(&context);
-    return three_mm_template_read_header(this, pcfl, ctg, cno, &s) != 0;
+    return mm_template_read_header(this, pcfl, ctg, cno, &s) != 0;
 }
 
 /***************************************************************************
@@ -376,9 +376,9 @@ bool Template::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno
 bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
-    TemplateCreateContext context; auto s = _CreateServices(&context); ThreeMMU32 number;
+    TemplateCreateContext context; auto s = _CreateServices(&context); MMU32 number;
     CopyPb(pcno, &number, sizeof(number));
-    const bool ok = three_mm_template_write_header(this, pcfl, ctg, &number, &s) != 0;
+    const bool ok = mm_template_write_header(this, pcfl, ctg, &number, &s) != 0;
     CopyPb(&number, pcno, sizeof(number)); return ok;
 }
 
@@ -389,7 +389,7 @@ bool Template::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
     TemplateCreateContext context; auto s = _CreateServices(&context);
-    return three_mm_template_initialize(this, pcfl, ctg, cno, &s) != 0;
+    return mm_template_initialize(this, pcfl, ctg, cno, &s) != 0;
 }
 
 /***************************************************************************
@@ -399,7 +399,7 @@ Template::~Template(void)
 {
     AssertBaseThis(0);
     TemplateCreateContext context; auto s = _CreateServices(&context);
-    three_mm_template_dispose(this, &s);
+    mm_template_dispose(this, &s);
 }
 
 /***************************************************************************
@@ -432,46 +432,46 @@ PBody Template::PbodyCreate(void)
 {
     AssertThis(0);
     TemplateCreateContext context; auto s = _CreateServices(&context);
-    return static_cast<PBody>(three_mm_template_create_body(this, &s));
+    return static_cast<PBody>(mm_template_create_body(this, &s));
 }
 
 /***************************************************************************
     Fills in the name of the given action
 ***************************************************************************/
-ThreeMMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *context)
+MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *context)
 {
-    ThreeMMTemplateRuntimeServices s = {}; s.storage = _CreateServices(context);
-    static_assert(sizeof(BRS) == sizeof(ThreeMMI32) && sizeof(BMAT34) == 12 * sizeof(ThreeMMI32), "fixed-point ABI");
-    s.binding = [](void *, void *object, ThreeMMTemplateBinding *out) {
+    MMTemplateRuntimeServices s = {}; s.storage = _CreateServices(context);
+    static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
+    s.binding = [](void *, void *object, MMTemplateBinding *out) {
         auto t = static_cast<PTemplate>(object); auto cache = t->Pcrf();
         *out = {cache ? cache->Pcfl() : nullptr, cache, t->Ctg(), t->Cno()};
     };
-    s.fetch = [](void *, void *cache, ThreeMMU32 type, ThreeMMU32 number, int kind) -> void * {
-        auto reader = kind == THREE_MM_TEMPLATE_ACTION ? ActionDefinition::FReadActn :
-            kind == THREE_MM_TEMPLATE_MODEL ? Model::FReadModl : CustomMaterial_CMTL::FReadCmtl;
+    s.fetch = [](void *, void *cache, MMU32 type, MMU32 number, int kind) -> void * {
+        auto reader = kind == MM_TEMPLATE_ACTION ? ActionDefinition::FReadActn :
+            kind == MM_TEMPLATE_MODEL ? Model::FReadModl : CustomMaterial_CMTL::FReadCmtl;
         return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, reader);
     };
-    s.name = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, void *out) -> int {
+    s.name = [](void *, void *file, MMU32 type, MMU32 number, void *out) -> int {
         return static_cast<PChunkyFile>(file)->FGetName(type, number, static_cast<PString>(out));
     };
-    s.action = [](void *, void *object, ThreeMMI32 id) -> void * { return static_cast<PTemplate>(object)->_PactnFetch(id); };
-    s.model = [](void *, void *object, ThreeMMU32 id) -> void * { return static_cast<PTemplate>(object)->_PmodlFetch(id); };
-    s.cel_count = [](void *, void *action) -> ThreeMMI32 { return static_cast<PActionDefinition>(action)->Ccel(); };
-    s.distance = [](void *, void *action, ThreeMMI32 index) -> ThreeMMI32 {
+    s.action = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->_PactnFetch(id); };
+    s.model = [](void *, void *object, MMU32 id) -> void * { return static_cast<PTemplate>(object)->_PmodlFetch(id); };
+    s.cel_count = [](void *, void *action) -> MMI32 { return static_cast<PActionDefinition>(action)->Ccel(); };
+    s.distance = [](void *, void *action, MMI32 index) -> MMI32 {
         AnimationCel cel; static_cast<PActionDefinition>(action)->GetCel(index, &cel); return cel.dwr;
     };
-    s.flags = [](void *, void *action) -> ThreeMMU32 { return static_cast<PActionDefinition>(action)->Grfactn(); };
-    s.part = [](void *, void *action, ThreeMMI32 cel, ThreeMMI32 part, ThreeMMI32 *model, ThreeMMI32 *matrix) {
+    s.flags = [](void *, void *action) -> MMU32 { return static_cast<PActionDefinition>(action)->Grfactn(); };
+    s.part = [](void *, void *action, MMI32 cel, MMI32 part, MMI32 *model, MMI32 *matrix) {
         CelPartSpec cps; static_cast<PActionDefinition>(action)->GetCps(cel, part, &cps); *model = cps.chidModl; *matrix = cps.imat34;
     };
-    s.matrix = [](void *, void *action, ThreeMMI32 index, ThreeMMI32 *out) {
+    s.matrix = [](void *, void *action, MMI32 index, MMI32 *out) {
         BMAT34 matrix; static_cast<PActionDefinition>(action)->GetMatrix(index, &matrix); std::memcpy(out, &matrix, sizeof(matrix));
     };
-    s.set_model = [](void *, void *body, ThreeMMI32 part, void *model) { static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model)); };
-    s.set_matrix = [](void *, void *body, ThreeMMI32 part, const ThreeMMI32 *data) {
+    s.set_model = [](void *, void *body, MMI32 part, void *model) { static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model)); };
+    s.set_matrix = [](void *, void *body, MMI32 part, const MMI32 *data) {
         BMAT34 matrix; std::memcpy(&matrix, data, sizeof(matrix)); static_cast<PBody>(body)->SetPartMatrix(part, &matrix);
     };
-    s.sound = [](void *, void *action, ThreeMMI32 index, void *out) -> int {
+    s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
         auto tag = static_cast<PTAG>(out); static_cast<PActionDefinition>(action)->GetSnd(index, tag); return tag->ctg != ctgNil;
     };
     s.sound_exists = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
@@ -482,7 +482,7 @@ bool Template::FGetActnName(LegacyLong anid, PString pstn)
 {
     AssertThis(0); AssertIn(anid, 0, _cactn); AssertPo(pstn, 0);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_action_name(this, anid, pstn, &s) != 0;
+    return mm_template_action_name(this, anid, pstn, &s) != 0;
 }
 
 /***************************************************************************
@@ -492,7 +492,7 @@ PActionDefinition Template::_PactnFetch(LegacyLong anid)
 {
     AssertThis(0); AssertIn(anid, 0, _cactn);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return static_cast<PActionDefinition>(three_mm_template_fetch_child(this, anid, THREE_MM_TEMPLATE_ACTION, &s));
+    return static_cast<PActionDefinition>(mm_template_fetch_child(this, anid, MM_TEMPLATE_ACTION, &s));
 }
 
 /***************************************************************************
@@ -502,7 +502,7 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return static_cast<PModel>(three_mm_template_fetch_child(this, chidModl, THREE_MM_TEMPLATE_MODEL, &s));
+    return static_cast<PModel>(mm_template_fetch_child(this, chidModl, MM_TEMPLATE_MODEL, &s));
 }
 
 /***************************************************************************
@@ -514,7 +514,7 @@ bool Template::FSetActnCel(Body *pbody, LegacyLong anid, LegacyLong celn, BRS *p
 {
     AssertThis(0); AssertPo(pbody, 0); AssertIn(anid, 0, _cactn); AssertNilOrVarMem(pdwr);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_set_cel(this, pbody, anid, celn, pdwr, &s) != 0;
+    return mm_template_set_cel(this, pbody, anid, celn, pdwr, &s) != 0;
 }
 
 /***************************************************************************
@@ -524,8 +524,8 @@ bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
     AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pdwr);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    ThreeMMI32 distance;
-    if (!three_mm_template_distance(this, anid, celn, &distance, &s)) return false;
+    MMI32 distance;
+    if (!mm_template_distance(this, anid, celn, &distance, &s)) return false;
     std::memcpy(pdwr, &distance, sizeof(distance)); return true;
 }
 
@@ -536,7 +536,7 @@ bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
 {
     AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pccel);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_cel_count(this, anid, pccel, &s) != 0;
+    return mm_template_cel_count(this, anid, pccel, &s) != 0;
 }
 
 /***************************************************************************
@@ -546,7 +546,7 @@ bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExi
 {
     AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_sound(this, anid, celn, pfSoundExists, ptag, &s) != 0;
+    return mm_template_sound(this, anid, celn, pfSoundExists, ptag, &s) != 0;
 }
 
 /***************************************************************************
@@ -556,7 +556,7 @@ bool Template::FGetGrfactn(LegacyLong anid, LegacyUlong *pgrfactn)
 {
     AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pgrfactn);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_action_flags(this, anid, pgrfactn, &s) != 0;
+    return mm_template_action_flags(this, anid, pgrfactn, &s) != 0;
 }
 
 /***************************************************************************
@@ -581,7 +581,7 @@ bool Template::FSetDefaultCost(Body *pbody)
 {
     AssertThis(0); AssertPo(pbody, 0);
     TemplateCreateContext context; auto s = _CreateServices(&context);
-    return three_mm_template_default_costume(this, pbody, &s) != 0;
+    return mm_template_default_costume(this, pbody, &s) != 0;
 }
 
 /***************************************************************************
@@ -591,7 +591,7 @@ LegacyLong Template::CcmidOfBset(LegacyLong ibset)
 {
     AssertThis(0); AssertIn(ibset, 0, _cbset);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_costume_count(this, ibset, &s);
+    return mm_template_costume_count(this, ibset, &s);
 }
 
 /***************************************************************************
@@ -601,7 +601,7 @@ LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
 {
     AssertThis(0); AssertIn(ibset, 0, _cbset); AssertIn(icmid, 0, CcmidOfBset(ibset));
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_costume_id(this, ibset, icmid, &s);
+    return mm_template_costume_id(this, ibset, icmid, &s);
 }
 
 /***************************************************************************
@@ -612,7 +612,7 @@ bool Template::FBsetIsAccessory(LegacyLong ibset)
 {
     AssertThis(0); AssertIn(ibset, 0, _cbset);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_is_accessory(this, ibset, &s) != 0;
+    return mm_template_is_accessory(this, ibset, &s) != 0;
 }
 
 /***************************************************************************
@@ -625,7 +625,7 @@ bool Template::FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc)
 {
     AssertThis(0); AssertIn(ibset, 0, _cbset); AssertVarMem(pibsetAcc);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_accessory_set(this, ibset, pibsetAcc, &s) != 0;
+    return mm_template_accessory_set(this, ibset, pibsetAcc, &s) != 0;
 }
 
 /***************************************************************************
@@ -636,7 +636,7 @@ bool Template::FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2)
 {
     AssertThis(0);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return three_mm_template_same_accessory(this, cmid1, cmid2, &s) != 0;
+    return mm_template_same_accessory(this, cmid1, cmid2, &s) != 0;
 }
 
 /***************************************************************************
@@ -650,7 +650,7 @@ PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
     if (cmid < 0)
         return pvNil;
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return static_cast<PCustomMaterial_CMTL>(three_mm_template_fetch_child(this, cmid, THREE_MM_TEMPLATE_CUSTOM, &s));
+    return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(this, cmid, MM_TEMPLATE_CUSTOM, &s));
 }
 
 /***************************************************************************

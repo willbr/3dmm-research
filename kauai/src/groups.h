@@ -27,12 +27,12 @@
 ***************************************************************************/
 #ifndef GROUPS_H
 #define GROUPS_H
-#include "three_mm/string_table.h"
-#include "three_mm/collections.h"
+#include "mm/string_table.h"
+#include "mm/collections.h"
 
 namespace Group {
 
-ThreeMMStorageAllocator CollectionAllocator();
+MMStorageAllocator CollectionAllocator();
 
 enum
 {
@@ -53,7 +53,7 @@ class GroupBase : public GroupBase_PAR
     MARKMEM
 
   private:
-    ThreeMMCollectionStorage _storage;
+    MMCollectionStorage _storage;
     void _SetStorageGrowth();
 
   protected:
@@ -77,13 +77,13 @@ class GroupBase : public GroupBase_PAR
     {
         return _storage.buffers[1].capacity;
     }
-    ThreeMMCollectionStorage *_CollectionStorage()
+    MMCollectionStorage *_CollectionStorage()
     {
         _SetStorageGrowth();
         return &_storage;
     }
-    bool _ReadCollection(PDataBlock, int kind, bool allocated, ThreeMMCollectionHeader *, short *, short *);
-    bool _WriteCollection(PDataBlock, ThreeMMCollectionHeader, short bo, short osk);
+    bool _ReadCollection(PDataBlock, int kind, bool allocated, MMCollectionHeader *, short *, short *);
+    bool _WriteCollection(PDataBlock, MMCollectionHeader, short bo, short osk);
     bool _FEnsureSizes(LegacyLong cbMin1, LegacyLong cbMin2, LegacyUlong grfgrp);
     bool _FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2);
     bool _FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, LegacyLong ib);
@@ -123,8 +123,8 @@ class VirtualArray : public VirtualArray_PAR
   protected:
     LegacyLong _cbEntry;
 
-    ThreeMMArray _ArrayView(bool allocated = false, LegacyLong freeCount = 0);
-    void _ApplyArray(const ThreeMMArray &);
+    MMArray _ArrayView(bool allocated = false, LegacyLong freeCount = 0);
+    void _ApplyArray(const MMArray &);
     VirtualArray(LegacyLong cb);
 
   public:
@@ -260,8 +260,8 @@ class VirtualGroup : public VirtualGroup_PAR
     };
     static_assert(sizeof(LogicalOffsetAndCount) == 8, "LogicalOffsetAndCount wire format drift");
 
-    ThreeMMGroup _GroupView();
-    void _ApplyGroup(const ThreeMMGroup &);
+    MMGroup _GroupView();
+    void _ApplyGroup(const MMGroup &);
     LegacyLong _bvMac;
     LegacyLong _clocFree;
     LegacyLong _cbFixed;
@@ -406,9 +406,9 @@ class VirtualStringTable : public VirtualStringTable_PAR
     LegacyLong _bstMac;
     LegacyLong _cbstFree; // this is cvNil for non-allocated GSTBs
 
-    ThreeMMStringTable _StringStorage();
-    void _ApplyStringStorage(const ThreeMMStringTable &storage);
-    static int _ReserveStringStorage(void *, ThreeMMStringTable *, ThreeMMU32, ThreeMMU32);
+    MMStringTable _StringStorage();
+    void _ApplyStringStorage(const MMStringTable &storage);
+    static int _ReserveStringStorage(void *, MMStringTable *, MMU32, MMU32);
 
   protected:
     VirtualStringTable(LegacyLong cbExtra, LegacyUlong grfgst);

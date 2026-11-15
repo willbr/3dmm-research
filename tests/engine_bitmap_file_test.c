@@ -1,4 +1,4 @@
-#include "three_mm/bitmap_file.h"
+#include "mm/bitmap_file.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,13 +10,13 @@ typedef struct Palette
 } Palette;
 typedef struct Test
 {
-    ThreeMMBitmapServices s;
+    MMBitmapServices s;
     unsigned char input[1200], output[1200];
-    ThreeMMI32 bytes, written;
+    MMI32 bytes, written;
     void *pixels, *palette;
     int phase, fail, files, memory, palettes, locks, opened, created, closed, writes, warning, bad, temporary,
         dimensions, valid;
-    ThreeMMI32 width, height;
+    MMI32 width, height;
     int upside;
 } Test;
 static Test *test(void *p)
@@ -27,7 +27,7 @@ static int fail(Test *t)
 {
     return ++t->phase == t->fail;
 }
-static void put(unsigned char *p, ThreeMMU32 value, unsigned n)
+static void put(unsigned char *p, MMU32 value, unsigned n)
 {
     while (n--)
     {
@@ -64,12 +64,12 @@ static void release(void *p, void *o)
         free(o);
     }
 }
-static ThreeMMI32 size(void *p, void *f)
+static MMI32 size(void *p, void *f)
 {
     (void)f;
     return test(p)->bytes;
 }
-static int read(void *p, void *f, void *out, ThreeMMI32 n, ThreeMMI32 at)
+static int read(void *p, void *f, void *out, MMI32 n, MMI32 at)
 {
     Test *t = test(p);
     (void)f;
@@ -80,7 +80,7 @@ static int read(void *p, void *f, void *out, ThreeMMI32 n, ThreeMMI32 at)
         memcpy(out, t->input + at, (size_t)n);
     return 1;
 }
-static int write(void *p, void *f, const void *data, ThreeMMI32 n, ThreeMMI32 at)
+static int write(void *p, void *f, const void *data, MMI32 n, MMI32 at)
 {
     Test *t = test(p);
     (void)f;
@@ -94,7 +94,7 @@ static int write(void *p, void *f, const void *data, ThreeMMI32 n, ThreeMMI32 at
         t->written = at + n;
     return 1;
 }
-static int allocate(void *p, ThreeMMI32 n, void **out)
+static int allocate(void *p, MMI32 n, void **out)
 {
     Test *t = test(p);
     if (fail(t))
@@ -137,12 +137,12 @@ static void palette_unlock(void *p, void *v)
 }
 static void publish(void *p, int kind, void *v)
 {
-    if (kind == THREE_MM_BITMAP_PIXELS)
+    if (kind == MM_BITMAP_PIXELS)
         test(p)->pixels = v;
     else
         test(p)->palette = v;
 }
-static void dimensions(void *p, int valid, ThreeMMI32 w, ThreeMMI32 h, int up)
+static void dimensions(void *p, int valid, MMI32 w, MMI32 h, int up)
 {
     Test *t = test(p);
     ++t->dimensions;
@@ -226,14 +226,14 @@ static void cleanup(Test *t)
 static void read_cases(void)
 {
     Test t;
-    ThreeMMBitmapHeader h;
+    MMBitmapHeader h;
     int reason, n, rle, ok;
     for (rle = 0; rle < 2; ++rle)
         for (n = 0; n < 10; ++n)
         {
             setup(&t, rle);
             t.fail = n;
-            ok = three_mm_bitmap_read(&t, 1, 1, 73, &t.s);
+            ok = mm_bitmap_read(&t, 1, 1, 73, &t.s);
             if (ok)
             {
                 assert(t.pixels && t.palette && t.valid && t.width == 3 && t.height == 3 && !t.upside);
@@ -258,46 +258,46 @@ static void read_cases(void)
         }
     setup(&t, 0);
     put(t.input + 46, 17, 4);
-    assert(three_mm_bitmap_read(&t, 0, 0, 0, &t.s) && t.valid);
+    assert(mm_bitmap_read(&t, 0, 0, 0, &t.s) && t.valid);
     balanced(&t);
     setup(&t, 0);
     put(t.input + 46, 17, 4);
-    assert(!three_mm_bitmap_read(&t, 0, 1, 0, &t.s) && t.warning == THREE_MM_BITMAP_COLOURS + 1);
+    assert(!mm_bitmap_read(&t, 0, 1, 0, &t.s) && t.warning == MM_BITMAP_COLOURS + 1);
     balanced(&t);
     setup(&t, 0);
     put(t.input + 22, 0xfffffffdUL, 4);
-    assert(three_mm_bitmap_read(&t, 1, 0, 0, &t.s) && t.height == 3 && t.upside);
+    assert(mm_bitmap_read(&t, 1, 0, 0, &t.s) && t.height == 3 && t.upside);
     cleanup(&t);
     for (n = 0; n <= 54; ++n)
     {
         setup(&t, 0);
         t.bytes = n;
-        assert(!three_mm_bitmap_read(&t, 1, 1, 0, &t.s));
+        assert(!mm_bitmap_read(&t, 1, 1, 0, &t.s));
         balanced(&t);
     }
     setup(&t, 0);
     t.bytes = 55;
     put(t.input + 2, 55, 4);
     put(t.input + 10, 54, 4);
-    assert(three_mm_bitmap_read(&t, 0, 0, 0, &t.s));
+    assert(mm_bitmap_read(&t, 0, 0, 0, &t.s));
     balanced(&t);
-    assert(!three_mm_bitmap_read(&t, 1, 0, 0, &t.s));
+    assert(!mm_bitmap_read(&t, 1, 0, 0, &t.s));
     balanced(&t);
     setup(&t, 1);
     t.input[1078] = 4;
     t.input[1079] = 9; /* Full row without terminator: destination must be freed. */
-    assert(!three_mm_bitmap_read(&t, 1, 1, 0, &t.s) && t.warning == THREE_MM_BITMAP_RLE + 1);
+    assert(!mm_bitmap_read(&t, 1, 1, 0, &t.s) && t.warning == MM_BITMAP_RLE + 1);
     balanced(&t);
     setup(&t, 0);
     put(t.input + 22, 0x80000000UL, 4);
-    assert(!three_mm_bitmap_header(t.input, t.bytes, &h, &reason));
+    assert(!mm_bitmap_header(t.input, t.bytes, &h, &reason));
     setup(&t, 0);
     put(t.input + 18, 0x7fffffffUL, 4);
-    assert(!three_mm_bitmap_header(t.input, t.bytes, &h, &reason));
+    assert(!mm_bitmap_header(t.input, t.bytes, &h, &reason));
     setup(&t, 0);
     put(t.input + 18, 0x40000000UL, 4);
     put(t.input + 22, 3, 4);
-    assert(!three_mm_bitmap_header(t.input, t.bytes, &h, &reason));
+    assert(!mm_bitmap_header(t.input, t.bytes, &h, &reason));
 }
 static void rle_cases(void)
 {
@@ -309,7 +309,7 @@ static void rle_cases(void)
     const unsigned char too_long[] = {5, 7};
     int i;
     memset(guarded, 0xcc, sizeof(guarded));
-    assert(three_mm_bitmap_rle8(encoded, sizeof(encoded), out, 12, 4, 73));
+    assert(mm_bitmap_rle8(encoded, sizeof(encoded), out, 12, 4, 73));
     memset(expected, 73, 12);
     memset(expected, 7, 4);
     expected[4] = 1;
@@ -318,22 +318,22 @@ static void rle_cases(void)
     assert(!memcmp(out, expected, 12));
     for (i = 0; i < 4; ++i)
         assert(guarded[i] == 0xcc && guarded[i + 16] == 0xcc);
-    assert(three_mm_bitmap_rle8(delta, sizeof(delta), out, 12, 4, 73));
+    assert(mm_bitmap_rle8(delta, sizeof(delta), out, 12, 4, 73));
     memset(expected, 73, 12);
     expected[0] = 9;
     expected[6] = expected[7] = 8;
     assert(!memcmp(out, expected, 12));
     memset(guarded, 0xcc, sizeof(guarded));
-    assert(!three_mm_bitmap_rle8(extra_eol, sizeof(extra_eol), out, 4, 4, 73));
+    assert(!mm_bitmap_rle8(extra_eol, sizeof(extra_eol), out, 4, 4, 73));
     for (i = 8; i < 20; ++i)
         assert(guarded[i] == 0xcc);
     memset(guarded, 0xcc, sizeof(guarded));
-    assert(!three_mm_bitmap_rle8(missing_pad, sizeof(missing_pad), out, 12, 4, 73));
-    assert(!three_mm_bitmap_rle8(too_long, sizeof(too_long), out, 12, 4, 73));
+    assert(!mm_bitmap_rle8(missing_pad, sizeof(missing_pad), out, 12, 4, 73));
+    assert(!mm_bitmap_rle8(too_long, sizeof(too_long), out, 12, 4, 73));
     for (i = 0; i < 20; ++i)
         assert(guarded[i] == 0xcc);
     for (i = 0; i < 2; ++i)
-        assert(!three_mm_bitmap_rle8(encoded, i, out, 12, 4, 73));
+        assert(!mm_bitmap_rle8(encoded, i, out, 12, 4, 73));
 }
 static void write_cases(void)
 {
@@ -350,7 +350,7 @@ static void write_cases(void)
         {
             setup(&t, 0);
             t.fail = n;
-            ok = three_mm_bitmap_write(&t, pixels, &pal, 3, 3, flip, &t.s);
+            ok = mm_bitmap_write(&t, pixels, &pal, 3, 3, flip, &t.s);
             if (ok)
             {
                 assert(t.written == 1090 && !t.temporary && !memcmp(t.output + 54, pal.bytes, 1024));
@@ -364,10 +364,10 @@ static void write_cases(void)
             balanced(&t);
         }
     setup(&t, 0);
-    assert(three_mm_bitmap_write(&t, NULL, &pal, 0, 2, 1, &t.s) && t.writes == 2 && t.written == 1078);
+    assert(mm_bitmap_write(&t, NULL, &pal, 0, 2, 1, &t.s) && t.writes == 2 && t.written == 1078);
     balanced(&t);
     setup(&t, 0);
-    assert(!three_mm_bitmap_write(&t, pixels, &pal, 2147483647, 1, 0, &t.s) && !t.created);
+    assert(!mm_bitmap_write(&t, pixels, &pal, 2147483647, 1, 0, &t.s) && !t.created);
 }
 int main(void)
 {

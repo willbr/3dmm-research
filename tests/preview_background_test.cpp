@@ -1,5 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -17,10 +17,10 @@ int main(int argc, char **argv)
 {
     if (argc != 3)
         return 2;
-    if(auto path=std::getenv("THREE_MM_BACKGROUND_PREVIEW_SNAPSHOT")){snapshot=std::fopen(path,"wb");if(!snapshot)return 1;}
-    ThreeMM::Preview preview;
-    ThreeMM::Archive archive;
-    ThreeMM::Error error;
+    if(auto path=std::getenv("MM_BACKGROUND_PREVIEW_SNAPSHOT")){snapshot=std::fopen(path,"wb");if(!snapshot)return 1;}
+    MM::Preview preview;
+    MM::Archive archive;
+    MM::Error error;
     auto check = [&](bool ok) {
         if (!ok)
             std::fprintf(stderr, "%s\n", error.message.c_str());
@@ -29,27 +29,27 @@ int main(int argc, char **argv)
     if (!check(archive.Open(argv[2], error)) || !check(preview.Open(argv[2], argv[1], error)))
         return 1;
     unsigned backgrounds = 0, cameras = 0, depthCameras = 0, meshCameras = 0, backdropCameras = 0;
-    ThreeMM::PreviewView view;
+    MM::PreviewView view;
     view.width = 256;
     view.height = 192;
     view.includeDepth = true;
-    ThreeMM::PreviewImage image;
-    auto render=[&](const ThreeMM::PreviewView &v,ThreeMM::PreviewImage &out) {
+    MM::PreviewImage image;
+    auto render=[&](const MM::PreviewView &v,MM::PreviewImage &out) {
         bool ok=preview.Render(v,out,error);
         if(ok){Record(&out.width,sizeof(out.width));Record(&out.height,sizeof(out.height));Record(out.rgba.data(),out.rgba.size());Record(out.depth.data(),out.depth.size()*sizeof(out.depth[0]));}
         return ok;
     };
     for (const auto &chunk : archive.Chunks())
     {
-        if (ThreeMM::TypeLabel(chunk.id.type) != "BKGD")
+        if (MM::TypeLabel(chunk.id.type) != "BKGD")
             continue;
-        if (std::getenv("THREE_MM_PREVIEW_TRACE"))
-            std::fprintf(stderr, "Previewing %s\n", ThreeMM::Identity(chunk.id).c_str());
+        if (std::getenv("MM_PREVIEW_TRACE"))
+            std::fprintf(stderr, "Previewing %s\n", MM::Identity(chunk.id).c_str());
         if (!check(preview.Select(chunk.id, error)))
             return 1;
         ++backgrounds;
         const auto count = preview.Info().cameraCount;
-        ThreeMM::PreviewImage firstOrbit;
+        MM::PreviewImage firstOrbit;
         for (unsigned camera = 0; camera < count; ++camera)
         {
             if (!check(preview.SetCamera(camera, error)) || !check(render(view, image)) ||
@@ -80,7 +80,7 @@ int main(int argc, char **argv)
             for (std::size_t i = 0; i < image.depth.size(); ++i)
                 if (image.rgba[i * 4 + 3] && !std::isfinite(image.depth[i]))
                     hasInfinite = true;
-            const auto finiteDepth = [](const ThreeMM::PreviewImage &rendered) {
+            const auto finiteDepth = [](const MM::PreviewImage &rendered) {
                 return std::any_of(rendered.depth.begin(), rendered.depth.end(),
                                    [](float distance) { return std::isfinite(distance); });
             };
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
         if (!check(preview.SetCamera(0, error)) || !check(render(orbit, image)) ||
             image.rgba != firstOrbit.rgba || image.depth != firstOrbit.depth)
             return 1;
-        if (preview.SetCamera(count, error) || error.code != ThreeMM::ErrorCode::invalid_argument)
+        if (preview.SetCamera(count, error) || error.code != MM::ErrorCode::invalid_argument)
             return 1;
     }
     if (!backgrounds || !cameras || !depthCameras || !meshCameras || !backdropCameras)

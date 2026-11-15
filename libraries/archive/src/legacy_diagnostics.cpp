@@ -7,6 +7,6 @@ void WarnProc(char *, LegacyLong, char *)
 }
 bool FAssertProc(char *, LegacyLong, char *message, void *, LegacyLong)
 {
-    ThreeMM::Internal::RecordAssertion(message);
+    MM::Internal::RecordAssertion(message);
     return false;
 }

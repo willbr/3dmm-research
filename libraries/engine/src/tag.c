@@ -1,14 +1,14 @@
 /* Tag policy converted from engine tagman.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/tag.h"
-static void publish(const ThreeMMTagServices *s, const ThreeMMTag *tag)
+#include "mm/tag.h"
+static void publish(const MMTagServices *s, const MMTag *tag)
 {
     if (s->publish)
         s->publish(s->context, tag);
 }
-int three_mm_tag_open(ThreeMMTag *tag, void *destination, void *source, const ThreeMMTagServices *s)
+int mm_tag_open(MMTag *tag, void *destination, void *source, const MMTagServices *s)
 {
-    ThreeMMU32 number;
+    MMU32 number;
     if (tag->sid)
         return 1;
     if (source && source != s->file(destination))
@@ -26,9 +26,9 @@ int three_mm_tag_open(ThreeMMTag *tag, void *destination, void *source, const Th
     s->retain(destination);
     return 1;
 }
-int three_mm_tag_save(ThreeMMTag *tag, void *destination, int redirect, const ThreeMMTagServices *s)
+int mm_tag_save(MMTag *tag, void *destination, int redirect, const MMTagServices *s)
 {
-    ThreeMMU32 number;
+    MMU32 number;
     void *source_file, *destination_file;
     if (tag->sid)
         return 1;
@@ -46,12 +46,12 @@ int three_mm_tag_save(ThreeMMTag *tag, void *destination, int redirect, const Th
     }
     return 1;
 }
-void three_mm_tag_dup(const ThreeMMTag *tag, const ThreeMMTagServices *s)
+void mm_tag_dup(const MMTag *tag, const MMTagServices *s)
 {
     if (!tag->sid)
         s->retain(tag->cache);
 }
-void three_mm_tag_close(ThreeMMTag *tag, const ThreeMMTagServices *s)
+void mm_tag_close(MMTag *tag, const MMTagServices *s)
 {
     if (!tag->sid)
     {
@@ -61,7 +61,7 @@ void three_mm_tag_close(ThreeMMTag *tag, const ThreeMMTagServices *s)
         publish(s, tag);
     }
 }
-int three_mm_tag_compare(const ThreeMMTag *a, const ThreeMMTag *b, const ThreeMMTagServices *s)
+int mm_tag_compare(const MMTag *a, const MMTag *b, const MMTagServices *s)
 {
     if (a->sid != b->sid)
         return a->sid < b->sid ? -1 : 1;
@@ -71,10 +71,10 @@ int three_mm_tag_compare(const ThreeMMTag *a, const ThreeMMTag *b, const ThreeMM
         return a->number < b->number ? -1 : 1;
     return a->sid ? 0 : s->compare_cache(a->cache, b->cache);
 }
-int three_mm_tag_child(const ThreeMMTag *parent, ThreeMMU32 slot, ThreeMMU32 type, ThreeMMTag *out,
-                       const ThreeMMTagServices *s)
+int mm_tag_child(const MMTag *parent, MMU32 slot, MMU32 type, MMTag *out,
+                       const MMTagServices *s)
 {
-    ThreeMMTag child = *out;
+    MMTag child = *out;
     void *cache = parent->cache, *manager;
     if (parent->sid)
     {
@@ -97,8 +97,8 @@ int three_mm_tag_child(const ThreeMMTag *parent, ThreeMMU32 slot, ThreeMMU32 typ
         s->retain(child.cache);
     return 1;
 }
-void *three_mm_tag_fetch(const ThreeMMTag *tag, ThreeMMResourceReader reader, int use_media,
-                         const ThreeMMTagServices *s)
+void *mm_tag_fetch(const MMTag *tag, MMResourceReader reader, int use_media,
+                         const MMTagServices *s)
 {
     void *cache, *object = NULL;
     if (!tag->sid)
@@ -113,16 +113,16 @@ void *three_mm_tag_fetch(const ThreeMMTag *tag, ThreeMMResourceReader reader, in
         s->missing(s->context, tag);
     return object;
 }
-int three_mm_tag_cache_file(const ThreeMMTag *tag, int children)
+int mm_tag_cache_file(const MMTag *tag, int children)
 {
     (void)tag;
     (void)children;
     return 1;
 }
-void three_mm_tag_clear_cache(ThreeMMI32 sid, ThreeMMU32 flags, const ThreeMMTagCacheServices *s)
+void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *s)
 {
-    ThreeMMU32 i, j, count = s->sources(s->context), caches;
-    ThreeMMI32 source, budget;
+    MMU32 i, j, count = s->sources(s->context), caches;
+    MMI32 source, budget;
     void *manager, *cache, *file;
     for (i = 0; i < count; ++i)
     {

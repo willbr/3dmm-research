@@ -22,7 +22,7 @@ class FontResourceFixtureAccess : public ThreeDFont
 };
 static bool TestFontResources()
 {
-    FILE *snapshot=nullptr; if (const char *path=std::getenv("THREE_MM_FONT_RESOURCE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
+    FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_FONT_RESOURCE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     bool ok=true; int loaded=0,authored=0,attempts=0;
     const int counts[]={0,1,4,128};

@@ -1,18 +1,18 @@
 /* Actor costume editing converted from engine actor.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/actor_costume_edit.h"
+#include "mm/actor_costume_edit.h"
 #include <string.h>
-static void release(const ThreeMMActorCostumeEditServices *s, void **p)
+static void release(const MMActorCostumeEditServices *s, void **p)
 {
     if (*p) s->release(s->context,*p);
     *p=NULL;
 }
-void three_mm_actor_edit_costume_fill(ThreeMMActorState *state, void *events, ThreeMMI32 first,
-    const ThreeMMActorCostume *incoming, const ThreeMMActorMotionServices *m, const ThreeMMActorCostumeEditServices *s)
+void mm_actor_edit_costume_fill(MMActorState *state, void *events, MMI32 first,
+    const MMActorCostume *incoming, const MMActorMotionServices *m, const MMActorCostumeEditServices *s)
 {
-    ThreeMMI32 i;
-    ThreeMMActorEvent event;
-    ThreeMMActorCostume costume;
+    MMI32 i;
+    MMActorEvent event;
+    MMActorCostume costume;
     void *material=NULL, *custom=NULL, *compare_material=NULL, *compare_custom=NULL, *current;
     int was_custom, replace=1, equal;
     current=s->current(s->context,incoming->body_set,&was_custom);
@@ -21,8 +21,8 @@ void three_mm_actor_edit_costume_fill(ThreeMMActorState *state, void *events, Th
     for (i=first; i<m->event_count(events); ++i)
     {
         m->event(events,i,&event);
-        if (event.aet==THREE_MM_ACTOR_ADD) break;
-        if (event.aet!=THREE_MM_ACTOR_COSTUME) continue;
+        if (event.aet==MM_ACTOR_ADD) break;
+        if (event.aet!=MM_ACTOR_COSTUME) continue;
         m->payload(events,i,&costume);
         if (costume.body_set!=incoming->body_set) continue;
         if (replace)
@@ -48,18 +48,18 @@ void three_mm_actor_edit_costume_fill(ThreeMMActorState *state, void *events, Th
         { custom=s->fetch_custom(s->context,costume.costume); if (compare_custom!=custom) break; }
 remove:
         release(s,&custom); release(s,&material);
-        three_mm_actor_edit_remove(state,events,i,1,m,&s->edits); --i;
+        mm_actor_edit_remove(state,events,i,1,m,&s->edits); --i;
     }
     if (!replace) { release(s,&compare_material); release(s,&compare_custom); }
     release(s,&custom); release(s,&material);
 }
-int three_mm_actor_edit_set_costume(ThreeMMActorState *state, ThreeMMActorSounds *list, void *events, ThreeMMI32 actor,
-    ThreeMMI32 clicked_set, const ThreeMMTag *tag, ThreeMMI32 costume, ThreeMMI32 custom,
-    const ThreeMMActorMotionServices *m, const ThreeMMActorCostumeEditServices *s)
+int mm_actor_edit_set_costume(MMActorState *state, MMActorSounds *list, void *events, MMI32 actor,
+    MMI32 clicked_set, const MMTag *tag, MMI32 costume, MMI32 custom,
+    const MMActorMotionServices *m, const MMActorCostumeEditServices *s)
 {
-    ThreeMMActorCostume value;
+    MMActorCostume value;
     void *resource;
-    ThreeMMI32 set=clicked_set;
+    MMI32 set=clicked_set;
     if (custom)
     {
         resource=s->fetch_custom(s->context,costume);
@@ -70,6 +70,6 @@ int three_mm_actor_edit_set_costume(ThreeMMActorState *state, ThreeMMActorSounds
     memset(&value,0,sizeof(value));
     value.body_set=set; value.tag=*tag; value.costume=costume; value.custom=custom;
     if (!s->reserve_events(s->context,1,sizeof(value))) return 0;
-    three_mm_actor_edit_costume_fill(state,events,state->nextEvent,&value,m,s);
-    return three_mm_actor_edit_add_apply(state,list,events,actor,THREE_MM_ACTOR_COSTUME,sizeof(value),&value,m,&s->edits);
+    mm_actor_edit_costume_fill(state,events,state->nextEvent,&value,m,s);
+    return mm_actor_edit_add_apply(state,list,events,actor,MM_ACTOR_COSTUME,sizeof(value),&value,m,&s->edits);
 }

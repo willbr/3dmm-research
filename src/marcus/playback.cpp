@@ -19,7 +19,7 @@
 
 namespace
 {
-using namespace ThreeMM;
+using namespace MM;
 bool Fail(Error &error, const std::string &message)
 {
     error.code = ErrorCode::decode_failed;
@@ -800,7 +800,7 @@ bool MarcusPlayback::RestoreAudio(Preview &preview, const std::vector<MarcusResu
     impl->restoreMusic = false;
     return true;
 }
-bool MarcusPlayback::Select(ThreeMM::Preview &preview, ThreeMM::Error &error, bool preserveAudio)
+bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserveAudio)
 {
     if (preserveAudio)
     {
@@ -841,7 +841,7 @@ void MarcusPlayback::Mute(bool muted)
 {
     impl->audio.Mute(muted);
 }
-void MarcusPlayback::Seek(ThreeMM::Preview *preview)
+void MarcusPlayback::Seek(MM::Preview *preview)
 {
     impl->audio.Clear();
     impl->ResetTiming();
@@ -868,7 +868,7 @@ double MarcusPlayback::FrameSeconds() const
     return impl->transition ? std::min(0.0, impl->transitionTime / 1000 - TransitionSeconds(impl->transition))
                             : impl->frameSeconds;
 }
-void MarcusPlayback::BeginTransition(int kind, const ThreeMM::PreviewImage &previous)
+void MarcusPlayback::BeginTransition(int kind, const MM::PreviewImage &previous)
 {
     if (kind < 1 || kind > 4 || previous.rgba.empty())
         return;
@@ -877,8 +877,8 @@ void MarcusPlayback::BeginTransition(int kind, const ThreeMM::PreviewImage &prev
     impl->transitionTime = 0;
     impl->previous = previous;
 }
-bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elapsed, bool click, bool &advance,
-                            ThreeMM::Error &error)
+bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, bool click, bool &advance,
+                            MM::Error &error)
 {
     impl->ObserveCaptions(preview.Info().currentFrame);
     advance = false;
@@ -1011,8 +1011,8 @@ bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elap
     }
     return true;
 }
-bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM::PreviewImage &image,
-                               ThreeMM::Error &error)
+bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image,
+                               MM::Error &error)
 {
     const auto frame = preview.Info().currentFrame;
     impl->ObserveCaptions(frame);
@@ -1022,7 +1022,7 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
         return true;
     if (authored || image.sceneCamera.valid)
     {
-        ThreeMM::PreviewImage layer;
+        MM::PreviewImage layer;
         auto canvas = &image;
         if (!authored)
         {

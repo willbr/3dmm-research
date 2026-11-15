@@ -1,12 +1,12 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#ifndef THREE_MM_PREVIEW_ACTOR_H
-#define THREE_MM_PREVIEW_ACTOR_H
+#ifndef MM_PREVIEW_ACTOR_H
+#define MM_PREVIEW_ACTOR_H
 #include <functional>
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include "soc_core.h"
 #include "actor_sound.h"
 
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -58,5 +58,5 @@ class PreviewActor
     }
 };
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM
 #endif

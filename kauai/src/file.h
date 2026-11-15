@@ -15,9 +15,9 @@
 ***************************************************************************/
 #ifndef FILE_H
 #define FILE_H
-#include "three_mm/data_stream.h"
-#include "three_mm/block_io.h"
-#include "three_mm/block_owner.h"
+#include "mm/data_stream.h"
+#include "mm/block_io.h"
+#include "mm/block_owner.h"
 
 /****************************************
     Byte order issues
@@ -230,9 +230,9 @@ class DataBlock : public DataBlock_PAR
     MARKMEM
 
   protected:
-    ThreeMMBlockIO _IOView();
+    MMBlockIO _IOView();
     static int _DecodeHandle(void *, void **);
-    ThreeMMOwnedBlock _state;
+    MMOwnedBlock _state;
 
   public:
     DataBlock(PFileLocation pflo, bool fPacked = fFalse);

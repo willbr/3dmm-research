@@ -99,7 +99,7 @@ static std::vector<byte> Sound(int count)
 }
 struct Access : Scene
 {
-#ifdef THREE_MM_ENGINE_SCENE_OWNER_H
+#ifdef MM_ENGINE_SCENE_OWNER_H
     static void FailedRead(PScene scene, int count)
     {
         auto packet = Sound(count);
@@ -107,7 +107,7 @@ struct Access : Scene
         auto frames = scene->*&Access::_pggsevFrm;
         CHECK(frames->FInsert(0, packet.size(), packet.data(), &event));
         auto services = _OwnerServices();
-        three_mm_scene_owner_unwind(&(scene->*&Access::_owner), scene, 0, 1, &services);
+        mm_scene_owner_unwind(&(scene->*&Access::_owner), scene, 0, 1, &services);
     }
 #endif
     static void State(PScene s)
@@ -160,12 +160,12 @@ struct Access : Scene
         void *sound = nullptr;
         CHECK(FAllocPv(&sound, background.size(), fmemNil, mprNormal));
         std::memcpy(sound, background.data(), background.size());
-#ifdef THREE_MM_ENGINE_SCENE_OWNER_H
+#ifdef MM_ENGINE_SCENE_OWNER_H
         auto services = _OwnerServices();
         auto &owner = s->*&Access::_owner;
-        three_mm_scene_owner_set(&owner, s, THREE_MM_SCENE_SELECTION, extra, &services);
-        three_mm_scene_owner_set(&owner, s, THREE_MM_SCENE_THUMBNAIL, bitmap, &services);
-        three_mm_scene_owner_set(&owner, s, THREE_MM_SCENE_BACKGROUND_SOUND, sound, &services);
+        mm_scene_owner_set(&owner, s, MM_SCENE_SELECTION, extra, &services);
+        mm_scene_owner_set(&owner, s, MM_SCENE_THUMBNAIL, bitmap, &services);
+        mm_scene_owner_set(&owner, s, MM_SCENE_BACKGROUND_SOUND, sound, &services);
 #else
         s->*&Access::_pglpactrSelExtra = extra;
         s->*&Access::_pmbmp = bitmap;
@@ -181,7 +181,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto name = std::getenv("THREE_MM_SCENE_OWNER_SNAPSHOT"))
+    if (auto name = std::getenv("MM_SCENE_OWNER_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);
@@ -287,7 +287,7 @@ int main()
             Value(observed->CactRef());
             CHECK(observed->CactRef() == 1);
         }
-#ifdef THREE_MM_ENGINE_SCENE_OWNER_H
+#ifdef MM_ENGINE_SCENE_OWNER_H
     // Exercise the exact read-failure service bridge, outside the frozen trace.
     for (int count = 0; count < 6; ++count)
     {

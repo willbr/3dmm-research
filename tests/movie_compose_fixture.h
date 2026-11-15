@@ -13,7 +13,7 @@ class MovieComposeSceneAccess : public Scene
         if (!bitmap)
             return false;
         auto set = &MovieComposeSceneAccess::_SetOwner;
-        (scene->*set)(THREE_MM_SCENE_THUMBNAIL, bitmap);
+        (scene->*set)(MM_SCENE_THUMBNAIL, bitmap);
         return true;
     }
 };
@@ -34,7 +34,7 @@ class MovieComposeClient : public MovieEditClient
         ++sceneNuked;
     }
 };
-#ifdef THREE_MM_ENGINE_MOVIE_COMPOSE_H
+#ifdef MM_ENGINE_MOVIE_COMPOSE_H
 static bool TestComposeLiveIndex()
 {
     auto client = NewObj MovieComposeClient();
@@ -67,7 +67,7 @@ static bool TestComposeLiveIndex()
 static bool TestMovieCompose()
 {
     FILE *out = nullptr;
-    if (const char *path = std::getenv("THREE_MM_MOVIE_COMPOSE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_MOVIE_COMPOSE_SNAPSHOT"))
         out = std::fopen(path, "w+b");
     else
         out = std::tmpfile();
@@ -261,13 +261,13 @@ static bool TestMovieCompose()
         if (!ok)
             std::fprintf(stderr, "Movie roll-call remap failed: mode=%d\n", mode);
     }
-#ifdef THREE_MM_ENGINE_MOVIE_COMPOSE_H
+#ifdef MM_ENGINE_MOVIE_COMPOSE_H
     ok = TestComposeLiveIndex() && ok;
 #endif
 #ifdef _WIN64
     ok = std::fflush(out) == 0 && ok;
     ok = std::fseek(out, 0, SEEK_SET) == 0 && ok;
-    ThreeMMU32 hash = 2166136261U;
+    MMU32 hash = 2166136261U;
     size_t bytes = 0, count;
     unsigned char buffer[4096];
     while ((count = std::fread(buffer, 1, sizeof(buffer), out)) != 0)

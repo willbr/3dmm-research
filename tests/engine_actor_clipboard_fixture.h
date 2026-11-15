@@ -11,7 +11,7 @@ class ClipboardFixtureAccess : public ActorClipboard
 static bool TestActorClipboard(PMovie parent)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_CLIPBOARD_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_CLIPBOARD_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     auto client=static_cast<TestMcc *>(parent->Pmcc()); client->testingClipboard=true;

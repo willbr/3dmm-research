@@ -1,8 +1,8 @@
 /* Sound payload factories converted from Kauai midi.cpp, sdl_sound.cpp and sndam.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/sound_payload.h"
+#include "mm/sound_payload.h"
 #include <string.h>
-void *three_mm_midi_payload_read(void *block, const ThreeMMSoundPayloadServices *s)
+void *mm_midi_payload_read(void *block, const MMSoundPayloadServices *s)
 {
     void *object = s->create(s->context);
     if (!object)
@@ -14,10 +14,10 @@ void *three_mm_midi_payload_read(void *block, const ThreeMMSoundPayloadServices 
     }
     return object;
 }
-int three_mm_midi_payload_fetch(void *block, void *object_out, void *size_out, const ThreeMMSoundPayloadServices *s)
+int mm_midi_payload_fetch(void *block, void *object_out, void *size_out, const MMSoundPayloadServices *s)
 {
     void *object;
-    ThreeMMI32 bytes = s->block_size(s->context, block, 1);
+    MMI32 bytes = s->block_size(s->context, block, 1);
     memcpy(size_out, &bytes, 4);
     if (!object_out)
         return 1;
@@ -25,7 +25,7 @@ int three_mm_midi_payload_fetch(void *block, void *object_out, void *size_out, c
         goto fail;
     bytes = s->block_size(s->context, block, 0);
     memcpy(size_out, &bytes, 4);
-    object = three_mm_midi_payload_read(block, s);
+    object = mm_midi_payload_read(block, s);
     if (!object)
         goto fail;
     memcpy(object_out, &object, sizeof(object));
@@ -35,10 +35,10 @@ fail:
     s->invalidate(s->context, size_out, 4);
     return 0;
 }
-int three_mm_wave_payload_fetch(void *block, void *object_out, void *size_out, const ThreeMMSoundPayloadServices *s)
+int mm_wave_payload_fetch(void *block, void *object_out, void *size_out, const MMSoundPayloadServices *s)
 {
     void *object = NULL;
-    ThreeMMI32 bytes = s->object_bytes;
+    MMI32 bytes = s->object_bytes;
     memcpy(size_out, &bytes, 4);
     if (!object_out)
         return 1;
@@ -62,11 +62,11 @@ int three_mm_wave_payload_fetch(void *block, void *object_out, void *size_out, c
         s->decoded(s->context);
     return 1;
 }
-int three_mm_wave_stream_fetch(void *cache, ThreeMMU32 type, ThreeMMU32 number, void *object_out, void *size_out,
-                               const ThreeMMSoundPayloadServices *s)
+int mm_wave_stream_fetch(void *cache, MMU32 type, MMU32 number, void *object_out, void *size_out,
+                               const MMSoundPayloadServices *s)
 {
     void *object = NULL, *stream;
-    ThreeMMI32 bytes = s->object_bytes;
+    MMI32 bytes = s->object_bytes;
     memcpy(size_out, &bytes, 4);
     if (!object_out)
         return 1;

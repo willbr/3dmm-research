@@ -34,7 +34,7 @@
 #include <cstdint>
 
 #include "sound_queue.h"
-#include "three_mm/sound_resource.h"
+#include "mm/sound_resource.h"
 
 const long kSndSamplesPerSec = 22050;
 const long kSndBitsPerSample = 8;
@@ -82,14 +82,14 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     MARKMEM
 
   protected:
-    ThreeMMSoundResource _resource = {};
-    ThreeMMI32 _silent = 0;
+    MMSoundResource _resource = {};
+    MMI32 _silent = 0;
     String _stn; // Native String service; separate slots preserve the cache estimate.
     unsigned char _invalid = 0;
 
   protected:
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    static ThreeMMSoundResourceServices _ResourceServices(void *context);
+    static MMSoundResourceServices _ResourceServices(void *context);
 
   public:
     static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
@@ -105,7 +105,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     static long SqnBkgd(long sty, long objID);
     long Scl(bool fLoop)
     {
-        return three_mm_sound_class(_resource.style, fLoop);
+        return mm_sound_class(_resource.style, fLoop);
     }
     long SqnActr(long objID)
     {

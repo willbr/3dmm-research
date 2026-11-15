@@ -1,4 +1,4 @@
-#include "three_mm/background_camera.h"
+#include "mm/background_camera.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,15 +35,15 @@ enum
 typedef struct Points
 {
     int live, locked;
-    ThreeMMI32 count;
-    ThreeMMActorPoint values[2];
+    MMI32 count;
+    MMActorPoint values[2];
 } Points;
 typedef struct Host
 {
-    ThreeMMBackgroundCameraState state;
-    ThreeMMBackgroundCameraServices services;
+    MMBackgroundCameraState state;
+    MMBackgroundCameraServices services;
     unsigned char bytes[100];
-    ThreeMMU32 length;
+    MMU32 length;
     Points old_points, new_points;
     int trace[64], traces, fail, fail_point, reads, puts;
 } Host;
@@ -52,7 +52,7 @@ static void event(Host *h, int value)
     CHECK(h->traces < 64);
     h->trace[h->traces++] = value;
 }
-static int read_at(void *p, ThreeMMU32 offset, void *out, size_t count)
+static int read_at(void *p, MMU32 offset, void *out, size_t count)
 {
     Host *h = (Host *)p;
     event(h, offset ? POINT_READ : HEADER);
@@ -66,7 +66,7 @@ static int read_at(void *p, ThreeMMU32 offset, void *out, size_t count)
     memcpy(out, h->bytes + offset, count);
     return 1;
 }
-static void word(unsigned char *p, ThreeMMU32 value, int big)
+static void word(unsigned char *p, MMU32 value, int big)
 {
     int i;
     for (i = 0; i < 4; ++i)
@@ -83,17 +83,17 @@ static void wire(Host *h, int big)
     h->bytes[12] = (unsigned char)(big ? 0xFE : 0xDC);
     h->bytes[13] = (unsigned char)(big ? 0xDC : 0xFE);
     for (i = 0; i < 3; ++i)
-        word(h->bytes + 16 + i * 4, (ThreeMMU32)(i - 2), big);
+        word(h->bytes + 16 + i * 4, (MMU32)(i - 2), big);
     for (i = 0; i < 12; ++i)
-        word(h->bytes + 28 + i * 4, (ThreeMMU32)(i * 100 - 555), big);
+        word(h->bytes + 28 + i * 4, (MMU32)(i * 100 - 555), big);
     for (i = 0; i < 6; ++i)
-        word(h->bytes + 76 + i * 4, (ThreeMMU32)(i * 200 - 666), big);
+        word(h->bytes + 76 + i * 4, (MMU32)(i * 200 - 666), big);
 }
 static void lights(void *p)
 {
     event((Host *)p, LIGHTS);
 }
-static int read_camera(void *p, ThreeMMI32 camera, ThreeMMReadStream *r, ThreeMMU32 *number)
+static int read_camera(void *p, MMI32 camera, MMReadStream *r, MMU32 *number)
 {
     Host *h = (Host *)p;
     event(h, READ);
@@ -104,7 +104,7 @@ static int read_camera(void *p, ThreeMMI32 camera, ThreeMMReadStream *r, ThreeMM
     *number = 456;
     return h->fail != READ;
 }
-static int child(void *p, ThreeMMU32 number, int depth, ThreeMMU32 *out)
+static int child(void *p, MMU32 number, int depth, MMU32 *out)
 {
     Host *h = (Host *)p;
     int code = depth ? DEPTH : RGB;
@@ -113,7 +113,7 @@ static int child(void *p, ThreeMMU32 number, int depth, ThreeMMU32 *out)
     *out = depth ? 789 : 123;
     return h->fail != code;
 }
-static int background(void *p, ThreeMMU32 rgb, ThreeMMU32 depth)
+static int background(void *p, MMU32 rgb, MMU32 depth)
 {
     Host *h = (Host *)p;
     event(h, BACKGROUND);
@@ -121,7 +121,7 @@ static int background(void *p, ThreeMMU32 rgb, ThreeMMU32 depth)
     CHECK(h->old_points.live && h->state.next_point == 2 && h->state.last_point == 1);
     return h->fail != BACKGROUND;
 }
-static void *new_points(void *p, ThreeMMI32 count)
+static void *new_points(void *p, MMI32 count)
 {
     Host *h = (Host *)p;
     event(h, ALLOCATE);
@@ -155,7 +155,7 @@ static void unlock(void *p, void *points)
     CHECK(v->live && v->locked);
     v->locked = 0;
 }
-static void put(void *p, void *points, ThreeMMI32 index, const ThreeMMActorPoint *value)
+static void put(void *p, void *points, MMI32 index, const MMActorPoint *value)
 {
     Host *h = (Host *)p;
     Points *v = (Points *)points;
@@ -164,19 +164,19 @@ static void put(void *p, void *points, ThreeMMI32 index, const ThreeMMActorPoint
     v->values[index] = *value;
     ++h->puts;
 }
-static void get(void *p, void *points, ThreeMMI32 index, ThreeMMActorPoint *value)
+static void get(void *p, void *points, MMI32 index, MMActorPoint *value)
 {
     Points *v = (Points *)points;
     (void)p;
     CHECK(v->live && !v->locked && index >= 0 && index < v->count);
     *value = v->values[index];
 }
-static ThreeMMI32 count(void *p, void *points)
+static MMI32 count(void *p, void *points)
 {
     (void)p;
     return ((Points *)points)->count;
 }
-static void euler(void *p, const ThreeMMActorMatrix *m, unsigned short *a, unsigned short *c)
+static void euler(void *p, const MMActorMatrix *m, unsigned short *a, unsigned short *c)
 {
     Host *h = (Host *)p;
     event(h, EULER);
@@ -185,7 +185,7 @@ static void euler(void *p, const ThreeMMActorMatrix *m, unsigned short *a, unsig
     *a = 0xFFFF;
     *c = 0x2345;
 }
-static void rotate(void *p, ThreeMMActorMatrix *out, unsigned short yaw)
+static void rotate(void *p, MMActorMatrix *out, unsigned short yaw)
 {
     Host *h = (Host *)p;
     event(h, ROTATE);
@@ -193,7 +193,7 @@ static void rotate(void *p, ThreeMMActorMatrix *out, unsigned short yaw)
     memset(out, 0, sizeof(*out));
     out->m[0][0] = 1234;
 }
-static void translate(void *p, ThreeMMActorMatrix *out, const ThreeMMActorPoint *v)
+static void translate(void *p, MMActorMatrix *out, const MMActorPoint *v)
 {
     event((Host *)p, TRANSLATE);
     CHECK(out->m[0][0] == 1234 && v->dxr == 345 && v->dyr == 445 && v->dzr == 545);
@@ -201,7 +201,7 @@ static void translate(void *p, ThreeMMActorMatrix *out, const ThreeMMActorPoint 
     out->m[3][1] = v->dyr;
     out->m[3][2] = v->dzr;
 }
-static void camera(void *p, const ThreeMMBackgroundCameraData *d)
+static void camera(void *p, const MMBackgroundCameraData *d)
 {
     Host *h = (Host *)p;
     event(h, CAMERA);
@@ -216,13 +216,13 @@ static void diagnostic(void *p, int issue)
 {
     Host *h = (Host *)p;
     event(h, DIAGNOSTIC);
-    CHECK(issue == (h->length < 76 ? THREE_MM_BACKGROUND_CAMERA_SHORT : THREE_MM_BACKGROUND_CAMERA_TAIL));
+    CHECK(issue == (h->length < 76 ? MM_BACKGROUND_CAMERA_SHORT : MM_BACKGROUND_CAMERA_TAIL));
 }
 static void init(Host *h, int big)
 {
-    ThreeMMBackgroundCameraServices *s;
+    MMBackgroundCameraServices *s;
     memset(h, 0, sizeof(*h));
-    three_mm_background_camera_init(&h->state);
+    mm_background_camera_init(&h->state);
     CHECK(h->state.current == -1 && !h->state.points && !h->state.count);
     h->state.count = 3;
     h->state.current = 2;
@@ -269,15 +269,15 @@ static void unchanged(Host *h)
 static void decode_tests(int big)
 {
     Host h;
-    ThreeMMReadStream r;
-    ThreeMMBackgroundCameraData d, before;
-    ThreeMMActorPoint v, previous;
+    MMReadStream r;
+    MMBackgroundCameraData d, before;
+    MMActorPoint v, previous;
     int i;
     init(&h, big);
     r.context = &h;
     r.read_at = read_at;
     r.length = h.length;
-    CHECK(three_mm_background_camera_decode(&r, &d));
+    CHECK(mm_background_camera_decode(&r, &d));
     CHECK(d.big == big && d.point_count == 2);
     CHECK(d.near_z == (-2147483647 - 1) && d.far_z == 2147483647 && d.fov == 0xFEDC);
     CHECK(d.place.dxr == -2 && d.place.dyr == -1 && !d.place.dzr);
@@ -285,51 +285,51 @@ static void decode_tests(int big)
         CHECK(d.matrix.m[i / 3][i % 3] == i * 100 - 555);
     for (i = 0; i < 2; ++i)
     {
-        CHECK(three_mm_background_point_decode(&r, &d, i, &v));
+        CHECK(mm_background_point_decode(&r, &d, i, &v));
         CHECK(v.dxr == i * 600 - 666 && v.dyr == i * 600 - 466 && v.dzr == i * 600 - 266);
     }
     previous = v;
-    CHECK(!three_mm_background_point_decode(&r, &d, -1, &v));
+    CHECK(!mm_background_point_decode(&r, &d, -1, &v));
     CHECK(!memcmp(&v, &previous, sizeof(v)));
-    CHECK(!three_mm_background_point_decode(&r, &d, 2, &v));
+    CHECK(!mm_background_point_decode(&r, &d, 2, &v));
     CHECK(!memcmp(&v, &previous, sizeof(v)));
     r.length = 88;
-    CHECK(!three_mm_background_point_decode(&r, &d, 1, &v));
+    CHECK(!mm_background_point_decode(&r, &d, 1, &v));
     CHECK(!memcmp(&v, &previous, sizeof(v)));
     r.length = 100;
     h.reads = 0;
     h.fail_point = 0;
-    CHECK(!three_mm_background_point_decode(&r, &d, 0, &v));
+    CHECK(!mm_background_point_decode(&r, &d, 0, &v));
     CHECK(!memcmp(&v, &previous, sizeof(v)));
     memcpy(&before, &d, sizeof(before));
     h.fail = HEADER;
-    CHECK(!three_mm_background_camera_decode(&r, &d));
+    CHECK(!mm_background_camera_decode(&r, &d));
     CHECK(!memcmp(&d, &before, sizeof(d)));
     h.fail = 0;
     h.bytes[0] = h.bytes[1] = 0;
-    CHECK(!three_mm_background_camera_decode(&r, &d));
+    CHECK(!mm_background_camera_decode(&r, &d));
     CHECK(!memcmp(&d, &before, sizeof(d)));
     wire(&h, big);
     r.length = 75;
-    CHECK(!three_mm_background_camera_decode(&r, &d));
+    CHECK(!mm_background_camera_decode(&r, &d));
     CHECK(!memcmp(&d, &before, sizeof(d)));
     r.length = 77;
-    CHECK(!three_mm_background_camera_decode(&r, &d));
+    CHECK(!mm_background_camera_decode(&r, &d));
     CHECK(!memcmp(&d, &before, sizeof(d)));
     r.length = 76;
-    CHECK(three_mm_background_camera_decode(&r, &d) && !d.point_count);
+    CHECK(mm_background_camera_decode(&r, &d) && !d.point_count);
     /* Maximum wire length: count and offsets remain in range without allocation. */
     r.length = 4294967284U;
-    CHECK(three_mm_background_camera_decode(&r, &d) && d.point_count == 357913934);
+    CHECK(mm_background_camera_decode(&r, &d) && d.point_count == 357913934);
     d.point_count = 2147483647;
     r.length = 76;
-    CHECK(!three_mm_background_point_decode(&r, &d, 2147483646, &v));
+    CHECK(!mm_background_point_decode(&r, &d, 2147483646, &v));
     CHECK(!memcmp(&v, &previous, sizeof(v)));
 }
 static void controller_tests(int big)
 {
     Host h;
-    ThreeMMActorPoint v;
+    MMActorPoint v;
     int i;
     const int success[] = {LIGHTS, READ,       HEADER, RGB,    DEPTH, BACKGROUND, RELEASE,   ALLOCATE, LOCK, POINT_READ,
                            PUT,    POINT_READ, PUT,    UNLOCK, EULER, ROTATE,     TRANSLATE, CAMERA,   DIRTY};
@@ -342,34 +342,34 @@ static void controller_tests(int big)
     const int failed_second[] = {LIGHTS,   READ, HEADER,     RGB, DEPTH,      BACKGROUND, RELEASE,
                                  ALLOCATE, LOCK, POINT_READ, PUT, POINT_READ, UNLOCK,     RELEASE};
     init(&h, big);
-    CHECK(three_mm_background_camera_set(&h.state, 1, &h.services));
+    CHECK(mm_background_camera_set(&h.state, 1, &h.services));
     expect(&h, success, sizeof(success) / sizeof(*success));
     CHECK(h.state.points == &h.new_points && h.puts == 2);
     CHECK(h.state.count == 3 && !h.state.last_point && !h.state.next_point);
     for (i = 0; i < 7; ++i)
     {
-        three_mm_background_place(&h.state, &v, &h.services);
+        mm_background_place(&h.state, &v, &h.services);
         CHECK(v.dxr == (i % 3 == 0 ? -2 : i % 3 == 1 ? -666 : -66));
         if (i == 1)
         {
-            three_mm_background_reuse_place(&h.state);
-            three_mm_background_place(&h.state, &v, &h.services);
+            mm_background_reuse_place(&h.state);
+            mm_background_place(&h.state, &v, &h.services);
             CHECK(v.dxr == -666);
         }
     }
     h.traces = 0;
-    three_mm_background_camera_dispose(&h.state, &h.services);
+    mm_background_camera_dispose(&h.state, &h.services);
     CHECK(!h.state.points && !h.new_points.live && h.traces == 1 && h.trace[0] == RELEASE);
     CHECK(!h.state.next_point && !h.state.last_point);
-    three_mm_background_place(&h.state, &v, &h.services);
+    mm_background_place(&h.state, &v, &h.services);
     CHECK(v.dxr == -2 && !h.state.next_point);
-    three_mm_background_camera_dispose(&h.state, &h.services);
+    mm_background_camera_dispose(&h.state, &h.services);
     CHECK(h.traces == 1);
     for (i = READ; i <= BACKGROUND; ++i)
     {
         init(&h, big);
         h.fail = i;
-        CHECK(!three_mm_background_camera_set(&h.state, 1, &h.services));
+        CHECK(!mm_background_camera_set(&h.state, 1, &h.services));
         expect(&h, success, i);
         unchanged(&h);
         CHECK(h.state.points == &h.old_points && h.old_points.live);
@@ -379,14 +379,14 @@ static void controller_tests(int big)
     {
         init(&h, big);
         h.length = i ? 77 : 75;
-        CHECK(!three_mm_background_camera_set(&h.state, 1, &h.services));
+        CHECK(!mm_background_camera_set(&h.state, 1, &h.services));
         CHECK(h.traces == 3 && h.trace[0] == LIGHTS && h.trace[1] == READ && h.trace[2] == DIAGNOSTIC);
         unchanged(&h);
         CHECK(h.old_points.live);
     }
     init(&h, big);
     h.bytes[0] = h.bytes[1] = 0;
-    CHECK(!three_mm_background_camera_set(&h.state, 1, &h.services));
+    CHECK(!mm_background_camera_set(&h.state, 1, &h.services));
     expect(&h, success, 3);
     unchanged(&h);
     CHECK(h.old_points.live);
@@ -394,7 +394,7 @@ static void controller_tests(int big)
     {
         init(&h, big);
         h.fail_point = i;
-        CHECK(!three_mm_background_camera_set(&h.state, 1, &h.services));
+        CHECK(!mm_background_camera_set(&h.state, 1, &h.services));
         if (i)
             expect(&h, failed_second, sizeof(failed_second) / sizeof(*failed_second));
         else
@@ -410,16 +410,16 @@ static void controller_tests(int big)
             h.length = 76;
         else
             h.fail = ALLOCATE;
-        CHECK(three_mm_background_camera_set(&h.state, 1, &h.services));
+        CHECK(mm_background_camera_set(&h.state, 1, &h.services));
         CHECK(!h.state.points);
         if (i)
             expect(&h, no_points, sizeof(no_points) / sizeof(*no_points));
         else
             expect(&h, no_memory, sizeof(no_memory) / sizeof(*no_memory));
-        three_mm_background_reuse_place(&h.state);
-        three_mm_background_place(&h.state, &v, &h.services);
+        mm_background_reuse_place(&h.state);
+        mm_background_place(&h.state, &v, &h.services);
         CHECK(v.dxr == -2 && !h.state.next_point);
-        three_mm_background_place(&h.state, &v, &h.services);
+        mm_background_place(&h.state, &v, &h.services);
         CHECK(v.dxr == -2 && !h.state.last_point);
     }
 }

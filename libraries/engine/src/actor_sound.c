@@ -1,121 +1,121 @@
 /* Actor sound policy converted from engine actrsnd.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/actor_sound.h"
-#include "three_mm/wide.h"
+#include "mm/actor_sound.h"
+#include "mm/wide.h"
 #include <string.h>
-int three_mm_actor_sound_cel(ThreeMMI32 cel, ThreeMMI32 count, ThreeMMI32 *out)
+int mm_actor_sound_cel(MMI32 cel, MMI32 count, MMI32 *out)
 {
     if (count <= 0) return 0;
-    *out = cel < 0 ? -(ThreeMMI32)((0U - (ThreeMMU32)cel) % (ThreeMMU32)count) : cel % count;
+    *out = cel < 0 ? -(MMI32)((0U - (MMU32)cel) % (MMU32)count) : cel % count;
     return 1;
 }
-ThreeMMI32 three_mm_sound_queue_number(ThreeMMI32 style, ThreeMMI32 object, int actor)
+MMI32 mm_sound_queue_number(MMI32 style, MMI32 object, int actor)
 {
-    ThreeMMU32 low = (ThreeMMU32)object & 65535U;
+    MMU32 low = (MMU32)object & 65535U;
     if (low >= 32768U) low |= 0xffff0000UL;
-    return three_mm_signed_word((actor ? 0x10000000UL : 0x20000000UL) | ((ThreeMMU32)style << 16) | low);
+    return mm_signed_word((actor ? 0x10000000UL : 0x20000000UL) | ((MMU32)style << 16) | low);
 }
-static ThreeMMArray view(ThreeMMActorSounds *list)
+static MMArray view(MMActorSounds *list)
 {
-    ThreeMMArray array;
+    MMArray array;
     array.storage = &list->storage;
-    array.width = sizeof(ThreeMMActorMotionSound);
+    array.width = sizeof(MMActorMotionSound);
     array.count = list->count;
     array.free_count = 0;
     array.allocated = array.trash_unused = 0;
     return array;
 }
-int three_mm_actor_sounds_init(ThreeMMActorSounds *list, const ThreeMMStorageAllocator *allocator)
+int mm_actor_sounds_init(MMActorSounds *list, const MMStorageAllocator *allocator)
 {
-    if (three_mm_storage_init(&list->storage, allocator) != THREE_MM_STORAGE_OK)
+    if (mm_storage_init(&list->storage, allocator) != MM_STORAGE_OK)
         return 0;
     list->count = 0;
-    list->storage.min_grow[0] = THREE_MM_ACTOR_SOUND_GROW * sizeof(ThreeMMActorMotionSound);
+    list->storage.min_grow[0] = MM_ACTOR_SOUND_GROW * sizeof(MMActorMotionSound);
     return 1;
 }
-void three_mm_actor_sounds_dispose(ThreeMMActorSounds *list)
+void mm_actor_sounds_dispose(MMActorSounds *list)
 {
-    three_mm_storage_dispose(&list->storage);
+    mm_storage_dispose(&list->storage);
     list->count = 0;
 }
-int three_mm_actor_sounds_reserve(ThreeMMActorSounds *list, ThreeMMU32 additional)
+int mm_actor_sounds_reserve(MMActorSounds *list, MMU32 additional)
 {
-    ThreeMMArray array = view(list);
-    return three_mm_array_reserve(&array, additional, 0) == THREE_MM_STORAGE_OK;
+    MMArray array = view(list);
+    return mm_array_reserve(&array, additional, 0) == MM_STORAGE_OK;
 }
-void three_mm_actor_sounds_clear(ThreeMMActorSounds *list) { list->count = 0; }
-int three_mm_actor_sounds_get(const ThreeMMActorSounds *list, ThreeMMU32 i, ThreeMMActorMotionSound *out)
+void mm_actor_sounds_clear(MMActorSounds *list) { list->count = 0; }
+int mm_actor_sounds_get(const MMActorSounds *list, MMU32 i, MMActorMotionSound *out)
 {
     if (i >= list->count)
         return 0;
     memcpy(out, list->storage.buffers[0].data + i * sizeof(*out), sizeof(*out));
     return 1;
 }
-int three_mm_actor_sounds_put(ThreeMMActorSounds *list, ThreeMMU32 i, const ThreeMMActorMotionSound *record)
+int mm_actor_sounds_put(MMActorSounds *list, MMU32 i, const MMActorMotionSound *record)
 {
     if (i >= list->count)
         return 0;
     memmove(list->storage.buffers[0].data + i * sizeof(*record), record, sizeof(*record));
     return 1;
 }
-int three_mm_actor_sounds_delete(ThreeMMActorSounds *list, ThreeMMU32 i)
+int mm_actor_sounds_delete(MMActorSounds *list, MMU32 i)
 {
-    ThreeMMArray array = view(list);
-    if (three_mm_array_delete(&array, i, 1) != THREE_MM_STORAGE_OK)
+    MMArray array = view(list);
+    if (mm_array_delete(&array, i, 1) != MM_STORAGE_OK)
         return 0;
     list->count = array.count;
     return 1;
 }
-int three_mm_actor_sounds_insert(ThreeMMActorSounds *list, const ThreeMMActorEvent *event, const ThreeMMActorSound *sound)
+int mm_actor_sounds_insert(MMActorSounds *list, const MMActorEvent *event, const MMActorSound *sound)
 {
-    ThreeMMActorMotionSound record, *records;
-    ThreeMMArray array;
-    ThreeMMU32 i;
+    MMActorMotionSound record, *records;
+    MMArray array;
+    MMU32 i;
     memset(&record, 0, sizeof(record));
     record.event = *event;
     record.sound = *sound;
-    records = (ThreeMMActorMotionSound *)list->storage.buffers[0].data;
+    records = (MMActorMotionSound *)list->storage.buffers[0].data;
     for (i = 0; i < list->count; ++i)
         if (records[i].sound.cel == record.sound.cel && records[i].sound.style == record.sound.style)
-            return three_mm_actor_sounds_put(list, i, &record);
+            return mm_actor_sounds_put(list, i, &record);
     array = view(list);
-    if (three_mm_array_add(&array, &record, 0) != THREE_MM_STORAGE_OK)
+    if (mm_array_add(&array, &record, 0) != MM_STORAGE_OK)
         return 0;
     list->count = array.count;
     return 1;
 }
-void three_mm_actor_sounds_swap(ThreeMMActorSounds *a, ThreeMMActorSounds *b)
+void mm_actor_sounds_swap(MMActorSounds *a, MMActorSounds *b)
 {
-    ThreeMMActorSounds temp = *a;
+    MMActorSounds temp = *a;
     *a = *b;
     *b = temp;
 }
-int three_mm_actor_sounds_clone(ThreeMMActorSounds *destination, const ThreeMMActorSounds *source)
+int mm_actor_sounds_clone(MMActorSounds *destination, const MMActorSounds *source)
 {
-    ThreeMMActorSounds fresh;
+    MMActorSounds fresh;
     if (destination == source)
         return 1;
-    if (!three_mm_actor_sounds_init(&fresh, &destination->storage.allocator))
+    if (!mm_actor_sounds_init(&fresh, &destination->storage.allocator))
         return 0;
-    if (!three_mm_actor_sounds_reserve(&fresh, source->count))
+    if (!mm_actor_sounds_reserve(&fresh, source->count))
     {
-        three_mm_actor_sounds_dispose(&fresh);
+        mm_actor_sounds_dispose(&fresh);
         return 0;
     }
     if (source->count)
         memcpy(fresh.storage.buffers[0].data, source->storage.buffers[0].data,
-               source->count * sizeof(ThreeMMActorMotionSound));
+               source->count * sizeof(MMActorMotionSound));
     fresh.count = source->count;
-    three_mm_actor_sounds_swap(destination, &fresh);
-    three_mm_actor_sounds_dispose(&fresh);
+    mm_actor_sounds_swap(destination, &fresh);
+    mm_actor_sounds_dispose(&fresh);
     return 1;
 }
 enum { EMIT_OK, EMIT_MISSING, EMIT_FAILED };
-static int emit(ThreeMMActorSound *sound, ThreeMMI32 index, int motion, const ThreeMMActorSoundServices *s)
+static int emit(MMActorSound *sound, MMI32 index, int motion, const MMActorSoundServices *s)
 {
     void *resource;
     int kind, success;
-    ThreeMMI32 priority;
+    MMI32 priority;
     if (s->cues_only)
         return s->cue(s->context, sound) ? EMIT_OK : EMIT_FAILED;
     if (!sound->tag.sid)
@@ -132,31 +132,31 @@ static int emit(ThreeMMActorSound *sound, ThreeMMI32 index, int motion, const Th
     resource = s->fetch(s->context, &sound->tag);
     if (!resource)
         return EMIT_MISSING;
-    kind = motion ? THREE_MM_ACTOR_SOUND_MATCH : sound->loop ? THREE_MM_ACTOR_SOUND_LOOP : THREE_MM_ACTOR_SOUND_ORDINARY;
+    kind = motion ? MM_ACTOR_SOUND_MATCH : sound->loop ? MM_ACTOR_SOUND_LOOP : MM_ACTOR_SOUND_ORDINARY;
     priority = s->priority(s->context, resource, kind);
     success = s->enqueue(s->context, resource, sound, priority, motion);
     s->release(s->context, resource);
     return success ? EMIT_OK : EMIT_FAILED;
 }
-int three_mm_actor_sound_event(ThreeMMActorSounds *list, const ThreeMMActorEvent *event, const ThreeMMActorSound *sound,
-                               ThreeMMI32 index, const ThreeMMActorSoundServices *s)
+int mm_actor_sound_event(MMActorSounds *list, const MMActorEvent *event, const MMActorSound *sound,
+                               MMI32 index, const MMActorSoundServices *s)
 {
-    ThreeMMActorSound copy;
+    MMActorSound copy;
     if (sound->cel != -1)
-        return three_mm_actor_sounds_insert(list, event, sound);
+        return mm_actor_sounds_insert(list, event, sound);
     copy = *sound;
     return emit(&copy, index, 0, s) == EMIT_OK;
 }
-int three_mm_actor_sound_motion(ThreeMMActorSounds *list, ThreeMMI32 action, ThreeMMI32 cel,
-                                const ThreeMMActorSoundServices *s)
+int mm_actor_sound_motion(MMActorSounds *list, MMI32 action, MMI32 cel,
+                                const MMActorSoundServices *s)
 {
-    ThreeMMI32 count = 0, frame;
-    ThreeMMU32 i;
-    ThreeMMActorMotionSound *records;
+    MMI32 count = 0, frame;
+    MMU32 i;
+    MMActorMotionSound *records;
     int result, success = 1;
-    if (!s->cel_count(s->context, action, &count) || !three_mm_actor_sound_cel(cel, count, &frame))
+    if (!s->cel_count(s->context, action, &count) || !mm_actor_sound_cel(cel, count, &frame))
         return 0;
-    records = (ThreeMMActorMotionSound *)list->storage.buffers[0].data;
+    records = (MMActorMotionSound *)list->storage.buffers[0].data;
     for (i = 0; i < list->count; ++i)
         if (records[i].sound.cel == frame)
         {

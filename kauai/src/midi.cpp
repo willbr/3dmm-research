@@ -10,7 +10,7 @@
 
 ***************************************************************************/
 #include "kauai_core.h"
-#include "three_mm/midi.h"
+#include "mm/midi.h"
 ASSERTNAME
 
 RTCLASS(MidiStreamParser)
@@ -23,7 +23,7 @@ MidiStreamParser::MidiStreamParser(void)
 {
     AssertBaseThis(0);
     _pmids = pvNil;
-    three_mm_midi_parser_init(&_parser, nullptr, 0, 0, 500000);
+    mm_midi_parser_init(&_parser, nullptr, 0, 0, 500000);
 }
 
 /***************************************************************************
@@ -57,14 +57,14 @@ void MidiStreamParser::Init(PMidiStream pmids, LegacyUlong tsStart, LegacyLong l
         _pmids = pmids;
         if (!_pmids)
         {
-            three_mm_midi_parser_init(&_parser, nullptr, 0, 0, 500000);
+            mm_midi_parser_init(&_parser, nullptr, 0, 0, 500000);
             return;
         }
         _pmids->AddRef();
-        three_mm_midi_parser_init(&_parser, PvLockHq(_pmids->_hqrgb), CbOfHq(_pmids->_hqrgb), tsStart, lwTempo);
+        mm_midi_parser_init(&_parser, PvLockHq(_pmids->_hqrgb), CbOfHq(_pmids->_hqrgb), tsStart, lwTempo);
     }
     else if (_pmids)
-        three_mm_midi_parser_init(&_parser, _parser.data, _parser.size, tsStart, lwTempo);
+        mm_midi_parser_init(&_parser, _parser.data, _parser.size, tsStart, lwTempo);
     AssertThis(0);
 }
 
@@ -77,8 +77,8 @@ bool MidiStreamParser::FGetEvent(PMIDEV pmidev, bool fAdvance)
     AssertThis(0);
     AssertNilOrVarMem(pmidev);
 
-    ThreeMMMidiEvent event;
-    const bool ok = three_mm_midi_next(&_parser, &event, fAdvance) != 0;
+    MMMidiEvent event;
+    const bool ok = mm_midi_next(&_parser, &event, fAdvance) != 0;
     if (!ok)
     {
         TrashVar(pmidev);
@@ -107,7 +107,7 @@ void MidiStreamParser::AssertValid(LegacyUlong grf)
 
     AssertPo(_pmids, 0);
     Assert(_parser.data == (byte *)QvFromHq(_pmids->_hqrgb), 0);
-    Assert(_parser.size == static_cast<ThreeMMU32>(CbOfHq(_pmids->_hqrgb)), 0);
+    Assert(_parser.size == static_cast<MMU32>(CbOfHq(_pmids->_hqrgb)), 0);
     Assert(_parser.cursor <= _parser.size, 0);
 }
 
@@ -169,14 +169,14 @@ bool MidiStream::FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
     const auto services = _PayloadServices();
-    return three_mm_midi_payload_fetch(pblck, ppbaco, pcb, &services) != 0;
+    return mm_midi_payload_fetch(pblck, ppbaco, pcb, &services) != 0;
 }
 
-ThreeMMSoundPayloadServices MidiStream::_PayloadServices()
+MMSoundPayloadServices MidiStream::_PayloadServices()
 {
-    ThreeMMSoundPayloadServices s = {};
+    MMSoundPayloadServices s = {};
     s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block, int packed) -> ThreeMMI32 {
+    s.block_size = [](void *, void *block, int packed) -> MMI32 {
         return static_cast<PDataBlock>(block)->Cb(packed != 0);
     };
     s.create = [](void *) -> void * { return NewObj MidiStream; };
@@ -196,7 +196,7 @@ PMidiStream MidiStream::PmidsRead(PDataBlock pblck)
     AssertPo(pblck, 0);
 
     const auto services = _PayloadServices();
-    return static_cast<PMidiStream>(three_mm_midi_payload_read(pblck, &services));
+    return static_cast<PMidiStream>(mm_midi_payload_read(pblck, &services));
 }
 
 /***************************************************************************
@@ -215,12 +215,12 @@ PMidiStream MidiStream::PmidsReadNative(Filename *pfni)
     location.cb = file->FpMac();
     HQ source = nullptr;
     PMidiStream result = nullptr;
-    ThreeMMCollectionStorage scratch;
-    three_mm_storage_init(&scratch, nullptr);
+    MMCollectionStorage scratch;
+    mm_storage_init(&scratch, nullptr);
     if (location.cb > 0 && location.FReadHq(&source, location.cb, 0))
     {
-        ThreeMMU32 bytes;
-        const bool ok = three_mm_midi_import(PvLockHq(source), location.cb, &scratch, &bytes) != 0;
+        MMU32 bytes;
+        const bool ok = mm_midi_import(PvLockHq(source), location.cb, &scratch, &bytes) != 0;
         UnlockHq(source);
         if (ok && (result = NewObj MidiStream))
         {
@@ -233,7 +233,7 @@ PMidiStream MidiStream::PmidsReadNative(Filename *pfni)
                 ReleasePpo(&result);
         }
     }
-    three_mm_storage_dispose(&scratch);
+    mm_storage_dispose(&scratch);
     FreePhq(&source);
     ReleasePpo(&file);
     return result;

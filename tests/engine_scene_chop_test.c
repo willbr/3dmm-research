@@ -1,4 +1,4 @@
-#include "three_mm/scene_chop.h"
+#include "mm/scene_chop.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,25 +14,25 @@
 typedef struct Obj
 {
     int id, alive, lifetime;
-    ThreeMMI32 first, last;
+    MMI32 first, last;
 } Obj;
 typedef struct Frame
 {
-    ThreeMMI32 frame;
+    MMI32 frame;
     int kind, tags;
 } Frame;
 typedef struct Host
 {
-    ThreeMMSceneState data;
-    ThreeMMSceneRuntime runtime;
-    ThreeMMSceneOwner owner;
+    MMSceneState data;
+    MMSceneRuntime runtime;
+    MMSceneOwner owner;
     Obj objects[5], *lists[2][8];
     int sizes[2];
     Frame frames[8];
     int frame_count;
     int trace[128], traces, fail, stage, removal_sticks, seek_fails, show_fails, write_calls, switch_calls, dead;
     int file, resource, loaded, old, undo, has_resource;
-    ThreeMMSceneChopUndo *record;
+    MMSceneChopUndo *record;
 } Host;
 static void event(Host *h, int value)
 {
@@ -44,19 +44,19 @@ static void expect(Host *h, const int *values, int n)
     CHECK(h->traces == n && !memcmp(h->trace, values, n * sizeof(*values)));
     h->traces = 0;
 }
-static ThreeMMI32 count(void *p, void *group)
+static MMI32 count(void *p, void *group)
 {
     Host *h = (Host *)p;
     if (group == h->frames)
         return h->frame_count;
     return h->sizes[group == h->lists[1]];
 }
-static void *object(void *p, void *group, ThreeMMI32 index)
+static void *object(void *p, void *group, MMI32 index)
 {
     (void)p;
     return ((Obj **)group)[index];
 }
-static void read_event(void *p, void *g, ThreeMMI32 i, ThreeMMI32 *frame, int *kind)
+static void read_event(void *p, void *g, MMI32 i, MMI32 *frame, int *kind)
 {
     Host *h = (Host *)p;
     (void)g;
@@ -64,24 +64,24 @@ static void read_event(void *p, void *g, ThreeMMI32 i, ThreeMMI32 *frame, int *k
     *frame = h->frames[i].frame;
     *kind = h->frames[i].kind;
 }
-static void *payload(void *p, void *g, ThreeMMI32 i)
+static void *payload(void *p, void *g, MMI32 i)
 {
     (void)g;
     return &((Host *)p)->frames[i];
 }
-static ThreeMMI32 tags(void *p, void *data)
+static MMI32 tags(void *p, void *data)
 {
     if (data == &((Host *)p)->resource)
         return 0;
     return ((Frame *)data)->tags;
 }
-static ThreeMMI32 style(void *p, void *data)
+static MMI32 style(void *p, void *data)
 {
     (void)p;
     (void)data;
     return 0;
 }
-static void close_tag(void *p, void *data, ThreeMMI32 i)
+static void close_tag(void *p, void *data, MMI32 i)
 {
     (void)data;
     event((Host *)p, 80 + (int)i);
@@ -94,11 +94,11 @@ static void release(void *p, void *obj)
     if (obj == &h->resource && h->record)
         CHECK(h->record->resource == obj);
 }
-static void publish(void *p, void *scene, const ThreeMMSceneOwner *o)
+static void publish(void *p, void *scene, const MMSceneOwner *o)
 {
     Host *h = (Host *)p;
     (void)scene;
-    CHECK(!o->owned[THREE_MM_SCENE_BACKGROUND_SOUND]);
+    CHECK(!o->owned[MM_SCENE_BACKGROUND_SOUND]);
     event(h, 24);
 }
 static int trim(void *p, void *o, int back)
@@ -132,7 +132,7 @@ static int remove_text(void *p, void *o)
     remove_object(h, o, 1);
     return !h->removal_sticks;
 }
-static int lifetime(void *p, void *o, ThreeMMI32 *first, ThreeMMI32 *last)
+static int lifetime(void *p, void *o, MMI32 *first, MMI32 *last)
 {
     Obj *v = (Obj *)o;
     (void)p;
@@ -142,7 +142,7 @@ static int lifetime(void *p, void *o, ThreeMMI32 *first, ThreeMMI32 *last)
     *last = v->last;
     return 1;
 }
-static int seek(void *p, int text, void *o, ThreeMMI32 frame)
+static int seek(void *p, int text, void *o, MMI32 frame)
 {
     Host *h = (Host *)p;
     (void)o;
@@ -157,12 +157,12 @@ static int show(void *p, void *o)
     event(h, 132);
     return !h->show_fails;
 }
-static void start_text(void *p, void *o, ThreeMMI32 frame)
+static void start_text(void *p, void *o, MMI32 frame)
 {
     ((Obj *)o)->first = frame;
     event((Host *)p, 133);
 }
-static void erase(void *p, ThreeMMI32 i)
+static void erase(void *p, MMI32 i)
 {
     Host *h = (Host *)p;
     CHECK(i >= 0 && i < h->frame_count);
@@ -170,7 +170,7 @@ static void erase(void *p, ThreeMMI32 i)
     memmove(h->frames + i, h->frames + i + 1, (h->frame_count - i - 1) * sizeof(Frame));
     --h->frame_count;
 }
-static void set_frame(void *p, ThreeMMI32 i, ThreeMMI32 frame)
+static void set_frame(void *p, MMI32 i, MMI32 frame)
 {
     Host *h = (Host *)p;
     h->frames[i].frame = frame;
@@ -183,7 +183,7 @@ static void dirty(void *p)
 static void discard(void *p)
 {
     Host *h = (Host *)p;
-    CHECK(!h->owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND]);
+    CHECK(!h->owner.owned[MM_SCENE_BACKGROUND_SOUND]);
     h->runtime.background_frame = -99;
     event(h, 143);
 }
@@ -221,9 +221,9 @@ static void clear_undo(void *p)
 {
     event((Host *)p, 154);
 }
-static ThreeMMSceneChopServices init(Host *h)
+static MMSceneChopServices init(Host *h)
 {
-    ThreeMMSceneChopServices s;
+    MMSceneChopServices s;
     int i;
     memset(h, 0, sizeof(*h));
     memset(&s, 0, sizeof(s));
@@ -237,9 +237,9 @@ static ThreeMMSceneChopServices init(Host *h)
         h->objects[i].first = 1;
         h->objects[i].last = 10;
     }
-    h->owner.owned[THREE_MM_SCENE_ACTORS] = h->lists[0];
-    h->owner.owned[THREE_MM_SCENE_TEXTS] = h->lists[1];
-    h->owner.owned[THREE_MM_SCENE_FRAMES] = h->frames;
+    h->owner.owned[MM_SCENE_ACTORS] = h->lists[0];
+    h->owner.owned[MM_SCENE_TEXTS] = h->lists[1];
+    h->owner.owned[MM_SCENE_FRAMES] = h->frames;
     s.context = h;
     s.data = &h->data;
     s.events.context = h;
@@ -280,7 +280,7 @@ static ThreeMMSceneChopServices init(Host *h)
 static void test_core(void)
 {
     Host h;
-    ThreeMMSceneChopServices s = init(&h);
+    MMSceneChopServices s = init(&h);
     int i;
     const int forward[] = {100, 120, 101, 102, 120, 121, 130, 132, 131, 80, 81, 140, 140, 142};
     h.sizes[0] = 3;
@@ -295,25 +295,25 @@ static void test_core(void)
     h.runtime.next_event = 1;
     h.frame_count = 3;
     h.frames[0].frame = 1;
-    h.frames[1].kind = THREE_MM_SCENE_PLAY_SOUND;
+    h.frames[1].kind = MM_SCENE_PLAY_SOUND;
     h.frames[1].tags = 2;
-    h.frames[2].kind = THREE_MM_SCENE_PAUSE;
-    CHECK(three_mm_scene_chop(0, &s));
+    h.frames[2].kind = MM_SCENE_PAUSE;
+    CHECK(mm_scene_chop(0, &s));
     expect(&h, forward, 14);
     CHECK(h.sizes[0] == 1 && h.lists[0][0] == h.objects + 1 && h.sizes[1] == 2 && h.frame_count == 1 &&
           h.data.lastFrame == 5);
-    CHECK(three_mm_scene_chop_edit(0, &s) && !h.traces);
+    CHECK(mm_scene_chop_edit(0, &s) && !h.traces);
     s = init(&h);
     h.removal_sticks = 1;
     h.sizes[0] = h.sizes[1] = 1;
     h.lists[0][0] = h.lists[1][0] = h.objects;
     h.objects[0].first = 6;
-    CHECK(three_mm_scene_chop(0, &s) && h.sizes[0] == 1 && h.sizes[1] == 1 && h.data.lastFrame == 5);
+    CHECK(mm_scene_chop(0, &s) && h.sizes[0] == 1 && h.sizes[1] == 1 && h.data.lastFrame == 5);
     s = init(&h);
     h.sizes[1] = 1;
     h.lists[1][0] = h.objects;
     h.objects[0].lifetime = 0;
-    CHECK(three_mm_scene_chop(0, &s));
+    CHECK(mm_scene_chop(0, &s));
     {
         const int e[] = {144, 142};
         expect(&h, e, 2);
@@ -325,7 +325,7 @@ static void test_core(void)
         h.lists[1][0] = h.objects;
         h.seek_fails = !i;
         h.show_fails = i;
-        CHECK(three_mm_scene_chop(0, &s));
+        CHECK(mm_scene_chop(0, &s));
         if (!i)
         {
             const int e[] = {130, 142};
@@ -347,37 +347,37 @@ static void test_core(void)
     for (i = 0; i < 6; ++i)
     {
         h.frames[i].frame = i < 3 ? i + 1 : i == 5 ? 7 : 5;
-        h.frames[i].kind = THREE_MM_SCENE_PAUSE;
+        h.frames[i].kind = MM_SCENE_PAUSE;
     }
-    h.frames[0].kind = h.frames[2].kind = THREE_MM_SCENE_CHANGE_CAMERA;
-    h.frames[1].kind = THREE_MM_SCENE_PLAY_SOUND;
+    h.frames[0].kind = h.frames[2].kind = MM_SCENE_CHANGE_CAMERA;
+    h.frames[1].kind = MM_SCENE_PLAY_SOUND;
     h.frames[1].tags = 1;
-    h.owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND] = &h.resource;
+    h.owner.owned[MM_SCENE_BACKGROUND_SOUND] = &h.resource;
     h.runtime.background_frame = 2;
-    CHECK(three_mm_scene_chop(1, &s));
+    CHECK(mm_scene_chop(1, &s));
     {
         const int e[] = {121, 133, 141, 80, 140, 140, 142, 23, 24, 143};
         expect(&h, e, 10);
     }
     CHECK(h.data.firstFrame == 5 && h.runtime.next_event == 3 && h.frame_count == 4 &&
-          h.frames[0].kind == THREE_MM_SCENE_CHANGE_CAMERA && h.frames[0].frame == 5);
+          h.frames[0].kind == MM_SCENE_CHANGE_CAMERA && h.frames[0].frame == 5);
     CHECK(h.objects[1].first == 5 && h.sizes[1] == 1 && h.runtime.background_frame == -99);
-    CHECK(three_mm_scene_chop_edit(1, &s) && !h.traces);
+    CHECK(mm_scene_chop_edit(1, &s) && !h.traces);
     s = init(&h);
-    h.owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND] = &h.resource;
+    h.owner.owned[MM_SCENE_BACKGROUND_SOUND] = &h.resource;
     h.runtime.background_frame = 5;
-    CHECK(three_mm_scene_chop(1, &s) && h.owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND] && h.traces == 1);
+    CHECK(mm_scene_chop(1, &s) && h.owner.owned[MM_SCENE_BACKGROUND_SOUND] && h.traces == 1);
 }
 static void test_transaction(void)
 {
     Host h;
-    ThreeMMSceneChopServices s;
+    MMSceneChopServices s;
     int i;
     for (i = 0; i < 4; ++i)
     {
         s = init(&h);
         h.fail = i;
-        CHECK(three_mm_scene_chop_edit(0, &s) == !i);
+        CHECK(mm_scene_chop_edit(0, &s) == !i);
         CHECK(h.data.lastFrame == (i ? 10 : 5));
         if (i == 0)
         {
@@ -428,7 +428,7 @@ static void end(void *p)
 {
     event((Host *)p, 4);
 }
-static int write(void *p, void *scene, void *r, ThreeMMU32 *number)
+static int write(void *p, void *scene, void *r, MMU32 *number)
 {
     Host *h = (Host *)p;
     CHECK(scene == &h->old && r == &h->resource);
@@ -436,7 +436,7 @@ static int write(void *p, void *scene, void *r, ThreeMMU32 *number)
     *number = 42;
     return step(h, 5);
 }
-static void *read_snapshot(void *p, void *r, ThreeMMU32 number)
+static void *read_snapshot(void *p, void *r, MMU32 number)
 {
     Host *h = (Host *)p;
     CHECK(r == &h->resource && number == 17);
@@ -448,7 +448,7 @@ static int play(void *p, void *scene)
     CHECK(scene == &h->loaded);
     return step(h, 7);
 }
-static int switch_scene(void *p, ThreeMMI32 index)
+static int switch_scene(void *p, MMI32 index)
 {
     Host *h = (Host *)p;
     CHECK(index == 2);
@@ -471,19 +471,19 @@ static void close_scene(void *p, void *scene)
     Host *h = (Host *)p;
     event(h, scene == &h->loaded ? 25 : 26);
 }
-static int insert(void *p, ThreeMMI32 index, void *scene)
+static int insert(void *p, MMI32 index, void *scene)
 {
     Host *h = (Host *)p;
     CHECK(index == 2 && scene == &h->loaded);
     return step(h, 11);
 }
-static int remove_scene(void *p, ThreeMMI32 index)
+static int remove_scene(void *p, MMI32 index)
 {
     Host *h = (Host *)p;
     CHECK(index == 3);
     return step(h, 15);
 }
-static void delete_chunk(void *p, void *r, ThreeMMU32 number)
+static void delete_chunk(void *p, void *r, MMU32 number)
 {
     Host *h = (Host *)p;
     CHECK(r == &h->resource && number == 17);
@@ -495,7 +495,7 @@ static void rewind_scene(void *p, void *scene)
     CHECK(scene == &h->old);
     CHECK(step(h, 13));
 }
-static void seek_scene(void *p, ThreeMMI32 frame)
+static void seek_scene(void *p, MMI32 frame)
 {
     Host *h = (Host *)p;
     CHECK(frame == 9);
@@ -517,9 +517,9 @@ static void clear_snapshot(void *p)
     h->record = NULL;
     h->dead = 1;
 }
-static ThreeMMSceneSnapshotServices snapshots(Host *h)
+static MMSceneSnapshotServices snapshots(Host *h)
 {
-    ThreeMMSceneSnapshotServices s;
+    MMSceneSnapshotServices s;
     memset(&s, 0, sizeof(s));
     s.context = h;
     s.new_file = new_file;
@@ -547,8 +547,8 @@ static ThreeMMSceneSnapshotServices snapshots(Host *h)
 static void test_snapshot(void)
 {
     Host h;
-    ThreeMMSceneSnapshotServices s;
-    ThreeMMSceneChopUndo record;
+    MMSceneSnapshotServices s;
+    MMSceneChopUndo record;
     int i;
     const int failures[] = {0, 6, 7, 8, 11, 5, 15, 16};
     for (i = 0; i < 4; ++i)
@@ -558,7 +558,7 @@ static void test_snapshot(void)
         memset(&record, 0, sizeof(record));
         h.record = &record;
         h.fail = i == 3 ? 5 : i;
-        CHECK(three_mm_scene_chop_save(&record, &h.old, &s) == (i == 0));
+        CHECK(mm_scene_chop_save(&record, &h.old, &s) == (i == 0));
         CHECK(record.resource == ((i == 1 || i == 2) ? NULL : &h.resource));
         if (i == 0)
         {
@@ -580,7 +580,7 @@ static void test_snapshot(void)
             const int e[] = {1, 2, 21, 3, 5, 4};
             expect(&h, e, 6);
         }
-        three_mm_scene_chop_dispose(&record, &s);
+        mm_scene_chop_dispose(&record, &s);
         CHECK(!record.resource);
     }
     for (i = 0; i < 8; ++i)
@@ -589,11 +589,11 @@ static void test_snapshot(void)
         memset(&h, 0, sizeof(h));
         s = snapshots(&h);
         h.fail = failures[i];
-        h.record = (ThreeMMSceneChopUndo *)malloc(sizeof(*h.record));
+        h.record = (MMSceneChopUndo *)malloc(sizeof(*h.record));
         CHECK(h.record);
         h.record->resource = &h.resource;
         h.record->number = 17;
-        ok = three_mm_scene_chop_swap(h.record, 2, 9, &s);
+        ok = mm_scene_chop_swap(h.record, 2, 9, &s);
         CHECK(ok == (i == 0 || i == 7));
         if (!ok)
         {
@@ -623,7 +623,7 @@ static void test_snapshot(void)
         }
         if (h.record)
         {
-            three_mm_scene_chop_dispose(h.record, &s);
+            mm_scene_chop_dispose(h.record, &s);
             free(h.record);
         }
     }

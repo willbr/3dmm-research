@@ -1,5 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -9,8 +9,8 @@ int main(int argc, char **argv)
 {
     if (argc != 6)
         return 2;
-    ThreeMM::Preview preview;
-    ThreeMM::Error error;
+    MM::Preview preview;
+    MM::Error error;
     auto check = [&](bool ok) {
         if (!ok)
             std::fprintf(stderr, "%s\n", error.message.c_str());
@@ -27,8 +27,8 @@ int main(int argc, char **argv)
     if (!info.scene || !info.timeline || info.actors != 5 || info.firstFrame != 1 || info.lastFrame != 10 ||
         !info.cameraCount)
         return 1;
-    ThreeMM::PreviewImage first, later, repeated;
-    ThreeMM::PreviewView view;
+    MM::PreviewImage first, later, repeated;
+    MM::PreviewView view;
     if (!check(preview.Render(view, first, error)) || !first.coveredPixels)
         return 1;
     // Metadata evaluation must use a private track and leave the live pose intact.
@@ -37,7 +37,7 @@ int main(int argc, char **argv)
     unsigned entrances = 0, actions = 0, spans = 0;
     for (std::size_t object = 0; object < objects.size(); ++object)
     {
-        ThreeMM::PreviewAnimationTimeline timeline, again;
+        MM::PreviewAnimationTimeline timeline, again;
         if (!check(preview.ReadAnimationTimeline(static_cast<int>(object), timeline, error)) ||
             !check(preview.ReadAnimationTimeline(static_cast<int>(object), again, error)) ||
             timeline.spans.size() != again.spans.size() || timeline.events.size() != again.events.size())
@@ -58,8 +58,8 @@ int main(int argc, char **argv)
             if (event.frame < info.firstFrame || event.frame > info.lastFrame || event.frame != repeat.frame ||
                 event.kind != repeat.kind || event.name != repeat.name || event.detail != repeat.detail)
                 return 1;
-            entrances += event.kind == ThreeMM::PreviewAnimationKind::Entrance;
-            actions += event.kind == ThreeMM::PreviewAnimationKind::Action;
+            entrances += event.kind == MM::PreviewAnimationKind::Entrance;
+            actions += event.kind == MM::PreviewAnimationKind::Action;
         }
     }
     const auto observed = preview.Objects();
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
     }
     if (first.depth != repeated.depth)
         return 1;
-    if (preview.SetFrame(11, error) || error.code != ThreeMM::ErrorCode::invalid_argument)
+    if (preview.SetFrame(11, error) || error.code != MM::ErrorCode::invalid_argument)
         return 1;
     view.stableOrbit = true;
     if (!check(preview.Select({0x5343454e, 0}, error)) || !check(preview.Render(view, first, error)) ||

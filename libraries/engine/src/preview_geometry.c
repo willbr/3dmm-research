@@ -1,5 +1,5 @@
 /* Preview depth clipping and actor-tree copying converted from archive helpers. */
-#include "three_mm/preview_render.h"
+#include "mm/preview_render.h"
 #include <float.h>
 #include <math.h>
 #include <string.h>
@@ -8,15 +8,15 @@ typedef struct CopyNode
     void *parent;
     const void *source;
 } CopyNode;
-int three_mm_preview_copy_tree(void *parent, const void *source, ThreeMMI32 owner,
-                               const ThreeMMStorageAllocator *allocator, const ThreeMMPreviewTreeServices *s)
+int mm_preview_copy_tree(void *parent, const void *source, MMI32 owner,
+                               const MMStorageAllocator *allocator, const MMPreviewTreeServices *s)
 {
-    ThreeMMCollectionStorage storage;
-    ThreeMMArray stack;
+    MMCollectionStorage storage;
+    MMArray stack;
     CopyNode node, next;
     void *copy, *child;
     int ok = 0;
-    if (three_mm_storage_init(&storage, allocator && allocator->resize ? allocator : 0) != THREE_MM_STORAGE_OK)
+    if (mm_storage_init(&storage, allocator && allocator->resize ? allocator : 0) != MM_STORAGE_OK)
         return 0;
     memset(&stack, 0, sizeof(stack));
     stack.storage = &storage;
@@ -24,11 +24,11 @@ int three_mm_preview_copy_tree(void *parent, const void *source, ThreeMMI32 owne
     stack.free_count = -1;
     node.parent = parent;
     node.source = source;
-    if (three_mm_array_add(&stack, &node, 0) != THREE_MM_STORAGE_OK)
+    if (mm_array_add(&stack, &node, 0) != MM_STORAGE_OK)
         goto done;
     while (stack.count)
     {
-        three_mm_array_pop(&stack, &node);
+        mm_array_pop(&stack, &node);
         copy = s->clone_attach(s->context, node.parent, node.source);
         if (!copy)
             goto done;
@@ -38,16 +38,16 @@ int three_mm_preview_copy_tree(void *parent, const void *source, ThreeMMI32 owne
         {
             next.parent = copy;
             next.source = child;
-            if (three_mm_array_add(&stack, &next, 0) != THREE_MM_STORAGE_OK)
+            if (mm_array_add(&stack, &next, 0) != MM_STORAGE_OK)
                 goto done;
         }
     }
     ok = 1;
 done:
-    three_mm_storage_dispose(&storage);
+    mm_storage_dispose(&storage);
     return ok;
 }
-void three_mm_preview_depth_init(ThreeMMPreviewDepthRange *r, double x, double y, double near_clip, double far_clip,
+void mm_preview_depth_init(MMPreviewDepthRange *r, double x, double y, double near_clip, double far_clip,
                                  int parallel)
 {
     r->x_slope = x;
@@ -58,7 +58,7 @@ void three_mm_preview_depth_init(ThreeMMPreviewDepthRange *r, double x, double y
     r->nearest = HUGE_VAL;
     r->farthest = 0;
 }
-static double distance(const ThreeMMPreviewDepthRange *r, const double *p, unsigned plane)
+static double distance(const MMPreviewDepthRange *r, const double *p, unsigned plane)
 {
     switch (plane)
     {
@@ -76,7 +76,7 @@ static double distance(const ThreeMMPreviewDepthRange *r, const double *p, unsig
         return r->far_clip - p[2];
     }
 }
-void three_mm_preview_depth_include(ThreeMMPreviewDepthRange *r, const double triangle[3][3])
+void mm_preview_depth_include(MMPreviewDepthRange *r, const double triangle[3][3])
 {
     double polygon[12][3], clipped[12][3], distances[12], previous[3], previous_distance, d, t;
     unsigned count = 3, plane, i, inside, output, axis;
@@ -126,7 +126,7 @@ void three_mm_preview_depth_include(ThreeMMPreviewDepthRange *r, const double tr
             r->farthest = polygon[i][2];
     }
 }
-void three_mm_preview_depth_fit(const ThreeMMPreviewDepthRange *r, double *near_clip, double *far_clip)
+void mm_preview_depth_fit(const MMPreviewDepthRange *r, double *near_clip, double *far_clip)
 {
     double n, f;
     if (!(r->nearest <= DBL_MAX && r->nearest >= -DBL_MAX))

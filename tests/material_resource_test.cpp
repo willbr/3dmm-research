@@ -6,7 +6,7 @@
 #include <crtdbg.h>
 #endif
 #include "soc_core.h"
-#include "three_mm/codec.h"
+#include "mm/codec.h"
 #undef size
 ASSERTNAME
 void WarnProc(schar *f, LegacyLong n, schar *s)
@@ -52,7 +52,7 @@ class CustomAccess : public CustomMaterial_CMTL
     }
     static PMaterial_MTRL MaterialAt(PCustomMaterial_CMTL c, int i)
     {
-#ifdef THREE_MM_ENGINE_MATERIAL_RESOURCE_H
+#ifdef MM_ENGINE_MATERIAL_RESOURCE_H
         auto member = &CustomAccess::_custom;
         auto &s = c->*member;
         return s.materials ? static_cast<PMaterial_MTRL>(s.materials[i]) : nullptr;
@@ -64,7 +64,7 @@ class CustomAccess : public CustomMaterial_CMTL
     }
     static PModel ModelAt(PCustomMaterial_CMTL c, int i)
     {
-#ifdef THREE_MM_ENGINE_MATERIAL_RESOURCE_H
+#ifdef MM_ENGINE_MATERIAL_RESOURCE_H
         auto member = &CustomAccess::_custom;
         auto &s = c->*member;
         return s.models ? static_cast<PModel>(s.models[i]) : nullptr;
@@ -287,9 +287,9 @@ static PChunkyFile CustomFile(int variant, ChunkNumber *number)
     if (variant == 3)
     {
         unsigned char packed[256] = {'K', 'C', 'D', 'C', 0, 0, 0, 8};
-        ThreeMMI32 bytes;
-        CHECK(three_mm_codec_encode(THREE_MM_CODEC_KCDC, &h, sizeof(h), packed + 8, sizeof(packed) - 8, &bytes,
-                                    nullptr) == THREE_MM_DATA_OK);
+        MMI32 bytes;
+        CHECK(mm_codec_encode(MM_CODEC_KCDC, &h, sizeof(h), packed + 8, sizeof(packed) - 8, &bytes,
+                                    nullptr) == MM_DATA_OK);
         CHECK(f->FPutPv(packed, bytes + 8, kctgCmtl, *number));
         f->SetPacked(kctgCmtl, *number, true);
     }
@@ -425,7 +425,7 @@ static void MoreCases()
     // The C-owned texture releases it during material disposal.
     raw = m->Pbmtl()->colour_map;
     ReleasePpo(&m);
-#ifndef THREE_MM_ENGINE_TEXTURE_RESOURCE_H
+#ifndef MM_ENGINE_TEXTURE_RESOURCE_H
     BrPixelmapFree(raw);
 #endif
     CHECK(path.FDelete());
@@ -444,7 +444,7 @@ int main()
 #if defined(_MSC_VER) && defined(DEBUG)
     _CrtSetReportHook(Report);
 #endif
-    if (auto path = std::getenv("THREE_MM_MATERIAL_RESOURCE_SNAPSHOT"))
+    if (auto path = std::getenv("MM_MATERIAL_RESOURCE_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         CHECK(snapshot);

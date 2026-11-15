@@ -16,7 +16,7 @@
 #ifndef MBMP_H
 #define MBMP_H
 #include "color.h"
-#include "three_mm/masked_bitmap.h"
+#include "mm/masked_bitmap.h"
 class Region;
 typedef Region *PRegion;
 namespace KauaiPixels { struct Surface32; struct PackedSurface; struct Surface8; struct RleBitmap8; struct MaskedTransfer8; }
@@ -59,8 +59,8 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
 
     // If fMask is true, the non-transparent pixels are not in the buffer. Instead,
     // all non-transparent pixels have the value bFill.
-    ThreeMMMaskedBitmap _bitmap;
-    static ThreeMMMaskedServices _Services(void *context = nullptr);
+    MMMaskedBitmap _bitmap;
+    static MMMaskedServices _Services(void *context = nullptr);
 
     // MaskedBitmapMBMP header on file
     struct MaskedBitmapOnFile

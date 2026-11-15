@@ -1,7 +1,7 @@
 #include "movie_browser.h"
 #include "movie_input.h"
 #include "preview_worker.h"
-#include "three_mm/v3dmm.h"
+#include "mm/v3dmm.h"
 #include <random>
 #include <array>
 #include <algorithm>
@@ -239,7 +239,7 @@ struct MarcusBrowser
                         {
                             // Read only the inner movie. Previewing must not install packs
                             // or invoke engine archive validation on this worker.
-                            const auto range = ThreeMM::V3dmm::ReadBundle(ready->file->path).movie;
+                            const auto range = MM::V3dmm::ReadBundle(ready->file->path).movie;
                             if (range.length > 512ull * 1024 * 1024)
                                 throw std::runtime_error("The bundled movie exceeds the preview size limit.");
                             ready->inner = std::make_shared<MarcusMovieFile>(fs::path{});

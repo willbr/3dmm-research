@@ -2195,7 +2195,7 @@ repeatability from one repetition.
 Runtime and wire roll-call tables now own their name/extra buffers in C instead
 of native StringTable_GST objects. Append/rename/delete/extra updates, dense GST
 loading, text translation and GST serialization use C. Runtime records store
-ThreeMMRollCallActor; wire extras remain 28 bytes. Storage mutation/destruction
+MMRollCallActor; wire extras remain 28 bytes. Storage mutation/destruction
 does not retain or close tags, preserving movie transaction and edit-rollback
 ownership. A temporary native RollCallTable adapter supplies BASE diagnostics and
 typed conversions for existing callers. Title/root/version and physical services
@@ -4469,7 +4469,7 @@ repeated highlight/material notifications retain native behavior. Renderer field
 BRender math/link adapters and resource object implementations remain native
 dependencies, as do remaining body geometry/render hooks and template factories.
 
-`ThreeMMBodyCostume` owns persistent snapshot storage and references in C.
+`MMBodyCostume` owns persistent snapshot storage and references in C.
 Capture drops the old snapshot before allocating its replacement, leaving an
 empty owner on allocation failure. Application preserves exact-shape checking
 or explicit smaller-count copying. Empty-owner count is now defined as zero;
@@ -4744,7 +4744,7 @@ resource factory estimates/cleanup, header/group/list loading, payload swapping,
 16-byte wire sound-tag marshalling, disposal and primitive cel/part/matrix/sound
 queries. Native ActionDefinition methods now provide representation/container/
 file/allocation adapters. The former C++ group/list/flags fields are replaced by
-one C-owned `ThreeMMActionDefinition`. Resource classes, native container/TAG
+one C-owned `MMActionDefinition`. Resource classes, native container/TAG
 adapters, ThreeDText/font construction, remaining formats/runtime and final facade
 removal keep the full backend conversion unfinished.
 
@@ -4851,7 +4851,7 @@ and `tmp/c89-action-definition-playback-audit.json`.
 
 `font_resource.c` owns persistent font metric state, resource size estimates,
 loading, authoring, disposal, width/height queries and glyph lookup. ThreeDFont
-now wraps `ThreeMMFontResource` rather than separate C++ count/maximum/array
+now wraps `MMFontResource` rather than separate C++ count/maximum/array
 fields. Native services provide block/allocation operations, child lists/graph
 edits, retained model fetches, bounds and diagnostics. ThreeDText construction,
 list/action/matrix generation, shapes/animations, model/resource implementations,
@@ -4952,7 +4952,7 @@ and `tmp/c89-font-resource-playback-audit.json`.
 `text_generation.c` owns parent/set/costume construction, atomic generated-list/
 material replacement, cel/matrix/action generation, the action cache, glyph fetch
 control, body adjustment/default costumes and generated-resource disposal.
-`ThreeMMTextGenerated` replaces the separate C++ material/action/cache-ID owner
+`MMTextGenerated` replaces the separate C++ material/action/cache-ID owner
 fields. Native services provide primitive containers, retained font/metric/glyph
 access, material/action factories, body operations and template field views.
 String/tag construction, top-level change/save/load orchestration, localized
@@ -5050,7 +5050,7 @@ and `tmp/c89-text-generation-playback-audit.json`.
 `text_resource.c` owns construction, duplication, optional text/shape/font changes
 and rollback, info queries, provider selection, template/child read/write, tag
 enumeration and action-name policy. Persistent shape/font state now resides in
-`ThreeMMTextDescriptor`; the optional names owner uses `ThreeMMTextNames`.
+`MMTextDescriptor`; the optional names owner uses `MMTextNames`.
 ThreeDText supplies primitive object/String/block/chunk/provider/table services.
 The C controller calls the shared C generated-list initializer directly. Remaining
 String/file/container/render adapters, sound/resource/runtime operations and final
@@ -5139,7 +5139,7 @@ and `tmp/c89-text-resource-playback-audit.json`.
 `sound_resource.c` owns MovieSoundMSND resource loading/factories, optional metadata
 queries, MIDI/WAVE envelope and child writing, MIDI import orchestration,
 invalidation, tool priorities/classes and sound playback dispatch. Persistent
-`ThreeMMSoundResource` stores the weak source cache, child identity, style and
+`MMSoundResource` stores the weak source cache, child identity, style and
 volume. Separate C silent/invalid slots preserve the native String placement and
 328-byte x64 owner/cache estimate without packing pointers. Both hosts use this
 controller through the MovieSoundMSND facade. Primitive String/object/block/
@@ -5294,8 +5294,8 @@ allocation points were removed. This expected injection-topology change does
 not change successful payload bytes. A concurrent host-test pass encountered
 a temporary-file creation collision; its focused serial rerun passed. The
 final focused native pass runs serially and all 84 checks pass. The broad `core-checks` build is
-blocked by the pre-existing `tests/three_mm_fixture.cpp:47` call to `SetSzs` on
-`ThreeMMMovieTitle`; the unrelated fixture was left unchanged.
+blocked by the pre-existing `tests/mm_fixture.cpp:47` call to `SetSzs` on
+`MMMovieTitle`; the unrelated fixture was left unchanged.
 
 Both hosts build. Capture binaries were frozen at SHA-256
 `5BC0EFC9F30FFFF79387561CED4B6B766C4BDFCCD5EE067D21CA013E1AECD38C`
@@ -5371,7 +5371,7 @@ and their arithmetic dependencies as C.
 All 74 standalone C checks (including strict C89 syntax), 88 focused native
 checks, two SDL release checks (movie save/load and engine-core link), and all
 51 freshly linked CLI baselines pass. The full native `core-checks` target now
-builds: the stale `three_mm_fixture.cpp` scene-name call identified in the sound
+builds: the stale `mm_fixture.cpp` scene-name call identified in the sound
 slice was updated to `SceneData::SetName`, preserving its exact fixture string.
 The new body fixture and earlier body fixtures run inside the existing headless
 save/load test, including SDL release; no Marcus UI tests were added.
@@ -6446,7 +6446,7 @@ exports retain default RGB-zero/depth-FF fill. Current export writes the existin
 working buffer without rendering. Applied model styles remain applied, as in the
 native exporter; the controller does not promise style rollback.
 
-Both live and export depth copies now call `three_mm_world_depth_resample`.
+Both live and export depth copies now call `mm_world_depth_resample`.
 The public helper supports factors 1..16; live mode admission remains 1/2/4.
 It copies opaque two-byte samples without interpolation, supports padded rows
 and checks all source/destination spans before each copy. Partial prefixes can

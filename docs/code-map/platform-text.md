@@ -5,7 +5,7 @@ including the Windows SDK, application framework or UI libraries. `utilstr.cpp`
 uses it for the existing String readers, user comparisons and case helpers.
 File paths remain a separate concern in `platform_files.h`.
 
-The shared C89 module `three_mm/text.h` now implements conversion dispatch,
+The shared C89 module `mm/text.h` now implements conversion dispatch,
 fixed byte maps, portable conversion/case/comparison and UTF-16 byte order.
 `platform_text.cpp` retains native Windows code-page, case and locale callbacks.
 Both Studio and Marcus reach the same C implementation through Kauai; the

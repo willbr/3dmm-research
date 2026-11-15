@@ -1,19 +1,19 @@
 /* Actor undo converted from engine actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/actor_undo.h"
+#include "mm/actor_undo.h"
 #include <stddef.h>
-static void publish(const ThreeMMActorUndoState *state,const ThreeMMActorUndoServices *s)
+static void publish(const MMActorUndoState *state,const MMActorUndoServices *s)
 { s->publish(s->context,state); }
-void three_mm_actor_undo_set_actor(ThreeMMActorUndoState *state,void *actor,const ThreeMMActorUndoServices *s)
+void mm_actor_undo_set_actor(MMActorUndoState *state,void *actor,const MMActorUndoServices *s)
 { state->actor=actor; publish(state,s); s->retain(s->context,actor); }
-void three_mm_actor_undo_dispose(ThreeMMActorUndoState *state,const ThreeMMActorUndoServices *s)
+void mm_actor_undo_dispose(MMActorUndoState *state,const MMActorUndoServices *s)
 {
     if (state->actor)
     { s->release(s->context,state->actor); state->actor=NULL; publish(state,s); }
 }
-int three_mm_actor_undo_toggle(ThreeMMActorUndoState *state,const ThreeMMActorUndoServices *s)
+int mm_actor_undo_toggle(MMActorUndoState *state,const MMActorUndoServices *s)
 {
-    void *scene,*old,*view; ThreeMMI32 id;
+    void *scene,*old,*view; MMI32 id;
     if (!s->switch_scene(s->context,state->movie,state->scene)) return 0;
     scene=s->current_scene(s->context,state->movie);
     if (!s->seek(s->context,scene,state->frame))
@@ -45,16 +45,16 @@ int three_mm_actor_undo_toggle(ThreeMMActorUndoState *state,const ThreeMMActorUn
     if (state->sound) s->play(s->context,state->movie); else s->flush(s->context,state->movie);
     return 1;
 }
-int three_mm_actor_undo_redo(ThreeMMActorUndoState *state,const ThreeMMActorUndoServices *s)
+int mm_actor_undo_redo(MMActorUndoState *state,const MMActorUndoServices *s)
 {
-    ThreeMMI32 frame; int result;
+    MMI32 frame; int result;
     if (!state->sooner_later) return s->invoke_undo(s->context);
     frame=state->frame; state->frame=state->last_frame; publish(state,s);
     result=s->invoke_undo(s->context);
     s->read(s->context,state); state->frame=frame; publish(state,s); return result;
 }
-int three_mm_actor_undo_create(void *snapshot,ThreeMMI32 id,int sound,const void *name,
-    const ThreeMMActorUndoCreateServices *s)
+int mm_actor_undo_create(void *snapshot,MMI32 id,int sound,const void *name,
+    const MMActorUndoCreateServices *s)
 {
     void *undo=s->create(s->context); if (!undo) return 0;
     s->set_actor(s->context,undo,snapshot); s->set_id(s->context,undo,id); s->set_sound(s->context,undo,sound);

@@ -16,7 +16,7 @@
     } while (0)
 int main(int argc, char **argv)
 {
-    ThreeMM::Error error;
+    MM::Error error;
     if (argc != 4 || !std::filesystem::exists(argv[1]) || !std::filesystem::exists(argv[2]) ||
         !MarcusASMRenderer::Available(error))
         return 77;

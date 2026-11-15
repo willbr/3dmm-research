@@ -1,85 +1,85 @@
 /* Piece-table policy converted from Kauai stream.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/piece_table.h"
+#include "mm/piece_table.h"
 #include <string.h>
-#define OK THREE_MM_DATA_OK
-#define BAD THREE_MM_DATA_ARGUMENT
-#define FAIL THREE_MM_DATA_MEMORY
-#define LIMIT THREE_MM_STORAGE_LIMIT
-int three_mm_piece_table_init(ThreeMMPieceTable *t, const ThreeMMStorageAllocator *a, const ThreeMMPieceFiles *files,
+#define OK MM_DATA_OK
+#define BAD MM_DATA_ARGUMENT
+#define FAIL MM_DATA_MEMORY
+#define LIMIT MM_STORAGE_LIMIT
+int mm_piece_table_init(MMPieceTable *t, const MMStorageAllocator *a, const MMPieceFiles *files,
                               int trash)
 {
     if (!t || !files || !files->retain || !files->release)
         return BAD;
     memset(t, 0, sizeof(*t));
-    if (three_mm_storage_init(&t->storage, a) != THREE_MM_STORAGE_OK)
+    if (mm_storage_init(&t->storage, a) != MM_STORAGE_OK)
         return BAD;
     t->files = *files;
     t->group.storage = &t->storage;
-    t->group.fixed_bytes = sizeof(ThreeMMFilePiece);
+    t->group.fixed_bytes = sizeof(MMFilePiece);
     t->group.free_count = -1;
     t->group.trash_unused = trash;
-    t->storage.min_grow[0] = 16 * sizeof(ThreeMMFilePiece);
+    t->storage.min_grow[0] = 16 * sizeof(MMFilePiece);
     if (t->storage.min_grow[0] > 1024)
         t->storage.min_grow[0] = 1024;
     t->storage.min_grow[1] = 128;
     return OK;
 }
-int three_mm_piece_table_get(const ThreeMMPieceTable *t, ThreeMMU32 i, ThreeMMFilePiece *piece,
+int mm_piece_table_get(const MMPieceTable *t, MMU32 i, MMFilePiece *piece,
                              const unsigned char **memory)
 {
-    ThreeMMGroupLocation loc;
+    MMGroupLocation loc;
     const unsigned char *p;
-    if (!t || !piece || three_mm_group_location(&t->group, i, &loc) != THREE_MM_STORAGE_OK)
+    if (!t || !piece || mm_group_location(&t->group, i, &loc) != MM_STORAGE_OK)
         return BAD;
     p = t->storage.buffers[0].data + loc.offset;
     memcpy(piece, p, sizeof(*piece));
     if (piece->length >= LIMIT || piece->offset >= LIMIT ||
-        (piece->file ? (ThreeMMU32)loc.bytes != sizeof(*piece)
-                     : (ThreeMMU32)loc.bytes != sizeof(*piece) + piece->length))
+        (piece->file ? (MMU32)loc.bytes != sizeof(*piece)
+                     : (MMU32)loc.bytes != sizeof(*piece) + piece->length))
         return BAD;
     if (memory)
         *memory = piece->file ? NULL : p + sizeof(*piece);
     return OK;
 }
-static void set(ThreeMMPieceTable *t, ThreeMMU32 i, const ThreeMMFilePiece *piece)
+static void set(MMPieceTable *t, MMU32 i, const MMFilePiece *piece)
 {
-    ThreeMMGroupLocation loc;
-    three_mm_group_location(&t->group, i, &loc);
+    MMGroupLocation loc;
+    mm_group_location(&t->group, i, &loc);
     memcpy(t->storage.buffers[0].data + loc.offset, piece, sizeof(*piece));
 }
-int three_mm_piece_table_dispose(ThreeMMPieceTable *t)
+int mm_piece_table_dispose(MMPieceTable *t)
 {
-    ThreeMMFilePiece piece;
-    ThreeMMU32 i;
+    MMFilePiece piece;
+    MMU32 i;
     if (!t || t->storage.buffers[0].locks || t->storage.buffers[1].locks)
         return BAD;
     for (i = 0; i < t->group.count; ++i)
     {
-        if (three_mm_piece_table_get(t, i, &piece, NULL) != OK)
+        if (mm_piece_table_get(t, i, &piece, NULL) != OK)
             return BAD;
         if (piece.file)
             t->files.release(t->files.context, piece.file);
     }
-    if (three_mm_storage_dispose(&t->storage) != THREE_MM_STORAGE_OK)
+    if (mm_storage_dispose(&t->storage) != MM_STORAGE_OK)
         return BAD;
     t->group.count = t->group.bytes = t->length = 0;
     return OK;
 }
-static int piece_size(void *context, ThreeMMU32 i, ThreeMMU32 *n)
+static int piece_size(void *context, MMU32 i, MMU32 *n)
 {
-    ThreeMMFilePiece piece;
-    if (three_mm_piece_table_get((ThreeMMPieceTable *)context, i, &piece, NULL) != OK)
+    MMFilePiece piece;
+    if (mm_piece_table_get((MMPieceTable *)context, i, &piece, NULL) != OK)
         return 0;
     *n = piece.length;
     return 1;
 }
-static int read_piece(void *context, ThreeMMU32 i, ThreeMMU32 offset, void *output, ThreeMMU32 n)
+static int read_piece(void *context, MMU32 i, MMU32 offset, void *output, MMU32 n)
 {
-    ThreeMMPieceTable *t = (ThreeMMPieceTable *)context;
-    ThreeMMFilePiece piece;
+    MMPieceTable *t = (MMPieceTable *)context;
+    MMFilePiece piece;
     const unsigned char *memory;
-    if (three_mm_piece_table_get(t, i, &piece, &memory) != OK)
+    if (mm_piece_table_get(t, i, &piece, &memory) != OK)
         return 0;
     if (!piece.file)
     {
@@ -90,9 +90,9 @@ static int read_piece(void *context, ThreeMMU32 i, ThreeMMU32 offset, void *outp
     piece.length = n;
     return t->files.read && t->files.read(t->files.context, &piece, output);
 }
-static ThreeMMPieceReader reader(ThreeMMPieceTable *t)
+static MMPieceReader reader(MMPieceTable *t)
 {
-    ThreeMMPieceReader r;
+    MMPieceReader r;
     r.context = t;
     r.count = t->group.count;
     r.length = t->length;
@@ -100,23 +100,23 @@ static ThreeMMPieceReader reader(ThreeMMPieceTable *t)
     r.read_piece = read_piece;
     return r;
 }
-int three_mm_piece_table_read(ThreeMMPieceTable *t, ThreeMMU32 offset, void *output, ThreeMMU32 n)
+int mm_piece_table_read(MMPieceTable *t, MMU32 offset, void *output, MMU32 n)
 {
-    ThreeMMPieceReader r;
+    MMPieceReader r;
     if (!t)
         return BAD;
     r = reader(t);
-    return three_mm_piece_read(&r, offset, output, n);
+    return mm_piece_read(&r, offset, output, n);
 }
-static int find(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMU32 *i, ThreeMMU32 *start, ThreeMMU32 *n)
+static int find(MMPieceTable *t, MMU32 offset, MMU32 *i, MMU32 *start, MMU32 *n)
 {
-    ThreeMMPieceReader r = reader(t);
-    return three_mm_piece_find(&r, offset, i, start, n);
+    MMPieceReader r = reader(t);
+    return mm_piece_find(&r, offset, i, start, n);
 }
-static int split(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMU32 *index)
+static int split(MMPieceTable *t, MMU32 offset, MMU32 *index)
 {
-    ThreeMMU32 i, start, n, front;
-    ThreeMMFilePiece piece;
+    MMU32 i, start, n, front;
+    MMFilePiece piece;
     if (find(t, offset, &i, &start, &n) != OK)
         return BAD;
     if (offset == start)
@@ -125,17 +125,17 @@ static int split(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMU32 *index)
             *index = i;
         return OK;
     }
-    if (three_mm_piece_table_get(t, i, &piece, NULL) != OK)
+    if (mm_piece_table_get(t, i, &piece, NULL) != OK)
         return BAD;
     front = offset - start;
     piece.length -= front;
     if (piece.file)
         piece.offset += front;
-    if (three_mm_group_insert(&t->group, i + 1, 0, NULL, &piece) != THREE_MM_STORAGE_OK)
+    if (mm_group_insert(&t->group, i + 1, 0, NULL, &piece) != MM_STORAGE_OK)
         return FAIL;
-    if (!piece.file && three_mm_group_move_bytes(&t->group, i, front, i + 1, 0, piece.length) != THREE_MM_STORAGE_OK)
+    if (!piece.file && mm_group_move_bytes(&t->group, i, front, i + 1, 0, piece.length) != MM_STORAGE_OK)
     {
-        three_mm_group_delete(&t->group, i + 1);
+        mm_group_delete(&t->group, i + 1);
         return FAIL;
     }
     piece.length = front;
@@ -149,16 +149,16 @@ static int split(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMU32 *index)
         *index = i + 1;
     return OK;
 }
-static void merge(ThreeMMPieceTable *t, ThreeMMU32 from, ThreeMMU32 to)
+static void merge(MMPieceTable *t, MMU32 from, MMU32 to)
 {
-    ThreeMMU32 i, start;
-    ThreeMMFilePiece a, b;
+    MMU32 i, start;
+    MMFilePiece a, b;
     if (!t->group.count || find(t, from ? from - 1 : 0, &i, &start, NULL) != OK)
         return;
     while (start < to && i + 1 < t->group.count)
     {
-        three_mm_piece_table_get(t, i, &a, NULL);
-        three_mm_piece_table_get(t, i + 1, &b, NULL);
+        mm_piece_table_get(t, i, &a, NULL);
+        mm_piece_table_get(t, i + 1, &b, NULL);
         if (a.file != b.file || (a.file && a.offset + a.length != b.offset))
         {
             ++i;
@@ -166,27 +166,27 @@ static void merge(ThreeMMPieceTable *t, ThreeMMU32 from, ThreeMMU32 to)
             continue;
         }
         if (!a.file)
-            three_mm_group_merge(&t->group, i + 1, i);
+            mm_group_merge(&t->group, i + 1, i);
         else
         {
-            three_mm_group_delete(&t->group, i + 1);
+            mm_group_delete(&t->group, i + 1);
             t->files.release(t->files.context, b.file);
         }
         a.length += b.length;
         set(t, i, &a);
     }
 }
-static int range(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMU32 remove, ThreeMMU32 n)
+static int range(MMPieceTable *t, MMU32 offset, MMU32 remove, MMU32 n)
 {
     /* As with the original group, a lock prevents relocation, not edits that
      * fit existing storage. Partial same-stream copies rely on that rule. */
-    return t && three_mm_range_contains(t->length, offset, remove) && n < LIMIT && n < LIMIT - (t->length - remove);
+    return t && mm_range_contains(t->length, offset, remove) && n < LIMIT && n < LIMIT - (t->length - remove);
 }
-int three_mm_piece_table_replace(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMU32 remove, const void *input,
-                                 ThreeMMU32 n)
+int mm_piece_table_replace(MMPieceTable *t, MMU32 offset, MMU32 remove, const void *input,
+                                 MMU32 n)
 {
-    ThreeMMU32 i, start, inside, amount;
-    ThreeMMFilePiece piece;
+    MMU32 i, start, inside, amount;
+    MMFilePiece piece;
     if (!range(t, offset, remove, n) || (n && !input))
         return BAD;
     if (!remove && !n)
@@ -195,7 +195,7 @@ int three_mm_piece_table_replace(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeM
     inside = offset - start;
     if (inside)
     {
-        three_mm_piece_table_get(t, i, &piece, NULL);
+        mm_piece_table_get(t, i, &piece, NULL);
         if (piece.file)
         {
             if (split(t, offset, &i) != OK)
@@ -203,15 +203,15 @@ int three_mm_piece_table_replace(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeM
             inside = 0;
         }
     }
-    if (n && three_mm_group_reserve(&t->group, 1, n, 0) != THREE_MM_STORAGE_OK)
+    if (n && mm_group_reserve(&t->group, 1, n, 0) != MM_STORAGE_OK)
         goto fail;
     if (inside && remove)
     {
-        three_mm_piece_table_get(t, i, &piece, NULL);
+        mm_piece_table_get(t, i, &piece, NULL);
         amount = piece.length - inside;
         if (remove < amount)
             amount = remove;
-        three_mm_group_delete_bytes(&t->group, i, inside, amount);
+        mm_group_delete_bytes(&t->group, i, inside, amount);
         piece.length -= amount;
         set(t, i, &piece);
         t->length -= amount;
@@ -224,13 +224,13 @@ int three_mm_piece_table_replace(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeM
     }
     while (remove && i < t->group.count)
     {
-        three_mm_piece_table_get(t, i, &piece, NULL);
+        mm_piece_table_get(t, i, &piece, NULL);
         if (remove < piece.length)
         {
             if (piece.file)
                 piece.offset += remove;
             else
-                three_mm_group_delete_bytes(&t->group, i, 0, remove);
+                mm_group_delete_bytes(&t->group, i, 0, remove);
             piece.length -= remove;
             t->length -= remove;
             remove = 0;
@@ -240,7 +240,7 @@ int three_mm_piece_table_replace(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeM
         {
             if (piece.file)
                 t->files.release(t->files.context, piece.file);
-            three_mm_group_delete(&t->group, i);
+            mm_group_delete(&t->group, i);
             remove -= piece.length;
             t->length -= piece.length;
         }
@@ -249,13 +249,13 @@ int three_mm_piece_table_replace(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeM
     {
         if (i < t->group.count)
         {
-            three_mm_piece_table_get(t, i, &piece, NULL);
+            mm_piece_table_get(t, i, &piece, NULL);
             if (!piece.file)
                 goto insert_memory;
         }
         if (i)
         {
-            three_mm_piece_table_get(t, i - 1, &piece, NULL);
+            mm_piece_table_get(t, i - 1, &piece, NULL);
             if (!piece.file)
             {
                 --i;
@@ -266,12 +266,12 @@ int three_mm_piece_table_replace(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeM
         piece.file = NULL;
         piece.offset = 0;
         piece.length = n;
-        if (three_mm_group_insert(&t->group, i, n, input, &piece) != THREE_MM_STORAGE_OK)
+        if (mm_group_insert(&t->group, i, n, input, &piece) != MM_STORAGE_OK)
             return FAIL;
         t->length += n;
         goto done;
     insert_memory:
-        if (three_mm_group_insert_bytes(&t->group, i, inside, n, input) != THREE_MM_STORAGE_OK)
+        if (mm_group_insert_bytes(&t->group, i, inside, n, input) != MM_STORAGE_OK)
             return FAIL;
         piece.length += n;
         set(t, i, &piece);
@@ -284,29 +284,29 @@ fail:
     merge(t, offset, offset);
     return FAIL;
 }
-int three_mm_piece_table_replace_file(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMU32 remove,
-                                      const ThreeMMFilePiece *source, int copy)
+int mm_piece_table_replace_file(MMPieceTable *t, MMU32 offset, MMU32 remove,
+                                      const MMFilePiece *source, int copy)
 {
-    ThreeMMFilePiece piece;
-    ThreeMMCollectionStorage scratch;
-    ThreeMMU32 i;
+    MMFilePiece piece;
+    MMCollectionStorage scratch;
+    MMU32 i;
     int result;
     if (!source || !range(t, offset, remove, source->length) || !source->file || source->offset >= LIMIT ||
         source->length > LIMIT - 1 - source->offset)
         return BAD;
     if (!source->length)
-        return three_mm_piece_table_replace(t, offset, remove, NULL, 0);
+        return mm_piece_table_replace(t, offset, remove, NULL, 0);
     if (source->length < 2048)
     {
         if (!t->files.read)
             return BAD;
-        three_mm_storage_init(&scratch, &t->storage.allocator);
-        if (three_mm_storage_resize_exact(&scratch, 0, source->length, THREE_MM_STORAGE_NORMAL) != THREE_MM_STORAGE_OK)
+        mm_storage_init(&scratch, &t->storage.allocator);
+        if (mm_storage_resize_exact(&scratch, 0, source->length, MM_STORAGE_NORMAL) != MM_STORAGE_OK)
             return FAIL;
         result = t->files.read(t->files.context, source, scratch.buffers[0].data)
-                     ? three_mm_piece_table_replace(t, offset, remove, scratch.buffers[0].data, source->length)
-                     : THREE_MM_DATA_IO;
-        three_mm_storage_dispose(&scratch);
+                     ? mm_piece_table_replace(t, offset, remove, scratch.buffers[0].data, source->length)
+                     : MM_DATA_IO;
+        mm_storage_dispose(&scratch);
         return result;
     }
     /* File/stream replacement inserts before deletion. Bound that intermediate
@@ -325,53 +325,53 @@ int three_mm_piece_table_replace_file(ThreeMMPieceTable *t, ThreeMMU32 offset, T
         if (!t->files.copy(t->files.context, source, &piece))
         {
             t->files.release(t->files.context, piece.file);
-            return THREE_MM_DATA_IO;
+            return MM_DATA_IO;
         }
     }
     else
         t->files.retain(t->files.context, piece.file);
-    if (split(t, offset, &i) != OK || three_mm_group_insert(&t->group, i, 0, NULL, &piece) != THREE_MM_STORAGE_OK)
+    if (split(t, offset, &i) != OK || mm_group_insert(&t->group, i, 0, NULL, &piece) != MM_STORAGE_OK)
     {
         t->files.release(t->files.context, piece.file);
         merge(t, offset, offset);
         return FAIL;
     }
     t->length += piece.length;
-    if (remove && three_mm_piece_table_replace(t, offset + piece.length, remove, NULL, 0) != OK)
+    if (remove && mm_piece_table_replace(t, offset + piece.length, remove, NULL, 0) != OK)
         return BAD;
     merge(t, offset, offset + piece.length);
     return OK;
 }
-static int insert_slice(ThreeMMPieceTable *t, ThreeMMPieceTable *src, ThreeMMU32 index, ThreeMMU32 inside, ThreeMMU32 n,
-                        ThreeMMU32 offset, ThreeMMU32 remove)
+static int insert_slice(MMPieceTable *t, MMPieceTable *src, MMU32 index, MMU32 inside, MMU32 n,
+                        MMU32 offset, MMU32 remove)
 {
-    ThreeMMFilePiece piece;
+    MMFilePiece piece;
     const unsigned char *memory;
     int result;
     if (!n)
-        return three_mm_piece_table_replace(t, offset, remove, NULL, 0);
-    if (three_mm_piece_table_get(src, index, &piece, &memory) != OK)
+        return mm_piece_table_replace(t, offset, remove, NULL, 0);
+    if (mm_piece_table_get(src, index, &piece, &memory) != OK)
         return BAD;
     if (piece.file)
     {
         piece.offset += inside;
         piece.length = n;
-        return three_mm_piece_table_replace_file(t, offset, remove, &piece, 0);
+        return mm_piece_table_replace_file(t, offset, remove, &piece, 0);
     }
-    if (three_mm_storage_lock(&src->storage, 0) != THREE_MM_STORAGE_OK)
+    if (mm_storage_lock(&src->storage, 0) != MM_STORAGE_OK)
         return BAD;
-    result = three_mm_piece_table_replace(t, offset, remove, memory + inside, n);
-    three_mm_storage_unlock(&src->storage, 0);
+    result = mm_piece_table_replace(t, offset, remove, memory + inside, n);
+    mm_storage_unlock(&src->storage, 0);
     return result;
 }
-int three_mm_piece_table_replace_table(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMU32 remove,
-                                       ThreeMMPieceTable *src, ThreeMMU32 source_offset, ThreeMMU32 n)
+int mm_piece_table_replace_table(MMPieceTable *t, MMU32 offset, MMU32 remove,
+                                       MMPieceTable *src, MMU32 source_offset, MMU32 n)
 {
-    ThreeMMU32 first, last, whole, target, i, start, end, whole_start, first_length, last_length, inserted = 0, amount,
+    MMU32 first, last, whole, target, i, start, end, whole_start, first_length, last_length, inserted = 0, amount,
                                                                                                   at;
-    ThreeMMFilePiece piece;
+    MMFilePiece piece;
     int result;
-    if (!src || !range(t, offset, remove, n) || !three_mm_range_contains(src->length, source_offset, n) ||
+    if (!src || !range(t, offset, remove, n) || !mm_range_contains(src->length, source_offset, n) ||
         n >= LIMIT - t->length)
         return BAD;
     if (!n && !remove)
@@ -386,13 +386,13 @@ int three_mm_piece_table_replace_table(ThreeMMPieceTable *t, ThreeMMU32 offset, 
         whole_start = source_offset > start ? start + first_length : start;
         if (whole < last)
         {
-            if (three_mm_group_copy_entries(&t->group, &src->group, whole, target, last - whole) != THREE_MM_STORAGE_OK)
+            if (mm_group_copy_entries(&t->group, &src->group, whole, target, last - whole) != MM_STORAGE_OK)
                 goto fail;
             inserted = end - whole_start;
             t->length += inserted;
             for (i = target + last - whole; i-- > target;)
             {
-                three_mm_piece_table_get(t, i, &piece, NULL);
+                mm_piece_table_get(t, i, &piece, NULL);
                 if (piece.file)
                     t->files.retain(t->files.context, piece.file);
             }
@@ -421,13 +421,13 @@ int three_mm_piece_table_replace_table(ThreeMMPieceTable *t, ThreeMMU32 offset, 
     return OK;
 fail:
     if (inserted)
-        three_mm_piece_table_replace(t, offset, inserted, NULL, 0);
+        mm_piece_table_replace(t, offset, inserted, NULL, 0);
     return FAIL;
 }
-int three_mm_piece_table_compact(ThreeMMPieceTable *t)
+int mm_piece_table_compact(MMPieceTable *t)
 {
-    ThreeMMFilePiece piece, dst, part;
-    ThreeMMU32 i, offset = 0;
+    MMFilePiece piece, dst, part;
+    MMU32 i, offset = 0;
     const unsigned char *memory;
     int result = OK;
     if (!t || t->storage.buffers[0].locks || t->storage.buffers[1].locks)
@@ -436,7 +436,7 @@ int three_mm_piece_table_compact(ThreeMMPieceTable *t)
         goto shrink;
     if (t->group.count == 1)
     {
-        three_mm_piece_table_get(t, 0, &piece, NULL);
+        mm_piece_table_get(t, 0, &piece, NULL);
         if (piece.file)
             goto shrink;
     }
@@ -450,59 +450,59 @@ int three_mm_piece_table_compact(ThreeMMPieceTable *t)
         result = FAIL;
         goto shrink;
     }
-    three_mm_storage_lock(&t->storage, 0);
+    mm_storage_lock(&t->storage, 0);
     for (i = 0; i < t->group.count; ++i)
     {
-        three_mm_piece_table_get(t, i, &piece, &memory);
+        mm_piece_table_get(t, i, &piece, &memory);
         part = dst;
         part.offset = offset;
         part.length = piece.length;
         if (piece.file ? !t->files.copy(t->files.context, &piece, &part)
                        : !t->files.write(t->files.context, &part, memory))
         {
-            result = THREE_MM_DATA_IO;
+            result = MM_DATA_IO;
             break;
         }
         offset += piece.length;
     }
-    three_mm_storage_unlock(&t->storage, 0);
+    mm_storage_unlock(&t->storage, 0);
     if (result == OK)
-        result = three_mm_piece_table_replace_file(t, 0, t->length, &dst, 0);
+        result = mm_piece_table_replace_file(t, 0, t->length, &dst, 0);
     t->files.release(t->files.context, dst.file);
 shrink:
-    three_mm_group_reserve(&t->group, 0, 0, 1);
+    mm_group_reserve(&t->group, 0, 0, 1);
     return result;
 }
 
 typedef struct PieceCopy
 {
-    ThreeMMPieceTable *table;
-    ThreeMMFilePiece piece;
+    MMPieceTable *table;
+    MMFilePiece piece;
 } PieceCopy;
-static int read_copy_piece(void *context, ThreeMMU32 offset, void *output, size_t bytes)
+static int read_copy_piece(void *context, MMU32 offset, void *output, size_t bytes)
 {
     PieceCopy *copy = (PieceCopy *)context;
-    ThreeMMFilePiece part = copy->piece;
+    MMFilePiece part = copy->piece;
     part.offset += offset;
-    part.length = (ThreeMMU32)bytes;
+    part.length = (MMU32)bytes;
     return copy->table->files.read && copy->table->files.read(copy->table->files.context, &part, output);
 }
-int three_mm_piece_table_write(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMOwnedBlock *destination,
-                               const ThreeMMStorageAllocator *allocator)
+int mm_piece_table_write(MMPieceTable *t, MMU32 offset, MMOwnedBlock *destination,
+                               const MMStorageAllocator *allocator)
 {
-    ThreeMMU32 i, start, inside, count, total, written, index;
-    ThreeMMFilePiece piece;
-    ThreeMMBlockView saved;
-    ThreeMMBlockIO input, output;
+    MMU32 i, start, inside, count, total, written, index;
+    MMFilePiece piece;
+    MMBlockView saved;
+    MMBlockIO input, output;
     const unsigned char *memory;
     PieceCopy copy;
     int result;
-    if (!t || three_mm_owned_block_check(destination) != OK)
+    if (!t || mm_owned_block_check(destination) != OK)
         return BAD;
     if (destination->view.packed)
-        return THREE_MM_DATA_PACKED;
+        return MM_DATA_PACKED;
     total = destination->view.length;
-    if (!three_mm_range_contains(t->length, offset, total))
+    if (!mm_range_contains(t->length, offset, total))
         return BAD;
     if (!total)
         return OK;
@@ -514,7 +514,7 @@ int three_mm_piece_table_write(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMO
      * caller's range; reject that case before touching storage or I/O. */
     for (i = index, written = 0; written < total && i < t->group.count; ++i)
     {
-        if (three_mm_piece_table_get(t, i, &piece, NULL) != OK || inside >= piece.length)
+        if (mm_piece_table_get(t, i, &piece, NULL) != OK || inside >= piece.length)
             return BAD;
         count = piece.length - inside;
         if (count > total)
@@ -526,20 +526,20 @@ int three_mm_piece_table_write(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMO
     }
     if (written != total)
         return BAD;
-    if (three_mm_storage_lock(&t->storage, 0) != THREE_MM_STORAGE_OK)
+    if (mm_storage_lock(&t->storage, 0) != MM_STORAGE_OK)
         return BAD;
-    if (three_mm_storage_lock(&t->storage, 1) != THREE_MM_STORAGE_OK)
+    if (mm_storage_lock(&t->storage, 1) != MM_STORAGE_OK)
     {
-        three_mm_storage_unlock(&t->storage, 0);
+        mm_storage_unlock(&t->storage, 0);
         return BAD;
     }
     saved = destination->view;
     inside = offset - start;
     written = 0;
-    result = three_mm_block_move_lim(&destination->view, -(ThreeMMI32)total);
+    result = mm_block_move_lim(&destination->view, -(MMI32)total);
     for (i = index; result == OK && written < total && i < t->group.count; ++i)
     {
-        if (three_mm_piece_table_get(t, i, &piece, &memory) != OK)
+        if (mm_piece_table_get(t, i, &piece, &memory) != OK)
         {
             result = BAD;
             break;
@@ -547,16 +547,16 @@ int three_mm_piece_table_write(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMO
         count = piece.length - inside;
         if (count > total)
             count = total;
-        result = three_mm_block_move_lim(&destination->view, (ThreeMMI32)count);
+        result = mm_block_move_lim(&destination->view, (MMI32)count);
         if (result != OK)
             break;
-        result = three_mm_owned_block_io(destination, &output);
+        result = mm_owned_block_io(destination, &output);
         if (result != OK)
             break;
         if (piece.file)
         {
             memset(&input, 0, sizeof(input));
-            input.view.kind = THREE_MM_BLOCK_FILE;
+            input.view.kind = MM_BLOCK_FILE;
             input.view.length = count;
             copy.table = t;
             copy.piece = piece;
@@ -564,19 +564,19 @@ int three_mm_piece_table_write(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMO
             copy.piece.length = count;
             input.context = &copy;
             input.read_file = read_copy_piece;
-            result = three_mm_block_copy(&input, &output, 1, allocator);
+            result = mm_block_copy(&input, &output, 1, allocator);
         }
         else
-            result = three_mm_block_write(&output, 0, memory + inside, count, 0);
+            result = mm_block_write(&output, 0, memory + inside, count, 0);
         inside = 0;
         written += count;
         /* Failed writes still consumed their attempted window in the native
          * protocol. Restoring saved below covers that path as well. */
-        if (three_mm_block_move_min(&destination->view, (ThreeMMI32)count) != OK && result == OK)
+        if (mm_block_move_min(&destination->view, (MMI32)count) != OK && result == OK)
             result = BAD;
     }
     destination->view = saved;
-    three_mm_storage_unlock(&t->storage, 1);
-    three_mm_storage_unlock(&t->storage, 0);
+    mm_storage_unlock(&t->storage, 1);
+    mm_storage_unlock(&t->storage, 0);
     return result;
 }

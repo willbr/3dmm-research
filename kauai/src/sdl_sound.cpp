@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_audio.h"
 #include "sdl_sound.h"
-#include "three_mm/sound_payload.h"
+#include "mm/sound_payload.h"
 #include <algorithm>
 #include <new>
 #include "kauai_core.h"
@@ -30,14 +30,14 @@ class SDLWave : public SDLWave_PAR
         {
             std::vector<byte> encoded;
         } context;
-        ThreeMMSoundPayloadServices s = {};
+        MMSoundPayloadServices s = {};
         s.context = &context;
         s.object_bytes = sizeof(SDLWave);
         s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-        s.block_size = [](void *, void *block, int packed) -> ThreeMMI32 {
+        s.block_size = [](void *, void *block, int packed) -> MMI32 {
             return static_cast<PDataBlock>(block)->Cb(packed != 0);
         };
-        s.read_encoded = [](void *p, void *block, ThreeMMI32 bytes) -> int {
+        s.read_encoded = [](void *p, void *block, MMI32 bytes) -> int {
             auto &encoded = static_cast<Context *>(p)->encoded;
             encoded.resize(bytes);
             return static_cast<PDataBlock>(block)->FReadRgb(encoded.data(), bytes, 0);
@@ -48,17 +48,17 @@ class SDLWave : public SDLWave_PAR
             auto &encoded = static_cast<Context *>(p)->encoded;
             return KauaiAudio::DecodeWave(encoded.data(), encoded.size(), static_cast<SDLWave *>(object)->sample);
         };
-        s.allocation_size = [](void *, void *object, ThreeMMI32 *bytes) -> int {
+        s.allocation_size = [](void *, void *object, MMI32 *bytes) -> int {
             const auto count = static_cast<SDLWave *>(object)->sample->stereo.size();
             if (count > (INT32_MAX - sizeof(SDLWave)) / sizeof(float))
                 return 0;
-            *bytes = static_cast<ThreeMMI32>(count * sizeof(float) + sizeof(SDLWave));
+            *bytes = static_cast<MMI32>(count * sizeof(float) + sizeof(SDLWave));
             return 1;
         };
         s.decoded = [](void *) { ++decodedSounds; };
         try
         {
-            return three_mm_wave_payload_fetch(block, result, bytes, &s) != 0;
+            return mm_wave_payload_fetch(block, result, bytes, &s) != 0;
         }
         catch (const std::bad_alloc &)
         {

@@ -14,9 +14,9 @@
 ***************************************************************************/
 #ifndef CODEC_H
 #define CODEC_H
-#include "three_mm/data_stream.h"
-#include "three_mm/codec.h"
-#include "three_mm/codec_registry.h"
+#include "mm/data_stream.h"
+#include "mm/codec.h"
+#include "mm/codec_registry.h"
 
 /***************************************************************************
     Codec object.
@@ -50,13 +50,13 @@ class CodecManager : public CodecManager_PAR
     MARKMEM
 
   protected:
-    static void *_FindDecoder(void *, ThreeMMI32);
-    static int _ConvertDecoder(void *, ThreeMMI32, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
-    static void *_FindEncoder(void *, ThreeMMI32);
-    static int _ConvertEncoder(void *, ThreeMMI32, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
+    static void *_FindDecoder(void *, MMI32);
+    static int _ConvertDecoder(void *, MMI32, const void *, MMU32, void *, MMU32, MMI32 *);
+    static void *_FindEncoder(void *, MMI32);
+    static int _ConvertEncoder(void *, MMI32, const void *, MMU32, void *, MMU32, MMI32 *);
     struct HandleCodeContext { CodecManager *manager; LegacyLong format; };
-    static int _CodeHandleBytes(void *, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
-    ThreeMMCodecRegistry _registry;
+    static int _CodeHandleBytes(void *, const void *, MMU32, void *, MMU32, MMI32 *);
+    MMCodecRegistry _registry;
 
     virtual bool _FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc);
     virtual bool _FCodePhq(LegacyLong cfmt, HQ *phq);

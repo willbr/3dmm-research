@@ -1,8 +1,8 @@
-#include "three_mm/scene_edit.h"
+#include "mm/scene_edit.h"
 #include "scene_sound_fixture.h"
 typedef struct Evt
 {
-    ThreeMMI32 frame, bytes;
+    MMI32 frame, bytes;
     int kind;
     void *data;
 } Evt;
@@ -17,24 +17,24 @@ typedef struct Back
 } Back;
 typedef struct Undo
 {
-    ThreeMMScenePauseUndo pause;
-    ThreeMMSceneBackgroundUndo back;
+    MMScenePauseUndo pause;
+    MMSceneBackgroundUndo back;
     int kind, refs;
 } Undo;
 typedef struct Edit
 {
     Fixture packets;
-    ThreeMMSceneEditServices s;
-    ThreeMMSceneEditUndoServices us;
-    ThreeMMSceneState data;
-    ThreeMMSceneRuntime runtime;
-    ThreeMMSceneOwner owner;
+    MMSceneEditServices s;
+    MMSceneEditUndoServices us;
+    MMSceneState data;
+    MMSceneRuntime runtime;
+    MMSceneOwner owner;
     Group groups[2];
     Back backgrounds[3];
-    ThreeMMTag weak, published, undo_tag;
+    MMTag weak, published, undo_tag;
     Undo *active;
-    ThreeMMScenePauseUndo cleared_pause;
-    ThreeMMSceneBackgroundUndo cleared_back;
+    MMScenePauseUndo cleared_pause;
+    MMSceneBackgroundUndo cleared_back;
     int dirty, puts, erases, insert_fail, put_fail, fetches, fetch_fail, fetch_fail_all, put_background_calls,
         put_background_fail;
     int camera_calls, camera_fail, camera_fail_all, names, changes, loaded, available, diag[2], event_diag, lights,
@@ -42,7 +42,7 @@ typedef struct Edit
     int undo_live, new_fail, commit_fail, commits, clears, not_undoable, switched, seeks, switch_fail, seek_fail,
         flushes, pause_type;
     int publications, first, publish_check, temp_refs, temp_closed, child_fail, cache_fail, cache_calls;
-    ThreeMMI32 published_camera;
+    MMI32 published_camera;
     int camera_output_check, expected_camera_output;
     int log[512], used;
 } Edit;
@@ -51,23 +51,23 @@ static void note(Edit *e, int value)
     CHECK(e->used < 512);
     e->log[e->used++] = value;
 }
-static ThreeMMI32 count(void *p, void *g)
+static MMI32 count(void *p, void *g)
 {
     (void)p;
     return ((Group *)g)->count;
 }
-static void event(void *p, void *g, ThreeMMI32 i, ThreeMMI32 *frame, int *kind)
+static void event(void *p, void *g, MMI32 i, MMI32 *frame, int *kind)
 {
     (void)p;
     *frame = ((Group *)g)->v[i].frame;
     *kind = ((Group *)g)->v[i].kind;
 }
-static void *payload(void *p, void *g, ThreeMMI32 i)
+static void *payload(void *p, void *g, MMI32 i)
 {
     (void)p;
     return ((Group *)g)->v[i].data;
 }
-static void erase(void *p, void *g, ThreeMMI32 i)
+static void erase(void *p, void *g, MMI32 i)
 {
     Edit *e = (Edit *)p;
     Group *group = (Group *)g;
@@ -78,7 +78,7 @@ static void erase(void *p, void *g, ThreeMMI32 i)
     ++e->erases;
     note(e, 20);
 }
-static int insert_into(Edit *e, Group *g, int i, ThreeMMI32 frame, int kind, int bytes, const void *value)
+static int insert_into(Edit *e, Group *g, int i, MMI32 frame, int kind, int bytes, const void *value)
 {
     void *data;
     CHECK(i >= 0 && i <= g->count && g->count < 16);
@@ -95,7 +95,7 @@ static int insert_into(Edit *e, Group *g, int i, ThreeMMI32 frame, int kind, int
     ++g->count;
     return 1;
 }
-static int insert_frame(void *p, ThreeMMI32 i, ThreeMMI32 frame, int kind, ThreeMMI32 bytes, const void *value)
+static int insert_frame(void *p, MMI32 i, MMI32 frame, int kind, MMI32 bytes, const void *value)
 {
     Edit *e = (Edit *)p;
     CHECK(e->runtime.next_event == i + 1);
@@ -107,7 +107,7 @@ static void dirty(void *p)
     ++e->dirty;
     note(e, 21);
 }
-static void put(void *p, void *g, ThreeMMI32 i, const void *value)
+static void put(void *p, void *g, MMI32 i, const void *value)
 {
     Edit *e = (Edit *)p;
     Evt *v = &((Group *)g)->v[i];
@@ -115,12 +115,12 @@ static void put(void *p, void *g, ThreeMMI32 i, const void *value)
     ++e->puts;
     note(e, 22);
 }
-static void event_tag(void *p, void *value, ThreeMMTag *tag)
+static void event_tag(void *p, void *value, MMTag *tag)
 {
     (void)p;
-    *tag = *(ThreeMMTag *)value;
+    *tag = *(MMTag *)value;
 }
-static void publish_owner(void *p, void *scene, const ThreeMMSceneOwner *owner)
+static void publish_owner(void *p, void *scene, const MMSceneOwner *owner)
 {
     Edit *e = (Edit *)p;
     CHECK(scene == e && owner == &e->owner);
@@ -142,7 +142,7 @@ static void lights_off(void *p, void *back)
     ++e->lights;
     note(e, 25);
 }
-static void *fetch_back(void *p, ThreeMMTag *tag)
+static void *fetch_back(void *p, MMTag *tag)
 {
     Edit *e = (Edit *)p;
     Back *b;
@@ -155,12 +155,12 @@ static void *fetch_back(void *p, ThreeMMTag *tag)
     ++b->refs;
     return b;
 }
-static ThreeMMI32 camera_value(void *p, void *value)
+static MMI32 camera_value(void *p, void *value)
 {
     (void)p;
-    return *(ThreeMMI32 *)value;
+    return *(MMI32 *)value;
 }
-static int set_camera(void *p, void *back, ThreeMMI32 camera)
+static int set_camera(void *p, void *back, MMI32 camera)
 {
     Edit *e = (Edit *)p;
     Back *b = (Back *)back;
@@ -181,7 +181,7 @@ static int transition(void *p)
     (void)p;
     return 0;
 }
-static void weak_tag(void *p, const ThreeMMTag *tag)
+static void weak_tag(void *p, const MMTag *tag)
 {
     ((Edit *)p)->weak = *tag;
 }
@@ -191,7 +191,7 @@ static void event_issue(void *p, int issue)
     (void)issue;
     ++e->event_diag;
 }
-static void tag_output(void *p, const ThreeMMTag *tag, int first)
+static void tag_output(void *p, const MMTag *tag, int first)
 {
     Edit *e = (Edit *)p;
     e->published = *tag;
@@ -199,16 +199,16 @@ static void tag_output(void *p, const ThreeMMTag *tag, int first)
     ++e->publications;
     note(e, 28);
 }
-static void camera_output(void *p, ThreeMMI32 camera)
+static void camera_output(void *p, MMI32 camera)
 {
     Edit *e = (Edit *)p;
     e->published_camera = camera;
     note(e, 29);
 }
-static int put_background(void *p, ThreeMMI32 i, const ThreeMMTag *tag)
+static int put_background(void *p, MMI32 i, const MMTag *tag)
 {
     Edit *e = (Edit *)p;
-    ThreeMMTag *old = (ThreeMMTag *)e->groups[1].v[i].data;
+    MMTag *old = (MMTag *)e->groups[1].v[i].data;
     ++e->put_background_calls;
     if (e->publish_check)
     {
@@ -221,17 +221,17 @@ static int put_background(void *p, ThreeMMI32 i, const ThreeMMTag *tag)
     note(e, 30);
     return 1;
 }
-static int insert_background(void *p, ThreeMMI32 frame, const ThreeMMTag *tag)
+static int insert_background(void *p, MMI32 frame, const MMTag *tag)
 {
     Edit *e = (Edit *)p;
     CHECK(!frame);
     return insert_into(e, &e->groups[1], 0, frame, 4, sizeof(*tag), tag);
 }
-static int play_background(void *p, ThreeMMI32 frame, const ThreeMMTag *tag, ThreeMMU32 mask)
+static int play_background(void *p, MMI32 frame, const MMTag *tag, MMU32 mask)
 {
     Edit *e = (Edit *)p;
-    ThreeMMTag value = *tag;
-    return three_mm_scene_play_event(frame, 4, &value, mask, &e->s.sound.events);
+    MMTag value = *tag;
+    return mm_scene_play_event(frame, 4, &value, mask, &e->s.sound.events);
 }
 static void name_background(void *p)
 {
@@ -256,16 +256,16 @@ static void loaded(void *p)
     ++e->loaded;
     note(e, 33);
 }
-static ThreeMMI32 current_camera(void *p)
+static MMI32 current_camera(void *p)
 {
     Edit *e = (Edit *)p;
     CHECK(e->owner.owned[5]);
     return ((Back *)e->owner.owned[5])->camera;
 }
-static void close_sound_tag(void *p, void *sound, ThreeMMI32 i)
+static void close_sound_tag(void *p, void *sound, MMI32 i)
 {
     Edit *e = (Edit *)p;
-    Record *r = at((ThreeMMSceneSound *)sound, i);
+    Record *r = at((MMSceneSound *)sound, i);
     ++e->closes;
     note(e, 34);
     if (!r->tag.sid)
@@ -299,12 +299,12 @@ static void *new_undo(void *p, int kind)
     ++e->undo_live;
     return u;
 }
-static ThreeMMScenePauseUndo *pause_state(void *p, void *u)
+static MMScenePauseUndo *pause_state(void *p, void *u)
 {
     (void)p;
     return &((Undo *)u)->pause;
 }
-static ThreeMMSceneBackgroundUndo *background_state(void *p, void *u)
+static MMSceneBackgroundUndo *background_state(void *p, void *u)
 {
     (void)p;
     return &((Undo *)u)->back;
@@ -341,25 +341,25 @@ static void not_undoable(void *p)
     ++e->not_undoable;
     note(e, 41);
 }
-static int camera_tag(void *p, ThreeMMI32 camera, ThreeMMTag *tag)
+static int camera_tag(void *p, MMI32 camera, MMTag *tag)
 {
     Edit *e = (Edit *)p;
     if (e->child_fail)
         return 0;
     tag->sid = 0;
     tag->cache = &e->packets;
-    tag->number = (ThreeMMU32)camera;
+    tag->number = (MMU32)camera;
     ++e->temp_refs;
     return 1;
 }
-static int cache_tag(void *p, const ThreeMMTag *tag)
+static int cache_tag(void *p, const MMTag *tag)
 {
     Edit *e = (Edit *)p;
     CHECK(tag->cache == &e->packets && e->temp_refs == 1);
     ++e->cache_calls;
     return !e->cache_fail;
 }
-static void close_tag(void *p, ThreeMMTag *tag)
+static void close_tag(void *p, MMTag *tag)
 {
     Edit *e = (Edit *)p;
     CHECK(tag->cache == &e->packets && e->temp_refs == 1);
@@ -384,26 +384,26 @@ static int seek(void *p)
     ++e->seeks;
     return !e->seek_fail;
 }
-static int undo_pause(void *p, ThreeMMI32 *reason, ThreeMMI32 *delay)
+static int undo_pause(void *p, MMI32 *reason, MMI32 *delay)
 {
     Edit *e = (Edit *)p;
-    return three_mm_scene_pause_edit(reason, delay, &e->s);
+    return mm_scene_pause_edit(reason, delay, &e->s);
 }
 static int has_background(void *p)
 {
     return ((Edit *)p)->owner.owned[5] != NULL;
 }
-static int undo_background(void *p, const ThreeMMTag *tag, ThreeMMTag *old)
+static int undo_background(void *p, const MMTag *tag, MMTag *old)
 {
     Edit *e = (Edit *)p;
-    return three_mm_scene_background_edit(tag, old, &e->s);
+    return mm_scene_background_edit(tag, old, &e->s);
 }
-static int undo_camera(void *p, ThreeMMI32 camera, ThreeMMI32 *old)
+static int undo_camera(void *p, MMI32 camera, MMI32 *old)
 {
     Edit *e = (Edit *)p;
-    return three_mm_scene_camera_edit(camera, old, &e->s);
+    return mm_scene_camera_edit(camera, old, &e->s);
 }
-static void pause_type(void *p, ThreeMMI32 reason)
+static void pause_type(void *p, MMI32 reason)
 {
     ((Edit *)p)->pause_type = reason;
 }
@@ -415,9 +415,9 @@ static void flush(void *p)
 }
 static void init_edit(Edit *e)
 {
-    ThreeMMSceneEditServices *s;
-    ThreeMMSceneEventServices *v;
-    ThreeMMSceneOwnerServices *o;
+    MMSceneEditServices *s;
+    MMSceneEventServices *v;
+    MMSceneOwnerServices *o;
     int i;
     memset(e, 0, sizeof(*e));
     init(&e->packets);
@@ -491,18 +491,18 @@ static void init_edit(Edit *e)
     e->us.flush = flush;
     e->us.clear = clear;
 }
-static ThreeMMTag tag(int n)
+static MMTag tag(int n)
 {
-    ThreeMMTag t;
+    MMTag t;
     t.sid = 1;
     t.cache = NULL;
     t.type = 23;
-    t.number = (ThreeMMU32)n;
+    t.number = (MMU32)n;
     return t;
 }
 static void existing_background(Edit *e, int n)
 {
-    ThreeMMTag value = tag(n);
+    MMTag value = tag(n);
     CHECK(insert_into(e, &e->groups[1], 0, 0, 4, sizeof(value), &value));
     e->backgrounds[n].refs = 1;
     e->owner.owned[5] = &e->backgrounds[n];
@@ -510,7 +510,7 @@ static void existing_background(Edit *e, int n)
 }
 static void add_camera(Edit *e, int frame, int camera)
 {
-    ThreeMMI32 value = camera;
+    MMI32 value = camera;
     CHECK(insert_into(e, &e->groups[0], e->groups[0].count, frame, 3, 4, &value));
 }
 static void clean_edit(Edit *e)
@@ -529,7 +529,7 @@ static void clean_edit(Edit *e)
             Evt *v = &g->v[g->count - 1];
             if (v->kind == 1)
             {
-                ThreeMMSceneSound *p = (ThreeMMSceneSound *)v->data;
+                MMSceneSound *p = (MMSceneSound *)v->data;
                 for (j = 0; j < p->ctagc; ++j)
                     close_sound_tag(e, p, j);
             }
@@ -537,7 +537,7 @@ static void clean_edit(Edit *e)
         }
     }
     if (e->owner.owned[7])
-        drop(&e->packets, (ThreeMMSceneSound *)e->owner.owned[7]);
+        drop(&e->packets, (MMSceneSound *)e->owner.owned[7]);
     for (i = 0; i < 3; ++i)
         CHECK(!e->backgrounds[i].refs);
     clean(&e->packets);
@@ -545,43 +545,43 @@ static void clean_edit(Edit *e)
 static void test_pause(void)
 {
     Edit e;
-    ThreeMMI32 reason = 0, delay = 0;
+    MMI32 reason = 0, delay = 0;
     init_edit(&e);
-    CHECK(three_mm_scene_pause_edit(&reason, &delay, &e.s) && e.groups[0].count == 1 && e.runtime.next_event == 1 &&
+    CHECK(mm_scene_pause_edit(&reason, &delay, &e.s) && e.groups[0].count == 1 && e.runtime.next_event == 1 &&
           e.dirty == 1);
     reason = 3;
     delay = 13;
-    CHECK(three_mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 0 && delay == 0 && e.dirty == 1);
+    CHECK(mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 0 && delay == 0 && e.dirty == 1);
     reason = 0;
     delay = 0;
-    CHECK(three_mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 3 && delay == 13 && !e.groups[0].count &&
+    CHECK(mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 3 && delay == 13 && !e.groups[0].count &&
           !e.runtime.next_event && e.dirty == 1);
     add_camera(&e, 1, 1);
     e.runtime.next_event = 1;
     e.data.currentFrame = 3;
     reason = 1;
     delay = 17;
-    CHECK(three_mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 0 && delay == 0 && e.groups[0].count == 2);
+    CHECK(mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 0 && delay == 0 && e.groups[0].count == 2);
     e.data.currentFrame = 4;
     e.insert_fail = 1;
     reason = 2;
     delay = 29;
-    CHECK(!three_mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 2 && delay == 29 && e.runtime.next_event == 2);
+    CHECK(!mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 2 && delay == 29 && e.runtime.next_event == 2);
     clean_edit(&e);
 }
 static void test_camera(void)
 {
     Edit e;
-    ThreeMMI32 old;
+    MMI32 old;
     init_edit(&e);
     existing_background(&e, 0);
-    CHECK(three_mm_scene_camera_edit(0, &old, &e.s) && old == 0 && !e.dirty && !e.groups[0].count);
-    CHECK(three_mm_scene_camera_edit(1, &old, &e.s) && old == 0 && e.runtime.next_event == 1 &&
+    CHECK(mm_scene_camera_edit(0, &old, &e.s) && old == 0 && !e.dirty && !e.groups[0].count);
+    CHECK(mm_scene_camera_edit(1, &old, &e.s) && old == 0 && e.runtime.next_event == 1 &&
           e.backgrounds[0].camera == 1);
     e.camera_output_check = 1;
     e.expected_camera_output = 1;
-    CHECK(three_mm_scene_camera_edit(2, &old, &e.s) && old == 1 && e.groups[0].count == 1 && e.published_camera == 1);
-    CHECK(three_mm_scene_camera_edit(0, &old, &e.s) && old == 2 && !e.groups[0].count && !e.runtime.next_event);
+    CHECK(mm_scene_camera_edit(2, &old, &e.s) && old == 1 && e.groups[0].count == 1 && e.published_camera == 1);
+    CHECK(mm_scene_camera_edit(0, &old, &e.s) && old == 2 && !e.groups[0].count && !e.runtime.next_event);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
@@ -590,62 +590,62 @@ static void test_camera(void)
     add_camera(&e, 7, 2);
     e.data.currentFrame = 4;
     e.runtime.next_event = 2;
-    CHECK(three_mm_scene_camera_edit(1, &old, &e.s) && old == 2 && e.groups[0].count == 2 && e.runtime.next_event == 1);
-    CHECK(three_mm_scene_camera_edit(2, &old, &e.s) && old == 1 && e.groups[0].count == 2 && e.runtime.next_event == 2);
+    CHECK(mm_scene_camera_edit(1, &old, &e.s) && old == 2 && e.groups[0].count == 2 && e.runtime.next_event == 1);
+    CHECK(mm_scene_camera_edit(2, &old, &e.s) && old == 1 && e.groups[0].count == 2 && e.runtime.next_event == 2);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     add_camera(&e, 1, 1);
     e.runtime.next_event = 1;
     e.camera_fail = 1;
-    CHECK(!three_mm_scene_camera_edit(2, &old, &e.s) && old == 1 && *(ThreeMMI32 *)e.groups[0].v[0].data == 2 &&
+    CHECK(!mm_scene_camera_edit(2, &old, &e.s) && old == 1 && *(MMI32 *)e.groups[0].v[0].data == 2 &&
           e.dirty == 1);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     e.camera_fail = 1;
-    CHECK(!three_mm_scene_camera_edit(1, &old, &e.s) && !e.groups[0].count && !e.runtime.next_event && e.dirty == 1);
+    CHECK(!mm_scene_camera_edit(1, &old, &e.s) && !e.groups[0].count && !e.runtime.next_event && e.dirty == 1);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     add_camera(&e, 1, 1);
     e.runtime.next_event = 1;
     e.camera_fail = 1;
-    CHECK(!three_mm_scene_camera_edit(0, &old, &e.s) && e.groups[0].count == 1 && e.runtime.next_event == 1 &&
+    CHECK(!mm_scene_camera_edit(0, &old, &e.s) && e.groups[0].count == 1 && e.runtime.next_event == 1 &&
           !e.dirty);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
-    e.runtime.disabled = THREE_MM_SCENE_EFFECT_CAMERAS;
-    CHECK(three_mm_scene_camera_edit(1, &old, &e.s) && !e.camera_calls);
+    e.runtime.disabled = MM_SCENE_EFFECT_CAMERAS;
+    CHECK(mm_scene_camera_edit(1, &old, &e.s) && !e.camera_calls);
     clean_edit(&e);
 }
 static void test_background(void)
 {
     Edit e;
-    ThreeMMTag value = tag(1), old;
-    ThreeMMSceneSound *sound, *cached;
+    MMTag value = tag(1), old;
+    MMSceneSound *sound, *cached;
     int j;
     init_edit(&e);
     sound = make(&e.packets, 3);
-    cached = three_mm_scene_sound_duplicate(sound, &e.packets.s);
+    cached = mm_scene_sound_duplicate(sound, &e.packets.s);
     CHECK(cached);
     e.owner.owned[7] = cached;
     CHECK(insert_into(&e, &e.groups[0], 0, 1, 1, 16 + 3 * sizeof(Record), sound));
     raw_free(&e.packets, sound);
     e.runtime.next_event = 1;
-    CHECK(three_mm_scene_background_edit(&value, &old, &e.s) && old.sid == -1 && e.first && e.loaded == 1 &&
+    CHECK(mm_scene_background_edit(&value, &old, &e.s) && old.sid == -1 && e.first && e.loaded == 1 &&
           e.names == 1 && e.changes == 1 && !e.groups[0].count && !e.runtime.next_event);
     CHECK(e.closes == 3 && e.packets.refs[1] == 1 && e.packets.refs[3] == 1 && e.owner.owned[7] == cached);
     clean_edit(&e);
     init_edit(&e);
     e.available = 0;
     e.runtime.disabled = 0xffffffffUL;
-    CHECK(three_mm_scene_background_edit(&value, &old, &e.s) && !e.loaded && e.changes == 1 && e.camera_calls == 1);
+    CHECK(mm_scene_background_edit(&value, &old, &e.s) && !e.loaded && e.changes == 1 && e.camera_calls == 1);
     clean_edit(&e);
     init_edit(&e);
     e.camera_fail = 1;
-    CHECK(!three_mm_scene_background_edit(&value, &old, &e.s) && !e.owner.owned[5] && !e.groups[1].count &&
+    CHECK(!mm_scene_background_edit(&value, &old, &e.s) && !e.owner.owned[5] && !e.groups[1].count &&
           e.releases == 1);
     clean_edit(&e);
     for (j = 0; j < 5; ++j)
@@ -666,7 +666,7 @@ static void test_background(void)
             e.fetch_fail = 1;
             e.put_background_fail = 2;
         }
-        CHECK(three_mm_scene_background_edit(&value, &old, &e.s) == (j == 0));
+        CHECK(mm_scene_background_edit(&value, &old, &e.s) == (j == 0));
         CHECK(old.number == 0 && e.publications == 1 && !e.first);
         if (j == 0)
             CHECK(!e.groups[0].count && e.names == 1 && e.dirty == 1);
@@ -677,89 +677,89 @@ static void test_background(void)
         else
             CHECK(e.owner.owned[5] == &e.backgrounds[j == 0 ? 1 : 0]);
         if (j == 4)
-            CHECK(((ThreeMMTag *)e.groups[1].v[0].data)->number == 1);
+            CHECK(((MMTag *)e.groups[1].v[0].data)->number == 1);
         clean_edit(&e);
     }
     init_edit(&e);
     e.insert_fail = 1;
-    CHECK(!three_mm_scene_background_edit(&value, &old, &e.s) && e.first && !e.dirty && !e.fetches);
+    CHECK(!mm_scene_background_edit(&value, &old, &e.s) && e.first && !e.dirty && !e.fetches);
     clean_edit(&e);
     init_edit(&e);
     e.fetch_fail = 1;
-    CHECK(!three_mm_scene_background_edit(&value, &old, &e.s) && !e.groups[1].count && !e.dirty);
+    CHECK(!mm_scene_background_edit(&value, &old, &e.s) && !e.groups[1].count && !e.dirty);
     clean_edit(&e);
     init_edit(&e);
     e.backgrounds[0].refs = 1;
     e.owner.owned[5] = &e.backgrounds[0];
-    CHECK(!three_mm_scene_background_edit(&value, &old, &e.s) && e.diag[0]);
+    CHECK(!mm_scene_background_edit(&value, &old, &e.s) && e.diag[0]);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
-    CHECK(three_mm_scene_is_empty(&e.s));
+    CHECK(mm_scene_is_empty(&e.s));
     e.data.firstFrame = -2147483647L;
     e.data.lastFrame = 2147483647L;
-    CHECK(three_mm_scene_is_empty(&e.s));
+    CHECK(mm_scene_is_empty(&e.s));
     clean_edit(&e);
 }
 static void test_public(void)
 {
     Edit e;
-    ThreeMMTag value = tag(1);
+    MMTag value = tag(1);
     init_edit(&e);
     e.commit_fail = 1;
-    CHECK(!three_mm_scene_pause_undo_edit(3, 45, &e.s) && !e.groups[0].count && !e.undo_live && e.commits == 1);
+    CHECK(!mm_scene_pause_undo_edit(3, 45, &e.s) && !e.groups[0].count && !e.undo_live && e.commits == 1);
     clean_edit(&e);
     init_edit(&e);
-    CHECK(three_mm_scene_pause_undo_edit(3, 45, &e.s) && e.active->pause.reason == 0 && e.active->pause.add);
+    CHECK(mm_scene_pause_undo_edit(3, 45, &e.s) && e.active->pause.reason == 0 && e.active->pause.add);
     clean_edit(&e);
     init_edit(&e);
     e.new_fail = 1;
-    CHECK(!three_mm_scene_pause_undo_edit(3, 45, &e.s) && !e.groups[0].count);
+    CHECK(!mm_scene_pause_undo_edit(3, 45, &e.s) && !e.groups[0].count);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     e.cache_fail = 1;
-    CHECK(!three_mm_scene_camera_undo_edit(1, &e.s) && e.temp_closed == 1 && !e.groups[0].count);
+    CHECK(!mm_scene_camera_undo_edit(1, &e.s) && e.temp_closed == 1 && !e.groups[0].count);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     e.child_fail = 1;
-    CHECK(!three_mm_scene_camera_undo_edit(1, &e.s) && !e.temp_closed && !e.cache_calls && !e.groups[0].count);
+    CHECK(!mm_scene_camera_undo_edit(1, &e.s) && !e.temp_closed && !e.cache_calls && !e.groups[0].count);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     e.new_fail = 1;
-    CHECK(!three_mm_scene_camera_undo_edit(1, &e.s) && e.backgrounds[0].camera == 1 && e.temp_closed == 1);
+    CHECK(!mm_scene_camera_undo_edit(1, &e.s) && e.backgrounds[0].camera == 1 && e.temp_closed == 1);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     e.commit_fail = 1;
     e.camera_fail = 2;
-    CHECK(!three_mm_scene_camera_undo_edit(1, &e.s) && e.clears == 1 && e.not_undoable == 1 && !e.temp_refs);
+    CHECK(!mm_scene_camera_undo_edit(1, &e.s) && e.clears == 1 && e.not_undoable == 1 && !e.temp_refs);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
-    CHECK(three_mm_scene_camera_undo_edit(1, &e.s) && e.active->back.camera == 0 && !e.active->back.background &&
+    CHECK(mm_scene_camera_undo_edit(1, &e.s) && e.active->back.camera == 0 && !e.active->back.background &&
           !e.temp_refs);
     clean_edit(&e);
     init_edit(&e);
-    CHECK(!three_mm_scene_background_undo_edit(&value, &e.s) && e.diag[1] && !e.fetches);
+    CHECK(!mm_scene_background_undo_edit(&value, &e.s) && e.diag[1] && !e.fetches);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     e.new_fail = 1;
-    CHECK(!three_mm_scene_background_undo_edit(&value, &e.s) && e.owner.owned[5] == &e.backgrounds[0] &&
+    CHECK(!mm_scene_background_undo_edit(&value, &e.s) && e.owner.owned[5] == &e.backgrounds[0] &&
           value.number == 1);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     e.new_fail = 1;
     e.fetch_fail = 2;
-    CHECK(!three_mm_scene_background_undo_edit(&value, &e.s) && e.clears == 1 && e.not_undoable == 1);
+    CHECK(!mm_scene_background_undo_edit(&value, &e.s) && e.clears == 1 && e.not_undoable == 1);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
-    CHECK(three_mm_scene_background_undo_edit(&value, &e.s) && e.active->back.tag.number == 0 &&
+    CHECK(mm_scene_background_undo_edit(&value, &e.s) && e.active->back.tag.number == 0 &&
           e.active->back.background);
     clean_edit(&e);
 }
@@ -767,17 +767,17 @@ static void test_undo(void)
 {
     Edit e;
     Undo *u;
-    ThreeMMI32 reason, delay;
+    MMI32 reason, delay;
     int fail;
     init_edit(&e);
     reason = 3;
     delay = 71;
-    CHECK(three_mm_scene_pause_edit(&reason, &delay, &e.s));
+    CHECK(mm_scene_pause_edit(&reason, &delay, &e.s));
     u = (Undo *)new_undo(&e, 0);
     e.active = u;
-    CHECK(three_mm_scene_pause_undo(&u->pause, &e.us) && u->pause.reason == 3 && u->pause.delay == 71 &&
+    CHECK(mm_scene_pause_undo(&u->pause, &e.us) && u->pause.reason == 3 && u->pause.delay == 71 &&
           e.pause_type == 0 && e.flushes == 1);
-    CHECK(three_mm_scene_pause_undo(&u->pause, &e.us) && u->pause.reason == 0 && e.pause_type == 3);
+    CHECK(mm_scene_pause_undo(&u->pause, &e.us) && u->pause.reason == 0 && e.pause_type == 3);
     clean_edit(&e);
     for (fail = 0; fail < 3; ++fail)
     {
@@ -788,7 +788,7 @@ static void test_undo(void)
         e.switch_fail = fail == 0;
         e.seek_fail = fail == 1;
         e.insert_fail = fail == 2;
-        CHECK(!three_mm_scene_pause_undo(&u->pause, &e.us) && !e.active && !e.undo_live && e.flushes == 1 &&
+        CHECK(!mm_scene_pause_undo(&u->pause, &e.us) && !e.active && !e.undo_live && e.flushes == 1 &&
               e.clears == 1);
         CHECK(e.log[e.used - 2] == 42 && e.log[e.used - 1] == 40);
         clean_edit(&e);
@@ -801,7 +801,7 @@ static void test_undo(void)
     u->back.background = 1;
     u->back.tag = tag(1);
     u->back.camera = 3;
-    CHECK(three_mm_scene_background_undo(&u->back, &e.us) && u->back.tag.number == 0 && u->back.camera == 2 &&
+    CHECK(mm_scene_background_undo(&u->back, &e.us) && u->back.tag.number == 0 && u->back.camera == 2 &&
           !e.seeks && e.backgrounds[1].camera == 3);
     clean_edit(&e);
     init_edit(&e);
@@ -812,7 +812,7 @@ static void test_undo(void)
     u->back.tag = tag(1);
     u->back.camera = 3;
     e.camera_fail = 2;
-    CHECK(!three_mm_scene_background_undo(&u->back, &e.us) && !e.active && !e.undo_live &&
+    CHECK(!mm_scene_background_undo(&u->back, &e.us) && !e.active && !e.undo_live &&
           e.cleared_back.tag.number == 1 && e.cleared_back.camera == 3 && e.owner.owned[5] == &e.backgrounds[1]);
     clean_edit(&e);
     init_edit(&e);
@@ -820,7 +820,7 @@ static void test_undo(void)
     u = (Undo *)new_undo(&e, 1);
     e.active = u;
     u->back.camera = 2;
-    CHECK(three_mm_scene_background_undo(&u->back, &e.us) && e.seeks == 1 && u->back.camera == 0 &&
+    CHECK(mm_scene_background_undo(&u->back, &e.us) && e.seeks == 1 && u->back.camera == 0 &&
           e.backgrounds[0].camera == 2);
     clean_edit(&e);
 }

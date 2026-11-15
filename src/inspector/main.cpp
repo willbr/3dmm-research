@@ -1,6 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "archive.h"
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -103,8 +103,8 @@ class App
     int selected = -1;
     SDL_Renderer *renderer = nullptr;
     SDL_Texture *previewTexture = nullptr;
-    ThreeMM::Preview preview;
-    ThreeMM::PreviewView previewView;
+    MM::Preview preview;
+    MM::PreviewView previewView;
     std::string previewError, previewArchive, previewResources;
     char resourcesPath[4096] = {}, contentPath[4096] = {};
     std::string previewContent;
@@ -144,7 +144,7 @@ class App
             previewError = "Set the path to 3dmovie.chk below to load the palette and shading resources.";
             return;
         }
-        ThreeMM::Error failure;
+        MM::Error failure;
         if (previewArchive != archive.Path() || previewResources != resourcesPath || previewContent != contentPath)
         {
             if (!preview.Open(archive.Path(), resourcesPath, failure))
@@ -198,7 +198,7 @@ class App
                                 info.parts, info.triangles);
             if (info.timeline && ImGui::SliderInt("Frame", &sceneFrame, info.firstFrame, info.lastFrame))
             {
-                ThreeMM::Error failure;
+                MM::Error failure;
                 previewDirty = preview.SetFrame(sceneFrame, failure);
                 previewError = failure.message;
             }
@@ -207,7 +207,7 @@ class App
                 int camera = static_cast<int>(info.currentCamera);
                 if (ImGui::SliderInt("Camera", &camera, 0, static_cast<int>(info.cameraCount) - 1))
                 {
-                    ThreeMM::Error failure;
+                    MM::Error failure;
                     previewDirty = preview.SetCamera(camera, failure);
                     previewError = failure.message;
                     previewView.authoredCamera = true;
@@ -226,7 +226,7 @@ class App
                         {
                             action = static_cast<int>(i);
                             cel = 0;
-                            ThreeMM::Error failure;
+                            MM::Error failure;
                             previewDirty = preview.SetPose(action, cel, failure);
                             previewError = failure.message;
                         }
@@ -235,7 +235,7 @@ class App
                 const int lastCel = static_cast<int>(info.actions[action].celCount) - 1;
                 if (ImGui::SliderInt("Cel", &cel, 0, lastCel))
                 {
-                    ThreeMM::Error failure;
+                    MM::Error failure;
                     previewDirty = preview.SetPose(action, cel, failure);
                     previewError = failure.message;
                 }
@@ -256,8 +256,8 @@ class App
             if (previewDirty)
             {
                 previewDirty = false;
-                ThreeMM::PreviewImage pixels;
-                ThreeMM::Error failure;
+                MM::PreviewImage pixels;
+                MM::Error failure;
                 if (preview.Render(previewView, pixels, failure))
                 {
                     SDL_DestroyTexture(previewTexture);

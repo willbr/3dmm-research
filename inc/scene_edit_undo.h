@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef SCENE_EDIT_UNDO_H
 #define SCENE_EDIT_UNDO_H
-#include "three_mm/scene_edit.h"
+#include "mm/scene_edit.h"
 typedef class SceneUndoBackground *PSceneUndoBackground;
 
 #define SceneUndoBackground_PAR MovieUndo
@@ -14,7 +14,7 @@ class SceneUndoBackground : public SceneUndoBackground_PAR
     ASSERT
 
   protected:
-    ThreeMMSceneBackgroundUndo _edit = {};
+    MMSceneBackgroundUndo _edit = {};
     SceneUndoBackground(void)
     {
     }
@@ -36,7 +36,7 @@ class SceneUndoBackground : public SceneUndoBackground_PAR
         _edit.background = fSetBkgd;
     }
 
-    ThreeMMSceneBackgroundUndo *CoreState()
+    MMSceneBackgroundUndo *CoreState()
     {
         return &_edit;
     }
@@ -55,7 +55,7 @@ class SceneUndoPause : public SceneUndoPause_PAR
     ASSERT
 
   protected:
-    ThreeMMScenePauseUndo _edit = {};
+    MMScenePauseUndo _edit = {};
     SceneUndoPause(void)
     {
     }
@@ -77,7 +77,7 @@ class SceneUndoPause : public SceneUndoPause_PAR
         _edit.add = fAdd;
     }
 
-    ThreeMMScenePauseUndo *CoreState()
+    MMScenePauseUndo *CoreState()
     {
         return &_edit;
     }

@@ -7,16 +7,16 @@ namespace Inspector
 {
 namespace
 {
-ThreeMM::Options PreviewOptions()
+MM::Options PreviewOptions()
 {
-    ThreeMM::Options options;
+    MM::Options options;
     options.maxDecodedBytes = 64u * 1024 * 1024;
     return options;
 }
 } // namespace
 struct Archive::Impl
 {
-    ThreeMM::Archive archive{PreviewOptions()};
+    MM::Archive archive{PreviewOptions()};
     std::vector<Chunk> chunks;
 };
 Archive::Archive() : _impl(new Impl)
@@ -41,7 +41,7 @@ bool Archive::Open(const std::string &path, std::string &error)
     try
     {
         std::unique_ptr<Impl> opened(new Impl);
-        ThreeMM::Error failure;
+        MM::Error failure;
         if (!opened->archive.Open(path, failure))
         {
             error = failure.message;
@@ -66,8 +66,8 @@ bool Archive::ReadDetail(std::size_t index, std::uint32_t offset, Detail &detail
 {
     detail = {};
     error.clear();
-    ThreeMM::Error failure;
-    ThreeMM::PayloadPage payload;
+    MM::Error failure;
+    MM::PayloadPage payload;
     if (!_impl->archive.ReadPayload(index, offset, 4096, payload, failure))
     {
         error = failure.message;
@@ -79,7 +79,7 @@ bool Archive::ReadDetail(std::size_t index, std::uint32_t offset, Detail &detail
     if (TypeLabel(_impl->chunks[index].id.type) == "GST ")
     {
         detail.strings.present = true;
-        ThreeMM::StringTablePage page;
+        MM::StringTablePage page;
         if (!_impl->archive.ReadStrings(index, firstString, 128, page, failure))
             detail.strings.error = failure.message + " Raw bytes remain available below.";
         else
@@ -91,7 +91,7 @@ bool Archive::ReadDetail(std::size_t index, std::uint32_t offset, Detail &detail
         }
         return true;
     }
-    ThreeMM::RecordHeader record;
+    MM::RecordHeader record;
     if (!_impl->archive.ReadRecord(index, record, failure))
     {
         detail.fields.push_back(failure.message);
@@ -99,26 +99,26 @@ bool Archive::ReadDetail(std::size_t index, std::uint32_t offset, Detail &detail
     }
     switch (record.kind)
     {
-    case ThreeMM::RecordKind::movie:
+    case MM::RecordKind::movie:
         detail.fields.push_back("Movie version: " + std::to_string(record.movie.version));
         detail.fields.push_back("Backwards version: " + std::to_string(record.movie.backVersion));
         break;
-    case ThreeMM::RecordKind::scene:
+    case MM::RecordKind::scene:
         detail.fields.push_back("Scene frames: " + std::to_string(record.scene.firstFrame) + " to " +
                                 std::to_string(record.scene.lastFrame));
         detail.fields.push_back("Transition: " + std::to_string(record.scene.transition));
         break;
-    case ThreeMM::RecordKind::actor:
+    case MM::RecordKind::actor:
         detail.fields.push_back("Actor ID: " + std::to_string(record.actor.actorId));
         detail.fields.push_back("Actor frames: " + std::to_string(record.actor.firstFrame) + " to " +
                                 std::to_string(record.actor.lastFrame));
         break;
-    case ThreeMM::RecordKind::caption:
+    case MM::RecordKind::caption:
         detail.fields.push_back("Caption frames: " + std::to_string(record.caption.firstFrame) + " to " +
                                 std::to_string(record.caption.maxFrame));
         detail.fields.push_back("Rich text: " + Identity(record.caption.text));
         break;
-    case ThreeMM::RecordKind::opaque:
+    case MM::RecordKind::opaque:
         detail.fields.push_back("Opaque payload: no structured decoder for this chunk type.");
         break;
     }

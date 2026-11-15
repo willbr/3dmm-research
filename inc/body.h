@@ -14,10 +14,10 @@
 #ifndef Body_H
 #define Body_H
 
-#include "three_mm/body_create.h"
-#include "three_mm/body_edit.h"
-#include "three_mm/body_runtime.h"
-#include "three_mm/body_geometry.h"
+#include "mm/body_create.h"
+#include "mm/body_edit.h"
+#include "mm/body_runtime.h"
+#include "mm/body_geometry.h"
 
 using namespace BRender;
 
@@ -46,17 +46,17 @@ class Body : public Body_PAR
     void *_pvRenderContext; // non-owning renderer binding, copied with the body
     void (*_pfnAttach)(void *, Body *);
     void (*_pfnChanged)(void *);
-    ThreeMMBodyGeometry _geometry; // C-owned bounds and hit-search state
+    MMBodyGeometry _geometry; // C-owned bounds and hit-search state
 
   protected:
     Body(void)
     {
-        three_mm_body_geometry_init(&_geometry);
+        mm_body_geometry_init(&_geometry);
     } // can't instantiate directly; must use PbodyNew
-    static ThreeMMBodyCreateServices _CreateServices(void);
-    static ThreeMMBodyEditServices _EditServices(void);
-    static ThreeMMBodyRuntimeServices _RuntimeServices(void);
-    static ThreeMMBodyGeometryServices _GeometryServices(void);
+    static MMBodyCreateServices _CreateServices(void);
+    static MMBodyEditServices _EditServices(void);
+    static MMBodyRuntimeServices _RuntimeServices(void);
+    static MMBodyGeometryServices _GeometryServices(void);
     void _DestroyShape(void);
     bool _FInit(PDynamicArray pglibactPar, PDynamicArray pglibset);
     bool _FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
@@ -156,7 +156,7 @@ class BodyCostume : public BodyCostume_PAR
     MARKMEM
 
   private:
-    ThreeMMBodyCostume _costume; // C-owned material references
+    MMBodyCostume _costume; // C-owned material references
 
   private:
     void _Clear(void); // release C-owned entries and material references

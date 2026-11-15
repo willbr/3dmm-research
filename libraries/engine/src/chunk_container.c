@@ -1,12 +1,12 @@
 /* Container construction converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/chunk_container.h"
+#include "mm/chunk_container.h"
 #include <string.h>
-void *three_mm_chunk_construct_forest(const ThreeMMForestConstruction *s, void *source, ThreeMMU32 offset,
-                                      ThreeMMU32 bytes, int copy)
+void *mm_chunk_construct_forest(const MMForestConstruction *s, void *source, MMU32 offset,
+                                      MMU32 bytes, int copy)
 {
     void *owner, *index, *file;
-    ThreeMMU32 end;
+    MMU32 end;
     if (!s || !source || !s->allocate || !s->release || !s->index || !s->attach_index || !s->temporary ||
         !s->retain_file || !s->attach_file || !s->resize || !s->destination || !s->read || offset > 0x7fffffffUL ||
         bytes > 0x7fffffffUL - offset)
@@ -42,27 +42,27 @@ fail:
     s->release(s->context, owner);
     return NULL;
 }
-static void issue(const ThreeMMChunkConstruction *services, int kind)
+static void issue(const MMChunkConstruction *services, int kind)
 {
     if (services->issue)
         services->issue(services->context, kind);
 }
-void *three_mm_chunk_construct(const ThreeMMChunkConstruction *services, ThreeMMU32 flags, int create)
+void *mm_chunk_construct(const MMChunkConstruction *services, MMU32 flags, int create)
 {
     void *owner, *file, *index;
-    int error = create ? THREE_MM_CONTAINER_CREATE_FAILED : THREE_MM_CONTAINER_OPEN_FAILED;
+    int error = create ? MM_CONTAINER_CREATE_FAILED : MM_CONTAINER_OPEN_FAILED;
     if (!services || !services->find || !services->allocate || !services->retain || !services->release ||
         !services->file || !services->index || !services->attach_file || !services->attach_index ||
         !services->set_end || !services->resize || !services->read_index || !services->validate || !services->options)
         return NULL;
     if (create)
-        flags |= THREE_MM_CHUNK_WRITE;
+        flags |= MM_CHUNK_WRITE;
     owner = services->find(services->context);
     if (owner)
     {
         if (create)
         {
-            issue(services, THREE_MM_CONTAINER_ALREADY_OPEN);
+            issue(services, MM_CONTAINER_ALREADY_OPEN);
             issue(services, error);
             return NULL;
         }
@@ -84,20 +84,20 @@ void *three_mm_chunk_construct(const ThreeMMChunkConstruction *services, ThreeMM
         if (!index)
             goto fail;
     }
-    file = services->file(services->context, create != 0, three_mm_chunk_file_flags(flags));
+    file = services->file(services->context, create != 0, mm_chunk_file_flags(flags));
     services->attach_file(services->context, owner, file);
     if (!file)
         goto fail;
     if (create)
     {
-        if (!services->resize(services->context, file, THREE_MM_CHUNK_PREFIX_BYTES))
+        if (!services->resize(services->context, file, MM_CHUNK_PREFIX_BYTES))
             goto fail;
-        services->set_end(services->context, owner, THREE_MM_CHUNK_PREFIX_BYTES);
+        services->set_end(services->context, owner, MM_CHUNK_PREFIX_BYTES);
     }
     else if (!services->read_index(services->context, owner) || !services->validate(services->context, owner))
         goto fail;
     if (!services->options(services->context, owner, flags))
-        issue(services, THREE_MM_CONTAINER_INITIAL_OPTIONS);
+        issue(services, MM_CONTAINER_INITIAL_OPTIONS);
     if (services->finish)
         services->finish(services->context, owner, create != 0);
     return owner;
@@ -106,7 +106,7 @@ fail:
     issue(services, error);
     return NULL;
 }
-void *three_mm_chunk_find_container(void *first, void *file, const ThreeMMChunkLookup *services)
+void *mm_chunk_find_container(void *first, void *file, const MMChunkLookup *services)
 {
     if (!file || !services || !services->next || !services->main_file || !services->extra_file ||
         !services->invalid_main)
@@ -121,30 +121,30 @@ void *three_mm_chunk_find_container(void *first, void *file, const ThreeMMChunkL
     }
     return NULL;
 }
-int three_mm_chunk_dispose(ThreeMMChunkReopenState *state, ThreeMMChunkRuntime *runtime,
-                           const ThreeMMChunkDisposal *services)
+int mm_chunk_dispose(MMChunkReopenState *state, MMChunkRuntime *runtime,
+                           const MMChunkDisposal *services)
 {
-    ThreeMMChunkReopenState old;
+    MMChunkReopenState old;
     if (!state || !services || !services->release_file || !services->release_index || !services->publish)
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     if (runtime && (runtime->storage.buffers[0].locks || runtime->storage.buffers[1].locks))
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     if ((state->main_map && (state->main_map->storage.buffers[0].locks || state->main_map->storage.buffers[1].locks)) ||
         (state->extra_map &&
          (state->extra_map->storage.buffers[0].locks || state->extra_map->storage.buffers[1].locks)))
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     old = *state;
     memset(state, 0, sizeof(*state));
     services->publish(services->context, state);
     if (old.main_file)
         services->release_file(services->context, old.main_file);
-    three_mm_free_map_close(old.main_map);
+    mm_free_map_close(old.main_map);
     if (old.extra_file)
         services->release_file(services->context, old.extra_file);
-    three_mm_free_map_close(old.extra_map);
+    mm_free_map_close(old.extra_map);
     if (old.index)
         services->release_index(services->context, old.index);
-    if (runtime && three_mm_chunk_runtime_dispose(runtime) != THREE_MM_CHUNK_OK)
-        return THREE_MM_CHUNK_BAD_FILE;
-    return THREE_MM_CHUNK_OK;
+    if (runtime && mm_chunk_runtime_dispose(runtime) != MM_CHUNK_OK)
+        return MM_CHUNK_BAD_FILE;
+    return MM_CHUNK_OK;
 }

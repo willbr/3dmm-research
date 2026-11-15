@@ -1,4 +1,4 @@
-#include "three_mm/scene_thumbnail.h"
+#include "mm/scene_thumbnail.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,15 +17,15 @@ typedef struct Port
 } Port;
 typedef struct Host
 {
-    ThreeMMSceneState data;
-    ThreeMMSceneRuntime runtime;
-    ThreeMMSceneOwner owner;
+    MMSceneState data;
+    MMSceneRuntime runtime;
+    MMSceneOwner owner;
     int movie, background, view, actor, text, old_bitmap, new_bitmap, pixels;
     Port ports[2];
     int trace[128], traces, has_view, dirty, muted, mode, mode_changes, fail_port, port_calls, fail_seek, seek_calls,
         fail_bitmap;
     int old_refs, new_refs, copy_live, mark_calls;
-    ThreeMMU32 initial_mask;
+    MMU32 initial_mask;
 } Host;
 static void event(Host *h, int n)
 {
@@ -43,7 +43,7 @@ static void *selected(void *p, int text)
     event(h, text ? 1 : 2);
     return text ? (void *)&h->text : &h->actor;
 }
-static ThreeMMI32 time(void *p)
+static MMI32 time(void *p)
 {
     event((Host *)p, 3);
     return 123;
@@ -54,7 +54,7 @@ static void mute(void *p)
     event(h, 4);
     h->muted = 1;
 }
-static void resume(void *p, ThreeMMI32 value)
+static void resume(void *p, MMI32 value)
 {
     Host *h = (Host *)p;
     CHECK(value == 123 && h->muted && !h->copy_live && !h->ports[0].refs && !h->ports[1].refs);
@@ -75,13 +75,13 @@ static int dirty(void *p)
     event(h, 7);
     return h->dirty;
 }
-static void dimensions(void *p, ThreeMMI32 *w, ThreeMMI32 *h)
+static void dimensions(void *p, MMI32 *w, MMI32 *h)
 {
     event((Host *)p, 8);
     *w = 320;
     *h = 240;
 }
-static void *new_port(void *p, const ThreeMMMaskedRect *r)
+static void *new_port(void *p, const MMMaskedRect *r)
 {
     Host *h = (Host *)p;
     int i = h->port_calls++;
@@ -111,7 +111,7 @@ static void release_port(void *p, void *port)
     event(h, v == h->ports ? 12 : 13);
     CHECK(h->runtime.disabled == (h->fail_port == 2 ? h->initial_mask : h->initial_mask | 3U));
 }
-static int seek(void *p, ThreeMMI32 frame)
+static int seek(void *p, MMI32 frame)
 {
     Host *h = (Host *)p;
     ++h->seek_calls;
@@ -143,7 +143,7 @@ static void select_object(void *p, int text, void *object)
     else
         event(h, text ? 18 : 17);
 }
-static void draw(void *p, void *v, void *port, const ThreeMMMaskedRect *r)
+static void draw(void *p, void *v, void *port, const MMMaskedRect *r)
 {
     Host *h = (Host *)p;
     CHECK(v == &h->view && port == h->ports && r->right == 320 && r->bottom == 240);
@@ -152,7 +152,7 @@ static void draw(void *p, void *v, void *port, const ThreeMMMaskedRect *r)
     if (h->mode_changes)
         h->mode = !h->mode;
 }
-static void copy(void *p, void *src, void *dst, const ThreeMMMaskedRect *a, const ThreeMMMaskedRect *b)
+static void copy(void *p, void *src, void *dst, const MMMaskedRect *a, const MMMaskedRect *b)
 {
     Host *h = (Host *)p;
     CHECK(src == h->ports && dst == h->ports + 1 && a->right == 320 && b->right == 144 && b->bottom == 81);
@@ -175,23 +175,23 @@ static void end_copy(void *p)
 static void release_bitmap(void *p, void *bitmap)
 {
     Host *h = (Host *)p;
-    CHECK(bitmap == &h->old_bitmap && h->owner.owned[THREE_MM_SCENE_THUMBNAIL] == bitmap && h->old_refs == 1);
+    CHECK(bitmap == &h->old_bitmap && h->owner.owned[MM_SCENE_THUMBNAIL] == bitmap && h->old_refs == 1);
     --h->old_refs;
     event(h, 24);
 }
-static void publish(void *p, void *scene, const ThreeMMSceneOwner *owner)
+static void publish(void *p, void *scene, const MMSceneOwner *owner)
 {
     Host *h = (Host *)p;
     CHECK(scene == h && owner == &h->owner);
-    if (owner->owned[THREE_MM_SCENE_THUMBNAIL])
+    if (owner->owned[MM_SCENE_THUMBNAIL])
     {
-        CHECK(owner->owned[THREE_MM_SCENE_THUMBNAIL] == &h->new_bitmap && h->ports[1].locked);
+        CHECK(owner->owned[MM_SCENE_THUMBNAIL] == &h->new_bitmap && h->ports[1].locked);
         event(h, 26);
     }
     else
         event(h, 25);
 }
-static ThreeMMI32 stride(void *p, void *port)
+static MMI32 stride(void *p, void *port)
 {
     Host *h = (Host *)p;
     CHECK(port == h->ports + 1 && h->copy_live && !h->old_refs);
@@ -206,11 +206,11 @@ static void *lock(void *p, void *port)
     event(h, 28);
     return &h->pixels;
 }
-static void *bitmap(void *p, const void *pixels, ThreeMMI32 row, const ThreeMMMaskedRect *r, int transparent)
+static void *bitmap(void *p, const void *pixels, MMI32 row, const MMMaskedRect *r, int transparent)
 {
     Host *h = (Host *)p;
     CHECK(pixels == &h->pixels && row == 144 && r->bottom == 81 && transparent == 250);
-    CHECK(h->ports[1].locked && !h->owner.owned[THREE_MM_SCENE_THUMBNAIL] && !h->old_refs);
+    CHECK(h->ports[1].locked && !h->owner.owned[MM_SCENE_THUMBNAIL] && !h->old_refs);
     event(h, 29);
     if (h->fail_bitmap)
         return NULL;
@@ -230,19 +230,19 @@ static void mark(void *p, void *movie)
     CHECK(movie == &h->movie);
     ++h->mark_calls;
 }
-static ThreeMMSceneThumbnailServices init(Host *h)
+static MMSceneThumbnailServices init(Host *h)
 {
-    ThreeMMSceneThumbnailServices s;
+    MMSceneThumbnailServices s;
     memset(h, 0, sizeof(*h));
     memset(&s, 0, sizeof(s));
-    CHECK(three_mm_scene_init(&h->data, 1));
+    CHECK(mm_scene_init(&h->data, 1));
     h->data.currentFrame = 5;
     h->data.lastFrame = 9;
     h->initial_mask = h->runtime.disabled = 128;
     h->has_view = h->dirty = h->old_refs = 1;
     h->owner.movie = &h->movie;
-    h->owner.owned[THREE_MM_SCENE_BACKGROUND] = &h->background;
-    h->owner.owned[THREE_MM_SCENE_THUMBNAIL] = &h->old_bitmap;
+    h->owner.owned[MM_SCENE_BACKGROUND] = &h->background;
+    h->owner.owned[MM_SCENE_THUMBNAIL] = &h->old_bitmap;
     s.context = h;
     s.data = &h->data;
     s.runtime = &h->runtime;
@@ -277,13 +277,13 @@ static ThreeMMSceneThumbnailServices init(Host *h)
 static void test_gates(void)
 {
     Host h;
-    ThreeMMSceneThumbnailServices s;
+    MMSceneThumbnailServices s;
     int i;
     for (i = 0; i < 5; ++i)
     {
         s = init(&h);
         if (i == 0)
-            h.owner.owned[THREE_MM_SCENE_BACKGROUND] = NULL;
+            h.owner.owned[MM_SCENE_BACKGROUND] = NULL;
         if (i == 1)
             h.has_view = 0;
         if (i == 2)
@@ -292,7 +292,7 @@ static void test_gates(void)
             h.fail_port = 1;
         if (i == 4)
             h.fail_port = 2;
-        CHECK(three_mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1);
+        CHECK(mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1);
         CHECK(h.data.currentFrame == 5 && !h.new_refs && !h.muted);
         if (i < 2)
         {
@@ -319,14 +319,14 @@ static void test_gates(void)
 static void test_render(void)
 {
     Host h;
-    ThreeMMSceneThumbnailServices s;
+    MMSceneThumbnailServices s;
     int i;
     for (i = 0; i < 3; ++i)
     {
         s = init(&h);
         h.mode = i == 1;
         h.mode_changes = i == 2;
-        CHECK(three_mm_scene_thumbnail(&s) == &h.new_bitmap && h.new_refs == 1 && !h.old_refs);
+        CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.new_refs == 1 && !h.old_refs);
         CHECK(h.data.currentFrame == 5 && h.seek_calls == 2 && !h.muted);
         {
             int e[] = {1,  2,  3,  4,  6,  7,  8,  9,  10, 11, 14, 16, 17, 21, 16,
@@ -340,44 +340,44 @@ static void test_render(void)
     }
     s = init(&h);
     h.fail_seek = 1;
-    CHECK(three_mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1 && h.data.currentFrame == 1);
+    CHECK(mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1 && h.data.currentFrame == 1);
     {
         const int e[] = {1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 14, 12, 13, 5};
         expect(&h, e, 14);
     }
     s = init(&h);
     h.fail_bitmap = 1;
-    CHECK(!three_mm_scene_thumbnail(&s) && !h.old_refs && !h.new_refs && h.data.currentFrame == 5);
+    CHECK(!mm_scene_thumbnail(&s) && !h.old_refs && !h.new_refs && h.data.currentFrame == 5);
     CHECK(h.trace[22] == 25 && h.trace[h.traces - 2] == 23 && h.trace[h.traces - 1] == 5);
     s = init(&h);
     h.fail_seek = 2;
-    CHECK(three_mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 4 && h.seek_calls == 2);
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 4 && h.seek_calls == 2);
     s = init(&h);
     h.data.currentFrame = 1;
-    CHECK(three_mm_scene_thumbnail(&s) == &h.new_bitmap && !h.seek_calls);
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && !h.seek_calls);
     s = init(&h);
     h.data.currentFrame = 10;
-    CHECK(three_mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 1 && h.seek_calls == 1);
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 1 && h.seek_calls == 1);
     s = init(&h);
     h.data.currentFrame = 0;
-    CHECK(three_mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 1 && h.seek_calls == 1);
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 1 && h.seek_calls == 1);
     s = init(&h);
     h.data.currentFrame = 9;
-    CHECK(three_mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 9 && h.seek_calls == 2);
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 9 && h.seek_calls == 2);
 }
 static void test_dirty(void)
 {
     Host h;
-    ThreeMMSceneThumbnailServices t = init(&h);
-    ThreeMMSceneDirtyServices s;
+    MMSceneThumbnailServices t = init(&h);
+    MMSceneDirtyServices s;
     s.context = &h;
     s.mark = mark;
-    three_mm_scene_mark_dirty(t.owner, 0, &s);
+    mm_scene_mark_dirty(t.owner, 0, &s);
     CHECK(!h.mark_calls);
-    three_mm_scene_mark_dirty(t.owner, 1, &s);
+    mm_scene_mark_dirty(t.owner, 1, &s);
     CHECK(h.mark_calls == 1);
     h.owner.movie = NULL;
-    three_mm_scene_mark_dirty(t.owner, 1, &s);
+    mm_scene_mark_dirty(t.owner, 1, &s);
     CHECK(h.mark_calls == 1);
 }
 int main(void)

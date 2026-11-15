@@ -1,9 +1,9 @@
 /* Scene property editing and playback lifecycle converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/scene_control.h"
-int three_mm_scene_name_edit(const ThreeMMMovieTitle *name, const ThreeMMScenePropertyServices *s)
+#include "mm/scene_control.h"
+int mm_scene_name_edit(const MMMovieTitle *name, const MMScenePropertyServices *s)
 {
-    void *undo = s->new_undo(s->context, THREE_MM_SCENE_CONTROL_NAME);
+    void *undo = s->new_undo(s->context, MM_SCENE_CONTROL_NAME);
     if (!undo)
         return 0;
     s->title(s->context, undo)->name = s->data->name;
@@ -16,9 +16,9 @@ int three_mm_scene_name_edit(const ThreeMMMovieTitle *name, const ThreeMMScenePr
     s->data->name = *name;
     return 1;
 }
-int three_mm_scene_transition_edit(ThreeMMI32 transition, const ThreeMMScenePropertyServices *s)
+int mm_scene_transition_edit(MMI32 transition, const MMScenePropertyServices *s)
 {
-    void *undo = s->new_undo(s->context, THREE_MM_SCENE_CONTROL_TRANSITION);
+    void *undo = s->new_undo(s->context, MM_SCENE_CONTROL_TRANSITION);
     if (!undo)
         return 0;
     s->transition(s->context, undo)->transition = s->data->transition;
@@ -31,16 +31,16 @@ int three_mm_scene_transition_edit(ThreeMMI32 transition, const ThreeMMSceneProp
     s->data->transition = transition;
     return 1;
 }
-static int failed(const ThreeMMScenePropertyUndoServices *s)
+static int failed(const MMScenePropertyUndoServices *s)
 {
     s->flush(s->context);
     s->clear(s->context);
     return 0;
 }
-int three_mm_scene_title_swap(ThreeMMSceneTitleUndo *p, const ThreeMMScenePropertyUndoServices *s)
+int mm_scene_title_swap(MMSceneTitleUndo *p, const MMScenePropertyUndoServices *s)
 {
-    ThreeMMSceneState *data;
-    ThreeMMMovieTitle old;
+    MMSceneState *data;
+    MMMovieTitle old;
     if (!s->switch_scene(s->context))
         return failed(s);
     data = s->scene(s->context);
@@ -50,10 +50,10 @@ int three_mm_scene_title_swap(ThreeMMSceneTitleUndo *p, const ThreeMMSceneProper
     s->flush(s->context);
     return 1;
 }
-int three_mm_scene_transition_swap(ThreeMMSceneTransitionUndo *p, const ThreeMMScenePropertyUndoServices *s)
+int mm_scene_transition_swap(MMSceneTransitionUndo *p, const MMScenePropertyUndoServices *s)
 {
-    ThreeMMSceneState *data;
-    ThreeMMI32 old;
+    MMSceneState *data;
+    MMI32 old;
     if (!s->switch_scene(s->context) || !s->seek(s->context))
         return failed(s);
     data = s->scene(s->context);
@@ -63,9 +63,9 @@ int three_mm_scene_transition_swap(ThreeMMSceneTransitionUndo *p, const ThreeMMS
     s->flush(s->context);
     return 1;
 }
-int three_mm_scene_start_playing(const ThreeMMScenePlaybackServices *s)
+int mm_scene_start_playing(const MMScenePlaybackServices *s)
 {
-    ThreeMMI32 i, first, last;
+    MMI32 i, first, last;
     void *object, *view;
     for (i = 0; i < s->count(s->context, 0); ++i)
         if (!s->lifetime(s->context, 0, s->object(s->context, 0, i), &first, &last))
@@ -87,9 +87,9 @@ int three_mm_scene_start_playing(const ThreeMMScenePlaybackServices *s)
     s->prerender(s->context, 1);
     return 1;
 }
-void three_mm_scene_stop_playing(const ThreeMMScenePlaybackServices *s)
+void mm_scene_stop_playing(const MMScenePlaybackServices *s)
 {
-    ThreeMMI32 i;
+    MMI32 i;
     s->prerender(s->context, 0);
     for (i = 0; i < s->count(s->context, 1); ++i)
         s->clean_text(s->context, s->object(s->context, 1, i));

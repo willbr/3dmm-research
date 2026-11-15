@@ -1,5 +1,5 @@
 // Licensed under the MIT License.
-#include "three_mm/v3dmm.h"
+#include "mm/v3dmm.h"
 #include "studio_vxp_store.h"
 #include <miniz.h>
 #include <chrono>
@@ -11,7 +11,7 @@
 #undef size
 ASSERTNAME
 namespace fs = std::filesystem;
-namespace V = ThreeMM::V3dmm;
+namespace V = MM::V3dmm;
 void WarnProc(schar *file, LegacyLong line, schar *message)
 {
     std::fprintf(stderr, "%s:%d %s\n", file, int(line), message);

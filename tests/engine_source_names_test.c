@@ -1,5 +1,5 @@
-#include "three_mm/source_names.h"
-#include "three_mm/source_discovery.h"
+#include "mm/source_names.h"
+#include "mm/source_discovery.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +17,7 @@ typedef struct Memory
 {
     int fail, live;
 } Memory;
-static void *resize(void *c, void *p, ThreeMMU32 old, ThreeMMU32 bytes, int priority)
+static void *resize(void *c, void *p, MMU32 old, MMU32 bytes, int priority)
 {
     Memory *m = (Memory *)c;
     void *result;
@@ -30,15 +30,15 @@ static void *resize(void *c, void *p, ThreeMMU32 old, ThreeMMU32 bytes, int prio
         ++m->live;
     return result;
 }
-static void release(void *c, void *p, ThreeMMU32 bytes)
+static void release(void *c, void *p, MMU32 bytes)
 {
     (void)bytes;
     --((Memory *)c)->live;
     free(p);
 }
-static int equal(void *c, const void *a, ThreeMMU32 ac, const void *b, ThreeMMU32 bc)
+static int equal(void *c, const void *a, MMU32 ac, const void *b, MMU32 bc)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     (void)c;
     if (ac != bc)
         return 0;
@@ -52,7 +52,7 @@ typedef struct Output
     unsigned char bytes[4096];
     int calls, fail;
 } Output;
-static int write_at(void *c, ThreeMMU32 offset, const void *data, size_t size)
+static int write_at(void *c, MMU32 offset, const void *data, size_t size)
 {
     Output *o = (Output *)c;
     ++o->calls;
@@ -62,31 +62,31 @@ static int write_at(void *c, ThreeMMU32 offset, const void *data, size_t size)
     memcpy(o->bytes + offset, data, size);
     return 1;
 }
-static int provider(void *c, const void *long_name, ThreeMMU32 lc, const void *short_name, ThreeMMU32 sc, void *path)
+static int provider(void *c, const void *long_name, MMU32 lc, const void *short_name, MMU32 sc, void *path)
 {
-    ThreeMMSourceNames *n = (ThreeMMSourceNames *)c;
+    MMSourceNames *n = (MMSourceNames *)c;
     int i;
     char large[255];
     CHECK(lc == 4 && sc == 5 && path == n);
     memset(large, 'x', sizeof(large));
     for (i = 10; i < 100; ++i)
-        CHECK(three_mm_source_names_add(n, i, large, 255));
+        CHECK(mm_source_names_add(n, i, large, 255));
     CHECK(memcmp(long_name, "Long", 4) == 0 && memcmp(short_name, "SHORT", 5) == 0);
-    return THREE_MM_SOURCE_AVAILABLE;
+    return MM_SOURCE_AVAILABLE;
 }
 typedef struct Input
 {
     Memory *memory;
     int calls, diagnostics, swapped;
 } Input;
-static void get(void *c, ThreeMMU32 i, const void **text, ThreeMMU32 *count, ThreeMMI32 *sid)
+static void get(void *c, MMU32 i, const void **text, MMU32 *count, MMI32 *sid)
 {
     static const char large[255] = {0};
     Input *in = (Input *)c;
     ++in->calls;
     *text = "Merged";
     *count = 6;
-    *sid = in->swapped ? 0x03000000 : (ThreeMMI32)(20 + i);
+    *sid = in->swapped ? 0x03000000 : (MMI32)(20 + i);
     if (i == 1 && in->memory)
     {
         in->memory->fail = 1;
@@ -94,88 +94,88 @@ static void get(void *c, ThreeMMU32 i, const void **text, ThreeMMU32 *count, Thr
         *text = large;
     }
 }
-static void diagnostic(void *c, ThreeMMI32 sid)
+static void diagnostic(void *c, MMI32 sid)
 {
     CHECK(sid < 0);
     ++((Input *)c)->diagnostics;
 }
 static void names(void)
 {
-    ThreeMMSourceNames n, wide;
+    MMSourceNames n, wide;
     Memory m = {0, 0};
-    ThreeMMStorageAllocator allocator = {NULL, resize, release};
-    ThreeMMU32 count, position;
-    ThreeMMI32 sid;
+    MMStorageAllocator allocator = {NULL, resize, release};
+    MMU32 count, position;
+    MMI32 sid;
     const void *text;
-    ThreeMMSourceNameParts p;
+    MMSourceNameParts p;
     Output output;
-    ThreeMMStorageWriter writer;
+    MMStorageWriter writer;
     unsigned char before[64];
     unsigned short word[] = {'A', '/', 'B', 0, 'C'};
     Input input;
-    ThreeMMSourceNameInput merge;
+    MMSourceNameInput merge;
     allocator.context = &m;
-    CHECK(three_mm_source_names_init(&n, 1, 1, 1, &allocator) == THREE_MM_STORAGE_OK);
+    CHECK(mm_source_names_init(&n, 1, 1, 1, &allocator) == MM_STORAGE_OK);
     text = (void *)1;
     count = 99;
-    CHECK(!three_mm_source_names_merged(&n, 1, &text, &count) && text == (void *)1 && count == 99);
-    CHECK(three_mm_source_names_add(&n, 1, "Long/SHORT", 10));
-    CHECK(three_mm_source_names_add(&n, 2, "Other/SHORT", 11));
-    CHECK(three_mm_source_names_add(&n, 1, "ignored", 7) && n.count == 2);
+    CHECK(!mm_source_names_merged(&n, 1, &text, &count) && text == (void *)1 && count == 99);
+    CHECK(mm_source_names_add(&n, 1, "Long/SHORT", 10));
+    CHECK(mm_source_names_add(&n, 2, "Other/SHORT", 11));
+    CHECK(mm_source_names_add(&n, 1, "ignored", 7) && n.count == 2);
     sid = 99;
-    CHECK(three_mm_source_names_find_name(&n, "short", 5, equal, NULL, &sid) && sid == 1);
-    CHECK(three_mm_source_names_find_name(&n, "OTHER/SHORT", 11, equal, NULL, &sid) && sid == 2);
+    CHECK(mm_source_names_find_name(&n, "short", 5, equal, NULL, &sid) && sid == 1);
+    CHECK(mm_source_names_find_name(&n, "OTHER/SHORT", 11, equal, NULL, &sid) && sid == 2);
     sid = 99;
-    CHECK(!three_mm_source_names_find_name(&n, "missing", 7, equal, NULL, &sid) && sid == 99);
+    CHECK(!mm_source_names_find_name(&n, "missing", 7, equal, NULL, &sid) && sid == 99);
     position = 99;
-    CHECK(!three_mm_source_names_find_id(&n, 99, &position) && position == 99);
-    CHECK(!three_mm_source_names_merged(&n, 99, &text, &count) && count == 11 && memcmp(text, "Other/SHORT", 11) == 0);
-    p = three_mm_source_name_split("A\0/B", 4, 1);
+    CHECK(!mm_source_names_find_id(&n, 99, &position) && position == 99);
+    CHECK(!mm_source_names_merged(&n, 99, &text, &count) && count == 11 && memcmp(text, "Other/SHORT", 11) == 0);
+    p = mm_source_name_split("A\0/B", 4, 1);
     CHECK(p.long_count == 4 && p.short_offset == 0 && p.short_count == 4);
-    p = three_mm_source_name_split("A/B\0C", 5, 1);
+    p = mm_source_name_split("A/B\0C", 5, 1);
     CHECK(p.long_count == 1 && p.short_offset == 2 && p.short_count == 1);
-    p = three_mm_source_name_split("/Tail", 5, 1);
+    p = mm_source_name_split("/Tail", 5, 1);
     CHECK(p.long_count == 0 && p.short_count == 4);
-    p = three_mm_source_name_split("Head/", 5, 1);
+    p = mm_source_name_split("Head/", 5, 1);
     CHECK(p.long_count == 4 && p.short_count == 0);
-    CHECK(three_mm_source_names_init(&wide, 2, 1, 0, NULL) == THREE_MM_STORAGE_OK);
-    CHECK(three_mm_source_names_add(&wide, 8, word, 5));
-    p = three_mm_source_name_split(word, 5, 2);
+    CHECK(mm_source_names_init(&wide, 2, 1, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_source_names_add(&wide, 8, word, 5));
+    p = mm_source_name_split(word, 5, 2);
     CHECK(p.long_count == 1 && p.short_count == 1 && p.short_offset == 2);
-    CHECK(three_mm_source_names_at(&wide, 0, &text, &count, &sid) && sid == 8 && count == 5 && !memcmp(text, word, 10));
-    CHECK(three_mm_source_names_dispose(&wide) == THREE_MM_STORAGE_OK);
+    CHECK(mm_source_names_at(&wide, 0, &text, &count, &sid) && sid == 8 && count == 5 && !memcmp(text, word, 10));
+    CHECK(mm_source_names_dispose(&wide) == MM_STORAGE_OK);
     memset(&output, 0, sizeof(output));
     writer.context = &output;
-    writer.length = three_mm_source_names_wire_size(&n);
+    writer.length = mm_source_names_wire_size(&n);
     writer.write_at = write_at;
     CHECK(n.count * 8 <= sizeof(before));
     memcpy(before, n.storage.buffers[1].data, n.count * 8);
-    CHECK(three_mm_source_names_write(&n, &writer, 1) == THREE_MM_STORAGE_OK);
+    CHECK(mm_source_names_write(&n, &writer, 1) == MM_STORAGE_OK);
     CHECK(!memcmp(before, n.storage.buffers[1].data, n.count * 8));
     output.calls = 0;
     output.fail = 3;
-    CHECK(three_mm_source_names_write(&n, &writer, 1) == THREE_MM_STORAGE_IO);
+    CHECK(mm_source_names_write(&n, &writer, 1) == MM_STORAGE_IO);
     CHECK(!memcmp(before, n.storage.buffers[1].data, n.count * 8) && n.storage.buffers[1].locks == 0);
     --writer.length;
-    CHECK(three_mm_source_names_write(&n, &writer, 0) == THREE_MM_STORAGE_ARGUMENT);
+    CHECK(mm_source_names_write(&n, &writer, 0) == MM_STORAGE_ARGUMENT);
     memset(&input, 0, sizeof(input));
     input.swapped = 1;
     merge.context = &input;
     merge.count = 1;
     merge.get = get;
     merge.invalid_sid = diagnostic;
-    CHECK(three_mm_source_names_merge(&n, &merge, 1) && three_mm_source_names_find_id(&n, 3, NULL));
-    CHECK(three_mm_source_names_resolve(&n, 99, NULL, provider, &n) == THREE_MM_SOURCE_LEGACY);
-    CHECK(three_mm_source_names_resolve(&n, 1, &n, provider, &n) == THREE_MM_SOURCE_AVAILABLE);
-    CHECK(three_mm_source_names_dispose(&n) == THREE_MM_STORAGE_OK && m.live == 0);
-    CHECK(three_mm_source_names_init(&n, 1, 1, 0, &allocator) == THREE_MM_STORAGE_OK);
+    CHECK(mm_source_names_merge(&n, &merge, 1) && mm_source_names_find_id(&n, 3, NULL));
+    CHECK(mm_source_names_resolve(&n, 99, NULL, provider, &n) == MM_SOURCE_LEGACY);
+    CHECK(mm_source_names_resolve(&n, 1, &n, provider, &n) == MM_SOURCE_AVAILABLE);
+    CHECK(mm_source_names_dispose(&n) == MM_STORAGE_OK && m.live == 0);
+    CHECK(mm_source_names_init(&n, 1, 1, 0, &allocator) == MM_STORAGE_OK);
     input.swapped = 0;
     input.memory = &m;
     merge.count = 2;
     /* Force the second row to need a fresh payload allocation. Earlier merge rows remain. */
-    CHECK(!three_mm_source_names_merge(&n, &merge, 0) && n.count == 1 && three_mm_source_names_find_id(&n, 20, NULL));
+    CHECK(!mm_source_names_merge(&n, &merge, 0) && n.count == 1 && mm_source_names_find_id(&n, 20, NULL));
     m.fail = 0;
-    CHECK(three_mm_source_names_dispose(&n) == THREE_MM_STORAGE_OK && m.live == 0);
+    CHECK(mm_source_names_dispose(&n) == MM_STORAGE_OK && m.live == 0);
 }
 typedef struct Discovery
 {
@@ -188,14 +188,14 @@ static void event(Discovery *h, char c)
     h->log[h->used++] = c;
     h->log[h->used] = 0;
 }
-static int access_source(void *c, ThreeMMI32 sid)
+static int access_source(void *c, MMI32 sid)
 {
     Discovery *h = (Discovery *)c;
     CHECK(sid == 1);
     event(h, 'a');
     return h->access;
 }
-static int source_names(void *c, ThreeMMI32 sid)
+static int source_names(void *c, MMI32 sid)
 {
     Discovery *h = (Discovery *)c;
     CHECK(sid == 1);
@@ -260,7 +260,7 @@ static void candidate(void *c)
 static void discovery(void)
 {
     Discovery h;
-    ThreeMMSourceDiscovery s = {NULL,  access_source, source_names, root, descend, publish,
+    MMSourceDiscovery s = {NULL,  access_source, source_names, root, descend, publish,
                                 known, ensure,        begin,        next, floppy,  candidate};
     int value;
     s.context = &h;
@@ -268,40 +268,40 @@ static void discovery(void)
     h.names = h.begin = 1;
     h.output = 99;
     h.short_ok = 1;
-    CHECK(three_mm_source_discover_local(1, &s, &value) && value && !strcmp(h.log, "anrlso") && h.output == 12);
+    CHECK(mm_source_discover_local(1, &s, &value) && value && !strcmp(h.log, "anrlso") && h.output == 12);
     memset(&h, 0, sizeof(h));
     h.names = 1;
     h.output = 99;
-    CHECK(three_mm_source_discover_local(1, &s, &value) && !value && !strcmp(h.log, "anrls") && h.output == 99);
+    CHECK(mm_source_discover_local(1, &s, &value) && !value && !strcmp(h.log, "anrls") && h.output == 99);
     memset(&h, 0, sizeof(h));
-    h.access = THREE_MM_SOURCE_DISABLED;
-    CHECK(three_mm_source_discover_local(1, &s, &value) && !value && !strcmp(h.log, "a"));
-    CHECK(!three_mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "aa"));
+    h.access = MM_SOURCE_DISABLED;
+    CHECK(mm_source_discover_local(1, &s, &value) && !value && !strcmp(h.log, "a"));
+    CHECK(!mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "aa"));
     memset(&h, 0, sizeof(h));
-    h.access = THREE_MM_SOURCE_AVAILABLE;
-    CHECK(three_mm_source_discover_media(1, &s, &value) && value && !strcmp(h.log, "a"));
+    h.access = MM_SOURCE_AVAILABLE;
+    CHECK(mm_source_discover_media(1, &s, &value) && value && !strcmp(h.log, "a"));
     memset(&h, 0, sizeof(h));
     h.known = 1;
-    CHECK(!three_mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "ake"));
+    CHECK(!mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "ake"));
     h.used = 0;
     h.ensure = 1;
-    CHECK(three_mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "ake"));
+    CHECK(mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "ake"));
     memset(&h, 0, sizeof(h));
     h.names = h.begin = 1;
     h.drives = 2;
     h.floppy = 1;
     h.long_ok = 1;
-    CHECK(three_mm_source_discover_media(1, &s, &value) && value && !strcmp(h.log, "aknbdfdfcslo") && h.output == 42);
+    CHECK(mm_source_discover_media(1, &s, &value) && value && !strcmp(h.log, "aknbdfdfcslo") && h.output == 42);
     memset(&h, 0, sizeof(h));
     h.names = h.begin = 1;
     h.drives = 1;
     h.output = 99;
-    CHECK(!three_mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "aknbdfcsld") && h.output == 99);
+    CHECK(!mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "aknbdfcsld") && h.output == 99);
     memset(&h, 0, sizeof(h));
-    CHECK(!three_mm_source_discover_local(1, &s, &value) && !value && !strcmp(h.log, "an"));
+    CHECK(!mm_source_discover_local(1, &s, &value) && !value && !strcmp(h.log, "an"));
     memset(&h, 0, sizeof(h));
     h.names = 1;
-    CHECK(!three_mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "aknb"));
+    CHECK(!mm_source_discover_media(1, &s, &value) && !value && !strcmp(h.log, "aknb"));
 }
 int main(void)
 {

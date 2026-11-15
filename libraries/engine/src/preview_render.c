@@ -1,24 +1,24 @@
 /* Preview frame control converted from archive/preview.cpp. */
-#include "three_mm/preview_render.h"
+#include "mm/preview_render.h"
 #include <float.h>
 #include <math.h>
 #include <string.h>
 
 typedef struct PreviewArray
 {
-    ThreeMMCollectionStorage storage;
-    ThreeMMArray array;
+    MMCollectionStorage storage;
+    MMArray array;
 } PreviewArray;
 typedef struct PreviewFrame
 {
-    const ThreeMMPreviewRenderServices *s;
+    const MMPreviewRenderServices *s;
     void *world, *colour, *depth, *camera;
     PreviewArray lights, light_data, materials, models, pending, bodies, vertices;
     int sink;
 } PreviewFrame;
-static void array_init(PreviewArray *a, ThreeMMU32 width, const ThreeMMStorageAllocator *allocator)
+static void array_init(PreviewArray *a, MMU32 width, const MMStorageAllocator *allocator)
 {
-    three_mm_storage_init(&a->storage, allocator && allocator->resize ? allocator : 0);
+    mm_storage_init(&a->storage, allocator && allocator->resize ? allocator : 0);
     memset(&a->array, 0, sizeof(a->array));
     a->array.storage = &a->storage;
     a->array.width = width;
@@ -30,11 +30,11 @@ static void *data(PreviewArray *a)
 }
 static int add(PreviewArray *a, const void *value)
 {
-    return three_mm_array_add(&a->array, value, 0) == THREE_MM_STORAGE_OK;
+    return mm_array_add(&a->array, value, 0) == MM_STORAGE_OK;
 }
-static int count(PreviewArray *a, ThreeMMU32 n)
+static int count(PreviewArray *a, MMU32 n)
 {
-    return three_mm_array_set_count(&a->array, n) == THREE_MM_STORAGE_OK;
+    return mm_array_set_count(&a->array, n) == MM_STORAGE_OK;
 }
 static float minf(float a, float b)
 {
@@ -52,23 +52,23 @@ static int finited(double a)
 {
     return a <= DBL_MAX && a >= -DBL_MAX;
 }
-static void frame_init(PreviewFrame *f, const ThreeMMPreviewRenderServices *s)
+static void frame_init(PreviewFrame *f, const MMPreviewRenderServices *s)
 {
     memset(f, 0, sizeof(*f));
     f->s = s;
     array_init(&f->lights, sizeof(void *), &s->allocator);
     array_init(&f->light_data, s->light_bytes, &s->allocator);
-    array_init(&f->materials, sizeof(ThreeMMPreviewMaterial), &s->allocator);
+    array_init(&f->materials, sizeof(MMPreviewMaterial), &s->allocator);
     array_init(&f->models, sizeof(void *), &s->allocator);
     array_init(&f->pending, sizeof(void *), &s->allocator);
-    array_init(&f->bodies, sizeof(ThreeMMPreviewBody), &s->allocator);
+    array_init(&f->bodies, sizeof(MMPreviewBody), &s->allocator);
     array_init(&f->vertices, 3 * sizeof(double), &s->allocator);
 }
 static void frame_dispose(PreviewFrame *f)
 {
-    const ThreeMMPreviewRenderServices *s = f->s;
-    ThreeMMU32 i;
-    ThreeMMPreviewMaterial *m = (ThreeMMPreviewMaterial *)data(&f->materials);
+    const MMPreviewRenderServices *s = f->s;
+    MMU32 i;
+    MMPreviewMaterial *m = (MMPreviewMaterial *)data(&f->materials);
     void **lights = (void **)data(&f->lights);
     if (f->sink)
         s->sink_off(s->context);
@@ -82,15 +82,15 @@ static void frame_dispose(PreviewFrame *f)
         s->free_pixel(s->context, f->depth);
     if (f->colour)
         s->free_pixel(s->context, f->colour);
-    three_mm_storage_dispose(&f->vertices.storage);
-    three_mm_storage_dispose(&f->bodies.storage);
-    three_mm_storage_dispose(&f->pending.storage);
-    three_mm_storage_dispose(&f->models.storage);
-    three_mm_storage_dispose(&f->materials.storage);
-    three_mm_storage_dispose(&f->light_data.storage);
-    three_mm_storage_dispose(&f->lights.storage);
+    mm_storage_dispose(&f->vertices.storage);
+    mm_storage_dispose(&f->bodies.storage);
+    mm_storage_dispose(&f->pending.storage);
+    mm_storage_dispose(&f->models.storage);
+    mm_storage_dispose(&f->materials.storage);
+    mm_storage_dispose(&f->light_data.storage);
+    mm_storage_dispose(&f->lights.storage);
 }
-static void projection(ThreeMMPreviewProjection *p, const ThreeMMPreviewCamera *c, const ThreeMMPreviewMath *m)
+static void projection(MMPreviewProjection *p, const MMPreviewCamera *c, const MMPreviewMath *m)
 {
     unsigned i;
     memset(p, 0, sizeof(*p));
@@ -106,13 +106,13 @@ static void projection(ThreeMMPreviewProjection *p, const ThreeMMPreviewCamera *
 }
 static int collect_models(PreviewFrame *f)
 {
-    const ThreeMMPreviewTreeServices *s = &f->s->tree;
+    const MMPreviewTreeServices *s = &f->s->tree;
     void *actor, *child;
     if (!add(&f->pending, &f->world))
         return 0;
     while (f->pending.array.count)
     {
-        three_mm_array_pop(&f->pending.array, &actor);
+        mm_array_pop(&f->pending.array, &actor);
         if (s->model(s->context, actor) && !add(&f->models, &actor))
             return 0;
         for (child = s->first(s->context, actor); child; child = s->next(s->context, child))
@@ -123,9 +123,9 @@ static int collect_models(PreviewFrame *f)
 }
 static int material(PreviewFrame *f, void *pointer, int display, unsigned char grey)
 {
-    const ThreeMMPreviewRenderServices *s = f->s;
-    ThreeMMPreviewMaterial *old = (ThreeMMPreviewMaterial *)data(&f->materials), m;
-    ThreeMMU32 i;
+    const MMPreviewRenderServices *s = f->s;
+    MMPreviewMaterial *old = (MMPreviewMaterial *)data(&f->materials), m;
+    MMU32 i;
     if (!pointer)
         return 1;
     for (i = 0; i < f->materials.array.count; ++i)
@@ -150,9 +150,9 @@ static int material(PreviewFrame *f, void *pointer, int display, unsigned char g
 }
 static int overrides(PreviewFrame *f, int display, const unsigned char *palette)
 {
-    const ThreeMMPreviewRenderServices *s = f->s;
+    const MMPreviewRenderServices *s = f->s;
     void **actors = (void **)data(&f->models), *model;
-    ThreeMMU32 i, j, best = ~(ThreeMMU32)0, delta;
+    MMU32 i, j, best = ~(MMU32)0, delta;
     unsigned char grey = 0;
     int r, g, b;
     for (i = 0; i < 256; ++i)
@@ -160,7 +160,7 @@ static int overrides(PreviewFrame *f, int display, const unsigned char *palette)
         r = (int)palette[i * 4] - 160;
         g = (int)palette[i * 4 + 1] - 160;
         b = (int)palette[i * 4 + 2] - 160;
-        delta = (ThreeMMU32)(r * r + g * g + b * b);
+        delta = (MMU32)(r * r + g * g + b * b);
         if (delta < best)
         {
             best = delta;
@@ -178,18 +178,18 @@ static int overrides(PreviewFrame *f, int display, const unsigned char *palette)
     }
     return 1;
 }
-static int fit_depth(PreviewFrame *f, ThreeMMPreviewCamera *camera, ThreeMMU32 width, ThreeMMU32 height)
+static int fit_depth(PreviewFrame *f, MMPreviewCamera *camera, MMU32 width, MMU32 height)
 {
-    const ThreeMMPreviewRenderServices *s = f->s;
-    const ThreeMMPreviewMath *m = &s->math;
+    const MMPreviewRenderServices *s = f->s;
+    const MMPreviewMath *m = &s->math;
     double slope = tan((float)camera->fov * (6.283185307179586 / 65536) * .5), value, near_z, far_z, triangle[3][3];
-    ThreeMMPreviewDepthRange range;
-    ThreeMMI32 matrix[12], vertex[3];
+    MMPreviewDepthRange range;
+    MMI32 matrix[12], vertex[3];
     unsigned short face[3];
-    ThreeMMU32 i, j, n, axis, source, k;
+    MMU32 i, j, n, axis, source, k;
     void **actors = (void **)data(&f->models), *model;
     double (*vertices)[3];
-    three_mm_preview_depth_init(
+    mm_preview_depth_init(
         &range,
         (camera->parallel ? m->scalar_float(camera->width) : slope * m->scalar_float(camera->aspect)) *
             (1 + 2.0 / width),
@@ -219,10 +219,10 @@ static int fit_depth(PreviewFrame *f, ThreeMMPreviewCamera *camera, ThreeMMU32 w
             s->face(s->context, model, j, face);
             for (k = 0; k < 3; ++k)
                 memcpy(triangle[k], vertices[face[k]], sizeof(triangle[k]));
-            three_mm_preview_depth_include(&range, (const double (*)[3])triangle);
+            mm_preview_depth_include(&range, (const double (*)[3])triangle);
         }
     }
-    three_mm_preview_depth_fit(&range, &near_z, &far_z);
+    mm_preview_depth_fit(&range, &near_z, &far_z);
     camera->near_z = m->scalar_double(near_z);
     camera->far_z = m->scalar_double(far_z);
     s->update_camera(s->context, f->camera, camera);
@@ -230,21 +230,21 @@ static int fit_depth(PreviewFrame *f, ThreeMMPreviewCamera *camera, ThreeMMU32 w
 }
 /* Stable merging preserves the visibility clock's draw order, including ties.
  * The isolated body precedes actor instances, as in the original host. */
-static int body_before(const ThreeMMPreviewBody *a, const ThreeMMPreviewBody *b)
+static int body_before(const MMPreviewBody *a, const MMPreviewBody *b)
 {
     return a->owner < 0 || (b->owner >= 0 && (a->order_high < b->order_high ||
                                               (a->order_high == b->order_high && a->order_low <= b->order_low)));
 }
 static int sort_bodies(PreviewFrame *f)
 {
-    ThreeMMPreviewBody *b = (ThreeMMPreviewBody *)data(&f->bodies), *scratch;
-    ThreeMMU32 n = f->bodies.array.count, width, start, middle, end, i, j, k;
+    MMPreviewBody *b = (MMPreviewBody *)data(&f->bodies), *scratch;
+    MMU32 n = f->bodies.array.count, width, start, middle, end, i, j, k;
     if (n < 2)
         return 1;
     /* The pending traversal buffer is unused until after bodies are copied. */
-    if (three_mm_storage_ensure(&f->pending.storage, n * sizeof(*b), 0, 0) != THREE_MM_STORAGE_OK)
+    if (mm_storage_ensure(&f->pending.storage, n * sizeof(*b), 0, 0) != MM_STORAGE_OK)
         return 0;
-    scratch = (ThreeMMPreviewBody *)data(&f->pending);
+    scratch = (MMPreviewBody *)data(&f->pending);
     for (width = 1; width < n; width *= 2)
     {
         for (start = 0; start < n; start = end)
@@ -269,10 +269,10 @@ static int sort_bodies(PreviewFrame *f)
     }
     return 1;
 }
-static void blit(const ThreeMMPreviewData *d, const ThreeMMPreviewBuffer *b, ThreeMMU32 width, ThreeMMU32 height,
+static void blit(const MMPreviewData *d, const MMPreviewBuffer *b, MMU32 width, MMU32 height,
                  int diagnostic)
 {
-    ThreeMMU32 x, y, sx, sy;
+    MMU32 x, y, sx, sy;
     unsigned char *colours;
     unsigned short *depths;
     for (y = 0; y < height; ++y)
@@ -296,15 +296,15 @@ static void blit(const ThreeMMPreviewData *d, const ThreeMMPreviewBuffer *b, Thr
         }
     }
 }
-static void output_pixels(ThreeMMPreviewImage *image, const ThreeMMPreviewView *v, const ThreeMMPreviewData *d,
-                          const ThreeMMPreviewMesh *mesh, const ThreeMMPreviewBuffer *b,
-                          const ThreeMMPreviewRenderServices *s, void *camera, ThreeMMU32 width, ThreeMMU32 height,
+static void output_pixels(MMPreviewImage *image, const MMPreviewView *v, const MMPreviewData *d,
+                          const MMPreviewMesh *mesh, const MMPreviewBuffer *b,
+                          const MMPreviewRenderServices *s, void *camera, MMU32 width, MMU32 height,
                           int bg, int infinite)
 {
     float scale = minf((float)v->width / width, (float)v->height / height);
-    ThreeMMU32 fw = (ThreeMMU32)(width * scale), fh = (ThreeMMU32)(height * scale), left = (v->width - fw) / 2,
+    MMU32 fw = (MMU32)(width * scale), fh = (MMU32)(height * scale), left = (v->width - fw) / 2,
                top = (v->height - fh) / 2, x, y, sx, sy, bx, by, index, offset;
-    ThreeMMI32 matrix[16], z;
+    MMI32 matrix[16], z;
     const unsigned char *gpu, *row;
     const unsigned short *depths;
     unsigned char *out;
@@ -318,14 +318,14 @@ static void output_pixels(ThreeMMPreviewImage *image, const ThreeMMPreviewView *
     memset(image->rgba, 0, v->width * v->height * 4);
     for (y = 0; y < fh; ++y)
     {
-        sy = (ThreeMMU32)(y / scale);
+        sy = (MMU32)(y / scale);
         if (sy >= height)
             sy = height - 1;
         row = b->colour + sy * b->colour_stride;
         depths = (const unsigned short *)(b->depth + sy * b->depth_stride);
         for (x = 0; x < fw; ++x)
         {
-            sx = (ThreeMMU32)(x / scale);
+            sx = (MMU32)(x / scale);
             if (sx >= width)
                 sx = width - 1;
             offset = (y + top) * v->width + x + left;
@@ -357,18 +357,18 @@ static void output_pixels(ThreeMMPreviewImage *image, const ThreeMMPreviewView *
         }
     }
 }
-static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOrbit *orbit, ThreeMMPreviewImage *image)
+static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewImage *image)
 {
-    const ThreeMMPreviewRenderServices *s = f->s;
-    const ThreeMMPreviewMath *m = &s->math;
-    ThreeMMPreviewData d;
-    ThreeMMPreviewMesh mesh;
-    ThreeMMPreviewBuffer buffers;
-    ThreeMMPreviewCamera camera;
-    ThreeMMPreviewProjection scene_camera;
-    ThreeMMPreviewBody body, *bodies;
-    ThreeMMBackgroundLight light;
-    ThreeMMU32 width, height, i, j, n;
+    const MMPreviewRenderServices *s = f->s;
+    const MMPreviewMath *m = &s->math;
+    MMPreviewData d;
+    MMPreviewMesh mesh;
+    MMPreviewBuffer buffers;
+    MMPreviewCamera camera;
+    MMPreviewProjection scene_camera;
+    MMPreviewBody body, *bodies;
+    MMBackgroundLight light;
+    MMU32 width, height, i, j, n;
     int bg, has_mesh, diagnostic, infinite, first = 1, axis, corner, fits, object = -1, valid, axis_view;
     float low[3] = {0, 0, 0}, high[3] = {1, 1, 1}, guide_low[3], guide_high[3], center[3], anchor[3] = {0, 0, 0},
           corners[24], object_low[3], object_high[3];
@@ -383,7 +383,7 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
     bg = v->authored && !v->free_camera && d.background;
     has_mesh = !bg && d.background;
     if (has_mesh && !s->mesh(s->context, &mesh))
-        return THREE_MM_PREVIEW_HOST;
+        return MM_PREVIEW_HOST;
     diagnostic = v->display == 1 || v->display >= 4;
     infinite = !diagnostic && has_mesh && mesh.infinite;
     width = bg ? d.width : v->width;
@@ -410,7 +410,7 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
         f->depth = s->depth(s->context, f->colour);
     f->world = s->world(s->context);
     if (!f->colour || !f->depth || !f->world)
-        return THREE_MM_PREVIEW_BUFFERS;
+        return MM_PREVIEW_BUFFERS;
     s->fill(s->context, f->colour, 0);
     s->fill(s->context, f->depth, 0xffff);
     s->buffers(s->context, f->colour, f->depth, &buffers);
@@ -421,7 +421,7 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
         if (s->body(s->context, i, &body))
         {
             if (!add(&f->bodies, &body))
-                return THREE_MM_PREVIEW_MEMORY;
+                return MM_PREVIEW_MEMORY;
             for (axis = 0; axis < 3; ++axis)
             {
                 low[axis] = first ? body.low[axis] : minf(low[axis], body.low[axis]);
@@ -505,7 +505,7 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
     if (!bg && !v->authored && !v->free_camera && v->object >= 0)
     {
         if (!s->object_bounds(s->context, v->object, corners, &valid))
-            return THREE_MM_PREVIEW_HOST;
+            return MM_PREVIEW_HOST;
         if (valid)
         {
             object = v->object;
@@ -549,7 +549,7 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
     aspect = (float)width / height;
     distance = radius * 2.8f / minf(1.f, aspect) / v->zoom;
     if (!bg && !v->free_camera && distance + radius * 4 > 30000)
-        return THREE_MM_PREVIEW_ASSET_RANGE;
+        return MM_PREVIEW_ASSET_RANGE;
     memset(&camera, 0, sizeof(camera));
     camera.fov = bg ? d.camera.fov : m->angle(v->vertical_fov);
     camera.near_z = bg ? d.camera.near_z : m->scalar(v->free_camera ? .1f : maxf(.01f, distance / 1000));
@@ -561,7 +561,7 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
     camera.aspect = m->scalar(bg ? (float)d.width / d.height : aspect);
     f->camera = s->camera(s->context, f->world, &camera);
     if (!f->camera)
-        return THREE_MM_PREVIEW_CAMERA;
+        return MM_PREVIEW_CAMERA;
     axis_view = !bg && v->axis > 0;
     yaw_degrees = axis_view ? (v->axis == 2 ? 90.f : 0.f) : v->yaw;
     pitch_degrees = axis_view ? (v->axis == 3 ? 90.f : 0.f) : v->pitch;
@@ -590,7 +590,7 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
     {
         position = v->free_camera && !axis_view ? v->position[axis] : center[axis] + basis[2][axis] * distance;
         if (!bg && (position < -32767.f || position > 32767.f))
-            return THREE_MM_PREVIEW_CAMERA_RANGE;
+            return MM_PREVIEW_CAMERA_RANGE;
         if (!bg)
             camera.matrix[9 + axis] = m->scalar(position);
     }
@@ -604,8 +604,8 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
     }
     s->update_camera(s->context, f->camera, &camera);
     n = d.background ? d.light_count : 1;
-    if (!count(&f->light_data, n) || three_mm_array_reserve(&f->lights.array, n, 0) != THREE_MM_STORAGE_OK)
-        return THREE_MM_PREVIEW_MEMORY;
+    if (!count(&f->light_data, n) || mm_array_reserve(&f->lights.array, n, 0) != MM_STORAGE_OK)
+        return MM_PREVIEW_MEMORY;
     for (i = 0; i < n; ++i)
     {
         if (d.background)
@@ -619,29 +619,29 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
         }
         actor = s->light(s->context, f->world, (unsigned char *)data(&f->light_data) + i * s->light_bytes, &light);
         if (!actor)
-            return THREE_MM_PREVIEW_LIGHTS;
+            return MM_PREVIEW_LIGHTS;
         if (!add(&f->lights, &actor))
-            return THREE_MM_PREVIEW_MEMORY;
+            return MM_PREVIEW_MEMORY;
         s->enable_light(s->context, actor);
     }
     if (!sort_bodies(f))
-        return THREE_MM_PREVIEW_MEMORY;
-    bodies = (ThreeMMPreviewBody *)data(&f->bodies);
+        return MM_PREVIEW_MEMORY;
+    bodies = (MMPreviewBody *)data(&f->bodies);
     for (i = 0; i < f->bodies.array.count; ++i)
-        if (!three_mm_preview_copy_tree(f->world, bodies[i].tree, bodies[i].owner,
+        if (!mm_preview_copy_tree(f->world, bodies[i].tree, bodies[i].owner,
                                         s->allocator.resize ? &s->allocator : 0, &s->tree))
-            return THREE_MM_PREVIEW_MODELS;
+            return MM_PREVIEW_MODELS;
     if (d.model && !s->add_model(s->context, f->world, d.model))
-        return THREE_MM_PREVIEW_MODELS;
+        return MM_PREVIEW_MODELS;
     if (has_mesh && !s->add_mesh(s->context, f->world))
-        return THREE_MM_PREVIEW_MESH;
+        return MM_PREVIEW_MESH;
     if (v->display == 1 || v->display == 2 || v->display == 3 || (v->display == 4 && !v->rasterizer) ||
         (!bg && d.background && v->fit_depth))
         if (!collect_models(f))
-            return THREE_MM_PREVIEW_MEMORY;
+            return MM_PREVIEW_MEMORY;
     if (v->display == 1 || v->display == 2 || v->display == 3 || (v->display == 4 && !v->rasterizer))
         if (!overrides(f, v->display, d.palette))
-            return THREE_MM_PREVIEW_MEMORY;
+            return MM_PREVIEW_MEMORY;
     if (v->display == 4 && !v->rasterizer)
     {
         actors = (void **)data(&f->models);
@@ -649,17 +649,17 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
             s->edges(s->context, actors[i]);
     }
     if (!bg && d.background && v->fit_depth && !fit_depth(f, &camera, width, height))
-        return THREE_MM_PREVIEW_MEMORY;
+        return MM_PREVIEW_MEMORY;
     f->sink = 1;
     projection(&image->projection, &camera, m);
     if (v->rasterizer && !s->raster_begin(s->context, &image->projection, d.palette, bg || infinite, width, height))
-        return THREE_MM_PREVIEW_HOST;
+        return MM_PREVIEW_HOST;
     s->render(s->context, f->world, f->camera, f->colour, f->depth);
     s->sink_off(s->context);
     if (!s->renderer_ok(s->context))
-        return THREE_MM_PREVIEW_RENDERER;
+        return MM_PREVIEW_RENDERER;
     if (v->rasterizer && !s->raster_end(s->context, &buffers))
-        return THREE_MM_PREVIEW_HOST;
+        return MM_PREVIEW_HOST;
     image->width = v->width;
     image->height = v->height;
     for (axis = 0; axis < 3; ++axis)
@@ -688,34 +688,34 @@ static int render(PreviewFrame *f, const ThreeMMPreviewView *v, ThreeMMPreviewOr
     image->vertical_fov = (float)camera.fov * (360.f / 65536.f);
     image->scene_camera = scene_camera;
     if (!s->output(s->context, v->width, v->height, v->depth, &image->rgba, &image->depth))
-        return THREE_MM_PREVIEW_MEMORY;
+        return MM_PREVIEW_MEMORY;
     output_pixels(image, v, &d, &mesh, &buffers, s, f->camera, width, height, bg, infinite);
-    return THREE_MM_PREVIEW_OK;
+    return MM_PREVIEW_OK;
 }
-int three_mm_preview_render(const ThreeMMPreviewView *v, ThreeMMPreviewOrbit *orbit, ThreeMMPreviewImage *output,
-                            const ThreeMMPreviewRenderServices *s)
+int mm_preview_render(const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewImage *output,
+                            const MMPreviewRenderServices *s)
 {
     PreviewFrame frame;
-    ThreeMMPreviewImage image;
+    MMPreviewImage image;
     int result, axis;
     memset(output, 0, sizeof(*output));
     if (!s->ready(s->context))
-        return THREE_MM_PREVIEW_NOT_READY;
+        return MM_PREVIEW_NOT_READY;
     if (v->width < 64 || v->height < 64 || v->width > 4096 || v->height > 4096 || !finitef(v->yaw) ||
         !finitef(v->pitch) || !finitef(v->roll) || !finitef(v->vertical_fov) || v->vertical_fov <= 0 ||
         v->vertical_fov >= 179 || !finitef(v->near_clip) || v->near_clip < 0 || v->near_clip > 100 ||
         !finitef(v->zoom) || v->pitch < -90 || v->pitch > 90 || v->zoom < .1f || v->zoom > 10 || v->display < 0 ||
         v->display > 6 || v->axis < 0 || v->axis > 3)
-        return THREE_MM_PREVIEW_INVALID;
+        return MM_PREVIEW_INVALID;
     if (v->free_camera)
         for (axis = 0; axis < 3; ++axis)
             if (!finitef(v->position[axis]) || fabs(v->position[axis]) > 32700)
-                return THREE_MM_PREVIEW_INVALID;
+                return MM_PREVIEW_INVALID;
     memset(&image, 0, sizeof(image));
     frame_init(&frame, s);
     result = render(&frame, v, orbit, &image);
     frame_dispose(&frame);
-    if (result == THREE_MM_PREVIEW_OK)
+    if (result == MM_PREVIEW_OK)
         *output = image;
     return result;
 }

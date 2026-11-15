@@ -1,7 +1,7 @@
 #ifndef MARCUS_WAVEFORM_H
 #define MARCUS_WAVEFORM_H
 #include "player.h"
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include <map>
 #include <tuple>
 #include <vector>
@@ -36,8 +36,8 @@ class MarcusWaveformCache
 
   public:
     void Clear();
-    MarcusWaveformInfo Length(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue);
-    void Read(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue, double first, double step, int count,
+    MarcusWaveformInfo Length(MM::Preview &preview, const MM::PreviewSoundCue &cue);
+    void Read(MM::Preview &preview, const MM::PreviewSoundCue &cue, double first, double step, int count,
               MarcusWaveformColumn *columns, MarcusWaveformInfo &info);
 };
 #endif

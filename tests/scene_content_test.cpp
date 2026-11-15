@@ -303,7 +303,7 @@ struct Access : Scene
         Value(d.currentFrame);
         Value(d.transition);
         Value(d.name.count);
-        Record(three_mm_movie_title_text(&d.name), d.name.count * d.name.unit);
+        Record(mm_movie_title_text(&d.name), d.name.count * d.name.unit);
     }
     static void ChopSound(PScene p, PChunkyResourceFile cache, bool back)
     {
@@ -353,14 +353,14 @@ struct Access : Scene
             Value(e.sevt);
         }
     }
-    static ThreeMMSceneContentServices Services(PScene p)
+    static MMSceneContentServices Services(PScene p)
     {
         return (p->*&Access::_ContentServices)();
     }
     static void CheckMovie(PScene p, PMovie movie)
     {
         CHECK((p->*&Access::_owner).movie == movie && p->Pmvie() == movie);
-        (p->*&Access::_SetOwner)(THREE_MM_SCENE_THUMBNAIL, nullptr);
+        (p->*&Access::_SetOwner)(MM_SCENE_THUMBNAIL, nullptr);
         CHECK(p->Pmvie() == movie);
     }
     static void Extra(PScene p, PActor actor)
@@ -370,7 +370,7 @@ struct Access : Scene
         {
             list = DynamicArray::PglNew(sizeof(PActor));
             CHECK(list);
-            (p->*&Access::_SetOwner)(THREE_MM_SCENE_SELECTION, list);
+            (p->*&Access::_SetOwner)(MM_SCENE_SELECTION, list);
         }
         CHECK(list->FAdd(&actor));
     }
@@ -380,10 +380,10 @@ struct Access : Scene
     }
     static void FreshActorLists(PScene p)
     {
-        (p->*&Access::_DropOwner)(THREE_MM_SCENE_STARTS);
-        (p->*&Access::_DropOwner)(THREE_MM_SCENE_ACTORS);
-        (p->*&Access::_SetOwner)(THREE_MM_SCENE_STARTS, GeneralGroup::PggNew(sizeof(SceneEvent)));
-        (p->*&Access::_SetOwner)(THREE_MM_SCENE_ACTORS, DynamicArray::PglNew(sizeof(PActor)));
+        (p->*&Access::_DropOwner)(MM_SCENE_STARTS);
+        (p->*&Access::_DropOwner)(MM_SCENE_ACTORS);
+        (p->*&Access::_SetOwner)(MM_SCENE_STARTS, GeneralGroup::PggNew(sizeof(SceneEvent)));
+        (p->*&Access::_SetOwner)(MM_SCENE_ACTORS, DynamicArray::PglNew(sizeof(PActor)));
     }
     static void State(PScene p)
     {
@@ -553,7 +553,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto name = std::getenv("THREE_MM_SCENE_CONTENT_SNAPSHOT"))
+    if (auto name = std::getenv("MM_SCENE_CONTENT_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);
@@ -1010,7 +1010,7 @@ int main()
         ReleasePpo(&b);
         ReleasePpo(&c);
     }
-#ifdef THREE_MM_ENGINE_SCENE_CONTENT_H
+#ifdef MM_ENGINE_SCENE_CONTENT_H
     recording = false;
     {
         const auto old = scene->Trans();
@@ -1049,8 +1049,8 @@ int main()
     auto box = Caption(scene, observed);
     CHECK(box);
     auto services = Access::Services(scene);
-    services.events.seek = [](void *, int, void *, ThreeMMI32) -> int { return 0; };
-    CHECK(!three_mm_scene_text_add(box, &services) && box->CactRef() == 1);
+    services.events.seek = [](void *, int, void *, MMI32) -> int { return 0; };
+    CHECK(!mm_scene_text_add(box, &services) && box->CactRef() == 1);
     ReleasePpo(&box);
     auto a = makeActor();
     CHECK(scene->FAddActrCore(a));

@@ -1,11 +1,11 @@
 /* Movie content transactions converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/movie_content.h"
-int three_mm_movie_insert_material(void *material, ThreeMMTag *output, int *written,
-                                   const ThreeMMMovieContentServices *s)
+#include "mm/movie_content.h"
+int mm_movie_insert_material(void *material, MMTag *output, int *written,
+                                   const MMMovieContentServices *s)
 {
     void *resources;
-    ThreeMMU32 number;
+    MMU32 number;
     *written = 0;
     if (!s->ensure(s->edit.context, &resources) || !s->write_material(material, s->file(resources), &number))
         return 0;
@@ -16,11 +16,11 @@ int three_mm_movie_insert_material(void *material, ThreeMMTag *output, int *writ
     *written = 1;
     return s->open_tag(output, s->edit.data->resources);
 }
-static int author(const void *name, ThreeMMI32 shape, const void *font, ThreeMMTag *tag,
-                  const ThreeMMMovieContentServices *s)
+static int author(const void *name, MMI32 shape, const void *font, MMTag *tag,
+                  const MMMovieContentServices *s)
 {
     void *text = s->new_text(name, shape, font), *file;
-    ThreeMMU32 number;
+    MMU32 number;
     int ok;
     if (!text)
         return 0;
@@ -40,30 +40,30 @@ static int author(const void *name, ThreeMMI32 shape, const void *font, ThreeMMT
     tag->number = number;
     return s->open_tag(tag, s->edit.data->resources);
 }
-int three_mm_movie_insert_text(const void *name, ThreeMMI32 shape, const void *font,
-                               const ThreeMMMovieContentServices *s)
+int mm_movie_insert_text(const void *name, MMI32 shape, const void *font,
+                               const MMMovieContentServices *s)
 {
-    ThreeMMTag tag;
+    MMTag tag;
     int ok;
     if (!author(name, shape, font, &tag, s))
         return 0;
-    ok = three_mm_movie_insert_actor(&tag, &s->edit);
+    ok = mm_movie_insert_actor(&tag, &s->edit);
     s->close_tag(&tag);
     return ok;
 }
-int three_mm_movie_change_text(void *actor, const void *name, ThreeMMI32 shape, const void *font,
-                               const ThreeMMMovieContentServices *s)
+int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void *font,
+                               const MMMovieContentServices *s)
 {
-    ThreeMMI32 i;
-    ThreeMMTag tag;
-    ThreeMMMovieEditRequest request = {0};
+    MMI32 i;
+    MMTag tag;
+    MMMovieEditRequest request = {0};
     void *snapshot;
     int ok = 0;
     for (i = 0; i < s->length(name); ++i)
         if (s->character(name, i) != ' ')
             break;
     if (i == s->length(name))
-        return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_REMOVE, &request, &s->edit);
+        return mm_movie_edit_actor(MM_MOVIE_EDIT_REMOVE, &request, &s->edit);
     if (!author(name, shape, font, &tag, s))
         return 0;
     snapshot = s->edit.duplicate_actor(actor, 0);
@@ -79,11 +79,11 @@ int three_mm_movie_change_text(void *actor, const void *name, ThreeMMI32 shape, 
         return 0;
     }
     s->edit.rollcall.set_actor_id(actor, -1);
-    if (!three_mm_movie_rollcall_add(actor, name, &s->edit.rollcall))
+    if (!mm_movie_rollcall_add(actor, name, &s->edit.rollcall))
         s->edit.restore_actor(actor, snapshot);
     else
     {
-        three_mm_movie_rollcall_remove(snapshot, 0, &s->edit.rollcall);
+        mm_movie_rollcall_remove(snapshot, 0, &s->edit.rollcall);
         ok = 1;
     }
     s->edit.release_actor(snapshot);
@@ -92,7 +92,7 @@ int three_mm_movie_change_text(void *actor, const void *name, ThreeMMI32 shape, 
         s->edit.dirty(s->edit.context);
     return ok;
 }
-int three_mm_movie_insert_caption(const void *bounds, int story, const ThreeMMMovieContentServices *s)
+int mm_movie_insert_caption(const void *bounds, int story, const MMMovieContentServices *s)
 {
     void *caption = s->new_caption(s->edit.scenes->open, bounds, story);
     if (!caption)
@@ -108,7 +108,7 @@ int three_mm_movie_insert_caption(const void *bounds, int story, const ThreeMMMo
     s->release_caption(caption);
     return 1;
 }
-int three_mm_movie_remove_caption(int hide, const ThreeMMMovieContentServices *s)
+int mm_movie_remove_caption(int hide, const MMMovieContentServices *s)
 {
     void *caption = s->selected_caption(s->edit.scenes->open);
     if (!caption)
@@ -118,9 +118,9 @@ int three_mm_movie_remove_caption(int hide, const ThreeMMMovieContentServices *s
     }
     return hide ? s->hide_caption(caption) : s->remove_caption(s->edit.scenes->open, caption);
 }
-void three_mm_movie_select_caption(ThreeMMI32 index, const ThreeMMMovieContentServices *s)
+void mm_movie_select_caption(MMI32 index, const MMMovieContentServices *s)
 {
-    ThreeMMI32 i = 0, visible = 0;
+    MMI32 i = 0, visible = 0;
     void *caption;
     if (index < 0)
         return;

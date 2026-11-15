@@ -1,12 +1,12 @@
-#include "three_mm/world_render.h"
+#include "mm/world_render.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define WORK THREE_MM_WORLD_DIRTY_WORKING
-#define SCREEN THREE_MM_WORLD_DIRTY_SCREEN
-#define BG THREE_MM_WORLD_RGB_BACKGROUND
-#define RGB THREE_MM_WORLD_RGB_WORKING
+#define WORK MM_WORLD_DIRTY_WORKING
+#define SCREEN MM_WORLD_DIRTY_SCREEN
+#define BG MM_WORLD_RGB_BACKGROUND
+#define RGB MM_WORLD_RGB_WORKING
 typedef struct Actor
 {
     struct Actor *child, *next;
@@ -14,10 +14,10 @@ typedef struct Actor
 } Actor;
 typedef struct Fixture
 {
-    ThreeMMWorldRender r;
-    ThreeMMWorldBuffers b;
-    ThreeMMWorldRenderServices s;
-    ThreeMMWorldMaterial m[4], original[4];
+    MMWorldRender r;
+    MMWorldBuffers b;
+    MMWorldRenderServices s;
+    MMWorldMaterial m[4], original[4];
     Actor a[7];
     unsigned char background[64], working[64];
     int events[512], n, live, allocations, fail_alloc, fail_lock, invalid_pixels, bad_span;
@@ -38,7 +38,7 @@ static int position(Fixture *f, int e)
             return i;
     return -1;
 }
-static int equal_material(const ThreeMMWorldMaterial *a, const ThreeMMWorldMaterial *b)
+static int equal_material(const MMWorldMaterial *a, const MMWorldMaterial *b)
 {
     return a->object == b->object && a->texture == b->texture && a->flags == b->flags && a->base == b->base &&
            a->range == b->range;
@@ -56,15 +56,15 @@ static void enumerate(void *p, int (*visit)(void *, void *), void *argument)
         if (visit(argument, &f->m[i]))
             break;
 }
-static void read_material(void *p, void *object, ThreeMMWorldMaterial *out)
+static void read_material(void *p, void *object, MMWorldMaterial *out)
 {
     (void)p;
-    *out = *(ThreeMMWorldMaterial *)object;
+    *out = *(MMWorldMaterial *)object;
 }
-static void write_material(void *p, const ThreeMMWorldMaterial *in)
+static void write_material(void *p, const MMWorldMaterial *in)
 {
     Fixture *f = (Fixture *)p;
-    ThreeMMWorldMaterial *out = (ThreeMMWorldMaterial *)in->object;
+    MMWorldMaterial *out = (MMWorldMaterial *)in->object;
     event(f, 200 + (int)(out - f->m));
     *out = *in;
 }
@@ -115,7 +115,7 @@ static void set_style(void *p, void *actor, int value)
 }
 static int has(void *p, int callback)
 {
-    return callback == THREE_MM_WORLD_BEGIN || ((Fixture *)p)->rect_enabled;
+    return callback == MM_WORLD_BEGIN || ((Fixture *)p)->rect_enabled;
 }
 static void begin(void *p, void *actor)
 {
@@ -124,7 +124,7 @@ static void begin(void *p, void *actor)
     if (f->begin_options)
         f->wire = f->flat = f->no_texture = 1;
 }
-static void rect(void *p, void *actor, ThreeMMI32 out[4])
+static void rect(void *p, void *actor, MMI32 out[4])
 {
     Fixture *f = (Fixture *)p;
     event(f, 150 + ((Actor *)actor)->id);
@@ -144,7 +144,7 @@ static void options(void *p, int *wire, int *flat, int *no_texture)
     *flat = f->flat;
     *no_texture = f->no_texture;
 }
-static int bounds(void *p, int region, ThreeMMI32 out[4])
+static int bounds(void *p, int region, MMI32 out[4])
 {
     Fixture *f = (Fixture *)p;
     assert(region == WORK);
@@ -164,18 +164,18 @@ static void region_union(void *p, int destination, int source)
     assert(!((Fixture *)p)->scanner_live);
     event((Fixture *)p, 30);
 }
-static void add(void *p, int region, const ThreeMMI32 r[4])
+static void add(void *p, int region, const MMI32 r[4])
 {
     Fixture *f = (Fixture *)p;
     assert(region == WORK && r[0] == -f->b.scale && r[2] == 3 * f->b.scale);
     event(f, 32);
 }
-static void depth(void *p, const ThreeMMI32 r[4])
+static void depth(void *p, const MMI32 r[4])
 {
     assert(r[0] == 0 && r[1] == 1 && r[2] == 6 && r[3] == 4);
     event((Fixture *)p, 10);
 }
-static int lock(void *p, int kind, ThreeMMWorldPixels *out)
+static int lock(void *p, int kind, MMWorldPixels *out)
 {
     Fixture *f = (Fixture *)p;
     event(f, kind == BG ? 20 : 21);
@@ -190,7 +190,7 @@ static void unlock(void *p, int kind)
 {
     event((Fixture *)p, kind == BG ? 23 : 22);
 }
-static void scan_init(void *p, const ThreeMMI32 r[4])
+static void scan_init(void *p, const MMI32 r[4])
 {
     Fixture *f = (Fixture *)p;
     assert(!f->scanner_live++);
@@ -199,7 +199,7 @@ static void scan_init(void *p, const ThreeMMI32 r[4])
     f->spans = 0;
     event(f, 11);
 }
-static int scan_span(void *p, ThreeMMI32 *left, ThreeMMI32 *right)
+static int scan_span(void *p, MMI32 *left, MMI32 *right)
 {
     Fixture *f = (Fixture *)p;
     if (f->spans++)
@@ -225,9 +225,9 @@ static void render(void *p)
     Fixture *f = (Fixture *)p;
     event(f, 50);
     if (f->change_in_render)
-        three_mm_world_render_dirty(&f->r);
+        mm_world_render_dirty(&f->r);
 }
-static void publish(void *p, const ThreeMMWorldRender *r)
+static void publish(void *p, const MMWorldRender *r)
 {
     assert(!r->changed);
     event((Fixture *)p, 60);
@@ -252,7 +252,7 @@ static void restore(void *p)
 {
     event((Fixture *)p, 84);
 }
-static void scale(void *p, ThreeMMI32 nx, ThreeMMI32 dx, ThreeMMI32 ny, ThreeMMI32 dy)
+static void scale(void *p, MMI32 nx, MMI32 dx, MMI32 ny, MMI32 dy)
 {
     Fixture *f = (Fixture *)p;
     f->scale[0] = nx;
@@ -261,7 +261,7 @@ static void scale(void *p, ThreeMMI32 nx, ThreeMMI32 dx, ThreeMMI32 ny, ThreeMMI
     f->scale[3] = dy;
     event(f, 90);
 }
-static void offset(void *p, ThreeMMI32 x, ThreeMMI32 y)
+static void offset(void *p, MMI32 x, MMI32 y)
 {
     Fixture *f = (Fixture *)p;
     f->offset[0] = x;
@@ -272,7 +272,7 @@ static void mark(void *p)
 {
     event((Fixture *)p, 92);
 }
-static void draw(void *p, const ThreeMMI32 src[4], const ThreeMMI32 dst[4])
+static void draw(void *p, const MMI32 src[4], const MMI32 dst[4])
 {
     Fixture *f = (Fixture *)p;
     memcpy(f->draw_source, src, sizeof(f->draw_source));
@@ -281,8 +281,8 @@ static void draw(void *p, const ThreeMMI32 src[4], const ThreeMMI32 dst[4])
 }
 static void init(Fixture *f)
 {
-    ThreeMMWorldRenderServices *s;
-    ThreeMMWorldMaterialServices *m;
+    MMWorldRenderServices *s;
+    MMWorldMaterialServices *m;
     int i;
     memset(f, 0, sizeof(*f));
     f->b.width = 12;
@@ -370,17 +370,17 @@ static void init(Fixture *f)
     m->write = write_material;
     m->allocate = allocate;
     m->free = free_memory;
-    three_mm_world_render_init(&f->r);
+    mm_world_render_init(&f->r);
 }
 static void materials_tests(void)
 {
     Fixture f;
-    ThreeMMWorldMaterials scope;
+    MMWorldMaterials scope;
     int option, i, n;
     for (option = 0; option < 4; ++option)
     {
         init(&f);
-        assert(three_mm_world_materials_begin(&scope, option & 1, option & 2, &f.s.materials));
+        assert(mm_world_materials_begin(&scope, option & 1, option & 2, &f.s.materials));
         for (i = 0; i < 4; ++i)
         {
             int remove = (option & 2) && i < 2;
@@ -391,27 +391,27 @@ static void materials_tests(void)
             assert(f.m[i].range == (remove ? 15 : 100));
         }
         n = f.n;
-        three_mm_world_materials_end(&scope, &f.s.materials);
+        mm_world_materials_end(&scope, &f.s.materials);
         for (i = 0; i < 4; ++i)
             assert(equal_material(&f.m[i], &f.original[i]));
         assert(!f.live && (option || !f.allocations));
         for (i = n + 1; i < f.n; ++i)
             assert(f.events[i] > f.events[i - 1]);
         n = f.n;
-        three_mm_world_materials_end(&scope, &f.s.materials);
+        mm_world_materials_end(&scope, &f.s.materials);
         assert(f.n == n);
     }
     init(&f);
     f.fail_alloc = 1;
-    assert(!three_mm_world_materials_begin(&scope, 1, 1, &f.s.materials));
+    assert(!mm_world_materials_begin(&scope, 1, 1, &f.s.materials));
     assert(!f.n && !f.live);
     init(&f);
     f.reported = (size_t)-1;
-    assert(!three_mm_world_materials_begin(&scope, 1, 1, &f.s.materials));
+    assert(!mm_world_materials_begin(&scope, 1, 1, &f.s.materials));
     assert(!f.allocations);
     init(&f);
     f.reported = 1;
-    assert(!three_mm_world_materials_begin(&scope, 1, 1, &f.s.materials));
+    assert(!mm_world_materials_begin(&scope, 1, 1, &f.s.materials));
     for (i = 0; i < 4; ++i)
         assert(equal_material(&f.m[i], &f.original[i]));
     assert(!f.live && f.n == 3 && f.events[1] == 200 && f.events[2] == 200);
@@ -421,7 +421,7 @@ static void clean_tests(void)
     Fixture f;
     int x, y, scenario;
     init(&f);
-    assert(three_mm_world_render_clean(&f.b, &f.s));
+    assert(mm_world_render_clean(&f.b, &f.s));
     for (y = 0; y < 7; ++y)
         for (x = 0; x < 9 && y * 9 + x < 64; ++x)
             assert(f.working[y * 9 + x] == (y >= 1 && y < 4 && x >= 1 && x < 3 ? f.background[y * 8 + x] : 0xcc));
@@ -440,7 +440,7 @@ static void clean_tests(void)
             f.invalid_pixels = 1;
         if (scenario == 4)
             f.bad_span = 1;
-        assert(three_mm_world_render_clean(&f.b, &f.s) == (scenario == 0));
+        assert(mm_world_render_clean(&f.b, &f.s) == (scenario == 0));
         if (scenario == 0)
             assert(!f.n);
         if (scenario == 1)
@@ -459,7 +459,7 @@ static void render_tests(void)
     Fixture f;
     int bound_style, i;
     init(&f);
-    assert(three_mm_world_render(&f.r, &f.b, &f.s));
+    assert(mm_world_render(&f.r, &f.b, &f.s));
     assert(!f.n);
     for (bound_style = 10; bound_style <= 12; ++bound_style)
     {
@@ -467,8 +467,8 @@ static void render_tests(void)
         f.a[5].style = bound_style;
         f.begin_options = 1;
         f.change_in_render = 1;
-        three_mm_world_render_dirty(&f.r);
-        assert(three_mm_world_render(&f.r, &f.b, &f.s));
+        mm_world_render_dirty(&f.r);
+        assert(mm_world_render(&f.r, &f.b, &f.s));
         assert(!f.r.changed && !f.live);
         assert(f.a[0].style == 99 && f.a[5].style == bound_style && f.a[6].style == 7 && f.a[3].style == 7);
         assert(f.events[0] == 101 && f.events[1] == 102);
@@ -480,30 +480,30 @@ static void render_tests(void)
         for (i = 0; i < 4; ++i)
             assert(equal_material(&f.m[i], &f.original[i]));
         f.n = 0;
-        assert(three_mm_world_render(&f.r, &f.b, &f.s));
+        assert(mm_world_render(&f.r, &f.b, &f.s));
         assert(!f.n);
     }
     init(&f);
     f.b.scale = 4;
     f.rect_disable = 1;
-    three_mm_world_render_dirty(&f.r);
-    assert(three_mm_world_render(&f.r, &f.b, &f.s));
+    mm_world_render_dirty(&f.r);
+    assert(mm_world_render(&f.r, &f.b, &f.s));
     assert(position(&f, 151) >= 0 && position(&f, 152) < 0);
     init(&f);
     f.fail_alloc = f.flat = 1;
-    three_mm_world_render_dirty(&f.r);
-    assert(!three_mm_world_prerender(&f.r, &f.b, &f.s));
+    mm_world_render_dirty(&f.r);
+    assert(!mm_world_prerender(&f.r, &f.b, &f.s));
     assert(f.r.changed && position(&f, 50) < 0 && position(&f, 80) < 0);
     f.fail_alloc = 0;
     f.n = 0;
-    assert(three_mm_world_prerender(&f.r, &f.b, &f.s));
+    assert(mm_world_prerender(&f.r, &f.b, &f.s));
     assert(!f.r.changed);
     assert(f.events[f.n - 4] == 80 && f.events[f.n - 3] == 81 && f.events[f.n - 2] == 82 && f.events[f.n - 1] == 83);
     init(&f);
     f.b.scale = 4;
     f.rect_overflow = 1;
-    three_mm_world_render_dirty(&f.r);
-    assert(!three_mm_world_render(&f.r, &f.b, &f.s));
+    mm_world_render_dirty(&f.r);
+    assert(!mm_world_render(&f.r, &f.b, &f.s));
     assert(f.r.changed && !f.live && position(&f, 60) < 0);
 }
 static void output_tests(void)
@@ -516,21 +516,21 @@ static void output_tests(void)
         f.b.half_x = mode & 1;
         f.b.half_y = mode & 2;
         f.b.scale = mode < 4 ? 1 : mode == 4 ? 2 : 4;
-        three_mm_world_render_mark(&f.b, -3, 4, &f.s);
+        mm_world_render_mark(&f.b, -3, 4, &f.s);
         assert(f.n == 4 && f.events[0] == 90 && f.events[1] == 91 && f.events[2] == 92 && f.events[3] == 93);
         assert(f.scale[0] == (mode < 4 && f.b.half_x ? 2 : 1));
         assert(f.scale[1] == f.b.scale && f.scale[3] == f.b.scale);
         assert(f.scale[2] == (mode < 4 && f.b.half_y ? 2 : 1));
         assert(f.offset[0] == -3 && f.offset[1] == 4);
-        assert(three_mm_world_render_draw(&f.b, 2, -1, &f.s));
+        assert(mm_world_render_draw(&f.b, 2, -1, &f.s));
         assert(f.draw_source[2] == 6 && f.draw_source[3] == 4 && f.draw_destination[0] == -2 &&
                f.draw_destination[1] == 1 && f.draw_destination[2] == 10 && f.draw_destination[3] == 9);
         f.n = 0;
-        assert(!three_mm_world_render_draw(&f.b, (-2147483647 - 1), 0, &f.s));
+        assert(!mm_world_render_draw(&f.b, (-2147483647 - 1), 0, &f.s));
         assert(!f.n);
-        assert(!three_mm_world_render_draw(&f.b, -2147483647, 0, &f.s));
+        assert(!mm_world_render_draw(&f.b, -2147483647, 0, &f.s));
         assert(!f.n);
-        three_mm_world_unprerender(&f.s);
+        mm_world_unprerender(&f.s);
         assert(f.n == 1 && f.events[0] == 84);
     }
 }

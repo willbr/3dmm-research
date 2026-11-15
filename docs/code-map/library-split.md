@@ -25,9 +25,9 @@ its portable GUI runtime; see the [current verification](../tools/studio-sdl.md)
 
 ## C89 engine backend
 
-`three-mm-engine-c89` in `libraries/engine/` contains the first implementation slices
+`mm-engine-c89` in `libraries/engine/` contains the first implementation slices
 of the [shared C89 engine migration](../../plan.md#shared-c89-engine-migration).
-Its public header is `three_mm/playback.h`. It owns playback/startup command
+Its public header is `mm/playback.h`. It owns playback/startup command
 sequencing, wait/fade/scene-advance decisions, fractional movie-frame pacing,
 the idle-render gate and retail scrolling policy. Its only library dependency
 is the C runtime; no Kauai, BRender, SDL, C++ or native platform headers enter
@@ -100,14 +100,14 @@ its limits are recorded in [playback regression](../tools/playback-regression.md
 
 ### Movie-data reading slice
 
-`three_mm/read_stream.h` adds borrowed, positional decoded-chunk input,
+`mm/read_stream.h` adds borrowed, positional decoded-chunk input,
 checked memory input and bounded substreams. Every read checks offset and size
 without overflowing; nested slices retain their parent's bounds. Memory and
 slice contexts point to their caller-owned objects, which must remain in place
 and outlive their borrowers. Filesystem and content selection still use the
 existing VFS/host path; this API adds no separate filesystem or archive cache.
 
-`three_mm/movie_data.h` implements the following in C89:
+`mm/movie_data.h` implements the following in C89:
 
 - Eight-byte MVIE prefix decoding in either byte order, with the existing
   signed version predicate and separate bad-file/bad-version/I/O results.
@@ -143,7 +143,7 @@ the adapters and resource ownership. The shared backend is still incomplete.
 
 ### Chunky container reading slice
 
-`three_mm/chunky_file.h` owns CHN2 header and GG index decoding, compact and
+`mm/chunky_file.h` owns CHN2 header and GG index decoding, compact and
 expanded records, unsigned chunk/child searches, typed enumeration and graph
 validation. Both Studio and Marcus reach it through `kauai-core`. The C library
 has no dependency on Kauai. Its temporary owned wire index is copied into the
@@ -171,7 +171,7 @@ under the strict C89 syntax check.
 
 ### String-table storage and text conversion slice
 
-`three_mm/string_table.h` implements dense and allocated string-table mutations:
+`mm/string_table.h` implements dense and allocated string-table mutations:
 insert/add, length-changing replacement, delete, move, free-slot reuse and tail
 trimming. It preserves packed-string order, adjusts native 32-bit offsets and
 keeps caller extra bytes opaque. Exact searches skip free slots; sorted searches
@@ -186,7 +186,7 @@ allocation grew. As before, a failed loading translation can leave partial
 state and the loader discards that object. No stricter Archive GST acceptance
 policy is applied to Studio.
 
-`three_mm/text.h` owns fixed lossy Mac/Windows byte maps, portable CP1252/Mac
+`mm/text.h` owns fixed lossy Mac/Windows byte maps, portable CP1252/Mac
 Roman decoding, UTF-16 byte order, portable substitution/case/comparison rules,
 and conversion dispatch. `platform_text.cpp` supplies Windows `CP_ACP`/`CP_MACCP`
 callbacks and native locale/case services. It remains sensitive to the actual
@@ -205,7 +205,7 @@ on Windows. The standalone platform-check project links the same C text module.
 
 ### Collection storage foundation
 
-`three_mm/collection_storage.h` owns the two buffers underneath `GroupBase`,
+`mm/collection_storage.h` owns the two buffers underneath `GroupBase`,
 covering arrays, groups, string tables and the chunky-file live index. It handles
 allocation lifetime, growth hints, nested pointer locks, duplication and ordered
 header/first-section/second-section transfers. `GroupBase` no longer stores HQ
@@ -241,7 +241,7 @@ the same public header.
 
 ### Array/group mutation and wire headers
 
-`three_mm/collections.h` and `collections.c` implement dense/allocated arrays
+`mm/collections.h` and `collections.c` implement dense/allocated arrays
 and groups over the C storage foundation. The native classes publish logical
 counts from borrowed views; mutation inputs must not alias the storage being
 edited. C owns insert/delete, replacement, resize/pop, moves/swaps, first-free
@@ -284,10 +284,10 @@ products, dense/allocated mode, free count and exact payload length. It retains
 empty allocated GST acceptance, independently of GG's empty allocated rejection.
 Archive's stricter string-payload validator remains separate. Native adapters
 swap offsets and translate text around writes, restoring both on failure.
-`three_mm_strings_wire_system` retains the requested Mac/Windows family at the
+`mm_strings_wire_system` retains the requested Mac/Windows family at the
 host string width, including requests with a different Unicode width.
 
-`three_mm/data_stream.h` and `data_stream.c` own memory-stream storage lifetime,
+`mm/data_stream.h` and `data_stream.c` own memory-stream storage lifetime,
 growth/fallback, replacement and bounded read/write. The allocator remains the
 same host fixed-memory adapter used by collections, including HQ diagnostic
 accounting. Both allocation attempts retain NORMAL priority and the legacy
@@ -317,7 +317,7 @@ normalization and empty allocated GST save/reopen.
 
 ### KCDC/KCD2 algorithms and packed encoding
 
-`three_mm/codec.h` and `codec.c` implement both formats without Kauai or C++
+`mm/codec.h` and `codec.c` implement both formats without Kauai or C++
 dependencies. Encoding preserves dictionary links, nearest/longest-match
 selection, offset cost preferences, literal ordering, bit packing and tails.
 The two temporary arrays use checked four-byte entries and NORMAL allocation
@@ -335,7 +335,7 @@ The generated x86 assembly sources remain available to their generator tools;
 `KauaiCodec` now dispatches to the shared portable C implementation on every
 architecture.
 
-`three_mm_packed_encode` shares the eight-byte big-endian envelope, codec
+`mm_packed_encode` shares the eight-byte big-endian envelope, codec
 selection/query, input-size-minus-one estimate and minimum-saving policy.
 It retains pre-conversion failure counts and publishes callback counts on
 conversion failure. Native registration order and custom codec callbacks remain
@@ -354,7 +354,7 @@ allocator failure hooks and both formats through DataBlock pack/unpack.
 
 ### Owning file-piece tables
 
-`three_mm/piece_table.h` and `piece_table.c` own FileByteStream's piece storage
+`mm/piece_table.h` and `piece_table.c` own FileByteStream's piece storage
 and file-reference lifecycle over C89 groups. The native `GeneralGroup` object
 is no longer required. Memory bytes and opaque file identities share one table;
 host callbacks retain/release files and supply positional reads/writes, temporary
@@ -392,7 +392,7 @@ self-copy guarantees remain outside this slice.
 
 ### Block I/O and opaque handle transactions
 
-`three_mm/block_io.h` and `block_io.c` own DataBlock byte/HQ I/O routing,
+`mm/block_io.h` and `block_io.c` own DataBlock byte/HQ I/O routing,
 memory/file copy dispatch, FileLocation copying, handle detach/normalization,
 codec HQ transactions and block-packing decisions. The native view is borrowed;
 the host adopts returned handles and releases prior file references only after
@@ -428,7 +428,7 @@ fallback, sliced/failed packing and both codecs through HQ and file blocks.
 
 ### Owning DataBlock state and materialization
 
-`three_mm/block_owner.h` and `block_owner.c` now hold DataBlock's owning state.
+`mm/block_owner.h` and `block_owner.c` now hold DataBlock's owning state.
 The C record owns one file reference or opaque handle; it is initialized once
 and cannot be copied/moved. File/handle services and their contexts are borrowed
 for its lifetime. I/O descriptors borrow that record and expire on mutation.
@@ -532,7 +532,7 @@ repeated save/load and failed-load preservation.
 `rollcall_storage.c` owns runtime and wire roll-call names/extras in two C buffers.
 It replaces persistent and transient StringTable_GST objects in MovieData's actor
 paths. C owns append/rename/delete/extra updates, dense GST reading, offset swaps,
-legacy string translation and GST output. Runtime extras use ThreeMMRollCallActor;
+legacy string translation and GST output. Runtime extras use MMRollCallActor;
 wire extras remain 28 bytes. Opaque tag references are transferred, never retained
 or closed by table mutation/destruction. Movie transactions and existing edit
 rollback retain responsibility for those references.
@@ -745,7 +745,7 @@ and per-tag playback. `SceneSoundEvent` inherits the 16-byte C metadata record
 without duplicate fields. Its native tag/child tail is an adapter view, 32 bytes
 per entry on x64; wire records stay 20 bytes. The temporary native facade is in
 `inc/scene_sound.h`; the portable C API header is
-`libraries/engine/include/three_mm/scene_sound.h`.
+`libraries/engine/include/mm/scene_sound.h`.
 
 Construction and full duplication retain every tag. Group duplication retains
 only cache-source tags or clears all cache pointers, reacquiring group data
@@ -766,7 +766,7 @@ start offset use the original index even after skipped tags. Tool selection is
 captured on entry; the other header fields remain live. Typed adapters provide
 allocation, tag copy/reference/resolve/fetch, group access, priority and queue
 primitives. `Movie::FResolveSndTag` already delegates resolution policy to
-`three_mm_movie_sound_resolve`; its native facade remains an integration dependency.
+`mm_movie_sound_resolve`; its native facade remains an integration dependency.
 Read/open and tag-collection/save transactions now use the C layers below.
 Weak background tag state, native tag representation and final
 facade removal remain conversion work.
@@ -838,7 +838,7 @@ Thumbnail lookup/decode failures remain optional; final name loading has no
 failure result. Validated input groups and metadata remain required by this
 internal service contract.
 
-`three_mm_scene_resolve_sounds` captures the actor count, resolves actors first,
+`mm_scene_resolve_sounds` captures the actor count, resolves actors first,
 then locks frame storage, captures its event count and resolves sid-zero sound
 tags in order. Failure retains previously resolved tags. The former native
 frame-resolution failure left its group locked; every acquired lock now releases
@@ -1568,7 +1568,7 @@ bytes. No Marcus UI tests were added.
 
 ### Actor track state and embedded tag ownership
 
-`actor_track.c` owns the route/event handles in `ThreeMMActorTrack`, replacing
+`actor_track.c` owns the route/event handles in `MMActorTrack`, replacing
 native ownership fields and their lifetime policy. The temporary ActorTrack facade
 exposes typed borrowed table accessors; actor evaluation/editing, preview and test
 fixtures use those accessors. Native services perform primitive allocation, table
@@ -1600,7 +1600,7 @@ UI tests were added.
 ### Actor value state and route evaluation
 
 `actor_state.c` owns state initialization, transform reset, route rewind, origin
-updates and pure value-event application over the public `ThreeMMActorState` C
+updates and pure value-event application over the public `MMActorState` C
 record. Rotation, stretch, scale, step, freeze, tweak and move events execute in C.
 Resource/stage/sound events return NeedsRuntime without payload validation or state
 changes, preserving the native host boundary. Invalid pure layouts and zero-step
@@ -1633,7 +1633,7 @@ tests were added.
 
 ### Actor frame command sequencing
 
-`actor_frame.c` owns one-frame sequencing in `ThreeMMActorFrame`. C advances the
+`actor_frame.c` owns one-frame sequencing in `MMActorFrame`. C advances the
 route, prescans entrances, emits entrance queries and event commands, accepts host
 acknowledgements and computes final result flags. Host effects still execute
 between Next and Complete; typed native commands/results and state translation
@@ -1687,7 +1687,7 @@ observer views current before metadata/diagnostic callbacks and lifetime writes;
 callbacks see the decremented cel during a backward-step metadata request. The
 native adapter uses value conversion for distinct 32-bit long/int types.
 
-`actor_seek.c` owns control state in `ThreeMMActorSeek`: backward/midpath rewind,
+`actor_seek.c` owns control state in `MMActorSeek`: backward/midpath rewind,
 quick effects, hide/costume commands and frame evaluation requests. Hosts still
 apply commands and acknowledge them. Hide/costume failures remain best-effort;
 frame failure accumulates while later frames run, and quick failure stops. The
@@ -2085,7 +2085,7 @@ facade removal remain unfinished.
 ### Actor route recording
 
 `actor_record.c` owns recording validity, authored record-step sizing and the
-begin/move/end operations. `ThreeMMActorRecording` carries insertion location,
+begin/move/end operations. `MMActorRecording` carries insertion location,
 timestamp, mode/rejoin/inserted flags, gap and raw mouse history. Native fields
 remain temporary mirrors published before metadata, scene and restoration
 operations. The final backend still needs to remove those C++ owner adapters.
@@ -2173,7 +2173,7 @@ body/resource implementations and final facade removal remain unfinished.
 ### Actor ownership and restoration
 
 `actor_owner.c` owns runtime initialization/disposal, duplication, reset, value
-copying, track/sound swaps and undo restoration. `ThreeMMActorRuntime` is a plain
+copying, track/sound swaps and undo restoration. `MMActorRuntime` is a plain
 C record; the native actor marshals its current representation and supplies
 resource references, C-backed track/sound operations and scene/view primitives.
 The native class is still an intermediate representation, not the final backend.
@@ -2199,7 +2199,7 @@ next; body/resource/scene policy and final facade removal remain unfinished.
 ### Actor undo controller
 
 `actor_undo.c` owns actor undo creation, snapshot reference lifetime, undo toggle
-and redo frame switching. `ThreeMMActorUndoState` holds plain movie/snapshot
+and redo frame switching. `MMActorUndoState` holds plain movie/snapshot
 handles, identifiers, frames and flags. The native undo object marshals these
 fields and supplies primitive movie/scene operations and temporary String scratch
 storage. C controls name capture, ignored rename failure and captured-name swap;
@@ -2406,7 +2406,7 @@ final facade removal remain unfinished.
 
 `actor_clipboard.c` owns clipboard creation, copy dispatch, name-prefix policy,
 actor ownership, route/full-paste dispatch, reset duplication and rename-failure
-removal/release ordering. `ThreeMMActorClipboard` stores the owned actor and
+removal/release ordering. `MMActorClipboard` stores the owned actor and
 route flag as plain C data. The native document facade retains the existing
 String name representation and provides primitive string assignment/append,
 movie/view operations and resource integration. Those String mutations and
@@ -2588,7 +2588,7 @@ behavior. Body geometry/render policy is now C as described below. Renderer
 field adapters, external BRender primitives, resource object internals and the
 native representation remain dependencies.
 
-`ThreeMMBodyCostume` now owns snapshot entries and references in C. Capture drops
+`MMBodyCostume` now owns snapshot entries and references in C. Capture drops
 the previous snapshot before allocation; failed replacement leaves it empty.
 Application preserves exact-shape checking or the explicit smaller-count rule.
 The unused count of an empty owner is defined as zero; native debug used poison
@@ -2607,7 +2607,7 @@ dereference of raw handles after their final custom owner is released.
 
 ### Body geometry, render callbacks and picking
 
-`body_geometry.c` owns persistent `ThreeMMBodyGeometry` bounds/last-visible/hit
+`body_geometry.c` owns persistent `MMBodyGeometry` bounds/last-visible/hit
 state, render-bound accumulation, prepare callbacks, visible-rectangle/center/
 position queries, highlight exclusion/restoration, world bounds and hit-selection
 policy. Body construction initializes this plain C state; duplication and restore
@@ -2629,7 +2629,7 @@ translation, matching native `BR_MAC4`. Rectangle centers preserve wrapped
 rather than relying on C89's implementation-defined negative division.
 
 `BodyWorld` supplies synchronous renderer traversal. Closest-hit state is now a
-caller-owned `ThreeMMBodyPick`, replacing the three process-wide Body picking
+caller-owned `MMBodyPick`, replacing the three process-wide Body picking
 fields. A strictly closer visible hit wins, so the first equal-depth hit remains.
 Root/highlight hits may select a body with set -1. Point-in-body search marks
 found for a highlight hit but continues looking for a real part. An unsuccessful
@@ -2650,7 +2650,7 @@ coverage limits in `docs/tools/playback-regression.md`.
 
 ### Model resource ownership, wire I/O and prelighting
 
-`model_resource.c` owns the persistent `ThreeMMModelResource` renderer handle,
+`model_resource.c` owns the persistent `MMModelResource` renderer handle,
 construction/factories, packed/unpacked estimates, prepared/unprepared loading,
 partial ownership, disposal, writing, DAT import control, extent queries and
 glyph adjustment. `modl.cpp` supplies typed BRender field/allocation, block/file
@@ -2695,8 +2695,8 @@ resources and final native facade removal remain migration work.
 
 ### Materials, custom materials and shade-table ownership
 
-`material_resource.c` owns persistent `ThreeMMMaterialResource` renderer handles
-and the shared `ThreeMMMaterialShade` texture reference. It controls creation,
+`material_resource.c` owns persistent `MMMaterialResource` renderer handles
+and the shared `MMMaterialShade` texture reference. It controls creation,
 factory estimates, header/texture/transform loading, writing, disposal,
 shade-table replacement and PIX/BMP import sequencing. `custom_material.c`
 owns persistent material/model arrays, body-part counts and set identifiers,
@@ -2740,7 +2740,7 @@ are recorded in `docs/tools/playback-regression.md`. No Marcus UI tests were add
 
 ### Texture storage, palette matching and standalone files
 
-`texture_resource.c` owns persistent `ThreeMMTextureResource` descriptors,
+`texture_resource.c` owns persistent `MMTextureResource` descriptors,
 pixel buffers and imported renderer owners. It controls construction, cache
 factories/estimates, 20-byte header codecs, bounded loading/writing, chunk
 creation and standalone file signatures, packing, reports and failure cleanup.
@@ -3000,7 +3000,7 @@ retain the original tight SDK row, leave live buffers/camera/dirt untouched and
 write from the actual graphics-port pitch. No-cache ports retain default RGB
 zero/depth FF fill. Background depth sampling intentionally ignores cached
 origins, matching the native exporter's direct-row policy. The shared
-`three_mm_world_depth_resample` now supports export factors 1..16, while live
+`mm_world_depth_resample` now supports export factors 1..16, while live
 buffer modes remain restricted to 1/2/4. Copies preserve opaque two-byte samples
 without interpolation, validate spans and retain only the completed prefix on
 failure. Current export writes the existing buffer without rendering.
@@ -3096,7 +3096,7 @@ Playback evidence and remaining coverage limits are recorded in
 
 ### Action definitions and optional sound ownership
 
-`action_definition.c` owns a persistent `ThreeMMActionDefinition`: cel group,
+`action_definition.c` owns a persistent `MMActionDefinition`: cel group,
 matrix list, optional runtime sound list and flags. It implements construction
 from duplicated groups, resource factory estimates/cleanup, header/list loading,
 payload byte swapping, sound-tag marshalling, disposal and primitive queries.
@@ -3136,7 +3136,7 @@ coverage limits are recorded in `docs/tools/playback-regression.md`.
 
 ### Three-dimensional font resources
 
-`font_resource.c` owns `ThreeMMFontResource` count/maximum/metric storage,
+`font_resource.c` owns `MMFontResource` count/maximum/metric storage,
 resource estimates, loading, authoring, disposal, metric queries and glyph lookup.
 ThreeDFont is now a temporary facade around that C state. Native services provide
 primitive allocation, blocks, child lists/graph operations, retained model fetches,
@@ -3177,7 +3177,7 @@ evidence and remaining coverage limits are in `docs/tools/playback-regression.md
 `text_generation.c` owns parent/set/costume list construction, atomic replacement
 of generated lists/material references, cel/matrix/action generation, the action
 cache, glyph fetch control, body adjustment/default costumes and generated-owner
-disposal. `ThreeMMTextGenerated` holds the material, cached action and cache ID;
+disposal. `MMTextGenerated` holds the material, cached action and cache ID;
 these are no longer separate C++ owner fields. Native services expose primitive
 container/material/action factories, retained font providers, metric/glyph access,
 body operations and template field views. The resource controller below owns
@@ -3216,8 +3216,8 @@ run with assertions enabled; full gate evidence is in
 
 `text_resource.c` owns construction, duplication, change rollback, info queries,
 font-provider selection, template/child resource loading and saving, embedded-tag
-enumeration and localized action-name policy. `ThreeMMTextDescriptor` holds shape
-and font tag; `ThreeMMTextNames` holds the optional retained names table. Both
+enumeration and localized action-name policy. `MMTextDescriptor` holds shape
+and font tag; `MMTextNames` holds the optional retained names table. Both
 hosts use the same C controller through the temporary ThreeDText facade. Services
 still provide native String primitives, object creation, block/chunk operations,
 font providers and string-table entry access; those adapters are dependencies of
@@ -3251,7 +3251,7 @@ Full validation and playback limits are recorded in
 
 `sound_resource.c` owns MovieSoundMSND loading/factories, metadata queries,
 MIDI/WAVE envelope and child writing, MIDI import orchestration, invalidation,
-tool priorities/classes and playback dispatch. `ThreeMMSoundResource` holds the
+tool priorities/classes and playback dispatch. `MMSoundResource` holds the
 weak source cache, child identity, style and volume. Separate C silent/invalid
 slots preserve the native String placement and 328-byte x64 cache estimate
 without packing pointers. Native adapters still supply object/String/block/
@@ -3289,7 +3289,7 @@ work.
 
 ### Sound payloads, MIDI parsing and WAVE import
 
-`midi.c` owns the persistent `ThreeMMMidiParser`, variable-length timing,
+`midi.c` owns the persistent `MMMidiParser`, variable-length timing,
 running status, peeks, meta/SysEx handling and SMF import. C-owned scratch
 buffers hold track parsers/events and the merged millisecond stream. Formats
 1/2 merge/sequence tracks; other formats retain the first active track.
@@ -3530,7 +3530,7 @@ zero-reference cleanup policy traverses those links. Persistent owner state is
 converted above. Native class allocation, file/name primitives and other object
 adapters remain to be converted.
 
-`three_mm_chunk_construct_forest` owns destination construction. Copied imports
+`mm_chunk_construct_forest` owns destination construction. Copied imports
 create a temporary file and reserve the 128-byte prefix. Borrowed imports retain
 the source file, publish offset+length as the logical end and set invalid-main /
 add-to-extra before reading. Every failure releases the partial owner, including
@@ -3905,7 +3905,7 @@ AddressSanitizer.
 
 ### Save-a-copy and chunk heap policy
 
-`three_mm_chunk_save_copy` now owns the save-a-copy traversal and commit order.
+`mm_chunk_save_copy` now owns the save-a-copy traversal and commit order.
 It pins the source index, checks source/compacted destination positions, copies
 each payload, inserts the corresponding record, unpins on every exit and only
 then commits the destination. Unlike whole-file relocation, even empty chunks
@@ -3914,9 +3914,9 @@ primitive preserves the original fixed record (including expanded runtime IDs)
 and variable children/name bytes, replacing only the C-supplied offset/size/flags.
 Destination creation, failure disposal and physical I/O remain host services.
 
-`three_mm_chunk_heap_allocate` chooses the first fitting free range and consumes
+`mm_chunk_heap_allocate` chooses the first fitting free range and consumes
 its beginning, deleting exact fits. Append reuses physical trailing bytes before
-extending the file. `three_mm_chunk_heap_free` merges either/both adjacent holes
+extending the file. `mm_chunk_heap_free` merges either/both adjacent holes
 or trims the logical tail and its adjacent last free range. It never truncates
 physical storage. Interior map-creation/insertion failure drops the free space,
 retaining the legacy nonfatal policy; invalid/overlapping ranges and signed
@@ -3935,7 +3935,7 @@ empty offsets, flags and position limits. Both pass MSVC AddressSanitizer.
 
 ### Whole-file save relocation and recovery
 
-`three_mm_chunk_save` owns the save sequence shared by Studio and Marcus. It
+`mm_chunk_save` owns the save sequence shared by Studio and Marcus. It
 chooses a direct index commit or a temporary output, checks the complete compact
 layout, copies nonempty chunks from main/extra storage, then updates offsets and
 clears on-extra flags. Empty chunks become offset zero. Packed bytes and other
@@ -3972,7 +3972,7 @@ migration.
 
 ### Chunk index persistence
 
-`three_mm_chunk_write_index` now owns the CHN2 index-commit policy shared by
+`mm_chunk_write_index` now owns the CHN2 index-commit policy shared by
 Studio and Marcus: checked index/free-map positions, the exact 128-byte v5/
 back-v4 prefix, byte order and zeroed reserved fields. It writes the index,
 optional free map, then the prefix. The native `_FWriteIndex` supplies collection
@@ -3999,7 +3999,7 @@ These slices do not complete the container editor or whole-engine conversion.
 
 ### Piece write windows and file-text conversion
 
-`three_mm_piece_table_write` in `piece_table.c` owns piece selection, both storage
+`mm_piece_table_write` in `piece_table.c` owns piece selection, both storage
 locks, per-piece DataBlock destination windows, memory/file copy dispatch and
 restoration after success or I/O failure. The native stream adapter delegates
 to it over the existing C-owned DataBlock record. Source file references stay
@@ -4013,7 +4013,7 @@ writing. Supported windows retain the original byte results and their final
 destination view. This is a safety guard, not a new general partial-write or
 overlapping-self-copy guarantee.
 
-`three_mm/file_text.h` and `file_text.c` own FileLocation text conversion policy:
+`mm/file_text.h` and `file_text.c` own FileLocation text conversion policy:
 the even-length BOM probe, host-ordered signature interpretation, requested/
 inferred encoding precedence, same-encoding no-op, temporary-file redirection,
 count queries, output growth and reference cleanup. Character conversion is a
@@ -4044,13 +4044,13 @@ engine objects still prevent a complete C-only backend.
 
 The shared [public archive API](../../libraries/archive/README.md) now insulates
 the CLI and inspector from the legacy headers, macros, reference counting and
-diagnostic callbacks. `ThreeMM::Archive` keeps `engine-core` private and exposes
+diagnostic callbacks. `MM::Archive` keeps `engine-core` private and exposes
 typed records, owned page results and structured errors. The original core
 entry points remain available to existing runtime code. This first public
 boundary covers read-only archive access; movie playback/editing APIs and
 independent concurrent engine instances remain separate work.
 
-`ThreeMM::Preview` now supplies a second public boundary for read-only 3D asset
+`MM::Preview` now supplies a second public boundary for read-only 3D asset
 views. Its standard C++ header exposes resource source IDs, action/cel and frame
 selection, camera controls and owned RGBA images. BRender actors, engine bodies,
 costumes, templates, fonts and background depth stay private. Scene previews

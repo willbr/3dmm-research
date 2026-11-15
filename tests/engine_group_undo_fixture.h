@@ -26,7 +26,7 @@ class TestMoveGroupUndo : public ActorMoveGroupUndo
 static bool TestActorGroupUndo(PMovie parent)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_GROUP_UNDO_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_GROUP_UNDO_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     bool ok=true;

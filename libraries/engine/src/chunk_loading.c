@@ -1,12 +1,12 @@
 /* Chunk loading converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/chunk_loading.h"
+#include "mm/chunk_loading.h"
 #include <string.h>
-typedef char RangeMustBeEightBytes[sizeof(ThreeMMChunkFreeRange) == 8 ? 1 : -1];
-typedef char ChildMustBeTwelveBytes[sizeof(ThreeMMChunkChild) == 12 ? 1 : -1];
-static ThreeMMArray map_view(ThreeMMChunkFreeMap *map)
+typedef char RangeMustBeEightBytes[sizeof(MMChunkFreeRange) == 8 ? 1 : -1];
+typedef char ChildMustBeTwelveBytes[sizeof(MMChunkChild) == 12 ? 1 : -1];
+static MMArray map_view(MMChunkFreeMap *map)
 {
-    ThreeMMArray a;
+    MMArray a;
     memset(&a, 0, sizeof(a));
     a.storage = &map->storage;
     a.width = 8;
@@ -14,107 +14,107 @@ static ThreeMMArray map_view(ThreeMMChunkFreeMap *map)
     a.free_count = -1;
     return a;
 }
-int three_mm_free_map_create(const ThreeMMStorageAllocator *allocator, ThreeMMU32 reserve, ThreeMMChunkFreeMap **output)
+int mm_free_map_create(const MMStorageAllocator *allocator, MMU32 reserve, MMChunkFreeMap **output)
 {
-    ThreeMMCollectionStorage empty;
-    ThreeMMChunkFreeMap *map;
-    ThreeMMArray a;
-    if (!output || reserve >= THREE_MM_STORAGE_LIMIT / 8 ||
-        three_mm_storage_init(&empty, allocator) != THREE_MM_STORAGE_OK)
-        return THREE_MM_CHUNK_BAD_FILE;
-    map = (ThreeMMChunkFreeMap *)empty.allocator.resize(empty.allocator.context, NULL, 0, sizeof(*map),
-                                                        THREE_MM_STORAGE_NORMAL);
+    MMCollectionStorage empty;
+    MMChunkFreeMap *map;
+    MMArray a;
+    if (!output || reserve >= MM_STORAGE_LIMIT / 8 ||
+        mm_storage_init(&empty, allocator) != MM_STORAGE_OK)
+        return MM_CHUNK_BAD_FILE;
+    map = (MMChunkFreeMap *)empty.allocator.resize(empty.allocator.context, NULL, 0, sizeof(*map),
+                                                        MM_STORAGE_NORMAL);
     if (!map)
-        return THREE_MM_CHUNK_MEMORY;
+        return MM_CHUNK_MEMORY;
     map->storage = empty;
     map->count = 0;
     map->storage.min_grow[0] = 128;
     a = map_view(map);
-    if (three_mm_array_reserve(&a, reserve, 0) != THREE_MM_STORAGE_OK)
+    if (mm_array_reserve(&a, reserve, 0) != MM_STORAGE_OK)
     {
-        three_mm_free_map_close(map);
-        return THREE_MM_CHUNK_MEMORY;
+        mm_free_map_close(map);
+        return MM_CHUNK_MEMORY;
     }
     *output = map;
-    return THREE_MM_CHUNK_OK;
+    return MM_CHUNK_OK;
 }
-void three_mm_free_map_close(ThreeMMChunkFreeMap *map)
+void mm_free_map_close(MMChunkFreeMap *map)
 {
-    ThreeMMStorageAllocator allocator;
+    MMStorageAllocator allocator;
     if (!map)
         return;
     allocator = map->storage.allocator;
-    if (three_mm_storage_dispose(&map->storage) != THREE_MM_STORAGE_OK)
+    if (mm_storage_dispose(&map->storage) != MM_STORAGE_OK)
         return;
     allocator.release(allocator.context, map, sizeof(*map));
 }
-int three_mm_free_map_get(const ThreeMMChunkFreeMap *map, ThreeMMU32 position, ThreeMMChunkFreeRange *range)
+int mm_free_map_get(const MMChunkFreeMap *map, MMU32 position, MMChunkFreeRange *range)
 {
     if (!map || !range || position >= map->count || map->count > map->storage.buffers[0].capacity / 8)
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     memcpy(range, map->storage.buffers[0].data + position * 8, 8);
-    return THREE_MM_CHUNK_OK;
+    return MM_CHUNK_OK;
 }
-int three_mm_free_map_put(ThreeMMChunkFreeMap *map, ThreeMMU32 position, const ThreeMMChunkFreeRange *range)
+int mm_free_map_put(MMChunkFreeMap *map, MMU32 position, const MMChunkFreeRange *range)
 {
     if (!map || !range || position >= map->count || map->count > map->storage.buffers[0].capacity / 8)
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     memcpy(map->storage.buffers[0].data + position * 8, range, 8);
-    return THREE_MM_CHUNK_OK;
+    return MM_CHUNK_OK;
 }
-int three_mm_free_map_insert(ThreeMMChunkFreeMap *map, ThreeMMU32 position, const ThreeMMChunkFreeRange *range)
+int mm_free_map_insert(MMChunkFreeMap *map, MMU32 position, const MMChunkFreeRange *range)
 {
-    ThreeMMArray a;
+    MMArray a;
     int result;
     if (!map || !range)
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     a = map_view(map);
-    result = three_mm_array_insert(&a, position, range, 1);
+    result = mm_array_insert(&a, position, range, 1);
     map->count = a.count;
-    return result == THREE_MM_STORAGE_OK       ? THREE_MM_CHUNK_OK
-           : result == THREE_MM_STORAGE_MEMORY ? THREE_MM_CHUNK_MEMORY
-                                               : THREE_MM_CHUNK_BAD_FILE;
+    return result == MM_STORAGE_OK       ? MM_CHUNK_OK
+           : result == MM_STORAGE_MEMORY ? MM_CHUNK_MEMORY
+                                               : MM_CHUNK_BAD_FILE;
 }
-int three_mm_free_map_erase(ThreeMMChunkFreeMap *map, ThreeMMU32 position)
+int mm_free_map_erase(MMChunkFreeMap *map, MMU32 position)
 {
-    ThreeMMArray a;
+    MMArray a;
     int result;
     if (!map)
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     a = map_view(map);
-    result = three_mm_array_delete(&a, position, 1);
+    result = mm_array_delete(&a, position, 1);
     map->count = a.count;
-    return result == THREE_MM_STORAGE_OK ? THREE_MM_CHUNK_OK : THREE_MM_CHUNK_BAD_FILE;
+    return result == MM_STORAGE_OK ? MM_CHUNK_OK : MM_CHUNK_BAD_FILE;
 }
-static ThreeMMU32 word32(const unsigned char *p, int big)
+static MMU32 word32(const unsigned char *p, int big)
 {
-    ThreeMMU32 value = 0;
+    MMU32 value = 0;
     unsigned i;
     for (i = 0; i < 4; ++i)
-        value |= (ThreeMMU32)p[i] << (8 * (big ? 3 - i : i));
+        value |= (MMU32)p[i] << (8 * (big ? 3 - i : i));
     return value;
 }
-int three_mm_free_map_read(const ThreeMMReadStream *stream, const ThreeMMStorageAllocator *allocator,
-                           ThreeMMChunkFreeMap **output)
+int mm_free_map_read(const MMReadStream *stream, const MMStorageAllocator *allocator,
+                           MMChunkFreeMap **output)
 {
-    ThreeMMCollectionHeader header;
-    ThreeMMChunkFreeMap *map;
-    ThreeMMChunkFreeRange range;
-    ThreeMMU32 i;
+    MMCollectionHeader header;
+    MMChunkFreeMap *map;
+    MMChunkFreeRange range;
+    MMU32 i;
     int result;
     if (!output)
-        return THREE_MM_CHUNK_BAD_FILE;
-    result = three_mm_collection_header_read(stream, THREE_MM_COLLECTION_ARRAY, 0, &header);
-    if (result != THREE_MM_STORAGE_OK || header.width != 8)
-        return result == THREE_MM_STORAGE_IO ? THREE_MM_CHUNK_IO : THREE_MM_CHUNK_BAD_FILE;
-    result = three_mm_free_map_create(allocator, 0, &map);
-    if (result != THREE_MM_CHUNK_OK)
+        return MM_CHUNK_BAD_FILE;
+    result = mm_collection_header_read(stream, MM_COLLECTION_ARRAY, 0, &header);
+    if (result != MM_STORAGE_OK || header.width != 8)
+        return result == MM_STORAGE_IO ? MM_CHUNK_IO : MM_CHUNK_BAD_FILE;
+    result = mm_free_map_create(allocator, 0, &map);
+    if (result != MM_CHUNK_OK)
         return result;
-    result = three_mm_storage_read(&map->storage, stream, 12, header.first_bytes, 0);
-    if (result != THREE_MM_STORAGE_OK)
+    result = mm_storage_read(&map->storage, stream, 12, header.first_bytes, 0);
+    if (result != MM_STORAGE_OK)
     {
-        three_mm_free_map_close(map);
-        return result == THREE_MM_STORAGE_MEMORY ? THREE_MM_CHUNK_MEMORY : THREE_MM_CHUNK_IO;
+        mm_free_map_close(map);
+        return result == MM_STORAGE_MEMORY ? MM_CHUNK_MEMORY : MM_CHUNK_IO;
     }
     map->count = header.count;
     for (i = 0; i < map->count; ++i)
@@ -125,50 +125,50 @@ int three_mm_free_map_read(const ThreeMMReadStream *stream, const ThreeMMStorage
         memcpy(map->storage.buffers[0].data + i * 8, &range, 8);
     }
     *output = map;
-    return THREE_MM_CHUNK_OK;
+    return MM_CHUNK_OK;
 }
-int three_mm_free_map_load(ThreeMMChunkFreeMap **map, int *unread, const ThreeMMReadStream *stream, ThreeMMU32 offset,
-                           ThreeMMU32 bytes, const ThreeMMStorageAllocator *allocator)
+int mm_free_map_load(MMChunkFreeMap **map, int *unread, const MMReadStream *stream, MMU32 offset,
+                           MMU32 bytes, const MMStorageAllocator *allocator)
 {
-    ThreeMMReadSlice slice;
+    MMReadSlice slice;
     if (!map || !unread)
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     *unread = 0;
     if (*map)
-        return THREE_MM_CHUNK_BAD_FILE;
+        return MM_CHUNK_BAD_FILE;
     if (!bytes)
-        return THREE_MM_CHUNK_OK;
-    if (!three_mm_read_slice_init(&slice, stream, offset, bytes))
-        return THREE_MM_CHUNK_BAD_FILE;
-    return three_mm_free_map_read(&slice.stream, allocator, map);
+        return MM_CHUNK_OK;
+    if (!mm_read_slice_init(&slice, stream, offset, bytes))
+        return MM_CHUNK_BAD_FILE;
+    return mm_free_map_read(&slice.stream, allocator, map);
 }
-ThreeMMU32 three_mm_free_map_wire_size(const ThreeMMChunkFreeMap *map)
+MMU32 mm_free_map_wire_size(const MMChunkFreeMap *map)
 {
     return map ? 12 + map->count * 8 : 0;
 }
-int three_mm_free_map_write(ThreeMMChunkFreeMap *map, const ThreeMMStorageWriter *writer, int big, int system)
+int mm_free_map_write(MMChunkFreeMap *map, const MMStorageWriter *writer, int big, int system)
 {
-    ThreeMMCollectionHeader header;
-    ThreeMMCollectionStorage temporary;
+    MMCollectionHeader header;
+    MMCollectionStorage temporary;
     unsigned char prefix[12];
     const unsigned short one = 1;
-    ThreeMMU32 i, n, value;
+    MMU32 i, n, value;
     int result;
     if (!map)
-        return THREE_MM_STORAGE_ARGUMENT;
+        return MM_STORAGE_ARGUMENT;
     memset(&header, 0, sizeof(header));
-    header.kind = THREE_MM_COLLECTION_ARRAY;
+    header.kind = MM_COLLECTION_ARRAY;
     header.width = 8;
     header.count = map->count;
     header.big_endian = big;
     header.system = system;
-    if (three_mm_collection_header_write(&header, prefix, sizeof(prefix)) != THREE_MM_STORAGE_OK)
-        return THREE_MM_STORAGE_ARGUMENT;
+    if (mm_collection_header_write(&header, prefix, sizeof(prefix)) != MM_STORAGE_OK)
+        return MM_STORAGE_ARGUMENT;
     if (big == (*(const unsigned char *)&one == 0))
-        return three_mm_storage_write(&map->storage, writer, prefix, 12, map->count * 8, 0);
-    three_mm_storage_init(&temporary, &map->storage.allocator);
-    result = three_mm_storage_ensure(&temporary, map->count * 8, 0, 0);
-    if (result == THREE_MM_STORAGE_OK)
+        return mm_storage_write(&map->storage, writer, prefix, 12, map->count * 8, 0);
+    mm_storage_init(&temporary, &map->storage.allocator);
+    result = mm_storage_ensure(&temporary, map->count * 8, 0, 0);
+    if (result == MM_STORAGE_OK)
     {
         for (i = 0; i < map->count * 2; ++i)
         {
@@ -176,36 +176,36 @@ int three_mm_free_map_write(ThreeMMChunkFreeMap *map, const ThreeMMStorageWriter
             for (n = 0; n < 4; ++n)
                 temporary.buffers[0].data[i * 4 + n] = (unsigned char)(value >> (8 * (big ? 3 - n : n)));
         }
-        result = three_mm_storage_write(&temporary, writer, prefix, 12, map->count * 8, 0);
+        result = mm_storage_write(&temporary, writer, prefix, 12, map->count * 8, 0);
     }
-    three_mm_storage_dispose(&temporary);
+    mm_storage_dispose(&temporary);
     return result;
 }
-int three_mm_chunk_materialize(ThreeMMChunkIndex *index, const ThreeMMChunkMaterializer *host,
-                               const ThreeMMStorageAllocator *allocator)
+int mm_chunk_materialize(MMChunkIndex *index, const MMChunkMaterializer *host,
+                               const MMStorageAllocator *allocator)
 {
-    ThreeMMCollectionStorage scratch;
-    ThreeMMChunkAccess access;
-    ThreeMMChunkEntry entry;
-    ThreeMMChunkChild child;
-    const ThreeMMChunkHeader *header;
+    MMCollectionStorage scratch;
+    MMChunkAccess access;
+    MMChunkEntry entry;
+    MMChunkChild child;
+    const MMChunkHeader *header;
     const unsigned char *name;
     unsigned char converted[516];
     char legacy[256];
-    ThreeMMU32 i, j, n, bytes;
-    int result = THREE_MM_CHUNK_OK;
+    MMU32 i, j, n, bytes;
+    int result = MM_CHUNK_OK;
     if (!index || !host || !host->insert)
-        return THREE_MM_CHUNK_BAD_FILE;
-    if (three_mm_storage_init(&scratch, allocator) != THREE_MM_STORAGE_OK)
-        return THREE_MM_CHUNK_BAD_FILE;
-    access = three_mm_chunk_index_access(index);
-    header = three_mm_chunk_index_header(index);
+        return MM_CHUNK_BAD_FILE;
+    if (mm_storage_init(&scratch, allocator) != MM_STORAGE_OK)
+        return MM_CHUNK_BAD_FILE;
+    access = mm_chunk_index_access(index);
+    header = mm_chunk_index_header(index);
     for (i = 0; i < access.count; ++i)
     {
-        if (three_mm_chunk_at(&access, i, &entry) != THREE_MM_CHUNK_OK ||
-            three_mm_chunk_index_name(index, i, &name, &n) != THREE_MM_CHUNK_OK)
+        if (mm_chunk_at(&access, i, &entry) != MM_CHUNK_OK ||
+            mm_chunk_index_name(index, i, &name, &n) != MM_CHUNK_OK)
         {
-            result = THREE_MM_CHUNK_BAD_FILE;
+            result = MM_CHUNK_BAD_FILE;
             goto done;
         }
         if (header->version < 3 && n)
@@ -219,23 +219,23 @@ int three_mm_chunk_materialize(ThreeMMChunkIndex *index, const ThreeMMChunkMater
                 if (!host->legacy_name || !host->legacy_name(host->context, legacy, converted, sizeof(converted), &n) ||
                     n > sizeof(converted))
                 {
-                    result = THREE_MM_CHUNK_BAD_FILE;
+                    result = MM_CHUNK_BAD_FILE;
                     goto done;
                 }
                 name = converted;
             }
         }
         bytes = entry.child_count * 12 + n;
-        if (three_mm_storage_ensure(&scratch, bytes, 0, 0) != THREE_MM_STORAGE_OK)
+        if (mm_storage_ensure(&scratch, bytes, 0, 0) != MM_STORAGE_OK)
         {
-            result = THREE_MM_CHUNK_MEMORY;
+            result = MM_CHUNK_MEMORY;
             goto done;
         }
         for (j = 0; j < entry.child_count; ++j)
         {
-            if (three_mm_chunk_child_at(&access, i, j, &child) != THREE_MM_CHUNK_OK)
+            if (mm_chunk_child_at(&access, i, j, &child) != MM_CHUNK_OK)
             {
-                result = THREE_MM_CHUNK_BAD_FILE;
+                result = MM_CHUNK_BAD_FILE;
                 goto done;
             }
             memcpy(scratch.buffers[0].data + j * 12, &child, 12);
@@ -244,11 +244,11 @@ int three_mm_chunk_materialize(ThreeMMChunkIndex *index, const ThreeMMChunkMater
             memcpy(scratch.buffers[0].data + entry.child_count * 12, name, n);
         if (!host->insert(host->context, i, &entry, scratch.buffers[0].data, bytes))
         {
-            result = THREE_MM_CHUNK_MEMORY;
+            result = MM_CHUNK_MEMORY;
             goto done;
         }
     }
 done:
-    three_mm_storage_dispose(&scratch);
+    mm_storage_dispose(&scratch);
     return result;
 }

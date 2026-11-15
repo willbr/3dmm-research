@@ -15,8 +15,8 @@
 #ifndef MIDI_H
 #define MIDI_H
 
-#include "three_mm/sound_payload.h"
-#include "three_mm/midi.h"
+#include "mm/sound_payload.h"
+#include "mm/midi.h"
 
 using namespace Chunky;
 
@@ -49,7 +49,7 @@ class MidiStreamParser : public MidiStreamParser_PAR
     MARKMEM
 
   protected:
-    ThreeMMMidiParser _parser;
+    MMMidiParser _parser;
 
     Debug(LegacyLong _cactLongLock;) PMidiStream _pmids;
 
@@ -74,7 +74,7 @@ class MidiStream : public MidiStream_PAR
     MARKMEM
 
   protected:
-    static ThreeMMSoundPayloadServices _PayloadServices();
+    static MMSoundPayloadServices _PayloadServices();
     HQ _hqrgb;
 
     friend MidiStreamParser;

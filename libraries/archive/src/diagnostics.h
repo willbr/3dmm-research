@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef ARCHIVE_DIAGNOSTICS_H
 #define ARCHIVE_DIAGNOSTICS_H
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -11,5 +11,5 @@ bool AssertionFailed();
 void RecordAssertion(const char *message);
 const char *DiagnosticMessage();
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM
 #endif

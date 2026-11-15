@@ -1,19 +1,19 @@
 /* Chunk editing policy converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/chunk_edit.h"
+#include "mm/chunk_edit.h"
 #include <string.h>
-#define EXTRA ((ThreeMMU32)1)
-#define LONER ((ThreeMMU32)2)
-#define OK THREE_MM_CHUNK_OK
-#define BAD THREE_MM_CHUNK_BAD_FILE
-static int readable(const ThreeMMChunkEdit *edit)
+#define EXTRA ((MMU32)1)
+#define LONER ((MMU32)2)
+#define OK MM_CHUNK_OK
+#define BAD MM_CHUNK_BAD_FILE
+static int readable(const MMChunkEdit *edit)
 {
     return edit && edit->count && edit->entry;
 }
-static int find(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 *position)
+static int find(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 *position)
 {
-    ThreeMMU32 low = 0, high = edit->count(edit->context), middle;
-    ThreeMMChunkEntry entry;
+    MMU32 low = 0, high = edit->count(edit->context), middle;
+    MMChunkEntry entry;
     while (low < high)
     {
         middle = low + (high - low) / 2;
@@ -31,45 +31,45 @@ static int find(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number
     *position = low;
     return 0;
 }
-static void output(const ThreeMMChunkEdit *edit, const ThreeMMChunkLocation *location, int added)
+static void output(const MMChunkEdit *edit, const MMChunkLocation *location, int added)
 {
     if (edit->output)
         edit->output(edit->context, location, added);
 }
-int three_mm_chunk_set_flag(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 flag,
+int mm_chunk_set_flag(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 flag,
                             int enabled)
 {
-    ThreeMMChunkEntry entry;
-    ThreeMMU32 position, value = enabled ? flag : 0;
+    MMChunkEntry entry;
+    MMU32 position, value = enabled ? flag : 0;
     if (!readable(edit) || !edit->store ||
-        (flag != THREE_MM_CHUNK_LONER && flag != THREE_MM_CHUNK_PACKED && flag != THREE_MM_CHUNK_FOREST) ||
-        (flag != THREE_MM_CHUNK_LONER && !edit->reset_runtime))
+        (flag != MM_CHUNK_LONER && flag != MM_CHUNK_PACKED && flag != MM_CHUNK_FOREST) ||
+        (flag != MM_CHUNK_LONER && !edit->reset_runtime))
         return BAD;
     if (!find(edit, type, number, &position))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     edit->entry(edit->context, position, &entry);
-    if (flag == THREE_MM_CHUNK_LONER)
+    if (flag == MM_CHUNK_LONER)
     {
         if (!enabled)
-            return entry.flags & LONER ? three_mm_chunk_delete(edit, type, number) : OK;
+            return entry.flags & LONER ? mm_chunk_delete(edit, type, number) : OK;
     }
     else if ((entry.flags & flag) == value)
         return OK;
     entry.flags = (entry.flags & ~flag) | value;
     edit->store(edit->context, position, &entry, 0);
-    if (flag != THREE_MM_CHUNK_LONER)
+    if (flag != MM_CHUNK_LONER)
         edit->reset_runtime(edit->context, type, number);
     return OK;
 }
-static void issue(const ThreeMMChunkEdit *edit, int kind)
+static void issue(const MMChunkEdit *edit, int kind)
 {
     if (edit->issue)
         edit->issue(edit->context, kind);
 }
-int three_mm_chunk_unique(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 *position, ThreeMMU32 *number)
+int mm_chunk_unique(const MMChunkEdit *edit, MMU32 type, MMU32 *position, MMU32 *number)
 {
-    ThreeMMU32 i, n = 0, count;
-    ThreeMMChunkEntry entry;
+    MMU32 i, n = 0, count;
+    MMChunkEntry entry;
     if (!readable(edit) || !position || !number)
         return BAD;
     if (find(edit, type, 0, &i))
@@ -86,24 +86,24 @@ int three_mm_chunk_unique(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMM
     *number = n;
     return OK;
 }
-int three_mm_chunk_add(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 position,
-                       ThreeMMU32 bytes, ThreeMMChunkLocation *added)
+int mm_chunk_add(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 position,
+                       MMU32 bytes, MMChunkLocation *added)
 {
-    ThreeMMChunkEntry entry;
-    ThreeMMChunkLocation location;
+    MMChunkEntry entry;
+    MMChunkLocation location;
     if (!readable(edit) || !edit->insert || !edit->store || !edit->erase || !edit->allocate ||
         position > edit->count(edit->context) || bytes > 0x7fffffffUL)
         return BAD;
     if (!edit->insert(edit->context, position))
     {
         output(edit, NULL, 1);
-        return THREE_MM_CHUNK_MEMORY;
+        return MM_CHUNK_MEMORY;
     }
     if (!edit->allocate(edit->context, bytes, &location))
     {
         edit->erase(edit->context, position);
         output(edit, NULL, 1);
-        return THREE_MM_CHUNK_IO;
+        return MM_CHUNK_IO;
     }
     memset(&entry, 0, sizeof(entry));
     entry.type = type;
@@ -117,9 +117,9 @@ int three_mm_chunk_add(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32
         *added = location;
     return OK;
 }
-int three_mm_chunk_remove(const ThreeMMChunkEdit *edit, ThreeMMU32 position)
+int mm_chunk_remove(const MMChunkEdit *edit, MMU32 position)
 {
-    ThreeMMChunkEntry entry;
+    MMChunkEntry entry;
     if (!readable(edit) || !edit->free_space || !edit->reset_runtime || !edit->erase ||
         position >= edit->count(edit->context))
         return BAD;
@@ -129,18 +129,18 @@ int three_mm_chunk_remove(const ThreeMMChunkEdit *edit, ThreeMMU32 position)
     edit->erase(edit->context, position);
     return OK;
 }
-int three_mm_chunk_put(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 bytes)
+int mm_chunk_put(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 bytes)
 {
-    ThreeMMU32 position;
-    ThreeMMChunkEntry entry;
-    ThreeMMChunkLocation location;
+    MMU32 position;
+    MMChunkEntry entry;
+    MMChunkLocation location;
     int result;
     if (!readable(edit) || !edit->allocate || !edit->free_space || !edit->reset_runtime || !edit->store ||
         !edit->erase || !edit->insert || bytes > 0x7fffffffUL)
         return BAD;
     if (!find(edit, type, number, &position))
     {
-        result = three_mm_chunk_add(edit, type, number, position, bytes, &location);
+        result = mm_chunk_add(edit, type, number, position, bytes, &location);
         if (result != OK)
             return result;
         if (edit->write && !edit->write(edit->context, &location, 1))
@@ -148,21 +148,21 @@ int three_mm_chunk_put(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32
             edit->entry(edit->context, position, &entry);
             entry.flags &= ~LONER;
             edit->store(edit->context, position, &entry, 0);
-            three_mm_chunk_remove(edit, position);
+            mm_chunk_remove(edit, position);
             output(edit, NULL, 1);
-            return THREE_MM_CHUNK_IO;
+            return MM_CHUNK_IO;
         }
         return OK;
     }
     /* Existing allocation failure must leave an existing output block alone. */
     if (!edit->allocate(edit->context, bytes, &location))
-        return THREE_MM_CHUNK_IO;
+        return MM_CHUNK_IO;
     output(edit, &location, 0);
     if (edit->write && !edit->write(edit->context, &location, 0))
     {
         edit->free_space(edit->context, (location.flags & EXTRA) != 0, location.offset, location.bytes);
         output(edit, NULL, 0);
-        return THREE_MM_CHUNK_IO;
+        return MM_CHUNK_IO;
     }
     edit->entry(edit->context, position, &entry);
     edit->free_space(edit->context, (entry.flags & EXTRA) != 0, entry.offset, entry.bytes);
@@ -173,9 +173,9 @@ int three_mm_chunk_put(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32
     edit->reset_runtime(edit->context, type, number);
     return OK;
 }
-int three_mm_chunk_decrement(const ThreeMMChunkEdit *edit, ThreeMMU32 position, int *should_delete)
+int mm_chunk_decrement(const MMChunkEdit *edit, MMU32 position, int *should_delete)
 {
-    ThreeMMChunkEntry entry;
+    MMChunkEntry entry;
     if (!readable(edit) || !edit->store || !should_delete || position >= edit->count(edit->context))
         return BAD;
     edit->entry(edit->context, position, &entry);
@@ -186,18 +186,18 @@ int three_mm_chunk_decrement(const ThreeMMChunkEdit *edit, ThreeMMU32 position, 
     *should_delete = !entry.parent_count && !(entry.flags & LONER);
     return OK;
 }
-int three_mm_chunk_delete(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number)
+int mm_chunk_delete(const MMChunkEdit *edit, MMU32 type, MMU32 number)
 {
-    ThreeMMChunkEntry entry;
-    ThreeMMChunkChild child;
-    ThreeMMChunkDeleteEvent event;
-    ThreeMMU32 position, child_position, children;
+    MMChunkEntry entry;
+    MMChunkChild child;
+    MMChunkDeleteEvent event;
+    MMU32 position, child_position, children;
     int skip = 0, remove;
     if (!readable(edit) || !edit->store || !edit->erase || !edit->free_space || !edit->reset_runtime || !edit->child ||
         !edit->begin_delete || !edit->next_delete)
         return BAD;
     if (!find(edit, type, number, &position))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     edit->entry(edit->context, position, &entry);
     if (!(entry.flags & LONER) && entry.parent_count)
         return BAD;
@@ -211,16 +211,16 @@ int three_mm_chunk_delete(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMM
         skip = 1;
         if (!find(edit, event.type, event.number, &position))
         {
-            issue(edit, THREE_MM_EDIT_MISSING_NODE);
+            issue(edit, MM_EDIT_MISSING_NODE);
             continue;
         }
-        if (event.flags & THREE_MM_DELETE_PRE)
+        if (event.flags & MM_DELETE_PRE)
         {
-            if (!(event.flags & THREE_MM_DELETE_ROOT))
+            if (!(event.flags & MM_DELETE_ROOT))
             {
-                if (three_mm_chunk_decrement(edit, position, &remove) != OK)
+                if (mm_chunk_decrement(edit, position, &remove) != OK)
                 {
-                    issue(edit, THREE_MM_EDIT_BAD_REFERENCE);
+                    issue(edit, MM_EDIT_BAD_REFERENCE);
                     continue;
                 }
                 if (!remove)
@@ -228,35 +228,35 @@ int three_mm_chunk_delete(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMM
             }
             skip = 0;
         }
-        if (event.flags & THREE_MM_DELETE_POST)
+        if (event.flags & MM_DELETE_POST)
         {
-            if (event.flags & THREE_MM_DELETE_ERROR)
+            if (event.flags & MM_DELETE_ERROR)
             {
-                issue(edit, THREE_MM_EDIT_LOW_MEMORY);
+                issue(edit, MM_EDIT_LOW_MEMORY);
                 edit->entry(edit->context, position, &entry);
                 for (children = entry.child_count; children;)
                 {
                     edit->child(edit->context, position, --children, &child);
                     if (!find(edit, child.type, child.number, &child_position))
                     {
-                        issue(edit, THREE_MM_EDIT_MISSING_CHILD);
+                        issue(edit, MM_EDIT_MISSING_CHILD);
                         continue;
                     }
-                    if (three_mm_chunk_decrement(edit, child_position, &remove) != OK)
-                        issue(edit, THREE_MM_EDIT_BAD_REFERENCE);
+                    if (mm_chunk_decrement(edit, child_position, &remove) != OK)
+                        issue(edit, MM_EDIT_BAD_REFERENCE);
                 }
             }
-            three_mm_chunk_remove(edit, position);
+            mm_chunk_remove(edit, position);
         }
     }
     return OK;
 }
-static int find_child(const ThreeMMChunkEdit *edit, ThreeMMU32 parent, const ThreeMMChunkChild *key,
-                      ThreeMMU32 *position)
+static int find_child(const MMChunkEdit *edit, MMU32 parent, const MMChunkChild *key,
+                      MMU32 *position)
 {
-    ThreeMMChunkEntry entry;
-    ThreeMMChunkChild child;
-    ThreeMMU32 low = 0, high, middle;
+    MMChunkEntry entry;
+    MMChunkChild child;
+    MMU32 low = 0, high, middle;
     edit->entry(edit->context, parent, &entry);
     high = entry.child_count;
     while (low < high)
@@ -278,26 +278,26 @@ static int find_child(const ThreeMMChunkEdit *edit, ThreeMMU32 parent, const Thr
     *position = low;
     return 0;
 }
-int three_mm_chunk_adopt_at(const ThreeMMChunkEdit *edit, ThreeMMU32 parent, ThreeMMU32 position,
-                            const ThreeMMChunkChild *child, int clear_loner, ThreeMMU32 maximum)
+int mm_chunk_adopt_at(const MMChunkEdit *edit, MMU32 parent, MMU32 position,
+                            const MMChunkChild *child, int clear_loner, MMU32 maximum)
 {
-    ThreeMMChunkEntry entry, target;
-    ThreeMMU32 child_index;
+    MMChunkEntry entry, target;
+    MMU32 child_index;
     if (!readable(edit) || !edit->store || !edit->insert_child || !edit->erase_child || !edit->descendant || !child ||
         !maximum || maximum > 0x7fffffffUL || parent >= edit->count(edit->context))
         return BAD;
     if (!find(edit, child->type, child->number, &child_index))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     edit->entry(edit->context, parent, &entry);
     if (position > entry.child_count)
         return BAD;
     if (edit->descendant(edit->context, child->type, child->number, entry.type, entry.number) != 0)
     {
-        issue(edit, THREE_MM_EDIT_CYCLE_RISK);
+        issue(edit, MM_EDIT_CYCLE_RISK);
         return BAD;
     }
     if (!edit->insert_child(edit->context, parent, position, child))
-        return THREE_MM_CHUNK_MEMORY;
+        return MM_CHUNK_MEMORY;
     edit->entry(edit->context, parent, &entry);
     if (entry.child_count >= maximum)
         goto overflow;
@@ -320,66 +320,66 @@ overflow:
     edit->erase_child(edit->context, parent, position);
     return BAD;
 }
-int three_mm_chunk_adopt(const ThreeMMChunkEdit *edit, ThreeMMU32 parent_type, ThreeMMU32 parent_number,
-                         const ThreeMMChunkChild *child, int clear_loner, ThreeMMU32 maximum)
+int mm_chunk_adopt(const MMChunkEdit *edit, MMU32 parent_type, MMU32 parent_number,
+                         const MMChunkChild *child, int clear_loner, MMU32 maximum)
 {
-    ThreeMMU32 parent, position;
+    MMU32 parent, position;
     if (!readable(edit) || !edit->child || !child)
         return BAD;
     if (!find(edit, parent_type, parent_number, &parent))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     if (find_child(edit, parent, child, &position))
         return OK;
-    return three_mm_chunk_adopt_at(edit, parent, position, child, clear_loner, maximum);
+    return mm_chunk_adopt_at(edit, parent, position, child, clear_loner, maximum);
 }
-int three_mm_chunk_unlink(const ThreeMMChunkEdit *edit, ThreeMMU32 parent_type, ThreeMMU32 parent_number,
-                          const ThreeMMChunkChild *child)
+int mm_chunk_unlink(const MMChunkEdit *edit, MMU32 parent_type, MMU32 parent_number,
+                          const MMChunkChild *child)
 {
-    ThreeMMChunkEntry entry;
-    ThreeMMU32 parent, target, position;
+    MMChunkEntry entry;
+    MMU32 parent, target, position;
     int remove;
     if (!readable(edit) || !edit->child || !edit->store || !edit->erase_child || !child || !edit->erase ||
         !edit->begin_delete || !edit->next_delete || !edit->free_space || !edit->reset_runtime)
         return BAD;
     if (!find(edit, parent_type, parent_number, &parent) || !find(edit, child->type, child->number, &target) ||
         !find_child(edit, parent, child, &position))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     edit->entry(edit->context, parent, &entry);
     --entry.child_count;
     edit->store(edit->context, parent, &entry, 0);
     edit->erase_child(edit->context, parent, position);
-    if (three_mm_chunk_decrement(edit, target, &remove) != OK)
+    if (mm_chunk_decrement(edit, target, &remove) != OK)
     {
-        issue(edit, THREE_MM_EDIT_BAD_REFERENCE);
+        issue(edit, MM_EDIT_BAD_REFERENCE);
         return BAD;
     }
     if (remove)
-        return three_mm_chunk_delete(edit, child->type, child->number);
+        return mm_chunk_delete(edit, child->type, child->number);
     return OK;
 }
-int three_mm_chunk_change_slot(const ThreeMMChunkEdit *edit, ThreeMMU32 parent_type, ThreeMMU32 parent_number,
-                               const ThreeMMChunkChild *key, ThreeMMU32 new_slot)
+int mm_chunk_change_slot(const MMChunkEdit *edit, MMU32 parent_type, MMU32 parent_number,
+                               const MMChunkChild *key, MMU32 new_slot)
 {
-    ThreeMMChunkChild changed;
-    ThreeMMU32 parent, source;
+    MMChunkChild changed;
+    MMU32 parent, source;
     if (!readable(edit) || !edit->child || !edit->put_child || !key)
         return BAD;
     if (key->slot == new_slot)
         return OK;
     if (!find(edit, parent_type, parent_number, &parent))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     changed = *key;
     changed.slot = new_slot;
     if (!find_child(edit, parent, key, &source))
         return BAD;
-    return three_mm_chunk_retarget(edit, parent, source, &changed);
+    return mm_chunk_retarget(edit, parent, source, &changed);
 }
-int three_mm_chunk_retarget(const ThreeMMChunkEdit *edit, ThreeMMU32 parent, ThreeMMU32 source,
-                            const ThreeMMChunkChild *changed)
+int mm_chunk_retarget(const MMChunkEdit *edit, MMU32 parent, MMU32 source,
+                            const MMChunkChild *changed)
 {
-    ThreeMMChunkEntry entry;
-    ThreeMMChunkChild moving;
-    ThreeMMU32 destination, i;
+    MMChunkEntry entry;
+    MMChunkChild moving;
+    MMU32 destination, i;
     if (!readable(edit) || !edit->child || !edit->put_child || !changed || parent >= edit->count(edit->context))
         return BAD;
     edit->entry(edit->context, parent, &entry);

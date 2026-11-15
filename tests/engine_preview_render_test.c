@@ -1,4 +1,4 @@
-#include "three_mm/preview_render.h"
+#include "mm/preview_render.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -37,15 +37,15 @@ typedef struct Host
 {
     int fail, allocations, fail_allocation, live_memory, pixels, world, lights, sink, restores, edges, copies, owners;
     int background, with_body, with_model;
-    ThreeMMU32 width, height;
+    MMU32 width, height;
     Node nodes[32], source[4];
     unsigned nodes_used;
-    ThreeMMPreviewMaterial material;
-    ThreeMMPreviewCamera camera;
+    MMPreviewMaterial material;
+    MMPreviewCamera camera;
     unsigned char colours[128 * 128], background_colours[128 * 128], rgba[128 * 128 * 4];
     unsigned short depths[128 * 128], background_depths[128 * 128];
     float distances[128 * 128];
-    ThreeMMBackgroundLight light;
+    MMBackgroundLight light;
     int colour_token, depth_token;
     void *light_payload;
 } Host;
@@ -77,23 +77,23 @@ static float ffmod(float x, float y)
 {
     return (float)fmod(x, y);
 }
-static float scalar_float(ThreeMMI32 x)
+static float scalar_float(MMI32 x)
 {
     return (float)x / 65536;
 }
-static ThreeMMI32 scalar(float x)
+static MMI32 scalar(float x)
 {
-    return (ThreeMMI32)(x * 65536.f);
+    return (MMI32)(x * 65536.f);
 }
-static ThreeMMI32 scalar_double(double x)
+static MMI32 scalar_double(double x)
 {
-    return (ThreeMMI32)(x * 65536.f);
+    return (MMI32)(x * 65536.f);
 }
 static unsigned short angle(float x)
 {
     return (unsigned short)(x * 182);
 }
-static void *resize(void *v, void *old, ThreeMMU32 old_bytes, ThreeMMU32 bytes, int priority)
+static void *resize(void *v, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Host *h = (Host *)v;
     void *p;
@@ -107,7 +107,7 @@ static void *resize(void *v, void *old, ThreeMMU32 old_bytes, ThreeMMU32 bytes, 
         ++h->live_memory;
     return p;
 }
-static void release(void *v, void *p, ThreeMMU32 bytes)
+static void release(void *v, void *p, MMU32 bytes)
 {
     Host *h = (Host *)v;
     (void)bytes;
@@ -156,7 +156,7 @@ static void *clone(void *v, void *parent, const void *source)
     ++h->copies;
     return out;
 }
-static int owner(void *v, void *copy, ThreeMMI32 id)
+static int owner(void *v, void *copy, MMI32 id)
 {
     Host *h = (Host *)v;
     CHECK(((Node *)copy)->model);
@@ -169,7 +169,7 @@ static int ready(void *v)
     (void)v;
     return 1;
 }
-static void describe(void *v, ThreeMMPreviewData *d)
+static void describe(void *v, MMPreviewData *d)
 {
     Host *h = (Host *)v;
     unsigned i;
@@ -204,22 +204,22 @@ static void describe(void *v, ThreeMMPreviewData *d)
         }
     }
 }
-static int mesh(void *v, ThreeMMPreviewMesh *out)
+static int mesh(void *v, MMPreviewMesh *out)
 {
     Host *h = (Host *)v;
     out->empty = 1;
     (void)h;
     return 1;
 }
-static ThreeMMU32 bodies(void *v)
+static MMU32 bodies(void *v)
 {
-    return (ThreeMMU32)((Host *)v)->with_body;
+    return (MMU32)((Host *)v)->with_body;
 }
-static int body(void *v, ThreeMMU32 index, ThreeMMPreviewBody *out)
+static int body(void *v, MMU32 index, MMPreviewBody *out)
 {
     Host *h = (Host *)v;
     unsigned i;
-    CHECK(index < (ThreeMMU32)h->with_body);
+    CHECK(index < (MMU32)h->with_body);
     out->tree = h->with_body == 1 ? h->source : h->source + 1 + index;
     out->owner = 3 + index;
     out->order_high = index == 0 ? 1 : 0;
@@ -231,7 +231,7 @@ static int body(void *v, ThreeMMU32 index, ThreeMMPreviewBody *out)
     }
     return 1;
 }
-static int bounds(void *v, ThreeMMI32 id, float corners[24], int *valid)
+static int bounds(void *v, MMI32 id, float corners[24], int *valid)
 {
     (void)v;
     (void)id;
@@ -239,7 +239,7 @@ static int bounds(void *v, ThreeMMI32 id, float corners[24], int *valid)
     *valid = 0;
     return 1;
 }
-static void *colour(void *v, ThreeMMU32 w, ThreeMMU32 height)
+static void *colour(void *v, MMU32 w, MMU32 height)
 {
     Host *h = (Host *)v;
     CHECK(w <= 128 && height <= 128);
@@ -282,17 +282,17 @@ static void free_world(void *v, void *p)
         CHECK(*(unsigned char *)h->light_payload == 17);
     --h->world;
 }
-static void fill(void *v, void *p, ThreeMMU32 value)
+static void fill(void *v, void *p, MMU32 value)
 {
     Host *h = (Host *)v;
-    ThreeMMU32 i;
+    MMU32 i;
     if (p == &h->colour_token)
         memset(h->colours, (int)value, h->width * h->height);
     else
         for (i = 0; i < h->width * h->height; ++i)
             h->depths[i] = (unsigned short)value;
 }
-static void buffers(void *v, void *c, void *d, ThreeMMPreviewBuffer *out)
+static void buffers(void *v, void *c, void *d, MMPreviewBuffer *out)
 {
     Host *h = (Host *)v;
     CHECK(c && d);
@@ -301,7 +301,7 @@ static void buffers(void *v, void *c, void *d, ThreeMMPreviewBuffer *out)
     out->colour_stride = h->width;
     out->depth_stride = h->width * 2;
 }
-static void *camera(void *v, void *w, const ThreeMMPreviewCamera *c)
+static void *camera(void *v, void *w, const MMPreviewCamera *c)
 {
     Host *h = (Host *)v;
     if (h->fail == F_CAMERA)
@@ -309,12 +309,12 @@ static void *camera(void *v, void *w, const ThreeMMPreviewCamera *c)
     h->camera = *c;
     return node(h, (Node *)w);
 }
-static void update_camera(void *v, void *a, const ThreeMMPreviewCamera *c)
+static void update_camera(void *v, void *a, const MMPreviewCamera *c)
 {
     CHECK(a);
     ((Host *)v)->camera = *c;
 }
-static void *light(void *v, void *w, void *data, const ThreeMMBackgroundLight *source)
+static void *light(void *v, void *w, void *data, const MMBackgroundLight *source)
 {
     Host *h = (Host *)v;
     CHECK(data && source);
@@ -355,24 +355,24 @@ static void *material(void *v, void *a)
     CHECK(a);
     return &((Host *)v)->material;
 }
-static void *face_material(void *v, void *m, ThreeMMU32 i)
+static void *face_material(void *v, void *m, MMU32 i)
 {
     CHECK(m && !i);
     return &((Host *)v)->material;
 }
-static ThreeMMU32 material_count(void *v, void *m)
+static MMU32 material_count(void *v, void *m)
 {
     (void)v;
     CHECK(m);
     return 1;
 }
-static void read_material(void *v, void *m, ThreeMMPreviewMaterial *out)
+static void read_material(void *v, void *m, MMPreviewMaterial *out)
 {
     Host *h = (Host *)v;
     CHECK(m == &h->material);
     *out = h->material;
 }
-static void write_material(void *v, const ThreeMMPreviewMaterial *m)
+static void write_material(void *v, const MMPreviewMaterial *m)
 {
     Host *h = (Host *)v;
     CHECK(m->material == &h->material);
@@ -385,19 +385,19 @@ static void edges(void *v, void *a)
     CHECK(a);
     ++((Host *)v)->edges;
 }
-static ThreeMMU32 vertices(void *v, void *m)
+static MMU32 vertices(void *v, void *m)
 {
     (void)v;
     CHECK(m);
     return 3;
 }
-static ThreeMMU32 faces(void *v, void *m)
+static MMU32 faces(void *v, void *m)
 {
     (void)v;
     CHECK(m);
     return 1;
 }
-static void vertex(void *v, void *m, ThreeMMU32 i, ThreeMMI32 xyz[3])
+static void vertex(void *v, void *m, MMU32 i, MMI32 xyz[3])
 {
     (void)v;
     CHECK(m && i < 3);
@@ -405,7 +405,7 @@ static void vertex(void *v, void *m, ThreeMMU32 i, ThreeMMI32 xyz[3])
     xyz[1] = scalar(i == 2 ? 1.f : -1.f);
     xyz[2] = scalar(-3.f);
 }
-static void face(void *v, void *m, ThreeMMU32 i, unsigned short xyz[3])
+static void face(void *v, void *m, MMU32 i, unsigned short xyz[3])
 {
     (void)v;
     CHECK(m && !i);
@@ -413,15 +413,15 @@ static void face(void *v, void *m, ThreeMMU32 i, unsigned short xyz[3])
     xyz[1] = 1;
     xyz[2] = 2;
 }
-static void relative(void *v, void *a, void *c, ThreeMMI32 out[12])
+static void relative(void *v, void *a, void *c, MMI32 out[12])
 {
     (void)v;
     CHECK(a && c);
     memset(out, 0, 12 * sizeof(*out));
     out[0] = out[4] = out[8] = scalar(1);
 }
-static int begin(void *v, const ThreeMMPreviewProjection *p, const unsigned char *palette, int opaque, ThreeMMU32 w,
-                 ThreeMMU32 height)
+static int begin(void *v, const MMPreviewProjection *p, const unsigned char *palette, int opaque, MMU32 w,
+                 MMU32 height)
 {
     Host *h = (Host *)v;
     CHECK(p->valid && palette && w == h->width && height == h->height);
@@ -446,7 +446,7 @@ static int renderer_ok(void *v)
 {
     return ((Host *)v)->fail != F_RENDER;
 }
-static int end(void *v, const ThreeMMPreviewBuffer *b)
+static int end(void *v, const MMPreviewBuffer *b)
 {
     CHECK(b->colour);
     return ((Host *)v)->fail != F_END;
@@ -456,7 +456,7 @@ static const unsigned char *rgba(void *v)
     (void)v;
     return NULL;
 }
-static void depth_projection(void *v, void *c, ThreeMMI32 matrix[16])
+static void depth_projection(void *v, void *c, MMI32 matrix[16])
 {
     (void)v;
     CHECK(c);
@@ -464,11 +464,11 @@ static void depth_projection(void *v, void *c, ThreeMMI32 matrix[16])
     matrix[10] = scalar(1);
     matrix[14] = scalar(2);
 }
-static int output(void *v, ThreeMMU32 w, ThreeMMU32 height, int depth_requested, unsigned char **rgba_out,
+static int output(void *v, MMU32 w, MMU32 height, int depth_requested, unsigned char **rgba_out,
                   float **depth_out)
 {
     Host *h = (Host *)v;
-    ThreeMMU32 i;
+    MMU32 i;
     if (h->fail == F_OUTPUT)
         return 0;
     *rgba_out = h->rgba;
@@ -477,9 +477,9 @@ static int output(void *v, ThreeMMU32 w, ThreeMMU32 height, int depth_requested,
         h->distances[i] = (float)HUGE_VAL;
     return 1;
 }
-static ThreeMMPreviewRenderServices services(Host *h)
+static MMPreviewRenderServices services(Host *h)
 {
-    ThreeMMPreviewRenderServices s;
+    MMPreviewRenderServices s;
     memset(&s, 0, sizeof(s));
     s.context = h;
     s.allocator.context = h;
@@ -548,7 +548,7 @@ static ThreeMMPreviewRenderServices services(Host *h)
     s.output = output;
     return s;
 }
-static void init(Host *h, ThreeMMPreviewView *v, ThreeMMPreviewOrbit *o)
+static void init(Host *h, MMPreviewView *v, MMPreviewOrbit *o)
 {
     unsigned i;
     memset(h, 0, sizeof(*h));
@@ -586,34 +586,34 @@ static void clean(const Host *h)
 }
 static void depth_test(void)
 {
-    ThreeMMPreviewDepthRange range;
+    MMPreviewDepthRange range;
     double n, f;
     const double triangle[3][3] = {{-20, -20, 4}, {20, -20, 4}, {0, 20, 4}},
                  behind[3][3] = {{-1, -1, -4}, {1, -1, -4}, {0, 1, -4}};
-    three_mm_preview_depth_init(&range, 1, 1, .1, 100, 0);
-    three_mm_preview_depth_include(&range, behind);
-    three_mm_preview_depth_fit(&range, &n, &f);
+    mm_preview_depth_init(&range, 1, 1, .1, 100, 0);
+    mm_preview_depth_include(&range, behind);
+    mm_preview_depth_fit(&range, &n, &f);
     CHECK(n == .1 && f == 100);
-    three_mm_preview_depth_include(&range, triangle);
-    three_mm_preview_depth_fit(&range, &n, &f);
+    mm_preview_depth_include(&range, triangle);
+    mm_preview_depth_fit(&range, &n, &f);
     CHECK(n == 2 && f == 4.2);
-    three_mm_preview_depth_init(&range, 1, 1, .1, 100, 1);
-    three_mm_preview_depth_include(&range, triangle);
-    three_mm_preview_depth_fit(&range, &n, &f);
+    mm_preview_depth_init(&range, 1, 1, .1, 100, 1);
+    mm_preview_depth_include(&range, triangle);
+    mm_preview_depth_fit(&range, &n, &f);
     CHECK(n == 2 && f == 4.2);
 }
 int main(void)
 {
     static Host h;
-    ThreeMMPreviewView v;
-    ThreeMMPreviewOrbit orbit;
-    ThreeMMPreviewImage image;
-    ThreeMMPreviewRenderServices s;
+    MMPreviewView v;
+    MMPreviewOrbit orbit;
+    MMPreviewImage image;
+    MMPreviewRenderServices s;
     int result, fail, allocations;
     depth_test();
     init(&h, &v, &orbit);
     s = services(&h);
-    CHECK(three_mm_preview_render(&v, &orbit, &image, &s) == THREE_MM_PREVIEW_OK);
+    CHECK(mm_preview_render(&v, &orbit, &image, &s) == MM_PREVIEW_OK);
     clean(&h);
     CHECK(image.width == 96 && image.height == 64 && image.covered == 1 && image.rgba[0] == 42 &&
           image.rgba[3] == 255 && image.depth[0] == 2);
@@ -625,8 +625,8 @@ int main(void)
         init(&h, &v, &orbit);
         s = services(&h);
         h.fail_allocation = fail;
-        result = three_mm_preview_render(&v, &orbit, &image, &s);
-        CHECK(result != THREE_MM_PREVIEW_OK);
+        result = mm_preview_render(&v, &orbit, &image, &s);
+        CHECK(result != MM_PREVIEW_OK);
         CHECK(!image.width && !image.rgba);
         clean(&h);
     }
@@ -637,7 +637,7 @@ int main(void)
         h.fail = fail;
         if (fail >= F_BEGIN)
             v.rasterizer = 1;
-        CHECK(three_mm_preview_render(&v, &orbit, &image, &s) != THREE_MM_PREVIEW_OK);
+        CHECK(mm_preview_render(&v, &orbit, &image, &s) != MM_PREVIEW_OK);
         CHECK(!image.width && !image.rgba);
         clean(&h);
     }
@@ -648,7 +648,7 @@ int main(void)
     v.width = 96;
     v.height = 96;
     v.display = 0;
-    CHECK(three_mm_preview_render(&v, &orbit, &image, &s) == THREE_MM_PREVIEW_OK);
+    CHECK(mm_preview_render(&v, &orbit, &image, &s) == MM_PREVIEW_OK);
     clean(&h);
     CHECK(h.width == 96 && h.height == 48 && image.rgba[3] == 0 && image.rgba[24 * 96 * 4] == 42 &&
           image.rgba[(24 * 96 + 1) * 4] == 23);
@@ -656,18 +656,18 @@ int main(void)
     s = services(&h);
     h.background = 0;
     v.display = 4;
-    CHECK(three_mm_preview_render(&v, &orbit, &image, &s) == THREE_MM_PREVIEW_OK);
+    CHECK(mm_preview_render(&v, &orbit, &image, &s) == MM_PREVIEW_OK);
     clean(&h);
     CHECK(h.edges == 4 && h.restores == 1);
     init(&h, &v, &orbit);
     s = services(&h);
     h.with_body = 3;
     h.with_model = 0;
-    CHECK(three_mm_preview_render(&v, &orbit, &image, &s) == THREE_MM_PREVIEW_OK);
+    CHECK(mm_preview_render(&v, &orbit, &image, &s) == MM_PREVIEW_OK);
     clean(&h);
     CHECK(h.nodes[0].first->id == 1 && h.nodes[0].first->next->id == 3 && h.nodes[0].first->next->next->id == 2);
     v.width = 63;
-    CHECK(three_mm_preview_render(&v, &orbit, &image, &s) == THREE_MM_PREVIEW_INVALID);
+    CHECK(mm_preview_render(&v, &orbit, &image, &s) == MM_PREVIEW_INVALID);
     clean(&h);
     puts("Preview C: clipping, tree order, camera, output fitting, material/sink restoration and allocation/host "
          "failures passed.");

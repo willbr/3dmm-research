@@ -3,7 +3,7 @@
 #include "asm_protocol.h"
 #include "player.h"
 #include "settings.h"
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include "zb_capture.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -25,7 +25,7 @@
 
 int main(int argc, char **argv)
 {
-    ThreeMM::Error error;
+    MM::Error error;
     // Pure settings/API checks also run on machines with no GPU.
     CHECK(marcus_renderer_from_id("brender") == MARCUS_RENDERER_BRENDER);
     CHECK(marcus_renderer_from_id("brender-compute") == MARCUS_RENDERER_BRENDER_COMPUTE);
@@ -33,7 +33,7 @@ int main(int argc, char **argv)
     CHECK(marcus_renderer_from_id("brender-asm") == MARCUS_RENDERER_BRENDER_ASM);
     CHECK(!marcus_renderer_is_gpu(MARCUS_RENDERER_BRENDER_ASM));
     {
-        ThreeMM::PreviewView view;
+        MM::PreviewView view;
         view.width=544; view.height=306; view.freeCamera=true; view.authoredCamera=false;
         view.cameraX=17; view.yaw=31; view.includeDepth=true; view.orbitObject=2;
         const auto packet=MarcusASM::Encode(3,-5,view);
@@ -102,8 +102,8 @@ int main(int argc, char **argv)
     for (int index = 0; index < MARCUS_RESOLUTION_COUNT; ++index)
     {
         const auto *resolution = marcus_render_resolution(index);
-        CHECK(resolution && resolution->width <= ThreeMM::PreviewMaxDimension &&
-              resolution->height <= ThreeMM::PreviewMaxDimension && resolution->width * 9 == resolution->height * 16);
+        CHECK(resolution && resolution->width <= MM::PreviewMaxDimension &&
+              resolution->height <= MM::PreviewMaxDimension && resolution->width * 9 == resolution->height * 16);
         if (index < 5)
             CHECK(resolution->width == nativeSizes[index][0] && resolution->height == nativeSizes[index][1]);
         shortcuts.render_resolution = index;
@@ -271,7 +271,7 @@ int main(int argc, char **argv)
         }
         palette[8] = 255; palette[9] = palette[10] = 0; // Index 2 red.
         palette[12] = palette[13] = 0; palette[14] = 255; // Index 3 blue.
-        ThreeMM::PreviewProjection projection;
+        MM::PreviewProjection projection;
         projection.nearClip = 1; projection.farClip = 100;
         projection.aspect = 1; projection.verticalFov = 45;
         renderer->Frame(projection, palette, false);
@@ -375,10 +375,10 @@ int main(int argc, char **argv)
         // The work camera must keep authored lighting when it leaves the
         // bitmap-backed movie view, in both Fly and Orbit modes.
         {
-            struct LightingProbe final : ThreeMM::PreviewRasterizer
+            struct LightingProbe final : MM::PreviewRasterizer
             {
                 std::vector<float> samples;
-                bool Begin(unsigned, unsigned, ThreeMM::Error &) override
+                bool Begin(unsigned, unsigned, MM::Error &) override
                 {
                     samples.clear();
                     samples.reserve(1000000);
@@ -390,9 +390,9 @@ int main(int argc, char **argv)
                     for (const auto &vertex : triangle.vertices)
                         if (samples.size() < samples.capacity()) samples.push_back(vertex.intensity);
                 }
-                bool End(unsigned char *, int, unsigned char *, int, ThreeMM::Error &) override { return true; }
+                bool End(unsigned char *, int, unsigned char *, int, MM::Error &) override { return true; }
             } probe;
-            ThreeMM::Preview preview;
+            MM::Preview preview;
             CHECK(preview.Open(argv[1], argv[2], error));
             for (const char *file : {"tmpls.3cn", "bkgds.3cn", "tdfs.3cn", "mtrls.3cn"})
                 CHECK(preview.AddContent(2, (std::filesystem::u8path(argv[3]) / file).u8string(), error));
@@ -400,16 +400,16 @@ int main(int argc, char **argv)
             for (bool freeCamera : {true, false})
             {
                 CHECK(preview.SetFrame(10, error));
-                ThreeMM::PreviewView view;
+                MM::PreviewView view;
                 view.width = 544; view.height = 306;
                 view.renderAtOutputResolution = true;
                 view.rasterizer = &probe;
-                ThreeMM::PreviewImage image;
+                MM::PreviewImage image;
                 CHECK(preview.Render(view, image, error));
                 CHECK(!probe.samples.empty());
                 auto authored = probe.samples;
                 std::sort(authored.begin(), authored.end());
-                ThreeMM::PreviewCamera camera;
+                MM::PreviewCamera camera;
                 CHECK(preview.MatchSceneCamera(544.f / 306, camera, error));
                 view.authoredCamera = false;
                 view.freeCamera = freeCamera;
@@ -440,25 +440,25 @@ int main(int argc, char **argv)
         {
             // Inspect the actual raster size and seeded background/depth,
             // independently of the size of the returned RGBA image.
-            struct ResolutionProbe final : ThreeMM::PreviewRasterizer
+            struct ResolutionProbe final : MM::PreviewRasterizer
             {
                 unsigned width = 0, height = 0;
-                bool Begin(unsigned w, unsigned h, ThreeMM::Error &) override
+                bool Begin(unsigned w, unsigned h, MM::Error &) override
                 {
                     width = w; height = h;
                     return true;
                 }
                 void Triangle(const BrRasterTriangle &) noexcept override {}
-                bool End(unsigned char *, int, unsigned char *, int, ThreeMM::Error &) override { return true; }
+                bool End(unsigned char *, int, unsigned char *, int, MM::Error &) override { return true; }
             } probe;
-            ThreeMM::Preview preview;
+            MM::Preview preview;
             const auto backgrounds = std::filesystem::u8path(argv[3]) / "bkgds.3cn";
             CHECK(preview.Open(backgrounds.u8string(), argv[2], error));
             CHECK(preview.Select({0x424b4744, 0}, error));
-            ThreeMM::PreviewView view;
+            MM::PreviewView view;
             view.includeDepth = true;
             view.rasterizer = &probe;
-            ThreeMM::PreviewImage native, high;
+            MM::PreviewImage native, high;
             CHECK(preview.Render(view, native, error));
             sourceWidth = probe.width; sourceHeight = probe.height;
             for (unsigned padding : {0u, 24u})
@@ -598,7 +598,7 @@ int main(int argc, char **argv)
             }
             // The shared limit must also work for a square render, picking and
             // camera matching, while larger requests fail before allocation.
-            const int maximum = ThreeMM::PreviewMaxDimension;
+            const int maximum = MM::PreviewMaxDimension;
             CHECK(marcus_render(player, maximum, maximum, 0, -18, 12, 1, &image));
             CHECK(image.width == maximum && image.height == maximum);
             int picked = -1;

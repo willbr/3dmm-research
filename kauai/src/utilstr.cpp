@@ -16,8 +16,8 @@
 #include <cstdarg>
 ASSERTNAME
 
-#include "three_mm/text.h"
-#include "three_mm/string_wire.h"
+#include "mm/text.h"
+#include "mm/string_wire.h"
 
 const achar vrgchHex[] = PszLit("0123456789ABCDEF");
 
@@ -231,42 +231,42 @@ bool String::FEqualUserRgch(achar *prgch, LegacyLong cch, LegacyUlong grfstn)
     by String::FWrite.
 ***************************************************************************/
 namespace {
-ThreeMMStringWire StringWireView(void *buffer)
+MMStringWire StringWireView(void *buffer)
 {
     const short one = 1;
     return {buffer, sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), reinterpret_cast<const byte *>(&one)[0] == 0, nullptr,
-        [](void *, const void *input, ThreeMMU32 bytes, int encoding, void *output, ThreeMMU32 capacity) -> ThreeMMI32 {
+        [](void *, const void *input, MMU32 bytes, int encoding, void *output, MMU32 capacity) -> MMI32 {
             return CchTranslateRgb(const_cast<void *>(input), bytes, static_cast<short>(encoding), static_cast<achar *>(output), capacity);
         }};
 }
-int ReadStringBlock(void *context, ThreeMMU32 offset, void *bytes, size_t count)
+int ReadStringBlock(void *context, MMU32 offset, void *bytes, size_t count)
 { return static_cast<PDataBlock>(context)->FReadRgb(bytes, count, offset); }
-int WriteStringBlock(void *context, ThreeMMU32 offset, const void *bytes, size_t count)
+int WriteStringBlock(void *context, MMU32 offset, const void *bytes, size_t count)
 { return static_cast<PDataBlock>(context)->FWriteRgb(const_cast<void *>(bytes), count, offset); }
 }
 LegacyLong String::CbData(void)
 {
     AssertThis(0); const auto text = StringWireView(_rgch);
-    return three_mm_string_wire_size(&text);
+    return mm_string_wire_size(&text);
 }
 void String::GetData(void *pv)
 {
     AssertThis(0); AssertPvCb(pv, CbData()); const auto text = StringWireView(_rgch);
-    AssertDo(three_mm_string_wire_get(&text, pv, CbData()), "invalid string serialization");
+    AssertDo(mm_string_wire_get(&text, pv, CbData()), "invalid string serialization");
 }
 bool String::FWrite(PDataBlock pblck, LegacyLong ib)
 {
     AssertThis(0); AssertPo(pblck, 0);
     const auto text = StringWireView(_rgch);
-    const ThreeMMStringWriter writer = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), WriteStringBlock};
-    return three_mm_string_wire_write(&text, &writer, ib) != 0;
+    const MMStringWriter writer = {pblck, static_cast<MMU32>(pblck->Cb()), WriteStringBlock};
+    return mm_string_wire_write(&text, &writer, ib) != 0;
 }
 bool String::FSetData(void *pv, LegacyLong cbMax, LegacyLong *pcbRead)
 {
     AssertThis(0); AssertIn(cbMax, 0, kcbMax); AssertPvCb(pv, cbMax); AssertNilOrVarMem(pcbRead);
-    const auto text = StringWireView(_rgch); ThreeMMMemoryStream memory; ThreeMMU32 end;
-    const bool ok = three_mm_memory_stream_init(&memory, pv, cbMax) &&
-        three_mm_string_wire_read(&text, &memory.stream, 0, pcbRead ? &end : nullptr);
+    const auto text = StringWireView(_rgch); MMMemoryStream memory; MMU32 end;
+    const bool ok = mm_memory_stream_init(&memory, pv, cbMax) &&
+        mm_string_wire_read(&text, &memory.stream, 0, pcbRead ? &end : nullptr);
     if (ok) { if (pcbRead) *pcbRead = end; AssertThis(0); return fTrue; }
     PushErc(ercStnRead); Warn("bad String data"); _rgch[0] = _rgch[1] = 0; TrashVar(pcbRead); return fFalse;
 }
@@ -274,9 +274,9 @@ bool String::FRead(PDataBlock pblck, LegacyLong ib, LegacyLong *pcbRead)
 {
     AssertThis(0); AssertPo(pblck, 0); AssertNilOrVarMem(pcbRead);
     if (!pblck->FUnpackData()) return fFalse;
-    const auto text = StringWireView(_rgch); ThreeMMU32 end;
-    const ThreeMMReadStream reader = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), ReadStringBlock};
-    const bool ok = three_mm_string_wire_read(&text, &reader, ib, pcbRead ? &end : nullptr) != 0;
+    const auto text = StringWireView(_rgch); MMU32 end;
+    const MMReadStream reader = {pblck, static_cast<MMU32>(pblck->Cb()), ReadStringBlock};
+    const bool ok = mm_string_wire_read(&text, &reader, ib, pcbRead ? &end : nullptr) != 0;
     if (ok) { if (pcbRead) *pcbRead = end; AssertThis(0); return fTrue; }
     PushErc(ercStnRead); Warn("bad String data or read failure"); TrashVar(pcbRead); return fFalse;
 }
@@ -1011,7 +1011,7 @@ void TranslateRgch(achar *prgch, LegacyLong cch, short osk, bool fToCur)
     // for unicode, we just have to change the byte ordering
     SwapBytesRgsw(prgch, cch);
 #else  //! UNICODE
-    three_mm_text_map_bytes(prgch, cch, MacWin(!fToCur, fToCur));
+    mm_text_map_bytes(prgch, cch, MacWin(!fToCur, fToCur));
 #endif //! UNICODE
 }
 

@@ -5,7 +5,7 @@
 #include "sdl_dialog.h"
 #include "platform_text.h"
 #include "text_utf8.h"
-#include "three_mm/content_vfs.hpp"
+#include "mm/content_vfs.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -22,7 +22,7 @@ namespace StudioV3dmm
 namespace
 {
 namespace fs = std::filesystem;
-namespace V = ThreeMM::V3dmm;
+namespace V = MM::V3dmm;
 std::unique_ptr<Store> store;
 std::vector<Installation> active;
 std::uint64_t revision = 0;
@@ -49,9 +49,9 @@ void Report(const std::exception &error)
     }
     PushErc(ercSocBadFile);
 }
-std::vector<ThreeMM::Content::File> Mounts(const std::vector<Installation> &selection)
+std::vector<MM::Content::File> Mounts(const std::vector<Installation> &selection)
 {
-    std::vector<ThreeMM::Content::File> result;
+    std::vector<MM::Content::File> result;
     for (const auto &entry : selection)
         for (const auto &member : entry.members)
         {
@@ -63,7 +63,7 @@ std::vector<ThreeMM::Content::File> Mounts(const std::vector<Installation> &sele
 }
 void Activate(const std::vector<Installation> &selection)
 {
-    ThreeMM::Content::Vfs candidate;
+    MM::Content::Vfs candidate;
     candidate.Replace("v3dmm", Mounts(selection));
     std::uint64_t bytes = 0;
     for (auto extension : {".3cn", ".3th"})
@@ -107,7 +107,7 @@ struct Document : MovieContainer::Document
     bool bundled = false, committed = false, changed = false, explicitSelection = false;
     std::uint64_t activatedRevision = 0;
     std::vector<Installation> previous, selection;
-    std::vector<ThreeMM::Content::File> previousMounts;
+    std::vector<MM::Content::File> previousMounts;
     std::vector<std::string> libraries;
     fs::path working;
     ~Document() override
@@ -335,7 +335,7 @@ bool Archive(LegacyLong sid, FileType type, LegacyLong index, PFilename path)
     else
         for (const auto &product : StudioPacks::Products().entries)
             if (std::string(product.sourceId.begin(), product.sourceId.end()) == std::to_string(sid))
-                source = ThreeMM::Content::SourceKey(std::string(product.title.begin(), product.title.end()));
+                source = MM::Content::SourceKey(std::string(product.title.begin(), product.title.end()));
     auto &vfs = StudioPacks::Filesystem();
     if (source.empty() || !vfs.Mounted(source))
         return false;

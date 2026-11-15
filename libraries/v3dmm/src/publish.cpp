@@ -1,12 +1,12 @@
 // Licensed under the MIT License.
-#include "three_mm/v3dmm.h"
+#include "mm/v3dmm.h"
 #include <stdexcept>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 #endif
-namespace ThreeMM::V3dmm
+namespace MM::V3dmm
 {
 void Publish(const std::filesystem::path &candidate, const std::filesystem::path &destination)
 {
@@ -20,4 +20,4 @@ void Publish(const std::filesystem::path &candidate, const std::filesystem::path
     std::filesystem::rename(candidate, destination);
 #endif
 }
-} // namespace ThreeMM::V3dmm
+} // namespace MM::V3dmm

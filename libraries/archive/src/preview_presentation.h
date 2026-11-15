@@ -1,8 +1,8 @@
-#ifndef THREE_MM_PREVIEW_PRESENTATION_H
-#define THREE_MM_PREVIEW_PRESENTATION_H
-#include "three_mm/preview.h"
+#ifndef MM_PREVIEW_PRESENTATION_H
+#define MM_PREVIEW_PRESENTATION_H
+#include "mm/preview.h"
 #include "soc_core.h"
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -10,5 +10,5 @@ bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &
                       bool includeCaptions = false);
 bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber sound, PreviewAudio &output);
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM
 #endif

@@ -10,14 +10,14 @@
 
 ***************************************************************************/
 #include "soc_core.h"
-#include "three_mm/template_runtime.h"
+#include "mm/template_runtime.h"
 #include <cstring>
 static_assert(sizeof(MaterialOnFile) == 20 && sizeof(CustomMaterialOnFile) == 8 && sizeof(TXXFF) == 28,
               "material wire layouts");
 ASSERTNAME
 RTCLASS(Material_MTRL)
 RTCLASS(CustomMaterial_CMTL)
-ThreeMMMaterialShade Material_MTRL::_shade = {};
+MMMaterialShade Material_MTRL::_shade = {};
 namespace
 {
 struct MaterialContext
@@ -26,9 +26,9 @@ struct MaterialContext
     String path;
 };
 } // namespace
-ThreeMMMaterialServices Material_MTRL::_Services(void *context)
+MMMaterialServices Material_MTRL::_Services(void *context)
 {
-    ThreeMMMaterialServices s = {};
+    MMMaterialServices s = {};
     s.context = context;
     const unsigned short one = 1;
     s.host_big_endian = !*reinterpret_cast<const byte *>(&one);
@@ -45,70 +45,70 @@ ThreeMMMaterialServices Material_MTRL::_Services(void *context)
     s.smooth_flag = BR_MATF_SMOOTH;
     s.map_flag = BR_MATF_MAP_COLOUR;
     s.create = [](void *, int kind) -> void * {
-        if (kind == THREE_MM_MATERIAL)
+        if (kind == MM_MATERIAL)
             return NewObj Material_MTRL;
         return NewObj CustomMaterial_CMTL;
     };
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
-    s.material_state = [](void *, void *p) -> ThreeMMMaterialResource * {
+    s.material_state = [](void *, void *p) -> MMMaterialResource * {
         return &static_cast<PMaterial_MTRL>(p)->_material;
     };
-    s.custom_state = [](void *, void *p) -> ThreeMMCustomMaterial * {
+    s.custom_state = [](void *, void *p) -> MMCustomMaterial * {
         return &static_cast<PCustomMaterial_CMTL>(p)->_custom;
     };
     s.invalidate = [](void *, void *p, size_t n) { TrashPvCb(p, static_cast<LegacyLong>(n)); };
     s.diagnostic = [](void *, int code) {
         switch (code)
         {
-        case THREE_MM_MATERIAL_BAD_FILE:
+        case MM_MATERIAL_BAD_FILE:
             PushErc(ercSocBadFile);
             break;
-        case THREE_MM_MATERIAL_BAD_CUSTOM_SIZE:
+        case MM_MATERIAL_BAD_CUSTOM_SIZE:
             Bug("bad CustomMaterialOnFile...you may need to update tmpls.chk");
             break;
-        case THREE_MM_MATERIAL_BAD_CUSTOM_ORDER:
+        case MM_MATERIAL_BAD_CUSTOM_ORDER:
             Assert(false, "bad CustomMaterialOnFile");
             break;
-        case THREE_MM_MATERIAL_BAD_TRANSFORM_ORDER:
+        case MM_MATERIAL_BAD_TRANSFORM_ORDER:
             Assert(false, "bad TXXFF");
             break;
         }
     };
     s.file = [](void *, void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.find = [](void *p, void *f, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+    s.find = [](void *p, void *f, MMU32 type, MMU32 number) -> void * {
         auto &b = static_cast<MaterialContext *>(p)->block;
         return static_cast<PChunkyFile>(f)->FFind(type, number, &b) ? &b : nullptr;
     };
     s.unpack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FUnpackData(); };
-    s.size = [](void *, void *p) -> ThreeMMI32 { return static_cast<PDataBlock>(p)->Cb(); };
-    s.read = [](void *, void *p, void *out, ThreeMMI32 n) -> int {
+    s.size = [](void *, void *p) -> MMI32 { return static_cast<PDataBlock>(p)->Cb(); };
+    s.read = [](void *, void *p, void *out, MMI32 n) -> int {
         return static_cast<PDataBlock>(p)->FReadRgb(out, n, 0);
     };
     s.close_block = [](void *p) { static_cast<MaterialContext *>(p)->block.Free(); };
-    s.child = [](void *, void *f, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 child_type,
-                 ThreeMMMaterialChild *out) -> int {
+    s.child = [](void *, void *f, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type,
+                 MMMaterialChild *out) -> int {
         ChildChunkIdentification kid;
         if (!static_cast<PChunkyFile>(f)->FGetKidChidCtg(type, number, id, child_type, &kid))
             return 0;
         *out = {kid.cki.ctg, kid.cki.cno, kid.chid};
         return 1;
     };
-    s.child_at = [](void *, void *f, ThreeMMU32 type, ThreeMMU32 number, ThreeMMI32 i,
-                    ThreeMMMaterialChild *out) -> int {
+    s.child_at = [](void *, void *f, MMU32 type, MMU32 number, MMI32 i,
+                    MMMaterialChild *out) -> int {
         ChildChunkIdentification kid;
         if (!static_cast<PChunkyFile>(f)->FGetKid(type, number, i, &kid))
             return 0;
         *out = {kid.cki.ctg, kid.cki.cno, kid.chid};
         return 1;
     };
-    s.fetch = [](void *, void *p, const ThreeMMMaterialChild *child, int kind) -> void * {
-        PFNRPO reader = kind == THREE_MM_MATERIAL_TEXTURE ? TextureMap::FReadTmap
-                        : kind == THREE_MM_MATERIAL_MODEL ? Model::FReadModl
+    s.fetch = [](void *, void *p, const MMMaterialChild *child, int kind) -> void * {
+        PFNRPO reader = kind == MM_MATERIAL_TEXTURE ? TextureMap::FReadTmap
+                        : kind == MM_MATERIAL_MODEL ? Model::FReadModl
                                                           : Material_MTRL::FReadMtrl;
         return static_cast<PChunkyResourceFile>(p)->PbacoFetch(child->type, child->number, reader);
     };
-    s.allocate = [](void *, ThreeMMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
+    s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
     s.allocate_material = [](void *) -> void * {
         char name[sizeof(PMaterial_MTRL) + 1];
@@ -120,11 +120,11 @@ ThreeMMMaterialServices Material_MTRL::_Services(void *context)
         auto owner = static_cast<PMaterial_MTRL>(object);
         CopyPb(&owner, static_cast<PBMTL>(p)->identifier, sizeof(owner));
     };
-    s.describe = [](void *, void *p, ThreeMMMaterialDescription *out) {
+    s.describe = [](void *, void *p, MMMaterialDescription *out) {
         auto b = static_cast<PBMTL>(p);
         *out = {b->colour, b->ka, b->kd, b->ks, b->power, b->index_base, b->index_range, b->opacity, b->flags};
     };
-    s.configure = [](void *, void *p, const ThreeMMMaterialDescription *in) {
+    s.configure = [](void *, void *p, const MMMaterialDescription *in) {
         auto b = static_cast<PBMTL>(p);
         b->colour = in->colour;
         b->ka = static_cast<br_ufraction>(in->ambient);
@@ -149,35 +149,35 @@ ThreeMMMaterialServices Material_MTRL::_Services(void *context)
         if (shade)
             b->index_shade = static_cast<PTextureMap>(shade)->Pbpmp();
     };
-    s.height = [](void *, void *p) -> ThreeMMI32 {
+    s.height = [](void *, void *p) -> MMI32 {
         AssertPo(static_cast<PTextureMap>(p), 0);
         return static_cast<PTextureMap>(p)->Pbpmp()->height;
     };
-    s.transform = [](void *, void *p, const ThreeMMI32 matrix[6]) {
+    s.transform = [](void *, void *p, const MMI32 matrix[6]) {
         auto b = static_cast<PBMTL>(p);
         std::memcpy(&b->map_transform, matrix, sizeof(b->map_transform));
     };
-    s.add_chunk = [](void *, void *f, ThreeMMU32 type, const void *data, ThreeMMI32 bytes, ThreeMMU32 *number) -> int {
+    s.add_chunk = [](void *, void *f, MMU32 type, const void *data, MMI32 bytes, MMU32 *number) -> int {
         ChunkNumber n;
         std::memcpy(&n, number, sizeof(n));
         const auto ok = static_cast<PChunkyFile>(f)->FAddPv(const_cast<void *>(data), bytes, type, &n);
         std::memcpy(number, &n, sizeof(n));
         return ok;
     };
-    s.write_texture = [](void *, void *p, void *f, ThreeMMU32 type, ThreeMMU32 *number) -> int {
+    s.write_texture = [](void *, void *p, void *f, MMU32 type, MMU32 *number) -> int {
         ChunkNumber n;
         std::memcpy(&n, number, sizeof(n));
         const auto ok = static_cast<PTextureMap>(p)->FWrite(static_cast<PChunkyFile>(f), type, &n);
         std::memcpy(number, &n, sizeof(n));
         return ok;
     };
-    s.adopt = [](void *, void *f, ThreeMMU32 type, ThreeMMU32 number, const ThreeMMMaterialChild *c) -> int {
+    s.adopt = [](void *, void *f, MMU32 type, MMU32 number, const MMMaterialChild *c) -> int {
         return static_cast<PChunkyFile>(f)->FAdoptChild(type, number, c->type, c->number, c->id);
     };
-    s.delete_chunk = [](void *, void *f, ThreeMMU32 type, ThreeMMU32 number) {
+    s.delete_chunk = [](void *, void *f, MMU32 type, MMU32 number) {
         static_cast<PChunkyFile>(f)->Delete(type, number);
     };
-    s.read_texture = [](void *, void *f, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+    s.read_texture = [](void *, void *f, MMU32 type, MMU32 number) -> void * {
         return TextureMap::PtmapRead(static_cast<PChunkyFile>(f), type, number);
     };
     s.read_bitmap = [](void *, void *f, void *palette) -> void * {
@@ -190,7 +190,7 @@ ThreeMMMaterialServices Material_MTRL::_Services(void *context)
     };
     s.wrap_pixelmap = [](void *, void *p) -> void * { return TextureMap::PtmapNewFromBpmp(static_cast<PBPMP>(p)); };
     s.free_pixelmap = [](void *, void *p) { BrPixelmapFree(static_cast<PBPMP>(p)); };
-    s.input_material = [](void *, const void *p, ThreeMMI32 i) -> void * {
+    s.input_material = [](void *, const void *p, MMI32 i) -> void * {
         return static_cast<PMaterial_MTRL const *>(p)[i];
     };
     s.material_handle = [](void *, void *p) -> void * { return static_cast<PMaterial_MTRL>(p)->Pbmtl(); };
@@ -199,13 +199,13 @@ ThreeMMMaterialServices Material_MTRL::_Services(void *context)
 void Material_MTRL::ReleaseShadeTable()
 {
     auto s = _Services();
-    three_mm_material_shade_dispose(&_shade, &s);
+    mm_material_shade_dispose(&_shade, &s);
 }
 bool Material_MTRL::FSetShadeTable(PChunkyFile f, ChunkTagOrType t, ChunkNumber n)
 {
     AssertPo(f, 0);
     auto s = _Services();
-    return three_mm_material_shade_set(&_shade, f, t, n, &s) != 0;
+    return mm_material_shade_set(&_shade, f, t, n, &s) != 0;
 }
 PMaterial_MTRL Material_MTRL::PmtrlNew(LegacyLong base, LegacyLong range)
 {
@@ -214,7 +214,7 @@ PMaterial_MTRL Material_MTRL::PmtrlNew(LegacyLong base, LegacyLong range)
     if (range != ivNil)
         AssertIn(range, 0, kbMax - base);
     auto s = _Services();
-    auto object = static_cast<PMaterial_MTRL>(three_mm_material_new(base, range, &s));
+    auto object = static_cast<PMaterial_MTRL>(mm_material_new(base, range, &s));
     AssertNilOrPo(object, 0);
     return object;
 }
@@ -227,7 +227,7 @@ bool Material_MTRL::FReadMtrl(PChunkyResourceFile cache, ChunkTagOrType type, Ch
     AssertNilOrVarMem(out);
     MaterialContext context;
     auto s = _Services(&context);
-    bool ok = three_mm_material_fetch(cache, type, number, out, bytes, &_shade, &s) != 0;
+    bool ok = mm_material_fetch(cache, type, number, out, bytes, &_shade, &s) != 0;
     if (ok && out)
         AssertPo(*out, 0);
     return ok;
@@ -238,14 +238,14 @@ bool Material_MTRL::_FInit(PChunkyResourceFile cache, ChunkTagOrType type, Chunk
     AssertPo(cache, 0);
     MaterialContext context;
     auto s = _Services(&context);
-    return three_mm_material_read(this, cache, type, number, &_shade, &s) != 0;
+    return mm_material_read(this, cache, type, number, &_shade, &s) != 0;
 }
 PMaterial_MTRL Material_MTRL::PmtrlNewFromPix(PFilename file)
 {
     AssertPo(file, ffniFile);
     MaterialContext context;
     auto s = _Services(&context);
-    auto object = static_cast<PMaterial_MTRL>(three_mm_material_import(file, nullptr, 0, &_shade, &s));
+    auto object = static_cast<PMaterial_MTRL>(mm_material_import(file, nullptr, 0, &_shade, &s));
     AssertNilOrPo(object, 0);
     return object;
 }
@@ -254,7 +254,7 @@ PMaterial_MTRL Material_MTRL::PmtrlNewFromBmp(PFilename file, PDynamicArray pale
     AssertPo(file, ffniFile);
     AssertPo(static_cast<PTextureMap>(_shade.texture), 0);
     auto s = _Services();
-    return static_cast<PMaterial_MTRL>(three_mm_material_import(file, palette, 1, &_shade, &s));
+    return static_cast<PMaterial_MTRL>(mm_material_import(file, palette, 1, &_shade, &s));
 }
 PMaterial_MTRL Material_MTRL::PmtrlFromBmtl(PBMTL material)
 {
@@ -268,7 +268,7 @@ PTextureMap Material_MTRL::Ptmap()
 {
     AssertBaseThis(0);
     auto s = _Services();
-    return static_cast<PTextureMap>(three_mm_material_texture(&_material, &s));
+    return static_cast<PTextureMap>(mm_material_texture(&_material, &s));
 }
 bool Material_MTRL::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
 {
@@ -276,9 +276,9 @@ bool Material_MTRL::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *n
     AssertPo(file, 0);
     AssertVarMem(number);
     auto s = _Services();
-    ThreeMMU32 n;
+    MMU32 n;
     std::memcpy(&n, number, sizeof(n));
-    bool ok = three_mm_material_write(&_material, file, type, &n, &s) != 0;
+    bool ok = mm_material_write(&_material, file, type, &n, &s) != 0;
     std::memcpy(number, &n, sizeof(n));
     return ok;
 }
@@ -286,7 +286,7 @@ Material_MTRL::~Material_MTRL()
 {
     AssertBaseThis(0);
     auto s = _Services();
-    three_mm_material_dispose(&_material, &s);
+    mm_material_dispose(&_material, &s);
 }
 #ifdef DEBUG
 void Material_MTRL::AssertValid(LegacyUlong)
@@ -308,11 +308,11 @@ void Material_MTRL::MarkShadeTable()
     MarkMemObj(static_cast<PTextureMap>(_shade.texture));
 }
 #endif
-static ThreeMMTemplateCreateServices MaterialGraphServices()
+static MMTemplateCreateServices MaterialGraphServices()
 {
-    ThreeMMTemplateCreateServices s = {};
-    s.child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 child_type,
-                 ThreeMMTemplateChild *out) -> int {
+    MMTemplateCreateServices s = {};
+    s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type,
+                 MMTemplateChild *out) -> int {
         ChildChunkIdentification child;
         if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, id, child_type, &child))
             return 0;
@@ -325,19 +325,19 @@ bool CustomMaterial_CMTL::FHasModels(PChunkyFile file, ChunkTagOrType type, Chun
 {
     AssertPo(file, 0);
     auto s = MaterialGraphServices();
-    return three_mm_template_has_models(file, type, number, &s) != 0;
+    return mm_template_has_models(file, type, number, &s) != 0;
 }
 bool CustomMaterial_CMTL::FEqualModels(PChunkyFile file, ChunkNumber a, ChunkNumber b)
 {
     AssertPo(file, 0);
     auto s = MaterialGraphServices();
-    return three_mm_template_equal_models(file, a, b, &s) != 0;
+    return mm_template_equal_models(file, a, b, &s) != 0;
 }
 PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(LegacyLong set, LegacyLong count, PMaterial_MTRL *materials)
 {
     AssertPvCb(materials, LwMul(count, sizeof(*materials)));
     auto s = Material_MTRL::_Services();
-    auto object = static_cast<PCustomMaterial_CMTL>(three_mm_custom_material_new(set, count, materials, &s));
+    auto object = static_cast<PCustomMaterial_CMTL>(mm_custom_material_new(set, count, materials, &s));
     AssertNilOrPo(object, 0);
     return object;
 }
@@ -350,7 +350,7 @@ bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile cache, ChunkTagOrType ty
     AssertNilOrVarMem(out);
     MaterialContext context;
     auto s = Material_MTRL::_Services(&context);
-    bool ok = three_mm_custom_material_fetch(cache, type, number, out, bytes, &s) != 0;
+    bool ok = mm_custom_material_fetch(cache, type, number, out, bytes, &s) != 0;
     if (ok && out)
         AssertPo(*out, 0);
     return ok;
@@ -361,31 +361,31 @@ bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile cache, ChunkTagOrType type,
     AssertPo(cache, 0);
     MaterialContext context;
     auto s = Material_MTRL::_Services(&context);
-    return three_mm_custom_material_read(this, cache, type, number, &s) != 0;
+    return mm_custom_material_read(this, cache, type, number, &s) != 0;
 }
 CustomMaterial_CMTL::~CustomMaterial_CMTL()
 {
     AssertBaseThis(0);
     auto s = Material_MTRL::_Services();
-    three_mm_custom_material_dispose(&_custom, &s);
+    mm_custom_material_dispose(&_custom, &s);
 }
 PBMTL CustomMaterial_CMTL::Pbmtl(LegacyLong i)
 {
     AssertThis(0);
     AssertIn(i, 0, _custom.count);
     auto s = Material_MTRL::_Services();
-    return static_cast<PBMTL>(three_mm_custom_material_handle(&_custom, i, &s));
+    return static_cast<PBMTL>(mm_custom_material_handle(&_custom, i, &s));
 }
 PModel CustomMaterial_CMTL::Pmodl(LegacyLong i)
 {
     AssertThis(0);
     AssertIn(i, 0, _custom.count);
-    return static_cast<PModel>(three_mm_custom_material_model(&_custom, i));
+    return static_cast<PModel>(mm_custom_material_model(&_custom, i));
 }
 bool CustomMaterial_CMTL::FHasModels()
 {
     AssertThis(0);
-    return three_mm_custom_material_has_models(&_custom) != 0;
+    return mm_custom_material_has_models(&_custom) != 0;
 }
 #ifdef DEBUG
 void CustomMaterial_CMTL::AssertValid(LegacyUlong)
@@ -393,7 +393,7 @@ void CustomMaterial_CMTL::AssertValid(LegacyUlong)
     CustomMaterial_CMTL_PAR::AssertValid(fobjAllocated);
     AssertPvCb(_custom.materials, _custom.count * sizeof(void *));
     AssertPvCb(_custom.models, _custom.count * sizeof(void *));
-    for (ThreeMMI32 i = 0; i < _custom.count; ++i)
+    for (MMI32 i = 0; i < _custom.count; ++i)
     {
         AssertPo(static_cast<PMaterial_MTRL>(_custom.materials[i]), 0);
         AssertNilOrPo(static_cast<PModel>(_custom.models[i]), 0);
@@ -405,7 +405,7 @@ void CustomMaterial_CMTL::MarkMem()
     CustomMaterial_CMTL_PAR::MarkMem();
     MarkPv(_custom.materials);
     MarkPv(_custom.models);
-    for (ThreeMMI32 i = 0; i < _custom.count; ++i)
+    for (MMI32 i = 0; i < _custom.count; ++i)
     {
         MarkMemObj(static_cast<PMaterial_MTRL>(_custom.materials[i]));
         MarkMemObj(static_cast<PModel>(_custom.models[i]));

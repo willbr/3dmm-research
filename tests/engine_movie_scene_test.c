@@ -1,5 +1,5 @@
 /* Movie scene-container transactions, retry paths and ownership. */
-#include "three_mm/movie_scene.h"
+#include "mm/movie_scene.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x)                                                                                                       \
@@ -33,9 +33,9 @@ typedef struct Scene
 } Scene;
 struct Test
 {
-    ThreeMMMovieScenes state;
-    ThreeMMI32 count;
-    ThreeMMMovieSceneServices s;
+    MMMovieScenes state;
+    MMI32 count;
+    MMMovieSceneServices s;
     Scene scenes[32];
     int used, fail, failures, skip;
     int autosaves, reads, starts, seeks, stops, memory, changes, sound, invalidates;
@@ -87,7 +87,7 @@ static void memory(void *p)
 {
     ++((Test *)p)->memory;
 }
-static void *read_scene(void *p, ThreeMMI32 i)
+static void *read_scene(void *p, MMI32 i)
 {
     Test *t = p;
     ++t->reads;
@@ -148,40 +148,40 @@ static void *file(void *p)
 {
     return p;
 }
-static int write_scene(void *p, void *s, ThreeMMU32 *n)
+static int write_scene(void *p, void *s, MMU32 *n)
 {
     (void)s;
     *n = 123;
     return succeeds(p, WRITE);
 }
-static ThreeMMU32 number(void *p, void *f, ThreeMMI32 i)
+static MMU32 number(void *p, void *f, MMI32 i)
 {
     (void)p;
     (void)f;
     return 100 + i;
 }
-static void move(void *p, void *f, ThreeMMI32 from, ThreeMMI32 to)
+static void move(void *p, void *f, MMI32 from, MMI32 to)
 {
     Test *t = p;
     (void)f;
     t->from[t->moves] = from;
     t->to[t->moves++] = to;
 }
-static int adopt(void *p, void *f, ThreeMMU32 n, ThreeMMI32 i)
+static int adopt(void *p, void *f, MMU32 n, MMI32 i)
 {
     (void)f;
     (void)n;
     (void)i;
     return succeeds(p, ADOPT);
 }
-static void delete_child(void *p, void *f, ThreeMMU32 n, ThreeMMI32 i)
+static void delete_child(void *p, void *f, MMU32 n, MMI32 i)
 {
     (void)f;
     (void)n;
     (void)i;
     ++((Test *)p)->deletes;
 }
-static void delete_chunk(void *p, void *f, ThreeMMU32 n)
+static void delete_chunk(void *p, void *f, MMU32 n)
 {
     (void)f;
     (void)n;
@@ -231,7 +231,7 @@ static void *new_undo(void *p)
     t->undo_refs = 1;
     return t;
 }
-static void configure(void *p, void *u, ThreeMMI32 i, void *s)
+static void configure(void *p, void *u, MMI32 i, void *s)
 {
     Test *t = p;
     (void)u;
@@ -266,9 +266,9 @@ static void clear(void *p)
 }
 static void init(Test *t, int count, int current)
 {
-    ThreeMMMovieSceneServices *s;
+    MMMovieSceneServices *s;
     memset(t, 0, sizeof(*t));
-    three_mm_movie_scenes_init(&t->state);
+    mm_movie_scenes_init(&t->state);
     t->count = count;
     if (current != -1)
     {
@@ -322,7 +322,7 @@ static int clean(Test *t)
 {
     int i;
     if (t->state.open)
-        three_mm_movie_scene_close_open(&t->s);
+        mm_movie_scene_close_open(&t->s);
     if (t->undo_refs)
         clear(t);
     for (i = 0; i < t->used; ++i)
@@ -335,13 +335,13 @@ static int switching(void)
     Test t;
     int fault, attempts;
     init(&t, 3, 0);
-    CHECK(three_mm_movie_scene_switch(0, &t.s) && t.autosaves == 0 && t.stops == 0);
-    CHECK(three_mm_movie_scene_switch(-1, &t.s) && !t.state.open && t.state.index == -1);
+    CHECK(mm_movie_scene_switch(0, &t.s) && t.autosaves == 0 && t.stops == 0);
+    CHECK(mm_movie_scene_switch(-1, &t.s) && !t.state.open && t.state.index == -1);
     CHECK(t.autosaves == 1 && t.stops == 1 && t.memory == 1 && t.changes == 0 && clean(&t));
     init(&t, 3, 0);
     t.fail = AUTO;
     t.failures = 1;
-    CHECK(!three_mm_movie_scene_switch(1, &t.s) && t.state.index == 0 && t.stops == 0 && t.reads == 0);
+    CHECK(!mm_movie_scene_switch(1, &t.s) && t.state.index == 0 && t.stops == 0 && t.reads == 0);
     CHECK(t.scenes[0].refs == 1 && clean(&t));
     for (fault = READ; fault <= SEEK; ++fault)
         for (attempts = 1; attempts <= 2; ++attempts)
@@ -349,7 +349,7 @@ static int switching(void)
             init(&t, 3, 0);
             t.fail = fault;
             t.failures = attempts;
-            CHECK(!three_mm_movie_scene_switch(1, &t.s));
+            CHECK(!mm_movie_scene_switch(1, &t.s));
             CHECK(t.reads == 2 && t.stops == 1 && t.memory == 1 && t.autosaves == 1);
             CHECK(t.state.index == (attempts == 1 ? 0 : -1));
             CHECK((t.state.open != 0) == (attempts == 1));
@@ -364,7 +364,7 @@ static int switching(void)
     init(&t, 3, -1);
     t.fail = READ;
     t.failures = 1;
-    CHECK(!three_mm_movie_scene_switch(1, &t.s) && t.reads == 1 && t.changes == 1 && clean(&t));
+    CHECK(!mm_movie_scene_switch(1, &t.s) && t.reads == 1 && t.changes == 1 && clean(&t));
     return 0;
 }
 static int insertion(void)
@@ -378,7 +378,7 @@ static int insertion(void)
         input = new_scene(&t, -2);
         t.fail = fault;
         t.failures = 1;
-        CHECK(!three_mm_movie_scene_insert(1, input, &t.s));
+        CHECK(!mm_movie_scene_insert(1, input, &t.s));
         CHECK(input->refs == 1 && t.dirty == 0 && t.rollcall == 0 && t.adds == 0);
         CHECK(t.count == (fault == ADOPT ? 4 : 3));
         CHECK(t.deleted_chunks == (fault == ADOPT));
@@ -399,7 +399,7 @@ static int insertion(void)
         init(&t, 3, 0);
         input = new_scene(&t, -2);
         t.enabled = !muted;
-        CHECK(three_mm_movie_scene_insert(1, input, &t.s));
+        CHECK(mm_movie_scene_insert(1, input, &t.s));
         CHECK(t.count == 4 && t.state.index == 1 && t.moves == 2 && t.saves == 1);
         CHECK(t.dirty == 1 && t.rollcall == 1 && t.adds == 1 && t.played == !muted && t.flushed == muted);
         CHECK(input->refs == 1 && input->closed == 1);
@@ -409,9 +409,9 @@ static int insertion(void)
     init(&t, 0, -1);
     t.fail = CREATE;
     t.failures = 1;
-    CHECK(!three_mm_movie_scene_new(0, &t.s) && t.used == 0 && clean(&t));
+    CHECK(!mm_movie_scene_new(0, &t.s) && t.used == 0 && clean(&t));
     init(&t, 0, -1);
-    CHECK(three_mm_movie_scene_new(0, &t.s) && t.scenes[0].closed == 2 && clean(&t));
+    CHECK(mm_movie_scene_new(0, &t.s) && t.scenes[0].closed == 2 && clean(&t));
     return 0;
 }
 static int removal(void)
@@ -421,49 +421,49 @@ static int removal(void)
     for (i = 0; i < 3; ++i)
     {
         init(&t, 3, i);
-        CHECK(three_mm_movie_scene_remove(i, &t.s));
+        CHECK(mm_movie_scene_remove(i, &t.s));
         CHECK(t.count == 2 && t.state.index == (i < 2 ? i : 1));
         CHECK(t.removes == 1 && t.deletes == 1 && t.saves == 1 && t.dirty == 1 && t.moves == 2 - i);
         CHECK(clean(&t));
     }
     init(&t, 1, 0);
-    CHECK(three_mm_movie_scene_remove(0, &t.s) && t.count == 0 && !t.state.open && !t.dirty && clean(&t));
+    CHECK(mm_movie_scene_remove(0, &t.s) && t.count == 0 && !t.state.open && !t.dirty && clean(&t));
     init(&t, 3, 0);
     t.fail = TEMP;
     t.failures = 1;
-    CHECK(!three_mm_movie_scene_remove(1, &t.s) && t.state.index == 0 && t.reads == 0 && clean(&t));
+    CHECK(!mm_movie_scene_remove(1, &t.s) && t.state.index == 0 && t.reads == 0 && clean(&t));
     init(&t, 3, 0);
     t.fail = READ;
     t.failures = 1;
-    CHECK(!three_mm_movie_scene_remove(1, &t.s) && t.state.index == 0 && t.reads == 2 && !t.deletes && clean(&t));
+    CHECK(!mm_movie_scene_remove(1, &t.s) && t.state.index == 0 && t.reads == 2 && !t.deletes && clean(&t));
     init(&t, 3, 0);
     t.fail = READ;
     t.failures = 1;
-    CHECK(three_mm_movie_scene_remove(0, &t.s) && t.count == 2 && !t.state.open && t.errors == 1 && t.dirty == 1 &&
+    CHECK(mm_movie_scene_remove(0, &t.s) && t.count == 2 && !t.state.open && t.errors == 1 && t.dirty == 1 &&
           clean(&t));
     for (i = 0; i < 2; ++i)
     {
         init(&t, 3, i);
-        CHECK(three_mm_movie_scene_remove_undoable(0, &t.s));
+        CHECK(mm_movie_scene_remove_undoable(0, &t.s));
         CHECK(t.count == 2 && t.configured_index == 0 && t.undo_scene->refs == 1 && t.undo_refs == 1);
         CHECK(t.hidden == i && clean(&t));
     }
     init(&t, 3, 0);
     t.fail = UNDO;
     t.failures = 1;
-    CHECK(three_mm_movie_scene_remove_undoable(0, &t.s) && t.count == 3 && !t.removes && clean(&t));
+    CHECK(mm_movie_scene_remove_undoable(0, &t.s) && t.count == 3 && !t.removes && clean(&t));
     init(&t, 3, 0);
     t.fail = ADD_UNDO;
     t.failures = 1;
-    CHECK(!three_mm_movie_scene_remove_undoable(0, &t.s) && t.count == 3 && !t.undo_refs && clean(&t));
+    CHECK(!mm_movie_scene_remove_undoable(0, &t.s) && t.count == 3 && !t.undo_refs && clean(&t));
     init(&t, 3, 0);
     t.fail = TEMP;
     t.failures = 1;
-    CHECK(!three_mm_movie_scene_remove_undoable(0, &t.s) && t.count == 3 && t.cleared == 1 && clean(&t));
+    CHECK(!mm_movie_scene_remove_undoable(0, &t.s) && t.count == 3 && t.cleared == 1 && clean(&t));
     init(&t, 3, 1);
     t.fail = START;
     t.failures = 1;
-    CHECK(!three_mm_movie_scene_remove_undoable(0, &t.s) && !t.undo_refs && clean(&t));
+    CHECK(!mm_movie_scene_remove_undoable(0, &t.s) && !t.undo_refs && clean(&t));
     return 0;
 }
 
@@ -471,21 +471,21 @@ typedef struct Undo
 {
     int create, remove, insert, background, notify, removed, flush, clear, unknown, fail;
 } Undo;
-static int ucreate(void *p, ThreeMMI32 i)
+static int ucreate(void *p, MMI32 i)
 {
     Undo *u = p;
     (void)i;
     ++u->create;
     return u->fail != CREATE;
 }
-static int uremove(void *p, ThreeMMI32 i)
+static int uremove(void *p, MMI32 i)
 {
     Undo *u = p;
     (void)i;
     ++u->remove;
     return u->fail != TEMP;
 }
-static int uinsert(void *p, ThreeMMI32 i, void *s)
+static int uinsert(void *p, MMI32 i, void *s)
 {
     Undo *u = p;
     (void)i;
@@ -493,7 +493,7 @@ static int uinsert(void *p, ThreeMMI32 i, void *s)
     ++u->insert;
     return u->fail != WRITE;
 }
-static int background(void *p, const ThreeMMTag *tag)
+static int background(void *p, const MMTag *tag)
 {
     Undo *u = p;
     (void)tag;
@@ -524,7 +524,7 @@ static void unknown(void *p)
 }
 static int undoing(void)
 {
-    ThreeMMMovieSceneUndoServices s;
+    MMMovieSceneUndoServices s;
     Undo u;
     int kind, redo, fault, removed, result;
     memset(&s, 0, sizeof(s));
@@ -543,8 +543,8 @@ static int undoing(void)
             {
                 memset(&u, 0, sizeof(u));
                 u.fail = fault;
-                result = three_mm_movie_scene_undo(kind, 2, 0, 0, redo, &s);
-                removed = (kind == THREE_MM_MOVIE_REMOVE_SCENE) == redo;
+                result = mm_movie_scene_undo(kind, 2, 0, 0, redo, &s);
+                removed = (kind == MM_MOVIE_REMOVE_SCENE) == redo;
                 if (kind == 2)
                     CHECK(!result && u.unknown == 1);
                 else if (removed)

@@ -1,14 +1,14 @@
 /* Codec registration converted from Kauai codec.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/codec_registry.h"
+#include "mm/codec_registry.h"
 #include <string.h>
-int three_mm_codec_registry_init(ThreeMMCodecRegistry *registry, const ThreeMMCodecServices *services,
-                                 const ThreeMMStorageAllocator *allocator, void *codec, ThreeMMI32 format)
+int mm_codec_registry_init(MMCodecRegistry *registry, const MMCodecServices *services,
+                                 const MMStorageAllocator *allocator, void *codec, MMI32 format)
 {
     if (!registry || !services || !services->retain || !services->release || !services->can_do || !format)
-        return THREE_MM_STORAGE_ARGUMENT;
-    if (three_mm_storage_init(&registry->storage, allocator) != THREE_MM_STORAGE_OK)
-        return THREE_MM_STORAGE_ARGUMENT;
+        return MM_STORAGE_ARGUMENT;
+    if (mm_storage_init(&registry->storage, allocator) != MM_STORAGE_OK)
+        return MM_STORAGE_ARGUMENT;
     registry->storage.min_grow[0] = 128;
     registry->services = *services;
     registry->count = 0;
@@ -16,9 +16,9 @@ int three_mm_codec_registry_init(ThreeMMCodecRegistry *registry, const ThreeMMCo
     registry->default_format = format;
     if (codec)
         services->retain(services->context, codec);
-    return THREE_MM_STORAGE_OK;
+    return MM_STORAGE_OK;
 }
-void *three_mm_codec_registry_at(const ThreeMMCodecRegistry *registry, ThreeMMU32 position)
+void *mm_codec_registry_at(const MMCodecRegistry *registry, MMU32 position)
 {
     void *codec;
     if (!registry || position >= registry->count || !registry->storage.buffers[0].data ||
@@ -27,51 +27,51 @@ void *three_mm_codec_registry_at(const ThreeMMCodecRegistry *registry, ThreeMMU3
     memcpy(&codec, registry->storage.buffers[0].data + position * sizeof(codec), sizeof(codec));
     return codec;
 }
-int three_mm_codec_registry_dispose(ThreeMMCodecRegistry *registry)
+int mm_codec_registry_dispose(MMCodecRegistry *registry)
 {
     void *codec;
     if (!registry || registry->storage.buffers[0].locks || registry->storage.buffers[1].locks)
-        return THREE_MM_STORAGE_ARGUMENT;
+        return MM_STORAGE_ARGUMENT;
     codec = registry->default_codec;
     registry->default_codec = NULL;
     if (codec)
         registry->services.release(registry->services.context, codec);
     while (registry->count)
     {
-        codec = three_mm_codec_registry_at(registry, registry->count - 1);
+        codec = mm_codec_registry_at(registry, registry->count - 1);
         --registry->count;
         registry->services.release(registry->services.context, codec);
     }
-    return three_mm_storage_dispose(&registry->storage);
+    return mm_storage_dispose(&registry->storage);
 }
-int three_mm_codec_registry_add(ThreeMMCodecRegistry *registry, void *codec)
+int mm_codec_registry_add(MMCodecRegistry *registry, void *codec)
 {
-    ThreeMMArray array;
+    MMArray array;
     int result;
     if (!registry || !codec)
-        return THREE_MM_STORAGE_ARGUMENT;
+        return MM_STORAGE_ARGUMENT;
     memset(&array, 0, sizeof(array));
     array.storage = &registry->storage;
     array.width = sizeof(codec);
     array.count = registry->count;
     array.free_count = -1;
-    result = three_mm_array_add(&array, &codec, NULL);
-    if (result != THREE_MM_STORAGE_OK)
+    result = mm_array_add(&array, &codec, NULL);
+    if (result != MM_STORAGE_OK)
         return result;
     registry->count = array.count;
     registry->services.retain(registry->services.context, codec);
-    return THREE_MM_STORAGE_OK;
+    return MM_STORAGE_OK;
 }
-int three_mm_codec_registry_default(ThreeMMCodecRegistry *registry, ThreeMMI32 format)
+int mm_codec_registry_default(MMCodecRegistry *registry, MMI32 format)
 {
     if (!registry || !format)
-        return THREE_MM_STORAGE_ARGUMENT;
+        return MM_STORAGE_ARGUMENT;
     registry->default_format = format;
-    return THREE_MM_STORAGE_OK;
+    return MM_STORAGE_OK;
 }
-void *three_mm_codec_registry_find(const ThreeMMCodecRegistry *registry, int encode, ThreeMMI32 format)
+void *mm_codec_registry_find(const MMCodecRegistry *registry, int encode, MMI32 format)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     void *codec;
     if (!registry || !format)
         return NULL;
@@ -80,7 +80,7 @@ void *three_mm_codec_registry_find(const ThreeMMCodecRegistry *registry, int enc
         return codec;
     for (i = registry->count; i-- > 0;)
     {
-        codec = three_mm_codec_registry_at(registry, i);
+        codec = mm_codec_registry_at(registry, i);
         if (registry->services.can_do(registry->services.context, codec, encode, format))
             return codec;
     }

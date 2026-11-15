@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-#include <three_mm/archive.h>
+#include <mm/archive.h>
 #if defined(size) || defined(NewObj) || defined(WIN) || defined(STRICT)
 #error The public archive API leaked legacy macros or compile definitions.
 #endif
@@ -11,4 +11,4 @@
 #error The public archive target exposed legacy include directories.
 #endif
 #endif
-static_assert(sizeof(ThreeMM::Id::type) == 4, "archive identifiers must retain their wire width");
+static_assert(sizeof(MM::Id::type) == 4, "archive identifiers must retain their wire width");

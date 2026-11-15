@@ -1,4 +1,4 @@
-#include "three_mm/scene_load.h"
+#include "mm/scene_load.h"
 #define SCENE_SOUND_FIXTURE_NO_PACKET_HELPERS
 #include "scene_sound_fixture.h"
 typedef union Payload {
@@ -19,9 +19,9 @@ typedef struct LoadObject
 typedef struct Loader
 {
     Fixture packets;
-    ThreeMMSceneLoadServices s;
-    ThreeMMSceneOwner owner;
-    ThreeMMSceneState metadata;
+    MMSceneLoadServices s;
+    MMSceneOwner owner;
+    MMSceneState metadata;
     LoadObject wire[2], *scene;
     int attempt, fail, live, swap, names, published, log[512], used, locks;
     int actor_calls, resolve_calls, actor_fail, resolve_fail, no_thumbnail, bad_kind;
@@ -52,10 +52,10 @@ static void *new_scene(void *p, void *movie)
     Loader *f = (Loader *)p;
     f->scene = (LoadObject *)new_object(f, 200);
     if (f->scene)
-        three_mm_scene_owner_init(&f->owner, movie);
+        mm_scene_owner_init(&f->owner, movie);
     return f->scene;
 }
-static ThreeMMSceneOwner *owner_state(void *p, void *scene)
+static MMSceneOwner *owner_state(void *p, void *scene)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == f->scene);
@@ -65,7 +65,7 @@ static void *new_slot(void *p, int type)
 {
     return new_object((Loader *)p, type);
 }
-static void publish_owner(void *p, void *scene, const ThreeMMSceneOwner *o)
+static void publish_owner(void *p, void *scene, const MMSceneOwner *o)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == f->scene && o == &f->owner);
@@ -83,57 +83,57 @@ static void release_object(void *p, void *value)
     CHECK(o && o->refs == 1);
     note(f, 100 + o->type);
     if (o == f->scene)
-        three_mm_scene_owner_dispose(&f->owner, o, &f->s.owners);
+        mm_scene_owner_dispose(&f->owner, o, &f->s.owners);
     o->refs = 0;
     --f->live;
     if (o->type < 100 || o->type >= 200)
         free(o);
 }
-static ThreeMMI32 group_count(void *p, void *g)
+static MMI32 group_count(void *p, void *g)
 {
     (void)p;
     return ((LoadObject *)g)->count;
 }
-static ThreeMMI32 group_kind(void *p, void *g, ThreeMMI32 i)
+static MMI32 group_kind(void *p, void *g, MMI32 i)
 {
-    ThreeMMI32 kind;
+    MMI32 kind;
     (void)p;
     memcpy(&kind, ((LoadObject *)g)->events[i].fixed + 4, 4);
     return kind;
 }
-static void *group_payload(void *p, void *g, ThreeMMI32 i, ThreeMMI32 *bytes)
+static void *group_payload(void *p, void *g, MMI32 i, MMI32 *bytes)
 {
     LoadEvent *e = &((LoadObject *)g)->events[i];
     (void)p;
     *bytes = e->bytes;
     return e->payload.bytes;
 }
-static void *group_object(void *p, void *g, ThreeMMI32 i)
+static void *group_object(void *p, void *g, MMI32 i)
 {
     void *object;
     (void)p;
     memcpy(&object, ((LoadObject *)g)->events[i].payload.bytes, sizeof(object));
     return object;
 }
-static ThreeMMI32 sound_count(void *p, void *sound)
+static MMI32 sound_count(void *p, void *sound)
 {
     (void)p;
-    return ((ThreeMMSceneSound *)sound)->ctagc;
+    return ((MMSceneSound *)sound)->ctagc;
 }
-static ThreeMMI32 sound_style(void *p, void *sound)
+static MMI32 sound_style(void *p, void *sound)
 {
     (void)p;
-    return ((ThreeMMSceneSound *)sound)->sty;
+    return ((MMSceneSound *)sound)->sty;
 }
-static int opened(void *p, void *sound, ThreeMMI32 i)
+static int opened(void *p, void *sound, MMI32 i)
 {
     (void)p;
-    return at((ThreeMMSceneSound *)sound, i)->tag.cache != NULL;
+    return at((MMSceneSound *)sound, i)->tag.cache != NULL;
 }
-static void close_tag(void *p, void *sound, ThreeMMI32 i)
+static void close_tag(void *p, void *sound, MMI32 i)
 {
     Loader *f = (Loader *)p;
-    Record *r = at((ThreeMMSceneSound *)sound, i);
+    Record *r = at((MMSceneSound *)sound, i);
     note(f, 10 + (int)r->child);
     if (!r->tag.sid)
     {
@@ -154,7 +154,7 @@ static void diagnostic(void *p, int issue)
     (void)issue;
     CHECK(0);
 }
-static int metadata(void *p, ThreeMMU32 number, ThreeMMSceneState *out)
+static int metadata(void *p, MMU32 number, MMSceneState *out)
 {
     Loader *f = (Loader *)p;
     CHECK(number == 42 && out->name.unit == 1);
@@ -165,7 +165,7 @@ static int metadata(void *p, ThreeMMU32 number, ThreeMMSceneState *out)
     out->transition = 3;
     return 1;
 }
-static void publish_metadata(void *p, void *scene, const ThreeMMSceneState *value)
+static void publish_metadata(void *p, void *scene, const MMSceneState *value)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == f->scene && f->owner.owned[2] && f->owner.owned[3]);
@@ -174,31 +174,31 @@ static void publish_metadata(void *p, void *scene, const ThreeMMSceneState *valu
     f->published = 1;
     note(f, 2);
 }
-static int child(void *p, ThreeMMU32 scene, int kind, ThreeMMU32 id, ThreeMMU32 *number)
+static int child(void *p, MMU32 scene, int kind, MMU32 id, MMU32 *number)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == 42 && f->published);
-    if (!step(f) || (kind == THREE_MM_SCENE_THUMBNAIL && f->no_thumbnail))
+    if (!step(f) || (kind == MM_SCENE_THUMBNAIL && f->no_thumbnail))
         return 0;
-    if (kind == THREE_MM_SCENE_FRAMES)
+    if (kind == MM_SCENE_FRAMES)
         CHECK(!id);
-    else if (kind == THREE_MM_SCENE_STARTS)
+    else if (kind == MM_SCENE_STARTS)
         CHECK(id == 1);
-    else if (kind == THREE_MM_SCENE_ACTORS || kind == THREE_MM_SCENE_TEXTS)
+    else if (kind == MM_SCENE_ACTORS || kind == MM_SCENE_TEXTS)
         CHECK(id == 7);
-    *number = (ThreeMMU32)kind + 100;
+    *number = (MMU32)kind + 100;
     return 1;
 }
-static void *thumbnail(void *p, ThreeMMU32 number)
+static void *thumbnail(void *p, MMU32 number)
 {
     CHECK(number == 106);
     return new_object((Loader *)p, 6);
 }
-static void *read_group(void *p, ThreeMMU32 number, int start, int *swap)
+static void *read_group(void *p, MMU32 number, int start, int *swap)
 {
     Loader *f = (Loader *)p;
     LoadObject *g = &f->wire[start];
-    CHECK(number == (ThreeMMU32)(100 + start));
+    CHECK(number == (MMU32)(100 + start));
     if (!step(f))
         return NULL;
     CHECK(!g->refs);
@@ -207,19 +207,19 @@ static void *read_group(void *p, ThreeMMU32 number, int start, int *swap)
     *swap = f->swap;
     return g;
 }
-static void fixed(void *p, void *g, ThreeMMI32 i, unsigned char *bytes)
+static void fixed(void *p, void *g, MMI32 i, unsigned char *bytes)
 {
     (void)p;
     memcpy(bytes, ((LoadObject *)g)->events[i].fixed, 8);
 }
-static void *read_object(void *p, ThreeMMU32 number, int kind, void *scene)
+static void *read_object(void *p, MMU32 number, int kind, void *scene)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == f->scene);
-    CHECK(number == (kind == THREE_MM_SCENE_ADD_ACTOR ? 102U : 103U));
+    CHECK(number == (kind == MM_SCENE_ADD_ACTOR ? 102U : 103U));
     return new_object(f, 300 + kind);
 }
-static int insert(void *p, void *g, ThreeMMI32 i, ThreeMMI32 frame, int kind, ThreeMMI32 bytes, const void *payload)
+static int insert(void *p, void *g, MMI32 i, MMI32 frame, int kind, MMI32 bytes, const void *payload)
 {
     Loader *f = (Loader *)p;
     LoadObject *group = (LoadObject *)g;
@@ -236,18 +236,18 @@ static int insert(void *p, void *g, ThreeMMI32 i, ThreeMMI32 frame, int kind, Th
     ++group->count;
     return 1;
 }
-static int insert_tag(void *p, void *g, ThreeMMI32 i, ThreeMMI32 frame, const ThreeMMTag *tag)
+static int insert_tag(void *p, void *g, MMI32 i, MMI32 frame, const MMTag *tag)
 {
     CHECK(tag->sid == 1 && !tag->cache && tag->type == 23 && tag->number == 9);
-    return insert(p, g, i, frame, THREE_MM_SCENE_SET_BACKGROUND, sizeof(*tag), tag);
+    return insert(p, g, i, frame, MM_SCENE_SET_BACKGROUND, sizeof(*tag), tag);
 }
-static int open_tag(void *p, ThreeMMSceneSound *sound, ThreeMMI32 i)
+static int open_tag(void *p, MMSceneSound *sound, MMI32 i)
 {
     Loader *f = (Loader *)p;
     Record *r = at(sound, i);
     if (!step(f))
         return 0;
-    CHECK(r->child == (ThreeMMU32)i + 1 && !r->tag.cache);
+    CHECK(r->child == (MMU32)i + 1 && !r->tag.cache);
     if (!r->tag.sid)
     {
         r->tag.cache = &f->packets;
@@ -256,7 +256,7 @@ static int open_tag(void *p, ThreeMMSceneSound *sound, ThreeMMI32 i)
     note(f, 30 + i);
     return 1;
 }
-static void load_name(void *p, void *scene, ThreeMMU32 number)
+static void load_name(void *p, void *scene, MMU32 number)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == f->scene && number == 42 && ((LoadObject *)f->owner.owned[0])->count == 3 &&
@@ -264,14 +264,14 @@ static void load_name(void *p, void *scene, ThreeMMU32 number)
     ++f->names;
     note(f, 3);
 }
-static void *packet_allocate(void *p, ThreeMMI32 bytes)
+static void *packet_allocate(void *p, MMI32 bytes)
 {
     Loader *f = (Loader *)p;
     if (!step(f))
         return NULL;
     return allocate(&f->packets, bytes);
 }
-static void wire_word(void *p, ThreeMMU32 value, int swap)
+static void wire_word(void *p, MMU32 value, int swap)
 {
     unsigned char *b = (unsigned char *)p, native[4];
     unsigned i;
@@ -279,22 +279,22 @@ static void wire_word(void *p, ThreeMMU32 value, int swap)
     for (i = 0; i < 4; ++i)
         b[i] = native[swap ? 3 - i : i];
 }
-static void wire_event(Loader *f, int start, int kind, const ThreeMMU32 *words, int count)
+static void wire_event(Loader *f, int start, int kind, const MMU32 *words, int count)
 {
     LoadObject *g = &f->wire[start];
     LoadEvent *e = &g->events[g->count++];
     int i;
     wire_word(e->fixed, 3, f->swap);
-    wire_word(e->fixed + 4, (ThreeMMU32)kind, f->swap);
+    wire_word(e->fixed + 4, (MMU32)kind, f->swap);
     e->bytes = count * 4;
     for (i = 0; i < count; ++i)
         wire_word(e->payload.bytes + i * 4, words[i], f->swap);
 }
 static void init_loader(Loader *f, int swap)
 {
-    ThreeMMSceneOwnerServices *o;
-    ThreeMMSceneLoadServices *s;
-    ThreeMMU32 sound[] = {80, 2, 0, 3, 1, 0, 0, 23, 1, 2, 3, 0, 23, 2, 3, 0, 0, 23, 3}, camera[] = {0x12345678U},
+    MMSceneOwnerServices *o;
+    MMSceneLoadServices *s;
+    MMU32 sound[] = {80, 2, 0, 3, 1, 0, 0, 23, 1, 2, 3, 0, 23, 2, 3, 0, 0, 23, 3}, camera[] = {0x12345678U},
                pause[] = {3, 230}, background[] = {1, 999, 23, 9}, id[] = {7};
     memset(f, 0, sizeof(*f));
     init(&f->packets);
@@ -361,7 +361,7 @@ static void test_load(void)
     for (swap = 0; swap < 2; ++swap)
     {
         init_loader(&f, swap);
-        scene = (LoadObject *)three_mm_scene_load(&f, 42, 1, &f.s);
+        scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
         CHECK(scene && f.names == 1);
         attempts = f.attempt;
         frames = (LoadObject *)f.owner.owned[0];
@@ -375,7 +375,7 @@ static void test_load(void)
         {
             init_loader(&f, swap);
             f.fail = fail;
-            scene = (LoadObject *)three_mm_scene_load(&f, 42, 1, &f.s);
+            scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
             CHECK((scene != NULL) == (fail == 5 || fail == 6));
             if (scene)
             {
@@ -389,7 +389,7 @@ static void test_load(void)
         /* Failed second open closes only tag zero, before packet and wire release. */
         init_loader(&f, swap);
         f.fail = 12;
-        CHECK(!three_mm_scene_load(&f, 42, 1, &f.s));
+        CHECK(!mm_scene_load(&f, 42, 1, &f.s));
         last = -1;
         for (j = 0; j < f.used; ++j)
             if (f.log[j] == 11)
@@ -399,7 +399,7 @@ static void test_load(void)
         /* Failed insertion closes all newly opened tags in reverse order. */
         init_loader(&f, swap);
         f.fail = 14;
-        CHECK(!three_mm_scene_load(&f, 42, 1, &f.s));
+        CHECK(!mm_scene_load(&f, 42, 1, &f.s));
         last = -1;
         for (j = 0; j < f.used; ++j)
             if (f.log[j] == 13)
@@ -409,16 +409,16 @@ static void test_load(void)
         check_clean(&f);
         init_loader(&f, swap);
         f.no_thumbnail = 1;
-        scene = (LoadObject *)three_mm_scene_load(&f, 42, 1, &f.s);
+        scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
         CHECK(scene && !f.owner.owned[6]);
         release_object(&f, scene);
         check_clean(&f);
     }
     init_loader(&f, 0);
-    CHECK(!three_mm_scene_load(&f, 42, 3, &f.s) && !f.attempt);
+    CHECK(!mm_scene_load(&f, 42, 3, &f.s) && !f.attempt);
     check_clean(&f);
 }
-static int resolve_actor(void *p, ThreeMMI32 i, ThreeMMU32 scene)
+static int resolve_actor(void *p, MMI32 i, MMU32 scene)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == 42 && i == f->actor_calls && !f->locks);
@@ -437,12 +437,12 @@ static void unlock_group(void *p, void *g)
     CHECK(g == f->owner.owned[0] && f->locks == 1);
     --f->locks;
 }
-static ThreeMMSceneSound *resolve_sound(void *p, void *g, ThreeMMI32 i)
+static MMSceneSound *resolve_sound(void *p, void *g, MMI32 i)
 {
-    ThreeMMI32 bytes;
-    return (ThreeMMSceneSound *)group_payload(p, g, i, &bytes);
+    MMI32 bytes;
+    return (MMSceneSound *)group_payload(p, g, i, &bytes);
 }
-static int resolve_record(void *p, void *record, ThreeMMU32 scene)
+static int resolve_record(void *p, void *record, MMU32 scene)
 {
     Loader *f = (Loader *)p;
     Record *r = (Record *)record;
@@ -456,13 +456,13 @@ static int resolve_record(void *p, void *record, ThreeMMU32 scene)
 static void test_resolve(void)
 {
     Loader f;
-    ThreeMMSceneResolveServices s;
+    MMSceneResolveServices s;
     LoadObject *scene, *actors;
     int fail;
     for (fail = 0; fail < 5; ++fail)
     {
         init_loader(&f, 0);
-        scene = (LoadObject *)three_mm_scene_load(&f, 42, 1, &f.s);
+        scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
         CHECK(scene);
         actors = (LoadObject *)f.owner.owned[2];
         actors->count = 2;
@@ -479,7 +479,7 @@ static void test_resolve(void)
         s.resolve = resolve_record;
         f.actor_fail = fail <= 2 ? fail : 0;
         f.resolve_fail = fail >= 3 ? fail - 2 : 0;
-        CHECK(three_mm_scene_resolve_sounds(42, &s) == (fail == 0));
+        CHECK(mm_scene_resolve_sounds(42, &s) == (fail == 0));
         CHECK(!f.locks);
         if (fail == 1 || fail == 2)
             CHECK(!f.resolve_calls);
@@ -487,7 +487,7 @@ static void test_resolve(void)
             CHECK(f.actor_calls == 2 && f.resolve_calls == (fail == 3 ? 1 : 2));
         /* Failed resolution retains just the completed tag mutation prefix. */
         {
-            ThreeMMSceneSound *p = resolve_sound(&f, f.owner.owned[0], 0);
+            MMSceneSound *p = resolve_sound(&f, f.owner.owned[0], 0);
             int i;
             CHECK(at(p, 0)->tag.number == (fail == 0 || fail == 4 ? 5U : 1U));
             CHECK(at(p, 1)->tag.number == 2);

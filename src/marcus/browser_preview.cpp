@@ -1,5 +1,5 @@
 #include "browser_preview.h"
-#include "three_mm/archive.h"
+#include "mm/archive.h"
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
@@ -10,14 +10,14 @@ ASSERTNAME
 BrowserPreview ReadBrowserPreview(const std::string &movie, const std::string &resources)
 {
     BrowserPreview result;
-    ThreeMM::Archive archive({16 * 1024 * 1024, 1024 * 1024});
-    ThreeMM::Error error;
+    MM::Archive archive({16 * 1024 * 1024, 1024 * 1024});
+    MM::Error error;
     if (!archive.Open(movie, error))
     {
         result.error = error.message;
         return result;
     }
-    std::vector<ThreeMM::Id> scenes;
+    std::vector<MM::Id> scenes;
     for (const auto &chunk : archive.Chunks())
         if (chunk.id.type == kctgMvie)
         {
@@ -28,13 +28,13 @@ BrowserPreview ReadBrowserPreview(const std::string &movie, const std::string &r
             break;
         }
     long long frames = 0;
-    ThreeMM::Id thumb;
+    MM::Id thumb;
     for (const auto &id : scenes)
         for (std::size_t i = 0; i < archive.Chunks().size(); ++i)
             if (archive.Chunks()[i].id == id)
             {
-                ThreeMM::RecordHeader record;
-                if (archive.ReadRecord(i, record, error) && record.kind == ThreeMM::RecordKind::scene)
+                MM::RecordHeader record;
+                if (archive.ReadRecord(i, record, error) && record.kind == MM::RecordKind::scene)
                     frames += std::max(0LL, static_cast<long long>(record.scene.lastFrame) - record.scene.firstFrame + 1);
                 if (!thumb.type)
                     for (const auto &child : archive.Chunks()[i].children)
@@ -62,7 +62,7 @@ BrowserPreview ReadBrowserPreview(const std::string &movie, const std::string &r
         return result;
     // Use the existing bounded payload reader and MBMP decoder, without opening
     // a second player or changing the live movie's renderer/content callbacks.
-    ThreeMM::PayloadPage payload;
+    MM::PayloadPage payload;
     for (std::size_t i = 0; i < archive.Chunks().size(); ++i)
         if (archive.Chunks()[i].id == thumb)
         {
@@ -89,7 +89,7 @@ BrowserPreview ReadBrowserPreview(const std::string &movie, const std::string &r
     std::vector<byte> indices(static_cast<std::size_t>(width) * height, 0);
     bitmap->Draw(indices.data(), width, height, -bounds.xpLeft, -bounds.ypTop);
     ReleasePpo(&bitmap);
-    ThreeMM::Archive resource({16 * 1024 * 1024, 1024 * 1024});
+    MM::Archive resource({16 * 1024 * 1024, 1024 * 1024});
     if (!resource.Open(resources, error))
         return result;
     DataBlock paletteBlock;

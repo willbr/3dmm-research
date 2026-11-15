@@ -41,10 +41,10 @@
 #define TAGM_H
 
 #include <cstdint>
-#include "three_mm/tag.h"
-#include "three_mm/source.h"
-#include "three_mm/source_names.h"
-#include "three_mm/source_discovery.h"
+#include "mm/tag.h"
+#include "mm/source.h"
+#include "mm/source_names.h"
+#include "mm/source_discovery.h"
 
 const LegacyLong ksidInvalid = -1; // negative SIDs imply an invalid TAG
 const LegacyLong sidNil = 0;
@@ -64,9 +64,9 @@ struct TAG
     ChunkTagOrType ctg;   // ChunkTagOrType of chunk
     ChunkNumber cno;   // ChunkNumber of chunk
 };
-inline ThreeMMTag TagToCore(const TAG &tag)
+inline MMTag TagToCore(const TAG &tag)
 { return {tag.sid, tag.sid == ksidUseCrf ? tag.pcrf : nullptr, tag.ctg, tag.cno}; }
-inline void TagFromCore(TAG *tag, const ThreeMMTag &value)
+inline void TagFromCore(TAG *tag, const MMTag &value)
 { tag->sid=value.sid;tag->pcrf=static_cast<PChunkyResourceFile>(value.cache);tag->ctg=value.type;tag->cno=value.number; }
 const ByteOrderMask kbomTag = 0xFF000000;
 // TAG embeds a runtime PChunkyResourceFile pointer that's 4 bytes on x86 and
@@ -161,8 +161,8 @@ class TagManager : public TagManager_PAR
   protected:
     Filename _fniHDRoot;     // Root HD directory to search for content
     LegacyLong _cbCache;      // Size of RAM Cache on files in ChunkyResourceManager for each source
-    ThreeMMSourceCatalogue _sources;
-    ThreeMMSourceNames _names; // C-owned source descriptions
+    MMSourceCatalogue _sources;
+    MMSourceNames _names; // C-owned source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
     TagSourceResolver _sourceResolver = nullptr;
     TagArchiveResolver _archiveResolver = nullptr;
@@ -174,10 +174,10 @@ class TagManager : public TagManager_PAR
     TagManager(void)
     {
     }
-    static ThreeMMTagServices _Services(void *);
-    ThreeMMSourceOwners _SourceOwners();
-    static ThreeMMSourceServices _SourceServices(void *);
-    static ThreeMMSourceDiscovery _DiscoveryServices(void *);
+    static MMTagServices _Services(void *);
+    MMSourceOwners _SourceOwners();
+    static MMSourceServices _SourceServices(void *);
+    static MMSourceDiscovery _DiscoveryServices(void *);
     bool _FGetStnMergedOfSid(LegacyLong sid, PString pstn);
     bool _FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString pstnShort);
     bool _FRetry(LegacyLong sid, const TAG *asset = nullptr);

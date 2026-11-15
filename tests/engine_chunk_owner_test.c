@@ -1,4 +1,4 @@
-#include "three_mm/chunk_owner.h"
+#include "mm/chunk_owner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,9 +18,9 @@ typedef struct Token
 } Token;
 typedef struct Host
 {
-    ThreeMMChunkOwner owner;
+    MMChunkOwner owner;
     Token main, extra, index, replacement;
-    ThreeMMU32 flags;
+    MMU32 flags;
     int fail, reads, validates, publishes, sets;
     char log[128];
     int used;
@@ -33,13 +33,13 @@ static void log_error(char c)
     log_buffer[log_used++] = c;
     log_buffer[log_used] = 0;
 }
-static ThreeMMI32 get_error(void *p)
+static MMI32 get_error(void *p)
 {
     Token *t = (Token *)p;
     log_error(t->name);
     return t->error;
 }
-static void set_error(void *p, ThreeMMI32 level)
+static void set_error(void *p, MMI32 level)
 {
     Token *t = (Token *)p;
     log_error((char)(t->name + ('a' - 'A')));
@@ -74,7 +74,7 @@ static void release_index(void *c, void *p)
     --t->refs;
     event(h, t->name);
 }
-static void publish(void *c, const ThreeMMChunkReopenState *s)
+static void publish(void *c, const MMChunkReopenState *s)
 {
     Host *h = (Host *)c;
     CHECK(s == &h->owner.files);
@@ -88,7 +88,7 @@ static int writable(void *c, void *p)
     event(h, 'W');
     return h->fail == 3;
 }
-static int read_index(void *c, ThreeMMChunkReopenState *s)
+static int read_index(void *c, MMChunkReopenState *s)
 {
     Host *h = (Host *)c;
     CHECK(s == &h->owner.files && s->main_file == &h->main && h->main.refs == 2);
@@ -101,10 +101,10 @@ static int read_index(void *c, ThreeMMChunkReopenState *s)
     h->extra.refs = 1;
     s->main_end = 333;
     s->extra_end = 44;
-    CHECK(three_mm_free_map_create(NULL, 1, &s->main_map) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_free_map_create(NULL, 1, &s->extra_map) == THREE_MM_CHUNK_OK);
+    CHECK(mm_free_map_create(NULL, 1, &s->main_map) == MM_CHUNK_OK);
+    CHECK(mm_free_map_create(NULL, 1, &s->extra_map) == MM_CHUNK_OK);
     if (!h->owner.expanded_runtime)
-        CHECK(three_mm_chunk_runtime_set(&h->owner.runtime, 1, 1, 22) == THREE_MM_CHUNK_OK);
+        CHECK(mm_chunk_runtime_set(&h->owner.runtime, 1, 1, 22) == MM_CHUNK_OK);
     h->owner.map_offset = 888;
     h->owner.map_bytes = 16;
     return h->fail != 1;
@@ -117,11 +117,11 @@ static int validate(void *c)
     event(h, 'V');
     return h->fail != 2;
 }
-static ThreeMMU32 file_flags(void *c)
+static MMU32 file_flags(void *c)
 {
     return ((Host *)c)->flags;
 }
-static int set_flags(void *c, ThreeMMU32 flags, ThreeMMU32 mask)
+static int set_flags(void *c, MMU32 flags, MMU32 mask)
 {
     Host *h = (Host *)c;
     CHECK(!h->owner.marked && !h->owner.add_to_extra && !h->owner.read_from_extra);
@@ -146,25 +146,25 @@ static void init(Host *h, int expanded)
     h->extra.name = 'E';
     h->index.name = 'I';
     h->replacement.name = 'J';
-    CHECK(three_mm_chunk_owner_init(&h->owner, NULL, expanded) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_owner_init(&h->owner, NULL, expanded) == MM_CHUNK_OK);
 }
 static void dispose(Host *h)
 {
-    ThreeMMChunkDisposal s;
+    MMChunkDisposal s;
     s.context = h;
     s.release_file = release_file;
     s.release_index = release_index;
     s.publish = publish;
-    CHECK(three_mm_chunk_owner_dispose(&h->owner, &s) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_owner_dispose(&h->owner, &s) == MM_CHUNK_OK);
     CHECK(!h->main.refs && !h->extra.refs && !h->index.refs && !h->replacement.refs);
     CHECK(!h->owner.files.main_file && !h->owner.files.extra_file && !h->owner.files.index && !h->owner.runtime.count);
-    CHECK(three_mm_chunk_owner_dispose(&h->owner, &s) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_owner_dispose(&h->owner, &s) == MM_CHUNK_OK);
 }
 static void reopen_cases(void)
 {
     Host h;
-    ThreeMMChunkReopenServices s;
-    ThreeMMChunkFreeMap *old_map;
+    MMChunkReopenServices s;
+    MMChunkFreeMap *old_map;
     int expanded, fail, result;
     for (expanded = 0; expanded < 2; ++expanded)
     {
@@ -182,10 +182,10 @@ static void reopen_cases(void)
             h.owner.marked = h.owner.add_to_extra = h.owner.read_from_extra = 1;
             h.owner.map_offset = 111;
             h.owner.map_bytes = 8;
-            CHECK(three_mm_free_map_create(NULL, 1, &h.owner.files.main_map) == THREE_MM_CHUNK_OK);
+            CHECK(mm_free_map_create(NULL, 1, &h.owner.files.main_map) == MM_CHUNK_OK);
             old_map = h.owner.files.main_map;
             if (!expanded)
-                CHECK(three_mm_chunk_runtime_set(&h.owner.runtime, 1, 1, 11) == THREE_MM_CHUNK_OK);
+                CHECK(mm_chunk_runtime_set(&h.owner.runtime, 1, 1, 11) == MM_CHUNK_OK);
             s.context = &h;
             s.writable = writable;
             s.retain_file = retain_file;
@@ -194,8 +194,8 @@ static void reopen_cases(void)
             s.read_index = read_index;
             s.validate = validate;
             s.publish = publish;
-            result = three_mm_chunk_owner_reopen(&h.owner, &s);
-            CHECK(result == (!fail ? THREE_MM_CHUNK_OK : fail >= 3 ? THREE_MM_CHUNK_BAD_FILE : THREE_MM_CHUNK_IO));
+            result = mm_chunk_owner_reopen(&h.owner, &s);
+            CHECK(result == (!fail ? MM_CHUNK_OK : fail >= 3 ? MM_CHUNK_BAD_FILE : MM_CHUNK_IO));
             CHECK(h.owner.marked && h.owner.add_to_extra && h.owner.read_from_extra && h.main.refs == 1);
             if (fail)
             {
@@ -203,14 +203,14 @@ static void reopen_cases(void)
                       h.owner.files.main_end == 200);
                 CHECK(h.owner.files.free_map_unread && !h.replacement.refs && !h.extra.refs);
                 if (!expanded)
-                    CHECK(three_mm_chunk_runtime_get(&h.owner.runtime, 1, 1) == 11);
+                    CHECK(mm_chunk_runtime_get(&h.owner.runtime, 1, 1) == 11);
             }
             else
             {
                 CHECK(h.owner.files.index == &h.replacement && h.owner.files.main_map != old_map && !h.index.refs);
                 CHECK(h.owner.files.main_end == 333 && h.owner.files.extra_end == 44);
                 if (!expanded)
-                    CHECK(three_mm_chunk_runtime_get(&h.owner.runtime, 1, 1) == 22);
+                    CHECK(mm_chunk_runtime_get(&h.owner.runtime, 1, 1) == 22);
             }
             CHECK(h.owner.map_offset == (fail >= 3 ? 111UL : 888UL));
             CHECK(h.owner.map_bytes == (fail >= 3 ? 8UL : 16UL));
@@ -226,10 +226,10 @@ static void reopen_cases(void)
 static void policy_cases(void)
 {
     Host h;
-    ThreeMMChunkOptionServices s;
-    ThreeMMChunkSaveState saved;
-    ThreeMMChunkStoragePolicy storage;
-    ThreeMMChunkFreeMap *map;
+    MMChunkOptionServices s;
+    MMChunkSaveState saved;
+    MMChunkStoragePolicy storage;
+    MMChunkFreeMap *map;
     int fail;
     for (fail = 0; fail < 2; ++fail)
     {
@@ -244,8 +244,8 @@ static void policy_cases(void)
         s.file_flags = file_flags;
         s.set_file_flags = set_flags;
         s.read_map = read_map;
-        CHECK(three_mm_chunk_owner_options(&h.owner, &s, 1 | 4 | 8 | 16, 31) ==
-              (fail ? THREE_MM_CHUNK_IO : THREE_MM_CHUNK_OK));
+        CHECK(mm_chunk_owner_options(&h.owner, &s, 1 | 4 | 8 | 16, 31) ==
+              (fail ? MM_CHUNK_IO : MM_CHUNK_OK));
         CHECK(h.owner.marked == !fail && h.owner.add_to_extra == !fail && h.owner.read_from_extra == !fail);
         CHECK(h.owner.files.free_map_unread == fail && !strcmp(h.log, fail ? "S" : "SL"));
         dispose(&h);
@@ -258,28 +258,28 @@ static void policy_cases(void)
     h.main.refs = 1;
     h.owner.files.index = &h.index;
     h.index.refs = 1;
-    CHECK(three_mm_free_map_create(NULL, 1, &map) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_runtime_set(&h.owner.runtime, 2, 3, 99) == THREE_MM_CHUNK_OK);
-    saved = three_mm_chunk_owner_save_state(&h.owner);
+    CHECK(mm_free_map_create(NULL, 1, &map) == MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_set(&h.owner.runtime, 2, 3, 99) == MM_CHUNK_OK);
+    saved = mm_chunk_owner_save_state(&h.owner);
     CHECK(saved.main_file == &h.main && !saved.extra_file && !saved.main_map && !saved.add_to_extra);
     saved.main_map = map;
     saved.main_end = 400;
     saved.invalid_main = saved.add_to_extra = saved.free_map_unread = 7;
-    three_mm_chunk_owner_publish_save(&h.owner, &saved);
+    mm_chunk_owner_publish_save(&h.owner, &saved);
     CHECK(h.owner.files.main_map == map && h.owner.files.main_end == 400 && h.owner.files.index == &h.index);
     CHECK(h.owner.files.invalid_main == 1 && h.owner.files.free_map_unread == 1 && h.owner.add_to_extra == 1);
     CHECK(h.owner.marked && h.owner.read_from_extra && h.owner.map_offset == 100 && h.owner.map_bytes == 32);
-    CHECK(three_mm_chunk_runtime_get(&h.owner.runtime, 2, 3) == 99);
-    storage = three_mm_chunk_owner_storage_policy(&h.owner, 1234);
+    CHECK(mm_chunk_runtime_get(&h.owner.runtime, 2, 3) == 99);
+    storage = mm_chunk_owner_storage_policy(&h.owner, 1234);
     CHECK(storage.max_bytes == 1234 && storage.add_to_extra && storage.read_from_extra && storage.free_map_unread);
     h.owner.runtime.storage.buffers[0].locks = 1;
     {
-        ThreeMMChunkDisposal d;
+        MMChunkDisposal d;
         d.context = &h;
         d.release_file = release_file;
         d.release_index = release_index;
         d.publish = publish;
-        CHECK(three_mm_chunk_owner_dispose(&h.owner, &d) == THREE_MM_CHUNK_BAD_FILE && !h.publishes &&
+        CHECK(mm_chunk_owner_dispose(&h.owner, &d) == MM_CHUNK_BAD_FILE && !h.publishes &&
               h.main.refs == 1);
     }
     h.owner.runtime.storage.buffers[0].locks = 0;
@@ -288,7 +288,7 @@ static void policy_cases(void)
 static void error_cases(void)
 {
     Host h;
-    ThreeMMChunkErrorServices s;
+    MMChunkErrorServices s;
     int a, b, level;
     s.get = get_error;
     s.set = set_error;
@@ -304,9 +304,9 @@ static void error_cases(void)
                 h.main.error = a;
                 h.extra.error = b;
                 log_used = 0;
-                CHECK(three_mm_chunk_owner_error(&h.owner, &s) == (a > b ? a : b) && !strcmp(log_buffer, "ME"));
+                CHECK(mm_chunk_owner_error(&h.owner, &s) == (a > b ? a : b) && !strcmp(log_buffer, "ME"));
                 log_used = 0;
-                three_mm_chunk_owner_reset_error(&h.owner, &s, level);
+                mm_chunk_owner_reset_error(&h.owner, &s, level);
                 CHECK(h.main.error == (a > level ? level : a) && h.extra.error == (b > level ? level : b));
                 CHECK(!strcmp(log_buffer, a > level ? (b > level ? "MmEe" : "MmE") : b > level ? "MEe" : "ME"));
             }
@@ -314,9 +314,9 @@ static void error_cases(void)
     h.extra.refs = 0;
     h.main.error = 4;
     log_used = 0;
-    CHECK(three_mm_chunk_owner_error(&h.owner, &s) == 4 && !strcmp(log_buffer, "M"));
+    CHECK(mm_chunk_owner_error(&h.owner, &s) == 4 && !strcmp(log_buffer, "M"));
     log_used = 0;
-    three_mm_chunk_owner_reset_error(&h.owner, &s, 3);
+    mm_chunk_owner_reset_error(&h.owner, &s, 3);
     CHECK(h.main.error == 3 && !strcmp(log_buffer, "Mm"));
     dispose(&h);
 }

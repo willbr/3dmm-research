@@ -15,11 +15,11 @@ PTagList TagList::PtaglNew(void)
 bool TagList::_FInit(void)
 {
     const auto allocator = CollectionAllocator();
-    return three_mm_tag_list_init(&_list, &allocator) == THREE_MM_STORAGE_OK;
+    return mm_tag_list_init(&_list, &allocator) == MM_STORAGE_OK;
 }
 TagList::~TagList(void)
 {
-    AssertDo(three_mm_tag_list_dispose(&_list) == THREE_MM_STORAGE_OK, "invalid tag list disposal");
+    AssertDo(mm_tag_list_dispose(&_list) == MM_STORAGE_OK, "invalid tag list disposal");
 }
 LegacyLong TagList::Ctag(void)
 {
@@ -29,36 +29,36 @@ LegacyLong TagList::Ctag(void)
 void TagList::GetTag(LegacyLong i, PTAG tag)
 {
     AssertThis(0);
-    ThreeMMTagCached value;
-    AssertDo(three_mm_tag_list_get(&_list, i, &value) == THREE_MM_STORAGE_OK, "invalid tag index");
+    MMTagCached value;
+    AssertDo(mm_tag_list_get(&_list, i, &value) == MM_STORAGE_OK, "invalid tag index");
     TagFromCore(tag, value.tag);
 }
 bool TagList::FInsertTag(PTAG tag, bool children)
 {
     AssertThis(0);
     auto value = TagToCore(*tag);
-    return three_mm_tag_list_insert(&_list, &value, children) == THREE_MM_STORAGE_OK;
+    return mm_tag_list_insert(&_list, &value, children) == MM_STORAGE_OK;
 }
 bool TagList::FInsertChild(PTAG tag, ChildChunkID slot, ChunkTagOrType type)
 {
     AssertThis(0);
     auto value = TagToCore(*tag);
-    const int result = three_mm_tag_list_child(&_list, &value, slot, type);
-    if (result == THREE_MM_TAG_PARENT_NOT_FOUND)
+    const int result = mm_tag_list_child(&_list, &value, slot, type);
+    if (result == MM_TAG_PARENT_NOT_FOUND)
         Bug("You should have inserted ptag first");
-    return result == THREE_MM_STORAGE_OK;
+    return result == MM_STORAGE_OK;
 }
 bool TagList::FCacheTags(void)
 {
     AssertThis(0);
-    const ThreeMMTagListServices services = {
+    const MMTagListServices services = {
         nullptr,
-        [](void *, const ThreeMMTag *value, int children) -> int {
+        [](void *, const MMTag *value, int children) -> int {
             TAG tag;
             TagFromCore(&tag, *value);
             return vptagm->FCacheTagToHD(&tag, children != 0);
         },
-        [](void *, const ThreeMMTag *value, ThreeMMU32 slot, ThreeMMU32 type, ThreeMMTag *out) -> int {
+        [](void *, const MMTag *value, MMU32 slot, MMU32 type, MMTag *out) -> int {
             TAG parent, child;
             TagFromCore(&parent, *value);
             if (!vptagm->FBuildChildTag(&parent, slot, type, &child))
@@ -66,7 +66,7 @@ bool TagList::FCacheTags(void)
             *out = TagToCore(child);
             return 1;
         }};
-    return three_mm_tag_list_cache(&_list, &services) != 0;
+    return mm_tag_list_cache(&_list, &services) != 0;
 }
 #ifdef DEBUG
 void TagList::AssertValid(LegacyUlong flags)

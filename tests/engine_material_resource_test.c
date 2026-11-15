@@ -1,4 +1,4 @@
-#include "three_mm/material_resource.h"
+#include "mm/material_resource.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,25 +9,25 @@ typedef struct Ref
 } Ref;
 typedef struct Handle
 {
-    ThreeMMMaterialDescription d;
+    MMMaterialDescription d;
     Ref *texture;
     void *raw;
-    ThreeMMI32 matrix[6];
+    MMI32 matrix[6];
 } Handle;
 typedef struct Object
 {
     Ref ref;
-    ThreeMMMaterialResource material;
-    ThreeMMCustomMaterial custom;
+    MMMaterialResource material;
+    MMCustomMaterial custom;
 } Object;
 typedef struct Test
 {
-    ThreeMMMaterialServices s;
-    ThreeMMMaterialShade shade;
+    MMMaterialServices s;
+    MMMaterialShade shade;
     int step, fail, objects, handles, arrays, raw, closed, diagnostic, order[128], ordered;
     int texture_child, transform_child, custom, transform, adds, deletes[4], deleted;
     unsigned char header[20], transform_header[28], custom_header[8], written[20];
-    ThreeMMI32 header_size, transform_size, custom_size;
+    MMI32 header_size, transform_size, custom_size;
     Ref texture, material, model, shading;
 } Test;
 static Test *test(void *p)
@@ -71,19 +71,19 @@ static void release(void *p, void *v)
     if (r->kind >= 100)
         return;
     event(t, 20 + r->kind);
-    if (r->kind == THREE_MM_MATERIAL)
-        three_mm_material_dispose(&((Object *)v)->material, &t->s);
+    if (r->kind == MM_MATERIAL)
+        mm_material_dispose(&((Object *)v)->material, &t->s);
     else
-        three_mm_custom_material_dispose(&((Object *)v)->custom, &t->s);
+        mm_custom_material_dispose(&((Object *)v)->custom, &t->s);
     --t->objects;
     free(v);
 }
-static ThreeMMMaterialResource *material_state(void *p, void *o)
+static MMMaterialResource *material_state(void *p, void *o)
 {
     (void)p;
     return &((Object *)o)->material;
 }
-static ThreeMMCustomMaterial *custom_state(void *p, void *o)
+static MMCustomMaterial *custom_state(void *p, void *o)
 {
     (void)p;
     return &((Object *)o)->custom;
@@ -102,7 +102,7 @@ static void *file(void *p, void *cache)
     (void)cache;
     return p;
 }
-static void *find(void *p, void *f, ThreeMMU32 type, ThreeMMU32 number)
+static void *find(void *p, void *f, MMU32 type, MMU32 number)
 {
     Test *t = test(p);
     (void)f;
@@ -117,13 +117,13 @@ static int unpack(void *p, void *b)
     (void)b;
     return !fail(test(p));
 }
-static ThreeMMI32 size(void *p, void *b)
+static MMI32 size(void *p, void *b)
 {
     Test *t = test(p);
     (void)b;
     return t->transform ? t->transform_size : t->custom ? t->custom_size : t->header_size;
 }
-static int read(void *p, void *b, void *out, ThreeMMI32 n)
+static int read(void *p, void *b, void *out, MMI32 n)
 {
     Test *t = test(p);
     (void)b;
@@ -136,8 +136,8 @@ static void close_block(void *p)
 {
     ++test(p)->closed;
 }
-static int child(void *p, void *f, ThreeMMU32 type, ThreeMMU32 n, ThreeMMU32 id, ThreeMMU32 wanted,
-                 ThreeMMMaterialChild *out)
+static int child(void *p, void *f, MMU32 type, MMU32 n, MMU32 id, MMU32 wanted,
+                 MMMaterialChild *out)
 {
     Test *t = test(p);
     int found;
@@ -154,7 +154,7 @@ static int child(void *p, void *f, ThreeMMU32 type, ThreeMMU32 n, ThreeMMU32 id,
     }
     return found;
 }
-static int child_at(void *p, void *f, ThreeMMU32 type, ThreeMMU32 n, ThreeMMI32 i, ThreeMMMaterialChild *out)
+static int child_at(void *p, void *f, MMU32 type, MMU32 n, MMI32 i, MMMaterialChild *out)
 {
     (void)p;
     (void)f;
@@ -164,10 +164,10 @@ static int child_at(void *p, void *f, ThreeMMU32 type, ThreeMMU32 n, ThreeMMI32 
         return 0;
     out->type = i == 0 ? 3 : i == 1 ? 4 : 99;
     out->number = 7;
-    out->id = (ThreeMMU32)i * 2;
+    out->id = (MMU32)i * 2;
     return 1;
 }
-static void *fetch(void *p, void *c, const ThreeMMMaterialChild *child_, int kind)
+static void *fetch(void *p, void *c, const MMMaterialChild *child_, int kind)
 {
     Test *t = test(p);
     Ref *r;
@@ -175,11 +175,11 @@ static void *fetch(void *p, void *c, const ThreeMMMaterialChild *child_, int kin
     (void)child_;
     if (fail(t))
         return NULL;
-    r = kind == THREE_MM_MATERIAL_TEXTURE ? &t->texture : kind == THREE_MM_MATERIAL_MODEL ? &t->model : &t->material;
+    r = kind == MM_MATERIAL_TEXTURE ? &t->texture : kind == MM_MATERIAL_MODEL ? &t->model : &t->material;
     ++r->refs;
     return r;
 }
-static int allocate(void *p, ThreeMMI32 n, void **out)
+static int allocate(void *p, MMI32 n, void **out)
 {
     Test *t = test(p);
     if (fail(t))
@@ -216,12 +216,12 @@ static void identify(void *p, void *h, void *o)
     (void)h;
     (void)o;
 }
-static void describe(void *p, void *h, ThreeMMMaterialDescription *d)
+static void describe(void *p, void *h, MMMaterialDescription *d)
 {
     (void)p;
     *d = ((Handle *)h)->d;
 }
-static void configure(void *p, void *h, const ThreeMMMaterialDescription *d)
+static void configure(void *p, void *h, const MMMaterialDescription *d)
 {
     (void)p;
     ((Handle *)h)->d = *d;
@@ -253,17 +253,17 @@ static void map(void *p, void *h, void *t, void *raw, void *shade)
     ((Handle *)h)->texture = (Ref *)t;
     ((Handle *)h)->raw = raw;
 }
-static ThreeMMI32 height(void *p, void *t)
+static MMI32 height(void *p, void *t)
 {
     assert(t == &test(p)->shading);
     return 8;
 }
-static void transform(void *p, void *h, const ThreeMMI32 m[6])
+static void transform(void *p, void *h, const MMI32 m[6])
 {
     (void)p;
     memcpy(((Handle *)h)->matrix, m, 6 * sizeof(*m));
 }
-static int add_chunk(void *p, void *f, ThreeMMU32 type, const void *data, ThreeMMI32 bytes, ThreeMMU32 *number)
+static int add_chunk(void *p, void *f, MMU32 type, const void *data, MMI32 bytes, MMU32 *number)
 {
     Test *t = test(p);
     (void)f;
@@ -275,7 +275,7 @@ static int add_chunk(void *p, void *f, ThreeMMU32 type, const void *data, ThreeM
     *number = 10;
     return 1;
 }
-static int write_texture(void *p, void *o, void *f, ThreeMMU32 type, ThreeMMU32 *number)
+static int write_texture(void *p, void *o, void *f, MMU32 type, MMU32 *number)
 {
     (void)o;
     (void)f;
@@ -283,14 +283,14 @@ static int write_texture(void *p, void *o, void *f, ThreeMMU32 type, ThreeMMU32 
     *number = 11;
     return !fail(test(p));
 }
-static int adopt(void *p, void *f, ThreeMMU32 type, ThreeMMU32 n, const ThreeMMMaterialChild *c)
+static int adopt(void *p, void *f, MMU32 type, MMU32 n, const MMMaterialChild *c)
 {
     (void)f;
     (void)type;
     assert(n == 10 && c->id == 0 && c->number == 11);
     return !fail(test(p));
 }
-static void delete_chunk(void *p, void *f, ThreeMMU32 type, ThreeMMU32 n)
+static void delete_chunk(void *p, void *f, MMU32 type, MMU32 n)
 {
     Test *t = test(p);
     (void)f;
@@ -298,7 +298,7 @@ static void delete_chunk(void *p, void *f, ThreeMMU32 type, ThreeMMU32 n)
     assert(t->deleted < 4);
     t->deletes[t->deleted++] = (int)n;
 }
-static void *read_texture(void *p, void *f, ThreeMMU32 type, ThreeMMU32 number)
+static void *read_texture(void *p, void *f, MMU32 type, MMU32 number)
 {
     Test *t = test(p);
     (void)f;
@@ -341,7 +341,7 @@ static void free_pixelmap(void *p, void *raw)
     --test(p)->raw;
     free(raw);
 }
-static void *input_material(void *p, const void *input, ThreeMMI32 i)
+static void *input_material(void *p, const void *input, MMI32 i)
 {
     (void)p;
     return ((void *const *)input)[i];
@@ -353,7 +353,7 @@ static void *material_handle(void *p, void *o)
 }
 static void setup(Test *t)
 {
-    ThreeMMMaterialDescription d;
+    MMMaterialDescription d;
     memset(t, 0, sizeof(*t));
     memset(&d, 0, sizeof(d));
     t->texture.kind = t->material.kind = t->model.kind = t->shading.kind = 100;
@@ -416,7 +416,7 @@ static void setup(Test *t)
     d.power = -1234567;
     d.index_base = 13;
     d.index_range = 19;
-    three_mm_material_header_write(t->header, 0, 0x0303, &d);
+    mm_material_header_write(t->header, 0, 0x0303, &d);
     t->header_size = 20;
     t->transform_size = 28;
     t->custom_size = 8;
@@ -435,27 +435,27 @@ static void balanced(Test *t)
 static void codecs(void)
 {
     Test t;
-    ThreeMMMaterialDescription d, e;
+    MMMaterialDescription d, e;
     unsigned char b[20];
     int big;
     setup(&t);
     for (big = 0; big < 2; ++big)
     {
-        assert(three_mm_material_header_read(t.header, 0, 0x0303, &d));
-        three_mm_material_header_write(b, big, 0x0303, &d);
-        assert(three_mm_material_header_read(b, 0, 0x0303, &e));
+        assert(mm_material_header_read(t.header, 0, 0x0303, &d));
+        mm_material_header_write(b, big, 0x0303, &d);
+        assert(mm_material_header_read(b, 0, 0x0303, &e));
         assert(e.power == -1234567 && e.diffuse == 200 && e.colour == 0x123456);
         b[0] = b[1] = 0;
-        assert(three_mm_material_header_read(b, big, 0x0303, &e));
+        assert(mm_material_header_read(b, big, 0x0303, &e));
         b[2] = b[3] = 0;
-        assert(!three_mm_material_header_read(b, big, 0x0303, &e));
+        assert(!mm_material_header_read(b, big, 0x0303, &e));
     }
 }
 static void loads(void)
 {
     Test t;
     Object *o;
-    ThreeMMI32 bytes;
+    MMI32 bytes;
     int n, ok;
     for (n = 0; n < 14; ++n)
     {
@@ -463,7 +463,7 @@ static void loads(void)
         t.texture_child = t.transform_child = 1;
         t.fail = n;
         o = NULL;
-        ok = three_mm_material_fetch(&t, 3, 1, &o, &bytes, &t.shade, &t.s);
+        ok = mm_material_fetch(&t, 3, 1, &o, &bytes, &t.shade, &t.s);
         if (ok)
         {
             Handle *h = (Handle *)o->material.handle;
@@ -480,14 +480,14 @@ static void loads(void)
         t.custom = 1;
         t.fail = n;
         o = NULL;
-        ok = three_mm_custom_material_fetch(&t, 5, 1, &o, &bytes, &t.s);
+        ok = mm_custom_material_fetch(&t, 5, 1, &o, &bytes, &t.s);
         if (ok)
         {
             assert(o->custom.count == 5 && o->custom.set == 3 && bytes == 56 + 10 * (int)sizeof(void *));
             assert(o->custom.materials[0] == &t.material && !o->custom.materials[1] && o->custom.models[2] == &t.model);
-            assert(three_mm_custom_material_has_models(&o->custom));
-            assert(three_mm_custom_material_model(&o->custom, 2) == &t.model);
-            assert(three_mm_custom_material_handle(&o->custom, 0, &t.s) == &t.material);
+            assert(mm_custom_material_has_models(&o->custom));
+            assert(mm_custom_material_model(&o->custom, 2) == &t.model);
+            assert(mm_custom_material_handle(&o->custom, 0, &t.s) == &t.material);
             release(&t, o);
         }
         else if (t.ordered >= 3)
@@ -495,23 +495,23 @@ static void loads(void)
         balanced(&t);
     }
     setup(&t);
-    o = (Object *)create(&t, THREE_MM_MATERIAL);
+    o = (Object *)create(&t, MM_MATERIAL);
     t.header_size = 19;
-    assert(!three_mm_material_read(o, &t, 3, 1, &t.shade, &t.s) && !o->material.handle);
+    assert(!mm_material_read(o, &t, 3, 1, &t.shade, &t.s) && !o->material.handle);
     release(&t, o);
     balanced(&t);
     setup(&t);
-    o = (Object *)create(&t, THREE_MM_MATERIAL);
+    o = (Object *)create(&t, MM_MATERIAL);
     t.texture_child = t.transform_child = 1;
     t.transform_size = 27;
-    assert(!three_mm_material_read(o, &t, 3, 1, &t.shade, &t.s) && !o->material.handle && !t.texture.refs);
+    assert(!mm_material_read(o, &t, 3, 1, &t.shade, &t.s) && !o->material.handle && !t.texture.refs);
     release(&t, o);
     balanced(&t);
     setup(&t);
-    o = (Object *)create(&t, THREE_MM_CUSTOM_MATERIAL);
+    o = (Object *)create(&t, MM_CUSTOM_MATERIAL);
     t.custom = 1;
     t.custom_size = 9;
-    assert(!three_mm_custom_material_read(o, &t, 5, 1, &t.s) && t.diagnostic == THREE_MM_MATERIAL_BAD_CUSTOM_SIZE + 1);
+    assert(!mm_custom_material_read(o, &t, 5, 1, &t.s) && t.diagnostic == MM_MATERIAL_BAD_CUSTOM_SIZE + 1);
     release(&t, o);
     balanced(&t);
 }
@@ -521,13 +521,13 @@ static void construction_and_writes(void)
     Object *o;
     void *input[2];
     int n;
-    ThreeMMU32 number;
+    MMU32 number;
     for (n = 0; n < 5; ++n)
     {
         setup(&t);
         input[0] = input[1] = &t.material;
         t.fail = n;
-        o = (Object *)three_mm_custom_material_new(-3, 2, input, &t.s);
+        o = (Object *)mm_custom_material_new(-3, 2, input, &t.s);
         if (o)
         {
             assert(o->custom.set == -3 && t.material.refs == 2);
@@ -536,12 +536,12 @@ static void construction_and_writes(void)
         balanced(&t);
     }
     setup(&t);
-    assert(!three_mm_custom_material_new(0, 2147483647, NULL, &t.s));
+    assert(!mm_custom_material_new(0, 2147483647, NULL, &t.s));
     balanced(&t);
     for (n = 0; n < 4; ++n)
     {
         setup(&t);
-        o = (Object *)three_mm_material_new(-1, -1, &t.s);
+        o = (Object *)mm_material_new(-1, -1, &t.s);
         assert(o);
         assert(((Handle *)o->material.handle)->d.ambient == 6553 && ((Handle *)o->material.handle)->d.index_base == 15);
         ++t.texture.refs;
@@ -549,7 +549,7 @@ static void construction_and_writes(void)
         t.step = 0;
         t.fail = n;
         number = 99;
-        if (three_mm_material_write(&o->material, &t, 3, &number, &t.s))
+        if (mm_material_write(&o->material, &t, 3, &number, &t.s))
             assert(number == 10 && t.deleted == 0);
         else if (n == 2)
             assert(t.deleted == 1 && t.deletes[0] == 10);
@@ -570,7 +570,7 @@ static void imports(void)
         {
             setup(&t);
             t.fail = n;
-            o = (Object *)three_mm_material_import(&t, NULL, bitmap, &t.shade, &t.s);
+            o = (Object *)mm_material_import(&t, NULL, bitmap, &t.shade, &t.s);
             if (o)
             {
                 raw = ((Handle *)o->material.handle)->raw;
@@ -582,10 +582,10 @@ static void imports(void)
         }
     setup(&t);
     t.fail = 1;
-    assert(!three_mm_material_shade_set(&t.shade, &t, 1, 1, &t.s) && t.shading.refs == 1);
+    assert(!mm_material_shade_set(&t.shade, &t, 1, 1, &t.s) && t.shading.refs == 1);
     t.fail = 0;
-    assert(three_mm_material_shade_set(&t.shade, &t, 1, 1, &t.s) && t.shading.refs == 1);
-    three_mm_material_shade_dispose(&t.shade, &t.s);
+    assert(mm_material_shade_set(&t.shade, &t, 1, 1, &t.s) && t.shading.refs == 1);
+    mm_material_shade_dispose(&t.shade, &t.s);
     assert(!t.shade.texture && !t.shading.refs);
 }
 int main(void)

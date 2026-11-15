@@ -1,21 +1,21 @@
 /* World rendering control converted from bren/bwld.cpp. */
-#include "three_mm/world_render.h"
+#include "mm/world_render.h"
 #include <string.h>
 #define MAXIMUM 2147483647
 #define MINIMUM (-2147483647 - 1)
-#define WORK THREE_MM_WORLD_DIRTY_WORKING
-#define SCREEN THREE_MM_WORLD_DIRTY_SCREEN
+#define WORK MM_WORLD_DIRTY_WORKING
+#define SCREEN MM_WORLD_DIRTY_SCREEN
 typedef struct MaterialContext
 {
-    ThreeMMWorldMaterials *scope;
-    const ThreeMMWorldMaterialServices *services;
+    MMWorldMaterials *scope;
+    const MMWorldMaterialServices *services;
 } MaterialContext;
 static int apply_material(void *argument, void *object)
 {
     MaterialContext *c = (MaterialContext *)argument;
-    ThreeMMWorldMaterials *m = c->scope;
-    const ThreeMMWorldMaterialServices *s = c->services;
-    ThreeMMWorldMaterial entry;
+    MMWorldMaterials *m = c->scope;
+    const MMWorldMaterialServices *s = c->services;
+    MMWorldMaterial entry;
     int remove_texture, flatten;
     s->read(s->context, object, &entry);
     entry.object = object;
@@ -42,7 +42,7 @@ static int apply_material(void *argument, void *object)
     }
     return 0;
 }
-void three_mm_world_materials_end(ThreeMMWorldMaterials *m, const ThreeMMWorldMaterialServices *s)
+void mm_world_materials_end(MMWorldMaterials *m, const MMWorldMaterialServices *s)
 {
     size_t i;
     for (i = 0; i < m->count; ++i)
@@ -52,8 +52,8 @@ void three_mm_world_materials_end(ThreeMMWorldMaterials *m, const ThreeMMWorldMa
     m->saved = NULL;
     m->count = m->capacity = 0;
 }
-int three_mm_world_materials_begin(ThreeMMWorldMaterials *m, int flat, int no_texture,
-                                   const ThreeMMWorldMaterialServices *s)
+int mm_world_materials_begin(MMWorldMaterials *m, int flat, int no_texture,
+                                   const MMWorldMaterialServices *s)
 {
     MaterialContext c;
     memset(m, 0, sizeof(*m));
@@ -66,7 +66,7 @@ int three_mm_world_materials_begin(ThreeMMWorldMaterials *m, int flat, int no_te
         return 0;
     if (m->capacity)
     {
-        m->saved = (ThreeMMWorldMaterial *)s->allocate(s->context, m->capacity * sizeof(*m->saved));
+        m->saved = (MMWorldMaterial *)s->allocate(s->context, m->capacity * sizeof(*m->saved));
         if (!m->saved)
             return 0;
     }
@@ -75,18 +75,18 @@ int three_mm_world_materials_begin(ThreeMMWorldMaterials *m, int flat, int no_te
     s->enumerate(s->context, apply_material, &c);
     if (!m->failed)
         return 1;
-    three_mm_world_materials_end(m, s);
+    mm_world_materials_end(m, s);
     return 0;
 }
-void three_mm_world_render_init(ThreeMMWorldRender *r)
+void mm_world_render_init(MMWorldRender *r)
 {
     r->changed = 0;
 }
-void three_mm_world_render_dirty(ThreeMMWorldRender *r)
+void mm_world_render_dirty(MMWorldRender *r)
 {
     r->changed = 1;
 }
-void three_mm_world_render_styles(void *root, int style, const ThreeMMWorldRenderServices *s)
+void mm_world_render_styles(void *root, int style, const MMWorldRenderServices *s)
 {
     void *actor;
     int old;
@@ -96,19 +96,19 @@ void three_mm_world_render_styles(void *root, int style, const ThreeMMWorldRende
         if (s->type(s->context, actor) == s->actor_model && old != s->bounding_points && old != s->bounding_edges &&
             old != s->bounding_faces)
             s->set_style(s->context, actor, style);
-        three_mm_world_render_styles(actor, style, s);
+        mm_world_render_styles(actor, style, s);
     }
 }
-static int valid_pixels(const ThreeMMWorldPixels *p, const ThreeMMWorldBuffers *b)
+static int valid_pixels(const MMWorldPixels *p, const MMWorldBuffers *b)
 {
     return p->pixels && p->row >= b->buffer_width && p->row > 0 && b->buffer_height > 0 &&
            (size_t)b->buffer_height <= (size_t)-1 / (size_t)p->row &&
            p->bytes >= (size_t)p->row * (size_t)b->buffer_height;
 }
-int three_mm_world_render_clean(const ThreeMMWorldBuffers *b, const ThreeMMWorldRenderServices *s)
+int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldRenderServices *s)
 {
-    ThreeMMI32 rect[4], y, left, right;
-    ThreeMMWorldPixels source, destination;
+    MMI32 rect[4], y, left, right;
+    MMWorldPixels source, destination;
     int ok = 1;
     if (!s->region_bounds(s->context, WORK, rect))
         return 1;
@@ -124,14 +124,14 @@ int three_mm_world_render_clean(const ThreeMMWorldBuffers *b, const ThreeMMWorld
         return 1;
     s->depth_clean(s->context, rect);
     s->scan_init(s->context, rect);
-    if (!s->lock(s->context, THREE_MM_WORLD_RGB_BACKGROUND, &source))
+    if (!s->lock(s->context, MM_WORLD_RGB_BACKGROUND, &source))
     {
         s->scan_end(s->context);
         return 0;
     }
-    if (!s->lock(s->context, THREE_MM_WORLD_RGB_WORKING, &destination))
+    if (!s->lock(s->context, MM_WORLD_RGB_WORKING, &destination))
     {
-        s->unlock(s->context, THREE_MM_WORLD_RGB_BACKGROUND);
+        s->unlock(s->context, MM_WORLD_RGB_BACKGROUND);
         s->scan_end(s->context);
         return 0;
     }
@@ -152,35 +152,35 @@ int three_mm_world_render_clean(const ThreeMMWorldBuffers *b, const ThreeMMWorld
         if (ok)
             s->scan_next(s->context);
     }
-    s->unlock(s->context, THREE_MM_WORLD_RGB_WORKING);
-    s->unlock(s->context, THREE_MM_WORLD_RGB_BACKGROUND);
+    s->unlock(s->context, MM_WORLD_RGB_WORKING);
+    s->unlock(s->context, MM_WORLD_RGB_BACKGROUND);
     s->scan_end(s->context);
     return ok;
 }
-int three_mm_world_render(ThreeMMWorldRender *r, const ThreeMMWorldBuffers *b, const ThreeMMWorldRenderServices *s)
+int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRenderServices *s)
 {
     void *actor;
-    ThreeMMI32 rect[4];
-    ThreeMMWorldMaterials materials;
+    MMI32 rect[4];
+    MMWorldMaterials materials;
     int wire, flat, no_texture, i;
     if (!r->changed)
         return 1;
-    if (s->has(s->context, THREE_MM_WORLD_BEGIN))
+    if (s->has(s->context, MM_WORLD_BEGIN))
         for (actor = s->child(s->context, s->root); actor; actor = s->next(s->context, actor))
             if (s->type(s->context, actor) == s->actor_none)
                 s->begin(s->context, actor);
-    if (!three_mm_world_render_clean(b, s))
+    if (!mm_world_render_clean(b, s))
         return 0;
     s->region_union(s->context, SCREEN, WORK);
     s->region_clear(s->context, WORK);
     s->options(s->context, &wire, &flat, &no_texture);
-    three_mm_world_render_styles(s->root, wire ? s->edges : s->faces, s);
-    if (!three_mm_world_materials_begin(&materials, flat, no_texture, &s->materials))
+    mm_world_render_styles(s->root, wire ? s->edges : s->faces, s);
+    if (!mm_world_materials_begin(&materials, flat, no_texture, &s->materials))
         return 0;
     s->render(s->context);
-    three_mm_world_materials_end(&materials, &s->materials);
+    mm_world_materials_end(&materials, &s->materials);
     for (actor = s->child(s->context, s->root); actor; actor = s->next(s->context, actor))
-        if (s->type(s->context, actor) == s->actor_none && s->has(s->context, THREE_MM_WORLD_RECT))
+        if (s->type(s->context, actor) == s->actor_none && s->has(s->context, MM_WORLD_RECT))
         {
             s->rect(s->context, actor, rect);
             if (b->scale > 1)
@@ -197,9 +197,9 @@ int three_mm_world_render(ThreeMMWorldRender *r, const ThreeMMWorldBuffers *b, c
     s->publish(s->context, r);
     return 1;
 }
-int three_mm_world_prerender(ThreeMMWorldRender *r, const ThreeMMWorldBuffers *b, const ThreeMMWorldRenderServices *s)
+int mm_world_prerender(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRenderServices *s)
 {
-    if (!three_mm_world_render(r, b, s))
+    if (!mm_world_render(r, b, s))
         return 0;
     s->snapshot_depth(s->context);
     s->detach_depth(s->context);
@@ -207,12 +207,12 @@ int three_mm_world_prerender(ThreeMMWorldRender *r, const ThreeMMWorldBuffers *b
     s->flush(s->context);
     return 1;
 }
-void three_mm_world_unprerender(const ThreeMMWorldRenderServices *s)
+void mm_world_unprerender(const MMWorldRenderServices *s)
 {
     s->restore_background(s->context);
 }
-void three_mm_world_render_mark(const ThreeMMWorldBuffers *b, ThreeMMI32 x, ThreeMMI32 y,
-                                const ThreeMMWorldRenderServices *s)
+void mm_world_render_mark(const MMWorldBuffers *b, MMI32 x, MMI32 y,
+                                const MMWorldRenderServices *s)
 {
     if (b->scale > 1)
         s->screen_scale(s->context, 1, b->scale, 1, b->scale);
@@ -222,10 +222,10 @@ void three_mm_world_render_mark(const ThreeMMWorldBuffers *b, ThreeMMI32 x, Thre
     s->screen_mark(s->context);
     s->region_clear(s->context, SCREEN);
 }
-int three_mm_world_render_draw(const ThreeMMWorldBuffers *b, ThreeMMI32 x, ThreeMMI32 y,
-                               const ThreeMMWorldRenderServices *s)
+int mm_world_render_draw(const MMWorldBuffers *b, MMI32 x, MMI32 y,
+                               const MMWorldRenderServices *s)
 {
-    ThreeMMI32 source[4], destination[4];
+    MMI32 source[4], destination[4];
     if (x == MINIMUM || y == MINIMUM || (x < 0 && b->width > MAXIMUM + x) || (y < 0 && b->height > MAXIMUM + y))
         return 0;
     source[0] = source[1] = 0;

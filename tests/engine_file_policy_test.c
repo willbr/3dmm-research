@@ -1,5 +1,5 @@
-#include "three_mm/file_text.h"
-#include "three_mm/piece_table.h"
+#include "mm/file_text.h"
+#include "mm/piece_table.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,19 +16,19 @@ typedef struct Host
 {
     int files, handles, buffers, locks, fail_speed, fail_normal, fail_temp, fail_read, fail_write, skip, mismatch;
     unsigned reads, writes, temps, queries, conversions, speed, normal, max_read;
-    ThreeMMPieceTable *pinned;
-    ThreeMMOwnedBlock *target;
+    MMPieceTable *pinned;
+    MMOwnedBlock *target;
     int wide;
 } Host;
 typedef struct File
 {
     unsigned refs;
-    ThreeMMU32 size;
+    MMU32 size;
     unsigned char bytes[16384];
 } File;
 typedef struct Handle
 {
-    ThreeMMU32 size;
+    MMU32 size;
     unsigned locks;
     unsigned char bytes[1];
 } Handle;
@@ -37,11 +37,11 @@ static void pinned(Host *h)
     if (h->pinned)
         CHECK(h->pinned->storage.buffers[0].locks == 1 && h->pinned->storage.buffers[1].locks == 1);
 }
-static void *buffer_resize(void *context, void *old, ThreeMMU32 old_size, ThreeMMU32 n, int priority)
+static void *buffer_resize(void *context, void *old, MMU32 old_size, MMU32 n, int priority)
 {
     Host *h = (Host *)context;
     void *p;
-    if (priority == THREE_MM_STORAGE_SPEED)
+    if (priority == MM_STORAGE_SPEED)
     {
         ++h->speed;
         if (h->fail_speed)
@@ -49,7 +49,7 @@ static void *buffer_resize(void *context, void *old, ThreeMMU32 old_size, ThreeM
     }
     else
     {
-        CHECK(priority == THREE_MM_STORAGE_NORMAL);
+        CHECK(priority == MM_STORAGE_NORMAL);
         ++h->normal;
         if (h->fail_normal)
             return NULL;
@@ -65,7 +65,7 @@ static void *buffer_resize(void *context, void *old, ThreeMMU32 old_size, ThreeM
         ++h->buffers;
     return p;
 }
-static void buffer_release(void *context, void *p, ThreeMMU32 n)
+static void buffer_release(void *context, void *p, MMU32 n)
 {
     Host *h = (Host *)context;
     (void)n;
@@ -103,7 +103,7 @@ static void release(void *context, void *file)
         free(f);
     }
 }
-static int read_file(void *context, void *file, ThreeMMU32 offset, void *output, size_t n)
+static int read_file(void *context, void *file, MMU32 offset, void *output, size_t n)
 {
     Host *h = (Host *)context;
     File *f = (File *)file;
@@ -113,11 +113,11 @@ static int read_file(void *context, void *file, ThreeMMU32 offset, void *output,
         h->max_read = (unsigned)n;
     if (h->fail_read && h->reads == (unsigned)h->fail_read)
         return 0;
-    CHECK(three_mm_range_contains(f->size, offset, (ThreeMMU32)n));
+    CHECK(mm_range_contains(f->size, offset, (MMU32)n));
     memcpy(output, f->bytes + offset, n);
     return 1;
 }
-static int write_file(void *context, void *file, ThreeMMU32 offset, const void *input, size_t n)
+static int write_file(void *context, void *file, MMU32 offset, const void *input, size_t n)
 {
     Host *h = (Host *)context;
     File *f = (File *)file;
@@ -127,14 +127,14 @@ static int write_file(void *context, void *file, ThreeMMU32 offset, const void *
         return 0;
     if (h->target)
         CHECK(offset >= h->target->view.start &&
-              three_mm_range_contains(h->target->view.length, offset - h->target->view.start, (ThreeMMU32)n));
-    CHECK(three_mm_range_contains(sizeof(f->bytes), offset, (ThreeMMU32)n));
+              mm_range_contains(h->target->view.length, offset - h->target->view.start, (MMU32)n));
+    CHECK(mm_range_contains(sizeof(f->bytes), offset, (MMU32)n));
     memcpy(f->bytes + offset, input, n);
     if (offset + n > f->size)
-        f->size = offset + (ThreeMMU32)n;
+        f->size = offset + (MMU32)n;
     return 1;
 }
-static int handle_allocate(void *context, ThreeMMU32 n, void **out)
+static int handle_allocate(void *context, MMU32 n, void **out)
 {
     Host *h = (Host *)context;
     Handle *p = (Handle *)malloc(sizeof(*p) + n);
@@ -152,7 +152,7 @@ static void handle_release(void *context, void *p)
     --h->handles;
     free(p);
 }
-static ThreeMMU32 handle_size(void *context, void *p)
+static MMU32 handle_size(void *context, void *p)
 {
     (void)context;
     return ((Handle *)p)->size;
@@ -172,7 +172,7 @@ static void handle_unlock(void *context, void *p)
     --h->locks;
     --((Handle *)p)->locks;
 }
-static int handle_resize(void *context, void **p, ThreeMMU32 n)
+static int handle_resize(void *context, void **p, MMU32 n)
 {
     (void)context;
     (void)p;
@@ -180,7 +180,7 @@ static int handle_resize(void *context, void **p, ThreeMMU32 n)
     CHECK(0);
     return 0;
 }
-static void services(Host *h, ThreeMMBlockFileServices *f, ThreeMMHandleServices *m, ThreeMMStorageAllocator *a)
+static void services(Host *h, MMBlockFileServices *f, MMHandleServices *m, MMStorageAllocator *a)
 {
     f->context = h;
     f->retain = retain;
@@ -199,7 +199,7 @@ static void services(Host *h, ThreeMMBlockFileServices *f, ThreeMMHandleServices
     a->resize = buffer_resize;
     a->release = buffer_release;
 }
-static ThreeMMI32 convert(void *context, const void *input, ThreeMMU32 n, int source, void *output, ThreeMMU32 capacity)
+static MMI32 convert(void *context, const void *input, MMU32 n, int source, void *output, MMU32 capacity)
 {
     Host *h = (Host *)context;
     size_t result;
@@ -211,34 +211,34 @@ static ThreeMMI32 convert(void *context, const void *input, ThreeMMU32 n, int so
     }
     else
         ++h->conversions;
-    result = h->wide ? three_mm_text_utf16(NULL, input, n, source, (unsigned short *)output, capacity)
-                     : three_mm_text_ansi(NULL, input, n, source, (char *)output, capacity);
-    return (ThreeMMI32)result - (output && h->mismatch ? 1 : 0);
+    result = h->wide ? mm_text_utf16(NULL, input, n, source, (unsigned short *)output, capacity)
+                     : mm_text_ansi(NULL, input, n, source, (char *)output, capacity);
+    return (MMI32)result - (output && h->mismatch ? 1 : 0);
 }
-static ThreeMMFileTextConverter converter(Host *h)
+static MMFileTextConverter converter(Host *h)
 {
-    ThreeMMFileTextConverter c;
+    MMFileTextConverter c;
     memset(&c, 0, sizeof(c));
     c.context = h;
-    c.current_encoding = THREE_MM_TEXT_WINDOWS;
-    c.default_byte_encoding = THREE_MM_TEXT_WINDOWS;
-    c.native_unicode_encoding = THREE_MM_TEXT_UTF16_LE;
+    c.current_encoding = MM_TEXT_WINDOWS;
+    c.default_byte_encoding = MM_TEXT_WINDOWS;
+    c.native_unicode_encoding = MM_TEXT_UTF16_LE;
     c.output_unit = 1;
     c.convert = convert;
     return c;
 }
-static ThreeMMU32 hash = 2166136261UL;
+static MMU32 hash = 2166136261UL;
 static void byte_hash(unsigned char n)
 {
     hash = (hash ^ n) * 16777619UL;
 }
-static void word_hash(ThreeMMU32 n)
+static void word_hash(MMU32 n)
 {
     unsigned i;
     for (i = 0; i < 4; ++i)
         byte_hash((unsigned char)(n >> (8 * i)));
 }
-static File *input_file(Host *h, const unsigned char *bytes, ThreeMMU32 n, ThreeMMBlockFile *region)
+static File *input_file(Host *h, const unsigned char *bytes, MMU32 n, MMBlockFile *region)
 {
     File *f = (File *)temp(h);
     CHECK(f);
@@ -253,18 +253,18 @@ static File *input_file(Host *h, const unsigned char *bytes, ThreeMMU32 n, Three
 }
 static void text_golden(void)
 {
-    static const ThreeMMU32 lengths[] = {0, 1, 2, 127, 256, 257, 768, 1025};
-    static const int requested[] = {0, THREE_MM_TEXT_MAC, THREE_MM_TEXT_WINDOWS, THREE_MM_TEXT_UTF16_BE,
-                                    THREE_MM_TEXT_UTF16_LE};
+    static const MMU32 lengths[] = {0, 1, 2, 127, 256, 257, 768, 1025};
+    static const int requested[] = {0, MM_TEXT_MAC, MM_TEXT_WINDOWS, MM_TEXT_UTF16_BE,
+                                    MM_TEXT_UTF16_LE};
     Host h;
-    ThreeMMBlockFileServices f;
-    ThreeMMHandleServices m;
-    ThreeMMStorageAllocator a;
-    ThreeMMFileTextConverter c;
-    ThreeMMBlockFile region;
+    MMBlockFileServices f;
+    MMHandleServices m;
+    MMStorageAllocator a;
+    MMFileTextConverter c;
+    MMBlockFile region;
     File *original, *output;
     unsigned char bytes[8192], value;
-    ThreeMMU32 n, i;
+    MMU32 n, i;
     unsigned kind, s, r;
     for (kind = 0; kind < 6; ++kind)
         for (s = 0; s < 8; ++s)
@@ -298,12 +298,12 @@ static void text_golden(void)
                 if (kind == 5)
                     bytes[n++] = 0x7f;
                 original = input_file(&h, bytes, n, &region);
-                CHECK(three_mm_file_text_translate(&region, &f, &c, &a, requested[r]) == THREE_MM_DATA_OK);
+                CHECK(mm_file_text_translate(&region, &f, &c, &a, requested[r]) == MM_DATA_OK);
                 output = (File *)region.file;
                 CHECK(!memcmp(original->bytes + 7, bytes, n));
                 word_hash(kind);
                 word_hash(lengths[s]);
-                word_hash((ThreeMMU32)requested[r]);
+                word_hash((MMU32)requested[r]);
                 word_hash(region.offset);
                 word_hash(region.length);
                 word_hash(region.file == original);
@@ -315,23 +315,23 @@ static void text_golden(void)
                 CHECK(!h.files && !h.buffers && !h.handles && !h.locks);
             }
 }
-static int piece_read(void *context, const ThreeMMFilePiece *p, void *output)
+static int piece_read(void *context, const MMFilePiece *p, void *output)
 {
     return read_file(context, p->file, p->offset, output, p->length);
 }
-static int piece_write(void *context, const ThreeMMFilePiece *p, const void *input)
+static int piece_write(void *context, const MMFilePiece *p, const void *input)
 {
     return write_file(context, p->file, p->offset, input, p->length);
 }
-static int piece_copy(void *context, const ThreeMMFilePiece *source, const ThreeMMFilePiece *destination)
+static int piece_copy(void *context, const MMFilePiece *source, const MMFilePiece *destination)
 {
     return write_file(context, destination->file, destination->offset, ((File *)source->file)->bytes + source->offset,
                       source->length);
 }
-static void make_table(Host *h, ThreeMMPieceTable *t, const ThreeMMStorageAllocator *a)
+static void make_table(Host *h, MMPieceTable *t, const MMStorageAllocator *a)
 {
-    ThreeMMPieceFiles f;
-    ThreeMMFilePiece p;
+    MMPieceFiles f;
+    MMFilePiece p;
     File *file;
     unsigned i;
     f.context = h;
@@ -341,7 +341,7 @@ static void make_table(Host *h, ThreeMMPieceTable *t, const ThreeMMStorageAlloca
     f.read = piece_read;
     f.write = piece_write;
     f.copy = piece_copy;
-    CHECK(three_mm_piece_table_init(t, a, &f, 1) == THREE_MM_DATA_OK);
+    CHECK(mm_piece_table_init(t, a, &f, 1) == MM_DATA_OK);
     file = (File *)temp(h);
     file->size = 4096;
     for (i = 0; i < 4096; ++i)
@@ -349,52 +349,52 @@ static void make_table(Host *h, ThreeMMPieceTable *t, const ThreeMMStorageAlloca
     p.file = file;
     p.offset = 0;
     p.length = 4096;
-    CHECK(three_mm_piece_table_replace(t, 0, 0, "front", 5) == THREE_MM_DATA_OK);
-    CHECK(three_mm_piece_table_replace_file(t, 5, 0, &p, 0) == THREE_MM_DATA_OK);
-    CHECK(three_mm_piece_table_replace(t, t->length, 0, "endings", 7) == THREE_MM_DATA_OK);
+    CHECK(mm_piece_table_replace(t, 0, 0, "front", 5) == MM_DATA_OK);
+    CHECK(mm_piece_table_replace_file(t, 5, 0, &p, 0) == MM_DATA_OK);
+    CHECK(mm_piece_table_replace(t, t->length, 0, "endings", 7) == MM_DATA_OK);
     release(h, file);
 }
 static void write_cases(void)
 {
-    static const ThreeMMU32 ranges[][2] = {{0, 4108},  {2, 4106}, {5, 4096}, {1, 3},
+    static const MMU32 ranges[][2] = {{0, 4108},  {2, 4106}, {5, 4096}, {1, 3},
                                            {12, 1024}, {0, 5},    {4101, 7}, {3, 4098}};
     Host h;
-    ThreeMMBlockFileServices f;
-    ThreeMMHandleServices m;
-    ThreeMMStorageAllocator a;
-    ThreeMMPieceTable t;
-    ThreeMMOwnedBlock target;
-    ThreeMMBlockView saved;
-    ThreeMMBlockIO io;
+    MMBlockFileServices f;
+    MMHandleServices m;
+    MMStorageAllocator a;
+    MMPieceTable t;
+    MMOwnedBlock target;
+    MMBlockView saved;
+    MMBlockIO io;
     unsigned char model[4108], seed[8192], actual[8192];
     unsigned r, force, i, mode;
     int result;
     memset(&h, 0, sizeof(h));
     services(&h, &f, &m, &a);
     make_table(&h, &t, &a);
-    CHECK(three_mm_piece_table_read(&t, 0, model, sizeof(model)) == THREE_MM_DATA_OK);
+    CHECK(mm_piece_table_read(&t, 0, model, sizeof(model)) == MM_DATA_OK);
     for (r = 0; r < 8; ++r)
         for (force = 0; force < 2; ++force)
         {
-            CHECK(three_mm_owned_block_init(&target, &m, &f) == THREE_MM_DATA_OK);
-            CHECK(three_mm_owned_block_set_temp(&target, ranges[r][1] + 17, force) == THREE_MM_DATA_OK);
+            CHECK(mm_owned_block_init(&target, &m, &f) == MM_DATA_OK);
+            CHECK(mm_owned_block_set_temp(&target, ranges[r][1] + 17, force) == MM_DATA_OK);
             memset(seed, 0xcc, ranges[r][1] + 17);
-            CHECK(three_mm_owned_block_io(&target, &io) == THREE_MM_DATA_OK);
-            CHECK(three_mm_block_write(&io, 0, seed, ranges[r][1] + 17, 1) == THREE_MM_DATA_OK);
-            CHECK(three_mm_block_move_min(&target.view, 11) == THREE_MM_DATA_OK &&
-                  three_mm_block_move_lim(&target.view, -6) == THREE_MM_DATA_OK);
+            CHECK(mm_owned_block_io(&target, &io) == MM_DATA_OK);
+            CHECK(mm_block_write(&io, 0, seed, ranges[r][1] + 17, 1) == MM_DATA_OK);
+            CHECK(mm_block_move_min(&target.view, 11) == MM_DATA_OK &&
+                  mm_block_move_lim(&target.view, -6) == MM_DATA_OK);
             saved = target.view;
             h.pinned = &t;
             h.target = &target;
-            CHECK(three_mm_piece_table_write(&t, ranges[r][0], &target, &a) == THREE_MM_DATA_OK);
+            CHECK(mm_piece_table_write(&t, ranges[r][0], &target, &a) == MM_DATA_OK);
             h.pinned = NULL;
             h.target = NULL;
             CHECK(!memcmp(&saved, &target.view, sizeof(saved)) && !t.storage.buffers[0].locks &&
                   !t.storage.buffers[1].locks && !h.locks);
-            CHECK(three_mm_block_move_min(&target.view, -11) == THREE_MM_DATA_OK &&
-                  three_mm_block_move_lim(&target.view, 6) == THREE_MM_DATA_OK);
-            CHECK(three_mm_owned_block_io(&target, &io) == THREE_MM_DATA_OK &&
-                  three_mm_block_read(&io, 0, actual, target.view.length, 1) == THREE_MM_DATA_OK);
+            CHECK(mm_block_move_min(&target.view, -11) == MM_DATA_OK &&
+                  mm_block_move_lim(&target.view, 6) == MM_DATA_OK);
+            CHECK(mm_owned_block_io(&target, &io) == MM_DATA_OK &&
+                  mm_block_read(&io, 0, actual, target.view.length, 1) == MM_DATA_OK);
             CHECK(!memcmp(actual, seed, 11) && !memcmp(actual + 11, model + ranges[r][0], ranges[r][1]) &&
                   !memcmp(actual + 11 + ranges[r][1], seed, 6));
             word_hash(ranges[r][0]);
@@ -403,19 +403,19 @@ static void write_cases(void)
             word_hash(target.view.length);
             for (i = 0; i < target.view.length; ++i)
                 byte_hash(actual[i]);
-            CHECK(three_mm_owned_block_clear(&target) == THREE_MM_DATA_OK);
+            CHECK(mm_owned_block_clear(&target) == MM_DATA_OK);
         }
     /* Full native before/after snapshot combines text and supported windows. */
     CHECK(hash == 0xedc4d066UL);
     for (mode = 0; mode < 5; ++mode)
     {
-        CHECK(three_mm_owned_block_init(&target, &m, &f) == THREE_MM_DATA_OK &&
-              three_mm_owned_block_set_temp(&target, 4125, 1) == THREE_MM_DATA_OK);
+        CHECK(mm_owned_block_init(&target, &m, &f) == MM_DATA_OK &&
+              mm_owned_block_set_temp(&target, 4125, 1) == MM_DATA_OK);
         memset(seed, 0xcc, 4125);
-        CHECK(three_mm_owned_block_io(&target, &io) == THREE_MM_DATA_OK &&
-              three_mm_block_write(&io, 0, seed, 4125, 1) == THREE_MM_DATA_OK);
-        CHECK(three_mm_block_move_min(&target.view, 11) == THREE_MM_DATA_OK &&
-              three_mm_block_move_lim(&target.view, -6) == THREE_MM_DATA_OK);
+        CHECK(mm_owned_block_io(&target, &io) == MM_DATA_OK &&
+              mm_block_write(&io, 0, seed, 4125, 1) == MM_DATA_OK);
+        CHECK(mm_block_move_min(&target.view, 11) == MM_DATA_OK &&
+              mm_block_move_lim(&target.view, -6) == MM_DATA_OK);
         if (mode == 2)
             target.view.length = 7; /* Legacy final-piece overshoot. */
         if (mode == 3)
@@ -427,30 +427,30 @@ static void write_cases(void)
         h.fail_speed = mode == 4;
         h.pinned = &t;
         h.target = &target;
-        result = three_mm_piece_table_write(&t, 0, &target, &a);
+        result = mm_piece_table_write(&t, 0, &target, &a);
         h.pinned = NULL;
         h.target = NULL;
-        CHECK(result == (mode == 4   ? THREE_MM_DATA_OK
-                         : mode == 3 ? THREE_MM_DATA_PACKED
-                         : mode == 2 ? THREE_MM_DATA_ARGUMENT
-                                     : THREE_MM_DATA_IO));
+        CHECK(result == (mode == 4   ? MM_DATA_OK
+                         : mode == 3 ? MM_DATA_PACKED
+                         : mode == 2 ? MM_DATA_ARGUMENT
+                                     : MM_DATA_IO));
         CHECK(!memcmp(&saved, &target.view, sizeof(saved)) && !h.locks && !t.storage.buffers[0].locks &&
               !t.storage.buffers[1].locks);
         if (mode == 2 || mode == 3)
             CHECK(!h.reads && !h.writes);
         h.fail_read = h.fail_write = h.fail_speed = 0;
-        CHECK(three_mm_owned_block_clear(&target) == THREE_MM_DATA_OK);
+        CHECK(mm_owned_block_clear(&target) == MM_DATA_OK);
     }
-    CHECK(three_mm_piece_table_dispose(&t) == THREE_MM_DATA_OK && !h.files && !h.handles && !h.buffers);
+    CHECK(mm_piece_table_dispose(&t) == MM_DATA_OK && !h.files && !h.handles && !h.buffers);
 }
 static void text_failures(void)
 {
     Host h;
-    ThreeMMBlockFileServices f;
-    ThreeMMHandleServices m;
-    ThreeMMStorageAllocator a;
-    ThreeMMFileTextConverter c;
-    ThreeMMBlockFile region;
+    MMBlockFileServices f;
+    MMHandleServices m;
+    MMStorageAllocator a;
+    MMFileTextConverter c;
+    MMBlockFile region;
     File *original;
     unsigned char bytes[4096];
     unsigned i, mode;
@@ -473,11 +473,11 @@ static void text_failures(void)
         h.fail_write = mode == 3 ? 1 : 0;
         h.mismatch = mode == 4;
         h.skip = mode == 5;
-        result = three_mm_file_text_translate(&region, &f, &c, &a, 0);
-        CHECK(result == (mode == 5   ? THREE_MM_DATA_OK
-                         : mode == 4 ? THREE_MM_DATA_WRONG_SIZE
-                         : mode == 0 ? THREE_MM_DATA_MEMORY
-                                     : THREE_MM_DATA_IO));
+        result = mm_file_text_translate(&region, &f, &c, &a, 0);
+        CHECK(result == (mode == 5   ? MM_DATA_OK
+                         : mode == 4 ? MM_DATA_WRONG_SIZE
+                         : mode == 0 ? MM_DATA_MEMORY
+                                     : MM_DATA_IO));
         CHECK(!h.buffers && !h.locks);
         if (mode == 5)
             CHECK(region.file != original && region.length == 0);
@@ -494,7 +494,7 @@ static void text_failures(void)
     memset(bytes, 0x8e, 4096);
     original = input_file(&h, bytes, 4096, &region);
     h.fail_speed = 1;
-    CHECK(three_mm_file_text_translate(&region, &f, &c, &a, THREE_MM_TEXT_MAC) == THREE_MM_DATA_OK);
+    CHECK(mm_file_text_translate(&region, &f, &c, &a, MM_TEXT_MAC) == MM_DATA_OK);
     CHECK(h.max_read <= 512 && h.queries == 8 && h.conversions == 8 && region.length == 4096);
     for (i = 0; i < region.length; ++i)
         CHECK(((File *)region.file)->bytes[i] == 0xe9);
@@ -506,14 +506,14 @@ static void text_failures(void)
         memset(&h, 0, sizeof(h));
         services(&h, &f, &m, &a);
         c = converter(&h);
-        c.current_encoding = THREE_MM_TEXT_UTF16_LE;
+        c.current_encoding = MM_TEXT_UTF16_LE;
         c.output_unit = 2;
         h.wide = 1;
         h.fail_normal = mode != 0;
         memset(bytes, 0x8e, 600);
         original = input_file(&h, bytes, 600, &region);
-        result = three_mm_file_text_translate(&region, &f, &c, &a, THREE_MM_TEXT_MAC);
-        CHECK(result == (mode ? THREE_MM_DATA_MEMORY : THREE_MM_DATA_OK) && !h.buffers && h.speed == 1 &&
+        result = mm_file_text_translate(&region, &f, &c, &a, MM_TEXT_MAC);
+        CHECK(result == (mode ? MM_DATA_MEMORY : MM_DATA_OK) && !h.buffers && h.speed == 1 &&
               h.normal == 1);
         if (!mode)
         {
@@ -532,20 +532,20 @@ static void text_failures(void)
     services(&h, &f, &m, &a);
     c = converter(&h);
     c.native_big_endian = 1;
-    c.native_unicode_encoding = THREE_MM_TEXT_UTF16_BE;
+    c.native_unicode_encoding = MM_TEXT_UTF16_BE;
     bytes[0] = 0xfe;
     bytes[1] = 0xff;
     bytes[2] = 0;
     bytes[3] = 'A';
     original = input_file(&h, bytes, 4, &region);
-    CHECK(three_mm_file_text_translate(&region, &f, &c, &a, THREE_MM_TEXT_WINDOWS) == THREE_MM_DATA_OK &&
+    CHECK(mm_file_text_translate(&region, &f, &c, &a, MM_TEXT_WINDOWS) == MM_DATA_OK &&
           region.length == 1 && ((File *)region.file)->bytes[0] == 'A');
     release(&h, region.file);
     release(&h, original);
     memset(&h, 0, sizeof(h));
     services(&h, &f, &m, &a);
     c = converter(&h);
-    c.current_encoding = THREE_MM_TEXT_UTF16_LE;
+    c.current_encoding = MM_TEXT_UTF16_LE;
     c.output_unit = 2;
     bytes[0] = 0xff;
     bytes[1] = 0xfe;
@@ -553,7 +553,7 @@ static void text_failures(void)
     bytes[3] = 0;
     original = input_file(&h, bytes, 4, &region);
     i = h.temps;
-    CHECK(three_mm_file_text_translate(&region, &f, &c, &a, 0) == THREE_MM_DATA_OK && region.file == original &&
+    CHECK(mm_file_text_translate(&region, &f, &c, &a, 0) == MM_DATA_OK && region.file == original &&
           region.offset == 9 && region.length == 2 && h.temps == i && !h.queries);
     release(&h, region.file);
     release(&h, original);

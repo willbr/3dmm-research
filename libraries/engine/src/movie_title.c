@@ -1,8 +1,8 @@
 /* Movie title policy converted from engine movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/movie_title.h"
+#include "mm/movie_title.h"
 #include <string.h>
-int three_mm_movie_title_init(ThreeMMMovieTitle *t, unsigned unit)
+int mm_movie_title_init(MMMovieTitle *t, unsigned unit)
 {
     if (!t || (unit != 1 && unit != 2))
         return 0;
@@ -10,7 +10,7 @@ int three_mm_movie_title_init(ThreeMMMovieTitle *t, unsigned unit)
     t->unit = unit;
     return 1;
 }
-int three_mm_movie_title_set(ThreeMMMovieTitle *t, const void *text, ThreeMMU32 count)
+int mm_movie_title_set(MMMovieTitle *t, const void *text, MMU32 count)
 {
     if (!t || (t->unit != 1 && t->unit != 2) || count > 255 || (!text && count))
         return 0;
@@ -20,11 +20,11 @@ int three_mm_movie_title_set(ThreeMMMovieTitle *t, const void *text, ThreeMMU32 
     t->count = count;
     return 1;
 }
-const void *three_mm_movie_title_text(const ThreeMMMovieTitle *t)
+const void *mm_movie_title_text(const MMMovieTitle *t)
 {
     return t->text;
 }
-static unsigned character(const ThreeMMMovieTitle *t, ThreeMMU32 i)
+static unsigned character(const MMMovieTitle *t, MMU32 i)
 {
     unsigned short value;
     if (t->unit == 1)
@@ -32,9 +32,9 @@ static unsigned character(const ThreeMMMovieTitle *t, ThreeMMU32 i)
     memcpy(&value, (const unsigned char *)t->text + i * 2, 2);
     return value;
 }
-void three_mm_movie_title_strip_extension(ThreeMMMovieTitle *t)
+void mm_movie_title_strip_extension(MMMovieTitle *t)
 {
-    ThreeMMU32 i = t->count;
+    MMU32 i = t->count;
     while (i && character(t, i) != '.')
         --i;
     if (character(t, i) == '.')
@@ -43,7 +43,7 @@ void three_mm_movie_title_strip_extension(ThreeMMMovieTitle *t)
         memset((unsigned char *)t->text + i * t->unit, 0, t->unit);
     }
 }
-void three_mm_movie_title_choose(ThreeMMMovieTitle *t, int file, const ThreeMMMovieTitleServices *s)
+void mm_movie_title_choose(MMMovieTitle *t, int file, const MMMovieTitleServices *s)
 {
     if (!file)
     {
@@ -55,7 +55,7 @@ void three_mm_movie_title_choose(ThreeMMMovieTitle *t, int file, const ThreeMMMo
         return;
     }
     s->leaf(s->context, t);
-    three_mm_movie_title_strip_extension(t);
+    mm_movie_title_strip_extension(t);
     if (!t->count)
         s->default_name(s->context, t);
     s->notify(s->context, t);

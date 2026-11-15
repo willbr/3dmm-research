@@ -3,7 +3,7 @@
 #ifndef ACTOR_FRAME_H
 #define ACTOR_FRAME_H
 #include "actor_state.h"
-#include "three_mm/actor_frame.h"
+#include "mm/actor_frame.h"
 
 struct ActorFrameInputs
 {
@@ -67,7 +67,7 @@ class ActorFrameEvaluator
   private:
     ActorFrameState &_state;
     const ActorTrack &_track;
-    ThreeMMActorFrame _sequence = {};
+    MMActorFrame _sequence = {};
     ActorFrameResult _result;
     void _SyncResult();
 };

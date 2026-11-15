@@ -251,7 +251,7 @@ static int LargeResidentCase()
 
 int main()
 {
-    if (const char *path = std::getenv("THREE_MM_RESOURCE_CACHE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_RESOURCE_CACHE_SNAPSHOT"))
     {
         resourceSnapshot = std::fopen(path, "wb");
         CHECK(resourceSnapshot);

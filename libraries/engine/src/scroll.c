@@ -1,56 +1,56 @@
-#include "three_mm/playback.h"
+#include "mm/playback.h"
 
-static ThreeMMScrollUpdate evaluate_scroll(int continuing, int needsScroll, double *remaining)
+static MMScrollUpdate evaluate_scroll(int continuing, int needsScroll, double *remaining)
 {
-    ThreeMMPlaybackState state;
-    ThreeMMPlaybackEvaluator evaluator;
-    ThreeMMPlaybackCommand command;
-    ThreeMMPlaybackReply reply;
-    ThreeMMScrollUpdate result = {0, 0};
-    three_mm_playback_state_init(&state);
+    MMPlaybackState state;
+    MMPlaybackEvaluator evaluator;
+    MMPlaybackCommand command;
+    MMPlaybackReply reply;
+    MMScrollUpdate result = {0, 0};
+    mm_playback_state_init(&state);
     state.scrolling = continuing;
-    three_mm_playback_init(&evaluator, &state, 0);
+    mm_playback_init(&evaluator, &state, 0);
     for (;;)
     {
-        if (!three_mm_playback_next(&evaluator, &command))
+        if (!mm_playback_next(&evaluator, &command))
             return result;
-        three_mm_playback_reply_init(&reply);
+        mm_playback_reply_init(&reply);
         switch (command.kind)
         {
-        case THREE_MM_PLAYBACK_FINISHED:
+        case MM_PLAYBACK_FINISHED:
             result.holding = state.scrolling;
             return result;
-        case THREE_MM_PLAYBACK_SCROLL_TEXT:
+        case MM_PLAYBACK_SCROLL_TEXT:
             /* Need-before-step: the final pixel still schedules its alarm. */
             result.step = needsScroll;
             reply.value = needsScroll;
             break;
-        case THREE_MM_PLAYBACK_QUERY_SCROLLING:
+        case MM_PLAYBACK_QUERY_SCROLLING:
             reply.value = needsScroll;
             break;
-        case THREE_MM_PLAYBACK_SET_ALARM:
+        case MM_PLAYBACK_SET_ALARM:
             if (command.flag)
             {
-                three_mm_playback_complete(&evaluator, &reply);
+                mm_playback_complete(&evaluator, &reply);
                 return result;
             }
-            *remaining = (double)command.value * 1000 / THREE_MM_PLAYBACK_TICKS_PER_SECOND;
+            *remaining = (double)command.value * 1000 / MM_PLAYBACK_TICKS_PER_SECOND;
             break;
         default:
             /* Presentation and ordinary pacing remain host responsibilities. */
             break;
         }
-        three_mm_playback_complete(&evaluator, &reply);
+        mm_playback_complete(&evaluator, &reply);
     }
 }
-void three_mm_scroll_reset(ThreeMMScrollPlayback *scroll)
+void mm_scroll_reset(MMScrollPlayback *scroll)
 {
     scroll->started = scroll->holding = 0;
     scroll->remaining = 0;
 }
-ThreeMMScrollUpdate three_mm_scroll_update(ThreeMMScrollPlayback *scroll, double milliseconds, int needsScroll)
+MMScrollUpdate mm_scroll_update(MMScrollPlayback *scroll, double milliseconds, int needsScroll)
 {
-    ThreeMMScrollUpdate result = {0, 0};
+    MMScrollUpdate result = {0, 0};
     if (scroll->started)
     {
         if (!scroll->holding)
@@ -67,8 +67,8 @@ ThreeMMScrollUpdate three_mm_scroll_update(ThreeMMScrollPlayback *scroll, double
     scroll->holding = result.holding;
     return result;
 }
-double three_mm_scroll_nominal_seconds(int pixels)
+double mm_scroll_nominal_seconds(int pixels)
 {
     /* Convert before adding, avoiding signed overflow for large layouts. */
-    return pixels > 0 ? ((double)pixels + 1) * THREE_MM_PLAYBACK_SCROLL_TICKS / THREE_MM_PLAYBACK_TICKS_PER_SECOND : 0;
+    return pixels > 0 ? ((double)pixels + 1) * MM_PLAYBACK_SCROLL_TICKS / MM_PLAYBACK_TICKS_PER_SECOND : 0;
 }

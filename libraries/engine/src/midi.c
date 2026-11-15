@@ -1,8 +1,8 @@
 /* MIDI policy converted from Kauai midi.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/midi.h"
+#include "mm/midi.h"
 #include <string.h>
-static int variable(const ThreeMMMidiParser *p, ThreeMMU32 *at, ThreeMMU32 *value)
+static int variable(const MMMidiParser *p, MMU32 *at, MMU32 *value)
 {
     unsigned char b;
     *value = 0;
@@ -15,8 +15,8 @@ static int variable(const ThreeMMMidiParser *p, ThreeMMU32 *at, ThreeMMU32 *valu
     } while (b & 128);
     return 1;
 }
-void three_mm_midi_parser_init(ThreeMMMidiParser *p, const void *data, ThreeMMU32 size, ThreeMMU32 start,
-                               ThreeMMI32 tempo)
+void mm_midi_parser_init(MMMidiParser *p, const void *data, MMU32 size, MMU32 start,
+                               MMI32 tempo)
 {
     memset(p, 0, sizeof(*p));
     p->data = (const unsigned char *)data;
@@ -24,10 +24,10 @@ void three_mm_midi_parser_init(ThreeMMMidiParser *p, const void *data, ThreeMMU3
     p->timestamp = start;
     p->tempo = tempo;
 }
-int three_mm_midi_next(ThreeMMMidiParser *p, ThreeMMMidiEvent *out, int advance)
+int mm_midi_next(MMMidiParser *p, MMMidiEvent *out, int advance)
 {
-    ThreeMMMidiEvent e;
-    ThreeMMU32 at = p->cursor, time = p->timestamp, n, delta;
+    MMMidiEvent e;
+    MMU32 at = p->cursor, time = p->timestamp, n, delta;
     unsigned char b;
     int count;
     memset(&e, 0, sizeof(e));
@@ -98,7 +98,7 @@ int three_mm_midi_next(ThreeMMMidiParser *p, ThreeMMMidiEvent *out, int advance)
                 {
                     if (n != 3)
                         goto fail;
-                    e.tempo = ((ThreeMMI32)p->data[at] << 16) | ((ThreeMMI32)p->data[at + 1] << 8) | p->data[at + 2];
+                    e.tempo = ((MMI32)p->data[at] << 16) | ((MMI32)p->data[at + 1] << 8) | p->data[at + 2];
                     if (advance)
                         p->tempo = e.tempo;
                     at += 3;
@@ -115,7 +115,7 @@ int three_mm_midi_next(ThreeMMMidiParser *p, ThreeMMMidiEvent *out, int advance)
         }
         if (count)
         {
-            if ((ThreeMMU32)count > p->size - at)
+            if ((MMU32)count > p->size - at)
                 goto fail;
             memcpy(e.send + 1, p->data + at, (size_t)count);
             at += (unsigned)count;
@@ -135,7 +135,7 @@ fail:
     p->cursor = p->size;
     return 0;
 }
-unsigned three_mm_midi_encode_time(ThreeMMU32 n, unsigned char *out)
+unsigned mm_midi_encode_time(MMU32 n, unsigned char *out)
 {
     unsigned char bytes[5];
     unsigned count = 0, i;
@@ -149,20 +149,20 @@ unsigned three_mm_midi_encode_time(ThreeMMU32 n, unsigned char *out)
 }
 typedef struct Track
 {
-    ThreeMMMidiParser parser;
-    ThreeMMMidiEvent event;
+    MMMidiParser parser;
+    MMMidiEvent event;
 } Track;
 static unsigned be16(const unsigned char *p)
 {
     return ((unsigned)p[0] << 8) | p[1];
 }
-static ThreeMMU32 be32(const unsigned char *p)
+static MMU32 be32(const unsigned char *p)
 {
-    return ((ThreeMMU32)be16(p) << 16) | be16(p + 2);
+    return ((MMU32)be16(p) << 16) | be16(p + 2);
 }
-static ThreeMMU32 gcd(ThreeMMU32 a, ThreeMMU32 b)
+static MMU32 gcd(MMU32 a, MMU32 b)
 {
-    ThreeMMU32 r;
+    MMU32 r;
     while (b)
     {
         r = a % b;
@@ -172,9 +172,9 @@ static ThreeMMU32 gcd(ThreeMMU32 a, ThreeMMU32 b)
     return a;
 }
 /* Exact signed 32x32/32 using two words, with truncation toward zero. */
-static int scale(ThreeMMU32 raw, ThreeMMU32 num, ThreeMMU32 den, ThreeMMU32 *out)
+static int scale(MMU32 raw, MMU32 num, MMU32 den, MMU32 *out)
 {
-    ThreeMMU32 a = raw, lo, hi, cross, x, y, rem = 0, q = 0, bit, next;
+    MMU32 a = raw, lo, hi, cross, x, y, rem = 0, q = 0, bit, next;
     int negative = (raw & 0x80000000UL) != 0, i;
     if (negative)
         a = 0U - a;
@@ -192,7 +192,7 @@ static int scale(ThreeMMU32 raw, ThreeMMU32 num, ThreeMMU32 den, ThreeMMU32 *out
             next -= den;
             if (i >= 32)
                 return 0;
-            q |= (ThreeMMU32)1 << i;
+            q |= (MMU32)1 << i;
         }
         rem = next;
     }
@@ -201,20 +201,20 @@ static int scale(ThreeMMU32 raw, ThreeMMU32 num, ThreeMMU32 den, ThreeMMU32 *out
     *out = negative ? 0U - q : q;
     return 1;
 }
-static int append(ThreeMMCollectionStorage *s, ThreeMMU32 *size, const void *p, ThreeMMU32 n)
+static int append(MMCollectionStorage *s, MMU32 *size, const void *p, MMU32 n)
 {
-    if (n >= THREE_MM_STORAGE_LIMIT - *size ||
-        three_mm_storage_ensure(s, *size + n, s->buffers[1].capacity, 0) != THREE_MM_STORAGE_OK)
+    if (n >= MM_STORAGE_LIMIT - *size ||
+        mm_storage_ensure(s, *size + n, s->buffers[1].capacity, 0) != MM_STORAGE_OK)
         return 0;
     memcpy(s->buffers[0].data + *size, p, n);
     *size += n;
     return 1;
 }
-int three_mm_midi_import(const void *data, ThreeMMU32 bytes, ThreeMMCollectionStorage *s, ThreeMMU32 *length)
+int mm_midi_import(const void *data, MMU32 bytes, MMCollectionStorage *s, MMU32 *length)
 {
     const unsigned char *p = (const unsigned char *)data;
-    ThreeMMU32 at, n, tracks = 0, index, minimum, tsmin, ts, rawtempo = 0, tstempo = 0, last = 0, size = 0;
-    ThreeMMU32 num, den, newnum, newden, g, t;
+    MMU32 at, n, tracks = 0, index, minimum, tsmin, ts, rawtempo = 0, tstempo = 0, last = 0, size = 0;
+    MMU32 num, den, newnum, newden, g, t;
     unsigned format, division, fps, ticks;
     int smpte, sequential;
     Track track, *list;
@@ -238,12 +238,12 @@ int three_mm_midi_import(const void *data, ThreeMMU32 bytes, ThreeMMCollectionSt
             return 0;
         if (!memcmp(p + at - 8, "MTrk", 4) && n)
         {
-            three_mm_midi_parser_init(&track.parser, p + at, n, 0, 500000);
-            if (three_mm_midi_next(&track.parser, &track.event, 1))
+            mm_midi_parser_init(&track.parser, p + at, n, 0, 500000);
+            if (mm_midi_next(&track.parser, &track.event, 1))
             {
-                if (tracks >= THREE_MM_STORAGE_LIMIT / sizeof(Track) - 1 ||
-                    three_mm_storage_ensure(s, s->buffers[0].capacity, (tracks + 1) * (ThreeMMU32)sizeof(Track), 0) !=
-                        THREE_MM_STORAGE_OK)
+                if (tracks >= MM_STORAGE_LIMIT / sizeof(Track) - 1 ||
+                    mm_storage_ensure(s, s->buffers[0].capacity, (tracks + 1) * (MMU32)sizeof(Track), 0) !=
+                        MM_STORAGE_OK)
                     return 0;
                 memcpy(s->buffers[1].data + tracks * sizeof(Track), &track, sizeof(track));
                 ++tracks;
@@ -303,8 +303,8 @@ int three_mm_midi_import(const void *data, ThreeMMU32 bytes, ThreeMMCollectionSt
         {
             if (!smpte)
             {
-                newnum = (ThreeMMU32)track.event.tempo;
-                newden = 1000 * (ThreeMMU32)division;
+                newnum = (MMU32)track.event.tempo;
+                newden = 1000 * (MMU32)division;
                 g = gcd(newnum, newden);
                 newnum /= g;
                 newden /= g;
@@ -319,13 +319,13 @@ int three_mm_midi_import(const void *data, ThreeMMU32 bytes, ThreeMMCollectionSt
         }
         else
         {
-            n = three_mm_midi_encode_time(ts - last, encoded);
-            if (!append(s, &size, encoded, n) || !append(s, &size, track.event.send, (ThreeMMU32)track.event.count))
+            n = mm_midi_encode_time(ts - last, encoded);
+            if (!append(s, &size, encoded, n) || !append(s, &size, track.event.send, (MMU32)track.event.count))
                 return 0;
         }
         /* Legacy advances last time for a tempo-only event too. */
         last = ts;
-        if (three_mm_midi_next(&track.parser, &track.event, 1))
+        if (mm_midi_next(&track.parser, &track.event, 1))
             list[minimum] = track;
         else
         {

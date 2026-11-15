@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef INSPECTOR_ARCHIVE_H
 #define INSPECTOR_ARCHIVE_H
-#include "three_mm/archive.h"
+#include "mm/archive.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -9,10 +9,10 @@
 
 namespace Inspector
 {
-using Id = ThreeMM::Id;
-using Child = ThreeMM::Child;
-using Chunk = ThreeMM::Chunk;
-using StringTableEntry = ThreeMM::StringTableEntry;
+using Id = MM::Id;
+using Child = MM::Child;
+using Chunk = MM::Chunk;
+using StringTableEntry = MM::StringTableEntry;
 struct StringTablePage
 {
     bool present = false;
@@ -46,8 +46,8 @@ class Archive
     bool ReadDetail(std::size_t index, std::uint32_t offset, Detail &detail, std::string &error,
                     std::uint32_t firstString = 0);
 };
-using ThreeMM::Identity;
-using ThreeMM::TypeDisplayName;
-using ThreeMM::TypeLabel;
+using MM::Identity;
+using MM::TypeDisplayName;
+using MM::TypeLabel;
 } // namespace Inspector
 #endif

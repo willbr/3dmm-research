@@ -77,16 +77,16 @@ struct MovieAccess : Movie
 };
 struct Access : Scene
 {
-#ifdef THREE_MM_ENGINE_SCENE_SOUND_EDIT_H
+#ifdef MM_ENGINE_SCENE_SOUND_EDIT_H
     static void FailPut(PScene scene, PTAG tag)
     {
         auto services = (scene->*&Access::_SoundEditServices)();
-        services.put = [](void *, ThreeMMI32, ThreeMMI32, const void *) -> int {
+        services.put = [](void *, MMI32, MMI32, const void *) -> int {
             put_called = true;
             return 0;
         };
         put_called = false;
-        CHECK(!three_mm_scene_sound_add(0, 1, 29, stySfx, 1, tag, &services) && put_called);
+        CHECK(!mm_scene_sound_add(0, 1, 29, stySfx, 1, tag, &services) && put_called);
     }
     static long Count(PScene p)
     {
@@ -142,7 +142,7 @@ struct UndoAccess : SceneUndoSound
 {
     static void State(PSceneUndoSound p)
     {
-#ifdef THREE_MM_ENGINE_SCENE_SOUND_EDIT_H
+#ifdef MM_ENGINE_SCENE_SOUND_EDIT_H
         auto &state = p->*&UndoAccess::_sound;
         Value(state.style);
         Value(state.sound != nullptr);
@@ -191,7 +191,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto name = std::getenv("THREE_MM_SCENE_SOUND_EDIT_SNAPSHOT"))
+    if (auto name = std::getenv("MM_SCENE_SOUND_EDIT_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);
@@ -305,7 +305,7 @@ int main()
         scene->RemSndCore(stySfx);
         vpers->Clear();
     }
-#ifdef THREE_MM_ENGINE_SCENE_SOUND_EDIT_H
+#ifdef MM_ENGINE_SCENE_SOUND_EDIT_H
     // Corrected failure paths are outside the frozen native behavior trace.
     recording = false;
     CHECK(scene->FAddSndCore(false, false, 31, stySfx, 1, &tag));

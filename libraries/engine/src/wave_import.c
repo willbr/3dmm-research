@@ -1,12 +1,12 @@
 /* Movie WAVE import converted from engine/msnd.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/wave_import.h"
-#include "three_mm/collection_storage.h"
-int three_mm_wave_file_import(void *source, void *destination, ThreeMMI32 style, const void *name, void *number_out,
-                              const ThreeMMWaveFileServices *s)
+#include "mm/wave_import.h"
+#include "mm/collection_storage.h"
+int mm_wave_file_import(void *source, void *destination, MMI32 style, const void *name, void *number_out,
+                              const MMWaveFileServices *s)
 {
-    ThreeMMWaveBuffer storage;
-    ThreeMMI32 bytes = s->size(s->context, source), prepared_bytes;
+    MMWaveBuffer storage;
+    MMI32 bytes = s->size(s->context, source), prepared_bytes;
     const void *prepared, *selected_name;
     void *temp = NULL;
     int ok = 0;
@@ -15,9 +15,9 @@ int three_mm_wave_file_import(void *source, void *destination, ThreeMMI32 style,
         s->bad_sound(s->context);
         return 0;
     }
-    if (!three_mm_wave_buffer_init(&storage, s->allocator))
+    if (!mm_wave_buffer_init(&storage, s->allocator))
         return 0;
-    if (!three_mm_wave_buffer_reserve(&storage, (ThreeMMU32)bytes))
+    if (!mm_wave_buffer_reserve(&storage, (MMU32)bytes))
         goto done;
     if (!s->read(s->context, source, storage.data, bytes) ||
         !s->prepare(s->context, storage.data, bytes, &prepared, &prepared_bytes))
@@ -34,10 +34,10 @@ int three_mm_wave_file_import(void *source, void *destination, ThreeMMI32 style,
 done:
     if (temp)
         s->release(s->context, temp);
-    three_mm_wave_buffer_dispose(&storage);
+    mm_wave_buffer_dispose(&storage);
     return ok;
 }
-static int write_word(const ThreeMMNativeWaveServices *s, ThreeMMU32 n)
+static int write_word(const MMNativeWaveServices *s, MMU32 n)
 {
     unsigned char b[4];
     b[0] = (unsigned char)n;
@@ -46,12 +46,12 @@ static int write_word(const ThreeMMNativeWaveServices *s, ThreeMMU32 n)
     b[3] = (unsigned char)(n >> 24);
     return s->write(s->context, b, 4);
 }
-int three_mm_wave_native_import(void *source, void *destination, ThreeMMI32 style, const void *name, void *number_out,
-                                const ThreeMMNativeWaveServices *s)
+int mm_wave_native_import(void *source, void *destination, MMI32 style, const void *name, void *number_out,
+                                const MMNativeWaveServices *s)
 {
-    ThreeMMNativeWaveFormat format;
-    ThreeMMI32 original;
-    ThreeMMU32 samples, source_bytes, format_bytes, data_bytes, compressed;
+    MMNativeWaveFormat format;
+    MMI32 original;
+    MMU32 samples, source_bytes, format_bytes, data_bytes, compressed;
     const void *codec_format, *data;
     int ok = 0, result;
     if (!s->begin(s->context, source, name))
@@ -96,7 +96,7 @@ int three_mm_wave_native_import(void *source, void *destination, ThreeMMI32 styl
         !s->write(s->context, "data", 4) || !write_word(s, data_bytes) || !s->write(s->context, data, data_bytes))
         goto done;
     s->finish_conversion(s->context);
-    if (!s->open_selected(s->context, original < 0 || compressed > (ThreeMMU32)original))
+    if (!s->open_selected(s->context, original < 0 || compressed > (MMU32)original))
         goto done;
     ok = s->write_resource(s->context, destination, style, number_out);
     goto done;

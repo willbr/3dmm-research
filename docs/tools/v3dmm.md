@@ -126,7 +126,7 @@ keeps host package management outside the movie wire format.
 Studio and Marcus share the read-only content VFS in `libraries/content/`.
 Its mount tables, source aliases, lookup, enumeration, mount precedence and
 provider-based streams are implemented in C89. The public C API is
-`three_mm/content_vfs.h`; `content_vfs.hpp` is a thin C++ filesystem adapter for
+`mm/content_vfs.h`; `content_vfs.hpp` is a thin C++ filesystem adapter for
 the existing engine. Positions use two 32-bit words so the C89 core can address
 large files without C99 integer types. Files are exposed under logical product
 namespaces, independent of a movie's numeric source IDs. Legacy chunky readers

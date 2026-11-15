@@ -1,6 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/preview.h"
-#include "three_mm/preview_rasterizer.h"
+#include "mm/preview.h"
+#include "mm/preview_rasterizer.h"
 #include "zb_capture.h"
 #include "preview_background_mesh.h"
 #include "preview_depth_range.h"
@@ -20,7 +20,7 @@
 #undef size
 ASSERTNAME
 
-namespace ThreeMM
+namespace MM
 {
 namespace
 {
@@ -164,7 +164,7 @@ struct Preview::Impl
     PreviewInfo info;
     Color palette[256] = {};
     bool running = false, ready = false;
-    ThreeMMPreviewOrbit orbit = {0, 0, -1, {0, 0, 0}, 1, {0, 0, 0}};
+    MMPreviewOrbit orbit = {0, 0, -1, {0, 0, 0}, 1, {0, 0, 0}};
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<Internal::PreviewActor>> actors;
     std::uint64_t visibilityClock = 0;
@@ -1142,7 +1142,7 @@ try
     Internal::ClearDiagnostic();
     Impl::RenderHost host = {this, _impl.get(), &view, &error};
     auto services = host.Services();
-    ThreeMMPreviewView v = {};
+    MMPreviewView v = {};
     v.width = view.width;
     v.height = view.height;
     v.yaw = view.yaw;
@@ -1166,36 +1166,36 @@ try
     v.orthographic = view.orthographic;
     v.axis = view.axisView;
     v.rasterizer = view.rasterizer != nullptr;
-    ThreeMMPreviewImage rendered = {};
-    const auto result = three_mm_preview_render(&v, &_impl->orbit, &rendered, &services);
+    MMPreviewImage rendered = {};
+    const auto result = mm_preview_render(&v, &_impl->orbit, &rendered, &services);
     if (host.exception)
         std::rethrow_exception(host.exception);
     switch (result)
     {
-    case THREE_MM_PREVIEW_OK:
+    case MM_PREVIEW_OK:
         break;
-    case THREE_MM_PREVIEW_NOT_READY:
+    case MM_PREVIEW_NOT_READY:
         return Fail(error, ErrorCode::invalid_argument, "Select an asset to render.");
-    case THREE_MM_PREVIEW_INVALID:
+    case MM_PREVIEW_INVALID:
         return Fail(error, ErrorCode::invalid_argument, "Preview dimensions or camera values are out of range.");
-    case THREE_MM_PREVIEW_BUFFERS:
+    case MM_PREVIEW_BUFFERS:
         return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview buffers.");
-    case THREE_MM_PREVIEW_ASSET_RANGE:
+    case MM_PREVIEW_ASSET_RANGE:
         return Fail(error, ErrorCode::unsupported_format, "Asset exceeds the fixed-point preview camera range.");
-    case THREE_MM_PREVIEW_CAMERA_RANGE:
+    case MM_PREVIEW_CAMERA_RANGE:
         return Fail(error, ErrorCode::unsupported_format, "Camera position exceeds the fixed-point renderer range.");
-    case THREE_MM_PREVIEW_CAMERA:
+    case MM_PREVIEW_CAMERA:
         return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview camera.");
-    case THREE_MM_PREVIEW_LIGHTS:
+    case MM_PREVIEW_LIGHTS:
         return Fail(error, ErrorCode::out_of_memory,
                     _impl->background ? "Cannot allocate scene lighting." : "Cannot allocate preview lighting.");
-    case THREE_MM_PREVIEW_MODELS:
+    case MM_PREVIEW_MODELS:
         return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview model instance.");
-    case THREE_MM_PREVIEW_MESH:
+    case MM_PREVIEW_MESH:
         return Fail(error, ErrorCode::out_of_memory, "Cannot prepare background scenery models.");
-    case THREE_MM_PREVIEW_RENDERER:
+    case MM_PREVIEW_RENDERER:
         return Fail(error, ErrorCode::decode_failed, "The renderer rejected this asset.");
-    case THREE_MM_PREVIEW_HOST:
+    case MM_PREVIEW_HOST:
         return false;
     default:
         return Fail(error, ErrorCode::out_of_memory, "Insufficient memory for the preview image.");
@@ -1221,4 +1221,4 @@ catch (const std::bad_alloc &)
 {
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory for the preview image.");
 }
-} // namespace ThreeMM
+} // namespace MM

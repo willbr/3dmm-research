@@ -1,18 +1,18 @@
 /* Collection mutation policy converted from Kauai groups.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/collections.h"
+#include "mm/collections.h"
 #include <string.h>
-#define LIMIT THREE_MM_STORAGE_LIMIT
-#define OK THREE_MM_STORAGE_OK
-#define BAD THREE_MM_STORAGE_ARGUMENT
-static void trash(int enabled, void *p, ThreeMMU32 n)
+#define LIMIT MM_STORAGE_LIMIT
+#define OK MM_STORAGE_OK
+#define BAD MM_STORAGE_ARGUMENT
+static void trash(int enabled, void *p, MMU32 n)
 {
     if (enabled && n)
         memset(p, 0xa3, n);
 }
-static void reverse(unsigned char *p, ThreeMMU32 n)
+static void reverse(unsigned char *p, MMU32 n)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     unsigned char x;
     for (i = 0; i < n / 2; ++i)
     {
@@ -21,7 +21,7 @@ static void reverse(unsigned char *p, ThreeMMU32 n)
         p[n - 1 - i] = x;
     }
 }
-static void blocks(unsigned char *p, ThreeMMU32 a, ThreeMMU32 b)
+static void blocks(unsigned char *p, MMU32 a, MMU32 b)
 {
     if (!a || !b)
         return;
@@ -29,7 +29,7 @@ static void blocks(unsigned char *p, ThreeMMU32 a, ThreeMMU32 b)
     reverse(p + a, b);
     reverse(p, a + b);
 }
-static void move(unsigned char *p, ThreeMMU32 width, ThreeMMU32 source, ThreeMMU32 target)
+static void move(unsigned char *p, MMU32 width, MMU32 source, MMU32 target)
 {
     if (target > source)
         --target;
@@ -38,31 +38,31 @@ static void move(unsigned char *p, ThreeMMU32 width, ThreeMMU32 source, ThreeMMU
     else if (target < source)
         blocks(p + target * width, (source - target) * width, width);
 }
-static ThreeMMU32 bitmap(ThreeMMU32 count)
+static MMU32 bitmap(MMU32 count)
 {
     return (count + 7) / 8;
 }
-static int array_shape(const ThreeMMArray *a)
+static int array_shape(const MMArray *a)
 {
     return a && a->storage && a->width && a->width <= 0x7fffffffUL && a->count <= (LIMIT - 1) / a->width &&
            a->count * a->width <= a->storage->buffers[0].capacity &&
            (!a->allocated || bitmap(a->count) <= a->storage->buffers[1].capacity);
 }
-int three_mm_array_reserve(ThreeMMArray *a, ThreeMMU32 additional, int shrink)
+int mm_array_reserve(MMArray *a, MMU32 additional, int shrink)
 {
-    ThreeMMU32 needed = additional, free_count;
+    MMU32 needed = additional, free_count;
     if (!array_shape(a))
         return BAD;
     if (a->allocated)
     {
         if (a->free_count >= 0)
         {
-            free_count = (ThreeMMU32)a->free_count;
+            free_count = (MMU32)a->free_count;
             needed = additional > free_count ? additional - free_count : 0;
         }
         else
         {
-            free_count = 0 - (ThreeMMU32)a->free_count;
+            free_count = 0 - (MMU32)a->free_count;
             if (additional > 0xffffffffUL - free_count)
                 return BAD;
             needed += free_count;
@@ -71,17 +71,17 @@ int three_mm_array_reserve(ThreeMMArray *a, ThreeMMU32 additional, int shrink)
     if (needed > (LIMIT - 1) / a->width - a->count)
         return BAD;
     needed += a->count;
-    return three_mm_storage_ensure(a->storage, needed * a->width, a->allocated ? bitmap(needed) : 0, shrink);
+    return mm_storage_ensure(a->storage, needed * a->width, a->allocated ? bitmap(needed) : 0, shrink);
 }
-int three_mm_array_insert(ThreeMMArray *a, ThreeMMU32 index, const void *data, ThreeMMU32 count)
+int mm_array_insert(MMArray *a, MMU32 index, const void *data, MMU32 count)
 {
-    ThreeMMU32 bytes, position;
+    MMU32 bytes, position;
     int result;
     if (!array_shape(a) || a->allocated || index > a->count || count > (LIMIT - 1) / a->width - a->count)
         return BAD;
     if (!count)
         return OK;
-    result = three_mm_array_reserve(a, count, 0);
+    result = mm_array_reserve(a, count, 0);
     if (result != OK)
         return result;
     bytes = count * a->width;
@@ -94,10 +94,10 @@ int three_mm_array_insert(ThreeMMArray *a, ThreeMMU32 index, const void *data, T
     a->count += count;
     return OK;
 }
-int three_mm_array_delete(ThreeMMArray *a, ThreeMMU32 index, ThreeMMU32 count)
+int mm_array_delete(MMArray *a, MMU32 index, MMU32 count)
 {
     unsigned char *p;
-    ThreeMMU32 old;
+    MMU32 old;
     if (!array_shape(a) || index >= a->count || count > a->count - index || (a->allocated && count != 1))
         return BAD;
     p = a->storage->buffers[0].data;
@@ -120,20 +120,20 @@ int three_mm_array_delete(ThreeMMArray *a, ThreeMMU32 index, ThreeMMU32 count)
         {
             while (a->count && !(bits[(a->count - 1) / 8] & (1U << ((a->count - 1) % 8))))
                 --a->count;
-            a->free_count -= (ThreeMMI32)(old - a->count);
+            a->free_count -= (MMI32)(old - a->count);
         }
     }
     return OK;
 }
-int three_mm_array_set_count(ThreeMMArray *a, ThreeMMU32 count)
+int mm_array_set_count(MMArray *a, MMU32 count)
 {
     int result;
-    ThreeMMU32 lo, hi;
+    MMU32 lo, hi;
     if (!array_shape(a) || a->allocated || count > (LIMIT - 1) / a->width)
         return BAD;
     if (count > a->count)
     {
-        result = three_mm_array_reserve(a, count - a->count, 0);
+        result = mm_array_reserve(a, count - a->count, 0);
         if (result != OK)
             return result;
     }
@@ -144,23 +144,23 @@ int three_mm_array_set_count(ThreeMMArray *a, ThreeMMU32 count)
     a->count = count;
     return OK;
 }
-int three_mm_array_move(ThreeMMArray *a, ThreeMMU32 source, ThreeMMU32 target)
+int mm_array_move(MMArray *a, MMU32 source, MMU32 target)
 {
     if (!array_shape(a) || a->allocated || source >= a->count || target > a->count)
         return BAD;
     move(a->storage->buffers[0].data, a->width, source, target);
     return OK;
 }
-int three_mm_array_add(ThreeMMArray *a, const void *data, ThreeMMU32 *out)
+int mm_array_add(MMArray *a, const void *data, MMU32 *out)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     int result;
     unsigned char *bits;
     if (!array_shape(a))
         return BAD;
     i = a->count;
     if (!a->allocated)
-        result = three_mm_array_insert(a, i, data, 1);
+        result = mm_array_insert(a, i, data, 1);
     else
     {
         if (!data)
@@ -177,7 +177,7 @@ int three_mm_array_add(ThreeMMArray *a, const void *data, ThreeMMU32 *out)
         }
         else
         {
-            result = three_mm_array_reserve(a, 1, 0);
+            result = mm_array_reserve(a, 1, 0);
             if (result != OK)
                 return result;
             ++a->count;
@@ -191,7 +191,7 @@ int three_mm_array_add(ThreeMMArray *a, const void *data, ThreeMMU32 *out)
         *out = i;
     return result;
 }
-int three_mm_array_pop(ThreeMMArray *a, void *out)
+int mm_array_pop(MMArray *a, void *out)
 {
     if (!array_shape(a) || a->allocated)
         return BAD;
@@ -202,87 +202,87 @@ int three_mm_array_pop(ThreeMMArray *a, void *out)
     }
     if (out)
         memcpy(out, a->storage->buffers[0].data + (a->count - 1) * a->width, a->width);
-    return three_mm_array_delete(a, a->count - 1, 1);
+    return mm_array_delete(a, a->count - 1, 1);
 }
-static ThreeMMU32 round4(ThreeMMU32 n)
+static MMU32 round4(MMU32 n)
 {
-    return (n + 3) & ~(ThreeMMU32)3;
+    return (n + 3) & ~(MMU32)3;
 }
-static int group_shape(const ThreeMMGroup *g)
+static int group_shape(const MMGroup *g)
 {
     return g && g->storage && g->fixed_bytes < LIMIT && g->bytes < LIMIT && g->count <= (LIMIT - 1) / 8 &&
            g->bytes <= g->storage->buffers[0].capacity && g->count * 8 <= g->storage->buffers[1].capacity;
 }
-static ThreeMMGroupLocation location(const ThreeMMGroup *g, ThreeMMU32 i)
+static MMGroupLocation location(const MMGroup *g, MMU32 i)
 {
-    ThreeMMGroupLocation loc;
+    MMGroupLocation loc;
     memcpy(&loc, g->storage->buffers[1].data + i * 8, 8);
     return loc;
 }
-static void set_location(ThreeMMGroup *g, ThreeMMU32 i, ThreeMMGroupLocation loc)
+static void set_location(MMGroup *g, MMU32 i, MMGroupLocation loc)
 {
     memcpy(g->storage->buffers[1].data + i * 8, &loc, 8);
 }
-int three_mm_group_location(const ThreeMMGroup *g, ThreeMMU32 index, ThreeMMGroupLocation *out)
+int mm_group_location(const MMGroup *g, MMU32 index, MMGroupLocation *out)
 {
-    ThreeMMGroupLocation loc;
+    MMGroupLocation loc;
     if (!group_shape(g) || index >= g->count || !out)
         return BAD;
     loc = location(g, index);
-    if (loc.offset < 0 || loc.bytes < 0 || (ThreeMMU32)loc.bytes < g->fixed_bytes ||
-        (ThreeMMU32)loc.offset > g->bytes || round4((ThreeMMU32)loc.bytes) > g->bytes - (ThreeMMU32)loc.offset)
+    if (loc.offset < 0 || loc.bytes < 0 || (MMU32)loc.bytes < g->fixed_bytes ||
+        (MMU32)loc.offset > g->bytes || round4((MMU32)loc.bytes) > g->bytes - (MMU32)loc.offset)
         return BAD;
     *out = loc;
     return OK;
 }
-int three_mm_group_reserve(ThreeMMGroup *g, ThreeMMU32 additional, ThreeMMU32 variable, int shrink)
+int mm_group_reserve(MMGroup *g, MMU32 additional, MMU32 variable, int shrink)
 {
-    ThreeMMU32 slots, per;
+    MMU32 slots, per;
     if (!group_shape(g) || variable >= LIMIT)
         return BAD;
     slots = g->free_count == -1                      ? additional
-            : additional > (ThreeMMU32)g->free_count ? additional - (ThreeMMU32)g->free_count
+            : additional > (MMU32)g->free_count ? additional - (MMU32)g->free_count
                                                      : 0;
     per = g->fixed_bytes + 3;
     /* Retain the legacy reserve budget, including its conservative bytes term. */
     if (slots > (LIMIT - 1) / 8 - g->count || g->bytes > LIMIT / per || additional > LIMIT / per - g->bytes ||
         additional > (LIMIT - 1 - g->bytes) / per || variable > LIMIT - 1 - g->bytes - additional * per)
         return BAD;
-    return three_mm_storage_ensure(g->storage, g->bytes + variable + additional * per, (g->count + slots) * 8, shrink);
+    return mm_storage_ensure(g->storage, g->bytes + variable + additional * per, (g->count + slots) * 8, shrink);
 }
-static void adjust(ThreeMMGroup *g, ThreeMMU32 lo, ThreeMMU32 hi, ThreeMMI32 delta)
+static void adjust(MMGroup *g, MMU32 lo, MMU32 hi, MMI32 delta)
 {
-    ThreeMMU32 i;
-    ThreeMMGroupLocation loc;
+    MMU32 i;
+    MMGroupLocation loc;
     if (g->bytes >= lo && g->bytes < hi)
-        g->bytes = (ThreeMMU32)((ThreeMMI32)g->bytes + delta);
+        g->bytes = (MMU32)((MMI32)g->bytes + delta);
     for (i = 0; i < g->count; ++i)
     {
         loc = location(g, i);
-        if (loc.offset >= 0 && (ThreeMMU32)loc.offset >= lo && (ThreeMMU32)loc.offset < hi)
+        if (loc.offset >= 0 && (MMU32)loc.offset >= lo && (MMU32)loc.offset < hi)
         {
             loc.offset += delta;
             set_location(g, i, loc);
         }
     }
 }
-static void remove_bytes(ThreeMMGroup *g, ThreeMMU32 offset, ThreeMMU32 bytes)
+static void remove_bytes(MMGroup *g, MMU32 offset, MMU32 bytes)
 {
     unsigned char *p = g->storage->buffers[0].data;
     if (offset + bytes < g->bytes)
     {
         memmove(p + offset, p + offset + bytes, g->bytes - offset - bytes);
-        adjust(g, offset + 1, g->bytes + 1, -(ThreeMMI32)bytes);
+        adjust(g, offset + 1, g->bytes + 1, -(MMI32)bytes);
     }
     else
         g->bytes -= bytes;
     trash(g->trash_unused, p + g->bytes, bytes);
 }
-static int insert_entry(ThreeMMGroup *g, ThreeMMU32 i, ThreeMMU32 bytes, const void *data, const void *fixed,
+static int insert_entry(MMGroup *g, MMU32 i, MMU32 bytes, const void *data, const void *fixed,
                         int allocated)
 {
-    ThreeMMGroupLocation loc;
-    ThreeMMU32 total, padded, new_count;
+    MMGroupLocation loc;
+    MMU32 total, padded, new_count;
     int result;
     unsigned char *p, *entries;
     if (!group_shape(g) || bytes >= LIMIT || bytes > LIMIT - 1 - g->fixed_bytes || i > g->count)
@@ -292,11 +292,11 @@ static int insert_entry(ThreeMMGroup *g, ThreeMMU32 i, ThreeMMU32 bytes, const v
     new_count = g->count + (allocated ? i == g->count : 1);
     if (padded > LIMIT - 1 - g->bytes || new_count > (LIMIT - 1) / 8)
         return BAD;
-    result = three_mm_storage_ensure(g->storage, g->bytes + padded, new_count * 8, 0);
+    result = mm_storage_ensure(g->storage, g->bytes + padded, new_count * 8, 0);
     if (result != OK)
         return result;
-    loc.offset = total ? (ThreeMMI32)g->bytes : 0;
-    loc.bytes = (ThreeMMI32)total;
+    loc.offset = total ? (MMI32)g->bytes : 0;
+    loc.bytes = (MMI32)total;
     entries = g->storage->buffers[1].data;
     if (!allocated)
         memmove(entries + (i + 1) * 8, entries + i * 8, (g->count - i) * 8);
@@ -321,15 +321,15 @@ static int insert_entry(ThreeMMGroup *g, ThreeMMU32 i, ThreeMMU32 bytes, const v
     g->count = new_count;
     return OK;
 }
-int three_mm_group_insert(ThreeMMGroup *g, ThreeMMU32 i, ThreeMMU32 bytes, const void *data, const void *fixed)
+int mm_group_insert(MMGroup *g, MMU32 i, MMU32 bytes, const void *data, const void *fixed)
 {
     if (!g || g->free_count != -1)
         return BAD;
     return insert_entry(g, i, bytes, data, fixed, 0);
 }
-int three_mm_group_add(ThreeMMGroup *g, ThreeMMU32 bytes, const void *data, const void *fixed, ThreeMMU32 *out)
+int mm_group_add(MMGroup *g, MMU32 bytes, const void *data, const void *fixed, MMU32 *out)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     int result;
     if (!group_shape(g))
         return BAD;
@@ -352,11 +352,11 @@ int three_mm_group_add(ThreeMMGroup *g, ThreeMMU32 bytes, const void *data, cons
     }
     return result;
 }
-int three_mm_group_delete(ThreeMMGroup *g, ThreeMMU32 i)
+int mm_group_delete(MMGroup *g, MMU32 i)
 {
-    ThreeMMGroupLocation loc, free_loc;
-    ThreeMMU32 old;
-    if (three_mm_group_location(g, i, &loc) != OK)
+    MMGroupLocation loc, free_loc;
+    MMU32 old;
+    if (mm_group_location(g, i, &loc) != OK)
         return BAD;
     old = g->count;
     if (g->free_count == -1)
@@ -383,19 +383,19 @@ int three_mm_group_delete(ThreeMMGroup *g, ThreeMMU32 i)
         ++g->free_count;
     }
     if (loc.bytes)
-        remove_bytes(g, (ThreeMMU32)loc.offset, round4((ThreeMMU32)loc.bytes));
+        remove_bytes(g, (MMU32)loc.offset, round4((MMU32)loc.bytes));
     return OK;
 }
-int three_mm_group_move(ThreeMMGroup *g, ThreeMMU32 source, ThreeMMU32 target)
+int mm_group_move(MMGroup *g, MMU32 source, MMU32 target)
 {
     if (!group_shape(g) || g->free_count != -1 || source >= g->count || target > g->count)
         return BAD;
     move(g->storage->buffers[1].data, 8, source, target);
     return OK;
 }
-int three_mm_group_swap(ThreeMMGroup *g, ThreeMMU32 a, ThreeMMU32 b)
+int mm_group_swap(MMGroup *g, MMU32 a, MMU32 b)
 {
-    ThreeMMGroupLocation first, second;
+    MMGroupLocation first, second;
     if (!group_shape(g) || g->free_count != -1 || a >= g->count || b >= g->count)
         return BAD;
     first = location(g, a);
@@ -404,190 +404,190 @@ int three_mm_group_swap(ThreeMMGroup *g, ThreeMMU32 a, ThreeMMU32 b)
     set_location(g, b, first);
     return OK;
 }
-int three_mm_group_insert_bytes(ThreeMMGroup *g, ThreeMMU32 i, ThreeMMU32 offset, ThreeMMU32 bytes, const void *data)
+int mm_group_insert_bytes(MMGroup *g, MMU32 i, MMU32 offset, MMU32 bytes, const void *data)
 {
-    ThreeMMGroupLocation loc;
-    ThreeMMU32 extra, end;
+    MMGroupLocation loc;
+    MMU32 extra, end;
     unsigned char *p;
     int result;
-    if (three_mm_group_location(g, i, &loc) != OK || offset > (ThreeMMU32)loc.bytes - g->fixed_bytes ||
-        bytes > LIMIT - 1 - (ThreeMMU32)loc.bytes)
+    if (mm_group_location(g, i, &loc) != OK || offset > (MMU32)loc.bytes - g->fixed_bytes ||
+        bytes > LIMIT - 1 - (MMU32)loc.bytes)
         return BAD;
     if (!bytes)
         return OK;
     offset += g->fixed_bytes;
     if (!loc.bytes)
-        loc.offset = (ThreeMMI32)g->bytes;
-    extra = round4((ThreeMMU32)loc.bytes + bytes) - round4((ThreeMMU32)loc.bytes);
+        loc.offset = (MMI32)g->bytes;
+    extra = round4((MMU32)loc.bytes + bytes) - round4((MMU32)loc.bytes);
     if (extra > LIMIT - 1 - g->bytes)
         return BAD;
     if (extra)
     {
-        result = three_mm_storage_ensure(g->storage, g->bytes + extra, g->count * 8, 0);
+        result = mm_storage_ensure(g->storage, g->bytes + extra, g->count * 8, 0);
         if (result != OK)
             return result;
-        end = (ThreeMMU32)loc.offset + round4((ThreeMMU32)loc.bytes);
+        end = (MMU32)loc.offset + round4((MMU32)loc.bytes);
         if (end < g->bytes)
         {
             p = g->storage->buffers[0].data;
             memmove(p + end + extra, p + end, g->bytes - end);
-            adjust(g, (ThreeMMU32)loc.offset + 1, g->bytes + 1, (ThreeMMI32)extra);
+            adjust(g, (MMU32)loc.offset + 1, g->bytes + 1, (MMI32)extra);
         }
         else
             g->bytes += extra;
     }
-    p = g->storage->buffers[0].data + (ThreeMMU32)loc.offset + offset;
-    if (offset < (ThreeMMU32)loc.bytes)
-        memmove(p + bytes, p, (ThreeMMU32)loc.bytes - offset);
+    p = g->storage->buffers[0].data + (MMU32)loc.offset + offset;
+    if (offset < (MMU32)loc.bytes)
+        memmove(p + bytes, p, (MMU32)loc.bytes - offset);
     if (data)
         memcpy(p, data, bytes);
     else
         trash(g->trash_unused, p, bytes);
-    loc.bytes += (ThreeMMI32)bytes;
+    loc.bytes += (MMI32)bytes;
     set_location(g, i, loc);
     return OK;
 }
-int three_mm_group_delete_bytes(ThreeMMGroup *g, ThreeMMU32 i, ThreeMMU32 offset, ThreeMMU32 bytes)
+int mm_group_delete_bytes(MMGroup *g, MMU32 i, MMU32 offset, MMU32 bytes)
 {
-    ThreeMMGroupLocation loc;
-    ThreeMMU32 remove;
+    MMGroupLocation loc;
+    MMU32 remove;
     unsigned char *p;
-    if (three_mm_group_location(g, i, &loc) != OK || offset > (ThreeMMU32)loc.bytes - g->fixed_bytes ||
-        bytes > (ThreeMMU32)loc.bytes - g->fixed_bytes - offset)
+    if (mm_group_location(g, i, &loc) != OK || offset > (MMU32)loc.bytes - g->fixed_bytes ||
+        bytes > (MMU32)loc.bytes - g->fixed_bytes - offset)
         return BAD;
     if (!bytes)
         return OK;
     offset += g->fixed_bytes;
-    p = g->storage->buffers[0].data + (ThreeMMU32)loc.offset + offset;
-    if (offset + bytes < (ThreeMMU32)loc.bytes)
-        memmove(p, p + bytes, (ThreeMMU32)loc.bytes - offset - bytes);
-    remove = round4((ThreeMMU32)loc.bytes) - round4((ThreeMMU32)loc.bytes - bytes);
+    p = g->storage->buffers[0].data + (MMU32)loc.offset + offset;
+    if (offset + bytes < (MMU32)loc.bytes)
+        memmove(p, p + bytes, (MMU32)loc.bytes - offset - bytes);
+    remove = round4((MMU32)loc.bytes) - round4((MMU32)loc.bytes - bytes);
     if (remove)
-        remove_bytes(g, (ThreeMMU32)loc.offset + (ThreeMMU32)loc.bytes - bytes, remove);
+        remove_bytes(g, (MMU32)loc.offset + (MMU32)loc.bytes - bytes, remove);
     loc = location(g, i);
-    loc.bytes -= (ThreeMMI32)bytes;
+    loc.bytes -= (MMI32)bytes;
     if (!loc.bytes)
         loc.offset = 0;
     set_location(g, i, loc);
     return OK;
 }
-int three_mm_group_put(ThreeMMGroup *g, ThreeMMU32 i, ThreeMMU32 bytes, const void *data)
+int mm_group_put(MMGroup *g, MMU32 i, MMU32 bytes, const void *data)
 {
-    ThreeMMGroupLocation loc;
-    ThreeMMU32 old;
+    MMGroupLocation loc;
+    MMU32 old;
     int result = OK;
-    if (three_mm_group_location(g, i, &loc) != OK)
+    if (mm_group_location(g, i, &loc) != OK)
         return BAD;
-    old = (ThreeMMU32)loc.bytes - g->fixed_bytes;
+    old = (MMU32)loc.bytes - g->fixed_bytes;
     if (bytes > old)
-        result = three_mm_group_insert_bytes(g, i, old, bytes - old, NULL);
+        result = mm_group_insert_bytes(g, i, old, bytes - old, NULL);
     else if (bytes < old)
-        result = three_mm_group_delete_bytes(g, i, bytes, old - bytes);
+        result = mm_group_delete_bytes(g, i, bytes, old - bytes);
     if (result != OK)
         return result;
     if (data && bytes)
     {
         loc = location(g, i);
-        memcpy(g->storage->buffers[0].data + (ThreeMMU32)loc.offset + g->fixed_bytes, data, bytes);
+        memcpy(g->storage->buffers[0].data + (MMU32)loc.offset + g->fixed_bytes, data, bytes);
     }
     return OK;
 }
-int three_mm_group_move_bytes(ThreeMMGroup *g, ThreeMMU32 source, ThreeMMU32 from, ThreeMMU32 target, ThreeMMU32 to,
-                              ThreeMMU32 bytes)
+int mm_group_move_bytes(MMGroup *g, MMU32 source, MMU32 from, MMU32 target, MMU32 to,
+                              MMU32 bytes)
 {
-    ThreeMMGroupLocation src, dst, loc;
-    ThreeMMI32 delta;
-    ThreeMMU32 main, a, b;
+    MMGroupLocation src, dst, loc;
+    MMI32 delta;
+    MMU32 main, a, b;
     int result;
     unsigned char tail[4], *p;
-    if (three_mm_group_location(g, source, &src) != OK || three_mm_group_location(g, target, &dst) != OK ||
-        from > (ThreeMMU32)src.bytes - g->fixed_bytes || bytes > (ThreeMMU32)src.bytes - g->fixed_bytes - from ||
-        to > (ThreeMMU32)dst.bytes - g->fixed_bytes || bytes > LIMIT - 1 - (ThreeMMU32)dst.bytes)
+    if (mm_group_location(g, source, &src) != OK || mm_group_location(g, target, &dst) != OK ||
+        from > (MMU32)src.bytes - g->fixed_bytes || bytes > (MMU32)src.bytes - g->fixed_bytes - from ||
+        to > (MMU32)dst.bytes - g->fixed_bytes || bytes > LIMIT - 1 - (MMU32)dst.bytes)
         return BAD;
-    main = bytes & ~(ThreeMMU32)3;
-    a = (ThreeMMU32)src.offset + from + g->fixed_bytes;
-    b = (ThreeMMU32)dst.offset + to + g->fixed_bytes;
+    main = bytes & ~(MMU32)3;
+    a = (MMU32)src.offset + from + g->fixed_bytes;
+    b = (MMU32)dst.offset + to + g->fixed_bytes;
     if (source == target && a < b && b - a < main)
         return BAD;
-    delta = (ThreeMMI32)(round4((ThreeMMU32)dst.bytes + bytes) - round4((ThreeMMU32)dst.bytes)) -
-            (ThreeMMI32)(round4((ThreeMMU32)src.bytes) - round4((ThreeMMU32)src.bytes - bytes));
+    delta = (MMI32)(round4((MMU32)dst.bytes + bytes) - round4((MMU32)dst.bytes)) -
+            (MMI32)(round4((MMU32)src.bytes) - round4((MMU32)src.bytes - bytes));
     if (delta > 0)
     {
-        if ((ThreeMMU32)delta > LIMIT - 1 - g->bytes)
+        if ((MMU32)delta > LIMIT - 1 - g->bytes)
             return BAD;
-        result = three_mm_storage_ensure(g->storage, g->bytes + (ThreeMMU32)delta, g->count * 8, 0);
+        result = mm_storage_ensure(g->storage, g->bytes + (MMU32)delta, g->count * 8, 0);
         if (result != OK)
             return result;
     }
     if (main)
     {
         loc = location(g, source);
-        loc.bytes -= (ThreeMMI32)main;
+        loc.bytes -= (MMI32)main;
         if (!loc.bytes)
             loc.offset = 0;
         set_location(g, source, loc);
         loc = location(g, target);
         if (!loc.bytes)
         {
-            loc.offset = (ThreeMMI32)g->bytes;
+            loc.offset = (MMI32)g->bytes;
             b = g->bytes;
         }
-        loc.bytes += (ThreeMMI32)main;
+        loc.bytes += (MMI32)main;
         set_location(g, target, loc);
         p = g->storage->buffers[0].data;
         if (a < b)
         {
             blocks(p + a, main, b - a - main);
-            adjust(g, (ThreeMMU32)src.offset + 1, (ThreeMMU32)dst.offset + 1, -(ThreeMMI32)main);
+            adjust(g, (MMU32)src.offset + 1, (MMU32)dst.offset + 1, -(MMI32)main);
         }
         else
         {
             blocks(p + b, a - b, main);
-            adjust(g, (ThreeMMU32)dst.offset + 1, (ThreeMMU32)src.offset + 1, (ThreeMMI32)main);
+            adjust(g, (MMU32)dst.offset + 1, (MMU32)src.offset + 1, (MMI32)main);
         }
     }
     if (bytes > main)
     {
         loc = location(g, source);
-        memcpy(tail, g->storage->buffers[0].data + (ThreeMMU32)loc.offset + g->fixed_bytes + from, bytes - main);
-        result = three_mm_group_delete_bytes(g, source, from, bytes - main);
+        memcpy(tail, g->storage->buffers[0].data + (MMU32)loc.offset + g->fixed_bytes + from, bytes - main);
+        result = mm_group_delete_bytes(g, source, from, bytes - main);
         if (result != OK)
             return result;
-        return three_mm_group_insert_bytes(g, target, to + main, bytes - main, tail);
+        return mm_group_insert_bytes(g, target, to + main, bytes - main, tail);
     }
     return OK;
 }
-int three_mm_group_merge(ThreeMMGroup *g, ThreeMMU32 source, ThreeMMU32 target)
+int mm_group_merge(MMGroup *g, MMU32 source, MMU32 target)
 {
-    ThreeMMGroupLocation src, dst;
-    ThreeMMU32 bytes, main, end;
+    MMGroupLocation src, dst;
+    MMU32 bytes, main, end;
     unsigned char tail[4];
     int result;
-    if (source == target || three_mm_group_location(g, source, &src) != OK ||
-        three_mm_group_location(g, target, &dst) != OK)
+    if (source == target || mm_group_location(g, source, &src) != OK ||
+        mm_group_location(g, target, &dst) != OK)
         return BAD;
-    bytes = (ThreeMMU32)src.bytes - g->fixed_bytes;
-    main = bytes & ~(ThreeMMU32)3;
-    end = (ThreeMMU32)dst.bytes - g->fixed_bytes;
+    bytes = (MMU32)src.bytes - g->fixed_bytes;
+    main = bytes & ~(MMU32)3;
+    end = (MMU32)dst.bytes - g->fixed_bytes;
     if (bytes > main)
-        memcpy(tail, g->storage->buffers[0].data + (ThreeMMU32)src.offset + g->fixed_bytes + main, bytes - main);
+        memcpy(tail, g->storage->buffers[0].data + (MMU32)src.offset + g->fixed_bytes + main, bytes - main);
     if (main)
     {
-        result = three_mm_group_move_bytes(g, source, 0, target, end, main);
+        result = mm_group_move_bytes(g, source, 0, target, end, main);
         if (result != OK)
             return result;
     }
-    result = three_mm_group_delete(g, source);
+    result = mm_group_delete(g, source);
     if (result != OK)
         return result;
     if (source < target)
         --target; /* Preserve VirtualGroup's legacy dense-index adjustment. */
-    return bytes > main ? three_mm_group_insert_bytes(g, target, end + main, bytes - main, tail) : OK;
+    return bytes > main ? mm_group_insert_bytes(g, target, end + main, bytes - main, tail) : OK;
 }
-int three_mm_group_copy_entries(ThreeMMGroup *dst, ThreeMMGroup *src, ThreeMMU32 from, ThreeMMU32 to, ThreeMMU32 count)
+int mm_group_copy_entries(MMGroup *dst, MMGroup *src, MMU32 from, MMU32 to, MMU32 count)
 {
-    ThreeMMU32 i, bytes = 0;
-    ThreeMMGroupLocation loc;
+    MMU32 i, bytes = 0;
+    MMGroupLocation loc;
     const unsigned char *p;
     int result;
     if (!group_shape(src) || !group_shape(dst) || src->storage == dst->storage || src->free_count != -1 ||
@@ -596,32 +596,32 @@ int three_mm_group_copy_entries(ThreeMMGroup *dst, ThreeMMGroup *src, ThreeMMU32
         return BAD;
     for (i = 0; i < count; ++i)
     {
-        if (three_mm_group_location(src, from + i, &loc) != OK ||
-            (ThreeMMU32)loc.bytes - src->fixed_bytes > LIMIT - 1 - bytes)
+        if (mm_group_location(src, from + i, &loc) != OK ||
+            (MMU32)loc.bytes - src->fixed_bytes > LIMIT - 1 - bytes)
             return BAD;
-        bytes += (ThreeMMU32)loc.bytes - src->fixed_bytes;
+        bytes += (MMU32)loc.bytes - src->fixed_bytes;
     }
-    result = three_mm_group_reserve(dst, count, bytes, 0);
+    result = mm_group_reserve(dst, count, bytes, 0);
     if (result != OK)
         return result;
-    result = three_mm_storage_lock(src->storage, 0);
+    result = mm_storage_lock(src->storage, 0);
     if (result != OK)
         return result;
     for (i = 0; i < count; ++i)
     {
         loc = location(src, from + i);
-        p = loc.bytes ? src->storage->buffers[0].data + (ThreeMMU32)loc.offset : NULL;
-        result = three_mm_group_insert(dst, to + i, (ThreeMMU32)loc.bytes - src->fixed_bytes,
+        p = loc.bytes ? src->storage->buffers[0].data + (MMU32)loc.offset : NULL;
+        result = mm_group_insert(dst, to + i, (MMU32)loc.bytes - src->fixed_bytes,
                                        p ? p + src->fixed_bytes : NULL, src->fixed_bytes ? p : NULL);
         if (result != OK)
             break;
     }
-    three_mm_storage_unlock(src->storage, 0);
+    mm_storage_unlock(src->storage, 0);
     return result;
 }
-void three_mm_group_swap_locations(ThreeMMGroup *g)
+void mm_group_swap_locations(MMGroup *g)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     unsigned j;
     unsigned char *p, x;
     for (i = 0; i < g->count * 2; ++i)

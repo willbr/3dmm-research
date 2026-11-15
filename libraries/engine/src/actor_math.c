@@ -1,45 +1,45 @@
 /* Matrix and angle policy adapted from BRender matrix34.c and fixed386.asm.
  * Copyright (c) 1992,1993-1995 Argonaut Technologies Limited. All rights reserved. */
-#include "three_mm/actor_math.h"
-#include "three_mm/wide.h"
+#include "mm/actor_math.h"
+#include "mm/wide.h"
 #include "actor_math_tables.h"
-static ThreeMMU32 magnitude(ThreeMMI32 n)
+static MMU32 magnitude(MMI32 n)
 {
-    return n < 0 ? 0U - (ThreeMMU32)n : (ThreeMMU32)n;
+    return n < 0 ? 0U - (MMU32)n : (MMU32)n;
 }
-ThreeMMI32 three_mm_fixed_mac3(ThreeMMI32 a, ThreeMMI32 b, ThreeMMI32 c, ThreeMMI32 d, ThreeMMI32 e, ThreeMMI32 f)
+MMI32 mm_fixed_mac3(MMI32 a, MMI32 b, MMI32 c, MMI32 d, MMI32 e, MMI32 f)
 {
     /* Retail's scalar macro truncates each product before adding, unlike the
      * standalone BrFixedMac3 assembly primitive. Unsigned addition wraps. */
-    return three_mm_signed_word((ThreeMMU32)three_mm_fixed_mul(a,b) +
-                               (ThreeMMU32)three_mm_fixed_mul(c,d) +
-                               (ThreeMMU32)three_mm_fixed_mul(e,f));
+    return mm_signed_word((MMU32)mm_fixed_mul(a,b) +
+                               (MMU32)mm_fixed_mul(c,d) +
+                               (MMU32)mm_fixed_mul(e,f));
 }
-static ThreeMMI32 signed16(ThreeMMU32 value)
+static MMI32 signed16(MMU32 value)
 {
     value &= 65535U;
-    return value < 32768U ? (ThreeMMI32)value : (ThreeMMI32)value - 65536L;
+    return value < 32768U ? (MMI32)value : (MMI32)value - 65536L;
 }
-static ThreeMMI32 sincos(unsigned short angle, unsigned offset)
+static MMI32 sincos(unsigned short angle, unsigned offset)
 {
     unsigned index = (angle >> 8) + offset;
-    ThreeMMI32 base = sin_table[index], delta = signed16((ThreeMMU32)sin_table[index + 1] - (ThreeMMU32)base);
-    ThreeMMI32 value = (ThreeMMI32)(angle & 255U) * delta, interpolated;
+    MMI32 base = sin_table[index], delta = signed16((MMU32)sin_table[index + 1] - (MMU32)base);
+    MMI32 value = (MMI32)(angle & 255U) * delta, interpolated;
     interpolated = value < 0 ? -1 - ((-1 - value) / 256L) : value / 256L;
-    return signed16((ThreeMMU32)base + (ThreeMMU32)interpolated) * 2;
+    return signed16((MMU32)base + (MMU32)interpolated) * 2;
 }
-ThreeMMI32 three_mm_angle_sin(unsigned short angle)
+MMI32 mm_angle_sin(unsigned short angle)
 {
     return sincos(angle, 0);
 }
-ThreeMMI32 three_mm_angle_cos(unsigned short angle)
+MMI32 mm_angle_cos(unsigned short angle)
 {
     return sincos(angle, 64);
 }
-unsigned short three_mm_angle_atan2(ThreeMMI32 x, ThreeMMI32 y)
+unsigned short mm_angle_atan2(MMI32 x, MMI32 y)
 {
-    ThreeMMU32 ax = magnitude(x), ay = magnitude(y), small = ax < ay ? ax : ay, large = ax < ay ? ay : ax;
-    ThreeMMU32 angle, ratio = 0, index;
+    MMU32 ax = magnitude(x), ay = magnitude(y), small = ax < ay ? ax : ay, large = ax < ay ? ay : ax;
+    MMU32 angle, ratio = 0, index;
     unsigned i;
     if (!large)
         return 0;
@@ -69,38 +69,38 @@ unsigned short three_mm_angle_atan2(ThreeMMI32 x, ThreeMMI32 y)
         angle = 0U - angle;
     return (unsigned short)angle;
 }
-void three_mm_matrix_identity(ThreeMMActorMatrix *m)
+void mm_matrix_identity(MMActorMatrix *m)
 {
     unsigned i, j;
     for (i = 0; i < 4; ++i)
         for (j = 0; j < 3; ++j)
             m->m[i][j] = i == j ? 65536L : 0;
 }
-void three_mm_matrix_multiply(ThreeMMActorMatrix *out, const ThreeMMActorMatrix *b, const ThreeMMActorMatrix *c)
+void mm_matrix_multiply(MMActorMatrix *out, const MMActorMatrix *b, const MMActorMatrix *c)
 {
     unsigned i, j;
-    ThreeMMI32 value;
+    MMI32 value;
     for (i = 0; i < 4; ++i)
         for (j = 0; j < 3; ++j)
         {
-            value = three_mm_fixed_mac3(b->m[i][0], c->m[0][j], b->m[i][1], c->m[1][j], b->m[i][2], c->m[2][j]);
+            value = mm_fixed_mac3(b->m[i][0], c->m[0][j], b->m[i][1], c->m[1][j], b->m[i][2], c->m[2][j]);
             if (i == 3)
-                value = three_mm_fixed_add(value, c->m[3][j]);
+                value = mm_fixed_add(value, c->m[3][j]);
             out->m[i][j] = value;
         }
 }
-void three_mm_matrix_rotate(ThreeMMActorMatrix *m, int axis, unsigned short angle, int pre)
+void mm_matrix_rotate(MMActorMatrix *m, int axis, unsigned short angle, int pre)
 {
-    ThreeMMActorMatrix rotation, result;
-    ThreeMMI32 sine = three_mm_angle_sin(angle), cosine = three_mm_angle_cos(angle);
-    three_mm_matrix_identity(&rotation);
-    if (axis == THREE_MM_MATRIX_X)
+    MMActorMatrix rotation, result;
+    MMI32 sine = mm_angle_sin(angle), cosine = mm_angle_cos(angle);
+    mm_matrix_identity(&rotation);
+    if (axis == MM_MATRIX_X)
     {
         rotation.m[1][1] = rotation.m[2][2] = cosine;
         rotation.m[1][2] = sine;
         rotation.m[2][1] = -sine;
     }
-    else if (axis == THREE_MM_MATRIX_Y)
+    else if (axis == MM_MATRIX_Y)
     {
         rotation.m[0][0] = rotation.m[2][2] = cosine;
         rotation.m[0][2] = -sine;
@@ -113,18 +113,18 @@ void three_mm_matrix_rotate(ThreeMMActorMatrix *m, int axis, unsigned short angl
         rotation.m[1][0] = -sine;
     }
     if (pre)
-        three_mm_matrix_multiply(&result, &rotation, m);
+        mm_matrix_multiply(&result, &rotation, m);
     else
-        three_mm_matrix_multiply(&result, m, &rotation);
+        mm_matrix_multiply(&result, m, &rotation);
     *m = result;
 }
-void three_mm_matrix_scale(ThreeMMActorMatrix *m, ThreeMMI32 x, ThreeMMI32 y, ThreeMMI32 z)
+void mm_matrix_scale(MMActorMatrix *m, MMI32 x, MMI32 y, MMI32 z)
 {
-    ThreeMMActorMatrix scale, result;
-    three_mm_matrix_identity(&scale);
+    MMActorMatrix scale, result;
+    mm_matrix_identity(&scale);
     scale.m[0][0] = x;
     scale.m[1][1] = y;
     scale.m[2][2] = z;
-    three_mm_matrix_multiply(&result, m, &scale);
+    mm_matrix_multiply(&result, m, &scale);
     *m = result;
 }

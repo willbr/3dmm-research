@@ -69,8 +69,8 @@ struct Access : World
     }
     static void Begin(PWorld w)
     {
-#ifdef THREE_MM_ENGINE_WORLD_CAMERA_H
-        three_mm_world_pick_begin(&(w->*&Access::_camera));
+#ifdef MM_ENGINE_WORLD_CAMERA_H
+        mm_world_pick_begin(&(w->*&Access::_camera));
 #endif
         w->*&Access::_pbactClosestClicked = nullptr;
         w->*&Access::_dzpClosestClicked = BR_SCALAR_MAX;
@@ -92,7 +92,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto path = std::getenv("THREE_MM_WORLD_CAMERA_SNAPSHOT"))
+    if (auto path = std::getenv("MM_WORLD_CAMERA_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         CHECK(snapshot);

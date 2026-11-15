@@ -1,6 +1,6 @@
 #include "movie_input.h"
 #include "content.h"
-#include "three_mm/v3dmm.h"
+#include "mm/v3dmm.h"
 #include <miniz.h>
 #include <chrono>
 #include <cstdlib>
@@ -10,7 +10,7 @@
 #include <stdexcept>
 
 namespace fs = std::filesystem;
-namespace V = ThreeMM::V3dmm;
+namespace V = MM::V3dmm;
 void Check(bool value, int line)
 {
     if (!value)

@@ -1,15 +1,15 @@
-#ifndef THREE_MM_PREVIEW_ACTOR_TREE_H
-#define THREE_MM_PREVIEW_ACTOR_TREE_H
-#include "three_mm/preview_render.h"
+#ifndef MM_PREVIEW_ACTOR_TREE_H
+#define MM_PREVIEW_ACTOR_TREE_H
+#include "mm/preview_render.h"
 #include <exception>
 #include <map>
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
-inline ThreeMMPreviewTreeServices PreviewTreeServices()
+inline MMPreviewTreeServices PreviewTreeServices()
 {
-    ThreeMMPreviewTreeServices s = {};
+    MMPreviewTreeServices s = {};
     s.first = [](void *, const void *v) -> void * { return static_cast<const br_actor *>(v)->children; };
     s.next = [](void *, const void *v) -> void * { return static_cast<const br_actor *>(v)->next; };
     s.model = [](void *, const void *v) -> void * {
@@ -40,7 +40,7 @@ inline bool CopyBodyActorTree(br_actor *parent, const br_actor *source, std::map
     } host = {owners, {}};
     auto s = PreviewTreeServices();
     s.context = &host;
-    s.owner = [](void *context, void *copy, ThreeMMI32 owner) -> int {
+    s.owner = [](void *context, void *copy, MMI32 owner) -> int {
         auto &h = *static_cast<Host *>(context);
         try
         {
@@ -54,11 +54,11 @@ inline bool CopyBodyActorTree(br_actor *parent, const br_actor *source, std::map
             return 0;
         }
     };
-    const bool ok = three_mm_preview_copy_tree(parent, source, owner, nullptr, &s) != 0;
+    const bool ok = mm_preview_copy_tree(parent, source, owner, nullptr, &s) != 0;
     if (host.exception)
         std::rethrow_exception(host.exception);
     return ok;
 }
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM
 #endif

@@ -1,5 +1,5 @@
 /* Background depth reconstruction and renderer ownership. */
-#include "three_mm/background_mesh.h"
+#include "mm/background_mesh.h"
 #include <float.h>
 #include <math.h>
 #include <string.h>
@@ -19,10 +19,10 @@ static int continuous(double near_value, double far_value)
 {
     return mesh_finite(far_value) && near_value > 0 && far_value - near_value <= maximum(.02, near_value * .08);
 }
-static int reserve(ThreeMMCollectionStorage *s, unsigned section, ThreeMMU32 count, ThreeMMU32 stride)
+static int reserve(MMCollectionStorage *s, unsigned section, MMU32 count, MMU32 stride)
 {
-    ThreeMMU32 bytes, capacity;
-    if (!stride || count > THREE_MM_STORAGE_LIMIT / stride)
+    MMU32 bytes, capacity;
+    if (!stride || count > MM_STORAGE_LIMIT / stride)
         return 0;
     bytes = count * stride;
     capacity = s->buffers[section].capacity;
@@ -32,18 +32,18 @@ static int reserve(ThreeMMCollectionStorage *s, unsigned section, ThreeMMU32 cou
         capacity = 1024;
     while (capacity < bytes)
     {
-        if (capacity > THREE_MM_STORAGE_LIMIT / 2)
+        if (capacity > MM_STORAGE_LIMIT / 2)
         {
             capacity = bytes;
             break;
         }
         capacity *= 2;
     }
-    return three_mm_storage_resize_exact(s, section, capacity, THREE_MM_STORAGE_NORMAL) == THREE_MM_STORAGE_OK;
+    return mm_storage_resize_exact(s, section, capacity, MM_STORAGE_NORMAL) == MM_STORAGE_OK;
 }
-static void prepared_dispose(ThreeMMBackgroundPrepared *p, const ThreeMMBackgroundMeshServices *s)
+static void prepared_dispose(MMBackgroundPrepared *p, const MMBackgroundMeshServices *s)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     void **models = (void **)p->models.buffers[0].data;
     for (i = 0; i < p->count; ++i)
     {
@@ -65,42 +65,42 @@ static void prepared_dispose(ThreeMMBackgroundPrepared *p, const ThreeMMBackgrou
     p->map = p->material = NULL;
     p->count = 0;
     p->map_added = p->material_added = 0;
-    three_mm_storage_dispose(&p->models);
+    mm_storage_dispose(&p->models);
 }
-int three_mm_background_mesh_init(ThreeMMBackgroundMesh *m, const ThreeMMStorageAllocator *allocator)
+int mm_background_mesh_init(MMBackgroundMesh *m, const MMStorageAllocator *allocator)
 {
     memset(m, 0, sizeof(*m));
-    return three_mm_storage_init(&m->geometry, allocator) == THREE_MM_STORAGE_OK &&
-           three_mm_storage_init(&m->pixels, allocator) == THREE_MM_STORAGE_OK &&
-           three_mm_storage_init(&m->prepared.models, allocator) == THREE_MM_STORAGE_OK;
+    return mm_storage_init(&m->geometry, allocator) == MM_STORAGE_OK &&
+           mm_storage_init(&m->pixels, allocator) == MM_STORAGE_OK &&
+           mm_storage_init(&m->prepared.models, allocator) == MM_STORAGE_OK;
 }
-void three_mm_background_mesh_dispose(ThreeMMBackgroundMesh *m, const ThreeMMBackgroundMeshServices *s)
+void mm_background_mesh_dispose(MMBackgroundMesh *m, const MMBackgroundMeshServices *s)
 {
     prepared_dispose(&m->prepared, s);
-    three_mm_storage_dispose(&m->geometry);
-    three_mm_storage_dispose(&m->pixels);
+    mm_storage_dispose(&m->geometry);
+    mm_storage_dispose(&m->pixels);
     m->vertex_count = m->triangle_count = m->width = m->height = m->infinite_count = 0;
     memset(m->low, 0, sizeof(m->low));
     memset(m->high, 0, sizeof(m->high));
 }
 typedef struct Build
 {
-    ThreeMMBackgroundMesh *mesh;
-    ThreeMMU32 width, height;
+    MMBackgroundMesh *mesh;
+    MMU32 width, height;
     double *distances;
-    ThreeMMI32 *indices;
+    MMI32 *indices;
     const double *camera, *projection;
     int ok;
 } Build;
-static ThreeMMU32 vertex(Build *b, ThreeMMU32 x, ThreeMMU32 y)
+static MMU32 vertex(Build *b, MMU32 x, MMU32 y)
 {
-    ThreeMMBackgroundMesh *m = b->mesh;
-    ThreeMMI32 *index = &b->indices[y * b->width + x];
-    ThreeMMBackgroundVertex point;
-    ThreeMMU32 result, axis;
+    MMBackgroundMesh *m = b->mesh;
+    MMI32 *index = &b->indices[y * b->width + x];
+    MMBackgroundVertex point;
+    MMU32 result, axis;
     double distance, px, py, world[3];
     if (*index >= 0)
-        return (ThreeMMU32)*index;
+        return (MMU32)*index;
     distance = b->distances[y * b->width + x];
     px = ((double)x - b->width / 2) / (b->width / 2) * distance / b->projection[0];
     py = (b->height / 2 - (double)y) / (b->height / 2) * distance / b->projection[5];
@@ -124,8 +124,8 @@ static ThreeMMU32 vertex(Build *b, ThreeMMU32 x, ThreeMMU32 y)
         b->ok = 0;
         return 0;
     }
-    ((ThreeMMBackgroundVertex *)m->geometry.buffers[0].data)[result] = point;
-    *index = (ThreeMMI32)result;
+    ((MMBackgroundVertex *)m->geometry.buffers[0].data)[result] = point;
+    *index = (MMI32)result;
     ++m->vertex_count;
     for (axis = 0; axis < 3; ++axis)
     {
@@ -136,12 +136,12 @@ static ThreeMMU32 vertex(Build *b, ThreeMMU32 x, ThreeMMU32 y)
     }
     return result;
 }
-static void triangle(Build *b, ThreeMMU32 ax, ThreeMMU32 ay, ThreeMMU32 bx, ThreeMMU32 by, ThreeMMU32 cx, ThreeMMU32 cy)
+static void triangle(Build *b, MMU32 ax, MMU32 ay, MMU32 bx, MMU32 by, MMU32 cx, MMU32 cy)
 {
     double a = b->distances[ay * b->width + ax], v = b->distances[by * b->width + bx],
            c = b->distances[cy * b->width + cx];
-    ThreeMMBackgroundTriangle t;
-    ThreeMMBackgroundMesh *m = b->mesh;
+    MMBackgroundTriangle t;
+    MMBackgroundMesh *m = b->mesh;
     if (!continuous(minimum(a, minimum(v, c)), maximum(a, maximum(v, c))))
         return;
     t.vertices[0] = vertex(b, ax, ay);
@@ -158,12 +158,12 @@ static void triangle(Build *b, ThreeMMU32 ax, ThreeMMU32 ay, ThreeMMU32 bx, Thre
         b->ok = 0;
         return;
     }
-    ((ThreeMMBackgroundTriangle *)m->geometry.buffers[1].data)[m->triangle_count++] = t;
+    ((MMBackgroundTriangle *)m->geometry.buffers[1].data)[m->triangle_count++] = t;
 }
-static void cell(Build *b, ThreeMMU32 left, ThreeMMU32 top, ThreeMMU32 right, ThreeMMU32 bottom)
+static void cell(Build *b, MMU32 left, MMU32 top, MMU32 right, MMU32 bottom)
 {
     double near_value = HUGE_VAL, far_value = 0, d;
-    ThreeMMU32 x, y, middle;
+    MMU32 x, y, middle;
     if (b->ok <= 0)
         return;
     for (y = top; y <= bottom; ++y)
@@ -195,8 +195,8 @@ static void cell(Build *b, ThreeMMU32 left, ThreeMMU32 top, ThreeMMU32 right, Th
     if (b->ok > 0)
         triangle(b, left, top, right, bottom, left, bottom);
 }
-static void spread(unsigned char *filled, ThreeMMU32 *queue, ThreeMMU32 *tail, unsigned char *colors, ThreeMMU32 index,
-                   ThreeMMU32 next)
+static void spread(unsigned char *filled, MMU32 *queue, MMU32 *tail, unsigned char *colors, MMU32 index,
+                   MMU32 next)
 {
     if (!filled[next])
     {
@@ -205,19 +205,19 @@ static void spread(unsigned char *filled, ThreeMMU32 *queue, ThreeMMU32 *tail, u
         queue[(*tail)++] = next;
     }
 }
-int three_mm_background_mesh_build(ThreeMMBackgroundMesh *m, ThreeMMU32 width, ThreeMMU32 height,
-                                   const unsigned char *colors, ThreeMMU32 color_count, const unsigned short *depths,
-                                   ThreeMMU32 depth_count, const double camera[16], const double projection[16],
-                                   const ThreeMMBackgroundMeshServices *s)
+int mm_background_mesh_build(MMBackgroundMesh *m, MMU32 width, MMU32 height,
+                                   const unsigned char *colors, MMU32 color_count, const unsigned short *depths,
+                                   MMU32 depth_count, const double camera[16], const double projection[16],
+                                   const MMBackgroundMeshServices *s)
 {
-    ThreeMMCollectionStorage scratch[2];
+    MMCollectionStorage scratch[2];
     Build b;
-    ThreeMMU32 n, i, x, y, head, tail = 0, *queue;
+    MMU32 n, i, x, y, head, tail = 0, *queue;
     unsigned char *filled, *infinite_colors;
     double denominator, distance;
     int result = 1, has_infinite = 0;
     prepared_dispose(&m->prepared, s);
-    three_mm_storage_init(&m->prepared.models, &m->geometry.allocator);
+    mm_storage_init(&m->prepared.models, &m->geometry.allocator);
     m->vertex_count = m->triangle_count = m->width = m->height = m->infinite_count = 0;
     memset(m->low, 0, sizeof(m->low));
     memset(m->high, 0, sizeof(m->high));
@@ -228,8 +228,8 @@ int three_mm_background_mesh_build(ThreeMMBackgroundMesh *m, ThreeMMU32 width, T
         if (!mesh_finite(camera[i]) || !mesh_finite(projection[i]))
             return 0;
     n = width * height;
-    three_mm_storage_init(&scratch[0], &m->geometry.allocator);
-    three_mm_storage_init(&scratch[1], &m->geometry.allocator);
+    mm_storage_init(&scratch[0], &m->geometry.allocator);
+    mm_storage_init(&scratch[1], &m->geometry.allocator);
     for (i = 0; i < n; ++i)
         if (depths[i] == 65535U)
         {
@@ -253,7 +253,7 @@ int three_mm_background_mesh_build(ThreeMMBackgroundMesh *m, ThreeMMU32 width, T
         }
         filled = scratch[1].buffers[0].data;
         memset(filled, 0, n);
-        queue = (ThreeMMU32 *)scratch[1].buffers[1].data;
+        queue = (MMU32 *)scratch[1].buffers[1].data;
         for (i = 0; i < n; ++i)
             if (depths[i] == 65535U)
             {
@@ -283,7 +283,7 @@ int three_mm_background_mesh_build(ThreeMMBackgroundMesh *m, ThreeMMU32 width, T
     memcpy(m->pixels.buffers[0].data, colors, n);
     m->width = width;
     m->height = height;
-    if (!reserve(&scratch[0], 0, n, sizeof(double)) || !reserve(&scratch[0], 1, n, sizeof(ThreeMMI32)))
+    if (!reserve(&scratch[0], 0, n, sizeof(double)) || !reserve(&scratch[0], 1, n, sizeof(MMI32)))
     {
         result = -1;
         goto done;
@@ -296,7 +296,7 @@ int three_mm_background_mesh_build(ThreeMMBackgroundMesh *m, ThreeMMU32 width, T
     b.projection = projection;
     b.ok = 1;
     b.distances = (double *)scratch[0].buffers[0].data;
-    b.indices = (ThreeMMI32 *)scratch[0].buffers[1].data;
+    b.indices = (MMI32 *)scratch[0].buffers[1].data;
     for (i = 0; i < n; ++i)
     {
         b.distances[i] = HUGE_VAL;
@@ -321,18 +321,18 @@ int three_mm_background_mesh_build(ThreeMMBackgroundMesh *m, ThreeMMU32 width, T
     else if (b.ok < 0)
         result = 0;
 done:
-    three_mm_storage_dispose(&scratch[1]);
-    three_mm_storage_dispose(&scratch[0]);
+    mm_storage_dispose(&scratch[1]);
+    mm_storage_dispose(&scratch[0]);
     return result;
 }
-int three_mm_background_mesh_add(ThreeMMBackgroundMesh *m, void *world, const ThreeMMBackgroundMeshServices *s)
+int mm_background_mesh_add(MMBackgroundMesh *m, void *world, const MMBackgroundMeshServices *s)
 {
-    ThreeMMBackgroundPrepared p;
-    ThreeMMCollectionStorage scratch;
-    ThreeMMI32 *indices;
-    ThreeMMU32 *selected, selected_count, model_count, first, count, i, face, corner, index, face_indices[3], y;
-    ThreeMMBackgroundVertex value, *vertices = (ThreeMMBackgroundVertex *)m->geometry.buffers[0].data;
-    ThreeMMBackgroundTriangle *triangles = (ThreeMMBackgroundTriangle *)m->geometry.buffers[1].data;
+    MMBackgroundPrepared p;
+    MMCollectionStorage scratch;
+    MMI32 *indices;
+    MMU32 *selected, selected_count, model_count, first, count, i, face, corner, index, face_indices[3], y;
+    MMBackgroundVertex value, *vertices = (MMBackgroundVertex *)m->geometry.buffers[0].data;
+    MMBackgroundTriangle *triangles = (MMBackgroundTriangle *)m->geometry.buffers[1].data;
     void *model, *actor;
     unsigned char *row;
     if (!m->triangle_count)
@@ -340,8 +340,8 @@ int three_mm_background_mesh_add(ThreeMMBackgroundMesh *m, void *world, const Th
     if (!m->prepared.map)
     {
         memset(&p, 0, sizeof(p));
-        three_mm_storage_init(&p.models, &m->geometry.allocator);
-        three_mm_storage_init(&scratch, &m->geometry.allocator);
+        mm_storage_init(&p.models, &m->geometry.allocator);
+        mm_storage_init(&scratch, &m->geometry.allocator);
         p.map = s->map_new(s->context, m->width, m->height);
         if (!p.map)
             goto fail;
@@ -362,11 +362,11 @@ int three_mm_background_mesh_add(ThreeMMBackgroundMesh *m, void *world, const Th
         p.material_added = 1;
         model_count = (m->triangle_count + 4095U) / 4096U;
         if (!reserve(&p.models, 0, model_count, sizeof(void *)) ||
-            !reserve(&scratch, 0, m->vertex_count, sizeof(ThreeMMI32)) ||
-            !reserve(&scratch, 1, 12288U, sizeof(ThreeMMU32)))
+            !reserve(&scratch, 0, m->vertex_count, sizeof(MMI32)) ||
+            !reserve(&scratch, 1, 12288U, sizeof(MMU32)))
             goto fail;
-        indices = (ThreeMMI32 *)scratch.buffers[0].data;
-        selected = (ThreeMMU32 *)scratch.buffers[1].data;
+        indices = (MMI32 *)scratch.buffers[0].data;
+        selected = (MMU32 *)scratch.buffers[1].data;
         for (first = 0; first < m->triangle_count; first += 4096U)
         {
             for (i = 0; i < m->vertex_count; ++i)
@@ -381,7 +381,7 @@ int three_mm_background_mesh_add(ThreeMMBackgroundMesh *m, void *world, const Th
                     index = triangles[face].vertices[corner];
                     if (indices[index] < 0)
                     {
-                        indices[index] = (ThreeMMI32)selected_count;
+                        indices[index] = (MMI32)selected_count;
                         selected[selected_count++] = index;
                     }
                 }
@@ -399,14 +399,14 @@ int three_mm_background_mesh_add(ThreeMMBackgroundMesh *m, void *world, const Th
             for (i = 0; i < count; ++i)
             {
                 for (corner = 0; corner < 3; ++corner)
-                    face_indices[corner] = (ThreeMMU32)indices[triangles[first + i].vertices[corner]];
+                    face_indices[corner] = (MMU32)indices[triangles[first + i].vertices[corner]];
                 s->face(s->context, model, i, face_indices, p.material);
             }
             s->model_add(s->context, model);
             ((void **)p.models.buffers[0].data)[p.count++] = model;
         }
-        three_mm_storage_dispose(&scratch);
-        three_mm_storage_dispose(&m->prepared.models);
+        mm_storage_dispose(&scratch);
+        mm_storage_dispose(&m->prepared.models);
         m->prepared = p;
     }
     for (i = 0; i < m->prepared.count; ++i)
@@ -419,7 +419,7 @@ int three_mm_background_mesh_add(ThreeMMBackgroundMesh *m, void *world, const Th
     }
     return 1;
 fail:
-    three_mm_storage_dispose(&scratch);
+    mm_storage_dispose(&scratch);
     prepared_dispose(&p, s);
     return 0;
 }

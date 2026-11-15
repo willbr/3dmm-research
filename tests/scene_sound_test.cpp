@@ -100,7 +100,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto name = std::getenv("THREE_MM_SCENE_SOUND_SNAPSHOT"))
+    if (auto name = std::getenv("MM_SCENE_SOUND_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);
@@ -228,7 +228,7 @@ int main()
                 Value(observed->CactRef());
                 CHECK(observed->CactRef() == 1);
             }
-#ifdef THREE_MM_ENGINE_SCENE_SOUND_H
+#ifdef MM_ENGINE_SCENE_SOUND_H
     // Supplemental bounded-failure cases; the native group helper crashed on
     // allocation failure, so these deliberately sit outside the frozen trace.
     recording = false;

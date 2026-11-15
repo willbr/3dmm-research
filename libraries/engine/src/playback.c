@@ -1,6 +1,6 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
-#include "three_mm/playback.h"
+#include "mm/playback.h"
 #include <string.h>
 
 typedef enum PlaybackPhase
@@ -55,25 +55,25 @@ typedef enum PlayPhase
     PLAY_DONE
 } PlayPhase;
 
-void three_mm_frame_pacer_init(ThreeMMFramePacer *pacer)
+void mm_frame_pacer_init(MMFramePacer *pacer)
 {
     memset(pacer, 0, sizeof(*pacer));
     pacer->fps = -1;
 }
-void three_mm_playback_state_init(ThreeMMPlaybackState *state)
+void mm_playback_state_init(MMPlaybackState *state)
 {
     memset(state, 0, sizeof(*state));
     state->transition = -1;
     state->fadeVolume = -1;
 }
-void three_mm_playback_reply_init(ThreeMMPlaybackReply *reply)
+void mm_playback_reply_init(MMPlaybackReply *reply)
 {
     memset(reply, 0, sizeof(*reply));
     reply->success = 1;
     reply->position.transition = -1;
 }
-void three_mm_playback_init(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlaybackState *state,
-                            ThreeMMPlaybackU32 frameStart)
+void mm_playback_init(MMPlaybackEvaluator *evaluator, MMPlaybackState *state,
+                            MMPlaybackU32 frameStart)
 {
     memset(evaluator, 0, sizeof(*evaluator));
     evaluator->state = state;
@@ -81,7 +81,7 @@ void three_mm_playback_init(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlayback
     evaluator->phase = PB_START;
     evaluator->position.transition = -1;
 }
-void three_mm_play_init(ThreeMMPlayEvaluator *evaluator, ThreeMMPlaybackState *state)
+void mm_play_init(MMPlayEvaluator *evaluator, MMPlaybackState *state)
 {
     memset(evaluator, 0, sizeof(*evaluator));
     evaluator->state = state;
@@ -90,20 +90,20 @@ void three_mm_play_init(ThreeMMPlayEvaluator *evaluator, ThreeMMPlaybackState *s
 
 /* Preserve the legacy signed wrapping delta and multiply/divide rounding,
  * including its zero-quotient behavior, without 64-bit or signed overflow. */
-ThreeMMPlaybackI32 three_mm_playback_frame_delay(ThreeMMPlaybackU32 frameStart, ThreeMMPlaybackU32 now)
+MMPlaybackI32 mm_playback_frame_delay(MMPlaybackU32 frameStart, MMPlaybackU32 now)
 {
-    ThreeMMPlaybackU32 delta = now - frameStart;
-    ThreeMMPlaybackU32 magnitude = delta <= 0x7fffffffUL ? delta : (ThreeMMPlaybackU32)(~delta) + 1U;
-    ThreeMMPlaybackI32 ticks = (ThreeMMPlaybackI32)((magnitude / 50U) * 3U + (magnitude % 50U) * 3U / 50U);
+    MMPlaybackU32 delta = now - frameStart;
+    MMPlaybackU32 magnitude = delta <= 0x7fffffffUL ? delta : (MMPlaybackU32)(~delta) + 1U;
+    MMPlaybackI32 ticks = (MMPlaybackI32)((magnitude / 50U) * 3U + (magnitude % 50U) * 3U / 50U);
     if (delta > 0x7fffffffUL)
         ticks = -ticks;
     if (((magnitude % 50U) * 3U) % 50U)
         ticks += ticks < 0 ? -1 : 1;
-    return ticks < THREE_MM_PLAYBACK_FRAME_TICKS ? THREE_MM_PLAYBACK_FRAME_TICKS - ticks : 0;
+    return ticks < MM_PLAYBACK_FRAME_TICKS ? MM_PLAYBACK_FRAME_TICKS - ticks : 0;
 }
 
-static int playback_command(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlaybackCommand *command,
-                            ThreeMMPlaybackCommandKind kind, ThreeMMPlaybackI32 value, int flag)
+static int playback_command(MMPlaybackEvaluator *evaluator, MMPlaybackCommand *command,
+                            MMPlaybackCommandKind kind, MMPlaybackI32 value, int flag)
 {
     command->kind = kind;
     command->value = value;
@@ -112,7 +112,7 @@ static int playback_command(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlayback
     return 1;
 }
 
-static int play_command(ThreeMMPlayEvaluator *evaluator, ThreeMMPlayCommand *command, ThreeMMPlayCommandKind kind,
+static int play_command(MMPlayEvaluator *evaluator, MMPlayCommand *command, MMPlayCommandKind kind,
                         int flag)
 {
     command->kind = kind;
@@ -121,7 +121,7 @@ static int play_command(ThreeMMPlayEvaluator *evaluator, ThreeMMPlayCommand *com
     return 1;
 }
 
-int three_mm_playback_next(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlaybackCommand *command)
+int mm_playback_next(MMPlaybackEvaluator *evaluator, MMPlaybackCommand *command)
 {
     if (evaluator->waiting)
         return 0;
@@ -143,46 +143,46 @@ int three_mm_playback_next(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlaybackC
                 evaluator->phase = PB_PRESENT;
             else
                 evaluator->phase =
-                    evaluator->state->wait == THREE_MM_PLAYBACK_WAIT_SOUND ? PB_CHECK_PAUSE : PB_CLICK_OFF;
+                    evaluator->state->wait == MM_PLAYBACK_WAIT_SOUND ? PB_CHECK_PAUSE : PB_CLICK_OFF;
             break;
         case PB_CHECK_PAUSE:
             if (evaluator->state->unpaced)
             {
                 switch (evaluator->state->wait)
                 {
-                case THREE_MM_PLAYBACK_WAIT_CLICK:
+                case MM_PLAYBACK_WAIT_CLICK:
                     ++evaluator->state->skippedClickPauses;
                     break;
-                case THREE_MM_PLAYBACK_WAIT_TIME:
+                case MM_PLAYBACK_WAIT_TIME:
                     ++evaluator->state->skippedTimedPauses;
                     break;
-                case THREE_MM_PLAYBACK_WAIT_SOUND:
+                case MM_PLAYBACK_WAIT_SOUND:
                     ++evaluator->state->skippedSoundPauses;
                     break;
                 default:
                     break;
                 }
-                evaluator->state->wait = THREE_MM_PLAYBACK_WAIT_NONE;
+                evaluator->state->wait = MM_PLAYBACK_WAIT_NONE;
                 evaluator->state->pausing = 0;
                 evaluator->phase = PB_READ_TIME;
                 break;
             }
             switch (evaluator->state->wait)
             {
-            case THREE_MM_PLAYBACK_WAIT_CLICK:
-                evaluator->state->wait = THREE_MM_PLAYBACK_WAIT_NONE;
+            case MM_PLAYBACK_WAIT_CLICK:
+                evaluator->state->wait = MM_PLAYBACK_WAIT_NONE;
                 evaluator->state->pausing = 1;
                 evaluator->phase = PB_CLICK_ON;
                 break;
-            case THREE_MM_PLAYBACK_WAIT_SOUND:
+            case MM_PLAYBACK_WAIT_SOUND:
                 evaluator->phase = PB_QUERY_SOUND;
                 break;
-            case THREE_MM_PLAYBACK_WAIT_TIME:
-                evaluator->state->wait = THREE_MM_PLAYBACK_WAIT_NONE;
+            case MM_PLAYBACK_WAIT_TIME:
+                evaluator->state->wait = MM_PLAYBACK_WAIT_NONE;
                 evaluator->state->pausing = 1;
                 evaluator->phase = PB_TIMED_ALARM;
                 break;
-            case THREE_MM_PLAYBACK_WAIT_NONE:
+            case MM_PLAYBACK_WAIT_NONE:
                 evaluator->state->pausing = 0;
                 evaluator->phase = PB_READ_TIME;
                 break;
@@ -193,9 +193,9 @@ int three_mm_playback_next(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlaybackC
             }
             break;
         case PB_STOP:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_STOP, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_STOP, 0, 0);
         case PB_READ_VOLUME:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_READ_VOLUME, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_READ_VOLUME, 0, 0);
         case PB_SET_VOLUME:
             if (evaluator->state->suppressAudioFades)
             {
@@ -203,49 +203,49 @@ int three_mm_playback_next(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlaybackC
                 evaluator->phase = evaluator->volume <= 0 ? PB_STOP : PB_FADE_ALARM;
                 break;
             }
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SET_VOLUME,
+            return playback_command(evaluator, command, MM_PLAYBACK_SET_VOLUME,
                                     (evaluator->volume > 0 ? evaluator->volume : 0), 0);
         case PB_FADE_ALARM:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SET_ALARM, THREE_MM_PLAYBACK_FADE_TICKS, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_SET_ALARM, MM_PLAYBACK_FADE_TICKS, 0);
         case PB_SCROLL:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SCROLL_TEXT, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_SCROLL_TEXT, 0, 0);
         case PB_SCROLL_ALARM:
         case PB_START_SCROLL_ALARM:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SET_ALARM, THREE_MM_PLAYBACK_SCROLL_TICKS, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_SET_ALARM, MM_PLAYBACK_SCROLL_TICKS, 0);
         case PB_PRESENT:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_PRESENT_FRAME, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_PRESENT_FRAME, 0, 0);
         case PB_DISPLAY:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_DISPLAY_FRAME, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_DISPLAY_FRAME, 0, 0);
         case PB_QUERY_SCROLLING:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_QUERY_SCROLLING, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_QUERY_SCROLLING, 0, 0);
         case PB_CLICK_ON:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SET_CLICK_PAUSE, 0, 1);
+            return playback_command(evaluator, command, MM_PLAYBACK_SET_CLICK_PAUSE, 0, 1);
         case PB_QUERY_SOUND:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_QUERY_SOUND, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_QUERY_SOUND, 0, 0);
         case PB_SOUND_ALARM:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SET_ALARM, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_SET_ALARM, 0, 0);
         case PB_TIMED_ALARM:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SET_ALARM, evaluator->state->pauseTicks, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_SET_ALARM, evaluator->state->pauseTicks, 0);
         case PB_CLICK_OFF:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SET_CLICK_PAUSE, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_SET_CLICK_PAUSE, 0, 0);
         case PB_READ_TIME:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_READ_TIME, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_READ_TIME, 0, 0);
         case PB_FRAME_ALARM:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SET_ALARM, evaluator->delay, 1);
+            return playback_command(evaluator, command, MM_PLAYBACK_SET_ALARM, evaluator->delay, 1);
         case PB_READ_POSITION:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_READ_POSITION, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_READ_POSITION, 0, 0);
         case PB_SWITCH_SCENE:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_SWITCH_SCENE, evaluator->position.scene + 1,
+            return playback_command(evaluator, command, MM_PLAYBACK_SWITCH_SCENE, evaluator->position.scene + 1,
                                     0);
         case PB_REPLAY_SCENE:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_REPLAY_SCENE, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_REPLAY_SCENE, 0, 0);
         case PB_ADVANCE_FRAME:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_ADVANCE_FRAME, evaluator->position.frame + 1,
+            return playback_command(evaluator, command, MM_PLAYBACK_ADVANCE_FRAME, evaluator->position.frame + 1,
                                     0);
         case PB_RENDER:
-            return playback_command(evaluator, command, THREE_MM_PLAYBACK_RENDER_WORLD, 0, 0);
+            return playback_command(evaluator, command, MM_PLAYBACK_RENDER_WORLD, 0, 0);
         case PB_DONE:
-            command->kind = THREE_MM_PLAYBACK_FINISHED;
+            command->kind = MM_PLAYBACK_FINISHED;
             command->flag = 0;
             command->value = 0;
             return 1;
@@ -253,7 +253,7 @@ int three_mm_playback_next(ThreeMMPlaybackEvaluator *evaluator, ThreeMMPlaybackC
     }
 }
 
-int three_mm_playback_complete(ThreeMMPlaybackEvaluator *evaluator, const ThreeMMPlaybackReply *reply)
+int mm_playback_complete(MMPlaybackEvaluator *evaluator, const MMPlaybackReply *reply)
 {
     if (!evaluator->waiting)
         return 0;
@@ -267,7 +267,7 @@ int three_mm_playback_complete(ThreeMMPlaybackEvaluator *evaluator, const ThreeM
         evaluator->volume =
             (evaluator->state->suppressAudioFades && evaluator->state->fadeVolume >= 0 ? evaluator->state->fadeVolume
                                                                                        : reply->number) -
-            evaluator->state->fadeOriginalVolume / (THREE_MM_PLAYBACK_FADE_SECONDS * 4);
+            evaluator->state->fadeOriginalVolume / (MM_PLAYBACK_FADE_SECONDS * 4);
         if (evaluator->volume <= 0)
             evaluator->state->stopRequested = 1;
         evaluator->phase = PB_SET_VOLUME;
@@ -317,7 +317,7 @@ int three_mm_playback_complete(ThreeMMPlaybackEvaluator *evaluator, const ThreeM
         else
         {
             evaluator->state->pausing = 0;
-            evaluator->state->wait = THREE_MM_PLAYBACK_WAIT_NONE;
+            evaluator->state->wait = MM_PLAYBACK_WAIT_NONE;
             evaluator->phase = PB_READ_TIME;
         }
         break;
@@ -327,7 +327,7 @@ int three_mm_playback_complete(ThreeMMPlaybackEvaluator *evaluator, const ThreeM
         break;
     case PB_READ_TIME:
         evaluator->delay =
-            evaluator->state->unpaced ? 0 : three_mm_playback_frame_delay(evaluator->frameStart, reply->timestamp);
+            evaluator->state->unpaced ? 0 : mm_playback_frame_delay(evaluator->frameStart, reply->timestamp);
         evaluator->phase = PB_FRAME_ALARM;
         break;
     case PB_FRAME_ALARM:
@@ -372,7 +372,7 @@ int three_mm_playback_complete(ThreeMMPlaybackEvaluator *evaluator, const ThreeM
     return 1;
 }
 
-int three_mm_play_next(ThreeMMPlayEvaluator *evaluator, ThreeMMPlayCommand *command)
+int mm_play_next(MMPlayEvaluator *evaluator, MMPlayCommand *command)
 {
     if (evaluator->waiting)
         return 0;
@@ -401,46 +401,46 @@ int three_mm_play_next(ThreeMMPlayEvaluator *evaluator, ThreeMMPlayCommand *comm
             evaluator->phase = PLAY_READ_TIME;
             break;
         case PLAY_RENDER_STOP:
-            return play_command(evaluator, command, THREE_MM_PLAY_RENDER_STOP, 0);
+            return play_command(evaluator, command, MM_PLAY_RENDER_STOP, 0);
         case PLAY_CHECK_SCENE:
-            return play_command(evaluator, command, THREE_MM_PLAY_CHECK_SCENE, 0);
+            return play_command(evaluator, command, MM_PLAY_CHECK_SCENE, 0);
         case PLAY_RESET_SOUNDS:
-            return play_command(evaluator, command, THREE_MM_PLAY_RESET_SOUNDS, 0);
+            return play_command(evaluator, command, MM_PLAY_RESET_SOUNDS, 0);
         case PLAY_QUERY_END:
-            return play_command(evaluator, command, THREE_MM_PLAY_QUERY_END, 0);
+            return play_command(evaluator, command, MM_PLAY_QUERY_END, 0);
         case PLAY_REWIND:
-            return play_command(evaluator, command, THREE_MM_PLAY_REWIND, 0);
+            return play_command(evaluator, command, MM_PLAY_REWIND, 0);
         case PLAY_READ_TIME:
-            return play_command(evaluator, command, THREE_MM_PLAY_READ_TIME, 0);
+            return play_command(evaluator, command, MM_PLAY_READ_TIME, 0);
         case PLAY_START_CLOCK:
-            return play_command(evaluator, command, THREE_MM_PLAY_START_CLOCK, 0);
+            return play_command(evaluator, command, MM_PLAY_START_CLOCK, 0);
         case PLAY_PREPARE_SCENE:
-            return play_command(evaluator, command, THREE_MM_PLAY_PREPARE_SCENE, 0);
+            return play_command(evaluator, command, MM_PLAY_PREPARE_SCENE, 0);
         case PLAY_NOTIFY_STOPPED:
-            return play_command(evaluator, command, THREE_MM_PLAY_NOTIFY_STOPPED, 0);
+            return play_command(evaluator, command, MM_PLAY_NOTIFY_STOPPED, 0);
         case PLAY_CLOCK_FAILED:
-            return play_command(evaluator, command, THREE_MM_PLAY_STARTUP_FAILED, 0);
+            return play_command(evaluator, command, MM_PLAY_STARTUP_FAILED, 0);
         case PLAY_PREPARE_FAILED:
-            return play_command(evaluator, command, THREE_MM_PLAY_STARTUP_FAILED, 1);
+            return play_command(evaluator, command, MM_PLAY_STARTUP_FAILED, 1);
         case PLAY_DISABLE_ACCELERATORS:
-            return play_command(evaluator, command, THREE_MM_PLAY_DISABLE_ACCELERATORS, 0);
+            return play_command(evaluator, command, MM_PLAY_DISABLE_ACCELERATORS, 0);
         case PLAY_QUERY_OPENING:
-            return play_command(evaluator, command, THREE_MM_PLAY_QUERY_OPENING, 0);
+            return play_command(evaluator, command, MM_PLAY_QUERY_OPENING, 0);
         case PLAY_REFRESH_OPENING:
-            return play_command(evaluator, command, THREE_MM_PLAY_REFRESH_OPENING, 0);
+            return play_command(evaluator, command, MM_PLAY_REFRESH_OPENING, 0);
         case PLAY_BACKGROUND_SOUND:
-            return play_command(evaluator, command, THREE_MM_PLAY_BACKGROUND_SOUND, 0);
+            return play_command(evaluator, command, MM_PLAY_BACKGROUND_SOUND, 0);
         case PLAY_DISPATCH_SOUNDS:
-            return play_command(evaluator, command, THREE_MM_PLAY_DISPATCH_SOUNDS, evaluator->state->soundsEnabled);
+            return play_command(evaluator, command, MM_PLAY_DISPATCH_SOUNDS, evaluator->state->soundsEnabled);
         case PLAY_DONE:
-            command->kind = THREE_MM_PLAY_FINISHED;
+            command->kind = MM_PLAY_FINISHED;
             command->flag = 0;
             return 1;
         }
     }
 }
 
-int three_mm_play_complete(ThreeMMPlayEvaluator *evaluator, const ThreeMMPlaybackReply *reply)
+int mm_play_complete(MMPlayEvaluator *evaluator, const MMPlaybackReply *reply)
 {
     if (!evaluator->waiting)
         return 0;
@@ -497,37 +497,37 @@ int three_mm_play_complete(ThreeMMPlayEvaluator *evaluator, const ThreeMMPlaybac
     return 1;
 }
 
-void three_mm_frame_pacer_reset(ThreeMMFramePacer *pacer, double rate)
+void mm_frame_pacer_reset(MMFramePacer *pacer, double rate)
 {
     pacer->fps = rate;
     pacer->fraction = 0;
     pacer->pending = 0;
 }
-void three_mm_frame_pacer_schedule(ThreeMMFramePacer *pacer, ThreeMMPlaybackU32 frameStart)
+void mm_frame_pacer_schedule(MMFramePacer *pacer, MMPlaybackU32 frameStart)
 {
     double milliseconds = (pacer->fps > 0 ? 1000.0 / pacer->fps : 0) + pacer->fraction;
-    ThreeMMPlaybackU32 delay = (ThreeMMPlaybackU32)milliseconds;
+    MMPlaybackU32 delay = (MMPlaybackU32)milliseconds;
     pacer->fraction = milliseconds - delay;
     pacer->due = frameStart + delay;
     pacer->pending = 1;
 }
-int three_mm_frame_pacer_take_due(ThreeMMFramePacer *pacer, ThreeMMPlaybackU32 now)
+int mm_frame_pacer_take_due(MMFramePacer *pacer, MMPlaybackU32 now)
 {
-    if (!pacer->pending || (ThreeMMPlaybackU32)(now - pacer->due) > 0x7fffffffUL)
+    if (!pacer->pending || (MMPlaybackU32)(now - pacer->due) > 0x7fffffffUL)
         return 0;
     pacer->pending = 0;
     return 1;
 }
-void three_mm_frame_pacer_pause(ThreeMMFramePacer *pacer, ThreeMMPlaybackU32 now)
+void mm_frame_pacer_pause(MMFramePacer *pacer, MMPlaybackU32 now)
 {
     pacer->pausedAt = now;
 }
-void three_mm_frame_pacer_resume(ThreeMMFramePacer *pacer, ThreeMMPlaybackU32 now)
+void mm_frame_pacer_resume(MMFramePacer *pacer, MMPlaybackU32 now)
 {
     if (pacer->pending)
         pacer->due += now - pacer->pausedAt;
 }
-int three_mm_playback_should_render(ThreeMMPlaybackState *state, int tracking)
+int mm_playback_should_render(MMPlaybackState *state, int tracking)
 {
     if (!state->idleSeen && !tracking)
         return 0;

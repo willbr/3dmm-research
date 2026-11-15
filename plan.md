@@ -62,10 +62,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Its browser and preview-process components also contain C++ host code.
 - `engine-core` already groups stored data, actor evaluation and playback
   policy. Its playback/startup command evaluators, frame pacer and scrolling
-  policy now delegate to `three-mm-engine-c89` in `libraries/engine/`.
+  policy now delegate to `mm-engine-c89` in `libraries/engine/`.
   The remaining core is C++ and links `kauai-core` and `brender-core`.
   The `engine` target still owns further editing and playback functionality.
-- `ThreeMM::Archive` and `ThreeMM::Preview` provide useful separation, but their
+- `MM::Archive` and `MM::Preview` provide useful separation, but their
   C++ interfaces are migration inputs, not the final engine interface.
 - The first movie-data slice adds bounded decoded-chunk streams and C89 MVIE,
   roll-call and Archive GST-layout readers. Studio, Archive and Marcus call

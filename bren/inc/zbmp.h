@@ -10,7 +10,7 @@
 *************************************************************************/
 #ifndef ZBMP_H
 #define ZBMP_H
-#include "three_mm/depth_bitmap.h"
+#include "mm/depth_bitmap.h"
 
 namespace BRender {
 
@@ -43,8 +43,8 @@ class ZBMP : public ZBMP_PAR
     MARKMEM
 
   protected:
-    ThreeMMDepthBitmap _depth;
-    static ThreeMMDepthServices _Services(void *context = nullptr);
+    MMDepthBitmap _depth;
+    static MMDepthServices _Services(void *context = nullptr);
     ZBMP(void)
     {
     }

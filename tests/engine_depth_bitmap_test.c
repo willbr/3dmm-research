@@ -1,18 +1,18 @@
-#include "three_mm/depth_bitmap.h"
+#include "mm/depth_bitmap.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 typedef struct Fixture
 {
-    ThreeMMDepthServices s;
+    MMDepthServices s;
     unsigned char input[128], output[128];
-    ThreeMMI32 size, packed, output_size;
+    MMI32 size, packed, output_size;
     int phase, fail, objects, memory, warnings, published, valid, unpacks, reads, writes, adds, scans, pair, rows,
         region_empty, scan_mode;
     void *result;
-    ThreeMMI32 estimate;
-    ThreeMMDepthRect bounds, region;
+    MMI32 estimate;
+    MMDepthRect bounds, region;
 } Fixture;
 static int fail(Fixture *f)
 {
@@ -24,17 +24,17 @@ static void *create(void *p)
     void *v;
     if (fail(f))
         return NULL;
-    v = calloc(1, sizeof(ThreeMMDepthBitmap));
+    v = calloc(1, sizeof(MMDepthBitmap));
     assert(v);
     ++f->objects;
     return v;
 }
-static ThreeMMDepthBitmap *state(void *p, void *o)
+static MMDepthBitmap *state(void *p, void *o)
 {
     (void)p;
-    return (ThreeMMDepthBitmap *)o;
+    return (MMDepthBitmap *)o;
 }
-static int allocate(void *p, ThreeMMI32 n, void **out)
+static int allocate(void *p, MMI32 n, void **out)
 {
     Fixture *f = (Fixture *)p;
     if (fail(f))
@@ -57,7 +57,7 @@ static void free_memory(void *p, void **out)
 static void release(void *p, void *o)
 {
     Fixture *f = (Fixture *)p;
-    three_mm_depth_dispose(state(p, o), &f->s);
+    mm_depth_dispose(state(p, o), &f->s);
     free(o);
     --f->objects;
 }
@@ -72,13 +72,13 @@ static int unpack(void *p, void *b)
     ++f->unpacks;
     return !fail(f);
 }
-static ThreeMMI32 size(void *p, void *b, int packed)
+static MMI32 size(void *p, void *b, int packed)
 {
     Fixture *f = (Fixture *)p;
     (void)b;
     return packed ? f->packed : f->size;
 }
-static int read(void *p, void *b, void *out, ThreeMMI32 n, ThreeMMI32 at)
+static int read(void *p, void *b, void *out, MMI32 n, MMI32 at)
 {
     Fixture *f = (Fixture *)p;
     (void)b;
@@ -90,7 +90,7 @@ static int read(void *p, void *b, void *out, ThreeMMI32 n, ThreeMMI32 at)
         memcpy(out, f->input + at, (size_t)n);
     return 1;
 }
-static int write(void *p, void *b, const void *in, ThreeMMI32 n, ThreeMMI32 at)
+static int write(void *p, void *b, const void *in, MMI32 n, MMI32 at)
 {
     Fixture *f = (Fixture *)p;
     (void)b;
@@ -102,7 +102,7 @@ static int write(void *p, void *b, const void *in, ThreeMMI32 n, ThreeMMI32 at)
         memcpy(f->output + at, in, (size_t)n);
     return 1;
 }
-static void *add(void *p, void *file, ThreeMMU32 type, ThreeMMI32 n, ThreeMMU32 *number)
+static void *add(void *p, void *file, MMU32 type, MMI32 n, MMU32 *number)
 {
     Fixture *f = (Fixture *)p;
     (void)file;
@@ -116,7 +116,7 @@ static void *add(void *p, void *file, ThreeMMU32 type, ThreeMMI32 n, ThreeMMU32 
     memset(f->output, 0xcc, 128);
     return p;
 }
-static void publish(void *p, int valid, void *o, ThreeMMI32 n)
+static void publish(void *p, int valid, void *o, MMI32 n)
 {
     Fixture *f = (Fixture *)p;
     ++f->published;
@@ -124,14 +124,14 @@ static void publish(void *p, int valid, void *o, ThreeMMI32 n)
     f->result = o;
     f->estimate = n;
 }
-static int region_bounds(void *p, void *r, ThreeMMDepthRect *out)
+static int region_bounds(void *p, void *r, MMDepthRect *out)
 {
     Fixture *f = (Fixture *)p;
     (void)r;
     *out = f->region;
     return !f->region_empty;
 }
-static void scan_init(void *p, void *region, const ThreeMMDepthRect *clip, const ThreeMMDepthRect *bounds)
+static void scan_init(void *p, void *region, const MMDepthRect *clip, const MMDepthRect *bounds)
 {
     Fixture *f = (Fixture *)p;
     (void)region;
@@ -140,7 +140,7 @@ static void scan_init(void *p, void *region, const ThreeMMDepthRect *clip, const
     f->pair = 0;
     ++f->scans;
 }
-static int scan_pair(void *p, ThreeMMI32 *left, ThreeMMI32 *right)
+static int scan_pair(void *p, MMI32 *left, MMI32 *right)
 {
     Fixture *f = (Fixture *)p;
     if (f->pair++)
@@ -153,13 +153,13 @@ static int scan_pair(void *p, ThreeMMI32 *left, ThreeMMI32 *right)
         ++*right;
     return 1;
 }
-static void scan_next(void *p, ThreeMMI32 rows)
+static void scan_next(void *p, MMI32 rows)
 {
     Fixture *f = (Fixture *)p;
     f->rows += rows;
     f->pair = 0;
 }
-static void put(unsigned char *p, ThreeMMU32 n, int big)
+static void put(unsigned char *p, MMU32 n, int big)
 {
     p[big ? 1 : 0] = (unsigned char)n;
     p[big ? 0 : 1] = (unsigned char)(n >> 8);
@@ -206,7 +206,7 @@ static void balanced(Fixture *f)
 static void constructors(void)
 {
     Fixture f;
-    ThreeMMDepthBitmap *m;
+    MMDepthBitmap *m;
     unsigned char pixels[12];
     int n, i;
     memset(pixels, 0x35, 12);
@@ -214,7 +214,7 @@ static void constructors(void)
     {
         setup(&f, 0);
         f.fail = n;
-        m = (ThreeMMDepthBitmap *)three_mm_depth_new(3, 2, pixels, &f.s);
+        m = (MMDepthBitmap *)mm_depth_new(3, 2, pixels, &f.s);
         if (m)
         {
             assert(m->bytes == 12 && m->row_bytes == 6 && !memcmp(m->pixels, pixels, 12));
@@ -225,23 +225,23 @@ static void constructors(void)
         balanced(&f);
     }
     setup(&f, 0);
-    m = (ThreeMMDepthBitmap *)three_mm_depth_new(3, 2, NULL, &f.s);
+    m = (MMDepthBitmap *)mm_depth_new(3, 2, NULL, &f.s);
     assert(m);
     for (i = 0; i < 12; ++i)
         assert(((unsigned char *)m->pixels)[i] == 255);
     release(&f, m);
     balanced(&f);
-    assert(!three_mm_depth_new(0, 2, NULL, &f.s));
-    assert(!three_mm_depth_new(-1, 2, NULL, &f.s));
-    assert(!three_mm_depth_new(2147483647, 2, NULL, &f.s));
-    assert(!three_mm_depth_new(0x40000000, 2, NULL, &f.s));
-    assert(!three_mm_depth_new(32768, 32768, NULL, &f.s));
+    assert(!mm_depth_new(0, 2, NULL, &f.s));
+    assert(!mm_depth_new(-1, 2, NULL, &f.s));
+    assert(!mm_depth_new(2147483647, 2, NULL, &f.s));
+    assert(!mm_depth_new(0x40000000, 2, NULL, &f.s));
+    assert(!mm_depth_new(32768, 32768, NULL, &f.s));
     balanced(&f);
 }
 static void loading(void)
 {
     Fixture f;
-    ThreeMMDepthBitmap *m;
+    MMDepthBitmap *m;
     int big, factory, n, i, ok;
     for (big = 0; big < 2; ++big)
         for (factory = 0; factory < 2; ++factory)
@@ -251,13 +251,13 @@ static void loading(void)
                 f.fail = n;
                 if (factory)
                 {
-                    ok = three_mm_depth_fetch(&f, 1, &f.s);
-                    m = (ThreeMMDepthBitmap *)f.result;
+                    ok = mm_depth_fetch(&f, 1, &f.s);
+                    m = (MMDepthBitmap *)f.result;
                     assert(f.published == 1 && f.valid == ok);
                 }
                 else
                 {
-                    m = (ThreeMMDepthBitmap *)three_mm_depth_read(&f, &f.s);
+                    m = (MMDepthBitmap *)mm_depth_read(&f, &f.s);
                     ok = m != NULL;
                 }
                 if (ok)
@@ -277,41 +277,41 @@ static void loading(void)
                 balanced(&f);
             }
     setup(&f, 0);
-    assert(three_mm_depth_fetch(&f, 0, &f.s) && f.estimate == 9 && !f.result && !f.unpacks && !f.reads);
+    assert(mm_depth_fetch(&f, 0, &f.s) && f.estimate == 9 && !f.result && !f.unpacks && !f.reads);
     balanced(&f);
     for (i = 0; i < 24; ++i)
     {
         setup(&f, 0);
         f.size = i;
-        assert(!three_mm_depth_read(&f, &f.s));
+        assert(!mm_depth_read(&f, &f.s));
         balanced(&f);
     }
     setup(&f, 0);
     f.size = 25;
-    assert(!three_mm_depth_read(&f, &f.s));
+    assert(!mm_depth_read(&f, &f.s));
     balanced(&f);
     setup(&f, 0);
     put(f.input + 8, 0, 0);
     f.size = 12;
-    m = (ThreeMMDepthBitmap *)three_mm_depth_read(&f, &f.s);
+    m = (MMDepthBitmap *)mm_depth_read(&f, &f.s);
     assert(m && !m->bytes && m->bounds.right == 2);
     release(&f, m);
     balanced(&f);
     setup(&f, 0);
     put(f.input + 8, 0xffff, 0);
-    assert(!three_mm_depth_read(&f, &f.s));
+    assert(!mm_depth_read(&f, &f.s));
     balanced(&f);
     setup(&f, 0);
     f.s.object_bytes = 2147483647;
-    assert(!three_mm_depth_fetch(&f, 1, &f.s) && !f.valid);
+    assert(!mm_depth_fetch(&f, 1, &f.s) && !f.valid);
     balanced(&f);
 }
 static void writing(void)
 {
     Fixture f;
-    ThreeMMDepthBitmap m;
+    MMDepthBitmap m;
     unsigned char pixels[12];
-    ThreeMMU32 number;
+    MMU32 number;
     int big, n, ok;
     memset(pixels, 0xab, 12);
     memset(&m, 0, sizeof(m));
@@ -328,7 +328,7 @@ static void writing(void)
             setup(&f, big);
             f.fail = n;
             number = 123;
-            ok = three_mm_depth_write(&m, &f, 0x12345678UL, &number, &f.s);
+            ok = mm_depth_write(&m, &f, 0x12345678UL, &number, &f.s);
             if (ok)
             {
                 unsigned char header[12];
@@ -356,9 +356,9 @@ static void writing(void)
 static void drawing(void)
 {
     Fixture f;
-    ThreeMMDepthBitmap m;
+    MMDepthBitmap m;
     unsigned char source[64], dest[100];
-    ThreeMMDepthRect clip;
+    MMDepthRect clip;
     int i, half, n;
     memset(&m, 0, sizeof(m));
     m.bounds.right = 4;
@@ -376,7 +376,7 @@ static void drawing(void)
         clip.top = 1;
         clip.right = 4;
         clip.bottom = 7;
-        assert(three_mm_depth_draw(&m, dest + 4, 10, 8, 1, 1, &clip, NULL, half, &f.s));
+        assert(mm_depth_draw(&m, dest + 4, 10, 8, 1, 1, &clip, NULL, half, &f.s));
         for (i = 0; i < 80 / (half ? 2 : 1); ++i)
         {
             int y = i / 10, x = i % 10;
@@ -390,9 +390,9 @@ static void drawing(void)
     }
     setup(&f, 0);
     memset(dest, 0xcc, 100);
-    assert(three_mm_depth_draw(&m, dest, 10, 8, 0, 0, NULL, NULL, 0, &f.s) && !f.scans);
+    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, NULL, NULL, 0, &f.s) && !f.scans);
     f.region_empty = 1;
-    assert(three_mm_depth_draw(&m, dest, 10, 8, 0, 0, NULL, &f, 0, &f.s) && !f.scans);
+    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, NULL, &f, 0, &f.s) && !f.scans);
     clip.left = 0;
     clip.top = 0;
     clip.right = 4;
@@ -401,13 +401,13 @@ static void drawing(void)
     {
         setup(&f, 0);
         f.scan_mode = n;
-        assert(!three_mm_depth_draw(&m, dest, 10, 8, 0, 0, &clip, NULL, 0, &f.s));
+        assert(!mm_depth_draw(&m, dest, 10, 8, 0, 0, &clip, NULL, 0, &f.s));
     }
     setup(&f, 0);
-    assert(!three_mm_depth_draw(&m, dest, 10, 8, 2147483647, 0, &clip, NULL, 0, &f.s));
-    assert(!three_mm_depth_draw(&m, dest, 2147483647, 8, 0, 0, &clip, NULL, 0, &f.s));
+    assert(!mm_depth_draw(&m, dest, 10, 8, 2147483647, 0, &clip, NULL, 0, &f.s));
+    assert(!mm_depth_draw(&m, dest, 2147483647, 8, 0, 0, &clip, NULL, 0, &f.s));
     clip.top = 7;
-    assert(!three_mm_depth_draw(&m, dest, 10, 7, 0, 0, &clip, NULL, 1, &f.s));
+    assert(!mm_depth_draw(&m, dest, 10, 7, 0, 0, &clip, NULL, 1, &f.s));
     for (i = 0; i < 100; ++i)
         assert(dest[i] == 0xcc);
     setup(&f, 0);
@@ -416,7 +416,7 @@ static void drawing(void)
     f.region.right = 3;
     f.region.bottom = 4;
     clip.top = 0;
-    assert(three_mm_depth_draw(&m, dest, 10, 8, 0, 0, &clip, &f, 0, &f.s) && f.rows == 2);
+    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, &clip, &f, 0, &f.s) && f.rows == 2);
     for (i = 0; i < 80; ++i)
     {
         int y = i / 10, x = i % 10;

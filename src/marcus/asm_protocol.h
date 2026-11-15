@@ -1,6 +1,6 @@
 #ifndef MARCUS_ASM_PROTOCOL_H
 #define MARCUS_ASM_PROTOCOL_H
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include <cstdint>
 namespace MarcusASM
 {
@@ -14,7 +14,7 @@ struct Request
     float x = 0, y = 0, z = 0;
     std::int32_t orbitObject = -1, displayMode = 0, axisView = 0;
 };
-inline Request Encode(int scene, int frame, const ThreeMM::PreviewView &v)
+inline Request Encode(int scene, int frame, const MM::PreviewView &v)
 {
     Request r;
     r.scene = scene;
@@ -38,9 +38,9 @@ inline Request Encode(int scene, int frame, const ThreeMM::PreviewView &v)
               unsigned(v.fitSceneDepth) << 6 | unsigned(v.orthographic) << 7;
     return r;
 }
-inline ThreeMM::PreviewView Decode(const Request &r)
+inline MM::PreviewView Decode(const Request &r)
 {
-    ThreeMM::PreviewView v;
+    MM::PreviewView v;
     v.width = r.width;
     v.height = r.height;
     v.yaw = r.yaw;
@@ -68,8 +68,8 @@ inline ThreeMM::PreviewView Decode(const Request &r)
 struct Reply
 {
     std::uint32_t magic = Magic, errorBytes = 0, width = 0, height = 0, covered = 0, depth = 0;
-    ThreeMM::PreviewCamera camera;
-    ThreeMM::PreviewProjection projection, sceneCamera;
+    MM::PreviewCamera camera;
+    MM::PreviewProjection projection, sceneCamera;
 };
 static_assert(sizeof(Request) == 72 && sizeof(Reply) == 216, "ASM wire layout changed");
 } // namespace MarcusASM

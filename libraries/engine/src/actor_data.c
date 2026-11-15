@@ -1,7 +1,7 @@
 /* Actor persistence converted from engine actor_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/actor_data.h"
-#include "three_mm/wide.h"
+#include "mm/actor_data.h"
+#include "mm/wide.h"
 #include <string.h>
 static void swap16(unsigned char *p)
 {
@@ -18,41 +18,41 @@ static void swap32(unsigned char *p)
     p[1] = p[2];
     p[2] = t;
 }
-static void swap_words(void *data, ThreeMMU32 count)
+static void swap_words(void *data, MMU32 count)
 {
     unsigned char *p = (unsigned char *)data;
-    ThreeMMU32 i;
+    MMU32 i;
     for (i = 0; i < count; ++i)
         swap32(p + i * 4);
 }
-static ThreeMMU32 native_word(const void *p)
+static MMU32 native_word(const void *p)
 {
-    ThreeMMU32 value;
+    MMU32 value;
     memcpy(&value, p, 4);
     return value;
 }
-static void put_word(void *p, ThreeMMU32 value)
+static void put_word(void *p, MMU32 value)
 {
     memcpy(p, &value, 4);
 }
-static ThreeMMI32 kind(const void *fixed, int order)
+static MMI32 kind(const void *fixed, int order)
 {
     unsigned char bytes[4];
     memcpy(bytes, fixed, 4);
-    if (order == THREE_MM_ACTOR_OTHER)
+    if (order == MM_ACTOR_OTHER)
         swap32(bytes);
-    return three_mm_signed_word(native_word(bytes));
+    return mm_signed_word(native_word(bytes));
 }
-int three_mm_actor_read_header(const ThreeMMReadStream *s, void *header)
+int mm_actor_read_header(const MMReadStream *s, void *header)
 {
     unsigned char *p = (unsigned char *)header;
     unsigned short order;
-    ThreeMMI32 last = 2147483647L;
+    MMI32 last = 2147483647L;
     int old;
     if (s->length != 44 && s->length != 40)
         return 0;
     old = s->length == 40;
-    if (!three_mm_read_exact(s, 0, p, s->length))
+    if (!mm_read_exact(s, 0, p, s->length))
         return 0;
     if (old)
         memmove(p + 28, p + 24, 16);
@@ -70,10 +70,10 @@ int three_mm_actor_read_header(const ThreeMMReadStream *s, void *header)
         memcpy(p + 24, &last, 4);
     return 1;
 }
-int three_mm_actor_adjust_header_id(void *header, ThreeMMI32 delta)
+int mm_actor_adjust_header_id(void *header, MMI32 delta)
 {
     unsigned char *p = (unsigned char *)header;
-    ThreeMMI32 id;
+    MMI32 id;
     memcpy(&id, p + 16, 4);
     if ((delta > 0 && id > 2147483647L - delta) || (delta < 0 && id < (-2147483647L - 1) - delta))
         return 0;
@@ -81,30 +81,30 @@ int three_mm_actor_adjust_header_id(void *header, ThreeMMI32 delta)
     memcpy(p + 16, &id, 4);
     return 1;
 }
-int three_mm_actor_write_header(ThreeMMU32 number, const void *header, const ThreeMMActorHeaderIO *io)
+int mm_actor_write_header(MMU32 number, const void *header, const MMActorHeaderIO *io)
 {
     return io->put(io->context, number, header, 44);
 }
-int three_mm_actor_adjust_id(ThreeMMU32 number, ThreeMMI32 delta, const ThreeMMActorHeaderIO *io)
+int mm_actor_adjust_id(MMU32 number, MMI32 delta, const MMActorHeaderIO *io)
 {
-    ThreeMMReadStream stream;
-    ThreeMMActorHeader header;
-    if (!io->read(io->context, number, &stream) || !three_mm_actor_read_header(&stream, &header) ||
-        !three_mm_actor_adjust_header_id(&header, delta))
+    MMReadStream stream;
+    MMActorHeader header;
+    if (!io->read(io->context, number, &stream) || !mm_actor_read_header(&stream, &header) ||
+        !mm_actor_adjust_header_id(&header, delta))
         return 0;
-    return three_mm_actor_write_header(number, &header, io);
+    return mm_actor_write_header(number, &header, io);
 }
-void *three_mm_actor_finish_route(void *route, int order, const ThreeMMActorRouteServices *s)
+void *mm_actor_finish_route(void *route, int order, const MMActorRouteServices *s)
 {
-    ThreeMMU32 count;
+    MMU32 count;
     if (!route)
         return NULL;
-    if (s->width(route) != 16 || (order != THREE_MM_ACTOR_NATIVE && order != THREE_MM_ACTOR_OTHER))
+    if (s->width(route) != 16 || (order != MM_ACTOR_NATIVE && order != MM_ACTOR_OTHER))
     {
         s->release(route);
         return NULL;
     }
-    if (order == THREE_MM_ACTOR_OTHER)
+    if (order == MM_ACTOR_OTHER)
     {
         count = s->count(route);
         if (count)
@@ -112,40 +112,40 @@ void *three_mm_actor_finish_route(void *route, int order, const ThreeMMActorRout
     }
     return route;
 }
-static ThreeMMI32 payload_size(ThreeMMI32 type, int wire)
+static MMI32 payload_size(MMI32 type, int wire)
 {
     switch (type)
     {
-    case THREE_MM_ACTOR_ADD:
+    case MM_ACTOR_ADD:
         return 20;
-    case THREE_MM_ACTOR_ACTION:
+    case MM_ACTOR_ACTION:
         return 8;
-    case THREE_MM_ACTOR_COSTUME:
-        return wire ? 28 : (ThreeMMI32)sizeof(ThreeMMActorCostume);
-    case THREE_MM_ACTOR_SOUND:
-        return wire ? 44 : (ThreeMMI32)sizeof(ThreeMMActorSound);
-    case THREE_MM_ACTOR_ROTATE_FORWARD:
-    case THREE_MM_ACTOR_ROTATE_HERE:
+    case MM_ACTOR_COSTUME:
+        return wire ? 28 : (MMI32)sizeof(MMActorCostume);
+    case MM_ACTOR_SOUND:
+        return wire ? 44 : (MMI32)sizeof(MMActorSound);
+    case MM_ACTOR_ROTATE_FORWARD:
+    case MM_ACTOR_ROTATE_HERE:
         return 48;
-    case THREE_MM_ACTOR_STRETCH:
-    case THREE_MM_ACTOR_MOVE:
-    case THREE_MM_ACTOR_TWEAK:
+    case MM_ACTOR_STRETCH:
+    case MM_ACTOR_MOVE:
+    case MM_ACTOR_TWEAK:
         return 12;
-    case THREE_MM_ACTOR_SIZE:
-    case THREE_MM_ACTOR_FREEZE:
-    case THREE_MM_ACTOR_STEP:
+    case MM_ACTOR_SIZE:
+    case MM_ACTOR_FREEZE:
+    case MM_ACTOR_STEP:
         return 4;
-    case THREE_MM_ACTOR_REMOVE:
+    case MM_ACTOR_REMOVE:
         return 0;
     default:
         return -1;
     }
 }
-int three_mm_actor_valid_events(void *g, int wire, int order, const ThreeMMActorEventServices *s)
+int mm_actor_valid_events(void *g, int wire, int order, const MMActorEventServices *s)
 {
-    ThreeMMU32 i;
-    ThreeMMI32 bytes, type;
-    if ((order != THREE_MM_ACTOR_NATIVE && order != THREE_MM_ACTOR_OTHER) || s->fixed_width(g) != 20)
+    MMU32 i;
+    MMI32 bytes, type;
+    if ((order != MM_ACTOR_NATIVE && order != MM_ACTOR_OTHER) || s->fixed_width(g) != 20)
         return 0;
     for (i = 0; i < s->count(g); ++i)
     {
@@ -156,21 +156,21 @@ int three_mm_actor_valid_events(void *g, int wire, int order, const ThreeMMActor
     }
     return 1;
 }
-static void swap_events(void *g, const ThreeMMActorEventServices *s)
+static void swap_events(void *g, const MMActorEventServices *s)
 {
-    ThreeMMU32 i, j;
-    ThreeMMI32 type, bytes;
+    MMU32 i, j;
+    MMI32 type, bytes;
     unsigned char *data;
     void *fixed;
     for (i = 0; i < s->count(g); ++i)
     {
         fixed = s->fixed(g, i);
         swap_words(fixed, 5);
-        type = kind(fixed, THREE_MM_ACTOR_NATIVE);
-        if (type == THREE_MM_ACTOR_REMOVE)
+        type = kind(fixed, MM_ACTOR_NATIVE);
+        if (type == MM_ACTOR_REMOVE)
             continue;
         data = (unsigned char *)s->data(g, i);
-        if (type == THREE_MM_ACTOR_ADD)
+        if (type == MM_ACTOR_ADD)
         {
             swap_words(data, 3);
             for (j = 0; j < 3; ++j)
@@ -179,37 +179,37 @@ static void swap_events(void *g, const ThreeMMActorEventServices *s)
         else
         {
             bytes = payload_size(type, 1);
-            swap_words(data, (ThreeMMU32)bytes / 4);
+            swap_words(data, (MMU32)bytes / 4);
         }
     }
 }
-static void read_tag(ThreeMMTag *t, const unsigned char *p)
+static void read_tag(MMTag *t, const unsigned char *p)
 {
-    t->sid = three_mm_signed_word(native_word(p));
+    t->sid = mm_signed_word(native_word(p));
     t->cache = NULL;
     t->type = native_word(p + 8);
     t->number = native_word(p + 12);
 }
-static void write_tag(unsigned char *p, const ThreeMMTag *t)
+static void write_tag(unsigned char *p, const MMTag *t)
 {
-    put_word(p, (ThreeMMU32)t->sid);
+    put_word(p, (MMU32)t->sid);
     put_word(p + 4, 0);
     put_word(p + 8, t->type);
     put_word(p + 12, t->number);
 }
-void *three_mm_actor_read_events(void *wire, int order, const ThreeMMActorEventServices *s)
+void *mm_actor_read_events(void *wire, int order, const MMActorEventServices *s)
 {
     void *out = NULL, *fixed;
     const unsigned char *data;
-    ThreeMMU32 i, count;
-    ThreeMMI32 type;
-    ThreeMMActorCostume costume;
-    ThreeMMActorSound sound;
+    MMU32 i, count;
+    MMI32 type;
+    MMActorCostume costume;
+    MMActorSound sound;
     if (!wire)
         return NULL;
-    if (!three_mm_actor_valid_events(wire, 1, order, s))
+    if (!mm_actor_valid_events(wire, 1, order, s))
         goto fail;
-    if (order == THREE_MM_ACTOR_OTHER)
+    if (order == MM_ACTOR_OTHER)
         swap_events(wire, s);
     out = s->new_group(s->context, 20);
     if (!out)
@@ -218,9 +218,9 @@ void *three_mm_actor_read_events(void *wire, int order, const ThreeMMActorEventS
     for (i = 0; i < count; ++i)
     {
         fixed = s->fixed(wire, i);
-        type = kind(fixed, THREE_MM_ACTOR_NATIVE);
+        type = kind(fixed, MM_ACTOR_NATIVE);
         data = (const unsigned char *)s->data(wire, i);
-        if (type == THREE_MM_ACTOR_COSTUME)
+        if (type == MM_ACTOR_COSTUME)
         {
             memset(&costume, 0, sizeof(costume));
             memcpy(&costume.body_set, data, 4);
@@ -230,7 +230,7 @@ void *three_mm_actor_read_events(void *wire, int order, const ThreeMMActorEventS
             if (!s->insert(out, i, sizeof(costume), &costume, fixed))
                 goto fail;
         }
-        else if (type == THREE_MM_ACTOR_SOUND)
+        else if (type == MM_ACTOR_SOUND)
         {
             memset(&sound, 0, sizeof(sound));
             memcpy(&sound.loop, data, 4);
@@ -244,7 +244,7 @@ void *three_mm_actor_read_events(void *wire, int order, const ThreeMMActorEventS
             if (!s->insert(out, i, sizeof(sound), &sound, fixed))
                 goto fail;
         }
-        else if (!s->insert(out, i, (ThreeMMU32)s->size(wire, i), data, fixed))
+        else if (!s->insert(out, i, (MMU32)s->size(wire, i), data, fixed))
             goto fail;
     }
     s->release(wire);
@@ -255,16 +255,16 @@ fail:
         s->release(out);
     return NULL;
 }
-void *three_mm_actor_write_events(void *runtime, const ThreeMMActorEventServices *s)
+void *mm_actor_write_events(void *runtime, const MMActorEventServices *s)
 {
     void *out, *fixed;
     const void *data;
-    ThreeMMU32 i, count;
-    ThreeMMI32 type;
+    MMU32 i, count;
+    MMI32 type;
     unsigned char bytes[44];
-    ThreeMMActorCostume costume;
-    ThreeMMActorSound sound;
-    if (!three_mm_actor_valid_events(runtime, 0, THREE_MM_ACTOR_NATIVE, s))
+    MMActorCostume costume;
+    MMActorSound sound;
+    if (!mm_actor_valid_events(runtime, 0, MM_ACTOR_NATIVE, s))
         return NULL;
     out = s->new_group(s->context, 20);
     if (!out)
@@ -273,9 +273,9 @@ void *three_mm_actor_write_events(void *runtime, const ThreeMMActorEventServices
     for (i = 0; i < count; ++i)
     {
         fixed = s->fixed(runtime, i);
-        type = kind(fixed, THREE_MM_ACTOR_NATIVE);
+        type = kind(fixed, MM_ACTOR_NATIVE);
         data = s->data(runtime, i);
-        if (type == THREE_MM_ACTOR_COSTUME)
+        if (type == MM_ACTOR_COSTUME)
         {
             memcpy(&costume, data, sizeof(costume));
             memcpy(bytes, &costume.body_set, 4);
@@ -285,7 +285,7 @@ void *three_mm_actor_write_events(void *runtime, const ThreeMMActorEventServices
             if (!s->insert(out, i, 28, bytes, fixed))
                 goto fail;
         }
-        else if (type == THREE_MM_ACTOR_SOUND)
+        else if (type == MM_ACTOR_SOUND)
         {
             memcpy(&sound, data, sizeof(sound));
             memcpy(bytes, &sound.loop, 4);
@@ -299,7 +299,7 @@ void *three_mm_actor_write_events(void *runtime, const ThreeMMActorEventServices
             if (!s->insert(out, i, 44, bytes, fixed))
                 goto fail;
         }
-        else if (!s->insert(out, i, (ThreeMMU32)s->size(runtime, i), data, fixed))
+        else if (!s->insert(out, i, (MMU32)s->size(runtime, i), data, fixed))
             goto fail;
     }
     return out;

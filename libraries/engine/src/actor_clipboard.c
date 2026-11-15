@@ -1,9 +1,9 @@
 /* Actor clipboard policy converted from engine actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/actor_clipboard.h"
+#include "mm/actor_clipboard.h"
 #include <string.h>
-void three_mm_actor_clipboard_init(ThreeMMActorClipboard *c) { c->actor=NULL; c->route_only=0; }
-void *three_mm_actor_clipboard_create(void *source,int route_only,int entire,const ThreeMMActorClipboardServices *s)
+void mm_actor_clipboard_init(MMActorClipboard *c) { c->actor=NULL; c->route_only=0; }
+void *mm_actor_clipboard_create(void *source,int route_only,int entire,const MMActorClipboardServices *s)
 {
     void *clipboard,*actor;
     const unsigned char *prefix;
@@ -26,12 +26,12 @@ void *three_mm_actor_clipboard_create(void *source,int route_only,int entire,con
     }
     s->set(clipboard,actor,route_only); return clipboard;
 }
-void three_mm_actor_clipboard_dispose(ThreeMMActorClipboard *c,const ThreeMMActorClipboardServices *s)
+void mm_actor_clipboard_dispose(MMActorClipboard *c,const MMActorClipboardServices *s)
 {
     if (c->actor) s->release_actor(s->context,c->actor);
     c->actor=NULL;
 }
-int three_mm_actor_clipboard_paste(const ThreeMMActorClipboard *c,void *name,void *movie,const ThreeMMActorClipboardServices *s)
+int mm_actor_clipboard_paste(const MMActorClipboard *c,void *name,void *movie,const MMActorClipboardServices *s)
 {
     void *actor;
     if (c->route_only) return s->paste_route(s->context,movie,c->actor);

@@ -1,6 +1,6 @@
 #ifndef RETAIL_SCROLL_H
 #define RETAIL_SCROLL_H
-#include "three_mm/playback.h"
+#include "mm/playback.h"
 
 /* Transitional C++ facade over the shared C89 playback scrolling branch.
    The host supplies layout/overflow facts and applies one pixel when step=true.
@@ -16,13 +16,13 @@ class RetailScrollPlayback
   public:
     RetailScrollPlayback()
     {
-        three_mm_scroll_reset(&_backend);
+        mm_scroll_reset(&_backend);
     }
     void Reset();
     RetailScrollUpdate Update(double milliseconds, bool needsScroll);
     static double NominalSeconds(int pixels);
 
   private:
-    ThreeMMScrollPlayback _backend;
+    MMScrollPlayback _backend;
 };
 #endif

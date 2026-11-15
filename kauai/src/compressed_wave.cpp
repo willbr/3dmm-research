@@ -1,6 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "compressed_wave.h"
-#include "three_mm/wave.h"
+#include "mm/wave.h"
 #include "compressed_audio_licenses.h"
 #include <gsm.h>
 #define DR_MP3_NO_STDIO
@@ -17,7 +17,7 @@ namespace KauaiAudio
 namespace
 {
 constexpr std::size_t MaxSamples = INT_MAX / sizeof(std::int16_t);
-using Wave = ThreeMMWaveView;
+using Wave = MMWaveView;
 bool Gsm(const Wave &wave, DecodedWave &result)
 {
     const auto blocks = wave.data_bytes / 65;
@@ -63,11 +63,11 @@ bool Mp3(const Wave &wave, DecodedWave &result)
 CompressedWaveResult DecodeCompressedWave(const void *data, std::size_t bytes, DecodedWave &decoded)
 {
     Wave wave = {};
-    ThreeMMI32 rate, channels;
-    const auto encoding = three_mm_wave_compressed(data, bytes, &wave, &rate, &channels);
-    if (encoding == THREE_MM_WAVE_NOT_HANDLED)
+    MMI32 rate, channels;
+    const auto encoding = mm_wave_compressed(data, bytes, &wave, &rate, &channels);
+    if (encoding == MM_WAVE_NOT_HANDLED)
         return CompressedWaveResult::NotHandled;
-    if (encoding == THREE_MM_WAVE_INVALID)
+    if (encoding == MM_WAVE_INVALID)
         return CompressedWaveResult::Invalid;
     try
     {
@@ -79,7 +79,7 @@ CompressedWaveResult DecodeCompressedWave(const void *data, std::size_t bytes, D
         // GSM blocks include padding samples; a valid fact count trims them.
         // MP3 duration comes from its stream, including any gapless metadata.
         const auto frames =
-            three_mm_wave_trim_frames(encoding, wave.fact, static_cast<ThreeMMU32>(result.samples.size() / channels));
+            mm_wave_trim_frames(encoding, wave.fact, static_cast<MMU32>(result.samples.size() / channels));
         result.samples.resize(std::size_t(frames) * channels);
         decoded = std::move(result);
         return CompressedWaveResult::Decoded;

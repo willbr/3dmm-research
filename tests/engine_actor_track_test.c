@@ -1,4 +1,4 @@
-#include "three_mm/actor_track.h"
+#include "mm/actor_track.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +15,7 @@ static void check(int ok, int line)
 typedef struct Table
 {
     int route, locked;
-    ThreeMMU32 count, growth;
+    MMU32 count, growth;
     unsigned char fixed[13][20], payload[13][65];
 } Table;
 typedef struct Host
@@ -50,19 +50,19 @@ static Table *allocate(int route)
     ++h.live;
     return t;
 }
-static void *new_events(void *c, ThreeMMU32 fixed, ThreeMMU32 entries, ThreeMMU32 variable)
+static void *new_events(void *c, MMU32 fixed, MMU32 entries, MMU32 variable)
 {
     CHECK(c == &h && fixed == 20 && entries == 10 && variable == 20);
     log_call('E');
     return allocate(0);
 }
-static void *new_route(void *c, ThreeMMU32 width, ThreeMMU32 entries)
+static void *new_route(void *c, MMU32 width, MMU32 entries)
 {
     CHECK(c == &h && width == 16 && entries == 32);
     log_call('R');
     return allocate(1);
 }
-static void growth(void *p, ThreeMMU32 n)
+static void growth(void *p, MMU32 n)
 {
     Table *t = (Table *)p;
     CHECK(t->route && n == 32);
@@ -117,18 +117,18 @@ static void unlock_table(void *p)
     t->locked = 0;
     log_call('U');
 }
-static ThreeMMU32 count(void *p)
+static MMU32 count(void *p)
 {
     return ((Table *)p)->count;
 }
-static void *fixed(void *p, ThreeMMU32 i)
+static void *fixed(void *p, MMU32 i)
 {
     Table *t = (Table *)p;
     CHECK(i < t->count);
     return t->fixed[i];
 }
 /* Deliberately unaligned: native GG rows only promise byte addresses. */
-static void *data(void *p, ThreeMMU32 i)
+static void *data(void *p, MMU32 i)
 {
     Table *t = (Table *)p;
     CHECK(i < t->count);
@@ -148,19 +148,19 @@ static void release(void *cache)
     ++h.releases;
     log_call('-');
 }
-static ThreeMMActorTrackServices services = {&h,          new_events,     new_route,     growth,     clone_events,
+static MMActorTrackServices services = {&h,          new_events,     new_route,     growth,     clone_events,
                                              clone_route, release_events, release_route, lock_table, unlock_table,
                                              count,       fixed,          data,          retain,     release};
-static void row(Table *t, ThreeMMU32 i, ThreeMMI32 type, ThreeMMI32 custom, ThreeMMI32 sid, void *cache)
+static void row(Table *t, MMU32 i, MMI32 type, MMI32 custom, MMI32 sid, void *cache)
 {
-    ThreeMMActorCostume costume;
-    ThreeMMActorSound sound;
+    MMActorCostume costume;
+    MMActorSound sound;
     if (i >= t->count)
         t->count = i + 1;
     memcpy(t->fixed[i], &type, sizeof(type));
     memset(&costume, 0, sizeof(costume));
     memset(&sound, 0, sizeof(sound));
-    if (type == THREE_MM_ACTOR_COSTUME)
+    if (type == MM_ACTOR_COSTUME)
     {
         costume.custom = custom;
         costume.tag.sid = sid;
@@ -169,7 +169,7 @@ static void row(Table *t, ThreeMMU32 i, ThreeMMI32 type, ThreeMMI32 custom, Thre
         costume.tag.number = 456;
         memcpy(data(t, i), &costume, sizeof(costume));
     }
-    else if (type == THREE_MM_ACTOR_SOUND)
+    else if (type == MM_ACTOR_SOUND)
     {
         sound.tag.sid = sid;
         sound.tag.cache = cache;
@@ -178,30 +178,30 @@ static void row(Table *t, ThreeMMU32 i, ThreeMMI32 type, ThreeMMI32 custom, Thre
         memcpy(data(t, i), &sound, sizeof(sound));
     }
 }
-static void populate(ThreeMMActorTrack *t)
+static void populate(MMActorTrack *t)
 {
     Table *e = (Table *)t->events;
-    ThreeMMU32 i;
+    MMU32 i;
     for (i = 0; i < 13; ++i)
-        row(e, i, (ThreeMMI32)i, 0, 0, &h);
+        row(e, i, (MMI32)i, 0, 0, &h);
     h.refs += 2;
-    CHECK(three_mm_actor_event_tag(e, THREE_MM_ACTOR_COSTUME, &services) ==
-          (unsigned char *)data(e, THREE_MM_ACTOR_COSTUME) + offsetof(ThreeMMActorCostume, tag));
-    CHECK(three_mm_actor_event_tag(e, THREE_MM_ACTOR_SOUND, &services) != NULL);
+    CHECK(mm_actor_event_tag(e, MM_ACTOR_COSTUME, &services) ==
+          (unsigned char *)data(e, MM_ACTOR_COSTUME) + offsetof(MMActorCostume, tag));
+    CHECK(mm_actor_event_tag(e, MM_ACTOR_SOUND, &services) != NULL);
     for (i = 0; i < 13; ++i)
-        if (i != THREE_MM_ACTOR_COSTUME && i != THREE_MM_ACTOR_SOUND)
-            CHECK(three_mm_actor_event_tag(e, i, &services) == NULL);
+        if (i != MM_ACTOR_COSTUME && i != MM_ACTOR_SOUND)
+            CHECK(mm_actor_event_tag(e, i, &services) == NULL);
 }
 static void transactions(void)
 {
-    ThreeMMActorTrack source, target, old;
+    MMActorTrack source, target, old;
     Table *e;
     int n;
-    three_mm_actor_track_init(&source);
-    three_mm_actor_track_init(&target);
-    CHECK(three_mm_actor_track_create(&source, &services));
+    mm_actor_track_init(&source);
+    mm_actor_track_init(&target);
+    CHECK(mm_actor_track_create(&source, &services));
     populate(&source);
-    CHECK(three_mm_actor_track_create(&target, &services));
+    CHECK(mm_actor_track_create(&target, &services));
     populate(&target);
     CHECK(h.refs == 4 && h.live == 4);
     for (n = 1; n <= 2; ++n)
@@ -209,107 +209,107 @@ static void transactions(void)
         old = target;
         reset_log();
         h.fail = n;
-        CHECK(!three_mm_actor_track_create(&target, &services));
+        CHECK(!mm_actor_track_create(&target, &services));
         CHECK(target.events == old.events && target.route == old.route && h.refs == 4 && h.live == 4);
         CHECK(strcmp(h.log, n == 1 ? "E" : "ERLUX") == 0);
         reset_log();
         h.fail = n;
-        CHECK(!three_mm_actor_track_clone(&target, &source, &services));
+        CHECK(!mm_actor_track_clone(&target, &source, &services));
         CHECK(target.events == old.events && target.route == old.route && h.refs == 4 && h.live == 4);
         CHECK(strcmp(h.log, n == 1 ? "r" : "reY") == 0);
     }
     reset_log();
-    CHECK(three_mm_actor_track_clone(&target, &source, &services));
+    CHECK(mm_actor_track_clone(&target, &source, &services));
     CHECK(strcmp(h.log, "reL++UL--UXY") == 0);
     CHECK(target.events != source.events && target.route != source.route && h.refs == 4 && h.live == 4);
     CHECK(memcmp(target.events, source.events, sizeof(Table)) == 0);
     reset_log();
-    CHECK(three_mm_actor_track_clone(&source, &source, &services));
+    CHECK(mm_actor_track_clone(&source, &source, &services));
     CHECK(h.logged == 0);
-    three_mm_actor_track_swap(&source, &source);
+    mm_actor_track_swap(&source, &source);
     CHECK(h.refs == 4);
     old = source;
-    three_mm_actor_track_swap(&target, &source);
+    mm_actor_track_swap(&target, &source);
     CHECK(target.events == old.events && target.route == old.route);
     reset_log();
-    three_mm_actor_track_close_tags(&target, &services);
+    mm_actor_track_close_tags(&target, &services);
     CHECK(strcmp(h.log, "L--U") == 0 && h.refs == 2);
     e = (Table *)target.events;
     {
-        ThreeMMTag tag;
-        memcpy(&tag, three_mm_actor_event_tag(e, 2, &services), sizeof(tag));
+        MMTag tag;
+        memcpy(&tag, mm_actor_event_tag(e, 2, &services), sizeof(tag));
         CHECK(!tag.cache && tag.sid == 0 && tag.type == 123 && tag.number == 456);
     }
     reset_log();
-    three_mm_actor_track_close_tags(&target, &services);
+    mm_actor_track_close_tags(&target, &services);
     CHECK(strcmp(h.log, "LU") == 0 && h.refs == 2);
     reset_log();
-    three_mm_actor_track_dispose(&source, &services);
+    mm_actor_track_dispose(&source, &services);
     CHECK(strcmp(h.log, "L--UXY") == 0);
-    three_mm_actor_track_dispose(&source, &services);
+    mm_actor_track_dispose(&source, &services);
     CHECK(!source.events && !source.route && h.refs == 0);
-    CHECK(three_mm_actor_track_clone(&target, &source, &services));
+    CHECK(mm_actor_track_clone(&target, &source, &services));
     CHECK(!target.events && !target.route && !h.live);
 }
 static void tag_acceptance(void)
 {
-    ThreeMMActorTrack t, clone;
+    MMActorTrack t, clone;
     Table *e;
-    three_mm_actor_track_init(&t);
-    three_mm_actor_track_init(&clone);
+    mm_actor_track_init(&t);
+    mm_actor_track_init(&clone);
     reset_log();
-    CHECK(three_mm_actor_track_create(&t, &services));
+    CHECK(mm_actor_track_create(&t, &services));
     e = (Table *)t.events;
-    row(e, 0, THREE_MM_ACTOR_COSTUME, -1, 0, &h);
-    row(e, 1, THREE_MM_ACTOR_COSTUME, 2, 0, &h);
-    row(e, 2, THREE_MM_ACTOR_COSTUME, 0, 17, (void *)1);
-    row(e, 3, THREE_MM_ACTOR_SOUND, 0, -1, (void *)1);
-    row(e, 4, THREE_MM_ACTOR_SOUND, 0, 0, NULL);
-    CHECK(!three_mm_actor_event_tag(e, 0, &services) && !three_mm_actor_event_tag(e, 1, &services));
+    row(e, 0, MM_ACTOR_COSTUME, -1, 0, &h);
+    row(e, 1, MM_ACTOR_COSTUME, 2, 0, &h);
+    row(e, 2, MM_ACTOR_COSTUME, 0, 17, (void *)1);
+    row(e, 3, MM_ACTOR_SOUND, 0, -1, (void *)1);
+    row(e, 4, MM_ACTOR_SOUND, 0, 0, NULL);
+    CHECK(!mm_actor_event_tag(e, 0, &services) && !mm_actor_event_tag(e, 1, &services));
     reset_log();
-    CHECK(three_mm_actor_track_clone(&clone, &t, &services));
+    CHECK(mm_actor_track_clone(&clone, &t, &services));
     CHECK(strcmp(h.log, "reLU") == 0);
-    three_mm_actor_track_dispose(&t, &services);
-    three_mm_actor_track_dispose(&clone, &services);
+    mm_actor_track_dispose(&t, &services);
+    mm_actor_track_dispose(&clone, &services);
     CHECK(h.refs == 0 && h.live == 0);
 }
 static void adoption(void)
 {
-    ThreeMMActorTrack t, empty, copy;
+    MMActorTrack t, empty, copy;
     void *route, *events;
-    three_mm_actor_track_init(&t);
-    three_mm_actor_track_init(&empty);
-    three_mm_actor_track_init(&copy);
-    CHECK(three_mm_actor_track_create(&t, &services));
+    mm_actor_track_init(&t);
+    mm_actor_track_init(&empty);
+    mm_actor_track_init(&copy);
+    CHECK(mm_actor_track_create(&t, &services));
     populate(&t);
     reset_log();
-    three_mm_actor_track_adopt_events(&t, t.events, &services);
-    three_mm_actor_track_adopt_route(&t, t.route, &services);
+    mm_actor_track_adopt_events(&t, t.events, &services);
+    mm_actor_track_adopt_route(&t, t.route, &services);
     CHECK(!h.logged && h.refs == 2);
     events = allocate(0);
     route = allocate(1);
     CHECK(events != NULL && route != NULL);
     reset_log();
-    three_mm_actor_track_adopt_events(&t, events, &services);
+    mm_actor_track_adopt_events(&t, events, &services);
     CHECK(strcmp(h.log, "L--UX") == 0 && !h.refs);
     reset_log();
-    three_mm_actor_track_adopt_route(&t, route, &services);
+    mm_actor_track_adopt_route(&t, route, &services);
     CHECK(strcmp(h.log, "Y") == 0);
-    three_mm_actor_track_adopt_events(&t, NULL, &services);
-    CHECK(three_mm_actor_track_clone(&copy, &t, &services));
+    mm_actor_track_adopt_events(&t, NULL, &services);
+    CHECK(mm_actor_track_clone(&copy, &t, &services));
     CHECK(!copy.events && copy.route);
-    three_mm_actor_track_dispose(&copy, &services);
-    three_mm_actor_track_adopt_route(&t, NULL, &services);
+    mm_actor_track_dispose(&copy, &services);
+    mm_actor_track_adopt_route(&t, NULL, &services);
     CHECK(!h.live);
     t.events = allocate(0);
     CHECK(t.events != NULL);
-    CHECK(three_mm_actor_track_clone(&copy, &t, &services));
+    CHECK(mm_actor_track_clone(&copy, &t, &services));
     CHECK(copy.events && !copy.route);
-    CHECK(three_mm_actor_track_create(&t, &services));
+    CHECK(mm_actor_track_create(&t, &services));
     CHECK(((Table *)t.route)->growth == 32);
-    three_mm_actor_track_dispose(&copy, &services);
-    three_mm_actor_track_dispose(&t, &services);
-    CHECK(three_mm_actor_track_clone(&copy, &empty, &services));
+    mm_actor_track_dispose(&copy, &services);
+    mm_actor_track_dispose(&t, &services);
+    CHECK(mm_actor_track_clone(&copy, &empty, &services));
     CHECK(!h.live && !h.refs);
 }
 int main(void)

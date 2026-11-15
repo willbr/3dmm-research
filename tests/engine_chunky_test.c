@@ -1,4 +1,4 @@
-#include "three_mm/chunky_file.h"
+#include "mm/chunky_file.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +17,7 @@ static void put16(unsigned char *bytes, unsigned int value, int big)
     bytes[big ? 1 : 0] = (unsigned char)value;
     bytes[big ? 0 : 1] = (unsigned char)(value >> 8);
 }
-static void put32(unsigned char *bytes, ThreeMMU32 value, int big)
+static void put32(unsigned char *bytes, MMU32 value, int big)
 {
     int i;
     for (i = 0; i < 4; ++i)
@@ -27,7 +27,7 @@ static void put32(unsigned char *bytes, ThreeMMU32 value, int big)
  * the second once; two different targets share a slot and type. */
 static size_t fixture(unsigned char *bytes, int prefix_big, int big, int stride, int version)
 {
-    ThreeMMU32 sizes[3], offsets[3], data, total, i;
+    MMU32 sizes[3], offsets[3], data, total, i;
     unsigned char *group, *row, *child;
     sizes[0] = stride + 40;
     sizes[1] = sizes[2] = stride;
@@ -98,15 +98,15 @@ static size_t fixture(unsigned char *bytes, int prefix_big, int big, int stride,
 static void wire_indexes(void)
 {
     unsigned char bytes[1024];
-    ThreeMMMemoryStream memory;
-    ThreeMMChunkPolicy policy;
-    ThreeMMChunkIndex *index, *saved;
-    ThreeMMChunkAccess access;
-    ThreeMMChunkEntry entry;
-    ThreeMMChunkChild child;
-    ThreeMMChunkHeader header;
+    MMMemoryStream memory;
+    MMChunkPolicy policy;
+    MMChunkIndex *index, *saved;
+    MMChunkAccess access;
+    MMChunkEntry entry;
+    MMChunkChild child;
+    MMChunkHeader header;
     const unsigned char *name;
-    ThreeMMU32 count, position;
+    MMU32 count, position;
     size_t length;
     int prefix_big, big, stride, version;
     policy.expanded_runtime = 1;
@@ -118,77 +118,77 @@ static void wire_indexes(void)
                 for (version = 1; version <= 5; ++version)
                 {
                     length = fixture(bytes, prefix_big, big, stride, version);
-                    CHECK(three_mm_memory_stream_init(&memory, bytes, length));
+                    CHECK(mm_memory_stream_init(&memory, bytes, length));
                     if (version < 4 && stride == 20)
                     {
-                        CHECK(three_mm_chunk_index_open(&memory.stream, &policy, &index) == THREE_MM_CHUNK_BAD_FILE);
+                        CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_BAD_FILE);
                         continue;
                     }
-                    CHECK(three_mm_chunk_index_open(&memory.stream, &policy, &index) == THREE_MM_CHUNK_OK);
-                    access = three_mm_chunk_index_access(index);
-                    CHECK(access.count == 3 && three_mm_chunk_index_header(index)->big_endian == prefix_big);
-                    CHECK(three_mm_chunk_find(&access, 0x41414141UL, 1, &position) == THREE_MM_CHUNK_OK &&
+                    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_OK);
+                    access = mm_chunk_index_access(index);
+                    CHECK(access.count == 3 && mm_chunk_index_header(index)->big_endian == prefix_big);
+                    CHECK(mm_chunk_find(&access, 0x41414141UL, 1, &position) == MM_CHUNK_OK &&
                           position == 0);
-                    CHECK(three_mm_chunk_at(&access, 0, &entry) == THREE_MM_CHUNK_OK && entry.bytes == 8 &&
-                          entry.offset == 128 && entry.flags == THREE_MM_CHUNK_LONER && entry.child_count == 3);
-                    CHECK(three_mm_chunk_find(&access, 0x42424242UL, 3, &position) == THREE_MM_CHUNK_NOT_FOUND &&
+                    CHECK(mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK && entry.bytes == 8 &&
+                          entry.offset == 128 && entry.flags == MM_CHUNK_LONER && entry.child_count == 3);
+                    CHECK(mm_chunk_find(&access, 0x42424242UL, 3, &position) == MM_CHUNK_NOT_FOUND &&
                           position == 2);
-                    CHECK(three_mm_chunk_find(&access, 0xffffffffUL, 0, &position) == THREE_MM_CHUNK_NOT_FOUND &&
+                    CHECK(mm_chunk_find(&access, 0xffffffffUL, 0, &position) == MM_CHUNK_NOT_FOUND &&
                           position == 3);
-                    CHECK(three_mm_chunk_find_child(&access, 0, 0, 0x42424242UL, 3, &position) ==
-                              THREE_MM_CHUNK_NOT_FOUND &&
+                    CHECK(mm_chunk_find_child(&access, 0, 0, 0x42424242UL, 3, &position) ==
+                              MM_CHUNK_NOT_FOUND &&
                           position == 1);
-                    CHECK(three_mm_chunk_child_type(&access, 0, 0, 0x42424242UL, &child) == THREE_MM_CHUNK_OK &&
+                    CHECK(mm_chunk_child_type(&access, 0, 0, 0x42424242UL, &child) == MM_CHUNK_OK &&
                           child.number == 2);
-                    CHECK(three_mm_chunk_child_at(&access, 0, 1, &child) == THREE_MM_CHUNK_OK &&
+                    CHECK(mm_chunk_child_at(&access, 0, 1, &child) == MM_CHUNK_OK &&
                           child.number == 0xffffffffUL);
                     child.slot = 123;
-                    CHECK(three_mm_chunk_child_type(&access, 0, 2, 0, &child) == THREE_MM_CHUNK_NOT_FOUND &&
+                    CHECK(mm_chunk_child_type(&access, 0, 2, 0, &child) == MM_CHUNK_NOT_FOUND &&
                           child.slot == 123);
-                    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_OK);
-                    CHECK(three_mm_chunk_type_at(&access, 0x42424242UL, 1, &entry, &position) == THREE_MM_CHUNK_OK &&
+                    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_OK);
+                    CHECK(mm_chunk_type_at(&access, 0x42424242UL, 1, &entry, &position) == MM_CHUNK_OK &&
                           position == 2 && entry.number == 0xffffffffUL);
                     position = 123;
-                    CHECK(three_mm_chunk_type_at(&access, 0x42424242UL, 0xffffffffUL, &entry, &position) ==
-                              THREE_MM_CHUNK_NOT_FOUND &&
+                    CHECK(mm_chunk_type_at(&access, 0x42424242UL, 0xffffffffUL, &entry, &position) ==
+                              MM_CHUNK_NOT_FOUND &&
                           position == 123);
-                    CHECK(three_mm_chunk_index_name(index, 0, &name, &count) == THREE_MM_CHUNK_OK && count == 4 &&
+                    CHECK(mm_chunk_index_name(index, 0, &name, &count) == MM_CHUNK_OK && count == 4 &&
                           !memcmp(name, "name", 4));
                     /* Input is no longer borrowed once open returns. Failed opens
                      * leave the prior owning handle and its records intact. */
                     bytes[0] = 'X';
                     saved = index;
-                    CHECK(three_mm_chunk_index_open(&memory.stream, &policy, &index) == THREE_MM_CHUNK_BAD_FILE &&
+                    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_BAD_FILE &&
                           index == saved);
-                    CHECK(three_mm_chunk_at(&access, 0, &entry) == THREE_MM_CHUNK_OK && entry.number == 1);
-                    three_mm_chunk_index_close(index);
+                    CHECK(mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK && entry.number == 1);
+                    mm_chunk_index_close(index);
                 }
     length = fixture(bytes, 0, 1, 32, 5);
-    CHECK(three_mm_memory_stream_init(&memory, bytes, length));
+    CHECK(mm_memory_stream_init(&memory, bytes, length));
     policy.expanded_runtime = 0;
     /* Existing expanded-to-compact pre-swap check rejects this opposite-endian
      * row. A port must not silently repair the original reader's decision. */
-    CHECK(three_mm_chunk_index_open(&memory.stream, &policy, &index) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_BAD_FILE);
     length = fixture(bytes, 0, 0, 20, 5);
-    CHECK(three_mm_memory_stream_init(&memory, bytes, length));
+    CHECK(mm_memory_stream_init(&memory, bytes, length));
     header.creator = 123;
-    memory.stream.length = (ThreeMMU32)length - 1;
-    CHECK(three_mm_chunk_read_header(&memory.stream, &header) == THREE_MM_CHUNK_BAD_FILE && header.creator == 123);
-    memory.stream.length = (ThreeMMU32)length;
+    memory.stream.length = (MMU32)length - 1;
+    CHECK(mm_chunk_read_header(&memory.stream, &header) == MM_CHUNK_BAD_FILE && header.creator == 123);
+    memory.stream.length = (MMU32)length;
     put32(bytes + 136 + 20 + 100, 0xffffffffUL, 0); /* Location points before the GG. */
-    CHECK(three_mm_chunk_index_open(&memory.stream, &policy, &index) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_BAD_FILE);
     fixture(bytes, 0, 0, 20, 5);
     put32(bytes + 140, 0xffffffffUL, 0); /* Count arithmetic must not wrap. */
-    CHECK(three_mm_chunk_index_open(&memory.stream, &policy, &index) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_BAD_FILE);
     fixture(bytes, 0, 0, 20, 5);
     put32(bytes + 24, 0xffffffffUL, 0); /* Index extent arithmetic must not wrap. */
-    CHECK(three_mm_chunk_index_open(&memory.stream, &policy, &index) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_BAD_FILE);
 }
 
 typedef struct LiveGraph
 {
-    ThreeMMChunkEntry entries[4];
-    ThreeMMChunkChild children[4][2];
+    MMChunkEntry entries[4];
+    MMChunkChild children[4][2];
     int fail;
 } LiveGraph;
 
@@ -197,7 +197,7 @@ typedef struct FailingInput
     unsigned char bytes[1024];
     int calls, fail_at;
 } FailingInput;
-static int failing_read(void *context, ThreeMMU32 offset, void *bytes, size_t count)
+static int failing_read(void *context, MMU32 offset, void *bytes, size_t count)
 {
     FailingInput *input = (FailingInput *)context;
     if (++input->calls == input->fail_at)
@@ -208,29 +208,29 @@ static int failing_read(void *context, ThreeMMU32 offset, void *bytes, size_t co
 static void io_failures(void)
 {
     FailingInput input;
-    ThreeMMReadStream stream;
-    ThreeMMChunkPolicy policy = {0, 0, 516};
-    ThreeMMChunkIndex *index, *saved;
-    ThreeMMChunkAccess access;
-    ThreeMMChunkEntry entry;
+    MMReadStream stream;
+    MMChunkPolicy policy = {0, 0, 516};
+    MMChunkIndex *index, *saved;
+    MMChunkAccess access;
+    MMChunkEntry entry;
     int step;
-    stream.length = (ThreeMMU32)fixture(input.bytes, 0, 0, 20, 5);
+    stream.length = (MMU32)fixture(input.bytes, 0, 0, 20, 5);
     stream.context = &input;
     stream.read_at = failing_read;
     input.calls = input.fail_at = 0;
-    CHECK(three_mm_chunk_index_open(&stream, &policy, &index) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_index_open(&stream, &policy, &index) == MM_CHUNK_OK);
     saved = index;
-    access = three_mm_chunk_index_access(index);
+    access = mm_chunk_index_access(index);
     for (step = 1; step <= 4; ++step)
     {
         input.calls = 0;
         input.fail_at = step;
-        CHECK(three_mm_chunk_index_open(&stream, &policy, &index) == THREE_MM_CHUNK_IO && index == saved);
-        CHECK(three_mm_chunk_at(&access, 0, &entry) == THREE_MM_CHUNK_OK && entry.number == 1);
+        CHECK(mm_chunk_index_open(&stream, &policy, &index) == MM_CHUNK_IO && index == saved);
+        CHECK(mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK && entry.number == 1);
     }
-    three_mm_chunk_index_close(index);
+    mm_chunk_index_close(index);
 }
-static int live_entry(void *context, ThreeMMU32 position, ThreeMMChunkEntry *entry)
+static int live_entry(void *context, MMU32 position, MMChunkEntry *entry)
 {
     LiveGraph *graph = (LiveGraph *)context;
     if (graph->fail)
@@ -238,7 +238,7 @@ static int live_entry(void *context, ThreeMMU32 position, ThreeMMChunkEntry *ent
     *entry = graph->entries[position];
     return 1;
 }
-static int live_child(void *context, ThreeMMU32 parent, ThreeMMU32 position, ThreeMMChunkChild *child)
+static int live_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *child)
 {
     LiveGraph *graph = (LiveGraph *)context;
     *child = graph->children[parent][position];
@@ -264,52 +264,52 @@ static void diamond(LiveGraph *graph)
 static void graphs(void)
 {
     LiveGraph graph;
-    ThreeMMChunkAccess access;
-    ThreeMMChunkEntry entry;
-    ThreeMMU32 position;
+    MMChunkAccess access;
+    MMChunkEntry entry;
+    MMU32 position;
     diamond(&graph);
     access.context = &graph;
     access.count = 4;
     access.entry = live_entry;
     access.child = live_child;
-    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_OK);
     graph.entries[1].parent_count = 2;
     graph.entries[3].parent_count = 1;
-    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_OK); /* Retail checks aggregate totals. */
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_OK); /* Retail checks aggregate totals. */
     diamond(&graph);
     graph.entries[3].child_count = 1;
     graph.entries[3].variable_bytes = 12;
     graph.entries[1].parent_count = 2;
     graph.children[3][0].number = 2;
-    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_BAD_FILE); /* Reachable cycle. */
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_BAD_FILE); /* Reachable cycle. */
     diamond(&graph);
     graph.children[1][0].number = 99;
-    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_BAD_FILE); /* Missing target. */
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_BAD_FILE); /* Missing target. */
     diamond(&graph);
     graph.entries[0].child_count = 0;
     graph.entries[3].parent_count = 0;
-    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_BAD_FILE); /* Orphan subgraph. */
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_BAD_FILE); /* Orphan subgraph. */
     diamond(&graph);
     graph.entries[0].child_count = 0;
     graph.entries[3].parent_count = 0;
     graph.children[1][0].number = 3;
     graph.children[2][0].number = 2;
-    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_BAD_FILE); /* Unrooted cycle. */
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_BAD_FILE); /* Unrooted cycle. */
     diamond(&graph);
     graph.entries[3].number = 9;
-    CHECK(three_mm_chunk_find(&access, 10, 9, &position) == THREE_MM_CHUNK_OK && position == 3);
-    CHECK(three_mm_chunk_find(&access, 10, 4, &position) == THREE_MM_CHUNK_NOT_FOUND && position == 3);
+    CHECK(mm_chunk_find(&access, 10, 9, &position) == MM_CHUNK_OK && position == 3);
+    CHECK(mm_chunk_find(&access, 10, 4, &position) == MM_CHUNK_NOT_FOUND && position == 3);
     graph.fail = 1;
     entry.number = 123;
     position = 123;
-    CHECK(three_mm_chunk_at(&access, 0, &entry) == THREE_MM_CHUNK_IO && entry.number == 123);
-    CHECK(three_mm_chunk_find(&access, 10, 9, &position) == THREE_MM_CHUNK_IO && position == 123);
+    CHECK(mm_chunk_at(&access, 0, &entry) == MM_CHUNK_IO && entry.number == 123);
+    CHECK(mm_chunk_find(&access, 10, 9, &position) == MM_CHUNK_IO && position == 123);
     access.count = 0;
-    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_OK);
 }
-static int chain_entry(void *context, ThreeMMU32 position, ThreeMMChunkEntry *entry)
+static int chain_entry(void *context, MMU32 position, MMChunkEntry *entry)
 {
-    ThreeMMU32 count = *(ThreeMMU32 *)context;
+    MMU32 count = *(MMU32 *)context;
     memset(entry, 0, sizeof(*entry));
     entry->number = position;
     entry->parent_count = position ? 1 : 0;
@@ -317,7 +317,7 @@ static int chain_entry(void *context, ThreeMMU32 position, ThreeMMChunkEntry *en
     entry->variable_bytes = entry->child_count * 12;
     return 1;
 }
-static int chain_child(void *context, ThreeMMU32 parent, ThreeMMU32 position, ThreeMMChunkChild *child)
+static int chain_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *child)
 {
     (void)context;
     (void)position;
@@ -327,21 +327,21 @@ static int chain_child(void *context, ThreeMMU32 parent, ThreeMMU32 position, Th
 }
 static void deep_graph(void)
 {
-    ThreeMMU32 count = 10000;
-    ThreeMMChunkAccess access;
+    MMU32 count = 10000;
+    MMChunkAccess access;
     access.context = &count;
     access.count = count;
     access.entry = chain_entry;
     access.child = chain_child;
-    CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_OK);
 }
 typedef struct WriteProbe
 {
     unsigned char source[1024], output[1024];
-    ThreeMMU32 index_offset, index_bytes, map_bytes;
+    MMU32 index_offset, index_bytes, map_bytes;
     int calls, fail, dry;
 } WriteProbe;
-static int write_index(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
+static int write_index(void *context, MMU32 offset, MMU32 bytes)
 {
     WriteProbe *p = (WriteProbe *)context;
     CHECK(++p->calls == 1 && offset == p->index_offset && bytes == p->index_bytes);
@@ -349,7 +349,7 @@ static int write_index(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
         memcpy(p->output + offset, p->source + offset, bytes);
     return p->fail != p->calls;
 }
-static int write_map(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
+static int write_map(void *context, MMU32 offset, MMU32 bytes)
 {
     WriteProbe *p = (WriteProbe *)context;
     CHECK(++p->calls == 2 && offset == p->index_offset + p->index_bytes && bytes == p->map_bytes);
@@ -365,7 +365,7 @@ static int write_prefix(void *context, const void *bytes, size_t count)
     memcpy(p->output, bytes, p->fail == p->calls ? 7 : count);
     return p->fail != p->calls;
 }
-static void init_write(WriteProbe *p, const ThreeMMChunkSave *save)
+static void init_write(WriteProbe *p, const MMChunkSave *save)
 {
     memset(p, 0, sizeof(*p));
     memset(p->output, 0xa5, sizeof(p->output));
@@ -376,16 +376,16 @@ static void init_write(WriteProbe *p, const ThreeMMChunkSave *save)
 static void writes(void)
 {
     WriteProbe probe;
-    ThreeMMChunkWriter writer;
-    ThreeMMChunkSave save;
-    ThreeMMChunkHeader header, readback, sentinel;
-    ThreeMMMemoryStream stream;
-    ThreeMMChunkIndex *index;
-    ThreeMMChunkPolicy policy = {0, 0, 516};
-    ThreeMMU32 total, hash = 2166136261UL;
+    MMChunkWriter writer;
+    MMChunkSave save;
+    MMChunkHeader header, readback, sentinel;
+    MMMemoryStream stream;
+    MMChunkIndex *index;
+    MMChunkPolicy policy = {0, 0, 516};
+    MMU32 total, hash = 2166136261UL;
     int big, map, fail, i, j;
-    static const ThreeMMU32 lengths[] = {0, 1, 3, 257, 1024};
-    static const ThreeMMU32 creators[] = {0x53415645UL, 0x4e455854UL, 0x434f5059UL, 0x41532020UL};
+    static const MMU32 lengths[] = {0, 1, 3, 257, 1024};
+    static const MMU32 creators[] = {0x53415645UL, 0x4e455854UL, 0x434f5059UL, 0x41532020UL};
     writer.context = &probe;
     writer.index = write_index;
     writer.map = write_map;
@@ -399,13 +399,13 @@ static void writes(void)
             save.index_offset = 136;
             save.big_endian = big;
             save.system = 0x0303;
-            total = (ThreeMMU32)fixture(probe.source, big, big, 20, 5);
+            total = (MMU32)fixture(probe.source, big, big, 20, 5);
             save.index_bytes = total - save.index_offset;
             save.map_bytes = map ? 20 : 0;
             for (fail = 0; fail <= (map ? 3 : 2); ++fail)
             {
                 init_write(&probe, &save);
-                total = (ThreeMMU32)fixture(probe.source, big, big, 20, 5);
+                total = (MMU32)fixture(probe.source, big, big, 20, 5);
                 if (map)
                 {
                     put32(probe.source + 16, total + 20, big);
@@ -414,8 +414,8 @@ static void writes(void)
                 }
                 probe.fail = fail;
                 header = sentinel;
-                CHECK(three_mm_chunk_write_index(&save, &writer, &header) ==
-                      (fail ? THREE_MM_CHUNK_IO : THREE_MM_CHUNK_OK));
+                CHECK(mm_chunk_write_index(&save, &writer, &header) ==
+                      (fail ? MM_CHUNK_IO : MM_CHUNK_OK));
                 CHECK(probe.calls == (fail ? fail : (map ? 3 : 2)));
                 if (fail)
                 {
@@ -431,13 +431,13 @@ static void writes(void)
                     CHECK(probe.output[i] == 0xa5);
                 for (i = (int)(total + save.map_bytes); i < 1024; ++i)
                     CHECK(probe.output[i] == 0xa5); /* No truncation/tail clearing. */
-                CHECK(three_mm_memory_stream_init(&stream, probe.output, sizeof(probe.output)));
-                CHECK(three_mm_chunk_read_header(&stream.stream, &readback) == THREE_MM_CHUNK_OK);
+                CHECK(mm_memory_stream_init(&stream, probe.output, sizeof(probe.output)));
+                CHECK(mm_chunk_read_header(&stream.stream, &readback) == MM_CHUNK_OK);
                 CHECK(readback.logical_end == header.logical_end && readback.creator == save.creator &&
                       readback.big_endian == big && readback.map_bytes == save.map_bytes);
                 index = NULL;
-                CHECK(three_mm_chunk_index_open(&stream.stream, &policy, &index) == THREE_MM_CHUNK_OK);
-                three_mm_chunk_index_close(index);
+                CHECK(mm_chunk_index_open(&stream.stream, &policy, &index) == MM_CHUNK_OK);
+                mm_chunk_index_close(index);
             }
         }
     /* Frozen prefixes from twenty native pre-conversion save outputs, including
@@ -453,7 +453,7 @@ static void writes(void)
             save.system = 0x0303;
             init_write(&probe, &save);
             probe.dry = 1;
-            CHECK(three_mm_chunk_write_index(&save, &writer, NULL) == THREE_MM_CHUNK_OK);
+            CHECK(mm_chunk_write_index(&save, &writer, NULL) == MM_CHUNK_OK);
             for (big = 0; big < 128; ++big)
                 hash = (hash ^ probe.output[big]) * 16777619UL;
         }
@@ -511,7 +511,7 @@ static void writes(void)
         }
         init_write(&probe, &save);
         header = sentinel;
-        CHECK(three_mm_chunk_write_index(&save, &writer, &header) == THREE_MM_CHUNK_BAD_FILE);
+        CHECK(mm_chunk_write_index(&save, &writer, &header) == MM_CHUNK_BAD_FILE);
         CHECK(!probe.calls && !memcmp(&header, &sentinel, sizeof(header)));
     }
     writer.index = write_index;
@@ -522,7 +522,7 @@ static void writes(void)
     save.map_bytes = 0;
     init_write(&probe, &save);
     probe.dry = 1;
-    CHECK(three_mm_chunk_write_index(&save, &writer, &header) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_write_index(&save, &writer, &header) == MM_CHUNK_OK);
     CHECK(header.logical_end == 0x7fffffffUL && header.creator == 0xffffffffUL && header.system == -32768);
     /* Collection sections are individually bounded; a serialized index can
      * exceed one section's 128-MiB limit. Commit extents use signed file bounds. */
@@ -532,10 +532,10 @@ static void writes(void)
     save.map_bytes = 0x0800000cUL;
     init_write(&probe, &save);
     probe.dry = 1;
-    CHECK(three_mm_chunk_write_index(&save, &writer, &header) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_write_index(&save, &writer, &header) == MM_CHUNK_OK);
     CHECK(header.logical_end == 128 + save.index_bytes + save.map_bytes);
-    CHECK(three_mm_chunk_write_index(NULL, &writer, NULL) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_write_index(&save, NULL, NULL) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_write_index(NULL, &writer, NULL) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_write_index(&save, NULL, NULL) == MM_CHUNK_BAD_FILE);
 }
 int main(void)
 {

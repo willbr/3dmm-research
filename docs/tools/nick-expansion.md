@@ -23,7 +23,7 @@ Python 3.9+ with its standard library and the C++ `nick-expansion` tool are used
 cmake --build build/studio-portable-x64 --target nick-expansion
 ```
 
-The tool links `three-mm-expansion` and the existing `engine-core` / `kauai-core`
+The tool links `mm-expansion` and the existing `engine-core` / `kauai-core`
 libraries. It has no Studio window or device dependency. Windows builds need
 the usual MSVC developer environment. The core retains its native narrow path
 repertoire and 255-byte path limit.

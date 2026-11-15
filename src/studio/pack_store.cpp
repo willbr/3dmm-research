@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "studio_packs.h"
 #include "pack_hash.h"
-#include "three_mm/archive.h"
+#include "mm/archive.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <fstream>
@@ -80,15 +80,15 @@ Json Manifest(const fs::path &directory, Id id)
 }
 void ValidateArchive(const fs::path &path)
 {
-    ThreeMM::Options options;
+    MM::Options options;
     options.maxDecodedBytes = 128 * 1024 * 1024;
-    ThreeMM::Archive archive(options);
-    ThreeMM::Error error;
+    MM::Archive archive(options);
+    MM::Error error;
     if (!archive.Open(path.u8string(), error) || archive.Chunks().empty())
         throw std::runtime_error("Invalid content archive: " + path.filename().u8string());
     for (std::size_t i = 0; i < archive.Chunks().size(); ++i)
     {
-        ThreeMM::PayloadPage page;
+        MM::PayloadPage page;
         if (!archive.ReadPayload(i, 0, 1, page, error))
             throw std::runtime_error("Cannot decode content archive: " + path.filename().u8string());
         for (const auto &child : archive.Chunks()[i].children)

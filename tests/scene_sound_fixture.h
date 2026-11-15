@@ -1,6 +1,6 @@
 #ifndef SCENE_SOUND_FIXTURE_H
 #define SCENE_SOUND_FIXTURE_H
-#include "three_mm/scene_sound.h"
+#include "mm/scene_sound.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,22 +15,22 @@
     } while (0)
 typedef struct Record
 {
-    ThreeMMU32 child;
-    ThreeMMTag tag;
+    MMU32 child;
+    MMTag tag;
 } Record;
 typedef struct Fixture
 {
-    ThreeMMSceneSoundPacketServices s;
-    ThreeMMSceneSound *packet;
+    MMSceneSoundPacketServices s;
+    MMSceneSound *packet;
     Record input[4];
     int refs[8], live, allocs, fail, retains, clears, lookups, relocate;
     unsigned char *group, *stale;
-    ThreeMMI32 group_bytes;
+    MMI32 group_bytes;
     int ops[64], used, resolve_fail, fetch_fail, enqueue_fail, resources, plays, mutate, shrink;
     int loop_tools[4], queues[4], loops[4], volumes[4];
-    ThreeMMU32 starts[4];
+    MMU32 starts[4];
 } Fixture;
-static Record *at(ThreeMMSceneSound *p, int i)
+static Record *at(MMSceneSound *p, int i)
 {
     return (Record *)((unsigned char *)p + 16) + i;
 }
@@ -39,7 +39,7 @@ static void log_op(Fixture *f, int op)
     CHECK(f->used < 64);
     f->ops[f->used++] = op;
 }
-static void *allocate(void *p, ThreeMMI32 bytes)
+static void *allocate(void *p, MMI32 bytes)
 {
     Fixture *f = (Fixture *)p;
     void *out;
@@ -77,7 +77,7 @@ static void copy_record(void *p, void *to, const void *from)
     (void)p;
     memcpy(to, from, sizeof(Record));
 }
-static ThreeMMI32 sid(void *p, const void *r)
+static MMI32 sid(void *p, const void *r)
 {
     (void)p;
     return ((const Record *)r)->tag.sid;
@@ -98,26 +98,26 @@ static void clear_cache(void *p, void *r)
     ++((Fixture *)p)->clears;
     ((Record *)r)->tag.cache = NULL;
 }
-static void read_tag(void *p, const void *r, ThreeMMU32 *child, ThreeMMTag *tag)
+static void read_tag(void *p, const void *r, MMU32 *child, MMTag *tag)
 {
     (void)p;
     *child = ((const Record *)r)->child;
     *tag = ((const Record *)r)->tag;
 }
-static void write_tag(void *p, void *r, ThreeMMU32 child, const ThreeMMTag *tag)
+static void write_tag(void *p, void *r, MMU32 child, const MMTag *tag)
 {
     (void)p;
     ((Record *)r)->child = child;
     ((Record *)r)->tag = *tag;
 }
-static void *group_data(void *p, void *g, ThreeMMI32 index)
+static void *group_data(void *p, void *g, MMI32 index)
 {
     Fixture *f = (Fixture *)p;
     CHECK(g == f && index == 0);
     ++f->lookups;
     return f->group;
 }
-static ThreeMMI32 group_size(void *p, void *g, ThreeMMI32 index)
+static MMI32 group_size(void *p, void *g, MMI32 index)
 {
     Fixture *f = (Fixture *)p;
     CHECK(g == f && index == 0);
@@ -145,16 +145,16 @@ static void *fetch(void *p, void *r)
     ++f->resources;
     return tag;
 }
-static ThreeMMI32 priority(void *p, void *sound, int tool)
+static MMI32 priority(void *p, void *sound, int tool)
 {
     Fixture *f = (Fixture *)p;
     Record *tag = (Record *)sound;
     CHECK(f->resources == 1);
     log_op(f, 30 + (int)tag->child);
     f->loop_tools[tag->child] = tool;
-    return (ThreeMMI32)(tag->child * 10 + tool);
+    return (MMI32)(tag->child * 10 + tool);
 }
-static void enqueue(void *p, void *sound, int loop, int queue, ThreeMMI32 volume, ThreeMMI32 priority, ThreeMMU32 start)
+static void enqueue(void *p, void *sound, int loop, int queue, MMI32 volume, MMI32 priority, MMU32 start)
 {
     Fixture *f = (Fixture *)p;
     int id = (int)((Record *)sound)->child;
@@ -181,7 +181,7 @@ static void release(void *p, void *sound)
 static void init(Fixture *f)
 {
     int i;
-    ThreeMMSceneSoundPacketServices *s;
+    MMSceneSoundPacketServices *s;
     memset(f, 0, sizeof(*f));
     s = &f->s;
     s->context = f;
@@ -202,21 +202,21 @@ static void init(Fixture *f)
     s->release = release;
     for (i = 0; i < 4; ++i)
     {
-        f->input[i].child = (ThreeMMU32)i + 1;
+        f->input[i].child = (MMU32)i + 1;
         f->input[i].tag.sid = i % 2 ? 3 : 0;
         f->input[i].tag.cache = f;
         f->input[i].tag.type = 0x4d534e44U;
-        f->input[i].tag.number = (ThreeMMU32)i + 1;
+        f->input[i].tag.number = (MMU32)i + 1;
     }
 }
 #ifndef SCENE_SOUND_FIXTURE_NO_PACKET_HELPERS
-static ThreeMMSceneSound *make(Fixture *f, int count)
+static MMSceneSound *make(Fixture *f, int count)
 {
-    ThreeMMSceneSound *p = three_mm_scene_sound_make(80, 4, 1, count, f->input, &f->s);
+    MMSceneSound *p = mm_scene_sound_make(80, 4, 1, count, f->input, &f->s);
     CHECK(p && p->vlm == 80 && p->sty == 4 && p->fLoop == 1 && p->ctagc == count);
     return p;
 }
-static void drop(Fixture *f, ThreeMMSceneSound *p)
+static void drop(Fixture *f, MMSceneSound *p)
 {
     int i;
     Record *tag;

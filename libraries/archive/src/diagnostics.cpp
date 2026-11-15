@@ -6,7 +6,7 @@ namespace
 thread_local bool assertionFailed = false;
 thread_local char assertionMessage[256] = {};
 } // namespace
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -30,4 +30,4 @@ const char *DiagnosticMessage()
     return assertionMessage;
 }
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM

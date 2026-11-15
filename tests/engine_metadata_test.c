@@ -1,6 +1,6 @@
-#include "three_mm/chunk_metadata.h"
-#include "three_mm/codec_registry.h"
-#include "three_mm/string_wire.h"
+#include "mm/chunk_metadata.h"
+#include "mm/codec_registry.h"
+#include "mm/string_wire.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,12 +17,12 @@ typedef struct Allocation
 {
     int live, calls, fail_all, fail_speed;
 } Allocation;
-static void *resize(void *c, void *old, ThreeMMU32 old_bytes, ThreeMMU32 bytes, int priority)
+static void *resize(void *c, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Allocation *a = (Allocation *)c;
     void *fresh;
     ++a->calls;
-    if (a->fail_all || (a->fail_speed && priority == THREE_MM_STORAGE_SPEED))
+    if (a->fail_all || (a->fail_speed && priority == MM_STORAGE_SPEED))
         return NULL;
     fresh = malloc(bytes);
     CHECK(fresh != NULL);
@@ -35,7 +35,7 @@ static void *resize(void *c, void *old, ThreeMMU32 old_bytes, ThreeMMU32 bytes, 
         ++a->live;
     return fresh;
 }
-static void release(void *c, void *data, ThreeMMU32 bytes)
+static void release(void *c, void *data, MMU32 bytes)
 {
     Allocation *a = (Allocation *)c;
     (void)bytes;
@@ -46,9 +46,9 @@ static void release(void *c, void *data, ThreeMMU32 bytes)
 static void runtime_cache(void)
 {
     Allocation a, b;
-    ThreeMMStorageAllocator memory, other;
-    ThreeMMChunkRuntime first, second;
-    ThreeMMChunkRuntimeEntry e, previous;
+    MMStorageAllocator memory, other;
+    MMChunkRuntime first, second;
+    MMChunkRuntimeEntry e, previous;
     int i, calls;
     memset(&a, 0, sizeof(a));
     memset(&b, 0, sizeof(b));
@@ -57,60 +57,60 @@ static void runtime_cache(void)
     memory.release = release;
     other = memory;
     other.context = &b;
-    CHECK(three_mm_chunk_runtime_init(&first, &memory) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_runtime_init(&second, &other) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_runtime_get(&first, 1, 2) == 0 &&
-          three_mm_chunk_runtime_set(&first, 1, 2, 0) == THREE_MM_CHUNK_OK && !a.calls);
+    CHECK(mm_chunk_runtime_init(&first, &memory) == MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_init(&second, &other) == MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_get(&first, 1, 2) == 0 &&
+          mm_chunk_runtime_set(&first, 1, 2, 0) == MM_CHUNK_OK && !a.calls);
     for (i = 20; i >= 0; --i)
-        CHECK(three_mm_chunk_runtime_set(&first, (ThreeMMU32)i % 3, (ThreeMMU32)i, i + 10) == THREE_MM_CHUNK_OK);
+        CHECK(mm_chunk_runtime_set(&first, (MMU32)i % 3, (MMU32)i, i + 10) == MM_CHUNK_OK);
     for (i = 0; i < 21; ++i)
     {
-        CHECK(three_mm_chunk_runtime_get(&first, (ThreeMMU32)i % 3, (ThreeMMU32)i) == i + 10);
-        CHECK(three_mm_chunk_runtime_at(&first, (ThreeMMU32)i, &e) == THREE_MM_CHUNK_OK);
+        CHECK(mm_chunk_runtime_get(&first, (MMU32)i % 3, (MMU32)i) == i + 10);
+        CHECK(mm_chunk_runtime_at(&first, (MMU32)i, &e) == MM_CHUNK_OK);
         if (i)
             CHECK(previous.type < e.type || (previous.type == e.type && previous.number < e.number));
         previous = e;
     }
     for (i = 0; i < 21; i += 2)
-        CHECK(three_mm_chunk_runtime_set(&first, (ThreeMMU32)i % 3, (ThreeMMU32)i, 0) == THREE_MM_CHUNK_OK);
+        CHECK(mm_chunk_runtime_set(&first, (MMU32)i % 3, (MMU32)i, 0) == MM_CHUNK_OK);
     a.fail_all = 1;
     calls = a.calls;
-    CHECK(three_mm_chunk_runtime_set(&first, 1, 1, -7) == THREE_MM_CHUNK_OK && a.calls == calls);
+    CHECK(mm_chunk_runtime_set(&first, 1, 1, -7) == MM_CHUNK_OK && a.calls == calls);
     /* Fill retained capacity, then make a missing insertion fail. */
     for (i = 100; first.count < first.storage.buffers[0].capacity / sizeof(e); ++i)
-        CHECK(three_mm_chunk_runtime_set(&first, 9, (ThreeMMU32)i, i) == THREE_MM_CHUNK_OK);
+        CHECK(mm_chunk_runtime_set(&first, 9, (MMU32)i, i) == MM_CHUNK_OK);
     calls = (int)first.count;
-    CHECK(three_mm_chunk_runtime_set(&first, 9, 9999, 3) == THREE_MM_CHUNK_MEMORY && first.count == (ThreeMMU32)calls);
-    CHECK(three_mm_chunk_runtime_set(&first, 99, 99, 0) == THREE_MM_CHUNK_OK &&
-          !three_mm_chunk_runtime_get(&first, 9, 9999));
-    CHECK(three_mm_chunk_runtime_swap(&first, &second) == THREE_MM_CHUNK_OK && !first.count &&
-          second.count == (ThreeMMU32)calls);
-    CHECK(three_mm_chunk_runtime_get(&second, 1, 1) == -7);
-    CHECK(three_mm_chunk_runtime_swap(&first, &second) == THREE_MM_CHUNK_OK && first.count == (ThreeMMU32)calls);
+    CHECK(mm_chunk_runtime_set(&first, 9, 9999, 3) == MM_CHUNK_MEMORY && first.count == (MMU32)calls);
+    CHECK(mm_chunk_runtime_set(&first, 99, 99, 0) == MM_CHUNK_OK &&
+          !mm_chunk_runtime_get(&first, 9, 9999));
+    CHECK(mm_chunk_runtime_swap(&first, &second) == MM_CHUNK_OK && !first.count &&
+          second.count == (MMU32)calls);
+    CHECK(mm_chunk_runtime_get(&second, 1, 1) == -7);
+    CHECK(mm_chunk_runtime_swap(&first, &second) == MM_CHUNK_OK && first.count == (MMU32)calls);
     while (first.count)
     {
-        CHECK(three_mm_chunk_runtime_at(&first, 0, &e) == THREE_MM_CHUNK_OK);
-        CHECK(three_mm_chunk_runtime_set(&first, e.type, e.number, 0) == THREE_MM_CHUNK_OK);
+        CHECK(mm_chunk_runtime_at(&first, 0, &e) == MM_CHUNK_OK);
+        CHECK(mm_chunk_runtime_set(&first, e.type, e.number, 0) == MM_CHUNK_OK);
     }
     CHECK(first.created && first.storage.buffers[0].data != NULL);
-    CHECK(three_mm_chunk_runtime_dispose(&first) == THREE_MM_CHUNK_OK && !a.live);
-    CHECK(three_mm_chunk_runtime_dispose(&second) == THREE_MM_CHUNK_OK && !b.live);
+    CHECK(mm_chunk_runtime_dispose(&first) == MM_CHUNK_OK && !a.live);
+    CHECK(mm_chunk_runtime_dispose(&second) == MM_CHUNK_OK && !b.live);
     a.fail_all = 1;
-    CHECK(three_mm_chunk_runtime_init(&first, &memory) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_runtime_set(&first, 0xffffffffUL, 0xffffffffUL, 1) == THREE_MM_CHUNK_MEMORY && !first.count &&
+    CHECK(mm_chunk_runtime_init(&first, &memory) == MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_set(&first, 0xffffffffUL, 0xffffffffUL, 1) == MM_CHUNK_MEMORY && !first.count &&
           !first.created);
     a.fail_all = 0;
     a.fail_speed = 1;
-    CHECK(three_mm_chunk_runtime_set(&first, 0xffffffffUL, 0xffffffffUL, 1) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_runtime_get(&first, 0xffffffffUL, 0xffffffffUL) == 1);
-    CHECK(three_mm_chunk_runtime_dispose(&first) == THREE_MM_CHUNK_OK && !a.live);
+    CHECK(mm_chunk_runtime_set(&first, 0xffffffffUL, 0xffffffffUL, 1) == MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_get(&first, 0xffffffffUL, 0xffffffffUL) == 1);
+    CHECK(mm_chunk_runtime_dispose(&first) == MM_CHUNK_OK && !a.live);
 }
 typedef struct Stream
 {
     unsigned char bytes[1024];
     int reads, writes, fail_read, fail_write;
 } Stream;
-static int read_at(void *c, ThreeMMU32 offset, void *out, size_t bytes)
+static int read_at(void *c, MMU32 offset, void *out, size_t bytes)
 {
     Stream *s = (Stream *)c;
     CHECK(offset + bytes <= sizeof(s->bytes));
@@ -120,7 +120,7 @@ static int read_at(void *c, ThreeMMU32 offset, void *out, size_t bytes)
     memcpy(out, s->bytes + offset, bytes);
     return 1;
 }
-static int write_at(void *c, ThreeMMU32 offset, const void *in, size_t bytes)
+static int write_at(void *c, MMU32 offset, const void *in, size_t bytes)
 {
     Stream *s = (Stream *)c;
     CHECK(offset + bytes <= sizeof(s->bytes));
@@ -130,20 +130,20 @@ static int write_at(void *c, ThreeMMU32 offset, const void *in, size_t bytes)
     memcpy(s->bytes + offset, in, bytes);
     return 1;
 }
-static ThreeMMI32 convert(void *c, const void *in, ThreeMMU32 bytes, int encoding, void *out, ThreeMMU32 capacity)
+static MMI32 convert(void *c, const void *in, MMU32 bytes, int encoding, void *out, MMU32 capacity)
 {
     unsigned *unit = (unsigned *)c;
-    return (ThreeMMI32)(*unit == 1 ? three_mm_text_ansi(NULL, in, bytes, encoding, (char *)out, capacity)
-                                   : three_mm_text_utf16(NULL, in, bytes, encoding, (unsigned short *)out, capacity));
+    return (MMI32)(*unit == 1 ? mm_text_ansi(NULL, in, bytes, encoding, (char *)out, capacity)
+                                   : mm_text_utf16(NULL, in, bytes, encoding, (unsigned short *)out, capacity));
 }
-static ThreeMMU32 hash_bytes(ThreeMMU32 hash, const void *p, size_t bytes)
+static MMU32 hash_bytes(MMU32 hash, const void *p, size_t bytes)
 {
     const unsigned char *b = (const unsigned char *)p;
     while (bytes--)
         hash = (hash ^ *b++) * 16777619UL;
     return hash;
 }
-static ThreeMMU32 hash_word(ThreeMMU32 hash, ThreeMMU32 word)
+static MMU32 hash_word(MMU32 hash, MMU32 word)
 {
     unsigned char b[4];
     unsigned i;
@@ -154,18 +154,18 @@ static ThreeMMU32 hash_word(ThreeMMU32 hash, ThreeMMU32 word)
 static void string_wire(void)
 {
     Stream source, destination;
-    ThreeMMReadStream reader;
-    ThreeMMStringWriter writer;
-    ThreeMMStringWire text;
+    MMReadStream reader;
+    MMStringWriter writer;
+    MMStringWire text;
     unsigned char buffer[514], encoded[1024], wire[1024];
     unsigned unit = 1, lengths[4] = {0, 1, 31, 255};
-    ThreeMMU32 count, i, end, bytes, hash = 2166136261UL, total = 0, record[9], offset;
+    MMU32 count, i, end, bytes, hash = 2166136261UL, total = 0, record[9], offset;
     int kind, length, malformed, counted, path, ok;
     memset(&text, 0, sizeof(text));
     text.buffer = buffer;
     text.unit = 1;
-    text.current_encoding = THREE_MM_TEXT_WINDOWS;
-    text.swapped_unicode_encoding = THREE_MM_TEXT_UTF16_BE;
+    text.current_encoding = MM_TEXT_WINDOWS;
+    text.swapped_unicode_encoding = MM_TEXT_UTF16_BE;
     text.context = &unit;
     text.convert = convert;
     reader.context = &source;
@@ -222,15 +222,15 @@ static void string_wire(void)
                         memset(buffer, 0xcc, sizeof(buffer));
                         buffer[0] = 7;
                         memcpy(buffer + 1, "initial", 8);
-                        ok = three_mm_string_wire_read(&text, &reader, offset, counted ? &end : NULL);
-                        bytes = three_mm_string_wire_size(&text);
-                        CHECK(three_mm_string_wire_get(&text, encoded, sizeof(encoded)));
-                        record[0] = (ThreeMMU32)kind;
+                        ok = mm_string_wire_read(&text, &reader, offset, counted ? &end : NULL);
+                        bytes = mm_string_wire_size(&text);
+                        CHECK(mm_string_wire_get(&text, encoded, sizeof(encoded)));
+                        record[0] = (MMU32)kind;
                         record[1] = lengths[length];
-                        record[2] = (ThreeMMU32)malformed;
-                        record[3] = (ThreeMMU32)counted;
-                        record[4] = (ThreeMMU32)path;
-                        record[5] = (ThreeMMU32)ok;
+                        record[2] = (MMU32)malformed;
+                        record[3] = (MMU32)counted;
+                        record[4] = (MMU32)path;
+                        record[5] = (MMU32)ok;
                         record[6] = ok && counted ? end : 0xffffffffUL;
                         record[7] = buffer[0];
                         record[8] = bytes;
@@ -250,11 +250,11 @@ static void string_wire(void)
         source.reads = 0;
         source.fail_read = (int)i;
         end = 99;
-        CHECK(!three_mm_string_wire_read(&text, &reader, 0, &end) && end == 99 && !buffer[0] && !buffer[1]);
+        CHECK(!mm_string_wire_read(&text, &reader, 0, &end) && end == 99 && !buffer[0] && !buffer[1]);
     }
     source.fail_read = 0;
     source.reads = 0;
-    CHECK(three_mm_string_wire_read(&text, &reader, 0, NULL));
+    CHECK(mm_string_wire_read(&text, &reader, 0, NULL));
     writer.context = &destination;
     writer.length = 12;
     writer.write_at = write_at;
@@ -262,39 +262,39 @@ static void string_wire(void)
     {
         memset(&destination, 0, sizeof(destination));
         destination.fail_write = (int)i;
-        CHECK(!three_mm_string_wire_write(&text, &writer, 7) && destination.writes == (int)i);
+        CHECK(!mm_string_wire_write(&text, &writer, 7) && destination.writes == (int)i);
     }
     memset(&destination, 0, sizeof(destination));
-    CHECK(three_mm_string_wire_write(&text, &writer, 7) && destination.writes == 2);
+    CHECK(mm_string_wire_write(&text, &writer, 7) && destination.writes == 2);
     CHECK(!memcmp(destination.bytes + 7, source.bytes, 5));
-    CHECK(!three_mm_string_wire_write(&text, &writer, 8) && destination.writes == 2);
+    CHECK(!mm_string_wire_write(&text, &writer, 8) && destination.writes == 2);
     unit = 2;
     text.unit = 2;
-    text.current_encoding = THREE_MM_TEXT_UTF16_LE;
+    text.current_encoding = MM_TEXT_UTF16_LE;
     source.reads = 0;
-    CHECK(three_mm_string_wire_read(&text, &reader, 0, NULL) && three_mm_string_wire_size(&text) == 8);
-    text.current_encoding = THREE_MM_TEXT_UTF16_BE;
+    CHECK(mm_string_wire_read(&text, &reader, 0, NULL) && mm_string_wire_size(&text) == 8);
+    text.current_encoding = MM_TEXT_UTF16_BE;
     text.native_big_endian = 1;
-    text.swapped_unicode_encoding = THREE_MM_TEXT_UTF16_LE;
+    text.swapped_unicode_encoding = MM_TEXT_UTF16_LE;
     memset(&source, 0, sizeof(source));
     memcpy(source.bytes, "\4\4\0\1\0A\0\0", 8);
     reader.length = 8;
-    CHECK(three_mm_string_wire_read(&text, &reader, 0, NULL) &&
-          three_mm_string_wire_get(&text, encoded, sizeof(encoded)) && !memcmp(encoded, source.bytes, 8));
+    CHECK(mm_string_wire_read(&text, &reader, 0, NULL) &&
+          mm_string_wire_get(&text, encoded, sizeof(encoded)) && !memcmp(encoded, source.bytes, 8));
 }
 typedef struct Names
 {
     unsigned char bytes[128], decoded[257];
-    ThreeMMU32 count;
+    MMU32 count;
     int locked, fail, pins;
-    ThreeMMStringWire text;
+    MMStringWire text;
 } Names;
-static ThreeMMU32 name_count(void *c)
+static MMU32 name_count(void *c)
 {
     (void)c;
     return 1;
 }
-static int name_entry(void *c, ThreeMMU32 i, ThreeMMChunkEntry *out)
+static int name_entry(void *c, MMU32 i, MMChunkEntry *out)
 {
     Names *n = (Names *)c;
     CHECK(i == 0);
@@ -303,7 +303,7 @@ static int name_entry(void *c, ThreeMMU32 i, ThreeMMChunkEntry *out)
     out->variable_bytes = n->count;
     return 1;
 }
-static int name_insert(void *c, ThreeMMU32 i, ThreeMMU32 offset, ThreeMMU32 bytes)
+static int name_insert(void *c, MMU32 i, MMU32 offset, MMU32 bytes)
 {
     Names *n = (Names *)c;
     CHECK(!i && !n->locked && offset <= n->count && n->count + bytes <= 128);
@@ -313,14 +313,14 @@ static int name_insert(void *c, ThreeMMU32 i, ThreeMMU32 offset, ThreeMMU32 byte
     n->count += bytes;
     return 1;
 }
-static void name_erase(void *c, ThreeMMU32 i, ThreeMMU32 offset, ThreeMMU32 bytes)
+static void name_erase(void *c, MMU32 i, MMU32 offset, MMU32 bytes)
 {
     Names *n = (Names *)c;
     CHECK(!i && !n->locked && offset + bytes <= n->count);
     n->count -= bytes;
     memmove(n->bytes + offset, n->bytes + offset + bytes, n->count - offset);
 }
-static void *name_pin(void *c, ThreeMMU32 i)
+static void *name_pin(void *c, MMU32 i)
 {
     Names *n = (Names *)c;
     CHECK(!i && !n->locked);
@@ -334,29 +334,29 @@ static void name_unpin(void *c)
     CHECK(n->locked == 1);
     --n->locked;
 }
-static int name_decode(void *c, const void *data, ThreeMMU32 bytes)
+static int name_decode(void *c, const void *data, MMU32 bytes)
 {
     Names *n = (Names *)c;
-    ThreeMMMemoryStream source;
+    MMMemoryStream source;
     CHECK(n->locked == 1);
-    CHECK(three_mm_memory_stream_init(&source, data, bytes));
-    return three_mm_string_wire_read(&n->text, &source.stream, 0, NULL);
+    CHECK(mm_memory_stream_init(&source, data, bytes));
+    return mm_string_wire_read(&n->text, &source.stream, 0, NULL);
 }
 static void name_clear(void *c)
 {
     Names *n = (Names *)c;
     n->decoded[0] = n->decoded[1] = 0;
 }
-static ThreeMMU32 name_chars(void *c)
+static MMU32 name_chars(void *c)
 {
     return ((Names *)c)->decoded[0];
 }
 static void names(void)
 {
     Names n;
-    ThreeMMChunkNames store;
-    ThreeMMChunkNameDecoder decoder;
-    ThreeMMChunkNameValue value;
+    MMChunkNames store;
+    MMChunkNameDecoder decoder;
+    MMChunkNameValue value;
     int pins;
     unsigned char wire[] = {3, 3, 3, 'a', 'b', 'c', 0}, short_wire[] = {3, 3, 1, 'x', 0}, before[128];
     memset(&n, 0, sizeof(n));
@@ -364,7 +364,7 @@ static void names(void)
     memcpy(n.bytes, "child prefix", 12);
     n.text.buffer = n.decoded;
     n.text.unit = 1;
-    n.text.current_encoding = THREE_MM_TEXT_WINDOWS;
+    n.text.current_encoding = MM_TEXT_WINDOWS;
     store.context = &n;
     store.count = name_count;
     store.entry = name_entry;
@@ -380,12 +380,12 @@ static void names(void)
     value.wire = wire;
     value.bytes = sizeof(wire);
     value.characters = 3;
-    CHECK(three_mm_chunk_name_set(&store, 0, &value) == THREE_MM_CHUNK_OK && n.count == 19 && !n.locked);
-    CHECK(three_mm_chunk_name_get(&store, 0, &decoder) && n.decoded[0] == 3 && !n.locked);
+    CHECK(mm_chunk_name_set(&store, 0, &value) == MM_CHUNK_OK && n.count == 19 && !n.locked);
+    CHECK(mm_chunk_name_get(&store, 0, &decoder) && n.decoded[0] == 3 && !n.locked);
     value.wire = short_wire;
     value.bytes = sizeof(short_wire);
     value.characters = 1;
-    CHECK(three_mm_chunk_name_set(&store, 0, &value) == THREE_MM_CHUNK_OK && n.count == 17 &&
+    CHECK(mm_chunk_name_set(&store, 0, &value) == MM_CHUNK_OK && n.count == 17 &&
           !memcmp(n.bytes, "child prefix", 12));
     memcpy(before, n.bytes, sizeof(before));
     pins = n.pins;
@@ -393,18 +393,18 @@ static void names(void)
     value.wire = wire;
     value.bytes = sizeof(wire);
     value.characters = 3;
-    CHECK(three_mm_chunk_name_set(&store, 0, &value) == THREE_MM_CHUNK_MEMORY && n.count == 17 &&
+    CHECK(mm_chunk_name_set(&store, 0, &value) == MM_CHUNK_MEMORY && n.count == 17 &&
           !memcmp(before, n.bytes, sizeof(before)) && n.pins == pins);
     n.bytes[16] = 1;
-    CHECK(!three_mm_chunk_name_get(&store, 0, &decoder) && !n.decoded[0] && !n.locked);
-    CHECK(three_mm_chunk_name_set(&store, 0, NULL) == THREE_MM_CHUNK_OK && n.count == 12);
+    CHECK(!mm_chunk_name_get(&store, 0, &decoder) && !n.decoded[0] && !n.locked);
+    CHECK(mm_chunk_name_set(&store, 0, NULL) == MM_CHUNK_OK && n.count == 12);
     pins = n.pins;
-    CHECK(!three_mm_chunk_name_get(&store, 0, &decoder) && n.pins == pins);
+    CHECK(!mm_chunk_name_get(&store, 0, &decoder) && n.pins == pins);
 }
 typedef struct Codec
 {
     int refs, id, encode, decode;
-    ThreeMMI32 format;
+    MMI32 format;
 } Codec;
 typedef struct CodecContext
 {
@@ -424,7 +424,7 @@ static void release_codec(void *c, void *codec)
     CHECK(ctx->releases < 128);
     ctx->released[ctx->releases++] = value->id;
 }
-static int can_do(void *c, void *codec, int encode, ThreeMMI32 format)
+static int can_do(void *c, void *codec, int encode, MMI32 format)
 {
     CodecContext *ctx = (CodecContext *)c;
     Codec *value = (Codec *)codec;
@@ -437,10 +437,10 @@ static void codecs(void)
     Allocation allocation;
     CodecContext context;
     Codec a = {1, 1, 0, 1, 101}, b = {1, 2, 1, 1, 101}, c = {1, 3, 1, 0, 101};
-    ThreeMMStorageAllocator memory;
-    ThreeMMCodecServices services;
-    ThreeMMCodecRegistry registry;
-    ThreeMMU32 count;
+    MMStorageAllocator memory;
+    MMCodecServices services;
+    MMCodecRegistry registry;
+    MMU32 count;
     memset(&allocation, 0, sizeof(allocation));
     memset(&context, 0, sizeof(context));
     memory.context = &allocation;
@@ -450,37 +450,37 @@ static void codecs(void)
     services.retain = retain_codec;
     services.release = release_codec;
     services.can_do = can_do;
-    CHECK(three_mm_codec_registry_init(&registry, &services, &memory, &a, 101) == THREE_MM_STORAGE_OK && a.refs == 2);
-    CHECK(three_mm_codec_registry_add(&registry, &b) == THREE_MM_STORAGE_OK &&
-          three_mm_codec_registry_add(&registry, &c) == THREE_MM_STORAGE_OK);
-    CHECK(three_mm_codec_registry_find(&registry, 1, 101) == &c && context.queried[0] == 1 && context.queried[1] == 3);
+    CHECK(mm_codec_registry_init(&registry, &services, &memory, &a, 101) == MM_STORAGE_OK && a.refs == 2);
+    CHECK(mm_codec_registry_add(&registry, &b) == MM_STORAGE_OK &&
+          mm_codec_registry_add(&registry, &c) == MM_STORAGE_OK);
+    CHECK(mm_codec_registry_find(&registry, 1, 101) == &c && context.queried[0] == 1 && context.queried[1] == 3);
     context.queries = 0;
-    CHECK(three_mm_codec_registry_find(&registry, 0, 101) == &a && context.queries == 1);
-    CHECK(three_mm_codec_registry_add(&registry, &b) == THREE_MM_STORAGE_OK && b.refs == 3);
-    CHECK(three_mm_codec_registry_find(&registry, 1, 101) == &b);
-    CHECK(three_mm_codec_registry_default(&registry, 303) == THREE_MM_STORAGE_OK && registry.default_format == 303);
-    CHECK(three_mm_codec_registry_default(&registry, 0) == THREE_MM_STORAGE_ARGUMENT && registry.default_format == 303);
+    CHECK(mm_codec_registry_find(&registry, 0, 101) == &a && context.queries == 1);
+    CHECK(mm_codec_registry_add(&registry, &b) == MM_STORAGE_OK && b.refs == 3);
+    CHECK(mm_codec_registry_find(&registry, 1, 101) == &b);
+    CHECK(mm_codec_registry_default(&registry, 303) == MM_STORAGE_OK && registry.default_format == 303);
+    CHECK(mm_codec_registry_default(&registry, 0) == MM_STORAGE_ARGUMENT && registry.default_format == 303);
     context.queries = 0;
-    CHECK(!three_mm_codec_registry_find(&registry, 1, 0) && !context.queries);
-    CHECK(three_mm_codec_registry_dispose(&registry) == THREE_MM_STORAGE_OK && !allocation.live && a.refs == 1 &&
+    CHECK(!mm_codec_registry_find(&registry, 1, 0) && !context.queries);
+    CHECK(mm_codec_registry_dispose(&registry) == MM_STORAGE_OK && !allocation.live && a.refs == 1 &&
           b.refs == 1 && c.refs == 1);
     CHECK(context.releases == 4 && context.released[0] == 1 && context.released[1] == 2 && context.released[2] == 3 &&
           context.released[3] == 2);
     context.releases = context.queries = 0;
     allocation.fail_all = 1;
-    CHECK(three_mm_codec_registry_init(&registry, &services, &memory, NULL, 101) == THREE_MM_STORAGE_OK);
-    CHECK(three_mm_codec_registry_add(&registry, &b) == THREE_MM_STORAGE_MEMORY && !registry.count && b.refs == 1);
+    CHECK(mm_codec_registry_init(&registry, &services, &memory, NULL, 101) == MM_STORAGE_OK);
+    CHECK(mm_codec_registry_add(&registry, &b) == MM_STORAGE_MEMORY && !registry.count && b.refs == 1);
     allocation.fail_all = 0;
     allocation.fail_speed = 1;
-    CHECK(three_mm_codec_registry_add(&registry, &b) == THREE_MM_STORAGE_OK && b.refs == 2);
+    CHECK(mm_codec_registry_add(&registry, &b) == MM_STORAGE_OK && b.refs == 2);
     allocation.fail_speed = 0;
     while (registry.count < registry.storage.buffers[0].capacity / sizeof(void *))
-        CHECK(three_mm_codec_registry_add(&registry, &b) == THREE_MM_STORAGE_OK);
+        CHECK(mm_codec_registry_add(&registry, &b) == MM_STORAGE_OK);
     count = registry.count;
     allocation.fail_all = 1;
-    CHECK(three_mm_codec_registry_add(&registry, &c) == THREE_MM_STORAGE_MEMORY && registry.count == count &&
+    CHECK(mm_codec_registry_add(&registry, &c) == MM_STORAGE_MEMORY && registry.count == count &&
           c.refs == 1);
-    CHECK(three_mm_codec_registry_dispose(&registry) == THREE_MM_STORAGE_OK && b.refs == 1 && !allocation.live);
+    CHECK(mm_codec_registry_dispose(&registry) == MM_STORAGE_OK && b.refs == 1 && !allocation.live);
 }
 int main(void)
 {

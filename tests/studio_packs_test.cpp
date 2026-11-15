@@ -2,7 +2,7 @@
 #include "studio_packs.h"
 #include "pack_hash.h"
 #include "iso_cache.h"
-#include "three_mm/nick_expansion.h"
+#include "mm/nick_expansion.h"
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
@@ -146,9 +146,9 @@ int main(int argc, char **argv)
         {
             Store store(root / "store");
             auto stage = store.StageISO(Id::Nickelodeon, argv[2], argv[3], argv[4]);
-            ThreeMM::NickComparison result;
+            MM::NickComparison result;
             std::string error;
-            Check(ThreeMM::CompareNickExpansion(stage.path.string(), argv[5], result, error));
+            Check(MM::CompareNickExpansion(stage.path.string(), argv[5], result, error));
             Check(!result.imageDifferences && !result.otherDifferences && result.chunks == 11082);
             std::printf("Nickelodeon: %llu chunks, identical decoded pixels and metadata.\n",
                         static_cast<unsigned long long>(result.chunks));

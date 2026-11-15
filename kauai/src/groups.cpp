@@ -51,25 +51,25 @@ RTCLASS(AllocatedGroup)
 static constexpr LegacyLong kcbAlignVar = 4;
 
 namespace {
-void *ResizeCollection(void *, void *data, ThreeMMU32 oldBytes, ThreeMMU32 newBytes, int priority)
+void *ResizeCollection(void *, void *data, MMU32 oldBytes, MMU32 newBytes, int priority)
 {
     void *result = data;
-    const LegacyLong mpr = priority == THREE_MM_STORAGE_SPEED ? mprForSpeed : mprNormal;
+    const LegacyLong mpr = priority == MM_STORAGE_SPEED ? mprForSpeed : mprNormal;
     const bool ok = data ? _FResizePpvDebug(&result, newBytes, oldBytes, fmemNil, mpr, &vdmglob.dmaglHq) :
         FAllocPvDebug(&result, newBytes, fmemNil, mpr, __szsFile, __LINE__, &vdmglob.dmaglHq);
     if (!ok) PushErc(ercOomHq);
     return ok ? result : nullptr;
 }
-void FreeCollection(void *, void *data, ThreeMMU32)
+void FreeCollection(void *, void *data, MMU32)
 {
     FreePpvDebug(&data, &vdmglob.dmaglHq);
 }
-int ReadCollectionBlock(void *context, ThreeMMU32 offset, void *bytes, size_t count)
+int ReadCollectionBlock(void *context, MMU32 offset, void *bytes, size_t count)
 {
     if (offset > 0x7fffffffUL || count > 0x7fffffffUL) return 0;
     return static_cast<PDataBlock>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count), offset);
 }
-int WriteCollectionBlock(void *context, ThreeMMU32 offset, const void *bytes, size_t count)
+int WriteCollectionBlock(void *context, MMU32 offset, const void *bytes, size_t count)
 {
     if (offset > 0x7fffffffUL || count > 0x7fffffffUL) return 0;
     return static_cast<PDataBlock>(context)->FWriteRgb(const_cast<void *>(bytes), static_cast<LegacyLong>(count), offset);
@@ -82,19 +82,19 @@ bool NativeBigEndian()
     const short value = 1;
     return reinterpret_cast<const byte *>(&value)[0] == 0;
 }
-ThreeMMCollectionHeader CollectionHeader(int kind, LegacyLong width, LegacyLong count, LegacyLong bytes, LegacyLong freeCount)
+MMCollectionHeader CollectionHeader(int kind, LegacyLong width, LegacyLong count, LegacyLong bytes, LegacyLong freeCount)
 {
-    ThreeMMCollectionHeader header = {};
+    MMCollectionHeader header = {};
     header.kind = kind; header.width = width; header.count = count; header.bytes = bytes; header.free_count = freeCount;
-    AssertDo(three_mm_collection_layout(&header) == THREE_MM_STORAGE_OK, "invalid collection layout");
+    AssertDo(mm_collection_layout(&header) == MM_STORAGE_OK, "invalid collection layout");
     return header;
 }
-LegacyLong CollectionSize(ThreeMMCollectionHeader header)
+LegacyLong CollectionSize(MMCollectionHeader header)
 {
     return header.header_bytes + header.first_bytes + header.second_bytes;
 }
 } // namespace
-bool GroupBase::_ReadCollection(PDataBlock block, int kind, bool allocated, ThreeMMCollectionHeader *header,
+bool GroupBase::_ReadCollection(PDataBlock block, int kind, bool allocated, MMCollectionHeader *header,
                                 short *order, short *system)
 {
     if (!block->FUnpackData())
@@ -102,8 +102,8 @@ bool GroupBase::_ReadCollection(PDataBlock block, int kind, bool allocated, Thre
         TrashVar(order); TrashVar(system);
         return false;
     }
-    ThreeMMReadStream reader = {block, static_cast<ThreeMMU32>(block->Cb()), ReadCollectionBlock};
-    if (three_mm_collection_header_read(&reader, kind, allocated, header) != THREE_MM_STORAGE_OK)
+    MMReadStream reader = {block, static_cast<MMU32>(block->Cb()), ReadCollectionBlock};
+    if (mm_collection_header_read(&reader, kind, allocated, header) != MM_STORAGE_OK)
     {
         Warn("file corrupt or not the requested collection");
         TrashVar(order); TrashVar(system);
@@ -123,19 +123,19 @@ bool GroupBase::_ReadCollection(PDataBlock block, int kind, bool allocated, Thre
     }
     return true;
 }
-bool GroupBase::_WriteCollection(PDataBlock block, ThreeMMCollectionHeader header, short order, short system)
+bool GroupBase::_WriteCollection(PDataBlock block, MMCollectionHeader header, short order, short system)
 {
     Assert(order == kboCur || order == kboOther, "bad byte order");
     AssertOsk(system);
     byte wire[20];
     header.big_endian = order == kboCur ? NativeBigEndian() : !NativeBigEndian();
     header.system = static_cast<ushort>(system);
-    if (three_mm_collection_header_write(&header, wire, sizeof(wire)) != THREE_MM_STORAGE_OK) return false;
+    if (mm_collection_header_write(&header, wire, sizeof(wire)) != MM_STORAGE_OK) return false;
     return _FWrite(block, wire, header.header_bytes, header.first_bytes, header.second_bytes);
 }
-ThreeMMArray VirtualArray::_ArrayView(bool allocated, LegacyLong freeCount)
+MMArray VirtualArray::_ArrayView(bool allocated, LegacyLong freeCount)
 {
-    ThreeMMArray view = {};
+    MMArray view = {};
     view.storage = _CollectionStorage(); view.width = _cbEntry; view.count = _ivMac;
     view.allocated = allocated; view.free_count = freeCount;
 #ifdef DEBUG
@@ -143,10 +143,10 @@ ThreeMMArray VirtualArray::_ArrayView(bool allocated, LegacyLong freeCount)
 #endif
     return view;
 }
-void VirtualArray::_ApplyArray(const ThreeMMArray &view) { _ivMac = view.count; }
-ThreeMMGroup VirtualGroup::_GroupView()
+void VirtualArray::_ApplyArray(const MMArray &view) { _ivMac = view.count; }
+MMGroup VirtualGroup::_GroupView()
 {
-    ThreeMMGroup view = {};
+    MMGroup view = {};
     view.storage = _CollectionStorage(); view.fixed_bytes = _cbFixed; view.count = _ivMac;
     view.bytes = _bvMac; view.free_count = _clocFree;
 #ifdef DEBUG
@@ -154,12 +154,12 @@ ThreeMMGroup VirtualGroup::_GroupView()
 #endif
     return view;
 }
-void VirtualGroup::_ApplyGroup(const ThreeMMGroup &view)
+void VirtualGroup::_ApplyGroup(const MMGroup &view)
 {
     _ivMac = view.count; _bvMac = view.bytes; _clocFree = view.free_count;
 }
 
-ThreeMMStorageAllocator CollectionAllocator()
+MMStorageAllocator CollectionAllocator()
 {
     return {nullptr, ResizeCollection, FreeCollection};
 }
@@ -167,7 +167,7 @@ ThreeMMStorageAllocator CollectionAllocator()
 GroupBase::GroupBase() : _cbMinGrow1(0), _cbMinGrow2(0), _ivMac(0)
 {
     const auto allocator = CollectionAllocator();
-    AssertDo(three_mm_storage_init(&_storage, &allocator) == THREE_MM_STORAGE_OK, "invalid collection allocator");
+    AssertDo(mm_storage_init(&_storage, &allocator) == MM_STORAGE_OK, "invalid collection allocator");
 }
 void GroupBase::_SetStorageGrowth()
 {
@@ -176,11 +176,11 @@ void GroupBase::_SetStorageGrowth()
 }
 void GroupBase::Lock()
 {
-    AssertDo(three_mm_storage_lock(&_storage, 0) == THREE_MM_STORAGE_OK, "collection lock overflow");
+    AssertDo(mm_storage_lock(&_storage, 0) == MM_STORAGE_OK, "collection lock overflow");
 }
 void GroupBase::Unlock()
 {
-    AssertDo(three_mm_storage_unlock(&_storage, 0) == THREE_MM_STORAGE_OK, "collection not locked");
+    AssertDo(mm_storage_unlock(&_storage, 0) == MM_STORAGE_OK, "collection not locked");
 }
 
 
@@ -190,7 +190,7 @@ void GroupBase::Unlock()
 GroupBase::~GroupBase(void)
 {
     AssertThis(0);
-    AssertDo(three_mm_storage_dispose(&_storage) == THREE_MM_STORAGE_OK, "freeing locked collection storage");
+    AssertDo(mm_storage_dispose(&_storage) == MM_STORAGE_OK, "freeing locked collection storage");
 }
 
 /***************************************************************************
@@ -202,14 +202,14 @@ bool GroupBase::_FEnsureSizes(LegacyLong cbMin1, LegacyLong cbMin2, LegacyUlong 
     AssertThis(0);
     Assert(cbMin1 >= 0 && cbMin2 >= 0, "negative sizes");
     _SetStorageGrowth();
-    const int result = three_mm_storage_ensure(&_storage, cbMin1, cbMin2, (grfgrp & fgrpShrink) != 0);
-    if (result == THREE_MM_STORAGE_LOCKED)
+    const int result = mm_storage_ensure(&_storage, cbMin1, cbMin2, (grfgrp & fgrpShrink) != 0);
+    if (result == MM_STORAGE_LOCKED)
     {
         Bug("resizing locked collection storage");
         PushErc(ercOomHq);
     }
     AssertThis(0);
-    return result == THREE_MM_STORAGE_OK;
+    return result == MM_STORAGE_OK;
 }
 
 
@@ -223,7 +223,7 @@ bool GroupBase::_FDup(PGroupBase pgrpbDst, LegacyLong cb1, LegacyLong cb2)
     AssertPo(pgrpbDst, 0);
     _SetStorageGrowth();
     pgrpbDst->_SetStorageGrowth();
-    if (three_mm_storage_copy(&pgrpbDst->_storage, &_storage, cb1, cb2) != THREE_MM_STORAGE_OK)
+    if (mm_storage_copy(&pgrpbDst->_storage, &_storage, cb1, cb2) != MM_STORAGE_OK)
         return fFalse;
     pgrpbDst->_cbMinGrow1 = _cbMinGrow1;
     pgrpbDst->_cbMinGrow2 = _cbMinGrow2;
@@ -248,8 +248,8 @@ bool GroupBase::FWriteFlo(PFileLocation pflo, short bo, short osk)
 bool GroupBase::_FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2)
 {
     AssertPo(pblck, 0);
-    const ThreeMMStorageWriter writer = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), WriteCollectionBlock};
-    return three_mm_storage_write(&_storage, &writer, pv, cb, cb1, cb2) == THREE_MM_STORAGE_OK;
+    const MMStorageWriter writer = {pblck, static_cast<MMU32>(pblck->Cb()), WriteCollectionBlock};
+    return mm_storage_write(&_storage, &writer, pv, cb, cb1, cb2) == MM_STORAGE_OK;
 }
 
 /***************************************************************************
@@ -260,8 +260,8 @@ bool GroupBase::_FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, Leg
 {
     AssertPo(pblck, fblckUnpacked);
     _SetStorageGrowth();
-    const ThreeMMReadStream reader = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), ReadCollectionBlock};
-    return three_mm_storage_read(&_storage, &reader, ib, cb1, cb2) == THREE_MM_STORAGE_OK;
+    const MMReadStream reader = {pblck, static_cast<MMU32>(pblck->Cb()), ReadCollectionBlock};
+    return mm_storage_read(&_storage, &reader, ib, cb1, cb2) == MM_STORAGE_OK;
 }
 
 #ifdef DEBUG
@@ -273,7 +273,7 @@ void GroupBase::AssertValid(LegacyUlong grfobj)
     GroupBase_PAR::AssertValid(grfobj | fobjAllocated);
     for (const auto &buffer : _storage.buffers)
     {
-        Assert(buffer.capacity < THREE_MM_STORAGE_LIMIT, "collection storage too large");
+        Assert(buffer.capacity < MM_STORAGE_LIMIT, "collection storage too large");
         Assert((buffer.capacity == 0) == (buffer.data == nullptr), "collection storage size/pointer mismatch");
         if (buffer.data) AssertPvAlloced(buffer.data, buffer.capacity);
     }
@@ -480,7 +480,7 @@ PDynamicArray DynamicArray::PglDup(void)
 ***************************************************************************/
 LegacyLong DynamicArray::CbOnFile(void)
 {
-    return CollectionSize(CollectionHeader(THREE_MM_COLLECTION_ARRAY, _cbEntry, _ivMac, 0, -1));
+    return CollectionSize(CollectionHeader(MM_COLLECTION_ARRAY, _cbEntry, _ivMac, 0, -1));
 }
 
 /***************************************************************************
@@ -489,7 +489,7 @@ LegacyLong DynamicArray::CbOnFile(void)
 bool DynamicArray::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
-    return _WriteCollection(pblck, CollectionHeader(THREE_MM_COLLECTION_ARRAY, _cbEntry, _ivMac, 0, -1), bo, osk);
+    return _WriteCollection(pblck, CollectionHeader(MM_COLLECTION_ARRAY, _cbEntry, _ivMac, 0, -1), bo, osk);
 }
 
 /***************************************************************************
@@ -497,8 +497,8 @@ bool DynamicArray::FWrite(PDataBlock pblck, short bo, short osk)
 ***************************************************************************/
 bool DynamicArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
-    ThreeMMCollectionHeader header;
-    if (!_ReadCollection(pblck, THREE_MM_COLLECTION_ARRAY, false, &header, pbo, posk)) return false;
+    MMCollectionHeader header;
+    if (!_ReadCollection(pblck, MM_COLLECTION_ARRAY, false, &header, pbo, posk)) return false;
     _cbEntry = header.width; _ivMac = header.count;
     return true;
 }
@@ -512,7 +512,7 @@ bool DynamicArray::FInsert(LegacyLong iv, void *pv, LegacyLong cv)
     AssertIn(iv, 0, _ivMac + 1);
     AssertIn(cv, 1, kcbMax);
     auto view = _ArrayView();
-    const bool ok = three_mm_array_insert(&view, iv, pv, cv) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_array_insert(&view, iv, pv, cv) == MM_STORAGE_OK;
     _ApplyArray(view);
     AssertThis(0);
     return ok;
@@ -537,7 +537,7 @@ void DynamicArray::Delete(LegacyLong ivMin, LegacyLong cv)
     AssertIn(ivMin, 0, _ivMac);
     AssertIn(cv, 1, _ivMac - ivMin + 1);
     auto view = _ArrayView();
-    AssertDo(three_mm_array_delete(&view, ivMin, cv) == THREE_MM_STORAGE_OK, "invalid array deletion");
+    AssertDo(mm_array_delete(&view, ivMin, cv) == MM_STORAGE_OK, "invalid array deletion");
     _ApplyArray(view);
     AssertThis(0);
 }
@@ -554,7 +554,7 @@ void DynamicArray::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertThis(0);
     auto view = _ArrayView();
-    AssertDo(three_mm_array_move(&view, ivSrc, ivTarget) == THREE_MM_STORAGE_OK, "invalid array move");
+    AssertDo(mm_array_move(&view, ivSrc, ivTarget) == MM_STORAGE_OK, "invalid array move");
     AssertThis(0);
 }
 
@@ -584,7 +584,7 @@ bool DynamicArray::FPop(void *pv)
 {
     AssertThis(0);
     auto view = _ArrayView();
-    const bool ok = three_mm_array_pop(&view, pv) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_array_pop(&view, pv) == MM_STORAGE_OK;
     _ApplyArray(view);
     AssertThis(0);
     return ok;
@@ -598,7 +598,7 @@ bool DynamicArray::FSetIvMac(LegacyLong ivMacNew)
 {
     AssertThis(0);
     auto view = _ArrayView();
-    const bool ok = three_mm_array_set_count(&view, ivMacNew) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_array_set_count(&view, ivMacNew) == MM_STORAGE_OK;
     _ApplyArray(view);
     AssertThis(0);
     return ok;
@@ -613,7 +613,7 @@ bool DynamicArray::FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp)
 {
     AssertThis(0);
     auto view = _ArrayView();
-    const bool ok = three_mm_array_reserve(&view, cvAdd, (grfgrp & fgrpShrink) != 0) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_array_reserve(&view, cvAdd, (grfgrp & fgrpShrink) != 0) == MM_STORAGE_OK;
     _ApplyArray(view);
     AssertThis(0);
     return ok;
@@ -710,7 +710,7 @@ PAllocatedArray AllocatedArray::PalDup(void)
 ***************************************************************************/
 LegacyLong AllocatedArray::CbOnFile(void)
 {
-    return CollectionSize(CollectionHeader(THREE_MM_COLLECTION_ALLOCATED_ARRAY, _cbEntry, _ivMac, 0, _cvFree));
+    return CollectionSize(CollectionHeader(MM_COLLECTION_ALLOCATED_ARRAY, _cbEntry, _ivMac, 0, _cvFree));
 }
 
 /***************************************************************************
@@ -719,7 +719,7 @@ LegacyLong AllocatedArray::CbOnFile(void)
 bool AllocatedArray::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
-    return _WriteCollection(pblck, CollectionHeader(THREE_MM_COLLECTION_ALLOCATED_ARRAY, _cbEntry, _ivMac, 0, _cvFree), bo, osk);
+    return _WriteCollection(pblck, CollectionHeader(MM_COLLECTION_ALLOCATED_ARRAY, _cbEntry, _ivMac, 0, _cvFree), bo, osk);
 }
 
 /***************************************************************************
@@ -727,8 +727,8 @@ bool AllocatedArray::FWrite(PDataBlock pblck, short bo, short osk)
 ***************************************************************************/
 bool AllocatedArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
-    ThreeMMCollectionHeader header;
-    if (!_ReadCollection(pblck, THREE_MM_COLLECTION_ALLOCATED_ARRAY, false, &header, pbo, posk)) return false;
+    MMCollectionHeader header;
+    if (!_ReadCollection(pblck, MM_COLLECTION_ALLOCATED_ARRAY, false, &header, pbo, posk)) return false;
     _cbEntry = header.width; _ivMac = header.count; _cvFree = header.free_count;
     return true;
 }
@@ -760,7 +760,7 @@ bool AllocatedArray::FFree(LegacyLong iv)
 bool AllocatedArray::FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp)
 {
     auto view = _ArrayView(true, _cvFree);
-    return three_mm_array_reserve(&view, cvAdd, (grfgrp & fgrpShrink) != 0) == THREE_MM_STORAGE_OK;
+    return mm_array_reserve(&view, cvAdd, (grfgrp & fgrpShrink) != 0) == MM_STORAGE_OK;
 }
 
 /***************************************************************************
@@ -770,8 +770,8 @@ bool AllocatedArray::FAdd(void *pv, LegacyLong *piv)
 {
     AssertThis(fobjAssertFull);
     auto view = _ArrayView(true, _cvFree);
-    ThreeMMU32 position;
-    const bool ok = three_mm_array_add(&view, pv, &position) == THREE_MM_STORAGE_OK;
+    MMU32 position;
+    const bool ok = mm_array_add(&view, pv, &position) == MM_STORAGE_OK;
     _ApplyArray(view); _cvFree = view.free_count;
     if (ok && piv) *piv = position;
     TrashVarIf(!ok, piv);
@@ -786,7 +786,7 @@ void AllocatedArray::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
     auto view = _ArrayView(true, _cvFree);
-    AssertDo(three_mm_array_delete(&view, iv, 1) == THREE_MM_STORAGE_OK, "invalid allocated-array deletion");
+    AssertDo(mm_array_delete(&view, iv, 1) == MM_STORAGE_OK, "invalid allocated-array deletion");
     _ApplyArray(view); _cvFree = view.free_count;
     AssertThis(fobjAssertFull);
 }
@@ -856,7 +856,7 @@ bool VirtualGroup::_FDup(PVirtualGroup pggbDst)
 ***************************************************************************/
 LegacyLong VirtualGroup::CbOnFile(void)
 {
-    return CollectionSize(CollectionHeader(THREE_MM_COLLECTION_GROUP, _cbFixed, _ivMac, _bvMac, _clocFree));
+    return CollectionSize(CollectionHeader(MM_COLLECTION_GROUP, _cbFixed, _ivMac, _bvMac, _clocFree));
 }
 
 /***************************************************************************
@@ -867,9 +867,9 @@ bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
     auto view = _GroupView();
-    if (bo == kboOther) three_mm_group_swap_locations(&view);
-    const bool ok = _WriteCollection(pblck, CollectionHeader(THREE_MM_COLLECTION_GROUP, _cbFixed, _ivMac, _bvMac, _clocFree), bo, osk);
-    if (bo == kboOther) three_mm_group_swap_locations(&view);
+    if (bo == kboOther) mm_group_swap_locations(&view);
+    const bool ok = _WriteCollection(pblck, CollectionHeader(MM_COLLECTION_GROUP, _cbFixed, _ivMac, _bvMac, _clocFree), bo, osk);
+    if (bo == kboOther) mm_group_swap_locations(&view);
     return ok;
 }
 
@@ -878,13 +878,13 @@ bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
 ***************************************************************************/
 bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
-    ThreeMMCollectionHeader header;
-    if (!_ReadCollection(pblck, THREE_MM_COLLECTION_GROUP, _clocFree != cvNil, &header, pbo, posk)) return false;
+    MMCollectionHeader header;
+    if (!_ReadCollection(pblck, MM_COLLECTION_GROUP, _clocFree != cvNil, &header, pbo, posk)) return false;
     _cbFixed = header.width; _ivMac = header.count; _bvMac = header.bytes; _clocFree = header.free_count;
     if ((header.big_endian != 0) != NativeBigEndian())
     {
         auto view = _GroupView();
-        three_mm_group_swap_locations(&view);
+        mm_group_swap_locations(&view);
     }
     return true;
 }
@@ -917,7 +917,7 @@ bool VirtualGroup::FEnsureSpace(LegacyLong cvAdd, LegacyLong cbAdd, LegacyUlong 
 {
     AssertThis(0);
     auto view = _GroupView();
-    const bool ok = three_mm_group_reserve(&view, cvAdd, cbAdd, (grfgrp & fgrpShrink) != 0) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_group_reserve(&view, cvAdd, cbAdd, (grfgrp & fgrpShrink) != 0) == MM_STORAGE_OK;
     _ApplyGroup(view);
     AssertThis(0);
     return ok;
@@ -1093,7 +1093,7 @@ bool VirtualGroup::FPut(LegacyLong iv, LegacyLong cb, void *pv)
 {
     AssertThis(0);
     auto view = _GroupView();
-    const bool ok = three_mm_group_put(&view, iv, cb, pv) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_group_put(&view, iv, cb, pv) == MM_STORAGE_OK;
     _ApplyGroup(view);
     AssertThis(0);
     return ok;
@@ -1147,7 +1147,7 @@ void VirtualGroup::DeleteRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb)
 {
     AssertThis(0);
     auto view = _GroupView();
-    AssertDo(three_mm_group_delete_bytes(&view, iv, bv, cb) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    AssertDo(mm_group_delete_bytes(&view, iv, bv, cb) == MM_STORAGE_OK, "invalid group mutation");
     _ApplyGroup(view);
     AssertThis(0);
 }
@@ -1161,7 +1161,7 @@ bool VirtualGroup::FInsertRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void 
     AssertThis(0);
     AssertIn(cb, 1, kcbMax);
     auto view = _GroupView();
-    const bool ok = three_mm_group_insert_bytes(&view, iv, bv, cb, pv) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_group_insert_bytes(&view, iv, bv, cb, pv) == MM_STORAGE_OK;
     _ApplyGroup(view);
     AssertThis(0);
     return ok;
@@ -1176,7 +1176,7 @@ bool VirtualGroup::FMoveRgb(LegacyLong ivSrc, LegacyLong bvSrc, LegacyLong ivDst
 {
     AssertThis(fobjAssertFull);
     auto view = _GroupView();
-    const bool ok = three_mm_group_move_bytes(&view, ivSrc, bvSrc, ivDst, bvDst, cb) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_group_move_bytes(&view, ivSrc, bvSrc, ivDst, bvDst, cb) == MM_STORAGE_OK;
     _ApplyGroup(view);
     AssertThis(fobjAssertFull);
     return ok;
@@ -1194,7 +1194,7 @@ void VirtualGroup::Merge(LegacyLong ivSrc, LegacyLong ivDst)
 {
     AssertThis(fobjAssertFull);
     auto view = _GroupView();
-    AssertDo(three_mm_group_merge(&view, ivSrc, ivDst) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    AssertDo(mm_group_merge(&view, ivSrc, ivDst) == MM_STORAGE_OK, "invalid group mutation");
     _ApplyGroup(view);
     AssertThis(fobjAssertFull);
 }
@@ -1324,7 +1324,7 @@ bool GeneralGroup::FInsert(LegacyLong iv, LegacyLong cb, void *pv, void *pvFixed
 {
     AssertThis(fobjAssertFull);
     auto view = _GroupView();
-    const bool ok = three_mm_group_insert(&view, iv, cb, pv, pvFixed) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_group_insert(&view, iv, cb, pv, pvFixed) == MM_STORAGE_OK;
     _ApplyGroup(view);
     AssertThis(fobjAssertFull);
     return ok;
@@ -1339,7 +1339,7 @@ bool GeneralGroup::FCopyEntries(PGeneralGroup pggSrc, LegacyLong ivSrc, LegacyLo
     AssertThis(fobjAssertFull);
     auto destination = _GroupView();
     auto source = pggSrc->_GroupView();
-    const bool ok = three_mm_group_copy_entries(&destination, &source, ivSrc, ivDst, cv) == THREE_MM_STORAGE_OK;
+    const bool ok = mm_group_copy_entries(&destination, &source, ivSrc, ivDst, cv) == MM_STORAGE_OK;
     _ApplyGroup(destination);
     AssertThis(fobjAssertFull);
     return ok;
@@ -1370,7 +1370,7 @@ void GeneralGroup::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
     auto view = _GroupView();
-    AssertDo(three_mm_group_delete(&view, iv) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    AssertDo(mm_group_delete(&view, iv) == MM_STORAGE_OK, "invalid group mutation");
     _ApplyGroup(view);
     AssertThis(fobjAssertFull);
 }
@@ -1387,7 +1387,7 @@ void GeneralGroup::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertThis(0);
     auto view = _GroupView();
-    AssertDo(three_mm_group_move(&view, ivSrc, ivTarget) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    AssertDo(mm_group_move(&view, ivSrc, ivTarget) == MM_STORAGE_OK, "invalid group mutation");
     _ApplyGroup(view);
     AssertThis(0);
 }
@@ -1399,7 +1399,7 @@ void GeneralGroup::Swap(LegacyLong iv1, LegacyLong iv2)
 {
     AssertThis(0);
     auto view = _GroupView();
-    AssertDo(three_mm_group_swap(&view, iv1, iv2) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    AssertDo(mm_group_swap(&view, iv1, iv2) == MM_STORAGE_OK, "invalid group mutation");
     _ApplyGroup(view);
     AssertThis(0);
 }
@@ -1497,8 +1497,8 @@ bool AllocatedGroup::FAdd(LegacyLong cb, LegacyLong *piv, void *pv, void *pvFixe
 {
     AssertThis(fobjAssertFull);
     auto view = _GroupView();
-    ThreeMMU32 position;
-    const bool ok = three_mm_group_add(&view, cb, pv, pvFixed, &position) == THREE_MM_STORAGE_OK;
+    MMU32 position;
+    const bool ok = mm_group_add(&view, cb, pv, pvFixed, &position) == MM_STORAGE_OK;
     _ApplyGroup(view);
     if (ok && piv) *piv = position;
     TrashVarIf(!ok, piv);
@@ -1513,7 +1513,7 @@ void AllocatedGroup::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
     auto view = _GroupView();
-    AssertDo(three_mm_group_delete(&view, iv) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    AssertDo(mm_group_delete(&view, iv) == MM_STORAGE_OK, "invalid group mutation");
     _ApplyGroup(view);
     AssertThis(fobjAssertFull);
 }

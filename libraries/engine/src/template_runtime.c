@@ -1,35 +1,35 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/template_runtime.h"
+#include "mm/template_runtime.h"
 #include <string.h>
-static ThreeMMU32 resource_type(int kind)
-{ return kind==THREE_MM_TEMPLATE_ACTION?THREE_MM_ACTN:kind==THREE_MM_TEMPLATE_MODEL?THREE_MM_TEMPLATE_BMDL:THREE_MM_CMTL; }
-static int child(void *object,ThreeMMU32 id,int kind,ThreeMMTemplateBinding *b,ThreeMMTemplateChild *c,const ThreeMMTemplateRuntimeServices *s)
+static MMU32 resource_type(int kind)
+{ return kind==MM_TEMPLATE_ACTION?MM_ACTN:kind==MM_TEMPLATE_MODEL?MM_TEMPLATE_BMDL:MM_CMTL; }
+static int child(void *object,MMU32 id,int kind,MMTemplateBinding *b,MMTemplateChild *c,const MMTemplateRuntimeServices *s)
 {
     s->binding(s->storage.context,object,b);
     return s->storage.child(s->storage.context,b->file,b->type,b->number,id,resource_type(kind),c);
 }
-void *three_mm_template_fetch_child(void *object,ThreeMMU32 id,int kind,const ThreeMMTemplateRuntimeServices *s)
+void *mm_template_fetch_child(void *object,MMU32 id,int kind,const MMTemplateRuntimeServices *s)
 {
-    ThreeMMTemplateBinding b; ThreeMMTemplateChild c;
+    MMTemplateBinding b; MMTemplateChild c;
     if (!child(object,id,kind,&b,&c,s)) return NULL;
     return s->fetch(s->storage.context,b.cache,c.type,c.number,kind);
 }
-int three_mm_template_action_name(void *object,ThreeMMI32 id,void *out,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_action_name(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
 {
-    ThreeMMTemplateBinding b; ThreeMMTemplateChild c;
-    if (!child(object,(ThreeMMU32)id,THREE_MM_TEMPLATE_ACTION,&b,&c,s)) return 0;
+    MMTemplateBinding b; MMTemplateChild c;
+    if (!child(object,(MMU32)id,MM_TEMPLATE_ACTION,&b,&c,s)) return 0;
     return s->name(s->storage.context,b.file,c.type,c.number,out);
 }
-static ThreeMMI32 wrapped(void *action,ThreeMMI32 cel,const ThreeMMTemplateRuntimeServices *s)
+static MMI32 wrapped(void *action,MMI32 cel,const MMTemplateRuntimeServices *s)
 {
-    ThreeMMI32 index=cel%s->cel_count(s->storage.context,action);
+    MMI32 index=cel%s->cel_count(s->storage.context,action);
     if (index<0) index+=s->cel_count(s->storage.context,action);
     return index;
 }
-int three_mm_template_set_cel(void *object,void *body,ThreeMMI32 id,ThreeMMI32 cel,void *distance,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_set_cel(void *object,void *body,MMI32 id,MMI32 cel,void *distance,const MMTemplateRuntimeServices *s)
 {
-    const ThreeMMTemplateCreateServices *a=&s->storage; void *action; void **models=NULL;
-    ThreeMMTemplateState state; ThreeMMI32 count,i,index,d,model,matrix,transform[12]; int result=0;
+    const MMTemplateCreateServices *a=&s->storage; void *action; void **models=NULL;
+    MMTemplateState state; MMI32 count,i,index,d,model,matrix,transform[12]; int result=0;
     a->read(a->context,object,&state); count=a->count(a->context,state.parents);
     action=s->action(a->context,object,id); if (!action) return 0;
     index=wrapped(action,cel,s); d=s->distance(a->context,action,index);
@@ -39,7 +39,7 @@ int three_mm_template_set_cel(void *object,void *body,ThreeMMI32 id,ThreeMMI32 c
         s->part(a->context,action,index,i,&model,&matrix);
         if (model!=-1)
         {
-            models[i]=s->model(a->context,object,(ThreeMMU32)model);
+            models[i]=s->model(a->context,object,(MMU32)model);
             if (!models[i]) goto done;
         }
     }
@@ -59,63 +59,63 @@ done:
     }
     a->release(a->context,action); return result;
 }
-int three_mm_template_distance(void *object,ThreeMMI32 id,ThreeMMI32 cel,ThreeMMI32 *out,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_distance(void *object,MMI32 id,MMI32 cel,MMI32 *out,const MMTemplateRuntimeServices *s)
 {
-    void *a=s->action(s->storage.context,object,id); ThreeMMI32 d;
+    void *a=s->action(s->storage.context,object,id); MMI32 d;
     if (!a) return 0;
     d=s->distance(s->storage.context,a,wrapped(a,cel,s)); s->storage.release(s->storage.context,a); *out=d; return 1;
 }
-int three_mm_template_cel_count(void *object,ThreeMMI32 id,void *out,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_cel_count(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
 {
-    void *a=s->action(s->storage.context,object,id); ThreeMMI32 count; if (!a) return 0;
+    void *a=s->action(s->storage.context,object,id); MMI32 count; if (!a) return 0;
     count=s->cel_count(s->storage.context,a); memcpy(out,&count,sizeof(count)); s->storage.release(s->storage.context,a); return 1;
 }
-int three_mm_template_action_flags(void *object,ThreeMMI32 id,void *out,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_action_flags(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
 {
-    void *a=s->action(s->storage.context,object,id); ThreeMMU32 flags; if (!a) return 0;
+    void *a=s->action(s->storage.context,object,id); MMU32 flags; if (!a) return 0;
     flags=s->flags(s->storage.context,a); memcpy(out,&flags,sizeof(flags)); s->storage.release(s->storage.context,a); return 1;
 }
-int three_mm_template_sound(void *object,ThreeMMI32 id,ThreeMMI32 cel,void *exists,void *tag,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_sound(void *object,MMI32 id,MMI32 cel,void *exists,void *tag,const MMTemplateRuntimeServices *s)
 {
     void *a; s->sound_exists(s->storage.context,exists,0); a=s->action(s->storage.context,object,id); if (!a) return 0;
     if (s->sound(s->storage.context,a,wrapped(a,cel,s),tag)) s->sound_exists(s->storage.context,exists,1);
     s->storage.release(s->storage.context,a); return 1;
 }
-ThreeMMI32 three_mm_template_costume_count(void *object,ThreeMMI32 set,const ThreeMMTemplateRuntimeServices *s)
+MMI32 mm_template_costume_count(void *object,MMI32 set,const MMTemplateRuntimeServices *s)
 {
-    ThreeMMTemplateState t; ThreeMMI32 value; s->storage.read(s->storage.context,object,&t);
+    MMTemplateState t; MMI32 value; s->storage.read(s->storage.context,object,&t);
     memcpy(&value,s->storage.fixed_data(s->storage.context,t.costumes,set),sizeof(value)); return value;
 }
-ThreeMMI32 three_mm_template_costume_id(void *object,ThreeMMI32 set,ThreeMMI32 index,const ThreeMMTemplateRuntimeServices *s)
+MMI32 mm_template_costume_id(void *object,MMI32 set,MMI32 index,const MMTemplateRuntimeServices *s)
 {
-    ThreeMMTemplateState t; ThreeMMI32 value; s->storage.read(s->storage.context,object,&t);
+    MMTemplateState t; MMI32 value; s->storage.read(s->storage.context,object,&t);
     memcpy(&value,s->storage.variable_data(s->storage.context,t.costumes,set)+index*sizeof(value),sizeof(value)); return value;
 }
-int three_mm_template_has_models(void *file,ThreeMMU32 type,ThreeMMU32 number,const ThreeMMTemplateCreateServices *s)
-{ ThreeMMTemplateChild c; return s->child(s->context,file,type,number,0,THREE_MM_TEMPLATE_BMDL,&c); }
-int three_mm_template_equal_models(void *file,ThreeMMU32 first,ThreeMMU32 second,const ThreeMMTemplateCreateServices *s)
+int mm_template_has_models(void *file,MMU32 type,MMU32 number,const MMTemplateCreateServices *s)
+{ MMTemplateChild c; return s->child(s->context,file,type,number,0,MM_TEMPLATE_BMDL,&c); }
+int mm_template_equal_models(void *file,MMU32 first,MMU32 second,const MMTemplateCreateServices *s)
 {
-    ThreeMMU32 id=0; ThreeMMTemplateChild a,b;
-    while (s->child(s->context,file,THREE_MM_CMTL,first,id,THREE_MM_TEMPLATE_BMDL,&a))
+    MMU32 id=0; MMTemplateChild a,b;
+    while (s->child(s->context,file,MM_CMTL,first,id,MM_TEMPLATE_BMDL,&a))
     {
-        if (!s->child(s->context,file,THREE_MM_CMTL,second,id,THREE_MM_TEMPLATE_BMDL,&b) || a.number!=b.number) return 0;
+        if (!s->child(s->context,file,MM_CMTL,second,id,MM_TEMPLATE_BMDL,&b) || a.number!=b.number) return 0;
         ++id;
     }
-    return !s->child(s->context,file,THREE_MM_CMTL,second,id,THREE_MM_TEMPLATE_BMDL,&b);
+    return !s->child(s->context,file,MM_CMTL,second,id,MM_TEMPLATE_BMDL,&b);
 }
-int three_mm_template_is_accessory(void *object,ThreeMMI32 set,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_is_accessory(void *object,MMI32 set,const MMTemplateRuntimeServices *s)
 {
-    ThreeMMTemplateBinding b; ThreeMMTemplateChild c; ThreeMMI32 id;
+    MMTemplateBinding b; MMTemplateChild c; MMI32 id;
     s->binding(s->storage.context,object,&b); if (!b.cache) return 0;
-    id=three_mm_template_costume_id(object,set,0,s);
-    if (!s->storage.child(s->storage.context,b.file,b.type,b.number,(ThreeMMU32)id,THREE_MM_CMTL,&c)) return 0;
-    return three_mm_template_has_models(b.file,c.type,c.number,&s->storage);
+    id=mm_template_costume_id(object,set,0,s);
+    if (!s->storage.child(s->storage.context,b.file,b.type,b.number,(MMU32)id,MM_CMTL,&c)) return 0;
+    return mm_template_has_models(b.file,c.type,c.number,&s->storage);
 }
-int three_mm_template_accessory_set(void *object,ThreeMMI32 set,void *out,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_accessory_set(void *object,MMI32 set,void *out,const MMTemplateRuntimeServices *s)
 {
-    ThreeMMTemplateState t; ThreeMMI32 candidate,part,parent; s->storage.read(s->storage.context,object,&t);
-    if (three_mm_template_is_accessory(object,set,s)) { memcpy(out,&set,sizeof(set)); return 1; }
-    for (candidate=0;candidate<t.set_count;++candidate) if (three_mm_template_is_accessory(object,candidate,s))
+    MMTemplateState t; MMI32 candidate,part,parent; s->storage.read(s->storage.context,object,&t);
+    if (mm_template_is_accessory(object,set,s)) { memcpy(out,&set,sizeof(set)); return 1; }
+    for (candidate=0;candidate<t.set_count;++candidate) if (mm_template_is_accessory(object,candidate,s))
         for (part=0;part<s->storage.count(s->storage.context,t.parents);++part)
             if (s->storage.item(s->storage.context,t.sets,part)==candidate)
             {
@@ -124,10 +124,10 @@ int three_mm_template_accessory_set(void *object,ThreeMMI32 set,void *out,const 
             }
     return 0;
 }
-int three_mm_template_same_accessory(void *object,ThreeMMI32 first,ThreeMMI32 second,const ThreeMMTemplateRuntimeServices *s)
+int mm_template_same_accessory(void *object,MMI32 first,MMI32 second,const MMTemplateRuntimeServices *s)
 {
-    ThreeMMTemplateBinding b; ThreeMMTemplateChild a,c;
-    if (!child(object,(ThreeMMU32)first,THREE_MM_TEMPLATE_CUSTOM,&b,&a,s) ||
-        !child(object,(ThreeMMU32)second,THREE_MM_TEMPLATE_CUSTOM,&b,&c,s)) return 0;
-    return three_mm_template_equal_models(b.file,a.number,c.number,&s->storage);
+    MMTemplateBinding b; MMTemplateChild a,c;
+    if (!child(object,(MMU32)first,MM_TEMPLATE_CUSTOM,&b,&a,s) ||
+        !child(object,(MMU32)second,MM_TEMPLATE_CUSTOM,&b,&c,s)) return 0;
+    return mm_template_equal_models(b.file,a.number,c.number,&s->storage);
 }

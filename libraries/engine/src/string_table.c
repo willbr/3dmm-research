@@ -1,30 +1,30 @@
 /* Storage policy converted from Kauai groups2.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/string_table.h"
-#include "three_mm/text.h"
+#include "mm/string_table.h"
+#include "mm/text.h"
 #include <stdlib.h>
 #include <string.h>
 #define LIMIT 0x08000000UL
-#define FREE_OFFSET ((ThreeMMU32)0xffffffffUL)
-static ThreeMMU32 offset_at(const ThreeMMStringTable *t, ThreeMMU32 i)
+#define FREE_OFFSET ((MMU32)0xffffffffUL)
+static MMU32 offset_at(const MMStringTable *t, MMU32 i)
 {
-    ThreeMMU32 value;
+    MMU32 value;
     memcpy(&value, t->entries + (size_t)i * t->stride, 4);
     return value;
 }
-static void set_offset(ThreeMMStringTable *t, ThreeMMU32 i, ThreeMMU32 value)
+static void set_offset(MMStringTable *t, MMU32 i, MMU32 value)
 {
     memcpy(t->entries + (size_t)i * t->stride, &value, 4);
 }
-static int shape(const ThreeMMStringTable *t)
+static int shape(const MMStringTable *t)
 {
     return t && (t->unit_bytes == 1 || t->unit_bytes == 2) && t->stride >= 4 && t->stride < LIMIT &&
            t->count <= (LIMIT - 1) / t->stride && t->bytes < LIMIT && t->count * t->stride <= t->entry_capacity &&
            t->bytes <= t->string_capacity && (!t->bytes || t->strings) && (!t->count || t->entries);
 }
-int three_mm_strings_get(const ThreeMMStringTable *t, ThreeMMU32 i, const void **text, ThreeMMU32 *count)
+int mm_strings_get(const MMStringTable *t, MMU32 i, const void **text, MMU32 *count)
 {
-    ThreeMMU32 offset, n;
+    MMU32 offset, n;
     unsigned short wide_count;
     if (!shape(t) || i >= t->count || !text || !count)
         return 0;
@@ -44,7 +44,7 @@ int three_mm_strings_get(const ThreeMMStringTable *t, ThreeMMU32 i, const void *
     *count = n;
     return 1;
 }
-static int ensure(ThreeMMStringTable *t, ThreeMMU32 bytes, ThreeMMU32 count)
+static int ensure(MMStringTable *t, MMU32 bytes, MMU32 count)
 {
     if (bytes >= LIMIT || count > (LIMIT - 1) / t->stride)
         return 0;
@@ -53,12 +53,12 @@ static int ensure(ThreeMMStringTable *t, ThreeMMU32 bytes, ThreeMMU32 count)
     return t->reserve && t->reserve(t->context, t, bytes, count * t->stride) && bytes <= t->string_capacity &&
            count * t->stride <= t->entry_capacity;
 }
-static void trash(const ThreeMMStringTable *t, void *data, size_t bytes)
+static void trash(const MMStringTable *t, void *data, size_t bytes)
 {
     if (t->trash_unused && bytes)
         memset(data, 0xa3, bytes);
 }
-static void append(ThreeMMStringTable *t, const void *text, ThreeMMU32 count)
+static void append(MMStringTable *t, const void *text, MMU32 count)
 {
     unsigned short wide_count = (unsigned short)count;
     if (t->unit_bytes == 1)
@@ -69,9 +69,9 @@ static void append(ThreeMMStringTable *t, const void *text, ThreeMMU32 count)
         memcpy(t->strings + t->bytes + t->unit_bytes, text, count * t->unit_bytes);
     t->bytes += (count + 1) * t->unit_bytes;
 }
-static void remove_string(ThreeMMStringTable *t, ThreeMMU32 offset, ThreeMMU32 bytes)
+static void remove_string(MMStringTable *t, MMU32 offset, MMU32 bytes)
 {
-    ThreeMMU32 i, other;
+    MMU32 i, other;
     if (offset + bytes < t->bytes)
     {
         memmove(t->strings + offset, t->strings + offset + bytes, t->bytes - offset - bytes);
@@ -84,7 +84,7 @@ static void remove_string(ThreeMMStringTable *t, ThreeMMU32 offset, ThreeMMU32 b
     }
     t->bytes -= bytes;
 }
-static void entry(ThreeMMStringTable *t, ThreeMMU32 i, const void *extra)
+static void entry(MMStringTable *t, MMU32 i, const void *extra)
 {
     unsigned char *out = t->entries + (size_t)i * t->stride + 4;
     set_offset(t, i, t->bytes);
@@ -93,7 +93,7 @@ static void entry(ThreeMMStringTable *t, ThreeMMU32 i, const void *extra)
     else
         trash(t, out, t->stride - 4);
 }
-int three_mm_strings_insert(ThreeMMStringTable *t, ThreeMMU32 i, const void *text, ThreeMMU32 n, const void *extra)
+int mm_strings_insert(MMStringTable *t, MMU32 i, const void *text, MMU32 n, const void *extra)
 {
     if (!shape(t) || t->free_count != -1 || i > t->count || n > 255 || (!text && n))
         return 0;
@@ -106,15 +106,15 @@ int three_mm_strings_insert(ThreeMMStringTable *t, ThreeMMU32 i, const void *tex
     append(t, text, n);
     return 1;
 }
-int three_mm_strings_add(ThreeMMStringTable *t, const void *text, ThreeMMU32 n, const void *extra, ThreeMMU32 *position)
+int mm_strings_add(MMStringTable *t, const void *text, MMU32 n, const void *extra, MMU32 *position)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     if (!shape(t) || n > 255 || (!text && n))
         return 0;
     i = t->count;
     if (t->free_count == -1)
     {
-        if (!three_mm_strings_insert(t, i, text, n, extra))
+        if (!mm_strings_insert(t, i, text, n, extra))
             return 0;
     }
     else
@@ -136,11 +136,11 @@ int three_mm_strings_add(ThreeMMStringTable *t, const void *text, ThreeMMU32 n, 
         *position = i;
     return 1;
 }
-int three_mm_strings_put(ThreeMMStringTable *t, ThreeMMU32 i, const void *text, ThreeMMU32 n)
+int mm_strings_put(MMStringTable *t, MMU32 i, const void *text, MMU32 n)
 {
     const void *old;
-    ThreeMMU32 count, offset;
-    if ((!text && n) || n > 255 || !three_mm_strings_get(t, i, &old, &count))
+    MMU32 count, offset;
+    if ((!text && n) || n > 255 || !mm_strings_get(t, i, &old, &count))
         return 0;
     if (n == count)
     {
@@ -156,11 +156,11 @@ int three_mm_strings_put(ThreeMMStringTable *t, ThreeMMU32 i, const void *text, 
     append(t, text, n);
     return 1;
 }
-int three_mm_strings_delete(ThreeMMStringTable *t, ThreeMMU32 i)
+int mm_strings_delete(MMStringTable *t, MMU32 i)
 {
     const void *text;
-    ThreeMMU32 count, offset, old_count;
-    if (!three_mm_strings_get(t, i, &text, &count))
+    MMU32 count, offset, old_count;
+    if (!mm_strings_get(t, i, &text, &count))
         return 0;
     offset = offset_at(t, i);
     old_count = t->count;
@@ -190,9 +190,9 @@ int three_mm_strings_delete(ThreeMMStringTable *t, ThreeMMU32 i)
     remove_string(t, offset, (count + 1) * t->unit_bytes);
     return 1;
 }
-int three_mm_strings_move(ThreeMMStringTable *t, ThreeMMU32 source, ThreeMMU32 target)
+int mm_strings_move(MMStringTable *t, MMU32 source, MMU32 target)
 {
-    ThreeMMU32 byte;
+    MMU32 byte;
     unsigned char saved, *entries;
     if (!shape(t) || t->free_count != -1 || source >= t->count || target > t->count)
         return 0;
@@ -204,7 +204,7 @@ int three_mm_strings_move(ThreeMMStringTable *t, ThreeMMU32 source, ThreeMMU32 t
     entries = t->entries;
     for (byte = 0; byte < t->stride; ++byte)
     {
-        ThreeMMU32 i;
+        MMU32 i;
         saved = entries[(size_t)source * t->stride + byte];
         if (source < target)
             for (i = source; i < target; ++i)
@@ -216,10 +216,10 @@ int three_mm_strings_move(ThreeMMStringTable *t, ThreeMMU32 source, ThreeMMU32 t
     }
     return 1;
 }
-int three_mm_strings_find(const ThreeMMStringTable *t, const void *text, ThreeMMU32 n, ThreeMMStringCompare compare,
-                          void *context, ThreeMMU32 *position)
+int mm_strings_find(const MMStringTable *t, const void *text, MMU32 n, MMStringCompare compare,
+                          void *context, MMU32 *position)
 {
-    ThreeMMU32 lo = 0, hi, i, count;
+    MMU32 lo = 0, hi, i, count;
     const void *value;
     int order;
     if (!shape(t) || (!text && n) || !position)
@@ -228,7 +228,7 @@ int three_mm_strings_find(const ThreeMMStringTable *t, const void *text, ThreeMM
     if (!compare)
     {
         for (i = 0; i < hi; ++i)
-            if (three_mm_strings_get(t, i, &value, &count) && n == count &&
+            if (mm_strings_get(t, i, &value, &count) && n == count &&
                 (!n || !memcmp(text, value, n * t->unit_bytes)))
             {
                 *position = i;
@@ -240,7 +240,7 @@ int three_mm_strings_find(const ThreeMMStringTable *t, const void *text, ThreeMM
     while (lo < hi)
     {
         i = lo + (hi - lo) / 2;
-        if (!three_mm_strings_get(t, i, &value, &count))
+        if (!mm_strings_get(t, i, &value, &count))
             return 0;
         order = compare(context, text, n, value, count);
         if (order < 0)
@@ -256,9 +256,9 @@ int three_mm_strings_find(const ThreeMMStringTable *t, const void *text, ThreeMM
     *position = lo;
     return 0;
 }
-void three_mm_strings_swap_offsets(ThreeMMStringTable *t)
+void mm_strings_swap_offsets(MMStringTable *t)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     for (i = 0; i < t->count; ++i)
     {
         unsigned char *p = t->entries + (size_t)i * t->stride, temp;
@@ -272,26 +272,26 @@ void three_mm_strings_swap_offsets(ThreeMMStringTable *t)
 }
 static unsigned encoding_unit(int encoding)
 {
-    if (encoding == THREE_MM_TEXT_WINDOWS || encoding == THREE_MM_TEXT_MAC)
+    if (encoding == MM_TEXT_WINDOWS || encoding == MM_TEXT_MAC)
         return 1;
-    if (encoding == THREE_MM_TEXT_UTF16_LE || encoding == THREE_MM_TEXT_UTF16_BE)
+    if (encoding == MM_TEXT_UTF16_LE || encoding == MM_TEXT_UTF16_BE)
         return 2;
     return 0;
 }
-int three_mm_strings_wire_system(int current, int requested, int *stored)
+int mm_strings_wire_system(int current, int requested, int *stored)
 {
     unsigned unit = encoding_unit(current);
     int mac;
     if (!stored || !unit || !encoding_unit(requested))
         return 0;
-    mac = requested == THREE_MM_TEXT_MAC || requested == THREE_MM_TEXT_UTF16_BE;
-    *stored = unit == 1 ? (mac ? THREE_MM_TEXT_MAC : THREE_MM_TEXT_WINDOWS)
-                        : (mac ? THREE_MM_TEXT_UTF16_BE : THREE_MM_TEXT_UTF16_LE);
+    mac = requested == MM_TEXT_MAC || requested == MM_TEXT_UTF16_BE;
+    *stored = unit == 1 ? (mac ? MM_TEXT_MAC : MM_TEXT_WINDOWS)
+                        : (mac ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE);
     return 1;
 }
-int three_mm_strings_translate_same(ThreeMMStringTable *t, int other, int current, int to_current)
+int mm_strings_translate_same(MMStringTable *t, int other, int current, int to_current)
 {
-    ThreeMMU32 offset = 0, n, bytes, i;
+    MMU32 offset = 0, n, bytes, i;
     unsigned short wide_count;
     unsigned char *p, temp;
     if (!shape(t) || encoding_unit(other) != t->unit_bytes || encoding_unit(current) != t->unit_bytes)
@@ -317,7 +317,7 @@ int three_mm_strings_translate_same(ThreeMMStringTable *t, int other, int curren
             return 0;
         p += t->unit_bytes;
         if (t->unit_bytes == 1)
-            three_mm_text_map_bytes(p, n, current == THREE_MM_TEXT_WINDOWS ? to_current : !to_current);
+            mm_text_map_bytes(p, n, current == MM_TEXT_WINDOWS ? to_current : !to_current);
         else
             for (i = 0; i < n; ++i)
             {
@@ -329,19 +329,19 @@ int three_mm_strings_translate_same(ThreeMMStringTable *t, int other, int curren
     }
     return 1;
 }
-int three_mm_strings_translate(ThreeMMStringTable *t, int source, int current, ThreeMMStringConvert convert,
+int mm_strings_translate(MMStringTable *t, int source, int current, MMStringConvert convert,
                                void *context)
 {
     unsigned source_unit = encoding_unit(source);
     unsigned char *old;
-    ThreeMMU32 old_bytes, i, offset, n;
+    MMU32 old_bytes, i, offset, n;
     unsigned short wide_count, buffer[256];
     size_t converted;
     int ok = 0;
     if (!shape(t) || !source_unit || encoding_unit(current) != t->unit_bytes)
         return 0;
     if (source_unit == t->unit_bytes)
-        return three_mm_strings_translate_same(t, source, current, 1);
+        return mm_strings_translate_same(t, source, current, 1);
     if (!t->bytes)
         return 1;
     if (!convert)
@@ -362,16 +362,16 @@ int three_mm_strings_translate(ThreeMMStringTable *t, int source, int current, T
             n = old[offset];
         else
         {
-            wide_count = (unsigned short)(source == THREE_MM_TEXT_UTF16_LE ? old[offset] | (old[offset + 1] << 8)
+            wide_count = (unsigned short)(source == MM_TEXT_UTF16_LE ? old[offset] | (old[offset + 1] << 8)
                                                                            : (old[offset] << 8) | old[offset + 1]);
             n = wide_count;
         }
         if (n > 255 || n > (old_bytes - offset) / source_unit - 1)
             goto done;
         converted = convert(context, old + offset + source_unit, n * source_unit, source, buffer, 255);
-        if (converted > 255 || !ensure(t, t->bytes + ((ThreeMMU32)converted + 1) * t->unit_bytes, t->count))
+        if (converted > 255 || !ensure(t, t->bytes + ((MMU32)converted + 1) * t->unit_bytes, t->count))
             goto done;
-        append(t, buffer, (ThreeMMU32)converted);
+        append(t, buffer, (MMU32)converted);
     }
     ok = 1;
 done:

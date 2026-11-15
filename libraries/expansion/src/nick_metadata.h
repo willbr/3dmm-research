@@ -1,9 +1,9 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 // Functional metadata only: historical numeric labels for existing texture IDs.
 // No names/dialogue, palette bytes, image pixels, models or patch data.
-#ifndef THREE_MM_NICK_METADATA_H
-#define THREE_MM_NICK_METADATA_H
-namespace ThreeMM
+#ifndef MM_NICK_METADATA_H
+#define MM_NICK_METADATA_H
+namespace MM
 {
 namespace Internal
 {
@@ -36,5 +36,5 @@ constexpr NickTextureLabels nickTextureLabels[] = {
     {0x2231e, 0x2231e, 36}, {0x2231f, 0x22320, 34}, {0x22321, 0x22328, 37},
 };
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM
 #endif

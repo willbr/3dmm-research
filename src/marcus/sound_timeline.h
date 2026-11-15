@@ -1,7 +1,7 @@
 #ifndef MARCUS_SOUND_TIMELINE_H
 #define MARCUS_SOUND_TIMELINE_H
 #include "player.h"
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include <functional>
 #include <memory>
 #include <map>
@@ -10,7 +10,7 @@
 
 struct MarcusSoundSpan
 {
-    ThreeMM::PreviewSoundCue cue;
+    MM::PreviewSoundCue cue;
     MarcusWaveformInfo audio = {};
     int scene = 0;
     double start = 0, end = 0; // Seconds on the presentation clock.
@@ -28,11 +28,11 @@ struct MarcusSoundTiming
 {
     double transition = 0;
     std::map<long, double> scrolling;
-    std::vector<ThreeMM::PreviewPause> pauses;
+    std::vector<MM::PreviewPause> pauses;
 };
 struct MarcusResumeSound
 {
-    ThreeMM::PreviewSoundCue cue;
+    MM::PreviewSoundCue cue;
     double seconds = 0;
 };
 // Read-only scheduling on the presentation clock. Scene boundaries use the
@@ -51,8 +51,8 @@ class MarcusSoundTimeline
     std::size_t Size() const { return scenes.size(); }
     const MarcusSoundScene &Scene(std::size_t index) const { return scenes.at(index); }
     std::vector<MarcusResumeSound> Resume(std::size_t scene, long frame) const;
-    void Append(const MarcusScene &scene, const std::vector<ThreeMM::PreviewSoundCue> &cues,
-                const std::function<MarcusWaveformInfo(const ThreeMM::PreviewSoundCue &)> &read,
+    void Append(const MarcusScene &scene, const std::vector<MM::PreviewSoundCue> &cues,
+                const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,
                 const MarcusSoundTiming &timing = {});
 };
 #endif

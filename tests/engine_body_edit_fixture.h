@@ -39,7 +39,7 @@ static void BodyEditChanged(void *p) { ++static_cast<BodyEditRenderHost *>(p)->c
 static bool TestBodyEditing()
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_BODY_EDIT_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
+    if (const char *path=std::getenv("MM_BODY_EDIT_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1);
     face.vertices[1]=1; face.vertices[2]=2;

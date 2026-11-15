@@ -1,4 +1,4 @@
-#include "three_mm/chunk_heap.h"
+#include "mm/chunk_heap.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,34 +13,34 @@ static void check(int value, int line)
 #define CHECK(x) check((x), __LINE__)
 typedef struct Heap
 {
-    ThreeMMChunkFreeRange ranges[128];
-    ThreeMMU32 count, physical;
+    MMChunkFreeRange ranges[128];
+    MMU32 count, physical;
     int fail_resize, fail_ensure, fail_insert, resizes;
 } Heap;
-static ThreeMMU32 count(void *ctx)
+static MMU32 count(void *ctx)
 {
     return ((Heap *)ctx)->count;
 }
-static void get(void *ctx, ThreeMMU32 i, ThreeMMChunkFreeRange *r)
+static void get(void *ctx, MMU32 i, MMChunkFreeRange *r)
 {
     Heap *h = (Heap *)ctx;
     CHECK(i < h->count);
     *r = h->ranges[i];
 }
-static void put(void *ctx, ThreeMMU32 i, const ThreeMMChunkFreeRange *r)
+static void put(void *ctx, MMU32 i, const MMChunkFreeRange *r)
 {
     Heap *h = (Heap *)ctx;
     CHECK(i < h->count);
     h->ranges[i] = *r;
 }
-static void erase(void *ctx, ThreeMMU32 i)
+static void erase(void *ctx, MMU32 i)
 {
     Heap *h = (Heap *)ctx;
     CHECK(i < h->count);
     --h->count;
     memmove(h->ranges + i, h->ranges + i + 1, (h->count - i) * sizeof(*h->ranges));
 }
-static int insert(void *ctx, ThreeMMU32 i, const ThreeMMChunkFreeRange *r)
+static int insert(void *ctx, MMU32 i, const MMChunkFreeRange *r)
 {
     Heap *h = (Heap *)ctx;
     CHECK(i <= h->count && h->count < 128);
@@ -56,11 +56,11 @@ static int ensure(void *ctx)
     Heap *h = (Heap *)ctx;
     return h->count || !h->fail_ensure;
 }
-static ThreeMMU32 physical(void *ctx)
+static MMU32 physical(void *ctx)
 {
     return ((Heap *)ctx)->physical;
 }
-static int resize(void *ctx, ThreeMMU32 bytes)
+static int resize(void *ctx, MMU32 bytes)
 {
     Heap *h = (Heap *)ctx;
     ++h->resizes;
@@ -70,19 +70,19 @@ static int resize(void *ctx, ThreeMMU32 bytes)
     h->physical = bytes;
     return 1;
 }
-static ThreeMMChunkHeap services(Heap *h)
+static MMChunkHeap services(Heap *h)
 {
-    ThreeMMChunkHeap io = {NULL, count, get, put, erase, insert, ensure, physical, resize};
+    MMChunkHeap io = {NULL, count, get, put, erase, insert, ensure, physical, resize};
     io.context = h;
     return io;
 }
 static void random_edits(void)
 {
     Heap heap;
-    ThreeMMChunkHeap io;
+    MMChunkHeap io;
     unsigned char used[1024], live[48];
-    ThreeMMU32 locations[48], lengths[48], end = 128, seed = 0x12345678UL;
-    ThreeMMU32 i, j, slot, bytes, expected, actual, n, old_physical;
+    MMU32 locations[48], lengths[48], end = 128, seed = 0x12345678UL;
+    MMU32 i, j, slot, bytes, expected, actual, n, old_physical;
     int step;
     memset(&heap, 0, sizeof(heap));
     heap.physical = 128;
@@ -97,7 +97,7 @@ static void random_edits(void)
         old_physical = heap.physical;
         if (live[slot])
         {
-            CHECK(three_mm_chunk_heap_free(&io, &end, locations[slot], lengths[slot]) == THREE_MM_CHUNK_OK);
+            CHECK(mm_chunk_heap_free(&io, &end, locations[slot], lengths[slot]) == MM_CHUNK_OK);
             for (i = 0; i < lengths[slot]; ++i)
             {
                 CHECK(used[locations[slot] + i]);
@@ -127,7 +127,7 @@ static void random_edits(void)
             if (expected + bytes > sizeof(used))
                 continue;
             actual = 0xdeadbeefUL;
-            CHECK(three_mm_chunk_heap_allocate(&io, &end, bytes, &actual) == THREE_MM_CHUNK_OK && actual == expected);
+            CHECK(mm_chunk_heap_allocate(&io, &end, bytes, &actual) == MM_CHUNK_OK && actual == expected);
             locations[slot] = actual;
             lengths[slot] = bytes;
             live[slot] = 1;
@@ -156,8 +156,8 @@ static void random_edits(void)
 static void failures(void)
 {
     Heap heap, before;
-    ThreeMMChunkHeap io;
-    ThreeMMU32 end, offset;
+    MMChunkHeap io;
+    MMU32 end, offset;
     int mode;
     for (mode = 0; mode < 2; ++mode)
     {
@@ -167,7 +167,7 @@ static void failures(void)
         io = services(&heap);
         heap.fail_ensure = mode == 0;
         heap.fail_insert = mode == 1;
-        CHECK(three_mm_chunk_heap_free(&io, &end, 144, 8) == THREE_MM_CHUNK_MEMORY);
+        CHECK(mm_chunk_heap_free(&io, &end, 144, 8) == MM_CHUNK_MEMORY);
         CHECK(!heap.count && end == 256 && heap.physical == 256 && !heap.resizes);
     }
     memset(&heap, 0, sizeof(heap));
@@ -176,11 +176,11 @@ static void failures(void)
     io = services(&heap);
     end = 256;
     offset = 77;
-    CHECK(three_mm_chunk_heap_allocate(&io, &end, 3, &offset) == THREE_MM_CHUNK_IO);
+    CHECK(mm_chunk_heap_allocate(&io, &end, 3, &offset) == MM_CHUNK_IO);
     CHECK(end == 256 && offset == 77 && heap.physical == 256 && heap.resizes == 1);
     /* Logical tail shrink leaves physical bytes available for later append. */
-    CHECK(three_mm_chunk_heap_free(&io, &end, 240, 16) == THREE_MM_CHUNK_OK && end == 240);
-    CHECK(three_mm_chunk_heap_allocate(&io, &end, 16, &offset) == THREE_MM_CHUNK_OK && offset == 240);
+    CHECK(mm_chunk_heap_free(&io, &end, 240, 16) == MM_CHUNK_OK && end == 240);
+    CHECK(mm_chunk_heap_allocate(&io, &end, 16, &offset) == MM_CHUNK_OK && offset == 240);
     CHECK(heap.resizes == 1);
     heap.count = 2;
     heap.ranges[0].offset = 140;
@@ -188,25 +188,25 @@ static void failures(void)
     heap.ranges[1].offset = 170;
     heap.ranges[1].bytes = 10;
     before = heap;
-    CHECK(three_mm_chunk_heap_free(&io, &end, 145, 4) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_heap_free(&io, &end, 160, 15) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_heap_free(&io, &end, 145, 4) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_heap_free(&io, &end, 160, 15) == MM_CHUNK_BAD_FILE);
     CHECK(!memcmp(&heap, &before, sizeof(heap)));
     /* Both-neighbor merge must not allocate even under allocation failure. */
     heap.fail_ensure = heap.fail_insert = 1;
-    CHECK(three_mm_chunk_heap_free(&io, &end, 150, 20) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_heap_free(&io, &end, 150, 20) == MM_CHUNK_OK);
     CHECK(heap.count == 1 && heap.ranges[0].offset == 140 && heap.ranges[0].bytes == 40);
     heap.count = 0;
     end = 0x7ffffffeUL;
     heap.physical = 0x7fffffffUL;
     offset = 77;
-    CHECK(three_mm_chunk_heap_allocate(&io, &end, 2, &offset) == THREE_MM_CHUNK_BAD_FILE && offset == 77);
-    CHECK(three_mm_chunk_heap_allocate(&io, &end, 1, &offset) == THREE_MM_CHUNK_OK && end == 0x7fffffffUL);
-    CHECK(three_mm_chunk_heap_free(&io, &end, 0x7ffffffeUL, 2) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_heap_free(&io, &end, 1, 0) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_heap_free(&io, &end, 0, 0) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_heap_allocate(&io, &end, 0, &offset) == THREE_MM_CHUNK_OK && offset == 0);
-    CHECK(three_mm_chunk_heap_allocate(NULL, &end, 1, &offset) == THREE_MM_CHUNK_BAD_FILE);
-    CHECK(three_mm_chunk_heap_free(&io, NULL, 0, 0) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_heap_allocate(&io, &end, 2, &offset) == MM_CHUNK_BAD_FILE && offset == 77);
+    CHECK(mm_chunk_heap_allocate(&io, &end, 1, &offset) == MM_CHUNK_OK && end == 0x7fffffffUL);
+    CHECK(mm_chunk_heap_free(&io, &end, 0x7ffffffeUL, 2) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_heap_free(&io, &end, 1, 0) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_heap_free(&io, &end, 0, 0) == MM_CHUNK_OK);
+    CHECK(mm_chunk_heap_allocate(&io, &end, 0, &offset) == MM_CHUNK_OK && offset == 0);
+    CHECK(mm_chunk_heap_allocate(NULL, &end, 1, &offset) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_heap_free(&io, NULL, 0, 0) == MM_CHUNK_BAD_FILE);
 }
 int main(void)
 {

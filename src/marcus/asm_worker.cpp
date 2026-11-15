@@ -26,8 +26,8 @@ int main(int argc, char **argv)
         if (request.magic != MarcusASM::Magic || request.width < 64 || request.height < 64 || request.width > 4096 ||
             request.height > 4096)
             return 2;
-        ThreeMM::PreviewImage image;
-        ThreeMM::Error error;
+        MM::PreviewImage image;
+        MM::Error error;
         MarcusInfo info = {};
         marcus_info(player.get(), &info);
         bool ok =

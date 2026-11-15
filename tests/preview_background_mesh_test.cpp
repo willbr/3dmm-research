@@ -12,7 +12,7 @@
 #undef size
 ASSERTNAME
 
-using namespace ThreeMM::Internal;
+using namespace MM::Internal;
 void Check(bool value, int line)
 {
     if (!value)
@@ -31,15 +31,15 @@ static void Record(const void *data,std::size_t bytes)
     recorded+=static_cast<std::uint32_t>(bytes);
     if(snapshot)CHECK(std::fwrite(data,1,bytes,snapshot)==bytes);
 }
-namespace ThreeMM { namespace Internal {
+namespace MM { namespace Internal {
 struct BackgroundMeshProbe {
     static void RecordMesh(const PreviewBackgroundMesh &m)
     {
         const auto &c=m.core;
         std::uint32_t counts[]={c.vertex_count,c.triangle_count,c.width*c.height,c.infinite_count,c.width,c.height};
         Record(counts,sizeof(counts));
-        Record(c.geometry.buffers[0].data,c.vertex_count*sizeof(ThreeMMBackgroundVertex));
-        Record(c.geometry.buffers[1].data,c.triangle_count*sizeof(ThreeMMBackgroundTriangle));
+        Record(c.geometry.buffers[0].data,c.vertex_count*sizeof(MMBackgroundVertex));
+        Record(c.geometry.buffers[1].data,c.triangle_count*sizeof(MMBackgroundTriangle));
         Record(c.pixels.buffers[0].data,c.width*c.height);Record(c.pixels.buffers[1].data,c.infinite_count);
         Record(m.low.data(),sizeof(m.low));Record(m.high.data(),sizeof(m.high));
     }
@@ -110,7 +110,7 @@ struct Target
 };
 int main()
 {
-    if(auto path=std::getenv("THREE_MM_BACKGROUND_MESH_SNAPSHOT")){snapshot=std::fopen(path,"wb");CHECK(snapshot);}
+    if(auto path=std::getenv("MM_BACKGROUND_MESH_SNAPSHOT")){snapshot=std::fopen(path,"wb");CHECK(snapshot);}
     // Raw movie indices must resolve like the original Windows Studio palette.
     Color display[256] = {};
     display[10] = {91, 114, 128, 231};

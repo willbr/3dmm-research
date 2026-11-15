@@ -1,4 +1,4 @@
-#include "three_mm/world_buffers.h"
+#include "mm/world_buffers.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,8 +10,8 @@ typedef struct Object
 } Object;
 typedef struct Fixture
 {
-    ThreeMMWorldBufferServices s;
-    ThreeMMWorldBuffers *world;
+    MMWorldBufferServices s;
+    MMWorldBuffers *world;
     int phase, fail, objects, locks, setups, working, screen, changed, priorities, publishes, short_depth;
 } Fixture;
 static int fail(Fixture *f)
@@ -33,7 +33,7 @@ static Object *object(Fixture *f, int kind, int w, int h)
     ++f->objects;
     return o;
 }
-static void *create(void *p, int kind, ThreeMMI32 w, ThreeMMI32 h)
+static void *create(void *p, int kind, MMI32 w, MMI32 h)
 {
     Fixture *f = (Fixture *)p;
     if (fail(f))
@@ -74,7 +74,7 @@ static void unlock(void *p, void *v)
     --o->locks;
     --f->locks;
 }
-static void span(void *p, void *v, ThreeMMWorldDepthSpan *out)
+static void span(void *p, void *v, MMWorldDepthSpan *out)
 {
     Object *o = (Object *)v;
     (void)p;
@@ -82,7 +82,7 @@ static void span(void *p, void *v, ThreeMMWorldDepthSpan *out)
     out->row = o->row;
     out->bytes = o->bytes;
 }
-static void publish(void *p, const ThreeMMWorldBuffers *w)
+static void publish(void *p, const MMWorldBuffers *w)
 {
     Fixture *f = (Fixture *)p;
     assert(w == f->world);
@@ -103,7 +103,7 @@ static void dirty(void *p, int working, int screen, int changed)
     f->screen += screen;
     f->changed += changed;
 }
-static void *fetch(void *p, void *cache, int kind, ThreeMMU32 type, ThreeMMU32 number)
+static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
 {
     Fixture *f = (Fixture *)p;
     Object *o;
@@ -112,7 +112,7 @@ static void *fetch(void *p, void *cache, int kind, ThreeMMU32 type, ThreeMMU32 n
     assert(type == (kind == 0 ? 33U : 11U) && number == (kind == 0 ? 44U : 22U));
     if (fail(f))
         return NULL;
-    o = object(f, kind, 4, kind == THREE_MM_WORLD_DEPTH_BACKGROUND && f->short_depth ? 3 : 4);
+    o = object(f, kind, 4, kind == MM_WORLD_DEPTH_BACKGROUND && f->short_depth ? 3 : 4);
     for (i = 0; i < o->bytes; ++i)
         o->pixels[i] = (unsigned char)(i * 7 + 1);
     return o;
@@ -129,7 +129,7 @@ static void bitmap(void *p, void *port, void *image)
     assert(image);
     memset(o->pixels, 0x31, (size_t)o->bytes);
 }
-static void copy(void *p, void *sv, void *dv, ThreeMMI32 sw, ThreeMMI32 sh, ThreeMMI32 dw, ThreeMMI32 dh)
+static void copy(void *p, void *sv, void *dv, MMI32 sw, MMI32 sh, MMI32 dw, MMI32 dh)
 {
     Object *s = (Object *)sv, *d = (Object *)dv;
     int x, y;
@@ -139,14 +139,14 @@ static void copy(void *p, void *sv, void *dv, ThreeMMI32 sw, ThreeMMI32 sh, Thre
         for (x = 0; x < dw; ++x)
             d->pixels[y * d->row + x] = s->pixels[(y * sh / dh) * s->row + x * sw / dw];
 }
-static void depth(void *p, void *sv, void *dv, ThreeMMI32 w, ThreeMMI32 h)
+static void depth(void *p, void *sv, void *dv, MMI32 w, MMI32 h)
 {
     Object *s = (Object *)sv, *d = (Object *)dv;
     (void)p;
     assert(s->width == w && s->height == h && d->width == w && d->height == h);
     memcpy(d->pixels, s->pixels, (size_t)s->bytes);
 }
-static void setup(Fixture *f, ThreeMMWorldBuffers *w)
+static void setup(Fixture *f, MMWorldBuffers *w)
 {
     memset(f, 0, sizeof(*f));
     memset(w, 0, sizeof(*w));
@@ -176,7 +176,7 @@ static void balanced(Fixture *f)
 static void initialization(void)
 {
     Fixture f;
-    ThreeMMWorldBuffers w;
+    MMWorldBuffers w;
     int hx, hy, scale, n, ok;
     for (hx = 0; hx < 2; ++hx)
         for (hy = 0; hy < 2; ++hy)
@@ -185,7 +185,7 @@ static void initialization(void)
                 {
                     setup(&f, &w);
                     f.fail = n;
-                    ok = three_mm_world_buffers_init(&w, 4, 4, scale, hx, hy, &f.s);
+                    ok = mm_world_buffers_init(&w, 4, 4, scale, hx, hy, &f.s);
                     if (ok)
                     {
                         assert(w.buffer_width == 4 * scale / (scale == 1 && hx ? 2 : 1));
@@ -194,15 +194,15 @@ static void initialization(void)
                                f.setups == 1);
                         assert((w.owners[4] != NULL) == (scale == 1 && !hx && hy));
                     }
-                    three_mm_world_buffers_dispose(&w, &f.s);
+                    mm_world_buffers_dispose(&w, &f.s);
                     balanced(&f);
                 }
     setup(&f, &w);
-    assert(!three_mm_world_buffers_init(&w, 8192, 4, 1, 0, 0, &f.s) && !f.phase);
-    three_mm_world_buffers_dispose(&w, &f.s);
+    assert(!mm_world_buffers_init(&w, 8192, 4, 1, 0, 0, &f.s) && !f.phase);
+    mm_world_buffers_dispose(&w, &f.s);
     balanced(&f);
 }
-static void check_depth(const ThreeMMWorldBuffers *w)
+static void check_depth(const MMWorldBuffers *w)
 {
     Object *o = (Object *)w->owners[0];
     int x, y, sx, sy;
@@ -218,7 +218,7 @@ static void check_depth(const ThreeMMWorldBuffers *w)
 static void modes(void)
 {
     Fixture f;
-    ThreeMMWorldBuffers w, old;
+    MMWorldBuffers w, old;
     Object *cache;
     int target, n, ok, count, changed;
     unsigned i;
@@ -226,22 +226,22 @@ static void modes(void)
         for (n = 1; n < 13; ++n)
         {
             setup(&f, &w);
-            assert(three_mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
+            assert(mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
             cache = object(&f, 7, 0, 0);
-            assert(three_mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
+            assert(mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
             check_depth(&w);
             old = w;
             count = f.objects;
             changed = f.changed;
             f.fail = f.phase + n;
-            ok = three_mm_world_buffers_mode(&w, target < 3 ? (target != 1) : 0, target < 3 ? (target != 0) : 0,
+            ok = mm_world_buffers_mode(&w, target < 3 ? (target != 1) : 0, target < 3 ? (target != 0) : 0,
                                              target < 3    ? 1
                                              : target == 3 ? 2
                                                            : 4,
                                              &f.s);
             if (!ok)
             {
-                for (i = 0; i < THREE_MM_WORLD_OWNERS; ++i)
+                for (i = 0; i < MM_WORLD_OWNERS; ++i)
                     assert(w.owners[i] == old.owners[i]);
                 assert(w.rgb.pixels == old.rgb.pixels && w.z.pixels == old.z.pixels && w.scale == old.scale &&
                        w.half_x == old.half_x && w.half_y == old.half_y && w.buffer_width == old.buffer_width &&
@@ -253,7 +253,7 @@ static void modes(void)
                 assert(f.changed == changed + 2 && f.screen == 1);
             }
             assert(cache->refs == 2 && f.locks == 1);
-            three_mm_world_buffers_dispose(&w, &f.s);
+            mm_world_buffers_dispose(&w, &f.s);
             assert(cache->refs == 1);
             release(&f, cache);
             balanced(&f);
@@ -262,67 +262,67 @@ static void modes(void)
 static void noops(void)
 {
     Fixture f;
-    ThreeMMWorldBuffers w;
+    MMWorldBuffers w;
     int phase;
     setup(&f, &w);
-    assert(three_mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
+    assert(mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
     phase = f.phase;
-    assert(three_mm_world_buffers_mode(&w, 0, 0, 1, &f.s) && f.phase == phase);
-    assert(!three_mm_world_buffers_mode(&w, 0, 0, 3, &f.s));
-    assert(!three_mm_world_buffers_resolution(&w, 2, 1, &f.s));
+    assert(mm_world_buffers_mode(&w, 0, 0, 1, &f.s) && f.phase == phase);
+    assert(!mm_world_buffers_mode(&w, 0, 0, 3, &f.s));
+    assert(!mm_world_buffers_resolution(&w, 2, 1, &f.s));
     assert(f.phase == phase && !f.changed);
-    three_mm_world_buffers_dispose(&w, &f.s);
+    mm_world_buffers_dispose(&w, &f.s);
     balanced(&f);
 }
 static void partial_background(void)
 {
     Fixture f;
-    ThreeMMWorldBuffers w;
+    MMWorldBuffers w;
     Object *cache, *bg;
     int count;
     setup(&f, &w);
-    assert(three_mm_world_buffers_init(&w, 4, 4, 2, 0, 0, &f.s));
+    assert(mm_world_buffers_init(&w, 4, 4, 2, 0, 0, &f.s));
     cache = object(&f, 7, 0, 0);
     count = f.objects;
     f.fail = f.phase + 4;
-    assert(!three_mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
+    assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
     assert(!w.owners[7] && cache->refs == 1 && f.objects == count && !f.changed);
     bg = (Object *)w.owners[2];
     assert(bg->pixels[0] == 0x31 && bg->pixels[bg->bytes - 1] == 0x31);
-    three_mm_world_buffers_dispose(&w, &f.s);
+    mm_world_buffers_dispose(&w, &f.s);
     release(&f, cache);
     balanced(&f);
     setup(&f, &w);
-    assert(three_mm_world_buffers_init(&w, 4, 4, 1, 1, 1, &f.s));
+    assert(mm_world_buffers_init(&w, 4, 4, 1, 1, 1, &f.s));
     cache = object(&f, 7, 0, 0);
     count = f.objects;
     f.fail = f.phase + 3;
-    assert(!three_mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s) && f.objects == count && !w.owners[7] &&
+    assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s) && f.objects == count && !w.owners[7] &&
            !f.changed);
-    three_mm_world_buffers_dispose(&w, &f.s);
+    mm_world_buffers_dispose(&w, &f.s);
     release(&f, cache);
     balanced(&f);
 }
 static void short_depth(void)
 {
     Fixture f;
-    ThreeMMWorldBuffers w;
+    MMWorldBuffers w;
     Object *cache, *bg;
     int count, x, y;
     setup(&f, &w);
-    assert(three_mm_world_buffers_init(&w, 4, 4, 1, 1, 0, &f.s));
-    cache = object(&f, THREE_MM_WORLD_CACHE, 0, 0);
+    assert(mm_world_buffers_init(&w, 4, 4, 1, 1, 0, &f.s));
+    cache = object(&f, MM_WORLD_CACHE, 0, 0);
     count = f.objects;
     f.short_depth = 1;
-    assert(!three_mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
-    assert(!w.owners[THREE_MM_WORLD_CACHE] && !f.changed && f.objects == count && cache->refs == 1);
-    bg = (Object *)w.owners[THREE_MM_WORLD_DEPTH_BACKGROUND];
+    assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
+    assert(!w.owners[MM_WORLD_CACHE] && !f.changed && f.objects == count && cache->refs == 1);
+    bg = (Object *)w.owners[MM_WORLD_DEPTH_BACKGROUND];
     for (y = 0; y < 4; ++y)
         for (x = 0; x < 4; ++x)
             assert(bg->pixels[y * 4 + x] == (y < 3 ? (unsigned char)((y * 8 + (x / 2) * 4 + x % 2) * 7 + 1) : 255));
     for (x = bg->bytes; x < 512; ++x)
         assert(!bg->pixels[x]);
-    three_mm_world_buffers_dispose(&w, &f.s);
+    mm_world_buffers_dispose(&w, &f.s);
     release(&f, cache);
     balanced(&f);
 }

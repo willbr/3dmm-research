@@ -1,50 +1,50 @@
 /* Chunk graph operations converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/chunk_ops.h"
+#include "mm/chunk_ops.h"
 #include <string.h>
-#define OK THREE_MM_CHUNK_OK
-#define BAD THREE_MM_CHUNK_BAD_FILE
-#define LONER ((ThreeMMU32)2)
-#define FOREST ((ThreeMMU32)16)
-#define DATA_FLAGS ((ThreeMMU32)21)
-static ThreeMMI32 last_runtime = 0;
-ThreeMMI32 three_mm_chunk_runtime_highest(void)
+#define OK MM_CHUNK_OK
+#define BAD MM_CHUNK_BAD_FILE
+#define LONER ((MMU32)2)
+#define FOREST ((MMU32)16)
+#define DATA_FLAGS ((MMU32)21)
+static MMI32 last_runtime = 0;
+MMI32 mm_chunk_runtime_highest(void)
 {
     return last_runtime;
 }
-static int readable(const ThreeMMChunkEdit *edit)
+static int readable(const MMChunkEdit *edit)
 {
     return edit && edit->count && edit->entry;
 }
-static int access_entry(void *context, ThreeMMU32 position, ThreeMMChunkEntry *entry)
+static int access_entry(void *context, MMU32 position, MMChunkEntry *entry)
 {
-    const ThreeMMChunkEdit *edit = (const ThreeMMChunkEdit *)context;
+    const MMChunkEdit *edit = (const MMChunkEdit *)context;
     edit->entry(edit->context, position, entry);
     return 1;
 }
-static int lookup(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 *position,
-                  ThreeMMChunkEntry *entry)
+static int lookup(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 *position,
+                  MMChunkEntry *entry)
 {
-    ThreeMMChunkAccess access;
+    MMChunkAccess access;
     access.context = (void *)edit;
     access.count = edit->count(edit->context);
     access.entry = access_entry;
     access.child = NULL;
-    if (three_mm_chunk_find(&access, type, number, position) != OK)
+    if (mm_chunk_find(&access, type, number, position) != OK)
         return 0;
     if (entry)
         edit->entry(edit->context, *position, entry);
     return 1;
 }
-int three_mm_chunk_swap_data(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 other_type,
-                             ThreeMMU32 other_number)
+int mm_chunk_swap_data(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 other_type,
+                             MMU32 other_number)
 {
-    ThreeMMChunkEntry a, b, saved;
-    ThreeMMU32 first, second;
+    MMChunkEntry a, b, saved;
+    MMU32 first, second;
     if (!readable(edit) || !edit->store || !edit->reset_runtime)
         return BAD;
     if (!lookup(edit, type, number, &first, &a) || !lookup(edit, other_type, other_number, &second, &b))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     saved = a;
     a.offset = b.offset;
     a.bytes = b.bytes;
@@ -58,15 +58,15 @@ int three_mm_chunk_swap_data(const ThreeMMChunkEdit *edit, ThreeMMU32 type, Thre
     edit->reset_runtime(edit->context, other_type, other_number);
     return OK;
 }
-int three_mm_chunk_swap_children(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number,
-                                 ThreeMMU32 other_type, ThreeMMU32 other_number)
+int mm_chunk_swap_children(const MMChunkEdit *edit, MMU32 type, MMU32 number,
+                                 MMU32 other_type, MMU32 other_number)
 {
-    ThreeMMChunkEntry a, b;
-    ThreeMMU32 first, second, bytes_a, bytes_b;
+    MMChunkEntry a, b;
+    MMU32 first, second, bytes_a, bytes_b;
     if (!readable(edit) || !edit->store || !edit->move_bytes)
         return BAD;
     if (!lookup(edit, type, number, &first, &a) || !lookup(edit, other_type, other_number, &second, &b))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     if (first == second || a.child_count > 0x7fffffffUL / 12 || b.child_count > 0x7fffffffUL / 12)
         return BAD;
     bytes_a = a.child_count * 12;
@@ -80,14 +80,14 @@ int three_mm_chunk_swap_children(const ThreeMMChunkEdit *edit, ThreeMMU32 type, 
         return BAD;
     return OK;
 }
-int three_mm_chunk_move(const ThreeMMChunkEndpoint *endpoint, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 new_type,
-                        ThreeMMU32 new_number)
+int mm_chunk_move(const MMChunkEndpoint *endpoint, MMU32 type, MMU32 number, MMU32 new_type,
+                        MMU32 new_number)
 {
-    const ThreeMMChunkEdit *edit;
-    ThreeMMChunkEntry entry, parent;
-    ThreeMMChunkChild child;
-    ThreeMMU32 source, target, remaining, i, k;
-    ThreeMMI32 runtime;
+    const MMChunkEdit *edit;
+    MMChunkEntry entry, parent;
+    MMChunkChild child;
+    MMU32 source, target, remaining, i, k;
+    MMI32 runtime;
     if (!endpoint)
         return BAD;
     edit = &endpoint->edit;
@@ -97,7 +97,7 @@ int three_mm_chunk_move(const ThreeMMChunkEndpoint *endpoint, ThreeMMU32 type, T
     if (type == new_type && number == new_number)
         return OK;
     if (!lookup(edit, type, number, &source, &entry) || lookup(edit, new_type, new_number, &target, NULL))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     runtime = endpoint->runtime(endpoint->context, type, number);
     if (runtime)
         endpoint->set_runtime(endpoint->context, type, number, 0);
@@ -123,7 +123,7 @@ int three_mm_chunk_move(const ThreeMMChunkEndpoint *endpoint, ThreeMMU32 type, T
                 }
                 child.type = new_type;
                 child.number = new_number;
-                if (three_mm_chunk_retarget(edit, i, k, &child) != OK)
+                if (mm_chunk_retarget(edit, i, k, &child) != OK)
                     return BAD;
                 --remaining;
             }
@@ -136,11 +136,11 @@ int three_mm_chunk_move(const ThreeMMChunkEndpoint *endpoint, ThreeMMU32 type, T
         endpoint->set_runtime(endpoint->context, new_type, new_number, runtime);
     return OK;
 }
-static int candidate(const ThreeMMChunkEndpoint *endpoint, ThreeMMU32 type, ThreeMMI32 runtime, ThreeMMU32 minimum,
-                     ThreeMMU32 *number)
+static int candidate(const MMChunkEndpoint *endpoint, MMU32 type, MMI32 runtime, MMU32 minimum,
+                     MMU32 *number)
 {
-    ThreeMMU32 position, count = endpoint->edit.count(endpoint->edit.context);
-    ThreeMMChunkEntry entry;
+    MMU32 position, count = endpoint->edit.count(endpoint->edit.context);
+    MMChunkEntry entry;
     lookup(&endpoint->edit, type, minimum, &position, NULL);
     for (; position < count; ++position)
     {
@@ -155,13 +155,13 @@ static int candidate(const ThreeMMChunkEndpoint *endpoint, ThreeMMU32 type, Thre
     }
     return 0;
 }
-int three_mm_chunk_match(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndpoint *dst, ThreeMMU32 type,
-                         ThreeMMU32 number, ThreeMMU32 *matched)
+int mm_chunk_match(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
+                         MMU32 number, MMU32 *matched)
 {
-    ThreeMMChunkWalk a, b;
-    ThreeMMChunkChild node_a, node_b;
-    ThreeMMU32 flags_a, flags_b, minimum = 0, target, children;
-    ThreeMMI32 runtime, child_runtime;
+    MMChunkWalk a, b;
+    MMChunkChild node_a, node_b;
+    MMU32 flags_a, flags_b, minimum = 0, target, children;
+    MMI32 runtime, child_runtime;
     int has_a, has_b, result = 0;
     if (!src || !dst || !matched || !readable(&src->edit) || !readable(&dst->edit) || !src->runtime || !dst->runtime ||
         !src->identity || !dst->identity || !src->graph.children || !src->graph.child || !dst->graph.children ||
@@ -170,11 +170,11 @@ int three_mm_chunk_match(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndp
     runtime = src->runtime(src->context, type, number);
     if (!runtime)
         return 0;
-    if (three_mm_chunk_walk_init(&a, src->allocator) != OK)
+    if (mm_chunk_walk_init(&a, src->allocator) != OK)
         return 0;
-    if (three_mm_chunk_walk_init(&b, dst->allocator) != OK)
+    if (mm_chunk_walk_init(&b, dst->allocator) != OK)
     {
-        three_mm_chunk_walk_dispose(&a);
+        mm_chunk_walk_dispose(&a);
         return 0;
     }
     children = src->graph.children(src->graph.context, type, number);
@@ -182,15 +182,15 @@ int three_mm_chunk_match(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndp
     {
         if (dst->graph.children(dst->graph.context, type, target) == children)
         {
-            three_mm_chunk_walk_reset(&a, &src->graph, type, number);
-            three_mm_chunk_walk_reset(&b, &dst->graph, type, target);
+            mm_chunk_walk_reset(&a, &src->graph, type, number);
+            mm_chunk_walk_reset(&b, &dst->graph, type, target);
             for (;;)
             {
-                has_a = three_mm_chunk_walk_next(&a, 0, &node_a, NULL, &flags_a);
+                has_a = mm_chunk_walk_next(&a, 0, &node_a, NULL, &flags_a);
                 child_runtime = has_a ? src->runtime(src->context, node_a.type, node_a.number) : 0;
                 if (has_a && !child_runtime)
                     goto done;
-                has_b = three_mm_chunk_walk_next(&b, 0, &node_b, NULL, &flags_b);
+                has_b = mm_chunk_walk_next(&b, 0, &node_b, NULL, &flags_b);
                 if (has_a != has_b)
                     break;
                 if (!has_a)
@@ -199,10 +199,10 @@ int three_mm_chunk_match(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndp
                     result = 1;
                     goto done;
                 }
-                if ((flags_a | flags_b) & THREE_MM_WALK_ERROR)
+                if ((flags_a | flags_b) & MM_WALK_ERROR)
                     goto done;
-                if (((flags_a ^ flags_b) & (THREE_MM_WALK_PRE | THREE_MM_WALK_POST | THREE_MM_WALK_ROOT)) ||
-                    node_a.type != node_b.type || (!(flags_a & THREE_MM_WALK_ROOT) && node_a.slot != node_b.slot) ||
+                if (((flags_a ^ flags_b) & (MM_WALK_PRE | MM_WALK_POST | MM_WALK_ROOT)) ||
+                    node_a.type != node_b.type || (!(flags_a & MM_WALK_ROOT) && node_a.slot != node_b.slot) ||
                     child_runtime != dst->runtime(dst->context, node_b.type, node_b.number) ||
                     src->graph.children(src->graph.context, node_a.type, node_a.number) !=
                         dst->graph.children(dst->graph.context, node_b.type, node_b.number))
@@ -214,18 +214,18 @@ int three_mm_chunk_match(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndp
         minimum = target + 1;
     }
 done:
-    three_mm_chunk_walk_dispose(&b);
-    three_mm_chunk_walk_dispose(&a);
+    mm_chunk_walk_dispose(&b);
+    mm_chunk_walk_dispose(&a);
     return result;
 }
 typedef struct NumberMap
 {
-    ThreeMMU32 type, source, destination;
+    MMU32 type, source, destination;
 } NumberMap;
-static int map_find(const ThreeMMArray *map, ThreeMMU32 type, ThreeMMU32 number, NumberMap *out, ThreeMMU32 *position)
+static int map_find(const MMArray *map, MMU32 type, MMU32 number, NumberMap *out, MMU32 *position)
 {
     NumberMap item;
-    ThreeMMU32 low = 0, high = map->count, middle;
+    MMU32 low = 0, high = map->count, middle;
     while (low < high)
     {
         middle = low + (high - low) / 2;
@@ -247,66 +247,66 @@ static int map_find(const ThreeMMArray *map, ThreeMMU32 type, ThreeMMU32 number,
         *position = low;
     return 0;
 }
-static void loner(const ThreeMMChunkEndpoint *endpoint, ThreeMMU32 type, ThreeMMU32 number)
+static void loner(const MMChunkEndpoint *endpoint, MMU32 type, MMU32 number)
 {
-    ThreeMMChunkEntry entry;
-    ThreeMMU32 position;
+    MMChunkEntry entry;
+    MMU32 position;
     if (lookup(&endpoint->edit, type, number, &position, &entry))
     {
         entry.flags |= LONER;
         endpoint->edit.store(endpoint->edit.context, position, &entry, 0);
     }
 }
-int three_mm_chunk_copy(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndpoint *dst, ThreeMMU32 type,
-                        ThreeMMU32 number, int clone, ThreeMMU32 *copied)
+int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
+                        MMU32 number, int clone, MMU32 *copied)
 {
-    ThreeMMCollectionStorage storage;
-    ThreeMMArray map;
-    ThreeMMChunkWalk walk;
-    ThreeMMChunkChild node, parent, link;
-    ThreeMMChunkEntry entry, target_entry;
+    MMCollectionStorage storage;
+    MMArray map;
+    MMChunkWalk walk;
+    MMChunkChild node, parent, link;
+    MMChunkEntry entry, target_entry;
     NumberMap item, parent_item;
-    ThreeMMU32 position, target_position, map_position, flags, root = 0;
-    ThreeMMI32 runtime;
+    MMU32 position, target_position, map_position, flags, root = 0;
+    MMI32 runtime;
     int skip = 0, free_root = 0, result = OK;
     if (!src || !dst || !copied || !src->identity || !dst->identity || !readable(&src->edit) || !readable(&dst->edit) ||
         !src->runtime || !src->set_runtime || !dst->set_runtime || !dst->edit.store || !src->read_payload ||
         !dst->put_payload || !dst->add_payload || !src->read_name || !dst->write_name)
         return BAD;
     if (!lookup(&src->edit, type, number, &position, NULL))
-        return THREE_MM_CHUNK_NOT_FOUND;
+        return MM_CHUNK_NOT_FOUND;
     if (!clone && src->identity == dst->identity)
     {
         loner(dst, type, number);
         *copied = number;
         return OK;
     }
-    if (three_mm_storage_init(&storage, src->allocator) != THREE_MM_STORAGE_OK)
+    if (mm_storage_init(&storage, src->allocator) != MM_STORAGE_OK)
         return BAD;
     storage.min_grow[0] = 128;
     memset(&map, 0, sizeof(map));
     map.storage = &storage;
     map.width = sizeof(NumberMap);
     map.free_count = -1;
-    if (three_mm_chunk_walk_init(&walk, src->allocator) != OK)
+    if (mm_chunk_walk_init(&walk, src->allocator) != OK)
     {
-        three_mm_storage_dispose(&storage);
+        mm_storage_dispose(&storage);
         return BAD;
     }
-    if (three_mm_chunk_walk_reset(&walk, &src->graph, type, number) != OK)
+    if (mm_chunk_walk_reset(&walk, &src->graph, type, number) != OK)
     {
         result = BAD;
         goto done;
     }
-    while (three_mm_chunk_walk_next(&walk, skip, &node, &parent, &flags))
+    while (mm_chunk_walk_next(&walk, skip, &node, &parent, &flags))
     {
         skip = 0;
-        if (flags & THREE_MM_WALK_ERROR)
+        if (flags & MM_WALK_ERROR)
         {
-            result = THREE_MM_CHUNK_MEMORY;
+            result = MM_CHUNK_MEMORY;
             goto done;
         }
-        if (!(flags & THREE_MM_WALK_PRE))
+        if (!(flags & MM_WALK_PRE))
             continue;
         if (map_find(&map, node.type, node.number, &item, NULL))
             skip = 1;
@@ -315,7 +315,7 @@ int three_mm_chunk_copy(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndpo
             runtime = src->runtime(src->context, node.type, node.number);
             item.type = node.type;
             item.source = node.number;
-            if (runtime && !clone && three_mm_chunk_match(src, dst, node.type, node.number, &item.destination))
+            if (runtime && !clone && mm_chunk_match(src, dst, node.type, node.number, &item.destination))
                 skip = 1;
             else
             {
@@ -330,13 +330,13 @@ int three_mm_chunk_copy(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndpo
                     item.destination = node.number;
                     if (!dst->put_payload(dst->context, node.type, item.destination, src->context))
                     {
-                        result = THREE_MM_CHUNK_IO;
+                        result = MM_CHUNK_IO;
                         goto done;
                     }
                 }
                 else if (!dst->add_payload(dst->context, node.type, src->context, &item.destination))
                 {
-                    result = THREE_MM_CHUNK_IO;
+                    result = MM_CHUNK_IO;
                     goto done;
                 }
                 lookup(&src->edit, node.type, node.number, &position, &entry);
@@ -349,22 +349,22 @@ int three_mm_chunk_copy(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndpo
                 if (src->read_name(src->context, position) &&
                     !dst->write_name(dst->context, target_position, src->context))
                 {
-                    three_mm_chunk_delete(&dst->edit, node.type, item.destination);
-                    result = THREE_MM_CHUNK_IO;
+                    mm_chunk_delete(&dst->edit, node.type, item.destination);
+                    result = MM_CHUNK_IO;
                     goto done;
                 }
                 if (runtime)
                     dst->set_runtime(dst->context, node.type, item.destination, runtime);
                 map_find(&map, node.type, node.number, NULL, &map_position);
-                if (three_mm_array_insert(&map, map_position, &item, 1) != THREE_MM_STORAGE_OK)
+                if (mm_array_insert(&map, map_position, &item, 1) != MM_STORAGE_OK)
                 {
-                    result = THREE_MM_CHUNK_MEMORY;
+                    result = MM_CHUNK_MEMORY;
                     goto done;
                 }
                 free_root = 1;
             }
         }
-        if (flags & THREE_MM_WALK_ROOT)
+        if (flags & MM_WALK_ROOT)
         {
             root = item.destination;
             continue;
@@ -377,21 +377,21 @@ int three_mm_chunk_copy(const ThreeMMChunkEndpoint *src, const ThreeMMChunkEndpo
         link.type = node.type;
         link.number = item.destination;
         link.slot = node.slot;
-        if (three_mm_chunk_adopt(&dst->edit, parent.type, parent_item.destination, &link, !skip, dst->max_references) !=
+        if (mm_chunk_adopt(&dst->edit, parent.type, parent_item.destination, &link, !skip, dst->max_references) !=
             OK)
         {
             if (!skip)
-                three_mm_chunk_delete(&dst->edit, node.type, item.destination);
-            result = THREE_MM_CHUNK_IO;
+                mm_chunk_delete(&dst->edit, node.type, item.destination);
+            result = MM_CHUNK_IO;
             goto done;
         }
     }
     loner(dst, type, root);
     *copied = root;
 done:
-    three_mm_storage_dispose(&storage);
+    mm_storage_dispose(&storage);
     if (result != OK && free_root)
-        three_mm_chunk_delete(&dst->edit, type, root);
-    three_mm_chunk_walk_dispose(&walk);
+        mm_chunk_delete(&dst->edit, type, root);
+    mm_chunk_walk_dispose(&walk);
     return result;
 }

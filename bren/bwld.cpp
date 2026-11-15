@@ -72,16 +72,16 @@ static br_uint_32 BR_CALLBACK WorldMaterialVisit(br_material *material, void *co
     auto e = static_cast<WorldMaterialEnumeration *>(context);
     return e->visit(e->argument, material);
 }
-static ThreeMMWorldMaterialServices WorldMaterialServices()
+static MMWorldMaterialServices WorldMaterialServices()
 {
-    ThreeMMWorldMaterialServices s = {};
+    MMWorldMaterialServices s = {};
     s.gouraud = BR_MATF_GOURAUD;
     s.count = [](void *) -> size_t { return BrMaterialCount(nullptr); };
     s.enumerate = [](void *, int (*visit)(void *, void *), void *argument) {
         WorldMaterialEnumeration e = {visit, argument};
         BrMaterialEnum(nullptr, WorldMaterialVisit, &e);
     };
-    s.read = [](void *, void *p, ThreeMMWorldMaterial *out) {
+    s.read = [](void *, void *p, MMWorldMaterial *out) {
         auto m = static_cast<br_material *>(p);
         out->object = m;
         out->flags = m->flags;
@@ -89,7 +89,7 @@ static ThreeMMWorldMaterialServices WorldMaterialServices()
         out->base = m->index_base;
         out->range = m->index_range;
     };
-    s.write = [](void *, const ThreeMMWorldMaterial *in) {
+    s.write = [](void *, const MMWorldMaterial *in) {
         auto m = static_cast<br_material *>(in->object);
         m->flags = in->flags;
         m->colour_map = static_cast<br_pixelmap *>(in->texture);
@@ -113,20 +113,20 @@ static PWorld RenderWorld(void *p)
 {
     return static_cast<WorldRenderContext *>(p)->world;
 }
-static RC RenderRect(const ThreeMMI32 r[4])
+static RC RenderRect(const MMI32 r[4])
 {
     return RC(r[0], r[1], r[2], r[3]);
 }
-static void RenderRectOut(const RC &r, ThreeMMI32 out[4])
+static void RenderRectOut(const RC &r, MMI32 out[4])
 {
     out[0] = r.xpLeft;
     out[1] = r.ypTop;
     out[2] = r.xpRight;
     out[3] = r.ypBottom;
 }
-ThreeMMWorldRenderServices World::_RenderServices(void *context)
+MMWorldRenderServices World::_RenderServices(void *context)
 {
-    ThreeMMWorldRenderServices s = {};
+    MMWorldRenderServices s = {};
     s.context = context;
     s.root = &_bactWorld;
     s.actor_none = BR_ACTOR_NONE;
@@ -143,10 +143,10 @@ ThreeMMWorldRenderServices World::_RenderServices(void *context)
     s.set_style = [](void *, void *p, int style) { static_cast<PBACT>(p)->render_style = style; };
     s.has = [](void *p, int kind) -> int {
         auto w = RenderWorld(p);
-        return kind == THREE_MM_WORLD_BEGIN ? w->_pfnbeginrend != nullptr : w->_pfngetrect != nullptr;
+        return kind == MM_WORLD_BEGIN ? w->_pfnbeginrend != nullptr : w->_pfngetrect != nullptr;
     };
     s.begin = [](void *p, void *actor) { RenderWorld(p)->_pfnbeginrend(static_cast<PBACT>(actor)); };
-    s.rect = [](void *p, void *actor, ThreeMMI32 out[4]) {
+    s.rect = [](void *p, void *actor, MMI32 out[4]) {
         RC r;
         RenderWorld(p)->_pfngetrect(static_cast<PBACT>(actor), &r);
         RenderRectOut(r, out);
@@ -156,7 +156,7 @@ ThreeMMWorldRenderServices World::_RenderServices(void *context)
         *flat = World::FlatShading();
         *noTexture = World::NoTexture();
     };
-    s.region_bounds = [](void *p, int kind, ThreeMMI32 out[4]) -> int {
+    s.region_bounds = [](void *p, int kind, MMI32 out[4]) -> int {
         RC r;
         auto region = static_cast<PRegion>(RenderWorld(p)->_buffers.owners[kind]);
         if (region->FEmpty(&r))
@@ -171,17 +171,17 @@ ThreeMMWorldRenderServices World::_RenderServices(void *context)
         auto &b = RenderWorld(p)->_buffers;
         static_cast<PRegion>(b.owners[dst])->FUnion(static_cast<PRegion>(b.owners[src]));
     };
-    s.region_add = [](void *p, int kind, const ThreeMMI32 rect[4]) {
+    s.region_add = [](void *p, int kind, const MMI32 rect[4]) {
         auto r = RenderRect(rect);
         static_cast<PRegion>(RenderWorld(p)->_buffers.owners[kind])->FUnionRc(&r);
     };
-    s.depth_clean = [](void *p, const ThreeMMI32 rect[4]) {
+    s.depth_clean = [](void *p, const MMI32 rect[4]) {
         auto w = RenderWorld(p);
         auto r = RenderRect(rect);
         w->_pzbmpBackground->Draw(static_cast<byte *>(w->_bpmpZ.pixels), w->_bpmpZ.row_bytes, w->_bpmpZ.height, 0, 0,
                                   &r, w->_pregnDirtyWorking);
     };
-    s.lock = [](void *p, int kind, ThreeMMWorldPixels *out) -> int {
+    s.lock = [](void *p, int kind, MMWorldPixels *out) -> int {
         auto port = static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind]);
         RC r;
         out->pixels = port->PrgbLockPixels(&r);
@@ -190,12 +190,12 @@ ThreeMMWorldRenderServices World::_RenderServices(void *context)
         return out->pixels != nullptr;
     };
     s.unlock = [](void *p, int kind) { static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind])->Unlock(); };
-    s.scan_init = [](void *p, const ThreeMMI32 rect[4]) {
+    s.scan_init = [](void *p, const MMI32 rect[4]) {
         auto c = static_cast<WorldRenderContext *>(p);
         auto r = RenderRect(rect);
         c->scanner.Init(c->world->_pregnDirtyWorking, &r);
     };
-    s.scan_span = [](void *p, ThreeMMI32 *left, ThreeMMI32 *right) -> int {
+    s.scan_span = [](void *p, MMI32 *left, MMI32 *right) -> int {
         auto &scan = static_cast<WorldRenderContext *>(p)->scanner;
         if (scan.XpCur() >= klwMax)
             return 0;
@@ -210,7 +210,7 @@ ThreeMMWorldRenderServices World::_RenderServices(void *context)
         auto w = RenderWorld(p);
         BrZbSceneRender(&w->_bactWorld, &w->_bactCamera, &w->_bpmpRGB, &w->_bpmpZ);
     };
-    s.publish = [](void *p, const ThreeMMWorldRender *r) { RenderWorld(p)->_fWorldChanged = r->changed != 0; };
+    s.publish = [](void *p, const MMWorldRender *r) { RenderWorld(p)->_fWorldChanged = r->changed != 0; };
     s.snapshot_depth = [](void *p) {
         auto w = RenderWorld(p);
         w->_pzbmpWorking->Draw(w->_pzbmpBackground->Prgb(), w->_pzbmpBackground->CbRow(), w->_rcBuffer.Dyp(), 0, 0,
@@ -227,15 +227,15 @@ ThreeMMWorldRenderServices World::_RenderServices(void *context)
         auto w = RenderWorld(p);
         w->FSetBackground(w->_pcrf, w->_ctgRGB, w->_cnoRGB, w->_ctgZ, w->_cnoZ);
     };
-    s.screen_scale = [](void *p, ThreeMMI32 nx, ThreeMMI32 dx, ThreeMMI32 ny, ThreeMMI32 dy) {
+    s.screen_scale = [](void *p, MMI32 nx, MMI32 dx, MMI32 ny, MMI32 dy) {
         RenderWorld(p)->_pregnDirtyScreen->Scale(nx, dx, ny, dy);
     };
-    s.screen_offset = [](void *p, ThreeMMI32 x, ThreeMMI32 y) { RenderWorld(p)->_pregnDirtyScreen->Offset(x, y); };
+    s.screen_offset = [](void *p, MMI32 x, MMI32 y) { RenderWorld(p)->_pregnDirtyScreen->Offset(x, y); };
     s.screen_mark = [](void *p) {
         auto c = static_cast<WorldRenderContext *>(p);
         vpappb->MarkRegn(c->world->_pregnDirtyScreen, c->gob);
     };
-    s.draw = [](void *p, const ThreeMMI32 source[4], const ThreeMMI32 destination[4]) {
+    s.draw = [](void *p, const MMI32 source[4], const MMI32 destination[4]) {
         auto c = static_cast<WorldRenderContext *>(p);
         auto src = RenderRect(source), dst = RenderRect(destination);
         GraphicsEnvironment temp(c->world->_pgptWorking);
@@ -250,48 +250,48 @@ void World::SetNoTexture(bool fOn)
     _fNoTexture = fOn;
 }
 
-ThreeMMWorldBufferServices World::_BufferServices()
+MMWorldBufferServices World::_BufferServices()
 {
-    ThreeMMWorldBufferServices s = {};
+    MMWorldBufferServices s = {};
     s.context = this;
     s.rgb_type = BR_PMT_INDEX_8;
     s.depth_type = BR_PMT_DEPTH_16;
-    s.create = [](void *, int kind, ThreeMMI32 width, ThreeMMI32 height) -> void * {
+    s.create = [](void *, int kind, MMI32 width, MMI32 height) -> void * {
         RC r(0, 0, width, height);
-        if (kind == THREE_MM_WORLD_DEPTH_BACKGROUND || kind == THREE_MM_WORLD_DEPTH_WORKING)
+        if (kind == MM_WORLD_DEPTH_BACKGROUND || kind == MM_WORLD_DEPTH_WORKING)
             return ZBMP::PzbmpNew(width, height);
-        if (kind == THREE_MM_WORLD_DIRTY_WORKING || kind == THREE_MM_WORLD_DIRTY_SCREEN)
-            return Region::PregnNew(kind == THREE_MM_WORLD_DIRTY_SCREEN ? nullptr : &r);
+        if (kind == MM_WORLD_DIRTY_WORKING || kind == MM_WORLD_DIRTY_SCREEN)
+            return Region::PregnNew(kind == MM_WORLD_DIRTY_SCREEN ? nullptr : &r);
         return GraphicsPort::PgptNewOffscreen(&r, kcbitPixelRGB);
     };
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.lock = [](void *, void *p) -> void * { return static_cast<PGraphicsPort>(p)->PrgbLockPixels(); };
     s.unlock = [](void *, void *p) { static_cast<PGraphicsPort>(p)->Unlock(); };
-    s.depth_span = [](void *, void *p, ThreeMMWorldDepthSpan *out) {
+    s.depth_span = [](void *, void *p, MMWorldDepthSpan *out) {
         auto d = static_cast<PZBMP>(p);
         *out = {static_cast<byte *>(d->_depth.pixels), d->_depth.row_bytes, d->_depth.bytes};
     };
-    s.publish = [](void *p, const ThreeMMWorldBuffers *b) {
+    s.publish = [](void *p, const MMWorldBuffers *b) {
         auto w = static_cast<PWorld>(p);
         w->_rcView.Set(0, 0, b->width, b->height);
         w->_rcBuffer.Set(0, 0, b->buffer_width, b->buffer_height);
         w->_fHalfX = b->half_x != 0;
         w->_fHalfY = b->half_y != 0;
         w->_renderScale = b->scale;
-        w->_pzbmpBackground = static_cast<PZBMP>(b->owners[THREE_MM_WORLD_DEPTH_BACKGROUND]);
-        w->_pzbmpWorking = static_cast<PZBMP>(b->owners[THREE_MM_WORLD_DEPTH_WORKING]);
-        w->_pgptBackground = static_cast<PGraphicsPort>(b->owners[THREE_MM_WORLD_RGB_BACKGROUND]);
-        w->_pgptWorking = static_cast<PGraphicsPort>(b->owners[THREE_MM_WORLD_RGB_WORKING]);
-        w->_pgptStretch = static_cast<PGraphicsPort>(b->owners[THREE_MM_WORLD_RGB_STRETCH]);
-        w->_pregnDirtyWorking = static_cast<PRegion>(b->owners[THREE_MM_WORLD_DIRTY_WORKING]);
-        w->_pregnDirtyScreen = static_cast<PRegion>(b->owners[THREE_MM_WORLD_DIRTY_SCREEN]);
-        w->_pcrf = static_cast<PChunkyResourceFile>(b->owners[THREE_MM_WORLD_CACHE]);
+        w->_pzbmpBackground = static_cast<PZBMP>(b->owners[MM_WORLD_DEPTH_BACKGROUND]);
+        w->_pzbmpWorking = static_cast<PZBMP>(b->owners[MM_WORLD_DEPTH_WORKING]);
+        w->_pgptBackground = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_BACKGROUND]);
+        w->_pgptWorking = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_WORKING]);
+        w->_pgptStretch = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_STRETCH]);
+        w->_pregnDirtyWorking = static_cast<PRegion>(b->owners[MM_WORLD_DIRTY_WORKING]);
+        w->_pregnDirtyScreen = static_cast<PRegion>(b->owners[MM_WORLD_DIRTY_SCREEN]);
+        w->_pcrf = static_cast<PChunkyResourceFile>(b->owners[MM_WORLD_CACHE]);
         w->_ctgRGB = b->rgb_type;
         w->_cnoRGB = b->rgb_number;
         w->_ctgZ = b->z_type;
         w->_cnoZ = b->z_number;
-        auto view = [](BPMP &p, const ThreeMMWorldPixelView &v) {
+        auto view = [](BPMP &p, const MMWorldPixelView &v) {
             p.type = static_cast<br_uint_8>(v.type);
             p.row_bytes = static_cast<short>(v.row);
             p.width = static_cast<ushort>(v.width);
@@ -325,22 +325,22 @@ ThreeMMWorldBufferServices World::_BufferServices()
         if (changed)
             w->MarkDirty();
     };
-    s.fetch = [](void *, void *p, int kind, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+    s.fetch = [](void *, void *p, int kind, MMU32 type, MMU32 number) -> void * {
         return static_cast<PChunkyResourceFile>(p)->PbacoFetch(
-            type, number, kind == THREE_MM_WORLD_DEPTH_BACKGROUND ? ZBMP::FReadZbmp : MaskedBitmapMBMP::FReadMbmp);
+            type, number, kind == MM_WORLD_DEPTH_BACKGROUND ? ZBMP::FReadZbmp : MaskedBitmapMBMP::FReadMbmp);
     };
     s.priority = [](void *, void *p) { static_cast<PBaseCacheableObject>(p)->SetCrep(crepTossFirst); };
     s.draw_bitmap = [](void *, void *port, void *bitmap) {
         GraphicsEnvironment gnv(static_cast<PGraphicsPort>(port));
         gnv.DrawMbmp(static_cast<PMaskedBitmapMBMP>(bitmap), 0, 0);
     };
-    s.copy_rgb = [](void *, void *source, void *destination, ThreeMMI32 sw, ThreeMMI32 sh, ThreeMMI32 dw,
-                    ThreeMMI32 dh) {
+    s.copy_rgb = [](void *, void *source, void *destination, MMI32 sw, MMI32 sh, MMI32 dw,
+                    MMI32 dh) {
         GraphicsEnvironment src(static_cast<PGraphicsPort>(source)), dst(static_cast<PGraphicsPort>(destination));
         RC sr(0, 0, sw, sh), dr(0, 0, dw, dh);
         dst.CopyPixels(&src, &sr, &dr);
     };
-    s.draw_depth = [](void *, void *source, void *destination, ThreeMMI32 width, ThreeMMI32 height) {
+    s.draw_depth = [](void *, void *source, void *destination, MMI32 width, MMI32 height) {
         auto dst = static_cast<PZBMP>(destination);
         RC r(0, 0, width, height);
         static_cast<PZBMP>(source)->Draw(dst->Prgb(), dst->CbRow(), height, 0, 0, &r);
@@ -401,10 +401,10 @@ bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
 
     if (dxp <= 0 || dyp <= 0 || dxp > 4096 || dyp > 4096)
         return false;
-    three_mm_world_camera_init(&_camera);
-    three_mm_world_render_init(&_render);
+    mm_world_camera_init(&_camera);
+    mm_world_render_init(&_render);
     auto s = _BufferServices();
-    if (!three_mm_world_buffers_init(&_buffers, dxp, dyp, _renderScale, fHalfX, fHalfY, &s))
+    if (!mm_world_buffers_init(&_buffers, dxp, dyp, _renderScale, fHalfX, fHalfY, &s))
         return false;
     BrZbSetRenderBoundsCallback(_ActorRendered);
     return true;
@@ -417,7 +417,7 @@ World::~World()
 {
     AssertBaseThis(0);
     auto s = _BufferServices();
-    three_mm_world_buffers_dispose(&_buffers, &s);
+    mm_world_buffers_dispose(&_buffers, &s);
 }
 bool World::FSetHalfMode(bool x, bool y)
 {
@@ -433,7 +433,7 @@ bool World::FSetRenderResolution(long scale, bool reduced)
     if (scale != 1 && scale != 2 && scale != 4)
         return false;
     auto s = _BufferServices();
-    return three_mm_world_buffers_resolution(&_buffers, scale, reduced, &s) != 0;
+    return mm_world_buffers_resolution(&_buffers, scale, reduced, &s) != 0;
 }
 bool World::_FSetBufferMode(bool x, bool y, long scale)
 {
@@ -441,7 +441,7 @@ bool World::_FSetBufferMode(bool x, bool y, long scale)
     if (scale != 1 && scale != 2 && scale != 4)
         return false;
     auto s = _BufferServices();
-    bool ok = three_mm_world_buffers_mode(&_buffers, x, y, scale, &s) != 0;
+    bool ok = mm_world_buffers_mode(&_buffers, x, y, scale, &s) != 0;
     AssertThis(0);
     return ok;
 }
@@ -469,20 +469,20 @@ bool World::FSetBackground(PChunkyResourceFile cache, ChunkTagOrType rgbType, Ch
     AssertThis(0);
     AssertPo(cache, 0);
     auto s = _BufferServices();
-    return three_mm_world_buffers_background(&_buffers, cache, rgbType, rgb, zType, z, &s) != 0;
+    return mm_world_buffers_background(&_buffers, cache, rgbType, rgb, zType, z, &s) != 0;
 }
 
 /***************************************************************************
     Change the camera matrix
 ***************************************************************************/
-ThreeMMWorldCameraServices World::_CameraServices()
+MMWorldCameraServices World::_CameraServices()
 {
-    ThreeMMWorldCameraServices s = {};
+    MMWorldCameraServices s = {};
     s.context = this;
-    s.publish = [](void *p, const ThreeMMWorldCamera *camera) {
+    s.publish = [](void *p, const MMWorldCamera *camera) {
         auto w = static_cast<PWorld>(p);
         static_assert(sizeof(BMAT34) == sizeof(camera->matrix), "camera matrix layout");
-        static_assert(sizeof(BRS) == sizeof(ThreeMMI32), "fixed scalar width");
+        static_assert(sizeof(BRS) == sizeof(MMI32), "fixed scalar width");
         std::memcpy(&w->_bactCamera.t.t.mat, &camera->matrix, sizeof(camera->matrix));
         w->_bcam.hither_z = camera->near_z;
         w->_bcam.yon_z = camera->far_z;
@@ -492,7 +492,7 @@ ThreeMMWorldCameraServices World::_CameraServices()
         auto w = static_cast<PWorld>(p);
         w->_pregnDirtyWorking->SetRc(&w->_rcBuffer);
     };
-    s.pick = [](void *p, ThreeMMI32 x, ThreeMMI32 y) {
+    s.pick = [](void *p, MMI32 x, MMI32 y) {
         auto w = static_cast<PWorld>(p);
         BrScenePick2D(&w->_bactWorld, &w->_bactCamera, &w->_bpmpRGB, x, y, World::_FFilter, w);
     };
@@ -504,10 +504,10 @@ void World::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
     AssertVarMem(pbmat34);
     Assert(zrYon > zrHither, "Yon must be further than hither");
 
-    ThreeMMActorMatrix matrix;
+    MMActorMatrix matrix;
     std::memcpy(&matrix, pbmat34, sizeof(matrix));
     auto s = _CameraServices();
-    three_mm_world_camera_set(&_camera, &matrix, zrHither, zrYon, aFov, &s);
+    mm_world_camera_set(&_camera, &matrix, zrHither, zrYon, aFov, &s);
 }
 
 /***************************************************************************
@@ -521,10 +521,10 @@ void World::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
     AssertNilOrVarMem(pzrYon);
     AssertNilOrVarMem(paFov);
 
-    ThreeMMActorMatrix matrix;
-    ThreeMMI32 nearZ, farZ;
+    MMActorMatrix matrix;
+    MMI32 nearZ, farZ;
     unsigned short fov;
-    three_mm_world_camera_get(&_camera, &matrix, &nearZ, &farZ, &fov);
+    mm_world_camera_get(&_camera, &matrix, &nearZ, &farZ, &fov);
     std::memcpy(pbmat34, &matrix, sizeof(matrix));
     if (pzrHither)
         *pzrHither = nearZ;
@@ -545,7 +545,7 @@ void World::Render(void)
     AssertThis(0);
     WorldRenderContext context = {this};
     auto services = _RenderServices(&context);
-    three_mm_world_render(&_render, &_buffers, &services);
+    mm_world_render(&_render, &_buffers, &services);
 }
 
 /***************************************************************************
@@ -557,7 +557,7 @@ void World::Prerender(void)
     AssertThis(0);
     WorldRenderContext context = {this};
     auto services = _RenderServices(&context);
-    three_mm_world_prerender(&_render, &_buffers, &services);
+    mm_world_prerender(&_render, &_buffers, &services);
 }
 
 /***************************************************************************
@@ -569,7 +569,7 @@ void World::Unprerender(void)
     AssertThis(0);
     WorldRenderContext context = {this};
     auto services = _RenderServices(&context);
-    three_mm_world_unprerender(&services);
+    mm_world_unprerender(&services);
 }
 
 /***************************************************************************
@@ -581,7 +581,7 @@ void World::_CleanWorkingBuffers(void)
     AssertThis(0);
     WorldRenderContext context = {this};
     auto services = _RenderServices(&context);
-    three_mm_world_render_clean(&_buffers, &services);
+    mm_world_render_clean(&_buffers, &services);
 }
 
 /***************************************************************************
@@ -593,12 +593,12 @@ void World::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bSty
 {
     AssertVarMem(pbact);
 
-    auto pbwld = static_cast<PWorld>(three_mm_world_actor_owner(
+    auto pbwld = static_cast<PWorld>(mm_world_actor_owner(
         pbact, [](void *p) -> void * { return static_cast<PBACT>(p)->parent; },
         [](void *p) -> void * { return static_cast<PBACT>(p)->identifier; }));
     AssertPo(pbwld, 0);
-    ThreeMMI32 input[4] = {bounds[0], bounds[1], bounds[2], bounds[3]}, output[4];
-    if (!three_mm_world_rendered_bounds(pbwld->_buffers.scale, input, output))
+    MMI32 input[4] = {bounds[0], bounds[1], bounds[2], bounds[3]}, output[4];
+    if (!mm_world_rendered_bounds(pbwld->_buffers.scale, input, output))
         return;
     RC rc(output[0], output[1], output[2], output[3]);
     if (pvNil != pbwld->_pfnbactrend)
@@ -618,7 +618,7 @@ void World::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
     WorldRenderContext context = {this};
     context.gob = pgob;
     auto services = _RenderServices(&context);
-    three_mm_world_render_mark(&_buffers, dxp, dyp, &services);
+    mm_world_render_mark(&_buffers, dxp, dyp, &services);
 }
 
 /***************************************************************************
@@ -636,7 +636,7 @@ void World::Draw(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp)
     WorldRenderContext context = {this};
     context.destination = pgnv;
     auto services = _RenderServices(&context);
-    three_mm_world_render_draw(&_buffers, dxp, dyp, &services);
+    mm_world_render_draw(&_buffers, dxp, dyp, &services);
 }
 
 /***************************************************************************
@@ -664,7 +664,7 @@ int World::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, 
     PWorld pbwld = (PWorld)pvData;
     AssertPo(pbwld, 0);
 
-    int result = three_mm_world_pick_visit(&pbwld->_camera, pbact, dzpNear);
+    int result = mm_world_pick_visit(&pbwld->_camera, pbact, dzpNear);
     pbwld->_pbactClosestClicked = static_cast<PBACT>(pbwld->_camera.picked);
     pbwld->_dzpClosestClicked = pbwld->_camera.pick_depth;
     return result;
@@ -679,8 +679,8 @@ void World::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp,
 
     if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
         return;
-    ThreeMMI32 x, y;
-    if (three_mm_world_pick_point(&_buffers, _bpmpRGB.origin_x, _bpmpRGB.origin_y, xp, yp, &x, &y))
+    MMI32 x, y;
+    if (mm_world_pick_point(&_buffers, _bpmpRGB.origin_x, _bpmpRGB.origin_y, xp, yp, &x, &y))
         BrScenePick2D(&_bactWorld, &_bactCamera, &_bpmpRGB, x, y, pfnCallback, pvArg);
 }
 
@@ -695,9 +695,9 @@ bool World::FClickedActor(long xp, long yp, BACT **ppbact)
 
     auto s = _CameraServices();
     if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
-        three_mm_world_pick_begin(&_camera);
+        mm_world_pick_begin(&_camera);
     else
-        three_mm_world_pick(&_camera, &_buffers, _bpmpRGB.origin_x, _bpmpRGB.origin_y, xp, yp, &s);
+        mm_world_pick(&_camera, &_buffers, _bpmpRGB.origin_x, _bpmpRGB.origin_y, xp, yp, &s);
     _pbactClosestClicked = static_cast<PBACT>(_camera.picked);
     _dzpClosestClicked = _camera.pick_depth;
 
@@ -751,7 +751,7 @@ void World::MarkMem(void)
 
 // SDK descriptor construction is a typed primitive; export sequencing and
 // resource/lock/palette ownership live in the C controller.
-static BPMP ExportPixelmap(const ThreeMMWorldPixelView &view)
+static BPMP ExportPixelmap(const MMWorldPixelView &view)
 {
     BPMP p = {};
     p.type = static_cast<br_uint_8>(view.type);
@@ -763,14 +763,14 @@ static BPMP ExportPixelmap(const ThreeMMWorldPixelView &view)
     p.pixels = view.pixels;
     return p;
 }
-ThreeMMWorldExportServices World::_ExportServices(void *context)
+MMWorldExportServices World::_ExportServices(void *context)
 {
-    ThreeMMWorldExportServices s = {};
+    MMWorldExportServices s = {};
     s.context = context;
     s.buffers = _BufferServices();
     s.render = _RenderServices(context);
     s.palette = [](void *) -> void * { return GraphicsPort::PglclrGetPalette(); };
-    s.lock = [](void *, void *port, ThreeMMWorldPixels *out) -> int {
+    s.lock = [](void *, void *port, MMWorldPixels *out) -> int {
         auto p = static_cast<PGraphicsPort>(port);
         RC r;
         out->pixels = p->PrgbLockPixels(&r);
@@ -781,12 +781,12 @@ ThreeMMWorldExportServices World::_ExportServices(void *context)
     s.bounds_callback = [](void *, int enabled) {
         BrZbSetRenderBoundsCallback(enabled ? World::_ActorRendered : nullptr);
     };
-    s.raster = [](void *p, const ThreeMMWorldPixelView *rgb, const ThreeMMWorldPixelView *depth) {
+    s.raster = [](void *p, const MMWorldPixelView *rgb, const MMWorldPixelView *depth) {
         auto w = RenderWorld(p);
         auto colour = ExportPixelmap(*rgb), z = ExportPixelmap(*depth);
         BrZbSceneRender(&w->_bactWorld, &w->_bactCamera, &colour, &z);
     };
-    s.write = [](void *p, const ThreeMMWorldPixels *pixels, void *palette, ThreeMMI32 width, ThreeMMI32 height) -> int {
+    s.write = [](void *p, const MMWorldPixels *pixels, void *palette, MMI32 width, MMI32 height) -> int {
         // The shared BMP writer consumes four-byte-aligned indexed rows.
         if (pixels->row != ((width + 3) & ~3))
             return 0;
@@ -801,7 +801,7 @@ bool World::FWriteBmp(PFilename pfni)
     WorldRenderContext context = {this};
     context.filename = pfni;
     auto services = _ExportServices(&context);
-    return three_mm_world_export_current(&_buffers, &services) != 0;
+    return mm_world_export_current(&_buffers, &services) != 0;
 }
 bool World::FWriteBmpScaled(PFilename pfni, long scale)
 {
@@ -813,7 +813,7 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
     WorldRenderContext context = {this};
     context.filename = pfni;
     auto services = _ExportServices(&context);
-    return three_mm_world_export_scaled(&_buffers, scale, &services) != 0;
+    return mm_world_export_scaled(&_buffers, scale, &services) != 0;
 }
 
 #endif // DEBUG

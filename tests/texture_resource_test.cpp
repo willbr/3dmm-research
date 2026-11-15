@@ -235,7 +235,7 @@ static void Constructors()
     CHECK(t);
     State(t);
     ReleasePpo(&t);
-#ifndef THREE_MM_ENGINE_TEXTURE_RESOURCE_H
+#ifndef MM_ENGINE_TEXTURE_RESOURCE_H
     BrPixelmapFree(raw); // Baseline repair only: the original wrapper leaked this SDK owner.
 #endif
 }
@@ -272,7 +272,7 @@ static void PackedRoundTrip()
     ReleasePpo(&t);
     CHECK(name.FDelete());
 }
-#ifdef THREE_MM_ENGINE_TEXTURE_RESOURCE_H
+#ifdef MM_ENGINE_TEXTURE_RESOURCE_H
 static br_allocator *underlying;
 static std::vector<void *> sdkBlocks;
 static void *BR_CALLBACK TrackAllocate(br_size_t bytes, br_uint_8 type)
@@ -333,7 +333,7 @@ int main()
 #if defined(_MSC_VER) && defined(DEBUG)
     _CrtSetReportHook(Report);
 #endif
-    if (auto name = std::getenv("THREE_MM_TEXTURE_RESOURCE_SNAPSHOT"))
+    if (auto name = std::getenv("MM_TEXTURE_RESOURCE_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);
@@ -341,7 +341,7 @@ int main()
     BrBegin();
     Loads();
     Constructors();
-#ifdef THREE_MM_ENGINE_TEXTURE_RESOURCE_H
+#ifdef MM_ENGINE_TEXTURE_RESOURCE_H
     ImportedLifetime();
 #endif
     BitmapImports();

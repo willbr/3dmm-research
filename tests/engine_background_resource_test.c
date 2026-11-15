@@ -1,4 +1,4 @@
-#include "three_mm/background_resource.h"
+#include "mm/background_resource.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,21 +69,21 @@ enum
 typedef struct List
 {
     unsigned char bytes[112];
-    ThreeMMI32 count, stride;
+    MMI32 count, stride;
     int live, kind;
 } List;
 typedef struct Host
 {
-    ThreeMMBackgroundResource resource;
-    ThreeMMBackgroundCameraState camera;
-    ThreeMMBackgroundServices services;
+    MMBackgroundResource resource;
+    MMBackgroundCameraState camera;
+    MMBackgroundServices services;
     unsigned char header[8], sound[28], actors[32], lights[32];
     List palette, light_list;
     int trace[256], traces, fail, big, profile, has_palette, has_sound, no_lights, no_cameras, gap, block, allocations;
     int configured, appended, selected, diagnostics, actor_live, light_live, colors, palette_failure;
     int created, released, published, factory_fail;
-    ThreeMMI32 header_length, sound_length, last_size, *base_output;
-    ThreeMMBackgroundLight values[2];
+    MMI32 header_length, sound_length, last_size, *base_output;
+    MMBackgroundLight values[2];
 } Host;
 static void event(Host *h, int code)
 {
@@ -95,13 +95,13 @@ static int effect(Host *h, int code)
     event(h, code);
     return h->fail != code;
 }
-static void put_word(unsigned char *p, ThreeMMU32 value, int n, int big)
+static void put_word(unsigned char *p, MMU32 value, int n, int big)
 {
     int i;
     for (i = 0; i < n; ++i)
         p[big ? n - i - 1 : i] = (unsigned char)(value >> (i * 8));
 }
-static int read_at(void *p, ThreeMMU32 offset, void *out, size_t bytes)
+static int read_at(void *p, MMU32 offset, void *out, size_t bytes)
 {
     Host *h = (Host *)p;
     int code = h->block == FH ? RH : RS;
@@ -112,12 +112,12 @@ static int read_at(void *p, ThreeMMU32 offset, void *out, size_t bytes)
     memcpy(out, code == RH ? h->header : h->sound, bytes);
     return 1;
 }
-static int child(void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 kind, ThreeMMU32 *out)
+static int child(void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 kind, MMU32 *out)
 {
     Host *h = (Host *)p;
     (void)type;
     CHECK(number == 42);
-    if (kind == THREE_MM_BACKGROUND_CAMERA)
+    if (kind == MM_BACKGROUND_CAMERA)
     {
         event(h, C0 + (int)id);
         *out = 80 + id;
@@ -125,54 +125,54 @@ static int child(void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, Thr
     }
     CHECK(!id);
     *out = kind;
-    if (kind == THREE_MM_BACKGROUND_SOUND)
+    if (kind == MM_BACKGROUND_SOUND)
     {
         event(h, CS);
         return h->has_sound;
     }
-    if (kind == THREE_MM_BACKGROUND_COLORS)
+    if (kind == MM_BACKGROUND_COLORS)
     {
         event(h, CP);
         return h->has_palette;
     }
-    CHECK(kind == THREE_MM_BACKGROUND_LIGHTS);
+    CHECK(kind == MM_BACKGROUND_LIGHTS);
     event(h, CL);
     return !h->no_lights;
 }
-static int enumerate(void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMI32 index, ThreeMMU32 *out)
+static int enumerate(void *p, MMU32 type, MMU32 number, MMI32 index, MMU32 *out)
 {
     Host *h = (Host *)p;
     (void)type;
     (void)number;
     event(h, ENUM0 + index);
-    *out = THREE_MM_BACKGROUND_CAMERA;
+    *out = MM_BACKGROUND_CAMERA;
     return index < (h->no_cameras ? 0 : 2) + h->gap;
 }
-static int find(void *p, ThreeMMU32 type, ThreeMMU32 number, int unpack)
+static int find(void *p, MMU32 type, MMU32 number, int unpack)
 {
     Host *h = (Host *)p;
     int code;
-    code = type == THREE_MM_BACKGROUND          ? FH
-           : type == THREE_MM_BACKGROUND_SOUND  ? FS
-           : type == THREE_MM_BACKGROUND_COLORS ? FP
+    code = type == MM_BACKGROUND          ? FH
+           : type == MM_BACKGROUND_SOUND  ? FS
+           : type == MM_BACKGROUND_COLORS ? FP
                                                 : FL;
     CHECK(number == (code == FH ? 42 : type));
     CHECK(unpack == (code == FH || code == FS));
     h->block = code;
     return effect(h, code);
 }
-static ThreeMMReadStream stream(void *p)
+static MMReadStream stream(void *p)
 {
     Host *h = (Host *)p;
-    ThreeMMReadStream r;
+    MMReadStream r;
     r.context = h;
     r.read_at = read_at;
-    r.length = (ThreeMMU32)(h->block == FH ? h->header_length : h->sound_length);
+    r.length = (MMU32)(h->block == FH ? h->header_length : h->sound_length);
     return r;
 }
-static int name(void *p, ThreeMMU32 type, ThreeMMU32 number)
+static int name(void *p, MMU32 type, MMU32 number)
 {
-    CHECK(type == THREE_MM_BACKGROUND && number == 42);
+    CHECK(type == MM_BACKGROUND && number == 42);
     return effect((Host *)p, NAME);
 }
 static void *read_list(void *p, int *big)
@@ -187,17 +187,17 @@ static void *read_list(void *p, int *big)
     list->live = 1;
     return list;
 }
-static ThreeMMI32 count(void *p, void *list)
+static MMI32 count(void *p, void *list)
 {
     (void)p;
     return ((List *)list)->count;
 }
-static ThreeMMI32 stride(void *p, void *list)
+static MMI32 stride(void *p, void *list)
 {
     (void)p;
     return ((List *)list)->stride;
 }
-static void get(void *p, void *value, ThreeMMI32 i, void *out, size_t bytes)
+static void get(void *p, void *value, MMI32 i, void *out, size_t bytes)
 {
     Host *h = (Host *)p;
     List *list = (List *)value;
@@ -206,7 +206,7 @@ static void get(void *p, void *value, ThreeMMI32 i, void *out, size_t bytes)
     event(h, (list->kind ? GL0 : GP0) + i * 2);
     memcpy(out, list->bytes + i * list->stride, bytes);
 }
-static void put(void *p, void *value, ThreeMMI32 i, const void *in, size_t bytes)
+static void put(void *p, void *value, MMI32 i, const void *in, size_t bytes)
 {
     Host *h = (Host *)p;
     List *list = (List *)value;
@@ -222,7 +222,7 @@ static void release(void *p, void *value)
     list->live = 0;
     event(h, list->kind ? REL_LIGHT : REL_PALETTE);
 }
-static int allocate(void *p, ThreeMMI32 bytes, void **out)
+static int allocate(void *p, MMI32 bytes, void **out)
 {
     Host *h = (Host *)p;
     int index = h->allocations++;
@@ -258,11 +258,11 @@ static void free_memory(void *p, void **out)
     }
     *out = NULL;
 }
-static int configure(void *p, ThreeMMBackgroundResource *resource, ThreeMMI32 i, const ThreeMMBackgroundLight *v)
+static int configure(void *p, MMBackgroundResource *resource, MMI32 i, const MMBackgroundLight *v)
 {
     Host *h = (Host *)p;
     CHECK(resource == &h->resource && i < 2 && resource->light_count == 2);
-    if (h->profile == THREE_MM_BACKGROUND_STUDIO)
+    if (h->profile == MM_BACKGROUND_STUDIO)
         CHECK(h->actor_live && h->light_live);
     CHECK(v->matrix.m[0][0] == i * 100 - 500 && v->matrix.m[3][2] == i * 100 - 489 && v->intensity == i * 100 + 12 &&
           v->type == i + 1);
@@ -272,32 +272,32 @@ static int configure(void *p, ThreeMMBackgroundResource *resource, ThreeMMI32 i,
     ++h->configured;
     return 1;
 }
-static void light_effect(void *p, ThreeMMBackgroundResource *r, ThreeMMI32 i, int code, int enabled)
+static void light_effect(void *p, MMBackgroundResource *r, MMI32 i, int code, int enabled)
 {
     Host *h = (Host *)p;
     CHECK(r == &h->resource && h->actor_live && h->light_live && r->enabled == enabled && i < 2);
     event(h, code + i * 2);
 }
-static void add(void *p, ThreeMMBackgroundResource *r, ThreeMMI32 i)
+static void add(void *p, MMBackgroundResource *r, MMI32 i)
 {
     light_effect(p, r, i, ADD0, 0);
 }
-static void enable(void *p, ThreeMMBackgroundResource *r, ThreeMMI32 i)
+static void enable(void *p, MMBackgroundResource *r, MMI32 i)
 {
     light_effect(p, r, i, ENABLE0, 0);
 }
-static void disable(void *p, ThreeMMBackgroundResource *r, ThreeMMI32 i)
+static void disable(void *p, MMBackgroundResource *r, MMI32 i)
 {
     light_effect(p, r, i, DISABLE0, 1);
 }
-static void remove_light(void *p, ThreeMMBackgroundResource *r, ThreeMMI32 i)
+static void remove_light(void *p, MMBackgroundResource *r, MMI32 i)
 {
     light_effect(p, r, i, REMOVE0, 1);
 }
 static void *new_palette(void *p)
 {
     Host *h = (Host *)p;
-    CHECK(h->base_output && *h->base_output == (ThreeMMI32)h->resource.palette_base);
+    CHECK(h->base_output && *h->base_output == (MMI32)h->resource.palette_base);
     event(h, NEW_PAL);
     return h->palette_failure ? NULL : &h->palette;
 }
@@ -308,12 +308,12 @@ static void *duplicate(void *p, void *value)
     event(h, DUP_PAL);
     return h->palette_failure ? NULL : value;
 }
-static void color(void *p, ThreeMMI32 index, const unsigned char *bytes)
+static void color(void *p, MMI32 index, const unsigned char *bytes)
 {
     Host *h = (Host *)p;
     unsigned char expected[4];
     CHECK(index == 20 + h->colors && h->colors < 2);
-    put_word(expected, 0x10203040U + (ThreeMMU32)h->colors, 4, h->services.host_big_endian);
+    put_word(expected, 0x10203040U + (MMU32)h->colors, 4, h->services.host_big_endian);
     CHECK(!memcmp(bytes, expected, 4));
     ++h->colors;
 }
@@ -323,16 +323,16 @@ static void resolve(void *p)
     event(h, RESOLVE);
     CHECK(!h->palette.live);
 }
-static int append(void *p, ThreeMMU32 number)
+static int append(void *p, MMU32 number)
 {
     Host *h = (Host *)p;
-    CHECK(number == 80U + (ThreeMMU32)h->appended);
+    CHECK(number == 80U + (MMU32)h->appended);
     if (!effect(h, APPEND0 + h->appended))
         return 0;
     ++h->appended;
     return 1;
 }
-static int select_camera(void *p, ThreeMMI32 index)
+static int select_camera(void *p, MMI32 index)
 {
     Host *h = (Host *)p;
     CHECK(!index && h->camera.count == 2 && !h->light_list.live);
@@ -342,17 +342,17 @@ static int select_camera(void *p, ThreeMMI32 index)
 static void diagnostic(void *p, int code)
 {
     Host *h = (Host *)p;
-    CHECK(code == THREE_MM_BACKGROUND_READ_ERROR || (code == THREE_MM_BACKGROUND_CAMERA_GAPS && h->gap));
+    CHECK(code == MM_BACKGROUND_READ_ERROR || (code == MM_BACKGROUND_CAMERA_GAPS && h->gap));
     event(h, DIAG);
     ++h->diagnostics;
 }
 static void init(Host *h, int big, int profile, int host_big)
 {
     int i, j;
-    ThreeMMBackgroundServices *s;
+    MMBackgroundServices *s;
     memset(h, 0, sizeof(*h));
-    three_mm_background_resource_init(&h->resource);
-    three_mm_background_camera_init(&h->camera);
+    mm_background_resource_init(&h->resource);
+    mm_background_camera_init(&h->camera);
     h->big = big;
     h->profile = profile;
     h->has_palette = h->has_sound = 1;
@@ -375,11 +375,11 @@ static void init(Host *h, int big, int profile, int host_big)
     put_word(h->sound + 24, 0xFEDC1234U, 4, big);
     for (i = 0; i < 2; ++i)
     {
-        put_word(h->palette.bytes + i * 4, 0x10203040U + (ThreeMMU32)i, 4, big);
+        put_word(h->palette.bytes + i * 4, 0x10203040U + (MMU32)i, 4, big);
         for (j = 0; j < 12; ++j)
-            put_word(h->light_list.bytes + i * 56 + j * 4, (ThreeMMU32)(i * 100 - 500 + j), 4, big);
-        put_word(h->light_list.bytes + i * 56 + 48, (ThreeMMU32)(i * 100 + 12), 4, big);
-        put_word(h->light_list.bytes + i * 56 + 52, (ThreeMMU32)(i + 1), 4, big);
+            put_word(h->light_list.bytes + i * 56 + j * 4, (MMU32)(i * 100 - 500 + j), 4, big);
+        put_word(h->light_list.bytes + i * 56 + 48, (MMU32)(i * 100 + 12), 4, big);
+        put_word(h->light_list.bytes + i * 56 + 52, (MMU32)(i + 1), 4, big);
     }
     s = &h->services;
     s->context = h;
@@ -414,7 +414,7 @@ static void init(Host *h, int big, int profile, int host_big)
 }
 static int load(Host *h)
 {
-    return three_mm_background_read(&h->resource, &h->camera, THREE_MM_BACKGROUND, 42, h->profile, &h->services);
+    return mm_background_read(&h->resource, &h->camera, MM_BACKGROUND, 42, h->profile, &h->services);
 }
 static void expect(Host *h, const int *trace, size_t n)
 {
@@ -422,50 +422,50 @@ static void expect(Host *h, const int *trace, size_t n)
 }
 static void dispose(Host *h)
 {
-    three_mm_background_resource_dispose(&h->resource, &h->services);
+    mm_background_resource_dispose(&h->resource, &h->services);
     CHECK(!h->actor_live && !h->light_live && !h->palette.live && !h->light_list.live);
     CHECK(!h->resource.actors && !h->resource.lights && !h->resource.palette);
 }
 static void decoder_tests(int big)
 {
     Host h;
-    ThreeMMReadStream r;
-    ThreeMMBackgroundHeader header, before_header;
-    ThreeMMBackgroundSound sound, before_sound;
+    MMReadStream r;
+    MMBackgroundHeader header, before_header;
+    MMBackgroundSound sound, before_sound;
     init(&h, big, 0, 0);
-    CHECK(find(&h, THREE_MM_BACKGROUND, 42, 1));
+    CHECK(find(&h, MM_BACKGROUND, 42, 1));
     r = stream(&h);
-    CHECK(three_mm_background_header_read(&r, &header) && header.system == 0x1234 && header.palette_base == 20);
+    CHECK(mm_background_header_read(&r, &header) && header.system == 0x1234 && header.palette_base == 20);
     memcpy(&before_header, &header, sizeof(header));
     h.fail = RH;
-    CHECK(!three_mm_background_header_read(&r, &header) && !memcmp(&header, &before_header, sizeof(header)));
+    CHECK(!mm_background_header_read(&r, &header) && !memcmp(&header, &before_header, sizeof(header)));
     h.fail = 0;
     h.header[0] = h.header[1] = 0;
-    CHECK(!three_mm_background_header_read(&r, &header));
+    CHECK(!mm_background_header_read(&r, &header));
     CHECK(!memcmp(&header, &before_header, sizeof(header)));
     r.length = 9;
-    CHECK(!three_mm_background_header_read(&r, &header));
-    CHECK(find(&h, THREE_MM_BACKGROUND_SOUND, THREE_MM_BACKGROUND_SOUND, 1));
+    CHECK(!mm_background_header_read(&r, &header));
+    CHECK(find(&h, MM_BACKGROUND_SOUND, MM_BACKGROUND_SOUND, 1));
     r = stream(&h);
-    CHECK(three_mm_background_sound_read(&r, &sound));
+    CHECK(mm_background_sound_read(&r, &sound));
     CHECK(sound.system == 0xFEDC && sound.volume == (-2147483647 - 1) && sound.loop && sound.tag.sid == -2);
     CHECK(!sound.tag.cache && sound.tag.type == 0x4D534E44U && sound.tag.number == 0xFEDC1234U);
     memcpy(&before_sound, &sound, sizeof(sound));
     h.fail = RS;
-    CHECK(!three_mm_background_sound_read(&r, &sound) && !memcmp(&sound, &before_sound, sizeof(sound)));
+    CHECK(!mm_background_sound_read(&r, &sound) && !memcmp(&sound, &before_sound, sizeof(sound)));
     h.fail = 0;
     h.sound[0] = h.sound[1] = 0;
-    CHECK(!three_mm_background_sound_read(&r, &sound));
+    CHECK(!mm_background_sound_read(&r, &sound));
     CHECK(!memcmp(&sound, &before_sound, sizeof(sound)));
     r.length = 27;
-    CHECK(!three_mm_background_sound_read(&r, &sound));
+    CHECK(!mm_background_sound_read(&r, &sound));
 }
 static void read_tests(int big, int host_big)
 {
     Host h;
     int i, j, profile;
     unsigned char expected[4];
-    ThreeMMI32 base;
+    MMI32 base;
     const int native[] = {C0,  C1,  C2, FH, RH, NAME, CS, FS,  RS,      CP,  FP,      LP,
                           GP0, GP1, CL, FL, LL, AA,   AL, GL0, CONFIG0, GL1, CONFIG1, REL_LIGHT};
     const int on[] = {ADD0, ENABLE0, ADD1, ENABLE1};
@@ -483,32 +483,32 @@ static void read_tests(int big, int host_big)
         CHECK(h.trace[13] == PP0 && h.trace[15] == PP1);
     for (i = 0; i < 2; ++i)
     {
-        put_word(expected, 0x10203040U + (ThreeMMU32)i, 4, host_big);
+        put_word(expected, 0x10203040U + (MMU32)i, 4, host_big);
         CHECK(!memcmp(h.palette.bytes + i * 4, expected, 4));
     }
     h.traces = 0;
-    three_mm_background_lights_on(&h.resource, &h.services);
+    mm_background_lights_on(&h.resource, &h.services);
     CHECK(h.resource.enabled);
     expect(&h, on, 4);
-    three_mm_background_lights_on(&h.resource, &h.services);
+    mm_background_lights_on(&h.resource, &h.services);
     expect(&h, on, 4);
     h.resource.leave_on = 1;
-    three_mm_background_lights_off(&h.resource, &h.services);
+    mm_background_lights_off(&h.resource, &h.services);
     CHECK(h.resource.enabled);
     expect(&h, on, 4);
     h.resource.leave_on = 0;
     h.traces = 0;
-    three_mm_background_lights_off(&h.resource, &h.services);
+    mm_background_lights_off(&h.resource, &h.services);
     CHECK(!h.resource.enabled);
     expect(&h, off, 4);
-    three_mm_background_lights_off(&h.resource, &h.services);
+    mm_background_lights_off(&h.resource, &h.services);
     expect(&h, off, 4);
     h.base_output = &base;
     base = -1;
-    CHECK(three_mm_background_palette(&h.resource, &base, &h.services) == &h.palette && base == 20);
+    CHECK(mm_background_palette(&h.resource, &base, &h.services) == &h.palette && base == 20);
     h.palette_failure = 1;
-    CHECK(!three_mm_background_palette(&h.resource, &base, &h.services) && base == 20);
-    three_mm_background_lights_on(&h.resource, &h.services);
+    CHECK(!mm_background_palette(&h.resource, &base, &h.services) && base == 20);
+    mm_background_lights_on(&h.resource, &h.services);
     h.traces = 0;
     dispose(&h);
     expect(&h, teardown, 7);
@@ -521,7 +521,7 @@ static void read_tests(int big, int host_big)
     CHECK(h.resource.sound.tag.sid == -1 && !h.resource.palette && !h.resource.palette_base);
     h.base_output = &base;
     base = -1;
-    CHECK(three_mm_background_palette(&h.resource, &base, &h.services) == &h.palette && !base);
+    CHECK(mm_background_palette(&h.resource, &base, &h.services) == &h.palette && !base);
     dispose(&h);
     init(&h, big, 0, host_big);
     h.fail = LP;
@@ -599,13 +599,13 @@ static void *create(void *p)
     ++h->created;
     return h->factory_fail == CREATE ? NULL : &h->resource;
 }
-static int initialize(void *p, void *object, ThreeMMU32 type, ThreeMMU32 number)
+static int initialize(void *p, void *object, MMU32 type, MMU32 number)
 {
     Host *h = (Host *)p;
-    CHECK(object == &h->resource && type == THREE_MM_BACKGROUND && number == 42);
+    CHECK(object == &h->resource && type == MM_BACKGROUND && number == 42);
     return load(h);
 }
-static ThreeMMI32 light_count(void *p, void *object)
+static MMI32 light_count(void *p, void *object)
 {
     Host *h = (Host *)p;
     CHECK(object == &h->resource);
@@ -619,7 +619,7 @@ static void release_object(void *p, void *object)
     ++h->released;
     dispose(h);
 }
-static void size_out(void *p, ThreeMMI32 bytes)
+static void size_out(void *p, MMI32 bytes)
 {
     Host *h = (Host *)p;
     event(h, SIZE);
@@ -639,7 +639,7 @@ static void failure(void *p)
 static void factory_tests(void)
 {
     Host h;
-    ThreeMMBackgroundFactoryServices s;
+    MMBackgroundFactoryServices s;
     int i;
     memset(&s, 0, sizeof(s));
     s.context = &h;
@@ -654,10 +654,10 @@ static void factory_tests(void)
     s.publish = publish;
     s.failure = failure;
     init(&h, 0, 0, 0);
-    CHECK(three_mm_background_factory(THREE_MM_BACKGROUND, 42, 0, &s));
+    CHECK(mm_background_factory(MM_BACKGROUND, 42, 0, &s));
     CHECK(h.traces == 1 && h.last_size == 113 && !h.created);
     init(&h, 0, 0, 0);
-    CHECK(three_mm_background_factory(THREE_MM_BACKGROUND, 42, 1, &s));
+    CHECK(mm_background_factory(MM_BACKGROUND, 42, 1, &s));
     CHECK(h.trace[0] == SIZE && h.trace[1] == CREATE && h.trace[h.traces - 2] == PUBLISH &&
           h.trace[h.traces - 1] == SIZE && h.last_size == 126 && h.published == 1);
     dispose(&h);
@@ -670,22 +670,22 @@ static void factory_tests(void)
             h.fail = AL;
         else
             h.factory_fail = SIZE;
-        CHECK(!three_mm_background_factory(THREE_MM_BACKGROUND, 42, 1, &s) && !h.published && h.last_size == 113);
+        CHECK(!mm_background_factory(MM_BACKGROUND, 42, 1, &s) && !h.published && h.last_size == 113);
         CHECK(h.released == (i != 0) && !h.actor_live && !h.light_live && !h.palette.live);
     }
     init(&h, 0, 0, 0);
     s.object_bytes = 2147483647;
-    CHECK(!three_mm_background_factory(THREE_MM_BACKGROUND, 42, 0, &s) && !h.traces);
+    CHECK(!mm_background_factory(MM_BACKGROUND, 42, 0, &s) && !h.traces);
 }
 typedef struct Tags
 {
     int calls, fail, cache_calls;
-    ThreeMMU32 types[9];
-    ThreeMMTag parent;
+    MMU32 types[9];
+    MMTag parent;
 } Tags;
-static const ThreeMMU32 kinds[] = {THREE_MM_BACKGROUND_SOUND, THREE_MM_BACKGROUND_LIGHTS, THREE_MM_BACKGROUND_COLORS,
-                                   THREE_MM_BACKGROUND_CAMERA};
-static int insert(void *p, int parent, ThreeMMU32 kind)
+static const MMU32 kinds[] = {MM_BACKGROUND_SOUND, MM_BACKGROUND_LIGHTS, MM_BACKGROUND_COLORS,
+                                   MM_BACKGROUND_CAMERA};
+static int insert(void *p, int parent, MMU32 kind)
 {
     Tags *t = (Tags *)p;
     CHECK(parent == (t->calls == 0));
@@ -693,7 +693,7 @@ static int insert(void *p, int parent, ThreeMMU32 kind)
     t->types[t->calls++] = kind;
     return t->calls != t->fail;
 }
-static int tag_child(void *p, ThreeMMU32 kind, ThreeMMTag *out)
+static int tag_child(void *p, MMU32 kind, MMTag *out)
 {
     Tags *t = (Tags *)p;
     CHECK(!t->cache_calls && t->calls < 4 && kind == kinds[t->calls]);
@@ -702,11 +702,11 @@ static int tag_child(void *p, ThreeMMU32 kind, ThreeMMTag *out)
     out->type = kind;
     return t->calls != t->fail;
 }
-static int cache(void *p, const ThreeMMTag *tag, int children)
+static int cache(void *p, const MMTag *tag, int children)
 {
     Tags *t = (Tags *)p;
     CHECK(t->calls >= 4 && children == (t->cache_calls != 0));
-    CHECK(tag->type == (t->cache_calls ? kinds[t->cache_calls - 1] : THREE_MM_BACKGROUND));
+    CHECK(tag->type == (t->cache_calls ? kinds[t->cache_calls - 1] : MM_BACKGROUND));
     CHECK(tag->sid == 0 && tag->cache == t && tag->number == 42);
     ++t->cache_calls;
     ++t->calls;
@@ -715,7 +715,7 @@ static int cache(void *p, const ThreeMMTag *tag, int children)
 static void tag_tests(void)
 {
     Tags t;
-    ThreeMMBackgroundTagServices s;
+    MMBackgroundTagServices s;
     int i;
     memset(&s, 0, sizeof(s));
     s.context = &t;
@@ -726,7 +726,7 @@ static void tag_tests(void)
     {
         memset(&t, 0, sizeof(t));
         t.fail = i;
-        CHECK(three_mm_background_tags(&s) == !i);
+        CHECK(mm_background_tags(&s) == !i);
         CHECK(t.calls == (i ? i : 5));
     }
     for (i = 0; i <= 9; ++i)
@@ -735,9 +735,9 @@ static void tag_tests(void)
         t.fail = i;
         t.parent.sid = 0;
         t.parent.cache = &t;
-        t.parent.type = THREE_MM_BACKGROUND;
+        t.parent.type = MM_BACKGROUND;
         t.parent.number = 42;
-        CHECK(three_mm_background_cache(&t.parent, &s) == !i);
+        CHECK(mm_background_cache(&t.parent, &s) == !i);
         CHECK(t.calls == (i ? i : 9));
     }
 }

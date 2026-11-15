@@ -3,11 +3,11 @@
 Build the read-only dump tool from an initialized compiler environment:
 
 ```console
-cmake --build build --target three-mm
+cmake --build build --target mm
 build/3mm.exe dump --json movie.3mm > movie.json
 ```
 
-The tool links the public [`ThreeMM::Archive`](../../libraries/archive/README.md)
+The tool links the public [`MM::Archive`](../../libraries/archive/README.md)
 API, which keeps `engine-core` and legacy dependencies private. It uses no application,
 window, audio device, SDL3 or ImGui runtime. It also accepts other Kauai chunky
 archives, such as `.3cn` files; decoded fields are limited to supported records.
@@ -53,12 +53,12 @@ separate gates.
 ## Regression checks
 
 `library-checks` builds the tool and synthetic fixture generator. The
-`three-mm-dump` CTest checks JSON values, repeatability, different physical
+`mm-dump` CTest checks JSON values, repeatability, different physical
 layouts, preserved frame/ID differences, compressed payloads, caption references,
 malformed records, invalid arguments,
 missing/truncated files and unchanged input hashes. Both x86 and x64 run it.
 Fixtures are generated in the build tree and require no original game assets.
-The checked-in `tests/fixtures/three-mm-dump-v1.json` baseline pins the complete
+The checked-in `tests/fixtures/mm-dump-v1.json` baseline pins the complete
 synthetic graph dump on both architectures, including exact payload bytes.
 
 Future commands can add movie-aware comparison, validation, dependency reporting

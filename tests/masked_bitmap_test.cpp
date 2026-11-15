@@ -227,7 +227,7 @@ static void Imports()
 }
 int main()
 {
-    if (auto name = std::getenv("THREE_MM_MASKED_BITMAP_SNAPSHOT"))
+    if (auto name = std::getenv("MM_MASKED_BITMAP_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);

@@ -2,34 +2,34 @@
 static void factories(void)
 {
     Fixture f;
-    ThreeMMSceneSound *p, *copy, *added;
+    MMSceneSound *p, *copy, *added;
     int before;
     init(&f);
-    CHECK(three_mm_scene_sound_size(0, 32) == 16 && !three_mm_scene_sound_size(-1, 32));
-    CHECK(!three_mm_scene_sound_size(1, 0) && !three_mm_scene_sound_size(1, (size_t)-1));
-    CHECK(three_mm_scene_sound_size(67108863, 32) == 2147483632 && !three_mm_scene_sound_size(67108864, 32));
-    CHECK(!three_mm_scene_sound_size(2147483647, 32));
-    p = three_mm_scene_sound_allocate(2, &f.s);
+    CHECK(mm_scene_sound_size(0, 32) == 16 && !mm_scene_sound_size(-1, 32));
+    CHECK(!mm_scene_sound_size(1, 0) && !mm_scene_sound_size(1, (size_t)-1));
+    CHECK(mm_scene_sound_size(67108863, 32) == 2147483632 && !mm_scene_sound_size(67108864, 32));
+    CHECK(!mm_scene_sound_size(2147483647, 32));
+    p = mm_scene_sound_allocate(2, &f.s);
     CHECK(p && ((unsigned char *)p)[0] == 0xa5);
     raw_free(&f, p);
     f.fail = 1;
-    CHECK(!three_mm_scene_sound_make(1, 2, 0, 3, f.input, &f.s) && !f.retains);
+    CHECK(!mm_scene_sound_make(1, 2, 0, 3, f.input, &f.s) && !f.retains);
     f.fail = 0;
     p = make(&f, 3);
     CHECK(f.retains == 3 && f.refs[1] == 1 && f.refs[3] == 1 && at(p, 1)->tag.cache == &f);
     before = f.retains;
     f.fail = 1;
-    CHECK(!three_mm_scene_sound_duplicate(p, &f.s) && f.retains == before);
-    CHECK(!three_mm_scene_sound_append(p, f.input + 3, &f.s) && f.retains == before);
+    CHECK(!mm_scene_sound_duplicate(p, &f.s) && f.retains == before);
+    CHECK(!mm_scene_sound_append(p, f.input + 3, &f.s) && f.retains == before);
     f.fail = 0;
     p->fLoop = 0x01020304;
-    copy = three_mm_scene_sound_duplicate(p, &f.s);
+    copy = mm_scene_sound_duplicate(p, &f.s);
     CHECK(copy && f.retains == before + 3 && f.refs[1] == 2 && copy->fLoop == p->fLoop);
-    CHECK(!memcmp(p, copy, (size_t)three_mm_scene_sound_size(3, sizeof(Record))));
+    CHECK(!memcmp(p, copy, (size_t)mm_scene_sound_size(3, sizeof(Record))));
     drop(&f, copy);
     f.input[3].tag.sid = 0;
     before = f.retains;
-    added = three_mm_scene_sound_append(p, f.input + 3, &f.s);
+    added = mm_scene_sound_append(p, f.input + 3, &f.s);
     CHECK(added && added->ctagc == 4 && f.retains == before + 1);
     CHECK(f.refs[1] == 1 && f.refs[3] == 1 && f.refs[4] == 1 && added->fLoop == p->fLoop);
     raw_free(&f, p);
@@ -38,7 +38,7 @@ static void factories(void)
     init(&f);
     p = make(&f, 0);
     CHECK(p->ctagc == 0 && !f.retains);
-    copy = three_mm_scene_sound_duplicate(p, &f.s);
+    copy = mm_scene_sound_duplicate(p, &f.s);
     CHECK(copy);
     drop(&f, copy);
     drop(&f, p);
@@ -47,24 +47,24 @@ static void factories(void)
 static void groups(void)
 {
     Fixture f;
-    ThreeMMSceneSound *p, *copy;
+    MMSceneSound *p, *copy;
     int mode, previous;
     for (mode = 0; mode < 2; ++mode)
     {
         init(&f);
         p = make(&f, 3);
-        f.group_bytes = three_mm_scene_sound_size(3, sizeof(Record));
+        f.group_bytes = mm_scene_sound_size(3, sizeof(Record));
         f.group = (unsigned char *)malloc((size_t)f.group_bytes);
         CHECK(f.group);
         memcpy(f.group, p, (size_t)f.group_bytes);
         f.fail = 1;
         previous = f.retains;
-        CHECK(!three_mm_scene_sound_group(&f, 0, mode, &f.s));
+        CHECK(!mm_scene_sound_group(&f, 0, mode, &f.s));
         CHECK(f.lookups == 1 && f.retains == previous);
         f.fail = 0;
         f.relocate = 1;
         f.lookups = 0;
-        copy = three_mm_scene_sound_group(&f, 0, mode, &f.s);
+        copy = mm_scene_sound_group(&f, 0, mode, &f.s);
         CHECK(copy && f.lookups == 2 && f.stale);
         CHECK(f.retains == previous + (mode ? 2 : 0) && f.clears == (mode ? 0 : 3));
         CHECK(at(copy, 1)->tag.cache == (mode ? (void *)&f : NULL));
@@ -72,30 +72,30 @@ static void groups(void)
         f.group_bytes = 15;
         f.lookups = 0;
         previous = f.allocs;
-        CHECK(!three_mm_scene_sound_group(&f, 0, 1, &f.s) && !f.lookups && f.allocs == previous);
+        CHECK(!mm_scene_sound_group(&f, 0, 1, &f.s) && !f.lookups && f.allocs == previous);
         f.group_bytes = 16;
-        CHECK(!three_mm_scene_sound_group(&f, 0, 1, &f.s) && f.allocs == previous);
-        f.group_bytes = three_mm_scene_sound_size(3, sizeof(Record));
-        ((ThreeMMSceneSound *)f.group)->ctagc = -1;
-        CHECK(!three_mm_scene_sound_group(&f, 0, 1, &f.s));
+        CHECK(!mm_scene_sound_group(&f, 0, 1, &f.s) && f.allocs == previous);
+        f.group_bytes = mm_scene_sound_size(3, sizeof(Record));
+        ((MMSceneSound *)f.group)->ctagc = -1;
+        CHECK(!mm_scene_sound_group(&f, 0, 1, &f.s));
         drop(&f, p);
         clean(&f);
     }
 }
-static ThreeMMU32 load(const unsigned char *p)
+static MMU32 load(const unsigned char *p)
 {
-    ThreeMMU32 n;
+    MMU32 n;
     memcpy(&n, p, 4);
     return n;
 }
-static void store(unsigned char *p, ThreeMMU32 n)
+static void store(unsigned char *p, MMU32 n)
 {
     memcpy(p, &n, 4);
 }
 static void swap_words(unsigned char *p, int bytes)
 {
     int i;
-    ThreeMMU32 n;
+    MMU32 n;
     for (i = 0; i < bytes; i += 4)
     {
         n = load(p + i);
@@ -105,13 +105,13 @@ static void swap_words(unsigned char *p, int bytes)
 static void codecs(void)
 {
     Fixture f;
-    ThreeMMSceneSound *p, *copy;
+    MMSceneSound *p, *copy;
     unsigned char *wire, *buffer, *encoded;
     unsigned char canonical[56], saved[61];
-    ThreeMMI32 bytes, output;
+    MMI32 bytes, output;
     int swapped, length, i, before;
     init(&f);
-    p = three_mm_scene_sound_allocate(2, &f.s);
+    p = mm_scene_sound_allocate(2, &f.s);
     CHECK(p);
     p->vlm = -123;
     p->sty = 2147483647;
@@ -124,9 +124,9 @@ static void codecs(void)
     at(p, 0)->child = 0x80000000U;
     f.fail = 1;
     bytes = 99;
-    CHECK(!three_mm_scene_sound_encode(p, &bytes, &f.s) && !bytes);
+    CHECK(!mm_scene_sound_encode(p, &bytes, &f.s) && !bytes);
     f.fail = 0;
-    wire = (unsigned char *)three_mm_scene_sound_encode(p, &bytes, &f.s);
+    wire = (unsigned char *)mm_scene_sound_encode(p, &bytes, &f.s);
     CHECK(wire && bytes == 56);
     CHECK(load(wire + 16) == 0x80000000U && load(wire + 20) == 0xffffffffU && !load(wire + 24));
     CHECK(load(wire + 28) == 0xfedcba98U && load(wire + 32) == 0x89abcdefU && !load(wire + 44));
@@ -144,22 +144,22 @@ static void codecs(void)
         before = f.allocs;
         for (length = 0; length < 56; ++length)
         {
-            CHECK(!three_mm_scene_sound_decode(buffer + 1, length, swapped, &f.s));
+            CHECK(!mm_scene_sound_decode(buffer + 1, length, swapped, &f.s));
             CHECK(!memcmp(saved, buffer + 1, 61));
         }
         CHECK(f.allocs == before);
         f.fail = 1;
-        CHECK(!three_mm_scene_sound_decode(buffer + 1, 61, swapped, &f.s));
+        CHECK(!mm_scene_sound_decode(buffer + 1, 61, swapped, &f.s));
         f.fail = 0;
         CHECK(!memcmp(buffer + 1, canonical, 56) && buffer[0] == 0xee && buffer[62] == 0xee);
         if (swapped)
             swap_words(buffer + 1, 56);
-        copy = three_mm_scene_sound_decode(buffer + 1, 61, swapped, &f.s);
+        copy = mm_scene_sound_decode(buffer + 1, 61, swapped, &f.s);
         CHECK(copy && !memcmp(copy, p, 16));
         for (i = 0; i < 2; ++i)
             CHECK(!at(copy, i)->tag.cache && at(copy, i)->tag.sid == at(p, i)->tag.sid &&
                   at(copy, i)->child == at(p, i)->child);
-        encoded = (unsigned char *)three_mm_scene_sound_encode(copy, &output, &f.s);
+        encoded = (unsigned char *)mm_scene_sound_encode(copy, &output, &f.s);
         CHECK(encoded && output == 56 && !memcmp(encoded, wire, 56));
         raw_free(&f, encoded);
         raw_free(&f, copy);
@@ -170,13 +170,13 @@ static void codecs(void)
         memcpy(saved, wire, 56);
         store(saved + 12, i == 0 ? 0 : i == 1 ? 0xffffffffU : 0x7fffffffU);
         before = f.allocs;
-        CHECK(!three_mm_scene_sound_decode(saved, 56, 0, &f.s) && f.allocs == before);
+        CHECK(!mm_scene_sound_decode(saved, 56, 0, &f.s) && f.allocs == before);
     }
-    CHECK(!three_mm_scene_sound_decode(NULL, 56, 0, &f.s));
+    CHECK(!mm_scene_sound_decode(NULL, 56, 0, &f.s));
     p->ctagc = -1;
     output = 99;
-    CHECK(!three_mm_scene_sound_encode(p, &output, &f.s) && !output);
-    CHECK(!three_mm_scene_sound_duplicate(p, &f.s) && !three_mm_scene_sound_append(p, f.input, &f.s));
+    CHECK(!mm_scene_sound_encode(p, &output, &f.s) && !output);
+    CHECK(!mm_scene_sound_duplicate(p, &f.s) && !mm_scene_sound_append(p, f.input, &f.s));
     raw_free(&f, wire);
     raw_free(&f, p);
     clean(&f);
@@ -184,14 +184,14 @@ static void codecs(void)
 static void playback(void)
 {
     Fixture f;
-    ThreeMMSceneSound *p;
+    MMSceneSound *p;
     int i;
     static const int normal[] = {11, 21, 31, 41, 51, 22, 32, 42, 52, 13, 23, 33, 43, 53};
     static const int skipped[] = {11, 22, 32, 42, 52, 13, 23, 33, 43, 53};
     init(&f);
     p = f.packet = make(&f, 3);
     f.enqueue_fail = 1;
-    three_mm_scene_sound_play(p, 0xffffffffU, &f.s);
+    mm_scene_sound_play(p, 0xffffffffU, &f.s);
     CHECK(f.used == (int)(sizeof(normal) / sizeof(*normal)) && !memcmp(f.ops, normal, sizeof(normal)) && f.plays == 3 &&
           !f.resources);
     CHECK(f.starts[1] == 0xffffffffU && !f.starts[2] && !f.starts[3] && !f.queues[1] && f.queues[2] && f.queues[3]);
@@ -201,7 +201,7 @@ static void playback(void)
     p->fLoop = 0;
     f.resolve_fail = 1 << 1;
     f.mutate = 1;
-    three_mm_scene_sound_play(p, 99, &f.s);
+    mm_scene_sound_play(p, 99, &f.s);
     CHECK(f.used == (int)(sizeof(skipped) / sizeof(*skipped)) && !memcmp(f.ops, skipped, sizeof(skipped)) &&
           f.plays == 2);
     CHECK(f.queues[2] && !f.starts[2] && f.loops[2] == 0 && f.loops[3] == 1 && f.volumes[3] == 33 &&
@@ -210,21 +210,21 @@ static void playback(void)
     f.resolve_fail = 0;
     f.fetch_fail = 2;
     f.mutate = 0;
-    three_mm_scene_sound_play(p, 99, &f.s);
+    mm_scene_sound_play(p, 99, &f.s);
     CHECK(f.plays == 1 && !f.resources && f.ops[f.used - 1] == 22);
     f.used = f.plays = 0;
     f.fetch_fail = 0;
     f.resolve_fail = (1 << 1) | (1 << 3);
-    three_mm_scene_sound_play(p, 99, &f.s);
+    mm_scene_sound_play(p, 99, &f.s);
     CHECK(f.plays == 1 && f.queues[2] && !f.starts[2]);
     f.used = f.plays = 0;
     f.resolve_fail = 0;
     f.shrink = 1;
-    three_mm_scene_sound_play(p, 99, &f.s);
+    mm_scene_sound_play(p, 99, &f.s);
     CHECK(f.plays == 1 && p->ctagc == 1);
     p->ctagc = 0;
     f.used = 0;
-    three_mm_scene_sound_play(p, 99, &f.s);
+    mm_scene_sound_play(p, 99, &f.s);
     CHECK(!f.used);
     p->ctagc = 3;
     drop(&f, p);

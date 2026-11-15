@@ -1,7 +1,7 @@
 // Licensed under the MIT License.
 #include "studio_vxp_store.h"
 #include "pack_hash.h"
-#include "three_mm/archive.h"
+#include "mm/archive.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <fstream>
@@ -14,7 +14,7 @@ namespace StudioV3dmm
 namespace
 {
 namespace fs = std::filesystem;
-namespace V = ThreeMM::V3dmm;
+namespace V = MM::V3dmm;
 using Json = nlohmann::json;
 void Require(bool value, const std::string &message)
 {
@@ -33,14 +33,14 @@ fs::path Checked(const fs::path &root, const std::string &hash)
 }
 void Validate(const fs::path &path)
 {
-    ThreeMM::Options options;
+    MM::Options options;
     options.maxDecodedBytes = 256u * 1024 * 1024;
-    ThreeMM::Archive archive(options);
-    ThreeMM::Error error;
+    MM::Archive archive(options);
+    MM::Error error;
     Require(archive.Open(path.u8string(), error) && !archive.Chunks().empty(), "Invalid VXP chunky content");
     for (std::size_t i = 0; i < archive.Chunks().size(); ++i)
     {
-        ThreeMM::PayloadPage payload;
+        MM::PayloadPage payload;
         Require(archive.ReadPayload(i, 0, 1, payload, error), "Invalid compressed VXP content");
         for (const auto &child : archive.Chunks()[i].children)
             Require(child.present, "VXP content has a missing child");
@@ -406,7 +406,7 @@ Installation Store::Resolve(const std::string &hash, bool forceValidation)
         catalog->Verified(hash, files);
     return *found;
 }
-Installation Store::Install(const ThreeMM::V3dmm::Range &source)
+Installation Store::Install(const MM::V3dmm::Range &source)
 {
     auto package = V::ReadPackage(source);
     auto stage = root / (".pending-" + std::to_string(std::random_device{}()));

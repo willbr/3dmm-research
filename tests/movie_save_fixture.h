@@ -137,12 +137,12 @@ static bool TestMovieSave(PMovie parent)
 #ifdef _WIN64
     const auto *bytes = reinterpret_cast<const unsigned char *>(trace.data());
     const auto byteCount = (trace.size)() * sizeof(LegacyLong);
-    ThreeMMU32 hash = 2166136261U;
+    MMU32 hash = 2166136261U;
     for (size_t i = 0; i < byteCount; ++i)
         hash = (hash ^ bytes[i]) * 16777619U;
     ok = ok && byteCount == 29440 && hash == 0x696eaa7cU;
 #endif
-    if (const char *path = std::getenv("THREE_MM_MOVIE_SAVE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_MOVIE_SAVE_SNAPSHOT"))
     {
         FILE *file = std::fopen(path, "wb");
         if (!file)

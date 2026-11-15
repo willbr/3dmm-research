@@ -203,7 +203,7 @@ struct VxpManager
                     String path;
                     filename.GetStnPath(&path);
                     auto entry = StudioV3dmm::Packages().Install(
-                        ThreeMM::V3dmm::WholeFile(std::filesystem::u8path(UTF8(&path))));
+                        MM::V3dmm::WholeFile(std::filesystem::u8path(UTF8(&path))));
                     selected = entry.hash;
                     rightSelected = false;
                 }

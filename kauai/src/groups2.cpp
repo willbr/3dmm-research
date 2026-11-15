@@ -31,9 +31,9 @@ RTCLASS(VirtualStringTable)
 RTCLASS(StringTable_GST)
 RTCLASS(AllocatedStringTable)
 
-ThreeMMStringTable VirtualStringTable::_StringStorage()
+MMStringTable VirtualStringTable::_StringStorage()
 {
-    ThreeMMStringTable storage = {};
+    MMStringTable storage = {};
     storage.strings = _Cb1() ? _Qb1(0) : nullptr;
     storage.entries = _Cb2() ? _Qb2(0) : nullptr;
     storage.bytes = _bstMac;
@@ -50,14 +50,14 @@ ThreeMMStringTable VirtualStringTable::_StringStorage()
     storage.reserve = _ReserveStringStorage;
     return storage;
 }
-void VirtualStringTable::_ApplyStringStorage(const ThreeMMStringTable &storage)
+void VirtualStringTable::_ApplyStringStorage(const MMStringTable &storage)
 {
     _bstMac = storage.bytes;
     _ivMac = storage.count;
     _cbstFree = storage.free_count;
 }
-int VirtualStringTable::_ReserveStringStorage(void *context, ThreeMMStringTable *storage,
-                                             ThreeMMU32 strings, ThreeMMU32 entries)
+int VirtualStringTable::_ReserveStringStorage(void *context, MMStringTable *storage,
+                                             MMU32 strings, MMU32 entries)
 {
     auto table = static_cast<VirtualStringTable *>(context);
     table->_ApplyStringStorage(*storage);
@@ -70,8 +70,8 @@ int VirtualStringTable::_ReserveStringStorage(void *context, ThreeMMStringTable 
     return ok;
 }
 namespace {
-int CompareStringStorage(void *context, const void *left, ThreeMMU32 leftCount,
-                         const void *right, ThreeMMU32 rightCount)
+int CompareStringStorage(void *context, const void *left, MMU32 leftCount,
+                         const void *right, MMU32 rightCount)
 {
     auto a = const_cast<achar *>(static_cast<const achar *>(left));
     auto b = const_cast<achar *>(static_cast<const achar *>(right));
@@ -131,10 +131,10 @@ bool VirtualStringTable::_FDup(PVirtualStringTable pgstbDst)
 LegacyLong VirtualStringTable::CbOnFile(void)
 {
     AssertThis(0);
-    ThreeMMCollectionHeader header = {};
-    header.kind = THREE_MM_COLLECTION_STRINGS; header.width = _cbEntry; header.count = _ivMac;
+    MMCollectionHeader header = {};
+    header.kind = MM_COLLECTION_STRINGS; header.width = _cbEntry; header.count = _ivMac;
     header.bytes = _bstMac; header.free_count = _cbstFree;
-    AssertDo(three_mm_collection_layout(&header) == THREE_MM_STORAGE_OK, "invalid GST layout");
+    AssertDo(mm_collection_layout(&header) == MM_STORAGE_OK, "invalid GST layout");
     return header.header_bytes + header.first_bytes + header.second_bytes;
 }
 
@@ -152,16 +152,16 @@ bool VirtualStringTable::FWrite(PDataBlock pblck, short bo, short osk)
     Assert(kboCur == bo || kboOther == bo, "bad bo");
     AssertOsk(osk);
     int storedSystem;
-    if (!three_mm_strings_wire_system(koskCur, osk, &storedSystem))
+    if (!mm_strings_wire_system(koskCur, osk, &storedSystem))
     {
         Bug("unknown osk");
         return false;
     }
     osk = static_cast<short>(storedSystem);
-    ThreeMMCollectionHeader header = {};
-    header.kind = THREE_MM_COLLECTION_STRINGS; header.width = _cbEntry; header.count = _ivMac;
+    MMCollectionHeader header = {};
+    header.kind = MM_COLLECTION_STRINGS; header.width = _cbEntry; header.count = _ivMac;
     header.bytes = _bstMac; header.free_count = _cbstFree;
-    if (three_mm_collection_layout(&header) != THREE_MM_STORAGE_OK) return false;
+    if (mm_collection_layout(&header) != MM_STORAGE_OK) return false;
     if (bo == kboOther) _SwapBytesRgbst();
     if (osk != koskCur) _TranslateGrst(osk, false);
     const bool ok = _WriteCollection(pblck, header, bo, osk);
@@ -176,8 +176,8 @@ bool VirtualStringTable::FWrite(PDataBlock pblck, short bo, short osk)
 bool VirtualStringTable::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
-    ThreeMMCollectionHeader header;
-    if (!_ReadCollection(pblck, THREE_MM_COLLECTION_STRINGS, _cbstFree != cvNil, &header, pbo, posk)) return false;
+    MMCollectionHeader header;
+    if (!_ReadCollection(pblck, MM_COLLECTION_STRINGS, _cbstFree != cvNil, &header, pbo, posk)) return false;
     _cbEntry = header.width; _ivMac = header.count; _bstMac = header.bytes; _cbstFree = header.free_count;
     const short one = 1;
     const bool nativeBig = reinterpret_cast<const byte *>(&one)[0] == 0;
@@ -244,7 +244,7 @@ bool VirtualStringTable::FPutRgch(LegacyLong istn, achar *prgch, LegacyLong cch)
 {
     AssertThis(fobjAssertFull);
     auto storage = _StringStorage();
-    const bool ok = three_mm_strings_put(&storage, istn, prgch, cch) != 0;
+    const bool ok = mm_strings_put(&storage, istn, prgch, cch) != 0;
     _ApplyStringStorage(storage);
     AssertThis(fobjAssertFull);
     return ok;
@@ -311,8 +311,8 @@ bool VirtualStringTable::FFindRgch(achar *prgch, LegacyLong cch, LegacyLong *pis
 {
     AssertThis(0);
     auto storage = _StringStorage();
-    ThreeMMU32 position = storage.count;
-    const bool found = three_mm_strings_find(&storage, prgch, cch, nullptr, nullptr, &position) != 0;
+    MMU32 position = storage.count;
+    const bool found = mm_strings_find(&storage, prgch, cch, nullptr, nullptr, &position) != 0;
     *pistn = position;
     return found;
 }
@@ -415,7 +415,7 @@ achar *VirtualStringTable::_Qst(LegacyLong ibst)
 void VirtualStringTable::_SwapBytesRgbst(void)
 {
     auto storage = _StringStorage();
-    three_mm_strings_swap_offsets(&storage);
+    mm_strings_swap_offsets(&storage);
 }
 
 /***************************************************************************
@@ -425,7 +425,7 @@ void VirtualStringTable::_SwapBytesRgbst(void)
 void VirtualStringTable::_TranslateGrst(short osk, bool fToCur)
 {
     auto storage = _StringStorage();
-    AssertDo(three_mm_strings_translate_same(&storage, osk, koskCur, fToCur), "invalid string translation");
+    AssertDo(mm_strings_translate_same(&storage, osk, koskCur, fToCur), "invalid string translation");
 }
 
 /***************************************************************************
@@ -434,7 +434,7 @@ void VirtualStringTable::_TranslateGrst(short osk, bool fToCur)
 bool VirtualStringTable::_FTranslateGrst(short osk)
 {
     auto storage = _StringStorage();
-    const bool ok = three_mm_strings_translate(&storage, osk, koskCur, ConvertStringStorage, nullptr) != 0;
+    const bool ok = mm_strings_translate(&storage, osk, koskCur, ConvertStringStorage, nullptr) != 0;
     _ApplyStringStorage(storage);
     if (ok && CbCharOsk(osk) != size(achar))
         AssertDo(_FEnsureSizes(_bstMac, LwMul(_ivMac, _cbEntry), fgrpShrink), 0);
@@ -605,9 +605,9 @@ bool StringTable_GST::FFindRgch(achar *prgch, LegacyLong cch, LegacyLong *pistn,
 {
     AssertThis(0);
     auto storage = _StringStorage();
-    ThreeMMU32 position = storage.count;
+    MMU32 position = storage.count;
     const bool sorted = (grfgst & (fgstSorted | fgstUserSorted)) != 0;
-    const bool found = three_mm_strings_find(&storage, prgch, cch, sorted ? CompareStringStorage : nullptr,
+    const bool found = mm_strings_find(&storage, prgch, cch, sorted ? CompareStringStorage : nullptr,
                                              &grfgst, &position) != 0;
     *pistn = position;
     return found;
@@ -620,7 +620,7 @@ bool StringTable_GST::FInsertRgch(LegacyLong istn, achar *prgch, LegacyLong cch,
 {
     AssertThis(fobjAssertFull);
     auto storage = _StringStorage();
-    const bool ok = three_mm_strings_insert(&storage, istn, prgch, cch, pvExtra) != 0;
+    const bool ok = mm_strings_insert(&storage, istn, prgch, cch, pvExtra) != 0;
     _ApplyStringStorage(storage);
     AssertThis(fobjAssertFull);
     return ok;
@@ -646,7 +646,7 @@ void StringTable_GST::Delete(LegacyLong istn)
 {
     AssertThis(fobjAssertFull);
     auto storage = _StringStorage();
-    AssertDo(three_mm_strings_delete(&storage, istn), "invalid string deletion");
+    AssertDo(mm_strings_delete(&storage, istn), "invalid string deletion");
     _ApplyStringStorage(storage);
     AssertThis(fobjAssertFull);
 }
@@ -663,7 +663,7 @@ void StringTable_GST::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertThis(0);
     auto storage = _StringStorage();
-    AssertDo(three_mm_strings_move(&storage, ivSrc, ivTarget), "invalid string move");
+    AssertDo(mm_strings_move(&storage, ivSrc, ivTarget), "invalid string move");
     AssertThis(0);
 }
 
@@ -760,8 +760,8 @@ bool AllocatedStringTable::FAddRgch(achar *prgch, LegacyLong cch, void *pvExtra,
 {
     AssertThis(fobjAssertFull);
     auto storage = _StringStorage();
-    ThreeMMU32 position;
-    const bool ok = three_mm_strings_add(&storage, prgch, cch, pvExtra, &position) != 0;
+    MMU32 position;
+    const bool ok = mm_strings_add(&storage, prgch, cch, pvExtra, &position) != 0;
     _ApplyStringStorage(storage);
     if (ok && pistn) *pistn = position;
     TrashVarIf(!ok, pistn);
@@ -776,7 +776,7 @@ void AllocatedStringTable::Delete(LegacyLong istn)
 {
     AssertThis(fobjAssertFull);
     auto storage = _StringStorage();
-    AssertDo(three_mm_strings_delete(&storage, istn), "invalid string deletion");
+    AssertDo(mm_strings_delete(&storage, istn), "invalid string deletion");
     _ApplyStringStorage(storage);
     AssertThis(fobjAssertFull);
 }

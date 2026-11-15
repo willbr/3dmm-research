@@ -106,18 +106,18 @@
 
 ***************************************************************************/
 #include "util.h"
-#include "three_mm/codec.h"
+#include "mm/codec.h"
 ASSERTNAME
 RTCLASS(KauaiCodec)
 
 namespace {
-void *AllocateCodec(void *, void *, ThreeMMU32, ThreeMMU32 bytes, int priority)
+void *AllocateCodec(void *, void *, MMU32, MMU32 bytes, int priority)
 {
-    Assert(priority == THREE_MM_STORAGE_NORMAL, "bad codec allocation priority");
+    Assert(priority == MM_STORAGE_NORMAL, "bad codec allocation priority");
     void *result = nullptr;
     return FAllocPv(&result, bytes, fmemNil, mprNormal) ? result : nullptr;
 }
-void ReleaseCodec(void *, void *data, ThreeMMU32) { FreePpv(&data); }
+void ReleaseCodec(void *, void *data, MMU32) { FreePpv(&data); }
 }
 
 bool KauaiCodec::FConvert(bool fEncode, LegacyLong cfmt, void *pvSrc, LegacyLong cbSrc,
@@ -131,12 +131,12 @@ bool KauaiCodec::FConvert(bool fEncode, LegacyLong cfmt, void *pvSrc, LegacyLong
     AssertVarMem(pcbDst);
     if (!FCanDo(fEncode, cfmt)) return false;
     TrashVar(pcbDst);
-    ThreeMMI32 count;
-    const ThreeMMStorageAllocator allocator = {nullptr, AllocateCodec, ReleaseCodec};
-    const int result = fEncode ? three_mm_codec_encode(cfmt, pvSrc, cbSrc, pvDst, cbDst, &count, &allocator) :
-                                three_mm_codec_decode(cfmt, pvSrc, cbSrc, pvDst, cbDst, &count);
-    if (result == THREE_MM_DATA_OK) *pcbDst = count;
+    MMI32 count;
+    const MMStorageAllocator allocator = {nullptr, AllocateCodec, ReleaseCodec};
+    const int result = fEncode ? mm_codec_encode(cfmt, pvSrc, cbSrc, pvDst, cbDst, &count, &allocator) :
+                                mm_codec_decode(cfmt, pvSrc, cbSrc, pvDst, cbDst, &count);
+    if (result == MM_DATA_OK) *pcbDst = count;
     else if (!fEncode) Bug("bad compressed data");
-    else if (result == THREE_MM_DATA_MEMORY) Warn("failed to allocate memory for links");
-    return result == THREE_MM_DATA_OK;
+    else if (result == MM_DATA_MEMORY) Warn("failed to allocate memory for links");
+    return result == MM_DATA_OK;
 }

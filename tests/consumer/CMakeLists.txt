@@ -7,9 +7,9 @@ set(BUILD_PACKAGES OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory(../.. framework EXCLUDE_FROM_ALL)
 add_executable(archive-consumer ../archive_api_test.cpp ../archive_api_include_order.cpp)
-target_link_libraries(archive-consumer PRIVATE ThreeMM::Archive)
+target_link_libraries(archive-consumer PRIVATE MM::Archive)
 add_executable(preview-consumer ../preview_api_test.cpp ../preview_api_include_order.cpp)
-target_link_libraries(preview-consumer PRIVATE ThreeMM::Preview)
+target_link_libraries(preview-consumer PRIVATE MM::Preview)
 # This target is outside the framework's directory: it must receive all
 # required definitions and include paths from its library dependencies.
 add_executable(core-consumer ../core_link_test.cpp)

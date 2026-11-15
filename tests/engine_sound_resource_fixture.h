@@ -1,6 +1,6 @@
 #ifndef ENGINE_SOUND_RESOURCE_FIXTURE_H
 #define ENGINE_SOUND_RESOURCE_FIXTURE_H
-#include "three_mm/codec.h"
+#include "mm/codec.h"
 class SoundResourceFixtureAccess : public MovieSoundMSND
 {
   public:
@@ -14,7 +14,7 @@ class SoundResourceFixtureAccess : public MovieSoundMSND
     static void SetPlayback(PMovieSoundMSND sound,int style,bool silent,bool invalid,ChunkNumber number)
     {
         auto resource=&SoundResourceFixtureAccess::_resource; auto s=&SoundResourceFixtureAccess::_silent; auto i=&SoundResourceFixtureAccess::_invalid;
-        sound->*resource={static_cast<ThreeMMU32>(style==styMidi?kctgMidi:kctgWave),number,nullptr,style,65536}; sound->*s=silent; sound->*i=invalid;
+        sound->*resource={static_cast<MMU32>(style==styMidi?kctgMidi:kctgWave),number,nullptr,style,65536}; sound->*s=silent; sound->*i=invalid;
     }
     static void ResetMidi(PMovieSoundMSND sound)
     {
@@ -80,7 +80,7 @@ static bool TestSoundResourceDispatch()
 }
 static bool TestSoundResources()
 {
-    FILE *snapshot=nullptr; if (const char *path=std::getenv("THREE_MM_SOUND_RESOURCE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
+    FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_SOUND_RESOURCE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     auto inject=[](int kind,int failure,bool enabled) {
 #ifdef DEBUG
@@ -123,8 +123,8 @@ static bool TestSoundResources()
         ok=cache && file->FAddPv(bytes,variant==5?17:16,kctgMsnd,&number);
         String name; name.SetSzs(PszLit("Sound fixture")); if (ok && variant!=6) ok=file->FSetName(kctgMsnd,number,&name);
         if (ok && variant!=3) ok=file->FAddChildPv(kctgMsnd,number,0,bytes,3,kctgWave,&child);
-        if (ok && variant==7) { byte packed[128]={}; ThreeMMI32 count=0;
-            ok=three_mm_codec_encode(THREE_MM_CODEC_KCDC,bytes,16,packed+8,120,&count,nullptr)==THREE_MM_DATA_OK;
+        if (ok && variant==7) { byte packed[128]={}; MMI32 count=0;
+            ok=mm_codec_encode(MM_CODEC_KCDC,bytes,16,packed+8,120,&count,nullptr)==MM_DATA_OK;
             std::memcpy(packed,"KCDC\0\0\0\20",8); ok=file->FPutPv(packed,count+8,kctgMsnd,number) && ok; file->SetPacked(kctgMsnd,number,true); }
         DataBlock block; ok=file->FFind(kctgMsnd,number,&block) && ok;
         if (variant==4) file->Delete(kctgMsnd,number);

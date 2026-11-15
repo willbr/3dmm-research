@@ -16,7 +16,7 @@ jobs:
       - name: Build inspector
         run: |
           cmake -S . -B out/inspector -DCMAKE_BUILD_TYPE=Debug -DBUILD_INSPECTOR=ON -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF
-          cmake --build out/inspector --config Debug --target three-mm-inspector --parallel 4
+          cmake --build out/inspector --config Debug --target mm-inspector --parallel 4
           ctest --test-dir out/inspector -C Debug -R inspector-data --output-on-failure
       - name: Upload smoke screenshot
         uses: actions/upload-artifact@v4
@@ -37,8 +37,8 @@ jobs:
           cmake -S . -B out/core -DCMAKE_BUILD_TYPE=Debug -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF
           cmake --build out/core --target core-checks --parallel 4
           ctest --test-dir out/core --output-on-failure
-          ./out/core/3mm dump --json out/core/three-mm-test/fixture-0.3mm > out/core/baseline.json
-          cmp tests/fixtures/three-mm-dump-v1.json out/core/baseline.json
+          ./out/core/3mm dump --json out/core/mm-test/fixture-0.3mm > out/core/baseline.json
+          cmp tests/fixtures/mm-dump-v1.json out/core/baseline.json
       - name: Check external core consumer
         run: |
           cmake -S tests/consumer -B out/consumer -DCMAKE_BUILD_TYPE=Debug

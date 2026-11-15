@@ -13,7 +13,7 @@ class SceneUndoTransition : public SceneUndoTransition_PAR
     ASSERT
 
   protected:
-    ThreeMMSceneTransitionUndo _transition = {};
+    MMSceneTransitionUndo _transition = {};
     SceneUndoTransition(void)
     {
     }
@@ -26,7 +26,7 @@ class SceneUndoTransition : public SceneUndoTransition_PAR
     {
         _transition.transition = trans;
     }
-    ThreeMMSceneTransitionUndo *CoreState()
+    MMSceneTransitionUndo *CoreState()
     {
         return &_transition;
     }
@@ -46,10 +46,10 @@ class SceneUndoTitle : public SceneUndoTitle_PAR
     ASSERT
 
   protected:
-    ThreeMMSceneTitleUndo _title;
+    MMSceneTitleUndo _title;
     SceneUndoTitle(void)
     {
-        three_mm_movie_title_init(&_title.name, sizeof(achar));
+        mm_movie_title_init(&_title.name, sizeof(achar));
     }
 
   public:
@@ -57,7 +57,7 @@ class SceneUndoTitle : public SceneUndoTitle_PAR
     ~SceneUndoTitle(void);
 
     void SetName(PString pstn);
-    ThreeMMSceneTitleUndo *CoreState()
+    MMSceneTitleUndo *CoreState()
     {
         return &_title;
     }

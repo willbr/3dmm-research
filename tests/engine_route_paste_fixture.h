@@ -3,7 +3,7 @@
 static bool TestActorRoutePaste(PMovie movie)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_ROUTE_PASTE_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_ROUTE_PASTE_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp(); PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr;
     ChunkNumber materialNumber=0,soundNumber=0; byte dummy=0;

@@ -1,5 +1,5 @@
-#include "three_mm/chunk_container.h"
-#include "three_mm/chunk_context.h"
+#include "mm/chunk_container.h"
+#include "mm/chunk_context.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,8 +19,8 @@ typedef struct Token
 } Token;
 typedef struct Owner
 {
-    ThreeMMChunkReopenState state;
-    ThreeMMChunkRuntime runtime;
+    MMChunkReopenState state;
+    MMChunkRuntime runtime;
     int refs;
     Host *host;
 } Owner;
@@ -28,9 +28,9 @@ struct Host
 {
     Owner *existing;
     Token main_file, extra_file, index;
-    ThreeMMStorageAllocator allocator;
+    MMStorageAllocator allocator;
     int shells, live, fail, issues[4], created, finished;
-    ThreeMMU32 file_flags, options;
+    MMU32 file_flags, options;
     char log[128];
     int logs, external_refs;
     void *runtime_buffer;
@@ -51,7 +51,7 @@ static void event(Host *h, char c)
     h->log[h->logs++] = c;
     h->log[h->logs] = 0;
 }
-static void *resize(void *c, void *old, ThreeMMU32 before, ThreeMMU32 bytes, int priority)
+static void *resize(void *c, void *old, MMU32 before, MMU32 bytes, int priority)
 {
     Host *h = (Host *)c;
     void *p;
@@ -64,7 +64,7 @@ static void *resize(void *c, void *old, ThreeMMU32 before, ThreeMMU32 bytes, int
         ++h->live;
     return p;
 }
-static void release_memory(void *c, void *p, ThreeMMU32 bytes)
+static void release_memory(void *c, void *p, MMU32 bytes)
 {
     Host *h = (Host *)c;
     (void)bytes;
@@ -85,7 +85,7 @@ static Owner *make_owner(Host *h)
     o->host = h;
     o->refs = 1;
     ++h->shells;
-    CHECK(three_mm_chunk_runtime_init(&o->runtime, &h->allocator) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_init(&o->runtime, &h->allocator) == MM_CHUNK_OK);
     return o;
 }
 static void cleared(Owner *o)
@@ -109,16 +109,16 @@ static void dispose_index(void *c, void *p)
     --((Token *)p)->refs;
     event(o->host, 'j');
 }
-static void publish(void *c, const ThreeMMChunkReopenState *state)
+static void publish(void *c, const MMChunkReopenState *state)
 {
     Owner *o = (Owner *)c;
     CHECK(state == &o->state);
     cleared(o);
     event(o->host, 'P');
 }
-static ThreeMMChunkDisposal disposal(Owner *o)
+static MMChunkDisposal disposal(Owner *o)
 {
-    ThreeMMChunkDisposal s;
+    MMChunkDisposal s;
     s.context = o;
     s.release_file = dispose_file;
     s.release_index = dispose_index;
@@ -129,13 +129,13 @@ static void drop(void *c, void *owner)
 {
     Host *h = (Host *)c;
     Owner *o = (Owner *)owner;
-    ThreeMMChunkDisposal s;
+    MMChunkDisposal s;
     CHECK(o->refs > 0);
     event(h, 'D');
     if (--o->refs)
         return;
     s = disposal(o);
-    CHECK(three_mm_chunk_dispose(&o->state, &o->runtime, &s) == THREE_MM_CHUNK_OK);
+    CHECK(mm_chunk_dispose(&o->state, &o->runtime, &s) == MM_CHUNK_OK);
     if (h->existing == o)
         h->existing = NULL;
     --h->shells;
@@ -162,7 +162,7 @@ static void retain(void *c, void *owner)
     ++o->refs;
     event(h, '+');
 }
-static void *file(void *c, int create, ThreeMMU32 flags)
+static void *file(void *c, int create, MMU32 flags)
 {
     Host *h = (Host *)c;
     event(h, 'O');
@@ -198,7 +198,7 @@ static void attach_index(void *c, void *owner, void *p)
     o->state.index = p;
     event(h, 'i');
 }
-static void set_end(void *c, void *owner, ThreeMMU32 end)
+static void set_end(void *c, void *owner, MMU32 end)
 {
     Host *h = (Host *)c;
     Owner *o = (Owner *)owner;
@@ -206,7 +206,7 @@ static void set_end(void *c, void *owner, ThreeMMU32 end)
     o->state.main_end = end;
     event(h, 'E');
 }
-static int resize_file(void *c, void *p, ThreeMMU32 end)
+static int resize_file(void *c, void *p, MMU32 end)
 {
     Host *h = (Host *)c;
     CHECK(p == &h->main_file && end == 128);
@@ -222,8 +222,8 @@ static int read_index(void *c, void *owner)
     ++h->index.refs;
     o->state.index = &h->index;
     o->state.main_end = 220;
-    CHECK(three_mm_free_map_create(&h->allocator, 1, &o->state.main_map) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_runtime_set(&o->runtime, 1, 1, 44) == THREE_MM_CHUNK_OK);
+    CHECK(mm_free_map_create(&h->allocator, 1, &o->state.main_map) == MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_set(&o->runtime, 1, 1, 44) == MM_CHUNK_OK);
     h->runtime_buffer = o->runtime.storage.buffers[0].data;
     return h->fail != FAIL_READ;
 }
@@ -234,7 +234,7 @@ static int validate(void *c, void *owner)
     event(h, 'V');
     return h->fail != FAIL_VALIDATE;
 }
-static int options(void *c, void *owner, ThreeMMU32 flags)
+static int options(void *c, void *owner, MMU32 flags)
 {
     Host *h = (Host *)c;
     CHECK(((Owner *)owner)->refs == 1);
@@ -247,7 +247,7 @@ static void issue(void *c, int kind)
     Host *h = (Host *)c;
     CHECK(kind >= 0 && kind < 4);
     ++h->issues[kind];
-    event(h, kind == THREE_MM_CONTAINER_ALREADY_OPEN ? '=' : kind == THREE_MM_CONTAINER_INITIAL_OPTIONS ? '@' : '!');
+    event(h, kind == MM_CONTAINER_ALREADY_OPEN ? '=' : kind == MM_CONTAINER_INITIAL_OPTIONS ? '@' : '!');
 }
 static void finish(void *c, void *owner, int create)
 {
@@ -257,7 +257,7 @@ static void finish(void *c, void *owner, int create)
     ++h->finished;
     event(h, 'N');
 }
-static void init(Host *h, ThreeMMChunkConstruction *s)
+static void init(Host *h, MMChunkConstruction *s)
 {
     memset(h, 0, sizeof(*h));
     memset(s, 0, sizeof(*s));
@@ -296,7 +296,7 @@ static void construct(void)
                  {0, FAIL_ALLOC, "FA!"},         {0, FAIL_FILE, "FAOoDPX!"},
                  {0, FAIL_READ, "FAOoRDPfjrX!"}, {0, FAIL_VALIDATE, "FAOoRVDPfjrX!"}};
     Host h;
-    ThreeMMChunkConstruction s;
+    MMChunkConstruction s;
     Owner *o;
     unsigned i;
     int create, fail;
@@ -304,9 +304,9 @@ static void construct(void)
     {
         init(&h, &s);
         h.fail = cases[i].fail;
-        CHECK(!three_mm_chunk_construct(&s, 0, cases[i].create));
+        CHECK(!mm_chunk_construct(&s, 0, cases[i].create));
         CHECK(!strcmp(h.log, cases[i].log));
-        CHECK(h.issues[cases[i].create ? THREE_MM_CONTAINER_CREATE_FAILED : THREE_MM_CONTAINER_OPEN_FAILED] == 1);
+        CHECK(h.issues[cases[i].create ? MM_CONTAINER_CREATE_FAILED : MM_CONTAINER_OPEN_FAILED] == 1);
         balanced(&h);
     }
     for (create = 0; create < 2; ++create)
@@ -314,10 +314,10 @@ static void construct(void)
         {
             init(&h, &s);
             h.fail = fail ? FAIL_OPTIONS : 0;
-            o = (Owner *)three_mm_chunk_construct(&s, create ? THREE_MM_CHUNK_TEMP : THREE_MM_CHUNK_READ_EXTRA, create);
+            o = (Owner *)mm_chunk_construct(&s, create ? MM_CHUNK_TEMP : MM_CHUNK_READ_EXTRA, create);
             CHECK(o != NULL);
             CHECK(!strcmp(h.log, create ? (fail ? "FAIiOoZES@N" : "FAIiOoZESN") : (fail ? "FAOoRVS@N" : "FAOoRVSN")));
-            CHECK(h.finished == 1 && h.issues[THREE_MM_CONTAINER_INITIAL_OPTIONS] == fail && h.created == create);
+            CHECK(h.finished == 1 && h.issues[MM_CONTAINER_INITIAL_OPTIONS] == fail && h.created == create);
             CHECK(h.file_flags == (create ? 23UL : 2UL) && h.options == (create ? 3UL : 16UL));
             drop(&h, o);
             balanced(&h);
@@ -328,13 +328,13 @@ static void construct(void)
             init(&h, &s);
             h.existing = make_owner(&h);
             h.fail = fail ? FAIL_OPTIONS : 0;
-            o = (Owner *)three_mm_chunk_construct(&s, 0, create);
+            o = (Owner *)mm_chunk_construct(&s, 0, create);
             if (create)
                 CHECK(!o && !strcmp(h.log, "F=!") && h.existing->refs == 1 &&
-                      h.issues[THREE_MM_CONTAINER_ALREADY_OPEN] == 1 &&
-                      h.issues[THREE_MM_CONTAINER_CREATE_FAILED] == 1);
+                      h.issues[MM_CONTAINER_ALREADY_OPEN] == 1 &&
+                      h.issues[MM_CONTAINER_CREATE_FAILED] == 1);
             else if (fail)
-                CHECK(!o && !strcmp(h.log, "FS") && h.existing->refs == 1 && !h.issues[THREE_MM_CONTAINER_OPEN_FAILED]);
+                CHECK(!o && !strcmp(h.log, "FS") && h.existing->refs == 1 && !h.issues[MM_CONTAINER_OPEN_FAILED]);
             else
             {
                 CHECK(o == h.existing && !strcmp(h.log, "FS+") && o->refs == 2);
@@ -346,7 +346,7 @@ static void construct(void)
         }
     init(&h, &s);
     s.finish = NULL;
-    o = (Owner *)three_mm_chunk_construct(&s, 0, 1);
+    o = (Owner *)mm_chunk_construct(&s, 0, 1);
     CHECK(o && !h.finished);
     drop(&h, o);
     balanced(&h);
@@ -381,7 +381,7 @@ static void lookup(void)
 {
     Link links[3];
     int a, b, c;
-    ThreeMMChunkLookup s;
+    MMChunkLookup s;
     memset(links, 0, sizeof(links));
     s.next = next_link;
     s.main_file = main_file;
@@ -395,19 +395,19 @@ static void lookup(void)
     links[1].main_file = &b;
     links[1].extra_file = &a;
     links[2].main_file = &a;
-    CHECK(three_mm_chunk_find_container(links, &a, &s) == links + 2 && links[1].collisions == 1);
-    CHECK(three_mm_chunk_find_container(links, &b, &s) == links + 1 && links[1].collisions == 1);
-    CHECK(!three_mm_chunk_find_container(links, &c, &s) && !three_mm_chunk_find_container(links, NULL, &s));
+    CHECK(mm_chunk_find_container(links, &a, &s) == links + 2 && links[1].collisions == 1);
+    CHECK(mm_chunk_find_container(links, &b, &s) == links + 1 && links[1].collisions == 1);
+    CHECK(!mm_chunk_find_container(links, &c, &s) && !mm_chunk_find_container(links, NULL, &s));
     s.extra_collision = NULL;
-    CHECK(three_mm_chunk_find_container(links, &a, &s) == links + 2);
+    CHECK(mm_chunk_find_container(links, &a, &s) == links + 2);
 }
 static void dispose_cases(void)
 {
     Host h;
-    ThreeMMChunkConstruction unused;
+    MMChunkConstruction unused;
     Owner *o;
-    ThreeMMChunkDisposal s;
-    ThreeMMChunkReopenState before;
+    MMChunkDisposal s;
+    MMChunkReopenState before;
     int mode;
     for (mode = 0; mode < 5; ++mode)
     {
@@ -428,11 +428,11 @@ static void dispose_cases(void)
             h.extra_file.refs = 1;
             o->state.extra_file = &h.extra_file;
         }
-        CHECK(three_mm_free_map_create(&h.allocator, 1, &o->state.main_map) == THREE_MM_CHUNK_OK &&
-              three_mm_free_map_create(&h.allocator, 1, &o->state.extra_map) == THREE_MM_CHUNK_OK);
+        CHECK(mm_free_map_create(&h.allocator, 1, &o->state.main_map) == MM_CHUNK_OK &&
+              mm_free_map_create(&h.allocator, 1, &o->state.extra_map) == MM_CHUNK_OK);
         if (mode != 2)
         {
-            CHECK(three_mm_chunk_runtime_set(&o->runtime, 1, 1, 11) == THREE_MM_CHUNK_OK);
+            CHECK(mm_chunk_runtime_set(&o->runtime, 1, 1, 11) == MM_CHUNK_OK);
             h.runtime_buffer = o->runtime.storage.buffers[0].data;
         }
         if (mode == 3)
@@ -442,20 +442,20 @@ static void dispose_cases(void)
         before = o->state;
         if (mode >= 3)
         {
-            CHECK(three_mm_chunk_dispose(&o->state, &o->runtime, &s) == THREE_MM_CHUNK_BAD_FILE && !h.logs &&
+            CHECK(mm_chunk_dispose(&o->state, &o->runtime, &s) == MM_CHUNK_BAD_FILE && !h.logs &&
                   o->state.main_file == before.main_file && o->state.main_map == before.main_map &&
                   h.main_file.refs == 1 && h.index.refs == 1);
             o->runtime.storage.buffers[0].locks = 0;
             o->state.main_map->storage.buffers[0].locks = 0;
         }
-        CHECK(three_mm_chunk_dispose(&o->state, mode == 2 ? NULL : &o->runtime, &s) == THREE_MM_CHUNK_OK);
+        CHECK(mm_chunk_dispose(&o->state, mode == 2 ? NULL : &o->runtime, &s) == MM_CHUNK_OK);
         CHECK(!strcmp(h.log, mode == 1   ? "Pffjr"
                              : mode == 2 ? "Pfej"
                                          : "Pfejr") &&
               !h.live && !h.main_file.refs && !h.extra_file.refs && !h.index.refs);
         h.logs = 0;
         h.log[0] = 0;
-        CHECK(three_mm_chunk_dispose(&o->state, &o->runtime, &s) == THREE_MM_CHUNK_OK && !strcmp(h.log, "P"));
+        CHECK(mm_chunk_dispose(&o->state, &o->runtime, &s) == MM_CHUNK_OK && !strcmp(h.log, "P"));
         --h.shells;
         free(o);
         balanced(&h);
@@ -463,35 +463,35 @@ static void dispose_cases(void)
 }
 static void context_cases(void)
 {
-    ThreeMMChunkContext a, b;
-    ThreeMMChunkLink links[4];
-    ThreeMMChunkLink **saved;
+    MMChunkContext a, b;
+    MMChunkLink links[4];
+    MMChunkLink **saved;
     int values[4], i;
-    three_mm_chunk_context_init(&a);
-    three_mm_chunk_context_init(&b);
-    CHECK(!three_mm_chunk_context_first(&a) && !three_mm_chunk_context_first(NULL));
+    mm_chunk_context_init(&a);
+    mm_chunk_context_init(&b);
+    CHECK(!mm_chunk_context_first(&a) && !mm_chunk_context_first(NULL));
     for (i = 0; i < 4; ++i)
-        three_mm_chunk_link_init(links + i, values + i);
+        mm_chunk_link_init(links + i, values + i);
     for (i = 0; i < 3; ++i)
-        CHECK(three_mm_chunk_context_attach(&a, links + i) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_context_first(&a) == values + 2 && three_mm_chunk_context_next(links + 2) == values + 1);
-    CHECK(three_mm_chunk_context_attach(&b, links + 1) == THREE_MM_CHUNK_BAD_FILE && !b.first);
-    CHECK(three_mm_chunk_context_detach(links + 1) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_context_next(links + 2) == values && three_mm_chunk_context_valid(links));
-    CHECK(three_mm_chunk_context_detach(links + 1) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_context_attach(&b, links + 1) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_context_attach(&b, links + 3) == THREE_MM_CHUNK_OK);
+        CHECK(mm_chunk_context_attach(&a, links + i) == MM_CHUNK_OK);
+    CHECK(mm_chunk_context_first(&a) == values + 2 && mm_chunk_context_next(links + 2) == values + 1);
+    CHECK(mm_chunk_context_attach(&b, links + 1) == MM_CHUNK_BAD_FILE && !b.first);
+    CHECK(mm_chunk_context_detach(links + 1) == MM_CHUNK_OK);
+    CHECK(mm_chunk_context_next(links + 2) == values && mm_chunk_context_valid(links));
+    CHECK(mm_chunk_context_detach(links + 1) == MM_CHUNK_OK);
+    CHECK(mm_chunk_context_attach(&b, links + 1) == MM_CHUNK_OK);
+    CHECK(mm_chunk_context_attach(&b, links + 3) == MM_CHUNK_OK);
     saved = links[1].previous;
     links[1].previous = &a.first;
-    CHECK(!three_mm_chunk_context_valid(links + 3));
+    CHECK(!mm_chunk_context_valid(links + 3));
     links[1].previous = saved;
-    CHECK(three_mm_chunk_context_detach(links) == THREE_MM_CHUNK_OK);
-    CHECK(!three_mm_chunk_context_next(links + 2));
-    CHECK(three_mm_chunk_context_detach(links + 2) == THREE_MM_CHUNK_OK && !a.first);
-    CHECK(three_mm_chunk_context_detach(links + 3) == THREE_MM_CHUNK_OK && b.first == links + 1);
-    CHECK(three_mm_chunk_context_detach(links + 1) == THREE_MM_CHUNK_OK && !b.first);
+    CHECK(mm_chunk_context_detach(links) == MM_CHUNK_OK);
+    CHECK(!mm_chunk_context_next(links + 2));
+    CHECK(mm_chunk_context_detach(links + 2) == MM_CHUNK_OK && !a.first);
+    CHECK(mm_chunk_context_detach(links + 3) == MM_CHUNK_OK && b.first == links + 1);
+    CHECK(mm_chunk_context_detach(links + 1) == MM_CHUNK_OK && !b.first);
     for (i = 0; i < 4; ++i)
-        CHECK(three_mm_chunk_context_valid(links + i));
+        CHECK(mm_chunk_context_valid(links + i));
 }
 static void *temporary(void *c)
 {
@@ -504,27 +504,27 @@ static void retain_source(void *c, void *p)
     ++h->extra_file.refs;
     event(h, '+');
 }
-static void forest_destination(void *c, void *owner, ThreeMMU32 end, int borrowed)
+static void forest_destination(void *c, void *owner, MMU32 end, int borrowed)
 {
     Host *h = (Host *)c;
     Owner *o = (Owner *)owner;
     CHECK(o->state.index && o->state.main_file && end == (borrowed ? 200UL : 128UL));
     o->state.main_end = end;
     o->state.invalid_main = borrowed;
-    h->options = (ThreeMMU32)borrowed;
+    h->options = (MMU32)borrowed;
     event(h, 'E');
 }
-static int read_forest(void *c, void *owner, void *source, ThreeMMU32 offset, ThreeMMU32 bytes, int copy)
+static int read_forest(void *c, void *owner, void *source, MMU32 offset, MMU32 bytes, int copy)
 {
     Host *h = (Host *)c;
     Owner *o = (Owner *)owner;
     CHECK(source == &h->extra_file && offset == 123 && bytes == 77 && o->state.index);
     CHECK(o->state.main_file == (copy ? &h->main_file : &h->extra_file));
     CHECK(o->state.main_end == (copy ? 128UL : 200UL) && o->state.invalid_main == !copy &&
-          h->options == (ThreeMMU32)!copy);
+          h->options == (MMU32)!copy);
     event(h, 'R');
-    CHECK(three_mm_free_map_create(&h->allocator, 1, &o->state.main_map) == THREE_MM_CHUNK_OK);
-    CHECK(three_mm_chunk_runtime_set(&o->runtime, 1, 1, 44) == THREE_MM_CHUNK_OK);
+    CHECK(mm_free_map_create(&h->allocator, 1, &o->state.main_map) == MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_set(&o->runtime, 1, 1, 44) == MM_CHUNK_OK);
     h->runtime_buffer = o->runtime.storage.buffers[0].data;
     return h->fail != FAIL_READ;
 }
@@ -538,8 +538,8 @@ static void finish_forest(void *c, void *owner)
 static void forest_construction_cases(void)
 {
     Host h;
-    ThreeMMChunkConstruction unused;
-    ThreeMMForestConstruction s;
+    MMChunkConstruction unused;
+    MMForestConstruction s;
     Owner *o;
     int copy, fail, expected;
     for (copy = 0; copy < 2; ++copy)
@@ -562,8 +562,8 @@ static void forest_construction_cases(void)
             s.destination = forest_destination;
             s.read = read_forest;
             s.finish = finish_forest;
-            CHECK(!three_mm_chunk_construct_forest(&s, &h.extra_file, 0x7fffffffUL, 1, copy) && !h.logs);
-            o = (Owner *)three_mm_chunk_construct_forest(&s, &h.extra_file, 123, 77, copy);
+            CHECK(!mm_chunk_construct_forest(&s, &h.extra_file, 0x7fffffffUL, 1, copy) && !h.logs);
+            o = (Owner *)mm_chunk_construct_forest(&s, &h.extra_file, 123, 77, copy);
             expected = !fail || (!copy && (fail == FAIL_FILE || fail == FAIL_RESIZE));
             CHECK((o != NULL) == expected && h.finished == expected);
             if (o)

@@ -1,29 +1,29 @@
 /* Movie composition converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/movie_compose.h"
-#include "three_mm/movie_rollcall.h"
-#include "three_mm/wide.h"
+#include "mm/movie_compose.h"
+#include "mm/movie_rollcall.h"
+#include "mm/wide.h"
 #include <string.h>
-int three_mm_composite_insert_scene(void *list, ThreeMMI32 index, const ThreeMMComposeScene *scene,
-                                    const ThreeMMMovieComposeServices *s)
+int mm_composite_insert_scene(void *list, MMI32 index, const MMComposeScene *scene,
+                                    const MMMovieComposeServices *s)
 {
     if (!s->insert_scene(list, index, scene))
         return 0;
     s->retain(scene->thumbnail);
     return 1;
 }
-void three_mm_composite_delete_scene(void *list, ThreeMMI32 index, const ThreeMMMovieComposeServices *s)
+void mm_composite_delete_scene(void *list, MMI32 index, const MMMovieComposeServices *s)
 {
-    ThreeMMComposeScene scene;
+    MMComposeScene scene;
     s->scene(list, index, &scene);
     s->erase(list, index);
     s->release(scene.thumbnail);
 }
-void three_mm_composite_empty(ThreeMMCompositeMovie *state, const ThreeMMMovieComposeServices *s)
+void mm_composite_empty(MMCompositeMovie *state, const MMMovieComposeServices *s)
 {
-    ThreeMMI32 i;
-    ThreeMMComposeScene scene;
-    ThreeMMComposeMovie movie;
+    MMI32 i;
+    MMComposeScene scene;
+    MMComposeMovie movie;
     if (state->scenes)
     {
         i = s->count(state->scenes);
@@ -49,12 +49,12 @@ void three_mm_composite_empty(ThreeMMCompositeMovie *state, const ThreeMMMovieCo
         state->movies = 0;
     }
 }
-int three_mm_movie_compose_add(ThreeMMCompositeMovie *state, ThreeMMI32 *insertion,
-                               const ThreeMMMovieComposeServices *s)
+int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
+                               const MMMovieComposeServices *s)
 {
-    ThreeMMI32 inserted = 0, index = -1, count = s->data->sceneCount;
-    ThreeMMComposeScene scene;
-    ThreeMMComposeMovie movie;
+    MMI32 inserted = 0, index = -1, count = s->data->sceneCount;
+    MMComposeScene scene;
+    MMComposeMovie movie;
     void *file;
     if (s->temporary_before_save && !s->use_temporary(s->context))
         goto fail;
@@ -75,12 +75,12 @@ int three_mm_movie_compose_add(ThreeMMCompositeMovie *state, ThreeMMI32 *inserti
     scene.movie = index;
     while (inserted < count)
     {
-        if (!s->scene_child(file, s->data->movieNumber, (ThreeMMU32)inserted, &scene.number))
+        if (!s->scene_child(file, s->data->movieNumber, (MMU32)inserted, &scene.number))
         {
-            s->diagnostic(s->context, THREE_MM_COMPOSE_MISSING_SCENE);
+            s->diagnostic(s->context, MM_COMPOSE_MISSING_SCENE);
             goto fail;
         }
-        scene.child = (ThreeMMU32)inserted;
+        scene.child = (MMU32)inserted;
         if (inserted != s->scenes->index)
         {
             if (!s->read_transition(movie.resources, scene.number, &scene.transition))
@@ -97,21 +97,21 @@ int three_mm_movie_compose_add(ThreeMMCompositeMovie *state, ThreeMMI32 *inserti
                 goto fail;
             s->retain(scene.thumbnail);
         }
-        if (!three_mm_composite_insert_scene(state->scenes, *insertion, &scene, s))
+        if (!mm_composite_insert_scene(state->scenes, *insertion, &scene, s))
         {
             s->release(scene.thumbnail);
             goto fail;
         }
         s->release(scene.thumbnail);
         ++inserted;
-        *insertion = three_mm_signed_word((ThreeMMU32)*insertion + 1U);
+        *insertion = mm_signed_word((MMU32)*insertion + 1U);
     }
     return 1;
 fail:
     while (inserted-- > 0)
     {
-        *insertion = three_mm_signed_word((ThreeMMU32)*insertion - 1U);
-        three_mm_composite_delete_scene(state->scenes, *insertion, s);
+        *insertion = mm_signed_word((MMU32)*insertion - 1U);
+        mm_composite_delete_scene(state->scenes, *insertion, s);
     }
     if (state->scenes && !s->count(state->scenes))
     {
@@ -130,27 +130,27 @@ fail:
     }
     return 0;
 }
-static int remap(ThreeMMU32 movie, ThreeMMI32 offset, const ThreeMMMovieComposeServices *s)
+static int remap(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
 {
-    ThreeMMChunkWalk walk;
-    ThreeMMCollectionStorage visited;
-    ThreeMMArray ids;
-    ThreeMMChunkChild node, parent;
-    ThreeMMU32 flags, i, number;
+    MMChunkWalk walk;
+    MMCollectionStorage visited;
+    MMArray ids;
+    MMChunkChild node, parent;
+    MMU32 flags, i, number;
     int ok = 0;
-    if (three_mm_storage_init(&visited, &s->allocator) != THREE_MM_STORAGE_OK)
+    if (mm_storage_init(&visited, &s->allocator) != MM_STORAGE_OK)
         return 0;
     memset(&ids, 0, sizeof(ids));
     ids.storage = &visited;
     ids.width = 4;
     ids.free_count = -1;
-    if (three_mm_chunk_walk_init(&walk, &s->allocator) != THREE_MM_CHUNK_OK)
+    if (mm_chunk_walk_init(&walk, &s->allocator) != MM_CHUNK_OK)
         goto storage;
-    if (three_mm_chunk_walk_reset(&walk, &s->graph, 0x4d564945U, movie) != THREE_MM_CHUNK_OK)
+    if (mm_chunk_walk_reset(&walk, &s->graph, 0x4d564945U, movie) != MM_CHUNK_OK)
         goto done;
-    while (three_mm_chunk_walk_next(&walk, 0, &node, &parent, &flags))
+    while (mm_chunk_walk_next(&walk, 0, &node, &parent, &flags))
     {
-        if (!(flags & THREE_MM_WALK_PRE) || node.type != 0x41435452U)
+        if (!(flags & MM_WALK_PRE) || node.type != 0x41435452U)
             continue;
         for (i = 0; i < ids.count; ++i)
         {
@@ -160,30 +160,30 @@ static int remap(ThreeMMU32 movie, ThreeMMI32 offset, const ThreeMMMovieComposeS
         }
         if (i < ids.count)
             continue;
-        if (three_mm_array_add(&ids, &node.number, 0) != THREE_MM_STORAGE_OK ||
+        if (mm_array_add(&ids, &node.number, 0) != MM_STORAGE_OK ||
             !s->adjust_actor(s->file(s->data->resources), node.number, offset))
             goto done;
     }
     ok = 1;
 done:
-    three_mm_chunk_walk_dispose(&walk);
+    mm_chunk_walk_dispose(&walk);
 storage:
-    three_mm_storage_dispose(&visited);
+    mm_storage_dispose(&visited);
     return ok;
 }
-int three_mm_movie_compose_merge(ThreeMMU32 movie, ThreeMMI32 offset, const ThreeMMMovieComposeServices *s)
+int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
 {
     void *source = s->read_rollcall(s->data->resources, movie), *destination = s->data->actors;
-    ThreeMMI32 i = 0, count, last;
-    ThreeMMRollCallActor row;
-    ThreeMMTag tag;
+    MMI32 i = 0, count, last;
+    MMRollCallActor row;
+    MMTag tag;
     if (!source)
         return 0;
     count = s->actor_count(source);
     for (i = 0; i < count; ++i)
     {
         s->actor(source, i, &row);
-        row.data.actor_id = three_mm_signed_word((ThreeMMU32)row.data.actor_id + (ThreeMMU32)offset);
+        row.data.actor_id = mm_signed_word((MMU32)row.data.actor_id + (MMU32)offset);
         row.data.reference_count = 0;
         if (!s->append_actor(destination, source, i, &row))
             goto fail;
@@ -197,7 +197,7 @@ fail:
     while (i-- > 0)
     {
         s->actor(destination, --last, &row);
-        tag = three_mm_movie_rollcall_tag(&row);
+        tag = mm_movie_rollcall_tag(&row);
         s->close_tag(&tag);
         s->erase_actor(destination, last);
         s->erase_actor(source, i);
@@ -206,21 +206,21 @@ fail:
     while (i-- > 0)
     {
         s->actor(source, i, &row);
-        tag = three_mm_movie_rollcall_tag(&row);
+        tag = mm_movie_rollcall_tag(&row);
         s->close_tag(&tag);
     }
     s->release(source);
     return 0;
 }
-int three_mm_movie_compose_apply(const ThreeMMCompositeMovie *state, const ThreeMMMovieComposeServices *s)
+int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeServices *s)
 {
-    ThreeMMI32 i, copied = 1, movie_count = s->count(state->movies), scene_count = s->count(state->scenes),
+    MMI32 i, copied = 1, movie_count = s->count(state->movies), scene_count = s->count(state->scenes),
                   old = s->scenes->index, offset = 0;
-    ThreeMMU32 slot = 0, number, current_slot;
+    MMU32 slot = 0, number, current_slot;
     void *resources = s->data->resources, *file = s->file(resources), *movies = s->duplicate_movies(state->movies),
          *scene;
-    ThreeMMComposeMovie movie;
-    ThreeMMComposeScene descriptor;
+    MMComposeMovie movie;
+    MMComposeScene descriptor;
     int ok = 0;
     if (!movies)
         return 0;
@@ -231,7 +231,7 @@ int three_mm_movie_compose_apply(const ThreeMMCompositeMovie *state, const Three
         {
             if (!s->clone_movie(s->file(movie.resources), movie.number, file, &movie.number))
                 goto done;
-            if (!three_mm_movie_compose_merge(movie.number, offset, s))
+            if (!mm_movie_compose_merge(movie.number, offset, s))
             {
                 s->delete_movie(file, movie.number);
                 goto done;
@@ -242,8 +242,8 @@ int three_mm_movie_compose_apply(const ThreeMMCompositeMovie *state, const Three
             copied = i + 1;
         }
         else if (movie.resources != resources || movie.number != s->data->movieNumber)
-            s->diagnostic(s->context, THREE_MM_COMPOSE_BAD_BASE);
-        offset = three_mm_signed_word((ThreeMMU32)offset + (ThreeMMU32)movie.actor_limit);
+            s->diagnostic(s->context, MM_COMPOSE_BAD_BASE);
+        offset = mm_signed_word((MMU32)offset + (MMU32)movie.actor_limit);
     }
     for (i = 0; i < scene_count; ++i)
     {
@@ -263,7 +263,7 @@ int three_mm_movie_compose_apply(const ThreeMMCompositeMovie *state, const Three
                     goto done;
                 scene = s->read_scene(s->context, resources, number);
                 if (!scene || !s->start_scene(scene) || !s->add_actors(scene))
-                    s->diagnostic(s->context, THREE_MM_COMPOSE_IMPORT_ACTORS);
+                    s->diagnostic(s->context, MM_COMPOSE_IMPORT_ACTORS);
                 s->actor_tools(s->context);
                 s->text_tools(s->context);
                 if (scene)
@@ -272,11 +272,11 @@ int three_mm_movie_compose_apply(const ThreeMMCompositeMovie *state, const Three
         }
         else if (descriptor.deleted)
         {
-            if (descriptor.child != (ThreeMMU32)old)
+            if (descriptor.child != (MMU32)old)
             {
                 scene = s->read_scene(s->context, resources, descriptor.number);
                 if (!scene || !s->start_scene(scene))
-                    s->diagnostic(s->context, THREE_MM_COMPOSE_REMOVE_ACTORS);
+                    s->diagnostic(s->context, MM_COMPOSE_REMOVE_ACTORS);
             }
             else
             {
@@ -295,20 +295,20 @@ int three_mm_movie_compose_apply(const ThreeMMCompositeMovie *state, const Three
             number = descriptor.number;
             s->change_child(file, s->data->movieNumber, number, descriptor.child, slot++);
         }
-        if (descriptor.child != (ThreeMMU32)old || descriptor.movie != 0)
+        if (descriptor.child != (MMU32)old || descriptor.movie != 0)
         {
             if (!descriptor.deleted && !s->write_transition(resources, number, descriptor.transition))
                 goto done;
         }
         else if (descriptor.deleted)
-            three_mm_movie_scene_close_open(&s->scene_control);
+            mm_movie_scene_close_open(&s->scene_control);
         else
         {
             s->set_transition(s->scenes->open, descriptor.transition);
-            s->scenes->index = three_mm_signed_word(current_slot);
+            s->scenes->index = mm_signed_word(current_slot);
         }
     }
-    s->data->sceneCount = three_mm_signed_word(slot);
+    s->data->sceneCount = mm_signed_word(slot);
     s->data->actorIdLimit = offset;
     s->dirty(s->context);
     if (!s->data->sceneCount)

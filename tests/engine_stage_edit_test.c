@@ -1,25 +1,25 @@
 #include "engine_subroute_edit_fixture.h"
-#include "three_mm/actor_stage_edit.h"
+#include "mm/actor_stage_edit.h"
 typedef struct StageFixture
 {
     SubFixture sub;
     int point_reserves, fail_points, placements, inserted, fail_event, reveal, fail_seek;
-    ThreeMMU32 counts[8], sizes[8];
+    MMU32 counts[8], sizes[8];
 } StageFixture;
-static int stage_reserve(void *p, ThreeMMU32 count, ThreeMMU32 bytes)
+static int stage_reserve(void *p, MMU32 count, MMU32 bytes)
 {
     StageFixture *f=(StageFixture *)p;
     int i=f->sub.base.reserves++;
     CHECK(i<8); f->counts[i]=count; f->sizes[i]=bytes;
     return i+1!=f->sub.base.fail_reserve;
 }
-static int reserve_points(void *p, ThreeMMU32 count)
+static int reserve_points(void *p, MMU32 count)
 {
     StageFixture *f=(StageFixture *)p;
     CHECK(count==1 && f->sub.base.reserves==1 && !f->placements);
     ++f->point_reserves; return !f->fail_points;
 }
-static void placement(void *p, ThreeMMActorPoint *point, ThreeMMActorPoint *origin, unsigned short *yaw)
+static void placement(void *p, MMActorPoint *point, MMActorPoint *origin, unsigned short *yaw)
 {
     StageFixture *f=(StageFixture *)p;
     CHECK(f->point_reserves==1 && f->sub.base.reserves==1);
@@ -27,7 +27,7 @@ static void placement(void *p, ThreeMMActorPoint *point, ThreeMMActorPoint *orig
     point->dxr=100*ONE; point->dyr=2*ONE; point->dzr=-30*ONE;
     origin->dxr=11*ONE; origin->dyr=12*ONE; origin->dzr=13*ONE; *yaw=0x1234;
 }
-static int stage_insert(void *p, ThreeMMI32 i, ThreeMMU32 bytes, const void *value, const ThreeMMActorEvent *e)
+static int stage_insert(void *p, MMI32 i, MMU32 bytes, const void *value, const MMActorEvent *e)
 {
     StageFixture *f=(StageFixture *)p;
     if (++f->inserted==f->fail_event) return 0;
@@ -39,7 +39,7 @@ static void stage_default(void *p)
     CHECK(!f->sub.base.view.onStage && f->sub.base.recording);
     ++f->sub.base.defaults;
 }
-static int stage_seek(void *p, ThreeMMActorState *state, ThreeMMI32 frame)
+static int stage_seek(void *p, MMActorState *state, MMI32 frame)
 {
     StageFixture *f=(StageFixture *)p;
     CHECK(!state->onStage && state->frame==2147483647L && !f->sub.base.recording && f->sub.base.defaults==1);
@@ -48,20 +48,20 @@ static int stage_seek(void *p, ThreeMMActorState *state, ThreeMMI32 frame)
     return !f->fail_seek;
 }
 static void stage_diagnostic(void *p, int fault) { (void)p; (void)fault; CHECK(0); }
-static int stage_apply(void *p, ThreeMMActorState *state, ThreeMMI32 i)
+static int stage_apply(void *p, MMActorState *state, MMI32 i)
 {
     StageFixture *f=(StageFixture *)p;
-    ThreeMMActorEffectServices effect;
-    ThreeMMActorPoint origin={11*ONE,12*ONE,13*ONE};
-    if (f->sub.base.event[i].aet!=THREE_MM_ACTOR_ADD && f->sub.base.event[i].aet!=THREE_MM_ACTOR_REMOVE)
+    MMActorEffectServices effect;
+    MMActorPoint origin={11*ONE,12*ONE,13*ONE};
+    if (f->sub.base.event[i].aet!=MM_ACTOR_ADD && f->sub.base.event[i].aet!=MM_ACTOR_REMOVE)
         return sub_apply(p,state,i);
     if (++f->sub.base.applied==f->sub.base.fail_apply) return 0;
     memset(&effect,0,sizeof(effect)); effect.context=p; effect.write_event=write_event; effect.publish=publish;
-    return three_mm_actor_effect_apply(state,p,p,i,&origin,0,1,&tables,&effect);
+    return mm_actor_effect_apply(state,p,p,i,&origin,0,1,&tables,&effect);
 }
-static ThreeMMActorStageEditServices stage_init(StageFixture *f)
+static MMActorStageEditServices stage_init(StageFixture *f)
 {
-    ThreeMMActorStageEditServices s;
+    MMActorStageEditServices s;
     memset(f,0,sizeof(*f)); memset(&s,0,sizeof(s)); s.subroute=sub_init(&f->sub);
     s.subroute.route.edits.insert_event=stage_insert;
     s.subroute.route.edits.apply_event=stage_apply;
@@ -74,19 +74,19 @@ static ThreeMMActorStageEditServices stage_init(StageFixture *f)
 static void empty(StageFixture *f)
 {
     f->sub.base.nodes=f->sub.base.events=0;
-    three_mm_actor_state_init(&f->sub.base.state);
+    mm_actor_state_init(&f->sub.base.state);
     f->sub.base.state.frame=5; f->sub.base.state.celCount=4;
     f->sub.base.range.first=10; f->sub.base.range.last=0;
     f->sub.base.view=f->sub.base.state;
 }
-static int enter(StageFixture *f, const ThreeMMActorStageEditServices *s)
-{ return three_mm_actor_stage_add(&f->sub.base.state,&f->sub.base.sounds,f,f,7,0,&tables,s); }
-static int leave(StageFixture *f, const ThreeMMActorStageEditServices *s)
-{ return three_mm_actor_stage_remove(&f->sub.base.state,&f->sub.base.sounds,f,f,7,&tables,s); }
+static int enter(StageFixture *f, const MMActorStageEditServices *s)
+{ return mm_actor_stage_add(&f->sub.base.state,&f->sub.base.sounds,f,f,7,0,&tables,s); }
+static int leave(StageFixture *f, const MMActorStageEditServices *s)
+{ return mm_actor_stage_remove(&f->sub.base.state,&f->sub.base.sounds,f,f,7,&tables,s); }
 static void reservation_test(void)
 {
-    StageFixture f; ThreeMMActorStageEditServices s;
-    ThreeMMActorState before;
+    StageFixture f; MMActorStageEditServices s;
+    MMActorState before;
     int nonempty, failure;
     for (nonempty=0;nonempty<2;++nonempty) for (failure=0;failure<2;++failure)
     {
@@ -95,7 +95,7 @@ static void reservation_test(void)
         if (failure) f.fail_points=1; else f.sub.base.fail_reserve=1;
         CHECK(!enter(&f,&s));
         CHECK(f.counts[0]==(nonempty?8U:4U));
-        CHECK(f.sizes[0]==(nonempty?36+sizeof(ThreeMMActorCostume)+48+4+12:36));
+        CHECK(f.sizes[0]==(nonempty?36+sizeof(MMActorCostume)+48+4+12:36));
         CHECK(f.point_reserves==failure && !f.placements && !f.sub.base.dirty && !f.sub.base.invalidated);
         CHECK(!memcmp(&before,&f.sub.base.state,sizeof(before)));
         done(&f.sub);
@@ -107,8 +107,8 @@ static void reservation_test(void)
 }
 static void entrance_test(void)
 {
-    StageFixture f; ThreeMMActorStageEditServices s;
-    ThreeMMActorEntrance entrance;
+    StageFixture f; MMActorStageEditServices s;
+    MMActorEntrance entrance;
     int failure;
     s=stage_init(&f); empty(&f);
     CHECK(enter(&f,&s));
@@ -138,7 +138,7 @@ static void entrance_test(void)
 }
 static void ownership_test(void)
 {
-    StageFixture f; ThreeMMActorStageEditServices s;
+    StageFixture f; MMActorStageEditServices s;
     int earlier;
     for (earlier=0;earlier<2;++earlier)
     {
@@ -152,7 +152,7 @@ static void ownership_test(void)
 }
 static void removal_test(void)
 {
-    StageFixture f; ThreeMMActorStageEditServices s;
+    StageFixture f; MMActorStageEditServices s;
     int failure;
     s=stage_init(&f); f.sub.base.events=0; f.sub.base.nodes=1; f.sub.base.point[0].dwr=0;
     add(&f.sub,0,5); f.sub.base.state.frame=5; f.sub.base.state.nextEvent=1; f.sub.base.state.location.dwrOffset=0;
@@ -171,7 +171,7 @@ static void removal_test(void)
         CHECK(f.sub.seeks==1 && f.sub.base.nodes==1 && f.sub.base.range.first==1 && !f.sub.base.recording);
         CHECK(f.sub.base.events==(failure?1:2) && f.sub.base.state.frame==10);
         CHECK(failure?f.sub.base.state.onStage:!f.sub.base.state.onStage);
-        if (!failure) CHECK(f.sub.base.event[1].aet==THREE_MM_ACTOR_REMOVE);
+        if (!failure) CHECK(f.sub.base.event[1].aet==MM_ACTOR_REMOVE);
         done(&f.sub);
     }
     s=stage_init(&f); f.sub.base.state.frame=3;

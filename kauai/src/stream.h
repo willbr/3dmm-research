@@ -21,8 +21,8 @@
 ***************************************************************************/
 #ifndef STREAM_H
 #define STREAM_H
-#include "three_mm/data_stream.h"
-#include "three_mm/piece_table.h"
+#include "mm/data_stream.h"
+#include "mm/piece_table.h"
 
 using Group::PGeneralGroup;
 
@@ -40,7 +40,7 @@ class MemoryByteStream : public MemoryByteStream_PAR
     NOCOPY(MemoryByteStream)
 
   protected:
-    ThreeMMByteBuffer _buffer;
+    MMByteBuffer _buffer;
 
     bool _FEnsureSize(LegacyLong cbMin, bool fShrink);
 
@@ -77,13 +77,13 @@ class FileByteStream : public FileByteStream_PAR
     NOCOPY(FileByteStream)
 
   protected:
-    ThreeMMPieceTable _pieces;
+    MMPieceTable _pieces;
     static void _RetainFile(void *, void *);
     static void _ReleaseFile(void *, void *);
     static void *_CreateTemp(void *);
-    static int _ReadFile(void *, const ThreeMMFilePiece *, void *);
-    static int _WriteFile(void *, const ThreeMMFilePiece *, const void *);
-    static int _CopyFile(void *, const ThreeMMFilePiece *, const ThreeMMFilePiece *);
+    static int _ReadFile(void *, const MMFilePiece *, void *);
+    static int _WriteFile(void *, const MMFilePiece *, const void *);
+    static int _CopyFile(void *, const MMFilePiece *, const MMFilePiece *);
 
   public:
     FileByteStream(void);

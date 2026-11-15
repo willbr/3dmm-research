@@ -22,9 +22,9 @@
 #define Template_H
 
 #include <cstdint>
-#include "three_mm/template_create.h"
-#include "three_mm/template_runtime.h"
-#include "three_mm/action_definition.h"
+#include "mm/template_create.h"
+#include "mm/template_runtime.h"
+#include "mm/action_definition.h"
 struct ActionDefinitionContext;
 struct TemplateCreateContext;
 
@@ -106,13 +106,13 @@ class ActionDefinition : public ActionDefinition_PAR
     MARKMEM
 
   protected:
-    ThreeMMActionDefinition _action = {};
+    MMActionDefinition _action = {};
 
   protected:
     ActionDefinition(void)
     {
     } // can't instantiate directly; must use FReadActn
-    static ThreeMMActionDefinitionServices _Services(ActionDefinitionContext *);
+    static MMActionDefinitionServices _Services(ActionDefinitionContext *);
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
@@ -172,8 +172,8 @@ class Template : public Template_PAR
     Template(void)
     {
     } // can't instantiate directly; must use FReadTmpl
-    static ThreeMMTemplateCreateServices _CreateServices(TemplateCreateContext *);
-    static ThreeMMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
+    static MMTemplateCreateServices _CreateServices(TemplateCreateContext *);
+    static MMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
     virtual PActionDefinition _PactnFetch(LegacyLong anid);

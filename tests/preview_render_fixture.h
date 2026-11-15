@@ -1,30 +1,30 @@
 /* Headless Preview render/controller compatibility probe. */
 #ifndef PREVIEW_RENDER_FIXTURE_H
 #define PREVIEW_RENDER_FIXTURE_H
-#include "three_mm/preview_rasterizer.h"
+#include "mm/preview_rasterizer.h"
 #include <new>
 #include <vector>
-class RenderProbeRasterizer : public ThreeMM::PreviewRasterizer
+class RenderProbeRasterizer : public MM::PreviewRasterizer
 {
   public:
     bool failBegin = false, failEnd = false;
     int throwAt = 0;
     unsigned triangles = 0, frames = 0;
     std::vector<unsigned char> rgba;
-    void Frame(const ThreeMM::PreviewProjection &, const unsigned char *, bool) override
+    void Frame(const MM::PreviewProjection &, const unsigned char *, bool) override
     {
         if (throwAt == 1)
             throw std::bad_alloc();
         ++frames;
     }
-    bool Begin(unsigned width, unsigned height, ThreeMM::Error &error) override
+    bool Begin(unsigned width, unsigned height, MM::Error &error) override
     {
         if (throwAt == 2)
             throw std::bad_alloc();
         triangles = 0;
         if (failBegin)
         {
-            error.code = ThreeMM::ErrorCode::out_of_memory;
+            error.code = MM::ErrorCode::out_of_memory;
             error.message = "Synthetic Begin failure";
             return false;
         }
@@ -43,13 +43,13 @@ class RenderProbeRasterizer : public ThreeMM::PreviewRasterizer
         ++triangles;
     }
     bool End(unsigned char *colour, int colourStride, unsigned char *depth, int depthStride,
-             ThreeMM::Error &error) override
+             MM::Error &error) override
     {
         if (throwAt == 3)
             throw std::bad_alloc();
         if (failEnd)
         {
-            error.code = ThreeMM::ErrorCode::out_of_memory;
+            error.code = MM::ErrorCode::out_of_memory;
             error.message = "Synthetic End failure";
             return false;
         }
@@ -66,10 +66,10 @@ class RenderProbeRasterizer : public ThreeMM::PreviewRasterizer
         return rgba.data();
     }
 };
-static bool TestPreviewRender(ThreeMM::Preview &preview)
+static bool TestPreviewRender(MM::Preview &preview)
 {
     FILE *snapshot = nullptr;
-    if (auto path = std::getenv("THREE_MM_PREVIEW_RENDER_SNAPSHOT"))
+    if (auto path = std::getenv("MM_PREVIEW_RENDER_SNAPSHOT"))
         snapshot = std::fopen(path, "w+b");
     else
         snapshot = std::tmpfile();
@@ -83,7 +83,7 @@ static bool TestPreviewRender(ThreeMM::Preview &preview)
         bytesRecorded += static_cast<std::uint32_t>(bytes);
         return std::fwrite(p, 1, bytes, snapshot) == bytes;
     };
-    auto image = [&](const ThreeMM::PreviewImage &out) {
+    auto image = [&](const MM::PreviewImage &out) {
         std::uint32_t fields[] = {out.width, out.height, out.coveredPixels, static_cast<std::uint32_t>(out.rgba.size()),
                                   static_cast<std::uint32_t>(out.depth.size())};
         const auto &c = out.camera;
@@ -100,7 +100,7 @@ static bool TestPreviewRender(ThreeMM::Preview &preview)
         }
         return record(out.rgba.data(), out.rgba.size()) && record(out.depth.data(), out.depth.size() * sizeof(float));
     };
-    ThreeMM::Error error;
+    MM::Error error;
     bool ok = preview.Select({0x5343454e, 0}, error);
     for (int configuration = 0; ok && configuration < 12; ++configuration)
     {
@@ -108,7 +108,7 @@ static bool TestPreviewRender(ThreeMM::Preview &preview)
         for (int mode = 0; ok && mode < 7; ++mode)
             for (int frame : {1, 5})
             {
-                ThreeMM::PreviewView view;
+                MM::PreviewView view;
                 view.width = configuration % 3 == 0 ? 128 : configuration % 3 == 1 ? 96 : 160;
                 view.height = configuration % 3 == 1 ? 128 : 96;
                 view.includeDepth = true;
@@ -133,18 +133,18 @@ static bool TestPreviewRender(ThreeMM::Preview &preview)
                 view.orbitObject = configuration == 9 ? 0 : -1;
                 if (configuration == 2)
                     view.nearClip = .025f;
-                ThreeMM::PreviewImage output;
+                MM::PreviewImage output;
                 ok = preview.SetFrame(frame, error) && preview.Render(view, output, error);
                 std::int32_t fields[] = {configuration, mode, frame, ok, static_cast<std::int32_t>(error.code)};
                 ok = ok && record(fields, sizeof(fields)) && image(output);
             }
     }
-    ThreeMM::PreviewView view;
+    MM::PreviewView view;
     view.width = 128;
     view.height = 96;
     view.includeDepth = true;
     view.authoredCamera = false;
-    ThreeMM::PreviewImage before, after;
+    MM::PreviewImage before, after;
     ok = ok && preview.Select({0x5343454e, 0}, error) && preview.Render(view, before, error);
     for (int failure = 0; ok && failure < 3; ++failure)
     {
@@ -153,7 +153,7 @@ static bool TestPreviewRender(ThreeMM::Preview &preview)
         rasterizer.failEnd = failure == 2;
         view.rasterizer = &rasterizer;
         view.displayMode = 4;
-        ThreeMM::PreviewImage output;
+        MM::PreviewImage output;
         bool rendered = preview.Render(view, output, error);
         std::int32_t fields[] = {failure, rendered, static_cast<std::int32_t>(error.code),
                                  static_cast<std::int32_t>(rasterizer.frames),
@@ -171,8 +171,8 @@ static bool TestPreviewRender(ThreeMM::Preview &preview)
         rasterizer.throwAt = stage;
         view.rasterizer = &rasterizer;
         view.displayMode = 1;
-        ThreeMM::PreviewImage output;
-        ok = !preview.Render(view, output, error) && error.code == ThreeMM::ErrorCode::out_of_memory &&
+        MM::PreviewImage output;
+        ok = !preview.Render(view, output, error) && error.code == MM::ErrorCode::out_of_memory &&
              output.rgba.empty() && !output.width;
         view.rasterizer = nullptr;
         view.displayMode = 0;

@@ -132,7 +132,7 @@ int main()
         CHECK(std::count(original.colour.begin(), original.colour.end(), 150) > 10);
         BrActorRemove(&source[0]);
         std::map<br_actor *, int> owners;
-        CHECK(ThreeMM::Internal::CopyBodyActorTree(world, &source[0], &owners, 42));
+        CHECK(MM::Internal::CopyBodyActorTree(world, &source[0], &owners, 42));
         auto copy = world->children;
         SameTree(&source[0], copy, owners);
         CHECK(owners.size() == 3 && !source[0].parent);

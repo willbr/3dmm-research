@@ -1,5 +1,5 @@
 #include "player.h"
-#include "three_mm/movie_data.h"
+#include "mm/movie_data.h"
 #include "content.h"
 #include "movie_input.h"
 #include "playback.h"
@@ -9,7 +9,7 @@
 #include "sound_timeline.h"
 #include "timing_job.h"
 #include "frame_previews.h"
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
@@ -54,31 +54,31 @@ struct MarcusPlayer
     // Destroy the renderer before deleting any private VMM working files.
     std::unique_ptr<MarcusContent> content;
     std::unique_ptr<MarcusASMRenderer> asmRenderer;
-    ThreeMM::Preview preview;
+    MM::Preview preview;
     // Keep devices alive when movie and work cameras use different backends.
-    std::unique_ptr<ThreeMM::PreviewRasterizer> rasterizers[MARCUS_RENDERER_COUNT];
+    std::unique_ptr<MM::PreviewRasterizer> rasterizers[MARCUS_RENDERER_COUNT];
     int renderer = MARCUS_RENDERER_BRENDER;
     MarcusRenderOptions renderOptions = {};
     int orbitObject = -1;
-    ThreeMM::PreviewImage image;
-    ThreeMM::PreviewImage thumbnail;
-    ThreeMM::PreviewImage movieImage;
+    MM::PreviewImage image;
+    MM::PreviewImage thumbnail;
+    MM::PreviewImage movieImage;
     int movieImageScene = -1;
     std::int32_t movieImageFrame = 0;
     MarcusPlayback playback;
-    std::vector<ThreeMM::Id> scenes;
+    std::vector<MM::Id> scenes;
     std::vector<MarcusScene> sceneInfo;
-    std::vector<ThreeMM::PreviewObject> objects;
+    std::vector<MM::PreviewObject> objects;
     struct AnimationCache
     {
-        ThreeMM::PreviewAnimationTimeline timeline;
-        ThreeMM::Error error;
+        MM::PreviewAnimationTimeline timeline;
+        MM::Error error;
         bool available = false;
     };
     std::map<int, AnimationCache> animations;
     std::vector<MarcusSound> sounds;
     std::vector<MarcusSoundTrack> soundTracks;
-    std::vector<ThreeMM::PreviewSoundCue> soundCues;
+    std::vector<MM::PreviewSoundCue> soundCues;
     MarcusWaveformCache waveforms;
     MarcusSoundTimeline soundTimeline;
     bool restoreAudio = true;
@@ -101,7 +101,7 @@ bool MarcusWriteTiming(MarcusPlayer *player, std::ostream &output)
 }
 namespace
 {
-MarcusPlayer::AnimationCache *Animation(MarcusPlayer *player, int object, ThreeMM::Error &error)
+MarcusPlayer::AnimationCache *Animation(MarcusPlayer *player, int object, MM::Error &error)
 {
     if (object < 0 || static_cast<std::size_t>(object) >= player->objects.size())
         return nullptr;
@@ -119,23 +119,23 @@ MarcusPlayer::AnimationCache *Animation(MarcusPlayer *player, int object, ThreeM
     }
     return &found->second;
 }
-bool ReadSoundTimeline(MarcusPlayer *player, int index, ThreeMM::Error &error)
+bool ReadSoundTimeline(MarcusPlayer *player, int index, MM::Error &error)
 {
     while (player->soundTimeline.Size() <= static_cast<std::size_t>(index))
     {
         const auto next = player->soundTimeline.Size();
-        ThreeMM::PreviewPresentation presentation;
+        MM::PreviewPresentation presentation;
         MarcusSoundTiming timing;
         if (!player->preview.ReadTimingPresentation(player->scenes[next], presentation, error) ||
             !MarcusPlayback::ReadTiming(presentation, timing, error))
             return false;
-        player->soundTimeline.Append(player->sceneInfo[next], presentation.sounds, [&](const ThreeMM::PreviewSoundCue &cue) {
+        player->soundTimeline.Append(player->sceneInfo[next], presentation.sounds, [&](const MM::PreviewSoundCue &cue) {
             return player->waveforms.Length(player->preview, cue);
         }, timing);
     }
     return true;
 }
-bool ReadSoundSheet(MarcusPlayer *player, int index, ThreeMM::Error &error)
+bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
 {
     player->soundCues.clear();
     if (!ReadSoundTimeline(player, index, error))
@@ -198,7 +198,7 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, ThreeMM::Error &error)
     }
     return true;
 }
-MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
+MarcusProjection CopyProjection(const MM::PreviewProjection &source)
 {
     MarcusProjection result = {};
     result.valid = source.valid;
@@ -212,9 +212,9 @@ MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
     result.ortho_height = source.orthoHeight;
     return result;
 }
-ThreeMM::PreviewProjection ReadProjection(const MarcusProjection &source)
+MM::PreviewProjection ReadProjection(const MarcusProjection &source)
 {
-    ThreeMM::PreviewProjection result;
+    MM::PreviewProjection result;
     result.valid = source.valid != 0;
     std::memcpy(result.transform, source.transform, sizeof(result.transform));
     result.verticalFov = source.vertical_fov;
@@ -226,14 +226,14 @@ ThreeMM::PreviewProjection ReadProjection(const MarcusProjection &source)
     result.orthoHeight = source.ortho_height;
     return result;
 }
-bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage *image, ThreeMM::Error &error)
+bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *image, MM::Error &error)
 {
     auto options = view;
     options.renderAtOutputResolution = true;
     options.fitSceneDepth = true;
     const auto &settings = player->renderOptions;
     const int scale = marcus_renderer_is_gpu(player->renderer) ? 1 << settings.antialias : 1;
-    if (view.width > ThreeMM::PreviewMaxDimension / scale || view.height > ThreeMM::PreviewMaxDimension / scale)
+    if (view.width > MM::PreviewMaxDimension / scale || view.height > MM::PreviewMaxDimension / scale)
     {
         error.message = "Supersampling exceeds the 4096-pixel render limit. Choose a smaller resolution or turn AA off.";
         return false;
@@ -262,7 +262,7 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
         return false;
     if (scale > 1)
     {
-        ThreeMM::PreviewImage reduced;
+        MM::PreviewImage reduced;
         reduced.camera = player->image.camera;
         reduced.projection = player->image.projection;
         reduced.sceneCamera = player->image.sceneCamera;
@@ -320,7 +320,7 @@ template <typename F> int Guard(MarcusPlayer *player, F operation)
     player->error[0] = 0;
     try
     {
-        ThreeMM::Error error;
+        MM::Error error;
         if (operation(error))
             return 1;
         Copy(player->error, error.message.empty() ? "The player could not complete this operation." : error.message);
@@ -337,7 +337,7 @@ template <typename F> int Guard(MarcusPlayer *player, F operation)
 }
 int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool preserveAudio = false)
 {
-    return Guard(player, [&](ThreeMM::Error &error) {
+    return Guard(player, [&](MM::Error &error) {
         if (index < 0 || static_cast<std::size_t>(index) >= player->scenes.size())
             return false;
         player->selected = -1;
@@ -372,24 +372,24 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
         return true;
     });
 }
-std::size_t Find(const ThreeMM::Archive &archive, ThreeMM::Id id)
+std::size_t Find(const MM::Archive &archive, MM::Id id)
 {
     const auto &chunks = archive.Chunks();
-    const auto found = std::lower_bound(chunks.begin(), chunks.end(), id, [](const auto &chunk, ThreeMM::Id key) {
+    const auto found = std::lower_bound(chunks.begin(), chunks.end(), id, [](const auto &chunk, MM::Id key) {
         return chunk.id.type < key.type || (chunk.id.type == key.type && chunk.id.number < key.number);
     });
     return found != chunks.end() && found->id == id ? static_cast<std::size_t>(found - chunks.begin()) : chunks.size();
 }
-bool Strings(ThreeMM::Archive &archive, ThreeMM::Id id, std::vector<ThreeMM::StringTableEntry> &entries, bool &big,
-             ThreeMM::Error &error)
+bool Strings(MM::Archive &archive, MM::Id id, std::vector<MM::StringTableEntry> &entries, bool &big,
+             MM::Error &error)
 {
     const auto index = Find(archive, id);
-    ThreeMM::PayloadPage header;
+    MM::PayloadPage header;
     if (index == archive.Chunks().size() || !archive.ReadPayload(index, 0, 2, header, error) ||
         header.bytes.size() != 2)
         return false;
     big = header.bytes[0] == 0;
-    ThreeMM::StringTablePage page;
+    MM::StringTablePage page;
     for (std::uint32_t first = 0;; first += static_cast<std::uint32_t>(page.entries.size()))
     {
         if (!archive.ReadStrings(index, first, 128, page, error))
@@ -402,8 +402,8 @@ bool Strings(ThreeMM::Archive &archive, ThreeMM::Id id, std::vector<ThreeMM::Str
     }
 }
 } // namespace
-bool MarcusRenderLocalWorld(MarcusPlayer *player, const ThreeMM::PreviewView &view,
-                            ThreeMM::PreviewImage &image, ThreeMM::Error &error)
+bool MarcusRenderLocalWorld(MarcusPlayer *player, const MM::PreviewView &view,
+                            MM::PreviewImage &image, MM::Error &error)
 {
     return player && player->preview.Render(view, image, error);
 }
@@ -432,10 +432,10 @@ extern "C"
 
     int marcus_set_renderer(MarcusPlayer *player, int renderer)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (renderer < 0 || renderer >= MARCUS_RENDERER_COUNT)
             {
-                error.code = ThreeMM::ErrorCode::invalid_argument;
+                error.code = MM::ErrorCode::invalid_argument;
                 error.message = "Unknown movie renderer.";
                 return false;
             }
@@ -452,7 +452,7 @@ extern "C"
     }
     int marcus_set_render_options(MarcusPlayer *player, const MarcusRenderOptions *options)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!marcus_render_options_valid(options))
             {
                 error.message = "Camera render settings are invalid.";
@@ -474,7 +474,7 @@ extern "C"
     }
     int marcus_open(MarcusPlayer *player, const char *movie, const char *resources, const char *directory)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!movie)
                 return false;
             MarcusMovieInput input;
@@ -497,22 +497,22 @@ extern "C"
     {
         if (player)
             player->playback.Stop();
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!input || !resources || !directory)
                 return false;
             auto materialized = input->Materialize(index);
             auto content = std::make_unique<MarcusContent>(materialized, directory);
             const auto document = content->movie.u8string();
             // Validate the graph and ordered scene list before replacing the live renderer.
-            ThreeMM::Archive archive;
+            MM::Archive archive;
             if (!archive.Open(document, error))
                 return false;
-            std::vector<ThreeMM::Id> scenes;
+            std::vector<MM::Id> scenes;
             std::vector<MarcusScene> sceneInfo;
             std::map<std::int32_t, std::string> names;
             std::vector<std::pair<std::int32_t, std::string>> sources;
             bool hasSourceTable = false;
-            const ThreeMM::Chunk *root = nullptr;
+            const MM::Chunk *root = nullptr;
             for (const auto &chunk : archive.Chunks())
                 if (chunk.id.type == movieType)
                 {
@@ -521,7 +521,7 @@ extern "C"
                 }
             if (root)
             {
-                ThreeMM::RecordHeader metadata;
+                MM::RecordHeader metadata;
                 if (!archive.ReadRecord(Find(archive, root->id), metadata, error))
                     return false;
                 for (const auto &child : root->children)
@@ -538,19 +538,19 @@ extern "C"
                     if (child.target.type != gstType || child.slot > 1)
                         continue;
                     hasSourceTable = hasSourceTable || child.slot == 1;
-                    std::vector<ThreeMM::StringTableEntry> entries;
+                    std::vector<MM::StringTableEntry> entries;
                     bool big = false;
                     if (!Strings(archive, child.target, entries, big, error))
                         return false;
                     for (const auto &entry : entries)
-                        if (child.slot == 0 && entry.extra.size() == THREE_MM_MOVIE_ACTOR_BYTES)
+                        if (child.slot == 0 && entry.extra.size() == MM_MOVIE_ACTOR_BYTES)
                         {
-                            ThreeMMMemoryStream memory;
-                            ThreeMMMovieActor actor;
-                            if (!three_mm_memory_stream_init(&memory, entry.extra.data(), entry.extra.size()) ||
-                                three_mm_movie_read_actor(&memory.stream, big, &actor, nullptr) != THREE_MM_MOVIE_OK)
+                            MMMemoryStream memory;
+                            MMMovieActor actor;
+                            if (!mm_memory_stream_init(&memory, entry.extra.data(), entry.extra.size()) ||
+                                mm_movie_read_actor(&memory.stream, big, &actor, nullptr) != MM_MOVIE_OK)
                             {
-                                error.code = ThreeMM::ErrorCode::corrupt_archive;
+                                error.code = MM::ErrorCode::corrupt_archive;
                                 error.message = "The movie roll-call record is invalid.";
                                 return false;
                             }
@@ -579,9 +579,9 @@ extern "C"
             for (const auto &id : scenes)
             {
                 const auto index = Find(archive, id);
-                ThreeMM::RecordHeader record;
+                MM::RecordHeader record;
                 if (index == archive.Chunks().size() || !archive.ReadRecord(index, record, error) ||
-                    record.kind != ThreeMM::RecordKind::scene || record.scene.lastFrame < record.scene.firstFrame)
+                    record.kind != MM::RecordKind::scene || record.scene.lastFrame < record.scene.firstFrame)
                     return false;
                 MarcusScene scene = {};
                 scene.chunk = id.number;
@@ -650,7 +650,7 @@ extern "C"
     MarcusFramePreviews *marcus_frame_previews_create(MarcusPlayer *player)
     {
         MarcusFramePreviews *result = nullptr;
-        Guard(player, [&](ThreeMM::Error &) {
+        Guard(player, [&](MM::Error &) {
             if (!player->timingInput || player->selected < 0) return false;
             result = new MarcusFramePreviews(player->timingInput, player->timingResources,
                                              player->timingContent, player->selected);
@@ -663,7 +663,7 @@ extern "C"
         if (!image)
             return 0;
         *image = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (index < 0 || static_cast<std::size_t>(index) >= player->scenes.size())
                 return false;
             if (!player->preview.ReadSceneThumbnail(player->scenes[index], player->thumbnail, error))
@@ -732,7 +732,7 @@ extern "C"
             player->soundTimeline = std::move(*timeline);
             player->sounds.clear();
             player->soundTracks.clear();
-            ThreeMM::Error error;
+            MM::Error error;
             if (!ReadSoundSheet(player, player->selected, error))
                 throw std::runtime_error(error.message);
             return marcus_movie_time(player, time) ? 1 : -1;
@@ -749,7 +749,7 @@ extern "C"
     {
         if (time)
             *time = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!time || player->selected < 0 ||
                 !ReadSoundTimeline(player, static_cast<int>(player->scenes.size()) - 1, error))
                 return false;
@@ -768,7 +768,7 @@ extern "C"
     {
         if (time)
             *time = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!time || player->selected < 0 || index < 0 ||
                 static_cast<std::size_t>(index) >= player->scenes.size() || !ReadSoundTimeline(player, index, error))
                 return false;
@@ -784,7 +784,7 @@ extern "C"
     }
     int marcus_seek_time(MarcusPlayer *player, double seconds)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (player->selected < 0 || !std::isfinite(seconds) ||
                 !ReadSoundTimeline(player, static_cast<int>(player->scenes.size()) - 1, error))
                 return false;
@@ -829,12 +829,12 @@ extern "C"
     int marcus_sound_waveform(MarcusPlayer *player, int index, double first, double step, int count,
                               MarcusWaveformColumn *columns, MarcusWaveformInfo *info)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (player->selected < 0 || index < 0 || static_cast<std::size_t>(index) >= player->soundCues.size() ||
                 !columns || !info || count < 1 || count > 4096 || !std::isfinite(first) || first < 0 ||
                 !std::isfinite(step) || step <= 0)
             {
-                error.code = ThreeMM::ErrorCode::invalid_argument;
+                error.code = MM::ErrorCode::invalid_argument;
                 error.message = "Waveforms require a sound cue, output columns and a finite clip-relative range.";
                 return false;
             }
@@ -845,7 +845,7 @@ extern "C"
     int marcus_sound_waveform_frames(MarcusPlayer *player, int index, double first, double step, int count,
                                      MarcusWaveformColumn *columns, MarcusWaveformInfo *info)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (player->selected < 0 || index < 0 || static_cast<std::size_t>(index) >= player->soundCues.size() ||
                 !columns || !info || count < 1 || count > 4096 || !std::isfinite(first) ||
                 !std::isfinite(step) || step <= 0)
@@ -871,7 +871,7 @@ extern "C"
     }
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object)
     {
-        return Guard(player, [&](ThreeMM::Error &) {
+        return Guard(player, [&](MM::Error &) {
             if (!object || index < 0 || static_cast<std::size_t>(index) >= player->objects.size())
                 return false;
             *object = {};
@@ -904,7 +904,7 @@ extern "C"
     {
         if (info)
             *info = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             const auto cache = info ? Animation(player, object, error) : nullptr;
             if (!cache)
                 return false;
@@ -917,7 +917,7 @@ extern "C"
     {
         if (span)
             *span = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             const auto cache = span ? Animation(player, object, error) : nullptr;
             if (!cache || index < 0 || static_cast<std::size_t>(index) >= cache->timeline.spans.size())
                 return false;
@@ -934,7 +934,7 @@ extern "C"
     {
         if (event)
             *event = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             const auto cache = event ? Animation(player, object, error) : nullptr;
             if (!cache || index < 0 || static_cast<std::size_t>(index) >= cache->timeline.events.size())
                 return false;
@@ -950,10 +950,10 @@ extern "C"
     {
         if (bounds)
             *bounds = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!bounds)
                 return false;
-            ThreeMM::PreviewBounds source;
+            MM::PreviewBounds source;
             if (!player->preview.ObjectBounds(index, source, error))
                 return false;
             bounds->valid = source.valid;
@@ -964,7 +964,7 @@ extern "C"
     }
     int marcus_seek(MarcusPlayer *player, long frame)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (player->selected < 0 || frame < (std::numeric_limits<std::int32_t>::min)() ||
                 frame > (std::numeric_limits<std::int32_t>::max)())
                 return false;
@@ -987,7 +987,7 @@ extern "C"
     }
     int marcus_audio_stats(MarcusPlayer *player, MarcusAudioStats *stats)
     {
-        return Guard(player, [&](ThreeMM::Error &) {
+        return Guard(player, [&](MM::Error &) {
             if (!stats)
                 return false;
             player->playback.Statistics(*stats);
@@ -1002,7 +1002,7 @@ extern "C"
     int marcus_update(MarcusPlayer *player, int playing, int loop, double elapsed, int click,
                       MarcusPlaybackState *state)
     {
-        const int success = Guard(player, [&](ThreeMM::Error &error) {
+        const int success = Guard(player, [&](MM::Error &error) {
             if (!state || !std::isfinite(elapsed) || elapsed < 0 || player->selected < 0)
             {
                 error.message = "Playback requires a loaded movie and a finite, nonnegative elapsed time.";
@@ -1097,7 +1097,7 @@ extern "C"
     }
     int marcus_set_orbit_target(MarcusPlayer *player, int object)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (object < -1 || (object >= 0 && static_cast<std::size_t>(object) >= player->objects.size()))
             {
                 error.message = "Select a scene object before orbiting the selection.";
@@ -1113,11 +1113,11 @@ extern "C"
     }
     int marcus_match_camera(MarcusPlayer *player, int width, int height, MarcusCamera *camera)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
-            if (!camera || width < 64 || height < 64 || width > ThreeMM::PreviewMaxDimension ||
-                height > ThreeMM::PreviewMaxDimension)
+        return Guard(player, [&](MM::Error &error) {
+            if (!camera || width < 64 || height < 64 || width > MM::PreviewMaxDimension ||
+                height > MM::PreviewMaxDimension)
                 return false;
-            ThreeMM::PreviewCamera matched;
+            MM::PreviewCamera matched;
             if (!player->preview.MatchSceneCamera(float(width) / height, matched, error))
                 return false;
             *camera = {matched.x, matched.y, matched.z, matched.yaw, matched.pitch, matched.moveSpeed};
@@ -1129,8 +1129,8 @@ extern "C"
     }
     int marcus_pan_orbit(MarcusPlayer *player, float right, float up, float yaw, float pitch, float zoom)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
-            ThreeMM::PreviewView view;
+        return Guard(player, [&](MM::Error &error) {
+            MM::PreviewView view;
             view.width = player->image.width;
             view.height = player->image.height;
             view.yaw = yaw;
@@ -1151,10 +1151,10 @@ extern "C"
     {
         if (image)
             *image = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!image || player->selected < 0)
                 return false;
-            ThreeMM::PreviewView view;
+            MM::PreviewView view;
             view.width = width;
             view.height = height;
             view.authoredCamera = authored != 0;
@@ -1177,11 +1177,11 @@ extern "C"
     {
         if (object_index)
             *object_index = -1;
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!image || !object_index || player->selected < 0 || image->scene != player->selected ||
                 image->frame != player->preview.Info().currentFrame || image->document != player->document)
             {
-                error.code = ThreeMM::ErrorCode::invalid_argument;
+                error.code = MM::ErrorCode::invalid_argument;
                 error.message = "Pick requires an image of the current scene and frame.";
                 return false;
             }
@@ -1198,7 +1198,7 @@ extern "C"
                 return true;
             // Composite only captions over a transparent canvas, with this hit
             // as its depth sample. Opaque lettering must block selection too.
-            ThreeMM::PreviewImage captions;
+            MM::PreviewImage captions;
             captions.width = image->width;
             captions.height = image->height;
             captions.projection = projection;
@@ -1227,10 +1227,10 @@ extern "C"
         const MarcusCamera pose = camera ? *camera : MarcusCamera{};
         if (image)
             *image = {};
-        return Guard(player, [&](ThreeMM::Error &error) {
+        return Guard(player, [&](MM::Error &error) {
             if (!camera)
                 return false;
-            ThreeMM::PreviewView view;
+            MM::PreviewView view;
             view.width = width;
             view.height = height;
             view.authoredCamera = false;

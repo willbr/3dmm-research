@@ -6,12 +6,12 @@
 #include <sstream>
 #include "preview_actor.h"
 #include "engine_actor_motion.h"
-#include "three_mm/actor_effect.h"
+#include "mm/actor_effect.h"
 #undef size
 ASSERTNAME
 using namespace ActorEvent;
 
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -293,29 +293,29 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
     host.view = &value;
     host.motion = motion;
     host.cues = cues;
-    ThreeMMActorEffectServices effects = {};
+    MMActorEffectServices effects = {};
     effects.context = &host;
-    effects.write_event = [](void *group, ThreeMMI32 row, const ThreeMMActorEvent *value) {
+    effects.write_event = [](void *group, MMI32 row, const MMActorEvent *value) {
         Base event;
         std::memcpy(&event, value, sizeof(event));
         static_cast<PGeneralGroup>(group)->PutFixed(row, &event);
     };
-    effects.publish = [](void *context, const ThreeMMActorState *state) {
+    effects.publish = [](void *context, const MMActorState *state) {
         EngineActorMotion::Publish(*static_cast<Host *>(context)->view, *state);
     };
-    effects.run = [](void *context, const ThreeMMActorEffectCommand *command, ThreeMMActorEffectReply *reply) {
+    effects.run = [](void *context, const MMActorEffectCommand *command, MMActorEffectReply *reply) {
         auto &host = *static_cast<Host *>(context);
         auto actor = host.actor;
         switch (command->operation)
         {
-        case THREE_MM_EFFECT_CLEAR_SOUNDS:
+        case MM_EFFECT_CLEAR_SOUNDS:
             host.motion->Clear();
             break;
-        case THREE_MM_EFFECT_SET_ACTION_CEL:
+        case MM_EFFECT_SET_ACTION_CEL:
             reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
                              actor->tmpl->FSetActnCel(actor->body, command->first, command->second);
             break;
-        case THREE_MM_EFFECT_CEL_COUNT:
+        case MM_EFFECT_CEL_COUNT:
         {
             LegacyLong count = reply->value;
             reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
@@ -323,7 +323,7 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
             reply->value = count;
             break;
         }
-        case THREE_MM_EFFECT_ACTION_FLAGS:
+        case MM_EFFECT_ACTION_FLAGS:
         {
             LegacyUlong flags = 0;
             reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
@@ -331,27 +331,27 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
             reply->flags = flags;
             break;
         }
-        case THREE_MM_EFFECT_SAVE_COSTUME:
+        case MM_EFFECT_SAVE_COSTUME:
             reply->success = host.costume.FGet(actor->body);
             break;
-        case THREE_MM_EFFECT_DEFAULT_COSTUME:
+        case MM_EFFECT_DEFAULT_COSTUME:
             reply->success = actor->tmpl->FSetDefaultCost(actor->body);
             break;
-        case THREE_MM_EFFECT_RESTORE_COSTUME:
+        case MM_EFFECT_RESTORE_COSTUME:
             host.costume.Set(actor->body);
             break;
-        case THREE_MM_EFFECT_SHOW:
+        case MM_EFFECT_SHOW:
             // Native Body::Show attaches at the head of World's actor list.
             // Keep attachment history even though preview bodies have no World.
             actor->lastShown = ++*actor->visibilityClock;
             break;
-        case THREE_MM_EFFECT_HIDE:
+        case MM_EFFECT_HIDE:
             // Preview presentation uses the shared onStage value; Body has no World.
             break;
-        case THREE_MM_EFFECT_FETCH_CUSTOM:
+        case MM_EFFECT_FETCH_CUSTOM:
             reply->resource = actor->tmpl->PcmtlFetch(command->first);
             break;
-        case THREE_MM_EFFECT_FETCH_MATERIAL:
+        case MM_EFFECT_FETCH_MATERIAL:
         {
             TAG native;
             std::memcpy(&native, command->tag, sizeof(native));
@@ -362,34 +362,34 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
                 reply->resource = source->PbacoFetch(tag.ctg, tag.cno, Material_MTRL::FReadMtrl);
             break;
         }
-        case THREE_MM_EFFECT_APPLY_CUSTOM:
+        case MM_EFFECT_APPLY_CUSTOM:
             actor->body->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
             break;
-        case THREE_MM_EFFECT_APPLY_MATERIAL:
+        case MM_EFFECT_APPLY_MATERIAL:
             actor->body->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
             break;
-        case THREE_MM_EFFECT_RELEASE_CUSTOM:
+        case MM_EFFECT_RELEASE_CUSTOM:
         {
             auto resource = static_cast<PCustomMaterial_CMTL>(command->resource);
             ReleasePpo(&resource);
             break;
         }
-        case THREE_MM_EFFECT_RELEASE_MATERIAL:
+        case MM_EFFECT_RELEASE_MATERIAL:
         {
             auto resource = static_cast<PMaterial_MTRL>(command->resource);
             ReleasePpo(&resource);
             break;
         }
-        case THREE_MM_EFFECT_ENQUEUE_SOUND:
+        case MM_EFFECT_ENQUEUE_SOUND:
         {
-            ThreeMMActorEvent event;
-            ThreeMMActorSound sound;
+            MMActorEvent event;
+            MMActorSound sound;
             host.track->Events()->GetFixed(command->first, &event);
             host.track->Events()->Get(command->first, &sound);
-            ThreeMMActorSoundServices services = {};
+            MMActorSoundServices services = {};
             services.context = &host;
             services.cues_only = 1;
-            services.cue = [](void *context, const ThreeMMActorSound *value) {
+            services.cue = [](void *context, const MMActorSound *value) {
                 auto &host = *static_cast<Host *>(context);
                 Sound sound;
                 std::memcpy(&sound, value, sizeof(sound));
@@ -397,7 +397,7 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
                     host.cues->push_back(host.actor->SoundCue(sound));
                 return 1;
             };
-            reply->success = three_mm_actor_sound_event(host.motion->Core(), &event, &sound, command->first, &services);
+            reply->success = mm_actor_sound_event(host.motion->Core(), &event, &sound, command->first, &services);
             break;
         }
         }
@@ -405,7 +405,7 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
     auto core = EngineActorMotion::Core(value);
     const auto origin = EngineActorMotion::Point(header.dxyzFullRte);
     const auto tables = EngineActorMotion::Services();
-    bool success = three_mm_actor_effect_apply(&core, events.Route(), events.Events(), index, &origin,
+    bool success = mm_actor_effect_apply(&core, events.Route(), events.Events(), index, &origin,
                                                body != nullptr, metadataOnly, &tables, &effects) != 0;
     EngineActorMotion::Publish(value, core);
     return success;
@@ -469,21 +469,21 @@ bool PreviewActor::Evaluate(bool display)
         return false;
     if (result.considerMotionSounds && state.frame <= header.nfrmLast && state.celCount > 0)
     {
-        ThreeMMActorSoundServices services = {};
+        MMActorSoundServices services = {};
         services.context = this;
         services.cues_only = 1;
-        services.cel_count = [](void *context, ThreeMMI32, ThreeMMI32 *out) {
+        services.cel_count = [](void *context, MMI32, MMI32 *out) {
             *out = static_cast<PreviewActor *>(context)->state.celCount;
             return 1;
         };
-        services.cue = [](void *context, const ThreeMMActorSound *value) {
+        services.cue = [](void *context, const MMActorSound *value) {
             auto actor = static_cast<PreviewActor *>(context);
             Sound sound;
             std::memcpy(&sound, value, sizeof(sound));
             actor->sounds.push_back(actor->SoundCue(sound));
             return 1;
         };
-        if (!three_mm_actor_sound_motion(motionSounds.Core(), state.action, state.cel, &services))
+        if (!mm_actor_sound_motion(motionSounds.Core(), state.action, state.cel, &services))
             return false;
     }
     return (!result.positionBody && !result.updatePose) || Position(result.selectCel);
@@ -522,4 +522,4 @@ bool PreviewActor::Seek(LegacyLong frame)
     }
 }
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM

@@ -4,7 +4,7 @@
 #include "studio_packs.h"
 #include "studio_content.h"
 #include <memory>
-namespace ThreeMM::Content
+namespace MM::Content
 {
 class Vfs;
 }
@@ -23,7 +23,7 @@ const Preferences &ActivePreferences();
 Preferences SavedPreferences();
 void SavePreferences(const Preferences &preferences);
 StudioContent::Products Products();
-ThreeMM::Content::Vfs &Filesystem();
+MM::Content::Vfs &Filesystem();
 Access Resolve(const std::string &longName, const std::string &shortName, std::string &path);
 class Edits
 {

@@ -1,9 +1,9 @@
 /* Scene selection converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/scene_selection.h"
-#include "three_mm/wide.h"
+#include "mm/scene_selection.h"
+#include "mm/wide.h"
 #include <stddef.h>
-static void set_selected(const ThreeMMSceneSelectionServices *s, int text, void *object)
+static void set_selected(const MMSceneSelectionServices *s, int text, void *object)
 {
     if (text)
         s->state->text = object;
@@ -11,14 +11,14 @@ static void set_selected(const ThreeMMSceneSelectionServices *s, int text, void 
         s->state->actor = object;
     s->publish(s->context, text, object);
 }
-static void notify(const ThreeMMSceneSelectionServices *s)
+static void notify(const MMSceneSelectionServices *s)
 {
     s->invalidate(s->context);
     s->action_menu(s->context);
 }
-static void clear_extras(const ThreeMMSceneSelectionServices *s)
+static void clear_extras(const MMSceneSelectionServices *s)
 {
-    ThreeMMI32 i;
+    MMI32 i;
     void *actor;
     for (i = 0; i < s->count(s->context, 1); ++i)
     {
@@ -28,7 +28,7 @@ static void clear_extras(const ThreeMMSceneSelectionServices *s)
     }
     s->clear_extras(s->context);
 }
-void three_mm_scene_select_actor(void *actor, const ThreeMMSceneSelectionServices *s)
+void mm_scene_select_actor(void *actor, const MMSceneSelectionServices *s)
 {
     void *old;
     if (s->view_mode(s->context) == 0)
@@ -47,7 +47,7 @@ void three_mm_scene_select_actor(void *actor, const ThreeMMSceneSelectionService
     set_selected(s, 0, actor);
     s->action_menu(s->context);
 }
-void three_mm_scene_select_text(void *text, const ThreeMMSceneSelectionServices *s)
+void mm_scene_select_text(void *text, const MMSceneSelectionServices *s)
 {
     void *old;
     s->invalidate(s->context);
@@ -71,19 +71,19 @@ void three_mm_scene_select_text(void *text, const ThreeMMSceneSelectionServices 
     set_selected(s, 1, text);
     s->text_notice(s->context);
 }
-ThreeMMI32 three_mm_scene_selection_count(const ThreeMMSceneSelectionServices *s)
+MMI32 mm_scene_selection_count(const MMSceneSelectionServices *s)
 {
     return s->state->actor ? 1 + s->count(s->context, 1) : 0;
 }
-void *three_mm_scene_selection_at(ThreeMMI32 index, const ThreeMMSceneSelectionServices *s)
+void *mm_scene_selection_at(MMI32 index, const MMSceneSelectionServices *s)
 {
-    if (index < 0 || index >= three_mm_scene_selection_count(s))
+    if (index < 0 || index >= mm_scene_selection_count(s))
         return NULL;
     return index == 0 ? s->state->actor : s->at(s->context, 1, index - 1);
 }
-int three_mm_scene_selection_contains(void *actor, const ThreeMMSceneSelectionServices *s)
+int mm_scene_selection_contains(void *actor, const MMSceneSelectionServices *s)
 {
-    ThreeMMI32 i;
+    MMI32 i;
     if (!actor)
         return 0;
     if (actor == s->state->actor)
@@ -93,9 +93,9 @@ int three_mm_scene_selection_contains(void *actor, const ThreeMMSceneSelectionSe
             return 1;
     return 0;
 }
-int three_mm_scene_selection_toggle(void *actor, const ThreeMMSceneSelectionServices *s)
+int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
 {
-    ThreeMMI32 i;
+    MMI32 i;
     int hilite = s->view_mode(s->context) == 0;
     if (actor == s->state->actor)
     {
@@ -123,7 +123,7 @@ int three_mm_scene_selection_toggle(void *actor, const ThreeMMSceneSelectionServ
         }
     if (!s->state->actor)
     {
-        three_mm_scene_select_actor(actor, s);
+        mm_scene_select_actor(actor, s);
         return 1;
     }
     if (!s->ensure_extras(s->context) || !s->append_extra(s->context, actor))
@@ -133,21 +133,21 @@ int three_mm_scene_selection_toggle(void *actor, const ThreeMMSceneSelectionServ
     notify(s);
     return 1;
 }
-int three_mm_scene_selection_all(const ThreeMMSceneSelectionServices *s)
+int mm_scene_selection_all(const MMSceneSelectionServices *s)
 {
-    ThreeMMI32 i, count = s->count(s->context, 0);
+    MMI32 i, count = s->count(s->context, 0);
     if (!count)
     {
-        three_mm_scene_select_actor(NULL, s);
+        mm_scene_select_actor(NULL, s);
         return 1;
     }
-    three_mm_scene_select_actor(s->at(s->context, 0, 0), s);
+    mm_scene_select_actor(s->at(s->context, 0, 0), s);
     for (i = 1; i < count; ++i)
-        if (!three_mm_scene_selection_toggle(s->at(s->context, 0, i), s))
+        if (!mm_scene_selection_toggle(s->at(s->context, 0, i), s))
             return 0;
     return 1;
 }
-static unsigned int unit(const void *text, ThreeMMI32 index, int wide)
+static unsigned int unit(const void *text, MMI32 index, int wide)
 {
     return wide ? ((const unsigned short *)text)[index] : ((const unsigned char *)text)[index];
 }
@@ -159,9 +159,9 @@ static unsigned int lower(unsigned int ch)
 {
     return ch >= 'A' && ch <= 'Z' ? ch + ('a' - 'A') : ch;
 }
-static int contains_tag(const unsigned short *name, ThreeMMI32 length, const void *tag, ThreeMMI32 tag_length, int wide)
+static int contains_tag(const unsigned short *name, MMI32 length, const void *tag, MMI32 tag_length, int wide)
 {
-    ThreeMMI32 i, j;
+    MMI32 i, j;
     if (tag_length <= 0 || tag_length >= length)
         return 0;
     for (i = 0; i < length - tag_length; ++i)
@@ -176,9 +176,9 @@ static int contains_tag(const unsigned short *name, ThreeMMI32 length, const voi
     }
     return 0;
 }
-static int shared(const unsigned short *a, ThreeMMI32 na, const unsigned short *b, ThreeMMI32 nb)
+static int shared(const unsigned short *a, MMI32 na, const unsigned short *b, MMI32 nb)
 {
-    ThreeMMI32 i, j, n;
+    MMI32 i, j, n;
     for (i = 0; i < na; ++i)
     {
         if (a[i] != '#')
@@ -194,13 +194,13 @@ static int shared(const unsigned short *a, ThreeMMI32 na, const unsigned short *
     }
     return 0;
 }
-int three_mm_scene_selection_tag(const void *tag, ThreeMMI32 length, int wide, const ThreeMMSceneSelectionServices *s)
+int mm_scene_selection_tag(const void *tag, MMI32 length, int wide, const MMSceneSelectionServices *s)
 {
-    ThreeMMI32 i, n, count = s->count(s->context, 0);
+    MMI32 i, n, count = s->count(s->context, 0);
     unsigned short name[256];
     void *actor;
     int any = 0;
-    three_mm_scene_select_actor(NULL, s);
+    mm_scene_select_actor(NULL, s);
     for (i = 0; i < count; ++i)
     {
         actor = s->at(s->context, 0, i);
@@ -211,25 +211,25 @@ int three_mm_scene_selection_tag(const void *tag, ThreeMMI32 length, int wide, c
             continue;
         if (!any)
         {
-            three_mm_scene_select_actor(actor, s);
+            mm_scene_select_actor(actor, s);
             any = 1;
         }
-        else if (!three_mm_scene_selection_toggle(actor, s))
+        else if (!mm_scene_selection_toggle(actor, s))
             return 0;
     }
     return 1;
 }
-int three_mm_scene_selection_shared(void *seed, const ThreeMMSceneSelectionServices *s)
+int mm_scene_selection_shared(void *seed, const MMSceneSelectionServices *s)
 {
     unsigned short a[256], b[256];
-    ThreeMMI32 i, na, nb, count;
+    MMI32 i, na, nb, count;
     void *actor;
     int has_tag = 0;
     na = s->name(s->context, seed, a);
     for (i = 0; i + 1 < na && !has_tag; ++i)
         if (a[i] == '#' && tag_char(a[i + 1]))
             has_tag = 1;
-    three_mm_scene_select_actor(seed, s);
+    mm_scene_select_actor(seed, s);
     if (!has_tag)
         return 1;
     count = s->count(s->context, 0);
@@ -239,33 +239,33 @@ int three_mm_scene_selection_shared(void *seed, const ThreeMMSceneSelectionServi
         if (!actor || actor == seed)
             continue;
         nb = s->name(s->context, actor, b);
-        if (shared(a, na, b, nb) && !three_mm_scene_selection_toggle(actor, s))
+        if (shared(a, na, b, nb) && !mm_scene_selection_toggle(actor, s))
             return 0;
     }
     return 1;
 }
-int three_mm_scene_selection_centroid(ThreeMMActorPoint *out, const ThreeMMSceneSelectionServices *s)
+int mm_scene_selection_centroid(MMActorPoint *out, const MMSceneSelectionServices *s)
 {
-    ThreeMMI32 i, live = 0, count = three_mm_scene_selection_count(s), divisor;
-    ThreeMMActorPoint sum, point;
+    MMI32 i, live = 0, count = mm_scene_selection_count(s), divisor;
+    MMActorPoint sum, point;
     void *actor;
     sum.dxr = sum.dyr = sum.dzr = 0;
     for (i = 0; i < count; ++i)
     {
-        actor = three_mm_scene_selection_at(i, s);
+        actor = mm_scene_selection_at(i, s);
         if (!actor || !s->visible_position(s->context, actor, &point))
             continue;
-        sum.dxr = three_mm_fixed_add(sum.dxr, point.dxr);
-        sum.dyr = three_mm_fixed_add(sum.dyr, point.dyr);
-        sum.dzr = three_mm_fixed_add(sum.dzr, point.dzr);
+        sum.dxr = mm_fixed_add(sum.dxr, point.dxr);
+        sum.dyr = mm_fixed_add(sum.dyr, point.dyr);
+        sum.dzr = mm_fixed_add(sum.dzr, point.dzr);
         ++live;
     }
     if (!live)
         return 0;
     /* Integer-to-16.16 conversion wraps just like the native scalar word. */
-    divisor = three_mm_signed_word((ThreeMMU32)live << 16);
-    out->dxr = three_mm_fixed_div(sum.dxr, divisor);
-    out->dyr = three_mm_fixed_div(sum.dyr, divisor);
-    out->dzr = three_mm_fixed_div(sum.dzr, divisor);
+    divisor = mm_signed_word((MMU32)live << 16);
+    out->dxr = mm_fixed_div(sum.dxr, divisor);
+    out->dyr = mm_fixed_div(sum.dyr, divisor);
+    out->dzr = mm_fixed_div(sum.dzr, divisor);
     return 1;
 }

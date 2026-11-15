@@ -21,7 +21,7 @@
 #include <vector>
 #include "soc.h"
 #include "actor_frame_fixture.h"
-#include "three_mm/actor_placement.h"
+#include "mm/actor_placement.h"
 ASSERTNAME
 
 #include <stdio.h>
@@ -1309,9 +1309,9 @@ class TrackTestActor : public Actor
         _arid=mode==33 ? 32768 : 23; _nfrmFirst=1; _nfrmLast=30; _fLifeDirty=false;
         if (oldKind==ActorEvent::aetSnd)
         {
-            ThreeMMActorMotionSound match;
+            MMActorMotionSound match;
             _track.Events()->GetFixed(1,&match.event); _track.Events()->Get(1,&match.sound);
-            if (!three_mm_actor_sounds_insert(_motionSounds.Core(),&match.event,&match.sound)) return false;
+            if (!mm_actor_sounds_insert(_motionSounds.Core(),&match.event,&match.sound)) return false;
         }
         LegacyLong result=-99; bool ok=true;
         if (mode>=38 && mode<=40)
@@ -1396,10 +1396,10 @@ class TrackTestActor : public Actor
         _motionSounds.Clear();
         for (int i : {2,3,10})
         {
-            ThreeMMActorMotionSound record;
+            MMActorMotionSound record;
             _track.Events()->GetFixed(i,&record.event);
             _track.Events()->Get(i,&record.sound);
-            if (!three_mm_actor_sounds_insert(_motionSounds.Core(),&record.event,&record.sound)) return false;
+            if (!mm_actor_sounds_insert(_motionSounds.Core(),&record.event,&record.sound)) return false;
         }
         _state.frame=4; _state.action=0; _state.cel=5; _state.celCount=4;
         _nfrmFirst=1; _nfrmLast=30; _fLifeDirty=false;
@@ -1536,8 +1536,8 @@ class TrackTestActor : public Actor
         if (!_track.Events()->FInsert(1, sizeof(sound), &sound, &event))
             return false;
         TagManager::DupTag(&sound.tag);
-        ThreeMMActorMotionSound match = {};
-        if (!three_mm_actor_sounds_insert(_motionSounds.Core(), &match.event, &match.sound))
+        MMActorMotionSound match = {};
+        if (!mm_actor_sounds_insert(_motionSounds.Core(), &match.event, &match.sound))
             return false;
         _SetStateRewound();
         _nfrmFirst = _state.frame = 1;
@@ -1751,7 +1751,7 @@ done:
 static bool TestActorSoundEditing(PScene scene)
 {
     FILE *snapshot = nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_SOUND_EDIT_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_SOUND_EDIT_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,0) : pvNil;
@@ -1766,7 +1766,7 @@ static bool TestActorSoundEditing(PScene scene)
 static bool TestActorEventEditing(PScene scene)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_EVENT_EDIT_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_EVENT_EDIT_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,0) : pvNil;
@@ -1785,7 +1785,7 @@ static bool TestActorEventEditing(PScene scene)
 static bool TestActorFillEditing(PScene scene)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_FILL_EDIT_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_FILL_EDIT_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,0) : pvNil;
@@ -1800,7 +1800,7 @@ static bool TestActorFillEditing(PScene scene)
 static bool TestActorCostumeEditing(PScene scene)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_COSTUME_EDIT_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_COSTUME_EDIT_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,1024*1024) : pvNil;
@@ -1827,7 +1827,7 @@ static bool TestActorCostumeEditing(PScene scene)
 static bool TestActorRouteEditing(PScene scene)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_ROUTE_EDIT_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_ROUTE_EDIT_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,0) : pvNil;
@@ -1842,7 +1842,7 @@ static bool TestActorRouteEditing(PScene scene)
 static bool TestActorSubrouteEditing(PScene scene)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_SUBROUTE_EDIT_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_SUBROUTE_EDIT_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,1024*1024) : pvNil;
@@ -1881,7 +1881,7 @@ class TestActorUndo : public ActorUndo
 static bool TestActorUndoRuntime(PMovie parent)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_UNDO_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_UNDO_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):pvNil;
@@ -1958,7 +1958,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_OWNER_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_OWNER_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto scene=NewObj StageTestScene(movie); PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):pvNil;
@@ -1977,7 +1977,7 @@ static bool TestActorOwner(PMovie movie)
 static bool TestActorTransformEditing(PMovie movie)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_TRANSFORM_EDIT_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_TRANSFORM_EDIT_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto scene=NewObj StageTestScene(movie); PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):pvNil; auto actor=NewObj TrackTestActor();
@@ -1990,7 +1990,7 @@ static bool TestActorTransformEditing(PMovie movie)
 static bool TestActorRecording(PMovie movie)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_RECORD_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_RECORD_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto scene=NewObj StageTestScene(movie);
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
@@ -2007,7 +2007,7 @@ static bool TestActorRecording(PMovie movie)
 static bool TestActorStageEditing(PMovie movie)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_STAGE_EDIT_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_STAGE_EDIT_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto scene=NewObj StageTestScene(movie);
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
@@ -2025,9 +2025,9 @@ static bool TestActorStageEditing(PMovie movie)
 static bool TestActorPlacement()
 {
     struct Camera { BMAT34 matrix; BRS hither, yon; int calls; } camera{};
-    ThreeMMActorPlacementServices services{};
+    MMActorPlacementServices services{};
     services.context = &camera;
-    services.camera = [](void *context, ThreeMMActorMatrix *matrix, ThreeMMI32 *hither, ThreeMMI32 *yon) {
+    services.camera = [](void *context, MMActorMatrix *matrix, MMI32 *hither, MMI32 *yon) {
         auto *camera = static_cast<Camera *>(context);
         std::memcpy(matrix, &camera->matrix, sizeof(*matrix));
         *hither = camera->hither; *yon = camera->yon; ++camera->calls;
@@ -2048,7 +2048,7 @@ static bool TestActorPlacement()
         BRS x = (mode & 2) ? -17 : 0;
         BRS y = (mode & 4) ? -BR_SCALAR(3) : 0;
         BRS z = (mode & 8) ? BR_SCALAR(7) : 0;
-        ThreeMMActorPoint point{x,y,z};
+        MMActorPoint point{x,y,z};
         bool absent = x == 0 && y == 0 && z == 0;
         if (absent)
         {
@@ -2060,7 +2060,7 @@ static bool TestActorPlacement()
             z = BR_MAC3(rZero,camera.matrix.m[0][2],rZero,camera.matrix.m[1][2],distance,camera.matrix.m[2][2]) + camera.matrix.m[3][2];
         }
         if (mode & 1) y += BR_SCALAR(10);
-        three_mm_actor_placement(&point, mode & 1, &services);
+        mm_actor_placement(&point, mode & 1, &services);
         if (point.dxr != x || point.dyr != y || point.dzr != z || camera.calls != (absent ? 1 : 0))
         {
             std::fprintf(stderr,"actor placement differs from native BRender at mode %d\n",mode);

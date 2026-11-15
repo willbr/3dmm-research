@@ -92,7 +92,7 @@ void MarcusWaveformCache::Clear()
     bytes = 0;
     clock = 0;
 }
-MarcusWaveformInfo MarcusWaveformCache::Length(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue)
+MarcusWaveformInfo MarcusWaveformCache::Length(MM::Preview &preview, const MM::PreviewSoundCue &cue)
 {
     MarcusWaveformInfo info = {};
     if (cue.silent)
@@ -105,8 +105,8 @@ MarcusWaveformInfo MarcusWaveformCache::Length(ThreeMM::Preview &preview, const 
     const auto found = lengths.find(key);
     if (found != lengths.end())
         return found->second;
-    ThreeMM::PreviewAudio audio;
-    ThreeMM::Error error;
+    MM::PreviewAudio audio;
+    MM::Error error;
     info.kind = MARCUS_WAVEFORM_UNAVAILABLE;
     if (!preview.ReadSound(cue, audio, error))
         std::snprintf(info.message, sizeof(info.message), "%s", error.message.c_str());
@@ -126,7 +126,7 @@ MarcusWaveformInfo MarcusWaveformCache::Length(ThreeMM::Preview &preview, const 
     lengths.emplace(key, info);
     return info;
 }
-void MarcusWaveformCache::Read(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue, double first,
+void MarcusWaveformCache::Read(MM::Preview &preview, const MM::PreviewSoundCue &cue, double first,
                                double step, int count, MarcusWaveformColumn *columns, MarcusWaveformInfo &info)
 {
     const auto key = std::make_tuple(cue.source, cue.sound.type, cue.sound.number, cue.child,
@@ -144,8 +144,8 @@ void MarcusWaveformCache::Read(ThreeMM::Preview &preview, const ThreeMM::Preview
     if (found == entries.end())
     {
         Entry entry;
-        ThreeMM::PreviewAudio audio;
-        ThreeMM::Error error;
+        MM::PreviewAudio audio;
+        MM::Error error;
         entry.info.kind = MARCUS_WAVEFORM_UNAVAILABLE;
         if (!preview.ReadSound(cue, audio, error))
             std::snprintf(entry.info.message, sizeof(entry.info.message), "%s", error.message.c_str());

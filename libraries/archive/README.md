@@ -1,32 +1,36 @@
 # Public archive API
 
-Link `ThreeMM::Archive` and include `<three_mm/archive.h>`. This C++14, read-only
+The library family is named **mm** (Movie Maker): CMake targets use `mm-*`,
+public headers use `mm/`, C functions use `mm_`, C types/constants use `MM`,
+and the C++ namespace and target aliases use `MM::`.
+
+Link `MM::Archive` and include `<mm/archive.h>`. This C++14, read-only
 boundary is shared by `3mm dump` and the SDL3/ImGui inspector. Its public surface
 contains standard C++ types and fixed-width identifiers; legacy engine, Kauai,
 BRender and platform headers remain private implementation details.
 
-The separate `ThreeMM::Preview` target provides headless asset rendering through
-`<three_mm/preview.h>`. Linking the archive API alone does not initialize or link
+The separate `MM::Preview` target provides headless asset rendering through
+`<mm/preview.h>`. Linking the archive API alone does not initialize or link
 the preview adapter into a consumer.
 
 ```cmake
-target_link_libraries(my-tool PRIVATE ThreeMM::Archive)
+target_link_libraries(my-tool PRIVATE MM::Archive)
 ```
 
 ```cpp
-#include <three_mm/archive.h>
+#include <mm/archive.h>
 
-ThreeMM::Archive archive;
-ThreeMM::Error error;
+MM::Archive archive;
+MM::Error error;
 if (!archive.Open("movie.3mm", error)) {
     // Inspect error.code and display error.message.
     return 1;
 }
 for (std::size_t i = 0; i < archive.Chunks().size(); ++i) {
-    ThreeMM::RecordHeader record;
+    MM::RecordHeader record;
     if (!archive.ReadRecord(i, record, error))
         continue;
-    if (record.kind == ThreeMM::RecordKind::scene) {
+    if (record.kind == MM::RecordKind::scene) {
         auto first = record.scene.firstFrame;
         auto last = record.scene.lastFrame;
         // Use first/last without depending on SceneData or legacy globals.
@@ -37,14 +41,14 @@ for (std::size_t i = 0; i < archive.Chunks().size(); ++i) {
 ## Asset previews
 
 ```cmake
-target_link_libraries(my-preview-tool PRIVATE ThreeMM::Preview)
+target_link_libraries(my-preview-tool PRIVATE MM::Preview)
 ```
 
 ```cpp
-#include <three_mm/preview.h>
+#include <mm/preview.h>
 
-ThreeMM::Preview preview;
-ThreeMM::Error error;
+MM::Preview preview;
+MM::Error error;
 if (!preview.Open("movie.3mm", "3dmovie.chk", error) ||
     !preview.AddContent(1, "content-files/tmpls.3cn", error) ||
     !preview.AddContent(1, "content-files/bkgds.3cn", error) ||
@@ -52,8 +56,8 @@ if (!preview.Open("movie.3mm", "3dmovie.chk", error) ||
     !preview.AddContent(1, "content-files/tdfs.3cn", error) ||
     !preview.Select({0x5343454e, 0}, error)) // SCEN / 0
     return 1;
-ThreeMM::PreviewView view;
-ThreeMM::PreviewImage image;
+MM::PreviewView view;
+MM::PreviewImage image;
 if (!preview.SetFrame(preview.Info().firstFrame, error) ||
     !preview.Render(view, image, error))
     return 1;

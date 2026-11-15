@@ -1,7 +1,7 @@
-#include "three_mm/midi.h"
-#include "three_mm/wave.h"
-#include "three_mm/wave_import.h"
-#include "three_mm/sound_payload.h"
+#include "mm/midi.h"
+#include "mm/wave.h"
+#include "mm/wave_import.h"
+#include "mm/sound_payload.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +11,7 @@ typedef struct Fault
 {
     int calls, fail, live;
 } Fault;
-static void *resize(void *p, void *old, ThreeMMU32 was, ThreeMMU32 bytes, int priority)
+static void *resize(void *p, void *old, MMU32 was, MMU32 bytes, int priority)
 {
     Fault *f = (Fault *)p;
     void *result;
@@ -24,7 +24,7 @@ static void *resize(void *p, void *old, ThreeMMU32 was, ThreeMMU32 bytes, int pr
         ++f->live;
     return result;
 }
-static void release(void *p, void *data, ThreeMMU32 bytes)
+static void release(void *p, void *data, MMU32 bytes)
 {
     Fault *f = (Fault *)p;
     (void)bytes;
@@ -39,28 +39,28 @@ static void midi(void)
                                          0,   100, 'M', 'T',  'r', 'k', 0, 0,    0,    12, 0, 0x90,
                                          60,  64,  100, 0x80, 60,  0,   0, 0xff, 0x2f, 0};
     static const unsigned char expected[] = {0, 0x90, 60, 64, 0x83, 0x74, 0x80, 60, 0};
-    ThreeMMMidiParser p;
-    ThreeMMMidiEvent e, peek;
-    ThreeMMCollectionStorage scratch;
-    ThreeMMStorageAllocator a;
-    ThreeMMU32 bytes, n;
+    MMMidiParser p;
+    MMMidiEvent e, peek;
+    MMCollectionStorage scratch;
+    MMStorageAllocator a;
+    MMU32 bytes, n;
     unsigned char encoded[5], copy[sizeof(file)];
     int fail, i, ok;
     Fault f;
-    three_mm_midi_parser_init(&p, raw, sizeof(raw), 0xfffffff0UL, 500000);
-    assert(three_mm_midi_next(&p, &e, 0) && p.cursor == 0 && p.status == 0x90 && e.timestamp == 0xfffffff0UL);
-    assert(three_mm_midi_next(&p, &peek, 1) && !memcmp(&e, &peek, sizeof(e)));
-    assert(three_mm_midi_next(&p, &e, 1) && e.timestamp == 0xfffffff5UL && e.count == 3 && e.send[0] == 0x90 &&
+    mm_midi_parser_init(&p, raw, sizeof(raw), 0xfffffff0UL, 500000);
+    assert(mm_midi_next(&p, &e, 0) && p.cursor == 0 && p.status == 0x90 && e.timestamp == 0xfffffff0UL);
+    assert(mm_midi_next(&p, &peek, 1) && !memcmp(&e, &peek, sizeof(e)));
+    assert(mm_midi_next(&p, &e, 1) && e.timestamp == 0xfffffff5UL && e.count == 3 && e.send[0] == 0x90 &&
            e.send[1] == 61);
-    assert(three_mm_midi_next(&p, &e, 0) && !e.count && e.tempo == 250000 && p.tempo == 500000);
-    assert(three_mm_midi_next(&p, &e, 1) && p.tempo == 250000);
-    assert(three_mm_midi_next(&p, &e, 1) && e.timestamp == 0xfffffffcUL);
-    assert(!three_mm_midi_next(&p, &e, 0) && p.cursor == p.size);
-    assert(three_mm_midi_encode_time(0xffffffffUL, encoded) == 5 && encoded[0] == 0x8f && encoded[4] == 0x7f);
+    assert(mm_midi_next(&p, &e, 0) && !e.count && e.tempo == 250000 && p.tempo == 500000);
+    assert(mm_midi_next(&p, &e, 1) && p.tempo == 250000);
+    assert(mm_midi_next(&p, &e, 1) && e.timestamp == 0xfffffffcUL);
+    assert(!mm_midi_next(&p, &e, 0) && p.cursor == p.size);
+    assert(mm_midi_encode_time(0xffffffffUL, encoded) == 5 && encoded[0] == 0x8f && encoded[4] == 0x7f);
     for (n = 0; n < sizeof(raw); ++n)
     {
-        three_mm_midi_parser_init(&p, raw, n, 0, 500000);
-        for (i = 0; three_mm_midi_next(&p, &e, 1); ++i)
+        mm_midi_parser_init(&p, raw, n, 0, 500000);
+        for (i = 0; mm_midi_next(&p, &e, 1); ++i)
             assert(i < 10);
         assert(p.cursor == n);
     }
@@ -68,8 +68,8 @@ static void midi(void)
     encoded[0] = 0;
     encoded[1] = 0xf0;
     encoded[2] = 0;
-    three_mm_midi_parser_init(&p, encoded, 3, 0, 500000);
-    assert(!three_mm_midi_next(&p, &e, 1));
+    mm_midi_parser_init(&p, encoded, 3, 0, 500000);
+    assert(!mm_midi_next(&p, &e, 1));
     for (fail = 0; fail < 12; ++fail)
     {
         memset(&f, 0, sizeof(f));
@@ -77,35 +77,35 @@ static void midi(void)
         a.context = &f;
         a.resize = resize;
         a.release = release;
-        assert(three_mm_storage_init(&scratch, &a) == THREE_MM_STORAGE_OK);
+        assert(mm_storage_init(&scratch, &a) == MM_STORAGE_OK);
         bytes = 99;
-        ok = three_mm_midi_import(file, sizeof(file), &scratch, &bytes);
+        ok = mm_midi_import(file, sizeof(file), &scratch, &bytes);
         if (ok)
             assert(bytes == sizeof(expected) && !memcmp(scratch.buffers[0].data, expected, bytes));
         else
             assert(bytes == 99);
-        assert(three_mm_storage_dispose(&scratch) == THREE_MM_STORAGE_OK && !f.live);
+        assert(mm_storage_dispose(&scratch) == MM_STORAGE_OK && !f.live);
     }
-    three_mm_storage_init(&scratch, NULL);
+    mm_storage_init(&scratch, NULL);
     for (n = 0; n < sizeof(file); ++n)
     {
         bytes = 99;
-        assert(!three_mm_midi_import(file, n, &scratch, &bytes) && bytes == 99);
+        assert(!mm_midi_import(file, n, &scratch, &bytes) && bytes == 99);
     }
     memcpy(copy, file, sizeof(file));
     copy[12] = copy[13] = 0;
-    assert(!three_mm_midi_import(copy, sizeof(copy), &scratch, &bytes));
+    assert(!mm_midi_import(copy, sizeof(copy), &scratch, &bytes));
     copy[13] = 100;
     copy[18] = 0x80;
-    assert(!three_mm_midi_import(copy, sizeof(copy), &scratch, &bytes));
-    three_mm_storage_dispose(&scratch);
+    assert(!mm_midi_import(copy, sizeof(copy), &scratch, &bytes));
+    mm_storage_dispose(&scratch);
 }
 typedef struct Import
 {
     int fail, loads, converts, releases;
     unsigned char samples[1501];
 } Import;
-static int load(void *p, const void *data, ThreeMMU32 bytes, ThreeMMU32 *decoded)
+static int load(void *p, const void *data, MMU32 bytes, MMU32 *decoded)
 {
     Import *i = (Import *)p;
     (void)data;
@@ -114,7 +114,7 @@ static int load(void *p, const void *data, ThreeMMU32 bytes, ThreeMMU32 *decoded
     *decoded = i->fail == 2 ? 0 : 1501;
     return i->fail != 1;
 }
-static int convert(void *p, unsigned char **samples, ThreeMMI32 *count)
+static int convert(void *p, unsigned char **samples, MMI32 *count)
 {
     Import *i = (Import *)p;
     ++i->converts;
@@ -131,47 +131,47 @@ static void samples_release(void *p, unsigned char *samples)
 static void wave(void)
 {
     unsigned char samples[1501], encoded[12000], saved[12000];
-    ThreeMMU32 size = 123, frames = 99, n;
-    ThreeMMWaveView view;
-    ThreeMMWaveBuffer scratch;
-    ThreeMMWaveImportServices services;
+    MMU32 size = 123, frames = 99, n;
+    MMWaveView view;
+    MMWaveBuffer scratch;
+    MMWaveImportServices services;
     const unsigned char *selected;
-    ThreeMMU32 selected_bytes;
+    MMU32 selected_bytes;
     Import i;
     int fail;
     memset(samples, 128, sizeof(samples));
     memset(encoded, 42, sizeof(encoded));
-    assert(!three_mm_wave_encode(samples, 1, 0, 1, 8, 0, encoded, sizeof(encoded), &size) && size == 123 &&
+    assert(!mm_wave_encode(samples, 1, 0, 1, 8, 0, encoded, sizeof(encoded), &size) && size == 123 &&
            encoded[0] == 42);
-    assert(!three_mm_wave_encode(samples, 1, 11025, 1, 8, 0, encoded, 44, &size) && size == 123 && encoded[0] == 42);
-    assert(!three_mm_wave_encode(samples, 1, 0x7fffffffUL, 2, 16, 0, encoded, sizeof(encoded), &size));
-    assert(three_mm_wave_encode(samples, 1501, 11025, 1, 8, 1, encoded, sizeof(encoded), &size) && size == 1114);
-    assert(three_mm_wave_legacy_format(encoded, size));
-    assert(three_mm_wave_fact_frames(encoded, size, &frames) && frames == 1501);
-    assert(three_mm_wave_parse(encoded, size, &view) && view.format_bytes == 50 && view.data_bytes == 1024 &&
+    assert(!mm_wave_encode(samples, 1, 11025, 1, 8, 0, encoded, 44, &size) && size == 123 && encoded[0] == 42);
+    assert(!mm_wave_encode(samples, 1, 0x7fffffffUL, 2, 16, 0, encoded, sizeof(encoded), &size));
+    assert(mm_wave_encode(samples, 1501, 11025, 1, 8, 1, encoded, sizeof(encoded), &size) && size == 1114);
+    assert(mm_wave_legacy_format(encoded, size));
+    assert(mm_wave_fact_frames(encoded, size, &frames) && frames == 1501);
+    assert(mm_wave_parse(encoded, size, &view) && view.format_bytes == 50 && view.data_bytes == 1024 &&
            view.fact == 1501);
     assert(view.data[0] == 0 && view.data[1] == 16 && view.data[2] == 0);
     memcpy(saved, encoded, size);
     for (n = 0; n < size; ++n)
     {
         memset(&view, 0x33, sizeof(view));
-        assert(!three_mm_wave_parse(encoded, n, &view) && view.fact == 0x33333333);
+        assert(!mm_wave_parse(encoded, n, &view) && view.fact == 0x33333333);
     }
     encoded[4] = encoded[5] = encoded[6] = encoded[7] = 255;
-    assert(!three_mm_wave_legacy_format(encoded, size) && !three_mm_wave_fact_frames(encoded, size, &frames));
+    assert(!mm_wave_legacy_format(encoded, size) && !mm_wave_fact_frames(encoded, size, &frames));
     memcpy(encoded, saved, size);
-    assert(three_mm_wave_encode(samples, 1, 11025, 1, 8, 0, encoded, sizeof(encoded), &size) && size == 46);
+    assert(mm_wave_encode(samples, 1, 11025, 1, 8, 0, encoded, sizeof(encoded), &size) && size == 46);
     /* Last odd chunk may omit its pad for compressed-reader compatibility. */
     encoded[4] = 37;
-    assert(three_mm_wave_parse(encoded, 45, &view) && view.data_bytes == 1);
+    assert(mm_wave_parse(encoded, 45, &view) && view.data_bytes == 1);
     encoded[4] = 38;
     services.context = &i;
     services.load = load;
     services.convert_u8 = convert;
     services.release_samples = samples_release;
-    three_mm_wave_buffer_init(&scratch, NULL);
+    mm_wave_buffer_init(&scratch, NULL);
     memset(&i, 0, sizeof(i));
-    assert(three_mm_wave_prepare(encoded, 46, &services, &scratch, &selected, &selected_bytes));
+    assert(mm_wave_prepare(encoded, 46, &services, &scratch, &selected, &selected_bytes));
     assert(selected == encoded && selected_bytes == 46 && i.loads == 1 && !i.converts);
     for (fail = 0; fail < 5; ++fail)
     {
@@ -182,15 +182,15 @@ static void wave(void)
         selected_bytes = 77;
         if (!fail)
         {
-            assert(three_mm_wave_prepare(saved, 1114, &services, &scratch, &selected, &selected_bytes));
+            assert(mm_wave_prepare(saved, 1114, &services, &scratch, &selected, &selected_bytes));
             assert(selected == saved && selected_bytes == 1114);
         }
         else
-            assert(!three_mm_wave_prepare(saved, 1114, &services, &scratch, &selected, &selected_bytes) &&
+            assert(!mm_wave_prepare(saved, 1114, &services, &scratch, &selected, &selected_bytes) &&
                    selected == encoded && selected_bytes == 77);
         assert(i.releases == (fail == 1 || fail == 2 ? 0 : 1));
     }
-    three_mm_wave_buffer_dispose(&scratch);
+    mm_wave_buffer_dispose(&scratch);
 }
 typedef struct Factory
 {
@@ -206,7 +206,7 @@ static int unpack(void *p, void *block)
     (void)block;
     return step((Factory *)p);
 }
-static ThreeMMI32 block_size(void *p, void *b, int packed)
+static MMI32 block_size(void *p, void *b, int packed)
 {
     (void)p;
     (void)b;
@@ -237,7 +237,7 @@ static void invalidate(void *p, void *out, size_t bytes)
     ++((Factory *)p)->invalid;
     memset(out, 0x55, bytes);
 }
-static int read_encoded(void *p, void *b, ThreeMMI32 bytes)
+static int read_encoded(void *p, void *b, MMI32 bytes)
 {
     (void)b;
     assert(bytes == 88);
@@ -248,7 +248,7 @@ static int decode(void *p, void *o)
     (void)o;
     return step((Factory *)p);
 }
-static int allocation_size(void *p, void *o, ThreeMMI32 *bytes)
+static int allocation_size(void *p, void *o, MMI32 *bytes)
 {
     (void)o;
     *bytes = 1000;
@@ -258,7 +258,7 @@ static void decoded(void *p)
 {
     ++((Factory *)p)->decoded;
 }
-static void *open_stream(void *p, void *cache, ThreeMMU32 type, ThreeMMU32 number)
+static void *open_stream(void *p, void *cache, MMU32 type, MMU32 number)
 {
     Factory *f = (Factory *)p;
     (void)cache;
@@ -269,7 +269,7 @@ static void *open_stream(void *p, void *cache, ThreeMMU32 type, ThreeMMU32 numbe
     ++f->live;
     return &f->stream;
 }
-static ThreeMMI32 stream_size(void *p, void *stream)
+static MMI32 stream_size(void *p, void *stream)
 {
     (void)p;
     (void)stream;
@@ -288,10 +288,10 @@ static void adopt(void *p, void *o, void *stream)
 }
 static void factories(void)
 {
-    ThreeMMSoundPayloadServices s;
+    MMSoundPayloadServices s;
     Factory f;
     void *object;
-    ThreeMMI32 bytes;
+    MMI32 bytes;
     int kind, fail, ok;
     memset(&s, 0, sizeof(s));
     s.context = &f;
@@ -318,11 +318,11 @@ static void factories(void)
             bytes = 0;
             object = NULL;
             if (!kind)
-                ok = three_mm_midi_payload_fetch(NULL, &object, &bytes, &s);
+                ok = mm_midi_payload_fetch(NULL, &object, &bytes, &s);
             else if (kind == 1)
-                ok = three_mm_wave_payload_fetch(NULL, &object, &bytes, &s);
+                ok = mm_wave_payload_fetch(NULL, &object, &bytes, &s);
             else
-                ok = three_mm_wave_stream_fetch(NULL, 1, 2, &object, &bytes, &s);
+                ok = mm_wave_stream_fetch(NULL, 1, 2, &object, &bytes, &s);
             if (ok)
             {
                 assert(object == &f.object && bytes == (kind == 0 ? 88 : kind == 1 ? 1000 : 101));
@@ -335,11 +335,11 @@ static void factories(void)
             assert(!f.live);
             memset(&f, 0, sizeof(f));
             if (!kind)
-                assert(three_mm_midi_payload_fetch(NULL, NULL, &bytes, &s) && bytes == 77);
+                assert(mm_midi_payload_fetch(NULL, NULL, &bytes, &s) && bytes == 77);
             else if (kind == 1)
-                assert(three_mm_wave_payload_fetch(NULL, NULL, &bytes, &s) && bytes == 42);
+                assert(mm_wave_payload_fetch(NULL, NULL, &bytes, &s) && bytes == 42);
             else
-                assert(three_mm_wave_stream_fetch(NULL, 1, 2, NULL, &bytes, &s) && bytes == 42);
+                assert(mm_wave_stream_fetch(NULL, 1, 2, NULL, &bytes, &s) && bytes == 42);
             assert(!f.step);
         }
 }
@@ -361,12 +361,12 @@ static int begin(void *p, void *source, const void *name)
     (void)name;
     return native_step((Native *)p);
 }
-static int original_size(void *p, ThreeMMI32 *bytes)
+static int original_size(void *p, MMI32 *bytes)
 {
     *bytes = 85;
     return native_step((Native *)p);
 }
-static int open_sound(void *p, ThreeMMNativeWaveFormat *format)
+static int open_sound(void *p, MMNativeWaveFormat *format)
 {
     format->rate = 44100;
     format->bits = 16;
@@ -377,7 +377,7 @@ static int native_convert(void *p)
 {
     return native_step((Native *)p);
 }
-static ThreeMMU32 sample_count(void *p)
+static MMU32 sample_count(void *p)
 {
     (void)p;
     return 100;
@@ -386,17 +386,17 @@ static int activate(void *p)
 {
     return native_step((Native *)p);
 }
-static int allocate_samples(void *p, ThreeMMU32 n)
+static int allocate_samples(void *p, MMU32 n)
 {
     assert(n == 100);
     return native_step((Native *)p);
 }
-static int read_samples(void *p, ThreeMMU32 *n)
+static int read_samples(void *p, MMU32 *n)
 {
     assert(*n == 100);
     return native_step((Native *)p);
 }
-static int compress(void *p, ThreeMMU32 n, const void **format, ThreeMMU32 *fs, const void **data, ThreeMMU32 *ds)
+static int compress(void *p, MMU32 n, const void **format, MMU32 *fs, const void **data, MMU32 *ds)
 {
     static const unsigned char f[18] = {0}, d[30] = {0};
     assert(n == 100);
@@ -410,7 +410,7 @@ static int create_file(void *p)
 {
     return native_step((Native *)p);
 }
-static int write_file(void *p, const void *data, ThreeMMU32 n)
+static int write_file(void *p, const void *data, MMU32 n)
 {
     Native *v = (Native *)p;
     if (!native_step(v))
@@ -430,11 +430,11 @@ static int selected_file(void *p, int original)
     n->original = original;
     return native_step(n);
 }
-static int write_resource(void *p, void *dest, ThreeMMI32 style, void *number)
+static int write_resource(void *p, void *dest, MMI32 style, void *number)
 {
     (void)dest;
     assert(style == 2);
-    *(ThreeMMU32 *)number = 123;
+    *(MMU32 *)number = 123;
     return native_step((Native *)p);
 }
 static void bad(void *p)
@@ -447,9 +447,9 @@ static void cleanup(void *p)
 }
 static void native(void)
 {
-    ThreeMMNativeWaveServices s;
+    MMNativeWaveServices s;
     Native n;
-    ThreeMMU32 number;
+    MMU32 number;
     int fail, ok, total;
     memset(&s, 0, sizeof(s));
     s.context = &n;
@@ -471,7 +471,7 @@ static void native(void)
     s.cleanup = cleanup;
     memset(&n, 0, sizeof(n));
     number = 9;
-    assert(three_mm_wave_native_import(NULL, NULL, 2, NULL, &number, &s));
+    assert(mm_wave_native_import(NULL, NULL, 2, NULL, &number, &s));
     assert(number == 123 && n.size == 88 && n.bytes[4] == 80 && !n.original && n.finish == 1 && n.cleanup == 1);
     assert(!memcmp(n.bytes, "RIFF", 4) && !memcmp(n.bytes + 12, "fmt ", 4) && !memcmp(n.bytes + 38, "fact", 4));
     total = n.step;
@@ -480,7 +480,7 @@ static void native(void)
         memset(&n, 0, sizeof(n));
         n.fail = fail;
         number = 9;
-        ok = three_mm_wave_native_import(NULL, NULL, 2, NULL, &number, &s);
+        ok = mm_wave_native_import(NULL, NULL, 2, NULL, &number, &s);
         assert(!ok && n.cleanup == 1 && (number == 9 || (fail == total && number == 123)));
         assert(n.bad == (fail == 2 || fail == 3 || fail == 4 || fail == 5 || fail == 7 || fail == 8));
     }
@@ -495,13 +495,13 @@ static int physical_step(Physical *p)
 {
     return ++p->step != p->fail;
 }
-static ThreeMMI32 physical_size(void *p, void *source)
+static MMI32 physical_size(void *p, void *source)
 {
     (void)p;
     (void)source;
     return 12;
 }
-static int physical_read(void *p, void *source, void *data, ThreeMMI32 bytes)
+static int physical_read(void *p, void *source, void *data, MMI32 bytes)
 {
     Physical *f = (Physical *)p;
     (void)source;
@@ -509,7 +509,7 @@ static int physical_read(void *p, void *source, void *data, ThreeMMI32 bytes)
     memcpy(data, f->input, 12);
     return physical_step(f);
 }
-static int physical_prepare(void *p, const void *data, ThreeMMI32 bytes, const void **out, ThreeMMI32 *count)
+static int physical_prepare(void *p, const void *data, MMI32 bytes, const void **out, MMI32 *count)
 {
     *out = data;
     *count = bytes;
@@ -528,16 +528,16 @@ static void *physical_create(void *p)
     ++f->live;
     return p;
 }
-static int physical_write(void *p, void *temp, const void *data, ThreeMMI32 bytes)
+static int physical_write(void *p, void *temp, const void *data, MMI32 bytes)
 {
     assert(temp == p && data && bytes == 12);
     return physical_step((Physical *)p);
 }
-static int physical_resource(void *p, void *temp, void *dest, ThreeMMI32 style, const void *name, void *out)
+static int physical_resource(void *p, void *temp, void *dest, MMI32 style, const void *name, void *out)
 {
     (void)dest;
     assert(temp == p && style == 3 && name == p);
-    *(ThreeMMU32 *)out = 99;
+    *(MMU32 *)out = 99;
     return physical_step((Physical *)p);
 }
 static void physical_release(void *p, void *temp)
@@ -552,11 +552,11 @@ static void physical_bad(void *p)
 static void physical(void)
 {
     Physical f;
-    ThreeMMWaveFileServices s;
-    ThreeMMStorageAllocator a;
-    ThreeMMWaveBuffer b;
-    ThreeMMWaveImportServices ws;
-    ThreeMMU32 number, size;
+    MMWaveFileServices s;
+    MMStorageAllocator a;
+    MMWaveBuffer b;
+    MMWaveImportServices ws;
+    MMU32 number, size;
     const unsigned char *selected;
     unsigned char wave[44] = {0};
     Fault fault;
@@ -578,7 +578,7 @@ static void physical(void)
         memset(&f, 0, sizeof(f));
         f.fail = fail;
         number = 7;
-        ok = three_mm_wave_file_import(NULL, NULL, 3, NULL, &number, &s);
+        ok = mm_wave_file_import(NULL, NULL, 3, NULL, &number, &s);
         assert(ok == (fail == 0 || fail == 6) && !f.live && f.bad == (fail == 1 || fail == 2));
         assert(number == (fail == 0 || fail >= 5 ? 99 : 7));
     }
@@ -589,7 +589,7 @@ static void physical(void)
     a.release = release;
     memset(&f, 0, sizeof(f));
     s.allocator = &a;
-    assert(!three_mm_wave_file_import(NULL, NULL, 3, NULL, &number, &s) && !fault.live && !f.step && !f.bad);
+    assert(!mm_wave_file_import(NULL, NULL, 3, NULL, &number, &s) && !fault.live && !f.step && !f.bad);
     /* C encoding failure releases converted host samples and preserves outputs. */
     memset(&input, 0, sizeof(input));
     memset(&fault, 0, sizeof(fault));
@@ -598,12 +598,12 @@ static void physical(void)
     ws.load = load;
     ws.convert_u8 = convert;
     ws.release_samples = samples_release;
-    assert(three_mm_wave_buffer_init(&b, &a));
+    assert(mm_wave_buffer_init(&b, &a));
     selected = wave;
     size = 77;
-    assert(!three_mm_wave_prepare(wave, sizeof(wave), &ws, &b, &selected, &size));
+    assert(!mm_wave_prepare(wave, sizeof(wave), &ws, &b, &selected, &size));
     assert(input.releases == 1 && selected == wave && size == 77 && !fault.live);
-    three_mm_wave_buffer_dispose(&b);
+    mm_wave_buffer_dispose(&b);
 }
 int main(void)
 {

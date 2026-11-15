@@ -6,7 +6,7 @@
 #include <vector>
 #include "gpu_renderer.h"
 #include "zb_capture.h"
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include "soc_core.h"
 #pragma pack(push, 4)
 #include "zb.h"
@@ -89,10 +89,10 @@ int main()
     unsigned checked = 0, covered = 0;
     for (bool compute : {true, false})
     {
-        ThreeMM::Error error;
+        MM::Error error;
         auto renderer = MarcusCreateGPURenderer(compute, error);
         if (!renderer) { std::fprintf(stderr, "%s\n", error.message.c_str()); continue; }
-        ThreeMM::PreviewProjection projection;
+        MM::PreviewProjection projection;
         renderer->Frame(projection, palette, true);
         for (unsigned sample = 0; sample < cases.size(); ++sample)
         {

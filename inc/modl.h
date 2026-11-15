@@ -14,7 +14,7 @@
 #ifndef MODL_H
 #define MODL_H
 
-#include "three_mm/model_resource.h"
+#include "mm/model_resource.h"
 
 using namespace BRender;
 
@@ -72,13 +72,13 @@ class Model : public Model_PAR
     MARKMEM
 
   protected:
-    ThreeMMModelResource _model; // C-owned renderer handle
+    MMModelResource _model; // C-owned renderer handle
   protected:
     Model(void)
     {
-        three_mm_model_init(&_model);
+        mm_model_init(&_model);
     }
-    static ThreeMMModelServices _Services(void *context = nullptr);
+    static MMModelServices _Services(void *context = nullptr);
     bool _FInit(PDataBlock pblck);
     bool _FPrelight(LegacyLong cblit, BVEC3 *prgbvec3Light);
 
@@ -99,17 +99,17 @@ class Model : public Model_PAR
     BRS Dxr(void)
     {
         auto services = _Services();
-        return three_mm_model_extent(&_model, 0, &services);
+        return mm_model_extent(&_model, 0, &services);
     }
     BRS Dyr(void)
     {
         auto services = _Services();
-        return three_mm_model_extent(&_model, 1, &services);
+        return mm_model_extent(&_model, 1, &services);
     }
     BRS Dzr(void)
     {
         auto services = _Services();
-        return three_mm_model_extent(&_model, 2, &services);
+        return mm_model_extent(&_model, 2, &services);
     }
 };
 

@@ -10,10 +10,10 @@
 ***************************************************************************/
 #ifndef BWLD_H
 #define BWLD_H
-#include "three_mm/world_buffers.h"
-#include "three_mm/world_camera.h"
-#include "three_mm/world_render.h"
-#include "three_mm/world_export.h"
+#include "mm/world_buffers.h"
+#include "mm/world_camera.h"
+#include "mm/world_render.h"
+#include "mm/world_export.h"
 
 namespace BRender {
 
@@ -43,12 +43,12 @@ class World : public World_PAR
 
   protected:
     static bool _fBRenderInited; // Whether BrBegin() has been called
-    ThreeMMWorldBuffers _buffers; // owns resources; native fields below are borrowed views
-    ThreeMMWorldBufferServices _BufferServices();
-    ThreeMMWorldCamera _camera; // authoritative camera and closest-pick state
-    ThreeMMWorldCameraServices _CameraServices();
-    ThreeMMWorldRender _render;
-    ThreeMMWorldRenderServices _RenderServices(void *context);
+    MMWorldBuffers _buffers; // owns resources; native fields below are borrowed views
+    MMWorldBufferServices _BufferServices();
+    MMWorldCamera _camera; // authoritative camera and closest-pick state
+    MMWorldCameraServices _CameraServices();
+    MMWorldRender _render;
+    MMWorldRenderServices _RenderServices(void *context);
     RC _rcBuffer;                // Bounds of the rendering space
     RC _rcView;                  // Bounds of view
     BACT _bactWorld;             // The world root actor
@@ -88,7 +88,7 @@ class World : public World_PAR
     bool _FSetBufferMode(bool fHalfX, bool fHalfY, long scale);
     void _CleanWorkingBuffers(void);
 #ifdef DEBUG
-    ThreeMMWorldExportServices _ExportServices(void *context);
+    MMWorldExportServices _ExportServices(void *context);
 #endif // DEBUG
     static int BR_CALLBACK _FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir,
                                     BRS dzpNear, BRS dzpFar, void *pbwld);
@@ -104,7 +104,7 @@ class World : public World_PAR
     // Dirtying the BRender world and bitmap
     void MarkDirty(void)
     {
-        three_mm_world_render_dirty(&_render);
+        mm_world_render_dirty(&_render);
         _fWorldChanged = _render.changed != 0;
     }
     void MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp);

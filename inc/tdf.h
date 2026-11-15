@@ -13,7 +13,7 @@
 ***************************************************************************/
 #ifndef ThreeDFont_H
 #define ThreeDFont_H
-#include "three_mm/font_resource.h"
+#include "mm/font_resource.h"
 struct FontResourceContext;
 
 using namespace BRender;
@@ -31,13 +31,13 @@ class ThreeDFont : public ThreeDFont_PAR
     MARKMEM
 
   protected:
-    ThreeMMFontResource _font = {};
+    MMFontResource _font = {};
 
   protected:
     ThreeDFont(void)
     {
     }
-    static ThreeMMFontResourceServices _Services(FontResourceContext *);
+    static MMFontResourceServices _Services(FontResourceContext *);
     bool _FInit(PDataBlock pblck);
 
   public:

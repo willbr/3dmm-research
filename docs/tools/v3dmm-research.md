@@ -356,13 +356,13 @@ Useful existing integration points:
 | Browser enumeration | [browser.cpp](../../src/studio/browser.cpp), `ThumbnailFileEnumerator` | Enumerate the same active `.3th` set and SID as runtime resolution |
 | Startup registration | [utest.cpp](../../src/studio/utest.cpp), `_FInitProductNames` | Register portable source without reassigning existing movie IDs |
 | Movie document | [movie.cpp](../../src/engine/movie.cpp), [studio.cpp](../../src/studio/studio.cpp) | Container-aware open/save coordinator and ownership of the selected content session |
-| Headless inspection | [archive library](../../libraries/archive/include/three_mm/archive.h) | Container dependency enumeration and inner movie access usable without Studio |
+| Headless inspection | [archive library](../../libraries/archive/include/mm/archive.h) | Container dependency enumeration and inner movie access usable without Studio |
 
 Use a native format component, proposed as `libraries/v3dmm`, with bounded
 VMM/VXP parsing and writing. It should expose dependency names/raw bytes,
 archive byte ranges, metadata and the inner movie range without any GUI,
 registry or process-launch dependency. Reuse the already pinned miniz ZIP
-dependency and `ThreeMM::Archive` for content validation.
+dependency and `MM::Archive` for content validation.
 
 Keep physical storage and activation separate. Installed packages can be
 content-addressed by hash while retaining legacy names and original archive

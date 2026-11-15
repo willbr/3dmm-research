@@ -1,7 +1,7 @@
-#ifndef THREE_MM_PREVIEW_BUFFER_VIEW_H
-#define THREE_MM_PREVIEW_BUFFER_VIEW_H
+#ifndef MM_PREVIEW_BUFFER_VIEW_H
+#define MM_PREVIEW_BUFFER_VIEW_H
 #include <cstddef>
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -43,5 +43,5 @@ template <class T> class PreviewBufferView
     }
 };
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM
 #endif

@@ -1,16 +1,16 @@
 /* MIDI render policy converted from Kauai midi_render.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/midi_render.h"
+#include "mm/midi_render.h"
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
-struct ThreeMMMidiRenderBuffer
+struct MMMidiRenderBuffer
 {
-    ThreeMMMidiStreamEvent *data;
+    MMMidiStreamEvent *data;
     size_t tag, count, index;
-    ThreeMMI32 repeats;
+    MMI32 repeats;
     int delay_loaded;
-    ThreeMMMidiRenderBuffer *next;
+    MMMidiRenderBuffer *next;
 };
 static void *allocate(void *p, size_t n)
 {
@@ -22,28 +22,28 @@ static void release(void *p, void *v)
     (void)p;
     free(v);
 }
-static void increment(ThreeMMAudioCounter *p)
+static void increment(MMAudioCounter *p)
 {
-    *p = three_mm_audio_count_add(*p, three_mm_audio_counter(1, 0));
+    *p = mm_audio_count_add(*p, mm_audio_counter(1, 0));
 }
-static ThreeMMAudioCounter multiply(ThreeMMAudioCounter a, ThreeMMU32 n)
+static MMAudioCounter multiply(MMAudioCounter a, MMU32 n)
 {
-    ThreeMMAudioCounter p = three_mm_audio_count_multiply(a.low, n);
+    MMAudioCounter p = mm_audio_count_multiply(a.low, n);
     p.high += a.high * n;
     return p;
 }
-static ThreeMMAudioCounter delay(ThreeMMMidiRenderer *r, ThreeMMU32 ticks)
+static MMAudioCounter delay(MMMidiRenderer *r, MMU32 ticks)
 {
-    ThreeMMAudioCounter duration, whole, rem;
-    duration = three_mm_audio_count_multiply(ticks, r->tempo);
-    whole = three_mm_audio_count_divide(duration, three_mm_audio_counter(1000000000, 0), &rem);
-    rem = three_mm_audio_count_add(multiply(rem, r->rate), r->fraction);
-    duration = three_mm_audio_count_divide(rem, three_mm_audio_counter(1000000000, 0), &r->fraction);
-    return three_mm_audio_count_add(multiply(whole, r->rate), duration);
+    MMAudioCounter duration, whole, rem;
+    duration = mm_audio_count_multiply(ticks, r->tempo);
+    whole = mm_audio_count_divide(duration, mm_audio_counter(1000000000, 0), &rem);
+    rem = mm_audio_count_add(multiply(rem, r->rate), r->fraction);
+    duration = mm_audio_count_divide(rem, mm_audio_counter(1000000000, 0), &r->fraction);
+    return mm_audio_count_add(multiply(whole, r->rate), duration);
 }
-static void return_head(ThreeMMMidiRenderer *r)
+static void return_head(MMMidiRenderer *r)
 {
-    ThreeMMMidiRenderBuffer *b = r->head;
+    MMMidiRenderBuffer *b = r->head;
     r->head = b->next;
     if (!r->head)
         r->tail = NULL;
@@ -55,14 +55,14 @@ static void return_head(ThreeMMMidiRenderer *r)
     r->returned_tail = b;
     increment(&r->completed);
 }
-void three_mm_midi_render_clock_reset(ThreeMMMidiRenderer *r, ThreeMMU32 rate)
+void mm_midi_render_clock_reset(MMMidiRenderer *r, MMU32 rate)
 {
-    r->wait_frames = r->fraction = three_mm_audio_counter(0, 0);
+    r->wait_frames = r->fraction = mm_audio_counter(0, 0);
     r->tempo = 1000000;
     r->rate = rate;
 }
-void three_mm_midi_render_init(ThreeMMMidiRenderer *r, const ThreeMMMidiRenderServices *s,
-                               const ThreeMMAudioAllocator *a)
+void mm_midi_render_init(MMMidiRenderer *r, const MMMidiRenderServices *s,
+                               const MMAudioAllocator *a)
 {
     memset(r, 0, sizeof(*r));
     r->services = *s;
@@ -74,25 +74,25 @@ void three_mm_midi_render_init(ThreeMMMidiRenderer *r, const ThreeMMMidiRenderSe
         r->allocator.release = release;
     }
     r->volume = 1;
-    three_mm_midi_render_clock_reset(r, 48000);
+    mm_midi_render_clock_reset(r, 48000);
 }
-void three_mm_midi_render_dispose(ThreeMMMidiRenderer *r)
+void mm_midi_render_dispose(MMMidiRenderer *r)
 {
     void *data;
     size_t tag;
     while (r->head)
         return_head(r);
-    while (three_mm_midi_render_pop(r, &data, &tag))
+    while (mm_midi_render_pop(r, &data, &tag))
     {
     }
 }
-int three_mm_midi_render_queue(ThreeMMMidiRenderer *r, ThreeMMMidiStreamEvent *data, ThreeMMI32 bytes,
-                               ThreeMMI32 offset, ThreeMMI32 repeats, size_t tag)
+int mm_midi_render_queue(MMMidiRenderer *r, MMMidiStreamEvent *data, MMI32 bytes,
+                               MMI32 offset, MMI32 repeats, size_t tag)
 {
-    ThreeMMMidiRenderBuffer *b;
+    MMMidiRenderBuffer *b;
     size_t count, i;
     int timed = 0;
-    ThreeMMU32 type;
+    MMU32 type;
     if (!data || bytes <= 0 || offset < 0 || offset >= bytes || bytes % sizeof(*data) || offset % sizeof(*data))
         return 0;
     count = (size_t)bytes / sizeof(*data);
@@ -106,7 +106,7 @@ int three_mm_midi_render_queue(ThreeMMMidiRenderer *r, ThreeMMMidiStreamEvent *d
     }
     if (repeats != 1 && !timed)
         return 0;
-    b = (ThreeMMMidiRenderBuffer *)r->allocator.allocate(r->allocator.context, sizeof(*b));
+    b = (MMMidiRenderBuffer *)r->allocator.allocate(r->allocator.context, sizeof(*b));
     if (!b)
         return 0;
     if (!r->services.ready(r->services.context))
@@ -128,12 +128,12 @@ int three_mm_midi_render_queue(ThreeMMMidiRenderer *r, ThreeMMMidiStreamEvent *d
     increment(&r->queued);
     return 1;
 }
-int three_mm_midi_render(ThreeMMMidiRenderer *r, float *out, size_t frames)
+int mm_midi_render(MMMidiRenderer *r, float *out, size_t frames)
 {
     size_t requested = frames, count, i;
-    ThreeMMMidiRenderBuffer *b;
-    ThreeMMMidiStreamEvent *event;
-    ThreeMMU32 type;
+    MMMidiRenderBuffer *b;
+    MMMidiStreamEvent *event;
+    MMU32 type;
     float left, right;
     if ((!out && frames) || frames > (size_t)-1 / (2 * sizeof(float)))
         return 0;
@@ -180,8 +180,8 @@ int three_mm_midi_render(ThreeMMMidiRenderer *r, float *out, size_t frames)
             break;
         count = frames;
         if ((r->wait_frames.low || r->wait_frames.high) &&
-            three_mm_audio_count_compare(r->wait_frames, three_mm_audio_count_size(frames)) < 0)
-            count = three_mm_audio_count_to_size(r->wait_frames);
+            mm_audio_count_compare(r->wait_frames, mm_audio_count_size(frames)) < 0)
+            count = mm_audio_count_to_size(r->wait_frames);
         r->services.render(r->services.context, out, count);
         for (i = 0; i < count; ++i)
         {
@@ -197,21 +197,21 @@ int three_mm_midi_render(ThreeMMMidiRenderer *r, float *out, size_t frames)
         frames -= count;
         out += count * 2;
         if (r->wait_frames.low || r->wait_frames.high)
-            r->wait_frames = three_mm_audio_count_sub(r->wait_frames, three_mm_audio_count_size(count));
+            r->wait_frames = mm_audio_count_sub(r->wait_frames, mm_audio_count_size(count));
     }
-    r->frames = three_mm_audio_count_add(r->frames, three_mm_audio_count_size(requested));
+    r->frames = mm_audio_count_add(r->frames, mm_audio_count_size(requested));
     return r->returned != NULL;
 }
-void three_mm_midi_render_stop(ThreeMMMidiRenderer *r)
+void mm_midi_render_stop(MMMidiRenderer *r)
 {
     while (r->head)
         return_head(r);
     r->services.silence(r->services.context);
-    three_mm_midi_render_clock_reset(r, r->rate);
+    mm_midi_render_clock_reset(r, r->rate);
 }
-int three_mm_midi_render_pop(ThreeMMMidiRenderer *r, void **data, size_t *tag)
+int mm_midi_render_pop(MMMidiRenderer *r, void **data, size_t *tag)
 {
-    ThreeMMMidiRenderBuffer *b = r->returned;
+    MMMidiRenderBuffer *b = r->returned;
     if (!b)
         return 0;
     r->returned = b->next;
@@ -222,20 +222,20 @@ int three_mm_midi_render_pop(ThreeMMMidiRenderer *r, void **data, size_t *tag)
     r->allocator.release(r->allocator.context, b);
     return 1;
 }
-int three_mm_midi_render_reset(ThreeMMMidiRenderer *r)
+int mm_midi_render_reset(MMMidiRenderer *r)
 {
     if (r->head || r->returned)
         return 0;
     r->services.reset(r->services.context);
-    three_mm_midi_render_clock_reset(r, r->rate);
+    mm_midi_render_clock_reset(r, r->rate);
     return 1;
 }
-void three_mm_midi_render_idle(ThreeMMMidiRenderer *r)
+void mm_midi_render_idle(MMMidiRenderer *r)
 {
     if (!r->head)
         r->services.silence(r->services.context);
 }
-void three_mm_midi_render_volume(ThreeMMMidiRenderer *r, float f)
+void mm_midi_render_volume(MMMidiRenderer *r, float f)
 {
     r->volume = f >= -FLT_MAX && f <= FLT_MAX ? (f < 0 ? 0 : f > 1 ? 1 : f) : 0;
 }

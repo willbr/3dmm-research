@@ -1,19 +1,19 @@
 /* Mixer policy converted from Kauai audio_mixer.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/audio_mixer.h"
+#include "mm/audio_mixer.h"
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
 typedef struct Playing
 {
-    ThreeMMAudioVoice voice;
-    ThreeMMAudioCounter position;
+    MMAudioVoice voice;
+    MMAudioCounter position;
     int done, started, grouped;
 } Playing;
-struct ThreeMMAudioQueue
+struct MMAudioQueue
 {
-    ThreeMMAudioQueue *next;
-    ThreeMMAudioCounter id;
+    MMAudioQueue *next;
+    MMAudioCounter id;
     Playing *voices;
     size_t count, head;
 };
@@ -31,15 +31,15 @@ static int finite_volume(float f)
 {
     return f >= 0 && f <= FLT_MAX;
 }
-static ThreeMMAudioQueue *find(const ThreeMMAudioMixer *m, ThreeMMAudioCounter id)
+static MMAudioQueue *find(const MMAudioMixer *m, MMAudioCounter id)
 {
-    ThreeMMAudioQueue *q;
+    MMAudioQueue *q;
     for (q = m->queues; q; q = q->next)
-        if (!three_mm_audio_count_compare(q->id, id))
+        if (!mm_audio_count_compare(q->id, id))
             return q;
     return NULL;
 }
-void three_mm_audio_mixer_init(ThreeMMAudioMixer *m, const ThreeMMAudioAllocator *a)
+void mm_audio_mixer_init(MMAudioMixer *m, const MMAudioAllocator *a)
 {
     memset(m, 0, sizeof(*m));
     if (a)
@@ -52,22 +52,22 @@ void three_mm_audio_mixer_init(ThreeMMAudioMixer *m, const ThreeMMAudioAllocator
     m->next.low = 1;
     m->volume = 1;
 }
-void three_mm_audio_mixer_dispose(ThreeMMAudioMixer *m)
+void mm_audio_mixer_dispose(MMAudioMixer *m)
 {
     while (m->queues)
-        three_mm_audio_mixer_remove(m, m->queues->id);
+        mm_audio_mixer_remove(m, m->queues->id);
 }
-ThreeMMAudioCounter three_mm_audio_mixer_add(ThreeMMAudioMixer *m)
+MMAudioCounter mm_audio_mixer_add(MMAudioMixer *m)
 {
-    ThreeMMAudioQueue *q, **tail;
-    ThreeMMAudioCounter id = m->next;
+    MMAudioQueue *q, **tail;
+    MMAudioCounter id = m->next;
     if (!id.low && !id.high)
         return id;
     /* Original allocation failure consumes the attempted queue identifier. */
-    m->next = three_mm_audio_count_add(id, three_mm_audio_counter(1, 0));
-    q = (ThreeMMAudioQueue *)m->allocator.allocate(m->allocator.context, sizeof(*q));
+    m->next = mm_audio_count_add(id, mm_audio_counter(1, 0));
+    q = (MMAudioQueue *)m->allocator.allocate(m->allocator.context, sizeof(*q));
     if (!q)
-        return three_mm_audio_counter(0, 0);
+        return mm_audio_counter(0, 0);
     memset(q, 0, sizeof(*q));
     q->id = id;
     for (tail = &m->queues; *tail; tail = &(*tail)->next)
@@ -76,11 +76,11 @@ ThreeMMAudioCounter three_mm_audio_mixer_add(ThreeMMAudioMixer *m)
     *tail = q;
     return id;
 }
-void three_mm_audio_mixer_remove(ThreeMMAudioMixer *m, ThreeMMAudioCounter id)
+void mm_audio_mixer_remove(MMAudioMixer *m, MMAudioCounter id)
 {
-    ThreeMMAudioQueue **link, *q;
+    MMAudioQueue **link, *q;
     for (link = &m->queues; *link; link = &(*link)->next)
-        if (!three_mm_audio_count_compare((*link)->id, id))
+        if (!mm_audio_count_compare((*link)->id, id))
         {
             q = *link;
             *link = q->next;
@@ -90,9 +90,9 @@ void three_mm_audio_mixer_remove(ThreeMMAudioMixer *m, ThreeMMAudioCounter id)
             return;
         }
 }
-int three_mm_audio_mixer_sync(ThreeMMAudioMixer *m, ThreeMMAudioCounter id, const ThreeMMAudioVoice *v, size_t n)
+int mm_audio_mixer_sync(MMAudioMixer *m, MMAudioCounter id, const MMAudioVoice *v, size_t n)
 {
-    ThreeMMAudioQueue *q = find(m, id);
+    MMAudioQueue *q = find(m, id);
     Playing *p = NULL;
     size_t i, j;
     if (!q || (n && !v) || n > (size_t)-1 / sizeof(*p))
@@ -123,7 +123,7 @@ int three_mm_audio_mixer_sync(ThreeMMAudioMixer *m, ThreeMMAudioCounter id, cons
         }
         else
         {
-            p[i].position = three_mm_audio_count_multiply(v[i].offset_ms, 48);
+            p[i].position = mm_audio_count_multiply(v[i].offset_ms, 48);
             p[i].grouped = m->groups > 0;
         }
         p[i].voice = v[i];
@@ -139,9 +139,9 @@ fail:
         m->allocator.release(m->allocator.context, p);
     return 0;
 }
-int three_mm_audio_mixer_done(const ThreeMMAudioMixer *m, ThreeMMAudioCounter id, ThreeMMI32 voice)
+int mm_audio_mixer_done(const MMAudioMixer *m, MMAudioCounter id, MMI32 voice)
 {
-    ThreeMMAudioQueue *q = find(m, id);
+    MMAudioQueue *q = find(m, id);
     size_t i;
     if (!q)
         return 1;
@@ -150,41 +150,41 @@ int three_mm_audio_mixer_done(const ThreeMMAudioMixer *m, ThreeMMAudioCounter id
             return q->voices[i].done || q->voices[i].voice.stopped;
     return 0;
 }
-void three_mm_audio_mixer_volume(ThreeMMAudioMixer *m, float v)
+void mm_audio_mixer_volume(MMAudioMixer *m, float v)
 {
     if (finite_volume(v))
         m->volume = v;
 }
-void three_mm_audio_mixer_suspend(ThreeMMAudioMixer *m, int b)
+void mm_audio_mixer_suspend(MMAudioMixer *m, int b)
 {
     m->suspended = b;
 }
-void three_mm_audio_mixer_begin(ThreeMMAudioMixer *m)
+void mm_audio_mixer_begin(MMAudioMixer *m)
 {
     ++m->groups;
 }
-void three_mm_audio_mixer_end(ThreeMMAudioMixer *m)
+void mm_audio_mixer_end(MMAudioMixer *m)
 {
-    ThreeMMAudioQueue *q;
+    MMAudioQueue *q;
     size_t i;
     if (m->groups && --m->groups == 0)
         for (q = m->queues; q; q = q->next)
             for (i = 0; i < q->count; ++i)
                 q->voices[i].grouped = 0;
 }
-static void complete(ThreeMMAudioMixer *m, Playing *p)
+static void complete(MMAudioMixer *m, Playing *p)
 {
     if (!p->done)
     {
         p->done = 1;
-        m->completed = three_mm_audio_count_add(m->completed, three_mm_audio_counter(1, 0));
+        m->completed = mm_audio_count_add(m->completed, mm_audio_counter(1, 0));
     }
 }
-void three_mm_audio_mixer_render(ThreeMMAudioMixer *m, float *out, size_t frames)
+void mm_audio_mixer_render(MMAudioMixer *m, float *out, size_t frames)
 {
-    ThreeMMAudioQueue *q;
+    MMAudioQueue *q;
     Playing *p;
-    ThreeMMAudioCounter loops, rest;
+    MMAudioCounter loops, rest;
     size_t i, offset, position, take, count;
     float volume;
     if (!out || frames > (size_t)-1 / (2 * sizeof(float)))
@@ -200,10 +200,10 @@ void three_mm_audio_mixer_render(ThreeMMAudioMixer *m, float *out, size_t frames
         {
             p = q->voices + q->head;
             count = p->voice.frames;
-            loops = three_mm_audio_count_divide(p->position, three_mm_audio_count_size(count), &rest);
+            loops = mm_audio_count_divide(p->position, mm_audio_count_size(count), &rest);
             if (p->done || p->voice.stopped || !count ||
                 (p->voice.plays &&
-                 three_mm_audio_count_compare(loops, three_mm_audio_counter((ThreeMMU32)p->voice.plays, 0)) >= 0))
+                 mm_audio_count_compare(loops, mm_audio_counter((MMU32)p->voice.plays, 0)) >= 0))
             {
                 complete(m, p);
                 ++q->head;
@@ -214,18 +214,18 @@ void three_mm_audio_mixer_render(ThreeMMAudioMixer *m, float *out, size_t frames
             if (!p->started)
             {
                 p->started = 1;
-                m->started = three_mm_audio_count_add(m->started, three_mm_audio_counter(1, 0));
+                m->started = mm_audio_count_add(m->started, mm_audio_counter(1, 0));
             }
-            position = three_mm_audio_count_to_size(rest);
+            position = mm_audio_count_to_size(rest);
             take = frames - offset < count - position ? frames - offset : count - position;
             volume = p->voice.volume * m->volume;
             for (i = 0; i < take * 2; ++i)
                 out[offset * 2 + i] += p->voice.stereo[position * 2 + i] * volume;
-            p->position = three_mm_audio_count_add(p->position, three_mm_audio_count_size(take));
+            p->position = mm_audio_count_add(p->position, mm_audio_count_size(take));
             offset += take;
-            loops = three_mm_audio_count_divide(p->position, three_mm_audio_count_size(count), NULL);
+            loops = mm_audio_count_divide(p->position, mm_audio_count_size(count), NULL);
             if (p->voice.plays &&
-                three_mm_audio_count_compare(loops, three_mm_audio_counter((ThreeMMU32)p->voice.plays, 0)) >= 0)
+                mm_audio_count_compare(loops, mm_audio_counter((MMU32)p->voice.plays, 0)) >= 0)
             {
                 complete(m, p);
                 ++q->head;
@@ -235,5 +235,5 @@ void three_mm_audio_mixer_render(ThreeMMAudioMixer *m, float *out, size_t frames
     /* Match std::max(-1, std::min(1, value)), including NaN's result of +1. */
     for (i = 0; i < frames * 2; ++i)
         out[i] = out[i] < 1 ? (out[i] < -1 ? -1 : out[i]) : 1;
-    m->rendered_frames = three_mm_audio_count_add(m->rendered_frames, three_mm_audio_count_size(frames));
+    m->rendered_frames = mm_audio_count_add(m->rendered_frames, mm_audio_count_size(frames));
 }

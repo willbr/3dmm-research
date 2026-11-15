@@ -217,7 +217,7 @@ int main()
 #if defined(_MSC_VER) && defined(DEBUG)
     _CrtSetReportHook(RuntimeReport);
 #endif
-    if (const char *path = std::getenv("THREE_MM_MODEL_RESOURCE_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_MODEL_RESOURCE_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         CHECK(snapshot);

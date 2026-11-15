@@ -6,7 +6,7 @@
 #include "platform_text.h"
 #undef size
 ASSERTNAME
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -259,4 +259,4 @@ bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, Previe
     return true;
 }
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM

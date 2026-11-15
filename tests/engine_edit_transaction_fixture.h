@@ -3,7 +3,7 @@
 static bool TestActorEditTransactions(PMovie parent)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_EDIT_TRANSACTION_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_EDIT_TRANSACTION_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     PChunkyFile file=ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):nullptr;

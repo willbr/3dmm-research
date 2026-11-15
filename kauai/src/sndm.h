@@ -15,7 +15,7 @@
 ***************************************************************************/
 #ifndef SNDM_H
 #define SNDM_H
-#include "three_mm/sound_manager.h"
+#include "mm/sound_manager.h"
 
 const LegacyLong siiNil = 0;
 const FileType kftgMidi = MacWin('MIDI', 'MID'); // REVIEW shonk: Mac: file type
@@ -36,7 +36,7 @@ class SoundDevice : public SoundDevice_PAR
 
     static LegacyLong _SiiAlloc(void)
     {
-        return _siiLast = three_mm_sound_next_id(_siiLast);
+        return _siiLast = mm_sound_next_id(_siiLast);
     }
 
   public:
@@ -93,10 +93,10 @@ class SoundManager : public SoundManager_PAR
     PDynamicArray _pglsndmpe; // sound type to device mapper
     LegacyLong _sclFirst = klwMin, _sclLast = klwMax;
 
-    ThreeMMSoundControl _control;
+    MMSoundControl _control;
     bool _fFreeing : 1; // we're in the destructor
 
-    ThreeMMSoundManagerServices _Services();
+    MMSoundManagerServices _Services();
     SoundManager(void);
     bool _FInit(void);
     bool _FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, LegacyLong *pisndmpe = pvNil);
@@ -178,10 +178,10 @@ class SoundManagerQueue : public SoundManagerQueue_PAR
 
     PDynamicArray _pglsnqd; // the queues
 
-    ThreeMMSoundControl _control;
+    MMSoundControl _control;
 
     virtual bool _FInit(void);
-    ThreeMMSoundManagerServices _Services();
+    MMSoundManagerServices _Services();
     virtual bool _FEnsureQueue(LegacyLong sqn, SNQD *psnqd, LegacyLong *pisnqd);
 
     virtual PSoundQueue _PsnqueNew(void) = 0;
@@ -248,7 +248,7 @@ class SoundQueue : public SoundQueue_PAR
 
     SoundQueue(void);
 
-    ThreeMMSoundQueueServices _Services();
+    MMSoundQueueServices _Services();
     virtual bool _FInit(void);
     virtual void _Queue(LegacyLong isndinMin) = 0;
     virtual void _PauseQueue(LegacyLong isndinMin) = 0;

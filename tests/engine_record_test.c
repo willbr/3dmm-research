@@ -1,38 +1,38 @@
 #include "engine_subroute_edit_fixture.h"
-#include "three_mm/actor_record.h"
+#include "mm/actor_record.h"
 typedef struct RecordFixture
 {
     SubFixture sub;
-    ThreeMMActorRecording record,view_record,saved_record;
-    ThreeMMActorState saved_state;
-    ThreeMMActorPoint measured;
+    MMActorRecording record,view_record,saved_record;
+    MMActorState saved_state;
+    MMActorPoint measured;
     int restores,point_reserves,fail_points,distances,seeks,fail_scene,invalid_handles,outputs;
     int output_frame,output_route;
     int aliased_output;
     unsigned output_mask;
-    ThreeMMI32 forced_distance,scene_frame;
+    MMI32 forced_distance,scene_frame;
 } RecordFixture;
-static void record_publish(void *p,const ThreeMMActorRecording *record)
+static void record_publish(void *p,const MMActorRecording *record)
 {
     RecordFixture *f=(RecordFixture *)p; f->view_record=*record;
     f->sub.base.recording=record->recording; f->sub.rejoining=record->rejoining;
 }
-static void record_restore(void *p,void *undo,ThreeMMActorState *state,ThreeMMActorRecording *record)
+static void record_restore(void *p,void *undo,MMActorState *state,MMActorRecording *record)
 {
     RecordFixture *f=(RecordFixture *)p; CHECK(undo==&f->saved_state);
     ++f->restores; *state=f->saved_state; *record=f->saved_record; f->invalid_handles=1;
 }
-static ThreeMMI32 checked_events(void *p) { RecordFixture *f=(RecordFixture *)p; CHECK(!f->invalid_handles); return events(p); }
-static ThreeMMI32 checked_nodes(void *p) { RecordFixture *f=(RecordFixture *)p; CHECK(!f->invalid_handles); return nodes(p); }
-static ThreeMMI32 metric(void *p,const ThreeMMActorPoint *delta)
+static MMI32 checked_events(void *p) { RecordFixture *f=(RecordFixture *)p; CHECK(!f->invalid_handles); return events(p); }
+static MMI32 checked_nodes(void *p) { RecordFixture *f=(RecordFixture *)p; CHECK(!f->invalid_handles); return nodes(p); }
+static MMI32 metric(void *p,const MMActorPoint *delta)
 {
     RecordFixture *f=(RecordFixture *)p; f->measured=*delta; ++f->distances;
     if (f->forced_distance>=0) return f->forced_distance;
     return (delta->dxr<0?-delta->dxr:delta->dxr)+(delta->dyr<0?-delta->dyr:delta->dyr)+(delta->dzr<0?-delta->dzr:delta->dzr);
 }
-static int record_points(void *p,ThreeMMU32 count)
+static int record_points(void *p,MMU32 count)
 { RecordFixture *f=(RecordFixture *)p; CHECK(count==1 && f->sub.base.reserves==1); ++f->point_reserves; return !f->fail_points; }
-static int current_frame(void *p,ThreeMMI32 *frame) { *frame=((RecordFixture *)p)->scene_frame; return 1; }
+static int current_frame(void *p,MMI32 *frame) { *frame=((RecordFixture *)p)->scene_frame; return 1; }
 static void output(void *p,int frame,int route,unsigned changed)
 {
     RecordFixture *f=(RecordFixture *)p; ++f->outputs; f->output_frame=frame; f->output_route=route;
@@ -41,7 +41,7 @@ static void output(void *p,int frame,int route,unsigned changed)
     if (changed&2) f->aliased_output=route;
     if (frame) CHECK(f->view_record.inserted && !f->restores);
 }
-static int scene_seek(void *p,ThreeMMActorState *state,ThreeMMActorRecording *record,ThreeMMI32 frame)
+static int scene_seek(void *p,MMActorState *state,MMActorRecording *record,MMI32 frame)
 {
     RecordFixture *f=(RecordFixture *)p; CHECK(frame==f->scene_frame+1);
     CHECK(f->outputs==2 && f->output_frame && f->view_record.inserted);
@@ -50,12 +50,12 @@ static int scene_seek(void *p,ThreeMMActorState *state,ThreeMMActorRecording *re
     return 1;
 }
 static void record_diagnostic(void *p,int fault)
-{ RecordFixture *f=(RecordFixture *)p; CHECK(fault>=0 && fault<=THREE_MM_RECORD_STEP_FAILED); ++f->sub.diagnostic_count; }
-static ThreeMMActorRecordServices record_init(RecordFixture *f)
+{ RecordFixture *f=(RecordFixture *)p; CHECK(fault>=0 && fault<=MM_RECORD_STEP_FAILED); ++f->sub.diagnostic_count; }
+static MMActorRecordServices record_init(RecordFixture *f)
 {
-    ThreeMMActorRecordServices s;
+    MMActorRecordServices s;
     memset(f,0,sizeof(*f)); memset(&s,0,sizeof(s)); s.subroute=sub_init(&f->sub);
-    f->sub.base.events=0; add(&f->sub,0,1); append(&f->sub.base,THREE_MM_ACTOR_ACTION,0,0,1); f->sub.base.bytes[1]=8;
+    f->sub.base.events=0; add(&f->sub,0,1); append(&f->sub.base,MM_ACTOR_ACTION,0,0,1); f->sub.base.bytes[1]=8;
     f->sub.base.point[1].dwr=4*ONE; f->sub.base.point[2].xyz.dxr=8*ONE;
     f->sub.base.state.location.irpt=0; f->sub.base.state.location.dwrOffset=f->sub.base.state.location.dnfrm=0;
     f->sub.base.state.firstEventInFrame=0; f->sub.base.state.actionEvent=1; f->sub.base.state.celCount=4; f->sub.base.state.step=-ONE;
@@ -67,54 +67,54 @@ static ThreeMMActorRecordServices record_init(RecordFixture *f)
     s.reserve_points=record_points; s.diagnostic=record_diagnostic; record_publish(f,&f->record);
     return s;
 }
-static ThreeMMActorMotionServices checked_tables(void)
-{ ThreeMMActorMotionServices m=tables; m.event_count=checked_events; m.route_count=checked_nodes; return m; }
-static int begin(RecordFixture *f,int replace,const ThreeMMActorRecordServices *s)
-{ ThreeMMActorMotionServices m=checked_tables(); return three_mm_actor_record_begin(&f->sub.base.state,&f->record,f,f,replace,&f->saved_state,&m,s); }
-static int move(RecordFixture *f,const ThreeMMActorPoint *delta,ThreeMMU32 flags,ThreeMMU32 now,ThreeMMActorRecordResult *out,const ThreeMMActorRecordServices *s)
-{ ThreeMMActorMotionServices m=checked_tables(); return three_mm_actor_record_move(&f->sub.base.state,&f->record,&f->sub.base.sounds,f,f,7,delta,flags,now,out,&f->saved_state,&m,s); }
-static int finish(RecordFixture *f,int replace,const ThreeMMActorRecordServices *s)
-{ ThreeMMActorMotionServices m=checked_tables(); return three_mm_actor_record_end(&f->sub.base.state,&f->record,&f->sub.base.sounds,f,f,7,replace,&f->saved_state,&m,s); }
-static ThreeMMActorRecordResult result(RecordFixture *f)
-{ ThreeMMActorRecordResult out; memset(&out,0,sizeof(out)); out.frame=41; out.route=42; out.context=f; out.publish=output; return out; }
+static MMActorMotionServices checked_tables(void)
+{ MMActorMotionServices m=tables; m.event_count=checked_events; m.route_count=checked_nodes; return m; }
+static int begin(RecordFixture *f,int replace,const MMActorRecordServices *s)
+{ MMActorMotionServices m=checked_tables(); return mm_actor_record_begin(&f->sub.base.state,&f->record,f,f,replace,&f->saved_state,&m,s); }
+static int move(RecordFixture *f,const MMActorPoint *delta,MMU32 flags,MMU32 now,MMActorRecordResult *out,const MMActorRecordServices *s)
+{ MMActorMotionServices m=checked_tables(); return mm_actor_record_move(&f->sub.base.state,&f->record,&f->sub.base.sounds,f,f,7,delta,flags,now,out,&f->saved_state,&m,s); }
+static int finish(RecordFixture *f,int replace,const MMActorRecordServices *s)
+{ MMActorMotionServices m=checked_tables(); return mm_actor_record_end(&f->sub.base.state,&f->record,&f->sub.base.sounds,f,f,7,replace,&f->saved_state,&m,s); }
+static MMActorRecordResult result(RecordFixture *f)
+{ MMActorRecordResult out; memset(&out,0,sizeof(out)); out.frame=41; out.route=42; out.context=f; out.publish=output; return out; }
 static void validity_test(void)
 {
-    RecordFixture f; ThreeMMActorRecordServices s=record_init(&f); ThreeMMActorPoint delta={0,0,0}; ThreeMMI32 value;
-    CHECK(three_mm_actor_record_valid(&f.record,&delta,0,&s) && !f.distances);
+    RecordFixture f; MMActorRecordServices s=record_init(&f); MMActorPoint delta={0,0,0}; MMI32 value;
+    CHECK(mm_actor_record_valid(&f.record,&delta,0,&s) && !f.distances);
     f.record.recording=0; f.record.timestamp=0xffffff00U; f.forced_distance=2*ONE-1;
-    CHECK(!three_mm_actor_record_valid(&f.record,&delta,493,&s));
-    CHECK(three_mm_actor_record_valid(&f.record,&delta,494,&s));
-    f.forced_distance=2*ONE; CHECK(three_mm_actor_record_valid(&f.record,&delta,f.record.timestamp,&s));
-    f.forced_distance=0; CHECK(three_mm_actor_record_valid(&f.record,&delta,f.record.timestamp-1,&s));
+    CHECK(!mm_actor_record_valid(&f.record,&delta,493,&s));
+    CHECK(mm_actor_record_valid(&f.record,&delta,494,&s));
+    f.forced_distance=2*ONE; CHECK(mm_actor_record_valid(&f.record,&delta,f.record.timestamp,&s));
+    f.forced_distance=0; CHECK(mm_actor_record_valid(&f.record,&delta,f.record.timestamp-1,&s));
     f.sub.base.state.transform.rScaleStep=2*ONE; f.sub.base.state.step=0;
-    CHECK(three_mm_actor_record_step(&f.sub.base.state,&value,&s.subroute.timeline) && value==2*ONE);
+    CHECK(mm_actor_record_step(&f.sub.base.state,&value,&s.subroute.timeline) && value==2*ONE);
     f.sub.fail_resolve=1; value=-99;
-    CHECK(!three_mm_actor_record_step(&f.sub.base.state,&value,&s.subroute.timeline) && value==ONE);
+    CHECK(!mm_actor_record_step(&f.sub.base.state,&value,&s.subroute.timeline) && value==ONE);
     done(&f.sub);
 }
 static void begin_test(void)
 {
-    RecordFixture f; ThreeMMActorRecordServices s;
+    RecordFixture f; MMActorRecordServices s;
     s=record_init(&f); f.record.recording=0; f.sub.base.state.location.dwrOffset=2*ONE; add(&f.sub,2,8);
     CHECK(begin(&f,0,&s));
     CHECK(f.record.recording && f.record.rejoining && !f.record.inserted && f.record.gap==-6 && f.record.timestamp==1000);
     CHECK(f.record.insertion.irpt==1 && !f.record.raw.dxr && f.sub.base.state.position.dxr==2*ONE && f.sub.base.nodes==4);
     CHECK(f.sub.base.point[0].dwr==2*ONE && f.sub.base.point[1].dwr==2*ONE && f.sub.base.event[2].rtel.irpt==3); done(&f.sub);
-    s=record_init(&f); f.record.recording=0; append(&f.sub.base,THREE_MM_ACTOR_REMOVE,1,0,3); f.sub.base.bytes[2]=0; add(&f.sub,2,8);
+    s=record_init(&f); f.record.recording=0; append(&f.sub.base,MM_ACTOR_REMOVE,1,0,3); f.sub.base.bytes[2]=0; add(&f.sub,2,8);
     CHECK(begin(&f,0,&s) && !f.record.rejoining && f.sub.base.nodes==2 && f.sub.base.events==3);
-    CHECK(f.sub.base.event[2].aet==THREE_MM_ACTOR_ADD && f.sub.base.event[2].rtel.irpt==1); done(&f.sub);
+    CHECK(f.sub.base.event[2].aet==MM_ACTOR_ADD && f.sub.base.event[2].rtel.irpt==1); done(&f.sub);
     s=record_init(&f); f.sub.base.point[0].dwr=0;
     CHECK(begin(&f,0,&s) && !f.record.rejoining); done(&f.sub);
     s=record_init(&f); f.sub.base.state.location.dwrOffset=ONE; f.sub.base.fail_insert=1;
     CHECK(!begin(&f,0,&s) && f.restores==1 && f.sub.base.state.frame==44 && f.record.timestamp==123); done(&f.sub);
     s=record_init(&f); f.record.recording=0; f.sub.dirty_state=f.sub.fail_resolve=1;
-    append(&f.sub.base,THREE_MM_ACTOR_STEP,0,0,1); f.sub.base.payload[2][0]=-ONE; add(&f.sub,2,8);
+    append(&f.sub.base,MM_ACTOR_STEP,0,0,1); f.sub.base.payload[2][0]=-ONE; add(&f.sub,2,8);
     CHECK(!begin(&f,0,&s) && f.restores==1 && f.sub.diagnostic_count==1 && f.record.gap==77); done(&f.sub);
 }
 static void move_test(void)
 {
-    RecordFixture f; ThreeMMActorRecordServices s; ThreeMMActorRecordResult out;
-    ThreeMMActorPoint delta={0,0,0}; int failure;
+    RecordFixture f; MMActorRecordServices s; MMActorRecordResult out;
+    MMActorPoint delta={0,0,0}; int failure;
     s=record_init(&f); f.record.recording=0; out=result(&f);
     CHECK(move(&f,&delta,0,1000,&out,&s) && !out.written && out.frame==41 && !f.sub.base.reserves); done(&f.sub);
     for (failure=0;failure<2;++failure)
@@ -150,7 +150,7 @@ static void move_test(void)
     }
     s=record_init(&f); out=result(&f); delta.dxr=0; delta.dyr=-3*ONE;
     f.sub.base.state.routeTranslation.dyr=ONE/2; f.record.gap=-1;
-    CHECK(move(&f,&delta,THREE_MM_RECORD_GROUND,1100,&out,&s));
+    CHECK(move(&f,&delta,MM_RECORD_GROUND,1100,&out,&s));
     CHECK(f.sub.base.point[1].xyz.dyr==-ONE/2 && f.sub.base.point[0].dwr==ONE && !f.record.gap && f.sub.base.range.last==8); done(&f.sub);
     s=record_init(&f); out=result(&f); f.forced_distance=0; f.record.raw.dxr=3; f.record.raw.dyr=-1; f.record.raw.dzr=3;
     delta.dxr=2147483647L; delta.dyr=(-2147483647L-1); delta.dzr=-5;
@@ -163,21 +163,21 @@ static void move_test(void)
 }
 static void end_test(void)
 {
-    RecordFixture f; ThreeMMActorRecordServices s; ThreeMMActorRoutePoint point; int failure,i,found;
+    RecordFixture f; MMActorRecordServices s; MMActorRoutePoint point; int failure,i,found;
     s=record_init(&f); f.record.recording=0;
     CHECK(finish(&f,0,&s) && f.sub.base.state.frozen && !f.record.recording && !f.record.rejoining && f.sub.dirty_state && f.sub.base.invalidated==1); done(&f.sub);
     s=record_init(&f); owned(&f.sub,1,3); add(&f.sub,2,8);
     CHECK(finish(&f,1,&s) && f.sub.refs==0 && f.sub.base.nodes==2 && f.sub.base.state.frozen && !f.sub.base.state.step); done(&f.sub);
     s=record_init(&f); f.sub.base.state.position.dxr=8*ONE; f.sub.base.point[0].dwr=0;
-    owned(&f.sub,1,3); owned(&f.sub,1,4); append(&f.sub.base,THREE_MM_ACTOR_TWEAK,1,0,4); append(&f.sub.base,THREE_MM_ACTOR_FREEZE,1,0,5);
+    owned(&f.sub,1,3); owned(&f.sub,1,4); append(&f.sub.base,MM_ACTOR_TWEAK,1,0,4); append(&f.sub.base,MM_ACTOR_FREEZE,1,0,5);
     CHECK(finish(&f,0,&s) && f.sub.base.nodes==2 && f.sub.base.point[0].dwr==1 && f.sub.refs==1 && f.sub.base.events==3);
-    CHECK(f.sub.base.event[2].aet==THREE_MM_ACTOR_COSTUME && f.sub.base.event[2].rtel.irpt==1); done(&f.sub);
+    CHECK(f.sub.base.event[2].aet==MM_ACTOR_COSTUME && f.sub.base.event[2].rtel.irpt==1); done(&f.sub);
     s=record_init(&f); f.sub.base.state.position.dxr=8*ONE; owned(&f.sub,1,3); add(&f.sub,2,8); owned(&f.sub,2,8);
     CHECK(finish(&f,0,&s) && f.sub.base.nodes==3 && f.sub.base.point[0].dwr==4*ONE && f.sub.base.event[3].rtel.irpt==2 && f.sub.refs==2); done(&f.sub);
     s=record_init(&f); f.record.rejoining=0; owned(&f.sub,1,3); add(&f.sub,2,8); owned(&f.sub,2,8);
     CHECK(finish(&f,0,&s) && f.sub.refs==2);
     found=0;
-    for (i=0;i<f.sub.base.events;++i) if (f.sub.base.event[i].aet==THREE_MM_ACTOR_COSTUME && f.sub.base.event[i].rtel.irpt==0)
+    for (i=0;i<f.sub.base.events;++i) if (f.sub.base.event[i].aet==MM_ACTOR_COSTUME && f.sub.base.event[i].rtel.irpt==0)
     { CHECK(f.sub.base.event[i].rtel.dnfrm==1); ++found; }
     CHECK(found==1);
     point=f.sub.base.point[2]; CHECK(point.xyz.dxr==8*ONE && f.sub.base.state.frozen && !f.sub.base.state.step); done(&f.sub);

@@ -70,7 +70,7 @@ struct NativeDiscoveryHost
     FileNameEnumerator drives;
 };
 } // namespace
-ThreeMMSourceOwners TagManager::_SourceOwners()
+MMSourceOwners TagManager::_SourceOwners()
 {
     return {this, [](void *) -> void * { return NewObj NativeSourcePaths(); },
             [](void *d, const void *s) {
@@ -82,16 +82,16 @@ ThreeMMSourceOwners TagManager::_SourceOwners()
             [](void *p) { static_cast<NativeSourcePaths *>(p)->Release(); },
             [](void *p) { static_cast<PChunkyResourceManager>(p)->Release(); }};
 }
-ThreeMMSourceServices TagManager::_SourceServices(void *context)
+MMSourceServices TagManager::_SourceServices(void *context)
 {
-    static_assert(static_cast<int>(TagSourceAccess::Legacy) == THREE_MM_SOURCE_LEGACY &&
-                      static_cast<int>(TagSourceAccess::Available) == THREE_MM_SOURCE_AVAILABLE &&
-                      static_cast<int>(TagSourceAccess::Disabled) == THREE_MM_SOURCE_DISABLED &&
-                      static_cast<int>(TagSourceAccess::Missing) == THREE_MM_SOURCE_MISSING,
+    static_assert(static_cast<int>(TagSourceAccess::Legacy) == MM_SOURCE_LEGACY &&
+                      static_cast<int>(TagSourceAccess::Available) == MM_SOURCE_AVAILABLE &&
+                      static_cast<int>(TagSourceAccess::Disabled) == MM_SOURCE_DISABLED &&
+                      static_cast<int>(TagSourceAccess::Missing) == MM_SOURCE_MISSING,
                   "source access encoding");
-    ThreeMMSourceServices s = {};
+    MMSourceServices s = {};
     s.context = context;
-    s.access = [](void *c, ThreeMMI32 sid, void *, int kind) -> int {
+    s.access = [](void *c, MMI32 sid, void *, int kind) -> int {
         auto h = static_cast<NativeSourceHost *>(c);
         return static_cast<int>(h->manager->SourceDirectory(sid, kind ? h->output : nullptr));
     };
@@ -100,14 +100,14 @@ ThreeMMSourceServices TagManager::_SourceServices(void *context)
         return (media ? paths->media : paths->local).Ftg() == ftgNil;
     };
     s.clear_local = [](void *p) { static_cast<NativeSourcePaths *>(p)->local.SetNil(); };
-    s.build_local = [](void *c, ThreeMMI32 sid, void *p, int *exists) -> int {
+    s.build_local = [](void *c, MMI32 sid, void *p, int *exists) -> int {
         bool v = false;
         const bool ok = static_cast<NativeSourceHost *>(c)->manager->_FBuildFniHD(
             sid, &static_cast<NativeSourcePaths *>(p)->local, &v);
         *exists = v;
         return ok;
     };
-    s.archive_source = [](void *c, ThreeMMI32 sid) -> int {
+    s.archive_source = [](void *c, MMI32 sid) -> int {
         return static_cast<NativeSourceHost *>(c)->manager->HasArchiveSource(sid);
     };
     s.content = [](void *c, void *p, int *exists) -> int {
@@ -117,18 +117,18 @@ ThreeMMSourceServices TagManager::_SourceServices(void *context)
         *exists = v;
         return ok;
     };
-    s.find_media = [](void *c, ThreeMMI32 sid, void *p, int *changed) -> int {
+    s.find_media = [](void *c, MMI32 sid, void *p, int *changed) -> int {
         bool v = false;
         const bool ok = static_cast<NativeSourceHost *>(c)->manager->_FFindFniCD(
             sid, &static_cast<NativeSourcePaths *>(p)->media, &v);
         *changed = v;
         return ok;
     };
-    s.retry = [](void *c, ThreeMMI32 sid) -> int {
+    s.retry = [](void *c, MMI32 sid) -> int {
         auto h = static_cast<NativeSourceHost *>(c);
         return h->manager->_FRetry(sid, h->asset);
     };
-    s.new_manager = [](void *c, ThreeMMI32 sid, void *p, int media) -> void * {
+    s.new_manager = [](void *c, MMI32 sid, void *p, int media) -> void * {
         auto paths = static_cast<NativeSourcePaths *>(p);
         return static_cast<NativeSourceHost *>(c)->manager->_PcrmSourceNew(sid, media ? &paths->media : &paths->local);
     };
@@ -152,14 +152,14 @@ ThreeMMSourceServices TagManager::_SourceServices(void *context)
     return s;
 }
 
-ThreeMMSourceDiscovery TagManager::_DiscoveryServices(void *context)
+MMSourceDiscovery TagManager::_DiscoveryServices(void *context)
 {
     return {context,
-            [](void *c, ThreeMMI32 sid) -> int {
+            [](void *c, MMI32 sid) -> int {
                 auto h = static_cast<NativeDiscoveryHost *>(c);
                 return static_cast<int>(h->manager->SourceDirectory(sid, h->output));
             },
-            [](void *c, ThreeMMI32 sid) -> int {
+            [](void *c, MMI32 sid) -> int {
                 auto h = static_cast<NativeDiscoveryHost *>(c);
                 return h->manager->_FGetStnSplitOfSid(sid, &h->longName, &h->shortName);
             },
@@ -216,19 +216,19 @@ PTagManager TagManager::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, Legacy
     {
         const auto owners = ptagm->_SourceOwners();
         const auto allocator = CollectionAllocator();
-        if (three_mm_source_init(&ptagm->_sources, &owners, &allocator) != THREE_MM_STORAGE_OK)
+        if (mm_source_init(&ptagm->_sources, &owners, &allocator) != MM_STORAGE_OK)
             goto LFail;
     }
 
     {
         const auto allocator = CollectionAllocator();
-        if (three_mm_source_names_init(&ptagm->_names, sizeof(achar), koskCur,
+        if (mm_source_names_init(&ptagm->_names, sizeof(achar), koskCur,
 #ifdef DEBUG
                                        1,
 #else
                                        0,
 #endif
-                                       &allocator) != THREE_MM_STORAGE_OK)
+                                       &allocator) != MM_STORAGE_OK)
             goto LFail;
     }
 
@@ -246,9 +246,9 @@ TagManager::~TagManager(void)
 {
     AssertBaseThis(0);
     if (_sources.storage.allocator.release)
-        AssertDo(three_mm_source_dispose(&_sources) == THREE_MM_STORAGE_OK, "invalid source disposal");
+        AssertDo(mm_source_dispose(&_sources) == MM_STORAGE_OK, "invalid source disposal");
     if (_names.storage.allocator.release)
-        AssertDo(three_mm_source_names_dispose(&_names) == THREE_MM_STORAGE_OK, "invalid names disposal");
+        AssertDo(mm_source_names_dispose(&_names) == MM_STORAGE_OK, "invalid names disposal");
 }
 
 /***************************************************************************
@@ -256,7 +256,7 @@ TagManager::~TagManager(void)
 ***************************************************************************/
 void TagManager::SplitString(PString pstnMerged, PString pstnLong, PString pstnShort)
 {
-    const auto parts = three_mm_source_name_split(pstnMerged->Prgch(), pstnMerged->Cch(), sizeof(achar));
+    const auto parts = mm_source_name_split(pstnMerged->Prgch(), pstnMerged->Cch(), sizeof(achar));
     pstnLong->SetRgch(pstnMerged->Prgch(), parts.long_count);
     pstnShort->SetRgch(pstnMerged->Prgch() + parts.short_offset, parts.short_count);
 }
@@ -266,33 +266,33 @@ void TagManager::SplitString(PString pstnMerged, PString pstnLong, PString pstnS
 ***************************************************************************/
 LegacyLong TagManager::CbSourceNames() const
 {
-    return three_mm_source_names_wire_size(&_names);
+    return mm_source_names_wire_size(&_names);
 }
 bool TagManager::FGetSourceSid(LegacyLong index, LegacyLong *sid)
 {
     const void *text;
-    ThreeMMU32 count;
-    ThreeMMI32 value;
-    if (!three_mm_source_names_at(&_names, index, &text, &count, &value))
+    MMU32 count;
+    MMI32 value;
+    if (!mm_source_names_at(&_names, index, &text, &count, &value))
         return false;
     *sid = value;
     return true;
 }
 bool TagManager::FWriteSourceNames(PDataBlock block)
 {
-    const ThreeMMStorageWriter writer = {block, static_cast<ThreeMMU32>(block->Cb()),
-                                         [](void *c, ThreeMMU32 offset, const void *bytes, size_t count) -> int {
+    const MMStorageWriter writer = {block, static_cast<MMU32>(block->Cb()),
+                                         [](void *c, MMU32 offset, const void *bytes, size_t count) -> int {
                                              return static_cast<PDataBlock>(c)->FWriteRgb(const_cast<void *>(bytes),
                                                                                           count, offset);
                                          }};
     const unsigned short one = 1;
-    return three_mm_source_names_write(&_names, &writer, *reinterpret_cast<const byte *>(&one) == 0) ==
-           THREE_MM_STORAGE_OK;
+    return mm_source_names_write(&_names, &writer, *reinterpret_cast<const byte *>(&one) == 0) ==
+           MM_STORAGE_OK;
 }
 
 void TagManager::InvalidateSource(LegacyLong sid)
 {
-    AssertDo(three_mm_source_invalidate(&_sources, sid) == THREE_MM_STORAGE_OK, "invalid source invalidation");
+    AssertDo(mm_source_invalidate(&_sources, sid) == MM_STORAGE_OK, "invalid source invalidation");
 }
 
 /***************************************************************************
@@ -308,17 +308,17 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
         PStringTable_GST table;
         String text;
     } host = {pgst};
-    const ThreeMMSourceNameInput input = {
-        &host, static_cast<ThreeMMU32>(pgst->IvMac()),
-        [](void *c, ThreeMMU32 i, const void **text, ThreeMMU32 *count, ThreeMMI32 *sid) {
+    const MMSourceNameInput input = {
+        &host, static_cast<MMU32>(pgst->IvMac()),
+        [](void *c, MMU32 i, const void **text, MMU32 *count, MMI32 *sid) {
             auto h = static_cast<Host *>(c);
             h->table->GetStn(i, &h->text);
             h->table->GetExtra(i, sid);
             *text = h->text.Prgch();
             *count = h->text.Cch();
         },
-        [](void *, ThreeMMI32) { Bug("Invalid sid"); }};
-    return three_mm_source_names_merge(&_names, &input, bo == kboOther) != 0;
+        [](void *, MMI32) { Bug("Invalid sid"); }};
+    return mm_source_names_merge(&_names, &input, bo == kboOther) != 0;
 }
 
 /***************************************************************************
@@ -327,7 +327,7 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
 bool TagManager::FAddStnSource(PString pstn, LegacyLong sid)
 {
     Assert(sid >= 0, "Invalid sid");
-    return three_mm_source_names_add(&_names, sid, pstn->Prgch(), pstn->Cch()) != 0;
+    return mm_source_names_add(&_names, sid, pstn->Prgch(), pstn->Cch()) != 0;
 }
 
 /***************************************************************************
@@ -336,12 +336,12 @@ bool TagManager::FAddStnSource(PString pstn, LegacyLong sid)
 ***************************************************************************/
 bool TagManager::FGetSid(PString pstn, LegacyLong *psid)
 {
-    ThreeMMI32 value;
-    const auto equal = [](void *, const void *a, ThreeMMU32 ac, const void *b, ThreeMMU32 bc) -> int {
+    MMI32 value;
+    const auto equal = [](void *, const void *a, MMU32 ac, const void *b, MMU32 bc) -> int {
         return ::FEqualUserRgch(const_cast<achar *>(static_cast<const achar *>(a)), ac,
                                 const_cast<achar *>(static_cast<const achar *>(b)), bc, fstnIgnoreCase);
     };
-    if (!three_mm_source_names_find_name(&_names, pstn->Prgch(), pstn->Cch(), equal, nullptr, &value))
+    if (!mm_source_names_find_name(&_names, pstn->Prgch(), pstn->Cch(), equal, nullptr, &value))
         return false;
     *psid = value;
     return true;
@@ -353,8 +353,8 @@ bool TagManager::FGetSid(PString pstn, LegacyLong *psid)
 bool TagManager::_FGetStnMergedOfSid(LegacyLong sid, PString pstn)
 {
     const void *text = nullptr;
-    ThreeMMU32 count = 0;
-    const bool found = three_mm_source_names_merged(&_names, sid, &text, &count) != 0;
+    MMU32 count = 0;
+    const bool found = mm_source_names_merged(&_names, sid, &text, &count) != 0;
     if (text)
         pstn->SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
     return found;
@@ -386,8 +386,8 @@ bool TagManager::_FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString ps
 ***************************************************************************/
 TagSourceAccess TagManager::SourceDirectory(LegacyLong sid, PFilename path)
 {
-    const auto provider = [](void *c, const void *longText, ThreeMMU32 longCount, const void *shortText,
-                             ThreeMMU32 shortCount, void *path) -> int {
+    const auto provider = [](void *c, const void *longText, MMU32 longCount, const void *shortText,
+                             MMU32 shortCount, void *path) -> int {
         String longName, shortName;
         Filename unused;
         longName.SetRgch(const_cast<achar *>(static_cast<const achar *>(longText)), longCount);
@@ -395,7 +395,7 @@ TagSourceAccess TagManager::SourceDirectory(LegacyLong sid, PFilename path)
         return static_cast<int>(static_cast<PTagManager>(c)->_sourceResolver(
             &longName, &shortName, path ? static_cast<PFilename>(path) : &unused));
     };
-    return static_cast<TagSourceAccess>(three_mm_source_names_resolve(
+    return static_cast<TagSourceAccess>(mm_source_names_resolve(
         &_names, sid, path, _sourceResolver ? +provider : nullptr, this));
 }
 
@@ -404,7 +404,7 @@ bool TagManager::_FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists)
     NativeDiscoveryHost host = {this, sid, pfniHD, false};
     const auto services = _DiscoveryServices(&host);
     int exists;
-    const bool ok = three_mm_source_discover_local(sid, &services, &exists) != 0;
+    const bool ok = mm_source_discover_local(sid, &services, &exists) != 0;
     *pfExists = exists != 0;
     return ok;
 }
@@ -476,7 +476,7 @@ bool TagManager::_FFindFniCD(LegacyLong sid, PFilename pfniCD, bool *pfFniChange
     NativeDiscoveryHost host = {this, sid, pfniCD, true};
     const auto services = _DiscoveryServices(&host);
     int changed;
-    const bool ok = three_mm_source_discover_media(sid, &services, &changed) != 0;
+    const bool ok = mm_source_discover_media(sid, &services, &changed) != 0;
     *pfFniChanged = changed != 0;
     return ok;
 }
@@ -521,25 +521,25 @@ PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename dire
         FileNameEnumerator files;
         FileType type = kftgContent;
     } host = {this, directory};
-    const ThreeMMSourceBuildServices services = {
+    const MMSourceBuildServices services = {
         &host,
         [](void *) -> void * { return ChunkyResourceManager::PcrmNew(0); },
-        [](void *c, ThreeMMI32 sid) -> int { return static_cast<Host *>(c)->manager->HasArchiveSource(sid); },
+        [](void *c, MMI32 sid) -> int { return static_cast<Host *>(c)->manager->HasArchiveSource(sid); },
         [](void *c) -> int {
             auto h = static_cast<Host *>(c);
             return h->files.FInit(h->directory, &h->type, 1);
         },
-        [](void *c, ThreeMMI32 sid, ThreeMMU32 i, int archive) -> int {
+        [](void *c, MMI32 sid, MMU32 i, int archive) -> int {
             auto h = static_cast<Host *>(c);
             return archive ? h->manager->SourceArchive(sid, h->type, i, &h->current) : h->files.FNextFni(&h->current);
         },
         [](void *c) -> void * { return ChunkyFile::PcflOpen(&static_cast<Host *>(c)->current, fcflNil); },
-        [](void *m, void *f, ThreeMMI32 budget) -> int {
+        [](void *m, void *f, MMI32 budget) -> int {
             return static_cast<PChunkyResourceManager>(m)->FAddCfl(static_cast<PChunkyFile>(f), budget);
         },
         [](void *f) { static_cast<PChunkyFile>(f)->Release(); },
         [](void *m) { static_cast<PChunkyResourceManager>(m)->Release(); }};
-    return static_cast<PChunkyResourceManager>(three_mm_source_build(sid, _cbCache, &services));
+    return static_cast<PChunkyResourceManager>(mm_source_build(sid, _cbCache, &services));
 }
 
 /***************************************************************************
@@ -552,7 +552,7 @@ PChunkyResourceManager TagManager::_PcrmSourceGet(LegacyLong sid, bool localOnly
     NativeSourceHost host = {this, nullptr, nullptr, asset};
     NativeSourcePaths paths;
     const auto services = _SourceServices(&host);
-    return static_cast<PChunkyResourceManager>(three_mm_source_manager(&_sources, sid, localOnly, &paths, &services));
+    return static_cast<PChunkyResourceManager>(mm_source_manager(&_sources, sid, localOnly, &paths, &services));
 }
 
 /***************************************************************************
@@ -567,7 +567,7 @@ bool TagManager::_FDetermineIfSourceHD(LegacyLong sid, bool *exists)
     NativeSourcePaths paths;
     const auto services = _SourceServices(&host);
     int value = 0;
-    const bool ok = three_mm_source_local_content(&_sources, sid, &paths, &value, &services) != 0;
+    const bool ok = mm_source_local_content(&_sources, sid, &paths, &value, &services) != 0;
     if (ok)
         *exists = value != 0;
     return ok;
@@ -581,7 +581,7 @@ bool TagManager::_FGetFniHD(LegacyLong sid, PFilename output)
     NativeSourceHost host = {this, output, nullptr, nullptr};
     NativeSourcePaths paths;
     const auto services = _SourceServices(&host);
-    return three_mm_source_local_path(&_sources, sid, &paths, &services) != 0;
+    return mm_source_local_path(&_sources, sid, &paths, &services) != 0;
 }
 
 /***************************************************************************
@@ -592,7 +592,7 @@ bool TagManager::_FGetFniCD(LegacyLong sid, PFilename output, bool ask)
     NativeSourceHost host = {this, output, nullptr, nullptr};
     NativeSourcePaths paths;
     const auto services = _SourceServices(&host);
-    return three_mm_source_media_path(&_sources, sid, ask, &paths, &services) != 0;
+    return mm_source_media_path(&_sources, sid, ask, &paths, &services) != 0;
 }
 
 /***************************************************************************
@@ -607,7 +607,7 @@ bool TagManager::FFindFile(LegacyLong sid, PString leaf, PFilename output, bool 
     NativeSourceHost host = {this, output, leaf, nullptr};
     NativeSourcePaths paths;
     const auto services = _SourceServices(&host);
-    return three_mm_source_find_file(&_sources, sid, ask, &paths, &services) != 0;
+    return mm_source_find_file(&_sources, sid, ask, &paths, &services) != 0;
 }
 
 /***************************************************************************
@@ -623,9 +623,9 @@ struct NativeTagHost
     const TAG *asset;
 };
 } // namespace
-ThreeMMTagServices TagManager::_Services(void *context)
+MMTagServices TagManager::_Services(void *context)
 {
-    ThreeMMTagServices s = {};
+    MMTagServices s = {};
     s.context = context;
     s.file = [](void *c) -> void * { return static_cast<PChunkyResourceFile>(c)->Pcfl(); };
     s.retain = [](void *c) { static_cast<PChunkyResourceFile>(c)->AddRef(); };
@@ -634,17 +634,17 @@ ThreeMMTagServices TagManager::_Services(void *context)
         auto x = static_cast<PChunkyResourceFile>(a), y = static_cast<PChunkyResourceFile>(b);
         return x == y ? 0 : x < y ? -1 : 1;
     };
-    s.copy = [](void *a, ThreeMMU32 type, ThreeMMU32 number, void *b, ThreeMMU32 *out) -> int {
+    s.copy = [](void *a, MMU32 type, MMU32 number, void *b, MMU32 *out) -> int {
         return static_cast<PChunkyFile>(a)->FCopy(type, number, static_cast<PChunkyFile>(b), out);
     };
-    s.source = [](void *c, ThreeMMI32 sid, int local, const ThreeMMTag *) -> void * {
+    s.source = [](void *c, MMI32 sid, int local, const MMTag *) -> void * {
         auto h = static_cast<NativeTagHost *>(c);
         return h->manager->_PcrmSourceGet(sid, local != 0, h->asset);
     };
-    s.find_cache = [](void *m, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+    s.find_cache = [](void *m, MMU32 type, MMU32 number) -> void * {
         return static_cast<PChunkyResourceManager>(m)->PcrfFindChunk(type, number);
     };
-    s.child = [](void *c, const ThreeMMTag *parent, ThreeMMU32 slot, ThreeMMU32 type, ThreeMMU32 *number) -> int {
+    s.child = [](void *c, const MMTag *parent, MMU32 slot, MMU32 type, MMU32 *number) -> int {
         ChildChunkIdentification kid;
         if (!static_cast<PChunkyResourceFile>(c)->Pcfl()->FGetKidChidCtg(parent->type, parent->number, slot, type,
                                                                          &kid))
@@ -652,19 +652,19 @@ ThreeMMTagServices TagManager::_Services(void *context)
         *number = kid.cki.cno;
         return 1;
     };
-    s.fetch = [](void *c, int manager, const ThreeMMTag *tag, ThreeMMResourceReader reader) -> void * {
+    s.fetch = [](void *c, int manager, const MMTag *tag, MMResourceReader reader) -> void * {
         auto r = reinterpret_cast<PFNRPO>(reader);
         return manager ? static_cast<PChunkyResourceManager>(c)->PbacoFetch(tag->type, tag->number, r)
                        : static_cast<PChunkyResourceFile>(c)->PbacoFetch(tag->type, tag->number, r);
     };
-    s.missing = [](void *c, const ThreeMMTag *) {
+    s.missing = [](void *c, const MMTag *) {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
         auto h = static_cast<NativeTagHost *>(c);
         if (h->manager->_missingTagTest)
             h->manager->_missingTagTest(const_cast<PTAG>(h->asset));
 #endif
     };
-    s.publish = [](void *c, const ThreeMMTag *value) {
+    s.publish = [](void *c, const MMTag *value) {
         auto h = static_cast<NativeTagHost *>(c);
         if (h->target)
         {
@@ -687,16 +687,16 @@ bool TagManager::FBuildChildTag(PTAG parent, ChildChunkID slot, ChunkTagOrType t
     NativeTagHost host = {this, out, parent};
     const auto services = _Services(&host);
     auto input = TagToCore(*parent);
-    ThreeMMTag child = {};
-    return three_mm_tag_child(&input, slot, type, &child, &services) != 0;
+    MMTag child = {};
+    return mm_tag_child(&input, slot, type, &child, &services) != 0;
 }
 bool TagManager::FCacheTagToHD(PTAG tag, bool children)
 {
     AssertThis(0);
     AssertVarMem(tag);
     Assert(tag->sid >= 0, "Invalid sid");
-    const ThreeMMTag value = {tag->sid, nullptr, 0, 0};
-    return three_mm_tag_cache_file(&value, children) != 0;
+    const MMTag value = {tag->sid, nullptr, 0, 0};
+    return mm_tag_cache_file(&value, children) != 0;
 }
 PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, PFNRPO reader, bool useMedia)
 {
@@ -708,30 +708,30 @@ PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, PFNRPO reader, bool useMed
     const auto services = _Services(&host);
     auto value = TagToCore(*tag);
     return static_cast<PBaseCacheableObject>(
-        three_mm_tag_fetch(&value, reinterpret_cast<ThreeMMResourceReader>(reader), useMedia, &services));
+        mm_tag_fetch(&value, reinterpret_cast<MMResourceReader>(reader), useMedia, &services));
 }
 void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
-    const ThreeMMTagCacheServices services = {
+    const MMTagCacheServices services = {
         this,
-        [](void *c) -> ThreeMMU32 { return static_cast<PTagManager>(c)->_sources.count; },
-        [](void *c, ThreeMMU32 i, ThreeMMI32 *sid, void **manager) {
-            ThreeMMSourceRecord source;
-            AssertDo(three_mm_source_at(&static_cast<PTagManager>(c)->_sources, i, &source) == THREE_MM_STORAGE_OK,
+        [](void *c) -> MMU32 { return static_cast<PTagManager>(c)->_sources.count; },
+        [](void *c, MMU32 i, MMI32 *sid, void **manager) {
+            MMSourceRecord source;
+            AssertDo(mm_source_at(&static_cast<PTagManager>(c)->_sources, i, &source) == MM_STORAGE_OK,
                      "invalid source index");
             *sid = source.sid;
             *manager = source.manager;
         },
-        [](void *c, ThreeMMI32 sid) -> void * { return static_cast<PTagManager>(c)->_PcrmSourceGet(sid); },
-        [](void *m) -> ThreeMMU32 { return static_cast<PChunkyResourceManager>(m)->Ccrf(); },
-        [](void *m, ThreeMMU32 i) -> void * { return static_cast<PChunkyResourceManager>(m)->PcrfGet(i); },
+        [](void *c, MMI32 sid) -> void * { return static_cast<PTagManager>(c)->_PcrmSourceGet(sid); },
+        [](void *m) -> MMU32 { return static_cast<PChunkyResourceManager>(m)->Ccrf(); },
+        [](void *m, MMU32 i) -> void * { return static_cast<PChunkyResourceManager>(m)->PcrfGet(i); },
         [](void *c) -> void * { return static_cast<PChunkyResourceFile>(c)->Pcfl(); },
         [](void *f) { static_cast<PChunkyFile>(f)->FReopen(); },
-        [](void *c) -> ThreeMMI32 { return static_cast<PChunkyResourceFile>(c)->CbMax(); },
-        [](void *c, ThreeMMI32 budget) { static_cast<PChunkyResourceFile>(c)->SetCbMax(budget); }};
-    three_mm_tag_clear_cache(sid, flags, &services);
+        [](void *c) -> MMI32 { return static_cast<PChunkyResourceFile>(c)->CbMax(); },
+        [](void *c, MMI32 budget) { static_cast<PChunkyResourceFile>(c)->SetCbMax(budget); }};
+    mm_tag_clear_cache(sid, flags, &services);
 }
 bool TagManager::FOpenTag(PTAG tag, PChunkyResourceFile destination, PChunkyFile source)
 {
@@ -741,8 +741,8 @@ bool TagManager::FOpenTag(PTAG tag, PChunkyResourceFile destination, PChunkyFile
     AssertNilOrPo(source, 0);
     NativeTagHost host = {nullptr, tag, tag};
     const auto services = _Services(&host);
-    ThreeMMTag value = {tag->sid, nullptr, tag->ctg, tag->cno};
-    return three_mm_tag_open(&value, destination, source, &services) != 0;
+    MMTag value = {tag->sid, nullptr, tag->ctg, tag->cno};
+    return mm_tag_open(&value, destination, source, &services) != 0;
 }
 bool TagManager::FSaveTag(PTAG tag, PChunkyResourceFile destination, bool redirect)
 {
@@ -752,7 +752,7 @@ bool TagManager::FSaveTag(PTAG tag, PChunkyResourceFile destination, bool redire
     NativeTagHost host = {nullptr, tag, tag};
     const auto services = _Services(&host);
     auto value = TagToCore(*tag);
-    return three_mm_tag_save(&value, destination, redirect, &services) != 0;
+    return mm_tag_save(&value, destination, redirect, &services) != 0;
 }
 void TagManager::DupTag(PTAG tag)
 {
@@ -760,7 +760,7 @@ void TagManager::DupTag(PTAG tag)
     Assert(tag->sid >= 0, "Invalid sid");
     const auto services = _Services(nullptr);
     auto value = TagToCore(*tag);
-    three_mm_tag_dup(&value, &services);
+    mm_tag_dup(&value, &services);
 }
 void TagManager::CloseTag(PTAG tag)
 {
@@ -769,7 +769,7 @@ void TagManager::CloseTag(PTAG tag)
     NativeTagHost host = {nullptr, tag, tag};
     const auto services = _Services(&host);
     auto value = TagToCore(*tag);
-    three_mm_tag_close(&value, &services);
+    mm_tag_close(&value, &services);
 }
 LegacyUlong TagManager::FcmpCompareTags(PTAG a, PTAG b)
 {
@@ -778,7 +778,7 @@ LegacyUlong TagManager::FcmpCompareTags(PTAG a, PTAG b)
     Assert(a->sid >= 0 && b->sid >= 0, "Invalid sid");
     const auto services = _Services(nullptr);
     auto x = TagToCore(*a), y = TagToCore(*b);
-    const int order = three_mm_tag_compare(&x, &y, &services);
+    const int order = mm_tag_compare(&x, &y, &services);
     return order < 0 ? fcmpLt : order > 0 ? fcmpGt : fcmpEq;
 }
 
@@ -791,11 +791,11 @@ void TagManager::AssertValid(LegacyUlong flags)
     TagManager_PAR::AssertValid(fobjAllocated);
     Assert(_names.count <= _names.storage.buffers[1].capacity / 8, "bad source names");
     Assert(_pfninscd != nullptr, "bad source callback");
-    Assert(_sources.count <= _sources.storage.buffers[0].capacity / sizeof(ThreeMMSourceRecord), "bad source count");
-    for (ThreeMMU32 i = 0; i < _sources.count; ++i)
+    Assert(_sources.count <= _sources.storage.buffers[0].capacity / sizeof(MMSourceRecord), "bad source count");
+    for (MMU32 i = 0; i < _sources.count; ++i)
     {
-        ThreeMMSourceRecord r;
-        AssertDo(three_mm_source_at(&_sources, i, &r) == THREE_MM_STORAGE_OK, "bad source index");
+        MMSourceRecord r;
+        AssertDo(mm_source_at(&_sources, i, &r) == MM_STORAGE_OK, "bad source index");
         auto paths = static_cast<NativeSourcePaths *>(r.paths);
         AssertPo(&paths->local, ffniDir | ffniEmpty);
         AssertPo(&paths->media, ffniDir | ffniEmpty);
@@ -813,10 +813,10 @@ void TagManager::MarkMem(void)
     MarkPv(_sources.storage.buffers[0].data);
     MarkPv(_names.storage.buffers[0].data);
     MarkPv(_names.storage.buffers[1].data);
-    for (ThreeMMU32 i = 0; i < _sources.count; ++i)
+    for (MMU32 i = 0; i < _sources.count; ++i)
     {
-        ThreeMMSourceRecord r;
-        AssertDo(three_mm_source_at(&_sources, i, &r) == THREE_MM_STORAGE_OK, "bad source index");
+        MMSourceRecord r;
+        AssertDo(mm_source_at(&_sources, i, &r) == MM_STORAGE_OK, "bad source index");
         MarkMemObj(static_cast<NativeSourcePaths *>(r.paths));
         MarkMemObj(static_cast<PChunkyResourceManager>(r.manager));
     }

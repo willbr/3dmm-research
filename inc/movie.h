@@ -25,12 +25,12 @@
 #define MOVIE_H
 #include "movie_playback.h"
 #include "movie_container.h"
-#include "three_mm/movie_sound.h"
-#include "three_mm/movie_scene.h"
-#include "three_mm/movie_save.h"
-#include "three_mm/movie_edit.h"
-#include "three_mm/movie_content.h"
-#include "three_mm/movie_compose.h"
+#include "mm/movie_sound.h"
+#include "mm/movie_scene.h"
+#include "mm/movie_save.h"
+#include "mm/movie_edit.h"
+#include "mm/movie_content.h"
+#include "mm/movie_compose.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -613,11 +613,11 @@ class Movie : public Movie_PAR
     std::shared_ptr<MovieContainer::Document> _container; // Outlives the working archive.
     MovieData _data;              // Archive state and roll-call ownership, independent of views.
 
-    ThreeMMMovieSaveState _save; // Save flags and saved-file reference owned by C.
+    MMMovieSaveState _save; // Save flags and saved-file reference owned by C.
     Filename _containerName;
     bool _FNeedsContainer();
 
-    ThreeMMMovieScenes _scenes; // Current scene reference and index owned by C control.
+    MMMovieScenes _scenes; // Current scene reference and index owned by C control.
     bool _fGCSndsOnClose : 1;    // Garbage collection of sounds on close
 
     PWorld _pbwld;   // The brender world for this movie
@@ -641,15 +641,15 @@ class Movie : public Movie_PAR
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
     bool _FUseTempFile(void);                     // Switches to using a temp file.
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
-    ThreeMMMovieSoundServices _SoundServices();
-    ThreeMMMovieSceneServices _SceneServices();
-    ThreeMMMovieRollCallServices _RollCallServices();
-    ThreeMMMovieUndoServices _UndoServices();
-    ThreeMMMovieEditServices _EditServices();
-    ThreeMMMovieContentServices _ContentServices();
-    ThreeMMMovieComposeServices _ComposeServices();
+    MMMovieSoundServices _SoundServices();
+    MMMovieSceneServices _SceneServices();
+    MMMovieRollCallServices _RollCallServices();
+    MMMovieUndoServices _UndoServices();
+    MMMovieEditServices _EditServices();
+    MMMovieContentServices _ContentServices();
+    MMMovieComposeServices _ComposeServices();
     struct SaveHost;
-    ThreeMMMovieSaveServices _SaveServices(SaveHost *);
+    MMMovieSaveServices _SaveServices(SaveHost *);
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
     bool _FSetPfilSave(PFilename pfni);
 

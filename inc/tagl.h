@@ -27,7 +27,7 @@ class TagList : public TagList_PAR
     MARKMEM
 
   protected:
-    ThreeMMTagList _list;
+    MMTagList _list;
 
   protected:
     bool _FInit(void);

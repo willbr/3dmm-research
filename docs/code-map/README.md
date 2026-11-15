@@ -42,11 +42,11 @@ in.
 sampled-audio device. It's a thin wrapper over the legacy AudioMan API.
 
 The optional [SDL3 / ImGui archive inspector](../tools/inspector.md) links
-`inspector-data` -> `ThreeMM::Archive` -> `engine-core`, alongside SDL3/ImGui for its window and UI.
-Its separate `ThreeMM::Preview` adapter uses the core loaders and BRender to
+`inspector-data` -> `MM::Archive` -> `engine-core`, alongside SDL3/ImGui for its window and UI.
+Its separate `MM::Preview` adapter uses the core loaders and BRender to
 return RGBA images of actors, props, models, backgrounds and evaluated scenes.
 It uses none of the Studio GUI runtime libraries. Enable `BUILD_INSPECTOR`
-and build `three-mm-inspector` to produce `3mm-inspector`.
+and build `mm-inspector` to produce `3mm-inspector`.
 
 ## Why two halves of each library
 

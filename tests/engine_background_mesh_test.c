@@ -1,4 +1,4 @@
-#include "three_mm/background_mesh.h"
+#include "mm/background_mesh.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -15,13 +15,13 @@
     } while (0)
 typedef struct Model
 {
-    ThreeMMU32 vertices, faces, puts, face_puts;
+    MMU32 vertices, faces, puts, face_puts;
     int added;
 } Model;
 typedef struct Map
 {
     unsigned char *bytes;
-    ThreeMMU32 width, height;
+    MMU32 width, height;
     int added;
 } Map;
 typedef struct Host
@@ -32,7 +32,7 @@ typedef struct Host
     Map map;
     int actors[128];
 } Host;
-static void *resize(void *p, void *old, ThreeMMU32 old_bytes, ThreeMMU32 bytes, int priority)
+static void *resize(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Host *h = (Host *)p;
     void *out;
@@ -46,7 +46,7 @@ static void *resize(void *p, void *old, ThreeMMU32 old_bytes, ThreeMMU32 bytes, 
         ++h->live_memory;
     return out;
 }
-static void release(void *p, void *old, ThreeMMU32 bytes)
+static void release(void *p, void *old, MMU32 bytes)
 {
     Host *h = (Host *)p;
     (void)bytes;
@@ -54,7 +54,7 @@ static void release(void *p, void *old, ThreeMMU32 bytes)
     --h->live_memory;
     free(old);
 }
-static void *map_new(void *p, ThreeMMU32 w, ThreeMMU32 hgt)
+static void *map_new(void *p, MMU32 w, MMU32 hgt)
 {
     Host *h = (Host *)p;
     if (h->fail_map)
@@ -69,7 +69,7 @@ static void *map_new(void *p, ThreeMMU32 w, ThreeMMU32 hgt)
     ++h->maps;
     return &h->map;
 }
-static unsigned char *row(void *p, void *object, ThreeMMU32 y)
+static unsigned char *row(void *p, void *object, MMU32 y)
 {
     Host *h = (Host *)p;
     CHECK(object == &h->map && y < h->map.height);
@@ -78,7 +78,7 @@ static unsigned char *row(void *p, void *object, ThreeMMU32 y)
 static void map_add(void *p, void *object)
 {
     Host *h = (Host *)p;
-    ThreeMMU32 x, y;
+    MMU32 x, y;
     CHECK(object == &h->map && !h->map.added);
     for (y = 0; y < h->map.height; ++y)
         for (x = h->map.width; x < h->map.width + 3; ++x)
@@ -132,7 +132,7 @@ static void material_free(void *p, void *object)
     CHECK(object == &h->material && !h->material_added);
     --h->materials;
 }
-static void *model_new(void *p, ThreeMMU32 vertices, ThreeMMU32 faces)
+static void *model_new(void *p, MMU32 vertices, MMU32 faces)
 {
     Host *h = (Host *)p;
     Model *m;
@@ -152,14 +152,14 @@ static void model_configure(void *p, void *object)
     (void)p;
     CHECK(!((Model *)object)->added);
 }
-static void put_vertex(void *p, void *object, ThreeMMU32 index, const ThreeMMBackgroundVertex *v)
+static void put_vertex(void *p, void *object, MMU32 index, const MMBackgroundVertex *v)
 {
     Model *m = (Model *)object;
     (void)p;
     CHECK(index == m->puts++ && index < m->vertices && v->u > 0 && v->u < 1 && v->v > 0 && v->v < 1);
     CHECK(v->z < 0);
 }
-static void face(void *p, void *object, ThreeMMU32 index, const ThreeMMU32 *indices, void *material)
+static void face(void *p, void *object, MMU32 index, const MMU32 *indices, void *material)
 {
     Host *h = (Host *)p;
     Model *m = (Model *)object;
@@ -210,15 +210,15 @@ static void actor_add(void *p, void *world, void *actor)
     CHECK(world == &h->world && actor);
     ++h->world;
 }
-static void init(Host *h, ThreeMMBackgroundMesh *m, ThreeMMBackgroundMeshServices *s)
+static void init(Host *h, MMBackgroundMesh *m, MMBackgroundMeshServices *s)
 {
-    ThreeMMStorageAllocator allocator;
+    MMStorageAllocator allocator;
     memset(h, 0, sizeof(*h));
     memset(s, 0, sizeof(*s));
     allocator.context = h;
     allocator.resize = resize;
     allocator.release = release;
-    CHECK(three_mm_background_mesh_init(m, &allocator));
+    CHECK(mm_background_mesh_init(m, &allocator));
     s->context = h;
     s->map_new = map_new;
     s->map_row = row;
@@ -241,10 +241,10 @@ static void init(Host *h, ThreeMMBackgroundMesh *m, ThreeMMBackgroundMeshService
     s->actor_configure = actor_configure;
     s->actor_add = actor_add;
 }
-static void dispose(Host *h, ThreeMMBackgroundMesh *m, ThreeMMBackgroundMeshServices *s)
+static void dispose(Host *h, MMBackgroundMesh *m, MMBackgroundMeshServices *s)
 {
     h->world = 0;
-    three_mm_background_mesh_dispose(m, s);
+    mm_background_mesh_dispose(m, s);
     CHECK(!h->maps && !h->materials && !h->models && !h->live_memory);
 }
 static void matrices(double *camera, double *projection)
@@ -259,15 +259,15 @@ static void matrices(double *camera, double *projection)
 int main(void)
 {
     Host h;
-    ThreeMMBackgroundMesh m;
-    ThreeMMBackgroundMeshServices s;
+    MMBackgroundMesh m;
+    MMBackgroundMeshServices s;
     unsigned char colors[25], *large_colors;
     unsigned short depths[25], *large_depths;
     double camera[16], projection[16], distance;
-    ThreeMMBackgroundVertex *v;
-    ThreeMMBackgroundTriangle *t;
+    MMBackgroundVertex *v;
+    MMBackgroundTriangle *t;
     int i, j, result, calls, base;
-    ThreeMMU32 n = 258U * 129U;
+    MMU32 n = 258U * 129U;
     for (i = 0; i < 25; ++i)
     {
         colors[i] = (unsigned char)i;
@@ -275,38 +275,38 @@ int main(void)
     }
     matrices(camera, projection);
     init(&h, &m, &s);
-    CHECK(three_mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 1);
+    CHECK(mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 1);
     CHECK(m.vertex_count == 4 && m.triangle_count == 2 && !m.infinite_count);
     distance = 2 / (1 - 26214 / 32768.0);
-    v = (ThreeMMBackgroundVertex *)m.geometry.buffers[0].data;
-    t = (ThreeMMBackgroundTriangle *)m.geometry.buffers[1].data;
+    v = (MMBackgroundVertex *)m.geometry.buffers[0].data;
+    t = (MMBackgroundTriangle *)m.geometry.buffers[1].data;
     CHECK(v[0].x == -distance && v[0].y == distance && v[0].z == -distance && v[0].u == .5 && v[0].v == .5);
     CHECK(t[0].vertices[0] == 0 && t[0].vertices[1] == 1 && t[0].vertices[2] == 2 && t[1].vertices[2] == 3);
-    CHECK(three_mm_background_mesh_add(&m, &h.world, &s) && h.models == 1 && h.world == 1);
+    CHECK(mm_background_mesh_add(&m, &h.world, &s) && h.models == 1 && h.world == 1);
     calls = h.model_calls;
     h.world = 0;
-    CHECK(three_mm_background_mesh_add(&m, &h.world, &s) && h.model_calls == calls);
+    CHECK(mm_background_mesh_add(&m, &h.world, &s) && h.model_calls == calls);
     h.world = 0;
     for (i = 0; i < 25; ++i)
         depths[i] = 65535U;
-    CHECK(three_mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 1);
+    CHECK(mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 1);
     CHECK(!m.triangle_count && m.infinite_count == 25 && !memcmp(m.pixels.buffers[1].data, colors, 25));
     CHECK(!h.models && !h.maps && !h.materials && h.removes == 3 && h.remove_trace[0] == 1 && h.remove_trace[1] == 2 &&
           h.remove_trace[2] == 3);
-    CHECK(three_mm_background_mesh_add(&m, &h.world, &s) && !h.world);
+    CHECK(mm_background_mesh_add(&m, &h.world, &s) && !h.world);
     for (i = 0; i < 25; ++i)
         depths[i] = 26214;
     depths[2] = 65535U;
-    CHECK(three_mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 1);
+    CHECK(mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 1);
     for (i = 0; i < 25; ++i)
         CHECK(m.pixels.buffers[1].data[i] == colors[2]);
-    CHECK(three_mm_background_mesh_build(&m, 1025, 1, colors, 25, depths, 25, camera, projection, &s) == 0 &&
+    CHECK(mm_background_mesh_build(&m, 1025, 1, colors, 25, depths, 25, camera, projection, &s) == 0 &&
           !m.triangle_count && !m.infinite_count);
     projection[0] = HUGE_VAL;
-    CHECK(three_mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 0);
+    CHECK(mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 0);
     matrices(camera, projection);
     camera[0] = DBL_MAX;
-    CHECK(three_mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 0);
+    CHECK(mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 0);
     dispose(&h, &m, &s);
     matrices(camera, projection);
     for (i = 0; i < 25; ++i)
@@ -315,12 +315,12 @@ int main(void)
     {
         init(&h, &m, &s);
         h.fail_allocation = i;
-        result = three_mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s);
+        result = mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s);
         CHECK(result == 1 || result == -1);
         if (result < 0)
         {
             h.fail_allocation = 0;
-            CHECK(three_mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 1);
+            CHECK(mm_background_mesh_build(&m, 5, 5, colors, 25, depths, 25, camera, projection, &s) == 1);
         }
         dispose(&h, &m, &s);
         if (result == 1)
@@ -330,12 +330,12 @@ int main(void)
     large_colors = (unsigned char *)calloc(n, 1);
     large_depths = (unsigned short *)malloc(n * sizeof(*large_depths));
     CHECK(large_colors && large_depths);
-    for (j = 0; (ThreeMMU32)j < n; ++j)
+    for (j = 0; (MMU32)j < n; ++j)
         large_depths[j] = 26214;
     for (i = 0; i < 7; ++i)
     {
         init(&h, &m, &s);
-        CHECK(three_mm_background_mesh_build(&m, 258, 129, large_colors, n, large_depths, n, camera, projection, &s) ==
+        CHECK(mm_background_mesh_build(&m, 258, 129, large_colors, n, large_depths, n, camera, projection, &s) ==
               1);
         base = h.live_memory;
         if (i == 0)
@@ -346,15 +346,15 @@ int main(void)
             h.fail_model = i - 1;
         else
             h.fail_allocation = h.allocations + i - 3;
-        CHECK(!three_mm_background_mesh_add(&m, &h.world, &s));
+        CHECK(!mm_background_mesh_add(&m, &h.world, &s));
         CHECK(!m.prepared.map && !h.maps && !h.models && !h.materials && h.live_memory == base);
         h.fail_map = h.fail_material = h.fail_model = h.fail_allocation = 0;
         h.model_calls = 0;
-        CHECK(three_mm_background_mesh_add(&m, &h.world, &s) && m.prepared.count == 2 && h.models == 2 && h.world == 2);
+        CHECK(mm_background_mesh_add(&m, &h.world, &s) && m.prepared.count == 2 && h.models == 2 && h.world == 2);
         h.world = 0;
         h.actor_calls = 0;
         h.fail_actor = 2;
-        CHECK(!three_mm_background_mesh_add(&m, &h.world, &s) && h.world == 1 && h.models == 2);
+        CHECK(!mm_background_mesh_add(&m, &h.world, &s) && h.world == 1 && h.models == 2);
         dispose(&h, &m, &s);
     }
     free(large_depths);

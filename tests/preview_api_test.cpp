@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #ifdef size
 #error Legacy macros leaked through the preview API
 #endif
@@ -16,7 +16,7 @@
 #endif
 #endif
 
-static bool Check(bool ok, const char *step, const ThreeMM::Error &error)
+static bool Check(bool ok, const char *step, const MM::Error &error)
 {
     if (!ok)
         std::fprintf(stderr, "%s: %s\n", step, error.message.c_str());
@@ -26,24 +26,24 @@ int main(int argc, char **argv)
 {
     if (argc != 4)
         return 2;
-    ThreeMM::Preview preview;
-    ThreeMM::Archive archive;
-    ThreeMM::Error error;
+    MM::Preview preview;
+    MM::Archive archive;
+    MM::Error error;
     if (!Check(archive.Open(argv[2], error), "open archive", error) ||
         !Check(preview.Open(argv[2], argv[1], error), "open preview", error))
         return 1;
     unsigned actors = 0, props = 0;
-    ThreeMM::PreviewView view;
+    MM::PreviewView view;
     view.width = 256;
     view.height = 256;
-    ThreeMM::PreviewImage image, repeated;
+    MM::PreviewImage image, repeated;
     for (const auto &chunk : archive.Chunks())
     {
-        if (ThreeMM::TypeLabel(chunk.id.type) != "TMPL")
+        if (MM::TypeLabel(chunk.id.type) != "TMPL")
             continue;
-        if (std::getenv("THREE_MM_PREVIEW_TRACE"))
-            std::fprintf(stderr, "Previewing %s: %s\n", ThreeMM::Identity(chunk.id).c_str(), chunk.name.c_str());
-        if (!Check(preview.Select(chunk.id, error), ThreeMM::Identity(chunk.id).c_str(), error) ||
+        if (std::getenv("MM_PREVIEW_TRACE"))
+            std::fprintf(stderr, "Previewing %s: %s\n", MM::Identity(chunk.id).c_str(), chunk.name.c_str());
+        if (!Check(preview.Select(chunk.id, error), MM::Identity(chunk.id).c_str(), error) ||
             !Check(preview.Render(view, image, error), "render", error))
             return 1;
         const auto &info = preview.Info();
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
             ++actors;
         if (!info.parts || !info.triangles || !image.coveredPixels || image.rgba.size() != 256 * 256 * 4)
         {
-            std::fprintf(stderr, "%s: empty preview (%u pixels)\n", ThreeMM::Identity(chunk.id).c_str(),
+            std::fprintf(stderr, "%s: empty preview (%u pixels)\n", MM::Identity(chunk.id).c_str(),
                          image.coveredPixels);
             return 1;
         }
@@ -84,7 +84,7 @@ int main(int argc, char **argv)
         return 1;
     bool rawModelTested = false;
     for (const auto &chunk : archive.Chunks())
-        if (ThreeMM::TypeLabel(chunk.id.type) == "BMDL")
+        if (MM::TypeLabel(chunk.id.type) == "BMDL")
         {
             if (!Check(preview.Select(chunk.id, error), "raw model", error) ||
                 !Check(preview.Render(view, image, error), "raw model render", error))
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
             if (!image.coveredPixels)
             {
                 std::fprintf(stderr, "Raw model %s: %u triangles, zero covered pixels\n",
-                             ThreeMM::Identity(chunk.id).c_str(), preview.Info().triangles);
+                             MM::Identity(chunk.id).c_str(), preview.Info().triangles);
                 return 1;
             }
             rawModelTested = true;
@@ -112,12 +112,12 @@ int main(int argc, char **argv)
     if (!Check(preview.Render(view, image, error), "failed-open isolation", error))
         return 1;
     {
-        ThreeMM::Preview second;
-        if (second.Open(argv[2], argv[1], error) || error.code != ThreeMM::ErrorCode::invalid_argument)
+        MM::Preview second;
+        if (second.Open(argv[2], argv[1], error) || error.code != MM::ErrorCode::invalid_argument)
             return 1;
     }
     view.zoom = std::numeric_limits<float>::quiet_NaN();
-    if (preview.Render(view, image, error) || !image.rgba.empty() || error.code != ThreeMM::ErrorCode::invalid_argument)
+    if (preview.Render(view, image, error) || !image.rgba.empty() || error.code != MM::ErrorCode::invalid_argument)
         return 1;
     preview.Close();
     // Runtime caches must support shutdown/restart in the same process.

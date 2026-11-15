@@ -16,7 +16,7 @@
 #define MTRL_H
 
 #include <cstdint>
-#include "three_mm/material_resource.h"
+#include "mm/material_resource.h"
 
 using namespace BRender;
 
@@ -64,9 +64,9 @@ class Material_MTRL : public Material_MTRL_PAR
 
   protected:
     friend class CustomMaterial_CMTL;
-    static ThreeMMMaterialShade _shade;
-    ThreeMMMaterialResource _material;
-    static ThreeMMMaterialServices _Services(void *context = nullptr);
+    static MMMaterialShade _shade;
+    MMMaterialResource _material;
+    static MMMaterialServices _Services(void *context = nullptr);
 
   protected:
     Material_MTRL(void)
@@ -113,7 +113,7 @@ class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
 
   protected:
     friend class Material_MTRL;
-    ThreeMMCustomMaterial _custom;
+    MMCustomMaterial _custom;
 
   protected:
     bool _FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);

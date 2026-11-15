@@ -32,16 +32,16 @@ RTCLASS(ChunkyResourceFile)
 RTCLASS(ChunkyResourceManager)
 RTCLASS(GenericCacheableObject)
 
-const ThreeMMResourceObjectServices *BaseCacheableObject::_ObjectServices()
+const MMResourceObjectServices *BaseCacheableObject::_ObjectServices()
 {
-    static const ThreeMMResourceObjectServices services = {
-        [](void *o) -> ThreeMMResourceObject * { return &static_cast<PBaseCacheableObject>(o)->_resource; },
-        [](void *o) -> ThreeMMI32 { return static_cast<PBaseCacheableObject>(o)->_cactRef; },
-        [](void *o, ThreeMMI32 n) { static_cast<PBaseCacheableObject>(o)->_cactRef = n; },
+    static const MMResourceObjectServices services = {
+        [](void *o) -> MMResourceObject * { return &static_cast<PBaseCacheableObject>(o)->_resource; },
+        [](void *o) -> MMI32 { return static_cast<PBaseCacheableObject>(o)->_cactRef; },
+        [](void *o, MMI32 n) { static_cast<PBaseCacheableObject>(o)->_cactRef = n; },
         [](void *o) { static_cast<PBaseCacheableObject>(o)->AddRef(); },
         [](void *o) { static_cast<PBaseCacheableObject>(o)->Release(); },
         [](void *o) { static_cast<PBaseCacheableObject>(o)->Detach(); },
-        [](void *o, ThreeMMI32 n) { static_cast<PBaseCacheableObject>(o)->SetCrep(n); },
+        [](void *o, MMI32 n) { static_cast<PBaseCacheableObject>(o)->SetCrep(n); },
         [](void *o) { delete static_cast<PBaseCacheableObject>(o); },
         [](void *c) { static_cast<PChunkyResourceFile>(c)->AddRef(); },
         [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); },
@@ -52,7 +52,7 @@ const ThreeMMResourceObjectServices *BaseCacheableObject::_ObjectServices()
             static_cast<PChunkyResourceFile>(c)->BacoDetached(static_cast<PBaseCacheableObject>(o));
         },
         [](void *, int kind) {
-            if (kind == THREE_MM_RESOURCE_BAD_REFS)
+            if (kind == MM_RESOURCE_BAD_REFS)
                 Bug("calling Release without an AddRef");
             else
                 Bug("invalid cacheable object ownership");
@@ -62,13 +62,13 @@ const ThreeMMResourceObjectServices *BaseCacheableObject::_ObjectServices()
 BaseCacheableObject::BaseCacheableObject(void)
 {
     AssertBaseThis(fobjAllocated);
-    three_mm_resource_object_init(&_resource);
+    mm_resource_object_init(&_resource);
 }
 BaseCacheableObject::~BaseCacheableObject(void)
 {
     AssertBaseThis(fobjAllocated);
     Assert(!_resource.attached, "still attached");
-    three_mm_resource_object_dispose(this, _ObjectServices());
+    mm_resource_object_dispose(this, _ObjectServices());
 }
 bool BaseCacheableObject::FWriteFlo(PFileLocation location)
 {
@@ -92,17 +92,17 @@ LegacyLong BaseCacheableObject::CbOnFile(void)
 void BaseCacheableObject::Release(void)
 {
     AssertThis(0);
-    three_mm_resource_object_release(this, _ObjectServices());
+    mm_resource_object_release(this, _ObjectServices());
 }
 void BaseCacheableObject::Detach(void)
 {
     AssertThis(0);
-    three_mm_resource_object_detach(this, _ObjectServices());
+    mm_resource_object_detach(this, _ObjectServices());
 }
 void BaseCacheableObject::SetCrep(LegacyLong priority)
 {
     AssertThis(0);
-    three_mm_resource_object_priority(this, priority, _ObjectServices());
+    mm_resource_object_priority(this, priority, _ObjectServices());
 }
 #ifdef DEBUG
 void BaseCacheableObject::AssertValid(LegacyUlong flags)
@@ -119,23 +119,23 @@ void BaseCacheableObject::MarkMem(void)
         MarkMemObj(static_cast<PChunkyResourceFile>(_resource.owner));
 }
 #endif
-ThreeMMResourceServices ChunkyResourceFile::_Services()
+MMResourceServices ChunkyResourceFile::_Services()
 {
-    ThreeMMResourceServices s = {};
+    MMResourceServices s = {};
     s.context = this;
     s.objects = *BaseCacheableObject::_ObjectServices();
-    s.compare_reader = [](ThreeMMResourceReader a, ThreeMMResourceReader b) -> int {
+    s.compare_reader = [](MMResourceReader a, MMResourceReader b) -> int {
         const auto x = reinterpret_cast<PFNRPO>(a), y = reinterpret_cast<PFNRPO>(b);
         return x == y ? 0 : x < y ? -1 : 1;
     };
-    s.contains = [](void *c, ThreeMMU32 type, ThreeMMU32 number) -> int {
+    s.contains = [](void *c, MMU32 type, MMU32 number) -> int {
         return static_cast<PChunkyResourceFile>(c)->Pcfl()->FFind(type, number);
     };
-    s.find_block = [](void *c, ThreeMMU32 type, ThreeMMU32 number, void *block) -> int {
+    s.find_block = [](void *c, MMU32 type, MMU32 number, void *block) -> int {
         return static_cast<PChunkyResourceFile>(c)->Pcfl()->FFind(type, number, static_cast<PDataBlock>(block));
     };
-    s.read = [](void *c, ThreeMMResourceReader reader, ThreeMMU32 type, ThreeMMU32 number, void *block, void **object,
-                ThreeMMI32 *bytes) -> int {
+    s.read = [](void *c, MMResourceReader reader, MMU32 type, MMU32 number, void *block, void **object,
+                MMI32 *bytes) -> int {
         PBaseCacheableObject value = nullptr;
         LegacyLong count = *bytes;
         const bool ok =
@@ -148,10 +148,10 @@ ThreeMMResourceServices ChunkyResourceFile::_Services()
     };
     s.retain_file = [](void *file) { static_cast<PChunkyFile>(file)->AddRef(); };
     s.release_file = [](void *file) { static_cast<PChunkyFile>(file)->Release(); };
-    s.owner_refs = [](void *c) -> ThreeMMI32 { return static_cast<PChunkyResourceFile>(c)->_cactRef; };
-    s.set_owner_refs = [](void *c, ThreeMMI32 refs) { static_cast<PChunkyResourceFile>(c)->_cactRef = refs; };
-    s.issue = [](void *c, int kind, ThreeMMU32 type, ThreeMMU32 number) {
-        if (kind == THREE_MM_RESOURCE_LOAD_FAILED)
+    s.owner_refs = [](void *c) -> MMI32 { return static_cast<PChunkyResourceFile>(c)->_cactRef; };
+    s.set_owner_refs = [](void *c, MMI32 refs) { static_cast<PChunkyResourceFile>(c)->_cactRef = refs; };
+    s.issue = [](void *c, int kind, MMU32 type, MMU32 number) {
+        if (kind == MM_RESOURCE_LOAD_FAILED)
         {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
             const auto batch = std::getenv("THREEDMM_BATCH_TEST");
@@ -169,11 +169,11 @@ ThreeMMResourceServices ChunkyResourceFile::_Services()
 #endif
             PushErc(ercCrfCantLoad);
         }
-        else if (kind == THREE_MM_RESOURCE_DUPLICATE)
+        else if (kind == MM_RESOURCE_DUPLICATE)
             Bug("how did this happen?");
-        else if (kind == THREE_MM_RESOURCE_BAD_CHARGE)
+        else if (kind == MM_RESOURCE_BAD_CHARGE)
             Bug("negative resource size");
-        else if (kind == THREE_MM_RESOURCE_BAD_OWNER)
+        else if (kind == MM_RESOURCE_BAD_OWNER)
             Bug("someone still refers to this ChunkyResourceFile");
         else
             Bug("invalid resource cache ownership");
@@ -189,21 +189,21 @@ ChunkyResourceFile::ChunkyResourceFile(PChunkyFile file, LegacyLong budget)
     const auto services = _Services();
     int diagnostic = 0;
     Debug(diagnostic = 1;)
-        AssertDo(three_mm_resource_cache_init(&_cache, this, file, budget, &services, KauaiCopyAllocator(),
-                                              diagnostic) == THREE_MM_STORAGE_OK,
+        AssertDo(mm_resource_cache_init(&_cache, this, file, budget, &services, KauaiCopyAllocator(),
+                                              diagnostic) == MM_STORAGE_OK,
                  "invalid resource cache");
 }
 ChunkyResourceFile::~ChunkyResourceFile(void)
 {
     AssertBaseThis(fobjAllocated);
-    AssertDo(three_mm_resource_cache_dispose(&_cache) == THREE_MM_STORAGE_OK, "invalid resource cache disposal");
+    AssertDo(mm_resource_cache_dispose(&_cache) == MM_STORAGE_OK, "invalid resource cache disposal");
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong budget)
 {
     AssertPo(file, 0);
     AssertIn(budget, 0, kcbMax);
     auto cache = NewObj ChunkyResourceFile(file, budget);
-    if (cache && three_mm_resource_cache_reserve(&cache->_cache, 5) != THREE_MM_STORAGE_OK)
+    if (cache && mm_resource_cache_reserve(&cache->_cache, 5) != MM_STORAGE_OK)
         ReleasePpo(&cache);
     AssertNilOrPo(cache, 0);
     return cache;
@@ -212,7 +212,7 @@ void ChunkyResourceFile::SetCbMax(LegacyLong budget)
 {
     AssertThis(0);
     AssertIn(budget, 0, kcbMax);
-    three_mm_resource_cache_budget(&_cache, budget);
+    mm_resource_cache_budget(&_cache, budget);
 }
 tribool ChunkyResourceFile::TLoad(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, RSC scope,
                                   LegacyLong priority)
@@ -221,8 +221,8 @@ tribool ChunkyResourceFile::TLoad(ChunkTagOrType type, ChunkNumber number, PFNRP
     Assert(reader != nullptr, "bad object reader");
     Assert(priority > crepToss, "crep too small");
     DataBlock block;
-    return static_cast<tribool>(three_mm_resource_cache_load(
-        &_cache, type, number, reinterpret_cast<ThreeMMResourceReader>(reader), scope, priority, &block));
+    return static_cast<tribool>(mm_resource_cache_load(
+        &_cache, type, number, reinterpret_cast<MMResourceReader>(reader), scope, priority, &block));
 }
 PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, bool *error,
                                                     RSC scope)
@@ -232,8 +232,8 @@ PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType type, ChunkNu
     AssertNilOrVarMem(error);
     DataBlock block;
     int failed = 0;
-    auto object = static_cast<PBaseCacheableObject>(three_mm_resource_cache_fetch(
-        &_cache, type, number, reinterpret_cast<ThreeMMResourceReader>(reader), scope, &block, &failed));
+    auto object = static_cast<PBaseCacheableObject>(mm_resource_cache_fetch(
+        &_cache, type, number, reinterpret_cast<MMResourceReader>(reader), scope, &block, &failed));
     if (error)
         *error = failed != 0;
     return object;
@@ -243,32 +243,32 @@ PBaseCacheableObject ChunkyResourceFile::PbacoFind(ChunkTagOrType type, ChunkNum
     AssertThis(0);
     Assert(reader != nullptr, "bad object reader");
     return static_cast<PBaseCacheableObject>(
-        three_mm_resource_cache_find(&_cache, type, number, reinterpret_cast<ThreeMMResourceReader>(reader), scope));
+        mm_resource_cache_find(&_cache, type, number, reinterpret_cast<MMResourceReader>(reader), scope));
 }
 bool ChunkyResourceFile::FSetCrep(LegacyLong priority, ChunkTagOrType type, ChunkNumber number, PFNRPO reader,
                                   RSC scope)
 {
     AssertThis(0);
     Assert(reader != nullptr, "bad object reader");
-    return three_mm_resource_cache_priority(&_cache, priority, type, number,
-                                            reinterpret_cast<ThreeMMResourceReader>(reader), scope) != 0;
+    return mm_resource_cache_priority(&_cache, priority, type, number,
+                                            reinterpret_cast<MMResourceReader>(reader), scope) != 0;
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
 {
     AssertThis(0);
-    return three_mm_resource_cache_contains(&_cache, type, number, scope) ? this : nullptr;
+    return mm_resource_cache_contains(&_cache, type, number, scope) ? this : nullptr;
 }
 void ChunkyResourceFile::BacoDetached(PBaseCacheableObject object)
 {
     AssertThis(0);
     AssertPo(object, 0);
-    three_mm_resource_cache_detached(&_cache, object);
+    mm_resource_cache_detached(&_cache, object);
 }
 void ChunkyResourceFile::BacoReleased(PBaseCacheableObject object)
 {
     AssertThis(0);
     AssertPo(object, 0);
-    three_mm_resource_cache_released(&_cache, object);
+    mm_resource_cache_released(&_cache, object);
 }
 #ifdef DEBUG
 void ChunkyResourceFile::AssertValid(LegacyUlong flags)
@@ -278,7 +278,7 @@ void ChunkyResourceFile::AssertValid(LegacyUlong flags)
     AssertIn(_cache.budget, 0, kcbMax);
     Assert(_cache.resident.high >= 0, "negative cache size");
     AssertIn(_cache.releases, 0, kcbMax);
-    Assert(_cache.count <= _cache.storage.buffers[0].capacity / sizeof(ThreeMMResourceEntry), "bad cache count");
+    Assert(_cache.count <= _cache.storage.buffers[0].capacity / sizeof(MMResourceEntry), "bad cache count");
 }
 void ChunkyResourceFile::MarkMem(void)
 {
@@ -286,10 +286,10 @@ void ChunkyResourceFile::MarkMem(void)
     ChunkyResourceFile_PAR::MarkMem();
     MarkPv(_cache.storage.buffers[0].data);
     MarkMemObj(Pcfl());
-    ThreeMMResourceEntry row;
-    for (ThreeMMU32 i = _cache.count; i-- > 0;)
+    MMResourceEntry row;
+    for (MMU32 i = _cache.count; i-- > 0;)
     {
-        AssertDo(three_mm_resource_cache_at(&_cache, i, &row) == THREE_MM_STORAGE_OK, "bad cache row");
+        AssertDo(mm_resource_cache_at(&_cache, i, &row) == MM_STORAGE_OK, "bad cache row");
         auto object = static_cast<PBaseCacheableObject>(row.object);
         AssertPo(object, 0);
         Assert(object->_resource.attached, "baco not attached");
@@ -300,59 +300,59 @@ void ChunkyResourceFile::MarkMem(void)
 #endif
 namespace
 {
-ThreeMMResourceRequest ResourceRequest(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, RSC scope,
+MMResourceRequest ResourceRequest(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, RSC scope,
                                        LegacyLong priority = crepNormal)
 {
-    return {type, number, scope, reinterpret_cast<ThreeMMResourceReader>(reader), priority};
+    return {type, number, scope, reinterpret_cast<MMResourceReader>(reader), priority};
 }
 } // namespace
-ThreeMMResourceManagerServices ChunkyResourceManager::_Services()
+MMResourceManagerServices ChunkyResourceManager::_Services()
 {
     return {nullptr,
-            [](void *, void *file, ThreeMMI32 budget) -> void * {
+            [](void *, void *file, MMI32 budget) -> void * {
                 return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), budget);
             },
             [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); },
-            [](void *c, const ThreeMMResourceRequest *q) -> int {
+            [](void *c, const MMResourceRequest *q) -> int {
                 return static_cast<PChunkyResourceFile>(c)->TLoad(
                     q->type, q->number, reinterpret_cast<PFNRPO>(q->reader), q->scope, q->priority);
             },
-            [](void *c, const ThreeMMResourceRequest *q, int *error) -> void * {
+            [](void *c, const MMResourceRequest *q, int *error) -> void * {
                 bool failed = false;
                 auto object = static_cast<PChunkyResourceFile>(c)->PbacoFetch(
                     q->type, q->number, reinterpret_cast<PFNRPO>(q->reader), &failed, q->scope);
                 *error = failed;
                 return object;
             },
-            [](void *c, const ThreeMMResourceRequest *q) -> void * {
+            [](void *c, const MMResourceRequest *q) -> void * {
                 return static_cast<PChunkyResourceFile>(c)->PbacoFind(q->type, q->number,
                                                                       reinterpret_cast<PFNRPO>(q->reader), q->scope);
             },
-            [](void *c, const ThreeMMResourceRequest *q) -> int {
+            [](void *c, const MMResourceRequest *q) -> int {
                 return static_cast<PChunkyResourceFile>(c)->FSetCrep(q->priority, q->type, q->number,
                                                                      reinterpret_cast<PFNRPO>(q->reader), q->scope);
             },
-            [](void *c, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 scope) -> int {
-                return three_mm_resource_cache_contains(&static_cast<PChunkyResourceFile>(c)->_cache, type, number,
+            [](void *c, MMU32 type, MMU32 number, MMU32 scope) -> int {
+                return mm_resource_cache_contains(&static_cast<PChunkyResourceFile>(c)->_cache, type, number,
                                                         scope);
             }};
 }
 ChunkyResourceManager::ChunkyResourceManager(void)
 {
     const auto services = _Services();
-    AssertDo(three_mm_resource_manager_init(&_manager, &services, KauaiCopyAllocator()) == THREE_MM_STORAGE_OK,
+    AssertDo(mm_resource_manager_init(&_manager, &services, KauaiCopyAllocator()) == MM_STORAGE_OK,
              "invalid resource manager");
 }
 ChunkyResourceManager::~ChunkyResourceManager(void)
 {
     AssertBaseThis(fobjAllocated);
-    AssertDo(three_mm_resource_manager_dispose(&_manager) == THREE_MM_STORAGE_OK, "invalid manager disposal");
+    AssertDo(mm_resource_manager_dispose(&_manager) == MM_STORAGE_OK, "invalid manager disposal");
 }
 PChunkyResourceManager ChunkyResourceManager::PcrmNew(LegacyLong reserve)
 {
     AssertIn(reserve, 0, kcbMax);
     auto manager = NewObj ChunkyResourceManager();
-    if (manager && three_mm_resource_manager_reserve(&manager->_manager, reserve) != THREE_MM_STORAGE_OK)
+    if (manager && mm_resource_manager_reserve(&manager->_manager, reserve) != MM_STORAGE_OK)
         ReleasePpo(&manager);
     AssertNilOrPo(manager, 0);
     return manager;
@@ -363,7 +363,7 @@ tribool ChunkyResourceManager::TLoad(ChunkTagOrType type, ChunkNumber number, PF
     AssertThis(0);
     Assert(reader != nullptr, "nil object reader");
     const auto q = ResourceRequest(type, number, reader, scope, priority);
-    return static_cast<tribool>(three_mm_resource_manager_load(&_manager, &q));
+    return static_cast<tribool>(mm_resource_manager_load(&_manager, &q));
 }
 PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType type, ChunkNumber number, PFNRPO reader,
                                                        bool *error, RSC scope)
@@ -373,7 +373,7 @@ PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType type, Chun
     AssertNilOrVarMem(error);
     const auto q = ResourceRequest(type, number, reader, scope);
     int failed = 0;
-    auto object = static_cast<PBaseCacheableObject>(three_mm_resource_manager_fetch(&_manager, &q, &failed));
+    auto object = static_cast<PBaseCacheableObject>(mm_resource_manager_fetch(&_manager, &q, &failed));
     if (error)
         *error = failed != 0;
     return object;
@@ -383,7 +383,7 @@ PBaseCacheableObject ChunkyResourceManager::PbacoFind(ChunkTagOrType type, Chunk
     AssertThis(0);
     Assert(reader != nullptr, "nil object reader");
     const auto q = ResourceRequest(type, number, reader, scope);
-    return static_cast<PBaseCacheableObject>(three_mm_resource_manager_find(&_manager, &q));
+    return static_cast<PBaseCacheableObject>(mm_resource_manager_find(&_manager, &q));
 }
 bool ChunkyResourceManager::FSetCrep(LegacyLong priority, ChunkTagOrType type, ChunkNumber number, PFNRPO reader,
                                      RSC scope)
@@ -391,12 +391,12 @@ bool ChunkyResourceManager::FSetCrep(LegacyLong priority, ChunkTagOrType type, C
     AssertThis(0);
     Assert(reader != nullptr, "nil object reader");
     const auto q = ResourceRequest(type, number, reader, scope, priority);
-    return three_mm_resource_manager_priority(&_manager, &q) != 0;
+    return mm_resource_manager_priority(&_manager, &q) != 0;
 }
 PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
 {
     AssertThis(0);
-    return static_cast<PChunkyResourceFile>(three_mm_resource_manager_find_file(&_manager, type, number, scope));
+    return static_cast<PChunkyResourceFile>(mm_resource_manager_find_file(&_manager, type, number, scope));
 }
 bool ChunkyResourceManager::FAddCfl(PChunkyFile file, LegacyLong budget, LegacyLong *position)
 {
@@ -404,15 +404,15 @@ bool ChunkyResourceManager::FAddCfl(PChunkyFile file, LegacyLong budget, LegacyL
     AssertPo(file, 0);
     AssertIn(budget, 0, kcbMax);
     AssertNilOrVarMem(position);
-    ThreeMMU32 at;
-    const int result = three_mm_resource_manager_add(&_manager, file, budget, &at);
-    if (result == THREE_MM_STORAGE_OK)
+    MMU32 at;
+    const int result = mm_resource_manager_add(&_manager, file, budget, &at);
+    if (result == MM_STORAGE_OK)
     {
         if (position)
             *position = at;
         return true;
     }
-    if (result == THREE_MM_STORAGE_IO)
+    if (result == MM_STORAGE_IO)
         TrashVar(position);
     return false;
 }
@@ -420,7 +420,7 @@ PChunkyResourceFile ChunkyResourceManager::PcrfGet(LegacyLong position)
 {
     AssertThis(0);
     AssertIn(position, 0, kcbMax);
-    return static_cast<PChunkyResourceFile>(three_mm_resource_manager_at(&_manager, position));
+    return static_cast<PChunkyResourceFile>(mm_resource_manager_at(&_manager, position));
 }
 #ifdef DEBUG
 void ChunkyResourceManager::AssertValid(LegacyUlong flags)
@@ -433,8 +433,8 @@ void ChunkyResourceManager::MarkMem(void)
     AssertThis(0);
     ChunkyResourceManager_PAR::MarkMem();
     MarkPv(_manager.storage.buffers[0].data);
-    for (ThreeMMU32 i = 0; i < _manager.count; ++i)
-        MarkMemObj(static_cast<PChunkyResourceFile>(three_mm_resource_manager_at(&_manager, i)));
+    for (MMU32 i = 0; i < _manager.count; ++i)
+        MarkMemObj(static_cast<PChunkyResourceFile>(mm_resource_manager_at(&_manager, i)));
 }
 #endif
 /***************************************************************************

@@ -12,49 +12,49 @@
 ***************************************************************************/
 #include "util.h"
 #include "handle_services.h"
-#include "three_mm/file_text.h"
+#include "mm/file_text.h"
 ASSERTNAME
 
 namespace {
-int ReadBlockFile(void *file, ThreeMMU32 offset, void *bytes, size_t count)
+int ReadBlockFile(void *file, MMU32 offset, void *bytes, size_t count)
 {
     return !count || static_cast<PFileObject>(file)->FReadRgb(bytes, count, offset);
 }
-int WriteBlockFile(void *file, ThreeMMU32 offset, const void *bytes, size_t count)
+int WriteBlockFile(void *file, MMU32 offset, const void *bytes, size_t count)
 {
     return !count || static_cast<PFileObject>(file)->FWriteRgb(const_cast<void *>(bytes), count, offset);
 }
-ThreeMMBlockIO FileBlock(PFileLocation location)
+MMBlockIO FileBlock(PFileLocation location)
 {
-    ThreeMMBlockIO io = {};
-    io.view.kind = THREE_MM_BLOCK_FILE; io.view.start = location->fp; io.view.length = location->cb;
+    MMBlockIO io = {};
+    io.view.kind = MM_BLOCK_FILE; io.view.start = location->fp; io.view.length = location->cb;
     io.handles = KauaiHandleServices(); io.context = location->pfil;
     io.read_file = ReadBlockFile; io.write_file = WriteBlockFile;
     return io;
 }
-void *AllocateCopyBuffer(void *, void *old, ThreeMMU32 oldBytes, ThreeMMU32 bytes, int priority)
+void *AllocateCopyBuffer(void *, void *old, MMU32 oldBytes, MMU32 bytes, int priority)
 {
     void *buffer = old;
-    const LegacyLong mpr = priority == THREE_MM_STORAGE_SPEED ? mprForSpeed : mprNormal;
+    const LegacyLong mpr = priority == MM_STORAGE_SPEED ? mprForSpeed : mprNormal;
     const bool ok = old ? _FResizePpvDebug(&buffer, bytes, oldBytes, fmemNil, mpr, &vdmglob.dmaglPv) :
                           FAllocPv(&buffer, bytes, fmemNil, mpr);
     return ok ? buffer : nullptr;
 }
-void ReleaseCopyBuffer(void *, void *buffer, ThreeMMU32) { FreePpv(&buffer); }
-const ThreeMMStorageAllocator copyAllocator = {nullptr, AllocateCopyBuffer, ReleaseCopyBuffer};
+void ReleaseCopyBuffer(void *, void *buffer, MMU32) { FreePpv(&buffer); }
+const MMStorageAllocator copyAllocator = {nullptr, AllocateCopyBuffer, ReleaseCopyBuffer};
 void RetainBlockFile(void *, void *file) { static_cast<PFileObject>(file)->AddRef(); }
 void ReleaseBlockFile(void *, void *file) { static_cast<PFileObject>(file)->Release(); }
 void *CreateBlockTemp(void *) { return FileObject::PfilCreateTemp(); }
-int ReadOwnedFile(void *, void *file, ThreeMMU32 offset, void *bytes, size_t count) { return ReadBlockFile(file, offset, bytes, count); }
-int WriteOwnedFile(void *, void *file, ThreeMMU32 offset, const void *bytes, size_t count) { return WriteBlockFile(file, offset, bytes, count); }
-const ThreeMMBlockFileServices blockFiles = {nullptr, RetainBlockFile, ReleaseBlockFile, CreateBlockTemp, ReadOwnedFile, WriteOwnedFile};
+int ReadOwnedFile(void *, void *file, MMU32 offset, void *bytes, size_t count) { return ReadBlockFile(file, offset, bytes, count); }
+int WriteOwnedFile(void *, void *file, MMU32 offset, const void *bytes, size_t count) { return WriteBlockFile(file, offset, bytes, count); }
+const MMBlockFileServices blockFiles = {nullptr, RetainBlockFile, ReleaseBlockFile, CreateBlockTemp, ReadOwnedFile, WriteOwnedFile};
 int PackHandle(void *context, void **handle) { return vpcodmUtil->FCompressPhq(handle, *static_cast<LegacyLong *>(context)); }
-ThreeMMI32 ConvertFileText(void *, const void *input, ThreeMMU32 bytes, int source, void *output, ThreeMMU32 capacity)
+MMI32 ConvertFileText(void *, const void *input, MMU32 bytes, int source, void *output, MMU32 capacity)
 {
     return CchTranslateRgb(const_cast<void *>(input), bytes, static_cast<short>(source), static_cast<achar *>(output), capacity);
 }
 }
-const ThreeMMStorageAllocator *KauaiCopyAllocator() { return &copyAllocator; }
+const MMStorageAllocator *KauaiCopyAllocator() { return &copyAllocator; }
 
 FileType FileObject::vftgCreator = '____';
 PFileObject FileObject::_pfilFirst;
@@ -402,7 +402,7 @@ void FileObject::AssertValid(LegacyUlong grf)
 ***************************************************************************/
 priv bool _FRangeIn(LegacyLong cbTot, LegacyLong cb, LegacyLong ib)
 {
-    return cbTot >= 0 && cb >= 0 && ib >= 0 && three_mm_range_contains(cbTot, ib, cb);
+    return cbTot >= 0 && cb >= 0 && ib >= 0 && mm_range_contains(cbTot, ib, cb);
 }
 
 /***************************************************************************
@@ -450,7 +450,7 @@ bool FileLocation::FCopy(PFileLocation pfloDst)
     AssertPo(pfloDst, 0);
     if (cb != pfloDst->cb) { Bug("different sized FLOs"); return false; }
     const auto source = FileBlock(this), destination = FileBlock(pfloDst);
-    return three_mm_block_copy(&source, &destination, true, &copyAllocator) == THREE_MM_DATA_OK;
+    return mm_block_copy(&source, &destination, true, &copyAllocator) == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -462,7 +462,7 @@ bool FileLocation::FReadHq(HQ *phq, LegacyLong cbRead, FilePosition dfp)
     AssertVarMem(phq);
     if (!_FRangeIn(cb, cbRead, dfp)) { Bug("reading outside flo 2"); return false; }
     const auto io = FileBlock(this);
-    return three_mm_block_read_handle(&io, dfp, cbRead, true, phq) == THREE_MM_DATA_OK;
+    return mm_block_read_handle(&io, dfp, cbRead, true, phq) == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -473,9 +473,9 @@ bool FileLocation::FWriteHq(HQ hq, LegacyLong dfp)
     AssertThis(0);
     AssertHq(hq);
     const auto io = FileBlock(this);
-    const int result = three_mm_block_write_handle(&io, dfp, hq, true);
-    if (result == THREE_MM_DATA_ARGUMENT) Bug("writing outside flo 2");
-    return result == THREE_MM_DATA_OK;
+    const int result = mm_block_write_handle(&io, dfp, hq, true);
+    if (result == MM_DATA_ARGUMENT) Bug("writing outside flo 2");
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -487,14 +487,14 @@ bool FileLocation::FTranslate(short osk)
 {
     AssertThis(0);
     const short one = 1;
-    const ThreeMMFileTextConverter converter = {nullptr, koskCur, MacWin(koskSbMac, koskSbWin),
+    const MMFileTextConverter converter = {nullptr, koskCur, MacWin(koskSbMac, koskSbWin),
         MacWin(koskUniMac, koskUniWin), reinterpret_cast<const byte *>(&one)[0] == 0, sizeof(achar), ConvertFileText};
-    ThreeMMBlockFile region = {pfil, static_cast<ThreeMMU32>(fp), static_cast<ThreeMMU32>(cb)};
-    const int result = three_mm_file_text_translate(&region, &blockFiles, &converter, KauaiCopyAllocator(), osk);
+    MMBlockFile region = {pfil, static_cast<MMU32>(fp), static_cast<MMU32>(cb)};
+    const int result = mm_file_text_translate(&region, &blockFiles, &converter, KauaiCopyAllocator(), osk);
     // BOM stripping remains visible even if a later allocation or I/O fails.
     pfil = static_cast<PFileObject>(region.file); fp = region.offset; cb = region.length;
-    if (result == THREE_MM_DATA_WRONG_SIZE) Bug("why did CchTranslateRgb fail?");
-    return result == THREE_MM_DATA_OK;
+    if (result == MM_DATA_WRONG_SIZE) Bug("why did CchTranslateRgb fail?");
+    return result == MM_DATA_OK;
 }
 
 #ifdef DEBUG
@@ -520,10 +520,10 @@ void FileLocation::AssertValid(LegacyUlong grfflo)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-ThreeMMBlockIO DataBlock::_IOView()
+MMBlockIO DataBlock::_IOView()
 {
-    ThreeMMBlockIO io = {};
-    AssertDo(three_mm_owned_block_io(&_state, &io) == THREE_MM_DATA_OK, "invalid block state");
+    MMBlockIO io = {};
+    AssertDo(mm_owned_block_io(&_state, &io) == MM_DATA_OK, "invalid block state");
     return io;
 }
 int DataBlock::_DecodeHandle(void *, void **handle) { return vpcodmUtil->FDecompressPhq(handle); }
@@ -531,7 +531,7 @@ int DataBlock::_DecodeHandle(void *, void **handle) { return vpcodmUtil->FDecomp
 DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 {
     AssertBaseThis(0);
-    AssertDo(three_mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == THREE_MM_DATA_OK, "invalid block services");
+    AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
     Set(pflo, fPacked);
 }
 
@@ -541,7 +541,7 @@ DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked)
 {
     AssertBaseThis(0);
-    AssertDo(three_mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == THREE_MM_DATA_OK, "invalid block services");
+    AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
     Set(pfil, fp, cb, fPacked);
 }
 
@@ -552,7 +552,7 @@ DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPac
 DataBlock::DataBlock(HQ *phq, bool fPacked)
 {
     AssertBaseThis(0);
-    AssertDo(three_mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == THREE_MM_DATA_OK, "invalid block services");
+    AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
     SetHq(phq, fPacked);
 }
 
@@ -562,7 +562,7 @@ DataBlock::DataBlock(HQ *phq, bool fPacked)
 DataBlock::DataBlock(void)
 {
     AssertBaseThis(0);
-    AssertDo(three_mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == THREE_MM_DATA_OK, "invalid block services");
+    AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
     AssertThis(0);
 }
 
@@ -592,8 +592,8 @@ void DataBlock::Set(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPack
 {
     AssertThis(0);
     AssertPo(pfil, 0);
-    const ThreeMMBlockFile file = {pfil, static_cast<ThreeMMU32>(fp), static_cast<ThreeMMU32>(cb)};
-    AssertDo(three_mm_owned_block_set_file(&_state, &file, fPacked) == THREE_MM_DATA_OK, "invalid file block");
+    const MMBlockFile file = {pfil, static_cast<MMU32>(fp), static_cast<MMU32>(cb)};
+    AssertDo(mm_owned_block_set_file(&_state, &file, fPacked) == MM_DATA_OK, "invalid file block");
     AssertThis(0);
 }
 
@@ -606,7 +606,7 @@ void DataBlock::SetHq(HQ *phq, bool fPacked)
     AssertThis(0);
     AssertVarMem(phq);
     AssertHq(*phq);
-    AssertDo(three_mm_owned_block_set_handle(&_state, phq, fPacked) == THREE_MM_DATA_OK, "invalid memory block");
+    AssertDo(mm_owned_block_set_handle(&_state, phq, fPacked) == MM_DATA_OK, "invalid memory block");
     AssertThis(0);
 }
 
@@ -616,7 +616,7 @@ void DataBlock::SetHq(HQ *phq, bool fPacked)
 void DataBlock::Free(void)
 {
     AssertThis(0);
-    AssertDo(three_mm_owned_block_clear(&_state) == THREE_MM_DATA_OK, "invalid block release");
+    AssertDo(mm_owned_block_clear(&_state) == MM_DATA_OK, "invalid block release");
     AssertThis(0);
 }
 
@@ -631,11 +631,11 @@ HQ DataBlock::HqFree(bool fPackedOk)
     AssertThis(0);
     HQ handle = nullptr;
     int shrinkFailed = 0;
-    const int result = three_mm_owned_block_take_handle(&_state, fPackedOk, &handle, &shrinkFailed);
-    if (result == THREE_MM_DATA_PACKED) Bug("accessing packed data");
+    const int result = mm_owned_block_take_handle(&_state, fPackedOk, &handle, &shrinkFailed);
+    if (result == MM_DATA_PACKED) Bug("accessing packed data");
     Assert(!shrinkFailed, "HQ shrink failed");
     AssertThis(0);
-    return result == THREE_MM_DATA_OK ? handle : nullptr;
+    return result == MM_DATA_OK ? handle : nullptr;
 }
 
 /***************************************************************************
@@ -653,7 +653,7 @@ LegacyLong DataBlock::Cb(bool fPackedOk)
 bool DataBlock::FSetTemp(LegacyLong cb, bool fForceFile)
 {
     AssertThis(0);
-    const bool ok = three_mm_owned_block_set_temp(&_state, cb, fForceFile) == THREE_MM_DATA_OK;
+    const bool ok = mm_owned_block_set_temp(&_state, cb, fForceFile) == MM_DATA_OK;
     AssertThis(0);
     return ok;
 }
@@ -666,7 +666,7 @@ bool DataBlock::FSetTemp(LegacyLong cb, bool fForceFile)
 bool DataBlock::FMoveMin(LegacyLong dib)
 {
     AssertThis(0);
-    return three_mm_block_move_min(&_state.view, dib) == THREE_MM_DATA_OK;
+    return mm_block_move_min(&_state.view, dib) == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -677,7 +677,7 @@ bool DataBlock::FMoveMin(LegacyLong dib)
 bool DataBlock::FMoveLim(LegacyLong dib)
 {
     AssertThis(0);
-    return three_mm_block_move_lim(&_state.view, dib) == THREE_MM_DATA_OK;
+    return mm_block_move_lim(&_state.view, dib) == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -688,10 +688,10 @@ bool DataBlock::FReadRgb(void *pv, LegacyLong cb, LegacyLong ib, bool fPackedOk)
     AssertThis(0);
     AssertPvCb(pv, cb);
     const auto io = _IOView();
-    const int result = three_mm_block_read(&io, ib, pv, cb, fPackedOk);
-    if (result == THREE_MM_DATA_PACKED || result == THREE_MM_DATA_ARGUMENT)
-        Bug((result == THREE_MM_DATA_PACKED ? "reading packed data" : "reading outside blck"));
-    return result == THREE_MM_DATA_OK;
+    const int result = mm_block_read(&io, ib, pv, cb, fPackedOk);
+    if (result == MM_DATA_PACKED || result == MM_DATA_ARGUMENT)
+        Bug((result == MM_DATA_PACKED ? "reading packed data" : "reading outside blck"));
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -702,10 +702,10 @@ bool DataBlock::FWriteRgb(void *pv, LegacyLong cb, LegacyLong ib, bool fPackedOk
     AssertThis(0);
     AssertPvCb(pv, cb);
     const auto io = _IOView();
-    const int result = three_mm_block_write(&io, ib, pv, cb, fPackedOk);
-    if (result == THREE_MM_DATA_PACKED || result == THREE_MM_DATA_ARGUMENT)
-        Bug((result == THREE_MM_DATA_PACKED ? "writing packed data" : "writing outside blck"));
-    return result == THREE_MM_DATA_OK;
+    const int result = mm_block_write(&io, ib, pv, cb, fPackedOk);
+    if (result == MM_DATA_PACKED || result == MM_DATA_ARGUMENT)
+        Bug((result == MM_DATA_PACKED ? "writing packed data" : "writing outside blck"));
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -716,10 +716,10 @@ bool DataBlock::FReadHq(HQ *phq, LegacyLong cb, LegacyLong ib, bool fPackedOk)
     AssertThis(0);
     AssertVarMem(phq);
     const auto io = _IOView();
-    const int result = three_mm_block_read_handle(&io, ib, cb, fPackedOk, phq);
-    if (result == THREE_MM_DATA_PACKED || result == THREE_MM_DATA_ARGUMENT)
-        Bug((result == THREE_MM_DATA_PACKED ? "reading packed data" : "reading outside blck"));
-    return result == THREE_MM_DATA_OK;
+    const int result = mm_block_read_handle(&io, ib, cb, fPackedOk, phq);
+    if (result == MM_DATA_PACKED || result == MM_DATA_ARGUMENT)
+        Bug((result == MM_DATA_PACKED ? "reading packed data" : "reading outside blck"));
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -730,10 +730,10 @@ bool DataBlock::FWriteHq(HQ hq, LegacyLong ib, bool fPackedOk)
     AssertThis(0);
     AssertHq(hq);
     const auto io = _IOView();
-    const int result = three_mm_block_write_handle(&io, ib, hq, fPackedOk);
-    if (result == THREE_MM_DATA_PACKED || result == THREE_MM_DATA_ARGUMENT)
-        Bug((result == THREE_MM_DATA_PACKED ? "writing packed data" : "writing outside blck"));
-    return result == THREE_MM_DATA_OK;
+    const int result = mm_block_write_handle(&io, ib, hq, fPackedOk);
+    if (result == MM_DATA_PACKED || result == MM_DATA_ARGUMENT)
+        Bug((result == MM_DATA_PACKED ? "writing packed data" : "writing outside blck"));
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -744,10 +744,10 @@ bool DataBlock::FWriteToFlo(PFileLocation pfloDst, bool fPackedOk)
     AssertThis(fblckReadable);
     AssertPo(pfloDst, 0);
     const auto source = _IOView(), destination = FileBlock(pfloDst);
-    const int result = three_mm_block_copy(&source, &destination, fPackedOk, &copyAllocator);
-    if (result == THREE_MM_DATA_PACKED) Bug("copying packed data");
-    if (result == THREE_MM_DATA_WRONG_SIZE) Bug("flo is wrong size");
-    return result == THREE_MM_DATA_OK;
+    const int result = mm_block_copy(&source, &destination, fPackedOk, &copyAllocator);
+    if (result == MM_DATA_PACKED) Bug("copying packed data");
+    if (result == MM_DATA_WRONG_SIZE) Bug("flo is wrong size");
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -758,10 +758,10 @@ bool DataBlock::FWriteToBlck(PDataBlock pblckDst, bool fPackedOk)
     AssertThis(fblckReadable);
     AssertPo(pblckDst, 0);
     const auto source = _IOView(), destination = pblckDst->_IOView();
-    const int result = three_mm_block_copy(&source, &destination, fPackedOk, &copyAllocator);
-    if (result == THREE_MM_DATA_PACKED) Bug("copying packed data");
-    if (result == THREE_MM_DATA_WRONG_SIZE) Bug("blck is wrong size");
-    return result == THREE_MM_DATA_OK;
+    const int result = mm_block_copy(&source, &destination, fPackedOk, &copyAllocator);
+    if (result == MM_DATA_PACKED) Bug("copying packed data");
+    if (result == MM_DATA_WRONG_SIZE) Bug("blck is wrong size");
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -771,10 +771,10 @@ bool DataBlock::FGetFlo(PFileLocation pflo, bool fPackedOk)
 {
     AssertThis(0);
     AssertVarMem(pflo);
-    ThreeMMBlockFile file;
-    const int result = three_mm_owned_block_materialize(&_state, fPackedOk, &file);
-    if (result == THREE_MM_DATA_PACKED) { Bug("accessing packed data"); return false; }
-    if (result != THREE_MM_DATA_OK) { TrashVar(pflo); return false; }
+    MMBlockFile file;
+    const int result = mm_owned_block_materialize(&_state, fPackedOk, &file);
+    if (result == MM_DATA_PACKED) { Bug("accessing packed data"); return false; }
+    if (result != MM_DATA_OK) { TrashVar(pflo); return false; }
     pflo->pfil = static_cast<PFileObject>(file.file); pflo->fp = file.offset; pflo->cb = file.length;
     return true;
 }
@@ -801,10 +801,10 @@ bool DataBlock::FPackData(LegacyLong cfmt)
 {
     AssertThis(0);
     int shrinkFailed = 0;
-    const int result = three_mm_owned_block_code(&_state, 1, &cfmt, PackHandle, &shrinkFailed);
+    const int result = mm_owned_block_code(&_state, 1, &cfmt, PackHandle, &shrinkFailed);
     Assert(!shrinkFailed, "HQ shrink failed");
     AssertThis(0);
-    return result == THREE_MM_DATA_OK;
+    return result == MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -813,7 +813,7 @@ bool DataBlock::FPackData(LegacyLong cfmt)
 bool DataBlock::FUnpackData(void)
 {
     AssertThis(0);
-    const bool ok = three_mm_owned_block_code(&_state, 0, nullptr, _DecodeHandle, nullptr) == THREE_MM_DATA_OK;
+    const bool ok = mm_owned_block_code(&_state, 0, nullptr, _DecodeHandle, nullptr) == MM_DATA_OK;
     AssertThis(0);
     return ok;
 }
@@ -824,7 +824,7 @@ bool DataBlock::FUnpackData(void)
 LegacyLong DataBlock::CbMem(void)
 {
     AssertThis(0);
-    return _state.view.kind == THREE_MM_BLOCK_MEMORY ? _state.view.capacity : 0;
+    return _state.view.kind == MM_BLOCK_MEMORY ? _state.view.capacity : 0;
 }
 
 #ifdef DEBUG
@@ -834,18 +834,18 @@ LegacyLong DataBlock::CbMem(void)
 void DataBlock::AssertValid(LegacyUlong grfblck)
 {
     DataBlock_PAR::AssertValid(0);
-    Assert(three_mm_owned_block_check(&_state) == THREE_MM_DATA_OK, "invalid owning block");
-    if (_state.view.kind == THREE_MM_BLOCK_FILE)
+    Assert(mm_owned_block_check(&_state) == MM_DATA_OK, "invalid owning block");
+    if (_state.view.kind == MM_BLOCK_FILE)
     {
         FileLocation file = {static_cast<PFileObject>(_state.file), static_cast<LegacyLong>(_state.view.start), static_cast<LegacyLong>(_state.view.length)};
         AssertPo(&file, (grfblck & fblckReadable) ? ffloReadable : 0);
         Assert(!(grfblck & fblckMemory) || (grfblck & fblckFile), "block should be memory based");
     }
-    else if (_state.view.kind == THREE_MM_BLOCK_MEMORY)
+    else if (_state.view.kind == MM_BLOCK_MEMORY)
     {
         Assert(!(grfblck & fblckFile) || (grfblck & fblckMemory), "block should be file based");
         AssertHq(_state.view.memory);
-        Assert(_state.view.capacity == static_cast<ThreeMMU32>(CbOfHq(_state.view.memory)), "wrong block capacity");
+        Assert(_state.view.capacity == static_cast<MMU32>(CbOfHq(_state.view.memory)), "wrong block capacity");
     }
     Assert(_state.view.packed || !(grfblck & fblckPacked), "block should be packed");
     Assert(!_state.view.packed || !(grfblck & fblckUnpacked), "block should be unpacked");

@@ -1,12 +1,12 @@
 /* Preview background image ownership and two-entry mesh cache. */
-#include "three_mm/background_preview.h"
+#include "mm/background_preview.h"
 #include <string.h>
 #define MINIMUM (-2147483647 - 1)
 typedef char depth_sample_must_be_two_bytes[sizeof(unsigned short) == 2 ? 1 : -1];
-static int ensure(ThreeMMCollectionStorage *s, unsigned section, ThreeMMU32 count, ThreeMMU32 stride)
+static int ensure(MMCollectionStorage *s, unsigned section, MMU32 count, MMU32 stride)
 {
-    ThreeMMU32 bytes, capacity;
-    if (count >= THREE_MM_STORAGE_LIMIT / stride)
+    MMU32 bytes, capacity;
+    if (count >= MM_STORAGE_LIMIT / stride)
         return 0;
     bytes = count * stride;
     capacity = s->buffers[section].capacity;
@@ -16,57 +16,57 @@ static int ensure(ThreeMMCollectionStorage *s, unsigned section, ThreeMMU32 coun
         capacity = 1024;
     while (capacity < bytes)
     {
-        if (capacity >= THREE_MM_STORAGE_LIMIT / 2)
+        if (capacity >= MM_STORAGE_LIMIT / 2)
         {
             capacity = bytes;
             break;
         }
         capacity *= 2;
     }
-    return three_mm_storage_resize_exact(s, section, capacity, THREE_MM_STORAGE_NORMAL) == THREE_MM_STORAGE_OK;
+    return mm_storage_resize_exact(s, section, capacity, MM_STORAGE_NORMAL) == MM_STORAGE_OK;
 }
-int three_mm_background_preview_init(ThreeMMBackgroundPreview *p, const ThreeMMStorageAllocator *allocator)
+int mm_background_preview_init(MMBackgroundPreview *p, const MMStorageAllocator *allocator)
 {
     memset(p, 0, sizeof(*p));
-    return three_mm_storage_init(&p->metadata, allocator) == THREE_MM_STORAGE_OK &&
-           three_mm_storage_init(&p->images, allocator) == THREE_MM_STORAGE_OK;
+    return mm_storage_init(&p->metadata, allocator) == MM_STORAGE_OK &&
+           mm_storage_init(&p->images, allocator) == MM_STORAGE_OK;
 }
-void three_mm_background_preview_dispose(ThreeMMBackgroundPreview *p, const ThreeMMBackgroundPreviewServices *s)
+void mm_background_preview_dispose(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
 {
-    ThreeMMU32 i;
+    MMU32 i;
     for (i = 0; i < p->mesh_count; ++i)
         s->mesh_release(s->context, p->meshes[i]);
     p->mesh_count = 0;
-    three_mm_storage_dispose(&p->images);
-    three_mm_storage_dispose(&p->metadata);
+    mm_storage_dispose(&p->images);
+    mm_storage_dispose(&p->metadata);
     p->camera_count = p->light_count = p->rgb_count = p->depth_count = p->width = p->height = 0;
 }
-int three_mm_background_preview_camera(ThreeMMBackgroundPreview *p, ThreeMMU32 number)
+int mm_background_preview_camera(MMBackgroundPreview *p, MMU32 number)
 {
     if (!ensure(&p->metadata, 0, p->camera_count + 1, sizeof(number)))
         return 0;
-    ((ThreeMMU32 *)p->metadata.buffers[0].data)[p->camera_count++] = number;
+    ((MMU32 *)p->metadata.buffers[0].data)[p->camera_count++] = number;
     return 1;
 }
-int three_mm_background_preview_light(ThreeMMBackgroundPreview *p, const ThreeMMBackgroundLight *light)
+int mm_background_preview_light(MMBackgroundPreview *p, const MMBackgroundLight *light)
 {
     if (!ensure(&p->metadata, 1, p->light_count + 1, sizeof(*light)))
         return 0;
-    ((ThreeMMBackgroundLight *)p->metadata.buffers[1].data)[p->light_count++] = *light;
+    ((MMBackgroundLight *)p->metadata.buffers[1].data)[p->light_count++] = *light;
     return 1;
 }
-int three_mm_background_preview_select(ThreeMMBackgroundPreview *p, ThreeMMU32 slot,
-                                       const ThreeMMBackgroundPreviewServices *s)
+int mm_background_preview_select(MMBackgroundPreview *p, MMU32 slot,
+                                       const MMBackgroundPreviewServices *s)
 {
-    ThreeMMReadStream stream;
-    ThreeMMBackgroundCameraData camera;
-    ThreeMMU32 number, child, width, height, n;
-    ThreeMMI32 r[4];
+    MMReadStream stream;
+    MMBackgroundCameraData camera;
+    MMU32 number, child, width, height, n;
+    MMI32 r[4];
     void *bitmap;
     if (slot >= p->camera_count)
         return 0;
-    number = ((ThreeMMU32 *)p->metadata.buffers[0].data)[slot];
-    if (!s->camera_read(s->context, number, &stream) || !three_mm_background_camera_decode(&stream, &camera))
+    number = ((MMU32 *)p->metadata.buffers[0].data)[slot];
+    if (!s->camera_read(s->context, number, &stream) || !mm_background_camera_decode(&stream, &camera))
         return 0;
     p->camera = camera;
     s->publish(s->context, p);
@@ -80,8 +80,8 @@ int three_mm_background_preview_select(ThreeMMBackgroundPreview *p, ThreeMMU32 s
         s->release(s->context, bitmap);
         return 0;
     }
-    width = (ThreeMMU32)r[2] - (ThreeMMU32)r[0];
-    height = (ThreeMMU32)r[3] - (ThreeMMU32)r[1];
+    width = (MMU32)r[2] - (MMU32)r[0];
+    height = (MMU32)r[3] - (MMU32)r[1];
     if (width > 1024U || height > 1024U || r[0] == MINIMUM || r[1] == MINIMUM)
     {
         s->release(s->context, bitmap);
@@ -119,10 +119,10 @@ int three_mm_background_preview_select(ThreeMMBackgroundPreview *p, ThreeMMU32 s
         s->selected(s->context, slot);
     return 1;
 }
-void *three_mm_background_preview_mesh(ThreeMMBackgroundPreview *p, const ThreeMMBackgroundPreviewServices *s)
+void *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
 {
-    ThreeMMU32 i, row, axis, key;
-    ThreeMMI32 native_projection[16], aspect;
+    MMU32 i, row, axis, key;
+    MMI32 native_projection[16], aspect;
     double transform[16], projection[16];
     void *mesh;
     for (i = 0; i < p->mesh_count; ++i)

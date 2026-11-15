@@ -1,5 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/nick_expansion.h"
+#include "mm/nick_expansion.h"
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -163,9 +163,9 @@ void Fixtures(const fs::path &root)
         Check(file->FSave(kctgSoc));
         ReleasePpo(&file);
     }
-    ThreeMM::NickConversionStats stats;
+    MM::NickConversionStats stats;
     std::string error;
-    Check(ThreeMM::ConvertNickExpansion((root / "disc").string(), (root / "base.chk").string(),
+    Check(MM::ConvertNickExpansion((root / "disc").string(), (root / "base.chk").string(),
                                         (root / "baseline").string(), stats, error));
     Check(stats.archives == 10 && stats.images == 9);
     auto name = Name(root / "baseline/NICKMTRL.3TH");
@@ -202,19 +202,19 @@ void Fixtures(const fs::path &root)
     Put(file, 'TMAP', 0x100, texture);
     Check(file->FSave(kctgSoc));
     ReleasePpo(&file);
-    ThreeMM::NickComparison comparison;
+    MM::NickComparison comparison;
     Check(
-        ThreeMM::CompareNickExpansion((root / "baseline").string(), (root / "reference").string(), comparison, error));
+        MM::CompareNickExpansion((root / "baseline").string(), (root / "reference").string(), comparison, error));
     Check(comparison.otherDifferences == 0 && comparison.imageDifferences == 2);
     fs::create_directory(root / "images");
     fs::create_directory(root / "restored");
-    Check(ThreeMM::ExportNickImages((root / "reference").string(), (root / "images").string(), error));
-    Check(ThreeMM::ReplaceNickImages((root / "baseline").string(), (root / "images").string(),
+    Check(MM::ExportNickImages((root / "reference").string(), (root / "images").string(), error));
+    Check(MM::ReplaceNickImages((root / "baseline").string(), (root / "images").string(),
                                      (root / "restored").string(), error));
     Check(
-        ThreeMM::CompareNickExpansion((root / "restored").string(), (root / "reference").string(), comparison, error));
+        MM::CompareNickExpansion((root / "restored").string(), (root / "reference").string(), comparison, error));
     Check(comparison.otherDifferences == 0 && comparison.imageDifferences == 0);
-    Check(!ThreeMM::ConvertNickExpansion((root / "disc").string(), (root / "base.chk").string(),
+    Check(!MM::ConvertNickExpansion((root / "disc").string(), (root / "base.chk").string(),
                                          (root / "baseline").string(), stats, error));
 }
 int main(int argc, char **argv)

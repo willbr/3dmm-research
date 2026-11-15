@@ -1,67 +1,67 @@
 /* Scene chopping and snapshot undo converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/scene_chop.h"
+#include "mm/scene_chop.h"
 #include <stddef.h>
-static void *group(int slot, const ThreeMMSceneChopServices *s)
+static void *group(int slot, const MMSceneChopServices *s)
 {
     return s->events.owner->owned[slot];
 }
-static ThreeMMI32 count(int slot, const ThreeMMSceneChopServices *s)
+static MMI32 count(int slot, const MMSceneChopServices *s)
 {
     return s->events.owners.count(s->events.owners.context, group(slot, s));
 }
-static void *object(int slot, ThreeMMI32 i, const ThreeMMSceneChopServices *s)
+static void *object(int slot, MMI32 i, const MMSceneChopServices *s)
 {
     return s->events.owners.list_at(s->events.owners.context, group(slot, s), i);
 }
-static int kind(ThreeMMI32 i, ThreeMMI32 *frame, const ThreeMMSceneChopServices *s)
+static int kind(MMI32 i, MMI32 *frame, const MMSceneChopServices *s)
 {
     int k;
-    s->events.event(s->events.context, group(THREE_MM_SCENE_FRAMES, s), i, frame, &k);
+    s->events.event(s->events.context, group(MM_SCENE_FRAMES, s), i, frame, &k);
     return k;
 }
-static void erase(ThreeMMI32 i, const ThreeMMSceneChopServices *s)
+static void erase(MMI32 i, const MMSceneChopServices *s)
 {
-    const ThreeMMSceneSoundServices *v = &s->events.owners.sound;
-    ThreeMMI32 frame, j, n;
+    const MMSceneSoundServices *v = &s->events.owners.sound;
+    MMI32 frame, j, n;
     void *payload;
-    if (kind(i, &frame, s) == THREE_MM_SCENE_PLAY_SOUND)
+    if (kind(i, &frame, s) == MM_SCENE_PLAY_SOUND)
     {
-        payload = s->events.payload(s->events.context, group(THREE_MM_SCENE_FRAMES, s), i);
+        payload = s->events.payload(s->events.context, group(MM_SCENE_FRAMES, s), i);
         n = v->count(v->context, payload);
         for (j = 0; j < n; ++j)
         {
-            payload = s->events.payload(s->events.context, group(THREE_MM_SCENE_FRAMES, s), i);
+            payload = s->events.payload(s->events.context, group(MM_SCENE_FRAMES, s), i);
             v->close(v->context, payload, j);
         }
     }
     s->erase_frame(s->context, i);
 }
-int three_mm_scene_chop(int back, const ThreeMMSceneChopServices *s)
+int mm_scene_chop(int back, const MMSceneChopServices *s)
 {
-    ThreeMMSceneState *d = s->data;
-    ThreeMMSceneRuntime *r = s->events.runtime;
-    const ThreeMMSceneOwnerServices *o = &s->events.owners;
-    ThreeMMI32 i, first, last, frame;
+    MMSceneState *d = s->data;
+    MMSceneRuntime *r = s->events.runtime;
+    const MMSceneOwnerServices *o = &s->events.owners;
+    MMI32 i, first, last, frame;
     void *p;
     int k, copy_camera = 1;
     if (d->currentFrame == (back ? d->firstFrame : d->lastFrame))
         return 1;
-    for (i = 0; i < count(THREE_MM_SCENE_ACTORS, s);)
+    for (i = 0; i < count(MM_SCENE_ACTORS, s);)
     {
-        p = object(THREE_MM_SCENE_ACTORS, i, s);
+        p = object(MM_SCENE_ACTORS, i, s);
         if (!s->trim_actor(s->context, p, back))
         {
             s->remove_actor(s->context, p);
-            if (i < count(THREE_MM_SCENE_ACTORS, s) && object(THREE_MM_SCENE_ACTORS, i, s) == p)
+            if (i < count(MM_SCENE_ACTORS, s) && object(MM_SCENE_ACTORS, i, s) == p)
                 ++i;
         }
         else
             ++i;
     }
-    for (i = 0; i < count(THREE_MM_SCENE_TEXTS, s);)
+    for (i = 0; i < count(MM_SCENE_TEXTS, s);)
     {
-        p = object(THREE_MM_SCENE_TEXTS, i, s);
+        p = object(MM_SCENE_TEXTS, i, s);
         if (!s->lifetime(s->context, p, &first, &last))
         {
             s->bad_lifetime(s->context);
@@ -71,7 +71,7 @@ int three_mm_scene_chop(int back, const ThreeMMSceneChopServices *s)
         if ((back && last < d->currentFrame) || (!back && first > d->currentFrame))
         {
             s->remove_text(s->context, p);
-            if (i < count(THREE_MM_SCENE_TEXTS, s) && object(THREE_MM_SCENE_TEXTS, i, s) == p)
+            if (i < count(MM_SCENE_TEXTS, s) && object(MM_SCENE_TEXTS, i, s) == p)
                 ++i;
         }
         else
@@ -91,7 +91,7 @@ int three_mm_scene_chop(int back, const ThreeMMSceneChopServices *s)
     }
     if (!back)
     {
-        while (r->next_event < count(THREE_MM_SCENE_FRAMES, s))
+        while (r->next_event < count(MM_SCENE_FRAMES, s))
             erase(r->next_event, s);
         if (d->lastFrame != d->currentFrame)
         {
@@ -105,7 +105,7 @@ int three_mm_scene_chop(int back, const ThreeMMSceneChopServices *s)
         {
             --r->next_event;
             k = kind(r->next_event, &frame, s);
-            if (k == THREE_MM_SCENE_CHANGE_CAMERA && copy_camera)
+            if (k == MM_SCENE_CHANGE_CAMERA && copy_camera)
             {
                 copy_camera = 0;
                 s->set_frame(s->context, r->next_event, d->currentFrame);
@@ -113,7 +113,7 @@ int three_mm_scene_chop(int back, const ThreeMMSceneChopServices *s)
             else if (frame != d->currentFrame)
                 erase(r->next_event, s);
         }
-        for (r->next_event = 0; r->next_event < count(THREE_MM_SCENE_FRAMES, s); ++r->next_event)
+        for (r->next_event = 0; r->next_event < count(MM_SCENE_FRAMES, s); ++r->next_event)
         {
             kind(r->next_event, &frame, s);
             if (frame != d->currentFrame)
@@ -124,15 +124,15 @@ int three_mm_scene_chop(int back, const ThreeMMSceneChopServices *s)
             d->firstFrame = d->currentFrame;
             s->dirty(s->context);
         }
-        if (group(THREE_MM_SCENE_BACKGROUND_SOUND, s) && r->background_frame < d->firstFrame)
+        if (group(MM_SCENE_BACKGROUND_SOUND, s) && r->background_frame < d->firstFrame)
         {
-            three_mm_scene_owner_drop(s->events.owner, s->events.scene, THREE_MM_SCENE_BACKGROUND_SOUND, o);
+            mm_scene_owner_drop(s->events.owner, s->events.scene, MM_SCENE_BACKGROUND_SOUND, o);
             s->discard_background_frame(s->context);
         }
     }
     return 1;
 }
-int three_mm_scene_chop_edit(int back, const ThreeMMSceneChopServices *s)
+int mm_scene_chop_edit(int back, const MMSceneChopServices *s)
 {
     void *u;
     if (s->data->currentFrame == (back ? s->data->firstFrame : s->data->lastFrame))
@@ -145,14 +145,14 @@ int three_mm_scene_chop_edit(int back, const ThreeMMSceneChopServices *s)
         return 0;
     }
     s->release_undo(s->context, u);
-    if (!three_mm_scene_chop(back, s))
+    if (!mm_scene_chop(back, s))
     {
         s->clear_undo(s->context);
         return 0;
     }
     return 1;
 }
-int three_mm_scene_chop_save(ThreeMMSceneChopUndo *p, void *scene, const ThreeMMSceneSnapshotServices *s)
+int mm_scene_chop_save(MMSceneChopUndo *p, void *scene, const MMSceneSnapshotServices *s)
 {
     void *file = s->new_file(s->context);
     int ok;
@@ -167,8 +167,8 @@ int three_mm_scene_chop_save(ThreeMMSceneChopUndo *p, void *scene, const ThreeMM
     s->end(s->context);
     return ok;
 }
-int three_mm_scene_chop_swap(ThreeMMSceneChopUndo *p, ThreeMMI32 index, ThreeMMI32 frame,
-                             const ThreeMMSceneSnapshotServices *s)
+int mm_scene_chop_swap(MMSceneChopUndo *p, MMI32 index, MMI32 frame,
+                             const MMSceneSnapshotServices *s)
 {
     void *loaded, *old;
     s->begin(s->context);
@@ -213,7 +213,7 @@ fail:
     s->end(s->context);
     return 0;
 }
-void three_mm_scene_chop_dispose(ThreeMMSceneChopUndo *p, const ThreeMMSceneSnapshotServices *s)
+void mm_scene_chop_dispose(MMSceneChopUndo *p, const MMSceneSnapshotServices *s)
 {
     if (p->resource)
     {

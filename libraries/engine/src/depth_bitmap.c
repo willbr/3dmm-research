@@ -1,22 +1,22 @@
 /* Depth bitmap policy converted from bren/zbmp.cpp. */
-#include "three_mm/depth_bitmap.h"
+#include "mm/depth_bitmap.h"
 #include <string.h>
 #define MAXIMUM 2147483647
 #define MINIMUM (-2147483647 - 1)
-static ThreeMMU32 word(const unsigned char *b, int big)
+static MMU32 word(const unsigned char *b, int big)
 {
-    return big ? ((ThreeMMU32)b[0] << 8) | b[1] : ((ThreeMMU32)b[1] << 8) | b[0];
+    return big ? ((MMU32)b[0] << 8) | b[1] : ((MMU32)b[1] << 8) | b[0];
 }
-static ThreeMMI32 signed_word(ThreeMMU32 n)
+static MMI32 signed_word(MMU32 n)
 {
-    return n < 32768U ? (ThreeMMI32)n : (ThreeMMI32)n - 65536L;
+    return n < 32768U ? (MMI32)n : (MMI32)n - 65536L;
 }
-static void put(unsigned char *b, ThreeMMU32 n, int big)
+static void put(unsigned char *b, MMU32 n, int big)
 {
     b[big ? 1 : 0] = (unsigned char)n;
     b[big ? 0 : 1] = (unsigned char)(n >> 8);
 }
-static int layout(ThreeMMI32 w, ThreeMMI32 h, ThreeMMI32 *row, ThreeMMI32 *bytes)
+static int layout(MMI32 w, MMI32 h, MMI32 *row, MMI32 *bytes)
 {
     if (w < 0 || h < 0 || w > MAXIMUM / 2)
         return 0;
@@ -26,9 +26,9 @@ static int layout(ThreeMMI32 w, ThreeMMI32 h, ThreeMMI32 *row, ThreeMMI32 *bytes
     *bytes = *row * h;
     return 1;
 }
-int three_mm_depth_header(const unsigned char b[12], int big, ThreeMMDepthBitmap *m)
+int mm_depth_header(const unsigned char b[12], int big, MMDepthBitmap *m)
 {
-    ThreeMMI32 w = signed_word(word(b + 8, big)), h = signed_word(word(b + 10, big));
+    MMI32 w = signed_word(word(b + 8, big)), h = signed_word(word(b + 10, big));
     if (!layout(w, h, &m->row_bytes, &m->bytes))
         return 0;
     m->bounds.left = signed_word(word(b + 4, big));
@@ -37,11 +37,11 @@ int three_mm_depth_header(const unsigned char b[12], int big, ThreeMMDepthBitmap
     m->bounds.bottom = m->bounds.top + h;
     return 1;
 }
-void *three_mm_depth_new(ThreeMMI32 w, ThreeMMI32 h, const void *initial, const ThreeMMDepthServices *s)
+void *mm_depth_new(MMI32 w, MMI32 h, const void *initial, const MMDepthServices *s)
 {
     void *object;
-    ThreeMMDepthBitmap *m;
-    ThreeMMI32 row, n;
+    MMDepthBitmap *m;
+    MMI32 row, n;
     if (w <= 0 || h <= 0 || !layout(w, h, &row, &n))
         return NULL;
     object = s->create(s->context);
@@ -64,19 +64,19 @@ void *three_mm_depth_new(ThreeMMI32 w, ThreeMMI32 h, const void *initial, const 
         memset(m->pixels, 255, (size_t)n);
     return object;
 }
-void three_mm_depth_dispose(ThreeMMDepthBitmap *m, const ThreeMMDepthServices *s)
+void mm_depth_dispose(MMDepthBitmap *m, const MMDepthServices *s)
 {
     s->free_memory(s->context, &m->pixels);
 }
-static int read_at(void *block, void *data, ThreeMMI32 n, ThreeMMI32 at, const ThreeMMDepthServices *s)
+static int read_at(void *block, void *data, MMI32 n, MMI32 at, const MMDepthServices *s)
 {
-    ThreeMMI32 bytes = s->size(s->context, block, 0);
+    MMI32 bytes = s->size(s->context, block, 0);
     return n >= 0 && at >= 0 && at <= bytes && n <= bytes - at && s->read(s->context, block, data, n, at);
 }
-void *three_mm_depth_read(void *block, const ThreeMMDepthServices *s)
+void *mm_depth_read(void *block, const MMDepthServices *s)
 {
     void *object;
-    ThreeMMDepthBitmap *m;
+    MMDepthBitmap *m;
     unsigned char header[12];
     if (!s->unpack(s->context, block))
         return NULL;
@@ -84,7 +84,7 @@ void *three_mm_depth_read(void *block, const ThreeMMDepthServices *s)
     if (!object)
         goto fail;
     m = s->state(s->context, object);
-    if (!read_at(block, header, 12, 0, s) || !three_mm_depth_header(header, s->host_big_endian, m) ||
+    if (!read_at(block, header, 12, 0, s) || !mm_depth_header(header, s->host_big_endian, m) ||
         s->size(s->context, block, 0) != 12 + m->bytes || !s->allocate(s->context, m->bytes, &m->pixels) ||
         !read_at(block, m->pixels, m->bytes, 12, s))
         goto fail;
@@ -95,10 +95,10 @@ fail:
         s->release(s->context, object);
     return NULL;
 }
-int three_mm_depth_fetch(void *block, int want, const ThreeMMDepthServices *s)
+int mm_depth_fetch(void *block, int want, const MMDepthServices *s)
 {
     void *object;
-    ThreeMMI32 n = s->size(s->context, block, 1);
+    MMI32 n = s->size(s->context, block, 1);
     if (!want)
     {
         s->publish_fetch(s->context, 1, NULL, n);
@@ -106,7 +106,7 @@ int three_mm_depth_fetch(void *block, int want, const ThreeMMDepthServices *s)
     }
     if (!s->unpack(s->context, block))
         goto fail;
-    object = three_mm_depth_read(block, s);
+    object = mm_depth_read(block, s);
     if (!object)
         goto fail;
     n = s->state(s->context, object)->bytes;
@@ -121,8 +121,8 @@ fail:
     s->publish_fetch(s->context, 0, NULL, 0);
     return 0;
 }
-int three_mm_depth_write(const ThreeMMDepthBitmap *m, void *file, ThreeMMU32 type, ThreeMMU32 *number,
-                         const ThreeMMDepthServices *s)
+int mm_depth_write(const MMDepthBitmap *m, void *file, MMU32 type, MMU32 *number,
+                         const MMDepthServices *s)
 {
     unsigned char header[12];
     void *block;
@@ -130,21 +130,21 @@ int three_mm_depth_write(const ThreeMMDepthBitmap *m, void *file, ThreeMMU32 typ
         return 0;
     put(header, 1, s->host_big_endian);
     put(header + 2, s->system, s->host_big_endian);
-    put(header + 4, (ThreeMMU32)m->bounds.left, s->host_big_endian);
-    put(header + 6, (ThreeMMU32)m->bounds.top, s->host_big_endian);
-    put(header + 8, (ThreeMMU32)m->bounds.right - (ThreeMMU32)m->bounds.left, s->host_big_endian);
-    put(header + 10, (ThreeMMU32)m->bounds.bottom - (ThreeMMU32)m->bounds.top, s->host_big_endian);
+    put(header + 4, (MMU32)m->bounds.left, s->host_big_endian);
+    put(header + 6, (MMU32)m->bounds.top, s->host_big_endian);
+    put(header + 8, (MMU32)m->bounds.right - (MMU32)m->bounds.left, s->host_big_endian);
+    put(header + 10, (MMU32)m->bounds.bottom - (MMU32)m->bounds.top, s->host_big_endian);
     block = s->add(s->context, file, type, 12 + m->bytes, number);
     return block && s->write(s->context, block, header, 12, 0) && s->write(s->context, block, m->pixels, m->bytes, 12);
 }
-static int add(ThreeMMI32 a, ThreeMMI32 b, ThreeMMI32 *out)
+static int add(MMI32 a, MMI32 b, MMI32 *out)
 {
     if ((b > 0 && a > MAXIMUM - b) || (b < 0 && a < MINIMUM - b))
         return 0;
     *out = a + b;
     return 1;
 }
-static int intersect(ThreeMMDepthRect *a, const ThreeMMDepthRect *b)
+static int intersect(MMDepthRect *a, const MMDepthRect *b)
 {
     if (a->left < b->left)
         a->left = b->left;
@@ -156,12 +156,12 @@ static int intersect(ThreeMMDepthRect *a, const ThreeMMDepthRect *b)
         a->bottom = b->bottom;
     return a->left < a->right && a->top < a->bottom;
 }
-int three_mm_depth_draw(const ThreeMMDepthBitmap *m, void *pixels, ThreeMMI32 row, ThreeMMI32 height, ThreeMMI32 x,
-                        ThreeMMI32 y, const ThreeMMDepthRect *clip, void *region, int half,
-                        const ThreeMMDepthServices *s)
+int mm_depth_draw(const MMDepthBitmap *m, void *pixels, MMI32 row, MMI32 height, MMI32 x,
+                        MMI32 y, const MMDepthRect *clip, void *region, int half,
+                        const MMDepthServices *s)
 {
-    ThreeMMDepthRect bounds = m->bounds, r;
-    ThreeMMI32 step = half ? 2 : 1, yp, left, right, sy, bytes, n, src, dst;
+    MMDepthRect bounds = m->bounds, r;
+    MMI32 step = half ? 2 : 1, yp, left, right, sy, bytes, n, src, dst;
     if (!clip && !region)
         return 1;
     if (row < 0 || height < 0 || (row && height / step > MAXIMUM / row) || m->row_bytes < 0 || m->bytes < 0)

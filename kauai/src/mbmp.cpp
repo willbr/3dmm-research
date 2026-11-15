@@ -14,7 +14,7 @@
 #include "region.h"
 #include "mbmp.h"
 #include "bitmap_format.h"
-#include "three_mm/bitmap_file.h"
+#include "mm/bitmap_file.h"
 ASSERTNAME
 
 RTCLASS(MaskedBitmapMBMP)
@@ -25,26 +25,26 @@ struct MaskedContext
     PBaseCacheableObject *object = nullptr;
     LegacyLong *bytes = nullptr;
 };
-ThreeMMMaskedRect MaskedRect(const RC &r)
+MMMaskedRect MaskedRect(const RC &r)
 {
     return {r.xpLeft, r.ypTop, r.xpRight, r.ypBottom};
 }
 } // namespace
-ThreeMMMaskedServices MaskedBitmapMBMP::_Services(void *context)
+MMMaskedServices MaskedBitmapMBMP::_Services(void *context)
 {
     static_assert(sizeof(MaskedBitmapOnFile) == 28, "masked bitmap header layout");
-    ThreeMMMaskedServices s = {};
+    MMMaskedServices s = {};
     s.context = context;
     const unsigned short one = 1;
     s.host_big_endian = !*reinterpret_cast<const byte *>(&one);
     s.system = koskCur;
     s.create = [](void *) -> void * { return NewObj MaskedBitmapMBMP; };
-    s.state = [](void *, void *p) -> ThreeMMMaskedBitmap * { return &static_cast<PMaskedBitmapMBMP>(p)->_bitmap; };
+    s.state = [](void *, void *p) -> MMMaskedBitmap * { return &static_cast<PMaskedBitmapMBMP>(p)->_bitmap; };
     s.release = [](void *, void *p) { static_cast<PMaskedBitmapMBMP>(p)->Release(); };
-    s.allocate = [](void *, ThreeMMI32 n, void **out) -> int { return FAllocPv(out, n, fmemNil, mprNormal); };
+    s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemNil, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
     s.diagnostic = [](void *, int code) {
-        if (code == THREE_MM_MASKED_EMPTY)
+        if (code == MM_MASKED_EMPTY)
         {
             Warn("Empty source bitmap for MaskedBitmapMBMP");
         }
@@ -54,16 +54,16 @@ ThreeMMMaskedServices MaskedBitmapMBMP::_Services(void *context)
         }
     };
     s.unpack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FUnpackData(); };
-    s.size = [](void *, void *p, int packed) -> ThreeMMI32 { return static_cast<PDataBlock>(p)->Cb(packed != 0); };
-    s.read = [](void *, void *p, void *out, ThreeMMI32 n) -> int {
+    s.size = [](void *, void *p, int packed) -> MMI32 { return static_cast<PDataBlock>(p)->Cb(packed != 0); };
+    s.read = [](void *, void *p, void *out, MMI32 n) -> int {
         return static_cast<PDataBlock>(p)->FReadRgb(out, n, 0);
     };
-    s.write = [](void *, void *p, const void *data, ThreeMMI32 n) -> int {
+    s.write = [](void *, void *p, const void *data, MMI32 n) -> int {
         return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), n, 0);
     };
     s.is_memory = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->CbMem() != 0; };
     s.consume = [](void *, void *p) { static_cast<PDataBlock>(p)->Free(); };
-    s.publish_fetch = [](void *p, int valid, void *object, ThreeMMI32 bytes) {
+    s.publish_fetch = [](void *p, int valid, void *object, MMI32 bytes) {
         auto c = static_cast<MaskedContext *>(p);
         if (valid)
         {
@@ -77,7 +77,7 @@ ThreeMMMaskedServices MaskedBitmapMBMP::_Services(void *context)
             TrashVar(c->bytes);
         }
     };
-    s.bitmap_read = [](void *, void *filename, unsigned char transparent, ThreeMMMaskedSource *out) -> int {
+    s.bitmap_read = [](void *, void *filename, unsigned char transparent, MMMaskedSource *out) -> int {
         byte *pixels = nullptr;
         LegacyLong w, h;
         bool up;
@@ -92,7 +92,7 @@ MaskedBitmapMBMP::~MaskedBitmapMBMP()
 {
     AssertBaseThis(0);
     auto s = _Services();
-    three_mm_masked_dispose(&_bitmap, &s);
+    mm_masked_dispose(&_bitmap, &s);
 }
 PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *pixels, LegacyLong row, LegacyLong height, RC *extract, LegacyLong x,
                                              LegacyLong y, byte transparent, LegacyUlong flags, byte fill)
@@ -104,7 +104,7 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *pixels, LegacyLong row, Legac
     auto r = MaskedRect(*extract);
     auto s = _Services();
     return static_cast<PMaskedBitmapMBMP>(
-        three_mm_masked_new(pixels, row, height, &r, x, y, transparent, flags, fill, &s));
+        mm_masked_new(pixels, row, height, &r, x, y, transparent, flags, fill, &s));
 }
 bool MaskedBitmapMBMP::_FInit(byte *pixels, LegacyLong row, LegacyLong height, RC *extract, LegacyLong x, LegacyLong y,
                               byte transparent, LegacyUlong flags, byte fill)
@@ -112,20 +112,20 @@ bool MaskedBitmapMBMP::_FInit(byte *pixels, LegacyLong row, LegacyLong height, R
     AssertVarMem(extract);
     auto r = MaskedRect(*extract);
     auto s = _Services();
-    return three_mm_masked_init(&_bitmap, pixels, row, height, &r, x, y, transparent, flags, fill, &s) != 0;
+    return mm_masked_init(&_bitmap, pixels, row, height, &r, x, y, transparent, flags, fill, &s) != 0;
 }
 PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadNative(Filename *filename, byte transparent, LegacyLong x, LegacyLong y,
                                                     LegacyUlong flags, byte fill)
 {
     AssertPo(filename, ffniFile);
     auto s = _Services();
-    return static_cast<PMaskedBitmapMBMP>(three_mm_masked_import(filename, transparent, x, y, flags, fill, &s));
+    return static_cast<PMaskedBitmapMBMP>(mm_masked_import(filename, transparent, x, y, flags, fill, &s));
 }
 PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock block)
 {
     AssertPo(block, 0);
     auto s = _Services();
-    return static_cast<PMaskedBitmapMBMP>(three_mm_masked_read(block, &s));
+    return static_cast<PMaskedBitmapMBMP>(mm_masked_read(block, &s));
 }
 LegacyLong MaskedBitmapMBMP::CbOnFile()
 {
@@ -137,22 +137,22 @@ bool MaskedBitmapMBMP::FWrite(PDataBlock block)
     AssertThis(0);
     AssertPo(block, 0);
     auto s = _Services();
-    return three_mm_masked_write(&_bitmap, block, &s) != 0;
+    return mm_masked_write(&_bitmap, block, &s) != 0;
 }
 void MaskedBitmapMBMP::GetRc(RC *out)
 {
     AssertThis(0);
     AssertVarMem(out);
     auto s = _Services();
-    ThreeMMMaskedRect r;
-    three_mm_masked_bounds(&_bitmap, s.host_big_endian, &r);
+    MMMaskedRect r;
+    mm_masked_bounds(&_bitmap, s.host_big_endian, &r);
     out->Set(r.left, r.top, r.right, r.bottom);
 }
 bool MaskedBitmapMBMP::FPtIn(LegacyLong x, LegacyLong y)
 {
     AssertThis(0);
     auto s = _Services();
-    return three_mm_masked_hit(&_bitmap, s.host_big_endian, x, y) != 0;
+    return mm_masked_hit(&_bitmap, s.host_big_endian, x, y) != 0;
 }
 #ifdef DEBUG
 void MaskedBitmapMBMP::AssertValid(LegacyUlong grf)
@@ -191,7 +191,7 @@ bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile cache, ChunkTagOrType type,
     context.object = out;
     context.bytes = bytes;
     auto s = _Services(&context);
-    return three_mm_masked_fetch(block, out != nullptr, &s) != 0;
+    return mm_masked_fetch(block, out != nullptr, &s) != 0;
 }
 /***************************************************************************
     Given an Filename refering to a bitmap file, returns the interesting parts of
@@ -220,21 +220,21 @@ struct BitmapContext
     LegacyLong *width = nullptr, *height = nullptr;
     bool *upside = nullptr;
 };
-ThreeMMBitmapServices BitmapServices(BitmapContext *context)
+MMBitmapServices BitmapServices(BitmapContext *context)
 {
-    ThreeMMBitmapServices s = {};
+    MMBitmapServices s = {};
     s.context = context;
     s.open = [](void *, void *p) -> void * { return FileObject::PfilOpen(static_cast<PFilename>(p)); };
     s.create = [](void *, void *p) -> void * { return FileObject::PfilCreate(static_cast<PFilename>(p)); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
-    s.size = [](void *, void *p) -> ThreeMMI32 { return static_cast<PFileObject>(p)->FpMac(); };
-    s.read = [](void *, void *p, void *out, ThreeMMI32 n, ThreeMMI32 at) -> int {
+    s.size = [](void *, void *p) -> MMI32 { return static_cast<PFileObject>(p)->FpMac(); };
+    s.read = [](void *, void *p, void *out, MMI32 n, MMI32 at) -> int {
         return static_cast<PFileObject>(p)->FReadRgb(out, n, at);
     };
-    s.write = [](void *, void *p, const void *data, ThreeMMI32 n, ThreeMMI32 at) -> int {
+    s.write = [](void *, void *p, const void *data, MMI32 n, MMI32 at) -> int {
         return static_cast<PFileObject>(p)->FWriteRgb(const_cast<void *>(data), n, at);
     };
-    s.allocate = [](void *, ThreeMMI32 n, void **out) -> int { return FAllocPv(out, n, fmemNil, mprNormal); };
+    s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemNil, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
     s.palette_create = [](void *) -> void * {
         auto palette = DynamicArray::PglNew(sizeof(Color), 256);
@@ -246,12 +246,12 @@ ThreeMMBitmapServices BitmapServices(BitmapContext *context)
     s.palette_unlock = [](void *, void *p) { static_cast<PDynamicArray>(p)->Unlock(); };
     s.publish = [](void *p, int kind, void *object) {
         auto c = static_cast<BitmapContext *>(p);
-        if (kind == THREE_MM_BITMAP_PIXELS)
+        if (kind == MM_BITMAP_PIXELS)
             *c->pixels = static_cast<byte *>(object);
         else
             *c->palette = static_cast<PDynamicArray>(object);
     };
-    s.dimensions = [](void *p, int valid, ThreeMMI32 w, ThreeMMI32 h, int up) {
+    s.dimensions = [](void *p, int valid, MMI32 w, MMI32 h, int up) {
         auto c = static_cast<BitmapContext *>(p);
         if (valid)
         {
@@ -301,7 +301,7 @@ bool FReadBitmap(Filename *filename, byte **pixels, PDynamicArray *palette, Lega
     context.height = height;
     context.upside = upside;
     auto s = BitmapServices(&context);
-    return three_mm_bitmap_read(filename, pixels != nullptr, palette != nullptr, transparent, &s) != 0;
+    return mm_bitmap_read(filename, pixels != nullptr, palette != nullptr, transparent, &s) != 0;
 #else
     if (pixels)
         *pixels = nullptr;
@@ -342,7 +342,7 @@ bool FWriteBitmap(Filename *filename, byte *pixels, PDynamicArray palette, Legac
     Assert(palette->CbEntry() == sizeof(Color), "Palette has different format from Windows");
     BitmapContext context;
     auto s = BitmapServices(&context);
-    return three_mm_bitmap_write(filename, pixels, palette, width, height, upside, &s) != 0;
+    return mm_bitmap_write(filename, pixels, palette, width, height, upside, &s) != 0;
 #else
     RawRtn();
     return false;

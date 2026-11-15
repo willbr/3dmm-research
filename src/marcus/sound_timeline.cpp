@@ -8,7 +8,7 @@
 
 namespace
 {
-bool SameLane(const ThreeMM::PreviewSoundCue &a, const ThreeMM::PreviewSoundCue &b)
+bool SameLane(const MM::PreviewSoundCue &a, const MM::PreviewSoundCue &b)
 {
     return a.actorSound == b.actorSound && (!a.actorSound || a.actor == b.actor) && a.style == b.style;
 }
@@ -150,8 +150,8 @@ std::vector<MarcusResumeSound> MarcusSoundTimeline::Resume(std::size_t index, lo
     }
     return result;
 }
-void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<ThreeMM::PreviewSoundCue> &cues,
-                                const std::function<MarcusWaveformInfo(const ThreeMM::PreviewSoundCue &)> &read,
+void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<MM::PreviewSoundCue> &cues,
+                                const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,
                                 const MarcusSoundTiming &timing)
 {
     MarcusSoundScene scene;
@@ -180,8 +180,8 @@ void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<Thre
         return sound->end <= time;
     }), active.end());
     scene.sounds = active;
-    std::map<long, std::vector<ThreeMM::PreviewSoundCue>> frames;
-    std::map<long, ThreeMM::PreviewPause> pauses;
+    std::map<long, std::vector<MM::PreviewSoundCue>> frames;
+    std::map<long, MM::PreviewPause> pauses;
     for (const auto &cue : cues)
         if (cue.frame <= info.last_frame)
             frames[std::max<long>(info.first_frame, cue.frame)].push_back(cue);

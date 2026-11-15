@@ -1,5 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/archive.h"
+#include "mm/archive.h"
 #include "diagnostics.h"
 #include <algorithm>
 #include <codecvt>
@@ -12,7 +12,7 @@
 #undef size
 ASSERTNAME
 
-namespace ThreeMM
+namespace MM
 {
 struct Archive::Impl
 {
@@ -54,10 +54,10 @@ std::string Utf8(String &value)
 bool ValidStringTable(DataBlock &block, std::uint32_t limit)
 {
     const auto stream = EngineReadStream::FromBlock(block);
-    const int result = three_mm_movie_validate_strings(&stream, limit);
-    if (result == THREE_MM_MOVIE_MEMORY)
+    const int result = mm_movie_validate_strings(&stream, limit);
+    if (result == MM_MOVIE_MEMORY)
         throw std::bad_alloc();
-    return result == THREE_MM_MOVIE_OK;
+    return result == MM_MOVIE_OK;
 }
 
 bool NativePath(const std::string &input, String &path, std::string &error)
@@ -423,7 +423,7 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
         if (id.type == kctgMvie)
         {
             result.kind = RecordKind::movie;
-            ThreeMMMovieHeader prefix;
+            MMMovieHeader prefix;
             ChunkNumber number = id.number;
             valid = MovieData::FVerifyVersion(_impl->file, &number, &prefix);
             if (valid)
@@ -537,4 +537,4 @@ bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t 
         return Fail(error, ErrorCode::unsupported_format, "String table text cannot be decoded.", &id);
     }
 }
-} // namespace ThreeMM
+} // namespace MM

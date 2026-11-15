@@ -10,7 +10,7 @@
 
 ***************************************************************************/
 #include "frame.h"
-#include "three_mm/sound_payload.h"
+#include "mm/sound_payload.h"
 #include "audioman.h"
 #include "sndampri.h"
 ASSERTNAME
@@ -271,16 +271,16 @@ bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    ThreeMMSoundPayloadServices s = {};
+    MMSoundPayloadServices s = {};
     s.object_bytes = size(CachedAudioManSound) + size(DataBlockStream);
-    s.open_stream = [](void *, void *cache, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+    s.open_stream = [](void *, void *cache, MMU32 type, MMU32 number) -> void * {
         auto file = static_cast<PChunkyResourceFile>(cache)->Pcfl();
         FileLocation location;
         if (!file->FFindFlo(type, number, &location))
             return nullptr;
         return DataBlockStream::PstblNew(&location, file->FPacked(type, number));
     };
-    s.stream_size = [](void *, void *stream) -> ThreeMMI32 {
+    s.stream_size = [](void *, void *stream) -> MMI32 {
         return size(CachedAudioManSound) + static_cast<PDataBlockStream>(stream)->CbMem();
     };
     s.create = [](void *) -> void * { return NewObj CachedAudioManSound; };
@@ -292,8 +292,8 @@ bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg
     s.adopt_stream = [](void *, void *object, void *stream) {
         static_cast<PCachedAudioManSound>(object)->_pstbl = static_cast<PDataBlockStream>(stream);
     };
-    ThreeMMI32 bytes;
-    const bool ok = three_mm_wave_stream_fetch(pcrf, ctg, cno, ppbaco, &bytes, &s) != 0;
+    MMI32 bytes;
+    const bool ok = mm_wave_stream_fetch(pcrf, ctg, cno, ppbaco, &bytes, &s) != 0;
     *pcb = bytes;
     return ok;
 }

@@ -4,7 +4,7 @@
 
 namespace
 {
-bool Valid(const ThreeMM::PreviewProjection &camera)
+bool Valid(const MM::PreviewProjection &camera)
 {
     if (!camera.valid || !std::isfinite(camera.verticalFov) || camera.verticalFov <= 0 || camera.verticalFov >= 179 ||
         !std::isfinite(camera.aspect) || camera.aspect <= 0 || !std::isfinite(camera.nearClip) ||
@@ -18,8 +18,8 @@ bool Valid(const ThreeMM::PreviewProjection &camera)
     return true;
 }
 } // namespace
-void marcus_caption_quad(const ThreeMM::PreviewImage &texture, const ThreeMM::PreviewProjection &camera,
-                         ThreeMM::PreviewImage &scene)
+void marcus_caption_quad(const MM::PreviewImage &texture, const MM::PreviewProjection &camera,
+                         MM::PreviewImage &scene)
 {
     const auto &view = scene.projection;
     if (!Valid(camera) || !Valid(view) || !std::isfinite(camera.displayDepth) || camera.displayDepth <= 0 ||

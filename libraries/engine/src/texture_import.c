@@ -1,22 +1,22 @@
 /* Bitmap import and palette matching converted from bren/tmap.cpp. */
-#include "three_mm/texture_resource.h"
+#include "mm/texture_resource.h"
 #include <string.h>
-void *three_mm_texture_bitmap(void *filename, void *palette, const ThreeMMTextureServices *s)
+void *mm_texture_bitmap(void *filename, void *palette, const MMTextureServices *s)
 {
-    ThreeMMTextureBitmap b;
-    ThreeMMI32 *cache = NULL, count, source_count = 0, n, i, j, index, best, dist, min, dr, dg, db;
-    ThreeMMTextureColour source, target;
+    MMTextureBitmap b;
+    MMI32 *cache = NULL, count, source_count = 0, n, i, j, index, best, dist, min, dr, dg, db;
+    MMTextureColour source, target;
     void *object = NULL, *memory = NULL;
-    ThreeMMTextureDescription d;
+    MMTextureDescription d;
     memset(&b, 0, sizeof(b));
     if (!s->read_bitmap(s->context, filename, &b))
         goto done;
     if (b.upside_down)
-        s->diagnostic(s->context, THREE_MM_TEXTURE_UPSIDE_DOWN);
+        s->diagnostic(s->context, MM_TEXTURE_UPSIDE_DOWN);
     memset(&d, 0, sizeof(d));
     d.width = d.row_bytes = b.width;
     d.height = b.height;
-    if (!three_mm_texture_payload(&d, &n))
+    if (!mm_texture_payload(&d, &n))
         goto done;
     if (palette)
     {
@@ -26,7 +26,7 @@ void *three_mm_texture_bitmap(void *filename, void *palette, const ThreeMMTextur
             goto done;
         if (source_count && s->allocate(s->context, source_count * 4, 0, &memory))
         {
-            cache = (ThreeMMI32 *)memory;
+            cache = (MMI32 *)memory;
             for (i = 0; i < source_count; ++i)
                 cache[i] = -1;
         }
@@ -43,9 +43,9 @@ void *three_mm_texture_bitmap(void *filename, void *palette, const ThreeMMTextur
                 for (j = 0; j < count; ++j)
                 {
                     s->palette_colour(s->context, palette, j, &target);
-                    dr = (ThreeMMI32)source.red - target.red;
-                    dg = (ThreeMMI32)source.green - target.green;
-                    db = (ThreeMMI32)source.blue - target.blue;
+                    dr = (MMI32)source.red - target.red;
+                    dg = (MMI32)source.green - target.green;
+                    db = (MMI32)source.blue - target.blue;
                     dist = dr * dr + dg * dg + db * db;
                     if (dist <= min)
                     {
@@ -70,7 +70,7 @@ void *three_mm_texture_bitmap(void *filename, void *palette, const ThreeMMTextur
         s->release(s->context, b.palette);
         b.palette = NULL;
     }
-    object = three_mm_texture_new(b.pixels, b.width, b.height, s);
+    object = mm_texture_new(b.pixels, b.width, b.height, s);
     if (object)
         b.pixels = NULL;
 done:

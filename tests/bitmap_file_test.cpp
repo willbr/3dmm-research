@@ -196,7 +196,7 @@ static void Writes()
 }
 int main()
 {
-    if (auto path = std::getenv("THREE_MM_BITMAP_FILE_SNAPSHOT"))
+    if (auto path = std::getenv("MM_BITMAP_FILE_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         CHECK(snapshot);

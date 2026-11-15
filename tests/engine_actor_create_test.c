@@ -1,22 +1,22 @@
-#include "three_mm/actor_create.h"
+#include "mm/actor_create.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"creation check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
 typedef struct Ref { int count,kind; } Ref;
-typedef struct Actor { Ref ref; ThreeMMActorRuntime r; int track,sounds; } Actor;
+typedef struct Actor { Ref ref; MMActorRuntime r; int track,sounds; } Actor;
 typedef struct Fixture
 {
-    Actor actor; Ref template_object,body; ThreeMMTag tag; ThreeMMActorCreateServices s;
+    Actor actor; Ref template_object,body; MMTag tag; MMActorCreateServices s;
     int cache,scene,other_scene,fail,created,fetched,duplicated,tracks,sounds,rewound,flags,bodies,bound,releases;
     int closed,cleared,disposed,diagnostics[3];
 } Fixture;
-static void read_actor(void *p,void *a,ThreeMMActorRuntime *r) { (void)p; *r=((Actor *)a)->r; }
-static void write_actor(void *p,void *a,const ThreeMMActorRuntime *r) { (void)p; ((Actor *)a)->r=*r; }
+static void read_actor(void *p,void *a,MMActorRuntime *r) { (void)p; *r=((Actor *)a)->r; }
+static void write_actor(void *p,void *a,const MMActorRuntime *r) { (void)p; ((Actor *)a)->r=*r; }
 static void *create(void *p)
 {
     Fixture *f=(Fixture *)p; ++f->created; if (f->fail==1) return NULL;
-    three_mm_actor_runtime_init(&f->actor.r); f->actor.r.recording.recording=1;
+    mm_actor_runtime_init(&f->actor.r); f->actor.r.recording.recording=1;
     f->actor.ref.count=1; f->actor.ref.kind=1; return &f->actor;
 }
 static void release(void *p,void *object)
@@ -24,24 +24,24 @@ static void release(void *p,void *object)
     Fixture *f=(Fixture *)p; Ref *ref=(Ref *)object; CHECK(ref->count>0); --ref->count;
     if (ref->kind==1)
     {
-        ++f->releases; CHECK(!ref->count); three_mm_actor_owner_dispose(object,&f->s.owner);
+        ++f->releases; CHECK(!ref->count); mm_actor_owner_dispose(object,&f->s.owner);
     }
     else if (ref->kind==2) CHECK(f->actor.r.template_object==object && !f->actor.track);
     else CHECK(ref->kind==3 && f->actor.r.body==object);
 }
-static void *fetch_template(void *p,const ThreeMMTag *tag)
+static void *fetch_template(void *p,const MMTag *tag)
 {
     Fixture *f=(Fixture *)p; CHECK(tag==&f->tag && f->actor.r.template_tag.sid==-1);
     ++f->fetched; if (f->fail==2) return NULL;
     ++f->template_object.count; return &f->template_object;
 }
-static void duplicate_tag(void *p,const ThreeMMTag *tag)
+static void duplicate_tag(void *p,const MMTag *tag)
 {
     Fixture *f=(Fixture *)p; CHECK(tag->cache==&f->cache && f->actor.r.template_tag.cache==tag->cache);
     CHECK(f->actor.r.template_object==&f->template_object && f->template_object.count==1);
     ++f->cache; ++f->duplicated;
 }
-static void close_tag(void *p,ThreeMMTag *tag)
+static void close_tag(void *p,MMTag *tag)
 { Fixture *f=(Fixture *)p; if (tag->cache) { CHECK(f->cache==2); --f->cache; ++f->closed; tag->cache=NULL; } }
 static void close_track(void *p,void *a) { (void)p; CHECK(!((Actor *)a)->r.template_tag.cache); }
 static void clear_track(void *p,void *a)
@@ -60,16 +60,16 @@ static int create_sounds(void *p,void *a)
     if (f->fail==4) return 0; ((Actor *)a)->sounds=1; return 1;
 }
 static void *route(void *p,void *a) { (void)p; return a; }
-static ThreeMMI32 route_count(void *a) { CHECK(((Actor *)a)->track==1); return 0; }
-static void publish(void *p,const ThreeMMActorState *state) { ((Actor *)p)->r.state=*state; }
+static MMI32 route_count(void *a) { CHECK(((Actor *)a)->track==1); return 0; }
+static void publish(void *p,const MMActorState *state) { ((Actor *)p)->r.state=*state; }
 static void recording(void *p,int enabled)
 { CHECK(!enabled); ((Actor *)p)->r.recording.recording=enabled; }
-static void route_services(void *p,void *a,ThreeMMActorRouteEditServices *s)
+static void route_services(void *p,void *a,MMActorRouteEditServices *s)
 {
     Fixture *f=(Fixture *)p; CHECK(((Actor *)a)->sounds==1); ++f->rewound;
     memset(s,0,sizeof(*s)); s->edits.context=a; s->edits.publish=publish; s->recording=recording;
 }
-static int action_flags(void *p,void *object,ThreeMMI32 action,ThreeMMU32 *flags)
+static int action_flags(void *p,void *object,MMI32 action,MMU32 *flags)
 {
     Fixture *f=(Fixture *)p; CHECK(object==&f->template_object && !action && f->rewound==1);
     CHECK(!f->actor.r.recording.recording && !f->actor.r.state.nextEvent && f->actor.r.state.actionEvent==-1);
@@ -90,7 +90,7 @@ static void diagnostic(void *p,int which)
 { Fixture *f=(Fixture *)p; CHECK(which>=0 && which<3); ++f->diagnostics[which]; }
 static void init(Fixture *f)
 {
-    ThreeMMActorOwnerServices *o;
+    MMActorOwnerServices *o;
     memset(f,0,sizeof(*f)); f->cache=1; f->template_object.kind=2; f->body.kind=3;
     f->tag.sid=0; f->tag.cache=&f->cache; f->tag.type=17; f->tag.number=23;
     o=&f->s.owner; o->context=f; o->read=read_actor; o->write=write_actor; o->create=create; o->release=release;
@@ -107,7 +107,7 @@ int main(void)
     Fixture f; int fail; void *actor;
     for (fail=0;fail<=5;++fail)
     {
-        init(&f); f.fail=fail; actor=three_mm_actor_create(&f.tag,&f.s);
+        init(&f); f.fail=fail; actor=mm_actor_create(&f.tag,&f.s);
         CHECK((actor!=NULL)==!fail && f.created==1);
         CHECK(f.fetched==(fail!=1) && f.tracks==(fail!=1 && fail!=2));
         CHECK(f.sounds==(fail==0 || fail>=4) && f.flags==(fail==0 || fail==5));
@@ -116,22 +116,22 @@ int main(void)
         {
             CHECK(f.actor.r.first==2147483647L && f.actor.r.last==(-2147483647L-1L) && f.actor.r.actor==-1);
             CHECK(f.cache==2 && f.actor.r.template_tag.number==23 && !f.actor.r.scene && !f.actor.r.body);
-            three_mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.bound==1);
-            three_mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.bound==1);
-            three_mm_actor_bind_scene(actor,&f.other_scene,&f.s); CHECK(f.diagnostics[THREE_MM_CREATE_WRONG_SCENE]==1 && f.actor.r.scene==&f.scene);
+            mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.bound==1);
+            mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.bound==1);
+            mm_actor_bind_scene(actor,&f.other_scene,&f.s); CHECK(f.diagnostics[MM_CREATE_WRONG_SCENE]==1 && f.actor.r.scene==&f.scene);
             release(&f,actor);
         }
         CHECK(f.releases==(fail!=1)); clean(&f);
     }
-    init(&f); actor=three_mm_actor_create(&f.tag,&f.s); CHECK(actor); f.fail=6;
-    three_mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.actor.r.scene==&f.scene && !f.actor.r.body && !f.bound && f.bodies==1);
-    three_mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.diagnostics[THREE_MM_CREATE_BOUND_WITHOUT_BODY]==1);
+    init(&f); actor=mm_actor_create(&f.tag,&f.s); CHECK(actor); f.fail=6;
+    mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.actor.r.scene==&f.scene && !f.actor.r.body && !f.bound && f.bodies==1);
+    mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.diagnostics[MM_CREATE_BOUND_WITHOUT_BODY]==1);
     release(&f,actor); clean(&f);
     /* Direct group creation leaves successful track storage for caller cleanup. */
-    init(&f); actor=create(&f); f.fail=4; CHECK(!three_mm_actor_create_groups(actor,&f.s));
+    init(&f); actor=create(&f); f.fail=4; CHECK(!mm_actor_create_groups(actor,&f.s));
     CHECK(f.actor.track==1 && !f.actor.sounds && !f.flags && !f.rewound); release(&f,actor); clean(&f);
     /* Direct initialization retains the failed query's partial state/ownership. */
-    init(&f); actor=create(&f); f.fail=5; CHECK(!three_mm_actor_initialize(actor,&f.tag,&f.s));
+    init(&f); actor=create(&f); f.fail=5; CHECK(!mm_actor_initialize(actor,&f.tag,&f.s));
     CHECK(f.actor.ref.count==1 && f.template_object.count==1 && f.cache==2 && f.actor.r.state.actionFlags==0x55);
     release(&f,actor); clean(&f);
     puts("C89 actor creation and binding checks passed"); return 0;

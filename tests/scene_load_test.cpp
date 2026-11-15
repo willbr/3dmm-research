@@ -72,14 +72,14 @@ static void Reverse(void *p, long bytes)
 }
 struct GroupAccess : GeneralGroup
 {
-    static ThreeMMU32 Locks(PGeneralGroup p)
+    static MMU32 Locks(PGeneralGroup p)
     {
         return (p->*&GroupAccess::_CollectionStorage)()->buffers[0].locks;
     }
 };
 struct Access : Scene
 {
-    static ThreeMMU32 Locks(PScene p)
+    static MMU32 Locks(PScene p)
     {
         return GroupAccess::Locks(p->*&Access::_pggsevFrm);
     }
@@ -91,7 +91,7 @@ struct Access : Scene
         Value(d.lastFrame);
         Value(d.transition);
         Value(d.name.count);
-        Record(three_mm_movie_title_text(&d.name), d.name.count * d.name.unit);
+        Record(mm_movie_title_text(&d.name), d.name.count * d.name.unit);
         Value((p->*&Access::_runtime).next_event);
         Value((p->*&Access::_pglpactr)->IvMac());
         Value((p->*&Access::_pglptbox)->IvMac());
@@ -227,7 +227,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto name = std::getenv("THREE_MM_SCENE_LOAD_SNAPSHOT"))
+    if (auto name = std::getenv("MM_SCENE_LOAD_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);
@@ -297,7 +297,7 @@ int main()
                 }
             file->Delete(kctgScen, number);
         }
-#ifdef THREE_MM_ENGINE_SCENE_LOAD_H
+#ifdef MM_ENGINE_SCENE_LOAD_H
     // Corrected resolution-failure lock cleanup is outside the frozen trace.
     CHECK(movie->FNewScenInsCore(0));
     auto number = Fixture(file, 0, false);

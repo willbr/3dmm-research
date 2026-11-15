@@ -1,10 +1,10 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/body_create.h"
+#include "mm/body_create.h"
 #include <stddef.h>
-int three_mm_body_shape_initialize(void *body,void *parents,void *sets,const ThreeMMBodyCreateServices *s)
+int mm_body_shape_initialize(void *body,void *parents,void *sets,const MMBodyCreateServices *s)
 {
-    ThreeMMBodyShape b;
-    ThreeMMI32 i,n,set,parent;
+    MMBodyShape b;
+    MMI32 i,n,set,parent;
     if (s->validate_lists) s->validate_lists(s->context,parents,sets);
     s->read(s->context,body,&b);
     b.sets=s->duplicate_sets(s->context,sets);
@@ -26,24 +26,24 @@ int three_mm_body_shape_initialize(void *body,void *parents,void *sets,const Thr
     if (!s->allocate_actors(s->context,b.part_count+2,&b.actors))
     { s->write(s->context,body,&b); return 0; }
     s->write(s->context,body,&b);
-    s->initialize_actor(s->context,body,b.actors,0,THREE_MM_BODY_ROOT);
-    s->initialize_actor(s->context,body,b.actors,1,THREE_MM_BODY_HIGHLIGHT);
+    s->initialize_actor(s->context,body,b.actors,0,MM_BODY_ROOT);
+    s->initialize_actor(s->context,body,b.actors,1,MM_BODY_HIGHLIGHT);
     s->link(s->context,b.actors,0,1);
     for (i=0;i<b.part_count;++i)
     {
-        s->initialize_actor(s->context,body,b.actors,i+2,THREE_MM_BODY_PART);
+        s->initialize_actor(s->context,body,b.actors,i+2,MM_BODY_PART);
         parent=s->item(s->context,parents,i);
         s->link(s->context,b.actors,parent==-1?0:parent+2,i+2);
     }
     return 1;
 }
-int three_mm_body_initialize(void *body,void *parents,void *sets,const ThreeMMBodyCreateServices *s)
+int mm_body_initialize(void *body,void *parents,void *sets,const MMBodyCreateServices *s)
 {
-    ThreeMMBodyShape b;
+    MMBodyShape b;
     s->read(s->context,body,&b); b.hidden=1; s->write(s->context,body,&b);
-    return three_mm_body_shape_initialize(body,parents,sets,s);
+    return mm_body_shape_initialize(body,parents,sets,s);
 }
-void *three_mm_body_create(void *parents,void *sets,const ThreeMMBodyCreateServices *s)
+void *mm_body_create(void *parents,void *sets,const MMBodyCreateServices *s)
 {
     void *highlight,*body;
     if (!s->highlight(s->context))
@@ -54,14 +54,14 @@ void *three_mm_body_create(void *parents,void *sets,const ThreeMMBodyCreateServi
     }
     body=s->create(s->context);
     if (!body) return NULL;
-    if (!three_mm_body_initialize(body,parents,sets,s))
+    if (!mm_body_initialize(body,parents,sets,s))
     { s->release(s->context,body); return NULL; }
     return body;
 }
-void three_mm_body_shape_dispose(void *body,const ThreeMMBodyCreateServices *s)
+void mm_body_shape_dispose(void *body,const MMBodyCreateServices *s)
 {
-    ThreeMMBodyShape b;
-    ThreeMMI32 i;
+    MMBodyShape b;
+    MMI32 i;
     s->read(s->context,body,&b);
     if (!b.hidden)
     { s->hide(s->context,body); s->read(s->context,body,&b); }

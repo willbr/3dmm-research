@@ -1,15 +1,15 @@
 /* Texture map policy converted from bren/tmap.cpp. */
-#include "three_mm/texture_resource.h"
+#include "mm/texture_resource.h"
 #include <string.h>
-static ThreeMMU32 word(const unsigned char *p, unsigned n, int big)
+static MMU32 word(const unsigned char *p, unsigned n, int big)
 {
-    ThreeMMU32 v = 0;
+    MMU32 v = 0;
     unsigned i;
     for (i = 0; i < n; ++i)
         v = (v << 8) | p[big ? i : n - 1 - i];
     return v;
 }
-static void put(unsigned char *p, unsigned n, ThreeMMU32 v, int big)
+static void put(unsigned char *p, unsigned n, MMU32 v, int big)
 {
     unsigned i;
     for (i = 0; i < n; ++i)
@@ -18,21 +18,21 @@ static void put(unsigned char *p, unsigned n, ThreeMMU32 v, int big)
         v >>= 8;
     }
 }
-static ThreeMMI32 signed16(ThreeMMU32 n)
+static MMI32 signed16(MMU32 n)
 {
-    return n < 32768U ? (ThreeMMI32)n : (ThreeMMI32)n - 65536L;
+    return n < 32768U ? (MMI32)n : (MMI32)n - 65536L;
 }
-int three_mm_texture_payload(const ThreeMMTextureDescription *d, ThreeMMI32 *n)
+int mm_texture_payload(const MMTextureDescription *d, MMI32 *n)
 {
     if (d->row_bytes < 0 || d->row_bytes > 32767 || d->width < 0 || d->width > 65535L || d->height < 0 ||
-        d->height > 65535L || (d->row_bytes && (ThreeMMU32)d->height > 0x7fffffebUL / (ThreeMMU32)d->row_bytes))
+        d->height > 65535L || (d->row_bytes && (MMU32)d->height > 0x7fffffebUL / (MMU32)d->row_bytes))
         return 0;
     *n = d->row_bytes * d->height;
     return 1;
 }
-int three_mm_texture_header_read(const unsigned char *b, int big, ThreeMMTextureDescription *d, int *bad)
+int mm_texture_header_read(const unsigned char *b, int big, MMTextureDescription *d, int *bad)
 {
-    ThreeMMI32 n;
+    MMI32 n;
     if (word(b, 2, big) != 1)
         big = !big;
     if (bad)
@@ -46,32 +46,32 @@ int three_mm_texture_header_read(const unsigned char *b, int big, ThreeMMTexture
     d->height = word(b + 14, 2, big);
     d->origin_x = signed16(word(b + 16, 2, big));
     d->origin_y = signed16(word(b + 18, 2, big));
-    return d->height <= 32767 && three_mm_texture_payload(d, &n);
+    return d->height <= 32767 && mm_texture_payload(d, &n);
 }
-void three_mm_texture_header_write(unsigned char *b, int big, ThreeMMU32 system, const ThreeMMTextureDescription *d)
+void mm_texture_header_write(unsigned char *b, int big, MMU32 system, const MMTextureDescription *d)
 {
     put(b, 2, 1, big);
     put(b + 2, 2, system, big);
-    put(b + 4, 2, (ThreeMMU32)d->row_bytes, big);
+    put(b + 4, 2, (MMU32)d->row_bytes, big);
     b[6] = (unsigned char)d->type;
     b[7] = (unsigned char)d->flags;
-    put(b + 8, 2, (ThreeMMU32)d->base_x, big);
-    put(b + 10, 2, (ThreeMMU32)d->base_y, big);
-    put(b + 12, 2, (ThreeMMU32)d->width, big);
-    put(b + 14, 2, (ThreeMMU32)d->height, big);
-    put(b + 16, 2, (ThreeMMU32)d->origin_x, big);
-    put(b + 18, 2, (ThreeMMU32)d->origin_y, big);
+    put(b + 8, 2, (MMU32)d->base_x, big);
+    put(b + 10, 2, (MMU32)d->base_y, big);
+    put(b + 12, 2, (MMU32)d->width, big);
+    put(b + 14, 2, (MMU32)d->height, big);
+    put(b + 16, 2, (MMU32)d->origin_x, big);
+    put(b + 18, 2, (MMU32)d->origin_y, big);
 }
-ThreeMMI32 three_mm_texture_size(const ThreeMMTextureResource *m)
+MMI32 mm_texture_size(const MMTextureResource *m)
 {
-    ThreeMMI32 n;
-    return three_mm_texture_payload(&m->description, &n) ? 20 + n : -1;
+    MMI32 n;
+    return mm_texture_payload(&m->description, &n) ? 20 + n : -1;
 }
-void *three_mm_texture_new(void *pixels, ThreeMMI32 width, ThreeMMI32 height, const ThreeMMTextureServices *s)
+void *mm_texture_new(void *pixels, MMI32 width, MMI32 height, const MMTextureServices *s)
 {
-    ThreeMMTextureDescription d;
-    ThreeMMI32 n;
-    ThreeMMTextureResource *m;
+    MMTextureDescription d;
+    MMI32 n;
+    MMTextureResource *m;
     void *object;
     memset(&d, 0, sizeof(d));
     d.row_bytes = width;
@@ -79,7 +79,7 @@ void *three_mm_texture_new(void *pixels, ThreeMMI32 width, ThreeMMI32 height, co
     d.height = height;
     d.type = s->indexed_type;
     d.flags = s->linear_flag;
-    if (!three_mm_texture_payload(&d, &n) || (n && !pixels))
+    if (!mm_texture_payload(&d, &n) || (n && !pixels))
         return NULL;
     object = s->create(s->context);
     if (!object)
@@ -90,10 +90,10 @@ void *three_mm_texture_new(void *pixels, ThreeMMI32 width, ThreeMMI32 height, co
     s->publish(s->context, object, m);
     return object;
 }
-void *three_mm_texture_wrap(void *owner, const ThreeMMTextureServices *s)
+void *mm_texture_wrap(void *owner, const MMTextureServices *s)
 {
     void *object;
-    ThreeMMTextureResource *m;
+    MMTextureResource *m;
     if (!owner)
         return NULL;
     object = s->create(s->context);
@@ -105,7 +105,7 @@ void *three_mm_texture_wrap(void *owner, const ThreeMMTextureServices *s)
     s->publish(s->context, object, m);
     return object;
 }
-void three_mm_texture_dispose(ThreeMMTextureResource *m, const ThreeMMTextureServices *s)
+void mm_texture_dispose(MMTextureResource *m, const MMTextureServices *s)
 {
     if (m->imported_owner)
     {
@@ -116,28 +116,28 @@ void three_mm_texture_dispose(ThreeMMTextureResource *m, const ThreeMMTextureSer
     else
         s->free_memory(s->context, &m->pixels);
 }
-static int read_at(void *block, void *data, ThreeMMI32 n, ThreeMMI32 offset, const ThreeMMTextureServices *s)
+static int read_at(void *block, void *data, MMI32 n, MMI32 offset, const MMTextureServices *s)
 {
-    ThreeMMI32 size = s->size(s->context, block, 0);
+    MMI32 size = s->size(s->context, block, 0);
     return n >= 0 && offset >= 0 && offset <= size && n <= size - offset && s->read(s->context, block, data, n, offset);
 }
-void *three_mm_texture_read(void *file, ThreeMMU32 type, ThreeMMU32 number, const ThreeMMTextureServices *s)
+void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *s)
 {
     void *object = s->create(s->context), *block;
-    ThreeMMTextureResource *m;
+    MMTextureResource *m;
     unsigned char b[20];
-    ThreeMMTextureDescription d;
-    ThreeMMI32 n;
+    MMTextureDescription d;
+    MMI32 n;
     int bad, valid;
     if (!object)
         goto done;
     block = s->find(s->context, file, type, number);
     if (!block || !s->unpack(s->context, block) || !read_at(block, b, 20, 0, s))
         goto fail;
-    valid = three_mm_texture_header_read(b, s->host_big_endian, &d, &bad);
+    valid = mm_texture_header_read(b, s->host_big_endian, &d, &bad);
     if (bad)
-        s->diagnostic(s->context, THREE_MM_TEXTURE_ORDER);
-    if (!valid || !three_mm_texture_payload(&d, &n))
+        s->diagnostic(s->context, MM_TEXTURE_ORDER);
+    if (!valid || !mm_texture_payload(&d, &n))
         goto fail;
     m = s->state(s->context, object);
     if (!s->allocate(s->context, n, 1, &m->pixels))
@@ -154,15 +154,15 @@ done:
     s->close_block(s->context);
     return object;
 }
-int three_mm_texture_fetch(void *cache, ThreeMMU32 type, ThreeMMU32 number, void *block, void *out, void *size,
-                           const ThreeMMTextureServices *s)
+int mm_texture_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *out, void *size,
+                           const MMTextureServices *s)
 {
-    ThreeMMI32 n = s->size(s->context, block, 1);
+    MMI32 n = s->size(s->context, block, 1);
     void *object;
     memcpy(size, &n, 4);
     if (!out)
         return 1;
-    object = three_mm_texture_read(s->file(s->context, cache), type, number, s);
+    object = mm_texture_read(s->file(s->context, cache), type, number, s);
     if (!object)
     {
         s->invalidate(s->context, out, sizeof(object));
@@ -172,48 +172,48 @@ int three_mm_texture_fetch(void *cache, ThreeMMU32 type, ThreeMMU32 number, void
     memcpy(out, &object, sizeof(object));
     return 1;
 }
-int three_mm_texture_write(const ThreeMMTextureResource *m, void *block, const ThreeMMTextureServices *s)
+int mm_texture_write(const MMTextureResource *m, void *block, const MMTextureServices *s)
 {
     unsigned char b[20];
-    ThreeMMI32 n;
-    if (!three_mm_texture_payload(&m->description, &n))
+    MMI32 n;
+    if (!mm_texture_payload(&m->description, &n))
         return 0;
-    three_mm_texture_header_write(b, s->host_big_endian, s->system, &m->description);
+    mm_texture_header_write(b, s->host_big_endian, s->system, &m->description);
     if (s->size(s->context, block, 0) < 20 || !s->write(s->context, block, b, 20, 0))
         return 0;
     return n <= s->size(s->context, block, 0) - 20 && s->write(s->context, block, m->pixels, n, 20);
 }
-int three_mm_texture_write_chunk(const ThreeMMTextureResource *m, void *file, ThreeMMU32 type, ThreeMMU32 *number,
-                                 const ThreeMMTextureServices *s)
+int mm_texture_write_chunk(const MMTextureResource *m, void *file, MMU32 type, MMU32 *number,
+                                 const MMTextureServices *s)
 {
     void *block;
-    ThreeMMI32 bytes = three_mm_texture_size(m);
+    MMI32 bytes = mm_texture_size(m);
     int ok = 0;
     if (bytes < 0)
         return 0;
     block = s->add(s->context, file, type, bytes, number);
     if (block)
-        ok = three_mm_texture_write(m, block, s);
+        ok = mm_texture_write(m, block, s);
     s->close_block(s->context);
     return ok;
 }
-int three_mm_texture_standalone(const ThreeMMTextureResource *m, void *filename, int compress, void *sink,
-                                const ThreeMMTextureServices *s)
+int mm_texture_standalone(const MMTextureResource *m, void *filename, int compress, void *sink,
+                                const MMTextureServices *s)
 {
     void *file = s->create_file(s->context, filename), *block;
-    ThreeMMI32 bytes = three_mm_texture_size(m);
-    ThreeMMU32 signature = s->unpacked_signature;
+    MMI32 bytes = mm_texture_size(m);
+    MMU32 signature = s->unpacked_signature;
     unsigned char b[20];
-    int error = THREE_MM_TEXTURE_FILE_CREATE, ok = 0;
+    int error = MM_TEXTURE_FILE_CREATE, ok = 0;
     if (!file)
         goto done;
-    error = THREE_MM_TEXTURE_FILE_MEMORY;
+    error = MM_TEXTURE_FILE_MEMORY;
     if (bytes < 0)
         goto done;
     if (compress)
     {
         block = s->temp_block(s->context, bytes);
-        if (!block || !three_mm_texture_write(m, block, s))
+        if (!block || !mm_texture_write(m, block, s))
             goto done;
         if (s->pack(s->context, block))
         {
@@ -221,17 +221,17 @@ int three_mm_texture_standalone(const ThreeMMTextureResource *m, void *filename,
             bytes = s->size(s->context, block, 1);
         }
         put(b, 4, signature, s->host_big_endian);
-        error = THREE_MM_TEXTURE_FILE_WRITE;
+        error = MM_TEXTURE_FILE_WRITE;
         if (!s->write_file(s->context, file, b, 4, 0) || !s->copy_to_file(s->context, block, file, 4, bytes))
             goto done;
     }
     else
     {
         put(b, 4, signature, s->host_big_endian);
-        error = THREE_MM_TEXTURE_FILE_WRITE;
+        error = MM_TEXTURE_FILE_WRITE;
         if (!s->write_file(s->context, file, b, 4, 0))
             goto done;
-        three_mm_texture_header_write(b, s->host_big_endian, s->system, &m->description);
+        mm_texture_header_write(b, s->host_big_endian, s->system, &m->description);
         if (!s->write_file(s->context, file, b, 20, 4) || !s->write_file(s->context, file, m->pixels, bytes - 20, 24))
             goto done;
     }

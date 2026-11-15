@@ -1,5 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include <three_mm/archive.h>
+#include <mm/archive.h>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -17,17 +17,17 @@ static void Verify(bool value, int line)
     }
 }
 #define Check(value) Verify((value), __LINE__)
-static std::size_t Find(const ThreeMM::Archive &archive, const char *type)
+static std::size_t Find(const MM::Archive &archive, const char *type)
 {
     for (std::size_t i = 0; i < archive.Chunks().size(); ++i)
-        if (ThreeMM::TypeLabel(archive.Chunks()[i].id.type) == type)
+        if (MM::TypeLabel(archive.Chunks()[i].id.type) == type)
             return i;
     Check(false);
     return 0;
 }
 int main(int argc, char **argv)
 {
-    using namespace ThreeMM;
+    using namespace MM;
     Archive archive;
     Error error;
     PayloadPage payload;

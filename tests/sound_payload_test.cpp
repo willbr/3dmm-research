@@ -133,7 +133,7 @@ static void Wave()
 }
 int main()
 {
-    if (const auto path = std::getenv("THREE_MM_SOUND_PAYLOAD_SNAPSHOT"))
+    if (const auto path = std::getenv("MM_SOUND_PAYLOAD_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         CHECK(snapshot);

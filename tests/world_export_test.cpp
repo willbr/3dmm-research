@@ -193,7 +193,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto path = std::getenv("THREE_MM_WORLD_EXPORT_SNAPSHOT"))
+    if (auto path = std::getenv("MM_WORLD_EXPORT_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         CHECK(snapshot);

@@ -13,7 +13,7 @@
 #undef size
 ASSERTNAME
 namespace fs = std::filesystem;
-namespace V = ThreeMM::V3dmm;
+namespace V = MM::V3dmm;
 void WarnProc(schar *file, LegacyLong line, schar *message)
 {
     std::fprintf(stderr, "%s:%d %s\n", file, int(line), message);

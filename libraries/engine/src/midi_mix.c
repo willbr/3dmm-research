@@ -1,14 +1,14 @@
 /* Stream arbitration converted from Kauai mididev2.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/midi_mix.h"
-#include "three_mm/wide.h"
+#include "mm/midi_mix.h"
+#include "mm/wide.h"
 #include <string.h>
 #define MINIMUM (-2147483647 - 1)
-void three_mm_midi_queue_run(const ThreeMMMidiQueueServices *s, ThreeMMI32 first)
+void mm_midi_queue_run(const MMMidiQueueServices *s, MMI32 first)
 {
-    const ThreeMMSoundQueueServices *q = &s->entries;
-    ThreeMMSoundEntry e;
-    ThreeMMI32 i;
+    const MMSoundQueueServices *q = &s->entries;
+    MMSoundEntry e;
+    MMI32 i;
     q->enter(q->context);
     i = q->current(q->context);
     if (i == first)
@@ -31,25 +31,25 @@ void three_mm_midi_queue_run(const ThreeMMMidiQueueServices *s, ThreeMMI32 first
     }
     q->leave(q->context);
 }
-void three_mm_midi_queue_pause(const ThreeMMMidiQueueServices *s, ThreeMMI32 first)
+void mm_midi_queue_pause(const MMMidiQueueServices *s, MMI32 first)
 {
-    const ThreeMMSoundQueueServices *q = &s->entries;
-    ThreeMMSoundEntry e;
+    const MMSoundQueueServices *q = &s->entries;
+    MMSoundEntry e;
     q->enter(q->context);
     if (q->current(q->context) == first && q->count(q->context) > first)
     {
         q->get(q->context, first, &e);
         e.offset = s->clock(s->context) - s->start(s->context);
         q->put(q->context, first, &e);
-        three_mm_midi_queue_run(s, first);
+        mm_midi_queue_run(s, first);
     }
     q->leave(q->context);
 }
-void three_mm_midi_queue_notify(const ThreeMMMidiQueueServices *s, void *sound)
+void mm_midi_queue_notify(const MMMidiQueueServices *s, void *sound)
 {
-    const ThreeMMSoundQueueServices *q = &s->entries;
-    ThreeMMSoundEntry e;
-    ThreeMMI32 i;
+    const MMSoundQueueServices *q = &s->entries;
+    MMSoundEntry e;
+    MMI32 i;
     q->enter(q->context);
     i = q->current(q->context);
     if (q->count(q->context) > i)
@@ -58,12 +58,12 @@ void three_mm_midi_queue_notify(const ThreeMMMidiQueueServices *s, void *sound)
         if (e.object == sound)
         {
             q->set_current(q->context, ++i);
-            three_mm_midi_queue_run(s, i);
+            mm_midi_queue_run(s, i);
         }
     }
     q->leave(q->context);
 }
-void three_mm_midi_mix_stop(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices *s)
+void mm_midi_mix_stop(MMMidiMixState *m, const MMMidiMixServices *s)
 {
     if (!m->playing)
         return;
@@ -74,25 +74,25 @@ void three_mm_midi_mix_stop(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices
         s->wait_return(s->context);
     m->waiting = 0;
 }
-void three_mm_midi_mix_volume(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices *s, ThreeMMI32 volume)
+void mm_midi_mix_volume(MMMidiMixState *m, const MMMidiMixServices *s, MMI32 volume)
 {
-    ThreeMMAudioCounter n;
+    MMAudioCounter n;
     m->base_volume = volume;
-    n = three_mm_audio_count_multiply((ThreeMMU32)volume, (ThreeMMU32)m->sound_volume);
-    s->volume(s->context, three_mm_signed_word((n.high << 16) | (n.low >> 16)));
+    n = mm_audio_count_multiply((MMU32)volume, (MMU32)m->sound_volume);
+    s->volume(s->context, mm_signed_word((n.high << 16) | (n.low >> 16)));
 }
-void three_mm_midi_mix_suspend(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices *s, int suspend)
+void mm_midi_mix_suspend(MMMidiMixState *m, const MMMidiMixServices *s, int suspend)
 {
     if (suspend)
-        three_mm_midi_mix_stop(m, s);
+        mm_midi_mix_stop(m, s);
     if (!s->activate(s->context, !suspend) && !suspend)
         s->busy(s->context);
-    three_mm_midi_mix_restart(m, s, 0);
+    mm_midi_mix_restart(m, s, 0);
 }
-int three_mm_midi_mix_play(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices *s, const ThreeMMMidiMixVoice *input)
+int mm_midi_mix_play(MMMidiMixState *m, const MMMidiMixServices *s, const MMMidiMixVoice *input)
 {
-    ThreeMMMidiMixVoice v;
-    ThreeMMI32 i;
+    MMMidiMixVoice v;
+    MMI32 i;
     int fresh = 0, result = 1;
     if (input->sound && !s->duration(s->context, input->sound))
         return 0;
@@ -102,7 +102,7 @@ int three_mm_midi_mix_play(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices 
         if (v.queue == input->queue)
         {
             if (i == 0)
-                three_mm_midi_mix_stop(m, s);
+                mm_midi_mix_stop(m, s);
             s->erase(s->context, i);
             break;
         }
@@ -118,7 +118,7 @@ int three_mm_midi_mix_play(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices 
         if (!i)
         {
             fresh = 1;
-            three_mm_midi_mix_stop(m, s);
+            mm_midi_mix_stop(m, s);
         }
         v = *input;
         v.duration = s->duration(s->context, input->sound);
@@ -129,13 +129,13 @@ int three_mm_midi_mix_play(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices 
             fresh = 0;
         }
     }
-    three_mm_midi_mix_restart(m, s, fresh);
+    mm_midi_mix_restart(m, s, fresh);
     return result;
 }
-void three_mm_midi_mix_restart(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices *s, int fresh)
+void mm_midi_mix_restart(MMMidiMixState *m, const MMMidiMixServices *s, int fresh)
 {
-    ThreeMMMidiMixVoice v;
-    ThreeMMU32 now;
+    MMMidiMixVoice v;
+    MMU32 now;
     if (s->active(s->context) && !m->playing && s->count(s->context) > 0)
     {
         now = s->clock(s->context);
@@ -145,25 +145,25 @@ void three_mm_midi_mix_restart(ThreeMMMidiMixState *m, const ThreeMMMidiMixServi
             v.start = now - v.offset;
             s->put(s->context, 0, &v);
         }
-        three_mm_midi_mix_submit(m, s, now);
+        mm_midi_mix_submit(m, s, now);
     }
     s->signal_worker(s->context);
 }
-void three_mm_midi_mix_submit(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices *s, ThreeMMU32 now)
+void mm_midi_mix_submit(MMMidiMixState *m, const MMMidiMixServices *s, MMU32 now)
 {
-    ThreeMMMidiMixVoice v;
-    ThreeMMI32 i, skip, bytes, loops;
-    ThreeMMU32 seek;
+    MMMidiMixVoice v;
+    MMI32 i, skip, bytes, loops;
+    MMU32 seek;
     void *data;
     for (i = 0; i < s->count(s->context); ++i)
     {
         s->get(s->context, i, &v);
-        loops = three_mm_signed_word((now - v.start) / v.duration);
+        loops = mm_signed_word((now - v.start) / v.duration);
         if (loops > 0)
         {
             if (v.plays > 0)
             {
-                v.plays = three_mm_signed_word((ThreeMMU32)v.plays - (ThreeMMU32)loops);
+                v.plays = mm_signed_word((MMU32)v.plays - (MMU32)loops);
                 if (v.plays <= 0)
                     goto next;
             }
@@ -172,7 +172,7 @@ void three_mm_midi_mix_submit(ThreeMMMidiMixState *m, const ThreeMMMidiMixServic
             s->put(s->context, i, &v);
         }
         m->sound_volume = v.volume;
-        three_mm_midi_mix_volume(m, s, m->base_volume);
+        mm_midi_mix_volume(m, s, m->base_volume);
         skip = 0;
         if (now != v.start)
         {
@@ -200,7 +200,7 @@ void three_mm_midi_mix_submit(ThreeMMMidiMixState *m, const ThreeMMMidiMixServic
         s->unlock_sound(s->context, v.sound);
         --m->outstanding;
     next:
-        three_mm_midi_mix_stop(m, s);
+        mm_midi_mix_stop(m, s);
         v.start = now - v.offset;
         v.plays = 1;
         v.id = v.priority = MINIMUM;
@@ -209,9 +209,9 @@ void three_mm_midi_mix_submit(ThreeMMMidiMixState *m, const ThreeMMMidiMixServic
     if (m->playing && i > 0)
         s->rotate(s->context, i);
 }
-void three_mm_midi_mix_return(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices *s, void *sound)
+void mm_midi_mix_return(MMMidiMixState *m, const MMMidiMixServices *s, void *sound)
 {
-    ThreeMMMidiMixVoice v;
+    MMMidiMixVoice v;
     --m->outstanding;
     if (!m->outstanding)
         s->signal_return(s->context);
@@ -233,14 +233,14 @@ void three_mm_midi_mix_return(ThreeMMMidiMixState *m, const ThreeMMMidiMixServic
             s->enter(s->context);
         }
         if (s->count(s->context) > 0)
-            three_mm_midi_mix_restart(m, s, 0);
+            mm_midi_mix_restart(m, s, 0);
     }
 }
-ThreeMMU32 three_mm_midi_mix_expire(ThreeMMMidiMixState *m, const ThreeMMMidiMixServices *s)
+MMU32 mm_midi_mix_expire(MMMidiMixState *m, const MMMidiMixServices *s)
 {
-    ThreeMMU32 now, next = 0xffffffffUL, seek, wait;
-    ThreeMMI32 i, loops;
-    ThreeMMMidiMixVoice v;
+    MMU32 now, next = 0xffffffffUL, seek, wait;
+    MMI32 i, loops;
+    MMMidiMixVoice v;
     if (m->waiting)
         return 1;
     now = s->clock(s->context);
@@ -249,12 +249,12 @@ ThreeMMU32 three_mm_midi_mix_expire(ThreeMMMidiMixState *m, const ThreeMMMidiMix
         if (!i && m->playing)
             break;
         s->get(s->context, i, &v);
-        loops = three_mm_signed_word((now - v.start) / v.duration);
+        loops = mm_signed_word((now - v.start) / v.duration);
         if (loops > 0)
         {
             if (v.plays > 0)
             {
-                v.plays = three_mm_signed_word((ThreeMMU32)v.plays - (ThreeMMU32)loops);
+                v.plays = mm_signed_word((MMU32)v.plays - (MMU32)loops);
                 if (v.plays <= 0)
                 {
                     s->erase(s->context, i);
@@ -274,12 +274,12 @@ ThreeMMU32 three_mm_midi_mix_expire(ThreeMMMidiMixState *m, const ThreeMMMidiMix
     }
     return next;
 }
-int three_mm_midi_stream_build(const ThreeMMMidiStreamBuildServices *s, ThreeMMU32 *duration)
+int mm_midi_stream_build(const MMMidiStreamBuildServices *s, MMU32 *duration)
 {
-    ThreeMMMidiStreamEvent events[100];
-    ThreeMMMidiEvent e;
-    ThreeMMU32 now = 0;
-    ThreeMMI32 count = 1;
+    MMMidiStreamEvent events[100];
+    MMMidiEvent e;
+    MMU32 now = 0;
+    MMI32 count = 1;
     int have;
     memset(events, 0, sizeof(events));
     events[0].eventWord = 0x010f4240UL;
@@ -304,7 +304,7 @@ int three_mm_midi_stream_build(const ThreeMMMidiStreamBuildServices *s, ThreeMMU
         {
             events[count].deltaTicks = e.timestamp - now;
             events[count].eventWord =
-                (ThreeMMU32)e.send[0] | ((ThreeMMU32)e.send[1] << 8) | ((ThreeMMU32)e.send[2] << 16);
+                (MMU32)e.send[0] | ((MMU32)e.send[1] << 8) | ((MMU32)e.send[2] << 16);
             ++count;
             now = e.timestamp;
         }
@@ -312,15 +312,15 @@ int three_mm_midi_stream_build(const ThreeMMMidiStreamBuildServices *s, ThreeMMU
     *duration = now;
     return 1;
 }
-int three_mm_midi_stream_seek(const ThreeMMMidiStreamEvent *events, ThreeMMI32 count, ThreeMMU32 time, void *context,
-                              int (*prepend)(void *, const ThreeMMMidiStreamEvent *, ThreeMMI32), ThreeMMI32 *skip)
+int mm_midi_stream_seek(const MMMidiStreamEvent *events, MMI32 count, MMU32 time, void *context,
+                              int (*prepend)(void *, const MMMidiStreamEvent *, MMI32), MMI32 *skip)
 {
     unsigned short program = 0, pressure = 0, pitch = 0, control[120], *bits;
     unsigned short mask;
     int tempo = 0, copy;
-    ThreeMMMidiStreamEvent batch[100];
-    ThreeMMI32 i, n = 100;
-    ThreeMMU32 elapsed = 0, status, value;
+    MMMidiStreamEvent batch[100];
+    MMI32 i, n = 100;
+    MMU32 elapsed = 0, status, value;
     memset(control, 0, sizeof(control));
     memset(batch, 0, sizeof(batch));
     for (i = 0; i < count; ++i)
@@ -333,7 +333,7 @@ int three_mm_midi_stream_seek(const ThreeMMMidiStreamEvent *events, ThreeMMI32 c
         return 0;
     batch[--n].deltaTicks = elapsed - time;
     batch[n].eventWord = events[i].eventWord;
-    *skip = (i + 1) * (ThreeMMI32)sizeof(*events);
+    *skip = (i + 1) * (MMI32)sizeof(*events);
     for (;;)
     {
         if (!n || i <= 0)

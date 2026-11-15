@@ -77,23 +77,23 @@ struct Tags : TagList
     {
         auto &list = p->*&Tags::_list;
         Value(list.count);
-        ThreeMMGroup group = {&list.storage, sizeof(ThreeMMTagCached), list.count, list.bytes, -1, 0};
-        for (ThreeMMU32 i = 0; i < list.count; ++i)
+        MMGroup group = {&list.storage, sizeof(MMTagCached), list.count, list.bytes, -1, 0};
+        for (MMU32 i = 0; i < list.count; ++i)
         {
-            ThreeMMTagCached value;
-            CHECK(three_mm_tag_list_get(&list, i, &value) == THREE_MM_STORAGE_OK);
+            MMTagCached value;
+            CHECK(mm_tag_list_get(&list, i, &value) == MM_STORAGE_OK);
             Value(value.tag.sid);
             Value(value.tag.cache != nullptr);
             Value(value.tag.type);
             Value(value.tag.number);
             Value(value.children);
-            ThreeMMGroupLocation loc;
-            CHECK(three_mm_group_location(&group, i, &loc) == THREE_MM_STORAGE_OK);
-            auto count = (loc.bytes - sizeof(value)) / sizeof(ThreeMMTagChild);
+            MMGroupLocation loc;
+            CHECK(mm_group_location(&group, i, &loc) == MM_STORAGE_OK);
+            auto count = (loc.bytes - sizeof(value)) / sizeof(MMTagChild);
             Value(count);
             for (size_t j = 0; j < count; ++j)
             {
-                ThreeMMTagChild child;
+                MMTagChild child;
                 std::memcpy(&child, list.storage.buffers[0].data + loc.offset + sizeof(value) + j * sizeof(child),
                             sizeof(child));
                 Value(child.slot);
@@ -235,7 +235,7 @@ int main()
 {
     auto app = NewObj TestApp;
     CHECK(app);
-    if (auto name = std::getenv("THREE_MM_SCENE_STORE_SNAPSHOT"))
+    if (auto name = std::getenv("MM_SCENE_STORE_SNAPSHOT"))
     {
         snapshot = std::fopen(name, "wb");
         CHECK(snapshot);

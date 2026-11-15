@@ -1,15 +1,15 @@
-#ifndef THREE_MM_PREVIEW_BACKGROUND_MESH_H
-#define THREE_MM_PREVIEW_BACKGROUND_MESH_H
+#ifndef MM_PREVIEW_BACKGROUND_MESH_H
+#define MM_PREVIEW_BACKGROUND_MESH_H
 #include <array>
 #include <cstdint>
 #include <memory>
 #include <vector>
-#include "three_mm/background_mesh.h"
+#include "mm/background_mesh.h"
 #include "preview_buffer_view.h"
 
 struct br_actor;
 
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -18,9 +18,9 @@ using BackgroundMatrix = std::array<double, 16>;
 class PreviewBackgroundMesh
 {
     friend struct BackgroundMeshProbe;
-    ThreeMMBackgroundMesh core;
+    MMBackgroundMesh core;
     PreviewBufferView<std::uint8_t> infiniteColours;
-    static ThreeMMBackgroundMeshServices Services();
+    static MMBackgroundMeshServices Services();
 
   public:
     PreviewBackgroundMesh();
@@ -55,5 +55,5 @@ class PreviewBackgroundMesh
     bool AddToScene(br_actor *world);
 };
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM
 #endif

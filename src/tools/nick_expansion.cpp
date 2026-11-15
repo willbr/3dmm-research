@@ -1,5 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/nick_expansion.h"
+#include "mm/nick_expansion.h"
 #include <cstdio>
 #include <cstring>
 #include "kauai_core.h"
@@ -19,31 +19,31 @@ int main(int argc, char **argv)
     std::string error;
     if (argc == 4 && !std::strcmp(argv[1], "non-image-state"))
     {
-        if (ThreeMM::WriteNickNonImageState(argv[2], argv[3], error))
+        if (MM::WriteNickNonImageState(argv[2], argv[3], error))
             return 0;
         std::fprintf(stderr, "nick-expansion: %s\n", error.c_str());
         return 1;
     }
     if (argc == 4 && !std::strcmp(argv[1], "export-images"))
     {
-        if (ThreeMM::ExportNickImages(argv[2], argv[3], error))
+        if (MM::ExportNickImages(argv[2], argv[3], error))
             return 0;
         std::fprintf(stderr, "nick-expansion: %s\n", error.c_str());
         return 1;
     }
     if (argc == 5 && !std::strcmp(argv[1], "replace-images"))
     {
-        if (ThreeMM::ReplaceNickImages(argv[2], argv[3], argv[4], error))
+        if (MM::ReplaceNickImages(argv[2], argv[3], argv[4], error))
             return 0;
         std::fprintf(stderr, "nick-expansion: %s\n", error.c_str());
         return 1;
     }
     if (argc == 6 && !std::strcmp(argv[1], "convert") && !std::strcmp(argv[2], "--nearest-palette"))
     {
-        ThreeMM::NickConversionStats stats;
+        MM::NickConversionStats stats;
         // output must already be empty; the ISO wrapper owns staging/publishing.
         // Keep the policy explicit so a historical pixel match is never implied.
-        if (!ThreeMM::ConvertNickExpansion(argv[3], argv[4], argv[5], stats, error))
+        if (!MM::ConvertNickExpansion(argv[3], argv[4], argv[5], stats, error))
         {
             std::fprintf(stderr, "nick-expansion: %s\n", error.c_str());
             return 1;
@@ -55,8 +55,8 @@ int main(int argc, char **argv)
     }
     if (argc == 4 && !std::strcmp(argv[1], "compare"))
     {
-        ThreeMM::NickComparison result;
-        if (!ThreeMM::CompareNickExpansion(argv[2], argv[3], result, error))
+        MM::NickComparison result;
+        if (!MM::CompareNickExpansion(argv[2], argv[3], result, error))
         {
             std::fprintf(stderr, "nick-expansion: %s\n", error.c_str());
             return 1;

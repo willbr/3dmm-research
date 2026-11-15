@@ -60,9 +60,9 @@ struct BackgroundResourceHost
     DataBlock block;
 };
 } // namespace
-ThreeMMBackgroundServices Background::_ResourceServices(void *host)
+MMBackgroundServices Background::_ResourceServices(void *host)
 {
-    ThreeMMBackgroundServices s = {};
+    MMBackgroundServices s = {};
     s.context = host;
     const unsigned short one = 1;
     s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
@@ -71,26 +71,26 @@ ThreeMMBackgroundServices Background::_ResourceServices(void *host)
 #endif
     s.actor_bytes = sizeof(BACT);
     s.light_bytes = sizeof(BLIT);
-    s.child = [](void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 childType, ThreeMMU32 *out) {
+    s.child = [](void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMU32 *out) {
         ChildChunkIdentification child;
         if (!static_cast<BackgroundResourceHost *>(p)->file->FGetKidChidCtg(type, number, id, childType, &child))
             return 0;
         *out = child.cki.cno;
         return 1;
     };
-    s.child_at = [](void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMI32 index, ThreeMMU32 *out) {
+    s.child_at = [](void *p, MMU32 type, MMU32 number, MMI32 index, MMU32 *out) {
         ChildChunkIdentification child;
         if (!static_cast<BackgroundResourceHost *>(p)->file->FGetKid(type, number, index, &child))
             return 0;
         *out = child.cki.ctg;
         return 1;
     };
-    s.find = [](void *p, ThreeMMU32 type, ThreeMMU32 number, int unpack) {
+    s.find = [](void *p, MMU32 type, MMU32 number, int unpack) {
         auto h = static_cast<BackgroundResourceHost *>(p);
         return int(h->file->FFind(type, number, &h->block) && (!unpack || h->block.FUnpackData()));
     };
     s.stream = [](void *p) { return EngineReadStream::FromBlock(static_cast<BackgroundResourceHost *>(p)->block); };
-    s.name = [](void *p, ThreeMMU32 type, ThreeMMU32 number) {
+    s.name = [](void *p, MMU32 type, MMU32 number) {
         auto h = static_cast<BackgroundResourceHost *>(p);
         return int(h->file->FGetName(type, number, &h->background->_stn));
     };
@@ -102,19 +102,19 @@ ThreeMMBackgroundServices Background::_ResourceServices(void *host)
         *big = (*reinterpret_cast<const byte *>(&one) == 0) ^ (order == kboOther);
         return list;
     };
-    s.count = [](void *, void *p) -> ThreeMMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
-    s.stride = [](void *, void *p) -> ThreeMMI32 { return static_cast<PDynamicArray>(p)->CbEntry(); };
-    s.get = [](void *, void *p, ThreeMMI32 index, void *out, size_t bytes) {
+    s.count = [](void *, void *p) -> MMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
+    s.stride = [](void *, void *p) -> MMI32 { return static_cast<PDynamicArray>(p)->CbEntry(); };
+    s.get = [](void *, void *p, MMI32 index, void *out, size_t bytes) {
         std::memcpy(out, static_cast<PDynamicArray>(p)->QvGet(index), bytes);
     };
-    s.put = [](void *, void *p, ThreeMMI32 index, const void *in, size_t bytes) {
+    s.put = [](void *, void *p, MMI32 index, const void *in, size_t bytes) {
         std::memcpy(static_cast<PDynamicArray>(p)->QvGet(index), in, bytes);
     };
     s.release = [](void *, void *p) { static_cast<PDynamicArray>(p)->Release(); };
-    s.allocate = [](void *, ThreeMMI32 bytes, void **out) { return int(FAllocPv(out, bytes, fmemClear, mprNormal)); };
+    s.allocate = [](void *, MMI32 bytes, void **out) { return int(FAllocPv(out, bytes, fmemClear, mprNormal)); };
     s.free_memory = [](void *, void **out) { FreePpv(out); };
-    s.configure_light = [](void *, ThreeMMBackgroundResource *state, ThreeMMI32 index,
-                           const ThreeMMBackgroundLight *light) {
+    s.configure_light = [](void *, MMBackgroundResource *state, MMI32 index,
+                           const MMBackgroundLight *light) {
         auto actor = &static_cast<BACT *>(state->actors)[index];
         auto data = &static_cast<BLIT *>(state->lights)[index];
         data->type = static_cast<byte>(light->type);
@@ -127,22 +127,22 @@ ThreeMMBackgroundServices Background::_ResourceServices(void *host)
         std::memcpy(&actor->t.t.mat, &light->matrix, sizeof(light->matrix));
         return 1;
     };
-    s.add_light = [](void *p, ThreeMMBackgroundResource *b, ThreeMMI32 i) {
+    s.add_light = [](void *p, MMBackgroundResource *b, MMI32 i) {
         static_cast<BackgroundResourceHost *>(p)->world->AddActor(&static_cast<BACT *>(b->actors)[i]);
     };
-    s.enable_light = [](void *, ThreeMMBackgroundResource *b, ThreeMMI32 i) {
+    s.enable_light = [](void *, MMBackgroundResource *b, MMI32 i) {
         BrLightEnable(&static_cast<BACT *>(b->actors)[i]);
     };
-    s.disable_light = [](void *, ThreeMMBackgroundResource *b, ThreeMMI32 i) {
+    s.disable_light = [](void *, MMBackgroundResource *b, MMI32 i) {
         BrLightDisable(&static_cast<BACT *>(b->actors)[i]);
     };
-    s.remove_light = [](void *, ThreeMMBackgroundResource *b, ThreeMMI32 i) {
+    s.remove_light = [](void *, MMBackgroundResource *b, MMI32 i) {
         BrActorRemove(&static_cast<BACT *>(b->actors)[i]);
     };
     s.new_palette = [](void *) -> void * { return DynamicArray::PglNew(sizeof(Color)); };
     s.duplicate_palette = [](void *, void *palette) -> void * { return static_cast<PDynamicArray>(palette)->PglDup(); };
     s.diagnostic = [](void *, int issue) {
-        if (issue == THREE_MM_BACKGROUND_CAMERA_GAPS)
+        if (issue == MM_BACKGROUND_CAMERA_GAPS)
             Bug("cam chids are not consecutive!");
         else
             Warn("Error reading background");
@@ -162,13 +162,13 @@ bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl)
         PTAG tag;
         PTagList list;
     } host = {ptagBkgd, ptagl};
-    ThreeMMBackgroundTagServices s = {};
+    MMBackgroundTagServices s = {};
     s.context = &host;
-    s.insert = [](void *p, int parent, ThreeMMU32 type) {
+    s.insert = [](void *p, int parent, MMU32 type) {
         auto h = static_cast<Host *>(p);
         return int(parent ? h->list->FInsertTag(h->tag, fFalse) : h->list->FInsertChild(h->tag, 0, type));
     };
-    return three_mm_background_tags(&s) != 0;
+    return mm_background_tags(&s) != 0;
 }
 
 /***************************************************************************
@@ -177,22 +177,22 @@ bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl)
 bool Background::FCacheToHD(PTAG ptagBkgd)
 {
     AssertVarMem(ptagBkgd);
-    ThreeMMBackgroundTagServices s = {};
+    MMBackgroundTagServices s = {};
     s.context = ptagBkgd;
-    s.child = [](void *p, ThreeMMU32 type, ThreeMMTag *out) {
+    s.child = [](void *p, MMU32 type, MMTag *out) {
         TAG tag = {};
         if (!vptagm->FBuildChildTag(static_cast<PTAG>(p), 0, type, &tag))
             return 0;
         *out = TagToCore(tag);
         return 1;
     };
-    s.cache = [](void *, const ThreeMMTag *input, int children) {
+    s.cache = [](void *, const MMTag *input, int children) {
         TAG tag;
         TagFromCore(&tag, *input);
         return int(vptagm->FCacheTagToHD(&tag, children != 0));
     };
     auto tag = TagToCore(*ptagBkgd);
-    return three_mm_background_cache(&tag, &s) != 0;
+    return mm_background_cache(&tag, &s) != 0;
 }
 
 /***************************************************************************
@@ -211,20 +211,20 @@ bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
         PBaseCacheableObject *object;
         LegacyLong *bytes;
     } host = {pcrf, ppbaco, pcb};
-    ThreeMMBackgroundFactoryServices s = {};
+    MMBackgroundFactoryServices s = {};
     s.context = &host;
     s.object_bytes = sizeof(Background);
     s.actor_bytes = sizeof(BACT);
     s.light_bytes = sizeof(BLIT);
     s.create = [](void *) -> void * { return NewObj Background; };
-    s.initialize = [](void *p, void *object, ThreeMMU32 type, ThreeMMU32 number) {
+    s.initialize = [](void *p, void *object, MMU32 type, MMU32 number) {
         return int(static_cast<Background *>(object)->_FInit(static_cast<Host *>(p)->cache->Pcfl(), type, number));
     };
-    s.lights = [](void *, void *object) -> ThreeMMI32 {
+    s.lights = [](void *, void *object) -> MMI32 {
         return static_cast<Background *>(object)->_resource.light_count;
     };
     s.release = [](void *, void *object) { static_cast<Background *>(object)->Release(); };
-    s.size = [](void *p, ThreeMMI32 bytes) { *static_cast<Host *>(p)->bytes = bytes; };
+    s.size = [](void *p, MMI32 bytes) { *static_cast<Host *>(p)->bytes = bytes; };
     s.publish = [](void *p, void *object) {
         auto background = static_cast<Background *>(object);
         AssertPo(background, 0);
@@ -235,7 +235,7 @@ bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
         TrashVar(h->object);
         TrashVar(h->bytes);
     };
-    return three_mm_background_factory(ctg, cno, ppbaco != nullptr, &s) != 0;
+    return mm_background_factory(ctg, cno, ppbaco != nullptr, &s) != 0;
 }
 
 /***************************************************************************
@@ -250,7 +250,7 @@ bool Background::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     AssertPo(pcfl, 0);
     BackgroundResourceHost host = {this, pcfl, nullptr};
     auto services = _ResourceServices(&host);
-    return three_mm_background_read(&_resource, &_camera, ctg, cno, THREE_MM_BACKGROUND_STUDIO, &services) != 0;
+    return mm_background_read(&_resource, &_camera, ctg, cno, MM_BACKGROUND_STUDIO, &services) != 0;
 }
 
 /***************************************************************************
@@ -261,9 +261,9 @@ Background::~Background(void)
     AssertBaseThis(0);
     Assert(!_resource.leave_on, "Shouldn't be freeing background now");
     auto services = _ResourceServices(nullptr);
-    three_mm_background_resource_dispose(&_resource, &services);
+    mm_background_resource_dispose(&_resource, &services);
     auto camera = _CameraServices(nullptr);
-    three_mm_background_camera_dispose(&_camera, &camera);
+    mm_background_camera_dispose(&_camera, &camera);
 }
 
 /***************************************************************************
@@ -288,9 +288,9 @@ bool Background::FGetPalette(PDynamicArray *ppglclr, long *piclrMin)
     AssertVarMem(ppglclr);
     AssertVarMem(piclrMin);
     *piclrMin = _resource.palette_base;
-    ThreeMMI32 base;
+    MMI32 base;
     auto services = _ResourceServices(nullptr);
-    *ppglclr = static_cast<PDynamicArray>(three_mm_background_palette(&_resource, &base, &services));
+    *ppglclr = static_cast<PDynamicArray>(mm_background_palette(&_resource, &base, &services));
     return *ppglclr != nullptr;
 }
 
@@ -320,7 +320,7 @@ void Background::TurnOnLights(PWorld pbwld)
     AssertPo(pbwld, 0);
     BackgroundResourceHost host = {this, nullptr, pbwld};
     auto services = _ResourceServices(&host);
-    three_mm_background_lights_on(&_resource, &services);
+    mm_background_lights_on(&_resource, &services);
 }
 
 /***************************************************************************
@@ -330,7 +330,7 @@ void Background::TurnOffLights(void)
 {
     AssertThis(0);
     auto services = _ResourceServices(nullptr);
-    three_mm_background_lights_off(&_resource, &services);
+    mm_background_lights_off(&_resource, &services);
 }
 
 /***************************************************************************
@@ -345,15 +345,15 @@ struct BackgroundCameraHost
     DataBlock block;
 };
 } // namespace
-ThreeMMBackgroundCameraServices Background::_CameraServices(void *host)
+MMBackgroundCameraServices Background::_CameraServices(void *host)
 {
-    ThreeMMBackgroundCameraServices s = {};
+    MMBackgroundCameraServices s = {};
     s.context = host;
     s.lights_on = [](void *p) {
         auto h = static_cast<BackgroundCameraHost *>(p);
         h->background->TurnOnLights(h->world);
     };
-    s.read = [](void *p, ThreeMMI32 camera, ThreeMMReadStream *out, ThreeMMU32 *number) {
+    s.read = [](void *p, MMI32 camera, MMReadStream *out, MMU32 *number) {
         auto h = static_cast<BackgroundCameraHost *>(p);
         auto background = h->background;
         auto file = background->Pcrf()->Pcfl();
@@ -365,7 +365,7 @@ ThreeMMBackgroundCameraServices Background::_CameraServices(void *host)
         *out = EngineReadStream::FromBlock(h->block);
         return 1;
     };
-    s.child = [](void *p, ThreeMMU32 camera, int depth, ThreeMMU32 *number) {
+    s.child = [](void *p, MMU32 camera, int depth, MMU32 *number) {
         auto h = static_cast<BackgroundCameraHost *>(p);
         ChildChunkIdentification child;
         if (!h->background->Pcrf()->Pcfl()->FGetKidChidCtg(kctgCam, camera, 0, depth ? kctgZbmp : kctgMbmp, &child))
@@ -373,11 +373,11 @@ ThreeMMBackgroundCameraServices Background::_CameraServices(void *host)
         *number = child.cki.cno;
         return 1;
     };
-    s.background = [](void *p, ThreeMMU32 rgb, ThreeMMU32 depth) {
+    s.background = [](void *p, MMU32 rgb, MMU32 depth) {
         auto h = static_cast<BackgroundCameraHost *>(p);
         return int(h->world->FSetBackground(h->background->Pcrf(), kctgMbmp, rgb, kctgZbmp, depth));
     };
-    s.new_points = [](void *, ThreeMMI32 count) -> void * {
+    s.new_points = [](void *, MMI32 count) -> void * {
         auto points = DynamicArray::PglNew(sizeof(APOS), count);
         if (points)
             AssertDo(points->FSetIvMac(count), "Should never fail");
@@ -386,20 +386,20 @@ ThreeMMBackgroundCameraServices Background::_CameraServices(void *host)
     s.release = [](void *, void *points) { static_cast<PDynamicArray>(points)->Release(); };
     s.lock = [](void *, void *points) { static_cast<PDynamicArray>(points)->Lock(); };
     s.unlock = [](void *, void *points) { static_cast<PDynamicArray>(points)->Unlock(); };
-    s.put_point = [](void *, void *points, ThreeMMI32 index, const ThreeMMActorPoint *point) {
+    s.put_point = [](void *, void *points, MMI32 index, const MMActorPoint *point) {
         APOS value;
         value.xrPlace = point->dxr;
         value.yrPlace = point->dyr;
         value.zrPlace = point->dzr;
         static_cast<PDynamicArray>(points)->Put(index, &value);
     };
-    s.point = [](void *, void *points, ThreeMMI32 index, ThreeMMActorPoint *out) {
+    s.point = [](void *, void *points, MMI32 index, MMActorPoint *out) {
         APOS value;
         static_cast<PDynamicArray>(points)->Get(index, &value);
         *out = {value.xrPlace, value.yrPlace, value.zrPlace};
     };
-    s.point_count = [](void *, void *points) -> ThreeMMI32 { return static_cast<PDynamicArray>(points)->IvMac(); };
-    s.euler_yxy = [](void *, const ThreeMMActorMatrix *value, unsigned short *a, unsigned short *c) {
+    s.point_count = [](void *, void *points) -> MMI32 { return static_cast<PDynamicArray>(points)->IvMac(); };
+    s.euler_yxy = [](void *, const MMActorMatrix *value, unsigned short *a, unsigned short *c) {
         BMAT34 matrix;
         std::memcpy(&matrix, value, sizeof(matrix));
         BREUL angles;
@@ -408,18 +408,18 @@ ThreeMMBackgroundCameraServices Background::_CameraServices(void *host)
         *a = angles.a;
         *c = angles.c;
     };
-    s.rotate_y = [](void *, ThreeMMActorMatrix *out, unsigned short yaw) {
+    s.rotate_y = [](void *, MMActorMatrix *out, unsigned short yaw) {
         BMAT34 matrix;
         BrMatrix34RotateY(&matrix, yaw);
         std::memcpy(out, &matrix, sizeof(matrix));
     };
-    s.translate = [](void *, ThreeMMActorMatrix *out, const ThreeMMActorPoint *point) {
+    s.translate = [](void *, MMActorMatrix *out, const MMActorPoint *point) {
         BMAT34 matrix;
         std::memcpy(&matrix, out, sizeof(matrix));
         BrMatrix34PostTranslate(&matrix, point->dxr, point->dyr, point->dzr);
         std::memcpy(out, &matrix, sizeof(matrix));
     };
-    s.camera = [](void *p, const ThreeMMBackgroundCameraData *camera) {
+    s.camera = [](void *p, const MMBackgroundCameraData *camera) {
         auto h = static_cast<BackgroundCameraHost *>(p);
         BMAT34 matrix;
         std::memcpy(&matrix, &camera->matrix, sizeof(matrix));
@@ -427,7 +427,7 @@ ThreeMMBackgroundCameraServices Background::_CameraServices(void *host)
     };
     s.dirty = [](void *p) { static_cast<BackgroundCameraHost *>(p)->world->MarkDirty(); };
     s.diagnostic = [](void *, int issue) {
-        if (issue == THREE_MM_BACKGROUND_CAMERA_SHORT)
+        if (issue == MM_BACKGROUND_CAMERA_SHORT)
             Bug("CameraPosition chunk not large enough");
         else
             Bug("CameraPosition chunk's extra data not an even multiple of size(APOS)");
@@ -442,7 +442,7 @@ bool Background::FSetCamera(PWorld pbwld, long icam)
     AssertIn(icam, 0, Ccam());
     BackgroundCameraHost host = {this, pbwld};
     auto services = _CameraServices(&host);
-    return three_mm_background_camera_set(&_camera, icam, &services) != 0;
+    return mm_background_camera_set(&_camera, icam, &services) != 0;
 }
 
 /***************************************************************************
@@ -466,8 +466,8 @@ void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertVarMem(pyr);
     AssertVarMem(pzr);
     auto services = _CameraServices(nullptr);
-    ThreeMMActorPoint point;
-    three_mm_background_place(&_camera, &point, &services);
+    MMActorPoint point;
+    mm_background_place(&_camera, &point, &services);
     *pxr = point.dxr;
     *pyr = point.dyr;
     *pzr = point.dzr;
@@ -481,7 +481,7 @@ void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
 ************************************************************ PETED ***********/
 void Background::ReuseActorPlacePoint(void)
 {
-    three_mm_background_reuse_place(&_camera);
+    mm_background_reuse_place(&_camera);
 }
 
 #ifdef DEBUG

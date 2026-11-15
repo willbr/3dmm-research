@@ -41,7 +41,7 @@ class MovieEditUndo : public MovieUndo
 static bool TestMovieEdit()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_MOVIE_EDIT_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_MOVIE_EDIT_SNAPSHOT"))
         if (!(snapshot = std::fopen(path, "w+b")))
             return false;
     if (!snapshot)
@@ -185,7 +185,7 @@ static bool TestMovieEdit()
 #ifdef _WIN64
     ok = std::fflush(snapshot) == 0 && ok;
     ok = std::fseek(snapshot, 0, SEEK_SET) == 0 && ok;
-    ThreeMMU32 hash = 2166136261U;
+    MMU32 hash = 2166136261U;
     size_t bytes = 0, count;
     unsigned char buffer[4096];
     while ((count = std::fread(buffer, 1, sizeof(buffer), snapshot)) != 0)

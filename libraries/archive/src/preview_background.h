@@ -1,13 +1,13 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#ifndef THREE_MM_PREVIEW_BACKGROUND_H
-#define THREE_MM_PREVIEW_BACKGROUND_H
+#ifndef MM_PREVIEW_BACKGROUND_H
+#define MM_PREVIEW_BACKGROUND_H
 #include <memory>
 #include <vector>
 #include "preview_background_mesh.h"
 #include "soc_core.h"
-#include "three_mm/background_resource.h"
-#include "three_mm/background_preview.h"
-namespace ThreeMM
+#include "mm/background_resource.h"
+#include "mm/background_preview.h"
+namespace MM
 {
 namespace Internal
 {
@@ -17,16 +17,16 @@ class PreviewBackground
 {
     PChunkyResourceFile source = nullptr; // Borrowed from the preview's source set.
     ChunkNumber number = 0;
-    ThreeMMBackgroundPreview preview;
-    ThreeMMBackgroundPreviewServices Services(void *host);
-    void Publish(const ThreeMMBackgroundPreview &);
-    ThreeMMBackgroundResource resource = {};
-    ThreeMMBackgroundCameraState cameraState = {};
+    MMBackgroundPreview preview;
+    MMBackgroundPreviewServices Services(void *host);
+    void Publish(const MMBackgroundPreview &);
+    MMBackgroundResource resource = {};
+    MMBackgroundCameraState cameraState = {};
 
   public:
     CameraPosition camera = {};
     PreviewBufferView<ChunkNumber> cameras;
-    PreviewBufferView<ThreeMMBackgroundLight> lights;
+    PreviewBufferView<MMBackgroundLight> lights;
     PreviewBufferView<byte> colours;
     PreviewBufferView<std::uint16_t> depths;
     std::uint32_t width = 0, height = 0;
@@ -40,5 +40,5 @@ class PreviewBackground
     PreviewBackgroundMesh &Mesh();
 };
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM
 #endif

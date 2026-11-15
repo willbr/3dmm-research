@@ -1,27 +1,27 @@
 /* WAVE policy converted from Kauai wave_codec.cpp and compressed_wave.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/wave.h"
-#include "three_mm/collection_storage.h"
+#include "mm/wave.h"
+#include "mm/collection_storage.h"
 #include <string.h>
 #include <stdlib.h>
-static const ThreeMMI32 coefficients[7][2] = {{256, 0}, {512, -256}, {0, 0},     {192, 64},
+static const MMI32 coefficients[7][2] = {{256, 0}, {512, -256}, {0, 0},     {192, 64},
                                               {240, 0}, {460, -208}, {392, -232}};
-static const ThreeMMI32 adaptation[16] = {230, 230, 230, 230, 307, 409, 512, 614,
+static const MMI32 adaptation[16] = {230, 230, 230, 230, 307, 409, 512, 614,
                                           768, 614, 512, 409, 307, 230, 230, 230};
 static unsigned u16(const unsigned char *p)
 {
     return p[0] | ((unsigned)p[1] << 8);
 }
-static ThreeMMU32 u32(const unsigned char *p)
+static MMU32 u32(const unsigned char *p)
 {
-    return u16(p) | ((ThreeMMU32)u16(p + 2) << 16);
+    return u16(p) | ((MMU32)u16(p + 2) << 16);
 }
-static void word(unsigned char **p, ThreeMMU32 n)
+static void word(unsigned char **p, MMU32 n)
 {
     *(*p)++ = (unsigned char)n;
     *(*p)++ = (unsigned char)(n >> 8);
 }
-static void dword(unsigned char **p, ThreeMMU32 n)
+static void dword(unsigned char **p, MMU32 n)
 {
     word(p, n);
     word(p, n >> 16);
@@ -31,9 +31,9 @@ static void tag(unsigned char **p, const char *s)
     memcpy(*p, s, 4);
     *p += 4;
 }
-static int riff(const unsigned char *p, size_t bytes, ThreeMMU32 *end)
+static int riff(const unsigned char *p, size_t bytes, MMU32 *end)
 {
-    ThreeMMU32 n;
+    MMU32 n;
     if (!p || bytes < 12 || memcmp(p, "RIFF", 4) || memcmp(p + 8, "WAVE", 4))
         return 0;
     n = u32(p + 4);
@@ -42,11 +42,11 @@ static int riff(const unsigned char *p, size_t bytes, ThreeMMU32 *end)
     *end = n + 8;
     return 1;
 }
-int three_mm_wave_parse(const void *data, size_t bytes, ThreeMMWaveView *out)
+int mm_wave_parse(const void *data, size_t bytes, MMWaveView *out)
 {
     const unsigned char *p = (const unsigned char *)data;
-    ThreeMMWaveView v;
-    ThreeMMU32 end, at, n;
+    MMWaveView v;
+    MMU32 end, at, n;
     memset(&v, 0, sizeof(v));
     if (!out || !riff(p, bytes, &end))
         return 0;
@@ -78,38 +78,38 @@ int three_mm_wave_parse(const void *data, size_t bytes, ThreeMMWaveView *out)
     *out = v;
     return 1;
 }
-int three_mm_wave_compressed(const void *data, size_t bytes, ThreeMMWaveView *out, ThreeMMI32 *rate,
-                             ThreeMMI32 *channels)
+int mm_wave_compressed(const void *data, size_t bytes, MMWaveView *out, MMI32 *rate,
+                             MMI32 *channels)
 {
-    ThreeMMWaveView v;
-    ThreeMMU32 hz;
+    MMWaveView v;
+    MMU32 hz;
     unsigned code, ch;
-    if (!three_mm_wave_parse(data, bytes, &v))
-        return THREE_MM_WAVE_NOT_HANDLED;
+    if (!mm_wave_parse(data, bytes, &v))
+        return MM_WAVE_NOT_HANDLED;
     code = u16(v.format);
-    if (code != THREE_MM_WAVE_GSM && code != THREE_MM_WAVE_MP3)
-        return THREE_MM_WAVE_NOT_HANDLED;
+    if (code != MM_WAVE_GSM && code != MM_WAVE_MP3)
+        return MM_WAVE_NOT_HANDLED;
     hz = u32(v.format + 4);
     ch = u16(v.format + 2);
     if (!hz || hz > 0x7fffffffUL || !ch || ch > 2)
-        return THREE_MM_WAVE_INVALID;
-    if (code == THREE_MM_WAVE_GSM && (ch != 1 || v.format_bytes < 20 || u16(v.format + 12) != 65 ||
+        return MM_WAVE_INVALID;
+    if (code == MM_WAVE_GSM && (ch != 1 || v.format_bytes < 20 || u16(v.format + 12) != 65 ||
                                       u16(v.format + 14) != 0 || u16(v.format + 16) < 2 || u16(v.format + 18) != 320 ||
                                       v.data_bytes % 65 || v.data_bytes / 65 > (0x7fffffffUL / 2) / 320))
-        return THREE_MM_WAVE_INVALID;
+        return MM_WAVE_INVALID;
     *out = v;
-    *rate = (ThreeMMI32)hz;
-    *channels = (ThreeMMI32)ch;
+    *rate = (MMI32)hz;
+    *channels = (MMI32)ch;
     return (int)code;
 }
-ThreeMMU32 three_mm_wave_trim_frames(int encoding, ThreeMMU32 fact, ThreeMMU32 frames)
+MMU32 mm_wave_trim_frames(int encoding, MMU32 fact, MMU32 frames)
 {
-    return encoding == THREE_MM_WAVE_GSM && fact && fact < frames ? fact : frames;
+    return encoding == MM_WAVE_GSM && fact && fact < frames ? fact : frames;
 }
-int three_mm_wave_legacy_format(const void *data, size_t bytes)
+int mm_wave_legacy_format(const void *data, size_t bytes)
 {
     const unsigned char *p = (const unsigned char *)data, *f;
-    ThreeMMU32 end, at, n;
+    MMU32 end, at, n;
     unsigned channels, bits, i, j;
     if (!riff(p, bytes, &end))
         return 0;
@@ -148,10 +148,10 @@ int three_mm_wave_legacy_format(const void *data, size_t bytes)
     }
     return 0;
 }
-int three_mm_wave_fact_frames(const void *data, size_t bytes, ThreeMMU32 *frames)
+int mm_wave_fact_frames(const void *data, size_t bytes, MMU32 *frames)
 {
     const unsigned char *p = (const unsigned char *)data;
-    ThreeMMU32 end, at, n, count = 0;
+    MMU32 end, at, n, count = 0;
     unsigned format = 0;
     if (!frames || !riff(p, bytes, &end))
         return 0;
@@ -181,17 +181,17 @@ int three_mm_wave_fact_frames(const void *data, size_t bytes, ThreeMMU32 *frames
  * word, but the sum over a block does not. No C99 or floating-point rounding. */
 typedef struct Error
 {
-    ThreeMMU32 high, low;
+    MMU32 high, low;
 } Error;
-static ThreeMMI32 clamp(ThreeMMI32 n, ThreeMMI32 lo, ThreeMMI32 hi)
+static MMI32 clamp(MMI32 n, MMI32 lo, MMI32 hi)
 {
     return n < lo ? lo : n > hi ? hi : n;
 }
-static Error block(const ThreeMMI32 *samples, unsigned valid, int predictor, unsigned char *bytes)
+static Error block(const MMI32 *samples, unsigned valid, int predictor, unsigned char *bytes)
 {
-    ThreeMMI32 older = samples[0], last = samples[1], delta, difference, prediction, residual, nibble, decoded;
+    MMI32 older = samples[0], last = samples[1], delta, difference, prediction, residual, nibble, decoded;
     unsigned i, at;
-    ThreeMMU32 square, old;
+    MMU32 square, old;
     Error error;
     error.high = error.low = 0;
     delta = last - older;
@@ -218,7 +218,7 @@ static Error block(const ThreeMMI32 *samples, unsigned valid, int predictor, uns
             difference = -difference;
         if (i < valid)
         {
-            square = (ThreeMMU32)difference * (ThreeMMU32)difference;
+            square = (MMU32)difference * (MMU32)difference;
             old = error.low;
             error.low += square;
             if (error.low < old)
@@ -237,13 +237,13 @@ static Error block(const ThreeMMI32 *samples, unsigned valid, int predictor, uns
     }
     return error;
 }
-int three_mm_wave_encode(const unsigned char *samples, ThreeMMU32 count, ThreeMMU32 rate, unsigned channels,
-                         unsigned bits, int adpcm, unsigned char *output, ThreeMMU32 capacity, ThreeMMU32 *size)
+int mm_wave_encode(const unsigned char *samples, MMU32 count, MMU32 rate, unsigned channels,
+                         unsigned bits, int adpcm, unsigned char *output, MMU32 capacity, MMU32 *size)
 {
-    ThreeMMU32 blocks = 0, payload, total, frames, at, k, valid, sample, average;
+    MMU32 blocks = 0, payload, total, frames, at, k, valid, sample, average;
     unsigned i, j;
     unsigned char *p = output, best[256], candidate[256];
-    ThreeMMI32 input[500];
+    MMI32 input[500];
     int predictor;
     Error minimum, error;
     if (!size || !samples || !rate || rate > 0x7fffffffUL || !count || count > 0x7fffffffUL)
@@ -297,7 +297,7 @@ int three_mm_wave_encode(const unsigned char *samples, ThreeMMU32 count, ThreeMM
         word(&p, 7);
         for (i = 0; i < 7; ++i)
             for (j = 0; j < 2; ++j)
-                word(&p, (ThreeMMU32)coefficients[i][j]);
+                word(&p, (MMU32)coefficients[i][j]);
         tag(&p, "fact");
         dword(&p, 4);
         dword(&p, frames);
@@ -321,7 +321,7 @@ int three_mm_wave_encode(const unsigned char *samples, ThreeMMU32 count, ThreeMM
             sample = at * 500 + i;
             if (sample >= count)
                 sample = count - 1;
-            input[i] = ((ThreeMMI32)samples[sample] - 128) * 256;
+            input[i] = ((MMI32)samples[sample] - 128) * 256;
         }
         minimum.high = minimum.low = 0xffffffffUL;
         for (predictor = 0; predictor < 7; ++predictor)
@@ -338,20 +338,20 @@ int three_mm_wave_encode(const unsigned char *samples, ThreeMMU32 count, ThreeMM
     }
     return 1;
 }
-int three_mm_wave_import_adpcm(ThreeMMU32 samples)
+int mm_wave_import_adpcm(MMU32 samples)
 {
     return samples > 1500;
 }
-int three_mm_wave_import_keep(int legacy, ThreeMMU32 original, ThreeMMU32 encoded)
+int mm_wave_import_keep(int legacy, MMU32 original, MMU32 encoded)
 {
     return legacy && original <= encoded;
 }
 
-int three_mm_wave_prepare(const void *data, ThreeMMU32 bytes, const ThreeMMWaveImportServices *s,
-                          ThreeMMWaveBuffer *scratch, const unsigned char **out, ThreeMMU32 *size)
+int mm_wave_prepare(const void *data, MMU32 bytes, const MMWaveImportServices *s,
+                          MMWaveBuffer *scratch, const unsigned char **out, MMU32 *size)
 {
-    ThreeMMU32 decoded, encoded;
-    ThreeMMI32 count = 0;
+    MMU32 decoded, encoded;
+    MMI32 count = 0;
     unsigned char *samples = NULL;
     const unsigned char *chosen;
     int legacy, ok = 0, adpcm;
@@ -360,7 +360,7 @@ int three_mm_wave_prepare(const void *data, ThreeMMU32 bytes, const ThreeMMWaveI
         return 0;
     if (!s->load(s->context, data, bytes, &decoded) || !decoded || decoded > 0x7fffffffUL)
         return 0;
-    legacy = three_mm_wave_legacy_format(data, bytes);
+    legacy = mm_wave_legacy_format(data, bytes);
     if (legacy && bytes <= 346)
     {
         *out = (const unsigned char *)data;
@@ -369,13 +369,13 @@ int three_mm_wave_prepare(const void *data, ThreeMMU32 bytes, const ThreeMMWaveI
     }
     if (!s->convert_u8(s->context, &samples, &count) || count <= 0 || !samples)
         goto done;
-    adpcm = three_mm_wave_import_adpcm((ThreeMMU32)count);
-    if (!three_mm_wave_encode(samples, (ThreeMMU32)count, 11025, 1, 8, adpcm, NULL, 0, &encoded) ||
-        !three_mm_wave_buffer_reserve(scratch, encoded) ||
-        !three_mm_wave_encode(samples, (ThreeMMU32)count, 11025, 1, 8, adpcm, scratch->data, encoded, &encoded))
+    adpcm = mm_wave_import_adpcm((MMU32)count);
+    if (!mm_wave_encode(samples, (MMU32)count, 11025, 1, 8, adpcm, NULL, 0, &encoded) ||
+        !mm_wave_buffer_reserve(scratch, encoded) ||
+        !mm_wave_encode(samples, (MMU32)count, 11025, 1, 8, adpcm, scratch->data, encoded, &encoded))
         goto done;
     chosen = scratch->data;
-    if (three_mm_wave_import_keep(legacy, bytes, encoded))
+    if (mm_wave_import_keep(legacy, bytes, encoded))
     {
         chosen = (const unsigned char *)data;
         encoded = bytes;
@@ -389,20 +389,20 @@ done:
     return ok;
 }
 
-static void *wave_resize(void *ctx, void *p, ThreeMMU32 old, ThreeMMU32 n, int priority)
+static void *wave_resize(void *ctx, void *p, MMU32 old, MMU32 n, int priority)
 {
     (void)ctx;
     (void)old;
     (void)priority;
     return realloc(p, (size_t)n);
 }
-static void wave_release(void *ctx, void *p, ThreeMMU32 n)
+static void wave_release(void *ctx, void *p, MMU32 n)
 {
     (void)ctx;
     (void)n;
     free(p);
 }
-int three_mm_wave_buffer_init(ThreeMMWaveBuffer *b, const ThreeMMStorageAllocator *a)
+int mm_wave_buffer_init(MMWaveBuffer *b, const MMStorageAllocator *a)
 {
     if (!b || (a && (!a->resize || !a->release)))
         return 0;
@@ -416,21 +416,21 @@ int three_mm_wave_buffer_init(ThreeMMWaveBuffer *b, const ThreeMMStorageAllocato
     }
     return 1;
 }
-int three_mm_wave_buffer_reserve(ThreeMMWaveBuffer *b, ThreeMMU32 n)
+int mm_wave_buffer_reserve(MMWaveBuffer *b, MMU32 n)
 {
     void *p;
     if (!b || !b->allocator.resize || n > 0x7fffffffUL || (size_t)n != n)
         return 0;
     if (n <= b->capacity)
         return 1;
-    p = b->allocator.resize(b->allocator.context, b->data, b->capacity, n, THREE_MM_STORAGE_NORMAL);
+    p = b->allocator.resize(b->allocator.context, b->data, b->capacity, n, MM_STORAGE_NORMAL);
     if (!p)
         return 0;
     b->data = (unsigned char *)p;
     b->capacity = n;
     return 1;
 }
-void three_mm_wave_buffer_dispose(ThreeMMWaveBuffer *b)
+void mm_wave_buffer_dispose(MMWaveBuffer *b)
 {
     if (b->data)
         b->allocator.release(b->allocator.context, b->data, b->capacity);

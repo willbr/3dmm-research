@@ -3,7 +3,7 @@
 static bool TestActorCreation(PMovie movie)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_ACTOR_CREATE_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_ACTOR_CREATE_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     bool ok=true; int successes=0,bodyFailures=0;

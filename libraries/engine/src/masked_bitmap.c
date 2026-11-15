@@ -1,19 +1,19 @@
 /* Masked bitmap policy converted from Kauai mbmp.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/masked_bitmap.h"
-#include "three_mm/wide.h"
+#include "mm/masked_bitmap.h"
+#include "mm/wide.h"
 #include <string.h>
 #define MAXIMUM 2147483647
 #define MINIMUM (-2147483647 - 1)
-static ThreeMMU32 word(const unsigned char *p, unsigned n, int big)
+static MMU32 word(const unsigned char *p, unsigned n, int big)
 {
-    ThreeMMU32 v = 0;
+    MMU32 v = 0;
     unsigned i;
     for (i = 0; i < n; ++i)
         v = (v << 8) | p[big ? i : n - i - 1];
     return v;
 }
-static void put(unsigned char *p, unsigned n, ThreeMMU32 v, int big)
+static void put(unsigned char *p, unsigned n, MMU32 v, int big)
 {
     unsigned i;
     for (i = 0; i < n; ++i)
@@ -22,17 +22,17 @@ static void put(unsigned char *p, unsigned n, ThreeMMU32 v, int big)
         v >>= 8;
     }
 }
-static int subtract(ThreeMMI32 a, ThreeMMI32 b, ThreeMMI32 *out)
+static int subtract(MMI32 a, MMI32 b, MMI32 *out)
 {
     if ((b > 0 && a < MINIMUM + b) || (b < 0 && a > MAXIMUM + b))
         return 0;
     *out = a - b;
     return 1;
 }
-static int row_encode(const unsigned char *src, ThreeMMI32 width, unsigned char transparent, int mask,
+static int row_encode(const unsigned char *src, MMI32 width, unsigned char transparent, int mask,
                       unsigned char *out)
 {
-    ThreeMMI32 i = 0, run = 0, n = 0, j;
+    MMI32 i = 0, run = 0, n = 0, j;
     int trans = 1, opaque = 0;
     for (j = 0; j < width; ++j)
         if (src[j] != transparent)
@@ -74,24 +74,24 @@ static int row_encode(const unsigned char *src, ThreeMMI32 width, unsigned char 
     }
     return (int)n;
 }
-static void canonical(unsigned char *b, ThreeMMI32 n, const ThreeMMMaskedServices *s)
+static void canonical(unsigned char *b, MMI32 n, const MMMaskedServices *s)
 {
     put(b, 2, 1, s->host_big_endian);
     put(b + 2, 2, s->system, s->host_big_endian);
     put(b + 6, 2, 0, s->host_big_endian);
-    put(b + 24, 4, (ThreeMMU32)n, s->host_big_endian);
+    put(b + 24, 4, (MMU32)n, s->host_big_endian);
 }
-void three_mm_masked_dispose(ThreeMMMaskedBitmap *m, const ThreeMMMaskedServices *s)
+void mm_masked_dispose(MMMaskedBitmap *m, const MMMaskedServices *s)
 {
     s->free_memory(s->context, &m->data);
     m->bytes = m->row_bytes = 0;
 }
-int three_mm_masked_init(ThreeMMMaskedBitmap *m, const unsigned char *pixels, ThreeMMI32 row, ThreeMMI32 height,
-                         const ThreeMMMaskedRect *extract, ThreeMMI32 xref, ThreeMMI32 yref, unsigned char transparent,
-                         unsigned flags, unsigned char fill, const ThreeMMMaskedServices *s)
+int mm_masked_init(MMMaskedBitmap *m, const unsigned char *pixels, MMI32 row, MMI32 height,
+                         const MMMaskedRect *extract, MMI32 xref, MMI32 yref, unsigned char transparent,
+                         unsigned flags, unsigned char fill, const MMMaskedServices *s)
 {
-    ThreeMMMaskedRect r;
-    ThreeMMI32 x, y, sy, n, table, at, left = MAXIMUM, top = MAXIMUM, right = 0, bottom = 0;
+    MMMaskedRect r;
+    MMI32 x, y, sy, n, table, at, left = MAXIMUM, top = MAXIMUM, right = 0, bottom = 0;
     int count, mask = (flags & 2) != 0;
     unsigned char *b;
     void *data = NULL;
@@ -117,7 +117,7 @@ int three_mm_masked_init(ThreeMMMaskedBitmap *m, const unsigned char *pixels, Th
     if (left == MAXIMUM)
     {
         left = top = right = bottom = 0;
-        s->diagnostic(s->context, THREE_MM_MASKED_EMPTY);
+        s->diagnostic(s->context, MM_MASKED_EMPTY);
     }
     if (!subtract(left, xref, &r.left) || !subtract(right, xref, &r.right) || !subtract(top, yref, &r.top) ||
         !subtract(bottom, yref, &r.bottom))
@@ -141,50 +141,50 @@ int three_mm_masked_init(ThreeMMMaskedBitmap *m, const unsigned char *pixels, Th
     canonical(b, n, s);
     b[4] = (unsigned char)mask;
     b[5] = fill;
-    put(b + 8, 4, (ThreeMMU32)r.left, s->host_big_endian);
-    put(b + 12, 4, (ThreeMMU32)r.top, s->host_big_endian);
-    put(b + 16, 4, (ThreeMMU32)r.right, s->host_big_endian);
-    put(b + 20, 4, (ThreeMMU32)r.bottom, s->host_big_endian);
+    put(b + 8, 4, (MMU32)r.left, s->host_big_endian);
+    put(b + 12, 4, (MMU32)r.top, s->host_big_endian);
+    put(b + 16, 4, (MMU32)r.right, s->host_big_endian);
+    put(b + 20, 4, (MMU32)r.bottom, s->host_big_endian);
     at = 28 + table;
     for (y = top; y < bottom; ++y)
     {
         sy = (flags & 1) ? height - y - 1 : y;
         count = row_encode(pixels + sy * row + left, right - left, transparent, mask, b + at);
-        put(b + 28 + (y - top) * 2, 2, (ThreeMMU32)count, s->host_big_endian);
+        put(b + 28 + (y - top) * 2, 2, (MMU32)count, s->host_big_endian);
         at += count;
     }
-    three_mm_masked_dispose(m, s);
+    mm_masked_dispose(m, s);
     m->data = data;
     m->bytes = n;
     m->row_bytes = table;
     return 1;
 }
-void *three_mm_masked_new(const unsigned char *pixels, ThreeMMI32 row, ThreeMMI32 height, const ThreeMMMaskedRect *r,
-                          ThreeMMI32 x, ThreeMMI32 y, unsigned char transparent, unsigned flags, unsigned char fill,
-                          const ThreeMMMaskedServices *s)
+void *mm_masked_new(const unsigned char *pixels, MMI32 row, MMI32 height, const MMMaskedRect *r,
+                          MMI32 x, MMI32 y, unsigned char transparent, unsigned flags, unsigned char fill,
+                          const MMMaskedServices *s)
 {
     void *o = s->create(s->context);
-    if (o && !three_mm_masked_init(s->state(s->context, o), pixels, row, height, r, x, y, transparent, flags, fill, s))
+    if (o && !mm_masked_init(s->state(s->context, o), pixels, row, height, r, x, y, transparent, flags, fill, s))
     {
         s->release(s->context, o);
         o = NULL;
     }
     return o;
 }
-void three_mm_masked_bounds(const ThreeMMMaskedBitmap *m, int big, ThreeMMMaskedRect *r)
+void mm_masked_bounds(const MMMaskedBitmap *m, int big, MMMaskedRect *r)
 {
     const unsigned char *b = (const unsigned char *)m->data;
-    r->left = three_mm_signed_word(word(b + 8, 4, big));
-    r->top = three_mm_signed_word(word(b + 12, 4, big));
-    r->right = three_mm_signed_word(word(b + 16, 4, big));
-    r->bottom = three_mm_signed_word(word(b + 20, 4, big));
+    r->left = mm_signed_word(word(b + 8, 4, big));
+    r->top = mm_signed_word(word(b + 12, 4, big));
+    r->right = mm_signed_word(word(b + 16, 4, big));
+    r->bottom = mm_signed_word(word(b + 20, 4, big));
 }
-int three_mm_masked_validate(ThreeMMMaskedBitmap *m, int big)
+int mm_masked_validate(MMMaskedBitmap *m, int big)
 {
     unsigned char *b = (unsigned char *)m->data;
-    ThreeMMMaskedRect r;
-    ThreeMMU32 marker, width, height, i, offset;
-    ThreeMMI32 n = m->bytes, rows, at, end, pos, dxp, k, len;
+    MMMaskedRect r;
+    MMU32 marker, width, height, i, offset;
+    MMI32 n = m->bytes, rows, at, end, pos, dxp, k, len;
     int source = big;
     if (n < 28 || !b)
         return 0;
@@ -193,7 +193,7 @@ int three_mm_masked_validate(ThreeMMMaskedBitmap *m, int big)
         source = !big;
     else if (marker != 1)
         return 0;
-    if (word(b + 6, 2, source) || word(b + 24, 4, source) != (ThreeMMU32)n)
+    if (word(b + 6, 2, source) || word(b + 24, 4, source) != (MMU32)n)
         return 0;
     if (source != big)
     {
@@ -203,28 +203,28 @@ int three_mm_masked_validate(ThreeMMMaskedBitmap *m, int big)
             put(b + i, 4, word(b + i, 4, source), big);
         put(b, 2, 1, big);
     }
-    three_mm_masked_bounds(m, big, &r);
+    mm_masked_bounds(m, big, &r);
     if (r.bottom == r.top)
     {
         if (n != 28)
             return 0;
-        put(b + 16, 4, (ThreeMMU32)r.left, big);
+        put(b + 16, 4, (MMU32)r.left, big);
         m->row_bytes = 0;
         return 1;
     }
     if (r.bottom < r.top || r.right <= r.left)
         return 0;
-    width = (ThreeMMU32)r.right - (ThreeMMU32)r.left;
-    height = (ThreeMMU32)r.bottom - (ThreeMMU32)r.top;
-    if (width > MAXIMUM || height > (ThreeMMU32)(n - 28) / 2)
+    width = (MMU32)r.right - (MMU32)r.left;
+    height = (MMU32)r.bottom - (MMU32)r.top;
+    if (width > MAXIMUM || height > (MMU32)(n - 28) / 2)
         return 0;
-    rows = (ThreeMMI32)height * 2;
+    rows = (MMI32)height * 2;
     at = 28 + rows;
-    for (offset = 28; offset < (ThreeMMU32)(28 + rows); offset += 2)
+    for (offset = 28; offset < (MMU32)(28 + rows); offset += 2)
     {
-        len = (ThreeMMI32)word(b + offset, 2, source);
+        len = (MMI32)word(b + offset, 2, source);
         if (source != big)
-            put(b + offset, 2, (ThreeMMU32)len, big);
+            put(b + offset, 2, (MMU32)len, big);
         if (len > 32767 || len > n - at)
             return 0;
         end = at + len;
@@ -233,13 +233,13 @@ int three_mm_masked_validate(ThreeMMMaskedBitmap *m, int big)
         while (pos < end)
         {
             k = b[pos++];
-            if ((ThreeMMU32)k > width - (ThreeMMU32)dxp)
+            if ((MMU32)k > width - (MMU32)dxp)
                 return 0;
             dxp += k;
             if (pos == end)
                 break;
             k = b[pos++];
-            if ((ThreeMMU32)k > width - (ThreeMMU32)dxp)
+            if ((MMU32)k > width - (MMU32)dxp)
                 return 0;
             dxp += k;
             if (!b[4])
@@ -256,21 +256,21 @@ int three_mm_masked_validate(ThreeMMMaskedBitmap *m, int big)
     m->row_bytes = rows;
     return 1;
 }
-int three_mm_masked_hit(const ThreeMMMaskedBitmap *m, int big, ThreeMMI32 x, ThreeMMI32 y)
+int mm_masked_hit(const MMMaskedBitmap *m, int big, MMI32 x, MMI32 y)
 {
     const unsigned char *b = (const unsigned char *)m->data;
-    ThreeMMMaskedRect r;
-    ThreeMMI32 row, at, end, len, pos, skip, count;
+    MMMaskedRect r;
+    MMI32 row, at, end, len, pos, skip, count;
     if (!b || m->bytes < 28 || m->row_bytes < 0 || m->row_bytes > m->bytes - 28)
         return 0;
-    three_mm_masked_bounds(m, big, &r);
+    mm_masked_bounds(m, big, &r);
     if (x < r.left || x >= r.right || y < r.top || y >= r.bottom || !subtract(x, r.left, &x) ||
         !subtract(y, r.top, &y) || y >= m->row_bytes / 2)
         return 0;
     at = 28 + m->row_bytes;
     for (row = 0; row <= y; ++row)
     {
-        len = (ThreeMMI32)word(b + 28 + row * 2, 2, big);
+        len = (MMI32)word(b + 28 + row * 2, 2, big);
         if (len > 32767 || len > m->bytes - at)
             return 0;
         if (row == y)
@@ -296,9 +296,9 @@ int three_mm_masked_hit(const ThreeMMMaskedBitmap *m, int big, ThreeMMI32 x, Thr
     }
     return 0;
 }
-void *three_mm_masked_read(void *block, const ThreeMMMaskedServices *s)
+void *mm_masked_read(void *block, const MMMaskedServices *s)
 {
-    ThreeMMMaskedBitmap m;
+    MMMaskedBitmap m;
     void *o;
     memset(&m, 0, sizeof(m));
     if (!s->unpack(s->context, block))
@@ -310,7 +310,7 @@ void *three_mm_masked_read(void *block, const ThreeMMMaskedServices *s)
         goto fail;
     if (s->is_memory(s->context, block))
         s->consume(s->context, block);
-    if (!three_mm_masked_validate(&m, s->host_big_endian))
+    if (!mm_masked_validate(&m, s->host_big_endian))
         goto fail;
     o = s->create(s->context);
     if (!o)
@@ -318,12 +318,12 @@ void *three_mm_masked_read(void *block, const ThreeMMMaskedServices *s)
     *s->state(s->context, o) = m;
     return o;
 fail:
-    three_mm_masked_dispose(&m, s);
+    mm_masked_dispose(&m, s);
     return NULL;
 }
-int three_mm_masked_fetch(void *block, int want, const ThreeMMMaskedServices *s)
+int mm_masked_fetch(void *block, int want, const MMMaskedServices *s)
 {
-    ThreeMMI32 n = s->size(s->context, block, 1);
+    MMI32 n = s->size(s->context, block, 1);
     void *o;
     if (!want)
     {
@@ -333,7 +333,7 @@ int three_mm_masked_fetch(void *block, int want, const ThreeMMMaskedServices *s)
     if (!s->unpack(s->context, block))
         goto fail;
     n = s->size(s->context, block, 0);
-    o = three_mm_masked_read(block, s);
+    o = mm_masked_read(block, s);
     if (!o)
         goto fail;
     s->publish_fetch(s->context, 1, o, n);
@@ -342,23 +342,23 @@ fail:
     s->publish_fetch(s->context, 0, NULL, 0);
     return 0;
 }
-int three_mm_masked_write(ThreeMMMaskedBitmap *m, void *block, const ThreeMMMaskedServices *s)
+int mm_masked_write(MMMaskedBitmap *m, void *block, const MMMaskedServices *s)
 {
     if (!m->data || m->bytes < 28)
         return 0;
     canonical((unsigned char *)m->data, m->bytes, s);
     if (m->bytes != s->size(s->context, block, 0))
     {
-        s->diagnostic(s->context, THREE_MM_MASKED_WRONG_SIZE);
+        s->diagnostic(s->context, MM_MASKED_WRONG_SIZE);
         return 0;
     }
     return s->write(s->context, block, m->data, m->bytes);
 }
-void *three_mm_masked_import(void *filename, unsigned char transparent, ThreeMMI32 x, ThreeMMI32 y, unsigned flags,
-                             unsigned char fill, const ThreeMMMaskedServices *s)
+void *mm_masked_import(void *filename, unsigned char transparent, MMI32 x, MMI32 y, unsigned flags,
+                             unsigned char fill, const MMMaskedServices *s)
 {
-    ThreeMMMaskedSource input;
-    ThreeMMMaskedRect r;
+    MMMaskedSource input;
+    MMMaskedRect r;
     void *o = NULL;
     memset(&input, 0, sizeof(input));
     if (!s->bitmap_read(s->context, filename, transparent, &input))
@@ -367,7 +367,7 @@ void *three_mm_masked_import(void *filename, unsigned char transparent, ThreeMMI
     r.right = input.width;
     r.bottom = input.height;
     if (input.width > 0 && input.width <= MAXIMUM - 3)
-        o = three_mm_masked_new((const unsigned char *)input.pixels, (input.width + 3) & ~3, input.height, &r, x, y,
+        o = mm_masked_new((const unsigned char *)input.pixels, (input.width + 3) & ~3, input.height, &r, x, y,
                                 transparent, input.upside_down ? flags : flags ^ 1U, fill, s);
     s->free_memory(s->context, &input.pixels);
     return o;

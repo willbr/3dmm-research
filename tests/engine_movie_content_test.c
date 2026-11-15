@@ -1,5 +1,5 @@
 /* Movie content transaction ownership, failure prefixes and caption selection. */
-#include "three_mm/movie_content.h"
+#include "mm/movie_content.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x)                                                                                                       \
@@ -72,7 +72,7 @@ typedef struct Actor
 {
     Test *test;
     int refs, id, value;
-    ThreeMMTag tag;
+    MMTag tag;
 } Actor;
 typedef struct Caption
 {
@@ -81,14 +81,14 @@ typedef struct Caption
 } Caption;
 struct Test
 {
-    ThreeMMMovieContentServices s;
-    ThreeMMMovieState data;
-    ThreeMMMovieScenes scenes;
+    MMMovieContentServices s;
+    MMMovieState data;
+    MMMovieScenes scenes;
     Resource before, after;
     Name name;
     Actor actor, copy, inserted;
     Caption captions[3], *selected;
-    ThreeMMRollCallActor rows[2];
+    MMRollCallActor rows[2];
     int count, fail, events[128], n, refs, opened, closed, textRefs, writes, chunks;
     int dirty, invalidates, bars, releases, restored, removeActor, nuked, cacheBegin, cacheEnd;
     int captionCount, attached, missing, hidden, removed, queries, query[8], characterCalls;
@@ -124,7 +124,7 @@ static int temp(void *p)
     t->data.resources = &t->after;
     return t->fail != FAIL_TEMP;
 }
-static int write_asset(void *p, void *f, ThreeMMU32 *number)
+static int write_asset(void *p, void *f, MMU32 *number)
 {
     Test *t = p;
     note(t, WRITE);
@@ -134,9 +134,9 @@ static int write_asset(void *p, void *f, ThreeMMU32 *number)
     *number = 27;
     return t->fail != FAIL_WRITE;
 }
-static void *text(const void *p, ThreeMMI32 shape, const void *font_input)
+static void *text(const void *p, MMI32 shape, const void *font_input)
 {
-    const ThreeMMTag *font = font_input;
+    const MMTag *font = font_input;
     const Name *name = p;
     Test *t = name->test;
     note(t, NEW_TEXT);
@@ -151,7 +151,7 @@ static void release_text(void *p)
     note(t, TEXT_RELEASE);
     --t->textRefs;
 }
-static int open_tag(ThreeMMTag *tag, void *p)
+static int open_tag(MMTag *tag, void *p)
 {
     Resource *r = p;
     Test *t = r->test;
@@ -164,7 +164,7 @@ static int open_tag(ThreeMMTag *tag, void *p)
     ++t->opened;
     return 1;
 }
-static void close_tag(ThreeMMTag *tag)
+static void close_tag(MMTag *tag)
 {
     Test *t = tag->cache;
     note(t, CLOSE);
@@ -172,11 +172,11 @@ static void close_tag(ThreeMMTag *tag)
     ++t->closed;
     tag->cache = 0;
 }
-static ThreeMMI32 length(const void *p)
+static MMI32 length(const void *p)
 {
-    return (ThreeMMI32)strlen(((const Name *)p)->text);
+    return (MMI32)strlen(((const Name *)p)->text);
 }
-static ThreeMMI32 character(const void *p, ThreeMMI32 i)
+static MMI32 character(const void *p, MMI32 i)
 {
     const Name *n = p;
     ++n->test->characterCalls;
@@ -209,7 +209,7 @@ static void restore(void *p, void *q)
     a->value = copy->value;
     a->tag = copy->tag;
 }
-static int change(void *p, const ThreeMMTag *tag)
+static int change(void *p, const MMTag *tag)
 {
     Actor *a = p;
     note(a->test, TEMPLATE);
@@ -219,17 +219,17 @@ static int change(void *p, const ThreeMMTag *tag)
     a->tag = *tag;
     return 1;
 }
-static ThreeMMI32 actor_id(void *p)
+static MMI32 actor_id(void *p)
 {
     return ((Actor *)p)->id;
 }
-static void set_id(void *p, ThreeMMI32 id)
+static void set_id(void *p, MMI32 id)
 {
     Actor *a = p;
     note(a->test, SET_ID);
     a->id = id;
 }
-static void actor_tag(void *p, ThreeMMTag *tag)
+static void actor_tag(void *p, MMTag *tag)
 {
     *tag = ((Actor *)p)->tag;
 }
@@ -238,26 +238,26 @@ static int is_prop(void *p)
     (void)p;
     return 1;
 }
-static ThreeMMI32 rows(void *p)
+static MMI32 rows(void *p)
 {
     return ((Test *)p)->count;
 }
-static void row(void *p, ThreeMMI32 i, ThreeMMRollCallActor *out)
+static void row(void *p, MMI32 i, MMRollCallActor *out)
 {
     *out = ((Test *)p)->rows[i];
 }
-static void put(void *p, ThreeMMI32 i, const ThreeMMRollCallActor *r)
+static void put(void *p, MMI32 i, const MMRollCallActor *r)
 {
     Test *t = p;
     note(t, ROW_PUT);
     t->rows[i] = *r;
 }
-static void open_row(void *p, ThreeMMTag *tag, void *r)
+static void open_row(void *p, MMTag *tag, void *r)
 {
     (void)p;
     open_tag(tag, r);
 }
-static int append(void *p, const void *name, const ThreeMMRollCallActor *r)
+static int append(void *p, const void *name, const MMRollCallActor *r)
 {
     Test *t = p;
     note(t, APPEND);
@@ -282,7 +282,7 @@ static void invalidate(void *p, int bars)
     ++t->invalidates;
     t->bars = bars;
 }
-static int cache(void *p, const ThreeMMTag *tag, int background)
+static int cache(void *p, const MMTag *tag, int background)
 {
     Test *t = p;
     return !background && tag->type == 0x544d504cU && t->fail != FAIL_CACHE;
@@ -295,7 +295,7 @@ static void long_op(void *p, int begin)
     else
         ++t->cacheEnd;
 }
-static void *new_actor(void *p, const ThreeMMTag *tag)
+static void *new_actor(void *p, const MMTag *tag)
 {
     Test *t = p;
     if (t->fail == FAIL_ACTOR)
@@ -316,7 +316,7 @@ static void *selected_actor(void *p)
 {
     return &((Test *)p)->actor;
 }
-static int remove_actor(void *p, ThreeMMI32 id)
+static int remove_actor(void *p, MMI32 id)
 {
     Test *t = p;
     ++t->removeActor;
@@ -335,12 +335,12 @@ static void *new_caption(void *p, const void *bounds, int story)
     t->captions[0].refs = 1;
     return &t->captions[0];
 }
-static ThreeMMI32 default_font(void *p)
+static MMI32 default_font(void *p)
 {
     note(p, DEFAULT_FONT);
     return 23;
 }
-static void caption_font(void *p, ThreeMMI32 value)
+static void caption_font(void *p, MMI32 value)
 {
     Caption *c = p;
     note(c->test, FONT);
@@ -395,7 +395,7 @@ static int visible_caption(void *p)
 {
     return ((Caption *)p)->visible;
 }
-static void *caption_at(void *p, ThreeMMI32 index)
+static void *caption_at(void *p, MMI32 index)
 {
     Test *t = p;
     t->query[t->queries++] = index;
@@ -407,8 +407,8 @@ static void missing(void *p)
 }
 static void init(Test *t)
 {
-    ThreeMMMovieContentServices *s = &t->s;
-    ThreeMMMovieEditServices *e = &s->edit;
+    MMMovieContentServices *s = &t->s;
+    MMMovieEditServices *e = &s->edit;
     memset(t, 0, sizeof(*t));
     t->before.test = t;
     t->after.test = t;
@@ -492,7 +492,7 @@ static void init(Test *t)
 static int material(void)
 {
     Test t;
-    ThreeMMTag output;
+    MMTag output;
     int written, fault;
     for (fault = 0; fault < 4; ++fault)
     {
@@ -500,7 +500,7 @@ static int material(void)
         t.fail = fault == 1 ? FAIL_ENSURE : fault == 2 ? FAIL_WRITE : fault == 3 ? FAIL_OPEN : 0;
         memset(&output, 0, sizeof(output));
         output.number = 999;
-        CHECK(three_mm_movie_insert_material(&t, &output, &written, &t.s) == !fault);
+        CHECK(mm_movie_insert_material(&t, &output, &written, &t.s) == !fault);
         CHECK(written == (fault != 1 && fault != 2));
         CHECK(t.writes == (fault != 1) && t.chunks == (fault != 1) && !t.dirty && !t.invalidates);
         if (written)
@@ -519,7 +519,7 @@ static int material(void)
 static int inserting(void)
 {
     Test t;
-    ThreeMMTag font;
+    MMTag font;
     int fault;
     memset(&font, 0, sizeof(font));
     font.sid = 123;
@@ -529,7 +529,7 @@ static int inserting(void)
                               FAIL_OPEN, FAIL_CACHE, FAIL_ACTOR, FAIL_ADD};
         init(&t);
         t.fail = faults[fault];
-        CHECK(three_mm_movie_insert_text(&t.name, 4, &font, &t.s) == !fault);
+        CHECK(mm_movie_insert_text(&t.name, 4, &font, &t.s) == !fault);
         CHECK(!t.textRefs && !t.refs && t.opened == t.closed && t.dirty == !fault && t.invalidates == !fault);
         CHECK(t.inserted.refs == !fault && t.cacheBegin == t.cacheEnd);
         if (fault != 1 && fault != 2 && fault != 3)
@@ -549,7 +549,7 @@ static int inserting(void)
 static int changing(void)
 {
     Test t;
-    ThreeMMTag font;
+    MMTag font;
     int fault;
     const int faults[] = {0,         FAIL_TEXT, FAIL_VALID,    FAIL_TEMP,  FAIL_WRITE,
                           FAIL_OPEN, FAIL_DUP,  FAIL_TEMPLATE, FAIL_APPEND};
@@ -559,7 +559,7 @@ static int changing(void)
     {
         init(&t);
         t.fail = faults[fault];
-        CHECK(three_mm_movie_change_text(&t.actor, &t.name, 4, &font, &t.s) == !fault);
+        CHECK(mm_movie_change_text(&t.actor, &t.name, 4, &font, &t.s) == !fault);
         CHECK(!t.copy.refs && !t.textRefs && t.refs == !fault && t.dirty == !fault && !t.invalidates);
         CHECK(t.restored == (fault == 8) && t.count == 1 + !fault &&
               t.data.actorIdLimit == (fault == 0 || fault == 8 ? 11 : 10));
@@ -568,7 +568,7 @@ static int changing(void)
             const int suffix[] = {SET_ID, OPEN, APPEND, ROLL_CHANGED, ROW_PUT, ACTOR_RELEASE, CLOSE, DIRTY};
             CHECK(t.actor.id == 10 && t.actor.value == 99 && t.rows[0].data.reference_count == 1);
             CHECK(t.n >= 8 && !memcmp(t.events + t.n - 8, suffix, sizeof(suffix)));
-            font = three_mm_movie_rollcall_tag(&t.rows[1]);
+            font = mm_movie_rollcall_tag(&t.rows[1]);
             close_tag(&font);
             font.sid = 123;
         }
@@ -581,16 +581,16 @@ static int changing(void)
     }
     init(&t);
     t.name.text = "   ";
-    CHECK(three_mm_movie_change_text(&t.actor, &t.name, 4, 0, &t.s) && t.removeActor == 1 && t.nuked == 1);
+    CHECK(mm_movie_change_text(&t.actor, &t.name, 4, 0, &t.s) && t.removeActor == 1 && t.nuked == 1);
     CHECK(!t.writes && t.dirty == 1 && t.bars && t.characterCalls == 3);
     init(&t);
     t.name.text = "";
     t.fail = FAIL_ADD;
-    CHECK(!three_mm_movie_change_text(&t.actor, &t.name, 4, 0, &t.s) && !t.dirty && !t.nuked && !t.characterCalls);
+    CHECK(!mm_movie_change_text(&t.actor, &t.name, 4, 0, &t.s) && !t.dirty && !t.nuked && !t.characterCalls);
     init(&t);
     t.name.text = "\t";
-    CHECK(three_mm_movie_change_text(&t.actor, &t.name, 4, &font, &t.s) && !t.removeActor && t.writes == 1);
-    font = three_mm_movie_rollcall_tag(&t.rows[1]);
+    CHECK(mm_movie_change_text(&t.actor, &t.name, 4, &font, &t.s) && !t.removeActor && t.writes == 1);
+    font = mm_movie_rollcall_tag(&t.rows[1]);
     close_tag(&font);
     return 0;
 }
@@ -602,7 +602,7 @@ static int captions(void)
     {
         init(&t);
         t.fail = fault == 1 ? FAIL_CAPTION : fault == 2 ? FAIL_CAPTION_ADD : 0;
-        CHECK(three_mm_movie_insert_caption(&t, 1, &t.s) == !fault);
+        CHECK(mm_movie_insert_caption(&t, 1, &t.s) == !fault);
         CHECK(t.captions[0].refs == !fault && t.attached == !fault && !t.dirty);
         CHECK(t.captionCount == (fault != 1));
         if (!fault)
@@ -622,19 +622,19 @@ static int captions(void)
             if (fault != 1)
                 t.selected = &t.captions[2];
             t.fail = fault == 2 ? FAIL_CAPTION_EDIT : 0;
-            CHECK(three_mm_movie_remove_caption(hide, &t.s) == !fault);
+            CHECK(mm_movie_remove_caption(hide, &t.s) == !fault);
             CHECK(t.missing == (fault == 1) && t.hidden == (hide && fault != 1) && t.removed == (!hide && fault != 1));
         }
     init(&t);
-    three_mm_movie_select_caption(-1, &t.s);
+    mm_movie_select_caption(-1, &t.s);
     CHECK(!t.queries && !t.selected);
-    three_mm_movie_select_caption(1, &t.s);
+    mm_movie_select_caption(1, &t.s);
     CHECK(t.queries == 3 && t.query[0] == 0 && t.query[1] == 1 && t.query[2] == 2 && t.selected == &t.captions[2]);
     t.queries = 0;
-    three_mm_movie_select_caption(2, &t.s);
+    mm_movie_select_caption(2, &t.s);
     CHECK(t.queries == 4 && t.query[3] == 3 && t.selected == &t.captions[2]);
     t.queries = 0;
-    three_mm_movie_select_caption(0, &t.s);
+    mm_movie_select_caption(0, &t.s);
     CHECK(t.queries == 1 && t.selected == &t.captions[0]);
     return 0;
 }

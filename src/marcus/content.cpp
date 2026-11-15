@@ -11,8 +11,8 @@
 #include <stdexcept>
 
 namespace fs = std::filesystem;
-namespace V = ThreeMM::V3dmm;
-namespace C = ThreeMM::Content;
+namespace V = MM::V3dmm;
+namespace C = MM::Content;
 struct MarcusContent::Impl
 {
     std::shared_ptr<MarcusMovieFile> input;

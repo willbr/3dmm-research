@@ -63,7 +63,7 @@ everything is consolidated.
 
 ## Shared C89 reader
 
-[`three_mm/chunky_file.h`](../../libraries/engine/include/three_mm/chunky_file.h)
+[`mm/chunky_file.h`](../../libraries/engine/include/mm/chunky_file.h)
 and [`chunky_file.c`](../../libraries/engine/src/chunky_file.c) decode the CHN2
 header and GG index, including compact/expanded entries and legacy byte orders.
 Kauai's `ChunkyFile` adapter supplies positional reads and materializes writable

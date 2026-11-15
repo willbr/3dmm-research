@@ -1,13 +1,13 @@
 /* Sound management policy converted from Kauai sndm.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/sound_manager.h"
-#include "three_mm/wide.h"
+#include "mm/sound_manager.h"
+#include "mm/wide.h"
 #include <stddef.h>
-int three_mm_sound_manager_find(const ThreeMMSoundManagerServices *s, ThreeMMU32 tag, ThreeMMSoundEndpoint *out,
-                                ThreeMMI32 *index)
+int mm_sound_manager_find(const MMSoundManagerServices *s, MMU32 tag, MMSoundEndpoint *out,
+                                MMI32 *index)
 {
-    ThreeMMI32 i;
-    ThreeMMSoundEndpoint e;
+    MMI32 i;
+    MMSoundEndpoint e;
     for (i = 0; i < s->count(s->context); ++i)
     {
         s->get(s->context, i, &e);
@@ -24,13 +24,13 @@ int three_mm_sound_manager_find(const ThreeMMSoundManagerServices *s, ThreeMMU32
         *index = s->count(s->context);
     return 0;
 }
-int three_mm_sound_manager_add(const ThreeMMSoundManagerServices *s, const ThreeMMSoundControl *state, ThreeMMU32 tag,
+int mm_sound_manager_add(const MMSoundManagerServices *s, const MMSoundControl *state, MMU32 tag,
                                void *object)
 {
-    ThreeMMSoundEndpoint e;
-    ThreeMMI32 i, n;
+    MMSoundEndpoint e;
+    MMI32 i, n;
     s->retain(s->context, object);
-    if (three_mm_sound_manager_find(s, tag, &e, &i))
+    if (mm_sound_manager_find(s, tag, &e, &i))
     {
         s->release(s->context, e.object);
         e.object = object;
@@ -46,79 +46,79 @@ int three_mm_sound_manager_add(const ThreeMMSoundManagerServices *s, const Three
             return 0;
         }
     }
-    s->call(s->context, object, THREE_MM_SOUND_ACTIVE, state->active, 0);
+    s->call(s->context, object, MM_SOUND_ACTIVE, state->active, 0);
     for (n = 0; n < state->suspended; ++n)
-        s->call(s->context, object, THREE_MM_SOUND_SUSPEND, 1, 0);
+        s->call(s->context, object, MM_SOUND_SUSPEND, 1, 0);
     return 1;
 }
-void three_mm_sound_manager_remove(const ThreeMMSoundManagerServices *s, ThreeMMU32 tag)
+void mm_sound_manager_remove(const MMSoundManagerServices *s, MMU32 tag)
 {
-    ThreeMMSoundEndpoint e;
-    ThreeMMI32 i;
-    if (!three_mm_sound_manager_find(s, tag, &e, &i))
+    MMSoundEndpoint e;
+    MMI32 i;
+    if (!mm_sound_manager_find(s, tag, &e, &i))
         return;
     s->erase(s->context, i);
     s->release(s->context, e.object);
 }
-ThreeMMI32 three_mm_sound_dispatch(const ThreeMMSoundManagerServices *s, int op, int filter, ThreeMMU32 tag,
-                                   ThreeMMI32 first, ThreeMMI32 second)
+MMI32 mm_sound_dispatch(const MMSoundManagerServices *s, int op, int filter, MMU32 tag,
+                                   MMI32 first, MMI32 second)
 {
-    ThreeMMI32 i, value, result = 0;
-    ThreeMMSoundEndpoint e;
+    MMI32 i, value, result = 0;
+    MMSoundEndpoint e;
     for (i = 0; i < s->count(s->context); ++i)
     {
         s->get(s->context, i, &e);
         if (filter && e.tag != tag)
             continue;
         value = s->call(s->context, e.object, op, first, second);
-        if ((op == THREE_MM_SOUND_INSTANCE_PLAYING || op == THREE_MM_SOUND_ALL_PLAYING) && value)
+        if ((op == MM_SOUND_INSTANCE_PLAYING || op == MM_SOUND_ALL_PLAYING) && value)
             return 1;
-        if (op == THREE_MM_SOUND_GET_VOLUME && value > result)
+        if (op == MM_SOUND_GET_VOLUME && value > result)
             result = value;
     }
     return result;
 }
-void three_mm_sound_activate(const ThreeMMSoundManagerServices *s, ThreeMMSoundControl *state, int active, int queues)
+void mm_sound_activate(const MMSoundManagerServices *s, MMSoundControl *state, int active, int queues)
 {
     if ((active != 0) == (state->active != 0))
         return;
     state->active = active != 0;
     if (queues)
-        s->call(s->context, NULL, THREE_MM_SOUND_SUSPEND, state->suspended > 0 || !state->active, 0);
+        s->call(s->context, NULL, MM_SOUND_SUSPEND, state->suspended > 0 || !state->active, 0);
     else
-        three_mm_sound_dispatch(s, THREE_MM_SOUND_ACTIVE, 0, 0, active, 0);
+        mm_sound_dispatch(s, MM_SOUND_ACTIVE, 0, 0, active, 0);
 }
-void three_mm_sound_suspend(const ThreeMMSoundManagerServices *s, ThreeMMSoundControl *state, int suspend, int queues)
+void mm_sound_suspend(const MMSoundManagerServices *s, MMSoundControl *state, int suspend, int queues)
 {
-    state->suspended = three_mm_signed_word((ThreeMMU32)state->suspended + (suspend ? 1U : 0xffffffffUL));
+    state->suspended = mm_signed_word((MMU32)state->suspended + (suspend ? 1U : 0xffffffffUL));
     if (queues)
-        s->call(s->context, NULL, THREE_MM_SOUND_SUSPEND, state->suspended > 0 || !state->active, 0);
+        s->call(s->context, NULL, MM_SOUND_SUSPEND, state->suspended > 0 || !state->active, 0);
     else
-        three_mm_sound_dispatch(s, THREE_MM_SOUND_SUSPEND, 0, 0, suspend, 0);
+        mm_sound_dispatch(s, MM_SOUND_SUSPEND, 0, 0, suspend, 0);
 }
-ThreeMMI32 three_mm_sound_next_id(ThreeMMI32 previous)
+MMI32 mm_sound_next_id(MMI32 previous)
 {
-    return three_mm_signed_word((ThreeMMU32)previous + 1U);
+    return mm_signed_word((MMU32)previous + 1U);
 }
-ThreeMMI32 three_mm_sound_manager_play(const ThreeMMSoundManagerServices *s, const ThreeMMSoundPlay *p,
-                                       ThreeMMI32 first, ThreeMMI32 last)
+MMI32 mm_sound_manager_play(const MMSoundManagerServices *s, const MMSoundPlay *p,
+                                       MMI32 first, MMI32 last)
 {
-    ThreeMMSoundEndpoint e;
-    if (p->sound_class < first || p->sound_class > last || !three_mm_sound_manager_find(s, p->type, &e, NULL))
+    MMSoundEndpoint e;
+    if (p->sound_class < first || p->sound_class > last || !mm_sound_manager_find(s, p->type, &e, NULL))
         return s->allocate_id(s->context);
     return s->play(s->context, e.object, p);
 }
-int three_mm_sound_ensure_queue(const ThreeMMSoundManagerServices *s, ThreeMMI32 queue, ThreeMMI32 anonymous,
-                                ThreeMMI32 any_class, ThreeMMSoundEndpoint *out, ThreeMMI32 *index)
+int mm_sound_ensure_queue(const MMSoundManagerServices *s, MMI32 queue, MMI32 anonymous,
+                                MMI32 any_class, MMSoundEndpoint *out, MMI32 *index)
 {
-    ThreeMMI32 i, empty = -1;
-    ThreeMMSoundEndpoint e;
+    MMI32 i, empty = -1;
+    MMSoundEndpoint e;
     for (i = s->count(s->context); i-- > 0;)
     {
         s->get(s->context, i, &e);
-        if (e.tag == (ThreeMMU32)queue && queue != anonymous)
+        if (e.tag == (MMU32)queue && queue != anonymous)
             goto found;
-        if (empty == -1 && !s->call(s->context, e.object, THREE_MM_SOUND_ALL_PLAYING, any_class, 0))
+        if (empty == -1 && !s->call(s->context, e.object, MM_SOUND_ALL_PLAYING, any_class, 0))
         {
             empty = i;
             if (queue == anonymous)
@@ -128,11 +128,11 @@ int three_mm_sound_ensure_queue(const ThreeMMSoundManagerServices *s, ThreeMMI32
     if ((i = empty) != -1)
     {
         s->get(s->context, i, &e);
-        e.tag = (ThreeMMU32)queue;
+        e.tag = (MMU32)queue;
         s->put(s->context, i, &e);
         goto found;
     }
-    e.tag = (ThreeMMU32)queue;
+    e.tag = (MMU32)queue;
     e.object = s->create_queue(s->context);
     i = s->count(s->context);
     if (!e.object || !s->insert(s->context, i, &e))
@@ -148,25 +148,25 @@ found:
         *index = i;
     return 1;
 }
-void three_mm_sound_queues_flush(const ThreeMMSoundManagerServices *s, ThreeMMI32 any_class)
+void mm_sound_queues_flush(const MMSoundManagerServices *s, MMI32 any_class)
 {
-    ThreeMMI32 i;
-    ThreeMMSoundEndpoint e;
+    MMI32 i;
+    MMSoundEndpoint e;
     for (i = s->count(s->context); i-- > 0;)
     {
         s->get(s->context, i, &e);
-        s->call(s->context, e.object, THREE_MM_SOUND_FLUSH, 0, 0);
-        if (!s->call(s->context, e.object, THREE_MM_SOUND_ALL_PLAYING, any_class, 0) && s->count(s->context) > 1)
+        s->call(s->context, e.object, MM_SOUND_FLUSH, 0, 0);
+        if (!s->call(s->context, e.object, MM_SOUND_ALL_PLAYING, any_class, 0) && s->count(s->context) > 1)
         {
             s->release(s->context, e.object);
             s->erase(s->context, i);
         }
     }
 }
-void three_mm_sound_endpoints_release(const ThreeMMSoundManagerServices *s, int reverse)
+void mm_sound_endpoints_release(const MMSoundManagerServices *s, int reverse)
 {
-    ThreeMMI32 i, count = s->count(s->context);
-    ThreeMMSoundEndpoint e;
+    MMI32 i, count = s->count(s->context);
+    MMSoundEndpoint e;
     for (i = 0; i < (reverse ? count : s->count(s->context)); ++i)
     {
         s->get(s->context, reverse ? count - 1 - i : i, &e);

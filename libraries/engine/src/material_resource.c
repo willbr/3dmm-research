@@ -1,17 +1,17 @@
 /* Material resources converted from engine mtrl.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/material_resource.h"
-#include "three_mm/wide.h"
+#include "mm/material_resource.h"
+#include "mm/wide.h"
 #include <string.h>
-static ThreeMMU32 word(const unsigned char *p, unsigned n, int big)
+static MMU32 word(const unsigned char *p, unsigned n, int big)
 {
-    ThreeMMU32 v = 0;
+    MMU32 v = 0;
     unsigned i;
     for (i = 0; i < n; ++i)
         v = (v << 8) | p[big ? i : n - 1 - i];
     return v;
 }
-static void put(unsigned char *p, unsigned n, ThreeMMU32 v, int big)
+static void put(unsigned char *p, unsigned n, MMU32 v, int big)
 {
     unsigned i;
     for (i = 0; i < n; ++i)
@@ -20,9 +20,9 @@ static void put(unsigned char *p, unsigned n, ThreeMMU32 v, int big)
         v >>= 8;
     }
 }
-int three_mm_material_header_read(const unsigned char *b, int big, ThreeMMU32 windows, ThreeMMMaterialDescription *d)
+int mm_material_header_read(const unsigned char *b, int big, MMU32 windows, MMMaterialDescription *d)
 {
-    ThreeMMU32 bo = word(b, 2, big);
+    MMU32 bo = word(b, 2, big);
     if (bo == 256)
     {
         big = !big;
@@ -36,10 +36,10 @@ int three_mm_material_header_read(const unsigned char *b, int big, ThreeMMU32 wi
     d->specular = word(b + 12, 2, big);
     d->index_base = b[14];
     d->index_range = b[15];
-    d->power = three_mm_signed_word(word(b + 16, 4, big));
+    d->power = mm_signed_word(word(b + 16, 4, big));
     return 1;
 }
-void three_mm_material_header_write(unsigned char *b, int big, ThreeMMU32 system, const ThreeMMMaterialDescription *d)
+void mm_material_header_write(unsigned char *b, int big, MMU32 system, const MMMaterialDescription *d)
 {
     put(b, 2, 1, big);
     put(b + 2, 2, system, big);
@@ -49,11 +49,11 @@ void three_mm_material_header_write(unsigned char *b, int big, ThreeMMU32 system
     put(b + 12, 2, d->specular, big);
     b[14] = (unsigned char)d->index_base;
     b[15] = (unsigned char)d->index_range;
-    put(b + 16, 4, (ThreeMMU32)d->power, big);
+    put(b + 16, 4, (MMU32)d->power, big);
 }
-static void defaults(void *handle, ThreeMMI32 base, ThreeMMI32 range, const ThreeMMMaterialServices *s)
+static void defaults(void *handle, MMI32 base, MMI32 range, const MMMaterialServices *s)
 {
-    ThreeMMMaterialDescription d;
+    MMMaterialDescription d;
     s->describe(s->context, handle, &d);
     d.ambient = 6553;
     d.diffuse = d.specular = 39321;
@@ -64,17 +64,17 @@ static void defaults(void *handle, ThreeMMI32 base, ThreeMMI32 range, const Thre
     d.flags = s->light_flag | s->gouraud_flag;
     s->configure(s->context, handle, &d);
 }
-static void *allocate(void *object, const ThreeMMMaterialServices *s)
+static void *allocate(void *object, const MMMaterialServices *s)
 {
-    ThreeMMMaterialResource *m = s->material_state(s->context, object);
+    MMMaterialResource *m = s->material_state(s->context, object);
     m->handle = s->allocate_material(s->context);
     if (m->handle)
         s->identify(s->context, m->handle, object);
     return m->handle;
 }
-void *three_mm_material_new(ThreeMMI32 base, ThreeMMI32 range, const ThreeMMMaterialServices *s)
+void *mm_material_new(MMI32 base, MMI32 range, const MMMaterialServices *s)
 {
-    void *object = s->create(s->context, THREE_MM_MATERIAL), *handle;
+    void *object = s->create(s->context, MM_MATERIAL), *handle;
     if (!object)
         return NULL;
     handle = allocate(object, s);
@@ -87,13 +87,13 @@ void *three_mm_material_new(ThreeMMI32 base, ThreeMMI32 range, const ThreeMMMate
     s->add_material(s->context, handle);
     return object;
 }
-void *three_mm_material_texture(const ThreeMMMaterialResource *m, const ThreeMMMaterialServices *s)
+void *mm_material_texture(const MMMaterialResource *m, const MMMaterialServices *s)
 {
     return m->handle ? s->texture(s->context, m->handle) : NULL;
 }
-void three_mm_material_dispose(ThreeMMMaterialResource *m, const ThreeMMMaterialServices *s)
+void mm_material_dispose(MMMaterialResource *m, const MMMaterialServices *s)
 {
-    void *texture = three_mm_material_texture(m, s);
+    void *texture = mm_material_texture(m, s);
     if (texture)
     {
         s->release(s->context, texture);
@@ -106,10 +106,10 @@ void three_mm_material_dispose(ThreeMMMaterialResource *m, const ThreeMMMaterial
         m->handle = NULL;
     }
 }
-static void attach(void *handle, void *texture, void *raw, const ThreeMMMaterialShade *shade,
-                   const ThreeMMMaterialServices *s)
+static void attach(void *handle, void *texture, void *raw, const MMMaterialShade *shade,
+                   const MMMaterialServices *s)
 {
-    ThreeMMMaterialDescription d;
+    MMMaterialDescription d;
     s->describe(s->context, handle, &d);
     s->map(s->context, handle, texture, raw, shade->texture);
     d.flags |= s->map_flag;
@@ -117,11 +117,11 @@ static void attach(void *handle, void *texture, void *raw, const ThreeMMMaterial
     d.index_range = (unsigned)(s->height(s->context, shade->texture) - 1) & 255U;
     s->configure(s->context, handle, &d);
 }
-static int read_header(void *file, ThreeMMU32 type, ThreeMMU32 number, void *b, ThreeMMI32 n, int exact,
-                       const ThreeMMMaterialServices *s)
+static int read_header(void *file, MMU32 type, MMU32 number, void *b, MMI32 n, int exact,
+                       const MMMaterialServices *s)
 {
     void *block = s->find(s->context, file, type, number);
-    ThreeMMI32 bytes;
+    MMI32 bytes;
     if (!block || !s->unpack(s->context, block))
         return 0;
     bytes = s->size(s->context, block);
@@ -129,22 +129,22 @@ static int read_header(void *file, ThreeMMU32 type, ThreeMMU32 number, void *b, 
         return 0;
     return s->read(s->context, block, b, n);
 }
-static int read_material(void *object, void *cache, ThreeMMU32 type, ThreeMMU32 number,
-                         const ThreeMMMaterialShade *shade, const ThreeMMMaterialServices *s)
+static int read_material(void *object, void *cache, MMU32 type, MMU32 number,
+                         const MMMaterialShade *shade, const MMMaterialServices *s)
 {
-    ThreeMMMaterialResource *m = s->material_state(s->context, object);
-    ThreeMMMaterialDescription d;
-    ThreeMMMaterialChild child;
+    MMMaterialResource *m = s->material_state(s->context, object);
+    MMMaterialDescription d;
+    MMMaterialChild child;
     unsigned char b[28];
-    ThreeMMI32 matrix[6];
+    MMI32 matrix[6];
     unsigned i;
     int big;
     void *file = s->file(s->context, cache), *texture;
     if (!read_header(file, type, number, b, 20, 0, s))
         return 0;
-    if (!three_mm_material_header_read(b, s->host_big_endian, s->windows_system, &d))
+    if (!mm_material_header_read(b, s->host_big_endian, s->windows_system, &d))
     {
-        s->diagnostic(s->context, THREE_MM_MATERIAL_BAD_FILE);
+        s->diagnostic(s->context, MM_MATERIAL_BAD_FILE);
         return 0;
     }
     if (!allocate(object, s))
@@ -154,7 +154,7 @@ static int read_material(void *object, void *cache, ThreeMMU32 type, ThreeMMU32 
     s->configure(s->context, m->handle, &d);
     if (s->child(s->context, file, type, number, 0, s->texture_type, &child))
     {
-        texture = s->fetch(s->context, cache, &child, THREE_MM_MATERIAL_TEXTURE);
+        texture = s->fetch(s->context, cache, &child, MM_MATERIAL_TEXTURE);
         if (!texture)
             return 0;
         attach(m->handle, texture, NULL, shade, s);
@@ -172,31 +172,31 @@ static int read_material(void *object, void *cache, ThreeMMU32 type, ThreeMMU32 
             if (word(b, 2, big) != 1)
                 big = !big;
             if (word(b, 2, big) != 1)
-                s->diagnostic(s->context, THREE_MM_MATERIAL_BAD_TRANSFORM_ORDER);
+                s->diagnostic(s->context, MM_MATERIAL_BAD_TRANSFORM_ORDER);
             for (i = 0; i < 6; ++i)
-                matrix[i] = three_mm_signed_word(word(b + 4 + i * 4, 4, big));
+                matrix[i] = mm_signed_word(word(b + 4 + i * 4, 4, big));
             s->transform(s->context, m->handle, matrix);
         }
     }
     s->add_material(s->context, m->handle);
     return 1;
 }
-int three_mm_material_read(void *object, void *cache, ThreeMMU32 type, ThreeMMU32 number,
-                           const ThreeMMMaterialShade *shade, const ThreeMMMaterialServices *s)
+int mm_material_read(void *object, void *cache, MMU32 type, MMU32 number,
+                           const MMMaterialShade *shade, const MMMaterialServices *s)
 {
     int ok = read_material(object, cache, type, number, shade, s);
     s->close_block(s->context);
     return ok;
 }
-int three_mm_material_fetch(void *cache, ThreeMMU32 type, ThreeMMU32 number, void *out, void *size,
-                            const ThreeMMMaterialShade *shade, const ThreeMMMaterialServices *s)
+int mm_material_fetch(void *cache, MMU32 type, MMU32 number, void *out, void *size,
+                            const MMMaterialShade *shade, const MMMaterialServices *s)
 {
     void *object;
     memcpy(size, &s->material_bytes, 4);
     if (!out)
         return 1;
-    object = s->create(s->context, THREE_MM_MATERIAL);
-    if (!object || !three_mm_material_read(object, cache, type, number, shade, s))
+    object = s->create(s->context, MM_MATERIAL);
+    if (!object || !mm_material_read(object, cache, type, number, shade, s))
     {
         s->invalidate(s->context, out, sizeof(object));
         s->invalidate(s->context, size, 4);
@@ -207,18 +207,18 @@ int three_mm_material_fetch(void *cache, ThreeMMU32 type, ThreeMMU32 number, voi
     memcpy(out, &object, sizeof(object));
     return 1;
 }
-int three_mm_material_write(const ThreeMMMaterialResource *m, void *file, ThreeMMU32 type, ThreeMMU32 *number,
-                            const ThreeMMMaterialServices *s)
+int mm_material_write(const MMMaterialResource *m, void *file, MMU32 type, MMU32 *number,
+                            const MMMaterialServices *s)
 {
-    ThreeMMMaterialDescription d;
-    ThreeMMMaterialChild child;
+    MMMaterialDescription d;
+    MMMaterialChild child;
     unsigned char b[20];
     void *texture;
     s->describe(s->context, m->handle, &d);
-    three_mm_material_header_write(b, s->host_big_endian, s->system, &d);
+    mm_material_header_write(b, s->host_big_endian, s->system, &d);
     if (!s->add_chunk(s->context, file, type, b, 20, number))
         return 0;
-    texture = three_mm_material_texture(m, s);
+    texture = mm_material_texture(m, s);
     if (texture)
     {
         child.type = s->texture_type;
@@ -237,17 +237,17 @@ int three_mm_material_write(const ThreeMMMaterialResource *m, void *file, ThreeM
     }
     return 1;
 }
-int three_mm_material_shade_set(ThreeMMMaterialShade *m, void *file, ThreeMMU32 type, ThreeMMU32 number,
-                                const ThreeMMMaterialServices *s)
+int mm_material_shade_set(MMMaterialShade *m, void *file, MMU32 type, MMU32 number,
+                                const MMMaterialServices *s)
 {
     void *replacement = s->read_texture(s->context, file, type, number);
     if (!replacement)
         return 0;
-    three_mm_material_shade_dispose(m, s);
+    mm_material_shade_dispose(m, s);
     m->texture = replacement;
     return 1;
 }
-void three_mm_material_shade_dispose(ThreeMMMaterialShade *m, const ThreeMMMaterialServices *s)
+void mm_material_shade_dispose(MMMaterialShade *m, const MMMaterialServices *s)
 {
     if (m->texture)
     {
@@ -255,12 +255,12 @@ void three_mm_material_shade_dispose(ThreeMMMaterialShade *m, const ThreeMMMater
         m->texture = NULL;
     }
 }
-void *three_mm_material_import(void *filename, void *palette, int bitmap, const ThreeMMMaterialShade *shade,
-                               const ThreeMMMaterialServices *s)
+void *mm_material_import(void *filename, void *palette, int bitmap, const MMMaterialShade *shade,
+                               const MMMaterialServices *s)
 {
     void *object, *handle, *texture, *raw = NULL;
-    ThreeMMMaterialDescription d;
-    object = bitmap ? three_mm_material_new(-1, -1, s) : s->create(s->context, THREE_MM_MATERIAL);
+    MMMaterialDescription d;
+    object = bitmap ? mm_material_new(-1, -1, s) : s->create(s->context, MM_MATERIAL);
     if (!object)
         return NULL;
     handle = bitmap ? s->material_state(s->context, object)->handle : allocate(object, s);

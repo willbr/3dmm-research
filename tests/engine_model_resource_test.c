@@ -1,4 +1,4 @@
-#include "three_mm/model_resource.h"
+#include "mm/model_resource.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,11 +6,11 @@
 
 typedef struct Fixture
 {
-    ThreeMMModelResource owner;
-    ThreeMMModelDescription description;
+    MMModelResource owner;
+    MMModelDescription description;
     unsigned char block[144], vertices[64], written[144];
-    ThreeMMModelFace face;
-    ThreeMMI32 points[2][3];
+    MMModelFace face;
+    MMI32 points[2][3];
     int size, fail, step, objects, models, memory, adds, removes, invalid, warnings, bad;
     int components, published, bound, reads, prepared, flags, identified, geometry;
 } Fixture;
@@ -18,7 +18,7 @@ static int next(Fixture *f)
 {
     return ++f->step != f->fail;
 }
-static ThreeMMModelResource *state(void *p, void *object)
+static MMModelResource *state(void *p, void *object)
 {
     Fixture *f = (Fixture *)p;
     assert(object == f);
@@ -30,7 +30,7 @@ static void *create(void *p)
     if (!next(f))
         return NULL;
     ++f->objects;
-    three_mm_model_init(&f->owner);
+    mm_model_init(&f->owner);
     return f;
 }
 static void remove_model(void *p, void *h)
@@ -62,13 +62,13 @@ static int unpack(void *p, void *b)
     assert(p == b);
     return next((Fixture *)p);
 }
-static ThreeMMI32 size(void *p, void *b, int packed)
+static MMI32 size(void *p, void *b, int packed)
 {
     Fixture *f = (Fixture *)p;
     assert(p == b);
     return packed ? 7 : f->size;
 }
-static int read_bytes(void *p, void *b, void *out, ThreeMMI32 bytes, ThreeMMI32 at)
+static int read_bytes(void *p, void *b, void *out, MMI32 bytes, MMI32 at)
 {
     Fixture *f = (Fixture *)p;
     assert(p == b && at >= 0 && at + bytes <= f->size);
@@ -79,7 +79,7 @@ static int read_bytes(void *p, void *b, void *out, ThreeMMI32 bytes, ThreeMMI32 
         memcpy(out, f->block + at, (size_t)bytes);
     return 1;
 }
-static int allocate(void *p, ThreeMMI32 bytes, int clear, void **out)
+static int allocate(void *p, MMI32 bytes, int clear, void **out)
 {
     Fixture *f = (Fixture *)p;
     *out = NULL;
@@ -110,14 +110,14 @@ static void invalidate(void *p, void *out, size_t bytes)
 static void diagnostic(void *p, int code)
 {
     Fixture *f = (Fixture *)p;
-    assert(code == THREE_MM_MODEL_BAD_ORDER || code == THREE_MM_MODEL_BAD_COUNT);
+    assert(code == MM_MODEL_BAD_ORDER || code == MM_MODEL_BAD_COUNT);
     ++f->bad;
 }
 static void warning(void *p)
 {
     ++((Fixture *)p)->warnings;
 }
-static void *allocate_model(void *p, ThreeMMI32 vertices, ThreeMMI32 faces)
+static void *allocate_model(void *p, MMI32 vertices, MMI32 faces)
 {
     Fixture *f = (Fixture *)p;
     assert((vertices == 0 || vertices == 2) && (faces == 0 || faces == 1));
@@ -132,7 +132,7 @@ static void identify(void *p, void *h, void *object)
     assert(h == &f->description && p == object);
     ++f->identified;
 }
-static void copy_input(void *p, void *h, const void *v, const void *faces, ThreeMMI32 nv, ThreeMMI32 nf)
+static void copy_input(void *p, void *h, const void *v, const void *faces, MMI32 nv, MMI32 nf)
 {
     Fixture *f = (Fixture *)p;
     assert(h == &f->description && nv == 2 && nf == 1 && v && faces);
@@ -143,7 +143,7 @@ static void add(void *p, void *h)
     assert(h == &f->description);
     ++f->adds;
 }
-static int component(void *p, void *h, int kind, ThreeMMI32 bytes)
+static int component(void *p, void *h, int kind, MMI32 bytes)
 {
     Fixture *f = (Fixture *)p;
     assert(h == &f->description && kind >= 0 && kind <= 3 && bytes > 0);
@@ -157,20 +157,20 @@ static void *vertex_data(void *p, void *h, int prepared)
     assert(h == &f->description);
     return f->vertices;
 }
-static void set_face(void *p, void *h, int prepared, ThreeMMI32 index, const ThreeMMModelFace *face)
+static void set_face(void *p, void *h, int prepared, MMI32 index, const MMModelFace *face)
 {
     Fixture *f = (Fixture *)p;
     (void)prepared;
     assert(h == &f->description && index == 0);
     f->face = *face;
 }
-static void get_face(void *p, void *h, ThreeMMI32 index, ThreeMMModelFace *face)
+static void get_face(void *p, void *h, MMI32 index, MMModelFace *face)
 {
     Fixture *f = (Fixture *)p;
     assert(h == &f->description && index == 0);
     *face = f->face;
 }
-static void publish(void *p, void *h, const ThreeMMModelDescription *d, unsigned flag, ThreeMMI32 vg, ThreeMMI32 fg)
+static void publish(void *p, void *h, const MMModelDescription *d, unsigned flag, MMI32 vg, MMI32 fg)
 {
     Fixture *f = (Fixture *)p;
     assert(h == &f->description && flag == 64 && vg == 1 && fg == 1);
@@ -184,20 +184,20 @@ static void bind(void *p, void *h, int face)
     assert(h == &f->description && (face == 0 || face == 1));
     ++f->bound;
 }
-static void describe(void *p, void *h, ThreeMMModelDescription *d)
+static void describe(void *p, void *h, MMModelDescription *d)
 {
     Fixture *f = (Fixture *)p;
     assert(h == &f->description);
     *d = f->description;
 }
-static void geometry(void *p, void *h, const ThreeMMModelDescription *d)
+static void geometry(void *p, void *h, const MMModelDescription *d)
 {
     Fixture *f = (Fixture *)p;
     assert(h == &f->description);
     f->description = *d;
     ++f->geometry;
 }
-static int put(void *p, void *file, ThreeMMU32 type, ThreeMMU32 number, const void *data, ThreeMMI32 bytes)
+static int put(void *p, void *file, MMU32 type, MMU32 number, const void *data, MMI32 bytes)
 {
     Fixture *f = (Fixture *)p;
     assert(file == f && type == 3 && number == 7 && bytes == 144);
@@ -206,13 +206,13 @@ static int put(void *p, void *file, ThreeMMU32 type, ThreeMMU32 number, const vo
     memcpy(f->written, data, (size_t)bytes);
     return 1;
 }
-static void position(void *p, void *h, ThreeMMI32 i, ThreeMMI32 out[3])
+static void position(void *p, void *h, MMI32 i, MMI32 out[3])
 {
     Fixture *f = (Fixture *)p;
     assert(h == &f->description && i < 2);
     memcpy(out, f->points[i], sizeof(f->points[i]));
 }
-static void set_position(void *p, void *h, ThreeMMI32 i, const ThreeMMI32 in[3])
+static void set_position(void *p, void *h, MMI32 i, const MMI32 in[3])
 {
     Fixture *f = (Fixture *)p;
     assert(h == &f->description && i < 2);
@@ -242,7 +242,7 @@ static void prepare(void *p, void *h, unsigned value)
 }
 static void init(Fixture *f, int big, int prepared)
 {
-    ThreeMMModelFace face;
+    MMModelFace face;
     int i;
     memset(f, 0, sizeof(*f));
     f->size = 144;
@@ -263,7 +263,7 @@ static void init(Fixture *f, int big, int prepared)
     face.normal[1] = -3;
     face.normal[2] = 32767;
     face.distance = -12345;
-    three_mm_model_face_write(f->block + 112, big, &face);
+    mm_model_face_write(f->block + 112, big, &face);
     /* Discard input material and implicit padding, preserve explicit _pad0. */
     f->block[124] = 19;
     f->block[138] = 0x73;
@@ -271,20 +271,20 @@ static void init(Fixture *f, int big, int prepared)
     for (i = 0; i < 64; ++i)
         f->block[48 + i] = (unsigned char)(i * 3 + 1);
 }
-static void load_tests(ThreeMMModelServices *s)
+static void load_tests(MMModelServices *s)
 {
     Fixture *f = (Fixture *)s->context;
     int big, prepared, fail, ok, steps;
-    ThreeMMI32 bytes;
+    MMI32 bytes;
     void *out;
-    ThreeMMModelDescription d;
+    MMModelDescription d;
     int bad;
     for (big = 0; big < 2; ++big)
         for (prepared = 0; prepared < 2; ++prepared)
         {
             s->host_big_endian = big;
             init(f, big, prepared);
-            assert(three_mm_model_fetch(f, &out, &bytes, s));
+            assert(mm_model_fetch(f, &out, &bytes, s));
             steps = f->step;
             assert(out == f && bytes == 144 && f->adds == 1 && f->identified == 1 &&
                    !memcmp(f->vertices, f->block + 48, 64));
@@ -299,11 +299,11 @@ static void load_tests(ThreeMMModelServices *s)
                 f->fail = fail;
                 bytes = 9;
                 out = NULL;
-                ok = three_mm_model_fetch(f, &out, &bytes, s);
+                ok = mm_model_fetch(f, &out, &bytes, s);
                 assert(!ok && f->invalid == 2 && !f->objects && !f->models && !f->memory);
             }
             init(f, big, prepared);
-            assert(three_mm_model_fetch(f, NULL, &bytes, s) && bytes == 7 && !f->step);
+            assert(mm_model_fetch(f, NULL, &bytes, s) && bytes == 7 && !f->step);
             /* Foreign header uses host-native payload unchanged, as legacy did. */
             init(f, big, prepared);
             {
@@ -323,7 +323,7 @@ static void load_tests(ThreeMMModelServices *s)
                     f->block[i + 3] = header[i];
                 }
             }
-            assert(three_mm_model_fetch(f, &out, &bytes, s) && f->face.normal[0] == -32768 &&
+            assert(mm_model_fetch(f, &out, &bytes, s) && f->face.normal[0] == -32768 &&
                    !memcmp(f->vertices, f->block + 48, 64));
             object_release(f, f);
         }
@@ -332,30 +332,30 @@ static void load_tests(ThreeMMModelServices *s)
     for (fail = 0; fail < 144; ++fail)
     {
         f->size = fail;
-        three_mm_model_init(&f->owner);
+        mm_model_init(&f->owner);
         f->objects = 1;
-        assert(!three_mm_model_read(f, f, s));
+        assert(!mm_model_read(f, f, s));
         object_release(f, f);
         assert(!f->models && !f->memory);
     }
     init(f, 0, 1);
     f->block[4] = 0xff;
     f->block[5] = 0xff;
-    assert(!three_mm_model_header(f->block, 0, &d, &bad) && !bad && d.vertices == -1);
+    assert(!mm_model_header(f->block, 0, &d, &bad) && !bad && d.vertices == -1);
     f->objects = 1;
-    assert(!three_mm_model_read(f, f, s) && !f->owner.handle && f->bad == 1);
+    assert(!mm_model_read(f, f, s) && !f->owner.handle && f->bad == 1);
     object_release(f, f);
     init(f, 0, 1);
     f->block[0] = 2;
     f->objects = 1;
-    assert(three_mm_model_read(f, f, s) && f->bad == 1);
+    assert(mm_model_read(f, f, s) && f->bad == 1);
     object_release(f, f);
 }
-static void author_tests(ThreeMMModelServices *s)
+static void author_tests(MMModelServices *s)
 {
     Fixture *f = (Fixture *)s->context;
-    ThreeMMModelFace face;
-    ThreeMMModelDescription d;
+    MMModelFace face;
+    MMModelDescription d;
     int big, bad, fail;
     void *object;
     for (big = 0; big < 2; ++big)
@@ -368,13 +368,13 @@ static void author_tests(ThreeMMModelServices *s)
         f->description.radius = 7;
         f->description.bounds.min[0] = -3;
         f->description.bounds.max[0] = 11;
-        three_mm_model_face_read(f->block + 112, big, &f->face);
+        mm_model_face_read(f->block + 112, big, &f->face);
         memcpy(f->vertices, f->block + 48, 64);
-        assert(three_mm_model_write(&f->owner, f, 3, 7, s) && !f->memory);
-        assert(three_mm_model_header(f->written, big, &d, &bad) && !bad && d.vertices == 2 && d.faces == 1 &&
+        assert(mm_model_write(&f->owner, f, 3, 7, s) && !f->memory);
+        assert(mm_model_header(f->written, big, &d, &bad) && !bad && d.vertices == 2 && d.faces == 1 &&
                d.radius == 7 && d.bounds.min[0] == -3);
         assert(!memcmp(f->written + 48, f->vertices, 64));
-        three_mm_model_face_read(f->written + 112, big, &face);
+        mm_model_face_read(f->written + 112, big, &face);
         assert(!memcmp(&face, &f->face, sizeof(face)));
         assert(!f->written[124] && !f->written[125] && !f->written[126] && !f->written[127] && !f->written[138] &&
                !f->written[139]);
@@ -383,7 +383,7 @@ static void author_tests(ThreeMMModelServices *s)
             f->step = 0;
             f->fail = fail;
             f->warnings = 0;
-            assert(!three_mm_model_write(&f->owner, f, 3, 7, s) && f->warnings == 1 && !f->memory);
+            assert(!mm_model_write(&f->owner, f, 3, 7, s) && f->warnings == 1 && !f->memory);
         }
     }
     s->host_big_endian = 0;
@@ -391,7 +391,7 @@ static void author_tests(ThreeMMModelServices *s)
     {
         init(f, 0, 0);
         f->fail = fail;
-        object = three_mm_model_new(2, f->vertices, 1, &f->face, s);
+        object = mm_model_new(2, f->vertices, 1, &f->face, s);
         if (object)
         {
             assert(f->adds == 1 && f->identified == 1);
@@ -400,7 +400,7 @@ static void author_tests(ThreeMMModelServices *s)
         assert(!f->objects && !f->models);
         init(f, 0, 0);
         f->fail = fail;
-        object = three_mm_model_dat(f, s);
+        object = mm_model_dat(f, s);
         if (object)
         {
             assert(f->prepared == 1 && f->flags == 1 && f->identified == 1 && !f->adds);
@@ -411,8 +411,8 @@ static void author_tests(ThreeMMModelServices *s)
     init(f, 0, 0);
     f->owner.handle = &f->description;
     f->models = 1;
-    three_mm_model_dispose(&f->owner, s);
-    three_mm_model_dispose(&f->owner, s);
+    mm_model_dispose(&f->owner, s);
+    mm_model_dispose(&f->owner, s);
     assert(!f->models && f->removes == 1);
     /* Odd negative widths use arithmetic-half floor, not truncation to zero. */
     init(f, 0, 0);
@@ -425,21 +425,21 @@ static void author_tests(ThreeMMModelServices *s)
     f->points[0][0] = 10;
     f->points[0][1] = 11;
     f->points[0][2] = 12;
-    three_mm_model_adjust_glyph(&f->owner, s);
+    mm_model_adjust_glyph(&f->owner, s);
     assert(f->points[0][0] == 11 && f->points[0][1] == 11 && f->points[0][2] == 14);
     assert(f->description.bounds.min[0] == 1 && f->description.bounds.max[0] == 0 && f->description.pivot[2] == 2);
-    assert(three_mm_model_extent(&f->owner, 0, s) == -1);
+    assert(mm_model_extent(&f->owner, 0, s) == -1);
     init(f, 0, 0);
-    assert(!three_mm_model_new(-1, f->vertices, 1, &f->face, s) && !f->step);
-    assert(!three_mm_model_new(65535L, f->vertices, 1, &f->face, s) && !f->step);
+    assert(!mm_model_new(-1, f->vertices, 1, &f->face, s) && !f->step);
+    assert(!mm_model_new(65535L, f->vertices, 1, &f->face, s) && !f->step);
     f->owner.handle = &f->description;
     f->description.bounds.min[0] = -655;
     f->description.bounds.max[0] = 655;
-    three_mm_model_adjust_glyph(&f->owner, s);
+    mm_model_adjust_glyph(&f->owner, s);
     assert(f->description.bounds.max[0] == 0);
     f->description.bounds.min[0] = -656;
     f->description.bounds.max[0] = 656;
-    three_mm_model_adjust_glyph(&f->owner, s);
+    mm_model_adjust_glyph(&f->owner, s);
     assert(f->description.bounds.max[0] == 33424);
 }
 typedef struct Lighting
@@ -447,7 +447,7 @@ typedef struct Lighting
     int fail, step, live, enabled, added, rendering, lit, diagnostics;
     int nodes[16], next;
 } Lighting;
-static void *light_create(void *p, int kind, const ThreeMMModelLightingSpec *spec)
+static void *light_create(void *p, int kind, const MMModelLightingSpec *spec)
 {
     Lighting *l = (Lighting *)p;
     assert(spec->fov == 10920 && spec->width == 544 && spec->height == 306 && spec->aspect == 116508 &&
@@ -508,10 +508,10 @@ static void light_free(void *p, int kind, void *object)
     Lighting *l = (Lighting *)p;
     int i;
     assert(object && !l->rendering && !l->enabled && !l->added);
-    if (kind == THREE_MM_MODEL_LIGHT_WORLD)
+    if (kind == MM_MODEL_LIGHT_WORLD)
     {
         for (i = 0; i < l->next; ++i)
-            if (l->nodes[i] <= THREE_MM_MODEL_LIGHT_ACTOR)
+            if (l->nodes[i] <= MM_MODEL_LIGHT_ACTOR)
                 --l->live;
     }
     else
@@ -523,8 +523,8 @@ static void multiple(void *p)
 }
 static void lighting(void)
 {
-    ThreeMMModelLightingServices s;
-    ThreeMMModelResource m;
+    MMModelLightingServices s;
+    MMModelResource m;
     Lighting l;
     int count, fail, total;
     memset(&s, 0, sizeof(s));
@@ -544,23 +544,23 @@ static void lighting(void)
     for (count = 1; count < 10; ++count)
     {
         memset(&l, 0, sizeof(l));
-        assert(three_mm_model_prelight(&m, count, &s));
+        assert(mm_model_prelight(&m, count, &s));
         total = l.step;
         assert(!l.live && !l.enabled && !l.added && l.lit == 1 && l.diagnostics == (count != 1));
         for (fail = 1; fail <= total; ++fail)
         {
             memset(&l, 0, sizeof(l));
             l.fail = fail;
-            assert(!three_mm_model_prelight(&m, count, &s) && !l.live && !l.enabled && !l.added && !l.lit);
+            assert(!mm_model_prelight(&m, count, &s) && !l.live && !l.enabled && !l.added && !l.lit);
         }
     }
     memset(&l, 0, sizeof(l));
-    assert(!three_mm_model_prelight(&m, 0, &s) && !three_mm_model_prelight(&m, 10, &s) && !l.step);
+    assert(!mm_model_prelight(&m, 0, &s) && !mm_model_prelight(&m, 10, &s) && !l.step);
 }
 int main(void)
 {
     Fixture f;
-    ThreeMMModelServices s;
+    MMModelServices s;
     memset(&s, 0, sizeof(s));
     s.context = &f;
     s.face_bytes = 36;

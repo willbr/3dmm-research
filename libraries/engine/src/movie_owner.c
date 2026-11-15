@@ -1,24 +1,24 @@
 /* Movie ownership and persistence converted from engine movie_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/movie_owner.h"
+#include "mm/movie_owner.h"
 #include <string.h>
-void three_mm_movie_state_init(ThreeMMMovieState *m)
+void mm_movie_state_init(MMMovieState *m)
 {
     memset(m, 0, sizeof(*m));
     m->movieNumber = 0xffffffffUL;
-    three_mm_movie_title_init(&m->title, 1);
+    mm_movie_title_init(&m->title, 1);
 }
-static void close_rows(void *table, const ThreeMMMovieOwnerServices *s)
+static void close_rows(void *table, const MMMovieOwnerServices *s)
 {
-    ThreeMMU32 i;
-    ThreeMMRollCallActor actor;
+    MMU32 i;
+    MMRollCallActor actor;
     for (i = 0; i < s->count(table); ++i)
     {
         s->actor(table, i, &actor);
         s->close_actor(s->context, &actor);
     }
 }
-void three_mm_movie_clear_actors(ThreeMMMovieState *m, const ThreeMMMovieOwnerServices *s)
+void mm_movie_clear_actors(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     if (!m->actors)
         return;
@@ -26,7 +26,7 @@ void three_mm_movie_clear_actors(ThreeMMMovieState *m, const ThreeMMMovieOwnerSe
     s->release_table(m->actors);
     m->actors = NULL;
 }
-void three_mm_movie_release_resources(ThreeMMMovieState *m, const ThreeMMMovieOwnerServices *s)
+void mm_movie_release_resources(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     if (m->resources)
     {
@@ -34,23 +34,23 @@ void three_mm_movie_release_resources(ThreeMMMovieState *m, const ThreeMMMovieOw
         m->resources = NULL;
     }
 }
-void three_mm_movie_state_dispose(ThreeMMMovieState *m, const ThreeMMMovieOwnerServices *s)
+void mm_movie_state_dispose(MMMovieState *m, const MMMovieOwnerServices *s)
 {
-    three_mm_movie_clear_actors(m, s);
-    three_mm_movie_release_resources(m, s);
+    mm_movie_clear_actors(m, s);
+    mm_movie_release_resources(m, s);
 }
-static void replace(ThreeMMMovieState *m, ThreeMMMovieState *fresh, const ThreeMMMovieOwnerServices *s)
+static void replace(MMMovieState *m, MMMovieState *fresh, const MMMovieOwnerServices *s)
 {
-    three_mm_movie_state_dispose(m, s);
+    mm_movie_state_dispose(m, s);
     *m = *fresh;
     fresh->resources = fresh->actors = NULL;
 }
-int three_mm_movie_init_empty(ThreeMMMovieState *m, const ThreeMMMovieOwnerServices *s)
+int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
 {
-    ThreeMMMovieState fresh;
+    MMMovieState fresh;
     void *file;
-    three_mm_movie_state_init(&fresh);
-    three_mm_movie_title_init(&fresh.title, m->title.unit);
+    mm_movie_state_init(&fresh);
+    mm_movie_title_init(&fresh.title, m->title.unit);
     file = s->create_file(s->context);
     if (!file)
         return 0;
@@ -59,19 +59,19 @@ int three_mm_movie_init_empty(ThreeMMMovieState *m, const ThreeMMMovieOwnerServi
     fresh.actors = s->new_actors(s->context, 0);
     if (!fresh.resources || !fresh.actors || !s->create_root(s->context, s->file(fresh.resources), &fresh.movieNumber))
     {
-        three_mm_movie_state_dispose(&fresh, s);
+        mm_movie_state_dispose(&fresh, s);
         return 0;
     }
     replace(m, &fresh, s);
     return 1;
 }
-int three_mm_movie_load(ThreeMMMovieState *m, ThreeMMU32 number, const ThreeMMMovieOwnerServices *s)
+int mm_movie_load(MMMovieState *m, MMU32 number, const MMMovieOwnerServices *s)
 {
-    ThreeMMMovieState loaded;
+    MMMovieState loaded;
     void *file;
     int valid;
-    three_mm_movie_state_init(&loaded);
-    three_mm_movie_title_init(&loaded.title, m->title.unit);
+    mm_movie_state_init(&loaded);
+    mm_movie_title_init(&loaded.title, m->title.unit);
     file = s->open_file(s->context);
     if (!file)
         return 0;
@@ -84,7 +84,7 @@ int three_mm_movie_load(ThreeMMMovieState *m, ThreeMMU32 number, const ThreeMMMo
     loaded.movieNumber = number;
     if (!s->read_rollcall(s->context, loaded.resources, number, &loaded.actors, &loaded.actorIdLimit))
     {
-        three_mm_movie_state_dispose(&loaded, s);
+        mm_movie_state_dispose(&loaded, s);
         return 0;
     }
     file = s->file(loaded.resources);
@@ -94,10 +94,10 @@ int three_mm_movie_load(ThreeMMMovieState *m, ThreeMMU32 number, const ThreeMMMo
     replace(m, &loaded, s);
     return 1;
 }
-int three_mm_movie_save(ThreeMMMovieState *m, const ThreeMMMovieOwnerServices *s)
+int mm_movie_save(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     void *file;
-    ThreeMMU32 previous, written;
+    MMU32 previous, written;
     int had;
     if (!m->resources || !m->actors)
         return 0;
@@ -112,18 +112,18 @@ int three_mm_movie_save(ThreeMMMovieState *m, const ThreeMMMovieOwnerServices *s
     s->make_persistent(file);
     return 1;
 }
-int three_mm_movie_read_rollcall(void *resources, ThreeMMU32 movie, void **actors, ThreeMMI32 *limit,
-                                 const ThreeMMRollCallServices *s)
+int mm_movie_read_rollcall(void *resources, MMU32 movie, void **actors, MMI32 *limit,
+                                 const MMRollCallServices *s)
 {
     void *wire, *runtime = NULL;
     int big;
-    ThreeMMU32 i, count;
-    ThreeMMI32 next = limit ? *limit : 0;
+    MMU32 i, count;
+    MMI32 next = limit ? *limit : 0;
     unsigned char bytes[28];
-    ThreeMMMemoryStream memory;
-    ThreeMMRollCallActor actor;
+    MMMemoryStream memory;
+    MMRollCallActor actor;
     wire = s->read_wire(s->context, resources, movie, &big);
-    if (!wire || s->extra_width(wire) != THREE_MM_MOVIE_ACTOR_BYTES)
+    if (!wire || s->extra_width(wire) != MM_MOVIE_ACTOR_BYTES)
         goto fail;
     runtime = s->new_table(s->context, 0);
     if (!runtime)
@@ -132,8 +132,8 @@ int three_mm_movie_read_rollcall(void *resources, ThreeMMU32 movie, void **actor
     for (i = 0; i < count; ++i)
     {
         s->wire_row(s->context, wire, i, bytes);
-        three_mm_memory_stream_init(&memory, bytes, sizeof(bytes));
-        if (three_mm_movie_read_actor(&memory.stream, big, &actor.data, &next) != THREE_MM_MOVIE_OK)
+        mm_memory_stream_init(&memory, bytes, sizeof(bytes));
+        if (mm_movie_read_actor(&memory.stream, big, &actor.data, &next) != MM_MOVIE_OK)
             goto fail;
         actor.cache = NULL;
         if (!s->open_actor(s->context, &actor, resources))
@@ -164,12 +164,12 @@ fail:
     *actors = NULL;
     return 0;
 }
-int three_mm_movie_write_rollcall(void *file, ThreeMMU32 movie, void *actors, ThreeMMU32 *written,
-                                  const ThreeMMRollCallServices *s)
+int mm_movie_write_rollcall(void *file, MMU32 movie, void *actors, MMU32 *written,
+                                  const MMRollCallServices *s)
 {
     void *wire;
-    ThreeMMU32 i, count;
-    ThreeMMRollCallActor actor;
+    MMU32 i, count;
+    MMRollCallActor actor;
     unsigned char bytes[28];
     if (!actors || s->extra_width(actors) != s->runtime_width)
         return 0;
@@ -183,7 +183,7 @@ int three_mm_movie_write_rollcall(void *file, ThreeMMU32 movie, void *actors, Th
         /* Native GST text/extra payloads are native endian. */
         {
             const unsigned short one = 1;
-            three_mm_movie_write_actor(&actor.data, bytes, *(const unsigned char *)&one == 0);
+            mm_movie_write_actor(&actor.data, bytes, *(const unsigned char *)&one == 0);
         }
         if (!s->append_wire(s->context, wire, bytes))
         {

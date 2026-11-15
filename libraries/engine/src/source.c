@@ -1,92 +1,92 @@
 /* Source catalogue policy converted from engine tagman.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/source.h"
+#include "mm/source.h"
 #include <string.h>
-static ThreeMMArray view(ThreeMMSourceCatalogue *c)
+static MMArray view(MMSourceCatalogue *c)
 {
-    ThreeMMArray a;
+    MMArray a;
     memset(&a, 0, sizeof(a));
     a.storage = &c->storage;
-    a.width = sizeof(ThreeMMSourceRecord);
+    a.width = sizeof(MMSourceRecord);
     a.count = c->count;
     a.free_count = -1;
     return a;
 }
-int three_mm_source_init(ThreeMMSourceCatalogue *c, const ThreeMMSourceOwners *owners,
-                         const ThreeMMStorageAllocator *allocator)
+int mm_source_init(MMSourceCatalogue *c, const MMSourceOwners *owners,
+                         const MMStorageAllocator *allocator)
 {
     if (!c || !owners || !owners->new_paths || !owners->copy_paths || !owners->release_paths ||
         !owners->release_manager)
-        return THREE_MM_STORAGE_ARGUMENT;
+        return MM_STORAGE_ARGUMENT;
     memset(c, 0, sizeof(*c));
-    if (three_mm_storage_init(&c->storage, allocator) != THREE_MM_STORAGE_OK)
-        return THREE_MM_STORAGE_ARGUMENT;
+    if (mm_storage_init(&c->storage, allocator) != MM_STORAGE_OK)
+        return MM_STORAGE_ARGUMENT;
     c->owners = *owners;
     c->storage.min_grow[0] = 128;
-    return THREE_MM_STORAGE_OK;
+    return MM_STORAGE_OK;
 }
-int three_mm_source_at(const ThreeMMSourceCatalogue *c, ThreeMMU32 i, ThreeMMSourceRecord *out)
+int mm_source_at(const MMSourceCatalogue *c, MMU32 i, MMSourceRecord *out)
 {
     if (!c || !out || i >= c->count || c->count > c->storage.buffers[0].capacity / sizeof(*out))
-        return THREE_MM_STORAGE_ARGUMENT;
+        return MM_STORAGE_ARGUMENT;
     memcpy(out, c->storage.buffers[0].data + i * sizeof(*out), sizeof(*out));
-    return THREE_MM_STORAGE_OK;
+    return MM_STORAGE_OK;
 }
-static void put(ThreeMMSourceCatalogue *c, ThreeMMU32 i, const ThreeMMSourceRecord *record)
+static void put(MMSourceCatalogue *c, MMU32 i, const MMSourceRecord *record)
 {
     memcpy(c->storage.buffers[0].data + i * sizeof(*record), record, sizeof(*record));
 }
-int three_mm_source_dispose(ThreeMMSourceCatalogue *c)
+int mm_source_dispose(MMSourceCatalogue *c)
 {
-    ThreeMMU32 i;
-    ThreeMMSourceRecord record;
+    MMU32 i;
+    MMSourceRecord record;
     if (!c || c->storage.buffers[0].locks || c->storage.buffers[1].locks)
-        return THREE_MM_STORAGE_LOCKED;
+        return MM_STORAGE_LOCKED;
     for (i = 0; i < c->count; ++i)
     {
-        three_mm_source_at(c, i, &record);
+        mm_source_at(c, i, &record);
         if (record.manager)
             c->owners.release_manager(record.manager);
     }
     for (i = 0; i < c->count; ++i)
     {
-        three_mm_source_at(c, i, &record);
+        mm_source_at(c, i, &record);
         c->owners.release_paths(record.paths);
     }
     c->count = 0;
-    return three_mm_storage_dispose(&c->storage);
+    return mm_storage_dispose(&c->storage);
 }
-int three_mm_source_invalidate(ThreeMMSourceCatalogue *c, ThreeMMI32 sid)
+int mm_source_invalidate(MMSourceCatalogue *c, MMI32 sid)
 {
-    ThreeMMU32 i = c->count;
-    ThreeMMSourceRecord record;
-    ThreeMMArray a;
+    MMU32 i = c->count;
+    MMSourceRecord record;
+    MMArray a;
     if (c->storage.buffers[0].locks)
-        return THREE_MM_STORAGE_LOCKED;
+        return MM_STORAGE_LOCKED;
     while (i-- > 0)
     {
-        three_mm_source_at(c, i, &record);
+        mm_source_at(c, i, &record);
         if (record.sid != sid)
             continue;
         if (record.manager)
             c->owners.release_manager(record.manager);
         c->owners.release_paths(record.paths);
         a = view(c);
-        three_mm_array_delete(&a, i, 1);
+        mm_array_delete(&a, i, 1);
         c->count = a.count;
     }
-    return THREE_MM_STORAGE_OK;
+    return MM_STORAGE_OK;
 }
-static int acquire(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, void *paths, ThreeMMSourceRecord *work,
-                   ThreeMMU32 *position)
+static int acquire(MMSourceCatalogue *c, MMI32 sid, void *paths, MMSourceRecord *work,
+                   MMU32 *position)
 {
-    ThreeMMU32 i;
-    ThreeMMSourceRecord record;
-    ThreeMMArray a;
+    MMU32 i;
+    MMSourceRecord record;
+    MMArray a;
     int result;
     for (i = 0; i < c->count; ++i)
     {
-        three_mm_source_at(c, i, &record);
+        mm_source_at(c, i, &record);
         if (record.sid == sid)
             break;
     }
@@ -99,9 +99,9 @@ static int acquire(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, void *paths, Three
         if (!record.paths)
             return 0;
         a = view(c);
-        result = three_mm_array_add(&a, &record, &i);
+        result = mm_array_add(&a, &record, &i);
         c->count = a.count;
-        if (result != THREE_MM_STORAGE_OK)
+        if (result != MM_STORAGE_OK)
         {
             c->owners.release_paths(record.paths);
             return 0;
@@ -113,16 +113,16 @@ static int acquire(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, void *paths, Three
     *position = i;
     return 1;
 }
-static void publish(ThreeMMSourceCatalogue *c, ThreeMMU32 i, const ThreeMMSourceRecord *work)
+static void publish(MMSourceCatalogue *c, MMU32 i, const MMSourceRecord *work)
 {
-    ThreeMMSourceRecord record;
-    three_mm_source_at(c, i, &record);
+    MMSourceRecord record;
+    mm_source_at(c, i, &record);
     c->owners.copy_paths(record.paths, work->paths);
     record.local_content = work->local_content;
     record.manager = work->manager;
     put(c, i, &record);
 }
-static int local(ThreeMMSourceCatalogue *c, ThreeMMSourceRecord *r, ThreeMMU32 i, const ThreeMMSourceServices *s)
+static int local(MMSourceCatalogue *c, MMSourceRecord *r, MMU32 i, const MMSourceServices *s)
 {
     int exists;
     if (r->local_content == 2)
@@ -147,13 +147,13 @@ static int local(ThreeMMSourceCatalogue *c, ThreeMMSourceRecord *r, ThreeMMU32 i
     }
     return 1;
 }
-void *three_mm_source_manager(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, int local_only, void *paths,
-                              const ThreeMMSourceServices *s)
+void *mm_source_manager(MMSourceCatalogue *c, MMI32 sid, int local_only, void *paths,
+                              const MMSourceServices *s)
 {
-    ThreeMMSourceRecord r;
-    ThreeMMU32 i;
+    MMSourceRecord r;
+    MMU32 i;
     int changed, access = s->access(s->context, sid, NULL, 0);
-    if (access == THREE_MM_SOURCE_DISABLED || access == THREE_MM_SOURCE_MISSING)
+    if (access == MM_SOURCE_DISABLED || access == MM_SOURCE_MISSING)
     {
         if (!local_only)
             s->retry(s->context, sid);
@@ -206,23 +206,23 @@ setup:
     }
     return r.manager;
 }
-int three_mm_source_local_content(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, void *paths, int *exists,
-                                  const ThreeMMSourceServices *s)
+int mm_source_local_content(MMSourceCatalogue *c, MMI32 sid, void *paths, int *exists,
+                                  const MMSourceServices *s)
 {
-    ThreeMMSourceRecord r;
-    ThreeMMU32 i;
+    MMSourceRecord r;
+    MMU32 i;
     if (!acquire(c, sid, paths, &r, &i) || !local(c, &r, i, s))
         return 0;
     *exists = r.local_content == 1;
     return 1;
 }
-int three_mm_source_local_path(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, void *paths, const ThreeMMSourceServices *s)
+int mm_source_local_path(MMSourceCatalogue *c, MMI32 sid, void *paths, const MMSourceServices *s)
 {
-    ThreeMMSourceRecord r;
-    ThreeMMU32 i;
+    MMSourceRecord r;
+    MMU32 i;
     int exists, access = s->access(s->context, sid, paths, 1);
-    if (access != THREE_MM_SOURCE_LEGACY)
-        return access == THREE_MM_SOURCE_AVAILABLE;
+    if (access != MM_SOURCE_LEGACY)
+        return access == MM_SOURCE_AVAILABLE;
     if (!acquire(c, sid, paths, &r, &i))
         return 0;
     if (s->path_empty(paths, 0) && (!s->build_local(s->context, sid, paths, &exists) || !exists))
@@ -231,17 +231,17 @@ int three_mm_source_local_path(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, void *
     s->output(s->context, paths, 0);
     return 1;
 }
-int three_mm_source_media_path(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, int ask, void *paths,
-                               const ThreeMMSourceServices *s)
+int mm_source_media_path(MMSourceCatalogue *c, MMI32 sid, int ask, void *paths,
+                               const MMSourceServices *s)
 {
-    ThreeMMSourceRecord r;
-    ThreeMMU32 i;
+    MMSourceRecord r;
+    MMU32 i;
     int changed, access = s->access(s->context, sid, NULL, 0);
-    if (access != THREE_MM_SOURCE_LEGACY)
+    if (access != MM_SOURCE_LEGACY)
     {
-        if (access != THREE_MM_SOURCE_AVAILABLE && ask)
+        if (access != MM_SOURCE_AVAILABLE && ask)
             s->retry(s->context, sid);
-        return access == THREE_MM_SOURCE_AVAILABLE;
+        return access == MM_SOURCE_AVAILABLE;
     }
     if (!acquire(c, sid, paths, &r, &i))
         return 0;
@@ -255,24 +255,24 @@ int three_mm_source_media_path(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, int as
     s->output(s->context, paths, 1);
     return 1;
 }
-int three_mm_source_find_file(ThreeMMSourceCatalogue *c, ThreeMMI32 sid, int ask, void *paths,
-                              const ThreeMMSourceServices *s)
+int mm_source_find_file(MMSourceCatalogue *c, MMI32 sid, int ask, void *paths,
+                              const MMSourceServices *s)
 {
-    if (!s->prepare_file(s->context) || !three_mm_source_local_path(c, sid, paths, s))
+    if (!s->prepare_file(s->context) || !mm_source_local_path(c, sid, paths, s))
         return 0;
     if (s->find_leaf(s->context))
         return 1;
-    if (!three_mm_source_media_path(c, sid, ask, paths, s))
+    if (!mm_source_media_path(c, sid, ask, paths, s))
         return 0;
     if (s->find_leaf(s->context))
         return 1;
     s->clear_output(s->context);
     return 0;
 }
-void *three_mm_source_build(ThreeMMI32 sid, ThreeMMI32 budget, const ThreeMMSourceBuildServices *s)
+void *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *s)
 {
     void *manager = s->create(s->context), *file = NULL;
-    ThreeMMU32 index;
+    MMU32 index;
     int archive;
     if (!manager)
         return NULL;

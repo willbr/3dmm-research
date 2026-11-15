@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "studio_pack_runtime.h"
 #include "studio_settings.h"
-#include "three_mm/content_vfs.hpp"
+#include "mm/content_vfs.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -18,7 +18,7 @@ Preferences active;
 std::array<Info, 3> infos;
 std::array<Info, 3> external;
 StudioContent::Products legacy;
-ThreeMM::Content::Vfs filesystem;
+MM::Content::Vfs filesystem;
 std::basic_string<KauaiSettings::NameChar> Native(const std::string &text)
 {
     return {text.begin(), text.end()};
@@ -117,7 +117,7 @@ Store &ManagedStore()
         throw std::runtime_error("Expansion manager is not initialized");
     return *store;
 }
-ThreeMM::Content::Vfs &Filesystem()
+MM::Content::Vfs &Filesystem()
 {
     return filesystem;
 }
@@ -179,7 +179,7 @@ void Initialize(const StudioContent::Text &contentRoot)
     }
     if (changed)
         SavePreferences(active);
-    filesystem = ThreeMM::Content::Vfs{};
+    filesystem = MM::Content::Vfs{};
     const fs::path base(contentRoot);
     if (!contentRoot.empty() && fs::is_directory(base))
     {
@@ -188,7 +188,7 @@ void Initialize(const StudioContent::Text &contentRoot)
         else
             for (const auto &entry : fs::directory_iterator(base))
                 if (entry.is_directory() &&
-                    ThreeMM::Content::SourceKey(entry.path().filename().u8string()) == "3dmovie")
+                    MM::Content::SourceKey(entry.path().filename().u8string()) == "3dmovie")
                 {
                     filesystem.MountDirectory("3dmovie", entry.path());
                     if (filesystem.Mounted("3dmovie"))

@@ -64,9 +64,9 @@ bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMat
     a current tag.
 
 ***************************************************************************/
-ThreeMMActorSoundEditServices Actor::_SoundEditServices()
+MMActorSoundEditServices Actor::_SoundEditServices()
 {
-    ThreeMMActorSoundEditServices s = {};
+    MMActorSoundEditServices s = {};
     s.context = this;
     s.runtime = _SoundServices();
     s.edits = _EventEditServices();
@@ -77,25 +77,25 @@ ThreeMMActorSoundEditServices Actor::_SoundEditServices()
         if (tags) tags->SetMinGrow(kctagSndGrow);
         return tags;
     };
-    s.query_add = [](void *, void *query, const ThreeMMTag *value) {
+    s.query_add = [](void *, void *query, const MMTag *value) {
         TAG tag; std::memcpy(&tag, value, sizeof(tag));
         return int(static_cast<PDynamicArray>(query)->FAdd(&tag));
     };
     s.query_release = [](void *, void *query) { auto tags = static_cast<PDynamicArray>(query); ReleasePpo(&tags); };
-    s.resolve_scene = [](void *p, ThreeMMTag *value, ThreeMMU32 child, ThreeMMU32 scene) {
+    s.resolve_scene = [](void *p, MMTag *value, MMU32 child, MMU32 scene) {
         TAG tag; std::memcpy(&tag, value, sizeof(tag));
         bool ok = static_cast<Actor *>(p)->_pscen->Pmvie()->FResolveSndTag(&tag, child, scene);
         std::memcpy(value, &tag, sizeof(tag));
         return int(ok);
     };
-    s.sound_info = [](void *, void *resource, ThreeMMActorSoundInfo *info) {
+    s.sound_info = [](void *, void *resource, MMActorSoundInfo *info) {
         auto sound = static_cast<PMovieSoundMSND>(resource);
         info->style = sound->Sty(); info->volume = sound->Vlm(); info->no_sound = sound->FNoSound();
     };
-    s.reserve_events = [](void *p, ThreeMMU32 entries, ThreeMMU32 bytes) {
+    s.reserve_events = [](void *p, MMU32 entries, MMU32 bytes) {
         return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(entries, bytes, fgrpNil));
     };
-    s.sound_child = [](void *p, ThreeMMU32 number, ThreeMMU32 *child) {
+    s.sound_child = [](void *p, MMU32 number, MMU32 *child) {
         ChildChunkID value = *child;
         bool ok = static_cast<Actor *>(p)->_pscen->Pmvie()->FChidFromUserSndCno(number, &value);
         *child = value; return int(ok);
@@ -103,7 +103,7 @@ ThreeMMActorSoundEditServices Actor::_SoundEditServices()
     s.sounds_suppressed = [](void *p) { return int((static_cast<Actor *>(p)->_pscen->GrfScen() & fscenSounds) != 0); };
     s.set_sound_frame = [](void *p) { static_cast<Actor *>(p)->Pscen()->Pmvie()->Pmcc()->SetSndFrame(fTrue); };
     s.midi_error = [](void *) { PushErc(ercSocNoActrMidi); };
-    s.default_sound = [](void *p, ThreeMMI32 action, ThreeMMI32 cel, int *exists, ThreeMMTag *value) {
+    s.default_sound = [](void *p, MMI32 action, MMI32 cel, int *exists, MMTag *value) {
         TAG tag; bool found = false;
         bool ok = static_cast<Actor *>(p)->_ptmpl->FGetSndActnCel(action, cel, &found, &tag);
         *exists = found;
@@ -118,13 +118,13 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     AssertVarMem(ptag);
     AssertIn(sty, 0, styLim);
     static_assert(styMidi == 4 && styNil == 0 && vlmNil == -1, "sound style ABI");
-    ThreeMMTag tag; std::memcpy(&tag, ptag, sizeof(tag));
+    MMTag tag; std::memcpy(&tag, ptag, sizeof(tag));
     auto state = EngineActorMotion::Core(_state);
     const auto tables = EngineActorMotion::Services();
     const auto services = _SoundEditServices();
     ChildChunkID external = 0;
     TrashVar(&external);
-    bool ok = three_mm_actor_sound_set(&state, _motionSounds.Core(), _track.Events(), _arid, &tag, fLoop, fQueue,
+    bool ok = mm_actor_sound_set(&state, _motionSounds.Core(), _track.Events(), _arid, &tag, fLoop, fQueue,
                                        fMotionMatch != 0, vlm, sty, external, &tables, &services) != 0;
     EngineActorMotion::Publish(_state, state);
     return ok;
@@ -137,39 +137,39 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     Enter non-motion match sounds in the Msq
 
 ***************************************************************************/
-ThreeMMActorSoundServices Actor::_SoundServices()
+MMActorSoundServices Actor::_SoundServices()
 {
-    ThreeMMActorSoundServices services = {};
+    MMActorSoundServices services = {};
     services.context = this;
-    services.cel_count = [](void *context, ThreeMMI32 action, ThreeMMI32 *out) {
+    services.cel_count = [](void *context, MMI32 action, MMI32 *out) {
         LegacyLong count = *out;
         bool ok = static_cast<Actor *>(context)->_ptmpl->FGetCcelActn(action, &count);
         *out = count;
         return int(ok);
     };
-    services.resolve = [](void *context, ThreeMMTag *value, ThreeMMU32 child) {
+    services.resolve = [](void *context, MMTag *value, MMU32 child) {
         TAG tag;
         std::memcpy(&tag, value, sizeof(tag));
         bool ok = static_cast<Actor *>(context)->_pscen->Pmvie()->FResolveSndTag(&tag, child);
         std::memcpy(value, &tag, sizeof(tag));
         return int(ok);
     };
-    services.write_event = [](void *context, ThreeMMI32 index, const ThreeMMActorSound *value) {
+    services.write_event = [](void *context, MMI32 index, const MMActorSound *value) {
         Sound sound;
         std::memcpy(&sound, value, sizeof(sound));
         static_cast<Actor *>(context)->_track.Events()->Put(index, &sound);
     };
     services.resolution_failed = [](void *) { Bug("Actrsnd: Expected to resolve snd tag"); };
-    services.fetch = [](void *, const ThreeMMTag *value) -> void * {
+    services.fetch = [](void *, const MMTag *value) -> void * {
         TAG tag;
         std::memcpy(&tag, value, sizeof(tag));
         return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     };
-    services.priority = [](void *, void *resource, int kind) -> ThreeMMI32 {
+    services.priority = [](void *, void *resource, int kind) -> MMI32 {
         const long tools[] = {toolSounder, toolLooper, toolMatcher};
         return static_cast<PMovieSoundMSND>(resource)->Spr(tools[kind]);
     };
-    services.enqueue = [](void *context, void *resource, const ThreeMMActorSound *sound, ThreeMMI32 priority, int low) {
+    services.enqueue = [](void *context, void *resource, const MMActorSound *sound, MMI32 priority, int low) {
         auto actor = static_cast<Actor *>(context);
         return int(actor->_pscen->Pmvie()->Pmsq()->FEnqueue(static_cast<PMovieSoundMSND>(resource), actor->_arid,
                    sound->loop, sound->queue, sound->volume, priority, fTrue, 0, low != 0));
@@ -184,18 +184,18 @@ bool Actor::_FEnqueueSnd(long iaev)
 {
     AssertThis(0);
     AssertIn(iaev, 0, _track.Events()->IvMac());
-    ThreeMMActorEvent event;
-    ThreeMMActorSound sound;
+    MMActorEvent event;
+    MMActorSound sound;
     _track.Events()->GetFixed(iaev, &event);
     _track.Events()->Get(iaev, &sound);
     const auto services = _SoundServices();
-    return three_mm_actor_sound_event(_motionSounds.Core(), &event, &sound, iaev, &services) != 0;
+    return mm_actor_sound_event(_motionSounds.Core(), &event, &sound, iaev, &services) != 0;
 }
 bool Actor::_FEnqueueSmmInMsq(void)
 {
     AssertThis(0);
     const auto services = _SoundServices();
-    return three_mm_actor_sound_motion(_motionSounds.Core(), _state.action, _state.cel, &services) != 0;
+    return mm_actor_sound_motion(_motionSounds.Core(), _state.action, _state.cel, &services) != 0;
 }
 
 /***************************************************************************
@@ -209,7 +209,7 @@ bool Actor::_FRemoveAevMm(long anid)
     auto state = EngineActorMotion::Core(_state);
     const auto tables = EngineActorMotion::Services();
     const auto services = _SoundEditServices();
-    three_mm_actor_sound_remove_motion(&state, _track.Events(), anid, &tables, &services);
+    mm_actor_sound_remove_motion(&state, _track.Events(), anid, &tables, &services);
     EngineActorMotion::Publish(_state, state);
     return fTrue;
 }
@@ -226,7 +226,7 @@ bool Actor::_FAddAevDefMm(long anid)
     const auto tables = EngineActorMotion::Services();
     const auto services = _SoundEditServices();
     ChildChunkID external = 0; TrashVar(&external);
-    bool ok = three_mm_actor_sound_defaults(&state, _motionSounds.Core(), _track.Events(), _arid, anid, external,
+    bool ok = mm_actor_sound_defaults(&state, _motionSounds.Core(), _track.Events(), _arid, anid, external,
                                             &tables, &services) != 0;
     EngineActorMotion::Publish(_state, state);
     return ok;
@@ -243,7 +243,7 @@ bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
     auto state = EngineActorMotion::Core(_state);
     const auto tables = EngineActorMotion::Services();
     const auto services = _SoundEditServices();
-    bool ok = three_mm_actor_sound_volume(&state, _motionSounds.Core(), _track.Events(), sty, fMotionMatch, vlm,
+    bool ok = mm_actor_sound_volume(&state, _motionSounds.Core(), _track.Events(), sty, fMotionMatch, vlm,
                                           &tables, &services) != 0;
     EngineActorMotion::Publish(_state, state);
     return ok;
@@ -258,15 +258,15 @@ bool Actor::FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, lon
 {
     AssertThis(0); AssertIn(sty, 0, styLim); AssertVarMem(pvlm); AssertVarMem(pfLoop);
     struct Outputs { LegacyLong *volume; bool *loop; } outputs = {pvlm, pfLoop};
-    ThreeMMActorSoundQuery result = {};
+    MMActorSoundQuery result = {};
     result.context = &outputs;
-    result.publish = [](void *p, ThreeMMI32 volume, int loop) {
+    result.publish = [](void *p, MMI32 volume, int loop) {
         auto out = static_cast<Outputs *>(p); *out->volume = volume; *out->loop = loop != 0;
     };
     const auto state = EngineActorMotion::Core(_state);
     const auto tables = EngineActorMotion::Services();
     const auto services = _SoundEditServices();
-    bool ok = three_mm_actor_sound_query(&state, _motionSounds.Core(), _track.Events(), sty, fMotionMatch,
+    bool ok = mm_actor_sound_query(&state, _motionSounds.Core(), _track.Events(), sty, fMotionMatch,
                                          &result, &tables, &services) != 0;
     if (ok) *pglTagSnd = static_cast<PDynamicArray>(result.tags);
     return ok;
@@ -283,7 +283,7 @@ bool Actor::FDeleteSndCore(long sty, bool fMotionMatch)
     auto state = EngineActorMotion::Core(_state);
     const auto tables = EngineActorMotion::Services();
     const auto services = _SoundEditServices();
-    bool ok = three_mm_actor_sound_delete(&state, _motionSounds.Core(), _track.Events(), sty, fMotionMatch,
+    bool ok = mm_actor_sound_delete(&state, _motionSounds.Core(), _track.Events(), sty, fMotionMatch,
                                           &tables, &services) != 0;
     EngineActorMotion::Publish(_state, state);
     return ok;
@@ -302,7 +302,7 @@ bool Actor::FSoundInFrm(void)
     AssertThis(0); AssertPo(Pscen(), 0);
     const auto state = EngineActorMotion::Core(_state);
     const auto tables = EngineActorMotion::Services();
-    return three_mm_actor_sound_in_frame(&state, _track.Events(), Pscen()->Nfrm(), &tables) != 0;
+    return mm_actor_sound_in_frame(&state, _track.Events(), Pscen()->Nfrm(), &tables) != 0;
 }
 
 /******************************************************************************
@@ -314,5 +314,5 @@ bool Actor::FResolveAllSndTags(ChunkNumber cnoScen)
     AssertThis(0);
     const auto tables = EngineActorMotion::Services();
     const auto services = _SoundEditServices();
-    return three_mm_actor_sound_resolve_all(_track.Events(), cnoScen, &tables, &services) != 0;
+    return mm_actor_sound_resolve_all(_track.Events(), cnoScen, &tables, &services) != 0;
 }

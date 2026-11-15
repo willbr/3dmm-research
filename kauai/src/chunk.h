@@ -17,19 +17,19 @@
 #define CHUNK_H
 
 #include <cstdint>
-#include "three_mm/chunky_file.h"
-#include "three_mm/chunk_graph.h"
-#include "three_mm/chunk_metadata.h"
-#include "three_mm/chunk_loading.h"
-#include "three_mm/chunk_storage.h"
-#include "three_mm/chunk_lifecycle.h"
-#include "three_mm/chunk_container.h"
-#include "three_mm/chunk_context.h"
-#include "three_mm/chunk_owner.h"
-#include "three_mm/chunk_table.h"
+#include "mm/chunky_file.h"
+#include "mm/chunk_graph.h"
+#include "mm/chunk_metadata.h"
+#include "mm/chunk_loading.h"
+#include "mm/chunk_storage.h"
+#include "mm/chunk_lifecycle.h"
+#include "mm/chunk_container.h"
+#include "mm/chunk_context.h"
+#include "mm/chunk_owner.h"
+#include "mm/chunk_table.h"
 
-struct ThreeMMChunkEdit;
-struct ThreeMMChunkEndpoint;
+struct MMChunkEdit;
+struct MMChunkEndpoint;
 
 namespace Chunky {
 
@@ -96,32 +96,32 @@ class ChunkyFile : public ChunkyFile_PAR
     MARKMEM
 
   private:
-    ThreeMMChunkOwner _owner;
+    MMChunkOwner _owner;
     PFileObject _MainFile() { return static_cast<PFileObject>(_owner.files.main_file); }
     PFileObject _ExtraFile() { return static_cast<PFileObject>(_owner.files.extra_file); }
-    ThreeMMChunkTable *_Index() { return static_cast<ThreeMMChunkTable *>(_owner.files.index); }
+    MMChunkTable *_Index() { return static_cast<MMChunkTable *>(_owner.files.index); }
 
     // static member variables
-    static ThreeMMChunkContext _context;
-    ThreeMMChunkLink _link;
+    static MMChunkContext _context;
+    MMChunkLink _link;
 
   private:
     // private methods
     ChunkyFile(void);
     ~ChunkyFile(void);
 
-    static ThreeMMChunkConstruction _ConstructionServices(Filename *);
+    static MMChunkConstruction _ConstructionServices(Filename *);
 
-    static ThreeMMChunkRegistry _RegistryServices();
-    void _SetChunkFlag(ChunkTagOrType, ChunkNumber, ThreeMMU32, bool);
+    static MMChunkRegistry _RegistryServices();
+    void _SetChunkFlag(ChunkTagOrType, ChunkNumber, MMU32, bool);
     bool _FReadIndex(void);
-    ThreeMMChunkAccess _ChunkAccess();
-    ThreeMMChunkEdit _EditServices(void *context);
-    ThreeMMChunkEndpoint _OpsServices(void *context);
+    MMChunkAccess _ChunkAccess();
+    MMChunkEdit _EditServices(void *context);
+    MMChunkEndpoint _OpsServices(void *context);
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
-    ThreeMMChunkStoragePolicy _StoragePolicy();
-    ThreeMMChunkStorageServices _StorageServices();
+    MMChunkStoragePolicy _StoragePolicy();
+    MMChunkStorageServices _StorageServices();
     bool _FCreateExtra(void);
     bool _FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtra = fFalse);
     bool _FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picrp);
@@ -148,11 +148,11 @@ class ChunkyFile : public ChunkyFile_PAR
     // static methods
     static PChunkyFile PcflFirst(void)
     {
-        return static_cast<PChunkyFile>(three_mm_chunk_context_first(&_context));
+        return static_cast<PChunkyFile>(mm_chunk_context_first(&_context));
     }
     PChunkyFile PcflNext(void)
     {
-        return static_cast<PChunkyFile>(three_mm_chunk_context_next(&_link));
+        return static_cast<PChunkyFile>(mm_chunk_context_next(&_link));
     }
     static PChunkyFile PcflOpen(Filename *pfni, LegacyUlong grfcfl);
     static PChunkyFile PcflCreate(Filename *pfni, LegacyUlong grfcfl);
@@ -291,7 +291,7 @@ class ChunkGraphEnumerator : public ChunkGraphEnumerator_PAR
 
   private:
     PChunkyFile _pcfl;
-    ThreeMMChunkWalk _walk;
+    MMChunkWalk _walk;
 
   public:
     ChunkGraphEnumerator(void);

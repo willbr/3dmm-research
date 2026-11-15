@@ -1,42 +1,42 @@
 /* Scene actor/caption editing converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/scene_content.h"
-#include "three_mm/wide.h"
-static void *group(const ThreeMMSceneContentServices *s)
+#include "mm/scene_content.h"
+#include "mm/wide.h"
+static void *group(const MMSceneContentServices *s)
 {
-    return s->events.owner->owned[THREE_MM_SCENE_STARTS];
+    return s->events.owner->owned[MM_SCENE_STARTS];
 }
-static void *list(int text, const ThreeMMSceneContentServices *s)
+static void *list(int text, const MMSceneContentServices *s)
 {
-    return s->events.owner->owned[text ? THREE_MM_SCENE_TEXTS : THREE_MM_SCENE_ACTORS];
+    return s->events.owner->owned[text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS];
 }
-static ThreeMMI32 count(void *p, const ThreeMMSceneContentServices *s)
+static MMI32 count(void *p, const MMSceneContentServices *s)
 {
     return s->events.owners.count(s->events.owners.context, p);
 }
-static void *at(void *p, ThreeMMI32 i, const ThreeMMSceneContentServices *s)
+static void *at(void *p, MMI32 i, const MMSceneContentServices *s)
 {
     return s->events.owners.list_at(s->events.owners.context, p, i);
 }
-static int kind(ThreeMMI32 i, const ThreeMMSceneContentServices *s)
+static int kind(MMI32 i, const MMSceneContentServices *s)
 {
-    ThreeMMI32 frame;
+    MMI32 frame;
     int type;
     s->events.event(s->events.context, group(s), i, &frame, &type);
     return type;
 }
-static void *object(ThreeMMI32 i, const ThreeMMSceneContentServices *s)
+static void *object(MMI32 i, const MMSceneContentServices *s)
 {
     return s->events.owners.object(s->events.owners.context, group(s), i);
 }
-static void release(void *p, const ThreeMMSceneContentServices *s)
+static void release(void *p, const MMSceneContentServices *s)
 {
     s->events.owners.release(s->events.owners.context, p);
 }
-static void remove_extras(ThreeMMI32 id, const ThreeMMSceneContentServices *s)
+static void remove_extras(MMI32 id, const MMSceneContentServices *s)
 {
-    void *extras = s->events.owner->owned[THREE_MM_SCENE_SELECTION], *entry;
-    ThreeMMI32 i;
+    void *extras = s->events.owner->owned[MM_SCENE_SELECTION], *entry;
+    MMI32 i;
     if (extras)
         for (i = count(extras, s) - 1; i >= 0; --i)
         {
@@ -45,9 +45,9 @@ static void remove_extras(ThreeMMI32 id, const ThreeMMSceneContentServices *s)
                 s->erase(s->context, extras, i);
         }
 }
-void *three_mm_scene_actor_find(ThreeMMI32 id, const ThreeMMSceneContentServices *s)
+void *mm_scene_actor_find(MMI32 id, const MMSceneContentServices *s)
 {
-    ThreeMMI32 i;
+    MMI32 i;
     void *p;
     for (i = 0; i < count(list(0, s), s); ++i)
     {
@@ -57,14 +57,14 @@ void *three_mm_scene_actor_find(ThreeMMI32 id, const ThreeMMSceneContentServices
     }
     return NULL;
 }
-int three_mm_scene_actor_add(void *actor, const ThreeMMSceneContentServices *s)
+int mm_scene_actor_add(void *actor, const MMSceneContentServices *s)
 {
-    ThreeMMI32 i, j;
+    MMI32 i, j;
     void *old;
     int ok;
     for (i = 0; i < count(group(s), s); ++i)
     {
-        if (kind(i, s) != THREE_MM_SCENE_ADD_ACTOR)
+        if (kind(i, s) != MM_SCENE_ADD_ACTOR)
             continue;
         old = object(i, s);
         if (s->actor_id(s->context, old) != s->actor_id(s->context, actor))
@@ -93,9 +93,9 @@ int three_mm_scene_actor_add(void *actor, const ThreeMMSceneContentServices *s)
             s->indicator(s->context);
             return 1;
         }
-        s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_ACTOR_ROLL_MISSING);
+        s->diagnostic(s->context, MM_SCENE_CONTENT_ACTOR_ROLL_MISSING);
     }
-    if (!s->insert_start(s->context, 0, THREE_MM_SCENE_ADD_ACTOR, actor))
+    if (!s->insert_start(s->context, 0, MM_SCENE_ADD_ACTOR, actor))
         return 0;
     s->retain(s->context, actor);
     if (!s->add_roll(s->context, actor, 1))
@@ -104,7 +104,7 @@ int three_mm_scene_actor_add(void *actor, const ThreeMMSceneContentServices *s)
         release(actor, s);
         return 0;
     }
-    ok = three_mm_scene_play_event(0, THREE_MM_SCENE_ADD_ACTOR, &actor, s->events.runtime->disabled, &s->events);
+    ok = mm_scene_play_event(0, MM_SCENE_ADD_ACTOR, &actor, s->events.runtime->disabled, &s->events);
     if (ok && !s->actor_ready(s->context, actor))
     {
         s->events.remove_last(s->events.context, 0);
@@ -122,25 +122,25 @@ int three_mm_scene_actor_add(void *actor, const ThreeMMSceneContentServices *s)
     s->indicator(s->context);
     return 1;
 }
-int three_mm_scene_actor_add_onstage(void *actor, const ThreeMMSceneContentServices *s)
+int mm_scene_actor_add_onstage(void *actor, const MMSceneContentServices *s)
 {
-    if (!three_mm_scene_actor_add(actor, s))
+    if (!mm_scene_actor_add(actor, s))
         return 0;
     if (!s->actor_onstage(s->context, actor))
     {
-        three_mm_scene_actor_remove(s->actor_id(s->context, actor), s);
+        mm_scene_actor_remove(s->actor_id(s->context, actor), s);
         return 0;
     }
     s->select(s->context, 0, actor);
     return 1;
 }
-void three_mm_scene_actor_remove(ThreeMMI32 id, const ThreeMMSceneContentServices *s)
+void mm_scene_actor_remove(MMI32 id, const MMSceneContentServices *s)
 {
-    ThreeMMI32 i, j;
+    MMI32 i, j;
     void *actor, *removed;
     for (i = 0; i < count(group(s), s); ++i)
     {
-        if (kind(i, s) != THREE_MM_SCENE_ADD_ACTOR)
+        if (kind(i, s) != MM_SCENE_ADD_ACTOR)
             continue;
         actor = object(i, s);
         if (s->actor_id(s->context, actor) != id)
@@ -166,20 +166,20 @@ void three_mm_scene_actor_remove(ThreeMMI32 id, const ThreeMMSceneContentService
             s->indicator(s->context);
             return;
         }
-        s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_ACTOR_ROLL_MISSING);
+        s->diagnostic(s->context, MM_SCENE_CONTENT_ACTOR_ROLL_MISSING);
         release(removed, s);
         s->dirty(s->context);
         return;
     }
-    s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_ACTOR_MISSING);
+    s->diagnostic(s->context, MM_SCENE_CONTENT_ACTOR_MISSING);
 }
-int three_mm_scene_actor_remove_undo(ThreeMMI32 id, const ThreeMMSceneContentServices *s)
+int mm_scene_actor_remove_undo(MMI32 id, const MMSceneContentServices *s)
 {
-    void *actor = three_mm_scene_actor_find(id, s), *u;
-    ThreeMMSceneActorUndo *p;
+    void *actor = mm_scene_actor_find(id, s), *u;
+    MMSceneActorUndo *p;
     if (!actor)
     {
-        s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_ACTOR_MISSING);
+        s->diagnostic(s->context, MM_SCENE_CONTENT_ACTOR_MISSING);
         return 0;
     }
     s->retain(s->context, actor);
@@ -191,24 +191,24 @@ int three_mm_scene_actor_remove_undo(ThreeMMI32 id, const ThreeMMSceneContentSer
     }
     p = s->actor_state(s->context, u);
     p->actor = actor;
-    p->operation = THREE_MM_SCENE_ACTOR_DELETE;
+    p->operation = MM_SCENE_ACTOR_DELETE;
     if (!s->commit_undo(s->context, u))
     {
         s->release_undo(s->context, u);
         return 0;
     }
     s->release_undo(s->context, u);
-    three_mm_scene_actor_remove(id, s);
+    mm_scene_actor_remove(id, s);
     return 1;
 }
-int three_mm_scene_actor_paste(void *actor, const ThreeMMSceneContentServices *s)
+int mm_scene_actor_paste(void *actor, const MMSceneContentServices *s)
 {
-    if (!s->actor_paste(s->context, actor, s->events.data->currentFrame) || !three_mm_scene_actor_add(actor, s))
+    if (!s->actor_paste(s->context, actor, s->events.data->currentFrame) || !mm_scene_actor_add(actor, s))
         return 0;
     s->invalidate(s->context);
     if (!s->events.seek(s->events.context, 0, actor, s->events.data->currentFrame))
     {
-        three_mm_scene_actor_remove(s->actor_id(s->context, actor), s);
+        mm_scene_actor_remove(s->actor_id(s->context, actor), s);
         return 0;
     }
     s->dirty(s->context);
@@ -216,9 +216,9 @@ int three_mm_scene_actor_paste(void *actor, const ThreeMMSceneContentServices *s
     s->indicator(s->context);
     return 1;
 }
-int three_mm_scene_roll_add(const ThreeMMSceneContentServices *s)
+int mm_scene_roll_add(const MMSceneContentServices *s)
 {
-    ThreeMMI32 i;
+    MMI32 i;
     for (i = 0; i < count(list(0, s), s); ++i)
         if (!s->add_roll(s->context, at(list(0, s), i, s), 0))
         {
@@ -228,23 +228,23 @@ int three_mm_scene_roll_add(const ThreeMMSceneContentServices *s)
         }
     return 1;
 }
-void three_mm_scene_roll_remove(int only, const ThreeMMSceneContentServices *s)
+void mm_scene_roll_remove(int only, const MMSceneContentServices *s)
 {
-    ThreeMMI32 i;
+    MMI32 i;
     for (i = 0; i < count(list(0, s), s); ++i)
         s->remove_roll(s->context, at(list(0, s), i, s), only);
 }
-void *three_mm_scene_text_at(ThreeMMI32 i, const ThreeMMSceneContentServices *s)
+void *mm_scene_text_at(MMI32 i, const MMSceneContentServices *s)
 {
     return i >= 0 && i < count(list(1, s), s) ? at(list(1, s), i, s) : NULL;
 }
-int three_mm_scene_text_add(void *text, const ThreeMMSceneContentServices *s)
+int mm_scene_text_add(void *text, const MMSceneContentServices *s)
 {
     s->bind_text(s->context, text);
-    if (!s->insert_start(s->context, count(group(s), s), THREE_MM_SCENE_ADD_TEXT, text))
+    if (!s->insert_start(s->context, count(group(s), s), MM_SCENE_ADD_TEXT, text))
         return 0;
     s->retain(s->context, text);
-    if (!three_mm_scene_play_event(0, THREE_MM_SCENE_ADD_TEXT, &text, s->events.runtime->disabled, &s->events))
+    if (!mm_scene_play_event(0, MM_SCENE_ADD_TEXT, &text, s->events.runtime->disabled, &s->events))
     {
         s->erase(s->context, group(s), count(group(s), s) - 1);
         release(text, s);
@@ -253,12 +253,12 @@ int three_mm_scene_text_add(void *text, const ThreeMMSceneContentServices *s)
     s->dirty(s->context);
     return 1;
 }
-int three_mm_scene_text_remove(void *text, const ThreeMMSceneContentServices *s)
+int mm_scene_text_remove(void *text, const MMSceneContentServices *s)
 {
-    ThreeMMI32 i, j, first, last;
+    MMI32 i, j, first, last;
     if (!text)
     {
-        s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_TEXT_MISSING);
+        s->diagnostic(s->context, MM_SCENE_CONTENT_TEXT_MISSING);
         return 0;
     }
     if (s->selected(s->context, 1) == text)
@@ -268,7 +268,7 @@ int three_mm_scene_text_remove(void *text, const ThreeMMSceneContentServices *s)
     }
     for (i = 0; i < count(group(s), s); ++i)
     {
-        if (kind(i, s) != THREE_MM_SCENE_ADD_TEXT || object(i, s) != text)
+        if (kind(i, s) != MM_SCENE_ADD_TEXT || object(i, s) != text)
             continue;
         s->erase(s->context, group(s), i);
         for (j = 0; j < count(list(1, s), s); ++j)
@@ -276,43 +276,43 @@ int three_mm_scene_text_remove(void *text, const ThreeMMSceneContentServices *s)
             {
                 s->erase(s->context, list(1, s), j);
                 if (s->text_lifetime(s->context, text, &first, &last) &&
-                    !s->events.seek(s->events.context, 1, text, three_mm_signed_word((ThreeMMU32)first - 1U)))
-                    s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_TEXT_HIDE_FAILED);
+                    !s->events.seek(s->events.context, 1, text, mm_signed_word((MMU32)first - 1U)))
+                    s->diagnostic(s->context, MM_SCENE_CONTENT_TEXT_HIDE_FAILED);
                 release(text, s);
                 s->dirty(s->context);
                 return 1;
             }
-        s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_TEXT_ROLL_MISSING);
+        s->diagnostic(s->context, MM_SCENE_CONTENT_TEXT_ROLL_MISSING);
         release(text, s);
         return 0;
     }
-    s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_TEXT_MISSING);
+    s->diagnostic(s->context, MM_SCENE_CONTENT_TEXT_MISSING);
     return 0;
 }
-static int text_snapshot(void *text, void *u, int add, const ThreeMMSceneContentServices *s)
+static int text_snapshot(void *text, void *u, int add, const MMSceneContentServices *s)
 {
-    ThreeMMSceneTextUndo *p = s->text_state(s->context, u);
-    ThreeMMI32 first, last;
+    MMSceneTextUndo *p = s->text_state(s->context, u);
+    MMI32 first, last;
     s->retain(s->context, text);
     p->text = text;
     p->add = add;
     if (!s->text_lifetime(s->context, text, &first, &last))
     {
-        s->diagnostic(s->context, THREE_MM_SCENE_CONTENT_LIFETIME);
+        s->diagnostic(s->context, MM_SCENE_CONTENT_LIFETIME);
         return 0;
     }
     p->first = first;
     p->last = last == s->events.data->lastFrame ? 2147483647L : last;
     return 1;
 }
-int three_mm_scene_text_add_undo(void *text, const ThreeMMSceneContentServices *s)
+int mm_scene_text_add_undo(void *text, const MMSceneContentServices *s)
 {
     void *u = s->new_undo(s->context, 1);
-    ThreeMMSceneTextUndo *p;
-    ThreeMMI32 i;
+    MMSceneTextUndo *p;
+    MMI32 i;
     if (!u)
         return 0;
-    if (!three_mm_scene_text_add(text, s) || !text_snapshot(text, u, 1, s))
+    if (!mm_scene_text_add(text, s) || !text_snapshot(text, u, 1, s))
     {
         s->release_undo(s->context, u);
         return 0;
@@ -333,7 +333,7 @@ int three_mm_scene_text_add_undo(void *text, const ThreeMMSceneContentServices *
     s->release_undo(s->context, u);
     return 1;
 }
-int three_mm_scene_text_remove_undo(void *text, const ThreeMMSceneContentServices *s)
+int mm_scene_text_remove_undo(void *text, const MMSceneContentServices *s)
 {
     void *u = s->new_undo(s->context, 1);
     if (!u)
@@ -344,19 +344,19 @@ int three_mm_scene_text_remove_undo(void *text, const ThreeMMSceneContentService
         return 0;
     }
     s->release_undo(s->context, u);
-    if (!three_mm_scene_text_remove(text, s))
+    if (!mm_scene_text_remove(text, s))
     {
         s->clear_undo(s->context);
         return 0;
     }
     return 1;
 }
-void three_mm_scene_content_bind_movie(void *movie, const ThreeMMSceneContentServices *s)
+void mm_scene_content_bind_movie(void *movie, const MMSceneContentServices *s)
 {
     s->events.owner->movie = movie;
     s->events.owners.publish(s->events.owners.context, s->events.scene, s->events.owner);
 }
-void three_mm_scene_actor_undo_dispose(ThreeMMSceneActorUndo *p, const ThreeMMSceneContentServices *s)
+void mm_scene_actor_undo_dispose(MMSceneActorUndo *p, const MMSceneContentServices *s)
 {
     if (p->actor)
     {
@@ -364,7 +364,7 @@ void three_mm_scene_actor_undo_dispose(ThreeMMSceneActorUndo *p, const ThreeMMSc
         p->actor = NULL;
     }
 }
-void three_mm_scene_text_undo_dispose(ThreeMMSceneTextUndo *p, const ThreeMMSceneContentServices *s)
+void mm_scene_text_undo_dispose(MMSceneTextUndo *p, const MMSceneContentServices *s)
 {
     if (p->text)
     {
@@ -372,30 +372,30 @@ void three_mm_scene_text_undo_dispose(ThreeMMSceneTextUndo *p, const ThreeMMScen
         p->text = NULL;
     }
 }
-static int failed(const ThreeMMSceneContentUndoServices *s)
+static int failed(const MMSceneContentUndoServices *s)
 {
     s->flush(s->context);
     s->clear(s->context);
     return 0;
 }
-int three_mm_scene_actor_undo(ThreeMMSceneActorUndo *p, int redo, const ThreeMMSceneContentUndoServices *u)
+int mm_scene_actor_undo(MMSceneActorUndo *p, int redo, const MMSceneContentUndoServices *u)
 {
-    ThreeMMSceneContentServices s;
+    MMSceneContentServices s;
     void *copy, *actor;
-    ThreeMMI32 id;
+    MMI32 id;
     if (!u->switch_scene(u->context) || !u->seek(u->context, u->frame))
         return failed(u);
     s = u->scene(u->context);
     id = s.actor_id(s.context, p->actor);
-    if ((p->operation == THREE_MM_SCENE_ACTOR_ADD && !redo) || (p->operation == THREE_MM_SCENE_ACTOR_DELETE && redo))
-        three_mm_scene_actor_remove(id, &s);
-    else if (p->operation == THREE_MM_SCENE_ACTOR_DELETE)
+    if ((p->operation == MM_SCENE_ACTOR_ADD && !redo) || (p->operation == MM_SCENE_ACTOR_DELETE && redo))
+        mm_scene_actor_remove(id, &s);
+    else if (p->operation == MM_SCENE_ACTOR_DELETE)
     {
         copy = u->duplicate(u->context, p->actor);
         if (!copy)
             return failed(u);
         s.set_actor_id(s.context, copy, id);
-        if (!three_mm_scene_actor_add(copy, &s))
+        if (!mm_scene_actor_add(copy, &s))
         {
             release(copy, &s);
             return failed(u);
@@ -405,49 +405,49 @@ int three_mm_scene_actor_undo(ThreeMMSceneActorUndo *p, int redo, const ThreeMMS
     }
     else
     {
-        if (p->operation == THREE_MM_SCENE_ACTOR_ADD)
+        if (p->operation == MM_SCENE_ACTOR_ADD)
         {
-            if (!three_mm_scene_actor_add(p->actor, &s))
+            if (!mm_scene_actor_add(p->actor, &s))
                 return failed(u);
             s.select(s.context, 0, p->actor);
             actor = p->actor;
         }
         else
         {
-            actor = three_mm_scene_actor_find(id, &s);
+            actor = mm_scene_actor_find(id, &s);
             if (!actor)
             {
-                s.diagnostic(s.context, THREE_MM_SCENE_CONTENT_ACTOR_MISSING);
+                s.diagnostic(s.context, MM_SCENE_CONTENT_ACTOR_MISSING);
                 return failed(u);
             }
         }
         copy = u->duplicate(u->context, actor);
         if (!copy)
             return failed(u);
-        if (p->operation != THREE_MM_SCENE_ACTOR_ADD)
+        if (p->operation != MM_SCENE_ACTOR_ADD)
         {
-            if (!three_mm_scene_actor_add(p->actor, &s))
+            if (!mm_scene_actor_add(p->actor, &s))
             {
                 release(copy, &s);
                 return failed(u);
             }
             s.select(s.context, 0, p->actor);
         }
-        if (p->operation == THREE_MM_SCENE_ACTOR_ADD)
+        if (p->operation == MM_SCENE_ACTOR_ADD)
             id = s.actor_id(s.context, p->actor);
         s.set_actor_id(s.context, copy, id);
-        three_mm_scene_actor_undo_dispose(p, &s);
+        mm_scene_actor_undo_dispose(p, &s);
         p->actor = copy;
     }
     u->flush(u->context);
     u->update_roll(u->context);
     return 1;
 }
-int three_mm_scene_text_undo(ThreeMMSceneTextUndo *p, int redo, const ThreeMMSceneContentUndoServices *u)
+int mm_scene_text_undo(MMSceneTextUndo *p, int redo, const MMSceneContentUndoServices *u)
 {
-    ThreeMMSceneContentServices s;
+    MMSceneContentServices s;
     void *text;
-    ThreeMMI32 i;
+    MMI32 i;
     if (!u->switch_scene(u->context))
         return failed(u);
     s = u->scene(u->context);
@@ -455,7 +455,7 @@ int three_mm_scene_text_undo(ThreeMMSceneTextUndo *p, int redo, const ThreeMMSce
     {
         if (!u->seek(u->context, p->first))
             return failed(u);
-        if (!three_mm_scene_text_add(p->text, &s))
+        if (!mm_scene_text_add(p->text, &s))
         {
             if (redo)
                 u->seek(u->context, u->frame);
@@ -464,7 +464,7 @@ int three_mm_scene_text_undo(ThreeMMSceneTextUndo *p, int redo, const ThreeMMSce
         if (p->last < s.events.data->lastFrame)
         {
             if (!s.events.seek(s.events.context, 1, p->text, p->last + 1))
-                s.diagnostic(s.context, THREE_MM_SCENE_CONTENT_TEXT_HIDE_FAILED);
+                s.diagnostic(s.context, MM_SCENE_CONTENT_TEXT_HIDE_FAILED);
             s.hide_text(s.context, p->text);
         }
         s.select(s.context, 1, p->text);
@@ -478,7 +478,7 @@ int three_mm_scene_text_undo(ThreeMMSceneTextUndo *p, int redo, const ThreeMMSce
                 }
             if (i == count(list(1, &s), &s))
             {
-                s.diagnostic(s.context, THREE_MM_SCENE_CONTENT_TEXT_MISSING);
+                s.diagnostic(s.context, MM_SCENE_CONTENT_TEXT_MISSING);
                 return failed(u);
             }
         }
@@ -487,8 +487,8 @@ int three_mm_scene_text_undo(ThreeMMSceneTextUndo *p, int redo, const ThreeMMSce
     {
         if (!u->seek(u->context, u->frame))
             return failed(u);
-        text = three_mm_scene_text_at(p->index, &s);
-        if (!three_mm_scene_text_remove(text, &s))
+        text = mm_scene_text_at(p->index, &s);
+        if (!mm_scene_text_remove(text, &s))
             return failed(u);
     }
     u->flush(u->context);

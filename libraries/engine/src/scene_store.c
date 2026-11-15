@@ -1,21 +1,21 @@
 /* Scene tag collection and saving converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/scene_store.h"
+#include "mm/scene_store.h"
 #include <string.h>
-static ThreeMMU32 word(const void *p, int swap)
+static MMU32 word(const void *p, int swap)
 {
-    ThreeMMU32 n;
+    MMU32 n;
     memcpy(&n, p, 4);
     return swap ? ((n & 255U) << 24) | ((n & 65280U) << 8) | ((n >> 8) & 65280U) | (n >> 24) : n;
 }
-static ThreeMMI32 signed_word(const void *p, int swap)
+static MMI32 signed_word(const void *p, int swap)
 {
-    ThreeMMU32 n = word(p, swap);
-    ThreeMMI32 result;
+    MMU32 n = word(p, swap);
+    MMI32 result;
     memcpy(&result, &n, 4);
     return result;
 }
-static void tag_from_wire(ThreeMMTag *tag, const void *p, int swap)
+static void tag_from_wire(MMTag *tag, const void *p, int swap)
 {
     const unsigned char *b = (const unsigned char *)p;
     tag->sid = signed_word(b, swap);
@@ -23,15 +23,15 @@ static void tag_from_wire(ThreeMMTag *tag, const void *p, int swap)
     tag->type = word(b + 8, swap);
     tag->number = word(b + 12, swap);
 }
-int three_mm_scene_collect_tags(ThreeMMU32 scene, const ThreeMMSceneCollectServices *s)
+int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
 {
-    const ThreeMMSceneStoreGroups *g = &s->groups;
-    const ThreeMMSceneSoundPacketServices *v = &s->packets;
-    ThreeMMTag background, tag;
-    ThreeMMSceneSound *sound;
+    const MMSceneStoreGroups *g = &s->groups;
+    const MMSceneSoundPacketServices *v = &s->packets;
+    MMTag background, tag;
+    MMSceneSound *sound;
     void *group = NULL, *list, *data;
-    ThreeMMI32 i, j, kind, bytes;
-    ThreeMMU32 child;
+    MMI32 i, j, kind, bytes;
+    MMU32 child;
     unsigned char fixed[8];
     int start, swap, error, ok;
     background.sid = -1;
@@ -44,7 +44,7 @@ int three_mm_scene_collect_tags(ThreeMMU32 scene, const ThreeMMSceneCollectServi
         {
             g->fixed(g->context, group, i, fixed);
             kind = signed_word(fixed + 4, swap);
-            if (start && kind == THREE_MM_SCENE_ADD_ACTOR)
+            if (start && kind == MM_SCENE_ADD_ACTOR)
             {
                 data = g->data(g->context, group, i, &bytes);
                 if (bytes != 4)
@@ -73,7 +73,7 @@ int three_mm_scene_collect_tags(ThreeMMU32 scene, const ThreeMMSceneCollectServi
                     g->release(g->context, list);
                 }
             }
-            else if (start && kind == THREE_MM_SCENE_SET_BACKGROUND)
+            else if (start && kind == MM_SCENE_SET_BACKGROUND)
             {
                 data = g->data(g->context, group, i, &bytes);
                 if (bytes != 16)
@@ -83,7 +83,7 @@ int three_mm_scene_collect_tags(ThreeMMU32 scene, const ThreeMMSceneCollectServi
                     goto fail;
                 background = tag;
             }
-            else if (!start && kind == THREE_MM_SCENE_CHANGE_CAMERA)
+            else if (!start && kind == MM_SCENE_CHANGE_CAMERA)
             {
                 data = g->data(g->context, group, i, &bytes);
                 if (bytes != 4)
@@ -97,10 +97,10 @@ int three_mm_scene_collect_tags(ThreeMMU32 scene, const ThreeMMSceneCollectServi
                 if (!s->insert_child(s->context, &background, child, s->camera_type))
                     goto fail;
             }
-            else if (!start && kind == THREE_MM_SCENE_PLAY_SOUND)
+            else if (!start && kind == MM_SCENE_PLAY_SOUND)
             {
                 data = g->data(g->context, group, i, &bytes);
-                sound = three_mm_scene_sound_decode(data, bytes, swap, v);
+                sound = mm_scene_sound_decode(data, bytes, swap, v);
                 if (!sound)
                     goto fail;
                 ok = 1;
@@ -117,7 +117,7 @@ int three_mm_scene_collect_tags(ThreeMMU32 scene, const ThreeMMSceneCollectServi
                 if (!ok)
                     goto fail;
             }
-            else if (!((start && kind == THREE_MM_SCENE_ADD_TEXT) || (!start && kind == THREE_MM_SCENE_PAUSE)))
+            else if (!((start && kind == MM_SCENE_ADD_TEXT) || (!start && kind == MM_SCENE_PAUSE)))
                 s->diagnostic(s->context, start, 0);
         }
         g->release(g->context, group);
@@ -128,14 +128,14 @@ fail:
     g->release(g->context, group);
     return 0;
 }
-static int store_sound(void *frames, ThreeMMI32 index, ThreeMMI32 frame, ThreeMMU32 scene,
-                       const ThreeMMSceneStoreServices *s)
+static int store_sound(void *frames, MMI32 index, MMI32 frame, MMU32 scene,
+                       const MMSceneStoreServices *s)
 {
-    const ThreeMMSceneSoundPacketServices *v = &s->values.packets;
-    ThreeMMSceneSound *sound = three_mm_scene_sound_group(s->owner->owned[THREE_MM_SCENE_FRAMES], index, 1, v);
-    ThreeMMTag tag;
-    ThreeMMU32 child;
-    ThreeMMI32 i, bytes;
+    const MMSceneSoundPacketServices *v = &s->values.packets;
+    MMSceneSound *sound = mm_scene_sound_group(s->owner->owned[MM_SCENE_FRAMES], index, 1, v);
+    MMTag tag;
+    MMU32 child;
+    MMI32 i, bytes;
     void *wire;
     int ok = 0;
     if (!sound)
@@ -148,23 +148,23 @@ static int store_sound(void *frames, ThreeMMI32 index, ThreeMMI32 frame, ThreeMM
         if (!s->adopt_sound(s->context, scene, tag.number, child))
             goto done;
     }
-    wire = three_mm_scene_sound_encode(sound, &bytes, v);
+    wire = mm_scene_sound_encode(sound, &bytes, v);
     if (wire)
     {
-        ok = s->insert(s->context, frames, index, frame, THREE_MM_SCENE_PLAY_SOUND, bytes, wire);
+        ok = s->insert(s->context, frames, index, frame, MM_SCENE_PLAY_SOUND, bytes, wire);
         s->groups.free_raw(s->groups.context, wire);
     }
 done:
     s->values.release(s->values.context, sound);
     return ok;
 }
-int three_mm_scene_store(ThreeMMU32 *number, const ThreeMMSceneStoreServices *s)
+int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
 {
-    const ThreeMMSceneStoreGroups *g = &s->groups;
+    const MMSceneStoreGroups *g = &s->groups;
     void *frames = NULL, *starts = NULL, *group, *data, *object, *thumbnail;
-    ThreeMMI32 i, frame, kind, bytes;
-    ThreeMMU32 actor = 0, text = 0, child, count;
-    ThreeMMTag tag;
+    MMI32 i, frame, kind, bytes;
+    MMU32 actor = 0, text = 0, child, count;
+    MMTag tag;
     unsigned char fixed[8], wire_tag[16];
     *number = 0xffffffffUL;
     if (!s->add_scene(s->context, number))
@@ -172,21 +172,21 @@ int three_mm_scene_store(ThreeMMU32 *number, const ThreeMMSceneStoreServices *s)
     frames = s->new_group(s->context);
     if (!frames)
         goto fail;
-    group = s->owner->owned[THREE_MM_SCENE_FRAMES];
+    group = s->owner->owned[MM_SCENE_FRAMES];
     for (i = 0; i < g->count(g->context, group); ++i)
     {
         g->fixed(g->context, group, i, fixed);
         frame = signed_word(fixed, 0);
         kind = signed_word(fixed + 4, 0);
-        if (kind == THREE_MM_SCENE_PLAY_SOUND)
+        if (kind == MM_SCENE_PLAY_SOUND)
         {
             if (!store_sound(frames, i, frame, *number, s))
                 goto fail;
         }
-        else if (kind == THREE_MM_SCENE_CHANGE_CAMERA || kind == THREE_MM_SCENE_PAUSE)
+        else if (kind == MM_SCENE_CHANGE_CAMERA || kind == MM_SCENE_PAUSE)
         {
             data = g->data(g->context, group, i, &bytes);
-            if (!s->insert(s->context, frames, i, frame, kind, kind == THREE_MM_SCENE_PAUSE ? 8 : 4, data))
+            if (!s->insert(s->context, frames, i, frame, kind, kind == MM_SCENE_PAUSE ? 8 : 4, data))
                 goto fail;
         }
         else
@@ -195,15 +195,15 @@ int three_mm_scene_store(ThreeMMU32 *number, const ThreeMMSceneStoreServices *s)
     starts = s->new_group(s->context);
     if (!starts)
         goto fail;
-    group = s->owner->owned[THREE_MM_SCENE_STARTS];
+    group = s->owner->owned[MM_SCENE_STARTS];
     for (i = 0; i < g->count(g->context, group); ++i)
     {
         g->fixed(g->context, group, i, fixed);
         frame = signed_word(fixed, 0);
         kind = signed_word(fixed + 4, 0);
-        if (kind == THREE_MM_SCENE_ADD_ACTOR || kind == THREE_MM_SCENE_ADD_TEXT)
+        if (kind == MM_SCENE_ADD_ACTOR || kind == MM_SCENE_ADD_TEXT)
         {
-            count = kind == THREE_MM_SCENE_ADD_ACTOR ? actor : text;
+            count = kind == MM_SCENE_ADD_ACTOR ? actor : text;
             if (!s->add_child(s->context, *number, kind, count, &child))
                 goto fail;
             object = s->object(s->context, group, i);
@@ -211,12 +211,12 @@ int three_mm_scene_store(ThreeMMU32 *number, const ThreeMMSceneStoreServices *s)
                 goto fail;
             if (!s->insert(s->context, starts, i, frame, kind, 4, &count))
                 goto fail;
-            if (kind == THREE_MM_SCENE_ADD_ACTOR)
+            if (kind == MM_SCENE_ADD_ACTOR)
                 ++actor;
             else
                 ++text;
         }
-        else if (kind == THREE_MM_SCENE_SET_BACKGROUND)
+        else if (kind == MM_SCENE_SET_BACKGROUND)
         {
             if (!s->save_background(s->context, group, i, &tag))
                 goto fail;
@@ -227,7 +227,7 @@ int three_mm_scene_store(ThreeMMU32 *number, const ThreeMMSceneStoreServices *s)
             if (!s->insert(s->context, starts, i, frame, kind, 16, wire_tag))
                 goto fail;
         }
-        else if (kind == THREE_MM_SCENE_CHANGE_CAMERA)
+        else if (kind == MM_SCENE_CHANGE_CAMERA)
         {
             data = g->data(g->context, group, i, &bytes);
             if (!s->insert(s->context, starts, i, frame, kind, 4, data))
@@ -239,7 +239,7 @@ int three_mm_scene_store(ThreeMMU32 *number, const ThreeMMSceneStoreServices *s)
     if (!s->write_events(s->context, *number, frames, starts))
         goto fail;
     s->update_thumbnail(s->context);
-    thumbnail = s->owner->owned[THREE_MM_SCENE_THUMBNAIL];
+    thumbnail = s->owner->owned[MM_SCENE_THUMBNAIL];
     if (thumbnail)
     {
         bytes = s->thumbnail_size(s->context, thumbnail);

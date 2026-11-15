@@ -7,7 +7,7 @@
 *************************************************************************/
 #ifndef TMAP_H
 #define TMAP_H
-#include "three_mm/texture_resource.h"
+#include "mm/texture_resource.h"
 
 namespace BRender
 {
@@ -58,8 +58,8 @@ class TextureMap : public TextureMap_PAR
     MARKMEM
   protected:
     BPMP _bpmp;
-    ThreeMMTextureResource _texture;
-    static ThreeMMTextureServices _Services(void *context = nullptr);
+    MMTextureResource _texture;
+    static MMTextureServices _Services(void *context = nullptr);
     void _Sync();
 
   protected:

@@ -1,4 +1,4 @@
-#include "three_mm/movie_owner.h"
+#include "mm/movie_owner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,9 +20,9 @@ typedef struct Resource
 typedef struct Table
 {
     Host *host;
-    ThreeMMU32 count, width;
+    MMU32 count, width;
     int wire;
-    ThreeMMRollCallActor rows[4];
+    MMRollCallActor rows[4];
     unsigned char bytes[4][28];
 } Table;
 struct Host
@@ -75,7 +75,7 @@ static void *open_file(void *c)
     event(h, 'o');
     return h->fail == FAIL_OPEN ? NULL : h;
 }
-static int verify(void *c, void *f, ThreeMMU32 *n)
+static int verify(void *c, void *f, MMU32 *n)
 {
     Host *h = (Host *)c;
     CHECK(f == h);
@@ -136,17 +136,17 @@ static void release_table(void *p)
     --t->host->tables;
     free(t);
 }
-static ThreeMMU32 count(void *p)
+static MMU32 count(void *p)
 {
     return ((Table *)p)->count;
 }
-static void actor(void *p, ThreeMMU32 i, ThreeMMRollCallActor *out)
+static void actor(void *p, MMU32 i, MMRollCallActor *out)
 {
     Table *t = (Table *)p;
     CHECK(i < t->count);
     *out = t->rows[i];
 }
-static void close_actor(void *c, ThreeMMRollCallActor *a)
+static void close_actor(void *c, MMRollCallActor *a)
 {
     Host *h = (Host *)c;
     event(h, (char)('A' + a->data.actor_id));
@@ -158,7 +158,7 @@ static void *file(void *p)
 {
     return ((Resource *)p)->host;
 }
-static int root(void *c, void *f, ThreeMMU32 *n)
+static int root(void *c, void *f, MMU32 *n)
 {
     Host *h = (Host *)c;
     CHECK(f == h);
@@ -166,7 +166,7 @@ static int root(void *c, void *f, ThreeMMU32 *n)
     *n = 7;
     return h->fail != FAIL_ROOT;
 }
-static int read_call(void *c, void *r, ThreeMMU32 n, void **out, ThreeMMI32 *limit)
+static int read_call(void *c, void *r, MMU32 n, void **out, MMI32 *limit)
 {
     Host *h = (Host *)c;
     Table *t;
@@ -187,21 +187,21 @@ static int read_call(void *c, void *r, ThreeMMU32 n, void **out, ThreeMMI32 *lim
     *limit = 1;
     return 1;
 }
-static void load_name(void *c, void *f, ThreeMMU32 n, ThreeMMMovieTitle *title)
+static void load_name(void *c, void *f, MMU32 n, MMMovieTitle *title)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7);
     event(h, 'n');
-    CHECK(three_mm_movie_title_set(title, "Loaded", 6));
+    CHECK(mm_movie_title_set(title, "Loaded", 6));
 }
-static int scene(void *c, void *f, ThreeMMU32 n, ThreeMMI32 i)
+static int scene(void *c, void *f, MMU32 n, MMI32 i)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7);
     event(h, 's');
     return i < h->scenes;
 }
-static int previous(void *c, void *f, ThreeMMU32 n, ThreeMMU32 *out)
+static int previous(void *c, void *f, MMU32 n, MMU32 *out)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7);
@@ -209,7 +209,7 @@ static int previous(void *c, void *f, ThreeMMU32 n, ThreeMMU32 *out)
     *out = 9;
     return h->previous;
 }
-static int write_call(void *c, void *f, ThreeMMU32 n, void *table, ThreeMMU32 *out)
+static int write_call(void *c, void *f, MMU32 n, void *table, MMU32 *out)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7 && table);
@@ -217,17 +217,17 @@ static int write_call(void *c, void *f, ThreeMMU32 n, void *table, ThreeMMU32 *o
     *out = 10;
     return h->fail != FAIL_WRITE;
 }
-static void delete_previous(void *c, void *f, ThreeMMU32 n, ThreeMMU32 old)
+static void delete_previous(void *c, void *f, MMU32 n, MMU32 old)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7 && old == 9);
     event(h, 'd');
 }
-static int set_name(void *c, void *f, ThreeMMU32 n, const ThreeMMMovieTitle *title)
+static int set_name(void *c, void *f, MMU32 n, const MMMovieTitle *title)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7);
-    CHECK(title->count == 6 && !memcmp(three_mm_movie_title_text(title), "Loaded", 6));
+    CHECK(title->count == 6 && !memcmp(mm_movie_title_text(title), "Loaded", 6));
     event(h, 'N');
     return h->fail != FAIL_NAME;
 }
@@ -244,9 +244,9 @@ static void persist(void *f)
     event(h, 'P');
     ++h->persistent;
 }
-static ThreeMMMovieOwnerServices owners(Host *h)
+static MMMovieOwnerServices owners(Host *h)
 {
-    ThreeMMMovieOwnerServices s = {
+    MMMovieOwnerServices s = {
         NULL,          create,   open_file,  verify,          new_resource, release_file, release_resource, new_table,
         release_table, count,    actor,      close_actor,     file,         root,         read_call,        load_name,
         scene,         previous, write_call, delete_previous, set_name,     save,         persist};
@@ -256,17 +256,17 @@ static ThreeMMMovieOwnerServices owners(Host *h)
 static void ownership(void)
 {
     Host h;
-    ThreeMMMovieState m;
-    ThreeMMMovieOwnerServices s;
+    MMMovieState m;
+    MMMovieOwnerServices s;
     void *old_r, *old_t;
     int i;
     memset(&h, 0, sizeof(h));
     s = owners(&h);
-    three_mm_movie_state_init(&m);
+    mm_movie_state_init(&m);
     CHECK(m.movieNumber == 0xffffffffUL && !m.resources && !m.actors);
-    CHECK(!three_mm_movie_save(&m, &s) && !h.used);
-    CHECK(three_mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crftb"));
-    CHECK(three_mm_movie_title_set(&m.title, "Old", 3));
+    CHECK(!mm_movie_save(&m, &s) && !h.used);
+    CHECK(mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crftb"));
+    CHECK(mm_movie_title_set(&m.title, "Old", 3));
     old_r = m.resources;
     old_t = m.actors;
     m.sceneCount = 5;
@@ -277,10 +277,10 @@ static void ownership(void)
             continue;
         reset(&h);
         h.fail = i;
-        CHECK(!three_mm_movie_init_empty(&m, &s));
+        CHECK(!mm_movie_init_empty(&m, &s));
         CHECK(m.resources == old_r && m.actors == old_t && m.sceneCount == 5 && m.actorIdLimit == 42 && h.tables == 1 &&
               h.resources == 1);
-        CHECK(m.title.count == 3 && !memcmp(three_mm_movie_title_text(&m.title), "Old", 3));
+        CHECK(m.title.count == 3 && !memcmp(mm_movie_title_text(&m.title), "Old", 3));
         if (i == FAIL_RESOURCE)
             CHECK(!strcmp(h.log, "crftT"));
         if (i == FAIL_TABLE)
@@ -294,40 +294,40 @@ static void ownership(void)
             continue;
         reset(&h);
         h.fail = i;
-        CHECK(!three_mm_movie_load(&m, 99, &s));
+        CHECK(!mm_movie_load(&m, 99, &s));
         CHECK(m.resources == old_r && m.actors == old_t && h.resources == 1 && h.tables == 1);
-        CHECK(m.title.count == 3 && !memcmp(three_mm_movie_title_text(&m.title), "Old", 3));
+        CHECK(m.title.count == 3 && !memcmp(mm_movie_title_text(&m.title), "Old", 3));
     }
     reset(&h);
     h.fail = 0;
     h.scenes = 2;
-    CHECK(three_mm_movie_load(&m, 99, &s) && m.movieNumber == 7 && m.actorIdLimit == 1 && m.sceneCount == 2);
+    CHECK(mm_movie_load(&m, 99, &s) && m.movieNumber == 7 && m.actorIdLimit == 1 && m.sceneCount == 2);
     CHECK(!strcmp(h.log, "ovrfitnsssTR") && h.resources == 1 && h.tables == 1);
     h.previous = 1;
     reset(&h);
-    CHECK(three_mm_movie_save(&m, &s) && !strcmp(h.log, "pjdNSP") && h.persistent == 1);
+    CHECK(mm_movie_save(&m, &s) && !strcmp(h.log, "pjdNSP") && h.persistent == 1);
     reset(&h);
     h.fail = FAIL_WRITE;
-    CHECK(!three_mm_movie_save(&m, &s) && !strcmp(h.log, "pj"));
+    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "pj"));
     reset(&h);
     h.fail = FAIL_NAME;
-    CHECK(!three_mm_movie_save(&m, &s) && !strcmp(h.log, "pjdN"));
+    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "pjdN"));
     reset(&h);
     h.fail = FAIL_SAVE;
-    CHECK(!three_mm_movie_save(&m, &s) && !strcmp(h.log, "pjdNS") && h.persistent == 1);
+    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "pjdNS") && h.persistent == 1);
     h.fail = 0;
     reset(&h);
-    three_mm_movie_state_dispose(&m, &s);
+    mm_movie_state_dispose(&m, &s);
     CHECK(!strcmp(h.log, "ARTR") && !h.tables && !h.resources);
     reset(&h);
-    three_mm_movie_state_dispose(&m, &s);
+    mm_movie_state_dispose(&m, &s);
     CHECK(!h.used);
 }
-static void *read_wire(void *c, void *r, ThreeMMU32 movie, int *big)
+static void *read_wire(void *c, void *r, MMU32 movie, int *big)
 {
     Host *h = (Host *)c;
     Table *t;
-    ThreeMMMovieActor a;
+    MMMovieActor a;
     int i;
     (void)r;
     CHECK(movie == 7);
@@ -345,16 +345,16 @@ static void *read_wire(void *c, void *r, ThreeMMU32 movie, int *big)
         a.actor_id = (i == h->bad_row) ? -1 : i;
         a.reference_count = 3;
         a.template_number = 123;
-        three_mm_movie_write_actor(&a, t->bytes[i], h->big);
+        mm_movie_write_actor(&a, t->bytes[i], h->big);
     }
     *big = h->big;
     return t;
 }
-static ThreeMMU32 width(void *p)
+static MMU32 width(void *p)
 {
     return ((Table *)p)->width;
 }
-static void wire_row(void *c, void *p, ThreeMMU32 i, unsigned char *bytes)
+static void wire_row(void *c, void *p, MMU32 i, unsigned char *bytes)
 {
     Host *h = (Host *)c;
     Table *t = (Table *)p;
@@ -362,12 +362,12 @@ static void wire_row(void *c, void *p, ThreeMMU32 i, unsigned char *bytes)
     CHECK(i < t->count);
     memcpy(bytes, t->bytes[i], 28);
 }
-static void runtime_row(void *c, void *p, ThreeMMU32 i, ThreeMMRollCallActor *a)
+static void runtime_row(void *c, void *p, MMU32 i, MMRollCallActor *a)
 {
     event((Host *)c, 'g');
     actor(p, i, a);
 }
-static int append_runtime(void *c, void *p, const ThreeMMRollCallActor *a)
+static int append_runtime(void *c, void *p, const MMRollCallActor *a)
 {
     Host *h = (Host *)c;
     Table *t = (Table *)p;
@@ -391,7 +391,7 @@ static int append_wire(void *c, void *p, const unsigned char *bytes)
     memcpy(t->bytes[t->count++], bytes, 28);
     return 1;
 }
-static int open_actor(void *c, ThreeMMRollCallActor *a, void *r)
+static int open_actor(void *c, MMRollCallActor *a, void *r)
 {
     Host *h = (Host *)c;
     event(h, 'h');
@@ -402,11 +402,11 @@ static int open_actor(void *c, ThreeMMRollCallActor *a, void *r)
     ++((Resource *)r)->refs;
     return 1;
 }
-static ThreeMMU32 wire_size(void *p)
+static MMU32 wire_size(void *p)
 {
     return 20 + ((Table *)p)->count * 32;
 }
-static int add_chunk(void *c, void *f, ThreeMMU32 bytes, ThreeMMU32 *n)
+static int add_chunk(void *c, void *f, MMU32 bytes, MMU32 *n)
 {
     Host *h = (Host *)c;
     CHECK(f == h && bytes > 20);
@@ -418,36 +418,36 @@ static int write_table(void *c, void *p)
 {
     Host *h = (Host *)c;
     Table *t = (Table *)p;
-    ThreeMMMemoryStream m;
-    ThreeMMMovieActor a;
-    ThreeMMU32 i;
+    MMMemoryStream m;
+    MMMovieActor a;
+    MMU32 i;
     const unsigned short one = 1;
     int big = *(const unsigned char *)&one == 0;
     event(h, '=');
     for (i = 0; i < t->count; ++i)
     {
-        three_mm_memory_stream_init(&m, t->bytes[i], 28);
-        CHECK(three_mm_movie_read_actor(&m.stream, big, &a, NULL) == THREE_MM_MOVIE_OK && a.actor_id == (ThreeMMI32)i &&
+        mm_memory_stream_init(&m, t->bytes[i], 28);
+        CHECK(mm_movie_read_actor(&m.stream, big, &a, NULL) == MM_MOVIE_OK && a.actor_id == (MMI32)i &&
               t->bytes[i][16] == 0 && t->bytes[i][17] == 0 && t->bytes[i][18] == 0 && t->bytes[i][19] == 0);
     }
     return h->fail != FAIL_TABLE_WRITE;
 }
-static int adopt(void *c, void *f, ThreeMMU32 m, ThreeMMU32 n)
+static int adopt(void *c, void *f, MMU32 m, MMU32 n)
 {
     Host *h = (Host *)c;
     CHECK(f == h && m == 7 && n == 10);
     event(h, '>');
     return h->fail != FAIL_ADOPT;
 }
-static void delete_chunk(void *c, void *f, ThreeMMU32 n)
+static void delete_chunk(void *c, void *f, MMU32 n)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 10);
     event(h, '-');
 }
-static ThreeMMRollCallServices rolls(Host *h)
+static MMRollCallServices rolls(Host *h)
 {
-    ThreeMMRollCallServices s = {NULL,           read_wire,   width,      64,          new_table,
+    MMRollCallServices s = {NULL,           read_wire,   width,      64,          new_table,
                                  release_table,  count,       wire_row,   actor,       runtime_row,
                                  append_runtime, append_wire, open_actor, close_actor, wire_size,
                                  add_chunk,      write_table, adopt,      delete_chunk};
@@ -458,13 +458,13 @@ static void rollcalls(void)
 {
     Host h;
     Resource *r;
-    ThreeMMRollCallServices s;
-    ThreeMMMovieOwnerServices o;
-    ThreeMMMovieState m;
+    MMRollCallServices s;
+    MMMovieOwnerServices o;
+    MMMovieState m;
     Table *t;
     void *output;
-    ThreeMMI32 limit;
-    ThreeMMU32 written;
+    MMI32 limit;
+    MMU32 written;
     int big, failures[] = {FAIL_READ, FAIL_WIRE, FAIL_TABLE, FAIL_TAG, FAIL_APPEND}, i;
     memset(&h, 0, sizeof(h));
     h.bad_row = -1;
@@ -478,27 +478,27 @@ static void rollcalls(void)
         reset(&h);
         limit = 0;
         output = NULL;
-        CHECK(three_mm_movie_read_rollcall(r, 7, &output, &limit, &s) && limit == 3 && r->refs == 4 && h.tables == 1);
+        CHECK(mm_movie_read_rollcall(r, 7, &output, &limit, &s) && limit == 3 && r->refs == 4 && h.tables == 1);
         t = (Table *)output;
         reset(&h);
         written = 99;
-        CHECK(three_mm_movie_write_rollcall(&h, 7, t, &written, &s) && written == 10 && !strcmp(h.log, "wgagaga+=>W"));
+        CHECK(mm_movie_write_rollcall(&h, 7, t, &written, &s) && written == 10 && !strcmp(h.log, "wgagaga+=>W"));
         for (i = FAIL_WIRE; i <= FAIL_ADOPT; ++i)
         {
             if (i == FAIL_TAG)
                 continue;
             h.fail = i;
             reset(&h);
-            CHECK(!three_mm_movie_write_rollcall(&h, 7, t, &written, &s) && h.tables == 1 && r->refs == 4);
+            CHECK(!mm_movie_write_rollcall(&h, 7, t, &written, &s) && h.tables == 1 && r->refs == 4);
             if (i == FAIL_TABLE_WRITE)
                 CHECK(!strcmp(h.log, "wgagaga+=W-"));
             if (i == FAIL_ADOPT)
                 CHECK(!strcmp(h.log, "wgagaga+=>W-"));
         }
         h.fail = 0;
-        three_mm_movie_state_init(&m);
+        mm_movie_state_init(&m);
         m.actors = t;
-        three_mm_movie_clear_actors(&m, &o);
+        mm_movie_clear_actors(&m, &o);
         CHECK(r->refs == 1 && !h.tables);
         for (i = 0; i < 5; ++i)
         {
@@ -506,7 +506,7 @@ static void rollcalls(void)
             reset(&h);
             output = (void *)1;
             limit = 42;
-            CHECK(!three_mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !output && limit == 42 && r->refs == 1 &&
+            CHECK(!mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !output && limit == 42 && r->refs == 1 &&
                   !h.tables);
             if (h.fail == FAIL_APPEND)
                 CHECK(!strcmp(h.log, "iwtghaghaBRWART"));
@@ -515,12 +515,12 @@ static void rollcalls(void)
         h.bad_row = 1;
         reset(&h);
         limit = 42;
-        CHECK(!three_mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !output && limit == 42 && r->refs == 1 &&
+        CHECK(!mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !output && limit == 42 && r->refs == 1 &&
               !h.tables);
         h.bad_row = -1;
         h.bad_width = 1;
         reset(&h);
-        CHECK(!three_mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !strcmp(h.log, "iwW"));
+        CHECK(!mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !strcmp(h.log, "iwW"));
         h.bad_width = 0;
     }
     release_resource(r);

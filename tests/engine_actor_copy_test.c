@@ -1,4 +1,4 @@
-#include "three_mm/actor_copy.h"
+#include "mm/actor_copy.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,35 +7,35 @@
 typedef struct Table
 {
     int count,locks;
-    ThreeMMActorRoutePoint points[8];
-    ThreeMMActorEvent events[24];
-    unsigned char data[24][64]; ThreeMMI32 sizes[24];
+    MMActorRoutePoint points[8];
+    MMActorEvent events[24];
+    unsigned char data[24][64]; MMI32 sizes[24];
 } Table;
 typedef struct Actor { Table route,events; int rewound; } Actor;
 typedef struct Fixture
 {
     Actor source,target;
-    ThreeMMActorState state;
-    ThreeMMActorCopyResult out;
-    ThreeMMActorCopyServices services;
+    MMActorState state;
+    MMActorCopyResult out;
+    MMActorCopyServices services;
     int created,released,publications,template_refs,tag_refs,inserts,merges,resolves,writes,points,resizes,reserves,copies,copied,distances,unknown;
     int fail_create,fail_event,fail_resolve,fail_point,fail_resize,fail_reserve,zero_distance;
 } Fixture;
-static ThreeMMI32 count(void *p) { return ((Table *)p)->count; }
-static void point(void *p,ThreeMMI32 i,ThreeMMActorRoutePoint *v)
+static MMI32 count(void *p) { return ((Table *)p)->count; }
+static void point(void *p,MMI32 i,MMActorRoutePoint *v)
 { Table *t=(Table *)p; CHECK(i>=0 && i<t->count); *v=t->points[i]; }
-static void event(void *p,ThreeMMI32 i,ThreeMMActorEvent *v)
+static void event(void *p,MMI32 i,MMActorEvent *v)
 { Table *t=(Table *)p; CHECK(i>=0 && i<t->count); *v=t->events[i]; }
-static ThreeMMI32 size(void *p,ThreeMMI32 i)
+static MMI32 size(void *p,MMI32 i)
 { Table *t=(Table *)p; CHECK(t->locks==1 && i>=0 && i<t->count); return t->sizes[i]; }
-static void payload(void *p,ThreeMMI32 i,void *v)
+static void payload(void *p,MMI32 i,void *v)
 { Table *t=(Table *)p; CHECK(i>=0 && i<t->count); memcpy(v,t->data[i],(size_t)t->sizes[i]); }
 static void *create(void *p) { Fixture *f=(Fixture *)p; ++f->created; if (f->fail_create) return NULL; ++f->template_refs; return &f->target; }
 static void release(void *p,void *actor)
 {
     Fixture *f=(Fixture *)p; int i;
     CHECK(actor==&f->target && f->out.actor==actor && !f->source.events.locks && !f->target.rewound);
-    for (i=0;i<f->target.events.count;++i) if (f->target.events.events[i].aet==THREE_MM_ACTOR_SOUND) --f->tag_refs;
+    for (i=0;i<f->target.events.count;++i) if (f->target.events.events[i].aet==MM_ACTOR_SOUND) --f->tag_refs;
     --f->template_refs; ++f->released;
 }
 static void publish(void *p,void *actor) { Fixture *f=(Fixture *)p; CHECK(f->out.actor==actor); ++f->publications; }
@@ -43,40 +43,40 @@ static void *route(void *p,void *actor) { (void)p; return &((Actor *)actor)->rou
 static void *events(void *p,void *actor) { (void)p; return &((Actor *)actor)->events; }
 static void lock(void *p,void *t) { (void)p; CHECK(!((Table *)t)->locks); ++((Table *)t)->locks; }
 static void unlock(void *p,void *t) { (void)p; CHECK(((Table *)t)->locks==1); --((Table *)t)->locks; }
-static const void *view(void *p,void *t,ThreeMMI32 i) { (void)p; CHECK(((Table *)t)->locks==1); return ((Table *)t)->data[i]; }
-static void write_payload(void *p,void *t,ThreeMMI32 i,const void *v)
+static const void *view(void *p,void *t,MMI32 i) { (void)p; CHECK(((Table *)t)->locks==1); return ((Table *)t)->data[i]; }
+static void write_payload(void *p,void *t,MMI32 i,const void *v)
 { Fixture *f=(Fixture *)p; CHECK(t==&f->source.events); ++f->writes; memcpy(((Table *)t)->data[i],v,(size_t)((Table *)t)->sizes[i]); }
-static int resolve(void *p,ThreeMMActorSound *sound)
+static int resolve(void *p,MMActorSound *sound)
 { Fixture *f=(Fixture *)p; if (++f->resolves==f->fail_resolve) return 0; sound->tag.number=99; return 1; }
-static int insert_event(void *p,void *actor,ThreeMMI32 i,ThreeMMU32 bytes,const void *v,const ThreeMMActorEvent *e)
+static int insert_event(void *p,void *actor,MMI32 i,MMU32 bytes,const void *v,const MMActorEvent *e)
 {
     Fixture *f=(Fixture *)p; Table *t=&f->target.events; CHECK(actor==&f->target && f->source.events.locks==1 && i==t->count);
     if (++f->inserts==f->fail_event) return 0;
-    CHECK(i<24 && bytes<=64); t->events[i]=*e; t->sizes[i]=(ThreeMMI32)bytes; memcpy(t->data[i],v,bytes); ++t->count;
-    if (e->aet==THREE_MM_ACTOR_SOUND) ++f->tag_refs;
+    CHECK(i<24 && bytes<=64); t->events[i]=*e; t->sizes[i]=(MMI32)bytes; memcpy(t->data[i],v,bytes); ++t->count;
+    if (e->aet==MM_ACTOR_SOUND) ++f->tag_refs;
     return 1;
 }
-static void merge(void *p,void *actor,ThreeMMI32 first,ThreeMMI32 added)
+static void merge(void *p,void *actor,MMI32 first,MMI32 added)
 { Fixture *f=(Fixture *)p; CHECK(actor==&f->target && !f->source.events.locks && first==0 && added==f->target.events.count-1); ++f->merges; }
-static int insert_point(void *p,void *t,ThreeMMI32 i,const ThreeMMActorRoutePoint *v)
+static int insert_point(void *p,void *t,MMI32 i,const MMActorRoutePoint *v)
 {
     Fixture *f=(Fixture *)p; Table *table=(Table *)t; CHECK(t==&f->target.route && i==table->count);
     if (++f->points==f->fail_point) return 0;
     CHECK(i<8); table->points[i]=*v; ++table->count; return 1;
 }
-static void write_point(void *p,void *t,ThreeMMI32 i,const ThreeMMActorRoutePoint *v)
+static void write_point(void *p,void *t,MMI32 i,const MMActorRoutePoint *v)
 { (void)p; CHECK(i>=0 && i<((Table *)t)->count); ((Table *)t)->points[i]=*v; }
-static int resize(void *p,void *t,ThreeMMI32 n)
+static int resize(void *p,void *t,MMI32 n)
 { Fixture *f=(Fixture *)p; ++f->resizes; CHECK(t==&f->target.route && n>0 && n<=8); if (f->fail_resize) return 0; ((Table *)t)->count=n; return 1; }
-static int reserve(void *p,void *t,ThreeMMI32 n)
+static int reserve(void *p,void *t,MMI32 n)
 { Fixture *f=(Fixture *)p; ++f->reserves; CHECK(t==&f->target.route && n>0); return !f->fail_reserve; }
-static void copy_points(void *p,void *source,ThreeMMI32 first,void *target,ThreeMMI32 to,ThreeMMI32 n)
+static void copy_points(void *p,void *source,MMI32 first,void *target,MMI32 to,MMI32 n)
 {
     Fixture *f=(Fixture *)p; ++f->copies; f->copied=n;
     CHECK(source==&f->source.route && target==&f->target.route && first+n<=f->source.route.count && to+n<=f->target.route.count);
-    memcpy(((Table *)target)->points+to,((Table *)source)->points+first,(size_t)n*sizeof(ThreeMMActorRoutePoint));
+    memcpy(((Table *)target)->points+to,((Table *)source)->points+first,(size_t)n*sizeof(MMActorRoutePoint));
 }
-static ThreeMMI32 distance(void *p,const ThreeMMActorPoint *v)
+static MMI32 distance(void *p,const MMActorPoint *v)
 { Fixture *f=(Fixture *)p; ++f->distances; CHECK(!v->dyr && !v->dzr); return f->zero_distance?0:(v->dxr<0?-v->dxr:v->dxr); }
 static void rewind_actor(void *p,void *actor)
 { Fixture *f=(Fixture *)p; CHECK(actor==&f->target && !f->source.events.locks && f->target.route.count>0); ++f->target.rewound; }
@@ -88,7 +88,7 @@ static void append(Fixture *f,int kind,int node,int frame,const void *v,int byte
 }
 static void init(Fixture *f)
 {
-    ThreeMMActorCopyServices *s; ThreeMMActorSound sound; ThreeMMI32 action[2]={0,1},scalar=ONE; unsigned char blank[48]; int i;
+    MMActorCopyServices *s; MMActorSound sound; MMI32 action[2]={0,1},scalar=ONE; unsigned char blank[48]; int i;
     memset(f,0,sizeof(*f)); memset(&sound,0,sizeof(sound)); memset(blank,0,sizeof(blank));
     s=&f->services; s->context=f; s->motion.route_count=count; s->motion.route_point=point; s->motion.event_count=count;
     s->motion.event=event; s->motion.event_size=size; s->motion.payload=payload;
@@ -99,25 +99,25 @@ static void init(Fixture *f)
     f->out.context=f; f->out.publish=publish; f->template_refs=1; f->tag_refs=2;
     f->source.route.count=4;
     for (i=0;i<4;++i) { f->source.route.points[i].xyz.dxr=i*10*ONE; f->source.route.points[i].dwr=(i==1 || i==3)?0:10*ONE; }
-    append(f,THREE_MM_ACTOR_ADD,0,1,blank,20); append(f,THREE_MM_ACTOR_ACTION,0,1,action,8);
-    sound.cel=-1; sound.tag.number=10; append(f,THREE_MM_ACTOR_SOUND,0,2,&sound,sizeof(sound));
-    append(f,THREE_MM_ACTOR_TWEAK,0,2,blank,12); append(f,THREE_MM_ACTOR_ROTATE_HERE,0,3,blank,48);
-    sound.cel=2; append(f,THREE_MM_ACTOR_SOUND,0,3,&sound,sizeof(sound)); append(f,THREE_MM_ACTOR_REMOVE,0,3,blank,0);
-    append(f,THREE_MM_ACTOR_STEP,0,4,&scalar,4); f->source.events.events[7].rtel.dwrOffset=7*ONE; f->source.events.events[7].rtel.dnfrm=1;
-    append(f,THREE_MM_ACTOR_ADD,2,8,blank,20); append(f,THREE_MM_ACTOR_ACTION,2,8,action,8); append(f,THREE_MM_ACTOR_STEP,3,9,&scalar,4);
-    three_mm_actor_state_init(&f->state); f->state.cel=3; f->state.addEvent=0; f->state.nextEvent=7;
+    append(f,MM_ACTOR_ADD,0,1,blank,20); append(f,MM_ACTOR_ACTION,0,1,action,8);
+    sound.cel=-1; sound.tag.number=10; append(f,MM_ACTOR_SOUND,0,2,&sound,sizeof(sound));
+    append(f,MM_ACTOR_TWEAK,0,2,blank,12); append(f,MM_ACTOR_ROTATE_HERE,0,3,blank,48);
+    sound.cel=2; append(f,MM_ACTOR_SOUND,0,3,&sound,sizeof(sound)); append(f,MM_ACTOR_REMOVE,0,3,blank,0);
+    append(f,MM_ACTOR_STEP,0,4,&scalar,4); f->source.events.events[7].rtel.dwrOffset=7*ONE; f->source.events.events[7].rtel.dnfrm=1;
+    append(f,MM_ACTOR_ADD,2,8,blank,20); append(f,MM_ACTOR_ACTION,2,8,action,8); append(f,MM_ACTOR_STEP,3,9,&scalar,4);
+    mm_actor_state_init(&f->state); f->state.cel=3; f->state.addEvent=0; f->state.nextEvent=7;
     f->state.firstEventInFrame=4; f->state.actionEvent=1; f->state.location.dwrOffset=5*ONE; f->state.location.dnfrm=2;
 }
 static int full(Fixture *f,int entire,int postponed)
-{ return three_mm_actor_copy(&f->state,&f->source.route,&f->source.events,entire,postponed,&f->out,&f->services); }
+{ return mm_actor_copy(&f->state,&f->source.route,&f->source.events,entire,postponed,&f->out,&f->services); }
 static int path(Fixture *f,int entire)
-{ return three_mm_actor_copy_route(&f->state,&f->source.route,entire,&f->out,&f->services); }
-static ThreeMMActorSound sound_at(Table *t,int i) { ThreeMMActorSound sound; memcpy(&sound,t->data[i],sizeof(sound)); return sound; }
+{ return mm_actor_copy_route(&f->state,&f->source.route,entire,&f->out,&f->services); }
+static MMActorSound sound_at(Table *t,int i) { MMActorSound sound; memcpy(&sound,t->data[i],sizeof(sound)); return sound; }
 static void failed(Fixture *f)
 { CHECK(!f->out.actor && f->released==1 && f->publications==2 && f->template_refs==1 && f->tag_refs==2 && !f->source.events.locks && !f->target.rewound); }
 int main(void)
 {
-    Fixture f; ThreeMMI32 action[2]; int fail;
+    Fixture f; MMI32 action[2]; int fail;
     init(&f); CHECK(full(&f,0,0)); CHECK(f.out.actor==&f.target && f.target.rewound==1 && f.target.events.count==5 && f.merges==4);
     CHECK(f.target.route.count==2 && !f.target.route.points[0].xyz.dxr && f.target.route.points[0].dwr==5*ONE);
     CHECK(f.resolves==2 && f.writes==2 && sound_at(&f.source.events,2).tag.number==99 && sound_at(&f.source.events,5).tag.number==99);

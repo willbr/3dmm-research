@@ -18,9 +18,9 @@ RTCLASS(Model)
 static_assert(sizeof(br_vertex) == 32, "model vertex layout");
 static_assert(sizeof(BrFaceOnFile) == 32, "model face wire layout");
 
-ThreeMMModelServices Model::_Services(void *context)
+MMModelServices Model::_Services(void *context)
 {
-    ThreeMMModelServices s = {};
+    MMModelServices s = {};
     s.context = context;
     const unsigned short one = 1;
     s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
@@ -31,27 +31,27 @@ ThreeMMModelServices Model::_Services(void *context)
     s.prepared_flag = BR_MODF_PREPREPARED;
     s.keep_original_flag = BR_MODF_KEEP_ORIGINAL;
     s.prepare_all = BR_MPREP_ALL;
-    s.state = [](void *, void *object) -> ThreeMMModelResource * { return &static_cast<PModel>(object)->_model; };
+    s.state = [](void *, void *object) -> MMModelResource * { return &static_cast<PModel>(object)->_model; };
     s.create = [](void *) -> void * { return NewObj Model; };
     s.release = [](void *, void *object) { static_cast<PModel>(object)->Release(); };
     s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.size = [](void *, void *block, int packed) -> ThreeMMI32 {
+    s.size = [](void *, void *block, int packed) -> MMI32 {
         return static_cast<PDataBlock>(block)->Cb(packed != 0);
     };
-    s.read = [](void *, void *block, void *out, ThreeMMI32 bytes, ThreeMMI32 offset) -> int {
+    s.read = [](void *, void *block, void *out, MMI32 bytes, MMI32 offset) -> int {
         return static_cast<PDataBlock>(block)->FReadRgb(out, bytes, offset);
     };
-    s.allocate = [](void *, ThreeMMI32 bytes, int clear, void **out) -> int {
+    s.allocate = [](void *, MMI32 bytes, int clear, void **out) -> int {
         return FAllocPv(out, bytes, clear ? fmemClear : fmemNil, mprNormal);
     };
     s.free_memory = [](void *, void **out) { FreePpv(out); };
     s.invalidate = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
     s.diagnostic = [](void *, int code) {
-        if (code == THREE_MM_MODEL_BAD_ORDER)
+        if (code == MM_MODEL_BAD_ORDER)
             Assert(false, "bad Model!");
     };
     s.save_failed = [](void *) { Warn("model save failed."); };
-    s.allocate_model = [](void *, ThreeMMI32 vertices, ThreeMMI32 faces) -> void * {
+    s.allocate_model = [](void *, MMI32 vertices, MMI32 faces) -> void * {
         char identifier[sizeof(PModel) + 1];
         // BrModelAllocate duplicates a C string. Reserve the full owner slot,
         // rather than passing an empty string whose allocation is one byte.
@@ -65,7 +65,7 @@ ThreeMMModelServices Model::_Services(void *context)
         auto owner = static_cast<PModel>(object);
         CopyPb(&owner, model->identifier, sizeof(owner));
     };
-    s.copy_input = [](void *, void *handle, const void *vertices, const void *faces, ThreeMMI32 nv, ThreeMMI32 nf) {
+    s.copy_input = [](void *, void *handle, const void *vertices, const void *faces, MMI32 nv, MMI32 nf) {
         auto m = static_cast<PBMDL>(handle);
         CopyPb(const_cast<void *>(vertices), m->vertices, nv * sizeof(BRV));
         CopyPb(const_cast<void *>(faces), m->faces, nf * sizeof(BRF));
@@ -73,21 +73,21 @@ ThreeMMModelServices Model::_Services(void *context)
     s.add = [](void *, void *handle) { BrModelAdd(static_cast<PBMDL>(handle)); };
     s.remove = [](void *, void *handle) { BrModelRemove(static_cast<PBMDL>(handle)); };
     s.free_model = [](void *, void *handle) { BrModelFree(static_cast<PBMDL>(handle)); };
-    s.component = [](void *, void *handle, int kind, ThreeMMI32 bytes) -> int {
+    s.component = [](void *, void *handle, int kind, MMI32 bytes) -> int {
         auto m = static_cast<PBMDL>(handle);
         void *memory = nullptr;
         switch (kind)
         {
-        case THREE_MM_MODEL_VERTICES:
+        case MM_MODEL_VERTICES:
             memory = m->prepared_vertices = static_cast<BRV *>(BrResAllocate(m, bytes, BR_MEMORY_PREPARED_VERTICES));
             break;
-        case THREE_MM_MODEL_FACES:
+        case MM_MODEL_FACES:
             memory = m->prepared_faces = static_cast<BRF *>(BrResAllocate(m, bytes, BR_MEMORY_PREPARED_FACES));
             break;
-        case THREE_MM_MODEL_VERTEX_GROUP:
+        case MM_MODEL_VERTEX_GROUP:
             memory = m->vertex_groups = static_cast<br_vertex_group *>(BrResAllocate(m, bytes, BR_MEMORY_GROUPS));
             break;
-        case THREE_MM_MODEL_FACE_GROUP:
+        case MM_MODEL_FACE_GROUP:
             memory = m->face_groups = static_cast<br_face_group *>(BrResAllocate(m, bytes, BR_MEMORY_GROUPS));
             break;
         }
@@ -97,7 +97,7 @@ ThreeMMModelServices Model::_Services(void *context)
         auto m = static_cast<PBMDL>(handle);
         return prepared ? m->prepared_vertices : m->vertices;
     };
-    s.set_face = [](void *, void *handle, int prepared, ThreeMMI32 index, const ThreeMMModelFace *f) {
+    s.set_face = [](void *, void *handle, int prepared, MMI32 index, const MMModelFace *f) {
         auto m = static_cast<PBMDL>(handle);
         auto &out = (prepared ? m->prepared_faces : m->faces)[index];
         for (int i = 0; i < 3; ++i)
@@ -112,7 +112,7 @@ ThreeMMModelServices Model::_Services(void *context)
         out._pad0 = static_cast<byte>(f->pad);
         out.d = f->distance;
     };
-    s.get_face = [](void *, void *handle, ThreeMMI32 index, ThreeMMModelFace *f) {
+    s.get_face = [](void *, void *handle, MMI32 index, MMModelFace *f) {
         auto &in = static_cast<PBMDL>(handle)->prepared_faces[index];
         for (int i = 0; i < 3; ++i)
         {
@@ -125,8 +125,8 @@ ThreeMMModelServices Model::_Services(void *context)
         f->pad = in._pad0;
         f->distance = in.d;
     };
-    s.publish_prepared = [](void *, void *handle, const ThreeMMModelDescription *d, unsigned flag, ThreeMMI32 vg,
-                            ThreeMMI32 fg) {
+    s.publish_prepared = [](void *, void *handle, const MMModelDescription *d, unsigned flag, MMI32 vg,
+                            MMI32 fg) {
         auto m = static_cast<PBMDL>(handle);
         m->flags = static_cast<br_uint_16>(flag);
         m->nprepared_vertices = static_cast<br_uint_16>(d->vertices);
@@ -149,7 +149,7 @@ ThreeMMModelServices Model::_Services(void *context)
             m->vertex_groups->nvertices = m->nprepared_vertices;
         }
     };
-    s.describe = [](void *, void *handle, ThreeMMModelDescription *d) {
+    s.describe = [](void *, void *handle, MMModelDescription *d) {
         auto m = static_cast<PBMDL>(handle);
         d->vertices = m->nprepared_vertices;
         d->faces = m->nprepared_faces;
@@ -161,7 +161,7 @@ ThreeMMModelServices Model::_Services(void *context)
             d->pivot[i] = m->pivot.v[i];
         }
     };
-    s.geometry = [](void *, void *handle, const ThreeMMModelDescription *d) {
+    s.geometry = [](void *, void *handle, const MMModelDescription *d) {
         auto m = static_cast<PBMDL>(handle);
         m->radius = d->radius;
         for (int i = 0; i < 3; ++i)
@@ -171,15 +171,15 @@ ThreeMMModelServices Model::_Services(void *context)
             m->pivot.v[i] = d->pivot[i];
         }
     };
-    s.put = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, const void *data, ThreeMMI32 bytes) -> int {
+    s.put = [](void *, void *file, MMU32 type, MMU32 number, const void *data, MMI32 bytes) -> int {
         return static_cast<PChunkyFile>(file)->FPutPv(const_cast<void *>(data), bytes, type, number);
     };
-    s.position = [](void *, void *handle, ThreeMMI32 index, ThreeMMI32 out[3]) {
+    s.position = [](void *, void *handle, MMI32 index, MMI32 out[3]) {
         auto &p = static_cast<PBMDL>(handle)->prepared_vertices[index].p;
         for (int i = 0; i < 3; ++i)
             out[i] = p.v[i];
     };
-    s.set_position = [](void *, void *handle, ThreeMMI32 index, const ThreeMMI32 in[3]) {
+    s.set_position = [](void *, void *handle, MMI32 index, const MMI32 in[3]) {
         auto &p = static_cast<PBMDL>(handle)->prepared_vertices[index].p;
         for (int i = 0; i < 3; ++i)
             p.v[i] = in[i];
@@ -208,7 +208,7 @@ PModel Model::PmodlNew(LegacyLong nv, BRV *vertices, LegacyLong nf, BRF *faces)
     AssertPvCb(vertices, LwMul(nv, size(BRV)));
     AssertPvCb(faces, LwMul(nf, size(BRF)));
     auto s = _Services();
-    return static_cast<PModel>(three_mm_model_new(nv, vertices, nf, faces, &s));
+    return static_cast<PModel>(mm_model_new(nv, vertices, nf, faces, &s));
 }
 bool Model::FReadModl(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
                       PBaseCacheableObject *out, LegacyLong *bytes)
@@ -218,21 +218,21 @@ bool Model::FReadModl(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumbe
     AssertNilOrVarMem(out);
     AssertVarMem(bytes);
     auto s = _Services();
-    return three_mm_model_fetch(block, out, bytes, &s) != 0;
+    return mm_model_fetch(block, out, bytes, &s) != 0;
 }
 bool Model::_FInit(PDataBlock block)
 {
     AssertBaseThis(0);
     AssertPo(block, 0);
     auto s = _Services();
-    return three_mm_model_read(this, block, &s) != 0;
+    return mm_model_read(this, block, &s) != 0;
 }
 PModel Model::PmodlReadFromDat(Filename *filename)
 {
     AssertPo(filename, ffniFile);
     String path;
     auto s = _Services(&path);
-    return static_cast<PModel>(three_mm_model_dat(filename, &s));
+    return static_cast<PModel>(mm_model_dat(filename, &s));
 }
 PModel Model::PmodlFromBmdl(PBMDL handle)
 {
@@ -246,20 +246,20 @@ Model::~Model(void)
 {
     AssertBaseThis(0);
     auto s = _Services();
-    three_mm_model_dispose(&_model, &s);
+    mm_model_dispose(&_model, &s);
 }
 bool Model::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
     AssertThis(0);
     AssertPo(file, 0);
     auto s = _Services();
-    return three_mm_model_write(&_model, file, type, number, &s) != 0;
+    return mm_model_write(&_model, file, type, number, &s) != 0;
 }
 void Model::AdjustTdfCharacter(void)
 {
     AssertThis(0);
     auto s = _Services();
-    three_mm_model_adjust_glyph(&_model, &s);
+    mm_model_adjust_glyph(&_model, &s);
 }
 
 namespace
@@ -276,15 +276,15 @@ bool Model::_FPrelight(LegacyLong count, BVEC3 *directions)
     AssertPvCb(directions, LwMul(count, size(BVEC3)));
     AssertBaseThis(0);
     ModelLightingContext context;
-    ThreeMMModelLightingServices s = {};
+    MMModelLightingServices s = {};
     s.context = &context;
-    s.create = [](void *p, int kind, const ThreeMMModelLightingSpec *spec) -> void * {
+    s.create = [](void *p, int kind, const MMModelLightingSpec *spec) -> void * {
         auto &c = *static_cast<ModelLightingContext *>(p);
         switch (kind)
         {
-        case THREE_MM_MODEL_LIGHT_WORLD:
+        case MM_MODEL_LIGHT_WORLD:
             return BrActorAllocate(BR_ACTOR_NONE, nullptr);
-        case THREE_MM_MODEL_LIGHT_CAMERA:
+        case MM_MODEL_LIGHT_CAMERA:
             c.camera = {"bah",
                         BR_CAMERA_PERSPECTIVE,
                         static_cast<br_angle>(spec->fov),
@@ -294,7 +294,7 @@ bool Model::_FPrelight(LegacyLong count, BVEC3 *directions)
                         spec->camera_width,
                         spec->camera_height};
             return BrActorAllocate(BR_ACTOR_CAMERA, &c.camera);
-        case THREE_MM_MODEL_LIGHT_ACTOR: {
+        case MM_MODEL_LIGHT_ACTOR: {
             c.light.colour = spec->colour;
             c.light.type = BR_LIGHT_DIRECT;
             c.light.attenuation_c = spec->attenuation;
@@ -303,13 +303,13 @@ bool Model::_FPrelight(LegacyLong count, BVEC3 *directions)
                 actor->type_data = &c.light;
             return actor;
         }
-        case THREE_MM_MODEL_LIGHT_COLOUR:
+        case MM_MODEL_LIGHT_COLOUR:
             return BrPixelmapAllocate(BR_PMT_INDEX_8, static_cast<br_uint_16>(spec->width),
                                       static_cast<br_uint_16>(spec->height), nullptr, 0);
-        case THREE_MM_MODEL_LIGHT_DEPTH:
+        case MM_MODEL_LIGHT_DEPTH:
             return BrPixelmapAllocate(BR_PMT_DEPTH_16, static_cast<br_uint_16>(spec->width),
                                       static_cast<br_uint_16>(spec->height), nullptr, 0);
-        case THREE_MM_MODEL_LIGHT_MATERIAL: {
+        case MM_MODEL_LIGHT_MATERIAL: {
             auto material = BrMaterialAllocate("Prelighting material");
             if (!material)
                 return nullptr;
@@ -342,15 +342,15 @@ bool Model::_FPrelight(LegacyLong count, BVEC3 *directions)
     };
     s.end = [](void *) { BrZbSceneRenderEnd(); };
     s.free = [](void *, int kind, void *object) {
-        if (kind == THREE_MM_MODEL_LIGHT_WORLD)
+        if (kind == MM_MODEL_LIGHT_WORLD)
             BrActorFree(static_cast<PBACT>(object));
-        else if (kind == THREE_MM_MODEL_LIGHT_MATERIAL)
+        else if (kind == MM_MODEL_LIGHT_MATERIAL)
             BrMaterialFree(static_cast<PBMTL>(object));
         else
             BrPixelmapFree(static_cast<PBPMP>(object));
     };
     s.multiple_lights = [](void *) { Assert(false, "code needs to get smarter..."); };
-    return three_mm_model_prelight(&_model, count, &s) != 0;
+    return mm_model_prelight(&_model, count, &s) != 0;
 }
 #ifdef DEBUG
 void Model::AssertValid(LegacyUlong grf)

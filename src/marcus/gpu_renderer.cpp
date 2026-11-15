@@ -2,7 +2,7 @@
 #include "zb_capture.h"
 #include "gpu_shaders.h"
 #include "legacy_scan.h"
-#include "three_mm/preview.h"
+#include "mm/preview.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <cmath>
@@ -14,9 +14,9 @@
 
 namespace
 {
-bool Fail(ThreeMM::Error &error, const char *message)
+bool Fail(MM::Error &error, const char *message)
 {
-    error.code = ThreeMM::ErrorCode::decode_failed;
+    error.code = MM::ErrorCode::decode_failed;
     error.message = std::string(message) + ": " + SDL_GetError();
     return false;
 }
@@ -81,7 +81,7 @@ struct Resources
         return result;
     }
 };
-class Renderer final : public ThreeMM::PreviewRasterizer
+class Renderer final : public MM::PreviewRasterizer
 {
     SDL_GPUDevice *device = nullptr;
     SDL_GPUComputePipeline *computePipeline = nullptr;
@@ -94,7 +94,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
     using MapKey = std::tuple<const unsigned char *, int, int, int>;
     std::map<MapKey, Uint32> maps;
     MarcusRenderOptions options = {};
-    ThreeMM::PreviewProjection projection;
+    MM::PreviewProjection projection;
     Uint32 palette[256] = {};
     bool opaqueBackground = false;
     std::vector<unsigned char> rgba;
@@ -150,7 +150,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
 
   public:
     void Configure(const MarcusRenderOptions &value) { options = value; }
-    void Frame(const ThreeMM::PreviewProjection &value, const unsigned char *colours, bool opaque) override
+    void Frame(const MM::PreviewProjection &value, const unsigned char *colours, bool opaque) override
     {
         projection = value;
         opaqueBackground = opaque;
@@ -175,7 +175,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         if (video)
             SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
-    bool Init(ThreeMM::Error &error)
+    bool Init(MM::Error &error)
     {
         if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
             return Fail(error, "Cannot initialize GPU video");
@@ -205,7 +205,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             !SDL_GPUTextureSupportsFormat(device, SDL_GPU_TEXTUREFORMAT_D32_FLOAT, SDL_GPU_TEXTURETYPE_2D,
                                           SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET))
         {
-            error.code = ThreeMM::ErrorCode::unsupported_format;
+            error.code = MM::ErrorCode::unsupported_format;
             error.message = "GPU does not support the indexed colour and depth targets.";
             return false;
         }
@@ -261,7 +261,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         SDL_ReleaseGPUShader(device, fragment);
         return (graphicsPipeline && strictPipeline) || Fail(error, "Cannot create SDL GPU graphics pipeline");
     }
-    bool Begin(unsigned w, unsigned h, ThreeMM::Error &) override
+    bool Begin(unsigned w, unsigned h, MM::Error &) override
     {
         width = w;
         height = h;
@@ -305,11 +305,11 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         }
     }
     bool End(unsigned char *colour, int colourStride, unsigned char *depth, int depthStride,
-             ThreeMM::Error &error) override
+             MM::Error &error) override
     {
         if (failed)
         {
-            error.code = ThreeMM::ErrorCode::resource_limit;
+            error.code = MM::ErrorCode::resource_limit;
             error.message = "Cannot collect GPU geometry: memory or scene budget exceeded.";
             return false;
         }
@@ -530,14 +530,14 @@ class Renderer final : public ThreeMM::PreviewRasterizer
     }
 };
 } // namespace
-std::unique_ptr<ThreeMM::PreviewRasterizer> MarcusCreateGPURenderer(bool compute, ThreeMM::Error &error)
+std::unique_ptr<MM::PreviewRasterizer> MarcusCreateGPURenderer(bool compute, MM::Error &error)
 {
     std::unique_ptr<Renderer> result(new Renderer(compute));
     if (!result->Init(error))
         return nullptr;
     return result;
 }
-void MarcusConfigureGPURenderer(ThreeMM::PreviewRasterizer *renderer, const MarcusRenderOptions &options)
+void MarcusConfigureGPURenderer(MM::PreviewRasterizer *renderer, const MarcusRenderOptions &options)
 {
     static_cast<Renderer *>(renderer)->Configure(options);
 }

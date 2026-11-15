@@ -30,20 +30,20 @@ using namespace BRender;
 #include "actor_data.h"
 #include "actor_track.h"
 #include "actor_sound.h"
-#include "three_mm/actor_sound_edit.h"
-#include "three_mm/actor_action_edit.h"
-#include "three_mm/actor_costume_edit.h"
-#include "three_mm/actor_route_edit.h"
-#include "three_mm/actor_subroute_edit.h"
-#include "three_mm/actor_stage_edit.h"
-#include "three_mm/actor_record.h"
-#include "three_mm/actor_transform_edit.h"
-#include "three_mm/actor_owner.h"
-#include "three_mm/actor_transaction.h"
-#include "three_mm/actor_copy.h"
-#include "three_mm/actor_route_paste.h"
-#include "three_mm/actor_clipboard.h"
-#include "three_mm/actor_create.h"
+#include "mm/actor_sound_edit.h"
+#include "mm/actor_action_edit.h"
+#include "mm/actor_costume_edit.h"
+#include "mm/actor_route_edit.h"
+#include "mm/actor_subroute_edit.h"
+#include "mm/actor_stage_edit.h"
+#include "mm/actor_record.h"
+#include "mm/actor_transform_edit.h"
+#include "mm/actor_owner.h"
+#include "mm/actor_transaction.h"
+#include "mm/actor_copy.h"
+#include "mm/actor_route_paste.h"
+#include "mm/actor_clipboard.h"
+#include "mm/actor_create.h"
 #include "actor_state.h"
 #include "actor_timeline.h"
 
@@ -170,27 +170,27 @@ class Actor : public Actor_PAR
     bool _FDoAevCore(long iaev);
     bool _FDoAetVar(long aet, void *pvVar, long cbVar);
 
-    ThreeMMActorSoundServices _SoundServices();
-    ThreeMMActorEditServices _EventEditServices();
-    ThreeMMActorFillServices _FillEditServices();
-    ThreeMMActorCostumeEditServices _CostumeEditServices();
-    ThreeMMActorRouteEditServices _RouteEditServices();
-    ThreeMMActorActionEditServices _ActionEditServices();
-    ThreeMMActorSubrouteEditServices _SubrouteEditServices();
-    ThreeMMActorStageEditServices _StageEditServices();
-    ThreeMMActorRecording _RecordingState() const;
-    void _PublishRecordingState(const ThreeMMActorRecording &);
-    ThreeMMActorRecordServices _RecordServices();
-    ThreeMMActorTransformEditServices _TransformEditServices();
-    ThreeMMActorRuntime _Runtime() const;
-    void _PublishRuntime(const ThreeMMActorRuntime &);
-    static ThreeMMActorOwnerServices _OwnerServices();
-    static ThreeMMActorCreateServices _CreateServices();
+    MMActorSoundServices _SoundServices();
+    MMActorEditServices _EventEditServices();
+    MMActorFillServices _FillEditServices();
+    MMActorCostumeEditServices _CostumeEditServices();
+    MMActorRouteEditServices _RouteEditServices();
+    MMActorActionEditServices _ActionEditServices();
+    MMActorSubrouteEditServices _SubrouteEditServices();
+    MMActorStageEditServices _StageEditServices();
+    MMActorRecording _RecordingState() const;
+    void _PublishRecordingState(const MMActorRecording &);
+    MMActorRecordServices _RecordServices();
+    MMActorTransformEditServices _TransformEditServices();
+    MMActorRuntime _Runtime() const;
+    void _PublishRuntime(const MMActorRuntime &);
+    static MMActorOwnerServices _OwnerServices();
+    static MMActorCreateServices _CreateServices();
     struct EditContext;
-    static ThreeMMActorTransactionServices _TransactionServices(EditContext *);
-    static ThreeMMActorDeleteServices _DeleteServices(EditContext *);
-    ThreeMMActorCopyServices _CopyServices();
-    ThreeMMActorSoundEditServices _SoundEditServices();
+    static MMActorTransactionServices _TransactionServices(EditContext *);
+    static MMActorDeleteServices _DeleteServices(EditContext *);
+    MMActorCopyServices _CopyServices();
+    MMActorSoundEditServices _SoundEditServices();
     bool _FEnqueueSnd(long iaev);
     bool _FEnqueueSmmInMsq(void);
     bool _FRemoveAevMm(long anid);
@@ -480,13 +480,13 @@ class ActorClipboard : public ActorClipboard_PAR
     ASSERT
 
   protected:
-    ThreeMMActorClipboard _clipboard;
+    MMActorClipboard _clipboard;
     String _stnName;
-    static ThreeMMActorClipboardServices _Services();
+    static MMActorClipboardServices _Services();
 
     ActorClipboard(void)
     {
-        three_mm_actor_clipboard_init(&_clipboard);
+        mm_actor_clipboard_init(&_clipboard);
     }
 
   public:

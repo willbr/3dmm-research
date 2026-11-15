@@ -1,6 +1,6 @@
 /* Conversion policy derived from Kauai platform_text.cpp and utilstr.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "three_mm/text.h"
+#include "mm/text.h"
 #include <stdlib.h>
 #include <string.h>
 #include "legacy_text_maps.h"
@@ -8,11 +8,11 @@
 
 static int wide(int encoding)
 {
-    return encoding == THREE_MM_TEXT_UTF16_LE || encoding == THREE_MM_TEXT_UTF16_BE;
+    return encoding == MM_TEXT_UTF16_LE || encoding == MM_TEXT_UTF16_BE;
 }
 static unsigned short unit(const unsigned char *bytes, int encoding)
 {
-    return (unsigned short)(encoding == THREE_MM_TEXT_UTF16_LE ? bytes[0] | (bytes[1] << 8)
+    return (unsigned short)(encoding == MM_TEXT_UTF16_LE ? bytes[0] | (bytes[1] << 8)
                                                                : (bytes[0] << 8) | bytes[1]);
 }
 static unsigned short map_unit(unsigned short value, int upper)
@@ -23,7 +23,7 @@ static unsigned short map_unit(unsigned short value, int upper)
             return windows1252[upper ? upper1252[i] : lower1252[i]];
     return value;
 }
-size_t three_mm_text_utf16(const ThreeMMTextHost *host, const void *input, size_t bytes, int source,
+size_t mm_text_utf16(const MMTextHost *host, const void *input, size_t bytes, int source,
                            unsigned short *output, size_t capacity)
 {
     const unsigned char *data = (const unsigned char *)input;
@@ -44,7 +44,7 @@ size_t three_mm_text_utf16(const ThreeMMTextHost *host, const void *input, size_
             output[i] = unit(data + i * 2, source);
         return count;
     }
-    if (source != THREE_MM_TEXT_WINDOWS && source != THREE_MM_TEXT_MAC)
+    if (source != MM_TEXT_WINDOWS && source != MM_TEXT_MAC)
         return 0;
     if (host && host->decode)
         return host->decode(host->context, input, bytes, source, output, capacity);
@@ -52,12 +52,12 @@ size_t three_mm_text_utf16(const ThreeMMTextHost *host, const void *input, size_
         return bytes;
     if (capacity < bytes)
         return 0;
-    map = source == THREE_MM_TEXT_WINDOWS ? windows1252 : macRoman;
+    map = source == MM_TEXT_WINDOWS ? windows1252 : macRoman;
     for (i = 0; i < bytes; ++i)
         output[i] = map[data[i]];
     return bytes;
 }
-size_t three_mm_text_ansi(const ThreeMMTextHost *host, const void *input, size_t bytes, int source, char *output,
+size_t mm_text_ansi(const MMTextHost *host, const void *input, size_t bytes, int source, char *output,
                           size_t capacity)
 {
     const unsigned char *data = (const unsigned char *)input;
@@ -66,7 +66,7 @@ size_t three_mm_text_ansi(const ThreeMMTextHost *host, const void *input, size_t
     unsigned b, mapped;
     if ((!input && bytes) || bytes > 2147483647UL)
         return 0;
-    if (source == THREE_MM_TEXT_WINDOWS || source == THREE_MM_TEXT_MAC)
+    if (source == MM_TEXT_WINDOWS || source == MM_TEXT_MAC)
     {
         if (!output)
             return bytes;
@@ -74,8 +74,8 @@ size_t three_mm_text_ansi(const ThreeMMTextHost *host, const void *input, size_t
             return 0;
         if (bytes)
             memmove(output, input, bytes);
-        if (source == THREE_MM_TEXT_MAC)
-            three_mm_text_map_bytes(output, bytes, 1);
+        if (source == MM_TEXT_MAC)
+            mm_text_map_bytes(output, bytes, 1);
         return bytes;
     }
     if (!wide(source) || bytes % 2)
@@ -88,7 +88,7 @@ size_t three_mm_text_ansi(const ThreeMMTextHost *host, const void *input, size_t
         units = (unsigned short *)malloc(bytes);
         if (!units)
             return 0;
-        three_mm_text_utf16(NULL, input, bytes, source, units, count);
+        mm_text_utf16(NULL, input, bytes, source, units, count);
         needed = host->encode(host->context, units, count, output, capacity);
         free(units);
         return needed;
@@ -125,7 +125,7 @@ size_t three_mm_text_ansi(const ThreeMMTextHost *host, const void *input, size_t
     }
     return needed;
 }
-void three_mm_text_map_bytes(void *text, size_t count, int mac_to_windows)
+void mm_text_map_bytes(void *text, size_t count, int mac_to_windows)
 {
     unsigned char *bytes = (unsigned char *)text;
     const unsigned char *map = mac_to_windows ? _mpchschsMacToWin : _mpchschsWinToMac;
@@ -134,19 +134,19 @@ void three_mm_text_map_bytes(void *text, size_t count, int mac_to_windows)
         if (bytes[i] >= 128)
             bytes[i] = map[bytes[i] - 128];
 }
-void three_mm_text_case_bytes(char *text, size_t count, int upper)
+void mm_text_case_bytes(char *text, size_t count, int upper)
 {
     size_t i;
     for (i = 0; i < count; ++i)
         text[i] = (char)(upper ? upper1252[(unsigned char)text[i]] : lower1252[(unsigned char)text[i]]);
 }
-void three_mm_text_case_utf16(unsigned short *text, size_t count, int upper)
+void mm_text_case_utf16(unsigned short *text, size_t count, int upper)
 {
     size_t i;
     for (i = 0; i < count; ++i)
         text[i] = map_unit(text[i], upper);
 }
-int three_mm_text_compare(const void *a, size_t na, const void *b, size_t nb, int is_wide, int ignore_case)
+int mm_text_compare(const void *a, size_t na, const void *b, size_t nb, int is_wide, int ignore_case)
 {
     size_t i;
     unsigned short left, right;

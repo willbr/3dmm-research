@@ -188,7 +188,7 @@ static void Draws()
 }
 int main()
 {
-    if (auto path = std::getenv("THREE_MM_DEPTH_BITMAP_SNAPSHOT"))
+    if (auto path = std::getenv("MM_DEPTH_BITMAP_SNAPSHOT"))
     {
         snapshot = std::fopen(path, "wb");
         CHECK(snapshot);

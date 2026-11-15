@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef SCENE_SOUND_H
 #define SCENE_SOUND_H
-#include "three_mm/scene_sound.h"
+#include "mm/scene_sound.h"
 /****************************************
     TagChildPair - Tag,Chid combo
     Runtime form: embeds full TAG with runtime pcrf. Allowed to grow on x64.
@@ -19,12 +19,12 @@ struct TagChildPair
     SceneSoundEvent - scene sound event
 ****************************************/
 typedef struct SceneSoundEvent *PSceneSoundEvent;
-struct SceneSoundEvent : ThreeMMSceneSound
+struct SceneSoundEvent : MMSceneSound
 {
   protected:
     static long _Cb(long ctagc)
     {
-        return three_mm_scene_sound_size(ctagc, size(TagChildPair));
+        return mm_scene_sound_size(ctagc, size(TagChildPair));
     }
     SceneSoundEvent(void) {};
 

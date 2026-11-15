@@ -1,16 +1,16 @@
-#include "three_mm/masked_bitmap.h"
+#include "mm/masked_bitmap.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 typedef struct Fixture
 {
-    ThreeMMMaskedServices s;
+    MMMaskedServices s;
     unsigned char input[4096], output[4096], bitmap[24];
-    ThreeMMI32 size, packed, written;
+    MMI32 size, packed, written;
     int phase, fail, objects, memory, consumed, is_memory, unpacks, reads, writes, diagnostic, published, valid;
     void *result;
-    ThreeMMI32 estimate;
+    MMI32 estimate;
 } Fixture;
 static int fail(Fixture *f)
 {
@@ -22,17 +22,17 @@ static void *create(void *p)
     void *o;
     if (fail(f))
         return NULL;
-    o = calloc(1, sizeof(ThreeMMMaskedBitmap));
+    o = calloc(1, sizeof(MMMaskedBitmap));
     assert(o);
     ++f->objects;
     return o;
 }
-static ThreeMMMaskedBitmap *state(void *p, void *o)
+static MMMaskedBitmap *state(void *p, void *o)
 {
     (void)p;
-    return (ThreeMMMaskedBitmap *)o;
+    return (MMMaskedBitmap *)o;
 }
-static int allocate(void *p, ThreeMMI32 n, void **out)
+static int allocate(void *p, MMI32 n, void **out)
 {
     Fixture *f = (Fixture *)p;
     if (fail(f))
@@ -55,7 +55,7 @@ static void free_memory(void *p, void **v)
 static void release(void *p, void *o)
 {
     Fixture *f = (Fixture *)p;
-    three_mm_masked_dispose((ThreeMMMaskedBitmap *)o, &f->s);
+    mm_masked_dispose((MMMaskedBitmap *)o, &f->s);
     free(o);
     --f->objects;
 }
@@ -70,13 +70,13 @@ static int unpack(void *p, void *b)
     ++f->unpacks;
     return !fail(f);
 }
-static ThreeMMI32 size(void *p, void *b, int packed)
+static MMI32 size(void *p, void *b, int packed)
 {
     Fixture *f = (Fixture *)p;
     (void)b;
     return packed ? f->packed : f->size;
 }
-static int read(void *p, void *b, void *out, ThreeMMI32 n)
+static int read(void *p, void *b, void *out, MMI32 n)
 {
     Fixture *f = (Fixture *)p;
     (void)b;
@@ -87,7 +87,7 @@ static int read(void *p, void *b, void *out, ThreeMMI32 n)
     memcpy(out, f->input, (size_t)n);
     return 1;
 }
-static int write(void *p, void *b, const void *data, ThreeMMI32 n)
+static int write(void *p, void *b, const void *data, MMI32 n)
 {
     Fixture *f = (Fixture *)p;
     (void)b;
@@ -111,7 +111,7 @@ static void consume(void *p, void *b)
     ++f->consumed;
     f->size = 0;
 }
-static void publish(void *p, int valid, void *o, ThreeMMI32 n)
+static void publish(void *p, int valid, void *o, MMI32 n)
 {
     Fixture *f = (Fixture *)p;
     ++f->published;
@@ -119,7 +119,7 @@ static void publish(void *p, int valid, void *o, ThreeMMI32 n)
     f->result = o;
     f->estimate = n;
 }
-static int bitmap_read(void *p, void *name, unsigned char transparent, ThreeMMMaskedSource *out)
+static int bitmap_read(void *p, void *name, unsigned char transparent, MMMaskedSource *out)
 {
     Fixture *f = (Fixture *)p;
     (void)name;
@@ -155,7 +155,7 @@ static void setup(Fixture *f, int big)
     f->s.publish_fetch = publish;
     f->s.bitmap_read = bitmap_read;
 }
-static void put(unsigned char *b, unsigned n, ThreeMMU32 v, int big)
+static void put(unsigned char *b, unsigned n, MMU32 v, int big)
 {
     unsigned i;
     for (i = 0; i < n; ++i)
@@ -196,8 +196,8 @@ static void seed(Fixture *f, int source_big)
 static void encode(void)
 {
     Fixture f;
-    ThreeMMMaskedBitmap m;
-    ThreeMMMaskedRect r = {0, 0, 5, 4}, bounds;
+    MMMaskedBitmap m;
+    MMMaskedRect r = {0, 0, 5, 4}, bounds;
     unsigned char pixels[20] = {0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0};
     int big, flags, x, y, n;
     for (big = 0; big < 2; ++big)
@@ -205,22 +205,22 @@ static void encode(void)
         {
             setup(&f, big);
             memset(&m, 0, sizeof(m));
-            assert(three_mm_masked_init(&m, pixels, 5, 4, &r, 7, -2, 0, (unsigned)flags, 37, &f.s));
-            assert(three_mm_masked_validate(&m, big));
-            three_mm_masked_bounds(&m, big, &bounds);
+            assert(mm_masked_init(&m, pixels, 5, 4, &r, 7, -2, 0, (unsigned)flags, 37, &f.s));
+            assert(mm_masked_validate(&m, big));
+            mm_masked_bounds(&m, big, &bounds);
             assert(bounds.left == -6 && bounds.right == -3);
             for (y = -1; y < 5; ++y)
                 for (x = -1; x < 6; ++x)
                 {
                     int expected = x >= 0 && x < 5 && y >= 0 && y < 4 && pixels[(flags & 1 ? 3 - y : y) * 5 + x] != 0;
-                    assert(three_mm_masked_hit(&m, big, x - 7, y + 2) == expected);
+                    assert(mm_masked_hit(&m, big, x - 7, y + 2) == expected);
                 }
             f.size = m.bytes;
-            assert(three_mm_masked_write(&m, &f, &f.s) && f.written == m.bytes &&
+            assert(mm_masked_write(&m, &f, &f.s) && f.written == m.bytes &&
                    !memcmp(f.output, m.data, (size_t)m.bytes));
             --f.size;
-            assert(!three_mm_masked_write(&m, &f, &f.s) && f.diagnostic == THREE_MM_MASKED_WRONG_SIZE + 1);
-            three_mm_masked_dispose(&m, &f.s);
+            assert(!mm_masked_write(&m, &f, &f.s) && f.diagnostic == MM_MASKED_WRONG_SIZE + 1);
+            mm_masked_dispose(&m, &f.s);
             balanced(&f);
         }
     for (n = 0; n < 4; ++n)
@@ -228,7 +228,7 @@ static void encode(void)
         void *o;
         setup(&f, 0);
         f.fail = n;
-        o = three_mm_masked_new(pixels, 5, 4, &r, 0, 0, 0, 0, 0, &f.s);
+        o = mm_masked_new(pixels, 5, 4, &r, 0, 0, 0, 0, 0, &f.s);
         if (o)
             release(&f, o);
         else
@@ -237,33 +237,33 @@ static void encode(void)
     }
     setup(&f, 0);
     memset(&m, 0, sizeof(m));
-    assert(three_mm_masked_init(&m, pixels, 5, 4, &r, 0, 0, 0, 0, 0, &f.s));
+    assert(mm_masked_init(&m, pixels, 5, 4, &r, 0, 0, 0, 0, 0, &f.s));
     {
         void *old = m.data;
         f.fail = f.phase + 1;
-        assert(!three_mm_masked_init(&m, pixels, 5, 4, &r, 0, 0, 0, 2, 0, &f.s) && m.data == old &&
-               three_mm_masked_hit(&m, 0, 1, 1));
+        assert(!mm_masked_init(&m, pixels, 5, 4, &r, 0, 0, 0, 2, 0, &f.s) && m.data == old &&
+               mm_masked_hit(&m, 0, 1, 1));
     }
-    three_mm_masked_dispose(&m, &f.s);
+    mm_masked_dispose(&m, &f.s);
     balanced(&f);
     setup(&f, 0);
     memset(&m, 0, sizeof(m));
     memset(pixels, 0, 20);
-    assert(three_mm_masked_init(&m, pixels, 5, 4, &r, 7, -2, 0, 0, 0, &f.s) && m.bytes == 28 && !m.row_bytes &&
+    assert(mm_masked_init(&m, pixels, 5, 4, &r, 7, -2, 0, 0, 0, &f.s) && m.bytes == 28 && !m.row_bytes &&
            f.diagnostic == 1);
-    three_mm_masked_bounds(&m, 0, &bounds);
+    mm_masked_bounds(&m, 0, &bounds);
     assert(bounds.left == -7 && bounds.right == -7 && bounds.top == 2 && bounds.bottom == 2);
-    assert(!three_mm_masked_hit(&m, 0, -7, 2));
-    three_mm_masked_dispose(&m, &f.s);
-    assert(!three_mm_masked_init(&m, pixels, 2147483647, 2, &r, 0, 0, 0, 0, 0, &f.s));
-    assert(!three_mm_masked_init(&m, pixels, 5, 4, &r, (-2147483647 - 1), 0, 0, 0, 0, &f.s));
+    assert(!mm_masked_hit(&m, 0, -7, 2));
+    mm_masked_dispose(&m, &f.s);
+    assert(!mm_masked_init(&m, pixels, 2147483647, 2, &r, 0, 0, 0, 0, 0, &f.s));
+    assert(!mm_masked_init(&m, pixels, 5, 4, &r, (-2147483647 - 1), 0, 0, 0, 0, &f.s));
     balanced(&f);
 }
 static void long_runs(void)
 {
     Fixture f;
-    ThreeMMMaskedBitmap m;
-    ThreeMMMaskedRect r = {0, 0, 700, 2};
+    MMMaskedBitmap m;
+    MMMaskedRect r = {0, 0, 700, 2};
     unsigned char pixels[1400];
     int big, mask, x, y;
     for (big = 0; big < 2; ++big)
@@ -274,12 +274,12 @@ static void long_runs(void)
             memset(pixels, 17, sizeof(pixels));
             memset(pixels, 0, 600);
             pixels[0] = 3;
-            assert(three_mm_masked_init(&m, pixels, 700, 2, &r, 0, 0, 0, (unsigned)mask * 2, 37, &f.s));
-            assert(three_mm_masked_validate(&m, big));
+            assert(mm_masked_init(&m, pixels, 700, 2, &r, 0, 0, 0, (unsigned)mask * 2, 37, &f.s));
+            assert(mm_masked_validate(&m, big));
             for (y = 0; y < 2; ++y)
                 for (x = 0; x < 700; ++x)
-                    assert(three_mm_masked_hit(&m, big, x, y) == (pixels[y * 700 + x] != 0));
-            three_mm_masked_dispose(&m, &f.s);
+                    assert(mm_masked_hit(&m, big, x, y) == (pixels[y * 700 + x] != 0));
+            mm_masked_dispose(&m, &f.s);
             balanced(&f);
         }
     {
@@ -290,7 +290,7 @@ static void long_runs(void)
         r.bottom = 1;
         setup(&f, 0);
         memset(&m, 0, sizeof(m));
-        assert(!three_mm_masked_init(&m, wide, 40000, 1, &r, 0, 0, 0, 0, 0, &f.s) && !m.data);
+        assert(!mm_masked_init(&m, wide, 40000, 1, &r, 0, 0, 0, 0, 0, &f.s) && !m.data);
         free(wide);
         balanced(&f);
     }
@@ -298,7 +298,7 @@ static void long_runs(void)
 static void loading(void)
 {
     Fixture f;
-    ThreeMMMaskedBitmap *m;
+    MMMaskedBitmap *m;
     int big, foreign, memory, factory, n, ok;
     for (big = 0; big < 2; ++big)
         for (foreign = 0; foreign < 2; ++foreign)
@@ -312,18 +312,18 @@ static void loading(void)
                         f.fail = n;
                         if (factory)
                         {
-                            ok = three_mm_masked_fetch(&f, 1, &f.s);
-                            m = (ThreeMMMaskedBitmap *)f.result;
+                            ok = mm_masked_fetch(&f, 1, &f.s);
+                            m = (MMMaskedBitmap *)f.result;
                             assert(f.published == 1 && f.valid == ok);
                         }
                         else
                         {
-                            m = (ThreeMMMaskedBitmap *)three_mm_masked_read(&f, &f.s);
+                            m = (MMMaskedBitmap *)mm_masked_read(&f, &f.s);
                             ok = m != NULL;
                         }
                         if (ok)
                         {
-                            assert(three_mm_masked_hit(m, big, -1, 3) && !three_mm_masked_hit(m, big, -2, 3) &&
+                            assert(mm_masked_hit(m, big, -1, 3) && !mm_masked_hit(m, big, -2, 3) &&
                                    m->row_bytes == 4);
                             assert(f.consumed == memory);
                             if (factory)
@@ -334,27 +334,27 @@ static void loading(void)
                     }
     setup(&f, 0);
     seed(&f, 0);
-    assert(three_mm_masked_fetch(&f, 0, &f.s) && f.estimate == 17 && !f.reads && !f.unpacks);
+    assert(mm_masked_fetch(&f, 0, &f.s) && f.estimate == 17 && !f.reads && !f.unpacks);
     balanced(&f);
     for (n = 0; n < 40; ++n)
     {
         setup(&f, 0);
         seed(&f, 0);
         f.size = n;
-        assert(!three_mm_masked_read(&f, &f.s));
+        assert(!mm_masked_read(&f, &f.s));
         balanced(&f);
     }
     setup(&f, 0);
     seed(&f, 0);
     f.is_memory = 1;
     f.input[6] = 1;
-    assert(!three_mm_masked_read(&f, &f.s) && f.consumed == 1);
+    assert(!mm_masked_read(&f, &f.s) && f.consumed == 1);
     balanced(&f);
 }
 static void malformed(void)
 {
     Fixture f;
-    ThreeMMMaskedBitmap m;
+    MMMaskedBitmap m;
     int variant, big;
     for (big = 0; big < 2; ++big)
         for (variant = 0; variant < 11; ++variant)
@@ -395,7 +395,7 @@ static void malformed(void)
                 put(f.input + 8, 4, 0x80000000UL, big);
                 put(f.input + 16, 4, 0x7fffffffUL, big);
             }
-            assert(!three_mm_masked_validate(&m, big));
+            assert(!mm_masked_validate(&m, big));
             balanced(&f);
         }
     setup(&f, 0);
@@ -404,17 +404,17 @@ static void malformed(void)
     put(f.input + 24, 4, 28, 0);
     m.data = f.input;
     m.bytes = 28;
-    assert(three_mm_masked_validate(&m, 0) && !m.row_bytes);
+    assert(mm_masked_validate(&m, 0) && !m.row_bytes);
     {
-        ThreeMMMaskedRect r;
-        three_mm_masked_bounds(&m, 0, &r);
+        MMMaskedRect r;
+        mm_masked_bounds(&m, 0, &r);
         assert(r.left == r.right && r.top == r.bottom);
     }
 }
 static void imports(void)
 {
     Fixture f;
-    ThreeMMMaskedBitmap *m;
+    MMMaskedBitmap *m;
     int up, flags, n;
     for (up = 0; up < 2; ++up)
         for (flags = 0; flags < 4; ++flags)
@@ -425,11 +425,11 @@ static void imports(void)
                 f.bitmap[0] = 9;
                 f.bitmap[21] = 7;
                 f.fail = n;
-                m = (ThreeMMMaskedBitmap *)three_mm_masked_import(&f, 0, 0, 0, (unsigned)flags, 37, &f.s);
+                m = (MMMaskedBitmap *)mm_masked_import(&f, 0, 0, 0, (unsigned)flags, 37, &f.s);
                 if (m)
                 {
                     int flip = up ? (flags & 1) : !(flags & 1);
-                    assert(three_mm_masked_hit(m, 0, 0, flip ? 5 : 0));
+                    assert(mm_masked_hit(m, 0, 0, flip ? 5 : 0));
                     release(&f, m);
                 }
                 balanced(&f);

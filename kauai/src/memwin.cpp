@@ -14,16 +14,16 @@
 #include "handle_services.h"
 ASSERTNAME
 namespace {
-int AllocateHandle(void *, ThreeMMU32 bytes, void **handle) { return FAllocHq(handle, bytes, fmemNil, mprNormal); }
+int AllocateHandle(void *, MMU32 bytes, void **handle) { return FAllocHq(handle, bytes, fmemNil, mprNormal); }
 void ReleaseHandle(void *, void *handle) { FreePhq(&handle); }
-ThreeMMU32 HandleSize(void *, void *handle) { return CbOfHq(handle); }
+MMU32 HandleSize(void *, void *handle) { return CbOfHq(handle); }
 void *LockHandle(void *, void *handle) { return PvLockHq(handle); }
 void UnlockHandle(void *, void *handle) { UnlockHq(handle); }
-int ResizeHandle(void *, void **handle, ThreeMMU32 bytes) { return FResizePhq(handle, bytes, fmemNil, mprNormal); }
+int ResizeHandle(void *, void **handle, MMU32 bytes) { return FResizePhq(handle, bytes, fmemNil, mprNormal); }
 }
-const ThreeMMHandleServices *KauaiHandleServices()
+const MMHandleServices *KauaiHandleServices()
 {
-    static const ThreeMMHandleServices services = {nullptr, AllocateHandle, ReleaseHandle, HandleSize, LockHandle, UnlockHandle, ResizeHandle};
+    static const MMHandleServices services = {nullptr, AllocateHandle, ReleaseHandle, HandleSize, LockHandle, UnlockHandle, ResizeHandle};
     return &services;
 }
 struct alignas(std::max_align_t) HQH

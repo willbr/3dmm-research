@@ -11,14 +11,14 @@ class MovieContentTagAccess : public TagManager
         auto manager = ChunkyResourceManager::PcrmNew(1);
         auto paths = sources.owners.new_paths(sources.owners.context);
         if (!manager || !paths || !manager->FAddCfl(file, 1024 * 1024) ||
-            three_mm_storage_ensure(&sources.storage, (sources.count + 1) * sizeof(ThreeMMSourceRecord), 0, 0))
+            mm_storage_ensure(&sources.storage, (sources.count + 1) * sizeof(MMSourceRecord), 0, 0))
         {
             ReleasePpo(&manager);
             if (paths)
                 sources.owners.release_paths(paths);
             return false;
         }
-        ThreeMMSourceRecord row = {123, 1, manager, paths};
+        MMSourceRecord row = {123, 1, manager, paths};
         std::memcpy(sources.storage.buffers[0].data + sources.count * sizeof(row), &row, sizeof(row));
         ++sources.count;
         return true;
@@ -45,7 +45,7 @@ class MovieContentSceneAccess : public Scene
 static bool TestMovieContentCore()
 {
     FILE *snapshot = nullptr;
-    if (const char *path = std::getenv("THREE_MM_MOVIE_CONTENT_SNAPSHOT"))
+    if (const char *path = std::getenv("MM_MOVIE_CONTENT_SNAPSHOT"))
         snapshot = std::fopen(path, "w+b");
     else
         snapshot = std::tmpfile();
@@ -203,7 +203,7 @@ static bool TestMovieContentCore()
 #ifdef _WIN64
     ok = std::fflush(snapshot) == 0 && ok;
     ok = std::fseek(snapshot, 0, SEEK_SET) == 0 && ok;
-    ThreeMMU32 hash = 2166136261U;
+    MMU32 hash = 2166136261U;
     size_t bytes = 0, count;
     unsigned char buffer[4096];
     while ((count = std::fread(buffer, 1, sizeof(buffer), snapshot)) != 0)

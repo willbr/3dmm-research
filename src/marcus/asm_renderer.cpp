@@ -59,7 +59,7 @@ struct MarcusASMRenderer::Impl
         SDL_DestroyProcess(process);
     }
 };
-bool MarcusASMRenderer::Available(ThreeMM::Error &error)
+bool MarcusASMRenderer::Available(MM::Error &error)
 {
 #ifdef _WIN32
     if (std::filesystem::is_regular_file(Worker()))
@@ -72,7 +72,7 @@ bool MarcusASMRenderer::Available(ThreeMM::Error &error)
 MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string &resources, const std::string &content)
     : impl(new Impl)
 {
-    ThreeMM::Error error;
+    MM::Error error;
     if (!Available(error))
         throw std::runtime_error(error.message);
     const auto executable = Worker();
@@ -97,8 +97,8 @@ MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string
         throw std::runtime_error("ASM renderer handshake failed: expected original 32-bit assembly backend.");
 }
 MarcusASMRenderer::~MarcusASMRenderer() = default;
-bool MarcusASMRenderer::Render(int scene, int frame, const ThreeMM::PreviewView &view, ThreeMM::PreviewImage &image,
-                               ThreeMM::Error &error)
+bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view, MM::PreviewImage &image,
+                               MM::Error &error)
 {
     try
     {

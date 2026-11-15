@@ -1,20 +1,20 @@
-#include "three_mm/actor_transaction.h"
+#include "mm/actor_transaction.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"transaction check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
 typedef struct Fixture
 {
-    ThreeMMActorTransactionServices transaction;
-    ThreeMMActorDeleteServices deletion;
-    ThreeMMActorDeleteState state;
-    ThreeMMActorTransactionResult result;
-    ThreeMMActorDeleteResult alive;
+    MMActorTransactionServices transaction;
+    MMActorDeleteServices deletion;
+    MMActorDeleteState state;
+    MMActorTransactionResult result;
+    MMActorDeleteResult alive;
     int snapshot,refs,edited,registered,restored,detached,releases,publications,trash,alive_writes;
     int fail_duplicate,fail_apply,fail_undo,fail_subroute,fail_seek,fail_lifetime,has_output;
     int seeks,frames[2],forward,all,wants_alive,original,events,event_queries,add_queries,sounds,faults,last_fault;
     int return_alive,override_frame,subroutes;
-    ThreeMMI32 add_frame;
+    MMI32 add_frame;
     char trace[96]; int count;
 } Fixture;
 static void mark(Fixture *f,char c) { CHECK(f->count<94); f->trace[f->count++]=c; f->trace[f->count]=0; }
@@ -35,18 +35,18 @@ static void publish_snapshot(void *p,void *snapshot)
 { Fixture *f=(Fixture *)p; mark(f,'O'); CHECK(snapshot==&f->snapshot && f->result.snapshot==snapshot && f->detached && f->refs==2); ++f->publications; }
 static void publish_alive(void *p,int value,int trashed)
 { Fixture *f=(Fixture *)p; mark(f,'O'); CHECK(value==f->alive.alive && trashed==f->alive.trashed); if (trashed) ++f->trash; else ++f->alive_writes; }
-static void read_state(void *p,ThreeMMActorDeleteState *state) { Fixture *f=(Fixture *)p; mark(f,'q'); *state=f->state; }
-static ThreeMMI32 add_frame(void *p,ThreeMMI32 event)
+static void read_state(void *p,MMActorDeleteState *state) { Fixture *f=(Fixture *)p; mark(f,'q'); *state=f->state; }
+static MMI32 add_frame(void *p,MMI32 event)
 { Fixture *f=(Fixture *)p; mark(f,'a'); CHECK(event==f->state.add_event); ++f->add_queries; return f->add_frame; }
-static ThreeMMI32 events(void *p) { Fixture *f=(Fixture *)p; mark(f,'n'); ++f->event_queries; return f->events; }
+static MMI32 events(void *p) { Fixture *f=(Fixture *)p; mark(f,'n'); ++f->event_queries; return f->events; }
 static int subroute(void *p) { Fixture *f=(Fixture *)p; mark(f,'E'); ++f->edited; ++f->subroutes; return !f->fail_subroute; }
-static int seek(void *p,ThreeMMI32 frame)
+static int seek(void *p,MMI32 frame)
 {
     Fixture *f=(Fixture *)p; mark(f,'S'); CHECK(f->seeks<2);
     if (f->seeks==1 && f->has_output) CHECK(f->alive_writes==1);
     f->frames[f->seeks++]=frame; f->state.frame=frame; return f->seeks!=f->fail_seek;
 }
-static int forward(void *p,int all,int wants_alive,ThreeMMI32 original)
+static int forward(void *p,int all,int wants_alive,MMI32 original)
 {
     Fixture *f=(Fixture *)p; mark(f,'F'); ++f->forward; ++f->edited;
     f->all=all; f->wants_alive=wants_alive; f->original=original; f->state.next_event=99;
@@ -69,31 +69,31 @@ static void init(Fixture *f)
     f->add_frame=9; f->events=5; f->return_alive=1;
 }
 static int delete_actor(Fixture *f,int all,int output)
-{ f->has_output=output; return three_mm_actor_transaction_delete(all,output?&f->alive:NULL,&f->transaction,&f->deletion); }
+{ f->has_output=output; return mm_actor_transaction_delete(all,output?&f->alive:NULL,&f->transaction,&f->deletion); }
 int main(void)
 {
     Fixture f; int kind,fail,output;
-    for (kind=0;kind<=THREE_MM_TRANSACTION_REMOVE;++kind) for (output=0;output<2;++output) for (fail=0;fail<4;++fail)
+    for (kind=0;kind<=MM_TRANSACTION_REMOVE;++kind) for (output=0;output<2;++output) for (fail=0;fail<4;++fail)
     {
         init(&f); f.fail_duplicate=fail==1; f.fail_apply=fail==2; f.fail_undo=fail==3;
         /* The legacy costume failure proceeds to core/undo with NULL snapshot.
          * Mock a rejecting undo callback instead of invoking invalid native data. */
-        if (kind==THREE_MM_TRANSACTION_COSTUME && fail==1) f.fail_undo=1;
-        CHECK(three_mm_actor_transaction_apply(kind,output?&f.result:NULL,&f.transaction)==!fail);
+        if (kind==MM_TRANSACTION_COSTUME && fail==1) f.fail_undo=1;
+        CHECK(mm_actor_transaction_apply(kind,output?&f.result:NULL,&f.transaction)==!fail);
         if (!fail)
         {
             CHECK(f.registered==1 && f.detached && f.edited==1);
-            CHECK(f.publications==(kind==THREE_MM_TRANSACTION_ACTION && output));
+            CHECK(f.publications==(kind==MM_TRANSACTION_ACTION && output));
             CHECK(f.refs==(f.publications?2:1) && f.releases==!f.publications);
             CHECK(!strcmp(f.trace,f.publications?"DAUO":"DAUL"));
         }
         else
         {
             CHECK(f.result.snapshot==&f && !f.publications && !f.registered && !f.edited);
-            if (fail==1) CHECK(!strcmp(f.trace,kind==THREE_MM_TRANSACTION_COSTUME?"DAUR":"D"));
-            if (fail==2) CHECK(!strcmp(f.trace,kind==THREE_MM_TRANSACTION_REMOVE?"DAR":"DARL"));
+            if (fail==1) CHECK(!strcmp(f.trace,kind==MM_TRANSACTION_COSTUME?"DAUR":"D"));
+            if (fail==2) CHECK(!strcmp(f.trace,kind==MM_TRANSACTION_REMOVE?"DAR":"DARL"));
             if (fail==3) CHECK(!strcmp(f.trace,"DAURL"));
-            CHECK(f.refs==((kind==THREE_MM_TRANSACTION_REMOVE && fail==2)?1:0));
+            CHECK(f.refs==((kind==MM_TRANSACTION_REMOVE && fail==2)?1:0));
         }
     }
     init(&f); f.override_frame=50; CHECK(delete_actor(&f,0,1));
@@ -114,11 +114,11 @@ int main(void)
     for (fail=1;fail<=2;++fail)
     {
         init(&f); f.fail_seek=fail; CHECK(!delete_actor(&f,0,1));
-        CHECK(f.seeks==fail && !f.restored && !f.registered && !f.refs && f.last_fault==THREE_MM_TRANSACTION_SEEK_FAILED);
+        CHECK(f.seeks==fail && !f.restored && !f.registered && !f.refs && f.last_fault==MM_TRANSACTION_SEEK_FAILED);
         CHECK(f.alive_writes==(fail==2) && f.edited==(fail==2) && f.frames[0]==9);
     }
     init(&f); f.fail_lifetime=1; CHECK(delete_actor(&f,0,1));
-    CHECK(f.last_fault==THREE_MM_TRANSACTION_BAD_LIFETIME && f.registered==1 && !f.restored && f.refs==1);
+    CHECK(f.last_fault==MM_TRANSACTION_BAD_LIFETIME && f.registered==1 && !f.restored && f.refs==1);
     init(&f); f.fail_undo=1; CHECK(!delete_actor(&f,0,1));
     CHECK(f.restored==1 && f.alive.alive==1 && f.alive_writes==1 && !f.edited && !f.refs && !f.faults);
     puts("actor edit transaction C89 checks passed"); return 0;

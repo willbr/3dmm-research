@@ -8,7 +8,7 @@ class MovieSoundFixtureAccess : public Movie
 static bool TestMovieSoundIntegration(PMovie parent)
 {
     FILE *snapshot=nullptr;
-    if (const char *path=std::getenv("THREE_MM_MOVIE_SOUND_SNAPSHOT"))
+    if (const char *path=std::getenv("MM_MOVIE_SOUND_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     auto graph=[&](PChunkyFile file,ChunkTagOrType type,ChunkNumber number) {
@@ -93,7 +93,7 @@ static bool TestMovieSoundIntegration(PMovie parent)
             bool valid=false,unused=movie->FUnusedSndsUser(&valid);
             LegacyLong row[]={100+mode,imported,beforeGc,movie->FQueryGCSndsOnClose(),static_cast<LegacyLong>(output),unused,valid};
             bool expected=mode<2;
-#if defined(WIN) && !defined(KAUAI_SDL3) && !defined(THREE_MM_TEST_NATIVE_AUDIOMAN)
+#if defined(WIN) && !defined(KAUAI_SDL3) && !defined(MM_TEST_NATIVE_AUDIOMAN)
             expected=mode==1; /* The fallback AudioMan implementation is an E_NOTIMPL stub. */
 #endif
             ok=imported==expected && record(row,sizeof(row)) && graph(resource->Pcfl(),kctgMvie,MovieSoundFixtureAccess::Data(movie)->movieNumber);

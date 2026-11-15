@@ -18,7 +18,7 @@
 
 #include "midi_stream_host.h"
 #include "midi_worker.h"
-#include "three_mm/midi_mix.h"
+#include "mm/midi_mix.h"
 using MEV = KauaiMidi::StreamEvent;
 typedef MEV *PMEV;
 
@@ -77,7 +77,7 @@ class MidiStreamQueue : public MidiStreamQueue_PAR
     LegacyUlong _tsStart; // when we started the current sound
     PMidiStreamMixer _pmsmix;
 
-    ThreeMMMidiQueueServices _QueueServices();
+    MMMidiQueueServices _QueueServices();
     MidiStreamQueue(void);
 
     virtual void _Enter(void);
@@ -133,8 +133,8 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
 
     PDynamicArray _pglmevKey; // to accumulate state events for seeking
 
-    ThreeMMMidiMixState _mix;
-    ThreeMMMidiMixServices _Services();
+    MMMidiMixState _mix;
+    MMMidiMixServices _Services();
     MidiStreamMixer(void);
     bool _FInit(KauaiMidi::HostFactory factory);
     void _StopStream(void);

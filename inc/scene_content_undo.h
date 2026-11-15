@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef SCENE_CONTENT_UNDO_H
 #define SCENE_CONTENT_UNDO_H
-#include "three_mm/scene_content.h"
+#include "mm/scene_content.h"
 typedef class SceneUndoText *PSceneUndoText;
 
 #define SceneUndoText_PAR MovieUndo
@@ -14,7 +14,7 @@ class SceneUndoText : public SceneUndoText_PAR
     ASSERT
 
   protected:
-    ThreeMMSceneTextUndo _content = {};
+    MMSceneTextUndo _content = {};
     SceneUndoText(void)
     {
     }
@@ -44,7 +44,7 @@ class SceneUndoText : public SceneUndoText_PAR
         _content.add = fAdd;
     }
 
-    ThreeMMSceneTextUndo *CoreState()
+    MMSceneTextUndo *CoreState()
     {
         return &_content;
     }

@@ -117,8 +117,8 @@
 #include "body_world.h"
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
-#include "three_mm/actor_effect.h"
-#include "three_mm/actor_placement.h"
+#include "mm/actor_effect.h"
+#include "mm/actor_placement.h"
 
 ASSERTNAME
 
@@ -133,7 +133,7 @@ RTCLASS(Actor)
 ***************************************************************************/
 Actor::Actor(void)
 {
-    ThreeMMActorRuntime runtime; three_mm_actor_runtime_init(&runtime); _PublishRuntime(runtime);
+    MMActorRuntime runtime; mm_actor_runtime_init(&runtime); _PublishRuntime(runtime);
 }
 
 /***************************************************************************
@@ -144,7 +144,7 @@ Actor::Actor(void)
 Actor::~Actor(void)
 {
     AssertBaseThis(0);
-    const auto services=_OwnerServices(); three_mm_actor_owner_dispose(this,&services);
+    const auto services=_OwnerServices(); mm_actor_owner_dispose(this,&services);
 }
 
 /***************************************************************************
@@ -153,32 +153,32 @@ Actor::~Actor(void)
     The actor will not yet be grounded to any initial scene frame.
 
 ***************************************************************************/
-ThreeMMActorCreateServices Actor::_CreateServices()
+MMActorCreateServices Actor::_CreateServices()
 {
-    ThreeMMActorCreateServices s{}; s.owner=_OwnerServices();
-    s.fetch_template=[](void *,const ThreeMMTag *value)->void * {
+    MMActorCreateServices s{}; s.owner=_OwnerServices();
+    s.fetch_template=[](void *,const MMTag *value)->void * {
         TAG tag; std::memcpy(&tag,value,sizeof(tag));
         return static_cast<PTemplate>(vptagm->PbacoFetch(&tag,Template::FReadTmpl));
     };
     s.create_track=[](void *,void *p) { return int(static_cast<PActor>(p)->_track.FCreate()); };
     s.create_sounds=[](void *,void *p) { return int(static_cast<PActor>(p)->_motionSounds.FCreate()); };
-    s.action_flags=[](void *,void *p,ThreeMMI32 action,ThreeMMU32 *flags) {
+    s.action_flags=[](void *,void *p,MMI32 action,MMU32 *flags) {
         LegacyUlong value=*flags; bool ok=static_cast<PTemplate>(p)->FGetGrfactn(action,&value);
         *flags=value; return int(ok);
     };
     s.create_body=[](void *,void *p)->void * { return static_cast<PTemplate>(p)->PbodyCreate(); };
     s.bind_body=[](void *,void *body,void *scene) { BodyWorld::Bind(static_cast<PBody>(body),static_cast<PScene>(scene)->Pmvie()->Pbwld()); };
     s.diagnostic=[](void *,int fault) {
-        if (fault==THREE_MM_CREATE_WRONG_SCENE) { Bug("SetPscen logic error"); }
-        else { Assert(fault==THREE_MM_CREATE_BOUND_WITHOUT_BODY || fault==THREE_MM_CREATE_BODY_WITHOUT_SCENE,"Unknown binding fault"); Bug("Bad body pointer"); }
+        if (fault==MM_CREATE_WRONG_SCENE) { Bug("SetPscen logic error"); }
+        else { Assert(fault==MM_CREATE_BOUND_WITHOUT_BODY || fault==MM_CREATE_BODY_WITHOUT_SCENE,"Unknown binding fault"); Bug("Bad body pointer"); }
     };
     return s;
 }
 bool Actor::_FInit(TAG *ptagTmpl)
 {
     AssertBaseThis(0); AssertVarMem(ptagTmpl);
-    ThreeMMTag tag; std::memcpy(&tag,ptagTmpl,sizeof(tag)); const auto services=_CreateServices();
-    return three_mm_actor_initialize(this,&tag,&services)!=0;
+    MMTag tag; std::memcpy(&tag,ptagTmpl,sizeof(tag)); const auto services=_CreateServices();
+    return mm_actor_initialize(this,&tag,&services)!=0;
 }
 
 /***************************************************************************
@@ -219,8 +219,8 @@ void Actor::_InitXfrmRot(BMAT34 *pbmat34)
 PActor Actor::PactrNew(TAG *ptagTmpl)
 {
     AssertVarMem(ptagTmpl);
-    ThreeMMTag tag; std::memcpy(&tag,ptagTmpl,sizeof(tag)); const auto services=_CreateServices();
-    return static_cast<PActor>(three_mm_actor_create(&tag,&services));
+    MMTag tag; std::memcpy(&tag,ptagTmpl,sizeof(tag)); const auto services=_CreateServices();
+    return static_cast<PActor>(mm_actor_create(&tag,&services));
 }
 
 /***************************************************************************
@@ -231,7 +231,7 @@ PActor Actor::PactrNew(TAG *ptagTmpl)
 bool Actor::_FCreateGroups(void)
 {
     AssertBaseThis(0); const auto services=_CreateServices();
-    return three_mm_actor_create_groups(this,&services)!=0;
+    return mm_actor_create_groups(this,&services)!=0;
 }
 
 /***************************************************************************
@@ -242,7 +242,7 @@ bool Actor::_FCreateGroups(void)
 void Actor::SetPscen(Scene *pscen)
 {
     AssertBaseThis(0); AssertVarMem(pscen); const auto services=_CreateServices();
-    three_mm_actor_bind_scene(this,pscen,&services);
+    mm_actor_bind_scene(this,pscen,&services);
 }
 
 /***************************************************************************
@@ -256,7 +256,7 @@ void Actor::_InitState(void)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
-    three_mm_actor_route_edit_reset(&state,_track.Route(),&tables,&services);
+    mm_actor_route_edit_reset(&state,_track.Route(),&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -271,7 +271,7 @@ void Actor::_SetStateRewound(void)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
-    three_mm_actor_route_edit_rewind(&state,_track.Route(),&tables,&services);
+    mm_actor_route_edit_rewind(&state,_track.Route(),&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -541,8 +541,8 @@ bool Actor::_FGetDwrRecord(BRS *pdwr)
     AssertBaseThis(0); AssertVarMem(pdwr);
     const auto state=EngineActorMotion::Core(_state);
     const auto services=_SubrouteEditServices();
-    ThreeMMI32 distance=0;
-    bool ok=three_mm_actor_record_step(&state,&distance,&services.timeline)!=0;
+    MMI32 distance=0;
+    bool ok=mm_actor_record_step(&state,&distance,&services.timeline)!=0;
     *pdwr=distance; return ok;
 }
 
@@ -580,85 +580,85 @@ bool Actor::_FDoAevCore(long iaev)
         BodyCostume costume;
     } host;
     host.actor = this;
-    ThreeMMActorEffectServices effects = {};
+    MMActorEffectServices effects = {};
     effects.context = &host;
-    effects.write_event = [](void *events, ThreeMMI32 index, const ThreeMMActorEvent *value) {
+    effects.write_event = [](void *events, MMI32 index, const MMActorEvent *value) {
         Base event;
         std::memcpy(&event, value, sizeof(event));
         static_cast<PGeneralGroup>(events)->PutFixed(index, &event);
     };
-    effects.publish = [](void *context, const ThreeMMActorState *value) {
+    effects.publish = [](void *context, const MMActorState *value) {
         EngineActorMotion::Publish(static_cast<Host *>(context)->actor->_state, *value);
     };
-    effects.run = [](void *context, const ThreeMMActorEffectCommand *command, ThreeMMActorEffectReply *reply) {
+    effects.run = [](void *context, const MMActorEffectCommand *command, MMActorEffectReply *reply) {
         auto &host = *static_cast<Host *>(context);
         auto actor = host.actor;
         switch (command->operation)
         {
-        case THREE_MM_EFFECT_CLEAR_SOUNDS:
+        case MM_EFFECT_CLEAR_SOUNDS:
             actor->_motionSounds.Clear();
             break;
-        case THREE_MM_EFFECT_SET_ACTION_CEL:
+        case MM_EFFECT_SET_ACTION_CEL:
             reply->success = actor->_ptmpl->FSetActnCel(actor->_pbody, command->first, command->second);
             break;
-        case THREE_MM_EFFECT_CEL_COUNT:
+        case MM_EFFECT_CEL_COUNT:
         {
             LegacyLong count = reply->value;
             reply->success = actor->_ptmpl->FGetCcelActn(command->first, &count);
             reply->value = count;
             break;
         }
-        case THREE_MM_EFFECT_ACTION_FLAGS:
+        case MM_EFFECT_ACTION_FLAGS:
         {
             LegacyUlong flags = 0;
             reply->success = actor->_ptmpl->FGetGrfactn(command->first, &flags);
             reply->flags = flags;
             break;
         }
-        case THREE_MM_EFFECT_SAVE_COSTUME:
+        case MM_EFFECT_SAVE_COSTUME:
             reply->success = host.costume.FGet(actor->_pbody);
             break;
-        case THREE_MM_EFFECT_DEFAULT_COSTUME:
+        case MM_EFFECT_DEFAULT_COSTUME:
             reply->success = actor->_ptmpl->FSetDefaultCost(actor->_pbody);
             break;
-        case THREE_MM_EFFECT_RESTORE_COSTUME:
+        case MM_EFFECT_RESTORE_COSTUME:
             host.costume.Set(actor->_pbody);
             break;
-        case THREE_MM_EFFECT_SHOW:
+        case MM_EFFECT_SHOW:
             actor->_pbody->Show();
             break;
-        case THREE_MM_EFFECT_HIDE:
+        case MM_EFFECT_HIDE:
             actor->_pbody->Hide();
             break;
-        case THREE_MM_EFFECT_FETCH_CUSTOM:
+        case MM_EFFECT_FETCH_CUSTOM:
             reply->resource = actor->_ptmpl->PcmtlFetch(command->first);
             break;
-        case THREE_MM_EFFECT_FETCH_MATERIAL:
+        case MM_EFFECT_FETCH_MATERIAL:
         {
             TAG tag;
             std::memcpy(&tag, command->tag, sizeof(tag));
             reply->resource = vptagm->PbacoFetch(&tag, Material_MTRL::FReadMtrl);
             break;
         }
-        case THREE_MM_EFFECT_APPLY_CUSTOM:
+        case MM_EFFECT_APPLY_CUSTOM:
             actor->_pbody->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
             break;
-        case THREE_MM_EFFECT_APPLY_MATERIAL:
+        case MM_EFFECT_APPLY_MATERIAL:
             actor->_pbody->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
             break;
-        case THREE_MM_EFFECT_RELEASE_CUSTOM:
+        case MM_EFFECT_RELEASE_CUSTOM:
         {
             auto resource = static_cast<PCustomMaterial_CMTL>(command->resource);
             ReleasePpo(&resource);
             break;
         }
-        case THREE_MM_EFFECT_RELEASE_MATERIAL:
+        case MM_EFFECT_RELEASE_MATERIAL:
         {
             auto resource = static_cast<PMaterial_MTRL>(command->resource);
             ReleasePpo(&resource);
             break;
         }
-        case THREE_MM_EFFECT_ENQUEUE_SOUND:
+        case MM_EFFECT_ENQUEUE_SOUND:
             reply->success = actor->_FEnqueueSnd(command->first);
             break;
         }
@@ -666,7 +666,7 @@ bool Actor::_FDoAevCore(long iaev)
     auto state = EngineActorMotion::Core(_state);
     const auto origin = EngineActorMotion::Point(_dxyzFullRte);
     const auto tables = EngineActorMotion::Services();
-    bool success = three_mm_actor_effect_apply(&state, _track.Route(), _track.Events(), iaev, &origin,
+    bool success = mm_actor_effect_apply(&state, _track.Route(), _track.Events(), iaev, &origin,
                                                _pbody != pvNil, 0, &tables, &effects) != 0;
     EngineActorMotion::Publish(_state, state);
     return success;
@@ -694,7 +694,7 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto edits=_EventEditServices();
-    bool ok=three_mm_actor_edit_add_apply(&state,_motionSounds.Core(),_track.Events(),_arid,aetNew,cbNew,pvVar,
+    bool ok=mm_actor_edit_add_apply(&state,_motionSounds.Core(),_track.Events(),_arid,aetNew,cbNew,pvVar,
                                           &tables,&edits)!=0;
     EngineActorMotion::Publish(_state,state);
     if (ok) AssertThis(fobjAssertFull);
@@ -719,8 +719,8 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto edits=_EventEditServices();
-    ThreeMMI32 result=0;
-    three_mm_actor_edit_merge(&state,_motionSounds.Core(),_track.Events(),_arid,iaevFirst,iaevNew,
+    MMI32 result=0;
+    mm_actor_edit_merge(&state,_motionSounds.Core(),_track.Events(),_arid,iaevFirst,iaevNew,
                               piaevRtn ? &result : nullptr,&tables,&edits);
     EngineActorMotion::Publish(_state,state);
     if (piaevRtn) *piaevRtn=result;
@@ -732,48 +732,48 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
     Add the event to the event list
 
 ***************************************************************************/
-ThreeMMActorActionEditServices Actor::_ActionEditServices()
+MMActorActionEditServices Actor::_ActionEditServices()
 {
     static_assert(factnStatic==8 && kdwrNil==-65536,"actor action policy ABI");
-    ThreeMMActorActionEditServices s={}; s.context=this; s.sounds=_SoundEditServices();
-    s.action_flags=[](void *p,ThreeMMI32 action,ThreeMMU32 *flags) {
+    MMActorActionEditServices s={}; s.context=this; s.sounds=_SoundEditServices();
+    s.action_flags=[](void *p,MMI32 action,MMU32 *flags) {
         LegacyUlong value=0; bool ok=static_cast<Actor *>(p)->_ptmpl->FGetGrfactn(action,&value); *flags=value; return int(ok);
     };
     s.text_template=[](void *p) { return int(static_cast<Actor *>(p)->_ptmpl->FIsTdt()); };
     s.mark_life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
     return s;
 }
-ThreeMMActorSubrouteEditServices Actor::_SubrouteEditServices()
+MMActorSubrouteEditServices Actor::_SubrouteEditServices()
 {
-    ThreeMMActorSubrouteEditServices s={}; s.route=_RouteEditServices(); s.action=_ActionEditServices();
+    MMActorSubrouteEditServices s={}; s.route=_RouteEditServices(); s.action=_ActionEditServices();
     s.timeline.motion=EngineActorMotion::Services(); s.timeline.context=this;
-    s.timeline.resolve=[](void *p,ThreeMMI32 action,ThreeMMI32 cel,ThreeMMI32 *out) {
+    s.timeline.resolve=[](void *p,MMI32 action,MMI32 cel,MMI32 *out) {
         BRS value=*out; bool ok=static_cast<Actor *>(p)->_ptmpl->FGetDwrActnCel(action,cel,&value); *out=value; return int(ok);
     };
     s.timeline.put_event=s.route.write_event;
-    s.timeline.publish_frame=[](void *p,ThreeMMI32 frame) { static_cast<Actor *>(p)->_nfrmLast=frame; };
+    s.timeline.publish_frame=[](void *p,MMI32 frame) { static_cast<Actor *>(p)->_nfrmLast=frame; };
     s.timeline.diagnostic=[](void *,int fault) { EngineActorTimeline::Diagnostic(nullptr,fault); };
-    s.get_flags=[](void *p,ThreeMMActorSubrouteFlags *flags) {
+    s.get_flags=[](void *p,MMActorSubrouteFlags *flags) {
         auto actor=static_cast<Actor *>(p); flags->dirty=actor->_fLifeDirty; flags->recording=actor->_fModeRecord; flags->rejoining=actor->_fRejoin;
     };
     s.set_dirty=[](void *p,int dirty) { static_cast<Actor *>(p)->_fLifeDirty=dirty!=0; };
-    s.pose_inputs=[](void *p,ThreeMMActorPoseInputs *inputs) {
+    s.pose_inputs=[](void *p,MMActorPoseInputs *inputs) {
         auto actor=static_cast<Actor *>(p); actor->_ptmpl->GetRestOrien(&inputs->restX,&inputs->restY,&inputs->restZ);
         inputs->fixedPathOrientation=actor->_ptmpl->FIsTdt();
     };
-    s.locate_body=[](void *p,const ThreeMMActorPoint *position,const ThreeMMActorMatrix *value) {
+    s.locate_body=[](void *p,const MMActorPoint *position,const MMActorMatrix *value) {
         BMAT34 matrix; std::memcpy(&matrix,value,sizeof(matrix));
         static_cast<Actor *>(p)->_pbody->LocateOrient(position->dxr,position->dyr,position->dzr,&matrix);
     };
-    s.seek=[](void *p,ThreeMMActorState *state,ThreeMMI32 frame) {
+    s.seek=[](void *p,MMActorState *state,MMI32 frame) {
         auto actor=static_cast<Actor *>(p); EngineActorMotion::Publish(actor->_state,*state);
         bool ok=actor->FGotoFrame(frame); *state=EngineActorMotion::Core(actor->_state); return int(ok);
     };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
-        case THREE_MM_SUBROUTE_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
-        case THREE_MM_SUBROUTE_BAD_HOLD: Bug("Event list out of order (dnfrm error)"); break;
-        case THREE_MM_SUBROUTE_OFFSTAGE_EVENT: Bug("Offstage case should be already handled"); break;
+        case MM_SUBROUTE_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
+        case MM_SUBROUTE_BAD_HOLD: Bug("Event list out of order (dnfrm error)"); break;
+        case MM_SUBROUTE_OFFSTAGE_EVENT: Bug("Offstage case should be already handled"); break;
         }
     };
     return s;
@@ -785,7 +785,7 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
     const auto tables=EngineActorMotion::Services();
     const auto services=_ActionEditServices();
     ChildChunkID external=0; TrashVar(&external);
-    bool ok=three_mm_actor_edit_set_action(&state,_motionSounds.Core(),_track.Events(),_arid,anid,celn,fFreeze,
+    bool ok=mm_actor_edit_set_action(&state,_motionSounds.Core(),_track.Events(),_arid,anid,celn,fFreeze,
                                            external,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
@@ -802,7 +802,7 @@ void Actor::_Hide(void)
     AssertBaseThis(0);
     auto state=EngineActorMotion::Core(_state);
     const auto services=_RouteEditServices();
-    three_mm_actor_route_edit_hide(&state,&services);
+    mm_actor_route_edit_hide(&state,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -816,25 +816,25 @@ void Actor::_Hide(void)
         dwrPrior is the distance from the previous node to the new one.
 
 ***************************************************************************/
-ThreeMMActorRouteEditServices Actor::_RouteEditServices()
+MMActorRouteEditServices Actor::_RouteEditServices()
 {
-    ThreeMMActorRouteEditServices s={}; s.edits=_EventEditServices();
-    s.insert_point=[](void *p,ThreeMMI32 i,const ThreeMMActorRoutePoint *v) { return int(static_cast<PDynamicArray>(p)->FInsert(i,const_cast<ThreeMMActorRoutePoint *>(v))); };
-    s.write_point=[](void *p,ThreeMMI32 i,const ThreeMMActorRoutePoint *v) { static_cast<PDynamicArray>(p)->Put(i,const_cast<ThreeMMActorRoutePoint *>(v)); };
-    s.delete_points=[](void *p,ThreeMMI32 i,ThreeMMI32 count) { static_cast<PDynamicArray>(p)->Delete(i,count); };
+    MMActorRouteEditServices s={}; s.edits=_EventEditServices();
+    s.insert_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { return int(static_cast<PDynamicArray>(p)->FInsert(i,const_cast<MMActorRoutePoint *>(v))); };
+    s.write_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { static_cast<PDynamicArray>(p)->Put(i,const_cast<MMActorRoutePoint *>(v)); };
+    s.delete_points=[](void *p,MMI32 i,MMI32 count) { static_cast<PDynamicArray>(p)->Delete(i,count); };
     s.clear_route=[](void *p) { static_cast<PDynamicArray>(p)->FSetIvMac(0); };
-    s.write_event=[](void *p,ThreeMMI32 i,const ThreeMMActorEvent *v) { static_cast<PGeneralGroup>(p)->PutFixed(i,const_cast<ThreeMMActorEvent *>(v)); };
-    s.swap_events=[](void *p,ThreeMMI32 a,ThreeMMI32 b) { static_cast<PGeneralGroup>(p)->Swap(a,b); };
-    s.reserve_events=[](void *p,ThreeMMU32 count,ThreeMMU32 bytes) { return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(count,bytes,fgrpNil)); };
+    s.write_event=[](void *p,MMI32 i,const MMActorEvent *v) { static_cast<PGeneralGroup>(p)->PutFixed(i,const_cast<MMActorEvent *>(v)); };
+    s.swap_events=[](void *p,MMI32 a,MMI32 b) { static_cast<PGeneralGroup>(p)->Swap(a,b); };
+    s.reserve_events=[](void *p,MMU32 count,MMU32 bytes) { return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(count,bytes,fgrpNil)); };
     s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
     s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_fModeRecord=enabled!=0; };
     s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_pbody) actor->_pbody->Hide(); };
     s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_ptmpl && actor->_pbody) actor->_ptmpl->FSetDefaultCost(actor->_pbody); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
-        case THREE_MM_ROUTE_BAD_ALIVE: Bug("Invalid fAlive value"); break;
-        case THREE_MM_ROUTE_FREEZE_FAILED: Assert(false,"Expected freeze event to succeed"); break;
-        case THREE_MM_ROUTE_STEP_FAILED: Assert(false,"Expected set step event to succeed"); break;
+        case MM_ROUTE_BAD_ALIVE: Bug("Invalid fAlive value"); break;
+        case MM_ROUTE_FREEZE_FAILED: Assert(false,"Expected freeze event to succeed"); break;
+        case MM_ROUTE_STEP_FAILED: Assert(false,"Expected set step event to succeed"); break;
         }
     };
     return s;
@@ -843,10 +843,10 @@ bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
 {
     AssertBaseThis(0); AssertIn(irpt,0,_track.Route()->IvMac()+1); AssertVarMem(prpt);
     static_assert(rEps==1,"actor route epsilon ABI");
-    ThreeMMActorRoutePoint point; std::memcpy(&point,prpt,sizeof(point));
+    MMActorRoutePoint point; std::memcpy(&point,prpt,sizeof(point));
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
-    bool ok=three_mm_actor_route_edit_insert(_track.Route(),irpt,&point,dwrPrior,&tables,&services)!=0;
+    bool ok=mm_actor_route_edit_insert(_track.Route(),irpt,&point,dwrPrior,&tables,&services)!=0;
     std::memcpy(prpt,&point,sizeof(point));
     return ok;
 }
@@ -867,7 +867,7 @@ bool Actor::FSetStep(BRS dwrStep)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_SoundEditServices();
-    bool ok=three_mm_actor_edit_set_step(&state,_motionSounds.Core(),_track.Events(),_arid,dwrStep,&tables,&services)!=0;
+    bool ok=mm_actor_edit_set_step(&state,_motionSounds.Core(),_track.Events(),_arid,dwrStep,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
 }
@@ -889,10 +889,10 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
     static_assert(kzrDefault == -1638400, "Placement distance ABI");
     BRS x, y, z;
     _pscen->Pbkgd()->GetActorPlacePoint(&x, &y, &z);
-    ThreeMMActorPoint point{x, y, z};
-    ThreeMMActorPlacementServices services{};
+    MMActorPoint point{x, y, z};
+    MMActorPlacementServices services{};
     services.context = this;
-    services.camera = [](void *context, ThreeMMActorMatrix *matrix, ThreeMMI32 *hither, ThreeMMI32 *yon) {
+    services.camera = [](void *context, MMActorMatrix *matrix, MMI32 *hither, MMI32 *yon) {
         auto *actor = static_cast<Actor *>(context);
         BMAT34 camera;
         BRS nearClip, farClip;
@@ -902,7 +902,7 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
         *yon = farClip;
         std::memcpy(matrix, &camera, sizeof(camera));
     };
-    three_mm_actor_placement(&point, _ptmpl->FIsTdt(), &services);
+    mm_actor_placement(&point, _ptmpl->FIsTdt(), &services);
     *pxr = point.dxr;
     *pyr = point.dyr;
     *pzr = point.dzr;
@@ -917,22 +917,22 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
     Add the initialization events for costumes, xforms, etc from the
     preceding or subsequent subroute.
 ***************************************************************************/
-ThreeMMActorStageEditServices Actor::_StageEditServices()
+MMActorStageEditServices Actor::_StageEditServices()
 {
     static_assert(knfrmInvalid==2147483647 && kcbVarAdd==20 && kcbVarActn==8 &&
                   kcbVarFreeze==4 && kcbVarStep==4 && kcbVarRot==48 && kcbVarSize==4 && kcbVarPull==12,
                   "Stage edit ABI");
-    ThreeMMActorStageEditServices s{}; s.subroute=_SubrouteEditServices();
-    s.reserve_points=[](void *route,ThreeMMU32 count) {
+    MMActorStageEditServices s{}; s.subroute=_SubrouteEditServices();
+    s.reserve_points=[](void *route,MMU32 count) {
         return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil));
     };
-    s.placement=[](void *p,ThreeMMActorPoint *point,ThreeMMActorPoint *origin,unsigned short *yaw) {
+    s.placement=[](void *p,MMActorPoint *point,MMActorPoint *origin,unsigned short *yaw) {
         auto actor=static_cast<Actor *>(p); BRS x,y,z;
         actor->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
         std::memcpy(origin,&actor->_dxyzFullRte,sizeof(*origin));
         *yaw=actor->_pscen->Pbkgd()->BraRotYCamera();
     };
-    s.diagnostic=[](void *,int fault) { Assert(fault==THREE_MM_STAGE_INSERT_FAILED,"Unknown stage edit fault"); Bug("Logic error"); };
+    s.diagnostic=[](void *,int fault) { Assert(fault==MM_STAGE_INSERT_FAILED,"Unknown stage edit fault"); Bug("Logic error"); };
     return s;
 }
 bool Actor::FAddOnStageCore(void)
@@ -942,7 +942,7 @@ bool Actor::FAddOnStageCore(void)
     const auto tables=EngineActorMotion::Services();
     const auto services=_StageEditServices();
     ChildChunkID external=0; TrashVar(&external);
-    bool ok=three_mm_actor_stage_add(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_stage_add(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                       external,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
@@ -965,7 +965,7 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
-    bool ok=three_mm_actor_subroute_from_previous(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_subroute_from_previous(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                                   iaevLim,grfaet,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
@@ -984,7 +984,7 @@ bool Actor::_FAddAevFromLater(void)
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
     ChildChunkID external=0; TrashVar(&external);
-    bool ok=three_mm_actor_subroute_from_later(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_subroute_from_later(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                                external,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
@@ -1000,7 +1000,7 @@ bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0); AssertIn(aet,0,aetLim); AssertVarMem(piaevAdd);
     const auto tables=EngineActorMotion::Services();
-    *piaevAdd=three_mm_actor_route_edit_find(_track.Events(),aet,iaevCur,1,&tables);
+    *piaevAdd=mm_actor_route_edit_find(_track.Events(),aet,iaevCur,1,&tables);
     return *piaevAdd>=0;
 }
 
@@ -1014,7 +1014,7 @@ bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0); AssertIn(aet,0,aetLim); AssertVarMem(piaevAdd);
     const auto tables=EngineActorMotion::Services();
-    *piaevAdd=three_mm_actor_route_edit_find(_track.Events(),aet,iaevCur,0,&tables);
+    *piaevAdd=mm_actor_route_edit_find(_track.Events(),aet,iaevCur,0,&tables);
     return *piaevAdd>=0;
 }
 
@@ -1033,7 +1033,7 @@ void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 {
     AssertBaseThis(0); AssertVarMem(piaevLast);
     const auto tables=EngineActorMotion::Services();
-    *piaevLast=three_mm_actor_route_edit_last(_track.Events(),iaevAdd,iaevLim,&tables);
+    *piaevLast=mm_actor_route_edit_last(_track.Events(),iaevAdd,iaevLim,&tables);
 }
 
 /***************************************************************************
@@ -1048,7 +1048,7 @@ bool Actor::FRemFromStageCore(void)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_StageEditServices();
-    bool ok=three_mm_actor_stage_remove(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_stage_remove(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                          &tables,&services)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
@@ -1068,7 +1068,7 @@ bool Actor::_FDeleteEntireSubrte(void)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
-    bool ok=three_mm_actor_stage_delete_subroute(&state,_track.Route(),_track.Events(),&tables,&services)!=0;
+    bool ok=mm_actor_stage_delete_subroute(&state,_track.Route(),_track.Events(),&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
 }
@@ -1084,7 +1084,7 @@ void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
-    three_mm_actor_route_edit_delete_add(&state,_track.Route(),_track.Events(),iaevAdd,iaevLim,&tables,&services);
+    mm_actor_route_edit_delete_add(&state,_track.Route(),_track.Events(),iaevAdd,iaevLim,&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -1097,11 +1097,11 @@ void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
 bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCmtl)
 {
     AssertThis(0); Assert(fCmtl || ibsetClicked>=0,"Invalid body set"); AssertVarMem(ptag);
-    ThreeMMTag tag; std::memcpy(&tag,ptag,sizeof(tag));
+    MMTag tag; std::memcpy(&tag,ptag,sizeof(tag));
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_CostumeEditServices();
-    bool ok=three_mm_actor_edit_set_costume(&state,_motionSounds.Core(),_track.Events(),_arid,ibsetClicked,
+    bool ok=mm_actor_edit_set_costume(&state,_motionSounds.Core(),_track.Events(),_arid,ibsetClicked,
                                             &tag,cmid,fCmtl,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
@@ -1154,9 +1154,9 @@ void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto edits=_EventEditServices();
-    ThreeMMI32 distance=0;
+    MMI32 distance=0;
     if (pdxyz) distance=BR_LENGTH3(pdxyz->dxr,pdxyz->dyr,pdxyz->dzr);
-    three_mm_actor_edit_add_orientation(&state,_track.Events(),xa,ya,za,grfbra,pdxyz?&distance:nullptr,&tables,&edits);
+    mm_actor_edit_add_orientation(&state,_track.Events(),xa,ya,za,grfbra,pdxyz?&distance:nullptr,&tables,&edits);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -1169,7 +1169,7 @@ void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz
 BRA Actor::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
 {
     AssertBaseThis(0); AssertIn(rw1,rZero,rOne+rEps);
-    return three_mm_actor_edit_average_angle(a1,a2,rw1);
+    return mm_actor_edit_average_angle(a1,a2,rw1);
 }
 
 /***************************************************************************
@@ -1182,33 +1182,33 @@ BRA Actor::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
     If ordering other than this is desired, separate calls must be made.
 
 ***************************************************************************/
-ThreeMMActorTransformEditServices Actor::_TransformEditServices()
+MMActorTransformEditServices Actor::_TransformEditServices()
 {
-    static_assert(fnormSize==THREE_MM_NORMAL_SIZE && fnormRotate==THREE_MM_NORMAL_ROTATE &&
-                  fmafGround==THREE_MM_MOVE_GROUND && fmafOrient==THREE_MM_MOVE_ORIENT &&
-                  fmafEntireScene==THREE_MM_MOVE_SCENE && fmafEntireSubrte==THREE_MM_MOVE_SUBROUTE &&
+    static_assert(fnormSize==MM_NORMAL_SIZE && fnormRotate==MM_NORMAL_ROTATE &&
+                  fmafGround==MM_MOVE_GROUND && fmafOrient==MM_MOVE_ORIENT &&
+                  fmafEntireScene==MM_MOVE_SCENE && fmafEntireSubrte==MM_MOVE_SUBROUTE &&
                   krScaleMinFactor==6553 && krScaleMin==16384 && krScaleMax==655360 && krAngleMax==26214,
                   "Actor transform edit ABI");
-    Assert(krScaleMaxFactor==three_mm_fixed_div(65536,6553) && krPullMax==262144 &&
-           krAngleMinRcp==three_mm_fixed_div(65536,6553),"Actor transform bounds ABI");
-    ThreeMMActorTransformEditServices s{}; s.subroute=_SubrouteEditServices(); s.fill=_FillEditServices();
+    Assert(krScaleMaxFactor==mm_fixed_div(65536,6553) && krPullMax==262144 &&
+           krAngleMinRcp==mm_fixed_div(65536,6553),"Actor transform bounds ABI");
+    MMActorTransformEditServices s{}; s.subroute=_SubrouteEditServices(); s.fill=_FillEditServices();
     s.scene_present=[](void *p) { return int(static_cast<Actor *>(p)->_pscen!=nullptr); };
-    s.normalise=[](void *,ThreeMMActorMatrix *value) {
+    s.normalise=[](void *,MMActorMatrix *value) {
         BMAT34 matrix,normal; std::memcpy(&matrix,value,sizeof(matrix)); BrMatrix34LPNormalise(&normal,&matrix);
         std::memcpy(value,&normal,sizeof(normal));
     };
-    s.distance=[](void *,const ThreeMMActorPoint *point) { return ThreeMMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
-    s.publish_origin=[](void *p,const ThreeMMActorPoint *origin) { std::memcpy(&static_cast<Actor *>(p)->_dxyzFullRte,origin,sizeof(*origin)); };
-    s.seek_scene=[](void *p,ThreeMMActorState *state,ThreeMMI32 frame) {
+    s.distance=[](void *,const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
+    s.publish_origin=[](void *p,const MMActorPoint *origin) { std::memcpy(&static_cast<Actor *>(p)->_dxyzFullRte,origin,sizeof(*origin)); };
+    s.seek_scene=[](void *p,MMActorState *state,MMI32 frame) {
         auto actor=static_cast<Actor *>(p); bool ok=actor->_pscen->FGotoFrm(frame);
         *state=EngineActorMotion::Core(actor->_state); return int(ok);
     };
     s.scrollbars=[](void *p) { static_cast<Actor *>(p)->_pscen->Pmvie()->Pmcc()->UpdateScrollbars(); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
-        case THREE_MM_TRANSFORM_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
-        case THREE_MM_TRANSFORM_ADD_FAILED: Bug("EnsureSpace insufficient"); break;
-        case THREE_MM_TRANSFORM_MOVE_ROTATE_FAILED: Bug("Should have ensured space"); break;
+        case MM_TRANSFORM_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
+        case MM_TRANSFORM_ADD_FAILED: Bug("EnsureSpace insufficient"); break;
+        case MM_TRANSFORM_MOVE_ROTATE_FAILED: Bug("Should have ensured space"); break;
         }
     };
     return s;
@@ -1218,7 +1218,7 @@ bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
     AssertThis(0);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=three_mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                              xa,ya,za,fFromHereFwd,0,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); return ok;
 }
@@ -1248,7 +1248,7 @@ bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
     AssertThis(0);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=three_mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                              xa,ya,za,fFromHereFwd,1,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); return ok;
 }
@@ -1265,7 +1265,7 @@ bool Actor::FNormalizeCore(ulong grfnorm)
     AssertThis(0);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=three_mm_actor_transform_normalize(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_normalize(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                                 grfnorm,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); return ok;
 }
@@ -1285,7 +1285,7 @@ bool Actor::FScale(BRS rScale)
     AssertThis(0);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=three_mm_actor_transform_scale(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_scale(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                             rScale,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); return ok;
 }
@@ -1301,7 +1301,7 @@ bool Actor::FSoonerLater(long dnfrm)
     AssertThis(0);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=three_mm_actor_transform_time(&state,_track.Route(),_track.Events(),dnfrm,&tables,&services)!=0;
+    bool ok=mm_actor_transform_time(&state,_track.Route(),_track.Events(),dnfrm,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); return ok;
 }
 
@@ -1318,8 +1318,8 @@ bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
     AssertThis(0);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    const ThreeMMActorStretch stretch{rScaleX,rScaleY,rScaleZ};
-    bool ok=three_mm_actor_transform_pull(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    const MMActorStretch stretch{rScaleX,rScaleY,rScaleZ};
+    bool ok=mm_actor_transform_pull(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                            &stretch,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); return ok;
 }
@@ -1338,8 +1338,8 @@ bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
     AssertThis(0);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    const ThreeMMActorPoint delta{dxr,dyr,dzr};
-    bool ok=three_mm_actor_transform_tweak(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    const MMActorPoint delta{dxr,dyr,dzr};
+    bool ok=mm_actor_transform_tweak(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                             &delta,grfmaf,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); return ok;
 }
@@ -1379,11 +1379,11 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
     AssertNilOrVarMem(pfMoved);
-    const ThreeMMActorPoint delta{dxr,dyr,dzr}; ThreeMMActorPoint origin;
+    const MMActorPoint delta{dxr,dyr,dzr}; MMActorPoint origin;
     std::memcpy(&origin,&_dxyzFullRte,sizeof(origin));
-    ThreeMMActorMoveResult result{}; result.context=pfMoved;
+    MMActorMoveResult result{}; result.context=pfMoved;
     result.publish=[](void *p,int moved) { if (p) *static_cast<bool *>(p)=moved!=0; };
-    bool ok=three_mm_actor_transform_move(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_move(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                            &origin,&delta,grfmaf,&result,&tables,&services)!=0;
     std::memcpy(&_dxyzFullRte,&origin,sizeof(origin));
     EngineActorMotion::Publish(_state,state); return ok;
@@ -1397,13 +1397,13 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
 void Actor::_LoadAddOrien(Add *paevadd, bool fNoReset)
 {
     AssertThis(0);
-    static_assert(sizeof(Add) == sizeof(ThreeMMActorEntrance) && offsetof(Add, xa) == 12 &&
+    static_assert(sizeof(Add) == sizeof(MMActorEntrance) && offsetof(Add, xa) == 12 &&
                       offsetof(Add, ya) == 14 && offsetof(Add, za) == 16,
                   "actor entrance ABI");
-    ThreeMMActorEntrance add;
+    MMActorEntrance add;
     std::memcpy(&add, paevadd, sizeof(add));
     auto state = EngineActorMotion::Core(_state);
-    three_mm_actor_add_orientation(&state, &add, fNoReset);
+    mm_actor_add_orientation(&state, &add, fNoReset);
     EngineActorMotion::Publish(_state, state);
 }
 
@@ -1438,7 +1438,7 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_FillEditServices();
-    three_mm_actor_edit_transform_fill(&state,_track.Events(),aet,pvVar,cbVar,iaevMin,iaevCmp,grfaet,&tables,&services);
+    mm_actor_edit_transform_fill(&state,_track.Events(),aet,pvVar,cbVar,iaevMin,iaevCmp,grfaet,&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -1448,13 +1448,13 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
     Since _track.Events() is getting a copy of a tag, a call to DupTag is required
 
 ***************************************************************************/
-ThreeMMActorFillServices Actor::_FillEditServices()
+MMActorFillServices Actor::_FillEditServices()
 {
-    ThreeMMActorFillServices services={};
+    MMActorFillServices services={};
     services.edits=_EventEditServices();
     services.lock_events=[](void *p) { static_cast<PGeneralGroup>(p)->Lock(); };
     services.unlock_events=[](void *p) { static_cast<PGeneralGroup>(p)->Unlock(); };
-    services.payload_view=[](void *p, ThreeMMI32 index)->const void * { return static_cast<PGeneralGroup>(p)->QvGet(index); };
+    services.payload_view=[](void *p, MMI32 index)->const void * { return static_cast<PGeneralGroup>(p)->QvGet(index); };
     return services;
 }
 bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
@@ -1462,10 +1462,10 @@ bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUp
     AssertBaseThis(0);
     AssertIn(iaev, 0, _track.Events()->IvMac()+1); AssertIn(cbNew, 0, 100);
     AssertPvCb(paev,sizeof(Base));
-    ThreeMMActorEvent event; std::memcpy(&event,paev,sizeof(event));
+    MMActorEvent event; std::memcpy(&event,paev,sizeof(event));
     auto state=EngineActorMotion::Core(_state);
     const auto edits=_EventEditServices();
-    bool ok=three_mm_actor_edit_insert(&state,iaev,cbNew,pvVar,&event,fUpdateState,&edits)!=0;
+    bool ok=mm_actor_edit_insert(&state,iaev,cbNew,pvVar,&event,fUpdateState,&edits)!=0;
     EngineActorMotion::Publish(_state,state);
     return ok;
 }
@@ -1475,49 +1475,49 @@ bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUp
     Remove Aev.  Update state variables
 
 ***************************************************************************/
-ThreeMMActorEditServices Actor::_EventEditServices()
+MMActorEditServices Actor::_EventEditServices()
 {
-    ThreeMMActorEditServices services = {};
+    MMActorEditServices services = {};
     services.context = this;
-    services.close_event_tag = [](void *context, ThreeMMI32 index) {
+    services.close_event_tag = [](void *context, MMI32 index) {
         auto actor = static_cast<Actor *>(context);
         PTAG tag;
         actor->_track.Events()->Lock();
         if (actor->_FIsIaevTag(actor->_track.Events(), index, &tag)) TagManager::CloseTag(tag);
         actor->_track.Events()->Unlock();
     };
-    services.delete_event = [](void *context, ThreeMMI32 index) {
+    services.delete_event = [](void *context, MMI32 index) {
         static_cast<Actor *>(context)->_track.Events()->Delete(index);
     };
-    services.scene_frame = [](void *context, ThreeMMI32 *frame) {
+    services.scene_frame = [](void *context, MMI32 *frame) {
         auto actor = static_cast<Actor *>(context);
         if (!actor->_pscen) return 0;
         *frame = actor->_pscen->Nfrm();
         return 1;
     };
     services.update_sound_frame = [](void *context) { static_cast<Actor *>(context)->_pscen->UpdateSndFrame(); };
-    services.publish = [](void *context, const ThreeMMActorState *state) {
+    services.publish = [](void *context, const MMActorState *state) {
         EngineActorMotion::Publish(static_cast<Actor *>(context)->_state, *state);
     };
-    services.insert_event = [](void *p, ThreeMMI32 index, ThreeMMU32 bytes, const void *payload, const ThreeMMActorEvent *value) {
+    services.insert_event = [](void *p, MMI32 index, MMU32 bytes, const void *payload, const MMActorEvent *value) {
         Base event; std::memcpy(&event,value,sizeof(event));
         return int(static_cast<Actor *>(p)->_track.Events()->FInsert(index,bytes,const_cast<void *>(payload),&event));
     };
-    services.duplicate_event_tag = [](void *p, ThreeMMI32 index) {
+    services.duplicate_event_tag = [](void *p, MMI32 index) {
         auto actor=static_cast<Actor *>(p); PTAG tag;
         actor->_track.Events()->Lock();
         if (actor->_FIsIaevTag(actor->_track.Events(),index,&tag)) TagManager::DupTag(tag);
         actor->_track.Events()->Unlock();
     };
-    services.write_payload = [](void *p, ThreeMMI32 index, const void *value) {
+    services.write_payload = [](void *p, MMI32 index, const void *value) {
         static_cast<Actor *>(p)->_track.Events()->Put(index,const_cast<void *>(value));
     };
-    services.copy_payload = [](void *p, ThreeMMI32 destination, ThreeMMI32 source) {
+    services.copy_payload = [](void *p, MMI32 destination, MMI32 source) {
         auto events=static_cast<Actor *>(p)->_track.Events();
         Assert(events->Cb(source)==events->Cb(destination), "Wrong Var size");
         events->Put(destination,events->QvGet(source));
     };
-    services.apply_event = [](void *p, ThreeMMActorState *state, ThreeMMI32 index) {
+    services.apply_event = [](void *p, MMActorState *state, MMI32 index) {
         auto actor=static_cast<Actor *>(p);
         EngineActorMotion::Publish(actor->_state,*state);
         bool ok=actor->_FDoAevCore(index);
@@ -1525,11 +1525,11 @@ ThreeMMActorEditServices Actor::_EventEditServices()
         return int(ok);
     };
     services.dirty = [](void *p) { static_cast<Actor *>(p)->_pscen->MarkDirty(); };
-    services.get_range = [](void *p, ThreeMMActorEditRange *range) {
+    services.get_range = [](void *p, MMActorEditRange *range) {
         auto actor=static_cast<Actor *>(p); range->first=actor->_nfrmFirst; range->last=actor->_nfrmLast;
     };
     services.invalidate_range = [](void *p) { static_cast<Actor *>(p)->_pscen->InvalFrmRange(); };
-    services.publish_range = [](void *p, const ThreeMMActorEditRange *range) {
+    services.publish_range = [](void *p, const MMActorEditRange *range) {
         auto actor=static_cast<Actor *>(p); actor->_nfrmFirst=range->first; actor->_nfrmLast=range->last;
     };
     return services;
@@ -1541,7 +1541,7 @@ void Actor::_RemoveAev(long iaev, bool fUpdateState)
     auto state = EngineActorMotion::Core(_state);
     const auto tables = EngineActorMotion::Services();
     const auto edits = _EventEditServices();
-    three_mm_actor_edit_remove(&state, _track.Events(), iaev, fUpdateState, &tables, &edits);
+    mm_actor_edit_remove(&state, _track.Events(), iaev, fUpdateState, &tables, &edits);
     EngineActorMotion::Publish(_state, state);
 }
 
@@ -1563,7 +1563,7 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_EventEditServices();
-    three_mm_actor_edit_action_fill(&state,_track.Events(),iaevMin,anidPrev,anidNew,grfaet,&tables,&services);
+    mm_actor_edit_action_fill(&state,_track.Events(),iaevMin,anidPrev,anidNew,grfaet,&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -1575,35 +1575,35 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
             costume being inserted
 
 ***************************************************************************/
-ThreeMMActorCostumeEditServices Actor::_CostumeEditServices()
+MMActorCostumeEditServices Actor::_CostumeEditServices()
 {
-    ThreeMMActorCostumeEditServices services={}; services.context=this; services.edits=_EventEditServices();
-    services.reserve_events=[](void *p,ThreeMMU32 entries,ThreeMMU32 bytes) {
+    MMActorCostumeEditServices services={}; services.context=this; services.edits=_EventEditServices();
+    services.reserve_events=[](void *p,MMU32 entries,MMU32 bytes) {
         return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(entries,bytes,fgrpNil));
     };
-    services.current=[](void *p,ThreeMMI32 set,int *custom)->void * {
+    services.current=[](void *p,MMI32 set,int *custom)->void * {
         bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
         static_cast<Actor *>(p)->_pbody->GetPartSetMaterial(set,&ordinary,&material,&costume);
         *custom=!ordinary;
         return ordinary ? static_cast<void *>(material) : static_cast<void *>(costume);
     };
-    services.fetch_material=[](void *,const ThreeMMTag *value)->void * {
+    services.fetch_material=[](void *,const MMTag *value)->void * {
         TAG tag; std::memcpy(&tag,value,sizeof(tag));
         return vptagm->PbacoFetch(&tag,Material_MTRL::FReadMtrl);
     };
-    services.fetch_custom=[](void *p,ThreeMMI32 costume)->void * { return static_cast<Actor *>(p)->_ptmpl->PcmtlFetch(costume); };
-    services.body_set=[](void *,void *resource)->ThreeMMI32 { return static_cast<PCustomMaterial_CMTL>(resource)->Ibset(); };
+    services.fetch_custom=[](void *p,MMI32 costume)->void * { return static_cast<Actor *>(p)->_ptmpl->PcmtlFetch(costume); };
+    services.body_set=[](void *,void *resource)->MMI32 { return static_cast<PCustomMaterial_CMTL>(resource)->Ibset(); };
     services.release=[](void *,void *resource) { static_cast<PBaseCacheableObject>(resource)->Release(); };
     return services;
 }
 void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 {
     AssertBaseThis(0); AssertIn(iaevMin,0,_track.Events()->IvMac()+1); AssertVarMem(paevcost);
-    ThreeMMActorCostume costume; std::memcpy(&costume,paevcost,sizeof(costume));
+    MMActorCostume costume; std::memcpy(&costume,paevcost,sizeof(costume));
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_CostumeEditServices();
-    three_mm_actor_edit_costume_fill(&state,_track.Events(),iaevMin,&costume,&tables,&services);
+    mm_actor_edit_costume_fill(&state,_track.Events(),iaevMin,&costume,&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -1618,7 +1618,7 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
     AssertBaseThis(0); AssertIn(irptAdjust,0,_track.Route()->IvMac()); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
-    three_mm_actor_route_edit_adjust_insert(_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
+    mm_actor_route_edit_adjust_insert(_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
 }
 /***************************************************************************
 
@@ -1632,7 +1632,7 @@ void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
-    three_mm_actor_route_edit_adjust_delete(&state,_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
+    mm_actor_route_edit_adjust_delete(&state,_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -1690,7 +1690,7 @@ void Actor::_PositionBody(RoutePoint *pxyz)
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
     const auto position=EngineActorMotion::Point(*pxyz);
-    three_mm_actor_subroute_position_body(&state,_track.Route(),_track.Events(),&position,&tables,&services);
+    mm_actor_subroute_position_body(&state,_track.Route(),_track.Events(),&position,&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -1790,8 +1790,8 @@ bool Actor::_FComputeLifetime(long *pnfrmLast)
 {
     AssertBaseThis(0); AssertNilOrVarMem(pnfrmLast);
     const auto services=_SubrouteEditServices();
-    ThreeMMI32 last=0;
-    bool ok=three_mm_actor_subroute_lifetime(_track.Route(),_track.Events(),pnfrmLast?&last:nullptr,&services)!=0;
+    MMI32 last=0;
+    bool ok=mm_actor_subroute_lifetime(_track.Route(),_track.Events(),pnfrmLast?&last:nullptr,&services)!=0;
     if (ok && pnfrmLast) *pnfrmLast=last;
     return ok;
 }
@@ -1830,47 +1830,47 @@ bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
     down to initialize the timing of the recording session
 
 ***************************************************************************/
-ThreeMMActorRecording Actor::_RecordingState() const
+MMActorRecording Actor::_RecordingState() const
 {
-    ThreeMMActorRecording record{};
+    MMActorRecording record{};
     std::memcpy(&record.insertion,&_rtelInsert,sizeof(record.insertion));
     std::memcpy(&record.raw,&_dxyzRaw,sizeof(record.raw));
     record.timestamp=_tsInsert; record.recording=_fModeRecord; record.rejoining=_fRejoin;
     record.inserted=_fPathInserted; record.gap=_dnfrmGap;
     return record;
 }
-void Actor::_PublishRecordingState(const ThreeMMActorRecording &record)
+void Actor::_PublishRecordingState(const MMActorRecording &record)
 {
     std::memcpy(&_rtelInsert,&record.insertion,sizeof(_rtelInsert));
     std::memcpy(&_dxyzRaw,&record.raw,sizeof(_dxyzRaw));
     _tsInsert=record.timestamp; _fModeRecord=record.recording!=0; _fRejoin=record.rejoining!=0;
     _fPathInserted=record.inserted!=0; _dnfrmGap=record.gap;
 }
-ThreeMMActorRecordServices Actor::_RecordServices()
+MMActorRecordServices Actor::_RecordServices()
 {
 #if !defined(BUG1961) || !defined(BUG1973)
 #error C89 actor recording requires the enabled retail BUG1961/BUG1973 policies
 #endif
     static_assert(kdtsThreshRte==750 && kdwrThreshRte==131072 && kdwrMax==2147418112 &&
-                  fmafFreeze==THREE_MM_RECORD_FREEZE && fmafGround==THREE_MM_RECORD_GROUND && sizeof(ulong)==4,
+                  fmafFreeze==MM_RECORD_FREEZE && fmafGround==MM_RECORD_GROUND && sizeof(ulong)==4,
                   "Actor recording ABI");
-    ThreeMMActorRecordServices s{}; s.subroute=_SubrouteEditServices();
-    s.reserve_points=[](void *route,ThreeMMU32 count) { return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil)); };
-    s.distance=[](void *,const ThreeMMActorPoint *point) { return ThreeMMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
-    s.publish_record=[](void *p,const ThreeMMActorRecording *record) { static_cast<Actor *>(p)->_PublishRecordingState(*record); };
-    s.restore=[](void *p,void *undo,ThreeMMActorState *state,ThreeMMActorRecording *record) {
+    MMActorRecordServices s{}; s.subroute=_SubrouteEditServices();
+    s.reserve_points=[](void *route,MMU32 count) { return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil)); };
+    s.distance=[](void *,const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
+    s.publish_record=[](void *p,const MMActorRecording *record) { static_cast<Actor *>(p)->_PublishRecordingState(*record); };
+    s.restore=[](void *p,void *undo,MMActorState *state,MMActorRecording *record) {
         auto actor=static_cast<Actor *>(p); actor->_RestoreFromUndo(static_cast<PActor>(undo));
         *state=EngineActorMotion::Core(actor->_state); *record=actor->_RecordingState();
     };
-    s.seek_scene=[](void *p,ThreeMMActorState *state,ThreeMMActorRecording *record,ThreeMMI32 frame) {
+    s.seek_scene=[](void *p,MMActorState *state,MMActorRecording *record,MMI32 frame) {
         auto actor=static_cast<Actor *>(p); bool ok=actor->_pscen->FGotoFrm(frame);
         *state=EngineActorMotion::Core(actor->_state); *record=actor->_RecordingState(); return int(ok);
     };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
-        case THREE_MM_RECORD_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
-        case THREE_MM_RECORD_UNFREEZE_FAILED: case THREE_MM_RECORD_FREEZE_FAILED: Bug("Ensurespace should have ensured space"); break;
-        case THREE_MM_RECORD_STEP_FAILED: Bug("EnsureSpace insufficient"); break;
+        case MM_RECORD_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
+        case MM_RECORD_UNFREEZE_FAILED: case MM_RECORD_FREEZE_FAILED: Bug("Ensurespace should have ensured space"); break;
+        case MM_RECORD_STEP_FAILED: Bug("EnsureSpace insufficient"); break;
         }
     };
     return s;
@@ -1880,8 +1880,8 @@ bool Actor::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
     AssertThis(0);
     const auto record=_RecordingState();
     const auto services=_RecordServices();
-    const ThreeMMActorPoint delta{dxr,dyr,dzr};
-    return three_mm_actor_record_valid(&record,&delta,tsCurrent,&services)!=0;
+    const MMActorPoint delta{dxr,dyr,dzr};
+    return mm_actor_record_valid(&record,&delta,tsCurrent,&services)!=0;
 }
 
 /***************************************************************************
@@ -1897,7 +1897,7 @@ bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
     (void)tsCurrent; // Native beginning deliberately preserves _tsInsert.
     auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
     const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
-    bool ok=three_mm_actor_record_begin(&state,&record,_track.Route(),_track.Events(),fReplace,pactrRestore,&tables,&services)!=0;
+    bool ok=mm_actor_record_begin(&state,&record,_track.Route(),_track.Events(),fReplace,pactrRestore,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); _PublishRecordingState(record); return ok;
 }
 
@@ -1921,7 +1921,7 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     Assert(_state.onStage,"Recording an actor that wasn't selectable??");
     auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
     const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
-    const ThreeMMActorPoint delta{dxr,dyr,dzr}; ThreeMMActorRecordResult result{};
+    const MMActorPoint delta{dxr,dyr,dzr}; MMActorRecordResult result{};
     struct Outputs { bool *frame,*route; } outputs{pfStepFrm,pfStepRte};
     result.context=&outputs;
     result.publish=[](void *p,int frame,int route,unsigned changed) {
@@ -1929,7 +1929,7 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
         if ((changed&1) && out->frame) *out->frame=frame!=0;
         if ((changed&2) && out->route) *out->route=route!=0;
     };
-    bool ok=three_mm_actor_record_move(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_record_move(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                        &delta,grfmaf,tsCurrent,&result,pactrRestore,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); _PublishRecordingState(record);
     return ok;
@@ -1963,7 +1963,7 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     AssertThis(0);
     auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
     const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
-    bool ok=three_mm_actor_record_end(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_record_end(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                       fReplace,pactrRestore,&tables,&services)!=0;
     EngineActorMotion::Publish(_state,state); _PublishRecordingState(record);
     if (ok) { AssertThis(fobjAssertFull); }
@@ -1989,7 +1989,7 @@ void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     int alive=0;
-    three_mm_actor_route_edit_delete_forward(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
+    mm_actor_route_edit_delete_forward(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
     EngineActorMotion::Publish(_state,state);
     if (pfAlive) *pfAlive=alive!=0;
 }
@@ -2020,7 +2020,7 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     int alive=0;
-    three_mm_actor_route_edit_delete_forward_core(&state,_track.Route(),_track.Events(),fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
+    mm_actor_route_edit_delete_forward_core(&state,_track.Route(),_track.Events(),fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
     EngineActorMotion::Publish(_state,state);
     if (pfAlive) *pfAlive=alive!=0;
 }
@@ -2036,7 +2036,7 @@ void Actor::_SaveCurPathOrien(void)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
-    three_mm_actor_subroute_save_orientation(&state,_track.Route(),_track.Events(),&tables,&services);
+    mm_actor_subroute_save_orientation(&state,_track.Route(),_track.Events(),&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 
@@ -2055,7 +2055,7 @@ void Actor::DeleteBackCore(bool *pfAlive)
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
     int alive=0;
-    three_mm_actor_subroute_delete_back(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    mm_actor_subroute_delete_back(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
                                         pfAlive?&alive:nullptr,&tables,&services);
     EngineActorMotion::Publish(_state,state);
     if (pfAlive) *pfAlive=alive!=0;
@@ -2077,7 +2077,7 @@ void Actor::_TruncateSubRte(long irptDelLim)
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
-    three_mm_actor_route_edit_truncate(&state,_track.Route(),_track.Events(),irptDelLim,&tables,&services);
+    mm_actor_route_edit_truncate(&state,_track.Route(),_track.Events(),irptDelLim,&tables,&services);
     EngineActorMotion::Publish(_state,state);
 }
 

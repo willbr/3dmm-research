@@ -1023,7 +1023,7 @@ caption composition and presentation timing. `content.cpp` adapts the
 shared C89 VFS to the existing pack and bundle libraries. Exceptions stop at the
 C boundary. `Preview::Objects()` supplies evaluated actor state.
 The shared playback/startup policy, frame pacer and retail scrolling evaluator
-now live in the C89 `three-mm-engine-c89` library. Marcus's scrolling facade
+now live in the C89 `mm-engine-c89` library. Marcus's scrolling facade
 and Studio's playback facades delegate to it; the remaining backend still uses
 C++. See the [engine boundary](../code-map/library-split.md#c89-engine-backend).
 Movie opening now also uses the shared C89 MVIE-version and roll-call record

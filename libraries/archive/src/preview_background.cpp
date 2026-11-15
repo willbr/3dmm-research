@@ -3,12 +3,12 @@
 #include "zbmp.h"
 #include "palette_state.h"
 #include "engine_read_stream.h"
-#include "three_mm/background_camera.h"
+#include "mm/background_camera.h"
 #include <cstring>
 #include <new>
 #undef size
 ASSERTNAME
-namespace ThreeMM
+namespace MM
 {
 namespace Internal
 {
@@ -29,18 +29,18 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
         PChunkyFile file;
         DataBlock block;
     } host = {this, source->Pcfl()};
-    ThreeMMBackgroundServices s = {};
+    MMBackgroundServices s = {};
     s.context = &host;
     const unsigned short one = 1;
     s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
-    s.child = [](void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 childType, ThreeMMU32 *out) {
+    s.child = [](void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMU32 *out) {
         ChildChunkIdentification child;
         if (!static_cast<Host *>(p)->file->FGetKidChidCtg(type, number, id, childType, &child))
             return 0;
         *out = child.cki.cno;
         return 1;
     };
-    s.find = [](void *p, ThreeMMU32 type, ThreeMMU32 number, int unpack) {
+    s.find = [](void *p, MMU32 type, MMU32 number, int unpack) {
         auto h = static_cast<Host *>(p);
         return int(h->file->FFind(type, number, &h->block) && (!unpack || h->block.FUnpackData()));
     };
@@ -52,23 +52,23 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
         *big = (*reinterpret_cast<const byte *>(&one) == 0) ^ (order == kboOther);
         return list;
     };
-    s.count = [](void *, void *list) -> ThreeMMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
-    s.stride = [](void *, void *list) -> ThreeMMI32 { return static_cast<PDynamicArray>(list)->CbEntry(); };
-    s.get = [](void *, void *list, ThreeMMI32 i, void *out, size_t bytes) {
+    s.count = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
+    s.stride = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->CbEntry(); };
+    s.get = [](void *, void *list, MMI32 i, void *out, size_t bytes) {
         std::memcpy(out, static_cast<PDynamicArray>(list)->QvGet(i), bytes);
     };
     s.release = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
-    s.palette_color = [](void *p, ThreeMMI32 index, const unsigned char *bytes) {
+    s.palette_color = [](void *p, MMI32 index, const unsigned char *bytes) {
         std::memcpy(&static_cast<Host *>(p)->background->palette[index], bytes, 4);
     };
     s.resolve_palette = [](void *p) { ResolveDisplayPalette(static_cast<Host *>(p)->background->palette); };
-    s.configure_light = [](void *p, ThreeMMBackgroundResource *, ThreeMMI32, const ThreeMMBackgroundLight *light) {
-        return three_mm_background_preview_light(&static_cast<Host *>(p)->background->preview, light);
+    s.configure_light = [](void *p, MMBackgroundResource *, MMI32, const MMBackgroundLight *light) {
+        return mm_background_preview_light(&static_cast<Host *>(p)->background->preview, light);
     };
-    s.append_camera = [](void *p, ThreeMMU32 number) {
-        return three_mm_background_preview_camera(&static_cast<Host *>(p)->background->preview, number);
+    s.append_camera = [](void *p, MMU32 number) {
+        return mm_background_preview_camera(&static_cast<Host *>(p)->background->preview, number);
     };
-    s.select_camera = [](void *p, ThreeMMI32 index) {
+    s.select_camera = [](void *p, MMI32 index) {
         try
         {
             return int(static_cast<Host *>(p)->background->SetCamera(index));
@@ -78,9 +78,9 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
             return 0;
         }
     };
-    three_mm_background_resource_init(&resource);
-    three_mm_background_camera_init(&cameraState);
-    return three_mm_background_read(&resource, &cameraState, kctgBkgd, background, THREE_MM_BACKGROUND_PREVIEW, &s) !=
+    mm_background_resource_init(&resource);
+    mm_background_camera_init(&cameraState);
+    return mm_background_read(&resource, &cameraState, kctgBkgd, background, MM_BACKGROUND_PREVIEW, &s) !=
            0;
 }
 
@@ -95,15 +95,15 @@ struct BackgroundImageHost
 } // namespace
 PreviewBackground::PreviewBackground()
 {
-    if (!three_mm_background_preview_init(&preview, nullptr))
+    if (!mm_background_preview_init(&preview, nullptr))
         throw std::bad_alloc();
 }
 PreviewBackground::~PreviewBackground()
 {
     auto s = Services(nullptr);
-    three_mm_background_preview_dispose(&preview, &s);
+    mm_background_preview_dispose(&preview, &s);
 }
-void PreviewBackground::Publish(const ThreeMMBackgroundPreview &p)
+void PreviewBackground::Publish(const MMBackgroundPreview &p)
 {
     camera.bo = kboCur;
     camera.zrHither = p.camera.near_z;
@@ -117,22 +117,22 @@ void PreviewBackground::Publish(const ThreeMMBackgroundPreview &p)
     width = p.width;
     height = p.height;
     cameras.Reset(reinterpret_cast<const ChunkNumber *>(p.metadata.buffers[0].data), p.camera_count);
-    lights.Reset(reinterpret_cast<const ThreeMMBackgroundLight *>(p.metadata.buffers[1].data), p.light_count);
+    lights.Reset(reinterpret_cast<const MMBackgroundLight *>(p.metadata.buffers[1].data), p.light_count);
     colours.Reset(p.images.buffers[0].data, p.rgb_count);
     depths.Reset(reinterpret_cast<const std::uint16_t *>(p.images.buffers[1].data), p.depth_count);
 }
-ThreeMMBackgroundPreviewServices PreviewBackground::Services(void *host)
+MMBackgroundPreviewServices PreviewBackground::Services(void *host)
 {
-    ThreeMMBackgroundPreviewServices s = {};
+    MMBackgroundPreviewServices s = {};
     s.context = host;
-    s.camera_read = [](void *p, ThreeMMU32 number, ThreeMMReadStream *out) {
+    s.camera_read = [](void *p, MMU32 number, MMReadStream *out) {
         auto h = static_cast<BackgroundImageHost *>(p);
         if (!h->source->Pcfl()->FFind(kctgCam, number, &h->block) || !h->block.FUnpackData())
             return 0;
         *out = EngineReadStream::FromBlock(h->block);
         return 1;
     };
-    s.child = [](void *p, ThreeMMU32 camera, int depth, ThreeMMU32 *out) {
+    s.child = [](void *p, MMU32 camera, int depth, MMU32 *out) {
         auto h = static_cast<BackgroundImageHost *>(p);
         ChildChunkIdentification child;
         if (!h->source->Pcfl()->FGetKidChidCtg(kctgCam, camera, 0, depth ? kctgZbmp : kctgMbmp, &child))
@@ -140,13 +140,13 @@ ThreeMMBackgroundPreviewServices PreviewBackground::Services(void *host)
         *out = child.cki.cno;
         return 1;
     };
-    s.fetch = [](void *p, ThreeMMU32 number, int depth) -> void * {
+    s.fetch = [](void *p, MMU32 number, int depth) -> void * {
         auto h = static_cast<BackgroundImageHost *>(p);
         return h->source->PbacoFetch(depth ? kctgZbmp : kctgMbmp, number,
                                      depth ? ZBMP::FReadZbmp : MaskedBitmapMBMP::FReadMbmp);
     };
     s.release = [](void *, void *p) { static_cast<PBaseCacheableObject>(p)->Release(); };
-    s.bounds = [](void *, void *p, ThreeMMI32 out[4]) {
+    s.bounds = [](void *, void *p, MMI32 out[4]) {
         RC r;
         static_cast<PMaskedBitmapMBMP>(p)->GetRc(&r);
         out[0] = r.xpLeft;
@@ -154,17 +154,17 @@ ThreeMMBackgroundPreviewServices PreviewBackground::Services(void *host)
         out[2] = r.xpRight;
         out[3] = r.ypBottom;
     };
-    s.draw_rgb = [](void *, void *bitmap, unsigned char *pixels, ThreeMMU32 w, ThreeMMU32 h, ThreeMMI32 x,
-                    ThreeMMI32 y) { static_cast<PMaskedBitmapMBMP>(bitmap)->Draw(pixels, w, h, x, y); };
-    s.draw_depth = [](void *, void *bitmap, unsigned short *pixels, ThreeMMU32 w, ThreeMMU32 h) {
+    s.draw_rgb = [](void *, void *bitmap, unsigned char *pixels, MMU32 w, MMU32 h, MMI32 x,
+                    MMI32 y) { static_cast<PMaskedBitmapMBMP>(bitmap)->Draw(pixels, w, h, x, y); };
+    s.draw_depth = [](void *, void *bitmap, unsigned short *pixels, MMU32 w, MMU32 h) {
         RC clip;
         clip.Set(0, 0, w, h);
         static_cast<PZBMP>(bitmap)->Draw(reinterpret_cast<byte *>(pixels), w * 2, h, 0, 0, &clip);
     };
-    s.publish = [](void *p, const ThreeMMBackgroundPreview *state) {
+    s.publish = [](void *p, const MMBackgroundPreview *state) {
         static_cast<BackgroundImageHost *>(p)->background->Publish(*state);
     };
-    s.selected = [](void *p, ThreeMMU32 slot) {
+    s.selected = [](void *p, MMU32 slot) {
         static_cast<BackgroundImageHost *>(p)->background->cameraState.current = slot;
     };
     s.mesh_new = [](void *) -> void * {
@@ -178,7 +178,7 @@ ThreeMMBackgroundPreviewServices PreviewBackground::Services(void *host)
         }
     };
     s.mesh_release = [](void *, void *p) { delete static_cast<PreviewBackgroundMesh *>(p); };
-    s.mesh_build = [](void *, void *mesh, const ThreeMMBackgroundPreview *p, const double *transform,
+    s.mesh_build = [](void *, void *mesh, const MMBackgroundPreview *p, const double *transform,
                       const double *projection) {
         BackgroundMatrix t, q;
         std::memcpy(t.data(), transform, sizeof(t));
@@ -195,10 +195,10 @@ ThreeMMBackgroundPreviewServices PreviewBackground::Services(void *host)
             return 0;
         }
     };
-    s.scalar_float = [](void *, ThreeMMI32 value) -> float { return BrScalarToFloat(value); };
-    s.float_scalar = [](void *, float value) -> ThreeMMI32 { return BrFloatToScalar(value); };
-    s.perspective = [](void *, unsigned short fov, ThreeMMI32 aspect, ThreeMMI32 near_z, ThreeMMI32 far_z,
-                       ThreeMMI32 out[16]) {
+    s.scalar_float = [](void *, MMI32 value) -> float { return BrScalarToFloat(value); };
+    s.float_scalar = [](void *, float value) -> MMI32 { return BrFloatToScalar(value); };
+    s.perspective = [](void *, unsigned short fov, MMI32 aspect, MMI32 near_z, MMI32 far_z,
+                       MMI32 out[16]) {
         br_matrix4 matrix;
         BrMatrix4Perspective(&matrix, fov, aspect, near_z, far_z);
         static_assert(sizeof(matrix) == 16 * sizeof(*out), "Projection matrix layout");
@@ -210,16 +210,16 @@ bool PreviewBackground::SetCamera(std::uint32_t slot)
 {
     BackgroundImageHost host = {this, source};
     auto s = Services(&host);
-    return three_mm_background_preview_select(&preview, slot, &s) != 0;
+    return mm_background_preview_select(&preview, slot, &s) != 0;
 }
 PreviewBackgroundMesh &PreviewBackground::Mesh()
 {
     BackgroundImageHost host = {this, source};
     auto s = Services(&host);
-    auto mesh = static_cast<PreviewBackgroundMesh *>(three_mm_background_preview_mesh(&preview, &s));
+    auto mesh = static_cast<PreviewBackgroundMesh *>(mm_background_preview_mesh(&preview, &s));
     if (!mesh)
         throw std::bad_alloc();
     return *mesh;
 }
 } // namespace Internal
-} // namespace ThreeMM
+} // namespace MM

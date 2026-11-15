@@ -4,7 +4,7 @@
 #define SCENE_DATA_H
 #include "kauai_core.h"
 #include <cstdint>
-#include "three_mm/scene_data.h"
+#include "mm/scene_data.h"
 
 enum TRANS
 {
@@ -71,17 +71,17 @@ const auto kbomScenh = 0x5FC00000;
 
 // Scene state shared by persistence and playback. currentFrame is a runtime
 // cursor; it is not stored in the scene header. Objects/audio live in Scene.
-struct SceneData : ThreeMMSceneState
+struct SceneData : MMSceneState
 {
-    SceneData() { three_mm_scene_init(this, sizeof(achar)); }
+    SceneData() { mm_scene_init(this, sizeof(achar)); }
     void GetName(PString) const;
     void SetName(PString);
     void LoadName(PChunkyFile, ChunkNumber);
     bool FRead(PChunkyFile file, ChunkNumber number);
     bool FWrite(PChunkyFile file, ChunkNumber number);
     bool FCreate(PChunkyFile file, ChunkNumber *number);
-    static bool FReadTransition(PChunkyFile, ChunkNumber, ThreeMMI32 *);
-    static bool FWriteTransition(PChunkyFile, ChunkNumber, ThreeMMI32);
+    static bool FReadTransition(PChunkyFile, ChunkNumber, MMI32 *);
+    static bool FWriteTransition(PChunkyFile, ChunkNumber, MMI32);
     // Wire groups contain chunk IDs and fixed-width TAGs, never object pointers.
     static PGeneralGroup PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents);
     static PGeneralGroup PggReadEventHeaders(PDataBlock block, short *byteOrder);

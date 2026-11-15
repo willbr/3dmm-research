@@ -5,10 +5,10 @@
 #include "kauai_core.h"
 #include "tagman.h"
 #include <cstdint>
-#include "three_mm/movie_data.h"
-#include "three_mm/movie_owner.h"
-#include "three_mm/rollcall_storage.h"
-#include "three_mm/movie_root.h"
+#include "mm/movie_data.h"
+#include "mm/movie_owner.h"
+#include "mm/rollcall_storage.h"
+#include "mm/movie_root.h"
 
 struct MovieFilePrefix
 {
@@ -55,15 +55,15 @@ class RollCallTable : public BASE
 {
     MARKMEM
     ASSERT
-    static RollCallTable *_New(ThreeMMU32 extra);
+    static RollCallTable *_New(MMU32 extra);
   public:
-    ThreeMMRollCallTable storage;
+    MMRollCallTable storage;
     static RollCallTable *New(bool wire = false);
     static RollCallTable *Read(PDataBlock block, int *bigEndian);
     ~RollCallTable();
     LegacyLong IvMac() const { return storage.count; }
     LegacyLong CbExtra() const { return storage.stride - 4; }
-    LegacyLong CbOnFile() const { return three_mm_rollcall_table_wire_size(&storage); }
+    LegacyLong CbOnFile() const { return mm_rollcall_table_wire_size(&storage); }
     void GetStn(LegacyLong index, PString name);
     void GetExtra(LegacyLong index, RollCallActorEntry *actor);
     void PutExtra(LegacyLong index, const RollCallActorEntry *actor);
@@ -76,9 +76,9 @@ typedef RollCallTable *PRollCallTable;
 
 // State shared by document/view and headless persistence hosts. The actor
 // table owns opened TAG references; resources is an owned reference as well.
-struct MovieData : ThreeMMMovieState
+struct MovieData : MMMovieState
 {
-    MovieData() { three_mm_movie_state_init(this); three_mm_movie_title_init(&title, sizeof(achar)); }
+    MovieData() { mm_movie_state_init(this); mm_movie_title_init(&title, sizeof(achar)); }
     void GetTitle(PString) const;
     void SetTitle(PString);
     bool FWriteTitle(PChunkyFile);
@@ -96,11 +96,11 @@ struct MovieData : ThreeMMMovieState
     bool FSave(PFilename filename);
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
-    static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, ThreeMMMovieHeader *header = pvNil);
+    static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
     static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,
                               LegacyLong *actorIdLimit = pvNil);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written);
   private:
-    static ThreeMMMovieOwnerServices _OwnerServices(void *);
+    static MMMovieOwnerServices _OwnerServices(void *);
 };
 #endif

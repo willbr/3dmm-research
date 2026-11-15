@@ -1,5 +1,5 @@
 // Licensed under the MIT License.
-#include "three_mm/v3dmm.h"
+#include "mm/v3dmm.h"
 #include "physfs_zip_order.h"
 #include <miniz.h>
 #include <algorithm>
@@ -9,7 +9,7 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
-namespace ThreeMM::V3dmm
+namespace MM::V3dmm
 {
 namespace
 {
@@ -314,4 +314,4 @@ void WriteBundle(const Range &movie, const std::vector<Dependency> &dependencies
     stream.close();
     Require(bool(stream), "Cannot finish VMM output");
 }
-} // namespace ThreeMM::V3dmm
+} // namespace MM::V3dmm
