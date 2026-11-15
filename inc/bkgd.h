@@ -17,6 +17,7 @@
 #include <cstdint>
 
 #include "background_data.h"
+#include "three_mm/background_camera.h"
 
 /****************************************
     Background Default Sound
@@ -64,26 +65,19 @@ class Background : public Background_PAR
     long _cbactLight;    // count of lights
     bool _fLites;        // lights are on
     bool _fLeaveLitesOn; // Don't turn out the lights
-    long _ccam;          // count of cameras in this background
-    long _icam;          // current camera
-    BMAT34 _bmat34Mouse; // camera matrix for mouse model
-    BRA _braRotY;        // Y rotation of current camera
+    ThreeMMBackgroundCameraState _camera; // C-owned camera metadata/placement list.
     ChunkNumber _cnoSnd;         // background sound
     String _stn;            // name of this background
     PDynamicArray _pglclr;         // palette for this background
     byte _bIndexBase;    // first index for palette
-    long _iaposLast;     // Last placement point we used
-    long _iaposNext;     // Next placement point to use
-    PDynamicArray _pglapos;        // actor placement point(s) for current view
-    BRS _xrPlace;
-    BRS _yrPlace;
-    BRS _zrPlace;
     BackgroundDefaultSound _bds;   // background default sound
-    BRS _xrCam; // camera position in worldspace
-    BRS _yrCam;
-    BRS _zrCam;
 
   protected:
+    Background(void)
+    {
+        three_mm_background_camera_init(&_camera);
+    }
+    ThreeMMBackgroundCameraServices _CameraServices(void *host);
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     long _Ccam(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     void _SetupLights(PDynamicArray pgllite);
@@ -108,18 +102,18 @@ class Background : public Background_PAR
 
     long Ccam(void)
     {
-        return _ccam;
+        return _camera.count;
     } // count of cameras in background
     long Icam(void)
     {
-        return _icam;
+        return _camera.current;
     }                                        // currently selected camera
     bool FSetCamera(PWorld pbwld, long icam); // change camera to icam
 
     void GetMouseMatrix(BMAT34 *pbmat34);
     BRA BraRotYCamera(void)
     {
-        return _braRotY;
+        return _camera.yaw;
     }
     void GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr);
     void ReuseActorPlacePoint(void);

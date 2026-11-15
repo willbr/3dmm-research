@@ -507,7 +507,16 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
         cam.aFov = BR_ANGLE_DEG(45);
         BrMatrix34Identity(&cam.bmat34Cam);
         cam.bmat34Cam.m[3][0] = BR_SCALAR(i);
-        CHECK(file->FAddChildPv(kctgBkgd, *number, i, &cam, sizeof(cam), kctgCam, &child));
+        std::vector<byte> camera(sizeof(cam) + (i == 1 ? 2 * sizeof(APOS) : 0));
+        std::memcpy(camera.data(), &cam, sizeof(cam));
+        if (i == 1)
+        {
+            APOS points[2] = {};
+            points[0].xrPlace = BR_SCALAR(2); points[0].yrPlace = BR_SCALAR(-3); points[0].zrPlace = BR_SCALAR(4);
+            points[1].xrPlace = BR_SCALAR(5); points[1].yrPlace = BR_SCALAR(6); points[1].zrPlace = BR_SCALAR(-7);
+            std::memcpy(camera.data() + sizeof(cam), points, sizeof(points));
+        }
+        CHECK(file->FAddChildPv(kctgBkgd, *number, i, camera.data(), camera.size(), kctgCam, &child));
         CHECK(file->FAdoptChild(kctgCam, child, kctgMbmp, rgb, 0) && file->FAdoptChild(kctgCam, child, kctgZbmp, z, 0));
     }
 }
@@ -580,6 +589,72 @@ int main()
     BackgroundFixture(file, &background, 0);
     TAG tag = {ksidUseCrf, observed, kctgBkgd, background}, old;
     CHECK(scene->FSetBkgdCore(&tag, &old));
+    {
+        auto background = static_cast<PBackground>(observed->PbacoFetch(kctgBkgd, tag.cno, Background::FReadBkgd));
+        CHECK(background);
+        for (long camera : {0, 1, 2, 1, 0})
+        {
+            Value(background->FSetCamera(movie->Pbwld(), camera));
+            Value(background->Ccam());
+            Value(background->Icam());
+            BRS x, y, z;
+            background->GetCameraPos(&x, &y, &z);
+            Value(x);
+            Value(y);
+            Value(z);
+            BMAT34 mouse;
+            background->GetMouseMatrix(&mouse);
+            Record(&mouse, sizeof(mouse));
+            Value(background->BraRotYCamera());
+            for (int i = 0; i < 5; ++i)
+            {
+                background->GetActorPlacePoint(&x, &y, &z);
+                Value(x);
+                Value(y);
+                Value(z);
+                if (i == 1)
+                    background->ReuseActorPlacePoint();
+            }
+        }
+        /* Foreign-order appended points used to be swapped past a stack header.
+         * Exercise the real block/list bridge without changing the native trace. */
+        ChildChunkIdentification child;
+        DataBlock block;
+        CHECK(file->FGetKidChidCtg(kctgBkgd, tag.cno, 1, kctgCam, &child));
+        CHECK(file->FFind(kctgCam, child.cki.cno, &block));
+        std::vector<byte> native(block.Cb()), foreign(block.Cb());
+        CHECK(block.FReadRgb(native.data(), native.size(), 0));
+        block.Free();
+        CameraPosition camera;
+        APOS points[2];
+        CHECK(native.size() == sizeof(camera) + sizeof(points));
+        std::memcpy(&camera, native.data(), sizeof(camera));
+        std::memcpy(points, native.data() + sizeof(camera), sizeof(points));
+        SwapBytesBom(&camera, kbomCam);
+        SwapBytesRglw(&camera.bmat34Cam, 12);
+        SwapBytesRglw(points, 6);
+        std::memcpy(foreign.data(), &camera, sizeof(camera));
+        std::memcpy(foreign.data() + sizeof(camera), points, sizeof(points));
+        CHECK(file->FPutPv(foreign.data(), foreign.size(), kctgCam, child.cki.cno));
+        CHECK(background->FSetCamera(movie->Pbwld(), 1));
+        BRS x, y, z;
+        background->GetCameraPos(&x, &y, &z);
+        CHECK(x == BR_SCALAR(1) && y == 0 && z == 0 && background->Icam() == 1);
+        background->GetActorPlacePoint(&x, &y, &z);
+        CHECK(x == 0 && y == 0 && z == 0);
+        background->GetActorPlacePoint(&x, &y, &z);
+        CHECK(x == BR_SCALAR(2) && y == BR_SCALAR(-3) && z == BR_SCALAR(4));
+        background->ReuseActorPlacePoint();
+        background->GetActorPlacePoint(&x, &y, &z);
+        CHECK(x == BR_SCALAR(2) && y == BR_SCALAR(-3) && z == BR_SCALAR(4));
+        background->GetActorPlacePoint(&x, &y, &z);
+        CHECK(x == BR_SCALAR(5) && y == BR_SCALAR(6) && z == BR_SCALAR(-7));
+        background->GetActorPlacePoint(&x, &y, &z);
+        CHECK(x == 0 && y == 0 && z == 0);
+        CHECK(file->FPutPv(native.data(), native.size(), kctgCam, child.cki.cno));
+        CHECK(background->FSetCamera(movie->Pbwld(), 0));
+        ReleasePpo(&background);
+    }
     {
         TAG found = {ksidInvalid, nullptr, 0, 0};
         auto references = observed->CactRef();
@@ -1004,5 +1079,5 @@ int main()
     std::printf("Scene content: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
-        CHECK(recorded == 30296 && hash == 0x2B757265U);
+        CHECK(recorded == 30976 && hash == 0x34CB17AFU);
 }

@@ -39,6 +39,8 @@
 
 ***************************************************************************/
 #include "soc.h"
+#include "engine_read_stream.h"
+#include <cstring>
 ASSERTNAME
 
 RTCLASS(Background)
@@ -161,8 +163,8 @@ bool Background::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     PDynamicArray pgllite = pvNil;
     short bo;
 
-    _ccam = _Ccam(pcfl, ctg, cno); // compute # of views in this background
-    _icam = ivNil;
+    _camera.count = _Ccam(pcfl, ctg, cno); // compute # of views in this background
+    _camera.current = ivNil;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         goto LFail;
@@ -318,7 +320,8 @@ Background::~Background(void)
     FreePpv((void **)&_prgbactLight);
     FreePpv((void **)&_prgblitLight);
     ReleasePpo(&_pglclr);
-    ReleasePpo(&_pglapos);
+    auto services = _CameraServices(nullptr);
+    three_mm_background_camera_dispose(&_camera, &services);
 }
 
 /***************************************************************************
@@ -364,13 +367,12 @@ void Background::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertNilOrVarMem(pxr);
     AssertNilOrVarMem(pyr);
     AssertNilOrVarMem(pzr);
-
-    if (pvNil != pxr)
-        *pxr = _xrCam;
-    if (pvNil != pyr)
-        *pyr = _yrCam;
-    if (pvNil != pzr)
-        *pzr = _zrCam;
+    if (pxr)
+        *pxr = _camera.position.dxr;
+    if (pyr)
+        *pyr = _camera.position.dyr;
+    if (pzr)
+        *pzr = _camera.position.dzr;
 }
 
 /***************************************************************************
@@ -421,110 +423,113 @@ void Background::TurnOffLights(void)
 /***************************************************************************
     Set the camera and associated bitmaps to icam
 ***************************************************************************/
+namespace
+{
+struct BackgroundCameraHost
+{
+    Background *background;
+    PWorld world;
+    DataBlock block;
+};
+} // namespace
+ThreeMMBackgroundCameraServices Background::_CameraServices(void *host)
+{
+    ThreeMMBackgroundCameraServices s = {};
+    s.context = host;
+    s.lights_on = [](void *p) {
+        auto h = static_cast<BackgroundCameraHost *>(p);
+        h->background->TurnOnLights(h->world);
+    };
+    s.read = [](void *p, ThreeMMI32 camera, ThreeMMReadStream *out, ThreeMMU32 *number) {
+        auto h = static_cast<BackgroundCameraHost *>(p);
+        auto background = h->background;
+        auto file = background->Pcrf()->Pcfl();
+        ChildChunkIdentification child;
+        if (!file->FGetKidChidCtg(background->Ctg(), background->Cno(), camera, kctgCam, &child) ||
+            !file->FFind(child.cki.ctg, child.cki.cno, &h->block) || !h->block.FUnpackData())
+            return 0;
+        *number = child.cki.cno;
+        *out = EngineReadStream::FromBlock(h->block);
+        return 1;
+    };
+    s.child = [](void *p, ThreeMMU32 camera, int depth, ThreeMMU32 *number) {
+        auto h = static_cast<BackgroundCameraHost *>(p);
+        ChildChunkIdentification child;
+        if (!h->background->Pcrf()->Pcfl()->FGetKidChidCtg(kctgCam, camera, 0, depth ? kctgZbmp : kctgMbmp, &child))
+            return 0;
+        *number = child.cki.cno;
+        return 1;
+    };
+    s.background = [](void *p, ThreeMMU32 rgb, ThreeMMU32 depth) {
+        auto h = static_cast<BackgroundCameraHost *>(p);
+        return int(h->world->FSetBackground(h->background->Pcrf(), kctgMbmp, rgb, kctgZbmp, depth));
+    };
+    s.new_points = [](void *, ThreeMMI32 count) -> void * {
+        auto points = DynamicArray::PglNew(sizeof(APOS), count);
+        if (points)
+            AssertDo(points->FSetIvMac(count), "Should never fail");
+        return points;
+    };
+    s.release = [](void *, void *points) { static_cast<PDynamicArray>(points)->Release(); };
+    s.lock = [](void *, void *points) { static_cast<PDynamicArray>(points)->Lock(); };
+    s.unlock = [](void *, void *points) { static_cast<PDynamicArray>(points)->Unlock(); };
+    s.put_point = [](void *, void *points, ThreeMMI32 index, const ThreeMMActorPoint *point) {
+        APOS value;
+        value.xrPlace = point->dxr;
+        value.yrPlace = point->dyr;
+        value.zrPlace = point->dzr;
+        static_cast<PDynamicArray>(points)->Put(index, &value);
+    };
+    s.point = [](void *, void *points, ThreeMMI32 index, ThreeMMActorPoint *out) {
+        APOS value;
+        static_cast<PDynamicArray>(points)->Get(index, &value);
+        *out = {value.xrPlace, value.yrPlace, value.zrPlace};
+    };
+    s.point_count = [](void *, void *points) -> ThreeMMI32 { return static_cast<PDynamicArray>(points)->IvMac(); };
+    s.euler_yxy = [](void *, const ThreeMMActorMatrix *value, unsigned short *a, unsigned short *c) {
+        BMAT34 matrix;
+        std::memcpy(&matrix, value, sizeof(matrix));
+        BREUL angles;
+        angles.order = BR_EULER_YXY_R;
+        BrMatrix34ToEuler(&angles, &matrix);
+        *a = angles.a;
+        *c = angles.c;
+    };
+    s.rotate_y = [](void *, ThreeMMActorMatrix *out, unsigned short yaw) {
+        BMAT34 matrix;
+        BrMatrix34RotateY(&matrix, yaw);
+        std::memcpy(out, &matrix, sizeof(matrix));
+    };
+    s.translate = [](void *, ThreeMMActorMatrix *out, const ThreeMMActorPoint *point) {
+        BMAT34 matrix;
+        std::memcpy(&matrix, out, sizeof(matrix));
+        BrMatrix34PostTranslate(&matrix, point->dxr, point->dyr, point->dzr);
+        std::memcpy(out, &matrix, sizeof(matrix));
+    };
+    s.camera = [](void *p, const ThreeMMBackgroundCameraData *camera) {
+        auto h = static_cast<BackgroundCameraHost *>(p);
+        BMAT34 matrix;
+        std::memcpy(&matrix, &camera->matrix, sizeof(matrix));
+        h->world->SetCamera(&matrix, camera->near_z, camera->far_z, camera->fov);
+    };
+    s.dirty = [](void *p) { static_cast<BackgroundCameraHost *>(p)->world->MarkDirty(); };
+    s.diagnostic = [](void *, int issue) {
+        if (issue == THREE_MM_BACKGROUND_CAMERA_SHORT)
+            Bug("CameraPosition chunk not large enough");
+        else
+            Bug("CameraPosition chunk's extra data not an even multiple of size(APOS)");
+    };
+    return s;
+}
+
 bool Background::FSetCamera(PWorld pbwld, long icam)
 {
     AssertThis(0);
     AssertPo(pbwld, 0);
     AssertIn(icam, 0, Ccam());
-
-    long capos;
-    ChildChunkIdentification kidCam;
-    ChildChunkIdentification kidRGB;
-    ChildChunkIdentification kidZ;
-    DataBlock blck;
-    CameraPosition cam;
-    PChunkyFile pcfl = Pcrf()->Pcfl();
-    BREUL breul;
-
-    TurnOnLights(pbwld);
-
-    // read new camera data
-    if (!pcfl->FGetKidChidCtg(Ctg(), Cno(), icam, kctgCam, &kidCam))
-        return fFalse;
-    if (!pcfl->FFind(kidCam.cki.ctg, kidCam.cki.cno, &blck) || !blck.FUnpackData())
-        return fFalse;
-
-    // Need at least one actor position
-    if (blck.Cb() < size(CameraPosition))
-    {
-        Bug("CameraPosition chunk not large enough");
-        return fFalse;
-    }
-    capos = (blck.Cb() - size(CameraPosition)) / size(APOS);
-    if ((capos * size(APOS) + size(CameraPosition)) != blck.Cb())
-    {
-        Bug("CameraPosition chunk's extra data not an even multiple of size(APOS)");
-        return fFalse;
-    }
-
-    if (!blck.FReadRgb(&cam, size(CameraPosition), 0))
-        return fFalse;
-
-#ifdef DEBUG
-    {
-        ByteOrderMask bomCam = kbomCam, bomCamOld = kbomCamOld;
-        Assert(bomCam == bomCamOld, "ByteOrderMask macros aren't right");
-    }
-#endif // DEBUG
-
-    Assert((size(APOS) / size(int32_t)) * size(int32_t) == size(APOS), "APOS not an even number of 4-byte words");
-    if (kboOther == cam.bo)
-    {
-        SwapBytesBom(&cam, kbomCam);
-        SwapBytesRglw(PvAddBv(&cam, offset(CameraPosition, bmat34Cam)), size(cam.bmat34Cam) / size(int32_t));
-        SwapBytesRglw(PvAddBv(&cam, size(CameraPosition)), capos * (size(APOS) / size(int32_t)));
-    }
-    Assert(kboCur == cam.bo, "bad cam");
-
-    // find RGB pict
-    if (!pcfl->FGetKidChidCtg(kidCam.cki.ctg, kidCam.cki.cno, 0, kctgMbmp, &kidRGB))
-    {
-        return fFalse;
-    }
-    // find Z pict
-    if (!pcfl->FGetKidChidCtg(kidCam.cki.ctg, kidCam.cki.cno, 0, kctgZbmp, &kidZ))
-    {
-        return fFalse;
-    }
-    if (!pbwld->FSetBackground(Pcrf(), kidRGB.cki.ctg, kidRGB.cki.cno, kidZ.cki.ctg, kidZ.cki.cno))
-    {
-        return fFalse;
-    }
-
-    // Get actor placements
-    ReleasePpo(&_pglapos);
-    _iaposNext = _iaposLast = 0;
-    if (capos > 0 && (_pglapos = DynamicArray::PglNew(size(APOS), capos)) != pvNil)
-    {
-        AssertDo(_pglapos->FSetIvMac(capos), "Should never fail");
-        _pglapos->Lock();
-        if (!blck.FReadRgb(_pglapos->QvGet(0), size(APOS) * capos, size(CameraPosition)))
-        {
-            ReleasePpo(&_pglapos);
-            return fFalse;
-        }
-        _pglapos->Unlock();
-    }
-
-    _icam = icam;
-    _xrPlace = cam.apos.xrPlace;
-    _yrPlace = cam.apos.yrPlace;
-    _zrPlace = cam.apos.zrPlace;
-
-    _xrCam = cam.bmat34Cam.m[3][0];
-    _yrCam = cam.bmat34Cam.m[3][1];
-    _zrCam = cam.bmat34Cam.m[3][2];
-
-    // Find bmat34 without X & Z rotation
-    breul.order = BR_EULER_YXY_R;
-    BrMatrix34ToEuler(&breul, &cam.bmat34Cam);
-    _braRotY = breul.a + breul.c;
-    BrMatrix34RotateY(&_bmat34Mouse, _braRotY);
-    BrMatrix34PostTranslate(&_bmat34Mouse, cam.bmat34Cam.m[3][0], cam.bmat34Cam.m[3][1], cam.bmat34Cam.m[3][2]);
-
-    pbwld->SetCamera(&cam.bmat34Cam, cam.zrHither, cam.zrYon, cam.aFov);
-    pbwld->MarkDirty();
-    return fTrue;
+    BackgroundCameraHost host = {this, pbwld};
+    auto services = _CameraServices(&host);
+    return three_mm_background_camera_set(&_camera, icam, &services) != 0;
 }
 
 /***************************************************************************
@@ -534,8 +539,8 @@ void Background::GetMouseMatrix(BMAT34 *pbmat34)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
-
-    *pbmat34 = _bmat34Mouse;
+    static_assert(sizeof(*pbmat34) == sizeof(_camera.mouse), "Camera matrix layout");
+    std::memcpy(pbmat34, &_camera.mouse, sizeof(*pbmat34));
 }
 
 /***************************************************************************
@@ -547,30 +552,12 @@ void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertVarMem(pxr);
     AssertVarMem(pyr);
     AssertVarMem(pzr);
-
-    APOS apos;
-
-    if (_iaposNext == 0)
-    {
-        *pxr = _xrPlace;
-        *pyr = _yrPlace;
-        *pzr = _zrPlace;
-    }
-    else
-    {
-        _pglapos->Get(_iaposNext - 1, &apos);
-        *pxr = apos.xrPlace;
-        *pyr = apos.yrPlace;
-        *pzr = apos.zrPlace;
-    }
-
-    _iaposLast = _iaposNext;
-    if (_pglapos != pvNil)
-    {
-        _iaposNext++;
-        if (_iaposNext > _pglapos->IvMac())
-            _iaposNext = 0;
-    }
+    auto services = _CameraServices(nullptr);
+    ThreeMMActorPoint point;
+    three_mm_background_place(&_camera, &point, &services);
+    *pxr = point.dxr;
+    *pyr = point.dyr;
+    *pzr = point.dzr;
 }
 
 /******************************************************************************
@@ -581,7 +568,7 @@ void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
 ************************************************************ PETED ***********/
 void Background::ReuseActorPlacePoint(void)
 {
-    _iaposNext = _iaposLast;
+    three_mm_background_reuse_place(&_camera);
 }
 
 #ifdef DEBUG
@@ -605,7 +592,7 @@ bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
     LegacyLong zr1 = BrScalarToInt(zrPlace);
     LegacyLong zr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(zrPlace - BrIntToScalar(zr1))));
 
-    if (!stnFile.FFormatSz("%s-cam.1-%d.pos", &_stn, static_cast<LegacyLong>(_icam + 1)))
+    if (!stnFile.FFormatSz("%s-cam.1-%d.pos", &_stn, static_cast<LegacyLong>(_camera.current + 1)))
         goto LFail;
     if (!fni.FBuildFromPath(&stnFile))
         goto LFail;
@@ -643,12 +630,12 @@ void Background::AssertValid(LegacyUlong grf)
 {
     Background_PAR::AssertValid(fobjAllocated);
     AssertIn(_cbactLight, 1, 100); // 100 is sanity check
-    AssertIn(_ccam, 1, 100);       // 100 is sanity check
-    Assert(_icam == ivNil || (_icam >= 0 && _icam < _ccam), "bad _icam");
+    AssertIn(_camera.count, 1, 100);       // 100 is sanity check
+    Assert(_camera.current == ivNil || (_camera.current >= 0 && _camera.current < _camera.count), "bad _camera.current");
     AssertPvCb(_prgbactLight, LwMul(_cbactLight, size(BACT)));
     AssertPvCb(_prgblitLight, LwMul(_cbactLight, size(BLIT)));
     AssertPo(&_stn, 0);
-    AssertNilOrPo(_pglapos, 0);
+    AssertNilOrPo(static_cast<PDynamicArray>(_camera.points), 0);
 }
 
 /***************************************************************************
@@ -661,6 +648,6 @@ void Background::MarkMem(void)
     MarkPv(_prgbactLight);
     MarkPv(_prgblitLight);
     MarkMemObj(_pglclr);
-    MarkMemObj(_pglapos);
+    MarkMemObj(static_cast<PDynamicArray>(_camera.points));
 }
 #endif // DEBUG

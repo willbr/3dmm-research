@@ -486,6 +486,11 @@ typed offscreen graphics, view drawing and palette primitives remain adapters.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.
+Background camera wire decoding is now shared C89 in Studio and Marcus.
+Studio camera metadata, placement-list ownership, camera-switch sequencing,
+mouse-matrix composition control and placement cycling/reuse also use C89.
+Native BRender math and file/list services remain adapters; background resource
+loading/cache/light policy and Preview image/mesh control still need conversion.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -506,7 +511,7 @@ sound-packet, sound-editing/undo, loading/resolution, tag-collection/save,
 pause/camera/background-editing/undo, actor/caption Scene-editing/undo,
 selection, chop/snapshot-undo, property/playback-lifecycle and thumbnail/dirty
 slices and Scene query/group-loading policy are complete. Continue with
-Background resource policy and remaining Movie control/editing/undo operations.
+the remaining Background resource policy and Movie control/editing/undo operations.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

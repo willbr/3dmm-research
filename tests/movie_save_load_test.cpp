@@ -214,9 +214,9 @@ class StageTestBackground : public Background
   public:
     bool Init()
     {
-        _ccam=1; _cbactLight=1;
-        _xrPlace=BR_SCALAR(100); _yrPlace=BR_SCALAR(2); _zrPlace=-BR_SCALAR(30);
-        _braRotY=0x1234;
+        _camera.count=1; _cbactLight=1;
+        _camera.place.dxr=BR_SCALAR(100); _camera.place.dyr=BR_SCALAR(2); _camera.place.dzr=-BR_SCALAR(30);
+        _camera.yaw=0x1234;
         return FAllocPv((void **)&_prgbactLight,sizeof(BACT),fmemClear,mprNormal) &&
                FAllocPv((void **)&_prgblitLight,sizeof(BLIT),fmemClear,mprNormal);
     }

@@ -2,6 +2,8 @@
 #include "preview_background.h"
 #include "zbmp.h"
 #include "palette_state.h"
+#include "engine_read_stream.h"
+#include "three_mm/background_camera.h"
 #include <cstring>
 #undef size
 ASSERTNAME
@@ -77,15 +79,23 @@ bool PreviewBackground::SetCamera(std::uint32_t slot)
         return false;
     auto file = source->Pcfl();
     DataBlock block;
-    if (!file->FFind(kctgCam, cameras[slot], &block) || !block.FUnpackData() || block.Cb() < sizeof(camera) ||
-        !block.FReadRgb(&camera, sizeof(camera), 0))
+    if (!file->FFind(kctgCam, cameras[slot], &block) || !block.FUnpackData())
         return false;
-    if (camera.bo == kboOther)
-    {
-        SwapBytesBom(&camera, kbomCam);
-        SwapBytesRglw(&camera.bmat34Cam, sizeof(camera.bmat34Cam) / 4);
-    }
-    if (camera.bo != kboCur || camera.zrHither <= 0 || camera.zrYon <= camera.zrHither)
+    auto stream = EngineReadStream::FromBlock(block);
+    ThreeMMBackgroundCameraData decoded;
+    if (!three_mm_background_camera_decode(&stream, &decoded))
+        return false;
+    // Native renderer view; wire decoding belongs to the shared C backend.
+    camera.bo = kboCur;
+    camera.zrHither = decoded.near_z;
+    camera.zrYon = decoded.far_z;
+    camera.aFov = decoded.fov;
+    camera.apos.xrPlace = decoded.place.dxr;
+    camera.apos.yrPlace = decoded.place.dyr;
+    camera.apos.zrPlace = decoded.place.dzr;
+    static_assert(sizeof(camera.bmat34Cam) == sizeof(decoded.matrix), "Camera matrix layout");
+    std::memcpy(&camera.bmat34Cam, &decoded.matrix, sizeof(camera.bmat34Cam));
+    if (camera.zrHither <= 0 || camera.zrYon <= camera.zrHither)
         return false;
     ChildChunkIdentification child;
     if (!file->FGetKidChidCtg(kctgCam, cameras[slot], 0, kctgMbmp, &child))

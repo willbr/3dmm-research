@@ -7854,3 +7854,88 @@ Evidence: `tmp/c89-scene-glue-{events-strict-build,events-strict,data-strict-bui
 `tmp/c89-scene-glue-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
 `tmp/c89-scene-glue-capture-hashes-{before,after}.json` and
 `tmp/c89-scene-glue-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+### Background camera/placement C89 conversion (15 November 2026)
+
+Source baseline: `e91b98cc`. `background_camera.c` now decodes CAM headers and
+appended placement points for both Studio and Marcus. Studio Background stores
+camera metadata, placement cursors/list ownership and mouse-matrix state in a
+persistent C record. C controls camera switching, placement cycling/reuse and
+Euler/rotation/translation sequencing; native services retain BRender primitives,
+file/list operations and world effects. Background resource loading/cache/light
+policy, Preview image/mesh control and final native facade removal remain work.
+
+The native Scene-content fixture adds camera switches, position/mouse/yaw output
+and default/appended placement cycling/reuse to the preceding Scene trace.
+Original native/repeat and original SDL debug/release traces match 30,976 bytes,
+FNV-1a `34CB17AF`, SHA-256
+`F3AA2B74879C45B4CA49FE235DA7016A2C5ABD209CF48A7F3F7C19D9F516C8BC`.
+The exact guard retains the little-endian x64, one-byte-text restriction.
+
+A supplemental native check writes a foreign-order camera and two appended
+points, verifies the real block/list bridge, cycling and reuse, then restores
+the original camera bytes and selection. Foreign-order points now decode from
+their actual source offsets, removing the original swap past a stack-local
+camera header. Failed point reads now unlock before releasing the new list.
+Preview shares Studio's rejection of a partial appended point while retaining
+its existing clip-plane/image admission checks. No stored versions change.
+
+C-only tests cover both byte orders, signed scalar and unsigned angle extremes,
+maximum wire lengths, invalid markers/tails/indexes, partial failed reads with
+unchanged outputs, complete callback ordering and metadata publication, every
+fallible service phase, allocation fallback, point-read cleanup, disposal and
+placement cycling/reuse. No Marcus UI tests were added.
+
+Final native, SDL debug and SDL release traces match all four original traces
+above byte for byte. All 99 standalone C checks, 43 selected SDL release and 31
+SDL debug checks pass. The 135 selected native checks pass after rebuilding
+the initially stale `marcus-player-test` and `marcus-frame-previews-test` and
+rerunning `marcus-player`; its old executable disagreed with the freshly linked
+preview helper's rendering. The initial 134 passes and successful retry are
+retained separately. Both hosts, `core-checks`, the indirectly invoked Marcus
+test executables, CLI targets and native save/load executable were rebuilt.
+Marcus was stopped before its rebuilds and relaunched afterward. The C-only
+fixture passes Clang strict C89 with warnings as errors and MSVC AddressSanitizer.
+The direct native save/close/reopen/close round trip and all 51 CLI baselines
+pass. Builds and file-heavy suites ran serially.
+
+The freshly linked existing background-preview check also passes the shipped
+`bkgds.3cn` collection: 12 backgrounds, 188 cameras with palettes, 184 with finite
+depth/meshes and 68 with static backdrops. It exercises authored/orbit rendering,
+camera switching/cache reuse and out-of-range selection through Preview's real
+shared-decoder bridge.
+
+Fresh pre-conversion binaries were built from the source baseline before the
+final captures, so these comparisons include the intervening renderer precision
+and rasterization work rather than comparing against older Scene-only builds.
+Both pre-conversion and converted binaries stayed fixed during their respective
+21 fresh-process runs (one repeat, no concurrent builds/tests). Final SHA-256:
+
+- SDL release: `82EDFC98EA25EB18750FB1EEBD79B741077B255C6BAE3CF29BEBB7AA89FBC40C`.
+- Marcus regression: `00809F0DAE95AE464BAA8A78E524F952A3DF86B7E3920E1C28ED92B65B22E5E9`.
+
+| Case | Original suite | Converted suite | Completion per suite |
+| --- | --- | --- | --- |
+| actor-events | `20261115T005723Z-df83c6d6` | `20261115T011324Z-b7264e54` | six retail/SDL/Marcus seek/playback |
+| scrolling-text | `20261115T005837Z-3f0c517e` | `20261115T011438Z-aeac96c6` | six retail/SDL/Marcus seek/playback |
+| actor-audio | `20261115T010140Z-054375b0` | `20261115T011740Z-578c3f97` | six retail/SDL/Marcus seek/playback |
+| sampled-audio | `20261115T010254Z-d09c0325` | `20261115T011854Z-d11fe065` | three retail/SDL/Marcus playback |
+
+Movie identity and suite integrity pass. All authored frame sequences, all 540
+seek images and ordered playback image changes match each player's original
+suite. Playback comparison collapses only adjacent identical scene/frame/image
+samples. Actor-audio PCM16 peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus). All exceed 50; actor tone detection and the
+first-scene-only contract pass for every player. Existing cross-player image
+differences and single-repeat inconclusive timing comparisons remain. These
+captures do not prove retail editing/failure behavior, full audio parity or
+equivalent presentation markers. Captures use a shared warm SDL package cache
+with private processes, settings and working movies; OS caching is uncontrolled.
+
+Evidence: `tmp/c89-background-camera-{strict-build,strict,asan,standalone,native-tests,native-retry,sdl-debug-tests,sdl-release-tests,save-load,preview-backgrounds}.log`,
+`tmp/c89-background-camera-*.bin`,
+`tmp/c89-background-camera-trace-comparison.json`,
+`tmp/c89-background-camera-output-comparison.json`,
+`tmp/c89-background-camera-{before,final}-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
+`tmp/c89-background-camera-{before,final}-capture-hashes-{before,after}.json` and
+`tmp/c89-background-camera-playback-comparison.json`.

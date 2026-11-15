@@ -83,6 +83,7 @@ cmake --build build/engine-c89 --target engine-world-buffers-test
 cmake --build build/engine-c89 --target engine-world-camera-test
 cmake --build build/engine-c89 --target engine-world-render-test
 cmake --build build/engine-c89 --target engine-world-export-test
+cmake --build build/engine-c89 --target engine-background-camera-test
 cmake --build build/engine-c89 --target engine-scene-owner-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
@@ -1173,6 +1174,43 @@ storage, object lifetime or UI/resource dependencies.
 Remaining work includes Background resource policy, native actor/caption internals,
 Movie control/editing/undo, native representation/facade removal and final C-only
 integration. No Marcus UI tests were added.
+
+### Background cameras and actor placement points
+
+`background_camera.c` owns the shared 76-byte CAM header and appended 12-byte
+placement-point decoder. Both Studio Background and Marcus PreviewBackground
+use it; native CameraPosition fields in Preview are renderer views. Decoding
+checks the order marker, exact header/tail layout and bounded reads, and publishes
+outputs only after success. Explicit signed-word conversion preserves scalar
+bits independently of native integer widths and endianness.
+
+Studio Background stores camera count/current index, position, placement cursor,
+mouse matrix/yaw and the owned placement-list handle in a persistent C record.
+C sequences lights, chunk reads, RGB/depth lookup, background installation,
+placement replacement, mouse-matrix construction and world camera/dirty effects.
+The native services provide file/list/reference operations and individual BRender
+Euler, rotation and translation primitives. Default/appended placement cycling
+and reuse run in C. Allocation failure still selects the camera with only its
+default point; failed point reads retain the installed-image/reset prefix but
+leave camera metadata unchanged and release the unlocked new list.
+
+Foreign-order appended points now decode at their actual stream offsets. This
+removes the original swap beyond a stack-local header and correctly normalizes
+the points. Failed reads now balance the list lock before release. Preview now
+shares Studio's rejection of a partial appended point; its existing clip-plane
+and image-admission checks remain. Background header/default-sound/palette/light
+loading, cache control, Preview image-loading/mesh control and final native
+representation removal remain migration work.
+In particular, `FAddTagsToTagl`/`FCacheToHD`, `FReadBkgd`/`_FInit`, `_Ccam`,
+palette duplication and light attach/detach still contain native controllers;
+moving camera state does not convert those branches.
+
+`engine-background-camera` exercises both byte orders, scalar/angle extremes,
+maximum stream sizes, unchanged failure outputs, callback order, allocation/read
+failures, cleanup, cycling and reuse. The native Scene-content fixture freezes
+camera changes and placement behavior and separately checks foreign-order
+appended points through the real block/list bridge. See
+`docs/tools/playback-regression.md` for validation and capture coverage.
 
 ### Actor header, route and event persistence
 
