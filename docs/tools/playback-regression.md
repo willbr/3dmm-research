@@ -9526,3 +9526,76 @@ baseline/final logs, `tmp/c89-text-materialize-{native,sdl-release,sdl-debug}-te
 `tmp/c89-text-materialize-asan.log`, `tmp/c89-text-materialize-regular-tests.log`,
 `tmp/c89-text-materialize-trace-comparison.json` and
 `tmp/c89-text-materialize-identities.json`.
+
+### Rich-text property maps and argument references (15 November 2026)
+
+`text_properties.c` now controls sorted property lookup/range fetching, masked
+range application, adjustment after text edits, shared argument interning and
+reference counts. Native adapters supply typed collection primitives, cache slots,
+borrowed change records and paragraph-end queries. Changes are marshalled one at
+a time, without adding an allocation to property application.
+
+Lookup retains predecessor/insertion indices and next-boundary behavior. Failed
+fetches preserve outputs, and the native wrapper preserves debug poisoning for a
+missing map entry. Range application clears both caches, processes changes backward,
+merges masks, removes redundant boundaries and restores the following value.
+Reference ownership transfers through the saved revert value; each input change
+reference is consumed once. Unused-batch release processes references forward.
+The caller still reserves twice the change count. Ordinary insertion failure
+retains the legacy diagnostic-and-continue behavior; exception results stop with
+partial effects retained.
+
+Adjustment runs after text replacement. Character properties in the deleted
+interval collapse to the insertion end. Paragraph properties at its start stay
+there; other paragraph changes move to the next paragraph unless a surviving
+boundary already covers it. Deleted object entries release their arguments;
+following entries shift. Paragraph-query failure retains earlier mutations.
+Argument matching scans backward, skips holes, compares payload bytes and kind,
+and returns one-based references. Built-in properties retain the font-only rule;
+even client/object kinds use arguments. Newly created groups remain document-owned
+after a later insertion failure. Invalid reference indices diagnose without changes.
+
+Before conversion, the expanded headless engine movie save/load fixture recorded
+59,429-byte property traces in Native Debug, SDL Release and SDL Debug. All three
+record FNV-1a `30CB2692`, SHA-256
+`94D00376A816F5B35D80474247FE098BB47175560AAE5621352236DE25DD4841`.
+The trace freezes lookup success/miss outputs, optional outputs, logical property/
+argument records, cache invalidation, masks, redundant boundaries, shared argument
+matching/deletion/reuse and eight insertion/deletion cases spanning paragraph and
+object boundaries. It exercises low-level property policies over directly edited
+streams; it does not establish complete public text-edit/undo equivalence.
+
+C-only tests compare 400 deterministic masked-edit batches against a per-character
+value model and 180 insert/delete combinations against a separate per-kind map
+reconstruction. They cover all 256 kind classifications, all-kind lookup boundaries,
+backward duplicate matching, holes, embedded-null payloads, reference transfers,
+invalid indices/count diagnostics, owned creation failures and insertion/paragraph
+exception results. The latter retain partial property/reference effects and clear
+caches before returning to native rethrow. MSVC AddressSanitizer passes.
+
+All thirty-nine original/converted property/materialization/document/live-text/
+stored-text/media/metadata/session/admission/live/camera/picking/rendering trace
+pairs match across the three hosts. Prior hashes remain unchanged. Background
+checks retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras
+per host. All 122 standalone C checks, including strict C89 syntax, pass. Twenty-seven
+selected native checks and twenty-three checks in each SDL configuration pass,
+including existing scene/core/movie and native playback/player regressions.
+The regular asset-preview harness passes headlessly with fresh metadata inputs.
+Retained input identities are unchanged; identities for 28 rebuilt binaries are
+recorded. Test processes use private temporary directories. Marcus was stopped
+before rebuilding and relaunched afterward.
+
+This is Windows x64 evidence within these fixtures. Retained retail captures
+remain the playback reference; no fresh capture campaign or Marcus UI tests were
+added. Character/paragraph conversion, property copying, remaining text replacement/
+edit/undo control, help-document argument extensions, descriptor/output storage,
+physical providers, document/view/parent lifecycle and final C-only host/facade
+removal remain conversion work. Other platforms remain unverified here.
+
+Evidence: `tmp/c89-text-properties-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-text-properties-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-properties-standalone-tests.log`,
+`tmp/c89-text-properties-{materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-properties-asan.log`, `tmp/c89-text-properties-regular-tests.log`,
+`tmp/c89-text-properties-trace-comparison.json` and
+`tmp/c89-text-properties-identities.json`.

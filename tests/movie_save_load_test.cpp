@@ -30,6 +30,7 @@ ASSERTNAME
 #include "text_live_fixture.h"
 #include "text_document_fixture.h"
 #include "text_materialize_fixture.h"
+#include "text_properties_fixture.h"
 
 /* WinMain (in kauai/src/appbwin.cpp) references FrameMain -- but we
  * never run WinMain since we provide our own main() and link as a
@@ -2348,6 +2349,8 @@ static bool TestCaptionPersistence(PScene scene)
     if (!TestTextDocumentFiles(scene, file))
         goto done;
     if (!TestTextMaterialization())
+        goto done;
+    if (!TestTextProperties())
         goto done;
     ok = true;
 done:

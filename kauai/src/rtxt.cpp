@@ -17,6 +17,7 @@ ASSERTNAME
 #include "rich_text_live_store_host.h"
 #include "text_document_host.h"
 #include "text_materialize_host.h"
+#include "text_properties_host.h"
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
@@ -1207,59 +1208,24 @@ bool RichTextDocument::_FFindMpe(ulong spcp, MPE *pmpe, long *pcpLim, long *pimp
     AssertNilOrVarMem(pmpe);
     AssertNilOrVarMem(pcpLim);
     AssertNilOrVarMem(pimpe);
-    long impe, impeMin, impeLim;
-    bool fRet;
-    MPE mpe;
-    byte sprm = _SprmFromSpcp(spcp);
-
-    for (impeMin = 0, impeLim = _pglmpe->IvMac(); impeMin < impeLim;)
+    PropertyHost host(this);
+    auto services = host.Properties();
+    MMTextPropertyEntry entry;
+    MMI32 end, index;
+    bool found = mm_text_property_find(spcp, CpMac(), pmpe ? &entry : nullptr, pcpLim ? &end : nullptr,
+                                       pimpe ? &index : nullptr, &services) != 0;
+    if (pmpe)
     {
-        impe = (impeMin + impeLim) / 2;
-        _pglmpe->Get(impe, &mpe);
-        if (mpe.spcp < spcp)
-            impeMin = impe + 1;
-        else if (mpe.spcp > spcp)
-            impeLim = impe;
+        if (found)
+            *pmpe = {entry.key, entry.value};
         else
-        {
-            impeMin = impe + 1;
-            goto LSuccess;
-        }
+            TrashVar(pmpe);
     }
-
-    // assume there isn't one
-    if (pvNil != pimpe)
-        *pimpe = impeMin;
-    TrashVar(pmpe);
-    fRet = fFalse;
-
-    if (impeMin > 0)
-    {
-        _pglmpe->Get(impeMin - 1, &mpe);
-        if (_SprmFromSpcp(mpe.spcp) == sprm)
-        {
-        LSuccess:
-            if (pvNil != pimpe)
-                *pimpe = impeMin - 1;
-            if (pvNil != pmpe)
-                *pmpe = mpe;
-            fRet = fTrue;
-        }
-        else
-            Assert(_SprmFromSpcp(mpe.spcp) < sprm, 0);
-    }
-
-    if (pvNil != pcpLim)
-    {
-        *pcpLim = CpMac();
-        if (impeMin < _pglmpe->IvMac())
-        {
-            _pglmpe->Get(impeMin, &mpe);
-            if (_SprmFromSpcp(mpe.spcp) == sprm)
-                *pcpLim = _CpFromSpcp(mpe.spcp);
-        }
-    }
-    return fRet;
+    if (pcpLim)
+        *pcpLim = end;
+    if (pimpe)
+        *pimpe = index;
+    return found;
 }
 
 /***************************************************************************
@@ -1267,31 +1233,21 @@ bool RichTextDocument::_FFindMpe(ulong spcp, MPE *pmpe, long *pcpLim, long *pimp
 ***************************************************************************/
 bool RichTextDocument::_FFetchProp(long impe, byte *psprm, long *plw, long *pcpMin, long *pcpLim)
 {
-    MPE mpe;
-
-    if (!FIn(impe, 0, _pglmpe->IvMac()))
-        return fFalse;
-
-    _pglmpe->Get(impe, &mpe);
-    if (pvNil != psprm)
-        *psprm = _SprmFromSpcp(mpe.spcp);
-    if (pvNil != plw)
-        *plw = mpe.lw;
-    if (pvNil != pcpMin)
-        *pcpMin = _CpFromSpcp(mpe.spcp);
-    if (pvNil != pcpLim)
-    {
-        *pcpLim = CpMac();
-        if (impe + 1 < _pglmpe->IvMac())
-        {
-            MPE mpeNext;
-
-            _pglmpe->Get(impe + 1, &mpeNext);
-            if (_SprmFromSpcp(mpeNext.spcp) == _SprmFromSpcp(mpe.spcp))
-                *pcpLim = _CpFromSpcp(mpeNext.spcp);
-        }
-    }
-    return fTrue;
+    PropertyHost host(this);
+    auto services = host.Properties();
+    MMTextPropertyEntry entry;
+    MMI32 end;
+    if (!mm_text_property_fetch(impe, CpMac(), &entry, pcpLim ? &end : nullptr, &services))
+        return false;
+    if (psprm)
+        *psprm = static_cast<byte>(entry.key >> 24);
+    if (plw)
+        *plw = entry.value;
+    if (pcpMin)
+        *pcpMin = entry.key & 0x00ffffff;
+    if (pcpLim)
+        *pcpLim = end;
+    return true;
 }
 
 /***************************************************************************
@@ -1304,109 +1260,10 @@ void RichTextDocument::_AdjustMpe(long cp, long ccpIns, long ccpDel)
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpIns, 0, CpMac() - cp);
     AssertIn(ccpDel, 0, kcbMax);
-    MPE *qmpe;
-    long impe, impeMin, cpT;
-    byte sprm;
-    bool fBefore, fKeep;
-
-    _cpMinChp = _cpLimChp = _cpMinPap = _cpLimPap = 0;
-    for (impe = 0; impe < _pglmpe->IvMac();)
-    {
-        qmpe = (MPE *)_pglmpe->QvGet(impe);
-        cpT = _CpFromSpcp(qmpe->spcp);
-        AssertIn(cpT, 0, kcpMaxTxrd);
-        if (cpT < cp)
-        {
-            impe++;
-            continue;
-        }
-        sprm = _SprmFromSpcp(qmpe->spcp);
-        if (cpT >= cp + ccpDel + (sprm < sprmMinObj))
-        {
-            AssertIn(cpT + ccpIns - ccpDel, 0, kcpMaxTxrd);
-            qmpe->spcp = _SpcpFromSprmCp(sprm, cpT + ccpIns - ccpDel);
-            impe++;
-            continue;
-        }
-        AssertIn(cpT, cp, cp + ccpDel + (sprm < sprmMinObj));
-
-        // special case object sprms
-        if (sprm >= sprmMinObj)
-        {
-            // delete it
-            AssertIn(cpT, cp, cp + ccpDel);
-            _ReleaseSprmLw(sprm, qmpe->lw);
-            _pglmpe->Delete(impe);
-            continue;
-        }
-
-        // fBefore indicates if the last MPE for this sprm should go at cp
-        // or at the beginning of the paragraph at or after cp + ccpIns.
-        // This is only used for paragraph sprms.
-        fBefore = (cpT == cp);
-
-        impeMin = impe;
-        while (cpT <= cp + ccpDel)
-        {
-            if (++impe >= _pglmpe->IvMac())
-                break;
-            qmpe = (MPE *)_pglmpe->QvGet(impe);
-            if (_SprmFromSpcp(qmpe->spcp) != sprm)
-                break;
-            cpT = _CpFromSpcp(qmpe->spcp);
-            AssertIn(cpT, 0, kcpMaxTxrd);
-        }
-
-        // the entries from impeMin to impe are all in or
-        // at the end of the deleted zone
-        Assert(impe > impeMin, "no MPE's!");
-
-        // fKeep indicates whether we kept the last MPE
-        fKeep = fTrue;
-        if (sprm < sprmMinPap)
-        {
-            // a character sprm - put the last one at cp + ccpIns
-            AssertIn(cp + ccpIns, 0, CpMac());
-            qmpe = (MPE *)_pglmpe->QvGet(--impe);
-            qmpe->spcp = _SpcpFromSprmCp(sprm, cp + ccpIns);
-        }
-        else if (fBefore)
-        {
-            // a paragraph sprm - the last one goes at cp
-            AssertIn(cp, 0, kcpMaxTxrd);
-            qmpe = (MPE *)_pglmpe->QvGet(--impe);
-            qmpe->spcp = _SpcpFromSprmCp(sprm, cp);
-        }
-        else
-        {
-            // a paragraph sprm - the last MPE goes at the beginning of the
-            // next paragraph (if there is one and it doesn't already have an MPE).
-            cpT = CpLimPara(cp + ccpIns - 1);
-            if (cpT < CpMac() &&
-                (impe >= _pglmpe->IvMac() || _SprmFromSpcp((qmpe = (MPE *)_pglmpe->QvGet(impe))->spcp) != sprm ||
-                 _CpFromSpcp(qmpe->spcp) + ccpIns - ccpDel > cpT))
-            {
-                // put the last one at cpT - if there isn't already one
-                AssertIn(cpT, 0, kcpMaxTxrd);
-                qmpe = (MPE *)_pglmpe->QvGet(--impe);
-                qmpe->spcp = _SpcpFromSprmCp(sprm, cpT);
-            }
-            else
-                fKeep = fFalse;
-        }
-
-        // delete all the previous ones
-        while (impeMin < impe)
-        {
-            qmpe = (MPE *)_pglmpe->QvGet(--impe);
-            _ReleaseSprmLw(sprm, qmpe->lw);
-            _pglmpe->Delete(impe);
-        }
-
-        // skip the one we kept at the end
-        if (fKeep)
-            impe++;
-    }
+    PropertyHost host(this);
+    auto services = host.Properties();
+    mm_text_properties_adjust(cp, ccpIns, ccpDel, CpMac(), &services);
+    host.Rethrow();
     AssertThis(0);
 }
 
@@ -1420,47 +1277,16 @@ bool RichTextDocument::_FEnsureInAg(byte sprm, void *pv, long cb, LegacyLong *pj
     AssertIn(cb, 1, kcbMax);
     AssertPvCb(pv, cb);
     AssertVarMem(pjv);
-    LegacyLong cact, iv, cbT;
-    void *qv;
-
-    if (pvNil == _pagcact && pvNil == (_pagcact = AllocatedGroup::PagNew(size(LegacyLong), 1, cb)))
-    {
+    PropertyHost host(this);
+    auto services = host.Arguments();
+    MMI32 reference;
+    int result = mm_text_argument_ensure(sprm, pv, cb, &reference, &services);
+    host.Rethrow();
+    if (result > 0)
+        *pjv = reference;
+    else
         TrashVar(pjv);
-        return fFalse;
-    }
-
-    // see if it's already there
-    for (iv = _pagcact->IvMac(); iv-- > 0;)
-    {
-        if (_pagcact->FFree(iv))
-            continue;
-        qv = _pagcact->QvGet(iv, &cbT);
-        if (cb != cbT)
-            continue;
-        if (FEqualRgb(qv, pv, cb))
-        {
-            _pagcact->GetFixed(iv, &cact);
-            if (B3Lw(cact) == sprm)
-            {
-                *pjv = iv + 1;
-                AssertIn(cact & 0x00FFFFFFL, 1, 0x00FFFFFFL);
-                cact++;
-                Assert(B3Lw(cact) == sprm, "cact overflowed");
-                _pagcact->PutFixed(iv, &cact);
-                return fTrue;
-            }
-        }
-    }
-
-    // need to add it
-    cact = (((ulong)sprm) << 24) | 1;
-    if (!_pagcact->FAdd(cb, pjv, pv, &cact))
-    {
-        TrashVar(pjv);
-        return fFalse;
-    }
-    (*pjv)++;
-    return fTrue;
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1469,23 +1295,9 @@ bool RichTextDocument::_FEnsureInAg(byte sprm, void *pv, long cb, LegacyLong *pj
 ***************************************************************************/
 void RichTextDocument::_ReleaseInAg(long jv)
 {
-    LegacyLong cact, cactT;
-
-    if (pvNil == _pagcact || !FIn(jv, 1, _pagcact->IvMac() + 1) || _pagcact->FFree(jv - 1))
-    {
-        Bug("bad index into AllocatedGroup");
-        return;
-    }
-
-    _pagcact->GetFixed(jv - 1, &cact);
-    cactT = cact & 0x00FFFFFFL;
-    if (--cactT <= 0)
-        _pagcact->Delete(jv - 1);
-    else
-    {
-        cact--;
-        _pagcact->PutFixed(jv - 1, &cact);
-    }
+    PropertyHost host(this);
+    auto services = host.Arguments();
+    mm_text_argument_ref(jv, 0, &services);
 }
 
 /***************************************************************************
@@ -1493,18 +1305,9 @@ void RichTextDocument::_ReleaseInAg(long jv)
 ***************************************************************************/
 void RichTextDocument::_AddRefInAg(long jv)
 {
-    LegacyLong cact;
-
-    if (pvNil == _pagcact || !FIn(jv, 1, _pagcact->IvMac() + 1) || _pagcact->FFree(jv - 1))
-    {
-        Bug("bad index into AllocatedGroup");
-        return;
-    }
-
-    _pagcact->GetFixed(jv - 1, &cact);
-    AssertIn(cact & 0x00FFFFFFL, 1, 0x00FFFFFFL);
-    ++cact;
-    _pagcact->PutFixed(jv - 1, &cact);
+    PropertyHost host(this);
+    auto services = host.Arguments();
+    mm_text_argument_ref(jv, 1, &services);
 }
 
 /***************************************************************************
@@ -1513,15 +1316,7 @@ void RichTextDocument::_AddRefInAg(long jv)
 ***************************************************************************/
 bool RichTextDocument::_FSprmInAg(byte sprm)
 {
-    if (sprm < sprmMinChpClient || FIn(sprm, sprmMinPap, sprmMinPapClient))
-    {
-        // a base RichTextDocument sprm
-        return sprm == sprmFont;
-    }
-
-    // The sprm is a client or object sprm. Even ones are in the AllocatedGroup, odd
-    // ones aren't. See note in rtxt.h where the sprms are defined.
-    return !(sprm & 1);
+    return mm_text_property_has_argument(sprm) != 0;
 }
 
 /***************************************************************************
@@ -1530,8 +1325,9 @@ bool RichTextDocument::_FSprmInAg(byte sprm)
 ***************************************************************************/
 void RichTextDocument::_ReleaseSprmLw(byte sprm, long lw)
 {
-    if (lw > 0 && _FSprmInAg(sprm))
-        _ReleaseInAg(lw);
+    PropertyHost host(this);
+    auto services = host.Arguments();
+    mm_text_property_ref(sprm, lw, 0, &services);
 }
 
 /***************************************************************************
@@ -1540,8 +1336,9 @@ void RichTextDocument::_ReleaseSprmLw(byte sprm, long lw)
 ***************************************************************************/
 void RichTextDocument::_AddRefSprmLw(byte sprm, long lw)
 {
-    if (lw > 0 && _FSprmInAg(sprm))
-        _AddRefInAg(lw);
+    PropertyHost host(this);
+    auto services = host.Arguments();
+    mm_text_property_ref(sprm, lw, 1, &services);
 }
 
 /***************************************************************************
@@ -1623,10 +1420,10 @@ void RichTextDocument::_ReleaseRgspvm(SPVM *prgspvm, long cspvm)
 {
     AssertIn(cspvm, 0, kcbMax);
     AssertPvCb(prgspvm, LwMul(size(SPVM), cspvm));
-    long ispvm;
-
-    for (ispvm = 0; ispvm < cspvm; ispvm++)
-        _ReleaseSprmLw(prgspvm[ispvm].sprm, prgspvm[ispvm].lw);
+    PropertyHost host(this);
+    host.changes = prgspvm;
+    auto services = host.Properties();
+    mm_text_properties_release(cspvm, &services);
 }
 
 /***************************************************************************
@@ -1639,118 +1436,11 @@ void RichTextDocument::_ApplyRgspvm(long cp, long ccp, SPVM *prgspvm, long cspvm
 {
     AssertIn(cp, 0, CpMac());
     AssertIn(ccp, 1, CpMac() + 1 - cp);
-    MPE mpe, mpeT;
-    long lwRevert, lwLast;
-    long cpLimT, cpLim;
-    long ispvm, impe;
-    SPVM spvm;
-
-    _cpMinChp = _cpLimChp = _cpMinPap = _cpLimPap = 0;
-    cpLim = LwMin(cp + ccp, CpMac());
-    for (ispvm = cspvm; ispvm-- > 0;)
-    {
-        spvm = prgspvm[ispvm];
-        mpe.spcp = _SpcpFromSprmCp(spvm.sprm, cp);
-        mpe.lw = spvm.lw;
-
-        if (!_FFindMpe(mpe.spcp, &mpeT, pvNil, &impe))
-        {
-            // there are no MPE's for this sprm at or before this cp
-            lwRevert = 0;
-            if (mpe.lw != 0)
-            {
-                // add the mpe
-                _AddRefSprmLw(spvm.sprm, mpe.lw);
-                AssertDo(_pglmpe->FInsert(impe++, &mpe), 0);
-            }
-            lwLast = mpe.lw;
-        }
-        else
-        {
-            // see if the MPE we're in the range of starts before this cp
-            // or at it
-            lwRevert = mpeT.lw;
-            if (_CpFromSpcp(mpeT.spcp) < cp)
-            {
-                // before
-                impe++;
-                if (mpe.lw != mpeT.lw)
-                {
-                    // add an mpe
-                    mpeT.lw = mpe.lw | (mpeT.lw & ~spvm.lwMask);
-                    mpeT.spcp = mpe.spcp;
-                    _AddRefSprmLw(spvm.sprm, mpeT.lw);
-                    AssertDo(_pglmpe->FInsert(impe++, &mpeT), 0);
-                }
-                lwLast = mpeT.lw;
-            }
-            else
-            {
-                // at it - get the valid lwLast value
-                Assert(_CpFromSpcp(mpeT.spcp) == cp, 0);
-                lwLast = 0;
-                if (impe > 0)
-                {
-                    _pglmpe->Get(impe - 1, &mpeT);
-                    if (_SprmFromSpcp(mpeT.spcp) == spvm.sprm)
-                        lwLast = mpeT.lw;
-                }
-            }
-        }
-        _AddRefSprmLw(spvm.sprm, lwRevert);
-
-        // adjust all mpe's before cpLim
-        for (;;)
-        {
-            if (impe >= _pglmpe->IvMac())
-                goto LEndOfSprm;
-            _pglmpe->Get(impe, &mpeT);
-            if (_SprmFromSpcp(mpeT.spcp) != spvm.sprm)
-            {
-            LEndOfSprm:
-                cpLimT = CpMac();
-                break;
-            }
-            if ((cpLimT = _CpFromSpcp(mpeT.spcp)) >= cpLim)
-            {
-                // see if this MPE can be deleted
-                if (cpLimT == cpLim && lwLast == mpeT.lw)
-                {
-                    _ReleaseSprmLw(spvm.sprm, mpeT.lw);
-                    _pglmpe->Delete(impe);
-                }
-                break;
-            }
-
-            // modify the mpeT
-            _ReleaseSprmLw(spvm.sprm, lwRevert);
-            lwRevert = mpeT.lw;
-            mpeT.lw = mpe.lw | (mpeT.lw & ~spvm.lwMask);
-            // note: the ref count for this MPE was transferred to lwRevert,
-            // so a _ReleaseSprmLw call is not needed after the Delete and Put
-            // below
-            if (lwLast == mpeT.lw)
-                _pglmpe->Delete(impe);
-            else
-            {
-                _AddRefSprmLw(spvm.sprm, mpeT.lw);
-                _pglmpe->Put(impe++, &mpeT);
-                lwLast = mpeT.lw;
-            }
-        }
-
-        Assert(cpLimT >= cpLim, 0);
-        if (cpLimT > cpLim && lwRevert != lwLast)
-        {
-            // add another mpe at cpLim with lwRevert
-            mpeT.spcp = _SpcpFromSprmCp(spvm.sprm, cpLim);
-            mpeT.lw = lwRevert;
-            AssertDo(_pglmpe->FInsert(impe, &mpeT), 0);
-        }
-        else
-            _ReleaseSprmLw(spvm.sprm, lwRevert);
-        _ReleaseSprmLw(spvm.sprm, spvm.lw);
-    }
+    PropertyHost host(this);
+    host.changes = prgspvm;
+    auto services = host.Properties();
+    mm_text_properties_apply(cp, ccp, CpMac(), cspvm, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************

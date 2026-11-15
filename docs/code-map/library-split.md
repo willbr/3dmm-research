@@ -1760,6 +1760,51 @@ physical providers, document/view/parent lifecycle and final C-only host/facade
 removal remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
 
+### Rich-text property maps and argument references
+
+`text_properties.c` controls sorted property lookup/range fetching, masked range
+application, boundary adjustment after text edits, argument interning and reference
+counts. Native hosts supply typed collection primitives, cache slots, borrowed
+change records and paragraph-end queries over the already edited stream. Change
+records are converted one at a time without adding an allocation to native edits.
+
+Lookup preserves predecessor/insertion-index and next-boundary behavior; missing
+fetches leave outputs untouched. The native wrapper retains debug poisoning for a
+missing map entry. Applying changes clears both property caches, processes changes
+backward, merges masks, removes redundant boundaries and restores the value after
+the changed range. Reference ownership moves between entries and the saved revert
+value; each input change reference is consumed once. Releasing an unused batch
+processes its references forward. Callers still reserve twice the change count;
+ordinary insert failure retains the legacy diagnostic-and-continue policy.
+
+Boundary adjustment uses the new stream after replacement. Character properties
+at the deleted interval collapse to the insertion end. Paragraph properties that
+begin at the edit stay at its start; others move to the next paragraph unless a
+surviving boundary already covers it. Object entries in the half-open deleted
+range release their arguments and disappear. Entries after the interval shift.
+Partial mutations remain when a paragraph/insert service returns an exception;
+rethrow occurs after C returns, with no rollback added.
+
+Interning scans backward, skips free slots and matches payload bytes and property
+kind before incrementing a shared reference. New records keep one-based references
+and native slot-reuse behavior. Built-in properties use arguments only for fonts;
+even client/object kinds use arguments, including client paragraph kinds. Invalid
+indices diagnose without mutating the group, while the legacy count/overflow
+assertions remain diagnostic services. A newly created argument group publishes
+immediately and remains document-owned after later insertion failure.
+
+The headless engine fixture freezes original native/SDL lookup outputs, property
+maps, logical argument bytes/counts, cache invalidation and stream contents across
+masked applications and boundary edits. C-only tests compare masked changes against
+a character-by-character value model and edit adjustment against an independent
+per-kind reconstruction. They also cover all 256 kind classifications, backward
+matching, holes, reference transfers and fallible creation/insertion/paragraph
+queries. Character/paragraph value conversion, property copying, remaining text
+replacement/edit/undo control, help-document argument extensions, native output
+storage, physical providers, document/view/parent lifecycle and final C-only
+host/facade removal remain work. Evidence and platform limits are in
+`docs/tools/playback-regression.md`.
+
 ### Movie scene-container control and undo
 
 `movie_scene.c` owns the current scene reference/index and the control flow for
