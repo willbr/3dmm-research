@@ -1118,7 +1118,7 @@ world XYZ, actor ID, current action/cel indices, lifetime and template source/ch
 Original coordinates are retained. Selection uses viewport picking, the list or
 the timeline.
 
-Select a visible prop while paused to show its world-axis translation handles.
+Select a visible actor, prop or 3D text while paused to show its world-axis translation handles.
 Drag an axis or plane to move it; hold Ctrl for a one-world-unit snap.
 Arrows retain the real positive world-axis directions. Foreshortened arrows have
 a minimum pickable length along their actual projection; exactly end-on axes
@@ -1134,36 +1134,40 @@ Non-finite coordinates also retain the last valid value. Releasing commits the
 limited pose.
 The World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
 coordinate. Escape cancels the current move, and losing window focus cancels it.
-The prop updates live; releasing the handle or finishing a field commits one
+The selected object updates live; releasing the handle or finishing a field commits one
 move to the session. The placement commits in the live scene without copying
 or reopening the movie, seeking, restarting a timing helper, or clearing the
 duration, animation, caption and waveform caches. Undoing a placement on the same
 base movie also keeps those caches. The current frame and inspection framing
-are retained. Orbit selection keeps its camera and pivot fixed while placing a
-prop, including release, cancellation and undo. Animation playback still follows
+are retained. Orbit selection keeps its camera and pivot fixed while placing an
+object, including release, cancellation and undo. Animation playback still follows
 the selected object's posed bounds; refitting explicitly recenters the view.
 Native private snapshots are materialized lazily for frame/camera thumbnail
 helpers and structural edits. In the x86 ASM renderer, live and committed
 placements use the same existing worker over IPC, retaining its orbit framing
-throughout a drag; moving a prop does not restart that worker.
+throughout a drag; moving an object does not restart that worker.
 
 Gizmo and position-field input is applied before rendering either viewport, so
-the prop and its handles use the current drag update in the same presented frame.
-The loop skips its 10 ms idle pause during a prop interaction, and holding a
+the object and its handles use the current drag update in the same presented frame.
+The loop skips its 10 ms idle pause during a placement interaction, and holding a
 stationary handle no longer triggers redundant scene renders.
 
 A headless Debug-build check on 15 November 2026 measured 100 release commits at
 0.008 ms median and 0.100 ms maximum on the synthetic two-scene fixture. These
 measure commit work, excluding scene rendering. It also verifies that duration
 is immediately available after every commit and undo, rather than reanalyzed.
+Headless movement checks also cover animated actors and 3D text: preview/cancel,
+undo, unchanged poses and timing, whole-path offsets across frames, scene
+isolation, reload and native thumbnail materialization, with portable and ASM
+CPU rendering. No application UI input is simulated.
 
-A move offsets the prop's entire track in this scene, preserving its animation,
+A move offsets the object's entire track in this scene, preserving its animation,
 costumes, route shape and lifetime. Other scenes that share its actor chunk keep
-their original placement. Actors, 3D text and off-stage props are read-only.
+their original placement. Off-stage objects are read-only.
 Coordinates are limited to +/-32700 world units. Original movies, ZIPs and content
 archives remain unchanged. These session edits still have no Save/Export command.
 
-Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed prop move, prop insertion,
+Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, prop insertion,
 camera change or new scene. Each drag or completed position-field edit is one
 step. Up to 64 steps are retained in the current session, including after a
 resource reload. Undo restores the movie and the pre-edit scene/frame, retaining
@@ -1175,7 +1179,7 @@ field's local text undo. Original movie and content files remain unchanged.
 
 ## Current limits
 
-- Scene creation, camera changes, prop insertion and prop translation are session
+- Scene creation, camera changes, prop insertion and object translation are session
   edits in a private working copy. Movie save/export commands are not implemented.
 - Actor/prop animation, costume changes, 3D text, authored cameras and
   prerendered backgrounds/depth use the existing preview evaluator.

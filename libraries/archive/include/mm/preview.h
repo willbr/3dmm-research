@@ -201,9 +201,9 @@ class Preview
     std::vector<PreviewObject> Objects() const;
     // Current posed bounds in actor-local axes, transformed with the actor.
     // An off-stage actor succeeds with invalid bounds.
-    // Temporary, silent whole-track translation of a visible prop.
+    // Temporary, silent whole-track translation of an actor, prop or 3D text.
     bool TranslateObject(int object, const float delta[3], Error &error);
-    // Idempotent placement relative to the loaded actor header, including off-stage props.
+    // Idempotent placement relative to the loaded actor header, including off-stage objects.
     bool SetObjectOffset(int object, const float offset[3], Error &error);
     bool ObjectBounds(int object, PreviewBounds &bounds, Error &error);
     // Evaluate a private track copy; leaves live frame, pose and sounds unchanged.

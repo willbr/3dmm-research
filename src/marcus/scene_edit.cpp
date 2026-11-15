@@ -343,7 +343,7 @@ std::shared_ptr<MarcusMovieFile> MarcusPlaceProps(const std::filesystem::path &s
     String path;
     Filename filename;
     path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
-    Require(filename.FBuildFromPath(&path), "The prop working path is not supported.");
+    Require(filename.FBuildFromPath(&path), "The object working path is not supported.");
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
     Require(bool(file), "Cannot open the movie working file.");
     for (const auto &placement : placements)
@@ -354,29 +354,29 @@ std::shared_ptr<MarcusMovieFile> MarcusPlaceProps(const std::filesystem::path &s
         bool found = false;
         for (LegacyLong index = 0; file->FGetKid(kctgScen, scene, index, &link); ++index)
             if (link.cki.ctg == kctgActr && link.cki.cno == actor) { found = true; break; }
-        Require(found, "The selected prop does not belong to this scene.");
+        Require(found, "The selected object does not belong to this scene.");
         DataBlock block;
         ActorChunkOnFile header;
-        Require(file->FFind(kctgActr, actor, &block) && ActorData::FReadHeader(&block, &header), "Cannot read the prop placement.");
+        Require(file->FFind(kctgActr, actor, &block) && ActorData::FReadHeader(&block, &header), "Cannot read the object placement.");
         BRS *position[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
         for (int axis = 0; axis < 3; ++axis)
         {
             const double value = double(BrScalarToFloat(*position[axis])) + delta[axis];
-            Require(std::isfinite(value) && std::abs(value) <= 32700, "The prop placement is out of range.");
+            Require(std::isfinite(value) && std::abs(value) <= 32700, "The object placement is out of range.");
             *position[axis] = BrFloatToScalar(static_cast<float>(value));
         }
         // Scene instances can share an ACTR. Copy its root while retaining immutable
         // route, event, template and costume children and the original scene slot.
         ChunkNumber number;
         Require(file->FAdd(sizeof(header), kctgActr, &number) && ActorData::FWriteHeader(file.get(), number, &header),
-                "Cannot write the prop placement.");
+                "Cannot write the object placement.");
         for (LegacyLong index = 0; file->FGetKid(kctgActr, actor, index, &child); ++index)
-            Require(file->FAdoptChild(kctgActr, number, child.cki.ctg, child.cki.cno, child.chid), "Cannot retain the prop animation.");
+            Require(file->FAdoptChild(kctgActr, number, child.cki.ctg, child.cki.cno, child.chid), "Cannot retain the object animation.");
         file->DeleteChild(kctgScen, scene, kctgActr, actor, link.chid);
-        Require(file->FAdoptChild(kctgScen, scene, kctgActr, number, link.chid), "Cannot link the moved prop.");
+        Require(file->FAdoptChild(kctgScen, scene, kctgActr, number, link.chid), "Cannot link the moved object.");
         if (file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
             file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
     }
-    Require(file->FSave(kctgSoc), "Cannot save the prop working copy.");
+    Require(file->FSave(kctgSoc), "Cannot save the object working copy.");
     return result;
 }

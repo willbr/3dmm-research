@@ -464,10 +464,10 @@ bool Preview::TranslateObject(int object, const float delta[3], Error &error)
     error = {};
     if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !delta)
-        return Fail(error, ErrorCode::invalid_argument, "Select a visible prop and a position within +/-32700 world units.");
+        return Fail(error, ErrorCode::invalid_argument, "Select a visible object and a position within +/-32700 world units.");
     const auto before = _impl->actors[object]->Snapshot();
     if (!_impl->actors[object]->Translate(delta))
-        return Fail(error, ErrorCode::invalid_argument, "Select a visible prop and a position within +/-32700 world units.");
+        return Fail(error, ErrorCode::invalid_argument, "Select a visible object and a position within +/-32700 world units.");
     _impl->PreserveOrbitForPlacement(object, before);
     return true;
 }
@@ -476,10 +476,10 @@ bool Preview::SetObjectOffset(int object, const float offset[3], Error &error)
     error = {};
     if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !offset)
-        return Fail(error, ErrorCode::invalid_argument, "The prop placement is out of range.");
+        return Fail(error, ErrorCode::invalid_argument, "The object placement is out of range.");
     const auto before = _impl->actors[object]->Snapshot();
     if (!_impl->actors[object]->SetOffset(offset))
-        return Fail(error, ErrorCode::invalid_argument, "The prop placement is out of range.");
+        return Fail(error, ErrorCode::invalid_argument, "The object placement is out of range.");
     _impl->PreserveOrbitForPlacement(object, before);
     return true;
 }

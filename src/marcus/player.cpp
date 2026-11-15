@@ -166,7 +166,7 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MarcusPlayer::Placem
     for (std::size_t index = 0; index < objects.size(); ++index)
     {
         const auto &object = objects[index];
-        if (!object.prop || object.text || !object.hasLifetime) continue;
+        if (!object.hasLifetime) continue;
         const auto found = placements.find({player.scenes[scene].number, object.asset.number});
         if (!player.preview.SetObjectOffset(static_cast<int>(index), found == placements.end() ? zero : found->second.data(), error))
             return false;
@@ -197,8 +197,8 @@ bool MarcusApplyPropOffsets(MarcusPlayer *player, const std::vector<MarcusASM::P
     for (const auto &offset : offsets)
     {
         if (offset.object <= previous || offset.object < 0 || static_cast<std::size_t>(offset.object) >= player->objects.size() ||
-            !player->objects[offset.object].prop || player->objects[offset.object].text)
-        { error.message = "Invalid ASM prop placement."; return false; }
+            !player->objects[offset.object].hasLifetime)
+        { error.message = "Invalid ASM object placement."; return false; }
         previous = offset.object;
     }
     const float zero[3] = {};
@@ -206,7 +206,7 @@ bool MarcusApplyPropOffsets(MarcusPlayer *player, const std::vector<MarcusASM::P
     for (std::size_t index = 0; index < player->objects.size(); ++index)
     {
         const auto &object = player->objects[index];
-        if (!object.prop || object.text || !object.hasLifetime) continue;
+        if (!object.hasLifetime) continue;
         const bool placed = next < offsets.size() && offsets[next].object == static_cast<int>(index);
         if (!player->preview.SetObjectOffset(static_cast<int>(index), placed ? offsets[next].offset : zero, error)) return false;
         if (placed) ++next;
@@ -811,14 +811,14 @@ extern "C"
         return ok ? result : -1;
     }
     unsigned long marcus_document(const MarcusPlayer *player) { return player ? player->document : 0; }
-    int marcus_preview_prop_position(MarcusPlayer *player, int object, float x, float y, float z)
+    int marcus_preview_object_position(MarcusPlayer *player, int object, float x, float y, float z)
     {
         return Guard(player, [&](MM::Error &error) {
             MarcusObject before;
-            if (!marcus_object(player, object, &before) || !before.prop || before.text || !before.visible ||
+            if (!marcus_object(player, object, &before) || !before.visible ||
                 !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
                 std::abs(x) > 32700 || std::abs(y) > 32700 || std::abs(z) > 32700)
-            { error.message = "Select a visible prop and a position within +/-32700 world units."; return false; }
+            { error.message = "Select a visible object and a position within +/-32700 world units."; return false; }
             const float delta[3] = {x - before.x, y - before.y, z - before.z};
             if (delta[0] == 0 && delta[1] == 0 && delta[2] == 0) return true;
             const auto inserted = player->propPreviews.emplace(object, player->objects[object]);
@@ -836,14 +836,14 @@ extern "C"
             return true;
         });
     }
-    int marcus_move_prop(MarcusPlayer *player, int object, float x, float y, float z)
+    int marcus_move_object(MarcusPlayer *player, int object, float x, float y, float z)
     {
         return Guard(player, [&](MM::Error &error) {
             MarcusObject current;
-            if (!marcus_object(player, object, &current) || !current.prop || current.text || !current.visible ||
+            if (!marcus_object(player, object, &current) || !current.visible ||
                 !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
                 std::abs(x) > 32700 || std::abs(y) > 32700 || std::abs(z) > 32700)
-            { error.message = "Select a visible prop and a position within +/-32700 world units."; return false; }
+            { error.message = "Select a visible object and a position within +/-32700 world units."; return false; }
             const auto preview = player->propPreviews.find(object);
             const auto &before = preview == player->propPreviews.end() ? player->objects[object] : preview->second;
             const float delta[3] = {x - before.x, y - before.y, z - before.z};
@@ -871,6 +871,29 @@ extern "C"
             player->movieImageScene = -1;
             ++player->document;
             history.Commit();
+            return true;
+        });
+    }
+    // Retain the narrower prop-only C API for existing callers.
+    int marcus_preview_prop_position(MarcusPlayer *player, int object, float x, float y, float z)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MarcusObject prop;
+            if (!marcus_object(player, object, &prop) || !prop.prop || prop.text)
+            { error.message = "Select a visible prop to move."; return false; }
+            if (!marcus_preview_object_position(player, object, x, y, z))
+            { error.message = player->error; return false; }
+            return true;
+        });
+    }
+    int marcus_move_prop(MarcusPlayer *player, int object, float x, float y, float z)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MarcusObject prop;
+            if (!marcus_object(player, object, &prop) || !prop.prop || prop.text)
+            { error.message = "Select a visible prop to move."; return false; }
+            if (!marcus_move_object(player, object, x, y, z))
+            { error.message = player->error; return false; }
             return true;
         });
     }

@@ -2917,7 +2917,7 @@ static void draw_object_properties(App *app, float offset)
     ui_heading(ui, app->sidebar + 18, offset + 340, "OBJECT PROPERTIES", MUTED);
     if (!app->loaded || app->selected < 0 || !marcus_object(app->player, app->selected, &object))
     {
-        ui_text(ui, app->sidebar + 18, offset + 377, "Select an actor or prop", TEXT);
+        ui_text(ui, app->sidebar + 18, offset + 377, "Select an object", TEXT);
         ui_text(ui, app->sidebar + 18, offset + 401, "in the object list or timeline.", MUTED);
         return;
     }

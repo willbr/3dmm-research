@@ -42,7 +42,7 @@ struct MarcusPropGizmo
     int Restore()
     {
         if (!editing || !SameContext()) return 0;
-        return marcus_preview_prop_position(player, object, original[0], original[1], original[2]) ? 1 : -1;
+        return marcus_preview_object_position(player, object, original[0], original[1], original[2]) ? 1 : -1;
     }
 };
 
@@ -118,7 +118,7 @@ void prop_gizmo_begin(MarcusPropGizmo *gizmo, MarcusPlayer *player, int object, 
     MarcusObject prop;
     MarcusInfo info;
     const bool eligible = enabled && player && marcus_object(player, object, &prop) &&
-        prop.prop && !prop.text && prop.visible && marcus_info(player, &info);
+        prop.visible && marcus_info(player, &info);
     if (gizmo->editing && (!eligible || player != gizmo->player || object != gizmo->object || !gizmo->SameContext()))
     {
         gizmo->changed = player == gizmo->player ? gizmo->Restore() : 0;
@@ -182,7 +182,7 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
     if (moved) std::copy(matrix + 12, matrix + 15, gizmo->value);
     gizmo->over = ImGuizmo::IsOver();
     if (gizmo->over && !gizmo->editing)
-        ImGui::SetTooltip("Drag an axis or plane to move the prop. Ctrl snaps to 1 unit. Escape cancels.");
+        ImGui::SetTooltip("Drag an axis or plane to move the object. Ctrl snaps to 1 unit. Escape cancels.");
     if (gizmo->editing == 1 && !ImGuizmo::IsUsing()) gizmo->finish = true;
     draw->PopClipRect();
 }
@@ -195,7 +195,7 @@ int prop_gizmo_properties(MarcusPropGizmo *gizmo, float x, float y, const SDL_Re
     gizmo->fields = true;
     ImGui::SetNextWindowPos(ImVec2(x, top));
     ImGui::SetNextWindowSize(ImVec2(162, bottom - top));
-    ImGui::Begin("Prop position", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
+    ImGui::Begin("Object position", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav |
         ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
     ImGui::BeginDisabled(gizmo->editing == 1);
@@ -240,7 +240,7 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
                 std::abs(gizmo->value[2] - gizmo->original[2]) > .00002f;
             if (moved)
             {
-                if (marcus_move_prop(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2])) result = 2;
+                if (marcus_move_object(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2])) result = 2;
                 else { gizmo->StoreError(); gizmo->Restore(); result = -1; }
             }
             else result = gizmo->Restore();
@@ -248,7 +248,7 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
         }
         else if (!std::equal(gizmo->value, gizmo->value + 3, gizmo->applied))
         {
-            if (marcus_preview_prop_position(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2]))
+            if (marcus_preview_object_position(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2]))
             {
                 std::copy(gizmo->value, gizmo->value + 3, gizmo->applied);
                 result = 1;
@@ -267,4 +267,4 @@ void prop_gizmo_end(MarcusPropGizmo *gizmo)
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), gizmo->renderer);
 }
 
-const char *prop_gizmo_error(const MarcusPropGizmo *gizmo) { return gizmo ? gizmo->error : "Prop controls are unavailable."; }
+const char *prop_gizmo_error(const MarcusPropGizmo *gizmo) { return gizmo ? gizmo->error : "Object controls are unavailable."; }

@@ -93,6 +93,98 @@ int main(int argc, char **argv)
                 check(std::equal(original.begin(), original.end(), image.rgba), "Undo restores held-orbit image");
             }
 
+        // Exercise the same placement journal for animated actors and 3D text.
+        // These checks use only the headless player API, not application input.
+        auto exerciseObject = [&](int objectIndex, int renderer) {
+            open();
+            check(marcus_set_renderer(player.get(), renderer), "Select object movement renderer");
+            const MarcusRenderOptions options = {};
+            check(marcus_set_render_options(player.get(), &options), "Reset object render options");
+            const long frames[] = {1, 10, 20};
+            MarcusObject poses[3] = {};
+            for (int i = 0; i < 3; ++i)
+                check(marcus_seek(player.get(), frames[i]) && marcus_object(player.get(), objectIndex, &poses[i]), "Read original object path");
+            check(marcus_select_scene(player.get(), 1) && marcus_seek(player.get(), 10), "Read other object scene");
+            MarcusObject otherScene;
+            check(marcus_object(player.get(), objectIndex, &otherScene), "Read shared object placement");
+            check(marcus_select_scene(player.get(), 0) && marcus_seek(player.get(), 10) &&
+                  marcus_movie_time(player.get(), &timing), "Restore object edit frame");
+            const auto start = poses[1];
+            check(start.visible && (objectIndex == 0 ? !start.prop && !start.text : start.text != 0), "Actor/text fixture types");
+            check(marcus_set_orbit_target(player.get(), objectIndex), "Orbit object before placement");
+            auto render = [&] { check(marcus_render(player.get(), 160, 90, 0, 25, -10, 1.2f, &image), "Render moved object"); };
+            render();
+            const auto camera = image.projection;
+            const std::vector<unsigned char> original(image.rgba, image.rgba + image.pitch * image.height);
+            auto cameraHeld = [&] {
+                for (int i = 0; i < 12; ++i)
+                    check(std::abs(image.projection.transform[i] - camera.transform[i]) < .0001f, "Actor/text placement retains camera");
+            };
+            const float delta[3] = {3.5f, -1.25f, 2.75f};
+            const float target[3] = {start.x + delta[0], start.y + delta[1], start.z + delta[2]};
+            MarcusBounds initialBounds, movedBounds;
+            check(marcus_object_bounds(player.get(), objectIndex, &initialBounds) && initialBounds.valid, "Original actor/text bounds");
+            check(marcus_preview_object_position(player.get(), objectIndex, target[0], target[1], target[2]), "Preview actor/text placement");
+            check(marcus_object_bounds(player.get(), objectIndex, &movedBounds) && movedBounds.valid, "Moved actor/text bounds");
+            for (int i = 0; i < 24; ++i)
+                check(std::abs(movedBounds.corners[i] - initialBounds.corners[i] - delta[i % 3]) < .001f,
+                      "Actor/text bounds translate without changing pose");
+            render(); cameraHeld();
+            // Scenery can occlude this object from the inspection angle;
+            // posed bounds above verify translation even when pixels match.
+            check(marcus_preview_object_position(player.get(), objectIndex, start.x, start.y, start.z), "Cancel actor/text placement");
+            render(); cameraHeld();
+            check(std::equal(original.begin(), original.end(), image.rgba), "Cancelled actor/text image restored");
+            check(!marcus_preview_object_position(player.get(), -1, 0, 0, 0) &&
+                  !marcus_preview_object_position(player.get(), objectIndex, 1e30f, 0, 0), "Reject invalid object placement");
+            check(marcus_preview_object_position(player.get(), objectIndex, target[0], target[1], target[2]) &&
+                  marcus_move_object(player.get(), objectIndex, target[0], target[1], target[2]), "Commit actor/text placement");
+            render(); cameraHeld();
+            check(marcus_movie_time_async(player.get(), &after) == 1 && after.duration_seconds == timing.duration_seconds,
+                  "Actor/text placement retains duration cache");
+            for (int i = 0; i < 3; ++i)
+            {
+                MarcusObject moved;
+                check(marcus_seek(player.get(), frames[i]) && marcus_object(player.get(), objectIndex, &moved), "Read moved object path");
+                check(moved.visible == poses[i].visible && moved.action == poses[i].action && moved.cel == poses[i].cel &&
+                      moved.first_frame == poses[i].first_frame && moved.last_frame == poses[i].last_frame,
+                      "Actor/text placement retains animation and lifetime");
+                if (moved.visible)
+                    check(std::abs(moved.x - poses[i].x - delta[0]) < .001f &&
+                          std::abs(moved.y - poses[i].y - delta[1]) < .001f &&
+                          std::abs(moved.z - poses[i].z - delta[2]) < .001f, "Whole actor/text path remains translated");
+            }
+            check(marcus_select_scene(player.get(), 1) && marcus_seek(player.get(), 10) &&
+                  marcus_object(player.get(), objectIndex, &object) && std::abs(object.x - otherScene.x) < .001f &&
+                  std::abs(object.y - otherScene.y) < .001f && std::abs(object.z - otherScene.z) < .001f, "Actor/text edit stays scene-local");
+            check(marcus_select_scene(player.get(), 0) && marcus_seek(player.get(), 10) &&
+                  marcus_reload(player.get(), argv[2], argv[3]) && marcus_seek(player.get(), 10) &&
+                  marcus_object(player.get(), objectIndex, &object) && std::abs(object.x - target[0]) < .001f &&
+                  std::abs(object.y - target[1]) < .001f && std::abs(object.z - target[2]) < .001f, "Reload retains actor/text journal");
+            if (renderer == MARCUS_RENDERER_BRENDER)
+            {
+                check(marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "Authored moved actor/text image");
+                const std::vector<unsigned char> expected(image.rgba, image.rgba + image.pitch * image.height);
+                std::unique_ptr<MarcusFramePreviews, decltype(&marcus_frame_previews_destroy)> helper(
+                    marcus_frame_previews_create(player.get()), marcus_frame_previews_destroy);
+                check(bool(helper), "Materialize actor/text placement");
+                const long frame = 10;
+                marcus_frame_previews_request(helper.get(), &frame, 1);
+                char error[1024] = {};
+                int ready = 0;
+                const auto deadline = Clock::now() + std::chrono::seconds(15);
+                while (!(ready = marcus_frame_previews_take(helper.get(), &image, error, sizeof(error))) && Clock::now() < deadline)
+                    SDL_Delay(5);
+                check(ready == 1 && image.width == 160 && image.height == 90 &&
+                      std::equal(expected.begin(), expected.end(), image.rgba), "Native helper retains actor/text placement and template");
+            }
+            check(marcus_undo(player.get()) && marcus_object(player.get(), objectIndex, &object) &&
+                  std::abs(object.x - start.x) < .001f && std::abs(object.y - start.y) < .001f &&
+                  std::abs(object.z - start.z) < .001f && !marcus_modified(player.get()), "Undo restores actor/text placement");
+        };
+        exerciseObject(0, MARCUS_RENDERER_BRENDER);
+        exerciseObject(3, MARCUS_RENDERER_BRENDER);
+
         // The same ACTR is shared by two scenes. Baking a snapshot for a helper
         // or a structural edit must retain both independent scene placements.
         open();
@@ -177,8 +269,10 @@ int main(int argc, char **argv)
                   std::equal(moved.begin(), moved.end(), image.rgba), "Repeated IPC placement must not accumulate");
             check(marcus_undo(player.get()) && marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image) &&
                   std::equal(original.begin(), original.end(), image.rgba), "ASM placement undo restores exact image");
+            exerciseObject(0, MARCUS_RENDERER_BRENDER_ASM);
+            exerciseObject(3, MARCUS_RENDERER_BRENDER_ASM);
         }
-        std::puts("Prop moves/undo retain timing; scene isolation, helper materialization, structural edits, reload and ASM passed");
+        std::puts("Actor/prop/text moves and undo retain timing; scene isolation, helper materialization, structural edits, reload and ASM passed");
         return 0;
     }
     catch (const std::exception &error) { std::fprintf(stderr, "%s\n", error.what()); return 1; }

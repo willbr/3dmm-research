@@ -434,7 +434,7 @@ PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
 }
 bool PreviewActor::Translate(const float delta[3])
 {
-    if (!body || !tmpl || !tmpl->FIsProp() || tmpl->FIsTdt()) return false;
+    if (!body || !tmpl) return false;
     BRS *origin[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
     BRS *translation[3] = {&state.routeTranslation.dxr, &state.routeTranslation.dyr, &state.routeTranslation.dzr};
     BRS nextOrigin[3], nextTranslation[3];
@@ -455,7 +455,7 @@ bool PreviewActor::Translate(const float delta[3])
 }
 bool PreviewActor::SetOffset(const float offset[3])
 {
-    if (!body || !tmpl || !tmpl->FIsProp() || tmpl->FIsTdt()) return false;
+    if (!body || !tmpl) return false;
     BRS *origin[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
     BRS *translation[3] = {&state.routeTranslation.dxr, &state.routeTranslation.dyr, &state.routeTranslation.dzr};
     // Unedited retail placements must not be re-quantized or subjected to
