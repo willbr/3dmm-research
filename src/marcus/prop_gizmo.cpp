@@ -172,6 +172,7 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
     ImGuizmo::SetDrawlist(draw);
     ImGuizmo::SetRect(rect.x, rect.y, rect.w, rect.h);
     ImGuizmo::SetOrthographic(image->projection.orthographic != 0);
+    ImGuizmo::SetKeepTranslationAxesVisible(true);
     const float snap[3] = {1, 1, 1};
     const bool moved = ImGuizmo::Manipulate(view, projection, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, matrix,
                                            nullptr, ImGui::GetIO().KeyCtrl ? snap : nullptr);

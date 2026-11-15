@@ -1119,8 +1119,12 @@ Original coordinates are retained. Selection uses viewport picking, the list or
 the timeline.
 
 Select a visible prop while paused to show its world-axis translation handles.
-Drag an axis or plane to move it; hold Ctrl for a one-world-unit snap. The
-World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
+Drag an axis or plane to move it; hold Ctrl for a one-world-unit snap.
+When an axis points into the camera, the gizmo keeps it available as a short,
+labelled depth arrow attached to the prop's gizmo. Drag along that arrow to move
+in its positive world direction, or against it to move in the negative direction.
+The drag uses a fixed world scale and avoids parallel ray/plane intersections.
+The World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
 coordinate. Escape cancels the current move, and losing window focus cancels it.
 The prop updates live; releasing the handle or finishing a field commits one
 move to the session. The placement commits in the live scene without copying
