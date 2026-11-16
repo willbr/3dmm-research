@@ -32,6 +32,20 @@ extern "C"
     void mm_text_case_bytes(char *, size_t, int upper);
     void mm_text_case_utf16(unsigned short *, size_t, int upper);
     int mm_text_compare(const void *, size_t, const void *, size_t, int wide, int ignore_case);
+    typedef struct MMTextCompareHost {
+        void *context;
+        /* Ranked result: 0 failure, 1 less, 2 equal, 3 greater. */
+        int (*compare)(void *, const void *, size_t, const void *, size_t, int wide, int ignore_case);
+    } MMTextCompareHost;
+    /* Empty counts precede the native signed-32-bit count limit. Null host uses
+     * portable collation. Return -1/0/+1, or 2 on native failure/count overflow. */
+    int mm_text_compare_host(const MMTextCompareHost *, const void *, size_t, const void *, size_t, int wide, int ignore_case);
+    typedef struct MMTextCaseMaps { char upper[256], lower[256]; } MMTextCaseMaps;
+    /* Host owns initialization synchronization/publication. Map callbacks run
+     * upper then lower after both identity arrays are filled. Null uses portable
+     * case rules. Mapping a whole multibyte buffer remains a distinct operation. */
+    void mm_text_case_maps_init(MMTextCaseMaps *, void *context, void (*map)(void *, char *, size_t, int upper));
+    void mm_text_case_maps_apply(const MMTextCaseMaps *, char *, size_t, int upper);
 #ifdef __cplusplus
 }
 #endif

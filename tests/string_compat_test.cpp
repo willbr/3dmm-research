@@ -6,6 +6,7 @@
 #include <cstring>
 #include <initializer_list>
 #include "string_format_cases.h"
+#include "string_ops_cases.h"
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error String data readers must compile without Windows SDK headers
 #endif
@@ -14,12 +15,14 @@ static bool formatBugExpected;
 static unsigned formatBugs;
 static achar *formatStorage;
 static const char *formatPattern;
+static bool longStringExpected;
 void WarnProc(schar *file, LegacyLong line, schar *message)
 {
     std::fprintf(stderr, "%s:%" LEGACY_PRId ": %s\n", file, line, message);
 }
 bool FAssertProc(schar *file, LegacyLong line, schar *message, void *, LegacyLong)
 {
+    if (longStringExpected && !std::strcmp(message, "sz too long")) return false;
     if (formatBugExpected && !std::strcmp(message, "bad format string")) {
         const auto prefix = std::strchr(formatPattern, '%') - formatPattern;
         if (formatStorage[0] != 8 || std::memcmp(formatStorage + 1, formatPattern, prefix)) std::exit(1);
@@ -166,6 +169,80 @@ static void CheckStringFormatting()
     std::printf("String format fingerprint: %08X\n", valueHash);
     Check(valueHash == 0x086D60CBu);
 }
+static void OpsWord(void *, MMU32 value) { ValueWord(value); }
+static int OpsValid(void *, unsigned char *value, int terminated)
+{
+    return terminated ? FValidStz(reinterpret_cast<achar *>(value)) : FValidSt(reinterpret_cast<achar *>(value));
+}
+static MMU32 OpsLength(void *, unsigned char *value)
+{
+    longStringExpected = true;
+    const auto count = CchSz(reinterpret_cast<achar *>(value));
+    longStringExpected = false;
+    return count;
+}
+static int OpsEqual(void *, unsigned char *a, MMI32 na, unsigned char *b, MMI32 nb)
+{
+    return FEqualRgch(reinterpret_cast<achar *>(a), na, reinterpret_cast<achar *>(b), nb);
+}
+static MMU32 OpsCompare(void *, unsigned char *a, MMI32 na, unsigned char *b, MMI32 nb)
+{
+    return FcmpCompareRgch(reinterpret_cast<achar *>(a), na, reinterpret_cast<achar *>(b), nb);
+}
+static MMU32 OpsFlags(void *, unsigned value) { return GrfchFromCh(static_cast<achar>(value)); }
+static void CheckStringOperations()
+{
+    valueHash = 2166136261u;
+    const auto path = std::getenv("MM_STRING_OPS_SNAPSHOT");
+    valueTrace = path ? std::fopen(path, "wb") : nullptr;
+    Check(!path || valueTrace);
+    const StringOpsCases cases = {nullptr, OpsWord, OpsValid, OpsLength, OpsEqual, OpsCompare, OpsFlags};
+    string_ops_cases(&cases);
+    if (valueTrace) Check(std::fclose(valueTrace) == 0);
+    valueTrace = nullptr;
+    std::printf("String ops fingerprint: %08X\n", valueHash);
+    if (achar(-1) < 0) Check(valueHash == 0xDEBC3794u);
+    valueHash = 2166136261u;
+    const auto userPath = std::getenv("MM_STRING_USER_SNAPSHOT");
+    valueTrace = userPath ? std::fopen(userPath, "wb") : nullptr;
+    Check(!userPath || valueTrace);
+    achar a[768], b[768];
+    for (unsigned i = 0; i < 768; ++i) a[i] = b[i] = static_cast<achar>(1 + i % 255);
+    for (auto count : {0, 1, 127, 254, 255, 256, 510, 511, 512, 767}) {
+        for (auto flags : {LegacyUlong(0), LegacyUlong(1), LegacyUlong(2), LegacyUlong(3)}) {
+            for (LegacyLong position = 0; position <= count; ++position) {
+                if (position < count) b[position] = static_cast<achar>('x');
+                ValueWord(FEqualUserRgch(a, count, b, count, flags));
+                ValueWord(FcmpCompareUserRgch(a, count, b, count, flags));
+                if (position < count) b[position] = a[position];
+            }
+            ValueWord(FEqualUserRgch(a, count, b, count + 1, flags));
+            ValueWord(FcmpCompareUserRgch(a, count, b, count + 1, flags));
+        }
+    }
+    for (LegacyLong count = 0; count <= 255; ++count) {
+        char text[256], output[256];
+        for (LegacyLong i = 0; i < count; ++i) text[i] = static_cast<char>(1 + i % 255);
+        text[count] = 0;
+        String value;
+        value.SetSzs(text);
+        value.GetSzs(output);
+        ValueString(value, true);
+        for (LegacyLong i = 0; i <= count; ++i) ValueWord(static_cast<unsigned char>(output[i]));
+        Check(!std::memcmp(text, output, count + 1));
+    }
+    for (auto encoding : {koskSbWin, koskSbMac}) {
+        for (auto toCurrent : {false, true}) {
+            achar text[256];
+            for (unsigned i = 0; i < 256; ++i) text[i] = static_cast<achar>(i);
+            TranslateRgch(text, 256, encoding, toCurrent);
+            for (auto unit : text) ValueWord(static_cast<uchar>(unit));
+        }
+    }
+    if (valueTrace) Check(std::fclose(valueTrace) == 0);
+    valueTrace = nullptr;
+    std::printf("String user fingerprint: %08X\n", valueHash);
+}
 static void CheckTableEntry(PVirtualStringTable table, LegacyLong index, const char *label, LegacyLong expected)
 {
     String text;
@@ -271,6 +348,7 @@ int main()
 {
     CheckStringValues();
     CheckStringFormatting();
+    CheckStringOperations();
     CheckStringStorage();
     const byte windows[] = {3, 3, 4, 'C', 'a', 'f', 0xe9, 0};
     const byte mac[] = {2, 2, 4, 'C', 'a', 'f', 0x8e, 0};

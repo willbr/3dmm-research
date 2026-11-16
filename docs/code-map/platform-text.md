@@ -52,6 +52,15 @@ their bytes; locale collation has not replaced that equality contract.
 initialization. Mapping a full byte string remains a separate operation because
 Windows DBCS behavior can depend on adjacent bytes.
 
+The map arrays and initialization/application policy now use the plain C
+`MMTextCaseMaps` record; the host retains the synchronized first-use guard and
+native mapping calls. C also owns empty-count ordering, the native signed-32-bit
+count limit and conversion of native ranked comparison results. String validation,
+internal ordering, 255-unit equality chunks, user-comparison fallback and ANSI
+convenience conversion now use `mm/string_ops.h`. The same native code-page and
+locale providers remain in use; this does not substitute portable CP1252 rules
+for the actual Windows ACP or locale.
+
 The portable backend uses deterministic CP1252 case mapping and comparison.
 UTF-16 case mapping covers that repertoire and leaves other units unchanged;
 it is not complete Unicode linguistic collation or multi-character case folding.

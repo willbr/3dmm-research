@@ -56,6 +56,7 @@ cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test e
 cmake --build build/engine-c89 --target engine-event-edit-test
 cmake --build build/engine-c89 --target engine-string-value-test
 cmake --build build/engine-c89 --target engine-string-format-test
+cmake --build build/engine-c89 --target engine-string-ops-test
 cmake --build build/engine-c89 --target engine-action-edit-test
 cmake --build build/engine-c89 --target engine-costume-edit-test
 cmake --build build/engine-c89 --target engine-route-edit-test
@@ -259,6 +260,42 @@ publication, sign/padding before copy diagnostics, width arithmetic and wide
 non-ASCII characters. Native `string-compat` retains the same frozen fingerprint
 and optional `MM_STRING_FORMAT_SNAPSHOT`, including malformed-format observations
 in Debug. Native ABI/text services and final String facade removal remain work.
+
+### String validation, ordering and text-service control
+
+`mm/string_ops.h` owns counted-string validation, unbounded zero-terminated
+length, exact equality, length-first internal ordering, case-insensitive equality
+in 255-unit chunks, user comparison/fallback, legacy character flags, in-place
+translation and ANSI convenience import/export. Internal ordering retains native
+character signedness; it does not become Unicode or user-locale collation.
+User equality still copies both blocks, uppercases them, then compares their
+bytes, stopping at the first difference. User collation still accepts only
+`-1/0/+1` and falls back to internal ordering on any other provider result.
+
+Native String wrappers retain argument/memory diagnostics and service binding.
+The terminated-counted check retains its native count-access diagnostic before
+reading the terminator. ANSI conversion retains the original 255-unit capacity
+including the terminator, import failure clearing count/first character, export
+failure clearing only output byte zero, and wide export's UTF-16LE source marker.
+`KauaiText::Services()` exposes the same borrowed native code-page providers used
+by the existing C text conversion functions.
+
+`mm/text.h` now also owns the persistent `MMTextCaseMaps` record, identity-array
+initialization, upper/lower callback order and map application. The host retains
+the synchronized first-use publication guard. Full-buffer case mapping remains
+separate from cached byte mapping. Native comparison's empty-count handling,
+signed-32-bit count guard and ranked-result conversion also use C; the host
+supplies only the Windows locale/flag calls. Portable policy remains distinct.
+
+`engine-string-ops` freezes the original signed-byte primitive corpus, checks
+wide unsigned ordering/validation, callback/failure order, chunk boundaries,
+comparison fallback, provider/count limits, map initialization/publication data,
+translation direction and ANSI conversion success/failure/guard bytes. Native
+`string-compat` records primitive and user/encoding results through
+`MM_STRING_OPS_SNAPSHOT` and `MM_STRING_USER_SNAPSHOT`. User snapshots depend on
+the actual host code page and locale and are compared within that environment.
+Native allocation/object diagnostics, raw-view/facade removal, typed ABI/OS
+providers and final C-only engine integration remain work.
 
 ### Collection storage foundation
 

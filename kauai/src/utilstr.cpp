@@ -20,6 +20,7 @@ ASSERTNAME
 #include "mm/string_wire.h"
 #include "mm/string_value.h"
 #include "mm/string_format.h"
+#include "mm/string_ops.h"
 
 static void StringCopyCheck(void *, const void *source, void *destination, size_t bytes)
 {
@@ -33,6 +34,41 @@ static MMStringValue StringValueView(achar *buffer)
     static_assert(sizeof(achar) == 1 || sizeof(achar) == 2, "unsupported string unit");
     MMStringValue value = {buffer, sizeof(achar), nullptr, StringCopyCheck};
     return value;
+}
+
+static void StringRangeCheck(void *, const void *buffer, size_t bytes)
+{
+    AssertPvCb(const_cast<void *>(buffer), bytes);
+}
+static void StringCountedCheck(void *, const void *buffer)
+{
+    AssertSt(static_cast<achar *>(const_cast<void *>(buffer)));
+}
+static void StringUpper(void *, void *buffer, size_t count)
+{
+#ifdef UNICODE
+    KauaiText::UpperUtf16(static_cast<wchar *>(buffer), count);
+#else
+    KauaiText::UpperBytes(static_cast<char *>(buffer), count);
+#endif
+}
+static int StringCompare(void *, const void *a, size_t na, const void *b, size_t nb, int ignore)
+{
+#ifdef UNICODE
+    return KauaiText::CompareUtf16(static_cast<const wchar *>(a), na, static_cast<const wchar *>(b), nb, ignore != 0);
+#else
+    return KauaiText::CompareBytes(static_cast<const char *>(a), na, static_cast<const char *>(b), nb, ignore != 0);
+#endif
+}
+static MMStringOps StringOperations()
+{
+    static_assert(fcmpEq == MM_STRING_EQUAL && fcmpLt == MM_STRING_LESS && fcmpGt == MM_STRING_GREATER,
+                  "comparison flags must retain their legacy values");
+    static_assert(fchWhiteOverhang == 1 && fchBreak == 2 && fchMayBreak == 4 && fchIgnore == 8 && fchControl == 16 && fchTab == 32,
+                  "character flags must retain their legacy values");
+    MMStringOps operations = {sizeof(achar), achar(-1) < 0, nullptr, StringRangeCheck, StringCopyCheck,
+        StringCountedCheck, StringUpper, StringCompare};
+    return operations;
 }
 
 const achar vrgchHex[] = PszLit("0123456789ABCDEF");
@@ -93,18 +129,17 @@ void String::SetSzs(PSZS pszsSrc)
 {
     AssertThis(0);
     AssertVarMem(pszsSrc);
-
 #ifdef UNICODE
-    LegacyLong count = static_cast<LegacyLong>(
-        KauaiText::ToUtf16(pszsSrc, std::strlen(pszsSrc) + 1, KauaiText::Encoding::WindowsAnsi, _rgch + 1, kcchMaxStn));
-    if (count == 0)
-    {
-        SetNil();
-        return;
-    }
-    _rgch[0] = static_cast<achar>(count - 1);
+    const auto count = mm_string_zero_length(pszsSrc, 1);
 #else
-    SetSz(pszsSrc);
+    const auto count = CchSz(pszsSrc);
+    AssertIn(count, 0, kcbMax);
+    AssertPvCb(pszsSrc, count * size(achar));
+#endif
+    const auto value = StringValueView(_rgch);
+    mm_string_from_ansi(&value, KauaiText::Services(), pszsSrc, count);
+#ifndef UNICODE
+    AssertThis(0);
 #endif
 }
 
@@ -239,13 +274,8 @@ void String::GetSzs(PSZS pszs)
 {
     AssertThis(0);
     AssertPvCb(pszs, kcchTotSz);
-
-#ifdef UNICODE
-    if (!KauaiText::ToAnsi(_rgch + 1, (Cch() + 1) * sizeof(wchar), KauaiText::Encoding::Utf16LE, pszs, kcchMaxSz))
-        pszs[0] = 0;
-#else
-    CopyPb(_rgch + 1, pszs, Cch() + 1);
-#endif
+    const auto value = StringValueView(_rgch);
+    mm_string_to_ansi(&value, KauaiText::Services(), pszs);
 }
 
 /***************************************************************************
@@ -410,16 +440,12 @@ void String::AssertValid(LegacyUlong grf)
 {
     AssertThisMem();
 
-    achar *pch;
     LegacyLong cch = (LegacyLong)(uchar)_rgch[0];
 
     AssertIn(cch, 0, kcchMaxStn + 1);
     Assert(_rgch[cch + 1] == 0, "missing termination byte");
 
-    for (pch = _rgch + 1; *pch != 0; pch++)
-        ;
-
-    Assert(pch - _rgch == cch + 1, "internal null characters");
+    Assert(mm_string_zero_length(_rgch + 1, sizeof(achar)) == static_cast<size_t>(cch), "internal null characters");
 }
 #endif // DEBUG
 
@@ -429,16 +455,8 @@ void String::AssertValid(LegacyUlong grf)
 bool FValidSt(PPascalString pst)
 {
     AssertVarMem(pst);
-    achar *pch;
-    LegacyLong cch = (LegacyLong)(uchar)pst[0];
-
-    if (!FIn(cch, 0, kcchMaxSt + 1))
-        return fFalse;
-
-    AssertPvCb(pst, (cch + kcchExtraSt) * size(achar));
-    for (pch = PrgchSt(pst); cch > 0 && *pch != 0; cch--, pch++)
-        ;
-    return (cch == 0);
+    const auto operations = StringOperations();
+    return mm_string_counted_valid(&operations, pst, 0) != 0;
 }
 
 /***************************************************************************
@@ -447,7 +465,8 @@ bool FValidSt(PPascalString pst)
 bool FValidStz(PSTZ pstz)
 {
     AssertVarMem(pstz);
-    return FValidSt(pstz) && 0 == PszStz(pstz)[CchSt(pstz)];
+    const auto operations = StringOperations();
+    return mm_string_counted_valid(&operations, pstz, 1) != 0;
 }
 
 /***************************************************************************
@@ -455,15 +474,12 @@ bool FValidStz(PSTZ pstz)
 ***************************************************************************/
 LegacyLong CchSz(PZString psz)
 {
-    // WARNING: don't call AssertSz, since AssertSz calls CchSz!
+    // Do not call AssertSz: it delegates here.
     AssertVarMem(psz);
-    achar *pch;
-
-    for (pch = psz; *pch != 0; pch++)
-        ;
-    Assert(pch - psz <= kcchMaxSz, "sz too long");
-    AssertPvCb(psz, (pch - psz + 1) * size(achar));
-    return pch - psz;
+    const auto count = mm_string_zero_length(psz, sizeof(achar));
+    Assert(count <= kcchMaxSz, "sz too long");
+    AssertPvCb(psz, (count + 1) * size(achar));
+    return static_cast<LegacyLong>(count);
 }
 
 /***************************************************************************
@@ -476,8 +492,8 @@ bool FEqualRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2)
     AssertPvCb(prgch1, cch1 * size(achar));
     AssertIn(cch2, 0, kcbMax);
     AssertPvCb(prgch2, cch2 * size(achar));
-
-    return cch1 == cch2 && FEqualRgb(prgch1, prgch2, cch1 * size(achar));
+    const auto operations = StringOperations();
+    return mm_string_raw_equal(&operations, prgch1, cch1, prgch2, cch2) != 0;
 }
 
 /***************************************************************************
@@ -491,23 +507,8 @@ LegacyUlong FcmpCompareRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, Legac
     AssertPvCb(prgch1, cch1 * size(achar));
     AssertIn(cch2, 0, kcbMax);
     AssertPvCb(prgch2, cch2 * size(achar));
-    LegacyLong ich, cbTot, cbMatch;
-
-    if (cch1 < cch2)
-        return fcmpLt;
-    if (cch1 > cch2)
-        return fcmpGt;
-
-    cbTot = cch1 * size(achar);
-    cbMatch = CbEqualRgb(prgch1, prgch2, cbTot);
-    AssertIn(cbMatch, 0, cbTot + 1);
-    if (cbTot == cbMatch)
-        return fcmpEq;
-
-    ich = cbMatch / size(achar);
-    Assert(prgch1[ich] != prgch2[ich], 0);
-
-    return prgch1[ich] < prgch2[ich] ? fcmpLt : fcmpGt;
+    const auto operations = StringOperations();
+    return mm_string_internal_compare(&operations, prgch1, cch1, prgch2, cch2);
 }
 
 /***************************************************************************
@@ -519,37 +520,8 @@ bool FEqualUserRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cc
     AssertPvCb(prgch1, cch1 * size(achar));
     AssertIn(cch2, 0, kcbMax);
     AssertPvCb(prgch2, cch2 * size(achar));
-    LegacyLong cchBuf;
-    achar rgch1[kcchMaxStn];
-    achar rgch2[kcchMaxStn];
-
-    // REVIEW shonk: implement for real
-    if (!(grfstn & fstnIgnoreCase))
-        return cch1 == cch2 && FEqualRgb(prgch1, prgch2, cch1 * size(achar));
-
-    if (cch1 != cch2)
-        return fFalse;
-
-    while (cch1 > 0)
-    {
-        cchBuf = LwMin(kcchMaxStn, cch1);
-        CopyPb(prgch1, rgch1, cchBuf * size(achar));
-        CopyPb(prgch2, rgch2, cchBuf * size(achar));
-#ifdef UNICODE
-        KauaiText::UpperUtf16(rgch1, cchBuf);
-        KauaiText::UpperUtf16(rgch2, cchBuf);
-#else
-        KauaiText::UpperBytes(rgch1, cchBuf);
-        KauaiText::UpperBytes(rgch2, cchBuf);
-#endif
-        if (!FEqualRgb(rgch1, rgch2, cchBuf * size(achar)))
-            return fFalse;
-        prgch1 += cchBuf;
-        prgch2 += cchBuf;
-        cch1 -= cchBuf;
-    }
-
-    return fTrue;
+    const auto operations = StringOperations();
+    return mm_string_user_equal(&operations, prgch1, cch1, prgch2, cch2, (grfstn & fstnIgnoreCase) != 0) != 0;
 }
 
 /***************************************************************************
@@ -561,19 +533,8 @@ LegacyUlong FcmpCompareUserRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, L
     AssertPvCb(prgch1, cch1 * size(achar));
     AssertIn(cch2, 0, kcbMax);
     AssertPvCb(prgch2, cch2 * size(achar));
-
-#ifdef UNICODE
-    int result = KauaiText::CompareUtf16(prgch1, cch1, prgch2, cch2, (grfstn & fstnIgnoreCase) != 0);
-#else
-    int result = KauaiText::CompareBytes(prgch1, cch1, prgch2, cch2, (grfstn & fstnIgnoreCase) != 0);
-#endif
-    if (result == -1)
-        return fcmpLt;
-    if (result == 0)
-        return fcmpEq;
-    if (result == 1)
-        return fcmpGt;
-    return FcmpCompareRgch(prgch1, cch1, prgch2, cch2);
+    const auto operations = StringOperations();
+    return mm_string_user_compare(&operations, prgch1, cch1, prgch2, cch2, (grfstn & fstnIgnoreCase) != 0);
 }
 
 /***************************************************************************
@@ -644,16 +605,7 @@ void TranslateRgch(achar *prgch, LegacyLong cch, short osk, bool fToCur)
     AssertPvCb(prgch, cch);
     AssertOsk(osk);
     Assert(osk == koskMac || osk == koskWin, "TranslateRgch can't handle this osk");
-
-    if (koskCur == osk)
-        return;
-
-#ifdef UNICODE
-    // for unicode, we just have to change the byte ordering
-    SwapBytesRgsw(prgch, cch);
-#else  //! UNICODE
-    mm_text_map_bytes(prgch, cch, MacWin(!fToCur, fToCur));
-#endif //! UNICODE
+    mm_string_translate(prgch, cch, sizeof(achar), osk, koskCur, fToCur);
 }
 
 /***************************************************************************
@@ -667,47 +619,7 @@ void TranslateRgch(achar *prgch, LegacyLong cch, short osk, bool fToCur)
 ***************************************************************************/
 LegacyUlong GrfchFromCh(achar ch)
 {
-    switch ((uchar)ch)
-    {
-    case kchReturn:
-        return fchBreak | fchMayBreak | fchControl;
-
-    case kchLineFeed:
-        return fchIgnore | fchControl;
-
-    case kchTab:
-        return fchTab | fchMayBreak | fchControl;
-
-    case kchSpace:
-        return fchWhiteOverhang | fchMayBreak;
-
-#ifdef REVIEW // shonk: implement correctly once we get the tables from MSKK.
-#ifdef UNICODE
-    // REVIEW shonk: others? 148
-    case (uchar)',':
-    case (uchar)'.':
-    case (uchar)')':
-    case (uchar)']':
-    case (uchar)'}':
-    case (uchar)':':
-    case (uchar)';':
-    case (uchar)'?':
-    case (uchar)'!':
-    case (uchar)'.':
-    case (uchar)',':
-        return fchTestBreak;
-#endif // UNICODE
-#endif // REVIEW
-
-    case 0x7F:
-        return fchControl;
-
-    default:
-        if ((uchar)ch < kchSpace)
-            return fchControl;
-
-        return fchNil;
-    }
+    return mm_string_character_flags(static_cast<uchar>(ch));
 }
 
 #ifdef DEBUG

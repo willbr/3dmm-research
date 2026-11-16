@@ -178,3 +178,25 @@ int mm_text_compare(const void *a, size_t na, const void *b, size_t nb, int is_w
     }
     return na == nb ? 0 : na < nb ? -1 : 1;
 }
+int mm_text_compare_host(const MMTextCompareHost *host, const void *a, size_t na, const void *b, size_t nb, int wide, int ignore_case)
+{
+    int result;
+    if (!na || !nb) return na == nb ? 0 : na < nb ? -1 : 1;
+    if (!host) return mm_text_compare(a, na, b, nb, wide, ignore_case);
+    if (na > 0x7fffffffUL || nb > 0x7fffffffUL) return 2;
+    result = host->compare(host->context, a, na, b, nb, wide, ignore_case);
+    return result ? result - 2 : 2;
+}
+void mm_text_case_maps_init(MMTextCaseMaps *maps, void *context, void (*map)(void *, char *, size_t, int))
+{
+    unsigned i;
+    for (i = 0; i < 256; ++i) maps->upper[i] = maps->lower[i] = (char)i;
+    if (map) { map(context, maps->upper, 256, 1); map(context, maps->lower, 256, 0); }
+    else { mm_text_case_bytes(maps->upper, 256, 1); mm_text_case_bytes(maps->lower, 256, 0); }
+}
+void mm_text_case_maps_apply(const MMTextCaseMaps *maps, char *text, size_t count, int upper)
+{
+    size_t i;
+    const char *map = upper ? maps->upper : maps->lower;
+    for (i = 0; i < count; ++i) text[i] = map[(unsigned char)text[i]];
+}

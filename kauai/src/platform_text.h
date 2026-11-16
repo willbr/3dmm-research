@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 
+struct MMTextHost;
+
 namespace KauaiText
 {
 // Values match the stored Kauai OS/encoding markers. No UTF-8 guessing.
@@ -15,6 +17,8 @@ enum class Encoding : std::int16_t
     Utf16BE = 0x0404,
     Utf16LE = 0x0505
 };
+// Borrowed code-page providers for shared C string operations.
+const MMTextHost *Services();
 // Counted conversions include embedded nulls. Null output queries the required
 // count. A short output buffer fails without writing; input is never modified.
 // UTF-16 output consists of native-endian 16-bit units, independent of wchar_t.

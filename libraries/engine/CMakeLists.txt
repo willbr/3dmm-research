@@ -9,6 +9,12 @@ target_include_directories(mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc
 target_sources(mm-engine-c89 PRIVATE src/reference.c)
 target_sources(mm-engine-c89 PRIVATE src/string_value.c)
 target_sources(mm-engine-c89 PRIVATE src/string_format.c)
+target_sources(mm-engine-c89 PRIVATE src/string_ops.c)
+get_filename_component(engine_string_ops_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_string_ops_test.c" ABSOLUTE)
+add_executable(engine-string-ops-test EXCLUDE_FROM_ALL "${engine_string_ops_test_source}")
+target_link_libraries(engine-string-ops-test PRIVATE mm-engine-c89)
+set_target_properties(engine-string-ops-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-string-ops COMMAND engine-string-ops-test)
 get_filename_component(engine_string_format_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_string_format_test.c" ABSOLUTE)
 add_executable(engine-string-format-test EXCLUDE_FROM_ALL "${engine_string_format_test_source}")
 target_link_libraries(engine-string-format-test PRIVATE mm-engine-c89)
@@ -831,6 +837,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/reference.c" "${engine_reference_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/string_value.c" "${engine_string_value_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/string_format.c" "${engine_string_format_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/string_ops.c" "${engine_string_ops_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/bitmap_file.c"
     "${engine_bitmap_file_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/depth_bitmap.c"

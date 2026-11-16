@@ -11147,3 +11147,90 @@ Evidence: `tmp/c89-string-format-{baseline,final}-{native,sdl-release,sdl-debug}
 `tmp/c89-string-format-standalone-tests.log`, `tmp/c89-string-format-asan.log`,
 `tmp/c89-string-format-regular-tests.log`,
 `tmp/c89-string-format-trace-comparison.json` and `tmp/c89-string-format-identities.json`.
+
+
+### Shared C string validation, ordering and text-service control (16 November 2026)
+
+`string_ops.c` now owns counted validation, unbounded zero-terminated length,
+exact equality, length-first/sign-aware internal ordering, 255-unit equality
+chunks, user-comparison fallback, legacy character flags, in-place translation
+and ANSI convenience conversion. Native String wrappers retain diagnostics and
+provider binding. C conversion functions report integer success/failure while
+the native void methods keep their existing clearing/truncation behavior.
+The previous C++ evaluators for these operations have been removed.
+
+Case-insensitive equality still copies both chunks before uppercasing either,
+compares their bytes and stops on the first failed chunk. It is not replaced by
+locale collation. Collation failures still fall back to length-first internal
+ordering. Count validation rejects oversized headers before payload checks;
+terminated counted reads retain the native count-access diagnostic before testing
+the final zero. Character flags and translation retain their existing narrow/
+wide behavior, including lossy byte-map direction and conditional UTF-16 swapping.
+ANSI conversion retains its 255-unit conversion capacity including termination,
+import failure clearing count/first character, export failure clearing only byte
+zero, and the existing UTF-16LE wide-export marker.
+
+`MMTextCaseMaps` now holds the persistent upper/lower arrays in C. C initializes
+both identity arrays, calls upper then lower providers and applies the selected
+map. The native synchronized first-use guard remains. Native code-page, whole-
+buffer case and locale calls remain providers; no portable CP1252 substitution
+is imposed on Windows ACP/locale behavior. Empty-count comparison, native
+signed-32-bit count limits and ranked comparison-result conversion now use C too.
+
+Before conversion, `string-compat` captured identical primitive and user/text
+results across Native Debug, SDL Release and SDL Debug:
+
+| Trace | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Primitive validation/length/equality/order/flags | 792,204 | `DEBC3794` | `B80467D256D51D98B9B2690482DBB52E83E8785565B44A70A638AC77DE109514` |
+| User equality/collation, ANSI import/export, translation | 372,128 | `14755473` | `97B9A16D1A168B1AFE00098620F8F9C5927DAB5A0C51A709FF8524467D2963C1` |
+
+The primitive corpus spans every byte-pair comparison, length-first cases,
+unbounded length diagnostics, every counted/null position and character flags.
+The user corpus covers flags, mutations at every position across the 255-unit
+chunk boundaries, unequal counts, ANSI lengths through capacity and both byte-map
+directions. User traces depend on the capture environment's code page/locale;
+their hash is evidence for that environment, not a universal collation constant.
+C fixtures additionally check unsigned wide ordering/validation, copy/case/range
+callback order, first-chunk stops, comparison failures/fallback, map provider
+observations, empty-before-overflow ordering and conversion providers/failures.
+Existing native text-service tests retain direct Windows API comparisons and
+concurrent first-use checks; portable text tests remain separate.
+
+The final wider gate passes 206 Native checks, 201 SDL Release checks and 202 SDL
+Debug checks. SDL Release additionally reports the existing debug-only
+`world-export` fixture as skipped; its C policy and Native/SDL Debug integration
+checks pass. All 144 standalone checks, including strict C89 syntax, pass. Thus
+753 of 754 selected checks pass, with one declared skip. The new C suite passes
+MSVC AddressSanitizer, including wide/provider failure and byte-import truncation
+results. C functions report failure explicitly while native void methods retain
+their existing output policy.
+
+All 132 string/text/cache/template/body/undo/Help/Preview trace pairs match across
+the three hosts. String formatter snapshots use `formatter-final` to distinguish
+them from rich-text `format-final` dumps; the three string fixtures were
+recaptured after correcting that verification output-name collision. No baseline
+was changed. All ten retained input identities are unchanged; identities for 71
+binaries are recorded. The recorded text environment is Windows 11 x64, ACP 1252,
+user/thread LCID 2057 (`en-GB`); OEM CP 437 is recorded separately.
+
+The regular headless asset-preview harness passes; Native `chelp` and `ched`
+compile. Background checks retain 301,996,032 bytes/FNV-1a `E1A71005` across 12
+backgrounds and 188 cameras per host. Test processes use private temporary
+directories. Marcus was stopped before rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. C wide
+ordering, validation and conversion tests are not a complete native Unicode host
+build. Other code pages/locales/platforms, arbitrary native callback/override
+observations and invalid lifetime/overlapping character-copy use remain
+unverified. Native allocation/object diagnostics, typed OS/ABI services,
+raw-view/facade removal and final C-only engine integration remain work.
+
+Evidence: `tmp/c89-string-ops-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-string-ops-user-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-string-ops-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-string-ops-{native,sdl-release,sdl-debug}-recapture.log`,
+`tmp/c89-string-ops-standalone-tests.log`, `tmp/c89-string-ops-asan.log`,
+`tmp/c89-string-ops-regular-tests.log`, `tmp/c89-string-ops-text-environment.json`,
+`tmp/c89-string-ops-trace-comparison.json` and `tmp/c89-string-ops-identities.json`.

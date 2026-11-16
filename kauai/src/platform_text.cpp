@@ -27,12 +27,21 @@ std::size_t Encode(void *, const unsigned short *input, std::size_t count, char 
     if (capacity < static_cast<std::size_t>(needed)) return 0;
     return WideCharToMultiByte(CP_ACP, 0, reinterpret_cast<const wchar_t *>(input), static_cast<int>(count), output, needed, nullptr, nullptr);
 }
+int CompareNative(void *, const void *a, std::size_t na, const void *b, std::size_t nb, int wide, int ignore)
+{
+    if (wide) return CompareStringW(LOCALE_USER_DEFAULT, ignore ? NORM_IGNORECASE : 0,
+        static_cast<const wchar_t *>(a), static_cast<int>(na), static_cast<const wchar_t *>(b), static_cast<int>(nb));
+    return CompareStringA(LOCALE_USER_DEFAULT, ignore ? NORM_IGNORECASE : 0,
+        static_cast<const char *>(a), static_cast<int>(na), static_cast<const char *>(b), static_cast<int>(nb));
+}
+const MMTextCompareHost nativeCompare = {nullptr, CompareNative};
 const MMTextHost nativeText = {nullptr, Decode, Encode};
 const MMTextHost *Host() { return &nativeText; }
 #else
 const MMTextHost *Host() { return nullptr; }
 #endif
 } // namespace
+const MMTextHost *KauaiText::Services() { return Host(); }
 std::size_t KauaiText::ToUtf16(const void *input, std::size_t bytes, Encoding source, std::uint16_t *output, std::size_t capacity)
 {
     return mm_text_utf16(Host(), input, bytes, static_cast<int>(source), output, capacity);
@@ -60,16 +69,15 @@ void KauaiText::LowerBytes(char *text, std::size_t count)
 }
 namespace
 {
+void MapCaseBytes(void *, char *text, std::size_t count, int upper)
+{
+    if (upper) KauaiText::UpperBytes(text, count);
+    else KauaiText::LowerBytes(text, count);
+}
 struct ByteMaps
 {
-    char upper[256], lower[256];
-    ByteMaps()
-    {
-        for (unsigned i = 0; i < 256; ++i)
-            upper[i] = lower[i] = static_cast<char>(i);
-        KauaiText::UpperBytes(upper, 256);
-        KauaiText::LowerBytes(lower, 256);
-    }
+    MMTextCaseMaps data;
+    ByteMaps() { mm_text_case_maps_init(&data, nullptr, MapCaseBytes); }
 };
 const ByteMaps &Maps()
 {
@@ -79,15 +87,11 @@ const ByteMaps &Maps()
 } // namespace
 void KauaiText::UpperMappedBytes(char *text, std::size_t count)
 {
-    const auto &maps = Maps();
-    for (std::size_t i = 0; i < count; ++i)
-        text[i] = maps.upper[static_cast<unsigned char>(text[i])];
+    mm_text_case_maps_apply(&Maps().data, text, count, 1);
 }
 void KauaiText::LowerMappedBytes(char *text, std::size_t count)
 {
-    const auto &maps = Maps();
-    for (std::size_t i = 0; i < count; ++i)
-        text[i] = maps.lower[static_cast<unsigned char>(text[i])];
+    mm_text_case_maps_apply(&Maps().data, text, count, 0);
 }
 void KauaiText::UpperUtf16(std::uint16_t *text, std::size_t count)
 {
@@ -107,31 +111,20 @@ void KauaiText::LowerUtf16(std::uint16_t *text, std::size_t count)
 }
 int KauaiText::CompareBytes(const char *a, std::size_t na, const char *b, std::size_t nb, bool ignoreCase)
 {
-    if (!na || !nb)
-        return na == nb ? 0 : na < nb ? -1 : 1;
 #ifdef KAUAI_NATIVE_TEXT
-    if (na > INT32_MAX || nb > INT32_MAX)
-        return 2;
-    int result = CompareStringA(LOCALE_USER_DEFAULT, ignoreCase ? NORM_IGNORECASE : 0, a, static_cast<int>(na), b,
-                                static_cast<int>(nb));
-    return result ? result - CSTR_EQUAL : 2;
+    const MMTextCompareHost *host = &nativeCompare;
 #else
-    return mm_text_compare(a, na, b, nb, 0, ignoreCase);
+    const MMTextCompareHost *host = nullptr;
 #endif
+    return mm_text_compare_host(host, a, na, b, nb, 0, ignoreCase);
 }
 int KauaiText::CompareUtf16(const std::uint16_t *a, std::size_t na, const std::uint16_t *b, std::size_t nb,
                             bool ignoreCase)
 {
-    if (!na || !nb)
-        return na == nb ? 0 : na < nb ? -1 : 1;
 #ifdef KAUAI_NATIVE_TEXT
-    if (na > INT32_MAX || nb > INT32_MAX)
-        return 2;
-    int result =
-        CompareStringW(LOCALE_USER_DEFAULT, ignoreCase ? NORM_IGNORECASE : 0, reinterpret_cast<const wchar_t *>(a),
-                       static_cast<int>(na), reinterpret_cast<const wchar_t *>(b), static_cast<int>(nb));
-    return result ? result - CSTR_EQUAL : 2;
+    const MMTextCompareHost *host = &nativeCompare;
 #else
-    return mm_text_compare(a, na, b, nb, 1, ignoreCase);
+    const MMTextCompareHost *host = nullptr;
 #endif
+    return mm_text_compare_host(host, a, na, b, nb, 1, ignoreCase);
 }
