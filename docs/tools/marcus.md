@@ -202,7 +202,8 @@ perspective ground grid into this angle's background using the selected colour
 (**1–9** or the extended palette), ready to draw over. Grid lines are one pixel
 wide, retain the current camera perspective, and stay fixed if you move the camera
 later. Baking is one undo step and survives Save copy, without adding
-depth. The live guide, crosshair and guide label remain temporary overlays.
+depth. The live guide, crosshair and guide label appear in Paint, Camera and
+Lights as temporary overlays.
 **Use work camera** copies the current
 work-view pose and lens into this angle, retaining its drawing.
 

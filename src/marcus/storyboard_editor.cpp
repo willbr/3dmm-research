@@ -511,7 +511,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
     ui_button_sized(ui, right - 130, e->bar.y, 130, 28, "Use work camera", 0, e->hasWork);
     ui_fill(ui, e->canvas.x - 1, e->canvas.y - 1, e->canvas.w + 2, e->canvas.h + 2, 0x5b6570);
     if (e->texture) SDL_RenderTexture(ui->renderer, e->texture, nullptr, &e->canvas);
-    if (e->tab == 1) Grid(ui, e->board.angles[e->angle], e->canvas);
+    Grid(ui, e->board.angles[e->angle], e->canvas);
     if (e->tab == 0)
     {
         for (int c = 0; c < int(MarcusBoardColourCount); ++c)
