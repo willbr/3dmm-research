@@ -550,8 +550,9 @@ normalization and picture/button/group edit transactions now also use C89 and
 plain C topic data. Help embedded-object bounds and drawing sequence now also use
 C89, with plain C button-visibility state. Help topic mouse/key/hit/cursor and
 script-dispatch policy now also use C89 and plain C tracking/base-handler state.
-Physical bitmap/font/graphics providers, topic control construction and balloon/
-button lifecycle remain work.
+Balloon creation/replacement/layout and button construction/hit dispatch now also
+use C89, with plain C topic-view and button state. Physical bitmap/font/graphics
+providers and topic control construction remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.
@@ -625,9 +626,10 @@ also use C89 and plain C topic data. Help embedded-object bounds, resource selec
 and drawing sequence now also use C89 and plain C button-visibility state.
 Help topic mouse/key/hit/cursor and script-dispatch policy now also use C89 and
 plain C tracking/base-handler state. Physical bitmap/font/graphics providers,
-topic control construction, balloon/button lifecycle, display/output
+topic control construction, display/output
 representations, native string/display/UI representations and final host integration
-still need conversion.
+still need conversion. Balloon creation/replacement/layout and button construction/
+hit dispatch now also use C89 and plain C topic-view/button state.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

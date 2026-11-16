@@ -2218,6 +2218,47 @@ balloon/button lifecycle, native string/display/UI representations, physical
 cursor/graphics/font/cache providers and final C-only host/facade removal remain
 conversion work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
+### Help balloon and button lifecycle policy
+
+`help_balloon.c` owns topic override merging, balloon document loading/hiding,
+duplicate-ID replacement, balloon/button factory sequencing, topic replacement/
+rollback, sound-variable assignment order, target anchoring, parent pinning, topic
+centering and button point/click dispatch. `MMHelpBalloon` replaces the native
+topic-view pointer; `MMHelpButton` replaces native group/topic fields. Typed
+document/resource, GOB/control creation, variable, geometry and graphics providers
+remain in `help_balloon_host.h`.
+
+Overrides skip nil balloon/script IDs, zero handler/target IDs and incomplete sound
+pairs, while offsets add with explicit 32-bit wrap. Existing matching balloon IDs
+release before replacement; a different handler type diagnoses/fails. Optional
+REVIEW same-source reuse retains the original branch. Private document and
+pre-initialization node owners release on exceptional exits. Once initialized,
+nodes are committed: enter-state/hit callbacks may destroy them, so failure never
+releases them again. Initial hit uses captured identity for the subsequent lookup.
+
+Topic creation publishes the new view before sound assignments. Ordinary failure
+releases the current new view and restores the old one; exceptions retain partial
+state. Success releases the old view before natural-size and anchor work. Topic
+metadata is re-read at its native stages. Anchoring uses a target's registration
+point or rectangle center, maps through global/parent coordinates and subtracts
+the balloon registration point. Layout applies native pinning without resizing,
+including oversized rectangles, then centers the topic using late preferred sizes.
+Signed halves truncate toward zero. All coordinate arithmetic wraps at 32 bits.
+
+Buttons publish group/topic before initialization and align left/bottom after
+entering their initial state. Point tests first use inherited hit testing, then
+map into the parent topic and require group/topic equality. Clicks snapshot ID
+before parent checking, read flags late and avoid owner access after virtual hit.
+
+The headless fixture captures original Native/SDL GOB trees, geometry, document
+references, replacement, embedded button/edit construction, saved-topic loading
+and button queries/clicks. C tests cover override combinations, partial owners,
+failure/exception prefixes, optional reuse, rollback/publication timing, live
+metadata, parent pinning/centering and button owner destruction. Topic control
+construction, physical/native string/display/UI/resource representations and final
+C-only host/facade removal remain conversion work. Evidence and platform limits
+are in `docs/tools/playback-regression.md`.
+
 ### Movie scene-container control and undo
 
 `movie_scene.c` owns the current scene reference/index and the control flow for

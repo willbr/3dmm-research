@@ -22,6 +22,7 @@ namespace Help {
 #include "help_text_host.h"
 #include "help_display_host.h"
 #include "help_interaction_host.h"
+#include "help_balloon_host.h"
 
 BEGIN_CMD_MAP(TopicGraphicsObject, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
@@ -591,23 +592,16 @@ PBalloon Balloon::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, P
     AssertPo(pgobPar, 0);
     AssertPo(prca, 0);
     AssertNilOrVarMem(phtop);
-    PChunkyResourceFile pcrf;
-    PTextDocument ptxhd;
-    PBalloon phbal;
-
-    pcrf = prca->PcrfFindChunk(kctgHelpTopic, cnoTopic);
-    if (pvNil == pcrf)
-        return pvNil;
-
-    ptxhd = TextDocument::PtxhdReadChunk(prca, pcrf->Pcfl(), kctgHelpTopic, cnoTopic, pwoks->Pstrg());
-    if (pvNil == ptxhd)
-        return pvNil;
-
-    ptxhd->HideButtons();
-    phbal = PhbalNew(pwoks, pgobPar, prca, ptxhd, phtop);
-    ReleasePpo(&ptxhd);
-
-    return phbal;
+    BalloonHost host;
+    host.world = pwoks;
+    host.parent = pgobPar;
+    host.cache = prca;
+    host.input = phtop;
+    auto services = host.Read();
+    void *node;
+    mm_help_balloon_read(&node, cnoTopic, &services);
+    host.Rethrow();
+    return static_cast<PBalloon>(node);
 }
 
 /***************************************************************************
@@ -621,82 +615,19 @@ PBalloon Balloon::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRes
     AssertPo(ptxhd, 0);
     AssertPo(prca, 0);
     AssertNilOrVarMem(phtop);
-    Topic htop;
-    GraphicsObjectBlock gcb;
-    PBalloon phbal;
-    long grid;
-
-    ptxhd->GetHtop(&htop);
-    if (pvNil != phtop)
-    {
-        // merge the given htop with the topic's htop.
-        if (cnoNil != phtop->cnoBalloon)
-            htop.cnoBalloon = phtop->cnoBalloon;
-        if (hidNil != phtop->hidThis)
-            htop.hidThis = phtop->hidThis;
-        if (hidNil != phtop->hidTarget)
-            htop.hidTarget = phtop->hidTarget;
-        if (cnoNil != phtop->cnoScript)
-            htop.cnoScript = phtop->cnoScript;
-        htop.dxp += phtop->dxp;
-        htop.dyp += phtop->dyp;
-        if (cnoNil != phtop->ckiSnd.cno && ctgNil != phtop->ckiSnd.ctg)
-            htop.ckiSnd = phtop->ckiSnd;
-    }
-
-    if (htop.hidThis == hidNil)
-        htop.hidThis = CommandHandler::HidUnique();
-    else if (pvNil != (phbal = (PBalloon)pwoks->PcmhFromHid(htop.hidThis)))
-    {
-        if (!phbal->FIs(kclsBalloon))
-        {
-            Bug("command handler with this ID already exists");
-            return pvNil;
-        }
-
-        AssertPo(phbal, 0);
-
-#ifdef REVIEW // shonk: this makes little sense and is bug-prone
-        if (htop.cnoBalloon == phbal->_pgokd->Cno() && prca == phbal->_prca)
-        {
-            // same hid, same KidspaceGraphicObjectDescriptor, same prca, so just change the topic
-            if (!phbal->FSetTopic(ptxhd, &htop, prca))
-                return pvNil;
-            return phbal;
-        }
-#endif // REVIEW
-
-        // free the balloon and create the new one.
-        ReleasePpo(&phbal);
-    }
-
-    gcb.Set(htop.hidThis, pgobPar, fgobNil, kginMark);
-    if (pvNil == (phbal = NewObj Balloon(&gcb)))
-        return pvNil;
-    grid = phbal->Grid();
-
-    if (!phbal->_FInit(pwoks, ptxhd, &htop, prca))
-    {
-        ReleasePpo(&phbal);
-        return pvNil;
-    }
-
-    if (!phbal->_FEnterState(ksnoInit))
-    {
-        Warn("Balloon immediately destroyed!");
-        return pvNil;
-    }
-
-    // initialize the topic
-    phbal->_ptxhg->DoHit(0, cnoNil, fcustNil, hidNil);
-    if (phbal != pwoks->PgobFromGrid(grid))
-    {
-        Warn("Balloon immediately destroyed 2!");
-        return pvNil;
-    }
-
-    AssertPo(phbal, 0);
-    return phbal;
+    BalloonHost host;
+    host.world = pwoks;
+    host.parent = pgobPar;
+    host.cache = prca;
+    host.document = ptxhd;
+    MMHelpTopic overrideData;
+    if (phtop)
+        overrideData = BalloonTopicData(*phtop);
+    auto services = host.Factory();
+    void *node;
+    mm_help_balloon_new(&node, phtop ? &overrideData : nullptr, &services);
+    host.Rethrow();
+    return static_cast<PBalloon>(node);
 }
 
 /***************************************************************************
@@ -704,6 +635,7 @@ PBalloon Balloon::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRes
 ***************************************************************************/
 Balloon::Balloon(GraphicsObjectBlock *pgcb) : Balloon_PAR(pgcb)
 {
+    mm_help_balloon_init(&_balloon);
 }
 
 /***************************************************************************
@@ -715,11 +647,15 @@ bool Balloon::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, Topic *phtop, 
     AssertPo(ptxhd, 0);
     AssertVarMem(phtop);
     AssertPo(prca, 0);
-
-    if (!Balloon_PAR::_FInit(pwoks, phtop->cnoBalloon, prca))
-        return fFalse;
-
-    return _FSetTopic(ptxhd, phtop, prca);
+    BalloonHost host(this);
+    host.world = pwoks;
+    host.document = ptxhd;
+    host.input = phtop;
+    host.cache = prca;
+    auto services = host.Stages();
+    int result = mm_help_balloon_apply(1, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -732,11 +668,14 @@ bool Balloon::FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca)
     AssertPo(ptxhd, 0);
     AssertVarMem(phtop);
     AssertPo(prca, 0);
-
-    if (!_FSetTopic(ptxhd, phtop, prca))
-        return fFalse;
-
-    return _FEnterState(ksnoInit);
+    BalloonHost host(this);
+    host.document = ptxhd;
+    host.input = phtop;
+    host.cache = prca;
+    auto services = host.Stages();
+    int result = mm_help_balloon_apply(0, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -748,61 +687,14 @@ bool Balloon::_FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca)
     AssertPo(ptxhd, 0);
     AssertVarMem(phtop);
     AssertPo(prca, 0);
-
-    PGraphicsObject pgob;
-    GraphicsObjectBlock gcb;
-    PT pt, ptReg;
-    String stn;
-    RuntimeVariableName rtvn;
-    PTopicGraphicsObject ptxhgSave = _ptxhg;
-
-    // create the topic DocumentDisplayGraphicsObject.
-    gcb.Set(CommandHandler::HidUnique(), this, fgobNil, kginMark);
-    if (pvNil == (_ptxhg = TopicGraphicsObject::PtxhgNew(_pwoks, ptxhd, &gcb)))
-        goto LFail;
-
-    // set the sound variables
-    stn = PszLit("_ctgSound");
-    rtvn.SetFromStn(&stn);
-    if (!FAssignRtvm(_ptxhg->Ppglrtvm(), &rtvn, phtop->ckiSnd.ctg))
-        goto LFail;
-    stn = PszLit("_cnoSound");
-    rtvn.SetFromStn(&stn);
-    if (!FAssignRtvm(_ptxhg->Ppglrtvm(), &rtvn, phtop->ckiSnd.cno))
-    {
-    LFail:
-        ReleasePpo(&_ptxhg);
-
-        // restore the previous topic DocumentDisplayGraphicsObject
-        _ptxhg = ptxhgSave;
-        return fFalse;
-    }
-    ReleasePpo(&ptxhgSave);
-
-    _ptxhg->GetNaturalSize(&_dxpPref, &_dypPref);
-    if (hidNil == phtop->hidTarget || pvNil == (pgob = _pwoks->PgobFromHid(phtop->hidTarget)))
-    {
-        pgob = PgobPar();
-    }
-
-    if (pgob->FIs(kclsKidspaceGraphicObject))
-        ((PKidspaceGraphicObject)pgob)->GetPtReg(&pt);
-    else
-    {
-        RC rc;
-
-        pgob->GetRc(&rc, cooParent);
-        pt.xp = rc.XpCenter();
-        pt.yp = rc.YpCenter();
-    }
-    pgob->MapPt(&pt, cooParent, cooGlobal);
-
-    // point the balloon at the gob
-    PgobPar()->MapPt(&pt, cooGlobal, cooLocal);
-    GetPtReg(&ptReg);
-    _SetGorp(_pgorp, pt.xp - ptReg.xp + phtop->dxp, pt.yp - ptReg.yp + phtop->dyp);
-
-    return fTrue;
+    BalloonHost host(this);
+    host.document = ptxhd;
+    host.input = phtop;
+    host.cache = prca;
+    auto services = host.TopicServices();
+    int result = mm_help_balloon_topic(&_balloon, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -811,25 +703,11 @@ bool Balloon::_FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca)
 ***************************************************************************/
 void Balloon::_SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp)
 {
-    RC rc1, rc2, rc3;
-
-    Balloon_PAR::_SetGorp(pgorp, dxp, dyp);
-
-    // make sure we stay inside our parent
-    GetRc(&rc1, cooParent);
-    PgobPar()->GetRc(&rc2, cooLocal);
-    rc3.FIntersect(&rc1, &rc2);
-    if (rc3 != rc1)
-    {
-        rc1.PinToRc(&rc2);
-        SetPos(&rc1);
-    }
-
-    // position the TopicGraphicsObject.
-    GetRcContent(&rc1);
-    rc2.Set(0, 0, _dxpPref, _dypPref);
-    rc2.CenterOnRc(&rc1);
-    _ptxhg->SetPos(&rc2);
+    BalloonHost host(this);
+    host.representation = pgorp;
+    auto services = host.Layout();
+    mm_help_balloon_layout(dxp, dyp, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -837,6 +715,7 @@ void Balloon::_SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp)
 ***************************************************************************/
 BalloonButton::BalloonButton(GraphicsObjectBlock *pgcb) : BalloonButton_PAR(pgcb)
 {
+    mm_help_button_init(&_button);
 }
 
 /***************************************************************************
@@ -849,39 +728,16 @@ PBalloonButton BalloonButton::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject p
     AssertNilOrPo(pgobPar, 0);
     Assert(hid != hidNil, "nil ID");
     AssertPo(prca, 0);
-    GraphicsObjectBlock gcb;
-    PBalloonButton phbtn;
-    RC rcAbs;
-
-    if (pvNil != pwoks->PcmhFromHid(hid))
-    {
-        Bug("command handler with this ID already exists");
-        return pvNil;
-    }
-
-    gcb.Set(hid, pgobPar, fgobNil, kginMark);
-    if (pvNil == (phbtn = NewObj BalloonButton(&gcb)))
-        return pvNil;
-
-    phbtn->_bGroup = bGroup;
-    phbtn->_cnoTopic = cnoTopic;
-    if (!phbtn->_FInit(pwoks, cno, prca))
-    {
-        ReleasePpo(&phbtn);
-        return pvNil;
-    }
-
-    if (!phbtn->_FEnterState(ksnoInit))
-    {
-        Warn("KidspaceGraphicObject immediately destroyed!");
-        return pvNil;
-    }
-    phbtn->GetRc(&rcAbs, cooParent);
-    rcAbs.Offset(xpLeft - rcAbs.xpLeft, ypBottom - rcAbs.ypBottom);
-    phbtn->SetPos(&rcAbs, pvNil);
-
-    AssertPo(phbtn, 0);
-    return phbtn;
+    ButtonHost host;
+    host.world = pwoks;
+    host.parent = pgobPar;
+    host.cache = prca;
+    host.number = cno;
+    auto services = host.Factory();
+    void *node;
+    mm_help_button_new(&node, hid, bGroup, cnoTopic, xpLeft, ypBottom, &services);
+    host.Rethrow();
+    return static_cast<PBalloonButton>(node);
 }
 
 /***************************************************************************
@@ -890,23 +746,11 @@ PBalloonButton BalloonButton::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject p
 bool BalloonButton::FPtIn(long xp, long yp)
 {
     AssertThis(0);
-    PTopicGraphicsObject ptxhg;
-    PT pt(xp, yp);
-    byte bGroup;
-    ChunkNumber cnoTopic;
-
-    if (BalloonButton_PAR::FPtIn(xp, yp))
-        return fTrue;
-
-    if (_bGroup == 0 || !PgobPar()->FIs(kclsTopicGraphicsObject))
-        return fFalse;
-
-    ptxhg = (PTopicGraphicsObject)PgobPar();
-    MapPt(&pt, cooLocal, cooParent);
-
-    if (!ptxhg->FGroupFromPt(pt.xp, pt.yp, &bGroup, &cnoTopic))
-        return fFalse;
-    return bGroup == _bGroup && cnoTopic == _cnoTopic;
+    ButtonHost host(this);
+    auto services = host.Interaction();
+    int result = mm_help_button_point(&_button, xp, yp, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -916,20 +760,12 @@ bool BalloonButton::FCmdClicked(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-
-    PTopicGraphicsObject ptxhg;
-    long hid = Hid();
-
-    if (!PgobPar()->FIs(kclsTopicGraphicsObject))
-    {
-        Bug("why isn't my parent a TopicGraphicsObject?");
-        return fTrue;
-    }
-
-    ptxhg = (PTopicGraphicsObject)PgobPar();
-    ptxhg->DoHit(_bGroup, _cnoTopic, pcmd->grfcust, hid);
-
-    return fTrue;
+    ButtonHost host(this);
+    host.command = pcmd;
+    auto services = host.Interaction();
+    int result = mm_help_button_click(&_button, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 } // end of namespace Help

@@ -18,6 +18,7 @@
 #include "mm/help_text.h"
 #include "mm/help_display.h"
 #include "mm/help_interaction.h"
+#include "mm/help_balloon.h"
 
 namespace Help {
 
@@ -170,7 +171,8 @@ class Balloon : public Balloon_PAR
     RTCLASS_DEC
 
   protected:
-    PTopicGraphicsObject _ptxhg;
+    MMHelpBalloon _balloon;
+    struct BalloonHost;
 
     Balloon(GraphicsObjectBlock *pgcb);
     virtual void _SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp);
@@ -197,8 +199,8 @@ class BalloonButton : public BalloonButton_PAR
   protected:
     BalloonButton(GraphicsObjectBlock *pgcb);
 
-    byte _bGroup;
-    ChunkNumber _cnoTopic;
+    MMHelpButton _button;
+    struct ButtonHost;
 
   public:
     static PBalloonButton PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PResourceCache prca, byte bGroup, ChunkNumber cnoTopic,

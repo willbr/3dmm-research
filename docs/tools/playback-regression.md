@@ -10385,3 +10385,82 @@ baseline/final logs, `tmp/c89-help-interaction-{native,sdl-release,sdl-debug}-te
 `tmp/c89-help-interaction-asan.log`, `tmp/c89-help-interaction-regular-tests.log`,
 `tmp/c89-help-interaction-tools-build.log`, `tmp/c89-help-interaction-trace-comparison.json`,
 `tmp/c89-help-interaction-identities.json` and `tmp/c89-help-interaction-targeted-native-errors.log`.
+
+### Help balloon and button lifecycle policy (16 November 2026)
+
+`help_balloon.c` now owns topic override merging, balloon document loading/hiding,
+duplicate-ID replacement, balloon/button factory sequencing, topic replacement/
+rollback, sound-variable assignment order, target anchoring, parent pinning, topic
+centering and button point/click dispatch. `MMHelpBalloon` replaces the native
+topic-view pointer; `MMHelpButton` replaces native group/topic fields. Typed GOB/
+control creation, document/resource, runtime-variable, geometry and representation
+providers remain in `help_balloon_host.h`.
+
+Overrides skip nil balloon/script IDs, zero handler/target IDs and incomplete sound
+pairs, while adding offsets with explicit 32-bit wrap. Existing matching balloon
+IDs release before replacement; another handler type diagnoses/fails. Optional
+REVIEW same-source reuse remains supported. New private nodes release on failed
+initialization, including exceptions. After initialization, enter/hit callbacks may
+destroy committed nodes, so failure never releases them again. Initial hit uses a
+previously captured grid for the later identity check. Private read documents
+release on every exit. This deliberately fixes exceptional ownership leaks rather
+than claiming exact native allocator/exception equivalence.
+
+Topic creation publishes the new view before sound assignments. Ordinary failure
+releases the currently published new view and restores the old one; exceptions
+retain partial state. Success releases the old view before natural-size/anchor
+work. Metadata is re-read at its native stages, including sound number, target and
+final offsets. Anchoring uses target registration or rectangle center and maps
+through global/parent coordinates. Layout retains native pinning without resizing
+oversized rectangles, then centers the topic using late preferred dimensions.
+Empty intersections normalize to zero before the reposition decision; signed
+halves truncate toward zero. Coordinate arithmetic wraps at 32 bits.
+
+Buttons publish group/topic before initialization and align left/bottom after
+entering the initial state. Point testing first uses inherited hit testing, then
+maps into the parent topic and requires group/topic equality. Clicks snapshot ID
+before parent checking, read flags late and avoid owner access after virtual hit.
+
+Before conversion, the headless engine fixture recorded 540 bytes on Native Debug,
+SDL Release and SDL Debug: FNV-1a `EB200D33`, SHA-256
+`7A0CB37C019890B3CE79ED166F34E9F92060D611ACCF46A78CE0867B1D96951B`.
+It freezes GOB tree types/geometry, document references, topic replacement,
+embedded button/edit construction, saved-topic loading and button queries/clicks
+using generated descriptors and representation resources. It creates no HWNDs,
+performs no input capture and adds no Marcus UI test. Actual enter/hit destruction
+and optional REVIEW reuse branches are covered by C provider probes rather than
+this native fixture.
+
+C checks cover override combinations, duplicate IDs, partial owners, ordinary/
+exception factory prefixes, committed-node destruction, optional reuse, read/hide/
+build cleanup, replacement rollback/publication, live metadata, target fallback,
+point/coordinate mapping and initialization/enter order. An independent geometry
+model checks 1,232 pinning/centering cases plus empty rectangles and late preferred
+dimensions. Callback failures check stopping before subsequent layout/hit effects.
+A click callback frees its button state under MSVC AddressSanitizer, which passes.
+
+All 72 original/converted balloon/interaction/display/Help/text/preview trace pairs
+match across the three hosts. Prior hashes remain unchanged. Background checks
+retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per
+host. All 134 standalone C checks, including strict C89 syntax, pass. Thirty-nine
+selected Native checks and 35 checks in each SDL configuration pass, including the
+existing Native playback/player regressions. The regular headless asset-preview
+harness passes; Native `chelp` and `ched` compile. Retained input identities remain
+unchanged after verification; identities for 30 binaries are recorded. Test
+processes use private temporary directories. Marcus was stopped before rebuilding
+and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Complete
+interactive balloon/button behavior, Native REVIEW configuration, arbitrary native
+virtual-override observations and other platforms remain unverified by this slice.
+Topic control construction, physical/native string/display/UI/resource
+representations and final C-only host/facade removal remain conversion work.
+
+Evidence: `tmp/c89-help-balloon-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-help-balloon-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-help-balloon-standalone-tests.log`,
+`tmp/c89-help-balloon-{interaction,display,text,views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-help-balloon-asan.log`, `tmp/c89-help-balloon-regular-tests.log`,
+`tmp/c89-help-balloon-tools-build.log`, `tmp/c89-help-balloon-trace-comparison.json`,
+`tmp/c89-help-balloon-identities.json` and `tmp/c89-help-balloon-targeted-native-errors.log`.
