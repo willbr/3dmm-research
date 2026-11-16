@@ -36,6 +36,7 @@ ASSERTNAME
 #include "text_copy_fixture.h"
 #include "text_undo_fixture.h"
 #include "document_undo_fixture.h"
+#include "document_lifecycle_fixture.h"
 
 /* WinMain (in kauai/src/appbwin.cpp) references FrameMain -- but we
  * never run WinMain since we provide our own main() and link as a
@@ -2366,6 +2367,8 @@ static bool TestCaptionPersistence(PScene scene)
     if (!TestTextUndo())
         goto done;
     if (!TestDocumentUndo())
+        goto done;
+    if (!TestDocumentLifecycle())
         goto done;
     ok = true;
 done:

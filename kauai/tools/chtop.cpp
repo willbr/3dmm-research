@@ -1768,7 +1768,7 @@ void HETD::GetName(PString pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    if (pvNil == _pdocbPar)
+    if (pvNil == PdocbPar())
         HETD_PAR::GetName(pstn);
     else
     {
@@ -1780,10 +1780,10 @@ void HETD::GetName(PString pstn)
                 _cactUntitled = ++_cactLast;
             stn.FFormatSz(PszLit(": Untitled Topic %d"), _cactUntitled);
         }
-        else if (pvNil != _pdocbPar)
+        else if (pvNil != PdocbPar())
             stn.FFormatSz(PszLit(": Topic %08x"), _cno);
 
-        _pdocbPar->GetName(pstn);
+        PdocbPar()->GetName(pstn);
         pstn->FAppendStn(&stn);
     }
 }

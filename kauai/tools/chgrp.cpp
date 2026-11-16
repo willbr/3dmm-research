@@ -1368,7 +1368,7 @@ void DOCI::GetName(PString pstn)
     String stn;
 
     stn.FFormatSz(PszLit(": item %d"), _iv);
-    _pdocbPar->GetName(pstn);
+    PdocbPar()->GetName(pstn);
     pstn->FAppendStn(&stn);
 }
 
@@ -1413,7 +1413,7 @@ bool DOCI::_FSaveToItem(long iv, bool fRedirect)
         _fDirty = fFalse;
     }
 
-    DCGB::InvalAllDcgb(_pdocbPar, _pgrpb, iv, 1, 1);
+    DCGB::InvalAllDcgb(PdocbPar(), _pgrpb, iv, 1, 1);
     return fTrue;
 }
 

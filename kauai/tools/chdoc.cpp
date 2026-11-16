@@ -357,7 +357,7 @@ void DOCE::GetName(PString pstn)
     String stn;
 
     stn.FFormatSz(PszLit(": %f %08x"), _ctg, _cno);
-    _pdocbPar->GetName(pstn);
+    PdocbPar()->GetName(pstn);
     pstn->FAppendStn(&stn);
 }
 
@@ -487,7 +487,7 @@ bool DOCE::_FSaveToChunk(ChunkTagOrType ctg, ChunkNumber cno, bool fRedirect)
     // need to invalidate the line
     cki.ctg = ctg;
     cki.cno = cno;
-    DCD::InvalAllDcd(_pdocbPar, _pcfl, &cki);
+    DCD::InvalAllDcd(PdocbPar(), _pcfl, &cki);
 
     return fTrue;
 }

@@ -2027,7 +2027,47 @@ limits, undo/redo counts, references and virtual/destructor events. C tests comp
 3,000 generated operations with an independent list/reference model, and cover
 allocation fallback, exception stops, release/publication order, partial reference
 effects and reentrant replay/clear hooks. Native undo objects/physical allocators,
-remaining document/view lifecycle, help extensions and final C-only host/facade
+help extensions, view-list/title/UI representations and final C-only host/facade
+removal remain conversion work. Document lifecycle is covered below. Evidence and
+platform limits are in
+`docs/tools/playback-regression.md`.
+
+### Document registry and lifecycle control
+
+`document_lifecycle.c` controls registration/unlinking, live subtree enumeration,
+internal/clipboard status, release/destruction sequencing, view closure, root/file
+lookup and close/save dispatch. Native documents and the enumerator store plain C
+registry/node/iterator data directly. Legacy tool parent access now uses the public
+accessor; no native parent/sibling/child fields duplicate the C graph.
+
+Registration prepends roots/children or inserts after a sibling anchor. Unlinking
+retains the removed node's links. Enumeration combines pre/post for leaves, emits
+root flags at entry/final post and preserves subtree-skip behavior and unchanged
+node output on miss. Close queries visit dirty nodes in postorder. Force ignores
+ordinary save failure but still honors explicit cancel; assume-yes skips the query.
+Root lookup/close traversal observes live sibling links. Generic save retains
+normal/save-as/copy name selection, adoption, ordinary write-error reporting and
+title notification only after non-copy success.
+
+Release decrements the native reference first, then marks freeing and disposes
+undo before closing children. If view closure leaves the same first child, it
+diagnoses/releases that child and retries the live list. Destruction guards a
+clipboard document with two retains before clearing it, unlinks it and releases
+view-list storage. View closure protects its document, re-reads the live first
+view/count and releases the containing window when present, otherwise the view.
+One window may remove several views. The final balancing release may destroy the
+document; C does not touch it afterward. Exceptions preserve partial reference/
+tree/save effects without new compensation.
+
+Native adapters retain typed reference/delete, undo disposal, view/window/clipboard,
+filename, dialog and title primitives. The headless fixture freezes original
+native/SDL links, traversal/skip outputs, internal/dirty values, close choices,
+save/name dispatch, root lookup and explicit release events. C tests compare
+80 generated 24-node trees and their subtree visits against an independent model;
+they also exercise child fallback/removal, batched view closure, clipboard guards,
+query/save failures, force/cancel behavior, registry order and partial effects.
+Native view-list storage, title/naming/display/UI representations, physical and
+clipboard/window/dialog providers, help extensions and final C-only host/facade
 removal remain conversion work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
 

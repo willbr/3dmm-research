@@ -539,9 +539,12 @@ Text undo counters, pending transactions and rich snapshot record construction,
 combination and undo/redo replay now also use C89 with plain C control/record data.
 Generic document undo admission, replay, redo clearing, limit trimming and release
 now use C89 and C-owned collection storage shared by Movie and text documents.
+Document registration/parent links, subtree traversal, internal/clipboard guards,
+close/save decisions and document/view release sequencing now also use C89 and
+plain C registry/node/iterator data.
 Typed resource/track/archive/path providers, help-document argument extensions,
-display formatting/output containers, remaining document/UI lifecycle and final
-facade removal remain work.
+display formatting/output containers, view-list/title/UI representations and
+remaining host lifecycle/facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -602,9 +605,11 @@ now also use C89. Rich-document/property copying and embedded-object queries,
 dispatch, insertion and property edits now also use C89. Text undo counters,
 pending transactions and rich snapshot records/combination/replay now use C89 and
 plain C control/record data. Generic document undo-list control/storage now also
-use C89, shared by Movie and text documents. Help-document argument extensions,
-display/output representations, remaining document/UI lifecycle and final host
-integration still need conversion.
+use C89, shared by Movie and text documents. Document registry/links, tree traversal,
+internal/clipboard guards, close/save decisions and document/view release sequencing
+now also use C89 and plain C registry/node/iterator data. Help-document argument
+extensions, display/output representations, view-list/title/UI representations and
+final host integration still need conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

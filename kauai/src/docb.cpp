@@ -15,10 +15,11 @@
 #include "frame.h"
 ASSERTNAME
 #include "document_undo_host.h"
+#include "document_lifecycle_host.h"
 
 #define dsnoNil 0
 long DocumentBase::_cactLast = 0;
-PDocumentBase DocumentBase::_pdocbFirst = pvNil;
+MMDocumentRegistry DocumentBase::_documents = {};
 
 BEGIN_CMD_MAP(DocumentDisplayGraphicsObject, GraphicsObject)
 ON_CID_GEN(cidClose, &DocumentDisplayGraphicsObject::FCmdCloseDoc, pvNil)
@@ -50,27 +51,8 @@ RTCLASS(UndoBase)
 ***************************************************************************/
 DocumentBase::DocumentBase(PDocumentBase pdocb, ulong grfdoc) : CommandHandler(khidDoc)
 {
-    _pdocbChd = pvNil;
-    if (pvNil == pdocb)
-    {
-        _pdocbPar = pvNil;
-        _pdocbSib = _pdocbFirst;
-        _pdocbFirst = this;
-    }
-    else if (grfdoc & fdocSibling)
-    {
-        AssertPo(pdocb, 0);
-        _pdocbPar = pdocb->_pdocbPar;
-        _pdocbSib = pdocb->_pdocbSib;
-        pdocb->_pdocbSib = this;
-    }
-    else
-    {
-        AssertPo(pdocb, 0);
-        _pdocbPar = pdocb;
-        _pdocbSib = pdocb->_pdocbChd;
-        pdocb->_pdocbChd = this;
-    }
+    AssertNilOrPo(pdocb, 0);
+    mm_document_register(&_documents, &_document, this, pdocb ? &pdocb->_document : nullptr, (grfdoc & fdocSibling) != 0);
 
     const auto undoAllocator = Group::CollectionAllocator();
     int undoTrash = 0;
@@ -88,34 +70,10 @@ DocumentBase::DocumentBase(PDocumentBase pdocb, ulong grfdoc) : CommandHandler(k
 void DocumentBase::Release(void)
 {
     AssertThis(fobjAssertFull);
-    PDocumentBase pdocb;
-    if (--_cactRef > 0)
-        return;
-
-    Assert(Cddg() == 0, "why are there still DocumentDisplayGraphicsObject's open on this DocumentBase?");
-    Assert(!_fFreeing, "we're recursing into the DocumentBase::Release!");
-    _fFreeing = fTrue;
-
-    {
-        UndoHost host(this);
-        auto services = host.Services();
-        mm_document_undo_dispose(&_undoList, &services);
-        host.Rethrow();
-    }
-
-    while (pvNil != (pdocb = _pdocbChd))
-    {
-        pdocb->CloseAllDdg();
-        if (pdocb == _pdocbChd)
-        {
-            // REVIEW shonk: Release: is this the right thing to do?  What if
-            // someone else has a reference count to this child DocumentBase?
-            Bug("why wasn't this child doc released?");
-            ReleasePpo(&pdocb);
-        }
-    }
-
-    delete this;
+    LifecycleHost host;
+    auto services = host.Services();
+    mm_document_release(&_document, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -123,27 +81,10 @@ void DocumentBase::Release(void)
 ***************************************************************************/
 void DocumentBase::CloseAllDdg(void)
 {
-    PDocumentDisplayGraphicsObject pddg;
-    PDocumentMDIWindow pdmd;
-
-    if (pvNil != _pglpddg)
-    {
-        // the pddg's are removed from _hplpddg in RemoveDdg
-        // Note that freeing one DocumentMDIWindow may end up nuking more than
-        // one DocumentDisplayGraphicsObject.
-        // REVIEW shonk: this assumes that no one else has a
-        // reference count open on one of these DMDs or DDGs.
-        AddRef(); // so we aren't freed in the loop
-        while (_pglpddg->IvMac() > 0)
-        {
-            _pglpddg->Get(0, &pddg);
-            if (pvNil != (pdmd = pddg->Pdmd()))
-                ReleasePpo(&pdmd); // close the MDI window
-            else
-                ReleasePpo(&pddg); // close just the DocumentDisplayGraphicsObject
-        }
-        Release(); // balance our AddRef
-    }
+    LifecycleHost host;
+    auto services = host.Services();
+    mm_document_close_views(&_document, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -152,33 +93,13 @@ void DocumentBase::CloseAllDdg(void)
 DocumentBase::~DocumentBase(void)
 {
     AssertThis(fobjAssertFull);
-    PDocumentBase *ppdocb;
-
-    Assert(_fFreeing, "Release not called first!");
-    Assert(pvNil == _pdocbChd, "docb still has children");
-    Assert(pvNil == _pglpddg || _pglpddg->IvMac() == 0, "doc is still being displayed by a window");
-
-    if (vpclip->FDocIsClip(this))
-    {
-        Bug("The clipboard document is going away!");
-        // these AddRef's are so our destructor doesn't get called when the
-        // clipboard releases us!
-        AddRef();
-        AddRef();
-        vpclip->Set();
-    }
-
-    // remove it from the sibling list
-    for (ppdocb = pvNil != _pdocbPar ? &_pdocbPar->_pdocbChd : &_pdocbFirst; *ppdocb != this && pvNil != *ppdocb;
-         ppdocb = &(*ppdocb)->_pdocbSib)
-    {
-    }
-    if (*ppdocb == this)
-        *ppdocb = _pdocbSib;
-    else
-        Bug("corrupt docb tree");
-
-    ReleasePpo(&_pglpddg);
+    Assert(_document.freeing, "Release not called first!");
+    Assert(_document.child == nullptr, "docb still has children");
+    Assert(_pglpddg == nullptr || _pglpddg->IvMac() == 0, "doc is still being displayed by a window");
+    LifecycleHost host;
+    auto services = host.Services();
+    mm_document_finish(&_documents, &_document, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -186,14 +107,11 @@ DocumentBase::~DocumentBase(void)
 ***************************************************************************/
 bool DocumentBase::FQueryCloseAll(ulong grfdoc)
 {
-    PDocumentBase pdocb;
-
-    for (pdocb = _pdocbFirst; pvNil != pdocb; pdocb = pdocb->_pdocbSib)
-    {
-        if (!pdocb->FQueryClose(grfdoc))
-            return fFalse;
-    }
-    return fTrue;
+    LifecycleHost host;
+    auto services = host.Services();
+    int result = mm_document_query_all(&_documents, grfdoc, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -205,33 +123,11 @@ bool DocumentBase::FQueryCloseAll(ulong grfdoc)
 ***************************************************************************/
 bool DocumentBase::FQueryClose(ulong grfdoc)
 {
-    tribool tRet;
-    DocumentTreeEnumerator dte;
-    PDocumentBase pdocb;
-    ulong grfdte;
-    bool fForce = FPure(grfdoc & fdocForceClose);
-
-    dte.Init(this);
-    while (dte.FNextDoc(&pdocb, &grfdte))
-    {
-        if (!(grfdte & fdtePost) || !pdocb->FDirty())
-            continue;
-
-        if (!(grfdoc & fdocAssumeYes))
-        {
-            tRet = pdocb->_TQuerySave(fForce);
-            if (tNo == tRet)
-                continue;
-            if (tMaybe == tRet)
-                return false;
-        }
-        if (!pdocb->FSave())
-        {
-            if (!fForce)
-                return false;
-        }
-    }
-    return true;
+    LifecycleHost host;
+    auto services = host.Services();
+    int result = mm_document_query_close(&_document, grfdoc, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -251,29 +147,11 @@ tribool DocumentBase::_TQuerySave(bool fForce)
 ***************************************************************************/
 bool DocumentBase::FQueryCloseDmd(PDocumentMDIWindow pdmd)
 {
-    PDocumentDisplayGraphicsObject pddg;
-    PDocumentMDIWindow pdmdT;
-    long ipddg;
-
-    if (pvNil == _pglpddg || _pglpddg->IvMac() == 0)
-    {
-        Bug("why are there no DDGs for this doc if there's a DocumentMDIWindow?");
-        return fTrue;
-    }
-
-    for (ipddg = _pglpddg->IvMac(); ipddg-- != 0;)
-    {
-        _pglpddg->Get(ipddg, &pddg);
-        AssertBasePo(pddg, 0);
-        pdmdT = pddg->Pdmd();
-        if (pdmdT != pdmd && pdmdT != pvNil)
-        {
-            // there's another window on this doc, so let this one close
-            return fTrue;
-        }
-    }
-
-    return FQueryClose(fdocNil);
+    LifecycleHost host;
+    auto services = host.Services();
+    int result = mm_document_query_window(&_document, pdmd, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -282,7 +160,11 @@ bool DocumentBase::FQueryCloseDmd(PDocumentMDIWindow pdmd)
 bool DocumentBase::FInternal(void)
 {
     AssertThis(0);
-    return _fInternal || vpclip->FDocIsClip(this);
+    LifecycleHost host;
+    auto services = host.Services();
+    int result = mm_document_internal(&_document, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -291,7 +173,7 @@ bool DocumentBase::FInternal(void)
 void DocumentBase::SetInternal(bool fInternal)
 {
     AssertThis(0);
-    _fInternal = FPure(fInternal);
+    _document.internal = FPure(fInternal);
 }
 
 /***************************************************************************
@@ -300,17 +182,13 @@ void DocumentBase::SetInternal(bool fInternal)
 PDocumentBase DocumentBase::PdocbFromFni(Filename *pfni)
 {
     AssertPo(pfni, 0);
-    PDocumentBase pdocb;
-    Filename fni;
-
-    for (pdocb = _pdocbFirst; pvNil != pdocb; pdocb = pdocb->_pdocbSib)
-    {
-        if (!pdocb->FGetFni(&fni))
-            continue;
-        if (fni.FEqual(pfni))
-            return pdocb;
-    }
-    return pvNil;
+    LifecycleHost host;
+    host.lookup = pfni;
+    auto services = host.Services();
+    MMDocumentNode *found;
+    mm_document_find(&_documents, &found, &services);
+    host.Rethrow();
+    return _DocumentOwner(found);
 }
 
 /***************************************************************************
@@ -327,33 +205,12 @@ bool DocumentBase::FGetFni(Filename *pfni)
 ***************************************************************************/
 bool DocumentBase::FSave(long cid)
 {
-    Filename fni;
-
-    switch (cid)
-    {
-    default:
-        Bug("why are we here?");
-        return fFalse;
-
-    case cidSave:
-        if (FGetFni(&fni))
-            break;
-        // fall through
-    case cidSaveAs:
-    case cidSaveCopy:
-        if (!FGetFniSave(&fni))
-            return fFalse;
-        break;
-    }
-
-    if (!FSaveToFni(&fni, cid != cidSaveCopy))
-    {
-        PushErc(ercCantSave);
-        return fFalse;
-    }
-    if (cid != cidSaveCopy)
-        UpdateName();
-    return fTrue;
+    LifecycleHost host;
+    auto services = host.Services();
+    int kind = cid == cidSave ? MM_DOC_SAVE : cid == cidSaveAs ? MM_DOC_SAVE_AS : cid == cidSaveCopy ? MM_DOC_SAVE_COPY : -1;
+    int result = mm_document_save(&_document, kind, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -811,7 +668,7 @@ void DocumentBase::MarkMem(void)
 ***************************************************************************/
 DocumentTreeEnumerator::DocumentTreeEnumerator(void)
 {
-    _es = esDone;
+    mm_document_tree_init(&_tree, nullptr);
 }
 
 /***************************************************************************
@@ -819,9 +676,7 @@ DocumentTreeEnumerator::DocumentTreeEnumerator(void)
 ***************************************************************************/
 void DocumentTreeEnumerator::Init(PDocumentBase pdocb)
 {
-    _pdocbRoot = pdocb;
-    _pdocbCur = pvNil;
-    _es = pdocb == pvNil ? esDone : esStart;
+    mm_document_tree_init(&_tree, pdocb ? &pdocb->_document : nullptr);
 }
 
 /***************************************************************************
@@ -830,69 +685,13 @@ void DocumentTreeEnumerator::Init(PDocumentBase pdocb)
 ***************************************************************************/
 bool DocumentTreeEnumerator::FNextDoc(PDocumentBase *ppdocb, ulong *pgrfdteOut, ulong grfdte)
 {
-    PDocumentBase pdocbT;
-
-    *pgrfdteOut = fdteNil;
-    switch (_es)
-    {
-    case esStart:
-        _pdocbCur = _pdocbRoot;
-        *pgrfdteOut |= fdteRoot;
-        goto LCheckForKids;
-
-    case esGoDown:
-        if (!(grfdte & fdteSkipToSib))
-        {
-            pdocbT = _pdocbCur->_pdocbChd;
-            if (pdocbT != pvNil)
-            {
-                _pdocbCur = pdocbT;
-                goto LCheckForKids;
-            }
-        }
-        // fall through
-    case esGoLeft:
-        // go to the sibling (if there is one) or parent
-        if (_pdocbCur == _pdocbRoot)
-        {
-            _es = esDone;
-            return fFalse;
-        }
-        pdocbT = _pdocbCur->_pdocbSib;
-        if (pdocbT != pvNil)
-        {
-            _pdocbCur = pdocbT;
-        LCheckForKids:
-            *pgrfdteOut |= fdtePre;
-            if (_pdocbCur->_pdocbChd == pvNil)
-            {
-                *pgrfdteOut |= fdtePost;
-                _es = esGoLeft;
-            }
-            else
-                _es = esGoDown;
-        }
-        else
-        {
-            // no more siblings, go to parent
-            _pdocbCur = _pdocbCur->_pdocbPar;
-            *pgrfdteOut |= fdtePost;
-            if (_pdocbCur == _pdocbRoot)
-            {
-                _es = esDone;
-                *pgrfdteOut |= fdteRoot;
-            }
-            else
-                _es = esGoLeft;
-        }
-        break;
-
-    case esDone:
-        return fFalse;
-    }
-
-    *ppdocb = _pdocbCur;
-    return fTrue;
+    MMDocumentNode *node;
+    MMU32 flags;
+    int result = mm_document_tree_next(&_tree, &node, &flags, grfdte);
+    *pgrfdteOut = flags;
+    if (result)
+        *ppdocb = DocumentBase::_DocumentOwner(node);
+    return result != 0;
 }
 
 /***************************************************************************

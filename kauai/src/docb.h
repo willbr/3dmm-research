@@ -16,6 +16,7 @@
 #ifndef DOCB_H
 #define DOCB_H
 #include "mm/document_undo.h"
+#include "mm/document_lifecycle.h"
 
 /***************************************************************************
     base undo class
@@ -46,8 +47,8 @@ enum
 {
     fdocNil = 0,
     fdocSibling = 1,
-    fdocForceClose = 2, // for FQueryClose, etc
-    fdocAssumeYes = 4,  // for FQueryClose, etc
+    fdocForceClose = MM_DOC_FORCE, // for FQueryClose, etc
+    fdocAssumeYes = MM_DOC_ASSUME_YES,  // for FQueryClose, etc
 
     fdocUpdate = 8, // update associated DDGs
     fdocInval = 16, // invalidate associated DDGs
@@ -65,16 +66,16 @@ class DocumentBase : public DocumentBase_PAR
 
   protected:
     static long _cactLast;
-    static PDocumentBase _pdocbFirst;
-
-    PDocumentBase _pdocbPar;
-    PDocumentBase _pdocbSib;
-    PDocumentBase _pdocbChd;
+    static MMDocumentRegistry _documents;
+    struct LifecycleHost;
+    MMDocumentNode _document;
+    static PDocumentBase _DocumentOwner(MMDocumentNode *node)
+    {
+        return node ? static_cast<PDocumentBase>(node->owner) : pvNil;
+    }
 
     long _cactUntitled; // 0 if titled
     bool _fDirty : 1;
-    bool _fFreeing : 1;
-    bool _fInternal : 1;
     PDynamicArray _pglpddg; // keep track of the DDGs based on this doc
 
     struct UndoHost;
@@ -94,19 +95,19 @@ class DocumentBase : public DocumentBase_PAR
 
     static PDocumentBase PdocbFirst(void)
     {
-        return _pdocbFirst;
+        return _DocumentOwner(_documents.first);
     }
     PDocumentBase PdocbPar(void)
     {
-        return _pdocbPar;
+        return _DocumentOwner(_document.parent);
     }
     PDocumentBase PdocbSib(void)
     {
-        return _pdocbSib;
+        return _DocumentOwner(_document.sibling);
     }
     PDocumentBase PdocbChd(void)
     {
-        return _pdocbChd;
+        return _DocumentOwner(_document.child);
     }
 
     virtual void Release(void);
@@ -178,12 +179,12 @@ enum
 {
     // inputs
     fdteNil = 0,
-    fdteSkipToSib = 1, // legal to FNextDoc
+    fdteSkipToSib = MM_DOC_TREE_SKIP, // legal to FNextDoc
 
     // outputs
-    fdtePre = 2,
-    fdtePost = 4,
-    fdteRoot = 8
+    fdtePre = MM_DOC_TREE_PRE,
+    fdtePost = MM_DOC_TREE_POST,
+    fdteRoot = MM_DOC_TREE_ROOT
 };
 
 #define DocumentTreeEnumerator_PAR BASE
@@ -194,18 +195,7 @@ class DocumentTreeEnumerator : public DocumentTreeEnumerator_PAR
     ASSERT
 
   private:
-    // enumeration states
-    enum
-    {
-        esStart,
-        esGoDown,
-        esGoLeft,
-        esDone
-    };
-
-    long _es;
-    PDocumentBase _pdocbRoot;
-    PDocumentBase _pdocbCur;
+    MMDocumentTree _tree;
 
   public:
     DocumentTreeEnumerator(void);

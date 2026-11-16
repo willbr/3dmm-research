@@ -10008,3 +10008,81 @@ baseline/final logs, `tmp/c89-document-undo-{native,sdl-release,sdl-debug}-tests
 `tmp/c89-document-undo-trace-comparison.json`,
 `tmp/c89-document-undo-identities.json`
 and `tmp/c89-document-undo-targeted-native-errors.log`.
+
+### Document registry and lifecycle control (16 November 2026)
+
+`document_lifecycle.c` now controls document registration/unlinking, live subtree
+enumeration, internal/clipboard status, release/destruction order, view closure,
+root/file lookup and close/save dispatch. Native documents/enumerators store plain
+C registry/node/iterator data. Native parent/sibling/child/internal/freeing fields
+are removed; legacy tool parent reads use the public accessor. The affected
+native `chelp` and `ched` targets compile without launching their UI.
+
+Registration retains root/child prepend and insertion after sibling anchors;
+unlink leaves the removed node's links intact. Enumeration preserves combined
+pre/post leaf visits, root entry/final-post bits, subtree skipping, zero flags and
+unchanged node output on miss. Dirty close queries run in postorder. Force ignores
+ordinary save failure but still honors explicit cancel; assume-yes bypasses the
+query. Root traversal observes live sibling links. Save preserves name selection,
+normal/save-as adoption, save-copy isolation, ordinary write-error publication and
+title notification after non-copy success.
+
+Release decrements references before marking freeing, disposes undo, closes
+children and re-reads the live first child. The unchanged-child fallback retains
+its diagnostic/release/retry behavior, including surviving references. Destruction
+retains twice before clearing a clipboard document, then unlinks and releases view
+storage. View closure retains the document while repeatedly choosing the current
+first view's window or the view itself. A window may remove multiple views. The
+final balancing release may destroy the document; C does not access it afterward.
+Exception results retain partial counters/tree/save effects without new rollback
+or compensating releases. Window, clipboard, filename/dialog and title operations
+remain typed native services, with exceptions captured before returning to C.
+
+Before conversion, the expanded headless engine fixture recorded 1,900 bytes on
+Native Debug, SDL Release and SDL Debug, all with FNV-1a `FE5F544A`, SHA-256
+`69FCD72C1D6A25FC18DD231D3169884ECCE195B53D814F1433D002AF59DCEAA9`.
+It freezes parent/sibling/child links, root order, traversal/skip/miss outputs,
+internal/dirty state, close-query responses, normal/save-as/copy dispatch, name
+lookup and explicit destructor events. Native save/query providers are headless
+probes; no actual clipboard mutation or dialog/window interaction is added.
+
+C checks compare 80 generated 24-node trees, links and subtree/skip visits against
+an independent model, then unlink every node and check the surviving graph. Focused
+checks cover protected/batched view closure, children disappearing during closure,
+fallback release/retry, clipboard double retains, internal short circuit, last-
+window decisions, postorder dirty queries, explicit cancel under force, assume-yes,
+root-order early stops and name lookup. Allocation/foreign exception probes check
+undo/view/refcount/clipboard/query/save boundaries and retained partial effects.
+MSVC AddressSanitizer and strict C89 syntax pass.
+
+All fifty-seven original/converted lifecycle/generic-undo/text-undo/copy/access/
+formatting/property/materialization/document/live-text/stored-text/media/metadata/
+session/admission/live/camera/picking/rendering trace pairs match across the three
+hosts. Prior hashes remain unchanged. Background checks retain 301,996,032 bytes/
+FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. All 129 standalone
+C checks, including strict C89 syntax, pass. Thirty-four selected native checks
+and thirty checks in each SDL configuration pass, including core/scene/movie and
+existing native playback/player regressions. The regular asset-preview harness
+passes headlessly with fresh metadata inputs. Retained input identities are
+unchanged after verification; identities for 30 rebuilt binaries, including the
+two legacy tools, are recorded. Test processes use private temporary directories.
+Marcus was stopped before rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference. No new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Complete
+interactive clipboard/dialog/window-close equivalence and other platforms remain
+unverified by this slice. Native view-list storage, title/naming/display/UI
+representations, physical/clipboard/window/dialog providers, help extensions and
+final C-only host/facade removal remain conversion work.
+
+Evidence: `tmp/c89-document-lifecycle-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs,
+`tmp/c89-document-lifecycle-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-document-lifecycle-standalone-tests.log`,
+`tmp/c89-document-lifecycle-{undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-document-lifecycle-asan.log`,
+`tmp/c89-document-lifecycle-regular-tests.log`,
+`tmp/c89-document-lifecycle-tools-build.log`,
+`tmp/c89-document-lifecycle-trace-comparison.json`,
+`tmp/c89-document-lifecycle-identities.json`
+and `tmp/c89-document-lifecycle-targeted-native-errors.log`.
