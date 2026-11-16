@@ -20,6 +20,7 @@ ASSERTNAME
 
 namespace Help {
 #include "help_text_host.h"
+#include "help_display_host.h"
 
 BEGIN_CMD_MAP(TopicGraphicsObject, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
@@ -42,6 +43,7 @@ TextDocument::TextDocument(PResourceCache prca, PDocumentBase pdocb, ulong grfdo
     _prca = prca;
     _prca->AddRef();
     mm_help_topic_init(&_topic);
+    mm_help_display_init(&_display);
 }
 
 /***************************************************************************
@@ -181,55 +183,15 @@ bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgn
     AssertPo(pgnv, 0);
     AssertVarMem(pchp);
     AssertVarMem(prc);
-    LegacyLong cb;
-    PMaskedBitmapMBMP pmbmp;
-    PChunkyResourceFile pcrf;
-    ChildChunkIdentification kid;
-    LegacyLong rglw[2];
-
-    if (sprmObject != sprm)
-        return fFalse;
-
-    Assert(size(ChunkTagOrType) == size(LegacyLong), 0);
-    cb = _pagcact->Cb(icact);
-    if (cb < size(rglw))
-        return fFalse;
-    _pagcact->GetRgb(icact, 0, size(rglw), rglw);
-    switch ((ChunkTagOrType)rglw[0])
-    {
-    case kctgMbmp:
-        pmbmp = (PMaskedBitmapMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MaskedBitmapMBMP::FReadMbmp);
-        goto LHaveMbmp;
-
-    case kctgGokd:
-        pcrf = _prca->PcrfFindChunk(rglw[0], rglw[1]);
-        if (pvNil == pcrf)
-            return fFalse;
-        if (!pcrf->Pcfl()->FGetKidChidCtg(rglw[0], rglw[1], 0x10000, kctgMbmp, &kid))
-        {
-            return fFalse;
-        }
-        pmbmp = (PMaskedBitmapMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MaskedBitmapMBMP::FReadMbmp);
-    LHaveMbmp:
-        if (pvNil == pmbmp)
-            return fFalse;
-        pmbmp->GetRc(prc);
-        ReleasePpo(&pmbmp);
-        prc->Offset(-prc->xpLeft, -prc->ypBottom);
-        return fTrue;
-
-    case kctgEditControl:
-        pgnv->SetFont(pchp->onn, pchp->grfont, pchp->dypFont, tahLeft, tavBaseline);
-        pgnv->GetRcFromRgch(prc, pvNil, 0);
-        prc->Inset(0, -1);
-        prc->xpLeft = 0;
-        prc->xpRight = rglw[1];
-        return fTrue;
-
-    default:
-        return fFalse;
-    }
-    return fTrue;
+    DisplayHost host(this, pgnv, pchp);
+    host.bounds = prc;
+    auto services = host.Display();
+    MMMaskedRect bounds;
+    int result = mm_help_object_bounds(icact, sprm, host.Config().big, &bounds, &services);
+    host.Rethrow();
+    if (result > 0)
+        *prc = DisplayHost::Rectangle(bounds);
+    return result > 0;
 }
 
 /***************************************************************************
@@ -243,72 +205,12 @@ bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv
     AssertVarMem(pxp);
     AssertVarMem(pchp);
     AssertVarMem(prcClip);
-    LegacyLong cb;
-    RC rc;
-    PMaskedBitmapMBMP pmbmp;
-    PChunkyResourceFile pcrf;
-    ChildChunkIdentification kid;
-    LegacyLong rglw[2];
-    bool fDrawMbmp = fTrue;
-
-    if (sprmObject != sprm)
-        return fFalse;
-
-    cb = _pagcact->Cb(icact);
-    if (cb < size(rglw))
-        return fFalse;
-    _pagcact->GetRgb(icact, 0, size(rglw), rglw);
-    switch ((ChunkTagOrType)rglw[0])
-    {
-    case kctgMbmp:
-        pmbmp = (PMaskedBitmapMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MaskedBitmapMBMP::FReadMbmp);
-        goto LHaveMbmp;
-
-    case kctgGokd:
-        fDrawMbmp = !_fHideButtons;
-        pcrf = _prca->PcrfFindChunk(rglw[0], rglw[1]);
-        if (pvNil == pcrf)
-            return fFalse;
-        if (!pcrf->Pcfl()->FGetKidChidCtg(rglw[0], rglw[1], ChidFromSnoDchid(ksnoInit, 0), kctgMbmp, &kid))
-        {
-            return fFalse;
-        }
-        pmbmp = (PMaskedBitmapMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MaskedBitmapMBMP::FReadMbmp);
-    LHaveMbmp:
-        if (pvNil == pmbmp)
-            return fFalse;
-        pmbmp->GetRc(&rc);
-        rc.Offset(*pxp - rc.xpLeft, yp - rc.ypBottom);
-        if (kacrClear != pchp->acrBack)
-            pgnv->FillRc(&rc, pchp->acrBack);
-        if (fDrawMbmp)
-            pgnv->DrawMbmp(pmbmp, &rc);
-        ReleasePpo(&pmbmp);
-        if (pchp->grfont & fontBoxed)
-        {
-            pgnv->SetPenSize(1, 1);
-            pgnv->FrameRcApt(&rc, &vaptGray, pchp->acrFore, kacrClear);
-        }
-        *pxp += rc.Dxp();
-        return fTrue;
-
-    case kctgEditControl:
-        pgnv->SetFont(pchp->onn, pchp->grfont, pchp->dypFont, tahLeft, tavBaseline);
-        pgnv->GetRcFromRgch(&rc, pvNil, 0, 0, yp);
-        rc.Inset(0, -1);
-        rc.xpLeft = *pxp;
-        rc.xpRight = rc.xpLeft + rglw[1];
-        *pxp = rc.xpRight;
-        pgnv->SetPenSize(1, 1);
-        pgnv->FrameRc(&rc, kacrBlack);
-        rc.Inset(1, 1);
-        pgnv->FillRc(&rc, pchp->acrBack);
-        return fTrue;
-
-    default:
-        return fFalse;
-    }
-    return fTrue;
+    DisplayHost host(this, pgnv, pchp);
+    host.cursor = pxp;
+    auto services = host.Display();
+    int result = mm_help_object_draw(&_display, icact, sprm, yp, host.Config().big, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************

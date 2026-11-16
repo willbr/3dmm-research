@@ -547,7 +547,9 @@ clipboard/file/untitled name selection now also use C89 and C-owned view storage
 untitled counters now live in C registry/node data.
 Help topic metadata, wire codecs/read/save, string expansion, object/group argument
 normalization and picture/button/group edit transactions now also use C89 and
-plain C topic data. Native help rendering and interaction remain work.
+plain C topic data. Help embedded-object bounds and drawing sequence now also use
+C89, with plain C button-visibility state. Physical bitmap/font/graphics providers
+and Help interaction remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.
@@ -617,7 +619,9 @@ now also use C89 and plain C registry/node/iterator data. Borrowed view storage,
 first-view selection/activation, title traversal and name selection/counters now
 also use C89 and plain C data. Help topic metadata, wire codecs/read/save, string
 expansion, object/group argument normalization and picture/button/group edits now
-also use C89 and plain C topic data. Help rendering/interaction, display/output
+also use C89 and plain C topic data. Help embedded-object bounds, resource selection
+and drawing sequence now also use C89 and plain C button-visibility state.
+Physical bitmap/font/graphics providers, Help interaction, display/output
 representations, native string/display/UI representations and final host integration
 still need conversion.
 Final removal of native representations and facades remains required.

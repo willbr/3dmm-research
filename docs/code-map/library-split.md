@@ -2141,10 +2141,44 @@ private file/payload owners and group locks now release before native rethrow.
 The headless fixture freezes preconversion Native/SDL text, properties, arguments,
 group outputs, object payloads and saved chunk trees. C tests cover both byte
 orders, old headers, partial normalization/publication, failure and exception
-ordering, owned forests, expansion and rollback. Bitmap/button bounds and drawing,
-`TopicGraphicsObject`, balloons, buttons, native string/display/UI representations
+ordering, owned forests, expansion and rollback. Embedded-object display policy is
+described below. `TopicGraphicsObject`, balloons, buttons, native string/display/UI representations
 and final C-only host/facade removal remain conversion work. Evidence and platform
 limits are in `docs/tools/playback-regression.md`.
+
+### Help embedded-object layout and drawing policy
+
+`help_display.c` owns native-order object-header dispatch, picture/button resource
+selection, bitmap-child lookup, baseline geometry, edit-control font/measurement
+sequencing, fill/draw/boxing order and cursor publication. `MMHelpDisplay` replaces
+the native hidden-button field with plain C state. `help_display_host.h` supplies
+typed cache/file/bitmap, font measurement and graphics primitives shared by the
+Native and SDL adapters. Physical rasterization and font metrics remain providers.
+
+Only object kind 192 is handled; arguments shorter than eight bytes and unknown
+types leave bounds/cursor unchanged. Button bitmap lookup uses child `0x10000`.
+Bitmap bounds align their left/bottom to zero. Drawing aligns to the live cursor
+and baseline, fills nonclear backgrounds, optionally draws, releases the bitmap,
+then boxes and advances. Hidden buttons still resolve, measure, fill, frame and
+advance. Boxing reads style after release and foreground after setting the pen;
+cursor advancement reads the live cursor after framing. Edit controls always
+frame/fill, including zero/negative widths, and publish their cursor before pen/
+frame/fill. The graphics environment supplies clipping; the separate caller clip
+remains unused. Coordinate arithmetic explicitly wraps at 32 bits.
+
+Fallible provider exceptions stop with partial graphics/cursor effects retained.
+Private bitmap references release on exceptional exits before native rethrow,
+fixing the original exceptional ownership leak. Bounds callbacks publish their
+native outputs before reference release, retaining native observation order.
+
+The offscreen engine fixture captures original per-host bounds, cursor results and
+pixels for picture/button/edit/unknown/missing resources, hidden buttons, boxed
+styles, background colors, nonzero bitmap origins and clipping. C tests cover
+both byte orders, geometry and event order, failure/exception stops, partial owners,
+late style/color/cursor reads and coordinate wrap. `TopicGraphicsObject`, balloons,
+buttons, native string/display/UI representations, physical graphics/font/cache
+providers and final C-only host/facade removal remain conversion work. Evidence and
+platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

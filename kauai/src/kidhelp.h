@@ -16,6 +16,7 @@
 #ifndef KIDHELP_H
 #define KIDHELP_H
 #include "mm/help_text.h"
+#include "mm/help_display.h"
 
 namespace Help {
 
@@ -83,7 +84,8 @@ class TextDocument : public TextDocument_PAR
     PResourceCache _prca;         // source of pictures and buttons
     MMHelpTopic _topic;
     struct HelpHost;
-    bool _fHideButtons; // whether to draw buttons
+    struct DisplayHost;
+    MMHelpDisplay _display;
 
     TextDocument(PResourceCache prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TextDocument(void);
@@ -115,7 +117,7 @@ class TextDocument : public TextDocument_PAR
     void SetHtop(PTopic phtop);
     void HideButtons(bool fHide = fTrue)
     {
-        _fHideButtons = FPure(fHide);
+        mm_help_display_hide(&_display, fHide);
     }
 };
 

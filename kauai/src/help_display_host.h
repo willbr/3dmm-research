@@ -1,0 +1,129 @@
+#ifndef HELP_DISPLAY_HOST_H
+#define HELP_DISPLAY_HOST_H
+struct TextDocument::DisplayHost : HelpHost
+{
+    PGraphicsEnvironment graphics;
+    PCHP character;
+    long *cursor = nullptr;
+    RC *bounds = nullptr;
+    DisplayHost(TextDocument *p, PGraphicsEnvironment g, PCHP c) : HelpHost(p), graphics(g), character(c)
+    {
+    }
+    static MMMaskedRect Rectangle(const RC &p)
+    {
+        return {p.xpLeft, p.ypTop, p.xpRight, p.ypBottom};
+    }
+    static RC Rectangle(const MMMaskedRect &p)
+    {
+        return {p.left, p.top, p.right, p.bottom};
+    }
+    MMHelpDisplayServices Display()
+    {
+        MMHelpDisplayServices s = {};
+        s.context = this;
+        s.bytes = [](void *v, MMI32 i) -> MMI32 { return static_cast<DisplayHost *>(v)->help->_pagcact->Cb(i); };
+        s.header = [](void *v, MMI32 i, unsigned char *out) {
+            static_cast<DisplayHost *>(v)->help->_pagcact->GetRgb(i, 0, 8, out);
+        };
+        s.find = [](void *v, const MMTextChunk *p, void **out) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                *out = h.help->_prca->PcrfFindChunk(p->type, p->number);
+                return *out != nullptr;
+            });
+        };
+        s.child = [](void *v, void *cache, const MMTextChunk *p, MMU32 id, MMTextChunk *out) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                ChildChunkIdentification kid;
+                if (!static_cast<PChunkyResourceFile>(cache)->Pcfl()->FGetKidChidCtg(p->type, p->number, id, kctgMbmp,
+                                                                                     &kid))
+                    return false;
+                *out = {kid.cki.ctg, kid.cki.cno};
+                return true;
+            });
+        };
+        s.fetch = [](void *v, void *cache, const MMTextChunk *p, void **out) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                *out = cache ? static_cast<PChunkyResourceFile>(cache)->PbacoFetch(p->type, p->number,
+                                                                                   MaskedBitmapMBMP::FReadMbmp)
+                             : h.help->_prca->PbacoFetch(p->type, p->number, MaskedBitmapMBMP::FReadMbmp);
+                return *out != nullptr;
+            });
+        };
+        s.rectangle = [](void *v, void *bitmap, MMMaskedRect *out) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            RC rc;
+            auto target = h.bounds ? h.bounds : &rc;
+            static_cast<PMaskedBitmapMBMP>(bitmap)->GetRc(target);
+            *out = Rectangle(*target);
+            return 1;
+        };
+        s.release = [](void *, void *bitmap) { static_cast<PMaskedBitmapMBMP>(bitmap)->Release(); };
+        s.font = [](void *v) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                h.graphics->SetFont(h.character->onn, h.character->grfont, h.character->dypFont, tahLeft, tavBaseline);
+                return 1;
+            });
+        };
+        s.measure = [](void *v, MMI32 baseline, MMMaskedRect *out) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                RC rc;
+                auto target = h.bounds ? h.bounds : &rc;
+                h.graphics->GetRcFromRgch(target, nullptr, 0, 0, baseline);
+                *out = Rectangle(*target);
+                return 1;
+            });
+        };
+        s.color = [](void *v, int foreground) -> MMU32 {
+            auto c = static_cast<DisplayHost *>(v)->character;
+            return foreground ? c->acrFore.LwGet() : c->acrBack.LwGet();
+        };
+        s.style = [](void *v) -> MMU32 { return static_cast<DisplayHost *>(v)->character->grfont; };
+        s.x = [](void *v) -> MMI32 { return *static_cast<DisplayHost *>(v)->cursor; };
+        s.publish_x = [](void *v, MMI32 x) { *static_cast<DisplayHost *>(v)->cursor = x; };
+        s.fill = [](void *v, const MMMaskedRect *p, MMU32 color) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                auto rc = Rectangle(*p);
+                AbstractColor c;
+                c.SetFromLw(mm_signed_word(color));
+                h.graphics->FillRc(&rc, c);
+                return 1;
+            });
+        };
+        s.draw = [](void *v, void *bitmap, const MMMaskedRect *p) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                auto rc = Rectangle(*p);
+                h.graphics->DrawMbmp(static_cast<PMaskedBitmapMBMP>(bitmap), &rc);
+                return 1;
+            });
+        };
+        s.pen = [](void *v) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                h.graphics->SetPenSize(1, 1);
+                return 1;
+            });
+        };
+        s.frame = [](void *v, const MMMaskedRect *p, int patterned, MMU32 color) -> int {
+            auto &h = *static_cast<DisplayHost *>(v);
+            return h.Guard([&] {
+                auto rc = Rectangle(*p);
+                AbstractColor c;
+                c.SetFromLw(mm_signed_word(color));
+                if (patterned)
+                    h.graphics->FrameRcApt(&rc, &vaptGray, c, kacrClear);
+                else
+                    h.graphics->FrameRc(&rc, c);
+                return 1;
+            });
+        };
+        return s;
+    }
+};
+#endif

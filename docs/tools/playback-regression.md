@@ -10239,3 +10239,74 @@ baseline/final logs, `tmp/c89-help-text-{native,sdl-release,sdl-debug}-tests.log
 `tmp/c89-help-text-asan.log`, `tmp/c89-help-text-regular-tests.log`,
 `tmp/c89-help-text-tools-build.log`, `tmp/c89-help-text-trace-comparison.json`,
 `tmp/c89-help-text-identities.json` and `tmp/c89-help-text-targeted-native-errors.log`.
+
+### Help embedded-object layout and drawing policy (16 November 2026)
+
+`help_display.c` now owns native-order object-header dispatch, picture/button
+resource selection, bitmap-child lookup, baseline geometry, edit-control font and
+measurement sequencing, fill/draw/boxing order and cursor publication.
+`MMHelpDisplay` replaces the native hidden-button field with plain C state.
+Typed cache/file/bitmap/font/graphics primitives remain in `help_display_host.h`.
+The physical renderers and font metrics are unchanged providers.
+
+Only object kind 192 is handled; short arguments and unknown types retain their
+failure behavior. Buttons use bitmap child `0x10000`. Bitmap bounds normalize left/
+bottom to zero. Drawing aligns to the live cursor/baseline, fills nonclear
+backgrounds, optionally draws, releases the bitmap, then boxes and advances.
+Hidden buttons still resolve, measure, fill, frame and advance. Style is read
+after bitmap release; foreground is read after pen setup and the live cursor
+after framing. Edit controls always frame/fill, including zero/negative widths,
+and publish their cursor before pen/frame/fill. Graphics-environment clipping
+remains authoritative; the separate caller clip is unused. Coordinate arithmetic
+wraps explicitly at 32 bits.
+
+Exceptions retain partial graphics/cursor effects without added transaction
+rollback. Private bitmap references release before native rethrow on every exit,
+fixing exceptional ownership leaks. Native bounds callbacks publish raw outputs
+before bitmap release, then receive the final normalized bounds after C returns.
+Exact native allocator/exception equivalence is not claimed.
+
+Before conversion, an offscreen engine fixture recorded 496,000 bytes per host:
+
+| Host | FNV-1a | SHA-256 |
+| --- | --- | --- |
+| Native Debug | `79151715` | `28602BFE95975A7379548EF4FFE3676DFEBCC3E0C4EB7C72D1B38AD7FA6C9737` |
+| SDL Release/Debug | `B1CE247D` | `7873DFF1288BA584965D9B4E33A32F85231ACFDECCAC0153EA6ABBC5D4421882` |
+
+The fixture freezes return values, bounds, cursor outputs and full offscreen
+pixels for pictures, buttons, edit controls, unknown types, missing resources,
+hidden/boxed styles, clear/nonclear backgrounds, nonzero bitmap origins, negative/
+zero edit widths and clipping. Each converted host is compared with its own
+baseline; this does not assert Native/SDL raster or font-metric equality. No window
+or Marcus UI test is involved.
+
+C checks independently verify geometry and event order in both byte orders,
+header rejection, button-child selection, hidden-button behavior, failure and
+exception stops, partial owner release, bounds partial output, cursor-publication
+timing, late style/color/cursor reads and 32-bit wrap. MSVC AddressSanitizer passes.
+
+All 66 original/converted display/Help/text/preview trace pairs match across the
+three hosts. Prior hashes remain unchanged. Background checks retain 301,996,032
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. All 132
+standalone C checks, including strict C89 syntax, pass. Thirty-seven selected
+Native checks and 33 checks in each SDL configuration pass, including the existing
+Native playback/player regressions. The regular headless asset-preview harness
+passes; Native `chelp` and `ched` compile. Retained input identities remain
+unchanged after verification; identities for 30 binaries are recorded. Test
+processes use private temporary directories. Marcus was stopped before rebuilding
+and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Interactive
+Help/topic/balloon/button behavior and other platforms remain unverified by this
+slice. `TopicGraphicsObject`, balloons/buttons, native string/display/UI
+representations, physical graphics/font/cache providers and final C-only host/
+facade removal remain conversion work.
+
+Evidence: `tmp/c89-help-display-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-help-display-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-help-display-standalone-tests.log`,
+`tmp/c89-help-display-{text,views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-help-display-asan.log`, `tmp/c89-help-display-regular-tests.log`,
+`tmp/c89-help-display-tools-build.log`, `tmp/c89-help-display-trace-comparison.json`,
+`tmp/c89-help-display-identities.json` and `tmp/c89-help-display-targeted-native-errors.log`.
