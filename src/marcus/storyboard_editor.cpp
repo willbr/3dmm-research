@@ -15,8 +15,15 @@ constexpr int swatches[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
 static_assert(sizeof(colourNames) / sizeof(*colourNames) == MarcusBoardColourCount, "Paint labels match the palette");
 struct Field { const char *name; float *value; float low, high, step; };
 bool Inside(float x, float y, const SDL_FRect &r) { return ui_inside(x, y, r.x, r.y, r.w, r.h) != 0; }
-void Guide(MarcusUI *ui, const MarcusCameraGuide &guide, const SDL_FRect &r, unsigned colour)
+void Guide(MarcusUI *ui, const MarcusCameraGuide &guide, const SDL_FRect &r, unsigned colour, bool outlined = false)
 {
+    if (outlined)
+        for (int dy = -1; dy <= 1; ++dy) for (int dx = -1; dx <= 1; ++dx)
+        {
+            if (!dx && !dy) continue;
+            auto shifted = r; shifted.x += dx; shifted.y += dy;
+            Guide(ui, guide, shifted, 0x15191f);
+        }
     for (int i = 0; i < guide.line_count; ++i)
     {
         const auto &line = guide.lines[i];
@@ -48,7 +55,7 @@ struct MarcusStoryboardEditor
     MarcusPlayer *player = nullptr;
     MarcusStoryboard board;
     MarcusBoardAngle work, lightView;
-    bool inspectLights = false;
+    bool inspectLights = false, showGrid = true;
     bool movingLight = false, lightGizmoOver = false;
     int lightMode = 0;
     float lightMatrix[16] = {};
@@ -303,19 +310,28 @@ struct MarcusStoryboardEditor
             const auto shot = MarcusBoardProjection(board.angles[angle]);
             camera_guide_build(&projection, &shot, &camera); Guide(ui, camera, canvas, 0x78b7c4);
         }
-        for (int i = 0; i < int(board.lights.size()); ++i)
+        // Keep the selected light and its label above nearby markers.
+        for (int pass = 0; pass < 2; ++pass) for (int i = 0; i < int(board.lights.size()); ++i)
         {
-            const auto widget = MarcusBoardBuildLightWidget(projection, board.lights[i], canvas.h);
             const bool selected = i == light;
+            if (selected != (pass == 1)) continue;
+            const auto widget = MarcusBoardBuildLightWidget(projection, board.lights[i], canvas.h);
             const unsigned colour = selected ? 0xffd77a : 0xc4a76d;
-            Guide(ui, widget.shape, canvas, colour); Guide(ui, widget.direction, canvas, colour);
+            Guide(ui, widget.shape, canvas, colour, true); Guide(ui, widget.direction, canvas, colour, true);
             if (widget.visible)
             {
                 const auto &p = widget.centre;
                 const float x = canvas.x + p[0] * canvas.w, y = canvas.y + p[1] * canvas.h;
-                if (!selected) ui_fill(ui, x - 2, y - 2, 5, 5, colour);
+                if (!selected) { ui_fill(ui, x - 3, y - 3, 7, 7, 0x15191f); ui_fill(ui, x - 2, y - 2, 5, 5, colour); }
                 char label[64]; SDL_snprintf(label, sizeof(label), "%s light %d", board.lights[i].point ? "Point" : "Directional", i + 1);
-                ui_text(ui, x + 16, y - 28, label, colour);
+                float width = 12;
+                for (const unsigned char *p = reinterpret_cast<const unsigned char *>(label); *p; ++p)
+                    width += ui->font ? ui->glyphs[*p - 32].advance : 8;
+                const float left = std::clamp(x + 12, canvas.x + 4, std::max(canvas.x + 4, canvas.x + canvas.w - width - 4));
+                const float top = std::clamp(y - 32, canvas.y + 40, std::max(canvas.y + 40, canvas.y + canvas.h - 26));
+                ui_fill(ui, left, top, width, 22, selected ? colour : 0x707984);
+                ui_fill(ui, left + 1, top + 1, width - 2, 20, 0x20252c);
+                ui_text(ui, left + 6, top + 3, label, selected ? 0xffe09a : 0xe4c27d);
             }
         }
         SDL_SetRenderClipRect(ui->renderer, clipped ? &previous : nullptr);
@@ -577,6 +593,7 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
     if (ui_inside(px, py, e->tools.x + e->tools.w - 80, y + 12, 64, 28)) { storyboard_editor_close(e); return 1; }
     if (ui_inside(px, py, e->bar.x + 140, e->bar.y, 32, 28)) { e->SelectAngle(e->angle - 1); return 1; }
     if (ui_inside(px, py, e->bar.x + 180, e->bar.y, 32, 28)) { e->SelectAngle(e->angle + 1); return 1; }
+    if (ui_inside(px, py, right - 354, e->bar.y, 96, 28)) { e->showGrid = !e->showGrid; return 1; }
     if (ui_inside(px, py, right - 250, e->bar.y, 112, 28)) { e->AddAngle(); return 1; }
     if (ui_inside(px, py, right - 130, e->bar.y, 130, 28) && e->hasWork)
     {
@@ -676,12 +693,13 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
     ui_button_sized(ui, e->bar.x + 140, e->bar.y, 32, 28, "<", 0, e->angle > 0);
     ui_button_sized(ui, e->bar.x + 180, e->bar.y, 32, 28, ">", 0, e->angle + 1 < int(e->board.angles.size()));
     SDL_snprintf(label, sizeof(label), "Angle %d of %d", e->angle + 1, int(e->board.angles.size()));
-    ui_label(ui, e->bar.x + 226, e->bar.y + 8, std::max(0.f, e->bar.w - 484), label, 0xdde0e5);
+    ui_label(ui, e->bar.x + 226, e->bar.y + 8, std::max(0.f, e->bar.w - 588), label, 0xdde0e5);
+    ui_button_sized(ui, right - 354, e->bar.y, 96, 28, e->showGrid ? "Grid: on" : "Grid: off", e->showGrid, 1);
     ui_button_sized(ui, right - 250, e->bar.y, 112, 28, "New angle", 0, e->board.angles.size() < 64);
     ui_button_sized(ui, right - 130, e->bar.y, 130, 28, "Use work camera", 0, e->hasWork);
     ui_fill(ui, e->canvas.x - 1, e->canvas.y - 1, e->canvas.w + 2, e->canvas.h + 2, 0x5b6570);
     if (e->texture) SDL_RenderTexture(ui->renderer, e->texture, nullptr, &e->canvas);
-    Grid(ui, e->gridLines, e->canvas, e->tab == 2);
+    if (e->showGrid) Grid(ui, e->gridLines, e->canvas, e->tab == 2);
     if (e->tab == 2) e->DrawLights(ui);
     if (e->tab == 0)
     {

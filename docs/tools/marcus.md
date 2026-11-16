@@ -208,6 +208,8 @@ wide, retain the current camera perspective, and stay fixed if you move the came
 later. Baking is one undo step and survives Save copy, without adding
 depth. The live guide, crosshair and guide label appear in Paint, Camera and
 Lights as temporary overlays.
+The storyboard toolbar's **Grid: on/off** toggle shows or hides the live guide
+in Paint, Camera and Lights. It leaves baked grid lines and the movie unchanged.
 The live ground grid uses the preview's scene depth, so actors and props hide
 grid lines behind their surfaces. Baked lines remain part of the background.
 **Use work camera** copies the current
@@ -216,6 +218,8 @@ work-view pose and lens into this angle, retaining its drawing.
 **Lights** adds, selects, deletes and adjusts up to sixteen directional or point
 lights. Its 3D inspection view shows selectable light widgets and the shot's camera
 frustum. Point lights use spherical markers; directional lights show an arrow.
+Dark outlines and label backgrounds keep these markers readable over paintings
+and the ground grid.
 Click a marker to select it. Lights use the same ImGuizmo controls as props:
 **Move** provides coloured axis arrows, plane handles and a centre handle;
 **Rotate** provides rings for aiming directional lights. Hold Ctrl to snap moves
