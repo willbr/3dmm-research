@@ -2351,10 +2351,54 @@ exceptions before returning to C. Partial state remains on failure; first lifeti
 output survives a failed last-frame query. The native headless fixture freezes
 viewless loaded metadata, lifetime, type, selection, bounds and frame behavior.
 C providers cover view creation/reuse/release, order, callback mutation and failure
-prefixes, including freeing state during frame-change release under AddressSanitizer. Factory,
-edit/undo/clipboard policy, physical view implementation and Marcus paint-order
-storage remain conversion work. Evidence and limits are in
+prefixes, including freeing state during frame-change release under AddressSanitizer.
+Factory/edit/undo/clipboard control is covered below. Physical view implementation
+and Marcus paint-order storage remain conversion work. Evidence and limits are in
 `docs/tools/playback-regression.md`.
+
+### Text-box document transactions, undo and clipboard
+
+`text_box_edit.c` owns new/read factories, whole-document duplication, type/color
+and show/hide edit transactions, movie/parent undo registration and clearing,
+scene-index lookup, selection property application and formatting-mask queries.
+It also owns clipboard reference adoption/disposal and paste placement, insertion,
+selection and mouse attachment. `text_box_undo.c` owns replay and wrapped-record
+disposal. All five native undo classes now store their saved type, rectangle,
+lifetime, background or wrapped document record in `MMTextBoxUndo`; clipboard
+references live in `MMTextBoxClipboard`.
+
+Factories initialize before reading input bounds, attach scene/type before clearing
+the background, and set one-level document undo last. Read errors publish the bad-
+file error only for an ordinary metadata failure. Duplication publishes its new
+document before suspension/replacement; failure releases before nulling output.
+Defaults copy before undo resumes, then background and type copy. Lifetimes and
+scene ownership are not copied. Exceptions retain the original completed prefix
+without adding owner cleanup/rollback to those paths.
+
+Edit operations register undo before applying. Show retains its success-only movie
+undo clearing; early hide delegates to scene removal. Wrapped edit registration
+keeps the original movie-before-parent order and asymmetric failure cleanup.
+Replay switches scene, seeks and resolves the indexed text box. Initial ordinary
+failures flush then clear movie undo; that clear may destroy the running record.
+Type/color saved values swap before selection, size/lifetime after selection.
+The final hide-replay seek still ignores an ordinary false result. Wrapped edit
+false returns without the initial-failure cleanup. Disposal clears parent document
+undo only when the owning scene is current, then releases its retained record.
+
+Selection changes build the original cleared properties and complement masks in
+C; selection queries preserve first-character formatting and clear only font,
+height, bold and italic consistency bits. Paste snapshots workspace dimensions
+before duplicating, shifts to `(177,78)`, intersects the client workspace and
+normalizes empty rectangles to zero. Coordinate arithmetic wraps at 32 bits.
+
+`text_box_edit_host.h` retains typed allocation, reference, document, scene, view,
+color/property marshalling and native MovieUndo context access. The native fixture
+freezes duplication, clipboard adoption, no-view queries and real type/color/text
+undo/redo without windows. C probes cover other view-dependent paths, geometry,
+partial publication and ordinary/exception prefixes; clearing movie undo frees
+the running C record under AddressSanitizer. Physical views, native base-context
+storage, Marcus paint-order storage and final C-only host/facade integration remain
+work. Evidence and coverage limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

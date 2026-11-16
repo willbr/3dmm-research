@@ -55,6 +55,17 @@ target_sources(mm-engine-c89 PRIVATE src/help_display.c)
 target_sources(mm-engine-c89 PRIVATE src/help_interaction.c)
 target_sources(mm-engine-c89 PRIVATE src/help_balloon.c)
 target_sources(mm-engine-c89 PRIVATE src/help_topic.c)
+target_sources(mm-engine-c89 PRIVATE src/text_box_edit.c src/text_box_undo.c)
+get_filename_component(engine_text_box_edit_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_box_edit_test.c" ABSOLUTE)
+add_executable(engine-text-box-edit-test EXCLUDE_FROM_ALL "${engine_text_box_edit_test_source}")
+target_link_libraries(engine-text-box-edit-test PRIVATE mm-engine-c89)
+set_target_properties(engine-text-box-edit-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-text-box-edit COMMAND engine-text-box-edit-test)
+get_filename_component(engine_text_box_undo_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_box_undo_test.c" ABSOLUTE)
+add_executable(engine-text-box-undo-test EXCLUDE_FROM_ALL "${engine_text_box_undo_test_source}")
+target_link_libraries(engine-text-box-undo-test PRIVATE mm-engine-c89)
+set_target_properties(engine-text-box-undo-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-text-box-undo COMMAND engine-text-box-undo-test)
 target_sources(mm-engine-c89 PRIVATE src/text_box_runtime.c)
 get_filename_component(engine_text_box_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_box_runtime_test.c" ABSOLUTE)
 add_executable(engine-text-box-runtime-test EXCLUDE_FROM_ALL "${engine_text_box_runtime_test_source}")
@@ -861,6 +872,8 @@ if(ENGINE_C89_COMPILER)
     "${engine_help_interaction_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/help_balloon.c"
     "${engine_help_balloon_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/text_box_edit.c" "${engine_text_box_edit_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/text_box_undo.c" "${engine_text_box_undo_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_box_runtime.c" "${engine_text_box_runtime_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rich_text_layout.c" "${engine_rich_text_layout_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/help_topic.c"

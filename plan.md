@@ -561,7 +561,9 @@ Text-box stored bounds/lifetime/type now live directly in C state, with plain C
 scene/selection state and C89 attachment, frame/view sequencing, lifetime queries,
 show/hide core, bounds/type changes and scrolling/selection dispatch. Studio and
 Marcus share lifetime visibility and first-frame scrolling predicates. Text-box
-factory, edit/undo/clipboard policy and physical views remain work.
+factories, duplication, edit/undo registration and replay, property selection and
+clipboard ownership/paste now also use C89 and plain C undo/clipboard state.
+Physical views, the native MovieUndo base context and final integration remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.
@@ -648,7 +650,9 @@ native representations and facades remains required.
 Text-box metadata and scene/selection storage now also use plain C state, with
 C89 frame/view, lifetime, show/hide core, bounds/type and dispatch policy. Marcus
 uses the same visibility and first-frame scrolling predicates. Text-box factory,
-edit/undo/clipboard operations and physical views still need conversion.
+duplication, edit transactions, all five undo variants, property selection and
+clipboard ownership/paste now also use C89 and plain C saved-value/reference state.
+Physical views, native MovieUndo base context and final host integration remain work.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;
 the renderer is unchanged. Evidence is in `docs/tools/playback-regression.md`.

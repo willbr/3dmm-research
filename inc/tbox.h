@@ -31,6 +31,7 @@
 
 #ifndef TBOX_H
 #define TBOX_H
+#include "mm/text_box_edit.h"
 
 //
 // Defines for global text box constant values
@@ -205,6 +206,7 @@ typedef class TextBox *PTBOX;
 #define kclsTextBox 'TBOX'
 class TextBox : public TextBox_PAR
 {
+    friend struct TextBoxEditHost;
     RTCLASS_DEC
     ASSERT
     MARKMEM
@@ -322,12 +324,13 @@ typedef class TextBoxClipboard *PTextBoxClipboard;
 #define kclsTextBoxClipboard 'TCLP'
 class TextBoxClipboard : public TextBoxClipboard_PAR
 {
+    friend struct TextBoxEditHost;
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    PTBOX _ptbox; // Text box copy.
+    MMTextBoxClipboard _clipboard = {}; // Adopted text-box reference.
     TextBoxClipboard(void)
     {
     }

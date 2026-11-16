@@ -45,6 +45,7 @@ ASSERTNAME
 #include "help_balloon_fixture.h"
 #include "help_topic_fixture.h"
 #include "text_box_runtime_fixture.h"
+#include "text_box_edit_fixture.h"
 
 /* WinMain (in kauai/src/appbwin.cpp) references FrameMain -- but we
  * never run WinMain since we provide our own main() and link as a
@@ -2391,6 +2392,8 @@ static bool TestCaptionPersistence(PScene scene)
     if (!TestHelpTopic())
         goto done;
     if (!TestTextBoxRuntime(scene, file, richText))
+        goto done;
+    if (!TestTextBoxEdit(scene, file))
         goto done;
     ok = true;
 done:

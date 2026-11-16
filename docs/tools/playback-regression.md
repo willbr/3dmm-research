@@ -10665,3 +10665,82 @@ Evidence: `tmp/c89-text-box-runtime-{baseline,final}-{native,sdl-release,sdl-deb
 `tmp/c89-text-box-runtime-asan.log`, `tmp/c89-text-box-runtime-regular-tests.log`,
 `tmp/c89-text-box-runtime-tools-build.log`, `tmp/c89-text-box-runtime-trace-comparison.json`
 and `tmp/c89-text-box-runtime-identities.json`.
+
+### Text-box document transactions, undo and clipboard (16 November 2026)
+
+`text_box_edit.c` now owns new/read factories, duplication, type/color/show/hide
+edit transactions, movie/parent undo registration and clearing, scene-index
+lookup, selection property application and formatting-mask queries. Clipboard
+adoption, disposal and paste placement/insertion/selection also use C89.
+`text_box_undo.c` owns replay and wrapped-record disposal. All five native undo
+classes now keep saved values and wrapped references in `MMTextBoxUndo`;
+clipboard references live in `MMTextBoxClipboard`. Native MovieUndo base context
+access and physical document/scene/view services remain typed bindings.
+
+Factory initialization precedes input-bound reads. Scene/type publish before
+background clearing; one-level undo is set last. Metadata ordinary failure alone
+adds the bad-file error. Duplication publishes its new owner before suspension
+and replacement, releases before nulling failed output, copies defaults before
+resuming undo, then copies background/type without copying lifetime/scene.
+Exceptions preserve the original completed prefix; no new exceptional cleanup or
+rollback is introduced. Native allocator/exception equivalence is not claimed.
+
+Edit registration preserves the original movie-before-parent ordering and
+asymmetric failure cleanup. Successful show still clears movie undo. Hide at or
+before first delegates to scene removal. Replay switches scene, seeks and looks
+up the saved text index. Initial ordinary failures flush then clear undo, which
+may destroy the running record. Type/color saved values swap before selection;
+size/lifetime swap afterward. Hide's final ordinary false seek remains ignored.
+Wrapped edit false returns without the initial-failure cleanup. Disposal clears
+parent undo only for the current owning scene, then releases the retained record.
+
+Selection changes retain cleared properties, black color defaults and complement
+masks. Selection queries return the first character's formatting and consistency
+bits for font, height, bold and italic. Clipboard paste snapshots client dimensions
+before duplication, moves to `(177,78)`, intersects the workspace and normalizes
+empty bounds to zero. Coordinate arithmetic wraps at 32 bits.
+
+Before conversion, the headless native fixture captured 1,244 bytes on Native
+Debug, SDL Release and SDL Debug: FNV-1a `E86E47B5`, SHA-256
+`9A982037D751C418528177D7BC0F83F3A8C2B81231B498C38566FE3598CEC21F`.
+It freezes initialized/duplicated text, defaults, bounds, type/background, clipboard
+adoption, no-view setters/selection queries and real type/color/text undo/redo.
+An invisible document is registered in the scene list directly to isolate replay
+from view construction. Cleanup clears undo and scene selection before removing
+the borrowed fixture entry. No windows, input capture or Marcus UI tests are added.
+
+C providers check factory allocation/read/init failures, publication/cleanup,
+duplicate defaults/suspension, transaction ordinary/exception prefixes, parent undo
+failure asymmetry, cleared properties/complement masks, reversed selections and
+consistency bits. Independent paste dimensions cover clipping/empty results,
+including signed coordinate boundaries. All five replay kinds are checked for
+saved-value publication stages, failure cleanup, wrapped-edit false, the ignored
+last hide seek and wrapped-record disposal. A failed replay clears/frees its
+running C record under MSVC AddressSanitizer. Both focused C suites pass ASan.
+
+All 84 original/converted text-box/layout/Help/text/preview trace pairs match
+across the three hosts. Prior hashes remain unchanged. Background checks retain
+301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host.
+All 139 standalone C checks, including strict C89 syntax, pass. Forty-six selected
+Native checks and 42 checks in each SDL configuration pass, including archive API
+and existing Native playback/player regressions. The regular headless asset-
+preview harness passes; Native `chelp` and `ched` compile. Retained input identities
+remain unchanged; identities for 39 binaries are recorded. Tests use private
+temporary directories. Marcus was stopped before rebuilding and relaunched
+afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Native
+size/lifetime replay through real views, selection formatting through actual views,
+clipboard paste into a visible scene, arbitrary native callback/override
+observations and other platforms remain unverified by this slice. Physical views,
+native MovieUndo base-context storage, Marcus paint-order storage and final
+C-only host/facade integration remain conversion work.
+
+Evidence: `tmp/c89-text-box-edit-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-box-edit-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-box-edit-standalone-tests.log`,
+`tmp/c89-text-box-edit-{runtime,layout,topic,balloon,interaction,display,text,views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-box-edit-asan.log`, `tmp/c89-text-box-edit-regular-tests.log`,
+`tmp/c89-text-box-edit-tools-build.log`, `tmp/c89-text-box-edit-trace-comparison.json`
+and `tmp/c89-text-box-edit-identities.json`.

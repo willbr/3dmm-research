@@ -18,6 +18,7 @@
 ASSERTNAME
 #include "text_box_store_host.h"
 #include "text_box_runtime_host.h"
+#include "mm/text_box_undo.h"
 
 RTCLASS(TextBox)
 RTCLASS(TextBoxGobject)
@@ -49,23 +50,24 @@ class TextBoxUndoType : public TextBoxUndoType_PAR
     ASSERT
 
   protected:
-    long _itbox;
-    bool _fStory;
+    MMTextBoxUndo _undo = {MM_BOX_UNDO_TYPE};
     TextBoxUndoType(void)
     {
     }
 
   public:
+    friend struct TextBoxEditHost;
+    MMTextBoxUndo *Backend() { return &_undo; }
     static PTextBoxUndoType PtuntNew(void);
     ~TextBoxUndoType(void);
 
     void SetType(bool fStory)
     {
-        _fStory = fStory;
+        _undo.story = fStory;
     }
     void SetItbox(long itbox)
     {
-        _itbox = itbox;
+        _undo.index = itbox;
     }
 
     virtual bool FDo(PDocumentBase pdocb);
@@ -88,23 +90,24 @@ class TextBoxUndoSize : public TextBoxUndoSize_PAR
     ASSERT
 
   protected:
-    long _itbox;
-    RC _rc;
+    MMTextBoxUndo _undo = {MM_BOX_UNDO_SIZE};
     TextBoxUndoSize(void)
     {
     }
 
   public:
+    friend struct TextBoxEditHost;
+    MMTextBoxUndo *Backend() { return &_undo; }
     static PTextBoxUndoSize PtunsNew(void);
     ~TextBoxUndoSize(void);
 
     void SetRc(RC *prc)
     {
-        _rc = *prc;
+        _undo.bounds = {prc->xpLeft, prc->ypTop, prc->xpRight, prc->ypBottom};
     }
     void SetItbox(long itbox)
     {
-        _itbox = itbox;
+        _undo.index = itbox;
     }
 
     virtual bool FDo(PDocumentBase pdocb);
@@ -127,29 +130,28 @@ class TextBoxUndoHide : public TextBoxUndoHide_PAR
     ASSERT
 
   protected:
-    long _itbox;
-    long _nfrmFirst;
-    long _nfrmMax;
-
+    MMTextBoxUndo _undo = {MM_BOX_UNDO_HIDE};
     TextBoxUndoHide(void)
     {
     }
 
   public:
+    friend struct TextBoxEditHost;
+    MMTextBoxUndo *Backend() { return &_undo; }
     static PTextBoxUndoHide PtunhNew(void);
     ~TextBoxUndoHide(void);
 
     void SetFrmFirst(long nfrmFirst)
     {
-        _nfrmFirst = nfrmFirst;
+        _undo.first = nfrmFirst;
     }
     void SetFrmLast(long nfrmMax)
     {
-        _nfrmMax = nfrmMax;
+        _undo.end = nfrmMax;
     }
     void SetItbox(long itbox)
     {
-        _itbox = itbox;
+        _undo.index = itbox;
     }
 
     virtual bool FDo(PDocumentBase pdocb);
@@ -172,19 +174,20 @@ class TextBoxUndoEdit : public TextBoxUndoEdit_PAR
     ASSERT
 
   protected:
-    PUndoBase _pundb;
-    long _itbox;
+    MMTextBoxUndo _undo = {MM_BOX_UNDO_EDIT};
     TextBoxUndoEdit(void)
     {
     }
 
   public:
+    friend struct TextBoxEditHost;
+    MMTextBoxUndo *Backend() { return &_undo; }
     static PTextBoxUndoEdit PtundNew(PUndoBase pundb);
     ~TextBoxUndoEdit(void);
 
     void SetItbox(long itbox)
     {
-        _itbox = itbox;
+        _undo.index = itbox;
     }
 
     virtual bool FDo(PDocumentBase pdocb);
@@ -207,23 +210,24 @@ class TextBoxUndoColor : public TextBoxUndoColor_PAR
     ASSERT
 
   protected:
-    long _itbox;
-    AbstractColor _acr;
+    MMTextBoxUndo _undo = {MM_BOX_UNDO_COLOR};
     TextBoxUndoColor(void)
     {
     }
 
   public:
+    friend struct TextBoxEditHost;
+    MMTextBoxUndo *Backend() { return &_undo; }
     static PTextBoxUndoColor PtuncNew(void);
     ~TextBoxUndoColor(void);
 
     void SetItbox(long itbox)
     {
-        _itbox = itbox;
+        _undo.index = itbox;
     }
     void SetAcrBack(AbstractColor acr)
     {
-        _acr = acr;
+        _undo.color = static_cast<MMU32>(acr.LwGet());
     }
 
     virtual bool FDo(PDocumentBase pdocb);
@@ -231,6 +235,8 @@ class TextBoxUndoColor : public TextBoxUndoColor_PAR
 };
 
 RTCLASS(TextBoxUndoColor)
+
+#include "text_box_edit_host.h"
 
 //
 //
@@ -1796,36 +1802,13 @@ void TextBoxGobject::AssertValid(LegacyUlong grf)
  ****************************************************/
 PTBOX TextBox::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
 {
-    AssertNilOrPo(pscen, 0);
-    AssertPvCb(prcRel, size(RC));
-
-    PTBOX ptbox;
-
-    ptbox = NewObj TextBox;
-    if (ptbox == pvNil)
-    {
-        return (pvNil);
-    }
-
-    if (!ptbox->_FInit(pvNil))
-    {
-        ReleasePpo(&ptbox);
-        return (pvNil);
-    }
-
-    if (prcRel != pvNil)
-    {
-        ptbox->_data.SetBounds(*prcRel);
-        ptbox->_dxpDef = prcRel->xpRight - prcRel->xpLeft - 2 * kdzpBorderTbox;
-    }
-
-    ptbox->_runtime.scene = pscen;
-    ptbox->_data.state.story = fStory;
-    ptbox->SetAcrBack(kacrClear, fdocNil);
-    Assert(pscen == pvNil || pscen->Pmvie()->CundbMax() == 1, "TextBoxUndoEdit assumes there is one level of undo!");
-    ptbox->SetCundbMax(1);
-
-    return ptbox;
+    AssertNilOrPo(pscen, 0); AssertPvCb(prcRel, size(RC));
+    PTBOX result = nullptr;
+    TextBoxEditHost host;
+    host.bounds = prcRel; host.boxOutput = &result;
+    auto services = host.Services();
+    host.Check(mm_text_box_create(pscen, fStory, &services));
+    return result;
 }
 
 /****************************************************
@@ -1862,41 +1845,13 @@ void TextBox::SetDirty(bool fDirty)
  ****************************************************/
 PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
 {
-    AssertPo(pcrf, 0);
-    AssertNilOrPo(pscen, 0);
-
-    PTBOX ptbox;
-    DataBlock blck;
-    TextBoxData metadata;
-    ChildChunkIdentification kid;
-    PChunkyFile pcfl = pcrf->Pcfl();
-
-    //
-    // Find the chunk and read in the header.
-    //
-    if (!metadata.FRead(pcfl, cno, &kid.cki))
-    {
-        PushErc(ercSocBadFile);
-        return pvNil;
-    }
-
-    ptbox = NewObj TextBox;
-    if (ptbox == pvNil)
-    {
-        return (pvNil);
-    }
-
-    if (!ptbox->_FReadChunk(pcfl, kid.cki.ctg, kid.cki.cno, fTrue))
-    {
-        ReleasePpo(&ptbox);
-        return (pvNil);
-    }
-
-    ptbox->_runtime.scene = pscen;
-    ptbox->_data = metadata;
-    AssertPo(ptbox, 0);
-
-    return ptbox;
+    AssertPo(pcrf, 0); AssertNilOrPo(pscen, 0);
+    PTBOX result = nullptr;
+    TextBoxEditHost host;
+    host.file = pcrf->Pcfl(); host.boxOutput = &result;
+    auto services = host.Services();
+    host.Check(mm_text_box_read_document(pscen, cno, &services));
+    return result;
 }
 
 /****************************************************
@@ -1996,33 +1951,9 @@ void TextBox::AttachToMouse(void)
 bool TextBox::FSetType(bool fStory)
 {
     AssertThis(0);
-
-    PTextBoxUndoType ptunt;
-
-    if ((_data.state.story != 0) == fStory)
-    {
-        return (fTrue);
-    }
-
-    ptunt = TextBoxUndoType::PtuntNew();
-
-    if (ptunt == pvNil)
-    {
-        return (fFalse);
-    }
-
-    ptunt->SetType(!fStory);
-    ptunt->SetItbox(Itbox());
-
-    if (!Pscen()->Pmvie()->FAddUndo(ptunt))
-    {
-        ReleasePpo(&ptunt);
-        return (fFalse);
-    }
-
-    ReleasePpo(&ptunt);
-    SetTypeCore(fStory);
-    return (fTrue);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_change(this, MM_BOX_UNDO_TYPE, fStory, &services)) > 0;
 }
 
 /****************************************************
@@ -2160,34 +2091,9 @@ bool TextBox::FShowCore(void)
 bool TextBox::FShow(void)
 {
     AssertThis(0);
-
-    PTextBoxUndoHide ptunh;
-
-    ptunh = TextBoxUndoHide::PtunhNew();
-    if (ptunh == pvNil)
-    {
-        return (fFalse);
-    }
-
-    ptunh->SetFrmLast(_data.state.end);
-    ptunh->SetFrmFirst(_data.state.first);
-    ptunh->SetItbox(Itbox());
-
-    if (!Pscen()->Pmvie()->FAddUndo(ptunh))
-    {
-        ReleasePpo(&ptunh);
-        return (fFalse);
-    }
-
-    ReleasePpo(&ptunh);
-
-    if (FShowCore())
-    {
-        Pscen()->Pmvie()->ClearUndo();
-        return (fTrue);
-    }
-
-    return (fFalse);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_show_edit(this, &services)) > 0;
 }
 
 /****************************************************
@@ -2223,35 +2129,9 @@ void TextBox::HideCore(void)
 bool TextBox::FHide(void)
 {
     AssertThis(0);
-
-    PTextBoxUndoHide ptunh;
-
-    if (_data.state.current <= _data.state.first)
-    {
-        return (Pscen()->FRemTbox(this));
-    }
-
-    ptunh = TextBoxUndoHide::PtunhNew();
-    if (ptunh == pvNil)
-    {
-        return (fFalse);
-    }
-
-    ptunh->SetFrmLast(_data.state.end);
-    ptunh->SetFrmFirst(_data.state.first);
-    ptunh->SetItbox(Itbox());
-
-    if (!Pscen()->Pmvie()->FAddUndo(ptunh))
-    {
-        ReleasePpo(&ptunh);
-        return (fFalse);
-    }
-
-    ReleasePpo(&ptunh);
-
-    HideCore();
-
-    return (fTrue);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_hide_edit(this, &services)) > 0;
 }
 
 /****************************************************
@@ -2268,28 +2148,9 @@ bool TextBox::FHide(void)
 bool TextBox::FDup(PTBOX *pptbox)
 {
     AssertThis(0);
-    RC bounds = _data.Bounds();
-    *pptbox = TextBox::PtboxNew(pvNil, &bounds);
-    AssertNilOrPo(*pptbox, 0);
-
-    if (*pptbox == pvNil)
-    {
-        return (fFalse);
-    }
-
-    (*pptbox)->SuspendUndo();
-    if (!(*pptbox)->FReplaceTxrd(this, 0, CpMac(), 0, (*pptbox)->CpMac()))
-    {
-        ReleasePpo(pptbox);
-        return (fFalse);
-    }
-    (*pptbox)->_onnDef = _onnDef;
-    (*pptbox)->_dypFontDef = _dypFontDef;
-    (*pptbox)->ResumeUndo();
-    (*pptbox)->SetAcrBack(AcrBack(), fdocNil);
-    (*pptbox)->SetTypeCore(FStory());
-
-    return (fTrue);
+    TextBoxEditHost host; host.box = this; host.boxOutput = pptbox;
+    auto services = host.Services();
+    return host.Check(mm_text_box_duplicate(this, &services)) > 0;
 }
 
 /****************************************************
@@ -2306,31 +2167,9 @@ bool TextBox::FDup(PTBOX *pptbox)
 bool TextBox::FSetAcrBack(AbstractColor acr)
 {
     AssertThis(0);
-
-    PTextBoxUndoColor ptunc;
-
-    ptunc = TextBoxUndoColor::PtuncNew();
-
-    if (ptunc == pvNil)
-    {
-        return (fFalse);
-    }
-
-    AssertPo(ptunc, 0);
-
-    ptunc->SetItbox(Itbox());
-    ptunc->SetAcrBack(AcrBack());
-
-    if (!Pscen()->Pmvie()->FAddUndo(ptunc))
-    {
-        ReleasePpo(&ptunc);
-        return (fFalse);
-    }
-
-    ReleasePpo(&ptunc);
-
-    SetAcrBack(acr);
-    return (fTrue);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_change(this, MM_BOX_UNDO_COLOR, static_cast<MMU32>(acr.LwGet()), &services)) > 0;
 }
 
 /****************************************************
@@ -2347,23 +2186,9 @@ bool TextBox::FSetAcrBack(AbstractColor acr)
 bool TextBox::FSetAcrText(AbstractColor acr)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-    CHP chpNew, chpDiff;
-
-    ptbxg = (PTextBoxGobject)PddgGet(0);
-    AssertNilOrPo(ptbxg, 0);
-
-    if (ptbxg == pvNil)
-    {
-        return (fFalse);
-    }
-
-    chpNew.Clear();
-    chpDiff.Clear();
-
-    chpNew.acrFore = acr;
-    return (ptbxg->FApplyChp(&chpNew, &chpDiff));
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_apply_selection(this, MM_BOX_TEXT_COLOR, static_cast<MMU32>(acr.LwGet()), &services)) > 0;
 }
 
 /******************************************************************************
@@ -2379,21 +2204,9 @@ bool TextBox::FSetAcrText(AbstractColor acr)
 bool TextBox::FSetDypFontText(long dypFont)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-    CHP chpNew, chpDiff;
-
-    ptbxg = (PTextBoxGobject)PddgGet(0);
-    if (ptbxg == pvNil)
-        return fFalse;
-    AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
-
-    chpNew.Clear();
-    chpDiff.Clear();
-    chpNew.dypFont = dypFont;
-    chpDiff.dypFont = ~dypFont;
-    return ptbxg->FApplyChp(&chpNew, &chpDiff);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_apply_selection(this, MM_BOX_TEXT_HEIGHT, static_cast<MMU32>(dypFont), &services)) > 0;
 }
 
 /******************************************************************************
@@ -2409,21 +2222,9 @@ bool TextBox::FSetDypFontText(long dypFont)
 bool TextBox::FSetStyleText(ulong grfont)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-    CHP chpNew, chpDiff;
-
-    ptbxg = (PTextBoxGobject)PddgGet(0);
-    if (ptbxg == pvNil)
-        return fFalse;
-    AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
-
-    chpNew.Clear();
-    chpDiff.Clear();
-    chpNew.grfont = grfont;
-    chpDiff.grfont = ~grfont;
-    return ptbxg->FApplyChp(&chpNew, &chpDiff);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_apply_selection(this, MM_BOX_TEXT_STYLE, grfont, &services)) > 0;
 }
 
 /******************************************************************************
@@ -2439,21 +2240,9 @@ bool TextBox::FSetStyleText(ulong grfont)
 bool TextBox::FSetOnnText(long onn)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-    CHP chpNew, chpDiff;
-
-    ptbxg = (PTextBoxGobject)PddgGet(0);
-    if (ptbxg == pvNil)
-        return fFalse;
-    AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
-
-    chpNew.Clear();
-    chpDiff.Clear();
-    chpNew.onn = onn;
-    chpDiff.onn = ~onn;
-    return ptbxg->FApplyChp(&chpNew, &chpDiff);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_apply_selection(this, MM_BOX_TEXT_FONT, static_cast<MMU32>(onn), &services)) > 0;
 }
 
 /******************************************************************************
@@ -2470,46 +2259,10 @@ bool TextBox::FSetOnnText(long onn)
 ************************************************************ PETED ***********/
 void TextBox::FetchChpSel(PCHP pchp, ulong *pgrfchp)
 {
-    AssertVarMem(pchp);
-    AssertVarMem(pgrfchp);
-
-    long cpMin, cpMac;
-    long cpMinChp, cpMacChp;
-    CHP chp;
-    PTextDocumentGraphicsObject ptxtg;
-
-    ptxtg = (PTextDocumentGraphicsObject)PddgActive();
-    if (ptxtg == pvNil)
-        goto LFail;
-    if (!ptxtg->FIs(kclsTextDocumentGraphicsObject))
-    {
-        Bug("DocumentDisplayGraphicsObject isn't a TextDocumentGraphicsObject");
-    LFail:
-        *pgrfchp = 0;
-        return;
-    }
-    ptxtg->GetSel(&cpMin, &cpMac);
-    if (cpMin > cpMac)
-        SwapVars(&cpMin, &cpMac);
-
-    *pgrfchp = kgrfchpAll;
-    FetchChp(cpMin, pchp, &cpMinChp, &cpMacChp);
-    while (cpMacChp < cpMac && *pgrfchp != grfchpNil)
-    {
-        FetchChp(cpMacChp, &chp, &cpMinChp, &cpMacChp);
-        if ((*pgrfchp & kfchpOnn) && pchp->onn != chp.onn)
-            *pgrfchp ^= kfchpOnn;
-        if ((*pgrfchp & kfchpDypFont) && pchp->dypFont != chp.dypFont)
-            *pgrfchp ^= kfchpDypFont;
-        if ((*pgrfchp & kfchpBold) && ((pchp->grfont ^ chp.grfont) & fontBold))
-        {
-            *pgrfchp ^= kfchpBold;
-        }
-        if ((*pgrfchp & kfchpItalic) && ((pchp->grfont ^ chp.grfont) & fontItalic))
-        {
-            *pgrfchp ^= kfchpItalic;
-        }
-    }
+    AssertVarMem(pchp); AssertVarMem(pgrfchp);
+    TextBoxEditHost host; host.box = this; host.characterOutput = pchp; host.maskOutput = pgrfchp;
+    auto services = host.Services();
+    host.Check(mm_text_box_fetch_selection(this, &services));
 }
 
 /****************************************************
@@ -2599,37 +2352,10 @@ void TextBox::SetStartFrame(long nfrm)
  ****************************************************/
 bool TextBox::FAddUndo(PUndoBase pundb)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    PTextBoxUndoEdit ptund;
-
-    ptund = TextBoxUndoEdit::PtundNew(pundb);
-
-    if (ptund == pvNil)
-    {
-        return (fFalse);
-    }
-
-    AssertPo(ptund, 0);
-
-    ptund->SetItbox(Itbox());
-
-    if (!Pscen()->Pmvie()->FAddUndo(ptund))
-    {
-        Pscen()->Pmvie()->ClearUndo();
-        ReleasePpo(&ptund);
-        return (fFalse);
-    }
-
-    if (!TextBox_PAR::FAddUndo(pundb))
-    {
-        ReleasePpo(&ptund);
-        return (fFalse);
-    }
-
-    ReleasePpo(&ptund);
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_add_edit_undo(this, pundb, &services)) > 0;
 }
 
 /****************************************************
@@ -2646,9 +2372,9 @@ bool TextBox::FAddUndo(PUndoBase pundb)
 void TextBox::ClearUndo()
 {
     AssertThis(0);
-    AssertPo(Pscen(), 0);
-    TextBox_PAR::ClearUndo();
-    Pscen()->Pmvie()->ClearUndo();
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    host.Check(mm_text_box_clear_edit_undo(this, &services));
 }
 
 /****************************************************
@@ -2697,18 +2423,11 @@ void TextBox::CleanDdg(void)
 long TextBox::Itbox(void)
 {
     AssertThis(0);
-
-    long itbox;
-
-    for (itbox = 0;; itbox++)
-    {
-        if (this == Pscen()->PtboxFromItbox(itbox))
-        {
-            break;
-        }
-    }
-
-    return (itbox);
+    TextBoxEditHost host; host.box = this;
+    auto services = host.Services();
+    MMI32 index = 0;
+    host.Check(mm_text_box_index(this, &index, &services));
+    return index;
 }
 
 #ifdef DEBUG
@@ -2799,41 +2518,10 @@ TextBoxUndoType::~TextBoxUndoType(void)
  ****************************************************/
 bool TextBoxUndoType::FDo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    PTBOX ptbox;
-    bool fStory;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-    AssertNilOrPo(ptbox, 0);
-
-    if (ptbox == pvNil)
-    {
-        goto LFail;
-    }
-
-    fStory = ptbox->FStory();
-    ptbox->SetTypeCore(_fStory);
-    _fStory = fStory;
-    _pmvie->Pscen()->SelectTbox(ptbox);
-    _pmvie->Pmsq()->FlushMsq();
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 0, &services)) > 0;
 }
 
 /****************************************************
@@ -2849,10 +2537,10 @@ LFail:
  ****************************************************/
 bool TextBoxUndoType::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    return (FDo(pdocb));
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 1, &services)) > 0;
 }
 
 #ifdef DEBUG
@@ -2921,46 +2609,10 @@ TextBoxUndoSize::~TextBoxUndoSize(void)
  ****************************************************/
 bool TextBoxUndoSize::FDo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    PTBOX ptbox;
-    PTextBoxGobject ptbxg;
-    RC rc;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-    AssertNilOrPo(ptbox, 0);
-
-    if (ptbox == pvNil)
-    {
-        goto LFail;
-    }
-
-    ptbox->GetRc(&rc);
-    ptbox->SetRc(&_rc);
-
-    ptbxg = (PTextBoxGobject)ptbox->PddgGet(0);
-    AssertPo(ptbxg, 0);
-    ptbxg->Ptbxb()->SetPos(&_rc);
-    _pmvie->Pscen()->SelectTbox(ptbox);
-    _rc = rc;
-    _pmvie->Pmsq()->FlushMsq();
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 0, &services)) > 0;
 }
 
 /****************************************************
@@ -2976,10 +2628,10 @@ LFail:
  ****************************************************/
 bool TextBoxUndoSize::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    return (FDo(pdocb));
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 1, &services)) > 0;
 }
 
 #ifdef DEBUG
@@ -3049,61 +2701,10 @@ TextBoxUndoHide::~TextBoxUndoHide(void)
  ****************************************************/
 bool TextBoxUndoHide::FDo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    PTBOX ptbox;
-    long nfrmFirst, nfrmMax;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-    AssertNilOrPo(ptbox, 0);
-
-    if (ptbox == pvNil)
-    {
-        goto LFail;
-    }
-
-    nfrmFirst = ptbox->NfrmFirst();
-    nfrmMax = ptbox->nfrmMax();
-
-    if (!ptbox->FGotoFrame(_nfrmFirst))
-    {
-        goto LFail;
-    }
-
-    if (!ptbox->FShowCore())
-    {
-        goto LFail;
-    }
-
-    if (!ptbox->FGotoFrame(_nfrmMax))
-    {
-        goto LFail;
-    }
-
-    ptbox->HideCore();
-    ptbox->FGotoFrame(_nfrm);
-    _pmvie->Pscen()->SelectTbox(ptbox);
-
-    _nfrmFirst = nfrmFirst;
-    _nfrmMax = nfrmMax;
-    _pmvie->Pmsq()->FlushMsq();
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 0, &services)) > 0;
 }
 
 /****************************************************
@@ -3119,10 +2720,10 @@ LFail:
  ****************************************************/
 bool TextBoxUndoHide::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    return (FDo(pdocb));
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 1, &services)) > 0;
 }
 
 #ifdef DEBUG
@@ -3166,16 +2767,11 @@ void TextBoxUndoHide::AssertValid(LegacyUlong grf)
 PTextBoxUndoEdit TextBoxUndoEdit::PtundNew(PUndoBase pundb)
 {
     AssertPo(pundb, 0);
-
-    PTextBoxUndoEdit ptund;
-    ptund = NewObj TextBoxUndoEdit();
-    if (ptund != pvNil)
-    {
-        ptund->_pundb = pundb;
-        pundb->AddRef();
-        AssertPo(pundb, 0);
-    }
-    return (ptund);
+    PTextBoxUndoEdit result = nullptr;
+    TextBoxEditHost host; host.undoOutput = &result;
+    auto services = host.Services();
+    host.Check(mm_text_box_wrap_undo(pundb, &services));
+    return result;
 }
 
 /****************************************************
@@ -3186,24 +2782,9 @@ PTextBoxUndoEdit TextBoxUndoEdit::PtundNew(PUndoBase pundb)
 TextBoxUndoEdit::~TextBoxUndoEdit(void)
 {
     AssertBaseThis(0);
-
-    PTBOX ptbox;
-
-    //
-    // Clear the owning tbox undo list
-    //
-    if (_iscen == _pmvie->Iscen())
-    {
-        ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-        AssertNilOrPo(ptbox, 0);
-
-        if (ptbox != pvNil)
-        {
-            ptbox->ParClearUndo();
-        }
-    }
-
-    ReleasePpo(&_pundb);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    host.Check(mm_text_box_undo_dispose(&_undo, &services));
 }
 
 /****************************************************
@@ -3219,37 +2800,10 @@ TextBoxUndoEdit::~TextBoxUndoEdit(void)
  ****************************************************/
 bool TextBoxUndoEdit::FDo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    PTBOX ptbox;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-    AssertNilOrPo(ptbox, 0);
-
-    if (ptbox == pvNil)
-    {
-        goto LFail;
-    }
-
-    _pmvie->Pscen()->SelectTbox(ptbox);
-    _pmvie->Pmsq()->FlushMsq();
-    return (_pundb->FDo(ptbox));
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 0, &services)) > 0;
 }
 
 /****************************************************
@@ -3265,37 +2819,10 @@ LFail:
  ****************************************************/
 bool TextBoxUndoEdit::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    PTBOX ptbox;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-    AssertNilOrPo(ptbox, 0);
-
-    if (ptbox == pvNil)
-    {
-        goto LFail;
-    }
-
-    _pmvie->Pscen()->SelectTbox(ptbox);
-    _pmvie->Pmsq()->FlushMsq();
-    return (_pundb->FUndo(ptbox));
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 1, &services)) > 0;
 }
 
 #ifdef DEBUG
@@ -3313,7 +2840,7 @@ void TextBoxUndoEdit::MarkMem(void)
 {
     AssertThis(0);
     TextBoxUndoEdit_PAR::MarkMem();
-    MarkMemObj(_pundb);
+    MarkMemObj(static_cast<PUndoBase>(_undo.edit));
 }
 
 /***************************************************************************
@@ -3368,41 +2895,10 @@ TextBoxUndoColor::~TextBoxUndoColor(void)
  ****************************************************/
 bool TextBoxUndoColor::FDo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    PTBOX ptbox;
-    AbstractColor acr;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-    AssertNilOrPo(ptbox, 0);
-
-    if (ptbox == pvNil)
-    {
-        goto LFail;
-    }
-
-    acr = ptbox->AcrBack();
-    ptbox->SetAcrBack(_acr);
-    _acr = acr;
-    _pmvie->Pscen()->SelectTbox(ptbox);
-    _pmvie->Pmsq()->FlushMsq();
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 0, &services)) > 0;
 }
 
 /****************************************************
@@ -3418,7 +2914,10 @@ LFail:
  ****************************************************/
 bool TextBoxUndoColor::FUndo(PDocumentBase pdocb)
 {
-    return (FDo(pdocb));
+    AssertThis(0); AssertPo(pdocb, 0);
+    TextBoxUndoHost host; host.owner = this;
+    auto services = host.Services();
+    return host.Check(mm_text_box_undo_replay(&_undo, 1, &services)) > 0;
 }
 
 #ifdef DEBUG
@@ -3464,7 +2963,9 @@ void TextBoxUndoColor::AssertValid(LegacyUlong grf)
  **************************************************************************/
 TextBoxClipboard::~TextBoxClipboard(void)
 {
-    ReleasePpo(&_ptbox);
+    TextBoxEditHost host;
+    auto services = host.Services();
+    host.Check(mm_text_box_clipboard_dispose(&_clipboard, &services));
 }
 
 /***************************************************************************
@@ -3481,18 +2982,11 @@ TextBoxClipboard::~TextBoxClipboard(void)
 PTextBoxClipboard TextBoxClipboard::PtclpNew(PTBOX ptbox)
 {
     AssertPo(ptbox, 0);
-
-    PTextBoxClipboard ptclp;
-
-    ptclp = NewObj TextBoxClipboard();
-
-    if (ptclp == pvNil)
-    {
-        return (pvNil);
-    }
-
-    ptclp->_ptbox = ptbox;
-    return (ptclp);
+    PTextBoxClipboard result = nullptr;
+    TextBoxEditHost host; host.clipboardOutput = &result;
+    auto services = host.Services();
+    host.Check(mm_text_box_clipboard_create(ptbox, &services));
+    return result;
 }
 
 /***************************************************************************
@@ -3509,42 +3003,10 @@ PTextBoxClipboard TextBoxClipboard::PtclpNew(PTBOX ptbox)
  **************************************************************************/
 bool TextBoxClipboard::FPaste(PScene pscen)
 {
-    AssertThis(0);
-    AssertPo(pscen, 0);
-
-    PTBOX ptboxDup;
-    RC rc;
-    RC rcWorkspace(kxpDefaultTbox, kypDefaultTbox, pscen->Pmvie()->Pmcc()->Dxp(), pscen->Pmvie()->Pmcc()->Dyp());
-
-    //
-    // Copy the text box
-    //
-    if (!_ptbox->FDup(&ptboxDup))
-    {
-        pscen->Pmvie()->ClearUndo();
-        return (fFalse);
-    }
-    AssertPo(ptboxDup, 0);
-
-    ptboxDup->GetRc(&rc);
-
-    rc.Offset(kxpDefaultTbox - rc.xpLeft, kypDefaultTbox - rc.ypTop);
-    rc.FIntersect(&rcWorkspace);
-
-    ptboxDup->SetRc(&rc);
-
-    if (!pscen->FAddTbox(ptboxDup))
-    {
-        pscen->Pmvie()->ClearUndo();
-        ReleasePpo(&ptboxDup);
-        return (fFalse);
-    }
-
-    pscen->SelectTbox(ptboxDup);
-    ptboxDup->AttachToMouse();
-    ReleasePpo(&ptboxDup);
-
-    return (fTrue);
+    AssertThis(0); AssertPo(pscen, 0);
+    TextBoxEditHost host; host.scene = pscen;
+    auto services = host.Services();
+    return host.Check(mm_text_box_clipboard_paste(&_clipboard, &services)) > 0;
 }
 
 #ifdef DEBUG
@@ -3563,7 +3025,7 @@ void TextBoxClipboard::MarkMem(void)
 {
     AssertThis(0);
     TextBoxClipboard_PAR::MarkMem();
-    MarkMemObj(_ptbox);
+    MarkMemObj(static_cast<PTBOX>(_clipboard.text));
 }
 
 /***************************************************************************
@@ -3580,7 +3042,7 @@ void TextBoxClipboard::MarkMem(void)
 void TextBoxClipboard::AssertValid(LegacyUlong grf)
 {
     TextBoxClipboard_PAR::AssertValid(fobjAllocated);
-    AssertPo(_ptbox, 0);
+    AssertPo(static_cast<PTBOX>(_clipboard.text), 0);
 }
 
 #endif // DEBUG
