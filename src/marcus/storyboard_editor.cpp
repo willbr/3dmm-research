@@ -53,7 +53,7 @@ struct MarcusStoryboardEditor
     SDL_Texture *hsvTexture = nullptr;
     SDL_Texture *texture = nullptr;
     ~MarcusStoryboardEditor() { StopLook(); SDL_DestroyTexture(texture); SDL_DestroyTexture(hsvTexture); }
-    float PaintOffset() const { return extended ? std::clamp(tools.h - 584, 48.f, 128.f) : 0.f; }
+    float PaintOffset() const { return extended ? std::clamp(tools.h - 628, 48.f, 128.f) : 0.f; }
     SDL_FRect ColourCell(int c) const
     {
         return {tools.x + 16 + (c % (extended ? 5 : 3)) * (extended ? 54.f : 90.f),
@@ -440,15 +440,15 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         for (int s = 0; s < 5; ++s)
             if (ui_inside(px, py, x + s * 54, y + 332 + paintOffset, 48, 30)) e->size = sizes[s];
         if (ui_inside(px, py, x, y + 380 + paintOffset, 264, 30)) { e->picking = !e->picking; return 1; }
-        if (ui_inside(px, py, x, y + 424 + paintOffset, 126, 30))
+        if (e->colour != 0 && ui_inside(px, py, x, y + 424 + paintOffset, 264, 30) && !MarcusBoardGridLines(e->board.angles[e->angle]).empty() && e->ResolveColour())
+        { MarcusBoardBakeGrid(e->board.angles[e->angle], static_cast<unsigned char>(e->colour)); e->pending = true; e->Commit(); }
+        if (ui_inside(px, py, x, y + 468 + paintOffset, 126, 30))
         { std::fill(e->board.angles[e->angle].pixels.begin(), e->board.angles[e->angle].pixels.end(), 0); e->pending = true; e->Commit(); }
-        if (ui_inside(px, py, x + 138, y + 424 + paintOffset, 126, 30) && marcus_can_undo(e->player))
+        if (ui_inside(px, py, x + 138, y + 468 + paintOffset, 126, 30) && marcus_can_undo(e->player))
         { if (marcus_undo(e->player)) { e->Reload(); e->changed = true; } else e->error = marcus_error(e->player); }
     }
     else
     {
-        if (e->tab == 1 && e->colour != 0 && ui_inside(px, py, x, y + 394, 264, 30) && !MarcusBoardGridLines(e->board.angles[e->angle]).empty() && e->ResolveColour())
-        { MarcusBoardBakeGrid(e->board.angles[e->angle], static_cast<unsigned char>(e->colour)); e->pending = true; e->Commit(); e->tab = 0; }
         if (e->tab == 2)
         {
             if (ui_inside(px, py, x, y + 104, 40, 28)) e->light = std::max(0, e->light - 1);
@@ -531,10 +531,15 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
         for (int s = 0; s < 5; ++s)
         { SDL_snprintf(label, sizeof(label), "%d", sizes[s]); ui_button_sized(ui, x + s * 54, y + 332 + paintOffset, 48, 30, label, e->size == sizes[s], 1); }
         ui_button_sized(ui, x, y + 380 + paintOffset, 264, 30, "Pick colour (I)", e->picking, 1);
-        ui_button_sized(ui, x, y + 424 + paintOffset, 126, 30, "Clear angle", 0, 1);
-        ui_button_sized(ui, x + 138, y + 424 + paintOffset, 126, 30, "Undo", 0, marcus_can_undo(e->player));
-        ui_text(ui, x, y + 476 + paintOffset, "1-9 colours / 0 canvas grey", 0x969da8);
-        ui_text(ui, x, y + 500 + paintOffset, "[ ] size / Alt+click to pick", 0x969da8);
+        const bool enabled = e->colour != 0 && !MarcusBoardGridLines(e->board.angles[e->angle]).empty();
+        SDL_snprintf(label, sizeof(label), "Bake grid (%s)", e->colour >= 0 && e->colour < int(MarcusBoardColourCount) ? colourNames[e->colour] : "Custom");
+        ui_button_sized(ui, x, y + 424 + paintOffset, 264, 30, label, 0, enabled);
+        if (ui_inside(ui->mouse_x, ui->mouse_y, x, y + 424 + paintOffset, 264, 30))
+            ui->hint = "Bake this angle's grid in the selected colour (1-9). Undo removes it; no depth is added.";
+        ui_button_sized(ui, x, y + 468 + paintOffset, 126, 30, "Clear angle", 0, 1);
+        ui_button_sized(ui, x + 138, y + 468 + paintOffset, 126, 30, "Undo", 0, marcus_can_undo(e->player));
+        ui_text(ui, x, y + 520 + paintOffset, "1-9 colours / 0 canvas grey", 0x969da8);
+        ui_text(ui, x, y + 544 + paintOffset, "[ ] size / Alt+click to pick", 0x969da8);
     }
     else
     {
@@ -558,14 +563,6 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             SDL_snprintf(label, sizeof(label), "%.2f", *f.value); ui_label(ui, x + 110, top + 6, 88, label, 0xdde0e5);
             ui_button_sized(ui, x + 212, top, 24, 26, "-", 0, 1); ui_button_sized(ui, x + 240, top, 24, 26, "+", 0, 1);
         }
-        if (e->tab == 1)
-        {
-            const bool enabled = e->colour != 0 && !MarcusBoardGridLines(e->board.angles[e->angle]).empty();
-            SDL_snprintf(label, sizeof(label), "Bake grid (%s)", e->colour >= 0 && e->colour < int(MarcusBoardColourCount) ? colourNames[e->colour] : "Custom");
-            ui_button_sized(ui, x, y + 394, 264, 30, label, 0, enabled);
-            if (ui_inside(ui->mouse_x, ui->mouse_y, x, y + 394, 264, 30))
-                ui->hint = "Bake this angle's grid in the selected colour (1-9). Undo removes it; no depth is added.";
-        }
         ui_text(ui, x, y + 440, "Drag values / Shift for fine", 0x969da8);
         ui_text(ui, x, y + 464, e->tab == 1 ? "Hold RMB / WASD + Q E / Shift" : "Lights affect 3D actors / props.", 0x969da8);
         if (e->tab == 1)
@@ -575,7 +572,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             ui_label(ui, x, y + 488, 264, label, 0x969da8);
         }
     }
-    const float footer = y + (e->tab == 0 ? 544 + paintOffset : 512);
+    const float footer = y + (e->tab == 0 ? 588 + paintOffset : 512);
     ui_text(ui, x, footer, "Edits join the movie as you work.", 0x78cbc4);
     ui_text(ui, x, footer + 24, "Save copy / Ctrl+S to keep them.", 0x969da8);
     if (!e->error.empty()) ui_label(ui, x, footer + 56, 264, e->error.c_str(), 0xe4a1a1);

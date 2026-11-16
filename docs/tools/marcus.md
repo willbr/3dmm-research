@@ -197,9 +197,9 @@ to capture the mouse and look around, with continuous WASD movement and Q/E down
 Either Shift key gives four times the speed. The wheel adjusts flight speed without
 moving the camera; the sidebar shows the current speed. Releasing right mouse or
 pressing Escape releases capture and commits the camera move as one undo step.
-**Bake grid** in Camera paints the current
+**Bake grid** in Paint, below **Pick colour**, paints the current
 perspective ground grid into this angle's background using the selected colour
-(**1–9**); it then opens Paint so you can draw over it. Grid lines are one pixel
+(**1–9** or the extended palette), ready to draw over. Grid lines are one pixel
 wide, retain the current camera perspective, and stay fixed if you move the camera
 later. Baking is one undo step and survives Save copy, without adding
 depth. The live guide, crosshair and guide label remain temporary overlays.
