@@ -166,12 +166,12 @@ use **[ / ]** to resize, **1–9** to choose colours, and **0** for canvas grey.
 returns to the brush; **Alt+click** samples directly. Sampling uses the stored
 paint colour, unaffected by foreground props or dither pixels, and creates no
 undo entry. Escape cancels an armed picker. Paint with canvas grey to cover marks.
-**Extended palette** expands an inline HSV picker in the sidebar. Choose a hue
-from the strip or a preset, then drag the square to change saturation and value.
-The preview shows the chosen RGB colour on the left and the actual shared-palette
-dither on the right. The same dither is used in the viewport and saved VMM;
-actor and prop palette entries remain unchanged. Collapse it with **Hide extended
-palette** to return to the labelled basic swatches.
+The **OkHSL** colour picker is always visible below the basic swatches. Drag the
+hue ring, then use the rotating triangle to choose saturation and perceptual
+lightness. Its corners are the selected hue, white and black. The preview shows
+the chosen RGB colour on the left and the actual shared-palette dither on the
+right. The same dither is used in the viewport and saved VMM; actor and prop
+palette entries remain unchanged.
 
 Custom colours join the scene's paint palette when first used for a stroke or
 grid bake. Selecting a colour alone does not modify the movie. Sampling, undo,
@@ -203,7 +203,7 @@ moving the camera; the sidebar shows the current speed. Releasing right mouse or
 pressing Escape releases capture and commits the camera move as one undo step.
 **Bake grid** in Paint, below **Pick colour**, paints the current
 perspective ground grid into this angle's background using the selected colour
-(**1–9** or the extended palette), ready to draw over. Grid lines are one pixel
+(**1–9** or the OkHSL picker), ready to draw over. Grid lines are one pixel
 wide and use the live grid's fade at the painting's 544×306 resolution. Fading
 uses stable stippling of the selected ink, revealing the existing painting
 without adding palette colours; repeating a bake retains the same coverage.

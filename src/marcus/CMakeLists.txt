@@ -3,7 +3,7 @@ include(ImGuizmoDependency)
 include(FreeTypeDependency)
 include(EmbedMarcusShaders)
 
-add_library(marcus-player STATIC player.cpp storyboard.cpp storyboard_tools.cpp storyboard_export.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp scene_edit.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp)
+add_library(marcus-player STATIC player.cpp storyboard.cpp storyboard_tools.cpp storyboard_export.cpp colour_picker.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp scene_edit.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp)
 if(WIN32)
   target_compile_definitions(marcus-player PRIVATE MARCUS_ASM_WORKER_PATH="${PROJECT_SOURCE_DIR}/build/marcus-x86/src/marcus/marcus-asm-worker.exe")
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -61,12 +61,14 @@ add_custom_command(TARGET marcus POST_BUILD
     "${PROJECT_SOURCE_DIR}/docs/licenses/freetype-FTL.txt"
     "${PROJECT_SOURCE_DIR}/docs/licenses/freetype-LICENSE.txt"
     "${PROJECT_SOURCE_DIR}/docs/licenses/sqlite-PUBLIC-DOMAIN.txt"
+    "${PROJECT_SOURCE_DIR}/docs/licenses/ok-color-LICENSE.txt"
     "$<TARGET_FILE_DIR:marcus>/licenses"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${PROJECT_SOURCE_DIR}/vendor/ImGuizmo/LICENSE" "$<TARGET_FILE_DIR:marcus>/licenses/ImGuizmo-LICENSE.txt"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${PROJECT_SOURCE_DIR}/vendor/SDL3/LICENSE.txt" "$<TARGET_FILE_DIR:marcus>/licenses/SDL3-LICENSE.txt"
   VERBATIM)
+install(FILES "${PROJECT_SOURCE_DIR}/docs/licenses/ok-color-LICENSE.txt" DESTINATION licenses)
 # SDL's headers use platform integer/bool extensions. Keep diagnostics on our
 # C89 sources strict while treating external declarations as system headers.
 target_include_directories(marcus SYSTEM PRIVATE

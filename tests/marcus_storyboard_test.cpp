@@ -1,6 +1,7 @@
 // Headless authoring/native round-trip checks. No application window or UI input.
 #include "storyboard.h"
 #include "storyboard_tools.h"
+#include "colour_picker.h"
 #include "mm/preview.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -21,6 +22,57 @@ int main(int argc, char **argv)
     };
     try
     {
+        // Colour math and picker geometry only; these checks use no UI input.
+        for (unsigned red = 0; red <= 255; red += 17)
+            for (unsigned green = 0; green <= 255; green += 17)
+                for (unsigned blue = 0; blue <= 255; blue += 17)
+                {
+                    const auto hsl = MarcusToOkHSL(red << 16 | green << 8 | blue);
+                    check(std::isfinite(hsl[0]) && hsl[0] >= 0 && hsl[0] < 360 &&
+                        std::isfinite(hsl[1]) && hsl[1] >= 0 && hsl[1] <= 1 &&
+                        std::isfinite(hsl[2]) && hsl[2] >= 0 && hsl[2] <= 1, "Finite OkHSL conversion");
+                    const auto rgb = MarcusOkHSL(hsl[0], hsl[1], hsl[2]);
+                    check(std::abs(int(rgb >> 16) - int(red)) <= 1 &&
+                        std::abs(int((rgb >> 8) & 255) - int(green)) <= 1 &&
+                        std::abs(int(rgb & 255) - int(blue)) <= 1, "OkHSL preserves sRGB colours");
+                }
+        const auto redHSL = MarcusToOkHSL(0xff0000), greenHSL = MarcusToOkHSL(0x00ff00), blueHSL = MarcusToOkHSL(0x0000ff);
+        check(std::abs(redHSL[0] - 29.23f) < .02f && std::abs(greenHSL[0] - 142.50f) < .02f &&
+            std::abs(blueHSL[0] - 264.05f) < .02f, "OkHSL uses perceptual primary hues");
+        check(MarcusOkHSL(180, 1, 0) == 0 && MarcusOkHSL(180, 1, 1) == 0xffffff &&
+            MarcusOkHSL(-60, .7f, .5f) == MarcusOkHSL(300, .7f, .5f), "OkHSL endpoints and hue wrapping");
+        for (int lightness = 1; lightness < 20; ++lightness)
+            for (int saturation = 0; saturation <= 20; ++saturation)
+            {
+                const float s = saturation / 20.f, l = lightness / 20.f;
+                const auto point = MarcusOkHSLTrianglePoint(s, l);
+                const auto picked = MarcusOkHSLTrianglePick(point[0], point[1]);
+                check(MarcusOkHSLTriangleContains(point[0], point[1]) &&
+                    std::abs(picked[0] - s) < .00001f && std::abs(picked[1] - l) < .00001f,
+                    "Triangle selection preserves saturation and lightness");
+            }
+        for (const auto sl : {std::array<float, 2>{0, 0}, {0, 1}, {1, .5f}})
+        {
+            const auto point = MarcusOkHSLTrianglePoint(sl[0], sl[1]);
+            const auto picked = MarcusOkHSLTrianglePick(point[0], point[1]);
+            check(std::abs(picked[0] - sl[0]) < .00001f && std::abs(picked[1] - sl[1]) < .00001f,
+                "Triangle vertices select black, white and saturated hue");
+        }
+        for (const auto point : {std::array<float, 2>{-2, 0}, {2, 2}, {0, -2}})
+        {
+            check(!MarcusOkHSLTriangleContains(point[0], point[1]), "Triangle excludes its surrounding gap");
+            const auto sl = MarcusOkHSLTrianglePick(point[0], point[1]);
+            check(sl[0] >= 0 && sl[0] <= 1 && sl[1] >= 0 && sl[1] <= 1,
+                "Dragging outside the triangle clamps to its edges");
+        }
+        const auto triangle = MarcusOkHSLTrianglePixels(210, 64);
+        check(triangle.size() == 64 * 64 * 4 && triangle[3] == 0, "Picker texture has a transparent exterior");
+        const auto centreSL = MarcusOkHSLTrianglePick(1 / 64.f, 1 / 64.f);
+        const auto centreRGB = MarcusOkHSL(210, centreSL[0], centreSL[1]);
+        const auto centre = triangle.data() + (32 * 64 + 32) * 4;
+        check(centre[3] == 255 && (unsigned(centre[0]) << 16 | unsigned(centre[1]) << 8 | centre[2]) == centreRGB,
+            "Picker texture displays the selected OkHSL colour");
+        check(MarcusOkHSLTrianglePixels(0, 0).empty() && MarcusOkHSLTrianglePixels(0, 1025).empty(), "Bound picker texture sizes");
         MarcusStoryboard board;
         check(MarcusBoardValid(board), "Default storyboard");
         {
