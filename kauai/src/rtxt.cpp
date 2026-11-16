@@ -18,6 +18,7 @@ ASSERTNAME
 #include "text_document_host.h"
 #include "text_materialize_host.h"
 #include "text_properties_host.h"
+#include "text_format_host.h"
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
@@ -1350,31 +1351,25 @@ bool RichTextDocument::_FGetRgspvmFromChp(PCHP pchp, PCHP pchpDiff, SPVM *prgspv
 {
     AssertVarMem(pchp);
     AssertNilOrVarMem(pchpDiff);
-    AssertPvCb(prgspvm, LwMul(size(SPVM), sprmLimChp - sprmMinChp));
+    AssertPvCb(prgspvm, LwMul(size(SPVM), 4));
     AssertVarMem(pcspvm);
-    byte sprm;
-    long ispvm;
-    SPVM spvm;
-
-    // first get the values and masks for the sprm's we have to deal with
-    ispvm = 0;
-    for (sprm = sprmMinChp; sprm < sprmLimChp; sprm++)
-    {
-        switch (_TGetLwFromChp(sprm, pchp, pchpDiff, &spvm.lw, &spvm.lwMask))
-        {
-        case tYes:
-            spvm.sprm = sprm;
-            prgspvm[ispvm++] = spvm;
-            break;
-        case tMaybe:
-            _ReleaseRgspvm(prgspvm, ispvm);
-            TrashVar(pcspvm);
-            return fFalse;
-        }
-    }
-
-    *pcspvm = ispvm;
-    return fTrue;
+    FormatHost host(this);
+    auto config = host.Configuration();
+    auto services = host.Values();
+    auto value = host.Character(*pchp);
+    auto old = pchpDiff ? host.Character(*pchpDiff) : decltype(value){};
+    MMTextPropertyChange changes[4];
+    MMI32 count;
+    int result = mm_text_format_changes(0, &config, &value, pchpDiff ? &old : nullptr, changes, &count, &services);
+    for (MMI32 i = 0; i < count; ++i)
+        prgspvm[i] = {static_cast<byte>(changes[i].kind), static_cast<LegacyLong>(changes[i].value),
+                      static_cast<LegacyLong>(changes[i].mask)};
+    host.Rethrow();
+    if (result > 0)
+        *pcspvm = count;
+    else
+        TrashVar(pcspvm);
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1386,31 +1381,25 @@ bool RichTextDocument::_FGetRgspvmFromPap(PPAP ppap, PPAP ppapDiff, SPVM *prgspv
 {
     AssertVarMem(ppap);
     AssertNilOrVarMem(ppapDiff);
-    AssertPvCb(prgspvm, LwMul(size(SPVM), sprmLimPap - sprmMinPap));
+    AssertPvCb(prgspvm, LwMul(size(SPVM), 3));
     AssertVarMem(pcspvm);
-    byte sprm;
-    long ispvm;
-    SPVM spvm;
-
-    // first get the values and masks for the sprm's we have to deal with
-    ispvm = 0;
-    for (sprm = sprmMinPap; sprm < sprmLimPap; sprm++)
-    {
-        switch (_TGetLwFromPap(sprm, ppap, ppapDiff, &spvm.lw, &spvm.lwMask))
-        {
-        case tYes:
-            spvm.sprm = sprm;
-            prgspvm[ispvm++] = spvm;
-            break;
-        case tMaybe:
-            _ReleaseRgspvm(prgspvm, ispvm);
-            TrashVar(pcspvm);
-            return fFalse;
-        }
-    }
-
-    *pcspvm = ispvm;
-    return fTrue;
+    FormatHost host(this);
+    auto config = host.Configuration();
+    auto services = host.Values();
+    auto value = host.Paragraph(*ppap);
+    auto old = ppapDiff ? host.Paragraph(*ppapDiff) : decltype(value){};
+    MMTextPropertyChange changes[3];
+    MMI32 count;
+    int result = mm_text_format_changes(1, &config, &value, ppapDiff ? &old : nullptr, changes, &count, &services);
+    for (MMI32 i = 0; i < count; ++i)
+        prgspvm[i] = {static_cast<byte>(changes[i].kind), static_cast<LegacyLong>(changes[i].value),
+                      static_cast<LegacyLong>(changes[i].mask)};
+    host.Rethrow();
+    if (result > 0)
+        *pcspvm = count;
+    else
+        TrashVar(pcspvm);
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1457,75 +1446,20 @@ tribool RichTextDocument::_TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, 
     AssertNilOrVarMem(pchpOld);
     AssertVarMem(plw);
     AssertVarMem(plwMask);
-
-    *plwMask = -1;
-    switch (sprm)
-    {
-    default:
-        *plwMask = 0;
-        break;
-
-    case sprmStyle:
-        *plw = LwHighLow((short)(pchpNew->dypFont - _dypFontDef),
-                         SwHighLow((byte)pchpNew->dypOffset, (byte)pchpNew->grfont));
-        if (pvNil != pchpOld)
-        {
-            *plwMask = LwHighLow(
-                -(pchpOld->dypFont != pchpNew->dypFont),
-                SwHighLow(-(pchpNew->dypOffset != pchpOld->dypOffset), (byte)(pchpOld->grfont ^ pchpNew->grfont)));
-        }
-        break;
-
-    case sprmFont:
-        if (pvNil != pchpOld && pchpOld->onn == pchpNew->onn)
-            *plwMask = 0;
-        else if (pchpNew->onn == _onnDef)
-            *plw = 0;
-        else
-        {
-            // data for sprmFont is: long onn, short osk, stn data
-            String stn;
-            LegacyLong cb;
-            short osk = koskCur;
-            byte rgb[kcbMaxDataStn + size(LegacyLong) + size(short)];
-
-            CopyPb(&pchpNew->onn, rgb, size(LegacyLong));
-            CopyPb(&osk, rgb + size(LegacyLong), size(short));
-            vntl.GetStn(pchpNew->onn, &stn);
-            cb = size(LegacyLong) + size(short);
-            stn.GetData(rgb + cb);
-            cb += stn.CbData();
-            if (!_FEnsureInAg(sprm, rgb, cb, plw))
-            {
-                *plwMask = 0;
-                TrashVar(plw);
-                return tMaybe;
-            }
-        }
-        break;
-
-    case sprmForeColor:
-        if (pvNil != pchpOld && pchpOld->acrFore == pchpNew->acrFore)
-            *plwMask = 0;
-        else
-            *plw = pchpNew->acrFore.LwGet() - kacrBlack.LwGet();
-        break;
-
-    case sprmBackColor:
-        if (pvNil != pchpOld && pchpOld->acrBack == pchpNew->acrBack)
-            *plwMask = 0;
-        else
-            *plw = pchpNew->acrBack.LwGet() - kacrClear.LwGet();
-        break;
-    }
-
-    if (0 != *plwMask)
-    {
-        *plw &= *plwMask;
-        return tYes;
-    }
-    TrashVar(plw);
-    return tNo;
+    FormatHost host(this);
+    auto config = host.Configuration();
+    auto value = host.Character(*pchpNew);
+    auto old = pchpOld ? host.Character(*pchpOld) : decltype(value){};
+    MMU32 word, mask;
+    auto services = host.Values();
+    int result = mm_text_character_delta(sprm, &config, &value, pchpOld ? &old : nullptr, &word, &mask, &services);
+    *plwMask = static_cast<LegacyLong>(mask);
+    host.Rethrow();
+    if (result > 0)
+        *plw = static_cast<LegacyLong>(word);
+    else
+        TrashVar(plw);
+    return result > 0 ? tYes : result == 0 ? tNo : tMaybe;
 }
 
 /***************************************************************************
@@ -1538,75 +1472,17 @@ void RichTextDocument::FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
     AssertVarMem(pchp);
     AssertNilOrVarMem(pcpMin);
     AssertNilOrVarMem(pcpLim);
-    MPE mpe;
-    byte sprm;
-    ulong spcp;
-    long cpLimT;
-    LegacyLong cb;
-    bool fRet;
-
-    if (FIn(cp, _cpMinChp, _cpLimChp))
-        goto LDone;
-
-    _chp.Clear();
-    _chp.onn = _onnDef;
-    _chp.dypFont = _dypFontDef;
-    _chp.acrFore = kacrBlack;
-    _chp.acrBack = kacrClear;
-
-    _cpLimChp = CpMac();
-    _cpMinChp = 0;
-    for (sprm = sprmMinChp; sprm < sprmLimChp; sprm++)
-    {
-        spcp = _SpcpFromSprmCp(sprm, cp);
-        fRet = _FFindMpe(spcp, &mpe, &cpLimT);
-        _cpLimChp = LwMin(_cpLimChp, cpLimT);
-        if (!fRet)
-            continue;
-        _cpMinChp = LwMax(_cpMinChp, _CpFromSpcp(mpe.spcp));
-
-        switch (sprm)
-        {
-        case sprmStyle:
-            _chp.grfont = B0Lw(mpe.lw);
-            _chp.dypOffset = (long)(achar)B1Lw(mpe.lw);
-            _chp.dypFont += SwHigh(mpe.lw);
-            break;
-
-        case sprmFont:
-            if (mpe.lw > 0)
-            {
-                byte *qrgb;
-
-                qrgb = (byte *)_pagcact->QvGet(mpe.lw - 1, &cb);
-                cb -= size(LegacyLong) + size(short); // onn, osk
-                if (!FIn(cb, 0, kcbMaxDataStn + 1))
-                {
-                    Warn("bad group element");
-                    break;
-                }
-                CopyPb(qrgb, &_chp.onn, size(LegacyLong));
-                Assert(vntl.FValidOnn(_chp.onn), "invalid onn");
-            }
-            break;
-
-        case sprmForeColor:
-            if (mpe.lw != 0)
-                _chp.acrFore.SetFromLw(kacrBlack.LwGet() + mpe.lw);
-            break;
-
-        case sprmBackColor:
-            if (mpe.lw != 0)
-                _chp.acrBack.SetFromLw(kacrClear.LwGet() + mpe.lw);
-            break;
-        }
-    }
-
-LDone:
+    FormatHost host(this);
+    auto config = host.Configuration();
+    auto services = host.Values();
+    auto cache = host.CharacterCache();
+    mm_text_fetch_character(&config, &cache, cp, CpMac(), &services);
+    host.Publish(cache);
+    host.Rethrow();
     *pchp = _chp;
-    if (pvNil != pcpMin)
+    if (pcpMin)
         *pcpMin = _cpMinChp;
-    if (pvNil != pcpLim)
+    if (pcpLim)
         *pcpLim = _cpLimChp;
 }
 
@@ -1618,37 +1494,13 @@ bool RichTextDocument::FApplyChp(long cp, long ccp, PCHP pchp, PCHP pchpDiff, ul
     AssertThis(fobjAssertFull);
     AssertIn(cp, 0, CpMac() - 1);
     AssertIn(ccp, 1, CpMac() - cp);
-    long cspvm;
-    SPVM rgspvm[sprmLimChp - sprmMinChp];
-    PRichTextUndo prtun = pvNil;
-
-    BumpCombineUndo();
-    if (!FSetUndo(cp, cp + ccp, ccp))
-        return fFalse;
-
-    if (!_FGetRgspvmFromChp(pchp, pchpDiff, rgspvm, &cspvm))
-    {
-        CancelUndo();
-        return fFalse;
-    }
-
-    // now make sure that _pglmpe has enough room - we need at most 2
-    // entries per sprm.
-    if (!_pglmpe->FEnsureSpace(2 * cspvm))
-    {
-        _ReleaseRgspvm(rgspvm, cspvm);
-        CancelUndo();
-        AssertThis(fobjAssertFull);
-        return fFalse;
-    }
-
-    _ApplyRgspvm(cp, ccp, rgspvm, cspvm);
-    CommitUndo();
-    BumpCombineUndo();
-
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cp, ccp, ccp, grfdoc);
-    return fTrue;
+    FormatHost host(this);
+    host.chp = pchp;
+    host.oldChp = pchpDiff;
+    auto services = host.Edit();
+    int result = mm_text_format_apply(0, nullptr, cp, ccp, CpMac(), 0, grfdoc, nullptr, nullptr, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1667,23 +1519,14 @@ void RichTextDocument::_GetParaBounds(long *pcpMin, long *pcpLim, bool fExpand)
     AssertVarMem(pcpLim);
     AssertIn(*pcpMin, 0, CpMac());
     AssertIn(*pcpLim, *pcpMin, CpMac() + 1);
-
-    if (fExpand)
-    {
-        *pcpLim = CpLimPara(*pcpLim - (*pcpLim > 0 && *pcpLim > *pcpMin));
-        *pcpMin = CpMinPara(*pcpMin);
-    }
-    else
-    {
-        if (!FMinPara(*pcpMin))
-            *pcpMin = CpLimPara(*pcpMin);
-        if (!FMinPara(*pcpLim))
-        {
-            *pcpLim = CpNext(*pcpLim);
-            if (*pcpLim < CpMac())
-                *pcpLim = CpMinPara(*pcpLim);
-        }
-    }
+    FormatHost host(this);
+    auto services = host.Paragraphs();
+    MMI32 first = *pcpMin, end = *pcpLim;
+    MMI32 *limit = pcpMin == pcpLim ? &first : &end;
+    mm_text_paragraph_bounds(&first, limit, CpMac(), fExpand, &services);
+    *pcpMin = first;
+    *pcpLim = *limit;
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -1699,51 +1542,20 @@ tribool RichTextDocument::_TGetLwFromPap(byte sprm, PPAP ppapNew, PPAP ppapOld, 
     AssertVarMem(ppapNew);
     AssertNilOrVarMem(ppapOld);
     AssertVarMem(plw);
-
-    *plwMask = -1;
-    switch (sprm)
-    {
-    case sprmHorz:
-        if (pvNil != ppapOld)
-        {
-            if (ppapOld->jc == ppapNew->jc)
-                *plwMask &= 0x00FFFFFFL;
-            if (ppapOld->nd == ppapNew->nd)
-                *plwMask &= 0xFF00FFFFL;
-            if (ppapOld->dxpTab == ppapNew->dxpTab)
-                *plwMask &= 0xFFFF0000L;
-        }
-        *plw = LwHighLow(SwHighLow(ppapNew->jc, ppapNew->nd), ppapNew->dxpTab - kdxpTabDef);
-        break;
-    case sprmVert:
-        if (pvNil != ppapOld)
-        {
-            if (ppapOld->numLine == ppapNew->numLine)
-                *plwMask &= 0x0000FFFFL;
-            if (ppapOld->dypExtraLine == ppapNew->dypExtraLine)
-                *plwMask &= 0xFFFF0000L;
-        }
-        *plw = LwHighLow(ppapNew->numLine - kdenLine, ppapNew->dypExtraLine);
-        break;
-    case sprmAfter:
-        if (pvNil != ppapOld)
-        {
-            if (ppapOld->numAfter == ppapNew->numAfter)
-                *plwMask &= 0x0000FFFFL;
-            if (ppapOld->dypExtraAfter == ppapNew->dypExtraAfter)
-                *plwMask &= 0xFFFF0000L;
-        }
-        *plw = LwHighLow(ppapNew->numAfter - kdenAfter, ppapNew->dypExtraAfter);
-        break;
-    }
-
-    if (0 != *plwMask)
-    {
-        *plw &= *plwMask;
-        return tYes;
-    }
-    TrashVar(plw);
-    return tNo;
+    AssertVarMem(plwMask);
+    FormatHost host(this);
+    auto config = host.Configuration();
+    auto value = host.Paragraph(*ppapNew);
+    auto old = ppapOld ? host.Paragraph(*ppapOld) : decltype(value){};
+    MMU32 word, mask;
+    int result = mm_text_paragraph_delta(sprm, &config, &value, ppapOld ? &old : nullptr, &word, &mask);
+    *plwMask = static_cast<LegacyLong>(mask);
+    host.Rethrow();
+    if (result > 0)
+        *plw = static_cast<LegacyLong>(word);
+    else
+        TrashVar(plw);
+    return result > 0 ? tYes : result == 0 ? tNo : tMaybe;
 }
 
 /***************************************************************************
@@ -1757,54 +1569,17 @@ void RichTextDocument::FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
     AssertVarMem(ppap);
     AssertNilOrVarMem(pcpMin);
     AssertNilOrVarMem(pcpLim);
-    MPE mpe;
-    byte sprm;
-    ulong spcp;
-    long cpLimT;
-    bool fRet;
-
-    if (FIn(cp, _cpMinPap, _cpLimPap))
-        goto LDone;
-
-    ClearPb(&_pap, size(PAP));
-    _pap.dxpTab = kdxpTabDef;
-    _pap.numLine = kdenLine;
-    _pap.numAfter = kdenAfter;
-
-    _cpLimPap = CpMac();
-    _cpMinPap = 0;
-    for (sprm = sprmMinPap; sprm < sprmLimPap; sprm++)
-    {
-        spcp = _SpcpFromSprmCp(sprm, cp);
-        fRet = _FFindMpe(spcp, &mpe, &cpLimT);
-        _cpLimPap = LwMin(_cpLimPap, cpLimT);
-        if (!fRet)
-            continue;
-        _cpMinPap = LwMax(_cpMinPap, _CpFromSpcp(mpe.spcp));
-
-        switch (sprm)
-        {
-        case sprmHorz:
-            _pap.jc = B3Lw(mpe.lw);
-            _pap.nd = B2Lw(mpe.lw);
-            _pap.dxpTab += SwLow(mpe.lw);
-            break;
-        case sprmVert:
-            _pap.numLine += SwHigh(mpe.lw);
-            _pap.dypExtraLine = SwLow(mpe.lw);
-            break;
-        case sprmAfter:
-            _pap.numAfter += SwHigh(mpe.lw);
-            _pap.dypExtraAfter = SwLow(mpe.lw);
-            break;
-        }
-    }
-
-LDone:
+    FormatHost host(this);
+    auto config = host.Configuration();
+    auto services = host.Values();
+    auto cache = host.ParagraphCache();
+    mm_text_fetch_paragraph(&config, &cache, cp, CpMac(), &services);
+    host.Publish(cache);
+    host.Rethrow();
     *ppap = _pap;
-    if (pvNil != pcpMin)
+    if (pcpMin)
         *pcpMin = _cpMinPap;
-    if (pvNil != pcpLim)
+    if (pcpLim)
         *pcpLim = _cpLimPap;
 }
 
@@ -1815,7 +1590,7 @@ LDone:
     paragraph.
 ***************************************************************************/
 bool RichTextDocument::FApplyPap(long cp, long ccp, PPAP ppap, PPAP ppapDiff, long *pcpMin, long *pcpLim, bool fExpand,
-                     ulong grfdoc)
+                                 ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cp, 0, CpMac());
@@ -1824,51 +1599,15 @@ bool RichTextDocument::FApplyPap(long cp, long ccp, PPAP ppap, PPAP ppapDiff, lo
     AssertNilOrVarMem(ppapDiff);
     AssertNilOrVarMem(pcpMin);
     AssertNilOrVarMem(pcpLim);
-    long cpLim;
-    long cspvm;
-    SPVM rgspvm[sprmLimPap - sprmMinPap];
-
-    // see if there are any paragraphs to deal with
-    cpLim = cp + ccp;
-    _GetParaBounds(&cp, &cpLim, fExpand);
-    if (pvNil != pcpMin)
-        *pcpMin = cp;
-    if (pvNil != pcpLim)
-        *pcpLim = cpLim;
-
-    if (cpLim <= cp)
-    {
-        // no paragraphs to affect
-        return fTrue;
-    }
-
-    BumpCombineUndo();
-    if (!FSetUndo(cp, cpLim, cpLim - cp))
-        return fFalse;
-
-    if (!_FGetRgspvmFromPap(ppap, ppapDiff, rgspvm, &cspvm))
-    {
-        CancelUndo();
-        return fFalse;
-    }
-
-    // now make sure that _pglmpe has enough room - we need at most 2
-    // entries per sprm.
-    if (!_pglmpe->FEnsureSpace(2 * cspvm))
-    {
-        _ReleaseRgspvm(rgspvm, cspvm);
-        CancelUndo();
-        AssertThis(fobjAssertFull);
-        return fFalse;
-    }
-
-    _ApplyRgspvm(cp, cpLim - cp, rgspvm, cspvm);
-    CommitUndo();
-    BumpCombineUndo();
-
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cp, cpLim - cp, cpLim - cp, grfdoc);
-    return fTrue;
+    FormatHost host(this);
+    host.first = pcpMin;
+    host.end = pcpLim;
+    host.pap = ppap;
+    host.oldPap = ppapDiff;
+    auto services = host.Edit();
+    int result = mm_text_format_apply(1, nullptr, cp, ccp, CpMac(), fExpand, grfdoc, nullptr, nullptr, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************

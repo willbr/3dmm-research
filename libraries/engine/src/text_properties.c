@@ -240,7 +240,8 @@ static int insert(MMI32 *index, const MMTextPropertyEntry *entry, const MMTextPr
         s->diagnostic(s->context, MM_TEXT_PROP_INSERT);
     return result < 0 ? result : 1;
 }
-int mm_text_properties_apply(MMI32 cp, MMI32 span, MMI32 characters, MMI32 count, const MMTextPropertyServices *s)
+static int apply(MMI32 cp, MMI32 span, MMI32 characters, const MMTextPropertyChange *changes,
+                 MMI32 count, const MMTextPropertyServices *s)
 {
     MMTextPropertyEntry entry, current, previous;
     MMTextPropertyChange change;
@@ -250,7 +251,10 @@ int mm_text_properties_apply(MMI32 cp, MMI32 span, MMI32 characters, MMI32 count
     s->clear_cache(s->context);
     for (n = count; n-- > 0;)
     {
-        s->change(s->context, n, &change);
+        if (changes)
+            change = changes[n];
+        else
+            s->change(s->context, n, &change);
         entry.key = key_at(change.kind, cp);
         entry.value = mm_signed_word(change.value);
         if (!mm_text_property_find(entry.key, characters, &current, 0, &i, s))
@@ -342,4 +346,13 @@ int mm_text_properties_apply(MMI32 cp, MMI32 span, MMI32 characters, MMI32 count
         mm_text_property_ref(change.kind, mm_signed_word(change.value), 0, &s->arguments);
     }
     return 1;
+}
+int mm_text_properties_apply(MMI32 cp, MMI32 span, MMI32 characters, MMI32 count, const MMTextPropertyServices *s)
+{
+    return apply(cp, span, characters, 0, count, s);
+}
+int mm_text_properties_apply_changes(MMI32 cp, MMI32 span, MMI32 characters, const MMTextPropertyChange *changes,
+                                    MMI32 count, const MMTextPropertyServices *s)
+{
+    return apply(cp, span, characters, changes, count, s);
 }

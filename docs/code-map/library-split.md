@@ -1799,10 +1799,56 @@ masked applications and boundary edits. C-only tests compare masked changes agai
 a character-by-character value model and edit adjustment against an independent
 per-kind reconstruction. They also cover all 256 kind classifications, backward
 matching, holes, reference transfers and fallible creation/insertion/paragraph
-queries. Character/paragraph value conversion, property copying, remaining text
-replacement/edit/undo control, help-document argument extensions, native output
+queries. Character/paragraph formatting and application are covered below.
+Property copying, remaining text replacement/navigation/undo control,
+help-document argument extensions, native output
 storage, physical providers, document/view/parent lifecycle and final C-only
 host/facade removal remain work. Evidence and platform limits are in
+`docs/tools/playback-regression.md`.
+
+### Character and paragraph formatting
+
+`text_format.c` controls character/paragraph delta packing, batch generation, font
+argument descriptors, cached formatting fetches, paragraph bounds and formatting
+apply transactions. Native adapters marshal value records and supply font-table,
+paragraph-navigation, collection and virtual undo/invalidation primitives. The
+shared string codec writes font names; the C property module supplies interning,
+references and masked map edits, including a direct C change-array entry point.
+
+Style deltas keep short height differences, byte offsets and font-style masks.
+Paragraph deltas keep per-field masks and signed-short wrapping. Color differences
+retain the native black/clear origins and 32-bit arithmetic. Font arguments retain
+the native four-byte runtime ID, two-byte system and counted-string payload.
+Batches emit in increasing kind order. Ordinary font failures release the emitted
+prefix; exceptions preserve partial effects and native mask/count publication.
+
+Fetches intersect each built-in property's range. Cache hits skip map/font work;
+misses initialize defaults and decode only present values. Native achar signedness
+determines offset-byte extension, including the unsigned wide-character behavior.
+Font records outside the six- through 522-byte range warn and retain the default
+font; valid-size records supply their runtime ID without decoding the stored name.
+Paragraph additions explicitly retain short wrapping. Partial cached values/ranges
+publish before native exception rethrow.
+
+Paragraph bounds retain expand/contain behavior and query order over CR/LF text.
+Apply publishes paragraph bounds before virtual undo setup. Empty paragraph ranges
+succeed without edit effects. Inputs/defaults are marshalled after that virtual
+hook; property application reads the current stream length after reservation.
+Ordinary delta/reservation failures cancel undo; reservation failure also releases
+generated argument references. Success applies changes, commits undo, bumps the
+combine counter, validates and invalidates views/marks dirty. Identical character
+formatting still follows this transaction. Exception results retain partial effects
+without adding rollback. Native undo-record storage/combination remains separate.
+
+The headless engine fixture freezes delta words/masks, batches, native font bytes,
+cache hits/ranges, boundary selection, malformed font-record sizes and public
+formatting calls with virtual undo probes. C tests cover both unit sizes/orders,
+maximum counted font names, offset signedness, short wrapping, field masks,
+partial cache/range outputs, exception/ordinary failure ordering and input changes
+made by undo hooks. Property copying, remaining text replacement/navigation/undo,
+help-document argument extensions, native output/descriptor storage, physical
+providers, document/view/parent lifecycle and final C-only host/facade removal
+remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo

@@ -527,8 +527,11 @@ Stored-to-live rich-text loading, property/argument byte normalization and defau
 font argument opening now also use C89, preserving virtual extension hooks.
 Rich-text property lookup, masked range application, edit-boundary adjustment,
 argument interning and reference-count control now also use C89.
+Character/paragraph delta packing, font descriptor creation, cached formatting
+fetches, paragraph-bound selection and formatting-application transactions now
+also use C89, preserving virtual undo/effect hooks.
 Typed resource/track/archive/path providers, help-document argument extensions,
-character/paragraph conversion, remaining text editing/undo, display formatting/
+remaining text replacement/navigation/undo, display formatting/
 output containers, remaining
 document/UI lifecycle and final facade removal remain work.
 These are completed slices
@@ -583,8 +586,10 @@ adoption/rollback now also use C89. Text document file saves, initialization/loa
 factory cleanup and resource release now also use C89. Stored-to-live rich-text
 loading, property/argument normalization and default font argument opening now
 also use C89. Rich-text property lookup, masked range application, edit-boundary
-adjustment and argument interning/reference counts now also use C89. Help-document
-argument extensions, character/paragraph conversion, remaining text editing/undo,
+adjustment and argument interning/reference counts now also use C89. Character/
+paragraph value conversion, cached fetches, paragraph bounds and formatting apply
+transactions now also use C89. Help-document argument extensions, remaining text
+replacement/navigation/undo,
 display/output representations, remaining
 document/UI lifecycle and final host integration still need conversion.
 Final removal of native representations and facades remains required.

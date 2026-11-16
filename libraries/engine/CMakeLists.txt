@@ -43,6 +43,12 @@ target_sources(mm-engine-c89 PRIVATE src/text_live.c)
 target_sources(mm-engine-c89 PRIVATE src/text_document.c)
 target_sources(mm-engine-c89 PRIVATE src/text_materialize.c)
 target_sources(mm-engine-c89 PRIVATE src/text_properties.c)
+target_sources(mm-engine-c89 PRIVATE src/text_format.c)
+get_filename_component(engine_text_format_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_format_test.c" ABSOLUTE)
+add_executable(engine-text-format-test EXCLUDE_FROM_ALL "${engine_text_format_test_source}")
+target_link_libraries(engine-text-format-test PRIVATE mm-engine-c89)
+set_target_properties(engine-text-format-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-text-format COMMAND engine-text-format-test)
 get_filename_component(engine_text_properties_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_properties_test.c" ABSOLUTE)
 add_executable(engine-text-properties-test EXCLUDE_FROM_ALL "${engine_text_properties_test_source}")
 target_link_libraries(engine-text-properties-test PRIVATE mm-engine-c89)
@@ -755,6 +761,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_document.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_materialize.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_properties.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/text_format.c"
+    "${engine_text_format_test_source}"
     "${engine_text_properties_test_source}"
     "${engine_text_materialize_test_source}"
     "${engine_text_document_test_source}"

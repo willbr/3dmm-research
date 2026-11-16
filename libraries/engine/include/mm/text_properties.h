@@ -79,6 +79,8 @@ extern "C"
     int mm_text_properties_adjust(MMI32 cp, MMI32 inserted, MMI32 deleted, MMI32 characters,
                                   const MMTextPropertyServices *);
     int mm_text_properties_apply(MMI32 cp, MMI32 span, MMI32 characters, MMI32 count, const MMTextPropertyServices *);
+    int mm_text_properties_apply_changes(MMI32 cp, MMI32 span, MMI32 characters,
+                                         const MMTextPropertyChange *, MMI32 count, const MMTextPropertyServices *);
     void mm_text_properties_release(MMI32 count, const MMTextPropertyServices *);
 #ifdef __cplusplus
 }

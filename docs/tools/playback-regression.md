@@ -9599,3 +9599,85 @@ baseline/final logs, `tmp/c89-text-properties-{native,sdl-release,sdl-debug}-tes
 `tmp/c89-text-properties-asan.log`, `tmp/c89-text-properties-regular-tests.log`,
 `tmp/c89-text-properties-trace-comparison.json` and
 `tmp/c89-text-properties-identities.json`.
+
+### Character and paragraph formatting (16 November 2026)
+
+`text_format.c` now controls character/paragraph delta packing, batch generation,
+font argument descriptors, cached formatting fetches, paragraph-bound selection
+and formatting apply transactions. Native adapters retain typed value records,
+font-table/paragraph-navigation primitives and virtual undo/invalidation effects.
+Font names use the shared C string codec. A direct C change-array entry point in
+`text_properties.c` avoids adding native staging allocations to formatting edits.
+
+Packing retains short height differences, byte offset/style masks, per-field
+paragraph masks, short wrapping and 32-bit color differences from black/clear.
+Font descriptors retain the native runtime ID/system and counted string. Batch
+ordinary failures release their emitted prefix; exceptions retain partial effects.
+The single-delta native wrapper preserves no-change/failure poisoning and the
+full mask visible when font services throw.
+
+Fetches intersect built-in property ranges and skip map/font work on cache hits.
+Offset bytes follow native achar signedness, including unsigned wide-character
+behavior. Font records outside six through 522 bytes warn and keep the default
+font; valid-size records read the runtime ID without parsing the stored name.
+Partial cache values/ranges publish before native exception rethrow.
+
+Paragraph bounds retain expand/contain query order across CR/LF text. Apply
+publishes those bounds before virtual undo setup. Empty paragraph ranges have no
+edit effects. Native inputs/defaults are marshalled after undo setup, preserving
+changes made by that hook, and application reads current stream length after
+reservation. Ordinary delta/reservation failures cancel undo; reservation failure
+also releases generated references. Success applies, commits, bumps the combine
+counter, validates and invalidates/marks dirty. Identical character formatting
+still follows this transaction. Exceptions retain partial effects without new
+rollback. Native undo-record construction/combination remains conversion work.
+
+Before conversion, the expanded headless engine movie save/load fixture recorded
+21,343-byte formatting traces. Native Debug records FNV-1a `0B74543D`, SHA-256
+`0AA4758B0D923D826C3199F6F47120E786D4F65D9D619399F887999E1F191360`.
+SDL Release and Debug record FNV-1a `78F581BE`, SHA-256
+`F2C901FC9A9F81A4FE180DE3699CC0BCFEF56D529FDCAE0774F1E00F07E4B89F`.
+Each host retains its own font-table baseline. The fixture freezes scalar deltas,
+no-change masks, generated batches, logical font arguments, cache/range outputs,
+all ranges over a CR/LF sample, defaults changed under a valid cache, malformed
+font-record sizes and public formatting calls with virtual undo probes. The probes
+establish formatting transaction sequencing, not native undo-allocation equivalence.
+
+C-only checks cover both native unit sizes/orders and offset signedness, all byte
+style masks, short wrapping, field masks, empty/maximal/embedded-null font names,
+codec bytes, cache-hit isolation, malformed sizes and partial cache/range outputs.
+Ordinary/allocation/foreign failure probes cover font/argument services, paragraph
+queries, undo setup, reservation, insertion, cancellation, commit and invalidation.
+They check reference release ordering, partial effects, paragraph no-ops, identical
+character-format dirty behavior, and inputs/defaults changed during undo setup.
+MSVC AddressSanitizer passes.
+
+All forty-two original/converted formatting/property/materialization/document/
+live-text/stored-text/media/metadata/session/admission/live/camera/picking/rendering
+trace pairs match across the three hosts. Prior hashes remain unchanged. Background
+checks retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras
+per host. All 123 standalone C checks, including strict C89 syntax, pass. Twenty-eight
+selected native checks and twenty-four checks in each SDL configuration pass,
+including existing core/scene/movie and native playback/player regressions.
+The regular asset-preview harness passes headlessly with fresh metadata inputs.
+Retained input identities are unchanged; identities for 28 rebuilt binaries are
+recorded. Test processes use private temporary directories. Marcus was stopped
+before rebuilding and relaunched afterward. Strict syntax caught a signedness
+mismatch in a test counter; after correcting it, the affected C test was rebuilt
+and rerun on all three hosts, and the standalone suite and AddressSanitizer passed.
+
+This is Windows x64 fixture evidence. Retained retail captures remain the playback
+reference; no new capture campaign or Marcus UI tests were added. Property copying,
+remaining text replacement/navigation/undo, help-document argument extensions,
+native output/descriptor storage, physical providers, document/view/parent lifecycle
+and final C-only host/facade removal remain conversion work. Other platforms remain
+unverified here.
+
+Evidence: `tmp/c89-text-format-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-text-format-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-format-standalone-tests.log`,
+`tmp/c89-text-format-{properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-format-asan.log`, `tmp/c89-text-format-regular-tests.log`,
+`tmp/c89-text-format-trace-comparison.json`, `tmp/c89-text-format-identities.json`,
+`tmp/c89-text-format-syntax-first-tests.log` and
+`tmp/c89-text-format-syntax-{native,sdl-release,sdl-debug}-tests.log`.
