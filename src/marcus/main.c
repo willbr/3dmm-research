@@ -268,6 +268,7 @@ static void release_camera(App *app)
 }
 static void view_mode(App *app, int mode)
 {
+    if (mode != 1) storyboard_editor_close(app->storyboard_editor);
     app->orbit_menu = 0;
     if (mode != 1) app->shortcuts.work_view.axis_view = 0;
     release_camera(app);
@@ -359,6 +360,7 @@ static int inside_movie(const App *app, float x, float y)
 }
 static void toggle_second_view(App *app)
 {
+    storyboard_editor_close(app->storyboard_editor);
     release_camera(app);
     app->dragging = app->orbiting = app->panning = app->resizing_view = app->resizing_timeline = 0;
     if (app->second_view)
@@ -521,6 +523,28 @@ static void layout(App *app)
     app->sound_scroll = (int)maximum(0, minimum(app->sound_scroll, app->info.sound_track_count - rows));
     app->both_scroll =
         (int)maximum(0, minimum(app->both_scroll, object_row_count(app) + app->info.sound_track_count + 2 - rows));
+}
+static void update_storyboard_layout(App *app)
+{
+    SDL_FRect view, canvas, tools, bar;
+    float scale;
+    if (app->movie_only || app->playing)
+    {
+        storyboard_editor_close(app->storyboard_editor);
+        return;
+    }
+    storyboard_editor_sync(app->storyboard_editor, app->player, app->resources, app->content);
+    if (!storyboard_editor_visible(app->storyboard_editor)) return;
+    view.x = 0; view.y = VIEW_TOP;
+    view.w = app->sidebar; view.h = app->viewport_bottom - VIEW_TOP;
+    bar.x = 16; bar.y = VIEW_TOP + 8; bar.w = app->sidebar - 32; bar.h = 28;
+    scale = (float)minimum((view.w - 32) / 544, maximum(1, view.h - 88) / 306);
+    canvas.w = 544 * scale; canvas.h = 306 * scale;
+    canvas.x = (view.w - canvas.w) / 2;
+    canvas.y = VIEW_TOP + 56 + (view.h - 88 - canvas.h) / 2;
+    tools.x = app->sidebar; tools.y = VIEW_TOP;
+    tools.w = app->width - app->sidebar; tools.h = app->height - 24 - VIEW_TOP;
+    storyboard_editor_layout(app->storyboard_editor, &view, &canvas, &tools, &bar);
 }
 static void fit_timeline(App *app)
 {
@@ -711,6 +735,8 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
 {
     char title[2200];
     MarcusMovieEntry member;
+    storyboard_editor_close(app->storyboard_editor);
+    storyboard_editor_take(app->storyboard_editor);
     scene_organiser_close(app->scene_organiser);
     finish_movie_scrub(app);
     app->playing = 0;
@@ -768,6 +794,8 @@ static void new_movie(App *app)
         return;
     }
     marcus_set_muted(player, app->muted);
+    storyboard_editor_close(app->storyboard_editor);
+    storyboard_editor_take(app->storyboard_editor);
     scene_organiser_close(app->scene_organiser);
     finish_movie_scrub(app);
     release_camera(app);
@@ -960,9 +988,20 @@ static void choose_storyboard(App *app, int new_scene, int angle)
     finish_movie_scrub(app);
     app->sheet_menu = app->orbit_menu = 0;
     scene_organiser_close(app->scene_organiser);
+    if (app->movie_only) editor_view(app);
     if (!storyboard_editor_show(app->storyboard_editor, app->player, new_scene, angle,
             &app->work_image, app->resources, app->content))
-        fail(app, "Cannot open the storyboard editor.");
+        fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "Cannot enter storyboard painting.");
+    else
+    {
+        app->second_view = 0;
+        view_mode(app, 1);
+        app->blank_movie = 0;
+        refresh(app);
+        if (new_scene) fit_timeline(app);
+        SDL_SetCursor(SDL_GetDefaultCursor());
+        update_storyboard_layout(app);
+    }
 }
 static void choose_prop(App *app)
 {
@@ -990,6 +1029,7 @@ static void toggle_play(App *app)
 {
     if (!app->loaded)
         return;
+    storyboard_editor_close(app->storyboard_editor);
     if (app->playing && app->playback.wait == 1)
     {
         app->continue_click = 1;
@@ -1603,7 +1643,11 @@ static void ribbon_action(App *app, int action)
     else if (action == RIBBON_CONTENT) choose_file(app, 2);
     else if (action == RIBBON_SETTINGS) open_settings(app);
     else if (action == RIBBON_NEW_SCENE) choose_background(app);
-    else if (action == RIBBON_STORYBOARD) choose_storyboard(app, !marcus_is_storyboard(app->player), -1);
+    else if (action == RIBBON_STORYBOARD)
+    {
+        if (storyboard_editor_visible(app->storyboard_editor)) storyboard_editor_close(app->storyboard_editor);
+        else choose_storyboard(app, !marcus_is_storyboard(app->player), -1);
+    }
     else if (action == RIBBON_SAVE_COPY) choose_file(app, 4);
     else if (action == RIBBON_NEW_PROP) choose_prop(app);
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
@@ -2195,17 +2239,10 @@ static void handle_event(App *app, const SDL_Event *event)
     int rows, maximum_scroll, *scroll, gizmo_event;
     float x, y, delta;
     SDL_Keymod modifiers;
+    update_storyboard_layout(app);
     gizmo_event = prop_gizmo_event(app->prop_gizmo, event);
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
-    else if (!app->error[0] && storyboard_editor_event(app->storyboard_editor, event, app->width, app->height))
-    {
-        if (event->type == SDL_EVENT_MOUSE_MOTION)
-        {
-            app->ui.mouse_x = event->motion.x;
-            app->ui.mouse_y = event->motion.y;
-        }
-    }
     else if (!app->error[0] && camera_picker_event(app->camera_picker, event, app->width, app->height))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
@@ -2273,6 +2310,15 @@ static void handle_event(App *app, const SDL_Event *event)
         }
         SDL_free(request->path);
         SDL_free(request);
+    }
+    else if (!app->error[0] && !app->settings_open && !app->zip_input && !app->orbit_menu && !app->sheet_menu &&
+             storyboard_editor_event(app->storyboard_editor, event))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
     }
     else if (gizmo_event)
     {
@@ -2759,6 +2805,14 @@ static void draw_view(App *app)
     MarcusUI *ui;
     Uint64 started;
     ui = &app->ui;
+    update_storyboard_layout(app);
+    if (storyboard_editor_visible(app->storyboard_editor))
+    {
+        ui_fill(ui, 0, VIEW_TOP, app->sidebar, app->viewport_bottom - VIEW_TOP, BG);
+        storyboard_editor_draw(app->storyboard_editor, ui);
+        ui_text(ui, 16, app->viewport_bottom - 22, "Painted background / no scenery depth", MUTED);
+        return;
+    }
     left = work_left(app);
     right = view_right(app);
     width = right - left;
@@ -3994,7 +4048,7 @@ static void draw(App *app)
     ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, BG);
     draw_header(app);
     draw_view(app);
-    draw_sidebar(app);
+    if (!storyboard_editor_visible(app->storyboard_editor)) draw_sidebar(app);
     draw_timeline(app);
     draw_sheet_menu(app);
     if (app->orbit_menu && app->loaded)
@@ -4032,7 +4086,6 @@ static void draw(App *app)
     browser_draw(app->browser, &app->ui, app->width, app->height);
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
     camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
-    storyboard_editor_draw(app->storyboard_editor, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
 }
@@ -4494,15 +4547,15 @@ int main(int argc, char **argv)
         }
         if (storyboard_editor_take(app.storyboard_editor))
         {
-            app.modified = 1;
-            app.blank_movie = 0;
-            app.selected = app.selected_sound = app.selected_sound_track = -1;
-            app.row_scroll = app.object_scroll = app.sound_scroll = app.both_scroll = 0;
+            MarcusInfo previous_info;
+            previous_info = app.info;
+            app.modified = marcus_modified(app.player);
             refresh(&app);
-            view_mode(&app, 1);
-            reset_view(&app);
-            fit_timeline(&app);
-            SDL_SetWindowTitle(app.window, "Marcus - Storyboard (unsaved changes)");
+            app.blank_movie = !app.loaded && !app.movie[0];
+            if (app.info.scene != previous_info.scene || app.info.first_frame != previous_info.first_frame ||
+                app.info.last_frame != previous_info.last_frame) fit_timeline(&app);
+            app.dirty = app.movie_dirty = 1;
+            SDL_SetWindowTitle(app.window, app.modified ? "Marcus - Storyboard (unsaved changes)" : "Marcus - Storyboard");
         }
         i = scene_organiser_take(app.scene_organiser);
         if (i >= 0)
@@ -4553,6 +4606,7 @@ int main(int argc, char **argv)
         app.movie_time_available = app.movie_time_status == 1;
         update_movie_controls(&app, now, now - previous_tick);
         previous_tick = now;
+        update_storyboard_layout(&app);
         update_prop_gizmo(&app);
         draw(&app);
         prop_gizmo_end(app.prop_gizmo);

@@ -60,6 +60,23 @@ int main(int argc, char **argv)
         check(MarcusApplyStoryboard(player.get(), board, true, 0, argv[1], argv[2]), "Create blank storyboard movie");
         MarcusInfo info = {};
         check(marcus_info(player.get(), &info) && info.scene_count == 1 && info.camera_count == 2 && info.camera == 0 && info.object_count == 0 && info.sound_count == 0 && info.frame == 1, "Blank scene admission");
+        // Viewport tools commit completed gestures to the ordinary movie history.
+        auto painted = board;
+        for (int stroke = 0; stroke < 3; ++stroke)
+        {
+            const auto revision = marcus_document(player.get());
+            MarcusBoardStroke(painted.angles[0], 400, 30 + stroke * 12, 460, 30 + stroke * 12, 4, 1);
+            check(MarcusApplyStoryboard(player.get(), painted, false, 0, argv[1], argv[2]) &&
+                marcus_document(player.get()) != revision && marcus_info(player.get(), &info) && info.frame == 1 && info.camera == 0,
+                "A completed stroke commits without moving the timeline");
+            MarcusStoryboard current;
+            check(MarcusGetStoryboard(player.get(), current) && MarcusEncodeBoard(current) == MarcusEncodeBoard(painted),
+                "Movie state immediately contains a completed stroke");
+        }
+        for (int stroke = 0; stroke < 3; ++stroke) check(marcus_undo(player.get()), "Undo individual viewport strokes");
+        MarcusStoryboard restored;
+        check(MarcusGetStoryboard(player.get(), restored) && MarcusEncodeBoard(restored) == bytes,
+            "Movie undo restores the original canvas after multiple strokes");
         MarcusProjection projection;
         check(marcus_camera_projection(player.get(), 1, &projection) && std::abs(projection.transform[9] - 7) < .001 &&
             std::abs(projection.transform[7] - std::sin(12 * .01745329252)) < .001 && std::abs(projection.vertical_fov - 62) < .01, "Native camera pose, pitch convention and FOV");

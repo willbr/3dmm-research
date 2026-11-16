@@ -142,18 +142,25 @@ editing it. The working session retains its original source and **UNSAVED** mark
 opening another movie, New movie or exiting discards unexported edits. Saving a
 copy does not package installed content libraries or external fonts.
 
-**Storyboard** in the Scenes ribbon edits the current storyboard scene, or starts
-a new one when another background is selected. The new-scene chooser also opens
-this editor before creating anything. **Cancel** / Escape discards the draft;
-**Add scene** / Enter creates a scene only after the draft is accepted.
+**Storyboard** in the Scenes ribbon enters painting mode for the current storyboard
+scene, or creates a new one when another background is selected. Choosing
+**Storyboard - draw a background** in New scene also creates the scene and enters
+this mode. Draw directly in the main viewport, with **Paint**, **Camera** and
+**Lights** tools in the normal right sidebar. The ribbon, timeline, frame/scene
+navigation, prop insertion and Save copy remain available. **Done**, Escape or
+clicking Storyboard again returns to the normal object tools. Starting playback
+also leaves painting mode.
 
 The 544×306 canvas starts light grey. Paint with black, white, soft blue, soft red,
 soft yellow or soft green using an opaque, hard pixel brush. Choose a brush size,
 use **[ / ]** to resize, **1–6** to choose colours, and **E** for the grey eraser.
 **Clear angle** clears only that drawing. Ctrl+Z / Cmd+Z (or **Undo** in Paint)
-undoes draft strokes, clears, camera settings, angle additions and light edits.
-Draft undo has a bounded memory budget, retaining up to 24 steps. Leaving the
-canvas during a stroke breaks the line instead of drawing across the gap.
+uses the movie's normal undo history for strokes, clears, camera settings, angle
+additions and light edits. Each completed stroke or adjustment joins the working
+movie immediately; there is no Apply/Cancel dialog. Escape or Ctrl+Z during an
+unfinished gesture cancels that gesture. Leaving the canvas during a stroke
+breaks the line instead of drawing across the gap. Switching frames/scenes or
+undoing another edit refreshes the canvas from the current movie.
 
 **New angle** creates a blank grey drawing using the selected camera's settings.
 Switch angles using the arrows. In **Camera**, drag numeric values or use their
@@ -164,7 +171,7 @@ the wheel moves forward/backward. **Bake grid** in Camera paints the current
 perspective ground grid into this angle's background using the selected colour
 (**1–6**); it then opens Paint so you can draw over it. Grid lines are one pixel
 wide, retain the current camera perspective, and stay fixed if you move the camera
-later. Baking is one undo step and survives Apply and Save copy, without adding
+later. Baking is one undo step and survives Save copy, without adding
 depth. The live guide, crosshair and guide label remain temporary overlays.
 **Use work camera** copies the current
 work-view pose and lens into this angle, retaining its drawing.
@@ -172,9 +179,9 @@ work-view pose and lens into this angle, retaining its drawing.
 **Lights** adds, selects, deletes and adjusts up to sixteen directional or point
 lights. Position, direction and intensity affect 3D actors/props across all angles;
 the paintings keep their flat colours. Existing scene objects appear over the
-draft painting, with temporary camera/light settings previewed before Apply.
+painting, with camera/light changes previewed during a drag and committed on release.
 Painting and lights belong to the scene; each angle has its own image and camera.
-Apply also chooses the displayed angle at the current frame, retaining later cuts.
+Choosing an angle authors its camera at the current frame, retaining later cuts.
 The Camera angles chooser offers **Edit storyboard** and **New angle** for these scenes.
 
 Storyboard images carry all-infinite depth, matching the default black background's
@@ -1289,7 +1296,7 @@ scene, prop, camera, placement and frame-range edits. The snapshot is rebuilt
 only after further edits, and its creation does not replace the live movie.
 
 Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, rotation, resize, prop insertion,
-frame addition, camera change, storyboard Apply or new scene. Each drag or completed position-field edit is one
+frame addition, camera change, storyboard stroke/adjustment or new scene. Each drag or completed position-field edit is one
 step. Up to 64 steps are retained in the current session, including after a
 resource reload. Undo restores the movie and the pre-edit scene/frame, retaining
 the inspection view. Undoing the first scene returns an untitled movie to its
