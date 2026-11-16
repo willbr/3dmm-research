@@ -9763,3 +9763,90 @@ baseline/final logs, `tmp/c89-text-access-{native,sdl-release,sdl-debug}-tests.l
 `tmp/c89-text-access-asan.log`, `tmp/c89-text-access-regular-tests.log`,
 `tmp/c89-text-access-trace-comparison.json`, `tmp/c89-text-access-identities.json`
 and `tmp/c89-text-access-collision-{native,sdl-release,sdl-debug}-tests.log`.
+
+### Rich-document copying and embedded objects (16 November 2026)
+
+`text_copy.c` now controls rich-document replacement, property-range copying,
+embedded-object fetch/exact-position render dispatch, object insertion and object
+property edits. Native adapters retain typed validation, storage/allocation,
+source argument locks and virtual replacement/undo/render/notification hooks.
+The existing C formatting/property modules supply batches, interning, references
+and masked application. No rendering or playback policy was changed.
+
+Property clearing advances through the live destination map while mutating it,
+retaining its index-shift/skip behavior. Source ranges are clipped; a value reaching
+the source selection's end extends to the destination end. Different default font
+heights remain unrebased. Ordinary reservation/import failures warn and continue.
+Property imports read size before locking, whereas object imports lock before
+reading size. The object pass imports every kind as an argument, including odd
+client kinds treated inline by other property operations. Failed map insertion
+releases the imported argument directly, including those odd kinds.
+
+Document copying sets undo before protecting the final paragraph marker, uses
+virtual stream replacement and copies character, contained paragraph and object
+properties before commit/notification. A marker-only replacement still commits
+and notifies; a zero-range copy still establishes its transaction. Ordinary
+replacement failure cancels undo. Other partial effects remain without rollback.
+
+Built-in object queries publish position and optional size before allocation.
+They return found even on ordinary allocation failure, leaving allocation output
+publication to the allocator. Any output published before an exception remains
+caller-owned. Dispatch requires an exact built-in object position. Object edits
+retain the entry/index found before undo setup; identical payloads still edit and
+notify, with balanced shared references.
+
+Insertion retains legacy staged-reference behavior: reservation failure releases
+the object reference but leaves a successfully generated character batch staged;
+failed virtual replacement releases that batch before the object and cancellation.
+Ordinary reserved-map insertion failure diagnoses and continues to commit/notify.
+Exception results preserve other partial edits/references. Two explicit ownership
+boundaries avoid carrying undefined/leaked native state forward: an unacquired
+object reference is initialized to zero, and source locks release after interning
+even on an exception result. Native allocator-failure equivalence is not claimed.
+
+Before conversion, the expanded headless engine movie save/load fixture recorded
+36,132-byte copy/object traces. Native Debug records FNV-1a `9100DDD3`, SHA-256
+`B0336EDD4469AECA664169C52C0373CDB01800BEE9BBC8B828FB07EA62AF55C9`.
+SDL Release and Debug record FNV-1a `83E2797B`, SHA-256
+`96B34FFC1236FDFA8A2714E22BE3FB4D7C0A3944D4EC49C16945DB8F229DD775`.
+Each host keeps its own font-table baseline. The fixture freezes logical maps,
+argument payloads/counts, text, formatting and object queries across clipped/
+extended property ranges, differing defaults, ordinary/custom/odd object kinds,
+whole-document/marker-only/empty copies, insertion, property edits, identical
+payload edits and virtual undo failure. These undo probes establish sequencing,
+not native undo-allocation equivalence.
+
+C-only checks cover both text-unit sizes, live-map clearing, clipping/extension,
+source immutability, size/lock ordering, unlocked failure exits, import/reservation
+warnings, final-marker protection, zero-range transactions, size admission,
+odd-kind object imports, reference release ordering, allocation publication and
+exact-position draw/rectangle dispatch. Ordinary/allocation/foreign failures cover
+argument imports, undo setup, reservation, virtual replacement and map insertion,
+including staged font references and retained partial text effects. MSVC
+AddressSanitizer passes.
+
+All forty-eight original/converted copy/access/formatting/property/materialization/
+document/live-text/stored-text/media/metadata/session/admission/live/camera/picking/
+rendering trace pairs match across the three hosts. Prior hashes remain unchanged.
+Background checks retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds
+and 188 cameras per host. All 126 standalone C checks, including strict C89 syntax,
+pass. Thirty-one selected native checks and twenty-seven checks in each SDL
+configuration pass, including core/scene/movie and existing native playback/player
+regressions. The regular asset-preview harness passes headlessly with fresh
+metadata inputs. Retained input identities are unchanged; identities for 28 rebuilt
+binaries are recorded. Test processes use private temporary directories. Marcus
+was stopped before rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference. No new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence; other platforms
+remain unverified. Undo-record policy/storage, help-document argument extensions,
+native output/descriptor storage, remaining lifecycle, physical/classification/
+case providers and final C-only host/facade removal remain conversion work.
+
+Evidence: `tmp/c89-text-copy-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-text-copy-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-copy-standalone-tests.log`,
+`tmp/c89-text-copy-{access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-copy-asan.log`, `tmp/c89-text-copy-regular-tests.log`,
+`tmp/c89-text-copy-trace-comparison.json`, `tmp/c89-text-copy-identities.json`
+and `tmp/c89-text-copy-targeted-native.log`.

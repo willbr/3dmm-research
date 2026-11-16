@@ -21,6 +21,7 @@ ASSERTNAME
 #include "text_format_host.h"
 #include "text_access_host.h"
 #include "text_replace_host.h"
+#include "text_copy_host.h"
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
@@ -1653,95 +1654,11 @@ bool RichTextDocument::FReplaceTxrd(PRichTextDocument ptxrd, long cpSrc, long cc
     AssertIn(cpDst, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() + 1 - cpDst);
     Assert(ptxrd != this, "can't copy from a rich text doc to itself!");
-    long dcp = 0;
-
-    // REVIEW shonk: is there an easy way to make this atomic?
-
-    if (CpMac() + ccpSrc >= kcpMaxTxrd)
-    {
-        PushErc(ercRtxdTooMuchText);
-        return fFalse;
-    }
-
-    if (!FSetUndo(cpDst, cpDst + ccpDel, ccpSrc))
-        return fFalse;
-
-    // protect the trailing EOP
-    if (cpDst + ccpDel == CpMac())
-    {
-#ifdef DEBUG
-        achar ch;
-        ptxrd->FetchRgch(cpSrc + ccpSrc - 1, 1, &ch);
-        Assert(ch == kchReturn, "trying to replace trailing EOP");
-#endif // DEBUG
-        Assert(ccpDel > 0 && ccpSrc > 0, "bad parameters to FReplaceTxrd");
-        ccpDel--;
-        ccpSrc--;
-        dcp = 1;
-    }
-
-    // insert the text
-    if ((ccpSrc > 0 || ccpDel > 0) && !FReplaceBsf(ptxrd->_pbsf, cpSrc, ccpSrc, cpDst, ccpDel, fdocNil))
-    {
-        CancelUndo();
-        return fFalse;
-    }
-
-    if (ccpSrc > 0)
-        _CopyProps(ptxrd, cpSrc, cpDst, ccpSrc, ccpSrc, 0, sprmMinPap);
-
-    if (ccpSrc + dcp > 0)
-    {
-        long ccpSrcPap;
-        long cpMinPap = cpDst;
-        long cpLimPap = cpDst + ccpSrc;
-
-        _GetParaBounds(&cpMinPap, &cpLimPap, fFalse);
-        ccpSrcPap = ccpSrc - cpMinPap + cpDst;
-        if (ccpSrcPap > 0 && cpMinPap < cpLimPap)
-        {
-            _CopyProps(ptxrd, cpSrc + cpMinPap - cpDst, cpMinPap, ccpSrcPap, cpLimPap - cpMinPap, sprmMinPap,
-                       sprmMinObj);
-        }
-    }
-
-    if (ccpSrc > 0)
-    {
-        // object properties
-        long cp;
-        byte sprm;
-        long impe, impeNew;
-        MPE mpe, mpeNew;
-        void *pv;
-        bool fRet;
-
-        ptxrd->_FFindMpe(_SpcpFromSprmCp(sprmMinObj, cpSrc), pvNil, pvNil, &impe);
-        while (impe < ptxrd->_pglmpe->IvMac())
-        {
-            ptxrd->_pglmpe->Get(impe++, &mpe);
-            cp = _CpFromSpcp(mpe.spcp);
-            if (!FIn(cp, cpSrc, cpSrc + ccpSrc))
-                continue;
-            sprm = _SprmFromSpcp(mpe.spcp);
-            mpeNew.spcp = _SpcpFromSprmCp(sprm, cpDst + cp - cpSrc);
-            pv = ptxrd->_pagcact->PvLock(mpe.lw - 1);
-            fRet = _FEnsureInAg(sprm, pv, ptxrd->_pagcact->Cb(mpe.lw - 1), &mpeNew.lw);
-            ptxrd->_pagcact->Unlock();
-            if (!fRet)
-                continue;
-
-            // insert the object sprm
-            if (_FFindMpe(mpeNew.spcp, pvNil, pvNil, &impeNew))
-                impeNew++;
-            if (!_pglmpe->FInsert(impeNew, &mpeNew))
-                _ReleaseInAg(mpeNew.lw);
-        }
-    }
-
-    CommitUndo();
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cpDst, ccpSrc + dcp, ccpDel + dcp, grfdoc);
-    return fTrue;
+    CopyHost host(this, ptxrd);
+    auto services = host.Copy();
+    int result = mm_text_copy_document(cpSrc, ccpSrc, cpDst, ccpDel, grfdoc, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1756,79 +1673,10 @@ void RichTextDocument::_CopyProps(PRichTextDocument ptxrd, long cpSrc, long cpDs
     AssertIn(cpDst, 0, CpMac());
     AssertIn(ccpSrc, 1, ptxrd->CpMac() + 1 - cpSrc);
     AssertIn(ccpDst, 1, CpMac() + 1 - cpDst);
-    SPVM spvm;
-    byte sprm;
-    long impe;
-    long cpMin, cpLim;
-    bool fRet;
-    long lw;
-    LegacyLong cb;
-    void *pv;
-
-    // zero the character properties over the inserted text
-    spvm.sprm = sprmNil;
-    spvm.lw = 0;
-    spvm.lwMask = -1;
-    _FFindMpe(_SpcpFromSprmCp(sprmMin, 0), pvNil, pvNil, &impe);
-    while (_FFetchProp(impe++, &sprm) && sprm < sprmLim)
-    {
-        if (spvm.sprm == sprm)
-            continue;
-        spvm.sprm = sprm;
-        if (_pglmpe->FEnsureSpace(2))
-            _ApplyRgspvm(cpDst, ccpDst, &spvm, 1);
-        else
-            Warn("growing _pglmpe failed");
-    }
-
-    // apply the source properties
-    ptxrd->_FFindMpe(_SpcpFromSprmCp(sprmMin, 0), pvNil, pvNil, &impe);
-    while (ptxrd->_FFetchProp(impe++, &sprm, &lw, &cpMin, &cpLim) && sprm < sprmLim)
-    {
-        // if this MPE doesn't overlap our source range, ignore it.
-        if (cpLim <= cpSrc || cpMin >= cpSrc + ccpSrc)
-            continue;
-
-        // if this MPE goes to the end of the source range, also carry it
-        // to the end of the destination
-        if (cpLim >= cpSrc + ccpSrc)
-            cpLim = cpSrc + ccpDst;
-
-        // adjust the min and lim to destination cp values and restrict
-        // them to [cpDst, cpDst + ccpDst).
-        if ((cpMin += cpDst - cpSrc) < cpDst)
-            cpMin = cpDst;
-        if ((cpLim += cpDst - cpSrc) > cpDst + ccpDst)
-            cpLim = cpDst + ccpDst;
-
-        // if the range is empty, ignore it
-        if (cpMin >= cpLim)
-            continue;
-
-        spvm.sprm = sprm;
-        if (_FSprmInAg(sprm) && lw > 0)
-        {
-            cb = ptxrd->_pagcact->Cb(lw - 1);
-            pv = ptxrd->_pagcact->PvLock(lw - 1);
-            fRet = _FEnsureInAg(sprm, pv, cb, &spvm.lw);
-            ptxrd->_pagcact->Unlock();
-            if (!fRet)
-            {
-                Warn("ensure in ag failed");
-                continue;
-            }
-        }
-        else
-            spvm.lw = lw;
-
-        if (_pglmpe->FEnsureSpace(2))
-            _ApplyRgspvm(cpMin, cpLim - cpMin, &spvm, 1);
-        else
-        {
-            Warn("growing _pglmpe failed");
-            _ReleaseRgspvm(&spvm, 1);
-        }
-    }
+    CopyHost host(this, ptxrd);
+    auto services = host.Copy();
+    mm_text_copy_properties(cpSrc, cpDst, ccpSrc, ccpDst, sprmMin, sprmLim, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -1845,37 +1693,14 @@ bool RichTextDocument::FFetchObject(long cpMin, long *pcp, void **ppv, long *pcb
     AssertNilOrVarMem(ppv);
     AssertNilOrVarMem(pcb);
 
-    MPE mpe;
-    long impe;
-    LegacyLong cb;
-    bool fRet;
-
-    fRet = _FFindMpe(_SpcpFromSprmCp(sprmObject, cpMin), &mpe, pcp, &impe);
-    if (fRet && cpMin == _CpFromSpcp(mpe.spcp))
-        *pcp = cpMin;
-    else if (*pcp >= CpMac())
-        return fFalse;
-    else
-    {
-        if (fRet)
-            impe++;
-        Assert(impe < _pglmpe->IvMac(), "bad cpLim from _FFindMpe");
-        _pglmpe->Get(impe, &mpe);
-        Assert(_CpFromSpcp(mpe.spcp) == *pcp, "_FFindMpe messed up");
-    }
-
-    if (pvNil != pcb)
-        *pcb = _pagcact->Cb(mpe.lw - 1);
-    if (pvNil != ppv)
-    {
-        mpe.lw--;
-        AssertIn(mpe.lw, 0, _pagcact->IvMac());
-        cb = _pagcact->Cb(mpe.lw);
-        if (FAllocPv(ppv, cb, fmemNil, mprNormal))
-            CopyPb((byte *)_pagcact->QvGet(mpe.lw), *ppv, cb);
-    }
-
-    return fTrue;
+    CopyHost host(this);
+    host.position = pcp;
+    host.byteCount = pcb;
+    auto services = host.ObjectServices();
+    MMI32 at, bytes;
+    int result = mm_text_object_fetch(cpMin, &at, ppv, pcb ? &bytes : nullptr, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1888,50 +1713,12 @@ bool RichTextDocument::FInsertObject(void *pv, long cb, long cp, long ccpDel, PC
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
-    SPVM rgspvm[sprmLimChp - sprmMinChp];
-    MPE mpe;
-    long impe;
-    achar ch = kchObject;
-    long cspvmChp = 0;
-
-    BumpCombineUndo();
-    if (!FSetUndo(cp, cp + ccpDel, 1))
-        return fFalse;
-
-    mpe.spcp = _SpcpFromSprmCp(sprmObject, cp);
-    if (!_FEnsureInAg(sprmObject, pv, cb, &mpe.lw))
-        goto LFail;
-
-    if (pvNil != pchp && !_FGetRgspvmFromChp(pchp, pvNil, rgspvm, &cspvmChp))
-        goto LFail;
-
-    // now make sure that _pglmpe has enough room - we need at most 2
-    // entries per sprm, plus one for the object
-    if (!_pglmpe->FEnsureSpace(2 * cspvmChp + 1))
-        goto LFail;
-
-    if (!FReplaceRgch(&ch, 1, cp, ccpDel, fdocNil))
-    {
-        _ReleaseRgspvm(rgspvm, cspvmChp);
-    LFail:
-        _ReleaseSprmLw(sprmObject, mpe.lw);
-        CancelUndo();
-        return fFalse;
-    }
-
-    if (cspvmChp > 0)
-        _ApplyRgspvm(cp, 1, rgspvm, cspvmChp);
-
-    // insert the object sprm
-    if (_FFindMpe(mpe.spcp, pvNil, pvNil, &impe))
-        impe++;
-    AssertDo(_pglmpe->FInsert(impe, &mpe), "should have been ensured");
-    CommitUndo();
-    BumpCombineUndo();
-
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cp, 1, ccpDel, grfdoc);
-    return fTrue;
+    CopyHost host(this);
+    host.chp = pchp;
+    auto services = host.ObjectServices();
+    int result = mm_text_object_insert(pv, cb, cp, ccpDel, grfdoc, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1942,35 +1729,11 @@ bool RichTextDocument::FApplyObjectProps(void *pv, long cb, long cp, ulong grfdo
     AssertThis(fobjAssertFull);
     AssertPvCb(pv, cb);
     AssertIn(cp, 0, CpMac());
-    MPE mpe;
-    long impe;
-    long lwOld;
-
-    if (!_FFindMpe(_SpcpFromSprmCp(sprmObject, cp), &mpe, pvNil, &impe) || cp != _CpFromSpcp(mpe.spcp))
-    {
-        Bug("cp not an object");
-        return fFalse;
-    }
-
-    BumpCombineUndo();
-    if (!FSetUndo(cp, cp + 1, 1))
-        return fFalse;
-
-    lwOld = mpe.lw;
-    if (!_FEnsureInAg(sprmObject, pv, cb, &mpe.lw))
-    {
-        CancelUndo();
-        return fFalse;
-    }
-
-    _pglmpe->Put(impe, &mpe);
-    _ReleaseSprmLw(sprmObject, lwOld);
-    CommitUndo();
-    BumpCombineUndo();
-
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cp, 1, 1, grfdoc);
-    return fTrue;
+    CopyHost host(this);
+    auto services = host.ObjectServices();
+    int result = mm_text_object_apply(pv, cb, cp, grfdoc, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1983,13 +1746,14 @@ bool RichTextDocument::FGetObjectRc(long cp, PGraphicsEnvironment pgnv, PCHP pch
     AssertPo(pgnv, 0);
     AssertVarMem(pchp);
     AssertVarMem(prc);
-    MPE mpe;
-    ulong spcp = _SpcpFromSprmCp(sprmObject, cp);
-
-    if (!_FFindMpe(spcp, &mpe) || _CpFromSpcp(mpe.spcp) != cp)
-        return fFalse;
-
-    return _FGetObjectRc(mpe.lw - 1, _SprmFromSpcp(mpe.spcp), pgnv, pchp, prc);
+    CopyHost host(this);
+    host.graphics = pgnv;
+    host.objectChp = pchp;
+    host.rect = prc;
+    auto services = host.ObjectServices();
+    int result = mm_text_object_dispatch(cp, 0, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -2019,13 +1783,16 @@ bool RichTextDocument::FDrawObject(long cp, PGraphicsEnvironment pgnv, long *pxp
     AssertVarMem(pxp);
     AssertVarMem(pchp);
     AssertVarMem(prcClip);
-    MPE mpe;
-    ulong spcp = _SpcpFromSprmCp(sprmObject, cp);
-
-    if (!_FFindMpe(spcp, &mpe) || _CpFromSpcp(mpe.spcp) != cp)
-        return fFalse;
-
-    return _FDrawObject(mpe.lw - 1, _SprmFromSpcp(mpe.spcp), pgnv, pxp, yp, pchp, prcClip);
+    CopyHost host(this);
+    host.graphics = pgnv;
+    host.objectChp = pchp;
+    host.x = pxp;
+    host.y = yp;
+    host.clip = prcClip;
+    auto services = host.ObjectServices();
+    int result = mm_text_object_dispatch(cp, 1, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************

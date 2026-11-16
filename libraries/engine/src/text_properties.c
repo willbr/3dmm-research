@@ -90,6 +90,8 @@ int mm_text_argument_ensure(unsigned type, const void *bytes, MMI32 n, MMI32 *ou
     MMI32 i, length;
     MMU32 fixed;
     int result;
+    if (s->validate_input)
+        s->validate_input(s->context, type, bytes, n);
     if (!group)
     {
         result = s->create(s->context, n, &group);

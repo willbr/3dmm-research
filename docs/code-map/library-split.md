@@ -1800,7 +1800,7 @@ a character-by-character value model and edit adjustment against an independent
 per-kind reconstruction. They also cover all 256 kind classifications, backward
 matching, holes, reference transfers and fallible creation/insertion/paragraph
 queries. Character/paragraph formatting and application are covered below.
-Property copying and undo-record control,
+Property copying is covered below. Undo-record control,
 help-document argument extensions, native output
 storage, physical providers, document/view/parent lifecycle and final C-only
 host/facade removal remain work. Evidence and platform limits are in
@@ -1845,8 +1845,8 @@ cache hits/ranges, boundary selection, malformed font-record sizes and public
 formatting calls with virtual undo probes. C tests cover both unit sizes/orders,
 maximum counted font names, offset signedness, short wrapping, field masks,
 partial cache/range outputs, exception/ordinary failure ordering and input changes
-made by undo hooks. Text access/replacement is covered below. Property copying,
-rich-document/object edits and undo records,
+made by undo hooks. Text access/replacement and document/object copying are
+covered below. Undo records,
 help-document argument extensions, native output/descriptor storage, physical
 providers, document/view/parent lifecycle and final C-only host/facade removal
 remain work. Evidence and platform limits are in
@@ -1899,9 +1899,53 @@ replacement, file/stream paths, formatted edits, and real undo/redo. C tests cov
 both text-unit sizes, generated cache/edit/search models, replaced virtual cache
 views, ordinary/exception failures, translated owner identity/lifetime, nested
 replacement and reference transfers. Formatting and replacement share the C test
-host without changing its existing checks. Rich-document/property/object copying,
-object edits, undo-record policy/storage, remaining document/view lifecycle,
+host without changing its existing checks. Document/object copying is covered
+below. Undo-record policy/storage, remaining document/view lifecycle,
 physical/classification/case providers and final C-only host/facade removal remain
+work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
+### Rich-document copying and embedded objects
+
+`text_copy.c` controls rich-document replacement, property-range copying and
+embedded-object fetch, dispatch, insertion and property edits. The native host
+supplies borrowed streams/maps, argument bytes/locks, allocation, virtual undo/
+replacement/render hooks and typed validation. The C property and formatting
+modules supply argument interning, reference control, masked range application
+and character batches. Native wrapper signatures and subclass dispatch remain.
+
+Property copying clears the live destination map while advancing its index,
+retaining the legacy shift/skip behavior. Source ranges are clipped and their
+last value extends across a longer destination range; different default font
+heights are not rebased. Ordinary reserve/import failures warn and continue.
+Property imports read size before locking; the object-copy pass locks first.
+Locks release after interning even on exception results. Every object kind is
+imported as an argument, including odd client kinds classified inline elsewhere.
+Failed object insertion releases the imported reference directly.
+
+Document replacement sets undo before protecting the final paragraph marker,
+calls virtual stream replacement, copies character/contained paragraph/object
+properties and commits before notification. Ordinary replacement failure cancels
+undo; exceptions retain prior text, properties and references without rollback.
+Object queries concern built-in kind 192, publish position/size before allocation
+and report found even when allocation fails. The caller owns any allocation output
+published before an exception. Rectangle/draw queries use exact-position dispatch.
+
+Object insertion stages its argument and optional character batch before reserve.
+Legacy reserve failure releases only the object reference; failed replacement
+releases the character batch first, then the object and undo. Ordinary reserved
+map insertion failure diagnoses but continues to commit/notify. An unacquired
+argument is represented by zero rather than reading native uninitialized storage.
+Object property edits retain the map entry/index found before undo setup, replace
+the reference and release the old one before commit. Identical payloads still edit.
+
+The headless engine fixture freezes logical maps, argument payloads/counts, text,
+formatting and object queries before/after copies and edits on native/SDL hosts.
+C tests cover both unit sizes, import lock order, partial effects, live-map clearing,
+range extension, final-marker protection, odd object kinds, reference cleanup,
+allocation publication and ordinary/allocation/foreign failures. Native allocator
+failure equivalence is not claimed. Undo-record policy/storage, help-document
+argument extensions, native output/descriptor storage, physical providers,
+remaining document/view lifecycle and final C-only host/facade removal remain
 work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo

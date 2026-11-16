@@ -218,6 +218,7 @@ class RichTextDocument : public RichTextDocument_PAR
     struct MaterializeHost;
     struct PropertyHost;
     struct FormatHost;
+    struct CopyHost;
     struct ReplaceHost;
     // WARNING: changing these values affects the file format
     // NOTE: Originally, _FSprmInAg was a virtual RichTextDocument method called to

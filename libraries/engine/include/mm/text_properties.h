@@ -36,6 +36,7 @@ extern "C"
         int (*add)(void *, void *, const void *, MMI32 bytes, MMU32 fixed, MMI32 *index);
         void (*remove)(void *, void *, MMI32);
         void (*diagnostic)(void *, int);
+        void (*validate_input)(void *, unsigned kind, const void *, MMI32 bytes);
     } MMTextArgumentServices;
     typedef struct MMTextPropertyServices
     {

@@ -33,6 +33,10 @@ struct RichTextDocument::PropertyHost : DocumentHost
         s.context = this;
         s.objects = Objects();
         s.diagnostic = Diagnostic;
+        s.validate_input = [](void *, unsigned, const void *p, MMI32 bytes) {
+            AssertIn(bytes, 1, kcbMax);
+            AssertPvCb(const_cast<void *>(p), bytes);
+        };
         s.create = [](void *v, MMI32 bytes, void **out) -> int {
             auto &h = *static_cast<PropertyHost *>(v);
             return h.Guard([&] {

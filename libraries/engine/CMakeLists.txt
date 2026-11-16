@@ -45,6 +45,12 @@ target_sources(mm-engine-c89 PRIVATE src/text_materialize.c)
 target_sources(mm-engine-c89 PRIVATE src/text_properties.c)
 target_sources(mm-engine-c89 PRIVATE src/text_format.c)
 target_sources(mm-engine-c89 PRIVATE src/text_access.c src/text_replace.c)
+target_sources(mm-engine-c89 PRIVATE src/text_copy.c)
+get_filename_component(engine_text_copy_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_copy_test.c" ABSOLUTE)
+add_executable(engine-text-copy-test EXCLUDE_FROM_ALL "${engine_text_copy_test_source}")
+target_link_libraries(engine-text-copy-test PRIVATE mm-engine-c89)
+set_target_properties(engine-text-copy-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-text-copy COMMAND engine-text-copy-test)
 get_filename_component(engine_text_access_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_access_test.c" ABSOLUTE)
 add_executable(engine-text-access-test EXCLUDE_FROM_ALL "${engine_text_access_test_source}")
 target_link_libraries(engine-text-access-test PRIVATE mm-engine-c89)
@@ -775,6 +781,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_format.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_access.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_replace.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/text_copy.c"
+    "${engine_text_copy_test_source}"
     "${engine_text_access_test_source}"
     "${engine_text_replace_test_source}"
     "${engine_text_format_test_source}"

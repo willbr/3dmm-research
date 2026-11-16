@@ -33,6 +33,7 @@ ASSERTNAME
 #include "text_properties_fixture.h"
 #include "text_format_fixture.h"
 #include "text_access_fixture.h"
+#include "text_copy_fixture.h"
 
 /* WinMain (in kauai/src/appbwin.cpp) references FrameMain -- but we
  * never run WinMain since we provide our own main() and link as a
@@ -2357,6 +2358,8 @@ static bool TestCaptionPersistence(PScene scene)
     if (!TestTextFormat())
         goto done;
     if (!TestTextAccess())
+        goto done;
+    if (!TestTextCopy())
         goto done;
     ok = true;
 done:
