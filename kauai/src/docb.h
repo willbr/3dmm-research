@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef DOCB_H
 #define DOCB_H
+#include "mm/document_undo.h"
 
 /***************************************************************************
     base undo class
@@ -76,9 +77,10 @@ class DocumentBase : public DocumentBase_PAR
     bool _fInternal : 1;
     PDynamicArray _pglpddg; // keep track of the DDGs based on this doc
 
-    PDynamicArray _pglpundb; // keep track of undo items
-    long _ipundbLimDone;
-    long _cundbMax;
+    struct UndoHost;
+    MMDocumentUndo _undoList;
+    bool _FInitUndo();
+    PUndoBase _PundbGet(long index);
 
     bool _FFindDdg(PDocumentDisplayGraphicsObject pddg, long *pipddg);
     virtual tribool _TQuerySave(bool fForce);

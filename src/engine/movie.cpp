@@ -394,10 +394,9 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     }
 
     //
-    // Create the DynamicArray for holding undo events
+    // Prepare the C-owned undo collection.
     //
-    pmvie->_pglpundb = DynamicArray::PglNew(size(PUndoBase), 1);
-    if (pmvie->_pglpundb == pvNil)
+    if (!pmvie->_FInitUndo())
     {
         goto LFail;
     }
@@ -870,8 +869,8 @@ MMMovieEditServices Movie::_EditServices()
     s.frame = [](void *p) -> MMI32 { return static_cast<PScene>(p)->Nfrm(); };
     s.undo_count = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->CundbUndo(); };
     s.last_undo = [](void *p) -> void * {
-        auto movie = static_cast<PMovie>(p); PUndoBase undo;
-        movie->_pglpundb->Get(movie->_ipundbLimDone - 1, &undo); return undo;
+        auto movie = static_cast<PMovie>(p);
+        return movie->_PundbGet(movie->_undoList.done - 1);
     };
     s.actor_undo = [](void *p) -> int { return static_cast<PUndoBase>(p)->FIs(kclsActorUndo); };
     s.time_undo = [](void *p) -> int { return static_cast<PActorUndo>(p)->FSoonerLater(); };

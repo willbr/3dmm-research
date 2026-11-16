@@ -1800,8 +1800,8 @@ a character-by-character value model and edit adjustment against an independent
 per-kind reconstruction. They also cover all 256 kind classifications, backward
 matching, holes, reference transfers and fallible creation/insertion/paragraph
 queries. Character/paragraph formatting and application are covered below.
-Property copying and rich-text undo are covered below. Generic document undo
-lists, help-document argument extensions, native output
+Property copying and rich-text/generic undo are covered below. Help-document
+argument extensions, native output
 storage, physical providers, document/view/parent lifecycle and final C-only
 host/facade removal remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
@@ -1846,8 +1846,7 @@ formatting calls with virtual undo probes. C tests cover both unit sizes/orders,
 maximum counted font names, offset signedness, short wrapping, field masks,
 partial cache/range outputs, exception/ordinary failure ordering and input changes
 made by undo hooks. Text access/replacement and document/object copying are
-covered below. Generic document undo lists,
-help-document argument extensions, native output/descriptor storage, physical
+covered below. Help-document argument extensions, native output/descriptor storage, physical
 providers, document/view/parent lifecycle and final C-only host/facade removal
 remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
@@ -1900,8 +1899,7 @@ both text-unit sizes, generated cache/edit/search models, replaced virtual cache
 views, ordinary/exception failures, translated owner identity/lifetime, nested
 replacement and reference transfers. Formatting and replacement share the C test
 host without changing its existing checks. Document/object copying is covered
-below, followed by rich-text undo. Generic document undo lists, remaining
-document/view lifecycle,
+below, followed by rich-text/generic undo. Remaining document/view lifecycle,
 physical/classification/case providers and final C-only host/facade removal remain
 work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
@@ -1944,8 +1942,8 @@ formatting and object queries before/after copies and edits on native/SDL hosts.
 C tests cover both unit sizes, import lock order, partial effects, live-map clearing,
 range extension, final-marker protection, odd object kinds, reference cleanup,
 allocation publication and ordinary/allocation/foreign failures. Native allocator
-failure equivalence is not claimed. Rich-text undo is covered below. Generic
-document undo lists, help-document argument extensions, native output/descriptor
+failure equivalence is not claimed. Rich-text/generic undo is covered below.
+Help-document argument extensions, native output/descriptor
 storage, physical providers,
 remaining document/view lifecycle and final C-only host/facade removal remain
 work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
@@ -1987,10 +1985,51 @@ counts, pending/suspension state and selection events across typing, repeated
 Delete/Backspace, object edits, cancellation, disabled/nested/empty transactions,
 reversed ranges and direct record combination. C tests use content-bearing
 snapshot owners and check transfer/release order, partial publication/effects,
-invalid records, failure paths and repeated undo/redo. Generic `DocumentBase`
-undo-list storage/control, help extensions, native representations/providers,
+invalid records, failure paths and repeated undo/redo. Generic undo lists are
+covered below. Help extensions, native representations/providers,
 remaining lifecycle and final C-only host/facade removal remain conversion work.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
+### Generic document undo lists
+
+`document_undo.c` controls document undo admission, undo/redo dispatch, redo/all
+clearing, maximum-count trimming and disposal. `MMDocumentUndo` owns a C collection
+buffer of record pointers, a live done cursor/limit and lazy-preparation state.
+The native `DynamicArray` undo facade is removed from both Movie and text documents;
+their prior-item accessors now read the same C-owned stack. Initialization retains
+the ten-record default, 128/16-byte growth hints and debug tail poisoning. Prepared
+empty stacks remain distinct from stacks that have never allocated.
+
+Admission returns success without allocation/reference changes when disabled.
+Otherwise it prepares storage, calls virtual redo clearing, drops one oldest entry
+when at the current limit and attempts append. Ordinary allocation failure drops
+the oldest record and retries; exception results stop before this fallback. The
+new record gains a reference only after append. The done cursor publishes last,
+after reference acquisition. Undo/redo call the borrowed record virtually and
+advance the live cursor only on success, preserving changes made by that hook.
+No new clamp repairs a cursor invalidated by a successful reentrant callback.
+
+Clear pops records newest first and resets done after releasing the last one.
+Redo clearing leaves done alone. Shrinking the limit trims redo above the larger
+of done/new limit first, then removes oldest completed records, decrementing done
+before each release. Disposal clears records and frees C storage before document
+child teardown. Partial collection/reference/cursor effects remain on exceptions.
+
+Native adapters retain allocator/refcount/record dispatch, virtual clear hooks and
+debug validation/marking. Their temporary allocator binding catches exceptions
+inside resize/free callbacks and restores its previous context on every exit,
+including nested operations. C checks status before treating a storage failure as
+ordinary OOM. Removing the native collection object changes allocation granularity;
+exact native allocator-failure equivalence is not claimed.
+
+The headless engine fixture freezes original native/SDL list order, lazy state,
+limits, undo/redo counts, references and virtual/destructor events. C tests compare
+3,000 generated operations with an independent list/reference model, and cover
+allocation fallback, exception stops, release/publication order, partial reference
+effects and reentrant replay/clear hooks. Native undo objects/physical allocators,
+remaining document/view lifecycle, help extensions and final C-only host/facade
+removal remain conversion work. Evidence and platform limits are in
+`docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

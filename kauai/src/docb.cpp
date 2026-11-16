@@ -10,8 +10,11 @@
     Base document class and its supporting gobs.
 
 ***************************************************************************/
+#include <exception>
+#include <new>
 #include "frame.h"
 ASSERTNAME
+#include "document_undo_host.h"
 
 #define dsnoNil 0
 long DocumentBase::_cactLast = 0;
@@ -69,7 +72,12 @@ DocumentBase::DocumentBase(PDocumentBase pdocb, ulong grfdoc) : CommandHandler(k
         pdocb->_pdocbChd = this;
     }
 
-    _cundbMax = 10;
+    const auto undoAllocator = Group::CollectionAllocator();
+    int undoTrash = 0;
+#ifdef DEBUG
+    undoTrash = 1;
+#endif
+    AssertDo(mm_document_undo_init(&_undoList, &undoAllocator, undoTrash), "invalid undo storage");
     AssertThis(fobjAssertFull);
 }
 
@@ -81,8 +89,6 @@ void DocumentBase::Release(void)
 {
     AssertThis(fobjAssertFull);
     PDocumentBase pdocb;
-    PUndoBase pundb;
-
     if (--_cactRef > 0)
         return;
 
@@ -90,12 +96,11 @@ void DocumentBase::Release(void)
     Assert(!_fFreeing, "we're recursing into the DocumentBase::Release!");
     _fFreeing = fTrue;
 
-    if (pvNil != _pglpundb)
     {
-        while (_pglpundb->FPop(&pundb))
-            ReleasePpo(&pundb);
-        ReleasePpo(&_pglpundb);
-        _ipundbLimDone = 0;
+        UndoHost host(this);
+        auto services = host.Services();
+        mm_document_undo_dispose(&_undoList, &services);
+        host.Rethrow();
     }
 
     while (pvNil != (pdocb = _pdocbChd))
@@ -589,22 +594,31 @@ void DocumentBase::UpdateName(void)
     }
 }
 
+bool DocumentBase::_FInitUndo()
+{
+    UndoHost host(this);
+    auto services = host.Services();
+    int result = mm_document_undo_prepare(&_undoList, &services);
+    host.Rethrow();
+    return result > 0;
+}
+PUndoBase DocumentBase::_PundbGet(long index)
+{
+    AssertIn(index, 0, _undoList.count);
+    return static_cast<PUndoBase>(mm_document_undo_get(&_undoList, index));
+}
+
 /***************************************************************************
     Does a single Undo off the undo list.
 ***************************************************************************/
 bool DocumentBase::FUndo()
 {
     AssertThis(fobjAssertFull);
-    PUndoBase pundb;
-
-    if (pvNil == _pglpundb || _ipundbLimDone <= 0)
-        return fFalse;
-
-    _pglpundb->Get(_ipundbLimDone - 1, &pundb);
-    if (!pundb->FUndo(this))
-        return fFalse;
-    _ipundbLimDone--;
-    return fTrue;
+    UndoHost host(this);
+    auto services = host.Services();
+    int result = mm_document_undo_replay(&_undoList, 0, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -613,16 +627,11 @@ bool DocumentBase::FUndo()
 bool DocumentBase::FRedo()
 {
     AssertThis(fobjAssertFull);
-    PUndoBase pundb;
-
-    if (pvNil == _pglpundb || _ipundbLimDone >= _pglpundb->IvMac())
-        return fFalse;
-
-    _pglpundb->Get(_ipundbLimDone, &pundb);
-    if (!pundb->FDo(this))
-        return fFalse;
-    _ipundbLimDone++;
-    return fTrue;
+    UndoHost host(this);
+    auto services = host.Services();
+    int result = mm_document_undo_replay(&_undoList, 1, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -633,37 +642,11 @@ bool DocumentBase::FRedo()
 bool DocumentBase::FAddUndo(PUndoBase pundb)
 {
     AssertThis(fobjAssertFull);
-    PUndoBase pundbT;
-    bool fRet;
-
-    if (_cundbMax == 0)
-        return fTrue;
-
-    if (pvNil == _pglpundb && pvNil == (_pglpundb = DynamicArray::PglNew(size(PUndoBase), 1)))
-    {
-        return fFalse;
-    }
-
-    ClearRedo();
-    if (_cundbMax <= _pglpundb->IvMac())
-    {
-        _pglpundb->Get(0, &pundbT);
-        _pglpundb->Delete(0);
-        ReleasePpo(&pundbT);
-    }
-
-    while (!(fRet = _pglpundb->FPush(&pundb)) && _pglpundb->IvMac() > 0)
-    {
-        _pglpundb->Get(0, &pundbT);
-        _pglpundb->Delete(0);
-        ReleasePpo(&pundbT);
-    }
-    if (fRet)
-        pundb->AddRef();
-
-    _ipundbLimDone = _pglpundb->IvMac();
-    AssertThis(fobjAssertFull);
-    return fRet;
+    UndoHost host(this);
+    auto services = host.Services();
+    int result = mm_document_undo_add(&_undoList, pundb, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -671,14 +654,10 @@ bool DocumentBase::FAddUndo(PUndoBase pundb)
 ***************************************************************************/
 void DocumentBase::ClearUndo(void)
 {
-    PUndoBase pundb;
-
-    if (pvNil == _pglpundb)
-        return;
-
-    while (_pglpundb->FPop(&pundb))
-        ReleasePpo(&pundb);
-    _ipundbLimDone = 0;
+    UndoHost host(this);
+    auto services = host.Services();
+    mm_document_undo_clear(&_undoList, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -686,16 +665,10 @@ void DocumentBase::ClearUndo(void)
 ***************************************************************************/
 void DocumentBase::ClearRedo(void)
 {
-    PUndoBase pundb;
-
-    if (pvNil == _pglpundb)
-        return;
-
-    while (_ipundbLimDone < _pglpundb->IvMac())
-    {
-        AssertDo(_pglpundb->FPop(&pundb), 0);
-        ReleasePpo(&pundb);
-    }
+    UndoHost host(this);
+    auto services = host.Services();
+    mm_document_undo_clear_redo(&_undoList, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -705,29 +678,10 @@ void DocumentBase::SetCundbMax(long cundbMax)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cundbMax, 0, kcbMax);
-    long ipundbLimNew;
-    PUndoBase pundb;
-
-    _cundbMax = cundbMax;
-    if (pvNil == _pglpundb || _pglpundb->IvMac() <= cundbMax)
-        return;
-
-    ipundbLimNew = LwMax(_ipundbLimDone, cundbMax);
-    while (_pglpundb->IvMac() > ipundbLimNew)
-    {
-        AssertDo(_pglpundb->FPop(&pundb), 0);
-        ReleasePpo(&pundb);
-    }
-
-    while (_pglpundb->IvMac() > cundbMax)
-    {
-        Assert(_ipundbLimDone == _pglpundb->IvMac(), 0);
-        _pglpundb->Get(0, &pundb);
-        _pglpundb->Delete(0);
-        _ipundbLimDone--;
-        ReleasePpo(&pundb);
-    }
-    AssertThis(fobjAssertFull);
+    UndoHost host(this);
+    auto services = host.Services();
+    mm_document_undo_limit(&_undoList, cundbMax, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -736,7 +690,7 @@ void DocumentBase::SetCundbMax(long cundbMax)
 long DocumentBase::CundbMax(void)
 {
     AssertThis(0);
-    return _cundbMax;
+    return _undoList.maximum;
 }
 
 /***************************************************************************
@@ -745,7 +699,7 @@ long DocumentBase::CundbMax(void)
 long DocumentBase::CundbUndo(void)
 {
     AssertThis(0);
-    return _ipundbLimDone;
+    return _undoList.done;
 }
 
 /***************************************************************************
@@ -753,9 +707,7 @@ long DocumentBase::CundbUndo(void)
 ***************************************************************************/
 long DocumentBase::CundbRedo(void)
 {
-    if (pvNil == _pglpundb)
-        return 0;
-    return _pglpundb->IvMac() - _ipundbLimDone;
+    return mm_document_undo_redo_count(&_undoList);
 }
 
 /***************************************************************************
@@ -806,20 +758,26 @@ void DocumentBase::AssertValid(LegacyUlong grfdocb)
         }
     }
 
-    if (pvNil != _pglpundb)
+    if (_undoList.ready)
     {
-        AssertIn(_ipundbLimDone, 0, _pglpundb->IvMac() + 1);
-        AssertIn(_pglpundb->IvMac(), 0, _cundbMax + 1);
-        for (ipundb = _pglpundb->IvMac(); ipundb-- != 0;)
+        Assert(_undoList.count * sizeof(void *) <= _undoList.storage.buffers[0].capacity, "undo storage too small");
+        for (const auto &buffer : _undoList.storage.buffers)
         {
-            _pglpundb->Get(ipundb, &pundb);
+            Assert((buffer.capacity == 0) == (buffer.data == nullptr), "undo storage size/pointer mismatch");
+            if (buffer.data) AssertPvAlloced(buffer.data, buffer.capacity);
+        }
+        AssertIn(_undoList.done, 0, _undoList.count + 1);
+        AssertIn(_undoList.count, 0, _undoList.maximum + 1);
+        for (ipundb = _undoList.count; ipundb-- != 0;)
+        {
+            pundb = _PundbGet(ipundb);
             AssertPo(pundb, 0);
         }
     }
     else
     {
-        Assert(_ipundbLimDone == 0, 0);
-        AssertIn(_cundbMax, 0, kcbMax);
+        Assert(_undoList.done == 0, 0);
+        AssertIn(_undoList.maximum, 0, kcbMax);
     }
 }
 
@@ -834,13 +792,14 @@ void DocumentBase::MarkMem(void)
     AssertThis(fobjAssertFull);
     DocumentBase_PAR::MarkMem();
     MarkMemObj(_pglpddg);
-    if (pvNil != _pglpundb)
+    if (_undoList.ready)
     {
-        MarkMemObj(_pglpundb);
+        MarkPv(_undoList.storage.buffers[0].data);
+        MarkPv(_undoList.storage.buffers[1].data);
 
-        for (ipundb = _pglpundb->IvMac(); ipundb-- != 0;)
+        for (ipundb = _undoList.count; ipundb-- != 0;)
         {
-            _pglpundb->Get(ipundb, &pundb);
+            pundb = _PundbGet(ipundb);
             MarkMemObj(pundb);
         }
     }

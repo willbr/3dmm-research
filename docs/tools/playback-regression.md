@@ -9933,3 +9933,78 @@ baseline/final logs, `tmp/c89-text-undo-{native,sdl-release,sdl-debug}-tests.log
 `tmp/c89-text-undo-trace-comparison.json`, `tmp/c89-text-undo-identities.json`,
 `tmp/c89-text-undo-targeted-native-errors.log`
 and `tmp/c89-text-undo-final-c-build-{native,sdl-release,sdl-debug}.log`.
+
+### Generic document undo lists (16 November 2026)
+
+`document_undo.c` now controls generic document undo admission/replay, redo/all
+clearing, limit trimming and disposal. `MMDocumentUndo` owns C collection storage,
+record count, done cursor, maximum and lazy-preparation state. The native undo
+`DynamicArray` and its duplicated cursor/limit fields are removed from Movie and
+text documents. Prior-record access now reads the same C stack. Initialization
+retains the ten-record default, 128/16-byte growth hints, native pointer width and
+debug tail poisoning. Prepared empty stacks remain allocated.
+
+Disabled admission returns success without allocation or retention. Otherwise it
+prepares, calls virtual redo clearing, evicts the oldest item at the current limit,
+appends and only then retains the new record. The done cursor publishes last.
+Ordinary append allocation failure drops oldest records and retries; an allocator
+exception stops before this fallback. Replay dispatches the borrowed record and
+advances the live cursor only on success. Reentrant callback changes remain
+observable, including the original unclamped cursor after successful replay clears
+its own stack. That path is a C policy probe, not a claim of valid subsequent
+native UI undo operations.
+
+Clear releases newest first and resets done after all releases. Redo clearing
+leaves done unchanged. Limit reduction first trims redo above the larger of
+done/new maximum, then removes oldest completed records, decrementing done before
+release. Disposal releases records and C buffers before document child teardown.
+Exceptions retain partial collection/reference/cursor effects without rollback.
+Typed adapters retain virtual clear/record/refcount hooks and native debug memory
+validation/marking. A temporary allocator binding catches exceptions inside
+resize/free callbacks, reports them to C and restores the prior binding on exit,
+including nesting. Removing the native list object changes allocation granularity;
+exact native allocator-failure equivalence is not claimed.
+
+Before conversion, the expanded headless engine movie save/load fixture recorded
+2,160 bytes in Native Debug, SDL Release and SDL Debug, all with FNV-1a `4BD922B5`,
+SHA-256 `3DBF9D1A2005784F22CDE2043C48DF643535C80F206B62A0A8E0C86BEFA2E0B8`.
+The fixture freezes list order, lazy state, limits, undo/redo counts, references,
+values and virtual/destructor events across disabled admission, limit eviction,
+redo invalidation, failed replay, mixed completed/redo trimming and clearing.
+Earlier real rich-text undo/redo traces remain in the integration fixture.
+
+C checks compare 3,000 generated operations against an independent list/reference/
+cursor model. Focused checks cover speculative/exact allocation fallback, ordinary
+append failure and eviction/retry, empty failure, exception stops before eviction,
+reference acquisition after publication, partial release/retain effects, reverse
+clearing and limit-trim release order. Reentrant replay/clear callbacks verify live
+cursor/limit reads. Failure probes cover allocation, virtual clearing, replay and
+ownership effects. MSVC AddressSanitizer and strict C89 syntax pass.
+
+All fifty-four original/converted generic-undo/text-undo/copy/access/formatting/
+property/materialization/document/live-text/stored-text/media/metadata/session/
+admission/live/camera/picking/rendering trace pairs match across the three hosts.
+Prior hashes remain unchanged. Background checks retain 301,996,032 bytes/FNV-1a
+`E1A71005` across 12 backgrounds and 188 cameras per host. All 128 standalone C
+checks, including strict C89 syntax, pass. Thirty-three selected native checks and
+twenty-nine checks in each SDL configuration pass, including core/scene/movie and
+existing native playback/player regressions. The regular asset-preview harness
+passes headlessly with fresh metadata inputs. Retained input identities are
+unchanged after verification; identities for 28 rebuilt binaries are recorded.
+Test processes use private temporary directories. Marcus was stopped before
+rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference. No new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence; other platforms
+remain unverified. Native undo objects and physical allocators/providers, help
+extensions, output/descriptor storage, remaining document/view lifecycle and final
+C-only host/facade removal remain conversion work.
+
+Evidence: `tmp/c89-document-undo-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-document-undo-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-document-undo-standalone-tests.log`,
+`tmp/c89-document-undo-{text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-document-undo-asan.log`, `tmp/c89-document-undo-regular-tests.log`,
+`tmp/c89-document-undo-trace-comparison.json`,
+`tmp/c89-document-undo-identities.json`
+and `tmp/c89-document-undo-targeted-native-errors.log`.

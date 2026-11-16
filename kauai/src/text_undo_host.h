@@ -12,8 +12,8 @@ struct RichTextDocument::UndoHost : TextDocumentFactoryHost
         MMTextUndoTransactionServices s = {};
         s.context = this;
         s.control = &doc->_textUndo;
-        s.maximum = [](void *v) -> MMI32 { return static_cast<UndoHost *>(v)->doc->_cundbMax; };
-        s.done = [](void *v) -> MMI32 { return static_cast<UndoHost *>(v)->doc->_ipundbLimDone; };
+        s.maximum = [](void *v) -> MMI32 { return static_cast<UndoHost *>(v)->doc->_undoList.maximum; };
+        s.done = [](void *v) -> MMI32 { return static_cast<UndoHost *>(v)->doc->_undoList.done; };
         s.resume = [](void *v) -> int {
             auto &h = *static_cast<UndoHost *>(v);
             return h.Guard([&] {
@@ -30,9 +30,7 @@ struct RichTextDocument::UndoHost : TextDocumentFactoryHost
         };
         s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
         s.previous = [](void *v, MMI32 i) -> void * {
-            PRichTextUndo p;
-            static_cast<UndoHost *>(v)->doc->_pglpundb->Get(i, &p);
-            return p;
+            return static_cast<UndoHost *>(v)->doc->_PundbGet(i);
         };
         s.is_record = [](void *, void *p) -> int { return static_cast<PUndoBase>(p)->FIs(kclsRichTextUndo); };
         s.combine = [](void *v, void *previous, void *pending) -> int {

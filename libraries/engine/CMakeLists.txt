@@ -47,6 +47,12 @@ target_sources(mm-engine-c89 PRIVATE src/text_format.c)
 target_sources(mm-engine-c89 PRIVATE src/text_access.c src/text_replace.c)
 target_sources(mm-engine-c89 PRIVATE src/text_copy.c)
 target_sources(mm-engine-c89 PRIVATE src/text_undo.c)
+target_sources(mm-engine-c89 PRIVATE src/document_undo.c)
+get_filename_component(engine_document_undo_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_document_undo_test.c" ABSOLUTE)
+add_executable(engine-document-undo-test EXCLUDE_FROM_ALL "${engine_document_undo_test_source}")
+target_link_libraries(engine-document-undo-test PRIVATE mm-engine-c89)
+set_target_properties(engine-document-undo-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-document-undo COMMAND engine-document-undo-test)
 get_filename_component(engine_text_undo_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_undo_test.c" ABSOLUTE)
 add_executable(engine-text-undo-test EXCLUDE_FROM_ALL "${engine_text_undo_test_source}")
 target_link_libraries(engine-text-undo-test PRIVATE mm-engine-c89)
@@ -789,6 +795,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_replace.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_copy.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_undo.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/document_undo.c"
+    "${engine_document_undo_test_source}"
     "${engine_text_undo_test_source}"
     "${engine_text_copy_test_source}"
     "${engine_text_access_test_source}"
