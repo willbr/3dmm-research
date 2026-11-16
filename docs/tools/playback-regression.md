@@ -9681,3 +9681,85 @@ baseline/final logs, `tmp/c89-text-format-{native,sdl-release,sdl-debug}-tests.l
 `tmp/c89-text-format-trace-comparison.json`, `tmp/c89-text-format-identities.json`,
 `tmp/c89-text-format-syntax-first-tests.log` and
 `tmp/c89-text-format-syntax-{native,sdl-release,sdl-debug}-tests.log`.
+
+### Text access, navigation and replacement (16 November 2026)
+
+`text_access.c` now controls 512-character cache filling/invalidation, character/
+block reads, paragraph/word navigation and counted literal search. Native adapters
+supply borrowed storage, stream reads, classification/case mapping and virtual
+cache/character hooks. Views are re-read after virtual cache dispatch. Cache
+updates preserve overlap, front-on-tie invalidation and metadata/data publication
+order, including partial read failures. Navigation retains CR/LF/word behavior and
+diagnostics. Case-insensitive search mutates the caller's pattern even on miss,
+and wide search retains the original low-byte-only membership bitmap.
+
+`text_replace.c` now controls base/rich raw, file-location and stream replacement,
+including formatting, reference lifetime, virtual dispatch, undo effects, map/cache
+adjustment and notification ordering. Base replacement scales positions to bytes,
+invalidates virtually and notifies/marks dirty before releasing its translated
+file. Copying depends on original file identity. Rich file replacement translates
+before size/undo checks; its inner base operation still translates independently,
+and the rich view releases before property adjustment/commit.
+
+Formatted replacement generates deltas before undo, computes contained paragraph
+ranges, reserves before setup and calls virtual unformatted replacement. It applies
+formatting afterward, retaining the original nested undo and dirty/notification
+calls and expanded undo extent. Ordinary failures cancel only established undo,
+release unconsumed batches and retain prior text/dirty effects. Exceptions retain
+partial edits/references without added cancellation/rollback, while releasing owned
+file views. Typed apply boundaries retain native range assertions.
+
+The formatted-location wrapper intentionally forwards the original byte count as
+the core insertion count after translation, with its existing copy-identity test.
+C tests freeze this legacy unit/count behavior; it is not silently repaired or
+used to claim complete wide/translated formatted-edit equivalence. Rich-document/
+property/object copying and native undo-record policy/storage remain further work.
+
+Before conversion, the expanded headless engine fixture recorded 102,964 bytes
+in Native Debug, SDL Release and SDL Debug, all with FNV-1a `C2C720A8`, SHA-256
+`6DD1E2FFBAAF16D4D21CABA840ED67ACA2651AB046075A4C71338DD760469E5F`.
+It freezes cache bounds/content, virtual call counts, navigation/search outputs,
+mutated patterns, base/public rich raw/file/stream replacement, formatted edits,
+and real undo/redo. The generic rich-document undo/redo path completes here; a
+previous suspected caption-edit stall was not reproduced by this case. This does
+not establish complete caption authoring or all undo-allocation equivalence.
+
+C-only access checks cover both unit sizes, 2,000 generated cache reads, 1,600 edit
+invalidations and 800 counted-search comparisons against independent content/range/
+search models. They check paragraph/word boundaries, low-byte wide-character
+collisions, replaced virtual cache views, chunked partial output and ordinary/
+allocation/foreign failures. Replacement checks cover source kinds/unit scaling,
+translated owner replacement/release timing, copy flags, nested base/virtual calls,
+size limits, formatting generation/reservation, undo failure/cancellation, partial
+dirty/text effects and legacy formatted-file counts. Formatting/replacement tests
+share their primitive host; the existing formatting checks are retained. Both new
+C modules pass MSVC AddressSanitizer.
+
+All forty-five original/converted access/formatting/property/materialization/
+document/live-text/stored-text/media/metadata/session/admission/live/camera/picking/
+rendering trace pairs match across the three hosts. Prior hashes remain unchanged.
+Background checks retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds
+and 188 cameras per host. All 125 standalone C checks, including strict C89 syntax,
+pass. Thirty selected native checks and twenty-six checks in each SDL configuration
+pass, including core/scene/movie and existing native playback/player regressions.
+The explicit wide-collision read-order check was also rebuilt and rechecked on
+all three hosts; AddressSanitizer and the final standalone suite include it.
+The regular asset-preview harness passes headlessly with fresh metadata inputs.
+Retained input identities are unchanged; identities for 28 rebuilt binaries are
+recorded. Test processes use private temporary directories. Marcus was stopped
+before rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference. No new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence; other platforms
+and complete wide/translated formatted editing remain unverified here. Rich-document/
+property/object copying and edits, undo-record policy/storage, remaining lifecycle,
+physical/classification/case providers and final C-only host/facade removal remain
+conversion work.
+
+Evidence: `tmp/c89-text-access-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-text-access-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-access-standalone-tests.log`, `tmp/c89-text-access-syntax-tests.log`,
+`tmp/c89-text-access-{format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-access-asan.log`, `tmp/c89-text-access-regular-tests.log`,
+`tmp/c89-text-access-trace-comparison.json`, `tmp/c89-text-access-identities.json`
+and `tmp/c89-text-access-collision-{native,sdl-release,sdl-debug}-tests.log`.

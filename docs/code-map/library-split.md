@@ -1800,7 +1800,7 @@ a character-by-character value model and edit adjustment against an independent
 per-kind reconstruction. They also cover all 256 kind classifications, backward
 matching, holes, reference transfers and fallible creation/insertion/paragraph
 queries. Character/paragraph formatting and application are covered below.
-Property copying, remaining text replacement/navigation/undo control,
+Property copying and undo-record control,
 help-document argument extensions, native output
 storage, physical providers, document/view/parent lifecycle and final C-only
 host/facade removal remain work. Evidence and platform limits are in
@@ -1845,11 +1845,64 @@ cache hits/ranges, boundary selection, malformed font-record sizes and public
 formatting calls with virtual undo probes. C tests cover both unit sizes/orders,
 maximum counted font names, offset signedness, short wrapping, field masks,
 partial cache/range outputs, exception/ordinary failure ordering and input changes
-made by undo hooks. Property copying, remaining text replacement/navigation/undo,
+made by undo hooks. Text access/replacement is covered below. Property copying,
+rich-document/object edits and undo records,
 help-document argument extensions, native output/descriptor storage, physical
 providers, document/view/parent lifecycle and final C-only host/facade removal
 remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
+
+### Text access, navigation and replacement
+
+`text_access.c` controls the 512-character stream cache, edit invalidation,
+character/block reads, paragraph/word navigation and counted literal search.
+Native host adapters supply borrowed cache storage, primitive stream reads,
+classification/case mapping and virtual character/cache dispatch. Reads re-fetch
+the current view after virtual cache hooks, retaining subclass behavior.
+
+Cache filling keeps overlapping front/back data and preserves the original range
+publication order around reads. Invalidation keeps the longer surviving end,
+choosing the front on a tie. Failed reads retain partial cache/data effects.
+Navigation preserves CR/LF handling, ignored line feeds, paragraph boundary rules,
+word-delimiter behavior and diagnostics for isolated line feeds/missing final CR.
+Case-insensitive search lowercases the caller's pattern even on miss and retains
+the low-byte membership bitmap used for wide characters. Native wrappers retain
+debug poisoning of failed search outputs; the C operation leaves them unchanged.
+
+`text_replace.c` controls plain/rich raw, file-location and stream replacement,
+including formatting, translated-file ownership, nested virtual dispatch, undo
+setup/cancellation/commit, map adjustment, validation and notification order.
+Base replacement scales character positions to native byte counts, invalidates
+through the virtual hook and notifies/marks dirty. Its translated file remains
+owned through notification. Copying is requested only if translation preserves
+the original owner. Rich unformatted file replacement translates before its size
+limit/undo checks and releases its retained view before adjusting properties.
+The nested base operation still performs its own translation and copy decision.
+
+Formatted replacement generates deltas before undo, selects contained old
+paragraph ranges, reserves space before setup, and calls virtual unformatted
+replacement. Character and paragraph batches apply afterward over the new stream;
+notifications retain the expanded undo extent. Nested dirty/notification/undo
+calls remain observable. Ordinary failures cancel only established undo and
+release unconsumed batches, without rolling back prior text/dirty changes.
+Exceptions retain partial edit/reference effects while releasing owned file views.
+Native range assertions remain at typed change-array application boundaries.
+
+The formatted file wrapper still forwards its original byte count as the core
+insertion count after translation, with the original copy-identity test. This
+legacy unit/count behavior is explicit in the C API and tests; it is not silently
+repaired or used to claim complete wide/translated formatted-edit equivalence.
+
+The headless engine fixture freezes cache contents/bounds and virtual call counts,
+search/navigation results and mutated patterns, direct base and public rich
+replacement, file/stream paths, formatted edits, and real undo/redo. C tests cover
+both text-unit sizes, generated cache/edit/search models, replaced virtual cache
+views, ordinary/exception failures, translated owner identity/lifetime, nested
+replacement and reference transfers. Formatting and replacement share the C test
+host without changing its existing checks. Rich-document/property/object copying,
+object edits, undo-record policy/storage, remaining document/view lifecycle,
+physical/classification/case providers and final C-only host/facade removal remain
+work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

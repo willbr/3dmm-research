@@ -1,0 +1,484 @@
+#define MM_TEXT_FORMAT_NO_LATE_INPUT
+#include "text_format_test_host.h"
+#include "mm/text_replace.h"
+typedef struct Token
+{
+    int refs;
+} Token;
+typedef struct Replacement
+{
+    Host host;
+    MMTextReplaceRichServices s;
+    Token file, translated, stream, source;
+    MMI32 characters, translated_bytes, last_bytes, last_at, last_deleted, last_source;
+    MMI32 undo_first[4], undo_end[4], undo_inserted[4], notify_at[4], notify_inserted[4], notify_deleted[4];
+    int notify_file_refs[4], notify_translated_refs[4], undos, notifies, adjusts, copy, change_owner, diagnostics[4],
+        too_much;
+    MMU32 notify_flags[4];
+    MMTextReplaceRequest forwarded;
+} Replacement;
+static void *r_owner(void *v, int slot)
+{
+    Replacement *h = (Replacement *)v;
+    CHECK(slot == MM_TEXT_OWNER_STREAM);
+    return &h->stream;
+}
+static void r_retain(void *v, int kind, void *p)
+{
+    Replacement *h = (Replacement *)v;
+    Token *t = (Token *)p;
+    CHECK(kind == MM_TEXT_OWNER_FILE && t->refs > 0);
+    ++t->refs;
+    event(&h->host, '+');
+}
+static void r_drop(void *v, int kind, void *p)
+{
+    Replacement *h = (Replacement *)v;
+    Token *t = (Token *)p;
+    CHECK(kind == MM_TEXT_OWNER_FILE && t->refs > 0);
+    --t->refs;
+    event(&h->host, t == &h->file ? 'f' : 't');
+}
+static int r_translate(void *v, MMTextLocation *p, int system)
+{
+    Replacement *h = (Replacement *)v;
+    int r;
+    CHECK(system == h->host.config.text.system || system == 0x1111);
+    r = effect(&h->host, 'T');
+    if (h->change_owner && p->file == &h->file)
+    {
+        r_drop(h, MM_TEXT_OWNER_FILE, p->file);
+        p->file = &h->translated;
+        ++h->translated.refs;
+        p->offset = 0;
+    }
+    if (h->translated_bytes >= 0)
+        p->bytes = h->translated_bytes;
+    return r;
+}
+static int r_io(Replacement *h, char tag, void *dest, MMI32 bytes, MMI32 at, MMI32 deleted)
+{
+    int r;
+    CHECK(dest == &h->stream);
+    h->last_bytes = bytes;
+    h->last_at = at;
+    h->last_deleted = deleted;
+    CHECK(bytes >= 0 && at >= 0 && deleted >= 0);
+    r = effect(&h->host, tag);
+    if (r > 0)
+        h->characters += (bytes - deleted) / (MMI32)h->host.config.text.unit;
+    return r;
+}
+static int r_bytes(void *v, void *dest, const void *p, MMI32 bytes, MMI32 at, MMI32 deleted)
+{
+    Replacement *h = (Replacement *)v;
+    CHECK(p != 0 || !bytes);
+    return r_io(h, 'b', dest, bytes, at, deleted);
+}
+static int r_location(void *v, void *dest, const MMTextLocation *p, int copy, MMI32 at, MMI32 deleted)
+{
+    Replacement *h = (Replacement *)v;
+    CHECK(p->file == &h->file || p->file == &h->translated);
+    h->copy = copy;
+    return r_io(h, 'l', dest, p->bytes, at, deleted);
+}
+static int r_stream(void *v, void *dest, void *source, MMI32 from, MMI32 bytes, MMI32 at, MMI32 deleted)
+{
+    Replacement *h = (Replacement *)v;
+    CHECK(source == &h->source);
+    h->last_source = from;
+    return r_io(h, 's', dest, bytes, at, deleted);
+}
+static int r_invalidate(void *v, MMI32 at, MMI32 ins, MMI32 del)
+{
+    Replacement *h = (Replacement *)v;
+    CHECK(at >= 0 && ins >= 0 && del >= 0);
+    return effect(&h->host, 'i');
+}
+static void r_validate(void *v)
+{
+    event(&((Replacement *)v)->host, 'v');
+}
+static int r_notify(void *v, MMI32 at, MMI32 ins, MMI32 del, MMU32 flags)
+{
+    Replacement *h = (Replacement *)v;
+    int i = h->notifies++;
+    CHECK(i < 4);
+    h->notify_at[i] = at;
+    h->notify_inserted[i] = ins;
+    h->notify_deleted[i] = del;
+    h->notify_flags[i] = flags;
+    h->notify_file_refs[i] = h->file.refs;
+    h->notify_translated_refs[i] = h->translated.refs;
+    h->host.dirty = 1;
+    return effect(&h->host, 'n');
+}
+static MMI32 r_characters(void *v)
+{
+    return ((Replacement *)v)->characters;
+}
+static int r_undo(void *v, MMI32 first, MMI32 end, MMI32 inserted)
+{
+    Replacement *h = (Replacement *)v;
+    int i = h->undos++;
+    CHECK(i < 4);
+    h->undo_first[i] = first;
+    h->undo_end[i] = end;
+    h->undo_inserted[i] = inserted;
+    return effect(&h->host, 'U');
+}
+static int r_cancel(void *v)
+{
+    return effect(&((Replacement *)v)->host, 'C');
+}
+static int r_commit(void *v)
+{
+    return effect(&((Replacement *)v)->host, 'M');
+}
+static int r_reserve(void *v, MMI32 count)
+{
+    Replacement *h = (Replacement *)v;
+    CHECK(count >= 0 && count <= 14);
+    return effect(&h->host, 'R');
+}
+static int r_base(void *v, const MMTextReplaceRequest *q)
+{
+    Replacement *h = (Replacement *)v;
+    int r = effect(&h->host, 'B');
+    if (r > 0)
+        r = mm_text_replace_base(h->host.config.text.unit, q, &h->s.base);
+    return r;
+}
+static int r_virtual(void *v, const MMTextReplaceRequest *q)
+{
+    Replacement *h = (Replacement *)v;
+    int r = effect(&h->host, 'D');
+    h->forwarded = *q;
+    if (r > 0)
+        r = mm_text_replace_rich(h->host.config.text.unit, h->host.config.text.system, q, &h->s);
+    return r;
+}
+static int r_adjust(void *v, MMI32 at, MMI32 ins, MMI32 del)
+{
+    Replacement *h = (Replacement *)v;
+    CHECK(at >= 0 && ins >= 0 && del >= 0);
+    ++h->adjusts;
+    return effect(&h->host, 'j');
+}
+static void r_too_much(void *v)
+{
+    Replacement *h = (Replacement *)v;
+    ++h->too_much;
+    event(&h->host, 'Z');
+}
+static void r_diagnostic(void *v, int kind)
+{
+    Replacement *h = (Replacement *)v;
+    CHECK(kind >= 0 && kind < 4);
+    ++h->diagnostics[kind];
+    event(&h->host, 'x');
+}
+static void r_input(void *v, int paragraph, MMTextFormatConfig *c, void *value, void *old, int *has_old)
+{
+    Replacement *h = (Replacement *)v;
+    MMTextParagraph p;
+    (void)old;
+    *c = h->host.config;
+    *has_old = 0;
+    event(&h->host, paragraph ? 'p' : 'c');
+    if (paragraph)
+    {
+        memset(&p, 0, sizeof(p));
+        p.justification = 1;
+        p.indent = 2;
+        p.tab = 20;
+        p.line = 300;
+        p.after = 256;
+        *(MMTextParagraph *)value = p;
+    }
+    else
+        *(MMTextCharacter *)value = h->host.input;
+}
+static void r_init(Replacement *h, unsigned unit)
+{
+    MMTextReplaceBaseServices *b;
+    memset(h, 0, sizeof(*h));
+    init(&h->host, unit, 0);
+    h->characters = 9;
+    h->file.refs = 1;
+    h->translated_bytes = -1;
+    h->s.context = h;
+    b = &h->s.base;
+    b->context = h;
+    b->objects.context = h;
+    b->objects.get = r_owner;
+    b->objects.retain = r_retain;
+    b->objects.release = r_drop;
+    b->translate = r_translate;
+    b->bytes = r_bytes;
+    b->location = r_location;
+    b->stream = r_stream;
+    b->invalidate = r_invalidate;
+    b->validate = r_validate;
+    b->notify = r_notify;
+    h->s.edit = h->host.edit;
+    h->s.edit.context = h;
+    h->s.edit.undo = r_undo;
+    h->s.edit.cancel = r_cancel;
+    h->s.edit.commit = r_commit;
+    h->s.edit.reserve = r_reserve;
+    h->s.edit.validate = r_validate;
+    h->s.edit.read_input = r_input;
+    h->s.characters = r_characters;
+    h->s.replace_base = r_base;
+    h->s.replace_virtual = r_virtual;
+    h->s.adjust = r_adjust;
+    h->s.too_much = r_too_much;
+    h->s.diagnostic = r_diagnostic;
+    h->s.notify = r_notify;
+}
+static MMTextReplaceRequest request(Replacement *h, int kind)
+{
+    static const unsigned char raw[8] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+    MMTextReplaceRequest q;
+    memset(&q, 0, sizeof(q));
+    q.kind = kind;
+    q.data = raw;
+    q.inserted = 2;
+    q.at = 2;
+    q.deleted = 1;
+    q.flags = 7;
+    q.copy = 1;
+    q.system = h->host.config.text.system;
+    q.source = 1;
+    q.stream = &h->source;
+    q.location.file = &h->file;
+    q.location.offset = 7;
+    q.location.bytes = 4 * h->host.config.text.unit;
+    return q;
+}
+static int simple(Replacement *h, const MMTextReplaceRequest *q)
+{
+    return mm_text_replace_rich(h->host.config.text.unit, h->host.config.text.system, q, &h->s);
+}
+static int formatted(Replacement *h, const MMTextReplaceRequest *q)
+{
+    return mm_text_replace_formatted(h->host.config.text.unit, h->host.config.text.system, q, &h->s);
+}
+static void released(Replacement *h)
+{
+    CHECK(h->file.refs == 1 && !h->translated.refs);
+}
+static void base_cases(void)
+{
+    Replacement h;
+    MMTextReplaceRequest q;
+    unsigned unit;
+    int kind, change, failure, i, expected, r;
+    for (unit = 1; unit <= 2; ++unit)
+        for (kind = 0; kind < 3; ++kind)
+            for (change = 0; change < 2; ++change)
+            {
+                r_init(&h, unit);
+                q = request(&h, kind);
+                h.change_owner = change;
+                if (change)
+                    h.translated_bytes = 6 * unit;
+                CHECK(mm_text_replace_base(unit, &q, &h.s.base) == 1);
+                released(&h);
+                expected = kind == MM_TEXT_REPLACE_LOCATION ? (change ? 6 : 4) : 2;
+                CHECK(h.characters == 9 + expected - 1 && h.last_at == 2 * (MMI32)unit &&
+                      h.last_deleted == (MMI32)unit && h.last_bytes == expected * (MMI32)unit);
+                CHECK(h.notifies == 1 && h.notify_inserted[0] == expected && h.notify_flags[0] == 7 && h.host.dirty);
+                if (kind == MM_TEXT_REPLACE_STREAM)
+                    CHECK(h.last_source == (MMI32)unit);
+                if (kind == MM_TEXT_REPLACE_LOCATION)
+                    CHECK(h.copy == !change &&
+                          (change ? h.notify_translated_refs[0] == 1 : h.notify_file_refs[0] == 2));
+                for (i = 0; i < 4; ++i)
+                    for (failure = 0; failure >= -2; --failure)
+                    {
+                        r_init(&h, unit);
+                        q = request(&h, kind);
+                        h.change_owner = change;
+                        h.host.result = failure;
+                        h.host.fail = i == 0   ? (kind == 0   ? 'b'
+                                                  : kind == 1 ? 'l'
+                                                              : 's')
+                                      : i == 1 ? 'i'
+                                      : i == 2 ? 'n'
+                                               : 'T';
+                        if (i == 3 && kind != MM_TEXT_REPLACE_LOCATION)
+                            continue;
+                        r = mm_text_replace_base(unit, &q, &h.s.base);
+                        CHECK(r == failure);
+                        released(&h);
+                        if (i == 2)
+                            CHECK(h.host.dirty);
+                        else
+                            CHECK(!h.host.dirty);
+                    }
+            }
+}
+static void rich_cases(void)
+{
+    Replacement h;
+    MMTextReplaceRequest q;
+    unsigned unit;
+    int kind, change, failure, i, r;
+    for (unit = 1; unit <= 2; ++unit)
+        for (kind = 0; kind < 3; ++kind)
+            for (change = 0; change < 2; ++change)
+            {
+                r_init(&h, unit);
+                q = request(&h, kind);
+                h.change_owner = change;
+                if (change)
+                    h.translated_bytes = 6 * unit;
+                CHECK(simple(&h, &q) == 1);
+                released(&h);
+                CHECK(h.undos == 1 && h.adjusts == 1 && h.notifies == 2 && h.notify_flags[0] == 0 &&
+                      h.notify_flags[1] == 7);
+                CHECK(h.undo_inserted[0] == (kind == 1 ? (change ? 6 : 4) : 2));
+                if (kind == 1)
+                    CHECK(h.copy == 1 && (change ? (h.notify_translated_refs[0] == 2 && !h.notify_translated_refs[1])
+                                                 : (h.notify_file_refs[0] == 3 && h.notify_file_refs[1] == 1)));
+                for (i = 0; i < 8; ++i)
+                    for (failure = 0; failure >= -2; --failure)
+                    {
+                        r_init(&h, unit);
+                        q = request(&h, kind);
+                        h.change_owner = change;
+                        h.host.fail = "UBbijnMT"[i];
+                        if (i == 2)
+                            h.host.fail = kind == 0 ? 'b' : kind == 1 ? 'l' : 's';
+                        if (i == 7 && kind != MM_TEXT_REPLACE_LOCATION)
+                            continue;
+                        h.host.result = failure;
+                        r = simple(&h, &q);
+                        CHECK(r == failure);
+                        released(&h);
+                        if (!failure && (i == 1 || i == 2 || i == 3 || i == 5))
+                            CHECK(strchr(h.host.log, 'C'));
+                        if (failure < 0 || i == 0 || i == 4 || i >= 6)
+                            CHECK(!strchr(h.host.log, 'C'));
+                    }
+                r_init(&h, unit);
+                q = request(&h, kind);
+                h.characters = 0x00800000L - 2;
+                CHECK(simple(&h, &q) == 0 && h.too_much == 1 && !h.undos && !h.notifies);
+                released(&h);
+            }
+}
+static void formatted_cases(void)
+{
+    Replacement h;
+    MMTextReplaceRequest q;
+    unsigned unit;
+    int i, failure, r;
+    for (unit = 1; unit <= 2; ++unit)
+    {
+        r_init(&h, unit);
+        q = request(&h, 0);
+        q.source = 0;
+        h.s.has_character = 1;
+        CHECK(formatted(&h, &q) == 1 && h.undos == 2 && h.notifies == 3 && h.adjusts == 1 && h.host.count == 8 &&
+              h.host.fixed == 0x02000001UL);
+        CHECK(h.notify_flags[0] == 0 && h.notify_flags[1] == 0 && h.notify_flags[2] == 7 && h.undo_inserted[0] == 2 &&
+              h.undo_inserted[1] == 2);
+        CHECK(strstr(h.host.log, "cFGpARUDUBbivnjMvnk") != 0);
+        for (i = 0; i < 8; ++i)
+            for (failure = 0; failure >= -2; --failure)
+            {
+                if (!failure && i >= 6)
+                    continue;
+                r_init(&h, unit);
+                q = request(&h, 0);
+                q.source = 0;
+                h.s.has_character = 1;
+                h.host.fail = "FGARUDXM"[i];
+                h.host.result = failure;
+                r = formatted(&h, &q);
+                CHECK(r == failure);
+                released(&h);
+                if (!failure && i <= 4)
+                {
+                    CHECK(!strchr(h.host.log, 'C'));
+                    if (i >= 2)
+                        CHECK(h.host.free || !h.host.length);
+                }
+                if (!failure && i == 5)
+                    CHECK(strchr(h.host.log, 'C') && h.host.free);
+                if (failure < 0)
+                    CHECK(!strchr(h.host.log, 'C'));
+            }
+        r_init(&h, unit);
+        q = request(&h, 0);
+        q.source = 0;
+        h.s.has_character = h.s.has_paragraph = 1;
+        q.at = 0;
+        q.deleted = 6;
+        q.inserted = 3;
+        h.host.is_start = 1;
+        CHECK(formatted(&h, &q) == 1 && h.undo_first[0] == 0 && h.undo_end[0] == 6 && h.undo_inserted[0] == 3 &&
+              h.host.count == 12);
+        CHECK(h.notify_at[2] == 0 && h.notify_inserted[2] == 3 && h.notify_deleted[2] == 6);
+        r_init(&h, unit);
+        q = request(&h, 0);
+        q.source = 0;
+        q.inserted = 0;
+        h.s.has_character = h.s.has_paragraph = 1;
+        CHECK(formatted(&h, &q) == 1 && !strchr(h.host.log, 'F') && h.host.count == 0 && h.undos == 2);
+        r_init(&h, unit);
+        q = request(&h, 0);
+        q.source = 0;
+        h.s.has_character = 1;
+        h.characters = 0x00800000L - 2;
+        CHECK(formatted(&h, &q) == 0 && h.too_much == 1 && !strchr(h.host.log, 'c') && !h.undos);
+    }
+}
+static void formatted_locations(void)
+{
+    Replacement h;
+    MMTextReplaceRequest q;
+    unsigned unit;
+    int change, failure;
+    for (unit = 1; unit <= 2; ++unit)
+        for (change = 0; change < 2; ++change)
+        {
+            r_init(&h, unit);
+            q = request(&h, 1);
+            q.source = 0;
+            h.change_owner = change;
+            h.translated_bytes = change ? 6 * unit : 4 * unit;
+            CHECK(mm_text_replace_formatted_location(unit, h.host.config.text.system, &q, &h.s) == 1);
+            released(&h);
+            CHECK(h.undos == 2 && h.notifies == 3 && h.forwarded.inserted == 4 * (MMI32)unit &&
+                  h.forwarded.location.bytes == h.translated_bytes && h.copy == !change);
+            CHECK(h.undo_inserted[0] == 4 * (MMI32)unit && h.undo_inserted[1] == h.translated_bytes / (MMI32)unit);
+            CHECK(h.diagnostics[MM_TEXT_REPLACE_BAD_LOCATION] == (4 * (MMI32)unit * (MMI32)unit != h.translated_bytes));
+            CHECK(h.notify_inserted[2] == 4 * (MMI32)unit &&
+                  (change ? h.notify_translated_refs[0] == 3 : h.notify_file_refs[0] == 4));
+            for (failure = 0; failure >= -2; --failure)
+            {
+                r_init(&h, unit);
+                q = request(&h, 1);
+                q.source = 0;
+                h.change_owner = change;
+                h.host.fail = 'T';
+                h.host.result = failure;
+                CHECK(mm_text_replace_formatted_location(unit, h.host.config.text.system, &q, &h.s) == failure &&
+                      !h.undos);
+                released(&h);
+            }
+        }
+}
+int main(void)
+{
+    base_cases();
+    rich_cases();
+    formatted_cases();
+    formatted_locations();
+    puts("Text replacement checks passed");
+    return 0;
+}

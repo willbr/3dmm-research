@@ -19,6 +19,8 @@ ASSERTNAME
 #include "text_materialize_host.h"
 #include "text_properties_host.h"
 #include "text_format_host.h"
+#include "text_access_host.h"
+#include "text_replace_host.h"
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
@@ -219,72 +221,22 @@ bool TextDocumentBase::FFind(achar *prgch, long cch, long cpMin, long *pcpMin, l
     AssertIn(cpMin, 0, CpMac() + 1);
     AssertVarMem(pcpMin);
     AssertVarMem(pcpLim);
-    const long kcbCharSet = 256 / 8;
-    byte grfbitUsed[kcbCharSet];
-    long ibit;
-    achar *pch, *pchLast;
-    achar ch;
-    long cpT, cpMac;
-
-    if (!fCaseSensitive)
-        LowerRgch(prgch, cch);
-
-    cch--;
-    pchLast = prgch + cch;
-
-    // calculate the grfbitUsed bit field - indicating, which characters
-    // appear in the search string.
-    ClearPb(grfbitUsed, size(grfbitUsed));
-    for (pch = prgch; pch <= pchLast; pch++)
+    AccessHost host(this);
+    auto services = host.Services();
+    MMI32 first, end;
+    int result = mm_text_find(prgch, cch, sizeof(achar), cpMin, CpMac(), fCaseSensitive, &first, &end, &services);
+    host.Rethrow();
+    if (result > 0)
     {
-        ibit = (long)(byte)*pch;
-        AssertIn(ibit, 0, 256);
-        grfbitUsed[IbFromIbit(ibit)] |= Fbit(ibit);
+        *pcpMin = first;
+        *pcpLim = end;
     }
-
-    for (cpMac = CpMac(); (cpT = cpMin + cch) < cpMac;)
+    else
     {
-        for (pch = pchLast;; cpT--, pch--)
-        {
-            // get the character and map it to lower case if we're doing
-            // a case insensitive search
-            ch = _ChFetch(cpT);
-            if (!fCaseSensitive)
-                ch = ChLower(ch);
-
-            // see if the character is used anywhere within the search string
-            ibit = (long)(byte)ch;
-            if (!(grfbitUsed[IbFromIbit(ibit)] & Fbit(ibit)))
-            {
-                // this character isn't anywhere in the search string,
-                // so we can jump by a lot.
-                cpMin = cpT + 1;
-                break;
-            }
-
-            // see if the character matches the corresponding character in
-            // the search string
-            if (ch != *pch)
-            {
-                // character doesn't match, just jump by one
-                cpMin++;
-                break;
-            }
-
-            // if cpT is back to cpMin, we've got a match
-            if (cpT == cpMin)
-            {
-                // we matched
-                *pcpMin = cpMin;
-                *pcpLim = cpMin + cch + 1;
-                return fTrue;
-            }
-        }
+        TrashVar(pcpMin);
+        TrashVar(pcpLim);
     }
-
-    TrashVar(pcpMin);
-    TrashVar(pcpLim);
-    return fFalse;
+    return result > 0;
 }
 
 /***************************************************************************
@@ -333,60 +285,12 @@ void TextDocumentBase::_CacheRange(long cpMin, long cpLim)
     AssertIn(cpMin, 0, CpMac() + 1);
     AssertIn(cpLim, cpMin, CpMac() + 1);
     AssertIn(cpLim - cpMin, 0, kcchMaxTxtbCache + 1);
-    long cpMac;
-
-    if (cpMin >= _cpMinCache && cpLim <= _cpLimCache)
-        return;
-
-    cpMac = CpMac();
-    if (_cpLimCache <= _cpMinCache)
-    {
-        // nothing currently cached
-        goto LNewCache;
-    }
-
-    if (cpMin < _cpMinCache)
-    {
-        long cpT;
-
-        if (_cpMinCache >= cpMin + kcchMaxTxtbCache)
-            goto LNewCache;
-
-        // keep front end of old stuff
-        cpT = LwMax(0, LwMin(cpMin, _cpLimCache - kcchMaxTxtbCache));
-        _cpLimCache = LwMin(cpT + kcchMaxTxtbCache, _cpLimCache);
-        BltPb(_rgchCache, _rgchCache + (_cpMinCache - cpT), (_cpLimCache - _cpMinCache) * size(achar));
-        _pbsf->FetchRgb(cpT * size(achar), (_cpMinCache - cpT) * size(achar), _rgchCache);
-        _cpMinCache = cpT;
-    }
-    else
-    {
-        Assert(cpLim > _cpLimCache, 0);
-        if (cpLim >= _cpLimCache + kcchMaxTxtbCache)
-        {
-        LNewCache:
-            // just cache around [cpMin, cpLim)
-            _cpMinCache = LwMax(0, LwMin((cpMin + cpLim - kcchMaxTxtbCache) / 2, cpMac - kcchMaxTxtbCache));
-            _cpLimCache = LwMin(_cpMinCache + kcchMaxTxtbCache, cpMac);
-            _pbsf->FetchRgb(_cpMinCache * size(achar), (_cpLimCache - _cpMinCache) * size(achar), _rgchCache);
-        }
-        else
-        {
-            // keep back end old stuff
-            long cpLimCache, cpMinCache;
-
-            cpLimCache = LwMin(cpMac, LwMax(cpLim, _cpMinCache + kcchMaxTxtbCache));
-            cpMinCache = LwMax(cpLimCache - kcchMaxTxtbCache, _cpMinCache);
-            if (cpMinCache != _cpMinCache)
-            {
-                BltPb(_rgchCache + (cpMinCache - _cpMinCache), _rgchCache, (_cpLimCache - cpMinCache) * size(achar));
-            }
-            _pbsf->FetchRgb(_cpLimCache * size(achar), (cpLimCache - _cpLimCache) * size(achar),
-                            _rgchCache + _cpLimCache - cpMinCache);
-            _cpMinCache = cpMinCache;
-            _cpLimCache = cpLimCache;
-        }
-    }
+    AccessHost host(this);
+    auto services = host.Services();
+    auto cache = host.View();
+    mm_text_cache_fill(&cache, cpMin, cpLim, CpMac(), &services);
+    host.Publish(cache);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -394,38 +298,10 @@ void TextDocumentBase::_CacheRange(long cpMin, long cpLim)
 ***************************************************************************/
 void TextDocumentBase::_InvalCache(long cp, long ccpIns, long ccpDel)
 {
-    long dcpFront, dcpBack;
-
-    if (_cpLimCache <= cp || _cpLimCache <= _cpMinCache || ccpIns == 0 && ccpDel == 0)
-    {
-        // cache is before the edit or cache is already empty
-        return;
-    }
-
-    if (_cpMinCache >= cp + ccpDel)
-    {
-        // cache is after the edit
-        _cpMinCache += ccpIns - ccpDel;
-        _cpLimCache += ccpIns - ccpDel;
-        return;
-    }
-
-    dcpFront = cp - _cpMinCache;
-    dcpBack = _cpLimCache - cp - ccpDel;
-    if (dcpFront <= 0 && dcpBack <= 0)
-        _cpMinCache = _cpLimCache = 0;
-    else if (dcpFront >= dcpBack)
-    {
-        // keep the front end of the cache
-        _cpLimCache = cp;
-    }
-    else
-    {
-        // keep the tail end of the cache
-        BltPb(_rgchCache + cp + ccpDel - _cpMinCache, _rgchCache, dcpBack * size(achar));
-        _cpMinCache = cp + ccpIns;
-        _cpLimCache = _cpMinCache + dcpBack;
-    }
+    AccessHost host(this);
+    auto cache = host.View();
+    mm_text_cache_invalidate(&cache, cp, ccpIns, ccpDel);
+    host.Publish(cache);
 }
 
 /***************************************************************************
@@ -435,14 +311,12 @@ achar TextDocumentBase::_ChFetch(long cp)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac() + 1);
-
-    if (!FIn(cp, _cpMinCache, _cpLimCache))
-    {
-        // not a cache hit
-        _CacheRange(cp, cp + 1);
-    }
-
-    return _rgchCache[cp - _cpMinCache];
+    AccessHost host(this);
+    auto services = host.Services();
+    MMU32 value = 0;
+    mm_text_access_character(cp, &value, &services);
+    host.Rethrow();
+    return static_cast<achar>(value);
 }
 
 /***************************************************************************
@@ -454,17 +328,10 @@ void TextDocumentBase::FetchRgch(long cp, long ccp, achar *prgch)
     AssertIn(cp, 0, CpMac() + 1);
     AssertIn(ccp, 0, CpMac() - cp + 1);
     AssertPvCb(prgch, ccp * size(achar));
-    long ccpT;
-
-    while (ccp > 0)
-    {
-        ccpT = LwMin(ccp, kcchMaxTxtbCache);
-        _CacheRange(cp, cp + ccpT);
-        CopyPb(_rgchCache + cp - _cpMinCache, prgch, ccpT * size(achar));
-        prgch += ccpT;
-        cp += ccpT;
-        ccp -= ccpT;
-    }
+    AccessHost host(this);
+    auto services = host.Services();
+    mm_text_access_fetch(cp, ccp, prgch, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -473,30 +340,12 @@ void TextDocumentBase::FetchRgch(long cp, long ccp, achar *prgch)
 bool TextDocumentBase::FMinPara(long cp)
 {
     AssertThis(0);
-    ulong grfch;
-
-    if (cp <= 0)
-        return cp == 0;
-    if (cp >= CpMac())
-        return fFalse;
-    if (GrfchFromCh(_ChFetch(cp)) & fchIgnore)
-        return fFalse;
-
-    // return true iff the first non-ignore character we see
-    // is a break character
-    AssertIn(cp, 1, CpMac());
-    while (cp-- > 0)
-    {
-        grfch = GrfchFromCh(_ChFetch(cp));
-        if (fchBreak & grfch)
-            return fTrue;
-        if (!(fchIgnore & grfch))
-            return fFalse;
-    }
-
-    // just line feeds!
-    Warn("isolated line feeds");
-    return fFalse;
+    AccessHost host(this);
+    auto services = host.Services();
+    MMI32 value = 0;
+    mm_text_navigate(MM_TEXT_NAV_IS_START, cp, 0, CpMac(), &value, &services);
+    host.Rethrow();
+    return value != 0;
 }
 
 /***************************************************************************
@@ -507,36 +356,12 @@ bool TextDocumentBase::FMinPara(long cp)
 long TextDocumentBase::CpMinPara(long cp)
 {
     AssertThis(0);
-    ulong grfch;
-    long cpOrig;
-    long dcpLine = 1;
-
-    if (cp <= 0)
-        return 0;
-
-    if (cp >= CpMac())
-        cp = CpMac() - 1;
-    else if (GrfchFromCh(_ChFetch(cp)) & fchIgnore)
-        dcpLine++;
-    cpOrig = cp;
-
-    AssertIn(cp, 1, CpMac());
-    while (cp-- > 0)
-    {
-        grfch = GrfchFromCh(_ChFetch(cp));
-        if (fchBreak & grfch)
-        {
-            if (cp + dcpLine <= cpOrig)
-                return cp + dcpLine;
-            dcpLine = 1;
-        }
-        else if (fchIgnore & grfch)
-            dcpLine++;
-        else
-            dcpLine = 1;
-    }
-
-    return 0;
+    AccessHost host(this);
+    auto services = host.Services();
+    MMI32 value = 0;
+    mm_text_navigate(MM_TEXT_NAV_START, cp, 0, CpMac(), &value, &services);
+    host.Rethrow();
+    return value;
 }
 
 /***************************************************************************
@@ -546,34 +371,12 @@ long TextDocumentBase::CpMinPara(long cp)
 long TextDocumentBase::CpLimPara(long cp)
 {
     AssertThis(0);
-    ulong grfch;
-    bool fCr = fFalse;
-    long cpLim = CpMac();
-
-    if (cp < 0)
-        return 0;
-    if (cp >= cpLim)
-        return cpLim;
-
-    // cp should now be a legal index into the character stream
-    AssertIn(cp, 0, cpLim);
-    while (cp > 0 && (GrfchFromCh(_ChFetch(cp)) & fchIgnore))
-        cp--;
-
-    for (; cp < cpLim; cp++)
-    {
-        grfch = GrfchFromCh(_ChFetch(cp));
-        if (fchBreak & grfch)
-        {
-            if (fCr)
-                return cp;
-            fCr = fTrue;
-        }
-        else if (!(fchIgnore & grfch) && fCr)
-            return cp;
-    }
-    Assert(fCr, "last character is not a return character");
-    return cpLim;
+    AccessHost host(this);
+    auto services = host.Services();
+    MMI32 value = 0;
+    mm_text_navigate(MM_TEXT_NAV_END, cp, 0, CpMac(), &value, &services);
+    host.Rethrow();
+    return value;
 }
 
 /***************************************************************************
@@ -584,25 +387,12 @@ long TextDocumentBase::CpPrev(long cp, bool fWord)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac() + 1);
-
-    if (!fWord)
-    {
-        while (cp > 0 && (fchIgnore & GrfchFromCh(_ChFetch(--cp))))
-            ;
-    }
-    else
-    {
-        while (cp > 0 && ((fchIgnore | fchMayBreak) & GrfchFromCh(_ChFetch(cp - 1))))
-        {
-            cp--;
-        }
-        while (cp > 0 && !((fchIgnore | fchMayBreak) & GrfchFromCh(_ChFetch(cp - 1))))
-        {
-            cp--;
-        }
-    }
-
-    return cp;
+    AccessHost host(this);
+    auto services = host.Services();
+    MMI32 value = 0;
+    mm_text_navigate(MM_TEXT_NAV_PREVIOUS, cp, fWord, CpMac(), &value, &services);
+    host.Rethrow();
+    return value;
 }
 
 /***************************************************************************
@@ -613,28 +403,12 @@ long TextDocumentBase::CpNext(long cp, bool fWord)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac() + 1);
-    long cpMac = CpMac();
-
-    if (cp >= cpMac)
-        return cpMac;
-
-    if (!fWord)
-    {
-        while (++cp < cpMac && (fchIgnore & GrfchFromCh(_ChFetch(cp))))
-            ;
-    }
-    else
-    {
-        while (cp < cpMac && !((fchIgnore | fchMayBreak) & GrfchFromCh(_ChFetch(cp))))
-        {
-            cp++;
-        }
-        while (cp < cpMac && ((fchIgnore | fchMayBreak) & GrfchFromCh(_ChFetch(cp))))
-        {
-            cp++;
-        }
-    }
-    return cp;
+    AccessHost host(this);
+    auto services = host.Services();
+    MMI32 value = 0;
+    mm_text_navigate(MM_TEXT_NAV_NEXT, cp, fWord, CpMac(), &value, &services);
+    host.Rethrow();
+    return value;
 }
 
 /***************************************************************************
@@ -714,14 +488,12 @@ bool TextDocumentBase::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpD
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
 
-    if (!_pbsf->FReplace(prgch, ccpIns * size(achar), cp * size(achar), ccpDel * size(achar)))
-    {
-        return fFalse;
-    }
-    _InvalCache(cp, ccpIns, ccpDel);
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cp, ccpIns, ccpDel, grfdoc);
-    return fTrue;
+    ReplaceHost host(this);
+    auto services = host.Services();
+    auto request = host.Request(MM_TEXT_REPLACE_BYTES, prgch, ccpIns, cp, ccpDel, grfdoc);
+    int result = mm_text_replace_base(sizeof(achar), &request, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -733,28 +505,23 @@ bool TextDocumentBase::FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long
     AssertPo(pflo, 0);
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
-    bool fRet = fFalse;
-    FileLocation flo = *pflo;
-
-    flo.pfil->AddRef();
-    if (flo.FTranslate(osk) &&
-        _pbsf->FReplaceFlo(&flo, fCopy && flo.pfil == pflo->pfil, cp * size(achar), ccpDel * size(achar)))
-    {
-        _InvalCache(cp, flo.cb / size(achar), ccpDel);
-        AssertThis(fobjAssertFull);
-        InvalAllDdg(cp, flo.cb / size(achar), ccpDel, grfdoc);
-        fRet = fTrue;
-    }
-
-    ReleasePpo(&flo.pfil);
-    return fRet;
+    ReplaceHost host(this);
+    auto services = host.Services();
+    auto request = host.Request(MM_TEXT_REPLACE_LOCATION, nullptr, 0, cp, ccpDel, grfdoc);
+    request.location = RichTextStoreHost::Location(*pflo);
+    request.copy = fCopy;
+    request.system = osk;
+    int result = mm_text_replace_base(sizeof(achar), &request, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc.
 ***************************************************************************/
-bool TextDocumentBase::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool TextDocumentBase::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
+                                   ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pbsfSrc, 0);
@@ -763,15 +530,14 @@ bool TextDocumentBase::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccp
     AssertIn(cpDst, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cpDst);
 
-    if (!_pbsf->FReplaceBsf(pbsfSrc, cpSrc * size(achar), ccpSrc * size(achar), cpDst * size(achar),
-                            ccpDel * size(achar)))
-    {
-        return fFalse;
-    }
-    _InvalCache(cpDst, ccpSrc, ccpDel);
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cpDst, ccpSrc, ccpDel, grfdoc);
-    return fTrue;
+    ReplaceHost host(this);
+    auto services = host.Services();
+    auto request = host.Request(MM_TEXT_REPLACE_STREAM, nullptr, ccpSrc, cpDst, ccpDel, grfdoc);
+    request.stream = pbsfSrc;
+    request.source = cpSrc;
+    int result = mm_text_replace_base(sizeof(achar), &request, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1681,25 +1447,12 @@ bool RichTextDocument::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpD
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
 
-    if (CpMac() + ccpIns >= kcpMaxTxrd)
-    {
-        PushErc(ercRtxdTooMuchText);
-        return fFalse;
-    }
-
-    if (!FSetUndo(cp, cp + ccpDel, ccpIns))
-        return fFalse;
-
-    if (!RichTextDocument_PAR::FReplaceRgch(prgch, ccpIns, cp, ccpDel, fdocNil))
-    {
-        CancelUndo();
-        return fFalse;
-    }
-    _AdjustMpe(cp, ccpIns, ccpDel);
-    CommitUndo();
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cp, ccpIns, ccpDel, grfdoc);
-    return fTrue;
+    ReplaceHost host(this);
+    auto services = host.Services();
+    auto request = host.Request(MM_TEXT_REPLACE_BYTES, prgch, ccpIns, cp, ccpDel, grfdoc);
+    int result = mm_text_replace_rich(sizeof(achar), koskCur, &request, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1725,8 +1478,8 @@ bool RichTextDocument::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpD
     using the given chp and pap. If ccpIns is zero, prgch can be nil. pchp
     and/or ppap can be nil.
 ***************************************************************************/
-bool RichTextDocument::_FReplaceCore(void *prgch, PFileLocation pflo, bool fCopy, PFileByteStream pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
-                         PCHP pchp, PPAP ppap, ulong grfdoc)
+bool RichTextDocument::_FReplaceCore(void *prgch, PFileLocation pflo, bool fCopy, PFileByteStream pbsf, long cpSrc,
+                                     long ccpIns, long cp, long ccpDel, PCHP pchp, PPAP ppap, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ccpIns, 0, kcbMax);
@@ -1737,86 +1490,22 @@ bool RichTextDocument::_FReplaceCore(void *prgch, PFileLocation pflo, bool fCopy
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
     AssertNilOrVarMem(ppap);
-    SPVM rgspvm[sprmLimChp - sprmMinChp + sprmLimPap - sprmMinPap];
-    long cspvmChp, cspvmPap;
-    long cpMinUndo, cpLimUndo;
-
-    if (CpMac() + ccpIns >= kcpMaxTxrd)
-    {
-        PushErc(ercRtxdTooMuchText);
-        return fFalse;
-    }
-
-    cpMinUndo = cp;
-    cpLimUndo = cp + ccpDel;
-
-    cspvmChp = cspvmPap = 0;
-    if (pvNil != pchp && ccpIns > 0 && !_FGetRgspvmFromChp(pchp, pvNil, rgspvm, &cspvmChp))
-    {
-        return fFalse;
-    }
-
-    if (pvNil != ppap && ccpIns > 0)
-    {
-        _GetParaBounds(&cpMinUndo, &cpLimUndo, fFalse);
-        if (cpMinUndo < cpLimUndo && !_FGetRgspvmFromPap(ppap, pvNil, rgspvm + cspvmChp, &cspvmPap))
-        {
-            goto LFail;
-        }
-        cpMinUndo = LwMin(cp, cpMinUndo);
-        cpLimUndo = LwMax(cp + ccpDel, cpLimUndo);
-    }
-
-    // now make sure that _pglmpe has enough room - we need at most 2
-    // entries per sprm.
-    if (!_pglmpe->FEnsureSpace(2 * (cspvmChp + cspvmPap)))
-        goto LFail;
-
-    if (!FSetUndo(cpMinUndo, cpLimUndo, cpLimUndo - cpMinUndo - ccpDel + ccpIns))
-        goto LFail;
-
-    if (pvNil != pflo)
-    {
-        Assert(cpSrc == 0 && ccpIns * size(achar) == pflo->cb, "bad flo");
-        if (!FReplaceFlo(pflo, fCopy, cp, ccpDel, koskCur, fdocNil))
-            goto LCancel;
-    }
-    else if (pvNil != pbsf)
-    {
-        if (!FReplaceBsf(pbsf, cpSrc, ccpIns, cp, ccpDel, fdocNil))
-            goto LCancel;
-    }
-    else
-    {
-        Assert(cpSrc == 0, "bad cpSrc");
-        AssertPvCb(prgch, ccpIns * size(achar));
-        if (!FReplaceRgch(prgch, ccpIns, cp, ccpDel, fdocNil))
-        {
-        LCancel:
-            CancelUndo();
-        LFail:
-            _ReleaseRgspvm(rgspvm, cspvmChp + cspvmPap);
-            return fFalse;
-        }
-    }
-
-    if (cspvmChp > 0)
-        _ApplyRgspvm(cp, ccpIns, rgspvm, cspvmChp);
-    if (cspvmPap > 0)
-    {
-        long cpMin = cp;
-        long cpLim = cp + ccpIns;
-
-        _GetParaBounds(&cpMin, &cpLim, fFalse);
-        Assert(cpMin >= cpMinUndo, "new para before old one");
-        Assert(cpLim <= cpLimUndo - ccpDel + ccpIns, "new para after old one");
-        _ApplyRgspvm(cpMin, cpLim - cpMin, rgspvm + cspvmChp, cspvmPap);
-    }
-    CommitUndo();
-
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cpMinUndo, cpLimUndo - cpMinUndo - ccpDel + ccpIns, cpLimUndo - cpMinUndo, grfdoc);
-    return fTrue;
+    ReplaceHost host(this);
+    host.chp = pchp;
+    host.pap = ppap;
+    auto services = host.Services();
+    auto request = host.Request(pflo   ? MM_TEXT_REPLACE_LOCATION
+                                : pbsf ? MM_TEXT_REPLACE_STREAM
+                                       : MM_TEXT_REPLACE_BYTES,
+                                prgch, ccpIns, cp, ccpDel, grfdoc);
+    if (pflo)
+        request.location = RichTextStoreHost::Location(*pflo);
+    request.copy = fCopy;
+    request.stream = pbsf;
+    request.source = cpSrc;
+    int result = mm_text_replace_formatted(sizeof(achar), koskCur, &request, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1828,44 +1517,23 @@ bool RichTextDocument::FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long
     AssertPo(pflo, 0);
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
-    long ccpIns;
-    FileLocation flo = *pflo;
-
-    flo.pfil->AddRef();
-    if (!flo.FTranslate(osk))
-        goto LFail;
-
-    ccpIns = flo.cb / size(achar);
-    if (CpMac() + ccpIns >= kcpMaxTxrd)
-    {
-        PushErc(ercRtxdTooMuchText);
-        goto LFail;
-    }
-
-    if (!FSetUndo(cp, cp + ccpDel, ccpIns))
-        goto LFail;
-
-    if (!RichTextDocument_PAR::FReplaceFlo(&flo, fCopy, cp, ccpDel, koskCur, fdocNil))
-    {
-        CancelUndo();
-    LFail:
-        ReleasePpo(&flo.pfil);
-        return fFalse;
-    }
-    ReleasePpo(&flo.pfil);
-
-    _AdjustMpe(cp, ccpIns, ccpDel);
-    CommitUndo();
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cp, ccpIns, ccpDel, grfdoc);
-    return fTrue;
+    ReplaceHost host(this);
+    auto services = host.Services();
+    auto request = host.Request(MM_TEXT_REPLACE_LOCATION, nullptr, 0, cp, ccpDel, grfdoc);
+    request.location = RichTextStoreHost::Location(*pflo);
+    request.copy = fCopy;
+    request.system = osk;
+    int result = mm_text_replace_rich(sizeof(achar), koskCur, &request, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
     Replace cp to cp + ccpDel with the characters in the given FileLocation, using
     the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool RichTextDocument::FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap, short osk, ulong grfdoc)
+bool RichTextDocument::FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap,
+                                   short osk, ulong grfdoc)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -1873,21 +1541,25 @@ bool RichTextDocument::FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
     AssertNilOrVarMem(ppap);
-    bool fRet;
-    FileLocation flo = *pflo;
-
-    flo.pfil->AddRef();
-    fRet = flo.FTranslate(osk) && _FReplaceCore(pvNil, &flo, fCopy && pflo->pfil == flo.pfil, pvNil, 0, pflo->cb, cp,
-                                                ccpDel, pchp, ppap, grfdoc);
-    ReleasePpo(&flo.pfil);
-    return fRet;
+    ReplaceHost host(this);
+    host.chp = pchp;
+    host.pap = ppap;
+    auto services = host.Services();
+    auto request = host.Request(MM_TEXT_REPLACE_LOCATION, nullptr, 0, cp, ccpDel, grfdoc);
+    request.location = RichTextStoreHost::Location(*pflo);
+    request.copy = fCopy;
+    request.system = osk;
+    int result = mm_text_replace_formatted_location(sizeof(achar), koskCur, &request, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc.
 ***************************************************************************/
-bool RichTextDocument::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool RichTextDocument::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
+                                   ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pbsfSrc, 0);
@@ -1896,34 +1568,22 @@ bool RichTextDocument::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccp
     AssertIn(cpDst, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cpDst);
 
-    if (CpMac() + ccpSrc >= kcpMaxTxrd)
-    {
-        PushErc(ercRtxdTooMuchText);
-        return fFalse;
-    }
-
-    if (!FSetUndo(cpDst, cpDst + ccpDel, ccpSrc))
-        return fFalse;
-
-    if (!RichTextDocument_PAR::FReplaceBsf(pbsfSrc, cpSrc, ccpSrc, cpDst, ccpDel, fdocNil))
-    {
-        CancelUndo();
-        return fFalse;
-    }
-
-    _AdjustMpe(cpDst, ccpSrc, ccpDel);
-    CommitUndo();
-    AssertThis(fobjAssertFull);
-    InvalAllDdg(cpDst, ccpSrc, ccpDel, grfdoc);
-    return fTrue;
+    ReplaceHost host(this);
+    auto services = host.Services();
+    auto request = host.Request(MM_TEXT_REPLACE_STREAM, nullptr, ccpSrc, cpDst, ccpDel, grfdoc);
+    request.stream = pbsfSrc;
+    request.source = cpSrc;
+    int result = mm_text_replace_rich(sizeof(achar), koskCur, &request, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc, using the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool RichTextDocument::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
-                       ulong grfdoc)
+bool RichTextDocument::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp,
+                                   PPAP ppap, ulong grfdoc)
 {
     AssertThis(0);
     AssertPo(pbsfSrc, 0);

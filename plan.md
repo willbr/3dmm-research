@@ -530,8 +530,11 @@ argument interning and reference-count control now also use C89.
 Character/paragraph delta packing, font descriptor creation, cached formatting
 fetches, paragraph-bound selection and formatting-application transactions now
 also use C89, preserving virtual undo/effect hooks.
+Text cache filling/invalidation, paragraph/word navigation, counted search and
+plain/rich raw/file/stream replacement transactions now also use C89, including
+formatted replacement and translated-file ownership.
 Typed resource/track/archive/path providers, help-document argument extensions,
-remaining text replacement/navigation/undo, display formatting/
+rich-document/property/object copying and edits, undo records, display formatting/
 output containers, remaining
 document/UI lifecycle and final facade removal remain work.
 These are completed slices
@@ -588,8 +591,10 @@ loading, property/argument normalization and default font argument opening now
 also use C89. Rich-text property lookup, masked range application, edit-boundary
 adjustment and argument interning/reference counts now also use C89. Character/
 paragraph value conversion, cached fetches, paragraph bounds and formatting apply
-transactions now also use C89. Help-document argument extensions, remaining text
-replacement/navigation/undo,
+transactions now also use C89. Cache/search/navigation and plain/rich raw/file/
+stream replacement transactions, including formatting and translated-file ownership,
+now also use C89. Help-document argument extensions, rich-document/property/object
+copying and edits, undo records,
 display/output representations, remaining
 document/UI lifecycle and final host integration still need conversion.
 Final removal of native representations and facades remains required.
