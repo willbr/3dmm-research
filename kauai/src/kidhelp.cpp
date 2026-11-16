@@ -10,10 +10,16 @@
     Code for implementing help balloons in kidspace.
 
 ***************************************************************************/
+#include <exception>
+#include <new>
 #include "kidframe.h"
 ASSERTNAME
+#include "rich_text_live_store_host.h"
+#include "text_document_host.h"
+#include "text_properties_host.h"
 
 namespace Help {
+#include "help_text_host.h"
 
 BEGIN_CMD_MAP(TopicGraphicsObject, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
@@ -35,10 +41,7 @@ TextDocument::TextDocument(PResourceCache prca, PDocumentBase pdocb, ulong grfdo
     AssertPo(prca, 0);
     _prca = prca;
     _prca->AddRef();
-    _htop.cnoBalloon = cnoNil;
-    _htop.cnoScript = cnoNil;
-    _htop.ckiSnd.ctg = ctgNil;
-    _htop.ckiSnd.cno = cnoNil;
+    mm_help_topic_init(&_topic);
 }
 
 /***************************************************************************
@@ -78,16 +81,43 @@ PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl
 {
     AssertPo(prca, 0);
     AssertPo(pcfl, 0);
-    PTextDocument ptxhd;
-
-    if (pvNil == (ptxhd = NewObj TextDocument(prca)) || !ptxhd->_FReadChunk(pcfl, ctg, cno, pstrg, grftxhd))
+    struct Factory : TextDocumentFactoryHost
     {
-        PushErc(ercHelpReadFailed);
-        ReleasePpo(&ptxhd);
-    }
-
-    AssertNilOrPo(ptxhd, fobjAssertFull);
-    return ptxhd;
+        PResourceCache cache;
+        PChunkyFile file;
+        ChunkTagOrType type;
+        ChunkNumber number;
+        PStringRegistry strings;
+        ulong flags;
+    } host;
+    host.cache = prca;
+    host.file = pcfl;
+    host.type = ctg;
+    host.number = cno;
+    host.strings = pstrg;
+    host.flags = grftxhd;
+    MMTextFactoryServices services = {
+        &host,
+        [](void *v, void **out) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] {
+                *out = NewObj TextDocument(h.cache);
+                return *out != nullptr;
+            });
+        },
+        [](void *v, void *p) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] {
+                return static_cast<PTextDocument>(p)->_FReadChunk(h.file, h.type, h.number, h.strings, h.flags);
+            });
+        },
+        [](void *, void *p) { static_cast<BASE *>(p)->Release(); }, [](void *) { PushErc(ercHelpReadFailed); }};
+    void *owned;
+    mm_text_document_create(&owned, 1, &services);
+    host.Rethrow();
+    auto result = static_cast<PTextDocument>(owned);
+    AssertNilOrPo(result, fobjAssertFull);
+    return result;
 }
 
 /***************************************************************************
@@ -97,85 +127,13 @@ bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber
 {
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);
-    DataBlock blck;
-    ChildChunkIdentification kid;
-    TopicFile htopf;
-    long stid, lw;
-    long cp, cpMac, cpMin;
-    String stn;
-    bool fRet = fFalse;
-
-    if (pcfl->FForest(ctg, cno))
-    {
-        ChunkIdentification cki;
-
-        if (pvNil == (pcfl = pcfl->PcflReadForest(ctg, cno, fFalse)))
-            goto LFail;
-        if (!pcfl->FGetCkiCtg(ctg, 0, &cki))
-            goto LFail;
-        cno = cki.cno;
-    }
-    else
-        pcfl->AddRef();
-
-    // The old version of Topic didn't have the ckiSnd - accept both old and new
-    // versions.
-    htopf.htop.ckiSnd.ctg = ctgNil;
-    htopf.htop.ckiSnd.cno = cnoNil;
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() ||
-        size(TopicFile) != blck.Cb() && offset(TopicFile, htop.ckiSnd) != blck.Cb() || !blck.FRead(&htopf))
-    {
-        goto LFail;
-    }
-
-    if (htopf.bo == kboOther)
-        SwapBytesBom(&htopf.htop, kbomHtop);
-    else if (htopf.bo != kboCur)
-        goto LFail;
-
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgRichText, &kid))
-        goto LFail;
-
-    if (!TextDocument_PAR::_FReadChunk(pcfl, kid.cki.ctg, kid.cki.cno, FPure(grftxhd & ftxhdCopyText)))
-    {
-        goto LFail;
-    }
-
-    if ((grftxhd & ftxhdExpandStrings) && pvNil != pstrg)
-    {
-        SetInternal();
-        SuspendUndo();
-        cpMac = CpMac();
-        for (cp = 0; cp < cpMac;)
-        {
-            if (_ChFetch(cp) != kchHelpString)
-            {
-                cp++;
-                continue;
-            }
-
-            cpMin = cp++;
-            for (stid = 0; cp < cpMac && FIn(lw = _ChFetch(cp) - '0', 0, 10); cp++)
-                stid = stid * 10 + lw;
-            if (!pstrg->FGet(stid, &stn))
-                Warn("string missing");
-            if (FReplaceRgch(stn.Psz(), stn.Cch(), cpMin, cp - cpMin, fdocNil))
-            {
-                cp = cpMin + stn.Cch();
-                cpMac = CpMac();
-            }
-        }
-    }
-
-    fRet = fTrue;
-    _htop = htopf.htop;
-    AssertThis(0);
-
-LFail:
-    // Release our hold on the ChunkyFile
-    ReleasePpo(&pcfl);
-
-    return fRet;
+    HelpHost host(this);
+    host.strings = pstrg;
+    auto services = host.Read();
+    auto config = host.Config();
+    int result = mm_help_read(&_topic, pcfl, ctg, cno, grftxhd, pstrg != nullptr, config.unit, config.big, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -184,72 +142,11 @@ LFail:
 ***************************************************************************/
 bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
-    ChunkTagOrType ctg;
-    ChunkNumber cno;
-    LegacyLong cb;
-    LegacyLong rglw[2];
-    long clw;
-
-    if (TextDocument_PAR::_FOpenArg(icact, sprm, bo, osk))
-        return fTrue;
-
-    cb = _pagcact->Cb(icact);
-    switch (sprm)
-    {
-    case sprmGroup:
-        if (cb < size(byte) + size(ChunkNumber))
-            return fFalse;
-        if (bo == kboOther)
-        {
-            _pagcact->GetRgb(icact, size(byte), size(ChunkNumber), &cno);
-            SwapBytesRglw(&cno, 1);
-            _pagcact->PutRgb(icact, size(byte), size(ChunkNumber), &cno);
-        }
-        break;
-
-    case sprmObject:
-        if (cb < size(ChunkTagOrType))
-            return fFalse;
-        _pagcact->GetRgb(icact, 0, size(ChunkTagOrType), &ctg);
-        if (bo == kboOther)
-        {
-            SwapBytesRglw(&ctg, 1);
-            _pagcact->PutRgb(icact, 0, size(ChunkTagOrType), &ctg);
-        }
-        cb -= size(ChunkTagOrType);
-
-        switch (ctg)
-        {
-        case kctgMbmp:
-        case kctgEditControl:
-            clw = 1;
-            goto LSwapBytes;
-
-        case kctgGokd:
-            clw = 2;
-        LSwapBytes:
-            AssertIn(clw, 1, CvFromRgv(rglw) + 1);
-            if (cb < clw * size(LegacyLong))
-                return fFalse;
-
-            if (bo == kboOther)
-            {
-                _pagcact->GetRgb(icact, size(ChunkTagOrType), clw * size(LegacyLong), rglw);
-                SwapBytesRglw(rglw, clw);
-                _pagcact->PutRgb(icact, size(ChunkTagOrType), clw * size(LegacyLong), rglw);
-            }
-            break;
-
-        default:
-            return fFalse;
-        }
-        break;
-
-    default:
-        return fFalse;
-    }
-
-    return fTrue;
+    HelpHost host(this);
+    auto services = host.Argument();
+    int result = mm_help_open_argument(icact, sprm, bo, osk, host.Config().big, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -261,36 +158,16 @@ bool TextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, boo
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
-    DataBlock blck;
-    ChunkIdentification cki;
-    TopicFile htopf;
-
-    pcki->ctg = kctgHelpTopic;
-    htopf.bo = kboCur;
-    htopf.osk = koskCur;
-    htopf.htop = _htop;
-    if (!pcfl->FAdd(size(TopicFile), pcki->ctg, &pcki->cno, &blck))
-    {
-        PushErc(ercHelpSaveFailed);
-        return fFalse;
-    }
-    if (!blck.FWrite(&htopf))
-        goto LFail;
-
-    if (!TextDocument_PAR::FSaveToChunk(pcfl, &cki, fRedirectText))
-        goto LFail;
-
-    // add the text chunk and write it
-    if (!pcfl->FAdoptChild(pcki->ctg, pcki->cno, cki.ctg, cki.cno))
-    {
-        pcfl->Delete(cki.ctg, cki.cno);
-    LFail:
-        pcfl->Delete(pcki->ctg, pcki->cno);
-        PushErc(ercHelpSaveFailed);
-        return fFalse;
-    }
-
-    return fTrue;
+    HelpHost host(this);
+    host.file = pcfl;
+    host.output = pcki;
+    host.flags = fRedirectText;
+    auto services = host.Save();
+    auto config = host.Config();
+    MMTextChunk root = {};
+    int result = mm_help_save(&_topic, &root, config.system, config.big, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -444,25 +321,13 @@ bool TextDocument::FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, 
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
-    ChunkIdentification cki;
-    void *pv = &cki;
-    bool fRet = fFalse;
-
-    cki.ctg = kctgMbmp;
-    cki.cno = cno;
-    if (cbExtra > 0)
-    {
-        if (!FAllocPv(&pv, size(ChunkIdentification) + cbExtra, fmemNil, mprNormal))
-            return fFalse;
-        CopyPb(&cki, pv, size(ChunkIdentification));
-        CopyPb(pvExtra, PvAddBv(pv, size(ChunkIdentification)), cbExtra);
-    }
-
-    fRet = FInsertObject(pv, size(ChunkIdentification) + cbExtra, cp, ccpDel, pchp, grfdoc);
-
-    if (pv != &cki)
-        FreePpv(&pv);
-    return fRet;
+    HelpHost host(this);
+    host.chp = pchp;
+    host.flags = grfdoc;
+    auto services = host.Edit();
+    int result = mm_help_insert(0, cno, 0, pvExtra, cbExtra, cp, ccpDel, host.Config().big, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -476,30 +341,13 @@ bool TextDocument::FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pv
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
-    byte rgb[size(ChunkIdentification) + size(LegacyLong)];
-    ChunkIdentification *pcki = (ChunkIdentification *)rgb;
-    ChunkNumber *pcnoTopic = (ChunkNumber *)(pcki + 1);
-    ;
-    void *pv = rgb;
-    bool fRet = fFalse;
-
-    pcki->ctg = kctgGokd;
-    pcki->cno = cno;
-    *pcnoTopic = cnoTopic;
-    if (cbExtra > 0)
-    {
-        if (!FAllocPv(&pv, size(rgb) + cbExtra, fmemNil, mprNormal))
-            return fFalse;
-        CopyPb(rgb, pv, size(rgb));
-        CopyPb(pvExtra, PvAddBv(pv, size(rgb)), cbExtra);
-    }
-
-    fRet = FInsertObject(pv, size(rgb) + cbExtra, cp, ccpDel, pchp, grfdoc);
-
-    if (pv != rgb)
-        FreePpv(&pv);
-
-    return fRet;
+    HelpHost host(this);
+    host.chp = pchp;
+    host.flags = grfdoc;
+    auto services = host.Edit();
+    int result = mm_help_insert(1, cno, cnoTopic, pvExtra, cbExtra, cp, ccpDel, host.Config().big, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -512,55 +360,12 @@ bool TextDocument::FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTo
     AssertNilOrPo(pstnTopic, 0);
     AssertIn(cp1, 0, CpMac());
     AssertIn(cp2, 0, CpMac());
-    SPVM spvm;
-
-    SortLw(&cp1, &cp2);
-    if (cp1 == cp2)
-        return fTrue;
-
-    if (!FSetUndo(cp1, cp2, cp2 - cp1))
-        return fFalse;
-
-    spvm.sprm = sprmGroup;
-    spvm.lwMask = -1;
-    if (bGroup == 0)
-    {
-        // means no grouping
-        spvm.lw = 0;
-    }
-    else
-    {
-        byte rgb[size(byte) + size(ChunkNumber) + kcbMaxDataStn];
-        long cb = size(byte) + size(ChunkNumber);
-
-        rgb[0] = bGroup;
-        CopyPb(&cnoTopic, rgb + size(byte), size(ChunkNumber));
-        if (pvNil != pstnTopic && pstnTopic->Cch() > 0)
-        {
-            pstnTopic->GetData(rgb + cb);
-            cb += pstnTopic->CbData();
-        }
-
-        if (!_FEnsureInAg(sprmGroup, rgb, cb, &spvm.lw))
-        {
-            CancelUndo();
-            return fFalse;
-        }
-    }
-
-    if (!_pglmpe->FEnsureSpace(2))
-    {
-        _ReleaseRgspvm(&spvm, 1);
-        CancelUndo();
-        return fFalse;
-    }
-
-    _ApplyRgspvm(cp1, cp2 - cp1, &spvm, 1);
-    CommitUndo();
-
-    AssertThis(0);
-    InvalAllDdg(cp1, cp2 - cp1, cp2 - cp1);
-    return fTrue;
+    HelpHost host(this);
+    host.groupName = pstnTopic;
+    auto services = host.Edit();
+    int result = mm_help_group(cp1, cp2, bGroup, cnoTopic, host.Config().big, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -575,60 +380,16 @@ bool TextDocument::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, 
     AssertNilOrVarMem(pbGroup);
     AssertNilOrVarMem(pcnoTopic);
     AssertNilOrPo(pstnTopic, 0);
-    MPE mpe;
-    byte bGroup = 0;
-
-    if (!_FFindMpe(_SpcpFromSprmCp(sprmGroup, cp), &mpe, pcpLim))
-    {
-        mpe.lw = 0;
-        mpe.spcp = 0;
-    }
-
-    if (mpe.lw > 0)
-    {
-        byte *prgb;
-        LegacyLong cb;
-
-        prgb = (byte *)_pagcact->PvLock(mpe.lw - 1, &cb);
-        cb -= size(byte) + size(ChunkNumber); // group number, cnoTopic
-        if (cb < 0)
-            goto LFail;
-
-        bGroup = prgb[0];
-        if (bGroup == 0)
-        {
-        LFail:
-            Bug("bad group data");
-            _pagcact->Unlock();
-            goto LNotGrouped;
-        }
-
-        if (pvNil != pcnoTopic)
-            CopyPb(prgb + size(byte), pcnoTopic, size(ChunkNumber));
-        if (pvNil != pstnTopic)
-        {
-            if (cb > 0)
-                pstnTopic->FSetData(prgb + size(byte) + size(ChunkNumber), cb);
-            else
-                pstnTopic->SetNil();
-        }
-        _pagcact->Unlock();
-    }
-    else
-    {
-    LNotGrouped:
-        if (pvNil != pcnoTopic)
-            *pcnoTopic = cnoNil;
-        if (pvNil != pstnTopic)
-            pstnTopic->SetNil();
-    }
-
-    if (pvNil != pbGroup)
-        *pbGroup = bGroup;
-    if (pvNil != pcpMin)
-        *pcpMin = _CpFromSpcp(mpe.spcp);
-
-    return bGroup != 0;
+    HelpHost host(this);
+    host.first = pcpMin;
+    host.end = pcpLim;
+    host.group = pbGroup;
+    host.target = pcnoTopic;
+    host.groupName = pstnTopic;
+    auto services = host.Edit();
+    int result = mm_help_grouped(cp, host.Config().big, pstnTopic != nullptr, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -639,7 +400,7 @@ void TextDocument::GetHtop(PTopic phtop)
     AssertThis(0);
     AssertVarMem(phtop);
 
-    *phtop = _htop;
+    *phtop = HelpHost::ToTopic(_topic);
 }
 
 /***************************************************************************
@@ -650,8 +411,11 @@ void TextDocument::SetHtop(PTopic phtop)
     AssertThis(0);
     AssertVarMem(phtop);
 
-    _htop = *phtop;
-    SetDirty();
+    HelpHost host(this);
+    auto services = host.Edit();
+    auto topic = HelpHost::FromTopic(*phtop);
+    mm_help_topic_set(&_topic, &topic, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************

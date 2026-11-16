@@ -2112,6 +2112,40 @@ physical/clipboard/window/dialog providers, help extensions and final C-only
 host/facade removal remain conversion work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
 
+### Help document data and editing policy
+
+`help_text.c` owns help topic initialization, 28/36-byte wire decoding/encoding,
+forest/plain chunk read sequencing, string expansion and topic publication,
+save/adoption rollback, object/group argument normalization, picture/button payload
+construction, grouping/query and dirty publication. `MMHelpTopic` replaces the
+native stored `Topic`; the public native structure is marshalled at the boundary.
+Native methods supply physical file/block access, string lookup/emission, virtual
+rich-text/undo/effect hooks and existing C property/argument services through
+`help_text_host.h`. Native constructors retain the resource cache needed by drawing.
+
+Foreign headers swap the first six topic words only; the sound tail deliberately
+retains the legacy unswapped behavior. Older headers default the sound pair to
+zero/nil. Object argument normalization publishes a swapped tag before rejecting
+an unknown or truncated subtype. Grouping sorts ranges before undo, reads the name
+after undo, consumes argument references through the shared property map and keeps
+partial effects on exceptions. Group queries publish end/target before name decode,
+ignore ordinary name decode failure and publish group/start last.
+
+Expansion marks the document internal and leaves undo suspended. It skips inserted
+placeholders, wraps decimal IDs at 32 bits, warns on missing strings and continues
+after ordinary replacement failure. Topic metadata publishes only after the read
+and expansion succeed. Save publishes the root type before allocation, and deletes
+child before parent on failed adoption. Exceptions retain other partial effects;
+private file/payload owners and group locks now release before native rethrow.
+
+The headless fixture freezes preconversion Native/SDL text, properties, arguments,
+group outputs, object payloads and saved chunk trees. C tests cover both byte
+orders, old headers, partial normalization/publication, failure and exception
+ordering, owned forests, expansion and rollback. Bitmap/button bounds and drawing,
+`TopicGraphicsObject`, balloons, buttons, native string/display/UI representations
+and final C-only host/facade removal remain conversion work. Evidence and platform
+limits are in `docs/tools/playback-regression.md`.
+
 ### Movie scene-container control and undo
 
 `movie_scene.c` owns the current scene reference/index and the control flow for

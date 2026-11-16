@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef KIDHELP_H
 #define KIDHELP_H
+#include "mm/help_text.h"
 
 namespace Help {
 
@@ -80,7 +81,8 @@ class TextDocument : public TextDocument_PAR
     };
 
     PResourceCache _prca;         // source of pictures and buttons
-    Topic _htop;         // our gob creation information
+    MMHelpTopic _topic;
+    struct HelpHost;
     bool _fHideButtons; // whether to draw buttons
 
     TextDocument(PResourceCache prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);

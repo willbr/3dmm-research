@@ -1962,6 +1962,7 @@ void HETD::EditHtop(void)
     AssertThis(0);
     PDialog pdlg;
     long dxp;
+    LegacyLong value;
     String stn;
 
     if (pvNil == (pdlg = Dialog::PdlgNew(dlidTopicInfo)))
@@ -1999,18 +2000,18 @@ void HETD::EditHtop(void)
     pdlg->FPutStn(kiditDescriptionTopic, &_stnDesc);
 
     // initialize the numeric fields
-    pdlg->FPutLwInEdit(kiditBalnTopic, _htop.cnoBalloon);
-    pdlg->FPutLwInEdit(kiditHidTopic, _htop.hidThis);
-    pdlg->FPutLwInEdit(kiditHidTargetTopic, _htop.hidTarget);
-    pdlg->FPutLwInEdit(kiditScriptTopic, _htop.cnoScript);
-    pdlg->FPutLwInEdit(kiditDxpTopic, _htop.dxp);
-    pdlg->FPutLwInEdit(kiditDypTopic, _htop.dyp);
-    if (_htop.ckiSnd.ctg == ctgNil)
+    pdlg->FPutLwInEdit(kiditBalnTopic, _topic.balloon);
+    pdlg->FPutLwInEdit(kiditHidTopic, _topic.hid);
+    pdlg->FPutLwInEdit(kiditHidTargetTopic, _topic.target);
+    pdlg->FPutLwInEdit(kiditScriptTopic, _topic.script);
+    pdlg->FPutLwInEdit(kiditDxpTopic, _topic.width);
+    pdlg->FPutLwInEdit(kiditDypTopic, _topic.height);
+    if (_topic.sound_type == ctgNil)
         stn = PszLit("WAVE");
     else
-        stn.FFormatSz(PszLit("%f"), _htop.ckiSnd.ctg);
+        stn.FFormatSz(PszLit("%f"), LegacyUlong(_topic.sound_type));
     pdlg->FPutStn(kiditCtgSoundTopic, &stn);
-    pdlg->FPutLwInEdit(kiditCnoSoundTopic, _htop.ckiSnd.cno);
+    pdlg->FPutLwInEdit(kiditCnoSoundTopic, _topic.sound_number);
     pdlg->FPutLwInEdit(kiditWidthTopic, DxpDef());
 
     if (kiditOkTopic != pdlg->IditDo(kiditBalnTopic))
@@ -2019,33 +2020,28 @@ void HETD::EditHtop(void)
         return;
     }
 
-    if (!pdlg->FGetLwFromEdit(kiditBalnTopic, (long *)&_htop.cnoBalloon))
-        _htop.cnoBalloon = cnoNil;
-    if (!pdlg->FGetLwFromEdit(kiditHidTopic, &_htop.hidThis))
-        _htop.hidThis = hidNil;
-    if (!pdlg->FGetLwFromEdit(kiditHidTargetTopic, &_htop.hidTarget))
-        _htop.hidTarget = hidNil;
-    if (!pdlg->FGetLwFromEdit(kiditScriptTopic, (long *)&_htop.cnoScript))
-        _htop.cnoScript = cnoNil;
-    if (!pdlg->FGetLwFromEdit(kiditDxpTopic, &_htop.dxp))
-        _htop.dxp = 0;
-    if (!pdlg->FGetLwFromEdit(kiditDypTopic, &_htop.dyp))
-        _htop.dyp = 0;
+    _topic.balloon = pdlg->FGetLwFromEdit(kiditBalnTopic, &value) ? MMU32(value) : MMU32(cnoNil);
+    _topic.hid = pdlg->FGetLwFromEdit(kiditHidTopic, &value) ? MMI32(value) : MMI32(hidNil);
+    _topic.target = pdlg->FGetLwFromEdit(kiditHidTargetTopic, &value) ? MMI32(value) : MMI32(hidNil);
+    _topic.script = pdlg->FGetLwFromEdit(kiditScriptTopic, &value) ? MMU32(value) : MMU32(cnoNil);
+    _topic.width = pdlg->FGetLwFromEdit(kiditDxpTopic, &value) ? MMI32(value) : 0;
+    _topic.height = pdlg->FGetLwFromEdit(kiditDypTopic, &value) ? MMI32(value) : 0;
     if (pdlg->FGetLwFromEdit(kiditWidthTopic, &dxp) && FIn(dxp, 1, kcbMax))
         SetDxpDef(dxp);
 
-    if (!pdlg->FGetLwFromEdit(kiditCnoSoundTopic, (long *)&_htop.ckiSnd.cno))
+    if (!pdlg->FGetLwFromEdit(kiditCnoSoundTopic, &value))
     {
-        _htop.ckiSnd.cno = cnoNil;
-        _htop.ckiSnd.ctg = kctgWave;
+        _topic.sound_number = cnoNil;
+        _topic.sound_type = kctgWave;
     }
     else
     {
+        _topic.sound_number = MMU32(value);
         pdlg->GetStn(kiditCtgSoundTopic, &stn);
         if (!FIn(stn.Cch(), 1, 5))
         {
-            _htop.ckiSnd.cno = cnoNil;
-            _htop.ckiSnd.ctg = kctgWave;
+            _topic.sound_number = cnoNil;
+            _topic.sound_type = kctgWave;
         }
         else
         {
@@ -2055,7 +2051,7 @@ void HETD::EditHtop(void)
             stn.GetRgch(rgch);
 
             // first character becomes the high byte
-            _htop.ckiSnd.ctg = LwFromBytes((byte)rgch[0], (byte)rgch[1], (byte)rgch[2], (byte)rgch[3]);
+            _topic.sound_type = LwFromBytes((byte)rgch[0], (byte)rgch[1], (byte)rgch[2], (byte)rgch[3]);
         }
     }
 

@@ -38,6 +38,8 @@ ASSERTNAME
 #include "document_undo_fixture.h"
 #include "document_lifecycle_fixture.h"
 #include "document_views_fixture.h"
+#include "kidhelp.h"
+#include "help_text_fixture.h"
 
 /* WinMain (in kauai/src/appbwin.cpp) references FrameMain -- but we
  * never run WinMain since we provide our own main() and link as a
@@ -2372,6 +2374,8 @@ static bool TestCaptionPersistence(PScene scene)
     if (!TestDocumentLifecycle())
         goto done;
     if (!TestDocumentViews())
+        goto done;
+    if (!TestHelpText())
         goto done;
     ok = true;
 done:

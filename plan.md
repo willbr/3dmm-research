@@ -545,8 +545,11 @@ plain C registry/node/iterator data.
 Borrowed document view lists, first-view selection/activation, title traversal and
 clipboard/file/untitled name selection now also use C89 and C-owned view storage;
 untitled counters now live in C registry/node data.
-Typed resource/track/archive/path providers, help-document argument extensions,
-display formatting/output containers, native string/display/UI representations and
+Help topic metadata, wire codecs/read/save, string expansion, object/group argument
+normalization and picture/button/group edit transactions now also use C89 and
+plain C topic data. Native help rendering and interaction remain work.
+Typed resource/track/archive/path providers, display formatting/output containers,
+native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
@@ -612,7 +615,9 @@ use C89, shared by Movie and text documents. Document registry/links, tree trave
 internal/clipboard guards, close/save decisions and document/view release sequencing
 now also use C89 and plain C registry/node/iterator data. Borrowed view storage,
 first-view selection/activation, title traversal and name selection/counters now
-also use C89 and plain C data. Help-document argument extensions, display/output
+also use C89 and plain C data. Help topic metadata, wire codecs/read/save, string
+expansion, object/group argument normalization and picture/button/group edits now
+also use C89 and plain C topic data. Help rendering/interaction, display/output
 representations, native string/display/UI representations and final host integration
 still need conversion.
 Final removal of native representations and facades remains required.

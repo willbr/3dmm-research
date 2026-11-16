@@ -10166,3 +10166,76 @@ baseline/final logs, `tmp/c89-document-views-{native,sdl-release,sdl-debug}-test
 `tmp/c89-document-views-trace-comparison.json`,
 `tmp/c89-document-views-identities.json`
 and `tmp/c89-document-views-targeted-native-errors.log`.
+
+### Help document data and editing policy (16 November 2026)
+
+`help_text.c` now owns help topic initialization, 28/36-byte wire decoding and
+encoding, plain/forest chunk read sequencing, string expansion, metadata
+publication, save/adoption rollback, object/group argument normalization,
+picture/button payload construction, grouping/query and dirty publication.
+`MMHelpTopic` replaces the stored native `Topic`; native get/set methods marshal
+the public type. Existing C property/argument and document factory policies are
+reused. Native callbacks retain physical I/O, string emission/lookup and virtual
+rich-text/undo/effect hooks. The Help editor marshals numeric dialog values into
+the C fields without aliasing native `long` pointers onto C `int` storage.
+
+The codec accepts old headers with default sound zero/nil and ignores the system
+short, as before. Foreign headers swap the first six topic words only; the sound
+tail deliberately remains unswapped. Object argument normalization publishes a
+swapped type before rejecting an unknown/truncated subtype. Extra payload bytes
+remain untouched. Grouping sorts ranges before undo and reads the name afterward;
+ordinary reserve failure releases the acquired argument and cancels undo. Query
+publication remains end, target, name, group, start; ordinary name decoding failure
+is ignored. Optional and aliased native outputs retain that ordering.
+
+Expansion marks the document internal, leaves undo suspended, wraps decimal IDs
+at 32 bits, skips inserted placeholders and warns on missing strings. Ordinary
+replacement failure continues with the cached length. Metadata publishes after
+successful reading/expansion. Save publishes the root type before allocation,
+retains partial root-number publication and deletes child before parent on failed
+adoption. Exceptions stop without added transaction rollback/error publication;
+private file/payload owners and group locks release before native rethrow. This
+cleanup intentionally fixes exceptional ownership leaks rather than claiming exact
+legacy allocator/exception equivalence.
+
+Before conversion, the headless engine fixture recorded 5,324 bytes on Native
+Debug, SDL Release and SDL Debug: FNV-1a `AD5FE208`, SHA-256
+`1864D61644B00F0F6AEA1201743F27EDC78A8E7ADBB2F6449CEDAB4FCEF72ADB`.
+It freezes text, property maps, group ranges/names/targets, picture/button payloads,
+save trees, old/full/native/foreign headers, expansion and partially normalized
+argument bytes. No window interaction or rendering is needed by this fixture.
+
+C tests exercise both byte orders and one/two-byte text, malformed headers,
+inherited argument handling, partial tag swapping, sorted/empty/ungrouped ranges,
+reference release/cancel/commit/notification failures, lock cleanup and name decode
+failure, allocated payload ownership, borrowed/private forest references, failed
+read stages, nonrecursive expansion, missing strings, ID overflow, metadata
+publication and save/delete failure ordering. Strict C89 syntax and MSVC
+AddressSanitizer checks pass.
+
+All 63 original/converted Help/view/lifecycle/undo/text/media/metadata/session/
+admission/live/camera/picking/rendering trace pairs match across the three hosts.
+Prior hashes remain unchanged. Background checks retain 301,996,032 bytes/FNV-1a
+`E1A71005` across 12 backgrounds and 188 cameras per host. All 131 standalone C
+checks, including strict C89 syntax, pass. Thirty-six selected Native checks and
+32 checks in each SDL configuration pass, including the existing Native
+playback/player regressions. The regular headless asset-preview harness passes;
+Native `chelp` and `ched` compile. Retained input identities remain unchanged after
+verification; identities for 30 binaries are recorded. Test processes use private
+temporary directories. Marcus was stopped before rebuilding and relaunched
+afterward.
+
+Retained retail captures remain the playback reference. No new capture campaign
+or Marcus UI tests were added. This is Windows x64 data/fixture evidence; Help
+bitmap/button bounds and drawing, `TopicGraphicsObject`, balloons/buttons,
+interactive Help editor behavior and other platforms remain unverified by this
+slice. Native string/display/UI representations and final C-only host/facade
+removal remain conversion work.
+
+Evidence: `tmp/c89-help-text-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-help-text-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-help-text-standalone-tests.log`,
+`tmp/c89-help-text-{views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-help-text-asan.log`, `tmp/c89-help-text-regular-tests.log`,
+`tmp/c89-help-text-tools-build.log`, `tmp/c89-help-text-trace-comparison.json`,
+`tmp/c89-help-text-identities.json` and `tmp/c89-help-text-targeted-native-errors.log`.
