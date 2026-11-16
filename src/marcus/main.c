@@ -1017,6 +1017,22 @@ static void choose_object(App *app, int actor)
                 : background_browser_show_props(app->background_browser, app->player, app->resources, app->content)))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No objects found. Choose your original 3DMM Content folder.");
 }
+static int selected_text(App *app)
+{
+    MarcusObject object;
+    return app->loaded && app->selected >= 0 && marcus_object(app->player, app->selected, &object) && object.text;
+}
+static void edit_text(App *app)
+{
+    if (!selected_text(app)) return;
+    finish_movie_scrub(app);
+    app->playing = 0;
+    release_camera(app);
+    app->sheet_menu = app->orbit_menu = 0;
+    scene_organiser_close(app->scene_organiser);
+    if (!text_dialog_edit(app->text_dialog, app->player, app->window, app->content, app->selected))
+        fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "Cannot edit this 3D text object.");
+}
 static void choose_text(App *app)
 {
     if (!app->loaded) return;
@@ -1666,6 +1682,7 @@ static void ribbon_action(App *app, int action)
     else if (action == RIBBON_NEW_PROP) choose_object(app, 0);
     else if (action == RIBBON_NEW_ACTOR) choose_object(app, 1);
     else if (action == RIBBON_NEW_TEXT) choose_text(app);
+    else if (action == RIBBON_EDIT_TEXT) edit_text(app);
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
     else if (action == RIBBON_CAMERA_GUIDES)
     {
@@ -1882,8 +1899,12 @@ static void mouse_down(App *app, float x, float y, int button)
     }
     if (button != SDL_BUTTON_LEFT || app->flying || app->orbiting || app->panning)
         return;
-    if (y < MARCUS_RIBBON_HEIGHT)
-        ribbon_action(app, ribbon_hit(x, y, app->width, &app->ribbon_tab, app->loaded, app->info.camera_count));
+    if (!storyboard_editor_visible(app->storyboard_editor) && selected_text(app) &&
+        y >= app->object_split + 8 && y < app->height - 24 &&
+        ui_inside(x, y, app->sidebar + 148, app->object_split + 66 - app->properties_scroll, 134, 28))
+        edit_text(app);
+    else if (y < MARCUS_RIBBON_HEIGHT)
+        ribbon_action(app, ribbon_hit(x, y, app->width, &app->ribbon_tab, app->loaded, app->info.camera_count, selected_text(app)));
     else if (ui_inside(x, y, LOOP_X, app->timeline_y + SCENE_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
     {
         app->muted = !app->muted;
@@ -2558,7 +2579,7 @@ static void draw_header(App *app)
     slash = strrchr(name, '\\');
     if (slash) name = slash + 1;
     ribbon_draw(&app->ui, app->width, app->ribbon_tab, name, app->loaded, app->modified, app->muted,
-                app->info.camera_count, app->shortcuts.show_cameras);
+                app->info.camera_count, app->shortcuts.show_cameras, selected_text(app));
 }
 static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *image)
 {
@@ -3012,6 +3033,7 @@ static void draw_object_properties(App *app, float offset)
     }
     ui_label(ui, app->sidebar + 18, offset + 374, 264, object.name, TEXT);
     ui_heading(ui, app->sidebar + 18, offset + 400, object.text ? "3D TEXT" : object.prop ? "PROP" : "ACTOR", ACCENT);
+    if (object.text) ui_button_sized(ui, app->sidebar + 148, offset + 392, 134, 28, "Edit 3D text", 0, 1);
     ui_line(ui, app->sidebar + 18, offset + 435, (float)app->width - 18, offset + 435, LINE);
     property(app, 450, "Visibility", object.visible ? "On stage" : "Off stage");
     ui_heading(ui, app->sidebar + 18, offset + 484, app->prop_fields && prop_gizmo_mode(app->prop_gizmo)==1 ? "ROTATION (DEGREES)" :
@@ -4483,8 +4505,9 @@ int main(int argc, char **argv)
         }
         {
             unsigned long prop;
-            int object, changed, actor;
-            object = text_dialog_take(app.text_dialog);
+            int object, changed, actor, edited;
+            edited = 0;
+            object = text_dialog_take(app.text_dialog, &edited);
             changed = object >= 0;
             actor = background_browser_take_actor(app.background_browser, &prop);
             if (actor || background_browser_take_prop(app.background_browser, &prop))
@@ -4505,8 +4528,7 @@ int main(int argc, char **argv)
                     show_object_tracks(&app);
                     scroll_objects(&app, object);
                     *sheet_scroll(&app) = object;
-                    view_mode(&app, 1);
-                    reset_view(&app);
+                    if (!edited) { view_mode(&app, 1); reset_view(&app); }
                     SDL_SetWindowTitle(app.window, app.movie[0] ? "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
                 }
                 app.dirty = app.movie_dirty = 1;

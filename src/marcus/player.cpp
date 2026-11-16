@@ -130,7 +130,7 @@ struct MarcusPlayer
     };
     std::vector<UndoState> undo;
     float inspectionRoll = 0, inspectionFov = 45;
-    std::map<std::int32_t, std::string> names;
+    std::map<std::int32_t, std::string> names, baseNames;
     char error[1024] = {};
     int selected = -1;
     unsigned long document = 0;
@@ -175,7 +175,7 @@ struct EditHistory : KeepHistory
 std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
     if (player.placements->empty() && player.frameRanges->empty() && player.edits->scenes->empty() &&
-        player.edits->props->empty() && player.edits->cameras->empty() && player.edits->shapes->empty() && player.edits->storyboards->empty()) return player.timingInput;
+        player.edits->props->empty() && player.edits->cameras->empty() && player.edits->shapes->empty() && player.edits->texts->empty() && player.edits->storyboards->empty()) return player.timingInput;
     if (player.materializedPlacements == player.placements && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
     std::vector<MarcusPropPlacement> changes;
@@ -186,6 +186,11 @@ std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
     {
         auto &change = combined[entry.first];
         change.scene = entry.first.first; change.actor = entry.first.second; change.shape = entry.second;
+    }
+    for (const auto &entry : *player.edits->texts)
+    {
+        auto &change = combined[entry.first];
+        change.scene = entry.first.first; change.actor = entry.first.second;
     }
     for (const auto &entry : combined) changes.push_back(entry.second);
     std::vector<MarcusSceneRange> ranges;
@@ -269,8 +274,20 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
             if (player.contentSourceIds.insert(prop.definition.source).second) player.boardFiles.push_back(prop.file);
             if (!player.preview.AddContent(prop.definition.source, prop.file->path.u8string(), error)) return false;
         }
+    for (const auto &entry : *player.edits->texts)
+    {
+        const auto &edit = entry.second;
+        if (player.contentSourceIds.insert(edit.source).second) player.boardFiles.push_back(edit.file);
+        if (!player.preview.AddContent(edit.source, edit.file->path.u8string(), error)) return false;
+    }
     if (!player.preview.SetDefinitions(*player.edits->scenes, PropDefinitions(*player.edits), error)) return false;
+    player.names = player.baseNames;
     for (const auto &prop : *player.edits->props) player.names[prop.definition.actorId] = prop.name;
+    for (const auto &object : player.preview.Objects())
+    {
+        const auto edit = player.edits->texts->find({player.preview.Info().asset.number, object.asset.number});
+        if (edit != player.edits->texts->end()) player.names[object.actorId] = edit->second.value.text;
+    }
     UpdateSceneRanges(player);
     return true;
 }
@@ -289,6 +306,12 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MarcusPlayer::Placem
     for (std::size_t index = 0; index < objects.size(); ++index)
     {
         const auto &object = objects[index];
+        const auto text = player.edits->texts->find({player.scenes[scene].number, object.asset.number});
+        if (text != player.edits->texts->end())
+        {
+            if (!player.preview.SetObjectTextTemplate(int(index), text->second.source, 0, error)) return false;
+            player.names[object.actorId] = text->second.value.text;
+        }
         if (!object.hasLifetime) continue;
         const auto found = placements.find({player.scenes[scene].number, object.asset.number});
         if (!player.preview.SetObjectOffset(static_cast<int>(index), found == placements.end() ? zero : found->second.data(), error))
@@ -1147,7 +1170,8 @@ extern "C"
             if (!CancelPropPreviews(player, error)) return false;
             const auto previousEdits = player->edits;
             const bool boardsChanged = previousEdits->storyboards != before.edits->storyboards;
-            const bool definitionsChanged = previousEdits->scenes != before.edits->scenes || previousEdits->props != before.edits->props || boardsChanged;
+            const bool textsChanged = previousEdits->texts != before.edits->texts;
+            const bool definitionsChanged = previousEdits->scenes != before.edits->scenes || previousEdits->props != before.edits->props || boardsChanged || textsChanged;
             const bool rangesChanged = player->frameRanges != before.frameRanges;
             player->edits = before.edits;
             player->placements = before.placements;
@@ -1169,7 +1193,7 @@ extern "C"
             }
             else
             {
-                if (boardsChanged || player->selected != before.scene || !player->preview.Info().scene ||
+                if (boardsChanged || textsChanged || player->selected != before.scene || !player->preview.Info().scene ||
                     player->preview.Info().asset.number != player->scenes[before.scene].number)
                 {
                     if (!marcus_select_scene_keep_view(player, before.scene)) { error.message = player->error; return false; }
@@ -1233,6 +1257,61 @@ extern "C"
             return InsertObject(player, std::move(prop), result, error);
         });
         return ok ? result : -1;
+    }
+    int marcus_text(MarcusPlayer *player, int object, MarcusText *text)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MM::PreviewObjectText value;
+            if (!text || !player->preview.ObjectText(object, value, error)) return false;
+            *text = {}; Copy(text->text, value.text);
+            text->font = value.font; text->font_source = value.fontSource == player->retailSource ? -1 : value.fontSource;
+            text->shape = value.shape; return true;
+        });
+    }
+    int marcus_set_text(MarcusPlayer *player, int index, const MarcusText *text)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MarcusObject object = {}; MM::PreviewObjectText before;
+            if (!text || !std::memchr(text->text, 0, sizeof(text->text)) || !marcus_object(player, index, &object) ||
+                !player->preview.ObjectText(index, before, error)) return false;
+            MarcusTextAnsi(text->text);
+            if (text->shape < 0 || text->shape >= 10) { error.message = "Choose a valid 3D text shape."; return false; }
+            const auto fontSource = text->font_source == -1 ? player->retailSource : text->font_source;
+            const bool sameFont = fontSource == before.fontSource && text->font == before.font;
+            if (!sameFont)
+            {
+                if (fontSource != player->retailSource) { error.message = "Choose an original 3D font or keep this text's current font."; return false; }
+                if (!EnsureRetailContent(*player, error)) return false;
+                if ((player->fonts.empty() || player->fontCatalogDirectory != player->timingContent) &&
+                    ReadCatalogue(player, player->timingContent.c_str(), 2) < 0) { error.message = player->error; return false; }
+                if (std::none_of(player->fonts.begin(), player->fonts.end(), [&](const auto &entry) { return entry.chunk == text->font; }))
+                { error.message = "The selected 3D font is unavailable."; return false; }
+            }
+            if (sameFont && before.text == text->text && before.shape == text->shape) return true;
+            if (!CancelPropPreviews(player, error)) return false;
+            while (player->nextBoardSource > 2 && (player->contentSourceIds.count(player->nextBoardSource) || player->nextBoardSource == player->retailSource)) --player->nextBoardSource;
+            if (player->nextBoardSource <= 2) { error.message = "No text source IDs are available."; return false; }
+            MarcusTextEdit change;
+            change.value = {text->text, fontSource, text->shape, static_cast<std::uint32_t>(text->font)};
+            change.retailFont = fontSource == player->retailSource;
+            change.file = MarcusCreateTextTemplate(text->text, text->font, fontSource, text->shape);
+            change.source = player->nextBoardSource--;
+            auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
+            auto texts = std::make_shared<MarcusLiveEdits::Texts>(*edits->texts);
+            (*texts)[{player->scenes[player->selected].number, object.chunk}] = change;
+            edits->texts = texts; edits->revision = player->nextEditRevision++;
+            EditHistory history(*player);
+            const auto previous = player->edits;
+            player->edits = edits;
+            if (!ApplyDefinitions(*player, error) || !ApplyPlacements(*player, player->selected, *player->placements, error))
+            {
+                player->edits = previous;
+                MM::Error ignored; ApplyDefinitions(*player, ignored);
+                return false;
+            }
+            player->animations.clear(); ++player->document; player->movieImageScene = -1;
+            history.Commit(); return true;
+        });
     }
     unsigned long marcus_document(const MarcusPlayer *player) { return player ? player->document : 0; }
     int marcus_object_shape(MarcusPlayer *player, int object, MarcusObjectShape *shape, float left[9], float right[9])
@@ -1732,6 +1811,7 @@ extern "C"
             player->sceneInfo.swap(sceneInfo);
             player->baseSceneInfo = player->sceneInfo;
             player->names.swap(names);
+            player->baseNames = player->names;
             for (const auto &entry : *player->edits->storyboards)
             {
                 const auto &resource = entry.second;

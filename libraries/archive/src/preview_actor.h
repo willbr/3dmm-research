@@ -47,6 +47,8 @@ class PreviewActor
     bool SetShape(const PreviewObjectShape &);
     void Shape(PreviewObjectShape &, float left[9], float right[9]) const;
     PreviewObject Snapshot() const;
+    bool Text(PreviewObjectText &) const;
+    bool SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate);
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
     bool Visible() const
     {

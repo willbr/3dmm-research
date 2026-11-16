@@ -470,6 +470,78 @@ std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsi
         "Cannot create the 3D text template.");
     return result;
 }
+static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTextEdit &edit)
+{
+    String path; Filename filename;
+    path.SetSzs(const_cast<char *>(edit.file->path.u8string().c_str()));
+    Require(filename.FBuildFromPath(&path), "Invalid edited text template path.");
+    std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
+    ChunkNumber textTemplate;
+    Require(source && source->FCopy(kctgTmpl, 0, file, &textTemplate), "Cannot embed the edited text template.");
+    ChunkIdentification root;
+    const bool hadRoot = file->FGetCkiCtg(kctgMvie, 0, &root);
+    if (!hadRoot)
+    {
+        root.ctg = kctgMvie;
+        Require(MovieData::FCreateRoot(file, &root.cno), "Cannot create the edited movie header.");
+        ChunkIdentification scene;
+        for (LegacyLong i = 0; file->FGetCkiCtg(kctgScen, i, &scene); ++i)
+            Require(file->FAdoptChild(kctgMvie, root.cno, kctgScen, scene.cno, i), "Cannot retain the edited movie's scenes.");
+    }
+    const auto retail = RetailSource(file, root.cno, hadRoot ? 2 : 1);
+    DataBlock block; ChildChunkIdentification child;
+    if (edit.retailFont)
+    {
+        std::int32_t fontSource = retail;
+        Require(file->FGetKidChidCtg(kctgTmpl, textTemplate, 0, kctgTdt, &child) &&
+            file->FFind(kctgTdt, child.cki.cno, &block) && block.FUnpackData() &&
+            block.FWriteRgb(&fontSource, sizeof(fontSource), 8), "Cannot write the edited text's font reference.");
+    }
+    ActorChunkOnFile header;
+    Require(file->FFind(kctgActr, actorNumber, &block) && ActorData::FReadHeader(&block, &header), "Cannot read the edited text actor.");
+    header.tagTmpl = {0, 0, kctgTmpl, textTemplate};
+    Require(ActorData::FWriteHeader(file, actorNumber, &header), "Cannot write the edited text actor.");
+    if (file->FGetKidChidCtg(kctgActr, actorNumber, 0, kctgTmpl, &child))
+        file->DeleteChild(kctgActr, actorNumber, kctgTmpl, child.cki.cno, 0);
+    Require(file->FAdoptChild(kctgActr, actorNumber, kctgTmpl, textTemplate, 0), "Cannot link the edited text template.");
+    std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
+    Require(bool(roll), "Cannot create the edited movie roll call.");
+    ChildChunkIdentification rollChild;
+    const bool hadRoll = file->FGetKidChidCtg(kctgMvie, root.cno, 0, kctgGst, &rollChild);
+    bool named = false;
+    String name;
+    const auto ansi = MarcusTextAnsi(edit.value.text.c_str());
+    name.SetSzs(const_cast<char *>(ansi.c_str()));
+    if (hadRoll)
+    {
+        int big;
+        Require(file->FFind(kctgGst, rollChild.cki.cno, &block), "Cannot read the movie roll call.");
+        std::unique_ptr<RollCallTable, Release> wire(RollCallTable::Read(&block, &big));
+        Require(wire && wire->CbExtra() == MM_MOVIE_ACTOR_BYTES, "Invalid movie roll call.");
+        for (LegacyLong i = 0; i < wire->IvMac(); ++i)
+        {
+            unsigned char bytes[MM_MOVIE_ACTOR_BYTES]; MMMemoryStream memory; MMMovieActor actor;
+            Require(mm_rollcall_table_extra(&wire->storage, i, bytes) && mm_memory_stream_init(&memory, bytes, sizeof(bytes)) &&
+                mm_movie_read_actor(&memory.stream, big, &actor, nullptr) == MM_MOVIE_OK, "Cannot decode an existing object name.");
+            RollCallActorEntry entry = {};
+            entry.arid = actor.actor_id; entry.cactRef = actor.reference_count; entry.grfbrws = actor.browser_flags;
+            entry.tagTmpl = {actor.source_id, nullptr, actor.template_type, actor.template_number};
+            String existingName; wire->GetStn(i, &existingName);
+            if (entry.arid == header.arid)
+            { entry.tagTmpl = {0, nullptr, kctgTmpl, textTemplate}; entry.grfbrws = 2; existingName = name; named = true; }
+            Require(roll->FAddStn(&existingName, &entry), "Cannot retain an existing object name.");
+        }
+    }
+    if (!named)
+    {
+        RollCallActorEntry entry = {};
+        entry.arid = header.arid; entry.cactRef = 1; entry.grfbrws = 2; entry.tagTmpl = {0, nullptr, kctgTmpl, textTemplate};
+        Require(roll->FAddStn(&name, &entry), "Cannot name the edited text.");
+    }
+    if (hadRoll) file->DeleteChild(kctgMvie, root.cno, kctgGst, rollChild.cki.cno, 0);
+    ChunkNumber rollNumber;
+    Require(MovieData::FWriteRollCall(file, root.cno, roll.get(), &rollNumber), "Cannot write the edited movie roll call.");
+}
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,
     const std::vector<MarcusSceneRange> &ranges, const MarcusLiveEdits &edits, const std::filesystem::path &templates)
@@ -532,6 +604,8 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
                 "Cannot write the object placement.");
         for (LegacyLong index = 0; file->FGetKid(kctgActr, actor, index, &child); ++index)
             Require(file->FAdoptChild(kctgActr, number, child.cki.ctg, child.cki.cno, child.chid), "Cannot retain the object animation.");
+        const auto text = edits.texts->find({scene, actor});
+        if (text != edits.texts->end()) ApplyText(file.get(), number, text->second);
         ApplyShape(file.get(),number,placement.shape);
         file->DeleteChild(kctgScen, scene, kctgActr, actor, link.chid);
         Require(file->FAdoptChild(kctgScen, scene, kctgActr, number, link.chid), "Cannot link the moved object.");

@@ -84,6 +84,12 @@ struct PreviewObject
     bool prop = false, text = false, visible = false, hasLifetime = false;
     float x = 0, y = 0, z = 0;
 };
+struct PreviewObjectText
+{
+    std::string text;
+    std::int32_t fontSource = 0, shape = 0;
+    std::uint32_t font = 0;
+};
 // Flat live-edit definitions; native snapshots can be generated on demand.
 struct PreviewSceneDefinition
 {
@@ -238,6 +244,9 @@ class Preview
     bool Select(Id asset, Error &error, bool preserveFraming = false);
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
+    bool ObjectText(int object, PreviewObjectText &, Error &) const;
+    // Change only this instance's text template, retaining its authored track.
+    bool SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &);
     // Current posed bounds in actor-local axes, transformed with the actor.
     // An off-stage actor succeeds with invalid bounds.
     // Temporary, silent whole-track translation of an actor, prop or 3D text.

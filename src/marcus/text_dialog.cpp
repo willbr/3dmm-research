@@ -23,12 +23,14 @@ size_t Next(const std::string &text, size_t at)
 struct MarcusTextDialog
 {
     bool open = false, selectAll = true;
-    int font = 0, shape = 0, focus = 0, chosen = -1;
+    int font = 0, shape = 0, focus = 0, chosen = -1, object = -1;
+    unsigned long document = 0;
     size_t cursor = 4;
     MarcusPlayer *player = nullptr;
     SDL_Window *window = nullptr;
     std::string text = "Text", error;
     std::vector<MarcusProp> fonts;
+    std::vector<long> fontSources;
     void Close() { open = false; if (window) SDL_StopTextInput(window); }
     void Focus(int field)
     {
@@ -46,6 +48,16 @@ struct MarcusTextDialog
     }
     void Add()
     {
+        if (object >= 0)
+        {
+            if (document != marcus_document(player)) { error = "The movie changed. Close and reopen the text editor."; return; }
+            MarcusText value = {};
+            SDL_strlcpy(value.text, text.c_str(), sizeof(value.text));
+            value.font = fonts[font].chunk; value.font_source = fontSources[font]; value.shape = shape;
+            if (!marcus_set_text(player, object, &value)) { error = marcus_error(player); return; }
+            chosen = marcus_document(player) != document ? object : -1;
+            Close(); return;
+        }
         chosen = marcus_add_text(player, text.c_str(), fonts[font].chunk, shape);
         if (chosen >= 0) Close(); else error = marcus_error(player);
     }
@@ -54,24 +66,46 @@ extern "C" {
 MarcusTextDialog *text_dialog_create(void) { try { return new MarcusTextDialog; } catch (...) { return nullptr; } }
 void text_dialog_destroy(MarcusTextDialog *dialog) { if (dialog && dialog->open) dialog->Close(); delete dialog; }
 int text_dialog_visible(const MarcusTextDialog *dialog) { return dialog && dialog->open; }
-int text_dialog_show(MarcusTextDialog *dialog, MarcusPlayer *player, SDL_Window *window, const char *content)
+static int Show(MarcusTextDialog *dialog, MarcusPlayer *player, SDL_Window *window, const char *content, int object)
 {
     if (!dialog || !window) return 0;
+    MarcusText current = {};
+    if (object >= 0 && !marcus_text(player, object, &current)) return 0;
     const int count = marcus_font_count(player, content);
-    if (count <= 0) return 0;
+    if (count <= 0 && object < 0) return 0;
     dialog->fonts.clear();
+    dialog->fontSources.clear();
     for (int i = 0; i < count; ++i)
     {
         MarcusProp font = {};
-        if (marcus_font(player, i, &font)) dialog->fonts.push_back(font);
+        if (marcus_font(player, i, &font)) { dialog->fonts.push_back(font); dialog->fontSources.push_back(-1); }
+    }
+    if (object >= 0)
+    {
+        dialog->text = current.text; dialog->shape = current.shape;
+        const auto found = std::find_if(dialog->fonts.begin(), dialog->fonts.end(), [&](const auto &font) {
+            return current.font_source == -1 && font.chunk == current.font;
+        });
+        if (found != dialog->fonts.end()) dialog->font = int(found - dialog->fonts.begin());
+        else
+        {
+            MarcusProp font = {}; font.chunk = current.font;
+            SDL_strlcpy(font.name, "Current font", sizeof(font.name));
+            dialog->font = int(dialog->fonts.size()); dialog->fonts.push_back(font); dialog->fontSources.push_back(current.font_source);
+        }
     }
     if (dialog->fonts.empty()) return 0;
     dialog->font = std::clamp(dialog->font, 0, int(dialog->fonts.size()) - 1);
     dialog->chosen = -1; dialog->player = player; dialog->window = window;
+    dialog->object = object; dialog->document = marcus_document(player);
     dialog->error.clear(); dialog->open = dialog->selectAll = true;
     dialog->cursor = dialog->text.size(); dialog->Focus(0);
     return 1;
 }
+int text_dialog_show(MarcusTextDialog *dialog, MarcusPlayer *player, SDL_Window *window, const char *content)
+{ return Show(dialog, player, window, content, -1); }
+int text_dialog_edit(MarcusTextDialog *dialog, MarcusPlayer *player, SDL_Window *window, const char *content, int object)
+{ return object >= 0 && Show(dialog, player, window, content, object); }
 int text_dialog_event(MarcusTextDialog *d, const SDL_Event *event, int width, int height)
 {
     if (!text_dialog_visible(d)) return 0;
@@ -148,7 +182,7 @@ void text_dialog_draw(MarcusTextDialog *d, MarcusUI *ui, int width, int height)
     ui_fill(ui, 0, 0, float(width), float(height), 0x121519);
     ui_fill(ui, x - 1, y - 1, 762, 422, 0x5b6570);
     ui_fill(ui, x, y, 760, 420, 0x25282d);
-    ui_heading(ui, x + 24, y + 22, "NEW 3D TEXT", 0x78cbc4);
+    ui_heading(ui, x + 24, y + 22, d->object >= 0 ? "EDIT 3D TEXT" : "NEW 3D TEXT", 0x78cbc4);
     ui_button(ui, x + 704, y + 18, 32, "x", 0, 1);
     char count[96]; SDL_snprintf(count, sizeof(count), "Text / %d of 50 characters", int(SDL_utf8strlen(d->text.c_str())));
     ui_text(ui, x + 24, y + 66, count, 0xdde0e5);
@@ -166,15 +200,18 @@ void text_dialog_draw(MarcusTextDialog *d, MarcusUI *ui, int width, int height)
         ui_label(ui, x + 190, top + 8, 488, field == 1 ? d->fonts[d->font].name : shapes[d->shape], 0xdde0e5);
         ui_button_sized(ui, x + 698, top, 38, 32, ">", d->focus == field, 1);
     }
-    ui_text(ui, x + 24, y + 288, "Inserted at this frame using the camera's next insertion point.", 0x969da8);
+    ui_text(ui, x + 24, y + 288, d->object >= 0 ? "Updates this object, keeping its placement and animation." :
+        "Inserted at this frame using the camera's next insertion point.", 0x969da8);
     ui_label(ui, x + 24, y + 324, 712, d->error.c_str(), 0xe4a1a1);
-    ui_text(ui, x + 24, y + 376, "Tab to switch / Arrows to choose / Enter to add", 0x969da8);
+    ui_text(ui, x + 24, y + 376, d->object >= 0 ? "Tab to switch / Arrows to choose / Enter to save" :
+        "Tab to switch / Arrows to choose / Enter to add", 0x969da8);
     ui_button_sized(ui, x + 508, y + 366, 92, 30, "Cancel", 0, 1);
-    ui_button_sized(ui, x + 612, y + 366, 124, 30, "Add 3D text", 1, 1);
+    ui_button_sized(ui, x + 612, y + 366, 124, 30, d->object >= 0 ? "Save changes" : "Add 3D text", 1, 1);
 }
-int text_dialog_take(MarcusTextDialog *d)
+int text_dialog_take(MarcusTextDialog *d, int *edited)
 {
     if (!d) return -1;
+    if (edited) *edited = d->object >= 0 && d->chosen >= 0;
     const int chosen = d->chosen; d->chosen = -1; return chosen;
 }
 }

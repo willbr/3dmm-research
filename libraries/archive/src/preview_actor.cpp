@@ -6,6 +6,7 @@
 #include <locale>
 #include <map>
 #include <sstream>
+#include <memory>
 #include "preview_actor.h"
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
@@ -79,6 +80,50 @@ PreviewObject PreviewActor::Snapshot() const
     object.y = BrScalarToFloat(BrsAdd(core.state.routeTranslation.dyr, core.state.position.dyr));
     object.z = BrScalarToFloat(BrsAdd(core.state.routeTranslation.dzr, core.state.position.dzr));
     return object;
+}
+bool PreviewActor::Text(PreviewObjectText &out) const
+{
+    if (!tmpl || !tmpl->FIsTdt()) return false;
+    String text; LegacyLong shape; TAG font;
+    static_cast<PThreeDText>(tmpl)->GetInfo(&text, &shape, &font);
+    const auto count = KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi, nullptr, 0);
+    if (text.Cch() && !count) return false;
+    std::vector<std::uint16_t> units(count);
+    if (count && KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi,
+        units.data(), count) != count) return false;
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
+    out.text = convert.to_bytes(std::u16string(units.begin(), units.end())); out.shape = shape; out.fontSource = font.sid; out.font = font.cno;
+    return true;
+}
+bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate)
+{
+    if (!tmpl || !tmpl->FIsTdt() || !body) return false;
+    if (core.header.source_id == source && core.header.template_number == number) return true;
+    const TAGOnFile tag = {source, 0, kctgTmpl, number};
+    auto file = resolve(tag);
+    if (!file) return false;
+    const auto release = [](auto *p) { if (p) p->Release(); };
+    std::unique_ptr<Template, decltype(release)> next(static_cast<PTemplate>(file->PbacoFetch(kctgTmpl, number, Template::FReadTmpl)), release);
+    if (!next || !next->FIsTdt()) return false;
+    bindTemplate(next.get());
+    // Match retail's FChangeTagTmpl: adjust a body with its current materials,
+    // then reselect its action/cel. Work on a duplicate for atomic failure.
+    std::unique_ptr<Body, decltype(release)> nextBody(body->PbodyDup(), release);
+    if (!nextBody || !static_cast<PThreeDText>(next.get())->FAdjustBody(nextBody.get())) return false;
+    const auto saved = core;
+    auto oldTemplate = tmpl; auto oldBody = body;
+    tmpl = next.get(); body = nextBody.get(); core.tmpl = tmpl; core.body = body;
+    core.header.source_id = source; core.header.template_number = number;
+    try
+    {
+        Host host = {this}; auto services = host.Services();
+        if (!host.Result(mm_preview_actor_position(&core, 1, &services)))
+        { core = saved; tmpl = oldTemplate; body = oldBody; return false; }
+    }
+    catch (...) { core = saved; tmpl = oldTemplate; body = oldBody; throw; }
+    next.release(); nextBody.release();
+    oldBody->Release(); oldTemplate->Release();
+    return true;
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {

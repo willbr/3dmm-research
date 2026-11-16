@@ -29,6 +29,7 @@ static const RibbonTool sound_tools[] = {
     {RIBBON_RESET_MIX, 7, "Reset mix", "Reset sound track mute and solo choices", 0xaeb6c0}};
 static const RibbonTool word_tools[] = {
     {RIBBON_NEW_TEXT, 12, "New 3D text", "Create 3D text using an original font and shape", 0xb3a4d6},
+    {RIBBON_EDIT_TEXT, 8, "Edit 3D text", "Edit the selected text's wording, font and shape", 0x78cbc4},
     {RIBBON_WORDS, 8, "3D words", "Select the next 3D text object", 0xe9bc75},
     {RIBBON_OBJECTS, 4, "Objects", "Show object tracks and properties", 0x78cbc4}};
 static const RibbonTool *tools_for(int tab, int *count)
@@ -148,7 +149,7 @@ static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
     }
 }
 void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded, int modified, int muted,
-                 unsigned long cameras, int show_cameras)
+                 unsigned long cameras, int show_cameras, int selected_text)
 {
     static const char *tabs[] = {"SCENES", "ACTORS & PROPS", "SOUNDS", "WORDS"};
     static const float tab_x[] = {16, 148, 336, 468}, tab_w[] = {124, 180, 124, 124};
@@ -180,7 +181,8 @@ void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded,
     for (index = 0; index < count; ++index)
     {
         x = 16 + index * step;
-        enabled = (loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE || tools[index].action == RIBBON_STORYBOARD;
+        enabled = (loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0) &&
+                   (tools[index].action != RIBBON_EDIT_TEXT || selected_text)) || tools[index].action == RIBBON_NEW_SCENE || tools[index].action == RIBBON_STORYBOARD;
         hovered = enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, 78, step - 8, 58);
         active = (tools[index].action == RIBBON_MUTE && muted) ||
                  (tools[index].action == RIBBON_CAMERA_GUIDES && show_cameras);
@@ -198,7 +200,7 @@ void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded,
     ui_text(ui, (float)width - 238, 120, "Original 3DMM content", 0x969da8);
     ui_line(ui, 0, MARCUS_RIBBON_HEIGHT, (float)width, MARCUS_RIBBON_HEIGHT, 0x424952);
 }
-int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long cameras)
+int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long cameras, int selected_text)
 {
     static const float tab_x[] = {16, 148, 336, 468}, tab_w[] = {124, 180, 124, 124};
     const RibbonTool *tools;
@@ -215,7 +217,8 @@ int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long 
     tools = tools_for(*tab, &count);
     step = tool_step(width, count);
     for (index = 0; index < count; ++index)
-        if (((loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE || tools[index].action == RIBBON_STORYBOARD) &&
+        if (((loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0) &&
+              (tools[index].action != RIBBON_EDIT_TEXT || selected_text)) || tools[index].action == RIBBON_NEW_SCENE || tools[index].action == RIBBON_STORYBOARD) &&
             ui_inside(x, y, 16 + index * step, 78, step - 8, 58))
             return tools[index].action;
     return RIBBON_NONE;

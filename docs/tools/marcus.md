@@ -310,6 +310,15 @@ stays in the dialog with an explanation. Creating text uses the native ThreeDTex
 engine; its generated template is embedded in the saved movie and its font
 continues to reference original retail content.
 
+To edit existing 3D text, select it and choose **Edit 3D text** in its object
+properties or the **Words** ribbon. This reuses the creation dialog, prefilled
+with that object's wording, font and shape. **Save changes** updates the existing
+object and keeps its placement, rotation, scale, entrance and animation track.
+Cancel/Escape leaves it unchanged. The edit is one undo step; saving unchanged
+settings adds no undo entry. Text reopened from native movies is editable too.
+The current imported font is retained unless a different font is selected.
+Saved copies embed the replacement template while retaining the object's track.
+
 Actors, props and 3D text appear at the current frame, at the active background
 camera's next insertion point, and remain through the scene's last frame.
 Insertions cycle through the default point and any extra points in retail order,

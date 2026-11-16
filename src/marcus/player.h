@@ -266,6 +266,17 @@ extern "C"
     int marcus_font_count(MarcusPlayer *player, const char *content_directory);
     int marcus_font(const MarcusPlayer *player, int index, MarcusProp *font);
     int marcus_add_text(MarcusPlayer *player, const char *text, unsigned long font, int shape);
+    typedef struct MarcusText
+    {
+        char text[201]; /* UTF-8, at most fifty Windows-ANSI characters. */
+        unsigned long font;
+        long font_source; /* -1 selects original retail content; other IDs retain imported fonts. */
+        int shape;
+    } MarcusText;
+    int marcus_text(MarcusPlayer *player, int object, MarcusText *text);
+    /* Change this existing object; keep its placement, transforms and track.
+     * Successful changes are one undo step; identical values are a no-op. */
+    int marcus_set_text(MarcusPlayer *player, int object, const MarcusText *text);
     /* Silent live preview; restore the original position to cancel. No file write.
      * Seeking, playback or scene replacement also cancels the preview.
      * Visible actors, props and 3D text are movable. Position is limited to +/-32700. */

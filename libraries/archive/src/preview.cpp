@@ -259,6 +259,19 @@ std::vector<PreviewObject> Preview::Objects() const
             result.push_back(actor->Snapshot());
     return result;
 }
+bool Preview::ObjectText(int object, PreviewObjectText &text, Error &error) const
+{
+    error = {};
+    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Text(text)) ||
+        Fail(error, ErrorCode::invalid_argument, "Select a 3D text object first.");
+}
+bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &error)
+{
+    error = {};
+    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() &&
+        _impl->actors[object]->SetTextTemplate(source, number, [this](PTemplate value) { _impl->BindTemplate(value); })) ||
+        Fail(error, ErrorCode::decode_failed, "Cannot change this 3D text template.");
+}
 bool Preview::ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error)
 try
 {
