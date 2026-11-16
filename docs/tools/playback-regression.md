@@ -11470,3 +11470,93 @@ Evidence: `tmp/c89-object-graph-{baseline,final}-{native,sdl-release,sdl-debug}.
 `tmp/c89-object-graph-regular-tests.log`,
 `tmp/c89-object-graph-trace-comparison.json` and
 `tmp/c89-object-graph-identities.json`.
+
+### Shared C fixed-memory diagnostic graph, relocation and marking (16 November 2026)
+
+`memory_debug.c` now owns persistent allocation heads, doubly linked records,
+source/line/total/thread/stack metadata, marks, magic values and footer policy.
+Native headers retain their aligned size/profile; fields live directly in C
+storage. C89 controls allocation publication, relocation, unlinking, header/footer
+and claimed-size validation, expensive/suspended modes, marking and mark/report
+scans. Native callbacks supply heap capacity, pointer checks, recursive locking,
+thread IDs, stack capture and diagnostic formatting. The graph owns links, while
+the fixed allocator owns storage. Source strings and the suspend counter are
+borrowed. Callbacks cannot unwind or destroy/move records during traversal;
+relocation/publication requires caller serialization with graph mutation.
+
+Creation preserves the allocator's cleared or poisoned marks. Scans query the
+thread before locking, run newest first and filter by allocation owner. Reporting
+does not mark records, and callbacks can mark later records before they are
+visited. Marking has no thread filter. Footer copies support unaligned addresses;
+these private headers never reach stored movie formats.
+
+Resize preparation captures a typed pointer representation while the original
+block is live. Relocation compares captured address bytes without reconstructing
+or dereferencing an invalidated pointer. Moved records unlink/relink at the head.
+Unchanged-address success republishes fresh head/neighbour aliases under the
+mutex without changing list position: an in-place realloc also invalidates old
+pointer values. The host profile requires byte-token matching of pointer
+representations; neither token is an address to dereference.
+
+At revision `266abc2f`, the new headless `memory-graph-runtime` fixture captured
+native block sizes/marks and heap capacity, cleared/poisoned creation, allocation
+order, marking, repeated lost scans, callback marking, grow/shrink/zero resize,
+header/footer/claimed-size diagnostics, suspension, cross-thread ownership and
+foreign marking, and freeing all records. `memory-graph-expensive` compiles the
+same fixture and allocator facade with expensive validation while linking the
+existing shared core. All normal host caches have expensive checks disabled.
+SDL Release disables native diagnostics in both profiles; its C suite still
+exercises the full diagnostic policy.
+
+Resize traversal order depends on physical allocator movement. The fixture
+asserts the actual order against the observed address change, then sorts those
+reports for capture comparison. Other reports preserve traversal order. Captures
+exclude raw addresses, native thread IDs and implementation source lines; they
+compare retained source labels/lines, messages, diagnostic payload widths,
+initial marks and logical/physical sizes.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, normal | 3,868 | `7A3B1575` | `A30B75633A6A7F52818FEC8B96DB993BBC2C699C44BC955DFF2A93CC655A107E` |
+| Native/SDL Debug, expensive | 4,084 | `CBD39F37` | `8C13154D80AAD5107D1C06BC51ABC7D31DDA02979A5A07E0442DD716FA3D5BAC` |
+| SDL Release, both profiles | 12 | `E23C62B5` | `15EC7BF0B50732B49F8228E07D24365338F9E3AB994B00AF08E5A3BFFE55FD8B` |
+
+`engine-memory-debug` integrates diagnostics with C fixed transactions and forces
+moved, unchanged-address and failed resizes. Old storage is freed before moved
+link repair; unchanged-address tests poison external head/neighbour aliases and
+require fresh publication without reordering. Checks cover metadata/mark/stack
+retention, preservation on failure, source and ownership, scan/callback/lock order,
+expensive/suspended validation, footer/claimed-size errors, C mark wrap, and full
+poisoning before release. The suite passes MSVC AddressSanitizer. Defined C wrap
+is specified separately from native overflow equivalence.
+
+The wider gate passes 217 Native checks, 212 SDL Release checks, 213 SDL Debug
+checks and all 150 standalone checks, including strict C89 syntax: 792 of 793
+selected checks pass. The sole declared skip remains the existing SDL Release
+`world-export` Debug fixture. All 147 retained memory-graph/object/heap/error/
+string/text/cache/template/body/undo/Help/Preview trace pairs match. All ten input
+identities are unchanged; identities for 110 binaries are recorded. Windows text
+settings remain ACP 1252, OEMCP 437 and locale `en-GB`/2057.
+
+The regular headless asset-preview harness passes. Backgrounds retain 301,996,032
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. Native
+`chelp` and `ched` compile. Marcus was stopped through rebuilding and resource
+regeneration, then relaunched. Test processes use private temporary directories.
+No Marcus UI tests or new retail capture campaign were added; retained retail
+captures remain the playback reference.
+
+This is Windows x64 fixture evidence, with additional C fault-provider checks.
+Arbitrary simultaneous graph mutation/relocation, callback-driven record deletion,
+invalid pointer lifetimes or corrupt native addresses, native mark/counter
+overflow, 32-bit diagnostic stacks and other pointer representations/platforms
+remain unverified. Readable C metadata errors and defined C wrap do not establish
+native equivalence for invalid lifetimes or overflow. HQ handle policy,
+BaseLinkedList attachment, virtual destruction and final C-only host/facade
+integration remain conversion work; this does not finish the backend migration.
+
+Evidence: `tmp/c89-memory-graph-{baseline,final}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-memory-graph-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-memory-graph-standalone-tests.log`, `tmp/c89-memory-debug-asan.log`,
+`tmp/c89-memory-graph-regular-tests.log`,
+`tmp/c89-memory-graph-trace-comparison.json` and
+`tmp/c89-memory-graph-identities.json`.

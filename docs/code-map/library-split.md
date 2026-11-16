@@ -331,8 +331,8 @@ growth, footer handling, pointer/stat publication and default libc services.
 `engine-error-stack` checks both layouts, source/line retention, warning/lock
 order, duplicate/overflow/flush/pop and underflow publication. Native
 `memory-runtime` compares original allocation/error/counter observations through
-`MM_MEMORY_RUNTIME_SNAPSHOT`. Fixed-memory debug block-list ownership/mark scans
-and final facade integration remain C++ conversion work.
+`MM_MEMORY_RUNTIME_SNAPSHOT`. Fixed-memory diagnostic graphs now use the C service
+below; HQ handle policy and final facade integration remain conversion work.
 
 ### Raw heap and object allocation
 
@@ -362,9 +362,9 @@ complete-block poisoning before release. Both are strict C89 tests. The headless
 `heap-object-runtime` fixture captures native heap alignment, sizes, payloads,
 raw and constructed BASE allocations, reference/deletion behavior, diagnostics
 and counter observations via `MM_HEAP_OBJECT_SNAPSHOT`. Native/SDL Debug and SDL
-Release traces match their respective original implementations. Fixed-memory
-diagnostic graphs, virtual destruction and final C-only facade integration remain
-conversion work. BASE diagnostics now use the C graph below. Defined C prefix-
+Release traces match their respective original implementations. HQ handle policy,
+virtual destruction and final C-only facade integration remain conversion work.
+BASE and fixed-memory diagnostics use the C graphs below. Defined C prefix-
 overflow/null-free handling does not establish native equivalence for previously
 invalid inputs.
 
@@ -400,8 +400,48 @@ and readable metadata failures. Defined C mark wrap is checked independently of
 native signed-overflow equivalence. The headless `object-graph-runtime` fixture
 captures original public-API behavior through `MM_OBJECT_GRAPH_SNAPSHOT`, including
 out-of-order raw attachment and failed C++ constructor cleanup. Original traces
-match Native/SDL Debug and SDL Release. Fixed-memory debug graphs, BaseLinkedList
-attachment, virtual destruction and final C-only host integration remain work.
+match Native/SDL Debug and SDL Release. HQ handle policy, BaseLinkedList attachment,
+virtual destruction and final C-only host integration remain work.
+
+### Fixed-memory diagnostic graph
+
+`mm/memory_debug.h` owns the persistent allocation head, doubly linked records,
+source/line/total/thread/stack metadata, marks, magic values and footer policy.
+Native wrappers supply the aligned header profile and stack capture; records live
+directly in C storage rather than being copied through native read/write hooks.
+Creation retains the allocator's cleared or poisoned marks. The graph owns links;
+the fixed allocator owns storage. Source strings and the suspend counter are
+borrowed, with explicit context initialization and lifetime constraints.
+
+C89 controls link/unlink, resize preparation/publication, header/footer and
+claimed-size checks, expensive/suspended validation, marking and mark/report scans.
+Scans query the current thread before locking, visit newest first and filter by
+allocation owner. Reporting does not mark records; callbacks may mark later
+records. Marking has no thread filter. Native hooks supply recursive mutexes,
+pointer checks, heap capacity, diagnostics and legacy extra diagnostic groups.
+Callbacks cannot unwind or destroy/move traversed records. Storage relocation and
+publication require caller serialization with graph mutations.
+
+Resize preparation captures a typed pointer representation before realloc. After
+success, C compares address tokens as bytes without reconstructing or dereferencing
+an invalidated pointer. Moved records unlink/relink at the head. Successful
+unchanged-address resize republishes fresh head/neighbour aliases under the lock
+without reordering: even in-place realloc invalidates the old pointer values.
+Pointer representations must support byte-token matching for this host profile.
+Footer copies handle unaligned addresses; diagnostic headers never reach movies.
+
+`engine-memory-debug` integrates the diagnostic graph with fixed transactions,
+forcing moved, unchanged-address and failed resizes. It frees old storage before
+repair, poisons external aliases for the unchanged-address case, verifies list
+order and metadata/mark retention, and checks suspension, footer/size errors,
+thread filtering and release poisoning. The headless `memory-graph-runtime` and
+`memory-graph-expensive` fixtures compare original native metadata, diagnostics,
+scans and lifetime behavior through `MM_MEMORY_GRAPH_SNAPSHOT`. The latter compiles
+only the allocator facade with expensive checks, leaving the shared core unchanged.
+Allocator-dependent resize report order is asserted against observed movement,
+then sorted for capture comparison. Native/SDL Debug exercise both profiles; SDL
+Release disables native diagnostics but runs the C policy tests. HQ handle policy,
+BaseLinkedList attachment and final C-only facade integration remain work.
 
 ### Collection storage foundation
 

@@ -43,7 +43,7 @@ which side each file lives on.
 | `utilstr.cpp`     | core       | `String` (Pascal-style 2-byte-length, kauai's string class).  |
 | `utilint.cpp`     | core       | Fixed-point arithmetic, integer math.                         |
 | `utilrnd.cpp`     | core       | RNG.                                                          |
-| `utilmem.cpp`     | core       | Fixed-memory C facade, native heap/debug-header/list providers. |
+| `utilmem.cpp`     | core       | Fixed-memory transaction/debug-graph C facades; native alignment, stack, heap, lock and diagnostic providers. |
 | `utilglob.cpp`    | core       | Global symbol / class registry, RTCLASS.                      |
 | `utilerro.cpp`    | core       | C-owned error-stack facade, native mutex/reporting providers.   |
 | `base.cpp`        | core       | `BASE` facade over C reference/allocation/debug-graph policy; native diagnostic/virtual dispatch providers and BaseLinkedList attachment. |

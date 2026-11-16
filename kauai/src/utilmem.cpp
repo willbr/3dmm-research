@@ -13,49 +13,41 @@
     non-resizeable) memory management. Raw storage uses the portable
     core_platform allocator. Fixed allocation/resize/free transactions,
     failure injection, counters and liberation control use mm/memory.h;
-    native debug headers, lists and physical heap services remain here.
+    diagnostic graph/header/mark policy uses mm/memory_debug.h; native alignment,
+    stack capture, locking and diagnostic services remain here.
 ***************************************************************************/
 #include "win_headers.h"
 #include "util.h"
-#include <cstring>
+#include "mm/memory_debug.h"
 ASSERTNAME
 
 #ifdef DEBUG
 const LegacyLong kclwStackMbh = 5;
 
-// memory block header
-struct alignas(std::max_align_t) MBH
-{
-    LegacyLong cb;                      // size of block, including header and footer
-    PSZS pszsFile;                // source file that allocation request is coming from
-    LegacyLong lwLine;                  // line in file that allocation request is coming from
-    LegacyLong lwThread;                // thread id
-    MBH *pmbhPrev;                // previous allocated block (in doubly linked list)
-    MBH *pmbhNext;                // next allocated block
-    LegacyLong rglwStack[kclwStackMbh]; // the EBP/A6 chain
-    short cactRef;                // for marking memory
-    short swMagic;                // magic number, to detect memory trashing
-};
-
-// memory block footer
-struct MBF
-{
-    short swMagic; // magic number, to detect memory trashing
-};
-
-MBH *_pmbhFirst; // head of the doubly linked list
-
-priv void _LinkMbh(MBH *pmbh);
-priv void _UnlinkMbh(MBH *pmbh, MBH *pmbhOld);
-priv void _AssertMbh(MBH *pmbh);
+using MBH = MMMemoryDebugRecord;
+using MBF = MMMemoryDebugFooter;
+struct alignas(std::max_align_t) NativeMemoryHeader { MMMemoryDebugRecord record; };
+static MMMemoryDebugGraph memoryGraph = {nullptr};
+#ifdef KAUAI_EXPENSIVE_CHECKS
+static const int memoryExpensive = 1;
+#else
+static const int memoryExpensive = 0;
+#endif
+static const MMMemoryDebugLayout debugMemoryLayout = {
+    sizeof(NativeMemoryHeader), sizeof(MBF), kcbMax, kswMagicMem, memoryExpensive, &vcactSuspendCheckPointers};
 #endif // DEBUG
 
 PFNLIB vpfnlib = pvNil;
 namespace {
 MMFixedMemory fixedMemory = {0};
-struct NativeMemoryRequest { PSZS file; LegacyLong line; };
+struct NativeMemoryRequest {
+    PSZS file; LegacyLong line;
 #ifdef DEBUG
-const MMMemoryLayout memoryLayout = {sizeof(MBH), sizeof(MBF), kcbMax, 1, kbGarbage};
+    MMMemoryDebugMove move;
+#endif
+};
+#ifdef DEBUG
+const MMMemoryLayout memoryLayout = {sizeof(NativeMemoryHeader), sizeof(MBF), kcbMax, 1, kbGarbage};
 #else
 const MMMemoryLayout memoryLayout = {0, 0, kcbMax, 0, kbGarbage};
 #endif
@@ -74,23 +66,44 @@ void TooLarge(void *, MMU32 requested, int resizing)
 }
 void MemoryFailed(void *, int) { PushErc(ercOomPv); }
 #ifdef DEBUG
+void DebugAddress(void *, const void *p, size_t bytes) { AssertPvCb(const_cast<void *>(p), static_cast<LegacyLong>(bytes)); }
+void DebugAssertion(void *, int code, const void *value, size_t bytes)
+{
+    static const char *messages[] = {"", nullptr, "_pmbhFirst's prev is not nil", nullptr,
+        "prev is wrongly nil", "prev should be nil", "prev's next wrong", "next's prev wrong", "bad magic number",
+        "long too small", "long too big", "bigger than allocated block", "wrong next in prev", "first has prev!",
+        "wrong prev in next", "bad tail magic number", "nil pv", "wrong cb", nullptr, "bad cbOld value passed to _FResizePpv"};
+    AssertCore(false, messages[code], const_cast<void *>(value), static_cast<LegacyLong>(bytes));
+}
+size_t DebugAllocationSize(void *, const void *p) { return KauaiPlatform::AllocationSize(p); }
+MMMemoryCounter DebugThread(void *) { return LwThreadCur(); }
+void DebugLost(void *, MMMemoryDebugRecord *r)
+{
+    String stn; SZS szs;
+    stn.FFormatSz(PszLit("\nLost block: size=%d, StackTrace=(use map file)"), r->total);
+    stn.GetSzs(szs);
+    if (FAssertProc(r->source, r->line, szs, r->stack, kclwStackMbh * size(LegacyLong))) Debugger();
+}
+void DebugAfterReport(void *) { Mac(_AssertUnmarkedHqs();) }
+void DebugAfterUnmark(void *) { Mac(_UnmarkAllHqs();) }
+MMMemoryDebugHost DebugHost()
+{
+    MMMemoryDebugHost h{};
+    h.enter = MemoryEnter; h.leave = MemoryLeave; h.address = DebugAddress; h.assertion = DebugAssertion;
+    h.allocation_size = DebugAllocationSize; h.current_thread = DebugThread; h.lost = DebugLost;
+    h.after_report = DebugAfterReport; h.after_unmark = DebugAfterUnmark; return h;
+}
 void BeforeAllocate(void *, MMU32 payload)
 {
-    if (_pmbhFirst != pvNil) _AssertMbh(_pmbhFirst);
-    Assert(payload + size(MBH) + size(MBF) > payload, 0);
-}
-void WriteFooter(MBH *pmbh, MMU32 total)
-{
-    MBF footer; footer.swMagic = kswMagicMem;
-    CopyPb(&footer, PvAddBv(pmbh, total - size(MBF)), size(MBF));
+    const auto host = DebugHost();
+    mm_memory_debug_before_allocate(&memoryGraph, &debugMemoryLayout, &host, payload);
 }
 void Allocated(void *context, void *raw, MMU32 total)
 {
     auto *request = static_cast<NativeMemoryRequest *>(context);
     auto *pmbh = static_cast<MBH *>(raw);
-    pmbh->cb = total; pmbh->swMagic = kswMagicMem;
-    pmbh->pszsFile = request->file; pmbh->lwLine = request->line;
-    pmbh->lwThread = LwThreadCur();
+    const auto host = DebugHost();
+    mm_memory_debug_created(&debugMemoryLayout, &host, pmbh, total, request->file, request->line);
 #ifdef WIN
 #ifdef IN_80386
     // follow the EBP chain to capture a debug-mode allocation stack trace.
@@ -102,51 +115,48 @@ void Allocated(void *context, void *raw, MMU32 total)
     {
         if (pvNil == plw || IsBadReadPtr(plw, 2 * size(LegacyLong)) || *plw <= (LegacyLong)plw)
         {
-            pmbh->rglwStack[ilw] = 0;
+            pmbh->stack[ilw] = 0;
             plw = pvNil;
         }
         else
         {
-            pmbh->rglwStack[ilw] = plw[1];
+            pmbh->stack[ilw] = plw[1];
             plw = (LegacyLong *)*plw;
         }
     }
 #else
     // x64: inline asm not allowed. Optional debug instrumentation; leave empty.
     for (LegacyLong ilw = 0; ilw < kclwStackMbh; ilw++)
-        pmbh->rglwStack[ilw] = 0;
+        pmbh->stack[ilw] = 0;
 #endif // IN_80386
 #endif // WIN
-    WriteFooter(pmbh, total);
-    _LinkMbh(pmbh);
+    mm_memory_debug_publish(&memoryGraph, &debugMemoryLayout, &host, pmbh);
 }
-void InspectResize(void *, void *raw) { _AssertMbh(static_cast<MBH *>(raw)); }
-void BeforeResize(void *, void *raw, MMU32 oldTotal, MMU32 newTotal)
+void InspectResize(void *, void *raw)
 {
-    Assert(oldTotal >= size(MBH) + size(MBF) && newTotal >= size(MBH) + size(MBF), 0);
-    LegacyLong expected = oldTotal;
-    AssertVar(static_cast<MBH *>(raw)->cb == expected, "bad cbOld value passed to _FResizePpv", &expected);
+    const auto host = DebugHost();
+    mm_memory_debug_validate_record(&memoryGraph, &debugMemoryLayout, &host, static_cast<MBH *>(raw));
 }
-void Relocated(void *, void *raw, const unsigned char *oldAddress)
+void BeforeResize(void *context, void *raw, MMU32 oldTotal, MMU32 newTotal)
 {
-    void *oldRaw;
-    std::memcpy(&oldRaw, oldAddress, sizeof(oldRaw));
-    if (raw == oldRaw) return;
-    auto *pmbh = static_cast<MBH *>(raw);
-    _UnlinkMbh(pmbh, static_cast<MBH *>(oldRaw));
-    _LinkMbh(pmbh);
+    const auto host = DebugHost();
+    mm_memory_debug_prepare_resize(&debugMemoryLayout, &host, static_cast<MBH *>(raw), oldTotal, newTotal,
+                                   &static_cast<NativeMemoryRequest *>(context)->move);
+}
+void Relocated(void *context, void *raw, const unsigned char *oldAddress)
+{
+    const auto host = DebugHost();
+    mm_memory_debug_relocated(&memoryGraph, &debugMemoryLayout, &host, raw,
+                              &static_cast<NativeMemoryRequest *>(context)->move, oldAddress);
 }
 void Resized(void *, void *raw, MMU32 total)
-{
-    auto *pmbh = static_cast<MBH *>(raw);
-    pmbh->cb = total; WriteFooter(pmbh, total);
-}
+{ mm_memory_debug_resized(&debugMemoryLayout, static_cast<MBH *>(raw), total); }
 void BeforeFree(void *, void *raw)
 {
-    auto *pmbh = static_cast<MBH *>(raw);
-    _AssertMbh(pmbh); _UnlinkMbh(pmbh, pmbh);
+    const auto host = DebugHost();
+    mm_memory_debug_before_free(&memoryGraph, &debugMemoryLayout, &host, static_cast<MBH *>(raw));
 }
-MMU32 BlockSize(void *, void *raw) { return static_cast<MBH *>(raw)->cb; }
+MMU32 BlockSize(void *, void *raw) { return static_cast<MBH *>(raw)->total; }
 void Validate(void *, void *payload, MMU32 bytes) { AssertPvAlloced(payload, bytes); }
 #endif
 MMMemoryHost MemoryHost(NativeMemoryRequest *request)
@@ -223,181 +233,24 @@ void FreePpv(void **ppv)
 }
 
 #ifdef DEBUG
-/***************************************************************************
-    Link the Mbh into the debug-only doubly linked list.
-***************************************************************************/
-priv void _LinkMbh(MBH *pmbh)
+void AssertPvAlloced(void *p, LegacyLong bytes)
 {
-    AssertVarMem(pmbh);
-
-    vmutxMem.Enter();
-    pmbh->pmbhPrev = pvNil;
-    pmbh->pmbhNext = _pmbhFirst;
-    if (_pmbhFirst != pvNil)
-    {
-        Assert(_pmbhFirst->pmbhPrev == pvNil, "_pmbhFirst's prev is not nil");
-        _pmbhFirst->pmbhPrev = pmbh;
-    }
-    _pmbhFirst = pmbh;
-    vmutxMem.Leave();
+    const auto host = DebugHost();
+    mm_memory_debug_validate_payload(&memoryGraph, &debugMemoryLayout, &host, p, bytes);
 }
-
-/***************************************************************************
-    Unlink the MBH from the debug-only doubly linked list.  pmbhOld is the
-    previous value of the linked block.  pmbhOld may not be a valid pointer
-    now (when mem is resized).
-***************************************************************************/
-priv void _UnlinkMbh(MBH *pmbh, MBH *pmbhOld)
-{
-    AssertVarMem(pmbh);
-    Assert(pmbhOld != pvNil, 0);
-
-    vmutxMem.Enter();
-    // update prev's next pointer
-    if (pvNil == pmbh->pmbhPrev)
-    {
-        Assert(_pmbhFirst == pmbhOld, "prev is wrongly nil");
-        _pmbhFirst = pmbh->pmbhNext;
-    }
-    else
-    {
-        Assert(_pmbhFirst != pmbhOld, "prev should be nil");
-        Assert(pmbh->pmbhPrev->pmbhNext == pmbhOld, "prev's next wrong");
-        pmbh->pmbhPrev->pmbhNext = pmbh->pmbhNext;
-    }
-
-    // update next's prev pointer
-    if (pvNil != pmbh->pmbhNext)
-    {
-        Assert(pmbh->pmbhNext->pmbhPrev == pmbhOld, "next's prev wrong");
-        pmbh->pmbhNext->pmbhPrev = pmbh->pmbhPrev;
-    }
-    vmutxMem.Leave();
-}
-
-/***************************************************************************
-    Validate the MBH and the block that it is the head of.
-***************************************************************************/
-void _AssertMbh(MBH *pmbh)
-{
-#ifdef KAUAI_EXPENSIVE_CHECKS
-    short sw;
-
-    if (vcactSuspendCheckPointers != 0)
-        return;
-
-    vmutxMem.Enter();
-    AssertVarMem(pmbh);
-    Assert(pmbh->swMagic == kswMagicMem, "bad magic number");
-    AssertIn(pmbh->cb - size(MBH) - size(MBF), 0, kcbMax);
-    Assert(pmbh->cb <= (LegacyLong)KauaiPlatform::AllocationSize(pmbh), "bigger than allocated block");
-    AssertPvCb(pmbh, pmbh->cb);
-    if (pmbh->pmbhPrev != pvNil)
-    {
-        AssertVarMem(pmbh->pmbhPrev);
-        Assert(pmbh->pmbhPrev->pmbhNext == pmbh, "wrong next in prev");
-        Assert(pmbh != _pmbhFirst, "first has prev!");
-    }
-    if (pmbh->pmbhNext != pvNil)
-    {
-        AssertVarMem(pmbh->pmbhNext);
-        Assert(pmbh->pmbhNext->pmbhPrev == pmbh, "wrong prev in next");
-    }
-
-    ((byte *)&sw)[0] = *(byte *)PvAddBv(pmbh, pmbh->cb - 2);
-    ((byte *)&sw)[1] = *(byte *)PvAddBv(pmbh, pmbh->cb - 1);
-    Assert(sw == kswMagicMem, "bad tail magic number");
-    vmutxMem.Leave();
-#endif
-}
-
-/***************************************************************************
-    Assert the validity of an allocated fixed block.  Cb is the size.
-    If cb is unknown, pass cvNil.
-***************************************************************************/
-void AssertPvAlloced(void *pv, LegacyLong cb)
-{
-#ifdef KAUAI_EXPENSIVE_CHECKS
-    if (vcactSuspendCheckPointers != 0)
-        return;
-
-    Assert(pv != pvNil, "nil pv");
-    MBH *pmbh = (MBH *)PvSubBv(pv, size(MBH));
-    _AssertMbh(pmbh);
-    if (cb != cvNil)
-        Assert(pmbh->cb == cb + size(MBH) + size(MBF), "wrong cb");
-#else
-    Assert(pv != pvNil, "nil pv");
-#endif
-}
-
-/***************************************************************************
-    Asserts on unmarked blocks.
-***************************************************************************/
 void AssertUnmarkedMem(void)
 {
-    MBH *pmbh;
-    LegacyLong lwThread = LwThreadCur();
-
-    // enter the critical section
-    vmutxMem.Enter();
-
-    for (pmbh = _pmbhFirst; pmbh != pvNil; pmbh = pmbh->pmbhNext)
-    {
-        _AssertMbh(pmbh);
-        if (pmbh->cactRef == 0 && pmbh->lwThread == lwThread)
-        {
-            String stn;
-            SZS szs;
-
-            stn.FFormatSz(PszLit("\nLost block: size=%d, StackTrace=(use map file)"), pmbh->cb);
-            stn.GetSzs(szs);
-
-            if (FAssertProc(pmbh->pszsFile, pmbh->lwLine, szs, pmbh->rglwStack, kclwStackMbh * size(LegacyLong)))
-            {
-                Debugger();
-            }
-        }
-    }
-    Mac(_AssertUnmarkedHqs();)
-
-        // leave the critical section
-        vmutxMem.Leave();
+    const auto host = DebugHost();
+    mm_memory_debug_report(&memoryGraph, &debugMemoryLayout, &host);
 }
-
-/***************************************************************************
-    Clears all marks on memory blocks.
-***************************************************************************/
 void UnmarkAllMem(void)
 {
-    MBH *pmbh;
-    LegacyLong lwThread = LwThreadCur();
-
-    // enter the critical section
-    vmutxMem.Enter();
-
-    for (pmbh = _pmbhFirst; pmbh != pvNil; pmbh = pmbh->pmbhNext)
-    {
-        _AssertMbh(pmbh);
-        if (pmbh->lwThread == lwThread)
-            pmbh->cactRef = 0;
-    }
-    Mac(_UnmarkAllHqs();)
-
-        // leave the critical section
-        vmutxMem.Leave();
+    const auto host = DebugHost();
+    mm_memory_debug_unmark(&memoryGraph, &debugMemoryLayout, &host);
 }
-
-/***************************************************************************
-    Increment the ref count on an allocated pv.
-***************************************************************************/
-void MarkPv(void *pv)
+void MarkPv(void *p)
 {
-    if (pvNil != pv)
-    {
-        AssertPvAlloced(pv, cvNil);
-        MBH *pmbh = (MBH *)PvSubBv(pv, size(MBH));
-        pmbh->cactRef++;
-    }
+    const auto host = DebugHost();
+    mm_memory_debug_mark(&memoryGraph, &debugMemoryLayout, &host, p);
 }
 #endif // DEBUG
