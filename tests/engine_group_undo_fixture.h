@@ -20,8 +20,8 @@ class TestMoveGroupUndo : public ActorMoveGroupUndo
 {
   public:
     TestMoveGroupUndo() {}
-    bool Init() { _pglpaund=DynamicArray::PglNew(sizeof(PActorUndo)); return _pglpaund!=nullptr; }
-    bool AddNull() { PActorUndo child=nullptr; return _pglpaund->FAdd(&child); }
+    bool Init() { _group.entries=DynamicArray::PglNew(sizeof(PActorUndo)); return _group.entries!=nullptr; }
+    bool AddNull() { PActorUndo child=nullptr; return _Entries()->FAdd(&child); }
 };
 static bool TestActorGroupUndo(PMovie parent)
 {

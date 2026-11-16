@@ -3,25 +3,6 @@
 #include "mm/movie_edit.h"
 #include "mm/actor_motion.h"
 #include "mm/wide.h"
-int mm_movie_undo_add(void *undo, const MMMovieUndoServices *s)
-{
-    s->bind_movie(s->context, undo);
-    s->bind_scene(undo, s->scene_index(s->context));
-    if (s->scene_index(s->context) != -1)
-        s->bind_frame(undo, s->frame(s->context));
-    if (!s->commit(s->context, undo))
-    {
-        s->notify(s->context, MM_MOVIE_UNDO_DISABLED);
-        return 0;
-    }
-    s->notify(s->context, MM_MOVIE_UNDO_READY);
-    return 1;
-}
-void mm_movie_undo_clear(const MMMovieUndoServices *s)
-{
-    s->clear(s->context);
-    s->notify(s->context, MM_MOVIE_UNDO_DISABLED);
-}
 static void changed(int bars, const MMMovieEditServices *s)
 {
     s->dirty(s->context);

@@ -1097,33 +1097,33 @@ MMSceneSoundUndoServices SceneUndoSound::_Services()
 {
     MMSceneSoundUndoServices s = {};
     s.context = this;
-    s.values = SceneSoundValues(_pmvie);
+    s.values = SceneSoundValues(Pmvie());
     s.switch_scene = [](void *p) -> int {
         auto u = static_cast<PSceneUndoSound>(p);
-        return u->_pmvie->FSwitchScen(u->_iscen);
+        return u->Pmvie()->FSwitchScen(u->Iscen());
     };
     s.seek_frame = [](void *p) -> int {
         auto u = static_cast<PSceneUndoSound>(p);
-        return u->_pmvie->Pscen()->FGotoFrm(u->_nfrm);
+        return u->Pmvie()->Pscen()->FGotoFrm(u->Nfrm());
     };
-    s.flush = [](void *p) { static_cast<PSceneUndoSound>(p)->_pmvie->Pmsq()->FlushMsq(); };
-    s.play = [](void *p) { static_cast<PSceneUndoSound>(p)->_pmvie->Pmsq()->PlayMsq(); };
-    s.clear = [](void *p) { static_cast<PSceneUndoSound>(p)->_pmvie->ClearUndo(); };
+    s.flush = [](void *p) { static_cast<PSceneUndoSound>(p)->Pmvie()->Pmsq()->FlushMsq(); };
+    s.play = [](void *p) { static_cast<PSceneUndoSound>(p)->Pmvie()->Pmsq()->PlayMsq(); };
+    s.clear = [](void *p) { static_cast<PSceneUndoSound>(p)->Pmvie()->ClearUndo(); };
     s.get = [](void *p, MMI32 style, int *found, MMSceneSound **out) -> int {
         auto u = static_cast<PSceneUndoSound>(p);
         bool hit;
         PSceneSoundEvent sound = nullptr;
-        bool ok = u->_pmvie->Pscen()->FGetSnd(style, &hit, &sound);
+        bool ok = u->Pmvie()->Pscen()->FGetSnd(style, &hit, &sound);
         *found = hit;
         if (!ok || hit)
             *out = sound;
         return ok;
     };
-    s.remove = [](void *p, MMI32 style) { static_cast<PSceneUndoSound>(p)->_pmvie->Pscen()->RemSndCore(style); };
+    s.remove = [](void *p, MMI32 style) { static_cast<PSceneUndoSound>(p)->Pmvie()->Pscen()->RemSndCore(style); };
     s.restore = [](void *p, const MMSceneSound *value) -> int {
         auto u = static_cast<PSceneUndoSound>(p);
         auto sound = static_cast<PSceneSoundEvent>(const_cast<MMSceneSound *>(value));
-        return u->_pmvie->Pscen()->FAddSndCoreTagc(sound->fLoop != 0, false, sound->vlm, sound->sty, sound->ctagc,
+        return u->Pmvie()->Pscen()->FAddSndCoreTagc(sound->fLoop != 0, false, sound->vlm, sound->sty, sound->ctagc,
                                                    sound->Ptagc(0));
     };
     s.diagnostic = [](void *, int) { Bug("where's the sound event?"); };
@@ -3285,7 +3285,7 @@ MMScenePropertyUndoServices ScenePropertyUndoServices(ScenePropertyUndoHost *hos
 bool SceneUndoTitle::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    ScenePropertyUndoHost host = {_pmvie, _iscen, _nfrm};
+    ScenePropertyUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = ScenePropertyUndoServices(&host);
     s.scene = [](void *p) -> MMSceneState * {
         return &static_cast<ScenePropertyUndoHost *>(p)->movie->Pscen()->_data;
@@ -3512,7 +3512,7 @@ SceneActorUndo::~SceneActorUndo(void)
 bool SceneActorUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    SceneContentUndoHost host = {_pmvie, _iscen, _nfrm};
+    SceneContentUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = SceneContentUndoServices(&host);
     s.scene = [](void *p) { return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->_ContentServices(); };
     return mm_scene_actor_undo(&_content, 1, &s) != 0;
@@ -3532,7 +3532,7 @@ bool SceneActorUndo::FDo(PDocumentBase pdocb)
 bool SceneActorUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    SceneContentUndoHost host = {_pmvie, _iscen, _nfrm};
+    SceneContentUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = SceneContentUndoServices(&host);
     s.scene = [](void *p) { return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->_ContentServices(); };
     return mm_scene_actor_undo(&_content, 0, &s) != 0;
@@ -3610,7 +3610,7 @@ SceneUndoText::~SceneUndoText(void)
 bool SceneUndoText::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    SceneContentUndoHost host = {_pmvie, _iscen, _nfrm};
+    SceneContentUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = SceneContentUndoServices(&host);
     s.scene = [](void *p) { return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->_ContentServices(); };
     return mm_scene_text_undo(&_content, 1, &s) != 0;
@@ -3630,7 +3630,7 @@ bool SceneUndoText::FDo(PDocumentBase pdocb)
 bool SceneUndoText::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    SceneContentUndoHost host = {_pmvie, _iscen, _nfrm};
+    SceneContentUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = SceneContentUndoServices(&host);
     s.scene = [](void *p) { return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->_ContentServices(); };
     return mm_scene_text_undo(&_content, 0, &s) != 0;
@@ -3705,7 +3705,7 @@ SceneUndoTransition::~SceneUndoTransition(void)
 bool SceneUndoTransition::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    ScenePropertyUndoHost host = {_pmvie, _iscen, _nfrm};
+    ScenePropertyUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = ScenePropertyUndoServices(&host);
     s.scene = [](void *p) -> MMSceneState * {
         return &static_cast<ScenePropertyUndoHost *>(p)->movie->Pscen()->_data;
@@ -3847,7 +3847,7 @@ static MMSceneEditUndoServices SceneEditUndoServices(SceneEditUndoHost *host)
 bool SceneUndoPause::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    SceneEditUndoHost host = {_pmvie, _iscen, _nfrm};
+    SceneEditUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = SceneEditUndoServices(&host);
     return mm_scene_pause_undo(&_edit, &s) != 0;
 }
@@ -3936,7 +3936,7 @@ SceneUndoBackground::~SceneUndoBackground(void)
 bool SceneUndoBackground::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    SceneEditUndoHost host = {_pmvie, _iscen, _nfrm};
+    SceneEditUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = SceneEditUndoServices(&host);
     return mm_scene_background_undo(&_edit, &s) != 0;
 }
@@ -4099,9 +4099,9 @@ bool SceneUndoChop::FSave(PScene pscen)
 bool SceneUndoChop::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    SceneSnapshotHost host = {_pmvie};
+    SceneSnapshotHost host = {Pmvie()};
     auto s = SceneSnapshotServices(&host);
-    return mm_scene_chop_swap(&_snapshot, _iscen, _nfrm, &s) != 0;
+    return mm_scene_chop_swap(&_snapshot, Iscen(), Nfrm(), &s) != 0;
 }
 
 /****************************************************

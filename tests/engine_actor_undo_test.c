@@ -6,6 +6,7 @@
 typedef struct Actor { int refs,id,reset; } Actor;
 typedef struct Fixture
 {
+    MMMovieUndoContext base;
     MMActorUndoState state;
     MMActorUndoServices services;
     Actor old,incoming;
@@ -22,7 +23,7 @@ static int switch_scene(void *p,void *movie,MMI32 scene)
 { Fixture *f=(Fixture *)p; CHECK(movie==f && scene==3); mark(f,'S'); return f->fail!=1; }
 static void *current(void *p,void *movie) { CHECK(p==movie); return p; }
 static int seek(void *p,void *scene,MMI32 frame)
-{ Fixture *f=(Fixture *)p; CHECK(scene==f && frame==f->state.frame); f->sought=frame; mark(f,'G'); return f->fail!=2; }
+{ Fixture *f=(Fixture *)p; CHECK(scene==f && frame==f->base.frame); f->sought=frame; mark(f,'G'); return f->fail!=2; }
 static void clear(void *p,void *movie)
 { Fixture *f=(Fixture *)p; CHECK(movie==f); mark(f,'C'); ++f->cleared; f->dead=!f->retained; }
 static void flush(void *p,void *movie) { Fixture *f=(Fixture *)p; CHECK(movie==f); mark(f,'F'); ++f->flushes; }
@@ -65,6 +66,11 @@ static int invoke(void *p)
     Fixture *f=(Fixture *)p; MMActorUndoState state=f->state;
     return mm_actor_undo_toggle(&state,&f->services);
 }
+static int invoke_persistent(void *p)
+{
+    Fixture *f=(Fixture *)p;
+    return mm_actor_undo_toggle(&f->state,&f->services);
+}
 static void init(Fixture *f)
 {
     MMActorUndoServices *s;
@@ -74,9 +80,10 @@ static void init(Fixture *f)
     s->actor_id=id; s->remove_actor=remove_actor; s->add_actor=add; s->has_name=has_name; s->capture_name=capture;
     s->assign_name=assign; s->store_name=store; s->view=view; s->text_mode=text; s->select_actor=select_actor;
     s->invalidate_range=invalidate; s->reset_actor=reset_actor;
+    mm_movie_undo_context_init(&f->base); CHECK(mm_actor_undo_init(&f->state,&f->base,1));
     f->old.refs=f->incoming.refs=1; f->old.id=f->incoming.id=7; f->live=&f->old;
-    f->state.movie=f; f->state.actor=&f->incoming; f->state.actor_id=7; f->state.scene=3;
-    f->state.frame=11; f->state.last_frame=22;
+    f->base.movie=f; f->state.actor=&f->incoming; f->state.actor_id=7; f->base.scene=3;
+    f->base.frame=11; f->state.last_frame=22;
 }
 static void *create_undo(void *p) { Fixture *f=(Fixture *)p; mark(f,'U'); ++f->created; if (f->fail==1) return NULL; f->create_refs=1; return f; }
 static void set_actor(void *p,void *undo,void *actor)
@@ -94,6 +101,9 @@ static void reset_create(void *p,void *actor)
 int main(void)
 {
     Fixture f; MMActorUndoState state; MMActorUndoCreateServices c; int mode,fail,result;
+    unsigned unit,i;
+    unsigned short text_units[255];
+    unsigned char text_bytes[255];
     init(&f); state=f.state;
     CHECK(mm_actor_undo_toggle(&state,&f.services));
     CHECK(!strcmp(f.trace,"SGFLRAVQDIZF") && f.state.actor==&f.old && f.live==&f.incoming);
@@ -126,7 +136,7 @@ int main(void)
     {
         init(&f); f.state.sooner_later=1; f.fail=fail; f.retained=1; state=f.state;
         CHECK(mm_actor_undo_redo(&state,&f.services)==!fail);
-        CHECK(f.sought==(fail==1?0:22) && f.state.frame==11 && f.state.actor==(fail?&f.incoming:&f.old));
+        CHECK(f.sought==(fail==1?0:22) && f.base.frame==11 && f.state.actor==(fail?&f.incoming:&f.old));
     }
     init(&f); state=f.state; CHECK(mm_actor_undo_redo(&state,&f.services) && f.sought==11);
     init(&f); f.state.actor=NULL; state=f.state; mm_actor_undo_set_actor(&state,&f.incoming,&f.services);
@@ -142,5 +152,21 @@ int main(void)
         CHECK(!strcmp(f.trace,fail==1?"U":fail==2?(mode?"Uaisnjcd":"Uaisjcd"):(mode?"Uaisnjdz":"Uaisjdz")));
         if (!fail) CHECK(f.create_id==29 && f.create_sound==1 && f.named==mode && f.create_refs==1);
     }
+    for (i=0;i<255;++i) { text_units[i]=(unsigned short)(i==3?0:0x3a9+i); text_bytes[i]=(unsigned char)(i==3?0:128+i); }
+    for (unit=1;unit<=2;++unit)
+    {
+        init(&f); CHECK(mm_actor_undo_init(&f.state,&f.base,unit));
+        CHECK(f.state.base==&f.base && !f.state.actor && !f.state.name.count && f.state.name.unit==unit);
+        CHECK(mm_actor_undo_set_name(&f.state,unit==1?(const void *)text_bytes:(const void *)text_units,255));
+        CHECK(f.state.name.count==255 && !memcmp(mm_movie_title_text(&f.state.name),unit==1?(const void *)text_bytes:(const void *)text_units,255*unit));
+        CHECK(!mm_actor_undo_set_name(&f.state,text_units,256) && f.state.name.count==255);
+        CHECK(!mm_actor_undo_init(&f.state,&f.base,4) && f.state.name.count==255);
+    }
+    init(&f); f.services.read=NULL; f.services.publish=NULL; f.services.has_name=NULL;
+    f.services.invoke_undo=invoke_persistent; f.state.sooner_later=1;
+    CHECK(mm_actor_undo_set_name(&f.state,"before",6)); f.name=17;
+    CHECK(mm_actor_undo_redo(&f.state,&f.services) && f.base.frame==11 && f.sought==22);
+    CHECK(f.state.actor==&f.old && f.name==42 && f.old.refs==1 && f.incoming.refs==1);
+    mm_actor_undo_dispose(&f.state,&f.services); CHECK(!f.state.actor && !f.old.refs && f.state.name.count==6);
     puts("actor undo C89 checks passed"); return 0;
 }

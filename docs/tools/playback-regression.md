@@ -10744,3 +10744,69 @@ Evidence: `tmp/c89-text-box-edit-{baseline,final}-{native,sdl-release,sdl-debug}
 `tmp/c89-text-box-edit-asan.log`, `tmp/c89-text-box-edit-regular-tests.log`,
 `tmp/c89-text-box-edit-tools-build.log`, `tmp/c89-text-box-edit-trace-comparison.json`
 and `tmp/c89-text-box-edit-identities.json`.
+
+### Persistent movie/actor undo context and storage (16 November 2026)
+
+All MovieUndo subclasses now share a persistent `MMMovieUndoContext` containing
+the borrowed movie handle and saved scene/frame. `movie_undo.c` publishes that
+context directly during registration, preserving movie/scene publication,
+validation, the second scene query, optional frame publication, commit and client
+notification order. No current scene preserves the saved frame. Commit/clear
+may destroy the undo record; notification does not access it afterward.
+MovieSceneUndo's separate operation target index remains distinct.
+
+Actor undo now keeps its owned snapshot reference, ID, flags, last frame and
+counted actor name directly in C state. Move/rename composite undo table handles
+also persist in C state. Native adapters no longer rebuild/publish temporary
+copies of those fields for each operation. Actor/move toggle snapshots the base
+context on entry; sooner/later redo restores its temporary frame after virtual
+undo dispatch. Counted names retain up to 255 native one/two-byte units, including
+embedded zeroes. Native strings still marshal name capture/assignment; typed
+array/string-table, actor, movie and scene operations remain provider services.
+
+Before conversion, Native Debug, SDL Release and SDL Debug captured actor, group
+and movie integration traces. Actor/movie bytes match across all three hosts.
+The group fixture injects allocation failures only in Debug, so its original
+Release trace differs and is compared against its own baseline:
+
+| Trace | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Actor undo, 32 cases | 3,240 | `64C1B091` | `92642AD0BD1F8D3166F0363931D05CD8E4B07088E9CADC66903877F8DCB81E2B` |
+| Composite undo, Debug child/factory/rename cases | 2,100 | `7FB9ADED` | `C5F8CCF0A78D8B8B7508A1918C1B14A66F02F5E2A46799439517CE8A2652B110` |
+| Composite undo, SDL Release | 2,100 | `1722FDC5` | `FC2157A8BBFB1CB163AFE5A5D339792144028DFE93847E5FEE375D20BFC93830` |
+| Movie editing and undo registration | 61,552 | `85C0C7B5` | `9B5962814AE9C4099AFD8E7357474DB62AEC960D8507DAEA14CE80E184D1B92D` |
+
+The common C test checks zero initialization, distinct host/movie handles,
+publication order, both scene queries, preserved frame sentinels, separate
+operation indices and commit/clear destruction. Actor tests add maximum counted
+byte/UTF-16 names, embedded zeroes, rejected input preservation and direct C state
+without observer callbacks. Composite tests mutate the parent's context in a
+child and verify subsequent children retain the entry context. All three focused
+C suites pass MSVC AddressSanitizer, including heap-record destruction during
+common commit/clear.
+
+All 93 original/converted actor/group/movie/text-box/layout/Help/text/preview trace
+pairs match across Native Debug, SDL Release and SDL Debug. Prior trace hashes
+remain unchanged. Background checks retain 301,996,032 bytes/FNV-1a `E1A71005`
+across 12 backgrounds and 188 cameras per host. All 140 standalone checks,
+including strict C89 syntax, pass. Fifty selected Native checks and 46 in each
+SDL configuration pass, including the existing Native playback/player regressions.
+The regular headless asset-preview harness passes; Native `chelp` and `ched`
+compile. Retained input identities remain unchanged; identities for 39 binaries
+are recorded. Test processes use private temporary directories. Marcus was
+stopped before rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference. No new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence; arbitrary
+native callback/override observations, full view interaction and other platforms
+remain unverified by this slice. Typed resource/table providers, physical views,
+Marcus paint-order storage and final C-only host/facade integration remain
+conversion work.
+
+Evidence: `tmp/c89-undo-state-{actor,group,movie}-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-undo-state-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-undo-state-standalone-tests.log`,
+`tmp/c89-undo-state-{text-edit,runtime,layout,topic,balloon,interaction,display,text,views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-undo-state-asan.log`, `tmp/c89-undo-state-regular-tests.log`,
+`tmp/c89-undo-state-tools-build.log`, `tmp/c89-undo-state-trace-comparison.json`
+and `tmp/c89-undo-state-identities.json`.

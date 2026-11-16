@@ -2,15 +2,18 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_ACTOR_UNDO_H
 #define MM_ENGINE_ACTOR_UNDO_H
-#include "movie_data.h"
+#include "movie_undo.h"
+#include "movie_title.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 typedef struct MMActorUndoState
 {
-    void *movie,*actor;
-    MMI32 scene,frame,last_frame,actor_id;
+    MMMovieUndoContext *base;
+    void *actor;
+    MMI32 last_frame,actor_id;
     int sooner_later,sound;
+    MMMovieTitle name;
 } MMActorUndoState;
 typedef struct MMActorUndoServices
 {
@@ -40,6 +43,13 @@ typedef struct MMActorUndoServices
     void (*invalidate_range)(void *,void *scene);
     void (*reset_actor)(void *,void *actor);
 } MMActorUndoServices;
+/* Initialize a unique owning actor record over its stable borrowed base context.
+ * Native counted names retain one/two-byte units, including embedded zeroes.
+ * Dispose releases the actor; scalar/name values remain. Do not copy owners. */
+int mm_actor_undo_init(MMActorUndoState *, MMMovieUndoContext *, unsigned unit);
+int mm_actor_undo_set_name(MMActorUndoState *, const void *, MMU32 count);
+/* read/publish/has_name may be NULL for persistent C state. Present read/publish
+ * hooks are observation/legacy-marshalling callbacks, not reentrant controllers. */
 /* Valid initialized movie/scene/actor handles are required. Callbacks cannot
  * reenter this controller except invoke_undo (virtual dispatch for redo).
  * Names use caller-owned scratch storage: capture, assign (failure ignored),

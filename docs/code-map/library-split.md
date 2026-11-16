@@ -2392,13 +2392,47 @@ before duplicating, shifts to `(177,78)`, intersects the client workspace and
 normalizes empty rectangles to zero. Coordinate arithmetic wraps at 32 bits.
 
 `text_box_edit_host.h` retains typed allocation, reference, document, scene, view,
-color/property marshalling and native MovieUndo context access. The native fixture
-freezes duplication, clipboard adoption, no-view queries and real type/color/text
+color/property marshalling and access to the shared C MovieUndo context. The native
+fixture freezes duplication, clipboard adoption, no-view queries and real type/color/text
 undo/redo without windows. C probes cover other view-dependent paths, geometry,
 partial publication and ordinary/exception prefixes; clearing movie undo frees
-the running C record under AddressSanitizer. Physical views, native base-context
-storage, Marcus paint-order storage and final C-only host/facade integration remain
+the running C record under AddressSanitizer. Physical views,
+Marcus paint-order storage and final C-only host/facade integration remain
 work. Evidence and coverage limits are in `docs/tools/playback-regression.md`.
+
+### Movie and actor undo context/storage
+
+`movie_undo.c` owns common undo context initialization, registration publication
+and clearing/notification. Every native MovieUndo now embeds
+`MMMovieUndoContext` directly: a borrowed movie handle and saved scene/frame.
+Actor and composite undo states borrow that stable context instead of rebuilding
+and publishing native-field copies on each call. Text-box and scene undo adapters
+read the same C context through typed getters.
+
+Registration publishes movie, queries/publishes scene, validates, then queries the
+scene again before reading/publishing frame. An absent second scene preserves
+the existing frame. Commit and clear can destroy the record; notification follows
+without further record access. MovieSceneUndo retains its separate operation
+target index; registering the common context must not overwrite that index.
+
+Actor undo keeps its snapshot reference, ID, flags, last frame and counted name
+in `MMActorUndoState`. Names reuse `MMMovieTitle` storage for up to 255 native
+one/two-byte units, including embedded zeroes; temporary native strings marshal
+captured/assigned names. Move/rename groups store their owned table handle in
+`MMActorGroupState`. Typed table providers still supply child rows, references
+and rename data. Actor/move toggle snapshots the base context on entry, so child
+callbacks cannot change the context used by later operations in that toggle.
+Sooner/later redo temporarily replaces the shared frame, dispatches virtual undo
+and restores the saved frame. Native adapters no longer install state-copy
+read/publication observers; optional C test observers remain available.
+
+The common tests check publication order, frame preservation, distinct operation
+indices and commit/clear destruction. Actor/group tests cover direct persistent
+storage, counted names, temporary-frame restoration and child context mutation.
+Original actor/group/movie traces remain the integration reference on Native
+Debug, SDL Release and SDL Debug. Native object lifetimes, physical views and
+final C-only facade integration remain work; this slice removes storage
+marshalling rather than those typed service dependencies.
 
 ### Movie scene-container control and undo
 
@@ -3306,12 +3340,13 @@ next; body/resource/scene policy and final facade removal remain unfinished.
 ### Actor undo controller
 
 `actor_undo.c` owns actor undo creation, snapshot reference lifetime, undo toggle
-and redo frame switching. `MMActorUndoState` holds plain movie/snapshot
-handles, identifiers, frames and flags. The native undo object marshals these
-fields and supplies primitive movie/scene operations and temporary String scratch
-storage. C controls name capture, ignored rename failure and captured-name swap;
-the existing String implementation is already C-backed. These native object
-representations and movie/scene implementations remain temporary dependencies.
+and redo frame switching. `MMActorUndoState` persistently holds a shared base
+context pointer, snapshot handle, identifier, last frame, flags and counted name.
+The native undo object supplies primitive movie/scene operations and temporary
+String scratch storage. C controls name capture, ignored rename failure and
+captured-name swap; the existing String implementation is already C-backed.
+These native object representations and movie/scene implementations remain
+temporary dependencies.
 
 Toggle preserves scene-switch versus seek-failure handling: only the latter
 clears undo, then returns without touching an owner that clearing can destroy.
@@ -3349,8 +3384,9 @@ in the native implementation; preceding name/table changes remain. Duplicate
 actor rows retain their original ordered behavior. Both redo adapters delegate
 to virtual undo, retaining the same toggling policy.
 
-Native callbacks marshal owner fields, entry records and two String scratch
-values, and provide C-backed array/string storage and primitive movie/child calls.
+Native callbacks marshal entry records and two String scratch values, and provide
+C-backed array/string storage and primitive movie/child calls. Owned table handles
+and shared context links persist in C state, as described above.
 The native objects are still temporary representations. The C test checks
 allocation/append failure, pointer/reference timing, NULL rows, child context,
 failure that destroys the group, missing actors, partial rename and storage

@@ -52,9 +52,8 @@ enum
     BACKGROUND,
     NEW_UNDO,
     CONFIGURE,
-    BIND_MOVIE,
-    BIND_SCENE,
-    BIND_FRAME,
+    UNDO_STATE,
+    UNDO_VALIDATE,
     COMMIT,
     NOTIFY,
     CLEAR,
@@ -76,7 +75,8 @@ typedef struct Actor
 typedef struct Undo
 {
     Test *test;
-    int refs, bound, scene, frame, actor, time, last;
+    MMMovieUndoContext base;
+    int refs, bound, actor, time, last;
 } Undo;
 struct Test
 {
@@ -428,23 +428,16 @@ static void diagnostic(void *p, int issue)
     ++t->diagnostics;
     t->error = issue;
 }
-static void bind_movie(void *p, void *u)
+static MMMovieUndoContext *undo_state(void *p, void *u)
 {
-    Test *t = p;
-    ((Undo *)u)->bound = 1;
-    event(t, BIND_MOVIE);
+    event((Test *)p, UNDO_STATE);
+    return &((Undo *)u)->base;
 }
-static void bind_scene(void *p, MMI32 index)
+static void undo_validate(void *p, void *u)
 {
-    Undo *u = p;
-    u->scene = index;
-    event(u->test, BIND_SCENE);
-}
-static void bind_frame(void *p, MMI32 value)
-{
-    Undo *u = p;
-    u->frame = value;
-    event(u->test, BIND_FRAME);
+    Undo *undo = u;
+    if (undo->base.movie == p) undo->bound = 1;
+    event((Test *)p, UNDO_VALIDATE);
 }
 static MMI32 scene_index(void *p)
 {
@@ -528,7 +521,7 @@ static void init(Test *t)
     t->row.data.template_type = t->row.data.template_number = 1;
     t->undo.test = t;
     t->undo.actor = t->undo.time = 1;
-    t->undo.frame = 77;
+    t->undo.base.frame = 77;
     t->selected = &t->actor;
     t->scenes.open = t;
     t->scenes.index = 2;
@@ -552,9 +545,9 @@ static void init(Test *t)
     s->rollcall.same_tag = same_tag;
     s->rollcall.changed = changed_row;
     s->undo.context = t;
-    s->undo.bind_movie = bind_movie;
-    s->undo.bind_scene = bind_scene;
-    s->undo.bind_frame = bind_frame;
+    s->undo.movie = t;
+    s->undo.state = undo_state;
+    s->undo.validate = undo_validate;
     s->undo.scene_index = scene_index;
     s->undo.frame = frame;
     s->undo.commit = commit;
@@ -620,9 +613,9 @@ static int registration(void)
             if (fail)
                 t.fail = FAIL_COMMIT;
             CHECK(mm_movie_undo_add(&t.undo, &t.s.undo) == !fail);
-            CHECK(t.undo.bound && t.undo.scene == (current ? 2 : -1) && t.undo.frame == (current ? 9 : 77));
+            CHECK(t.undo.bound && t.undo.base.scene == (current ? 2 : -1) && t.undo.base.frame == (current ? 9 : 77));
             CHECK(t.notify == (fail ? MM_MOVIE_UNDO_DISABLED : MM_MOVIE_UNDO_READY));
-            CHECK(t.events[0] == BIND_MOVIE && t.events[1] == BIND_SCENE && t.events[t.eventCount - 2] == COMMIT &&
+            CHECK(t.events[0] == UNDO_STATE && t.events[1] == UNDO_VALIDATE && t.events[t.eventCount - 2] == COMMIT &&
                   t.events[t.eventCount - 1] == NOTIFY);
             mm_movie_undo_clear(&t.s.undo);
             CHECK(t.clears == 1 && t.notify == MM_MOVIE_UNDO_DISABLED && !t.undo.refs &&
@@ -872,7 +865,7 @@ static int backgrounds(void)
                 CHECK(t.notify == MM_MOVIE_UNDO_DISABLED && t.events[t.eventCount - 2] == UNDO_RELEASE &&
                       t.events[t.eventCount - 1] == REMOVE_SCENE);
             if (!fault)
-                CHECK(t.undo.scene == 3 && t.undo.frame == 9 && t.bars && !t.backgroundUndoable);
+                CHECK(t.undo.base.scene == 3 && t.undo.base.frame == 9 && t.bars && !t.backgroundUndoable);
         }
     init(&t);
     t.scenes.open = 0;

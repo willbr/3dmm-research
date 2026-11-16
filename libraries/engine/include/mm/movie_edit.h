@@ -4,26 +4,11 @@
 #define MM_ENGINE_MOVIE_EDIT_H
 #include "movie_rollcall.h"
 #include "movie_scene.h"
+#include "movie_undo.h"
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-    enum
-    {
-        MM_MOVIE_UNDO_DISABLED = 1,
-        MM_MOVIE_UNDO_READY = 2
-    };
-    typedef struct MMMovieUndoServices
-    {
-        void *context;
-        void (*bind_movie)(void *, void *undo), (*bind_scene)(void *undo, MMI32),
-            (*bind_frame)(void *undo, MMI32);
-        MMI32 (*scene_index)(void *), (*frame)(void *);
-        int (*commit)(void *, void *undo);
-        void (*clear)(void *), (*notify)(void *, int mode);
-    } MMMovieUndoServices;
-    int mm_movie_undo_add(void *undo, const MMMovieUndoServices *);
-    void mm_movie_undo_clear(const MMMovieUndoServices *);
     enum
     {
         MM_MOVIE_EDIT_ROTATE,

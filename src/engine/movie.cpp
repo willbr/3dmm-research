@@ -808,9 +808,9 @@ MMMovieUndoServices Movie::_UndoServices()
     static_assert(undoDisabled == MM_MOVIE_UNDO_DISABLED && undoUndo == MM_MOVIE_UNDO_READY, "Movie undo ABI");
     MMMovieUndoServices s = {};
     s.context = this;
-    s.bind_movie = [](void *p, void *u) { static_cast<PMovieUndo>(u)->SetPmvie(static_cast<PMovie>(p)); };
-    s.bind_scene = [](void *u, MMI32 index) { auto undo = static_cast<PMovieUndo>(u); undo->SetIscen(index); AssertPo(undo, 0); };
-    s.bind_frame = [](void *u, MMI32 frame) { static_cast<PMovieUndo>(u)->SetNfrm(frame); };
+    s.movie = this;
+    s.state = [](void *, void *u) { return static_cast<PMovieUndo>(u)->CoreContext(); };
+    s.validate = [](void *, void *u) { AssertPo(static_cast<PMovieUndo>(u), 0); };
     s.scene_index = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->Iscen(); };
     s.frame = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->Pscen()->Nfrm(); };
     s.commit = [](void *p, void *u) -> int { return static_cast<PMovie>(p)->DocumentBase::FAddUndo(static_cast<PMovieUndo>(u)); };
@@ -7261,7 +7261,7 @@ MovieSceneUndo::~MovieSceneUndo(void)
 MMMovieSceneUndoServices MovieSceneUndo::_Services()
 {
     MMMovieSceneUndoServices s = {};
-    s.context = _pmvie;
+    s.context = Pmvie();
     s.create = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
     s.remove = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
     s.insert = [](void *p, MMI32 index, void *scene) -> int {
@@ -7360,6 +7360,6 @@ void MovieSceneUndo::AssertValid(LegacyUlong grf)
 void MovieUndo::AssertValid(LegacyUlong grf)
 {
     MovieUndo_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pmvie, 0);
+    AssertPo(Pmvie(), 0);
 }
 #endif // DEBUG

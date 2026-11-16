@@ -6,12 +6,13 @@
 typedef struct Child { int id,refs,context; } Child;
 typedef struct Fixture
 {
+    MMMovieUndoContext base;
     MMActorGroupState state;
     MMActorGroupServices services;
     void *published;
     Child children[3],*rows[4]; int count,counts,dead,fail_child,fail_append,contexts,calls,order[4],released;
     int ids[4],stored[4],names[4],scratch,old,missing,fail_rename,fail_store,reads,captures,renames,stores;
-    int fail_factory,created,tables,publications,owner_releases;
+    int fail_factory,created,tables,publications,owner_releases,mutate_context;
 } Fixture;
 static MMI32 count(void *p,void *entries)
 { Fixture *f=(Fixture *)p; CHECK(!f->dead && entries==f); ++f->counts; return f->count; }
@@ -26,7 +27,9 @@ static void context(void *p,void *item,void *movie,MMI32 scene,MMI32 frame)
 static int undo(void *p,void *item,void *document)
 {
     Fixture *f=(Fixture *)p; Child *c=(Child *)item; CHECK(!f->dead && document==f && c->context);
-    f->order[f->calls++]=c->id; if (c->id==f->fail_child) { f->dead=1; return 0; } return 1;
+    f->order[f->calls++]=c->id;
+    if (f->mutate_context) { f->base.scene=99; f->base.frame=101; }
+    if (c->id==f->fail_child) { f->dead=1; return 0; } return 1;
 }
 static void release_entries(void *p,void *entries)
 { Fixture *f=(Fixture *)p; CHECK(!f->dead && entries==f && f->published==entries); ++f->released; }
@@ -45,8 +48,8 @@ static int append_name(void *p,void *entries,MMI32 id,const void *name)
 static void init(Fixture *f)
 {
     MMActorGroupServices *s; int i;
-    memset(f,0,sizeof(*f)); s=&f->services; s->context=f; f->state.entries=f->state.movie=f;
-    f->state.scene=7; f->state.frame=13; f->published=f; f->missing=f->fail_rename=f->fail_store=-1;
+    memset(f,0,sizeof(*f)); s=&f->services; s->context=f; mm_movie_undo_context_init(&f->base); mm_actor_group_init(&f->state,&f->base); f->state.entries=f; f->base.movie=f;
+    f->base.scene=7; f->base.frame=13; f->published=f; f->missing=f->fail_rename=f->fail_store=-1;
     s->count=count; s->child=child; s->retain=retain; s->release=release; s->append_child=append; s->child_context=context;
     s->undo_child=undo; s->release_entries=release_entries; s->publish_entries=publish_entries;
     s->read_name=read_name; s->capture_name=capture; s->rename=rename_actor; s->store_name=store; s->append_name=append_name;
@@ -110,5 +113,9 @@ int main(void)
         CHECK(mm_actor_group_create(&factory)==(fail?NULL:&f));
         CHECK(f.created==1 && f.tables==(fail!=1) && f.publications==(fail!=1) && f.owner_releases==(fail==2));
     }
+    init(&f); f.services.publish_entries=NULL; f.mutate_context=1;
+    for(i=0;i<3;++i) CHECK(mm_actor_group_add_child(&f.state,&f.children[i],&f.services));
+    CHECK(mm_actor_group_move_toggle(&f.state,&f,&f.services) && f.calls==3 && f.base.scene==99);
+    mm_actor_group_dispose(&f.state,1,&f.services); CHECK(!f.state.entries && f.released==1);
     puts("composite actor undo C89 checks passed"); return 0;
 }

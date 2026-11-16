@@ -35,7 +35,7 @@ class MovieEditUndo : public MovieUndo
     }
     long SavedScene() const
     {
-        return _iscen;
+        return Iscen();
     }
 };
 static bool TestMovieEdit()

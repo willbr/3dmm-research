@@ -1894,8 +1894,8 @@ class TestActorUndo : public ActorUndo
 {
   public:
     TestActorUndo() {}
-    PActor SavedActor() const { return _pactr; }
-    long SavedId() const { return _arid; }
+    PActor SavedActor() const { return static_cast<PActor>(_undoState.actor); }
+    long SavedId() const { return _undoState.actor_id; }
 };
 static bool TestActorUndoRuntime(PMovie parent)
 {

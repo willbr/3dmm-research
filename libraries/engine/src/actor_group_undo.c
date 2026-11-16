@@ -2,6 +2,8 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_group_undo.h"
 #include <stddef.h>
+void mm_actor_group_init(MMActorGroupState *state, MMMovieUndoContext *base)
+{ state->entries = NULL; state->base = base; }
 void *mm_actor_group_create(const MMActorGroupFactory *s)
 {
     void *entries,*owner=s->create_owner(s->context);
@@ -26,27 +28,29 @@ void mm_actor_group_dispose(MMActorGroupState *state,int children,const MMActorG
     if (!state->entries) return;
     if (children) for (i=0;i<s->count(s->context,state->entries);++i)
     { child=s->child(s->context,state->entries,i); if (child) s->release(s->context,child); }
-    s->release_entries(s->context,state->entries); state->entries=NULL; s->publish_entries(s->context,NULL);
+    s->release_entries(s->context,state->entries); state->entries=NULL; if (s->publish_entries) s->publish_entries(s->context,NULL);
 }
 int mm_actor_group_move_toggle(const MMActorGroupState *state,void *document,const MMActorGroupServices *s)
 {
+    MMMovieUndoContext base = *state->base;
     MMI32 i; void *child;
     for (i=0;i<s->count(s->context,state->entries);++i)
     {
         child=s->child(s->context,state->entries,i); if (!child) continue;
-        s->child_context(s->context,child,state->movie,state->scene,state->frame);
+        s->child_context(s->context,child,base.movie,base.scene,base.frame);
         if (!s->undo_child(s->context,child,document)) return 0;
     }
     return 1;
 }
 int mm_actor_group_name_toggle(const MMActorGroupState *state,const MMActorGroupServices *s)
 {
+    void *movie = state->base->movie;
     MMI32 i,actor,count=s->count(s->context,state->entries);
     for (i=0;i<count;++i)
     {
         actor=s->read_name(s->context,state->entries,i);
-        if (!s->capture_name(s->context,state->movie,actor)) continue;
-        if (!s->rename(s->context,state->movie,actor)) return 0;
+        if (!s->capture_name(s->context,movie,actor)) continue;
+        if (!s->rename(s->context,movie,actor)) return 0;
         s->store_name(s->context,state->entries,i);
     }
     return 1;

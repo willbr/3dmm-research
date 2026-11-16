@@ -594,21 +594,9 @@ struct ActorUndo::UndoContext
     PDocumentBase document;
     String captured;
 };
-MMActorUndoState ActorUndo::_UndoState() const
-{
-    MMActorUndoState s{}; s.movie=_pmvie; s.actor=_pactr; s.scene=_iscen; s.frame=_nfrm;
-    s.last_frame=_nfrmLast; s.actor_id=_arid; s.sooner_later=_fSoonerLater; s.sound=_fSndUndo; return s;
-}
-void ActorUndo::_PublishUndo(const MMActorUndoState &s)
-{
-    _pmvie=static_cast<PMovie>(s.movie); _pactr=static_cast<PActor>(s.actor); _iscen=s.scene; _nfrm=s.frame;
-    _nfrmLast=s.last_frame; _arid=s.actor_id; _fSoonerLater=s.sooner_later!=0; _fSndUndo=s.sound!=0;
-}
 MMActorUndoServices ActorUndo::_UndoServices(UndoContext *context)
 {
     MMActorUndoServices s{}; s.context=context;
-    s.read=[](void *p,MMActorUndoState *state) { *state=static_cast<UndoContext *>(p)->owner->_UndoState(); };
-    s.publish=[](void *p,const MMActorUndoState *state) { static_cast<UndoContext *>(p)->owner->_PublishUndo(*state); };
     s.invoke_undo=[](void *p) { auto c=static_cast<UndoContext *>(p); return int(c->owner->FUndo(c->document)); };
     s.switch_scene=[](void *,void *p,MMI32 i) { return int(static_cast<PMovie>(p)->FSwitchScen(i)); };
     s.current_scene=[](void *,void *p)->void * { return static_cast<PMovie>(p)->Pscen(); };
@@ -622,10 +610,14 @@ MMActorUndoServices ActorUndo::_UndoServices(UndoContext *context)
     s.actor_id=[](void *,void *p)->MMI32 { return static_cast<PActor>(p)->Arid(); };
     s.remove_actor=[](void *,void *p,MMI32 id) { static_cast<PScene>(p)->RemActrCore(id); };
     s.add_actor=[](void *,void *p,void *actor) { return int(static_cast<PScene>(p)->FAddActrCore(static_cast<PActor>(actor))); };
-    s.has_name=[](void *p) { return int(static_cast<UndoContext *>(p)->owner->_stn.Cch()!=0); };
     s.capture_name=[](void *p,void *movie,MMI32 id) { return int(static_cast<PMovie>(movie)->FGetName(id,&static_cast<UndoContext *>(p)->captured)); };
-    s.assign_name=[](void *p,void *movie,MMI32 id) { static_cast<PMovie>(movie)->FNameActr(id,&static_cast<UndoContext *>(p)->owner->_stn); };
-    s.store_name=[](void *p) { auto c=static_cast<UndoContext *>(p); c->owner->_stn=c->captured; };
+    s.assign_name=[](void *p,void *movie,MMI32 id) {
+        const auto &value=static_cast<UndoContext *>(p)->owner->_undoState.name;
+        String name;
+        name.SetRgch(static_cast<achar *>(const_cast<void *>(mm_movie_title_text(&value))),value.count);
+        static_cast<PMovie>(movie)->FNameActr(id,&name);
+    };
+    s.store_name=[](void *p) { auto c=static_cast<UndoContext *>(p); c->owner->SetStn(&c->captured); };
     s.view=[](void *,void *p)->void * { return static_cast<PMovie>(p)->PddgGet(0); };
     s.text_mode=[](void *,void *p) { return int(static_cast<PMovieView>(p)->FTextMode()); };
     s.select_actor=[](void *,void *p,void *actor) { static_cast<PScene>(p)->SelectActr(static_cast<PActor>(actor)); };
@@ -637,8 +629,8 @@ MMActorUndoServices ActorUndo::_UndoServices(UndoContext *context)
 ActorUndo::~ActorUndo(void)
 {
     AssertBaseThis(0); UndoContext context{this,nullptr};
-    const auto services=_UndoServices(&context); auto state=_UndoState();
-    mm_actor_undo_dispose(&state,&services);
+    const auto services=_UndoServices(&context);
+    mm_actor_undo_dispose(&_undoState,&services);
 }
 
 /****************************************************
@@ -655,8 +647,8 @@ ActorUndo::~ActorUndo(void)
 bool ActorUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0); AssertPo(pdocb,0); UndoContext context{this,pdocb};
-    const auto services=_UndoServices(&context); auto state=_UndoState();
-    return mm_actor_undo_redo(&state,&services)!=0;
+    const auto services=_UndoServices(&context);
+    return mm_actor_undo_redo(&_undoState,&services)!=0;
 }
 
 /****************************************************
@@ -673,8 +665,8 @@ bool ActorUndo::FDo(PDocumentBase pdocb)
 bool ActorUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0); AssertPo(pdocb,0); UndoContext context{this,pdocb};
-    const auto services=_UndoServices(&context); auto state=_UndoState();
-    return mm_actor_undo_toggle(&state,&services)!=0;
+    const auto services=_UndoServices(&context);
+    return mm_actor_undo_toggle(&_undoState,&services)!=0;
 }
 
 /****************************************************
@@ -690,8 +682,8 @@ bool ActorUndo::FUndo(PDocumentBase pdocb)
 void ActorUndo::SetPactr(PActor pactr)
 {
     AssertThis(0); UndoContext context{this,nullptr};
-    const auto services=_UndoServices(&context); auto state=_UndoState();
-    mm_actor_undo_set_actor(&state,pactr,&services);
+    const auto services=_UndoServices(&context);
+    mm_actor_undo_set_actor(&_undoState,pactr,&services);
 }
 
 #ifdef DEBUG
@@ -709,7 +701,7 @@ void ActorUndo::MarkMem(void)
 {
     AssertThis(0);
     ActorUndo_PAR::MarkMem();
-    MarkMemObj(_pactr);
+    MarkMemObj(static_cast<PActor>(_undoState.actor));
 }
 
 /***************************************************************************
@@ -717,7 +709,7 @@ void ActorUndo::MarkMem(void)
 ***************************************************************************/
 void ActorUndo::AssertValid(LegacyUlong grf)
 {
-    AssertNilOrPo(_pactr, 0);
+    AssertNilOrPo(static_cast<PActor>(_undoState.actor), 0);
 }
 #endif
 
@@ -731,10 +723,6 @@ RTCLASS(ActorMoveGroupUndo)
  *  A pointer to the object, or pvNil if it could not be created.
  *
  ****************************************************/
-MMActorGroupState ActorMoveGroupUndo::_GroupState() const
-{
-    MMActorGroupState s{}; s.entries=_pglpaund; s.movie=_pmvie; s.scene=_iscen; s.frame=_nfrm; return s;
-}
 MMActorGroupServices ActorMoveGroupUndo::_GroupServices(ActorMoveGroupUndo *owner)
 {
     MMActorGroupServices s{}; s.context=owner;
@@ -748,12 +736,11 @@ MMActorGroupServices ActorMoveGroupUndo::_GroupServices(ActorMoveGroupUndo *owne
     };
     s.undo_child=[](void *,void *p,void *document) { return int(static_cast<PActorUndo>(p)->FUndo(static_cast<PDocumentBase>(document))); };
     s.release_entries=[](void *,void *p) { static_cast<PDynamicArray>(p)->Release(); };
-    s.publish_entries=[](void *p,void *entries) { static_cast<ActorMoveGroupUndo *>(p)->_pglpaund=static_cast<PDynamicArray>(entries); };
     return s;
 }
 long ActorMoveGroupUndo::Cchild(void)
 {
-    const auto state=_GroupState(); const auto services=_GroupServices(this); return mm_actor_group_count(&state,&services);
+    const auto services=_GroupServices(this); return mm_actor_group_count(&_group,&services);
 }
 
 PActorMoveGroupUndo ActorMoveGroupUndo::PamguNew(void)
@@ -761,7 +748,7 @@ PActorMoveGroupUndo ActorMoveGroupUndo::PamguNew(void)
     MMActorGroupFactory s{};
     s.create_owner=[](void *)->void * { return NewObj ActorMoveGroupUndo(); };
     s.create_entries=[](void *)->void * { return DynamicArray::PglNew(size(PActorUndo)); };
-    s.publish_entries=[](void *,void *p,void *entries) { static_cast<PActorMoveGroupUndo>(p)->_pglpaund=static_cast<PDynamicArray>(entries); };
+    s.publish_entries=[](void *,void *p,void *entries) { static_cast<PActorMoveGroupUndo>(p)->_group.entries=entries; };
     s.release_owner=[](void *,void *p) { static_cast<PActorMoveGroupUndo>(p)->Release(); };
     return static_cast<PActorMoveGroupUndo>(mm_actor_group_create(&s));
 }
@@ -773,8 +760,8 @@ PActorMoveGroupUndo ActorMoveGroupUndo::PamguNew(void)
  ****************************************************/
 ActorMoveGroupUndo::~ActorMoveGroupUndo(void)
 {
-    AssertBaseThis(0); auto state=_GroupState(); const auto services=_GroupServices(this);
-    mm_actor_group_dispose(&state,1,&services);
+    AssertBaseThis(0); const auto services=_GroupServices(this);
+    mm_actor_group_dispose(&_group,1,&services);
 }
 
 /****************************************************
@@ -790,8 +777,8 @@ ActorMoveGroupUndo::~ActorMoveGroupUndo(void)
  ****************************************************/
 bool ActorMoveGroupUndo::FAddChild(PActorUndo paund)
 {
-    AssertThis(0); AssertPo(paund,0); const auto state=_GroupState(); const auto services=_GroupServices(this);
-    return mm_actor_group_add_child(&state,paund,&services)!=0;
+    AssertThis(0); AssertPo(paund,0); const auto services=_GroupServices(this);
+    return mm_actor_group_add_child(&_group,paund,&services)!=0;
 }
 
 /****************************************************
@@ -801,8 +788,8 @@ bool ActorMoveGroupUndo::FAddChild(PActorUndo paund)
  ****************************************************/
 bool ActorMoveGroupUndo::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0); AssertPo(pdocb,0); const auto state=_GroupState(); const auto services=_GroupServices(this);
-    return mm_actor_group_move_toggle(&state,pdocb,&services)!=0;
+    AssertThis(0); AssertPo(pdocb,0); const auto services=_GroupServices(this);
+    return mm_actor_group_move_toggle(&_group,pdocb,&services)!=0;
 }
 
 /****************************************************
@@ -825,13 +812,13 @@ void ActorMoveGroupUndo::MarkMem(void)
 {
     AssertValid(0);
     ActorMoveGroupUndo_PAR::MarkMem();
-    MarkMemObj(_pglpaund);
-    if (_pglpaund != pvNil)
+    MarkMemObj(_Entries());
+    if (_Entries() != pvNil)
     {
-        for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
+        for (long iaund = 0; iaund < _Entries()->IvMac(); iaund++)
         {
             PActorUndo paund;
-            _pglpaund->Get(iaund, &paund);
+            _Entries()->Get(iaund, &paund);
             MarkMemObj(paund);
         }
     }
@@ -841,14 +828,14 @@ void ActorMoveGroupUndo::MarkMem(void)
     Assert the validity of the ActorMoveGroupUndo.
 
     NOTE: deliberately does NOT chain to MovieUndo_PAR::AssertValid, mirroring
-    ActorUndo::AssertValid. The inherited _pmvie/_iscen/_nfrm slots are only
+    ActorUndo::AssertValid. The inherited C movie/scene/frame context are only
     populated by Movie::FAddUndo at commit time; before that (during mousedown
-    while we're building the composite via FAddChild) _pmvie is nil and the
-    parent chain would trip its AssertPo(_pmvie, 0).
+    while we're building the composite via FAddChild) the movie handle is nil and the
+    parent chain would trip its movie validation.
 ***************************************************************************/
 void ActorMoveGroupUndo::AssertValid(LegacyUlong grf)
 {
-    AssertPo(_pglpaund, 0);
+    AssertPo(_Entries(), 0);
 }
 #endif
 
@@ -869,16 +856,11 @@ struct ActorRenameGroupUndo::GroupContext
     ActorRenameGroupUndo *owner;
     String stored,current;
 };
-MMActorGroupState ActorRenameGroupUndo::_GroupState() const
-{
-    MMActorGroupState s{}; s.entries=_pgstNames; s.movie=_pmvie; s.scene=_iscen; s.frame=_nfrm; return s;
-}
 MMActorGroupServices ActorRenameGroupUndo::_GroupServices(GroupContext *context)
 {
     MMActorGroupServices s{}; s.context=context;
     s.count=[](void *,void *p)->MMI32 { return static_cast<PVirtualStringTable>(p)->IvMac(); };
     s.release_entries=[](void *,void *p) { static_cast<PVirtualStringTable>(p)->Release(); };
-    s.publish_entries=[](void *p,void *entries) { static_cast<GroupContext *>(p)->owner->_pgstNames=static_cast<PVirtualStringTable>(entries); };
     s.read_name=[](void *p,void *entries,MMI32 i)->MMI32 {
         auto c=static_cast<GroupContext *>(p); auto table=static_cast<PVirtualStringTable>(entries); long id;
         table->GetStn(i,&c->stored); table->GetExtra(i,&id); return id;
@@ -893,8 +875,8 @@ MMActorGroupServices ActorRenameGroupUndo::_GroupServices(GroupContext *context)
 }
 long ActorRenameGroupUndo::Cchild(void)
 {
-    GroupContext context{this}; const auto state=_GroupState(); const auto services=_GroupServices(&context);
-    return mm_actor_group_count(&state,&services);
+    GroupContext context{this}; const auto services=_GroupServices(&context);
+    return mm_actor_group_count(&_group,&services);
 }
 
 PActorRenameGroupUndo ActorRenameGroupUndo::PargNew(void)
@@ -902,28 +884,28 @@ PActorRenameGroupUndo ActorRenameGroupUndo::PargNew(void)
     MMActorGroupFactory s{};
     s.create_owner=[](void *)->void * { return NewObj ActorRenameGroupUndo(); };
     s.create_entries=[](void *)->void * { return StringTable_GST::PgstNew(size(long)); };
-    s.publish_entries=[](void *,void *p,void *entries) { static_cast<PActorRenameGroupUndo>(p)->_pgstNames=static_cast<PVirtualStringTable>(entries); };
+    s.publish_entries=[](void *,void *p,void *entries) { static_cast<PActorRenameGroupUndo>(p)->_group.entries=entries; };
     s.release_owner=[](void *,void *p) { static_cast<PActorRenameGroupUndo>(p)->Release(); };
     return static_cast<PActorRenameGroupUndo>(mm_actor_group_create(&s));
 }
 
 ActorRenameGroupUndo::~ActorRenameGroupUndo(void)
 {
-    AssertBaseThis(0); GroupContext context{this}; auto state=_GroupState(); const auto services=_GroupServices(&context);
-    mm_actor_group_dispose(&state,0,&services);
+    AssertBaseThis(0); GroupContext context{this}; const auto services=_GroupServices(&context);
+    mm_actor_group_dispose(&_group,0,&services);
 }
 
 bool ActorRenameGroupUndo::FAddChild(long arid, PString pstnPrev)
 {
-    AssertThis(0); AssertPo(pstnPrev,0); GroupContext context{this}; const auto state=_GroupState(); const auto services=_GroupServices(&context);
-    return mm_actor_group_add_name(&state,arid,pstnPrev,&services)!=0;
+    AssertThis(0); AssertPo(pstnPrev,0); GroupContext context{this}; const auto services=_GroupServices(&context);
+    return mm_actor_group_add_name(&_group,arid,pstnPrev,&services)!=0;
 }
 
 bool ActorRenameGroupUndo::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0); AssertPo(pdocb,0); AssertPo(_pmvie,0); GroupContext context{this};
-    const auto state=_GroupState(); const auto services=_GroupServices(&context);
-    return mm_actor_group_name_toggle(&state,&services)!=0;
+    AssertThis(0); AssertPo(pdocb,0); AssertPo(Pmvie(),0); GroupContext context{this};
+    const auto services=_GroupServices(&context);
+    return mm_actor_group_name_toggle(&_group,&services)!=0;
 }
 
 bool ActorRenameGroupUndo::FDo(PDocumentBase pdocb)
@@ -936,11 +918,11 @@ void ActorRenameGroupUndo::MarkMem(void)
 {
     AssertValid(0);
     ActorRenameGroupUndo_PAR::MarkMem();
-    MarkMemObj(_pgstNames);
+    MarkMemObj(_Names());
 }
 
 void ActorRenameGroupUndo::AssertValid(LegacyUlong grf)
 {
-    AssertPo(_pgstNames, 0);
+    AssertPo(_Names(), 0);
 }
 #endif

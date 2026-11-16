@@ -563,7 +563,9 @@ show/hide core, bounds/type changes and scrolling/selection dispatch. Studio and
 Marcus share lifetime visibility and first-frame scrolling predicates. Text-box
 factories, duplication, edit/undo registration and replay, property selection and
 clipboard ownership/paste now also use C89 and plain C undo/clipboard state.
-Physical views, the native MovieUndo base context and final integration remain work.
+MovieUndo's shared movie/scene/frame context, actor undo snapshot references,
+flags and counted names, and composite undo table handles now also live in
+persistent C state. Physical views and final integration remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.
@@ -652,7 +654,10 @@ C89 frame/view, lifetime, show/hide core, bounds/type and dispatch policy. Marcu
 uses the same visibility and first-frame scrolling predicates. Text-box factory,
 duplication, edit transactions, all five undo variants, property selection and
 clipboard ownership/paste now also use C89 and plain C saved-value/reference state.
-Physical views, native MovieUndo base context and final host integration remain work.
+MovieUndo base context and actor/composite undo storage now also use persistent C
+state, including counted actor names and snapshot/table references. Typed child,
+name-table and movie/scene services remain. Physical views and final host
+integration remain work.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;
 the renderer is unchanged. Evidence is in `docs/tools/playback-regression.md`.

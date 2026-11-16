@@ -45,40 +45,40 @@ class MovieUndo : public MovieUndo_PAR
     ASSERT
 
   protected:
-    PMovie _pmvie;
-    long _iscen;
-    long _nfrm;
+    MMMovieUndoContext _undoContext;
 
     MovieUndo(void)
     {
+        mm_movie_undo_context_init(&_undoContext);
     }
 
   public:
+    MMMovieUndoContext *CoreContext() { return &_undoContext; }
     void SetPmvie(PMovie pmvie)
     {
-        _pmvie = pmvie;
+        _undoContext.movie = pmvie;
     }
-    PMovie Pmvie(void)
+    PMovie Pmvie(void) const
     {
-        return _pmvie;
+        return static_cast<PMovie>(_undoContext.movie);
     }
 
     void SetIscen(long iscen)
     {
-        _iscen = iscen;
+        _undoContext.scene = iscen;
     }
-    long Iscen(void)
+    long Iscen(void) const
     {
-        return _iscen;
+        return _undoContext.scene;
     }
 
     void SetNfrm(long nfrm)
     {
-        _nfrm = nfrm;
+        _undoContext.frame = nfrm;
     }
-    long Nfrm(void)
+    long Nfrm(void) const
     {
-        return _nfrm;
+        return _undoContext.frame;
     }
 };
 
@@ -96,18 +96,12 @@ class ActorUndo : public ActorUndo_PAR
     ASSERT
 
   protected:
-    PActor _pactr;
-    long _arid;
-    bool _fSoonerLater;
-    bool _fSndUndo;
-    long _nfrmLast;
-    String _stn; // actor's name
+    MMActorUndoState _undoState;
     struct UndoContext;
-    MMActorUndoState _UndoState() const;
-    void _PublishUndo(const MMActorUndoState &);
     static MMActorUndoServices _UndoServices(UndoContext *);
     ActorUndo(void)
     {
+        mm_actor_undo_init(&_undoState, &_undoContext, sizeof(achar));
     }
 
   public:
@@ -117,32 +111,32 @@ class ActorUndo : public ActorUndo_PAR
     void SetPactr(PActor pactr);
     void SetArid(long arid)
     {
-        _arid = arid;
+        _undoState.actor_id = arid;
     }
     void SetSoonerLater(bool fSoonerLater)
     {
-        _fSoonerLater = fSoonerLater;
+        _undoState.sooner_later = fSoonerLater;
     }
     void SetSndUndo(bool fSndUndo)
     {
-        _fSndUndo = fSndUndo;
+        _undoState.sound = fSndUndo;
     }
     void SetNfrmLast(long nfrmLast)
     {
-        _nfrmLast = nfrmLast;
+        _undoState.last_frame = nfrmLast;
     }
     void SetStn(PString pstn)
     {
-        _stn = *pstn;
+        mm_actor_undo_set_name(&_undoState, pstn->Psz(), pstn->Cch());
     }
 
     bool FSoonerLater(void)
     {
-        return _fSoonerLater;
+        return _undoState.sooner_later != 0;
     };
     bool FSndUndo(void)
     {
-        return _fSndUndo;
+        return _undoState.sound != 0;
     };
 
     virtual bool FDo(PDocumentBase pdocb);
@@ -170,11 +164,12 @@ class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
     ASSERT
 
   protected:
-    PDynamicArray _pglpaund; // List of PActorUndo. Owned (each child is AddRef'd).
-    MMActorGroupState _GroupState() const;
+    MMActorGroupState _group; // Owns the child table and its references.
+    PDynamicArray _Entries() const { return static_cast<PDynamicArray>(_group.entries); }
     static MMActorGroupServices _GroupServices(ActorMoveGroupUndo *);
     ActorMoveGroupUndo(void)
     {
+        mm_actor_group_init(&_group, &_undoContext);
     }
 
   public:
@@ -209,12 +204,13 @@ class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
   protected:
     // Each entry: GST string = "name to restore on the next FUndo/FDo",
     //             extra      = long arid.
-    PVirtualStringTable _pgstNames;
+    MMActorGroupState _group;
+    PVirtualStringTable _Names() const { return static_cast<PVirtualStringTable>(_group.entries); }
     struct GroupContext;
-    MMActorGroupState _GroupState() const;
     static MMActorGroupServices _GroupServices(GroupContext *);
     ActorRenameGroupUndo(void)
     {
+        mm_actor_group_init(&_group, &_undoContext);
     }
 
   public:

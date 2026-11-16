@@ -2,14 +2,14 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_ACTOR_GROUP_UNDO_H
 #define MM_ENGINE_ACTOR_GROUP_UNDO_H
-#include "movie_data.h"
+#include "movie_undo.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 typedef struct MMActorGroupState
 {
-    void *entries,*movie;
-    MMI32 scene,frame;
+    void *entries;
+    MMMovieUndoContext *base;
 } MMActorGroupState;
 typedef struct MMActorGroupServices
 {
@@ -37,12 +37,13 @@ typedef struct MMActorGroupFactory
     void (*publish_entries)(void *,void *owner,void *entries);
     void (*release_owner)(void *,void *owner);
 } MMActorGroupFactory;
+void mm_actor_group_init(MMActorGroupState *, MMMovieUndoContext *);
 void *mm_actor_group_create(const MMActorGroupFactory *);
 MMI32 mm_actor_group_count(const MMActorGroupState *,const MMActorGroupServices *);
 int mm_actor_group_add_child(const MMActorGroupState *,void *child,const MMActorGroupServices *);
 int mm_actor_group_add_name(const MMActorGroupState *,MMI32,const void *,const MMActorGroupServices *);
 /* Tables are C-backed storage supplied by adapters. Move groups own child refs;
- * rename groups own only entries. Release callbacks run before pointer clearing.
+ * rename groups own only entries. Base context is borrowed and stable. Release callbacks run before pointer clearing.
  * Names use caller-owned stored/current scratch values; read/capture/rename/store
  * are primitive transfers, not a second implementation of toggle policy. */
 void mm_actor_group_dispose(MMActorGroupState *,int children,const MMActorGroupServices *);

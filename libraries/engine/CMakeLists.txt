@@ -55,6 +55,12 @@ target_sources(mm-engine-c89 PRIVATE src/help_display.c)
 target_sources(mm-engine-c89 PRIVATE src/help_interaction.c)
 target_sources(mm-engine-c89 PRIVATE src/help_balloon.c)
 target_sources(mm-engine-c89 PRIVATE src/help_topic.c)
+target_sources(mm-engine-c89 PRIVATE src/movie_undo.c)
+get_filename_component(engine_movie_undo_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_movie_undo_test.c" ABSOLUTE)
+add_executable(engine-movie-undo-test EXCLUDE_FROM_ALL "${engine_movie_undo_test_source}")
+target_link_libraries(engine-movie-undo-test PRIVATE mm-engine-c89)
+set_target_properties(engine-movie-undo-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-movie-undo COMMAND engine-movie-undo-test)
 target_sources(mm-engine-c89 PRIVATE src/text_box_edit.c src/text_box_undo.c)
 get_filename_component(engine_text_box_edit_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_box_edit_test.c" ABSOLUTE)
 add_executable(engine-text-box-edit-test EXCLUDE_FROM_ALL "${engine_text_box_edit_test_source}")
@@ -872,6 +878,7 @@ if(ENGINE_C89_COMPILER)
     "${engine_help_interaction_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/help_balloon.c"
     "${engine_help_balloon_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_undo.c" "${engine_movie_undo_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_box_edit.c" "${engine_text_box_edit_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_box_undo.c" "${engine_text_box_undo_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_box_runtime.c" "${engine_text_box_runtime_test_source}"
