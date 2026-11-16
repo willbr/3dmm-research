@@ -138,7 +138,7 @@ struct MarcusPlayer
     std::string timingResources, timingContent;
     bool timingStarted = false, timingFailed = false;
     MarcusBoardPalette paintPalette = {};
-    std::array<MarcusBoardInk, 7> paintInks = {};
+    MarcusBoardInks paintInks = {};
     bool paintReady = false;
     // Cancel/join before releasing movie/content leases and the live preview.
     std::unique_ptr<MarcusTimingJob> timingJob;
@@ -810,7 +810,7 @@ bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board,
     return Guard(player, [&](MM::Error &error) {
         if (player->selected < 0 || camera >= board.angles.size()) return false;
         const auto &a = board.angles[camera];
-        std::array<unsigned, 7> colours;
+        MarcusBoardPaintColours colours;
         if (!MarcusGetStoryboardColours(player, colours)) return false;
         MM::PreviewView view;
         view.width = MarcusBoardWidth; view.height = MarcusBoardHeight;
@@ -834,7 +834,7 @@ bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board,
         return true;
     });
 }
-bool MarcusGetStoryboardColours(MarcusPlayer *player, std::array<unsigned, 7> &colours)
+bool MarcusGetStoryboardColours(MarcusPlayer *player, MarcusBoardPaintColours &colours)
 {
     if (!player || player->selected < 0) return false;
     MarcusBoardPalette palette;

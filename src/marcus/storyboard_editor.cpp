@@ -8,7 +8,9 @@
 namespace
 {
 constexpr int sizes[] = {1, 4, 8, 16, 32};
-constexpr const char *colourNames[] = {"Grey eraser", "Black", "White", "Soft blue", "Soft red", "Soft yellow", "Soft green"};
+constexpr const char *colourNames[] = {"Canvas grey", "Black", "White", "Soft blue", "Soft red", "Soft yellow", "Soft green", "Dark grey", "Grey", "Light grey"};
+constexpr int swatches[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
+static_assert(sizeof(colourNames) / sizeof(*colourNames) == MarcusBoardColourCount, "Paint labels match the palette");
 struct Field { const char *name; float *value; float low, high, step; };
 bool Inside(float x, float y, const SDL_FRect &r) { return ui_inside(x, y, r.x, r.y, r.w, r.h) != 0; }
 void Grid(MarcusUI *ui, const MarcusBoardAngle &angle, const SDL_FRect &r)
@@ -31,8 +33,8 @@ struct MarcusStoryboardEditor
     MarcusStoryboard board;
     MarcusBoardAngle work;
     SDL_FRect view = {}, canvas = {}, tools = {}, bar = {};
-    bool open = false, changed = false, painting = false, looking = false, pending = false, previewDirty = true, hasWork = false;
-    int angle = 0, light = 0, tab = 0, colour = 1, size = 8, previousX = -1, previousY = -1, dragField = -1;
+    bool open = false, changed = false, painting = false, picking = false, looking = false, pending = false, previewDirty = true, hasWork = false;
+    int angle = 0, light = 0, tab = 0, colour = 3, size = 8, previousX = -1, previousY = -1, dragField = -1;
     float dragStart = 0, dragValue = 0;
     unsigned long document = 0, scene = 0;
     int cameraKeys = 0;
@@ -41,7 +43,7 @@ struct MarcusStoryboardEditor
     long frame = 0;
     std::string resources, content, error;
     std::vector<unsigned char> baseline, rgba;
-    std::array<unsigned, 7> paintColours = {0xd3d4d6, 0, 0xffffff, 0x9ebfd9, 0xdea5a2, 0xe6d8a0, 0xaac9ad};
+    MarcusBoardPaintColours paintColours = MarcusBoardColours;
     SDL_Texture *texture = nullptr;
     ~MarcusStoryboardEditor() { StopLook(); SDL_DestroyTexture(texture); }
     bool Gesture() const { return painting || looking || dragField >= 0; }
@@ -83,7 +85,7 @@ struct MarcusStoryboardEditor
         light = std::clamp(light, 0, std::max(0, int(board.lights.size()) - 1));
         baseline = MarcusEncodeBoard(board);
         MarcusGetStoryboardColours(player, paintColours);
-        pending = painting = looking = false; dragField = -1; cameraKeys = 0;
+        pending = painting = picking = looking = false; dragField = -1; cameraKeys = 0;
         previewDirty = true;
     }
     bool Commit()
@@ -135,11 +137,25 @@ struct MarcusStoryboardEditor
             {"Position Z", &l.z, -32700, 32700, .5f}, {"Yaw", &l.yaw, -360, 360, 1},
             {"Pitch", &l.pitch, -89, 89, 1}, {"Intensity", &l.intensity, 0, 1, .05f}};
     }
+    bool CanvasPoint(float x, float y, int &ix, int &iy) const
+    {
+        if (canvas.w <= 0 || canvas.h <= 0 || !Inside(x, y, canvas)) return false;
+        ix = std::clamp(int((x - canvas.x) * MarcusBoardWidth / canvas.w), 0, MarcusBoardWidth - 1);
+        iy = std::clamp(int((y - canvas.y) * MarcusBoardHeight / canvas.h), 0, MarcusBoardHeight - 1);
+        return true;
+    }
+    void Pick(float x, float y)
+    {
+        int ix, iy;
+        if (!CanvasPoint(x, y, ix, iy)) return;
+        // Sample the logical ink, so dithering and foreground props cannot
+        // change the selected drawing colour or create a movie undo entry.
+        colour = board.angles[angle].pixels[iy * MarcusBoardWidth + ix]; picking = false;
+    }
     void Paint(float x, float y)
     {
-        if (!Inside(x, y, canvas)) { previousX = previousY = -1; return; }
-        const int ix = std::clamp(int((x - canvas.x) * MarcusBoardWidth / canvas.w), 0, MarcusBoardWidth - 1);
-        const int iy = std::clamp(int((y - canvas.y) * MarcusBoardHeight / canvas.h), 0, MarcusBoardHeight - 1);
+        int ix, iy;
+        if (!CanvasPoint(x, y, ix, iy)) { previousX = previousY = -1; return; }
         MarcusBoardStroke(board.angles[angle], previousX < 0 ? ix : previousX, previousY < 0 ? iy : previousY, ix, iy, size, static_cast<unsigned char>(colour));
         previousX = ix; previousY = iy; pending = previewDirty = true;
     }
@@ -156,7 +172,7 @@ void storyboard_editor_update(MarcusStoryboardEditor *e, double seconds)
     if (storyboard_editor_visible(e) && e->looking && marcus_fly_step(&e->board.angles[e->angle].camera, e->cameraKeys, seconds))
         e->pending = e->previewDirty = true;
 }
-void storyboard_editor_close(MarcusStoryboardEditor *e) { if (e && e->open) { e->Finish(); e->open = false; } }
+void storyboard_editor_close(MarcusStoryboardEditor *e) { if (e && e->open) { e->Finish(); e->picking = e->open = false; } }
 void storyboard_editor_layout(MarcusStoryboardEditor *e, const SDL_FRect *view, const SDL_FRect *canvas, const SDL_FRect *tools, const SDL_FRect *bar)
 { if (e) { e->view = *view; e->canvas = *canvas; e->tools = *tools; e->bar = *bar; } }
 void storyboard_editor_sync(MarcusStoryboardEditor *e, MarcusPlayer *player, const char *resources, const char *content)
@@ -204,6 +220,8 @@ int storyboard_editor_show(MarcusStoryboardEditor *e, MarcusPlayer *player, int 
             e->work.farClip = std::clamp(work->projection.far_clip, e->work.nearClip + .01f, 32700.f);
         }
         e->tab = e->light = 0;
+        e->picking = false;
+        if (newScene) e->colour = 3;
         if (angle == -2) e->AddAngle();
         else if (angle >= 0) e->SelectAngle(angle);
         return 1;
@@ -224,7 +242,8 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         const bool command = event->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI | SDL_KMOD_ALT);
         if (key == SDLK_ESCAPE && !event->key.repeat)
         {
-            if (e->looking) e->Finish();
+            if (e->picking) e->picking = false;
+            else if (e->looking) e->Finish();
             else if (e->Gesture()) e->Reload(); else storyboard_editor_close(e);
             return 1;
         }
@@ -233,8 +252,9 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         if (e->looking) return 0;
         if (!event->key.repeat)
         {
-            if (key >= SDLK_1 && key <= SDLK_6) { e->colour = int(key - SDLK_1) + 1; return 1; }
-            if (key == SDLK_E && e->tab == 0) { e->colour = 0; return 1; }
+            if (key >= SDLK_1 && key <= SDLK_9) { e->colour = int(key - SDLK_1) + 1; e->picking = false; return 1; }
+            if (key == SDLK_0) { e->colour = 0; e->picking = false; return 1; }
+            if (key == SDLK_I && e->tab == 0) { e->Finish(); e->picking = !e->picking; return 1; }
             if (key == SDLK_LEFTBRACKET) { e->size = std::max(1, e->size / 2); return 1; }
             if (key == SDLK_RIGHTBRACKET) { e->size = std::min(64, e->size * 2); return 1; }
         }
@@ -291,7 +311,10 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
     if (Inside(px, py, e->canvas))
     {
         if (event->button.button == SDL_BUTTON_LEFT && e->tab == 0)
-        { e->painting = true; e->previousX = e->previousY = -1; e->Paint(px, py); }
+        {
+            if (e->picking || (SDL_GetModState() & SDL_KMOD_ALT)) e->Pick(px, py);
+            else { e->painting = true; e->previousX = e->previousY = -1; e->Paint(px, py); }
+        }
         else if (event->button.button == SDL_BUTTON_RIGHT && e->tab == 1) e->StartLook(event->button.windowID);
         return 1;
     }
@@ -309,17 +332,18 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         e->pending = true; e->Commit(); return 1;
     }
     for (int t = 0; t < 3; ++t)
-        if (ui_inside(px, py, x + t * 90, y + 52, 84, 30)) { e->tab = t; return 1; }
+        if (ui_inside(px, py, x + t * 90, y + 52, 84, 30)) { e->tab = t; e->picking = false; return 1; }
     if (e->tab == 0)
     {
-        for (int c = 1; c <= 6; ++c)
-            if (ui_inside(px, py, x + ((c - 1) % 3) * 90, y + 104 + ((c - 1) / 3) * 72, 84, 62)) e->colour = c;
+        for (int c = 0; c < int(MarcusBoardColourCount); ++c)
+            if (ui_inside(px, py, x + (c % 3) * 90, y + 104 + (c / 3) * 48, 84, 40))
+            { e->colour = swatches[c]; e->picking = false; }
         for (int s = 0; s < 5; ++s)
-            if (ui_inside(px, py, x + s * 54, y + 284, 48, 30)) e->size = sizes[s];
-        if (ui_inside(px, py, x, y + 332, 264, 30)) e->colour = 0;
-        if (ui_inside(px, py, x, y + 378, 126, 30))
+            if (ui_inside(px, py, x + s * 54, y + 332, 48, 30)) e->size = sizes[s];
+        if (ui_inside(px, py, x, y + 380, 264, 30)) { e->picking = !e->picking; return 1; }
+        if (ui_inside(px, py, x, y + 424, 126, 30))
         { std::fill(e->board.angles[e->angle].pixels.begin(), e->board.angles[e->angle].pixels.end(), 0); e->pending = true; e->Commit(); }
-        if (ui_inside(px, py, x + 138, y + 378, 126, 30) && marcus_can_undo(e->player))
+        if (ui_inside(px, py, x + 138, y + 424, 126, 30) && marcus_can_undo(e->player))
         { if (marcus_undo(e->player)) { e->Reload(); e->changed = true; } else e->error = marcus_error(e->player); }
     }
     else
@@ -391,22 +415,23 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
     if (e->tab == 1) Grid(ui, e->board.angles[e->angle], e->canvas);
     if (e->tab == 0)
     {
-        for (int c = 1; c <= 6; ++c)
+        for (int c = 0; c < int(MarcusBoardColourCount); ++c)
         {
-            const float left = x + ((c - 1) % 3) * 90, top = y + 104 + ((c - 1) / 3) * 72;
-            ui_fill(ui, left - 2, top - 2, 88, 66, e->colour == c ? 0x78cbc4 : 0x424952);
-            ui_fill(ui, left, top, 84, 38, e->paintColours[c]);
-            ui_label(ui, left + 4, top + 46, 76, colourNames[c], 0xdde0e5);
+            const int ink = swatches[c];
+            const float left = x + (c % 3) * 90, top = y + 104 + (c / 3) * 48;
+            ui_fill(ui, left - 2, top - 2, 88, 44, e->colour == ink ? 0x78cbc4 : 0x424952);
+            ui_fill(ui, left, top, 84, 24, e->paintColours[ink]);
+            ui_label(ui, left + 4, top + 27, 76, colourNames[ink], 0xdde0e5);
         }
         SDL_snprintf(label, sizeof(label), "Crunchy brush / %d px", e->size);
-        ui_heading(ui, x, y + 258, label, 0x969da8);
+        ui_heading(ui, x, y + 308, label, 0x969da8);
         for (int s = 0; s < 5; ++s)
-        { SDL_snprintf(label, sizeof(label), "%d", sizes[s]); ui_button_sized(ui, x + s * 54, y + 284, 48, 30, label, e->size == sizes[s], 1); }
-        ui_button_sized(ui, x, y + 332, 264, 30, "Grey eraser (E)", e->colour == 0, 1);
-        ui_button_sized(ui, x, y + 378, 126, 30, "Clear angle", 0, 1);
-        ui_button_sized(ui, x + 138, y + 378, 126, 30, "Undo", 0, marcus_can_undo(e->player));
-        ui_text(ui, x, y + 440, "1-6 colours / [ ] brush size", 0x969da8);
-        ui_text(ui, x, y + 464, "Ctrl+Z / Cmd+Z to undo", 0x969da8);
+        { SDL_snprintf(label, sizeof(label), "%d", sizes[s]); ui_button_sized(ui, x + s * 54, y + 332, 48, 30, label, e->size == sizes[s], 1); }
+        ui_button_sized(ui, x, y + 380, 264, 30, "Pick colour (I)", e->picking, 1);
+        ui_button_sized(ui, x, y + 424, 126, 30, "Clear angle", 0, 1);
+        ui_button_sized(ui, x + 138, y + 424, 126, 30, "Undo", 0, marcus_can_undo(e->player));
+        ui_text(ui, x, y + 476, "1-9 colours / 0 canvas grey", 0x969da8);
+        ui_text(ui, x, y + 500, "[ ] size / Alt+click to pick", 0x969da8);
     }
     else
     {
@@ -436,7 +461,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             SDL_snprintf(label, sizeof(label), "Bake grid (%s)", colourNames[e->colour]);
             ui_button_sized(ui, x, y + 394, 264, 30, label, 0, enabled);
             if (ui_inside(ui->mouse_x, ui->mouse_y, x, y + 394, 264, 30))
-                ui->hint = "Bake this angle's grid in the selected colour (1-6). Undo removes it; no depth is added.";
+                ui->hint = "Bake this angle's grid in the selected colour (1-9). Undo removes it; no depth is added.";
         }
         ui_text(ui, x, y + 440, "Drag values / Shift for fine", 0x969da8);
         ui_text(ui, x, y + 464, e->tab == 1 ? "Hold RMB / WASD + Q E / Shift" : "Lights affect 3D actors / props.", 0x969da8);
@@ -447,11 +472,13 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             ui_label(ui, x, y + 488, 264, label, 0x969da8);
         }
     }
-    ui_text(ui, x, y + 512, "Edits join the movie as you work.", 0x78cbc4);
-    ui_text(ui, x, y + 536, "Save copy / Ctrl+S to keep them.", 0x969da8);
-    if (!e->error.empty()) ui_label(ui, x, y + 568, 264, e->error.c_str(), 0xe4a1a1);
+    const float footer = y + (e->tab == 0 ? 544 : 512);
+    ui_text(ui, x, footer, "Edits join the movie as you work.", 0x78cbc4);
+    ui_text(ui, x, footer + 24, "Save copy / Ctrl+S to keep them.", 0x969da8);
+    if (!e->error.empty()) ui_label(ui, x, footer + 56, 264, e->error.c_str(), 0xe4a1a1);
     if (e->looking || Inside(ui->mouse_x, ui->mouse_y, e->canvas))
-        ui->hint = e->tab == 0 ? "Paint the background / 1-6 colours / E eraser / [ ] size / Ctrl+Z undo / Escape finishes"
+        ui->hint = e->tab == 0 ? (e->picking ? "Click the background to pick its paint colour / Escape cancels the picker"
+            : "Paint / 1-9 colours / 0 canvas grey / I or Alt+click to pick / [ ] size / Ctrl+Z undo")
             : e->tab == 1 ? "Hold right mouse: look + WASD move / Q E down/up / Shift faster / Wheel speed / Escape releases" : "Lights affect actors and props across this scene's camera angles";
 }
 int storyboard_editor_take(MarcusStoryboardEditor *e) { if (!e || !e->changed) return 0; e->changed = false; return 1; }

@@ -35,7 +35,7 @@ int main(int argc, char **argv)
         MarcusBoardStroke(board.angles[0], 0, 0, 543, 305, 8, 3);
         check(board.angles[0].pixels[0] == 3 && board.angles[0].pixels.back() == 3 && board.angles[0].pixels[100] == 0, "Clipped, continuous opaque strokes");
         MarcusBoardStroke(board.angles[0], 270, 152, 270, 152, 16, 0);
-        check(board.angles[0].pixels[152 * 544 + 270] == 0, "Grey eraser");
+        check(board.angles[0].pixels[152 * 544 + 270] == 0, "Canvas grey covers existing marks");
         const auto originalPainting = board.angles[0].pixels;
         const auto grid = MarcusBoardGridLines(board.angles[0]);
         check(!grid.empty() && std::all_of(grid.begin(), grid.end(), [](const auto &line) {
@@ -52,6 +52,13 @@ int main(int argc, char **argv)
         check(!turnedGrid.empty() && turnedGrid != grid && std::all_of(turnedGrid.begin(), turnedGrid.end(), [](const auto &line) {
             return std::all_of(line.begin(), line.end(), [](double p) { return std::isfinite(p) && p >= 0 && p <= 1; });
         }), "Moved, rolled and zoomed grids remain clipped");
+        auto legacy = MarcusEncodeBoard(board); legacy[0] = 1;
+        check(MarcusEncodeBoard(MarcusDecodeBoard(legacy)) == MarcusEncodeBoard(board), "Read version-one storyboards with the original colour indices");
+        for (unsigned char grey = 7; grey < MarcusBoardColourCount; ++grey)
+        {
+            MarcusBoardStroke(board.angles[0], 30 + grey * 20, 40, 30 + grey * 20, 40, 8, grey);
+            check(board.angles[0].pixels[40 * MarcusBoardWidth + 30 + grey * 20] == grey, "Paint each additional grey");
+        }
         board.angles.emplace_back();
         // Keep this prop/lighting fixture close to the ground, independent of the new-scene camera height.
         board.angles[1].camera.x = 7; board.angles[1].camera.y = 5; board.angles[1].camera.yaw = -25; board.angles[1].camera.pitch = 12;
@@ -66,7 +73,7 @@ int main(int argc, char **argv)
         check(rejected, "Reject truncated editor data");
         auto invalid = board; invalid.angles[0].fov = std::numeric_limits<float>::quiet_NaN();
         check(!MarcusBoardValid(invalid), "Reject nonfinite camera");
-        invalid = board; invalid.angles[0].pixels[0] = 7;
+        invalid = board; invalid.angles[0].pixels[0] = MarcusBoardColourCount;
         check(!MarcusBoardValid(invalid), "Reject invalid paint colour");
         check(MarcusApplyStoryboard(player.get(), board, true, 0, argv[1], argv[2]), "Create blank storyboard movie");
         MarcusInfo info = {};

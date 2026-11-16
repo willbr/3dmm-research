@@ -48,7 +48,7 @@ bool MarcusBoardValid(const MarcusStoryboard &board)
             !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -90, 90) || !Range(a.roll, -180, 180) ||
             !Range(a.fov, 5, 150) || !Range(a.nearClip, .01f, 100) || !Range(a.farClip, a.nearClip + .01f, 32700) ||
             a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight ||
-            std::any_of(a.pixels.begin(), a.pixels.end(), [](auto v) { return v > 6; })) return false;
+            std::any_of(a.pixels.begin(), a.pixels.end(), [](auto v) { return v >= MarcusBoardColourCount; })) return false;
     for (const auto &l : board.lights)
         if (!Range(l.x, -32700, 32700) || !Range(l.y, -32700, 32700) || !Range(l.z, -32700, 32700) ||
             !Range(l.yaw, -360, 360) || !Range(l.pitch, -89, 89) || !Range(l.intensity, 0, 1) ||
@@ -59,7 +59,7 @@ std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board)
 {
     Require(MarcusBoardValid(board), "Storyboard settings are out of range.");
     Wire w;
-    w.Put(1); w.Put(MarcusBoardWidth); w.Put(MarcusBoardHeight);
+    w.Put(2); w.Put(MarcusBoardWidth); w.Put(MarcusBoardHeight);
     w.Put(static_cast<unsigned>(board.angles.size())); w.Put(static_cast<unsigned>(board.lights.size()));
     for (const auto &a : board.angles)
     {
@@ -76,7 +76,8 @@ std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board)
 MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
 {
     Wire w{bytes};
-    Require(w.Get() == 1 && w.Get() == MarcusBoardWidth && w.Get() == MarcusBoardHeight, "Unsupported storyboard format.");
+    const auto version = w.Get();
+    Require((version == 1 || version == 2) && w.Get() == MarcusBoardWidth && w.Get() == MarcusBoardHeight, "Unsupported storyboard format.");
     const auto angles = w.Get(), lights = w.Get();
     Require(angles > 0 && angles <= 64 && lights <= 16 &&
         bytes.size() == 20 + size_t(angles) * (36 + MarcusBoardWidth * MarcusBoardHeight) + size_t(lights) * 28,
@@ -89,6 +90,7 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
         a.camera.yaw = w.Float(); a.camera.pitch = w.Float(); a.roll = w.Float();
         a.fov = w.Float(); a.nearClip = w.Float(); a.farClip = w.Float();
         std::copy_n(bytes.data() + w.at, a.pixels.size(), a.pixels.begin()); w.at += a.pixels.size();
+        Require(version != 1 || std::none_of(a.pixels.begin(), a.pixels.end(), [](auto v) { return v > 6; }), "Invalid legacy paint colour.");
     }
     for (auto &l : result.lights)
     {
@@ -99,7 +101,7 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
 }
 void MarcusBoardStroke(MarcusBoardAngle &a, int x0, int y0, int x1, int y1, int size, unsigned char colour)
 {
-    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || size < 1 || size > 64 || colour > 6 ||
+    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || size < 1 || size > 64 || colour >= MarcusBoardColourCount ||
         x0 < 0 || x0 >= MarcusBoardWidth || x1 < 0 || x1 >= MarcusBoardWidth ||
         y0 < 0 || y0 >= MarcusBoardHeight || y1 < 0 || y1 >= MarcusBoardHeight) return;
     const int dx = std::abs(x1 - x0), dy = -std::abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
@@ -173,7 +175,7 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
 }
 void MarcusBoardBakeGrid(MarcusBoardAngle &a, unsigned char colour)
 {
-    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || colour > 6) return;
+    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || colour >= MarcusBoardColourCount) return;
     for (const auto &line : MarcusBoardGridLines(a))
         MarcusBoardStroke(a, int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
             int(std::lround(line[2] * (MarcusBoardWidth - 1))), int(std::lround(line[3] * (MarcusBoardHeight - 1))), 1, colour);
@@ -183,9 +185,9 @@ unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y)
     static const int pattern[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
     return pattern[(y & 3) * 4 + (x & 3)] < ink.amount ? ink.second : ink.first;
 }
-std::array<MarcusBoardInk, 7> MarcusBoardColourMap(const MarcusBoardPalette &palette)
+MarcusBoardInks MarcusBoardColourMap(const MarcusBoardPalette &palette)
 {
-    std::array<MarcusBoardInk, 7> result = {};
+    MarcusBoardInks result = {};
     for (unsigned paint = 0; paint < result.size(); ++paint)
     {
         double best = 1e20;

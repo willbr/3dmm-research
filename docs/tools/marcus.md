@@ -155,12 +155,17 @@ navigation, prop insertion and Save copy remain available. **Done**, Escape or
 clicking Storyboard again returns to the normal object tools. Starting playback
 also leaves painting mode.
 
-The 544×306 canvas starts light grey. Paint with black, white, soft blue, soft red,
-soft yellow or soft green using an opaque, hard pixel brush. Paint colours are
+The 544×306 canvas starts light grey, with soft blue selected as the default pen.
+Paint with black, white, soft blue, soft red, soft yellow, soft green, dark grey,
+grey, light grey or the canvas grey using an opaque, hard pixel brush. Paint colours are
 mapped into the unchanged black-scene palette, using a small ordered pixel dither
 for soft colours. Swatches show the mixture's average colour; the draft preview
 and exported background share the same pixel pattern. Choose a brush size,
-use **[ / ]** to resize, **1–6** to choose colours, and **E** for the grey eraser.
+use **[ / ]** to resize, **1–9** to choose colours, and **0** for canvas grey.
+**Pick colour (I)** samples a painted background colour on the next click, then
+returns to the brush; **Alt+click** samples directly. Sampling uses the stored
+paint colour, unaffected by foreground props or dither pixels, and creates no
+undo entry. Escape cancels an armed picker. Paint with canvas grey to cover marks.
 **Clear angle** clears only that drawing. Ctrl+Z / Cmd+Z (or **Undo** in Paint)
 uses the movie's normal undo history for strokes, clears, camera settings, angle
 additions and light edits. Each completed stroke or adjustment joins the working
@@ -182,7 +187,7 @@ moving the camera; the sidebar shows the current speed. Releasing right mouse or
 pressing Escape releases capture and commits the camera move as one undo step.
 **Bake grid** in Camera paints the current
 perspective ground grid into this angle's background using the selected colour
-(**1–6**); it then opens Paint so you can draw over it. Grid lines are one pixel
+(**1–9**); it then opens Paint so you can draw over it. Grid lines are one pixel
 wide, retain the current camera perspective, and stay fixed if you move the camera
 later. Baking is one undo step and survives Save copy, without adding
 depth. The live guide, crosshair and guide label remain temporary overlays.

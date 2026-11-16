@@ -10,8 +10,10 @@
 
 constexpr int MarcusBoardWidth = 544, MarcusBoardHeight = 306;
 constexpr unsigned MarcusBoardChunk = 0x53544244; // STBD, versioned editor data.
-constexpr unsigned MarcusBoardColours[] = {0xd3d4d6, 0x000000, 0xffffff,
-    0x9ebfd9, 0xdea5a2, 0xe6d8a0, 0xaac9ad};
+constexpr unsigned MarcusBoardColourCount = 10;
+using MarcusBoardPaintColours = std::array<unsigned, MarcusBoardColourCount>;
+constexpr MarcusBoardPaintColours MarcusBoardColours = {0xd3d4d6, 0x000000, 0xffffff,
+    0x9ebfd9, 0xdea5a2, 0xe6d8a0, 0xaac9ad, 0x505050, 0x949494, 0xc4c4c4};
 struct MarcusBoardAngle
 {
     // GE-Black's first camera position and lens, with level pitch.
@@ -43,9 +45,10 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes);
 MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources, const std::string &content);
 using MarcusBoardPalette = std::array<unsigned, 256>;
 struct MarcusBoardInk { unsigned char first = 0, second = 0, amount = 0; unsigned rgb = 0; };
-std::array<MarcusBoardInk, 7> MarcusBoardColourMap(const MarcusBoardPalette &palette);
+using MarcusBoardInks = std::array<MarcusBoardInk, MarcusBoardColourCount>;
+MarcusBoardInks MarcusBoardColourMap(const MarcusBoardPalette &palette);
 unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y);
-bool MarcusGetStoryboardColours(MarcusPlayer *player, std::array<unsigned, 7> &colours);
+bool MarcusGetStoryboardColours(MarcusPlayer *player, MarcusBoardPaintColours &colours);
 void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStoryboards &boards,
     const std::string &resources, const std::string &content, std::vector<MM::V3dmm::Dependency> dependencies,
     const std::vector<std::filesystem::path> &portableContent, const std::filesystem::path &destination);
