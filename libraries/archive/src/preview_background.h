@@ -24,6 +24,8 @@ class PreviewBackground
     void Publish(const MMBackgroundPreview &);
     MMBackgroundResource resource = {};
     MMBackgroundCameraState cameraState = {};
+    // Own the point list borrowed by cameraState; selection uses retail's cursor policy.
+    std::vector<MMActorPoint> placementPoints;
     MMPreviewProjectionCache cameraProjections = {};
 
   public:
@@ -39,7 +41,9 @@ class PreviewBackground
     PreviewBackground(const PreviewBackground &) = delete;
     PreviewBackground &operator=(const PreviewBackground &) = delete;
     bool Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette);
-    bool SetCamera(std::uint32_t slot);
+    bool SetCamera(std::uint32_t slot, bool updatePlacement = true);
+    bool NextPlacementPoint(float point[3]);
+    void ReusePlacementPoint();
     bool CameraProjection(std::uint32_t slot, PreviewProjection &projection);
     PreviewBackgroundMesh &Mesh();
 };

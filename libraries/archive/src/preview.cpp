@@ -804,18 +804,26 @@ catch (const std::bad_alloc &)
     projection = {};
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to read camera guides.");
 }
-bool Preview::SetCamera(std::uint32_t camera, Error &error)
+bool Preview::NextPlacementPoint(float point[3])
+{
+    return _impl->ready && _impl->background && _impl->background->NextPlacementPoint(point);
+}
+void Preview::ReusePlacementPoint()
+{
+    if (_impl->background) _impl->background->ReusePlacementPoint();
+}
+bool Preview::SetCamera(std::uint32_t camera, Error &error, bool temporary)
 try
 {
     error = {};
     Internal::ClearDiagnostic();
-    struct Host { Impl *impl; std::exception_ptr exception; } host = {_impl.get(), {}};
+    struct Host { Impl *impl; std::exception_ptr exception; bool temporary; } host = {_impl.get(), {}, temporary};
     int ready = _impl->ready;
     MMU32 current = _impl->info.currentCamera;
     const auto result = mm_preview_camera_select(&ready, &current, bool(_impl->background), _impl->info.cameraCount,
         camera, &host, [](void *v, MMU32 index) -> int {
             auto &h = *static_cast<Host *>(v);
-            try { return h.impl->background->SetCamera(index) && !Internal::AssertionFailed(); }
+            try { return h.impl->background->SetCamera(index, !h.temporary) && !Internal::AssertionFailed(); }
             catch (...) { h.exception = std::current_exception(); return -1; }
         });
     _impl->ready = ready != 0;

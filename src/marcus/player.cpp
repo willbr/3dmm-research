@@ -1149,7 +1149,13 @@ extern "C"
             { error.message = "No object IDs are available."; return false; }
             MarcusNamedProp prop;
             auto &definition = prop.definition;
-            if (!player->preview.PlacementPoint(definition.point)) { error.message = "This scene has no background placement point."; return false; }
+            if (!player->preview.NextPlacementPoint(definition.point)) { error.message = "This scene has no background placement point."; return false; }
+            struct PlacementGuard
+            {
+                MM::Preview &preview;
+                bool committed = false;
+                ~PlacementGuard() { if (!committed) preview.ReusePlacementPoint(); }
+            } placement{player->preview};
             for (const auto value : definition.point)
                 if (!std::isfinite(value) || std::abs(value) > 32700) { error.message = "The placement point is out of range."; return false; }
             definition.scene = player->scenes[player->selected].number;
@@ -1174,6 +1180,7 @@ extern "C"
             if (result < 0) { error.message = "The prop could not be selected."; return false; }
             ++player->document; player->movieImageScene = -1;
             history.Commit();
+            placement.committed = true;
             return true;
         });
         return ok ? result : -1;
@@ -1298,6 +1305,7 @@ extern "C"
             player->movieImageScene = -1;
             ++player->document;
             history.Commit();
+            player->preview.ReusePlacementPoint();
             return true;
         });
     }
@@ -1405,9 +1413,9 @@ extern "C"
             {
                 MM::Preview &preview;
                 std::uint32_t camera;
-                ~Restore() { MM::Error ignored; preview.SetCamera(camera, ignored); }
+                ~Restore() { MM::Error ignored; preview.SetCamera(camera, ignored, true); }
             } restore{player->preview, previous};
-            if (!player->preview.SetCamera(camera, error)) return false;
+            if (!player->preview.SetCamera(camera, error, true)) return false;
             MM::PreviewView view;
             view.width = 160; view.height = 120;
             view.renderAtOutputResolution = true;

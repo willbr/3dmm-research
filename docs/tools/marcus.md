@@ -188,8 +188,9 @@ undoing another edit refreshes the canvas from the current movie.
 
 New storyboard scenes start with the black background's first camera position
 (0, 20, 20), downward pitch (about 5.71 degrees), FOV (about 41.53 degrees) and
-near/far clipping (1/5000). New props use the black scene's camera-relative
-insertion point, adapted to the current pose and lens so they start in frame.
+near/far clipping (1/5000). New props cycle through the black scene's three
+camera-relative insertion points, adapted to the current pose and lens so they
+start in frame. The extra anchors are also written into exported native CAMs.
 Existing drawings, cameras and prop positions remain authored as saved.
 **New angle** creates a blank grey drawing using the selected camera's settings.
 Switch angles using the arrows. In **Camera**, drag numeric values or use their
@@ -284,8 +285,12 @@ preview. Browse with the list, arrows, Page Up/Down or wheel, then choose
 The chooser requires `tmpls.3cn` in the Content folder and previews run in the
 isolated helper process.
 
-The prop appears at the current frame, at the active background camera's default
-object placement point, and remains through the scene's last frame. It uses its
+The prop appears at the current frame, at the active background camera's next
+object placement point, and remains through the scene's last frame. Insertions
+cycle through the default point and any extra points in retail order, then wrap.
+Changing camera angles or scenes restarts the sequence; camera thumbnails and
+metadata reads leave it untouched. Moving an object manually releases the last
+point for reuse. Failed insertions also leave that point available. It uses its
 default pose/action on a stationary track. The new prop is selected in the object
 list and its bounds are highlighted in the movie view. Each insertion has a
 unique movie-wide object ID and roll-call name. Other scenes and existing tracks

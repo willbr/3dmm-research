@@ -269,12 +269,18 @@ class Preview
     // Adjust scene edges in memory. Opening camera cues follow the first frame;
     // actor tracks and other authored event times are retained.
     bool SetSceneRange(std::int32_t first, std::int32_t last, Error &error);
-    bool SetCamera(std::uint32_t camera, Error &error);
+    // Temporary selection leaves the insertion sequence untouched; restore the
+    // original camera after rendering a thumbnail.
+    bool SetCamera(std::uint32_t camera, Error &error, bool temporary = false);
     // Read an authored background camera without selecting it, rendering, or
     // changing frame/pose state. Metadata is cached for the loaded background.
     bool CameraProjection(std::uint32_t camera, PreviewProjection &projection, Error &error);
     // Default authored object placement for the current background camera.
     bool PlacementPoint(float point[3]) const;
+    // Consume default/appended insertion points in retail order. Failed insertions
+    // and completed manual moves can release the last point for reuse.
+    bool NextPlacementPoint(float point[3]);
+    void ReusePlacementPoint();
     void ResetOrbitFraming();
     // Seed inspection position, orientation, lens and orbit pivot from the shot.
     bool MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error &error);

@@ -25,6 +25,44 @@ int main(int argc, char **argv)
         check(MarcusBoardValid(board), "Default storyboard");
         {
             check(marcus_add_scene(player.get(), 11, argv[1], argv[2]), "Create retail black-scene comparison");
+            MM::Archive retailData; MM::Error readError;
+            check(retailData.Open((std::filesystem::u8path(argv[2]) / "bkgds.3cn").u8string(), readError), "Open retail insertion data");
+            auto cameraPoints = [&](unsigned slot) {
+                const auto &chunks = retailData.Chunks();
+                const auto background = std::find_if(chunks.begin(), chunks.end(), [](const auto &c) {
+                    return c.id.type == 0x424b4744 && c.id.number == 11;
+                });
+                check(background != chunks.end(), "Read black background definition");
+                const auto child = std::find_if(background->children.begin(), background->children.end(), [&](const auto &c) {
+                    return c.present && c.slot == slot && c.target.type == 0x43414d20;
+                });
+                check(child != background->children.end(), "Read black camera slot");
+                const auto camera = std::find_if(chunks.begin(), chunks.end(), [&](const auto &c) { return c.id == child->target; });
+                MM::PayloadPage payload;
+                check(camera != chunks.end() && retailData.ReadPayload(camera - chunks.begin(), 0, 4096, payload, readError), "Decode retail camera points");
+                const auto &b = payload.bytes;
+                check(b.size() >= 76 && (b.size() - 76) % 12 == 0 && b[0] == 1 && b[1] == 0, "Retail camera point layout");
+                std::vector<std::array<float, 3>> points;
+                for (size_t at = 16; at < b.size(); at = at == 16 ? 76 : at + 12)
+                {
+                    std::array<float, 3> point;
+                    for (int axis = 0; axis < 3; ++axis)
+                    {
+                        const size_t p = at + axis * 4;
+                        const auto word = std::uint32_t(b[p]) | (std::uint32_t(b[p + 1]) << 8) |
+                            (std::uint32_t(b[p + 2]) << 16) | (std::uint32_t(b[p + 3]) << 24);
+                        point[axis] = static_cast<std::int32_t>(word) / 65536.f;
+                    }
+                    points.push_back(point);
+                }
+                return points;
+            };
+            const auto retailPoints = cameraPoints(0);
+            check(retailPoints.size() == 3 && retailPoints[0] != retailPoints[1] && retailPoints[1] != retailPoints[2],
+                "Black scene supplies three distinct insertion anchors");
+            auto atPoint = [](const MarcusObject &object, const std::array<float, 3> &point) {
+                return std::abs(object.x - point[0]) < .01f && std::abs(object.y - point[1]) < .01f && std::abs(object.z - point[2]) < .01f;
+            };
             MarcusProjection retailCamera = {};
             check(marcus_camera_projection(player.get(), 0, &retailCamera), "Read retail black camera");
             MarcusProp cube = {};
@@ -41,6 +79,30 @@ int main(int argc, char **argv)
             MarcusObject retailCube = {};
             check(index >= 0 && marcus_object(player.get(), index, &retailCube), "Insert cube into retail black scene");
             std::printf("Retail cube placement: %.5f %.5f %.5f\n", retailCube.x, retailCube.y, retailCube.z);
+            check(atPoint(retailCube, retailPoints[0]), "Retail insertion starts at the default point");
+            MarcusObject inserted = {};
+            for (int step = 1; step < 5; ++step)
+            {
+                MarcusImage thumbnail = {}; MarcusProjection metadata = {};
+                check(marcus_camera_thumbnail(player.get(), 1, &thumbnail) && marcus_camera_projection(player.get(), 2, &metadata) &&
+                    marcus_seek(player.get(), 1), "Read camera previews and seek without consuming insertion anchors");
+                check(marcus_add_prop(player.get(), 0xffffffffUL) < 0, "Reject an unavailable prop without consuming a point");
+                index = marcus_add_prop(player.get(), cube.chunk);
+                check(index >= 0 && marcus_object(player.get(), index, &inserted) && atPoint(inserted, retailPoints[step % 3]),
+                    "Retail insertions cycle default, extra one, extra two, default");
+            }
+            check(marcus_move_object(player.get(), index, inserted.x + 5, inserted.y, inserted.z), "Move the newly inserted cube away");
+            index = marcus_add_prop(player.get(), cube.chunk);
+            check(index >= 0 && marcus_object(player.get(), index, &inserted) && atPoint(inserted, retailPoints[1]),
+                "A completed manual move releases the last insertion anchor for reuse");
+            check(marcus_set_scene_camera(player.get(), 1), "Switch the authored camera");
+            index = marcus_add_prop(player.get(), cube.chunk);
+            check(index >= 0 && marcus_object(player.get(), index, &inserted) && atPoint(inserted, cameraPoints(1)[0]),
+                "Switching cameras starts at that camera's default point");
+            check(marcus_set_scene_camera(player.get(), 0), "Return to the original camera");
+            index = marcus_add_prop(player.get(), cube.chunk);
+            check(index >= 0 && marcus_object(player.get(), index, &inserted) && atPoint(inserted, retailPoints[0]),
+                "Returning to a camera restarts its insertion sequence");
             const auto initial = MarcusBoardProjection(board.angles[0]);
             for (int i = 0; i < 12; ++i)
                 check(std::abs(initial.transform[i] - retailCamera.transform[i]) < .0002f, "Default storyboard camera matches retail black pose");
@@ -57,19 +119,27 @@ int main(int argc, char **argv)
             check(MarcusRenderStoryboard(player.get(), board, 0, preview, &depths) &&
                 std::count_if(depths.begin(), depths.end(), [](float d) { return std::isfinite(d); }) > 100,
                 "A freshly inserted cube is visible through the default storyboard shot");
+            for (int step = 1; step <= 3; ++step)
+            {
+                index = marcus_add_prop(player.get(), cube.chunk);
+                check(index >= 0 && marcus_object(player.get(), index, &inserted) && atPoint(inserted, retailPoints[step % 3]),
+                    "Generated storyboard cameras retain and cycle all three retail insertion anchors");
+            }
             for (float pitch : {0.f, -35.f, 75.f})
             {
                 auto changed = board;
                 changed.angles[0].camera.pitch = pitch; changed.angles[0].camera.yaw = 40;
                 changed.angles[0].roll = 15; changed.angles[0].fov = 20;
                 check(MarcusApplyStoryboard(player.get(), changed, false, 0, argv[1], argv[2]), "Set a moved storyboard camera");
-                index = marcus_add_prop(player.get(), cube.chunk);
-                MarcusObject inserted = {};
-                float projected[3], world[3];
-                check(index >= 0 && marcus_object(player.get(), index, &inserted), "Insert into moved storyboard shot");
-                world[0] = inserted.x; world[1] = inserted.y; world[2] = inserted.z;
                 const auto projection = MarcusBoardProjection(changed.angles[0]);
-                check(camera_project_point(&projection, world, projected), "Insertion stays in frame after camera rotation and lens changes");
+                for (int step = 0; step < 3; ++step)
+                {
+                    index = marcus_add_prop(player.get(), cube.chunk);
+                    float projected[3], world[3];
+                    check(index >= 0 && marcus_object(player.get(), index, &inserted), "Insert into moved storyboard shot");
+                    world[0] = inserted.x; world[1] = inserted.y; world[2] = inserted.z;
+                    check(camera_project_point(&projection, world, projected), "Every insertion anchor stays in frame after camera rotation and lens changes");
+                }
             }
             // Keep the rest of the serialization/export fixture a single fresh scene.
             player.reset(); player.reset(marcus_create());
@@ -334,11 +404,14 @@ int main(int argc, char **argv)
             }
             check(second == ink.amount, "Dither pattern uses the chosen mixture exactly");
         }
-        int palettes = 0;
+        int palettes = 0, cameras = 0;
         for (const auto &chunk : packaged.Chunks())
-            if (chunk.id.type == 0x474c4352)
+            if (chunk.id.type == 0x43414d20)
+            { check(payload(packaged, chunk.id).size() == 100, "Exported CAM preserves the default and two extra insertion anchors"); ++cameras; }
+            else if (chunk.id.type == 0x474c4352)
             { check(payload(packaged, chunk.id) == blackPalette, "Preserve every retail scene palette entry, including prop colours"); ++palettes; }
         check(palettes > 0, "Packaged background has the standard palette");
+        check(cameras == int(board.angles.size()), "All packaged angles retain insertion points");
         packaged.Close(); retail.Close();
         for (const auto &member : members) std::filesystem::remove(member.second);
         std::filesystem::remove(packageDirectory);

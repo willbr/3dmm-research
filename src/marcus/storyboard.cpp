@@ -280,7 +280,8 @@ int MarcusBoardAddColour(MarcusStoryboard &board, unsigned rgb)
         if (!used[i]) { board.colours[i] = rgb; return int(i); }
     return -1;
 }
-static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette, CameraPosition reference)
+static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette,
+    CameraPosition reference, const std::vector<APOS> &referencePlaces)
 {
     Require(MarcusBoardValid(board), "Invalid storyboard.");
     BackgroundFile header = {kboCur, koskCur, 10, 0, 0};
@@ -318,9 +319,13 @@ static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, c
     Require(depth->FWrite(file, kctgZbmp, &z), "Cannot write empty storyboard depth.");
     BMAT34 inverse;
     Require(BrMatrix34Inverse(&inverse, &reference.bmat34Cam) != 0, "Invalid black scene camera transform.");
-    BVEC3 placement;
-    BrMatrix34ApplyP(&placement, &reference.apos.bvec3Actor, &inverse);
-    Require(placement.v[2] < 0, "Invalid black scene insertion depth.");
+    std::vector<BVEC3> placements(referencePlaces.size());
+    for (size_t i = 0; i < placements.size(); ++i)
+    {
+        auto point = referencePlaces[i].bvec3Actor;
+        BrMatrix34ApplyP(&placements[i], &point, &inverse);
+        Require(placements[i].v[2] < 0, "Invalid black scene insertion depth.");
+    }
     for (unsigned index = 0; index < board.angles.size(); ++index)
     {
         const auto &a = board.angles[index];
@@ -328,18 +333,26 @@ static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, c
         camera.bo = kboCur; camera.osk = koskCur;
         camera.zrHither = BrFloatToScalar(a.nearClip); camera.zrYon = BrFloatToScalar(a.farClip); camera.aFov = Angle(a.fov);
         camera.bmat34Cam = Matrix(a.camera.x, a.camera.y, a.camera.z, a.camera.yaw, a.camera.pitch, a.roll);
-        // Retain the retail shot's insertion point in camera space. Reproject
-        // it through each authored lens so a new prop starts inside that shot.
-        const float originalDistance = -BrScalarToFloat(placement.v[2]);
-        const float distance = std::clamp(originalDistance, a.nearClip + (a.farClip - a.nearClip) * .001f,
-            a.farClip - (a.farClip - a.nearClip) * .001f);
+        // Retain all retail insertion anchors in camera space, adapted to each lens.
         const float lens = std::tan(a.fov * .00872664626f) / std::tan(reference.aFov * (3.14159265358979323846f / 65536));
-        const float scale = lens * distance / originalDistance;
-        BVEC3 local = {{BrFloatToScalar(BrScalarToFloat(placement.v[0]) * scale),
-            BrFloatToScalar(BrScalarToFloat(placement.v[1]) * scale), BrFloatToScalar(-distance)}};
-        BrMatrix34ApplyP(&camera.apos.bvec3Actor, &local, &camera.bmat34Cam);
+        std::vector<APOS> points(placements.size());
+        for (size_t i = 0; i < placements.size(); ++i)
+        {
+            const auto &placement = placements[i];
+            const float originalDistance = -BrScalarToFloat(placement.v[2]);
+            const float distance = std::clamp(originalDistance, a.nearClip + (a.farClip - a.nearClip) * .001f,
+                a.farClip - (a.farClip - a.nearClip) * .001f);
+            const float scale = lens * distance / originalDistance;
+            BVEC3 local = {{BrFloatToScalar(BrScalarToFloat(placement.v[0]) * scale),
+                BrFloatToScalar(BrScalarToFloat(placement.v[1]) * scale), BrFloatToScalar(-distance)}};
+            BrMatrix34ApplyP(&points[i].bvec3Actor, &local, &camera.bmat34Cam);
+        }
+        camera.apos = points[0];
+        std::vector<unsigned char> cameraBytes(sizeof(camera) + (points.size() - 1) * sizeof(APOS));
+        std::memcpy(cameraBytes.data(), &camera, sizeof(camera));
+        if (points.size() > 1) std::memcpy(cameraBytes.data() + sizeof(camera), points.data() + 1, (points.size() - 1) * sizeof(APOS));
         ChunkNumber cam, image;
-        Require(file->FAddPv(&camera, sizeof(camera), kctgCam, &cam) && file->FAdoptChild(kctgBkgd, background, kctgCam, cam, index), "Cannot write storyboard camera.");
+        Require(file->FAddPv(cameraBytes.data(), cameraBytes.size(), kctgCam, &cam) && file->FAdoptChild(kctgBkgd, background, kctgCam, cam, index), "Cannot write storyboard camera.");
         auto pixels = a.pixels;
         for (size_t p = 0; p < pixels.size(); ++p)
             pixels[p] = MarcusBoardPaintIndex(paint[pixels[p]], int(p % MarcusBoardWidth), int(p / MarcusBoardWidth));
@@ -391,7 +404,15 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     CameraPosition reference = {};
     Require(backgrounds->FGetKidChidCtg(kctgBkgd, 11, 0, kctgCam, &child) && backgrounds->FFind(kctgCam, child.cki.cno, &block) &&
         block.FUnpackData() && block.FReadRgb(&reference, sizeof(reference), 0), "Cannot read the black scene's insertion camera.");
-    const auto background = WriteBoard(chunks.get(), board, static_cast<const Color *>(palette->QvGet(0)), reference);
+    Require((block.Cb() - sizeof(reference)) % sizeof(APOS) == 0, "Invalid black scene insertion point list.");
+    std::vector<APOS> referencePlaces = {reference.apos};
+    for (LegacyLong offset = sizeof(reference); offset < block.Cb(); offset += sizeof(APOS))
+    {
+        APOS point;
+        Require(block.FReadRgb(&point, sizeof(point), offset), "Cannot read an extra black scene insertion point.");
+        referencePlaces.push_back(point);
+    }
+    const auto background = WriteBoard(chunks.get(), board, static_cast<const Color *>(palette->QvGet(0)), reference, referencePlaces);
     // Retail/v3dmm enumerate this child while collecting a background's tags.
     // Keep a valid base-content sound reference, muted and absent from the timeline.
     unsigned char sound[28] = {};

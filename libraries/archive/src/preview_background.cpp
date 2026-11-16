@@ -95,6 +95,17 @@ struct BackgroundImageHost
     PChunkyResourceFile source;
     DataBlock block;
 };
+MMBackgroundCameraServices PlacementServices()
+{
+    MMBackgroundCameraServices s = {};
+    s.point = [](void *, void *points, MMI32 i, MMActorPoint *out) {
+        *out = (*static_cast<std::vector<MMActorPoint> *>(points))[i];
+    };
+    s.point_count = [](void *, void *points) -> MMI32 {
+        return static_cast<MMI32>(static_cast<std::vector<MMActorPoint> *>(points)->size());
+    };
+    return s;
+}
 } // namespace
 PreviewBackground::PreviewBackground()
 {
@@ -186,9 +197,6 @@ MMBackgroundPreviewServices PreviewBackground::Services(void *host)
     s.publish = [](void *p, const MMBackgroundPreview *state) {
         static_cast<BackgroundImageHost *>(p)->background->Publish(*state);
     };
-    s.selected = [](void *p, MMU32 slot) {
-        static_cast<BackgroundImageHost *>(p)->background->cameraState.current = slot;
-    };
     s.mesh_new = [](void *) -> void * {
         try
         {
@@ -228,11 +236,46 @@ MMBackgroundPreviewServices PreviewBackground::Services(void *host)
     };
     return s;
 }
-bool PreviewBackground::SetCamera(std::uint32_t slot)
+bool PreviewBackground::SetCamera(std::uint32_t slot, bool updatePlacement)
 {
     BackgroundImageHost host = {this, source};
     auto s = Services(&host);
-    return mm_background_preview_select(&preview, slot, &s) != 0;
+    MMReadStream stream;
+    MMBackgroundCameraData data = {};
+    std::vector<MMActorPoint> points;
+    if (updatePlacement)
+    {
+        if (slot >= preview.camera_count || !s.camera_read(&host,
+            reinterpret_cast<const MMU32 *>(preview.metadata.buffers[0].data)[slot], &stream) ||
+            !mm_background_camera_decode(&stream, &data)) return false;
+        points.resize(data.point_count);
+        for (MMI32 i = 0; i < data.point_count; ++i)
+            if (!mm_background_point_decode(&stream, &data, i, &points[i])) return false;
+    }
+    if (!mm_background_preview_select(&preview, slot, &s)) return false;
+    if (updatePlacement)
+    {
+        placementPoints = std::move(points);
+        cameraState.points = placementPoints.empty() ? nullptr : &placementPoints;
+        cameraState.place = data.place; cameraState.current = slot;
+        cameraState.next_point = cameraState.last_point = 0;
+    }
+    return true;
+}
+bool PreviewBackground::NextPlacementPoint(float point[3])
+{
+    if (!point || cameraState.current < 0) return false;
+    auto s = PlacementServices();
+    MMActorPoint place;
+    mm_background_place(&cameraState, &place, &s);
+    point[0] = BrScalarToFloat(place.dxr);
+    point[1] = BrScalarToFloat(place.dyr);
+    point[2] = BrScalarToFloat(place.dzr);
+    return true;
+}
+void PreviewBackground::ReusePlacementPoint()
+{
+    mm_background_reuse_place(&cameraState);
 }
 PreviewBackgroundMesh &PreviewBackground::Mesh()
 {
