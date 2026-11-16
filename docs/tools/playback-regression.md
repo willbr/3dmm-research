@@ -9850,3 +9850,86 @@ baseline/final logs, `tmp/c89-text-copy-{native,sdl-release,sdl-debug}-tests.log
 `tmp/c89-text-copy-asan.log`, `tmp/c89-text-copy-regular-tests.log`,
 `tmp/c89-text-copy-trace-comparison.json`, `tmp/c89-text-copy-identities.json`
 and `tmp/c89-text-copy-targeted-native.log`.
+
+### Rich-text undo records and transactions (16 November 2026)
+
+`text_undo.c` now controls text undo counters, pending-record setup/cancel/commit,
+rich snapshot construction/disposal, combination and undo/redo replay. Native
+documents/undo objects store plain C `MMTextUndoControl`/`MMTextUndoRecord` data;
+their adapters supply allocation, typed validation, virtual document/selection
+hooks and generic document undo-list services. Redo retains virtual undo dispatch.
+
+Setup increments suspension before nested/disabled/empty checks. Ordinary record
+creation failure resumes undo; exceptions retain suspension. Cancel releases a
+pending record only when virtual resume reaches zero. Commit tries the last
+completed rich record, clears redo after successful combination, otherwise calls
+generic stack admission. The original ignored ordinary admission failure remains
+observable; pending releases after normal return. Exceptions retain pending and
+prior effects without new rollback.
+
+Factories sort the replaced range, initialize record position/count and make
+internal, undo-suspended snapshots before copying. Same-counter adjacent typing
+extends inserted count; repeated Delete appends saved text and Backspace prepends
+it, moving the record position only after success. Other combinations with inserted
+text are rejected. Snapshot content excludes its terminal marker when restored or
+combined. Counter arithmetic is explicitly 32-bit, including wrap.
+
+Replay validates the document/range, snapshots replaced text, suspends/hides the
+target, copies saved text or deletes inserted text, resumes, selects quietly,
+shows selection and collapses it. Snapshot ownership/count swap only after those
+hooks finish. Ordinary edit failure releases the private snapshot before resume.
+The native early-resume behavior on ordinary snapshot-copy failure is preserved,
+including its decrement before target suspension. Ordinary document-factory
+failure does not resume. Exceptions retain prior text/counter/record effects
+without added resume or rollback. Private construction/replay owners now release
+before exception rethrow; native exception leaks are not reproduced or used to
+claim allocator-failure equivalence.
+
+Before conversion, the expanded headless engine movie save/load fixture recorded
+3,754 bytes on Native Debug, SDL Release and SDL Debug, all with FNV-1a `092FF546`,
+SHA-256 `981BEDBD41C051CF2C15268663CC3FAD13CCEE4BF0C9073CA7ED3D70C9287819`.
+It freezes text/properties, undo/redo counts, suspension/combine/pending state and
+virtual selection events across adjacent typing, repeated Delete/Backspace,
+object insertion/replay, redo invalidation, empty/nested/disabled transactions,
+cancellation, reversed factory ranges and direct record-combination cases.
+
+C checks use content-bearing owned snapshots and verify construction publication,
+counter wrapping, reversed/empty ranges, adjacent/delete/backspace combination,
+undo/redo snapshot exchange, invalid documents/ranges, selection order, nested
+transactions, disabled/empty actions, non-rich preceding records, ignored ordinary
+stack-admission failure and retained pending records on exceptions. Ordinary/
+allocation/foreign failures cover allocation, internal/suspension hooks, copying,
+deletion, resume, selection, combination and stack/redo services. Partial-owner and
+partial-text probes check release order and unchanged record publication; early
+resume is explicit. MSVC AddressSanitizer passes. Record comparisons use logical
+fields rather than native structure padding.
+
+All fifty-one original/converted undo/copy/access/formatting/property/materialization/
+document/live-text/stored-text/media/metadata/session/admission/live/camera/picking/
+rendering trace pairs match across the three hosts. Prior hashes remain unchanged.
+Background checks retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds
+and 188 cameras per host. All 127 standalone C checks, including strict C89 syntax,
+pass. Thirty-two selected native checks and twenty-eight checks in each SDL
+configuration pass, including core/scene/movie and existing native playback/player
+regressions. The regular asset-preview harness passes headlessly with fresh
+metadata inputs. Retained input identities are unchanged after verification;
+identities for 28 rebuilt binaries are recorded. Test processes use private
+temporary directories. Marcus was stopped before rebuilding and relaunched
+afterward. After the padding-independent assertion change, the affected C target
+was rebuilt on all hosts; final suites and AddressSanitizer include it.
+
+Retained retail captures remain the playback reference. No new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence; other platforms
+remain unverified. Generic document undo-list storage/control, help-document
+argument extensions, native output/descriptor storage, remaining lifecycle,
+physical/classification/case providers and final C-only host/facade removal remain
+conversion work.
+
+Evidence: `tmp/c89-text-undo-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-text-undo-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-undo-standalone-tests.log`,
+`tmp/c89-text-undo-{copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-undo-asan.log`, `tmp/c89-text-undo-regular-tests.log`,
+`tmp/c89-text-undo-trace-comparison.json`, `tmp/c89-text-undo-identities.json`,
+`tmp/c89-text-undo-targeted-native-errors.log`
+and `tmp/c89-text-undo-final-c-build-{native,sdl-release,sdl-debug}.log`.

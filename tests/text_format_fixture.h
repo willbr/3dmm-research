@@ -174,7 +174,7 @@ struct FormatProbe : PropertyProbe
     }
     bool Transaction(LiveTextTrace &t, bool ok)
     {
-        return t.Word(ok) && t.Word(FDirty()) && t.Word(_cactCombineUndo) && t.Word(unsigned(events.size())) &&
+        return t.Word(ok) && t.Word(FDirty()) && t.Word(_textUndo.combine) && t.Word(unsigned(events.size())) &&
                t.Raw(events.data(), events.size() * 4) && State(t);
     }
     bool CacheProbe(LiveTextTrace &t)

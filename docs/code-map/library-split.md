@@ -1800,8 +1800,8 @@ a character-by-character value model and edit adjustment against an independent
 per-kind reconstruction. They also cover all 256 kind classifications, backward
 matching, holes, reference transfers and fallible creation/insertion/paragraph
 queries. Character/paragraph formatting and application are covered below.
-Property copying is covered below. Undo-record control,
-help-document argument extensions, native output
+Property copying and rich-text undo are covered below. Generic document undo
+lists, help-document argument extensions, native output
 storage, physical providers, document/view/parent lifecycle and final C-only
 host/facade removal remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
@@ -1838,7 +1838,7 @@ Ordinary delta/reservation failures cancel undo; reservation failure also releas
 generated argument references. Success applies changes, commits undo, bumps the
 combine counter, validates and invalidates views/marks dirty. Identical character
 formatting still follows this transaction. Exception results retain partial effects
-without adding rollback. Native undo-record storage/combination remains separate.
+without adding rollback. Rich-text undo control/records are covered below.
 
 The headless engine fixture freezes delta words/masks, batches, native font bytes,
 cache hits/ranges, boundary selection, malformed font-record sizes and public
@@ -1846,7 +1846,7 @@ formatting calls with virtual undo probes. C tests cover both unit sizes/orders,
 maximum counted font names, offset signedness, short wrapping, field masks,
 partial cache/range outputs, exception/ordinary failure ordering and input changes
 made by undo hooks. Text access/replacement and document/object copying are
-covered below. Undo records,
+covered below. Generic document undo lists,
 help-document argument extensions, native output/descriptor storage, physical
 providers, document/view/parent lifecycle and final C-only host/facade removal
 remain work. Evidence and platform limits are in
@@ -1900,7 +1900,8 @@ both text-unit sizes, generated cache/edit/search models, replaced virtual cache
 views, ordinary/exception failures, translated owner identity/lifetime, nested
 replacement and reference transfers. Formatting and replacement share the C test
 host without changing its existing checks. Document/object copying is covered
-below. Undo-record policy/storage, remaining document/view lifecycle,
+below, followed by rich-text undo. Generic document undo lists, remaining
+document/view lifecycle,
 physical/classification/case providers and final C-only host/facade removal remain
 work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
@@ -1943,10 +1944,53 @@ formatting and object queries before/after copies and edits on native/SDL hosts.
 C tests cover both unit sizes, import lock order, partial effects, live-map clearing,
 range extension, final-marker protection, odd object kinds, reference cleanup,
 allocation publication and ordinary/allocation/foreign failures. Native allocator
-failure equivalence is not claimed. Undo-record policy/storage, help-document
-argument extensions, native output/descriptor storage, physical providers,
+failure equivalence is not claimed. Rich-text undo is covered below. Generic
+document undo lists, help-document argument extensions, native output/descriptor
+storage, physical providers,
 remaining document/view lifecycle and final C-only host/facade removal remain
 work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
+### Rich-text undo records and transactions
+
+`text_undo.c` owns text undo suspension/combination counters, pending-record
+setup/cancel/commit and rich snapshot record construction, combination, disposal
+and undo/redo replay. Native text documents and undo objects store plain C
+`MMTextUndoControl`/`MMTextUndoRecord` data directly. Adapters retain typed
+allocation, virtual document/selection hooks and generic document undo-list
+services; they no longer duplicate the rich-text transaction/record policy.
+
+Setup increments suspension even for nested, disabled or empty actions. Ordinary
+record creation failure resumes undo; exceptions retain suspension. Cancel releases
+pending only after the virtual resume reaches zero. Commit first tries the last
+completed rich record, clearing redo on combination; otherwise it adds to the
+generic stack. Ordinary stack-add failure is ignored before releasing pending,
+as in the original. Exception results retain pending and prior stack effects.
+
+Factories sort the replaced range, publish its position/count into the new
+record and create an internal, undo-suspended snapshot before copying. Adjacent
+insertions with the same combine counter extend the earlier inserted count.
+Repeated Delete appends saved text; Backspace prepends it and moves the position
+only after successful copying. Other combinations with inserted text are rejected.
+
+Replay snapshots the text being replaced, suspends/hides the target selection,
+applies the old saved text or deletes inserted text, resumes and selects/shows/
+collapses the restored range. It swaps snapshot ownership and inserted count only
+after those hooks finish. Ordinary snapshot-copy failure retains the legacy early
+resume, even before target suspension; document-factory failure does not resume.
+Ordinary edit failure releases the private snapshot before resume. Exceptions
+retain prior text/counter/record effects without added resume/rollback, but private
+construction/replay owners release before rethrow. This cleanup boundary does
+not claim equivalence to native exception leaks.
+
+The headless fixture freezes original native/SDL text, properties, undo/redo
+counts, pending/suspension state and selection events across typing, repeated
+Delete/Backspace, object edits, cancellation, disabled/nested/empty transactions,
+reversed ranges and direct record combination. C tests use content-bearing
+snapshot owners and check transfer/release order, partial publication/effects,
+invalid records, failure paths and repeated undo/redo. Generic `DocumentBase`
+undo-list storage/control, help extensions, native representations/providers,
+remaining lifecycle and final C-only host/facade removal remain conversion work.
+Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

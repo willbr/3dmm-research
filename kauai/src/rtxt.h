@@ -16,6 +16,7 @@
 #ifndef RTXT_H
 #define RTXT_H
 #include "rich_text_data.h"
+#include "mm/text_undo.h"
 
 using namespace Chunky;
 
@@ -110,8 +111,7 @@ class TextDocumentBase : public TextDocumentBase_PAR
     long _cpLimCache;
     achar _rgchCache[kcchMaxTxtbCache];
 
-    long _cactSuspendUndo; // > 0 means don't set up undo records.
-    long _cactCombineUndo; // determines whether we can combine undo records.
+    MMTextUndoControl _textUndo;
 
     TextDocumentBase(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TextDocumentBase(void);
@@ -294,8 +294,7 @@ class RichTextDocument : public RichTextDocument_PAR
     PAP _pap;
     long _cpMinPap, _cpLimPap;
 
-    // current undo record
-    PRichTextUndo _prtun;
+    struct UndoHost;
 
     RichTextDocument(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~RichTextDocument(void);
@@ -399,10 +398,8 @@ class RichTextUndo : public RichTextUndo_PAR
     MARKMEM
 
   protected:
-    long _cactCombine; // RTUNs with different values can't be combined
-    PRichTextDocument _ptxrd;      // copy of replaced text
-    long _cpMin;       // where the text came from in the original RTXD
-    long _ccpIns;      // how many characters the original text was replaced with
+    struct UndoHost;
+    MMTextUndoRecord _undo;
 
   public:
     static PRichTextUndo PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long cp2, long ccpIns);

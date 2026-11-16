@@ -535,9 +535,11 @@ plain/rich raw/file/stream replacement transactions now also use C89, including
 formatted replacement and translated-file ownership.
 Rich-document/property copying and embedded-object fetch, dispatch, insertion and
 property edits now also use C89, retaining native partial-failure behavior.
+Text undo counters, pending transactions and rich snapshot record construction,
+combination and undo/redo replay now also use C89 with plain C control/record data.
 Typed resource/track/archive/path providers, help-document argument extensions,
-undo records, display formatting/output containers, remaining document/UI
-lifecycle and final facade removal remain work.
+generic document undo-list control/storage, display formatting/output containers,
+remaining document/UI lifecycle and final facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -595,9 +597,11 @@ paragraph value conversion, cached fetches, paragraph bounds and formatting appl
 transactions now also use C89. Cache/search/navigation and plain/rich raw/file/
 stream replacement transactions, including formatting and translated-file ownership,
 now also use C89. Rich-document/property copying and embedded-object queries,
-dispatch, insertion and property edits now also use C89. Help-document argument
-extensions, undo records, display/output representations, remaining document/UI
-lifecycle and final host integration still need conversion.
+dispatch, insertion and property edits now also use C89. Text undo counters,
+pending transactions and rich snapshot records/combination/replay now use C89 and
+plain C control/record data. Help-document argument extensions, generic document
+undo lists, display/output representations, remaining document/UI lifecycle and
+final host integration still need conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

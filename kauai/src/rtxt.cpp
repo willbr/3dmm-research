@@ -22,6 +22,7 @@ ASSERTNAME
 #include "text_access_host.h"
 #include "text_replace_host.h"
 #include "text_copy_host.h"
+#include "text_undo_host.h"
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
@@ -153,7 +154,7 @@ long TextDocumentBase::CpMac(void)
 void TextDocumentBase::SuspendUndo(void)
 {
     AssertThis(0);
-    _cactSuspendUndo++;
+    mm_text_undo_suspend(&_textUndo);
 }
 
 /***************************************************************************
@@ -162,8 +163,8 @@ void TextDocumentBase::SuspendUndo(void)
 void TextDocumentBase::ResumeUndo(void)
 {
     AssertThis(0);
-    Assert(_cactSuspendUndo > 0, "bad _cactSuspendUndo");
-    _cactSuspendUndo--;
+    Assert(_textUndo.suspended > 0, "bad _cactSuspendUndo");
+    mm_text_undo_resume(&_textUndo);
 }
 
 /***************************************************************************
@@ -177,7 +178,7 @@ bool TextDocumentBase::FSetUndo(long cp1, long cp2, long ccpIns)
     AssertIn(cp2, 0, CpMac() + 1);
     AssertIn(ccpIns, 0, kcbMax);
 
-    _cactSuspendUndo++;
+    mm_text_undo_suspend(&_textUndo);
     return fTrue;
 }
 
@@ -198,15 +199,14 @@ void TextDocumentBase::CommitUndo(void)
 }
 
 /***************************************************************************
-    Increments the _cactCombineUndo counter. This is used to determine
+    Increments the undo combine counter. This is used to determine
     whether the new undo record can be combined with the previous one
     (during typing etc).
 ***************************************************************************/
 void TextDocumentBase::BumpCombineUndo(void)
 {
     AssertThis(0);
-    if (_cactSuspendUndo <= 0)
-        _cactCombineUndo++;
+    mm_text_undo_bump(&_textUndo);
 }
 
 /***************************************************************************
@@ -1383,19 +1383,11 @@ bool RichTextDocument::FApplyPap(long cp, long ccp, PPAP ppap, PPAP ppapDiff, lo
 ***************************************************************************/
 bool RichTextDocument::FSetUndo(long cp1, long cp2, long ccpIns)
 {
-    if (_cactSuspendUndo++ > 0 || _cundbMax == 0)
-        return fTrue;
-
-    Assert(_prtun == pvNil, "why is there an active undo record?");
-    if (cp1 == cp2 && ccpIns == 0)
-        return fTrue;
-
-    if (pvNil == (_prtun = RichTextUndo::PrtunNew(_cactCombineUndo, this, cp1, cp2, ccpIns)))
-    {
-        ResumeUndo();
-        return fFalse;
-    }
-    return fTrue;
+    UndoHost host(this);
+    auto services = host.Services();
+    int result = mm_text_undo_setup(cp1, cp2, ccpIns, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1403,9 +1395,10 @@ bool RichTextDocument::FSetUndo(long cp1, long cp2, long ccpIns)
 ***************************************************************************/
 void RichTextDocument::CancelUndo(void)
 {
-    ResumeUndo();
-    if (_cactSuspendUndo == 0)
-        ReleasePpo(&_prtun);
+    UndoHost host(this);
+    auto services = host.Services();
+    mm_text_undo_cancel(&services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -1413,27 +1406,10 @@ void RichTextDocument::CancelUndo(void)
 ***************************************************************************/
 void RichTextDocument::CommitUndo(void)
 {
-    PRichTextUndo prtunPrev;
-
-    ResumeUndo();
-    if (_cactSuspendUndo != 0 || _prtun == pvNil)
-        return;
-
-    AssertPo(_prtun, 0);
-    // see if this one can be combined with the last one
-    if (_ipundbLimDone > 0)
-    {
-        _pglpundb->Get(_ipundbLimDone - 1, &prtunPrev);
-        if (prtunPrev->FIs(kclsRichTextUndo) && prtunPrev->FCombine(_prtun))
-        {
-            ClearRedo();
-            goto LDone;
-        }
-    }
-    FAddUndo(_prtun);
-
-LDone:
-    ReleasePpo(&_prtun);
+    UndoHost host(this);
+    auto services = host.Services();
+    mm_text_undo_commit(&services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -1820,32 +1796,14 @@ PRichTextUndo RichTextUndo::PrtunNew(long cactCombine, PRichTextDocument ptxrd, 
     AssertIn(cp1, 0, ptxrd->CpMac() + 1);
     AssertIn(cp2, 0, ptxrd->CpMac() + 1);
     AssertIn(ccpIns, 0, kcbMax);
-    PRichTextUndo prtun;
-
-    SortLw(&cp1, &cp2);
-    AssertIn(cp1, 0, ptxrd->CpMac());
-    if (pvNil == (prtun = NewObj RichTextUndo))
-        return pvNil;
-
-    prtun->_cactCombine = cactCombine;
-    prtun->_cpMin = cp1;
-    prtun->_ccpIns = ccpIns;
-    if (cp1 < cp2)
-    {
-        // copy the piece of the txrd.
-        if (pvNil == (prtun->_ptxrd = RichTextDocument::PtxrdNew(pvNil)))
-            goto LFail;
-        prtun->_ptxrd->SetInternal();
-        prtun->_ptxrd->SuspendUndo();
-        if (!prtun->_ptxrd->FReplaceTxrd(ptxrd, cp1, cp2 - cp1, 0, 0))
-        {
-        LFail:
-            ReleasePpo(&prtun);
-        }
-    }
-
-    AssertNilOrPo(prtun, 0);
-    return prtun;
+    UndoHost host;
+    auto services = host.Services();
+    void *owned;
+    mm_text_undo_record_create(&owned, cactCombine, ptxrd, cp1, cp2, ccpIns, &services);
+    host.Rethrow();
+    auto result = static_cast<PRichTextUndo>(owned);
+    AssertNilOrPo(result, 0);
+    return result;
 }
 
 /***************************************************************************
@@ -1853,7 +1811,9 @@ PRichTextUndo RichTextUndo::PrtunNew(long cactCombine, PRichTextDocument ptxrd, 
 ***************************************************************************/
 RichTextUndo::~RichTextUndo(void)
 {
-    ReleasePpo(&_ptxrd);
+    UndoHost host;
+    auto services = host.Services();
+    mm_text_undo_record_dispose(&_undo, &services);
 }
 
 /***************************************************************************
@@ -1863,61 +1823,11 @@ bool RichTextUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
-    PRichTextDocument ptxrd;
-    long ccpIns;
-    PRichTextDocument ptxrdNew = pvNil;
-
-    if (!pdocb->FIs(kclsRichTextDocument))
-        goto LAssert;
-    ptxrd = (PRichTextDocument)pdocb;
-    AssertPo(ptxrd, 0);
-
-    if (!FIn(_cpMin, 0, ptxrd->CpMac()) || !FIn(_ccpIns, 0, ptxrd->CpMac() + 1 - _cpMin))
-    {
-    LAssert:
-        Bug("This rich text undo object cannot be applied to this document");
-        return fFalse;
-    }
-
-    if (_ccpIns > 0)
-    {
-        // copy the piece of the txrd.
-        if (pvNil == (ptxrdNew = RichTextDocument::PtxrdNew(pvNil)))
-            return fFalse;
-        ptxrdNew->SetInternal();
-        ptxrdNew->SuspendUndo();
-        if (!ptxrdNew->FReplaceTxrd(ptxrd, _cpMin, _ccpIns, 0, 0))
-            goto LFail;
-    }
-
-    ptxrd->SuspendUndo();
-    ptxrd->HideSel();
-    if (pvNil == _ptxrd)
-    {
-        ccpIns = 0;
-        if (!ptxrd->FReplaceRgch(pvNil, 0, _cpMin, _ccpIns))
-            goto LFail;
-    }
-    else
-    {
-        ccpIns = _ptxrd->CpMac() - 1;
-        if (!ptxrd->FReplaceTxrd(_ptxrd, 0, ccpIns, _cpMin, _ccpIns))
-        {
-        LFail:
-            ReleasePpo(&ptxrdNew);
-            ptxrd->ResumeUndo();
-            return fFalse;
-        }
-    }
-    ptxrd->ResumeUndo();
-    ptxrd->SetSel(_cpMin, _cpMin + ccpIns, ginNil);
-    ptxrd->ShowSel();
-    ptxrd->SetSel(_cpMin + ccpIns, _cpMin + ccpIns);
-
-    ReleasePpo(&_ptxrd);
-    _ptxrd = ptxrdNew;
-    _ccpIns = ccpIns;
-    return fTrue;
+    UndoHost host;
+    auto services = host.Services();
+    int result = mm_text_undo_record_apply(&_undo, pdocb, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1936,43 +1846,11 @@ bool RichTextUndo::FCombine(PRichTextUndo prtun)
 {
     AssertThis(0);
     AssertPo(prtun, 0);
-    long ccp;
-
-    // if the _cactCombine numbers are different, they can't be combined
-    if (prtun->_cactCombine != _cactCombine)
-        return fFalse;
-
-    // if the new record doesn't delete anything and the new text is
-    // at the end of the old text, just adjust _ccpIns.
-    if (prtun->_ptxrd == pvNil && _cpMin + _ccpIns == prtun->_cpMin)
-    {
-        _ccpIns += prtun->_ccpIns;
-        return fTrue;
-    }
-
-    // if either of the new records inserts anything, we can't combine the two
-    if (prtun->_ccpIns != 0 || _ccpIns != 0)
-        return fFalse;
-
-    // handle repeated delete keys
-    AssertPo(_ptxrd, 0);
-    AssertPo(prtun->_ptxrd, 0);
-    ccp = prtun->_ptxrd->CpMac() - 1;
-    if (prtun->_cpMin == _cpMin)
-    {
-        return _ptxrd->FReplaceTxrd(prtun->_ptxrd, 0, ccp, _ptxrd->CpMac() - 1, 0);
-    }
-
-    // handle repeated backspace keys
-    if (prtun->_cpMin + ccp == _cpMin)
-    {
-        if (!_ptxrd->FReplaceTxrd(prtun->_ptxrd, 0, ccp, 0, 0))
-            return fFalse;
-        _cpMin = prtun->_cpMin;
-        return fTrue;
-    }
-
-    return fFalse;
+    UndoHost host;
+    auto services = host.Services();
+    int result = mm_text_undo_record_combine(&_undo, &prtun->_undo, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 #ifdef DEBUG
@@ -1982,10 +1860,10 @@ bool RichTextUndo::FCombine(PRichTextUndo prtun)
 void RichTextUndo::AssertValid(LegacyUlong grf)
 {
     RichTextUndo_PAR::AssertValid(grf);
-    AssertNilOrPo(_ptxrd, 0);
-    AssertIn(_cpMin, 0, kcbMax);
-    AssertIn(_ccpIns, 0, kcbMax);
-    Assert(_ccpIns > 0 || _ptxrd != pvNil, "empty RichTextUndo");
+    AssertNilOrPo(static_cast<PRichTextDocument>(_undo.saved), 0);
+    AssertIn(_undo.at, 0, kcbMax);
+    AssertIn(_undo.inserted, 0, kcbMax);
+    Assert(_undo.inserted > 0 || static_cast<PRichTextDocument>(_undo.saved) != pvNil, "empty RichTextUndo");
 }
 
 /***************************************************************************
@@ -1995,6 +1873,6 @@ void RichTextUndo::MarkMem(void)
 {
     AssertThis(fobjAssertFull);
     RichTextUndo_PAR::MarkMem();
-    MarkMemObj(_ptxrd);
+    MarkMemObj(static_cast<PRichTextDocument>(_undo.saved));
 }
 #endif // DEBUG
