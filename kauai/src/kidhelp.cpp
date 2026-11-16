@@ -21,6 +21,7 @@ ASSERTNAME
 namespace Help {
 #include "help_text_host.h"
 #include "help_display_host.h"
+#include "help_interaction_host.h"
 
 BEGIN_CMD_MAP(TopicGraphicsObject, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
@@ -329,6 +330,7 @@ TopicGraphicsObject::TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument p
     AssertPo(pwoks, 0);
 
     _pwoks = pwoks;
+    mm_help_interaction_init(&_interaction);
 }
 
 /***************************************************************************
@@ -384,13 +386,13 @@ bool TopicGraphicsObject::_FInit(void)
     }
 
     // find a base hid that covers lwMax buttons
-    _hidBase = 0;
+    _interaction.base = 0;
     if (lwMax > 0)
     {
-        _hidBase = CommandHandler::HidUnique(lwMax) - 1;
+        _interaction.base = CommandHandler::HidUnique(lwMax) - 1;
         stn = PszLit("_gidBase");
         rtvn.SetFromStn(&stn);
-        if (!FAssignRtvm(PgobPar()->Ppglrtvm(), &rtvn, _hidBase))
+        if (!FAssignRtvm(PgobPar()->Ppglrtvm(), &rtvn, _interaction.base))
             return fFalse;
     }
 
@@ -421,7 +423,7 @@ bool TopicGraphicsObject::_FInit(void)
             rc.xpRight = xp + dxp - 1;
 
             Ptxhd()->FGrouped(cp, pvNil, pvNil, &bGroup);
-            if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _hidBase + bGroup) != pvNil)
+            if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _interaction.base + bGroup) != pvNil)
             {
                 hid = CommandHandler::HidUnique();
             }
@@ -444,7 +446,7 @@ bool TopicGraphicsObject::_FInit(void)
             _GetXpYpFromCp(cp, pvNil, pvNil, &xp, &ypBase, fFalse);
             _FetchChp(cp, &chp);
             Ptxhd()->FGrouped(cp, pvNil, pvNil, &bGroup, cnoTopic == cnoNil ? &cnoTopic : pvNil);
-            if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _hidBase + bGroup) != pvNil)
+            if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _interaction.base + bGroup) != pvNil)
             {
                 hid = CommandHandler::HidUnique();
             }
@@ -471,10 +473,11 @@ bool TopicGraphicsObject::_FInit(void)
 bool TopicGraphicsObject::FPtIn(long xp, long yp)
 {
     AssertThis(0);
-
-    if (!TopicGraphicsObject_PAR::FPtIn(xp, yp))
-        return fFalse;
-    return FGroupFromPt(xp, yp);
+    InteractionHost host(this);
+    auto services = host.Commands();
+    int result = mm_help_point(xp, yp, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -484,38 +487,12 @@ bool TopicGraphicsObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-
-    pcmd->grfcust = _pwoks->GrfcustAdjust(pcmd->grfcust);
-    if (pcmd->cid == cidMouseDown)
-    {
-        // first response to mouse down
-        Assert(vpcex->PgobTracking() == pvNil, "mouse already being tracked!");
-
-        if (!FGroupFromPt(pcmd->xp, pcmd->yp, &_bTrack, &_cnoTrack))
-            return fTrue;
-
-        vpcex->TrackMouse(this);
-        SetCursor(pcmd->grfcust);
-        _grfcust = pcmd->grfcust;
-    }
-    else
-    {
-        Assert(vpcex->PgobTracking() == this, "not tracking mouse!");
-        Assert(pcmd->cid == cidTrackMouse, 0);
-        if (!(pcmd->grfcust & fcustMouse))
-        {
-            byte bGroup;
-            ChunkNumber cnoTopic;
-            vpcex->EndMouseTracking();
-
-            if (FGroupFromPt(pcmd->xp, pcmd->yp, &bGroup, &cnoTopic) && bGroup == _bTrack && cnoTopic == _cnoTrack)
-            {
-                DoHit(bGroup, cnoTopic, _grfcust, hidNil);
-            }
-        }
-    }
-
-    return fTrue;
+    InteractionHost host(this);
+    host.mouse = pcmd;
+    auto services = host.Commands();
+    int result = mm_help_track(&_interaction, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -525,13 +502,12 @@ bool TopicGraphicsObject::FCmdBadKey(PCMD_BADKEY pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-
-    if (!FIn(pcmd->hid, _hidBase + 1, _hidBase + 257))
-        return fFalse;
-
-    pcmd->grfcust = _pwoks->GrfcustAdjust(pcmd->grfcust);
-    _FRunScript((byte)(pcmd->hid - _hidBase), pcmd->grfcust, pcmd->hid, (achar)pcmd->ch);
-    return fTrue;
+    InteractionHost host(this);
+    host.key = pcmd;
+    auto services = host.Commands();
+    int result = mm_help_bad_key(&_interaction, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -542,11 +518,13 @@ bool TopicGraphicsObject::FGroupFromPt(long xp, long yp, byte *pbGroup, ChunkNum
     AssertThis(0);
     AssertNilOrVarMem(pbGroup);
     AssertNilOrVarMem(pcnoTopic);
-    long cp;
-
-    if (!_FGetCpFromPt(xp, yp, &cp, fFalse))
-        return 0;
-    return Ptxhd()->FGrouped(cp, pvNil, pvNil, pbGroup, pcnoTopic);
+    InteractionHost host(this);
+    host.groupOutput = pbGroup;
+    host.topicOutput = pcnoTopic;
+    auto services = host.Commands();
+    int result = mm_help_group_point(xp, yp, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -555,14 +533,10 @@ bool TopicGraphicsObject::FGroupFromPt(long xp, long yp, byte *pbGroup, ChunkNum
 void TopicGraphicsObject::DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust, long hidHit)
 {
     AssertThis(0);
-    LegacyLong lwRet = 0;
-
-    // run the script
-    if (!_FRunScript(bGroup, grfcust, hidHit, chNil, cnoTopic, &lwRet))
-        return;
-
-    if (cnoNil != cnoTopic && !lwRet)
-        _pwoks->PhbalNew(PgobPar()->PgobPar(), Ptxhd()->Prca(), cnoTopic);
+    InteractionHost host(this);
+    auto services = host.Commands();
+    mm_help_hit(bGroup, cnoTopic, grfcust, hidHit, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -573,48 +547,12 @@ bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, a
 {
     AssertThis(0);
     AssertNilOrVarMem(plwRet);
-
-    PScript pscpt;
-    PGraphicsObjectInterpreter psceg;
-    Topic htop;
-    bool fRet = fTrue;
-    PTextDocument ptxhd = Ptxhd();
-    PResourceCache prca = ptxhd->Prca();
-
-    if (pvNil != plwRet)
-        *plwRet = 0;
-
-    ptxhd->GetHtop(&htop);
-    if (cnoNil == htop.cnoScript)
-        return fTrue;
-
-    pscpt = (PScript)prca->PbacoFetch(kctgScript, htop.cnoScript, Script::FReadScript);
-    if (pvNil != pscpt && pvNil != (psceg = _pwoks->PscegNew(prca, this)))
-    {
-        AssertPo(pscpt, 0);
-        AssertPo(psceg, 0);
-
-        PWorldOfKidspace pwoks = _pwoks;
-        long grid = Grid();
-        LegacyLong rglw[5];
-
-        rglw[0] = (long)bGroup;
-        rglw[1] = grfcust;
-        rglw[2] = hidHit;
-        rglw[3] = (long)(byte)ch;
-        rglw[4] = cnoTopic;
-
-        // be careful not to use TopicGraphicsObject variables here in case the TopicGraphicsObject is
-        // freed while the script is running.
-        if (!psceg->FRunScript(pscpt, rglw, 5, plwRet) && pvNil != plwRet)
-            *plwRet = 0;
-        ReleasePpo(&psceg);
-
-        fRet = (this == pwoks->PgobFromGrid(grid));
-    }
-    ReleasePpo(&pscpt);
-
-    return fRet;
+    InteractionHost host(this);
+    host.returnOutput = plwRet;
+    auto services = host.Script();
+    int result = mm_help_script(bGroup, grfcust, hidHit, MMU32(ch), cnoTopic, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -624,13 +562,12 @@ bool TopicGraphicsObject::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    ulong grfcust = _pwoks->GrfcustAdjust(pcmd->grfcust);
-
-    if (FGroupFromPt(pcmd->xp, pcmd->yp))
-        grfcust |= fcustHotText;
-
-    SetCursor(grfcust);
-    return fTrue;
+    InteractionHost host(this);
+    host.mouse = pcmd;
+    auto services = host.Commands();
+    int result = mm_help_mouse_move(&services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -639,22 +576,10 @@ bool TopicGraphicsObject::FCmdMouseMove(PCMD_MOUSE pcmd)
 void TopicGraphicsObject::SetCursor(ulong grfcust)
 {
     AssertThis(0);
-    PGraphicsObject pgob;
-
-    for (pgob = this;;)
-    {
-        pgob = pgob->PgobPar();
-        if (pvNil == pgob)
-        {
-            vpappb->SetCurs(pvNil);
-            break;
-        }
-        if (pgob->FIs(kclsKidspaceGraphicObject))
-        {
-            ((PKidspaceGraphicObject)pgob)->SetCursor(grfcust | fcustChildGok);
-            break;
-        }
-    }
+    InteractionHost host(this);
+    auto services = host.Commands();
+    mm_help_cursor(this, grfcust, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************

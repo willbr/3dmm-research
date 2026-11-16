@@ -41,6 +41,7 @@ ASSERTNAME
 #include "kidhelp.h"
 #include "help_text_fixture.h"
 #include "help_display_fixture.h"
+#include "help_interaction_fixture.h"
 
 /* WinMain (in kauai/src/appbwin.cpp) references FrameMain -- but we
  * never run WinMain since we provide our own main() and link as a
@@ -2379,6 +2380,8 @@ static bool TestCaptionPersistence(PScene scene)
     if (!TestHelpText())
         goto done;
     if (!TestHelpDisplay())
+        goto done;
+    if (!TestHelpInteraction())
         goto done;
     ok = true;
 done:

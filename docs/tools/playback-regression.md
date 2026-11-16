@@ -10310,3 +10310,78 @@ baseline/final logs, `tmp/c89-help-display-{native,sdl-release,sdl-debug}-tests.
 `tmp/c89-help-display-asan.log`, `tmp/c89-help-display-regular-tests.log`,
 `tmp/c89-help-display-tools-build.log`, `tmp/c89-help-display-trace-comparison.json`,
 `tmp/c89-help-display-identities.json` and `tmp/c89-help-display-targeted-native-errors.log`.
+
+### Help topic interaction and script lifetime policy (16 November 2026)
+
+`help_interaction.c` now owns mouse tracking/release matching, bad-key admission,
+mouse-move hot-text flags, hit/script/balloon dispatch, point-query sequencing,
+cursor ancestor selection and script setup/run/release/identity checks.
+`MMHelpInteraction` replaces native tracked-group/topic/flags/base-handler fields.
+The base ID is still populated by native topic control construction, which remains
+conversion work. Typed virtual command, point/text, resource/interpreter, world
+identity and physical cursor services remain in `help_interaction_host.h`.
+
+Tracking publishes adjusted command flags before group lookup, retains partial
+group/topic outputs on misses, captures flags after the virtual cursor hook and
+ends tracking before release hit testing. Both group and topic must match.
+Mouse moves adjust a local flag value without rewriting the command. Bad keys
+admit IDs from base+1 through base+256, wrap their group byte, and ignore the
+virtual script's ordinary false return. Point queries preserve inherited bounds/
+point/group order. Cursor traversal skips the topic itself, chooses the first
+Kidspace ancestor and adds the child flag, or selects the application's default
+cursor when no such ancestor exists.
+
+Scripts clear optional return output before lookup and pass five signed 32-bit
+parameters, narrowing character to its low byte. Missing scripts/interpreters mean
+alive. Ordinary run failure clears return output again. World/grid/identity are
+captured after interpreter creation; interpreter release precedes the identity
+lookup and script release follows it. A run may destroy the topic: subsequent
+services use captured data, and a false virtual run prevents hit dispatch from
+accessing the owner again. Private script/interpreter references release before
+native exception rethrow, fixing exceptional ownership leaks. Other partial
+outputs/effects remain; exact native allocator/exception equivalence is not claimed.
+
+Before conversion, the headless engine fixture recorded 1,148 bytes on Native
+Debug, SDL Release and SDL Debug: FNV-1a `DDC10C3C`, SHA-256
+`1D5E3BE37957A26D562297D6ADF91C91A0FBA6F4313ED0B114FFEDE5EA8CB505`.
+It freezes adjusted commands, partial/mismatched group state, mouse/key/move/hit
+dispatch events, cursor-hook command mutation, script parameters/setup failures,
+return reset and actual topic destruction during a script call. It uses in-memory
+GOBs, an offscreen text-formatting port, a command-manager tracking probe and a
+virtual interpreter probe. No OS mouse capture, physical cursor/window interaction
+or Marcus UI test is added. The interpreter probe verifies dispatch/lifetime, not
+bytecode interpreter semantics; the interpreter itself is unchanged.
+
+C checks independently cover key boundaries, partial tracking output, adjusted/
+live command mutation, release matching, ignored virtual failure, owner destruction,
+point/cursor ancestry order, script setup/run/identity ordering, optional returns,
+partial owners and ordinary/exception failure prefixes. A heap-owned tracking
+state is destroyed by a virtual script callback to check post-run access under
+MSVC AddressSanitizer, which passes.
+
+All 69 original/converted interaction/display/Help/text/preview trace pairs match
+across the three hosts. Prior hashes remain unchanged. Background checks retain
+301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host.
+All 133 standalone C checks, including strict C89 syntax, pass. Thirty-eight
+selected Native checks and 34 checks in each SDL configuration pass, including
+the existing Native playback/player regressions. The regular headless asset-preview
+harness passes; Native `chelp` and `ched` compile. Retained input identities remain
+unchanged after verification; identities for 30 binaries are recorded. Test
+processes use private temporary directories. Marcus was stopped before rebuilding
+and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Complete
+interactive cursor/tracking/Help behavior, arbitrary native virtual-override
+observations and other platforms remain unverified by this slice. Topic control
+construction, balloon/button lifecycle, native string/display/UI representations,
+physical cursor/graphics/font/cache providers and final C-only host/facade removal
+remain conversion work.
+
+Evidence: `tmp/c89-help-interaction-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-help-interaction-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-help-interaction-standalone-tests.log`,
+`tmp/c89-help-interaction-{display,text,views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-help-interaction-asan.log`, `tmp/c89-help-interaction-regular-tests.log`,
+`tmp/c89-help-interaction-tools-build.log`, `tmp/c89-help-interaction-trace-comparison.json`,
+`tmp/c89-help-interaction-identities.json` and `tmp/c89-help-interaction-targeted-native-errors.log`.

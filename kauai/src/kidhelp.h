@@ -17,6 +17,7 @@
 #define KIDHELP_H
 #include "mm/help_text.h"
 #include "mm/help_display.h"
+#include "mm/help_interaction.h"
 
 namespace Help {
 
@@ -133,10 +134,8 @@ class TopicGraphicsObject : public TopicGraphicsObject_PAR
     CMD_MAP_DEC(TopicGraphicsObject)
 
   protected:
-    byte _bTrack;
-    ChunkNumber _cnoTrack;
-    long _hidBase;
-    ulong _grfcust;
+    MMHelpInteraction _interaction;
+    struct InteractionHost;
     PWorldOfKidspace _pwoks;
 
     TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb);

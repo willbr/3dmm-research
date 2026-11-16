@@ -2180,6 +2180,44 @@ buttons, native string/display/UI representations, physical graphics/font/cache
 providers and final C-only host/facade removal remain conversion work. Evidence and
 platform limits are in `docs/tools/playback-regression.md`.
 
+### Help topic interaction and script lifetime policy
+
+`help_interaction.c` owns mouse tracking/release matching, bad-key admission,
+mouse-move hot-text flags, hit/script/balloon dispatch, point-query sequencing,
+cursor ancestor selection and script setup/run/release/identity checks.
+`MMHelpInteraction` replaces native tracked-group/topic/flags/base-handler fields.
+The base handler ID is still populated during native control construction, which
+remains conversion work. `help_interaction_host.h` supplies typed virtual command,
+text/point, cursor, resource, interpreter and world lookup services.
+
+Tracking publishes adjusted command flags before querying groups, retains partial
+group outputs on misses, captures flags after the virtual cursor hook, and ends
+tracking before release hit testing. A hit requires both group and topic equality.
+Moves adjust a local flag value without rewriting the command. Bad keys admit
+handler IDs from base+1 through base+256 and ignore the virtual script's ordinary
+false result. Point queries retain inherited hit testing and text lookup order.
+C cursor traversal skips the topic itself and chooses the first Kidspace ancestor,
+adding the child flag; otherwise it selects the application's default cursor.
+
+Scripts clear optional return output before lookup, narrow character to its low
+byte, and pass five signed 32-bit parameters. Missing scripts/interpreters leave
+the topic logically alive. Ordinary run failure clears return output again.
+World/grid/identity are captured after interpreter creation and before running.
+Interpreter release precedes identity lookup; script release follows it. Running
+may destroy the topic: subsequent services use captured data, and a false virtual
+run prevents hit dispatch from accessing the owner again. Private script/interpreter
+owners now release before native exception rethrow; other partial effects remain.
+
+The headless engine fixture uses in-memory GOBs, a command-manager tracking probe
+and an interpreter probe. It freezes original Native/SDL command mutations, group
+matching, dispatch parameters, setup failures and actual topic destruction during
+run, without OS capture/cursor/window interaction or Marcus UI tests. C checks
+cover exception stops, partial owners/outputs, live command mutation, owner
+destruction, cursor ancestry and publication/release order. Topic control creation,
+balloon/button lifecycle, native string/display/UI representations, physical
+cursor/graphics/font/cache providers and final C-only host/facade removal remain
+conversion work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
 ### Movie scene-container control and undo
 
 `movie_scene.c` owns the current scene reference/index and the control flow for
