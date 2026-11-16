@@ -444,11 +444,11 @@ static void loading(void)
         }
     setup(&h);
     h.prop = 0;
-    assert(!mm_preview_actor_create(&h.actor, &d, &h.services) && h.templates && !h.bodies);
+    assert(mm_preview_actor_create(&h.actor, &d, &h.services) && h.templates && h.bodies && h.count == 3);
     dispose(&h);
     setup(&h);
     h.text = 1;
-    assert(!mm_preview_actor_create(&h.actor, &d, &h.services) && h.templates && !h.bodies);
+    assert(mm_preview_actor_create(&h.actor, &d, &h.services) && h.templates && h.bodies && h.count == 3);
     dispose(&h);
 }
 static void playback(void)

@@ -121,7 +121,7 @@ The top ribbon follows retail's **Scenes**, **Actors & props**, **Sounds** and
 **Words** categories, with coloured icons above action labels. New/Open movie
 and Settings stay in the title row; Resources and Content remain available on
 every tab. Scene/frame organisers, object selection and sound track controls
-use the existing player actions. The Words tab selects authored 3D text objects.
+use the existing player actions. The Words tab creates and selects 3D text objects.
 
 **New scene** opens a chooser for a **Storyboard - draw a background** option and the original retail backgrounds, with a rendered
 preview. Use the arrows, Page Up/Down, Home/End or mouse wheel to browse, then
@@ -289,24 +289,33 @@ uses that angle's actual position, orientation and lens, and is labelled
 Guides are clipped to the visible viewport and never drawn over movie playback.
 All cameras are shown by default; the choice is saved across movies/restarts.
 
-**Actors & props > New prop** opens the original prop catalogue with a rendered
-preview. Browse with the list, arrows, Page Up/Down or wheel, then choose
-**Add prop**, Enter or double-click. Cancel/Escape leaves the movie unchanged.
-The chooser requires `tmpls.3cn` in the Content folder and previews run in the
-isolated helper process.
+**Actors & props > New actor** and **New prop** open the original actor or prop
+catalogue with a rendered preview. Browse with the list, arrows, Page Up/Down or
+wheel, then choose **Add actor** or **Add prop**, Enter or double-click.
+Cancel/Escape leaves the movie unchanged. The chooser requires `tmpls.3cn` in the
+Content folder and previews run in the isolated helper process.
 
-The prop appears at the current frame, at the active background camera's next
-object placement point, and remains through the scene's last frame. Insertions
-cycle through the default point and any extra points in retail order, then wrap.
-Changing camera angles or scenes restarts the sequence; camera thumbnails and
-metadata reads leave it untouched. Moving an object manually releases the last
-point for reuse. Failed insertions also leave that point available. It uses its
-default pose/action on a stationary track. The new prop is selected in the object
-list and its bounds are highlighted in the movie view. Each insertion has a
-unique movie-wide object ID and roll-call name. Other scenes and existing tracks
-are retained. Props share the **UNSAVED** session with scene and camera edits;
-placed props can be moved with the gizmo or position fields. **Save copy** exports
-them with the rest of the movie.
+**Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
+one line, then choose an original 3D font and one of the ten retail shapes with
+the arrow buttons. Tab switches between text, font and shape; the keyboard
+arrows choose fonts/shapes, Enter adds and Escape cancels. The text field supports
+Ctrl+A, copy/cut/paste, cursor navigation, Backspace and Delete. Characters must
+be supported by the original Windows-ANSI fonts in `tdfs.3cn`. Invalid input
+stays in the dialog with an explanation. Creating text uses the native ThreeDText
+engine; its generated template is embedded in the saved movie and its font
+continues to reference original retail content.
+
+Actors, props and 3D text appear at the current frame, at the active background
+camera's next insertion point, and remain through the scene's last frame.
+Insertions cycle through the default point and any extra points in retail order,
+then wrap. Changing camera angles or scenes restarts the sequence; camera
+thumbnails and metadata reads leave it untouched. Moving an object manually
+releases the last point for reuse. Failed insertions also leave that point
+available. Each object starts with its default pose/action on a stationary track
+and is selected in the object list. Each insertion has a unique movie-wide
+object ID and roll-call name. Other scenes and existing tracks are retained.
+Insertions share the **UNSAVED** session with scene and camera edits, support
+Undo and the existing movement/transform controls, and are included in **Save copy**.
 
 The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
 X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape

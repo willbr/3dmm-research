@@ -257,6 +257,15 @@ extern "C"
     /* Insert an original prop at this frame and the background's default
      * placement point. Returns its object index, or -1 on failure. */
     int marcus_add_prop(MarcusPlayer *player, unsigned long chunk);
+    /* Actors use the same catalogue records and insertion anchors as props. */
+    int marcus_actor_count(MarcusPlayer *player, const char *content_directory);
+    int marcus_actor(const MarcusPlayer *player, int index, MarcusProp *actor);
+    int marcus_add_actor(MarcusPlayer *player, unsigned long chunk);
+    /* Original 3D fonts, not installed system fonts. UTF-8 text must fit retail's
+     * fifty Windows-ANSI characters; shape is the native 0..9 layout. */
+    int marcus_font_count(MarcusPlayer *player, const char *content_directory);
+    int marcus_font(const MarcusPlayer *player, int index, MarcusProp *font);
+    int marcus_add_text(MarcusPlayer *player, const char *text, unsigned long font, int shape);
     /* Silent live preview; restore the original position to cancel. No file write.
      * Seeking, playback or scene replacement also cancels the preview.
      * Visible actors, props and 3D text are movable. Position is limited to +/-32700. */

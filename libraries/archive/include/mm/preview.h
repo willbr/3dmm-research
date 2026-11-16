@@ -95,6 +95,7 @@ struct PreviewObjectShape
     float rotation[9] = {1,0,0, 0,1,0, 0,0,1};
     float scale[3] = {1,1,1};
 };
+// The legacy name covers inserted actor, prop and generated-text instances.
 struct PreviewPropDefinition
 {
     std::uint32_t scene = 0, number = 0, templateNumber = 0;

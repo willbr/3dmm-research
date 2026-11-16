@@ -16,6 +16,7 @@ static const RibbonTool scene_tools[] = {
     {RIBBON_PREVIOUS, 2, "Previous", "Go to the previous scene", 0xaeb6c0},
     {RIBBON_NEXT, 3, "Next", "Go to the next scene", 0xaeb6c0}};
 static const RibbonTool actor_tools[] = {
+    {RIBBON_NEW_ACTOR, 11, "New actor", "Choose an actor to add at the current frame", 0xe9bc75},
     {RIBBON_NEW_PROP, 10, "New prop", "Choose a prop to add at the current frame", 0x78cbc4},
     {RIBBON_OBJECTS, 4, "Objects", "Show object tracks", 0x78cbc4},
     {RIBBON_ACTOR, 4, "Next actor", "Select the next actor in this scene", 0xe9bc75},
@@ -27,6 +28,7 @@ static const RibbonTool sound_tools[] = {
     {RIBBON_MUTE, 6, "Mute", "Toggle movie audio", 0xe9bc75},
     {RIBBON_RESET_MIX, 7, "Reset mix", "Reset sound track mute and solo choices", 0xaeb6c0}};
 static const RibbonTool word_tools[] = {
+    {RIBBON_NEW_TEXT, 12, "New 3D text", "Create 3D text using an original font and shape", 0xb3a4d6},
     {RIBBON_WORDS, 8, "3D words", "Select the next 3D text object", 0xe9bc75},
     {RIBBON_OBJECTS, 4, "Objects", "Show object tracks and properties", 0x78cbc4}};
 static const RibbonTool *tools_for(int tab, int *count)
@@ -75,12 +77,17 @@ static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
             ui_line(ui, x + (kind == 2 ? 8 + row : 28 - row), y + 16 - row,
                     x + (kind == 2 ? 8 + row : 28 - row), y + 16 + row, colour);
     }
-    else if (kind == 4)
+    else if (kind == 4 || kind == 11)
     {
         ui_fill(ui, x + 13, y + 2, 12, 11, colour);
         ui_fill(ui, x + 9, y + 16, 20, 8, colour);
         ui_fill(ui, x + 11, y + 24, 5, 8, colour);
         ui_fill(ui, x + 22, y + 24, 5, 8, colour);
+        if (kind == 11)
+        {
+            ui_fill(ui, x + 30, y + 20, 4, 18, colour);
+            ui_fill(ui, x + 23, y + 27, 18, 4, colour);
+        }
     }
     else if (kind == 5 || kind == 10)
     {
@@ -133,6 +140,11 @@ static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
         ui_fill(ui, x + 2, y + 2, 32, 30, colour);
         ui_fill(ui, x + 4, y + 4, 28, 26, 0x25282d);
         ui_heading(ui, x + 8, y + 10, "Aa", colour);
+        if (kind == 12)
+        {
+            ui_fill(ui, x + 30, y + 20, 4, 18, colour);
+            ui_fill(ui, x + 23, y + 27, 18, 4, colour);
+        }
     }
 }
 void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded, int modified, int muted,

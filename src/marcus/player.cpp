@@ -78,8 +78,8 @@ struct MarcusPlayer
     std::vector<MM::Id> scenes;
     std::vector<MarcusScene> sceneInfo, baseSceneInfo;
     std::vector<MarcusBackground> backgrounds;
-    std::vector<MarcusProp> props;
-    std::string propCatalogDirectory, backgroundCatalogDirectory;
+    std::vector<MarcusProp> props, actors, fonts;
+    std::string propCatalogDirectory, actorCatalogDirectory, fontCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
     std::map<int, MM::PreviewObject> propPreviews;
     std::map<int, MM::PreviewObjectShape> shapePreviews;
@@ -262,6 +262,12 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
         {
             player.contentSourceIds.insert(entry.second.source);
             if (!player.preview.AddContent(entry.second.source, entry.second.file->path.u8string(), error)) return false;
+        }
+    for (const auto &prop : *player.edits->props)
+        if (prop.file)
+        {
+            if (player.contentSourceIds.insert(prop.definition.source).second) player.boardFiles.push_back(prop.file);
+            if (!player.preview.AddContent(prop.definition.source, prop.file->path.u8string(), error)) return false;
         }
     if (!player.preview.SetDefinitions(*player.edits->scenes, PropDefinitions(*player.edits), error)) return false;
     for (const auto &prop : *player.edits->props) player.names[prop.definition.actorId] = prop.name;
@@ -872,6 +878,94 @@ bool MarcusRenderLocalWorld(MarcusPlayer *player, const MM::PreviewView &view,
 {
     return player && player->preview.Render(view, image, error);
 }
+static bool InsertObject(MarcusPlayer *player, MarcusNamedProp prop, int &result, MM::Error &error)
+{
+    if (player->selected < 0) { error.message = "Create or open a scene before inserting an object."; return false; }
+    if (!EnsureRetailContent(*player, error)) return false;
+    if (player->nextObject > 0xffffffffULL || player->nextActorId > std::numeric_limits<std::int32_t>::max())
+    { error.message = "No object IDs are available."; return false; }
+    auto &definition = prop.definition;
+    if (!player->preview.NextPlacementPoint(definition.point)) { error.message = "This scene has no background placement point."; return false; }
+    struct PlacementGuard
+    {
+        MM::Preview &preview;
+        bool committed = false;
+        ~PlacementGuard() { if (!committed) preview.ReusePlacementPoint(); }
+    } placement{player->preview};
+    for (const auto value : definition.point)
+        if (!std::isfinite(value) || std::abs(value) > 32700) { error.message = "The placement point is out of range."; return false; }
+    definition.scene = player->scenes[player->selected].number;
+    definition.number = static_cast<std::uint32_t>(player->nextObject++);
+    definition.actorId = static_cast<std::int32_t>(player->nextActorId++);
+    definition.first = player->preview.Info().currentFrame;
+    definition.last = player->preview.Info().lastFrame;
+    auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
+    auto props = std::make_shared<MarcusLiveEdits::Props>(*edits->props);
+    props->push_back(prop); edits->props = props; edits->revision = player->nextEditRevision++;
+    EditHistory history(*player);
+    const auto previous = player->edits;
+    player->edits = edits;
+    if (!ApplyDefinitions(*player, error)) { player->edits = previous; return false; }
+    player->objects = player->preview.Objects();
+    player->animations.clear();
+    for (std::size_t index = 0; index < player->objects.size(); ++index)
+        if (player->objects[index].actorId == definition.actorId) result = static_cast<int>(index);
+    if (result < 0) { error.message = "The new object could not be selected."; return false; }
+    ++player->document; player->movieImageScene = -1;
+    history.Commit();
+    placement.committed = true;
+    return true;
+}
+static int ReadCatalogue(MarcusPlayer *player, const char *directory, int kind)
+{
+    const bool ok = Guard(player, [&](MM::Error &error) {
+        if (!directory) return false;
+        MM::Archive archive;
+        if (!archive.Open((std::filesystem::u8path(directory) / (kind == 2 ? "tdfs.3cn" : "tmpls.3cn")).u8string(), error)) return false;
+        std::vector<MarcusProp> entries;
+        for (std::size_t index = 0; index < archive.Chunks().size(); ++index)
+        {
+            const auto &chunk = archive.Chunks()[index];
+            if (chunk.id.type != (kind == 2 ? 0x54444620U : 0x544d504cU)) continue;
+            if (kind != 2)
+            {
+                MM::PayloadPage header;
+                if (!archive.ReadPayload(index, 0, 16, header, error)) return false;
+                if (header.bytes.size() != 16 || !((header.bytes[0] == 1 && header.bytes[1] == 0) ||
+                    (header.bytes[0] == 0 && header.bytes[1] == 1))) continue;
+                const auto flags = Word(std::vector<std::uint8_t>(header.bytes.begin() + 12, header.bytes.end()), header.bytes[0] == 0);
+                if ((flags & 2) || bool(flags & 4) != (kind == 0)) continue;
+            }
+            MarcusProp entry = {};
+            entry.chunk = chunk.id.number;
+            Copy(entry.name, chunk.name.empty() ? std::string(kind == 0 ? "Prop " : kind == 1 ? "Actor " : "3D font ") + std::to_string(entry.chunk) : chunk.name);
+            entries.push_back(entry);
+        }
+        std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) { return std::strcmp(a.name, b.name) < 0; });
+        (kind == 0 ? player->props : kind == 1 ? player->actors : player->fonts).swap(entries);
+        (kind == 0 ? player->propCatalogDirectory : kind == 1 ? player->actorCatalogDirectory : player->fontCatalogDirectory) = directory;
+        return true;
+    });
+    return ok ? static_cast<int>((kind == 0 ? player->props : kind == 1 ? player->actors : player->fonts).size()) : -1;
+}
+static int InsertTemplate(MarcusPlayer *player, unsigned long chunk, bool actor)
+{
+    int result = -1;
+    const bool ok = Guard(player, [&](MM::Error &error) {
+        auto &entries = actor ? player->actors : player->props;
+        const auto &directory = actor ? player->actorCatalogDirectory : player->propCatalogDirectory;
+        if ((entries.empty() || directory != player->timingContent) && ReadCatalogue(player, player->timingContent.c_str(), actor ? 1 : 0) < 0)
+        { error.message = player->error; return false; }
+        const auto found = std::find_if(entries.begin(), entries.end(), [&](const auto &entry) { return entry.chunk == chunk; });
+        if (found == entries.end()) { error.message = "The selected object is unavailable."; return false; }
+        MarcusNamedProp prop;
+        prop.definition.source = player->retailSource;
+        prop.definition.templateNumber = static_cast<std::uint32_t>(chunk);
+        prop.name = found->name;
+        return InsertObject(player, std::move(prop), result, error);
+    });
+    return ok ? result : -1;
+}
 extern "C"
 {
     MarcusPlayer *marcus_create(void)
@@ -1099,89 +1193,44 @@ extern "C"
             return true;
         });
     }
-    int marcus_prop_count(MarcusPlayer *player, const char *directory)
-    {
-        const bool ok = Guard(player, [&](MM::Error &error) {
-            if (!directory) return false;
-            MM::Archive archive;
-            if (!archive.Open((std::filesystem::u8path(directory) / "tmpls.3cn").u8string(), error)) return false;
-            std::vector<MarcusProp> props;
-            for (std::size_t index = 0; index < archive.Chunks().size(); ++index)
-            {
-                const auto &chunk = archive.Chunks()[index];
-                if (chunk.id.type != 0x544d504c) continue;
-                MM::PayloadPage header;
-                if (!archive.ReadPayload(index, 0, 16, header, error)) return false;
-                if (header.bytes.size() != 16 || !((header.bytes[0] == 1 && header.bytes[1] == 0) ||
-                                                  (header.bytes[0] == 0 && header.bytes[1] == 1))) continue;
-                const auto flags = Word(std::vector<std::uint8_t>(header.bytes.begin() + 12, header.bytes.end()), header.bytes[0] == 0);
-                if (!(flags & 4) || (flags & 2)) continue; // Native ftmplProp / ftmplTdt.
-                MarcusProp prop = {};
-                prop.chunk = chunk.id.number;
-                Copy(prop.name, chunk.name.empty() ? "Prop " + std::to_string(prop.chunk) : chunk.name);
-                props.push_back(prop);
-            }
-            std::sort(props.begin(), props.end(), [](const auto &a, const auto &b) { return std::strcmp(a.name, b.name) < 0; });
-            player->props.swap(props);
-            player->propCatalogDirectory = directory;
-            return true;
-        });
-        return ok ? static_cast<int>(player->props.size()) : -1;
-    }
+    int marcus_prop_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 0); }
+    int marcus_actor_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 1); }
+    int marcus_font_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 2); }
     int marcus_prop(const MarcusPlayer *player, int index, MarcusProp *prop)
     {
         if (!player || !prop || index < 0 || static_cast<std::size_t>(index) >= player->props.size()) return 0;
-        *prop = player->props[index];
-        return 1;
+        *prop = player->props[index]; return 1;
     }
-    int marcus_add_prop(MarcusPlayer *player, unsigned long chunk)
+    int marcus_actor(const MarcusPlayer *player, int index, MarcusProp *actor)
+    {
+        if (!player || !actor || index < 0 || static_cast<std::size_t>(index) >= player->actors.size()) return 0;
+        *actor = player->actors[index]; return 1;
+    }
+    int marcus_font(const MarcusPlayer *player, int index, MarcusProp *font)
+    {
+        if (!player || !font || index < 0 || static_cast<std::size_t>(index) >= player->fonts.size()) return 0;
+        *font = player->fonts[index]; return 1;
+    }
+    int marcus_add_prop(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, false); }
+    int marcus_add_actor(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, true); }
+    int marcus_add_text(MarcusPlayer *player, const char *text, unsigned long font, int shape)
     {
         int result = -1;
         const bool ok = Guard(player, [&](MM::Error &error) {
-            if (player->selected < 0) { error.message = "Create or open a scene before adding a prop."; return false; }
-            if ((player->props.empty() || player->propCatalogDirectory != player->timingContent) &&
-                marcus_prop_count(player, player->timingContent.c_str()) < 0)
-            { error.message = player->error; return false; }
-            const auto found = std::find_if(player->props.begin(), player->props.end(), [&](const auto &prop) { return prop.chunk == chunk; });
-            if (found == player->props.end()) { error.message = "The selected prop is unavailable."; return false; }
+            if (player->selected < 0) { error.message = "Create or open a scene before adding 3D text."; return false; }
             if (!EnsureRetailContent(*player, error)) return false;
-            if (player->nextObject > 0xffffffffULL || player->nextActorId > std::numeric_limits<std::int32_t>::max())
-            { error.message = "No object IDs are available."; return false; }
+            if ((player->fonts.empty() || player->fontCatalogDirectory != player->timingContent) &&
+                ReadCatalogue(player, player->timingContent.c_str(), 2) < 0) { error.message = player->error; return false; }
+            if (std::none_of(player->fonts.begin(), player->fonts.end(), [&](const auto &entry) { return entry.chunk == font; }))
+            { error.message = "The selected 3D font is unavailable."; return false; }
+            while (player->nextBoardSource > 2 && (player->contentSourceIds.count(player->nextBoardSource) || player->nextBoardSource == player->retailSource)) --player->nextBoardSource;
+            if (player->nextBoardSource <= 2) { error.message = "No text source IDs are available."; return false; }
             MarcusNamedProp prop;
-            auto &definition = prop.definition;
-            if (!player->preview.NextPlacementPoint(definition.point)) { error.message = "This scene has no background placement point."; return false; }
-            struct PlacementGuard
-            {
-                MM::Preview &preview;
-                bool committed = false;
-                ~PlacementGuard() { if (!committed) preview.ReusePlacementPoint(); }
-            } placement{player->preview};
-            for (const auto value : definition.point)
-                if (!std::isfinite(value) || std::abs(value) > 32700) { error.message = "The placement point is out of range."; return false; }
-            definition.scene = player->scenes[player->selected].number;
-            definition.number = static_cast<std::uint32_t>(player->nextObject++);
-            definition.actorId = static_cast<std::int32_t>(player->nextActorId++);
-            definition.source = player->retailSource;
-            definition.templateNumber = static_cast<std::uint32_t>(chunk);
-            definition.first = player->preview.Info().currentFrame;
-            definition.last = player->preview.Info().lastFrame;
-            prop.name = found->name;
-            auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
-            auto props = std::make_shared<MarcusLiveEdits::Props>(*edits->props);
-            props->push_back(prop); edits->props = props; edits->revision = player->nextEditRevision++;
-            EditHistory history(*player);
-            const auto previous = player->edits;
-            player->edits = edits;
-            if (!ApplyDefinitions(*player, error)) { player->edits = previous; return false; }
-            player->objects = player->preview.Objects();
-            player->animations.clear();
-            for (std::size_t index = 0; index < player->objects.size(); ++index)
-                if (player->objects[index].actorId == definition.actorId) result = static_cast<int>(index);
-            if (result < 0) { error.message = "The prop could not be selected."; return false; }
-            ++player->document; player->movieImageScene = -1;
-            history.Commit();
-            placement.committed = true;
-            return true;
+            prop.file = MarcusCreateTextTemplate(text, font, player->retailSource, shape);
+            prop.name = text;
+            prop.definition.source = player->nextBoardSource--;
+            prop.definition.templateNumber = 0;
+            return InsertObject(player, std::move(prop), result, error);
         });
         return ok ? result : -1;
     }

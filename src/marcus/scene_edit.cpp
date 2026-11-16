@@ -5,9 +5,13 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <codecvt>
+#include <locale>
 #include "soc_core.h"
+#include "mm/text.h"
 #include "mm/scene_runtime.h"
 #include "storyboard_native.h"
+#undef size
 ASSERTNAME
 
 namespace
@@ -241,8 +245,8 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
     Require(library->FFind(kctgTmpl, prop, &block) && block.FUnpackData() && block.FReadRgb(&tmpl, sizeof(tmpl), 0),
             "Cannot read the selected prop template.");
     if (tmpl.bo == kboOther) SwapBytesBom(&tmpl, kbomTmplf);
-    Require(tmpl.bo == kboCur && (tmpl.grftmpl & ftmplProp) && !(tmpl.grftmpl & ftmplTdt),
-            "The selected template is not a prop.");
+    Require(tmpl.bo == kboCur && bool(tmpl.grftmpl & ftmplTdt) == bool(propEdit.file),
+            "The selected object template is invalid.");
     SceneData scene;
     Require(scene.FRead(file, sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
             "The prop insertion frame is outside this scene.");
@@ -257,6 +261,17 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
             Require(file->FAdoptChild(kctgMvie, root.cno, kctgScen, existing.cno, index), "Cannot retain an existing scene.");
     }
     const auto sourceId = RetailSource(file, root.cno, hadRoot ? 2 : 1);
+    ChunkNumber templateNumber = prop;
+    if (propEdit.file)
+    {
+        Require(library->FCopy(kctgTmpl, prop, file, &templateNumber), "Cannot embed the 3D text template.");
+        ChildChunkIdentification textChild;
+        Require(file->FGetKidChidCtg(kctgTmpl, templateNumber, 0, kctgTdt, &textChild) &&
+                file->FFind(kctgTdt, textChild.cki.cno, &block) && block.FUnpackData(), "Cannot read the 3D text font reference.");
+        // Generated text is embedded; its font remains original retail content.
+        std::int32_t fontSource = sourceId;
+        Require(block.FWriteRgb(&fontSource, sizeof(fontSource), 8), "Cannot retain the original 3D font.");
+    }
     ChildChunkIdentification rollChild;
     const bool hadRoll = file->FGetKidChidCtg(kctgMvie, root.cno, 0, kctgGst, &rollChild);
     std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
@@ -312,13 +327,15 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
     header.bo = kboCur; header.osk = koskCur;
     header.arid = definition.actorId;
     header.nfrmFirst = static_cast<int32_t>(frame); header.nfrmLast = definition.last;
-    header.tagTmpl = {sourceId, 0, kctgTmpl, static_cast<ChunkNumber>(prop)};
+    header.tagTmpl = {propEdit.file ? 0 : sourceId, 0, kctgTmpl, templateNumber};
     header.dxyzFullRte = {BrFloatToScalar(point[0]), BrFloatToScalar(point[1]), BrFloatToScalar(point[2])};
     ChunkNumber actorNumber, childNumber;
     Require(file->FAdd(sizeof(header), kctgActr, &actorNumber) && ActorData::FWriteHeader(file, actorNumber, &header),
             "Cannot create the prop instance.");
     Require(actorNumber == definition.number || !file->FFind(kctgActr, definition.number), "The new object ID is already in use.");
     if (actorNumber != definition.number) { file->Move(kctgActr, actorNumber, kctgActr, definition.number); actorNumber = definition.number; }
+    if (propEdit.file)
+        Require(file->FAdoptChild(kctgActr, actorNumber, kctgTmpl, templateNumber, 0), "Cannot link the embedded 3D text.");
     ActorTrack track;
     Require(track.FCreate(), "Cannot create the prop's stationary track.");
     RouteDistancePoint route = {};
@@ -352,10 +369,12 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
     file->DeleteChild(kctgScen, sceneNumber, kctgStartGg, child.cki.cno, 1);
     Require(file->FAdoptChild(kctgScen, sceneNumber, kctgStartGg, childNumber, 1), "Cannot link the prop to this scene.");
     String propName;
-    propName.SetSzs(const_cast<char *>(name));
+    const auto nativeName = propEdit.file ? MarcusTextAnsi(name) : std::string(name);
+    propName.SetSzs(const_cast<char *>(nativeName.c_str()));
     RollCallActorEntry entry = {};
     entry.arid = header.arid; entry.cactRef = 1;
-    entry.tagTmpl = {sourceId, nullptr, kctgTmpl, static_cast<ChunkNumber>(prop)};
+    entry.tagTmpl = {propEdit.file ? 0 : sourceId, nullptr, kctgTmpl, templateNumber};
+    entry.grfbrws = propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0;
     Require(roll->FAddStn(&propName, &entry), "Cannot name the new prop.");
     if (hadRoll) file->DeleteChild(kctgMvie, root.cno, kctgGst, rollChild.cki.cno, 0);
     Require(MovieData::FWriteRollCall(file, root.cno, roll.get(), &childNumber), "Cannot write the movie's object names.");
@@ -417,6 +436,40 @@ static void ApplyShape(PChunkyFile file, ChunkNumber actor, const MM::PreviewObj
     file->DeleteChild(kctgActr,actor,kctgGgae,child.cki.cno,0);
     Require(file->FAdoptChild(kctgActr,actor,kctgGgae,number,0),"Cannot link the transformed track.");
 }
+std::string MarcusTextAnsi(const char *utf8)
+{
+    Require(utf8 && *utf8, "Enter some text first.");
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
+    const auto wide = convert.from_bytes(utf8);
+    Require(!wide.empty() && wide.size() <= 50 && wide.find_first_not_of(u" \t\r\n") != std::u16string::npos,
+        "3D text needs 1 to 50 characters, including at least one visible character.");
+    const auto bytes = mm_text_ansi(nullptr, wide.data(), wide.size() * 2, MM_TEXT_UTF16_LE, nullptr, 0);
+    std::string result(bytes, 0);
+    Require(bytes && bytes <= 50 && mm_text_ansi(nullptr, wide.data(), wide.size() * 2, MM_TEXT_UTF16_LE, result.data(), bytes) == bytes,
+        "This text cannot be used with the original 3D fonts.");
+    std::vector<std::uint16_t> roundTrip(wide.size());
+    const auto units = mm_text_utf16(nullptr, result.data(), result.size(), MM_TEXT_WINDOWS, roundTrip.data(), roundTrip.size());
+    Require(units == wide.size() && std::equal(wide.begin(), wide.end(), roundTrip.begin()) &&
+        result.find_first_of("\r\n\t") == std::string::npos, "Use a single line of characters supported by the original 3D fonts.");
+    return result;
+}
+std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsigned long font, long source, int shape)
+{
+    const auto ansi = MarcusTextAnsi(utf8);
+    Require(shape >= 0 && shape < tdtsLim, "Choose a valid 3D text shape.");
+    auto result = WorkingCopy({}, nullptr);
+    String path, text; Filename filename;
+    path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
+    text.SetSzs(const_cast<char *>(ansi.c_str()));
+    Require(filename.FBuildFromPath(&path), "Invalid 3D text working path.");
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable));
+    TAG tag = {source, nullptr, kctgTdf, font};
+    std::unique_ptr<ThreeDText, Release> object(ThreeDText::PtdtNew(&text, shape, &tag));
+    ChunkNumber number;
+    Require(file && object && object->FWrite(file.get(), kctgTmpl, &number) && number == 0 && file->FSave(kctgSoc),
+        "Cannot create the 3D text template.");
+    return result;
+}
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,
     const std::vector<MarcusSceneRange> &ranges, const MarcusLiveEdits &edits, const std::filesystem::path &templates)
@@ -443,7 +496,15 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
         Require(templateFile.FBuildFromPath(&templatePath), "The template path is invalid.");
         std::unique_ptr<ChunkyFile, Release> library(ChunkyFile::PcflOpen(&templateFile, fcflNil));
         Require(bool(library), "Cannot open the prop library.");
-        for (const auto &prop : *edits.props) ApplyNewProp(file.get(), library.get(), prop);
+        for (const auto &prop : *edits.props)
+        {
+            if (!prop.file) { ApplyNewProp(file.get(), library.get(), prop); continue; }
+            templatePath.SetSzs(const_cast<char *>(prop.file->path.u8string().c_str()));
+            Require(templateFile.FBuildFromPath(&templatePath), "Invalid 3D text template path.");
+            std::unique_ptr<ChunkyFile, Release> textFile(ChunkyFile::PcflOpen(&templateFile, fcflNil));
+            Require(bool(textFile), "Cannot open the 3D text template.");
+            ApplyNewProp(file.get(), textFile.get(), prop);
+        }
     }
     for (const auto &placement : placements)
     {

@@ -6,6 +6,7 @@
 #include "movie_browser.h"
 #include "scene_organiser.h"
 #include "background_browser.h"
+#include "text_dialog.h"
 #include "ribbon.h"
 #include "camera_picker.h"
 #include "storyboard_editor.h"
@@ -92,6 +93,7 @@ typedef struct App
     MarcusBrowser *browser;
     MarcusSceneOrganiser *scene_organiser;
     MarcusBackgroundBrowser *background_browser;
+    MarcusTextDialog *text_dialog;
     MarcusCameraPicker *camera_picker;
     MarcusStoryboardEditor *storyboard_editor;
     MarcusPropGizmo *prop_gizmo;
@@ -1003,7 +1005,7 @@ static void choose_storyboard(App *app, int new_scene, int angle)
         update_storyboard_layout(app);
     }
 }
-static void choose_prop(App *app)
+static void choose_object(App *app, int actor)
 {
     if (!app->loaded) return;
     finish_movie_scrub(app);
@@ -1011,8 +1013,20 @@ static void choose_prop(App *app)
     release_camera(app);
     app->sheet_menu = app->orbit_menu = 0;
     scene_organiser_close(app->scene_organiser);
-    if (!background_browser_show_props(app->background_browser, app->player, app->resources, app->content))
-        fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No props found. Choose your original 3DMM Content folder.");
+    if (!(actor ? background_browser_show_actors(app->background_browser, app->player, app->resources, app->content)
+                : background_browser_show_props(app->background_browser, app->player, app->resources, app->content)))
+        fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No objects found. Choose your original 3DMM Content folder.");
+}
+static void choose_text(App *app)
+{
+    if (!app->loaded) return;
+    finish_movie_scrub(app);
+    app->playing = 0;
+    release_camera(app);
+    app->sheet_menu = app->orbit_menu = 0;
+    scene_organiser_close(app->scene_organiser);
+    if (!text_dialog_show(app->text_dialog, app->player, app->window, app->content))
+        fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No 3D fonts found. Choose your original 3DMM Content folder.");
 }
 static void choose_camera_angle(App *app)
 {
@@ -1649,7 +1663,9 @@ static void ribbon_action(App *app, int action)
         else choose_storyboard(app, !marcus_is_storyboard(app->player), -1);
     }
     else if (action == RIBBON_SAVE_COPY) choose_file(app, 4);
-    else if (action == RIBBON_NEW_PROP) choose_prop(app);
+    else if (action == RIBBON_NEW_PROP) choose_object(app, 0);
+    else if (action == RIBBON_NEW_ACTOR) choose_object(app, 1);
+    else if (action == RIBBON_NEW_TEXT) choose_text(app);
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
     else if (action == RIBBON_CAMERA_GUIDES)
     {
@@ -2191,6 +2207,14 @@ static void handle_event(App *app, const SDL_Event *event)
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
     else if (!app->error[0] && camera_picker_event(app->camera_picker, event, app->width, app->height))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
+    }
+    else if (!app->error[0] && text_dialog_event(app->text_dialog, event, app->width, app->height))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
         {
@@ -4032,6 +4056,7 @@ static void draw(App *app)
     scene_organiser_draw(app->scene_organiser, &app->ui, app->width, app->height);
     browser_draw(app->browser, &app->ui, app->width, app->height);
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
+    text_dialog_draw(app->text_dialog, &app->ui, app->width, app->height);
     camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
@@ -4045,7 +4070,7 @@ static void update_prop_gizmo(App *app)
     float offset;
     int moved, enabled;
     enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
-        !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
+        !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) && !text_dialog_visible(app->text_dialog) &&
         !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !app->orbit_menu && !app->sheet_menu && !app->flying && !app->orbiting && !app->panning &&
         !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging;
@@ -4355,6 +4380,12 @@ int main(int argc, char **argv)
         result = 1;
         goto cleanup;
     }
+    app.text_dialog = text_dialog_create();
+    if (!app.text_dialog)
+    {
+        result = 1;
+        goto cleanup;
+    }
     app.camera_picker = camera_picker_create();
     if (!app.camera_picker)
     {
@@ -4452,10 +4483,17 @@ int main(int argc, char **argv)
         }
         {
             unsigned long prop;
-            int object;
-            if (background_browser_take_prop(app.background_browser, &prop))
+            int object, changed, actor;
+            object = text_dialog_take(app.text_dialog);
+            changed = object >= 0;
+            actor = background_browser_take_actor(app.background_browser, &prop);
+            if (actor || background_browser_take_prop(app.background_browser, &prop))
             {
-                object = marcus_add_prop(app.player, prop);
+                changed = 1;
+                object = actor ? marcus_add_actor(app.player, prop) : marcus_add_prop(app.player, prop);
+            }
+            if (changed)
+            {
                 if (object < 0) fail(&app, marcus_error(app.player));
                 refresh(&app);
                 if (object >= 0)
@@ -4589,6 +4627,7 @@ cleanup:
     if (result && !app.error[0])
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
     browser_destroy(app.browser);
+    text_dialog_destroy(app.text_dialog);
     background_browser_destroy(app.background_browser);
     camera_picker_destroy(app.camera_picker);
     storyboard_editor_destroy(app.storyboard_editor);

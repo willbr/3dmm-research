@@ -104,8 +104,6 @@ int mm_preview_actor_create(MMPreviewActor *p, const MMPreviewActorDefinition *d
     r = s->fetch(s->context, &p->header, &p->tmpl);
     if (r <= 0)
         return r;
-    if (!s->prop(s->context, p->tmpl) || s->text(s->context, p->tmpl))
-        return 0;
     r = s->bind(s->context, p->tmpl);
     if (r <= 0)
         return r;

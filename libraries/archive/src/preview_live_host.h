@@ -134,6 +134,6 @@ bool Preview::Impl::SyncActors(Error &error)
     PublishLive();
     host.Rethrow(result);
     return result == MM_PREVIEW_LIVE_OK ||
-           Fail(error, ErrorCode::decode_failed, "Cannot create the selected prop and its pose dependencies.");
+           Fail(error, ErrorCode::decode_failed, "Cannot create the selected object and its pose dependencies.");
 }
 #endif

@@ -671,7 +671,7 @@ bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
     _impl->PublishLive();
     host.Rethrow(result);
     return result == MM_PREVIEW_LIVE_OK ||
-        Fail(error, ErrorCode::decode_failed, "Cannot create the selected prop and its pose dependencies.");
+        Fail(error, ErrorCode::decode_failed, "Cannot create the selected object and its pose dependencies.");
 }
 bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error &error)
 {

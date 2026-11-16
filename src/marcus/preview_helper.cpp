@@ -133,9 +133,9 @@ int main(int argc, char **argv)
             view.yaw = 25; view.pitch = -10;
             if (argv[1][end] || chunk > 0xffffffffUL ||
                 !renderer.Open((std::filesystem::u8path(argv[4]) / "tmpls.3cn").u8string(), argv[2], error) ||
-                !renderer.Select({0x544d504c, static_cast<std::uint32_t>(chunk)}, error) || !renderer.Info().prop ||
+                !renderer.Select({0x544d504c, static_cast<std::uint32_t>(chunk)}, error) ||
                 !renderer.Render(view, image, error))
-                preview.error = error.message.empty() ? "Cannot preview the selected prop." : error.message;
+                preview.error = error.message.empty() ? "Cannot preview the selected object." : error.message;
             else
             {
                 preview.width = image.width; preview.height = image.height;

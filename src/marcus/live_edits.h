@@ -10,6 +10,7 @@ struct MarcusNamedProp
 {
     MM::PreviewPropDefinition definition;
     std::string name;
+    std::shared_ptr<MarcusMovieFile> file; // Generated text template, retained through undo and native export.
 };
 struct MarcusCameraKey
 {
