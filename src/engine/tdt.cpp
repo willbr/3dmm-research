@@ -182,16 +182,7 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.length = [](void *, void *object) -> MMI32 { return static_cast<PThreeDText>(object)->_stn.Cch(); };
     s.character = [](void *, void *object, MMI32 i) -> MMI32 { return static_cast<uchar>(static_cast<PThreeDText>(object)->_stn.Psz()[i]); };
     s.shape = [](void *, void *object) -> MMI32 { return static_cast<PThreeDText>(object)->_descriptor.shape; };
-    s.template_read = [](void *, void *object, MMTemplateState *out) {
-        auto t = static_cast<PThreeDText>(object);
-        *out = {t->_pglibactPar, t->_pglibset, t->_pggcmid, t->_cbset, t->_ccmid, t->_cactn, t->_xaRest, t->_yaRest, t->_zaRest, t->_grftmpl};
-    };
-    s.template_write = [](void *, void *object, const MMTemplateState *in) {
-        auto t = static_cast<PThreeDText>(object);
-        t->_pglibactPar = static_cast<PDynamicArray>(in->parents); t->_pglibset = static_cast<PDynamicArray>(in->sets); t->_pggcmid = static_cast<PGeneralGroup>(in->costumes);
-        t->_cbset = in->set_count; t->_ccmid = in->custom_count; t->_cactn = in->action_count;
-        t->_xaRest = static_cast<BRA>(in->x); t->_yaRest = static_cast<BRA>(in->y); t->_zaRest = static_cast<BRA>(in->z); t->_grftmpl = in->flags;
-    };
+    s.template_state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PThreeDText>(object)->_template; };
     s.list_new = [](void *, MMI32 bytes, MMI32 capacity) -> void * { return DynamicArray::PglNew(bytes, capacity); };
     s.list_count = [](void *, void *list, MMI32 count) { AssertDo(static_cast<PDynamicArray>(list)->FSetIvMac(count), "PglNew should have ensured space!"); };
     s.list_put = [](void *, void *list, MMI32 index, const void *data) { static_cast<PDynamicArray>(list)->Put(index, const_cast<void *>(data)); };
@@ -383,7 +374,7 @@ bool ThreeDText::FSetDefaultCost(PBody pbody)
 PCustomMaterial_CMTL ThreeDText::PcmtlFetch(LegacyLong cmid)
 {
     AssertThis(0);
-    AssertIn(cmid, 0, _ccmid);
+    AssertIn(cmid, 0, _template.custom_count);
 
     Bug("Shouldn't fetch CMTLs from a ThreeDText");
     return pvNil;

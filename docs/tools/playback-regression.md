@@ -10877,3 +10877,75 @@ Evidence: `tmp/c89-body-state-{create,edit,runtime,geometry}-baseline-{native,sd
 `tmp/c89-body-state-{create,edit,runtime,geometry}-asan.log`,
 `tmp/c89-body-state-regular-tests.log`, `tmp/c89-body-state-tools-build.log`,
 `tmp/c89-body-state-trace-comparison.json` and `tmp/c89-body-state-identities.json`.
+
+### Persistent Template state shared with ThreeDText (16 November 2026)
+
+Template parent/set/costume table ownership, rest orientation, flags and counts
+now persist in `MMTemplateState`, initialized explicitly for fresh native owners.
+Ordinary template loading, runtime operations and generated-text replacement use
+borrowed views of that same C record. Native field read/write marshalling is
+removed from both Template and ThreeDText services. Typed table accessors and
+native getters/debug validation read the C owner directly. The native name String,
+typed resource/container services and final facade integration remain dependencies.
+
+C value snapshots retain publication order during partial initialization,
+disposal and generated-list replacement. Failure keeps the previous generated
+owners; success releases/clears/replaces parent, set and costume references before
+updating generated material/action owners and counts. The generated-resource owner
+remains distinct. Native rest-orientation getters keep their 16-bit BAM conversion;
+header wire codecs and host-provided object/table size accounting are unchanged.
+The persistent record stores rest angles as 16-bit unsigned values. An initial
+widened representation increased the native text-object estimate by eight bytes;
+the recorded resource trace exposed that mismatch and the field widths were
+corrected before final verification.
+
+Original native traces were captured separately on Native Debug, SDL Release and
+SDL Debug before conversion. Allocation-failure injection changes the Release
+case outputs, so each configuration is compared with its own original baseline:
+
+| Trace | Configuration | Bytes | FNV-1a |
+| --- | --- | ---: | --- |
+| Template construction | Native/SDL Debug | 306,048 | `16CA3EB0` |
+| Template construction | SDL Release | 376,992 | `DA9EBE3D` |
+| Template runtime | Native/SDL Debug | 241,552 | `A1E50175` |
+| Template runtime | SDL Release | 241,696 | `04C418B3` |
+| Text generation | Native/SDL Debug | 4,378,609 | `B79A006F` |
+| Text generation | SDL Release | 4,413,472 | `673CB1B2` |
+| Text resources | Native/SDL Debug | 279,277 | `ABC5FA67` |
+| Text resources | SDL Release | 284,193 | `CF87F4D7` |
+
+Fixtures retain their existing normalization of undefined template-header padding;
+defined wire fields, table contents, rest angles, counts, names, body state and
+ownership are compared. Cases cover missing/opposite-order tables, generated
+costume groups, default-resource failures, virtual action/model dispatch,
+accessories, generated lists/actions/matrices, resource read/write/change/rollback
+and font-provider inheritance. C providers retain partial-publication/release-order
+checks and compare all defined saved-state fields after failed generation, without
+depending on struct padding or removed publication callbacks. All four focused
+suites pass MSVC AddressSanitizer.
+
+All 117 original/converted template/text-resource/body/undo/text-box/layout/Help/
+text/preview trace pairs match across the three hosts, including the original
+cache estimates. Prior hashes remain unchanged. All 140 standalone checks,
+including strict C89 syntax, pass. Fifty-eight selected Native checks and 54 in
+each SDL configuration pass, including the existing Native playback/player
+regressions. The regular headless asset-preview harness passes; Native `chelp`
+and `ched` compile. Background checks retain 301,996,032 bytes/FNV-1a `E1A71005`
+across 12 backgrounds and 188 cameras per host. All ten retained input identities
+are unchanged; identities for 39 binaries are recorded. Test processes use private
+temporary directories. Marcus was stopped before rebuilding and relaunched
+afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Arbitrary
+native callback/override observations and other platforms remain unverified.
+Native String/object lifetimes, typed resource/container/SDK providers, physical
+views and final C-only host/facade integration remain conversion work.
+
+Evidence: `tmp/c89-template-state-{tmpl-create,tmpl-runtime,text-generation,text-resource}-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-template-state-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-template-state-standalone-tests.log`,
+`tmp/c89-template-state-{template-create,template-runtime,text-generation,text-resource}-asan.log`,
+`tmp/c89-template-state-regular-tests.log`, `tmp/c89-template-state-tools-build.log`,
+`tmp/c89-template-state-initial-cache-estimate-diff.json`,
+`tmp/c89-template-state-trace-comparison.json` and `tmp/c89-template-state-identities.json`.

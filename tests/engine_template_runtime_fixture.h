@@ -15,12 +15,12 @@ class TemplateRuntimeFixture : public Template
     static TemplateRuntimeFixture *Create(int parts)
     {
         auto t=NewObj TemplateRuntimeFixture; if (!t) return nullptr;
-        t->_cactn=1; t->_cbset=parts?2:0;
-        t->_pglibactPar=DynamicArray::PglNew(sizeof(short)); t->_pglibset=DynamicArray::PglNew(sizeof(short));
-        t->_pggcmid=GeneralGroup::PggNew(sizeof(int32_t));
-        bool ok=t->_pglibactPar && t->_pglibset && t->_pggcmid;
-        for (int i=0;ok && i<parts;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=t->_pglibactPar->FAdd(&p) && t->_pglibset->FAdd(&s); }
-        for (int i=0;ok && i<t->_cbset;++i) { int32_t id=i,count=1; ok=t->_pggcmid->FAdd(sizeof(id),nullptr,&id,&count); }
+        t->_template.action_count=1; t->_template.set_count=parts?2:0;
+        t->_template.parents=DynamicArray::PglNew(sizeof(short)); t->_template.sets=DynamicArray::PglNew(sizeof(short));
+        t->_template.costumes=GeneralGroup::PggNew(sizeof(int32_t));
+        bool ok=t->_Parents() && t->_Sets() && t->_Costumes();
+        for (int i=0;ok && i<parts;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=t->_Parents()->FAdd(&p) && t->_Sets()->FAdd(&s); }
+        for (int i=0;ok && i<t->_template.set_count;++i) { int32_t id=i,count=1; ok=t->_Costumes()->FAdd(sizeof(id),nullptr,&id,&count); }
         if (!ok) { ReleasePpo(&t); return nullptr; } return t;
     }
     PActionDefinition _PactnFetch(LegacyLong id) override

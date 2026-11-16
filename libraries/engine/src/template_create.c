@@ -1,5 +1,8 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/template_create.h"
+#include <string.h>
+void mm_template_state_init(MMTemplateState *state)
+{ memset(state, 0, sizeof(*state)); }
 static void diagnostic(const MMTemplateCreateServices *s,int n) { if (s->diagnostic) s->diagnostic(s->context,n); }
 static MMU32 word(const unsigned char *p,int n,int big)
 { MMU32 v=0; int i; for (i=0;i<n;++i) v=(v<<8)|p[big?i:n-1-i]; return v; }
@@ -16,14 +19,14 @@ int mm_template_read_header(void *object,void *file,MMU32 type,MMU32 number,cons
     if (bytes[0]==1 && !bytes[1]) big=0;
     else if (!bytes[0] && bytes[1]==1) big=1;
     else { diagnostic(s,MM_TEMPLATE_BAD_ORDER); big=s->host_big_endian; }
-    s->read(s->context,object,&t); t.x=word(bytes+4,2,big); t.y=word(bytes+6,2,big);
-    t.z=word(bytes+8,2,big); t.flags=word(bytes+12,4,big); s->write(s->context,object,&t);
+    t=*s->state(s->context,object); t.x=word(bytes+4,2,big); t.y=word(bytes+6,2,big);
+    t.z=word(bytes+8,2,big); t.flags=word(bytes+12,4,big); *s->state(s->context,object)=t;
     return s->read_name(s->context,object,file,type,number);
 }
 int mm_template_write_header(void *object,void *file,MMU32 type,MMU32 *number,const MMTemplateCreateServices *s)
 {
     MMTemplateState t; unsigned char bytes[16]; int big=s->host_big_endian;
-    s->read(s->context,object,&t); put(bytes,2,1,big); put(bytes+2,2,s->system,big);
+    t=*s->state(s->context,object); put(bytes,2,1,big); put(bytes+2,2,s->system,big);
     put(bytes+4,2,t.x,big); put(bytes+6,2,t.y,big); put(bytes+8,2,t.z,big);
     bytes[10]=bytes[11]=0; put(bytes+12,4,t.flags,big);
     if (!s->add_chunk(s->context,file,type,bytes,sizeof(bytes),number)) return 0;
@@ -42,7 +45,7 @@ int mm_template_fetch(void *file,MMU32 type,MMU32 number,void *block,void **out,
         if (object) s->release(s->context,object);
         s->invalidate(s->context,out,sizeof(*out)); s->invalidate(s->context,bytes,sizeof(*bytes)); return 0;
     }
-    *out=object; s->read(s->context,object,&t);
+    *out=object; t=*s->state(s->context,object);
     if (t.flags&2U) *bytes=s->object_size(s->context,1);
     else *bytes=s->object_size(s->context,0)+s->table_size(s->context,t.parents)+
         s->table_size(s->context,t.sets)+s->table_size(s->context,t.costumes);
@@ -53,33 +56,33 @@ int mm_template_initialize(void *object,void *file,MMU32 type,MMU32 number,const
     MMTemplateState t; MMTemplateChild child; MMI32 i,j,k,count,set,ids[50];
     void *block,*cache,*custom; int other;
     if (!s->header(s->context,object,file,type,number)) return 0;
-    s->read(s->context,object,&t);
+    t=*s->state(s->context,object);
     if (!s->child(s->context,file,type,number,0,MM_GLPI,&child) ||
         !(block=s->find(s->context,file,child.type,child.number))) return 0;
-    t.parents=s->read_table(s->context,block,MM_TEMPLATE_PARENTS,&other); s->write(s->context,object,&t);
+    t.parents=s->read_table(s->context,block,MM_TEMPLATE_PARENTS,&other); *s->state(s->context,object)=t;
     if (!t.parents) return 0;
     s->validate_table(s->context,t.parents,MM_TEMPLATE_PARENTS,0);
     if (other) swap(s->list_data(s->context,t.parents),s->count(s->context,t.parents),2);
     if (!s->child(s->context,file,type,number,0,MM_GLBS,&child) ||
         !(block=s->find(s->context,file,child.type,child.number))) return 0;
-    t.sets=s->read_table(s->context,block,MM_TEMPLATE_SETS,&other); s->write(s->context,object,&t);
+    t.sets=s->read_table(s->context,block,MM_TEMPLATE_SETS,&other); *s->state(s->context,object)=t;
     if (!t.sets) return 0;
     s->validate_table(s->context,t.sets,MM_TEMPLATE_SETS,0);
     if (other) swap(s->list_data(s->context,t.sets),s->count(s->context,t.sets),2);
     if (s->debug_checks && s->child(s->context,file,type,number,0,MM_GLDC,&child)) diagnostic(s,MM_TEMPLATE_OBSOLETE);
-    t.set_count=-1; s->write(s->context,object,&t);
+    t.set_count=-1; *s->state(s->context,object)=t;
     for (i=0;i<s->count(s->context,t.sets);++i)
-    { set=s->item(s->context,t.sets,i); if (set>t.set_count) { t.set_count=set; s->write(s->context,object,&t); } }
-    ++t.set_count; t.custom_count=0; s->write(s->context,object,&t);
+    { set=s->item(s->context,t.sets,i); if (set>t.set_count) { t.set_count=set; *s->state(s->context,object)=t; } }
+    ++t.set_count; t.custom_count=0; *s->state(s->context,object)=t;
     while (s->child(s->context,file,type,number,(MMU32)t.custom_count,MM_CMTL,&child))
-    { ++t.custom_count; s->write(s->context,object,&t); }
-    t.action_count=0; s->write(s->context,object,&t);
+    { ++t.custom_count; *s->state(s->context,object)=t; }
+    t.action_count=0; *s->state(s->context,object)=t;
     while (s->child(s->context,file,type,number,(MMU32)t.action_count,MM_ACTN,&child))
-    { ++t.action_count; s->write(s->context,object,&t); }
+    { ++t.action_count; *s->state(s->context,object)=t; }
     if (s->child(s->context,file,type,number,0,MM_GGCM,&child))
     {
         block=s->find(s->context,file,child.type,child.number); if (!block) return 0;
-        t.costumes=s->read_table(s->context,block,MM_TEMPLATE_COSTUMES,&other); s->write(s->context,object,&t);
+        t.costumes=s->read_table(s->context,block,MM_TEMPLATE_COSTUMES,&other); *s->state(s->context,object)=t;
         if (!t.costumes) return 0;
         s->validate_table(s->context,t.costumes,MM_TEMPLATE_COSTUMES,t.set_count);
         if (other) for (i=0;i<t.set_count;++i)
@@ -92,7 +95,7 @@ int mm_template_initialize(void *object,void *file,MMU32 type,MMU32 number,const
     }
     diagnostic(s,MM_TEMPLATE_BUILD_COSTUMES);
     cache=s->create_cache(s->context,file); if (!cache) return 0;
-    t.costumes=s->create_costumes(s->context); s->write(s->context,object,&t);
+    t.costumes=s->create_costumes(s->context); *s->state(s->context,object)=t;
     if (!t.costumes) { s->release(s->context,cache); return 0; }
     for (i=0;i<t.set_count;++i)
     {
@@ -117,14 +120,14 @@ int mm_template_initialize(void *object,void *file,MMU32 type,MMU32 number,const
 }
 void mm_template_dispose(void *object,const MMTemplateCreateServices *s)
 {
-    MMTemplateState t; s->read(s->context,object,&t);
-    if (t.parents) { s->release(s->context,t.parents); } t.parents=NULL; s->write(s->context,object,&t);
-    if (t.sets) { s->release(s->context,t.sets); } t.sets=NULL; s->write(s->context,object,&t);
-    if (t.costumes) { s->release(s->context,t.costumes); } t.costumes=NULL; s->write(s->context,object,&t);
+    MMTemplateState t; t=*s->state(s->context,object);
+    if (t.parents) { s->release(s->context,t.parents); } t.parents=NULL; *s->state(s->context,object)=t;
+    if (t.sets) { s->release(s->context,t.sets); } t.sets=NULL; *s->state(s->context,object)=t;
+    if (t.costumes) { s->release(s->context,t.costumes); } t.costumes=NULL; *s->state(s->context,object)=t;
 }
 void *mm_template_create_body(void *object,const MMTemplateCreateServices *s)
 {
-    MMTemplateState t; void *body; s->read(s->context,object,&t);
+    MMTemplateState t; void *body; t=*s->state(s->context,object);
     body=s->create_body(s->context,t.parents,t.sets);
     if (!body || !s->default_costume(s->context,object,body)) { if (body) s->release(s->context,body); return NULL; }
     return body;
@@ -132,7 +135,7 @@ void *mm_template_create_body(void *object,const MMTemplateCreateServices *s)
 int mm_template_default_costume(void *object,void *body,const MMTemplateCreateServices *s)
 {
     MMTemplateState t; MMI32 i,id; void *storage=NULL,**refs; int ok=0;
-    s->read(s->context,object,&t);
+    t=*s->state(s->context,object);
     if (!s->allocate_refs(s->context,t.set_count,&storage)) return 0;
     refs=storage;
     for (i=0;i<t.set_count;++i)

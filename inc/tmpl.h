@@ -156,22 +156,17 @@ class Template : public Template_PAR
     MARKMEM
 
   protected:
-    BRA _xaRest; // Rest orientation
-    BRA _yaRest;
-    BRA _zaRest;
-    LegacyUlong _grftmpl;
-    PDynamicArray _pglibactPar; // DynamicArray of parent IDs (shorts) to build Body
-    PDynamicArray _pglibset;    // DynamicArray of body-part-set IDs to build Body
-    PGeneralGroup _pggcmid;     // List of costumes for each body part set
-    LegacyLong _ccmid;      // Count of custom costumes
-    LegacyLong _cbset;      // Count of body part sets
-    LegacyLong _cactn;      // Count of actions
+    MMTemplateState _template; // Owns parent/set/costume tables and metadata.
     String _stn;         // Template name
 
   protected:
     Template(void)
     {
+        mm_template_state_init(&_template);
     } // can't instantiate directly; must use FReadTmpl
+    PDynamicArray _Parents() const { return static_cast<PDynamicArray>(_template.parents); }
+    PDynamicArray _Sets() const { return static_cast<PDynamicArray>(_template.sets); }
+    PGeneralGroup _Costumes() const { return static_cast<PGeneralGroup>(_template.costumes); }
     static MMTemplateCreateServices _CreateServices(TemplateCreateContext *);
     static MMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
@@ -191,17 +186,17 @@ class Template : public Template_PAR
     void GetRestOrien(BRA *pxa, BRA *pya, BRA *pza);
     bool FIsTdt(void)
     {
-        return FPure(_grftmpl & ftmplTdt);
+        return FPure(_template.flags & ftmplTdt);
     }
     bool FIsProp(void)
     {
-        return FPure(_grftmpl & ftmplProp);
+        return FPure(_template.flags & ftmplProp);
     }
 
     // Action stuff
     LegacyLong Cactn(void)
     {
-        return _cactn;
+        return _template.action_count;
     } // count of actions
     virtual bool FGetActnName(LegacyLong anid, PString pstn);
     bool FSetActnCel(PBody pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr = pvNil);

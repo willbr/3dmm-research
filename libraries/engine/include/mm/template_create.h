@@ -4,6 +4,9 @@
 #define MM_ENGINE_TEMPLATE_CREATE_H
 #include "types.h"
 #include <stddef.h>
+#if USHRT_MAX != 65535U
+#error Template rest angles require sixteen-bit unsigned shorts
+#endif
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,7 +24,8 @@ typedef struct MMTemplateState
 {
     void *parents,*sets,*costumes;
     MMI32 set_count,custom_count,action_count;
-    MMU32 x,y,z,flags;
+    MMU32 flags;
+    unsigned short x,y,z; /* Native sixteen-bit BAM rest angles. */
 } MMTemplateState;
 typedef struct MMTemplateChild { MMU32 type,number,id; } MMTemplateChild;
 typedef struct MMTemplateCreateServices
@@ -29,8 +33,7 @@ typedef struct MMTemplateCreateServices
     void *context;
     int host_big_endian,debug_checks;
     MMU32 system;
-    void (*read)(void *,void *object,MMTemplateState *);
-    void (*write)(void *,void *object,const MMTemplateState *);
+    MMTemplateState *(*state)(void *,void *object);
     void (*release)(void *,void *);
     int (*child)(void *,void *file,MMU32,MMU32,MMU32 id,MMU32 type,MMTemplateChild *);
     int (*enumerate)(void *,void *file,MMU32,MMU32,MMI32,MMTemplateChild *);
@@ -69,7 +72,11 @@ typedef struct MMTemplateCreateServices
     void (*free_memory)(void *,void **);
     void (*diagnostic)(void *,int);
 } MMTemplateCreateServices;
-/* Initialization expects fresh/empty owners. Groups and header fields publish
+/* Fresh storage only; a live owner must first be disposed, not reinitialized. */
+void mm_template_state_init(MMTemplateState *);
+/* state returns a stable borrowed owner, without mutation, failure or reentry.
+ * Local C snapshots preserve publication points; do not copy live owners.
+ * Initialization expects fresh/empty owners. Groups and header fields publish
  * as the native operation reaches them; direct-call failure does not unwind.
  * Factories release partial objects. Virtual text initialization/default-costume
  * dispatch is preserved. Group counts/allocation products/cache estimates fit

@@ -30,7 +30,7 @@ int mm_template_set_cel(void *object,void *body,MMI32 id,MMI32 cel,void *distanc
 {
     const MMTemplateCreateServices *a=&s->storage; void *action; void **models=NULL;
     MMTemplateState state; MMI32 count,i,index,d,model,matrix,transform[12]; int result=0;
-    a->read(a->context,object,&state); count=a->count(a->context,state.parents);
+    state=*a->state(a->context,object); count=a->count(a->context,state.parents);
     action=s->action(a->context,object,id); if (!action) return 0;
     index=wrapped(action,cel,s); d=s->distance(a->context,action,index);
     if (!a->allocate_refs(a->context,count,(void **)&models)) goto done;
@@ -83,12 +83,12 @@ int mm_template_sound(void *object,MMI32 id,MMI32 cel,void *exists,void *tag,con
 }
 MMI32 mm_template_costume_count(void *object,MMI32 set,const MMTemplateRuntimeServices *s)
 {
-    MMTemplateState t; MMI32 value; s->storage.read(s->storage.context,object,&t);
+    MMTemplateState t; MMI32 value; t=*s->storage.state(s->storage.context,object);
     memcpy(&value,s->storage.fixed_data(s->storage.context,t.costumes,set),sizeof(value)); return value;
 }
 MMI32 mm_template_costume_id(void *object,MMI32 set,MMI32 index,const MMTemplateRuntimeServices *s)
 {
-    MMTemplateState t; MMI32 value; s->storage.read(s->storage.context,object,&t);
+    MMTemplateState t; MMI32 value; t=*s->storage.state(s->storage.context,object);
     memcpy(&value,s->storage.variable_data(s->storage.context,t.costumes,set)+index*sizeof(value),sizeof(value)); return value;
 }
 int mm_template_has_models(void *file,MMU32 type,MMU32 number,const MMTemplateCreateServices *s)
@@ -113,7 +113,7 @@ int mm_template_is_accessory(void *object,MMI32 set,const MMTemplateRuntimeServi
 }
 int mm_template_accessory_set(void *object,MMI32 set,void *out,const MMTemplateRuntimeServices *s)
 {
-    MMTemplateState t; MMI32 candidate,part,parent; s->storage.read(s->storage.context,object,&t);
+    MMTemplateState t; MMI32 candidate,part,parent; t=*s->storage.state(s->storage.context,object);
     if (mm_template_is_accessory(object,set,s)) { memcpy(out,&set,sizeof(set)); return 1; }
     for (candidate=0;candidate<t.set_count;++candidate) if (mm_template_is_accessory(object,candidate,s))
         for (part=0;part<s->storage.count(s->storage.context,t.parents);++part)

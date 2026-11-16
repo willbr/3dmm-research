@@ -4181,6 +4181,12 @@ restoration. Full validation and coverage limits are in
 `template_create.c` owns resource factory selection/size estimates/failure cleanup,
 template header reads/writes, ordinary template initialization, owned group
 disposal and body/default-costume construction. Parents, sets and costume groups
+now persist directly in `MMTemplateState`, alongside rest orientation, flags and
+set/costume/action counts. The native Template embeds that owner and initializes
+it explicitly; one borrowed state view replaces native-field read/write
+marshalling. Typed list/group accessors, getters and debug validation read the
+same C record. Local C snapshots retain the earlier publication points.
+Parents, sets and costume groups
 publish in native order; direct initialization failure retains partial ownership,
 while the factory releases its failed object. Parent/set payloads and costume
 counts/IDs swap in C for opposite-endian files. Costume/action counts retain
@@ -4190,9 +4196,9 @@ all costume children once per set, using a temporary zero-budget resource cache.
 Default costumes are all fetched before any body mutation. Failed fetching
 releases the fetched references without applying a partial costume. Body creation
 uses the shared C body implementation and preserves virtual default-costume
-dispatch. ThreeDText initialization/default-costume implementations remain native
-dependencies, as do action/accessory evaluation, resource object internals,
-String adapters and final Template representation/facade removal.
+dispatch. ThreeDText generation and action/accessory evaluation use the C modules
+below. Resource object internals, String adapters and final Template
+representation/facade removal remain dependencies.
 
 Header writes define the formerly uninitialized two-byte padding as zero.
 The name write deliberately targets TMPL even when given another chunk type;
@@ -4332,7 +4338,13 @@ cache, glyph fetch control, body adjustment/default costumes and generated-owner
 disposal. `MMTextGenerated` holds the material, cached action and cache ID;
 these are no longer separate C++ owner fields. Native services expose primitive
 container/material/action factories, retained font providers, metric/glyph access,
-body operations and template field views. The resource controller below owns
+body operations and template field views.
+The template view now borrows the same persistent `MMTemplateState` used by
+ordinary templates. Generated list replacement publishes directly into that C
+owner at the existing release/clear/replace points; it no longer marshals
+inherited native fields. The generated-resource owner remains separate, retaining
+material/action ownership and cache publication order.
+The resource controller below owns
 string/tag construction, change/save/load orchestration and localized names.
 Remaining resources and final native facade removal still keep the full C89
 backend unfinished.

@@ -48,8 +48,7 @@ static int has_provider(void *p,void *o) { (void)p; return ((Object *)o)->provid
 static void *provider(void *p,void *o,const MMTag *t) { (void)o; (void)t; ++((Context *)p)->custom; return NULL; }
 static void *default_font(void *p,const MMTag *t) { (void)t; ++((Context *)p)->defaults; return p; }
 static void publish_tag(void *p,void *out,const MMTag *t) { (void)p; memcpy(out,t,sizeof(*t)); }
-static void template_read(void *p,void *o,MMTemplateState *t) { (void)p; *t=((Object *)o)->template_state; }
-static void template_write(void *p,void *o,const MMTemplateState *t) { (void)p; ((Object *)o)->template_state=*t; }
+static MMTemplateState *template_state(void *p,void *o) { (void)p; return &((Object *)o)->template_state; }
 static void *list_new(void *p,MMI32 bytes,MMI32 count) { (void)bytes; (void)count; return allocate((Context *)p,sizeof(Root),0); }
 static void list_count(void *p,void *list,MMI32 n) { (void)p; (void)list; (void)n; }
 static void list_put(void *p,void *list,MMI32 i,const void *v) { (void)p; (void)list; (void)i; (void)v; }
@@ -81,7 +80,7 @@ static void init(Context *c)
 {
     MMTextResourceServices *s; MMTextGenerationServices *g;
     memset(c,0,sizeof(*c)); c->bytes=24; c->header=c->child=c->found=c->unpacked=1; s=&c->services; g=&s->generation;
-    s->context=c; g->context=c; g->state=generated; g->length=length; g->template_read=template_read; g->template_write=template_write;
+    s->context=c; g->context=c; g->state=generated; g->length=length; g->template_state=template_state;
     g->list_new=list_new; g->list_count=list_count; g->list_put=list_put; g->group_new=group_new; g->group_add=group_add; g->material_new=material_new; g->retain=retain; g->release=release;
     s->state=state; s->create=create; s->text=text; s->assign=assign; s->space=space; s->clear=clear; s->saved_text=saved; s->provider_copy=provider_copy;
     s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template; s->write_template=write_template;

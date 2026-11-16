@@ -26,15 +26,14 @@ class TextResourceFixtureAccess : public ThreeDText
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
         auto text=&TextResourceFixtureAccess::_stn; auto descriptor=&TextResourceFixtureAccess::_descriptor;
         auto generated=&TextResourceFixtureAccess::_generated; auto &g=t->*generated; auto &d=t->*descriptor; auto &font=d.font;
-        auto parents=&TextResourceFixtureAccess::_pglibactPar; auto sets=&TextResourceFixtureAccess::_pglibset; auto costumes=&TextResourceFixtureAccess::_pggcmid;
-        auto count=&TextResourceFixtureAccess::_cbset; auto custom=&TextResourceFixtureAccess::_ccmid; auto actions=&TextResourceFixtureAccess::_cactn;
-        auto flags=&TextResourceFixtureAccess::_grftmpl;
+        auto field=&TextResourceFixtureAccess::_template; const auto &base=t->*field;
+        auto parents=static_cast<PDynamicArray>(base.parents),sets=static_cast<PDynamicArray>(base.sets);
         LegacyLong fields[]={d.shape,(t->*text).Cch(),font.sid,static_cast<LegacyLong>(font.type),static_cast<LegacyLong>(font.number),font.cache?(font.cache==cache?1:2):0,
-            t->*count,t->*custom,t->*actions,static_cast<LegacyLong>(t->*flags),t->*parents!=nullptr,t->*sets!=nullptr,t->*costumes!=nullptr,
+            base.set_count,base.custom_count,base.action_count,static_cast<LegacyLong>(base.flags),parents!=nullptr,sets!=nullptr,base.costumes!=nullptr,
             g.material!=nullptr,g.action!=nullptr,g.action_id,g.action?static_cast<BASE *>(g.action)->CactRef():0};
         if (!record(fields,sizeof(fields)) || !record((t->*text).Psz(),(t->*text).Cch())) return false;
-        if (t->*parents) for (int i=0;i<(t->*parents)->IvMac();++i) { short v; (t->*parents)->Get(i,&v); if (!record(&v,sizeof(v))) return false; }
-        if (t->*sets) for (int i=0;i<(t->*sets)->IvMac();++i) { short v; (t->*sets)->Get(i,&v); if (!record(&v,sizeof(v))) return false; }
+        if (parents) for (int i=0;i<parents->IvMac();++i) { short v; parents->Get(i,&v); if (!record(&v,sizeof(v))) return false; }
+        if (sets) for (int i=0;i<sets->IvMac();++i) { short v; sets->Get(i,&v); if (!record(&v,sizeof(v))) return false; }
         return true;
     }
 };

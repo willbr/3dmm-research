@@ -31,8 +31,7 @@ typedef struct MMTextGenerationServices
     MMI32 (*length)(void *,void *object);
     MMI32 (*character)(void *,void *object,MMI32 index);
     MMI32 (*shape)(void *,void *object);
-    void (*template_read)(void *,void *object,MMTemplateState *);
-    void (*template_write)(void *,void *object,const MMTemplateState *);
+    MMTemplateState *(*template_state)(void *,void *object);
     void *(*list_new)(void *,MMI32 entry,MMI32 capacity);
     void (*list_count)(void *,void *list,MMI32 count);
     void (*list_put)(void *,void *list,MMI32 index,const void *data);

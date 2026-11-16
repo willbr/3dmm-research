@@ -31,18 +31,18 @@ int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
     if (!a->material) material=s->material_new(s->context);
     else { material=a->material; s->retain(s->context,material); }
     if (!material) goto fail;
-    s->template_read(s->context,object,&t);
-    if (t.parents) { s->release(s->context,t.parents); t.parents=NULL; s->template_write(s->context,object,&t); }
-    t.parents=parents; s->template_write(s->context,object,&t);
-    if (t.sets) { s->release(s->context,t.sets); t.sets=NULL; s->template_write(s->context,object,&t); }
-    t.sets=sets; s->template_write(s->context,object,&t);
-    if (t.costumes) { s->release(s->context,t.costumes); t.costumes=NULL; s->template_write(s->context,object,&t); }
-    t.costumes=costumes; s->template_write(s->context,object,&t);
+    t=*s->template_state(s->context,object);
+    if (t.parents) { s->release(s->context,t.parents); t.parents=NULL; *s->template_state(s->context,object)=t; }
+    t.parents=parents; *s->template_state(s->context,object)=t;
+    if (t.sets) { s->release(s->context,t.sets); t.sets=NULL; *s->template_state(s->context,object)=t; }
+    t.sets=sets; *s->template_state(s->context,object)=t;
+    if (t.costumes) { s->release(s->context,t.costumes); t.costumes=NULL; *s->template_state(s->context,object)=t; }
+    t.costumes=costumes; *s->template_state(s->context,object)=t;
     if (a->material) { s->release(s->context,a->material); a->material=NULL; }
     a->material=material;
     if (a->action) { s->release(s->context,a->action); a->action=NULL; }
     a->action_id=-1; t.action_count=MM_TEXT_ACTION_COUNT; t.custom_count=t.set_count=1; t.flags|=2U;
-    s->template_write(s->context,object,&t); return 1;
+    *s->template_state(s->context,object)=t; return 1;
 fail:
     if (parents) s->release(s->context,parents);
     if (sets) s->release(s->context,sets);
@@ -141,7 +141,7 @@ void *mm_text_fetch_model(void *object,MMI32 index,const MMTextGenerationService
     model=s->glyph(s->context,font,s->character(s->context,object,index)); s->release(s->context,font); return model;
 }
 int mm_text_adjust_body(void *object,void *body,const MMTextGenerationServices *s)
-{ MMTemplateState t; s->template_read(s->context,object,&t); return s->body_shape(s->context,body,t.parents,t.sets); }
+{ MMTemplateState t; t=*s->template_state(s->context,object); return s->body_shape(s->context,body,t.parents,t.sets); }
 int mm_text_default_costume(void *object,void *body,const MMTextGenerationServices *s)
 { s->body_material(s->context,body,0,s->state(s->context,object)->material); return 1; }
 void mm_text_dispose(MMTextGenerated *a,const MMTextGenerationServices *s)

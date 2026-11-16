@@ -400,7 +400,11 @@ longer marshal those owning fields through read/write callbacks. Typed renderer
 bindings and final Body facade removal remain work. Template resource factories,
 header I/O, normal initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries
-and accessory graph operations also use C89. ActionDefinition construction, header/list
+and accessory graph operations also use C89. Template parent/set/costume ownership,
+rest orientation, flags and counts now live in persistent C state shared with
+ThreeDText generation; native read/write marshalling of those fields is removed.
+String and resource/container providers and final facade removal remain work.
+ActionDefinition construction, header/list
 loading, byte-order conversion, primitive queries and sound-list ownership now
 also use a persistent C-owned action state. ThreeDFont metrics, resource loading,
 authoring, glyph lookup and lifetime now use persistent C-owned font state.

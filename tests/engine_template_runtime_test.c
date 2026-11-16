@@ -13,7 +13,7 @@ typedef struct Test
     Edge edges[32]; int edge_count,has_cache,resource_kind,name_fail;
 } Test;
 static Test *t(void *p) { return (Test *)p; }
-static void read_state(void *p,void *object,MMTemplateState *out) { assert(object==p); *out=t(p)->state; }
+static MMTemplateState *template_state(void *p,void *o) { assert(o==p); return &t(p)->state; }
 static MMI32 count(void *p,void *list) { assert(list==t(p)->parents); return t(p)->parts; }
 static void *action(void *p,void *object,MMI32 id)
 { assert(object==p && id==0); if (t(p)->fail_action) return NULL; ++t(p)->action_refs; return &t(p)->action; }
@@ -97,7 +97,7 @@ static MMTemplateRuntimeServices init(Test *x,int parts)
     x->state.parents=x->parents; x->state.sets=x->sets_list; x->state.costumes=x->counts; x->state.set_count=3;
     for (i=0;i<3;++i) { x->counts[i]=2; x->ids[i][0]=i; x->ids[i][1]=i+3; }
     for (i=0;i<6;++i) { x->body_models[i]=-7; x->body_matrices[i]=-8; x->parents[i]=i?i-1:-1; x->sets_list[i]=i%3; }
-    s.storage.context=x; s.storage.read=read_state; s.storage.count=count; s.storage.allocate_refs=allocate;
+    s.storage.context=x; s.storage.state=template_state; s.storage.count=count; s.storage.allocate_refs=allocate;
     s.storage.free_memory=free_memory; s.storage.release=release; s.storage.child=child;
     s.storage.fixed_data=fixed; s.storage.variable_data=variable; s.storage.item=item;
     s.action=action; s.model=model; s.cel_count=cel_count; s.distance=distance; s.flags=flags; s.part=part;

@@ -18,8 +18,7 @@ static void put(unsigned char *p,unsigned n,MMU32 v,int big)
 { unsigned i; for (i=0;i<n;++i) { p[big?n-i-1:i]=(unsigned char)(v&255U); v>>=8; } }
 static MMU32 word(const unsigned char *p,unsigned n,int big)
 { MMU32 v=0; unsigned i; for (i=0;i<n;++i) v=(v<<8)|p[big?i:n-i-1]; return v; }
-static void read_state(void *p,void *o,MMTemplateState *t) { Fixture *f=p; CHECK(o==&f->object); *t=f->t; }
-static void write_state(void *p,void *o,const MMTemplateState *t) { Fixture *f=p; CHECK(o==&f->object); f->t=*t; }
+static MMTemplateState *template_state(void *p,void *o) { Fixture *f=p; CHECK(o==&f->object); return &f->t; }
 static void release(void *p,void *o)
 {
     Fixture *f=p; Ref *r=o; CHECK(r && r->refs>0); --r->refs;
@@ -128,7 +127,7 @@ static void setup(Fixture *f,int other,int host_big)
     for (i=0;i<6;++i) { put(f->parents.data+i*2,2,i?(MMU32)(i-1):65535U,other!=host_big); put(f->sets.data+i*2,2,(MMU32)i%2,other!=host_big); }
     for (i=0;i<2;++i) { put(f->group.fixed[i],4,2,other!=host_big); for (j=0;j<2;++j) put(f->group.data[i]+j*4,4,(MMU32)(i+j*2),other!=host_big); }
     for (i=0;i<60;++i) { f->customs[i].kind=6; f->customs[i].set=i%2; }
-    f->s.context=f; f->s.read=read_state; f->s.write=write_state; f->s.release=release; f->s.child=child; f->s.enumerate=enumerate;
+    f->s.context=f; f->s.state=template_state; f->s.release=release; f->s.child=child; f->s.enumerate=enumerate;
     f->s.find=find; f->s.unpack=unpack; f->s.block_size=block_size; f->s.block_read=block_read; f->s.read_name=read_name;
     f->s.add_chunk=add_chunk; f->s.set_name=set_name; f->s.delete_chunk=delete_chunk; f->s.create=create; f->s.initialize=initialize;
     f->s.object_size=object_size; f->s.table_size=table_size; f->s.invalidate=invalidate; f->s.header=header; f->s.read_table=read_table;
@@ -147,6 +146,10 @@ static void disposed(Fixture *f)
 int main(void)
 {
     Fixture f; int other,host,failure,i,ok; void *out,*body; MMI32 bytes; MMU32 number;
+    memset(&f.t,0xa5,sizeof(f.t)); mm_template_state_init(&f.t);
+    CHECK(!f.t.parents && !f.t.sets && !f.t.costumes);
+    CHECK(!f.t.set_count && !f.t.custom_count && !f.t.action_count);
+    CHECK(!f.t.x && !f.t.y && !f.t.z && !f.t.flags);
     for (other=0;other<2;++other) for (host=0;host<2;++host)
     {
         setup(&f,other,host); CHECK(mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],NULL,&bytes,&f.s)); CHECK(bytes==16 && !f.created && !f.child_calls);

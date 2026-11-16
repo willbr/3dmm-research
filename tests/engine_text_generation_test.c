@@ -6,10 +6,17 @@ typedef struct Object { int kind,id,refs,entry,count,capacity,stride; unsigned c
 typedef struct Test
 {
     MMTextGenerated generated; MMTemplateState template_state;
-    int length,shape,phase,fail,live,buffers,next_id,events[128],event_count,published,missing_font,missing_glyph,body_fail,last_retain_id,last_release_id;
+    int length,shape,phase,fail,live,buffers,next_id,events[128],event_count,missing_font,missing_glyph,body_fail,last_retain_id,last_release_id;
     unsigned char chars[2]; Object *font; MMTextGenerationServices services;
 } Test;
 static Test *t(void *p) { return (Test *)p; }
+/* Compare defined fields: struct padding is not part of the owner contract. */
+static int same_template(const MMTemplateState *a,const MMTemplateState *b)
+{
+    return a->parents==b->parents && a->sets==b->sets && a->costumes==b->costumes &&
+        a->set_count==b->set_count && a->custom_count==b->custom_count && a->action_count==b->action_count &&
+        a->x==b->x && a->y==b->y && a->z==b->z && a->flags==b->flags;
+}
 static int checkpoint(Test *x) { return ++x->phase==x->fail; }
 static Object *object(Test *x,int kind,int entry,int capacity)
 {
@@ -21,8 +28,7 @@ static MMTextGenerated *state(void *p,void *owner) { assert(p==owner); return &t
 static MMI32 length(void *p,void *owner) { assert(p==owner); return t(p)->length; }
 static MMI32 character(void *p,void *owner,MMI32 i) { assert(p==owner && i>=0 && i<t(p)->length); return t(p)->chars[i]; }
 static MMI32 shape(void *p,void *owner) { assert(p==owner); return t(p)->shape; }
-static void template_read(void *p,void *owner,MMTemplateState *out) { assert(p==owner); *out=t(p)->template_state; }
-static void template_write(void *p,void *owner,const MMTemplateState *in) { assert(p==owner); ++t(p)->published; t(p)->template_state=*in; }
+static MMTemplateState *template_state(void *p,void *o) { assert(p==o); return &t(p)->template_state; }
 static void *list_new(void *p,MMI32 entry,MMI32 capacity)
 { if (checkpoint(t(p))) return NULL; assert(entry==2 || entry==48); return object(t(p),1,entry,capacity); }
 static void list_count(void *p,void *list,MMI32 n) { Object *o=(Object *)list; (void)p; assert(o->kind==1 && n<=o->capacity); o->count=n; }
@@ -63,7 +69,7 @@ static MMTextGenerationServices setup(Test *x)
 {
     MMTextGenerationServices s; memset(x,0,sizeof(*x)); memset(&s,0,sizeof(s)); x->length=2; x->chars[0]=233; x->chars[1]=65;
     x->template_state.flags=4; x->template_state.x=1234; x->font=object(x,5,0,0);
-    s.context=x; s.state=state; s.length=length; s.character=character; s.shape=shape; s.template_read=template_read; s.template_write=template_write;
+    s.context=x; s.state=state; s.length=length; s.character=character; s.shape=shape; s.template_state=template_state;
     s.list_new=list_new; s.list_count=list_count; s.list_put=list_put; s.group_new=group_new; s.group_add=group_add; s.allocate=allocate; s.free_memory=free_memory;
     s.material_new=material_new; s.retain=retain; s.release=release; s.font=font; s.font_width=font_width; s.font_height=font_height; s.font_maximum=font_maximum;
     s.glyph=glyph; s.action_new=action_new; s.body_shape=body_shape; s.body_material=body_material; x->services=s; return s;
@@ -83,8 +89,8 @@ int main(void)
     for (i=0;i<16;++i) assert(mm_text_cel_count(i)==counts[i]); assert(!mm_text_cel_count(-1) && !mm_text_cel_count(16));
     for (fail=0;fail<=5;++fail)
     {
-        s=setup(&x); x.fail=fail; ok=mm_text_initialize_lists(&x,&s); assert(ok==!fail);
-        if (!ok) assert(!x.published && !x.generated.material && !x.template_state.parents && x.template_state.flags==4);
+        s=setup(&x); saved=x.template_state; x.fail=fail; ok=mm_text_initialize_lists(&x,&s); assert(ok==!fail);
+        if (!ok) assert(same_template(&x.template_state,&saved) && !x.generated.material && !x.template_state.parents && x.template_state.flags==4);
         else { assert(x.generated.action_id==-1 && x.template_state.flags==6 && x.template_state.x==1234 && x.template_state.set_count==1 && x.template_state.action_count==16);
             list=(Object *)x.template_state.parents; memcpy(indices,list->data,4); assert(indices[0]==-1 && indices[1]==-1);
             list=(Object *)x.template_state.sets; memcpy(indices,list->data,4); assert(!indices[0] && !indices[1]);
@@ -96,9 +102,9 @@ int main(void)
         s=setup(&x); assert(mm_text_initialize_lists(&x,&s)); x.generated.action=object(&x,4,0,0); x.generated.action_id=7;
         saved=x.template_state; old=(Object *)x.generated.material;
         ids[0]=((Object *)saved.parents)->id; ids[1]=((Object *)saved.sets)->id; ids[2]=((Object *)saved.costumes)->id; ids[3]=old->id; ids[4]=((Object *)x.generated.action)->id;
-        x.phase=0; x.fail=fail; x.published=0; x.event_count=0; ok=mm_text_initialize_lists(&x,&s); assert(ok==!fail);
+        x.phase=0; x.fail=fail; x.event_count=0; ok=mm_text_initialize_lists(&x,&s); assert(ok==!fail);
         assert(x.generated.material==old && old->refs==1);
-        if (!ok) assert(!x.published && x.template_state.parents==saved.parents && x.template_state.sets==saved.sets && x.template_state.costumes==saved.costumes && x.generated.action && x.generated.action_id==7);
+        if (!ok) assert(same_template(&x.template_state,&saved) && x.template_state.parents==saved.parents && x.template_state.sets==saved.sets && x.template_state.costumes==saved.costumes && x.generated.action && x.generated.action_id==7);
         else { assert(!x.generated.action && x.generated.action_id==-1 && x.events[0]==ids[3]); for (i=0;i<5;++i) assert(x.events[i+1]==-ids[i]); }
         cleanup(&x);
     }

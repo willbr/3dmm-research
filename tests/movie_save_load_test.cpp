@@ -165,8 +165,8 @@ class TrackTestTemplate : public Template
             return file->FAddChild(parent,root,0,data->CbOnFile(),type,&child,&block) && data->FWrite(&block);
         };
         ChunkNumber action=0; ActionChunkOnFile header={kboCur,koskCur,factnRotateY};
-        ok=ok && table(kctgTmpl,*number,kctgGlpi,tmpl->_pglibactPar) && table(kctgTmpl,*number,kctgGlbs,tmpl->_pglibset) &&
-            table(kctgTmpl,*number,kctgGgcm,tmpl->_pggcmid) &&
+        ok=ok && table(kctgTmpl,*number,kctgGlpi,tmpl->_Parents()) && table(kctgTmpl,*number,kctgGlbs,tmpl->_Sets()) &&
+            table(kctgTmpl,*number,kctgGgcm,tmpl->_Costumes()) &&
             file->FAddChild(kctgTmpl,*number,0,sizeof(header),kctgActn,&action) && file->FPutPv(&header,sizeof(header),kctgActn,action) &&
             table(kctgActn,action,kctgGgcl,cels) && table(kctgActn,action,kctgGlxf,matrices);
         ReleasePpo(&tmpl); ReleasePpo(&cels); ReleasePpo(&matrices); return ok;
@@ -179,7 +179,7 @@ class TrackTestTemplate : public Template
         auto tmpl=NewObj TrackTestTemplate();
         *out=tmpl;
         if (!tmpl || !tmpl->FInit()) { ReleasePpo(out); return false; }
-        tmpl->_ccmid=3;
+        tmpl->_template.custom_count=3;
         return true;
     }
     static bool FReadSubrouteFixture(PChunkyResourceFile file,ChunkTagOrType type,ChunkNumber number,PDataBlock block,
@@ -189,7 +189,7 @@ class TrackTestTemplate : public Template
         if (out && !static_cast<TrackTestTemplate *>(*out)->FInitAction()) { ReleasePpo(out); return false; }
         return true;
     }
-    void SetTestText(bool text) { _grftmpl=text ? ftmplTdt : 0; }
+    void SetTestText(bool text) { _template.flags=text ? ftmplTdt : 0; }
     void FailAfter(int calls) { _failAfterFetch = calls; }
     void FailNextFetch()
     {
@@ -201,11 +201,11 @@ class TrackTestTemplate : public Template
     }
     bool FInit()
     {
-        _yaRest = BR_ANGLE_DEG(90);
-        _pglibactPar = DynamicArray::PglNew(sizeof(short));
-        _pglibset = DynamicArray::PglNew(sizeof(short));
-        _pggcmid = GeneralGroup::PggNew(sizeof(int32_t));
-        return _pglibactPar != pvNil && _pglibset != pvNil && _pggcmid != pvNil;
+        _template.y = BR_ANGLE_DEG(90);
+        _template.parents = DynamicArray::PglNew(sizeof(short));
+        _template.sets = DynamicArray::PglNew(sizeof(short));
+        _template.costumes = GeneralGroup::PggNew(sizeof(int32_t));
+        return _Parents() != pvNil && _Sets() != pvNil && _Costumes() != pvNil;
     }
     bool FInitAction()
     {
@@ -226,7 +226,7 @@ class TrackTestTemplate : public Template
             _testAction = ActionDefinition::PactnNew(cels, matrices, factnRotateY);
         ReleasePpo(&cels);
         ReleasePpo(&matrices);
-        _cactn = 1;
+        _template.action_count = 1;
         return _testAction != pvNil;
     }
 };

@@ -251,19 +251,7 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
 #ifdef DEBUG
     s.debug_checks = 1;
 #endif
-    s.read = [](void *, void *object, MMTemplateState *state) {
-        auto t = static_cast<PTemplate>(object);
-        *state = {t->_pglibactPar, t->_pglibset, t->_pggcmid, t->_cbset, t->_ccmid, t->_cactn,
-                  t->_xaRest, t->_yaRest, t->_zaRest, t->_grftmpl};
-    };
-    s.write = [](void *, void *object, const MMTemplateState *state) {
-        auto t = static_cast<PTemplate>(object);
-        t->_pglibactPar = static_cast<PDynamicArray>(state->parents); t->_pglibset = static_cast<PDynamicArray>(state->sets);
-        t->_pggcmid = static_cast<PGeneralGroup>(state->costumes); t->_cbset = state->set_count;
-        t->_ccmid = state->custom_count; t->_cactn = state->action_count;
-        t->_xaRest = static_cast<BRA>(state->x); t->_yaRest = static_cast<BRA>(state->y);
-        t->_zaRest = static_cast<BRA>(state->z); t->_grftmpl = state->flags;
-    };
+    s.state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PTemplate>(object)->_template; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMTemplateChild *out) -> int {
         ChildChunkIdentification child;
@@ -310,8 +298,8 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
     };
     s.validate_table = [](void *, void *table, int kind, MMI32 expected) {
         if (kind == MM_TEMPLATE_COSTUMES) {
-            auto group = static_cast<PGeneralGroup>(table); Assert(group->CbFixed() == sizeof(int32_t), "Bad Template _pggcmid");
-            Assert(group->IvMac() == expected, "Bad Template _pggcmid");
+            auto group = static_cast<PGeneralGroup>(table); Assert(group->CbFixed() == sizeof(int32_t), "Bad Template _Costumes()");
+            Assert(group->IvMac() == expected, "Bad Template _Costumes()");
         } else Assert(static_cast<PDynamicArray>(table)->CbEntry() == sizeof(short), "Bad Template part list");
     };
     s.count = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
@@ -480,7 +468,7 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
 
 bool Template::FGetActnName(LegacyLong anid, PString pstn)
 {
-    AssertThis(0); AssertIn(anid, 0, _cactn); AssertPo(pstn, 0);
+    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertPo(pstn, 0);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_action_name(this, anid, pstn, &s) != 0;
 }
@@ -490,7 +478,7 @@ bool Template::FGetActnName(LegacyLong anid, PString pstn)
 ***************************************************************************/
 PActionDefinition Template::_PactnFetch(LegacyLong anid)
 {
-    AssertThis(0); AssertIn(anid, 0, _cactn);
+    AssertThis(0); AssertIn(anid, 0, _template.action_count);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return static_cast<PActionDefinition>(mm_template_fetch_child(this, anid, MM_TEMPLATE_ACTION, &s));
 }
@@ -512,7 +500,7 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
 ***************************************************************************/
 bool Template::FSetActnCel(Body *pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    AssertThis(0); AssertPo(pbody, 0); AssertIn(anid, 0, _cactn); AssertNilOrVarMem(pdwr);
+    AssertThis(0); AssertPo(pbody, 0); AssertIn(anid, 0, _template.action_count); AssertNilOrVarMem(pdwr);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_set_cel(this, pbody, anid, celn, pdwr, &s) != 0;
 }
@@ -522,7 +510,7 @@ bool Template::FSetActnCel(Body *pbody, LegacyLong anid, LegacyLong celn, BRS *p
 ***************************************************************************/
 bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pdwr);
+    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pdwr);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     MMI32 distance;
     if (!mm_template_distance(this, anid, celn, &distance, &s)) return false;
@@ -534,7 +522,7 @@ bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
 ***************************************************************************/
 bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
 {
-    AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pccel);
+    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pccel);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_cel_count(this, anid, pccel, &s) != 0;
 }
@@ -544,7 +532,7 @@ bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
 ***************************************************************************/
 bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag)
 {
-    AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
+    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_sound(this, anid, celn, pfSoundExists, ptag, &s) != 0;
 }
@@ -554,7 +542,7 @@ bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExi
 ***************************************************************************/
 bool Template::FGetGrfactn(LegacyLong anid, LegacyUlong *pgrfactn)
 {
-    AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pgrfactn);
+    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pgrfactn);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_action_flags(this, anid, pgrfactn, &s) != 0;
 }
@@ -569,9 +557,9 @@ void Template::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
     AssertVarMem(pya);
     AssertVarMem(pza);
 
-    *pxa = _xaRest;
-    *pya = _yaRest;
-    *pza = _zaRest;
+    *pxa = static_cast<BRA>(_template.x);
+    *pya = static_cast<BRA>(_template.y);
+    *pza = static_cast<BRA>(_template.z);
 }
 
 /***************************************************************************
@@ -589,7 +577,7 @@ bool Template::FSetDefaultCost(Body *pbody)
 ***************************************************************************/
 LegacyLong Template::CcmidOfBset(LegacyLong ibset)
 {
-    AssertThis(0); AssertIn(ibset, 0, _cbset);
+    AssertThis(0); AssertIn(ibset, 0, _template.set_count);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_costume_count(this, ibset, &s);
 }
@@ -599,7 +587,7 @@ LegacyLong Template::CcmidOfBset(LegacyLong ibset)
 ***************************************************************************/
 LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
 {
-    AssertThis(0); AssertIn(ibset, 0, _cbset); AssertIn(icmid, 0, CcmidOfBset(ibset));
+    AssertThis(0); AssertIn(ibset, 0, _template.set_count); AssertIn(icmid, 0, CcmidOfBset(ibset));
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_costume_id(this, ibset, icmid, &s);
 }
@@ -610,7 +598,7 @@ LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
 ***************************************************************************/
 bool Template::FBsetIsAccessory(LegacyLong ibset)
 {
-    AssertThis(0); AssertIn(ibset, 0, _cbset);
+    AssertThis(0); AssertIn(ibset, 0, _template.set_count);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_is_accessory(this, ibset, &s) != 0;
 }
@@ -623,7 +611,7 @@ bool Template::FBsetIsAccessory(LegacyLong ibset)
 ***************************************************************************/
 bool Template::FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc)
 {
-    AssertThis(0); AssertIn(ibset, 0, _cbset); AssertVarMem(pibsetAcc);
+    AssertThis(0); AssertIn(ibset, 0, _template.set_count); AssertVarMem(pibsetAcc);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return mm_template_accessory_set(this, ibset, pibsetAcc, &s) != 0;
 }
@@ -646,7 +634,7 @@ PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
 {
     AssertThis(0);
     // A CMID is a child ID, not an ordinal. Imported templates may have gaps
-    // (for example, children 0 and 2), so _ccmid is not an upper bound on IDs.
+    // (for example, children 0 and 2), so _template.custom_count is not an upper bound on IDs.
     if (cmid < 0)
         return pvNil;
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
@@ -674,17 +662,17 @@ void Template::AssertValid(LegacyUlong grftmpl)
     LegacyLong ccmid;
 
     Template_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pglibactPar, 0);
-    AssertPo(_pglibset, 0);
-    AssertPo(_pggcmid, 0);
+    AssertPo(_Parents(), 0);
+    AssertPo(_Sets(), 0);
+    AssertPo(_Costumes(), 0);
     AssertPo(&_stn, 0);
 
-    // Verify correctness of _pggcmid
-    Assert(_pggcmid->IvMac() == _cbset, 0);
-    for (ibset = 0; ibset < _cbset; ibset++)
+    // Verify correctness of _Costumes()
+    Assert(_Costumes()->IvMac() == _template.set_count, 0);
+    for (ibset = 0; ibset < _template.set_count; ibset++)
     {
-        ccmid = *(int32_t *)_pggcmid->QvFixedGet(ibset);
-        Assert(_pggcmid->Cb(ibset) / size(int32_t) == ccmid, 0);
+        ccmid = *(int32_t *)_Costumes()->QvFixedGet(ibset);
+        Assert(_Costumes()->Cb(ibset) / size(int32_t) == ccmid, 0);
     }
 }
 
@@ -695,8 +683,8 @@ void Template::MarkMem(void)
 {
     AssertThis(0);
     Template_PAR::MarkMem();
-    MarkMemObj(_pglibactPar);
-    MarkMemObj(_pglibset);
-    MarkMemObj(_pggcmid);
+    MarkMemObj(_Parents());
+    MarkMemObj(_Sets());
+    MarkMemObj(_Costumes());
 }
 #endif // DEBUG
