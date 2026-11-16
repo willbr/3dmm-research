@@ -135,6 +135,8 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
     const double back[3] = {sy * cp, sp, cy * cp};
     const double focal = .5 / std::tan(a.fov * .00872664626), aspect = double(MarcusBoardWidth) / MarcusBoardHeight;
     const double centreX = std::round(a.camera.x / 10) * 10, centreZ = std::round(a.camera.z / 10) * 10;
+    // Keep the ground guide visible from higher, level cameras too.
+    const double step = 5 * std::max(1., std::ceil(std::abs(a.camera.y) / 10.)), extent = step * 10;
     auto cameraPoint = [&](double wx, double wz) {
         const double p[3] = {wx - a.camera.x, -a.camera.y, wz - a.camera.z};
         std::array<double, 3> out = {};
@@ -163,8 +165,8 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
     };
     for (int i = -10; i <= 10; ++i)
     {
-        line(centreX + i * 5, centreZ - 50, centreX + i * 5, centreZ + 50);
-        line(centreX - 50, centreZ + i * 5, centreX + 50, centreZ + i * 5);
+        line(centreX + i * step, centreZ - extent, centreX + i * step, centreZ + extent);
+        line(centreX - extent, centreZ + i * step, centreX + extent, centreZ + i * step);
     }
     return lines;
 }

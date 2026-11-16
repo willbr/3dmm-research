@@ -53,7 +53,8 @@ int main(int argc, char **argv)
             return std::all_of(line.begin(), line.end(), [](double p) { return std::isfinite(p) && p >= 0 && p <= 1; });
         }), "Moved, rolled and zoomed grids remain clipped");
         board.angles.emplace_back();
-        board.angles[1].camera.x = 7; board.angles[1].camera.yaw = -25; board.angles[1].camera.pitch = 12;
+        // Keep this prop/lighting fixture close to the ground, independent of the new-scene camera height.
+        board.angles[1].camera.x = 7; board.angles[1].camera.y = 5; board.angles[1].camera.yaw = -25; board.angles[1].camera.pitch = 12;
         board.angles[1].roll = 8; board.angles[1].fov = 62;
         std::fill(board.angles[1].pixels.begin(), board.angles[1].pixels.end(), 5);
         board.lights.push_back({2, 8, 4, 10, -20, .6f, 1});

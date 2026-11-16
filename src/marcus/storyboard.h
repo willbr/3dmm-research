@@ -13,8 +13,9 @@ constexpr unsigned MarcusBoardColours[] = {0xd3d4d6, 0x000000, 0xffffff,
     0x9ebfd9, 0xdea5a2, 0xe6d8a0, 0xaac9ad};
 struct MarcusBoardAngle
 {
-    MarcusCamera camera = {0, 5, 20, 0, 0, 5};
-    float roll = 0, fov = 45, nearClip = .1f, farClip = 1000;
+    // GE-Black's first camera position and lens, with level pitch.
+    MarcusCamera camera = {0, 20, 20, 0, 0, 5};
+    float roll = 0, fov = 41.5338134765625f, nearClip = 1, farClip = 5000;
     std::vector<unsigned char> pixels = std::vector<unsigned char>(MarcusBoardWidth * MarcusBoardHeight, 0);
 };
 struct MarcusBoardLight

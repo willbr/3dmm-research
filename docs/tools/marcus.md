@@ -162,7 +162,9 @@ unfinished paint/value gesture cancels that gesture. Leaving the canvas during a
 breaks the line instead of drawing across the gap. Switching frames/scenes or
 undoing another edit refreshes the canvas from the current movie.
 
-**New angle** creates a blank grey drawing using the selected camera's settings.
+New storyboard scenes start with the black background's first camera position
+(0, 20, 20), FOV (about 41.53 degrees) and near/far clipping (1/5000), with level
+pitch. **New angle** creates a blank grey drawing using the selected camera's settings.
 Switch angles using the arrows. In **Camera**, drag numeric values or use their
 minus/plus buttons to change position, yaw, pitch, roll, vertical FOV and clipping
 planes. Shift makes value drags finer. Navigation uses the same controls and mouse
