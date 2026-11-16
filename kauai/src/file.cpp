@@ -254,14 +254,9 @@ LRet:
 void FileObject::Release(void)
 {
     AssertThis(0);
-    if (_cactRef <= 0)
-    {
-        Bug("calling Release without an AddRef");
-        _cactRef = 0;
-        return;
-    }
-    if (--_cactRef == 0 && !(_grffil & ffilMark))
-        delete this;
+    mm_reference_release_marked(&_references, (_grffil & ffilMark) != 0, this,
+        [](void *) { Bug("calling Release without an AddRef"); },
+        [](void *p) { delete static_cast<PFileObject>(p); });
 }
 
 /***************************************************************************
@@ -349,7 +344,7 @@ void FileObject::CloseUnmarked(void)
     {
         AssertPo(pfil, 0);
         pfilNext = pfil->PfilNext();
-        if (!(pfil->_grffil & ffilMark) && pfil->_cactRef == 0)
+        if (!(pfil->_grffil & ffilMark) && pfil->_references.count == 0)
             delete pfil;
     }
     _mutxList.Leave();

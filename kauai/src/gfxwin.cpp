@@ -2130,7 +2130,7 @@ void GraphicsPort::AssertValid(ulong grf)
     HBRUSH hbr;
     HFONT hfnt;
 
-    AssertIn(_cactRef, 1, kcbMax);
+    AssertIn(_references.count, 1, kcbMax);
     AssertIn(_cactDraw, 0, _cactFlush + 1);
     if (hNil != _hwnd)
         AssertVar(IsWindow(_hwnd), "Invalid window handle", &_hwnd);

@@ -15,7 +15,7 @@ typedef struct Host Host;
 typedef struct Object
 {
     MMResourceObject state;
-    MMI32 refs;
+    MMReference refs;
     Host *host;
     struct Object *cascade;
     int id;
@@ -23,7 +23,8 @@ typedef struct Object
 struct Host
 {
     MMResourceCache cache;
-    int refs, file_refs, objects, allocations, fail, fail_speed, issues;
+    MMReference refs;
+    int file_refs, objects, allocations, fail, fail_speed, issues;
     int destroyed[128], deaths, reads, estimates, scope_calls;
     MMI32 bytes, estimate;
     int fail_read, fail_estimate, recursive;
@@ -57,17 +58,13 @@ static MMResourceObject *state(void *p)
 {
     return &((Object *)p)->state;
 }
-static MMI32 refs(void *p)
+static MMReference *references(void *p)
 {
-    return ((Object *)p)->refs;
-}
-static void set_refs(void *p, MMI32 n)
-{
-    ((Object *)p)->refs = n;
+    return &((Object *)p)->refs;
 }
 static void retain(void *p)
 {
-    ++((Object *)p)->refs;
+    mm_reference_add(&((Object *)p)->refs);
 }
 static void release(void *p)
 {
@@ -83,13 +80,13 @@ static void priority(void *p, MMI32 n)
 }
 static void retain_owner(void *p)
 {
-    ++((Host *)p)->refs;
+    mm_reference_add(&((Host *)p)->refs);
 }
 static void release_owner(void *p)
 {
     Host *h = (Host *)p;
-    CHECK(h->refs > 0);
-    if (--h->refs == 0)
+    CHECK(h->refs.count > 0);
+    if (mm_reference_drop(&h->refs) == 0)
         CHECK(mm_resource_cache_dispose(&h->cache) == 0);
 }
 static void destroyed(void *p)
@@ -117,11 +114,16 @@ static void object_issue(void *p, int kind)
     (void)kind;
     ++((Object *)p)->host->issues;
 }
+/* Reader identity is part of the key. Distinct effects prevent optimized
+ * identical-code folding from merging these two test readers. */
+static volatile int reader_marker;
 static void reader_a(void)
 {
+    reader_marker=1;
 }
 static void reader_b(void)
 {
+    reader_marker=2;
 }
 static int compare_reader(MMResourceReader a, MMResourceReader b)
 {
@@ -171,7 +173,7 @@ static int read_object(void *p, MMResourceReader reader, MMU32 type, MMU32 numbe
     CHECK(o != NULL);
     mm_resource_object_init(&o->state);
     o->host = h;
-    o->refs = 1;
+    o->refs.count = 1;
     o->cascade = child;
     o->id = (int)number * 10 + (reader == reader_b);
     ++h->objects;
@@ -187,13 +189,9 @@ static void release_file(void *p)
 {
     --((Host *)p)->file_refs;
 }
-static MMI32 owner_refs(void *p)
+static MMReference *owner_references(void *p)
 {
-    return ((Host *)p)->refs;
-}
-static void set_owner_refs(void *p, MMI32 n)
-{
-    ((Host *)p)->refs = n;
+    return &((Host *)p)->refs;
 }
 static void issue(void *p, int kind, MMU32 type, MMU32 number)
 {
@@ -216,7 +214,7 @@ static void init(Host *h, MMI32 budget)
     MMStorageAllocator a = allocator(h);
     memset(h, 0, sizeof(*h));
     memset(&s, 0, sizeof(s));
-    h->refs = h->file_refs = 1;
+    h->refs.count = h->file_refs = 1;
     h->bytes = h->estimate = 100;
     s.context = h;
     s.objects = objects;
@@ -226,8 +224,7 @@ static void init(Host *h, MMI32 budget)
     s.read = read_object;
     s.retain_file = retain_file;
     s.release_file = release_file;
-    s.owner_refs = owner_refs;
-    s.set_owner_refs = set_owner_refs;
+    s.owner_references = owner_references;
     s.issue = issue;
     CHECK(mm_resource_cache_init(&h->cache, h, h, budget, &s, &a, 1) == 0);
     CHECK(h->file_refs == 2);
@@ -296,7 +293,7 @@ static void cache_cases(void)
     init(&h, 1000);
     a = fetch(&h, 1, reader_a, &error);
     detach(a);
-    CHECK(!h.cache.count && !a->state.attached && h.refs == 2);
+    CHECK(!h.cache.count && !a->state.attached && h.refs.count == 2);
     release_owner(&h);
     CHECK(h.file_refs == 2);
     release(a);
@@ -311,11 +308,11 @@ static void cache_cases(void)
 
     init(&h, 1000);
     h.fail = 1;
-    CHECK(load(&h, 1, 2) == 2 && !h.objects && h.refs == 1 && !h.cache.count);
+    CHECK(load(&h, 1, 2) == 2 && !h.objects && h.refs.count == 1 && !h.cache.count);
     a = fetch(&h, 1, reader_a, &error);
-    CHECK(a && error && !a->state.attached && h.refs == 2 && !h.cache.count);
+    CHECK(a && error && !a->state.attached && h.refs.count == 2 && !h.cache.count);
     release(a);
-    CHECK(h.refs == 1);
+    CHECK(h.refs.count == 1);
     h.fail = 0;
     CHECK(load(&h, 2, 2) == 1);
     finish(&h);
@@ -540,8 +537,7 @@ static void wide_cases(void)
 int main(void)
 {
     objects.state = state;
-    objects.refs = refs;
-    objects.set_refs = set_refs;
+    objects.references = references;
     objects.retain = retain;
     objects.release = release;
     objects.detach = detach;

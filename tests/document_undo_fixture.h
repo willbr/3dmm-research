@@ -13,7 +13,7 @@ struct DocumentUndoToken : UndoBase
     bool FDo(PDocumentBase p) override;
     unsigned References()
     {
-        return unsigned(_cactRef);
+        return unsigned(_references.count);
     }
 };
 struct DocumentUndoProbe : DocumentBase

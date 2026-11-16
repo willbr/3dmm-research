@@ -10949,3 +10949,82 @@ Evidence: `tmp/c89-template-state-{tmpl-create,tmpl-runtime,text-generation,text
 `tmp/c89-template-state-regular-tests.log`, `tmp/c89-template-state-tools-build.log`,
 `tmp/c89-template-state-initial-cache-estimate-diff.json`,
 `tmp/c89-template-state-trace-comparison.json` and `tmp/c89-template-state-identities.json`.
+
+### Shared C reference ownership and cache counter views (16 November 2026)
+
+`reference.c` now owns common reference initialization, retain/drop arithmetic,
+ordinary final-release dispatch and marked-file release policy. Native BASE
+embeds `MMReference`; its constructor, AddRef and Release delegate to C. The
+counter is still four bytes on Windows, checked against the former native field
+size. Cacheable objects and cache owners expose borrowed C counter views instead
+of numeric read/write callbacks. Existing cache-specific release, detach,
+notification and temporary owner-guard policy remains in `resource_cache.c`.
+
+Cached/marked zero-count owners can be retained again. Ordinary release publishes
+the decremented count before destruction. Marked-file release leaves a marked
+zero-count owner open; invalid release diagnoses before clamping to zero without
+destroying it. Destroy callbacks may free their own counter and release another
+owner; C performs no later owner access. Document/graphics overrides use the same
+C drop primitive while keeping their existing finalization services. Chunk-file
+release still uses its existing C policy and publishes into the shared counter.
+Native allocation, debug tracking, virtual destruction, physical views and COM
+audio adapter counters remain dependencies.
+
+The new C suite checks retained owners, cascade destruction after freeing the
+outer record, marked zero-count retention/revival, diagnostic observation before
+clamping, repeated retain/drop and defined 32-bit diagnostic arithmetic. Both it
+and the cache suite pass MSVC AddressSanitizer. Counts remain non-atomic; callers
+keep their existing synchronization requirements. Supported native comparisons
+do not claim equivalence for signed overflow or invalid lifetime use.
+
+Original `resource-cache-test` traces were captured on all three hosts before
+conversion: 1,624 bytes, FNV-1a `AE51E913`, SHA-256
+`2E6FDD86E329D725DD7AAA158BDF460564DBBEEE7972773675AC93A66D2177FB`.
+The trace freezes cache/manager ordering, zero-count caching, detach/owner
+references, cascading releases, reader/scope distinctions and failure stops. The
+Native focused converted trace matches exactly. Full `core-checks` targets compile
+on Native Debug, SDL Release and SDL Debug; the standalone C engine also builds.
+
+The broader gate exposed missing C test dependencies in `core-checks`.
+`engine-c89-checks` now automatically depends on every C engine test executable,
+and root `core-checks` depends on that target. Native common-C tests were rebuilt
+and rechecked after this correction. The optimized cache fixture also exposed
+identical-code folding of its two empty dummy reader functions: both had one
+address, producing reader ID 11 instead of 10. A diagnostic build passed with
+folding disabled. Distinct volatile effects now preserve the intended identities
+without changing production linker settings; the corrected suite passes in all
+three host configurations and under ASan.
+
+The final wider gate passes 203 Native checks, 198 SDL Release checks and 199 SDL
+Debug checks. SDL Release additionally reports its existing debug-only
+`world-export` fixture as skipped; that fixture is not a Release pass. Its C89
+policy suite and the Native/SDL Debug integration fixtures pass. All 141
+standalone checks, including strict C89 syntax, pass. Thus 741 of 742 selected
+checks pass, with one declared skip. All 141 common-engine Native checks were
+also rebuilt/rechecked after the dependency correction, and the corrected cache
+fixture was rerun in each host configuration.
+
+All 120 original/converted cache/template/text/body/undo/Help/preview trace pairs
+match across the three hosts. Prior hashes and all ten retained input identities
+are unchanged. Identities for 50 binaries are recorded. The regular headless
+asset-preview harness passes; Native `chelp` and `ched` compile. Background checks
+retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per
+host. Asset tests use private temporary directories. Marcus was stopped before
+rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Arbitrary
+native callback/override observations, a Release run of the debug-only export
+fixture and other platforms remain unverified. Native object allocation,
+debug/virtual destruction services, physical file/view implementations and final
+C-only host/facade integration remain conversion work.
+
+Evidence: `tmp/c89-reference-cache-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-reference-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-reference-native-complete-c-tests.log`,
+`tmp/c89-reference-{native,sdl-release,sdl-debug}-cache-tests.log`,
+`tmp/c89-reference-standalone-tests.log`,
+`tmp/c89-reference-{reference,reference-cache}-asan.log`,
+`tmp/c89-reference-reader-{diag,nofold}.log`,
+`tmp/c89-reference-regular-tests.log`, `tmp/c89-reference-tools-build.log`,
+`tmp/c89-reference-trace-comparison.json` and `tmp/c89-reference-identities.json`.

@@ -36,8 +36,7 @@ const MMResourceObjectServices *BaseCacheableObject::_ObjectServices()
 {
     static const MMResourceObjectServices services = {
         [](void *o) -> MMResourceObject * { return &static_cast<PBaseCacheableObject>(o)->_resource; },
-        [](void *o) -> MMI32 { return static_cast<PBaseCacheableObject>(o)->_cactRef; },
-        [](void *o, MMI32 n) { static_cast<PBaseCacheableObject>(o)->_cactRef = n; },
+        [](void *o) -> MMReference * { return &static_cast<PBaseCacheableObject>(o)->_references; },
         [](void *o) { static_cast<PBaseCacheableObject>(o)->AddRef(); },
         [](void *o) { static_cast<PBaseCacheableObject>(o)->Release(); },
         [](void *o) { static_cast<PBaseCacheableObject>(o)->Detach(); },
@@ -148,8 +147,7 @@ MMResourceServices ChunkyResourceFile::_Services()
     };
     s.retain_file = [](void *file) { static_cast<PChunkyFile>(file)->AddRef(); };
     s.release_file = [](void *file) { static_cast<PChunkyFile>(file)->Release(); };
-    s.owner_refs = [](void *c) -> MMI32 { return static_cast<PChunkyResourceFile>(c)->_cactRef; };
-    s.set_owner_refs = [](void *c, MMI32 refs) { static_cast<PChunkyResourceFile>(c)->_cactRef = refs; };
+    s.owner_references = [](void *c) -> MMReference * { return &static_cast<PChunkyResourceFile>(c)->_references; };
     s.issue = [](void *c, int kind, MMU32 type, MMU32 number) {
         if (kind == MM_RESOURCE_LOAD_FAILED)
         {

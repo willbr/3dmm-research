@@ -35,7 +35,7 @@ struct DocumentBase::LifecycleHost
     {
         MMDocumentLifecycleServices s = {};
         s.context = this;
-        s.drop_reference = [](void *, MMDocumentNode *n) -> MMI32 { return --Owner(n)->_cactRef; };
+        s.drop_reference = [](void *, MMDocumentNode *n) -> MMI32 { return mm_reference_drop(&Owner(n)->_references); };
         s.retain = [](void *v, MMDocumentNode *n) -> int {
             auto &h = *static_cast<LifecycleHost *>(v);
             return h.Guard([&] {

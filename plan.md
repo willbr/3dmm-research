@@ -388,7 +388,11 @@ configuration and capture environment recorded with the evidence.
 
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
-have shared C89 implementations behind temporary native facades. Actor event
+have shared C89 implementations behind temporary native facades. Common BASE
+reference storage, retain/drop and final-release decisions, plus marked-file
+release policy, now also use C89. Resource caches borrow those C counters directly;
+native allocation, virtual destruction/debug tracking and final facade removal
+remain work. Actor event
 insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
 copy, route-paste, full actor-paste, clipboard, actor creation/binding and movie
 sound integration control and body construction/shape disposal, duplication,

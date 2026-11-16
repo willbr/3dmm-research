@@ -1183,7 +1183,7 @@ DocumentMainWindow::DocumentMainWindow(PDocumentBase pdocb, PGraphicsObjectBlock
 void DocumentMainWindow::Release(void)
 {
     AssertThis(fobjAssertFull);
-    if (_cactRef <= 1)
+    if (_references.count <= 1)
     {
         Assert(!_fFreeing, "we're recursing into the destructor!");
         _fFreeing = fTrue;

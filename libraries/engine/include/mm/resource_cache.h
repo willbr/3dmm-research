@@ -4,6 +4,7 @@
 #define MM_ENGINE_RESOURCE_CACHE_H
 #include "collections.h"
 #include "wide.h"
+#include "reference.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -30,8 +31,7 @@ extern "C"
     typedef struct MMResourceObjectServices
     {
         MMResourceObject *(*state)(void *object);
-        MMI32 (*refs)(void *object);
-        void (*set_refs)(void *object, MMI32);
+        MMReference *(*references)(void *object);
         void (*retain)(void *object);
         void (*release)(void *object);
         void (*detach)(void *object);
@@ -66,8 +66,7 @@ extern "C"
                     MMI32 *bytes);
         void (*retain_file)(void *file);
         void (*release_file)(void *file);
-        MMI32 (*owner_refs)(void *);
-        void (*set_owner_refs)(void *, MMI32);
+        MMReference *(*owner_references)(void *);
         void (*issue)(void *, int kind, MMU32 type, MMU32 number);
     } MMResourceServices;
     typedef struct MMResourceCache
@@ -80,7 +79,10 @@ extern "C"
         MMWide resident;
         int diagnostic_refs;
     } MMResourceCache;
-    /* Cache owns its file reference and array storage. Attached objects retain no
+    /* Reference accessors return stable borrowed C counters without mutation or
+     * failure; object/owner lifetimes cover each access. Virtual retain/release
+     * callbacks remain distinct from temporary direct count adjustments.
+     * Cache owns its file reference and array storage. Attached objects retain no
      * owner reference; detached objects retain one. Every callback uses copied
      * entries, never pointers into movable array storage. Readers may load other
      * resources; insertion searches again afterwards. Detach callbacks may remove

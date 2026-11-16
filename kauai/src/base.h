@@ -16,6 +16,7 @@
 ***************************************************************************/
 #ifndef BASE_H
 #define BASE_H
+#include "mm/reference.h"
 
 /***************************************************************************
     Run-time class determination support.  Each class, FOO, that uses this
@@ -240,7 +241,7 @@ class BASE
   private:
     Debug(LegacyLong _lwMagic;)
 
-        protected : LegacyLong _cactRef;
+        protected : MMReference _references;
 
   public:
 #ifdef DEBUG
@@ -262,7 +263,7 @@ class BASE
     virtual void Release(void);
     LegacyLong CactRef(void)
     {
-        return _cactRef;
+        return _references.count;
     }
 };
 

@@ -588,7 +588,7 @@ MMChunkRegistry ChunkyFile::_RegistryServices()
     return {
         [](void *c) -> void * { auto self = static_cast<PChunkyFile>(c); AssertPo(self, 0); return self->PcflNext(); },
         [](void *c) -> int { return static_cast<PChunkyFile>(c)->_owner.marked; },
-        [](void *c) -> MMI32 { return static_cast<PChunkyFile>(c)->_cactRef; },
+        [](void *c) -> MMI32 { return static_cast<PChunkyFile>(c)->_references.count; },
         [](void *c) { auto self = static_cast<PChunkyFile>(c); AssertPo(self, 0); self->_owner.marked = false; },
         [](void *c) { delete static_cast<PChunkyFile>(c); }};
 }
@@ -658,9 +658,9 @@ void ChunkyFile::Release(void)
 {
     AssertBaseThis(0);
     MMI32 remaining;
-    const int decision = mm_chunk_release(_cactRef, _owner.marked, &remaining);
+    const int decision = mm_chunk_release(_references.count, _owner.marked, &remaining);
     if (decision < 0) { Bug("calling Release without an AddRef"); return; }
-    _cactRef = remaining;
+    _references.count = remaining;
     if (decision) delete this;
 }
 #ifdef DEBUG

@@ -138,7 +138,7 @@ void GraphicsObject::Release(void)
     AssertThis(0);
     PGraphicsObject pgob;
 
-    if (--_cactRef > 0)
+    if (mm_reference_drop(&_references) > 0)
         return;
 
     // Mark this gob as being freed (may already be marked)

@@ -329,10 +329,10 @@ bool Clock::FCmdAll(PCommand pcmd)
         {
             // tell the CommandHandler that the alarm went off
             AddRef();
-            Assert(_cactRef > 1, 0);
+            Assert(_references.count > 1, 0);
             _dtimAlarm = timCur - _timCur;
             alad.pcmh->FDoCmd(&cmd);
-            if (_cactRef == 1)
+            if (_references.count == 1)
             {
                 Release();
                 return fFalse;

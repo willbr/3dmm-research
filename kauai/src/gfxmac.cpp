@@ -1144,7 +1144,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
 void GraphicsPort::AssertValid(ulong grf)
 {
     GraphicsPort_PAR::AssertValid(0);
-    AssertIn(_cactRef, 1, kcbMax);
+    AssertIn(_references.count, 1, kcbMax);
     AssertVarMem(_pprt);
     AssertNilOrVarMem(_hgd);
     AssertNilOrVarMem(_pprtSav);

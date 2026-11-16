@@ -4711,6 +4711,28 @@ bytes across insertion, removal, marked zero-reference retention and cleanup.
 
 ### Resource caches, object lifetime and manager lookup
 
+`reference.c` now owns common reference initialization, retain/drop arithmetic,
+final-release dispatch and marked-file release policy. Native BASE embeds an
+`MMReference` instead of its own scalar count, and its retain/release methods
+delegate to C. The counter remains four bytes on the Windows hosts, enforced by
+a native size assertion. Cached/marked objects can be retained from zero.
+File release keeps marked zero-count owners open; invalid release diagnoses
+before clamping to zero. Destroy callbacks can free the owner and counter, with
+no subsequent C access. A dedicated C suite checks that behavior under ASan,
+including a destruction callback that frees itself and releases another owner.
+
+Resource objects and cache owners expose borrowed C counter views rather than
+numeric read/write callbacks. Cache-specific zero-reference retention,
+notifications, detach/owner balancing and disposal guards remain in the cache
+controller. Document/graphics overrides use the same C drop primitive while
+retaining their existing finalization services. Native allocation, debug tracking,
+virtual destruction, physical view cleanup and COM audio adapter counters remain
+outside this common C reference owner.
+
+The `engine-c89-checks` build target gathers every engine C test executable from
+the module's target list. Root `core-checks` depends on it, preventing registered
+C tests from remaining missing or stale when individual dependencies are omitted.
+
 `resource_cache.c` owns sorted cache tables, reader-key lookup, preload/fetch,
 estimated/actual size checks, release ages, priority/age/size eviction and budget
 changes. Its C object record owns resource identity and attachment state. C

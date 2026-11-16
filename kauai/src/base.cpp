@@ -98,12 +98,13 @@ bool BASE::FWouldBe(LegacyLong cls)
 }
 
 /***************************************************************************
-    Constructor for a BASE object.  Sets _cactRef to 1 and in debug sets
+    Constructor for a BASE object.  Sets _references.count to 1 and in debug sets
     the magic number to indicate whether the thing was allocated.
 ***************************************************************************/
 BASE::BASE(void)
 {
-    _cactRef = 1;
+    static_assert(sizeof(MMReference) == sizeof(LegacyLong), "native reference storage size");
+    mm_reference_init(&_references);
 #ifdef DEBUG
     DebugObjectInfo *pdoi = _pdoiFirstRaw;
 
@@ -152,10 +153,10 @@ BASE::BASE(void)
 void BASE::AddRef(void)
 {
     AssertThis(0);
-    _cactRef++;
+    mm_reference_add(&_references);
 
-    // NOTE: some classes allow _cactRef == 0, so we can't assert _cactRef > 1
-    Assert(_cactRef > 0, "_cactRef not positive");
+    // NOTE: some classes allow _references.count == 0, so we can't assert _references.count > 1
+    Assert(_references.count > 0, "reference count not positive");
 }
 
 /***************************************************************************
@@ -165,11 +166,11 @@ void BASE::AddRef(void)
 void BASE::Release(void)
 {
     AssertThis(0);
-    if (--_cactRef <= 0)
-    {
-        AssertThis(fobjAllocated);
-        delete this;
-    }
+    mm_reference_release(&_references, this, [](void *p) {
+        auto object = static_cast<BASE *>(p);
+        AssertPo(object, fobjAllocated);
+        delete object;
+    });
 }
 
 /***************************************************************************
@@ -291,7 +292,7 @@ void BASE::operator delete(void *pv, schar *pszsFile, LegacyLong lwLine)
 void BASE::AssertValid(LegacyUlong grfobj)
 {
     AssertVarMem(this);
-    AssertIn(_cactRef, 0, kcbMax);
+    AssertIn(_references.count, 0, kcbMax);
     if (_lwMagic != klwMagicAllocatedBase)
     {
         Assert(!(grfobj & fobjAllocated), "should be allocated");

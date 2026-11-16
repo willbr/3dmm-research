@@ -28,17 +28,17 @@ void mm_resource_object_dispose(void *object, const MMResourceObjectServices *s)
 }
 void mm_resource_object_release(void *object, const MMResourceObjectServices *s)
 {
-    MMI32 refs = s->refs(object);
+    MMI32 refs = s->references(object)->count;
     MMResourceObject *state;
     if (refs <= 0)
     {
-        s->set_refs(object, 0);
+        s->references(object)->count = 0;
         if (s->issue)
             s->issue(object, MM_RESOURCE_BAD_REFS);
     }
     else
-        s->set_refs(object, refs - 1);
-    if (s->refs(object) == 0)
+        s->references(object)->count = refs - 1;
+    if (s->references(object)->count == 0)
     {
         state = s->state(object);
         if (!state->attached)
@@ -58,7 +58,7 @@ void mm_resource_object_detach(void *object, const MMResourceObjectServices *s)
         state->attached = 0;
         s->detached(owner, object);
     }
-    if (s->refs(object) <= 0)
+    if (s->references(object)->count <= 0)
         s->destroy(object);
 }
 void mm_resource_object_priority(void *object, MMI32 priority, const MMResourceObjectServices *s)
@@ -111,8 +111,8 @@ int mm_resource_cache_init(MMResourceCache *c, void *owner, void *file, MMI32 bu
                                  int diagnostic_refs)
 {
     if (!c || !owner || !file || !s || budget < 0 || !s->compare_reader || !s->contains || !s->find_block || !s->read ||
-        !s->retain_file || !s->release_file || !s->owner_refs || !s->set_owner_refs || !s->objects.state ||
-        !s->objects.refs || !s->objects.set_refs || !s->objects.retain || !s->objects.release || !s->objects.detach ||
+        !s->retain_file || !s->release_file || !s->owner_references || !s->objects.state ||
+        !s->objects.references || !s->objects.retain || !s->objects.release || !s->objects.detach ||
         !s->objects.priority || !s->objects.destroy || !s->objects.retain_owner || !s->objects.release_owner ||
         !s->objects.released || !s->objects.detached)
         return MM_STORAGE_ARGUMENT;
@@ -235,7 +235,7 @@ void mm_resource_cache_released(MMResourceCache *c, void *object)
     MMResourceObject *state = c->services.objects.state(object);
     MMResourceEntry e;
     MMU32 i;
-    if (state->owner != c->owner || !state->attached || c->services.objects.refs(object) != 0 ||
+    if (state->owner != c->owner || !state->attached || c->services.objects.references(object)->count != 0 ||
         !find_object(c, object, &i))
     {
         issue(c, MM_RESOURCE_BAD_OBJECT, 0, 0);
@@ -268,7 +268,7 @@ int mm_resource_cache_purge(MMResourceCache *c, MMWide need, MMI32 last)
             mm_resource_cache_at(c, i, &e);
             state = c->services.objects.state(e.object);
             priority = state->priority;
-            if (c->services.objects.refs(e.object) > 0 || priority > best_priority)
+            if (c->services.objects.references(e.object)->count > 0 || priority > best_priority)
                 continue;
             age = mm_signed_word((MMU32)c->releases - (MMU32)e.released);
             if (age > MM_STORAGE_LIMIT / 256)
@@ -311,7 +311,7 @@ void mm_resource_cache_budget(MMResourceCache *c, MMI32 budget)
         while (i-- > 0)
         {
             mm_resource_cache_at(c, i, &e);
-            if (c->services.objects.refs(e.object) == 0)
+            if (c->services.objects.references(e.object)->count == 0)
             {
                 c->services.objects.detach(e.object);
                 i = c->count;
@@ -491,7 +491,7 @@ int mm_resource_cache_dispose(MMResourceCache *c)
     int result;
     if (!c || c->storage.buffers[0].locks || c->storage.buffers[1].locks)
         return MM_STORAGE_ARGUMENT;
-    c->services.set_owner_refs(c->services.context, c->services.owner_refs(c->services.context) + 1);
+    mm_reference_add(c->services.owner_references(c->services.context));
     while (c->count)
     {
         mm_resource_cache_at(c, 0, &e);
@@ -500,10 +500,10 @@ int mm_resource_cache_dispose(MMResourceCache *c)
         state = c->services.objects.state(e.object);
         state->owner = NULL;
         if (c->diagnostic_refs)
-            c->services.set_owner_refs(c->services.context, c->services.owner_refs(c->services.context) - 1);
+            mm_reference_drop(c->services.owner_references(c->services.context));
         c->services.objects.release(e.object);
     }
-    if (c->diagnostic_refs && c->services.owner_refs(c->services.context) != 1)
+    if (c->diagnostic_refs && c->services.owner_references(c->services.context)->count != 1)
         issue(c, MM_RESOURCE_BAD_OWNER, 0, 0);
     result = mm_storage_dispose(&c->storage);
     file = c->file;
