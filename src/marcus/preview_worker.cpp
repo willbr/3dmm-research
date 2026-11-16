@@ -6,7 +6,7 @@
 
 BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &resources,
                                const std::function<bool()> &cancelled, const std::string &content, bool duration,
-                               const std::string &fonts, bool background, bool prop)
+                               const std::string &fonts, bool background, bool prop, bool text)
 {
     const auto base = SDL_GetBasePath();
     if (!base) throw std::runtime_error("Cannot locate the preview helper.");
@@ -15,8 +15,8 @@ BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &res
         ".exe"
 #endif
         ;
-    const char *args[] = {executable.c_str(), movie.c_str(), resources.c_str(), prop ? "--prop" : background ? "--background" : duration ? "--duration" : nullptr,
-                          content.c_str(), (background || prop) ? nullptr : fonts.c_str(), nullptr};
+    const char *args[] = {executable.c_str(), movie.c_str(), resources.c_str(), text ? "--text" : prop ? "--prop" : background ? "--background" : duration ? "--duration" : nullptr,
+                          content.c_str(), (background || prop || text) ? nullptr : fonts.c_str(), nullptr};
     const auto properties = SDL_CreateProperties();
     SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
     SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);

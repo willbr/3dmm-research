@@ -27,6 +27,7 @@ PreviewActor::~PreviewActor()
     Host host = {this};
     auto services = host.Services();
     mm_preview_actor_dispose(&core, &services);
+    ReleasePpo(&textMaterial);
 }
 bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
                         std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
@@ -94,6 +95,23 @@ bool PreviewActor::Text(PreviewObjectText &out) const
     std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
     out.text = convert.to_bytes(std::u16string(units.begin(), units.end())); out.shape = shape; out.fontSource = font.sid; out.font = font.cno;
     return true;
+}
+PMaterial_MTRL PreviewActor::TextMaterial() const
+{
+    if (!tmpl || !tmpl->FIsTdt() || !body) return nullptr;
+    bool plain; PMaterial_MTRL material = nullptr; PCustomMaterial_CMTL custom = nullptr;
+    body->GetPartSetMaterial(0, &plain, &material, &custom);
+    return plain ? material : nullptr;
+}
+bool PreviewActor::SetTextMaterial(std::int32_t source, std::uint32_t number)
+{
+    if (!tmpl || !tmpl->FIsTdt() || !body) return false;
+    const TAGOnFile tag = {source, 0, kctgMtrl, number};
+    auto file = resolve(tag);
+    auto material = file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl)) : nullptr;
+    if (!material) return false;
+    ReleasePpo(&textMaterial); textMaterial = material;
+    body->SetPartSetMtrl(0, material); return true;
 }
 bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate)
 {
@@ -303,7 +321,9 @@ bool PreviewActor::Seek(LegacyLong frame)
 {
     Host host = {this};
     auto services = host.Services();
-    return host.Result(mm_preview_actor_seek(&core, frame, &services));
+    const bool ok = host.Result(mm_preview_actor_seek(&core, frame, &services));
+    if (ok && textMaterial && body) body->SetPartSetMtrl(0, textMaterial);
+    return ok;
 }
 
 } // namespace Internal

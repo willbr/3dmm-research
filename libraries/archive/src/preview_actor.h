@@ -19,6 +19,7 @@ class PreviewActor
     MMPreviewActor core;
     ActorTrack track;
     PTemplate tmpl = nullptr;
+    PMaterial_MTRL textMaterial = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
     bool ApplyEvent(MMActorState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
                     ActorSoundList *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
@@ -48,6 +49,8 @@ class PreviewActor
     void Shape(PreviewObjectShape &, float left[9], float right[9]) const;
     PreviewObject Snapshot() const;
     bool Text(PreviewObjectText &) const;
+    PMaterial_MTRL TextMaterial() const;
+    bool SetTextMaterial(std::int32_t source, std::uint32_t number);
     bool SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate);
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
     bool Visible() const

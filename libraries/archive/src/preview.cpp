@@ -272,6 +272,99 @@ bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32
         _impl->actors[object]->SetTextTemplate(source, number, [this](PTemplate value) { _impl->BindTemplate(value); })) ||
         Fail(error, ErrorCode::decode_failed, "Cannot change this 3D text template.");
 }
+bool Preview::TextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number, PreviewTextMaterial &out, Error &error)
+{
+    error = {};
+    PMaterial_MTRL material = nullptr;
+    if (preset)
+    {
+        const TAGOnFile tag = {source, 0, kctgMtrl, number};
+        auto file = _impl->Resolve(tag);
+        material = file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl)) : nullptr;
+    }
+    else if (object >= 0 && std::size_t(object) < _impl->actors.size())
+    { material = _impl->actors[object]->TextMaterial(); if (material) material->AddRef(); }
+    else material = Material_MTRL::PmtrlNew();
+    if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot read the text material.");
+    const auto b = material->Pbmtl();
+    out.textured = b->colour_map != nullptr; out.colour = b->colour;
+    out.indexBase = b->index_base; out.indexRange = b->index_range;
+    out.ambient = b->ka / 65535.f; out.diffuse = b->kd / 65535.f; out.specular = b->ks / 65535.f;
+    out.shininess = BrScalarToFloat(b->power);
+    for (int i = 0; i < 6; ++i) out.mapping[i] = BrScalarToFloat(b->map_transform.m[i / 2][i % 2]);
+    material->Release(); return true;
+}
+bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number,
+    const PreviewTextMaterial &value, const std::string &path, Error &error)
+{
+    error = {};
+    PMaterial_MTRL material = nullptr;
+    if (preset)
+    {
+        const TAGOnFile tag = {source, 0, kctgMtrl, number}; auto file = _impl->Resolve(tag);
+        material = file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl)) : nullptr;
+    }
+    else if (object >= 0 && std::size_t(object) < _impl->actors.size())
+    { material = _impl->actors[object]->TextMaterial(); if (material) material->AddRef(); }
+    else material = Material_MTRL::PmtrlNew();
+    if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot copy the text material.");
+    struct Release { void operator()(BASE *p) const { if (p) p->Release(); } };
+    std::unique_ptr<Material_MTRL, Release> owner(material);
+    String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
+    if (!filename.FBuildFromPath(&text)) return Fail(error, ErrorCode::invalid_argument, "Invalid text material path.");
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    ChunkNumber chunk;
+    if (!file || !material->FWrite(file.get(), kctgMtrl, &chunk) || chunk != 0)
+        return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
+    MaterialOnFile header = {};
+    header.bo = kboCur; header.osk = koskCur; header.brc = value.colour;
+    header.brufKa = static_cast<br_ufraction>(std::lround(value.ambient * 65535));
+    header.brufKd = static_cast<br_ufraction>(std::lround(value.diffuse * 65535));
+    header.brufKs = static_cast<br_ufraction>(std::lround(value.specular * 65535));
+    header.rPower = BrFloatToScalar(value.shininess);
+    header.bIndexBase = static_cast<byte>(value.indexBase); header.cIndexRange = static_cast<byte>(value.indexRange);
+    DataBlock block;
+    if (!file->FFind(kctgMtrl, chunk, &block) || !block.FWriteRgb(&header, sizeof(header), 0))
+        return Fail(error, ErrorCode::decode_failed, "Cannot write material lighting.");
+    if (material->Pbmtl()->colour_map)
+    {
+        struct Transform { short bo, osk; BRS matrix[6]; } transform = {kboCur, koskCur};
+        static_assert(sizeof(transform) == 28, "Native texture transform layout");
+        for (int i = 0; i < 6; ++i) transform.matrix[i] = BrFloatToScalar(value.mapping[i]);
+        ChunkNumber mapping;
+        if (!file->FAddPv(&transform, sizeof(transform), kctgTxxf, &mapping) ||
+            !file->FAdoptChild(kctgMtrl, chunk, kctgTxxf, mapping, 0))
+            return Fail(error, ErrorCode::decode_failed, "Cannot write texture placement.");
+    }
+    return file->FSave(kctgSoc) || Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
+}
+bool Preview::SetObjectTextMaterial(int object, std::int32_t source, std::uint32_t number, Error &error)
+{
+    return (object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->SetTextMaterial(source, number)) ||
+        Fail(error, ErrorCode::decode_failed, "Cannot apply the text material.");
+}
+bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSource, std::uint32_t font, Error &error)
+{
+    const TAGOnFile tag = {fontSource, 0, kctgTdf, font}; auto source = _impl->Resolve(tag);
+    String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
+    if (!source || !filename.FBuildFromPath(&text)) return Fail(error, ErrorCode::decode_failed, "Cannot copy the preview font.");
+    struct Release { void operator()(ChunkyFile *p) const { if (p) p->Release(); } };
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    ChunkNumber copied; ChildChunkIdentification child; DataBlock block;
+    if (!file || !source->Pcfl()->FCopy(kctgTdf, font, file.get(), &copied) ||
+        !file->FGetKidChidCtg(kctgTmpl, 0, 0, kctgTdt, &child) || !file->FFind(kctgTdt, child.cki.cno, &block))
+        return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
+    std::int32_t local = 0;
+    return (block.FWriteRgb(&local, 4, 8) && block.FWriteRgb(&copied, 4, 20) && file->FSave(kctgSoc)) ||
+        Fail(error, ErrorCode::decode_failed, "Cannot link the preview font.");
+}
+bool Preview::UseTextPreviewMaterial(Error &error)
+{
+    if (!_impl->body || !_impl->tmpl || !_impl->tmpl->FIsTdt()) return false;
+    auto material = static_cast<PMaterial_MTRL>(_impl->cache->PbacoFetch(kctgMtrl, 0, Material_MTRL::FReadMtrl));
+    if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
+    _impl->body->SetPartSetMtrl(0, material); material->Release(); return true;
+}
 bool Preview::ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error)
 try
 {

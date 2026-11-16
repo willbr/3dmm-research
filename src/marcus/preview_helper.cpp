@@ -151,7 +151,8 @@ int main(int argc, char **argv)
     const bool background = argc == 5 && !std::strcmp(argv[3], "--background");
     const bool prop = argc == 5 && !std::strcmp(argv[3], "--prop");
     const bool models = argc == 8 && !std::strcmp(argv[3], "--models");
-    if (argc != 3 && !duration && !timeline && !frames && !background && !prop && !models) return 2;
+    const bool text = argc == 5 && !std::strcmp(argv[3], "--text");
+    if (argc != 3 && !duration && !timeline && !frames && !background && !prop && !models && !text) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
     if (frames || models) _setmode(_fileno(stdin), _O_BINARY);
@@ -161,7 +162,17 @@ int main(int argc, char **argv)
     BrowserPreview preview;
     try
     {
-        if (prop)
+        if (text)
+        {
+            MM::Preview renderer; MM::Error error; MM::PreviewView view; MM::PreviewImage image;
+            view.width = 480; view.height = 360; view.authoredCamera = false;
+            std::istringstream settings(argv[4]);
+            settings >> view.yaw >> view.pitch >> view.zoom;
+            if (!settings || !renderer.Open(argv[1], argv[2], error) || !renderer.Select({0x544d504c, 0}, error) ||
+                !renderer.UseTextPreviewMaterial(error) || !renderer.Render(view, image, error)) preview.error = error.message.empty() ? "Cannot preview this text." : error.message;
+            else { preview.width = image.width; preview.height = image.height; preview.rgba = std::move(image.rgba); }
+        }
+        else if (prop)
         {
             std::size_t end;
             const auto chunk = std::stoul(argv[1], &end);

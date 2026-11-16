@@ -54,6 +54,8 @@ unsigned MarcusBoardHSV(float hue, float saturation, float value);
 std::array<float, 3> MarcusBoardToHSV(unsigned rgb);
 int MarcusBoardAddColour(MarcusStoryboard &board, unsigned rgb);
 bool MarcusGetStoryboardPalette(MarcusPlayer *player, MarcusBoardPalette &palette);
+// Private, self-contained template for the isolated text-dialog preview.
+std::shared_ptr<MarcusMovieFile> MarcusPrepareTextPreview(MarcusPlayer *player, int object, const MarcusText &text);
 bool MarcusGetStoryboardColours(MarcusPlayer *player, MarcusBoardPaintColours &colours);
 void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStoryboards &boards,
     const std::string &resources, const std::string &content, std::vector<MM::V3dmm::Dependency> dependencies,

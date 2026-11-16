@@ -266,17 +266,31 @@ extern "C"
     int marcus_font_count(MarcusPlayer *player, const char *content_directory);
     int marcus_font(const MarcusPlayer *player, int index, MarcusProp *font);
     int marcus_add_text(MarcusPlayer *player, const char *text, unsigned long font, int shape);
+    typedef struct MarcusTextMaterial
+    {
+        int enabled, preset, textured;
+        long source; /* -1: retail material catalogue. preset=0 keeps the current material. */
+        unsigned long chunk, colour;
+        unsigned index_base, index_range;
+        float ambient, diffuse, specular, shininess;
+        float mapping[6]; /* Native 2D texture transform, rows U, V, translation. */
+    } MarcusTextMaterial;
     typedef struct MarcusText
     {
         char text[201]; /* UTF-8, at most fifty Windows-ANSI characters. */
         unsigned long font;
         long font_source; /* -1 selects original retail content; other IDs retain imported fonts. */
         int shape;
+        MarcusTextMaterial appearance;
     } MarcusText;
     int marcus_text(MarcusPlayer *player, int object, MarcusText *text);
     /* Change this existing object; keep its placement, transforms and track.
      * Successful changes are one undo step; identical values are a no-op. */
     int marcus_set_text(MarcusPlayer *player, int object, const MarcusText *text);
+    int marcus_add_text_options(MarcusPlayer *player, const MarcusText *text);
+    int marcus_material_count(MarcusPlayer *player, const char *content_directory);
+    int marcus_material(const MarcusPlayer *player, int index, MarcusProp *material);
+    int marcus_text_material_preset(MarcusPlayer *player, unsigned long chunk, MarcusTextMaterial *material);
     /* Silent live preview; restore the original position to cancel. No file write.
      * Seeking, playback or scene replacement also cancels the preview.
      * Visible actors, props and 3D text are movable. Position is limited to +/-32700. */

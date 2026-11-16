@@ -504,6 +504,38 @@ static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTex
     if (file->FGetKidChidCtg(kctgActr, actorNumber, 0, kctgTmpl, &child))
         file->DeleteChild(kctgActr, actorNumber, kctgTmpl, child.cki.cno, 0);
     Require(file->FAdoptChild(kctgActr, actorNumber, kctgTmpl, textTemplate, 0), "Cannot link the edited text template.");
+    if (edit.hasMaterial)
+    {
+        ChunkNumber material;
+        Require(source->FCopy(kctgMtrl, 0, file, &material), "Cannot copy the text appearance.");
+        if (file->FGetKidChidCtg(kctgActr, actorNumber, 0, kctgMtrl, &child))
+            file->DeleteChild(kctgActr, actorNumber, kctgMtrl, child.cki.cno, 0);
+        Require(file->FAdoptChild(kctgActr, actorNumber, kctgMtrl, material, 0), "Cannot embed the text appearance.");
+        Require(file->FGetKidChidCtg(kctgActr, actorNumber, 0, kctgGgae, &child) &&
+            file->FFind(kctgGgae, child.cki.cno, &block), "Cannot read text appearance events.");
+        std::unique_ptr<GeneralGroup, Release> events(ActorData::PggReadEvents(&block));
+        Require(bool(events), "Cannot decode text appearance events.");
+        // Material properties describe the whole text object. Reapply at every
+        // entrance and remove earlier whole-word material choices.
+        for (LegacyLong i = events->IvMac(); i-- > 0;)
+        {
+            ActorEvent::Base event; events->GetFixed(i, &event);
+            if (event.aet == ActorEvent::aetCost) events->Delete(i);
+        }
+        for (LegacyLong i = 0; i < events->IvMac(); ++i)
+        {
+            ActorEvent::Base event; events->GetFixed(i, &event);
+            if (event.aet != ActorEvent::aetAdd) continue;
+            event.aet = ActorEvent::aetCost;
+            ActorEvent::Costume costume = {}; costume.tag = {0, nullptr, kctgMtrl, material};
+            Require(events->FInsert(++i, sizeof(costume), &costume, &event), "Cannot write text appearance events.");
+        }
+        std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(events.get()));
+        ChunkNumber number;
+        Require(wire && file->FAdd(wire->CbOnFile(), kctgGgae, &number, &block) && wire->FWrite(&block), "Cannot save text appearance events.");
+        file->DeleteChild(kctgActr, actorNumber, kctgGgae, child.cki.cno, 0);
+        Require(file->FAdoptChild(kctgActr, actorNumber, kctgGgae, number, 0), "Cannot link text appearance events.");
+    }
     std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
     Require(bool(roll), "Cannot create the edited movie roll call.");
     ChildChunkIdentification rollChild;

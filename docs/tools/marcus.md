@@ -302,13 +302,25 @@ list and larger selected preview.
 
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes with
-the arrow buttons. Tab switches between text, font and shape; the keyboard
-arrows choose fonts/shapes, Enter adds and Escape cancels. The text field supports
+the arrow buttons. The 50-character limit follows retail's text editor
+(`kcchMaxTdt` in `src/studio/esl.cpp`); it is not a file-format limit.
+Tab switches between controls; the keyboard arrows change the focused value,
+Enter adds and Escape cancels. The text field supports
 Ctrl+A, copy/cut/paste, cursor navigation, Backspace and Delete. Characters must
 be supported by the original Windows-ANSI fonts in `tdfs.3cn`. Invalid input
 stays in the dialog with an explanation. Creating text uses the native ThreeDText
 engine; its generated template is embedded in the saved movie and its font
 continues to reference original retail content.
+
+The shared New/Edit dialog also offers native material and colour choices from
+`mtrls.3cn`. Colour swatches choose existing palette materials; the Material
+arrows also include textured patterns. Ambient, diffuse, specular and shininess
+adjust the material's response to lighting. Textured materials additionally
+expose U/V scale, rotation and U/V offsets. Drag numeric values or use their
+minus/plus buttons. The live 3D preview updates as settings change: drag it to
+rotate, scroll over it to zoom, or use the preview buttons. Its view is separate
+from the object's position and rotation in the movie. Previewing does not edit
+the movie or add undo entries; Cancel discards every pending setting.
 
 To edit existing 3D text, select it and choose **Edit 3D text** in its object
 properties or the **Words** ribbon. This reuses the creation dialog, prefilled
@@ -318,6 +330,15 @@ Cancel/Escape leaves it unchanged. The edit is one undo step; saving unchanged
 settings adds no undo entry. Text reopened from native movies is editable too.
 The current imported font is retained unless a different font is selected.
 Saved copies embed the replacement template while retaining the object's track.
+Appearance changes apply to the entire text object across its entrances and
+frames, replacing earlier material changes on that word. The material, texture
+and native texture-transform chunk are embedded with the text actor, so lighting
+and pattern placement survive save/reopen and work through the native playback
+path. Font choices remain the existing fonts; this dialog does not create fonts.
+Headless checks cover material properties, transformed patterns, repeated edits,
+undo and native save/reopen. Retail captures of patterned, restyled and newly
+styled words at 544x306 match all text pixels; each frame has the same single
+differing pixel on the separate actor. The retail error stack remains empty.
 
 Actors, props and 3D text appear at the current frame, at the active background
 camera's next insertion point, and remain through the scene's last frame.

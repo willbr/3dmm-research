@@ -90,6 +90,14 @@ struct PreviewObjectText
     std::int32_t fontSource = 0, shape = 0;
     std::uint32_t font = 0;
 };
+struct PreviewTextMaterial
+{
+    bool textured = false;
+    std::uint32_t colour = 0;
+    unsigned indexBase = 15, indexRange = 15;
+    float ambient = .1f, diffuse = .6f, specular = .6f, shininess = 50;
+    float mapping[6] = {1, 0, 0, 1, 0, 0};
+};
 // Flat live-edit definitions; native snapshots can be generated on demand.
 struct PreviewSceneDefinition
 {
@@ -247,6 +255,12 @@ class Preview
     bool ObjectText(int object, PreviewObjectText &, Error &) const;
     // Change only this instance's text template, retaining its authored track.
     bool SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &);
+    bool TextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number, PreviewTextMaterial &, Error &);
+    bool WriteTextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number,
+        const PreviewTextMaterial &, const std::string &path, Error &);
+    bool SetObjectTextMaterial(int object, std::int32_t source, std::uint32_t number, Error &);
+    bool PrepareTextPreview(const std::string &path, std::int32_t fontSource, std::uint32_t font, Error &);
+    bool UseTextPreviewMaterial(Error &);
     // Current posed bounds in actor-local axes, transformed with the actor.
     // An off-stage actor succeeds with invalid bounds.
     // Temporary, silent whole-track translation of an actor, prop or 3D text.

@@ -1030,7 +1030,7 @@ static void edit_text(App *app)
     release_camera(app);
     app->sheet_menu = app->orbit_menu = 0;
     scene_organiser_close(app->scene_organiser);
-    if (!text_dialog_edit(app->text_dialog, app->player, app->window, app->content, app->selected))
+    if (!text_dialog_edit(app->text_dialog, app->player, app->window, app->content, app->resources, app->selected))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "Cannot edit this 3D text object.");
 }
 static void choose_text(App *app)
@@ -1041,7 +1041,7 @@ static void choose_text(App *app)
     release_camera(app);
     app->sheet_menu = app->orbit_menu = 0;
     scene_organiser_close(app->scene_organiser);
-    if (!text_dialog_show(app->text_dialog, app->player, app->window, app->content))
+    if (!text_dialog_show(app->text_dialog, app->player, app->window, app->content, app->resources))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No 3D fonts found. Choose your original 3DMM Content folder.");
 }
 static void choose_camera_angle(App *app)

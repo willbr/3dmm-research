@@ -25,6 +25,7 @@ struct MarcusTextEdit
     std::shared_ptr<MarcusMovieFile> file;
     std::int32_t source = 0;
     bool retailFont = false;
+    bool hasMaterial = false;
 };
 struct MarcusLiveEdits
 {

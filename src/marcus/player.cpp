@@ -78,8 +78,8 @@ struct MarcusPlayer
     std::vector<MM::Id> scenes;
     std::vector<MarcusScene> sceneInfo, baseSceneInfo;
     std::vector<MarcusBackground> backgrounds;
-    std::vector<MarcusProp> props, actors, fonts;
-    std::string propCatalogDirectory, actorCatalogDirectory, fontCatalogDirectory, backgroundCatalogDirectory;
+    std::vector<MarcusProp> props, actors, fonts, materials;
+    std::string propCatalogDirectory, actorCatalogDirectory, fontCatalogDirectory, materialCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
     std::map<int, MM::PreviewObject> propPreviews;
     std::map<int, MM::PreviewObjectShape> shapePreviews;
@@ -311,6 +311,7 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MarcusPlayer::Placem
         {
             if (!player.preview.SetObjectTextTemplate(int(index), text->second.source, 0, error)) return false;
             player.names[object.actorId] = text->second.value.text;
+            if (text->second.hasMaterial && !player.preview.SetObjectTextMaterial(int(index), text->second.source, 0, error)) return false;
         }
         if (!object.hasLifetime) continue;
         const auto found = placements.find({player.scenes[scene].number, object.asset.number});
@@ -901,7 +902,65 @@ bool MarcusRenderLocalWorld(MarcusPlayer *player, const MM::PreviewView &view,
 {
     return player && player->preview.Render(view, image, error);
 }
-static bool InsertObject(MarcusPlayer *player, MarcusNamedProp prop, int &result, MM::Error &error)
+static MM::PreviewTextMaterial NativeMaterial(const MarcusTextMaterial &m)
+{
+    MM::PreviewTextMaterial out;
+    out.textured = m.textured != 0; out.colour = m.colour; out.indexBase = m.index_base; out.indexRange = m.index_range;
+    out.ambient = m.ambient; out.diffuse = m.diffuse; out.specular = m.specular; out.shininess = m.shininess;
+    std::copy(m.mapping, m.mapping + 6, out.mapping); return out;
+}
+static MarcusTextMaterial PublicMaterial(const MM::PreviewTextMaterial &m)
+{
+    MarcusTextMaterial out = {};
+    out.enabled = 1; out.textured = m.textured; out.colour = m.colour; out.index_base = m.indexBase; out.index_range = m.indexRange;
+    out.ambient = m.ambient; out.diffuse = m.diffuse; out.specular = m.specular; out.shininess = m.shininess;
+    std::copy(m.mapping, m.mapping + 6, out.mapping); return out;
+}
+static bool ValidMaterial(const MarcusTextMaterial &m, MM::Error &error)
+{
+    if (!m.enabled) return true;
+    auto range = [](float n, float low, float high) { return std::isfinite(n) && n >= low && n <= high; };
+    if (!range(m.ambient, 0, 1) || !range(m.diffuse, 0, 1) || !range(m.specular, 0, 1) || !range(m.shininess, 0, 32700) ||
+        m.colour > 0xffffff || m.index_base > 255 || m.index_range > 255 || m.index_base + m.index_range > 255 ||
+        std::any_of(m.mapping, m.mapping + 6, [&](float n) { return !range(n, -32700, 32700); }))
+    { error.message = "Material lighting or texture placement is out of range."; return false; }
+    return true;
+}
+static bool SameMaterial(const MarcusTextMaterial &a, const MM::PreviewTextMaterial &b)
+{
+    if (!a.enabled) return true;
+    const auto close = [](float x, float y) { return std::abs(x - y) < .00002f; };
+    return !a.preset && a.colour == b.colour && a.index_base == b.indexBase && a.index_range == b.indexRange &&
+        close(a.ambient, b.ambient) && close(a.diffuse, b.diffuse) && close(a.specular, b.specular) && close(a.shininess, b.shininess) &&
+        std::equal(a.mapping, a.mapping + 6, b.mapping, close);
+}
+static bool WriteMaterial(MarcusPlayer *p, int object, const MarcusTextMaterial &m, const MarcusMovieFile &file, MM::Error &error)
+{
+    if (!ValidMaterial(m, error)) return false;
+    return p->preview.WriteTextMaterial(object, m.preset != 0, m.source == -1 ? p->retailSource : m.source,
+        static_cast<std::uint32_t>(m.chunk), NativeMaterial(m), file.path.u8string(), error);
+}
+std::shared_ptr<MarcusMovieFile> MarcusPrepareTextPreview(MarcusPlayer *player, int object, const MarcusText &text)
+{
+    std::shared_ptr<MarcusMovieFile> result;
+    Guard(player, [&](MM::Error &error) {
+        if (!EnsureRetailContent(*player, error)) return false;
+        const auto font = text.font_source == -1 ? player->retailSource : text.font_source;
+        auto file = MarcusCreateTextTemplate(text.text, text.font, font, text.shape);
+        auto material = text.appearance;
+        if (!material.enabled)
+        {
+            MM::PreviewTextMaterial current;
+            if (!player->preview.TextMaterial(object, false, 0, 0, current, error)) return false;
+            material = PublicMaterial(current);
+        }
+        if (!WriteMaterial(player, object, material, *file, error) ||
+            !player->preview.PrepareTextPreview(file->path.u8string(), font, text.font, error)) return false;
+        result = file; return true;
+    });
+    return result;
+}
+static bool InsertObject(MarcusPlayer *player, MarcusNamedProp prop, int &result, MM::Error &error, const MarcusTextEdit *initial = nullptr)
 {
     if (player->selected < 0) { error.message = "Create or open a scene before inserting an object."; return false; }
     if (!EnsureRetailContent(*player, error)) return false;
@@ -925,10 +984,15 @@ static bool InsertObject(MarcusPlayer *player, MarcusNamedProp prop, int &result
     auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
     auto props = std::make_shared<MarcusLiveEdits::Props>(*edits->props);
     props->push_back(prop); edits->props = props; edits->revision = player->nextEditRevision++;
+    if (initial)
+    {
+        auto texts = std::make_shared<MarcusLiveEdits::Texts>(*edits->texts);
+        (*texts)[{definition.scene, definition.number}] = *initial; edits->texts = texts;
+    }
     EditHistory history(*player);
     const auto previous = player->edits;
     player->edits = edits;
-    if (!ApplyDefinitions(*player, error)) { player->edits = previous; return false; }
+    if (!ApplyDefinitions(*player, error) || (initial && !ApplyPlacements(*player, player->selected, *player->placements, error))) { player->edits = previous; return false; }
     player->objects = player->preview.Objects();
     player->animations.clear();
     for (std::size_t index = 0; index < player->objects.size(); ++index)
@@ -944,13 +1008,13 @@ static int ReadCatalogue(MarcusPlayer *player, const char *directory, int kind)
     const bool ok = Guard(player, [&](MM::Error &error) {
         if (!directory) return false;
         MM::Archive archive;
-        if (!archive.Open((std::filesystem::u8path(directory) / (kind == 2 ? "tdfs.3cn" : "tmpls.3cn")).u8string(), error)) return false;
+        if (!archive.Open((std::filesystem::u8path(directory) / (kind == 3 ? "mtrls.3cn" : kind == 2 ? "tdfs.3cn" : "tmpls.3cn")).u8string(), error)) return false;
         std::vector<MarcusProp> entries;
         for (std::size_t index = 0; index < archive.Chunks().size(); ++index)
         {
             const auto &chunk = archive.Chunks()[index];
-            if (chunk.id.type != (kind == 2 ? 0x54444620U : 0x544d504cU)) continue;
-            if (kind != 2)
+            if (chunk.id.type != (kind == 3 ? 0x4d54524cU : kind == 2 ? 0x54444620U : 0x544d504cU)) continue;
+            if (kind < 2)
             {
                 MM::PayloadPage header;
                 if (!archive.ReadPayload(index, 0, 16, header, error)) return false;
@@ -961,15 +1025,15 @@ static int ReadCatalogue(MarcusPlayer *player, const char *directory, int kind)
             }
             MarcusProp entry = {};
             entry.chunk = chunk.id.number;
-            Copy(entry.name, chunk.name.empty() ? std::string(kind == 0 ? "Prop " : kind == 1 ? "Actor " : "3D font ") + std::to_string(entry.chunk) : chunk.name);
+            Copy(entry.name, chunk.name.empty() ? std::string(kind == 0 ? "Prop " : kind == 1 ? "Actor " : kind == 2 ? "3D font " : "Material ") + std::to_string(entry.chunk) : chunk.name);
             entries.push_back(entry);
         }
         std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) { return std::strcmp(a.name, b.name) < 0; });
-        (kind == 0 ? player->props : kind == 1 ? player->actors : player->fonts).swap(entries);
-        (kind == 0 ? player->propCatalogDirectory : kind == 1 ? player->actorCatalogDirectory : player->fontCatalogDirectory) = directory;
+        (kind == 0 ? player->props : kind == 1 ? player->actors : kind == 2 ? player->fonts : player->materials).swap(entries);
+        (kind == 0 ? player->propCatalogDirectory : kind == 1 ? player->actorCatalogDirectory : kind == 2 ? player->fontCatalogDirectory : player->materialCatalogDirectory) = directory;
         return true;
     });
-    return ok ? static_cast<int>((kind == 0 ? player->props : kind == 1 ? player->actors : player->fonts).size()) : -1;
+    return ok ? static_cast<int>((kind == 0 ? player->props : kind == 1 ? player->actors : kind == 2 ? player->fonts : player->materials).size()) : -1;
 }
 static int InsertTemplate(MarcusPlayer *player, unsigned long chunk, bool actor)
 {
@@ -1217,6 +1281,20 @@ extern "C"
             return true;
         });
     }
+    int marcus_material_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 3); }
+    int marcus_material(const MarcusPlayer *player, int index, MarcusProp *material)
+    {
+        if (!player || !material || index < 0 || std::size_t(index) >= player->materials.size()) return 0;
+        *material = player->materials[index]; return 1;
+    }
+    int marcus_text_material_preset(MarcusPlayer *player, unsigned long chunk, MarcusTextMaterial *material)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MM::PreviewTextMaterial value;
+            if (!material || !EnsureRetailContent(*player, error) || !player->preview.TextMaterial(-1, true, player->retailSource, chunk, value, error)) return false;
+            *material = PublicMaterial(value); material->preset = 1; material->source = -1; material->chunk = chunk; return true;
+        });
+    }
     int marcus_prop_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 0); }
     int marcus_actor_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 1); }
     int marcus_font_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 2); }
@@ -1239,6 +1317,14 @@ extern "C"
     int marcus_add_actor(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, true); }
     int marcus_add_text(MarcusPlayer *player, const char *text, unsigned long font, int shape)
     {
+        if (!text || std::strlen(text) >= sizeof(MarcusText::text)) return -1;
+        MarcusText options = {}; Copy(options.text, text); options.font = font; options.font_source = -1; options.shape = shape;
+        return marcus_add_text_options(player, &options);
+    }
+    int marcus_add_text_options(MarcusPlayer *player, const MarcusText *options)
+    {
+        if (!options) return -1;
+        const auto text = options->text; const auto font = options->font; const auto shape = options->shape;
         int result = -1;
         const bool ok = Guard(player, [&](MM::Error &error) {
             if (player->selected < 0) { error.message = "Create or open a scene before adding 3D text."; return false; }
@@ -1254,7 +1340,14 @@ extern "C"
             prop.name = text;
             prop.definition.source = player->nextBoardSource--;
             prop.definition.templateNumber = 0;
-            return InsertObject(player, std::move(prop), result, error);
+            MarcusTextEdit initial;
+            if (options->appearance.enabled)
+            {
+                if (!WriteMaterial(player, -1, options->appearance, *prop.file, error)) return false;
+                initial.file = prop.file; initial.source = prop.definition.source; initial.hasMaterial = true; initial.retailFont = true;
+                initial.value = {text, player->retailSource, shape, static_cast<std::uint32_t>(font)};
+            }
+            return InsertObject(player, std::move(prop), result, error, options->appearance.enabled ? &initial : nullptr);
         });
         return ok ? result : -1;
     }
@@ -1265,7 +1358,10 @@ extern "C"
             if (!text || !player->preview.ObjectText(object, value, error)) return false;
             *text = {}; Copy(text->text, value.text);
             text->font = value.font; text->font_source = value.fontSource == player->retailSource ? -1 : value.fontSource;
-            text->shape = value.shape; return true;
+            text->shape = value.shape;
+            MM::PreviewTextMaterial material;
+            if (!player->preview.TextMaterial(object, false, 0, 0, material, error)) return false;
+            text->appearance = PublicMaterial(material); return true;
         });
     }
     int marcus_set_text(MarcusPlayer *player, int index, const MarcusText *text)
@@ -1287,7 +1383,11 @@ extern "C"
                 if (std::none_of(player->fonts.begin(), player->fonts.end(), [&](const auto &entry) { return entry.chunk == text->font; }))
                 { error.message = "The selected 3D font is unavailable."; return false; }
             }
-            if (sameFont && before.text == text->text && before.shape == text->shape) return true;
+            if (!ValidMaterial(text->appearance, error)) return false;
+            MM::PreviewTextMaterial current;
+            if (!player->preview.TextMaterial(index, false, 0, 0, current, error)) return false;
+            const bool materialChanged = !SameMaterial(text->appearance, current);
+            if (sameFont && before.text == text->text && before.shape == text->shape && !materialChanged) return true;
             if (!CancelPropPreviews(player, error)) return false;
             while (player->nextBoardSource > 2 && (player->contentSourceIds.count(player->nextBoardSource) || player->nextBoardSource == player->retailSource)) --player->nextBoardSource;
             if (player->nextBoardSource <= 2) { error.message = "No text source IDs are available."; return false; }
@@ -1296,6 +1396,13 @@ extern "C"
             change.retailFont = fontSource == player->retailSource;
             change.file = MarcusCreateTextTemplate(text->text, text->font, fontSource, text->shape);
             change.source = player->nextBoardSource--;
+            const auto oldText = player->edits->texts->find({player->scenes[player->selected].number, object.chunk});
+            change.hasMaterial = materialChanged || (oldText != player->edits->texts->end() && oldText->second.hasMaterial);
+            if (change.hasMaterial)
+            {
+                const auto appearance = text->appearance.enabled ? text->appearance : PublicMaterial(current);
+                if (!WriteMaterial(player, index, appearance, *change.file, error)) return false;
+            }
             auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
             auto texts = std::make_shared<MarcusLiveEdits::Texts>(*edits->texts);
             (*texts)[{player->scenes[player->selected].number, object.chunk}] = change;

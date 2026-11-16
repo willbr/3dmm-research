@@ -1,6 +1,8 @@
 // Headless insertion/native round-trip checks; no application window or UI input.
 #include "player.h"
 #include "storyboard.h"
+#include "preview_worker.h"
+#include <SDL3/SDL.h>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -152,6 +154,107 @@ int main(int argc, char **argv)
         require(editedFound && otherUnchanged && marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image) &&
             editedPixels == std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height),
             "Edited text native round trip preserves exact pixels and other objects");
+        const int materialCount = marcus_material_count(player.get(), argv[2]);
+        require(materialCount > 0, "List native materials");
+        MarcusTextMaterial pattern = {}, plain = {};
+        bool hasPattern = false, hasPlain = false;
+        for (int i = 0; i < materialCount && (!hasPattern || !hasPlain); ++i)
+        {
+            MarcusProp entry = {}; MarcusTextMaterial material = {};
+            require(marcus_material(player.get(), i, &entry) && marcus_text_material_preset(player.get(), entry.chunk, &material), "Read native material preset");
+            if (material.textured) { pattern = material; hasPattern = true; }
+            else { plain = material; hasPlain = true; }
+        }
+        require(hasPattern && hasPlain, "Native catalogue has solid colours and patterns");
+        editIndex = -1;
+        for (int i = 0; i < after.object_count; ++i)
+        {
+            MarcusObject object = {}; marcus_object(player.get(), i, &object);
+            if (std::string(object.name) == "Edited") editIndex = i;
+        }
+        require(editIndex >= 0 && marcus_text(player.get(), editIndex, &settings), "Read text material");
+        auto appearanceEdit = settings; appearanceEdit.appearance = pattern;
+        auto &material = appearanceEdit.appearance;
+        material.ambient = .22f; material.diffuse = .7f; material.specular = .15f; material.shininess = 37;
+        material.mapping[0] = .8f; material.mapping[1] = .6f; material.mapping[2] = -.6f; material.mapping[3] = .8f;
+        material.mapping[4] = .125f; material.mapping[5] = -.25f;
+        require(marcus_set_text(player.get(), editIndex, &appearanceEdit), "Apply text lighting and transformed pattern");
+        MarcusText readAppearance = {};
+        auto appearanceMatches = [&](const MarcusTextMaterial &value) {
+            if (!value.textured || std::abs(value.ambient - material.ambient) > .00002f ||
+                std::abs(value.diffuse - material.diffuse) > .00002f || std::abs(value.specular - material.specular) > .00002f ||
+                std::abs(value.shininess - material.shininess) > .00002f) return false;
+            for (int i = 0; i < 6; ++i) if (std::abs(value.mapping[i] - material.mapping[i]) > .00002f) return false;
+            return true;
+        };
+        require(marcus_text(player.get(), editIndex, &readAppearance) && appearanceMatches(readAppearance.appearance), "Material properties match native precision");
+        const auto materialDocument = marcus_document(player.get());
+        require(marcus_set_text(player.get(), editIndex, &readAppearance) && marcus_document(player.get()) == materialDocument, "Unchanged appearance is a no-op");
+        auto invalidMaterial = readAppearance; invalidMaterial.appearance.ambient = 2;
+        require(!marcus_set_text(player.get(), editIndex, &invalidMaterial) && marcus_document(player.get()) == materialDocument, "Reject invalid material without changing the movie");
+        require(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image), "Render textured text");
+        const std::vector<unsigned char> materialPixels(image.rgba, image.rgba + image.pitch * image.height);
+        require(materialPixels != editedPixels, "Changing appearance changes the rendered word");
+        const auto materialPath = (std::filesystem::u8path(argv[3]).parent_path() / "material-text.3mm").u8string();
+        require(marcus_save_copy(player.get(), materialPath.c_str()), "Save material and texture placement");
+        require(marcus_undo(player.get()) && marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image) &&
+            editedPixels == std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height), "Undo restores the original material pixels");
+        require(marcus_open(player.get(), materialPath.c_str(), argv[1], argv[2]) && marcus_seek(player.get(), 2), "Reopen text appearance");
+        for (int i = 0; i < 3; ++i)
+        {
+            MarcusObject object = {}; marcus_object(player.get(), i, &object);
+            if (std::string(object.name) == "Edited") editIndex = i;
+        }
+        require(marcus_text(player.get(), editIndex, &settings) && appearanceMatches(settings.appearance) &&
+            marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image) && materialPixels ==
+            std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height), "Native material round trip preserves properties and exact pixels");
+        const auto previewDocument = marcus_document(player.get());
+        auto previewFile = MarcusPrepareTextPreview(player.get(), editIndex, settings);
+        require(bool(previewFile) && marcus_document(player.get()) == previewDocument, "Prepare preview without changing the movie");
+        const auto helper = (std::filesystem::u8path(SDL_GetBasePath()) / "marcus-preview.exe").u8string();
+        const auto previewPath = previewFile->path.u8string();
+        const char *previewArgs[] = {helper.c_str(), previewPath.c_str(), argv[1], "--text", "20 -10 1", nullptr};
+        SDL_Process *process = SDL_CreateProcess(previewArgs, true);
+        require(process != nullptr, "Launch isolated text preview");
+        size_t previewBytes = 0; int previewStatus = -1;
+        void *output = SDL_ReadProcess(process, &previewBytes, &previewStatus);
+        SDL_DestroyProcess(process);
+        require(output && previewStatus == 0, "Read isolated text preview");
+        std::vector<std::uint8_t> previewData(static_cast<std::uint8_t *>(output), static_cast<std::uint8_t *>(output) + previewBytes);
+        SDL_free(output);
+        const auto preview = ReadPreview(previewData);
+        require(preview.error.empty() && preview.width == 480 && preview.height == 360 && !preview.rgba.empty(), "Text preview renders existing font and material independently");
+        auto wording = settings; std::strcpy(wording.text, "Pattern");
+        require(marcus_set_text(player.get(), editIndex, &wording) && marcus_text(player.get(), editIndex, &readAppearance) &&
+            appearanceMatches(readAppearance.appearance), "Changing wording retains an imported patterned material");
+        require(marcus_undo(player.get()), "Undo wording change");
+        auto restyled = settings; restyled.appearance = plain;
+        const auto restyledPath = (std::filesystem::u8path(argv[3]).parent_path() / "restyled-text.3mm").u8string();
+        require(marcus_set_text(player.get(), editIndex, &restyled) && marcus_save_copy(player.get(), restyledPath.c_str()),
+            "Replace a material embedded by an earlier save");
+        require(marcus_open(player.get(), restyledPath.c_str(), argv[1], argv[2]) && marcus_seek(player.get(), 2) &&
+            marcus_text(player.get(), editIndex, &readAppearance) && !readAppearance.appearance.textured &&
+            readAppearance.appearance.index_base == plain.index_base, "Replacement material survives native reopen");
+        auto styledNew = settings; std::strcpy(styledNew.text, "Styled"); styledNew.appearance = plain;
+        const int styled = marcus_add_text_options(player.get(), &styledNew);
+        require(styled >= 0 && marcus_text(player.get(), styled, &readAppearance) && !readAppearance.appearance.textured,
+            "Create text with a chosen solid material");
+        require(marcus_undo(player.get()) && marcus_info(player.get(), &after) && after.object_count == 3,
+            "Creating styled text is one undo step");
+        const auto styledPath = (std::filesystem::u8path(argv[3]).parent_path() / "styled-new-text.3mm").u8string();
+        require(marcus_add_text_options(player.get(), &styledNew) >= 0 && marcus_save_copy(player.get(), styledPath.c_str()) &&
+            marcus_open(player.get(), styledPath.c_str(), argv[1], argv[2]) && marcus_seek(player.get(), 2) &&
+            marcus_info(player.get(), &after) && after.object_count == 4, "Save and reopen styled new text");
+        bool styledFound = false;
+        for (int i = 0; i < after.object_count; ++i)
+        {
+            MarcusObject object = {}; marcus_object(player.get(), i, &object);
+            if (std::string(object.name) != "Styled") continue;
+            require(marcus_text(player.get(), i, &readAppearance) && !readAppearance.appearance.textured &&
+                readAppearance.appearance.index_base == plain.index_base, "New text retains its chosen native material");
+            styledFound = true;
+        }
+        require(styledFound, "Find the newly styled text after reopen");
         std::puts("Actor and 3D text insertion, validation, native save/reopen, movement and undo passed.");
         return 0;
     }
