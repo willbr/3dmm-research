@@ -54,6 +54,12 @@ target_sources(mm-engine-c89 PRIVATE src/help_text.c)
 target_sources(mm-engine-c89 PRIVATE src/help_display.c)
 target_sources(mm-engine-c89 PRIVATE src/help_interaction.c)
 target_sources(mm-engine-c89 PRIVATE src/help_balloon.c)
+target_sources(mm-engine-c89 PRIVATE src/help_topic.c)
+get_filename_component(engine_help_topic_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_help_topic_test.c" ABSOLUTE)
+add_executable(engine-help-topic-test EXCLUDE_FROM_ALL "${engine_help_topic_test_source}")
+target_link_libraries(engine-help-topic-test PRIVATE mm-engine-c89)
+set_target_properties(engine-help-topic-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-help-topic COMMAND engine-help-topic-test)
 get_filename_component(engine_help_balloon_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_help_balloon_test.c" ABSOLUTE)
 add_executable(engine-help-balloon-test EXCLUDE_FROM_ALL "${engine_help_balloon_test_source}")
 target_link_libraries(engine-help-balloon-test PRIVATE mm-engine-c89)
@@ -843,6 +849,8 @@ if(ENGINE_C89_COMPILER)
     "${engine_help_interaction_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/help_balloon.c"
     "${engine_help_balloon_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/help_topic.c"
+    "${engine_help_topic_test_source}"
     "${engine_document_lifecycle_test_source}"
     "${engine_document_undo_test_source}"
     "${engine_text_undo_test_source}"

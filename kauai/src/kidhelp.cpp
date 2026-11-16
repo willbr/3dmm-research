@@ -23,6 +23,7 @@ namespace Help {
 #include "help_display_host.h"
 #include "help_interaction_host.h"
 #include "help_balloon_host.h"
+#include "help_topic_host.h"
 
 BEGIN_CMD_MAP(TopicGraphicsObject, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
@@ -33,8 +34,6 @@ RTCLASS(TextDocument)
 RTCLASS(TopicGraphicsObject)
 RTCLASS(Balloon)
 RTCLASS(BalloonButton)
-
-const achar kchHelpString = '~';
 
 /***************************************************************************
     Constructor for a help text document.
@@ -339,16 +338,33 @@ TopicGraphicsObject::TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument p
 ***************************************************************************/
 PTopicGraphicsObject TopicGraphicsObject::PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb)
 {
-    PTopicGraphicsObject ptxhg;
-
-    if (pvNil == (ptxhg = NewObj TopicGraphicsObject(pwoks, ptxhd, pgcb)))
-        return pvNil;
-    if (!ptxhg->_FInit())
+    struct Factory : TextDocumentFactoryHost
     {
-        ReleasePpo(&ptxhg);
-        return pvNil;
-    }
-    return ptxhg;
+        PWorldOfKidspace world;
+        PTextDocument document;
+        PGraphicsObjectBlock block;
+    } host;
+    host.world = pwoks;
+    host.document = ptxhd;
+    host.block = pgcb;
+    MMTextFactoryServices services = {&host,
+                                      [](void *v, void **out) -> int {
+                                          auto &h = *static_cast<Factory *>(v);
+                                          return h.Guard([&] {
+                                              *out = NewObj TopicGraphicsObject(h.world, h.document, h.block);
+                                              return *out != nullptr;
+                                          });
+                                      },
+                                      [](void *v, void *p) -> int {
+                                          auto &h = *static_cast<Factory *>(v);
+                                          return h.Guard(
+                                              [&] { return static_cast<PTopicGraphicsObject>(p)->_FInit(); });
+                                      },
+                                      [](void *, void *p) { static_cast<BASE *>(p)->Release(); }, nullptr};
+    void *node;
+    mm_text_document_create(&node, 0, &services);
+    host.Rethrow();
+    return static_cast<PTopicGraphicsObject>(node);
 }
 
 /***************************************************************************
@@ -357,115 +373,11 @@ PTopicGraphicsObject TopicGraphicsObject::PtxhgNew(PWorldOfKidspace pwoks, PText
 bool TopicGraphicsObject::_FInit(void)
 {
     AssertBaseThis(0);
-    PResourceCache prca;
-    long cp, cb;
-    void *pv;
-    ChunkIdentification *pcki;
-    long dxp;
-    ChunkNumber cno;
-    LegacyLong xp, ypBase;
-    ChunkNumber cnoTopic;
-    byte bGroup;
-    long lwMax;
-    RuntimeVariableName rtvn;
-    long hid;
-    CHP chp;
-    RC rc;
-    EditParameter edpar;
-    String stn;
-    PTextDocument ptxhd = Ptxhd();
-
-    if (!TopicGraphicsObject_PAR::_FInit())
-        return fFalse;
-
-    // find the max of the group numbers
-    lwMax = 0;
-    for (cp = 0; cp < ptxhd->CpMac();)
-    {
-        ptxhd->FGrouped(cp, pvNil, &cp, &bGroup);
-        lwMax = LwMax((long)bGroup, lwMax);
-    }
-
-    // find a base hid that covers lwMax buttons
-    _interaction.base = 0;
-    if (lwMax > 0)
-    {
-        _interaction.base = CommandHandler::HidUnique(lwMax) - 1;
-        stn = PszLit("_gidBase");
-        rtvn.SetFromStn(&stn);
-        if (!FAssignRtvm(PgobPar()->Ppglrtvm(), &rtvn, _interaction.base))
-            return fFalse;
-    }
-
-    prca = Ptxhd()->Prca();
-    for (cp = 0; Ptxhd()->FFetchObject(cp, &cp, &pv, &cb); cp++)
-    {
-        if (pvNil == pv)
-            continue;
-
-        if (cb < size(ChunkTagOrType))
-            goto LContinue;
-
-        switch (*(ChunkTagOrType *)pv)
-        {
-        case kctgEditControl:
-            if (cb < size(EditControl))
-                goto LContinue;
-            dxp = ((EditControl *)pv)->dxp;
-            FreePpv(&pv);
-
-            // get the bounding rectangle
-            _GetXpYpFromCp(cp, pvNil, pvNil, &xp, &ypBase, fFalse);
-            _FetchChp(cp, &chp);
-            _pgnv->SetFont(chp.onn, chp.grfont, chp.dypFont, tahLeft, tavBaseline);
-            _pgnv->GetRcFromRgch(&rc, pvNil, 0);
-            rc.Offset(0, ypBase + chp.dypOffset);
-            rc.xpLeft = xp + 1;
-            rc.xpRight = xp + dxp - 1;
-
-            Ptxhd()->FGrouped(cp, pvNil, pvNil, &bGroup);
-            if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _interaction.base + bGroup) != pvNil)
-            {
-                hid = CommandHandler::HidUnique();
-            }
-            if (chp.acrBack == kacrClear)
-                chp.acrBack = kacrWhite;
-            edpar.Set(hid, this, fgobNil, kginMark, &rc, pvNil, chp.onn, chp.grfont, chp.dypFont, tahLeft, tavTop,
-                      chp.acrFore, chp.acrBack);
-            if (pvNil == EditControlSingleLine::PedslNew(&edpar))
-                return fFalse;
-            break;
-
-        case kctgGokd:
-            if (cb < size(ChunkIdentification) + size(ChunkNumber))
-                goto LContinue;
-            pcki = (ChunkIdentification *)pv;
-            cno = pcki->cno;
-            cnoTopic = *(ChunkNumber *)(pcki + 1);
-            FreePpv(&pv);
-
-            _GetXpYpFromCp(cp, pvNil, pvNil, &xp, &ypBase, fFalse);
-            _FetchChp(cp, &chp);
-            Ptxhd()->FGrouped(cp, pvNil, pvNil, &bGroup, cnoTopic == cnoNil ? &cnoTopic : pvNil);
-            if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _interaction.base + bGroup) != pvNil)
-            {
-                hid = CommandHandler::HidUnique();
-            }
-            if (pvNil == BalloonButton::PhbtnNew(_pwoks, this, hid, cno, prca, bGroup, cnoTopic, xp, ypBase + chp.dypOffset))
-            {
-                return fFalse;
-            }
-            break;
-
-        default:
-        LContinue:
-            FreePpv(&pv);
-            break;
-        }
-    }
-
-    AssertThis(0);
-    return fTrue;
+    BuildHost host(this);
+    auto services = host.Services();
+    int result = mm_help_topic_build(&_interaction, RichTextStoreHost::NativeBig(), &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************

@@ -10464,3 +10464,76 @@ baseline/final logs, `tmp/c89-help-balloon-{native,sdl-release,sdl-debug}-tests.
 `tmp/c89-help-balloon-asan.log`, `tmp/c89-help-balloon-regular-tests.log`,
 `tmp/c89-help-balloon-tools-build.log`, `tmp/c89-help-balloon-trace-comparison.json`,
 `tmp/c89-help-balloon-identities.json` and `tmp/c89-help-balloon-targeted-native-errors.log`.
+
+### Help topic control construction (16 November 2026)
+
+`help_topic.c` now owns Help topic base initialization, group scanning, maximum-
+group handler reservation/publication, embedded-control header decoding, geometry,
+group/target fallback, handler collision choice and edit/button creation order.
+The topic factory reuses `mm_text_document_create` with read-error publication
+disabled. Typed document, font, point, runtime-variable and control constructors
+remain in `help_topic_host.h`.
+
+The scan uses the document captured before base initialization and re-reads its
+length each iteration. Base ID resets after scanning, publishes before `_gidBase`
+assignment and remains published on failure. The button resource cache is captured
+once; object/group lookups use the current document. Ordinary scan/group false
+results are ignored, while object-fetch false ends initialization successfully.
+Missing payload allocations and unsupported/truncated records skip. Private object
+payloads release before geometry/control callbacks on all exits, including
+exceptions. Other partial controls/state remain without rollback. Shared factory
+cleanup now releases a private topic object on initialization exceptions before
+native rethrow. Exact native allocator/exception equivalence is not claimed.
+
+Native-order control words ignore extra bytes. Edit geometry uses baseline plus
+character offset, one-pixel horizontal insets and empty-font vertical metrics;
+clear edit backgrounds become white. Explicit button targets override group
+fallback; nil targets are supplied by the group. Group handler IDs use base+group
+unless occupied; ungrouped/colliding controls allocate a fresh ID. Arithmetic wraps
+at 32 bits. The obsolete native help-string marker constant is removed.
+
+Before conversion, the headless fixture recorded 552 bytes on Native Debug, SDL
+Release and SDL Debug: FNV-1a `8AB0C61F`, SHA-256
+`EF25D07EAB1FB80FFF4D66661D58C5A1A5DEDEA882A21E2BAB766E59888BAF17`.
+It freezes control-tree types/geometry, relative handler IDs, explicit/inherited
+button target dispatch and document references. Cases include no groups/objects,
+two controls sharing a group, an unused higher group affecting ID reservation,
+forced ID collision, vertical offsets and clear/colored backgrounds. GOBs and
+formatting ports exist in memory without windows, input capture or Marcus UI tests.
+
+C checks independently verify both byte orders, edit geometry/style, header extras,
+short/unknown records, missing and partially returned payload owners, ignored false
+scan/group results, successful end-of-object scanning, handler collision/failure,
+base publication, initial/live document access, captured button cache and partial
+control-prefix effects. Payloads use actual heap allocations and are freed before
+later callbacks under MSVC AddressSanitizer, which passes.
+
+All 75 original/converted topic/balloon/interaction/display/Help/text/preview trace
+pairs match across the three hosts. Prior hashes remain unchanged. Background
+checks retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188
+cameras per host. All 135 standalone C checks, including strict C89 syntax, pass.
+Forty selected Native checks and 36 checks in each SDL configuration pass,
+including the existing Native playback/player regressions. The regular headless
+asset-preview harness passes; Native `chelp` and `ched` compile. Retained input
+identities remain unchanged after verification; identities for 30 binaries are
+recorded. Test processes use private temporary directories. Marcus was stopped
+before rebuilding and relaunched afterward.
+
+The remaining `kidhelp.cpp` methods were audited as typed provider binding,
+marshalling, physical reference operations and validation. Together with the
+preceding Help slices, this moves Help-specific policy through C89; it does not
+complete C-only backend integration. Needed native string/display/resource
+representations, physical providers and final host/facade removal remain work.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Full
+interactive control behavior, arbitrary native virtual-override observations and
+other platforms remain unverified by this slice.
+
+Evidence: `tmp/c89-help-topic-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-help-topic-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-help-topic-standalone-tests.log`,
+`tmp/c89-help-topic-{balloon,interaction,display,text,views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-help-topic-asan.log`, `tmp/c89-help-topic-regular-tests.log`,
+`tmp/c89-help-topic-tools-build.log`, `tmp/c89-help-topic-trace-comparison.json`,
+`tmp/c89-help-topic-identities.json` and `tmp/c89-help-topic-targeted-native-errors.log`.

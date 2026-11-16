@@ -19,6 +19,7 @@
 #include "mm/help_display.h"
 #include "mm/help_interaction.h"
 #include "mm/help_balloon.h"
+#include "mm/help_topic.h"
 
 namespace Help {
 
@@ -137,6 +138,7 @@ class TopicGraphicsObject : public TopicGraphicsObject_PAR
   protected:
     MMHelpInteraction _interaction;
     struct InteractionHost;
+    struct BuildHost;
     PWorldOfKidspace _pwoks;
 
     TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb);

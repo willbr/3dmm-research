@@ -551,8 +551,10 @@ plain C topic data. Help embedded-object bounds and drawing sequence now also us
 C89, with plain C button-visibility state. Help topic mouse/key/hit/cursor and
 script-dispatch policy now also use C89 and plain C tracking/base-handler state.
 Balloon creation/replacement/layout and button construction/hit dispatch now also
-use C89, with plain C topic-view and button state. Physical bitmap/font/graphics
-providers and topic control construction remain work.
+use C89, with plain C topic-view and button state. Help group scanning, handler
+reservation, embedded-control decoding/geometry/creation and topic factory cleanup
+now also use C89. Physical bitmap/font/graphics providers and final integration
+remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.
@@ -626,10 +628,13 @@ also use C89 and plain C topic data. Help embedded-object bounds, resource selec
 and drawing sequence now also use C89 and plain C button-visibility state.
 Help topic mouse/key/hit/cursor and script-dispatch policy now also use C89 and
 plain C tracking/base-handler state. Physical bitmap/font/graphics providers,
-topic control construction, display/output
+display/output
 representations, native string/display/UI representations and final host integration
 still need conversion. Balloon creation/replacement/layout and button construction/
-hit dispatch now also use C89 and plain C topic-view/button state.
+hit dispatch now also use C89 and plain C topic-view/button state. Help topic
+group scanning, handler reservation, embedded-control decoding/geometry/creation
+and factory cleanup now also use C89. Native Help bridge methods retain typed
+provider binding, marshalling and validation; this is not final C-only integration.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

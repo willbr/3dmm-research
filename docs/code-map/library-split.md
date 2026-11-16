@@ -2259,6 +2259,42 @@ construction, physical/native string/display/UI/resource representations and fin
 C-only host/facade removal remain conversion work. Evidence and platform limits
 are in `docs/tools/playback-regression.md`.
 
+### Help topic control construction
+
+`help_topic.c` owns Help topic base initialization, group scanning, maximum-group
+handler reservation/publication, embedded-control header decoding, geometry,
+group/target fallback, handler collision choice and edit/button creation order.
+The factory now uses shared `mm_text_document_create` sequencing with no read-error
+publication. `help_topic_host.h` supplies typed document, font, point, runtime
+variable and control-constructor primitives.
+
+The group scan uses the initial document captured before base initialization and
+re-reads its length each iteration. Base ID resets only after scanning, publishes
+before `_gidBase` assignment, and stays published on failure. The button resource
+cache is captured once; object and group lookups use the current document. Ordinary
+scan/group false results are ignored, while object-fetch false ends successfully.
+Missing payload allocations and unsupported/truncated records skip to the next
+object. Private payloads release before geometry and control callbacks, including
+all exceptional exits; partial controls and public state are not rolled back.
+
+Control words use native byte order and ignore extra bytes. Edit geometry uses
+baseline plus character offset, one-pixel horizontal insets and empty-font vertical
+metrics; clear edit backgrounds become white. Explicit button targets take
+priority, with nil targets supplied by the group. Group IDs use base+group unless
+occupied; ungrouped/colliding controls allocate a fresh handler ID. Arithmetic wraps
+at 32 bits. Shared factory cleanup now releases a private topic object on an
+initialization exception before native rethrow.
+
+The headless fixture freezes original Native/SDL control trees, geometry, relative
+handler IDs, target dispatch and document references with shared groups, collision
+fallback, offsets and background styles. C checks cover both byte orders, extra/
+short/unknown records, missing and partial owners, scan/group/fetch false semantics,
+handler failures, publication, cache capture and control-prefix failure. Together
+with the preceding Help slices, native `kidhelp.cpp` retains typed provider
+binding, marshalling, physical reference operations and validation. Needed native
+string/display/resource representations and final C-only host/facade integration
+remain work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
 ### Movie scene-container control and undo
 
 `movie_scene.c` owns the current scene reference/index and the control flow for
