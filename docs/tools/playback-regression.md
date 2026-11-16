@@ -11028,3 +11028,61 @@ Evidence: `tmp/c89-reference-cache-{baseline,final}-{native,sdl-release,sdl-debu
 `tmp/c89-reference-reader-{diag,nofold}.log`,
 `tmp/c89-reference-regular-tests.log`, `tmp/c89-reference-tools-build.log`,
 `tmp/c89-reference-trace-comparison.json` and `tmp/c89-reference-identities.json`.
+
+
+### Shared C counted-string mutation, parsing and escaping (16 November 2026)
+
+`string_value.c` now owns counted-string copy/set/delete/append/insert, exact
+comparison, number parsing and control expansion. Native String delegates to the
+same C89 implementation for both character widths, using borrowed native buffers
+and native copy diagnostics. Copy checks observe the existing length and the
+already-shifted insertion tail before the new characters are copied. Native
+String formatting/varargs, encoding adapters, direct-buffer access and final
+facade removal remain work.
+
+The conversion preserves insertion's unusual overflow retained-length calculation,
+append truncation, automatic-base repeated-sign handling, digit-equal-to-radix
+acceptance, empty hexadecimal prefixes and defined 32-bit wrap. Escaping keeps
+CR-to-backslash-n, literal LF and partial publication only after an escape has
+been emitted. Failed C parsing leaves its output untouched; the native adapter
+retains zero/debug-trash output on failure.
+
+Before conversion, the expanded `string-compat` fixture captured 122,840,792 bytes
+on each of Native Debug, SDL Release and SDL Debug. All three original traces
+have FNV-1a `C67CD6FD` and SHA-256
+`5F85FEBAE3734CF811FB6BB5C4A758E3B01BAEABDA6FBAB28524E24EDFE99B15`.
+The corpus covers copy/assignment, set/append truncation, every insertion/deletion
+position at selected lengths/counts, out-of-range insertion clamping, each escaped
+control at every position/length through capacity and automatic/explicit numeric
+bases. It records defined results, lengths and characters, not unused storage or
+failed debug-trash outputs. The standalone C fixture freezes that original
+fingerprint for both widths and adds guard units, non-ASCII wide characters,
+multiple-escape partial publication and copy-observation checks.
+
+The final wider gate passes 204 Native checks, 199 SDL Release checks and 200 SDL
+Debug checks. SDL Release additionally reports the existing debug-only
+`world-export` fixture as skipped; its C policy and Native/SDL Debug integration
+checks pass. All 142 standalone checks, including strict C89 syntax, pass. Thus
+745 of 746 selected checks pass, with one declared skip. The new C suite passes
+MSVC AddressSanitizer for both character widths.
+
+All 123 original/converted string/cache/template/text/body/undo/Help/Preview trace
+pairs match across the three hosts. All ten retained input identities are
+unchanged; identities for 57 binaries are recorded. The regular headless
+asset-preview harness passes; Native `chelp` and `ched` compile. Background checks
+retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per
+host. Test processes use private temporary directories. Marcus was stopped before
+rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. The two-byte
+C corpus checks common value semantics and wide characters, not a complete native
+Unicode host build. Arbitrary native callback/override observations, invalid
+lifetime/overlapping character-copy use and other platforms remain unverified.
+The string and broader engine dependencies listed above remain conversion work.
+
+Evidence: `tmp/c89-string-value-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-string-value-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-string-value-standalone-tests.log`, `tmp/c89-string-value-asan.log`,
+`tmp/c89-string-value-regular-tests.log`,
+`tmp/c89-string-value-trace-comparison.json` and `tmp/c89-string-value-identities.json`.

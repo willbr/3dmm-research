@@ -54,6 +54,7 @@ Build and test this slice independently using only a C compiler:
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
 cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test engine-actor-sound-test engine-sound-edit-test
 cmake --build build/engine-c89 --target engine-event-edit-test
+cmake --build build/engine-c89 --target engine-string-value-test
 cmake --build build/engine-c89 --target engine-action-edit-test
 cmake --build build/engine-c89 --target engine-costume-edit-test
 cmake --build build/engine-c89 --target engine-route-edit-test
@@ -203,6 +204,31 @@ legacy map hashes, surrogate substitution and short output buffers. Native
 Mac/Windows encodings, UTF-16BE loading and duplicate independence. Text-service
 checks compare native callbacks directly with Win32 and force portable policy
 on Windows. The standalone platform-check project links the same C text module.
+
+### Counted-string value operations
+
+`mm/string_value.h` owns counted-string copying, assignment, set/delete/append/
+insert, exact equality, 32-bit number parsing and control expansion. Both character
+widths use the same C89 implementation over borrowed 257-unit buffers. Native
+`String` delegates these operations and supplies its existing debug copy checks;
+insertion still shifts the tail before those checks observe it. The C API does
+not allocate or translate encodings.
+
+Append and insert retain partial results on overflow. Insertion preserves the
+legacy retained-length calculation even when that truncates more than the
+requested tail. Number parsing retains repeated signs in automatic-base mode,
+acceptance of a digit equal to the radix, empty hexadecimal prefixes, trailing
+spaces and 32-bit wrapping. Explicit bases do not gain automatic-base sign rules.
+Escaping retains CR-to-`\n`, literal LF, tab/quote/backslash expansion and partial
+publication only after an escape has been emitted. Failed C parsing leaves the
+output untouched; native `String` retains its zero/debug-trash failure output.
+
+`engine-string-value` checks both widths against a fingerprint captured from
+the original native code, with guard units, wide non-ASCII values, partial
+expansion and copy-observation ordering. Native `string-compat` freezes the same
+mutation/parse/escape corpus and optionally writes its defined results through
+`MM_STRING_VALUE_SNAPSHOT`. Formatting/varargs, native encoding adapters, direct
+buffer access and final `String` facade removal remain conversion work.
 
 ### Collection storage foundation
 

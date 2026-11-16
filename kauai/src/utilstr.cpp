@@ -18,6 +18,21 @@ ASSERTNAME
 
 #include "mm/text.h"
 #include "mm/string_wire.h"
+#include "mm/string_value.h"
+
+static void StringCopyCheck(void *, const void *source, void *destination, size_t bytes)
+{
+    AssertPvCb(const_cast<void *>(source), bytes);
+    AssertPvCb(destination, bytes);
+    Assert(static_cast<const byte *>(source) + bytes <= destination ||
+           static_cast<byte *>(destination) + bytes <= source, "blocks overlap");
+}
+static MMStringValue StringValueView(achar *buffer)
+{
+    static_assert(sizeof(achar) == 1 || sizeof(achar) == 2, "unsupported string unit");
+    MMStringValue value = {buffer, sizeof(achar), nullptr, StringCopyCheck};
+    return value;
+}
 
 const achar vrgchHex[] = PszLit("0123456789ABCDEF");
 
@@ -27,8 +42,8 @@ const achar vrgchHex[] = PszLit("0123456789ABCDEF");
 String::String(String &stnSrc)
 {
     AssertPo(&stnSrc, 0);
-
-    CopyPb(stnSrc._rgch, _rgch, (stnSrc.Cch() + 2) * size(achar));
+    const auto value = StringValueView(_rgch);
+    mm_string_value_copy(&value, stnSrc._rgch);
     AssertThis(0);
 }
 
@@ -38,11 +53,9 @@ String::String(String &stnSrc)
 String::String(PZString pszSrc)
 {
     LegacyLong cch = LwBound(CchSz(pszSrc), 0, kcchMaxStn + 1);
-
     AssertIn(cch, 0, kcchMaxStn + 1);
-    CopyPb(pszSrc, _rgch + 1, cch * size(achar));
-    _rgch[0] = (achar)cch;
-    _rgch[cch + 1] = 0;
+    const auto value = StringValueView(_rgch);
+    mm_string_value_set(&value, pszSrc, cch);
     AssertThis(0);
 }
 
@@ -53,8 +66,8 @@ String &String::operator=(String &stnSrc)
 {
     AssertThis(0);
     AssertPo(&stnSrc, 0);
-
-    CopyPb(stnSrc._rgch, _rgch, (stnSrc.Cch() + 2) * size(achar));
+    const auto value = StringValueView(_rgch);
+    mm_string_value_copy(&value, stnSrc._rgch);
     AssertThis(0);
     return *this;
 }
@@ -67,17 +80,8 @@ void String::SetRgch(achar *prgchSrc, LegacyLong cch)
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
     AssertPvCb(prgchSrc, cch * size(achar));
-
-    if (cch > kcchMaxStn)
-        cch = kcchMaxStn;
-
-    if (cch > 0)
-        CopyPb(prgchSrc, _rgch + 1, cch * size(achar));
-    else
-        cch = 0; // for safety
-
-    _rgch[0] = (achar)cch;
-    _rgch[cch + 1] = 0;
+    const auto value = StringValueView(_rgch);
+    mm_string_value_set(&value, prgchSrc, cch);
     AssertThis(0);
 }
 
@@ -110,26 +114,12 @@ void String::Delete(LegacyLong ich, LegacyLong cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
-    LegacyLong cchCur = Cch();
-
-    if (!FIn(ich, 0, cchCur))
-    {
-        Assert(ich == cchCur, "Bad character position to delete from");
+    if (ich < 0 || ich > Cch()) {
+        Assert(false, "Bad character position to delete from");
         return;
     }
-
-    if (ich + cch >= cchCur)
-    {
-        // delete to the end of the string
-        _rgch[0] = (achar)ich;
-        _rgch[ich + 1] = 0;
-    }
-    else
-    {
-        BltPb(_rgch + ich + cch + 1, _rgch + ich + 1, (cchCur - ich - cch) * size(achar));
-        _rgch[0] = (achar)(cchCur - cch);
-        _rgch[cchCur - cch + 1] = 0;
-    }
+    const auto value = StringValueView(_rgch);
+    mm_string_value_delete(&value, ich, cch);
     AssertThis(0);
 }
 
@@ -141,24 +131,10 @@ bool String::FAppendRgch(achar *prgchSrc, LegacyLong cch)
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
     AssertPvCb(prgchSrc, cch * size(achar));
-    bool fRet = fTrue;
-    LegacyLong cchCur = Cch();
-
-    if (cch > kcchMaxStn - cchCur)
-    {
-        cch = kcchMaxStn - cchCur;
-        fRet = fFalse;
-    }
-
-    if (cch > 0)
-    {
-        CopyPb(prgchSrc, _rgch + cchCur + 1, cch * size(achar));
-        _rgch[0] = (achar)(cchCur + cch);
-        _rgch[cchCur + cch + 1] = 0;
-    }
-
+    const auto value = StringValueView(_rgch);
+    const bool result = mm_string_value_append(&value, prgchSrc, cch) != 0;
     AssertThis(0);
-    return fRet;
+    return result;
 }
 
 /***************************************************************************
@@ -169,36 +145,10 @@ bool String::FInsertRgch(LegacyLong ich, achar *prgchSrc, LegacyLong cch)
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
     AssertPvCb(prgchSrc, cch * size(achar));
-    bool fRet = fTrue;
-    LegacyLong cchCur = Cch();
-
-    ich = LwBound(ich, 0, cchCur + 1);
-    if (cch > kcchMaxStn - ich)
-    {
-        cchCur = ich;
-        cch = kcchMaxStn - ich;
-        fRet = fFalse;
-    }
-    else if (cch > kcchMaxStn - cchCur)
-    {
-        cchCur = kcchMaxStn - cch - ich;
-        fRet = fFalse;
-    }
-
-    Assert(cchCur + cch <= kcchMaxStn, 0);
-    if (cch > 0)
-    {
-        if (cchCur > ich)
-        {
-            BltPb(_rgch + ich + 1, _rgch + ich + cch + 1, (cchCur - ich) * size(achar));
-        }
-        CopyPb(prgchSrc, _rgch + ich + 1, cch * size(achar));
-        _rgch[0] = (achar)(cchCur + cch);
-        _rgch[cchCur + cch + 1] = 0;
-    }
-
+    const auto value = StringValueView(_rgch);
+    const bool result = mm_string_value_insert(&value, ich, prgchSrc, cch) != 0;
     AssertThis(0);
-    return fRet;
+    return result;
 }
 
 /***************************************************************************
@@ -210,8 +160,8 @@ bool String::FEqualRgch(achar *prgch, LegacyLong cch)
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
     AssertPvCb(prgch, cch * size(achar));
-
-    return cch == Cch() && FEqualRgb(_rgch + 1, prgch, cch * size(achar));
+    const auto value = StringValueView(_rgch);
+    return mm_string_value_equal(&value, prgch, cch) != 0;
 }
 
 /***************************************************************************
@@ -626,89 +576,15 @@ bool String::FGetLw(LegacyLong *plw, LegacyLong lwBase)
     AssertVarMem(plw);
     AssertIn(lwBase, 0, 36);
     Assert(lwBase != 1, "base can't be 1");
-    LegacyLong lwDigit;
-    LegacyUlong value = 0;
-    achar ch;
-    bool fNegative = fFalse;
-    PZString psz = Psz();
-
-    if (lwBase < 2)
-    {
-        for (;; psz++)
-        {
-            switch (*psz)
-            {
-            case ChLit('-'):
-                fNegative = !fNegative;
-                continue;
-
-            case ChLit('+'):
-            case kchSpace:
-                continue;
-            }
-            break;
-        }
+    const auto value = StringValueView(_rgch);
+    MMI32 result;
+    if (!mm_string_value_number(&value, lwBase, &result)) {
+        *plw = 0;
+        TrashVar(plw);
+        return false;
     }
-
-    *plw = 0;
-    if (*psz == 0)
-        goto LFail;
-
-    // determine the base if lwBase is zero
-    if (0 == lwBase)
-    {
-        // determine the base
-        if (ChLit('0') == psz[0])
-        {
-            psz++;
-            if (ChLit('x') == psz[0] || ChLit('X') == psz[0])
-            {
-                psz++;
-                lwBase = 16;
-            }
-            else
-                lwBase = 8;
-        }
-        else
-            lwBase = 10;
-    }
-
-    while (0 != (ch = *psz++))
-    {
-        if (FIn(ch, ChLit('0'), ChLit('9') + 1))
-            lwDigit = ch - ChLit('0');
-        else
-        {
-            if (FIn(ch, ChLit('A'), ChLit('Z') + 1))
-                ch += ChLit('a') - ChLit('A');
-            else if (!FIn(ch, ChLit('a'), ChLit('z') + 1))
-            {
-                // not a letter, so only spaces should follow
-                for (; ch != 0; ch = *psz++)
-                {
-                    if (ch != kchSpace)
-                        goto LFail;
-                }
-                break;
-            }
-            lwDigit = ch - ChLit('a') + 10;
-        }
-
-        if (lwDigit > lwBase)
-        {
-        LFail:
-            TrashVar(plw);
-            return fFalse;
-        }
-        // Retain the original 32-bit wrap semantics without signed overflow.
-        value = value * static_cast<LegacyUlong>(lwBase) + static_cast<LegacyUlong>(lwDigit);
-    }
-
-    if (fNegative)
-        value = LegacyUlong(0) - value;
-    *plw = value <= 0x7FFFFFFFu ? static_cast<LegacyLong>(value) : -static_cast<LegacyLong>(~value) - 1;
-
-    return fTrue;
+    *plw = result;
+    return true;
 }
 
 /***************************************************************************
@@ -718,47 +594,10 @@ bool String::FGetLw(LegacyLong *plw, LegacyLong lwBase)
 bool String::FExpandControls(void)
 {
     AssertThis(0);
-    achar rgch[kcchMaxStn];
-    achar *pchSrc, *pchDst, *pchLim, ch;
-    LegacyLong cch;
-    bool fAny;
-    bool fRet = fFalse;
-
-    fAny = fFalse;
-    pchSrc = Psz();
-    pchDst = rgch;
-    pchLim = pchDst + kcchMaxStn;
-    for (cch = Cch(); cch-- > 0;)
-    {
-        if (pchDst >= pchLim)
-            goto LFail;
-        ch = *pchSrc++;
-        switch (ch)
-        {
-        case kchTab:
-            ch = ChLit('t');
-            goto LExpand;
-        case kchReturn:
-            ch = ChLit('n');
-            goto LExpand;
-        case ChLit('\\'):
-        case ChLit('"'):
-        LExpand:
-            if (pchDst + 1 >= pchLim)
-                goto LFail;
-            *pchDst++ = ChLit('\\');
-            fAny = fTrue;
-            break;
-        }
-        *pchDst++ = ch;
-    }
-    fRet = fTrue;
-
-LFail:
-    if (fAny)
-        SetRgch(rgch, pchDst - rgch);
-
-    return fRet;
+    const auto value = StringValueView(_rgch);
+    const bool result = mm_string_value_expand(&value) != 0;
+    AssertThis(0);
+    return result;
 }
 
 #ifdef DEBUG

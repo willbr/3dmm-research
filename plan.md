@@ -392,7 +392,10 @@ have shared C89 implementations behind temporary native facades. Common BASE
 reference storage, retain/drop and final-release decisions, plus marked-file
 release policy, now also use C89. Resource caches borrow those C counters directly;
 native allocation, virtual destruction/debug tracking and final facade removal
-remain work. Actor event
+remain work. Counted String copy/set/delete/append/insert, exact equality,
+32-bit number parsing and control expansion now also use shared C89 over borrowed
+one/two-byte buffers, retaining native copy diagnostics. String formatting,
+encoding adapters and final String facade removal remain work. Actor event
 insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
 copy, route-paste, full actor-paste, clipboard, actor creation/binding and movie
 sound integration control and body construction/shape disposal, duplication,

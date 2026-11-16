@@ -23,6 +23,89 @@ static void Check(bool value)
     if (!value)
         std::exit(1);
 }
+static uint32_t valueHash = 2166136261u;
+static std::FILE *valueTrace;
+static void ValueWord(uint32_t value)
+{
+    for (unsigned i = 0; i < 4; ++i) {
+        const auto byte = static_cast<unsigned char>(value >> (8 * i));
+        valueHash = (valueHash ^ byte) * 16777619u;
+        if (valueTrace) Check(std::fputc(byte, valueTrace) != EOF);
+    }
+}
+static void ValueString(String &value, bool result)
+{
+    ValueWord(result);
+    ValueWord(value.Cch());
+    for (LegacyLong i = 0; i <= value.Cch(); ++i) ValueWord(static_cast<uchar>(value.Psz()[i]));
+}
+static void CheckStringValues()
+{
+    const auto path = std::getenv("MM_STRING_VALUE_SNAPSHOT");
+    valueTrace = path ? std::fopen(path, "wb") : nullptr;
+    Check(!path || valueTrace);
+    achar source[512];
+    for (unsigned i = 0; i < 512; ++i) source[i] = static_cast<achar>('A' + i % 26);
+    const LegacyLong lengths[] = {0, 1, 10, 127, 254, 255};
+    const LegacyLong counts[] = {0, 1, 3, 126, 127, 254, 255, 256, 511};
+    for (auto length : lengths) {
+        String value;
+        value.SetRgch(source, length);
+        String copy(value), assigned;
+        assigned = copy;
+        Check(value.FEqual(&copy) && value.FEqual(&assigned));
+        ValueString(copy, true);
+        ValueString(assigned, true);
+        for (auto count : counts) {
+            value.SetRgch(source, count);
+            ValueString(value, true);
+            value.SetRgch(source, length);
+            ValueString(value, value.FAppendRgch(source, count));
+            for (LegacyLong position = 0; position <= length; ++position) {
+                value.SetRgch(source, length);
+                value.Delete(position, count);
+                ValueString(value, true);
+                value.SetRgch(source, length);
+                ValueString(value, value.FInsertRgch(position, source, count));
+            }
+            for (auto position : {LegacyLong(-10), length + 10}) {
+                value.SetRgch(source, length);
+                ValueString(value, value.FInsertRgch(position, source, count));
+            }
+        }
+    }
+    // Freeze partial expansion at capacity, including a CR, LF (unchanged),
+    // tab, quote and backslash at every possible position.
+    for (auto special : {achar('\r'), achar('\n'), achar('\t'), achar('"'), achar('\\')}) {
+        for (LegacyLong length = 0; length <= 255; ++length) {
+            for (LegacyLong position = 0; position < length; ++position) {
+                achar input[255];
+                std::memset(input, 'a', sizeof(input));
+                input[position] = special;
+                String value;
+                value.SetRgch(input, length);
+                ValueString(value, value.FExpandControls());
+            }
+        }
+    }
+    const char *numbers[] = {"", " ", "0", "0x", "0X ", "00", "08", "09", "1", "2", "19", "a", "z",
+        "  - + - 123  ", "+", "-", "--123", "-1", "1  ", "1 2", "1\t", "0x10", "0xffffffff",
+        "2147483648", "4294967295", "-4294967296", "8589934593", "-2147483649"};
+    for (auto text : numbers) {
+        for (LegacyLong radix = 0; radix < 36; ++radix) {
+            if (radix == 1) continue;
+            String value(const_cast<char *>(text));
+            LegacyLong number = 0;
+            const auto result = value.FGetLw(&number, radix);
+            ValueWord(result);
+            if (result) ValueWord(static_cast<uint32_t>(number));
+        }
+    }
+    if (valueTrace) Check(std::fclose(valueTrace) == 0);
+    valueTrace = nullptr;
+    std::printf("String value fingerprint: %08X\n", valueHash);
+    Check(valueHash == 0xC67CD6FDu);
+}
 static void CheckTableEntry(PVirtualStringTable table, LegacyLong index, const char *label, LegacyLong expected)
 {
     String text;
@@ -126,6 +209,7 @@ static void CheckStringStorage()
 }
 int main()
 {
+    CheckStringValues();
     CheckStringStorage();
     const byte windows[] = {3, 3, 4, 'C', 'a', 'f', 0xe9, 0};
     const byte mac[] = {2, 2, 4, 'C', 'a', 'f', 0x8e, 0};
