@@ -42,7 +42,7 @@ static const RibbonTool *tools_for(int tab, int *count)
 static float tool_step(int width, int count)
 {
     float available;
-    available = ((float)width - 280) / count;
+    available = ((float)width - 32) / count;
     return available < 104 ? available : 104;
 }
 static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
@@ -194,10 +194,6 @@ void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded,
                  enabled ? 0xdde0e5 : 0x737b86);
         if (hovered) ui->hint = tools[index].hint;
     }
-    ui_line(ui, (float)width - 254, 82, (float)width - 254, 131, 0x424952);
-    ui_button_sized(ui, (float)width - 238, 84, 104, 26, "Resources...", 0, 1);
-    ui_button_sized(ui, (float)width - 126, 84, 110, 26, "Content...", 0, 1);
-    ui_text(ui, (float)width - 238, 120, "Original 3DMM content", 0x969da8);
     ui_line(ui, 0, MARCUS_RIBBON_HEIGHT, (float)width, MARCUS_RIBBON_HEIGHT, 0x424952);
 }
 int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long cameras, int selected_text)
@@ -210,8 +206,6 @@ int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long 
     if (ui_inside(x, y, (float)width - 336, 5, 104, 26)) return RIBBON_NEW_MOVIE;
     if (ui_inside(x, y, (float)width - 224, 5, 104, 26)) return RIBBON_OPEN;
     if (ui_inside(x, y, (float)width - 112, 5, 96, 26)) return RIBBON_SETTINGS;
-    if (ui_inside(x, y, (float)width - 238, 84, 104, 26)) return RIBBON_RESOURCES;
-    if (ui_inside(x, y, (float)width - 126, 84, 110, 26)) return RIBBON_CONTENT;
     for (index = 0; index < 4; ++index)
         if (ui_inside(x, y, tab_x[index], 40, tab_w[index], 30)) { *tab = index; return RIBBON_NONE; }
     tools = tools_for(*tab, &count);

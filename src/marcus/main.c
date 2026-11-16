@@ -939,7 +939,7 @@ static void SDLCALL dialog_callback(void *userdata, const char *const *files, in
 static void choose_file(App *app, int kind)
 {
     DialogRequest *request;
-    static const SDL_DialogFileFilter resources[] = {{"3DMM resources", "chk"}};
+    static const SDL_DialogFileFilter resources[] = {{"3DMM palette and shading", "chk"}};
     static const SDL_DialogFileFilter movies[] = {{"Marcus movie copy", "3mm"}};
     static const SDL_DialogFileFilter bundles[] = {{"V3DMM movie bundle", "vmm"}};
     release_camera(app);
@@ -1539,6 +1539,16 @@ static void settings_click(App *app, float x, float y)
     top = (app->height - SETTINGS_HEIGHT) / 2.0f;
     if (ui_inside(x, y, left + 618, top + 16, 28, 28))
         cancel_settings(app);
+    else if (ui_inside(x, y, left + 226, top + 48, 200, 26))
+    {
+        app->binding_capture = -1;
+        choose_file(app, 1);
+    }
+    else if (ui_inside(x, y, left + 434, top + 48, 200, 26))
+    {
+        app->binding_capture = -1;
+        choose_file(app, 2);
+    }
     else if (ui_inside(x, y, left + 430, top + 100, 204, MARCUS_ACTION_COUNT * SHORTCUT_ROW_HEIGHT))
     {
         app->binding_capture = (int)((y - top - 100) / SHORTCUT_ROW_HEIGHT);
@@ -1669,8 +1679,6 @@ static void ribbon_action(App *app, int action)
     int index, step, match;
     if (action == RIBBON_NEW_MOVIE) new_movie(app);
     else if (action == RIBBON_OPEN) choose_file(app, 0);
-    else if (action == RIBBON_RESOURCES) choose_file(app, 1);
-    else if (action == RIBBON_CONTENT) choose_file(app, 2);
     else if (action == RIBBON_SETTINGS) open_settings(app);
     else if (action == RIBBON_NEW_SCENE) choose_background(app);
     else if (action == RIBBON_STORYBOARD)
@@ -2866,7 +2874,7 @@ static void draw_view(App *app)
                 app->blank_movie ? "Choose a background for your first scene." : "Start a scene, or open a movie to explore.", MUTED);
         ui_button(ui, app->sidebar / 2 - 65, 280 + RIBBON_DELTA, 130, "New scene", 1, 1);
         ui_text(ui, 24, app->viewport_bottom - 30,
-                "Select Resources and Content if your original 3DMM files are elsewhere.", MUTED);
+                "Choose Settings > Content locations if your original 3DMM files are elsewhere.", MUTED);
         return;
     }
     if (app->dirty)
@@ -3727,6 +3735,9 @@ static void draw_settings(App *app)
     ui_fill(&app->ui, x, y, 660, SETTINGS_HEIGHT, PANEL);
     ui_text(&app->ui, x + 24, y + 20, "Settings", TEXT);
     ui_button(&app->ui, x + 618, y + 16, 28, "x", 0, 1);
+    ui_text(&app->ui, x + 226, y + 20, "Content locations", MUTED);
+    ui_button_sized(&app->ui, x + 226, y + 48, 200, 26, "Palette & shading...", 0, 1);
+    ui_button_sized(&app->ui, x + 434, y + 48, 200, 26, "3DMM content folder...", 0, 1);
     ui_heading(&app->ui, x + 24, y + 53, "KEYBOARD SHORTCUTS", ACCENT);
     ui_text(&app->ui, x + 24, y + 76,
             app->binding_capture >= 0 ? "Press a key. Escape cancels capture. Backspace clears the binding."

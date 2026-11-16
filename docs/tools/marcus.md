@@ -105,8 +105,10 @@ directory should contain `tmpls.3cn`, `bkgds.3cn`, `mtrls.3cn` and `tdfs.3cn`.
 Marcus looks for `3dmovie.chk` beside the executable or in the working directory,
 then tries known Studio build paths in the source tree. It looks for
 `content-files` beside the executable, then in the source tree. These are
-development conveniences; CLI flags and Resources/Content buttons allow explicit
-paths. Original content is not bundled or downloaded by Marcus.
+development conveniences; CLI flags and **Settings > Content locations** allow
+explicit paths through **Palette & shading...** (the `.chk` file) and
+**3DMM content folder...** (actors, props, backgrounds, fonts, materials and
+sounds). Original content is not bundled or downloaded by Marcus.
 
 Open a movie with **Open movie**, **Ctrl+O**, or drag and drop. Selecting
 Resources or Content reloads that movie.
