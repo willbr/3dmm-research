@@ -290,10 +290,15 @@ Guides are clipped to the visible viewport and never drawn over movie playback.
 All cameras are shown by default; the choice is saved across movies/restarts.
 
 **Actors & props > New actor** and **New prop** open the original actor or prop
-catalogue with a rendered preview. Browse with the list, arrows, Page Up/Down or
-wheel, then choose **Add actor** or **Add prop**, Enter or double-click.
+catalogue as a gallery of twelve rendered 3D model cards, with names below each
+model. Click a card or use Left/Right and Up/Down to select a model. The wheel
+scrolls rows, Page Up/Down moves by a page, and Home/End jumps to the first/last
+model. A scrollbar is available on the right. Choose **Add actor** or **Add prop**, Enter or double-click.
 Cancel/Escape leaves the movie unchanged. The chooser requires `tmpls.3cn` in the
-Content folder and previews run in the isolated helper process.
+Content folder. Model previews load progressively through one isolated helper
+process and are cached while browsing, with at most 64 model textures retained.
+A failed preview leaves the other cards usable. New scene keeps its background
+list and larger selected preview.
 
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes with

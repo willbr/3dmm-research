@@ -24,8 +24,10 @@ struct MarcusFramePreviews
     std::string failure;
     Result output;
     std::thread thread;
+    // Model mode uses position.scene as a caller's card ID and position.frame
+    // as the template chunk. Individual model errors do not end the stream.
     MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie, std::string resources, std::string content, int scene,
-                        bool cameras = false);
+                        bool cameras = false, bool models = false);
     ~MarcusFramePreviews();
 };
 #endif

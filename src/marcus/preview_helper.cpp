@@ -102,6 +102,45 @@ int FramePreviews(char **argv, const char *fonts, const char *origin, bool camer
         return 1;
     }
 }
+int ModelPreviews(char **argv)
+{
+    try
+    {
+        MM::Preview renderer;
+        MM::Error error;
+        if (!renderer.Open(argv[1], argv[2], error)) throw std::runtime_error(error.message);
+        int slot;
+        long long chunk;
+        while (std::cin >> slot >> chunk)
+        {
+            BrowserPreview preview;
+            try
+            {
+                MM::PreviewView view;
+                MM::PreviewImage image;
+                view.width = 240; view.height = 180;
+                view.authoredCamera = false; view.yaw = 25; view.pitch = -10;
+                if (chunk < 0 || chunk > 0xffffffffLL ||
+                    !renderer.Select({0x544d504c, static_cast<std::uint32_t>(chunk)}, error) ||
+                    !renderer.Render(view, image, error))
+                    preview.error = error.message.empty() ? "Cannot preview this model." : error.message;
+                else
+                {
+                    preview.width = image.width; preview.height = image.height;
+                    preview.rgba = std::move(image.rgba);
+                }
+            }
+            catch (const std::exception &e) { preview.error = e.what(); }
+            if (!FrameResponse(preview)) return 1;
+        }
+        return 0;
+    }
+    catch (const std::exception &e)
+    {
+        BrowserPreview preview; preview.error = e.what();
+        FrameResponse(preview); return 1;
+    }
+}
 }
 int main(int argc, char **argv)
 {
@@ -111,12 +150,14 @@ int main(int argc, char **argv)
     const bool frames = cameras || ((argc == 6 || argc == 7 || argc == 8) && !std::strcmp(argv[3], "--frames"));
     const bool background = argc == 5 && !std::strcmp(argv[3], "--background");
     const bool prop = argc == 5 && !std::strcmp(argv[3], "--prop");
-    if (argc != 3 && !duration && !timeline && !frames && !background && !prop) return 2;
+    const bool models = argc == 8 && !std::strcmp(argv[3], "--models");
+    if (argc != 3 && !duration && !timeline && !frames && !background && !prop && !models) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
-    if (frames) _setmode(_fileno(stdin), _O_BINARY);
+    if (frames || models) _setmode(_fileno(stdin), _O_BINARY);
 #endif
     if (frames) return FramePreviews(argv, argc >= 7 ? argv[6] : nullptr, argc == 8 ? argv[7] : nullptr, cameras);
+    if (models) return ModelPreviews(argv);
     BrowserPreview preview;
     try
     {

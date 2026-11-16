@@ -1,12 +1,21 @@
 #include "background_browser.h"
 #include "preview_worker.h"
+#include "frame_previews.h"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <future>
 #include <memory>
 #include <string>
 #include <vector>
 
+namespace
+{
+constexpr int galleryColumns = 4, galleryRows = 3, galleryPage = galleryColumns * galleryRows;
+constexpr float galleryWidth = 1000, galleryHeight = 720, galleryTop = 94, galleryTrack = 510;
+SDL_FRect GalleryCard(float x, float y, int cell)
+{ return {x + 24 + (cell % galleryColumns) * 236.f, y + galleryTop + (cell / galleryColumns) * 170.f, 224, 158}; }
+}
 struct MarcusBackgroundBrowser
 {
     bool open = false, chosen = false, scrollDragging = false, props = false, actors = false;
@@ -16,20 +25,142 @@ struct MarcusBackgroundBrowser
     std::shared_ptr<std::atomic<bool>> cancel;
     std::future<BrowserPreview> pending;
     SDL_Texture *texture = nullptr;
-    ~MarcusBackgroundBrowser() { Stop(); SDL_DestroyTexture(texture); }
-    void Stop() { if (cancel) *cancel = true; if (pending.valid()) pending.wait(); }
+    struct Tile { SDL_Texture *texture = nullptr; std::string error; Uint64 used = 0; };
+    std::vector<Tile> tiles;
+    std::unique_ptr<MarcusFramePreviews> models;
+    int cachedModels = 0;
+    Uint64 cacheClock = 0;
+    ~MarcusBackgroundBrowser() { Stop(); ClearGallery(); SDL_DestroyTexture(texture); }
+    void ClearGallery()
+    {
+        for (auto &tile : tiles) SDL_DestroyTexture(tile.texture);
+        tiles.clear(); cachedModels = 0; cacheClock = 0;
+    }
+    void Stop() { if (cancel) *cancel = true; if (pending.valid()) pending.wait(); models.reset(); }
     void Select(int index)
     {
         selected = std::clamp(index, 0, static_cast<int>(backgrounds.size()) - 1);
-        scroll = std::clamp(scroll, std::max(0, selected - 11), selected);
+        if (props) scroll = std::clamp(scroll, std::max(0, selected / galleryColumns - galleryRows + 1), selected / galleryColumns);
+        else scroll = std::clamp(scroll, std::max(0, selected - 11), selected);
     }
     void Close(bool confirm) { chosen = confirm && !backgrounds.empty(); open = false; Stop(); }
     void ScrollTo(float py, float top)
     {
+        if (props)
+        {
+            const int rows = (int(backgrounds.size()) + galleryColumns - 1) / galleryColumns;
+            if (rows <= galleryRows) return;
+            const float thumb = std::max(28.f, galleryTrack * galleryRows / rows);
+            const float fraction = std::clamp((py - top - thumb / 2) / (galleryTrack - thumb), 0.f, 1.f);
+            scroll = int(fraction * (rows - galleryRows) + .5f); return;
+        }
         if (backgrounds.size() <= 12) return;
         const float thumb = 360.0f * 12 / backgrounds.size();
         const float fraction = std::clamp((py - top - thumb / 2) / (360 - thumb), 0.0f, 1.0f);
         scroll = static_cast<int>(fraction * (backgrounds.size() - 12) + 0.5f);
+    }
+    void GalleryPreviews(MarcusUI *ui)
+    {
+        if (!models && error.empty())
+        {
+            try
+            {
+                auto archive = std::make_shared<MarcusMovieFile>(std::filesystem::u8path(content) / "tmpls.3cn");
+                models = std::make_unique<MarcusFramePreviews>(archive, resources, content, 0, false, true);
+            }
+            catch (const std::exception &e) { error = e.what(); }
+        }
+        if (!models) return;
+        MarcusImage image = {}; char message[1024] = {};
+        int status;
+        while ((status = marcus_frame_previews_take(models.get(), &image, message, sizeof(message))) > 0)
+        {
+            if (image.scene < 0 || image.scene >= int(tiles.size())) continue;
+            auto &tile = tiles[image.scene];
+            tile.error = message;
+            if (image.width && image.height && image.rgba)
+            {
+                auto surface = SDL_CreateSurfaceFrom(image.width, image.height, SDL_PIXELFORMAT_RGBA32,
+                    const_cast<unsigned char *>(image.rgba), image.pitch);
+                auto loaded = surface ? SDL_CreateTextureFromSurface(ui->renderer, surface) : nullptr;
+                SDL_DestroySurface(surface);
+                if (loaded)
+                {
+                    if (!tile.texture) ++cachedModels;
+                    SDL_DestroyTexture(tile.texture); tile.texture = loaded; tile.used = ++cacheClock;
+                    SDL_SetTextureScaleMode(loaded, SDL_SCALEMODE_LINEAR);
+                }
+                else tile.error = SDL_GetError();
+            }
+        }
+        if (status < 0) error = message;
+        const int first = scroll * galleryColumns, last = std::min(first + galleryPage, int(tiles.size()));
+        for (int i = first; i < last; ++i) if (tiles[i].texture) tiles[i].used = ++cacheClock;
+        while (cachedModels > 64)
+        {
+            int oldest = -1;
+            for (int i = 0; i < int(tiles.size()); ++i)
+                if ((i < first || i >= last) && tiles[i].texture && (oldest < 0 || tiles[i].used < tiles[oldest].used)) oldest = i;
+            if (oldest < 0) break;
+            SDL_DestroyTexture(tiles[oldest].texture); tiles[oldest].texture = nullptr; --cachedModels;
+        }
+        if (!error.empty()) return;
+        std::array<MarcusFramePosition, galleryPage> requests;
+        int count = 0;
+        auto request = [&](int index) {
+            if (index >= first && index < last && !tiles[index].texture && tiles[index].error.empty())
+                requests[count++] = {index, static_cast<long>(backgrounds[index].chunk)};
+        };
+        request(selected);
+        for (int i = first; i < last; ++i) if (i != selected) request(i);
+        marcus_frame_previews_request_positions(models.get(), requests.data(), count);
+    }
+    void DrawGallery(MarcusUI *ui, int width, int height)
+    {
+        GalleryPreviews(ui);
+        const float x = (width - galleryWidth) / 2, y = (height - galleryHeight) / 2;
+        ui_fill(ui, 0, 0, float(width), float(height), 0x121519);
+        ui_fill(ui, x - 1, y - 1, galleryWidth + 2, galleryHeight + 2, 0x5b6570);
+        ui_fill(ui, x, y, galleryWidth, galleryHeight, 0x25282d);
+        ui_heading(ui, x + 24, y + 22, actors ? "NEW ACTOR" : "NEW PROP", 0x78cbc4);
+        ui_text(ui, x + 24, y + 58, actors ? "Choose an actor to add at the current frame." : "Choose a prop to add at the current frame.", 0xdde0e5);
+        ui_button(ui, x + 944, y + 18, 32, "x", 0, 1);
+        const int first = scroll * galleryColumns;
+        for (int cell = 0; cell < galleryPage && first + cell < int(backgrounds.size()); ++cell)
+        {
+            const int index = first + cell;
+            const auto r = GalleryCard(x, y, cell);
+            const auto &tile = tiles[index];
+            const bool hovered = ui_inside(ui->mouse_x, ui->mouse_y, r.x, r.y, r.w, r.h);
+            ui_fill(ui, r.x - 2, r.y - 2, r.w + 4, r.h + 4, index == selected ? 0x78cbc4 : hovered ? 0x5b6570 : 0x363a40);
+            ui_fill(ui, r.x, r.y, r.w, r.h, 0x13161a);
+            if (tile.texture)
+            {
+                const SDL_FRect destination = {r.x + 28, r.y + 4, 168, 126};
+                SDL_RenderTexture(ui->renderer, tile.texture, nullptr, &destination);
+            }
+            else ui_label(ui, r.x + 18, r.y + 62, r.w - 36,
+                tile.error.empty() && error.empty() ? "Loading model..." : "Preview unavailable", 0x969da8);
+            ui_fill(ui, r.x, r.y + 134, r.w, 24, index == selected ? 0x375e64 : hovered ? 0x343c45 : 0x202328);
+            ui_label(ui, r.x + 8, r.y + 140, r.w - 16, backgrounds[index].name, 0xdde0e5);
+            if (hovered) ui->hint = !tile.error.empty() ? tile.error.c_str() : !error.empty() ? error.c_str() : backgrounds[index].name;
+        }
+        const int rows = (int(backgrounds.size()) + galleryColumns - 1) / galleryColumns;
+        if (rows > galleryRows)
+        {
+            const float thumb = std::max(28.f, galleryTrack * galleryRows / rows);
+            const float top = (galleryTrack - thumb) * scroll / (rows - galleryRows);
+            ui_fill(ui, x + 967, y + galleryTop, 6, galleryTrack, 0x1c1e22);
+            ui_fill(ui, x + 967, y + galleryTop + top, 6, thumb, 0x78cbc4);
+        }
+        char label[256];
+        SDL_snprintf(label, sizeof(label), "%s / %d of %d %s", backgrounds[selected].name, selected + 1,
+            int(backgrounds.size()), actors ? "actors" : "props");
+        ui_heading_label(ui, x + 24, y + 620, 952, label, 0xdde0e5);
+        ui_label(ui, x + 24, y + 644, 952, "Appears at the current camera's next insertion point.", 0x969da8);
+        ui_text(ui, x + 24, y + 676, "Arrows to browse / Wheel to scroll / Enter to add / Escape to cancel", 0x969da8);
+        ui_button_sized(ui, x + 750, y + 666, 92, 30, "Cancel", 0, 1);
+        ui_button_sized(ui, x + 854, y + 666, 122, 30, actors ? "Add actor" : "Add prop", 1, 1);
     }
 };
 extern "C" {
@@ -43,6 +174,8 @@ static int ShowAssets(MarcusBackgroundBrowser *browser, MarcusPlayer *player, co
 {
     if (!browser) return 0;
     browser->Stop();
+    browser->ClearGallery();
+    browser->error.clear();
     browser->open = browser->chosen = false;
     browser->props = props; browser->actors = actors;
     browser->backgrounds.clear();
@@ -70,6 +203,7 @@ static int ShowAssets(MarcusBackgroundBrowser *browser, MarcusPlayer *player, co
         else if (marcus_background(player, index, &background)) browser->backgrounds.push_back(background);
     }
     if (browser->backgrounds.empty()) return 0;
+    if (props) browser->tiles.resize(browser->backgrounds.size());
     browser->resources = resources;
     browser->content = content;
     browser->selected = browser->scroll = 0;
@@ -88,6 +222,52 @@ int background_browser_show_actors(MarcusBackgroundBrowser *browser, MarcusPlaye
 int background_browser_event(MarcusBackgroundBrowser *browser, const SDL_Event *event, int width, int height)
 {
     if (!background_browser_visible(browser)) return 0;
+    if (browser->props)
+    {
+        const float x = (width - galleryWidth) / 2, y = (height - galleryHeight) / 2;
+        if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
+        {
+            switch (event->key.key)
+            {
+            case SDLK_ESCAPE: browser->Close(false); break;
+            case SDLK_RETURN: case SDLK_KP_ENTER: browser->Close(true); break;
+            case SDLK_LEFT: browser->Select(browser->selected - 1); break;
+            case SDLK_RIGHT: browser->Select(browser->selected + 1); break;
+            case SDLK_UP: browser->Select(browser->selected - galleryColumns); break;
+            case SDLK_DOWN: browser->Select(browser->selected + galleryColumns); break;
+            case SDLK_PAGEUP: browser->Select(browser->selected - galleryPage); break;
+            case SDLK_PAGEDOWN: browser->Select(browser->selected + galleryPage); break;
+            case SDLK_HOME: browser->Select(0); break;
+            case SDLK_END: browser->Select(int(browser->backgrounds.size()) - 1); break;
+            }
+        }
+        else if (event->type == SDL_EVENT_MOUSE_MOTION && browser->scrollDragging)
+            browser->ScrollTo(event->motion.y, y + galleryTop);
+        else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP || event->type == SDL_EVENT_WINDOW_FOCUS_LOST)
+            browser->scrollDragging = false;
+        else if (event->type == SDL_EVENT_MOUSE_WHEEL)
+        {
+            const int rows = (int(browser->backgrounds.size()) + galleryColumns - 1) / galleryColumns;
+            const float delta = event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event->wheel.y : event->wheel.y;
+            browser->scroll = std::clamp(browser->scroll - int(delta), 0, std::max(0, rows - galleryRows));
+        }
+        else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
+        {
+            const float px = event->button.x, py = event->button.y;
+            if (ui_inside(px, py, x + 750, y + 666, 92, 30) || ui_inside(px, py, x + 944, y + 18, 32, 28)) browser->Close(false);
+            else if (ui_inside(px, py, x + 854, y + 666, 122, 30)) browser->Close(true);
+            else if (ui_inside(px, py, x + 964, y + galleryTop, 12, galleryTrack))
+            { browser->scrollDragging = true; browser->ScrollTo(py, y + galleryTop); }
+            else for (int cell = 0; cell < galleryPage; ++cell)
+            {
+                const auto r = GalleryCard(x, y, cell);
+                const int index = browser->scroll * galleryColumns + cell;
+                if (index < int(browser->backgrounds.size()) && ui_inside(px, py, r.x, r.y, r.w, r.h))
+                { browser->Select(index); if (event->button.clicks == 2) browser->Close(true); break; }
+            }
+        }
+        return event->type != SDL_EVENT_QUIT && event->type != SDL_EVENT_WINDOW_CLOSE_REQUESTED;
+    }
     const float x = (width - 940) / 2.0f, y = (height - 560) / 2.0f;
     if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
     {
@@ -133,6 +313,7 @@ int background_browser_event(MarcusBackgroundBrowser *browser, const SDL_Event *
 void background_browser_draw(MarcusBackgroundBrowser *browser, MarcusUI *ui, int width, int height)
 {
     if (!background_browser_visible(browser)) return;
+    if (browser->props) { browser->DrawGallery(ui, width, height); return; }
     if (browser->previewIndex != browser->selected)
     {
         browser->Stop();

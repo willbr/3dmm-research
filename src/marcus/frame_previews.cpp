@@ -31,7 +31,7 @@ void ReadExact(SDL_IOStream *stream, void *data, std::size_t size, const std::at
 }
 }
 MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie, std::string resources,
-                                       std::string content, int scene, bool cameras)
+                                       std::string content, int scene, bool cameras, bool models)
     : sourceScene(scene)
 {
     const auto base = SDL_GetBasePath();
@@ -41,7 +41,7 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
 #endif
         : std::string();
     thread = std::thread([this, movie = std::move(movie), resources = std::move(resources),
-                          content = std::move(content), scene, cameras, executable] {
+                          content = std::move(content), scene, cameras, models, executable] {
         SDL_Process *process = nullptr;
         try
         {
@@ -49,7 +49,7 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
             const auto path = movie->path.u8string(), sceneText = std::to_string(scene);
             const auto fonts = movie->fontDirectory.u8string();
             const auto origin = movie->contentOrigin.u8string();
-            const char *args[] = {executable.c_str(), path.c_str(), resources.c_str(), cameras ? "--cameras" : "--frames", content.c_str(),
+            const char *args[] = {executable.c_str(), path.c_str(), resources.c_str(), models ? "--models" : cameras ? "--cameras" : "--frames", content.c_str(),
                                   sceneText.c_str(), fonts.c_str(), origin.c_str(), nullptr};
             const auto properties = SDL_CreateProperties();
             SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
@@ -97,10 +97,10 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
                 std::vector<std::uint8_t> bytes(size);
                 ReadExact(stream, bytes.data(), bytes.size(), cancel);
                 auto preview = ReadPreview(bytes);
-                if (preview.width > 160 || preview.height > 120)
+                if (preview.width > (models ? 240 : 160) || preview.height > (models ? 180 : 120))
                     throw std::runtime_error("Frame thumbnail dimensions exceed their limit.");
-                if (!preview.error.empty()) throw std::runtime_error(preview.error);
-                if (!preview.width || !preview.height) throw std::runtime_error("The frame thumbnail is empty.");
+                if (!models && !preview.error.empty()) throw std::runtime_error(preview.error);
+                if (preview.error.empty() && (!preview.width || !preview.height)) throw std::runtime_error("The thumbnail is empty.");
                 {
                     std::lock_guard<std::mutex> lock(mutex);
                     ready.push_back({position, std::move(preview)});
@@ -174,6 +174,7 @@ int marcus_frame_previews_take(MarcusFramePreviews *previews, MarcusImage *image
         previews->output = std::move(previews->ready.front());
         previews->ready.pop_front();
         const auto &p = previews->output.preview;
+        if (error && errorSize > 0) SDL_strlcpy(error, p.error.c_str(), errorSize);
         image->scene = previews->output.position.scene;
         image->frame = previews->output.position.frame;
         image->width = p.width; image->height = p.height; image->pitch = p.width * 4;

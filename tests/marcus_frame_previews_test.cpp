@@ -1,4 +1,5 @@
 #include "player.h"
+#include "frame_previews.h"
 #include <SDL3/SDL.h>
 #include <array>
 #include <vector>
@@ -216,6 +217,41 @@ int main(int argc, char **argv)
                   "Camera chooser leaves live scene, frame and camera unchanged");
         }
         check(cameraCount == 2, "Camera preview completion");
+        previews.reset();
+        check(marcus_actor_count(player.get(), argv[3]) > 0 && marcus_prop_count(player.get(), argv[3]) > 0,
+              "Model preview catalogue");
+        MarcusProp actor = {}, prop = {};
+        check(marcus_actor(player.get(), 0, &actor) && marcus_prop(player.get(), 0, &prop), "Model identities");
+        auto library = std::make_shared<MarcusMovieFile>(std::filesystem::u8path(argv[3]) / "tmpls.3cn");
+        previews.reset(new MarcusFramePreviews(library, argv[2], argv[3], 0, false, true));
+        const MarcusFramePosition modelRequests[] = {{0, long(actor.chunk)}, {1, -1}, {2, long(prop.chunk)}};
+        marcus_frame_previews_request_positions(previews.get(), modelRequests, 3);
+        int modelCount = 0;
+        std::array<bool, 3> modelReceived = {};
+        const auto modelDeadline = SDL_GetTicks() + 30000;
+        while (modelCount < 3 && SDL_GetTicks() < modelDeadline)
+        {
+            const auto status = marcus_frame_previews_take(previews.get(), &image, error, sizeof(error));
+            if (status < 0) throw std::runtime_error(error);
+            if (!status) { SDL_Delay(5); continue; }
+            check(image.scene >= 0 && image.scene < 3 && !modelReceived[image.scene] &&
+                  image.frame == modelRequests[image.scene].frame, "Gallery thumbnail identity");
+            if (image.scene == 1) check(error[0] && !image.width && !image.height, "One unavailable model reports a local error");
+            else
+            {
+                check(!error[0] && image.width == 240 && image.height == 180 && image.rgba,
+                      "Actors and props share the gallery preview stream");
+                bool opaque = false;
+                for (int y = 0; y < image.height; ++y) for (int x = 0; x < image.width; ++x)
+                    opaque |= image.rgba[y * image.pitch + x * 4 + 3] != 0;
+                check(opaque, "Gallery models have rendered surfaces");
+            }
+            modelReceived[image.scene] = true; ++modelCount;
+        }
+        check(modelCount == 3, "Gallery helper continues after an unavailable model");
+        MarcusInfo untouched = {};
+        check(marcus_info(player.get(), &untouched) && untouched.scene == 0 && untouched.frame == 10,
+              "Gallery loading leaves the live playhead unchanged");
         previews.reset();
         puts("Frame previews: authored pixels, scene isolation, live image and ZIP leases, errors and cancellation passed.");
         return 0;
