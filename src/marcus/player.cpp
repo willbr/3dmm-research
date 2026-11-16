@@ -139,6 +139,7 @@ struct MarcusPlayer
     bool timingStarted = false, timingFailed = false;
     MarcusBoardPalette paintPalette = {};
     MarcusBoardInks paintInks = {};
+    MarcusBoardPaintColours paintTargets;
     bool paintReady = false;
     // Cancel/join before releasing movie/content leases and the live preview.
     std::unique_ptr<MarcusTimingJob> timingJob;
@@ -805,13 +806,27 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
         return true;
     });
 }
+namespace
+{
+bool PrepareBoardPaint(MarcusPlayer *player, const MarcusBoardPaintColours &targets)
+{
+    MarcusBoardPalette palette;
+    if (!MarcusGetStoryboardPalette(player, palette)) return false;
+    const bool reuse = player->paintReady && palette == player->paintPalette;
+    player->paintInks.resize(targets.size());
+    for (size_t i = 0; i < targets.size(); ++i)
+        if (!reuse || i >= player->paintTargets.size() || targets[i] != player->paintTargets[i])
+            player->paintInks[i] = MarcusBoardMatchColour(palette, targets[i]);
+    player->paintPalette = palette; player->paintTargets = targets; player->paintReady = true;
+    return true;
+}
+}
 bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image)
 {
     return Guard(player, [&](MM::Error &error) {
-        if (player->selected < 0 || camera >= board.angles.size()) return false;
+        if (player->selected < 0 || camera >= board.angles.size() || !MarcusBoardValid(board)) return false;
         const auto &a = board.angles[camera];
-        MarcusBoardPaintColours colours;
-        if (!MarcusGetStoryboardColours(player, colours)) return false;
+        if (!PrepareBoardPaint(player, board.colours)) return false;
         MM::PreviewView view;
         view.width = MarcusBoardWidth; view.height = MarcusBoardHeight;
         view.authoredCamera = false; view.freeCamera = true; view.includeDepth = true;
@@ -836,14 +851,16 @@ bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board,
 }
 bool MarcusGetStoryboardColours(MarcusPlayer *player, MarcusBoardPaintColours &colours)
 {
-    if (!player || player->selected < 0) return false;
-    MarcusBoardPalette palette;
-    for (unsigned i = 0; i < palette.size(); ++i) palette[i] = player->preview.PresentationColour(0xfe000000 | i) & 0xffffff;
-    if (!player->paintReady || palette != player->paintPalette)
-    {
-        player->paintPalette = palette; player->paintInks = MarcusBoardColourMap(palette); player->paintReady = true;
-    }
+    MarcusStoryboard board;
+    if (!MarcusGetStoryboard(player, board) || !PrepareBoardPaint(player, board.colours)) return false;
+    colours.resize(board.colours.size());
     for (unsigned i = 0; i < colours.size(); ++i) colours[i] = player->paintInks[i].rgb;
+    return true;
+}
+bool MarcusGetStoryboardPalette(MarcusPlayer *player, MarcusBoardPalette &palette)
+{
+    if (!player || player->selected < 0) return false;
+    for (unsigned i = 0; i < palette.size(); ++i) palette[i] = player->preview.PresentationColour(0xfe000000 | i) & 0xffffff;
     return true;
 }
 bool MarcusRenderLocalWorld(MarcusPlayer *player, const MM::PreviewView &view,

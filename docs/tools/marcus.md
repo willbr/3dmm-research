@@ -166,6 +166,18 @@ use **[ / ]** to resize, **1–9** to choose colours, and **0** for canvas grey.
 returns to the brush; **Alt+click** samples directly. Sampling uses the stored
 paint colour, unaffected by foreground props or dither pixels, and creates no
 undo entry. Escape cancels an armed picker. Paint with canvas grey to cover marks.
+**Extended palette** expands an inline HSV picker in the sidebar. Choose a hue
+from the strip or a preset, then drag the square to change saturation and value.
+The preview shows the chosen RGB colour on the left and the actual shared-palette
+dither on the right. The same dither is used in the viewport and saved VMM;
+actor and prop palette entries remain unchanged. Collapse it with **Hide extended
+palette** to return to the labelled basic swatches.
+
+Custom colours join the scene's paint palette when first used for a stroke or
+grid bake. Selecting a colour alone does not modify the movie. Sampling, undo,
+reload and Save copy retain each custom colour. Up to 256 paint colours can be
+in use across a scene's angles; unused custom slots can be reused. Older
+storyboard formats remain readable.
 **Clear angle** clears only that drawing. Ctrl+Z / Cmd+Z (or **Undo** in Paint)
 uses the movie's normal undo history for strokes, clears, camera settings, angle
 additions and light edits. Each completed stroke or adjustment joins the working

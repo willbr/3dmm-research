@@ -42,13 +42,16 @@ BMAT34 Matrix(float x, float y, float z, float yaw, float pitch, float roll)
 }
 bool MarcusBoardValid(const MarcusStoryboard &board)
 {
-    if (board.angles.empty() || board.angles.size() > 64 || board.lights.size() > 16) return false;
+    if (board.angles.empty() || board.angles.size() > 64 || board.lights.size() > 16 ||
+        board.colours.size() < MarcusBoardColourCount || board.colours.size() > 256 ||
+        !std::equal(MarcusBoardColours.begin(), MarcusBoardColours.end(), board.colours.begin()) ||
+        std::any_of(board.colours.begin(), board.colours.end(), [](auto rgb) { return rgb > 0xffffff; })) return false;
     for (const auto &a : board.angles)
         if (!Range(a.camera.x, -32700, 32700) || !Range(a.camera.y, -32700, 32700) || !Range(a.camera.z, -32700, 32700) ||
             !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -90, 90) || !Range(a.roll, -180, 180) ||
             !Range(a.fov, 5, 150) || !Range(a.nearClip, .01f, 100) || !Range(a.farClip, a.nearClip + .01f, 32700) ||
             a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight ||
-            std::any_of(a.pixels.begin(), a.pixels.end(), [](auto v) { return v >= MarcusBoardColourCount; })) return false;
+            std::any_of(a.pixels.begin(), a.pixels.end(), [&](auto v) { return v >= board.colours.size(); })) return false;
     for (const auto &l : board.lights)
         if (!Range(l.x, -32700, 32700) || !Range(l.y, -32700, 32700) || !Range(l.z, -32700, 32700) ||
             !Range(l.yaw, -360, 360) || !Range(l.pitch, -89, 89) || !Range(l.intensity, 0, 1) ||
@@ -59,8 +62,10 @@ std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board)
 {
     Require(MarcusBoardValid(board), "Storyboard settings are out of range.");
     Wire w;
-    w.Put(2); w.Put(MarcusBoardWidth); w.Put(MarcusBoardHeight);
+    w.Put(3); w.Put(MarcusBoardWidth); w.Put(MarcusBoardHeight);
     w.Put(static_cast<unsigned>(board.angles.size())); w.Put(static_cast<unsigned>(board.lights.size()));
+    w.Put(static_cast<unsigned>(board.colours.size()));
+    for (auto rgb : board.colours) w.Put(rgb);
     for (const auto &a : board.angles)
     {
         for (float v : {a.camera.x, a.camera.y, a.camera.z, a.camera.yaw, a.camera.pitch, a.roll, a.fov, a.nearClip, a.farClip}) w.PutFloat(v);
@@ -77,12 +82,19 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
 {
     Wire w{bytes};
     const auto version = w.Get();
-    Require((version == 1 || version == 2) && w.Get() == MarcusBoardWidth && w.Get() == MarcusBoardHeight, "Unsupported storyboard format.");
+    Require((version >= 1 && version <= 3) && w.Get() == MarcusBoardWidth && w.Get() == MarcusBoardHeight, "Unsupported storyboard format.");
     const auto angles = w.Get(), lights = w.Get();
-    Require(angles > 0 && angles <= 64 && lights <= 16 &&
-        bytes.size() == 20 + size_t(angles) * (36 + MarcusBoardWidth * MarcusBoardHeight) + size_t(lights) * 28,
-        "Invalid storyboard size.");
     MarcusStoryboard result;
+    if (version >= 3)
+    {
+        const auto colours = w.Get();
+        Require(colours >= MarcusBoardColourCount && colours <= 256, "Invalid storyboard paint palette.");
+        result.colours.resize(colours);
+        for (auto &rgb : result.colours) rgb = w.Get();
+    }
+    Require(angles > 0 && angles <= 64 && lights <= 16 &&
+        bytes.size() == w.at + size_t(angles) * (36 + MarcusBoardWidth * MarcusBoardHeight) + size_t(lights) * 28,
+        "Invalid storyboard size.");
     result.angles.resize(angles); result.lights.resize(lights);
     for (auto &a : result.angles)
     {
@@ -101,7 +113,7 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
 }
 void MarcusBoardStroke(MarcusBoardAngle &a, int x0, int y0, int x1, int y1, int size, unsigned char colour)
 {
-    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || size < 1 || size > 64 || colour >= MarcusBoardColourCount ||
+    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || size < 1 || size > 64 ||
         x0 < 0 || x0 >= MarcusBoardWidth || x1 < 0 || x1 >= MarcusBoardWidth ||
         y0 < 0 || y0 >= MarcusBoardHeight || y1 < 0 || y1 >= MarcusBoardHeight) return;
     const int dx = std::abs(x1 - x0), dy = -std::abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
@@ -175,7 +187,7 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
 }
 void MarcusBoardBakeGrid(MarcusBoardAngle &a, unsigned char colour)
 {
-    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || colour >= MarcusBoardColourCount) return;
+    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight) return;
     for (const auto &line : MarcusBoardGridLines(a))
         MarcusBoardStroke(a, int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
             int(std::lround(line[2] * (MarcusBoardWidth - 1))), int(std::lround(line[3] * (MarcusBoardHeight - 1))), 1, colour);
@@ -185,53 +197,88 @@ unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y)
     static const int pattern[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
     return pattern[(y & 3) * 4 + (x & 3)] < ink.amount ? ink.second : ink.first;
 }
-MarcusBoardInks MarcusBoardColourMap(const MarcusBoardPalette &palette)
+MarcusBoardInk MarcusBoardMatchColour(const MarcusBoardPalette &palette, unsigned rgb)
 {
-    MarcusBoardInks result = {};
-    for (unsigned paint = 0; paint < result.size(); ++paint)
+    MarcusBoardInk result;
+    double best = 1e20;
+    for (unsigned index = 10; index < 246; ++index)
     {
-        double best = 1e20;
-        for (unsigned index = 10; index < 246; ++index)
+        unsigned distance = 0;
+        for (int shift : {0, 8, 16})
         {
-            unsigned distance = 0;
-            for (int shift : {0, 8, 16})
-            {
-                const int difference = int((palette[index] >> shift) & 255) - int((MarcusBoardColours[paint] >> shift) & 255);
-                distance += difference * difference;
-            }
-            if (distance < best)
-            { best = distance; result[paint] = {static_cast<unsigned char>(index), static_cast<unsigned char>(index), 0, palette[index]}; }
+            const int difference = int((palette[index] >> shift) & 255) - int((rgb >> shift) & 255);
+            distance += difference * difference;
         }
-        // Ordered mixtures retain soft hues that a single palette entry loses.
-        // Penalize contrast to favour nearby colours over noisy complementary pairs.
-        for (unsigned a = 10; a < 246 && best > 0; ++a)
-            for (unsigned b = a + 1; b < 246; ++b)
-            {
-                int difference[3], target[3], length = 0, projection = 0;
-                for (int c = 0; c < 3; ++c)
-                {
-                    const int shift = c * 8, first = (palette[a] >> shift) & 255;
-                    difference[c] = int((palette[b] >> shift) & 255) - first;
-                    target[c] = int((MarcusBoardColours[paint] >> shift) & 255) - first;
-                    length += difference[c] * difference[c]; projection += target[c] * difference[c];
-                }
-                if (!length || projection <= 0 || projection >= length) continue;
-                const int amount = int(std::lround(double(projection) * 16 / length));
-                if (amount <= 0 || amount >= 16) continue;
-                double score = .01 * length * amount * (16 - amount) / 256.;
-                unsigned rgb = 0;
-                for (int c = 0; c < 3; ++c)
-                {
-                    const int shift = c * 8, first = (palette[a] >> shift) & 255;
-                    const int mixed = (first * 16 + difference[c] * amount + 8) / 16;
-                    const int error = mixed - int((MarcusBoardColours[paint] >> shift) & 255);
-                    score += error * error; rgb |= unsigned(mixed) << shift;
-                }
-                if (score < best)
-                { best = score; result[paint] = {static_cast<unsigned char>(a), static_cast<unsigned char>(b), static_cast<unsigned char>(amount), rgb}; }
-            }
+        if (distance < best)
+        { best = distance; result = {static_cast<unsigned char>(index), static_cast<unsigned char>(index), 0, palette[index]}; }
     }
+    // Ordered mixtures retain soft hues that a single palette entry loses.
+    // Penalize contrast to favour nearby colours over noisy complementary pairs.
+    for (unsigned a = 10; a < 246 && best > 0; ++a)
+        for (unsigned b = a + 1; b < 246; ++b)
+        {
+            int difference[3], target[3], length = 0, projection = 0;
+            for (int c = 0; c < 3; ++c)
+            {
+                const int shift = c * 8, first = (palette[a] >> shift) & 255;
+                difference[c] = int((palette[b] >> shift) & 255) - first;
+                target[c] = int((rgb >> shift) & 255) - first;
+                length += difference[c] * difference[c]; projection += target[c] * difference[c];
+            }
+            if (!length || projection <= 0 || projection >= length) continue;
+            const int amount = int(std::lround(double(projection) * 16 / length));
+            if (amount <= 0 || amount >= 16) continue;
+            double score = .01 * length * amount * (16 - amount) / 256.;
+            unsigned mixedRgb = 0;
+            for (int c = 0; c < 3; ++c)
+            {
+                const int shift = c * 8, first = (palette[a] >> shift) & 255;
+                const int mixed = (first * 16 + difference[c] * amount + 8) / 16;
+                const int error = mixed - int((rgb >> shift) & 255);
+                score += error * error; mixedRgb |= unsigned(mixed) << shift;
+            }
+            if (score < best)
+            { best = score; result = {static_cast<unsigned char>(a), static_cast<unsigned char>(b), static_cast<unsigned char>(amount), mixedRgb}; }
+        }
     return result;
+}
+MarcusBoardInks MarcusBoardColourMap(const MarcusBoardPalette &palette, const MarcusBoardPaintColours &colours)
+{
+    MarcusBoardInks result;
+    for (auto rgb : colours) result.push_back(MarcusBoardMatchColour(palette, rgb));
+    return result;
+}
+unsigned MarcusBoardHSV(float hue, float saturation, float value)
+{
+    if (!std::isfinite(hue) || !std::isfinite(saturation) || !std::isfinite(value)) return 0;
+    const float h = std::fmod(std::fmod(hue, 360.f) + 360.f, 360.f) / 60;
+    const float s = std::clamp(saturation, 0.f, 1.f), v = std::clamp(value, 0.f, 1.f);
+    const float chroma = v * s, x = chroma * (1 - std::abs(std::fmod(h, 2.f) - 1)), m = v - chroma;
+    const float channels[6][3] = {{chroma, x, 0}, {x, chroma, 0}, {0, chroma, x}, {0, x, chroma}, {x, 0, chroma}, {chroma, 0, x}};
+    unsigned rgb = 0;
+    for (int c = 0; c < 3; ++c) rgb = (rgb << 8) | unsigned(std::lround((channels[int(h)][c] + m) * 255));
+    return rgb;
+}
+std::array<float, 3> MarcusBoardToHSV(unsigned rgb)
+{
+    const float r = ((rgb >> 16) & 255) / 255.f, g = ((rgb >> 8) & 255) / 255.f, b = (rgb & 255) / 255.f;
+    const float high = std::max({r, g, b}), low = std::min({r, g, b}), d = high - low;
+    float h = 0;
+    if (d > 0) h = 60 * (high == r ? (g - b) / d : high == g ? (b - r) / d + 2 : (r - g) / d + 4);
+    if (h < 0) h += 360;
+    return {h, high > 0 ? d / high : 0, high};
+}
+int MarcusBoardAddColour(MarcusStoryboard &board, unsigned rgb)
+{
+    if (rgb > 0xffffff) return -1;
+    const auto found = std::find(board.colours.begin(), board.colours.end(), rgb);
+    if (found != board.colours.end()) return int(found - board.colours.begin());
+    if (board.colours.size() < 256) { board.colours.push_back(rgb); return int(board.colours.size()) - 1; }
+    std::array<bool, 256> used = {};
+    for (const auto &angle : board.angles) for (auto pixel : angle.pixels) used[pixel] = true;
+    for (unsigned i = MarcusBoardColourCount; i < 256; ++i)
+        if (!used[i]) { board.colours[i] = rgb; return int(i); }
+    return -1;
 }
 static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette)
 {
@@ -251,7 +298,7 @@ static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, c
         rgbPalette[index] = (unsigned(colour.bRed) << 16) | (unsigned(colour.bGreen) << 8) | colour.bBlue;
         Require(colours->FAdd(&colour), "Cannot add storyboard colour.");
     }
-    const auto paint = MarcusBoardColourMap(rgbPalette);
+    const auto paint = MarcusBoardColourMap(rgbPalette, board.colours);
     Require(file->FAddChild(kctgBkgd, background, 0, colours->CbOnFile(), kctgColorTable, &number, &block) && colours->FWrite(&block), "Cannot write storyboard colours.");
     std::unique_ptr<DynamicArray, Release> lights(DynamicArray::PglNew(sizeof(LightPosition)));
     Require(bool(lights), "Cannot allocate storyboard lights.");

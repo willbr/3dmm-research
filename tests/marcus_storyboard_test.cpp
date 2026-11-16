@@ -52,13 +52,39 @@ int main(int argc, char **argv)
         check(!turnedGrid.empty() && turnedGrid != grid && std::all_of(turnedGrid.begin(), turnedGrid.end(), [](const auto &line) {
             return std::all_of(line.begin(), line.end(), [](double p) { return std::isfinite(p) && p >= 0 && p <= 1; });
         }), "Moved, rolled and zoomed grids remain clipped");
-        auto legacy = MarcusEncodeBoard(board); legacy[0] = 1;
+        auto legacy = MarcusEncodeBoard(board);
+        legacy.erase(legacy.begin() + 20, legacy.begin() + 24 + board.colours.size() * 4); legacy[0] = 1;
         check(MarcusEncodeBoard(MarcusDecodeBoard(legacy)) == MarcusEncodeBoard(board), "Read version-one storyboards with the original colour indices");
         for (unsigned char grey = 7; grey < MarcusBoardColourCount; ++grey)
         {
             MarcusBoardStroke(board.angles[0], 30 + grey * 20, 40, 30 + grey * 20, 40, 8, grey);
             check(board.angles[0].pixels[40 * MarcusBoardWidth + 30 + grey * 20] == grey, "Paint each additional grey");
         }
+        auto versionTwo = MarcusEncodeBoard(board);
+        versionTwo.erase(versionTwo.begin() + 20, versionTwo.begin() + 24 + board.colours.size() * 4); versionTwo[0] = 2;
+        check(MarcusEncodeBoard(MarcusDecodeBoard(versionTwo)) == MarcusEncodeBoard(board), "Read version-two storyboard greys");
+        check(MarcusBoardHSV(0, 1, 1) == 0xff0000 && MarcusBoardHSV(120, 1, 1) == 0x00ff00 &&
+            MarcusBoardHSV(240, 1, 1) == 0x0000ff && MarcusBoardHSV(360, 1, 1) == 0xff0000 &&
+            MarcusBoardHSV(77, 0, 1) == 0xffffff && MarcusBoardHSV(77, 1, 0) == 0, "HSV primaries, hue wrap, white and black");
+        for (auto rgb : {0x2357a5U, 0xffffffU, 0U, 0x949494U, 0x9ebfd9U})
+        {
+            const auto hsv = MarcusBoardToHSV(rgb);
+            check(MarcusBoardHSV(hsv[0], hsv[1], hsv[2]) == rgb, "RGB/HSV round trip keeps the selected paint colour");
+        }
+        auto fullPalette = board;
+        for (unsigned i = MarcusBoardColourCount; i < 256; ++i) fullPalette.colours.push_back(0x123400 + i);
+        for (unsigned i = 0; i < 256; ++i) fullPalette.angles[0].pixels[i] = static_cast<unsigned char>(i);
+        const auto fullColours = fullPalette.colours;
+        check(MarcusBoardAddColour(fullPalette, 0xabcdef) == -1 && fullPalette.colours == fullColours,
+            "A full paint palette cannot recolour existing strokes");
+        fullPalette.angles[0].pixels[200] = 0;
+        check(MarcusBoardAddColour(fullPalette, 0xabcdef) == 200 && fullPalette.colours.size() == 256,
+            "An unused custom colour slot can be reused safely");
+        const auto customRgb = MarcusBoardHSV(280, .8f, .7f);
+        const int customInk = MarcusBoardAddColour(board, customRgb);
+        check(customInk == int(MarcusBoardColourCount) && MarcusBoardAddColour(board, customRgb) == customInk &&
+            board.colours.size() == MarcusBoardColourCount + 1, "Reuse an existing custom colour without consuming another slot");
+        MarcusBoardStroke(board.angles[0], 500, 24, 520, 24, 8, static_cast<unsigned char>(customInk));
         board.angles.emplace_back();
         // Keep this prop/lighting fixture close to the ground, independent of the new-scene camera height.
         board.angles[1].camera.x = 7; board.angles[1].camera.y = 5; board.angles[1].camera.yaw = -25; board.angles[1].camera.pitch = 12;
@@ -73,8 +99,10 @@ int main(int argc, char **argv)
         check(rejected, "Reject truncated editor data");
         auto invalid = board; invalid.angles[0].fov = std::numeric_limits<float>::quiet_NaN();
         check(!MarcusBoardValid(invalid), "Reject nonfinite camera");
-        invalid = board; invalid.angles[0].pixels[0] = MarcusBoardColourCount;
+        invalid = board; invalid.angles[0].pixels[0] = static_cast<unsigned char>(board.colours.size());
         check(!MarcusBoardValid(invalid), "Reject invalid paint colour");
+        invalid = board; invalid.colours.back() = 0x1000000;
+        check(!MarcusBoardValid(invalid), "Reject invalid custom RGB values");
         check(MarcusApplyStoryboard(player.get(), board, true, 0, argv[1], argv[2]), "Create blank storyboard movie");
         MarcusInfo info = {};
         check(marcus_info(player.get(), &info) && info.scene_count == 1 && info.camera_count == 2 && info.camera == 0 && info.object_count == 0 && info.sound_count == 0 && info.frame == 1, "Blank scene admission");
