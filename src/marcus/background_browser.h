@@ -6,6 +6,7 @@
 extern "C" {
 #endif
 typedef struct MarcusBackgroundBrowser MarcusBackgroundBrowser;
+#define MARCUS_BACKGROUND_STORYBOARD 0xffffffffUL
 MarcusBackgroundBrowser *background_browser_create(void);
 void background_browser_destroy(MarcusBackgroundBrowser *browser);
 int background_browser_show(MarcusBackgroundBrowser *browser, MarcusPlayer *player, const char *resources, const char *content);

@@ -1,4 +1,5 @@
 #include "camera_picker.h"
+#include "storyboard.h"
 #include <algorithm>
 #include <vector>
 #include <string>
@@ -7,6 +8,8 @@ namespace { constexpr int columns = 3, perPage = 6; }
 struct MarcusCameraPicker
 {
     bool open = false, chosen = false;
+    bool storyboard = false;
+    int edit = 0;
     int selected = 0, original = 0, page = 0;
     long frame = 0;
     double displayFrame = 1;
@@ -58,6 +61,7 @@ int camera_picker_show(MarcusCameraPicker *picker, MarcusPlayer *player)
     if (!picker) return 0;
     picker->Clear();
     picker->open = picker->chosen = false;
+    picker->edit = 0; picker->storyboard = marcus_is_storyboard(player) != 0;
     picker->error.clear();
     MarcusInfo info = {};
     if (!marcus_info(player, &info) || !info.camera_count || info.camera_count > 1024) return 0;
@@ -125,6 +129,8 @@ int camera_picker_event(MarcusCameraPicker *picker, const SDL_Event *event, int 
             else if (ui_inside(px, py, x + 690, y + 508, 92, 30)) picker->Close(false);
             else if (ui_inside(px, py, x + 794, y + 508, 122, 30)) picker->Close(true);
             else if (ui_inside(px, py, x + 884, y + 18, 32, 28)) picker->Close(false);
+            else if (picker->storyboard && ui_inside(px, py, x + 402, y + 508, 130, 30)) { picker->edit = 1; picker->Close(false); }
+            else if (picker->storyboard && ui_inside(px, py, x + 542, y + 508, 136, 30)) { picker->edit = 2; picker->Close(false); }
         }
     }
     return event->type != SDL_EVENT_QUIT && event->type != SDL_EVENT_WINDOW_CLOSE_REQUESTED;
@@ -185,7 +191,12 @@ void camera_picker_draw(MarcusCameraPicker *picker, MarcusUI *ui, int width, int
     ui_button_sized(ui, x + 24, y + 508, 92, 30, "Previous", 0, picker->page > 0);
     ui_button_sized(ui, x + 128, y + 508, 92, 30, "Next", 0, (picker->page + 1) * perPage < int(picker->textures.size()));
     SDL_snprintf(label, sizeof(label), "Angle %d of %d", picker->selected + 1, int(picker->textures.size()));
-    ui_text(ui, x + 244, y + 516, label, 0x969da8);
+    ui_label(ui, x + 244, y + 516, 150, label, 0x969da8);
+    if (picker->storyboard)
+    {
+        ui_button_sized(ui, x + 402, y + 508, 130, 30, "Edit storyboard", 0, 1);
+        ui_button_sized(ui, x + 542, y + 508, 136, 30, "New angle", 0, 1);
+    }
     ui_button_sized(ui, x + 690, y + 508, 92, 30, "Cancel", 0, 1);
     ui_button_sized(ui, x + 794, y + 508, 122, 30, "Use angle", 1, 1);
 }
@@ -195,6 +206,11 @@ int camera_picker_take(MarcusCameraPicker *picker, unsigned long *camera)
     picker->chosen = false;
     *camera = static_cast<unsigned long>(picker->selected);
     return 1;
+}
+int camera_picker_take_storyboard(MarcusCameraPicker *picker, int *angle)
+{
+    if (!picker || !picker->edit || !angle) return 0;
+    const int result = picker->edit; picker->edit = 0; *angle = picker->selected; return result;
 }
 }
 

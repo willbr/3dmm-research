@@ -673,6 +673,59 @@ bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
     return result == MM_PREVIEW_LIVE_OK ||
         Fail(error, ErrorCode::decode_failed, "Cannot create the selected prop and its pose dependencies.");
 }
+bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error &error)
+{
+    error = {};
+    if (!_impl->ready || !_impl->info.scene)
+        return Fail(error, ErrorCode::invalid_argument, "Select a scene before replacing its background.");
+    TAGOnFile tag = {source, 0, kctgBkgd, background};
+    auto file = _impl->Resolve(tag);
+    auto loaded = std::make_unique<Internal::PreviewBackground>();
+    if (!file || !loaded->Load(file, background, _impl->palette))
+        return Fail(error, ErrorCode::decode_failed, "Cannot load the replacement scene background.");
+    const auto count = static_cast<std::uint32_t>(loaded->cameras.size());
+    const auto camera = std::min(_impl->info.currentCamera, count - 1);
+    if (!loaded->SetCamera(camera))
+        return Fail(error, ErrorCode::decode_failed, "Cannot load the replacement camera image.");
+    _impl->background.swap(loaded);
+    _impl->info.currentCamera = camera; _impl->info.cameraCount = count;
+    _impl->CaptureLive();
+    return true;
+}
+bool Preview::RenderWithLights(const PreviewView &view, const std::vector<PreviewLight> &lights, PreviewImage &image, Error &error)
+{
+    if (!_impl->background || lights.size() > 16)
+        return Fail(error, ErrorCode::invalid_argument, "A background and at most sixteen lights are required.");
+    std::vector<MMBackgroundLight> native;
+    for (const auto &l : lights)
+    {
+        if (!std::isfinite(l.x) || !std::isfinite(l.y) || !std::isfinite(l.z) || !std::isfinite(l.yaw) ||
+            !std::isfinite(l.pitch) || !std::isfinite(l.intensity) || std::abs(l.x) > 32700 || std::abs(l.y) > 32700 ||
+            std::abs(l.z) > 32700 || std::abs(l.yaw) > 360 || std::abs(l.pitch) > 89 || l.intensity < 0 || l.intensity > 1)
+            return Fail(error, ErrorCode::invalid_argument, "Invalid preview light settings.");
+        if (l.intensity == 0) continue;
+        BMAT34 matrix;
+        const auto angle = [](float d) { return static_cast<unsigned short>(static_cast<int>(d * (65536.f / 360))); };
+        BrMatrix34RotateX(&matrix, angle(-l.pitch));
+        BrMatrix34PostRotateY(&matrix, angle(l.yaw));
+        matrix.m[3][0] = BrFloatToScalar(l.x); matrix.m[3][1] = BrFloatToScalar(l.y); matrix.m[3][2] = BrFloatToScalar(l.z);
+        MMBackgroundLight light = {};
+        std::memcpy(&light.matrix, &matrix, sizeof(matrix));
+        light.intensity = BrFloatToScalar(std::min(32700.f, 1.f / l.intensity)); light.type = l.point ? BR_LIGHT_POINT : BR_LIGHT_DIRECT;
+        native.push_back(light);
+    }
+    auto &background = *_impl->background;
+    const auto previous = background.lights;
+    const auto previousOrbit = _impl->orbit;
+    struct Restore
+    {
+        Internal::PreviewBackground &b; decltype(background.lights) old;
+        MMPreviewOrbit &orbit, savedOrbit;
+        ~Restore() { b.lights = old; orbit = savedOrbit; }
+    } restore{background, previous, _impl->orbit, previousOrbit};
+    background.lights.Reset(native.data(), native.size());
+    return Render(view, image, error);
+}
 bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error &error)
 {
     error = {};

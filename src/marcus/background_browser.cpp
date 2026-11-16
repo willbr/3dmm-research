@@ -46,6 +46,13 @@ static int ShowAssets(MarcusBackgroundBrowser *browser, MarcusPlayer *player, co
     browser->open = browser->chosen = false;
     browser->props = props;
     browser->backgrounds.clear();
+    if (!props)
+    {
+        MarcusBackground storyboard = {};
+        storyboard.chunk = MARCUS_BACKGROUND_STORYBOARD;
+        SDL_strlcpy(storyboard.name, "Storyboard - draw a background", sizeof(storyboard.name));
+        browser->backgrounds.push_back(storyboard);
+    }
     const int count = props ? marcus_prop_count(player, content) : marcus_background_count(player, content);
     for (int index = 0; index < count; ++index)
     {
@@ -135,7 +142,8 @@ void background_browser_draw(MarcusBackgroundBrowser *browser, MarcusUI *ui, int
         const auto chunk = std::to_string(browser->backgrounds[browser->selected].chunk);
         const auto resources = browser->resources, content = browser->content;
         const auto props = browser->props;
-        try
+        if (!props && browser->backgrounds[browser->selected].chunk == MARCUS_BACKGROUND_STORYBOARD) {}
+        else try
         {
             browser->pending = std::async(std::launch::async, [=] {
                 return RunPreviewWorker(chunk, resources, [cancel] { return cancel->load(); }, content, false, {}, !props, props);
@@ -180,14 +188,21 @@ void background_browser_draw(MarcusBackgroundBrowser *browser, MarcusUI *ui, int
         ui_fill(ui, x + 358, y + 106 + top, 6, thumb, 0x78cbc4);
     }
     ui_fill(ui, x + 388, y + 106, 528, 297, 0x13161a);
-    if (browser->texture)
+    const bool storyboard = !browser->props && browser->backgrounds[browser->selected].chunk == MARCUS_BACKGROUND_STORYBOARD;
+    if (storyboard)
+    {
+        ui_fill(ui, x + 388, y + 106, 528, 297, 0xd3d4d6);
+        ui_heading(ui, x + 538, y + 230, "DRAW YOUR SCENE", 0x363a40);
+        ui_text(ui, x + 488, y + 264, "Six colours / crunchy brush / no depth", 0x555b63);
+    }
+    else if (browser->texture)
     {
         SDL_FRect destination = {x + 388, y + 106, 528, 297};
         SDL_RenderTexture(ui->renderer, browser->texture, nullptr, &destination);
     }
     else ui_text(ui, x + 552, y + 244, browser->error.empty() ? "Loading preview..." : "Preview unavailable", 0x969da8);
     ui_heading_label(ui, x + 388, y + 422, 528, browser->backgrounds[browser->selected].name, 0xdde0e5);
-    ui_label(ui, x + 388, y + 450, 528, browser->error.empty() ?
+    ui_label(ui, x + 388, y + 450, 528, storyboard ? "Paint backgrounds, create camera angles and light your blockout." : browser->error.empty() ?
         (browser->props ? "Appears at the background's default placement point." : "A new scene starts at frame 1, with no actors or sounds.") : browser->error.c_str(), 0x969da8);
     char count[96];
     SDL_snprintf(count, sizeof(count), "%d of %d %s", browser->selected + 1, static_cast<int>(browser->backgrounds.size()), browser->props ? "props" : "backgrounds");

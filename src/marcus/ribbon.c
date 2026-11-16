@@ -12,6 +12,7 @@ static const RibbonTool scene_tools[] = {
     {RIBBON_FRAMES, 1, "Frames", "Browse scene frames", 0x96aee6},
     {RIBBON_CAMERAS, 9, "Camera angles", "Choose a camera angle at this frame", 0xe9bc75},
     {RIBBON_CAMERA_GUIDES, 9, "All cameras", "Show all camera guides or only the active camera in the work view", 0x78cbc4},
+    {RIBBON_STORYBOARD, 8, "Storyboard", "Paint this storyboard or create a new storyboard scene", 0xb3a4d6},
     {RIBBON_PREVIOUS, 2, "Previous", "Go to the previous scene", 0xaeb6c0},
     {RIBBON_NEXT, 3, "Next", "Go to the next scene", 0xaeb6c0}};
 static const RibbonTool actor_tools[] = {
@@ -34,6 +35,12 @@ static const RibbonTool *tools_for(int tab, int *count)
     if (tab == 2) { *count = sizeof(sound_tools) / sizeof(sound_tools[0]); return sound_tools; }
     if (tab == 3) { *count = sizeof(word_tools) / sizeof(word_tools[0]); return word_tools; }
     *count = sizeof(scene_tools) / sizeof(scene_tools[0]); return scene_tools;
+}
+static float tool_step(int width, int count)
+{
+    float available;
+    available = ((float)width - 280) / count;
+    return available < 104 ? available : 104;
 }
 static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
 {
@@ -135,13 +142,14 @@ void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded,
     static const float tab_x[] = {16, 148, 336, 468}, tab_w[] = {124, 180, 124, 124};
     const RibbonTool *tools;
     int index, count, enabled, hovered, active;
-    float x;
+    float x, step;
     unsigned long colour;
     ui_fill(ui, 0, 0, (float)width, 36, 0x202328);
     ui_fill(ui, 16, 10, 4, 17, 0x78cbc4);
     ui_heading(ui, 29, 12, "MARCUS", 0xdde0e5);
-    ui_label(ui, 128, 11, (float)width - 522, name, 0xdde0e5);
-    if (modified) ui_text(ui, (float)width - 428, 12, "UNSAVED", 0xe9bc75);
+    ui_label(ui, 128, 11, (float)width - 634, name, 0xdde0e5);
+    if (modified) ui_text(ui, (float)width - 540, 12, "UNSAVED", 0xe9bc75);
+    ui_button_sized(ui, (float)width - 448, 5, 104, 26, "Save copy", 0, loaded);
     ui_button_sized(ui, (float)width - 336, 5, 104, 26, "New movie", 0, 1);
     ui_button_sized(ui, (float)width - 224, 5, 104, 26, "Open movie", 0, 1);
     ui_button_sized(ui, (float)width - 112, 5, 96, 26, "Settings", 0, 1);
@@ -156,17 +164,18 @@ void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded,
     }
     ui_line(ui, 16, 72, (float)width - 16, 72, 0x424952);
     tools = tools_for(tab, &count);
+    step = tool_step(width, count);
     for (index = 0; index < count; ++index)
     {
-        x = 16 + index * 104.0f;
-        enabled = (loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE;
-        hovered = enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, 78, 96, 58);
+        x = 16 + index * step;
+        enabled = (loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE || tools[index].action == RIBBON_STORYBOARD;
+        hovered = enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, 78, step - 8, 58);
         active = (tools[index].action == RIBBON_MUTE && muted) ||
                  (tools[index].action == RIBBON_CAMERA_GUIDES && show_cameras);
-        if (hovered || active) ui_fill(ui, x, 78, 96, 58, active ? 0x375e64 : 0x3d4650);
+        if (hovered || active) ui_fill(ui, x, 78, step - 8, 58, active ? 0x375e64 : 0x3d4650);
         colour = enabled ? tools[index].colour : 0x59616c;
-        icon(ui, x + 29, 79, tools[index].icon, colour);
-        ui_label(ui, x + 4, 117, 92,
+        icon(ui, x + (step - 46) / 2, 79, tools[index].icon, colour);
+        ui_label(ui, x + 4, 117, step - 12,
                  tools[index].action == RIBBON_CAMERA_GUIDES ? (show_cameras ? "All cameras" : "Active only") : tools[index].label,
                  enabled ? 0xdde0e5 : 0x737b86);
         if (hovered) ui->hint = tools[index].hint;
@@ -182,6 +191,8 @@ int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long 
     static const float tab_x[] = {16, 148, 336, 468}, tab_w[] = {124, 180, 124, 124};
     const RibbonTool *tools;
     int index, count;
+    float step;
+    if (loaded && ui_inside(x, y, (float)width - 448, 5, 104, 26)) return RIBBON_SAVE_COPY;
     if (ui_inside(x, y, (float)width - 336, 5, 104, 26)) return RIBBON_NEW_MOVIE;
     if (ui_inside(x, y, (float)width - 224, 5, 104, 26)) return RIBBON_OPEN;
     if (ui_inside(x, y, (float)width - 112, 5, 96, 26)) return RIBBON_SETTINGS;
@@ -190,9 +201,10 @@ int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long 
     for (index = 0; index < 4; ++index)
         if (ui_inside(x, y, tab_x[index], 40, tab_w[index], 30)) { *tab = index; return RIBBON_NONE; }
     tools = tools_for(*tab, &count);
+    step = tool_step(width, count);
     for (index = 0; index < count; ++index)
-        if (((loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE) &&
-            ui_inside(x, y, 16 + index * 104.0f, 78, 96, 58))
+        if (((loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE || tools[index].action == RIBBON_STORYBOARD) &&
+            ui_inside(x, y, 16 + index * step, 78, step - 8, 58))
             return tools[index].action;
     return RIBBON_NONE;
 }

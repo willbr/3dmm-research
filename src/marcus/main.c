@@ -7,6 +7,8 @@
 #include "background_browser.h"
 #include "ribbon.h"
 #include "camera_picker.h"
+#include "storyboard_editor.h"
+#include "storyboard.h"
 #include "prop_gizmo.h"
 #include <SDL3/SDL_main.h>
 #include <stdio.h>
@@ -98,6 +100,7 @@ typedef struct App
     MarcusSceneOrganiser *scene_organiser;
     MarcusBackgroundBrowser *background_browser;
     MarcusCameraPicker *camera_picker;
+    MarcusStoryboardEditor *storyboard_editor;
     MarcusPropGizmo *prop_gizmo;
     int prop_fields, prop_interacting;
     int ribbon_tab, modified;
@@ -913,6 +916,7 @@ static void choose_file(App *app, int kind)
 {
     DialogRequest *request;
     static const SDL_DialogFileFilter resources[] = {{"3DMM resources", "chk"}};
+    static const SDL_DialogFileFilter movies[] = {{"Marcus movie copy", "3mm"}};
     release_camera(app);
     if (kind == 0)
     {
@@ -932,7 +936,9 @@ static void choose_file(App *app, int kind)
     request->event_type = app->dialog_event;
     request->kind = kind;
     app->playing = 0;
-    if (kind == 2)
+    if (kind == 4)
+        SDL_ShowSaveFileDialog(dialog_callback, request, app->window, movies, 1, "Storyboard.3mm");
+    else if (kind == 2)
         SDL_ShowOpenFolderDialog(dialog_callback, request, app->window, app->content, 0);
     else
         SDL_ShowOpenFileDialog(dialog_callback, request, app->window, resources, 1, app->resources, 0);
@@ -946,6 +952,17 @@ static void choose_background(App *app)
     scene_organiser_close(app->scene_organiser);
     if (!background_browser_show(app->background_browser, app->player, app->resources, app->content))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No backgrounds found. Choose your original 3DMM Content folder.");
+}
+static void choose_storyboard(App *app, int new_scene, int angle)
+{
+    app->playing = 0;
+    release_camera(app);
+    finish_movie_scrub(app);
+    app->sheet_menu = app->orbit_menu = 0;
+    scene_organiser_close(app->scene_organiser);
+    if (!storyboard_editor_show(app->storyboard_editor, app->player, new_scene, angle,
+            &app->work_image, app->resources, app->content))
+        fail(app, "Cannot open the storyboard editor.");
 }
 static void choose_prop(App *app)
 {
@@ -1586,6 +1603,8 @@ static void ribbon_action(App *app, int action)
     else if (action == RIBBON_CONTENT) choose_file(app, 2);
     else if (action == RIBBON_SETTINGS) open_settings(app);
     else if (action == RIBBON_NEW_SCENE) choose_background(app);
+    else if (action == RIBBON_STORYBOARD) choose_storyboard(app, !marcus_is_storyboard(app->player), -1);
+    else if (action == RIBBON_SAVE_COPY) choose_file(app, 4);
     else if (action == RIBBON_NEW_PROP) choose_prop(app);
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
     else if (action == RIBBON_CAMERA_GUIDES)
@@ -2063,6 +2082,12 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
         undo_edit(app);
         return;
     }
+    if (key == SDLK_S && (shortcuts_modifiers(modifiers) == MARCUS_MOD_CTRL ||
+                          shortcuts_modifiers(modifiers) == MARCUS_MOD_GUI))
+    {
+        if (app->loaded) choose_file(app, 4);
+        return;
+    }
     action = shortcuts_match(&app->shortcuts, key, modifiers);
     if (action >= 0)
     {
@@ -2173,6 +2198,14 @@ static void handle_event(App *app, const SDL_Event *event)
     gizmo_event = prop_gizmo_event(app->prop_gizmo, event);
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
+    else if (!app->error[0] && storyboard_editor_event(app->storyboard_editor, event, app->width, app->height))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
+    }
     else if (!app->error[0] && camera_picker_event(app->camera_picker, event, app->width, app->height))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
@@ -2211,6 +2244,16 @@ static void handle_event(App *app, const SDL_Event *event)
         request = (DialogRequest *)event->user.data1;
         if (request->kind == 3)
             fail(app, request->path);
+        else if (request->kind == 4)
+        {
+            if (!marcus_save_copy(app->player, request->path)) fail(app, marcus_error(app->player));
+            else
+            {
+                char title[1200];
+                SDL_snprintf(title, sizeof(title), "Marcus - Saved copy: %s", request->path);
+                SDL_SetWindowTitle(app->window, title);
+            }
+        }
         else if (request->kind == 0)
             open_movie(app, request->path);
         else
@@ -3989,6 +4032,7 @@ static void draw(App *app)
     browser_draw(app->browser, &app->ui, app->width, app->height);
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
     camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
+    storyboard_editor_draw(app->storyboard_editor, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
 }
@@ -4003,7 +4047,7 @@ static void update_prop_gizmo(App *app)
     prop_gizmo_begin(app->prop_gizmo, app->player, app->selected,
         app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
         !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
-        !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
+        !camera_picker_visible(app->camera_picker) && !storyboard_editor_visible(app->storyboard_editor) && !scene_organiser_visible(app->scene_organiser) &&
         !app->orbit_menu && !app->sheet_menu && !app->flying && !app->orbiting && !app->panning &&
         !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging,
         app->width, app->height);
@@ -4316,6 +4360,12 @@ int main(int argc, char **argv)
         goto cleanup;
     }
     app.dialog_event = SDL_RegisterEvents(1);
+    app.storyboard_editor = storyboard_editor_create();
+    if (!app.storyboard_editor)
+    {
+        result = 1;
+        goto cleanup;
+    }
     layout(&app);
     reset_view(&app);
     if (input)
@@ -4376,7 +4426,9 @@ int main(int argc, char **argv)
             unsigned long background;
             if (background_browser_take(app.background_browser, &background))
             {
-                if (!marcus_add_scene(app.player, background, app.resources, app.content))
+                if (background == MARCUS_BACKGROUND_STORYBOARD)
+                    choose_storyboard(&app, 1, -1);
+                else if (!marcus_add_scene(app.player, background, app.resources, app.content))
                 {
                     fail(&app, marcus_error(app.player));
                     refresh(&app);
@@ -4422,6 +4474,9 @@ int main(int argc, char **argv)
         }
         {
             unsigned long camera;
+            int storyboard_angle, edit_storyboard;
+            edit_storyboard = camera_picker_take_storyboard(app.camera_picker, &storyboard_angle);
+            if (edit_storyboard) choose_storyboard(&app, 0, edit_storyboard == 2 ? -2 : storyboard_angle);
             if (camera_picker_take(app.camera_picker, &camera))
             {
                 scene_organiser_close(app.scene_organiser);
@@ -4436,6 +4491,18 @@ int main(int argc, char **argv)
                 refresh(&app);
                 reset_view(&app);
             }
+        }
+        if (storyboard_editor_take(app.storyboard_editor))
+        {
+            app.modified = 1;
+            app.blank_movie = 0;
+            app.selected = app.selected_sound = app.selected_sound_track = -1;
+            app.row_scroll = app.object_scroll = app.sound_scroll = app.both_scroll = 0;
+            refresh(&app);
+            view_mode(&app, 1);
+            reset_view(&app);
+            fit_timeline(&app);
+            SDL_SetWindowTitle(app.window, "Marcus - Storyboard (unsaved changes)");
         }
         i = scene_organiser_take(app.scene_organiser);
         if (i >= 0)
@@ -4519,6 +4586,7 @@ cleanup:
     browser_destroy(app.browser);
     background_browser_destroy(app.background_browser);
     camera_picker_destroy(app.camera_picker);
+    storyboard_editor_destroy(app.storyboard_editor);
     scene_organiser_destroy(app.scene_organiser);
     prop_gizmo_destroy(app.prop_gizmo);
     ui_destroy(&app.ui);

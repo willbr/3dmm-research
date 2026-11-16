@@ -1,6 +1,7 @@
 #ifndef MARCUS_LIVE_EDITS_H
 #define MARCUS_LIVE_EDITS_H
 #include "mm/preview.h"
+#include "storyboard.h"
 #include <map>
 #include <memory>
 #include <string>
@@ -27,6 +28,7 @@ struct MarcusLiveEdits
     std::shared_ptr<const Props> props = std::make_shared<Props>();
     std::shared_ptr<const Cameras> cameras = std::make_shared<Cameras>();
     std::shared_ptr<const Shapes> shapes = std::make_shared<Shapes>();
+    std::shared_ptr<const MarcusStoryboards> storyboards = std::make_shared<MarcusStoryboards>();
     std::uint64_t revision = 0;
 };
 #endif

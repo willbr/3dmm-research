@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include "soc_core.h"
 #include "mm/scene_runtime.h"
+#include "storyboard_native.h"
 ASSERTNAME
 
 namespace
@@ -432,6 +433,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
     int ordinal = 1;
     while (file->FGetCkiCtg(kctgScen, ordinal - 1, &existing)) ++ordinal;
     for (const auto &scene : *edits.scenes) ApplyNewScene(file.get(), scene, ordinal++, source.empty());
+    for (const auto &entry : *edits.storyboards) MarcusEmbedBoard(file.get(), entry.first, entry.second);
     for (const auto &range : ranges) ApplySceneRange(file.get(), range);
     if (!edits.props->empty())
     {

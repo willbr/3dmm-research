@@ -123,20 +123,69 @@ and Settings stay in the title row; Resources and Content remain available on
 every tab. Scene/frame organisers, object selection and sound track controls
 use the existing player actions. The Words tab selects authored 3D text objects.
 
-**New scene** opens a chooser for the original retail backgrounds, with a rendered
+**New scene** opens a chooser for a **Storyboard - draw a background** option and the original retail backgrounds, with a rendered
 preview. Use the arrows, Page Up/Down, Home/End or mouse wheel to browse, then
 **Add scene**, Enter or double-click to confirm. Escape/Cancel leaves the movie
 unchanged. Preview rendering runs in a cancellable helper process and does not
-replace the live movie. The chooser requires the original `bkgds.3cn` and normal
-Resources/Content paths.
+replace the live movie. Retail choices require the original `bkgds.3cn` and normal
+Resources/Content paths; the storyboard option remains available without that catalogue.
 
-Adding a scene appends and selects a one-frame scene with the chosen background,
+Adding a retail scene appends and selects a one-frame scene with the chosen background,
 camera 0, a cut transition and no actors, captions or sound cues. This works for
 a new movie and an opened movie, including ZIP/VMM inputs. Changes live in
 memory; original movies, ZIPs and content files are not overwritten.
 Resource/Content reloads retain the added scenes. An **UNSAVED** indicator marks
-the working movie. Saving/export and other scene editing tools are not implemented
-yet; opening another movie, New movie or exiting discards these scene additions.
+the working movie. **Save copy** (Ctrl+S / Cmd+S) exports the current working
+movie to a native `.3mm` file, including scene additions, camera cuts, prop edits,
+extended frame ranges and storyboard resources. Reopen that copy to continue
+editing it. The working session retains its original source and **UNSAVED** marker;
+opening another movie, New movie or exiting discards unexported edits. Saving a
+copy does not package installed content libraries or external fonts.
+
+**Storyboard** in the Scenes ribbon edits the current storyboard scene, or starts
+a new one when another background is selected. The new-scene chooser also opens
+this editor before creating anything. **Cancel** / Escape discards the draft;
+**Add scene** / Enter creates a scene only after the draft is accepted.
+
+The 544×306 canvas starts light grey. Paint with black, white, soft blue, soft red,
+soft yellow or soft green using an opaque, hard pixel brush. Choose a brush size,
+use **[ / ]** to resize, **1–6** to choose colours, and **E** for the grey eraser.
+**Clear angle** clears only that drawing. Ctrl+Z / Cmd+Z (or **Undo** in Paint)
+undoes draft strokes, clears, camera settings, angle additions and light edits.
+Draft undo has a bounded memory budget, retaining up to 24 steps. Leaving the
+canvas during a stroke breaks the line instead of drawing across the gap.
+
+**New angle** creates a blank grey drawing using the selected camera's settings.
+Switch angles using the arrows. In **Camera**, drag numeric values or use their
+minus/plus buttons to change position, yaw, pitch, roll, vertical FOV and clipping
+planes. Shift makes value drags finer. Right-drag the preview to look around;
+WASD moves the camera, Q/E moves down/up, Shift increases the movement step, and
+the wheel moves forward/backward. The ground grid and crosshair are authoring
+guides and are never painted or exported. **Use work camera** copies the current
+work-view pose and lens into this angle, retaining its drawing.
+
+**Lights** adds, selects, deletes and adjusts up to sixteen directional or point
+lights. Position, direction and intensity affect 3D actors/props across all angles;
+the paintings keep their flat colours. Existing scene objects appear over the
+draft painting, with temporary camera/light settings previewed before Apply.
+Painting and lights belong to the scene; each angle has its own image and camera.
+Apply also chooses the displayed angle at the current frame, retaining later cuts.
+The Camera angles chooser offers **Edit storyboard** and **New angle** for these scenes.
+
+Storyboard images carry all-infinite depth, matching the default black background's
+no-scenery-depth policy: they cannot hide actors and create no reconstructed scenery
+mesh in Orbit/Fly. They are ordinary native BKGD/CAM/MBMP/ZBMP/GLCR/GLLT resources
+in exported copies; a versioned STBD scene child retains editable drawings/settings.
+No retail content files are changed. Resources are still required; creating a
+storyboard does not require the retail background catalogue.
+
+These storyboard copies currently target Marcus. Stock retail successfully opened
+the unmodified Litterbug 2 and native scene fixtures, but an exported storyboard
+produced retail's **Unexpected Exit** dialog during loading. Retail playback of
+embedded storyboard backgrounds is therefore unsupported; native resource layout
+and Marcus renderer checks do not establish retail compatibility. The local
+diagnostic artifacts are in `tmp/storyboard-retail-probe/`. No retail movie or
+installed content was changed.
 
 **Scenes > Camera angles** shows a grid of rendered thumbnails for the current
 background's authored cameras, including actors and captions at the current frame.
@@ -148,7 +197,7 @@ rendering uses the isolated preview helper and does not alter the live camera.
 Camera choices are authored changes in the same live session as new
 scenes. A choice replaces any camera changes at that exact frame and lasts until
 the next authored camera change. Other frame events and later camera cuts are
-retained. The movie is marked **UNSAVED**; saving/export is still unavailable.
+retained. The movie is marked **UNSAVED**; **Save copy** exports these edits.
 
 **Scenes > All cameras / Active only** toggles the other authored camera guides
 in the work view (Orbit/Fly, including the work pane in a split view). The active
@@ -171,8 +220,8 @@ default pose/action on a stationary track. The new prop is selected in the objec
 list and its bounds are highlighted in the movie view. Each insertion has a
 unique movie-wide object ID and roll-call name. Other scenes and existing tracks
 are retained. Props share the **UNSAVED** session with scene and camera edits;
-placed props can be moved with the gizmo or position fields. Saving/export is
-not implemented yet.
+placed props can be moved with the gizmo or position fields. **Save copy** exports
+them with the rest of the movie.
 
 The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
 X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape
@@ -1235,7 +1284,7 @@ scene, prop, camera, placement and frame-range edits. The snapshot is rebuilt
 only after further edits, and its creation does not replace the live movie.
 
 Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, rotation, resize, prop insertion,
-frame addition, camera change or new scene. Each drag or completed position-field edit is one
+frame addition, camera change, storyboard Apply or new scene. Each drag or completed position-field edit is one
 step. Up to 64 steps are retained in the current session, including after a
 resource reload. Undo restores the movie and the pre-edit scene/frame, retaining
 the inspection view. Undoing the first scene returns an untitled movie to its
@@ -1246,9 +1295,12 @@ field's local text undo. Original movie and content files remain unchanged.
 
 ## Current limits
 
-- Scene creation, frame additions, camera changes, prop insertion and object transforms are session
-  edits; native working copies are materialized as needed. Movie save/export
-  commands are not implemented.
+- Scene creation, frame additions, camera changes, storyboard authoring, prop insertion and object transforms are session
+  edits; native working copies are materialized as needed. **Save copy** exports
+  native movies; overwriting the active document in place and packaging content are not implemented.
+- Storyboards support up to 64 angles, with a separate flat drawing per angle.
+  Drawing has no layers or depth-painting tools. Existing retail background resources
+  are not edited by the storyboard tools.
 - Actor/prop animation, costume changes, 3D text, authored cameras and
   prerendered backgrounds/depth use the existing preview evaluator.
 - Caption glyphs use bundled ZIP fonts or available host fonts, and MIDI uses a software instrument

@@ -106,6 +106,12 @@ struct PreviewCameraEdit
     std::int32_t frame = 0;
     std::uint32_t camera = 0;
 };
+struct PreviewLight
+{
+    // World pose uses the work-camera angle convention; intensity is brightness [0,1].
+    float x = 0, y = 0, z = 0, yaw = 0, pitch = 0, intensity = 1;
+    bool point = false;
+};
 struct PreviewBounds
 {
     bool valid = false;
@@ -220,6 +226,10 @@ class Preview
     // Reconcile added objects while retaining bodies and templates already loaded.
     bool SetDefinitions(const std::vector<PreviewSceneDefinition> &, const std::vector<PreviewPropDefinition> &, Error &);
     bool SetCameraEdits(const std::vector<PreviewCameraEdit> &, Error &);
+    // Replace scene scenery without changing actor tracks or frame events.
+    bool SetBackground(std::int32_t source, std::uint32_t background, Error &);
+    // Temporary lighting for an authoring preview; restores the scene after rendering.
+    bool RenderWithLights(const PreviewView &, const std::vector<PreviewLight> &, PreviewImage &, Error &);
     void Close();
     // BMDL models, TMPL actors/props/text, ACTR instances, SCEN scenes and
     // BKGD backgrounds. Failed selection clears the old asset.
