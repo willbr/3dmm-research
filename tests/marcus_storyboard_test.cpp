@@ -150,40 +150,49 @@ int main(int argc, char **argv)
             const auto projection = MarcusBoardProjection(view);
             MarcusBoardLight lamp = {0, 10, 0, 45, 20, .8f, 0};
             const auto widget = MarcusBoardBuildLightWidget(projection, lamp, 600);
-            check(widget.visible[0] && widget.visible[1] && widget.visible[2] && widget.visible[4] &&
-                std::abs(widget.handles[0][0] - .5f) < .0001f && std::abs(widget.handles[0][1] - .5f) < .0001f,
-                "Project light centre and XYZ/aim handles through the scene camera");
+            check(widget.visible && std::abs(widget.centre[0] - .5f) < .0001f && std::abs(widget.centre[1] - .5f) < .0001f,
+                "Project light selection markers through the scene camera");
             MarcusBoardLight moved;
-            check(MarcusBoardDragLight(projection, lamp, 1, widget.scale, .5f, .5f, .6f, .6f, moved) &&
-                moved.x > lamp.x && moved.y == lamp.y && moved.z == lamp.z,
-                "X handle constrains a diagonal pointer drag to world X");
-            check(MarcusBoardDragLight(projection, lamp, 2, widget.scale, .5f, .5f, .6f, .6f, moved) &&
-                moved.y < lamp.y && moved.x == lamp.x && moved.z == lamp.z,
-                "Y handle constrains movement to world Y");
-            check(!MarcusBoardDragLight(projection, lamp, 3, widget.scale, .5f, .5f, .6f, .6f, moved),
-                "An end-on axis cannot produce an unstable depth jump");
-            check(MarcusBoardDragLight(projection, lamp, 0, widget.scale, .5f, .5f, .6f, .6f, moved) &&
-                moved.x > lamp.x && moved.y < lamp.y && moved.z == lamp.z && moved.yaw == lamp.yaw,
-                "Centre drag moves in the view plane without changing direction");
-            check(MarcusBoardDragLight(projection, lamp, 4, widget.scale, widget.handles[4][0], widget.handles[4][1],
-                widget.handles[4][0] + .1f, widget.handles[4][1] + .1f, moved) && moved.yaw != lamp.yaw &&
-                moved.pitch != lamp.pitch && moved.x == lamp.x && moved.y == lamp.y && moved.z == lamp.z,
-                "Aim handle changes yaw/pitch while preserving the light position");
+            float matrix[16];
+            MarcusBoardLightTransform(lamp, matrix);
+            check(matrix[12] == lamp.x && matrix[13] == lamp.y && matrix[14] == lamp.z &&
+                std::abs(matrix[9] - std::sin(lamp.pitch * .01745329252f)) < .00001f,
+                "Light matrix matches the native camera-to-world pitch convention");
+            matrix[12] += 5; matrix[13] -= 3; matrix[14] += 9;
+            check(MarcusBoardLightFromTransform(lamp, matrix, false, moved) && moved.x == 5 && moved.y == 7 && moved.z == 9 &&
+                moved.yaw == lamp.yaw && moved.pitch == lamp.pitch && moved.intensity == lamp.intensity,
+                "ImGuizmo translation preserves light direction and brightness");
+            matrix[12] = 40000; matrix[13] = -40000;
+            check(MarcusBoardLightFromTransform(lamp, matrix, false, moved) && moved.x == 32700 && moved.y == -32700,
+                "Gizmo movement saturates at native world limits");
+            matrix[12] = std::numeric_limits<float>::infinity();
+            check(!MarcusBoardLightFromTransform(lamp, matrix, false, moved), "Nonfinite transforms cannot corrupt a light");
+            for (float yaw : {-170.f, 0.f, 45.f, 179.f}) for (float pitch : {-89.f, 0.f, 35.f, 89.f})
+            {
+                auto turned = lamp; turned.yaw = yaw; turned.pitch = pitch;
+                turned.x = 123; turned.y = 456; turned.z = 789;
+                MarcusBoardLightTransform(turned, matrix);
+                check(MarcusBoardLightFromTransform(lamp, matrix, true, moved) && std::abs(moved.yaw - yaw) < .001f &&
+                    std::abs(moved.pitch - pitch) < .001f && moved.x == lamp.x && moved.y == lamp.y && moved.z == lamp.z,
+                    "Rotation rings round-trip yaw/pitch while preserving the light position");
+            }
+            matrix[8] = matrix[10] = 0; matrix[9] = 1;
+            check(MarcusBoardLightFromTransform(lamp, matrix, true, moved) && moved.pitch == 89,
+                "Vertical rotation respects the native light pitch limit");
+            matrix[9] = 0;
+            check(!MarcusBoardLightFromTransform(lamp, matrix, true, moved), "Degenerate orientation is rejected");
             lamp.point = 1;
             const auto point = MarcusBoardBuildLightWidget(projection, lamp, 600);
-            check(point.shape.line_count == 24 && !point.visible[4] && point.direction.line_count == 0 &&
-                !MarcusBoardDragLight(projection, lamp, 4, point.scale, .5f, .5f, .6f, .6f, moved),
-                "Point light has a spherical marker and no directional aim control");
+            MarcusBoardLightTransform(lamp, matrix);
+            check(point.shape.line_count == 24 && point.direction.line_count == 0 &&
+                !MarcusBoardLightFromTransform(lamp, matrix, true, moved), "Point light has a spherical marker and no rotation");
             lamp.z = 50;
-            check(!MarcusBoardBuildLightWidget(projection, lamp, 600).visible[0], "Lights behind the viewer are not pickable");
+            check(!MarcusBoardBuildLightWidget(projection, lamp, 600).visible, "Lights behind the viewer are not pickable");
             view.camera = {25, 24, 40, 30, 15, 5}; view.roll = 17;
             lamp = {0, 10, 0, 45, 20, .8f, 0};
             const auto angled = MarcusBoardProjection(view);
             const auto angledWidget = MarcusBoardBuildLightWidget(angled, lamp, 600);
-            check(angledWidget.visible[0] && MarcusBoardDragLight(angled, lamp, 3, angledWidget.scale,
-                angledWidget.handles[0][0], angledWidget.handles[0][1], angledWidget.handles[0][0] + .1f,
-                angledWidget.handles[0][1], moved) && moved.z != lamp.z && moved.x == lamp.x && moved.y == lamp.y,
-                "World Z dragging works with a pitched, yawed and rolled camera");
+            check(angledWidget.visible, "Light markers remain visible through a pitched, yawed and rolled camera");
             std::vector<float> clear(MarcusBoardWidth * MarcusBoardHeight, std::numeric_limits<float>::infinity());
             const auto full = MarcusBoardVisibleGridLines(view, clear, MarcusBoardWidth, MarcusBoardHeight);
             check(!full.empty(), "Ground grid is visible against an infinite backdrop");

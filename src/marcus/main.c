@@ -4043,14 +4043,16 @@ static void update_prop_gizmo(App *app)
     SDL_FRect viewport;
     SDL_Rect clip;
     float offset;
-    int moved;
-    prop_gizmo_begin(app->prop_gizmo, app->player, app->selected,
-        app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
+    int moved, enabled;
+    enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
         !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
-        !camera_picker_visible(app->camera_picker) && !storyboard_editor_visible(app->storyboard_editor) && !scene_organiser_visible(app->scene_organiser) &&
+        !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !app->orbit_menu && !app->sheet_menu && !app->flying && !app->orbiting && !app->panning &&
-        !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging,
+        !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging;
+    prop_gizmo_begin(app->prop_gizmo, app->player, app->selected,
+        enabled && !storyboard_editor_visible(app->storyboard_editor),
         app->width, app->height);
+    storyboard_editor_gizmo(app->storyboard_editor, enabled);
     if (app->picture)
     {
         viewport = viewport_rect(app, 0);

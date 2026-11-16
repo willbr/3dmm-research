@@ -23,15 +23,6 @@ Point Ray(const MarcusProjection &view, float x, float y)
             view.transform[3 + i] * (1 - 2 * y) * tangent - view.transform[6 + i];
     return ray;
 }
-bool Intersect(const Point &eye, const Point &ray, const Point &point, const Point &normal, Point &out)
-{
-    const float denominator = Dot(ray, normal);
-    if (std::abs(denominator) < .00001f) return false;
-    const float distance = Dot(Add(point, eye, -1), normal) / denominator;
-    if (!std::isfinite(distance) || distance <= 0) return false;
-    out = Add(eye, ray, distance);
-    return true;
-}
 }
 
 MarcusProjection MarcusBoardProjection(const MarcusBoardAngle &a)
@@ -62,17 +53,7 @@ MarcusBoardLightWidget MarcusBoardBuildLightWidget(const MarcusProjection &view,
     auto segment = [&](MarcusCameraGuide &guide, const Point &a, const Point &b) {
         camera_guide_add_line(&view, a.data(), b.data(), &guide);
     };
-    auto handle = [&](int i, const Point &p) { widget.visible[i] = camera_project_point(&view, p.data(), widget.handles[i].data()) != 0; };
-    handle(0, centre);
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        Point tip = centre; tip[axis] += widget.scale;
-        handle(axis + 1, tip); segment(widget.axes[axis], centre, tip);
-        if (widget.visible[0] && widget.visible[axis + 1] &&
-            std::hypot((widget.handles[axis + 1][0] - widget.handles[0][0]) * view.aspect,
-                widget.handles[axis + 1][1] - widget.handles[0][1]) * viewportHeight < 16)
-        { widget.visible[axis + 1] = false; widget.axes[axis] = {}; }
-    }
+    widget.visible = camera_project_point(&view, centre.data(), widget.centre.data()) != 0;
     const float radius = widget.scale * .18f;
     if (light.point)
     {
@@ -99,46 +80,35 @@ MarcusBoardLightWidget MarcusBoardBuildLightWidget(const MarcusProjection &view,
         segment(widget.direction, centre, tip);
         for (const auto &side : {right, up}) for (int sign : {-1, 1})
             segment(widget.direction, tip, Add(Add(tip, forward, -.25f * widget.scale), side, sign * radius));
-        handle(4, tip);
     }
     return widget;
 }
 
-bool MarcusBoardDragLight(const MarcusProjection &view, const MarcusBoardLight &original, int handle, float scale,
-    float startX, float startY, float x, float y, MarcusBoardLight &light)
+void MarcusBoardLightTransform(const MarcusBoardLight &light, float matrix[16])
 {
-    if (!view.valid || view.orthographic || handle < 0 || handle > 4 || (handle == 4 && original.point) ||
-        !std::isfinite(scale) || scale <= 0 || !std::isfinite(x) || !std::isfinite(y)) return false;
-    const Point eye = {view.transform[9], view.transform[10], view.transform[11]};
-    const Point centre = {original.x, original.y, original.z};
-    const auto firstRay = Ray(view, startX, startY), ray = Ray(view, x, y);
-    Point normal = {view.transform[6], view.transform[7], view.transform[8]};
-    Point plane = centre, first, last;
-    if (handle > 0 && handle < 4)
-    {
-        normal = firstRay; normal[handle - 1] = 0;
-        if (Dot(normal, normal) < .0001f) return false;
-    }
-    if (handle == 4) plane = Add(centre, Forward(original), scale);
-    if (!Intersect(eye, firstRay, plane, normal, first) || !Intersect(eye, ray, plane, normal, last)) return false;
-    auto delta = Add(last, first, -1);
+    const float sy = std::sin(light.yaw * radians), cy = std::cos(light.yaw * radians);
+    const float sp = std::sin(light.pitch * radians), cp = std::cos(light.pitch * radians);
+    const float values[] = {cy, 0, -sy, 0, -sy * sp, cp, -cy * sp, 0,
+        sy * cp, sp, cy * cp, 0, light.x, light.y, light.z, 1};
+    std::copy(values, values + 16, matrix);
+}
+bool MarcusBoardLightFromTransform(const MarcusBoardLight &original, const float matrix[16], bool rotate, MarcusBoardLight &light)
+{
+    for (int i = 0; i < 16; ++i) if (!std::isfinite(matrix[i])) return false;
     light = original;
-    if (handle == 4)
+    if (rotate)
     {
-        const auto direction = Add(Add(plane, delta), centre, -1);
-        const float length = std::sqrt(Dot(direction, direction));
+        if (original.point) return false;
+        const float length = std::hypot(std::hypot(matrix[8], matrix[9]), matrix[10]);
         if (length < .0001f) return false;
-        light.yaw = std::atan2(-direction[0], -direction[2]) / radians;
-        light.pitch = std::clamp(std::asin(std::clamp(-direction[1] / length, -1.f, 1.f)) / radians, -89.f, 89.f);
+        light.yaw = std::atan2(matrix[8], matrix[10]) / radians;
+        light.pitch = std::clamp(std::asin(std::clamp(matrix[9] / length, -1.f, 1.f)) / radians, -89.f, 89.f);
     }
     else
     {
-        if (handle > 0) for (int axis = 0; axis < 3; ++axis) if (axis != handle - 1) delta[axis] = 0;
-        const auto position = Add(centre, delta);
-        for (float v : position) if (!std::isfinite(v)) return false;
-        light.x = std::clamp(position[0], -32700.f, 32700.f);
-        light.y = std::clamp(position[1], -32700.f, 32700.f);
-        light.z = std::clamp(position[2], -32700.f, 32700.f);
+        light.x = std::clamp(matrix[12], -32700.f, 32700.f);
+        light.y = std::clamp(matrix[13], -32700.f, 32700.f);
+        light.z = std::clamp(matrix[14], -32700.f, 32700.f);
     }
     return true;
 }

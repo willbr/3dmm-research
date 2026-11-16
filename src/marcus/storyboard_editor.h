@@ -15,6 +15,8 @@ int storyboard_editor_visible(const MarcusStoryboardEditor *editor);
 int storyboard_editor_flying(const MarcusStoryboardEditor *editor);
 void storyboard_editor_release_camera(MarcusStoryboardEditor *editor);
 void storyboard_editor_update(MarcusStoryboardEditor *editor, double seconds);
+/* Submit light controls during the shared ImGui/ImGuizmo frame, before scene rendering. */
+void storyboard_editor_gizmo(MarcusStoryboardEditor *editor, int enabled);
 /* Complete a gesture before leaving paint mode. Completed edits already belong to the movie. */
 void storyboard_editor_close(MarcusStoryboardEditor *editor);
 /* Follow ordinary scene/frame/undo/prop changes without intercepting their controls. */

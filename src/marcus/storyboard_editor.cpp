@@ -2,6 +2,7 @@
 #include "storyboard.h"
 #include "storyboard_tools.h"
 #include "camera_controls.h"
+#include "transform_gizmo.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -28,7 +29,7 @@ float SegmentDistance(float x, float y, float ax, float ay, float bx, float by)
     const float t = length > 0 ? std::clamp(((x - ax) * dx + (y - ay) * dy) / length, 0.f, 1.f) : 0;
     return std::hypot(x - ax - t * dx, y - ay - t * dy);
 }
-void Grid(MarcusUI *ui, const std::vector<std::array<double, 4>> &lines, const SDL_FRect &r)
+void Grid(MarcusUI *ui, const std::vector<std::array<double, 4>> &lines, const SDL_FRect &r, bool lightTools)
 {
     const bool clipped = SDL_RenderClipEnabled(ui->renderer);
     SDL_Rect previous; SDL_GetRenderClipRect(ui->renderer, &previous);
@@ -38,7 +39,7 @@ void Grid(MarcusUI *ui, const std::vector<std::array<double, 4>> &lines, const S
             float(r.x + line[2] * r.w), float(r.y + line[3] * r.h), 0xadb3b6);
     ui_line(ui, r.x + r.w / 2 - 6, r.y + r.h / 2, r.x + r.w / 2 + 6, r.y + r.h / 2, 0x6b7f84);
     ui_line(ui, r.x + r.w / 2, r.y + r.h / 2 - 6, r.x + r.w / 2, r.y + r.h / 2 + 6, 0x6b7f84);
-    ui_text(ui, r.x + 12, r.y + 12, "Perspective guide / Bake grid to paint it", 0x5b6570);
+    ui_text(ui, r.x + 12, r.y + (lightTools ? 44 : 12), "Perspective guide / Bake grid to paint it", 0x5b6570);
     SDL_SetRenderClipRect(ui->renderer, clipped ? &previous : nullptr);
 }
 }
@@ -48,10 +49,10 @@ struct MarcusStoryboardEditor
     MarcusStoryboard board;
     MarcusBoardAngle work, lightView;
     bool inspectLights = false;
-    int dragLight = -1;
-    MarcusBoardLight originalLight;
-    MarcusProjection dragProjection = {};
-    float lightStartX = 0, lightStartY = 0, lightScale = 0;
+    bool movingLight = false, lightGizmoOver = false;
+    int lightMode = 0;
+    float lightMatrix[16] = {};
+    SDL_FRect lightControls = {};
     std::vector<float> depth;
     std::vector<std::array<double, 4>> gridLines;
     SDL_FRect view = {}, canvas = {}, tools = {}, bar = {};
@@ -185,7 +186,12 @@ struct MarcusStoryboardEditor
         for (int i = 0; i < 3; ++i) *coordinates[i] = std::clamp((low[i] + high[i]) * .5f + projection.transform[6 + i] * distance, -32700.f, 32700.f);
         inspectLights = previewDirty = true;
     }
-    bool Gesture() const { return painting || looking || dragField >= 0 || dragLight >= 0; }
+    bool Gesture() const { return painting || looking || dragField >= 0 || movingLight; }
+    void StopLightGizmo()
+    {
+        if (movingLight) MarcusGizmo::Enable(MarcusGizmo::Light, false);
+        movingLight = lightGizmoOver = false; lightControls = {};
+    }
     void StopLook()
     {
         if (navigationWindow)
@@ -216,6 +222,7 @@ struct MarcusStoryboardEditor
     void Reload()
     {
         StopLook();
+        StopLightGizmo();
         const auto selected = ColourRGB();
         MarcusInfo info = {}; MarcusScene current = {};
         if (!marcus_info(player, &info) || !marcus_scene(player, info.scene, &current) || !MarcusGetStoryboard(player, board))
@@ -229,7 +236,7 @@ struct MarcusStoryboardEditor
         MarcusGetStoryboardColours(player, paintColours);
         MarcusGetStoryboardPalette(player, scenePalette);
         SelectRGB(selected); hsvDrag = 0;
-        pending = painting = picking = looking = false; dragField = dragLight = -1; cameraKeys = 0;
+        pending = painting = picking = looking = false; dragField = -1; cameraKeys = 0;
         previewDirty = true;
         if (sceneChanged && tab == 2) FrameLights();
     }
@@ -251,7 +258,7 @@ struct MarcusStoryboardEditor
     }
     void Finish()
     {
-        StopLook(); painting = false; dragField = dragLight = -1; hsvDrag = 0;
+        StopLook(); StopLightGizmo(); painting = false; dragField = -1; hsvDrag = 0;
         Commit();
     }
     void SelectAngle(int index)
@@ -260,43 +267,28 @@ struct MarcusStoryboardEditor
         angle = std::clamp(index, 0, int(board.angles.size()) - 1);
         pending = previewDirty = true; Commit();
     }
-    void MoveLight(float px, float py)
-    {
-        if (canvas.w <= 0 || canvas.h <= 0 || light >= int(board.lights.size())) return;
-        MarcusBoardLight next;
-        if (MarcusBoardDragLight(dragProjection, originalLight, dragLight, lightScale, lightStartX, lightStartY,
-            (px - canvas.x) / canvas.w, (py - canvas.y) / canvas.h, next))
-        { board.lights[light] = next; pending = previewDirty = true; }
-    }
-    int HitLight(float px, float py, int &index) const
+    int HitLight(float px, float py) const
     {
         const auto projection = MarcusBoardProjection(DisplayAngle());
         const float nx = (px - canvas.x) / canvas.w, ny = (py - canvas.y) / canvas.h;
         float best = 14;
-        int handle = -1; index = -1;
+        int index = -1;
         // Prefer the selected marker when newly added lights share a position.
         for (int pass = 0; pass < int(board.lights.size()); ++pass)
         {
             const int i = pass == 0 ? light : pass <= light ? pass - 1 : pass;
             const auto widget = MarcusBoardBuildLightWidget(projection, board.lights[i], canvas.h);
-            for (int h = 0; h < 5; ++h)
+            float distance = widget.visible ? std::hypot((nx - widget.centre[0]) * canvas.w, (ny - widget.centre[1]) * canvas.h) : 14;
+            for (const auto *guide : {&widget.shape, &widget.direction}) for (int line = 0; line < guide->line_count; ++line)
             {
-                if (!widget.visible[h] || (h && i != light)) continue;
-                const auto &p = widget.handles[h];
-                float distance = std::hypot((nx - p[0]) * canvas.w, (ny - p[1]) * canvas.h);
-                if (h > 0 && h < 4 && widget.visible[0])
-                {
-                    const auto &c = widget.handles[0];
-                    // Keep the centre available for dragging in the view plane.
-                    if (std::hypot((nx - c[0]) * canvas.w, (ny - c[1]) * canvas.h) > 16)
-                        distance = SegmentDistance(px, py, canvas.x + c[0] * canvas.w, canvas.y + c[1] * canvas.h,
-                            canvas.x + p[0] * canvas.w, canvas.y + p[1] * canvas.h);
-                }
-                const float limit = h > 0 && h < 4 ? 7.f : 14.f;
-                if (distance < std::min(best, limit)) { best = distance; handle = h; index = i; }
+                const auto &p = guide->lines[line];
+                const float edge = SegmentDistance(px, py, canvas.x + p.x1 * canvas.w, canvas.y + p.y1 * canvas.h,
+                    canvas.x + p.x2 * canvas.w, canvas.y + p.y2 * canvas.h);
+                if (edge < 7) distance = std::min(distance, edge);
             }
+            if (distance < best) { best = distance; index = i; }
         }
-        return handle;
+        return index;
     }
     void DrawLights(MarcusUI *ui)
     {
@@ -305,7 +297,6 @@ struct MarcusStoryboardEditor
         const bool clipped = SDL_RenderClipEnabled(ui->renderer);
         SDL_Rect clip = {int(canvas.x), int(canvas.y), int(canvas.w), int(canvas.h)};
         SDL_SetRenderClipRect(ui->renderer, &clip);
-        const unsigned axisColours[] = {0xf07878, 0x8ed58b, 0x79aef0};
         MarcusCameraGuide camera = {};
         if (inspectLights)
         {
@@ -318,21 +309,13 @@ struct MarcusStoryboardEditor
             const bool selected = i == light;
             const unsigned colour = selected ? 0xffd77a : 0xc4a76d;
             Guide(ui, widget.shape, canvas, colour); Guide(ui, widget.direction, canvas, colour);
-            if (selected) for (int axis = 0; axis < 3; ++axis) Guide(ui, widget.axes[axis], canvas, axisColours[axis]);
-            for (int h = 0; h < 5; ++h)
+            if (widget.visible)
             {
-                if (!widget.visible[h] || (h && !selected)) continue;
-                const auto &p = widget.handles[h];
+                const auto &p = widget.centre;
                 const float x = canvas.x + p[0] * canvas.w, y = canvas.y + p[1] * canvas.h;
-                ui_fill(ui, x - 5, y - 5, 10, 10, 0x25282d);
-                ui_fill(ui, x - 3, y - 3, 6, 6, h > 0 && h < 4 ? axisColours[h - 1] : colour);
-                if (h > 0 && h < 4) ui_text(ui, x + 7, y - 7, h == 1 ? "X" : h == 2 ? "Y" : "Z", axisColours[h - 1]);
-                if (h == 4) ui_text(ui, x + 7, y - 7, "Aim", colour);
-                if (h == 0)
-                {
-                    char label[64]; SDL_snprintf(label, sizeof(label), "%s light %d", board.lights[i].point ? "Point" : "Directional", i + 1);
-                    ui_text(ui, x + 16, y - 28, label, colour);
-                }
+                if (!selected) ui_fill(ui, x - 2, y - 2, 5, 5, colour);
+                char label[64]; SDL_snprintf(label, sizeof(label), "%s light %d", board.lights[i].point ? "Point" : "Directional", i + 1);
+                ui_text(ui, x + 16, y - 28, label, colour);
             }
         }
         SDL_SetRenderClipRect(ui->renderer, clipped ? &previous : nullptr);
@@ -394,6 +377,39 @@ void storyboard_editor_update(MarcusStoryboardEditor *e, double seconds)
 {
     if (storyboard_editor_visible(e) && e->looking && marcus_fly_step(&e->NavigationCamera(), e->cameraKeys, seconds))
     { e->previewDirty = true; if (e->tab == 1) e->pending = true; }
+}
+void storyboard_editor_gizmo(MarcusStoryboardEditor *e, int enabled)
+{
+    const bool eligible = enabled && storyboard_editor_visible(e) && e->tab == 2 && !e->looking &&
+        !e->painting && e->dragField < 0 && !e->hsvDrag && !e->board.lights.empty();
+    if (!eligible)
+    {
+        if (e && e->movingLight) e->Reload();
+        if (e) { e->lightGizmoOver = false; e->lightControls = {}; }
+        MarcusGizmo::Enable(MarcusGizmo::Light, false);
+        return;
+    }
+    auto &light = e->board.lights[e->light];
+    if (light.point) e->lightMode = 0;
+    e->lightControls = {e->canvas.x + 8, e->canvas.y + 8, light.point ? 64.f : 130.f, 28};
+    e->lightGizmoOver = MarcusGizmo::Controls("Light tools", e->lightControls, e->lightMode, light.point ? 1 : 2, e->movingLight);
+    if (!e->movingLight) MarcusBoardLightTransform(light, e->lightMatrix);
+    const auto result = MarcusGizmo::Manipulate(MarcusGizmo::Light, MarcusBoardProjection(e->DisplayAngle()), e->canvas, e->lightMode, e->lightMatrix);
+    e->lightGizmoOver |= result.over;
+    if (result.active || result.changed) e->movingLight = true;
+    if (result.changed)
+    {
+        MarcusBoardLight next;
+        if (MarcusBoardLightFromTransform(light, e->lightMatrix, e->lightMode == 1, next))
+        {
+            light = next; e->pending = e->previewDirty = true;
+            if (!e->lightMode) { e->lightMatrix[12] = light.x; e->lightMatrix[13] = light.y; e->lightMatrix[14] = light.z; }
+        }
+    }
+    if (e->lightGizmoOver && !e->movingLight)
+        ImGui::SetTooltip(e->lightMode ? "Drag a ring to aim the light. Ctrl snaps to 15 degrees. Escape cancels."
+            : "Drag an axis, plane or centre to move the light. Ctrl snaps to 1 unit. Escape cancels.");
+    if (e->movingLight && !result.active) e->Finish();
 }
 void storyboard_editor_close(MarcusStoryboardEditor *e) { if (e && e->open) { e->Finish(); e->picking = e->open = false; } }
 void storyboard_editor_layout(MarcusStoryboardEditor *e, const SDL_FRect *view, const SDL_FRect *canvas, const SDL_FRect *tools, const SDL_FRect *bar)
@@ -472,7 +488,7 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
             return 1;
         }
         if (key == SDLK_Z && command && e->Gesture()) { e->Reload(); return 1; }
-        if (e->dragLight >= 0) return 1;
+        if (e->movingLight) return 1;
         if (command) { e->Finish(); return 0; }
         if (e->looking) return 0;
         if (!event->key.repeat)
@@ -490,11 +506,11 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         e->cameraKeys &= ~marcus_fly_key(event->key.scancode);
         return 1;
     }
-    if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST) { e->Finish(); return 0; }
+    if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST) { if (e->movingLight) e->Reload(); else e->Finish(); return 0; }
     if (event->type == SDL_EVENT_MOUSE_MOTION)
     {
         if (e->hsvDrag) { e->MoveHSV(event->motion.x, event->motion.y); return 1; }
-        if (e->dragLight >= 0) { e->MoveLight(event->motion.x, event->motion.y); return 1; }
+        if (e->movingLight) return 1;
         if (e->painting) { e->Paint(event->motion.x, event->motion.y); return 1; }
         if (e->looking)
         {
@@ -516,9 +532,11 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         }
         return Inside(event->motion.x, event->motion.y, e->view) || Inside(event->motion.x, event->motion.y, e->tools);
     }
+    // ImGuizmo samples the final pointer/release before the shared render frame commits.
+    if (e->movingLight && (event->type == SDL_EVENT_MOUSE_BUTTON_UP || event->type == SDL_EVENT_MOUSE_WHEEL)) return 1;
     if (event->type == SDL_EVENT_MOUSE_BUTTON_UP &&
         ((e->looking && event->button.button == SDL_BUTTON_RIGHT) ||
-         ((e->painting || e->dragField >= 0 || e->dragLight >= 0 || e->hsvDrag) && event->button.button == SDL_BUTTON_LEFT))) { e->Finish(); return 1; }
+         ((e->painting || e->dragField >= 0 || e->hsvDrag) && event->button.button == SDL_BUTTON_LEFT))) { e->Finish(); return 1; }
     if (event->type == SDL_EVENT_MOUSE_WHEEL)
     {
         if (!e->looking && !Inside(event->wheel.mouse_x, event->wheel.mouse_y, e->canvas))
@@ -532,11 +550,13 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         return 1;
     }
     if (event->type != SDL_EVENT_MOUSE_BUTTON_DOWN) return 0;
-    if (e->looking || e->dragLight >= 0) return 1;
+    if (e->looking || e->movingLight) return 1;
     const float px = event->button.x, py = event->button.y;
     if (!Inside(px, py, e->view) && !Inside(px, py, e->tools)) { e->Finish(); return 0; }
     if (Inside(px, py, e->canvas))
     {
+        if (event->button.button == SDL_BUTTON_LEFT && e->tab == 2 &&
+            (e->lightGizmoOver || Inside(px, py, e->lightControls))) return 1;
         if (event->button.button == SDL_BUTTON_LEFT && e->tab == 0)
         {
             if (e->picking || (SDL_GetModState() & SDL_KMOD_ALT)) e->Pick(px, py);
@@ -545,16 +565,8 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         else if (event->button.button == SDL_BUTTON_LEFT && e->tab == 2)
         {
             e->Finish();
-            int index;
-            const int handle = e->HitLight(px, py, index);
-            if (handle >= 0)
-            {
-                e->light = index; e->originalLight = e->board.lights[index];
-                e->dragProjection = MarcusBoardProjection(e->DisplayAngle());
-                e->lightScale = MarcusBoardBuildLightWidget(e->dragProjection, e->originalLight, e->canvas.h).scale;
-                e->lightStartX = (px - e->canvas.x) / e->canvas.w; e->lightStartY = (py - e->canvas.y) / e->canvas.h;
-                e->dragLight = handle;
-            }
+            const int index = e->HitLight(px, py);
+            if (index >= 0) e->light = index;
         }
         else if (event->button.button == SDL_BUTTON_RIGHT && (e->tab == 1 || e->tab == 2)) e->StartLook(event->button.windowID);
         return 1;
@@ -669,7 +681,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
     ui_button_sized(ui, right - 130, e->bar.y, 130, 28, "Use work camera", 0, e->hasWork);
     ui_fill(ui, e->canvas.x - 1, e->canvas.y - 1, e->canvas.w + 2, e->canvas.h + 2, 0x5b6570);
     if (e->texture) SDL_RenderTexture(ui->renderer, e->texture, nullptr, &e->canvas);
-    Grid(ui, e->gridLines, e->canvas);
+    Grid(ui, e->gridLines, e->canvas, e->tab == 2);
     if (e->tab == 2) e->DrawLights(ui);
     if (e->tab == 0)
     {
@@ -724,8 +736,8 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             SDL_snprintf(label, sizeof(label), "%.2f", *f.value); ui_label(ui, x + 110, top + 6, 88, label, 0xdde0e5);
             ui_button_sized(ui, x + 212, top, 24, 26, "-", 0, 1); ui_button_sized(ui, x + 240, top, 24, 26, "+", 0, 1);
         }
-        ui_text(ui, x, y + 440, e->tab == 1 ? "Drag values / Shift for fine" : "Drag XYZ / centre to move", 0x969da8);
-        ui_text(ui, x, y + 464, e->tab == 1 ? "Hold RMB / WASD + Q E / Shift" : "Drag Aim / RMB to inspect", 0x969da8);
+        ui_text(ui, x, y + 440, e->tab == 1 ? "Drag values / Shift for fine" : "Move / Rotate / Ctrl to snap", 0x969da8);
+        ui_text(ui, x, y + 464, e->tab == 1 ? "Hold RMB / WASD + Q E / Shift" : "RMB + WASD to inspect", 0x969da8);
         if (e->tab == 2) ui_text(ui, x, y + 488, "Escape cancels / Ctrl+Z undo", 0x969da8);
         if (e->tab == 1)
         {
@@ -742,7 +754,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
         ui->hint = e->tab == 0 ? (e->picking ? "Click the background to pick its paint colour / Escape cancels the picker"
             : "Paint / 1-9 colours / 0 canvas grey / I or Alt+click to pick / [ ] size / Ctrl+Z undo")
             : e->tab == 1 ? "Hold right mouse: look + WASD move / Q E down/up / Shift faster / Wheel speed / Escape releases"
-            : "Select a light / drag XYZ or centre to move / drag Aim to turn / RMB + WASD to inspect / Shot view previews the movie camera";
+            : "Select a light / Move: axes, planes or centre / Rotate: aim with rings / Ctrl snaps / RMB + WASD to inspect";
 }
 int storyboard_editor_take(MarcusStoryboardEditor *e) { if (!e || !e->changed) return 0; e->changed = false; return 1; }
 }

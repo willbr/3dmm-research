@@ -216,9 +216,10 @@ work-view pose and lens into this angle, retaining its drawing.
 **Lights** adds, selects, deletes and adjusts up to sixteen directional or point
 lights. Its 3D inspection view shows selectable light widgets and the shot's camera
 frustum. Point lights use spherical markers; directional lights show an arrow.
-Click a marker to select it, drag its coloured **X/Y/Z** handles to move along a
-world axis, or drag its centre to move in the view plane. Drag **Aim** on a
-directional light to change yaw and pitch. Numeric fields stay available for
+Click a marker to select it. Lights use the same ImGuizmo controls as props:
+**Move** provides coloured axis arrows, plane handles and a centre handle;
+**Rotate** provides rings for aiming directional lights. Hold Ctrl to snap moves
+to one unit or rotations to 15 degrees. Numeric fields stay available for
 precise values and intensity. Releasing a drag commits one movie undo step;
 Escape or Ctrl+Z during a drag restores its starting values.
 **Frame lights** fits the lights, visible objects and shot camera in the inspection

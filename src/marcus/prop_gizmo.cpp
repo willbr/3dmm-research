@@ -1,5 +1,6 @@
 #include "prop_gizmo.h"
 #include "camera_guide.h"
+#include "transform_gizmo.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -153,6 +154,7 @@ int prop_gizmo_event(MarcusPropGizmo *gizmo, const SDL_Event *event)
 void prop_gizmo_begin(MarcusPropGizmo *gizmo, MarcusPlayer *player, int object, int enabled, int width, int height)
 {
     ImGui::SetCurrentContext(gizmo->context);
+    ImGuizmo::SetID(MarcusGizmo::Object);
     gizmo->changed = 0;
     gizmo->error[0] = 0;
     MarcusObject prop;
@@ -204,8 +206,7 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
 {
     if (!gizmo->enabled || gizmo->cancel || gizmo->editing == 2 || !image ||
         image->document != gizmo->document || image->scene != gizmo->scene || image->frame != gizmo->frame) return;
-    float view[16], projection[16];
-    if (!camera_projection_matrices(&image->projection, view, projection)) return;
+    if (!image->projection.valid) return;
     auto rect = *viewport;
     if (image->authored_camera)
     {
@@ -214,43 +215,21 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
         else { const auto h = rect.w / aspect; rect.y += (rect.h - h) / 2; rect.h = h; }
     }
     gizmo->controlRect={rect.x+8,rect.y+8,196,28};
-    ImGui::SetNextWindowPos(ImVec2(gizmo->controlRect.x,gizmo->controlRect.y));
-    ImGui::SetNextWindowSize(ImVec2(196,28));
-    ImGui::Begin("Object tools",nullptr,ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoNav);
-    ImGui::BeginDisabled(gizmo->editing!=0);
-    const char *labels[]={"Move","Rotate","Size"};
-    for (int i=0;i<3;++i)
+    const int previousMode = gizmo->mode;
+    gizmo->over = MarcusGizmo::Controls("Object tools", gizmo->controlRect, gizmo->mode, 3, gizmo->editing != 0);
+    if (previousMode != gizmo->mode)
     {
-        if (i) ImGui::SameLine();
-        if (ImGui::Selectable(labels[i],gizmo->mode==i,0,ImVec2(56,24)))
-        {
-            gizmo->mode=i;
-            if (i==1) Angles(gizmo->shape,gizmo->value);
-            else if (i==2) for (int a=0;a<3;++a) gizmo->value[a]=gizmo->shape.scale[a]*100;
-            else std::copy(gizmo->position,gizmo->position+3,gizmo->value);
-        }
+        if (gizmo->mode==1) Angles(gizmo->shape,gizmo->value);
+        else if (gizmo->mode==2) for (int a=0;a<3;++a) gizmo->value[a]=gizmo->shape.scale[a]*100;
+        else std::copy(gizmo->position,gizmo->position+3,gizmo->value);
     }
-    gizmo->over=ImGui::IsWindowHovered();
-    ImGui::EndDisabled(); ImGui::End();
     const float one[3]={1,1,1};
     float rotation[9],matrix[16];
     Multiply(gizmo->left,gizmo->shape.rotation,rotation); Multiply(rotation,gizmo->right,rotation);
     Matrix(rotation,gizmo->mode ? gizmo->shape.scale : one,gizmo->mode ? gizmo->position : gizmo->value,matrix);
-    auto draw = ImGui::GetForegroundDrawList();
-    draw->PushClipRect(ImVec2(rect.x, rect.y), ImVec2(rect.x + rect.w, rect.y + rect.h), true);
-    ImGuizmo::SetDrawlist(draw);
-    ImGuizmo::SetRect(rect.x, rect.y, rect.w, rect.h);
-    ImGuizmo::SetOrthographic(image->projection.orthographic != 0);
-    ImGuizmo::AllowAxisFlip(false);
-    ImGuizmo::SetTranslationAxisMinimumSize(24.f);
-    ImGuizmo::SetTranslationPlaneMinimumSize(12.f);
-    const float step=gizmo->mode==1 ? 15.f : gizmo->mode==2 ? .1f : 1.f;
-    const float snap[3] = {step,step,step};
-    const auto operation=gizmo->mode==1 ? ImGuizmo::ROTATE : gizmo->mode==2 ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
-    const bool moved = ImGuizmo::Manipulate(view, projection, operation, gizmo->mode ? ImGuizmo::LOCAL : ImGuizmo::WORLD, matrix,
-                                           nullptr, ImGui::GetIO().KeyCtrl ? snap : nullptr);
-    if (ImGuizmo::IsUsing() || moved) gizmo->Start(1);
-    if (moved)
+    const auto manipulation = MarcusGizmo::Manipulate(MarcusGizmo::Object, image->projection, rect, gizmo->mode, matrix);
+    if (manipulation.active || manipulation.changed) gizmo->Start(1);
+    if (manipulation.changed)
     {
         if (!gizmo->mode) std::copy(matrix + 12, matrix + 15, gizmo->value);
         else
@@ -269,13 +248,12 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
                 for (int i=0;i<3;++i) gizmo->value[i]=scale[i]*100;
         }
     }
-    gizmo->over |= ImGuizmo::IsOver();
+    gizmo->over |= manipulation.over;
     if (gizmo->over && !gizmo->editing)
         ImGui::SetTooltip(gizmo->mode==1 ? "Drag a ring to rotate. Ctrl snaps to 15 degrees. Escape cancels." : gizmo->mode==2 ?
             "Drag an axis to resize, or the centre for uniform size. Ctrl snaps to 10%%. Escape cancels." :
             "Drag an axis or plane to move the object. Ctrl snaps to 1 unit. Escape cancels.");
-    if (gizmo->editing == 1 && !ImGuizmo::IsUsing()) gizmo->finish = true;
-    draw->PopClipRect();
+    if (gizmo->editing == 1 && !manipulation.active) gizmo->finish = true;
 }
 int prop_gizmo_properties(MarcusPropGizmo *gizmo, float x, float y, const SDL_Rect *clip)
 {
@@ -312,6 +290,7 @@ int prop_gizmo_properties(MarcusPropGizmo *gizmo, float x, float y, const SDL_Re
 }
 int prop_gizmo_update(MarcusPropGizmo *gizmo)
 {
+    ImGuizmo::SetID(MarcusGizmo::Object);
     int result = gizmo->changed;
     if (gizmo->editing)
     {
