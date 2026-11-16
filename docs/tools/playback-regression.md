@@ -11388,3 +11388,85 @@ Evidence: `tmp/c89-heap-object-{baseline,final}-{native,sdl-release,sdl-debug}.b
 `tmp/c89-heap-object-regular-tests.log`,
 `tmp/c89-heap-object-trace-comparison.json` and
 `tmp/c89-heap-object-identities.json`.
+
+### Shared C BASE diagnostic graph, attachment and marking (16 November 2026)
+
+`object_debug.c` now owns persistent raw/constructed graph records and list heads,
+source/line/size/thread/stack fields, previous-slot links, sixteen-bit marks and
+the BASE kind word. Native hosts retain the original aligned header profile and
+padding. C89 controls link/unlink validation, constructor attachment, object-kind,
+reference-range/flag checks, mark dispatch/filtering, unmarking and lost scans.
+The graph owns links; allocation transactions own storage. Graph/record addresses
+remain fixed while linked because previous links point to owning slots.
+
+Constructor attachment retains the initial raw-head probe before locking, then
+refreshes after locking. An empty raw list avoids the mutex during global object
+construction. This preserves the legacy bootstrap convention; the C contract
+requires caller-serialized publication around that probe and does not establish
+arbitrary concurrent construction safety. Recursive locking and validation order
+remain. Native providers supply pointer checks, thread IDs, diagnostic formatting,
+breakpoints, native validation and virtual mark calls. C records borrow source strings.
+Constructors/destructors execute outside C callbacks; callbacks cannot unwind or
+delete/move graph records during traversal.
+
+Lost scans count candidates first and traverse oldest first, rechecking marks
+after each callback. Marking descendants/cycles can reduce subsequent detail
+reports relative to the initial summary count. Allocated mark stubs dispatch only
+for unmarked records owned by the current thread; local objects always dispatch.
+Unmarking only clears the current thread's records. No movie wire layout changes.
+
+The pre-conversion `object-graph-runtime` fixture at revision `8827ec7c` records
+public-API behavior for out-of-order raw attachment, a raw object freed without
+construction, nonempty raw-list diagnostics, oldest-first lost reports, detailed/
+summary-only reports, descendant and cyclic marking, local objects, repeated
+stubs, virtual destruction, failed C++ constructor cleanup and synchronized
+cross-thread ownership/filtering. It also records BASE/derived sizes. Summary
+source lines and raw addresses are excluded; retained per-object source labels,
+lines, class IDs, message text and diagnostic stack byte counts are compared.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug | 3,228 | `9F1F94E7` | `C73CA2DA3A4FDCC30124AE1245AFCCCF6518BEFE12A1EC7197912521A3A4A351` |
+| SDL Release | 140 | `AD2E98C9` | `FD1E0E30D13C0D0AF9288EDFF7D06649D05F736F021D7FB76A17E2D831AF1523` |
+
+SDL Release disables native diagnostics, so that trace covers ordinary object
+lifetime and constructor cleanup. Its C suite still exercises the debug graph.
+
+`engine-object-debug` checks head/middle/tail links and unlink cleanup, native
+metadata fields, an emptied raw list after lock acquisition, no-lock local
+attachment, recursive lock depth, kind publication before validation, ownership
+filters, cyclic marking, initial-count versus detail ordering, readable invalid
+metadata/link/flag/reference diagnostics and C mark wrap. These checks pass MSVC
+AddressSanitizer. The wrap test specifies C behavior separately from native
+signed-overflow equivalence.
+
+The wider gate passes 214 Native checks, 209 SDL Release checks, 210 SDL Debug
+checks and all 149 standalone checks, including strict C89 syntax: 782 of 783
+selected checks pass. The remaining declared skip is the existing SDL Release
+`world-export` Debug fixture. All 141 retained graph/heap/object/memory/error/
+string/text/cache/template/body/undo/Help/Preview trace pairs match. All ten input
+identities remain unchanged; identities for 100 binaries are recorded. Windows
+text settings remain ACP 1252, OEMCP 437 and locale `en-GB`/2057.
+
+The regular headless asset-preview harness passes, with 301,996,032 background
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. Native
+`chelp` and `ched` compile. Marcus was stopped for rebuilding and resource-file
+regeneration and relaunched afterward. Test processes use private temporary
+directories. No Marcus UI tests or new retail capture campaign were added;
+retained retail captures remain the playback reference.
+
+This is Windows x64 fixture evidence. Arbitrary simultaneous construction,
+bootstrap publication, callback-driven record deletion/relinking, invalid pointer
+lifetimes, corrupted native addresses, diagnostic mark overflow, 32-bit stack
+captures and other platforms remain unverified. Readable C metadata violations
+and defined C wrap do not establish native equivalence for invalid lifetimes or
+overflow. Fixed-memory debug graphs/marks, BaseLinkedList attachment, native
+virtual destruction and final C-only host/facade integration remain conversion
+work; this does not complete the backend migration.
+
+Evidence: `tmp/c89-object-graph-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-object-graph-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-object-graph-standalone-tests.log`, `tmp/c89-object-debug-asan.log`,
+`tmp/c89-object-graph-regular-tests.log`,
+`tmp/c89-object-graph-trace-comparison.json` and
+`tmp/c89-object-graph-identities.json`.

@@ -24,37 +24,13 @@ LegacyLong vcactAV = kswMax;
 /*****************************************************************************
     Debugging stuff to track leaked allocated objects.
 ******************************************************************************/
-// Debugging object info.
 const LegacyLong kclwStackDoi = 10;
-struct alignas(std::max_align_t) DebugObjectInfo
-{
-    short swMagic;      // magic number == kswMagicMem
-    short cactRef;      // for marking memory and asserting on unused objects
-    PSZS pszsFile;      // file NewObj appears in
-    LegacyLong lwLine;        // line NewObj appears on
-    LegacyLong cbTot;         // total size of the block, including the DebugObjectInfo
-    LegacyLong lwThread;      // thread that allocated this
-    LegacyLong rglwStack[10]; // what we get from following the EBP/A6 chain
-    DebugObjectInfo *pdoiNext;      // singly linked list
-    DebugObjectInfo **ppdoiPrev;
-};
-
-#define kcbBaseDebug size(DebugObjectInfo)
-
-priv void _AssertDoi(DebugObjectInfo *pdoi, bool tLinked);
-inline DebugObjectInfo *_PdoiFromBase(void *pv)
-{
-    return (DebugObjectInfo *)PvSubBv(pv, kcbBaseDebug);
-}
-inline BASE *_PbaseFromDoi(DebugObjectInfo *pdoi)
-{
-    return (BASE *)PvAddBv(pdoi, kcbBaseDebug);
-}
-priv void _LinkDoi(DebugObjectInfo *pdoi, DebugObjectInfo **ppdoiFirst);
-priv void _UnlinkDoi(DebugObjectInfo *pdoi);
-
-DebugObjectInfo *_pdoiFirst;    // Head of linked list of all allocated objects.
-DebugObjectInfo *_pdoiFirstRaw; // Head of linked list of raw newly allocated objects.
+using DebugObjectInfo = MMObjectDebugRecord;
+struct alignas(std::max_align_t) NativeObjectHeader { MMObjectDebugRecord record; };
+#define kcbBaseDebug size(NativeObjectHeader)
+static MMObjectDebugGraph objectGraph = {nullptr, nullptr};
+static const MMObjectDebugLayout debugLayout{sizeof(NativeObjectHeader), sizeof(BASE), kcbMax, kswMagicMem};
+namespace { MMObjectDebugHost DebugHost(); }
 
 inline void _Enter(void)
 {
@@ -65,8 +41,9 @@ inline void _Leave(void)
     vmutxBase.Leave();
 }
 
-#define klwMagicAllocatedBase 'ALOC'
-#define klwMagicNonAllocBase 'NOAL'
+static_assert(MM_OBJECT_DEBUG_ALLOCATED == 'ALOC' && MM_OBJECT_DEBUG_LOCAL == 'NOAL', "native object magic values");
+static_assert(MM_OBJECT_REQUIRE_ALLOCATED == fobjAllocated && MM_OBJECT_REQUIRE_LOCAL == fobjNotAllocated, "native diagnostic flags");
+static_assert(sizeof(MMObjectDebugState) == sizeof(LegacyLong), "native object diagnostic state width");
 
 #else //! DEBUG
 #define kcbBaseDebug 0
@@ -107,44 +84,8 @@ BASE::BASE(void)
     static_assert(sizeof(MMReference) == sizeof(LegacyLong), "native reference storage size");
     mm_reference_init(&_references);
 #ifdef DEBUG
-    DebugObjectInfo *pdoi = _pdoiFirstRaw;
-
-    if (pvNil != pdoi)
-    {
-        // Note that we have to check _pdoiFirstRaw before entering the
-        // mutx so we don't try to enter the mutx before it's been
-        // initialized (during global object construction).
-        _Enter();
-
-        // see if this is in the raw list - note that we have to refresh
-        // _pdoiFirstRaw in case another thread grabbed it before we got
-        // the critical section
-        for (pdoi = _pdoiFirstRaw; pdoi != pvNil && this != _PbaseFromDoi(pdoi); pdoi = pdoi->pdoiNext)
-        {
-            _AssertDoi(pdoi, tYes);
-        }
-
-        if (pvNil != pdoi)
-        {
-            // this is us!
-            _UnlinkDoi(pdoi);
-            _LinkDoi(pdoi, &_pdoiFirst);
-
-            _lwMagic = klwMagicAllocatedBase;
-            AssertValid(0);
-        }
-
-        _Leave();
-    }
-
-    if (pvNil == pdoi)
-    {
-        _lwMagic = klwMagicNonAllocBase;
-        // don't call AssertValid here, since this may be during
-        // global initialization (FAssertProc and/or AssertPvCb may not be
-        // callable).
-    }
-
+    const auto host = DebugHost();
+    mm_object_debug_attach(&objectGraph, &debugLayout, &host, this, &_debugState);
 #endif // DEBUG
 }
 
@@ -189,14 +130,9 @@ void ObjectAllocated(void *context, void *raw, size_t total)
 {
     auto *source = static_cast<ObjectSource *>(context);
     auto *pdoi = static_cast<DebugObjectInfo *>(raw);
-    pdoi->swMagic = kswMagicMem;
-    pdoi->cactRef = 0;
-    pdoi->pszsFile = source->file;
-    pdoi->lwLine = source->line;
-    pdoi->cbTot = static_cast<LegacyLong>(total);
-    pdoi->lwThread = LwThreadCur();
-    pdoi->ppdoiPrev = pvNil;
-    _LinkDoi(pdoi, &_pdoiFirstRaw);
+    const auto host = DebugHost();
+    mm_object_debug_created(&objectGraph, &debugLayout, &host, pdoi, source->file, source->line,
+                            static_cast<LegacyLong>(total), LwThreadCur());
 #ifdef WIN
 #ifdef IN_80386
     // follow the EBP chain to capture a debug-mode allocation stack trace.
@@ -208,12 +144,12 @@ void ObjectAllocated(void *context, void *raw, size_t total)
     {
         if (pvNil == plw || IsBadReadPtr(plw, 2 * size(LegacyLong)) || *plw <= (LegacyLong)plw)
         {
-            pdoi->rglwStack[ilw] = 0;
+            pdoi->stack[ilw] = 0;
             plw = pvNil;
         }
         else
         {
-            pdoi->rglwStack[ilw] = plw[1];
+            pdoi->stack[ilw] = plw[1];
             plw = (LegacyLong *)*plw;
         }
     }
@@ -222,12 +158,16 @@ void ObjectAllocated(void *context, void *raw, size_t total)
     // optional debug instrumentation; leave it empty on x64 for now.
     // CaptureStackBackTrace would be the proper Win32 replacement.
     for (LegacyLong ilw = 0; ilw < kclwStackDoi; ilw++)
-        pdoi->rglwStack[ilw] = 0;
+        pdoi->stack[ilw] = 0;
 #endif // IN_80386
 #endif // WIN
 }
-void ObjectBeforeFree(void *, void *raw) { _UnlinkDoi(static_cast<DebugObjectInfo *>(raw)); }
-size_t ObjectSize(void *, void *raw) { return static_cast<DebugObjectInfo *>(raw)->cbTot; }
+void ObjectBeforeFree(void *, void *raw)
+{
+    const auto host = DebugHost();
+    mm_object_debug_unlink(&debugLayout, &host, static_cast<DebugObjectInfo *>(raw));
+}
+size_t ObjectSize(void *, void *raw) { return static_cast<DebugObjectInfo *>(raw)->total; }
 const MMObjectLayout objectLayout{ kcbBaseDebug, 1, kbGarbage };
 #else
 const MMObjectLayout objectLayout{ 0, 0, 0 };
@@ -291,239 +231,76 @@ void BASE::operator delete(void *pv, schar *pszsFile, LegacyLong lwLine)
 
 
 #ifdef DEBUG
-/***************************************************************************
-    Assert the this pointer is valid.
-***************************************************************************/
-void BASE::AssertValid(LegacyUlong grfobj)
+namespace
 {
-    AssertVarMem(this);
-    AssertIn(_references.count, 0, kcbMax);
-    if (_lwMagic != klwMagicAllocatedBase)
-    {
-        Assert(!(grfobj & fobjAllocated), "should be allocated");
-        AssertVar(_lwMagic == klwMagicNonAllocBase, "_lwMagic wrong", &_lwMagic);
-        AssertPvCb(this, size(BASE));
-        return;
-    }
-    Assert(!(grfobj & fobjNotAllocated), "should not be allocated");
-
-    _Enter();
-
-    DebugObjectInfo *pdoi = _PdoiFromBase(this);
-    _AssertDoi(pdoi, tYes);
-
-    _Leave();
+void DebugEnter(void *) { _Enter(); }
+void DebugLeave(void *) { _Leave(); }
+void DebugAddress(void *, const void *p, size_t bytes) { AssertPvCb(const_cast<void *>(p), static_cast<LegacyLong>(bytes)); }
+void DebugAssertion(void *, int code, const void *value, size_t bytes)
+{
+    static const char *messages[] = {"", "long too small", "magic number has been hammered", "negative reference count",
+        "should be linked", "should NOT be linked", "*ppdoiPrev is wrong", "ppdoiPrev in next is wrong",
+        "long too small", "should be allocated", "should not be allocated", "_lwMagic wrong", "Raw list is not empty!",
+        "long too big", "long too big"};
+    AssertCore(false, messages[code], const_cast<void *>(value), static_cast<LegacyLong>(bytes));
 }
+MMMemoryCounter DebugThread(void *) { return LwThreadCur(); }
+void DebugAttached(void *, void *p) { static_cast<BASE *>(p)->BASE::AssertValid(0); }
+void DebugValidate(void *, void *p, MMU32 flags) { AssertPo(static_cast<BASE *>(p), flags); }
+void DebugMark(void *, void *p) { static_cast<BASE *>(p)->MarkMem(); }
+void DebugMarkRoot(void *, void *p) { MarkMemObj(static_cast<BASE *>(p)); }
+int DebugLostSummary(void *, MMI32 count)
+{
+    String stn; SZS szs;
+    stn.FFormatSz(PszLit("Total lost objects: %d. Press 'Debugger' for detail"), static_cast<LegacyLong>(count));
+    stn.GetSzs(szs);
+    return FAssertProc(__szsFile, __LINE__, szs, pvNil, 0);
+}
+void DebugLostObject(void *, void *p, MMObjectDebugRecord *r, size_t payload)
+{
+    String stn; SZS szs;
+    stn.FFormatSz(PszLit("\nLost object: cls='%f', size=%d, ") PszLit("StackTrace=(use map file)"),
+                  static_cast<BASE *>(p)->Cls(), static_cast<LegacyLong>(payload));
+    stn.GetSzs(szs);
+    if (FAssertProc(r->source, r->line, szs, r->stack, kclwStackDoi * size(LegacyLong))) Debugger();
+}
+MMObjectDebugHost DebugHost()
+{
+    MMObjectDebugHost host{};
+    host.enter = DebugEnter; host.leave = DebugLeave; host.address = DebugAddress; host.assertion = DebugAssertion;
+    host.current_thread = DebugThread; host.attached = DebugAttached; host.validate = DebugValidate;
+    host.mark = DebugMark; host.mark_root = DebugMarkRoot; host.lost_summary = DebugLostSummary; host.lost_object = DebugLostObject;
+    return host;
+}
+} // namespace
 
-/***************************************************************************
-    If this objects has already been marked, just return. If not, call
-    its MarkMem method.
-***************************************************************************/
+void BASE::AssertValid(LegacyUlong flags)
+{
+    const auto host = DebugHost();
+    mm_object_debug_validate(&debugLayout, &host, this, &_debugState, _references.count, flags);
+}
 void BASE::MarkMemStub(void)
 {
-    AssertThis(0);
-    if (_lwMagic != klwMagicAllocatedBase)
-    {
-        AssertVar(_lwMagic == klwMagicNonAllocBase, "_lwMagic wrong", &_lwMagic);
-        MarkMem();
-        return;
-    }
-
-    DebugObjectInfo *pdoi = _PdoiFromBase(this);
-    if (pdoi->cactRef == 0 && pdoi->lwThread == LwThreadCur())
-        MarkMem();
+    const auto host = DebugHost();
+    mm_object_debug_mark_stub(&debugLayout, &host, this, &_debugState);
 }
-
-/***************************************************************************
-    Mark object.
-***************************************************************************/
 void BASE::MarkMem(void)
 {
-    AssertValid(0);
-    if (_lwMagic == klwMagicAllocatedBase)
-        _PdoiFromBase(this)->cactRef++;
+    const auto host = DebugHost();
+    mm_object_debug_mark(&debugLayout, &host, this, &_debugState, _references.count);
 }
-
-/***************************************************************************
-    Assert that a doi is valid and optionally linked or unlinked.
-***************************************************************************/
-void _AssertDoi(DebugObjectInfo *pdoi, bool tLinked)
-{
-    _Enter();
-
-    AssertPvCb(pdoi, size(BASE) + kcbBaseDebug);
-    AssertIn(pdoi->cbTot, size(BASE) + kcbBaseDebug, kcbMax);
-    AssertPvCb(pdoi, pdoi->cbTot);
-
-    AssertVar(pdoi->swMagic == kswMagicMem, "magic number has been hammered", &pdoi->swMagic);
-    AssertVar(pdoi->cactRef >= 0, "negative reference count", &pdoi->cactRef);
-    if (pvNil == pdoi->ppdoiPrev)
-        Assert(tLinked != tYes, "should be linked");
-    else
-    {
-        Assert(tLinked != tNo, "should NOT be linked");
-
-        AssertVarMem(pdoi->ppdoiPrev);
-        AssertVar(*pdoi->ppdoiPrev == pdoi, "*ppdoiPrev is wrong", pdoi->ppdoiPrev);
-        if (pdoi->pdoiNext != pvNil)
-        {
-            AssertVarMem(pdoi->pdoiNext);
-            AssertVar(pdoi->pdoiNext->ppdoiPrev == &pdoi->pdoiNext, "ppdoiPrev in next is wrong",
-                      &pdoi->pdoiNext->ppdoiPrev);
-        }
-    }
-
-    _Leave();
-}
-
-/***************************************************************************
-    Link object into list.
-***************************************************************************/
-priv void _LinkDoi(DebugObjectInfo *pdoi, DebugObjectInfo **ppdoiFirst)
-{
-    _Enter();
-
-    _AssertDoi(pdoi, tNo);
-    AssertVarMem(ppdoiFirst);
-
-    if (*ppdoiFirst != pvNil)
-    {
-        _AssertDoi(*ppdoiFirst, tYes);
-        (*ppdoiFirst)->ppdoiPrev = &pdoi->pdoiNext;
-    }
-    pdoi->pdoiNext = *ppdoiFirst;
-    pdoi->ppdoiPrev = ppdoiFirst;
-    *ppdoiFirst = pdoi;
-    _AssertDoi(pdoi, tYes);
-
-    _Leave();
-}
-
-/***************************************************************************
-    Unlink object from list.
-***************************************************************************/
-priv void _UnlinkDoi(DebugObjectInfo *pdoi)
-{
-    _Enter();
-
-    _AssertDoi(pdoi, tYes);
-    *pdoi->ppdoiPrev = pdoi->pdoiNext;
-    if (pvNil != pdoi->pdoiNext)
-    {
-        pdoi->pdoiNext->ppdoiPrev = pdoi->ppdoiPrev;
-        _AssertDoi(pdoi->pdoiNext, tYes);
-    }
-    pdoi->ppdoiPrev = pvNil;
-    pdoi->pdoiNext = pvNil;
-    _AssertDoi(pdoi, tNo);
-
-    _Leave();
-}
-
-/***************************************************************************
-    Called if anyone tries to copy a class with NOCOPY(cls) in its
-    declaration.
-***************************************************************************/
-void __AssertOnCopy(void)
-{
-    Bug("Copying a non-copyable object");
-}
-
-/***************************************************************************
-    Asserts on unmarked allocated (BASE) objects.
-***************************************************************************/
+void __AssertOnCopy(void) { Bug("Copying a non-copyable object"); }
 void AssertUnmarkedObjs(void)
 {
-    _Enter();
-
-    String stn;
-    SZS szs;
-    BASE *pbase;
-    DebugObjectInfo *pdoi;
-    DebugObjectInfo *pdoiLast;
-    bool fAssert;
-    LegacyLong cdoiLost = 0;
-    LegacyLong lwThread = LwThreadCur();
-
-    Assert(_pdoiFirstRaw == pvNil, "Raw list is not empty!");
-
-    // we want to traverse the list in the reverse order to report problems
-    // find the end of the list and see if there are any lost blocks
-    pdoiLast = pvNil;
-    for (pdoi = _pdoiFirst; pvNil != pdoi; pdoi = pdoi->pdoiNext)
-    {
-        pdoiLast = pdoi;
-        if (pdoi->cactRef == 0 && pdoi->lwThread == lwThread)
-            cdoiLost++;
-    }
-
-    if (cdoiLost == 0)
-    {
-        // no lost blocks
-        goto LDone;
-    }
-
-    stn.FFormatSz(PszLit("Total lost objects: %d. Press 'Debugger' for detail"), cdoiLost);
-    stn.GetSzs(szs);
-    fAssert = FAssertProc(__szsFile, __LINE__, szs, pvNil, 0);
-
-    for (pdoi = pdoiLast;;)
-    {
-        pbase = _PbaseFromDoi(pdoi);
-        AssertPo(pbase, fobjAllocated);
-
-        if (pdoi->cactRef == 0 && pdoi->lwThread == lwThread)
-        {
-            if (fAssert)
-            {
-                stn.FFormatSz(PszLit("\nLost object: cls='%f', size=%d, ") PszLit("StackTrace=(use map file)"),
-                              pbase->Cls(), pdoi->cbTot - size(DebugObjectInfo));
-                stn.GetSzs(szs);
-
-                if (FAssertProc(pdoi->pszsFile, pdoi->lwLine, szs, pdoi->rglwStack, kclwStackDoi * size(LegacyLong)))
-                {
-                    Debugger();
-                }
-            }
-
-            MarkMemObj(pbase);
-        }
-
-        if (pdoi->ppdoiPrev == &_pdoiFirst)
-            break;
-
-        // UUUUGGGGH! We don't have a pointer to the previous DebugObjectInfo, we
-        // have a pointer to the previous DebugObjectInfo's pdoiNext!
-        pdoi = (DebugObjectInfo *)PvSubBv(pdoi->ppdoiPrev, offset(DebugObjectInfo, pdoiNext));
-    }
-
-LDone:
-    _Leave();
+    const auto host = DebugHost();
+    mm_object_debug_report(&objectGraph, &debugLayout, &host);
 }
-
-/***************************************************************************
-    Clears all marks on allocated (BASE) objects.
-***************************************************************************/
 void UnmarkAllObjs(void)
 {
-    _Enter();
-
-    BASE *pbase;
-    DebugObjectInfo *pdoi;
-    LegacyLong lwThread = LwThreadCur();
-
-    Assert(_pdoiFirstRaw == pvNil, "Raw list is not empty!");
-    for (pdoi = _pdoiFirst; pvNil != pdoi; pdoi = pdoi->pdoiNext)
-    {
-        pbase = _PbaseFromDoi(pdoi);
-        AssertPo(pbase, fobjAllocated);
-
-        if (pdoi->lwThread == lwThread)
-            pdoi->cactRef = 0;
-    }
-
-    _Leave();
+    const auto host = DebugHost();
+    mm_object_debug_unmark(&objectGraph, &debugLayout, &host);
 }
+
 #endif // DEBUG
 
 /***************************************************************************

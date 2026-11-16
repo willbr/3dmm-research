@@ -396,9 +396,10 @@ liberation retry/reentrancy control now also use C89. BASE/HQ/fixed counter fiel
 live directly in shared C state. Plain/debug error-stack records and duplicate/
 overflow/flush/pop/reporting/locking control now also use C89. Raw heap size/
 overflow/resize policy and BASE object allocation/deletion transactions now use
-C89, with native alignment profiles and debug metadata/list providers. Native
-debug block-list ownership, constructor attachment/mark scans, virtual destruction
-and final facade removal remain work.
+C89, with native alignment profiles and host services. BASE diagnostic kind,
+raw/constructed graph records, constructor attachment, validation and mark/report
+scans now also use C89. Fixed-memory debug graph ownership/mark scans,
+BaseLinkedList attachment, virtual destruction and final facade removal remain work.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

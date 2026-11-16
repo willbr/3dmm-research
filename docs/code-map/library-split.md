@@ -331,8 +331,8 @@ growth, footer handling, pointer/stat publication and default libc services.
 `engine-error-stack` checks both layouts, source/line retention, warning/lock
 order, duplicate/overflow/flush/pop and underflow publication. Native
 `memory-runtime` compares original allocation/error/counter observations through
-`MM_MEMORY_RUNTIME_SNAPSHOT`. Debug block-list ownership/mark scans and final
-facade integration remain C++ conversion work.
+`MM_MEMORY_RUNTIME_SNAPSHOT`. Fixed-memory debug block-list ownership/mark scans
+and final facade integration remain C++ conversion work.
 
 ### Raw heap and object allocation
 
@@ -349,8 +349,9 @@ movie files; a block retains its allocator and layout throughout its lifetime.
 failure injection, object-then-memory lock ordering, metadata-link-before-counter
 publication, OOM reporting after unlock, unlink/counter/poison/release sequencing
 and checked prefix addition. Allocation does not invoke memory liberation or
-retry. Native callbacks retain debug header representation, source/thread/stack
-metadata and physical list operations. Counters borrow the existing C state;
+retry. Native callbacks supply the aligned header profile, source/thread/stack
+services and diagnostic dispatch; the C graph below owns metadata and physical
+list operations. Counters borrow the existing C state;
 free retains the original caller-synchronized counter convention. C callback
 lifetimes exclude unwinding; native constructors/destructors run outside them.
 
@@ -361,10 +362,46 @@ complete-block poisoning before release. Both are strict C89 tests. The headless
 `heap-object-runtime` fixture captures native heap alignment, sizes, payloads,
 raw and constructed BASE allocations, reference/deletion behavior, diagnostics
 and counter observations via `MM_HEAP_OBJECT_SNAPSHOT`. Native/SDL Debug and SDL
-Release traces match their respective original implementations. Native diagnostic
-graphs, constructor attachment/mark scans, virtual destruction and final C-only
-facade integration remain conversion work. Defined C prefix-overflow/null-free
-handling does not establish native equivalence for previously invalid inputs.
+Release traces match their respective original implementations. Fixed-memory
+diagnostic graphs, virtual destruction and final C-only facade integration remain
+conversion work. BASE diagnostics now use the C graph below. Defined C prefix-
+overflow/null-free handling does not establish native equivalence for previously
+invalid inputs.
+
+### BASE diagnostic graph
+
+`mm/object_debug.h` owns persistent raw/constructed list heads, source/line/size/
+thread/stack metadata, links and sixteen-bit marks in C records. BASE's kind word
+also lives in a C state record. Native wrappers supply an aligned header profile
+with the existing padding; BASE and derived-object sizes retain baseline values.
+The graph owns heads and links, while the allocation transaction owns storage.
+Graph and record addresses remain fixed while linked because previous links
+point to owning slots. Context initialization requires an empty graph.
+
+C89 now controls link/unlink validation, constructor attachment, object-kind/
+reference/flag checks, marking and unmarking, thread filtering and lost-object
+scans. Constructor attachment probes the raw head before locking, then refreshes
+it after locking; an empty raw list retains the legacy bootstrap behavior for
+global constructors. That initial probe requires caller-serialized publication
+for concurrent use; this conversion does not establish arbitrary concurrent
+construction safety. Recursive locking and native validation order remain.
+
+Lost scans count candidates first, traverse oldest first, and recheck marks
+after callbacks, so marking descendants or cycles suppresses later reports.
+Allocated mark stubs dispatch only for unmarked records owned by the current
+thread; local objects always dispatch. Native hooks provide pointer checks,
+diagnostic formatting/breakpoints, thread IDs, native validation and virtual mark calls.
+Callbacks may mark descendants but must not unwind, move or delete graph records
+during traversal. Constructors and destructors execute outside C callbacks.
+
+`engine-object-debug` checks slot links, raw-head refresh, attachment, recursive
+lock depth, source metadata, thread filtering, cyclic marking, reporting order
+and readable metadata failures. Defined C mark wrap is checked independently of
+native signed-overflow equivalence. The headless `object-graph-runtime` fixture
+captures original public-API behavior through `MM_OBJECT_GRAPH_SNAPSHOT`, including
+out-of-order raw attachment and failed C++ constructor cleanup. Original traces
+match Native/SDL Debug and SDL Release. Fixed-memory debug graphs, BaseLinkedList
+attachment, virtual destruction and final C-only host integration remain work.
 
 ### Collection storage foundation
 

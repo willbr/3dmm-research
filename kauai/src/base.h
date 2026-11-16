@@ -17,6 +17,7 @@
 #ifndef BASE_H
 #define BASE_H
 #include "mm/reference.h"
+#include "mm/object_debug.h"
 
 /***************************************************************************
     Run-time class determination support.  Each class, FOO, that uses this
@@ -239,7 +240,7 @@ class BASE
     ASSERT
 
   private:
-    Debug(LegacyLong _lwMagic;)
+    Debug(MMObjectDebugState _debugState;)
 
         protected : MMReference _references;
 
