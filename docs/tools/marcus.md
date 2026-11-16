@@ -160,8 +160,13 @@ Switch angles using the arrows. In **Camera**, drag numeric values or use their
 minus/plus buttons to change position, yaw, pitch, roll, vertical FOV and clipping
 planes. Shift makes value drags finer. Right-drag the preview to look around;
 WASD moves the camera, Q/E moves down/up, Shift increases the movement step, and
-the wheel moves forward/backward. The ground grid and crosshair are authoring
-guides and are never painted or exported. **Use work camera** copies the current
+the wheel moves forward/backward. **Bake grid** in Camera paints the current
+perspective ground grid into this angle's background using the selected colour
+(**1–6**); it then opens Paint so you can draw over it. Grid lines are one pixel
+wide, retain the current camera perspective, and stay fixed if you move the camera
+later. Baking is one undo step and survives Apply and Save copy, without adding
+depth. The live guide, crosshair and guide label remain temporary overlays.
+**Use work camera** copies the current
 work-view pose and lens into this angle, retaining its drawing.
 
 **Lights** adds, selects, deletes and adjusts up to sixteen directional or point

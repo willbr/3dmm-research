@@ -26,6 +26,22 @@ int main(int argc, char **argv)
         check(board.angles[0].pixels[0] == 3 && board.angles[0].pixels.back() == 3 && board.angles[0].pixels[100] == 0, "Clipped, continuous opaque strokes");
         MarcusBoardStroke(board.angles[0], 270, 152, 270, 152, 16, 0);
         check(board.angles[0].pixels[152 * 544 + 270] == 0, "Grey eraser");
+        const auto originalPainting = board.angles[0].pixels;
+        const auto grid = MarcusBoardGridLines(board.angles[0]);
+        check(!grid.empty() && std::all_of(grid.begin(), grid.end(), [](const auto &line) {
+            return std::all_of(line.begin(), line.end(), [](double p) { return std::isfinite(p) && p >= 0 && p <= 1; });
+        }), "Perspective grid is clipped to the canvas");
+        MarcusBoardBakeGrid(board.angles[0], 6);
+        check(std::count(board.angles[0].pixels.begin(), board.angles[0].pixels.end(), 6) > 500 &&
+            std::equal(originalPainting.begin(), originalPainting.begin() + 544 * 153, board.angles[0].pixels.begin()),
+            "Bake the ground grid while retaining the drawing above the horizon");
+        auto rebaked = board.angles[0]; MarcusBoardBakeGrid(rebaked, 6);
+        check(rebaked.pixels == board.angles[0].pixels, "Baking the same grid twice is stable");
+        auto turned = board.angles[0]; turned.camera.yaw = 37; turned.camera.pitch = 24; turned.roll = -18; turned.fov = 5; turned.nearClip = .01f;
+        const auto turnedGrid = MarcusBoardGridLines(turned);
+        check(!turnedGrid.empty() && turnedGrid != grid && std::all_of(turnedGrid.begin(), turnedGrid.end(), [](const auto &line) {
+            return std::all_of(line.begin(), line.end(), [](double p) { return std::isfinite(p) && p >= 0 && p <= 1; });
+        }), "Moved, rolled and zoomed grids remain clipped");
         board.angles.emplace_back();
         board.angles[1].camera.x = 7; board.angles[1].camera.yaw = -25; board.angles[1].camera.pitch = 12;
         board.angles[1].roll = 8; board.angles[1].fov = 62;
@@ -55,9 +71,12 @@ int main(int argc, char **argv)
         check(marcus_seek(player.get(), 1) && marcus_info(player.get(), &info) && info.camera == 0 &&
             marcus_seek(player.get(), 2) && marcus_info(player.get(), &info) && info.camera == 1, "Camera cut survives seeking");
         auto edited = board; edited.angles[1].fov = 70; edited.angles[0].pixels[1000] = 4;
+        MarcusBoardBakeGrid(edited.angles[1], 3);
         check(MarcusApplyStoryboard(player.get(), edited, false, 1, argv[1], argv[2]) &&
             marcus_camera_projection(player.get(), 1, &projection) && std::abs(projection.vertical_fov - 70) < .01, "Edit camera and painting");
         check(marcus_undo(player.get()) && marcus_camera_projection(player.get(), 1, &projection) && std::abs(projection.vertical_fov - 62) < .01, "Undo restores native scenery");
+        MarcusStoryboard undone;
+        check(MarcusGetStoryboard(player.get(), undone) && MarcusEncodeBoard(undone) == bytes, "Undo restores the painting before a grid bake");
         check(marcus_reload(player.get(), argv[1], argv[2]) && marcus_is_storyboard(player.get()), "Reload retains custom backgrounds");
         check(marcus_seek(player.get(), 2), "Return to second cut");
         int props = marcus_prop_count(player.get(), argv[2]);

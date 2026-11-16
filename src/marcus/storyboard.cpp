@@ -121,6 +121,60 @@ void MarcusBoardStroke(MarcusBoardAngle &a, int x0, int y0, int x1, int y1, int 
         if (twice <= dx) { error += dx; y0 += sy; }
     }
 }
+std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &a)
+{
+    std::vector<std::array<double, 4>> lines;
+    if (!Range(a.camera.x, -32700, 32700) || !Range(a.camera.y, -32700, 32700) || !Range(a.camera.z, -32700, 32700) ||
+        !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -89, 89) || !Range(a.roll, -180, 180) ||
+        !Range(a.fov, 5, 150) || !Range(a.nearClip, .01f, 100)) return lines;
+    lines.reserve(42);
+    const double yaw = a.camera.yaw * .01745329252, pitch = a.camera.pitch * .01745329252, roll = a.roll * .01745329252;
+    const double cy = std::cos(yaw), sy = std::sin(yaw), cp = std::cos(pitch), sp = std::sin(pitch), cr = std::cos(roll), sr = std::sin(roll);
+    const double right[3] = {cy * cr - sy * sp * sr, cp * sr, -sy * cr - cy * sp * sr};
+    const double up[3] = {-cy * sr - sy * sp * cr, cp * cr, sy * sr - cy * sp * cr};
+    const double back[3] = {sy * cp, sp, cy * cp};
+    const double focal = .5 / std::tan(a.fov * .00872664626), aspect = double(MarcusBoardWidth) / MarcusBoardHeight;
+    const double centreX = std::round(a.camera.x / 10) * 10, centreZ = std::round(a.camera.z / 10) * 10;
+    auto cameraPoint = [&](double wx, double wz) {
+        const double p[3] = {wx - a.camera.x, -a.camera.y, wz - a.camera.z};
+        std::array<double, 3> out = {};
+        for (int i = 0; i < 3; ++i) { out[0] += p[i] * right[i]; out[1] += p[i] * up[i]; out[2] -= p[i] * back[i]; }
+        return out;
+    };
+    auto line = [&](double x1, double z1, double x2, double z2) {
+        auto p = cameraPoint(x1, z1), q = cameraPoint(x2, z2);
+        const double nearClip = std::max(.1, double(a.nearClip));
+        if (p[2] < nearClip && q[2] < nearClip) return;
+        if (p[2] < nearClip) { const double t = (nearClip - p[2]) / (q[2] - p[2]); for (int i = 0; i < 3; ++i) p[i] += t * (q[i] - p[i]); }
+        if (q[2] < nearClip) { const double t = (nearClip - q[2]) / (p[2] - q[2]); for (int i = 0; i < 3; ++i) q[i] += t * (p[i] - q[i]); }
+        const double x = .5 + focal * p[0] / (aspect * p[2]), y = .5 - focal * p[1] / p[2];
+        const double dx = focal / aspect * (q[0] / q[2] - p[0] / p[2]), dy = focal * (p[1] / p[2] - q[1] / q[2]);
+        double first = 0, last = 1;
+        auto clip = [&](double direction, double distance) {
+            if (direction == 0) return distance >= 0;
+            const double t = distance / direction;
+            if (direction < 0) first = std::max(first, t);
+            else last = std::min(last, t);
+            return first <= last;
+        };
+        if (!clip(-dx, x) || !clip(dx, 1 - x) || !clip(-dy, y) || !clip(dy, 1 - y)) return;
+        lines.push_back({std::clamp(x + first * dx, 0., 1.), std::clamp(y + first * dy, 0., 1.),
+            std::clamp(x + last * dx, 0., 1.), std::clamp(y + last * dy, 0., 1.)});
+    };
+    for (int i = -10; i <= 10; ++i)
+    {
+        line(centreX + i * 5, centreZ - 50, centreX + i * 5, centreZ + 50);
+        line(centreX - 50, centreZ + i * 5, centreX + 50, centreZ + i * 5);
+    }
+    return lines;
+}
+void MarcusBoardBakeGrid(MarcusBoardAngle &a, unsigned char colour)
+{
+    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || colour > 6) return;
+    for (const auto &line : MarcusBoardGridLines(a))
+        MarcusBoardStroke(a, int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
+            int(std::lround(line[2] * (MarcusBoardWidth - 1))), int(std::lround(line[3] * (MarcusBoardHeight - 1))), 1, colour);
+}
 static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette)
 {
     Require(MarcusBoardValid(board), "Invalid storyboard.");

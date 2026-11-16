@@ -11,39 +11,15 @@ constexpr const char *colourNames[] = {"Grey eraser", "Black", "White", "Soft bl
 struct Field { const char *name; float *value; float low, high, step; };
 void Grid(MarcusUI *ui, const MarcusBoardAngle &a, float x, float y)
 {
-    const double yaw = a.camera.yaw * .01745329252, pitch = a.camera.pitch * .01745329252, roll = a.roll * .01745329252;
-    const double cy = std::cos(yaw), sy = std::sin(yaw), cp = std::cos(pitch), sp = std::sin(pitch), cr = std::cos(roll), sr = std::sin(roll);
-    const double right[3] = {cy * cr - sy * sp * sr, cp * sr, -sy * cr - cy * sp * sr};
-    const double up[3] = {-cy * sr - sy * sp * cr, cp * cr, sy * sr - cy * sp * cr};
-    const double back[3] = {sy * cp, sp, cy * cp};
-    const double focal = 180 / std::tan(a.fov * .00872664626);
-    const double centreX = std::round(a.camera.x / 10) * 10, centreZ = std::round(a.camera.z / 10) * 10;
-    auto cameraPoint = [&](double wx, double wz) {
-        const double p[3] = {wx - a.camera.x, -a.camera.y, wz - a.camera.z};
-        std::array<double, 3> out = {};
-        for (int i = 0; i < 3; ++i) { out[0] += p[i] * right[i]; out[1] += p[i] * up[i]; out[2] -= p[i] * back[i]; }
-        return out;
-    };
     const bool clipped = SDL_RenderClipEnabled(ui->renderer);
     SDL_Rect previous; SDL_GetRenderClipRect(ui->renderer, &previous);
     SDL_Rect clip = {int(x), int(y), 640, 360}; SDL_SetRenderClipRect(ui->renderer, &clip);
-    auto line = [&](double x1, double z1, double x2, double z2) {
-        auto p = cameraPoint(x1, z1), q = cameraPoint(x2, z2);
-        const double nearClip = std::max(.1, double(a.nearClip));
-        if (p[2] < nearClip && q[2] < nearClip) return;
-        if (p[2] < nearClip) { const double t = (nearClip - p[2]) / (q[2] - p[2]); for (int i = 0; i < 3; ++i) p[i] += t * (q[i] - p[i]); }
-        if (q[2] < nearClip) { const double t = (nearClip - q[2]) / (p[2] - q[2]); for (int i = 0; i < 3; ++i) q[i] += t * (p[i] - q[i]); }
-        ui_line(ui, float(x + 320 + focal * p[0] / p[2]), float(y + 180 - focal * p[1] / p[2]),
-            float(x + 320 + focal * q[0] / q[2]), float(y + 180 - focal * q[1] / q[2]), 0xadb3b6);
-    };
-    for (int i = -10; i <= 10; ++i)
-    {
-        line(centreX + i * 5, centreZ - 50, centreX + i * 5, centreZ + 50);
-        line(centreX - 50, centreZ + i * 5, centreX + 50, centreZ + i * 5);
-    }
+    for (const auto &line : MarcusBoardGridLines(a))
+        ui_line(ui, float(x + line[0] * 640), float(y + line[1] * 360),
+            float(x + line[2] * 640), float(y + line[3] * 360), 0xadb3b6);
     ui_line(ui, x + 314, y + 180, x + 326, y + 180, 0x6b7f84);
     ui_line(ui, x + 320, y + 174, x + 320, y + 186, 0x6b7f84);
-    ui_text(ui, x + 12, y + 12, "Camera guide / ground grid (not painted)", 0x5b6570);
+    ui_text(ui, x + 12, y + 12, "Perspective guide / Bake grid to paint it", 0x5b6570);
     SDL_SetRenderClipRect(ui->renderer, clipped ? &previous : nullptr);
 }
 }
@@ -243,6 +219,14 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event, i
         }
         else
         {
+            if (e->tab == 1 && e->colour > 0 && ui_inside(px, py, x + 24, y + 410, 224, 28) &&
+                !MarcusBoardGridLines(e->board.angles[e->angle]).empty())
+            {
+                e->Remember();
+                MarcusBoardBakeGrid(e->board.angles[e->angle], static_cast<unsigned char>(e->colour));
+                e->previewDirty = true;
+                e->tab = 0;
+            }
             if (e->tab == 2)
             {
                 if (ui_inside(px, py, x + 24, y + 118, 40, 28)) e->light = std::max(0, e->light - 1);
@@ -346,6 +330,14 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui, int width, 
             ui_fill(ui, x + 112, top, 86, 26, 0x1c1e22);
             SDL_snprintf(label, sizeof(label), "%.2f", *f.value); ui_label(ui, x + 118, top + 6, 76, label, 0xdde0e5);
             ui_button_sized(ui, x + 204, top, 20, 26, "-", 0, 1); ui_button_sized(ui, x + 228, top, 20, 26, "+", 0, 1);
+        }
+        if (e->tab == 1)
+        {
+            const bool enabled = e->colour > 0 && !MarcusBoardGridLines(e->board.angles[e->angle]).empty();
+            SDL_snprintf(label, sizeof(label), "Bake grid (%s)", colourNames[e->colour]);
+            ui_button_sized(ui, x + 24, y + 410, 224, 28, label, 0, enabled);
+            if (ui_inside(ui->mouse_x, ui->mouse_y, x + 24, y + 410, 224, 28))
+                ui->hint = "Bake this angle's grid in the selected colour (1-6). Undo removes it; no depth is added.";
         }
         ui_text(ui, x + 24, y + 442, "Drag values / Shift for fine", 0x969da8);
         ui_text(ui, x + 24, y + 464, e->tab == 1 ? "RMB look / WASD + Q E move" : "Lights affect 3D actors / props.", 0x969da8);

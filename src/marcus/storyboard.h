@@ -42,6 +42,9 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
 MarcusStoryboards MarcusReadBoards(MM::Archive &archive, const std::shared_ptr<MarcusMovieFile> &file);
 // Drawing uses integer stamps and interpolation, with no smoothing or alpha blending.
 void MarcusBoardStroke(MarcusBoardAngle &angle, int x0, int y0, int x1, int y1, int size, unsigned char colour);
+// Clipped ground-grid segments in normalized image coordinates, shared by the guide and baking.
+std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &angle);
+void MarcusBoardBakeGrid(MarcusBoardAngle &angle, unsigned char colour);
 bool MarcusGetStoryboard(MarcusPlayer *player, MarcusStoryboard &board);
 bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image);
 bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, bool newScene,
