@@ -46,7 +46,7 @@ which side each file lives on.
 | `utilmem.cpp`     | core       | Fixed-memory C facade, native heap/debug-header/list providers. |
 | `utilglob.cpp`    | core       | Global symbol / class registry, RTCLASS.                      |
 | `utilerro.cpp`    | core       | C-owned error-stack facade, native mutex/reporting providers.   |
-| `base.cpp`        | core       | `BASE` root class for refcounted heap objects.                |
+| `base.cpp`        | core       | `BASE` facade over C reference/object-allocation policy; native debug graph and virtual destruction. |
 | `spell.cpp`       | core       | Spell-check dictionary (no UI).                               |
 | `mssio.cpp`       | core       | (listed above)                                                |
 | `stub.cpp`        | core       | Stubs for legacy CRT calls absent in modern MSVC.             |

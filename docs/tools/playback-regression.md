@@ -11317,3 +11317,74 @@ Evidence: `tmp/c89-memory-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
 `tmp/c89-memory-standalone-tests.log`, `tmp/c89-memory-asan.log`,
 `tmp/c89-error-stack-asan.log`, `tmp/c89-memory-regular-tests.log`,
 `tmp/c89-memory-trace-comparison.json` and `tmp/c89-memory-identities.json`.
+
+### Shared C raw heap and BASE allocation transactions (16 November 2026)
+
+`heap.c` now owns raw allocate/reallocate/free policy and private logical-size
+metadata. Checked size arithmetic retains a physical byte for zero-size requests;
+failed reallocation preserves pointer, recorded size and payload. Native wrappers
+supply the original `std::max_align_t` header width, preserving alignment and
+header size. Standalone C uses its own fundamental C89 alignment profile. Size
+metadata uses `memcpy`; neither profile is serialized into a movie. Null raw
+providers use libc. Optional providers enable deterministic failure checks.
+
+`object_memory.c` now owns BASE storage allocation/deletion transaction policy:
+failure simulation under object-then-memory locks, cleared allocation, metadata
+linking before counter publication, OOM reporting after unlocking, and unlink,
+counter decrement, complete-block poisoning and release. Object allocation has
+no memory-liberation retry. Native metadata/list operations, source/thread/stack
+capture and lock primitives remain providers. Constructors, destructors, raw-list
+attachment and debug marking remain native. No public BASE layout or movie format
+changes. Defined C prefix-overflow rejection and null-free behavior extend the C
+contract; these do not demonstrate original Debug equivalence for invalid inputs.
+
+Before conversion, `heap-object-runtime` captured native logical sizes, payload
+alignment/clearing/preservation, zero/grow/shrink transactions and overflow
+rejection, plus direct raw BASE allocations, constructed objects, references,
+virtual destruction, diagnostic counters and injected failure countdowns. The
+fixture records diagnostic warning-time error-stack contents and excludes raw
+addresses and implementation source-line changes. The original implementation
+was revision `2412211e` with the fixture added before production changes.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug | 8,972 | `AAB1DB3F` | `496ACF072E32292D8784F60AFEBF1AA38A44580C833CCEB371F374046A9A8958` |
+| SDL Release | 8,612 | `57C0516D` | `7E3B1491215521B3DE13C7B71B901438CB6C9397681A8877BD13740EBA20D3A0` |
+
+`engine-heap` checks deterministic allocation/reallocation failure, preserved
+size/data, checked size boundaries before provider calls, zero requests and libc
+fallback. `engine-object-memory` checks failure countdowns, unretried raw failure,
+lock/hook/counter ordering, cleared payloads, poisoning before release and C
+prefix-overflow/null-free behavior. Both suites pass MSVC AddressSanitizer.
+
+The wider gate passes 212 Native checks, 207 SDL Release checks and 208 SDL Debug
+checks. SDL Release additionally reports the existing debug-only `world-export`
+fixture as skipped. All 148 standalone checks, including strict C89 syntax,
+pass: 775 of 776 selected checks, with one declared skip. The independent
+standalone platform project builds with the C heap module and passes all five
+checks. The regular headless asset-preview harness passes; Native `chelp` and
+`ched` compile. Backgrounds retain 301,996,032 bytes/FNV-1a `E1A71005` across 12
+backgrounds and 188 cameras per host. Marcus was stopped before rebuilding and
+relaunched afterward; test processes use private temporary directories.
+
+All 138 heap/object/memory/error/string/text/cache/template/body/undo/Help/Preview
+trace pairs match across the three hosts. All ten retained input identities are
+unchanged; identities for 98 binaries are recorded. Windows text settings remain
+ACP 1252, OEMCP 437 and locale `en-GB`/2057.
+
+Retained retail captures remain the playback reference; no new retail capture
+campaign or Marcus UI tests were added. This is Windows x64 fixture evidence.
+Actual native malloc/realloc exhaustion, arbitrary callback/override behavior,
+32-bit diagnostic call stacks, corrupt headers/invalid object lifetimes, signed
+counter overflow and other platforms remain unverified. Moving stack collection
+into a native provider adds call frames on x86; exact diagnostic stack equivalence
+is not claimed. Native object/debug graph ownership, constructor attachment and
+mark scans, virtual destruction and final C-only facade integration remain work.
+
+Evidence: `tmp/c89-heap-object-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-heap-object-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-heap-object-standalone-tests.log`, `tmp/c89-heap-asan.log`,
+`tmp/c89-object-memory-asan.log`, `tmp/c89-heap-object-platform-tests.log`,
+`tmp/c89-heap-object-regular-tests.log`,
+`tmp/c89-heap-object-trace-comparison.json` and
+`tmp/c89-heap-object-identities.json`.

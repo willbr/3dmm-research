@@ -331,9 +331,40 @@ growth, footer handling, pointer/stat publication and default libc services.
 `engine-error-stack` checks both layouts, source/line retention, warning/lock
 order, duplicate/overflow/flush/pop and underflow publication. Native
 `memory-runtime` compares original allocation/error/counter observations through
-`MM_MEMORY_RUNTIME_SNAPSHOT`. Native heap alignment/size headers, BASE object
-allocation/deletion, debug block-list ownership/mark scans and final facade
-integration remain C++ conversion work.
+`MM_MEMORY_RUNTIME_SNAPSHOT`. Debug block-list ownership/mark scans and final
+facade integration remain C++ conversion work.
+
+### Raw heap and object allocation
+
+`mm/heap.h` owns raw allocation/resize/release, checked header-plus-payload size
+arithmetic and logical size queries. Zero-byte requests retain one physical
+payload byte; failed resize preserves the allocation, payload and recorded size.
+The default uses libc and a fundamental C89 alignment profile. Native hosts pass
+the existing `std::max_align_t` header width as a layout constant, retaining native
+alignment and header size. C reads/writes the private size field with `memcpy`.
+Optional raw providers allow deterministic failure checks. Headers never reach
+movie files; a block retains its allocator and layout throughout its lifetime.
+
+`mm/object_memory.h` owns BASE new/delete transaction policy: cleared storage,
+failure injection, object-then-memory lock ordering, metadata-link-before-counter
+publication, OOM reporting after unlock, unlink/counter/poison/release sequencing
+and checked prefix addition. Allocation does not invoke memory liberation or
+retry. Native callbacks retain debug header representation, source/thread/stack
+metadata and physical list operations. Counters borrow the existing C state;
+free retains the original caller-synchronized counter convention. C callback
+lifetimes exclude unwinding; native constructors/destructors run outside them.
+
+`engine-heap` forces allocation/reallocation failures and checks size boundaries,
+zero handling, preservation and default libc services. `engine-object-memory`
+checks injection countdowns, raw failure, lock/hook/counter order, clearing and
+complete-block poisoning before release. Both are strict C89 tests. The headless
+`heap-object-runtime` fixture captures native heap alignment, sizes, payloads,
+raw and constructed BASE allocations, reference/deletion behavior, diagnostics
+and counter observations via `MM_HEAP_OBJECT_SNAPSHOT`. Native/SDL Debug and SDL
+Release traces match their respective original implementations. Native diagnostic
+graphs, constructor attachment/mark scans, virtual destruction and final C-only
+facade integration remain conversion work. Defined C prefix-overflow/null-free
+handling does not establish native equivalence for previously invalid inputs.
 
 ### Collection storage foundation
 
@@ -348,7 +379,7 @@ The standalone C default uses the C heap. Existing hosts instead supply the
 fixed-memory allocator to retain memory-liberation callbacks, request priorities,
 debug poisoning, allocation failure injection and the `dmaglHq` diagnostic
 category. Fixed-memory transactions and counters now use the C services described
-above. Native heap/debug representations and final allocator integration remain
+above. Native debug representations and final allocator integration remain
 work; this does not mark all of Kauai's allocator converted. Debug marking now
 marks the fixed allocations directly, without an HQ prefix.
 

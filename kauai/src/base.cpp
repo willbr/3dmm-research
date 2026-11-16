@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "win_headers.h"
 #include "util.h"
+#include "mm/object_memory.h"
 ASSERTNAME
 
 #ifdef DEBUG
@@ -173,108 +174,112 @@ void BASE::Release(void)
     });
 }
 
+namespace
+{
+void *ObjectAllocate(void *, size_t bytes, int clear) { return KauaiPlatform::Allocate(bytes, clear != 0); }
+void ObjectRelease(void *, void *raw) { KauaiPlatform::Free(raw); }
+void ObjectFailed(void *) { PushErc(ercOomNew); }
+#ifdef DEBUG
+struct ObjectSource { PSZS file; LegacyLong line; };
+void ObjectEnter(void *) { _Enter(); }
+void ObjectLeave(void *) { _Leave(); }
+void ObjectStatsEnter(void *) { vmutxMem.Enter(); }
+void ObjectStatsLeave(void *) { vmutxMem.Leave(); }
+void ObjectAllocated(void *context, void *raw, size_t total)
+{
+    auto *source = static_cast<ObjectSource *>(context);
+    auto *pdoi = static_cast<DebugObjectInfo *>(raw);
+    pdoi->swMagic = kswMagicMem;
+    pdoi->cactRef = 0;
+    pdoi->pszsFile = source->file;
+    pdoi->lwLine = source->line;
+    pdoi->cbTot = static_cast<LegacyLong>(total);
+    pdoi->lwThread = LwThreadCur();
+    pdoi->ppdoiPrev = pvNil;
+    _LinkDoi(pdoi, &_pdoiFirstRaw);
+#ifdef WIN
+#ifdef IN_80386
+    // follow the EBP chain to capture a debug-mode allocation stack trace.
+    LegacyLong *plw;
+    LegacyLong ilw;
+
+    __asm { mov plw,ebp }
+    for (ilw = 0; ilw < kclwStackDoi; ilw++)
+    {
+        if (pvNil == plw || IsBadReadPtr(plw, 2 * size(LegacyLong)) || *plw <= (LegacyLong)plw)
+        {
+            pdoi->rglwStack[ilw] = 0;
+            plw = pvNil;
+        }
+        else
+        {
+            pdoi->rglwStack[ilw] = plw[1];
+            plw = (LegacyLong *)*plw;
+        }
+    }
+#else
+    // x64 doesn't allow inline asm. The diagnostic stack trace is
+    // optional debug instrumentation; leave it empty on x64 for now.
+    // CaptureStackBackTrace would be the proper Win32 replacement.
+    for (LegacyLong ilw = 0; ilw < kclwStackDoi; ilw++)
+        pdoi->rglwStack[ilw] = 0;
+#endif // IN_80386
+#endif // WIN
+}
+void ObjectBeforeFree(void *, void *raw) { _UnlinkDoi(static_cast<DebugObjectInfo *>(raw)); }
+size_t ObjectSize(void *, void *raw) { return static_cast<DebugObjectInfo *>(raw)->cbTot; }
+const MMObjectLayout objectLayout{ kcbBaseDebug, 1, kbGarbage };
+#else
+const MMObjectLayout objectLayout{ 0, 0, 0 };
+#endif
+MMObjectHost ObjectHost(void *context)
+{
+    MMObjectHost host{};
+    host.context = context;
+    host.allocate = ObjectAllocate;
+    host.release = ObjectRelease;
+    host.failed = ObjectFailed;
+#ifdef DEBUG
+    host.enter_objects = ObjectEnter;
+    host.leave_objects = ObjectLeave;
+    host.enter_stats = ObjectStatsEnter;
+    host.leave_stats = ObjectStatsLeave;
+    host.allocated = ObjectAllocated;
+    host.before_free = ObjectBeforeFree;
+    host.block_size = ObjectSize;
+#endif
+    return host;
+}
+} // namespace
+
 /***************************************************************************
-    Used to allocate all objects.  Clears the block and in debug, adds
-    magic number, reference count for marking and inserts in linked list
-    of allocated objects for object leakage tracking.
+    Allocate cleared object storage through the shared C89 transaction policy.
 ***************************************************************************/
 #ifdef DEBUG
 void *BASE::operator new(size_t cb, PSZS pszsFile, LegacyLong lwLine) noexcept
-#else  //! DEBUG
+#else
 void *BASE::operator new(size_t cb) noexcept
-#endif //! DEBUG
+#endif
 {
     AssertVarMem(pszsFile);
-    void *pv;
-
 #ifdef DEBUG
-    // do failure simulation
-    _Enter();
-
-    if (vdmglob.dmaglBase.FFail())
-    {
-        _Leave();
-        PushErc(ercOomNew);
-        return pvNil;
-    }
-
-    _Leave();
-#endif // DEBUG
-
-    if ((pv = KauaiPlatform::Allocate(cb + kcbBaseDebug, true)) == pvNil)
-        PushErc(ercOomNew);
-    else
-    {
-#ifdef DEBUG
-        _Enter();
-
-        DebugObjectInfo *pdoi = (DebugObjectInfo *)pv;
-
-        pdoi->swMagic = kswMagicMem;
-        pdoi->cactRef = 0;
-        pdoi->pszsFile = pszsFile;
-        pdoi->lwLine = lwLine;
-        pdoi->cbTot = cb + kcbBaseDebug;
-        pdoi->lwThread = LwThreadCur();
-        pdoi->ppdoiPrev = pvNil;
-        _LinkDoi(pdoi, &_pdoiFirstRaw);
-        pv = _PbaseFromDoi(pdoi);
-
-#ifdef WIN
-#ifdef IN_80386
-        // follow the EBP chain to capture a debug-mode allocation stack trace.
-        LegacyLong *plw;
-        LegacyLong ilw;
-
-        __asm { mov plw,ebp }
-        for (ilw = 0; ilw < kclwStackDoi; ilw++)
-        {
-            if (pvNil == plw || IsBadReadPtr(plw, 2 * size(LegacyLong)) || *plw <= (LegacyLong)plw)
-            {
-                pdoi->rglwStack[ilw] = 0;
-                plw = pvNil;
-            }
-            else
-            {
-                pdoi->rglwStack[ilw] = plw[1];
-                plw = (LegacyLong *)*plw;
-            }
-        }
+    ObjectSource source{pszsFile, lwLine};
+    auto host = ObjectHost(&source);
+    return mm_object_allocate(&objectLayout, &host, &vdmglob.dmaglBase, cb);
 #else
-        // x64 doesn't allow inline asm. The diagnostic stack trace is
-        // optional debug instrumentation; leave it empty on x64 for now.
-        // CaptureStackBackTrace would be the proper Win32 replacement.
-        for (LegacyLong ilw = 0; ilw < kclwStackDoi; ilw++)
-            pdoi->rglwStack[ilw] = 0;
-#endif // IN_80386
-#endif // WIN
-
-        // update statistics
-        vdmglob.dmaglBase.Allocate(cb);
-
-        _Leave();
-#endif // DEBUG
-    }
-    return pv;
+    auto host = ObjectHost(nullptr);
+    return mm_object_allocate(&objectLayout, &host, nullptr, cb);
+#endif
 }
 
-/***************************************************************************
-    DEBUG : Unlink from linked list of allocated objects and free the memory.
-***************************************************************************/
 void BASE::operator delete(void *pv)
 {
+    auto host = ObjectHost(nullptr);
 #ifdef DEBUG
-    DebugObjectInfo *pdoi = _PdoiFromBase(pv);
-
-    _UnlinkDoi(pdoi);
-
-    // update statistics
-    vdmglob.dmaglBase.Free(pdoi->cbTot - kcbBaseDebug);
-
-    TrashPvCb(pdoi, pdoi->cbTot);
-    pv = pdoi;
-#endif // DEBUG
-    KauaiPlatform::Free(pv);
+    mm_object_free(&objectLayout, &host, &vdmglob.dmaglBase, pv);
+#else
+    mm_object_free(&objectLayout, &host, nullptr, pv);
+#endif
 }
 
 #ifdef DEBUG

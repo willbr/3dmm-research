@@ -4,7 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
-#include <limits>
+#include "mm/heap.h"
 
 namespace
 {
@@ -15,14 +15,7 @@ union AllocationHeader {
     std::size_t bytes;
 };
 
-bool AllocationBytes(std::size_t bytes, std::size_t *total)
-{
-    const std::size_t payload = bytes == 0 ? 1 : bytes;
-    if (payload > (std::numeric_limits<std::size_t>::max)() - sizeof(AllocationHeader))
-        return false;
-    *total = payload + sizeof(AllocationHeader);
-    return true;
-}
+const MMHeapLayout heapLayout{sizeof(AllocationHeader)};
 
 std::atomic<KauaiPlatform::TickSource> tickSource{nullptr};
 std::atomic<std::uint32_t> nextThreadToken{1};
@@ -47,39 +40,22 @@ bool KauaiPlatform::AutoResetEvent::Wait(std::uint32_t milliseconds)
 
 void *KauaiPlatform::Allocate(std::size_t bytes, bool clear)
 {
-    std::size_t total;
-    if (!AllocationBytes(bytes, &total))
-        return nullptr;
-    auto *header = static_cast<AllocationHeader *>(clear ? std::calloc(1, total) : std::malloc(total));
-    if (header == nullptr)
-        return nullptr;
-    header->bytes = bytes;
-    return header + 1;
+    return mm_heap_allocate(&heapLayout, nullptr, bytes, clear);
 }
 
 void *KauaiPlatform::Reallocate(void *block, std::size_t bytes)
 {
-    if (block == nullptr)
-        return Allocate(bytes);
-    std::size_t total;
-    if (!AllocationBytes(bytes, &total))
-        return nullptr;
-    auto *header = static_cast<AllocationHeader *>(std::realloc(static_cast<AllocationHeader *>(block) - 1, total));
-    if (header == nullptr)
-        return nullptr;
-    header->bytes = bytes;
-    return header + 1;
+    return mm_heap_reallocate(&heapLayout, nullptr, block, bytes);
 }
 
 void KauaiPlatform::Free(void *block)
 {
-    if (block != nullptr)
-        std::free(static_cast<AllocationHeader *>(block) - 1);
+    mm_heap_release(&heapLayout, nullptr, block);
 }
 
 std::size_t KauaiPlatform::AllocationSize(const void *block)
 {
-    return block == nullptr ? 0 : (static_cast<const AllocationHeader *>(block) - 1)->bytes;
+    return mm_heap_size(&heapLayout, block);
 }
 
 long KauaiPlatform::ThreadToken()

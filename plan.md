@@ -394,9 +394,11 @@ release policy, now also use C89. Resource caches borrow those C counters direct
 fixed allocation/resize/free transactions, counters/failure injection and
 liberation retry/reentrancy control now also use C89. BASE/HQ/fixed counter fields
 live directly in shared C state. Plain/debug error-stack records and duplicate/
-overflow/flush/pop/reporting/locking control now also use C89. Native heap
-alignment/size headers, object allocation/deletion, debug block-list ownership/
-mark scans, virtual destruction and final facade removal remain work.
+overflow/flush/pop/reporting/locking control now also use C89. Raw heap size/
+overflow/resize policy and BASE object allocation/deletion transactions now use
+C89, with native alignment profiles and debug metadata/list providers. Native
+debug block-list ownership, constructor attachment/mark scans, virtual destruction
+and final facade removal remain work.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/
