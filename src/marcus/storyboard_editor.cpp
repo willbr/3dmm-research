@@ -36,14 +36,55 @@ float SegmentDistance(float x, float y, float ax, float ay, float bx, float by)
     const float t = length > 0 ? std::clamp(((x - ax) * dx + (y - ay) * dy) / length, 0.f, 1.f) : 0;
     return std::hypot(x - ax - t * dx, y - ay - t * dy);
 }
-void Grid(MarcusUI *ui, const std::vector<std::array<double, 4>> &lines, const SDL_FRect &r, bool lightTools)
+void BuildGrid(const std::vector<std::array<double, 4>> &lines, const SDL_FRect &r, const MarcusBoardAngle &angle,
+    float opacity, std::vector<SDL_Vertex> &vertices, std::vector<int> &indices)
+{
+    vertices.clear(); indices.clear();
+    const MarcusBoardGridFade fade(angle, r.w, r.h);
+    for (const auto &line : lines)
+    {
+        const double dx = (line[2] - line[0]) * r.w, dy = (line[3] - line[1]) * r.h;
+        const double length = std::hypot(dx, dy);
+        if (length < .001) continue;
+        const float nx = float(-dy / (2 * length)), ny = float(dx / (2 * length));
+        const int steps = std::max(1, int(std::ceil(length / 8)));
+        auto point = [&](int step) {
+            const double t = double(step) / steps;
+            return std::array<double, 2>{line[0] + (line[2] - line[0]) * t, line[1] + (line[3] - line[1]) * t};
+        };
+        auto a = point(0);
+        float alphaA = fade.Opacity(a[0], a[1]) * opacity;
+        for (int step = 1; step <= steps; ++step)
+        {
+            const auto b = point(step);
+            const float alphaB = fade.Opacity(b[0], b[1]) * opacity;
+            if (alphaA > 0 || alphaB > 0)
+            {
+                const float ax = float(r.x + a[0] * r.w), ay = float(r.y + a[1] * r.h);
+                const float bx = float(r.x + b[0] * r.w), by = float(r.y + b[1] * r.h);
+                const SDL_FColor ca = {173 / 255.f, 179 / 255.f, 182 / 255.f, alphaA};
+                const SDL_FColor cb = {ca.r, ca.g, ca.b, alphaB};
+                const int first = int(vertices.size());
+                vertices.push_back({{ax + nx, ay + ny}, ca, {0, 0}});
+                vertices.push_back({{ax - nx, ay - ny}, ca, {0, 0}});
+                vertices.push_back({{bx + nx, by + ny}, cb, {0, 0}});
+                vertices.push_back({{bx - nx, by - ny}, cb, {0, 0}});
+                for (int i : {0, 1, 2, 2, 1, 3}) indices.push_back(first + i);
+            }
+            a = b; alphaA = alphaB;
+        }
+    }
+}
+void Grid(MarcusUI *ui, const std::vector<SDL_Vertex> &vertices, const std::vector<int> &indices,
+    const SDL_FRect &r, bool lightTools)
 {
     const bool clipped = SDL_RenderClipEnabled(ui->renderer);
     SDL_Rect previous; SDL_GetRenderClipRect(ui->renderer, &previous);
     SDL_Rect clip = {int(r.x), int(r.y), int(r.w), int(r.h)}; SDL_SetRenderClipRect(ui->renderer, &clip);
-    for (const auto &line : lines)
-        ui_line(ui, float(r.x + line[0] * r.w), float(r.y + line[1] * r.h),
-            float(r.x + line[2] * r.w), float(r.y + line[3] * r.h), 0xadb3b6);
+    SDL_BlendMode blend; SDL_GetRenderDrawBlendMode(ui->renderer, &blend);
+    SDL_SetRenderDrawBlendMode(ui->renderer, SDL_BLENDMODE_BLEND);
+    if (!indices.empty()) SDL_RenderGeometry(ui->renderer, nullptr, vertices.data(), int(vertices.size()), indices.data(), int(indices.size()));
+    SDL_SetRenderDrawBlendMode(ui->renderer, blend);
     ui_line(ui, r.x + r.w / 2 - 6, r.y + r.h / 2, r.x + r.w / 2 + 6, r.y + r.h / 2, 0x6b7f84);
     ui_line(ui, r.x + r.w / 2, r.y + r.h / 2 - 6, r.x + r.w / 2, r.y + r.h / 2 + 6, 0x6b7f84);
     ui_text(ui, r.x + 12, r.y + (lightTools ? 44 : 12), "Perspective guide / Bake grid to paint it", 0x5b6570);
@@ -62,6 +103,10 @@ struct MarcusStoryboardEditor
     SDL_FRect lightControls = {};
     std::vector<float> depth;
     std::vector<std::array<double, 4>> gridLines;
+    std::vector<SDL_Vertex> gridVertices;
+    std::vector<int> gridIndices;
+    bool gridStyleDirty = true;
+    float gridOpacity = -1;
     SDL_FRect view = {}, canvas = {}, tools = {}, bar = {};
     bool open = false, changed = false, painting = false, picking = false, looking = false, pending = false, previewDirty = true, hasWork = false;
     int angle = 0, light = 0, tab = 0, colour = 3, size = 8, previousX = -1, previousY = -1, dragField = -1;
@@ -429,7 +474,13 @@ void storyboard_editor_gizmo(MarcusStoryboardEditor *e, int enabled)
 }
 void storyboard_editor_close(MarcusStoryboardEditor *e) { if (e && e->open) { e->Finish(); e->picking = e->open = false; } }
 void storyboard_editor_layout(MarcusStoryboardEditor *e, const SDL_FRect *view, const SDL_FRect *canvas, const SDL_FRect *tools, const SDL_FRect *bar)
-{ if (e) { e->view = *view; e->canvas = *canvas; e->tools = *tools; e->bar = *bar; } }
+{
+    if (e)
+    {
+        if (e->canvas.x != canvas->x || e->canvas.y != canvas->y || e->canvas.w != canvas->w || e->canvas.h != canvas->h) e->gridStyleDirty = true;
+        e->view = *view; e->canvas = *canvas; e->tools = *tools; e->bar = *bar;
+    }
+}
 void storyboard_editor_sync(MarcusStoryboardEditor *e, MarcusPlayer *player, const char *resources, const char *content)
 {
     if (!storyboard_editor_visible(e)) return;
@@ -679,6 +730,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             }
         }
         e->gridLines = MarcusBoardVisibleGridLines(e->DisplayAngle(), e->depth, MarcusBoardWidth, MarcusBoardHeight);
+        e->gridStyleDirty = true;
         if (!e->texture) e->texture = SDL_CreateTexture(ui->renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, MarcusBoardWidth, MarcusBoardHeight);
         if (e->texture) { SDL_SetTextureScaleMode(e->texture, SDL_SCALEMODE_NEAREST); SDL_UpdateTexture(e->texture, nullptr, e->rgba.data(), MarcusBoardWidth * 4); }
         e->previewDirty = false;
@@ -699,7 +751,15 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
     ui_button_sized(ui, right - 130, e->bar.y, 130, 28, "Use work camera", 0, e->hasWork);
     ui_fill(ui, e->canvas.x - 1, e->canvas.y - 1, e->canvas.w + 2, e->canvas.h + 2, 0x5b6570);
     if (e->texture) SDL_RenderTexture(ui->renderer, e->texture, nullptr, &e->canvas);
-    if (e->showGrid) Grid(ui, e->gridLines, e->canvas, e->tab == 2);
+    if (e->showGrid)
+    {
+        if (e->gridStyleDirty || e->gridOpacity != ui->opacity)
+        {
+            BuildGrid(e->gridLines, e->canvas, e->DisplayAngle(), ui->opacity, e->gridVertices, e->gridIndices);
+            e->gridStyleDirty = false; e->gridOpacity = ui->opacity;
+        }
+        Grid(ui, e->gridVertices, e->gridIndices, e->canvas, e->tab == 2);
+    }
     if (e->tab == 2) e->DrawLights(ui);
     if (e->tab == 0)
     {

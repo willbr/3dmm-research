@@ -113,6 +113,38 @@ bool MarcusBoardLightFromTransform(const MarcusBoardLight &original, const float
     return true;
 }
 
+MarcusBoardGridFade::MarcusBoardGridFade(const MarcusBoardAngle &angle, float width, float height)
+{
+    view = MarcusBoardProjection(angle);
+    tangent = std::tan(angle.fov * .00872664626);
+    const double step = 5 * std::max(1., std::ceil(std::abs(angle.camera.y) / 10.));
+    if (!std::isfinite(width) || !std::isfinite(height) || width <= 0 || height <= 0 || tangent <= 0)
+    { view.valid = 0; return; }
+    scaleX = width * step / (2 * tangent * view.aspect);
+    scaleY = height * step / (2 * tangent);
+}
+float MarcusBoardGridFade::Opacity(double x, double y) const
+{
+    if (!view.valid || !std::isfinite(x) || !std::isfinite(y)) return 0;
+    const double cx = (2 * x - 1) * tangent * view.aspect, cy = (1 - 2 * y) * tangent;
+    const auto *m = view.transform;
+    const double groundRay = m[1] * cx + m[4] * cy - m[7];
+    if (std::abs(groundRay) < 1e-10) return 0;
+    const double distance = -m[10] / groundRay;
+    if (!std::isfinite(distance) || distance < view.near_clip || distance > view.far_clip) return 0;
+    // Project the ground plane's X/Z derivatives. Area divided by either edge
+    // gives the perpendicular spacing between that family of parallel lines.
+    const double xx = scaleX * (m[0] + cx * m[6]) / distance;
+    const double xy = -scaleY * (m[3] + cy * m[6]) / distance;
+    const double zx = scaleX * (m[2] + cx * m[8]) / distance;
+    const double zy = -scaleY * (m[5] + cy * m[8]) / distance;
+    const double edge = std::max(std::hypot(xx, xy), std::hypot(zx, zy));
+    if (edge < 1e-10) return 0;
+    const double spacing = std::abs(xx * zy - xy * zx) / edge;
+    const double fade = std::clamp((spacing - 1) / 5, 0., 1.);
+    return std::isfinite(fade) ? float(fade * fade * (3 - 2 * fade)) : 0;
+}
+
 std::vector<std::array<double, 4>> MarcusBoardVisibleGridLines(const MarcusBoardAngle &angle,
     const std::vector<float> &depth, int width, int height)
 {

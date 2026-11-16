@@ -205,6 +205,33 @@ int main(int argc, char **argv)
             check(!half.empty() && std::all_of(half.begin(), half.end(), [](const auto &line) {
                 return line[0] >= .498 && line[2] >= .498;
             }), "Live grid segments split at the foreground silhouette");
+            MarcusBoardAngle level;
+            level.camera.pitch = 0;
+            const MarcusBoardGridFade fade(level, 544, 306);
+            check(fade.Opacity(.5, .5) == 0 && fade.Opacity(.5, .49) == 0 && fade.Opacity(.5, .51) == 0,
+                "The horizon and subpixel distant grid disappear instead of accumulating a solid band");
+            float previous = 0;
+            for (double y : {.51, .58, .64, .72, .9})
+            {
+                const float alpha = fade.Opacity(.5, y);
+                check(std::isfinite(alpha) && alpha >= previous && alpha >= 0 && alpha <= 1,
+                    "Grid opacity increases smoothly from the horizon toward the foreground");
+                previous = alpha;
+            }
+            check(fade.Opacity(.5, .64) > 0 && fade.Opacity(.5, .64) < 1 && fade.Opacity(.5, .9) == 1,
+                "Grid fade retains a transparent middle distance and solid readable foreground");
+            const MarcusBoardGridFade large(level, 1088, 612);
+            check(large.Opacity(.5, .64) > fade.Opacity(.5, .64), "Fade responds to displayed pixel spacing when the viewport grows");
+            const float ground[] = {0, 0, -150};
+            float flatPoint[3], rolledPoint[3];
+            auto levelProjection = MarcusBoardProjection(level);
+            check(camera_project_point(&levelProjection, ground, flatPoint), "Project a middle-distance ground point");
+            auto rolled = level; rolled.roll = 37;
+            auto rolledProjection = MarcusBoardProjection(rolled);
+            check(camera_project_point(&rolledProjection, ground, rolledPoint) &&
+                std::abs(MarcusBoardGridFade(rolled, 544, 306).Opacity(rolledPoint[0], rolledPoint[1]) -
+                    fade.Opacity(flatPoint[0], flatPoint[1])) < .0001f, "Grid fading follows the rolled camera's ground plane");
+            check(MarcusBoardGridFade(level, 0, 306).Opacity(.5, .9) == 0, "An empty viewport has no grid opacity");
         }
         for (float pitch : {-90.f, 90.f})
         {

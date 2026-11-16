@@ -211,7 +211,9 @@ Lights as temporary overlays.
 The storyboard toolbar's **Grid: on/off** toggle shows or hides the live guide
 in Paint, Camera and Lights. It leaves baked grid lines and the movie unchanged.
 The live ground grid uses the preview's scene depth, so actors and props hide
-grid lines behind their surfaces. Baked lines remain part of the background.
+grid lines behind their surfaces. It fades as perspective compresses cells toward
+single-pixel spacing, keeping the distant grid from merging into a solid band.
+Baked lines remain part of the background.
 **Use work camera** copies the current
 work-view pose and lens into this angle, retaining its drawing.
 
