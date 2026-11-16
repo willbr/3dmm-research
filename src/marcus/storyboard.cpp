@@ -127,7 +127,8 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
     if (!Range(a.camera.x, -32700, 32700) || !Range(a.camera.y, -32700, 32700) || !Range(a.camera.z, -32700, 32700) ||
         !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -90, 90) || !Range(a.roll, -180, 180) ||
         !Range(a.fov, 5, 150) || !Range(a.nearClip, .01f, 100)) return lines;
-    lines.reserve(42);
+    constexpr int cells = 100;
+    lines.reserve(2 * (2 * cells + 1));
     const double yaw = a.camera.yaw * .01745329252, pitch = a.camera.pitch * .01745329252, roll = a.roll * .01745329252;
     const double cy = std::cos(yaw), sy = std::sin(yaw), cp = std::cos(pitch), sp = std::sin(pitch), cr = std::cos(roll), sr = std::sin(roll);
     const double right[3] = {cy * cr - sy * sp * sr, cp * sr, -sy * cr - cy * sp * sr};
@@ -136,7 +137,7 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
     const double focal = .5 / std::tan(a.fov * .00872664626), aspect = double(MarcusBoardWidth) / MarcusBoardHeight;
     const double centreX = std::round(a.camera.x / 10) * 10, centreZ = std::round(a.camera.z / 10) * 10;
     // Keep the ground guide visible from higher, level cameras too.
-    const double step = 5 * std::max(1., std::ceil(std::abs(a.camera.y) / 10.)), extent = step * 10;
+    const double step = 5 * std::max(1., std::ceil(std::abs(a.camera.y) / 10.)), extent = step * cells;
     auto cameraPoint = [&](double wx, double wz) {
         const double p[3] = {wx - a.camera.x, -a.camera.y, wz - a.camera.z};
         std::array<double, 3> out = {};
@@ -163,7 +164,7 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
         lines.push_back({std::clamp(x + first * dx, 0., 1.), std::clamp(y + first * dy, 0., 1.),
             std::clamp(x + last * dx, 0., 1.), std::clamp(y + last * dy, 0., 1.)});
     };
-    for (int i = -10; i <= 10; ++i)
+    for (int i = -cells; i <= cells; ++i)
     {
         line(centreX + i * step, centreZ - extent, centreX + i * step, centreZ + extent);
         line(centreX - extent, centreZ + i * step, centreX + extent, centreZ + i * step);
