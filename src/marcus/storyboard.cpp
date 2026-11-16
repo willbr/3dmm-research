@@ -45,7 +45,7 @@ bool MarcusBoardValid(const MarcusStoryboard &board)
     if (board.angles.empty() || board.angles.size() > 64 || board.lights.size() > 16) return false;
     for (const auto &a : board.angles)
         if (!Range(a.camera.x, -32700, 32700) || !Range(a.camera.y, -32700, 32700) || !Range(a.camera.z, -32700, 32700) ||
-            !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -89, 89) || !Range(a.roll, -180, 180) ||
+            !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -90, 90) || !Range(a.roll, -180, 180) ||
             !Range(a.fov, 5, 150) || !Range(a.nearClip, .01f, 100) || !Range(a.farClip, a.nearClip + .01f, 32700) ||
             a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight ||
             std::any_of(a.pixels.begin(), a.pixels.end(), [](auto v) { return v > 6; })) return false;
@@ -125,7 +125,7 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
 {
     std::vector<std::array<double, 4>> lines;
     if (!Range(a.camera.x, -32700, 32700) || !Range(a.camera.y, -32700, 32700) || !Range(a.camera.z, -32700, 32700) ||
-        !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -89, 89) || !Range(a.roll, -180, 180) ||
+        !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -90, 90) || !Range(a.roll, -180, 180) ||
         !Range(a.fov, 5, 150) || !Range(a.nearClip, .01f, 100)) return lines;
     lines.reserve(42);
     const double yaw = a.camera.yaw * .01745329252, pitch = a.camera.pitch * .01745329252, roll = a.roll * .01745329252;

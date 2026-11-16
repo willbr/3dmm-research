@@ -158,16 +158,20 @@ use **[ / ]** to resize, **1–6** to choose colours, and **E** for the grey era
 uses the movie's normal undo history for strokes, clears, camera settings, angle
 additions and light edits. Each completed stroke or adjustment joins the working
 movie immediately; there is no Apply/Cancel dialog. Escape or Ctrl+Z during an
-unfinished gesture cancels that gesture. Leaving the canvas during a stroke
+unfinished paint/value gesture cancels that gesture. Leaving the canvas during a stroke
 breaks the line instead of drawing across the gap. Switching frames/scenes or
 undoing another edit refreshes the canvas from the current movie.
 
 **New angle** creates a blank grey drawing using the selected camera's settings.
 Switch angles using the arrows. In **Camera**, drag numeric values or use their
 minus/plus buttons to change position, yaw, pitch, roll, vertical FOV and clipping
-planes. Shift makes value drags finer. Right-drag the preview to look around;
-WASD moves the camera, Q/E moves down/up, Shift increases the movement step, and
-the wheel moves forward/backward. **Bake grid** in Camera paints the current
+planes. Shift makes value drags finer. Navigation uses the same controls and mouse
+sensitivity as the main Fly camera: hold the right mouse button over the viewport
+to capture the mouse and look around, with continuous WASD movement and Q/E down/up.
+Either Shift key gives four times the speed. The wheel adjusts flight speed without
+moving the camera; the sidebar shows the current speed. Releasing right mouse or
+pressing Escape releases capture and commits the camera move as one undo step.
+**Bake grid** in Camera paints the current
 perspective ground grid into this angle's background using the selected colour
 (**1–6**); it then opens Paint so you can draw over it. Grid lines are one pixel
 wide, retain the current camera perspective, and stay fixed if you move the camera

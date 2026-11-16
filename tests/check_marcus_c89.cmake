@@ -10,6 +10,8 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/settings.c"
   "${SOURCE}/src/marcus/ribbon.c"
   "${SOURCE}/src/marcus/camera_guide.c"
+  "${SOURCE}/src/marcus/camera_controls.c"
+  "${SOURCE}/tests/marcus_camera_controls_test.c"
   "${SOURCE}/src/marcus/renderer_ids.c"
   "${SOURCE}/tools/marcus_dialog_capture.c"
   "${SOURCE}/tests/marcus_player_test.c" RESULT_VARIABLE result)

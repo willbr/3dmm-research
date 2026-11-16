@@ -1,5 +1,6 @@
 #include "storyboard_editor.h"
 #include "storyboard.h"
+#include "camera_controls.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -10,11 +11,6 @@ constexpr int sizes[] = {1, 4, 8, 16, 32};
 constexpr const char *colourNames[] = {"Grey eraser", "Black", "White", "Soft blue", "Soft red", "Soft yellow", "Soft green"};
 struct Field { const char *name; float *value; float low, high, step; };
 bool Inside(float x, float y, const SDL_FRect &r) { return ui_inside(x, y, r.x, r.y, r.w, r.h) != 0; }
-unsigned MoveKey(SDL_Keycode key)
-{
-    switch (key) { case SDLK_W: return 1; case SDLK_S: return 2; case SDLK_A: return 4; case SDLK_D: return 8;
-        case SDLK_Q: return 16; case SDLK_E: return 32; default: return 0; }
-}
 void Grid(MarcusUI *ui, const MarcusBoardAngle &angle, const SDL_FRect &r)
 {
     const bool clipped = SDL_RenderClipEnabled(ui->renderer);
@@ -39,18 +35,48 @@ struct MarcusStoryboardEditor
     int angle = 0, light = 0, tab = 0, colour = 1, size = 8, previousX = -1, previousY = -1, dragField = -1;
     float dragStart = 0, dragValue = 0;
     unsigned long document = 0, scene = 0;
-    unsigned cameraKeys = 0;
+    int cameraKeys = 0;
+    SDL_WindowID navigationWindow = 0;
+    float flySpeed = 0;
     long frame = 0;
     std::string resources, content, error;
     std::vector<unsigned char> baseline, rgba;
     SDL_Texture *texture = nullptr;
-    ~MarcusStoryboardEditor() { SDL_DestroyTexture(texture); }
-    bool Gesture() const { return painting || looking || dragField >= 0 || cameraKeys != 0; }
+    ~MarcusStoryboardEditor() { StopLook(); SDL_DestroyTexture(texture); }
+    bool Gesture() const { return painting || looking || dragField >= 0; }
+    void StopLook()
+    {
+        if (navigationWindow)
+            if (auto window = SDL_GetWindowFromID(navigationWindow)) SDL_SetWindowRelativeMouseMode(window, false);
+        navigationWindow = 0; looking = false; cameraKeys = 0;
+    }
+    bool FlightSpeed()
+    {
+        if (flySpeed <= 0)
+        {
+            MarcusCamera matched = {};
+            if (!marcus_match_camera(player, MarcusBoardWidth, MarcusBoardHeight, &matched))
+            { error = marcus_error(player); return false; }
+            flySpeed = matched.move_speed;
+        }
+        board.angles[angle].camera.move_speed = flySpeed;
+        return true;
+    }
+    void StartLook(SDL_WindowID id)
+    {
+        Finish();
+        auto window = SDL_GetWindowFromID(id);
+        if (!window || !FlightSpeed()) return;
+        if (!SDL_SetWindowRelativeMouseMode(window, true)) { error = SDL_GetError(); return; }
+        navigationWindow = id; cameraKeys = marcus_fly_held_keys(); looking = true;
+    }
     void Reload()
     {
+        StopLook();
         MarcusInfo info = {}; MarcusScene current = {};
         if (!marcus_info(player, &info) || !marcus_scene(player, info.scene, &current) || !MarcusGetStoryboard(player, board))
         { open = false; return; }
+        if (scene != current.chunk) flySpeed = 0;
         document = marcus_document(player); scene = current.chunk; frame = info.frame;
         angle = std::min(int(info.camera), int(board.angles.size()) - 1);
         light = std::clamp(light, 0, std::max(0, int(board.lights.size()) - 1));
@@ -76,7 +102,7 @@ struct MarcusStoryboardEditor
     }
     void Finish()
     {
-        painting = looking = false; dragField = -1; cameraKeys = 0;
+        StopLook(); painting = false; dragField = -1;
         Commit();
     }
     void SelectAngle(int index)
@@ -98,7 +124,7 @@ struct MarcusStoryboardEditor
         auto &a = board.angles[angle];
         if (tab == 1) return {{"Position X", &a.camera.x, -32700, 32700, .5f}, {"Position Y", &a.camera.y, -32700, 32700, .5f},
             {"Position Z", &a.camera.z, -32700, 32700, .5f}, {"Yaw", &a.camera.yaw, -360, 360, 1},
-            {"Pitch", &a.camera.pitch, -89, 89, 1}, {"Roll", &a.roll, -180, 180, 1},
+            {"Pitch", &a.camera.pitch, -90, 90, 1}, {"Roll", &a.roll, -180, 180, 1},
             {"FOV", &a.fov, 5, 150, 1}, {"Near clip", &a.nearClip, .01f, std::min(100.f, a.farClip - .01f), .1f},
             {"Far clip", &a.farClip, a.nearClip + .01f, 32700, 10}};
         if (tab != 2 || board.lights.empty()) return {};
@@ -115,32 +141,30 @@ struct MarcusStoryboardEditor
         MarcusBoardStroke(board.angles[angle], previousX < 0 ? ix : previousX, previousY < 0 ? iy : previousY, ix, iy, size, static_cast<unsigned char>(colour));
         previousX = ix; previousY = iy; pending = previewDirty = true;
     }
-    void Move(float forward, float right, float up)
-    {
-        auto &c = board.angles[angle].camera;
-        const float yaw = c.yaw * .01745329252f, pitch = c.pitch * .01745329252f;
-        c.x = std::clamp(c.x - std::sin(yaw) * std::cos(pitch) * forward + std::cos(yaw) * right, -32700.f, 32700.f);
-        c.y = std::clamp(c.y - std::sin(pitch) * forward + up, -32700.f, 32700.f);
-        c.z = std::clamp(c.z - std::cos(yaw) * std::cos(pitch) * forward - std::sin(yaw) * right, -32700.f, 32700.f);
-        pending = previewDirty = true;
-    }
 };
 
 extern "C" {
 MarcusStoryboardEditor *storyboard_editor_create(void) { try { return new MarcusStoryboardEditor; } catch (...) { return nullptr; } }
 void storyboard_editor_destroy(MarcusStoryboardEditor *e) { delete e; }
 int storyboard_editor_visible(const MarcusStoryboardEditor *e) { return e && e->open; }
+int storyboard_editor_flying(const MarcusStoryboardEditor *e) { return e && e->looking; }
+void storyboard_editor_release_camera(MarcusStoryboardEditor *e) { if (e && e->looking) e->Finish(); }
+void storyboard_editor_update(MarcusStoryboardEditor *e, double seconds)
+{
+    if (storyboard_editor_visible(e) && e->looking && marcus_fly_step(&e->board.angles[e->angle].camera, e->cameraKeys, seconds))
+        e->pending = e->previewDirty = true;
+}
 void storyboard_editor_close(MarcusStoryboardEditor *e) { if (e && e->open) { e->Finish(); e->open = false; } }
 void storyboard_editor_layout(MarcusStoryboardEditor *e, const SDL_FRect *view, const SDL_FRect *canvas, const SDL_FRect *tools, const SDL_FRect *bar)
 { if (e) { e->view = *view; e->canvas = *canvas; e->tools = *tools; e->bar = *bar; } }
 void storyboard_editor_sync(MarcusStoryboardEditor *e, MarcusPlayer *player, const char *resources, const char *content)
 {
     if (!storyboard_editor_visible(e)) return;
-    if (e->player != player) { e->open = false; return; }
+    if (e->player != player) { e->StopLook(); e->open = false; return; }
     e->resources = resources; e->content = content;
     MarcusInfo info = {}; MarcusScene current = {};
     if (!marcus_info(player, &info) || !marcus_scene(player, info.scene, &current) || !marcus_is_storyboard(player))
-    { e->open = false; return; }
+    { e->StopLook(); e->open = false; return; }
     if (current.chunk != e->scene || info.frame != e->frame || info.camera != static_cast<unsigned long>(e->angle) ||
         marcus_document(player) != e->document)
     {
@@ -149,7 +173,7 @@ void storyboard_editor_sync(MarcusStoryboardEditor *e, MarcusPlayer *player, con
     }
 }
 int storyboard_editor_show(MarcusStoryboardEditor *e, MarcusPlayer *player, int newScene, int angle,
-    const MarcusImage *work, const char *resources, const char *content)
+    const MarcusImage *work, float flySpeed, const char *resources, const char *content)
 {
     if (!e) return 0;
     try
@@ -160,13 +184,14 @@ int storyboard_editor_show(MarcusStoryboardEditor *e, MarcusPlayer *player, int 
         if (newScene && !MarcusApplyStoryboard(player, MarcusStoryboard{}, true, 0, resources, content)) return 0;
         e->open = true; e->Reload();
         if (!e->open) return 0;
+        e->flySpeed = flySpeed;
         e->changed = newScene != 0;
         e->hasWork = work && work->projection.valid && !work->projection.orthographic;
         if (e->hasWork)
         {
             e->work = MarcusBoardAngle{}; e->work.camera = work->camera;
             e->work.camera.yaw = std::remainder(e->work.camera.yaw, 360.f);
-            e->work.camera.pitch = std::clamp(e->work.camera.pitch, -89.f, 89.f);
+            e->work.camera.pitch = std::clamp(e->work.camera.pitch, -90.f, 90.f);
             const float yaw = e->work.camera.yaw * .01745329252f, pitch = e->work.camera.pitch * .01745329252f;
             const auto *right = work->projection.transform;
             const float cosine = right[0] * std::cos(yaw) - right[2] * std::sin(yaw);
@@ -190,38 +215,32 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
     if (event->type == SDL_EVENT_KEY_DOWN)
     {
         const auto key = event->key.key;
+        const int flyKey = marcus_fly_key(event->key.scancode);
+        if (e->looking && flyKey) { e->cameraKeys |= flyKey; return 1; }
         if (key == SDLK_LSHIFT || key == SDLK_RSHIFT || key == SDLK_LCTRL || key == SDLK_RCTRL ||
             key == SDLK_LALT || key == SDLK_RALT || key == SDLK_LGUI || key == SDLK_RGUI) return e->Gesture();
         const bool command = event->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI | SDL_KMOD_ALT);
         if (key == SDLK_ESCAPE && !event->key.repeat)
         {
-            if (e->Gesture()) e->Reload(); else storyboard_editor_close(e);
+            if (e->looking) e->Finish();
+            else if (e->Gesture()) e->Reload(); else storyboard_editor_close(e);
             return 1;
         }
         if (key == SDLK_Z && command && e->Gesture()) { e->Reload(); return 1; }
         if (command) { e->Finish(); return 0; }
-        const bool movement = e->tab == 1 && (key == SDLK_W || key == SDLK_S || key == SDLK_A || key == SDLK_D || key == SDLK_Q || key == SDLK_E);
-        if (movement)
-        {
-            if (e->painting || e->dragField >= 0) return 1;
-            const float step = event->key.mod & SDL_KMOD_SHIFT ? 2.f : .5f;
-            e->cameraKeys |= MoveKey(key);
-            e->Move(step * ((key == SDLK_W) - (key == SDLK_S)), step * ((key == SDLK_D) - (key == SDLK_A)), step * ((key == SDLK_E) - (key == SDLK_Q)));
-            return 1;
-        }
+        if (e->looking) return 0;
         if (!event->key.repeat)
         {
             if (key >= SDLK_1 && key <= SDLK_6) { e->colour = int(key - SDLK_1) + 1; return 1; }
-            if (key == SDLK_E) { e->colour = 0; return 1; }
+            if (key == SDLK_E && e->tab == 0) { e->colour = 0; return 1; }
             if (key == SDLK_LEFTBRACKET) { e->size = std::max(1, e->size / 2); return 1; }
             if (key == SDLK_RIGHTBRACKET) { e->size = std::min(64, e->size * 2); return 1; }
         }
         e->Finish(); return 0;
     }
-    if (event->type == SDL_EVENT_KEY_UP && (e->cameraKeys & MoveKey(event->key.key)))
+    if (event->type == SDL_EVENT_KEY_UP && e->looking && marcus_fly_key(event->key.scancode))
     {
-        e->cameraKeys &= ~MoveKey(event->key.key);
-        if (!e->Gesture()) e->Commit();
+        e->cameraKeys &= ~marcus_fly_key(event->key.scancode);
         return 1;
     }
     if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST) { e->Finish(); return 0; }
@@ -230,10 +249,9 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         if (e->painting) { e->Paint(event->motion.x, event->motion.y); return 1; }
         if (e->looking)
         {
-            auto &c = e->board.angles[e->angle].camera;
-            c.yaw = std::remainder(c.yaw - event->motion.xrel * .2f, 360.f);
-            c.pitch = std::clamp(c.pitch + event->motion.yrel * .2f, -89.f, 89.f);
-            e->pending = e->previewDirty = true; return 1;
+            if (marcus_fly_look(&e->board.angles[e->angle].camera, event->motion.xrel, event->motion.yrel))
+                e->pending = e->previewDirty = true;
+            return 1;
         }
         if (e->dragField >= 0)
         {
@@ -249,23 +267,30 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         }
         return Inside(event->motion.x, event->motion.y, e->view) || Inside(event->motion.x, event->motion.y, e->tools);
     }
-    if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && e->Gesture()) { e->Finish(); return 1; }
+    if (event->type == SDL_EVENT_MOUSE_BUTTON_UP &&
+        ((e->looking && event->button.button == SDL_BUTTON_RIGHT) ||
+         ((e->painting || e->dragField >= 0) && event->button.button == SDL_BUTTON_LEFT))) { e->Finish(); return 1; }
     if (event->type == SDL_EVENT_MOUSE_WHEEL)
     {
-        if (!Inside(event->wheel.mouse_x, event->wheel.mouse_y, e->canvas))
+        if (!e->looking && !Inside(event->wheel.mouse_x, event->wheel.mouse_y, e->canvas))
             return Inside(event->wheel.mouse_x, event->wheel.mouse_y, e->view) || Inside(event->wheel.mouse_x, event->wheel.mouse_y, e->tools);
-        if (e->tab == 1 && event->wheel.y != 0)
-        { e->Move(event->wheel.y * (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -.5f : .5f), 0, 0); e->Commit(); }
+        if (e->tab == 1 && event->wheel.y != 0 && e->FlightSpeed())
+        {
+            auto &camera = e->board.angles[e->angle].camera;
+            marcus_fly_speed(&camera, event->wheel.y * (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1));
+            e->flySpeed = camera.move_speed;
+        }
         return 1;
     }
     if (event->type != SDL_EVENT_MOUSE_BUTTON_DOWN) return 0;
+    if (e->looking) return 1;
     const float px = event->button.x, py = event->button.y;
     if (!Inside(px, py, e->view) && !Inside(px, py, e->tools)) { e->Finish(); return 0; }
     if (Inside(px, py, e->canvas))
     {
         if (event->button.button == SDL_BUTTON_LEFT && e->tab == 0)
         { e->painting = true; e->previousX = e->previousY = -1; e->Paint(px, py); }
-        else if (event->button.button == SDL_BUTTON_RIGHT && e->tab == 1) e->looking = true;
+        else if (event->button.button == SDL_BUTTON_RIGHT && e->tab == 1) e->StartLook(event->button.windowID);
         return 1;
     }
     if (event->button.button != SDL_BUTTON_LEFT) return 1;
@@ -412,14 +437,20 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
                 ui->hint = "Bake this angle's grid in the selected colour (1-6). Undo removes it; no depth is added.";
         }
         ui_text(ui, x, y + 440, "Drag values / Shift for fine", 0x969da8);
-        ui_text(ui, x, y + 464, e->tab == 1 ? "RMB look / WASD + Q E move" : "Lights affect 3D actors / props.", 0x969da8);
+        ui_text(ui, x, y + 464, e->tab == 1 ? "Hold RMB / WASD + Q E / Shift" : "Lights affect 3D actors / props.", 0x969da8);
+        if (e->tab == 1)
+        {
+            SDL_snprintf(label, sizeof(label), "Wheel: flight speed%s", e->flySpeed > 0 ? "" : " / RMB to start");
+            if (e->flySpeed > 0) SDL_snprintf(label, sizeof(label), "Wheel: flight speed / %.2f units/s", e->flySpeed);
+            ui_label(ui, x, y + 488, 264, label, 0x969da8);
+        }
     }
     ui_text(ui, x, y + 512, "Edits join the movie as you work.", 0x78cbc4);
     ui_text(ui, x, y + 536, "Save copy / Ctrl+S to keep them.", 0x969da8);
     if (!e->error.empty()) ui_label(ui, x, y + 568, 264, e->error.c_str(), 0xe4a1a1);
-    if (Inside(ui->mouse_x, ui->mouse_y, e->canvas))
+    if (e->looking || Inside(ui->mouse_x, ui->mouse_y, e->canvas))
         ui->hint = e->tab == 0 ? "Paint the background / 1-6 colours / E eraser / [ ] size / Ctrl+Z undo / Escape finishes"
-            : e->tab == 1 ? "Camera: right-drag to look / WASD + Q E move / wheel forward and back" : "Lights affect actors and props across this scene's camera angles";
+            : e->tab == 1 ? "Hold right mouse: look + WASD move / Q E down/up / Shift faster / Wheel speed / Escape releases" : "Lights affect actors and props across this scene's camera angles";
 }
 int storyboard_editor_take(MarcusStoryboardEditor *e) { if (!e || !e->changed) return 0; e->changed = false; return 1; }
 }

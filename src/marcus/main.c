@@ -2,6 +2,7 @@
 #include "ui.h"
 #include "settings.h"
 #include "camera_guide.h"
+#include "camera_controls.h"
 #include "movie_browser.h"
 #include "scene_organiser.h"
 #include "background_browser.h"
@@ -58,14 +59,6 @@
 #define SHEET_SOUND_ROW 2
 #define SHEET_OBJECT_HEADER 3
 #define SHEET_SOUND_HEADER 4
-#define FLY_FORWARD 1
-#define FLY_BACK 2
-#define FLY_LEFT 4
-#define FLY_RIGHT 8
-#define FLY_UP 16
-#define FLY_DOWN 32
-#define FLY_FAST 64
-#define FLY_FAST_RIGHT 128
 
 #ifndef MARCUS_SOURCE_DIR
 #define MARCUS_SOURCE_DIR "."
@@ -260,6 +253,7 @@ static int animation_lane(int kind)
 }
 static void release_camera(App *app)
 {
+    storyboard_editor_release_camera(app->storyboard_editor);
     app->object_scroll_drag = app->resizing_objects = 0;
     if (app->window && SDL_GetWindowRelativeMouseMode(app->window))
         SDL_SetWindowRelativeMouseMode(app->window, 0);
@@ -990,7 +984,8 @@ static void choose_storyboard(App *app, int new_scene, int angle)
     scene_organiser_close(app->scene_organiser);
     if (app->movie_only) editor_view(app);
     if (!storyboard_editor_show(app->storyboard_editor, app->player, new_scene, angle,
-            &app->work_image, app->resources, app->content))
+            &app->work_image, app->fly_ready && !app->work_needs_match ? app->flight.move_speed : 0,
+            app->resources, app->content))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "Cannot enter storyboard painting.");
     else
     {
@@ -1861,21 +1856,7 @@ static void mouse_down(App *app, float x, float y, int button)
             return;
         }
         app->flying = 1;
-        app->fly_keys = (SDL_GetModState() & SDL_KMOD_LSHIFT) ? FLY_FAST : 0;
-        if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_W])
-            app->fly_keys |= FLY_FORWARD;
-        if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_S])
-            app->fly_keys |= FLY_BACK;
-        if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_A])
-            app->fly_keys |= FLY_LEFT;
-        if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_D])
-            app->fly_keys |= FLY_RIGHT;
-        if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_E])
-            app->fly_keys |= FLY_UP;
-        if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_Q])
-            app->fly_keys |= FLY_DOWN;
-        if (SDL_GetModState() & SDL_KMOD_RSHIFT)
-            app->fly_keys |= FLY_FAST_RIGHT;
+        app->fly_keys = marcus_fly_held_keys();
         return;
     }
     if (button != SDL_BUTTON_LEFT || app->flying || app->orbiting || app->panning)
@@ -2183,54 +2164,15 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
         break;
     }
 }
-static int flight_key(SDL_Scancode code)
-{
-    switch (code)
-    {
-    case SDL_SCANCODE_W:
-        return FLY_FORWARD;
-    case SDL_SCANCODE_S:
-        return FLY_BACK;
-    case SDL_SCANCODE_A:
-        return FLY_LEFT;
-    case SDL_SCANCODE_D:
-        return FLY_RIGHT;
-    case SDL_SCANCODE_E:
-        return FLY_UP;
-    case SDL_SCANCODE_Q:
-        return FLY_DOWN;
-    case SDL_SCANCODE_LSHIFT:
-        return FLY_FAST;
-    case SDL_SCANCODE_RSHIFT:
-        return FLY_FAST_RIGHT;
-    default:
-        return 0;
-    }
-}
 static void update_flight(App *app, double seconds)
 {
-    double yaw, pitch, forward, side, up, dx, dy, dz, length, distance;
     if (!app->flying || !app->fly_ready || app->error[0])
         return;
-    forward = ((app->fly_keys & FLY_FORWARD) != 0) - ((app->fly_keys & FLY_BACK) != 0);
-    side = ((app->fly_keys & FLY_RIGHT) != 0) - ((app->fly_keys & FLY_LEFT) != 0);
-    up = ((app->fly_keys & FLY_UP) != 0) - ((app->fly_keys & FLY_DOWN) != 0);
-    yaw = app->flight.yaw * 0.01745329252;
-    pitch = app->flight.pitch * 0.01745329252;
-    dx = -sin(yaw) * cos(pitch) * forward + cos(yaw) * side;
-    dy = -sin(pitch) * forward + up;
-    dz = -cos(yaw) * cos(pitch) * forward - sin(yaw) * side;
-    length = sqrt(dx * dx + dy * dy + dz * dz);
-    if (length == 0)
-        return;
-    app->work_matched = 0;
-    if (seconds > 0.1)
-        seconds = 0.1;
-    distance = app->flight.move_speed * seconds * ((app->fly_keys & (FLY_FAST | FLY_FAST_RIGHT)) ? 4 : 1) / length;
-    app->flight.x = (float)minimum(32700, maximum(-32700, app->flight.x + dx * distance));
-    app->flight.y = (float)minimum(32700, maximum(-32700, app->flight.y + dy * distance));
-    app->flight.z = (float)minimum(32700, maximum(-32700, app->flight.z + dz * distance));
-    app->dirty = 1;
+    if (marcus_fly_step(&app->flight, app->fly_keys, seconds))
+    {
+        app->work_matched = 0;
+        app->dirty = 1;
+    }
 }
 static void handle_event(App *app, const SDL_Event *event)
 {
@@ -2314,7 +2256,7 @@ static void handle_event(App *app, const SDL_Event *event)
     else if (!app->error[0] && !app->settings_open && !app->zip_input && !app->orbit_menu && !app->sheet_menu &&
              storyboard_editor_event(app->storyboard_editor, event))
     {
-        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        if (event->type == SDL_EVENT_MOUSE_MOTION && !storyboard_editor_flying(app->storyboard_editor))
         {
             app->ui.mouse_x = event->motion.x;
             app->ui.mouse_y = event->motion.y;
@@ -2354,13 +2296,13 @@ static void handle_event(App *app, const SDL_Event *event)
     }
     else if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
     {
-        if (app->flying && flight_key(event->key.scancode))
-            app->fly_keys |= flight_key(event->key.scancode);
+        if (app->flying && marcus_fly_key(event->key.scancode))
+            app->fly_keys |= marcus_fly_key(event->key.scancode);
         else
             key_down(app, event->key.key, event->key.mod);
     }
     else if (event->type == SDL_EVENT_KEY_UP)
-        app->fly_keys &= ~flight_key(event->key.scancode);
+        app->fly_keys &= ~marcus_fly_key(event->key.scancode);
     else if (event->type == SDL_EVENT_MOUSE_MOTION)
     {
         if (app->movie_scrubbing)
@@ -2393,11 +2335,11 @@ static void handle_event(App *app, const SDL_Event *event)
         }
         else
         {
-            app->flight.yaw = (float)fmod(app->flight.yaw - event->motion.xrel * 0.15, 360);
-            app->flight.pitch = (float)minimum(90, maximum(-90, app->flight.pitch + event->motion.yrel * 0.15));
-            if (event->motion.xrel != 0 || event->motion.yrel != 0)
+            if (marcus_fly_look(&app->flight, event->motion.xrel, event->motion.yrel))
+            {
                 app->work_matched = 0;
-            app->dirty = 1;
+                app->dirty = 1;
+            }
         }
         if (app->resizing_objects)
         {
@@ -2520,7 +2462,7 @@ static void handle_event(App *app, const SDL_Event *event)
             delta = -delta;
         modifiers = SDL_GetModState();
         if (app->flying || (app->authored == 2 && inside_work(app, x, y)))
-            app->flight.move_speed = (float)minimum(10000, maximum(0.1, app->flight.move_speed * pow(1.25, delta)));
+            marcus_fly_speed(&app->flight, delta);
         else if (x >= app->sidebar && y >= OBJECT_LIST_TOP && y < app->object_split - 4)
         {
             scroll_objects(app, app->object_scroll - (int)delta);
@@ -4573,6 +4515,8 @@ int main(int argc, char **argv)
         }
         now = (double)SDL_GetTicks();
         update_flight(&app, (now - previous_tick) / 1000.0);
+        if (!app.error[0]) storyboard_editor_update(app.storyboard_editor, (now - previous_tick) / 1000.0);
+        else storyboard_editor_release_camera(app.storyboard_editor);
         if (app.loaded)
         {
             if (!marcus_update(app.player, app.playing, app.loop, now - previous_tick, app.continue_click,

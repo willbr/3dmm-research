@@ -10,8 +10,11 @@ MarcusStoryboardEditor *storyboard_editor_create(void);
 void storyboard_editor_destroy(MarcusStoryboardEditor *editor);
 /* angle -1 opens the active shot; -2 adds a blank shot with the same camera. */
 int storyboard_editor_show(MarcusStoryboardEditor *editor, MarcusPlayer *player, int new_scene, int angle,
-    const MarcusImage *work, const char *resources, const char *content);
+    const MarcusImage *work, float fly_speed, const char *resources, const char *content);
 int storyboard_editor_visible(const MarcusStoryboardEditor *editor);
+int storyboard_editor_flying(const MarcusStoryboardEditor *editor);
+void storyboard_editor_release_camera(MarcusStoryboardEditor *editor);
+void storyboard_editor_update(MarcusStoryboardEditor *editor, double seconds);
 /* Complete a gesture before leaving paint mode. Completed edits already belong to the movie. */
 void storyboard_editor_close(MarcusStoryboardEditor *editor);
 /* Follow ordinary scene/frame/undo/prop changes without intercepting their controls. */

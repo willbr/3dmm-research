@@ -22,6 +22,16 @@ int main(int argc, char **argv)
     {
         MarcusStoryboard board;
         check(MarcusBoardValid(board), "Default storyboard");
+        for (float pitch : {-90.f, 90.f})
+        {
+            auto vertical = board; vertical.angles[0].camera.pitch = pitch;
+            check(MarcusBoardValid(vertical) && MarcusDecodeBoard(MarcusEncodeBoard(vertical)).angles[0].camera.pitch == pitch,
+                "Full Fly pitch range survives storyboard serialization");
+            const auto verticalGrid = MarcusBoardGridLines(vertical.angles[0]);
+            check(std::all_of(verticalGrid.begin(), verticalGrid.end(), [](const auto &line) {
+                return std::all_of(line.begin(), line.end(), [](double p) { return std::isfinite(p) && p >= 0 && p <= 1; });
+            }), "Vertical camera grid remains finite and clipped");
+        }
         MarcusBoardStroke(board.angles[0], 0, 0, 543, 305, 8, 3);
         check(board.angles[0].pixels[0] == 3 && board.angles[0].pixels.back() == 3 && board.angles[0].pixels[100] == 0, "Clipped, continuous opaque strokes");
         MarcusBoardStroke(board.angles[0], 270, 152, 270, 152, 16, 0);
