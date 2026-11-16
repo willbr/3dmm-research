@@ -1,6 +1,7 @@
 #include "asm_renderer.h"
 #include "asm_protocol.h"
 #include "player.h"
+#include "movie_input.h"
 #include <iostream>
 #include <memory>
 #include <fcntl.h>
@@ -10,15 +11,33 @@
 #endif
 int main(int argc, char **argv)
 {
-    if (argc != 4)
+    if (argc != 4 && argc != 5)
         return 2;
     _setmode(_fileno(stdin), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
     std::unique_ptr<MarcusPlayer, decltype(&marcus_destroy)> player(marcus_create(), marcus_destroy);
     const std::uint32_t hello[2] = {MarcusASM::Magic, 32};
     MM::Error openingError;
-    if (!player || (argv[1][0] ? !marcus_open(player.get(), argv[1], argv[2], argv[3])
-                             : !MarcusPrepareEmpty(player.get(), argv[2], argv[3], openingError))) return 1;
+    bool opened = false;
+    if (player && argc == 5)
+    {
+        try
+        {
+            MarcusMovieInput input; input.Open(argv[1]);
+            const auto file = input.Materialize(0);
+            file->contentOrigin = std::filesystem::u8path(argv[4]);
+            opened = marcus_open_input(player.get(), &input, 0, argv[2], argv[3]) != 0;
+        }
+        catch (const std::exception &error) { openingError.message = error.what(); }
+    }
+    else if (player)
+        opened = argv[1][0] ? marcus_open(player.get(), argv[1], argv[2], argv[3]) != 0
+                            : MarcusPrepareEmpty(player.get(), argv[2], argv[3], openingError);
+    if (!opened)
+    {
+        std::cerr << (player ? marcus_error(player.get()) : "Cannot create ASM player") << openingError.message << '\n';
+        return 1;
+    }
     marcus_set_muted(player.get(), 1);
     std::cout.write(reinterpret_cast<const char *>(hello), sizeof(hello)).flush();
     MarcusASM::Request request;

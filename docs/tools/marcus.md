@@ -128,7 +128,8 @@ preview. Use the arrows, Page Up/Down, Home/End or mouse wheel to browse, then
 **Add scene**, Enter or double-click to confirm. Escape/Cancel leaves the movie
 unchanged. Preview rendering runs in a cancellable helper process and does not
 replace the live movie. Retail choices require the original `bkgds.3cn` and normal
-Resources/Content paths; the storyboard option remains available without that catalogue.
+Resources/Content paths. Storyboards use the black scene's original palette from
+`bkgds.3cn`, so actors and props retain their normal colours.
 
 Adding a retail scene appends and selects a one-frame scene with the chosen background,
 camera 0, a cut transition and no actors, captions or sound cues. This works for
@@ -136,11 +137,14 @@ a new movie and an opened movie, including ZIP/VMM inputs. Changes live in
 memory; original movies, ZIPs and content files are not overwritten.
 Resource/Content reloads retain the added scenes. An **UNSAVED** indicator marks
 the working movie. **Save copy** (Ctrl+S / Cmd+S) exports the current working
-movie to a native `.3mm` file, including scene additions, camera cuts, prop edits,
-extended frame ranges and storyboard resources. Reopen that copy to continue
+movie, including scene additions, camera cuts, prop edits and extended frame ranges.
+Ordinary movies save as `.3mm`; movies containing storyboards or V3DMM content
+require `.vmm`. Storyboard VMMs include their generated backgrounds as a Portable
+VXP package alongside the native movie and retain existing portable dependencies.
+Reopen that copy to continue
 editing it. The working session retains its original source and **UNSAVED** marker;
 opening another movie, New movie or exiting discards unexported edits. Saving a
-copy does not package installed content libraries or external fonts.
+copy does not package external Library expansions or external fonts.
 
 **Storyboard** in the Scenes ribbon enters painting mode for the current storyboard
 scene, or creates a new one when another background is selected. Choosing
@@ -152,7 +156,10 @@ clicking Storyboard again returns to the normal object tools. Starting playback
 also leaves painting mode.
 
 The 544×306 canvas starts light grey. Paint with black, white, soft blue, soft red,
-soft yellow or soft green using an opaque, hard pixel brush. Choose a brush size,
+soft yellow or soft green using an opaque, hard pixel brush. Paint colours are
+mapped into the unchanged black-scene palette, using a small ordered pixel dither
+for soft colours. Swatches show the mixture's average colour; the draft preview
+and exported background share the same pixel pattern. Choose a brush size,
 use **[ / ]** to resize, **1–6** to choose colours, and **E** for the grey eraser.
 **Clear angle** clears only that drawing. Ctrl+Z / Cmd+Z (or **Undo** in Paint)
 uses the movie's normal undo history for strokes, clears, camera settings, angle
@@ -193,17 +200,28 @@ The Camera angles chooser offers **Edit storyboard** and **New angle** for these
 Storyboard images carry all-infinite depth, matching the default black background's
 no-scenery-depth policy: they cannot hide actors and create no reconstructed scenery
 mesh in Orbit/Fly. They are ordinary native BKGD/CAM/MBMP/ZBMP/GLCR/GLLT resources
-in exported copies; a versioned STBD scene child retains editable drawings/settings.
+in a Portable VXP inside the exported VMM; a versioned STBD scene child retains
+editable drawings/settings. The inner native movie references the backgrounds
+through the standard portable content source (SID 6).
 No retail content files are changed. Resources are still required; creating a
-storyboard does not require the retail background catalogue.
+storyboard requires the original black-scene palette.
 
-These storyboard copies currently target Marcus. Stock retail successfully opened
-the unmodified Litterbug 2 and native scene fixtures, but an exported storyboard
-produced retail's **Unexpected Exit** dialog during loading. Retail playback of
-embedded storyboard backgrounds is therefore unsupported; native resource layout
-and Marcus renderer checks do not establish retail compatibility. The local
-diagnostic artifacts are in `tmp/storyboard-retail-probe/`. No retail movie or
-installed content was changed.
+Storyboard copies target Marcus and v3dmm, rather than stock retail. Retail does
+not open embedded background tags in the movie resource cache; the previous
+embedded `.3mm` export failed during loading. Save copy now rejects that format
+for storyboard movies. A `.vmm` is a real v1 container carrying VXP bytes, not a
+renamed `.3mm`; original v3dmm resolves the packaged backgrounds normally.
+Opening an older Marcus storyboard rebuilds its palette from the original black
+scene without changing the source file. New package names and resource IDs avoid
+stale installed-package reuse and collisions with existing portable content.
+
+The original v3dmm 0.14 runtime loaded an exported two-angle storyboard, displayed
+its drawing and prop, and sought forward/backward across both camera cuts with
+an empty error stack. Diagnostic captures and source-preservation checks are in
+`tmp/storyboard-vmm-final-1794817266473529300/`. Headless checks cover editable
+round trips, all Marcus rendering backends, unchanged retail palette bytes,
+replacement of generated packages on resave and normal `.3mm` saving for ordinary
+movies. This does not establish stock retail support for VMM files.
 
 **Scenes > Camera angles** shows a grid of rendered thumbnails for the current
 background's authored cameras, including actors and captions at the current frame.

@@ -177,6 +177,59 @@ void MarcusBoardBakeGrid(MarcusBoardAngle &a, unsigned char colour)
         MarcusBoardStroke(a, int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
             int(std::lround(line[2] * (MarcusBoardWidth - 1))), int(std::lround(line[3] * (MarcusBoardHeight - 1))), 1, colour);
 }
+unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y)
+{
+    static const int pattern[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+    return pattern[(y & 3) * 4 + (x & 3)] < ink.amount ? ink.second : ink.first;
+}
+std::array<MarcusBoardInk, 7> MarcusBoardColourMap(const MarcusBoardPalette &palette)
+{
+    std::array<MarcusBoardInk, 7> result = {};
+    for (unsigned paint = 0; paint < result.size(); ++paint)
+    {
+        double best = 1e20;
+        for (unsigned index = 10; index < 246; ++index)
+        {
+            unsigned distance = 0;
+            for (int shift : {0, 8, 16})
+            {
+                const int difference = int((palette[index] >> shift) & 255) - int((MarcusBoardColours[paint] >> shift) & 255);
+                distance += difference * difference;
+            }
+            if (distance < best)
+            { best = distance; result[paint] = {static_cast<unsigned char>(index), static_cast<unsigned char>(index), 0, palette[index]}; }
+        }
+        // Ordered mixtures retain soft hues that a single palette entry loses.
+        // Penalize contrast to favour nearby colours over noisy complementary pairs.
+        for (unsigned a = 10; a < 246 && best > 0; ++a)
+            for (unsigned b = a + 1; b < 246; ++b)
+            {
+                int difference[3], target[3], length = 0, projection = 0;
+                for (int c = 0; c < 3; ++c)
+                {
+                    const int shift = c * 8, first = (palette[a] >> shift) & 255;
+                    difference[c] = int((palette[b] >> shift) & 255) - first;
+                    target[c] = int((MarcusBoardColours[paint] >> shift) & 255) - first;
+                    length += difference[c] * difference[c]; projection += target[c] * difference[c];
+                }
+                if (!length || projection <= 0 || projection >= length) continue;
+                const int amount = int(std::lround(double(projection) * 16 / length));
+                if (amount <= 0 || amount >= 16) continue;
+                double score = .01 * length * amount * (16 - amount) / 256.;
+                unsigned rgb = 0;
+                for (int c = 0; c < 3; ++c)
+                {
+                    const int shift = c * 8, first = (palette[a] >> shift) & 255;
+                    const int mixed = (first * 16 + difference[c] * amount + 8) / 16;
+                    const int error = mixed - int((MarcusBoardColours[paint] >> shift) & 255);
+                    score += error * error; rgb |= unsigned(mixed) << shift;
+                }
+                if (score < best)
+                { best = score; result[paint] = {static_cast<unsigned char>(a), static_cast<unsigned char>(b), static_cast<unsigned char>(amount), rgb}; }
+            }
+    }
+    return result;
+}
 static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette)
 {
     Require(MarcusBoardValid(board), "Invalid storyboard.");
@@ -188,16 +241,14 @@ static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, c
     Require(file->FSetName(kctgBkgd, background, &name), "Cannot name storyboard background.");
     std::unique_ptr<DynamicArray, Release> colours(DynamicArray::PglNew(sizeof(Color)));
     Require(bool(colours), "Cannot allocate storyboard colours.");
+    MarcusBoardPalette rgbPalette = {};
     for (unsigned index = 10; index < 246; ++index)
     {
         auto colour = palette[index];
-        if (index < 17)
-        {
-            const auto rgb = MarcusBoardColours[index - 10];
-            colour = {static_cast<byte>(rgb), static_cast<byte>(rgb >> 8), static_cast<byte>(rgb >> 16), 0};
-        }
+        rgbPalette[index] = (unsigned(colour.bRed) << 16) | (unsigned(colour.bGreen) << 8) | colour.bBlue;
         Require(colours->FAdd(&colour), "Cannot add storyboard colour.");
     }
+    const auto paint = MarcusBoardColourMap(rgbPalette);
     Require(file->FAddChild(kctgBkgd, background, 0, colours->CbOnFile(), kctgColorTable, &number, &block) && colours->FWrite(&block), "Cannot write storyboard colours.");
     std::unique_ptr<DynamicArray, Release> lights(DynamicArray::PglNew(sizeof(LightPosition)));
     Require(bool(lights), "Cannot allocate storyboard lights.");
@@ -229,7 +280,8 @@ static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, c
         ChunkNumber cam, image;
         Require(file->FAddPv(&camera, sizeof(camera), kctgCam, &cam) && file->FAdoptChild(kctgBkgd, background, kctgCam, cam, index), "Cannot write storyboard camera.");
         auto pixels = a.pixels;
-        for (auto &p : pixels) p += 10;
+        for (size_t p = 0; p < pixels.size(); ++p)
+            pixels[p] = MarcusBoardPaintIndex(paint[pixels[p]], int(p % MarcusBoardWidth), int(p / MarcusBoardWidth));
         RC rectangle(0, 0, MarcusBoardWidth, MarcusBoardHeight);
         std::unique_ptr<MaskedBitmapMBMP, Release> bitmap(MaskedBitmapMBMP::PmbmpNew(pixels.data(), MarcusBoardWidth, MarcusBoardHeight, &rectangle, 0, 0, 255));
         Require(bitmap && file->FAddChild(kctgCam, cam, 0, bitmap->CbOnFile(), kctgMbmp, &image, &block) && bitmap->FWrite(&block) &&
@@ -237,7 +289,7 @@ static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, c
     }
     return background;
 }
-MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources)
+MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources, const std::string &content)
 {
     auto file = std::make_shared<MarcusMovieFile>(std::filesystem::path{});
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -261,7 +313,30 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     Require(resourceFile && resourceFile->FFind(kctgColorTable, 0, &block), "Cannot read the movie palette.");
     std::unique_ptr<DynamicArray, Release> palette(DynamicArray::PglRead(&block));
     Require(palette && palette->CbEntry() == sizeof(Color) && palette->IvMac() >= 256, "Invalid movie palette.");
+    // Preserve the retail black scene's shared actor/background palette. The
+    // resource CHK palette is the UI palette, not the scene colour table.
+    String contentPath; Filename contentFilename;
+    contentPath.SetSzs(const_cast<char *>((std::filesystem::u8path(content) / "bkgds.3cn").u8string().c_str()));
+    Require(contentFilename.FBuildFromPath(&contentPath), "Invalid retail background path.");
+    std::unique_ptr<ChunkyFile, Release> backgrounds(ChunkyFile::PcflOpen(&contentFilename, fcflNil));
+    BackgroundFile black = {}; ChildChunkIdentification child;
+    Require(backgrounds && backgrounds->FFind(kctgBkgd, 11, &block) && block.FReadRgb(&black, sizeof(black), 0) &&
+        backgrounds->FGetKidChidCtg(kctgBkgd, 11, 0, kctgColorTable, &child) && backgrounds->FFind(kctgColorTable, child.cki.cno, &block),
+        "Cannot read the retail black scene palette.");
+    std::unique_ptr<DynamicArray, Release> blackColours(DynamicArray::PglRead(&block));
+    Require(black.bIndexBase == 10 && blackColours && blackColours->CbEntry() == sizeof(Color) && blackColours->IvMac() == 236,
+        "Invalid retail black scene palette.");
+    for (LegacyLong i = 0; i < blackColours->IvMac(); ++i) palette->Put(i + black.bIndexBase, blackColours->QvGet(i));
     const auto background = WriteBoard(chunks.get(), board, static_cast<const Color *>(palette->QvGet(0)));
+    // Retail/v3dmm enumerate this child while collecting a background's tags.
+    // Keep a valid base-content sound reference, muted and absent from the timeline.
+    unsigned char sound[28] = {};
+    Require(backgrounds->FGetKidChidCtg(kctgBkgd, 11, 0, kctgBds, &child) && backgrounds->FFind(kctgBds, child.cki.cno, &block) &&
+        block.FReadRgb(sound, sizeof(sound), 0), "Cannot read the black scene's default sound.");
+    std::memset(sound + 4, 0, 8); // volume and loop flag, in either byte order
+    ChunkNumber defaultSound;
+    Require(chunks->FAddPv(sound, sizeof(sound), kctgBds, &defaultSound) &&
+        chunks->FAdoptChild(kctgBkgd, background, kctgBds, defaultSound, 0), "Cannot write storyboard default sound.");
     Require(chunks->FSave(kctgSoc), "Cannot save storyboard working file.");
     return {std::make_shared<MarcusStoryboard>(board), file, background, source};
 }

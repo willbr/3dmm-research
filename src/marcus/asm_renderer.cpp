@@ -71,14 +71,14 @@ bool MarcusASMRenderer::Available(MM::Error &error)
         "BRender CPU ASM requires the 32-bit marcus-asm-worker.exe. Build build/marcus-x86 or place it beside Marcus.";
     return false;
 }
-MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string &resources, const std::string &content)
+MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string &resources, const std::string &content, const std::string &origin)
     : impl(new Impl)
 {
     MM::Error error;
     if (!Available(error))
         throw std::runtime_error(error.message);
     const auto executable = Worker();
-    const char *args[] = {executable.c_str(), movie.c_str(), resources.c_str(), content.c_str(), nullptr};
+    const char *args[] = {executable.c_str(), movie.c_str(), resources.c_str(), content.c_str(), origin.empty() ? nullptr : origin.c_str(), nullptr};
     const auto properties = SDL_CreateProperties();
     SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
     SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);

@@ -41,6 +41,7 @@ struct MarcusStoryboardEditor
     long frame = 0;
     std::string resources, content, error;
     std::vector<unsigned char> baseline, rgba;
+    std::array<unsigned, 7> paintColours = {0xd3d4d6, 0, 0xffffff, 0x9ebfd9, 0xdea5a2, 0xe6d8a0, 0xaac9ad};
     SDL_Texture *texture = nullptr;
     ~MarcusStoryboardEditor() { StopLook(); SDL_DestroyTexture(texture); }
     bool Gesture() const { return painting || looking || dragField >= 0; }
@@ -81,6 +82,7 @@ struct MarcusStoryboardEditor
         angle = std::min(int(info.camera), int(board.angles.size()) - 1);
         light = std::clamp(light, 0, std::max(0, int(board.lights.size()) - 1));
         baseline = MarcusEncodeBoard(board);
+        MarcusGetStoryboardColours(player, paintColours);
         pending = painting = looking = false; dragField = -1; cameraKeys = 0;
         previewDirty = true;
     }
@@ -362,7 +364,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             const auto &pixels = e->board.angles[e->angle].pixels;
             for (size_t i = 0; i < pixels.size(); ++i)
             {
-                const auto rgb = MarcusBoardColours[pixels[i]];
+                const auto rgb = e->paintColours[pixels[i]];
                 e->rgba[i * 4] = static_cast<unsigned char>(rgb >> 16); e->rgba[i * 4 + 1] = static_cast<unsigned char>(rgb >> 8);
                 e->rgba[i * 4 + 2] = static_cast<unsigned char>(rgb); e->rgba[i * 4 + 3] = 255;
             }
@@ -393,7 +395,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
         {
             const float left = x + ((c - 1) % 3) * 90, top = y + 104 + ((c - 1) / 3) * 72;
             ui_fill(ui, left - 2, top - 2, 88, 66, e->colour == c ? 0x78cbc4 : 0x424952);
-            ui_fill(ui, left, top, 84, 38, MarcusBoardColours[c]);
+            ui_fill(ui, left, top, 84, 38, e->paintColours[c]);
             ui_label(ui, left + 4, top + 46, 76, colourNames[c], 0xdde0e5);
         }
         SDL_snprintf(label, sizeof(label), "Crunchy brush / %d px", e->size);

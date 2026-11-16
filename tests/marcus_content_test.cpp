@@ -86,6 +86,13 @@ void Open(const fs::path &movie, const fs::path &first, const fs::path &second, 
     {
         MarcusContent content(movie.u8string(), {});
         Check(content.bundled);
+        const auto dependencies = content.Dependencies();
+        const auto originalDependencies = V::ReadBundle(movie).dependencies;
+        Check(dependencies.size() == originalDependencies.size());
+        for (std::size_t i = 0; i < dependencies.size(); ++i)
+            Check(dependencies[i].name == originalDependencies[i].name && dependencies[i].archive.file == movie &&
+                dependencies[i].archive.offset == originalDependencies[i].archive.offset &&
+                dependencies[i].archive.length == originalDependencies[i].archive.length);
         work = content.movie.parent_path();
         Check(Read(content.movie) == "CHN2fixture");
         Check(content.files.Files("v3dmm", ".3cn").size() == 3);

@@ -134,8 +134,60 @@ int main(int argc, char **argv)
             std::equal(originalPreview.begin(), originalPreview.end(), preview.rgba), "Temporary lights restore exactly");
         const auto path = std::filesystem::absolute(std::filesystem::u8path(argv[3]));
         std::filesystem::create_directories(path.parent_path());
+        auto unsafePath = path; unsafePath.replace_extension(".3mm");
+        check(marcus_requires_vmm(player.get()) && !marcus_save_copy(player.get(), unsafePath.u8string().c_str()),
+            "Storyboard exports require a VMM, protecting retail movies");
         check(marcus_save_copy(player.get(), path.u8string().c_str()), "Save native movie copy");
         check(marcus_save_copy(player.get(), path.u8string().c_str()), "Atomically replace saved copy");
+        const auto bundle = MM::V3dmm::ReadBundle(path);
+        check(bundle.dependencies.size() == 2 && bundle.dependencies[0].name == "3dmm" && bundle.dependencies[1].archive.length > 0,
+            "VMM carries the base dependency and a complete portable background package");
+        const auto package = MM::V3dmm::ReadPackage(bundle.dependencies[1].archive);
+        check(package.metadata.at("marcusstoryboard") == "1", "Identify generated background-only packages for replacement");
+        const auto packageDirectory = path.parent_path() / ("storyboard-package-check-" + package.shortName);
+        std::filesystem::create_directories(packageDirectory);
+        const auto members = MM::V3dmm::Materialize(bundle.dependencies[1].archive, packageDirectory);
+        auto payload = [&](MM::Archive &archive, MM::Id id) {
+            const auto &chunks = archive.Chunks();
+            const auto at = std::find_if(chunks.begin(), chunks.end(), [&](const auto &c) { return c.id == id; });
+            MM::PayloadPage page; MM::Error readError;
+            check(at != chunks.end() && archive.ReadPayload(at - chunks.begin(), 0, 4096, page, readError), "Read packaged palette bytes");
+            return page.bytes;
+        };
+        MM::Archive retail, packaged; MM::Error readError;
+        check(retail.Open((std::filesystem::u8path(argv[2]) / "bkgds.3cn").u8string(), readError) &&
+            packaged.Open(members.at(package.shortName + ".3cn").u8string(), readError), "Open reference and packaged content");
+        const auto blackPalette = payload(retail, {0x474c4352, 0x1000c});
+        MarcusBoardPalette colours = {};
+        for (unsigned i = 10; i < 246; ++i)
+        {
+            const auto *p = blackPalette.data() + 12 + (i - 10) * 4;
+            colours[i] = (unsigned(p[2]) << 16) | (unsigned(p[1]) << 8) | p[0];
+        }
+        const auto inks = MarcusBoardColourMap(colours);
+        check(inks[1].rgb == 0 && inks[1].amount == 0 && inks[2].rgb == 0xffffff && inks[2].amount == 0,
+            "Black and white remain solid palette colours");
+        check(((inks[6].rgb >> 8) & 255) > ((inks[6].rgb >> 16) & 255) &&
+            ((inks[6].rgb >> 8) & 255) > (inks[6].rgb & 255), "Dither preserves the soft green hue instead of choosing grey");
+        for (const auto &ink : inks)
+        {
+            int second = 0;
+            for (int y = 0; y < 4; ++y) for (int x = 0; x < 4; ++x)
+            {
+                const auto index = MarcusBoardPaintIndex(ink, x, y);
+                check(index >= 10 && index < 246, "Paint does not use reserved palette indices");
+                if (ink.first != ink.second && index == ink.second) ++second;
+            }
+            check(second == ink.amount, "Dither pattern uses the chosen mixture exactly");
+        }
+        int palettes = 0;
+        for (const auto &chunk : packaged.Chunks())
+            if (chunk.id.type == 0x474c4352)
+            { check(payload(packaged, chunk.id) == blackPalette, "Preserve every retail scene palette entry, including prop colours"); ++palettes; }
+        check(palettes > 0, "Packaged background has the standard palette");
+        packaged.Close(); retail.Close();
+        for (const auto &member : members) std::filesystem::remove(member.second);
+        std::filesystem::remove(packageDirectory);
         check(marcus_open(player.get(), path.u8string().c_str(), argv[1], argv[2]), "Reopen native storyboard movie");
         MarcusStoryboard loaded;
         check(MarcusGetStoryboard(player.get(), loaded) && MarcusEncodeBoard(loaded) == bytes, "Reopen editable drawings and lights");
@@ -145,6 +197,9 @@ int main(int argc, char **argv)
         check(MarcusApplyStoryboard(player.get(), edited, false, 1, argv[1], argv[2]) && marcus_object(player.get(), 0, &object), "Edit reopened storyboard without losing actors");
         check(marcus_undo(player.get()) && MarcusGetStoryboard(player.get(), loaded) && MarcusEncodeBoard(loaded) == bytes, "Undo reopened storyboard edit");
         check(!marcus_save_copy(player.get(), path.u8string().c_str()), "Save copy protects its open source");
+        auto resavedPath = path; resavedPath.replace_filename(path.stem().u8string() + "-resaved.vmm");
+        check(marcus_save_copy(player.get(), resavedPath.u8string().c_str()) &&
+            MM::V3dmm::ReadBundle(resavedPath).dependencies.size() == 2, "Resaving replaces stale generated packages");
         for (int renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
         {
             if (!marcus_set_renderer(player.get(), renderer)) { std::printf("Renderer %d unavailable: %s\n", renderer, marcus_error(player.get())); continue; }
@@ -159,9 +214,22 @@ int main(int argc, char **argv)
         // Exercise more than one archive payload page, plus mixed-scene snapshots.
         auto many = board; many.angles.resize(8);
         check(MarcusApplyStoryboard(player.get(), many, true, 7, argv[1], argv[2]), "Create multi-page storyboard metadata");
-        auto manyPath = path; manyPath.replace_filename(path.stem().u8string() + "-many.3mm");
+        auto manyPath = path; manyPath.replace_filename(path.stem().u8string() + "-many.vmm");
         check(marcus_save_copy(player.get(), manyPath.u8string().c_str()) && marcus_open(player.get(), manyPath.u8string().c_str(), argv[1], argv[2]) &&
             marcus_select_scene(player.get(), 1) && MarcusGetStoryboard(player.get(), loaded) && loaded.angles.size() == 8, "Reopen paged multi-scene editor data");
+        player.reset(); player.reset(marcus_create());
+        auto ordinaryPath = path; ordinaryPath.replace_filename("ordinary-black.3mm");
+        check(marcus_add_scene(player.get(), 11, argv[1], argv[2]) && !marcus_requires_vmm(player.get()) &&
+            marcus_save_copy(player.get(), ordinaryPath.u8string().c_str()), "Ordinary movies retain native 3MM saving");
+        auto ordinaryBundle = ordinaryPath; ordinaryBundle.replace_extension(".vmm");
+        auto copiedBundle = ordinaryPath; copiedBundle.replace_filename("ordinary-copy.vmm");
+        check(marcus_save_copy(player.get(), ordinaryBundle.u8string().c_str()) &&
+            marcus_open(player.get(), ordinaryBundle.u8string().c_str(), argv[1], argv[2]) &&
+            marcus_save_copy(player.get(), copiedBundle.u8string().c_str()), "Save a VMM without storyboard edits");
+        auto extracted = ordinaryPath; extracted.replace_filename("ordinary-copy-inner.3mm");
+        MM::V3dmm::Copy(MM::V3dmm::ReadBundle(copiedBundle).movie, extracted);
+        MM::Archive ordinary;
+        check(ordinary.Open(extracted.u8string(), readError), "Copied VMM contains a native movie rather than another VMM");
         std::puts("Storyboard strokes, validation, no-depth rendering, cameras, props, undo, reload and native save/reopen passed.");
         return 0;
     }

@@ -3,7 +3,7 @@ include(ImGuizmoDependency)
 include(FreeTypeDependency)
 include(EmbedMarcusShaders)
 
-add_library(marcus-player STATIC player.cpp storyboard.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp scene_edit.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp)
+add_library(marcus-player STATIC player.cpp storyboard.cpp storyboard_export.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp scene_edit.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp)
 if(WIN32)
   target_compile_definitions(marcus-player PRIVATE MARCUS_ASM_WORKER_PATH="${PROJECT_SOURCE_DIR}/build/marcus-x86/src/marcus/marcus-asm-worker.exe")
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -19,6 +19,7 @@ target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(marcus-player PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/bren/inc")
 target_link_libraries(marcus-player PRIVATE MM::Preview mm-engine-c89 studio-pack-store studio-settings SDL3::SDL3-static
   kauai-sdl-audio kauai-midi-synth kauai-font-host miniz Threads::Threads)
+target_link_libraries(marcus-player PUBLIC mm-v3dmm)
 target_compile_definitions(marcus-player PRIVATE MARCUS_MIDI_BANK="${KAUAI_MIDI_BANK_FILE}")
 
 # Explicitly built, headless playback diagnostic; no UI input simulation.
@@ -175,7 +176,7 @@ if(BUILD_TESTING)
       CACHE FILEPATH "3dmovie.chk or built utest.chk for Marcus integration tests")
     if(EXISTS "${marcus_resources}")
       add_test(NAME marcus-storyboard COMMAND marcus-storyboard-test "${marcus_resources}" "${PROJECT_SOURCE_DIR}/content-files"
-        "${CMAKE_CURRENT_BINARY_DIR}/test-data/storyboard.3mm")
+        "${CMAKE_CURRENT_BINARY_DIR}/test-data/storyboard.vmm")
       set_tests_properties(marcus-storyboard PROPERTIES TIMEOUT 90 ENVIRONMENT "SDL_AUDIODRIVER=dummy")
       file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-data")
       add_test(NAME marcus-playback COMMAND marcus-playback-test

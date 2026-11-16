@@ -939,6 +939,7 @@ static void choose_file(App *app, int kind)
     DialogRequest *request;
     static const SDL_DialogFileFilter resources[] = {{"3DMM resources", "chk"}};
     static const SDL_DialogFileFilter movies[] = {{"Marcus movie copy", "3mm"}};
+    static const SDL_DialogFileFilter bundles[] = {{"V3DMM movie bundle", "vmm"}};
     release_camera(app);
     if (kind == 0)
     {
@@ -959,7 +960,11 @@ static void choose_file(App *app, int kind)
     request->kind = kind;
     app->playing = 0;
     if (kind == 4)
-        SDL_ShowSaveFileDialog(dialog_callback, request, app->window, movies, 1, "Storyboard.3mm");
+    {
+        if (marcus_requires_vmm(app->player))
+            SDL_ShowSaveFileDialog(dialog_callback, request, app->window, bundles, 1, "Storyboard.vmm");
+        else SDL_ShowSaveFileDialog(dialog_callback, request, app->window, movies, 1, "Movie.3mm");
+    }
     else if (kind == 2)
         SDL_ShowOpenFolderDialog(dialog_callback, request, app->window, app->content, 0);
     else

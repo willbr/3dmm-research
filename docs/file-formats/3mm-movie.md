@@ -64,7 +64,8 @@ Each scene chunk is loaded by `Scene::FRead`. The payload starts with a
 `SceneOnFile` (16 B fixed: byte order, OSK, first/last frame numbers,
 transition kind). Children of a `SCEN` chunk include:
 
-- `BKGD` — the scene's background.
+- The start-event list holds the background's content-source tag. A `BKGD`
+  child alone does not make a custom background loadable in stock retail.
 - `ACTR` — actors placed in this scene (one chunk per actor).
 - Sound events — variable-length `SceneSoundEvent` records, each holding
   a `(vlm, sty, fLoop, ctagc)` header followed by `ctagc` instances of
@@ -115,6 +116,34 @@ than referenced from a CD. Custom 3D-text templates work this way.
 names — used by the tag manager to display "please insert the *Socrates*
 CD" prompts when a `(sid, ctg, cno)` reference can't be resolved. See
 [`inc/tagman.h`](../../inc/tagman.h).
+
+## Embedded content and VMM packages
+
+Being able to store a chunk in a movie is different from retail opening its
+references against that movie's resource cache. The actor loader explicitly
+opens its template and costume/sound event tags; the scene background loader
+does not open its background tag in this way. This is why embedded textures and
+templates do not establish support for embedded backgrounds.
+
+| Content | Native `.3mm` embedding | Portable package in `.vmm` |
+| --- | --- | --- |
+| Materials and indexed textures (`MTRL`, `TMAP`, transforms) | Actor costume tags can reference embedded material trees. The existing retail workflow exercises two embedded checker textures. | Supported. |
+| Props and actors (`TMPL`, `BMDL`, body hierarchy, actions, costumes) | The actor loader accepts an embedded template tree. Retail's authoring/save path was designed around embedded 3D text; arbitrary custom actors need their own save/reopen validation. | Supported as ordinary Portable actor/prop assets. Includes full 3D geometry and part-based animation, not just textured planes. |
+| 3D text | Its generated template is embedded; the 3D-font reference still needs a resolvable content source. | Custom 3D fonts and their glyph models can be supplied as package content. |
+| Recorded/imported audio (`MSND` and its payload) | Supported through opened scene/actor sound tags and movie-owned sound resources. | Supported. |
+| Captions, formatting and actor/timeline events | Ordinary native movie data. Referenced system font files are not embedded by saving a caption. | Ordinary inner movie data; a package does not make arbitrary host fonts available to the original runtime. |
+| Custom backgrounds, cameras, lights, background images/depth and palette (`BKGD` children) | A self-contained embedded background is not supported by the stock retail scene-load path. | Supported as background content in a bundled `.3cn`. |
+
+All indexed scene content shares the active palette. Packaging a texture or
+background does not give it an independent full-colour palette. Background
+palette overrides can recolour actors and props too.
+
+VMM v1 wraps a native movie with dependency declarations and embedded VXP ZIPs.
+A Portable VXP normally contains a matching CFG, `.3cn` and `.3th`. This allows a
+single distributed file to include custom backgrounds, actors, props, materials
+and fonts without changing the native movie's wire structures. It requires
+v3dmm or a compatible host; stock retail does not understand the wrapper. See
+the [VMM format investigation](../tools/v3dmm-research.md#vmm-version-1-layout).
 
 ## Save path
 

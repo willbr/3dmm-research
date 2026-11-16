@@ -245,6 +245,7 @@ extern "C"
      * Returns 0 on failure or when history is empty. Source files are untouched. */
     int marcus_can_undo(const MarcusPlayer *player);
     int marcus_modified(const MarcusPlayer *player);
+    int marcus_requires_vmm(const MarcusPlayer *player);
     int marcus_undo(MarcusPlayer *player);
     typedef struct MarcusProp
     {

@@ -4,6 +4,7 @@
 #include "studio_settings.h"
 #include "studio_vxp_store.h"
 #include <SDL3/SDL.h>
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <random>
@@ -19,6 +20,7 @@ struct MarcusContent::Impl
     fs::path root, work;
     std::vector<fs::path> ownedFiles, ownedDirectories;
     std::unique_ptr<StudioV3dmm::Store> packages;
+    std::vector<V::Dependency> dependencies{{"3dmm", {}}};
     bool catalogRead = false, defaultsRead = false;
     ~Impl()
     {
@@ -174,6 +176,7 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
         return;
     }
     auto bundle = V::ReadBundle(movie);
+    impl->dependencies = bundle.dependencies;
     std::vector<StudioV3dmm::Installation> selection;
     std::map<std::string, std::size_t> names;
     for (const auto &dependency : bundle.dependencies)
@@ -200,6 +203,16 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
 MarcusContent::~MarcusContent() = default;
 void MarcusContent::PrepareSource(const std::string &name)
 {
+    if (!bundled)
+    {
+        const auto key = C::SourceKey(name);
+        const char *libraries[] = {"Nickelodeon", "Doraemon", "3DMM Expansion Pack"};
+        const auto &definitions = StudioPacks::Definitions();
+        for (std::size_t i = 0; i < definitions.size(); ++i)
+            if (key == C::SourceKey(definitions[i].sourceTitle, definitions[i].sourceFolder) &&
+                std::none_of(impl->dependencies.begin(), impl->dependencies.end(), [&](const auto &d) { return d.name == libraries[i]; }))
+                impl->dependencies.push_back({libraries[i], {}});
+    }
     if (bundled || C::SourceKey(name) != "v3dmm" || impl->defaultsRead)
         return;
     impl->Catalog();
@@ -210,4 +223,7 @@ void MarcusContent::PrepareSource(const std::string &name)
                 selection.push_back(impl->packages->Resolve(entry.hash));
     impl->Activate(files, selection);
     impl->defaultsRead = true;
+    for (const auto &package : selection)
+        impl->dependencies.push_back({package.name, V::WholeFile(package.archive)});
 }
+std::vector<V::Dependency> MarcusContent::Dependencies() const { return impl->dependencies; }

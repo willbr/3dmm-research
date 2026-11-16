@@ -1,6 +1,7 @@
 #ifndef MARCUS_CONTENT_H
 #define MARCUS_CONTENT_H
 #include "mm/content_vfs.hpp"
+#include "mm/v3dmm.h"
 #include <memory>
 struct MarcusMovieFile;
 
@@ -17,5 +18,6 @@ class MarcusContent
     MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::string &baseDirectory);
     ~MarcusContent();
     void PrepareSource(const std::string &name);
+    std::vector<MM::V3dmm::Dependency> Dependencies() const;
 };
 #endif

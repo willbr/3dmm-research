@@ -4,6 +4,7 @@
 #ifdef __cplusplus
 #include "movie_input.h"
 #include "mm/archive.h"
+#include "mm/v3dmm.h"
 #include <array>
 #include <map>
 
@@ -39,7 +40,15 @@ using MarcusStoryboards = std::map<unsigned long, MarcusBoardResource>;
 bool MarcusBoardValid(const MarcusStoryboard &board);
 std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board);
 MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes);
-MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources);
+MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources, const std::string &content);
+using MarcusBoardPalette = std::array<unsigned, 256>;
+struct MarcusBoardInk { unsigned char first = 0, second = 0, amount = 0; unsigned rgb = 0; };
+std::array<MarcusBoardInk, 7> MarcusBoardColourMap(const MarcusBoardPalette &palette);
+unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y);
+bool MarcusGetStoryboardColours(MarcusPlayer *player, std::array<unsigned, 7> &colours);
+void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStoryboards &boards,
+    const std::string &resources, const std::string &content, std::vector<MM::V3dmm::Dependency> dependencies,
+    const std::vector<std::filesystem::path> &portableContent, const std::filesystem::path &destination);
 MarcusStoryboards MarcusReadBoards(MM::Archive &archive, const std::shared_ptr<MarcusMovieFile> &file);
 // Drawing uses integer stamps and interpolation, with no smoothing or alpha blending.
 void MarcusBoardStroke(MarcusBoardAngle &angle, int x0, int y0, int x1, int y1, int size, unsigned char colour);
@@ -53,7 +62,7 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
 extern "C" {
 #endif
     int marcus_is_storyboard(const MarcusPlayer *player);
-    /* Export a native movie copy, including embedded storyboard images/cameras/lights. */
+    /* Export a movie copy. Storyboards/portable content require a bundled .vmm. */
     int marcus_save_copy(MarcusPlayer *player, const char *path);
 #ifdef __cplusplus
 }

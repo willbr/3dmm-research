@@ -20,7 +20,7 @@ class MarcusASMRenderer
 
   public:
     static bool Available(MM::Error &);
-    MarcusASMRenderer(const std::string &movie, const std::string &resources, const std::string &content);
+    MarcusASMRenderer(const std::string &movie, const std::string &resources, const std::string &content, const std::string &origin = {});
     ~MarcusASMRenderer();
     bool Render(int scene, int frame, const MM::PreviewView &, MM::PreviewImage &, MM::Error &,
                 const std::vector<MarcusASM::PropOffset> &offsets = {}, std::int32_t firstFrame = 0, std::int32_t lastFrame = -1, const MarcusLiveEdits *edits = nullptr);
