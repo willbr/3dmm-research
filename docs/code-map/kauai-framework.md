@@ -37,7 +37,7 @@ which side each file lives on.
 
 | File              | Side       | Purpose                                                       |
 |-------------------|------------|---------------------------------------------------------------|
-| `memwin.cpp`      | core (Win) | `HQ` handle alloc / lock; debug heap. See [`../kauai-reference/memory-api.md`](../kauai-reference/memory-api.md). |
+| `memwin.cpp`      | core       | `HQ` C storage/lifetime facade; native alignment, fixed-memory and diagnostic providers. See [`../kauai-reference/memory-api.md`](../kauai-reference/memory-api.md). |
 | `util.cpp`        | core       | Misc helpers (range / clamp / power-of-two).                  |
 | `utilcopy.cpp`    | core       | `CopyPb` / `CopyPv` — bulk byte copies (asm fast path on x86). |
 | `utilstr.cpp`     | core       | `String` (Pascal-style 2-byte-length, kauai's string class).  |

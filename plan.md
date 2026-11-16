@@ -400,8 +400,9 @@ C89, with native alignment profiles and host services. BASE diagnostic kind,
 raw/constructed graph records, constructor attachment, validation and mark/report
 scans now also use C89. Fixed-memory diagnostic records/list ownership, header/
 footer validation, relocation publication and mark/report scans now also use C89.
-HQ handle policy, BaseLinkedList attachment, virtual destruction and final facade
-removal remain work.
+HQ size/lock/magic records and allocation/resize/copy/free/validation/mark policy
+now also use C89 through the fixed-memory providers. BaseLinkedList attachment,
+virtual destruction and final facade removal remain work.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

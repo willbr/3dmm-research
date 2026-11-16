@@ -12,6 +12,7 @@
 ***************************************************************************/
 #include "util.h"
 #include "handle_services.h"
+#include "mm/handle_memory.h"
 ASSERTNAME
 namespace {
 int AllocateHandle(void *, MMU32 bytes, void **handle) { return FAllocHq(handle, bytes, fmemNil, mprNormal); }
@@ -26,195 +27,104 @@ const MMHandleServices *KauaiHandleServices()
     static const MMHandleServices services = {nullptr, AllocateHandle, ReleaseHandle, HandleSize, LockHandle, UnlockHandle, ResizeHandle};
     return &services;
 }
-struct alignas(std::max_align_t) HQH
-{
-    LegacyLong cb;       // size of client area
-    LegacyLong cactLock; // lock count
+namespace {
 #ifdef DEBUG
-    LegacyLong lwMagic; // for detecting memory trashing
-#endif            // DEBUG
-};
-
+using HandleRecord = MMHandleDebugRecord;
+#else
+using HandleRecord = MMHandleState;
+#endif
+struct alignas(std::max_align_t) NativeHandleHeader { HandleRecord record; };
+#ifdef KAUAI_EXPENSIVE_CHECKS
+const int handleExpensive = 1;
+#else
+const int handleExpensive = 0;
+#endif
+#ifdef DEBUG
+const MMHandleLayout handleLayout{sizeof(NativeHandleHeader), kcbMax, klwMagicMem, 1, handleExpensive};
+#else
+const MMHandleLayout handleLayout{sizeof(NativeHandleHeader), kcbMax, 0, 0, 0};
+#endif
+struct HandleRequest { PSZS file; LegacyLong line; };
+int FixedAllocate(void *context, void **raw, MMU32 bytes, MMU32 flags, MMI32 priority)
+{
+    auto *request = static_cast<HandleRequest *>(context);
+    return FAllocPvDebug(raw, static_cast<LegacyLong>(bytes), flags, priority, request->file, request->line, &vdmglob.dmaglHq);
+}
+int FixedResize(void *, void **raw, MMU32 bytes, MMU32 oldBytes, MMU32 flags, MMI32 priority)
+{ return _FResizePpvDebug(raw, static_cast<LegacyLong>(bytes), static_cast<LegacyLong>(oldBytes), flags, priority, &vdmglob.dmaglHq); }
+void FixedRelease(void *, void **raw) { FreePpvDebug(raw, &vdmglob.dmaglHq); }
+void HandleAddress(void *, const void *p, size_t bytes) { AssertPvCb(const_cast<void *>(p), static_cast<LegacyLong>(bytes)); }
+void HandleAssertion(void *, int code, const void *value, size_t bytes)
+{
+    static const char *messages[] = {"", "long too small", "long too big", "Resizing locked HQ", "Freeing locked HQ",
+        "overflow in cactLock", "hq not locked", "hq is nil", "beginning of hq block is trashed"};
+    AssertCore(false, messages[code], const_cast<void *>(value), static_cast<LegacyLong>(bytes));
+}
+void FixedValidate(void *, void *raw, MMI32 bytes) { AssertPvAlloced(raw, bytes); }
+void FixedMark(void *, void *raw) { MarkPv(raw); }
+void HandleFailed(void *) { PushErc(ercOomHq); }
+MMHandleHost HandleHost(HandleRequest *request = nullptr)
+{
+    MMHandleHost host{};
+    host.context = request; host.allocate = FixedAllocate; host.resize = FixedResize; host.release = FixedRelease;
+    host.address = HandleAddress; host.assertion = HandleAssertion; host.validate_fixed = FixedValidate;
+    host.mark_fixed = FixedMark; host.failed = HandleFailed; return host;
+}
+} // namespace
 #ifdef DEBUG
 LegacyLong vcactSuspendCheckPointers = 0;
-#endif // DEBUG
-
-/***************************************************************************
-    Allocates a new moveable block.
-***************************************************************************/
-#ifdef DEBUG
-bool FAllocHqDebug(HQ *phq, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr, PSZS pszsFile, LegacyLong lwLine)
-#else  //! DEBUG
-bool FAllocHq(HQ *phq, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr)
-#endif //! DEBUG
-{
-    AssertVarMem(phq);
-    AssertIn(cb, 0, kcbMax);
-    HQH *phqh;
-
-    if (!FAllocPvDebug((void **)&phqh, cb + size(HQH), grfmem, mpr, pszsFile, lwLine, &vdmglob.dmaglHq))
-    {
-        PushErc(ercOomHq);
-        *phq = hqNil;
-    }
-    else
-    {
-        phqh->cb = cb;
-        phqh->cactLock = 0;
-        Debug(phqh->lwMagic = klwMagicMem;) *phq = (HQ)(phqh + 1);
-        AssertHq(*phq);
-    }
-
-    return pvNil != *phq;
-}
-
-/***************************************************************************
-    Resizes the given hq.  *phq may change.  If fmemClear, clears any
-    newly added space.
-***************************************************************************/
-bool FResizePhq(HQ *phq, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr)
-{
-    AssertVarMem(phq);
-    AssertHq(*phq);
-    AssertIn(cb, 0, kcbMax);
-    bool fRet = fFalse;
-    HQH *phqh = (HQH *)PvSubBv(*phq, size(HQH));
-
-    if (phqh->cactLock > 0)
-    {
-        Bug("Resizing locked HQ");
-        PushErc(ercOomHq);
-    }
-    else if (!_FResizePpvDebug((void **)&phqh, cb + size(HQH), phqh->cb + size(HQH), grfmem, mpr, &vdmglob.dmaglHq))
-    {
-        PushErc(ercOomHq);
-        AssertHq(*phq);
-    }
-    else
-    {
-        phqh->cb = cb;
-        *phq = (HQ)(phqh + 1);
-        AssertHq(*phq);
-        fRet = fTrue;
-    }
-
-    return fRet;
-}
-
-/***************************************************************************
-    If hq is not nil, frees it.
-***************************************************************************/
-void FreePhq(HQ *phq)
-{
-    AssertVarMem(phq);
-
-    if (*phq == hqNil)
-        return;
-
-    AssertHq(*phq);
-    HQH *phqh = (HQH *)PvSubBv(*phq, size(HQH));
-    *phq = hqNil;
-    Assert(phqh->cactLock == 0, "Freeing locked HQ");
-
-    FreePpvDebug((void **)&phqh, &vdmglob.dmaglHq);
-}
-
-/***************************************************************************
-    Create a new HQ the same size as hqSrc and copy hqSrc into it.
-***************************************************************************/
-bool FCopyHq(HQ hqSrc, HQ *phqDst, LegacyLong mpr)
-{
-    AssertHq(hqSrc);
-    AssertVarMem(phqDst);
-    LegacyLong cb;
-
-    if (!FAllocHq(phqDst, cb = CbOfHq(hqSrc), fmemNil, mpr))
-        return fFalse;
-    CopyPb(QvFromHq(hqSrc), QvFromHq(*phqDst), cb);
-    return fTrue;
-}
-
-/***************************************************************************
-    Return the size of the hq (the client area of the block).
-***************************************************************************/
-LegacyLong CbOfHq(HQ hq)
-{
-    AssertHq(hq);
-    HQH *phqh = (HQH *)PvSubBv(hq, size(HQH));
-    return phqh->cb;
-}
-
-#ifdef DEBUG
-/***************************************************************************
-    Returns a volatile pointer from an hq.
-***************************************************************************/
-void *QvFromHq(HQ hq)
-{
-    AssertHq(hq);
-    return (void *)hq;
-}
-#endif // DEBUG
-
-/***************************************************************************
-    Lock the hq and return a pointer to the data.
-***************************************************************************/
-void *PvLockHq(HQ hq)
-{
-    AssertHq(hq);
-    HQH *phqh = (HQH *)PvSubBv(hq, size(HQH));
-    phqh->cactLock++;
-    Assert(phqh->cactLock > 0, "overflow in cactLock");
-    return (void *)hq;
-}
-
-/***************************************************************************
-    Unlock the hq.  Asserts and does nothing if the lock count is zero.
-***************************************************************************/
-void UnlockHq(HQ hq)
-{
-    AssertHq(hq);
-    HQH *phqh = (HQH *)PvSubBv(hq, size(HQH));
-    Assert(phqh->cactLock > 0, "hq not locked");
-    if (phqh->cactLock > 0)
-        --phqh->cactLock;
-}
-
-#ifdef DEBUG
-/***************************************************************************
-    Assert that a given hq is valid.
-***************************************************************************/
-void AssertHq(HQ hq)
-{
-    // make sure hq isn't nil
-    if (hq == hqNil)
-    {
-        Bug("hq is nil");
-        return;
-    }
-
-    // verify the HQH
-#ifdef KAUAI_EXPENSIVE_CHECKS
-    HQH *phqh = (HQH *)PvSubBv(hq, size(HQH));
-    if (phqh->lwMagic != klwMagicMem)
-    {
-        BugVar("beginning of hq block is trashed", phqh);
-        return;
-    }
-    AssertIn(phqh->cactLock, 0, kcbMax);
-    AssertPvAlloced(phqh, phqh->cb + size(HQH));
+bool FAllocHqDebug(HQ *owner, LegacyLong bytes, LegacyUlong flags, LegacyLong priority, PSZS file, LegacyLong line)
+#else
+bool FAllocHq(HQ *owner, LegacyLong bytes, LegacyUlong flags, LegacyLong priority)
 #endif
-}
-
-/***************************************************************************
-    Increment the ref count on an hq.
-***************************************************************************/
-void MarkHq(HQ hq)
 {
-    if (hqNil != hq)
-    {
-        AssertHq(hq);
-        MarkPv(PvSubBv(hq, size(HQH)));
-    }
+#ifdef DEBUG
+    HandleRequest request{file, line};
+#else
+    HandleRequest request{nullptr, 0};
+#endif
+    const auto host = HandleHost(&request);
+    return mm_handle_allocate(&handleLayout, &host, owner, bytes, flags, priority) != 0;
+}
+bool FResizePhq(HQ *owner, LegacyLong bytes, LegacyUlong flags, LegacyLong priority)
+{
+    const auto host = HandleHost();
+    return mm_handle_resize(&handleLayout, &host, owner, bytes, flags, priority) != 0;
+}
+void FreePhq(HQ *owner)
+{
+    const auto host = HandleHost(); mm_handle_free(&handleLayout, &host, owner);
+}
+bool FCopyHq(HQ source, HQ *destination, LegacyLong priority)
+{
+    HandleRequest request{DebugShip(__szsFile, nullptr), __LINE__};
+    const auto host = HandleHost(&request);
+    return mm_handle_copy(&handleLayout, &host, source, destination, priority) != 0;
+}
+LegacyLong CbOfHq(HQ handle)
+{
+    const auto host = HandleHost(); return mm_handle_size(&handleLayout, &host, handle);
+}
+void *QvFromHq(HQ handle)
+{
+    const auto host = HandleHost(); return mm_handle_pointer(&handleLayout, &host, handle);
+}
+void *PvLockHq(HQ handle)
+{
+    const auto host = HandleHost(); return mm_handle_lock(&handleLayout, &host, handle);
+}
+void UnlockHq(HQ handle)
+{
+    const auto host = HandleHost(); mm_handle_unlock(&handleLayout, &host, handle);
+}
+#ifdef DEBUG
+void AssertHq(HQ handle)
+{
+    const auto host = HandleHost(); mm_handle_validate(&handleLayout, &host, handle);
+}
+void MarkHq(HQ handle)
+{
+    const auto host = HandleHost(); mm_handle_mark(&handleLayout, &host, handle);
 }
 
 /***************************************************************************

@@ -141,10 +141,7 @@ inline void *QvFromHq(HQ hq)
     return vadst.PvStrip(*(void **)hq);
 }
 #else
-inline void *QvFromHq(HQ hq)
-{
-    return (void *)hq;
-}
+void *QvFromHq(HQ hq);
 #endif // WIN
 
 #define AssertHq(hq)

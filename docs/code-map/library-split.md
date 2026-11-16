@@ -332,7 +332,8 @@ growth, footer handling, pointer/stat publication and default libc services.
 order, duplicate/overflow/flush/pop and underflow publication. Native
 `memory-runtime` compares original allocation/error/counter observations through
 `MM_MEMORY_RUNTIME_SNAPSHOT`. Fixed-memory diagnostic graphs now use the C service
-below; HQ handle policy and final facade integration remain conversion work.
+below; HQ handles also use the C policy described below. Final facade integration
+remains conversion work.
 
 ### Raw heap and object allocation
 
@@ -362,8 +363,8 @@ complete-block poisoning before release. Both are strict C89 tests. The headless
 `heap-object-runtime` fixture captures native heap alignment, sizes, payloads,
 raw and constructed BASE allocations, reference/deletion behavior, diagnostics
 and counter observations via `MM_HEAP_OBJECT_SNAPSHOT`. Native/SDL Debug and SDL
-Release traces match their respective original implementations. HQ handle policy,
-virtual destruction and final C-only facade integration remain conversion work.
+Release traces match their respective original implementations. Virtual destruction
+and final C-only facade integration remain conversion work.
 BASE and fixed-memory diagnostics use the C graphs below. Defined C prefix-
 overflow/null-free handling does not establish native equivalence for previously
 invalid inputs.
@@ -400,7 +401,7 @@ and readable metadata failures. Defined C mark wrap is checked independently of
 native signed-overflow equivalence. The headless `object-graph-runtime` fixture
 captures original public-API behavior through `MM_OBJECT_GRAPH_SNAPSHOT`, including
 out-of-order raw attachment and failed C++ constructor cleanup. Original traces
-match Native/SDL Debug and SDL Release. HQ handle policy, BaseLinkedList attachment,
+match Native/SDL Debug and SDL Release. BaseLinkedList attachment,
 virtual destruction and final C-only host integration remain work.
 
 ### Fixed-memory diagnostic graph
@@ -440,8 +441,41 @@ scans and lifetime behavior through `MM_MEMORY_GRAPH_SNAPSHOT`. The latter compi
 only the allocator facade with expensive checks, leaving the shared core unchanged.
 Allocator-dependent resize report order is asserted against observed movement,
 then sorted for capture comparison. Native/SDL Debug exercise both profiles; SDL
-Release disables native diagnostics but runs the C policy tests. HQ handle policy,
-BaseLinkedList attachment and final C-only facade integration remain work.
+Release disables native diagnostics but runs the C policy tests. BaseLinkedList
+attachment and final C-only facade integration remain work.
+
+### HQ handle storage and lifetime
+
+`mm/handle_memory.h` owns HQ allocation, resizing, copying, freeing, size/pointer
+queries, lock counts, validation and mark forwarding. Logical size and lock count
+live directly in `MMHandleState`; debug allocations add a C magic field. Native
+wrappers supply the existing aligned prefix and fixed-memory providers, retaining
+the HQ diagnostic counter category, flags, priorities and source metadata. Null
+providers use libc, so the C implementation links without Kauai C++ dependencies.
+All operations use one C implementation; Release pointer queries now also call it.
+Headers remain private runtime storage, never movie records.
+
+Failed allocation reports the HQ error before clearing the public owner. Failed
+resize preserves its owner, contents, size and counts; a locked resize reports
+without calling the raw provider. Free clears the owner before reporting locked
+storage and still releases it, preserving native behavior. Unlock at zero reports
+and remains zero. Copy allocates distinct storage without changing source locks.
+Expensive validation checks magic first, then the lock range and underlying fixed
+allocation. HQ magic checks remain active when fixed pointer checks are suspended.
+Callbacks borrow synchronous views and cannot unwind or destroy the operation.
+Callers supply synchronization and retain one layout/provider family per lifetime.
+
+`engine-handle-memory` forces allocation/resize failures and moved growth/shrink,
+checks raw-request sizes/flags/priorities, counter publication, copy independence,
+locked behavior, nil/metadata validation and libc defaults. Defined C overflow
+handling and lock-count wrap are separate from native invalid-input equivalence.
+The headless `handle-runtime` and `handle-expensive` fixtures compare original
+public HQ and opaque `MMHandleServices` behavior through
+`MM_HANDLE_RUNTIME_SNAPSHOT`. The latter overrides only the HQ/fixed facades with
+expensive validation; Native/SDL Debug exercise both profiles, while SDL Release
+disables native diagnostics. The historical Macintosh handle implementation is
+not the selected portable backend. BaseLinkedList attachment, virtual destruction
+and final C-only host/facade integration remain work.
 
 ### Collection storage foundation
 

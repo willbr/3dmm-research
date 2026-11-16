@@ -11560,3 +11560,80 @@ Evidence: `tmp/c89-memory-graph-{baseline,final}-{runtime,expensive}-{native,sdl
 `tmp/c89-memory-graph-regular-tests.log`,
 `tmp/c89-memory-graph-trace-comparison.json` and
 `tmp/c89-memory-graph-identities.json`.
+
+### Shared C HQ records, allocation and lifetime policy (16 November 2026)
+
+`handle_memory.c` now owns HQ allocation, resize, copy, free, size/pointer queries,
+lock counts, validation and mark forwarding. Logical size and lock count live in
+persistent C state directly inside each allocation; debug records add the magic
+word. Native facades supply the original aligned header profile and fixed-memory
+providers, preserving the HQ counter category, flags, priorities and caller source
+metadata. Default C providers use libc without Kauai C++ dependencies. Release
+pointer queries now also call C. No stored movie format changes.
+
+Allocation failure reports the HQ error before clearing the public owner; the
+underlying fixed provider's error precedes it. Failed resize retains the handle,
+contents, size and locks. Locked resize reports without a raw allocation call.
+Free clears the public owner before a lock warning and still releases the block.
+Unlock at zero reports and remains zero. Copy owns distinct storage, preserving
+source locks. Expensive validation checks magic first, then locks and the fixed
+allocation. HQ magic validation remains active while fixed pointer checks are
+suspended. Callbacks are synchronous borrowed views, cannot unwind or destroy the
+operation, and observe those publication points. Callers supply synchronization.
+
+At revision `3d4d661b`, the headless `handle-runtime` fixture captured original
+normal behavior; `handle-expensive` compiles only the HQ/fixed facades with
+expensive checks against the existing shared core. The cases cover zero/nonzero
+sizes, physical header width and fields, cleared payloads and growth, copies,
+nested locks, locked resize, excess unlock, grow/shrink/zero resize, locked free,
+nil handling, injected allocate/growth/copy failures, shrink countdown retention,
+magic diagnostics with/without suspension, marking, HQ counters, error sequencing
+and opaque `MMHandleServices` use. Error callbacks record public-owner state and
+error-stack contents before publication. Captures exclude raw addresses and
+implementation source lines; error codes/messages, metadata, payloads, counter
+fields and diagnostic byte spans are compared. Normal host caches have expensive
+checks disabled. SDL Release disables native diagnostics in both fixture profiles
+but still exercises C policy through the standalone tests.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, normal | 5,640 | `0FBF4BD2` | `7795DD59E7424AB178F15B40BF413C4109258E9F78A76462E10CB6E27439BC3B` |
+| Native/SDL Debug, expensive | 5,928 | `0EB2CEA5` | `C4A8A6FB0B7A78E3CF57CBFCA2D0AB8CB18EE326D08E339621367146C510812B` |
+| SDL Release, both profiles | 3,448 | `E37C9FEF` | `CF6DE6ADA0A5DFEDFEA60A1DA7D989F97868523552904B5EF0012CC7B0CE79A7` |
+
+`engine-handle-memory` forces raw allocation/resize failures and moved growth/
+shrink, checks byte/flag/priority forwarding, initialization and public-owner
+publication, locked operations, independent copies without source-lock changes,
+metadata/nil validation, mark forwarding, C overflow/count-wrap behavior and libc
+defaults. The suite passes MSVC AddressSanitizer. Checked C prefix arithmetic and
+count wrap are specified separately from native undefined-overflow equivalence.
+
+The wider gate passes 220 Native checks, 215 SDL Release checks, 216 SDL Debug
+checks and all 151 standalone checks, including strict C89 syntax: 802 of 803
+selected checks pass. The sole declared skip is the existing SDL Release
+`world-export` Debug fixture. All 153 retained handle/memory-graph/object/heap/
+error/string/text/cache/template/body/undo/Help/Preview trace pairs match. All ten
+input identities are unchanged; identities for 120 binaries are recorded. Windows
+text settings remain ACP 1252, OEMCP 437 and locale `en-GB`/2057.
+
+The regular headless asset-preview harness passes. Backgrounds retain 301,996,032
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. Native
+`chelp` and `ched` compile. Marcus was stopped for rebuilding and resource
+regeneration, then relaunched. Test processes use private temporary directories.
+No Marcus UI tests or new retail capture campaign were added; retained retail
+captures remain the playback reference.
+
+This is Windows x64 fixture evidence. Actual native heap exhaustion, arbitrary
+callback/override behavior or simultaneous handle mutation, invalid owner/payload
+lifetimes and corrupt native addresses, native signed size/count overflow,
+historical Macintosh handles, 32-bit diagnostic stacks and other platforms remain
+unverified. The C fault-provider/default tests do not establish equivalence for
+native undefined overflow or invalid lifetimes. BaseLinkedList attachment,
+virtual destruction and final C-only host/facade integration remain conversion
+work; this does not finish the backend migration.
+
+Evidence: `tmp/c89-handle-{baseline,final}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-handle-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-handle-standalone-tests.log`, `tmp/c89-handle-memory-asan.log`,
+`tmp/c89-handle-regular-tests.log`, `tmp/c89-handle-trace-comparison.json` and
+`tmp/c89-handle-identities.json`.
