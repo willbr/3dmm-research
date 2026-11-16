@@ -19,6 +19,7 @@ ASSERTNAME
 #include "mm/text.h"
 #include "mm/string_wire.h"
 #include "mm/string_value.h"
+#include "mm/string_format.h"
 
 static void StringCopyCheck(void *, const void *source, void *destination, size_t bytes)
 {
@@ -249,7 +250,7 @@ void String::GetSzs(PSZS pszs)
 
 /***************************************************************************
     Format this string using the given template string and any additional
-    parameters (ala sprintf).  All parameters are assumed to be 4 bytes long.
+    parameters (ala sprintf), using typed native varargs extraction.
 
     Returns false if the string ended up being too long to fit in an stn.
     The following controls are supported:
@@ -265,20 +266,17 @@ void String::GetSzs(PSZS pszs)
 
     Supports the following options, in this order:
 
-        Argument reordering ('<', 0 based decimal number, '>')
         Left justify ('-')
         Explicit plus sign ('+')
         Zero padding instead of space padding ('0')
         Minimum field width (decimal number)
 
-    These all go between the '%' and the control letter.  Note that argument
-    reordering affects everything after the reordered arg in the control
-    string.  Eg, "%<1>d %<0>d %d %d"  will use arguments in the order
-    { 1, 0, 1, 2 }.  If you just want to switch two arguments, the one
-    following needs a number also.  So the above example would be
-    "%<1>d %<0>d %<2>d %d", producing { 1, 0, 2, 3 }.
+    These all go between the '%' and the control letter. The legacy positional
+    notation ('<', argument index, '>') is currently rejected before fetching
+    an argument, as in the original implementation being converted.
 
-    WARNING: all arguments should be 4 bytes long.
+    Numeric arguments use the legacy 32-bit types; pointer arguments retain
+    their native width. Positional %<N> syntax is currently rejected.
 ***************************************************************************/
 bool String::FFormat(PString pstnFormat, ...)
 {
@@ -322,246 +320,50 @@ bool String::FFormatSz(PZString pszFormat, ...)
 /***************************************************************************
     Core routine for sprintf functionality.
 ***************************************************************************/
+struct NativeStringFormatArguments
+{
+    va_list values;
+};
+static int StringFormatNext(void *context, unsigned control, MMStringFormatArgument *argument)
+{
+    auto *source = static_cast<NativeStringFormatArguments *>(context);
+    switch (control) {
+    case 'c': argument->number = static_cast<MMU32>(va_arg(source->values, int)); break;
+    case 'd': argument->number = static_cast<MMU32>(va_arg(source->values, LegacyLong)); break;
+    case 'u': case 'x': case 'f': argument->number = va_arg(source->values, LegacyUlong); break;
+    case 's': {
+        auto *text = static_cast<PString>(va_arg(source->values, void *));
+        AssertPo(text, 0);
+        argument->text = text->Prgch();
+        argument->count = text->Cch();
+        break;
+    }
+    case 'z': {
+        auto *text = static_cast<achar *>(va_arg(source->values, void *));
+        AssertSz(text);
+        argument->text = text;
+        argument->count = CchSz(text);
+        break;
+    }
+    }
+    return 1;
+}
+static void StringFormatBug(void *)
+{
+    Bug("bad format string");
+}
 bool String::FFormatRgch(achar *prgchFormat, LegacyLong cchFormat, va_list va)
 {
     AssertThis(0);
     AssertIn(cchFormat, 0, kcchMaxStn + 1);
     AssertPvCb(prgchFormat, cchFormat * size(achar));
-
-    // Data Write Order - these dwo values are pcode for when to add what
-    enum
-    {
-        dwoPadFirst = 0x0321,
-        dwoPadSecond = 0x0312,
-        dwoPadLast = 0x0132
-    };
-    achar *pchOut, *pchOutLim;
-    achar *pchIn, *pchInLim;
-    LegacyLong cch;
-    LegacyLong cchMin;
-    LegacyLong ivArg;
-    LegacyUlong lu, luRad;
-    void *pvArg; // pointer-sized arg for %s, %z (8 bytes on Win64)
-    achar ch;
-    achar rgchT[kcchMaxStn];
-    achar *prgchTerm;
-    achar chSign, chPad;
-    LegacyUlong dwo;
-    PString pstn;
-    bool fRet = fFalse;
-
-    pchInLim = (pchIn = prgchFormat) + cchFormat;
-    pchOutLim = (pchOut = _rgch + 1) + kcchMaxStn;
-    ivArg = 0;
-    while (pchIn < pchInLim && pchOut < pchOutLim)
-    {
-        if ((ch = *pchIn++) != ChLit('%'))
-        {
-            *pchOut++ = ch;
-            continue;
-        }
-
-        // pre-fetch the next character
-        if (pchIn >= pchInLim)
-            goto LBug;
-        ch = *pchIn++;
-        if (ch == ChLit('%'))
-        {
-            *pchOut++ = ChLit('%');
-            continue;
-        }
-
-        dwo = dwoPadFirst;
-        chSign = 0;
-        chPad = kchSpace;
-
-        if (ch == ChLit('<'))
-        {
-            ivArg = 0;
-            for (;;)
-            {
-                if (ch < ChLit('0') || ch > ChLit('9'))
-                    break;
-                ivArg = ivArg * 10 + ch - ChLit('0');
-
-                // pre-fetch the next character
-                if (pchIn >= pchInLim)
-                    goto LBug;
-                ch = *pchIn++;
-            }
-            if (ch != ChLit('>'))
-                goto LBug;
-        }
-
-        // get qualifiers (print sign, left justify, etc)
-        for (;;)
-        {
-            switch (ch)
-            {
-            default:
-                goto LGetCchMin;
-            case ChLit('-'):
-                dwo = dwoPadLast;
-                break;
-            case ChLit('+'):
-                chSign = ChLit('+');
-                break;
-            case ChLit('0'):
-                chPad = ChLit('0');
-                dwo = dwoPadSecond;
-                break;
-            }
-
-            // pre-fetch the next character
-            if (pchIn >= pchInLim)
-                goto LBug;
-            ch = *pchIn++;
-        }
-
-    LGetCchMin:
-        cchMin = 0;
-        for (;;)
-        {
-            if (ch < ChLit('0') || ch > ChLit('9'))
-                break;
-            cchMin = cchMin * 10 + ch - ChLit('0');
-
-            // pre-fetch the next character
-            if (pchIn >= pchInLim)
-                goto LBug;
-            ch = *pchIn++;
-        }
-
-        // code after the switch assumes that prgchTerm points to the
-        // characters to add to the stream and cch is the number of characters.
-        // Pull each arg via va_arg with the correct type per format spec --
-        // critical on Win64 where pointers are 8 bytes and homebrew
-        // varargs unpacking by stack-pointer arithmetic is broken.
-        ivArg++; // tracked only for diagnostics; positional %<N> not supported
-        prgchTerm = rgchT;
-        switch (ch)
-        {
-        case ChLit('c'):
-            // char promotes to int through varargs.
-            rgchT[0] = (achar)va_arg(va, int);
-            cch = 1;
-            break;
-
-        case ChLit('s'):
-            pvArg = va_arg(va, void *);
-            pstn = (PString)pvArg;
-            AssertPo(pstn, 0);
-            prgchTerm = pstn->Prgch();
-            cch = pstn->Cch();
-            break;
-
-        case ChLit('z'):
-            pvArg = va_arg(va, void *);
-            AssertSz((achar *)pvArg);
-            prgchTerm = (achar *)pvArg;
-            cch = CchSz(prgchTerm);
-            break;
-
-        case ChLit('f'):
-            // 4-byte file/chunk tag; printed in big-endian byte order.
-            lu = va_arg(va, LegacyUlong);
-            for (cch = 4; cch-- > 0; lu >>= 8)
-            {
-                ch = (achar)(byte)lu;
-                if (0 == ch)
-                    ch = 1;
-                rgchT[cch] = ch;
-            }
-            cch = 4;
-            break;
-
-        case ChLit('x'):
-            lu = va_arg(va, LegacyUlong);
-            // if cchMin is not 0, don't make it longer than cchMin
-            if (cchMin > 0 && cchMin < 8)
-                lu &= (1L << (cchMin * 4)) - 1;
-            luRad = 16;
-            goto LUnsigned;
-
-        case ChLit('d'):
-            {
-                const LegacyLong value = va_arg(va, LegacyLong);
-                lu = static_cast<LegacyUlong>(value);
-                if (value < 0)
-                {
-                    chSign = ChLit('-');
-                    lu = LegacyUlong(0) - lu;
-                }
-            }
-            luRad = 10;
-            goto LUnsigned;
-
-        case ChLit('u'):
-            lu = va_arg(va, LegacyUlong);
-            luRad = 10;
-        LUnsigned:
-            prgchTerm = rgchT + CvFromRgv(rgchT);
-            cch = 0;
-            do
-            {
-                *--prgchTerm = vrgchHex[lu % luRad];
-                cch++;
-                lu /= luRad;
-            } while (lu != 0);
-            break;
-
-        default:
-        LBug:
-            Bug("bad format string");
-            goto LFail;
-        }
-
-        // set cchMin to the number of characters to pad
-        cchMin = LwMax(0, cchMin - cch - (chSign != 0));
-        if (pchOutLim - pchOut <= cch + cchMin + (chSign != 0))
-        {
-            // overflowed the output buffer
-            goto LFail;
-        }
-
-        // arrange the sign, padding and rgch according to dwo
-        while (dwo != 0)
-        {
-            switch (dwo & 0x0F)
-            {
-            case 1: // add padding
-                for (; cchMin > 0; cchMin--)
-                    *pchOut++ = chPad;
-                break;
-
-            case 2: // add the sign
-                if (chSign != 0)
-                    *pchOut++ = chSign;
-                break;
-
-            case 3: // add the text
-                CopyPb(prgchTerm, pchOut, cch * size(achar));
-                pchOut += cch;
-                break;
-
-            default:
-                BugVar("bad dwo value", &dwo);
-                break;
-            }
-
-            dwo >>= 4;
-        }
-
-        Assert(pchOut <= pchOutLim, "bad logic above - overflowed the rgch");
-    }
-
-    fRet = pchIn == pchInLim;
-LFail:
-    cch = pchOut - _rgch - 1;
-    AssertIn(cch, 0, kcchMaxStn + 1);
-    _rgch[0] = (achar)cch;
-    _rgch[cch + 1] = 0;
-    return fRet;
+    NativeStringFormatArguments native;
+    va_copy(native.values, va);
+    const MMStringFormatArguments arguments = {&native, StringFormatNext, StringFormatBug};
+    const auto value = StringValueView(_rgch);
+    const bool result = mm_string_format(&value, prgchFormat, cchFormat, &arguments) != 0;
+    va_end(native.values);
+    return result;
 }
 
 /***************************************************************************

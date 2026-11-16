@@ -55,6 +55,7 @@ cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
 cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test engine-actor-sound-test engine-sound-edit-test
 cmake --build build/engine-c89 --target engine-event-edit-test
 cmake --build build/engine-c89 --target engine-string-value-test
+cmake --build build/engine-c89 --target engine-string-format-test
 cmake --build build/engine-c89 --target engine-action-edit-test
 cmake --build build/engine-c89 --target engine-costume-edit-test
 cmake --build build/engine-c89 --target engine-route-edit-test
@@ -227,8 +228,37 @@ output untouched; native `String` retains its zero/debug-trash failure output.
 the original native code, with guard units, wide non-ASCII values, partial
 expansion and copy-observation ordering. Native `string-compat` freezes the same
 mutation/parse/escape corpus and optionally writes its defined results through
-`MM_STRING_VALUE_SNAPSHOT`. Formatting/varargs, native encoding adapters, direct
-buffer access and final `String` facade removal remain conversion work.
+`MM_STRING_VALUE_SNAPSHOT`. Formatting now uses the C implementation described
+below. Native varargs extraction, encoding adapters, direct buffer access and
+final `String` facade removal remain host/facade dependencies.
+
+### Counted-string formatting
+
+`mm/string_format.h` owns format parsing, qualifier order, field widths, signed/
+unsigned/hexadecimal conversion, four-byte tag conversion, padding, output limits
+and partial-prefix publication. It uses the same one/two-byte borrowed buffers
+and copy diagnostics as `MMStringValue`. A C argument provider supplies 32-bit
+values or borrowed text with an explicit count. Native `String` retains typed
+varargs extraction and native String/zero-terminated-string validation, copying
+and ending its `va_list` within the adapter. No varargs or C++ types cross the C
+formatting interface.
+
+The C formatter retains the existing rejection of positional `%<N>` notation,
+order-sensitive zero/left padding, explicit signs on all field types, hexadecimal
+width masking and tag zero-byte substitution with byte 1. A field that exactly
+fills capacity fails before writing that field; literals may fill all 255 units.
+Arguments are fetched before capacity is checked, and malformed-format diagnostics
+observe the old count and already-written prefix before final publication. Width
+accumulation now uses defined 32-bit wrapping; original signed-overflow cases are
+outside the native equivalence claim.
+
+`engine-string-format` repeats the original Native/SDL format corpus for both
+widths, with guard units and mixed pointer/numeric arguments. Additional C cases
+check provider failure, fetch-before-overflow ordering, diagnostics before count
+publication, sign/padding before copy diagnostics, width arithmetic and wide
+non-ASCII characters. Native `string-compat` retains the same frozen fingerprint
+and optional `MM_STRING_FORMAT_SNAPSHOT`, including malformed-format observations
+in Debug. Native ABI/text services and final String facade removal remain work.
 
 ### Collection storage foundation
 

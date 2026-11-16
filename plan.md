@@ -394,8 +394,10 @@ release policy, now also use C89. Resource caches borrow those C counters direct
 native allocation, virtual destruction/debug tracking and final facade removal
 remain work. Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
-one/two-byte buffers, retaining native copy diagnostics. String formatting,
-encoding adapters and final String facade removal remain work. Actor event
+one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/
+tag conversion, padding, output-limit and diagnostic/publication control now also
+use C89 through typed C argument providers. Native varargs extraction, encoding
+adapters and final String facade removal remain work. Actor event
 insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
 copy, route-paste, full actor-paste, clipboard, actor creation/binding and movie
 sound integration control and body construction/shape disposal, duplication,

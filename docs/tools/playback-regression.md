@@ -11086,3 +11086,64 @@ Evidence: `tmp/c89-string-value-{baseline,final}-{native,sdl-release,sdl-debug}.
 `tmp/c89-string-value-standalone-tests.log`, `tmp/c89-string-value-asan.log`,
 `tmp/c89-string-value-regular-tests.log`,
 `tmp/c89-string-value-trace-comparison.json` and `tmp/c89-string-value-identities.json`.
+
+
+### Shared C counted-string formatter (16 November 2026)
+
+`string_format.c` now owns format parsing, qualifier ordering, field widths,
+signed/unsigned/hexadecimal conversion, four-byte tags, padding, output limits
+and publication of the completed prefix. The native String bridge retains typed
+varargs extraction, `va_copy`/`va_end`, String/zero-terminated-string validation
+and debug diagnostics. C receives only 32-bit values or borrowed text/counts.
+The previous C++ format evaluator has been removed.
+
+The conversion retains rejection of positional `%<N>` notation before argument
+fetch, order-sensitive left/zero padding, explicit signs on nonnumeric fields,
+width-limited hexadecimal masking, zero tag-byte substitution with byte 1 and
+the distinct field/literal capacity rules. A field that would exactly fill the
+255-unit buffer fails before writing that field; literals may fill it. Argument
+providers still run before the field capacity check. Malformed-format diagnostics
+observe already-written characters and the old count before prefix publication.
+C width accumulation now wraps explicitly at 32 bits; original signed-overflow
+width inputs are undefined and are outside the native equivalence claim.
+
+Before conversion, `string-compat` captured 19,662,900 bytes on each of Native
+Debug, SDL Release and SDL Debug: FNV-1a `086D60CB`, SHA-256
+`19F7FB4E4EFFD3A521D414F1B61425414883D63E27BFFEA89C0F607B57637C54`.
+The shared corpus spans all supported controls, qualifier permutations, selected
+widths/prefixes, integer extrema, counted/raw string sizes, every literal/field
+capacity boundary, malformed formats, repeated qualifiers and mixed pointer/
+numeric varargs. Debug fixtures also inspect malformed-format diagnostic timing;
+Release retains the same return/output fingerprint without debug callbacks.
+The standalone C fixture freezes that original fingerprint for both unit widths,
+checks guard units and adds provider failure, fetch-before-overflow, sign/padding
+copy observations, wide non-ASCII values and defined width arithmetic.
+
+The final wider gate passes 205 Native checks, 200 SDL Release checks and 201 SDL
+Debug checks. SDL Release additionally reports the existing debug-only
+`world-export` fixture as skipped; its C policy and Native/SDL Debug integration
+checks pass. All 143 standalone checks, including strict C89 syntax, pass. Thus
+749 of 750 selected checks pass, with one declared skip. The new C formatter suite
+passes MSVC AddressSanitizer for both character widths.
+
+All 126 formatter/value/cache/template/text/body/undo/Help/Preview trace pairs
+match across the three hosts. All ten retained input identities are unchanged;
+identities for 61 binaries are recorded. The regular headless asset-preview
+harness passes; Native `chelp` and `ched` compile. Background checks retain
+301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host.
+Test processes use private temporary directories. Marcus was stopped before
+rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. The two-byte
+C corpus is not a complete native Unicode host build. Arbitrary native callback/
+override observations, invalid lifetime/overlapping character-copy use and other
+platforms remain unverified. Native ABI/text services, String facade removal and
+the broader C-only engine integration remain conversion work.
+
+Evidence: `tmp/c89-string-format-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-string-format-value-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-string-format-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-string-format-standalone-tests.log`, `tmp/c89-string-format-asan.log`,
+`tmp/c89-string-format-regular-tests.log`,
+`tmp/c89-string-format-trace-comparison.json` and `tmp/c89-string-format-identities.json`.

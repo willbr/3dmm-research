@@ -5,16 +5,27 @@
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include "string_format_cases.h"
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error String data readers must compile without Windows SDK headers
 #endif
 ASSERTNAME
+static bool formatBugExpected;
+static unsigned formatBugs;
+static achar *formatStorage;
+static const char *formatPattern;
 void WarnProc(schar *file, LegacyLong line, schar *message)
 {
     std::fprintf(stderr, "%s:%" LEGACY_PRId ": %s\n", file, line, message);
 }
 bool FAssertProc(schar *file, LegacyLong line, schar *message, void *, LegacyLong)
 {
+    if (formatBugExpected && !std::strcmp(message, "bad format string")) {
+        const auto prefix = std::strchr(formatPattern, '%') - formatPattern;
+        if (formatStorage[0] != 8 || std::memcmp(formatStorage + 1, formatPattern, prefix)) std::exit(1);
+        ++formatBugs;
+        return false;
+    }
     WarnProc(file, line, message);
     std::exit(1);
 }
@@ -105,6 +116,55 @@ static void CheckStringValues()
     valueTrace = nullptr;
     std::printf("String value fingerprint: %08X\n", valueHash);
     Check(valueHash == 0xC67CD6FDu);
+}
+static void NativeFormatCase(void *, const FormatCase *test)
+{
+    String value(PszLit("previous")), argument;
+    bool result;
+    formatPattern = test->pattern;
+    formatStorage = value.Pstz();
+    formatBugExpected = test->invalid != 0;
+    const auto bugs = formatBugs;
+    switch (test->control) {
+    case 's':
+        argument.SetRgch(const_cast<char *>(test->text), test->count);
+        result = value.FFormatSz(test->pattern, &argument);
+        break;
+    case 'z': result = value.FFormatSz(test->pattern, test->text); break;
+    case 'c': result = value.FFormatSz(test->pattern, static_cast<int>(test->number)); break;
+    case 'd': {
+        const auto bits = test->number;
+        const LegacyLong number = bits <= 0x7fffffffu ? static_cast<LegacyLong>(bits) : -static_cast<LegacyLong>(~bits) - 1;
+        result = value.FFormatSz(test->pattern, number);
+        break;
+    }
+    case 'u': case 'x': case 'f': result = value.FFormatSz(test->pattern, static_cast<LegacyUlong>(test->number)); break;
+    default: result = value.FFormatSz(test->pattern); break;
+    }
+    formatBugExpected = false;
+#ifdef DEBUG
+    Check(formatBugs - bugs == static_cast<unsigned>(test->invalid));
+#else
+    Check(formatBugs == bugs);
+#endif
+    if (test->invalid) Check(!result);
+    ValueString(value, result);
+}
+static void CheckStringFormatting()
+{
+    valueHash = 2166136261u;
+    const auto path = std::getenv("MM_STRING_FORMAT_SNAPSHOT");
+    valueTrace = path ? std::fopen(path, "wb") : nullptr;
+    Check(!path || valueTrace);
+    format_cases(nullptr, NativeFormatCase);
+    String value, counted(PszLit("counted"));
+    ValueString(value, value.FFormatSz("[%s]%+05d/%z/%f/%c/%%/%u", &counted, LegacyLong(-12), "raw",
+        LegacyUlong(0x41420044), int('C'), LegacyUlong(0xffffffffu)));
+    Check(value.FEqualSz(PszLit("[counted]-0012/raw/AB\1D/C/%/4294967295")));
+    if (valueTrace) Check(std::fclose(valueTrace) == 0);
+    valueTrace = nullptr;
+    std::printf("String format fingerprint: %08X\n", valueHash);
+    Check(valueHash == 0x086D60CBu);
 }
 static void CheckTableEntry(PVirtualStringTable table, LegacyLong index, const char *label, LegacyLong expected)
 {
@@ -210,6 +270,7 @@ static void CheckStringStorage()
 int main()
 {
     CheckStringValues();
+    CheckStringFormatting();
     CheckStringStorage();
     const byte windows[] = {3, 3, 4, 'C', 'a', 'f', 0xe9, 0};
     const byte mac[] = {2, 2, 4, 'C', 'a', 'f', 0x8e, 0};
