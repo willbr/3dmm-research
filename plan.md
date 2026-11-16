@@ -553,8 +553,10 @@ script-dispatch policy now also use C89 and plain C tracking/base-handler state.
 Balloon creation/replacement/layout and button construction/hit dispatch now also
 use C89, with plain C topic-view and button state. Help group scanning, handler
 reservation, embedded-control decoding/geometry/creation and topic factory cleanup
-now also use C89. Physical bitmap/font/graphics providers and final integration
-remain work.
+now also use C89. Shared Studio/Marcus character-run formatting and line layout
+now also use C89 and plain C run/paragraph/line state, including wrapping, tabs,
+objects, indentation, baseline and spacing policy. Physical bitmap/font/graphics
+providers and final integration remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.
@@ -635,7 +637,9 @@ hit dispatch now also use C89 and plain C topic-view/button state. Help topic
 group scanning, handler reservation, embedded-control decoding/geometry/creation
 and factory cleanup now also use C89. Native Help bridge methods retain typed
 provider binding, marshalling and validation; this is not final C-only integration.
-Final removal of native representations and facades remains required.
+Shared Studio/Marcus rich-text character runs and line layout now also use C89
+and plain C state. Typed property/font adapters remain in C++; final removal of
+native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;
 the renderer is unchanged. Evidence is in `docs/tools/playback-regression.md`.

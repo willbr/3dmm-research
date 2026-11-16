@@ -10537,3 +10537,62 @@ baseline/final logs, `tmp/c89-help-topic-{native,sdl-release,sdl-debug}-tests.lo
 `tmp/c89-help-topic-asan.log`, `tmp/c89-help-topic-regular-tests.log`,
 `tmp/c89-help-topic-tools-build.log`, `tmp/c89-help-topic-trace-comparison.json`,
 `tmp/c89-help-topic-identities.json` and `tmp/c89-help-topic-targeted-native-errors.log`.
+
+### Shared rich-text formatter (16 November 2026)
+
+`rich_text_layout.c` now owns character-run and line layout for both Studio text
+views and Marcus captions. The former C++ template is a typed provider binding.
+C state owns break opportunities, white-space overhang, long-word binary search,
+128-unit fetch/retention, ignored-character lookahead, tabs, objects, indents,
+justification, ascent/descent and line/paragraph spacing. Hosts retain native
+character/property storage, document access, font measurement and drawing.
+
+Object lookup mutates the private run style even on a miss. Ignore lookahead can
+pass the current style/fetch limit. Reinitialization and EOF retain the original
+flag behavior; freshly constructed C runs define previously uninitialized flags
+as zero. C++ exceptions are caught at provider boundaries and rethrown after C
+returns. Line horizontal offset/count/height publish before the final paragraph query, retaining
+the original partial output on failure. Coordinate arithmetic wraps at 32 bits;
+line fields wrap at signed 16 bits at the original stages. Negative division
+truncates toward zero, with spacing products computed without C99 integer types.
+
+Before conversion, the expanded headless formatter fixture captured 112,894,528
+bytes on Native Debug, SDL Release and SDL Debug: FNV-1a `D3C462F6`, SHA-256
+`49610DBAD92037CA0A1F0775EC269CEFB7EDBF8FE2C30691FE9100D29FE6040F`.
+The 1,080 byte/UTF-16 configurations combine mixed styles, variable/kerning widths,
+vertical offsets, object hits/misses/style mutation, all indent/justification modes,
+five widths, wrapping, CR/LF, tabs and ignored characters across fetch/style limits.
+Additional probes throw at every callback of a representative line. Captures
+include callback arguments/order, measured prefixes, retained text, complete runs,
+lines and partial line publication. The fixture checks its frozen fingerprint even
+when no capture file is requested; ordinary runs retain only the rolling hash.
+
+C-only checks independently verify all 65,536 control classifications, explicit
+line/run examples, signed spacing/overflow, oversized and rejected objects,
+reinitialization/EOF flags, forced tabs, UTF-16 fetch boundaries, lookahead beyond
+style limits, invalid-style diagnostics and callback-error prefixes. The focused
+suite also passes MSVC AddressSanitizer.
+
+All 78 original/converted layout/Help/text/preview trace pairs match across the
+three hosts. Prior hashes remain unchanged. Background checks retain 301,996,032
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. All 136
+standalone C checks, including strict C89 syntax, pass. Forty-two selected Native
+checks and 38 checks in each SDL configuration pass, including the existing Native
+playback/player regressions. The regular headless asset-preview harness passes;
+Native `chelp` and `ched` compile. Retained input identities remain unchanged;
+identities for 33 binaries are recorded. Test processes use private temporary
+directories. Marcus was stopped before rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Arbitrary
+font/graphics providers, interactive text drawing/hit mapping and other platforms
+remain unverified by this slice. Typed native property/font/graphics providers,
+drawing/output representations and final C-only host integration remain work.
+
+Evidence: `tmp/c89-rich-text-layout-{native,sdl-release,sdl-debug}-{baseline,final}.bin`,
+`tmp/c89-rich-text-layout-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-rich-text-layout-standalone-tests.log`,
+`tmp/c89-rich-text-layout-{topic,balloon,interaction,display,text,views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-rich-text-layout-asan.log`, `tmp/c89-rich-text-layout-regular-tests.log`,
+`tmp/c89-rich-text-layout-tools-build.log`, `tmp/c89-rich-text-layout-trace-comparison.json`
+and `tmp/c89-rich-text-layout-identities.json`.

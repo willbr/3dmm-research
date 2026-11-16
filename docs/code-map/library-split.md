@@ -2295,6 +2295,34 @@ binding, marshalling, physical reference operations and validation. Needed nativ
 string/display/resource representations and final C-only host/facade integration
 remain work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
+### Shared rich-text line and character-run layout
+
+`rich_text_layout.c` owns the formatter shared by Studio text views and Marcus
+captions. Plain C run/paragraph/line state controls character buffering, break
+opportunities, white-space overhang, ignored characters, forced long-word breaks,
+tabs, embedded objects, indentation, justification, baseline and paragraph spacing.
+Its C provider supplies document/style access, font setup/measurement, character
+classes and embedded-object bounds. The caller supplies storage for 128 native
+one- or two-byte character units; formatting allocates no memory.
+
+`kauai/src/rich_text_layout.h` now binds native document/graphics providers and
+Marcus caption fonts to this C implementation. It retains typed character/style
+storage, copies the run style and marshals native rectangles/lines. Object queries
+can mutate the run style even on a miss. Provider failures stop C immediately;
+the binding catches C++ exceptions at the boundary and rethrows after C returns.
+The first line fields publish before the final paragraph query, preserving partial
+output on failure. Reinitialization and EOF retain the original object/break flag
+behavior; a fresh C run starts with defined zero flags.
+
+Coordinates use explicit wrapping 32-bit arithmetic, and stored line fields wrap
+at signed 16 bits before subsequent spacing operations. Negative division truncates
+toward zero. Spacing products use C89 word arithmetic without a 64-bit integer
+type. A frozen preconversion byte/UTF-16 fixture checks callback order, measured
+prefixes, buffered text, runs, lines and provider-failure prefixes. C-only tests
+check control flags, boundaries, objects, overflow/spacing and failures; evidence
+and coverage limits are in `docs/tools/playback-regression.md`. Typed property,
+font, graphics and drawing providers and final C-only host integration remain work.
+
 ### Movie scene-container control and undo
 
 `movie_scene.c` owns the current scene reference/index and the control flow for

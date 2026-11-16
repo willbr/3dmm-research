@@ -1,5 +1,6 @@
 #include "rich_text_layout.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <string>
 
@@ -105,6 +106,8 @@ struct Host
     }
 };
 
+#include "rich_text_layout_fixture.h"
+
 int main()
 {
     Host host;
@@ -164,4 +167,5 @@ int main()
         if (run.Prgch()[i] != 0x03a9)
             return 9;
     std::puts("Shared rich-text blank lines, CRLF, tabs, wrapping, paragraph spacing and UTF-16 buffer checks passed");
+    RichTextFixture::Run();
 }
