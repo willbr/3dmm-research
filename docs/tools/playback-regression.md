@@ -10086,3 +10086,83 @@ baseline/final logs,
 `tmp/c89-document-lifecycle-trace-comparison.json`,
 `tmp/c89-document-lifecycle-identities.json`
 and `tmp/c89-document-lifecycle-targeted-native-errors.log`.
+
+### Document view storage and title policy (16 November 2026)
+
+`document_views.c` now owns borrowed view-list storage, lookup/removal/promotion,
+first-view active selection, window activation, title traversal and name selection.
+`MMDocumentViews` replaces the native view `DynamicArray`; untitled counters/cache
+move into C registry/node data. The legacy topic-name suffix uses the same C
+counter helper. Native view-array and old untitled-counter fields are removed.
+
+Insertion retains duplicates/order without taking references. Lookup/removal/
+promotion use the first match; native failed-find poisoning and missing-promotion
+diagnostics remain. Prepared empty lists keep capacity. Ordinary append failure
+keeps existing entries, without undo-style eviction. Pointer width, 128/16-byte
+growth hints and debug tail poisoning remain unchanged. Removing the native list
+object changes allocation granularity; exact native allocator-failure equivalence
+is not claimed.
+
+Active selection tests only the first view, even when another is active. Window
+activation chooses the first containing window. Titles read names in document
+preorder, including nodes without views, then re-fetch views from the live list.
+Removal/append during title callbacks retains the original index-shift/skip
+behavior. A shared window can receive repeated updates. Clipboard names override
+file names; untitled numbers allocate lazily, remain cached across later file
+names and wrap explicitly at 32 bits. Exceptions retain partial storage/output/
+title/counter effects without rollback. Native formatting still ignores the
+ordinary formatter result, as before.
+
+View and undo collections share an allocator exception wrapper, restoring previous
+bindings after normal, exceptional and nested operations. Read-only presentation
+does not bind storage: an activation callback may destroy its document without the
+wrapper later touching freed storage. Window activation/title writes, clipboard/
+filename lookup and string emission remain typed native providers.
+
+Before conversion, the expanded headless engine fixture recorded 808 bytes in
+Native Debug, SDL Release and SDL Debug, all with FNV-1a `48EF6639`, SHA-256
+`D077DDEA1E078FA58ED9B7B0D12FBE7BC8108340FCCA73F11800781F87DC0535`.
+It freezes lazy state, list order, lookup/index outputs, first-view active results,
+document references, duplicate/removal/reinsertion, cached/file names and title-
+traversal events. Its GOBs exist only in memory with no HWND, activation or drawing;
+it does not add window interaction or a Marcus UI test.
+
+C checks compare 4,000 operations against an independent ordered-list model,
+including duplicate and borrowed-reference behavior, missing outputs and disposal.
+Focused probes check speculative/exact allocation fallback, append failure without
+eviction, exception stops/validation order, first-view selection, first-window
+activation, owner destruction during activation, preorder naming, live removal/
+append during title updates, clipboard/file priority, cached/wrapped counters and
+partial title/name output. MSVC AddressSanitizer and strict C89 syntax pass.
+
+All sixty original/converted view/title/lifecycle/generic-undo/text-undo/copy/
+access/formatting/property/materialization/document/live-text/stored-text/media/
+metadata/session/admission/live/camera/picking/rendering trace pairs match across
+the three hosts. Prior hashes remain unchanged. Background checks retain
+301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host.
+All 130 standalone C checks, including strict C89 syntax, pass. Thirty-five selected
+native checks and thirty-one checks in each SDL configuration pass, including
+core/scene/movie and existing native playback/player regressions. The regular
+asset-preview harness passes headlessly with fresh metadata inputs. Native `chelp`
+and `ched` compile; `chelp` was recompiled after making the topic formatter's
+fixed-width argument cast explicit. Retained input identities are unchanged after
+verification; identities for 30 rebuilt binaries are recorded. Test processes use
+private temporary directories. Marcus was stopped before rebuilding and relaunched
+afterward.
+
+Retained retail captures remain the playback reference. No new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Complete
+interactive title/activation/clipboard/window/dialog equivalence and other
+platforms remain unverified by this slice. Native string/display/UI representations,
+physical/clipboard/window/dialog providers, help extensions and final C-only
+host/facade removal remain conversion work.
+
+Evidence: `tmp/c89-document-views-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-document-views-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-document-views-standalone-tests.log`,
+`tmp/c89-document-views-{lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-document-views-asan.log`, `tmp/c89-document-views-regular-tests.log`,
+`tmp/c89-document-views-tools-build.log`, `tmp/c89-document-views-topic-build.log`,
+`tmp/c89-document-views-trace-comparison.json`,
+`tmp/c89-document-views-identities.json`
+and `tmp/c89-document-views-targeted-native-errors.log`.

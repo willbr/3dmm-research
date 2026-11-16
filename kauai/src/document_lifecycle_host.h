@@ -68,12 +68,11 @@ struct DocumentBase::LifecycleHost
                 return result;
             });
         };
-        s.views_present = [](void *, MMDocumentNode *n) -> int { return Owner(n)->_pglpddg != nullptr; };
+        s.views_present = [](void *, MMDocumentNode *n) -> int { return Owner(n)->_viewList.ready; };
         s.view_count = [](void *, MMDocumentNode *n) -> MMI32 { return Owner(n)->Cddg(); };
         s.view = [](void *, MMDocumentNode *n, MMI32 i) -> void * {
-            PDocumentDisplayGraphicsObject view;
-            Owner(n)->_pglpddg->Get(i, &view);
-            return view;
+            AssertIn(i, 0, Owner(n)->_viewList.count);
+            return mm_document_views_get(&Owner(n)->_viewList, i);
         };
         s.window = [](void *, void *p) -> void * {
             auto view = static_cast<PDocumentDisplayGraphicsObject>(p);
@@ -97,8 +96,12 @@ struct DocumentBase::LifecycleHost
         s.dispose_views = [](void *v, MMDocumentNode *n) -> int {
             auto &h = *static_cast<LifecycleHost *>(v);
             return h.Guard([&] {
-                ReleasePpo(&Owner(n)->_pglpddg);
-                return 1;
+                auto doc = Owner(n);
+                ViewHost views(doc, true);
+                auto services = views.Services();
+                int result = mm_document_views_dispose(&doc->_viewList, &services);
+                views.Rethrow();
+                return result;
             });
         };
         s.clipboard = [](void *v, MMDocumentNode *n) -> int {

@@ -2027,7 +2027,7 @@ limits, undo/redo counts, references and virtual/destructor events. C tests comp
 3,000 generated operations with an independent list/reference model, and cover
 allocation fallback, exception stops, release/publication order, partial reference
 effects and reentrant replay/clear hooks. Native undo objects/physical allocators,
-help extensions, view-list/title/UI representations and final C-only host/facade
+help extensions, native string/display/UI representations and final C-only host/facade
 removal remain conversion work. Document lifecycle is covered below. Evidence and
 platform limits are in
 `docs/tools/playback-regression.md`.
@@ -2066,9 +2066,50 @@ save/name dispatch, root lookup and explicit release events. C tests compare
 80 generated 24-node trees and their subtree visits against an independent model;
 they also exercise child fallback/removal, batched view closure, clipboard guards,
 query/save failures, force/cancel behavior, registry order and partial effects.
-Native view-list storage, title/naming/display/UI representations, physical and
-clipboard/window/dialog providers, help extensions and final C-only host/facade
+View-list storage and title/name policy are covered below. Native strings/display/
+UI representations, physical and clipboard/window/dialog providers, help extensions
+and final C-only host/facade
 removal remain conversion work. Evidence and platform limits are in
+`docs/tools/playback-regression.md`.
+
+### Document view storage and title policy
+
+`document_views.c` owns borrowed view-list storage, first-match lookup/removal/
+promotion, first-view active selection, window activation, title traversal and
+clipboard/file/untitled name selection. `MMDocumentViews` owns the C collection
+buffers and logical count/preparation state. Native view `DynamicArray` storage is
+removed. Untitled counters/cache now reside in C registry/node data; legacy topic
+naming uses the shared counter helper. Native string formatting remains a provider.
+
+Entries retain insertion order and duplicates without gaining/releasing references.
+An empty prepared list keeps its storage. Removal/promotion use the first match;
+missing promotion retains its diagnostic. Native failed-find poisoning remains in
+the typed wrapper. Ordinary append failure preserves the existing list; it never
+uses undo-list eviction. Defaults retain pointer width, 128/16-byte growth hints
+and debug unused-tail poisoning.
+
+Active selection tests only the first view. Window activation chooses the first
+view with a containing window. Title updates read each document's name in preorder,
+including documents without views, then re-fetch each view from the live list.
+Callbacks may remove/append views; the existing index-shift/skip behavior remains.
+Shared windows receive each view's update. Clipboard names take priority over file
+names; untitled numbers allocate lazily, stay cached and use explicit 32-bit wrap.
+Partial name/title/counter effects remain on failures without rollback.
+
+View and undo collections share the typed allocator exception wrapper. It restores
+prior bindings after nested operations. Read-only presentation calls do not bind
+allocator state, so activation may destroy its document without a later wrapper
+access to freed storage. Physical window activation, title writes, filename lookup
+and string emission remain native services.
+
+The headless fixture freezes original native/SDL view order, active selection,
+lookups, document reference counts, names and traversal events using in-memory
+GOBs without windows, activation or drawing. C tests compare 4,000 list operations
+against an independent model and cover allocation/exception failures, duplicates,
+borrowed references, live title-list mutation, owner destruction during activation,
+name priority/cache/wrap and partial output. Native string/display/UI representations,
+physical/clipboard/window/dialog providers, help extensions and final C-only
+host/facade removal remain conversion work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo

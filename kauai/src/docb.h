@@ -17,6 +17,7 @@
 #define DOCB_H
 #include "mm/document_undo.h"
 #include "mm/document_lifecycle.h"
+#include "mm/document_views.h"
 
 /***************************************************************************
     base undo class
@@ -65,7 +66,6 @@ class DocumentBase : public DocumentBase_PAR
     friend class DocumentTreeEnumerator;
 
   protected:
-    static long _cactLast;
     static MMDocumentRegistry _documents;
     struct LifecycleHost;
     MMDocumentNode _document;
@@ -74,9 +74,10 @@ class DocumentBase : public DocumentBase_PAR
         return node ? static_cast<PDocumentBase>(node->owner) : pvNil;
     }
 
-    long _cactUntitled; // 0 if titled
     bool _fDirty : 1;
-    PDynamicArray _pglpddg; // keep track of the DDGs based on this doc
+    MMDocumentViews _viewList;
+    struct ViewHost;
+    long _UntitledNumber();
 
     struct UndoHost;
     MMDocumentUndo _undoList;
@@ -130,7 +131,7 @@ class DocumentBase : public DocumentBase_PAR
     // General DocumentDisplayGraphicsObject management
     long Cddg(void)
     {
-        return pvNil == _pglpddg ? 0 : _pglpddg->IvMac();
+        return _viewList.count;
     }
     PDocumentDisplayGraphicsObject PddgGet(long ipddg);
     PDocumentDisplayGraphicsObject PddgActive(void);

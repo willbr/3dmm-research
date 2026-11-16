@@ -542,8 +542,11 @@ now use C89 and C-owned collection storage shared by Movie and text documents.
 Document registration/parent links, subtree traversal, internal/clipboard guards,
 close/save decisions and document/view release sequencing now also use C89 and
 plain C registry/node/iterator data.
+Borrowed document view lists, first-view selection/activation, title traversal and
+clipboard/file/untitled name selection now also use C89 and C-owned view storage;
+untitled counters now live in C registry/node data.
 Typed resource/track/archive/path providers, help-document argument extensions,
-display formatting/output containers, view-list/title/UI representations and
+display formatting/output containers, native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
@@ -607,9 +610,11 @@ pending transactions and rich snapshot records/combination/replay now use C89 an
 plain C control/record data. Generic document undo-list control/storage now also
 use C89, shared by Movie and text documents. Document registry/links, tree traversal,
 internal/clipboard guards, close/save decisions and document/view release sequencing
-now also use C89 and plain C registry/node/iterator data. Help-document argument
-extensions, display/output representations, view-list/title/UI representations and
-final host integration still need conversion.
+now also use C89 and plain C registry/node/iterator data. Borrowed view storage,
+first-view selection/activation, title traversal and name selection/counters now
+also use C89 and plain C data. Help-document argument extensions, display/output
+representations, native string/display/UI representations and final host integration
+still need conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

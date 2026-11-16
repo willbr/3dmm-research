@@ -1776,9 +1776,7 @@ void HETD::GetName(PString pstn)
 
         if (cnoNil == _cno)
         {
-            if (_cactUntitled == 0)
-                _cactUntitled = ++_cactLast;
-            stn.FFormatSz(PszLit(": Untitled Topic %d"), _cactUntitled);
+            stn.FFormatSz(PszLit(": Untitled Topic %d"), static_cast<LegacyLong>(_UntitledNumber()));
         }
         else if (pvNil != PdocbPar())
             stn.FFormatSz(PszLit(": Topic %08x"), _cno);

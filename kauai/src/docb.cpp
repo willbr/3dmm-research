@@ -14,11 +14,12 @@
 #include <new>
 #include "frame.h"
 ASSERTNAME
+#include "document_storage_host.h"
 #include "document_undo_host.h"
+#include "document_views_host.h"
 #include "document_lifecycle_host.h"
 
 #define dsnoNil 0
-long DocumentBase::_cactLast = 0;
 MMDocumentRegistry DocumentBase::_documents = {};
 
 BEGIN_CMD_MAP(DocumentDisplayGraphicsObject, GraphicsObject)
@@ -60,6 +61,7 @@ DocumentBase::DocumentBase(PDocumentBase pdocb, ulong grfdoc) : CommandHandler(k
     undoTrash = 1;
 #endif
     AssertDo(mm_document_undo_init(&_undoList, &undoAllocator, undoTrash), "invalid undo storage");
+    AssertDo(mm_document_views_init(&_viewList, &undoAllocator, undoTrash), "invalid view storage");
     AssertThis(fobjAssertFull);
 }
 
@@ -95,7 +97,7 @@ DocumentBase::~DocumentBase(void)
     AssertThis(fobjAssertFull);
     Assert(_document.freeing, "Release not called first!");
     Assert(_document.child == nullptr, "docb still has children");
-    Assert(_pglpddg == nullptr || _pglpddg->IvMac() == 0, "doc is still being displayed by a window");
+    Assert(_viewList.count == 0, "doc is still being displayed by a window");
     LifecycleHost host;
     auto services = host.Services();
     mm_document_finish(&_documents, &_document, &services);
@@ -244,15 +246,11 @@ bool DocumentBase::FAddDdg(PDocumentDisplayGraphicsObject pddg)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pddg, 0);
-    bool fT;
-
-    if (pvNil == _pglpddg && pvNil == (_pglpddg = DynamicArray::PglNew(size(PDocumentDisplayGraphicsObject), 1)))
-    {
-        return fFalse;
-    }
-    fT = _pglpddg->FAdd(&pddg);
-    AssertThis(fobjAssertFull);
-    return fT;
+    ViewHost host(this, true);
+    auto services = host.Services();
+    int result = mm_document_views_add(&_viewList, pddg, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -262,26 +260,11 @@ bool DocumentBase::_FFindDdg(PDocumentDisplayGraphicsObject pddg, long *pipddg)
 {
     AssertThis(0);
     AssertVarMem(pipddg);
-    long ipddg, cpddg;
-    PDocumentDisplayGraphicsObject pddgT;
-
-    if (_pglpddg == pvNil)
-        goto LFail;
-
-    cpddg = _pglpddg->IvMac();
-    for (ipddg = 0; ipddg < cpddg; ipddg++)
-    {
-        _pglpddg->Get(ipddg, &pddgT);
-        if (pddgT == pddg)
-        {
-            *pipddg = ipddg;
-            return fTrue;
-        }
-    }
-
-LFail:
-    TrashVar(pipddg);
-    return fFalse;
+    MMI32 at;
+    int result = mm_document_views_find(&_viewList, pddg, &at);
+    if (result) *pipddg = at;
+    else TrashVar(pipddg);
+    return result != 0;
 }
 
 /***************************************************************************
@@ -290,11 +273,9 @@ LFail:
 void DocumentBase::RemoveDdg(PDocumentDisplayGraphicsObject pddg)
 {
     AssertThis(fobjAssertFull);
-    long ipddg;
-
-    if (_FFindDdg(pddg, &ipddg))
-        _pglpddg->Delete(ipddg);
-    AssertThis(fobjAssertFull);
+    ViewHost host(this);
+    auto services = host.Services();
+    mm_document_views_remove(&_viewList, pddg, &services);
 }
 
 /***************************************************************************
@@ -302,16 +283,11 @@ void DocumentBase::RemoveDdg(PDocumentDisplayGraphicsObject pddg)
 ***************************************************************************/
 void DocumentBase::MakeFirstDdg(PDocumentDisplayGraphicsObject pddg)
 {
-    long ipddg;
-
-    if (!_FFindDdg(pddg, &ipddg))
-    {
-        BugVar("pddg not in docb's list", &pddg);
-        return;
-    }
-
-    if (ipddg != 0)
-        _pglpddg->Move(ipddg, 0);
+    AssertThis(0);
+    ViewHost host(this);
+    host.view = pddg;
+    auto services = host.Services();
+    mm_document_views_first(&_viewList, pddg, &services);
 }
 
 /***************************************************************************
@@ -322,13 +298,9 @@ PDocumentDisplayGraphicsObject DocumentBase::PddgGet(long iddg)
 {
     AssertThis(0);
     AssertIn(iddg, 0, klwMax);
-    PDocumentDisplayGraphicsObject pddg;
-
-    if (pvNil == _pglpddg || iddg >= _pglpddg->IvMac())
-        return pvNil;
-    _pglpddg->Get(iddg, &pddg);
-    AssertPo(pddg, 0);
-    return pddg;
+    auto view = static_cast<PDocumentDisplayGraphicsObject>(mm_document_views_get(&_viewList, iddg));
+    AssertNilOrPo(view, 0);
+    return view;
 }
 
 /***************************************************************************
@@ -337,12 +309,12 @@ PDocumentDisplayGraphicsObject DocumentBase::PddgGet(long iddg)
 PDocumentDisplayGraphicsObject DocumentBase::PddgActive(void)
 {
     AssertThis(0);
-    PDocumentDisplayGraphicsObject pddg;
-
-    pddg = PddgGet(0);
-    if (pvNil == pddg || !pddg->FActive())
-        return pvNil;
-    return pddg;
+    ViewHost host(this);
+    auto services = host.Services();
+    void *view;
+    mm_document_view_active(&_document, &view, &services);
+    host.Rethrow();
+    return static_cast<PDocumentDisplayGraphicsObject>(view);
 }
 
 /***************************************************************************
@@ -360,19 +332,10 @@ PDocumentMDIWindow DocumentBase::PdmdNew(void)
 void DocumentBase::ActivateDmd(void)
 {
     AssertThis(fobjAssertFull);
-    long ipddg;
-    PDocumentDisplayGraphicsObject pddg;
-    PDocumentMDIWindow pdmd;
-
-    for (ipddg = 0; pvNil != (pddg = PddgGet(ipddg)); ipddg++)
-    {
-        pdmd = (PDocumentMDIWindow)pddg->PgobParFromCls(kclsDocumentMDIWindow);
-        if (pvNil != pdmd)
-        {
-            GraphicsObject::MakeHwndActive(pdmd->HwndContainer());
-            return;
-        }
-    }
+    ViewHost host(this);
+    auto services = host.Services();
+    mm_document_view_activate(&_document, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -409,19 +372,11 @@ void DocumentBase::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    Filename fni;
-
-    // REVIEW shonk: clipboard constant string.
-    if (vpclip->FDocIsClip(this))
-        *pstn = PszLit("Clipboard");
-    else if (FGetFni(&fni))
-        fni.GetLeaf(pstn);
-    else
-    {
-        if (_cactUntitled == 0)
-            _cactUntitled = ++_cactLast;
-        pstn->FFormatSz(PszLit("Untitled %d"), _cactUntitled);
-    }
+    ViewHost host(this);
+    host.output = pstn;
+    auto services = host.Services();
+    mm_document_name(&_documents, &_document, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -429,26 +384,15 @@ void DocumentBase::GetName(PString pstn)
 ***************************************************************************/
 void DocumentBase::UpdateName(void)
 {
-    DocumentTreeEnumerator dte;
-    ulong grfdte;
-    String stn;
-    long ipddg;
-    PDocumentDisplayGraphicsObject pddg;
-    PDocumentBase pdocb;
-    PDocumentMDIWindow pdmd;
+    ViewHost host(this);
+    auto services = host.Services();
+    mm_document_titles(&_document, &services);
+    host.Rethrow();
+}
 
-    dte.Init(this);
-    while (dte.FNextDoc(&pdocb, &grfdte, fdteNil))
-    {
-        if (!(grfdte & fdtePre))
-            continue;
-        pdocb->GetName(&stn);
-        for (ipddg = 0; pvNil != (pddg = pdocb->PddgGet(ipddg++));)
-        {
-            if (pvNil != (pdmd = pddg->Pdmd()))
-                pdmd->SetHwndName(&stn);
-        }
-    }
+long DocumentBase::_UntitledNumber()
+{
+    return mm_document_untitled(&_documents, &_document);
 }
 
 bool DocumentBase::_FInitUndo()
@@ -601,16 +545,21 @@ void DocumentBase::AssertValid(LegacyUlong grfdocb)
     PUndoBase pundb;
 
     DocumentBase_PAR::AssertValid(grfdocb & fobjAssertFull);
-    AssertNilOrPo(_pglpddg, 0);
 
     if (!(grfdocb & fobjAssertFull))
         return;
 
-    if (pvNil != _pglpddg)
+    if (_viewList.ready)
     {
-        for (ipddg = _pglpddg->IvMac(); ipddg-- != 0;)
+        Assert(_viewList.count * sizeof(void *) <= _viewList.storage.buffers[0].capacity, "view storage too small");
+        for (const auto &buffer : _viewList.storage.buffers)
         {
-            _pglpddg->Get(ipddg, &pddg);
+            Assert((buffer.capacity == 0) == (buffer.data == nullptr), "view storage size/pointer mismatch");
+            if (buffer.data) AssertPvAlloced(buffer.data, buffer.capacity);
+        }
+        for (ipddg = _viewList.count; ipddg-- != 0;)
+        {
+            pddg = static_cast<PDocumentDisplayGraphicsObject>(mm_document_views_get(&_viewList, ipddg));
             AssertBasePo(pddg, 0);
         }
     }
@@ -648,7 +597,8 @@ void DocumentBase::MarkMem(void)
 
     AssertThis(fobjAssertFull);
     DocumentBase_PAR::MarkMem();
-    MarkMemObj(_pglpddg);
+    MarkPv(_viewList.storage.buffers[0].data);
+    MarkPv(_viewList.storage.buffers[1].data);
     if (_undoList.ready)
     {
         MarkPv(_undoList.storage.buffers[0].data);

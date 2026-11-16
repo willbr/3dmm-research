@@ -11,10 +11,12 @@ extern "C"
         struct MMDocumentNode *parent, *sibling, *child;
         void *owner;
         int freeing, internal;
+        MMI32 untitled;
     } MMDocumentNode;
     typedef struct MMDocumentRegistry
     {
         MMDocumentNode *first;
+        MMI32 untitled;
     } MMDocumentRegistry;
     typedef struct MMDocumentTree
     {
