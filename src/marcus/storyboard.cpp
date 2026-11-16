@@ -1,4 +1,5 @@
 #include "storyboard.h"
+#include "storyboard_tools.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -188,9 +189,27 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
 void MarcusBoardBakeGrid(MarcusBoardAngle &a, unsigned char colour)
 {
     if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight) return;
+    auto mask = a;
+    std::fill(mask.pixels.begin(), mask.pixels.end(), 0);
     for (const auto &line : MarcusBoardGridLines(a))
-        MarcusBoardStroke(a, int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
-            int(std::lround(line[2] * (MarcusBoardWidth - 1))), int(std::lround(line[3] * (MarcusBoardHeight - 1))), 1, colour);
+        MarcusBoardStroke(mask, int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
+            int(std::lround(line[2] * (MarcusBoardWidth - 1))), int(std::lround(line[3] * (MarcusBoardHeight - 1))), 1, 1);
+    const MarcusBoardGridFade fade(a, MarcusBoardWidth, MarcusBoardHeight);
+    for (int y = 0; y < MarcusBoardHeight; ++y) for (int x = 0; x < MarcusBoardWidth; ++x)
+    {
+        const size_t i = size_t(y) * MarcusBoardWidth + x;
+        if (!mask.pixels[i]) continue;
+        const float opacity = fade.Opacity((x + .5) / MarcusBoardWidth, (y + .5) / MarcusBoardHeight);
+        // Indexed paintings store opaque ink. Stable spatial coverage lets the
+        // original paint show through, without adding colours or accumulating
+        // opacity on another bake. Avoid correlating with the palette's Bayer map.
+        std::uint32_t noise = std::uint32_t(i);
+        noise ^= noise >> 16; noise *= 0x7feb352dU;
+        noise ^= noise >> 15; noise *= 0x846ca68bU;
+        noise ^= noise >> 16;
+        const float threshold = ((noise & 0xffff) + .5f) / 65536.f;
+        if (opacity >= threshold) a.pixels[i] = colour;
+    }
 }
 unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y)
 {

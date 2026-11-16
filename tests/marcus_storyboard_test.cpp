@@ -258,6 +258,37 @@ int main(int argc, char **argv)
             "Bake the ground grid while retaining the drawing above the horizon");
         auto rebaked = board.angles[0]; MarcusBoardBakeGrid(rebaked, 6);
         check(rebaked.pixels == board.angles[0].pixels, "Baking the same grid twice is stable");
+        {
+            MarcusBoardAngle baked;
+            baked.camera.pitch = 0;
+            for (int y = 0; y < MarcusBoardHeight; ++y) for (int x = 0; x < MarcusBoardWidth; ++x)
+                baked.pixels[y * MarcusBoardWidth + x] = (x / 20 + y / 20) % 2 ? 3 : 4;
+            const auto original = baked.pixels;
+            auto mask = baked; std::fill(mask.pixels.begin(), mask.pixels.end(), 0);
+            for (const auto &line : MarcusBoardGridLines(baked))
+                MarcusBoardStroke(mask, int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
+                    int(std::lround(line[2] * (MarcusBoardWidth - 1))), int(std::lround(line[3] * (MarcusBoardHeight - 1))), 1, 1);
+            MarcusBoardBakeGrid(baked, 6);
+            const MarcusBoardGridFade fade(baked, MarcusBoardWidth, MarcusBoardHeight);
+            int faded = 0, solid = 0, partialInk = 0, partialBackground = 0;
+            for (int y = 0; y < MarcusBoardHeight; ++y) for (int x = 0; x < MarcusBoardWidth; ++x)
+            {
+                const size_t i = size_t(y) * MarcusBoardWidth + x;
+                if (!mask.pixels[i]) { check(baked.pixels[i] == original[i], "Grid baking retains paint outside the lines"); continue; }
+                const float opacity = fade.Opacity((x + .5) / MarcusBoardWidth, (y + .5) / MarcusBoardHeight);
+                if (opacity == 0) { ++faded; check(baked.pixels[i] == original[i], "The baked horizon retains the underlying painting"); }
+                else if (opacity == 1) { ++solid; check(baked.pixels[i] == 6, "Nearby baked grid lines retain the full selected ink"); }
+                else if (opacity > .2f && opacity < .8f)
+                {
+                    if (baked.pixels[i] == 6) ++partialInk;
+                    else { ++partialBackground; check(baked.pixels[i] == original[i], "Faded coverage reveals the original paint"); }
+                }
+            }
+            check(faded > 500 && solid > 500 && partialInk > 20 && partialBackground > 20,
+                "Baking shares the live fade with a clear horizon, stippled middle distance and solid foreground");
+            auto again = baked; MarcusBoardBakeGrid(again, 6);
+            check(again.pixels == baked.pixels, "Rebaking cannot darken the faded grid or fill its gaps");
+        }
         auto turned = board.angles[0]; turned.camera.yaw = 37; turned.camera.pitch = 24; turned.roll = -18; turned.fov = 5; turned.nearClip = .01f;
         const auto turnedGrid = MarcusBoardGridLines(turned);
         check(!turnedGrid.empty() && turnedGrid != grid && std::all_of(turnedGrid.begin(), turnedGrid.end(), [](const auto &line) {

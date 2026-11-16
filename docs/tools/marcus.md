@@ -204,8 +204,11 @@ pressing Escape releases capture and commits the camera move as one undo step.
 **Bake grid** in Paint, below **Pick colour**, paints the current
 perspective ground grid into this angle's background using the selected colour
 (**1–9** or the extended palette), ready to draw over. Grid lines are one pixel
-wide, retain the current camera perspective, and stay fixed if you move the camera
-later. Baking is one undo step and survives Save copy, without adding
+wide and use the live grid's fade at the painting's 544×306 resolution. Fading
+uses stable stippling of the selected ink, revealing the existing painting
+without adding palette colours; repeating a bake retains the same coverage.
+The lines retain the current camera perspective and stay fixed if you move the
+camera later. Baking is one undo step and survives Save copy, without adding
 depth. The live guide, crosshair and guide label appear in Paint, Camera and
 Lights as temporary overlays.
 The storyboard toolbar's **Grid: on/off** toggle shows or hides the live guide
