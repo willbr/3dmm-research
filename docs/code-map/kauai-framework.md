@@ -43,9 +43,9 @@ which side each file lives on.
 | `utilstr.cpp`     | core       | `String` (Pascal-style 2-byte-length, kauai's string class).  |
 | `utilint.cpp`     | core       | Fixed-point arithmetic, integer math.                         |
 | `utilrnd.cpp`     | core       | RNG.                                                          |
-| `utilmem.cpp`     | core       | Bit-array / nibble helpers.                                   |
+| `utilmem.cpp`     | core       | Fixed-memory C facade, native heap/debug-header/list providers. |
 | `utilglob.cpp`    | core       | Global symbol / class registry, RTCLASS.                      |
-| `utilerro.cpp`    | core       | `ErrorStack`, assert reporting.                               |
+| `utilerro.cpp`    | core       | C-owned error-stack facade, native mutex/reporting providers.   |
 | `base.cpp`        | core       | `BASE` root class for refcounted heap objects.                |
 | `spell.cpp`       | core       | Spell-check dictionary (no UI).                               |
 | `mssio.cpp`       | core       | (listed above)                                                |

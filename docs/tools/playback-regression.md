@@ -11234,3 +11234,86 @@ Evidence: `tmp/c89-string-ops-{baseline,final}-{native,sdl-release,sdl-debug}.bi
 `tmp/c89-string-ops-standalone-tests.log`, `tmp/c89-string-ops-asan.log`,
 `tmp/c89-string-ops-regular-tests.log`, `tmp/c89-string-ops-text-environment.json`,
 `tmp/c89-string-ops-trace-comparison.json` and `tmp/c89-string-ops-identities.json`.
+
+
+### Shared C fixed-memory transactions, counters and error stacks (16 November 2026)
+
+`memory.c` now owns fixed allocation/resize/free transaction control, clearing/
+garbage fill, growth-only failure injection, allocation counters, maximum request
+checks and memory-liberation retry/reentrancy policy. Native fixed allocators use
+that implementation with borrowed raw heap/mutex/debug-header providers. Native
+BASE and HQ statistics use the same persistent `MMMemoryStats` state and C
+counter operations. Counter fields retain the checked Windows long ABI and
+seven-word record size; supported native comparisons exclude signed overflow.
+The C diagnostic arithmetic itself wraps explicitly at 32 bits.
+
+Allocation publishes failure as nil before error reporting. Resize failure keeps
+the original pointer, payload and footer, including failed shrink and injected
+growth. Liberation runs outside the memory mutex, suppresses nested failed
+liberation and retries only after a positive freed-byte result. Allocate requests
+include debug overhead; resize requests retain their signed byte delta. Cleared/
+garbage growth includes the old footer before a new footer is written. Free
+unlinks/updates counters, poisons debug storage, publishes the raw pointer for
+release, then nil. The C core passes a stable pre-reallocation address token to
+physical relocation providers instead of reading an invalidated old pointer value.
+
+`error_stack.c` now owns persistent plain/debug stack records, count, adjacent
+duplicate suppression, oldest-entry eviction, stable flush, indexed/contains/pop/
+clear operations and reporting/locking/output order. Every debug push reports
+before locking, even when deduplicated. Overflow reports while full and locked
+before eviction. Pop writes or debug-trashes output before unlocking; indexed
+misses retain the legacy -1 sentinel. Native ErrorStack retains virtual dispatch,
+its mutex and formatting/diagnostic providers. Source-file strings remain
+borrowed. ErrorStack object sizes and allocator counter sizes match the original
+native traces; neither record family changes a stored movie format.
+
+The pre-conversion headless `memory-runtime` fixture captures error and allocation
+behavior, including warning-time stack observations, virtual error dispatch,
+failure-time owner publication, duplicate/full-stack/flush/underflow operations,
+clear/garbage bytes, zero/grow/shrink/same-size transactions, failure injection,
+request-limit errors and all seven counter fields:
+
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug | 18,516 | `B78C4CC3` | `35071E0D6DB27FEBD769566DC89451EA103C0ED43C8B91500A437F6D2EAD6CE5` |
+| SDL Release | 12,604 | `1443F1C9` | `70CE1EA69633E1302865DAB5062A72AB34E17C3B874A2EB4042D4B94454518BF` |
+
+The new C suites cover both error-record layouts, retained diagnostic source/line,
+warning/lock/output order and inactive-record lifetime; allocator providers force
+moved allocations, failed grow/shrink, positive/zero/negative liberation results,
+reentrant failed liberation, size/injection ordering, clear/garbage growth and
+free-time pointer/stat observations. Default C heap services and defined counter
+arithmetic are checked separately. Both suites pass MSVC AddressSanitizer. Native
+trace comparisons normalize raw addresses and implementation source-line changes;
+defined payload/counter/error values and native record sizes remain compared.
+
+The final wider gate passes 209 Native checks, 204 SDL Release checks and 205 SDL
+Debug checks. SDL Release additionally reports the existing debug-only
+`world-export` fixture as skipped; its C policy and Native/SDL Debug integration
+checks pass. All 146 standalone checks, including strict C89 syntax, pass. Thus
+764 of 765 selected checks pass, with one declared skip.
+
+All 135 memory/error/string/text/cache/template/body/undo/Help/Preview trace pairs
+match across the three hosts. All ten retained input identities are unchanged;
+identities for 82 binaries are recorded. The regular headless asset-preview
+harness passes; Native `chelp` and `ched` compile. Background checks retain
+301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host.
+Test processes use private temporary directories. Marcus was stopped before
+rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Actual
+native raw-heap OOM/reentrant-liberator observations, 32-bit diagnostic stack
+captures, corrupted native headers/incorrect claimed old sizes, signed counter
+overflow, arbitrary native callback/override behavior and other platforms remain
+unverified. The C fake heap covers the retry/failure/provider contract without
+claiming a native raw-heap failure campaign. Native heap alignment/size headers,
+BASE object allocation/deletion, debug block-list ownership/mark scans and final
+C-only host/facade integration remain conversion work.
+
+Evidence: `tmp/c89-memory-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-memory-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-memory-standalone-tests.log`, `tmp/c89-memory-asan.log`,
+`tmp/c89-error-stack-asan.log`, `tmp/c89-memory-regular-tests.log`,
+`tmp/c89-memory-trace-comparison.json` and `tmp/c89-memory-identities.json`.

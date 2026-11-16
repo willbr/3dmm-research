@@ -11,11 +11,13 @@
 
     The APIs in this module implement fixed block (non-moveable,
     non-resizeable) memory management. Raw storage uses the portable
-    core_platform allocator; the legacy debug headers, failure injection
-    and memory-liberation callback remain at this layer.
+    core_platform allocator. Fixed allocation/resize/free transactions,
+    failure injection, counters and liberation control use mm/memory.h;
+    native debug headers, lists and physical heap services remain here.
 ***************************************************************************/
 #include "win_headers.h"
 #include "util.h"
+#include <cstring>
 ASSERTNAME
 
 #ifdef DEBUG
@@ -49,146 +51,46 @@ priv void _AssertMbh(MBH *pmbh);
 #endif // DEBUG
 
 PFNLIB vpfnlib = pvNil;
-bool _fInLiberator = fFalse;
-
+namespace {
+MMFixedMemory fixedMemory = {0};
+struct NativeMemoryRequest { PSZS file; LegacyLong line; };
 #ifdef DEBUG
-/***************************************************************************
-    Do simulated failure testing.
-***************************************************************************/
-bool DebugMemoryAllocatorGlobals::FFail(void)
+const MMMemoryLayout memoryLayout = {sizeof(MBH), sizeof(MBF), kcbMax, 1, kbGarbage};
+#else
+const MMMemoryLayout memoryLayout = {0, 0, kcbMax, 0, kbGarbage};
+#endif
+void *RawAllocate(void *, size_t bytes) { return KauaiPlatform::Allocate(bytes); }
+void *RawResize(void *, void *old, size_t bytes) { return KauaiPlatform::Reallocate(old, bytes); }
+void RawFree(void *, void *raw) { KauaiPlatform::Free(raw); }
+void MemoryEnter(void *) { vmutxMem.Enter(); }
+void MemoryLeave(void *) { vmutxMem.Leave(); }
+int HasLiberator(void *) { return vpfnlib != pvNil; }
+MMI32 Liberate(void *, MMI32 bytes, MMI32 priority) { return (*vpfnlib)(bytes, priority); }
+void TooLarge(void *, MMU32 requested, int resizing)
 {
-    bool fRet = fFalse;
-
-    vmutxMem.Enter();
-    if (cactFail > 0)
-    {
-        if (cactDo <= 0)
-        {
-            cactFail--;
-            fRet = fTrue;
-        }
-        else
-            cactDo--;
-    }
-    vmutxMem.Leave();
-
-    return fRet;
+    LegacyLong bytes = static_cast<LegacyLong>(requested);
+    if (resizing) { BugVar("who's resizing a humongous block?", &bytes); }
+    else { BugVar("who's allocating a humongous block?", &bytes); }
 }
-
-/***************************************************************************
-    Update values after an allocation
-***************************************************************************/
-void DebugMemoryAllocatorGlobals::Allocate(LegacyLong cbT)
-{
-    vmutxMem.Enter();
-    if (cvRun < ++cv)
-        cvRun = cv;
-    cvTot++;
-    if (cbRun < (cb += cbT))
-        cbRun = cb;
-    vmutxMem.Leave();
-}
-
-/***************************************************************************
-    Update values after a resize
-***************************************************************************/
-void DebugMemoryAllocatorGlobals::Resize(LegacyLong dcb)
-{
-    vmutxMem.Enter();
-    if (cbRun < (cb += dcb))
-        cbRun = cb;
-    vmutxMem.Leave();
-}
-
-/***************************************************************************
-    Update values after a block is freed
-***************************************************************************/
-void DebugMemoryAllocatorGlobals::Free(LegacyLong cbT)
-{
-    --cv;
-    cb -= cbT;
-}
-#endif // DEBUG
-
-/***************************************************************************
-    Allocates a fixed block.
-***************************************************************************/
+void MemoryFailed(void *, int) { PushErc(ercOomPv); }
 #ifdef DEBUG
-bool FAllocPvDebug(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr, PSZS pszsFile, LegacyLong lwLine, DebugMemoryAllocatorGlobals *pdmagl)
-#else  //! DEBUG
-bool FAllocPv(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr)
-#endif //! DEBUG
+void BeforeAllocate(void *, MMU32 payload)
 {
-    AssertVarMem(ppv);
-    AssertIn(cb, 0, kcbMax);
-    LegacyLong cbFree;
-
-    if (cb > kcbMax)
-    {
-        BugVar("who's allocating a humongous block?", &cb);
-        goto LFail;
-    }
-
-#ifdef DEBUG
-    // do simulated failure
-    if (pdmagl->FFail())
-        goto LFail;
-
-    vmutxMem.Enter();
-    if (pvNil != _pmbhFirst)
-        _AssertMbh(_pmbhFirst);
-    vmutxMem.Leave();
-
-    Assert(cb + size(MBH) + size(MBF) > cb, 0);
-    cb += size(MBH) + size(MBF);
-#endif // DEBUG
-
-    for (;;)
-    {
-        *ppv = KauaiPlatform::Allocate(cb);
-        if (pvNil != *ppv || pvNil == vpfnlib)
-            break;
-
-        vmutxMem.Enter();
-        if (_fInLiberator)
-            cbFree = 0;
-        else
-        {
-            _fInLiberator = fTrue;
-            vmutxMem.Leave();
-            cbFree = (*vpfnlib)(cb, mpr);
-            vmutxMem.Enter();
-            _fInLiberator = fFalse;
-        }
-        vmutxMem.Leave();
-
-        if (cbFree <= 0)
-            break;
-    }
-
-    if (pvNil == *ppv)
-    {
-    LFail:
-        *ppv = pvNil;
-        PushErc(ercOomPv);
-        return fFalse;
-    }
-
-    if (grfmem & fmemClear)
-        ClearPb(*ppv, cb);
-#ifdef DEBUG
-    else
-        FillPb(*ppv, cb, kbGarbage);
-
-    // fill in the header
-    MBH *pmbh = (MBH *)*ppv;
-    *ppv = pmbh + 1;
-    pmbh->cb = cb;
-    pmbh->swMagic = kswMagicMem;
-    pmbh->pszsFile = pszsFile;
-    pmbh->lwLine = lwLine;
+    if (_pmbhFirst != pvNil) _AssertMbh(_pmbhFirst);
+    Assert(payload + size(MBH) + size(MBF) > payload, 0);
+}
+void WriteFooter(MBH *pmbh, MMU32 total)
+{
+    MBF footer; footer.swMagic = kswMagicMem;
+    CopyPb(&footer, PvAddBv(pmbh, total - size(MBF)), size(MBF));
+}
+void Allocated(void *context, void *raw, MMU32 total)
+{
+    auto *request = static_cast<NativeMemoryRequest *>(context);
+    auto *pmbh = static_cast<MBH *>(raw);
+    pmbh->cb = total; pmbh->swMagic = kswMagicMem;
+    pmbh->pszsFile = request->file; pmbh->lwLine = request->line;
     pmbh->lwThread = LwThreadCur();
-
 #ifdef WIN
 #ifdef IN_80386
     // follow the EBP chain to capture a debug-mode allocation stack trace.
@@ -215,171 +117,109 @@ bool FAllocPv(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr)
         pmbh->rglwStack[ilw] = 0;
 #endif // IN_80386
 #endif // WIN
-
-    // write the footer
-    MBF mbf;
-    mbf.swMagic = kswMagicMem;
-    CopyPb(&mbf, PvAddBv(pmbh, cb - size(MBF)), size(MBF));
-
-    // link the block
+    WriteFooter(pmbh, total);
     _LinkMbh(pmbh);
-
-    // update statistics
-    pdmagl->Allocate(cb - size(MBF) - size(MBH));
-
-    AssertPvAlloced(*ppv, cb - size(MBF) - size(MBH));
-#endif // DEBUG
-
-    return fTrue;
 }
-
-/***************************************************************************
-    Resizes the given block.  *ppv may change.  If fmemClear, clears any
-    newly added space.
-***************************************************************************/
+void InspectResize(void *, void *raw) { _AssertMbh(static_cast<MBH *>(raw)); }
+void BeforeResize(void *, void *raw, MMU32 oldTotal, MMU32 newTotal)
+{
+    Assert(oldTotal >= size(MBH) + size(MBF) && newTotal >= size(MBH) + size(MBF), 0);
+    LegacyLong expected = oldTotal;
+    AssertVar(static_cast<MBH *>(raw)->cb == expected, "bad cbOld value passed to _FResizePpv", &expected);
+}
+void Relocated(void *, void *raw, const unsigned char *oldAddress)
+{
+    void *oldRaw;
+    std::memcpy(&oldRaw, oldAddress, sizeof(oldRaw));
+    if (raw == oldRaw) return;
+    auto *pmbh = static_cast<MBH *>(raw);
+    _UnlinkMbh(pmbh, static_cast<MBH *>(oldRaw));
+    _LinkMbh(pmbh);
+}
+void Resized(void *, void *raw, MMU32 total)
+{
+    auto *pmbh = static_cast<MBH *>(raw);
+    pmbh->cb = total; WriteFooter(pmbh, total);
+}
+void BeforeFree(void *, void *raw)
+{
+    auto *pmbh = static_cast<MBH *>(raw);
+    _AssertMbh(pmbh); _UnlinkMbh(pmbh, pmbh);
+}
+MMU32 BlockSize(void *, void *raw) { return static_cast<MBH *>(raw)->cb; }
+void Validate(void *, void *payload, MMU32 bytes) { AssertPvAlloced(payload, bytes); }
+#endif
+MMMemoryHost MemoryHost(NativeMemoryRequest *request)
+{
+    MMMemoryHost host = {};
+    host.context = request; host.allocate = RawAllocate; host.reallocate = RawResize; host.release = RawFree;
+    host.enter = MemoryEnter; host.leave = MemoryLeave; host.has_liberator = HasLiberator; host.liberate = Liberate;
+    host.too_large = TooLarge; host.failed = MemoryFailed;
+#ifdef DEBUG
+    host.before_allocate = BeforeAllocate; host.allocated = Allocated; host.inspect_resize = InspectResize;
+    host.before_resize = BeforeResize; host.relocated = Relocated; host.resized = Resized;
+    host.before_free = BeforeFree; host.block_size = BlockSize; host.validate = Validate;
+#endif
+    return host;
+}
+}
+#ifdef DEBUG
+bool DebugMemoryAllocatorGlobals::FFail(void)
+{
+    vmutxMem.Enter(); const bool failed = mm_memory_stats_fail(this) != 0; vmutxMem.Leave();
+    return failed;
+}
+void DebugMemoryAllocatorGlobals::Allocate(LegacyLong bytes)
+{
+    static_assert(sizeof(DebugMemoryAllocatorGlobals) == 7 * sizeof(LegacyLong), "native allocator statistics size");
+    vmutxMem.Enter(); mm_memory_stats_allocate(this, bytes); vmutxMem.Leave();
+}
+void DebugMemoryAllocatorGlobals::Resize(LegacyLong delta)
+{ vmutxMem.Enter(); mm_memory_stats_resize(this, delta); vmutxMem.Leave(); }
+void DebugMemoryAllocatorGlobals::Free(LegacyLong bytes) { mm_memory_stats_free(this, bytes); }
+#endif
+#ifdef DEBUG
+bool FAllocPvDebug(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr, PSZS pszsFile, LegacyLong lwLine, DebugMemoryAllocatorGlobals *pdmagl)
+#else
+bool FAllocPv(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr)
+#endif
+{
+    AssertVarMem(ppv); AssertIn(cb, 0, kcbMax);
+    static_assert(fmemClear == 1, "memory clear flag");
+#ifdef DEBUG
+    NativeMemoryRequest request = {pszsFile, lwLine};
+#else
+    NativeMemoryRequest request = {nullptr, 0};
+    MMMemoryStats *pdmagl = nullptr;
+#endif
+    const auto host = MemoryHost(&request);
+    return mm_fixed_allocate(&fixedMemory, &memoryLayout, &host, pdmagl, ppv, cb, grfmem, mpr) != 0;
+}
 #ifdef DEBUG
 bool _FResizePpvDebug(void **ppv, LegacyLong cbNew, LegacyLong cbOld, LegacyUlong grfmem, LegacyLong mpr, DebugMemoryAllocatorGlobals *pdmagl)
-#else  //! DEBUG
+#else
 bool _FResizePpv(void **ppv, LegacyLong cbNew, LegacyLong cbOld, LegacyUlong grfmem, LegacyLong mpr)
-#endif //! DEBUG
+#endif
 {
-    AssertVarMem(ppv);
-    AssertIn(cbNew, 0, kcbMax);
-    AssertIn(cbOld, 0, kcbMax);
-    AssertPvAlloced(*ppv, cbOld);
-    const LegacyLong cbOldPayload = cbOld; // Preserve caller units on every failure path.
-    LegacyLong cbFree;
-    void *pvNew, *pvOld;
-
-#ifdef DEBUG
-    MBH *pmbh = (MBH *)PvSubBv(*ppv, size(MBH));
-    _AssertMbh(pmbh);
-#endif // DEBUG
-
-    if (cbNew > kcbMax)
-    {
-        BugVar("who's resizing a humongous block?", &cbNew);
-        goto LFail;
-    }
-
-    pvOld = *ppv;
-#ifdef DEBUG
-    // do simulated failure - we can only fail if the block is growing
-    if (cbNew > cbOld && pdmagl->FFail())
-        goto LFail;
-
-    // assert we don't overflow (the limit of kcbMax should ensure this)
-    Assert(cbOld + size(MBH) + size(MBF) > cbOld, 0);
-    Assert(cbNew + size(MBH) + size(MBF) > cbNew, 0);
-    cbOld += size(MBH) + size(MBF);
-    cbNew += size(MBH) + size(MBF);
-    AssertVar(pmbh->cb == cbOld, "bad cbOld value passed to _FResizePpv", &cbOld);
-
-    // Do not trash truncated bytes before realloc: a failed shrink must leave
-    // the original payload and footer intact, just like a failed growth.
-    pvOld = pmbh;
-#endif // DEBUG
-
-    for (;;)
-    {
-        pvNew = KauaiPlatform::Reallocate(pvOld, cbNew);
-
-        if (pvNil != pvNew || pvNil == vpfnlib)
-            break;
-
-        vmutxMem.Enter();
-        if (_fInLiberator)
-            cbFree = 0;
-        else
-        {
-            _fInLiberator = fTrue;
-            vmutxMem.Leave();
-            cbFree = (*vpfnlib)(cbNew - cbOld, mpr);
-            vmutxMem.Enter();
-            _fInLiberator = fFalse;
-        }
-        vmutxMem.Leave();
-
-        if (cbFree <= 0)
-            break;
-    }
-
-    if (pvNil == pvNew)
-    {
-    LFail:
-        AssertPvAlloced(*ppv, cbOldPayload);
-        PushErc(ercOomPv);
-
-        return fFalse;
-    }
-    *ppv = pvNew;
-
-    if ((grfmem & fmemClear) && cbOld < cbNew)
-    {
-        // Clear the new stuff
-        ClearPb(PvAddBv(pvNew, cbOld), cbNew - cbOld);
-    }
-
-#ifdef DEBUG
-    if ((grfmem & fmemClear) && cbOld < cbNew)
-        ClearPb(PvAddBv(pvNew, cbOld - size(MBF)), size(MBF));
-    else if (cbOld < cbNew)
-    {
-        // fill the new stuff with garbage
-        FillPb(PvAddBv(pvNew, cbOld - size(MBF)), cbNew - cbOld + size(MBF), kbGarbage);
-    }
-
-    // update the header
-    if (pvNew != pmbh)
-    {
-        _UnlinkMbh((MBH *)pvNew, pmbh);
-        pmbh = (MBH *)pvNew;
-        _LinkMbh(pmbh);
-    }
-    *ppv = pmbh + 1;
-    pmbh->cb = cbNew;
-
-    // write the footer
-    MBF mbf;
-    mbf.swMagic = kswMagicMem;
-    CopyPb(&mbf, PvAddBv(pmbh, cbNew - size(MBF)), size(MBF));
-    AssertPvAlloced(*ppv, cbNew - size(MBF) - size(MBH));
-
-    // update statistics
-    pdmagl->Resize(cbNew - cbOld);
-#endif // DEBUG
-
-    return fTrue;
+    AssertVarMem(ppv); AssertIn(cbNew, 0, kcbMax); AssertIn(cbOld, 0, kcbMax); AssertPvAlloced(*ppv, cbOld);
+#ifndef DEBUG
+    MMMemoryStats *pdmagl = nullptr;
+#endif
+    NativeMemoryRequest request = {nullptr, 0}; const auto host = MemoryHost(&request);
+    return mm_fixed_resize(&fixedMemory, &memoryLayout, &host, pdmagl, ppv, cbNew, cbOld, grfmem, mpr) != 0;
 }
-
-/***************************************************************************
-    If *ppv is not nil, frees it and sets *ppv to nil.
-***************************************************************************/
 #ifdef DEBUG
 void FreePpvDebug(void **ppv, DebugMemoryAllocatorGlobals *pdmagl)
-#else  //! DEBUG
+#else
 void FreePpv(void **ppv)
-#endif //! DEBUG
+#endif
 {
     AssertVarMem(ppv);
-    if (*ppv == pvNil)
-        return;
-
-#ifdef DEBUG
-    MBH *pmbh = (MBH *)PvSubBv(*ppv, size(MBH));
-    _AssertMbh(pmbh);
-    _UnlinkMbh(pmbh, pmbh);
-
-    // update statistics
-    pdmagl->Free(pmbh->cb - size(MBF) - size(MBH));
-
-    // fill the block with garbage before freeing it
-    FillPb(pmbh, pmbh->cb, kbGarbage);
-    *ppv = pmbh;
-#endif // DEBUG
-
-    KauaiPlatform::Free(*ppv);
-    *ppv = pvNil;
+#ifndef DEBUG
+    MMMemoryStats *pdmagl = nullptr;
+#endif
+    NativeMemoryRequest request = {nullptr, 0}; const auto host = MemoryHost(&request);
+    mm_fixed_free(&memoryLayout, &host, pdmagl, ppv);
 }
 
 #ifdef DEBUG

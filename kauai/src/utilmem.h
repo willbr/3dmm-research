@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef UTILMEM_H
 #define UTILMEM_H
+#include "mm/memory.h"
 
 // used for asserts and limiting memory
 const byte kbGarbage = 0xA3;    // new blocks are filled with this
@@ -98,17 +99,8 @@ void UnlockHq(HQ hq);
 
 // debug memory allocator globals
 // enter vmutxMem before modifying these...
-struct DebugMemoryAllocatorGlobals
+struct DebugMemoryAllocatorGlobals : public MMMemoryStats
 {
-    LegacyLong cv;    // number of allocations
-    LegacyLong cvTot; // total number of allocations over all time
-    LegacyLong cvRun; // running max of cv
-    LegacyLong cb;    // total size of allocations
-    LegacyLong cbRun; // running max of cb
-
-    LegacyLong cactDo;   // number of times to succeed before failing
-    LegacyLong cactFail; // number of times to fail
-
     bool FFail(void);
     void Allocate(LegacyLong cbT);
     void Resize(LegacyLong dcb);

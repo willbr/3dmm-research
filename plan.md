@@ -391,8 +391,13 @@ container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Common BASE
 reference storage, retain/drop and final-release decisions, plus marked-file
 release policy, now also use C89. Resource caches borrow those C counters directly;
-native allocation, virtual destruction/debug tracking and final facade removal
-remain work. Counted String copy/set/delete/append/insert, exact equality,
+fixed allocation/resize/free transactions, counters/failure injection and
+liberation retry/reentrancy control now also use C89. BASE/HQ/fixed counter fields
+live directly in shared C state. Plain/debug error-stack records and duplicate/
+overflow/flush/pop/reporting/locking control now also use C89. Native heap
+alignment/size headers, object allocation/deletion, debug block-list ownership/
+mark scans, virtual destruction and final facade removal remain work.
+Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/
 tag conversion, padding, output-limit and diagnostic/publication control now also

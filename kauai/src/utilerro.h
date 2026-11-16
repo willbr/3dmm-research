@@ -15,6 +15,7 @@
 ******************************************************************************/
 #ifndef UTILERROR_H
 #define UTILERROR_H
+#include "mm/error_stack.h"
 
 const LegacyLong kcerdMax = 20;
 
@@ -29,18 +30,14 @@ class ErrorStack : public ErrorStack_PAR
     ASSERT
 
   private:
-    struct ERD
-    {
-        LegacyLong erc;
-#ifdef DEBUG
-        PSZS pszsFile;
-        LegacyLong lwLine;
-#endif // DEBUG
-    };
-
     Mutex _mutx;
-    LegacyLong _cerd;
-    ERD _rgerd[kcerdMax];
+#ifdef DEBUG
+    MMErrorStackDebug _errors;
+#else
+    MMErrorStack _errors;
+#endif
+    MMErrorStackView _ErrorView();
+    MMErrorStackHost _ErrorHost();
 
   public:
     ErrorStack(void);

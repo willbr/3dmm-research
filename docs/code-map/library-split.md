@@ -57,6 +57,7 @@ cmake --build build/engine-c89 --target engine-event-edit-test
 cmake --build build/engine-c89 --target engine-string-value-test
 cmake --build build/engine-c89 --target engine-string-format-test
 cmake --build build/engine-c89 --target engine-string-ops-test
+cmake --build build/engine-c89 --target engine-memory-test engine-error-stack-test
 cmake --build build/engine-c89 --target engine-action-edit-test
 cmake --build build/engine-c89 --target engine-costume-edit-test
 cmake --build build/engine-c89 --target engine-route-edit-test
@@ -297,6 +298,43 @@ the actual host code page and locale and are compared within that environment.
 Native allocation/object diagnostics, raw-view/facade removal, typed ABI/OS
 providers and final C-only engine integration remain work.
 
+### Fixed memory and error stacks
+
+`mm/memory.h` owns fixed allocation/resize/free transactions, caller-visible
+pointer publication, clear/garbage fill, growth-only failure injection, counters
+and liberation retry/reentrancy control. Native allocators supply raw heap,
+mutex, diagnostic-header/list and error-reporting providers. A shared C context
+holds the liberation guard. Liberation runs unlocked; nested failures suppress
+liberation and only positive freed-byte results retry. Resize failures preserve
+pointer, data and footer. Physical relocation providers receive an opaque address
+token captured before reallocation; the C core never reads a freed pointer value.
+
+`MMMemoryStats` owns all seven counter/failure fields directly, including the
+BASE/HQ categories. Native methods retain their existing lock conventions and
+delegate arithmetic to C. Windows retains checked 32-bit `long` counter fields
+for the public native ABI. Diagnostic arithmetic is defined modulo 32 bits;
+native comparisons cover operations without signed overflow. Allocation and
+resize statistics use the memory mutex; free retains caller synchronization.
+
+`mm/error_stack.h` owns plain/debug twenty-entry records and count, adjacent
+deduplication, oldest-entry eviction, stable flush, reads/pop/clear and reporting/
+locking/output sequencing. Source strings are borrowed. Every diagnostic push
+reports before locking, including duplicates; overflow reports while still full
+and locked. Pop publishes or trashes output before unlocking. Native virtual
+dispatch, mutexes and formatted warning services remain providers. Factory views
+borrow the owning C records. Native object/counter sizes retain their original
+trace values; these are in-memory records, not stored movie structures.
+
+`engine-memory` checks relocating/failing allocators, retry deltas, unlocked
+reentrant liberation, size/injection order, failure preservation, clear/garbage
+growth, footer handling, pointer/stat publication and default libc services.
+`engine-error-stack` checks both layouts, source/line retention, warning/lock
+order, duplicate/overflow/flush/pop and underflow publication. Native
+`memory-runtime` compares original allocation/error/counter observations through
+`MM_MEMORY_RUNTIME_SNAPSHOT`. Native heap alignment/size headers, BASE object
+allocation/deletion, debug block-list ownership/mark scans and final facade
+integration remain C++ conversion work.
+
 ### Collection storage foundation
 
 `mm/collection_storage.h` owns the two buffers underneath `GroupBase`,
@@ -309,7 +347,8 @@ handles. Its adapters pass plain buffers, allocator callbacks and bounded
 The standalone C default uses the C heap. Existing hosts instead supply the
 fixed-memory allocator to retain memory-liberation callbacks, request priorities,
 debug poisoning, allocation failure injection and the `dmaglHq` diagnostic
-category. Those host diagnostics and fixed-memory services remain C++ migration
+category. Fixed-memory transactions and counters now use the C services described
+above. Native heap/debug representations and final allocator integration remain
 work; this does not mark all of Kauai's allocator converted. Debug marking now
 marks the fixed allocations directly, without an HQ prefix.
 

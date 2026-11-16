@@ -20,173 +20,102 @@ ErrorStack *vpers = &_ers;
 
 RTCLASS(ErrorStack)
 
-/***************************************************************************
-    Initialize the error code stack.
-***************************************************************************/
+namespace {
+void ErrorEnter(void *context) { static_cast<Mutex *>(context)->Enter(); }
+void ErrorLeave(void *context) { static_cast<Mutex *>(context)->Leave(); }
+void ErrorWrite(void *, void *output, MMI32 value) { *static_cast<LegacyLong *>(output) = value; }
+#ifdef DEBUG
+void ErrorReport(void *, MMI32 code, const char *file, MMI32 line)
+{
+    String text; SZS bytes;
+    text.FFormatSz(PszLit("Error %d"), static_cast<LegacyLong>(code));
+    text.GetSzs(bytes);
+    WarnProc(const_cast<char *>(file), line, bytes);
+}
+void ErrorOverflow(void *) { Warn("Warning: error code stack has filled"); }
+void ErrorUnderflow(void *, void *output) { TrashVar(static_cast<LegacyLong *>(output)); }
+#endif
+}
+MMErrorStackView ErrorStack::_ErrorView()
+{
+#ifdef DEBUG
+    return mm_error_stack_debug_view(&_errors);
+#else
+    return mm_error_stack_view(&_errors);
+#endif
+}
+MMErrorStackHost ErrorStack::_ErrorHost()
+{
+#ifdef DEBUG
+    MMErrorStackHost host = {&_mutx, ErrorEnter, ErrorLeave, ErrorReport, ErrorOverflow, ErrorWrite, ErrorUnderflow};
+#else
+    MMErrorStackHost host = {&_mutx, ErrorEnter, ErrorLeave, nullptr, nullptr, ErrorWrite, nullptr};
+#endif
+    return host;
+}
 ErrorStack::ErrorStack(void)
 {
-    _cerd = 0;
+    static_assert(kcerdMax == MM_ERROR_CAPACITY, "error stack capacity");
+    const auto view = _ErrorView();
+    mm_error_stack_init(&view);
 }
-
-/***************************************************************************
-    Push an error code onto the stack.  If overflow occurs, blt the top
-    kcerdMax - 1 entries down by one (and lose the bottom entry).
-***************************************************************************/
 #ifdef DEBUG
 void ErrorStack::Push(LegacyLong erc, PSZS pszsFile, LegacyLong lwLine)
-#else  //! DEBUG
+#else
 void ErrorStack::Push(LegacyLong erc)
-#endif //! DEBUG
+#endif
 {
     AssertThis(0);
-
+    const auto view = _ErrorView(); const auto host = _ErrorHost();
 #ifdef DEBUG
-    String stn;
-    SZS szs;
-
-    stn.FFormatSz(PszLit("Error %d"), erc);
-    stn.GetSzs(szs);
-    WarnProc(pszsFile, lwLine, szs);
-#endif // DEBUG
-
-    _mutx.Enter();
-
-    if (_cerd > 0 && erc == _rgerd[_cerd - 1].erc)
-        goto LDone;
-
-    if (_cerd == kcerdMax)
-    {
-        Warn("Warning: error code stack has filled");
-        BltPb(_rgerd + 1, _rgerd, LwMul(size(_rgerd[0]), kcerdMax - 1));
-        _cerd--;
-    }
-#ifdef DEBUG
-    _rgerd[_cerd].pszsFile = pszsFile;
-    _rgerd[_cerd].lwLine = lwLine;
-#endif // DEBUG
-    _rgerd[_cerd++].erc = erc;
-
-LDone:
-    _mutx.Leave();
-
+    mm_error_stack_push(&view, &host, erc, pszsFile, lwLine);
+#else
+    mm_error_stack_push(&view, &host, erc, nullptr, 0);
+#endif
     AssertThis(0);
 }
-
-/***************************************************************************
-    Pop the top error from the stack.  Return fFalse if underflow.
-***************************************************************************/
 bool ErrorStack::FPop(LegacyLong *perc)
 {
-    AssertThis(0);
-    AssertNilOrVarMem(perc);
-
-    _mutx.Enter();
-
-    if (_cerd == 0)
-    {
-        TrashVar(perc);
-        _mutx.Leave();
-        return fFalse;
-    }
-    --_cerd;
-    if (pvNil != perc)
-        *perc = _rgerd[_cerd].erc;
-
-    _mutx.Leave();
-    AssertThis(0);
-
-    return fTrue;
+    AssertThis(0); AssertNilOrVarMem(perc);
+    const auto view = _ErrorView(); const auto host = _ErrorHost();
+    const bool result = mm_error_stack_pop(&view, &host, perc) != 0;
+    if (result) { AssertThis(0); }
+    return result;
 }
-
-/***************************************************************************
-    Clear the error stack.
-***************************************************************************/
 void ErrorStack::Clear(void)
 {
     AssertThis(0);
-
-    _mutx.Enter();
-    _cerd = 0;
-    _mutx.Leave();
+    const auto view = _ErrorView(); const auto host = _ErrorHost();
+    mm_error_stack_clear(&view, &host);
 }
-
-/***************************************************************************
-    Return the size of the error stack.
-***************************************************************************/
 LegacyLong ErrorStack::Cerc(void)
 {
-    AssertThis(0);
-    return _cerd;
+    AssertThis(0); const auto view = _ErrorView();
+    return mm_error_stack_count(&view);
 }
-
-/***************************************************************************
-    See if the given error code is on the stack.
-***************************************************************************/
 bool ErrorStack::FIn(LegacyLong erc)
 {
     AssertThis(0);
-    LegacyLong ierd;
-
-    _mutx.Enter();
-    for (ierd = 0; ierd < _cerd; ierd++)
-    {
-        if (_rgerd[ierd].erc == erc)
-        {
-            _mutx.Leave();
-            return fTrue;
-        }
-    }
-    _mutx.Leave();
-    return fFalse;
+    const auto view = _ErrorView(); const auto host = _ErrorHost();
+    return mm_error_stack_contains(&view, &host, erc) != 0;
 }
-
-/***************************************************************************
-    Return the i'th entry.
-***************************************************************************/
 LegacyLong ErrorStack::ErcGet(LegacyLong ierc)
 {
     AssertThis(0);
-    LegacyLong erc;
-
-    _mutx.Enter();
-    if (!::FIn(ierc, 0, _cerd))
-        erc = ercNil;
-    else
-        erc = _rgerd[ierc].erc;
-    _mutx.Leave();
-
-    return erc;
+    const auto view = _ErrorView(); const auto host = _ErrorHost();
+    static_assert(static_cast<LegacyLong>(ercNil) == -1, "nil error code");
+    return mm_error_stack_get(&view, &host, ierc);
 }
-
-/***************************************************************************
-    Flush all instances of the given error code from the error stack.
-***************************************************************************/
 void ErrorStack::Flush(LegacyLong erc)
 {
     AssertThis(0);
-    LegacyLong ierdSrc, ierdDst;
-
-    _mutx.Enter();
-    for (ierdSrc = ierdDst = 0; ierdSrc < _cerd; ierdSrc++)
-    {
-        if (_rgerd[ierdSrc].erc != erc)
-        {
-            if (ierdDst < ierdSrc)
-                _rgerd[ierdDst] = _rgerd[ierdSrc];
-            ierdDst++;
-        }
-    }
-    _cerd = ierdDst;
-    _mutx.Leave();
+    const auto view = _ErrorView(); const auto host = _ErrorHost();
+    mm_error_stack_flush(&view, &host, erc);
 }
-
 #ifdef DEBUG
-/***************************************************************************
-    Assert the error stack is valid.
-***************************************************************************/
 void ErrorStack::AssertValid(LegacyUlong grf)
 {
     ErrorStack_PAR::AssertValid(0);
-    AssertIn(_cerd, 0, kcerdMax + 1);
+    AssertIn(_errors.count, 0, kcerdMax + 1);
 }
-#endif // DEBUG
+#endif
