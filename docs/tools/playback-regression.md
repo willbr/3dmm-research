@@ -10596,3 +10596,72 @@ Evidence: `tmp/c89-rich-text-layout-{native,sdl-release,sdl-debug}-{baseline,fin
 `tmp/c89-rich-text-layout-asan.log`, `tmp/c89-rich-text-layout-regular-tests.log`,
 `tmp/c89-rich-text-layout-tools-build.log`, `tmp/c89-rich-text-layout-trace-comparison.json`
 and `tmp/c89-rich-text-layout-identities.json`.
+
+### Text-box state and frame/view policy (16 November 2026)
+
+`text_box_runtime.c` now owns text-box attachment, lifetime queries, visibility,
+frame/view sequencing, core show/hide, selection, bounds/type changes, dirty
+routing and scroll/text-selection dispatch. `TextBoxData` stores `MMTextBoxState`
+directly, removing duplicate native fields and temporary metadata marshalling in
+read/write. Scene and selection fields now live in `MMTextBoxRuntime`. Archive,
+preview and fixture callers use that C metadata; Marcus uses the same visibility
+and first-frame scrolling predicates as Studio.
+
+Frame changes snapshot the old view before publishing current frame. New borders
+deactivate during playback; surviving views retain their order. Visibility is
+re-read after creation, with the old view still controlling release. Hide sets
+the exclusive end before dirty notification and checks scene selection after
+frame/view effects. Show preserves the strict `end < current` extension test,
+including no extension at equality. Scene attachment reads the new scene's frame
+twice, publishes current then first, and attaches the scene last. Bounds publish
+after dirty notification; native input rectangles are re-read at that stage.
+Lifetime rejects only `end < first`; equal bounds are a valid empty lifetime.
+The infinite-end sentinel resolves through the live scene last frame. Arithmetic
+wraps at 32 bits; provider errors stop without rollback, with partial lifetime
+output preserved. C++ exceptions are caught at native boundaries and rethrown
+after C returns.
+
+Before conversion, a native engine fixture captured 4,480 bytes on Native Debug,
+SDL Release and SDL Debug: FNV-1a `FB2BB26D`, SHA-256
+`6FBFBF0A1430A7A218EC9EE23FA9C722251E20BD7BDB02FF3266CC3C04460CB0`.
+It freezes viewless loaded metadata, invalid/empty/finite/infinite lifetime,
+selection, type, bounds, invisible frame changes, strict show behavior, hide and
+scene attachment. It creates no windows and adds no Marcus UI tests. Actual view
+creation/deactivation/release and scroll/text-selection effects are covered by C
+providers rather than this native fixture.
+
+An independent C model checks 1,728 frame/view combinations across signed frame
+boundaries, view presence, playback and constructor success/failure. Additional
+checks cover attachment publication, partial output, same-value selection, multiple
+views, strict show equality, wrapping, live dirty/create/input mutation and error
+prefixes for all migrated operations. A frame-change view release frees the C
+state under MSVC AddressSanitizer; no subsequent state access occurs and the
+check passes.
+
+All 81 original/converted text-box/layout/Help/text/preview trace pairs match
+across the three hosts. Prior hashes remain unchanged. Background checks retain
+301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host.
+All 137 standalone C checks, including strict C89 syntax, pass. Forty-four
+selected Native checks and 40 checks in each SDL configuration pass, including
+existing Native playback/player regressions. Archive API checks also pass on all
+three hosts, alongside the final affected scene/movie checks. The regular headless asset-preview
+harness passes; Native `chelp` and `ched` compile. Retained input identities remain
+unchanged; identities for 39 binaries are recorded. Test processes use private
+temporary directories. Marcus was stopped before rebuilding and relaunched
+afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Full native
+view interaction, arbitrary native callback/override observations and other
+platforms remain unverified by this slice. Text-box factory, edit/undo/clipboard
+policy, physical view implementations, Marcus paint-order storage and final
+C-only host/facade integration remain conversion work.
+
+Evidence: `tmp/c89-text-box-runtime-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-box-runtime-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-box-runtime-standalone-tests.log`,
+`tmp/c89-text-box-runtime-{native,sdl-release,sdl-debug}-affected-tests.log`,
+`tmp/c89-text-box-runtime-{layout,topic,balloon,interaction,display,text,views,lifecycle,undo-list,text-undo,copy,access,format,properties,materialize,document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-box-runtime-asan.log`, `tmp/c89-text-box-runtime-regular-tests.log`,
+`tmp/c89-text-box-runtime-tools-build.log`, `tmp/c89-text-box-runtime-trace-comparison.json`
+and `tmp/c89-text-box-runtime-identities.json`.

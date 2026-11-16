@@ -409,13 +409,13 @@ ChunkNumber Caption(PChunkyFile file, bool scrolling, bool edge = false, int lay
     ChunkIdentification rich;
     CHECK(text.FWrite(file, &rich));
     TextBoxData box;
-    box.bounds.Set(20, 20, 460, scrolling ? 55 : 110);
+    box.SetBounds(20, 20, 460, scrolling ? 55 : 110);
     if (edge)
-        box.bounds.Set(500, 230, 544, 306);
-    box.firstFrame = scrolling ? 0 : -2;
-    box.maxFrame = scrolling ? 5 : -1;
-    if (layer >= 0) { box.firstFrame = layer; box.maxFrame = 4; }
-    box.story = !scrolling;
+        box.SetBounds(500, 230, 544, 306);
+    box.state.first = scrolling ? 0 : -2;
+    box.state.end = scrolling ? 5 : -1;
+    if (layer >= 0) { box.state.first = layer; box.state.end = 4; }
+    box.state.story = !scrolling;
     ChunkNumber number;
     CHECK(file->FAdd(0, kctgTbox, &number) && box.FWrite(file, number));
     CHECK(file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 0));

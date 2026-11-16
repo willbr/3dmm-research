@@ -455,11 +455,11 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
             valid = text.FRead(_impl->file, id.number, &rich);
             if (valid)
             {
-                result.caption.firstFrame = text.firstFrame;
-                result.caption.maxFrame = text.maxFrame;
-                result.caption.story = text.story;
-                result.caption.bounds = {text.bounds.xpLeft, text.bounds.ypTop, text.bounds.xpRight,
-                                         text.bounds.ypBottom};
+                result.caption.firstFrame = text.state.first;
+                result.caption.maxFrame = text.state.end;
+                result.caption.story = text.state.story;
+                result.caption.bounds = {text.state.left, text.state.top, text.state.right,
+                                         text.state.bottom};
                 result.caption.text = {rich.ctg, rich.cno};
             }
         }

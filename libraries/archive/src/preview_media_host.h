@@ -46,13 +46,13 @@ struct CaptionHost
                 auto &i = *static_cast<Input *>(p);
                 if (!i.box.FRead(h.file, number, &i.child))
                     return false;
-                out->first = i.box.firstFrame;
-                out->end = i.box.maxFrame;
-                out->left = i.box.bounds.xpLeft;
-                out->top = i.box.bounds.ypTop;
-                out->right = i.box.bounds.xpRight;
-                out->bottom = i.box.bounds.ypBottom;
-                out->story = i.box.story;
+                out->first = i.box.state.first;
+                out->end = i.box.state.end;
+                out->left = i.box.state.left;
+                out->top = i.box.state.top;
+                out->right = i.box.state.right;
+                out->bottom = i.box.state.bottom;
+                out->story = i.box.state.story;
                 return true;
             });
         };

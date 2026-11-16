@@ -120,10 +120,10 @@ static bool BatchCredits(PChunkyFile file, ChunkNumber *number, bool story = fal
         return false;
     ChunkIdentification rich;
     TextBoxData box;
-    box.firstFrame = regression ? 3 : -2;
-    box.maxFrame = regression && story ? 25 : 31;
-    box.story = story;
-    box.bounds.Set(40, 24, 220, story ? 160 : 72);
+    box.state.first = regression ? 3 : -2;
+    box.state.end = regression && story ? 25 : 31;
+    box.state.story = story;
+    box.SetBounds(40, 24, 220, story ? 160 : 72);
     return text.FWrite(file, &rich) && file->FAdd(0, kctgTbox, number) && box.FWrite(file, *number) &&
            file->FAdoptChild(kctgTbox, *number, rich.ctg, rich.cno, 0);
 }

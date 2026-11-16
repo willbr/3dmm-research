@@ -5,6 +5,7 @@
 #include "kauai_core.h"
 #include "rich_text_data.h"
 #include <cstdint>
+#include "mm/text_box_runtime.h"
 
 #define kbomTboxh 0x5FFFC000
 
@@ -29,17 +30,17 @@ static_assert(sizeof(TextBoxOnFile) == 36, "TextBoxOnFile on-disk layout drift")
 
 struct TextBoxData
 {
-    LegacyLong firstFrame = 0;
-    LegacyLong maxFrame = 0; // exclusive; klwMax means through the scene's end
-    LegacyLong currentFrame = 0;
-    bool story = false;
-    RC bounds = RC(0, 0, 0, 0);
-    ChildChunkID textChild = 0;
+    MMTextBoxState state = {};
+    RC Bounds() const { return RC(state.left, state.top, state.right, state.bottom); }
+    void SetBounds(LegacyLong left, LegacyLong top, LegacyLong right, LegacyLong bottom)
+    { state.left = left; state.top = top; state.right = right; state.bottom = bottom; }
+    void SetBounds(const RC &bounds)
+    { SetBounds(bounds.xpLeft, bounds.ypTop, bounds.xpRight, bounds.ypBottom); }
     bool FRead(PChunkyFile file, ChunkNumber number, ChunkIdentification *richText = pvNil);
     bool FWrite(PChunkyFile file, ChunkNumber number);
     bool FVisibleAt(LegacyLong frame) const
     {
-        return frame >= firstFrame && frame < maxFrame;
+        return mm_text_box_visible_range(state.first, state.end, frame) != 0;
     }
 };
 #endif

@@ -2323,6 +2323,39 @@ check control flags, boundaries, objects, overflow/spacing and failures; evidenc
 and coverage limits are in `docs/tools/playback-regression.md`. Typed property,
 font, graphics and drawing providers and final C-only host integration remain work.
 
+### Text-box state and frame/view policy
+
+`text_box_runtime.c` owns frame/view sequencing, scene attachment, lifetime
+queries, visibility, core show/hide, selection, bounds/type changes, dirty routing
+and scroll/text-selection dispatch. Stored bounds, lifetime, type and child ID
+now live directly in `MMTextBoxState`; the native `TextBoxData` adapter no longer
+duplicates them or marshals a temporary metadata record for persistence. Borrowed
+scene and selection fields live in `MMTextBoxRuntime`. Native rectangles are
+constructed only at typed boundaries. Marcus caption visibility and first-frame
+scrolling use the same C predicates as Studio text boxes.
+
+Frame changes snapshot the old view before publishing current frame. Existing
+views retain their order; only a newly created border is deactivated during
+playback. Visibility is re-read after creation. Hide publishes the exclusive end
+before dirty notification and queries scene selection after frame/view effects.
+Show retains the original strict `end < current` extension test, including its
+no-extension result at equality. Scene attachment reads the new scene's frame
+twice, publishing current then first, and attaches the scene last. Bounds publish
+after dirty notification with a late read of the caller's native rectangle.
+Lifetime queries reject only `end < first`; equal bounds form a valid empty
+lifetime. The infinite-end sentinel resolves through the scene's current last
+frame. Arithmetic wraps explicitly at 32 bits.
+
+`text_box_runtime_host.h` supplies native scene/document/view primitives and catches
+exceptions before returning to C. Partial state remains on failure; first lifetime
+output survives a failed last-frame query. The native headless fixture freezes
+viewless loaded metadata, lifetime, type, selection, bounds and frame behavior.
+C providers cover view creation/reuse/release, order, callback mutation and failure
+prefixes, including freeing state during frame-change release under AddressSanitizer. Factory,
+edit/undo/clipboard policy, physical view implementation and Marcus paint-order
+storage remain conversion work. Evidence and limits are in
+`docs/tools/playback-regression.md`.
+
 ### Movie scene-container control and undo
 
 `movie_scene.c` owns the current scene reference/index and the control flow for

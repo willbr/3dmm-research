@@ -55,6 +55,12 @@ target_sources(mm-engine-c89 PRIVATE src/help_display.c)
 target_sources(mm-engine-c89 PRIVATE src/help_interaction.c)
 target_sources(mm-engine-c89 PRIVATE src/help_balloon.c)
 target_sources(mm-engine-c89 PRIVATE src/help_topic.c)
+target_sources(mm-engine-c89 PRIVATE src/text_box_runtime.c)
+get_filename_component(engine_text_box_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_box_runtime_test.c" ABSOLUTE)
+add_executable(engine-text-box-runtime-test EXCLUDE_FROM_ALL "${engine_text_box_runtime_test_source}")
+target_link_libraries(engine-text-box-runtime-test PRIVATE mm-engine-c89)
+set_target_properties(engine-text-box-runtime-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-text-box-runtime COMMAND engine-text-box-runtime-test)
 target_sources(mm-engine-c89 PRIVATE src/rich_text_layout.c)
 get_filename_component(engine_rich_text_layout_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_rich_text_layout_test.c" ABSOLUTE)
 add_executable(engine-rich-text-layout-test EXCLUDE_FROM_ALL "${engine_rich_text_layout_test_source}")
@@ -855,6 +861,7 @@ if(ENGINE_C89_COMPILER)
     "${engine_help_interaction_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/help_balloon.c"
     "${engine_help_balloon_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/text_box_runtime.c" "${engine_text_box_runtime_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rich_text_layout.c" "${engine_rich_text_layout_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/help_topic.c"
     "${engine_help_topic_test_source}"

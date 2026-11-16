@@ -67,11 +67,6 @@ struct Host
         return s;
     }
 };
-MMTextBoxState State(const TextBoxData &v)
-{
-    return {v.firstFrame,     v.maxFrame,        v.currentFrame, v.bounds.xpLeft, v.bounds.ypTop,
-            v.bounds.xpRight, v.bounds.ypBottom, v.textChild,    v.story};
-}
 bool NativeBig()
 {
     const unsigned short one = 1;
@@ -82,17 +77,10 @@ bool TextBoxData::FRead(PChunkyFile file, ChunkNumber number, ChunkIdentificatio
 {
     Host host = {file};
     auto services = host.Services();
-    auto state = State(*this);
     MMTextChunk child;
     int result = mm_text_box_read(&state, number, richText ? &child : nullptr, &services);
     if (result > 0)
     {
-        firstFrame = state.first;
-        maxFrame = state.end;
-        currentFrame = state.current;
-        story = state.story != 0;
-        bounds.Set(state.left, state.top, state.right, state.bottom);
-        textChild = state.child;
         if (richText)
             *richText = {child.type, child.number};
     }
@@ -103,7 +91,6 @@ bool TextBoxData::FWrite(PChunkyFile file, ChunkNumber number)
 {
     Host host = {file};
     auto services = host.Services();
-    auto state = State(*this);
     int result = mm_text_box_write(&state, number, koskCur, NativeBig(), &services);
     host.Rethrow();
     return result > 0;

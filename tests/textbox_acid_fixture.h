@@ -58,10 +58,10 @@ bool WriteBox(PChunkyFile file, const Box &spec, ChunkNumber *number)
             return false;
     ChunkIdentification rich;
     TextBoxData box;
-    box.firstFrame = spec.first;
-    box.maxFrame = spec.end;
-    box.story = !spec.scrolling;
-    box.bounds.Set(spec.left, spec.top, spec.right, spec.bottom);
+    box.state.first = spec.first;
+    box.state.end = spec.end;
+    box.state.story = !spec.scrolling;
+    box.SetBounds(spec.left, spec.top, spec.right, spec.bottom);
     return text.FWrite(file, &rich) && file->FAdd(0, kctgTbox, number) && box.FWrite(file, *number) &&
            file->FAdoptChild(kctgTbox, *number, rich.ctg, rich.cno, 0);
 }

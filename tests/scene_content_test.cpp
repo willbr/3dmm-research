@@ -457,10 +457,10 @@ static PTBOX Caption(PScene scene, PChunkyResourceFile resources)
     ChunkNumber n;
     CHECK(file->FAdd(0, kctgTbox, &n));
     TextBoxData data;
-    data.firstFrame = 20;
-    data.maxFrame = 30;
-    data.story = true;
-    data.bounds.Set(1, 2, 100, 80);
+    data.state.first = 20;
+    data.state.end = 30;
+    data.state.story = true;
+    data.SetBounds(1, 2, 100, 80);
     CHECK(data.FWrite(file, n) && file->FAdoptChild(kctgTbox, n, rich.ctg, rich.cno, 0));
     return TextBox::PtboxRead(resources, n, scene);
 }

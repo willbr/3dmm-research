@@ -320,11 +320,11 @@ static void BoxCases(Trace &trace)
         ChunkNumber number;
         Check(file->FAdd(0, kctgTbox, &number));
         TextBoxData s;
-        s.firstFrame = -2;
-        s.maxFrame = 18;
-        s.story = true;
-        s.textChild = 7;
-        s.bounds.Set(10, 20, 150, 75);
+        s.state.first = -2;
+        s.state.end = 18;
+        s.state.story = true;
+        s.state.child = 7;
+        s.SetBounds(10, 20, 150, 75);
         Check(file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 7) && s.FWrite(file, number));
         DataBlock block;
         Check(file->FFind(kctgTbox, number, &block));
@@ -363,21 +363,21 @@ static void BoxCases(Trace &trace)
             Check(file->FPutPv(extended, 37, kctgTbox, number));
         }
         TextBoxData out;
-        out.firstFrame = 99;
+        out.state.first = 99;
         ChunkIdentification child = {22, 33};
         bool ok = out.FRead(file, number, kind == 6 ? nullptr : &child);
         bool expected = kind == 0 || kind == 1 || (kind >= 6 && kind <= 9);
         Check(ok == expected);
         const unsigned v[] = {ok,
-                              unsigned(out.firstFrame),
-                              unsigned(out.maxFrame),
-                              unsigned(out.currentFrame),
-                              out.story,
-                              unsigned(out.bounds.xpLeft),
-                              unsigned(out.bounds.ypTop),
-                              unsigned(out.bounds.xpRight),
-                              unsigned(out.bounds.ypBottom),
-                              out.textChild,
+                              unsigned(out.state.first),
+                              unsigned(out.state.end),
+                              unsigned(out.state.current),
+                              unsigned(out.state.story),
+                              unsigned(out.state.left),
+                              unsigned(out.state.top),
+                              unsigned(out.state.right),
+                              unsigned(out.state.bottom),
+                              out.state.child,
                               child.ctg,
                               child.cno};
         trace.Raw(v, sizeof(v));

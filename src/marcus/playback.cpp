@@ -6,6 +6,7 @@
 #include "font_host.h"
 #include "font_catalog.h"
 #include "rich_text_layout.h"
+#include "mm/text_box_runtime.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <array>
@@ -462,7 +463,7 @@ struct MarcusPlayback::Impl
         // box becomes visible. Surviving boxes keep their order across seeks.
         for (auto &caption : captions)
         {
-            const bool visible = frame >= caption.data.firstFrame && frame < caption.data.endFrame;
+            const bool visible = mm_text_box_visible_range(caption.data.firstFrame, caption.data.endFrame, frame) != 0;
             if (visible && !caption.visible) caption.paintOrder = ++nextPaintOrder;
             caption.visible = visible;
         }
@@ -1059,7 +1060,7 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
     const bool wasScrolling = impl->scrolling;
     bool needsScroll = false;
     for (auto &caption : impl->captions)
-        if (!caption.data.story && frame == caption.data.firstFrame)
+        if (mm_text_box_scroll_frame(caption.data.story, caption.data.firstFrame, frame))
         {
             if (!impl->Layout(caption, error))
                 return false;
@@ -1069,7 +1070,7 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
     const auto scrollUpdate = impl->scrollPlayback.Update(elapsed, needsScroll);
     if (scrollUpdate.step)
         for (auto &caption : impl->captions)
-            if (!caption.data.story && frame == caption.data.firstFrame)
+            if (mm_text_box_scroll_frame(caption.data.story, caption.data.firstFrame, frame))
             {
                 const auto overflow = std::max(0, caption.height - (caption.data.bottom - caption.data.top - 10));
                 if (caption.scroll < overflow)
@@ -1152,7 +1153,7 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
     const auto frame = preview.Info().currentFrame;
     impl->ObserveCaptions(frame);
     if (!authored && !std::any_of(impl->captions.begin(), impl->captions.end(), [&](const CaptionImage &caption) {
-            return frame >= caption.data.firstFrame && frame < caption.data.endFrame;
+            return mm_text_box_visible_range(caption.data.firstFrame, caption.data.endFrame, frame) != 0;
         }))
         return true;
     if (authored || image.sceneCamera.valid)
@@ -1202,7 +1203,7 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
         {
             auto &caption = *item;
             const auto &data = caption.data;
-            if (frame < data.firstFrame || frame >= data.endFrame)
+            if (!mm_text_box_visible_range(data.firstFrame, data.endFrame, frame))
                 continue;
             if (data.right <= 0 || data.left >= PreviewCaptionWidth || data.bottom <= 0 ||
                 data.top >= PreviewCaptionHeight)

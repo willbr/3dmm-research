@@ -17,6 +17,7 @@
 #include "soc.h"
 ASSERTNAME
 #include "text_box_store_host.h"
+#include "text_box_runtime_host.h"
 
 RTCLASS(TextBox)
 RTCLASS(TextBoxGobject)
@@ -1814,12 +1815,12 @@ PTBOX TextBox::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
 
     if (prcRel != pvNil)
     {
-        ptbox->_data.bounds = *prcRel;
+        ptbox->_data.SetBounds(*prcRel);
         ptbox->_dxpDef = prcRel->xpRight - prcRel->xpLeft - 2 * kdzpBorderTbox;
     }
 
-    ptbox->_pscen = pscen;
-    ptbox->_data.story = fStory;
+    ptbox->_runtime.scene = pscen;
+    ptbox->_data.state.story = fStory;
     ptbox->SetAcrBack(kacrClear, fdocNil);
     Assert(pscen == pvNil || pscen->Pmvie()->CundbMax() == 1, "TextBoxUndoEdit assumes there is one level of undo!");
     ptbox->SetCundbMax(1);
@@ -1841,11 +1842,9 @@ PTBOX TextBox::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
 void TextBox::SetDirty(bool fDirty)
 {
     AssertThis(0);
-
-    if (_pscen != pvNil)
-    {
-        _pscen->MarkDirty(fDirty);
-    }
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    host.Check(mm_text_box_dirty(&_runtime, fDirty, &services));
 }
 
 /****************************************************
@@ -1893,7 +1892,7 @@ PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen
         return (pvNil);
     }
 
-    ptbox->_pscen = pscen;
+    ptbox->_runtime.scene = pscen;
     ptbox->_data = metadata;
     AssertPo(ptbox, 0);
 
@@ -1937,13 +1936,10 @@ bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
  ****************************************************/
 void TextBox::SetScen(PScene pscen)
 {
-    AssertThis(0);
-    AssertPo(pscen, 0);
-
-    _data.currentFrame = pscen->Nfrm();
-    _data.firstFrame = pscen->Nfrm();
-    _data.maxFrame = klwMax;
-    _pscen = pscen;
+    AssertThis(0); AssertPo(pscen, 0);
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    host.Check(mm_text_box_attach(&_data.state, &_runtime, pscen, &services));
 }
 
 /****************************************************
@@ -1961,19 +1957,9 @@ void TextBox::SetScen(PScene pscen)
 void TextBox::SetTypeCore(bool fStory)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-
-    _data.story = fStory;
-    ptbxg = (PTextBoxGobject)PddgGet(0);
-    AssertNilOrPo(ptbxg, 0);
-
-    if (ptbxg == pvNil)
-    {
-        return;
-    }
-
-    ptbxg->Ptbxb()->InvalRc(pvNil);
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    host.Check(mm_text_box_set_type(&_data.state, fStory, &services));
 }
 
 /****************************************************
@@ -1990,18 +1976,9 @@ void TextBox::SetTypeCore(bool fStory)
 void TextBox::AttachToMouse(void)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-
-    ptbxg = (PTextBoxGobject)PddgGet(0);
-    AssertNilOrPo(ptbxg, 0);
-
-    if (ptbxg == pvNil)
-    {
-        return;
-    }
-
-    ptbxg->Ptbxb()->AttachToMouse();
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    host.Check(mm_text_box_attach_mouse(&services));
 }
 
 /****************************************************
@@ -2022,7 +1999,7 @@ bool TextBox::FSetType(bool fStory)
 
     PTextBoxUndoType ptunt;
 
-    if (_data.story == fStory)
+    if ((_data.state.story != 0) == fStory)
     {
         return (fTrue);
     }
@@ -2061,18 +2038,13 @@ bool TextBox::FSetType(bool fStory)
  ****************************************************/
 void TextBox::SetRc(RC *prc)
 {
-    AssertThis(0);
-    AssertPvCb(prc, size(RC));
-
-    if (_data.bounds != *prc)
-    {
-        if (Pscen() != pvNil)
-        {
-            Pscen()->MarkDirty();
-        }
-
-        _data.bounds = *prc;
-    }
+    AssertThis(0); AssertPvCb(prc, size(RC));
+    MMTextBoxBounds bounds = {prc->xpLeft, prc->ypTop, prc->xpRight, prc->ypBottom};
+    TextBoxRuntimeHost host = {this};
+    host.nativeBounds = prc;
+    host.liveBounds = &bounds;
+    auto services = host.Services();
+    host.Check(mm_text_box_set_bounds(&_data.state, &_runtime, &bounds, &services));
 }
 
 /****************************************************
@@ -2089,7 +2061,7 @@ void TextBox::SetRc(RC *prc)
 bool TextBox::FIsVisible(void)
 {
     AssertThis(0);
-    return _data.FVisibleAt(_data.currentFrame);
+    return mm_text_box_visible(&_data.state) != 0;
 }
 
 /***************************************************************************
@@ -2106,27 +2078,14 @@ bool TextBox::FIsVisible(void)
  **************************************************************************/
 bool TextBox::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
 {
-    AssertThis(0);
-    AssertVarMem(pnfrmStart);
-    AssertVarMem(pnfrmLast);
-
-    if (_data.maxFrame < _data.firstFrame)
-    {
-        return (fFalse);
-    }
-
-    *pnfrmStart = _data.firstFrame;
-
-    if (_data.maxFrame == klwMax)
-    {
-        *pnfrmLast = Pscen()->NfrmLast();
-    }
-    else
-    {
-        *pnfrmLast = _data.maxFrame - 1;
-    }
-
-    return (fTrue);
+    AssertThis(0); AssertVarMem(pnfrmStart); AssertVarMem(pnfrmLast);
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    MMTextBoxLifetime value = {};
+    int result = mm_text_box_lifetime(&_data.state, &value, &services);
+    if (value.published & 1) *pnfrmStart = value.first;
+    if (value.published & 2) *pnfrmLast = value.last;
+    return host.Check(result) > 0;
 }
 
 /****************************************************
@@ -2144,24 +2103,9 @@ bool TextBox::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
 void TextBox::Select(bool fSel)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-
-    if (fSel == _fSel)
-    {
-        return;
-    }
-
-    _fSel = fSel;
-
-    if (Cddg() > 0)
-    {
-        Assert(Cddg() == 1, "Multiple views on text boxes not allowed");
-        ptbxg = (PTextBoxGobject)PddgGet(0);
-        AssertPo(ptbxg, 0);
-        ptbxg->Ptbxb()->Activate(fSel);
-        ptbxg->Ptbxb()->InvalRc(pvNil);
-    }
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    host.Check(mm_text_box_select(&_runtime, fSel, &services));
 }
 
 /****************************************************
@@ -2178,56 +2122,9 @@ void TextBox::Select(bool fSel)
 bool TextBox::FGotoFrame(long nfrm)
 {
     AssertThis(0);
-
-    GraphicsObjectBlock gcb;
-    PTextBoxGobject ptbxg;
-    PTextBoxBase ptbxb;
-
-    if (Cddg() == 0)
-    {
-        ptbxg = pvNil;
-    }
-    else
-    {
-        ptbxg = (PTextBoxGobject)PddgGet(0);
-    }
-    AssertNilOrPo(ptbxg, 0);
-
-    _data.currentFrame = nfrm;
-
-    if (FIsVisible())
-    {
-
-        if (ptbxg == pvNil)
-        {
-
-            //
-            // Create a GraphicsObject for this text box
-            //
-            gcb.Set(khidDdg, Pscen()->Pmvie()->PddgActive(), fgobNil, kginMark, &_data.bounds, pvNil);
-            ptbxb = TextBoxBase::PtbxbNew(this, &gcb);
-            if (ptbxb == pvNil)
-            {
-                return (fFalse);
-            }
-
-            if (Pscen()->Pmvie()->FPlaying())
-            {
-                ptbxb->Activate(fFalse);
-            }
-        }
-    }
-
-    if (!FIsVisible() && (ptbxg != pvNil))
-    {
-        //
-        // Release the GraphicsObject for the text box.
-        //
-        ptbxb = ptbxg->Ptbxb();
-        ReleasePpo(&ptbxb);
-    }
-
-    return (fTrue);
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    return host.Check(mm_text_box_goto(&_data.state, nfrm, &services)) > 0;
 }
 
 /****************************************************
@@ -2244,19 +2141,9 @@ bool TextBox::FGotoFrame(long nfrm)
 bool TextBox::FShowCore(void)
 {
     AssertThis(0);
-
-    Pscen()->MarkDirty();
-    if (_data.maxFrame < _data.currentFrame)
-    {
-        Assert(_data.currentFrame < klwMax, "Current frame too big");
-        _data.maxFrame = _data.currentFrame + 1;
-    }
-    else if (_data.currentFrame < _data.firstFrame)
-    {
-        _data.firstFrame = _data.currentFrame;
-    }
-
-    return (FGotoFrame(_data.currentFrame));
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    return host.Check(mm_text_box_show(&_data.state, &services)) > 0;
 }
 
 /****************************************************
@@ -2282,8 +2169,8 @@ bool TextBox::FShow(void)
         return (fFalse);
     }
 
-    ptunh->SetFrmLast(_data.maxFrame);
-    ptunh->SetFrmFirst(_data.firstFrame);
+    ptunh->SetFrmLast(_data.state.end);
+    ptunh->SetFrmFirst(_data.state.first);
     ptunh->SetItbox(Itbox());
 
     if (!Pscen()->Pmvie()->FAddUndo(ptunh))
@@ -2317,15 +2204,9 @@ bool TextBox::FShow(void)
 void TextBox::HideCore(void)
 {
     AssertThis(0);
-
-    _data.maxFrame = _data.currentFrame;
-    Pscen()->MarkDirty();
-    AssertDo(FGotoFrame(_data.currentFrame), "Could not goto frame");
-
-    if (Pscen()->PtboxSelected() == this)
-    {
-        Pscen()->SelectTbox(pvNil);
-    }
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    host.Check(mm_text_box_hide(&_data.state, &services));
 }
 
 /****************************************************
@@ -2345,7 +2226,7 @@ bool TextBox::FHide(void)
 
     PTextBoxUndoHide ptunh;
 
-    if (_data.currentFrame <= _data.firstFrame)
+    if (_data.state.current <= _data.state.first)
     {
         return (Pscen()->FRemTbox(this));
     }
@@ -2356,8 +2237,8 @@ bool TextBox::FHide(void)
         return (fFalse);
     }
 
-    ptunh->SetFrmLast(_data.maxFrame);
-    ptunh->SetFrmFirst(_data.firstFrame);
+    ptunh->SetFrmLast(_data.state.end);
+    ptunh->SetFrmFirst(_data.state.first);
     ptunh->SetItbox(Itbox());
 
     if (!Pscen()->Pmvie()->FAddUndo(ptunh))
@@ -2387,7 +2268,8 @@ bool TextBox::FHide(void)
 bool TextBox::FDup(PTBOX *pptbox)
 {
     AssertThis(0);
-    *pptbox = TextBox::PtboxNew(pvNil, &_data.bounds);
+    RC bounds = _data.Bounds();
+    *pptbox = TextBox::PtboxNew(pvNil, &bounds);
     AssertNilOrPo(*pptbox, 0);
 
     if (*pptbox == pvNil)
@@ -2644,16 +2526,9 @@ void TextBox::FetchChpSel(PCHP pchp, ulong *pgrfchp)
 bool TextBox::FNeedToScroll(void)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-
-    if ((_data.currentFrame == _data.firstFrame) && !_data.story)
-    {
-        ptbxg = (PTextBoxGobject)PddgGet(0);
-        AssertPo(ptbxg, 0);
-        return (ptbxg->FNeedToScroll());
-    }
-    return (fFalse);
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    return host.Check(mm_text_box_needs_scroll(&_data.state, &services)) > 0;
 }
 
 /****************************************************
@@ -2670,12 +2545,9 @@ bool TextBox::FNeedToScroll(void)
 void TextBox::Scroll(void)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-
-    ptbxg = (PTextBoxGobject)PddgGet(0);
-    AssertPo(ptbxg, 0);
-    ptbxg->Scroll(scaLineDown);
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    host.Check(mm_text_box_scroll(&services));
 }
 
 /****************************************************
@@ -2692,17 +2564,9 @@ void TextBox::Scroll(void)
 bool TextBox::FTextSelected(void)
 {
     AssertThis(0);
-
-    PTextBoxGobject ptbxg;
-
-    if (!FIsVisible())
-    {
-        return (fFalse);
-    }
-
-    ptbxg = (PTextBoxGobject)PddgGet(0);
-    AssertPo(ptbxg, 0);
-    return (ptbxg->FTextSelected());
+    TextBoxRuntimeHost host = {this};
+    auto services = host.Services();
+    return host.Check(mm_text_box_text_selected(&_data.state, &services)) > 0;
 }
 
 /****************************************************
@@ -2719,7 +2583,7 @@ bool TextBox::FTextSelected(void)
 void TextBox::SetStartFrame(long nfrm)
 {
     AssertThis(0);
-    _data.firstFrame = nfrm;
+    _data.state.first = nfrm;
 }
 
 /****************************************************

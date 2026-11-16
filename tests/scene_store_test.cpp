@@ -205,10 +205,10 @@ static ChunkNumber Fixture(PChunkyFile file, int scenario, bool swap)
         ChunkNumber child;
         CHECK(file->FAddChild(kctgScen, number, 4, 0, kctgTbox, &child));
         TextBoxData meta;
-        meta.firstFrame = 3;
-        meta.maxFrame = 19;
-        meta.story = true;
-        meta.bounds.Set(1, 2, 100, 80);
+        meta.state.first = 3;
+        meta.state.end = 19;
+        meta.state.story = true;
+        meta.SetBounds(1, 2, 100, 80);
         CHECK(meta.FWrite(file, child) && file->FAdoptChild(kctgTbox, child, rich.ctg, rich.cno, 0));
         int32_t id = 4;
         add(starts, sevtAddTbox, &id, 4);

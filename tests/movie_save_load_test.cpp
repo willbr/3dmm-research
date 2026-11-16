@@ -44,6 +44,7 @@ ASSERTNAME
 #include "help_interaction_fixture.h"
 #include "help_balloon_fixture.h"
 #include "help_topic_fixture.h"
+#include "text_box_runtime_fixture.h"
 
 /* WinMain (in kauai/src/appbwin.cpp) references FrameMain -- but we
  * never run WinMain since we provide our own main() and link as a
@@ -2334,10 +2335,10 @@ static bool TestCaptionPersistence(PScene scene)
         goto done;
     if (!content.FWrite(file, &richText) || !file->FAdd(0, kctgTbox, &number))
         goto done;
-    metadata.firstFrame = 1;
-    metadata.maxFrame = klwMax;
-    metadata.story = true;
-    metadata.bounds.Set(10, 20, 180, 100);
+    metadata.state.first = 1;
+    metadata.state.end = klwMax;
+    metadata.state.story = true;
+    metadata.SetBounds(10, 20, 180, 100);
     if (!metadata.FWrite(file, number) || !file->FAdoptChild(kctgTbox, number, richText.ctg, richText.cno, 0))
         goto done;
     resources = ChunkyResourceFile::PcrfNew(file, 0);
@@ -2353,7 +2354,7 @@ static bool TestCaptionPersistence(PScene scene)
         goto done;
     if (!saved.FRead(file, second, &child) || !exported.FRead(file, child.ctg, child.cno))
         goto done;
-    if (!saved.story || saved.firstFrame != 1 || exported.text.cb != 5)
+    if (!saved.state.story || saved.state.first != 1 || exported.text.cb != 5)
         goto done;
     if (!exported.text.FReadRgb(actual, 5, 0) || std::memcmp(actual, text, 5) != 0)
         goto done;
@@ -2388,6 +2389,8 @@ static bool TestCaptionPersistence(PScene scene)
     if (!TestHelpBalloon())
         goto done;
     if (!TestHelpTopic())
+        goto done;
+    if (!TestTextBoxRuntime(scene, file, richText))
         goto done;
     ok = true;
 done:

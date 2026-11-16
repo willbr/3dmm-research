@@ -210,9 +210,8 @@ class TextBox : public TextBox_PAR
     MARKMEM
 
   private:
-    PScene _pscen;    // The owning scene
     TextBoxData _data; // Stored bounds/lifetime/type, independent of views.
-    bool _fSel;        // Is this tbox selected?
+    MMTextBoxRuntime _runtime = {}; // Borrowed scene and selection state.
 
     TextBox(void) : RichTextDocument()
     {
@@ -240,7 +239,7 @@ class TextBox : public TextBox_PAR
     void Select(bool fSel);
     bool FSelected(void)
     {
-        return _fSel;
+        return _runtime.selected != 0;
     }
     bool FGetLifetime(long *pnfrmStart, long *pnfrmLast);
     bool FShowCore(void);
@@ -249,7 +248,7 @@ class TextBox : public TextBox_PAR
     bool FHide(void);
     bool FStory(void)
     {
-        return _data.story;
+        return _data.state.story;
     }
     void SetTypeCore(bool fStory);
     bool FSetType(bool fStory);
@@ -257,7 +256,7 @@ class TextBox : public TextBox_PAR
     void Scroll(void);
     PScene Pscen(void)
     {
-        return _pscen;
+        return static_cast<PScene>(_runtime.scene);
     }
     bool FTextSelected(void);
     bool FSetAcrBack(AbstractColor acr);
@@ -293,7 +292,7 @@ class TextBox : public TextBox_PAR
     //
     void GetRc(RC *prc)
     {
-        *prc = _data.bounds;
+        *prc = _data.Bounds();
     }
     void SetRc(RC *prc);
     void CleanDdg(void);
@@ -304,11 +303,11 @@ class TextBox : public TextBox_PAR
     //
     long NfrmFirst(void)
     {
-        return _data.firstFrame;
+        return _data.state.first;
     }
     long nfrmMax(void)
     {
-        return _data.maxFrame;
+        return _data.state.end;
     }
 };
 

@@ -133,10 +133,10 @@ static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
         if (!text.properties->FAdd(&entry))
             return false;
     }
-    box.firstFrame = -3;
-    box.maxFrame = 7;
-    box.story = true;
-    box.bounds.Set(-8, -4, 24, 32);
+    box.state.first = -3;
+    box.state.end = 7;
+    box.state.story = true;
+    box.SetBounds(-8, -4, 24, 32);
     ChunkNumber number;
     SceneData metadata;
     metadata.firstFrame = -3;

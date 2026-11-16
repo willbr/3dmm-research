@@ -29,7 +29,7 @@ struct TextBoxStoreHost
     {
         MMTextBoxStoreServices s = {};
         s.context = this;
-        s.reset_child = [](void *v) { static_cast<TextBoxStoreHost *>(v)->data->textChild = 0; };
+        s.reset_child = [](void *v) { static_cast<TextBoxStoreHost *>(v)->data->state.child = 0; };
         s.save = [](void *v, MMTextChunk *out) -> int {
             auto &h = *static_cast<TextBoxStoreHost *>(v);
             return h.Guard([&] {

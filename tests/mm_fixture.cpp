@@ -64,13 +64,13 @@ int main(int argc, char **argv)
     ChunkIdentification richText;
     Check(RichTextData::FCreateRoot(file, &richText, &defaults, &font));
     TextBoxData caption;
-    caption.firstFrame = 2;
-    caption.maxFrame = 10;
-    caption.bounds.Set(1, 2, 101, 52);
-    caption.textChild = 9;
+    caption.state.first = 2;
+    caption.state.end = 10;
+    caption.SetBounds(1, 2, 101, 52);
+    caption.state.child = 9;
     Check(caption.FWrite(file, 8));
     if (variant != 6)
-        Check(file->FAdoptChild(kctgTbox, 8, richText.ctg, richText.cno, caption.textChild));
+        Check(file->FAdoptChild(kctgTbox, 8, richText.ctg, richText.cno, caption.state.child));
     if (variant != 1)
         Check(file->FPutPv(const_cast<byte *>(payload), sizeof(payload), 'ZZZZ', 42));
     Check(file->FAdoptChild(kctgMvie, root, kctgScen, 5, 0));

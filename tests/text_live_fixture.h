@@ -149,10 +149,10 @@ static PTBOX LiveCaptionInput(PScene scene, PChunkyFile file, const std::vector<
     ChunkIdentification root;
     ChunkNumber number;
     TextBoxData metadata;
-    metadata.firstFrame = 1;
-    metadata.maxFrame = 61;
-    metadata.story = true;
-    metadata.bounds.Set(10, 20, 180, 100);
+    metadata.state.first = 1;
+    metadata.state.end = 61;
+    metadata.state.story = true;
+    metadata.SetBounds(10, 20, 180, 100);
     if (!source.FWrite(file, &root) || !file->FAdd(0, kctgTbox, &number) || !metadata.FWrite(file, number) ||
         !file->FAdoptChild(kctgTbox, number, root.ctg, root.cno, 0))
         return nullptr;
