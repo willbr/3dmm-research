@@ -280,7 +280,7 @@ int MarcusBoardAddColour(MarcusStoryboard &board, unsigned rgb)
         if (!used[i]) { board.colours[i] = rgb; return int(i); }
     return -1;
 }
-static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette)
+static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette, CameraPosition reference)
 {
     Require(MarcusBoardValid(board), "Invalid storyboard.");
     BackgroundFile header = {kboCur, koskCur, 10, 0, 0};
@@ -316,6 +316,11 @@ static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, c
     std::memset(depth->Prgb(), 255, depth->CbRow() * MarcusBoardHeight);
     ChunkNumber z;
     Require(depth->FWrite(file, kctgZbmp, &z), "Cannot write empty storyboard depth.");
+    BMAT34 inverse;
+    Require(BrMatrix34Inverse(&inverse, &reference.bmat34Cam) != 0, "Invalid black scene camera transform.");
+    BVEC3 placement;
+    BrMatrix34ApplyP(&placement, &reference.apos.bvec3Actor, &inverse);
+    Require(placement.v[2] < 0, "Invalid black scene insertion depth.");
     for (unsigned index = 0; index < board.angles.size(); ++index)
     {
         const auto &a = board.angles[index];
@@ -323,10 +328,16 @@ static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, c
         camera.bo = kboCur; camera.osk = koskCur;
         camera.zrHither = BrFloatToScalar(a.nearClip); camera.zrYon = BrFloatToScalar(a.farClip); camera.aFov = Angle(a.fov);
         camera.bmat34Cam = Matrix(a.camera.x, a.camera.y, a.camera.z, a.camera.yaw, a.camera.pitch, a.roll);
-        // Place inserted actors ten units in front of the camera, on the ground.
-        camera.apos.xrPlace = camera.bmat34Cam.m[3][0] - BrsMul(camera.bmat34Cam.m[2][0], BR_SCALAR(10));
-        camera.apos.yrPlace = 0;
-        camera.apos.zrPlace = camera.bmat34Cam.m[3][2] - BrsMul(camera.bmat34Cam.m[2][2], BR_SCALAR(10));
+        // Retain the retail shot's insertion point in camera space. Reproject
+        // it through each authored lens so a new prop starts inside that shot.
+        const float originalDistance = -BrScalarToFloat(placement.v[2]);
+        const float distance = std::clamp(originalDistance, a.nearClip + (a.farClip - a.nearClip) * .001f,
+            a.farClip - (a.farClip - a.nearClip) * .001f);
+        const float lens = std::tan(a.fov * .00872664626f) / std::tan(reference.aFov * (3.14159265358979323846f / 65536));
+        const float scale = lens * distance / originalDistance;
+        BVEC3 local = {{BrFloatToScalar(BrScalarToFloat(placement.v[0]) * scale),
+            BrFloatToScalar(BrScalarToFloat(placement.v[1]) * scale), BrFloatToScalar(-distance)}};
+        BrMatrix34ApplyP(&camera.apos.bvec3Actor, &local, &camera.bmat34Cam);
         ChunkNumber cam, image;
         Require(file->FAddPv(&camera, sizeof(camera), kctgCam, &cam) && file->FAdoptChild(kctgBkgd, background, kctgCam, cam, index), "Cannot write storyboard camera.");
         auto pixels = a.pixels;
@@ -377,7 +388,10 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     Require(black.bIndexBase == 10 && blackColours && blackColours->CbEntry() == sizeof(Color) && blackColours->IvMac() == 236,
         "Invalid retail black scene palette.");
     for (LegacyLong i = 0; i < blackColours->IvMac(); ++i) palette->Put(i + black.bIndexBase, blackColours->QvGet(i));
-    const auto background = WriteBoard(chunks.get(), board, static_cast<const Color *>(palette->QvGet(0)));
+    CameraPosition reference = {};
+    Require(backgrounds->FGetKidChidCtg(kctgBkgd, 11, 0, kctgCam, &child) && backgrounds->FFind(kctgCam, child.cki.cno, &block) &&
+        block.FUnpackData() && block.FReadRgb(&reference, sizeof(reference), 0), "Cannot read the black scene's insertion camera.");
+    const auto background = WriteBoard(chunks.get(), board, static_cast<const Color *>(palette->QvGet(0)), reference);
     // Retail/v3dmm enumerate this child while collecting a background's tags.
     // Keep a valid base-content sound reference, muted and absent from the timeline.
     unsigned char sound[28] = {};

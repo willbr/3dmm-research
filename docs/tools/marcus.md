@@ -187,8 +187,11 @@ breaks the line instead of drawing across the gap. Switching frames/scenes or
 undoing another edit refreshes the canvas from the current movie.
 
 New storyboard scenes start with the black background's first camera position
-(0, 20, 20), FOV (about 41.53 degrees) and near/far clipping (1/5000), with level
-pitch. **New angle** creates a blank grey drawing using the selected camera's settings.
+(0, 20, 20), downward pitch (about 5.71 degrees), FOV (about 41.53 degrees) and
+near/far clipping (1/5000). New props use the black scene's camera-relative
+insertion point, adapted to the current pose and lens so they start in frame.
+Existing drawings, cameras and prop positions remain authored as saved.
+**New angle** creates a blank grey drawing using the selected camera's settings.
 Switch angles using the arrows. In **Camera**, drag numeric values or use their
 minus/plus buttons to change position, yaw, pitch, roll, vertical FOV and clipping
 planes. Shift makes value drags finer. Navigation uses the same controls and mouse

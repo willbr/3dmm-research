@@ -16,8 +16,8 @@ inline const MarcusBoardPaintColours MarcusBoardColours = {0xd3d4d6, 0x000000, 0
     0x9ebfd9, 0xdea5a2, 0xe6d8a0, 0xaac9ad, 0x505050, 0x949494, 0xc4c4c4};
 struct MarcusBoardAngle
 {
-    // GE-Black's first camera position and lens, with level pitch.
-    MarcusCamera camera = {0, 20, 20, 0, 0, 5};
+    // GE-Black's first camera position, downward pitch and lens.
+    MarcusCamera camera = {0, 20, 20, 0, 5.71198516f, 5};
     float roll = 0, fov = 41.5338134765625f, nearClip = 1, farClip = 5000;
     std::vector<unsigned char> pixels = std::vector<unsigned char>(MarcusBoardWidth * MarcusBoardHeight, 0);
 };

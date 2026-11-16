@@ -24,6 +24,57 @@ int main(int argc, char **argv)
         MarcusStoryboard board;
         check(MarcusBoardValid(board), "Default storyboard");
         {
+            check(marcus_add_scene(player.get(), 11, argv[1], argv[2]), "Create retail black-scene comparison");
+            MarcusProjection retailCamera = {};
+            check(marcus_camera_projection(player.get(), 0, &retailCamera), "Read retail black camera");
+            MarcusProp cube = {};
+            const int count = marcus_prop_count(player.get(), argv[2]);
+            bool found = false;
+            for (int i = 0; i < count; ++i)
+            {
+                MarcusProp prop = {}; check(marcus_prop(player.get(), i, &prop), "Read comparison prop");
+                if (std::string(prop.name).find("Cube") != std::string::npos || std::string(prop.name).find("cube") != std::string::npos)
+                { cube = prop; found = true; break; }
+            }
+            check(found, "Retail cube is available");
+            int index = marcus_add_prop(player.get(), cube.chunk);
+            MarcusObject retailCube = {};
+            check(index >= 0 && marcus_object(player.get(), index, &retailCube), "Insert cube into retail black scene");
+            std::printf("Retail cube placement: %.5f %.5f %.5f\n", retailCube.x, retailCube.y, retailCube.z);
+            const auto initial = MarcusBoardProjection(board.angles[0]);
+            for (int i = 0; i < 12; ++i)
+                check(std::abs(initial.transform[i] - retailCamera.transform[i]) < .0002f, "Default storyboard camera matches retail black pose");
+            check(std::abs(initial.vertical_fov - retailCamera.vertical_fov) < .001f && initial.near_clip == retailCamera.near_clip &&
+                initial.far_clip == retailCamera.far_clip, "Default storyboard lens and clipping match retail black");
+            check(MarcusApplyStoryboard(player.get(), board, true, 0, argv[1], argv[2]), "Create default storyboard comparison");
+            index = marcus_add_prop(player.get(), cube.chunk);
+            MarcusObject storyboardCube = {};
+            check(index >= 0 && marcus_object(player.get(), index, &storyboardCube) &&
+                std::abs(retailCube.x - storyboardCube.x) < .01f && std::abs(retailCube.y - storyboardCube.y) < .01f &&
+                std::abs(retailCube.z - storyboardCube.z) < .01f, "Storyboard cube insertion matches retail black placement");
+            std::vector<float> depths;
+            MarcusImage preview = {};
+            check(MarcusRenderStoryboard(player.get(), board, 0, preview, &depths) &&
+                std::count_if(depths.begin(), depths.end(), [](float d) { return std::isfinite(d); }) > 100,
+                "A freshly inserted cube is visible through the default storyboard shot");
+            for (float pitch : {0.f, -35.f, 75.f})
+            {
+                auto changed = board;
+                changed.angles[0].camera.pitch = pitch; changed.angles[0].camera.yaw = 40;
+                changed.angles[0].roll = 15; changed.angles[0].fov = 20;
+                check(MarcusApplyStoryboard(player.get(), changed, false, 0, argv[1], argv[2]), "Set a moved storyboard camera");
+                index = marcus_add_prop(player.get(), cube.chunk);
+                MarcusObject inserted = {};
+                float projected[3], world[3];
+                check(index >= 0 && marcus_object(player.get(), index, &inserted), "Insert into moved storyboard shot");
+                world[0] = inserted.x; world[1] = inserted.y; world[2] = inserted.z;
+                const auto projection = MarcusBoardProjection(changed.angles[0]);
+                check(camera_project_point(&projection, world, projected), "Insertion stays in frame after camera rotation and lens changes");
+            }
+            // Keep the rest of the serialization/export fixture a single fresh scene.
+            player.reset(); player.reset(marcus_create());
+        }
+        {
             MarcusBoardAngle view;
             view.camera = {0, 10, 40, 0, 0, 5}; view.nearClip = .1f;
             const auto projection = MarcusBoardProjection(view);
@@ -97,7 +148,7 @@ int main(int argc, char **argv)
         }), "Perspective grid is clipped to the canvas");
         MarcusBoardBakeGrid(board.angles[0], 6);
         check(std::count(board.angles[0].pixels.begin(), board.angles[0].pixels.end(), 6) > 500 &&
-            std::equal(originalPainting.begin(), originalPainting.begin() + 544 * 153, board.angles[0].pixels.begin()),
+            std::equal(originalPainting.begin(), originalPainting.begin() + 544 * 76, board.angles[0].pixels.begin()),
             "Bake the ground grid while retaining the drawing above the horizon");
         auto rebaked = board.angles[0]; MarcusBoardBakeGrid(rebaked, 6);
         check(rebaked.pixels == board.angles[0].pixels, "Baking the same grid twice is stable");
