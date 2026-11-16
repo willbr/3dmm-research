@@ -1,14 +1,17 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/body_create.h"
 #include <stddef.h>
+#include <string.h>
+void mm_body_shape_init(MMBodyShape *state)
+{ memset(state, 0, sizeof(*state)); }
 int mm_body_shape_initialize(void *body,void *parents,void *sets,const MMBodyCreateServices *s)
 {
     MMBodyShape b;
     MMI32 i,n,set,parent;
     if (s->validate_lists) s->validate_lists(s->context,parents,sets);
-    s->read(s->context,body,&b);
+    b=*s->state(s->context,body);
     b.sets=s->duplicate_sets(s->context,sets);
-    s->write(s->context,body,&b);
+    *s->state(s->context,body)=b;
     if (!b.sets) return 0;
     b.set_count=-1;
     n=s->count(s->context,b.sets);
@@ -18,14 +21,14 @@ int mm_body_shape_initialize(void *body,void *parents,void *sets,const MMBodyCre
         if (set>b.set_count) b.set_count=set;
     }
     ++b.set_count;
-    s->write(s->context,body,&b);
+    *s->state(s->context,body)=b;
     if (!s->allocate_materials(s->context,b.set_count,&b.materials))
-    { s->write(s->context,body,&b); return 0; }
+    { *s->state(s->context,body)=b; return 0; }
     b.part_count=s->count(s->context,parents);
-    s->write(s->context,body,&b);
+    *s->state(s->context,body)=b;
     if (!s->allocate_actors(s->context,b.part_count+2,&b.actors))
-    { s->write(s->context,body,&b); return 0; }
-    s->write(s->context,body,&b);
+    { *s->state(s->context,body)=b; return 0; }
+    *s->state(s->context,body)=b;
     s->initialize_actor(s->context,body,b.actors,0,MM_BODY_ROOT);
     s->initialize_actor(s->context,body,b.actors,1,MM_BODY_HIGHLIGHT);
     s->link(s->context,b.actors,0,1);
@@ -40,7 +43,7 @@ int mm_body_shape_initialize(void *body,void *parents,void *sets,const MMBodyCre
 int mm_body_initialize(void *body,void *parents,void *sets,const MMBodyCreateServices *s)
 {
     MMBodyShape b;
-    s->read(s->context,body,&b); b.hidden=1; s->write(s->context,body,&b);
+    b=*s->state(s->context,body); b.hidden=1; *s->state(s->context,body)=b;
     return mm_body_shape_initialize(body,parents,sets,s);
 }
 void *mm_body_create(void *parents,void *sets,const MMBodyCreateServices *s)
@@ -62,17 +65,17 @@ void mm_body_shape_dispose(void *body,const MMBodyCreateServices *s)
 {
     MMBodyShape b;
     MMI32 i;
-    s->read(s->context,body,&b);
+    b=*s->state(s->context,body);
     if (!b.hidden)
-    { s->hide(s->context,body); s->read(s->context,body,&b); }
+    { s->hide(s->context,body); b=*s->state(s->context,body); }
     if (b.actors)
     {
         for (i=0;i<b.part_count;++i) s->release_model(s->context,b.actors,i);
         if (b.materials)
             for (i=0;i<b.set_count;++i) s->remove_material(s->context,body,i);
-        s->free_memory(s->context,&b.actors); s->write(s->context,body,&b);
+        s->free_memory(s->context,&b.actors); *s->state(s->context,body)=b;
     }
-    s->free_memory(s->context,&b.materials); s->write(s->context,body,&b);
+    s->free_memory(s->context,&b.materials); *s->state(s->context,body)=b;
     if (b.sets) s->release(s->context,b.sets);
-    b.sets=NULL; s->write(s->context,body,&b);
+    b.sets=NULL; *s->state(s->context,body)=b;
 }

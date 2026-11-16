@@ -16,8 +16,7 @@ typedef struct Fixture
 } Fixture;
 static void event(Fixture *f,int e) { CHECK(f->event_count<256); f->events[f->event_count++]=e; }
 static int fail(Fixture *f) { return ++f->allocation==f->fail; }
-static void read_body(void *p,void *b,MMBodyShape *s) { (void)p; *s=((Body *)b)->shape; }
-static void write_body(void *p,void *b,const MMBodyShape *s) { (void)p; ((Body *)b)->shape=*s; }
+static MMBodyShape *body_state(void *p,void *body) { (void)p; return &((Body *)body)->shape; }
 static void *highlight_material(void *p) { return p; }
 static void *create(void *p)
 {
@@ -115,7 +114,7 @@ static void setup(Fixture *f,int visible,int n,int hilite)
     list(&f->sets,6); list(&f->parents,6); list(&f->new_sets,n); list(&f->new_parents,n);
     for (i=0;i<6;++i) f->parents.values[i]=(short)(i?((i-1)/2):-1);
     for (i=0;i<n;++i) f->new_parents.values[i]=(short)(i?i-1:-1);
-    c=&f->s.shape; c->context=f; c->read=read_body; c->write=write_body; c->highlight=highlight_material;
+    c=&f->s.shape; c->context=f; c->state=body_state; c->highlight=highlight_material;
     c->create=create; c->release=release; c->duplicate_sets=duplicate_sets; c->count=count; c->item=item;
     c->allocate_materials=allocate_materials; c->allocate_actors=allocate_actors; c->initialize_actor=initialize;
     c->link=link_actor; c->hide=hide; c->release_model=release_model; c->remove_material=remove_material; c->free_memory=free_memory;

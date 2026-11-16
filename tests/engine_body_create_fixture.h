@@ -3,7 +3,7 @@
 class BodyCreateFixtureAccess : public Body
 {
   public:
-    static LegacyLong Hidden(PBody body) { auto member=&BodyCreateFixtureAccess::_cactHidden; return body->*member; }
+    static LegacyLong Hidden(PBody body) { auto member=&BodyCreateFixtureAccess::_shape; return (body->*member).hidden; }
 };
 static bool TestBodyCreation()
 {

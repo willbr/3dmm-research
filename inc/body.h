@@ -37,12 +37,7 @@ class Body : public Body_PAR
 
   protected:
     static BMTL *_pbmtlHilite; // hilight material
-    BACT *_prgbact;      // array of BACTs
-    PDynamicArray _pglibset;       // body part set IDs
-    LegacyLong _cbset;         // count of body part sets
-    PCustomMaterial_CMTL *_prgpcmtl;    // array of PCMTLs -- one per body part set
-    LegacyLong _cbactPart;     // count of model body parts in body
-    LegacyLong _cactHidden;    // for Show() / Hide()
+    MMBodyShape _shape; // Owns actor/material storage and body part set IDs.
     void *_pvRenderContext; // non-owning renderer binding, copied with the body
     void (*_pfnAttach)(void *, Body *);
     void (*_pfnChanged)(void *);
@@ -51,6 +46,7 @@ class Body : public Body_PAR
   protected:
     Body(void)
     {
+        mm_body_shape_init(&_shape);
         mm_body_geometry_init(&_geometry);
     } // can't instantiate directly; must use PbodyNew
     static MMBodyCreateServices _CreateServices(void);
@@ -60,25 +56,28 @@ class Body : public Body_PAR
     void _DestroyShape(void);
     bool _FInit(PDynamicArray pglibactPar, PDynamicArray pglibset);
     bool _FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
+    PBACT _Actors(void) const { return static_cast<PBACT>(_shape.actors); }
+    PDynamicArray _Sets(void) const { return static_cast<PDynamicArray>(_shape.sets); }
+    PCustomMaterial_CMTL *_Materials(void) const { return static_cast<PCustomMaterial_CMTL *>(_shape.materials); }
     PBACT _PbactRoot(void) // ptr to root BACT
     {
-        return _prgbact;
+        return _Actors();
     }
     PBACT _PbactHilite(void) // ptr to hilite BACT
     {
-        return _prgbact + 1;
+        return _Actors() + 1;
     }                            // skip root BACT
     PBACT _PbactPart(LegacyLong ipart) // ptr to ipart'th body part
     {
-        return _prgbact + 1 + 1 + ipart;
+        return _Actors() + 1 + 1 + ipart;
     }                 // skip root and hilite BACTs
-    LegacyLong _Cbact(void) // count in _prgbact
+    LegacyLong _Cbact(void) // count in _Actors()
     {
-        return 1 + 1 + _cbactPart;
+        return 1 + 1 + _shape.part_count;
     }                       // root, hilite, and body part BACTs
     LegacyLong _Ibset(LegacyLong ipart) // body part set that this part belongs to
     {
-        return *(short *)_pglibset->QvGet(ipart);
+        return *(short *)_Sets()->QvGet(ipart);
     }
     void _RenderChanged(void)
     {
@@ -131,7 +130,7 @@ class Body : public Body_PAR
     void GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl);
     LegacyLong Cbset()
     {
-        return _cbset;
+        return _shape.set_count;
     }
 
     void GetBcbBounds(BCB *pbcb, bool fWorld = fFalse);

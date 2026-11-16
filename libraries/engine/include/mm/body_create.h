@@ -15,8 +15,7 @@ enum MMBodyActorRole { MM_BODY_ROOT, MM_BODY_HIGHLIGHT, MM_BODY_PART };
 typedef struct MMBodyCreateServices
 {
     void *context;
-    void (*read)(void *,void *body,MMBodyShape *);
-    void (*write)(void *,void *body,const MMBodyShape *);
+    MMBodyShape *(*state)(void *,void *body);
     void *(*highlight)(void *);
     void *(*allocate_highlight)(void *);
     void (*install_highlight)(void *,void *);
@@ -42,10 +41,13 @@ typedef struct MMBodyCreateServices
  * their storage and retain native zero-size allocation behavior. duplicate_sets
  * returns an owned list reference. free_memory accepts NULL slots and clears
  * released slots. release_model ignores absent models and clears released ones.
- * Bodies start with zeroed ownership.
+ * Bodies start with zeroed ownership. state returns a stable borrowed C owner;
+ * access cannot fail, reenter or mutate it. Local value snapshots preserve
+ * publication points before renderer/resource callbacks. Do not copy live owners.
  * Writes publish partial state before renderer/resource callbacks. Callbacks
  * must not reenter or mutate unrelated body fields. Initialization does not
  * roll back: the factory releases its partial body on failure. */
+void mm_body_shape_init(MMBodyShape *);
 int mm_body_shape_initialize(void *,void *parents,void *sets,const MMBodyCreateServices *);
 int mm_body_initialize(void *,void *parents,void *sets,const MMBodyCreateServices *);
 void *mm_body_create(void *parents,void *sets,const MMBodyCreateServices *);

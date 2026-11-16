@@ -55,9 +55,9 @@
              part3	      part4	  part5
 
 
-    All these BACTs are allocated and released in one _prgbact.  The
-    root is _prgbact[0].  The hilite BACT is _prgbact[1].  The real
-    body parts are _prgbact[2] through _prgbact[1 + 1 + _cbactPart].
+    All these BACTs are allocated and released in one actor array.  The
+    root is _Actors()[0].  The hilite BACT is _Actors()[1].  The real
+    body parts start at _Actors()[2], with _shape.part_count entries.
     There are APIs to access various members of this array more easily.
 
     The second parameter to PbodyNew is pglibset, which divides the body
@@ -66,7 +66,7 @@
     a shirt on a human would affect the torso and both arms, so those
     three body parts would be grouped into a body part set.  If body
     parts 0, 1, and 2 were in set 0; part 3 was in set 1; and parts 4
-    and 5 were in set 2, _pglibset would be {0, 0, 0, 1, 2, 2}.
+    and 5 were in set 2, the set list would be {0, 0, 0, 1, 2, 2}.
 
     When applying a Material_MTRL to a body part set, the same Material_MTRL is
     attached to each body part in the set.  When a CustomMaterial_CMTL is applied,
@@ -145,7 +145,7 @@ void Body::ReleaseSharedMaterial(void)
 ***************************************************************************/
 void Body::SetRenderCallbacks(void *context, void (*attach)(void *, Body *), void (*changed)(void *))
 {
-    Assert(_cactHidden > 0, "Cannot rebind a visible body");
+    Assert(_shape.hidden > 0, "Cannot rebind a visible body");
     _pvRenderContext = context;
     _pfnAttach = attach;
     _pfnChanged = changed;
@@ -157,17 +157,7 @@ void Body::SetRenderCallbacks(void *context, void (*attach)(void *, Body *), voi
 MMBodyCreateServices Body::_CreateServices(void)
 {
     MMBodyCreateServices s = {};
-    s.read = [](void *, void *object, MMBodyShape *state) {
-        auto b = static_cast<PBody>(object);
-        *state = {b->_pglibset, b->_prgpcmtl, b->_prgbact, b->_cbset, b->_cbactPart, b->_cactHidden};
-    };
-    s.write = [](void *, void *object, const MMBodyShape *state) {
-        auto b = static_cast<PBody>(object);
-        b->_pglibset = static_cast<PDynamicArray>(state->sets);
-        b->_prgpcmtl = static_cast<PCustomMaterial_CMTL *>(state->materials);
-        b->_prgbact = static_cast<PBACT>(state->actors);
-        b->_cbset = state->set_count; b->_cbactPart = state->part_count; b->_cactHidden = state->hidden;
-    };
+    s.state = [](void *, void *object) -> MMBodyShape * { return &static_cast<PBody>(object)->_shape; };
     s.highlight = [](void *) -> void * { return _pbmtlHilite; };
     s.allocate_highlight = [](void *) -> void * { return BrMaterialAllocate("Hilite"); };
     s.install_highlight = [](void *, void *material) {
@@ -338,7 +328,7 @@ Body::~Body(void)
 
 /***************************************************************************
     Create a duplicate of this Body.  The duplicate will be hidden
-    (_cactHidden == 1) regardless of the state of this Body.
+    (_shape.hidden == 1) regardless of the state of this Body.
 ***************************************************************************/
 MMBodyEditServices Body::_EditServices(void)
 {
@@ -385,7 +375,7 @@ MMBodyEditServices Body::_EditServices(void)
     s.show = [](void *, void *body) { static_cast<PBody>(body)->Show(); };
     s.swap_bodies = [](void *, void *a, void *b) {
         auto body = static_cast<PBody>(a); auto replacement = static_cast<PBody>(b);
-        AssertPo(replacement, 0); Assert(replacement->_cactHidden == 1, "dup hidden count must be 1");
+        AssertPo(replacement, 0); Assert(replacement->_shape.hidden == 1, "dup hidden count must be 1");
         SwapVars(body, replacement);
     };
     s.identify = [](void *, void *body, void *actors, MMI32 index) {
@@ -428,7 +418,7 @@ void Body::Restore(PBody pbodyDup)
 {
     AssertBaseThis(0);
     AssertPo(pbodyDup, 0);
-    Assert(pbodyDup->_cactHidden == 1, "dup hidden count must be 1");
+    Assert(pbodyDup->_shape.hidden == 1, "dup hidden count must be 1");
     auto services = _EditServices();
     mm_body_restore(this, pbodyDup, &services);
     AssertThis(fobjAssertFull);
@@ -454,14 +444,14 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
     s.assign_material = [](void *, void *body, MMI32 part, void *raw) { static_cast<PBody>(body)->_PbactPart(part)->material = static_cast<PBMTL>(raw); };
     s.material_object = [](void *, void *raw) -> void * { return Material_MTRL::PmtrlFromBmtl(static_cast<PBMTL>(raw)); };
     s.material_handle = [](void *, void *object) -> void * { return static_cast<PMaterial_MTRL>(object)->Pbmtl(); };
-    s.custom = [](void *, void *body, MMI32 set) -> void * { return static_cast<PBody>(body)->_prgpcmtl[set]; };
-    s.assign_custom = [](void *, void *body, MMI32 set, void *object) { static_cast<PBody>(body)->_prgpcmtl[set] = static_cast<PCustomMaterial_CMTL>(object); };
+    s.custom = [](void *, void *body, MMI32 set) -> void * { return static_cast<PBody>(body)->_Materials()[set]; };
+    s.assign_custom = [](void *, void *body, MMI32 set, void *object) { static_cast<PBody>(body)->_Materials()[set] = static_cast<PCustomMaterial_CMTL>(object); };
     s.custom_set = [](void *, void *object) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(object)->Ibset(); };
     s.custom_count = [](void *, void *object) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(object)->Cbprt(); };
     s.custom_model = [](void *, void *object, MMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pmodl(i); };
     s.custom_material = [](void *, void *object, MMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pbmtl(i); };
     s.invalidate_output = [](void *, void **out) { TrashVar(out); };
-    s.matrix = [](void *, void *body, MMI32 actor, const void *matrix) { static_cast<PBody>(body)->_prgbact[actor].t.t.mat = *static_cast<const BMAT34 *>(matrix); };
+    s.matrix = [](void *, void *body, MMI32 actor, const void *matrix) { static_cast<PBody>(body)->_Actors()[actor].t.t.mat = *static_cast<const BMAT34 *>(matrix); };
     s.translate = [](void *, void *body, MMI32 x, MMI32 y, MMI32 z) { BrMatrix34PostTranslate(&static_cast<PBody>(body)->_PbactRoot()->t.t.mat, x, y, z); };
     s.highlight = [](void *, void *body, int enabled) { static_cast<PBody>(body)->_PbactHilite()->type = enabled ? BR_ACTOR_MODEL : BR_ACTOR_NONE; };
     s.attach = [](void *, void *object) { auto body = static_cast<PBody>(object); if (body->_pfnAttach) body->_pfnAttach(body->_pvRenderContext, body); };
@@ -484,7 +474,7 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
 void Body::Show(void)
 {
     AssertThis(0);
-    Assert(_cactHidden > 0, "object is already visible!");
+    Assert(_shape.hidden > 0, "object is already visible!");
     auto s = _RuntimeServices(); mm_body_show(this, &s);
 }
 
@@ -541,7 +531,7 @@ void Body::LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34)
 ***************************************************************************/
 void Body::SetPartModel(LegacyLong ibact, Model *pmodl)
 {
-    AssertThis(0); AssertIn(ibact, 0, _cbactPart); AssertPo(pmodl, 0);
+    AssertThis(0); AssertIn(ibact, 0, _shape.part_count); AssertPo(pmodl, 0);
     auto s = _RuntimeServices(); mm_body_set_model(this, ibact, pmodl, &s);
 }
 
@@ -550,7 +540,7 @@ void Body::SetPartModel(LegacyLong ibact, Model *pmodl)
 ***************************************************************************/
 void Body::SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34)
 {
-    AssertThis(0); AssertIn(ibact, 0, _cbactPart); AssertVarMem(pbmat34);
+    AssertThis(0); AssertIn(ibact, 0, _shape.part_count); AssertVarMem(pbmat34);
     auto s = _RuntimeServices(); mm_body_set_matrix(this, ibact, pbmat34, &s);
 }
 
@@ -563,7 +553,7 @@ void Body::SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34)
 ***************************************************************************/
 void Body::_RemoveMaterial(LegacyLong ibset)
 {
-    AssertThis(0); AssertIn(ibset, 0, _cbset);
+    AssertThis(0); AssertIn(ibset, 0, _shape.set_count);
     auto s = _RuntimeServices(); mm_body_remove_material(this, ibset, &s);
 }
 
@@ -572,7 +562,7 @@ void Body::_RemoveMaterial(LegacyLong ibset)
 ***************************************************************************/
 void Body::SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl)
 {
-    AssertThis(0); AssertIn(ibset, 0, _cbset); AssertPo(pmtrl, 0);
+    AssertThis(0); AssertIn(ibset, 0, _shape.set_count); AssertPo(pmtrl, 0);
     auto s = _RuntimeServices(); mm_body_set_generic(this, ibset, pmtrl, &s);
 }
 
@@ -594,7 +584,7 @@ void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
 ***************************************************************************/
 void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl)
 {
-    AssertThis(0); AssertIn(ibset, 0, _cbset);
+    AssertThis(0); AssertIn(ibset, 0, _shape.set_count);
     AssertVarMem(pfMtrl); AssertVarMem(ppmtrl); AssertVarMem(ppcmtl);
     void *material, *custom; int generic;
     CopyPb(ppmtrl, &material, sizeof(material)); CopyPb(ppcmtl, &custom, sizeof(custom));
@@ -611,7 +601,7 @@ MMBodyGeometryServices Body::_GeometryServices(void)
         AssertNilOrPo(body, 0); return body;
     };
     s.state = [](void *, void *body) -> MMBodyGeometry * { return &static_cast<PBody>(body)->_geometry; };
-    s.part_count = [](void *, void *body) -> MMI32 { return static_cast<PBody>(body)->_cbactPart; };
+    s.part_count = [](void *, void *body) -> MMI32 { return static_cast<PBody>(body)->_shape.part_count; };
     s.part = [](void *, void *body, MMI32 part) -> void * { return static_cast<PBody>(body)->_PbactPart(part); };
     s.part_set = [](void *, void *body, MMI32 part) -> MMI32 { return static_cast<PBody>(body)->_Ibset(part); };
     s.highlight = [](void *, void *body) -> void * { return static_cast<PBody>(body)->_PbactHilite(); };
@@ -775,18 +765,18 @@ void Body::AssertValid(LegacyUlong grf)
     BACT *pbact;
 
     Body_PAR::AssertValid(fobjAllocated);
-    AssertIn(_cactHidden, 0, 100); // 100 is sanity check
-    AssertIn(_cbset, 0, _cbactPart + 1);
-    AssertPvCb(_prgbact, LwMul(_Cbact(), size(BACT)));
-    AssertPvCb(_prgpcmtl, LwMul(_cbset, size(PCustomMaterial_CMTL)));
+    AssertIn(_shape.hidden, 0, 100); // 100 is sanity check
+    AssertIn(_shape.set_count, 0, _shape.part_count + 1);
+    AssertPvCb(_Actors(), LwMul(_Cbact(), size(BACT)));
+    AssertPvCb(_Materials(), LwMul(_shape.set_count, size(PCustomMaterial_CMTL)));
     Assert(pvNil == _PbactRoot()->model, "Body root shouldn't have a model!!");
     Assert(pvNil == _PbactRoot()->material, "Body root shouldn't have a material!!");
-    AssertPo(_pglibset, 0);
-    Assert(_pglibset->CbEntry() == size(short), "bad _pglibset");
+    AssertPo(_Sets(), 0);
+    Assert(_Sets()->CbEntry() == size(short), "bad _Sets()");
 
     if (grf & fobjAssertFull)
     {
-        for (ibact = 0; ibact < _cbactPart; ibact++)
+        for (ibact = 0; ibact < _shape.part_count; ibact++)
         {
             pbact = _PbactPart(ibact);
             if (pvNil != pbact->model)
@@ -794,9 +784,9 @@ void Body::AssertValid(LegacyUlong grf)
             if (pvNil != pbact->material)
                 AssertPo(Material_MTRL::PmtrlFromBmtl(pbact->material), 0);
         }
-        for (ibset = 0; ibset < _cbset; ibset++)
+        for (ibset = 0; ibset < _shape.set_count; ibset++)
         {
-            AssertNilOrPo(_prgpcmtl[ibset], 0);
+            AssertNilOrPo(_Materials()[ibset], 0);
         }
     }
 }
@@ -817,11 +807,11 @@ void Body::MarkMem(void)
     PCustomMaterial_CMTL pcmtl;
 
     Body_PAR::MarkMem();
-    MarkPv(_prgbact);
-    MarkPv(_prgpcmtl);
-    MarkMemObj(_pglibset);
+    MarkPv(_Actors());
+    MarkPv(_Materials());
+    MarkMemObj(_Sets());
 
-    for (ibact = 0; ibact < _cbactPart; ibact++)
+    for (ibact = 0; ibact < _shape.part_count; ibact++)
     {
         pbact = _PbactPart(ibact);
         if (pvNil != pbact->model)
@@ -831,7 +821,7 @@ void Body::MarkMem(void)
             MarkMemObj(pmodl);
         }
     }
-    for (ibset = 0; ibset < _cbset; ibset++)
+    for (ibset = 0; ibset < _shape.set_count; ibset++)
     {
         GetPartSetMaterial(ibset, &fMtrl, &pmtrl, &pcmtl);
         if (fMtrl)

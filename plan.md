@@ -393,11 +393,14 @@ insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
 copy, route-paste, full actor-paste, clipboard, actor creation/binding and movie
 sound integration control and body construction/shape disposal, duplication,
 restoration, reshaping, body material/visibility updates, costume ownership,
-bounds/render preparation and hit-selection policy have also moved into C89,
-along with template resource factories/header I/O,
-normal template initialization, body creation and default-costume prefetching,
+bounds/render preparation and hit-selection policy have also moved into C89.
+Body actor/material storage, duplicated set-list ownership, part/set counts and
+hidden count now live directly in persistent C shape state; native adapters no
+longer marshal those owning fields through read/write callbacks. Typed renderer
+bindings and final Body facade removal remain work. Template resource factories,
+header I/O, normal initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries
-and accessory graph operations. ActionDefinition construction, header/list
+and accessory graph operations also use C89. ActionDefinition construction, header/list
 loading, byte-order conversion, primitive queries and sound-list ownership now
 also use a persistent C-owned action state. ThreeDFont metrics, resource loading,
 authoring, glyph lookup and lifetime now use persistent C-owned font state.

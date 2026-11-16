@@ -15,8 +15,7 @@ typedef struct Fixture
     int events[64],event_count;
 } Fixture;
 static void event(Fixture *f,int n) { CHECK(f->event_count<64); f->events[f->event_count++]=n; }
-static void read_body(void *p,void *body,MMBodyShape *b) { Fixture *f=p; CHECK(body==&f->body); *b=f->body; }
-static void write_body(void *p,void *body,const MMBodyShape *b) { Fixture *f=p; CHECK(body==&f->body); f->body=*b; }
+static MMBodyShape *body_state(void *p,void *body) { Fixture *f=p; CHECK(body==&f->body); return &f->body; }
 static void *highlight(void *p) { Fixture *f=p; return f->highlight?&f->highlight:NULL; }
 static void *allocate_highlight(void *p) { Fixture *f=p; event(f,1); return f->fail==1?NULL:&f->highlight; }
 static void install_highlight(void *p,void *h) { Fixture *f=p; CHECK(h==&f->highlight); f->highlight=1; ++f->installed; event(f,2); }
@@ -83,7 +82,7 @@ static void setup(Fixture *f,int n,int fail)
 {
     int i; memset(f,0,sizeof(*f)); f->fail=fail; f->sets.count=f->parents.count=n;
     for (i=0;i<n;++i) { f->sets.values[i]=(short)(i%3*2); f->parents.values[i]=(short)(i?((i-1)/2):-1); }
-    f->s.context=f; f->s.read=read_body; f->s.write=write_body; f->s.highlight=highlight;
+    f->s.context=f; f->s.state=body_state; f->s.highlight=highlight;
     f->s.allocate_highlight=allocate_highlight; f->s.install_highlight=install_highlight;
     f->s.create=create; f->s.release=release; f->s.duplicate_sets=duplicate; f->s.count=count; f->s.item=item;
     f->s.allocate_materials=allocate_materials; f->s.allocate_actors=allocate_actors; f->s.initialize_actor=initialize;
@@ -93,6 +92,9 @@ static void setup(Fixture *f,int n,int fail)
 int main(void)
 {
     Fixture f; int n,fail,warm,mode,i,ok;
+    memset(&f.body,0xa5,sizeof(f.body)); mm_body_shape_init(&f.body);
+    CHECK(!f.body.sets && !f.body.materials && !f.body.actors);
+    CHECK(!f.body.set_count && !f.body.part_count && !f.body.hidden);
     for (n=0;n<=6;n+=6) for (fail=0;fail<=5;++fail) for (warm=0;warm<2;++warm)
     {
         void *body; setup(&f,n,fail); f.highlight=warm;

@@ -14,8 +14,7 @@ typedef struct Fixture
     int parent,attached,detached,changed,bounds,highlight,fail,freed,diagnostics[4];
 } Fixture;
 static void event(Fixture *f,int n) { CHECK(f->event_count<256); f->events[f->event_count++]=n; }
-static void read_body(void *p,void *b,MMBodyShape *out) { Fixture *f=p; CHECK(b==f); *out=f->b; }
-static void write_body(void *p,void *b,const MMBodyShape *in) { Fixture *f=p; CHECK(b==f); f->b=*in; }
+static MMBodyShape *body_state(void *p,void *body) { Fixture *f=p; CHECK(body==f); return &f->b; }
 static MMI32 item(void *p,void *list,MMI32 i) { Fixture *f=p; CHECK(list==f->sets && i>=0 && i<6); return f->sets[i]; }
 static void retain(void *p,void *object) { Fixture *f=p; Ref *r=object; CHECK(r && r->refs>0); ++r->refs; event(f,7); }
 static void release(void *p,void *object)
@@ -59,7 +58,7 @@ static void setup(Fixture *f,int hidden)
     f->custom.models[0]=&f->bmodel; f->custom.models[2]=&f->a;
     for (i=0;i<6;++i) f->sets[i]=(short)(i%2);
     f->b.sets=f->sets; f->b.part_count=6; f->b.set_count=2; f->b.hidden=hidden; f->bounds=99; f->parent=!hidden;
-    f->s.shape.context=f; f->s.shape.read=read_body; f->s.shape.write=write_body; f->s.shape.item=item;
+    f->s.shape.context=f; f->s.shape.state=body_state; f->s.shape.item=item;
     f->s.shape.release=release; f->s.shape.allocate_materials=allocate; f->s.shape.free_memory=free_memory;
     f->s.retain=retain; f->s.model=model; f->s.assign_model=assign_model; f->s.part_material=part_material;
     f->s.assign_material=assign_material; f->s.material_object=material_object; f->s.material_handle=material_handle;

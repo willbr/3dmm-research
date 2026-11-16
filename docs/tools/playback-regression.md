@@ -10810,3 +10810,70 @@ Evidence: `tmp/c89-undo-state-{actor,group,movie}-{baseline,final}-{native,sdl-r
 `tmp/c89-undo-state-asan.log`, `tmp/c89-undo-state-regular-tests.log`,
 `tmp/c89-undo-state-tools-build.log`, `tmp/c89-undo-state-trace-comparison.json`
 and `tmp/c89-undo-state-identities.json`.
+
+### Persistent Body shape ownership (16 November 2026)
+
+Body's actor/material allocation handles, duplicated set-list reference, part/set
+counts and hidden count now live in an embedded `MMBodyShape`. Construction,
+duplication/restoration/reshaping and runtime services access that C owner through
+one borrowed state view. Native field read/write marshalling is removed; typed
+actor, set-list and custom-material accessors expose the same storage.
+`mm_body_shape_init` explicitly clears fresh ownership. It must not reinitialize
+a live shape.
+
+C value snapshots preserve publication points before resource and renderer
+callbacks, including partial allocation failure, hide/show, freed pointer
+publication and restored hidden counts. Renderer bindings, typed BRender field
+operations, whole-object restoration swapping and the native Body lifetime
+facade remain dependencies. Existing geometry/costume C owners are unchanged.
+
+Original traces were captured separately on Native Debug, SDL Release and SDL
+Debug before changing storage. Debug allocation-failure injection changes which
+cases reach full output, so Release uses its own baseline. The original hashes
+are:
+
+| Trace | Configuration | Bytes | FNV-1a |
+| --- | --- | ---: | --- |
+| Construction | Native/SDL Debug | 88,136 | `B987104E` |
+| Construction | SDL Release | 94,824 | `B68BBB56` |
+| Duplication/restoration/reshape | Native/SDL Debug | 1,880,872 | `5D4D724C` |
+| Duplication/restoration/reshape | SDL Release | 1,916,616 | `2FACFF0C` |
+| Materials/visibility/costumes | Native/SDL Debug | 427,368 | `28BFCBC9` |
+| Materials/visibility/costumes | SDL Release | 437,040 | `121CA853` |
+| Geometry/render bounds/picking | All three | 76,608 | `ECFB9185` |
+
+The fixtures cover partial construction/destruction, sparse sets and hierarchy
+links; duplicate/reshape allocation failures and rollback; model/material
+reference balance, hidden counts and renderer notifications; and bounds/hit
+state. Existing C probes retain publication and release-order assertions through
+the borrowed owner view, with an added fresh-state initialization check. All four
+focused suites pass MSVC AddressSanitizer.
+
+All 140 standalone checks, including strict C89 syntax, pass. Fifty-four selected
+Native checks and 50 in each SDL configuration pass, including the existing
+Native playback/player regressions. The regular headless asset-preview harness
+passes; Native `chelp` and `ched` compile. Background checks retain 301,996,032
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. All ten
+retained input identities are unchanged; identities for 39 binaries are recorded.
+Test processes use private temporary directories. Marcus was stopped before
+rebuilding and relaunched afterward.
+
+Retained retail captures remain the playback reference; no new capture campaign
+or Marcus UI tests were added. This is Windows x64 fixture evidence. Arbitrary
+native callback observations and other platforms remain unverified. Renderer
+bindings, resource/SDK providers, whole-object restoration and final C-only
+host/facade integration remain conversion work.
+
+All 105 original/converted body/undo/text-box/layout/Help/text/preview trace pairs
+match across the three hosts, including all twelve Body captures. Prior hashes
+remain unchanged. Final Body captures use `shape-*` filenames to distinguish
+Body runtime from the separate text-box runtime trace.
+
+Evidence: `tmp/c89-body-state-{create,edit,runtime,geometry}-baseline-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-body-state-shape-{create,edit,runtime,geometry}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-body-state-shape-final-{native,sdl-release,sdl-debug}.log`,
+`tmp/c89-body-state-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-body-state-standalone-tests.log`,
+`tmp/c89-body-state-{create,edit,runtime,geometry}-asan.log`,
+`tmp/c89-body-state-regular-tests.log`, `tmp/c89-body-state-tools-build.log`,
+`tmp/c89-body-state-trace-comparison.json` and `tmp/c89-body-state-identities.json`.

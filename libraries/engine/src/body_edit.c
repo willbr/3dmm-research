@@ -8,24 +8,24 @@ void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
     MMI32 i,j;
     int visible,generic;
     void *copy,*material;
-    c->read(c->context,body,&b); visible=!b.hidden;
-    if (visible) { c->hide(c->context,body); c->read(c->context,body,&b); }
+    b=*c->state(c->context,body); visible=!b.hidden;
+    if (visible) { c->hide(c->context,body); b=*c->state(c->context,body); }
     copy=c->create(c->context);
     if (!copy) goto fail;
-    c->read(c->context,copy,&d);
+    d=*c->state(c->context,copy);
     d.hidden=1; d.set_count=b.set_count; d.part_count=b.part_count;
-    c->write(c->context,copy,&d); s->copy_bindings(c->context,copy,body);
+    *c->state(c->context,copy)=d; s->copy_bindings(c->context,copy,body);
     if (!c->allocate_actors(c->context,b.part_count+2,&d.actors))
-    { c->write(c->context,copy,&d); goto fail; }
-    c->write(c->context,copy,&d);
+    { *c->state(c->context,copy)=d; goto fail; }
+    *c->state(c->context,copy)=d;
     s->copy_actors(c->context,d.actors,b.actors,b.part_count+2);
     for (i=0;i<b.part_count+2;++i) s->rebase_actor(c->context,copy,d.actors,b.actors,i,i==0);
     for (i=0;i<d.part_count;++i) s->retain_model(c->context,b.actors,i);
-    d.sets=c->duplicate_sets(c->context,b.sets); c->write(c->context,copy,&d);
+    d.sets=c->duplicate_sets(c->context,b.sets); *c->state(c->context,copy)=d;
     if (!d.sets) goto fail;
     if (!c->allocate_materials(c->context,b.set_count,&d.materials))
-    { c->write(c->context,copy,&d); goto fail; }
-    c->write(c->context,copy,&d);
+    { *c->state(c->context,copy)=d; goto fail; }
+    *c->state(c->context,copy)=d;
     s->copy_materials(c->context,d.materials,b.materials,b.set_count);
     s->copy_bounds(c->context,copy,body);
     for (i=0;i<b.set_count;++i)
@@ -50,11 +50,11 @@ void mm_body_restore(void *body,void *replacement,const MMBodyEditServices *s)
     const MMBodyCreateServices *c=&s->shape;
     MMBodyShape b;
     MMI32 hidden,i;
-    c->read(c->context,body,&b); hidden=b.hidden;
-    s->swap_bodies(c->context,body,replacement); c->read(c->context,body,&b);
+    b=*c->state(c->context,body); hidden=b.hidden;
+    s->swap_bodies(c->context,body,replacement); b=*c->state(c->context,body);
     for (i=0;i<b.part_count+2;++i) s->identify(c->context,body,b.actors,i);
-    if (!hidden) { s->show(c->context,body); c->read(c->context,body,&b); }
-    b.hidden=hidden; c->write(c->context,body,&b);
+    if (!hidden) { s->show(c->context,body); b=*c->state(c->context,body); }
+    b.hidden=hidden; *c->state(c->context,body)=b;
 }
 int mm_body_change_shape(void *body,void *parents,void *sets,const MMBodyEditServices *s)
 {
@@ -63,7 +63,7 @@ int mm_body_change_shape(void *body,void *parents,void *sets,const MMBodyEditSer
     MMI32 hidden,i,n;
     void *copy,*material,*model;
     int generic;
-    c->read(c->context,body,&b); hidden=b.hidden;
+    b=*c->state(c->context,body); hidden=b.hidden;
     copy=mm_body_duplicate(body,s);
     if (!copy) return 0;
     mm_body_shape_dispose(body,c);
@@ -74,7 +74,7 @@ int mm_body_change_shape(void *body,void *parents,void *sets,const MMBodyEditSer
         c->release(c->context,copy); return 0;
     }
     if (!hidden) s->show(c->context,body);
-    c->read(c->context,body,&b); c->read(c->context,copy,&d);
+    b=*c->state(c->context,body); d=*c->state(c->context,copy);
     n=b.set_count<d.set_count?b.set_count:d.set_count;
     for (i=0;i<n;++i)
     {

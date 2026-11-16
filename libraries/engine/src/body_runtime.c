@@ -2,19 +2,19 @@
 #include "mm/body_runtime.h"
 #include <stddef.h>
 static void changed(void *body,const MMBodyRuntimeServices *s)
-{ MMBodyShape b; s->shape.read(s->shape.context,body,&b); if (!b.hidden) s->changed(s->shape.context,body); }
+{ MMBodyShape b; b=*s->shape.state(s->shape.context,body); if (!b.hidden) s->changed(s->shape.context,body); }
 static void diagnose(const MMBodyRuntimeServices *s,int code)
 { if (s->diagnostic) s->diagnostic(s->shape.context,code); }
 void mm_body_show(void *body,const MMBodyRuntimeServices *s)
 {
     MMBodyShape b; void *p=s->shape.context;
-    s->shape.read(p,body,&b); --b.hidden; s->shape.write(p,body,&b);
+    b=*s->shape.state(p,body); --b.hidden; *s->shape.state(p,body)=b;
     if (!b.hidden) { s->attach(p,body); s->changed(p,body); }
 }
 void mm_body_hide(void *body,const MMBodyRuntimeServices *s)
 {
     MMBodyShape b; int visible; void *p=s->shape.context;
-    s->shape.read(p,body,&b); visible=!b.hidden; ++b.hidden; s->shape.write(p,body,&b);
+    b=*s->shape.state(p,body); visible=!b.hidden; ++b.hidden; *s->shape.state(p,body)=b;
     if (visible) { s->clear_bounds(p,body); if (s->attached(p,body)) s->detach(p,body); s->changed(p,body); }
 }
 void mm_body_highlight(void *body,int enabled,const MMBodyRuntimeServices *s)
@@ -34,7 +34,7 @@ void mm_body_remove_material(void *body,MMI32 set,const MMBodyRuntimeServices *s
     MMBodyShape b; MMI32 i; void *p=s->shape.context,*custom=s->custom(p,body,set),*raw;
     int had_custom=custom!=NULL;
     if (custom) { s->shape.release(p,custom); s->assign_custom(p,body,set,NULL); }
-    s->shape.read(p,body,&b);
+    b=*s->shape.state(p,body);
     for (i=0;i<b.part_count;++i) if (set==s->shape.item(p,b.sets,i))
     {
         raw=s->part_material(p,body,i);
@@ -44,7 +44,7 @@ void mm_body_remove_material(void *body,MMI32 set,const MMBodyRuntimeServices *s
 void mm_body_set_generic(void *body,MMI32 set,void *material,const MMBodyRuntimeServices *s)
 {
     MMBodyShape b; MMI32 i; void *p=s->shape.context;
-    mm_body_remove_material(body,set,s); s->shape.read(p,body,&b);
+    mm_body_remove_material(body,set,s); b=*s->shape.state(p,body);
     for (i=0;i<b.part_count;++i) if (set==s->shape.item(p,b.sets,i))
     { s->assign_material(p,body,i,s->material_handle(p,material)); s->retain(p,material); }
     changed(body,s);
@@ -53,7 +53,7 @@ void mm_body_set_custom(void *body,void *custom,const MMBodyRuntimeServices *s)
 {
     MMBodyShape b; MMI32 i,index=0,set; void *p=s->shape.context,*model;
     set=s->custom_set(p,custom); s->retain(p,custom); mm_body_remove_material(body,set,s);
-    s->assign_custom(p,body,set,custom); s->shape.read(p,body,&b);
+    s->assign_custom(p,body,set,custom); b=*s->shape.state(p,body);
     for (i=0;i<b.part_count;++i) if (set==s->shape.item(p,b.sets,i))
     {
         model=s->custom_model(p,custom,index); if (model) mm_body_set_model(body,i,model,s);
@@ -68,7 +68,7 @@ void mm_body_get_material(void *body,MMI32 set,int *generic,void **material,void
     *custom=s->custom(p,body,set);
     if (*custom) { *generic=0; if (s->invalidate_output) s->invalidate_output(p,material); return; }
     *generic=1; if (s->invalidate_output) s->invalidate_output(p,custom);
-    s->shape.read(p,body,&b);
+    b=*s->shape.state(p,body);
     for (i=0;i<b.part_count;++i) if (set==s->shape.item(p,b.sets,i))
     {
         raw=s->part_material(p,body,i); if (!raw) diagnose(s,MM_BODY_MISSING_MATERIAL);
@@ -90,9 +90,9 @@ void mm_body_costume_clear(MMBodyCostume *c,const MMBodyRuntimeServices *s)
 int mm_body_costume_capture(MMBodyCostume *c,void *body,const MMBodyRuntimeServices *s)
 {
     MMBodyShape b; MMI32 i; int generic; void *p=s->shape.context,*storage=NULL,*material,*custom;
-    mm_body_costume_clear(c,s); s->shape.read(p,body,&b);
+    mm_body_costume_clear(c,s); b=*s->shape.state(p,body);
     if (!s->shape.allocate_materials(p,b.set_count,&storage)) { c->entries=storage; return 0; }
-    c->entries=storage; s->shape.read(p,body,&b); c->count=b.set_count;
+    c->entries=storage; b=*s->shape.state(p,body); c->count=b.set_count;
     for (i=0;i<c->count;++i)
     {
         mm_body_get_material(body,i,&generic,&material,&custom,s);
@@ -103,7 +103,7 @@ int mm_body_costume_capture(MMBodyCostume *c,void *body,const MMBodyRuntimeServi
 void mm_body_costume_apply(const MMBodyCostume *c,void *body,int allow_different,const MMBodyRuntimeServices *s)
 {
     MMBodyShape b; MMI32 i,n; void *p=s->shape.context;
-    s->shape.read(p,body,&b); n=c->count;
+    b=*s->shape.state(p,body); n=c->count;
     if (allow_different) { if (b.set_count<n) n=b.set_count; }
     else if (n!=b.set_count) diagnose(s,MM_BODY_COSTUME_SHAPE);
     for (i=0;i<n;++i)

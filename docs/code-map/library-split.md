@@ -3662,9 +3662,15 @@ direct initialization callers retain cleanup responsibility. Disposal clears
 ownership pointers while retaining counts, matching native behavior.
 
 Native services adapt allocation, C-backed lists, BRender actor/material fields
-and links, reference release and renderer notifications. Model/material
+and links, reference release and renderer notifications. The native Body now
+embeds its owning `MMBodyShape` directly: actor/material allocation handles,
+duplicated set-list reference, part/set counts and hidden count. One borrowed
+state accessor replaces native-field read/write marshalling. C value snapshots
+retain the previous publication points around allocation, visibility and cleanup;
+initialization explicitly clears a fresh owner, not a live one. Typed actor,
+set-list and custom-material views read that same C owner. Model/material
 resource implementations, ThreeDText construction, representation adapters
-and the native Body representation remain C++ dependencies. Both hosts use the
+and the remaining native Body facade remain C++ dependencies. Both hosts use the
 converted construction/disposal through their engine-core Body facade; this is
 not yet the final C-only backend boundary.
 
@@ -3677,7 +3683,10 @@ allocator injection. C tests cover cold/warm shared material, highlight/factory/
 list/material/actor allocation failures, partial state publication, direct versus
 factory cleanup and model/material/storage release order. AddressSanitizer,
 strict C89 syntax, 63 standalone checks, 77 focused native checks, 49 snapshots,
-51 CLI baselines and headless scene playback pass. No Marcus UI tests were added.
+51 CLI baselines and headless scene playback pass. The persistent-storage follow-up
+retains separate original Debug/Release traces and repeats the body integration
+and playback checks; evidence is in `docs/tools/playback-regression.md`.
+No Marcus UI tests were added.
 
 ### Body duplication, restoration and reshaping
 
