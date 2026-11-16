@@ -65,7 +65,8 @@ void MarcusBoardStroke(MarcusBoardAngle &angle, int x0, int y0, int x1, int y1, 
 std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &angle);
 void MarcusBoardBakeGrid(MarcusBoardAngle &angle, unsigned char colour);
 bool MarcusGetStoryboard(MarcusPlayer *player, MarcusStoryboard &board);
-bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image);
+bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image,
+    std::vector<float> *depth = nullptr, const MarcusBoardAngle *inspection = nullptr);
 bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, bool newScene,
     unsigned long camera, const char *resources, const char *content);
 extern "C" {

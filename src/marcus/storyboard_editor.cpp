@@ -1,5 +1,6 @@
 #include "storyboard_editor.h"
 #include "storyboard.h"
+#include "storyboard_tools.h"
 #include "camera_controls.h"
 #include <algorithm>
 #include <cmath>
@@ -13,12 +14,26 @@ constexpr int swatches[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
 static_assert(sizeof(colourNames) / sizeof(*colourNames) == MarcusBoardColourCount, "Paint labels match the palette");
 struct Field { const char *name; float *value; float low, high, step; };
 bool Inside(float x, float y, const SDL_FRect &r) { return ui_inside(x, y, r.x, r.y, r.w, r.h) != 0; }
-void Grid(MarcusUI *ui, const MarcusBoardAngle &angle, const SDL_FRect &r)
+void Guide(MarcusUI *ui, const MarcusCameraGuide &guide, const SDL_FRect &r, unsigned colour)
+{
+    for (int i = 0; i < guide.line_count; ++i)
+    {
+        const auto &line = guide.lines[i];
+        ui_line(ui, r.x + line.x1 * r.w, r.y + line.y1 * r.h, r.x + line.x2 * r.w, r.y + line.y2 * r.h, colour);
+    }
+}
+float SegmentDistance(float x, float y, float ax, float ay, float bx, float by)
+{
+    const float dx = bx - ax, dy = by - ay, length = dx * dx + dy * dy;
+    const float t = length > 0 ? std::clamp(((x - ax) * dx + (y - ay) * dy) / length, 0.f, 1.f) : 0;
+    return std::hypot(x - ax - t * dx, y - ay - t * dy);
+}
+void Grid(MarcusUI *ui, const std::vector<std::array<double, 4>> &lines, const SDL_FRect &r)
 {
     const bool clipped = SDL_RenderClipEnabled(ui->renderer);
     SDL_Rect previous; SDL_GetRenderClipRect(ui->renderer, &previous);
     SDL_Rect clip = {int(r.x), int(r.y), int(r.w), int(r.h)}; SDL_SetRenderClipRect(ui->renderer, &clip);
-    for (const auto &line : MarcusBoardGridLines(angle))
+    for (const auto &line : lines)
         ui_line(ui, float(r.x + line[0] * r.w), float(r.y + line[1] * r.h),
             float(r.x + line[2] * r.w), float(r.y + line[3] * r.h), 0xadb3b6);
     ui_line(ui, r.x + r.w / 2 - 6, r.y + r.h / 2, r.x + r.w / 2 + 6, r.y + r.h / 2, 0x6b7f84);
@@ -31,7 +46,14 @@ struct MarcusStoryboardEditor
 {
     MarcusPlayer *player = nullptr;
     MarcusStoryboard board;
-    MarcusBoardAngle work;
+    MarcusBoardAngle work, lightView;
+    bool inspectLights = false;
+    int dragLight = -1;
+    MarcusBoardLight originalLight;
+    MarcusProjection dragProjection = {};
+    float lightStartX = 0, lightStartY = 0, lightScale = 0;
+    std::vector<float> depth;
+    std::vector<std::array<double, 4>> gridLines;
     SDL_FRect view = {}, canvas = {}, tools = {}, bar = {};
     bool open = false, changed = false, painting = false, picking = false, looking = false, pending = false, previewDirty = true, hasWork = false;
     int angle = 0, light = 0, tab = 0, colour = 3, size = 8, previousX = -1, previousY = -1, dragField = -1;
@@ -133,7 +155,37 @@ struct MarcusStoryboardEditor
         else if (ui_inside(ui->mouse_x, ui->mouse_y, sv.x, previewY, 264, 24))
             ui->hint = "Left: chosen colour / Right: the dithered paint used in the background";
     }
-    bool Gesture() const { return painting || looking || dragField >= 0; }
+    const MarcusBoardAngle &DisplayAngle() const { return tab == 2 && inspectLights ? lightView : board.angles[angle]; }
+    MarcusCamera &NavigationCamera() { return tab == 2 ? lightView.camera : board.angles[angle].camera; }
+    void FrameLights()
+    {
+        lightView = board.angles[angle];
+        std::array<float, 3> low = {lightView.camera.x, lightView.camera.y, lightView.camera.z}, high = low;
+        auto include = [&](float x, float y, float z) {
+            const float p[] = {x, y, z};
+            for (int i = 0; i < 3; ++i) { low[i] = std::min(low[i], p[i]); high[i] = std::max(high[i], p[i]); }
+        };
+        for (const auto &l : board.lights) include(l.x, l.y, l.z);
+        MarcusInfo info = {};
+        if (marcus_info(player, &info)) for (int i = 0; i < info.object_count; ++i)
+        {
+            MarcusObject object = {}; MarcusBounds bounds = {};
+            if (marcus_object(player, i, &object) && object.visible)
+            {
+                include(object.x, object.y, object.z);
+                if (marcus_object_bounds(player, i, &bounds) && bounds.valid)
+                    for (int corner = 0; corner < 8; ++corner) include(bounds.corners[corner * 3], bounds.corners[corner * 3 + 1], bounds.corners[corner * 3 + 2]);
+            }
+        }
+        const float distance = std::max(20.f, std::hypot(std::hypot(high[0] - low[0], high[1] - low[1]), high[2] - low[2]) * 1.4f);
+        lightView.camera.yaw = 35; lightView.camera.pitch = 25; lightView.roll = 0;
+        lightView.fov = 60; lightView.nearClip = .1f; lightView.farClip = 32700;
+        const auto projection = MarcusBoardProjection(lightView);
+        float *coordinates[] = {&lightView.camera.x, &lightView.camera.y, &lightView.camera.z};
+        for (int i = 0; i < 3; ++i) *coordinates[i] = std::clamp((low[i] + high[i]) * .5f + projection.transform[6 + i] * distance, -32700.f, 32700.f);
+        inspectLights = previewDirty = true;
+    }
+    bool Gesture() const { return painting || looking || dragField >= 0 || dragLight >= 0; }
     void StopLook()
     {
         if (navigationWindow)
@@ -149,12 +201,13 @@ struct MarcusStoryboardEditor
             { error = marcus_error(player); return false; }
             flySpeed = matched.move_speed;
         }
-        board.angles[angle].camera.move_speed = flySpeed;
+        NavigationCamera().move_speed = flySpeed;
         return true;
     }
     void StartLook(SDL_WindowID id)
     {
         Finish();
+        if (tab == 2 && !inspectLights) { lightView = board.angles[angle]; inspectLights = true; }
         auto window = SDL_GetWindowFromID(id);
         if (!window || !FlightSpeed()) return;
         if (!SDL_SetWindowRelativeMouseMode(window, true)) { error = SDL_GetError(); return; }
@@ -167,7 +220,8 @@ struct MarcusStoryboardEditor
         MarcusInfo info = {}; MarcusScene current = {};
         if (!marcus_info(player, &info) || !marcus_scene(player, info.scene, &current) || !MarcusGetStoryboard(player, board))
         { open = false; return; }
-        if (scene != current.chunk) flySpeed = 0;
+        const bool sceneChanged = scene != current.chunk;
+        if (sceneChanged) { flySpeed = 0; inspectLights = false; }
         document = marcus_document(player); scene = current.chunk; frame = info.frame;
         angle = std::min(int(info.camera), int(board.angles.size()) - 1);
         light = std::clamp(light, 0, std::max(0, int(board.lights.size()) - 1));
@@ -175,8 +229,9 @@ struct MarcusStoryboardEditor
         MarcusGetStoryboardColours(player, paintColours);
         MarcusGetStoryboardPalette(player, scenePalette);
         SelectRGB(selected); hsvDrag = 0;
-        pending = painting = picking = looking = false; dragField = -1; cameraKeys = 0;
+        pending = painting = picking = looking = false; dragField = dragLight = -1; cameraKeys = 0;
         previewDirty = true;
+        if (sceneChanged && tab == 2) FrameLights();
     }
     bool Commit()
     {
@@ -196,7 +251,7 @@ struct MarcusStoryboardEditor
     }
     void Finish()
     {
-        StopLook(); painting = false; dragField = -1; hsvDrag = 0;
+        StopLook(); painting = false; dragField = dragLight = -1; hsvDrag = 0;
         Commit();
     }
     void SelectAngle(int index)
@@ -204,6 +259,83 @@ struct MarcusStoryboardEditor
         Finish();
         angle = std::clamp(index, 0, int(board.angles.size()) - 1);
         pending = previewDirty = true; Commit();
+    }
+    void MoveLight(float px, float py)
+    {
+        if (canvas.w <= 0 || canvas.h <= 0 || light >= int(board.lights.size())) return;
+        MarcusBoardLight next;
+        if (MarcusBoardDragLight(dragProjection, originalLight, dragLight, lightScale, lightStartX, lightStartY,
+            (px - canvas.x) / canvas.w, (py - canvas.y) / canvas.h, next))
+        { board.lights[light] = next; pending = previewDirty = true; }
+    }
+    int HitLight(float px, float py, int &index) const
+    {
+        const auto projection = MarcusBoardProjection(DisplayAngle());
+        const float nx = (px - canvas.x) / canvas.w, ny = (py - canvas.y) / canvas.h;
+        float best = 14;
+        int handle = -1; index = -1;
+        // Prefer the selected marker when newly added lights share a position.
+        for (int pass = 0; pass < int(board.lights.size()); ++pass)
+        {
+            const int i = pass == 0 ? light : pass <= light ? pass - 1 : pass;
+            const auto widget = MarcusBoardBuildLightWidget(projection, board.lights[i], canvas.h);
+            for (int h = 0; h < 5; ++h)
+            {
+                if (!widget.visible[h] || (h && i != light)) continue;
+                const auto &p = widget.handles[h];
+                float distance = std::hypot((nx - p[0]) * canvas.w, (ny - p[1]) * canvas.h);
+                if (h > 0 && h < 4 && widget.visible[0])
+                {
+                    const auto &c = widget.handles[0];
+                    // Keep the centre available for dragging in the view plane.
+                    if (std::hypot((nx - c[0]) * canvas.w, (ny - c[1]) * canvas.h) > 16)
+                        distance = SegmentDistance(px, py, canvas.x + c[0] * canvas.w, canvas.y + c[1] * canvas.h,
+                            canvas.x + p[0] * canvas.w, canvas.y + p[1] * canvas.h);
+                }
+                const float limit = h > 0 && h < 4 ? 7.f : 14.f;
+                if (distance < std::min(best, limit)) { best = distance; handle = h; index = i; }
+            }
+        }
+        return handle;
+    }
+    void DrawLights(MarcusUI *ui)
+    {
+        const auto projection = MarcusBoardProjection(DisplayAngle());
+        SDL_Rect previous; SDL_GetRenderClipRect(ui->renderer, &previous);
+        const bool clipped = SDL_RenderClipEnabled(ui->renderer);
+        SDL_Rect clip = {int(canvas.x), int(canvas.y), int(canvas.w), int(canvas.h)};
+        SDL_SetRenderClipRect(ui->renderer, &clip);
+        const unsigned axisColours[] = {0xf07878, 0x8ed58b, 0x79aef0};
+        MarcusCameraGuide camera = {};
+        if (inspectLights)
+        {
+            const auto shot = MarcusBoardProjection(board.angles[angle]);
+            camera_guide_build(&projection, &shot, &camera); Guide(ui, camera, canvas, 0x78b7c4);
+        }
+        for (int i = 0; i < int(board.lights.size()); ++i)
+        {
+            const auto widget = MarcusBoardBuildLightWidget(projection, board.lights[i], canvas.h);
+            const bool selected = i == light;
+            const unsigned colour = selected ? 0xffd77a : 0xc4a76d;
+            Guide(ui, widget.shape, canvas, colour); Guide(ui, widget.direction, canvas, colour);
+            if (selected) for (int axis = 0; axis < 3; ++axis) Guide(ui, widget.axes[axis], canvas, axisColours[axis]);
+            for (int h = 0; h < 5; ++h)
+            {
+                if (!widget.visible[h] || (h && !selected)) continue;
+                const auto &p = widget.handles[h];
+                const float x = canvas.x + p[0] * canvas.w, y = canvas.y + p[1] * canvas.h;
+                ui_fill(ui, x - 5, y - 5, 10, 10, 0x25282d);
+                ui_fill(ui, x - 3, y - 3, 6, 6, h > 0 && h < 4 ? axisColours[h - 1] : colour);
+                if (h > 0 && h < 4) ui_text(ui, x + 7, y - 7, h == 1 ? "X" : h == 2 ? "Y" : "Z", axisColours[h - 1]);
+                if (h == 4) ui_text(ui, x + 7, y - 7, "Aim", colour);
+                if (h == 0)
+                {
+                    char label[64]; SDL_snprintf(label, sizeof(label), "%s light %d", board.lights[i].point ? "Point" : "Directional", i + 1);
+                    ui_text(ui, x + 16, y - 28, label, colour);
+                }
+            }
+        }
+        SDL_SetRenderClipRect(ui->renderer, clipped ? &previous : nullptr);
     }
     void AddAngle()
     {
@@ -260,8 +392,8 @@ int storyboard_editor_flying(const MarcusStoryboardEditor *e) { return e && e->l
 void storyboard_editor_release_camera(MarcusStoryboardEditor *e) { if (e && e->looking) e->Finish(); }
 void storyboard_editor_update(MarcusStoryboardEditor *e, double seconds)
 {
-    if (storyboard_editor_visible(e) && e->looking && marcus_fly_step(&e->board.angles[e->angle].camera, e->cameraKeys, seconds))
-        e->pending = e->previewDirty = true;
+    if (storyboard_editor_visible(e) && e->looking && marcus_fly_step(&e->NavigationCamera(), e->cameraKeys, seconds))
+    { e->previewDirty = true; if (e->tab == 1) e->pending = true; }
 }
 void storyboard_editor_close(MarcusStoryboardEditor *e) { if (e && e->open) { e->Finish(); e->picking = e->open = false; } }
 void storyboard_editor_layout(MarcusStoryboardEditor *e, const SDL_FRect *view, const SDL_FRect *canvas, const SDL_FRect *tools, const SDL_FRect *bar)
@@ -311,6 +443,7 @@ int storyboard_editor_show(MarcusStoryboardEditor *e, MarcusPlayer *player, int 
             e->work.farClip = std::clamp(work->projection.far_clip, e->work.nearClip + .01f, 32700.f);
         }
         e->tab = e->light = 0;
+        e->inspectLights = false;
         e->picking = false;
         if (newScene) e->SelectRGB(MarcusBoardColours[3]);
         if (angle == -2) e->AddAngle();
@@ -339,6 +472,7 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
             return 1;
         }
         if (key == SDLK_Z && command && e->Gesture()) { e->Reload(); return 1; }
+        if (e->dragLight >= 0) return 1;
         if (command) { e->Finish(); return 0; }
         if (e->looking) return 0;
         if (!event->key.repeat)
@@ -360,11 +494,12 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
     if (event->type == SDL_EVENT_MOUSE_MOTION)
     {
         if (e->hsvDrag) { e->MoveHSV(event->motion.x, event->motion.y); return 1; }
+        if (e->dragLight >= 0) { e->MoveLight(event->motion.x, event->motion.y); return 1; }
         if (e->painting) { e->Paint(event->motion.x, event->motion.y); return 1; }
         if (e->looking)
         {
-            if (marcus_fly_look(&e->board.angles[e->angle].camera, event->motion.xrel, event->motion.yrel))
-                e->pending = e->previewDirty = true;
+            if (marcus_fly_look(&e->NavigationCamera(), event->motion.xrel, event->motion.yrel))
+            { e->previewDirty = true; if (e->tab == 1) e->pending = true; }
             return 1;
         }
         if (e->dragField >= 0)
@@ -383,21 +518,21 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
     }
     if (event->type == SDL_EVENT_MOUSE_BUTTON_UP &&
         ((e->looking && event->button.button == SDL_BUTTON_RIGHT) ||
-         ((e->painting || e->dragField >= 0 || e->hsvDrag) && event->button.button == SDL_BUTTON_LEFT))) { e->Finish(); return 1; }
+         ((e->painting || e->dragField >= 0 || e->dragLight >= 0 || e->hsvDrag) && event->button.button == SDL_BUTTON_LEFT))) { e->Finish(); return 1; }
     if (event->type == SDL_EVENT_MOUSE_WHEEL)
     {
         if (!e->looking && !Inside(event->wheel.mouse_x, event->wheel.mouse_y, e->canvas))
             return Inside(event->wheel.mouse_x, event->wheel.mouse_y, e->view) || Inside(event->wheel.mouse_x, event->wheel.mouse_y, e->tools);
-        if (e->tab == 1 && event->wheel.y != 0 && e->FlightSpeed())
+        if ((e->tab == 1 || e->tab == 2) && event->wheel.y != 0 && e->FlightSpeed())
         {
-            auto &camera = e->board.angles[e->angle].camera;
+            auto &camera = e->NavigationCamera();
             marcus_fly_speed(&camera, event->wheel.y * (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1));
             e->flySpeed = camera.move_speed;
         }
         return 1;
     }
     if (event->type != SDL_EVENT_MOUSE_BUTTON_DOWN) return 0;
-    if (e->looking) return 1;
+    if (e->looking || e->dragLight >= 0) return 1;
     const float px = event->button.x, py = event->button.y;
     if (!Inside(px, py, e->view) && !Inside(px, py, e->tools)) { e->Finish(); return 0; }
     if (Inside(px, py, e->canvas))
@@ -407,7 +542,21 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
             if (e->picking || (SDL_GetModState() & SDL_KMOD_ALT)) e->Pick(px, py);
             else { e->painting = true; e->previousX = e->previousY = -1; e->Paint(px, py); }
         }
-        else if (event->button.button == SDL_BUTTON_RIGHT && e->tab == 1) e->StartLook(event->button.windowID);
+        else if (event->button.button == SDL_BUTTON_LEFT && e->tab == 2)
+        {
+            e->Finish();
+            int index;
+            const int handle = e->HitLight(px, py, index);
+            if (handle >= 0)
+            {
+                e->light = index; e->originalLight = e->board.lights[index];
+                e->dragProjection = MarcusBoardProjection(e->DisplayAngle());
+                e->lightScale = MarcusBoardBuildLightWidget(e->dragProjection, e->originalLight, e->canvas.h).scale;
+                e->lightStartX = (px - e->canvas.x) / e->canvas.w; e->lightStartY = (py - e->canvas.y) / e->canvas.h;
+                e->dragLight = handle;
+            }
+        }
+        else if (event->button.button == SDL_BUTTON_RIGHT && (e->tab == 1 || e->tab == 2)) e->StartLook(event->button.windowID);
         return 1;
     }
     if (event->button.button != SDL_BUTTON_LEFT) return 1;
@@ -424,7 +573,11 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
         e->pending = true; e->Commit(); return 1;
     }
     for (int t = 0; t < 3; ++t)
-        if (ui_inside(px, py, x + t * 90, y + 52, 84, 30)) { e->tab = t; e->picking = false; return 1; }
+        if (ui_inside(px, py, x + t * 90, y + 52, 84, 30))
+        {
+            if (t == 2 && e->tab != 2 && !e->inspectLights) e->FrameLights();
+            e->tab = t; e->picking = false; e->previewDirty = true; return 1;
+        }
     if (e->tab == 0)
     {
         for (int c = 0; c < int(MarcusBoardColourCount); ++c)
@@ -451,10 +604,13 @@ int storyboard_editor_event(MarcusStoryboardEditor *e, const SDL_Event *event)
     {
         if (e->tab == 2)
         {
+            if (ui_inside(px, py, x, y + 394, 126, 30)) e->FrameLights();
+            if (ui_inside(px, py, x + 138, y + 394, 126, 30))
+            { if (e->inspectLights) e->inspectLights = false; else e->FrameLights(); e->previewDirty = true; }
             if (ui_inside(px, py, x, y + 104, 40, 28)) e->light = std::max(0, e->light - 1);
             if (ui_inside(px, py, x + 48, y + 104, 40, 28)) e->light = std::max(0, std::min(int(e->board.lights.size()) - 1, e->light + 1));
             if (ui_inside(px, py, x + 96, y + 104, 76, 28) && e->board.lights.size() < 16)
-            { e->board.lights.push_back(MarcusBoardLight{}); e->light = int(e->board.lights.size()) - 1; e->pending = true; }
+            { e->board.lights.push_back(MarcusBoardLight{}); e->light = int(e->board.lights.size()) - 1; e->pending = true; e->FrameLights(); }
             if (ui_inside(px, py, x + 180, y + 104, 84, 28) && !e->board.lights.empty())
             { e->board.lights.erase(e->board.lights.begin() + e->light); e->light = std::max(0, e->light - 1); e->pending = true; }
             if (ui_inside(px, py, x, y + 144, 264, 28) && !e->board.lights.empty())
@@ -479,10 +635,11 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
     if (e->previewDirty)
     {
         MarcusImage image = {};
-        if (MarcusRenderStoryboard(e->player, e->board, e->angle, image))
+        if (MarcusRenderStoryboard(e->player, e->board, e->angle, image, &e->depth, e->tab == 2 && e->inspectLights ? &e->lightView : nullptr))
             e->rgba.assign(image.rgba, image.rgba + size_t(image.pitch) * image.height);
         else
         {
+            e->depth.clear();
             e->rgba.resize(MarcusBoardWidth * MarcusBoardHeight * 4);
             const auto &pixels = e->board.angles[e->angle].pixels;
             for (size_t i = 0; i < pixels.size(); ++i)
@@ -492,6 +649,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
                 e->rgba[i * 4 + 2] = static_cast<unsigned char>(rgb); e->rgba[i * 4 + 3] = 255;
             }
         }
+        e->gridLines = MarcusBoardVisibleGridLines(e->DisplayAngle(), e->depth, MarcusBoardWidth, MarcusBoardHeight);
         if (!e->texture) e->texture = SDL_CreateTexture(ui->renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, MarcusBoardWidth, MarcusBoardHeight);
         if (e->texture) { SDL_SetTextureScaleMode(e->texture, SDL_SCALEMODE_NEAREST); SDL_UpdateTexture(e->texture, nullptr, e->rgba.data(), MarcusBoardWidth * 4); }
         e->previewDirty = false;
@@ -511,7 +669,8 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
     ui_button_sized(ui, right - 130, e->bar.y, 130, 28, "Use work camera", 0, e->hasWork);
     ui_fill(ui, e->canvas.x - 1, e->canvas.y - 1, e->canvas.w + 2, e->canvas.h + 2, 0x5b6570);
     if (e->texture) SDL_RenderTexture(ui->renderer, e->texture, nullptr, &e->canvas);
-    Grid(ui, e->board.angles[e->angle], e->canvas);
+    Grid(ui, e->gridLines, e->canvas);
+    if (e->tab == 2) e->DrawLights(ui);
     if (e->tab == 0)
     {
         for (int c = 0; c < int(MarcusBoardColourCount); ++c)
@@ -552,6 +711,8 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             const bool any = !e->board.lights.empty();
             SDL_snprintf(label, sizeof(label), "Light %d / %d: %s", any ? e->light + 1 : 0, int(e->board.lights.size()), any && e->board.lights[e->light].point ? "Point" : "Directional");
             ui_button_sized(ui, x, y + 144, 264, 28, label, 0, any);
+            ui_button_sized(ui, x, y + 394, 126, 30, "Frame lights", 0, 1);
+            ui_button_sized(ui, x + 138, y + 394, 126, 30, e->inspectLights ? "Shot view" : "3D light view", 0, 1);
         }
         auto fields = e->Fields();
         for (int i = 0; i < int(fields.size()); ++i)
@@ -563,8 +724,9 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
             SDL_snprintf(label, sizeof(label), "%.2f", *f.value); ui_label(ui, x + 110, top + 6, 88, label, 0xdde0e5);
             ui_button_sized(ui, x + 212, top, 24, 26, "-", 0, 1); ui_button_sized(ui, x + 240, top, 24, 26, "+", 0, 1);
         }
-        ui_text(ui, x, y + 440, "Drag values / Shift for fine", 0x969da8);
-        ui_text(ui, x, y + 464, e->tab == 1 ? "Hold RMB / WASD + Q E / Shift" : "Lights affect 3D actors / props.", 0x969da8);
+        ui_text(ui, x, y + 440, e->tab == 1 ? "Drag values / Shift for fine" : "Drag XYZ / centre to move", 0x969da8);
+        ui_text(ui, x, y + 464, e->tab == 1 ? "Hold RMB / WASD + Q E / Shift" : "Drag Aim / RMB to inspect", 0x969da8);
+        if (e->tab == 2) ui_text(ui, x, y + 488, "Escape cancels / Ctrl+Z undo", 0x969da8);
         if (e->tab == 1)
         {
             SDL_snprintf(label, sizeof(label), "Wheel: flight speed%s", e->flySpeed > 0 ? "" : " / RMB to start");
@@ -579,7 +741,8 @@ void storyboard_editor_draw(MarcusStoryboardEditor *e, MarcusUI *ui)
     if (e->looking || Inside(ui->mouse_x, ui->mouse_y, e->canvas))
         ui->hint = e->tab == 0 ? (e->picking ? "Click the background to pick its paint colour / Escape cancels the picker"
             : "Paint / 1-9 colours / 0 canvas grey / I or Alt+click to pick / [ ] size / Ctrl+Z undo")
-            : e->tab == 1 ? "Hold right mouse: look + WASD move / Q E down/up / Shift faster / Wheel speed / Escape releases" : "Lights affect actors and props across this scene's camera angles";
+            : e->tab == 1 ? "Hold right mouse: look + WASD move / Q E down/up / Shift faster / Wheel speed / Escape releases"
+            : "Select a light / drag XYZ or centre to move / drag Aim to turn / RMB + WASD to inspect / Shot view previews the movie camera";
 }
 int storyboard_editor_take(MarcusStoryboardEditor *e) { if (!e || !e->changed) return 0; e->changed = false; return 1; }
 }

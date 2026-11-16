@@ -821,11 +821,12 @@ bool PrepareBoardPaint(MarcusPlayer *player, const MarcusBoardPaintColours &targ
     return true;
 }
 }
-bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image)
+bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image,
+    std::vector<float> *depth, const MarcusBoardAngle *inspection)
 {
     return Guard(player, [&](MM::Error &error) {
         if (player->selected < 0 || camera >= board.angles.size() || !MarcusBoardValid(board)) return false;
-        const auto &a = board.angles[camera];
+        const auto &a = inspection ? *inspection : board.angles[camera];
         if (!PrepareBoardPaint(player, board.colours)) return false;
         MM::PreviewView view;
         view.width = MarcusBoardWidth; view.height = MarcusBoardHeight;
@@ -836,16 +837,19 @@ bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board,
         for (const auto &l : board.lights) lights.push_back({l.x, l.y, l.z, l.yaw, l.pitch, l.intensity, l.point != 0});
         if (!player->preview.RenderWithLights(view, lights, player->thumbnail, error)) return false;
         auto &rendered = player->thumbnail;
-        for (size_t i = 0; i < a.pixels.size(); ++i)
+        const auto &pixels = board.angles[camera].pixels;
+        for (size_t i = 0; i < pixels.size(); ++i)
             if (rendered.depth.empty() || !std::isfinite(rendered.depth[i]) || rendered.depth[i] > a.farClip)
             {
-                const auto rgb = player->paintPalette[MarcusBoardPaintIndex(player->paintInks[a.pixels[i]], int(i % MarcusBoardWidth), int(i / MarcusBoardWidth))];
+                const auto rgb = player->paintPalette[MarcusBoardPaintIndex(player->paintInks[pixels[i]], int(i % MarcusBoardWidth), int(i / MarcusBoardWidth))];
                 rendered.rgba[i * 4] = static_cast<unsigned char>(rgb >> 16);
                 rendered.rgba[i * 4 + 1] = static_cast<unsigned char>(rgb >> 8);
                 rendered.rgba[i * 4 + 2] = static_cast<unsigned char>(rgb); rendered.rgba[i * 4 + 3] = 255;
             }
         image = {}; image.width = rendered.width; image.height = rendered.height;
         image.pitch = image.width * 4; image.rgba = rendered.rgba.data();
+        image.projection = CopyProjection(rendered.projection);
+        if (depth) *depth = rendered.depth;
         return true;
     });
 }

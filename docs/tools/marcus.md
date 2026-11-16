@@ -204,11 +204,24 @@ wide, retain the current camera perspective, and stay fixed if you move the came
 later. Baking is one undo step and survives Save copy, without adding
 depth. The live guide, crosshair and guide label appear in Paint, Camera and
 Lights as temporary overlays.
+The live ground grid uses the preview's scene depth, so actors and props hide
+grid lines behind their surfaces. Baked lines remain part of the background.
 **Use work camera** copies the current
 work-view pose and lens into this angle, retaining its drawing.
 
 **Lights** adds, selects, deletes and adjusts up to sixteen directional or point
-lights. Position, direction and intensity affect 3D actors/props across all angles;
+lights. Its 3D inspection view shows selectable light widgets and the shot's camera
+frustum. Point lights use spherical markers; directional lights show an arrow.
+Click a marker to select it, drag its coloured **X/Y/Z** handles to move along a
+world axis, or drag its centre to move in the view plane. Drag **Aim** on a
+directional light to change yaw and pitch. Numeric fields stay available for
+precise values and intensity. Releasing a drag commits one movie undo step;
+Escape or Ctrl+Z during a drag restores its starting values.
+**Frame lights** fits the lights, visible objects and shot camera in the inspection
+view. Hold right mouse with WASD and Q/E to inspect, with Shift for faster movement
+and the wheel to change speed. Inspection never changes the movie's camera.
+**Shot view** previews the active angle; **3D light view** returns to inspection.
+Position, direction and intensity affect 3D actors/props across all angles;
 the paintings keep their flat colours. Existing scene objects appear over the
 painting, with camera/light changes previewed during a drag and committed on release.
 Painting and lights belong to the scene; each angle has its own image and camera.

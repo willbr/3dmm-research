@@ -1,5 +1,6 @@
 // Headless authoring/native round-trip checks. No application window or UI input.
 #include "storyboard.h"
+#include "storyboard_tools.h"
 #include "mm/preview.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -22,6 +23,59 @@ int main(int argc, char **argv)
     {
         MarcusStoryboard board;
         check(MarcusBoardValid(board), "Default storyboard");
+        {
+            MarcusBoardAngle view;
+            view.camera = {0, 10, 40, 0, 0, 5}; view.nearClip = .1f;
+            const auto projection = MarcusBoardProjection(view);
+            MarcusBoardLight lamp = {0, 10, 0, 45, 20, .8f, 0};
+            const auto widget = MarcusBoardBuildLightWidget(projection, lamp, 600);
+            check(widget.visible[0] && widget.visible[1] && widget.visible[2] && widget.visible[4] &&
+                std::abs(widget.handles[0][0] - .5f) < .0001f && std::abs(widget.handles[0][1] - .5f) < .0001f,
+                "Project light centre and XYZ/aim handles through the scene camera");
+            MarcusBoardLight moved;
+            check(MarcusBoardDragLight(projection, lamp, 1, widget.scale, .5f, .5f, .6f, .6f, moved) &&
+                moved.x > lamp.x && moved.y == lamp.y && moved.z == lamp.z,
+                "X handle constrains a diagonal pointer drag to world X");
+            check(MarcusBoardDragLight(projection, lamp, 2, widget.scale, .5f, .5f, .6f, .6f, moved) &&
+                moved.y < lamp.y && moved.x == lamp.x && moved.z == lamp.z,
+                "Y handle constrains movement to world Y");
+            check(!MarcusBoardDragLight(projection, lamp, 3, widget.scale, .5f, .5f, .6f, .6f, moved),
+                "An end-on axis cannot produce an unstable depth jump");
+            check(MarcusBoardDragLight(projection, lamp, 0, widget.scale, .5f, .5f, .6f, .6f, moved) &&
+                moved.x > lamp.x && moved.y < lamp.y && moved.z == lamp.z && moved.yaw == lamp.yaw,
+                "Centre drag moves in the view plane without changing direction");
+            check(MarcusBoardDragLight(projection, lamp, 4, widget.scale, widget.handles[4][0], widget.handles[4][1],
+                widget.handles[4][0] + .1f, widget.handles[4][1] + .1f, moved) && moved.yaw != lamp.yaw &&
+                moved.pitch != lamp.pitch && moved.x == lamp.x && moved.y == lamp.y && moved.z == lamp.z,
+                "Aim handle changes yaw/pitch while preserving the light position");
+            lamp.point = 1;
+            const auto point = MarcusBoardBuildLightWidget(projection, lamp, 600);
+            check(point.shape.line_count == 24 && !point.visible[4] && point.direction.line_count == 0 &&
+                !MarcusBoardDragLight(projection, lamp, 4, point.scale, .5f, .5f, .6f, .6f, moved),
+                "Point light has a spherical marker and no directional aim control");
+            lamp.z = 50;
+            check(!MarcusBoardBuildLightWidget(projection, lamp, 600).visible[0], "Lights behind the viewer are not pickable");
+            view.camera = {25, 24, 40, 30, 15, 5}; view.roll = 17;
+            lamp = {0, 10, 0, 45, 20, .8f, 0};
+            const auto angled = MarcusBoardProjection(view);
+            const auto angledWidget = MarcusBoardBuildLightWidget(angled, lamp, 600);
+            check(angledWidget.visible[0] && MarcusBoardDragLight(angled, lamp, 3, angledWidget.scale,
+                angledWidget.handles[0][0], angledWidget.handles[0][1], angledWidget.handles[0][0] + .1f,
+                angledWidget.handles[0][1], moved) && moved.z != lamp.z && moved.x == lamp.x && moved.y == lamp.y,
+                "World Z dragging works with a pitched, yawed and rolled camera");
+            std::vector<float> clear(MarcusBoardWidth * MarcusBoardHeight, std::numeric_limits<float>::infinity());
+            const auto full = MarcusBoardVisibleGridLines(view, clear, MarcusBoardWidth, MarcusBoardHeight);
+            check(!full.empty(), "Ground grid is visible against an infinite backdrop");
+            std::fill(clear.begin(), clear.end(), .1f);
+            check(MarcusBoardVisibleGridLines(view, clear, MarcusBoardWidth, MarcusBoardHeight).empty(),
+                "Foreground geometry occludes every live grid segment behind it");
+            for (int y = 0; y < MarcusBoardHeight; ++y) for (int x = 0; x < MarcusBoardWidth; ++x)
+                clear[y * MarcusBoardWidth + x] = x < MarcusBoardWidth / 2 ? .1f : std::numeric_limits<float>::infinity();
+            const auto half = MarcusBoardVisibleGridLines(view, clear, MarcusBoardWidth, MarcusBoardHeight);
+            check(!half.empty() && std::all_of(half.begin(), half.end(), [](const auto &line) {
+                return line[0] >= .498 && line[2] >= .498;
+            }), "Live grid segments split at the foreground silhouette");
+        }
         for (float pitch : {-90.f, 90.f})
         {
             auto vertical = board; vertical.angles[0].camera.pitch = pitch;
@@ -156,7 +210,11 @@ int main(int argc, char **argv)
         check(MarcusRenderLocalWorld(player.get(), view, image, error) &&
             std::any_of(image.depth.begin(), image.depth.end(), [](float d) { return std::isfinite(d); }), "Props render in front of the painting");
         MarcusImage preview;
-        check(MarcusRenderStoryboard(player.get(), board, 1, preview), "Draft camera/light preview");
+        std::vector<float> previewDepth;
+        check(MarcusRenderStoryboard(player.get(), board, 1, preview, &previewDepth) && preview.projection.valid &&
+            previewDepth.size() == MarcusBoardWidth * MarcusBoardHeight &&
+            std::any_of(previewDepth.begin(), previewDepth.end(), [](float d) { return std::isfinite(d); }),
+            "Draft camera/light preview returns scene depth for ground-guide occlusion");
         std::vector<unsigned char> originalPreview(preview.rgba, preview.rgba + preview.pitch * preview.height);
         auto dark = board; for (auto &l : dark.lights) l.intensity = 0;
         check(MarcusRenderStoryboard(player.get(), dark, 1, preview), "Preview disabled lights");
@@ -167,6 +225,16 @@ int main(int argc, char **argv)
             !std::equal(darkPreview.begin(), darkPreview.end(), preview.rgba), "Draft lights change actor shading");
         check(MarcusRenderStoryboard(player.get(), board, 1, preview) &&
             std::equal(originalPreview.begin(), originalPreview.end(), preview.rgba), "Temporary lights restore exactly");
+        const auto beforeInspection = marcus_document(player.get());
+        auto inspection = board.angles[1]; inspection.camera.x += 10; inspection.camera.yaw += 15;
+        check(MarcusRenderStoryboard(player.get(), board, 1, preview, &previewDepth, &inspection) &&
+            std::abs(preview.projection.transform[9] - inspection.camera.x) < .01f &&
+            marcus_document(player.get()) == beforeInspection && marcus_info(player.get(), &info) && info.camera == 1,
+            "Light inspection can move its camera without authoring the movie shot or an undo entry");
+        auto movedLights = board; movedLights.lights[0].x += 5; movedLights.lights[0].yaw += 20;
+        check(MarcusApplyStoryboard(player.get(), movedLights, false, 1, argv[1], argv[2]) && marcus_undo(player.get()) &&
+            MarcusGetStoryboard(player.get(), restored) && MarcusEncodeBoard(restored) == bytes,
+            "A completed light position/direction edit is one undo step");
         const auto path = std::filesystem::absolute(std::filesystem::u8path(argv[3]));
         std::filesystem::create_directories(path.parent_path());
         auto unsafePath = path; unsafePath.replace_extension(".3mm");

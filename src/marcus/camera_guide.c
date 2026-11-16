@@ -268,6 +268,39 @@ void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, M
     }
 }
 
+int camera_project_point(const MarcusProjection *projection, const float world[3], float image[3])
+{
+    GuideView view;
+    double point[3], source[3];
+    int i;
+    if (!valid_projection(projection) || !make_view(projection, &view)) return 0;
+    for (i = 0; i < 3; ++i)
+    {
+        if (!finite_value(world[i])) return 0;
+        source[i] = world[i];
+    }
+    view_point(&view, source, point);
+    for (i = 0; i < 6; ++i)
+        if (plane_distance(&view, point, i) < 0) return 0;
+    image[0] = coordinate(.5 + point[0] / (2 * (view.orthographic ? 1 : point[2]) * view.tangent_x));
+    image[1] = coordinate(.5 - point[1] / (2 * (view.orthographic ? 1 : point[2]) * view.tangent_y));
+    image[2] = (float)point[2];
+    return 1;
+}
+void camera_guide_add_line(const MarcusProjection *projection, const float a[3], const float b[3], MarcusCameraGuide *guide)
+{
+    GuideView view;
+    double first[3], last[3];
+    int i;
+    if (!valid_projection(projection) || !make_view(projection, &view)) return;
+    for (i = 0; i < 3; ++i)
+    {
+        if (!finite_value(a[i]) || !finite_value(b[i])) return;
+        first[i] = a[i]; last[i] = b[i];
+    }
+    add_line(&view, first, last, guide);
+}
+
 int camera_projection_matrices(const MarcusProjection *projection, float view[16], float clip[16])
 {
     GuideView camera;

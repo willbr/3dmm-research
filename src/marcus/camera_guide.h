@@ -31,6 +31,10 @@ void camera_guide_build_image(const MarcusImage *image, const MarcusProjection *
 void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, MarcusCameraGuide *guide);
 /* Column-major view/projection matrices matching the engine camera exactly. */
 int camera_projection_matrices(const MarcusProjection *projection, float view[16], float clip[16]);
+/* Project a visible world point to normalized X/Y and camera-forward depth. */
+int camera_project_point(const MarcusProjection *projection, const float world[3], float image[3]);
+/* Append a world-space segment, clipped by the same planes as camera guides. */
+void camera_guide_add_line(const MarcusProjection *projection, const float a[3], const float b[3], MarcusCameraGuide *guide);
 #ifdef __cplusplus
 }
 #endif
