@@ -65,6 +65,7 @@ int mm_session_body_parts(const MMMovieBodyInput *, MMMovieEvaluatedBody *);
 int mm_session_costume_find(const MMMovieBodyInput *, MMI32 id, MMMovieCustomCostume *);
 int mm_session_costume_apply(const MMMovieBodyInput *, MMMovieEvaluatedBody *, const MMMovieCustomCostume *);
 int mm_session_costume_defaults(const MMMovieBodyInput *, MMMovieEvaluatedBody *);
+void mm_session_apply_material(MMMovieEvaluatedBody *, MMI32 set, const MMMovieAsset *);
 int mm_session_costume_material(const MMMovieSession *, MMMovieSourceRead, void *, const MMMovieAsset *);
 
 #endif

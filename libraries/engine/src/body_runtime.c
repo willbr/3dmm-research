@@ -41,26 +41,94 @@ void mm_body_remove_material(void *body,MMI32 set,const MMBodyRuntimeServices *s
         if (raw) { if (!had_custom) s->shape.release(p,s->material_object(p,raw)); s->assign_material(p,body,i,NULL); }
     }
 }
+
+MMI32 mm_body_apply_set(void *body, MMI32 part_count, MMI32 set, const MMBodySetServices *s)
+{
+    MMI32 part, slot = 0;
+    for (part = 0; part < part_count; ++part)
+        if (s->part_set(s->context, body, part) == set)
+        {
+            if (!s->apply_part(s->context, body, part, slot))
+                return -1;
+            ++slot;
+        }
+    return slot;
+}
+
+typedef struct BodySetBinding
+{
+    const MMBodyRuntimeServices *services;
+    void *sets, *material;
+} BodySetBinding;
+
+static MMI32 render_part_set(void *context, void *body, MMI32 part)
+{
+    const BodySetBinding *binding = (const BodySetBinding *)context;
+    const MMBodyCreateServices *s = &binding->services->shape;
+    (void)body;
+    return s->item(s->context, binding->sets, part);
+}
+
+static int render_generic(void *context, void *body, MMI32 part, MMI32 slot)
+{
+    const BodySetBinding *binding = (const BodySetBinding *)context;
+    const MMBodyRuntimeServices *s = binding->services;
+    void *p = s->shape.context;
+    (void)slot;
+    s->assign_material(p, body, part, s->material_handle(p, binding->material));
+    s->retain(p, binding->material);
+    return 1;
+}
+
+static int render_custom(void *context, void *body, MMI32 part, MMI32 slot)
+{
+    const BodySetBinding *binding = (const BodySetBinding *)context;
+    const MMBodyRuntimeServices *s = binding->services;
+    void *p = s->shape.context;
+    void *model = s->custom_model(p, binding->material, slot);
+    if (model)
+        mm_body_set_model(body, part, model, s);
+    s->assign_material(p, body, part, s->custom_material(p, binding->material, slot));
+    return 1;
+}
+
 void mm_body_set_generic(void *body,MMI32 set,void *material,const MMBodyRuntimeServices *s)
 {
-    MMBodyShape b; MMI32 i; void *p=s->shape.context;
-    mm_body_remove_material(body,set,s); b=*s->shape.state(p,body);
-    for (i=0;i<b.part_count;++i) if (set==s->shape.item(p,b.sets,i))
-    { s->assign_material(p,body,i,s->material_handle(p,material)); s->retain(p,material); }
-    changed(body,s);
+    MMBodyShape b;
+    BodySetBinding binding;
+    MMBodySetServices parts;
+    mm_body_remove_material(body, set, s);
+    b = *s->shape.state(s->shape.context, body);
+    binding.services = s;
+    binding.sets = b.sets;
+    binding.material = material;
+    parts.context = &binding;
+    parts.part_set = render_part_set;
+    parts.apply_part = render_generic;
+    mm_body_apply_set(body, b.part_count, set, &parts);
+    changed(body, s);
 }
 void mm_body_set_custom(void *body,void *custom,const MMBodyRuntimeServices *s)
 {
-    MMBodyShape b; MMI32 i,index=0,set; void *p=s->shape.context,*model;
-    set=s->custom_set(p,custom); s->retain(p,custom); mm_body_remove_material(body,set,s);
-    s->assign_custom(p,body,set,custom); b=*s->shape.state(p,body);
-    for (i=0;i<b.part_count;++i) if (set==s->shape.item(p,b.sets,i))
-    {
-        model=s->custom_model(p,custom,index); if (model) mm_body_set_model(body,i,model,s);
-        s->assign_material(p,body,i,s->custom_material(p,custom,index)); ++index;
-    }
-    if (index>s->custom_count(p,custom)) diagnose(s,MM_BODY_SHORT_COSTUME);
-    changed(body,s);
+    void *p = s->shape.context;
+    MMBodyShape b;
+    BodySetBinding binding;
+    MMBodySetServices parts;
+    MMI32 count, set = s->custom_set(p, custom);
+    s->retain(p, custom);
+    mm_body_remove_material(body, set, s);
+    s->assign_custom(p, body, set, custom);
+    b = *s->shape.state(p, body);
+    binding.services = s;
+    binding.sets = b.sets;
+    binding.material = custom;
+    parts.context = &binding;
+    parts.part_set = render_part_set;
+    parts.apply_part = render_custom;
+    count = mm_body_apply_set(body, b.part_count, set, &parts);
+    if (count > s->custom_count(p, custom))
+        diagnose(s, MM_BODY_SHORT_COSTUME);
+    changed(body, s);
 }
 void mm_body_get_material(void *body,MMI32 set,int *generic,void **material,void **custom,const MMBodyRuntimeServices *s)
 {

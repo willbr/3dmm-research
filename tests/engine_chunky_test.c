@@ -424,7 +424,9 @@ static void movie_directory(void)
     mm_chunk_index_close(index);
 }
 
-static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int missing_paint)
+enum { ACTOR_FIXTURE_OK, ACTOR_FIXTURE_MISSING_PAINT, ACTOR_FIXTURE_BAD_MATRIX };
+
+static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
 {
     enum { ACTN, ACTOR, MODEL, HAT, DEFAULT, CUSTOM, EVENTS, CELS, DEFAULTS, STARTS, SETS, PARENTS, MATRICES,
            MAT_DEFAULT, MAT_CUSTOM, MAT_PAINT, ROOT, PATH, SCENE, TMPL, COUNT };
@@ -474,7 +476,7 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int missin
     put32(row + 144, 3, big);
     put32(row + 152, 90000, big);
     put32(row + 180, types[MAT_PAINT], big);
-    put32(row + 184, numbers[MAT_PAINT] + (missing_paint != 0), big);
+    put32(row + 184, numbers[MAT_PAINT] + (issue == ACTOR_FIXTURE_MISSING_PAINT), big);
     put32(row + 192, 40, big);
     put32(row + 196, 40, big);
     put32(row + 200, 28, big);
@@ -491,7 +493,7 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int missin
     put32(raw[CELS] + 24, 65536, big);
     put32(raw[CELS] + 36, 131072, big);
     put16(raw[CELS] + 40, 0xffffU, big); /* Second cel retains the first model. */
-    put16(raw[CELS] + 42, 1, big);
+    put16(raw[CELS] + 42, issue == ACTOR_FIXTURE_BAD_MATRIX ? 2 : 1, big);
     put32(raw[CELS] + 48, 12, big);
     put32(raw[CELS] + 52, 12, big);
     put32(raw[CELS] + 56, 12, big);
@@ -579,7 +581,7 @@ static void movie_actors(void)
     int big;
     for (big = 0; big <= 1; ++big)
     {
-        size = actor_fixture(bytes, big, 0, 0);
+        size = actor_fixture(bytes, big, 0, ACTOR_FIXTURE_OK);
         CHECK(mm_memory_stream_init(&input, bytes, size));
         CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
         CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
@@ -614,18 +616,27 @@ static void movie_actors(void)
         CHECK(mm_movie_session_actor(movie, 0, 11, 0, NULL, NULL, &actor) == MM_MOVIE_FRAME_OUT_OF_RANGE);
         mm_movie_session_close(movie);
     }
-    size = actor_fixture(bytes, 0, 2, 0);
+    size = actor_fixture(bytes, 0, 2, ACTOR_FIXTURE_OK);
     CHECK(mm_memory_stream_init(&input, bytes, size));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
     CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_ASSET_NOT_FOUND);
     mm_movie_session_close(movie);
-    size = actor_fixture(bytes, 0, 0, 1);
+    size = actor_fixture(bytes, 0, 0, ACTOR_FIXTURE_MISSING_PAINT);
     CHECK(mm_memory_stream_init(&input, bytes, size));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
     CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_OK);
     previous = body;
     CHECK(mm_movie_session_body(movie, 0, 3, 0, NULL, NULL, &body) == MM_MOVIE_ASSET_NOT_FOUND && body == previous);
     CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
+    mm_movie_body_dispose(body);
+    mm_movie_session_close(movie);
+    size = actor_fixture(bytes, 0, 0, ACTOR_FIXTURE_BAD_MATRIX);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_OK);
+    previous = body;
+    CHECK(mm_movie_session_body(movie, 0, 2, 0, NULL, NULL, &body) == MM_MOVIE_BAD_FILE && body == previous);
+    CHECK(body->parts[0].active_model.number == 70 && body->parts[0].matrix.m[3][0] == 123);
     mm_movie_body_dispose(body);
     mm_movie_session_close(movie);
 }
@@ -693,7 +704,7 @@ static void movie_content(void)
     memset(&archives, 0, sizeof(archives));
     size = camera_fixture(backgrounds, 0, 0, 2, 0);
     CHECK(mm_memory_stream_init(&archives.backdrops, backgrounds, size));
-    size = actor_fixture(templates, 0, 2, 0);
+    size = actor_fixture(templates, 0, 2, ACTOR_FIXTURE_OK);
     CHECK(mm_memory_stream_init(&archives.templates, templates, size));
     CHECK(mm_memory_stream_init(&archives.duplicate, templates, size));
     provider.context = &archives;

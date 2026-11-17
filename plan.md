@@ -474,9 +474,12 @@ Keep host presentation and device output outside the session.
    through it, and Marcus uses it to read the scene and source directory.
    The three paths now share embedded actor template binding and exact
    camera-slot lookup. The renderers share lookup of the camera's colour
-   and depth bitmaps in its owning archive. The host cutover still needs
-   integration of the C89 session's evaluated model and material bindings
-   with the live renderer bodies. The standalone `engine-native-chunky-test`
+   and depth bitmaps in its owning archive. The standalone evaluator and
+   live renderer bodies now share cel wrapping, replacement model and
+   matrix application order, and the part-set mapping for generic and
+   custom materials. The host cutover still needs shared default costume
+   resolution and an owning C frame interface for live renderer resources.
+   The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
    open and seek checks in the standalone `MMEngine` configuration. Verify

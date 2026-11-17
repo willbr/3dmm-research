@@ -110,6 +110,14 @@ effect in frame order. Each part exposes the authored cel directive, the
 effective model after any retention or replacement, and its material and
 archive key. Generated text defaults use the text material without an
 authored asset ID.
+The wire evaluator and the live `Template::FSetActnCel` path used by Studio
+and Marcus both run `mm_template_bind_cel`. The driver prepares every part
+before publishing step distance and applying models and matrices. An authored
+keep-model directive leaves the costume or earlier cel model in place and
+still applies the selected part matrix. `mm_body_apply_set` maps a custom
+costume's consecutive slots to matching parts in shape order. The same
+mapping drives generic material assignment, including generated text, and
+native costume application through `Body`.
 `mm_movie_session_body_meshes` resolves the owning template or font archive
 and loads each distinct active `BMDL` into owned arrays of positions, mappings,
 colours, normals and indexed faces. It composes part world transforms from

@@ -13145,6 +13145,41 @@ including an actor-events replay in the same process.
 
 Evidence is under `tmp/c89-frame-resources/` on the evidence drive.
 
+### C89 cel and costume bindings
+
+The standalone body evaluator and the live bodies in Studio and Marcus
+use one C89 cel binding driver. It prepares replacements before applying
+models and matrices in shape order. A keep-model cel still applies its own
+matrix and leaves a model installed by an earlier cel or costume in place.
+The shared material binder indexes custom costume slots by the matching
+parts of a body set. Generic materials use the same traversal, including
+on generated text.
+
+The C fixture exercises a costume model followed by a keep-model cel,
+then a cel and generic material replacement. A keep-model cel with an
+invalid matrix rejects the query and preserves the previous snapshot.
+Existing renderer service tests cover reference cleanup, failure before
+model publication, and model and material assignment order. The rebuilt
+standalone probe matched 300 actor and camera snapshots and 300 model and
+material snapshots across three stock and two SID-29 movies.
+
+All 181 standalone and 20 host checks passed. Five changed C files compiled
+under strict C89 for Linux x64 musl. AddressSanitizer passed the chunky,
+template runtime, and body runtime checks. Both hosts rebuilt and Marcus
+relaunched. The two stock actor renders exercised default and spare custom
+materials. The bundled VMM reopened at the same scene, frame and camera in
+Studio and Marcus with the pack directory isolated. Marcus's image matched
+the prior VMM capture.
+
+The stock and SID-29 actor-events and scrolling-text cases matched all
+456 pre-change seek states and 360 viewport hashes across both hosts. The
+Studio and v3dmm actor observations matched 456 retail actor records each.
+Normal playback of actor-events, dissolve and scrolling-text matched
+retail's frame order and final position over 240 frame commits per host.
+The actor-events case included replay in the same process.
+
+Evidence is under `tmp/c89-body-bindings/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

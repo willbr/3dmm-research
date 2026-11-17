@@ -3,6 +3,7 @@
 #include "mm/preview_actor.h"
 #include "mm/scene_data.h"
 #include "mm/template_create.h"
+#include "mm/template_runtime.h"
 #include "mm/text_generation.h"
 #include "mm/wide.h"
 #include <stdlib.h>
@@ -352,12 +353,6 @@ static int load_action(ActorInput *input, MMI32 id)
     return 1;
 }
 
-static MMI32 wrapped_cel(const ActorInput *input, MMI32 cel)
-{
-    cel %= input->cel_count;
-    return cel < 0 ? cel + input->cel_count : cel;
-}
-
 static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
 {
     ActorInput *input = (ActorInput *)p;
@@ -369,7 +364,7 @@ static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
         *out = mm_text_cel_distance(action);
     else
     {
-        cel = wrapped_cel(input, cel);
+        cel = mm_template_wrap_cel(cel, input->cel_count);
         row = mm_session_group_row(&input->cels, (MMU32)cel, &size);
         if (!row)
             return fail(input, MM_MOVIE_BAD_FILE);
@@ -455,19 +450,10 @@ static int reset_costume(void *p, void *token, void *body)
 
 static void apply_material(ActorInput *input, MMI32 set, const MMMovieAsset *material)
 {
-    MMMovieEvaluatedBody *body = input->evaluated_body;
-    MMU32 i;
     if (input->text && set == 0)
-    {
         input->text_material = *material;
-        return;
-    }
-    for (i = 0; i < body->part_count; ++i)
-        if (body->parts[i].set == set)
-        {
-            body->parts[i].material = *material;
-            body->parts[i].material_owner = *material;
-        }
+    else
+        mm_session_apply_material(input->evaluated_body, set, material);
 }
 
 static void effect(void *p, const MMActorEffectCommand *command, MMActorEffectReply *reply)
@@ -491,7 +477,7 @@ static void effect(void *p, const MMActorEffectCommand *command, MMActorEffectRe
         if (reply->success && !input->text)
         {
             args = body_input(input);
-            args.cel = wrapped_cel(input, command->second);
+            args.cel = mm_template_wrap_cel(command->second, input->cel_count);
             status = mm_session_body_cel(&args, input->evaluated_body);
         }
         break;
@@ -625,7 +611,6 @@ static int evaluate_body(ActorInput *input, const MMMovieEvaluatedActor *actor)
 {
     MMMovieBodyInput arguments;
     MMMovieEvaluatedBody *body = input->evaluated_body;
-    MMU32 i;
     int status;
     body->actor = *actor;
     if (!actor->state.onStage)
@@ -638,14 +623,10 @@ static int evaluate_body(ActorInput *input, const MMMovieEvaluatedActor *actor)
     if (!load_action(input, actor->state.action))
         return input->status;
     arguments = body_input(input);
-    arguments.cel = wrapped_cel(input, actor->state.cel);
+    arguments.cel = mm_template_wrap_cel(actor->state.cel, input->cel_count);
     status = mm_session_body_parts(&arguments, body);
     if (status == MM_MOVIE_OK && input->text)
-        for (i = 0; i < body->part_count; ++i)
-        {
-            body->parts[i].material = input->text_material;
-            body->parts[i].material_owner = input->text_material;
-        }
+        mm_session_apply_material(body, 0, &input->text_material);
     return status;
 }
 

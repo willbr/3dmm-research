@@ -20,44 +20,126 @@ int mm_template_action_name(void *object,MMI32 id,void *out,const MMTemplateRunt
     if (!child(object,(MMU32)id,MM_TEMPLATE_ACTION,&b,&c,s)) return 0;
     return s->name(s->storage.context,b.file,c.type,c.number,out);
 }
-static MMI32 wrapped(void *action,MMI32 cel,const MMTemplateRuntimeServices *s)
+MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count)
 {
-    MMI32 index=cel%s->cel_count(s->storage.context,action);
-    if (index<0) index+=s->cel_count(s->storage.context,action);
-    return index;
+    MMI32 index = cel % count;
+    return index < 0 ? index + count : index;
 }
-int mm_template_set_cel(void *object,void *body,MMI32 id,MMI32 cel,void *distance,const MMTemplateRuntimeServices *s)
+
+int mm_template_bind_cel(MMU32 count, const MMTemplateCelServices *s)
 {
-    const MMTemplateCreateServices *a=&s->storage; void *action; void **models=NULL;
-    MMTemplateState state; MMI32 count,i,index,d,model,matrix,transform[12]; int result=0;
-    state=*a->state(a->context,object); count=a->count(a->context,state.parents);
-    action=s->action(a->context,object,id); if (!action) return 0;
-    index=wrapped(action,cel,s); d=s->distance(a->context,action,index);
-    if (!a->allocate_refs(a->context,count,(void **)&models)) goto done;
-    for (i=0;i<count;++i)
+    MMU32 i;
+    MMI32 model, matrix;
+    void *context = s->context;
+    for (i = 0; i < count; ++i)
     {
-        s->part(a->context,action,index,i,&model,&matrix);
-        if (model!=-1)
-        {
-            models[i]=s->model(a->context,object,(MMU32)model);
-            if (!models[i]) goto done;
-        }
+        s->part(context, i, &model, &matrix);
+        if (!s->prepare_part(context, i, model, matrix, model != MM_TEMPLATE_KEEP_MODEL))
+            return 0;
     }
-    if (distance) memcpy(distance,&d,sizeof(d));
-    for (i=0;i<count;++i)
+    if (s->begin_apply)
+        s->begin_apply(context);
+    for (i = 0; i < count; ++i)
     {
-        if (models[i]) s->set_model(a->context,body,i,models[i]);
-        s->part(a->context,action,index,i,&model,&matrix);
-        s->matrix(a->context,action,matrix,transform); s->set_matrix(a->context,body,i,transform);
+        s->part(context, i, &model, &matrix);
+        s->apply_part(context, i, model != MM_TEMPLATE_KEEP_MODEL, matrix);
     }
-    result=1;
+    return 1;
+}
+
+static MMI32 wrapped(void *action, MMI32 cel, const MMTemplateRuntimeServices *s)
+{
+    return mm_template_wrap_cel(cel, s->cel_count(s->storage.context, action));
+}
+
+typedef struct TemplateCel
+{
+    const MMTemplateRuntimeServices *services;
+    void *object, *body, *action, *distance;
+    void **models;
+    MMI32 index, step;
+} TemplateCel;
+
+static void render_cel_part(void *context, MMU32 part, MMI32 *model, MMI32 *matrix)
+{
+    const TemplateCel *cel = (const TemplateCel *)context;
+    const MMTemplateRuntimeServices *s = cel->services;
+    s->part(s->storage.context, cel->action, cel->index, (MMI32)part, model, matrix);
+}
+
+static int render_cel_prepare(void *context, MMU32 part, MMI32 model, MMI32 matrix, int replace_model)
+{
+    TemplateCel *cel = (TemplateCel *)context;
+    const MMTemplateRuntimeServices *s = cel->services;
+    (void)matrix;
+    if (!replace_model)
+        return 1;
+    cel->models[part] = s->model(s->storage.context, cel->object, (MMU32)model);
+    return cel->models[part] != NULL;
+}
+
+static void render_cel_begin(void *context)
+{
+    const TemplateCel *cel = (const TemplateCel *)context;
+    if (cel->distance)
+        memcpy(cel->distance, &cel->step, sizeof(cel->step));
+}
+
+static void render_cel_apply(void *context, MMU32 part, int replace_model, MMI32 matrix)
+{
+    const TemplateCel *cel = (const TemplateCel *)context;
+    const MMTemplateRuntimeServices *s = cel->services;
+    MMI32 transform[12];
+    if (replace_model)
+        s->set_model(s->storage.context, cel->body, (MMI32)part, cel->models[part]);
+    s->matrix(s->storage.context, cel->action, matrix, transform);
+    s->set_matrix(s->storage.context, cel->body, (MMI32)part, transform);
+}
+
+int mm_template_set_cel(void *object, void *body, MMI32 id, MMI32 cel, void *distance,
+                        const MMTemplateRuntimeServices *s)
+{
+    const MMTemplateCreateServices *a = &s->storage;
+    TemplateCel request;
+    MMTemplateCelServices bindings;
+    MMTemplateState state;
+    void *storage = NULL;
+    MMI32 count, i;
+    int result = 0;
+    state = *a->state(a->context, object);
+    count = a->count(a->context, state.parents);
+    request.action = s->action(a->context, object, id);
+    if (!request.action)
+        return 0;
+    request.services = s;
+    request.object = object;
+    request.body = body;
+    request.distance = distance;
+    request.index = wrapped(request.action, cel, s);
+    request.step = s->distance(a->context, request.action, request.index);
+    if (!a->allocate_refs(a->context, count, &storage))
+        goto done;
+    request.models = storage;
+    bindings.context = &request;
+    bindings.part = render_cel_part;
+    bindings.prepare_part = render_cel_prepare;
+    bindings.begin_apply = render_cel_begin;
+    bindings.apply_part = render_cel_apply;
+    result = mm_template_bind_cel((MMU32)count, &bindings);
 done:
-    if (models)
+    if (storage)
     {
-        for (i=0;i<count;++i) if (models[i]) { a->release(a->context,models[i]); models[i]=NULL; }
-        a->free_memory(a->context,(void **)&models);
+        void **models = storage;
+        for (i = 0; i < count; ++i)
+            if (models[i])
+            {
+                a->release(a->context, models[i]);
+                models[i] = NULL;
+            }
+        a->free_memory(a->context, &storage);
     }
-    a->release(a->context,action); return result;
+    a->release(a->context, request.action);
+    return result;
 }
 int mm_template_distance(void *object,MMI32 id,MMI32 cel,MMI32 *out,const MMTemplateRuntimeServices *s)
 {

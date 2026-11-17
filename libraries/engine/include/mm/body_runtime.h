@@ -8,6 +8,15 @@ extern "C" {
 #endif
 enum MMBodyRuntimeDiagnostic
 { MM_BODY_MISSING_MATERIAL, MM_BODY_EMPTY_SET, MM_BODY_SHORT_COSTUME, MM_BODY_COSTUME_SHAPE };
+typedef struct MMBodySetServices
+{
+    void *context;
+    MMI32 (*part_set)(void *, void *body, MMI32 part);
+    int (*apply_part)(void *, void *body, MMI32 part, MMI32 slot);
+} MMBodySetServices;
+/* Visit body parts in shape order. The costume slot counts matching parts
+ * only. Returns the number applied, or -1 after the first rejected part. */
+MMI32 mm_body_apply_set(void *body, MMI32 part_count, MMI32 set, const MMBodySetServices *);
 typedef struct MMBodyRuntimeServices
 {
     MMBodyCreateServices shape;

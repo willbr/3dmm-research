@@ -1,4 +1,5 @@
 #include "movie_session_internal.h"
+#include "mm/body_runtime.h"
 #include "mm/material_resource.h"
 #include "mm/template_runtime.h"
 #include <stdlib.h>
@@ -41,30 +42,79 @@ static void binding(MMMovieAsset *asset, MMI32 source, const MMChunkEntry *entry
     asset->number = entry->number;
 }
 
+typedef struct MovieCostumeBinding
+{
+    MMChunkAccess access;
+    MMU32 position;
+    int status;
+} MovieCostumeBinding;
+
+static MMI32 movie_part_set(void *context, void *body, MMI32 part)
+{
+    (void)context;
+    return ((const MMMovieEvaluatedBody *)body)->parts[part].set;
+}
+
+static int movie_custom_part(void *context, void *target, MMI32 ordinal, MMI32 slot)
+{
+    MovieCostumeBinding *request = (MovieCostumeBinding *)context;
+    MMMovieEvaluatedBody *body = (MMMovieEvaluatedBody *)target;
+    MMMovieBodyPart *part = &body->parts[ordinal];
+    MMChunkEntry entry;
+    MMU32 position;
+    int status = mm_session_child(&request->access, request->position, (MMU32)slot, MATERIAL_TYPE, &entry, &position);
+    if (status != MM_CHUNK_OK)
+    {
+        request->status = status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
+        return 0;
+    }
+    binding(&part->material, body->model_owner.source, &entry);
+    part->material_owner = body->model_owner;
+    status = mm_session_child(&request->access, request->position, (MMU32)slot, MM_TEMPLATE_BMDL, &entry, &position);
+    if (status == MM_CHUNK_OK)
+        binding(&part->active_model, body->model_owner.source, &entry);
+    else if (status != MM_CHUNK_NOT_FOUND)
+    {
+        request->status = MM_MOVIE_BAD_FILE;
+        return 0;
+    }
+    return 1;
+}
+
 int mm_session_costume_apply(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body, const MMMovieCustomCostume *custom)
 {
-    MMChunkAccess access = mm_chunk_index_access(in->index);
-    MMMovieBodyPart *part;
-    MMChunkEntry entry;
-    MMU32 i, slot = 0, position;
-    int status;
-    for (i = 0; i < body->part_count; ++i)
-    {
-        part = &body->parts[i];
-        if (part->set != custom->set)
-            continue;
-        status = mm_session_child(&access, custom->position, slot, MATERIAL_TYPE, &entry, &position);
-        if (status != MM_CHUNK_OK)
-            return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
-        binding(&part->material, body->model_owner.source, &entry);
-        part->material_owner = body->model_owner;
-        status = mm_session_child(&access, custom->position, slot++, MM_TEMPLATE_BMDL, &entry, &position);
-        if (status == MM_CHUNK_OK)
-            binding(&part->active_model, body->model_owner.source, &entry);
-        else if (status != MM_CHUNK_NOT_FOUND)
-            return MM_MOVIE_BAD_FILE;
-    }
-    return slot ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+    MovieCostumeBinding request;
+    MMBodySetServices parts;
+    MMI32 count;
+    request.access = mm_chunk_index_access(in->index);
+    request.position = custom->position;
+    request.status = MM_MOVIE_OK;
+    parts.context = &request;
+    parts.part_set = movie_part_set;
+    parts.apply_part = movie_custom_part;
+    count = mm_body_apply_set(body, (MMI32)body->part_count, custom->set, &parts);
+    if (count < 0)
+        return request.status;
+    return count ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+static int movie_generic_part(void *context, void *body, MMI32 ordinal, MMI32 slot)
+{
+    const MMMovieAsset *asset = (const MMMovieAsset *)context;
+    MMMovieBodyPart *part = &((MMMovieEvaluatedBody *)body)->parts[ordinal];
+    (void)slot;
+    part->material = *asset;
+    part->material_owner = *asset;
+    return 1;
+}
+
+void mm_session_apply_material(MMMovieEvaluatedBody *body, MMI32 set, const MMMovieAsset *asset)
+{
+    MMBodySetServices parts;
+    parts.context = (void *)asset;
+    parts.part_set = movie_part_set;
+    parts.apply_part = movie_generic_part;
+    mm_body_apply_set(body, (MMI32)body->part_count, set, &parts);
 }
 
 static int group_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body, const MMChunkEntry *entry,

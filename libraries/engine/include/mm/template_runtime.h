@@ -8,6 +8,22 @@ extern "C" {
 #endif
 enum MMTemplateResourceKind { MM_TEMPLATE_ACTION, MM_TEMPLATE_MODEL, MM_TEMPLATE_CUSTOM };
 enum { MM_TEMPLATE_BMDL=0x424d444c };
+enum { MM_TEMPLATE_KEEP_MODEL = -1 };
+typedef struct MMTemplateCelServices
+{
+    void *context;
+    void (*part)(void *, MMU32 part, MMI32 *model, MMI32 *matrix);
+    int (*prepare_part)(void *, MMU32 part, MMI32 model, MMI32 matrix, int replace_model);
+    void (*begin_apply)(void *);
+    void (*apply_part)(void *, MMU32 part, int replace_model, MMI32 matrix);
+} MMTemplateCelServices;
+/* The cel count must be positive. */
+MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count);
+/* Read a stable cel twice. Prepare all replacement models in part order
+ * before beginning publication. In the second pass a keep-model directive
+ * still applies its matrix. The caller owns staged models. begin_apply is
+ * optional. Only prepare_part may fail. Returns one on success. */
+int mm_template_bind_cel(MMU32 part_count, const MMTemplateCelServices *);
 typedef struct MMTemplateBinding { void *file,*cache; MMU32 type,number; } MMTemplateBinding;
 typedef struct MMTemplateRuntimeServices
 {
