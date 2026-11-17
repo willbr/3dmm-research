@@ -11939,3 +11939,87 @@ Evidence: `tmp/c89-filename-value-{original,converted}-{runtime,expensive}-{nati
 `tmp/c89-filename-value-standalone-tests.log`, `tmp/c89-filename-value-asan.log`,
 `tmp/c89-filename-value-regular-tests.log`, `tmp/c89-filename-value-trace-comparison.json`
 and `tmp/c89-filename-value-identities.json`.
+
+### Shared C Filename path and navigation rules (17 November 2026)
+
+`mm/filename_path.h` now controls path construction/search, existence/status
+precedence, delete/rename dispatch, equality/same-directory, volume forwarding
+and directory navigation/create/move policy. `Filename` delegates through native
+canonicalization/search, filesystem, equality, copy and diagnostic providers,
+sharing the preceding C filename value and counted String modules. Native class
+layout is unchanged. C uses caller-owned views/scratch storage and stack buffers,
+with no heap allocation or hidden globals.
+
+The controller preserves the original input's trailing-dot suppression of default
+extensions and dot-only directory tails. Failed build/search clears path/type
+before reporting general failure. Existence strips one trailing directory
+separator except for a one-unit root, including the existing Windows drive-root
+behavior; type mismatch precedes hidden/system errors. Delete retains its advisory
+open-file assertion and skips registry lookup without a diagnostic provider.
+Rename changes no logical name, and equality retains native argument order.
+
+Downward navigation checks a scratch path and tries creation on any non-yes
+status when requested, including after an existing error; it publishes a move
+only after success. Upward navigation canonicalizes an appended `..` and requires
+a shorter path. Failed upward navigation preserves both the owner and optional
+leaf output without adding an error. Native scratch copies retain owner metadata
+as well as path/type. These rules preserve legacy policy, including its error and
+publication ordering.
+
+The native fixture captured both normal and expensive profiles directly before
+conversion at `d8aea7fe`, on Native, SDL Release and SDL Debug. It creates a real
+private directory and records paths relative to that root, return values, type,
+directory flags, state observed during error reporting, diagnostics and error
+order. Source locations, raw paths/addresses and object layout are excluded.
+Normal and expensive diagnostics remain enabled in their respective profiles.
+The original `filename.cpp` SHA-256 is
+`AF30AA5CDFC9122BBE37A60A8CCC9B64214873C62C4D3A5FFE70ACC033F44888`.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, both profiles | 1,556 | `10A3B84E` | `3717CF478FD0D13A0D91EBC5386D019C2C18D1525655430FE247EBAB47080300` |
+| SDL Release, both profiles | 1,380 | `6EE50F92` | `03FD2B2EB748B57B5C416275F8ED40ABC9CF7BADF30919A8AB0009970CFB430E` |
+
+`engine-filename-path` links only C and exercises both unit profiles, original
+trailing-dot input, dot-only tails, clear-before-error failure publication,
+status/error precedence, separator/root stripping, provider argument order,
+advisory open checks, copy hooks, directory creation and optional movement,
+upward root/provider/capacity failure, and raw non-ASCII leaf copying. Optional
+diagnostic/copy hooks are also covered. MSVC AddressSanitizer passes.
+
+The final gate passes all 235 Native checks, 230 SDL Release checks, all 231 SDL
+Debug checks and all 156 standalone checks, including strict C89 syntax: 852 of
+853 selected checks pass. The sole declared skip is the existing SDL Release
+`world-export` Debug fixture. Native renderer, playback, player and C89 checks
+pass; no Marcus UI tests were added.
+
+All 177 retained file/value/memory/string/resource/undo/Help/Preview trace pairs
+and six new path pairs match: 183 byte-identical pairs. The ten input identities
+are unchanged; 176 executable identities are recorded. Windows text settings
+remain ACP 1252, OEMCP 437 and locale `en-GB`/2057. The regular headless preview
+harness passes. All three hosts retain 301,996,032 bytes/FNV-1a `E1A71005` across
+12 backgrounds and 188 cameras. This is correctness evidence, not playback
+timing equivalence.
+
+The first broad build exhausted C: while growing an incremental-link cache.
+Reproducible `.ilk` files from the four checked Debug build directories were
+preserved under `D:/CodexBuildCacheBackups/3DMMForever-filename-path`, freeing
+5,809,701,944 bytes. The local Debug CMake caches use `/debug /INCREMENTAL:NO`;
+no repository build policy changed. All host builds then passed, including
+native `chelp`, `ched` and Marcus. Marcus was stopped before rebuilding and
+relaunched afterwards. Asset readers started after resource regeneration.
+
+The C contracts require live initialized views, matching character units,
+distinct inputs/outputs/scratch records and serialized mutation. Callbacks
+cannot unwind, destroy owners or mutate unrelated records. Native Unicode
+runtime behavior, other platforms and invalid storage/lifetimes remain
+unverified. Temp/unique naming and context, case resolution, enumeration,
+native object lifetime and final C-only host/facade integration remain conversion
+work. No Marcus UI tests or new retail captures were added; retained retail
+captures remain the playback reference. This does not complete the migration.
+
+Evidence: `tmp/c89-filename-path-{original,converted}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/filename-path-original.cpp`, `tmp/c89-filename-path-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-filename-path-standalone-tests.log`, `tmp/c89-filename-path-asan.log`,
+`tmp/c89-filename-path-regular-tests.log`, `tmp/c89-filename-path-trace-comparison.json`
+and `tmp/c89-filename-path-identities.json`.

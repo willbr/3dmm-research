@@ -11,6 +11,7 @@
 
 ***************************************************************************/
 #include "util.h"
+#include "mm/filename_path.h"
 ASSERTNAME
 
 namespace {
@@ -46,6 +47,63 @@ MMFilenameValueHost FilenameValueHost()
         case MM_FILENAME_BAD_PATH: Assert(fFalse, "bad fni"); break;
         default: Assert(fFalse, 0); break;
         }
+    };
+#endif
+    return host;
+}
+MMFilenamePathHost FilenamePathHost()
+{
+    static_assert(ffniCreateDir == MM_FILENAME_CREATE_DIR && ffniMoveToDir == MM_FILENAME_MOVE_TO_DIR,
+                  "native filename navigation flags");
+    static_assert(tNo == MM_FILENAME_NO && tYes == MM_FILENAME_YES && tMaybe == MM_FILENAME_MAYBE,
+                  "native filename status contract");
+    static_assert(static_cast<int>(KauaiFiles::Status::Found) == MM_FILENAME_FOUND &&
+                  static_cast<int>(KauaiFiles::Status::Missing) == MM_FILENAME_MISSING &&
+                  static_cast<int>(KauaiFiles::Status::Error) == MM_FILENAME_INFO_ERROR, "native filename info contract");
+    MMFilenamePathHost host{}; host.value = FilenameValueHost();
+    host.full_path = [](void *, const void *input, void *output, MMI32 capacity) -> MMI32 {
+        return static_cast<MMI32>(KauaiFiles::FullPath(static_cast<const achar *>(input), static_cast<achar *>(output), capacity));
+    };
+    host.find_path = [](void *, const void *input, const void *search, void *output, MMI32 capacity) -> MMI32 {
+        return static_cast<MMI32>(KauaiFiles::FindInPath(static_cast<const achar *>(input), static_cast<const achar *>(search),
+                                                      static_cast<achar *>(output), capacity));
+    };
+    host.separator = [](void *) -> unsigned { return KauaiFiles::Separator(); };
+    host.info = [](void *, const void *path, MMFilenameInfo *out) -> int {
+        KauaiFiles::PathInfo info;
+        const auto status = KauaiFiles::Info(static_cast<const achar *>(path), &info);
+        out->directory = info.directory; out->hidden = info.hidden; out->system = info.system;
+        return static_cast<int>(status);
+    };
+    host.remove = [](void *, const void *path) -> int { return KauaiFiles::Delete(static_cast<const achar *>(path)); };
+    host.rename = [](void *, const void *a, const void *b) -> int {
+        return KauaiFiles::Rename(static_cast<const achar *>(a), static_cast<const achar *>(b));
+    };
+    host.make_directory = [](void *, const void *path) -> int { return KauaiFiles::MakeDirectory(static_cast<const achar *>(path)); };
+    host.equal = [](void *, const void *a, const void *b) -> int {
+        return KauaiFiles::EqualPaths(static_cast<const achar *>(a), static_cast<const achar *>(b));
+    };
+    host.volume_kinds = [](void *, const void *path) -> MMU32 { return KauaiFiles::VolumeKinds(static_cast<const achar *>(path)); };
+    host.copy_name = [](void *, const MMFilenameValue *destination, const MMFilenameValue *source) {
+        *static_cast<Filename *>(destination->owner) = *static_cast<Filename *>(source->owner);
+    };
+    host.issue = [](void *, const MMFilenameValue *, int code) {
+        switch (code) {
+        case MM_FILENAME_GENERAL: PushErc(ercFniGeneral); break;
+        case MM_FILENAME_DELETE: PushErc(ercFniDelete); break;
+        case MM_FILENAME_RENAME: PushErc(ercFniRename); break;
+        case MM_FILENAME_MISMATCH: PushErc(ercFniMismatch); break;
+        case MM_FILENAME_HIDDEN: PushErc(ercFniHidden); break;
+        case MM_FILENAME_DIR_CREATE: PushErc(ercFniDirCreate); break;
+        }
+    };
+#ifdef DEBUG
+    host.is_open = [](void *, const MMFilenameValue *value) -> int {
+        return FileObject::PfilFromFni(static_cast<Filename *>(value->owner)) != nullptr;
+    };
+    host.assertion = [](void *, int code) {
+        if (code == MM_FILENAME_PATH_OPEN) { Assert(fFalse, "file is open"); }
+        else { Assert(fFalse, 0); }
     };
 #endif
     return host;
@@ -150,65 +208,10 @@ Filename::Filename(void)
 ***************************************************************************/
 bool Filename::FBuildFromPath(PString pstn, FileType ftgDef)
 {
-    AssertThis(0);
     AssertPo(pstn, 0);
-
-    LegacyLong cch;
-    achar *pchT;
-    ZString sz;
-
-    if (kftgDir != ftgDef)
-    {
-        // if the path ends with a slash or only has periods after the last
-        // slash, force the fni to be a directory.
-
-        cch = pstn->Cch();
-        for (;;)
-        {
-            if (cch == 0 || KauaiFiles::IsSeparator(pstn->Prgch()[cch - 1]))
-            {
-                ftgDef = kftgDir;
-                break;
-            }
-            if (pstn->Prgch()[--cch] != ChLit('.'))
-                break;
-        }
-    }
-
-    // Resolve '.' and '..' lexically, including names not yet on disk.
-    if ((cch = KauaiFiles::FullPath(pstn->Psz(), sz, kcchMaxSz, &pchT)) == 0 || cch > kcchMaxSz)
-    {
-        goto LFail;
-    }
-    Assert(cch <= kcchMaxSz, 0);
-    _stnFile = sz;
-
-    if (ftgDef == kftgDir)
-    {
-        achar ch = _stnFile.Prgch()[_stnFile.Cch() - 1];
-        if (!KauaiFiles::IsSeparator(ch))
-        {
-            if (!_stnFile.FAppendCh(KauaiFiles::Separator()))
-            {
-                goto LFail;
-            }
-        }
-        _nameState.type = kftgDir;
-    }
-    else
-    {
-        _SetFtgFromName();
-        if (_nameState.type == 0 && ftgDef != ftgNil && pstn->Prgch()[pstn->Cch() - 1] != ChLit('.') && !FChangeFtg(ftgDef))
-        {
-        LFail:
-            SetNil();
-            PushErc(ercFniGeneral);
-            return fFalse;
-        }
-    }
-
-    AssertThis(ffniFile | ffniDir);
-    return fTrue;
+    const auto value = _ValueView(); const auto host = FilenamePathHost();
+    const auto input = FilenameStringValue(pstn);
+    return mm_filename_build(&value, &host, &input, ftgDef) != 0;
 }
 
 /******************************************************************************
@@ -222,28 +225,11 @@ bool Filename::FBuildFromPath(PString pstn, FileType ftgDef)
 ******************************************************************************/
 bool Filename::FSearchInPath(PString pstn, PString pstnEnv)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    AssertNilOrPo(pstnEnv, 0);
-
-    LegacyLong cch;
-    ZString sz;
-    achar *pchT;
-    PZString psz = (pstnEnv == pvNil) ? pvNil : pstnEnv->Psz();
-
-    if ((cch = KauaiFiles::FindInPath(pstn->Psz(), psz, sz, kcchMaxSz)) == 0 || cch > kcchMaxSz)
-    {
-        SetNil();
-        PushErc(ercFniGeneral);
-        return fFalse;
-    }
-
-    Assert(cch <= kcchMaxSz, 0);
-    _stnFile = sz;
-    _SetFtgFromName();
-
-    AssertThis(ffniFile | ffniDir);
-    return fTrue;
+    AssertPo(pstn, 0); AssertNilOrPo(pstnEnv, 0);
+    const auto value = _ValueView(); const auto host = FilenamePathHost();
+    const auto input = FilenameStringValue(pstn);
+    MMStringValue search{}; if (pstnEnv) search = FilenameStringValue(pstnEnv);
+    return mm_filename_search(&value, &host, &input, pstnEnv ? &search : nullptr) != 0;
 }
 
 /***************************************************************************
@@ -316,8 +302,8 @@ FileType Filename::Ftg(void)
 ***************************************************************************/
 LegacyUlong Filename::Grfvk(void)
 {
-    AssertThis(ffniDir | ffniFile);
-    return KauaiFiles::VolumeKinds(_stnFile.Psz());
+    const auto value = _ValueView(); const auto host = FilenamePathHost();
+    return mm_filename_volume(&value, &host);
 }
 
 /***************************************************************************
@@ -368,45 +354,8 @@ void Filename::GetStnPath(PString pstn)
 ***************************************************************************/
 tribool Filename::TExists(void)
 {
-    AssertThis(ffniFile | ffniDir);
-    String stn;
-    PString pstn;
-    KauaiFiles::PathInfo info;
-    KauaiFiles::Status status;
-
-    // strip off the trailing slash (if a directory).
-    pstn = &_stnFile;
-    if (_nameState.type == kftgDir)
-    {
-        LegacyLong cch;
-
-        stn = _stnFile;
-        pstn = &stn;
-        cch = stn.Cch();
-        Assert(cch > 0 && (KauaiFiles::IsSeparator(stn.Psz()[cch - 1])), 0);
-        if (cch > 1)
-            stn.Delete(cch - 1);
-    }
-
-    status = KauaiFiles::Info(pstn->Psz(), &info);
-    if (status != KauaiFiles::Status::Found)
-    {
-        if (status == KauaiFiles::Status::Missing)
-            return tNo;
-        PushErc(ercFniGeneral);
-        return tMaybe;
-    }
-    if ((_nameState.type == kftgDir) != info.directory)
-    {
-        PushErc(ercFniMismatch);
-        return tMaybe;
-    }
-    if (info.hidden || info.system)
-    {
-        PushErc(ercFniHidden);
-        return tMaybe;
-    }
-    return tYes;
+    const auto value = _ValueView(); const auto host = FilenamePathHost();
+    return static_cast<tribool>(mm_filename_exists(&value, &host));
 }
 
 /***************************************************************************
@@ -414,13 +363,8 @@ tribool Filename::TExists(void)
 ***************************************************************************/
 bool Filename::FDelete(void)
 {
-    AssertThis(ffniFile);
-    Assert(FileObject::PfilFromFni(this) == pvNil, "file is open");
-
-    if (KauaiFiles::Delete(_stnFile.Psz()))
-        return fTrue;
-    PushErc(ercFniDelete);
-    return fFalse;
+    const auto value = _ValueView(); const auto host = FilenamePathHost();
+    return mm_filename_delete(&value, &host) != 0;
 }
 
 /***************************************************************************
@@ -428,15 +372,9 @@ bool Filename::FDelete(void)
 ***************************************************************************/
 bool Filename::FRename(Filename *pfni)
 {
-    AssertThis(ffniFile);
-    AssertPo(pfni, ffniFile);
-
-    if (KauaiFiles::Rename(_stnFile.Psz(), pfni->_stnFile.Psz()))
-    {
-        return fTrue;
-    }
-    PushErc(ercFniRename);
-    return fFalse;
+    const auto value = _ValueView(), destination = pfni->_ValueView();
+    const auto host = FilenamePathHost();
+    return mm_filename_rename(&value, &host, &destination) != 0;
 }
 
 /***************************************************************************
@@ -444,10 +382,9 @@ bool Filename::FRename(Filename *pfni)
 ***************************************************************************/
 bool Filename::FEqual(Filename *pfni)
 {
-    AssertThis(ffniFile | ffniDir);
-    AssertPo(pfni, ffniFile | ffniDir);
-
-    return KauaiFiles::EqualPaths(pfni->_stnFile.Psz(), _stnFile.Psz());
+    const auto value = _ValueView(), other = pfni->_ValueView();
+    const auto host = FilenamePathHost();
+    return mm_filename_equal(&value, &host, &other) != 0;
 }
 
 /***************************************************************************
@@ -464,15 +401,10 @@ bool Filename::FDir(void)
 ***************************************************************************/
 bool Filename::FSameDir(Filename *pfni)
 {
-    AssertThis(ffniFile | ffniDir);
-    AssertPo(pfni, ffniFile | ffniDir);
-    Filename fni1, fni2;
-
-    fni1 = *this;
-    fni2 = *pfni;
-    fni1._FChangeLeaf(pvNil);
-    fni2._FChangeLeaf(pvNil);
-    return fni1.FEqual(&fni2);
+    Filename a, b;
+    const auto value = _ValueView(), other = pfni->_ValueView(), scratchA = a._ValueView(), scratchB = b._ValueView();
+    const auto host = FilenamePathHost();
+    return mm_filename_same_directory(&value, &host, &other, &scratchA, &scratchB) != 0;
 }
 
 /***************************************************************************
@@ -482,38 +414,11 @@ bool Filename::FSameDir(Filename *pfni)
 ***************************************************************************/
 bool Filename::FDownDir(PString pstn, LegacyUlong grffni)
 {
-    AssertThis(ffniDir);
     AssertPo(pstn, 0);
-
-    Filename fniT;
-
-    fniT = *this;
-    // the +1 is for the \ character
-    if (fniT._stnFile.Cch() + pstn->Cch() + 1 > kcchMaxStn)
-    {
-        PushErc(ercFniGeneral);
-        return fFalse;
-    }
-    AssertDo(fniT._stnFile.FAppendStn(pstn), 0);
-    AssertDo(fniT._stnFile.FAppendCh(KauaiFiles::Separator()), 0);
-    fniT._nameState.type = kftgDir;
-    AssertPo(&fniT, ffniDir);
-
-    if (fniT.TExists() != tYes)
-    {
-        if (!(grffni & ffniCreateDir))
-            return fFalse;
-        // try to create it
-        if (!KauaiFiles::MakeDirectory(fniT._stnFile.Psz()))
-        {
-            PushErc(ercFniDirCreate);
-            return fFalse;
-        }
-    }
-    if (grffni & ffniMoveToDir)
-        *this = fniT;
-
-    return fTrue;
+    Filename temporary;
+    const auto value = _ValueView(), scratch = temporary._ValueView();
+    const auto leaf = FilenameStringValue(pstn); const auto host = FilenamePathHost();
+    return mm_filename_down(&value, &host, &leaf, grffni, &scratch) != 0;
 }
 
 /***************************************************************************
@@ -522,44 +427,10 @@ bool Filename::FDownDir(PString pstn, LegacyUlong grffni)
 ***************************************************************************/
 bool Filename::FUpDir(PString pstn, LegacyUlong grffni)
 {
-    AssertThis(ffniDir);
     AssertNilOrPo(pstn, 0);
-
-    LegacyLong cch;
-    achar *pchT;
-    ZString sz;
-    String stn;
-
-    stn = _stnFile;
-    if (!stn.FAppendSz(PszLit("..")))
-        return fFalse;
-
-    if ((cch = KauaiFiles::FullPath(stn.Psz(), sz, kcchMaxSz, &pchT)) == 0 || cch >= _stnFile.Cch() - 1)
-    {
-        return fFalse;
-    }
-    Assert(cch <= kcchMaxSz, 0);
-    Assert(cch < _stnFile.Cch() + 2, 0);
-    stn = sz;
-    if (!KauaiFiles::IsSeparator(stn.Psz()[cch - 1]))
-    {
-        AssertDo(stn.FAppendCh(KauaiFiles::Separator()), 0);
-        cch++;
-    }
-
-    if (pvNil != pstn)
-    {
-        // copy the tail and delete the trailing slash
-        pstn->SetSz(_stnFile.Psz() + cch);
-        pstn->Delete(pstn->Cch() - 1);
-    }
-
-    if (grffni & ffniMoveToDir)
-    {
-        _stnFile = stn;
-        AssertThis(ffniDir);
-    }
-    return fTrue;
+    const auto value = _ValueView(); const auto host = FilenamePathHost();
+    MMStringValue leaf{}; if (pstn) leaf = FilenameStringValue(pstn);
+    return mm_filename_up(&value, &host, pstn ? &leaf : nullptr, grffni) != 0;
 }
 
 #ifdef DEBUG

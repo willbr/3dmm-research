@@ -412,8 +412,11 @@ now also use C89. Native object allocation/constructors/destructors, the default
 registry binding, virtual destruction and final facade removal remain work.
 Filename's persistent type field and clear/extension/type-cleaning/type-change/
 leaf-change/set/get rules now use C89 over the existing counted path buffer.
-Filename path construction/search, temp/unique naming, filesystem/navigation/
-case-resolution control, enumeration and final representation integration remain.
+Path construction/search, existence/status/error precedence, delete/rename,
+equality/same-directory, volume forwarding and directory navigation/create/move
+policy now also use C89 through native filesystem and diagnostic providers.
+Temp/unique naming and context, case resolution, enumeration, native object
+lifetime and final representation integration remain.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

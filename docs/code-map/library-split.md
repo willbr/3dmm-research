@@ -646,10 +646,47 @@ noncanonical values such as trailing dots. Messages/stage order remain matched
 to their original profile. Baseline reconstruction and evidence are in the
 [regression log](../tools/playback-regression.md).
 
-Path construction/search, unique/temp naming and context, filesystem/navigation/
-case-resolution policy, enumeration, native object lifetime and final C-only
-host/facade integration remain conversion work. This does not complete the
-backend migration.
+Path construction/search, filesystem dispatch and navigation policy also use
+the C controller described below. Unique/temp naming and context, case resolution,
+enumeration, native object lifetime and final C-only host/facade integration
+remain conversion work. This does not complete the backend migration.
+
+### Filename path and navigation rules
+
+`mm/filename_path.h` implements path build/search, existence status, delete/
+rename dispatch, equality/same-directory, volume forwarding and directory
+navigation. It shares the preceding filename value and counted String modules.
+Physical canonicalization/search, path equality, filesystem operations, volume
+queries and diagnostics remain synchronous native providers. The C controller
+uses stack buffers and owns no heap storage or globals; callers supply live,
+initialized, distinct owner/scratch views with matching one- or two-byte units.
+
+Build forces directory mode for empty paths or tails consisting only of dots,
+and suppresses a default extension when the original input ends in a dot.
+Build/search failures clear the value before reporting general failure. Existence
+removes one trailing directory separator except for a one-unit root, preserving
+the existing Windows drive-root behavior. Missing paths return no without an
+error; other lookup errors return maybe. Type mismatch precedes hidden/system
+diagnostics. Delete retains its advisory open-file assertion; without an assertion
+provider it skips registry lookup. Rename leaves logical names unchanged.
+
+Downward navigation constructs a scratch directory, tries creation on any status
+other than yes when requested, and publishes only after success with the move
+flag. Failed creation preserves the caller's value. Upward navigation canonicalizes
+an appended `..`, requires a shorter path, and optionally returns the removed leaf
+and moves the owner. Failure preserves both outputs and adds no error. Scratch
+copy hooks preserve native owner metadata along with the path/type; native object
+layout is unchanged. Callback lifetimes, serialization and mutation restrictions
+are documented in the header.
+
+`engine-filename-path` exercises both unit profiles, provider ordering, capacities,
+optional diagnostics/copy hooks, status precedence and failure publication using
+only C. `filename-path-runtime` captures native paths relative to a private fixture
+root, return values, values observed during errors, diagnostics and error order.
+`filename-path-expensive` compiles the Filename facade with expensive validation.
+Both profiles are compared with their corresponding pre-conversion captures;
+details and retained regression evidence are in the
+[regression log](../tools/playback-regression.md).
 
 ### Collection storage foundation
 
