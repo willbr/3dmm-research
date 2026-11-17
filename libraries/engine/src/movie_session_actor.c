@@ -244,16 +244,6 @@ done:
     return 1;
 }
 
-static int template_child(void *p, MMU32 actor, MMU32 *out)
-{
-    MMChunkEntry entry;
-    (void)actor;
-    if (actor_entry((ActorInput *)p, MM_TMPL, &entry) != MM_CHUNK_OK)
-        return 0;
-    *out = entry.number;
-    return 1;
-}
-
 static int fetch_template(void *p, const MMActorHeader *header, void **token)
 {
     ActorInput *input = (ActorInput *)p;
@@ -594,6 +584,7 @@ static int cues(void *p) { (void)p; return 1; }
 
 static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedActor *out)
 {
+    MMChunkAccess chunks = mm_chunk_index_access(input->movie->index);
     MMPreviewActorServices services;
     int ok;
     memset(&services, 0, sizeof(services));
@@ -606,7 +597,6 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     services.header = read_actor_header;
     services.route = read_route;
     services.events = read_events;
-    services.template_child = template_child;
     services.fetch = fetch_template;
     services.bind = bind;
     services.body_create = create_body;
@@ -619,7 +609,7 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     services.default_costume = reset_costume;
     services.motion_cues = cues;
     mm_preview_actor_init(&input->actor);
-    ok = mm_preview_actor_load(&input->actor, number, &services) > 0 &&
+    ok = mm_preview_actor_load(&input->actor, number, &chunks, 1, &services) > 0 &&
          mm_preview_actor_seek(&input->actor, frame, &services) > 0 && input->status == MM_MOVIE_OK;
     if (!ok)
         return input->status ? input->status : MM_MOVIE_BAD_FILE;

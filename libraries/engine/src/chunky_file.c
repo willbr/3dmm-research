@@ -258,6 +258,37 @@ int mm_chunk_child_type(const MMChunkAccess *access, MMU32 parent, MMU32 slot, M
     return MM_CHUNK_OK;
 }
 
+int mm_chunk_child_exact(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU32 type, MMChunkChild *child)
+{
+    MMChunkChild value;
+    int status;
+    if (!child)
+        return MM_CHUNK_BAD_FILE;
+    status = mm_chunk_child_type(access, parent, slot, type, &value);
+    if (status != MM_CHUNK_OK)
+        return status;
+    if (value.type != type)
+        return MM_CHUNK_NOT_FOUND;
+    *child = value;
+    return MM_CHUNK_OK;
+}
+
+int mm_chunk_link_number(const MMChunkAccess *access, MMU32 parent_type, MMU32 parent_number, MMU32 slot,
+                         MMU32 child_type, MMU32 *number)
+{
+    MMChunkChild child;
+    MMU32 parent;
+    int status;
+    if (!number)
+        return MM_CHUNK_BAD_FILE;
+    status = mm_chunk_find(access, parent_type, parent_number, &parent);
+    if (status == MM_CHUNK_OK)
+        status = mm_chunk_child_exact(access, parent, slot, child_type, &child);
+    if (status == MM_CHUNK_OK)
+        *number = child.number;
+    return status;
+}
+
 static int wire_row(const MMChunkIndex *index, MMU32 position, const unsigned char **row,
                     MMU32 *variable_bytes)
 {

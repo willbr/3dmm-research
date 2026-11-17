@@ -7,6 +7,7 @@ typedef struct Host
 {
     MMPreviewActor actor;
     MMPreviewActorServices services;
+    MMChunkAccess chunks;
     MMActorHeader header;
     MMActorRoutePoint route[4];
     MMActorEvent events[8];
@@ -102,12 +103,24 @@ static int table(void *v, MMU32 number, void **out)
         *out = h;
     return r;
 }
-static int child(void *v, MMU32 number, MMU32 *out)
+static int chunk(void *v, MMU32 index, MMChunkEntry *out)
+{
+    (void)v;
+    assert(index == 0);
+    memset(out, 0, sizeof(*out));
+    out->type = 0x41435452UL;
+    out->number = 8;
+    out->child_count = 1;
+    return 1;
+}
+static int child(void *v, MMU32 parent, MMU32 index, MMChunkChild *out)
 {
     Host *h = (Host *)v;
-    assert(number == 8);
+    assert(parent == 0 && index == 0);
     ++h->child_calls;
-    *out = 17;
+    out->type = 0x544d504cUL;
+    out->number = 17;
+    out->slot = 0;
     return 1;
 }
 static int fetch(void *v, const MMActorHeader *header, void **out)
@@ -285,6 +298,10 @@ static void setup(Host *h)
     MMI32 action[2] = {0, 0}, stride = -ONE;
     memset(h, 0, sizeof(*h));
     mm_preview_actor_init(&h->actor);
+    h->chunks.context = h;
+    h->chunks.count = 1;
+    h->chunks.entry = chunk;
+    h->chunks.child = child;
     h->prop = 1;
     h->header.first_frame = 1;
     h->header.last_frame = 5;
@@ -322,7 +339,6 @@ static void setup(Host *h)
     s->header = header;
     s->route = table;
     s->events = table;
-    s->template_child = child;
     s->fetch = fetch;
     s->bind = bind;
     s->body_create = body;
@@ -369,8 +385,8 @@ static void loading(void)
     MMPreviewActorDefinition d = definition();
     int n, i, failure;
     setup(&h);
-    assert(mm_preview_actor_load(&h.actor, 8, &h.services) == 1);
-    assert(h.actor.header.template_number == 17 && h.child_calls == 1 && h.actor.original[0] == 2 * ONE);
+    assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services) == 1);
+    assert(h.actor.header.template_number == 17 && h.child_calls > 0 && h.actor.original[0] == 2 * ONE);
     n = h.calls;
     dispose(&h);
     for (failure = -2; failure <= 0; ++failure)
@@ -379,41 +395,41 @@ static void loading(void)
             setup(&h);
             h.fail_at = i;
             h.failure = failure;
-            assert(mm_preview_actor_load(&h.actor, 8, &h.services) == failure);
+            assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services) == failure);
             dispose(&h);
         }
     setup(&h);
     h.header.first_frame = 2147483647;
     h.events[0].rtel.irpt = -9;
-    assert(mm_preview_actor_load(&h.actor, 8, &h.services) && h.actor.inactive && !h.fetches && !h.actor.tmpl);
+    assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services) && h.actor.inactive && !h.fetches && !h.actor.tmpl);
     dispose(&h);
     setup(&h);
     h.header.source_id = 2;
-    assert(mm_preview_actor_load(&h.actor, 8, &h.services) && !h.child_calls && h.actor.header.template_number == 10);
+    assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services) && !h.child_calls && h.actor.header.template_number == 10);
     dispose(&h);
     setup(&h);
     h.routes = 0;
-    assert(!mm_preview_actor_load(&h.actor, 8, &h.services) && h.bodies == 1);
+    assert(!mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services) && h.bodies == 1);
     dispose(&h);
     setup(&h);
     h.events[1].rtel.irpt = 2;
-    assert(!mm_preview_actor_load(&h.actor, 8, &h.services) && h.bodies == 1);
+    assert(!mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services) && h.bodies == 1);
     dispose(&h);
     setup(&h);
     h.header.last_frame = 0;
-    assert(!mm_preview_actor_load(&h.actor, 8, &h.services));
+    assert(!mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
     dispose(&h);
     setup(&h);
     h.header.last_frame = 100002;
-    assert(!mm_preview_actor_load(&h.actor, 8, &h.services));
+    assert(!mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
     dispose(&h);
     setup(&h);
     h.header.last_frame = 100001;
-    assert(mm_preview_actor_load(&h.actor, 8, &h.services));
+    assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
     dispose(&h);
     setup(&h);
     h.header.last_frame = 2147483647;
-    assert(mm_preview_actor_load(&h.actor, 8, &h.services) && h.actor.header.last_frame == 5);
+    assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services) && h.actor.header.last_frame == 5);
     n = h.calls;
     dispose(&h);
     for (failure = -2; failure < 0; ++failure)
@@ -423,7 +439,7 @@ static void loading(void)
             h.header.last_frame = 2147483647;
             h.fail_at = i;
             h.failure = failure;
-            assert(mm_preview_actor_load(&h.actor, 8, &h.services) == failure &&
+            assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services) == failure &&
                    h.actor.header.last_frame == 2147483647);
             dispose(&h);
         }
@@ -460,7 +476,7 @@ static void playback(void)
     float delta[3] = {1, 2, 3}, bad[3] = {1, 2, 40000}, zero[3] = {0, 0, 0};
     int n, i, failure, r;
     setup(&h);
-    assert(mm_preview_actor_load(&h.actor, 8, &h.services));
+    assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
     h.calls = 0;
     assert(mm_preview_actor_seek(&h.actor, 3, &h.services) && h.actor.state.frame == 3 && h.actor.state.onStage);
     n = h.calls;
@@ -473,7 +489,7 @@ static void playback(void)
         for (i = 1; i <= n; ++i)
         {
             setup(&h);
-            assert(mm_preview_actor_load(&h.actor, 8, &h.services));
+            assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
             h.calls = 0;
             h.fail_at = i;
             h.failure = failure;
@@ -483,7 +499,7 @@ static void playback(void)
             dispose(&h);
         }
     setup(&h);
-    assert(mm_preview_actor_load(&h.actor, 8, &h.services));
+    assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
     assert(!mm_preview_actor_seek(&h.actor, 100002, &h.services) && h.actor.state.frame == 2147483647);
     h.actor.inactive = 1;
     assert(mm_preview_actor_seek(&h.actor, 100002, &h.services));
@@ -520,7 +536,7 @@ static void replace_events(void)
     MMActorState expected;
     int failure;
     setup(&h);
-    assert(mm_preview_actor_load(&h.actor, 8, &h.services));
+    assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
     assert(mm_preview_actor_seek(&h.actor, 2, &h.services));
     expected = h.actor.state;
     h.actor.state.action = 99;
@@ -533,7 +549,7 @@ static void replace_events(void)
     for (failure = -2; failure <= 0; ++failure)
     {
         setup(&h);
-        assert(mm_preview_actor_load(&h.actor, 8, &h.services));
+        assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
         h.fail_at = h.calls + 1; h.failure = failure;
         assert(mm_preview_actor_replace_events(&h.actor, &h, 2, &h.services) == failure);
         dispose(&h);

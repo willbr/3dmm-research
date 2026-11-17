@@ -50,11 +50,11 @@ static int load_template(MMPreviewActor *p, const MMPreviewActorServices *s)
         return r;
     return s->bind(s->context, p->tmpl);
 }
-int mm_preview_actor_load(MMPreviewActor *p, MMU32 number, const MMPreviewActorServices *s)
+int mm_preview_actor_load(MMPreviewActor *p, MMU32 number, const MMChunkAccess *chunks, int require_template_target,
+                          const MMPreviewActorServices *s)
 {
     const MMActorMotionServices *m = &s->timeline.motion;
     MMActorEvent e;
-    MMU32 child;
     MMI32 i, n, last;
     int r = s->header(s->context, number, &p->header);
     if (r <= 0)
@@ -71,8 +71,7 @@ int mm_preview_actor_load(MMPreviewActor *p, MMU32 number, const MMPreviewActorS
         p->inactive = 1;
         return 1;
     }
-    if (!p->header.source_id && s->template_child(s->context, number, &child))
-        p->header.template_number = child;
+    mm_actor_template_link(chunks, number, p->header.source_id, require_template_target, &p->header.template_number);
     r = load_template(p, s);
     if (r <= 0)
         return r;

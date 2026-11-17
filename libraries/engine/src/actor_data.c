@@ -1,8 +1,29 @@
 /* Actor persistence converted from engine actor_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_data.h"
+#include "mm/template_create.h"
 #include "mm/wide.h"
 #include <string.h>
+int mm_actor_template_link(const MMChunkAccess *access, MMU32 actor, MMI32 source, int require_target, MMU32 *number)
+{
+    const MMU32 actor_type = 0x41435452UL;
+    MMU32 child, position;
+    MMChunkEntry entry;
+    int status;
+    if (source)
+        return MM_CHUNK_OK;
+    status = mm_chunk_link_number(access, actor_type, actor, 0, MM_TMPL, &child);
+    if (status == MM_CHUNK_OK && require_target)
+    {
+        status = mm_chunk_find(access, MM_TMPL, child, &position);
+        if (status == MM_CHUNK_OK)
+            status = mm_chunk_at(access, position, &entry);
+    }
+    if (status == MM_CHUNK_OK)
+        *number = child;
+    return status;
+}
+
 static void swap16(unsigned char *p)
 {
     unsigned char t = p[0];

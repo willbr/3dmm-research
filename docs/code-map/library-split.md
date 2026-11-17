@@ -55,11 +55,19 @@ selector. The standalone session reads wire event rows. Marcus seeks include
 the target frame and read the current camera cues, including edits. Studio
 rewind finds the last camera or sound in the processed prefix before the
 target frame, then the existing dispatcher replays the target frame's effects.
+All three readers use the same C89 exact child lookup to select a `CAM` at
+its authored slot. Studio and Marcus resolve its slot-zero `MBMP` and `ZBMP`
+through the same C89 binding in the archive that owns the camera. Their
+renderer adapters load, cache and present the selected records.
 `mm_movie_session_actor` follows the scene start group's actor links, creates
 C route and event tables and replays the existing actor evaluator from a fresh
 state. The query uses action tables from the resolved template or the shared
 3D text action metadata. Its outputs include route position, action, cel and
 fixed-point root pose. The query does not create body, costume or audio objects.
+Studio, Marcus and the standalone evaluator use `mm_actor_template_link`
+to recover the embedded template number when a movie edit or import changed
+it. An external source keeps its authored template number and uses the
+ordered archive search.
 Studio and `mm_preview_actor_seek`, which serves Marcus and the standalone
 session, both run `mm_actor_seek_run` from `mm/actor_timeline.h`. The C driver
 owns command delivery and failure accumulation. The effect adapters update

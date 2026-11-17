@@ -235,14 +235,12 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
     {
         // Actor is a ThreeDText.  Tag might be wrong if this actor was imported,
         // so look for child Template.
-        ChildChunkIdentification kid;
-
-        if (!pcfl->FGetKidChidCtg(kctgActr, cno, 0, kctgTmpl, &kid))
+        const auto chunks = pcfl->ReadChunkAccess();
+        if (mm_actor_template_link(&chunks, cno, _tagTmpl.sid, 0, &_tagTmpl.cno) != MM_CHUNK_OK)
         {
             Bug("where's the child Template?");
             return fTrue; // hope the tag is correct
         }
-        _tagTmpl.cno = kid.cki.cno;
     }
 
     return fTrue;

@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_BACKGROUND_CAMERA_H
 #define MM_ENGINE_BACKGROUND_CAMERA_H
 #include "actor_motion.h"
+#include "chunky_file.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -10,7 +11,8 @@ extern "C"
     enum
     {
         MM_BACKGROUND_CAMERA_BYTES = 76,
-        MM_BACKGROUND_POINT_BYTES = 12
+        MM_BACKGROUND_POINT_BYTES = 12,
+        MM_BACKGROUND_CAMERA = 0x43414d20
     };
     enum
     {
@@ -57,6 +59,9 @@ extern "C"
     int mm_background_camera_decode(const MMReadStream *, MMBackgroundCameraData *);
     int mm_background_point_decode(const MMReadStream *, const MMBackgroundCameraData *, MMI32,
                                          MMActorPoint *);
+    /* Resolve the CAM's slot-zero MBMP or ZBMP in the same archive as the camera.
+     * Returns a chunk status and publishes the linked number only on success. */
+    int mm_background_camera_image_link(const MMChunkAccess *, MMU32 camera, int depth, MMU32 *number);
     void mm_background_camera_init(MMBackgroundCameraState *);
     /* Valid camera index and synchronous, non-reentrant services are required.
      * Lights turn on before reads; background image changes precede point replacement.

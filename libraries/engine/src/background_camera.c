@@ -3,6 +3,13 @@
 #include "mm/background_camera.h"
 #include "mm/wide.h"
 #include <string.h>
+int mm_background_camera_image_link(const MMChunkAccess *access, MMU32 camera, int depth, MMU32 *number)
+{
+    const MMU32 bitmap_type = 0x4d424d50UL, depth_type = 0x5a424d50UL;
+    return mm_chunk_link_number(access, MM_BACKGROUND_CAMERA, camera, 0,
+                                depth ? depth_type : bitmap_type, number);
+}
+
 static MMU32 word(const unsigned char *p, int big)
 {
     return big ? ((MMU32)p[0] << 24) | ((MMU32)p[1] << 16) | ((MMU32)p[2] << 8) | p[3]

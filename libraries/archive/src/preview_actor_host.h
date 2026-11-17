@@ -91,14 +91,6 @@ struct PreviewActor::Host
                 return *out != nullptr;
             });
         };
-        s.template_child = [](void *v, MMU32 n, MMU32 *out) -> int {
-            auto &h = *static_cast<Host *>(v);
-            ChildChunkIdentification child;
-            if (!h.file->Pcfl()->FGetKidChidCtg(kctgActr, n, 0, kctgTmpl, &child))
-                return 0;
-            *out = child.cki.cno;
-            return 1;
-        };
         s.fetch = [](void *v, const MMActorHeader *header, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {

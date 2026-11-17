@@ -472,8 +472,11 @@ Keep host presentation and device output outside the session.
    scene start group once. Studio and Marcus now retain the validated C89
    session over their opened chunk graphs. Studio resolves live scene slots
    through it, and Marcus uses it to read the scene and source directory.
-   The host session cutover still needs actor and camera resource bindings
-   for the renderers. The standalone `engine-native-chunky-test`
+   The three paths now share embedded actor template binding and exact
+   camera-slot lookup. The renderers share lookup of the camera's colour
+   and depth bitmaps in its owning archive. The host cutover still needs
+   integration of the C89 session's evaluated model and material bindings
+   with the live renderer bodies. The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
    open and seek checks in the standalone `MMEngine` configuration. Verify

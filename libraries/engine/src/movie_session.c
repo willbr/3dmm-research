@@ -1,4 +1,5 @@
 #include "movie_session_internal.h"
+#include "mm/background_resource.h"
 #include "mm/codec.h"
 #include "mm/data_stream.h"
 #include "mm/scene_data.h"
@@ -11,8 +12,6 @@
 #define SCENE_START_TYPE 0x47475354UL
 #define SCENE_FRAME_TYPE 0x47474652UL
 #define STRING_TABLE_TYPE 0x47535420UL
-#define BACKGROUND_TYPE 0x424b4744UL
-#define CAMERA_TYPE 0x43414d20UL
 #define LAST_AUTHORED_FRAME 2147483647L
 
 static void *find_codec(void *context, MMI32 format)
@@ -263,8 +262,8 @@ int mm_session_child(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU3
                        MMChunkEntry *entry, MMU32 *position)
 {
     MMChunkChild child;
-    int status = mm_chunk_child_type(access, parent, slot, type, &child);
-    if (status == MM_CHUNK_NOT_FOUND || (status == MM_CHUNK_OK && child.type != type))
+    int status = mm_chunk_child_exact(access, parent, slot, type, &child);
+    if (status == MM_CHUNK_NOT_FOUND)
         return MM_CHUNK_NOT_FOUND;
     if (status != MM_CHUNK_OK || mm_chunk_find(access, type, child.number, position) != MM_CHUNK_OK)
         return MM_CHUNK_BAD_FILE;
@@ -605,13 +604,13 @@ static int load_camera(const MMReadStream *stream, MMChunkIndex *index, MMMovieC
     MMChunkEntry entry;
     MMU32 parent, position, slot;
     MMMoviePayload payload;
-    int status = mm_chunk_find(&access, BACKGROUND_TYPE, camera->background.number, &parent);
+    int status = mm_chunk_find(&access, MM_BACKGROUND, camera->background.number, &parent);
     if (status != MM_CHUNK_OK)
         return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
     /* The background runtime admits contiguous CAM children from slot zero. */
     for (slot = 0; slot <= camera->slot; ++slot)
     {
-        status = mm_session_child(&access, parent, slot, CAMERA_TYPE, &entry, &position);
+        status = mm_session_child(&access, parent, slot, MM_BACKGROUND_CAMERA, &entry, &position);
         if (status != MM_CHUNK_OK)
             return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
     }
@@ -640,7 +639,7 @@ int mm_session_camera_at(const MMMovieSession *movie, const MMChunkAccess *acces
         return status;
     scan_camera_events(&frames, 0, frame, &camera);
     free(frames.bytes);
-    if (camera.background.type != BACKGROUND_TYPE || camera.background.source < 0)
+    if (camera.background.type != MM_BACKGROUND || camera.background.source < 0)
         return MM_MOVIE_ASSET_NOT_FOUND;
     if (!camera.background.source)
         status = load_camera(&movie->stream, movie->index, &camera);

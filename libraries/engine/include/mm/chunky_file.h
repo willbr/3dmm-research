@@ -64,6 +64,11 @@ extern "C"
      * FGetKidChid behavior. Exact-type callers must also compare returned type. */
     int mm_chunk_child_type(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU32 type,
                                   MMChunkChild *child);
+    /* Exact slot and type, with the first child winning if the slot and type
+     * are repeated. These resolve the link only. The consumer reads its target. */
+    int mm_chunk_child_exact(const MMChunkAccess *, MMU32 parent, MMU32 slot, MMU32 type, MMChunkChild *);
+    int mm_chunk_link_number(const MMChunkAccess *, MMU32 parent_type, MMU32 parent_number, MMU32 slot,
+                             MMU32 child_type, MMU32 *number);
     /* Retail graph policy: bounded children/reference counts, aggregate reference
      * totals, cycles and reachability from zero-reference roots. Does not invent
      * a stricter per-node incoming-reference-count rule or reorder stored data. */

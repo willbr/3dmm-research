@@ -1103,6 +1103,56 @@ static void graphs(void)
     access.count = 0;
     CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_OK);
 }
+
+static void frame_resource_links(void)
+{
+    const MMU32 actor = 0x41435452UL, background = 0x424b4744UL, camera = 0x43414d20UL;
+    const MMU32 tmplt = 0x544d504cUL, bitmap = 0x4d424d50UL, depth = 0x5a424d50UL;
+    LiveGraph graph;
+    MMChunkAccess access;
+    MMU32 number = 90;
+    memset(&graph, 0, sizeof(graph));
+    access.context = &graph;
+    access.count = 4;
+    access.entry = live_entry;
+    access.child = live_child;
+    graph.entries[0].type = actor;
+    graph.entries[0].number = 1;
+    graph.entries[0].child_count = 1;
+    graph.entries[1].type = background;
+    graph.entries[1].number = 2;
+    graph.entries[1].child_count = 2;
+    graph.entries[2].type = camera;
+    graph.entries[2].number = 3;
+    graph.entries[2].child_count = 2;
+    graph.entries[3].type = tmplt;
+    graph.entries[3].number = 4;
+    graph.children[0][0].type = tmplt;
+    graph.children[0][0].number = 4;
+    graph.children[1][0].type = graph.children[1][1].type = camera;
+    graph.children[1][0].number = 3;
+    graph.children[1][1].number = 6;
+    graph.children[2][0].type = bitmap;
+    graph.children[2][0].number = 7;
+    graph.children[2][1].type = depth;
+    graph.children[2][1].number = 8;
+
+    CHECK(mm_actor_template_link(&access, 1, 29, 1, &number) == MM_CHUNK_OK && number == 90);
+    CHECK(mm_actor_template_link(&access, 1, 0, 1, &number) == MM_CHUNK_OK && number == 4);
+    graph.children[0][0].number = 5;
+    CHECK(mm_actor_template_link(&access, 1, 0, 1, &number) == MM_CHUNK_NOT_FOUND && number == 4);
+    CHECK(mm_actor_template_link(&access, 1, 0, 0, &number) == MM_CHUNK_OK && number == 5);
+    graph.children[0][0].slot = 1;
+    CHECK(mm_actor_template_link(&access, 1, 0, 0, &number) == MM_CHUNK_NOT_FOUND && number == 5);
+    CHECK(mm_chunk_link_number(&access, background, 2, 0, camera, &number) == MM_CHUNK_OK && number == 3);
+    CHECK(mm_chunk_link_number(&access, background, 2, 1, camera, &number) == MM_CHUNK_NOT_FOUND && number == 3);
+    CHECK(mm_background_camera_image_link(&access, 3, 0, &number) == MM_CHUNK_OK && number == 7);
+    CHECK(mm_background_camera_image_link(&access, 3, 1, &number) == MM_CHUNK_OK && number == 8);
+    graph.children[2][0].type = bitmap + 1;
+    CHECK(mm_background_camera_image_link(&access, 3, 0, &number) == MM_CHUNK_NOT_FOUND && number == 8);
+    graph.fail = 1;
+    CHECK(mm_background_camera_image_link(&access, 3, 1, &number) == MM_CHUNK_IO && number == 8);
+}
 static int chain_entry(void *context, MMU32 position, MMChunkEntry *entry)
 {
     MMU32 count = *(MMU32 *)context;
@@ -1342,6 +1392,7 @@ int main(void)
     movie_actors();
     movie_content();
     graphs();
+    frame_resource_links();
     io_failures();
     deep_graph();
     writes();

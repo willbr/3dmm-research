@@ -37,11 +37,8 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
     const unsigned short one = 1;
     s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
     s.child = [](void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMU32 *out) {
-        ChildChunkIdentification child;
-        if (!static_cast<Host *>(p)->file->FGetKidChidCtg(type, number, id, childType, &child))
-            return 0;
-        *out = child.cki.cno;
-        return 1;
+        const auto chunks = static_cast<Host *>(p)->file->ReadChunkAccess();
+        return int(mm_chunk_link_number(&chunks, type, number, id, childType, out) == MM_CHUNK_OK);
     };
     s.find = [](void *p, MMU32 type, MMU32 number, int unpack) {
         auto h = static_cast<Host *>(p);
@@ -167,11 +164,8 @@ MMBackgroundPreviewServices PreviewBackground::Services(void *host)
     };
     s.child = [](void *p, MMU32 camera, int depth, MMU32 *out) {
         auto h = static_cast<BackgroundImageHost *>(p);
-        ChildChunkIdentification child;
-        if (!h->source->Pcfl()->FGetKidChidCtg(kctgCam, camera, 0, depth ? kctgZbmp : kctgMbmp, &child))
-            return 0;
-        *out = child.cki.cno;
-        return 1;
+        const auto chunks = h->source->Pcfl()->ReadChunkAccess();
+        return int(mm_background_camera_image_link(&chunks, camera, depth, out) == MM_CHUNK_OK);
     };
     s.fetch = [](void *p, MMU32 number, int depth) -> void * {
         auto h = static_cast<BackgroundImageHost *>(p);

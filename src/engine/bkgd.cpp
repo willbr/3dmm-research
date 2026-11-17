@@ -72,11 +72,8 @@ MMBackgroundServices Background::_ResourceServices(void *host)
     s.actor_bytes = sizeof(BACT);
     s.light_bytes = sizeof(BLIT);
     s.child = [](void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMU32 *out) {
-        ChildChunkIdentification child;
-        if (!static_cast<BackgroundResourceHost *>(p)->file->FGetKidChidCtg(type, number, id, childType, &child))
-            return 0;
-        *out = child.cki.cno;
-        return 1;
+        const auto chunks = static_cast<BackgroundResourceHost *>(p)->file->ReadChunkAccess();
+        return int(mm_chunk_link_number(&chunks, type, number, id, childType, out) == MM_CHUNK_OK);
     };
     s.child_at = [](void *p, MMU32 type, MMU32 number, MMI32 index, MMU32 *out) {
         ChildChunkIdentification child;
@@ -357,21 +354,18 @@ MMBackgroundCameraServices Background::_CameraServices(void *host)
         auto h = static_cast<BackgroundCameraHost *>(p);
         auto background = h->background;
         auto file = background->Pcrf()->Pcfl();
-        ChildChunkIdentification child;
-        if (!file->FGetKidChidCtg(background->Ctg(), background->Cno(), camera, kctgCam, &child) ||
-            !file->FFind(child.cki.ctg, child.cki.cno, &h->block) || !h->block.FUnpackData())
+        const auto chunks = file->ReadChunkAccess();
+        if (mm_chunk_link_number(&chunks, background->Ctg(), background->Cno(), camera, MM_BACKGROUND_CAMERA, number) !=
+                MM_CHUNK_OK ||
+            !file->FFind(kctgCam, *number, &h->block) || !h->block.FUnpackData())
             return 0;
-        *number = child.cki.cno;
         *out = EngineReadStream::FromBlock(h->block);
         return 1;
     };
     s.child = [](void *p, MMU32 camera, int depth, MMU32 *number) {
         auto h = static_cast<BackgroundCameraHost *>(p);
-        ChildChunkIdentification child;
-        if (!h->background->Pcrf()->Pcfl()->FGetKidChidCtg(kctgCam, camera, 0, depth ? kctgZbmp : kctgMbmp, &child))
-            return 0;
-        *number = child.cki.cno;
-        return 1;
+        const auto chunks = h->background->Pcrf()->Pcfl()->ReadChunkAccess();
+        return int(mm_background_camera_image_link(&chunks, camera, depth, number) == MM_CHUNK_OK);
     };
     s.background = [](void *p, MMU32 rgb, MMU32 depth) {
         auto h = static_cast<BackgroundCameraHost *>(p);

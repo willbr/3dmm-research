@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_ACTOR_DATA_H
 #define MM_ENGINE_ACTOR_DATA_H
 #include "read_stream.h"
+#include "chunky_file.h"
 #include "tag.h"
 #include "text.h"
 #ifdef __cplusplus
@@ -63,6 +64,12 @@ extern "C"
      * leaves the read/expanded bytes visible. Old last_frame becomes INT32_MAX only
      * after byte-order validation succeeds. All other header values are accepted. */
     int mm_actor_read_header(const MMReadStream *, void *header);
+    /* Embedded actors use the TMPL link at slot zero after import/renumbering.
+     * External sources skip graph lookup. A missing link leaves the stored
+     * template number available as a fallback. Stream consumers can require
+     * the linked target to exist before replacing the stored number. */
+    int mm_actor_template_link(const MMChunkAccess *, MMU32 actor, MMI32 source, int require_target,
+                               MMU32 *template_number);
     int mm_actor_adjust_header_id(void *header, MMI32 delta);
     typedef struct MMActorHeaderIO
     {

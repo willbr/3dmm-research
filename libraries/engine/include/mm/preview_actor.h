@@ -34,7 +34,6 @@ extern "C"
         int (*header)(void *, MMU32, MMActorHeader *);
         int (*route)(void *, MMU32, void **);
         int (*events)(void *, MMU32, void **);
-        int (*template_child)(void *, MMU32, MMU32 *);
         int (*fetch)(void *, const MMActorHeader *, void **);
         int (*bind)(void *, void *), (*body_create)(void *, void *, void **);
         int (*prop)(void *, void *), (*text)(void *, void *);
@@ -61,7 +60,8 @@ extern "C"
      * transferred. The native host transports exceptions after C returns. */
     void mm_preview_actor_init(MMPreviewActor *);
     void mm_preview_actor_dispose(MMPreviewActor *, const MMPreviewActorServices *);
-    int mm_preview_actor_load(MMPreviewActor *, MMU32 number, const MMPreviewActorServices *);
+    int mm_preview_actor_load(MMPreviewActor *, MMU32 number, const MMChunkAccess *, int require_template_target,
+                              const MMPreviewActorServices *);
     int mm_preview_actor_create(MMPreviewActor *, const MMPreviewActorDefinition *, const MMPreviewActorServices *);
     int mm_preview_actor_seek(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_replace_events(MMPreviewActor *, void *events, MMI32 frame, const MMPreviewActorServices *);

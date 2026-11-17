@@ -40,7 +40,8 @@ bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
     resolve = resolver;
     Host host = {this, file, &bindTemplate};
     auto services = host.Services();
-    return host.Result(mm_preview_actor_load(&core, number, &services));
+    const auto chunks = file->Pcfl()->ReadChunkAccess();
+    return host.Result(mm_preview_actor_load(&core, number, &chunks, 0, &services));
 }
 bool PreviewActor::Create(const PreviewPropDefinition &definition,
                           std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,

@@ -13117,6 +13117,34 @@ Evidence is under `tmp/c89-movie-open/` on the evidence drive, including
 the binary and fixture identities, seek and playback logs, and save/reopen
 captures.
 
+### C89 actor template and camera resource links
+
+Studio, Marcus and the standalone session use the same exact chunk-link
+lookup when binding an embedded actor template or an authored camera.
+The colour and depth bitmap links resolve through one C89 function in
+the archive that owns the selected camera. The fixture covers renumbered
+templates, external SIDs, a missing linked target, duplicate typed links,
+and absent or unreadable bitmap links. The standalone reader keeps its
+stored-template fallback when a linked target is absent.
+
+All 181 standalone and 21 distinct host checks passed. Both apps rebuilt
+and Marcus relaunched. Six changed C files compiled under strict C89 for
+Linux x64 musl. The standalone probe matched 300 camera and actor snapshots
+and 50 model and material snapshots. Missing actor content returned the
+same error without publishing a partial frame.
+
+The stock and SID-29 actor-events and scrolling-text cases matched all
+456 pre-change seek states and 360 viewport hashes across Studio and
+Marcus. The shared camera slots matched retained retail captures, as did
+456 Studio and 456 v3dmm actor records. The background harness rendered
+188 cameras across all 12 stock backgrounds. Its 301,996,032 output bytes
+had the retained FNV-1a fingerprint `E1A71005`.
+Normal playback of actor-events, dissolve and scrolling-text matched
+retail's frame order and final position over 240 frame commits per host,
+including an actor-events replay in the same process.
+
+Evidence is under `tmp/c89-frame-resources/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root
