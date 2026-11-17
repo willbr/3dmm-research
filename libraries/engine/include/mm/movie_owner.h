@@ -13,9 +13,11 @@ extern "C"
         MMMovieActor data;
         void *cache;
     } MMRollCallActor;
+    struct MMMovieSession;
     typedef struct MMMovieState
     {
         void *resources, *actors;
+        struct MMMovieSession *session;
         MMU32 movieNumber;
         MMI32 actorIdLimit, sceneCount;
         MMMovieTitle title;
@@ -25,7 +27,7 @@ extern "C"
         void *context;
         void *(*create_file)(void *);
         void *(*open_file)(void *);
-        int (*verify)(void *, void *file, MMU32 *);
+        int (*open_session)(void *, void *file, MMU32 *, struct MMMovieSession **);
         void *(*new_resources)(void *, void *file);
         void (*release_file)(void *);
         void (*release_resources)(void *);
@@ -38,7 +40,6 @@ extern "C"
         int (*create_root)(void *, void *file, MMU32 *);
         int (*read_rollcall)(void *, void *resources, MMU32, void **actors, MMI32 *limit);
         void (*load_name)(void *, void *file, MMU32, MMMovieTitle *);
-        int (*scene)(void *, void *file, MMU32 movie, MMI32 index);
         int (*previous_rollcall)(void *, void *file, MMU32 movie, MMU32 *previous);
         int (*write_rollcall)(void *, void *file, MMU32 movie, void *actors, MMU32 *written);
         void (*delete_previous)(void *, void *file, MMU32 movie, MMU32 previous);
@@ -46,7 +47,8 @@ extern "C"
         int (*save)(void *, void *file);
         void (*make_persistent)(void *file);
     } MMMovieOwnerServices;
-    /* Unique owning state. File/table handles are transitional host objects; C owns
+    /* Unique owning state. The session borrows its graph through the resource
+     * reference and is closed before it. File/table handles are host objects; C owns
      * their references, transactions, replacement, title and ordered cleanup. Name
      * loading writes the uncommitted state; replacement publishes it on success.
      * Callbacks cannot mutate/re-enter this state. No rollback after save publication:
@@ -57,6 +59,9 @@ extern "C"
     void mm_movie_state_dispose(MMMovieState *, const MMMovieOwnerServices *);
     int mm_movie_init_empty(MMMovieState *, const MMMovieOwnerServices *);
     int mm_movie_load(MMMovieState *, MMU32 number, const MMMovieOwnerServices *);
+    /* Resolve a scene from the live graph. A new or changed root is attached
+     * only after validation. Failed lookups preserve the caller's number. */
+    int mm_movie_state_scene_number(MMMovieState *, MMU32 slot, MMU32 *number, const MMMovieOwnerServices *);
     int mm_movie_save(MMMovieState *, const MMMovieOwnerServices *);
 
     typedef struct MMRollCallServices

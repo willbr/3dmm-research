@@ -1,6 +1,7 @@
 /* Movie ownership and persistence converted from engine movie_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_owner.h"
+#include "mm/movie_session.h"
 #include <string.h>
 void mm_movie_state_init(MMMovieState *m)
 {
@@ -28,6 +29,8 @@ void mm_movie_clear_actors(MMMovieState *m, const MMMovieOwnerServices *s)
 }
 void mm_movie_release_resources(MMMovieState *m, const MMMovieOwnerServices *s)
 {
+    mm_movie_session_close(m->session);
+    m->session = NULL;
     if (m->resources)
     {
         s->release_resources(m->resources);
@@ -44,6 +47,7 @@ static void replace(MMMovieState *m, MMMovieState *fresh, const MMMovieOwnerServ
     mm_movie_state_dispose(m, s);
     *m = *fresh;
     fresh->resources = fresh->actors = NULL;
+    fresh->session = NULL;
 }
 int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
 {
@@ -69,18 +73,23 @@ int mm_movie_load(MMMovieState *m, MMU32 number, const MMMovieOwnerServices *s)
 {
     MMMovieState loaded;
     void *file;
+    MMU32 scene_number;
     int valid;
     mm_movie_state_init(&loaded);
     mm_movie_title_init(&loaded.title, m->title.unit);
     file = s->open_file(s->context);
     if (!file)
         return 0;
-    valid = s->verify(s->context, file, &number);
+    valid = s->open_session(s->context, file, &number, &loaded.session);
     if (valid)
         loaded.resources = s->new_resources(s->context, file);
-    s->release_file(file);
     if (!valid || !loaded.resources)
+    {
+        mm_movie_state_dispose(&loaded, s);
+        s->release_file(file);
         return 0;
+    }
+    s->release_file(file);
     loaded.movieNumber = number;
     if (!s->read_rollcall(s->context, loaded.resources, number, &loaded.actors, &loaded.actorIdLimit))
     {
@@ -89,10 +98,27 @@ int mm_movie_load(MMMovieState *m, MMU32 number, const MMMovieOwnerServices *s)
     }
     file = s->file(loaded.resources);
     s->load_name(s->context, file, number, &loaded.title);
-    while (s->scene(s->context, file, number, loaded.sceneCount))
+    while (mm_movie_session_scene_number(loaded.session, (MMU32)loaded.sceneCount, &scene_number) == MM_MOVIE_OK)
         ++loaded.sceneCount;
     replace(m, &loaded, s);
     return 1;
+}
+int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, const MMMovieOwnerServices *s)
+{
+    const MMMovieSessionRoot *root = mm_movie_session_root(m->session);
+    MMMovieSession *opened;
+    MMU32 requested = m->movieNumber;
+    if (!m->resources)
+        return 0;
+    if (!root || root->number != requested)
+    {
+        if (!s->open_session(s->context, s->file(m->resources), &requested, &opened))
+            return 0;
+        mm_movie_session_close(m->session);
+        m->session = opened;
+        m->movieNumber = requested;
+    }
+    return mm_movie_session_scene_number(m->session, slot, number) == MM_MOVIE_OK;
 }
 int mm_movie_save(MMMovieState *m, const MMMovieOwnerServices *s)
 {

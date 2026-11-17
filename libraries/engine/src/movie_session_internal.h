@@ -6,10 +6,10 @@
 
 struct MMMovieSession
 {
+    MMMovieSessionGraph graph;
     MMReadStream stream;
     MMChunkIndex *index;
     MMChunkPolicy policy;
-    MMU32 root_position;
     MMMovieSessionRoot root;
 };
 

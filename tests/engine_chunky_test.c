@@ -318,6 +318,20 @@ static int view_record(void *context, MMU32 position, const MMChunkEntry *entry,
     return mm_read_exact((MMReadStream *)context, entry->offset, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
 }
 
+static void graph_access(void *context, MMChunkAccess *out)
+{
+    *out = ((const MMMovieChunkView *)context)->chunks;
+}
+
+static int graph_record(void *context, void *request, MMU32 position, const MMChunkEntry *entry,
+                        void *bytes, MMU32 size)
+{
+    const MMMovieChunkView *view = (const MMMovieChunkView *)context;
+    if (request)
+        ++*(int *)request;
+    return view->read(view->context, position, entry, bytes, size);
+}
+
 static void movie_directory(void)
 {
     enum { OTHER, MVIE_A, MVIE_B, SCENE_A, SCENE_B, SCENE_C, COUNT };
@@ -326,14 +340,19 @@ static void movie_directory(void)
     const MMU32 lengths[] = {4, 8, 8, 16, 16, 16};
     const MMI32 codecs[COUNT] = {0};
     const MMU32 links[][3] = {{MVIE_A, OTHER, 0}, {MVIE_A, SCENE_B, 2}, {MVIE_A, SCENE_A, 5}, {MVIE_B, SCENE_C, 0}};
+    const MMU32 shifted_links[][3] = {{MVIE_A - 1, SCENE_B - 1, 2}, {MVIE_A - 1, SCENE_A - 1, 5},
+                                     {MVIE_B - 1, SCENE_C - 1, 0}};
     const MMChunkPolicy policy = {0, 0, 516};
     unsigned char raw[COUNT][FIXTURE_RECORD_BYTES], bytes[1024];
     MMMemoryStream memory;
     MMChunkIndex *index;
     MMMovieChunkView view;
+    MMMovieSessionGraph graph;
+    MMMovieSession *session = NULL, *original;
     MMMovieHeader header;
     MMMovieSessionScene scene;
     MMU32 size, cursor, slot, root, number, i;
+    int reads = 0;
     memset(raw, 0, sizeof(raw));
     for (i = 0; i < COUNT; ++i)
         put16(raw[i], 1, 1);
@@ -377,6 +396,31 @@ static void movie_directory(void)
     CHECK(mm_movie_view_root(&view, &root, &header) == MM_MOVIE_IO && root == 2 && header.current_version == 2);
     root = 3;
     CHECK(mm_movie_view_root(&view, &root, &header) == MM_MOVIE_ROOT_NOT_FOUND && root == 3);
+
+    graph.context = &view;
+    graph.access = graph_access;
+    graph.read = graph_record;
+    memory.stream.length = size;
+    root = 7;
+    CHECK(mm_movie_session_open_graph(&graph, &reads, &root, &session) == MM_MOVIE_OK && reads == 1);
+    CHECK(mm_movie_session_root(session)->number == 7 && mm_movie_session_root(session)->header.current_version == 2);
+    mm_chunk_index_close(index);
+    size = write_fixture(bytes, sizeof(bytes), 1, COUNT - 1, types + 1, numbers + 1, lengths + 1,
+                         codecs + 1, raw + 1, shifted_links, sizeof(shifted_links) / sizeof(shifted_links[0]));
+    CHECK(mm_memory_stream_init(&memory, bytes, size));
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_OK);
+    view.chunks = mm_chunk_index_access(index);
+    CHECK(mm_movie_session_scene_number(session, 0, &number) == MM_MOVIE_OK && number == 16 && reads == 1);
+    CHECK(mm_movie_session_scene(session, 0, &scene) == MM_MOVIE_OK && scene.number == 16);
+    cursor = 0;
+    CHECK(mm_movie_session_next_scene(session, &reads, &cursor, &scene, &slot) == MM_MOVIE_OK &&
+          reads == 2 && scene.number == 16 && slot == 0);
+    original = session;
+    memory.stream.length = 1;
+    root = 0xffffffffUL;
+    CHECK(mm_movie_session_open_graph(&graph, &reads, &root, &session) == MM_MOVIE_IO &&
+          root == 2 && session == original && reads == 3 && mm_movie_session_root(session)->number == 7);
+    mm_movie_session_close(session);
     mm_chunk_index_close(index);
 }
 

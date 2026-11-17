@@ -731,7 +731,7 @@ static int evaluate(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, 
     MMMovieGroup starts;
     MMU32 position, slot, cursor = 0;
     int status;
-    if (!movie || !out)
+    if (!movie || !movie->index || !out)
         return MM_MOVIE_BAD_FILE;
     access = mm_chunk_index_access(movie->index);
     status = read_actor_scene(movie, &access, scene_slot, frame, &position, &scene, &starts);
@@ -825,7 +825,7 @@ int mm_movie_session_seek(const MMMovieSession *movie, MMU32 scene_slot, MMI32 f
     FrameInput input;
     MMMovieFrameServices services;
     int status;
-    if (!movie || !out)
+    if (!movie || !movie->index || !out)
         return MM_MOVIE_BAD_FILE;
     memset(&input, 0, sizeof(input));
     input.movie = movie;

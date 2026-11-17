@@ -1131,7 +1131,7 @@ MMMovieSceneServices Movie::_SceneServices()
         auto movie = static_cast<PMovie>(p);
         auto resources = movie->_data.Resources();
         ChunkNumber number;
-        if (!MovieData::FSceneNumber(resources->Pcfl(), movie->_data.movieNumber, index, &number))
+        if (!movie->_data.FResolveScene(index, &number))
             return nullptr;
         return Scene::PscenRead(movie, resources, number);
     };
@@ -1157,9 +1157,11 @@ MMMovieSceneServices Movie::_SceneServices()
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
     };
     s.scene_number = [](void *p, void *file, MMI32 index) -> MMU32 {
+        auto &data = static_cast<PMovie>(p)->_data;
         ChunkNumber number = cnoNil;
-        AssertDo(MovieData::FSceneNumber(static_cast<PChunkyFile>(file), static_cast<PMovie>(p)->_data.movieNumber,
-            index, &number), "Should never fail");
+        Assert(file == data.Resources()->Pcfl(), "Scene lookup should use the current movie graph");
+        (void)file;
+        AssertDo(data.FResolveScene(index, &number), "Should never fail");
         return number;
     };
     s.move_child = [](void *p, void *file, MMI32 from, MMI32 to) {

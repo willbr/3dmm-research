@@ -91,13 +91,13 @@ struct MovieData : MMMovieState
     void ClearActors();
     bool FInitEmpty();
     bool FLoad(PFilename filename, ChunkNumber number = cnoNil);
+    bool FResolveScene(ChildChunkID slot, ChunkNumber *number);
     // Saves the chunk graph, including opaque scene/asset children. Runtime
     // scene encoding and garbage collection remain the caller's responsibility.
     bool FSave(PFilename filename);
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
     static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
-    static bool FSceneNumber(PChunkyFile file, ChunkNumber root, ChildChunkID slot, ChunkNumber *number);
     static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,
                               LegacyLong *actorIdLimit = pvNil);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written);

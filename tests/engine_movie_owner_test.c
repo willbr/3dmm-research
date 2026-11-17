@@ -1,4 +1,5 @@
 #include "mm/movie_owner.h"
+#include "mm/movie_session.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +31,8 @@ struct Host
     char log[512];
     int used, tables, resources, fail, scenes, previous, persistent;
     int new_calls, append_calls, open_calls, big, wire_count, bad_row, bad_width;
+    int opening;
+    MMU32 root_number;
     Table *wire, *written;
 };
 enum
@@ -75,13 +78,64 @@ static void *open_file(void *c)
     event(h, 'o');
     return h->fail == FAIL_OPEN ? NULL : h;
 }
-static int verify(void *c, void *f, MMU32 *n)
+static int graph_entry(void *context, MMU32 position, MMChunkEntry *entry)
+{
+    Host *h = (Host *)context;
+    memset(entry, 0, sizeof(*entry));
+    if (position > (MMU32)h->scenes)
+        return 0;
+    entry->type = position ? 0x5343454eUL : 0x4d564945UL;
+    entry->number = position ? position : h->root_number;
+    if (!position)
+        entry->child_count = (MMU32)h->scenes;
+    return 1;
+}
+static int graph_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *child)
+{
+    Host *h = (Host *)context;
+    if (parent || position >= (MMU32)h->scenes)
+        return 0;
+    child->type = 0x5343454eUL;
+    child->number = position + 1;
+    child->slot = position;
+    return 1;
+}
+static void graph_access(void *context, MMChunkAccess *access)
+{
+    Host *h = (Host *)context;
+    if (!h->opening)
+        event(h, 's');
+    access->context = h;
+    access->count = (MMU32)h->scenes + 1;
+    access->entry = graph_entry;
+    access->child = graph_child;
+}
+static int graph_read(void *context, void *request, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size)
+{
+    const unsigned char header[] = {1, 0, 3, 3, 2, 0, 2, 0};
+    (void)context;
+    (void)request;
+    CHECK(!position && entry->type == 0x4d564945UL && size == sizeof(header));
+    memcpy(bytes, header, size);
+    return MM_MOVIE_OK;
+}
+static int open_session(void *c, void *f, MMU32 *n, MMMovieSession **out)
 {
     Host *h = (Host *)c;
+    MMMovieSessionGraph graph;
+    int status;
     CHECK(f == h);
     event(h, 'v');
-    *n = 7;
-    return h->fail != FAIL_VERIFY;
+    *n = h->root_number;
+    if (h->fail == FAIL_VERIFY)
+        return 0;
+    graph.context = h;
+    graph.access = graph_access;
+    graph.read = graph_read;
+    h->opening = 1;
+    status = mm_movie_session_open_graph(&graph, NULL, n, out);
+    h->opening = 0;
+    return status == MM_MOVIE_OK;
 }
 static void *new_resource(void *c, void *f)
 {
@@ -194,13 +248,6 @@ static void load_name(void *c, void *f, MMU32 n, MMMovieTitle *title)
     event(h, 'n');
     CHECK(mm_movie_title_set(title, "Loaded", 6));
 }
-static int scene(void *c, void *f, MMU32 n, MMI32 i)
-{
-    Host *h = (Host *)c;
-    CHECK(f == h && n == 7);
-    event(h, 's');
-    return i < h->scenes;
-}
 static int previous(void *c, void *f, MMU32 n, MMU32 *out)
 {
     Host *h = (Host *)c;
@@ -247,9 +294,9 @@ static void persist(void *f)
 static MMMovieOwnerServices owners(Host *h)
 {
     MMMovieOwnerServices s = {
-        NULL,          create,   open_file,  verify,          new_resource, release_file, release_resource, new_table,
+        NULL,          create,   open_file,  open_session,    new_resource, release_file, release_resource, new_table,
         release_table, count,    actor,      close_actor,     file,         root,         read_call,        load_name,
-        scene,         previous, write_call, delete_previous, set_name,     save,         persist};
+        previous,      write_call, delete_previous, set_name, save,         persist};
     s.context = h;
     return s;
 }
@@ -259,8 +306,11 @@ static void ownership(void)
     MMMovieState m;
     MMMovieOwnerServices s;
     void *old_r, *old_t;
+    MMMovieSession *original;
+    MMU32 number = 99;
     int i;
     memset(&h, 0, sizeof(h));
+    h.root_number = 7;
     s = owners(&h);
     mm_movie_state_init(&m);
     CHECK(m.movieNumber == 0xffffffffUL && !m.resources && !m.actors);
@@ -316,9 +366,18 @@ static void ownership(void)
     h.fail = FAIL_SAVE;
     CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "pjdNS") && h.persistent == 1);
     h.fail = 0;
+    original = m.session;
+    h.scenes = 3;
+    CHECK(mm_movie_state_scene_number(&m, 2, &number, &s) && number == 3 && m.session == original);
+    h.root_number = m.movieNumber = 11;
+    h.fail = FAIL_VERIFY;
+    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &s) && number == 3 && m.session == original);
+    h.fail = 0;
+    CHECK(mm_movie_state_scene_number(&m, 0, &number, &s) && number == 1 && m.session &&
+          mm_movie_session_root(m.session)->number == 11);
     reset(&h);
     mm_movie_state_dispose(&m, &s);
-    CHECK(!strcmp(h.log, "ARTR") && !h.tables && !h.resources);
+    CHECK(!strcmp(h.log, "ARTR") && !h.tables && !h.resources && !m.session);
     reset(&h);
     mm_movie_state_dispose(&m, &s);
     CHECK(!h.used);

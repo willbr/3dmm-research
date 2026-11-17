@@ -43,6 +43,13 @@ typedef struct MMMovieChunkView
     int (*read)(void *, MMU32 position, const MMChunkEntry *, void *bytes, MMU32 size);
 } MMMovieChunkView;
 
+typedef struct MMMovieSessionGraph
+{
+    void *context;
+    void (*access)(void *, MMChunkAccess *);
+    int (*read)(void *, void *request, MMU32 position, const MMChunkEntry *, void *bytes, MMU32 size);
+} MMMovieSessionGraph;
+
 /* A null number or the nil chunk number selects the first MVIE. A successful
  * lookup publishes its number before validation, even if the header is invalid. */
 int mm_movie_view_root(const MMMovieChunkView *, MMU32 *number, MMMovieHeader *);
@@ -149,8 +156,18 @@ typedef int (*MMMovieSourceRead)(void *, const MMMovieAsset *, MMReadStream *);
  * performs synchronous reads and has the same concurrency limits as the stream.
  * Open and scene lookup publish outputs only on MM_MOVIE_OK. */
 int mm_movie_session_open(const MMReadStream *, const MMChunkPolicy *, MMMovieSession **);
+/* Validate and retain a movie root over an already-open graph. The session
+ * borrows the graph context until close. The provider supplies fresh access
+ * on each query, so edits may move records between calls. The optional
+ * request belongs to this read only. On failure out is unchanged, but a
+ * root found before validation is reported through number. */
+int mm_movie_session_open_graph(const MMMovieSessionGraph *, void *request, MMU32 *number, MMMovieSession **);
 void mm_movie_session_close(MMMovieSession *);
 const MMMovieSessionRoot *mm_movie_session_root(const MMMovieSession *);
+int mm_movie_session_scene_number(const MMMovieSession *, MMU32 slot, MMU32 *number);
+int mm_movie_session_next_scene(const MMMovieSession *, void *request, MMU32 *cursor,
+                                MMMovieSessionScene *, MMU32 *slot);
+int mm_movie_session_source_table(const MMMovieSession *, MMChunkEntry *, MMU32 *position);
 
 enum { MM_MOVIE_SOURCE_NAME_BYTES = 766, MM_MOVIE_RETAIL_SOURCE_ID = 2 };
 #define MM_MOVIE_RETAIL_SOURCE_NAME "3dmovie"
@@ -186,7 +203,8 @@ int mm_movie_session_source_name(const MMMovieSession *, MMI32 source, char *nam
  * MM_MOVIE_SCENE_NOT_FOUND. A link to an absent or invalid chunk is an error. */
 int mm_movie_session_scene(const MMMovieSession *, MMU32 slot, MMMovieSessionScene *);
 
-/* Evaluate the scene's authored camera at frame and decode its resource.
+/* Evaluation and UTF-8 source lookup require a stream-backed session.
+ * Evaluate the scene's authored camera at frame and decode its resource.
  * Never modifies the session or publishes output on failure. */
 int mm_movie_session_camera(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
                             MMMovieSourceRead, void *context, MMMovieCamera *);

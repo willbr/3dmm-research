@@ -13083,6 +13083,40 @@ All 181 standalone and 16 host checks passed. The four affected C files
 compiled under strict C89 for Linux x64 musl. Both hosts built and Marcus
 was relaunched. Evidence is under `tmp/c89-scene-seek/` on the evidence drive.
 
+### C89 movie open owner (17 November 2026)
+
+SDL Studio, Marcus and the standalone probe now retain the same C89 movie
+session type after open. Studio resolves live scene slots through its owned
+session. If save selects a new root, Studio validates the new session before
+releasing the old one. Marcus retains its session with the archive installed
+in Preview. Scene and source reads keep the archive's decode budget and
+diagnostics. The standalone session still owns its immutable index.
+
+Engine fixtures covered a root that moves to a new chunk position, a live
+scene added after open, failed replacement retaining the previous session,
+and successful rebinding after a root change. The C-only probe matched five
+pre-change movie directories and all 300 camera and actor snapshots. The
+missing-actor-content fixture returned the same error and emitted no partial
+frame. All 181 standalone and 16 host checks passed, including the Marcus
+invalid-header playback fixture, `archive-api` and `movie-save-load`. Five C
+sources also compiled under strict C89 for Linux x64 musl. Both hosts built
+successfully and Marcus was relaunched.
+
+Across both hosts, 456 seek states and 360 viewport hashes matched the
+pre-change captures for stock and SID-29 actor-events and scrolling-text
+movies. Timed playback of actor-events, dissolve and scrolling-text matched
+retail frame order and final position across 240 frame commits per host,
+including an actor-events replay in the same process. The eight Studio VMM
+workflow checks passed. The new plain save was byte-identical to the prior
+save and reopened at the same scene, frame and camera in retail, Studio and
+Marcus. Marcus also reopened the bundled save. The plain save check passed
+in Marcus with an empty pack directory. With the configured pack directory
+the same check reported a chunky archive open error.
+
+Evidence is under `tmp/c89-movie-open/` on the evidence drive, including
+the binary and fixture identities, seek and playback logs, and save/reopen
+captures.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

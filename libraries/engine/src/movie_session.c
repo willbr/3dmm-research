@@ -121,12 +121,20 @@ int mm_movie_view_root(const MMMovieChunkView *view, MMU32 *number, MMMovieHeade
     return read_root(view, &entry, position, out);
 }
 
-static int read_record(void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size)
+static void stream_access(void *context, MMChunkAccess *out)
+{
+    const MMMovieSession *movie = (const MMMovieSession *)context;
+    *out = mm_chunk_index_access(movie->index);
+}
+
+static int read_record(void *context, void *request, MMU32 position, const MMChunkEntry *entry,
+                       void *bytes, MMU32 size)
 {
     const MMMovieSession *movie = (const MMMovieSession *)context;
     MMMoviePayload payload;
     int status = mm_session_payload(&movie->stream, movie->index, entry, size, &payload);
     (void)position;
+    (void)request;
     if (status != MM_MOVIE_OK)
         return status;
     status = mm_read_exact(payload.stream, 0, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
@@ -134,24 +142,38 @@ static int read_record(void *context, MMU32 position, const MMChunkEntry *entry,
     return status;
 }
 
-static void init_view(MMMovieChunkView *view, const MMMovieSession *movie, const MMChunkAccess *access)
+typedef struct GraphRead
 {
-    view->chunks = *access;
-    view->context = (void *)movie;
-    view->read = read_record;
+    const MMMovieSessionGraph *graph;
+    void *request;
+} GraphRead;
+
+static int graph_read(void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size)
+{
+    const GraphRead *read = (const GraphRead *)context;
+    return read->graph->read(read->graph->context, read->request, position, entry, bytes, size);
 }
 
-static int load_root(MMMovieSession *movie)
+static void init_view(MMMovieChunkView *view, GraphRead *read, const MMMovieSession *movie, void *request)
 {
-    MMChunkAccess access = mm_chunk_index_access(movie->index);
+    read->graph = &movie->graph;
+    read->request = request;
+    movie->graph.access(movie->graph.context, &view->chunks);
+    view->context = read;
+    view->read = graph_read;
+}
+
+static int load_root(MMMovieSession *movie, void *request, MMU32 *number)
+{
+    GraphRead read;
     MMMovieChunkView view;
-    MMChunkEntry entry;
-    int status = root_entry(&access, 0xffffffffUL, &entry, &movie->root_position);
-    if (status != MM_MOVIE_OK)
-        return MM_MOVIE_BAD_FILE;
-    init_view(&view, movie, &access);
-    movie->root.number = entry.number;
-    return read_root(&view, &entry, movie->root_position, &movie->root.header);
+    int status;
+    init_view(&view, &read, movie, request);
+    movie->root.number = number ? *number : 0xffffffffUL;
+    status = mm_movie_view_root(&view, &movie->root.number, &movie->root.header);
+    if (number)
+        *number = movie->root.number;
+    return status;
 }
 
 int mm_session_index(const MMReadStream *stream, const MMChunkPolicy *policy, MMChunkIndex **index)
@@ -188,7 +210,31 @@ int mm_movie_session_open(const MMReadStream *stream, const MMChunkPolicy *polic
     movie->stream = *stream;
     movie->index = index;
     movie->policy = *policy;
-    status = load_root(movie);
+    movie->graph.context = movie;
+    movie->graph.access = stream_access;
+    movie->graph.read = read_record;
+    status = load_root(movie, NULL, NULL);
+    if (status != MM_MOVIE_OK)
+    {
+        mm_movie_session_close(movie);
+        return status == MM_MOVIE_ROOT_NOT_FOUND ? MM_MOVIE_BAD_FILE : status;
+    }
+    *out = movie;
+    return MM_MOVIE_OK;
+}
+
+int mm_movie_session_open_graph(const MMMovieSessionGraph *graph, void *request, MMU32 *number,
+                                MMMovieSession **out)
+{
+    MMMovieSession *movie;
+    int status;
+    if (!graph || !graph->access || !graph->read || !out)
+        return MM_MOVIE_BAD_FILE;
+    movie = (MMMovieSession *)calloc(1, sizeof(*movie));
+    if (!movie)
+        return MM_MOVIE_MEMORY;
+    movie->graph = *graph;
+    status = load_root(movie, request, number);
     if (status != MM_MOVIE_OK)
     {
         mm_movie_session_close(movie);
@@ -265,6 +311,24 @@ int mm_movie_view_scene_number(const MMChunkAccess *access, MMU32 root, MMU32 sl
     return status;
 }
 
+int mm_movie_session_scene_number(const MMMovieSession *movie, MMU32 slot, MMU32 *number)
+{
+    MMChunkAccess access;
+    if (!movie)
+        return MM_MOVIE_BAD_FILE;
+    movie->graph.access(movie->graph.context, &access);
+    return mm_movie_view_scene_number(&access, movie->root.number, slot, number);
+}
+
+int mm_movie_session_source_table(const MMMovieSession *movie, MMChunkEntry *entry, MMU32 *position)
+{
+    MMChunkAccess access;
+    if (!movie)
+        return MM_MOVIE_BAD_FILE;
+    movie->graph.access(movie->graph.context, &access);
+    return mm_movie_view_source_table(&access, movie->root.number, entry, position);
+}
+
 static int read_scene(const MMMovieChunkView *view, const MMChunkEntry *entry, MMU32 position,
                       MMMovieSessionScene *out)
 {
@@ -322,11 +386,19 @@ int mm_session_scene(const MMMovieSession *movie, const MMChunkAccess *access, M
                       MMU32 *position, MMMovieSessionScene *out)
 {
     MMMovieChunkView view;
+    GraphRead read;
     MMChunkEntry entry;
-    int status = scene_at_slot(access, movie->root_position, slot, &entry, position);
+    MMU32 root;
+    int status = root_entry(access, movie->root.number, &entry, &root);
+    if (status == MM_MOVIE_OK)
+        status = scene_at_slot(access, root, slot, &entry, position);
     if (status != MM_MOVIE_OK)
         return status;
-    init_view(&view, movie, access);
+    read.graph = &movie->graph;
+    read.request = NULL;
+    view.chunks = *access;
+    view.context = &read;
+    view.read = graph_read;
     return read_scene(&view, &entry, *position, out);
 }
 
@@ -336,8 +408,19 @@ int mm_movie_session_scene(const MMMovieSession *movie, MMU32 slot, MMMovieSessi
     MMU32 position;
     if (!movie || !out)
         return MM_MOVIE_BAD_FILE;
-    access = mm_chunk_index_access(movie->index);
+    movie->graph.access(movie->graph.context, &access);
     return mm_session_scene(movie, &access, slot, &position, out);
+}
+
+int mm_movie_session_next_scene(const MMMovieSession *movie, void *request, MMU32 *cursor,
+                                MMMovieSessionScene *scene, MMU32 *slot)
+{
+    MMMovieChunkView view;
+    GraphRead read;
+    if (!movie)
+        return MM_MOVIE_BAD_FILE;
+    init_view(&view, &read, movie, request);
+    return mm_movie_view_next_scene(&view, movie->root.number, cursor, scene, slot);
 }
 
 MMU32 mm_session_word(const unsigned char *p, int big)
@@ -587,7 +670,7 @@ int mm_movie_session_camera(const MMMovieSession *movie, MMU32 scene_slot, MMI32
     MMMovieGroup starts;
     MMU32 position;
     int status;
-    if (!movie || !out)
+    if (!movie || !movie->index || !out)
         return MM_MOVIE_BAD_FILE;
     access = mm_chunk_index_access(movie->index);
     status = mm_session_scene(movie, &access, scene_slot, &position, &scene);

@@ -39,11 +39,13 @@ reads `SCEN` headers by the root's authored slot. It uses the shared KCDC/KCD2
 decoders for packed records. `engine-native-chunky-test FILE --movie` supplies
 a real native file stream and prints root versions and ordered scene ranges.
 A borrowed `MMMovieChunkView` applies the same root and scene directory policy
-to a host's current chunk graph. SDL Studio verifies the root, counts slots
-and resolves scene switches through this view, including after edits. Marcus
-uses the view through `Archive::ReadMovieDirectory` to discover the authored
-scene list and frame ranges at open. The host reader supplies the decoded
-record bytes from its existing archive.
+to a host's current chunk graph. `mm_movie_session_open_graph` retains the
+validated root and the graph provider. Studio owns that session in movie
+state and resolves scene slots using fresh access to the editable graph.
+When save changes the root ID, Studio attaches a new session after validation.
+Marcus's `Archive::ReadMovieDirectory` retains the session after reading the
+authored scenes and source directory. The session moves with the archive into
+Preview. The read adapter continues to apply the archive's decode budget.
 `mm_movie_session_camera` validates and reads the scene's start and frame event
 groups, evaluates camera cuts at an authored frame, and decodes the specified
 background's `CAM` chunk. Source zero uses the movie's own index. For positive

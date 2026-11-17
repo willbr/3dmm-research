@@ -17,6 +17,21 @@ struct NativeRollCallHost
     String name;
     DataBlock block;
 };
+int ReadMovieRecord(void *context, MMU32, const MMChunkEntry *entry, void *bytes, MMU32 count)
+{
+    DataBlock block;
+    if (!static_cast<PChunkyFile>(context)->FFind(entry->type, entry->number, &block) ||
+        !block.FUnpackData() || block.Cb() != static_cast<LegacyLong>(count))
+        return MM_MOVIE_BAD_FILE;
+    return block.FReadRgb(bytes, count, 0) ? MM_MOVIE_OK : MM_MOVIE_IO;
+}
+bool CheckMovieOpen(int result)
+{
+    if (result == MM_MOVIE_OK)
+        return true;
+    PushErc(result == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
+    return false;
+}
 MMRollCallActor CoreActor(const RollCallActorEntry &a)
 {
     return {{a.arid, a.cactRef, a.tagTmpl.sid, a.grfbrws, a.tagTmpl.ctg, a.tagTmpl.cno},
@@ -231,8 +246,14 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         context,
         [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); },
         [](void *c) -> void * { return ChunkyFile::PcflOpen(static_cast<NativeMovieHost *>(c)->filename, fcflNil); },
-        [](void *, void *file, MMU32 *number) -> int {
-            return FVerifyVersion(static_cast<PChunkyFile>(file), number);
+        [](void *, void *file, MMU32 *number, MMMovieSession **out) -> int {
+            const MMMovieSessionGraph graph = {
+                file,
+                [](void *context, MMChunkAccess *access) { *access = static_cast<PChunkyFile>(context)->ReadChunkAccess(); },
+                [](void *context, void *, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 count) -> int {
+                    return ReadMovieRecord(context, position, entry, bytes, count);
+                }};
+            return CheckMovieOpen(mm_movie_session_open_graph(&graph, nullptr, number, out));
         },
         [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
         [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
@@ -259,10 +280,6 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
             String value;
             static_cast<PChunkyFile>(file)->FGetName(kctgMvie, number, &value);
             AssertDo(mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad movie title");
-        },
-        [](void *, void *file, MMU32 movie, MMI32 index) -> int {
-            ChunkNumber number;
-            return FSceneNumber(static_cast<PChunkyFile>(file), movie, index, &number);
         },
         [](void *, void *file, MMU32 movie, MMU32 *previous) -> int {
             ChildChunkIdentification child;
@@ -328,6 +345,11 @@ bool MovieData::FLoad(PFilename filename, ChunkNumber number)
     const auto s = _OwnerServices(&host);
     return mm_movie_load(this, number, &s) != 0;
 }
+bool MovieData::FResolveScene(ChildChunkID slot, ChunkNumber *number)
+{
+    const auto s = _OwnerServices(nullptr);
+    return mm_movie_state_scene_number(this, slot, number, &s) != 0;
+}
 bool MovieData::FSave(PFilename filename)
 {
     NativeMovieHost host = {filename};
@@ -367,26 +389,8 @@ bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
 }
 bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHeader *header)
 {
-    const MMMovieChunkView view = {
-        file->ReadChunkAccess(), file,
-        [](void *context, MMU32, const MMChunkEntry *entry, void *bytes, MMU32 size) -> int {
-            DataBlock block;
-            if (!static_cast<PChunkyFile>(context)->FFind(entry->type, entry->number, &block) ||
-                !block.FUnpackData() || block.Cb() != static_cast<LegacyLong>(size))
-                return MM_MOVIE_BAD_FILE;
-            return block.FReadRgb(bytes, size, 0) ? MM_MOVIE_OK : MM_MOVIE_IO;
-        }};
-    const auto result = mm_movie_view_root(&view, number, header);
-    if (result == MM_MOVIE_OK)
-        return true;
-    PushErc(result == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
-    return false;
-}
-
-bool MovieData::FSceneNumber(PChunkyFile file, ChunkNumber root, ChildChunkID slot, ChunkNumber *number)
-{
-    const auto access = file->ReadChunkAccess();
-    return mm_movie_view_scene_number(&access, root, slot, number) == MM_MOVIE_OK;
+    const MMMovieChunkView view = {file->ReadChunkAccess(), file, ReadMovieRecord};
+    return CheckMovieOpen(mm_movie_view_root(&view, number, header));
 }
 
 bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,

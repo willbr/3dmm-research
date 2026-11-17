@@ -139,15 +139,13 @@ static int find_source(const MMReadStream *stream, MMI32 sid, char *out)
 
 int mm_movie_session_source_name(const MMMovieSession *movie, MMI32 source, char *name)
 {
-    MMChunkAccess access;
     MMChunkEntry entry;
     MMMoviePayload payload;
     MMU32 position;
     int status;
-    if (!movie || !name || source <= 0)
+    if (!movie || !movie->index || !name || source <= 0)
         return MM_MOVIE_BAD_FILE;
-    access = mm_chunk_index_access(movie->index);
-    status = mm_movie_view_source_table(&access, movie->root.number, &entry, &position);
+    status = mm_movie_session_source_table(movie, &entry, &position);
     if (status == MM_MOVIE_ASSET_NOT_FOUND)
     {
         if (source != MM_MOVIE_RETAIL_SOURCE_ID)

@@ -19,6 +19,7 @@ struct Archive::Impl
 {
     Options options;
     PChunkyFile file = pvNil;
+    MMMovieSession *movie = nullptr;
     std::string path;
     std::vector<Chunk> chunks;
     DataBlock payload;
@@ -31,11 +32,12 @@ struct Archive::Impl
     }
     ~Impl()
     {
+        mm_movie_session_close(movie);
         ReleasePpo(&strings);
         ReleasePpo(&file);
     }
     bool Load(std::size_t index, Error &error);
-    bool LoadSources(MMU32 root, std::vector<MovieSourceEntry> &sources, Error &error);
+    bool LoadSources(const MMMovieSession *, std::vector<MovieSourceEntry> &sources, Error &error);
 };
 namespace
 {
@@ -475,12 +477,11 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
         return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode record.");
     }
 }
-bool Archive::Impl::LoadSources(MMU32 root, std::vector<MovieSourceEntry> &sources, Error &error)
+bool Archive::Impl::LoadSources(const MMMovieSession *session, std::vector<MovieSourceEntry> &sources, Error &error)
 {
-    const auto access = file->ReadChunkAccess();
     MMChunkEntry entry;
     MMU32 position;
-    const int status = mm_movie_view_source_table(&access, root, &entry, &position);
+    const int status = mm_movie_session_source_table(session, &entry, &position);
     if (status == MM_MOVIE_ASSET_NOT_FOUND)
     {
         sources.push_back({MM_MOVIE_RETAIL_SOURCE_ID, MM_MOVIE_RETAIL_SOURCE_NAME});
@@ -521,49 +522,72 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
         return Fail(error, ErrorCode::invalid_argument, "Open an archive before listing its movie scenes.");
     try
     {
-        struct Host
-        {
-            Impl *archive;
-            Error &error;
-        } host = {_impl.get(), error};
-        const MMMovieChunkView view = {
-            _impl->file->ReadChunkAccess(), &host,
-            [](void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size) -> int {
-                auto &host = *static_cast<Host *>(context);
-                auto &archive = *host.archive;
+        const MMMovieSessionGraph graph = {
+            _impl.get(),
+            [](void *context, MMChunkAccess *access) {
+                *access = static_cast<Impl *>(context)->file->ReadChunkAccess();
+            },
+            [](void *context, void *request, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size) -> int {
+                auto &archive = *static_cast<Impl *>(context);
                 const Id id = {entry->type, entry->number};
                 if (position >= archive.chunks.size() || !(archive.chunks[position].id == id))
                     return MM_MOVIE_BAD_FILE;
-                if (!archive.Load(position, host.error))
-                    return MM_MOVIE_IO;
-                const auto stream = EngineReadStream::FromBlock(archive.payload);
-                if (stream.length != size)
+                try
+                {
+                    Error scratch;
+                    auto &error = request ? *static_cast<Error *>(request) : scratch;
+                    if (!archive.Load(position, error))
+                        return MM_MOVIE_IO;
+                    const auto stream = EngineReadStream::FromBlock(archive.payload);
+                    if (stream.length != size)
+                        return MM_MOVIE_BAD_FILE;
+                    return mm_read_exact(&stream, 0, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+                }
+                catch (const std::bad_alloc &)
+                {
+                    return MM_MOVIE_MEMORY;
+                }
+                catch (const std::exception &)
+                {
                     return MM_MOVIE_BAD_FILE;
-                return mm_read_exact(&stream, 0, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+                }
             }};
         MovieDirectory result;
-        MMU32 root = cnoNil;
-        const int status = mm_movie_view_root(&view, &root, nullptr);
-        if (status == MM_MOVIE_ROOT_NOT_FOUND)
+        std::unique_ptr<MMMovieSession, decltype(&mm_movie_session_close)> opened(nullptr, mm_movie_session_close);
+        auto session = _impl->movie;
+        if (!session)
         {
-            directory = {};
-            return true;
+            MMU32 root = cnoNil;
+            const int status = mm_movie_session_open_graph(&graph, &error, &root, &session);
+            if (status == MM_MOVIE_ROOT_NOT_FOUND)
+            {
+                directory = {};
+                return true;
+            }
+            if (status == MM_MOVIE_MEMORY)
+                throw std::bad_alloc();
+            const Id id = {kctgMvie, root};
+            if (status != MM_MOVIE_OK)
+                return error ? false : Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported record header.", &id);
+            opened.reset(session);
         }
-        const Id id = {kctgMvie, root};
-        if (status != MM_MOVIE_OK)
-            return error ? false : Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported record header.", &id);
+        const Id id = {kctgMvie, mm_movie_session_root(session)->number};
         result.hasRoot = true;
         result.root = id;
         MMU32 cursor = 0, slot;
         MMMovieSessionScene scene;
         int next;
-        while ((next = mm_movie_view_next_scene(&view, root, &cursor, &scene, &slot)) == MM_MOVIE_OK)
+        while ((next = mm_movie_session_next_scene(session, &error, &cursor, &scene, &slot)) == MM_MOVIE_OK)
             result.scenes.push_back({{kctgScen, scene.number}, slot, {scene.first_frame, scene.last_frame, scene.transition}});
+        if (next == MM_MOVIE_MEMORY)
+            throw std::bad_alloc();
         if (next != MM_MOVIE_SCENE_NOT_FOUND)
             return error ? false : Fail(error, ErrorCode::corrupt_archive, "The movie has an invalid scene link or header.", &id);
-        if (!_impl->LoadSources(root, result.sources, error))
+        if (!_impl->LoadSources(session, result.sources, error))
             return false;
         directory = std::move(result);
+        if (opened)
+            _impl->movie = opened.release();
         return true;
     }
     catch (const std::bad_alloc &)

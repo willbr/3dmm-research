@@ -172,7 +172,8 @@ int mm_movie_session_body_meshes(const MMMovieSession *movie, const MMMovieEvalu
 {
     MMMovieBodyMeshes *geometry;
     int status = MM_MOVIE_OK;
-    if (!movie || !body || !out || body->part_count > 0x7fffffffUL || (body->part_count && !body->parts))
+    if (!movie || !movie->index || !body || !out || body->part_count > 0x7fffffffUL ||
+        (body->part_count && !body->parts))
         return MM_MOVIE_BAD_FILE;
     geometry = (MMMovieBodyMeshes *)calloc(1, sizeof(*geometry));
     if (!geometry)
