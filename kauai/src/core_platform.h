@@ -8,21 +8,24 @@
 #include <cstdint>
 #include <mutex>
 #include <condition_variable>
+#include "mm/native_runtime.h"
 
 class Mutex
 {
     // Existing callers enter recursively, including debug allocator checks.
-    std::recursive_mutex _mutex;
+    MMNativeMutex *_mutex;
+    // Retain the native facade's diagnostic allocation/layout profile while
+    // C owns the synchronization state. No std mutex object is constructed.
+    unsigned char _reserved[sizeof(std::recursive_mutex) - sizeof(_mutex)];
+    static_assert(alignof(std::recursive_mutex) == alignof(MMNativeMutex *), "legacy mutex alignment");
 
   public:
-    void Enter()
-    {
-        _mutex.lock();
-    }
-    void Leave()
-    {
-        _mutex.unlock();
-    }
+    Mutex();
+    ~Mutex();
+    Mutex(const Mutex &) = delete;
+    Mutex &operator=(const Mutex &) = delete;
+    void Enter();
+    void Leave();
 };
 typedef Mutex *PMutex;
 
@@ -32,11 +35,20 @@ namespace KauaiPlatform
 // retained if no waiter is present. UINT32_MAX waits indefinitely.
 class AutoResetEvent
 {
-    std::mutex mutex;
-    std::condition_variable changed;
-    bool signaled = false;
+    struct LegacyLayout {
+        std::mutex mutex;
+        std::condition_variable changed;
+        bool signaled;
+    };
+    MMNativeEvent *event;
+    unsigned char reserved[sizeof(LegacyLayout) - sizeof(event)];
+    static_assert(alignof(LegacyLayout) == alignof(MMNativeEvent *), "legacy event alignment");
 
   public:
+    AutoResetEvent();
+    ~AutoResetEvent();
+    AutoResetEvent(const AutoResetEvent &) = delete;
+    AutoResetEvent &operator=(const AutoResetEvent &) = delete;
     void Signal();
     bool Wait(std::uint32_t milliseconds = UINT32_MAX);
 };

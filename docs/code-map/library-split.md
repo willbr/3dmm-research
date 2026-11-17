@@ -5979,7 +5979,7 @@ they used to.
 Files in `kauai-core` (see `CMakeLists.txt`):
 
 `base.cpp`, `chse.cpp`, `chunk.cpp`, `codec.cpp`, `codkauai.cpp`,
-`core_platform.cpp`, `platform_text.cpp`, `cmd_core.cpp`, `clok.cpp`, `crf.cpp`, `file.cpp`,
+`core_platform_bridge.cpp`, `platform_text.cpp`, `cmd_core.cpp`, `clok.cpp`, `crf.cpp`, `file.cpp`,
 `ellipse_geometry.cpp`, `pixel_canvas.cpp`, `pixel_stretch.cpp`, `dialog_resource.cpp`,
 `file_native.cpp`, `filename.cpp`,
 `groups.cpp`, `groups2.cpp`, `lex.cpp`, `mssio.cpp`, `mbmp.cpp`,
@@ -6279,8 +6279,20 @@ removing the temporary C++ value adapter remain conversion work.
 
 Plus codegen: `kcdc_386.h`, `kcd2_386.h` on x86 only (kauai codec asm).
 
-Linked dependency: `Threads::Threads`. Allocation, synchronization and ticks use
-standard C++ facilities. Files/text use native or portable backends;
+Linked dependency: `Threads::Threads`. Raw allocation uses `mm/heap.h`; recursive
+mutexes, coalescing events, thread-local diagnostic tokens and clock hooks/ticks
+use C89 `mm/native_runtime.h` in `mm-native-runtime`. Windows supplies critical
+sections, condition variables, TLS and QPC; POSIX supplies pthread primitives and
+the same monotonic clock epoch as the existing host. Explicit C contexts own
+their keys/counter/hook. Native clock scaling uses exact two-word/96-bit arithmetic
+from `mm/runtime_math.h`, with a fast path for common QPC frequencies.
+`core_platform_bridge.cpp` translates C++ calls/exceptions and retains the
+process-lifetime default binding needed by global destructors. The legacy class
+headers retain standard-library types only to size/check unused ABI reservation;
+they construct no std mutex/condition-variable objects. This keeps diagnostic
+allocation profiles until native facades are removed. C-only consumers use
+explicit owned handles/contexts; their backend has no C++ dependency.
+Files/text use native or portable backends;
 Windows toolchain default system libraries still participate in the final link.
 
 ## kauai (gui)

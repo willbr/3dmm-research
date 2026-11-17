@@ -12743,3 +12743,81 @@ Evidence: `tmp/c89-settings/{settings_store.cpp,settings_paths.cpp,settings_stor
 `run-{native,sdl-release,sdl-debug,standalone}-tests.log`,
 `platform-{ansi,wide}-tests.log`, `asan-runtime.log`, `run-regular-tests.log`,
 `trace-comparison.json`, `gates.json` and `identities.json`.
+
+### C89 core synchronization, thread tokens and clocks (17 November 2026)
+
+`mm-native-runtime` now supplies recursive mutexes, coalescing auto-reset events,
+per-thread diagnostic tokens, clock-source exchange and steady ticks through
+`mm/native_runtime.h`. Windows uses native critical sections, condition variables,
+TLS and QPC. POSIX uses pthread primitives and the existing host's monotonic clock
+epoch (Linux `CLOCK_MONOTONIC`, macOS `CLOCK_MONOTONIC_RAW`). Runtime contexts own
+their keys, token counter and clock hook. Zero remains a valid initialized token
+after 32-bit wrap. Waits retain their deadline across spurious wakeups and consume
+one pending latch. Clock callbacks execute outside the context lock. Token
+queries preserve Windows last-error/POSIX errno, including initialization and
+cached reads; original/converted cached-getter fixtures verify that behavior.
+
+`runtime_math.c` supplies exact two-word/96-bit scaling, including the QPC fast
+path, fraction truncation, overflow checks and millisecond wrap. Signed native
+clock samples retain truncation toward zero. `core_platform.cpp` is removed;
+`core_platform_bridge.cpp` translates legacy values/exceptions and preserves the
+native clock's fatal failure behavior. Tick callback exceptions remain inside
+the adapter until C has returned. Allocation continues through the existing C
+heap policy with the original native prefix. The legacy mutex/event classes
+reserve their former size/alignment for diagnostic allocation compatibility;
+the standard-library types in those headers are compile-time layout profiles,
+not constructed synchronization objects. Native state belongs to C owners.
+Legacy clock/diagnostic entry points have no native-error channel; default-runtime
+failures terminate instead of unwinding into C. Explicit C clients receive error
+results. User tick-callback exceptions still propagate to their C++ caller after
+the C dispatcher returns.
+
+The original revision is `2c4d8472f27d859e15a7c33b6c4344cbac558874`. Existing platform
+and MIDI-worker checks pass before and after conversion in the three Windows
+hosts. The new adapter fixture passes against the original implementation too.
+It brackets 1,000 default tick samples with the original steady clock and checks
+callback exceptions/reset/reentrancy and legacy ownership/layout properties.
+Original and converted mutex/event/heap profiles match for Windows x64/x86 MSVC,
+Linux x64/x86, macOS ARM64 and macOS x64. These are compile-time ABI checks, not
+six platform runtime validations. A separate 100,480-case arithmetic probe matches
+Python integers for 96-bit intermediates, division/truncation, overflow and output
+publication; output SHA-256 is
+`F50F1DC60C1C31132216A527F95DB34E057CFB04530571BBDBA551F2793A188E`.
+
+C-only fixtures exercise recursive cross-thread exclusion, single-waiter wake,
+pending-signal coalescing, timed waits, independent contexts, stable thread tokens,
+token-zero wrap, callback failure publication and unlocked callback invocation.
+Provider checks inject allocation, mutex/key initialization and clock failures,
+verify cleanup counts, inject spurious wakes, and exercise signed clock samples,
+tick wrap and deadlines beyond 32-bit elapsed milliseconds. The isolated Linux
+guest passes nine original/converted/C-only programs, then powers off. Its three
+new standalone engine/runtime targets build/link with the C toolchain under
+strict C89 diagnostics. Strict 32-bit Linux GNU and ARM64 macOS C objects and
+macOS C++ adapter interfaces also compile; macOS runtime remains unverified.
+
+Native passes 276 selected CTest checks, SDL Release passes 271 with the existing
+`world-export` skip, SDL Debug passes 272, and the Windows standalone C89 engine
+passes 180. Both standalone Windows platform profiles pass ten checks each;
+AddressSanitizer passes the three new C runtime/math/provider checks. Total:
+1,022 passed CTest checks and one existing skip. The regular headless preview
+harness passes. All 219 retained trace pairs match byte for byte. Each host
+retains 12 backgrounds, 188 cameras, 301,996,032 background bytes and FNV
+`E1A71005`. Ten input identities and the Windows ACP/OEM/locale identity are
+unchanged; 295 executable identities are recorded. Native tools/Marcus and both
+SDL profiles rebuild. Marcus is stopped before rebuilding and relaunched afterward.
+
+No Marcus UI tests or new retail captures are added. Exact native allocation/
+resource-failure ordinals, exhaustive OS error codes and extreme recursion limits
+are unverified. Opaque primitives introduce native allocations/keys; their failure
+paths have explicit C results. The legacy default runtime retains process lifetime
+so global destructors can still use diagnostics. Explicit C callers own/destroy
+their contexts. Removing that C++ default binding and the remaining native facades
+is still required; the whole-engine C89 migration is incomplete.
+
+Evidence: `tmp/c89-runtime/{core_platform.cpp,core_platform.h}`,
+`abi-profiles.json`, `math-{input,output}.bin`, `math-check.log`,
+`adapter-original.exe`, `linux-{build-final,runtime}.log`, `linux-identities.json`,
+`error-{original,converted}.log`,
+`run-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`platform-{ansi,wide}-tests.log`, `asan-runtime.log`, `run-regular-tests.log`,
+`trace-comparison.json`, `gates.json` and `identities.json`.

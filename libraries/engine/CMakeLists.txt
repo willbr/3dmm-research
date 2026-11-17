@@ -7,6 +7,34 @@ endif()
 add_library(mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c src/movie_owner.c src/movie_title.c src/movie_root.c src/scene_data.c src/actor_data.c src/actor_track.c src/actor_fixed.c src/actor_route.c src/actor_state.c src/actor_frame.c src/actor_timeline.c src/actor_seek.c src/actor_math.c src/actor_pose.c src/actor_effect.c src/actor_sound.c src/actor_edit.c src/actor_sound_edit.c src/rollcall_storage.c src/chunky_file.c src/string_table.c src/text.c src/collection_storage.c src/collections.c src/collection_headers.c src/data_stream.c src/codec.c src/piece_table.c src/block_io.c src/block_owner.c src/file_text.c src/chunk_save.c src/chunk_heap.c src/chunk_edit.c src/chunk_graph.c src/chunk_ops.c src/chunk_metadata.c src/string_wire.c src/codec_registry.c src/chunk_forest.c src/chunk_loading.c src/chunk_storage.c src/chunk_lifecycle.c src/chunk_container.c src/chunk_context.c src/chunk_owner.c src/chunk_table.c src/tag.c src/tag_list.c src/source.c src/source_names.c src/source_discovery.c src/wide.c src/resource_cache.c src/resource_manager.c)
 target_include_directories(mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_sources(mm-engine-c89 PRIVATE src/settings.c src/settings_paths.c)
+target_sources(mm-engine-c89 PRIVATE src/runtime_math.c)
+if(WIN32)
+  set(native_runtime_source src/native_runtime_win.c)
+else()
+  set(native_runtime_source src/native_runtime_posix.c)
+endif()
+add_library(mm-native-runtime STATIC ${native_runtime_source})
+target_include_directories(mm-native-runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set_target_properties(mm-native-runtime PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+target_link_libraries(mm-native-runtime PUBLIC mm-engine-c89)
+if(NOT WIN32)
+  find_package(Threads REQUIRED)
+  target_link_libraries(mm-native-runtime PUBLIC Threads::Threads)
+endif()
+add_executable(engine-runtime-math-test EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_runtime_math_test.c")
+target_link_libraries(engine-runtime-math-test PRIVATE mm-engine-c89)
+set_target_properties(engine-runtime-math-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-runtime-math COMMAND engine-runtime-math-test)
+add_executable(engine-native-runtime-test EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/native_runtime_c_test.c")
+target_link_libraries(engine-native-runtime-test PRIVATE mm-native-runtime)
+set_target_properties(engine-native-runtime-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-native-runtime COMMAND engine-native-runtime-test)
+set_tests_properties(engine-native-runtime PROPERTIES TIMEOUT 30)
+add_executable(engine-native-runtime-provider-test EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/native_runtime_provider_test.c")
+target_link_libraries(engine-native-runtime-provider-test PRIVATE mm-native-runtime)
+set_target_properties(engine-native-runtime-provider-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-native-runtime-provider COMMAND engine-native-runtime-provider-test)
+set_tests_properties(engine-native-runtime-provider PROPERTIES TIMEOUT 30)
 add_executable(engine-settings-test EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_settings_test.c")
 target_link_libraries(engine-settings-test PRIVATE mm-engine-c89)
 set_target_properties(engine-settings-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
@@ -1031,6 +1059,14 @@ foreach(engine_test_target IN LISTS engine_test_targets)
   endif()
 endforeach()
 if(ENGINE_C89_COMPILER)
+  add_test(NAME engine-native-runtime-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      "-I${CMAKE_CURRENT_SOURCE_DIR}/include" -fsyntax-only "${CMAKE_CURRENT_SOURCE_DIR}/${native_runtime_source}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime_math.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_runtime_math_test.c"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/native_runtime_c_test.c")
+  add_test(NAME engine-native-runtime-provider-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      "-I${CMAKE_CURRENT_SOURCE_DIR}/include" -fsyntax-only "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/native_runtime_provider_test.c")
   set(settings_extra_sources)
   if(NOT WIN32)
     set(settings_extra_sources "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/native_settings_posix_test.c")
@@ -1077,6 +1113,7 @@ if(ENGINE_C89_COMPILER)
   add_test(NAME engine-c89-syntax COMMAND "${ENGINE_C89_COMPILER}"
     -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
     "-I${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime_math.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_runtime_math_test.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/settings.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/settings_paths.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_settings_test.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/playback.c"

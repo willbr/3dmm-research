@@ -515,6 +515,12 @@ Windows registry access/read-only enumeration and POSIX KPS1 file persistence
 now also use C89. Native contexts own the temporary-file counter and mutex;
 the C++ adapter translates values, default bindings and callback exceptions.
 The existing INI frontend and final native facade integration remain work.
+Recursive locking, coalescing auto-reset events, thread-token ownership and
+clock-source/steady-tick services now use C89 `mm-native-runtime`. Explicit
+contexts own native keys, counter and clock hook; the legacy adapter retains
+process-lifetime defaults, C++ exception translation and diagnostic object-size
+profiles. Raw allocation continues through the shared C heap policy. Final
+default-context and native object/facade integration remain work.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/
