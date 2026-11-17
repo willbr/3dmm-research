@@ -409,9 +409,14 @@ static TextTile *tile_at(MarcusTextDialog *d, int kind, int index)
 }
 static const char *tile_name(const MarcusTextDialog *d, int kind, int index)
 {
+    char generated[64];
     if (kind == 0) return d->fonts[index].entry.name;
     if (kind == 1) return shapes[index];
-    if (index < d->material_count) return d->materials[index].name;
+    if (index < d->material_count)
+    {
+        SDL_snprintf(generated, sizeof(generated), "Material %lu", d->materials[index].chunk);
+        return strcmp(d->materials[index].name, generated) ? d->materials[index].name : "";
+    }
     return d->object >= 0 ? "Current material" : "Default material";
 }
 static void reset_wanted(MarcusTextDialog *d)
@@ -451,40 +456,58 @@ static int tile_button(MarcusTextDialog *d, int kind, int index, ImVec2 size, in
     }
     else clicked = igButton(tile->attempted == 2 ? "No preview" : "Loading...", size);
     if (igIsItemVisible() && !tile->attempted) tile->wanted = 1;
-    if (igIsItemHovered(0)) igSetTooltip("%s", tile_name(d, kind, index));
+    if (igIsItemHovered(0) && tile_name(d, kind, index)[0]) igSetTooltip("%s", tile_name(d, kind, index));
     if (selected) igPopStyleColor(1);
     return clicked;
 }
 static void gallery_picker(MarcusTextDialog *d, int kind, const char *label, int selected)
 {
-    int i, count;
+    int i, count, columns;
+    const char *name;
+    ImGuiViewport *viewport;
+    ImVec2 available, image_size;
+    const ImGuiStyle *style;
     igPushID_Int(kind);
     igTextUnformatted(label, NULL);
     if (tile_button(d, kind, selected, vec(96, 72), 0)) igOpenPopup_Str("Gallery", 0);
-    igSameLine(0, 12);
-    igBeginGroup();
-    igTextWrapped("%s", tile_name(d, kind, selected));
-    if (igButton("Choose...", vec(0, 0))) igOpenPopup_Str("Gallery", 0);
-    igEndGroup();
-    igSetNextWindowSize(vec(660, 460), ImGuiCond_Always);
-    if (igBeginPopup("Gallery", ImGuiWindowFlags_NoSavedSettings))
+    name = tile_name(d, kind, selected);
+    if (name[0])
     {
+        igSameLine(0, 12);
+        igTextWrapped("%s", name);
+    }
+    viewport = igGetMainViewport();
+    igSetNextWindowPos(viewport->Pos, ImGuiCond_Always, vec(0, 0));
+    igSetNextWindowSize(viewport->Size, ImGuiCond_Always);
+    if (igBeginPopup("Gallery", ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+    {
+        if (igButton("Back", vec(0, 0))) igCloseCurrentPopup();
+        igSameLine(0, -1);
         igSeparatorText(label);
+        available = igGetContentRegionAvail();
+        style = igGetStyle();
+        columns = (int)(available.x / 176);
+        if (columns < 1) columns = 1;
+        if (columns > 32) columns = 32;
         count = tile_count(d, kind) - (kind == 2 ? 1 : 0);
-        if (igBeginTable("Samples", 4, ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
+        if (igBeginTable("Samples", columns, ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
         {
             for (i = 0; i < count; ++i)
             {
                 igTableNextColumn();
                 igPushID_Int(i);
-                if (tile_button(d, kind, i, vec(128, 96), selected == i))
+                image_size = igGetContentRegionAvail();
+                image_size.x = clamp(image_size.x - style->FramePadding.x * 2, 1, 1024);
+                image_size.y = image_size.x * .75f;
+                if (tile_button(d, kind, i, image_size, selected == i))
                 {
                     if (kind == 0) { d->font = i; font_changed(d); }
                     else if (kind == 1) { d->value.shape = i; changed(d); }
                     else choose_material(d, i);
                     igCloseCurrentPopup();
                 }
-                igTextWrapped("%s", tile_name(d, kind, i));
+                name = tile_name(d, kind, i);
+                if (name[0]) igTextWrapped("%s", name);
                 igPopID();
             }
             igEndTable();
@@ -561,7 +584,8 @@ static void catalogues(MarcusTextDialog *d)
         if (i && i != 6) igSameLine(0, 6);
         if (igColorButton("##swatch", colour(d->swatches[i].rgb), ImGuiColorEditFlags_NoTooltip, vec(36, 24)))
             choose_material(d, d->swatches[i].material);
-        if (igIsItemHovered(0)) igSetTooltip("%s", d->materials[d->swatches[i].material].name);
+        if (igIsItemHovered(0) && tile_name(d, 2, d->swatches[i].material)[0])
+            igSetTooltip("%s", tile_name(d, 2, d->swatches[i].material));
         igPopID();
     }
 }
@@ -604,14 +628,19 @@ static void preview_controls(MarcusTextDialog *d)
     ImTextureRef texture;
     ImVec2 size;
     ImGuiIO *io;
+    const ImGuiStyle *style;
     size = igGetContentRegionAvail();
+    style = igGetStyle();
+    /* ImageButton's image size excludes its frame padding. */
+    size.x = clamp(size.x - style->FramePadding.x * 2, 1, 4096);
     size.y = size.x * .75f;
     memset(&texture, 0, sizeof(texture));
     texture._TexID = (ImTextureID)(size_t)d->texture;
     if (d->texture)
         igImageButton("Preview", texture, size, vec(0, 0), vec(1, 1), colour(0x13161a), colour(0xffffff));
     else
-        igButton(text_preview_error(d->preview)[0] ? "Preview unavailable" : "Loading preview...", size);
+        igButton(text_preview_error(d->preview)[0] ? "Preview unavailable" : "Loading preview...",
+                 vec(size.x + style->FramePadding.x * 2, size.y + style->FramePadding.y * 2));
     io = igGetIO_Nil();
     if (igIsItemActive() && io->MouseDown[0] && (io->MouseDelta.x || io->MouseDelta.y))
     {
@@ -648,7 +677,6 @@ void text_dialog_draw(MarcusTextDialog *d, MarcusUI *ui, int width, int height)
     title = d->object >= 0 ? "Edit 3D text###MarcusText" : "New 3D text###MarcusText";
     size = vec((float)width - 32, (float)height - 32);
     if (size.x > 1060) size.x = 1060;
-    if (size.y > 760) size.y = 760;
     igPushStyleVar_Vec2(ImGuiStyleVar_WindowPadding, vec(20, 16));
     igPushStyleVar_Vec2(ImGuiStyleVar_FramePadding, vec(8, 6));
     igPushStyleVar_Vec2(ImGuiStyleVar_ItemSpacing, vec(10, 8));

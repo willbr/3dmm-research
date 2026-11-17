@@ -317,12 +317,15 @@ list and larger selected preview.
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from
 the visual pickers. Each selected font, shape and material has a rendered sample;
-click its image or **Choose...** to open a scrollable thumbnail gallery. Samples
+click its image to open a thumbnail gallery filling the app window. The grid
+adapts its column count to the window width. The separate Choose buttons are
+removed; Back or Escape returns to the dialog. Generated material labels such
+as "Material 25344" are hidden in the tiles and tooltips; authored names remain.
+Samples
 render the word "Text" using the real retail font, shape or material, including
 texture patterns. Font and shape samples use a neutral material, and shape
 samples follow the selected font. The 50-character limit follows retail's text
-editor
-(`kcchMaxTdt` in `src/studio/esl.cpp`); it is not a file-format limit.
+editor (`kcchMaxTdt` in `src/studio/esl.cpp`); it is not a file-format limit.
 The dialog is implemented in C89 using standard cimgui widgets in the same
 ImGui context as the transform gizmos. Click in the text field to position the
 caret, drag or Shift+arrow to select, and use Ctrl+A, copy/cut/paste, cursor
@@ -365,6 +368,9 @@ native template preparation stays on the player owner thread. Changing fonts
 invalidates the dependent shape/material samples. The properties pane scrolls
 independently so the main preview remains visible while adjusting lighting and
 texture mapping.
+The dialog uses the available window height instead of a fixed 760-pixel cap.
+The main preview reserves the image button's frame padding inside its column,
+so its right edge remains visible and the loading placeholder has the same size.
 
 The 17 November Debug headless check renders 20 alternating warm views in
 0.121 seconds (166.0 views/second), including exact pixel comparisons against
