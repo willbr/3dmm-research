@@ -16,8 +16,7 @@ static const RibbonTool scene_tools[] = {
     {RIBBON_PREVIOUS, 2, "Previous", "Go to the previous scene", 0xaeb6c0},
     {RIBBON_NEXT, 3, "Next", "Go to the next scene", 0xaeb6c0}};
 static const RibbonTool actor_tools[] = {
-    {RIBBON_NEW_ACTOR, 11, "New actor", "Choose an actor to add at the current frame", 0xe9bc75},
-    {RIBBON_NEW_PROP, 10, "New prop", "Choose a prop to add at the current frame", 0x78cbc4},
+    {RIBBON_NEW_OBJECT, 11, "Add object", "Choose an actor or prop to add at the current frame", 0xe9bc75},
     {RIBBON_OBJECTS, 4, "Objects", "Show object tracks", 0x78cbc4},
     {RIBBON_ACTOR, 4, "Next actor", "Select the next actor in this scene", 0xe9bc75},
     {RIBBON_PROP, 5, "Next prop", "Select the next prop in this scene", 0xb3a4d6},

@@ -967,7 +967,7 @@ static void choose_storyboard(App *app, int new_scene, int angle)
         update_storyboard_layout(app);
     }
 }
-static void choose_object(App *app, int actor)
+static void choose_object(App *app)
 {
     if (!app->loaded) return;
     finish_movie_scrub(app);
@@ -975,8 +975,7 @@ static void choose_object(App *app, int actor)
     release_camera(app);
     app->sheet_menu = app->orbit_menu = 0;
     scene_organiser_close(app->scene_organiser);
-    if (!(actor ? background_browser_show_actors(app->background_browser, app->player, app->resources, app->content)
-                : background_browser_show_props(app->background_browser, app->player, app->resources, app->content)))
+    if (!background_browser_show_objects(app->background_browser, app->player, app->resources, app->content))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No objects found. Choose your original 3DMM Content folder.");
 }
 static int selected_text(App *app)
@@ -1497,8 +1496,7 @@ static void ribbon_action(App *app, int action)
         else choose_storyboard(app, !marcus_is_storyboard(app->player), -1);
     }
     else if (action == RIBBON_SAVE_COPY) choose_file(app, 4);
-    else if (action == RIBBON_NEW_PROP) choose_object(app, 0);
-    else if (action == RIBBON_NEW_ACTOR) choose_object(app, 1);
+    else if (action == RIBBON_NEW_OBJECT) choose_object(app);
     else if (action == RIBBON_NEW_TEXT) choose_text(app);
     else if (action == RIBBON_EDIT_TEXT) edit_text(app);
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
@@ -4329,8 +4327,7 @@ int main(int argc, char **argv)
                 if (object >= 0) edited = 1;
             }
             changed = object >= 0;
-            actor = background_browser_take_actor(app.background_browser, &prop);
-            if (actor || background_browser_take_prop(app.background_browser, &prop))
+            if (background_browser_take_object(app.background_browser, &prop, &actor))
             {
                 changed = 1;
                 object = actor ? marcus_add_actor(app.player, prop) : marcus_add_prop(app.player, prop);

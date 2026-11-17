@@ -55,7 +55,7 @@ static void grid(const MarcusDialogHost *host, void *model, MarcusDialogState *s
     MarcusDialogItem item;
     char id[48];
     int columns, rows, row, column, index, first, last, previous, clicked, compact, total_rows;
-    ImGuiID count_key, columns_key;
+    ImGuiID count_key, columns_key, filter_key;
     float width, picture_height, row_height, spacing;
     available = igGetContentRegionAvail(); spacing = igGetStyle()->ItemSpacing.x;
     compact = state->kind == DIALOG_FRAMES;
@@ -76,11 +76,14 @@ static void grid(const MarcusDialogHost *host, void *model, MarcusDialogState *s
     clip = ImGuiListClipper_ImGuiListClipper();
     if (!clip) return;
     storage = igGetStateStorage(); count_key = igGetID_Str("Grid count"); columns_key = igGetID_Str("Grid columns");
+    filter_key = igGetID_Str("Grid filter");
     if (igIsWindowAppearing() || previous != state->selected ||
         ImGuiStorage_GetInt(storage, count_key, -1) != state->count ||
-        ImGuiStorage_GetInt(storage, columns_key, -1) != columns)
+        ImGuiStorage_GetInt(storage, columns_key, -1) != columns ||
+        ImGuiStorage_GetInt(storage, filter_key, -1) != state->filter)
         igSetScrollY_Float((float)(state->selected / columns) * row_height);
     ImGuiStorage_SetInt(storage, count_key, state->count); ImGuiStorage_SetInt(storage, columns_key, columns);
+    ImGuiStorage_SetInt(storage, filter_key, state->filter);
     total_rows = state->count / columns + (state->count % columns != 0);
     ImGuiListClipper_Begin(clip, total_rows, row_height);
     while (ImGuiListClipper_Step(clip))
@@ -214,6 +217,13 @@ static void draw_picker(void *model, const MarcusDialogHost *host, MarcusUI *ui,
     if (!dialog_begin(identity, &open, width, height, movie ? 1400 : 0, 0)) { if (!open) action(host, model, DIALOG_CANCEL, 0); return; }
     igTextUnformatted(s.title, NULL);
     if (movie) movie_controls(host, model, &s);
+    if (s.kind == DIALOG_MODELS) {
+        if (igRadioButton_Bool("All", s.filter == 0)) action(host, model, DIALOG_FILTER, 0);
+        igSameLine(0, 16);
+        if (igRadioButton_Bool("Actors", s.filter == 1)) action(host, model, DIALOG_FILTER, 1);
+        igSameLine(0, 16);
+        if (igRadioButton_Bool("Props", s.filter == 2)) action(host, model, DIALOG_FILTER, 2);
+    }
     if (s.kind == DIALOG_FRAMES) {
         if (dialog_checkbox("Whole movie", &s.whole_movie)) action(host, model, DIALOG_SCOPE, 0);
         igSameLine(0, 16); igSetNextItemWidth(180); zoom = s.zoom;

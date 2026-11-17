@@ -15,6 +15,9 @@
   required third-party C++ bindings such as ImGuizmo behind narrow C interfaces.
 - Before rebuilding Marcus, always stop the running copy from this workspace so
   the build can replace `marcus.exe`. Relaunch it after the rebuild.
+- Marcus is work in progress; frequent restarts are expected. It may be closed
+  without saving during development work or rebuilds. Do not ask for save
+  confirmation before closing it.
 - New Marcus code belongs to this project. Do not copy Microsoft copyright
   headers into new Marcus files. Preserve notices in original engine code and
   third-party sources.

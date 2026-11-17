@@ -303,11 +303,15 @@ uses that angle's actual position, orientation and lens, and is labelled
 Guides are clipped to the visible viewport and never drawn over movie playback.
 All cameras are shown by default; the choice is saved across movies/restarts.
 
-**Actors & props > New actor** and **New prop** open the original actor or prop
-catalogue as a responsive gallery of rendered 3D model cards, with names below each
-model. Click a card or use Left/Right and Up/Down to select a model. The wheel
+**Actors & props > Add object** opens one gallery of original actors and props,
+sorted together by name. The **All / Actors / Props** filter toggles show both
+catalogues or just one type; the filter lasts for this Marcus session. Switching
+filters retains cached previews and keeps the selected object if it remains visible.
+The responsive gallery shows rendered 3D model cards with names below each
+model; the tooltip identifies its type. Click a card or use Left/Right and Up/Down to select a model. The wheel
 scrolls rows, Page Up/Down moves by a page, and Home/End jumps to the first/last
-model. A scrollbar is available on the right. Choose **Add actor** or **Add prop**, Enter or double-click.
+model. A scrollbar is available on the right. The confirmation button changes to
+**Add actor** or **Add prop** for the selected model; Enter or double-click also adds it.
 Cancel/Escape leaves the movie unchanged. The chooser requires `tmpls.3cn` in the
 Content folder. Model previews load progressively through one isolated helper
 process and are cached while browsing, with at most 64 model textures retained.
@@ -1688,7 +1692,7 @@ font/shape/material gallery variants loaded into a persistent session. No Marcus
 UI tests were added.
 
 `dialog_views.c` and `dialog_widgets.c` own the remaining picker widgets and
-input in C89: Open movie, New scene, New actor, New prop, scene/frame organisers
+input in C89: Open movie, New scene, Add actor or prop, scene/frame organisers
 and camera angles. Settings, camera rendering settings, ZIP member selection
 and errors use standard cimgui controls in `main.c`. The dialogs stay centred
 and fit the available window when resized. Browsers retain asynchronous loading,
