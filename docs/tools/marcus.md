@@ -318,7 +318,11 @@ list and larger selected preview.
 one line, then choose an original 3D font and one of the ten retail shapes from
 the visual pickers. Each selected font, shape and material has a rendered sample;
 click its image to open a thumbnail gallery filling the app window. The grid
-adapts its column count to the window width. The separate Choose buttons are
+fits its columns and sample sizes to the available width, height and number of
+choices, using larger cards when space permits. Smaller windows retain readable
+cards with scrolling. Thumbnail framing trims transparent margins around the
+complete text, with padding, rather than shrinking a mostly empty render canvas.
+The separate Choose buttons are
 removed; Back or Escape returns to the dialog. Generated material labels such
 as "Material 25344" are hidden in the tiles and tooltips; authored names remain.
 Samples render your current wording using the real retail font, shape or

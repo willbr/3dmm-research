@@ -475,7 +475,8 @@ static int tile_button(MarcusTextDialog *d, int kind, int index, ImVec2 size, in
 }
 static void gallery_picker(MarcusTextDialog *d, int kind, const char *label, int selected)
 {
-    int i, count, columns;
+    int i, count, columns, candidate, rows;
+    float best_width, candidate_width, candidate_height, caption_height;
     const char *name;
     ImGuiViewport *viewport;
     ImVec2 available, image_size;
@@ -499,10 +500,30 @@ static void gallery_picker(MarcusTextDialog *d, int kind, const char *label, int
         igSeparatorText(label);
         available = igGetContentRegionAvail();
         style = igGetStyle();
-        columns = (int)(available.x / 176);
-        if (columns < 1) columns = 1;
-        if (columns > 32) columns = 32;
         count = tile_count(d, kind) - (kind == 2 ? 1 : 0);
+        caption_height = 0;
+        for (i = 0; i < count; ++i)
+            if (tile_name(d, kind, i)[0]) { caption_height = igGetTextLineHeightWithSpacing() * 2; break; }
+        columns = 1;
+        best_width = 0;
+        /* Fit the whole set at the largest readable sample size when the
+         * viewport permits it, rather than leaving most of a tall screen blank. */
+        for (candidate = 1; candidate <= count && candidate <= 32; ++candidate)
+        {
+            rows = (count + candidate - 1) / candidate;
+            candidate_width = available.x / candidate - style->CellPadding.x * 2 - style->FramePadding.x * 2;
+            candidate_height = available.y / rows - style->CellPadding.y * 2 - style->FramePadding.y * 2 -
+                               caption_height - style->ItemSpacing.y * 2;
+            if (candidate_width > candidate_height / .75f) candidate_width = candidate_height / .75f;
+            if (candidate_width > best_width) { best_width = candidate_width; columns = candidate; }
+        }
+        if (best_width < 128)
+        {
+            columns = (int)(available.x / 176);
+            if (columns < 1) columns = 1;
+            if (columns > 32) columns = 32;
+            best_width = available.x;
+        }
         if (igBeginTable("Samples", columns, ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
         {
             for (i = 0; i < count; ++i)
@@ -510,7 +531,7 @@ static void gallery_picker(MarcusTextDialog *d, int kind, const char *label, int
                 igTableNextColumn();
                 igPushID_Int(i);
                 image_size = igGetContentRegionAvail();
-                image_size.x = clamp(image_size.x - style->FramePadding.x * 2, 1, 1024);
+                image_size.x = clamp(image_size.x - style->FramePadding.x * 2, 1, best_width);
                 image_size.y = image_size.x * .75f;
                 if (tile_button(d, kind, i, image_size, selected == i))
                 {
@@ -529,12 +550,40 @@ static void gallery_picker(MarcusTextDialog *d, int kind, const char *label, int
     }
     igPopID();
 }
+static SDL_Rect thumbnail_bounds(const MarcusImage *image)
+{
+    SDL_Rect rect;
+    int x, y, left, top, right, bottom;
+    float width, height;
+    left = image->width; top = image->height; right = bottom = -1;
+    for (y = 0; y < image->height; ++y)
+        for (x = 0; x < image->width; ++x)
+            if (image->rgba[y * image->pitch + x * 4 + 3])
+            {
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+            }
+    rect.x = rect.y = 0; rect.w = image->width; rect.h = image->height;
+    if (right < left || bottom < top) return rect;
+    width = (right - left + 1) / .9f;
+    height = (bottom - top + 1) / .9f;
+    if (width * .75f < height) width = height / .75f;
+    width = clamp(width, 1, (float)image->width);
+    height = clamp(width * .75f, 1, (float)image->height);
+    rect.w = (int)ceil(width); rect.h = (int)ceil(height);
+    rect.x = (int)clamp((left + right + 1 - rect.w) * .5f, 0, (float)(image->width - rect.w));
+    rect.y = (int)clamp((top + bottom + 1 - rect.h) * .5f, 0, (float)(image->height - rect.h));
+    return rect;
+}
 static void update_thumbnails(MarcusTextDialog *d, SDL_Renderer *renderer)
 {
     MarcusImage image;
     MarcusText sample;
     TextTile *tile;
     SDL_Surface *surface, *small;
+    SDL_Rect bounds;
     int result, kind, i, object;
     if (!d->value.text[0] || SDL_utf8strlen(d->value.text) > 50 || SDL_GetTicks() - d->wording_edited_at < 180) return;
     if (d->loading_index >= 0)
@@ -544,8 +593,10 @@ static void update_thumbnails(MarcusTextDialog *d, SDL_Renderer *renderer)
         tile = tile_at(d, d->loading_kind, d->loading_index);
         if (result > 0)
         {
-            surface = SDL_CreateSurfaceFrom(image.width, image.height, SDL_PIXELFORMAT_RGBA32, (void *)image.rgba, image.pitch);
-            small = surface ? SDL_ScaleSurface(surface, 128, 96, SDL_SCALEMODE_LINEAR) : NULL;
+            bounds = thumbnail_bounds(&image);
+            surface = SDL_CreateSurfaceFrom(bounds.w, bounds.h, SDL_PIXELFORMAT_RGBA32,
+                (void *)(image.rgba + bounds.y * image.pitch + bounds.x * 4), image.pitch);
+            small = surface ? SDL_ScaleSurface(surface, 256, 192, SDL_SCALEMODE_LINEAR) : NULL;
             tile->texture = small ? SDL_CreateTextureFromSurface(renderer, small) : NULL;
             SDL_DestroySurface(small);
             SDL_DestroySurface(surface);
