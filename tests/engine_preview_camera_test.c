@@ -262,6 +262,8 @@ static void fit_tests(void)
     MMPreviewMath m;
     float corners[24], zoom, radius, distance, tangent, sy, cy, sp, cp, x, y, z, delta[3];
     float aspect, yaw, pitch, maximum;
+    float camera[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20};
+    int crop[4];
     int c, a, rotation, portrait;
     memset(&m, 0, sizeof(m));
     m.sin = fsin; m.cos = fcos; m.tan = ftan; m.sqrt = fsqrt; m.fmod = ffmod;
@@ -296,6 +298,11 @@ static void fit_tests(void)
     }
     assert(!mm_preview_camera_fit_object(corners, 0, 0, 0, 45, .04f, &zoom, &m));
     assert(!mm_preview_camera_fit_object(corners, 0, 0, 1, 45, .5f, &zoom, &m));
+    assert(mm_preview_camera_crop(corners, camera, 45, 1, 300, 300, crop, &m));
+    assert(crop[0] > 100 && crop[0] < 120 && crop[1] > 45 && crop[1] < 60);
+    assert(crop[2] > 70 && crop[2] < 90 && crop[3] > 180 && crop[3] < 200);
+    camera[11] = 0;
+    assert(!mm_preview_camera_crop(corners, camera, 45, 1, 300, 300, crop, &m));
 }
 int main(void)
 {

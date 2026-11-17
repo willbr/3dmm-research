@@ -284,7 +284,7 @@ bool Preview::SetObjectEventTrack(int object, std::int32_t source, Error &error)
         Fail(error, ErrorCode::decode_failed, "Cannot apply this costume change.");
 }
 bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume> &values,
-    const PreviewView &view, PreviewImage &image, Error &error)
+    const PreviewView &view, PreviewImage &image, Error &error, int bodySet)
 {
     error = {}; image = {};
     if (!_impl->ready || object < 0 || std::size_t(object) >= _impl->actors.size() || !_impl->actors[object]->Visible())
@@ -313,11 +313,59 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
     PreviewView isolated = view;
     isolated.authoredCamera = false; isolated.orbitObject = object; isolated.onlyObject = object;
     isolated.stableOrbit = false; isolated.freeCamera = false; isolated.orthographic = false;
-    isolated.axisView = 0; isolated.roll = 0; isolated.nearClip = .01f;
+    isolated.axisView = 0; isolated.roll = 0; isolated.nearClip = .01f; isolated.fitSceneDepth = true;
     if (view.width < 64 || view.height < 64 || !std::isfinite(view.zoom) || view.zoom < .1f || view.zoom > 10)
         return Fail(error, ErrorCode::invalid_argument, "Invalid costume preview size or zoom.");
     PreviewBounds bounds;
     if (!ObjectBounds(object, bounds, error) || !bounds.valid) return false;
+    if (bodySet >= 0)
+    {
+        // Union the set's variants so removing a hat frames the same head area
+        // as adding it, and every thumbnail in a row uses the same camera.
+        std::vector<PreviewCostume> variants;
+        if (!actor.Costumes(variants)) return false;
+        BodyCostume selected;
+        if (!selected.FGet(actor.body)) return false;
+        float low[3] = {}, high[3] = {}; bool found = false, hasSet = false;
+        float bodyLow = bounds.corners[1], bodyHigh = bodyLow;
+        for (int c = 1; c < 8; ++c)
+        { bodyLow = std::min(bodyLow, bounds.corners[c * 3 + 1]); bodyHigh = std::max(bodyHigh, bounds.corners[c * 3 + 1]); }
+        for (const auto &variant : variants) if (variant.bodySet == bodySet)
+        {
+            hasSet = true;
+            PreviewBounds part;
+            if (!actor.TryCostumes({variant})) return false;
+            BCB whole;
+            actor.body->GetBcbBounds(&whole, fTrue);
+            bodyLow = std::min(bodyLow, BrScalarToFloat(whole.yrMin));
+            bodyHigh = std::max(bodyHigh, BrScalarToFloat(whole.yrMax));
+            if (!actor.CostumeBounds(bodySet, part)) continue;
+            for (int c = 0; c < 8; ++c)
+            {
+                for (int a = 0; a < 3; ++a)
+                {
+                    low[a] = found ? std::min(low[a], part.corners[c * 3 + a]) : part.corners[c * 3 + a];
+                    high[a] = found ? std::max(high[a], part.corners[c * 3 + a]) : part.corners[c * 3 + a];
+                }
+                found = true;
+            }
+        }
+        selected.Set(actor.body);
+        if (!hasSet) return Fail(error, ErrorCode::invalid_argument, "This object has no such costume body part.");
+        if (found)
+        {
+            const float minimum = (bodyHigh - bodyLow) * .15f;
+            for (int a = 0; a < 3; ++a)
+            {
+                const float center = (low[a] + high[a]) * .5f;
+                const float half = std::max(minimum, high[a] - low[a]) * .6f;
+                low[a] = center - half; high[a] = center + half;
+            }
+            for (int c = 0; c < 8; ++c) for (int a = 0; a < 3; ++a)
+                bounds.corners[c * 3 + a] = (c & (1 << a)) ? high[a] : low[a];
+        }
+    }
+    isolated.orbitBounds = &bounds;
     Impl::RenderHost host = {this, _impl.get(), &isolated, &error};
     const auto services = host.Services(); float fit;
     if (!mm_preview_camera_fit_object(bounds.corners, view.yaw, view.pitch, float(view.width) / view.height,
@@ -325,7 +373,10 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
         return Fail(error, ErrorCode::invalid_argument, "Cannot fit this costume preview.");
     isolated.zoom = fit * std::min(1.f, view.zoom);
     ResetOrbitFraming();
-    return Render(isolated, image, error);
+    if (!Render(isolated, image, error)) return false;
+    if (bodySet >= 0) mm_preview_camera_crop(bounds.corners, image.projection.transform, image.projection.verticalFov,
+        image.projection.aspect, image.width, image.height, image.contentRect, &services.math);
+    return true;
 }
 bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &error)
 {

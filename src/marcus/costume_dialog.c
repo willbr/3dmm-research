@@ -157,22 +157,64 @@ static int choices(MarcusCostumeDialog *d, MarcusCostume *out, int sample)
     if (sample >= 0) out[count++] = d->tiles[sample].value;
     return count;
 }
+static SDL_Rect content_bounds(const MarcusImage *image, float zoom)
+{
+    SDL_Rect rect;
+    int x, y, left, top, right, bottom, width, height;
+    left = image->width; top = image->height; right = bottom = -1;
+    for (y = 0; y < image->height; ++y) for (x = 0; x < image->width; ++x)
+        if (image->rgba[y * image->pitch + x * 4 + 3])
+        {
+            if (x < left) left = x;
+            if (x > right) right = x;
+            if (y < top) top = y;
+            if (y > bottom) bottom = y;
+        }
+    rect.x = rect.y = 0; rect.w = image->width; rect.h = image->height;
+    if (right < left || bottom < top) return rect;
+    /* Trim renderer padding, keep a small visual margin, and retain zoom-out. */
+    width = (int)ceil((right - left + 1) * 1.06f / zoom);
+    height = (int)ceil((bottom - top + 1) * 1.06f / zoom);
+    if (width > image->width) width = image->width;
+    if (height > image->height) height = image->height;
+    rect.x = (left + right + 1 - width) / 2;
+    rect.y = (top + bottom + 1 - height) / 2;
+    if (rect.x < 0) rect.x = 0;
+    if (rect.y < 0) rect.y = 0;
+    if (rect.x + width > image->width) rect.x = image->width - width;
+    if (rect.y + height > image->height) rect.y = image->height - height;
+    rect.w = width; rect.h = height;
+    return rect;
+}
 static SDL_Texture *render(MarcusCostumeDialog *d, SDL_Renderer *renderer, int sample)
 {
     MarcusCostume selected[512];
     MarcusImage image;
     SDL_Texture *texture;
-    int count, width, height;
+    SDL_Surface *surface;
+    SDL_Rect bounds;
+    int count, width, height, ok;
     count = choices(d, selected, sample);
     width = sample < 0 ? d->preview_width : 240; height = sample < 0 ? d->preview_height : 300;
-    if (!marcus_costume_preview(d->player, d->object, selected, count,
-        sample < 0 ? d->yaw : 25, sample < 0 ? d->pitch : -10, sample < 0 ? d->zoom : 1,
-        width, height, &image))
+    if (sample < 0) ok = marcus_costume_preview(d->player, d->object, selected, count,
+        d->yaw, d->pitch, d->zoom, width, height, &image);
+    else ok = marcus_costume_part_preview(d->player, d->object, d->tiles[sample].value.body_set,
+        selected, count, 25, -10, 1, width, height, &image);
+    if (!ok)
     { SDL_strlcpy(d->error, marcus_error(d->player), sizeof(d->error)); return NULL; }
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, image.width, image.height);
+    bounds.x = bounds.y = 0; bounds.w = image.width; bounds.h = image.height;
+    if (sample < 0) bounds = content_bounds(&image, d->zoom);
+    else if (image.content_rect[2] > 0 && image.content_rect[3] > 0)
+    {
+        bounds.x = image.content_rect[0]; bounds.y = image.content_rect[1];
+        bounds.w = image.content_rect[2]; bounds.h = image.content_rect[3];
+    }
+    surface = SDL_CreateSurfaceFrom(bounds.w, bounds.h, SDL_PIXELFORMAT_RGBA32,
+        (void *)(image.rgba + bounds.y * image.pitch + bounds.x * 4), image.pitch);
+    texture = surface ? SDL_CreateTextureFromSurface(renderer, surface) : NULL;
+    SDL_DestroySurface(surface);
     if (texture)
     {
-        SDL_UpdateTexture(texture, NULL, image.rgba, image.pitch);
         SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
         SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
     }
@@ -199,6 +241,7 @@ static void gallery(MarcusCostumeDialog *d)
 {
     const ImGuiStyle *style;
     ImVec2 avail, size, origin;
+    float aspect, width, height;
     int first, end, i, j, columns, clicked, visible;
     style = igGetStyle();
     first = 0;
@@ -213,7 +256,10 @@ static void gallery(MarcusCostumeDialog *d)
         columns = (int)((avail.x + style->ItemSpacing.x) / (170 + style->ItemSpacing.x));
         if (columns < 1) columns = 1;
         size.x = (avail.x - (columns - 1) * style->ItemSpacing.x) / columns;
-        size.y = size.x * 1.25f;
+        aspect = .8f;
+        for (i = first; i < end; ++i) if (d->tiles[i].texture && SDL_GetTextureSize(d->tiles[i].texture, &width, &height) && height > 0)
+        { aspect = width / height; break; }
+        size.y = clamp(size.x / aspect, 80, 360);
         for (i = first; i < end; ++i)
         {
             igPushID_Int(i);
@@ -239,7 +285,7 @@ static void preview(MarcusCostumeDialog *d)
 {
     ImVec2 size, origin;
     ImGuiIO *io;
-    float scale;
+    float scale, texture_width, texture_height, aspect;
     int width, height;
     size = igGetContentRegionAvail(); size.y -= 28;
     if (size.x < 1) size.x = 1;
@@ -250,6 +296,12 @@ static void preview(MarcusCostumeDialog *d)
     height = (int)clamp((size.y - 8) * scale, 64, 1024);
     if (width != d->preview_width || height != d->preview_height)
     { d->preview_width = width; d->preview_height = height; d->preview_dirty = 1; }
+    if (d->preview && SDL_GetTextureSize(d->preview, &texture_width, &texture_height) && texture_height > 0)
+    {
+        aspect = texture_width / texture_height;
+        if ((size.x - 8) / aspect > size.y - 8) size.x = (size.y - 8) * aspect + 8;
+        else size.y = (size.x - 8) / aspect + 8;
+    }
     igButton("##actorPreview", size); origin = igGetItemRectMin();
     picture(d->preview, vec(origin.x + 4, origin.y + 4), vec(size.x - 8, size.y - 8));
     io = igGetIO_Nil();

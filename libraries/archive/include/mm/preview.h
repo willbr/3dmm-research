@@ -6,6 +6,7 @@
 namespace MM
 {
 class PreviewRasterizer;
+struct PreviewBounds;
 // Matches the bundled BRender output pixelmap limit.
 constexpr std::uint32_t PreviewMaxDimension = 4096;
 // Retail Studio's movie workspace; saved 2D text bounds use these coordinates.
@@ -44,6 +45,7 @@ struct PreviewView
     bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until refitting is requested.
     int orbitObject = -1;          // Scene object index to follow; -1 fits the scene.
     int onlyObject = -1;           // Isolated authoring thumbnail; omit scenery and other objects.
+    const PreviewBounds *orbitBounds = nullptr; // Optional framing region for this render only.
     bool includeDepth = false;     // Return camera-forward distances for host composition.
     bool fitSceneDepth = false;    // Fit inspection clip distances to visible scene geometry.
     int displayMode = 0;           // Host-selected built-in material/edge mode; zero preserves authored materials.
@@ -77,6 +79,7 @@ struct PreviewImage
     // Requested with includeDepth.
     std::vector<float> depth;
     std::uint32_t coveredPixels = 0;
+    int contentRect[4] = {}; // Optional authoring crop, x/y/width/height; zero size means full image.
     PreviewCamera camera; // Actual rendered pose; useful when entering first-person navigation.
     PreviewProjection projection, sceneCamera;
 };
@@ -263,7 +266,7 @@ class Preview
     // Write a private edited event track, leaving the live actor unchanged.
     bool WriteObjectCostumes(int object, const std::vector<PreviewCostume> &, const std::string &path, Error &);
     bool SetObjectEventTrack(int object, std::int32_t source, Error &);
-    bool RenderObjectCostumes(int object, const std::vector<PreviewCostume> &, const PreviewView &, PreviewImage &, Error &);
+    bool RenderObjectCostumes(int object, const std::vector<PreviewCostume> &, const PreviewView &, PreviewImage &, Error &, int bodySet = -1);
     // Change only this instance's text template, retaining its authored track.
     bool SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &);
     bool TextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number, PreviewTextMaterial &, Error &);

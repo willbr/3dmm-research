@@ -662,6 +662,7 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     image->height = static_cast<int>(player->image.height);
     image->pitch = image->width * 4;
     image->rgba = player->image.rgba.data();
+    std::fill(image->content_rect, image->content_rect + 4, 0);
     const auto &camera = player->image.camera;
     image->camera = {camera.x, camera.y, camera.z, camera.yaw, camera.pitch, camera.moveSpeed};
     image->projection = CopyProjection(player->image.projection);
@@ -1348,7 +1349,7 @@ extern "C"
             const auto &c = values[index]; *costume = {c.bodySet, c.costume, c.selected, c.accessory}; return true;
         });
     }
-    int marcus_costume_preview(MarcusPlayer *player, int object, const MarcusCostume *choices, int count,
+    static int CostumePreview(MarcusPlayer *player, int object, int bodySet, const MarcusCostume *choices, int count,
         float yaw, float pitch, float zoom, int width, int height, MarcusImage *image)
     {
         if (!image) return 0;
@@ -1359,13 +1360,21 @@ extern "C"
             for (int i = 0; i < count; ++i) values.push_back({choices[i].body_set, choices[i].costume});
             MM::PreviewView view;
             view.width = width; view.height = height; view.yaw = yaw; view.pitch = pitch; view.zoom = zoom;
-            if (!player->preview.RenderObjectCostumes(object, values, view, player->costumeImage, error)) return false;
+            if (!player->preview.RenderObjectCostumes(object, values, view, player->costumeImage, error, bodySet)) return false;
             image->width = int(player->costumeImage.width); image->height = int(player->costumeImage.height);
             image->pitch = image->width * 4; image->rgba = player->costumeImage.rgba.data();
+            image->projection = CopyProjection(player->costumeImage.projection);
+            std::copy(player->costumeImage.contentRect, player->costumeImage.contentRect + 4, image->content_rect);
             image->scene = player->selected; image->frame = player->preview.Info().currentFrame; image->document = player->document;
             return true;
         });
     }
+    int marcus_costume_preview(MarcusPlayer *player, int object, const MarcusCostume *choices, int count,
+        float yaw, float pitch, float zoom, int width, int height, MarcusImage *image)
+    { return CostumePreview(player, object, -1, choices, count, yaw, pitch, zoom, width, height, image); }
+    int marcus_costume_part_preview(MarcusPlayer *player, int object, int bodySet, const MarcusCostume *choices, int count,
+        float yaw, float pitch, float zoom, int width, int height, MarcusImage *image)
+    { return CostumePreview(player, object, bodySet, choices, count, yaw, pitch, zoom, width, height, image); }
     int marcus_set_costumes(MarcusPlayer *player, int object, const MarcusCostume *choices, int count)
     {
         return Guard(player, [&](MM::Error &error) {

@@ -13,6 +13,40 @@ static int finitef(float x)
 {
     return x >= -FLT_MAX && x <= FLT_MAX;
 }
+int mm_preview_camera_crop(const float corners[24], const float camera[12], float fov, float aspect,
+                           MMU32 width, MMU32 height, int rect[4], const MMPreviewMath *m)
+{
+    float tangent, low[2] = {1, 1}, high[2] = {0, 0}, delta, x, y, depth, pixel[2];
+    int out[4];
+    unsigned c, a;
+    if (!corners || !camera || !rect || !width || !height || !finitef(fov) || fov <= 0 || fov >= 179 ||
+        !finitef(aspect) || aspect <= 0) return 0;
+    tangent = m->tan(fov * .00872664626f);
+    for (c = 0; c < 8; ++c)
+    {
+        x = y = depth = 0;
+        for (a = 0; a < 3; ++a)
+        {
+            delta = corners[c * 3 + a] - camera[9 + a];
+            x += delta * camera[a]; y += delta * camera[3 + a]; depth -= delta * camera[6 + a];
+        }
+        if (!finitef(depth) || depth <= 0) return 0;
+        pixel[0] = (1 + x / (depth * tangent * aspect)) * .5f;
+        pixel[1] = (1 - y / (depth * tangent)) * .5f;
+        for (a = 0; a < 2; ++a)
+        {
+            if (!finitef(pixel[a])) return 0;
+            low[a] = minf(low[a], pixel[a]); high[a] = maxf(high[a], pixel[a]);
+        }
+    }
+    out[0] = (int)(maxf(0, minf(1, low[0])) * width);
+    out[1] = (int)(maxf(0, minf(1, low[1])) * height);
+    out[2] = (int)minf((float)width, maxf(0, high[0]) * width + 1) - out[0];
+    out[3] = (int)minf((float)height, maxf(0, high[1]) * height + 1) - out[1];
+    if (out[2] <= 0 || out[3] <= 0) return 0;
+    memcpy(rect, out, sizeof(out));
+    return 1;
+}
 int mm_preview_camera_fit_object(const float corners[24], float yaw, float pitch, float aspect, float fov,
                                 float inset, float *zoom, const MMPreviewMath *m)
 {

@@ -148,7 +148,8 @@ struct Preview::Impl::RenderHost
             try
             {
                 PreviewBounds b;
-                if (!h.preview->ObjectBounds(object, b, *h.error))
+                if (h.view && h.view->orbitBounds && h.view->onlyObject == object) b = *h.view->orbitBounds;
+                else if (!h.preview->ObjectBounds(object, b, *h.error))
                     return 0;
                 *valid = b.valid;
                 std::copy(b.corners, b.corners + 24, corners);

@@ -2,9 +2,11 @@
 #include "player.h"
 #include "storyboard.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -33,6 +35,9 @@ int main(int argc, char **argv)
         MarcusImage image = {};
         require(marcus_costume_preview(player.get(), object, choice, choice ? 1 : 0, yaw, pitch, zoom, 240, 300, &image), "Render isolated costume preview");
         require(image.rgba && image.width == 240 && image.height == 300, "Preview dimensions");
+        require(image.projection.valid && image.projection.near_clip > 0 &&
+            image.projection.far_clip / image.projection.near_clip < 8,
+            "Isolated preview uses a tight depth range for material layers");
         return std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height);
     };
     try
@@ -90,6 +95,32 @@ int main(int argc, char **argv)
         { alternative = c; found = true; break; }
         require(found && pixels(object, nullptr) == originalPixels && marcus_document(player.get()) == document,
             "Variant preview is visible and leaves the live movie unchanged");
+        std::map<int, MarcusProjection> focusCameras;
+        int focusedImages = 0;
+        for (const auto &c : values)
+        {
+            MarcusImage focused = {};
+            require(marcus_costume_part_preview(player.get(), object, c.body_set, &c, 1, 25, -10, 1, 240, 300, &focused),
+                "Render changed body-part preview");
+            require(focused.content_rect[0] >= 0 && focused.content_rect[1] >= 0 &&
+                focused.content_rect[2] > 0 && focused.content_rect[3] > 0 &&
+                focused.content_rect[0] + focused.content_rect[2] <= focused.width &&
+                focused.content_rect[1] + focused.content_rect[3] <= focused.height &&
+                focused.content_rect[2] * focused.content_rect[3] < focused.width * focused.height,
+                "Focused previews supply a valid crop around the changing region");
+            const std::vector<unsigned char> partPixels(focused.rgba, focused.rgba + focused.pitch * focused.height);
+            if (partPixels != pixels(object, &c)) ++focusedImages;
+            auto camera = focusCameras.find(c.body_set);
+            if (camera == focusCameras.end()) focusCameras[c.body_set] = focused.projection;
+            else for (int axis = 0; axis < 12; ++axis)
+                require(std::abs(camera->second.transform[axis] - focused.projection.transform[axis]) < .0001f,
+                    "Variants in one body-part row retain identical camera framing");
+        }
+        require(focusedImages > 2 && focusCameras.size() > 2 && pixels(object, nullptr) == originalPixels &&
+            marcus_document(player.get()) == document, "Focused clothing and accessory previews preserve the movie");
+        MarcusImage unavailable = {};
+        require(!marcus_costume_part_preview(player.get(), object, 9999, nullptr, 0, 25, -10, 1, 240, 300, &unavailable) &&
+            marcus_document(player.get()) == document, "Unavailable body-part focus is rejected without editing");
         std::vector<MarcusCostume> combined{alternative};
         const auto otherPart = std::find_if(values.begin(), values.end(), [&](const auto &c) { return !c.selected && c.body_set != alternative.body_set; });
         if (otherPart != values.end()) combined.push_back(*otherPart);

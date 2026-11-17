@@ -663,7 +663,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     if (has_mesh && !s->add_mesh(s->context, f->world))
         return MM_PREVIEW_MESH;
     if (v->display == 1 || v->display == 2 || v->display == 3 || (v->display == 4 && !v->rasterizer) ||
-        (!bg && d.background && v->fit_depth))
+        (!bg && v->fit_depth))
         if (!collect_models(f))
             return MM_PREVIEW_MEMORY;
     if (v->display == 1 || v->display == 2 || v->display == 3 || (v->display == 4 && !v->rasterizer))
@@ -675,7 +675,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         for (i = 0; i < f->models.array.count; ++i)
             s->edges(s->context, actors[i]);
     }
-    if (!bg && d.background && v->fit_depth && !fit_depth(f, &camera, width, height))
+    if (!bg && v->fit_depth && !fit_depth(f, &camera, width, height))
         return MM_PREVIEW_MEMORY;
     f->sink = 1;
     projection(&image->projection, &camera, m);

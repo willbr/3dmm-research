@@ -187,6 +187,7 @@ extern "C"
     typedef struct MarcusImage
     {
         int width, height, pitch;
+        int content_rect[4]; /* Optional authoring crop: x/y/width/height; zero size uses the full image. */
         const unsigned char *rgba;
         MarcusCamera camera;
         MarcusProjection projection, scene_camera;
@@ -272,6 +273,9 @@ extern "C"
     /* Angles orbit the template's rest orientation, independent of movie rotation.
      * Zoom 1 fits the full model with a margin; larger values stop at that fit. */
     int marcus_costume_preview(MarcusPlayer *player, int object, const MarcusCostume *choices, int count,
+        float yaw, float pitch, float zoom, int width, int height, MarcusImage *image);
+    /* Focus a thumbnail on the geometry changed by this body-part set. */
+    int marcus_costume_part_preview(MarcusPlayer *player, int object, int body_set, const MarcusCostume *choices, int count,
         float yaw, float pitch, float zoom, int width, int height, MarcusImage *image);
     /* Apply all chosen sets at the current frame, as a single undo step. */
     int marcus_set_costumes(MarcusPlayer *player, int object, const MarcusCostume *choices, int count);

@@ -44,6 +44,10 @@ extern "C"
      * fraction of each image edge; zoom is relative to the normal orbit fit. */
     int mm_preview_camera_fit_object(const float corners[24], float yaw, float pitch, float aspect, float fov,
                                     float inset, float *zoom, const MMPreviewMath *);
+    /* Project a framing region into an image crop (x/y/width/height). Invalid
+     * projection or a corner behind the camera leaves the output unchanged. */
+    int mm_preview_camera_crop(const float corners[24], const float camera[12], float fov, float aspect,
+                               MMU32 width, MMU32 height, int rect[4], const MMPreviewMath *);
     int mm_preview_camera_admit(int ready, int background, MMU32 count, MMU32 index);
     /* select returns 1 on success, 0 on read/SDK failure, -1 on allocation failure.
      * Read failure clears ready; allocation failure preserves it. Same-camera

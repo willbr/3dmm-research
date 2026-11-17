@@ -427,6 +427,12 @@ complete model with a small margin; zooming stops at that fit so the head and
 feet remain visible. The main preview renders at its panel's aspect ratio.
 Items with no alternative costumes show a disabled **No costumes** button,
 including templates with only their current default costume.
+Costume thumbnails focus on the changed body-part set, such as a shirt,
+trousers, shoes or hat. Each row shares framing across its variants, including
+removed accessories, and its cards follow the cropped region's aspect ratio.
+The main preview keeps the whole actor, trims unused image margins and sizes
+its frame to the visible model. Isolated previews fit their depth planes to
+visible triangles to preserve depth precision between overlapping surfaces.
 
 **Apply costume** changes the chosen body parts at the current frame in a single
 undo step. Cancel/Escape leaves the movie unchanged; applying unchanged choices
@@ -441,6 +447,8 @@ variants; it does not create new costumes or import textures.
 Headless native checks cover actor and prop choices, isolated previews, edits
 before later costume events, combined body-part changes, undo, repeated seeking,
 further edits after reopening, and exact preview pixels after native save/reopen.
+They also check stable body-part framing, crop bounds, fitted depth ranges and
+that previewing retains the movie's exact rendered pixels.
 No Marcus UI test was added.
 
 Actors, props and 3D text appear at the current frame, at the active background

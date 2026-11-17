@@ -173,6 +173,37 @@ void PreviewActor::CostumeOrientation(BMAT34 &matrix) const
     BrMatrix34PostRotateY(&matrix, y);
     BrMatrix34PostRotateZ(&matrix, z);
 }
+bool PreviewActor::CostumeBounds(int bodySet, PreviewBounds &out) const
+{
+    out = {};
+    if (!body || bodySet < 0 || bodySet >= body->Cbset()) return false;
+    float low[3] = {}, high[3] = {};
+    for (int i = 0; i < body->Cbact() - 2; ++i)
+    {
+        auto part = body->PbactPart(i); LegacyLong set = -1;
+        Body::PbodyFromBact(part, &set);
+        if (set != bodySet || part->type != BR_ACTOR_MODEL || !part->model) continue;
+        BMAT34 local, world;
+        BrActorToActorMatrix34(&local, part, body->PbactRoot());
+        BrMatrix34Mul(&world, &local, &body->PbactRoot()->t.t.mat);
+        for (int corner = 0; corner < 8; ++corner)
+        {
+            BVEC3 point, transformed;
+            for (int a = 0; a < 3; ++a) point.v[a] = (corner & (1 << a)) ? part->model->bounds.max.v[a] : part->model->bounds.min.v[a];
+            BrMatrix34ApplyP(&transformed, &point, &world);
+            for (int a = 0; a < 3; ++a)
+            {
+                const auto value = BrScalarToFloat(transformed.v[a]);
+                low[a] = out.valid ? std::min(low[a], value) : value;
+                high[a] = out.valid ? std::max(high[a], value) : value;
+            }
+            out.valid = true;
+        }
+    }
+    if (out.valid) for (int c = 0; c < 8; ++c) for (int a = 0; a < 3; ++a)
+        out.corners[c * 3 + a] = (c & (1 << a)) ? high[a] : low[a];
+    return out.valid;
+}
 bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
 {
     std::vector<PreviewCostume> available;
