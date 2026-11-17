@@ -551,11 +551,62 @@ sharing rejection and restored-handle reads. `file-owner-expensive` overrides
 the file facades with expensive validation against the shared core. See the
 [playback regression log](../tools/playback-regression.md) for evidence.
 
-File/name factory and registry coordination, rename/swap/replacement control,
-Filename representation, native primitives, virtual destruction and final
+File/name factory and registry coordination and name transactions are described
+next. Filename representation, native primitives, virtual destruction and final
 C-only host/facade integration remain conversion work. Historical `filemac.cpp`
-is not built by the current Windows/POSIX hosts. This extraction does not finish
-the backend migration.
+is not built by the current Windows/POSIX hosts.
+
+### File factories, registry control and name transactions
+
+`mm/file_ops.h` now controls cached open/reuse, fresh creation, temporary-file
+factory routing, registry lookup, mark/zero-reference/shutdown scans and membership
+checks. It uses the preceding C owner controller for flags, permission recovery,
+opening and closing. Explicit provider contexts bind registries; no C global
+registry is hidden in the implementation. `FileObject`'s temporary native binding
+still supplies the process registry, object allocation/constructor/destructor
+primitives and typed Filename services. Both hosts call the same C policy.
+
+Lookup borrows without retaining. Cached open retains once after flags succeed,
+and does not add a file-open error when permission recovery fails. Duplicate
+creation diagnoses without adding a create error. New-owner open failure destroys
+the partial owner before reporting the factory error. Constructors publish an
+initialized owner with one reference and registry attachment. Cleanup saves next
+before destroying an unmarked zero-reference owner; shutdown closes without
+destroying or unlinking. Sticky mark clearing remains unchanged.
+
+C also owns rename, three-leg name swap, rollback and replacement control.
+Physical renames do not mutate the logical name records; copy callbacks publish
+names after success or failed recovery. Two-object operations enter a then b and
+leave a then b, matching native order. Unique-name failure leaves handles open;
+failed recovery publishes surviving physical locations before reopening. Swap
+deliberately ignores reopen results and can succeed with critical closed owners.
+Rename fails if reopen fails. Replacement swaps with another open owner and marks
+that owner temporary only after success. Nonmissing or unknown destination status
+attempts deletion, ignores its result and proceeds to rename. These are preserved
+native policies, not newly normalized behavior.
+
+Tokens, provider contexts and scratch names stay live; scratch storage cannot
+alias an owner/input name. Callback effects are limited to the designated
+construct/destroy/copy/physical operations; callbacks cannot unwind or mutate
+other owners/links. Locks must be recursive and callers serialize competing
+transactions. Native adapters retain entry validation and scratch-object lifetime;
+C performs post-transaction validation. Directory checks are advisory and are
+skipped when diagnostics are disabled. The native binding is still a C++ facade,
+not a completed C-only FileObject implementation.
+
+`engine-file-ops` uses independent pure-C registries, file records and a physical
+name/content model. It exercises all 32 failure combinations across the three
+swap moves and two recovery legs, cached upgrades and failed construction/open,
+temporary naming, rename/reopen failures, replacement and ignored deletion
+failures, ordered unlocking and poisoned-owner cleanup. `file-ops-runtime`
+captures original public behavior through `MM_FILE_OPS_SNAPSHOT`, including real
+rename rejection, content-preserving swaps, factory reuse, registry order and
+allocation injection. `file-ops-expensive` overrides the file facades with
+expensive validation. See the [regression log](../tools/playback-regression.md).
+
+Native object construction/destruction, default registry binding, Filename/path
+representation and services, virtual dispatch and final C-only host/facade
+integration remain conversion work. This does not complete the backend migration.
 
 ### Collection storage foundation
 

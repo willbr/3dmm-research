@@ -64,6 +64,58 @@ RTCLASS(FileObject)
 RTCLASS(DataBlock)
 RTCLASS(MessageSinkFile)
 
+MMFileOpsHost FileObject::_OpsHost()
+{
+    static_assert(tNo == MM_FILE_NAME_MISSING, "native file status contract");
+    MMFileOpsHost host{};
+    host.enter_list = [](void *) { _mutxList.Enter(); };
+    host.leave_list = [](void *) { _mutxList.Leave(); };
+    host.first = [](void *) -> void * { return PfilFirst(); };
+    host.next = [](void *, void *p) -> void * { return static_cast<PFileObject>(p)->PfilNext(); };
+    host.enter_object = [](void *, void *p) { static_cast<PFileObject>(p)->_mutx.Enter(); };
+    host.leave_object = [](void *, void *p) { static_cast<PFileObject>(p)->_mutx.Leave(); };
+    host.name = [](void *, void *p) -> void * { return &static_cast<PFileObject>(p)->_fni; };
+    host.owner = [](void *, void *p) -> MMFileOwner * { return &static_cast<PFileObject>(p)->_file; };
+    host.references = [](void *, void *p) -> MMReference * { return &static_cast<PFileObject>(p)->_references; };
+    host.owner_host = [](void *, void *p, MMFileOwnerHost *out) { *out = static_cast<PFileObject>(p)->_OwnerHost(); };
+    host.equal_names = [](void *, void *a, void *b) -> int { return static_cast<Filename *>(a)->FEqual(static_cast<Filename *>(b)); };
+    host.copy_name = [](void *, void *dst, const void *src) { *static_cast<Filename *>(dst) = *static_cast<Filename *>(const_cast<void *>(src)); };
+    host.unique_name = [](void *, void *p) -> int { auto *name = static_cast<Filename *>(p); return name->FGetUnique(name->Ftg()); };
+    host.temp_name = [](void *, void *p) -> int { return static_cast<Filename *>(p)->FGetTemp(); };
+    host.same_directory = [](void *, void *a, void *b) -> int { return static_cast<Filename *>(a)->FSameDir(static_cast<Filename *>(b)); };
+    host.rename_name = [](void *, void *a, void *b) -> int { return static_cast<Filename *>(a)->FRename(static_cast<Filename *>(b)); };
+    host.name_status = [](void *, void *p) -> int { return static_cast<Filename *>(p)->TExists(); };
+    host.delete_name = [](void *, void *p) -> int { return static_cast<Filename *>(p)->FDelete(); };
+    host.construct = [](void *, void *p, MMU32 flags) -> void * { return NewObj FileObject(static_cast<Filename *>(p), flags); };
+    host.retain = [](void *, void *p) { static_cast<PFileObject>(p)->AddRef(); };
+    host.destroy = [](void *, void *p) { delete static_cast<PFileObject>(p); };
+    host.swap_objects = [](void *, void *a, void *b) -> int { return static_cast<PFileObject>(a)->FSwapNames(static_cast<PFileObject>(b)); };
+    host.rename_object = [](void *, void *p, void *name) -> int { return static_cast<PFileObject>(p)->FRename(static_cast<Filename *>(name)); };
+    host.issue = [](void *, int code) {
+        switch (code) {
+        case MM_FILE_OP_OPEN: PushErc(ercFileOpen); break;
+        case MM_FILE_OP_CREATE: PushErc(ercFileCreate); break;
+        case MM_FILE_OP_SWAP: PushErc(ercFileSwapNames); break;
+        case MM_FILE_OP_RENAME: PushErc(ercFileRename); break;
+        }
+    };
+#ifdef DEBUG
+    host.validate_name = [](void *, void *p) { AssertPo(static_cast<Filename *>(p), ffniFile); };
+    host.validate_object = [](void *, void *p) { AssertPo(static_cast<PFileObject>(p), 0); };
+    host.assertion = [](void *, int code) {
+        switch (code) {
+        case MM_FILE_OP_TEMP_OPEN: Assert(fFalse, "can't open a file as temp"); break;
+        case MM_FILE_OP_CREATE_OPEN: Bug("trying to create an open file"); break;
+        case MM_FILE_OP_SWAP_SELF: Bug("Why are you calling FSwapNames on the same file?"); break;
+        case MM_FILE_OP_SWAP_DIRECTORY: Assert(fFalse, "trying to change directories with FSwapNames"); break;
+        case MM_FILE_OP_RENAME_DIRECTORY: Assert(fFalse, "trying to change directories with FRename"); break;
+        case MM_FILE_OP_RECOVERY: Bug("rename failure"); break;
+        }
+    };
+#endif
+    return host;
+}
+
 /***************************************************************************
     Constructor for a file.
 ***************************************************************************/
@@ -97,33 +149,8 @@ FileObject::~FileObject(void)
 ***************************************************************************/
 PFileObject FileObject::PfilOpen(Filename *pfni, LegacyUlong grffil)
 {
-    AssertPo(pfni, ffniFile);
-    PFileObject pfil;
-
-    Assert(!(grffil & ffilTemp), "can't open a file as temp");
-    if (pvNil != (pfil = PfilFromFni(pfni)))
-    {
-        if (!pfil->FSetGrffil(grffil))
-            return pvNil;
-
-        // increment the open count
-        pfil->AddRef();
-        return pfil;
-    }
-
-    if ((pfil = NewObj FileObject(pfni, grffil)) == pvNil)
-        goto LFail;
-
-    if (!pfil->_FOpen(fFalse, grffil))
-    {
-        delete pfil;
-    LFail:
-        PushErc(ercFileOpen);
-        return pvNil;
-    }
-
-    AssertPo(pfil, 0);
-    return pfil;
+    const auto host = _OpsHost();
+    return static_cast<PFileObject>(mm_file_ops_open(&host, pfni, grffil));
 }
 
 /***************************************************************************
@@ -131,29 +158,8 @@ PFileObject FileObject::PfilOpen(Filename *pfni, LegacyUlong grffil)
 ***************************************************************************/
 PFileObject FileObject::PfilCreate(Filename *pfni, LegacyUlong grffil)
 {
-    AssertPo(pfni, ffniFile);
-    PFileObject pfil;
-
-    if (pvNil != (pfil = FileObject::PfilFromFni(pfni)))
-    {
-        Bug("trying to create an open file");
-        return pvNil;
-    }
-
-    grffil |= ffilWriteEnable;
-    if ((pfil = NewObj FileObject(pfni, grffil)) == pvNil)
-        goto LFail;
-
-    if (!pfil->_FOpen(fTrue, grffil))
-    {
-        delete pfil;
-    LFail:
-        PushErc(ercFileCreate);
-        return pvNil;
-    }
-
-    AssertPo(pfil, 0);
-    return pfil;
+    const auto host = _OpsHost();
+    return static_cast<PFileObject>(mm_file_ops_create(&host, pfni, grffil));
 }
 
 /***************************************************************************
@@ -164,22 +170,9 @@ PFileObject FileObject::PfilCreate(Filename *pfni, LegacyUlong grffil)
 PFileObject FileObject::PfilCreateTemp(Filename *pfni)
 {
     AssertNilOrPo(pfni, ffniFile);
-    Filename fni;
-
-    if (pvNil != pfni)
-    {
-        fni = *pfni;
-        if (!fni.FGetUnique(pfni->Ftg()))
-            goto LFail;
-    }
-    else if (!fni.FGetTemp())
-    {
-    LFail:
-        PushErc(ercFileCreate);
-        return pvNil;
-    }
-
-    return PfilCreate(&fni, ffilTemp | ffilWriteEnable | ffilDenyWrite);
+    Filename scratch;
+    const auto host = _OpsHost();
+    return static_cast<PFileObject>(mm_file_ops_temp(&host, pfni, &scratch));
 }
 
 /***************************************************************************
@@ -188,23 +181,8 @@ PFileObject FileObject::PfilCreateTemp(Filename *pfni)
 ***************************************************************************/
 PFileObject FileObject::PfilFromFni(Filename *pfni)
 {
-    AssertPo(pfni, ffniFile);
-    PFileObject pfil;
-    bool fRet;
-
-    _mutxList.Enter();
-    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
-    {
-        AssertPo(pfil, 0);
-        pfil->_mutx.Enter();
-        fRet = pfni->FEqual(&pfil->_fni);
-        pfil->_mutx.Leave();
-        if (fRet)
-            break;
-    }
-    _mutxList.Leave();
-
-    return pfil;
+    const auto host = _OpsHost();
+    return static_cast<PFileObject>(mm_file_ops_find(&host, pfni));
 }
 
 /***************************************************************************
@@ -259,25 +237,8 @@ void FileObject::SetTemp(bool fTemp)
 bool FileObject::FSetFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
-    PFileObject pfilOld;
-
-    if (pvNil != (pfilOld = FileObject::PfilFromFni(pfni)))
-    {
-        if (this == pfilOld)
-            return fTrue;
-
-        if (!FSwapNames(pfilOld))
-            return fFalse;
-
-        pfilOld->SetTemp(fTrue);
-        return fTrue;
-    }
-
-    // delete any existing file with this name, then rename our
-    // file to the given name
-    if (pfni->TExists() != tNo)
-        pfni->FDelete();
-    return FRename(pfni);
+    const auto host = _OpsHost();
+    return mm_file_ops_set_name(&host, this, pfni) != 0;
 }
 
 /***************************************************************************
@@ -285,15 +246,8 @@ bool FileObject::FSetFni(Filename *pfni)
 ***************************************************************************/
 void FileObject::ClearMarks(void)
 {
-    PFileObject pfil;
-
-    _mutxList.Enter();
-    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
-    {
-        AssertPo(pfil, 0);
-        pfil->FSetGrffil(ffilNil, ffilMark);
-    }
-    _mutxList.Leave();
+    const auto host = _OpsHost();
+    mm_file_ops_clear_marks(&host);
 }
 
 /***************************************************************************
@@ -301,17 +255,8 @@ void FileObject::ClearMarks(void)
 ***************************************************************************/
 void FileObject::CloseUnmarked(void)
 {
-    PFileObject pfil, pfilNext;
-
-    _mutxList.Enter();
-    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfilNext)
-    {
-        AssertPo(pfil, 0);
-        pfilNext = pfil->PfilNext();
-        if (!(pfil->_file.flags & ffilMark) && pfil->_references.count == 0)
-            delete pfil;
-    }
-    _mutxList.Leave();
+    const auto host = _OpsHost();
+    mm_file_ops_close_unmarked(&host);
 }
 
 /***************************************************************************
@@ -319,15 +264,8 @@ void FileObject::CloseUnmarked(void)
 ***************************************************************************/
 void FileObject::ShutDown(void)
 {
-    PFileObject pfil;
-
-    _mutxList.Enter();
-    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
-    {
-        AssertPo(pfil, 0);
-        pfil->_Close(fTrue);
-    }
-    _mutxList.Leave();
+    const auto host = _OpsHost();
+    mm_file_ops_shutdown(&host);
 }
 
 #ifdef DEBUG
@@ -336,23 +274,13 @@ void FileObject::ShutDown(void)
 ***************************************************************************/
 void FileObject::AssertValid(LegacyUlong grf)
 {
-    PFileObject pfil;
-
     FileObject_PAR::AssertValid(fobjAllocated);
-
     _mutx.Enter();
     AssertPo(&_fni, ffniFile);
     _mutx.Leave();
-
-    _mutxList.Enter();
-    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
-    {
-        if (pfil == this)
-            break;
-    }
-    _mutxList.Leave();
-
-    Assert(this == pfil, "not in file list");
+    const auto host = _OpsHost();
+    const bool found = mm_file_ops_contains(&host, this) != 0;
+    Assert(found, "not in file list");
 }
 #endif // DEBUG
 

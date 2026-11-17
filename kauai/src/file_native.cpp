@@ -133,72 +133,9 @@ bool FileObject::FSwapNames(PFileObject pfil)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
-    Filename fni;
-    Filename fniT;
-    bool fRet = fFalse;
-
-    if (this == pfil)
-    {
-        Bug("Why are you calling FSwapNames on the same file?");
-        return fTrue;
-    }
-
-    _mutx.Enter();
-    pfil->_mutx.Enter();
-
-    Assert(_fni.FSameDir(&pfil->_fni), "trying to change directories with FSwapNames");
-
-    fni = pfil->_fni;
-    if (!fni.FGetUnique(fni.Ftg()))
-        goto LRet;
-
-    _Close();
-    pfil->_Close();
-
-    if (!_fni.FRename(&fni))
-        goto LFail;
-    if (!pfil->_fni.FRename(&_fni))
-        goto LRenameFail;
-    if (!fni.FRename(&pfil->_fni))
-    {
-        if (!_fni.FRename(&pfil->_fni))
-        {
-            Bug("rename failure");
-            pfil->_fni = _fni;
-            _fni = fni;
-            goto LFail;
-        }
-
-    LRenameFail:
-        if (!fni.FRename(&_fni))
-        {
-            Bug("rename failure");
-            _fni = fni;
-        }
-        goto LFail;
-    }
-
-    fni = _fni;
-    _fni = pfil->_fni;
-    pfil->_fni = fni;
-    fRet = fTrue;
-
-LFail:
-    // reopen the files
-    _FOpen(fFalse, _file.flags);
-    pfil->_FOpen(fFalse, pfil->_file.flags);
-
-LRet:
-    _mutx.Leave();
-    pfil->_mutx.Leave();
-
-    if (!fRet)
-        PushErc(ercFileSwapNames);
-
-    AssertThis(0);
-    AssertPo(pfil, 0);
-
-    return fRet;
+    Filename scratch, unused;
+    const auto host = _OpsHost();
+    return mm_file_ops_swap(&host, this, pfil, &scratch) != 0;
 }
 
 /***************************************************************************
@@ -209,26 +146,7 @@ bool FileObject::FRename(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniFile);
-    Filename fni;
-    bool fRet = fFalse;
-
-    _mutx.Enter();
-
-    Assert(_fni.FSameDir(pfni), "trying to change directories with FRename");
-
-    _Close();
-    if (fRet = _fni.FRename(pfni))
-        _fni = *pfni;
-
-    // reopen the file
-    if (!_FOpen(fFalse, _file.flags))
-        fRet = fFalse;
-
-    _mutx.Leave();
-
-    if (!fRet)
-        PushErc(ercFileRename);
-
-    AssertThis(0);
-    return fRet;
+    Filename unused;
+    const auto host = _OpsHost();
+    return mm_file_ops_rename(&host, this, pfni) != 0;
 }

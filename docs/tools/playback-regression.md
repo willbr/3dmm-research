@@ -11776,3 +11776,85 @@ Evidence: `tmp/c89-file-owner-before-{native,sdl-release,sdl-debug}.bin`,
 `tmp/c89-file-owner-regular-tests.log`,
 `tmp/c89-file-owner-trace-comparison.json` and
 `tmp/c89-file-owner-identities.json`.
+
+### Shared C file factories, registries and name transactions (17 November 2026)
+
+`file_ops.c` now controls cached open/reuse, fresh and temporary creation,
+registry lookup/membership and mark/zero-reference/shutdown scans. It calls the
+preceding C file-owner controller for permission recovery, opening and closing.
+Explicit contexts bind registry and primitive providers. The temporary native
+facade still supplies the process registry, typed allocation/constructors/
+destructors, Filename storage and name/path primitives. Both hosts share C policy;
+this is not a claim that FileObject's complete dependency closure is C-only.
+
+C also controls rename, name swap/recovery and replacement. It retains native
+validation, recursive lock and publication order: enter a then b, leave a then b,
+then report the transaction error and validate owners. Unique-name failure does
+not close handles. Physical moves leave logical names untouched until explicit
+publication. Failed recovery publishes surviving physical locations before
+reopening. Swap ignores reopen failures, while rename reports them. Replacement
+marks the displaced owner temporary only after swap succeeds. Nonmissing/unknown
+destination status triggers deletion whose result is ignored before rename.
+Sticky marking remains unchanged.
+
+At revision `e8762218`, the new `file-ops-runtime` fixture captured existing
+behavior in Native, SDL Debug and SDL Release. It covers factory reuse/reference
+counts, duplicate creation, missing-file open, real rename rejection, self-swap,
+content-preserving swaps and replacement, closed-file replacement, temp factories,
+registry order, shutdown/reopen and Debug allocation injection. Error callbacks
+record logical registry entries at publication. `file-ops-expensive` overrides
+the file facades with expensive validation against the shared core. Both profiles
+match their host's original normal capture. Release omits Debug diagnostics and
+allocation-injection cases. Captures use logical names/contents and counters,
+excluding raw paths/addresses, implementation lines and private physical sizes.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, both profiles | 1,448 | `860BB78D` | `EA73479DC9B5608E7CFE9ECBE47A4F0C927011D856E5D1A5DE1F4C43525CF1FA` |
+| SDL Release, both profiles | 736 | `6361A03D` | `607CD5AEFB52D01739140998F6D33C4516979D465CA5018179027A211363EDCF` |
+
+`engine-file-ops` links only C, with independent registries, C file/reference/link
+records and a physical name/content model. It tests all 32 failure combinations
+across three swap moves and two recovery legs, surviving-content/name invariants,
+cached permission failures without extra open errors, construct/open failures,
+temporary naming and exclusive-create failures, rename/reopen failures, replacement
+and ignored deletion failure, directory diagnostics, lock/validation order and
+sticky marks. Destroy poisons owner state; cleanup must save next and avoid
+accessing destroyed owners. Swap success despite failed reopens is explicitly
+frozen. The suite passes MSVC AddressSanitizer.
+
+The wider gate passes 229 Native checks, 224 SDL Release checks, 225 SDL Debug
+checks and all 154 standalone checks, including strict C89 syntax: 832 of 833
+selected checks pass. The sole declared skip is the existing SDL Release
+`world-export` Debug fixture. All 165 retained file-owner/list/handle/memory/
+object/error/string/text/cache/template/body/undo/Help/Preview trace pairs and
+all six file-operations pairs match. All ten input identities are unchanged;
+identities for 150 binaries are recorded. Windows text settings remain ACP 1252,
+OEMCP 437 and locale `en-GB`/2057.
+
+The regular headless asset-preview harness passes. Backgrounds retain 301,996,032
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. Native
+`chelp` and `ched` compile. Marcus was stopped for rebuilding and resource
+regeneration, then relaunched. Tests use private temporary directories. These
+results establish correctness preservation, not playback timing equivalence.
+
+Callbacks are synchronous and cannot unwind, mutate unrelated owners/links or
+delete owners outside designated destruction. Tokens, scratch names and provider
+contexts remain live; scratch must not alias owner/input names. Locks are
+recursive and callers serialize competing transactions. Callback effects are
+limited to designated allocation/copy/physical operations. The C fault model
+does not prove arbitrary native disk, rename or rollback failure equivalence.
+Actual native exhaustion, cross-volume operations, unsynchronized mutation,
+invalid lifetimes, arbitrary overrides and other platforms remain unverified.
+Native object construction/destruction, default registry binding, Filename/path
+representation and services, virtual dispatch and final C-only host/facade
+integration remain conversion work. No Marcus UI tests or new retail captures
+were added; retained retail captures remain the playback reference. This does
+not complete the backend migration.
+
+Evidence: `tmp/c89-file-ops-before-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-file-ops-after-{expensive-,}{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-file-ops-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-file-ops-standalone-tests.log`, `tmp/c89-file-ops-asan.log`,
+`tmp/c89-file-ops-regular-tests.log`, `tmp/c89-file-ops-trace-comparison.json` and
+`tmp/c89-file-ops-identities.json`.

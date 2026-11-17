@@ -19,6 +19,7 @@
 #include "mm/block_io.h"
 #include "mm/block_owner.h"
 #include "mm/file_owner.h"
+#include "mm/file_ops.h"
 
 /****************************************
     Byte order issues
@@ -85,6 +86,7 @@ class FileObject : public FileObject_PAR
     void _Close(bool fFinal = fFalse);
     void _SetFpPos(FilePosition fp);
     MMFileOwnerHost _OwnerHost();
+    static MMFileOpsHost _OpsHost();
 
   public:
     // public static members

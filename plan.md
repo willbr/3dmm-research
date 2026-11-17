@@ -406,8 +406,11 @@ C-owned intrusive links and shares attach/detach/validation policy; FileObject's
 registry uses a C node head with typed owner accessors. FileObject's persistent
 handle/open/flags/error state, permission recovery, close/temp deletion and
 seek/read/write/resize/size/flush policy now also use C89, with native file,
-recursive mutex and diagnostic providers. File/name creation/registry coordination,
-rename/swap control, virtual destruction and final facade removal remain work.
+recursive mutex and diagnostic providers. File factory reuse/create/temp policy,
+registry lookup/cleanup/membership, rename/swap recovery and replacement policy
+now also use C89. Native object allocation/constructors/destructors, the default
+registry binding, Filename representation/services, virtual destruction and final
+facade removal remain work.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/
