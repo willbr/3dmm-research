@@ -12979,6 +12979,42 @@ Both hosts built successfully and Marcus was relaunched.
 
 Capture logs, build identities and test results are under `tmp/c89-live-camera/`.
 
+### Shared C89 actor seek driver (17 November 2026)
+
+Studio, Marcus and the standalone movie session now run actor seeks through
+`mm_actor_seek_run`. The driver advances the seek state and delivers one
+effect at a time. Studio's callbacks publish the C state into the live actor
+before applying body, costume and audio effects and bring the resulting state
+back to the driver. Marcus and the standalone session use the Preview actor
+effect adapter. The Studio C++ seek wrapper is removed.
+
+Repeated and reversed seeks in `actor-events` and `scrolling-text` produced
+228 host observations and 180 sampled viewport hashes. Both hosts matched
+their pre-change results. Studio matched 456 actor records from fresh retail
+seeks for action, cel, stage visibility, event cursor, template and fixed-point
+root and part matrices. Original v3dmm agreed on those fields in stock VMM
+envelopes. The standalone session matched 456 actor identities and visibility
+records, including 453 on-stage action, cel, event and route positions.
+
+Normal playback of `actor-events`, `dissolve` and `scrolling-text` reproduced
+the retained retail frame order and final position at 180 commits per host.
+The six `sampled-audio` captures each completed all 60 frames. Studio matched
+retail's four sound requests in both repetitions. PCM16 peaks remained 2380
+in retail and 2176 in each host. Exact PCM and timing comparisons were
+inconclusive because the two retail captures differed. The Marcus capture
+API supplies mixed output and frame commits, with no sound-request trace.
+
+The native core fixture reproduced all 26,564 bytes of its actor seek
+command/state trace. The C fixture distinguishes a frame failure that allows
+later frames to run from a negative effect or a sticky provider fault. All
+181 standalone and 16 host checks passed, including `engine-core-link`,
+`marcus-playback`, `marcus-storyboard`, `archive-api` and `movie-save-load`.
+The changed C files also compiled under strict C89 for Linux x64 musl.
+SDL Studio and Marcus rebuilt successfully and Marcus was relaunched.
+
+Capture logs, input and build hashes, test results and the sampled-audio
+database are under `tmp/c89-live-actor/`.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

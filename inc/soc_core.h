@@ -25,7 +25,6 @@
 #include "actor_pose.h"
 #include "actor_frame.h"
 #include "actor_timeline.h"
-#include "actor_seek.h"
 #include "text_box_data.h"
 #include "sound_queue.h"
 #include "movie_playback.h"

@@ -152,3 +152,30 @@ int mm_actor_seek_complete(MMActorSeek *q, MMActorState *state, int success)
     }
     return 1;
 }
+
+int mm_actor_seek_run(MMActorState *state, void *route, void *events, MMI32 first, MMI32 last, MMI32 target,
+                      const MMActorTimelineServices *timeline, const MMActorSeekEffects *effects)
+{
+    MMActorSeek seek;
+    MMActorSeekCommand command;
+    int advanced, result;
+    mm_actor_seek_init(&seek, first, last, target);
+    for (;;)
+    {
+        advanced = mm_actor_seek_next(&seek, state, route, events, &command, timeline);
+        if (effects->fault)
+        {
+            result = effects->fault(effects->context);
+            if (result)
+                return result;
+        }
+        if (!advanced)
+            return 0;
+        if (command.kind == MM_ACTOR_SEEK_FINISHED)
+            return seek.success;
+        result = effects->apply(effects->context, &command, state);
+        if (result < 0)
+            return result;
+        mm_actor_seek_complete(&seek, state, result);
+    }
+}

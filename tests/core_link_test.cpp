@@ -17,6 +17,7 @@
 #include "stream.h"
 #include "codec.h"
 #if defined(TEST_ENGINE_CORE)
+#include "../src/engine/engine_actor_timeline.h"
 #include "actor_frame_fixture.h"
 #include "mm/actor_motion.h"
 #include "mm/actor_pose.h"
@@ -3327,7 +3328,7 @@ static void TestActorTimeline()
 
 struct SeekTrace
 {
-    ActorSeekCommand commands[128];
+    MMActorSeekCommand commands[128];
     LegacyLong frames[128];
     LegacyLong count = 0;
     LegacyLong failFrame = knfrmInvalid;
@@ -3343,37 +3344,48 @@ static bool RunCoreSeek(ActorFrameState &state, ActorTrack &track, LegacyLong fi
     if (!actorSeekSnapshot) if (const char *path=std::getenv("MM_ACTOR_SEEK_SNAPSHOT")) { actorSeekSnapshot=std::fopen(path,"wb"); Check(actorSeekSnapshot); }
     auto record=[&](const void *p,size_t n) { RecordActorTimelineBytes(actorSeekSnapshot,p,n); };
     LegacyLong inputs[]={201,first,last,target}; record(inputs,sizeof(inputs)); RecordActorFrameState(state,actorSeekSnapshot);
-    ActorSeekEvaluator evaluator(state, track, first, last, target, steps);
+    MMActorSeek seek;
+    mm_actor_seek_init(&seek, first, last, target);
+    EngineActorTimeline::Host host = {&steps, &state};
+    const auto timeline = EngineActorTimeline::Services(&host);
+    auto complete = [&](bool success) {
+        auto value = EngineActorMotion::Core(state);
+        Check(mm_actor_seek_complete(&seek, &value, success));
+        EngineActorMotion::Publish(state, value);
+    };
     bool dirty = false;
     for (;;)
     {
-        ActorSeekCommand command = evaluator.Next();
-        LegacyLong values[]={202,static_cast<LegacyLong>(command.kind),command.displayFrame,evaluator.Success()}; record(values,sizeof(values)); RecordActorFrameState(state,actorSeekSnapshot);
-        if (command.kind == ActorSeekCommandKind::Finished) {
+        auto value = EngineActorMotion::Core(state);
+        MMActorSeekCommand command;
+        Check(mm_actor_seek_next(&seek, &value, track.Route(), track.Events(), &command, &timeline));
+        EngineActorMotion::Publish(state, value);
+        LegacyLong values[]={202,command.kind,command.displayFrame,seek.success}; record(values,sizeof(values)); RecordActorFrameState(state,actorSeekSnapshot);
+        if (command.kind == MM_ACTOR_SEEK_FINISHED) {
             LegacyLong effects[]={trace.count,trace.recording,trace.ordinarySounds,trace.motionRegistrations}; record(effects,sizeof(effects));
-            return evaluator.Success();
+            return seek.success != 0;
         }
         Check(trace.count < 128);
         trace.commands[trace.count] = command;
         trace.frames[trace.count++] = state.frame;
         switch (command.kind)
         {
-        case ActorSeekCommandKind::Hide:
+        case MM_ACTOR_SEEK_HIDE:
             state.onStage = false;
-            evaluator.Complete(true);
+            complete(true);
             break;
-        case ActorSeekCommandKind::ResetCostume:
+        case MM_ACTOR_SEEK_RESET_COSTUME:
             trace.recording = false;
-            evaluator.Complete(false); // An unavailable costume reset remains best-effort.
+            complete(false); // An unavailable costume reset remains best-effort.
             break;
-        case ActorSeekCommandKind::ApplyQuickEffects: {
+        case MM_ACTOR_SEEK_QUICK_EFFECTS: {
             ActorPoseInputs inputs;
             BMAT34 matrix;
             ActorPoseEvaluator::Update(state, track, inputs, &state.position, &matrix);
-            evaluator.Complete(!trace.failQuickEffects);
+            complete(!trace.failQuickEffects);
             break;
         }
-        case ActorSeekCommandKind::EvaluateFrame: {
+        case MM_ACTOR_SEEK_FRAME: {
             ActorFrameInputs inputs;
             inputs.firstFrame = first;
             inputs.displayFrame = command.displayFrame;
@@ -3384,10 +3396,10 @@ static bool RunCoreSeek(ActorFrameState &state, ActorTrack &track, LegacyLong fi
             dirty = result.positionDirty && !result.positionBody;
             trace.ordinarySounds += frameTrace.ordinarySounds;
             trace.motionRegistrations += frameTrace.motionRegistrations;
-            evaluator.Complete(result.success && state.frame != trace.failFrame);
+            complete(result.success && state.frame != trace.failFrame);
             break;
         }
-        case ActorSeekCommandKind::Finished:
+        default:
             Check(false);
         }
     }
@@ -3430,8 +3442,8 @@ static void TestActorSeekControl()
     SeekTrace beforeFirst;
     beforeFirst.recording = true;
     Check(RunCoreSeek(seek, track, 1, 9, -5, ActorStepSource(), beforeFirst));
-    Check(beforeFirst.count == 2 && beforeFirst.commands[0].kind == ActorSeekCommandKind::Hide &&
-          beforeFirst.commands[1].kind == ActorSeekCommandKind::ResetCostume && !beforeFirst.recording &&
+    Check(beforeFirst.count == 2 && beforeFirst.commands[0].kind == MM_ACTOR_SEEK_HIDE &&
+          beforeFirst.commands[1].kind == MM_ACTOR_SEEK_RESET_COSTUME && !beforeFirst.recording &&
           !seek.onStage);
     Check(seek.frame == -5);
     SeekTrace beforeFirstForward;
@@ -3443,7 +3455,7 @@ static void TestActorSeekControl()
     SeekTrace emptyTrace;
     Check(RunCoreSeek(emptyState, empty, knfrmInvalid, knfrmInvalid, 5, ActorStepSource(), emptyTrace));
     Check(emptyState.frame == 5 && emptyTrace.count == 1 &&
-          emptyTrace.commands[0].kind == ActorSeekCommandKind::ResetCostume);
+          emptyTrace.commands[0].kind == MM_ACTOR_SEEK_RESET_COSTUME);
 
     seek = ActorFrameState();
     SeekTrace failedFrame;
@@ -3459,7 +3471,7 @@ static void TestActorSeekControl()
     SeekTrace rewind;
     rewind.recording = true;
     Check(RunCoreSeek(seek, track, 1, 9, 3, ActorStepSource(), rewind));
-    Check(!rewind.recording && rewind.commands[0].kind == ActorSeekCommandKind::ResetCostume);
+    Check(!rewind.recording && rewind.commands[0].kind == MM_ACTOR_SEEK_RESET_COSTUME);
     Check(ActorFrameTest::SameState(seek, expected[3]));
 
     ActorTrack straight;
@@ -3484,7 +3496,7 @@ static void TestActorSeekControl()
     seek = quickStart;
     SeekTrace quick;
     Check(RunCoreSeek(seek, straight, 1, 20, 8, ActorStepSource(), quick));
-    Check(quick.count == 1 && quick.commands[0].kind == ActorSeekCommandKind::ApplyQuickEffects && seek.frame == 8);
+    Check(quick.count == 1 && quick.commands[0].kind == MM_ACTOR_SEEK_QUICK_EFFECTS && seek.frame == 8);
     seek = quickStart;
     SeekTrace failedQuick;
     failedQuick.failQuickEffects = true;
@@ -3520,8 +3532,8 @@ static void TestActorSeekControl()
     seek.nextEvent = 2;
     SeekTrace fallback;
     Check(RunCoreSeek(seek, vertical, 1, 20, 3, ActorStepSource(), fallback));
-    Check(fallback.count == 4 && fallback.commands[0].kind == ActorSeekCommandKind::ResetCostume &&
-          fallback.commands[1].kind == ActorSeekCommandKind::EvaluateFrame && fallback.commands[3].displayFrame);
+    Check(fallback.count == 4 && fallback.commands[0].kind == MM_ACTOR_SEEK_RESET_COSTUME &&
+          fallback.commands[1].kind == MM_ACTOR_SEEK_FRAME && fallback.commands[3].displayFrame);
     Check(seek.frame == 3 && seek.position.dxr == rZero && seek.position.dyr == BR_SCALAR(4));
 }
 

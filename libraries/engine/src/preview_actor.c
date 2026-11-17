@@ -358,47 +358,56 @@ static int evaluate(MMPreviewActor *p, int display, const MMPreviewActorServices
                ? 1
                : mm_preview_actor_position(p, frame.result.selectCel, s);
 }
+typedef struct PreviewActorSeek
+{
+    MMPreviewActor *actor;
+    const MMPreviewActorServices *services;
+} PreviewActorSeek;
+
+static int seek_fault(void *context)
+{
+    const PreviewActorSeek *host = (const PreviewActorSeek *)context;
+    return host->services->fault(host->services->context);
+}
+
+static int seek_effect(void *context, const MMActorSeekCommand *command, MMActorState *state)
+{
+    const PreviewActorSeek *host = (const PreviewActorSeek *)context;
+    MMPreviewActor *p = host->actor;
+    const MMPreviewActorServices *s = host->services;
+    switch (command->kind)
+    {
+    case MM_ACTOR_SEEK_HIDE:
+        state->onStage = 0;
+        return 1;
+    case MM_ACTOR_SEEK_RESET_COSTUME:
+        p->orientation_reset = 1;
+        s->clear_motion(s->context);
+        return s->default_costume(s->context, p->tmpl, p->body);
+    case MM_ACTOR_SEEK_QUICK_EFFECTS:
+        return mm_preview_actor_position(p, 1, s);
+    case MM_ACTOR_SEEK_FRAME:
+        return evaluate(p, command->displayFrame, s);
+    default:
+        return 0;
+    }
+}
+
 int mm_preview_actor_seek(MMPreviewActor *p, MMI32 target, const MMPreviewActorServices *s)
 {
-    MMActorSeek seek;
-    MMActorSeekCommand command;
-    int r;
+    PreviewActorSeek host;
+    MMActorSeekEffects effects;
     if (target != p->state.frame)
         s->clear_cues(s->context);
     if (p->inactive)
         return 1;
     if ((double)target - p->header.first_frame > 100000)
         return 0;
-    mm_actor_seek_init(&seek, p->header.first_frame, p->header.last_frame, target);
-    for (;;)
-    {
-        r = mm_actor_seek_next(&seek, &p->state, p->route, p->events, &command, &s->timeline);
-        if (s->fault(s->context))
-            return s->fault(s->context);
-        if (!r)
-            return 0;
-        switch (command.kind)
-        {
-        case MM_ACTOR_SEEK_HIDE:
-            p->state.onStage = 0;
-            r = 1;
-            break;
-        case MM_ACTOR_SEEK_RESET_COSTUME:
-            p->orientation_reset = 1;
-            s->clear_motion(s->context);
-            r = s->default_costume(s->context, p->tmpl, p->body);
-            break;
-        case MM_ACTOR_SEEK_QUICK_EFFECTS:
-            r = mm_preview_actor_position(p, 1, s);
-            break;
-        case MM_ACTOR_SEEK_FRAME:
-            r = evaluate(p, command.displayFrame, s);
-            break;
-        default:
-            return seek.success;
-        }
-        if (r < 0)
-            return r;
-        mm_actor_seek_complete(&seek, &p->state, r);
-    }
+    host.actor = p;
+    host.services = s;
+    effects.context = &host;
+    effects.apply = seek_effect;
+    effects.fault = seek_fault;
+    return mm_actor_seek_run(&p->state, p->route, p->events, p->header.first_frame, p->header.last_frame, target,
+                             &s->timeline, &effects);
 }

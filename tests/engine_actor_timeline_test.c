@@ -457,12 +457,69 @@ static void seek_quick_and_rewind(void)
     next(&q, &state, &t, &s, MM_ACTOR_SEEK_FINISHED, 0);
     CHECK(q.success);
 }
+typedef struct SeekEffects
+{
+    int calls, terminal, fault;
+} SeekEffects;
+
+static int apply_seek(void *context, const MMActorSeekCommand *command, MMActorState *state)
+{
+    SeekEffects *effects = (SeekEffects *)context;
+    ++effects->calls;
+    if (effects->calls == 1)
+    {
+        CHECK(command->kind == MM_ACTOR_SEEK_RESET_COSTUME && state->frame == 1);
+        return 0;
+    }
+    CHECK(command->kind == MM_ACTOR_SEEK_FRAME && state->frame == effects->calls - 1);
+    CHECK(command->displayFrame == (state->frame == 3));
+    if (state->frame == 1)
+        state->nextEvent = 1;
+    else
+        CHECK(state->firstEventInFrame == 1);
+    return state->frame == 2 ? effects->terminal : 1;
+}
+
+static int seek_fault(void *context)
+{
+    return ((SeekEffects *)context)->fault;
+}
+
+static void seek_effects(void)
+{
+    Tables t;
+    MMActorState state;
+    MMActorTimelineServices timeline;
+    MMActorSeekEffects hooks;
+    SeekEffects effects = {0, 0, 0};
+    init(&t);
+    row(&t, 0, MM_ACTOR_ADD, 1, 0, 0, 0, NULL, 0);
+    timeline = services(&t);
+    hooks.context = &effects;
+    hooks.apply = apply_seek;
+    hooks.fault = seek_fault;
+
+    mm_actor_state_init(&state);
+    CHECK(mm_actor_seek_run(&state, &t, &t, 1, 9, 3, &timeline, &hooks) == 0);
+    CHECK(effects.calls == 4 && state.frame == 3);
+    mm_actor_state_init(&state);
+    effects.calls = 0;
+    effects.terminal = -2;
+    CHECK(mm_actor_seek_run(&state, &t, &t, 1, 9, 3, &timeline, &hooks) == -2);
+    CHECK(effects.calls == 3 && state.frame == 2);
+    effects.calls = 0;
+    effects.fault = -1;
+    CHECK(mm_actor_seek_run(&state, &t, &t, 1, 9, 2, &timeline, &hooks) == -1);
+    CHECK(!effects.calls && state.frame == 2);
+}
+
 int main(void)
 {
     steps_and_lifetime();
     backwards();
     seek_protocol_and_forward();
     seek_quick_and_rewind();
+    seek_effects();
     puts("actor timeline and seek passed");
     return 0;
 }

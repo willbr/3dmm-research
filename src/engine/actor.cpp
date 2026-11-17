@@ -292,44 +292,60 @@ void Actor::_SetStateRewound(void)
 bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
-    bool positionDirty = false;
-    ActorSeekEvaluator evaluator(_state, _track, _nfrmFirst, _nfrmLast, nfrm, _StepSource());
-    for (;;)
+    AssertIn(nfrm, klwMin, klwMax);
+    struct Host
     {
-        ActorSeekCommand command = evaluator.Next();
-        switch (command.kind)
-        {
-        case ActorSeekCommandKind::Hide:
-            _Hide();
-            evaluator.Complete(true);
-            break;
-        case ActorSeekCommandKind::ResetCostume:
-            _fModeRecord = false;
-            _ptmpl->FSetDefaultCost(_pbody); // Preserve best-effort reset.
-            evaluator.Complete(true);
-            break;
-        case ActorSeekCommandKind::ApplyQuickEffects:
-            evaluator.Complete(_FApplyQuickSeekEffects());
-            break;
-        case ActorSeekCommandKind::EvaluateFrame:
-            evaluator.Complete(_FDoFrm(command.displayFrame, &positionDirty, pfSoundInFrame));
-            break;
-        case ActorSeekCommandKind::Finished:
-#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
-            if (!evaluator.Success())
+        Actor *actor;
+        bool positionDirty;
+        bool *soundInFrame;
+    } host = {this, false, pfSoundInFrame};
+    const MMActorSeekEffects effects = {
+        &host,
+        [](void *context, const MMActorSeekCommand *command, MMActorState *state) -> int {
+            auto &h = *static_cast<Host *>(context);
+            auto &actor = *h.actor;
+            bool ok = true;
+            EngineActorMotion::Publish(actor._state, *state);
+            switch (command->kind)
             {
-                const auto batch = std::getenv("THREEDMM_BATCH_TEST");
-                if (batch && std::strcmp(batch, "1") == 0)
-                    std::fprintf(stderr, "BATCH_ACTOR_FRAME_FAILED actor=%ld frame=%ld action=%ld cel=%ld event=%ld "
-                                         "template_sid=%ld template_cno=%08lx\n",
-                                 _arid, nfrm, static_cast<long>(_state.action), static_cast<long>(_state.cel),
-                                 static_cast<long>(_state.nextEvent), static_cast<long>(_tagTmpl.sid),
-                                 static_cast<unsigned long>(_tagTmpl.cno));
+            case MM_ACTOR_SEEK_HIDE:
+                actor._Hide();
+                break;
+            case MM_ACTOR_SEEK_RESET_COSTUME:
+                actor._fModeRecord = false;
+                ok = actor._ptmpl->FSetDefaultCost(actor._pbody);
+                break;
+            case MM_ACTOR_SEEK_QUICK_EFFECTS:
+                ok = actor._FApplyQuickSeekEffects();
+                break;
+            case MM_ACTOR_SEEK_FRAME:
+                ok = actor._FDoFrm(command->displayFrame != 0, &h.positionDirty, h.soundInFrame);
+                break;
             }
-#endif
-            return evaluator.Success();
-        }
+            *state = EngineActorMotion::Core(actor._state);
+            return ok;
+        },
+        nullptr};
+    const auto steps = _StepSource();
+    EngineActorTimeline::Host timelineHost = {&steps, &_state};
+    const auto timeline = EngineActorTimeline::Services(&timelineHost);
+    auto value = EngineActorMotion::Core(_state);
+    const bool success = mm_actor_seek_run(&value, _track.Route(), _track.Events(), _nfrmFirst, _nfrmLast, nfrm,
+                                           &timeline, &effects) > 0;
+    EngineActorMotion::Publish(_state, value);
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    if (!success)
+    {
+        const auto batch = std::getenv("THREEDMM_BATCH_TEST");
+        if (batch && std::strcmp(batch, "1") == 0)
+            std::fprintf(stderr, "BATCH_ACTOR_FRAME_FAILED actor=%ld frame=%ld action=%ld cel=%ld event=%ld "
+                                 "template_sid=%ld template_cno=%08lx\n",
+                         _arid, nfrm, static_cast<long>(_state.action), static_cast<long>(_state.cel),
+                         static_cast<long>(_state.nextEvent), static_cast<long>(_tagTmpl.sid),
+                         static_cast<unsigned long>(_tagTmpl.cno));
     }
+#endif
+    return success;
 }
 
 /***************************************************************************

@@ -58,6 +58,10 @@ C route and event tables and replays the existing actor evaluator from a fresh
 state. The query uses action tables from the resolved template or the shared
 3D text action metadata. Its outputs include route position, action, cel and
 fixed-point root pose. The query does not create body, costume or audio objects.
+Studio and `mm_preview_actor_seek`, which serves Marcus and the standalone
+session, both run `mm_actor_seek_run` from `mm/actor_timeline.h`. The C driver
+owns command delivery and failure accumulation. The effect adapters update
+their live state, costume, pose and sound as each command runs.
 `mm-movie-content` supplies a C resolver for either query. It reads the movie's
 source-name table, resolves its aliases through the existing content VFS and
 searches mounted `.3cn` archives by exact chunk type and number. Archive
@@ -6617,10 +6621,10 @@ vertical fallback and beyond-lifetime behavior. Runtime gates use real action
 metadata to verify failed calculation/retry, evaluated-state preservation and
 recording deferral, alongside the existing full-field seek comparisons.
 
-`ActorSeekEvaluator` now owns outer actor seek policy: same-frame no-op,
-entrance-checkpoint rewind, quick backup/fallback, intermediate/final frame
-selection and accumulated evaluation failure. It emits Hide, ResetCostume,
-ApplyQuickEffects and EvaluateFrame commands. The runtime adapter clears
+`mm_actor_seek_run` drives the C89 actor seek protocol for Studio and Preview.
+It handles same-frame seeks, entrance checkpoint rewind, quick backup and
+fallback, intermediate and final frames, and accumulated evaluation failures.
+The Studio adapter clears
 recording on reset, preserves best-effort costume restoration, applies quick
 sound/body/cel effects and shares one dirty accumulator across frame commands.
 Core holds no application, body or audio ownership. Quick-effect failures stop;

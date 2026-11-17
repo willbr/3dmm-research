@@ -1185,7 +1185,6 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/actor_pose.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actor_frame.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actor_timeline.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actor_seek.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/text_box_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/sound_queue.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie_playback.cpp"

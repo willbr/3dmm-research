@@ -78,6 +78,21 @@ extern "C"
     int mm_actor_seek_next(MMActorSeek *, MMActorState *, void *route, void *events,
                                  MMActorSeekCommand *, const MMActorTimelineServices *);
     int mm_actor_seek_complete(MMActorSeek *, MMActorState *, int success);
+    typedef struct MMActorSeekEffects
+    {
+        void *context;
+        int (*apply)(void *, const MMActorSeekCommand *, MMActorState *);
+        int (*fault)(void *);
+    } MMActorSeekEffects;
+    /* Run the seek protocol over the live state. apply returns success (1),
+     * ordinary failure (0), or a negative terminal error. Hide and costume
+     * reset are best-effort on ordinary failure; frame failures are accumulated
+     * while later frames still run. An optional sticky fault is checked after
+     * each state transition, including one that finishes without an effect.
+     * Effects are synchronous and may update state and event frame caches.
+     * They must not reenter the seek or change the table structure. */
+    int mm_actor_seek_run(MMActorState *, void *route, void *events, MMI32 first, MMI32 last, MMI32 target,
+                          const MMActorTimelineServices *, const MMActorSeekEffects *);
 #ifdef __cplusplus
 }
 #endif
