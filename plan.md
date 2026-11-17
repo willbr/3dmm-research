@@ -434,7 +434,9 @@ Keep host presentation and device output outside the session.
 1. Start with the C movie session's file-backed open and close. Exercise the
    real native stream, chunky index, MVIE root and scene lookup from a C-only
    standalone consumer. Compare root/scene selection and open failures with
-   the existing callers.
+   the existing callers. `engine-native-chunky` now verifies native file reads
+   through the shared index and bounded payload stream on retail content. The
+   session still needs to own the archive and perform root and scene lookup.
 2. Extend the session to resolve movie and retail content resources and seek
    to an authored frame. Cover actor and camera state, repeat seeks and the
    applicable missing-content behavior with real files. Document which

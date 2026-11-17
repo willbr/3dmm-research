@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_NATIVE_FILES_H
 #define MM_ENGINE_NATIVE_FILES_H
-#include "types.h"
+#include "read_stream.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +53,11 @@ int mm_native_file_resize(void *, MMU32);
 int mm_native_file_size(void *, MMU32 *);
 int mm_native_file_read(void *, void *, MMU32);
 int mm_native_file_write(void *, const void *, MMU32);
+/* Snapshot the length of a borrowed open file and expose exact positional
+ * reads via mm_read_exact. The handle must outlive the stream. Reads change the
+ * native file position, so serialize access to the handle. Output is unchanged
+ * on failure. */
+int mm_native_file_read_stream(void *file, MMReadStream *stream);
 int mm_native_path_info(const MMNativePathChar *, MMNativePathInfo *);
 int mm_native_path_delete(const MMNativePathChar *);
 int mm_native_path_rename(const MMNativePathChar *, const MMNativePathChar *);

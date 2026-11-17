@@ -7,6 +7,12 @@ the C89 `mm/native_files.h` component, with `platform_files_bridge.cpp` adapting
 existing C++ callers. The C interface also has no SDK types; its implementation
 contains the Win32/shell or POSIX OS calls.
 
+`mm_native_file_read_stream` exposes a borrowed native handle as an
+`MMReadStream` for the shared chunky reader. The stream snapshots the file
+length at initialization. Each exact read seeks on the handle, so the caller
+keeps it open and serializes access. `engine-native-chunky` exercises this path
+with the original `bkgds.3cn` using a C-only executable.
+
 `file_native.cpp` and `filename.cpp` adapt the shared C89 file-owner, file-factory,
 filename and enumeration controllers. They retain native object/default-context
 integration. Filename's type and counted path now use the plain C
