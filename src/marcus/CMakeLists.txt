@@ -158,6 +158,9 @@ if(BUILD_TESTING)
   add_test(NAME marcus-content COMMAND marcus-content-test "${PROJECT_SOURCE_DIR}/tmp/marcus-content")
   set_tests_properties(marcus-content PROPERTIES TIMEOUT 30)
   find_program(MARCUS_C89_COMPILER NAMES clang gcc)
+  if(REQUIRE_C89_CHECKS AND NOT MARCUS_C89_COMPILER)
+    message(FATAL_ERROR "Strict Marcus C89 checks require clang or gcc. Set MARCUS_C89_COMPILER to the compiler path.")
+  endif()
   if(MARCUS_C89_COMPILER)
     add_test(NAME marcus-c89 COMMAND ${CMAKE_COMMAND}
       "-DCOMPILER=${MARCUS_C89_COMPILER}"

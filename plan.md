@@ -55,19 +55,17 @@ priority over the older Project 0-4 ordering wherever they conflict.
 
 ## Shared C89 engine migration
 
-### Current status (14 November 2026)
+### Current status (17 November 2026)
 
 - The shared content VFS core, `libraries/content/src/content_vfs.c`, is C89;
   `content_vfs.cpp` remains a C++ adapter. Reuse the existing core.
 - Marcus has C89 application sources and a C API in `src/marcus/player.h`,
   but its player, playback and Archive/Preview implementations remain C++.
   Its browser and preview-process components also contain C++ host code.
-- Marcus currently calls ImGui's C++ API directly for prop and storyboard
-  gizmos, while most controls and dialogs use custom SDL/FreeType drawing and
-  event handling. That split does not meet the requirement for an ImGui GUI.
-  The New/Edit 3D text dialog now uses standard cimgui widgets and C89 state in
-  that shared context; its manual text editor is removed. The playback review
-  tool also uses cimgui from C. The remaining Marcus UI still needs conversion.
+- Marcus's application widgets and text input now use cimgui. Some dialog,
+  storyboard and gizmo state and decisions still live in C++. The
+  [Marcus UI milestone](#marcus-ui-convert-the-entire-gui-to-imgui-through-cimgui)
+  lists the remaining work.
 - `engine-core` already groups stored data, actor evaluation and playback
   policy. Its playback/startup command evaluators, frame pacer and scrolling
   policy now delegate to `mm-engine-c89` in `libraries/engine/`.
@@ -79,8 +77,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   roll-call and Archive GST-layout readers. Studio, Archive and Marcus call
   these decoders. Later slices below migrate storage, codecs and persistence;
   tag ownership and complete save/edit integration remain dependencies.
-- The existing `marcus-c89`, `content-vfs-c89` and `review-c89` checks passed
-  on 11 November. They check selected C sources, not a C89 engine backend.
+- The strict C89 syntax checks cover the migrated engine and native services
+  and the Marcus C frontend. The C-only engine tests exercise individual
+  operations. The first shared movie path still needs an end-to-end C-only link
+  and runtime check.
 - The chunky-file slice now reads CHN2 headers and GG indexes in C89 and shares
   live chunk/child lookup, enumeration and graph validation through `kauai-core`.
   The subsequent slices below migrate writable groups, free maps, writes,
@@ -356,73 +356,41 @@ priority over the older Project 0-4 ordering wherever they conflict.
    undo/redo data and save/load operations into the backend. Keep Studio UI
    commands as callers. Preserve retail file versions and references, including
    embedded assets; retain existing VMM/VXP support through the shared services.
-6. **Finish host integration and remove legacy backend paths.** Switch all
-   Studio and Marcus engine operations to the C backend, remove converted C++
-   implementations and temporary facades, and verify the backend builds and
-   links with a C toolchain without project-owned C++ engine dependencies.
-   Record external runtime/toolchain requirements separately.
+6. **Cut over complete engine operations and remove legacy paths.** Start with
+   the shared open and seek milestone below while work in groups 3–5 continues.
+   With each cutover, switch both callers, retire the old backend path and
+   verify the migrated operation with a C-only consumer. Finish with the full
+   engine linking without project-owned C++ engine dependencies. Record
+   external runtime and toolchain requirements.
 
 Steps 3-5 are dependency groups, not single large rewrites. Land small,
 reviewable slices with both callers updated and validation recorded for each.
 
 ### Marcus UI: convert the entire GUI to ImGui through cimgui
 
-**Requirement reaffirmed 17 November 2026:** all Marcus application UI must use
-Dear ImGui through cimgui, not just the existing gizmos. Replace the custom
-SDL/FreeType controls as part of the C89 migration. Convert the project-owned UI
-state and control logic to C89; wrapping unchanged C++ application logic in a C
-API does not complete this work.
+The ribbon, transport, settings, timeline, picker dialogs, text entry and
+storyboard widgets now use cimgui in one Dear ImGui context. The C89 views use
+standard widgets for controls and text input and ImGui drawing APIs for
+specialized movie and timeline artwork. SDL provides platform and rendering
+services. See the [current Marcus boundary](docs/tools/marcus.md#c89-boundary-and-checks).
 
-**First slice implemented 17 November 2026:** New/Edit 3D text now uses
-`text_dialog.c` and standard cimgui text input, visual font/shape/material
-pickers with lazily cached native thumbnails, colour buttons,
-numeric controls, modal actions and preview image controls. Pinned cimgui
-1.92.5 shares the existing ImGui implementation, SDL backends and gizmo context.
-Native template/isolated-worker services have a C interface in `text_preview.h`;
-dialog state and decisions are C89. `marcus-c89` includes the converted dialog.
-The MSVC Marcus build and the existing `marcus-c89`, `marcus-insert`,
-`marcus-preview-worker`, `marcus-playback` and `marcus-player` checks pass.
-The insertion check covers the C preview service's cancellation/restart and
-exact worker pixel equality without creating a dialog or ImGui context.
-The remaining controls and dialogs listed below are still migration work.
+- Move dialog selection, filtering and actions still in C++ into the C89
+  application. Start with scene/frame organiser commands, then audit the movie
+  and asset browsers and camera picker. Keep native file choosers, asynchronous
+  preview services and SDL texture management behind narrow interfaces.
+- Move storyboard editor commands, interaction state, snapping and prop and
+  light edit transactions into C89. Move direct `ImGui::` application calls
+  from `prop_gizmo.cpp` and `transform_gizmo.h` to cimgui callers. Preserve prop
+  and storyboard light manipulation in the shared ImGui frame. Restrict the
+  C++ ImGuizmo binding to third-party calls and type translation.
+- Include each converted source and its public C interface in `marcus-c89`.
+  Run the relevant existing headless checks and record validation for each
+  slice. Add Marcus UI tests only when the user requests them.
 
-- Reuse the playback review tool's cimgui integration as a reference. Pin
-  compatible cimgui, Dear ImGui and ImGuizmo revisions, and make Marcus's cimgui,
-  SDL backends and gizmos use one Dear ImGui implementation and context.
-- Convert the ribbon, transport, settings, timeline controls, object lists,
-  movie/background browsers, scene organiser, camera picker, storyboard editor
-  and all dialogs, including New/Edit 3D text. Replace manual text editing with
-  ImGui text-input widgets providing caret placement, selection, clipboard and
-  keyboard handling. Prioritize the broken 3D text field in the first slice.
-- Use standard ImGui widgets for ordinary controls and text input. Preserve
-  existing actions, layout intent, artwork and movie behavior; render specialized
-  timeline/movie artwork through ImGui drawing APIs and image widgets. SDL
-  remains the platform/rendering backend, not a parallel widget toolkit.
-- Retire the replaced custom widget drawing, hit testing and text-edit state
-  in `main.c`, `ribbon.c`, `ui.c` and the browser/dialog implementations as each
-  slice lands. Do not add custom SDL controls or expand the manual text editor
-  as an interim fix. Route application input and focus through the shared ImGui
-  context rather than competing SDL text-input owners.
-- Move direct `ImGui::` calls in `src/marcus/prop_gizmo.cpp`,
-  `storyboard_editor.cpp` and `transform_gizmo.h` to C89 callers using cimgui.
-  Keep UI state, edit transactions, snapping and input decisions in C, sharing
-  the existing engine and camera services.
-- Expose required ImGuizmo operations through a narrow C-compatible adapter.
-  Keep that C++ adapter limited to third-party calls and type translation;
-  move project-owned gizmo behavior and state into C89. Preserve prop and
-  storyboard light manipulation and their shared ImGui frame.
-- Extend `marcus-c89` to check the converted sources and public C interfaces
-  with strict C89 diagnostics. Run relevant existing headless checks and record
-  validation for each slice. Do not add Marcus UI tests unless requested.
-
-cimgui is a C interface over Dear ImGui's C++ implementation. Dear ImGui,
-ImGuizmo, cimgui's generated implementation and the necessary third-party
-backend adapters remain explicit external C++ build/runtime dependencies.
-This milestone makes Marcus's application calls C89; it does not make the
-entire executable or every dependency C89, and does not relax the shared
-engine's requirement to remove project-owned C++ engine dependencies.
-It is complete only when all Marcus application controls and dialogs use
-ImGui through cimgui and the parallel custom widget toolkit has been retired.
+The UI milestone is complete when cimgui owns all application widgets and C89
+owns their application state and decisions. Dear ImGui, cimgui's generated
+implementation, ImGuizmo and their backend bindings are external C++
+dependencies. The shared engine has its own C-only completion gate.
 
 ### Regression gate for each slice
 
@@ -433,9 +401,10 @@ player set does not include Marcus. Keep movie/content hashes, player builds,
 configuration and capture environment recorded with the evidence.
 
 - Establish pre-conversion results for affected cases, then compare both hosts
-  after conversion with the same inputs. Preserve retail as the `.3MM`
-  behavioral reference and v3dmm as an additional baseline; VMM cases use
-  applicable v3dmm evidence. Shared bugs are not evidence of retail parity.
+  after conversion with the same inputs. Record the cases and behaviors checked
+  against retail and the gaps that remain. Use retail as the `.3MM` behavioral
+  reference and v3dmm as the additional baseline and reference for applicable
+  VMM cases. Shared bugs are not evidence of retail parity.
 - Exercise absolute seeks and normal playback, including replay where state
   reuse matters. Check images, actor/camera state, captions/scrolling,
   transitions, audio and timing as applicable to the migrated behavior.
@@ -445,13 +414,38 @@ configuration and capture environment recorded with the evidence.
 - Respect the corpus's marker-semantics and coverage limits. An inconclusive
   timing result or an untested feature is not a pass. Add focused headless
   coverage for affected gaps; do not add Marcus UI tests.
-- Also run relevant existing engine/format tests and the C89 checks. Playback
-  coverage is the foundation, not proof that every edit/save path is correct:
-  validate semantic edit/undo/save/reopen behavior, wire layouts and chunk
-  reference integrity, and verify saved movies in retail. Do not require
-  byte-identical saved containers where physical layout can legitimately vary.
+- Run relevant existing engine and format tests. In a validation configuration
+  with `BUILD_TESTING=ON` and `REQUIRE_C89_CHECKS=ON`, run CTest with
+  `-R '(c89-syntax|^marcus-c89)$'`. Use a Marcus-enabled configuration to check
+  both the engine and Marcus. Record the checks that ran.
+- For edit/save changes, validate edit, undo, redo, save and reopen semantics,
+  wire layouts and chunk-reference integrity. Reopen the produced `.3MM` in
+  retail and check the affected behavior. Compare saved movie semantics and
+  allow legitimate container layout differences.
 
 ### Immediate next work and completion
+
+**First shared cutover.** Open a retail-format `.3MM`, resolve its resources
+and seek to an authored frame through one C89 movie session API used by SDL
+Studio and Marcus. Reuse the native file services, chunky reader and codecs,
+content VFS, resource resolution and actor/scene evaluation already in C.
+Keep host presentation and device output outside the session.
+
+1. Start with the C movie session's file-backed open and close. Exercise the
+   real native stream, chunky index, MVIE root and scene lookup from a C-only
+   standalone consumer. Compare root/scene selection and open failures with
+   the existing callers.
+2. Extend the session to resolve movie and retail content resources and seek
+   to an authored frame. Cover actor and camera state, repeat seeks and the
+   applicable missing-content behavior with real files. Document which
+   retail captures exercise the path and which behaviors they cover.
+3. Switch both hosts to the same session for the covered operations and retire
+   the superseded backend paths. Link and run the standalone consumer and its
+   real file/content providers with the C toolchain, without `engine-core`,
+   `engine`, `MM::Archive`, `MM::Preview` or their project-owned C++ providers.
+   Verify the host paths with the regression gate above.
+
+#### Completed slices and remaining dependencies
 
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
@@ -815,12 +809,11 @@ Temporary native resource/object/HQ and
 Body facades still need removal during final host integration; these slices do
 not complete the whole backend. Validation and coverage limits are recorded in
 `docs/tools/playback-regression.md`.
-Continue through the remaining scene/movie
-editing, undo/save and caption/transition runtime operations, converting
-body/template/resource implementations and physical file adapters as their
-dependencies require. Extend the C API and regression coverage as each C++
-dependency is removed. Final host integration must replace the temporary
-facades and prove both hosts use the C-only backend for all engine operations.
+After the first cutover, extend the same session through continuous playback,
+captions, transitions, sound, editing, undo and saving. Track the remaining
+body, template, resource and object dependencies by the operation that still
+needs them. Retire each temporary backend path when both hosts use its C89
+replacement and the relevant regression and format checks pass.
 
 The migration is complete when Studio and Marcus use the same C89 engine for
 their engine operations, including Studio editing/saving, the backend builds
