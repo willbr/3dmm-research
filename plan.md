@@ -431,12 +431,12 @@ Studio and Marcus. Reuse the native file services, chunky reader and codecs,
 content VFS, resource resolution and actor/scene evaluation already in C.
 Keep host presentation and device output outside the session.
 
-1. Start with the C movie session's file-backed open and close. Exercise the
-   real native stream, chunky index, MVIE root and scene lookup from a C-only
-   standalone consumer. Compare root/scene selection and open failures with
-   the existing callers. `engine-native-chunky` now verifies native file reads
-   through the shared index and bounded payload stream on retail content. The
-   session still needs to own the archive and perform root and scene lookup.
+1. The standalone C movie session now owns the loaded chunky index and reads
+   the MVIE root and SCEN headers by authored slot. `engine-native-chunky-test`
+   runs this path on real files with `--movie`. Six archived `.3MM` movies
+   matched the legacy dump for root and scene metadata, and the scene frame
+   ranges in three hash-matched fixtures agreed with retained retail seek
+   captures. Studio and Marcus still use their existing sessions.
 2. Extend the session to resolve movie and retail content resources and seek
    to an authored frame. Cover actor and camera state, repeat seeks and the
    applicable missing-content behavior with real files. Document which

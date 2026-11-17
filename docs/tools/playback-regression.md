@@ -12682,6 +12682,30 @@ Evidence: `tmp/c89-native-users/{platform_users_win.cpp,platform_users_posix.cpp
 `platform-{ansi,wide}-tests.log`, `asan-runtime.log`, `run-regular-tests.log`,
 `trace-comparison.json`, `gates.json` and `identities.json`.
 
+### Standalone C89 movie root and authored scene slots (17 November 2026)
+
+`engine-native-chunky-test FILE --movie` opens the file through the C native
+stream and session, then prints the root ID and versions and each contiguous
+authored slot's scene ID, frame bounds and transition. The legacy `3mm dump`
+agrees for 439 slots across Street Bums, NUTSDVDINTRO, Ringworld Act One Teaser
+Trailer, The Amazingly Pointless Adventures of Gustave!, DeletedScenes and
+3dMm DIReCTOrS WaR Part 1. Street Bums starts with chunk 3 at slot 0 and
+includes an authored start at frame -18.
+
+The scene counts and frame bounds agree with retained retail seek runs 1813
+(`actor-audio`), 1822 (`actor-events`) and 1828 (`scrolling-text`) in
+`tmp/c89-movie-data-regression/playback.sqlite`. The inputs match the SHA-256
+values in the database. This comparison covers the stored scene ranges;
+actor/camera state, rendered frames, timing and audio require the later
+session seek and playback work.
+
+All 181 Windows standalone engine checks pass, including the strict C89
+syntax check and synthetic cases for both byte orders, packed KCDC/KCD2
+records, gaps, wrong child types, missing scene chunks and rejected roots.
+The session also compiles under strict C89 for Linux x64 musl. Windows
+runtime checks cover the standalone reader. Studio and Marcus continue to
+open movies through their existing archive providers.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

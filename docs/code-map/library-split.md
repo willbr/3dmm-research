@@ -33,6 +33,13 @@ the idle-render gate and retail scrolling policy. Its only library dependency
 is the C runtime; no Kauai, BRender, SDL, C++ or native platform headers enter
 the public interface or implementation.
 
+`mm/movie_session.h` exposes the standalone C89 movie session. It loads and owns
+the chunky index from a borrowed `MMReadStream`, validates the first `MVIE`, and
+reads `SCEN` headers by the root's authored slot. It uses the shared KCDC/KCD2
+decoders for packed records. `engine-native-chunky-test FILE --movie` supplies
+a real native file stream and prints root versions and ordered scene ranges.
+Studio and Marcus still use their existing archive owners and resource providers.
+
 | Caller / dependency | Boundary after the first slice |
 | --- | --- |
 | Studio `Movie::Play`, `Movie::FCmdRender` | Apply commands through the `MoviePlayEvaluator` / `MoviePlaybackEvaluator` C++ facades; policy state is the shared C record. |

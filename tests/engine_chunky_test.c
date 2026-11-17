@@ -1,4 +1,7 @@
 #include "mm/chunky_file.h"
+#include "mm/codec.h"
+#include "mm/data_stream.h"
+#include "mm/movie_session.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +25,124 @@ static void put32(unsigned char *bytes, MMU32 value, int big)
     int i;
     for (i = 0; i < 4; ++i)
         bytes[big ? 3 - i : i] = (unsigned char)(value >> (8 * i));
+}
+
+static MMU32 store_record(unsigned char *out, const unsigned char *raw, MMU32 bytes, MMI32 codec)
+{
+    MMI32 written;
+    if (!codec)
+    {
+        memcpy(out, raw, bytes);
+        return bytes;
+    }
+    put32(out, (MMU32)codec, 1);
+    put32(out + 4, bytes, 1);
+    CHECK(mm_codec_encode(codec, raw, bytes, out + 8, 56, &written, NULL) == MM_DATA_OK);
+    return (MMU32)written + 8;
+}
+
+static MMU32 movie_fixture(unsigned char bytes[1024], int big, MMI32 codec, int bad_version, int missing_scene)
+{
+    const MMU32 movie_type = 0x4d564945UL, scene_type = 0x5343454eUL;
+    unsigned char movie[8] = {0}, scene[16] = {0};
+    unsigned char *group, *row, *locations, *links;
+    MMU32 root_size, scene_size, index_offset, end;
+    const MMU32 root_row_bytes = 20 + 3 * 12, row_bytes = root_row_bytes + 20;
+
+    memset(bytes, 0, 1024);
+    put16(movie, 1, big);
+    put16(movie + 2, 0x0303, big);
+    put16(movie + 4, 2, big);
+    put16(movie + 6, bad_version ? 3U : 2U, big);
+    put16(scene, 1, big);
+    put32(scene + 4, 25, big);
+    put32(scene + 8, 0xfffffffaUL, big);
+    put32(scene + 12, 4, big);
+    root_size = store_record(bytes + 128, movie, sizeof(movie), codec);
+    scene_size = store_record(bytes + 128 + root_size, scene, sizeof(scene), codec);
+    index_offset = 128 + root_size + scene_size;
+    end = index_offset + 20 + row_bytes + 16;
+    memcpy(bytes, "CHN2", 4);
+    put16(bytes + 8, 5, big);
+    put16(bytes + 10, 4, big);
+    put16(bytes + 12, 1, big);
+    put32(bytes + 16, end, big);
+    put32(bytes + 20, index_offset, big);
+    put32(bytes + 24, end - index_offset, big);
+    put32(bytes + 28, end, big);
+    group = bytes + index_offset;
+    put16(group, 1, big);
+    put32(group + 4, 2, big);
+    put32(group + 8, row_bytes, big);
+    put32(group + 12, 0xffffffffUL, big);
+    put32(group + 16, 20, big);
+    row = group + 20;
+    put32(row, movie_type, big);
+    put32(row + 4, 17, big);
+    put32(row + 8, 128, big);
+    put32(row + 12, (root_size << 8) | MM_CHUNK_LONER | (codec ? MM_CHUNK_PACKED : 0), big);
+    put16(row + 16, 3, big);
+    links = row + 20;
+    put32(links, scene_type, big);
+    put32(links + 4, missing_scene ? 37UL : 36UL, big);
+    put32(links + 12, 0x5a5a5a5aUL, big); /* Different type at slot 1. */
+    put32(links + 20, 1, big);
+    put32(links + 24, scene_type, big);
+    put32(links + 28, 36, big);
+    put32(links + 32, 3, big);
+    row += root_row_bytes;
+    put32(row, scene_type, big);
+    put32(row + 4, 36, big);
+    put32(row + 8, 128 + root_size, big);
+    put32(row + 12, (scene_size << 8) | (codec ? MM_CHUNK_PACKED : 0), big);
+    put16(row + 18, 2, big);
+    locations = row + 20;
+    put32(locations + 4, root_row_bytes, big);
+    put32(locations + 8, root_row_bytes, big);
+    put32(locations + 12, 20, big);
+    return end;
+}
+
+static void movie_sessions(void)
+{
+    const MMChunkPolicy policy = {0, 0, 516};
+    const MMI32 codecs[] = {0, MM_CODEC_KCDC, MM_CODEC_KCD2};
+    unsigned char bytes[1024];
+    MMMemoryStream input;
+    MMMovieSession *movie = NULL;
+    const MMMovieSessionRoot *root;
+    MMMovieSessionScene scene;
+    MMU32 end;
+    unsigned i;
+    int big, missing;
+    for (i = 0; i < sizeof(codecs) / sizeof(codecs[0]); ++i)
+        for (big = 0; big <= 1; ++big)
+            for (missing = 0; missing <= 1; ++missing)
+            {
+                end = movie_fixture(bytes, big, codecs[i], 0, missing);
+                CHECK(mm_memory_stream_init(&input, bytes, end));
+                CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+                root = mm_movie_session_root(movie);
+                CHECK(root->number == 17 && root->header.current_version == 2 && root->header.big_endian == big);
+                scene.number = 123;
+                CHECK(mm_movie_session_scene(movie, 1, &scene) == MM_MOVIE_SCENE_NOT_FOUND && scene.number == 123);
+                CHECK(mm_movie_session_scene(movie, 2, &scene) == MM_MOVIE_SCENE_NOT_FOUND && scene.number == 123);
+                if (missing)
+                    CHECK(mm_movie_session_scene(movie, 0, &scene) == MM_MOVIE_BAD_FILE && scene.number == 123);
+                else
+                    CHECK(mm_movie_session_scene(movie, 0, &scene) == MM_MOVIE_OK && scene.number == 36);
+                CHECK(mm_movie_session_scene(movie, 3, &scene) == MM_MOVIE_OK && scene.number == 36 &&
+                      scene.first_frame == -6 && scene.last_frame == 25 && scene.transition == 4);
+                mm_movie_session_close(movie);
+            }
+    movie = NULL;
+    end = movie_fixture(bytes, 0, MM_CODEC_KCD2, 1, 0);
+    CHECK(mm_memory_stream_init(&input, bytes, end));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_BAD_VERSION && !movie);
+    bytes[128] = 'X'; /* Unknown packed format. */
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_BAD_FILE && !movie);
+    CHECK(mm_memory_stream_init(&input, bytes, end - 1));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_BAD_FILE && !movie);
 }
 /* Three independently encoded records. Root owns the first child twice and
  * the second once; two different targets share a slot and type. */
@@ -540,6 +661,7 @@ static void writes(void)
 int main(void)
 {
     wire_indexes();
+    movie_sessions();
     graphs();
     io_failures();
     deep_graph();
