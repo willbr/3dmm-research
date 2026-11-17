@@ -313,7 +313,12 @@ static int ShowAssets(MarcusBackgroundBrowser *browser, MarcusPlayer *player, co
                 browser->backgrounds.push_back(background);
             }
         }
-        else if (marcus_background(player, index, &background)) browser->backgrounds.push_back(background);
+        else if (marcus_background(player, index, &background))
+        {
+            // Retail's black background belongs directly below Storyboard.
+            if (background.chunk == 11) browser->backgrounds.insert(browser->backgrounds.begin() + 1, background);
+            else browser->backgrounds.push_back(background);
+        }
     }
     if (browser->backgrounds.empty()) return 0;
     if (props) browser->tiles.resize(browser->backgrounds.size());
