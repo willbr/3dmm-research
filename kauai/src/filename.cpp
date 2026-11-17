@@ -13,6 +13,7 @@
 #include "util.h"
 #include "mm/filename_path.h"
 #include "mm/filename_naming.h"
+#include "mm/filename_case.h"
 ASSERTNAME
 
 namespace {
@@ -119,6 +120,37 @@ MMFilenameNamingHost FilenameNamingHost()
     };
     return host;
 }
+MMFilenameCaseHost FilenameCaseHost()
+{
+    static_assert(static_cast<int>(KauaiFiles::Iteration::Entry) == MM_FILENAME_CASE_ENTRY &&
+                  static_cast<int>(KauaiFiles::Iteration::End) == MM_FILENAME_CASE_END &&
+                  static_cast<int>(KauaiFiles::Iteration::Error) == MM_FILENAME_CASE_ERROR, "native case iteration contract");
+    static_assert(sizeof(KauaiFiles::DirectoryEntry{}.name) == MM_FILENAME_CASE_NAME_CAPACITY * sizeof(achar),
+                  "native case entry profile");
+    MMFilenameCaseHost host{}; host.path = FilenamePathHost();
+#ifndef _WIN32
+    host.sensitive = 1;
+#endif
+    host.first = [](void *, const void *pattern, void **directory, void *name, MMI32 capacity) -> int {
+        Assert(capacity == MM_FILENAME_CASE_NAME_CAPACITY, "case entry capacity");
+        KauaiFiles::DirectoryEntry entry;
+        const auto status = KauaiFiles::First(static_cast<const achar *>(pattern), directory, &entry);
+        if (status == KauaiFiles::Iteration::Entry) CopyPb(entry.name, name, sizeof(entry.name));
+        return static_cast<int>(status);
+    };
+    host.next = [](void *, void *directory, void *name, MMI32 capacity) -> int {
+        Assert(capacity == MM_FILENAME_CASE_NAME_CAPACITY, "case entry capacity");
+        KauaiFiles::DirectoryEntry entry;
+        const auto status = KauaiFiles::Next(directory, &entry);
+        if (status == KauaiFiles::Iteration::Entry) CopyPb(entry.name, name, sizeof(entry.name));
+        return static_cast<int>(status);
+    };
+    host.close = [](void *, void *directory) { KauaiFiles::CloseDirectory(directory); };
+    host.name_length = [](void *, const void *name) -> MMI32 {
+        return CchSz(const_cast<achar *>(static_cast<const achar *>(name)));
+    };
+    return host;
+}
 }
 MMFilenameValue Filename::_ValueView()
 {
@@ -134,61 +166,8 @@ FileType vftgTemp = kftgTemp;
 
 bool Filename::FResolveCase(void)
 {
-    AssertThis(ffniFile | ffniDir);
-    KauaiFiles::PathInfo info;
-    const auto status = KauaiFiles::Info(_stnFile.Psz(), &info);
-    if (status == KauaiFiles::Status::Found) return fTrue;
-    if (status != KauaiFiles::Status::Missing) return fFalse;
-#ifdef _WIN32
-    return fFalse; // Native Win32 lookup already ignores case.
-#else
-    String resolved(PszLit("/"));
-    if (_stnFile.Prgch()[0] != '/') return fFalse;
-    auto fold = [](achar ch) { return ch >= 'A' && ch <= 'Z' ? ch + ('a' - 'A') : ch; };
-    for (LegacyLong start = 1; start < _stnFile.Cch();)
-    {
-        LegacyLong end = start;
-        while (end < _stnFile.Cch() && _stnFile.Prgch()[end] != '/') ++end;
-        String component;
-        component.SetRgch(_stnFile.Prgch() + start, end - start);
-        String candidate = resolved;
-        if (!candidate.FAppendStn(&component)) return fFalse;
-        const auto exact = KauaiFiles::Info(candidate.Psz(), &info);
-        if (exact == KauaiFiles::Status::Error) return fFalse;
-        if (exact == KauaiFiles::Status::Missing)
-        {
-            String pattern = resolved, match;
-            if (!pattern.FAppendCh('*')) return fFalse;
-            KauaiFiles::DirectoryHandle directory = nullptr;
-            KauaiFiles::DirectoryEntry entry;
-            int matches = 0;
-            auto iteration = KauaiFiles::First(pattern.Psz(), &directory, &entry);
-            while (iteration == KauaiFiles::Iteration::Entry)
-            {
-                const auto count = CchSz(entry.name);
-                bool equal = count == component.Cch();
-                for (LegacyLong i = 0; equal && i < count; ++i)
-                    equal = fold(entry.name[i]) == fold(component.Prgch()[i]);
-                if (equal)
-                {
-                    match.SetSz(entry.name);
-                    if (++matches > 1) break;
-                }
-                iteration = KauaiFiles::Next(directory, &entry);
-            }
-            KauaiFiles::CloseDirectory(directory);
-            if (matches != 1 || iteration == KauaiFiles::Iteration::Error) return fFalse;
-            candidate = resolved;
-            if (!candidate.FAppendStn(&match)) return fFalse;
-        }
-        resolved = candidate;
-        if (end < _stnFile.Cch() && !resolved.FAppendCh('/')) return fFalse;
-        start = end + 1;
-    }
-    _stnFile = resolved;
-    _SetFtgFromName();
-    return fTrue;
-#endif
+    const auto value = _ValueView(); const auto host = FilenameCaseHost();
+    return mm_filename_resolve_case(&value, &host) != 0;
 }
 
 priv void _CleanFtg(FileType *pftg, PString pstnExt = pvNil);

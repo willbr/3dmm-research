@@ -416,9 +416,11 @@ Path construction/search, existence/status/error precedence, delete/rename,
 equality/same-directory, volume forwarding and directory navigation/create/move
 policy now also use C89 through native filesystem and diagnostic providers.
 Unique/temp candidate formatting, the shared 16-bit sequence, retry/failure
-publication and temp-directory cache control now also use C89. Default cache
-owner/configuration bindings, case resolution, enumeration, native object
-lifetime and final representation integration remain.
+publication and temp-directory cache control now also use C89. Explicit legacy
+case resolution now shares C89 exact-first/unique ASCII component matching,
+iterator cleanup and failure publication, with native case-sensitivity and
+filesystem providers. Default cache owner/configuration bindings, enumeration,
+native object lifetime and final representation integration remain.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

@@ -12126,3 +12126,92 @@ Evidence: `tmp/c89-filename-naming/{original,converted}-{runtime,expensive}-{nat
 `tmp/c89-filename-naming/short-probe-{debug,release}.log`,
 `tmp/c89-filename-naming/run-regular-tests.log`, `tmp/c89-filename-naming/trace-comparison.json`
 and `tmp/c89-filename-naming/identities.json`.
+
+### Shared C Filename legacy case resolution (17 November 2026)
+
+`mm/filename_case.h` now controls explicit legacy content case lookup through
+native info/iterator/sensitivity and String diagnostic providers. Native found
+returns success without rewriting the path/type or classifying directory,
+hidden or system flags. Errors fail quietly. Missing on an insensitive host
+also fails immediately. Sensitive hosts require a leading `/`, prefer exact
+components, then accept one unambiguous ASCII case match. Non-ASCII units and
+backslashes stay literal. Path/type publish only after the entire lookup
+succeeds. Every enumeration attempt closes, including end/error/null handles;
+a second match stops iteration and fails. Failure leaves the value unchanged
+and adds no error-stack entry.
+
+The C controller uses borrowed views, stack buffers and no globals or heap
+allocation. Iterator providers return full terminated names in 1024-unit buffers.
+Long names cannot be truncated into false matches. The optional terminated-name
+length service retains native `CchSz` diagnostics; a null service uses C scanning.
+The original warns about an oversized directory name before rejecting its length
+as a mismatch. Normal and expensive native profiles retain that diagnostic.
+Native class layout is unchanged. Case-sensitive policy now shares the C value,
+String and type-derivation modules used by the rest of Filename.
+
+Pre-conversion capture uses `fc15d13e`. Its `filename.cpp` is 29,405 bytes/SHA-256
+`DFF5097820CCE2FACBD0AF51789F85D82DB9B074459EA5E57931CD72A7E6A10C`.
+The case-sensitive C++ method body is extracted without changing its matching,
+iteration or publication algorithm. The adapter binds `_stnFile` to a real native
+String, type derivation to the existing C value service, the outer validation to
+a borrowed-view hook, filesystem calls to controlled providers, and the platform
+guard to the sensitivity flag. This permits both branches to be compared on
+Windows. The 4,222-byte adapted source SHA-256 is
+`E22037E1E6F96F38D1286436C0E8F5D6865594EE55A0D35F1E46F2F979CD6163`.
+Adapter source and preparation identities are retained locally. Temporary
+original capture targets were removed from CMake.
+
+The same fixture also exercises the original Windows Filename facade directly
+with physical existing, differently cased, missing and directory-spelled file
+paths. Controlled cases cover exact success/error, missing on insensitive hosts,
+relative/root paths, multiple components, exact-component preference, ambiguity,
+no match, initial/iteration errors, partial resolution failure, trailing directory
+separators, literal backslashes, equal/different non-ASCII bytes and oversized
+entries followed by a maximum-length match. Traces retain provider arguments/
+ordering, validation flags, iterator close/handle presence, return values, path/
+type and native messages. Physical temp prefixes, addresses, source lines and
+layout are excluded. Normal/expensive results match their original profiles.
+The provider/validation adapters exercise the sensitive algorithm on Windows;
+they do not establish native POSIX filesystem or Filename-class diagnostics.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, both profiles | 13,152 | `AEFD8552` | `D879ADD177A1627E799447E960E3584FC0A5D4D4720B3C0B6EE483A0C847AEDD` |
+| SDL Release, both profiles | 13,056 | `98179B0D` | `A5184752D91A1CF87705DA20CF387E8B81FE63175B67CD531D4CE898093905A5` |
+
+`engine-filename-case` links only C and covers both unit widths, exact/error/
+insensitive fast paths, relative/empty/root guards, ASCII matching, ambiguity,
+iterator ownership, unchanged failure, 1023-unit entries, maximum-length output,
+optional diagnostics/copy/length hooks and equal/different non-ASCII byte/Unicode
+units. MSVC AddressSanitizer passes. All 158 standalone checks pass, including
+strict C89 syntax.
+
+The final gate passes 241 Native, 236 SDL Release, 237 SDL Debug and 158 standalone
+checks: 872 of 873 selected checks pass. The sole declared skip is the existing
+SDL Release `world-export` Debug fixture. All 189 retained trace pairs and six
+case pairs match: 195 byte-identical pairs. All ten input identities are unchanged;
+196 executable identities are recorded. Windows text settings remain ACP 1252,
+OEMCP 437 and locale `en-GB`/2057. Native renderer, playback, player and C89 checks
+pass. The regular headless preview harness passes; all three hosts retain
+301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras.
+
+All hosts, native `chelp`/`ched` and Marcus build. Marcus was stopped before the
+rebuild and relaunched afterwards. Asset readers began after resource regeneration.
+Private test scratch directories stayed on C:. No Marcus UI tests or new retail
+captures were added; retained retail captures remain the playback reference.
+These are correctness checks, not playback timing equivalence.
+
+Providers must supply live initialized storage, matching units, terminated names,
+serialized owner mutation and valid iterator ownership until close. Callbacks
+cannot unwind or mutate the operation. Native POSIX/Unicode execution, invalid
+storage/lifetimes and callback mutation remain unverified. Enumeration policy,
+default cache/configuration bindings, native object lifetime and final C-only
+host/facade integration remain conversion work. This does not complete the
+backend migration.
+
+Evidence: `tmp/c89-filename-case/{original,converted}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-filename-case/filename-original.cpp`, `tmp/c89-filename-case/resolver-original.cpp`,
+`tmp/prepare_filename_case_original.py`, `tmp/c89-filename-case/run-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-filename-case/run-standalone-tests.log`, `tmp/c89-filename-case/asan.log`,
+`tmp/c89-filename-case/run-regular-tests.log`, `tmp/c89-filename-case/trace-comparison.json`
+and `tmp/c89-filename-case/identities.json`.

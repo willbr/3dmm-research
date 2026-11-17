@@ -648,7 +648,7 @@ to their original profile. Baseline reconstruction and evidence are in the
 
 Path construction/search, filesystem dispatch, navigation and unique/temp naming
 also use the C controllers described below. Default cache owner/configuration
-bindings, case resolution, enumeration, native object lifetime and final C-only
+bindings, enumeration, native object lifetime and final C-only
 host/facade integration remain conversion work. This does not complete the
 backend migration.
 
@@ -724,6 +724,40 @@ deterministic pre-conversion sequences, collision exhaustion, capacity recovery,
 temp-provider failure, configuration changes and cached environment behavior.
 They compare corresponding original profiles; the
 [regression log](../tools/playback-regression.md) records evidence and limits.
+
+### Filename legacy case resolution
+
+`mm/filename_case.h` controls explicit legacy content case lookup. Initial native
+success returns without rewriting the path/type or classifying directory/hidden/
+system attributes. Lookup errors fail quietly. A missing path also fails on an
+insensitive host. Sensitive hosts require a leading `/`, prefer each exact
+component, then accept exactly one ASCII case match from directory iteration.
+Splitting uses `/` literally; non-ASCII units and backslashes remain literal.
+Path/type publish only after all components succeed. Every enumeration attempt
+closes its iterator, including end/error/null handles, and ambiguity stops after
+the second match. Existing/missing/error precedence and error-stack behavior
+match the original resolver.
+
+The C controller borrows initialized filename views and String copy/validation
+hooks, uses stack buffers and has no heap allocation or globals. Providers supply
+info, raw 1024-unit directory names, iterator operations and an optional native
+terminated-name length service. That service retains native String diagnostics
+for oversized names; the default C scanner returns their full length. Long
+entries cannot be truncated into false matches. Matching and copies support
+one- and two-byte units. Providers own handles until close, callbacks cannot
+unwind or mutate the operation, and callers serialize owner mutation.
+
+`Filename` supplies native providers and the platform sensitivity flag. Native
+Windows exact/missing behavior is exercised directly. A controlled runtime
+fixture compares the original C++ sensitive-host algorithm, adapted only at its
+String/value/validation/provider boundaries, with the C controller. It covers
+multiple components, exact preference, ambiguous/no matches, initial/iteration
+errors, partial resolution, trailing separators, literal backslashes, non-ASCII
+bytes and long entries. The C-only test adds both unit widths, Unicode units,
+capacity limits, iterator lifetime and optional hooks. The
+[regression log](../tools/playback-regression.md) records source hashes, adapter
+details and the lack of native POSIX execution evidence. Enumeration policy,
+default bindings, native object lifetime and final facade integration remain.
 
 ### Collection storage foundation
 
