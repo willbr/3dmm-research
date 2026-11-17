@@ -316,7 +316,12 @@ list and larger selected preview.
 
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from
-the combo boxes. The 50-character limit follows retail's text editor
+the visual pickers. Each selected font, shape and material has a rendered sample;
+click its image or **Choose...** to open a scrollable thumbnail gallery. Samples
+render the word "Text" using the real retail font, shape or material, including
+texture patterns. Font and shape samples use a neutral material, and shape
+samples follow the selected font. The 50-character limit follows retail's text
+editor
 (`kcchMaxTdt` in `src/studio/esl.cpp`); it is not a file-format limit.
 The dialog is implemented in C89 using standard cimgui widgets in the same
 ImGui context as the transform gizmos. Click in the text field to position the
@@ -333,16 +338,17 @@ continues to reference original retail content.
 
 The shared New/Edit dialog also offers native material and colour choices from
 `mtrls.3cn`. Colour swatches choose existing palette materials; the Material
-combo box also includes textured patterns. Ambient, diffuse, specular and shininess
+gallery also includes textured patterns. Ambient, diffuse, specular and shininess
 adjust the material's response to lighting. Textured materials additionally
 expose U/V scale, rotation and U/V offsets. Drag numeric values or Ctrl+click to
 type an exact value. The live 3D preview updates as settings change: drag it to
-rotate, scroll over it to zoom, or use the preview buttons. Its view is separate
-from the object's position and rotation in the movie. Previewing does not edit
+rotate or scroll over it to zoom. Its view is separate from the object's position
+and rotation in the movie. Previewing does not edit
 the movie or add undo entries; Cancel discards every pending setting.
 
-Horizontal dragging turns the text with the pointer; the Rotate buttons use
-the same direction. Rotation and zoom submit camera requests every UI frame
+Horizontal dragging turns the text with the pointer. The Rotate/Zoom/Reset
+button row and the instruction line below the image have been removed.
+Rotation and zoom submit camera requests every UI frame
 to a persistent `marcus-preview --text-live` session. That helper keeps the
 template, resources and renderer loaded, and coalesces queued views to the
 latest request. Camera changes do not rebuild a template, launch a process or
@@ -352,8 +358,16 @@ the open dialog uses the normal vsync cadence without the extra 10 ms idle
 delay. Closing/replacing a session invalidates in-flight frames; process
 teardown happens on the worker thread.
 
+Gallery thumbnails load only when their tiles are visible and stay cached for
+the open dialog. A separate thumbnail worker leaves the interactive preview's
+camera/session intact. It reuses one renderer process across template loads;
+native template preparation stays on the player owner thread. Changing fonts
+invalidates the dependent shape/material samples. The properties pane scrolls
+independently so the main preview remains visible while adjusting lighting and
+texture mapping.
+
 The 17 November Debug headless check renders 20 alternating warm views in
-0.120 seconds (167.2 views/second), including exact pixel comparisons against
+0.121 seconds (166.0 views/second), including exact pixel comparisons against
 the one-shot renderer. This measures preview/IPC throughput, not displayed UI
 FPS. Before this change, camera previews were capped at 5.6 updates/second and
 restarted the renderer for each update. The insertion check also exercises
@@ -1557,7 +1571,8 @@ stays on the player owner thread, while the existing isolated worker decodes
 the preview. `text_preview.cpp` adapts those services and third-party palette/
 colour conversion without owning UI state. The existing insertion check also
 verifies C preview cancellation/restart, single-result publication, unchanged
-document identity and exact pixel equality with the direct worker. No Marcus
+document identity and exact pixel equality with the direct worker, including
+font/shape/material gallery variants loaded into a persistent session. No Marcus
 UI tests were added. The remaining custom controls/dialogs and C++ gizmo callers
 still need migration; this is the first complete cimgui dialog slice.
 `player.h` exposes an opaque player, copied POD records, integer success results

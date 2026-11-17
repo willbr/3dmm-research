@@ -288,6 +288,24 @@ int main(int argc, char **argv)
             text_preview_start(textPreview.get(), player.get(), editIndex, &settings, argv[1], 20, -10, 1) &&
             waitPreview() == 1 && std::memcmp(previewImage.rgba, preview.rgba.data(), preview.rgba.size()) == 0 &&
             marcus_document(player.get()) == previewDocument, "Replacing a session rejects stale in-flight images");
+        // Gallery samples use native font/shape/material variants, never the live object.
+        for (int kind = 0; kind < 3; ++kind)
+        {
+            auto sample = settings;
+            std::strcpy(sample.text, "Text");
+            sample.shape = kind == 1 ? 3 : 0;
+            sample.appearance = kind == 2 ? pattern : plain;
+            if (kind == 0) { sample.font = otherFont.chunk; sample.font_source = -1; }
+            auto sampleFile = MarcusPrepareTextPreview(player.get(), -1, sample);
+            require(bool(sampleFile), "Prepare a private gallery sample");
+            const auto reference = RunPreviewWorker(sampleFile->path.u8string(), argv[1], [] { return false; },
+                "20 -10 1", false, {}, false, false, true);
+            require(reference.error.empty() && !reference.rgba.empty() &&
+                text_preview_start(textPreview.get(), player.get(), -1, &sample, argv[1], 20, -10, 1) &&
+                waitPreview() == 1 && std::memcmp(previewImage.rgba, reference.rgba.data(), reference.rgba.size()) == 0 &&
+                marcus_document(player.get()) == previewDocument,
+                "Persistent gallery template loads preserve exact font/shape/material pixels and document identity");
+        }
         text_preview_stop(textPreview.get());
         text_preview_stop(textPreview.get());
         require(text_preview_poll(textPreview.get(), &previewImage) == 0 && !text_preview_view(textPreview.get(), 0, 0, 1),

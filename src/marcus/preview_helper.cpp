@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <sstream>
+#include <iomanip>
 #include <memory>
 #include <limits>
 #include <algorithm>
@@ -152,12 +153,18 @@ int TextPreviews(char **argv)
             !renderer.UseTextPreviewMaterial(error)) throw std::runtime_error(error.message);
         MM::PreviewView view;
         view.width = 480; view.height = 360; view.authoredCamera = false;
-        while (std::cin >> view.yaw >> view.pitch >> view.zoom)
+        std::string command, path;
+        while (std::cin >> command)
         {
             BrowserPreview preview;
             MM::PreviewImage image;
             error.message.clear();
-            if (!std::isfinite(view.yaw) || !std::isfinite(view.pitch) || !std::isfinite(view.zoom) ||
+            if (command == "load" && !(std::cin >> std::quoted(path))) return 2;
+            if ((command != "view" && command != "load") || !(std::cin >> view.yaw >> view.pitch >> view.zoom)) return 2;
+            if (command == "load" && (!renderer.Open(path, argv[2], error) ||
+                !renderer.Select({0x544d504c, 0}, error) || !renderer.UseTextPreviewMaterial(error)))
+                preview.error = error.message.empty() ? "Cannot load this text preview." : error.message;
+            else if (!std::isfinite(view.yaw) || !std::isfinite(view.pitch) || !std::isfinite(view.zoom) ||
                 view.pitch < -89 || view.pitch > 89 || view.zoom < .25f || view.zoom > 4)
                 preview.error = "Invalid text preview camera.";
             else if (!renderer.Render(view, image, error))

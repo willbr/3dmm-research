@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <sstream>
+#include <iomanip>
 #include <stdexcept>
 #include <thread>
 
@@ -75,6 +76,7 @@ struct MarcusTextPreview
         SDL_Process *process = nullptr;
         unsigned long loaded = 0;
         std::shared_ptr<MarcusMovieFile> activeFile;
+        std::string activeResources;
         const auto close = [&] {
             if (process)
             {
@@ -101,7 +103,8 @@ struct MarcusTextPreview
             BrowserPreview result;
             try
             {
-                if (!process || loaded != request.generation)
+                if (exiting || request.generation != generation) continue;
+                if (!process || activeResources != request.resources)
                 {
                     close();
                     const auto base = SDL_GetBasePath();
@@ -124,10 +127,13 @@ struct MarcusTextPreview
                     if (!process) throw std::runtime_error("Cannot launch the text preview helper.");
                     loaded = request.generation;
                     activeFile = request.file;
+                    activeResources = request.resources;
                 }
                 const auto input = SDL_GetProcessInput(process), outputStream = SDL_GetProcessOutput(process);
                 if (!input || !outputStream) throw std::runtime_error("Cannot communicate with the text preview helper.");
                 std::ostringstream camera;
+                if (activeFile != request.file) camera << "load " << std::quoted(request.file->path.u8string()) << ' ';
+                else camera << "view ";
                 camera << request.yaw << ' ' << request.pitch << ' ' << request.zoom << '\n';
                 auto command = camera.str();
                 const auto deadline = SDL_GetTicks() + 30000;
@@ -142,6 +148,8 @@ struct MarcusTextPreview
                 result = ReadPreview(bytes);
                 if (result.error.empty() && (result.width != 480 || result.height != 360))
                     throw std::runtime_error("Invalid text preview dimensions.");
+                if (result.error.empty()) activeFile = request.file;
+                loaded = request.generation;
             }
             catch (const std::exception &e) { result.error = e.what(); close(); }
             {
@@ -167,12 +175,13 @@ int text_preview_start(MarcusTextPreview *preview, MarcusPlayer *player, int obj
                        const MarcusText *text, const char *resources, float yaw, float pitch, float zoom)
 {
     if (!preview || !text || !resources) return 0;
-    preview->Stop();
     try
     {
         auto file = MarcusPrepareTextPreview(player, object, *text);
-        if (!file) { preview->error = marcus_error(player); return 0; }
+        if (!file) { preview->Stop(); preview->error = marcus_error(player); return 0; }
         std::lock_guard<std::mutex> lock(preview->mutex);
+        ++preview->generation;
+        preview->ready = {}; preview->output = {}; preview->available = false; preview->error.clear();
         preview->desired = {std::move(file), resources, yaw, pitch, zoom, preview->generation.load()};
         preview->requested = true;
         preview->wake.notify_one();

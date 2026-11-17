@@ -374,7 +374,8 @@ state and control logic to C89; wrapping unchanged C++ application logic in a C
 API does not complete this work.
 
 **First slice implemented 17 November 2026:** New/Edit 3D text now uses
-`text_dialog.c` and standard cimgui text input, combo boxes, colour buttons,
+`text_dialog.c` and standard cimgui text input, visual font/shape/material
+pickers with lazily cached native thumbnails, colour buttons,
 numeric controls, modal actions and preview image controls. Pinned cimgui
 1.92.5 shares the existing ImGui implementation, SDL backends and gizmo context.
 Native template/isolated-worker services have a C interface in `text_preview.h`;

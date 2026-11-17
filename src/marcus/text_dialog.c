@@ -18,6 +18,11 @@ typedef struct TextSwatch
     unsigned rgb;
     float hue;
 } TextSwatch;
+typedef struct TextTile
+{
+    SDL_Texture *texture;
+    int wanted, attempted;
+} TextTile;
 struct MarcusTextDialog
 {
     int open, opening, font, material, chosen, object;
@@ -38,6 +43,9 @@ struct MarcusTextDialog
     char error[1024];
     SDL_Texture *texture;
     MarcusTextPreview *preview;
+    MarcusTextPreview *thumbnails;
+    TextTile *font_tiles, shape_tiles[10], *material_tiles;
+    int loading_kind, loading_index;
 };
 
 static const char *shapes[] = {"Normal", "Arch up", "Circle around Y", "Large middle", "Arch down",
@@ -124,6 +132,8 @@ static void choose_material(MarcusTextDialog *d, int index)
 static void close_dialog(MarcusTextDialog *d)
 {
     text_preview_stop(d->preview);
+    text_preview_stop(d->thumbnails);
+    d->loading_index = -1;
     d->open = d->opening = 0;
 }
 static void submit(MarcusTextDialog *d)
@@ -168,6 +178,19 @@ static int compare_swatches(const void *left, const void *right)
 }
 static void free_catalogues(MarcusTextDialog *d)
 {
+    int i;
+    if (d->font_tiles)
+        for (i = 0; i < d->font_count; ++i) SDL_DestroyTexture(d->font_tiles[i].texture);
+    for (i = 0; i < 10; ++i)
+    {
+        SDL_DestroyTexture(d->shape_tiles[i].texture);
+        memset(&d->shape_tiles[i], 0, sizeof(d->shape_tiles[i]));
+    }
+    if (d->material_tiles)
+        for (i = 0; i <= d->material_count; ++i) SDL_DestroyTexture(d->material_tiles[i].texture);
+    free(d->font_tiles);
+    free(d->material_tiles);
+    d->font_tiles = d->material_tiles = NULL;
     free(d->fonts);
     free(d->materials);
     free(d->resources);
@@ -182,7 +205,10 @@ MarcusTextDialog *text_dialog_create(void)
     d = (MarcusTextDialog *)calloc(1, sizeof(*d));
     if (!d) return NULL;
     d->preview = text_preview_create();
-    if (!d->preview) { free(d); return NULL; }
+    d->thumbnails = text_preview_create();
+    if (!d->preview || !d->thumbnails)
+    { text_preview_destroy(d->preview); text_preview_destroy(d->thumbnails); free(d); return NULL; }
+    d->loading_index = -1;
     d->chosen = d->object = d->material = -1;
     SDL_strlcpy(d->value.text, "Text", sizeof(d->value.text));
     return d;
@@ -191,6 +217,7 @@ void text_dialog_destroy(MarcusTextDialog *d)
 {
     if (!d) return;
     text_preview_destroy(d->preview);
+    text_preview_destroy(d->thumbnails);
     SDL_DestroyTexture(d->texture);
     free_catalogues(d);
     free(d);
@@ -214,6 +241,7 @@ static int show(MarcusTextDialog *d, MarcusPlayer *player, SDL_Window *window,
     if (object >= 0 && !marcus_text(player, object, &current)) return 0;
     count = marcus_font_count(player, content);
     if (count <= 0 && object < 0) return 0;
+    if (count < 0) count = 0; /* Existing text can retain an imported font. */
     close_dialog(d);
     free_catalogues(d);
     d->fonts = (TextFont *)calloc((size_t)count + 1, sizeof(*d->fonts));
@@ -252,6 +280,8 @@ static int show(MarcusTextDialog *d, MarcusPlayer *player, SDL_Window *window,
         d->value.appearance.mapping[0] = d->value.appearance.mapping[3] = 1;
     }
     if (!d->font_count) { free_catalogues(d); return 0; }
+    d->font_tiles = (TextTile *)calloc((size_t)d->font_count, sizeof(*d->font_tiles));
+    if (!d->font_tiles) { free_catalogues(d); return 0; }
     if (d->font >= d->font_count) d->font = d->font_count - 1;
     d->player = player;
     d->object = object;
@@ -290,6 +320,8 @@ static int show(MarcusTextDialog *d, MarcusPlayer *player, SDL_Window *window,
     for (i = 0; i < d->swatch_count; ++i)
         d->swatches[i] = swatches[swatch_count > 12 ? i * (swatch_count - 1) / 11 : i];
     free(swatches);
+    d->material_tiles = (TextTile *)calloc((size_t)d->material_count + 1, sizeof(*d->material_tiles));
+    if (!d->material_tiles) { free_catalogues(d); return 0; }
     read_uv(d);
     SDL_DestroyTexture(d->texture);
     d->texture = NULL;
@@ -367,52 +399,162 @@ static int text_edited(ImGuiInputTextCallbackData *data)
     changed((MarcusTextDialog *)data->UserData);
     return 0;
 }
+static int tile_count(const MarcusTextDialog *d, int kind)
+{
+    return kind == 0 ? d->font_count : kind == 1 ? 10 : d->material_count + 1;
+}
+static TextTile *tile_at(MarcusTextDialog *d, int kind, int index)
+{
+    return kind == 0 ? &d->font_tiles[index] : kind == 1 ? &d->shape_tiles[index] : &d->material_tiles[index];
+}
+static const char *tile_name(const MarcusTextDialog *d, int kind, int index)
+{
+    if (kind == 0) return d->fonts[index].entry.name;
+    if (kind == 1) return shapes[index];
+    if (index < d->material_count) return d->materials[index].name;
+    return d->object >= 0 ? "Current material" : "Default material";
+}
+static void reset_wanted(MarcusTextDialog *d)
+{
+    int kind, i;
+    for (kind = 0; kind < 3; ++kind)
+        for (i = 0; i < tile_count(d, kind); ++i) tile_at(d, kind, i)->wanted = 0;
+}
+static void font_changed(MarcusTextDialog *d)
+{
+    int kind, i;
+    if (d->loading_index >= 0 && d->loading_kind != 0)
+    {
+        text_preview_stop(d->thumbnails);
+        d->loading_index = -1;
+    }
+    for (kind = 1; kind < 3; ++kind)
+        for (i = 0; i < tile_count(d, kind); ++i)
+        {
+            SDL_DestroyTexture(tile_at(d, kind, i)->texture);
+            memset(tile_at(d, kind, i), 0, sizeof(TextTile));
+        }
+    changed(d);
+}
+static int tile_button(MarcusTextDialog *d, int kind, int index, ImVec2 size, int selected)
+{
+    TextTile *tile;
+    ImTextureRef texture;
+    int clicked;
+    tile = tile_at(d, kind, index);
+    if (selected) igPushStyleColor_Vec4(ImGuiCol_Button, colour(0x375e64));
+    if (tile->texture)
+    {
+        memset(&texture, 0, sizeof(texture));
+        texture._TexID = (ImTextureID)(size_t)tile->texture;
+        clicked = igImageButton("##sample", texture, size, vec(0, 0), vec(1, 1), colour(0x13161a), colour(0xffffff));
+    }
+    else clicked = igButton(tile->attempted == 2 ? "No preview" : "Loading...", size);
+    if (igIsItemVisible() && !tile->attempted) tile->wanted = 1;
+    if (igIsItemHovered(0)) igSetTooltip("%s", tile_name(d, kind, index));
+    if (selected) igPopStyleColor(1);
+    return clicked;
+}
+static void gallery_picker(MarcusTextDialog *d, int kind, const char *label, int selected)
+{
+    int i, count;
+    igPushID_Int(kind);
+    igTextUnformatted(label, NULL);
+    if (tile_button(d, kind, selected, vec(96, 72), 0)) igOpenPopup_Str("Gallery", 0);
+    igSameLine(0, 12);
+    igBeginGroup();
+    igTextWrapped("%s", tile_name(d, kind, selected));
+    if (igButton("Choose...", vec(0, 0))) igOpenPopup_Str("Gallery", 0);
+    igEndGroup();
+    igSetNextWindowSize(vec(660, 460), ImGuiCond_Always);
+    if (igBeginPopup("Gallery", ImGuiWindowFlags_NoSavedSettings))
+    {
+        igSeparatorText(label);
+        count = tile_count(d, kind) - (kind == 2 ? 1 : 0);
+        if (igBeginTable("Samples", 4, ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
+        {
+            for (i = 0; i < count; ++i)
+            {
+                igTableNextColumn();
+                igPushID_Int(i);
+                if (tile_button(d, kind, i, vec(128, 96), selected == i))
+                {
+                    if (kind == 0) { d->font = i; font_changed(d); }
+                    else if (kind == 1) { d->value.shape = i; changed(d); }
+                    else choose_material(d, i);
+                    igCloseCurrentPopup();
+                }
+                igTextWrapped("%s", tile_name(d, kind, i));
+                igPopID();
+            }
+            igEndTable();
+        }
+        igEndPopup();
+    }
+    igPopID();
+}
+static void update_thumbnails(MarcusTextDialog *d, SDL_Renderer *renderer)
+{
+    MarcusImage image;
+    MarcusText sample;
+    TextTile *tile;
+    SDL_Surface *surface, *small;
+    int result, kind, i, object;
+    if (d->loading_index >= 0)
+    {
+        result = text_preview_poll(d->thumbnails, &image);
+        if (!result) return;
+        tile = tile_at(d, d->loading_kind, d->loading_index);
+        if (result > 0)
+        {
+            surface = SDL_CreateSurfaceFrom(image.width, image.height, SDL_PIXELFORMAT_RGBA32, (void *)image.rgba, image.pitch);
+            small = surface ? SDL_ScaleSurface(surface, 128, 96, SDL_SCALEMODE_LINEAR) : NULL;
+            tile->texture = small ? SDL_CreateTextureFromSurface(renderer, small) : NULL;
+            SDL_DestroySurface(small);
+            SDL_DestroySurface(surface);
+            if (tile->texture) SDL_SetTextureScaleMode(tile->texture, SDL_SCALEMODE_LINEAR);
+        }
+        if (!tile->texture) tile->attempted = 2;
+        d->loading_index = -1;
+    }
+    for (kind = 0; kind < 3; ++kind)
+        for (i = 0; i < tile_count(d, kind); ++i)
+        {
+            tile = tile_at(d, kind, i);
+            if (!tile->wanted || tile->attempted) continue;
+            sample = value(d);
+            SDL_strlcpy(sample.text, "Text", sizeof(sample.text));
+            sample.shape = 0;
+            object = -1;
+            if (kind < 2)
+            {
+                memset(&sample.appearance, 0, sizeof(sample.appearance));
+                sample.appearance.enabled = 1;
+                sample.appearance.index_base = sample.appearance.index_range = 15;
+                sample.appearance.ambient = .1f;
+                sample.appearance.diffuse = sample.appearance.specular = .6f;
+                sample.appearance.shininess = 50;
+                sample.appearance.mapping[0] = sample.appearance.mapping[3] = 1;
+            }
+            if (kind == 0) { sample.font = d->fonts[i].entry.chunk; sample.font_source = d->fonts[i].source; }
+            else if (kind == 1) sample.shape = i;
+            else if (i == d->material_count) object = d->object;
+            else if (!marcus_text_material_preset(d->player, d->materials[i].chunk, &sample.appearance))
+            { tile->attempted = 2; continue; }
+            tile->attempted = 1;
+            if (!text_preview_start(d->thumbnails, d->player, object, &sample, d->resources, 20, -10, 1))
+            { tile->attempted = 2; return; }
+            d->loading_kind = kind;
+            d->loading_index = i;
+            return;
+        }
+}
 static void catalogues(MarcusTextDialog *d)
 {
-    const char *name;
-    int i, selected;
-    igSetNextItemWidth(-1);
-    if (igBeginCombo("##font", d->fonts[d->font].entry.name, 0))
-    {
-        for (i = 0; i < d->font_count; ++i)
-        {
-            igPushID_Int(i);
-            selected = i == d->font;
-            if (igSelectable_Bool(d->fonts[i].entry.name, selected != 0, 0, vec(0, 0)))
-            { d->font = i; changed(d); }
-            if (selected) igSetItemDefaultFocus();
-            igPopID();
-        }
-        igEndCombo();
-    }
-    igTextUnformatted("Shape", NULL);
-    igSetNextItemWidth(-1);
-    if (igBeginCombo("##shape", shapes[d->value.shape], 0))
-    {
-        for (i = 0; i < 10; ++i)
-        {
-            selected = i == d->value.shape;
-            if (igSelectable_Bool(shapes[i], selected != 0, 0, vec(0, 0)))
-            { d->value.shape = i; changed(d); }
-            if (selected) igSetItemDefaultFocus();
-        }
-        igEndCombo();
-    }
-    name = d->material >= 0 ? d->materials[d->material].name : d->object >= 0 ? "Current material" : "Default material";
-    igTextUnformatted("Material", NULL);
-    igSetNextItemWidth(-1);
-    if (igBeginCombo("##material", name, 0))
-    {
-        for (i = 0; i < d->material_count; ++i)
-        {
-            igPushID_Int(i);
-            selected = i == d->material;
-            if (igSelectable_Bool(d->materials[i].name, selected != 0, 0, vec(0, 0))) choose_material(d, i);
-            if (selected) igSetItemDefaultFocus();
-            igPopID();
-        }
-        igEndCombo();
-    }
+    int i;
+    gallery_picker(d, 0, "3D font", d->font);
+    gallery_picker(d, 1, "Shape", d->value.shape);
+    gallery_picker(d, 2, "Material", d->material >= 0 ? d->material : d->material_count);
     for (i = 0; i < d->swatch_count; ++i)
     {
         igPushID_Int(i);
@@ -486,16 +628,6 @@ static void preview_controls(MarcusTextDialog *d)
             view_changed(d);
         }
     }
-    if (igButton("Rotate <", vec(0, 0))) { d->yaw += 30; view_changed(d); }
-    igSameLine(0, -1);
-    if (igButton("Rotate >", vec(0, 0))) { d->yaw -= 30; view_changed(d); }
-    igSameLine(0, -1);
-    if (igButton("Zoom -", vec(0, 0))) { d->zoom = clamp(d->zoom * .8f, .25f, 4); view_changed(d); }
-    igSameLine(0, -1);
-    if (igButton("Zoom +", vec(0, 0))) { d->zoom = clamp(d->zoom * 1.25f, .25f, 4); view_changed(d); }
-    igSameLine(0, -1);
-    if (igButton("Reset", vec(0, 0))) { d->yaw = 20; d->pitch = -10; d->zoom = 1; view_changed(d); }
-    igTextWrapped("Drag to rotate / Wheel to zoom. Preview pose does not change the movie.");
     if (text_preview_error(d->preview)[0])
     {
         igPushStyleColor_Vec4(ImGuiCol_Text, colour(0xe4a1a1));
@@ -511,6 +643,7 @@ void text_dialog_draw(MarcusTextDialog *d, MarcusUI *ui, int width, int height)
     ImGuiID visible_key;
     int opening, save, count, valid;
     if (!text_dialog_visible(d)) return;
+    reset_wanted(d);
     opening = d->opening;
     title = d->object >= 0 ? "Edit 3D text###MarcusText" : "New 3D text###MarcusText";
     size = vec((float)width - 32, (float)height - 32);
@@ -549,10 +682,13 @@ void text_dialog_draw(MarcusTextDialog *d, MarcusUI *ui, int width, int height)
             if (igBeginTable("Text and preview", 2, ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
             {
                 igTableNextColumn();
-                igTextUnformatted("3D font", NULL);
-                catalogues(d);
-                fields(d);
-                igTextDisabled("Drag values; Ctrl+click to type.");
+                if (igBeginChild_Str("Properties", vec(0, 0), 0, 0))
+                {
+                    catalogues(d);
+                    fields(d);
+                    igTextDisabled("Drag values; Ctrl+click to type.");
+                }
+                igEndChild();
                 igTableNextColumn();
                 preview_controls(d);
                 igEndTable();
@@ -571,6 +707,7 @@ void text_dialog_draw(MarcusTextDialog *d, MarcusUI *ui, int width, int height)
         igEndDisabled();
         if (igShortcut_Nil(ImGuiKey_Escape, 0)) close_dialog(d);
         if (d->open && save && valid) submit(d);
+        if (d->open) update_thumbnails(d, ui->renderer);
         if (!d->open) igCloseCurrentPopup();
         igEndPopup();
     }
