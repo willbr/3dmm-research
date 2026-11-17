@@ -444,8 +444,11 @@ Keep host presentation and device output outside the session.
    session now evaluates camera cuts and resolves the selected `CAM` through
    the movie's embedded background or a caller-supplied content archive. It
    also evaluates actor route, action, cel and root pose from embedded or
-   supplied templates, including procedural text actions. Automatic source
-   discovery, body resources and rendered output remain open.
+   supplied templates, including procedural text actions. The C resolver now
+   maps authored source IDs to mounted content and selects archives by chunk
+   identity. The standalone `--seek` probe exercises actors and cameras from
+   one retail content directory. Host mount discovery, body resources and
+   rendered output remain open.
 3. Switch both hosts to the same session for the covered operations and retire
    the superseded backend paths. Link and run the standalone consumer and its
    real file/content providers with the C toolchain, without `engine-core`,

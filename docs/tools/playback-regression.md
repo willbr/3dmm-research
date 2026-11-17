@@ -12751,6 +12751,26 @@ actor session source compiles with strict C89 for Linux x64 musl. The capture
 comparison covers actor state and root transforms. Part matrices, costumes,
 audio and host integration remain open.
 
+### Standalone C89 content resolution (17 November 2026)
+
+`engine-native-chunky-test FILE --seek SCENE FRAME RETAIL_CONTENT_DIRECTORY`
+mounts the directory and resolves each authored source ID through the movie's
+source-name GST and the shared VFS. A missing GST retains the retail SID 2
+mapping. Mounted `.3cn` archives are searched by exact chunk identity and cached
+for the duration of the seek. For the retained seek runs listed above, this
+combined mode matches camera and actor state across all 240 retail frames and
+60 v3dmm frames. The inputs match their capture hashes. Pointing the same mode
+at a directory without retail archives reports the missing background asset.
+
+The regression fixture checks byte and UTF-16 source names, non-default SIDs,
+duplicate SID precedence, alias resolution, mixed-case archive names, exact
+asset selection, cache ownership and missing-asset output. All 181 standalone
+engine checks and the 11 engine, VFS and Marcus syntax checks in the full build
+configuration pass. The resolver sources also compile under strict C89 for
+Linux x64 musl. The C directory probe covers the retail installation files.
+Expansion and bundle mounting and Studio/Marcus session integration remain
+separate work.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

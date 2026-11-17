@@ -47,6 +47,12 @@ C route and event tables and replays the existing actor evaluator from a fresh
 state. The query uses action tables from the resolved template or the shared
 3D text action metadata. Its outputs include route position, action, cel and
 fixed-point root pose. The query does not create body, costume or audio objects.
+`mm-movie-content` supplies a C resolver for either query. It reads the movie's
+source-name table, resolves its aliases through the existing content VFS and
+searches mounted `.3cn` archives by exact chunk type and number. Archive
+opening remains a platform service. `engine-native-chunky-test FILE --seek
+SCENE FRAME RETAIL_CONTENT_DIRECTORY` mounts the retail directory and runs
+both queries from a single movie session.
 Studio and Marcus still use their existing archive owners and resource providers.
 
 | Caller / dependency | Boundary after the first slice |

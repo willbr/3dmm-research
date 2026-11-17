@@ -2,6 +2,7 @@
 #include "mm/codec.h"
 #include "mm/data_stream.h"
 #include "mm/movie_session.h"
+#include "mm/movie_content_resolver.h"
 #include "mm/scene_data.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -266,6 +267,38 @@ static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 sour
                          sizeof(links) / sizeof(links[0]));
 }
 
+static MMU32 source_movie(unsigned char *out, int big, int wide)
+{
+    static const MMU32 types[] = {0x47535420UL, 0x4d564945UL};
+    static const MMU32 numbers[] = {5, 17};
+    static const MMU32 links[][3] = {{1, 0, 1}};
+    static const unsigned char title[] = "D\xe9" "cor/3DMOVIE";
+    const MMI32 codecs[] = {0, 0};
+    unsigned char raw[2][160], *table;
+    MMU32 lengths[2], i, unit = wide ? 2 : 1, name_bytes = (sizeof(title) + 1) * unit;
+    memset(raw, 0, sizeof(raw));
+    put16(raw[0], 1, big);
+    put16(raw[0] + 2, wide ? 0x0505 : 0x0303, big);
+    put32(raw[0] + 4, 8, big);
+    put32(raw[0] + 8, 2, big);
+    put32(raw[0] + 12, name_bytes, big);
+    put32(raw[0] + 16, 0xffffffffUL, big);
+    raw[0][20] = sizeof(title) - 1;
+    for (i = 0; i < sizeof(title) - 1; ++i)
+        raw[0][20 + (i + 1) * unit] = title[i];
+    raw[0][20 + sizeof(title) * unit] = 0; /* Second row's empty name. */
+    table = raw[0] + 20 + name_bytes;
+    put32(table + 4, 9, big);
+    put32(table + 8, sizeof(title) * unit, big);
+    put32(table + 12, 9, big);
+    lengths[0] = 20 + name_bytes + 16;
+    lengths[1] = 8;
+    put16(raw[1], 1, big);
+    put16(raw[1] + 4, 2, big);
+    put16(raw[1] + 6, 2, big);
+    return write_fixture(out, big, 2, types, numbers, lengths, codecs, raw, links, 1);
+}
+
 static void group_header(unsigned char *bytes, MMU32 count, MMU32 data, MMU32 width, int big)
 {
     put32(bytes + 4, count, big);
@@ -358,6 +391,90 @@ static void movie_actors(void)
     CHECK(mm_memory_stream_init(&input, bytes, size));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
     CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_ASSET_NOT_FOUND);
+    mm_movie_session_close(movie);
+}
+
+typedef struct MountedArchives
+{
+    MMMemoryStream backdrops, templates;
+    unsigned opens, closes;
+} MountedArchives;
+
+static int fixture_archive_open(void *p, const char *path, void **handle, MMReadStream *stream)
+{
+    MountedArchives *archives = (MountedArchives *)p;
+    MMMemoryStream *file;
+    CHECK(strcmp(path, "thumbnail") != 0);
+    CHECK(!strcmp(path, "backgrounds") || !strcmp(path, "templates"));
+    file = !strcmp(path, "backgrounds") ? &archives->backdrops : &archives->templates;
+    ++archives->opens;
+    *stream = file->stream;
+    *handle = file;
+    return MM_MOVIE_OK;
+}
+
+static void fixture_archive_close(void *p, void *handle)
+{
+    MountedArchives *archives = (MountedArchives *)p;
+    CHECK(handle == &archives->backdrops || handle == &archives->templates);
+    ++archives->closes;
+}
+
+static void movie_content(void)
+{
+    const MMChunkPolicy policy = {0, 0, 516};
+    const MMVfsMount mounts[] = {{"z.3CN", "templates"}, {"a.3cn", "backgrounds"}, {"0.3th", "thumbnail"}};
+    unsigned char bytes[1024], backgrounds[1024], templates[1024];
+    char name[MM_MOVIE_SOURCE_NAME_BYTES];
+    MMMovieArchiveProvider provider;
+    MountedArchives archives;
+    MMMemoryStream input;
+    MMMovieSession *movie;
+    MMMovieContent *content;
+    MMVfs *vfs;
+    MMMovieAsset asset = {9, 0x544d504cUL, 13};
+    MMReadStream resolved;
+    MMU32 size;
+    int wide;
+
+    memset(&archives, 0, sizeof(archives));
+    size = camera_fixture(backgrounds, 0, 0, 2, 0);
+    CHECK(mm_memory_stream_init(&archives.backdrops, backgrounds, size));
+    size = actor_fixture(templates, 0, 2);
+    CHECK(mm_memory_stream_init(&archives.templates, templates, size));
+    provider.context = &archives;
+    provider.open = fixture_archive_open;
+    provider.close = fixture_archive_close;
+    for (wide = 0; wide <= 1; ++wide)
+    {
+        size = source_movie(bytes, wide, wide);
+        CHECK(mm_memory_stream_init(&input, bytes, size));
+        CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+        CHECK(mm_movie_session_source_name(movie, 9, name) == MM_MOVIE_OK);
+        CHECK(!strcmp(name, "D\xc3\xa9" "cor/3DMOVIE"));
+        CHECK(mm_movie_session_source_name(movie, 2, name) == MM_MOVIE_ASSET_NOT_FOUND && name[0] == 'D');
+        vfs = mm_vfs_create(NULL);
+        CHECK(vfs && mm_vfs_mount(vfs, "3dmovie", mounts, sizeof(mounts) / sizeof(mounts[0]), 0) == MM_VFS_OK);
+        content = mm_movie_content_open(movie, vfs, &provider);
+        CHECK(content != NULL);
+        asset.type = 0x544d504cUL;
+        asset.number = 13;
+        CHECK(mm_movie_content_source(content, &asset, &resolved) == MM_MOVIE_OK);
+        CHECK(resolved.context == &archives.templates);
+        asset.type = 0x424b4744UL;
+        asset.number = 4;
+        CHECK(mm_movie_content_source(content, &asset, &resolved) == MM_MOVIE_OK);
+        CHECK(resolved.context == &archives.backdrops);
+        asset.number = 13;
+        CHECK(mm_movie_content_source(content, &asset, &resolved) == MM_MOVIE_ASSET_NOT_FOUND);
+        CHECK(resolved.context == &archives.backdrops && archives.opens == (unsigned)(wide + 1) * 2);
+        mm_movie_content_close(content);
+        CHECK(archives.closes == archives.opens);
+        mm_vfs_destroy(vfs);
+        mm_movie_session_close(movie);
+    }
+    CHECK(mm_movie_session_open(&archives.backdrops.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_source_name(movie, 2, name) == MM_MOVIE_OK && !strcmp(name, "3dmovie"));
     mm_movie_session_close(movie);
 }
 
@@ -924,6 +1041,7 @@ int main(void)
     movie_sessions();
     movie_camera();
     movie_actors();
+    movie_content();
     graphs();
     io_failures();
     deep_graph();

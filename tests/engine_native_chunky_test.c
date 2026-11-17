@@ -1,5 +1,5 @@
 #include "mm/chunky_file.h"
-#include "mm/movie_session.h"
+#include "mm/movie_content_resolver.h"
 #include "mm/native_files.h"
 #include <errno.h>
 #include <stdio.h>
@@ -26,13 +26,16 @@ static int number(const char *text, MMI32 *out)
     return 1;
 }
 
-static int seek_input(SeekInput *input, int argc, char **argv)
+static int seek_input(SeekInput *input, int argc, char **argv, int auto_content)
 {
     MMI32 scene;
-    if ((argc != 5 && argc != 7) || !number(argv[3], &scene) || scene < 0 || !number(argv[4], &input->frame))
+    if ((auto_content ? argc != 6 : argc != 5 && argc != 7) ||
+        !number(argv[3], &scene) || scene < 0 || !number(argv[4], &input->frame))
         return 0;
     input->scene = (MMU32)scene;
-    if (argc == 7)
+    if (auto_content)
+        input->path = argv[5];
+    else if (argc == 7)
     {
         if (!number(argv[5], &input->source) || input->source <= 0)
             return 0;
@@ -57,27 +60,27 @@ static int open_source(void *context, const MMMovieAsset *asset, MMReadStream *s
     return input->file && mm_native_file_read_stream(input->file, stream) ? MM_MOVIE_OK : MM_MOVIE_IO;
 }
 
-static int check_camera(const MMReadStream *stream, const MMChunkPolicy *policy, SeekInput *input)
+static void print_camera(const MMMovieCamera *camera)
 {
-    MMMovieSession *movie = NULL;
-    MMMovieCamera camera;
-    int status = mm_movie_session_open(stream, policy, &movie);
     unsigned i, j;
-    if (status == MM_MOVIE_OK)
-        status = mm_movie_session_camera(movie, input->scene, input->frame, open_source, input, &camera);
-    mm_movie_session_close(movie);
-    mm_native_file_close(input->file);
+    printf("BKGD %ld %lu CAM %lu %lu %ld %ld %u\n", (long)camera->background.source,
+           (unsigned long)camera->background.number, (unsigned long)camera->slot, (unsigned long)camera->number,
+           (long)camera->data.near_z, (long)camera->data.far_z, (unsigned)camera->data.fov);
+    for (i = 0; i < 4; ++i)
+        for (j = 0; j < 3; ++j)
+            printf("%ld%c", (long)camera->data.matrix.m[i][j], i == 3 && j == 2 ? '\n' : ' ');
+}
+
+static int check_camera(const MMMovieSession *movie, SeekInput *input, MMMovieSourceRead source, void *context)
+{
+    MMMovieCamera camera;
+    int status = mm_movie_session_camera(movie, input->scene, input->frame, source, context, &camera);
     if (status != MM_MOVIE_OK)
     {
         fprintf(stderr, "Cannot seek to camera (%d)\n", status);
         return 0;
     }
-    printf("BKGD %ld %lu CAM %lu %lu %ld %ld %u\n", (long)camera.background.source,
-           (unsigned long)camera.background.number, (unsigned long)camera.slot, (unsigned long)camera.number,
-           (long)camera.data.near_z, (long)camera.data.far_z, (unsigned)camera.data.fov);
-    for (i = 0; i < 4; ++i)
-        for (j = 0; j < 3; ++j)
-            printf("%ld%c", (long)camera.data.matrix.m[i][j], i == 3 && j == 2 ? '\n' : ' ');
+    print_camera(&camera);
     return 1;
 }
 
@@ -105,37 +108,123 @@ static int check_movie(const MMReadStream *stream, const MMChunkPolicy *policy)
     return result == MM_MOVIE_SCENE_NOT_FOUND;
 }
 
-static int check_actors(const MMReadStream *stream, const MMChunkPolicy *policy, SeekInput *input)
+static int check_actors(const MMMovieSession *movie, SeekInput *input, MMMovieSourceRead source, void *context)
 {
-    MMMovieSession *movie = NULL;
     MMMovieEvaluatedActor value;
     MMU32 ordinal = 0;
     unsigned i, j;
-    int status = mm_movie_session_open(stream, policy, &movie);
-    if (status == MM_MOVIE_OK)
-        while ((status = mm_movie_session_actor(movie, input->scene, input->frame, ordinal,
-                                                open_source, input, &value)) == MM_MOVIE_OK)
-        {
-            printf("ACTR %lu %ld %ld %lu %d %ld %ld %ld %ld %ld %ld\n",
-                   (unsigned long)value.number, (long)value.header.actor_id, (long)value.header.source_id,
-                   (unsigned long)value.header.template_number, value.state.onStage, (long)value.state.action,
-                   (long)value.state.cel, (long)value.state.nextEvent, (long)value.state.position.dxr,
-                   (long)value.state.position.dyr, (long)value.state.position.dzr);
-            for (i = 0; i < 4; ++i)
-                for (j = 0; j < 3; ++j)
-                    printf("%ld ", (long)value.orientation.m[i][j]);
-            printf("%ld %ld %ld\n", (long)value.translation.dxr, (long)value.translation.dyr,
-                   (long)value.translation.dzr);
-            ++ordinal;
-        }
-    mm_movie_session_close(movie);
-    mm_native_file_close(input->file);
+    int status;
+    while ((status = mm_movie_session_actor(movie, input->scene, input->frame, ordinal,
+                                            source, context, &value)) == MM_MOVIE_OK)
+    {
+        printf("ACTR %lu %ld %ld %lu %d %ld %ld %ld %ld %ld %ld\n",
+               (unsigned long)value.number, (long)value.header.actor_id, (long)value.header.source_id,
+               (unsigned long)value.header.template_number, value.state.onStage, (long)value.state.action,
+               (long)value.state.cel, (long)value.state.nextEvent, (long)value.state.position.dxr,
+               (long)value.state.position.dyr, (long)value.state.position.dzr);
+        for (i = 0; i < 4; ++i)
+            for (j = 0; j < 3; ++j)
+                printf("%ld ", (long)value.orientation.m[i][j]);
+        printf("%ld %ld %ld\n", (long)value.translation.dxr, (long)value.translation.dyr,
+               (long)value.translation.dzr);
+        ++ordinal;
+    }
     if (status != MM_MOVIE_ACTOR_NOT_FOUND)
         fprintf(stderr, "Cannot evaluate actor %lu (%d)\n", (unsigned long)ordinal, status);
     return status == MM_MOVIE_ACTOR_NOT_FOUND;
 }
 
-static int check_index(void *file, MMU32 type, int movie, SeekInput *seek, int actors)
+static int open_archive(void *unused, const char *location, void **file, MMReadStream *stream)
+{
+    MMNativeOpenOptions options;
+    void *handle;
+    (void)unused;
+    mm_native_open_options_init(&options);
+    handle = mm_native_file_open(location, &options);
+    if (!handle || !mm_native_file_read_stream(handle, stream))
+    {
+        mm_native_file_close(handle);
+        return MM_MOVIE_IO;
+    }
+    *file = handle;
+    return MM_MOVIE_OK;
+}
+
+static void close_archive(void *unused, void *file)
+{
+    (void)unused;
+    mm_native_file_close(file);
+}
+
+static int mount_retail(MMVfs *vfs, const char *directory)
+{
+    void *iterator;
+    char name[1024], path[2048];
+    const char *extension;
+    size_t length = strlen(directory);
+    MMNativePathInfo info;
+    MMVfsMount file;
+    int status, result = MM_VFS_OK;
+    if (!length || length > sizeof(path) - sizeof(name) - 1)
+        return 0;
+    memcpy(path, directory, length);
+    if (!mm_native_is_separator(path[length - 1]))
+        path[length++] = mm_native_separator();
+    path[length] = '*';
+    path[length + 1] = 0;
+    status = mm_native_directory_first(path, &iterator, name, &info);
+    while (status == MM_NATIVE_ENTRY && result == MM_VFS_OK)
+    {
+        extension = strrchr(name, '.');
+        if (!info.directory && extension && strlen(extension) == 4 && extension[1] == '3' &&
+            (extension[2] == 'c' || extension[2] == 'C') && (extension[3] == 'n' || extension[3] == 'N'))
+        {
+            memcpy(path + length, name, strlen(name) + 1);
+            file.name = name;
+            file.location = path;
+            result = mm_vfs_mount(vfs, "3dmovie", &file, 1, 0);
+        }
+        status = mm_native_directory_next(iterator, name, &info);
+    }
+    mm_native_directory_close(iterator);
+    return status == MM_NATIVE_END && result == MM_VFS_OK;
+}
+
+static int check_seek(const MMReadStream *stream, const MMChunkPolicy *policy, SeekInput *input,
+                      int actors, int auto_content)
+{
+    const MMMovieArchiveProvider provider = {NULL, open_archive, close_archive};
+    MMMovieSession *movie;
+    MMVfs *vfs = NULL;
+    MMMovieContent *content = NULL;
+    int ok = 0, status;
+    status = mm_movie_session_open(stream, policy, &movie);
+    if (status != MM_MOVIE_OK)
+    {
+        fprintf(stderr, "Cannot read movie root (%d)\n", status);
+        return 0;
+    }
+    if (auto_content)
+    {
+        vfs = mm_vfs_create(NULL);
+        if (vfs && mount_retail(vfs, input->path))
+            content = mm_movie_content_open(movie, vfs, &provider);
+        if (content)
+            ok = check_camera(movie, input, mm_movie_content_source, content) &&
+                 check_actors(movie, input, mm_movie_content_source, content);
+        else
+            fprintf(stderr, "Cannot mount retail content from %s\n", input->path);
+    }
+    else
+        ok = actors ? check_actors(movie, input, open_source, input) : check_camera(movie, input, open_source, input);
+    mm_movie_content_close(content);
+    mm_vfs_destroy(vfs);
+    mm_movie_session_close(movie);
+    mm_native_file_close(input->file);
+    return ok;
+}
+
+static int check_index(void *file, MMU32 type, int movie, SeekInput *seek, int actors, int auto_content)
 {
     const unsigned short native_order = 1;
     MMChunkPolicy policy = {0, 0, 516}; /* Legacy counted name plus terminator and encoding. */
@@ -158,7 +247,7 @@ static int check_index(void *file, MMU32 type, int movie, SeekInput *seek, int a
     if (movie)
         return check_movie(&stream, &policy);
     if (seek)
-        return actors ? check_actors(&stream, &policy, seek) : check_camera(&stream, &policy, seek);
+        return check_seek(&stream, &policy, seek, actors, auto_content);
     if (mm_chunk_index_open(&stream, &policy, &index) != MM_CHUNK_OK)
         return 0;
 
@@ -181,15 +270,17 @@ int main(int argc, char **argv)
     SeekInput input = {0};
     MMU32 type = 0;
     void *file;
-    int i, movie, seek, actors, ok;
+    int i, movie, seek, actors, auto_content, ok;
 
     movie = argc == 3 && strcmp(argv[2], "--movie") == 0;
     actors = argc >= 3 && strcmp(argv[2], "--actors") == 0;
-    seek = actors || (argc >= 3 && strcmp(argv[2], "--camera") == 0);
-    if (seek ? !seek_input(&input, argc, argv) : argc != 3 || (!movie && strlen(argv[2]) != 4))
+    auto_content = argc >= 3 && strcmp(argv[2], "--seek") == 0;
+    seek = actors || auto_content || (argc >= 3 && strcmp(argv[2], "--camera") == 0);
+    if (seek ? !seek_input(&input, argc, argv, auto_content) : argc != 3 || (!movie && strlen(argv[2]) != 4))
     {
         fputs("Usage: engine-native-chunky-test FILE TYPE|--movie|(--camera|--actors) SCENE FRAME [SID CONTENT]\n",
               stderr);
+        fputs("       engine-native-chunky-test FILE --seek SCENE FRAME RETAIL_CONTENT_DIRECTORY\n", stderr);
         return 1;
     }
     if (!movie && !seek)
@@ -202,7 +293,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Cannot open %s\n", argv[1]);
         return 1;
     }
-    ok = check_index(file, type, movie, seek ? &input : NULL, actors);
+    ok = check_index(file, type, movie, seek ? &input : NULL, actors, auto_content);
     mm_native_file_close(file);
     if (!ok)
         fprintf(stderr, "Cannot read %s from %s\n", movie ? "movie metadata" : argv[2], argv[1]);

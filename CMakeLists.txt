@@ -242,6 +242,7 @@ if(STUDIO_SDL3)
   target_link_libraries(window-lifecycle-sdl-test PRIVATE kauai SDL3::SDL3-static)
 endif()
 include(CTest)
+add_subdirectory(libraries/content)
 add_subdirectory(libraries/engine)
 
 cmake_dependent_option(3DMM_PACKAGE_WIX "Generate an MSI via WiX" ON "BUILD_PACKAGES AND DEFINED ENV{WIX}" OFF)
@@ -472,9 +473,6 @@ add_executable(nick-expansion-test EXCLUDE_FROM_ALL tests/nick_expansion_test.cp
 target_link_libraries(nick-expansion-test PRIVATE mm-expansion engine-core)
 
 include(PackDependencies)
-add_library(mm-vfs STATIC libraries/content/src/content_vfs.c)
-set_target_properties(mm-vfs PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-target_include_directories(mm-vfs PUBLIC "${PROJECT_SOURCE_DIR}/libraries/content/include")
 add_executable(content-vfs-test EXCLUDE_FROM_ALL tests/content_vfs_test.c)
 set_target_properties(content-vfs-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_link_libraries(content-vfs-test PRIVATE mm-vfs)

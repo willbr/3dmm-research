@@ -67,6 +67,12 @@ int mm_movie_session_open(const MMReadStream *, const MMChunkPolicy *, MMMovieSe
 void mm_movie_session_close(MMMovieSession *);
 const MMMovieSessionRoot *mm_movie_session_root(const MMMovieSession *);
 
+enum { MM_MOVIE_SOURCE_NAME_BYTES = 766 };
+/* Read the first matching SID from MVIE's source table as UTF-8. A movie
+ * with no source table uses the retail source name for SID 2. Failure leaves
+ * the caller's MM_MOVIE_SOURCE_NAME_BYTES-byte buffer unchanged. */
+int mm_movie_session_source_name(const MMMovieSession *, MMI32 source, char *name);
+
 /* Look up an exact SCEN child at the authored slot. A missing slot returns
  * MM_MOVIE_SCENE_NOT_FOUND. A link to an absent or invalid chunk is an error. */
 int mm_movie_session_scene(const MMMovieSession *, MMU32 slot, MMMovieSessionScene *);
