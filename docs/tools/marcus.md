@@ -321,9 +321,8 @@ click its image to open a thumbnail gallery filling the app window. The grid
 adapts its column count to the window width. The separate Choose buttons are
 removed; Back or Escape returns to the dialog. Generated material labels such
 as "Material 25344" are hidden in the tiles and tooltips; authored names remain.
-Samples
-render the word "Text" using the real retail font, shape or material, including
-texture patterns. Font and shape samples use a neutral material, and shape
+Samples render your current wording using the real retail font, shape or
+material, including texture patterns. Font and shape samples use a neutral material, and shape
 samples follow the selected font. The 50-character limit follows retail's text
 editor (`kcchMaxTdt` in `src/studio/esl.cpp`); it is not a file-format limit.
 The dialog is implemented in C89 using standard cimgui widgets in the same
@@ -362,7 +361,11 @@ delay. Closing/replacing a session invalidates in-flight frames; process
 teardown happens on the worker thread.
 
 Gallery thumbnails load only when their tiles are visible and stay cached for
-the open dialog. A separate thumbnail worker leaves the interactive preview's
+the current wording. Editing the text cancels obsolete thumbnail work and
+invalidates all font/shape/material samples; a short typing debounce avoids
+rebuilding them for every keystroke. Empty or over-limit input leaves the
+samples blank until valid wording is entered.
+A separate thumbnail worker leaves the interactive preview's
 camera/session intact. It reuses one renderer process across template loads;
 native template preparation stays on the player owner thread. Changing fonts
 invalidates the dependent shape/material samples. The properties pane scrolls

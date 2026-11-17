@@ -292,7 +292,7 @@ int main(int argc, char **argv)
         for (int kind = 0; kind < 3; ++kind)
         {
             auto sample = settings;
-            std::strcpy(sample.text, "Text");
+            std::strcpy(sample.text, kind == 0 ? "Once upon a time..." : kind == 1 ? "Caf\xc3\xa9" : "My words");
             sample.shape = kind == 1 ? 3 : 0;
             sample.appearance = kind == 2 ? pattern : plain;
             if (kind == 0) { sample.font = otherFont.chunk; sample.font_source = -1; }

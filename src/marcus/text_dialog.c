@@ -36,9 +36,10 @@ struct MarcusTextDialog
     TextSwatch swatches[12];
     int swatch_count;
     float uv[5], uv_original[6], uv_start[3];
-    int uv_dirty, preview_dirty, view_dirty;
+    int uv_dirty, preview_dirty, view_dirty, wording_dirty;
     float yaw, pitch, zoom;
     Uint64 last_preview;
+    Uint64 wording_edited_at;
     char *resources;
     char error[1024];
     SDL_Texture *texture;
@@ -330,6 +331,8 @@ static int show(MarcusTextDialog *d, MarcusPlayer *player, SDL_Window *window,
     d->zoom = 1;
     d->preview_dirty = 1;
     d->view_dirty = 0;
+    d->wording_dirty = 0;
+    d->wording_edited_at = 0;
     d->last_preview = 0;
     d->error[0] = 0;
     d->open = d->opening = 1;
@@ -396,7 +399,11 @@ static void update_preview(MarcusTextDialog *d, SDL_Renderer *renderer)
 }
 static int text_edited(ImGuiInputTextCallbackData *data)
 {
-    changed((MarcusTextDialog *)data->UserData);
+    MarcusTextDialog *d;
+    d = (MarcusTextDialog *)data->UserData;
+    d->wording_dirty = 1;
+    d->wording_edited_at = SDL_GetTicks();
+    changed(d);
     return 0;
 }
 static int tile_count(const MarcusTextDialog *d, int kind)
@@ -425,20 +432,24 @@ static void reset_wanted(MarcusTextDialog *d)
     for (kind = 0; kind < 3; ++kind)
         for (i = 0; i < tile_count(d, kind); ++i) tile_at(d, kind, i)->wanted = 0;
 }
-static void font_changed(MarcusTextDialog *d)
+static void invalidate_thumbnails(MarcusTextDialog *d, int first_kind)
 {
     int kind, i;
-    if (d->loading_index >= 0 && d->loading_kind != 0)
+    if (d->loading_index >= 0 && d->loading_kind >= first_kind)
     {
         text_preview_stop(d->thumbnails);
         d->loading_index = -1;
     }
-    for (kind = 1; kind < 3; ++kind)
+    for (kind = first_kind; kind < 3; ++kind)
         for (i = 0; i < tile_count(d, kind); ++i)
         {
             SDL_DestroyTexture(tile_at(d, kind, i)->texture);
             memset(tile_at(d, kind, i), 0, sizeof(TextTile));
         }
+}
+static void font_changed(MarcusTextDialog *d)
+{
+    invalidate_thumbnails(d, 1);
     changed(d);
 }
 static int tile_button(MarcusTextDialog *d, int kind, int index, ImVec2 size, int selected)
@@ -454,7 +465,8 @@ static int tile_button(MarcusTextDialog *d, int kind, int index, ImVec2 size, in
         texture._TexID = (ImTextureID)(size_t)tile->texture;
         clicked = igImageButton("##sample", texture, size, vec(0, 0), vec(1, 1), colour(0x13161a), colour(0xffffff));
     }
-    else clicked = igButton(tile->attempted == 2 ? "No preview" : "Loading...", size);
+    else clicked = igButton(!d->value.text[0] || SDL_utf8strlen(d->value.text) > 50 ? "##sample" :
+                            tile->attempted == 2 ? "No preview" : "Loading...", size);
     if (igIsItemVisible() && !tile->attempted) tile->wanted = 1;
     if (igIsItemHovered(0) && tile_name(d, kind, index)[0]) igSetTooltip("%s", tile_name(d, kind, index));
     if (selected) igPopStyleColor(1);
@@ -523,6 +535,7 @@ static void update_thumbnails(MarcusTextDialog *d, SDL_Renderer *renderer)
     TextTile *tile;
     SDL_Surface *surface, *small;
     int result, kind, i, object;
+    if (!d->value.text[0] || SDL_utf8strlen(d->value.text) > 50 || SDL_GetTicks() - d->wording_edited_at < 180) return;
     if (d->loading_index >= 0)
     {
         result = text_preview_poll(d->thumbnails, &image);
@@ -546,7 +559,6 @@ static void update_thumbnails(MarcusTextDialog *d, SDL_Renderer *renderer)
             tile = tile_at(d, kind, i);
             if (!tile->wanted || tile->attempted) continue;
             sample = value(d);
-            SDL_strlcpy(sample.text, "Text", sizeof(sample.text));
             sample.shape = 0;
             object = -1;
             if (kind < 2)
@@ -702,6 +714,13 @@ void text_dialog_draw(MarcusTextDialog *d, MarcusUI *ui, int width, int height)
         save = igInputText("##words", d->value.text, sizeof(d->value.text),
                            ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue |
                            ImGuiInputTextFlags_CallbackEdit, text_edited, d);
+        /* InputText has copied its edited buffer back before cache invalidation.
+         * No thumbnail images have been submitted to this frame's draw list yet. */
+        if (d->wording_dirty)
+        {
+            invalidate_thumbnails(d, 0);
+            d->wording_dirty = 0;
+        }
         count = (int)SDL_utf8strlen(d->value.text);
         valid = count > 0 && count <= 50;
         if (!valid) igTextColored(colour(0xe4a1a1), "Enter between 1 and 50 characters.");
