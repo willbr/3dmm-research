@@ -505,6 +505,11 @@ POSIX physical file/path services now use the same C interface and forwarding
 adapter, with a C89 implementation for lexical byte paths, retrying I/O,
 cooperative locks, no-clobber hard-link renames, symlink metadata and directory
 ownership. Native object/default bindings and final facade removal remain.
+Native account lookup and user-data roots now also use the C89 `mm-native-users`
+library. Caller-owned result records preserve Windows WNet provider errors,
+POSIX effective-uid lookup/retry limits and Linux/macOS path selection. Existing
+callers use a value-only C++ adapter; username UI, native object integration and
+final facade removal remain work.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

@@ -49,8 +49,19 @@ existing directory without changing permissions. POSIX creates new parents with
 mode 0700; Windows retains shell/default-ACL behavior and accepts either native
 separator spelling. `ChangeDirectory` reports native error codes and leaves cwd
 unchanged on failure. Both are used by Studio profile startup. Account-name and
-app-data-root discovery live separately in the SDK-free `platform_users.h`;
-their Windows implementation contains the WNet and shell-folder calls.
+app-data-root discovery use the C89 `mm/native_users.h` service, with
+`platform_users_bridge.cpp` translating the existing `platform_users.h` values.
+The separate `mm-native-users` library has C-only ANSI/UTF-16 Windows and byte-path
+POSIX builds. Query results own fixed 256-unit buffers; callers do not free them.
+Windows retains WNet's extended-provider error/message and local-app-data root.
+POSIX queries the effective uid with a 1 KiB buffer, doubling on `ERANGE` up to
+1 MiB; empty/missing/error accounts and names exceeding 255 bytes are unavailable.
+Linux uses absolute `XDG_DATA_HOME`, otherwise absolute `HOME/.local/share`;
+macOS uses absolute `HOME/Library/Application Support`. No directories are created.
+`mm_native_posix_user_data_root` also exposes this path policy on other hosts,
+including a measure-only call. Native root queries clear insufficient nonempty
+buffers and never publish a truncated path. C++ value allocation remains only
+in the compatibility adapter; account lookup and path policy execute in C.
 
 Temporary files now use exclusive creation after choosing a name. A collision
 fails rather than truncating a file another process created in the meantime.

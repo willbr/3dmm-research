@@ -12633,3 +12633,51 @@ Evidence: `tmp/c89-filename-frame/frame-{original,converted}-{runtime,expensive}
 `asan-build.log`, `linux-build-initial.log`, `linux-build-final.log`,
 `linux-runtime.log`, `cross.log`, `trace-comparison.json`, `gates.json` and
 `identities.json`.
+
+### C89 native account lookup and user-data roots (17 November 2026)
+
+`mm-native-users` now implements account lookup and per-user storage roots in
+C89 through `mm/native_users.h`. The Windows and POSIX C++ implementations and
+`user_paths.cpp` are removed; `platform_users_bridge.cpp` translates existing
+caller values. This platform library is separate from the platform-neutral
+engine and links with a C toolchain, including ANSI/UTF-16 Windows profiles.
+Caller-owned query records contain status, error and bounded native strings.
+Windows retains WNet extended-provider details and shell-folder discovery.
+POSIX retains effective-uid lookup, 1 KiB-to-1 MiB `ERANGE` retries and the
+255-byte account-name limit. Shared C policy preserves absolute XDG/HOME
+selection, macOS application-support paths, trailing-slash normalization and
+capacity/failure publication. No directories or movie records are changed.
+
+The baseline is `1285e3947e9fd0b52a4949a5fc1a649785d3b71e`. Original user-service
+checks passed in Native, SDL Release and SDL Debug before conversion. Retained
+original Windows implementations and the converted functions also run under the
+same deterministic providers: six account/provider cases, 384 root-capacity
+cases and 98 POSIX path cases match in both ANSI and UTF-16. The Linux guest runs
+the original and converted user-service checks plus C-only native and provider
+checks. Those cover missing/empty/overlong accounts, 255-byte admission, retry
+success/ceiling and allocation/reallocation failure. The guest powers off after
+the checks. Strict C89 builds pass for Windows ANSI/UTF-16, Linux x64 musl,
+32-bit Linux GNU and ARM64 macOS objects. macOS runtime is unverified.
+
+Native passes 261 selected CTest checks, SDL Release passes 256 with the existing
+`world-export` skip, SDL Debug passes 257 and the standalone C89 engine passes
+170. The two standalone Windows platform profiles pass five checks each;
+AddressSanitizer passes all four new Windows C/provider checks. Total: 958
+passed CTest checks and one existing skip. The regular headless preview harness
+passes; all three host background traces retain 12 backgrounds, 188 cameras,
+301,996,032 bytes and FNV `E1A71005`. All 219 retained trace pairs match byte for
+byte. Ten input hashes and Windows ACP/OEM/locale identity remain unchanged;
+258 executable identities are recorded. Native tools/Marcus and both SDL Studio
+profiles rebuild. Marcus is stopped before rebuilding and relaunched afterward.
+
+No Marcus UI tests or new retail captures are added. These checks establish
+conversion parity for this service boundary, not new retail playback coverage.
+Exact allocation-failure ordinals are unverified. Native UI/object integration,
+the C++ value adapter and other backend facades remain conversion work; the
+whole-engine migration is incomplete.
+
+Evidence: `tmp/c89-native-users/{platform_users_win.cpp,platform_users_posix.cpp,user_paths.cpp}`,
+`original-compare-{ansi,wide}.log`, `linux-runtime.log`, `linux-identities.json`,
+`run-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`platform-{ansi,wide}-tests.log`, `asan-runtime.log`, `run-regular-tests.log`,
+`trace-comparison.json`, `gates.json` and `identities.json`.

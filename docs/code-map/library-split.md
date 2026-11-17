@@ -6263,6 +6263,14 @@ File backends: C89 `mm-native-files` through `platform_files_bridge.cpp` on
 Windows and POSIX. `stub.cpp` is selected
 only on Windows. See [file/path policies](platform-files.md).
 
+Account lookup and user-data roots: C89 `mm-native-users` through
+`platform_users_bridge.cpp`. `native_users_win.c` retains WNet/provider errors
+and shell-folder discovery; `native_users_posix.c` retains effective-uid account
+lookup, bounded retries and native environment discovery. `native_user_paths.c`
+shares Linux/macOS path selection and bounded output. C-only consumers use
+caller-owned records from `mm/native_users.h`; native UI/object integration and
+removing the temporary C++ value adapter remain conversion work.
+
 Plus codegen: `kcdc_386.h`, `kcd2_386.h` on x86 only (kauai codec asm).
 
 Linked dependency: `Threads::Threads`. Allocation, synchronization and ticks use

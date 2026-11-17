@@ -904,9 +904,7 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/launch_context.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/settings_store.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/settings_paths.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/user_paths.cpp"
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/platform_users_win.cpp>
-    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/platform_users_posix.cpp>
+    "${PROJECT_SOURCE_DIR}/kauai/src/platform_users_bridge.cpp"
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/settings_store_win.cpp>
     $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/settings_store_posix.cpp>
     "${PROJECT_SOURCE_DIR}/kauai/src/platform_text.cpp"
@@ -1009,6 +1007,7 @@ target_link_libraries(kauai-core
   PUBLIC
     mm-engine-c89
     mm-native-files
+    mm-native-users
     Threads::Threads
     $<$<PLATFORM_ID:Windows>:advapi32>
     $<$<PLATFORM_ID:Windows>:mpr>
