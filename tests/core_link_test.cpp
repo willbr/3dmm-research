@@ -2803,7 +2803,7 @@ static void TestActorPoseEvaluation()
 
 struct FrameTrace
 {
-    ActorFrameCommand commands[128];
+    MMActorFrameCommand commands[128];
     LegacyLong count = 0;
     LegacyLong failIndex = ivNil;
     LegacyLong failures = 0;
@@ -2833,30 +2833,22 @@ static void RecordActorFrameState(const ActorFrameState &s, FILE *snapshot = act
     bytes(&s.transform.xaPath,2); bytes(&s.transform.yaPath,2); bytes(&s.transform.zaPath,2);
 }
 
-// A headless resource/effect adapter with fixed action facts. No renderer,
-// audio device or application is involved; sound requests are counted only.
-static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, const ActorFrameInputs &inputs,
-                                     bool dirty, FrameTrace &trace)
+struct CoreFrameHost
 {
-    if (!actorFrameSnapshotInitialized) {
-        actorFrameSnapshotInitialized = true;
-        if (const char *path = std::getenv("MM_ACTOR_FRAME_SNAPSHOT")) { actorFrameSnapshot = std::fopen(path,"wb"); Check(actorFrameSnapshot); }
-    }
-    LegacyLong inputValues[] = {inputs.firstFrame,inputs.step,inputs.stepSucceeded,inputs.recording,inputs.rejoining,inputs.displayFrame,inputs.suppressSounds,dirty};
-    RecordActorFrameBytes(inputValues,sizeof(inputValues)); RecordActorFrameState(state);
-    ActorFrameEvaluator evaluator(state, track, inputs, dirty);
-    for (;;)
+    ActorFrameState &state;
+    ActorTrack &track;
+    FrameTrace &trace;
+
+    int Apply(MMActorFrameCommand command, MMActorState &value)
     {
-        ActorFrameCommand command = evaluator.Next();
+        EngineActorMotion::Publish(state, value);
         LegacyLong commandValues[] = {static_cast<LegacyLong>(command.kind),command.eventIndex};
         RecordActorFrameBytes(commandValues,sizeof(commandValues)); RecordActorFrameState(state);
-        if (command.kind == ActorFrameCommandKind::Finished)
-            break;
         Check(trace.count < 128);
         trace.commands[trace.count++] = command;
         ActorEvent::Base event;
         track.Events()->GetFixed(command.eventIndex, &event);
-        if (command.kind == ActorFrameCommandKind::CheckEntrance)
+        if (command.kind == MM_ACTOR_CHECK_ENTRANCE)
         {
             if (command.eventIndex == trace.refreshEntrance)
             {
@@ -2864,16 +2856,14 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
                 track.Events()->PutFixed(command.eventIndex, &event);
                 ++trace.refreshed;
             }
-            evaluator.Complete(event.nfrm <= state.frame);
-            continue;
+            return event.nfrm <= state.frame;
         }
         event.nfrm = static_cast<int32_t>(state.frame);
         track.Events()->PutFixed(command.eventIndex, &event);
         if (command.eventIndex == trace.failIndex && trace.failures > 0)
         {
             --trace.failures;
-            evaluator.Complete(false);
-            continue;
+            return 0;
         }
         RoutePoint origin = {};
         ActorValueEventResult applied = state.ApplyValueEvent(track, command.eventIndex, origin);
@@ -2927,9 +2917,39 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
                 Check(false);
             }
         }
-        evaluator.Complete(applied != ActorValueEventResult::Invalid);
+        value = EngineActorMotion::Core(state);
+        return applied != ActorValueEventResult::Invalid;
     }
-    ActorFrameResult result = evaluator.Result();
+};
+
+static MMActorFrameInputs FrameTestInputs()
+{
+    return {0, rZero, 1, 0, 0, 1, 0};
+}
+
+// A headless resource/effect adapter with fixed action facts and sound counters.
+static MMActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, const MMActorFrameInputs &inputs,
+                                       bool dirty, FrameTrace &trace)
+{
+    if (!actorFrameSnapshotInitialized) {
+        actorFrameSnapshotInitialized = true;
+        if (const char *path = std::getenv("MM_ACTOR_FRAME_SNAPSHOT")) { actorFrameSnapshot = std::fopen(path,"wb"); Check(actorFrameSnapshot); }
+    }
+    LegacyLong inputValues[] = {inputs.firstFrame,inputs.step,inputs.stepSucceeded,inputs.recording,inputs.rejoining,inputs.displayFrame,inputs.suppressSounds,dirty};
+    RecordActorFrameBytes(inputValues,sizeof(inputValues)); RecordActorFrameState(state);
+    CoreFrameHost host = {state, track, trace};
+    MMActorFrameEffects effects = {};
+    effects.context = &host;
+    effects.event = [](void *context, const MMActorFrameCommand *command, MMActorState *value) -> int {
+        return static_cast<CoreFrameHost *>(context)->Apply(*command, *value);
+    };
+    auto value = EngineActorMotion::Core(state);
+    const auto motion = EngineActorMotion::Services();
+    MMActorFrameResult result;
+    Check(mm_actor_frame_run(&value, track.Route(), track.Events(), &inputs, dirty, &motion, &effects, &result) == 1);
+    EngineActorMotion::Publish(state, value);
+    const LegacyLong finished[] = {MM_ACTOR_FRAME_FINISHED, -1};
+    RecordActorFrameBytes(finished,sizeof(finished)); RecordActorFrameState(state);
     if (!result.aborted && (result.positionBody || result.updatePose))
     {
         ActorPoseInputs poseInputs;
@@ -2938,8 +2958,8 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
     }
     int flags[] = {result.success,result.aborted,result.positionDirty,result.soundInFrame,result.considerMotionSounds,result.positionBody,result.updatePose,result.selectCel};
     RecordActorFrameBytes(flags,sizeof(flags)); RecordActorFrameState(state);
-    LegacyLong effects[] = {trace.ordinarySounds,trace.motionRegistrations,trace.failures,trace.refreshed};
-    RecordActorFrameBytes(effects,sizeof(effects));
+    LegacyLong counters[] = {trace.ordinarySounds,trace.motionRegistrations,trace.failures,trace.refreshed};
+    RecordActorFrameBytes(counters,sizeof(counters));
     return result;
 }
 
@@ -2955,11 +2975,11 @@ static void TestActorFrameSequencing()
     {
         sequential.frame = frame;
         sequential.firstEventInFrame = sequential.nextEvent;
-        ActorFrameInputs inputs;
+        auto inputs = FrameTestInputs();
         inputs.firstFrame = 1;
         inputs.step = BrsMul(sequential.step, sequential.transform.rScaleStep);
         FrameTrace trace;
-        ActorFrameResult result = RunCoreFrame(sequential, track, inputs, dirty, trace);
+        const auto result = RunCoreFrame(sequential, track, inputs, dirty, trace);
         Check(result.success && !result.aborted);
         sounds += trace.ordinarySounds;
         dirty = result.positionDirty && !result.positionBody;
@@ -2992,7 +3012,7 @@ static void TestActorFrameSequencing()
             inputs.displayFrame = seekFrame == frame;
             inputs.step = BrsMul(seek.step, seek.transform.rScaleStep);
             FrameTrace seekTrace;
-            ActorFrameResult seekResult = RunCoreFrame(seek, track, inputs, seekDirty, seekTrace);
+            const auto seekResult = RunCoreFrame(seek, track, inputs, seekDirty, seekTrace);
             Check(seekResult.success);
             seekDirty = seekResult.positionDirty && !seekResult.positionBody;
             seekSounds += seekTrace.ordinarySounds;
@@ -3001,7 +3021,7 @@ static void TestActorFrameSequencing()
         Check(seekSounds == (frame == 2 ? 1 : 0));
     }
     Check(sounds == 1);
-    ActorFrameInputs inputs;
+    auto inputs = FrameTestInputs();
     inputs.firstFrame = 1;
     inputs.displayFrame = true;
     inputs.suppressSounds = true;
@@ -3012,7 +3032,7 @@ static void TestActorFrameSequencing()
         suppressed.frame = frame;
         inputs.step = suppressed.step;
         FrameTrace trace;
-        ActorFrameResult result = RunCoreFrame(suppressed, track, inputs, false, trace);
+        const auto result = RunCoreFrame(suppressed, track, inputs, false, trace);
         Check(!result.considerMotionSounds && trace.ordinarySounds == 0);
         if (frame == 2)
             Check(result.soundInFrame && trace.motionRegistrations == 1);
@@ -3035,11 +3055,11 @@ static void TestActorFrameSequencing()
     ActorFrameState state;
     state.frame = 3;
     FrameTrace trace;
-    inputs = ActorFrameInputs();
+    inputs = FrameTestInputs();
     inputs.firstFrame = 1;
-    ActorFrameResult result = RunCoreFrame(state, entrances, inputs, false, trace);
-    Check(trace.count == 6 && trace.commands[0].kind == ActorFrameCommandKind::CheckEntrance &&
-          trace.commands[1].kind == ActorFrameCommandKind::ApplyEvent && trace.commands[1].eventIndex == 0 &&
+    auto result = RunCoreFrame(state, entrances, inputs, false, trace);
+    Check(trace.count == 6 && trace.commands[0].kind == MM_ACTOR_CHECK_ENTRANCE &&
+          trace.commands[1].kind == MM_ACTOR_APPLY_EVENT && trace.commands[1].eventIndex == 0 &&
           trace.commands[3].eventIndex == 1 && trace.commands[4].eventIndex == 2 && trace.commands[5].eventIndex == 2);
     Check(state.nextEvent == 2 && state.cel == 1 && result.selectCel);
     state = ActorFrameState();
@@ -3386,13 +3406,15 @@ static bool RunCoreSeek(ActorFrameState &state, ActorTrack &track, LegacyLong fi
             break;
         }
         case MM_ACTOR_SEEK_FRAME: {
-            ActorFrameInputs inputs;
+            auto inputs = FrameTestInputs();
             inputs.firstFrame = first;
             inputs.displayFrame = command.displayFrame;
             inputs.recording = trace.recording;
-            inputs.stepSucceeded = steps.FPlaybackStep(state, &inputs.step);
+            BRS step = rZero;
+            inputs.stepSucceeded = steps.FPlaybackStep(state, &step);
+            inputs.step = step;
             FrameTrace frameTrace;
-            ActorFrameResult result = RunCoreFrame(state, track, inputs, dirty, frameTrace);
+            const auto result = RunCoreFrame(state, track, inputs, dirty, frameTrace);
             dirty = result.positionDirty && !result.positionBody;
             trace.ordinarySounds += frameTrace.ordinarySounds;
             trace.motionRegistrations += frameTrace.motionRegistrations;
@@ -3417,11 +3439,11 @@ static void TestActorSeekControl()
     {
         sequential.frame = frame;
         sequential.firstEventInFrame = sequential.nextEvent;
-        ActorFrameInputs inputs;
+        auto inputs = FrameTestInputs();
         inputs.firstFrame = 1;
         inputs.step = sequential.step;
         FrameTrace trace;
-        ActorFrameResult result = RunCoreFrame(sequential, track, inputs, dirty, trace);
+        const auto result = RunCoreFrame(sequential, track, inputs, dirty, trace);
         Check(result.success);
         dirty = result.positionDirty && !result.positionBody;
         expected[frame] = sequential;

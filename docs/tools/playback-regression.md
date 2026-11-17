@@ -13015,6 +13015,42 @@ SDL Studio and Marcus rebuilt successfully and Marcus was relaunched.
 Capture logs, input and build hashes, test results and the sampled-audio
 database are under `tmp/c89-live-actor/`.
 
+### Shared C89 actor frame effects (17 November 2026)
+
+Studio, Marcus and the standalone session now use `mm_actor_frame_run` to
+deliver entrance queries and event commands. `mm_actor_frame_display`
+schedules motion sounds, body position, cel selection and intermediate pose
+updates. The adapters supply actor and renderer operations. Studio's C++
+frame evaluator is removed. The C fixture checks the effect order, terminal
+event errors and the Studio and Preview failure policies.
+
+The native frame trace matched all 170,230 bytes and the seek trace matched
+all 26,564 bytes against the pre-change build. In `actor-events` and
+`scrolling-text`, 228 host seek observations and 180 viewport hashes matched
+the previous captures. Studio agreed with retail and v3dmm on all 456
+compared actor records, including fixed-point root and part matrices. The
+standalone session reproduced 453 on-stage route and animation records and
+all 456 visibility and template records against retail.
+
+Normal playback of `actor-events`, `dissolve` and `scrolling-text` matched
+the retained retail frame order and final position at 180 commits per host.
+Two `actor-audio` runs per player completed all 60 frames and contained both
+authored tones (600 Hz and 1,300 Hz) in the first scene. Studio matched
+retail's 12 sound requests in both runs. Exact PCM and timing comparisons
+remain inconclusive because the retail repetitions differed. The full
+presentation database import was stopped after the direct loopback check
+covered the actor audio contract.
+
+All 181 standalone and 16 host checks passed, including `engine-core-link`,
+`marcus-playback`, `marcus-storyboard`, `archive-api` and `movie-save-load`.
+The changed C sources compiled under strict C89 for Linux x64 musl. Both
+hosts rebuilt successfully and Marcus was relaunched.
+
+The logs, capture hashes, build identities and standalone link command are
+under `tmp/c89-actor-frame/`.
+This workspace path links to the evidence drive to keep space available for
+Windows builds.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

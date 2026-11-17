@@ -291,12 +291,112 @@ static void modes_and_end(void)
     CHECK(mm_actor_subroute_events_done(&t, 0, &s.location, &services));
     CHECK(mm_actor_subroute_events_done(&t, 1, &s.location, &services));
 }
+typedef struct EffectLog
+{
+    char calls[8];
+    unsigned count;
+    int motion_status, cel_status;
+} EffectLog;
+
+static int effect_event(void *context, const MMActorFrameCommand *command, MMActorState *state)
+{
+    EffectLog *log = (EffectLog *)context;
+    CHECK(command->kind == MM_ACTOR_APPLY_EVENT && command->eventIndex == 0);
+    log->calls[log->count++] = 'E';
+    state->onStage = 1;
+    return -2;
+}
+
+static int effect_sound(void *context)
+{
+    EffectLog *log = (EffectLog *)context;
+    log->calls[log->count++] = 'S';
+    return log->motion_status;
+}
+
+static void effect_body(void *context)
+{
+    EffectLog *log = (EffectLog *)context;
+    log->calls[log->count++] = 'B';
+}
+
+static int effect_cel(void *context)
+{
+    EffectLog *log = (EffectLog *)context;
+    log->calls[log->count++] = 'C';
+    return log->cel_status;
+}
+
+static void effect_pose(void *context)
+{
+    EffectLog *log = (EffectLog *)context;
+    log->calls[log->count++] = 'P';
+}
+
+static void display_effects(void)
+{
+    Tables t;
+    MMActorState s;
+    MMActorFrameInputs in;
+    MMActorFrameResult result;
+    MMActorFrameEffects effects;
+    EffectLog log;
+    int dirty, sound = 0;
+    memset(&log, 0, sizeof(log));
+    effects.context = &log;
+    effects.event = effect_event;
+    effects.motion_sounds = effect_sound;
+    effects.position_body = effect_body;
+    effects.select_cel = effect_cel;
+    effects.update_pose = effect_pose;
+    init(&t, &s, &in);
+    t.count = 1;
+    t.events[0].aet = MM_ACTOR_TWEAK;
+    memset(&result, 0, sizeof(result));
+    result.success = 99;
+    CHECK(mm_actor_frame_run(&s, &t, &t, &in, 0, &services, &effects, &result) == -2);
+    CHECK(result.success == 99 && s.onStage && !s.nextEvent && log.count == 1 && log.calls[0] == 'E');
+
+    result.success = 0;
+    result.positionDirty = result.positionBody = result.selectCel = 1;
+    result.soundInFrame = result.considerMotionSounds = 1;
+    log.count = 0;
+    log.motion_status = -1;
+    log.cel_status = 1;
+    CHECK(!mm_actor_frame_display(&result, &s, 1, MM_ACTOR_FRAME_STUDIO, &dirty, &sound, &effects));
+    CHECK(!dirty && sound && log.count == 3 && !memcmp(log.calls, "SBC", 3));
+    log.count = 0;
+    CHECK(!mm_actor_frame_display(&result, &s, 1, MM_ACTOR_FRAME_PREVIEW, &dirty, 0, &effects));
+    CHECK(dirty && !log.count);
+
+    result.success = 1;
+    CHECK(mm_actor_frame_display(&result, &s, 1, MM_ACTOR_FRAME_PREVIEW, 0, 0, &effects) == -1);
+    CHECK(log.count == 1 && log.calls[0] == 'S');
+    log.count = 0;
+    log.motion_status = 1;
+    log.cel_status = -2;
+    CHECK(mm_actor_frame_display(&result, &s, 1, MM_ACTOR_FRAME_PREVIEW, 0, 0, &effects) == -2);
+    CHECK(log.count == 3 && !memcmp(log.calls, "SBC", 3));
+
+    log.count = 0;
+    result.positionBody = result.considerMotionSounds = result.positionDirty = 0;
+    log.cel_status = 0;
+    CHECK(mm_actor_frame_display(&result, &s, 1, MM_ACTOR_FRAME_PREVIEW, 0, 0, &effects) == 1 && !log.count);
+    CHECK(!mm_actor_frame_display(&result, &s, 1, MM_ACTOR_FRAME_STUDIO, 0, 0, &effects));
+    CHECK(log.count == 1 && log.calls[0] == 'C');
+    result.selectCel = 0;
+    result.updatePose = 1;
+    CHECK(mm_actor_frame_display(&result, &s, 1, MM_ACTOR_FRAME_STUDIO, 0, 0, &effects));
+    CHECK(log.count == 2 && log.calls[1] == 'P');
+}
+
 int main(void)
 {
     entrances();
     sounds();
     failures_and_latches();
     modes_and_end();
+    display_effects();
     puts("actor frame passed");
     return 0;
 }

@@ -53,6 +53,30 @@ extern "C"
      * failure, and advance only the scan, preserving the legacy retry ordering. */
     int mm_actor_frame_complete(MMActorFrame *, MMActorState *, void *events, int succeeded_or_due,
                                       const MMActorMotionServices *);
+    typedef struct MMActorFrameEffects
+    {
+        void *context;
+        int (*event)(void *, const MMActorFrameCommand *, MMActorState *);
+        int (*motion_sounds)(void *);
+        void (*position_body)(void *);
+        int (*select_cel)(void *);
+        void (*update_pose)(void *);
+    } MMActorFrameEffects;
+    /* Deliver the sequencer's commands synchronously. Zero/one answers a
+     * command, while a negative result stops immediately. Return 1 after the
+     * last command and publish the result even if a frame effect failed.
+     * A terminal error leaves the output unchanged and retains applied state. */
+    int mm_actor_frame_run(MMActorState *, void *route, void *events, const MMActorFrameInputs *,
+                           int position_dirty, const MMActorMotionServices *, const MMActorFrameEffects *,
+                           MMActorFrameResult *);
+    enum { MM_ACTOR_FRAME_STUDIO, MM_ACTOR_FRAME_PREVIEW };
+    /* Publish frame flags and deliver display effects in order. Studio keeps
+     * best-effort sound and display effects after ordinary frame failure.
+     * Preview propagates sound/cel errors and selects cels when positioning.
+     * Optional dirty is updated and cleared after positioning. Optional sound
+     * is set only when this frame had a sound cue. */
+    int mm_actor_frame_display(const MMActorFrameResult *, const MMActorState *, MMI32 last_frame, int profile,
+                               int *position_dirty, int *sound, const MMActorFrameEffects *);
     int mm_actor_subroute_events_done(void *events, MMI32 index, const MMActorLocation *,
                                             const MMActorMotionServices *);
 #ifdef __cplusplus

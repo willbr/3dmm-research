@@ -62,6 +62,8 @@ Studio and `mm_preview_actor_seek`, which serves Marcus and the standalone
 session, both run `mm_actor_seek_run` from `mm/actor_timeline.h`. The C driver
 owns command delivery and failure accumulation. The effect adapters update
 their live state, costume, pose and sound as each command runs.
+The same three paths use `mm_actor_frame_run` for event commands and
+`mm_actor_frame_display` for motion sounds, position, cel selection and pose.
 `mm-movie-content` supplies a C resolver for either query. It reads the movie's
 source-name table, resolves its aliases through the existing content VFS and
 searches mounted `.3cn` archives by exact chunk type and number. Archive
@@ -6575,21 +6577,22 @@ and noncommuting rest/stretch/rotation combinations. Runtime checks cover cache
 stamping, delegated state changes, duplicate/restore after evaluation and explicit
 template orientation passed to pose calculation.
 
-`ActorFrameEvaluator` now sequences a frame from explicit resolved-step and
-playback-mode inputs. It emits ordered `CheckEntrance` and `ApplyEvent` commands;
-the host answers entrance queries and applies events before acknowledging them.
+`mm_actor_frame_run` sequences a frame from explicit resolved-step and
+playback-mode inputs. It delivers each entrance query and event command to the
+adapter with the current actor state.
 Core owns entrance ordering, route/event clipping, initial freeze/action timing,
 ordinary-sound skipping versus motion-match registration, cel advancement and
 final pose/cel/sound directives. It owns no renderer, audio queue or application
-services. The runtime adapter preserves the effect order: motion sounds, body
-positioning, then cel selection; intermediate frames update pose only. Lifetime
-checks use refreshed host metadata after entrance queries.
+services. `mm_actor_frame_display` preserves motion sounds, body positioning
+and cel selection in that order. Intermediate frames update pose. Lifetime
+checks use refreshed host metadata after entrance queries. Studio performs
+best-effort effects after a nonfatal frame error. Preview stops and also
+propagates errors from motion sound and cel services.
 
-Callers stop after `Finished` and read the result. Event frame caches may be
-refreshed during queries, but tables must retain their structure until the frame
-finishes. The inherited nonfatal failure behavior is preserved: scan advances,
-while the applied-event cursor stays on a failed event; a later command can retry
-that event. Entrance failure aborts without final cel/pose effects.
+The driver returns the result after the last command. Queries may refresh event
+frame caches while the table structure stays fixed. On a nonfatal event failure,
+the scan advances and the applied-event cursor stays on the failed event for
+retry. Entrance failure skips final cel and pose effects.
 
 Core gates include explicit expected values and ordered command traces, failed
 events/entrances, freeze/unfreeze/action timing, recording, failed step lookup,

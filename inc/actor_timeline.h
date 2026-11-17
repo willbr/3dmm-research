@@ -2,7 +2,7 @@
    Licensed under the MIT License. */
 #ifndef ACTOR_TIMELINE_H
 #define ACTOR_TIMELINE_H
-#include "actor_frame.h"
+#include "actor_state.h"
 
 // Borrowed action/cel metadata source. The resolver returns an unscaled step;
 // it must not change authored tables or evaluated state. No renderer is needed.

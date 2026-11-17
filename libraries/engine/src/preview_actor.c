@@ -164,6 +164,10 @@ static int equal_shape(const MMPreviewActorShape *a, const MMPreviewActorShape *
             return 0;
     return 1;
 }
+static int select_pose(MMPreviewActor *p, const MMPreviewActorServices *s)
+{
+    return !p->state.onStage ? 1 : s->pose(s->context, p->tmpl, p->body, p->state.action, p->state.cel);
+}
 int mm_preview_actor_position(MMPreviewActor *p, int select_cel, const MMPreviewActorServices *s)
 {
     MMActorPoseInputs pose;
@@ -212,7 +216,7 @@ int mm_preview_actor_position(MMPreviewActor *p, int select_cel, const MMPreview
     point.dyr = mm_fixed_add(p->state.routeTranslation.dyr, p->state.position.dyr);
     point.dzr = mm_fixed_add(p->state.routeTranslation.dzr, p->state.position.dzr);
     s->locate(s->context, p->body, &point, &matrix);
-    return !select_cel || !p->state.onStage ? 1 : s->pose(s->context, p->tmpl, p->body, p->state.action, p->state.cel);
+    return select_cel ? select_pose(p, s) : 1;
 }
 static int move(MMPreviewActor *p, const float delta[3], int offset, const MMPreviewActorServices *s)
 {
@@ -306,12 +310,53 @@ void mm_preview_actor_shape(const MMPreviewActor *p, MMPreviewActorShape *shape,
             right[i] = s->scalar_float(b.m[i / 3][i % 3]);
     }
 }
-static int evaluate(MMPreviewActor *p, int display, const MMPreviewActorServices *s)
+typedef struct PreviewActorHost
 {
-    MMActorFrameInputs inputs;
-    MMActorFrame frame;
-    MMActorFrameCommand command;
+    MMPreviewActor *actor;
+    const MMPreviewActorServices *services;
+} PreviewActorHost;
+
+static int frame_event(void *context, const MMActorFrameCommand *command, MMActorState *state)
+{
+    const PreviewActorHost *host = (const PreviewActorHost *)context;
+    MMPreviewActor *p = host->actor;
+    const MMPreviewActorServices *s = host->services;
     MMActorEvent event;
+    s->timeline.motion.event(p->events, command->eventIndex, &event);
+    if (command->kind == MM_ACTOR_CHECK_ENTRANCE)
+        return event.nfrm <= state->frame;
+    if (event.aet == MM_ACTOR_ADD)
+        p->orientation_reset = 1;
+    if (event.aet == MM_ACTOR_ROTATE_HERE)
+        p->orientation_reset = 2;
+    return s->apply(s->context, command->eventIndex);
+}
+
+static int frame_motion_sounds(void *context)
+{
+    const PreviewActorHost *host = (const PreviewActorHost *)context;
+    return host->services->motion_cues(host->services->context);
+}
+
+static void frame_position(void *context)
+{
+    const PreviewActorHost *host = (const PreviewActorHost *)context;
+    mm_preview_actor_position(host->actor, 0, host->services);
+}
+
+static int frame_cel(void *context)
+{
+    const PreviewActorHost *host = (const PreviewActorHost *)context;
+    return select_pose(host->actor, host->services);
+}
+
+static int evaluate(PreviewActorHost *host, int display)
+{
+    MMPreviewActor *p = host->actor;
+    const MMPreviewActorServices *s = host->services;
+    MMActorFrameInputs inputs;
+    MMActorFrameResult result;
+    MMActorFrameEffects effects;
     int r;
     s->clear_cues(s->context);
     p->sound_display = display;
@@ -319,60 +364,30 @@ static int evaluate(MMPreviewActor *p, int display, const MMPreviewActorServices
     inputs.firstFrame = p->header.first_frame;
     inputs.displayFrame = display;
     inputs.stepSucceeded = mm_actor_playback_step(&p->state, &inputs.step, &s->timeline);
-    if (s->fault(s->context))
-        return s->fault(s->context);
-    mm_actor_frame_init(&frame, &p->state, p->route, p->events, &inputs, 1, &s->timeline.motion);
-    for (;;)
-    {
-        if (!mm_actor_frame_next(&frame, &p->state, p->events, &command, &s->timeline.motion))
-            return 0;
-        if (command.kind == MM_ACTOR_FRAME_FINISHED)
-            break;
-        if (command.kind == MM_ACTOR_CHECK_ENTRANCE)
-        {
-            s->timeline.motion.event(p->events, command.eventIndex, &event);
-            r = event.nfrm <= p->state.frame;
-        }
-        else
-        {
-            s->timeline.motion.event(p->events, command.eventIndex, &event);
-            if (event.aet == MM_ACTOR_ADD)
-                p->orientation_reset = 1;
-            if (event.aet == MM_ACTOR_ROTATE_HERE)
-                p->orientation_reset = 2;
-            r = s->apply(s->context, command.eventIndex);
-            if (r < 0)
-                return r;
-        }
-        mm_actor_frame_complete(&frame, &p->state, p->events, r, &s->timeline.motion);
-    }
-    if (!frame.result.success)
-        return 0;
-    if (frame.result.considerMotionSounds && p->state.frame <= p->header.last_frame && p->state.celCount > 0)
-    {
-        r = s->motion_cues(s->context);
-        if (r <= 0)
-            return r;
-    }
-    return !frame.result.positionBody && !frame.result.updatePose
-               ? 1
-               : mm_preview_actor_position(p, frame.result.selectCel, s);
+    r = s->fault(s->context);
+    if (r)
+        return r;
+    effects.context = host;
+    effects.event = frame_event;
+    effects.motion_sounds = frame_motion_sounds;
+    effects.position_body = frame_position;
+    effects.select_cel = frame_cel;
+    effects.update_pose = frame_position;
+    r = mm_actor_frame_run(&p->state, p->route, p->events, &inputs, 1, &s->timeline.motion, &effects, &result);
+    if (r <= 0)
+        return r;
+    return mm_actor_frame_display(&result, &p->state, p->header.last_frame, MM_ACTOR_FRAME_PREVIEW, 0, 0, &effects);
 }
-typedef struct PreviewActorSeek
-{
-    MMPreviewActor *actor;
-    const MMPreviewActorServices *services;
-} PreviewActorSeek;
 
 static int seek_fault(void *context)
 {
-    const PreviewActorSeek *host = (const PreviewActorSeek *)context;
+    const PreviewActorHost *host = (const PreviewActorHost *)context;
     return host->services->fault(host->services->context);
 }
 
 static int seek_effect(void *context, const MMActorSeekCommand *command, MMActorState *state)
 {
-    const PreviewActorSeek *host = (const PreviewActorSeek *)context;
+    PreviewActorHost *host = (PreviewActorHost *)context;
     MMPreviewActor *p = host->actor;
     const MMPreviewActorServices *s = host->services;
     switch (command->kind)
@@ -387,7 +402,7 @@ static int seek_effect(void *context, const MMActorSeekCommand *command, MMActor
     case MM_ACTOR_SEEK_QUICK_EFFECTS:
         return mm_preview_actor_position(p, 1, s);
     case MM_ACTOR_SEEK_FRAME:
-        return evaluate(p, command->displayFrame, s);
+        return evaluate(host, command->displayFrame);
     default:
         return 0;
     }
@@ -395,7 +410,7 @@ static int seek_effect(void *context, const MMActorSeekCommand *command, MMActor
 
 int mm_preview_actor_seek(MMPreviewActor *p, MMI32 target, const MMPreviewActorServices *s)
 {
-    PreviewActorSeek host;
+    PreviewActorHost host;
     MMActorSeekEffects effects;
     if (target != p->state.frame)
         s->clear_cues(s->context);

@@ -201,3 +201,63 @@ int mm_actor_frame_complete(MMActorFrame *q, MMActorState *state, void *events, 
         ++q->scan;
     return 1;
 }
+
+int mm_actor_frame_run(MMActorState *state, void *route, void *events, const MMActorFrameInputs *inputs,
+                       int dirty, const MMActorMotionServices *motion, const MMActorFrameEffects *effects,
+                       MMActorFrameResult *out)
+{
+    MMActorFrame frame;
+    MMActorFrameCommand command;
+    int status;
+    mm_actor_frame_init(&frame, state, route, events, inputs, dirty, motion);
+    while (mm_actor_frame_next(&frame, state, events, &command, motion))
+    {
+        if (command.kind == MM_ACTOR_FRAME_FINISHED)
+        {
+            *out = frame.result;
+            return 1;
+        }
+        status = effects->event(effects->context, &command, state);
+        if (status < 0)
+            return status;
+        mm_actor_frame_complete(&frame, state, events, status, motion);
+    }
+    return 0;
+}
+
+int mm_actor_frame_display(const MMActorFrameResult *result, const MMActorState *state, MMI32 last_frame,
+                           int profile, int *dirty, int *sound, const MMActorFrameEffects *effects)
+{
+    int status = result->success;
+    int preview = profile == MM_ACTOR_FRAME_PREVIEW;
+    int effect;
+    if (dirty)
+        *dirty = result->positionDirty;
+    if (sound && result->soundInFrame)
+        *sound = 1;
+    if (result->aborted || (preview && !status))
+        return 0;
+    if (result->considerMotionSounds && state->frame <= last_frame && (!preview || state->celCount > 0))
+    {
+        effect = effects->motion_sounds(effects->context);
+        if (preview && effect <= 0)
+            return effect;
+    }
+    if (result->positionBody)
+    {
+        effects->position_body(effects->context);
+        if (dirty)
+            *dirty = 0;
+    }
+    if (result->selectCel && (!preview || result->positionBody))
+    {
+        effect = effects->select_cel(effects->context);
+        if (preview && effect < 0)
+            return effect;
+        if (!effect)
+            status = 0;
+    }
+    if (result->updatePose)
+        effects->update_pose(effects->context);
+    return status;
+}

@@ -382,46 +382,55 @@ bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFr
     AssertThis(0);
     AssertVarMem(pfPositionDirty);
 
-    ActorFrameInputs inputs;
+    MMActorFrameInputs inputs = {};
     inputs.firstFrame = _nfrmFirst;
     inputs.recording = _fModeRecord;
     inputs.rejoining = _fRejoin;
     inputs.displayFrame = fPositionBody;
     inputs.suppressSounds = FPure(_pscen->GrfScen() & fscenSounds);
-    inputs.stepSucceeded = _FGetDwrPlay(&inputs.step);
-    ActorFrameEvaluator evaluator(_state, _track, inputs, *pfPositionDirty);
-    for (;;)
-    {
-        ActorFrameCommand command = evaluator.Next();
-        if (command.kind == ActorFrameCommandKind::Finished)
-            break;
-        if (command.kind == ActorFrameCommandKind::CheckEntrance)
-            evaluator.Complete(_FIsAddNow(command.eventIndex));
-        else
-            evaluator.Complete(_FDoAevCore(command.eventIndex));
-    }
-    const ActorFrameResult &result = evaluator.Result();
-    *pfPositionDirty = result.positionDirty;
-    if (pfSoundInFrame != pvNil && result.soundInFrame)
-        *pfSoundInFrame = fTrue;
-    if (result.aborted)
-        return fFalse;
-
-    bool success = result.success;
-    if (result.considerMotionSounds && _state.frame <= _nfrmLast)
-        _FEnqueueSmmInMsq(); // Preserve best-effort motion-match dispatch.
-    if (result.positionBody)
-    {
-        _PositionBody(&_state.position);
-        *pfPositionDirty = fFalse;
-    }
-    if (result.selectCel && !_ptmpl->FSetActnCel(_pbody, _state.action, _state.cel, pvNil))
-        success = false;
-    if (result.updatePose)
-    {
-        BMAT34 matrix;
-        _MatrixRotUpdate(&_state.position, &matrix);
-    }
+    BRS step = rZero;
+    inputs.stepSucceeded = _FGetDwrPlay(&step);
+    inputs.step = step;
+    AssertPo(_track.Route(), 0);
+    AssertPo(_track.Events(), 0);
+    const MMActorFrameEffects effects = {
+        this,
+        [](void *context, const MMActorFrameCommand *command, MMActorState *state) -> int {
+            auto actor = static_cast<Actor *>(context);
+            EngineActorMotion::Publish(actor->_state, *state);
+            const bool ok = command->kind == MM_ACTOR_CHECK_ENTRANCE ? actor->_FIsAddNow(command->eventIndex)
+                                                                    : actor->_FDoAevCore(command->eventIndex);
+            *state = EngineActorMotion::Core(actor->_state);
+            return ok;
+        },
+        [](void *context) -> int { return static_cast<Actor *>(context)->_FEnqueueSmmInMsq(); },
+        [](void *context) {
+            auto actor = static_cast<Actor *>(context);
+            actor->_PositionBody(&actor->_state.position);
+        },
+        [](void *context) -> int {
+            auto actor = static_cast<Actor *>(context);
+            return actor->_ptmpl->FSetActnCel(actor->_pbody, actor->_state.action, actor->_state.cel, pvNil);
+        },
+        [](void *context) {
+            auto actor = static_cast<Actor *>(context);
+            BMAT34 matrix;
+            actor->_MatrixRotUpdate(&actor->_state.position, &matrix);
+        }};
+    auto value = EngineActorMotion::Core(_state);
+    const auto motion = EngineActorMotion::Services();
+    MMActorFrameResult result;
+    int dirty = *pfPositionDirty, sound = 0;
+    const int ran = mm_actor_frame_run(&value, _track.Route(), _track.Events(), &inputs, dirty, &motion, &effects,
+                                       &result);
+    EngineActorMotion::Publish(_state, value);
+    if (ran <= 0)
+        return false;
+    const bool success = mm_actor_frame_display(&result, &value, _nfrmLast, MM_ACTOR_FRAME_STUDIO,
+                                                 &dirty, &sound, &effects) > 0;
+    *pfPositionDirty = dirty != 0;
+    if (pfSoundInFrame && sound)
+        *pfSoundInFrame = true;
     return success;
 }
 
@@ -492,8 +501,11 @@ bool Actor::_FGetStatic(long anid, bool *pfStatic)
 bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 {
     AssertBaseThis(0);
+    AssertPo(_track.Events(), 0);
     AssertIn(iaev, 0, _track.Events()->IvMac() + 1);
-    return ActorFrameEvaluator::FSubrouteEventsDone(_track, iaev, rtel);
+    const auto location = EngineActorMotion::Location(rtel);
+    const auto motion = EngineActorMotion::Services();
+    return mm_actor_subroute_events_done(_track.Events(), iaev, &location, &motion) != 0;
 }
 
 /***************************************************************************

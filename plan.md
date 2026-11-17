@@ -466,13 +466,14 @@ Keep host presentation and device output outside the session.
    the superseded backend paths. Root, scene and source directory queries and
    ordered resource search now share the standalone policy. Marcus seek and
    Studio rewind now share the standalone event selector over their live
-   timelines. Studio, Marcus and the standalone session now run actor seeks
-   through the C89 driver, with host callbacks for frame effects. The host
-   session cutover still needs the per-frame effect and renderer bindings
-   for actors and cameras. Link and run the standalone
-   consumer and its real file/content providers with the C toolchain, without
-   `engine-core`, `engine`, `MM::Archive`, `MM::Preview` or their project-owned
-   C++ providers. Verify the host paths with the regression gate above.
+   timelines. Studio, Marcus and the standalone session now share the C89
+   actor seek, frame event and frame effect drivers. The host session
+   cutover still needs a common open/seek owner and actor and camera resource
+   bindings for the renderers. The standalone `engine-native-chunky-test`
+   already links through the C toolchain with `mm-native-files`,
+   `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
+   open and seek checks in the standalone `MMEngine` configuration. Verify
+   the host paths with the regression gate above.
 
 #### Completed slices and remaining dependencies
 
