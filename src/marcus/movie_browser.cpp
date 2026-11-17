@@ -1,3 +1,4 @@
+#include "dialog_host.h"
 #include "movie_browser.h"
 #include "movie_input.h"
 #include "preview_worker.h"
@@ -18,7 +19,6 @@
 namespace fs = std::filesystem;
 namespace
 {
-constexpr unsigned long panel = 0x25282d, text = 0xdde0e5, muted = 0x969da8, accent = 0x78cbc4;
 struct Item
 {
     std::string name, path, member;
@@ -53,7 +53,7 @@ struct Card
     SDL_Texture *texture = nullptr;
     Uint64 used = 0;
     std::string calculation;
-    ~Card() { SDL_DestroyTexture(texture); }
+    ~Card() { dialog_retire_texture(texture); }
 };
 std::string Lower(std::string value)
 {
@@ -76,34 +76,23 @@ std::string Size(double bytes)
                  bytes / (bytes >= 1048576 ? 1048576 : 1024));
     return value;
 }
-void Backspace(std::string &value)
-{
-    if (value.empty()) return;
-    auto at = value.size() - 1;
-    while (at && (static_cast<unsigned char>(value[at]) & 0xc0) == 0x80) --at;
-    value.resize(at);
-}
+
 }
 
 struct MarcusBrowser
 {
     SDL_Window *window;
     SDL_Renderer *renderer;
-    bool visible = false, recentView = false, grid = true, sortDate = false, loading = false, replaceText = false;
-    int focus = 0, selected = -1, scroll = 0, filter = 0;
-    float x = 0, y = 0, w = 1000, h = 650, listW = 510;
-    int rows = 3;
-    bool scrollbarDragging = false;
-    float scrollbarOffset = 0;
+    bool visible = false, recentView = false, grid = true, sortDate = false, loading = false;
+    int focus = 0, selected = -1, filter = 0;
+    int visibleFirst = 0, visibleLast = 12;
     std::string location, movieFolder, address, search, filename, error, resources, content, statePath, lastPath, lastMember;
     std::vector<std::string> history, favourites;
     std::vector<Recent> recent;
     std::vector<int> filtered;
     Listing listing;
     std::map<std::string, std::unique_ptr<Card>> cards;
-    Uint64 selectedAt = 0, previewAt = 0, scrollAt = 0;
-    std::string clicked;
-    Uint64 clickedAt = 0;
+    Uint64 selectedAt = 0, previewAt = 0;
     std::thread worker;
     std::mutex mutex;
     std::condition_variable condition;
@@ -363,8 +352,8 @@ struct MarcusBrowser
     {
         if (remember) history.push_back(recentView ? "" : listing.location);
         recentView = path.empty(); address = path; search.clear(); filename.clear(); error.clear();
-        selected = -1; scroll = 0; cards.clear(); filtered.clear(); listing = {};
-        loading = true; focus = 0; replaceText = false; scrollbarDragging = false;
+        selected = -1; cards.clear(); filtered.clear(); listing = {};
+        loading = true; focus = 0;
         if (Extension(path) == ".zip" && filter == 3) filter = 0;
         {
             std::lock_guard<std::mutex> lock(mutex);
@@ -394,7 +383,7 @@ struct MarcusBrowser
                 if (sortDate && left.modified != right.modified) return left.modified > right.modified;
                 return Lower(left.name) < Lower(right.name);
             });
-        Select(filtered.empty() ? -1 : 0); scroll = 0;
+        Select(filtered.empty() ? -1 : 0);
     }
     const Item *Selected() const
     {
@@ -410,13 +399,6 @@ struct MarcusBrowser
         selectedAt = SDL_GetTicks();
         if (const auto item = Selected()) filename = item->entry >= 0 ? item->member : item->path;
         else filename.clear();
-        const int columns = grid ? 3 : 1;
-        if (selected >= 0)
-        {
-            const int row = selected / columns;
-            if (row < scroll) scroll = row;
-            if (row >= scroll + rows) scroll = row - rows + 1;
-        }
     }
     void Close()
     {
@@ -426,7 +408,7 @@ struct MarcusBrowser
             ++prepareSerial; prepareRequested = false; preparedResult.reset();
             preparingKey.clear(); opening = false; calculating = false;
         }
-        visible = false; scrollbarDragging = false; SDL_StopTextInput(window); Save();
+        visible = false; Save();
     }
     void Prepare(const Item &item, bool forOpen, bool forCalculation = false)
     {
@@ -548,7 +530,7 @@ struct MarcusBrowser
                 }
             }
         }
-        if (loading || scrollbarDragging || SDL_GetTicks() - scrollAt < 250 || !preparingKey.empty() || SDL_GetTicks() - selectedAt < 200 || SDL_GetTicks() - previewAt < 100) return;
+        if (loading || !preparingKey.empty() || SDL_GetTicks() - selectedAt < 200 || SDL_GetTicks() - previewAt < 100) return;
         const Item *item = Selected();
         auto eligible = [&](const Item *candidate) {
             return candidate && !candidate->directory && !Preview(*candidate) &&
@@ -557,8 +539,7 @@ struct MarcusBrowser
         if (!eligible(item))
         {
             item = nullptr;
-            const int columns = grid ? 3 : 1;
-            for (int i = scroll * columns; i < std::min(static_cast<int>(filtered.size()), (scroll + rows) * columns); ++i)
+            for (int i = visibleFirst; i < std::min(static_cast<int>(filtered.size()), visibleLast); ++i)
             {
                 const auto &candidate = listing.items[filtered[i]];
                 if (eligible(&candidate) && candidate.bytes <= 32 * 1024 * 1024)
@@ -570,257 +551,6 @@ struct MarcusBrowser
         Prepare(*item, false);
     }
 
-    void Image(MarcusUI *ui, const Item &item, SDL_FRect box)
-    {
-        ui_fill(ui, box.x, box.y, box.w, box.h, 0x17191c);
-        const auto card = Preview(item);
-        if (card && card->texture)
-        {
-            const auto scale = std::min(box.w / card->preview.width, box.h / card->preview.height);
-            SDL_FRect target{box.x + (box.w - card->preview.width * scale) / 2,
-                             box.y + (box.h - card->preview.height * scale) / 2,
-                             card->preview.width * scale, card->preview.height * scale};
-            SDL_RenderTexture(renderer, card->texture, nullptr, &target);
-        }
-        else
-        {
-            ui_text(ui, box.x + 12, box.y + box.h / 2 - 8, item.directory ? "[ Folder ]" : Kind(item), accent);
-        }
-        // Film perforations recall the retail movie browser without borrowed art.
-        if (!item.directory)
-            for (float at = box.x + 5; at < box.x + box.w - 5; at += 16)
-            {
-                ui_fill(ui, at, box.y + 3, 7, 4, 0x555b63);
-                ui_fill(ui, at, box.y + box.h - 7, 7, 4, 0x555b63);
-            }
-    }
-    int MaximumScroll() const
-    {
-        const int columns = grid ? 3 : 1;
-        return std::max(0, (static_cast<int>(filtered.size()) + columns - 1) / columns - rows);
-    }
-    SDL_FRect ScrollTrack() const { return {x + 180 + listW - 14, y + 132, 12, rows * (grid ? 120.0f : 32.0f) - 6}; }
-    SDL_FRect ScrollThumb() const
-    {
-        auto track = ScrollTrack();
-        const int maximum = MaximumScroll();
-        const float size = maximum ? std::max(28.0f, track.h * rows / (maximum + rows)) : track.h;
-        track.y += maximum ? (track.h - size) * scroll / maximum : 0;
-        track.h = size;
-        return track;
-    }
-    void ScrollActivity()
-    {
-        scrollAt = SDL_GetTicks();
-        if (!opening && !calculating && !preparingKey.empty())
-        { ++prepareSerial; preparingKey.clear(); }
-    }
-    void DragScrollbar(float mouseY)
-    {
-        ScrollActivity();
-        const auto track = ScrollTrack(), thumb = ScrollThumb();
-        const auto travel = track.h - thumb.h;
-        if (travel > 0)
-            scroll = std::clamp(static_cast<int>((mouseY - scrollbarOffset - track.y) * MaximumScroll() / travel + 0.5f), 0, MaximumScroll());
-    }
-    void Draw(MarcusUI *ui, int width, int height)
-    {
-        Tick();
-        if (!visible) return;
-        w = std::min(1180.0f, width - 40.0f); h = std::min(730.0f, height - 60.0f);
-        x = (width - w) / 2; y = (height - h) / 2; listW = w - 492;
-        const float listX = x + 180, top = y + 132, bottom = y + h - 116;
-        rows = std::max(1, static_cast<int>((bottom - top) / (grid ? 120 : 32)));
-        const int columns = grid ? 3 : 1;
-        const int maximum = MaximumScroll();
-        scroll = std::clamp(scroll, 0, maximum);
-        ui_opacity(ui, 0.75f); ui_fill(ui, 0, 0, static_cast<float>(width), static_cast<float>(height), 0x090a0c); ui_opacity(ui, 1);
-        ui_fill(ui, x - 1, y - 1, w + 2, h + 2, 0x606670);
-        ui_fill(ui, x, y, w, h, panel);
-        ui_heading(ui, x + 20, y + 16, "OPEN A MOVIE", text);
-        ui_text(ui, x + 180, y + 18, "Movies / ZIP collections", muted);
-        ui_button(ui, x + 16, y + 50, 68, "Back", 0, !history.empty());
-        ui_button(ui, x + 92, y + 50, 68, "Up", 0, 1);
-        auto field = [&](float left, float topY, float size, const std::string &value, int id) {
-            ui_fill(ui, left, topY, size, 28, focus == id ? 0x34464c : 0x191c20);
-            ui_label(ui, left + 8, topY + 6, size - 16, value.c_str(), focus == id ? accent : text);
-            if (focus == id)
-                ui_fill(ui, left + 5, topY + 4, 2, 20, accent);
-        };
-        field(x + 180, y + 50, w - 300, recentView && focus != 1 ? "Recent movies" : address, 1);
-        ui_button(ui, x + w - 108, y + 50, 88, "Go", 0, 1);
-        ui_button(ui, x + 16, y + 100, 144, "Recent movies", recentView, 1);
-        ui_button(ui, x + 16, y + 138, 144, "Movie folder", !recentView && listing.location == movieFolder, 1);
-        ui_button(ui, x + 16, y + 176, 144, "Home", 0, 1);
-        ui_heading(ui, x + 20, y + 226, "FAVOURITES", muted);
-        ui_button(ui, x + 16, y + 250, 144,
-                  std::find(favourites.begin(), favourites.end(), location) == favourites.end() ? "+ This folder" : "- This folder", 0, !location.empty());
-        for (std::size_t i = 0; i < favourites.size() && y + 294 + i * 32 < bottom; ++i)
-            ui_label(ui, x + 22, y + 296 + static_cast<float>(i) * 32, 132, fs::u8path(favourites[i]).filename().u8string().c_str(), text);
-        field(listX, y + 94, listW - 212, search.empty() && focus != 2 ? "Search movies..." : search, 2);
-        ui_button(ui, listX + listW - 204, y + 94, 96, sortDate && !listing.input ? "Newest" : "Name A-Z",
-                  sortDate && !listing.input, !recentView && !listing.input);
-        ui_button(ui, listX + listW - 100, y + 94, 100, grid ? "Cards" : "List", grid, 1);
-        for (int row = 0; row < rows; ++row)
-            for (int col = 0; col < columns; ++col)
-            {
-                const int index = (row + scroll) * columns + col;
-                if (index >= static_cast<int>(filtered.size())) continue;
-                const auto &item = listing.items[filtered[index]];
-                const float cellW = (listW - 22) / columns, cellH = grid ? 120.0f : 32.0f;
-                const float left = listX + col * cellW, cellY = top + row * cellH;
-                ui_fill(ui, left, cellY, cellW - 6, cellH - 6, index == selected ? 0x344c50 : 0x2e3238);
-                if (grid)
-                {
-                    Image(ui, item, {left + 6, cellY + 6, cellW - 18, 72});
-                    ui_label(ui, left + 8, cellY + 83, cellW - 22, item.name.c_str(), index == selected ? accent : text);
-                    ui_text(ui, left + 8, cellY + 102, Kind(item), muted);
-                }
-                else
-                {
-                    ui_text(ui, left + 8, cellY + 6, Kind(item), accent);
-                    ui_label(ui, left + 70, cellY + 6, cellW - 150, item.name.c_str(), text);
-                    ui_label(ui, left + cellW - 82, cellY + 6, 70, item.directory ? "" : Size(item.bytes).c_str(), muted);
-                }
-            }
-        const auto track = ScrollTrack(), thumb = ScrollThumb();
-        ui_fill(ui, track.x, track.y, track.w, track.h, 0x191c20);
-        ui_fill(ui, thumb.x + 1, thumb.y, thumb.w - 2, thumb.h,
-                !maximum ? 0x363a40 : scrollbarDragging ? accent : 0x64717a);
-        if (loading || filtered.empty())
-            ui_label(ui, listX + 12, top + 36, listW - 24, loading ? "Finding movies..." : "No matching movies in this location.", muted);
-        ui_text(ui, listX, bottom + 8, (std::to_string(filtered.size()) + " items / Scroll or Page Up / Down").c_str(), muted);
-        const float detailX = x + w - 292;
-        ui_line(ui, detailX - 14, y + 94, detailX - 14, bottom + 28, 0x41464e);
-        ui_heading(ui, detailX, y + 100, "MOVIE PREVIEW", muted);
-        if (const auto item = Selected())
-        {
-            Image(ui, *item, {detailX, top, 270, 166});
-            ui_label(ui, detailX, top + 184, 270, item->name.c_str(), text);
-            ui_text(ui, detailX, top + 212, item->directory ? "Folder" : (std::string(Kind(*item)) + " / " + Size(item->bytes)).c_str(), accent);
-            ui_label(ui, detailX, top + 240, 270, item->path.c_str(), muted);
-            if (const auto card = Preview(*item))
-            {
-                ui_label(ui, detailX, top + 270, 270, card->preview.title.c_str(), text);
-                const auto split = card->preview.details.find('\n');
-                ui_label(ui, detailX, top + 296, 270, card->preview.details.substr(0, split).c_str(), muted);
-                if (split != std::string::npos)
-                    ui_label(ui, detailX, top + 322, 270, card->preview.details.substr(split + 1).c_str(), accent);
-                ui_label(ui, detailX, top + 352, 270, card->preview.error.empty() ?
-                         (card->texture ? "Saved scene thumbnail" : "No saved preview available") : card->preview.error.c_str(), muted);
-                ui_button(ui, detailX, top + 382, 270, calculating ? "Cancel calculation" : "Calculate duration", calculating, !opening);
-                if (!card->calculation.empty())
-                {
-                    const auto line = card->calculation.find('\n');
-                    ui_label(ui, detailX, top + 418, 270, card->calculation.substr(0, line).c_str(), accent);
-                    if (line != std::string::npos)
-                        ui_label(ui, detailX, top + 442, 270, card->calculation.substr(line + 1).c_str(), muted);
-                }
-            }
-            else ui_label(ui, detailX, top + 270, 270, item->directory ? "Open to browse this folder." :
-                          Extension(item->path) == ".zip" && item->member.empty() ? "Open movie or browse compilation." : "Reading saved preview...", muted);
-            ui_label(ui, detailX, bottom - 2, 270, "Dependencies checked when opened.", muted);
-        }
-        ui_text(ui, x + 20, y + h - 76, "File", muted);
-        field(listX, y + h - 84, listW, filename, 3);
-        static const char *filters[] = {"All movies + ZIPs", "3MM movies", "VMM movies", "ZIP archives"};
-        ui_button(ui, detailX, y + h - 84, 270, filters[filter], 0, 1);
-        ui_label(ui, x + 20, y + h - 40, w - 160, opening ? "Preparing movie... / Esc to cancel" : calculating ? "Calculating duration... / Esc to cancel" : error.empty() ? "Double-click to open / Enter to confirm / Esc to cancel" : error.c_str(), error.empty() ? muted : 0xf0ae8b);
-        ui_dialog_button(ui, x + w - 120, y + h - 53, 0, 1, "Cancel / Esc");
-        ui_dialog_button(ui, x + w - 66, y + h - 53, 1,
-                         !loading && !opening && (!filename.empty() || Selected()), "Open selected movie or folder / Enter");
-    }
-    void Click(float px, float py)
-    {
-        const auto track = ScrollTrack(), thumb = ScrollThumb();
-        if (ui_inside(px, py, track.x, track.y, track.w, track.h))
-        {
-            if (!MaximumScroll()) return;
-            ScrollActivity();
-            if (ui_inside(px, py, thumb.x, thumb.y, thumb.w, thumb.h))
-            { scrollbarDragging = true; scrollbarOffset = py - thumb.y; }
-            else scroll = std::clamp(scroll + (py < thumb.y ? -rows : rows), 0, MaximumScroll());
-            return;
-        }
-        auto hit = [&](float left, float top, float width, float height = 28) { return ui_inside(px, py, x + left, y + top, width, height) != 0; };
-        if (hit(16, 50, 68)) { if (!history.empty()) { auto path = history.back(); history.pop_back(); Navigate(path, false); } }
-        else if (hit(92, 50, 68)) Up();
-        else if (hit(180, 50, w - 300)) { focus = 1; replaceText = true; }
-        else if (hit(w - 108, 50, 88)) { focus = 1; Open(); }
-        else if (hit(16, 100, 144)) Navigate("");
-        else if (hit(16, 138, 144)) Navigate(movieFolder);
-        else if (hit(16, 176, 144)) { if (auto home = SDL_GetUserFolder(SDL_FOLDER_HOME)) Navigate(home); }
-        else if (hit(16, 250, 144) && !location.empty())
-        {
-            auto at = std::find(favourites.begin(), favourites.end(), location);
-            if (at != favourites.end()) favourites.erase(at);
-            else if (favourites.size() < 12) favourites.push_back(location);
-            Save();
-        }
-        else if (hit(16, 290, 144, h - 410))
-        { const auto i = static_cast<std::size_t>((py - y - 290) / 32); if (i < favourites.size()) Navigate(favourites[i]); }
-        else if (hit(180, 94, listW - 212)) { focus = 2; replaceText = true; }
-        else if (hit(180 + listW - 204, 94, 96) && !recentView && !listing.input) { sortDate = !sortDate; Refilter(); }
-        else if (hit(180 + listW - 100, 94, 100)) { grid = !grid; scroll = 0; }
-        else if (hit(w - 292, 514, 270))
-        {
-            if (calculating) { ++prepareSerial; calculating = false; preparingKey.clear(); }
-            else if (!opening)
-                if (const auto item = Selected(); item && Preview(*item)) Prepare(*item, false, true);
-        }
-        else if (hit(180, h - 84, listW)) { focus = 3; replaceText = true; }
-        else if (hit(w - 292, h - 84, 270)) { filter = (filter + 1) % 4; Refilter(); }
-        else if (hit(w - 120, h - 53, UI_DIALOG_BUTTON_WIDTH, UI_DIALOG_BUTTON_HEIGHT)) Close();
-        else if (hit(w - 66, h - 53, UI_DIALOG_BUTTON_WIDTH, UI_DIALOG_BUTTON_HEIGHT)) Open();
-        else if (hit(180, 132, listW - 22, static_cast<float>(rows) * (grid ? 120 : 32)))
-        {
-            focus = 0;
-            const int columns = grid ? 3 : 1;
-            const int index = (static_cast<int>((py - y - 132) / (grid ? 120 : 32)) + scroll) * columns +
-                              (grid ? static_cast<int>((px - x - 180) / ((listW - 22) / 3)) : 0);
-            if (index >= static_cast<int>(filtered.size())) return;
-            Select(index);
-            const auto item = Selected();
-            const auto key = Key(*item);
-            if (clicked == key && SDL_GetTicks() - clickedAt < 450) { clicked.clear(); Choose(*item); }
-            else { clicked = key; clickedAt = SDL_GetTicks(); }
-        }
-        else focus = 0;
-    }
-    void KeyDown(SDL_Keycode key, SDL_Keymod mod)
-    {
-        if (key == SDLK_ESCAPE) { Close(); return; }
-        if (key == SDLK_RETURN || key == SDLK_KP_ENTER) { Open(); return; }
-        if ((mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) && key == SDLK_L) { focus = 1; replaceText = true; return; }
-        if ((mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) && key == SDLK_F) { focus = 2; replaceText = true; return; }
-        if ((mod & SDL_KMOD_ALT) && key == SDLK_UP) { Up(); return; }
-        if ((mod & SDL_KMOD_ALT) && key == SDLK_LEFT)
-        { if (!history.empty()) { auto path = history.back(); history.pop_back(); Navigate(path, false); } return; }
-        if (key == SDLK_TAB) { focus = (focus + ((mod & SDL_KMOD_SHIFT) ? 3 : 1)) % 4; replaceText = true; return; }
-        if (key == SDLK_F5) { Navigate(recentView ? "" : listing.location, false); return; }
-        if (focus)
-        {
-            auto &value = focus == 1 ? address : focus == 2 ? search : filename;
-            if ((mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) && key == SDLK_A) { replaceText = true; return; }
-            else if (key == SDLK_BACKSPACE)
-            { if (replaceText) value.clear(); else Backspace(value); replaceText = false; }
-            else if ((mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) && key == SDLK_V)
-            { if (auto clipboard = SDL_GetClipboardText()) { if (replaceText) value.clear(); replaceText = false; value.append(clipboard); SDL_free(clipboard); } }
-            if (value.size() > 4096) value.resize(4096);
-            if (focus == 2) Refilter();
-            return;
-        }
-        const int columns = grid ? 3 : 1;
-        if (key == SDLK_UP) Select(selected - columns);
-        else if (key == SDLK_DOWN) Select(selected + columns);
-        else if (key == SDLK_LEFT) Select(selected - 1);
-        else if (key == SDLK_RIGHT) Select(selected + 1);
-        else if (key == SDLK_PAGEUP) Select(selected - rows * columns);
-        else if (key == SDLK_PAGEDOWN) Select(selected + rows * columns);
-        else if (key == SDLK_HOME) Select(0);
-        else if (key == SDLK_END) Select(static_cast<int>(filtered.size()) - 1);
-        else if (key == SDLK_BACKSPACE) Up();
-    }
 };
 
 extern "C"
@@ -848,55 +578,12 @@ void browser_show(MarcusBrowser *browser, const char *path, const char *resource
         if (location.empty() || (!fs::is_directory(fs::u8path(location)) && Extension(location) != ".zip"))
             location = fs::current_path().u8string();
         browser->history.clear(); browser->Navigate(location, false);
-        SDL_StartTextInput(browser->window);
+
     }
     catch (const std::exception &e) { browser->error = e.what(); }
 }
 int browser_visible(const MarcusBrowser *browser) { return browser && browser->visible; }
-int browser_event(MarcusBrowser *browser, const SDL_Event *event)
-{
-    if (!browser_visible(browser)) return 0;
-    try
-    {
-        if (event->type == SDL_EVENT_KEY_DOWN) browser->KeyDown(event->key.key, event->key.mod);
-        else if (event->type == SDL_EVENT_TEXT_INPUT)
-        {
-            if (!browser->focus) browser->focus = 2;
-            auto &value = browser->focus == 1 ? browser->address : browser->focus == 2 ? browser->search : browser->filename;
-            if (browser->replaceText) { value.clear(); browser->replaceText = false; }
-            if (value.size() + SDL_strlen(event->text.text) <= 4096) value += event->text.text;
-            if (browser->focus == 2) browser->Refilter();
-        }
-        else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
-            browser->Click(event->button.x, event->button.y);
-        else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT)
-            browser->scrollbarDragging = false;
-        else if (event->type == SDL_EVENT_MOUSE_MOTION && browser->scrollbarDragging)
-            browser->DragScrollbar(event->motion.y);
-        else if (event->type == SDL_EVENT_MOUSE_WHEEL)
-        {
-            browser->ScrollActivity();
-            browser->scroll = std::max(0, browser->scroll - static_cast<int>(event->wheel.y *
-                (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1) * (browser->grid ? 1 : 3)));
-        }
-        else if (event->type == SDL_EVENT_DROP_FILE)
-        {
-            const auto path = fs::absolute(fs::u8path(event->drop.data));
-            if (fs::is_directory(path) || Extension(path.u8string()) == ".zip") browser->Navigate(path.u8string());
-            else { Item item; item.path = path.u8string(); item.name = path.filename().u8string(); browser->Choose(item); }
-        }
-    }
-    catch (const std::exception &e) { browser->error = e.what(); }
-    return event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP || event->type == SDL_EVENT_TEXT_INPUT ||
-           event->type == SDL_EVENT_MOUSE_BUTTON_DOWN || event->type == SDL_EVENT_MOUSE_BUTTON_UP ||
-           event->type == SDL_EVENT_MOUSE_MOTION || event->type == SDL_EVENT_MOUSE_WHEEL || event->type == SDL_EVENT_DROP_FILE;
-}
-void browser_draw(MarcusBrowser *browser, MarcusUI *ui, int width, int height)
-{
-    if (browser_visible(browser))
-        try { browser->Draw(ui, width, height); }
-        catch (const std::exception &e) { browser->error = e.what(); }
-}
+
 MarcusMovieInput *browser_take(MarcusBrowser *browser, int *entry, char *path, size_t capacity)
 {
     if (!browser || !browser->chosen) return nullptr;
@@ -922,3 +609,78 @@ void browser_remember(MarcusBrowser *browser, const char *path, MarcusMovieInput
     catch (...) { /* A history failure must not prevent playback. */ }
 }
 }
+
+namespace {
+void MovieState(void *p, MarcusDialogState *out)
+{
+    auto &s = *static_cast<MarcusBrowser *>(p); *out = {};
+    out->open = s.visible; out->kind = DIALOG_MOVIES; out->count = int(s.filtered.size()); out->selected = s.selected;
+    out->grid = s.grid; out->filter = s.filter; out->sort_date = s.sortDate; out->recent = s.recentView;
+    out->loading = s.loading; out->opening = s.opening; out->calculating = s.calculating;
+    out->favourite_count = int(s.favourites.size()); out->can_back = !s.history.empty();
+    out->is_favourite = std::find(s.favourites.begin(), s.favourites.end(), s.location) != s.favourites.end();
+    SDL_strlcpy(out->title, "Open movie", sizeof(out->title)); SDL_strlcpy(out->confirm, "Open", sizeof(out->confirm));
+    SDL_strlcpy(out->address, s.address.c_str(), sizeof(out->address)); SDL_strlcpy(out->search, s.search.c_str(), sizeof(out->search));
+    SDL_strlcpy(out->filename, s.filename.c_str(), sizeof(out->filename)); SDL_strlcpy(out->error, s.error.c_str(), sizeof(out->error));
+    SDL_snprintf(out->status, sizeof(out->status), "%d items%s", out->count, s.loading ? " / Reading folder..." : s.opening ? " / Preparing movie..." : s.calculating ? " / Calculating duration..." : "");
+}
+void MoviePrepare(void *p, SDL_Renderer *, int first, int last)
+{
+    auto &s = *static_cast<MarcusBrowser *>(p);
+    try { if (first < 0) { if (s.visible) s.Tick(); } else { s.visibleFirst = first; s.visibleLast = last; } }
+    catch (const std::exception &e) { s.error = e.what(); }
+}
+int MovieItem(void *p, SDL_Renderer *, int index, MarcusDialogItem *out)
+{
+    auto &s = *static_cast<MarcusBrowser *>(p); *out = {};
+    try {
+    if (index < 0) { const auto i = -index - 1; if (i >= int(s.favourites.size())) return 0;
+        SDL_strlcpy(out->label, fs::u8path(s.favourites[i]).filename().u8string().c_str(), sizeof(out->label));
+        SDL_strlcpy(out->detail, s.favourites[i].c_str(), sizeof(out->detail)); return 1; }
+    if (index >= int(s.filtered.size())) return 0;
+    const auto &item = s.listing.items[s.filtered[index]]; out->directory = item.directory;
+    SDL_strlcpy(out->label, item.name.c_str(), sizeof(out->label));
+    std::string detail = std::string(Kind(item)) + " / " + Size(item.bytes) + "\n" + item.path;
+    if (const auto card = s.Preview(item)) {
+        out->texture = card->texture; detail += "\n" + card->preview.title + "\n" + card->preview.details;
+        if (!card->preview.error.empty()) detail += "\n" + card->preview.error;
+        if (!card->calculation.empty()) detail += "\n" + card->calculation;
+    }
+    SDL_strlcpy(out->detail, detail.c_str(), sizeof(out->detail)); return 1;
+    } catch (const std::exception &e) { s.error = e.what(); return 0; }
+}
+void MovieAction(void *p, int command, int index, float, const char *text)
+{
+    auto &s = *static_cast<MarcusBrowser *>(p);
+    try { switch (command) {
+    case DIALOG_SELECT: s.Select(index); break;
+    case DIALOG_CANCEL: s.Close(); break;
+    case DIALOG_ACCEPT: s.focus = 3; s.Open(); break;
+    case DIALOG_ADDRESS: s.address = text ? text : ""; break;
+    case DIALOG_FILENAME: s.filename = text ? text : ""; break;
+    case DIALOG_SEARCH: s.search = text ? text : ""; s.Refilter(); break;
+    case DIALOG_GO: s.focus = 1; s.Open(); break;
+    case DIALOG_REFRESH: s.Navigate(s.recentView ? "" : s.location, false); break;
+    case DIALOG_BACK: if (!s.history.empty()) { auto path = s.history.back(); s.history.pop_back(); s.Navigate(path, false); } break;
+    case DIALOG_UP: s.Up(); break;
+    case DIALOG_FILTER: s.filter = index; s.Refilter(); break;
+    case DIALOG_SORT: s.sortDate = !s.sortDate; s.Refilter(); break;
+    case DIALOG_GRID: s.grid = !s.grid; break;
+    case DIALOG_RECENT: s.Navigate(""); break;
+    case DIALOG_MOVIE_FOLDER: s.Navigate(s.movieFolder); break;
+    case DIALOG_HOME: if (const auto home = SDL_GetUserFolder(SDL_FOLDER_HOME)) s.Navigate(home); break;
+    case DIALOG_FAVOURITE: { auto found = std::find(s.favourites.begin(), s.favourites.end(), s.location);
+        if (found == s.favourites.end()) { if (s.favourites.size() < 12) s.favourites.push_back(s.location); }
+        else s.favourites.erase(found); s.Save(); break; }
+    case DIALOG_FAVOURITE_GO: if (index >= 0 && index < int(s.favourites.size())) s.Navigate(s.favourites[index]); break;
+    case DIALOG_CALCULATE:
+        if (s.calculating) { ++s.prepareSerial; s.preparingKey.clear(); s.calculating = false; }
+        else if (const auto item = s.Selected()) s.Prepare(*item, false, true);
+        break;
+    case DIALOG_DROP: { const auto path = fs::absolute(fs::u8path(text));
+        if (fs::is_directory(path) || Extension(path.u8string()) == ".zip") s.Navigate(path.u8string());
+        else { Item item; item.path = path.u8string(); item.name = path.filename().u8string(); s.Choose(item); } break; }
+    } } catch (const std::exception &e) { s.error = e.what(); }
+}
+}
+extern "C" const MarcusDialogHost marcus_movie_dialog_host = {MovieState, MoviePrepare, MovieItem, MovieAction};

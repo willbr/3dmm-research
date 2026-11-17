@@ -88,7 +88,7 @@ The current development build in this workspace uses `build/marcus-x64`.
 SDL 3.4.8 is built from `vendor/SDL3` by the shared dependency module, including
 for Studio and the inspector. Marcus's transform controls use the vendored
 ImGuizmo core in `vendor/ImGuizmo` with the existing pinned Dear ImGui dependency.
-The New/Edit 3D text, Costume and Sounds dialogs use cimgui 1.92.5, pinned at
+All Marcus application dialogs use cimgui 1.92.5, pinned at
 `bfd30140a9c5832b5e0dcf179d6e1e5c69373d5a`, over that same ImGui implementation
 and context. Configuration checks that the bindings' ImGui headers match the
 shared dependency; no second ImGui implementation or SDL backend is built.
@@ -284,7 +284,7 @@ movies. This does not establish stock retail support for VMM files.
 
 **Scenes > Camera angles** shows a grid of rendered thumbnails for the current
 background's authored cameras, including actors and captions at the current frame.
-Use the arrows, page buttons or wheel to browse. **Use angle**, Enter or
+Use the arrow keys, Page Up/Down or wheel to browse. **Use angle**, Enter or
 double-click applies the selected angle at that frame; Escape/Cancel leaves the
 movie unchanged. Selecting the current angle also leaves it unchanged. Thumbnail
 rendering uses the isolated preview helper and does not alter the live camera.
@@ -304,7 +304,7 @@ Guides are clipped to the visible viewport and never drawn over movie playback.
 All cameras are shown by default; the choice is saved across movies/restarts.
 
 **Actors & props > New actor** and **New prop** open the original actor or prop
-catalogue as a gallery of twelve rendered 3D model cards, with names below each
+catalogue as a responsive gallery of rendered 3D model cards, with names below each
 model. Click a card or use Left/Right and Up/Down to select a model. The wheel
 scrolls rows, Page Up/Down moves by a page, and Home/End jumps to the first/last
 model. A scrollbar is available on the right. Choose **Add actor** or **Add prop**, Enter or double-click.
@@ -463,12 +463,7 @@ object ID and roll-call name. Other scenes and existing tracks are retained.
 Insertions share the **UNSAVED** session with scene and camera edits, support
 Undo and the existing movement/transform controls, and are included in **Save copy**.
 
-The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
-X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape
-retain their open/cancel actions, with hover, pressed and disabled feedback.
-Editable SVGs are `src/marcus/icons/dialog_{frame,cancel,ok}.svg`.
-
-**Open movie** now opens Marcus's own movie browser. Filmstrip-style cards and
+**Open movie** opens Marcus's cimgui movie browser. Thumbnail cards and
 a larger detail preview use saved scene thumbnails, with a list view available.
 The sidebar offers recent movies, a stable Movie folder shortcut, Home and up to twelve
 favourite folders. Recent entries remember the exact movie name inside a ZIP.
@@ -480,13 +475,13 @@ The browser saves the last folder, selection, view, sort order and file filter
 in `movie-browser.cfg` beside the normal per-user Marcus preferences.
 
 Use the location field and **Go**, **Back**, **Up**, or double-click folders to
-navigate. Search filters names in the current location; the format button cycles
-between all supported files, `.3mm`, `.vmm` and ZIP. Sort by name or newest first.
+navigate. Search filters names in the current location; the format selector offers
+all supported files, `.3mm`, `.vmm` and ZIP. Sort by name or newest first.
 Arrow keys, Page Up/Down, Home/End and the wheel navigate the results. The results
-scrollbar has a draggable thumb; clicking its track scrolls one page. Enter opens,
+scrollbar uses ImGui's standard scrolling controls. Enter opens,
 Escape cancels, Alt+Up goes to the parent, Alt+Left goes back, Ctrl+L focuses the
 location, Ctrl+F focuses search, Tab moves between the list and text fields, and
-F5 refreshes. Text fields support replacement, backspace and clipboard paste.
+F5 refreshes. Text fields use standard ImGui editing, selection and clipboard input.
 Dropping a folder opens that location. `marcus --browse folder-or-zip` starts
 directly in the browser; selecting a movie still requires an explicit Open.
 
@@ -581,29 +576,25 @@ UI font; heading styling is explicit, so uppercase movie and object names retain
 their usual appearance.
 
 Click the **SCENE** readout to open the scene organiser. It pauses playback and
-shows a compact scrollable grid in movie order, with saved thumbnails and
-transition icons. The footer shows the selected scene's frame count and
-current-scene status. Select a card and press Enter
-or the green OK button, or double-click it, to jump to that scene's first frame.
+shows a scrollable cimgui grid in movie order, with saved thumbnails and
+scene names. Hover a card to see its frame count and outgoing transition.
+Select a card and press Enter
+or **Open scene**, or double-click it, to jump to that scene's first frame.
 Arrow keys, Page Up/Down, Home/End, the wheel and the draggable scrollbar navigate
-the grid. Escape or the red X closes it without seeking; playback stays paused.
+the grid. Escape or Cancel closes it without seeking; playback stays paused.
 Missing thumbnails use a placeholder. Thumbnail decoding leaves the live scene
 and cameras untouched, loads at most one saved image per draw, and uses a bounded
 texture cache. The organiser currently supports browsing and scene selection;
 scene reordering, deletion and movie saving are not implemented.
-Each card shows the four retail transition symbols down its right side in sorter order: Cut,
-Dissolve, Fade to black and Fade to white. A red outline marks the saved outgoing
-effect, which runs after that scene. The footer gives the full effect name for
-the selection or hovered symbol.
-These indicators display the authored setting without editing it.
+Transition details display the authored setting without editing it.
 
 Click **FRAME** to open the same organiser for every authored frame in the current
-scene. It highlights the current frame; Enter, green OK or a double-click seeks to
+scene. It highlights the current frame; Enter, **Open frame** or a double-click seeks to
 the selected frame. The grid uses the same keyboard and scrolling controls as
-the scene organiser. Escape/red X closes without seeking and leaves playback
+the scene organiser. Escape/Cancel closes without seeking and leaves playback
 paused. Frame tiles contain only the preview image, with a thin outline for
-selection or hover. The minus/plus buttons and size slider resize the previews;
-Ctrl+wheel and the minus/plus keys also change size. At 100% previews use their
+selection or hover. The size slider, Ctrl+wheel and minus/plus keys resize the previews.
+At 100% previews use their
 native pixels; zooming out packs more frames into the window. The minimum zoom is
 10%, with previews kept at least 16 pixels wide and 9 pixels high. The chosen
 size lasts for this Marcus session. The wheel without Ctrl still scrolls.
@@ -1092,8 +1083,8 @@ Each first/previous/next/last action can be bound separately. Reset View default
 to R because F is now Next Frame. Arrow/Home/End/Page Up/Page Down remain fallback
 navigation keys. Flight keeps physical WASD/QE movement while right mouse is held.
 
-The **Movie camera renderer** and **Work camera renderer** buttons in Settings
-cycle between **BRender (CPU C)**, **BRender (compute)**, **SDL GPU** and
+The **Movie camera settings** and **Work camera settings** buttons in Settings
+open rendering controls. Their renderer selector offers **BRender (CPU C)**, **BRender (compute)**, **SDL GPU** and
 **BRender (CPU ASM x86)**. Apply
 updates each camera and saves its choices with the other settings. Switching preserves the current
 scene, frame, camera and inspection framing. Cancel discards the edited choice;
@@ -1694,8 +1685,20 @@ colour conversion without owning UI state. The existing insertion check also
 verifies C preview cancellation/restart, single-result publication, unchanged
 document identity and exact pixel equality with the direct worker, including
 font/shape/material gallery variants loaded into a persistent session. No Marcus
-UI tests were added. The remaining custom controls/dialogs and C++ gizmo callers
-still need migration; this is the first complete cimgui dialog slice.
+UI tests were added.
+
+`dialog_views.c` and `dialog_widgets.c` own the remaining picker widgets and
+input in C89: Open movie, New scene, New actor, New prop, scene/frame organisers
+and camera angles. Settings, camera rendering settings, ZIP member selection
+and errors use standard cimgui controls in `main.c`. The dialogs stay centred
+and fit the available window when resized. Browsers retain asynchronous loading,
+isolated preview workers and bounded caches through the copied data/command
+interface in `dialog_host.h`; their C++ files contain backend services rather
+than widget drawing or manual text editing. Cached SDL textures are retired
+after the shared ImGui frame has been submitted. Native OS file/folder choosers
+remain platform dialogs. The ribbon, timeline, inspector and storyboard panels
+still include custom drawing and need further migration; C++ gizmo callers also
+remain behind their existing bridge.
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
 `player.cpp` owns the C++ Archive/Preview backend; `playback.cpp` implements audio,

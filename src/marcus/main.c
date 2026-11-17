@@ -9,6 +9,7 @@
 #include "text_dialog.h"
 #include "costume_dialog.h"
 #include "sound_dialog.h"
+#include "dialog_widgets.h"
 #include "ribbon.h"
 #include "camera_picker.h"
 #include "storyboard_editor.h"
@@ -43,12 +44,6 @@
 #define NAV_STEP 32
 #define MOVIE_CONTROLS_HEIGHT 140
 #define MOVIE_IDLE_MS 2500
-#define RESOLUTION_COLUMNS 3
-#define RESOLUTION_GRID_HEIGHT (((MARCUS_RESOLUTION_COUNT + RESOLUTION_COLUMNS - 1) / RESOLUTION_COLUMNS) * 40)
-#define RENDER_SETTINGS_WIDTH 1064
-#define RENDER_SETTINGS_HEIGHT 620
-#define SETTINGS_HEIGHT 764
-#define SHORTCUT_ROW_HEIGHT 22
 #define DEBUG_HISTORY 180
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
@@ -103,8 +98,9 @@ typedef struct App
     MarcusPropGizmo *prop_gizmo;
     int prop_fields, prop_interacting;
     int ribbon_tab, modified;
+    int binding_key_consumed;
     MarcusMovieInput *movie_input, *zip_input;
-    int movie_entry, zip_selected, zip_scroll;
+    int movie_entry, zip_selected;
     char zip_path[1024];
     MarcusInfo info;
     MarcusPlaybackState playback;
@@ -859,7 +855,7 @@ static void open_movie(App *app, const char *path)
     {
         app->error[0] = 0;
         app->zip_input = input;
-        app->zip_selected = app->zip_scroll = 0;
+        app->zip_selected = 0;
         SDL_strlcpy(app->zip_path, path, sizeof(app->zip_path));
     }
 }
@@ -872,47 +868,9 @@ static void zip_select(App *app, int index)
     if (index >= count)
         index = count - 1;
     app->zip_selected = index;
-    if (index < app->zip_scroll)
-        app->zip_scroll = index;
-    if (index >= app->zip_scroll + 10)
-        app->zip_scroll = index - 9;
 }
-static void zip_key(App *app, SDL_Keycode key)
-{
-    if (key == SDLK_ESCAPE)
-        cancel_zip(app);
-    else if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
-        confirm_zip(app);
-    else if (key == SDLK_UP)
-        zip_select(app, app->zip_selected - 1);
-    else if (key == SDLK_DOWN)
-        zip_select(app, app->zip_selected + 1);
-    else if (key == SDLK_PAGEUP)
-        zip_select(app, app->zip_selected - 10);
-    else if (key == SDLK_PAGEDOWN)
-        zip_select(app, app->zip_selected + 10);
-    else if (key == SDLK_HOME)
-        zip_select(app, 0);
-    else if (key == SDLK_END)
-        zip_select(app, marcus_input_count(app->zip_input) - 1);
-}
-static void zip_click(App *app, float x, float y)
-{
-    float left, top;
-    int row;
-    left = app->width / 2.0f - 400;
-    top = app->height / 2.0f - 240;
-    if (ui_inside(x, y, left + 24, top + 92, 752, 280))
-    {
-        row = (int)((y - top - 92) / 28) + app->zip_scroll;
-        if (row < marcus_input_count(app->zip_input))
-            zip_select(app, row);
-    }
-    else if (ui_inside(x, y, left + 568, top + 432, 96, 28))
-        cancel_zip(app);
-    else if (ui_inside(x, y, left + 680, top + 432, 96, 28))
-        confirm_zip(app);
-}
+
+
 static void SDLCALL dialog_callback(void *userdata, const char *const *files, int filter)
 {
     DialogRequest *request;
@@ -1370,6 +1328,7 @@ static void open_settings(App *app)
     app->binding_capture = -1;
     app->rendering_settings = 0;
     app->settings_open = 1;
+    app->binding_key_consumed = 0;
 }
 static void normalize_camera_options(int renderer, MarcusRenderOptions *view)
 {
@@ -1470,156 +1429,7 @@ static void apply_settings(App *app)
     }
     cancel_settings(app);
 }
-static void settings_click(App *app, float x, float y)
-{
-    float left, top;
-    int renderer, resolution, i, gpu, *edited_renderer, *edited_resolution;
-    MarcusRenderOptions *view;
-    edited_renderer = app->settings_work_camera ? &app->edited_shortcuts.work_renderer : &app->edited_shortcuts.renderer;
-    edited_resolution = app->settings_work_camera ? &app->edited_shortcuts.work_render_resolution :
-                                                   &app->edited_shortcuts.render_resolution;
-    view = app->settings_work_camera ? &app->edited_shortcuts.work_view : &app->edited_shortcuts.movie_view;
-    gpu = marcus_renderer_is_gpu(*edited_renderer);
-    if (app->rendering_settings)
-    {
-        left = (app->width - RENDER_SETTINGS_WIDTH) / 2.0f;
-        top = (app->height - RENDER_SETTINGS_HEIGHT) / 2.0f;
-        if (ui_inside(x, y, left + RENDER_SETTINGS_WIDTH - 42, top + 16, 28, 28) ||
-            ui_inside(x, y, left + RENDER_SETTINGS_WIDTH - 224, top + RENDER_SETTINGS_HEIGHT - 48, 88, 28))
-            cancel_settings(app);
-        else if (ui_inside(x, y, left + RENDER_SETTINGS_WIDTH - 124, top + RENDER_SETTINGS_HEIGHT - 48, 96, 28))
-            apply_settings(app);
-        else
-        {
-            if (ui_inside(x, y, left + 760, top + 364, 272, 28))
-            {
-                if (app->settings_work_camera)
-                    app->edited_shortcuts.work_debug_overlay = !app->edited_shortcuts.work_debug_overlay;
-                else
-                    app->edited_shortcuts.movie_debug_overlay = !app->edited_shortcuts.movie_debug_overlay;
-            }
-            for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
-                if (ui_inside(x, y, left + 24 + renderer * 144, top + 86, 136, 32))
-                {
-                    *edited_renderer = renderer;
-                    normalize_camera_options(renderer, view);
-                    app->settings_message[0] = 0;
-                    break;
-                }
-            if (ui_inside(x, y, left + 480, top + 80, 256, 28))
-            {
-                view->display_mode = (view->display_mode + 1) % MARCUS_DISPLAY_COUNT;
-                if (view->display_mode == MARCUS_DISPLAY_SMOOTH) ++view->display_mode;
-                if (!gpu && view->display_mode >= MARCUS_DISPLAY_DEPTH) view->display_mode = MARCUS_DISPLAY_TEXTURED;
-            }
-            if (gpu && ui_inside(x, y, left + 620, top + 120, 116, 28)) view->wire_overlay = !view->wire_overlay;
-            for (i = 0; i < 3; ++i)
-                if (gpu && ui_inside(x, y, left + 480 + i * 88, top + 190, 80, 28))
-                    view->antialias = i;
-            for (i = 0; i < 2; ++i)
-            {
-                if (gpu && ui_inside(x, y, left + 480 + i * 132, top + 258, 124, 28)) view->texture_filter = i;
-                if (app->settings_work_camera && ui_inside(x, y, left + 480 + i * 132, top + 328, 124, 28))
-                    view->orthographic = i;
-            }
-            for (i = 0; i < 4; ++i)
-                if (app->settings_work_camera && ui_inside(x, y, left + 480 + i * 66, top + 396, 58, 28))
-                {
-                    view->axis_view = i;
-                    if (i) view->orthographic = 1;
-                }
-            for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
-                if (ui_inside(x, y, left + 24 + (resolution % RESOLUTION_COLUMNS) * 146,
-                              top + 160 + (resolution / RESOLUTION_COLUMNS) * 40, 138, 32))
-                {
-                    *edited_resolution = resolution;
-                    app->settings_message[0] = 0;
-                    break;
-                }
-        }
-        return;
-    }
-    left = app->width / 2.0f - 330;
-    top = (app->height - SETTINGS_HEIGHT) / 2.0f;
-    if (ui_inside(x, y, left + 618, top + 16, 28, 28))
-        cancel_settings(app);
-    else if (ui_inside(x, y, left + 226, top + 48, 200, 26))
-    {
-        app->binding_capture = -1;
-        choose_file(app, 1);
-    }
-    else if (ui_inside(x, y, left + 434, top + 48, 200, 26))
-    {
-        app->binding_capture = -1;
-        choose_file(app, 2);
-    }
-    else if (ui_inside(x, y, left + 430, top + 100, 204, MARCUS_ACTION_COUNT * SHORTCUT_ROW_HEIGHT))
-    {
-        app->binding_capture = (int)((y - top - 100) / SHORTCUT_ROW_HEIGHT);
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 24, top + 400, 610, 28))
-    {
-        app->edited_shortcuts.pause_on_focus_loss = !app->edited_shortcuts.pause_on_focus_loss;
-        app->binding_capture = -1;
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 430, top + 436, 204, 28))
-    {
-        app->edited_shortcuts.renderer = (app->edited_shortcuts.renderer + 1) % MARCUS_RENDERER_COUNT;
-        normalize_camera_options(app->edited_shortcuts.renderer, &app->edited_shortcuts.movie_view);
-        app->binding_capture = -1;
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 430, top + 472, 204, 28))
-    {
-        app->edited_shortcuts.render_resolution = (app->edited_shortcuts.render_resolution + 1) % MARCUS_RESOLUTION_COUNT;
-        app->binding_capture = -1;
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 430, top + 508, 204, 28))
-    {
-        app->edited_shortcuts.work_renderer = (app->edited_shortcuts.work_renderer + 1) % MARCUS_RENDERER_COUNT;
-        normalize_camera_options(app->edited_shortcuts.work_renderer, &app->edited_shortcuts.work_view);
-        app->binding_capture = -1;
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 430, top + 544, 204, 28))
-    {
-        app->edited_shortcuts.work_render_resolution =
-            (app->edited_shortcuts.work_render_resolution + 1) % MARCUS_RESOLUTION_COUNT;
-        app->binding_capture = -1;
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 24, top + 580, 610, 28))
-    {
-        app->edited_shortcuts.debug_overlay = !app->edited_shortcuts.debug_overlay;
-        app->binding_capture = -1;
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 430, top + 616, 204, 28))
-    {
-        app->edited_shortcuts.playback_rate = (app->edited_shortcuts.playback_rate + 1) % 5;
-        app->binding_capture = -1;
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 430, top + 652, 204, 28))
-    {
-        app->edited_shortcuts.playback_modifier = (app->edited_shortcuts.playback_modifier + 1) % 3;
-        app->binding_capture = -1;
-        app->settings_message[0] = 0;
-    }
-    else if (ui_inside(x, y, left + 24, top + 704, 148, 28))
-    {
-        shortcuts_defaults(&app->edited_shortcuts);
-        app->binding_capture = -1;
-        SDL_strlcpy(app->settings_message, "Defaults restored. Apply to save them.", sizeof(app->settings_message));
-    }
-    else if (ui_inside(x, y, left + 438, top + 704, 88, 28))
-        cancel_settings(app);
-    else if (ui_inside(x, y, left + 538, top + 704, 96, 28))
-        apply_settings(app);
-}
+
 static void settings_key(App *app, SDL_Keycode key, SDL_Keymod modifiers)
 {
     if (app->binding_capture >= 0)
@@ -1637,10 +1447,6 @@ static void settings_key(App *app, SDL_Keycode key, SDL_Keymod modifiers)
                 app->binding_capture = -1;
         }
     }
-    else if (key == SDLK_ESCAPE)
-        cancel_settings(app);
-    else if (key == SDLK_RETURN)
-        apply_settings(app);
 }
 static void pick_object(App *app, float x, float y)
 {
@@ -1746,24 +1552,7 @@ static void mouse_down(App *app, float x, float y, int button)
     int row, action;
     float right;
     right = view_right(app);
-    if (app->error[0])
-    {
-        if (ui_inside(x, y, app->width / 2.0f - 50, app->height / 2.0f + 86, 100, 28))
-            app->error[0] = 0;
-        return;
-    }
-    if (app->zip_input)
-    {
-        if (button == SDL_BUTTON_LEFT)
-            zip_click(app, x, y);
-        return;
-    }
-    if (app->settings_open)
-    {
-        if (button == SDL_BUTTON_LEFT)
-            settings_click(app, x, y);
-        return;
-    }
+    if (app->error[0] || app->settings_open || app->zip_input) return;
     if (app->orbit_menu)
     {
         if (button == SDL_BUTTON_LEFT)
@@ -2104,11 +1893,6 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
         set_fullscreen(app, !app->fullscreen);
         return;
     }
-    if (app->settings_open)
-    {
-        settings_key(app, key, modifiers);
-        return;
-    }
     if (key == SDLK_ESCAPE && (app->movie_only || app->fullscreen))
     {
         editor_view(app);
@@ -2118,17 +1902,6 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
     {
         if (key == SDLK_ESCAPE)
             finish_movie_scrub(app);
-        return;
-    }
-    if (app->error[0])
-    {
-        if (key == SDLK_ESCAPE || key == SDLK_RETURN)
-            app->error[0] = 0;
-        return;
-    }
-    if (app->zip_input)
-    {
-        zip_key(app, key);
         return;
     }
     if (app->sheet_menu)
@@ -2239,6 +2012,14 @@ static void handle_event(App *app, const SDL_Event *event)
     gizmo_event = prop_gizmo_event(app->prop_gizmo, event);
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
+    else if ((app->error[0] || app->settings_open || app->zip_input) && dialog_input_event(event))
+    {
+        if (app->settings_open && app->binding_capture >= 0 && event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
+        {
+            app->binding_key_consumed = 1;
+            settings_key(app, event->key.key, event->key.mod);
+        }
+    }
     else if (!app->error[0] && camera_picker_event(app->camera_picker, event, app->width, app->height))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
@@ -2516,20 +2297,6 @@ static void handle_event(App *app, const SDL_Event *event)
             app->sheet_menu_choice = (app->sheet_menu_choice + 2) % 3;
         if (delta < 0)
             app->sheet_menu_choice = (app->sheet_menu_choice + 1) % 3;
-    }
-    else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->zip_input && !app->error[0])
-    {
-        delta = event->wheel.y;
-        if (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
-            delta = -delta;
-        app->zip_scroll -= (int)delta;
-        maximum_scroll = marcus_input_count(app->zip_input) - 10;
-        if (maximum_scroll < 0)
-            maximum_scroll = 0;
-        if (app->zip_scroll < 0)
-            app->zip_scroll = 0;
-        if (app->zip_scroll > maximum_scroll)
-            app->zip_scroll = maximum_scroll;
     }
     else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->loaded && !app->error[0] && !app->settings_open &&
              !app->movie_only)
@@ -3653,191 +3420,176 @@ static void draw_sheet_menu(App *app)
 }
 static void draw_error(App *app)
 {
-    char part[82];
-    const char *p;
-    size_t length;
-    float x, y;
-    int row;
-    x = app->width / 2.0f - 320;
-    y = app->height / 2.0f - 125;
-    ui_fill(&app->ui, x - 1, y - 1, 642, 252, 0x606670);
-    ui_fill(&app->ui, x, y, 640, 250, PANEL);
-    ui_text(&app->ui, x + 24, y + 18, "Unable to display this movie", 0xf2ae9b);
-    p = app->error;
-    for (row = 0; row < 6 && *p; ++row)
-    {
-        length = strlen(p);
-        if (length > 76)
-            length = 76;
-        memcpy(part, p, length);
-        part[length] = 0;
-        ui_text(&app->ui, x + 24, y + 56 + row * 21, part, TEXT);
-        p += length;
+    int open, dismissed;
+    open = 1;
+    if (!dialog_begin("Unable to display this movie###MarcusError", &open, app->width, app->height, 680, 300)) {
+        if (!open) app->error[0] = 0;
+        return;
     }
-    ui_button(&app->ui, x + 270, y + 211, 100, "Dismiss", 1, 1);
+    igTextWrapped("%s", app->error);
+    igSpacing();
+    dismissed = igButton("Dismiss", dialog_vec(120, 0)) || igShortcut_Nil(ImGuiKey_Escape, 0) || igShortcut_Nil(ImGuiKey_Enter, 0);
+    dialog_end(dismissed || !open);
+    if (dismissed || !open) app->error[0] = 0;
 }
 static void draw_debug_panel(App *app, float x, float y, int camera, int frozen);
 static void draw_rendering_settings(App *app)
 {
-    static const char *names[MARCUS_RENDERER_COUNT] = {"BRender CPU C", "BRender compute", "SDL GPU", "BRender CPU ASM x86"};
-    static const char *aa[3] = {"Off", "2x SSAA", "4x SSAA"};
-    static const char *axes[4] = {"Free", "Front", "Side", "Top"};
-    float x, y;
-    int renderer, resolution, edited_renderer, edited_resolution, i, gpu, overlay;
-    const MarcusRenderOptions *view;
-    edited_renderer = app->settings_work_camera ? app->edited_shortcuts.work_renderer : app->edited_shortcuts.renderer;
-    edited_resolution = app->settings_work_camera ? app->edited_shortcuts.work_render_resolution :
-                                                  app->edited_shortcuts.render_resolution;
-    view = app->settings_work_camera ? &app->edited_shortcuts.work_view : &app->edited_shortcuts.movie_view;
-    gpu = marcus_renderer_is_gpu(edited_renderer);
-    x = (app->width - RENDER_SETTINGS_WIDTH) / 2.0f;
-    y = (app->height - RENDER_SETTINGS_HEIGHT) / 2.0f;
-    ui_opacity(&app->ui, 0.45f);
-    ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
-    ui_opacity(&app->ui, 1);
-    ui_fill(&app->ui, x - 1, y - 1, RENDER_SETTINGS_WIDTH + 2, RENDER_SETTINGS_HEIGHT + 2, LINE);
-    ui_fill(&app->ui, x, y, RENDER_SETTINGS_WIDTH, RENDER_SETTINGS_HEIGHT, PANEL);
-    ui_text(&app->ui, x + 24, y + 20,
-            app->settings_work_camera ? "Work camera settings" : "Movie camera settings", TEXT);
-    ui_button(&app->ui, x + RENDER_SETTINGS_WIDTH - 42, y + 16, 28, "x", 0, 1);
-    ui_heading(&app->ui, x + 24, y + 56, "RENDERER", ACCENT);
-    for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
-        ui_button_sized(&app->ui, x + 24 + renderer * 144, y + 86, 136, 32, names[renderer],
-                        edited_renderer == renderer, 1);
-    ui_heading(&app->ui, x + 24, y + 134, "RENDER RESOLUTION (1x = 3DMM)", ACCENT);
-    for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
-        ui_button_sized(&app->ui, x + 24 + (resolution % RESOLUTION_COLUMNS) * 146,
-                        y + 160 + (resolution / RESOLUTION_COLUMNS) * 40, 138, 32,
-                        marcus_render_resolution(resolution)->label,
-                        edited_resolution == resolution, 1);
-    ui_heading(&app->ui, x + 480, y + 56, "DISPLAY MODE", ACCENT);
-    ui_button(&app->ui, x + 480, y + 80, 256, marcus_display_mode_name(view->display_mode), 0, 1);
-    ui_text(&app->ui, x + 480, y + 125, "Wire overlay", TEXT);
-    ui_button(&app->ui, x + 620, y + 120, 116, view->wire_overlay ? "On" : "Off", view->wire_overlay, gpu);
-    ui_heading(&app->ui, x + 480, y + 166, "ANTI-ALIASING", ACCENT);
-    for (i = 0; i < 3; ++i)
-        ui_button(&app->ui, x + 480 + i * 88, y + 190, 80, aa[i], view->antialias == i, gpu);
-    ui_heading(&app->ui, x + 480, y + 234, "TEXTURE FILTER", ACCENT);
-    ui_button(&app->ui, x + 480, y + 258, 124, "Nearest", !view->texture_filter, gpu);
-    ui_button(&app->ui, x + 612, y + 258, 124, "Bilinear", view->texture_filter, gpu);
-    if (app->settings_work_camera)
-    {
-        ui_heading(&app->ui, x + 480, y + 304, "PROJECTION", ACCENT);
-        ui_button(&app->ui, x + 480, y + 328, 124, "Perspective", !view->orthographic, 1);
-        ui_button(&app->ui, x + 612, y + 328, 124, "Orthographic", view->orthographic, 1);
-        ui_heading(&app->ui, x + 480, y + 372, "VIEW PRESET", ACCENT);
-        for (i = 0; i < 4; ++i)
-            ui_button(&app->ui, x + 480 + i * 66, y + 396, 58, axes[i], view->axis_view == i, 1);
+    static const char *renderers[] = {"BRender CPU C", "BRender compute", "SDL GPU", "BRender CPU ASM x86"};
+    static const char *aa[] = {"Off", "2x SSAA", "4x SSAA"};
+    static const char *filters[] = {"Nearest", "Bilinear"};
+    static const char *axes[] = {"Free", "Front", "Side", "Top"};
+    const char *resolutions[MARCUS_RESOLUTION_COUNT];
+    MarcusRenderOptions *view;
+    int *renderer, *resolution, *overlay, gpu, i, index, count;
+    float history[DEBUG_HISTORY], fps_history[DEBUG_HISTORY], maximum_ms, maximum_fps;
+    int work;
+    work = app->settings_work_camera;
+    renderer = work ? &app->edited_shortcuts.work_renderer : &app->edited_shortcuts.renderer;
+    resolution = work ? &app->edited_shortcuts.work_render_resolution : &app->edited_shortcuts.render_resolution;
+    overlay = work ? &app->edited_shortcuts.work_debug_overlay : &app->edited_shortcuts.movie_debug_overlay;
+    view = work ? &app->edited_shortcuts.work_view : &app->edited_shortcuts.movie_view;
+    igTextUnformatted(work ? "Work camera" : "Movie camera", NULL);
+    if (igButton("Back to settings", dialog_vec(160, 0))) { app->rendering_settings = 0; return; }
+    igSeparator();
+    igSetNextItemWidth(320);
+    if (igCombo_Str_arr("Renderer", renderer, renderers, MARCUS_RENDERER_COUNT, -1)) normalize_camera_options(*renderer, view);
+    gpu = marcus_renderer_is_gpu(*renderer);
+    for (i = 0; i < MARCUS_RESOLUTION_COUNT; ++i) resolutions[i] = marcus_render_resolution(i)->label;
+    igSetNextItemWidth(320); igCombo_Str_arr("Resolution", resolution, resolutions, MARCUS_RESOLUTION_COUNT, -1);
+    igSetNextItemWidth(320);
+    if (igBeginCombo("Display mode", marcus_display_mode_name(view->display_mode), 0)) {
+        for (i = 0; i < MARCUS_DISPLAY_COUNT; ++i) {
+            if (i == MARCUS_DISPLAY_SMOOTH || (!gpu && i >= MARCUS_DISPLAY_DEPTH)) continue;
+            if (igSelectable_Bool(marcus_display_mode_name(i), view->display_mode == i, 0, dialog_vec(0, 0))) view->display_mode = i;
+        }
+        igEndCombo();
     }
-    ui_text(&app->ui, x + 24, y + 452, "BRender: built-in shading, wireframe and orthographic projection.", MUTED);
-    ui_text(&app->ui, x + 24, y + 477, "GPU: depth / face normals, wire overlay, SSAA and bilinear textures.", MUTED);
-    draw_debug_panel(app, x + 744, y + 56, app->settings_work_camera, 1);
-    ui_text(&app->ui, x + 760, y + 292, "Captured before opening settings.", MUTED);
-    ui_text(&app->ui, x + 760, y + 316, "Uses the applied camera settings.", MUTED);
-    ui_text(&app->ui, x + 760, y + 340, "Playback pauses in settings.", MUTED);
-    overlay = app->settings_work_camera ? app->edited_shortcuts.work_debug_overlay :
-                                         app->edited_shortcuts.movie_debug_overlay;
-    ui_button(&app->ui, x + 760, y + 364, 272,
-              overlay ? "Show stats over camera view: On" : "Show stats over camera view: Off", overlay, 1);
-    ui_text(&app->ui, x + 24, y + RENDER_SETTINGS_HEIGHT - 106,
-            app->settings_work_camera ? "Applies to the work camera." : "Applies to the movie camera and expanded player.", MUTED);
-    ui_label(&app->ui, x + 24, y + RENDER_SETTINGS_HEIGHT - 80, RENDER_SETTINGS_WIDTH - 48, app->settings_message, 0xf2ae9b);
-    ui_button(&app->ui, x + RENDER_SETTINGS_WIDTH - 224, y + RENDER_SETTINGS_HEIGHT - 48, 88, "Cancel", 0, 1);
-    ui_button(&app->ui, x + RENDER_SETTINGS_WIDTH - 124, y + RENDER_SETTINGS_HEIGHT - 48, 96, "Apply", 1, 1);
+    igBeginDisabled(!gpu);
+    dialog_checkbox("Wire overlay", &view->wire_overlay);
+    igSetNextItemWidth(320); igCombo_Str_arr("Anti-aliasing", &view->antialias, aa, 3, -1);
+    igSetNextItemWidth(320); igCombo_Str_arr("Texture filter", &view->texture_filter, filters, 2, -1);
+    igEndDisabled();
+    if (work) {
+        dialog_checkbox("Orthographic projection", &view->orthographic);
+        igSetNextItemWidth(320);
+        if (igCombo_Str_arr("View preset", &view->axis_view, axes, 4, -1) && view->axis_view) view->orthographic = 1;
+    }
+    dialog_checkbox("Show camera FPS and frame time", overlay);
+    igSeparatorText("Captured performance");
+    igText("Last render: %.2f ms", app->settings_performance.last_ms);
+    maximum_ms = 1; maximum_fps = 60; count = app->settings_frame_count;
+    for (i = 0; i < count; ++i) {
+        index = (app->settings_frame_next - count + i + DEBUG_HISTORY) % DEBUG_HISTORY;
+        history[i] = (float)app->settings_performance.render_ms[index];
+        fps_history[i] = (float)app->settings_performance.fps[index];
+        if (history[i] > maximum_ms) maximum_ms = history[i];
+        if (fps_history[i] > maximum_fps) maximum_fps = fps_history[i];
+    }
+    igPlotLines_FloatPtr("Render FPS", fps_history, count, 0, NULL, 0, maximum_fps, dialog_vec(480, 90), sizeof(float));
+    igPlotLines_FloatPtr("Render time (ms)", history, count, 0, NULL, 0, maximum_ms, dialog_vec(480, 90), sizeof(float));
+    igTextDisabled("Captured before opening settings. Playback is paused.");
 }
 static void draw_settings(App *app)
 {
-    float x, y, row_y;
-    int row;
-    char label[128];
     static const char *rates[] = {"Original", "6 FPS", "12 FPS", "24 FPS", "Uncapped"};
     static const char *modifiers[] = {"Normal (1x)", "Win98 -> XP (1.35805x)", "XP -> Win98 (0.918485x)"};
-    if (app->rendering_settings)
-    {
-        draw_rendering_settings(app);
+    char binding[128];
+    int open, row, cancel, apply;
+    open = app->settings_open; cancel = apply = 0;
+    if (!dialog_begin("Settings###MarcusSettings", &open, app->width, app->height, 960, 0)) {
+        if (!open) cancel_settings(app);
         return;
     }
-    x = app->width / 2.0f - 330;
-    y = (app->height - SETTINGS_HEIGHT) / 2.0f;
-    ui_fill(&app->ui, x - 1, y - 1, 662, SETTINGS_HEIGHT + 2, 0x606670);
-    ui_fill(&app->ui, x, y, 660, SETTINGS_HEIGHT, PANEL);
-    ui_text(&app->ui, x + 24, y + 20, "Settings", TEXT);
-    ui_button(&app->ui, x + 618, y + 16, 28, "x", 0, 1);
-    ui_text(&app->ui, x + 226, y + 20, "Content locations", MUTED);
-    ui_button_sized(&app->ui, x + 226, y + 48, 200, 26, "Palette & shading...", 0, 1);
-    ui_button_sized(&app->ui, x + 434, y + 48, 200, 26, "3DMM content folder...", 0, 1);
-    ui_heading(&app->ui, x + 24, y + 53, "KEYBOARD SHORTCUTS", ACCENT);
-    ui_text(&app->ui, x + 24, y + 76,
-            app->binding_capture >= 0 ? "Press a key. Escape cancels capture. Backspace clears the binding."
-                                      : "Click a binding, then press the key combination you want.",
-            MUTED);
-    for (row = 0; row < MARCUS_ACTION_COUNT; ++row)
-    {
-        row_y = y + 100 + row * SHORTCUT_ROW_HEIGHT;
-        if (row == 4 || row == 8)
-            ui_line(&app->ui, x + 24, row_y - 1, x + 634, row_y - 1, LINE);
-        ui_text(&app->ui, x + 28, row_y + 5, shortcuts_action_name(row), TEXT);
-        shortcuts_label(&app->edited_shortcuts.binding[row], label, sizeof(label));
-        ui_button_sized(&app->ui, x + 430, row_y, 204, SHORTCUT_ROW_HEIGHT - 1, row == app->binding_capture ? "Press a key..." : label,
-                  row == app->binding_capture, 1);
+    if (igBeginChild_Str("Settings contents", dialog_vec(0, -70), 0, 0)) {
+        if (app->rendering_settings) draw_rendering_settings(app);
+        else {
+            igSeparatorText("Content locations");
+            if (igButton("Palette and shading...", dialog_vec(220, 0))) { app->binding_capture = -1; choose_file(app, 1); }
+            igSameLine(0, 10);
+            if (igButton("3DMM content folder...", dialog_vec(220, 0))) { app->binding_capture = -1; choose_file(app, 2); }
+            igTextWrapped("%s", app->resources); igTextWrapped("%s", app->content);
+            igSeparatorText("Keyboard shortcuts");
+            igTextWrapped(app->binding_capture >= 0 ? "Press a key. Escape cancels capture; Backspace clears the binding." : "Choose a binding to change it.");
+            if (igBeginTable("Bindings", 2, ImGuiTableFlags_SizingStretchSame, dialog_vec(0, 0), 0)) {
+                for (row = 0; row < MARCUS_ACTION_COUNT; ++row) {
+                    igPushID_Int(row); igTableNextColumn(); igTextUnformatted(shortcuts_action_name(row), NULL); igTableNextColumn();
+                    shortcuts_label(&app->edited_shortcuts.binding[row], binding, sizeof(binding));
+                    if (igButton(row == app->binding_capture ? "Press a key..." : binding, dialog_vec(-1, 0))) {
+                        app->binding_capture = row; app->settings_message[0] = 0;
+                    }
+                    igPopID();
+                }
+                igEndTable();
+            }
+            igSeparatorText("Playback");
+            dialog_checkbox("Pause playback on focus loss", &app->edited_shortcuts.pause_on_focus_loss);
+            igSetNextItemWidth(300); igCombo_Str_arr("Movie frame rate", &app->edited_shortcuts.playback_rate, rates, 5, -1);
+            igSetNextItemWidth(300); igCombo_Str_arr("Compatibility speed modifier", &app->edited_shortcuts.playback_modifier, modifiers, 3, -1);
+            igSeparatorText("Rendering");
+            if (igButton("Movie camera settings...", dialog_vec(260, 0))) {
+                app->rendering_settings = 1; app->settings_work_camera = 0;
+                app->settings_performance = app->camera_performance[0];
+                app->settings_frame_next = app->frame_next; app->settings_frame_count = app->frame_count;
+            }
+            igSameLine(0, 10);
+            if (igButton("Work camera settings...", dialog_vec(260, 0))) {
+                app->rendering_settings = 1; app->settings_work_camera = 1;
+                app->settings_performance = app->camera_performance[1];
+                app->settings_frame_next = app->frame_next; app->settings_frame_count = app->frame_count;
+            }
+            dialog_checkbox("App debug overlay (FPS and frame time)", &app->edited_shortcuts.debug_overlay);
+            if (igButton("Restore defaults", dialog_vec(180, 0))) {
+                shortcuts_defaults(&app->edited_shortcuts); app->binding_capture = -1;
+                SDL_strlcpy(app->settings_message, "Defaults restored. Apply to save them.", sizeof(app->settings_message));
+            }
+        }
     }
-    ui_text(&app->ui, x + 28, y + 405, "Pause playback on focus loss", TEXT);
-    ui_button(&app->ui, x + 430, y + 400, 204, app->edited_shortcuts.pause_on_focus_loss ? "On" : "Off",
-              app->edited_shortcuts.pause_on_focus_loss, 1);
-    ui_text(&app->ui, x + 28, y + 441, "Movie camera renderer", TEXT);
-    ui_button(&app->ui, x + 430, y + 436, 204, marcus_renderer_name(app->edited_shortcuts.renderer), 0, 1);
-    ui_text(&app->ui, x + 28, y + 477, "Movie camera resolution", TEXT);
-    ui_button(&app->ui, x + 430, y + 472, 204,
-              marcus_render_resolution(app->edited_shortcuts.render_resolution)->label, 0, 1);
-    ui_text(&app->ui, x + 28, y + 513, "Work camera renderer", TEXT);
-    ui_button(&app->ui, x + 430, y + 508, 204, marcus_renderer_name(app->edited_shortcuts.work_renderer), 0, 1);
-    ui_text(&app->ui, x + 28, y + 549, "Work camera resolution", TEXT);
-    ui_button(&app->ui, x + 430, y + 544, 204,
-              marcus_render_resolution(app->edited_shortcuts.work_render_resolution)->label, 0, 1);
-    ui_text(&app->ui, x + 28, y + 585, "App debug overlay (FPS / frame time)", TEXT);
-    ui_button(&app->ui, x + 430, y + 580, 204, app->edited_shortcuts.debug_overlay ? "On" : "Off",
-              app->edited_shortcuts.debug_overlay, 1);
-    ui_text(&app->ui, x + 28, y + 621, "Movie frame rate", TEXT);
-    ui_button(&app->ui, x + 430, y + 616, 204, rates[app->edited_shortcuts.playback_rate], 0, 1);
-    ui_text(&app->ui, x + 28, y + 657, "Compatibility speed modifier", TEXT);
-    ui_button(&app->ui, x + 430, y + 652, 204, modifiers[app->edited_shortcuts.playback_modifier], 0, 1);
-    ui_label(&app->ui, x + 24, y + 682, 610, app->settings_message, 0xf2ae9b);
-    ui_button(&app->ui, x + 24, y + 704, 148, "Restore defaults", 0, 1);
-    ui_button(&app->ui, x + 438, y + 704, 88, "Cancel", 0, 1);
-    ui_button(&app->ui, x + 538, y + 704, 96, "Apply", 1, 1);
+    igEndChild(); igTextWrapped("%s", app->settings_message); igSeparator();
+    cancel = igButton("Cancel", dialog_vec(100, 0)); igSameLine(0, 10);
+    apply = igButton("Apply", dialog_vec(120, 0));
+    if (app->binding_capture < 0 && !app->binding_key_consumed) {
+        if (igShortcut_Nil(ImGuiKey_Escape, 0)) cancel = 1;
+        if (!igIsAnyItemActive() && igShortcut_Nil(ImGuiKey_Enter, 0)) apply = 1;
+    }
+    app->binding_key_consumed = 0;
+    if (cancel || !open) cancel_settings(app);
+    else if (apply) apply_settings(app);
+    dialog_end(!app->settings_open);
 }
 static void draw_zip(App *app)
 {
-    float x, y, row_y;
-    int row, index, count;
-    char label[1100];
+    ImGuiListClipper *clip;
     MarcusMovieEntry member;
-    x = app->width / 2.0f - 400;
-    y = app->height / 2.0f - 240;
-    count = marcus_input_count(app->zip_input);
-    ui_fill(&app->ui, x - 1, y - 1, 802, 482, 0x606670);
-    ui_fill(&app->ui, x, y, 800, 480, PANEL);
-    ui_text(&app->ui, x + 24, y + 20, "Choose a movie from this ZIP", TEXT);
-    ui_label(&app->ui, x + 24, y + 50, 752, app->zip_path, MUTED);
-    for (row = 0; row < 10; ++row)
-    {
-        index = app->zip_scroll + row;
-        if (!marcus_input_entry(app->zip_input, index, &member))
-            break;
-        row_y = y + 92 + row * 28;
-        if (index == app->zip_selected)
-            ui_fill(&app->ui, x + 24, row_y, 752, 28, 0x34464c);
-        SDL_snprintf(label, sizeof(label), "%d. %s", index + 1, member.name);
-        ui_label(&app->ui, x + 32, row_y + 5, 736, label, index == app->zip_selected ? ACCENT : TEXT);
+    char label[1152];
+    int open, row, count, accept, cancel;
+    open = app->zip_input != NULL; accept = cancel = 0;
+    if (!dialog_begin("Choose a movie from this ZIP###MarcusZip", &open, app->width, app->height, 1000, 720)) {
+        if (!open) cancel_zip(app);
+        return;
     }
-    if (marcus_input_entry(app->zip_input, app->zip_selected, &member))
-    {
-        SDL_snprintf(label, sizeof(label), "%d of %d movies   /   %.1f MiB   /   Up/Down or scroll to browse",
-                     app->zip_selected + 1, count, member.bytes / (1024 * 1024));
-        ui_text(&app->ui, x + 24, y + 390, label, MUTED);
+    igTextWrapped("%s", app->zip_path); count = marcus_input_count(app->zip_input);
+    if (igBeginChild_Str("ZIP movies", dialog_vec(0, -68), 0, 0)) {
+        clip = ImGuiListClipper_ImGuiListClipper();
+        if (clip) {
+            ImGuiListClipper_Begin(clip, count, igGetTextLineHeightWithSpacing());
+            while (ImGuiListClipper_Step(clip)) for (row = clip->DisplayStart; row < clip->DisplayEnd; ++row) {
+                if (!marcus_input_entry(app->zip_input, row, &member)) continue;
+                igPushID_Int(row); SDL_snprintf(label, sizeof(label), "%s / %.1f MiB", member.name, member.bytes / (1024 * 1024));
+                if (igSelectable_Bool(label, row == app->zip_selected, ImGuiSelectableFlags_AllowDoubleClick, dialog_vec(0, 0))) {
+                    zip_select(app, row); if (igIsMouseDoubleClicked_Nil(0)) accept = 1;
+                }
+                igPopID();
+            }
+            ImGuiListClipper_destroy(clip);
+        }
     }
-    ui_button(&app->ui, x + 568, y + 432, 96, "Cancel", 0, 1);
-    ui_button(&app->ui, x + 680, y + 432, 96, "Open", 1, 1);
+    igEndChild(); igText("%d of %d movies", app->zip_selected + 1, count); igSeparator();
+    cancel = igButton("Cancel", dialog_vec(100, 0)) || igShortcut_Nil(ImGuiKey_Escape, 0);
+    igSameLine(0, 10); igBeginDisabled(!count);
+    if (igButton("Open", dialog_vec(120, 0)) || (count && igShortcut_Nil(ImGuiKey_Enter, 0))) accept = 1;
+    igEndDisabled(); dialog_end(cancel || accept || !open);
+    if (cancel || !open) cancel_zip(app); else if (accept) confirm_zip(app);
 }
 static void movie_control_label(MarcusUI *ui, float x, float y, float width, const char *text,
                                 unsigned long colour)
@@ -4700,9 +4452,7 @@ int main(int argc, char **argv)
         update_prop_gizmo(&app);
         draw(&app);
         prop_gizmo_end(app.prop_gizmo);
-        /* The native browser owns text input while its search field is open. */
-        if (browser_visible(app.browser) && !SDL_TextInputActive(app.window))
-            SDL_StartTextInput(app.window);
+        dialog_release_textures();
         if (capture && frames == 3)
         {
             if (app.error[0] || (input && !app.loaded))
@@ -4716,7 +4466,9 @@ int main(int argc, char **argv)
         }
         SDL_RenderPresent(app.renderer);
         ++frames;
-        if (!app.prop_interacting && !text_dialog_visible(app.text_dialog) && !costume_dialog_visible(app.costume_dialog) && !sound_dialog_visible(app.sound_dialog)) SDL_Delay(10);
+        if (!app.prop_interacting && !text_dialog_visible(app.text_dialog) && !costume_dialog_visible(app.costume_dialog) &&
+            !sound_dialog_visible(app.sound_dialog) && !browser_visible(app.browser) && !background_browser_visible(app.background_browser) &&
+            !scene_organiser_visible(app.scene_organiser) && !camera_picker_visible(app.camera_picker) && !app.settings_open && !app.zip_input) SDL_Delay(10);
         completed_tick = SDL_GetTicksNS();
         record_frame(&app, (double)(completed_tick - frame_tick) / 1000000.0);
         frame_tick = completed_tick;
@@ -4735,6 +4487,7 @@ cleanup:
     camera_picker_destroy(app.camera_picker);
     storyboard_editor_destroy(app.storyboard_editor);
     scene_organiser_destroy(app.scene_organiser);
+    dialog_release_textures();
     prop_gizmo_destroy(app.prop_gizmo);
     ui_destroy(&app.ui);
     SDL_DestroyTexture(app.picture);
