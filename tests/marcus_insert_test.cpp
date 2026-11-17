@@ -2,6 +2,7 @@
 #include "player.h"
 #include "storyboard.h"
 #include "preview_worker.h"
+#include "text_preview.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <cstring>
@@ -224,6 +225,27 @@ int main(int argc, char **argv)
         SDL_free(output);
         const auto preview = ReadPreview(previewData);
         require(preview.error.empty() && preview.width == 480 && preview.height == 360 && !preview.rgba.empty(), "Text preview renders existing font and material independently");
+        // Exercise the C worker boundary without creating a dialog or UI context.
+        auto textPreview = std::unique_ptr<MarcusTextPreview, decltype(&text_preview_destroy)>(
+            text_preview_create(), text_preview_destroy);
+        require(textPreview && text_preview_start(textPreview.get(), player.get(), editIndex, &settings, argv[1],
+            -90, 20, 2), "Start a cancellable C text preview");
+        text_preview_stop(textPreview.get());
+        MarcusImage previewImage = {};
+        require(text_preview_poll(textPreview.get(), &previewImage) == 0, "Cancelled preview does not publish an image");
+        require(text_preview_start(textPreview.get(), player.get(), editIndex, &settings, argv[1], 20, -10, 1),
+            "Restart C text preview after cancellation");
+        const auto previewDeadline = SDL_GetTicks() + 20000;
+        int previewReady = 0;
+        while (!(previewReady = text_preview_poll(textPreview.get(), &previewImage)) && SDL_GetTicks() < previewDeadline)
+            SDL_Delay(5);
+        require(previewReady == 1 && previewImage.width == preview.width && previewImage.height == preview.height &&
+            previewImage.pitch == preview.width * 4 &&
+            std::memcmp(previewImage.rgba, preview.rgba.data(), preview.rgba.size()) == 0 &&
+            marcus_document(player.get()) == previewDocument, "C preview preserves exact pixels and the live document");
+        require(text_preview_poll(textPreview.get(), &previewImage) == 0, "C preview publishes a completed image only once");
+        text_preview_stop(textPreview.get());
+        text_preview_stop(textPreview.get());
         auto wording = settings; std::strcpy(wording.text, "Pattern");
         require(marcus_set_text(player.get(), editIndex, &wording) && marcus_text(player.get(), editIndex, &readAppearance) &&
             appearanceMatches(readAppearance.appearance), "Changing wording retains an imported patterned material");

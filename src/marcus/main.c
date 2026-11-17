@@ -2243,7 +2243,7 @@ static void handle_event(App *app, const SDL_Event *event)
             app->ui.mouse_y = event->motion.y;
         }
     }
-    else if (!app->error[0] && text_dialog_event(app->text_dialog, event, app->width, app->height))
+    else if (!app->error[0] && text_dialog_event(app->text_dialog, event))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
         {

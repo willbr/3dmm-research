@@ -88,6 +88,10 @@ The current development build in this workspace uses `build/marcus-x64`.
 SDL 3.4.8 is built from `vendor/SDL3` by the shared dependency module, including
 for Studio and the inspector. Marcus's transform controls use the vendored
 ImGuizmo core in `vendor/ImGuizmo` with the existing pinned Dear ImGui dependency.
+The New/Edit 3D text dialog uses cimgui 1.92.5, pinned at
+`bfd30140a9c5832b5e0dcf179d6e1e5c69373d5a`, over that same ImGui implementation
+and context. Configuration checks that the bindings' ImGui headers match the
+shared dependency; no second ImGui implementation or SDL backend is built.
 Both vendor directories record their upstream revision, archive checksum and
 license. Their original source/license notices are preserved; runtime licenses
 are copied beside Marcus in `licenses/`.
@@ -311,12 +315,17 @@ A failed preview leaves the other cards usable. New scene keeps its background
 list and larger selected preview.
 
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
-one line, then choose an original 3D font and one of the ten retail shapes with
-the arrow buttons. The 50-character limit follows retail's text editor
+one line, then choose an original 3D font and one of the ten retail shapes from
+the combo boxes. The 50-character limit follows retail's text editor
 (`kcchMaxTdt` in `src/studio/esl.cpp`); it is not a file-format limit.
-Tab switches between controls; the keyboard arrows change the focused value,
-Enter adds and Escape cancels. The text field supports
-Ctrl+A, copy/cut/paste, cursor navigation, Backspace and Delete. Characters must
+The dialog is implemented in C89 using standard cimgui widgets in the same
+ImGui context as the transform gizmos. Click in the text field to position the
+caret, drag or Shift+arrow to select, and use Ctrl+A, copy/cut/paste, cursor
+navigation, Backspace and Delete. Tab switches between controls; Enter in the
+text field adds/saves, and Cancel or the title-bar close button discards changes.
+Escape follows ImGui's focused-control/popup handling before closing the dialog.
+Empty wording or more than 50 characters disables Add/Save and shows an
+explanation while allowing the wording to be corrected. Characters must
 be supported by the original Windows-ANSI fonts in `tdfs.3cn`. Invalid input
 stays in the dialog with an explanation. Creating text uses the native ThreeDText
 engine; its generated template is embedded in the saved movie and its font
@@ -324,10 +333,10 @@ continues to reference original retail content.
 
 The shared New/Edit dialog also offers native material and colour choices from
 `mtrls.3cn`. Colour swatches choose existing palette materials; the Material
-arrows also include textured patterns. Ambient, diffuse, specular and shininess
+combo box also includes textured patterns. Ambient, diffuse, specular and shininess
 adjust the material's response to lighting. Textured materials additionally
-expose U/V scale, rotation and U/V offsets. Drag numeric values or use their
-minus/plus buttons. The live 3D preview updates as settings change: drag it to
+expose U/V scale, rotation and U/V offsets. Drag numeric values or Ctrl+click to
+type an exact value. The live 3D preview updates as settings change: drag it to
 rotate, scroll over it to zoom, or use the preview buttons. Its view is separate
 from the object's position and rotation in the movie. Previewing does not edit
 the movie or add undo entries; Cancel discards every pending setting.
@@ -1520,7 +1529,18 @@ the additional `TDF /00000005` font is still unavailable in the checked content.
 
 ## C89 boundary and checks
 
-`src/marcus/main.c` and `ui.c` implement the application and drawing in C89.
+`src/marcus/main.c` and `ui.c` implement much of the application and legacy
+drawing in C89. `text_dialog.c` owns the New/Edit 3D text dialog's C89 state,
+catalogues, material/texture controls, transactions and cimgui widgets. Its
+manual caret, selection, clipboard and field hit-testing code has been removed.
+`text_preview.h` exposes opaque native preview services: template preparation
+stays on the player owner thread, while the existing isolated worker decodes
+the preview. `text_preview.cpp` adapts those services and third-party palette/
+colour conversion without owning UI state. The existing insertion check also
+verifies C preview cancellation/restart, single-result publication, unchanged
+document identity and exact pixel equality with the direct worker. No Marcus
+UI tests were added. The remaining custom controls/dialogs and C++ gizmo callers
+still need migration; this is the first complete cimgui dialog slice.
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
 `player.cpp` owns the C++ Archive/Preview backend; `playback.cpp` implements audio,
@@ -1541,7 +1561,9 @@ ownership rule.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
-FreeType headers are system headers during C89 checking. Engine conversion is
+FreeType and generated cimgui headers are system headers during C89 checking.
+Dear ImGui, cimgui's generated implementation and ImGuizmo still require C++.
+Engine conversion is
 incremental; a C89 frontend does not establish whole-backend C89 compatibility.
 
 ```console

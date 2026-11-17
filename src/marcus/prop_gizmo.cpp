@@ -95,6 +95,7 @@ MarcusPropGizmo *prop_gizmo_create(SDL_Window *window, SDL_Renderer *renderer)
     auto &io = ImGui::GetIO();
     io.IniFilename = io.LogFilename = nullptr;
     io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
     auto &style = ImGui::GetStyle();
     style.WindowPadding = ImVec2(0, 0);

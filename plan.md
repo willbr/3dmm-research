@@ -65,8 +65,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Marcus currently calls ImGui's C++ API directly for prop and storyboard
   gizmos, while most controls and dialogs use custom SDL/FreeType drawing and
   event handling. That split does not meet the requirement for an ImGui GUI.
-  The playback review tool already uses cimgui from C; converting all Marcus UI
-  to cimgui is planned work, not a completed conversion.
+  The New/Edit 3D text dialog now uses standard cimgui widgets and C89 state in
+  that shared context; its manual text editor is removed. The playback review
+  tool also uses cimgui from C. The remaining Marcus UI still needs conversion.
 - `engine-core` already groups stored data, actor evaluation and playback
   policy. Its playback/startup command evaluators, frame pacer and scrolling
   policy now delegate to `mm-engine-c89` in `libraries/engine/`.
@@ -371,6 +372,18 @@ Dear ImGui through cimgui, not just the existing gizmos. Replace the custom
 SDL/FreeType controls as part of the C89 migration. Convert the project-owned UI
 state and control logic to C89; wrapping unchanged C++ application logic in a C
 API does not complete this work.
+
+**First slice implemented 17 November 2026:** New/Edit 3D text now uses
+`text_dialog.c` and standard cimgui text input, combo boxes, colour buttons,
+numeric controls, modal actions and preview image controls. Pinned cimgui
+1.92.5 shares the existing ImGui implementation, SDL backends and gizmo context.
+Native template/isolated-worker services have a C interface in `text_preview.h`;
+dialog state and decisions are C89. `marcus-c89` includes the converted dialog.
+The MSVC Marcus build and the existing `marcus-c89`, `marcus-insert`,
+`marcus-preview-worker`, `marcus-playback` and `marcus-player` checks pass.
+The insertion check covers the C preview service's cancellation/restart and
+exact worker pixel equality without creating a dialog or ImGui context.
+The remaining controls and dialogs listed below are still migration work.
 
 - Reuse the playback review tool's cimgui integration as a reference. Pin
   compatible cimgui, Dear ImGui and ImGuizmo revisions, and make Marcus's cimgui,

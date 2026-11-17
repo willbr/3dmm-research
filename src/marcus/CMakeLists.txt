@@ -1,9 +1,10 @@
 include(SDL3Dependency)
 include(ImGuizmoDependency)
+include(CimguiDependency)
 include(FreeTypeDependency)
 include(EmbedMarcusShaders)
 
-add_library(marcus-player STATIC player.cpp storyboard.cpp storyboard_tools.cpp storyboard_export.cpp colour_picker.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp scene_edit.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp)
+add_library(marcus-player STATIC player.cpp storyboard.cpp storyboard_tools.cpp storyboard_export.cpp colour_picker.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp scene_edit.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp preview_worker.cpp text_preview.cpp)
 if(WIN32)
   target_compile_definitions(marcus-player PRIVATE MARCUS_ASM_WORKER_PATH="${PROJECT_SOURCE_DIR}/build/marcus-x86/src/marcus/marcus-asm-worker.exe")
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -40,7 +41,7 @@ target_compile_features(marcus-preview PRIVATE cxx_std_17)
 target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-core)
 kauai_copy_midi_assets(marcus-preview)
 
-add_executable(marcus WIN32 main.c ribbon.c ui.c settings.c prop_gizmo.cpp movie_browser.cpp scene_organiser.cpp background_browser.cpp text_dialog.cpp camera_picker.cpp storyboard_editor.cpp preview_worker.cpp preview_cache.cpp)
+add_executable(marcus WIN32 main.c ribbon.c ui.c settings.c prop_gizmo.cpp movie_browser.cpp scene_organiser.cpp background_browser.cpp text_dialog.c camera_picker.cpp storyboard_editor.cpp preview_cache.cpp)
 add_executable(marcus-dialog-capture EXCLUDE_FROM_ALL ../../tools/marcus_dialog_capture.c ui.c)
 set_target_properties(marcus-dialog-capture PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(marcus-dialog-capture PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -50,7 +51,7 @@ find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-target_link_libraries(marcus PRIVATE marcus-player imguizmo SDL3::SDL3-static freetype engine-core MM::Archive mm-v3dmm Threads::Threads)
+target_link_libraries(marcus PRIVATE marcus-player cimgui-sdl3 imguizmo SDL3::SDL3-static freetype engine-core MM::Archive mm-v3dmm Threads::Threads)
 kauai_copy_midi_assets(marcus)
 add_custom_command(TARGET marcus POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -63,6 +64,8 @@ add_custom_command(TARGET marcus POST_BUILD
     "${PROJECT_SOURCE_DIR}/docs/licenses/sqlite-PUBLIC-DOMAIN.txt"
     "${PROJECT_SOURCE_DIR}/docs/licenses/ok-color-LICENSE.txt"
     "$<TARGET_FILE_DIR:marcus>/licenses"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${marcus_cimgui_SOURCE_DIR}/LICENSE" "$<TARGET_FILE_DIR:marcus>/licenses/cimgui-LICENSE.txt"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${PROJECT_SOURCE_DIR}/vendor/ImGuizmo/LICENSE" "$<TARGET_FILE_DIR:marcus>/licenses/ImGuizmo-LICENSE.txt"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -156,6 +159,7 @@ if(BUILD_TESTING)
       "-DCOMPILER=${MARCUS_C89_COMPILER}"
       "-DSDL_INCLUDES=$<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>"
       "-DFREETYPE_INCLUDES=$<TARGET_PROPERTY:freetype,INTERFACE_INCLUDE_DIRECTORIES>"
+      "-DCIMGUI_INCLUDES=${marcus_cimgui_SOURCE_DIR}"
       -DSOURCE=${PROJECT_SOURCE_DIR} -P ${PROJECT_SOURCE_DIR}/tests/check_marcus_c89.cmake)
   endif()
   # Headless release latency/cache checks; no application window or UI input.
