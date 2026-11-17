@@ -424,8 +424,12 @@ iterator cleanup and failure publication, with native case-sensitivity and
 filesystem providers. Enumeration now owns C filter state/storage, cursor flags
 and the recursion stack, sharing traversal/filter/skip/pre-post/root/link/error
 policy through native iterator and filename-view providers. Default cache
-owner/configuration bindings, native BASE/frame integration and object
+owner/configuration bindings, native BASE integration and object
 lifetime, and final facade integration remain.
+Current and suspended enumeration frames now use plain C one/two-byte filename,
+metadata, cursor and entry records. No C++ Filename/vtable remains in recursion
+snapshots. C copies preserve the legacy reference-count and diagnostic-kind
+payload before publishing type/path, without retaining an object.
 Windows physical file/path services now also use a C89 component: OS handles,
 sharing/create modes, exact I/O, attributes, lookup/search/path buffers,
 directory creation/iteration and media-error/volume calls. The C++ interface is

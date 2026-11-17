@@ -38,6 +38,7 @@ if(NOT WIN32)
 endif()
 target_sources(mm-engine-c89 PRIVATE src/reference.c)
 target_sources(mm-engine-c89 PRIVATE src/filename_enum.c)
+target_sources(mm-engine-c89 PRIVATE src/filename_frame.c)
 get_filename_component(engine_filename_enum_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_filename_enum_test.c" ABSOLUTE)
 add_executable(engine-filename-enum-test EXCLUDE_FROM_ALL "${engine_filename_enum_test_source}")
 target_link_libraries(engine-filename-enum-test PRIVATE mm-engine-c89)
@@ -989,6 +990,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_naming.c" "${engine_filename_naming_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_case.c" "${engine_filename_case_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_enum.c" "${engine_filename_enum_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_frame.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/memory_debug.c" "${engine_memory_debug_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/object_debug.c" "${engine_object_debug_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/heap.c" "${engine_heap_test_source}"

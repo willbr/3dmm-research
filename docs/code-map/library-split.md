@@ -686,8 +686,8 @@ paths/types, self-copy diagnostics and errors against the original representatio
 Strict C89, C-only cross builds, Linux execution and AddressSanitizer cover this
 boundary; exact results and limits are in the
 [regression log](../tools/playback-regression.md). Native BASE/object/default
-bindings, the enumerator's outer frame representation and final facade removal
-still require conversion.
+bindings and final facade removal still require conversion. Enumeration's
+current/suspended frames now use the plain C records described below.
 
 ### Filename path and navigation rules
 
@@ -821,12 +821,24 @@ frame without closing its iterator. Root-build assertions remain advisory.
 
 State is owning and cannot be copied or moved. Callers provide a fixed current
 frame and distinct output/scratch filename views, matching units, raw entry
-storage and a byte snapshot format. Native FES snapshots retain the existing
-Filename representation and metadata; standalone clients can use plain C names.
-The native enumerator embeds C state/cursor records and marks their allocations
-directly. Its internal layout changes; Filename layout and wire formats do not.
-Native filename/frame representation, object lifetime and default context/facade
-integration remain work. C storage removes the DynamicArray object allocation;
+storage and a byte snapshot format. `mm/filename_frame.h` supplies matching
+`MMFilenameFrame8`/`MMFilenameFrame16` records for native and standalone callers.
+The current frame and recursion snapshots contain C-owned filename storage,
+copy metadata, cursor and entry buffer, with no C++ Filename object or vtable.
+Initialization sets nil path, count-one/local metadata and zero cursor/entry;
+unused path storage remains untouched. Views are rebuilt after relocation.
+
+Frame metadata preserves legacy value-copy reference counts and diagnostic kinds;
+it does not own references or register a debug-graph object. The C copy helper
+publishes metadata before type/path and retains prefix-only path copying. Native
+bindings expose actual Filename BASE fields when copying to/from external names.
+Path validation handles C frame values directly; native BASE validation remains
+for native objects. Optional metadata fields can be omitted by a host.
+
+The native enumerator embeds only C state/frame records beneath its BASE facade
+and marks allocations directly. Its internal layout changes; Filename layout and
+wire formats do not. Native object lifetime and default context/facade integration
+remain work. C storage removes the DynamicArray object allocation;
 native allocation ordinals/object-allocation error codes are not established by
 the regression traces.
 
@@ -838,9 +850,13 @@ reading uninitialized caller storage or delaying publication past callbacks.
 
 `engine-filename-enum` covers both unit widths, ownership/cleanup, filters,
 output mutation, roots, links, skip/post ordering, initial/growth/type allocation
-failures, failed wildcard rollback and active reinitialization. Native normal/
+failures, failed wildcard rollback and active reinitialization. It now exercises
+both public frame profiles, initialization, relocation, optional metadata and
+reference-count restoration across recursion. Native normal/
 expensive fixtures capture the original physical-tree traversal, output values,
-flags, errors and diagnostics. The [regression log](../tools/playback-regression.md)
+flags, errors and diagnostics; separate frame fixtures track copied and mutated
+reference counts through deep recursion, root walking and active reinit.
+The [regression log](../tools/playback-regression.md)
 records source identities, matched traces and verification limits.
 
 ### Windows physical file services

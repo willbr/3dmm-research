@@ -18,6 +18,7 @@
 #include "mm/filename_value.h"
 #include "mm/filename_owned.h"
 #include "mm/filename_enum.h"
+#include "mm/filename_frame.h"
 
 using Group::PDynamicArray;
 
@@ -165,20 +166,17 @@ class FileNameEnumerator : public FileNameEnumerator_PAR
     NOCOPY(FileNameEnumerator)
 
   private:
-    // file enumeration state
-    struct FES
-    {
-        Filename fni;
-        MMFilenameEnumCursor cursor{};
-        achar entry[MM_FILENAME_CASE_NAME_CAPACITY] = {};
-    };
-
     MMFilenameEnumState _enumeration;
-    FES _fesCur;
+#ifdef UNICODE
+    MMFilenameFrame16 _fesCur;
+#else
+    MMFilenameFrame8 _fesCur;
+#endif
 
     void _Free(void);
     MMFilenameEnumHost _EnumHost();
     MMFilenameEnumFrame _EnumFrame();
+    MMFilenameMetadataView _NameMetadata(const MMFilenameValue &);
 
   public:
     FileNameEnumerator(void);

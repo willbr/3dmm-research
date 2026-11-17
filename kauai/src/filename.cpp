@@ -506,7 +506,23 @@ void FreeEnumTypes(void *, void *data, MMU32) { FreePpv(&data); }
 }
 MMFilenameEnumFrame FileNameEnumerator::_EnumFrame()
 {
-    return {&_fesCur, &_fesCur.cursor, _fesCur.fni._ValueView(), _fesCur.entry};
+#ifdef UNICODE
+    auto frame=mm_filename_frame16_view(&_fesCur);
+#else
+    auto frame=mm_filename_frame8_view(&_fesCur);
+#endif
+    frame.name.path.check_copy=FilenameCopyCheck;FilenameOwnedCheck(nullptr,&frame.name.path);return frame;
+}
+MMFilenameMetadataView FileNameEnumerator::_NameMetadata(const MMFilenameValue &value)
+{
+    auto metadata=mm_filename_frame_metadata(&_fesCur.metadata);
+    if(value.owner)metadata.references=&static_cast<Filename *>(value.owner)->_references;
+#ifdef DEBUG
+    if(value.owner)metadata.debug=&static_cast<Filename *>(value.owner)->_debugState;
+#else
+    metadata.debug=nullptr;
+#endif
+    return metadata;
 }
 MMFilenameEnumHost FileNameEnumerator::_EnumHost()
 {
@@ -515,6 +531,21 @@ MMFilenameEnumHost FileNameEnumerator::_EnumHost()
                   ffnePost == MM_FILENAME_ENUM_POST && ffneSkipDir == MM_FILENAME_ENUM_SKIP, "native enum flags");
     static_assert(sizeof(LegacyUlong) == sizeof(MMU32), "native enum flag width");
     MMFilenameEnumHost host{}; host.path = FilenamePathHost(); host.context = this;
+    host.path.context=this;host.path.value.context=this;
+    host.path.copy_name=[](void *context,const MMFilenameValue *out,const MMFilenameValue *in){
+        auto *enumerator=static_cast<FileNameEnumerator *>(context);
+        const auto destination=enumerator->_NameMetadata(*out),source=enumerator->_NameMetadata(*in);
+        const auto owned=FilenameOwnedHost();mm_filename_frame_copy_name(out,&destination,in,&source,&owned);
+    };
+#ifdef DEBUG
+    host.path.value.validate=[](void *,const MMFilenameValue *value,int flags){
+        if(value->owner){const auto native=FilenameValueHost();native.validate(native.context,value,flags);return;}
+#ifdef KAUAI_EXPENSIVE_CHECKS
+        if(flags!=MM_FILENAME_BASE && vcactAV>0){--vcactAV;const auto owned=FilenameOwnedHost();
+            mm_filename_owned_validate(value,flags,&owned);++vcactAV;}
+#endif
+    };
+#endif
     host.first = [](void *, const void *pattern, void **iterator, void *name, MMI32 capacity, MMFilenameEnumInfo *out) -> int {
         Assert(capacity == MM_FILENAME_CASE_NAME_CAPACITY, "enumeration entry capacity");
         KauaiFiles::DirectoryEntry entry;
@@ -555,6 +586,11 @@ MMFilenameEnumHost FileNameEnumerator::_EnumHost()
 }
 FileNameEnumerator::FileNameEnumerator(void)
 {
+#ifdef UNICODE
+    mm_filename_frame16_init(&_fesCur);
+#else
+    mm_filename_frame8_init(&_fesCur);
+#endif
     AssertBaseThis(0);
     const MMStorageAllocator types{nullptr,ResizeEnumTypes,FreeEnumTypes};
     const auto stack = Group::CollectionAllocator();
@@ -562,7 +598,7 @@ FileNameEnumerator::FileNameEnumerator(void)
 #ifdef DEBUG
     trash = 1;
 #endif
-    AssertDo(mm_filename_enum_construct(&_enumeration,sizeof(FES),&types,&stack,trash),"invalid filename enumeration storage");
+    AssertDo(mm_filename_enum_construct(&_enumeration,sizeof(_fesCur),&types,&stack,trash),"invalid filename enumeration storage");
     AssertThis(0);
 }
 FileNameEnumerator::~FileNameEnumerator(void) { AssertBaseThis(0); _Free(); }

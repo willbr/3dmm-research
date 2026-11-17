@@ -12565,3 +12565,71 @@ Evidence: `tmp/c89-filename-owned/owned-{original,converted}-{runtime,expensive}
 `filename-original.cpp`, `fni-original.h`, `run-{native,sdl-release,sdl-debug}-tests.log`,
 `run-standalone-tests.log`, `run-regular-tests.log`, `asan.log`, `cross.log`,
 `linux-runtime.log`, `trace-comparison.json`, `gates.json` and `identities.json`.
+
+### C89 enumeration frame representation and metadata (17 November 2026)
+
+`mm/filename_frame.h` and `filename_frame.c` now supply the current and suspended
+enumeration frames. `MMFilenameFrame8`/`MMFilenameFrame16` contain C-owned filename
+storage, copy metadata, cursor and entry buffer. The native FES struct and its
+embedded C++ Filename/vtable are removed. The existing C enumeration controller
+and collection stack operate on these plain records in both hosts.
+
+Frame initialization sets nil path, count-one/local metadata and zero cursor/
+entry while preserving the unused path tail. View rebinding supports relocation.
+The C copy helper publishes reference-count/diagnostic-kind payload before
+type/path, retaining prefix-only copying and optional metadata fields. These
+are value-copy compatibility fields, not retained references or debug-graph
+registrations. Native bindings expose actual Filename BASE fields for external
+names; C frame values receive C path validation without pretending to be BASE
+objects. The outer native enumerator remains a BASE facade. Native objects still
+use their existing BASE validation. Wire formats and Filename layout are unchanged;
+frame storage is smaller because it contains no vtable. Exact native allocation
+failure thresholds/ordinals and invalid metadata/provider cases are unverified.
+
+The baseline is the unmodified representation from `7dab8252`. Retained
+`filename.cpp` is 29,209 bytes, SHA-256
+`E93151B3D45CF685C19710C4A6F3440144137F3CDDAE283E333A60951734AFE4`;
+`fni.h` is 5,367 bytes, SHA-256
+`CF0BCF45A126DCB40418CA4FE09F0383E7B110F6890954C6F4A6E936D647C135`.
+Normal/expensive native fixtures were captured before conversion. They observe
+reference counts while callers mutate output counts, deep recursion exceeding
+the initial five stack slots, pre/post and skip behavior, active reinit,
+heap filters, root enumeration and destruction with an active iterator.
+
+All six original/converted frame snapshots match across Native, SDL Release
+and SDL Debug: 6,428 bytes, FNV `3D37141A`, SHA-256
+`836ECBA985C61DA1F88A1B1E89A28A065A1CFC99607C3EEC0E4BA37A9A51C2DF`.
+All 213 retained Windows pairs match too: 219 byte-identical comparisons.
+All ten input identities and the Windows ACP/OEM/locale identity are unchanged;
+236 Windows executable identities are recorded.
+
+`engine-filename-enum` now uses the public C frame profiles for its full existing
+ownership/filter/traversal/skip/link/error/allocation-failure suite. Added checks
+cover poisoned-storage initialization, relocation/rebinding, optional metadata,
+copied counts surviving child/post/pop operations and unchanged output counts
+during root building. The complete C library/controller/test build passes
+AddressSanitizer. Strict C89 builds pass for the standalone engine and Linux x64,
+32-bit Linux GNU and ARM64 macOS frame/test objects. The C-only Linux executable
+runs in the isolated QEMU guest and powers off afterward; SHA-256
+`1D744A04BEA07035C86C543A07B54AB0D6FC4AD266696DC7CC90264BE505CE7A`.
+An initial Zig/CMake link crashed with linker-generated dependency output;
+disabling that output in the ignored cross-build configuration reused the
+compiled objects and linked successfully. No implementation change was needed.
+macOS runtime and the full native Unicode facade remain outside this check;
+the two-byte C controller/frame tests execute.
+
+The Native gate passes 255 checks, SDL Release passes 250 with the existing
+world-export skip, SDL Debug passes 251, and the standalone C89 engine passes
+164: 920 passed CTest checks and one existing skip. The regular headless preview
+harness passes. All three hosts retain 12 backgrounds, 188 cameras, 301,996,032
+output bytes and FNV `E1A71005`. Native applications/tools and both SDL profiles
+rebuild. Marcus is stopped before its rebuild and relaunched afterward.
+No Marcus UI tests or new retail captures are added. Native BASE/object/default
+bindings and final facade removal remain; whole-engine conversion is incomplete.
+
+Evidence: `tmp/c89-filename-frame/frame-{original,converted}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`filename-original.cpp`, `fni-original.h`, `run-{native,sdl-release,sdl-debug}-tests.log`,
+`run-standalone-tests.log`, `run-regular-tests.log`, `asan-runtime.log`,
+`asan-build.log`, `linux-build-initial.log`, `linux-build-final.log`,
+`linux-runtime.log`, `cross.log`, `trace-comparison.json`, `gates.json` and
+`identities.json`.

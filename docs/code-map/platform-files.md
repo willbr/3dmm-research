@@ -14,6 +14,10 @@ integration. Filename's type and counted path now use the plain C
 a `String` member. C initialization, prefix-only copying, export and validation
 retain native diagnostic ordering. These replace `filewin.cpp` and
 `fniwin.cpp`. Native dialogs remain in the GUI library's `fnidialogwin.cpp`.
+Enumeration current/suspended frames also use plain C records from
+`mm/filename_frame.h`; recursion snapshots contain no C++ Filename or vtable.
+Their metadata preserves copied reference counts/diagnostic kinds as value
+payload, with iterator ownership still controlled by the C enumerator.
 
 The Windows backend preserves `CreateFile` access/share flags, default ACLs,
 no-overwrite `MoveFile`, read-only attributes, native search-path rules, drive

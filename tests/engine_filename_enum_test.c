@@ -1,4 +1,4 @@
-#include "mm/filename_enum.h"
+#include "mm/filename_frame.h"
 #include "mm/string_ops.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,9 +6,8 @@
 static void check(int ok, int line) { if (!ok) { fprintf(stderr,"Filename enum: %d\n",line); exit(1); } }
 #define CHECK(x) check(!!(x),__LINE__)
 typedef union Buffer { unsigned char bytes[257]; unsigned short words[257]; } Buffer;
-typedef union EntryBuffer { unsigned char bytes[1024]; unsigned short words[1024]; } EntryBuffer;
-typedef struct Name { MMFilenameState state; Buffer path; } Name;
-typedef struct Frame { Name name; MMFilenameEnumCursor cursor; EntryBuffer entry; } Frame;
+typedef struct Name { MMFilenameState state; Buffer path; MMFilenameFrameMetadata metadata; } Name;
+typedef union Frame { MMFilenameFrame8 bytes; MMFilenameFrame16 words; } Frame;
 typedef struct Entry { const char *name; MMFilenameEnumInfo info; } Entry;
 typedef struct Directory { const char *pattern; Entry entries[8]; unsigned count, index, opens, closes; int end; } Directory;
 typedef struct Allocation { unsigned calls, fail, live; } Allocation;
@@ -28,6 +27,17 @@ static MMFilenameValue name_view(Fixture *f, Name *n)
 {
     MMFilenameValue v; memset(&v,0,sizeof(v)); v.owner = n; v.state = &n->state; v.path.buffer = &n->path; v.path.unit = f->unit;
     return v;
+}
+static MMFilenameMetadataView metadata_view(Fixture *f,const MMFilenameValue *v)
+{
+    MMFilenameFrameMetadata *m=v->owner?&((Name *)v->owner)->metadata:
+        (f->unit==1?&f->frame.bytes.metadata:&f->frame.words.metadata);
+    return mm_filename_frame_metadata(m);
+}
+static void copy_name(void *c,const MMFilenameValue *out,const MMFilenameValue *in)
+{
+    Fixture *f=(Fixture *)c;MMFilenameMetadataView a=metadata_view(f,out),b=metadata_view(f,in);
+    mm_filename_frame_copy_name(out,&a,in,&b,NULL);
 }
 static void set(Fixture *f, Name *n, const char *text, MMI32 type)
 { int i, length = (int)strlen(text); CHECK(length <= 255); n->state.type = type; put(&n->path,f->unit,0,(unsigned)length);
@@ -92,15 +102,19 @@ static void init(Fixture *f, unsigned size)
     MMStorageAllocator types, stack;
     memset(f,0,sizeof(*f)); f->unit = size; f->flags = 0xdeadbeefUL; f->info_status = MM_FILENAME_FOUND;
     f->dir = name_view(f,&f->directory); f->out = name_view(f,&f->output); f->temp = name_view(f,&f->scratch);
-    f->view.record = &f->frame; f->view.cursor = &f->frame.cursor; f->view.name = name_view(f,&f->frame.name); f->view.entry = &f->frame.entry;
-    set(f,&f->directory,"/r/",MM_FILENAME_DIRECTORY); set(f,&f->output,"/original.bin",0x42494eL); set(f,&f->frame.name,"",MM_FILENAME_NIL);
+    if(size==1){mm_filename_frame8_init(&f->frame.bytes);f->view=mm_filename_frame8_view(&f->frame.bytes);}
+    else {mm_filename_frame16_init(&f->frame.words);f->view=mm_filename_frame16_view(&f->frame.words);}
+    f->directory.metadata.references.count=f->output.metadata.references.count=f->scratch.metadata.references.count=1;
+    f->directory.metadata.debug.kind=f->output.metadata.debug.kind=f->scratch.metadata.debug.kind=MM_OBJECT_DEBUG_LOCAL;
+    set(f,&f->directory,"/r/",MM_FILENAME_DIRECTORY); set(f,&f->output,"/original.bin",0x42494eL);
     f->host.context = f->host.path.context = f->host.path.value.context = f;
     f->host.path.value.upper = upper; f->host.path.value.separator = separator; f->host.path.separator = slash;
     f->host.path.info = info; f->host.path.full_path = full_path; f->host.path.issue = path_issue;
+    f->host.path.copy_name=copy_name;
     f->host.first = first; f->host.next = next; f->host.close = close_directory; f->host.issue = issue;
     f->host.assertion = assertion; f->host.validate = validate; f->host.roots = roots; f->host.root_path = root_path;
     types.context = &f->types; types.resize = resize; types.release = release; stack = types; stack.context = &f->stack;
-    CHECK(mm_filename_enum_construct(&f->state,sizeof(Frame),&types,&stack,1));
+    CHECK(mm_filename_enum_construct(&f->state,size==1?sizeof(MMFilenameFrame8):sizeof(MMFilenameFrame16),&types,&stack,1));
 }
 static int begin(Fixture *f, const MMI32 *types, MMI32 count, MMU32 flags)
 { return mm_filename_enum_init(&f->state,&f->host,&f->view,&f->dir,types,count,flags); }
@@ -108,13 +122,51 @@ static int step(Fixture *f, MMU32 flags)
 { return mm_filename_enum_next(&f->state,&f->host,&f->view,&f->out,&f->flags,flags,&f->temp); }
 static void finish(Fixture *f)
 { unsigned i; mm_filename_enum_free(&f->state,&f->host,&f->view);
-  CHECK(!f->types.live && !f->stack.live && !f->state.depth && !f->frame.cursor.iterator && !f->state.initialized);
+  CHECK(!f->types.live && !f->stack.live && !f->state.depth && !f->view.cursor->iterator && !f->state.initialized);
   for (i = 0; i < f->count; ++i) CHECK(f->dirs[i].opens == f->dirs[i].closes); }
+static void frame_profiles(void)
+{
+    Frame storage,relocated;MMFilenameEnumFrame v,moved;MMFilenameMetadataView meta,other;
+    MMFilenameFrameMetadata data;unsigned width,poison;
+    for(width=1;width<=2;++width){
+        memset(&storage,0xa5,sizeof(storage));poison=width==1?0xa5:0xa5a5;
+        if(width==1){mm_filename_frame8_init(&storage.bytes);v=mm_filename_frame8_view(&storage.bytes);
+            meta=mm_filename_frame_metadata(&storage.bytes.metadata);}
+        else {mm_filename_frame16_init(&storage.words);v=mm_filename_frame16_view(&storage.words);
+            meta=mm_filename_frame_metadata(&storage.words.metadata);}
+        CHECK(!v.name.owner&&v.record==&storage&&v.name.state->type==MM_FILENAME_NIL);
+        CHECK(!get(v.name.path.buffer,width,0)&&!get(v.name.path.buffer,width,1)&&get(v.name.path.buffer,width,256)==poison);
+        CHECK(!v.cursor->iterator&&!v.cursor->roots&&!get(v.entry,width,1023));
+        CHECK(meta.references->count==1&&meta.debug->kind==MM_OBJECT_DEBUG_LOCAL);
+        meta.references->count=17;v.cursor->roots=0x1234;memcpy(&relocated,&storage,sizeof(storage));
+        moved=width==1?mm_filename_frame8_view(&relocated.bytes):mm_filename_frame16_view(&relocated.words);
+        CHECK(moved.record==&relocated&&moved.name.state!=v.name.state&&moved.cursor->roots==0x1234);
+        other=mm_filename_frame_metadata(&data);data.references.count=29;data.debug.kind=MM_OBJECT_DEBUG_ALLOCATED;
+        mm_filename_frame_copy_name(&moved.name,&other,&v.name,&meta,NULL);
+        CHECK(data.references.count==17&&data.debug.kind==MM_OBJECT_DEBUG_LOCAL);
+        data.references.count=31;data.debug.kind=MM_OBJECT_DEBUG_ALLOCATED;other.debug=NULL;
+        mm_filename_frame_copy_name(&moved.name,&other,&v.name,&meta,NULL);
+        CHECK(data.references.count==17&&data.debug.kind==MM_OBJECT_DEBUG_ALLOCATED);
+        data.references.count=37;mm_filename_frame_copy_name(&moved.name,NULL,&v.name,NULL,NULL);CHECK(data.references.count==37);
+    }
+}
 int main(void)
 {
     Fixture f; Directory *d; unsigned size, i; MMI32 types[21]; char long_path[256], parent[254], pattern[255], child[256];
     const char *patterns[] = {"/r/*","/r/d/*","/r/d/d/*","/r/d/d/d/*","/r/d/d/d/d/*","/r/d/d/d/d/d/*","/r/d/d/d/d/d/d/*"};
+    frame_profiles();
     for (size = 1; size <= 2; ++size) {
+        init(&f,size); f.directory.metadata.references.count=7;
+        d=directory(&f,"/r/*");entry(d,"sub",1,0,0,0);entry(d,"a.txt",0,0,0,0);
+        d=directory(&f,"/r/sub/*");entry(d,"b.bin",0,0,0,0);
+        CHECK(begin(&f,NULL,0,MM_FILENAME_ENUM_RECURSE)&&step(&f,0));
+        CHECK(f.output.metadata.references.count==7&&f.output.metadata.debug.kind==MM_OBJECT_DEBUG_LOCAL);
+        f.output.metadata.references.count=19;CHECK(step(&f,0)&&f.output.metadata.references.count==7);
+        CHECK(step(&f,0)&&f.flags==MM_FILENAME_ENUM_POST&&f.output.metadata.references.count==7);
+        CHECK(step(&f,0)&&f.output.metadata.references.count==7&&!step(&f,0));finish(&f);
+        init(&f,size); f.root_mask=1; f.output.metadata.references.count=23;
+        CHECK(mm_filename_enum_init(&f.state,&f.host,&f.view,NULL,NULL,0,0));
+        CHECK(step(&f,0)&&f.output.metadata.references.count==23&&!step(&f,0));finish(&f);
         init(&f,size); CHECK(!step(&f,0) && f.warnings == 1 && f.flags == 0xdeadbeefUL); equals(&f,"/original.bin"); finish(&f);
         init(&f,size); d = directory(&f,"/r/*"); entry(d,"hidden",0,1,0,0); entry(d,"system",0,0,1,0);
         CHECK(begin(&f,NULL,0,0) && !step(&f,0)); equals(&f,"/original.bin"); CHECK(f.flags == 0xdeadbeefUL); finish(&f);
@@ -159,7 +211,7 @@ int main(void)
         memcpy(child,parent,253); child[253] = 'd'; child[254] = '/'; child[255] = 0;
         init(&f,size); set(&f,&f.directory,parent,MM_FILENAME_DIRECTORY); d = directory(&f,pattern); entry(d,"d",1,0,0,0);
         CHECK(begin(&f,NULL,0,1) && step(&f,0)); equals(&f,child);
-        CHECK(f.flags == 48 && !f.state.depth && f.stack.live == 1 && !f.issues && !d->closes && f.frame.cursor.iterator == d);
+        CHECK(f.flags == 48 && !f.state.depth && f.stack.live == 1 && !f.issues && !d->closes && f.view.cursor->iterator == d);
         CHECK(!step(&f,0)); finish(&f);
         init(&f,size); f.root_mask = 1 | ((MMU32)1 << 25); types[0] = 0x747874L;
         d = directory(&f,"/A/*"); entry(d,"a.txt",0,0,0,0); directory(&f,"/Z/*");

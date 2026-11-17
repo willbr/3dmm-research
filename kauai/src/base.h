@@ -236,6 +236,7 @@ void MarkUtilMem(void);
 #define kclsBASE 'BASE'
 class BASE
 {
+    friend class FileNameEnumerator; // Typed bindings to copied C filename metadata.
     RTCLASS_DEC
     MARKMEM
     ASSERT
