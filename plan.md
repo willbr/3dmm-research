@@ -447,8 +447,11 @@ Keep host presentation and device output outside the session.
    supplied templates, including procedural text actions. The C resolver now
    maps authored source IDs to mounted content and selects archives by chunk
    identity. The standalone `--seek` probe exercises actors and cameras from
-   one retail content directory. Host mount discovery, body resources and
-   rendered output remain open.
+   one retail content directory. The same session can now resolve each
+   on-stage actor's body hierarchy, material set indices, authored model
+   bindings and local part matrices, including generated 3D text glyphs.
+   Host mount discovery, costume effects, model geometry and rendered output
+   remain open.
 3. Switch both hosts to the same session for the covered operations and retire
    the superseded backend paths. Link and run the standalone consumer and its
    real file/content providers with the C toolchain, without `engine-core`,

@@ -173,12 +173,12 @@ static void camera_events(unsigned char *group, int big, int start, MMU32 source
     }
 }
 
-static MMU32 write_fixture(unsigned char *out, int big, MMU32 count, const MMU32 *types, const MMU32 *numbers,
+static MMU32 write_fixture(unsigned char *out, size_t capacity, int big, MMU32 count, const MMU32 *types, const MMU32 *numbers,
                            const MMU32 *lengths, const MMI32 *codecs, unsigned char raw[][160],
                            const MMU32 links[][3], MMU32 link_count)
 {
     unsigned char *group, *row, *locations, *link;
-    MMU32 offsets[10], sizes[10], parents[10] = {0}, children[10] = {0};
+    MMU32 offsets[16], sizes[16], parents[16] = {0}, children[16] = {0};
     MMU32 i, j, end, index_offset = 128;
     const MMU32 row_bytes = count * 20 + link_count * 12;
     CHECK(count <= sizeof(offsets) / sizeof(offsets[0]));
@@ -187,7 +187,7 @@ static MMU32 write_fixture(unsigned char *out, int big, MMU32 count, const MMU32
         ++children[links[i][0]];
         ++parents[links[i][1]];
     }
-    memset(out, 0, 1024);
+    memset(out, 0, capacity);
     for (i = 0; i < count; ++i)
     {
         offsets[i] = index_offset;
@@ -195,7 +195,7 @@ static MMU32 write_fixture(unsigned char *out, int big, MMU32 count, const MMU32
         index_offset += sizes[i];
     }
     end = index_offset + 20 + row_bytes + count * 8;
-    CHECK(end <= 1024);
+    CHECK(end <= capacity);
     memcpy(out, "CHN2", 4);
     put16(out + 8, 5, big);
     put16(out + 10, 4, big);
@@ -263,7 +263,7 @@ static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 sour
     put32(raw[SCENE] + 4, 10, big);
     put32(raw[SCENE] + 8, 1, big);
     codecs[FRAMES] = codecs[STARTS] = codec;
-    return write_fixture(out, big, COUNT, types, numbers, lengths, codecs, raw, links,
+    return write_fixture(out, 1024, big, COUNT, types, numbers, lengths, codecs, raw, links,
                          sizeof(links) / sizeof(links[0]));
 }
 
@@ -296,7 +296,7 @@ static MMU32 source_movie(unsigned char *out, int big, int wide)
     put16(raw[1], 1, big);
     put16(raw[1] + 4, 2, big);
     put16(raw[1] + 6, 2, big);
-    return write_fixture(out, big, 2, types, numbers, lengths, codecs, raw, links, 1);
+    return write_fixture(out, 1024, big, 2, types, numbers, lengths, codecs, raw, links, 1);
 }
 
 static void group_header(unsigned char *bytes, MMU32 count, MMU32 data, MMU32 width, int big)
@@ -309,14 +309,17 @@ static void group_header(unsigned char *bytes, MMU32 count, MMU32 data, MMU32 wi
 
 static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
 {
-    enum { ACTN, ACTOR, EVENTS, CELS, STARTS, ROOT, PATH, SCENE, TMPL, COUNT };
-    static const MMU32 types[] = {0x4143544eUL, 0x41435452UL, 0x47474145UL, 0x4747434cUL, 0x47475354UL,
-                                  0x4d564945UL, 0x50415448UL, 0x5343454eUL, 0x544d504cUL};
-    static const MMU32 numbers[] = {3, 12, 4, 5, 6, 17, 7, 36, 13};
-    static const MMU32 lengths[] = {8, 44, 136, 52, 40, 8, 44, 16, 16};
+    enum { ACTN, ACTOR, MODEL, EVENTS, CELS, STARTS, SETS, PARENTS, MATRICES, ROOT, PATH, SCENE, TMPL, COUNT };
+    static const MMU32 types[] = {0x4143544eUL, 0x41435452UL, 0x424d444cUL, 0x47474145UL, 0x4747434cUL,
+                                  0x47475354UL, 0x474c4253UL, 0x474c5049UL, 0x474c5846UL, 0x4d564945UL,
+                                  0x50415448UL, 0x5343454eUL, 0x544d504cUL};
+    static const MMU32 numbers[] = {3, 12, 70, 4, 5, 6, 1, 2, 3, 17, 7, 36, 13};
+    static const MMU32 lengths[] = {8, 44, 4, 136, 60, 40, 14, 14, 108, 8, 44, 16, 16};
     static const MMI32 codecs[COUNT] = {0};
-    static const MMU32 links[][3] = {{ACTN, CELS, 0}, {ACTOR, EVENTS, 0}, {ACTOR, PATH, 0}, {ACTOR, TMPL, 0},
-                                    {ROOT, SCENE, 0}, {SCENE, STARTS, 1}, {SCENE, ACTOR, 5}, {TMPL, ACTN, 0}};
+    static const MMU32 links[][3] = {{ACTN, CELS, 0}, {ACTN, MATRICES, 0}, {ACTOR, EVENTS, 0},
+                                    {ACTOR, PATH, 0}, {ACTOR, TMPL, 0}, {ROOT, SCENE, 0}, {SCENE, STARTS, 1},
+                                    {SCENE, ACTOR, 5}, {TMPL, ACTN, 0}, {TMPL, MODEL, 0}, {TMPL, SETS, 0},
+                                    {TMPL, PARENTS, 0}};
     unsigned char raw[COUNT][160];
     unsigned char *row;
     MMU32 i;
@@ -342,12 +345,24 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
     put32(row + 104, 28, big);
     put32(row + 108, 68, big);
     put32(row + 112, 24, big);
-    group_header(raw[CELS], 2, 16, 8, big);
+    group_header(raw[CELS], 2, 24, 8, big);
     put32(raw[CELS] + 24, 65536, big);
-    put32(raw[CELS] + 32, 131072, big);
-    put32(raw[CELS] + 40, 8, big);
-    put32(raw[CELS] + 44, 8, big);
-    put32(raw[CELS] + 48, 8, big);
+    put32(raw[CELS] + 36, 131072, big);
+    put16(raw[CELS] + 40, 0xffffU, big); /* Second cel retains the first model. */
+    put16(raw[CELS] + 42, 1, big);
+    put32(raw[CELS] + 48, 12, big);
+    put32(raw[CELS] + 52, 12, big);
+    put32(raw[CELS] + 56, 12, big);
+    put32(raw[SETS] + 4, 2, big);
+    put32(raw[SETS] + 8, 1, big);
+    put16(raw[SETS] + 12, 4, big);
+    put32(raw[PARENTS] + 4, 2, big);
+    put32(raw[PARENTS] + 8, 1, big);
+    put16(raw[PARENTS] + 12, 0xffffU, big);
+    put32(raw[MATRICES] + 4, 48, big);
+    put32(raw[MATRICES] + 8, 2, big);
+    put32(raw[MATRICES] + 48, 123, big);
+    put32(raw[MATRICES] + 96, 456, big);
     group_header(raw[STARTS], 1, 12, 8, big);
     put32(raw[STARTS] + 28, 5, big);
     put32(raw[STARTS] + 36, 12, big);
@@ -359,17 +374,18 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
     put32(raw[PATH] + 28, 655360, big);
     put32(raw[SCENE] + 4, 10, big);
     put32(raw[SCENE] + 8, 1, big);
-    return write_fixture(out, big, COUNT, types, numbers, lengths, codecs, raw, links,
+    return write_fixture(out, 2048, big, COUNT, types, numbers, lengths, codecs, raw, links,
                          sizeof(links) / sizeof(links[0]));
 }
 
 static void movie_actors(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
-    unsigned char bytes[1024];
+    unsigned char bytes[2048];
     MMMemoryStream input;
     MMMovieSession *movie;
     MMMovieEvaluatedActor actor;
+    MMMovieEvaluatedBody *body = NULL;
     MMU32 size;
     int big;
     for (big = 0; big <= 1; ++big)
@@ -382,6 +398,16 @@ static void movie_actors(void)
         CHECK(actor.state.cel == 2 && actor.state.nextEvent == 3 && actor.state.position.dxr == 196600);
         CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
         CHECK(actor.state.cel == 0 && actor.translation.dxr == 65536);
+        CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_OK);
+        CHECK(body->part_count == 1 && body->parts[0].model.number == 70 && body->parts[0].parent == -1 &&
+              body->parts[0].set == 4 && body->parts[0].matrix.m[3][0] == 123);
+        CHECK(body->model_owner.type == 0x544d504cUL && body->model_owner.number == 13);
+        mm_movie_body_dispose(body);
+        CHECK(mm_movie_session_body(movie, 0, 2, 0, NULL, NULL, &body) == MM_MOVIE_OK);
+        CHECK(body->part_count == 1 && !body->parts[0].model.type && body->parts[0].matrix.m[3][0] == 456);
+        CHECK(mm_movie_session_body(movie, 0, 1, 1, NULL, NULL, &body) == MM_MOVIE_ACTOR_NOT_FOUND);
+        CHECK(body->parts[0].matrix.m[3][0] == 456);
+        mm_movie_body_dispose(body);
         CHECK(mm_movie_session_actor(movie, 0, 1, 1, NULL, NULL, &actor) == MM_MOVIE_ACTOR_NOT_FOUND &&
               actor.number == 12);
         CHECK(mm_movie_session_actor(movie, 0, 11, 0, NULL, NULL, &actor) == MM_MOVIE_FRAME_OUT_OF_RANGE);
@@ -424,7 +450,7 @@ static void movie_content(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
     const MMVfsMount mounts[] = {{"z.3CN", "templates"}, {"a.3cn", "backgrounds"}, {"0.3th", "thumbnail"}};
-    unsigned char bytes[1024], backgrounds[1024], templates[1024];
+    unsigned char bytes[1024], backgrounds[1024], templates[2048];
     char name[MM_MOVIE_SOURCE_NAME_BYTES];
     MMMovieArchiveProvider provider;
     MountedArchives archives;

@@ -53,6 +53,21 @@ typedef struct MMMovieEvaluatedActor
     MMActorMatrix orientation;
 } MMMovieEvaluatedActor;
 
+typedef struct MMMovieBodyPart
+{
+    MMI32 parent, set;
+    MMMovieAsset model; /* Zero type denotes a cel that keeps its previous model. */
+    MMActorMatrix matrix; /* Local to the parent, or to the actor for parent -1. */
+} MMMovieBodyPart;
+
+typedef struct MMMovieEvaluatedBody
+{
+    MMMovieEvaluatedActor actor;
+    MMMovieAsset model_owner; /* Resolve this template or font before reading models from its archive. */
+    MMU32 part_count;
+    MMMovieBodyPart *parts;
+} MMMovieEvaluatedBody;
+
 /* Resolve a positive source and specific asset to the appropriate content
  * archive. On MM_MOVIE_OK, the stream's context stays valid through the query.
  * Source zero always uses the movie's own archive. */
@@ -88,6 +103,13 @@ int mm_movie_session_camera(const MMMovieSession *, MMU32 scene_slot, MMI32 fram
  * The pose fields apply when state.onStage is true. Failures preserve output. */
 int mm_movie_session_actor(const MMMovieSession *, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
                            MMMovieSourceRead, void *context, MMMovieEvaluatedActor *);
+
+/* Evaluate the selected cel's model bindings and local part matrices. An
+ * off-stage actor returns its actor state with zero parts. Each successful
+ * query publishes a newly owned result. On failure the output is unchanged. */
+int mm_movie_session_body(const MMMovieSession *, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
+                          MMMovieSourceRead, void *context, MMMovieEvaluatedBody **);
+void mm_movie_body_dispose(MMMovieEvaluatedBody *);
 
 #ifdef __cplusplus
 }

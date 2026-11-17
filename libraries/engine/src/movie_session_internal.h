@@ -38,4 +38,19 @@ int mm_session_group(const MMReadStream *, const MMChunkIndex *, const MMChunkEn
 const unsigned char *mm_session_group_row(const MMMovieGroup *, MMU32 row, MMI32 *size);
 int mm_session_scene_group(const MMMovieSession *, const MMChunkAccess *, MMU32 scene, int start, MMMovieGroup *);
 
+typedef struct MMMovieBodyInput
+{
+    const MMMovieSession *movie;
+    MMMovieSourceRead source;
+    void *context;
+    const MMReadStream *stream;
+    MMChunkIndex *index;
+    MMU32 template_position, action_position;
+    int text;
+    const MMMovieGroup *cels;
+    MMI32 cel;
+} MMMovieBodyInput;
+
+int mm_session_body_parts(const MMMovieBodyInput *, MMMovieEvaluatedBody *);
+
 #endif

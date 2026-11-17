@@ -30,7 +30,7 @@ typedef struct ActorInput
     ActorEvents *events;
     MMReadStream template_stream;
     MMChunkIndex *content_index, *template_index;
-    MMU32 template_position;
+    MMU32 template_position, action_position;
     unsigned short rest[3];
     int text, status;
     MMI32 action, cel_count;
@@ -332,6 +332,7 @@ static int load_action(ActorInput *input, MMI32 id)
         access = mm_chunk_index_access(input->template_index);
         if (mm_session_child(&access, input->template_position, (MMU32)id, MM_ACTN, &entry, &parent) != MM_CHUNK_OK)
             return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
+        input->action_position = parent;
         status = mm_session_payload(&input->template_stream, input->template_index, &entry, 0, &payload);
         if (status != MM_MOVIE_OK)
             return fail(input, status);
@@ -358,6 +359,12 @@ static int load_action(ActorInput *input, MMI32 id)
     return 1;
 }
 
+static MMI32 wrapped_cel(const ActorInput *input, MMI32 cel)
+{
+    cel %= input->cel_count;
+    return cel < 0 ? cel + input->cel_count : cel;
+}
+
 static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
 {
     ActorInput *input = (ActorInput *)p;
@@ -369,9 +376,7 @@ static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
         *out = mm_text_cel_distance(action);
     else
     {
-        cel %= input->cel_count;
-        if (cel < 0)
-            cel += input->cel_count;
+        cel = wrapped_cel(input, cel);
         row = mm_session_group_row(&input->cels, (MMU32)cel, &size);
         if (!row)
             return fail(input, MM_MOVIE_BAD_FILE);
@@ -509,8 +514,43 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     return MM_MOVIE_OK;
 }
 
-int mm_movie_session_actor(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
-                           MMMovieSourceRead source, void *context, MMMovieEvaluatedActor *out)
+static int evaluate_body(ActorInput *input, const MMMovieEvaluatedActor *actor, MMMovieEvaluatedBody **out)
+{
+    MMMovieBodyInput arguments;
+    MMMovieEvaluatedBody *body;
+    int status;
+    if (actor->state.onStage && !load_action(input, actor->state.action))
+        return input->status;
+    body = (MMMovieEvaluatedBody *)calloc(1, sizeof(*body));
+    if (!body)
+        return MM_MOVIE_MEMORY;
+    body->actor = *actor;
+    if (actor->state.onStage)
+    {
+        arguments.movie = input->movie;
+        arguments.source = input->source;
+        arguments.context = input->source_context;
+        arguments.stream = &input->template_stream;
+        arguments.index = input->template_index;
+        arguments.template_position = input->template_position;
+        arguments.action_position = input->action_position;
+        arguments.text = input->text;
+        arguments.cels = &input->cels;
+        arguments.cel = wrapped_cel(input, actor->state.cel);
+        status = mm_session_body_parts(&arguments, body);
+        if (status != MM_MOVIE_OK)
+        {
+            mm_movie_body_dispose(body);
+            return status;
+        }
+    }
+    *out = body;
+    return MM_MOVIE_OK;
+}
+
+static int evaluate(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
+                    MMMovieSourceRead source, void *context, MMMovieEvaluatedActor *out,
+                    MMMovieEvaluatedBody **body)
 {
     MMChunkAccess access;
     MMChunkEntry entry;
@@ -552,9 +592,26 @@ int mm_movie_session_actor(const MMMovieSession *movie, MMU32 scene_slot, MMI32 
     if (mm_session_child(&access, position, slot, ACTOR_TYPE, &entry, &input.actor_position) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
     status = seek(&input, entry.number, frame, out);
+    if (status == MM_MOVIE_OK && body)
+        status = evaluate_body(&input, out, body);
     free(input.cels.bytes);
     mm_chunk_index_close(input.content_index);
     release_events(input.events);
     free(input.route);
     return status;
+}
+
+int mm_movie_session_actor(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
+                           MMMovieSourceRead source, void *context, MMMovieEvaluatedActor *out)
+{
+    return evaluate(movie, scene_slot, frame, ordinal, source, context, out, NULL);
+}
+
+int mm_movie_session_body(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
+                          MMMovieSourceRead source, void *context, MMMovieEvaluatedBody **out)
+{
+    MMMovieEvaluatedActor actor;
+    if (!out)
+        return MM_MOVIE_BAD_FILE;
+    return evaluate(movie, scene_slot, frame, ordinal, source, context, &actor, out);
 }

@@ -12771,6 +12771,30 @@ Linux x64 musl. The C directory probe covers the retail installation files.
 Expansion and bundle mounting and Studio/Marcus session integration remain
 separate work.
 
+### Standalone C89 body part transforms (17 November 2026)
+
+`engine-native-chunky-test FILE --body SCENE FRAME RETAIL_CONTENT_DIRECTORY`
+replays actor state and prints each on-stage body's local part transforms and
+authored model bindings. Ordinary actors follow the template's parent and set
+lists, selected cel and linked matrix table. Embedded 3D text uses the shared
+matrix generator over its resolved font metrics and glyphs. The result records
+the template or font that owns the part models.
+
+All 6,280 part matrices across 710 on-stage actor observations match retained
+retail seek runs 1813, 1822 and 1828 for 180 frames, including 360 generated
+text parts. Ten off-stage observations return no parts. The inputs match their
+recorded movie hashes and use the checked-in `tmpls.3cn` and `tdfs.3cn`.
+The font archive SHA-256 is
+`013664a9132f214f842a2f10554e4b664ff69f53542cc856b9dfc50c98fa1799`.
+The older v3dmm capture has no part matrices for this comparison.
+
+All 181 standalone engine checks and 11 full-configuration syntax checks pass.
+The engine fixture checks both byte orders, wrapped cels, parent and material
+set indices, model linkage, a cel that retains the old model, and unchanged
+output on failure. The body source also compiles as strict C89 for Linux x64
+musl. Costume application, model geometry, rendering and host integration
+remain open.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

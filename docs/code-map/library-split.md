@@ -53,6 +53,12 @@ searches mounted `.3cn` archives by exact chunk type and number. Archive
 opening remains a platform service. `engine-native-chunky-test FILE --seek
 SCENE FRAME RETAIL_CONTENT_DIRECTORY` mounts the retail directory and runs
 both queries from a single movie session.
+`mm_movie_session_body` adds the on-stage body's parent and set indices,
+local part matrices and authored model bindings. Ordinary templates use their
+selected cel and linked matrix table. Embedded 3D text uses the shared text
+generator and resolves its font metrics and glyphs through the same content
+provider. The result identifies the template or font that owns the model
+archive so a caller can preserve archive identity during later geometry reads.
 Studio and Marcus still use their existing archive owners and resource providers.
 
 | Caller / dependency | Boundary after the first slice |
