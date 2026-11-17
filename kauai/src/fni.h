@@ -16,6 +16,7 @@
 #ifndef FNI_H
 #define FNI_H
 #include "mm/filename_value.h"
+#include "mm/filename_enum.h"
 
 using Group::PDynamicArray;
 
@@ -159,22 +160,16 @@ class FileNameEnumerator : public FileNameEnumerator_PAR
     struct FES
     {
         Filename fni;
-        KauaiFiles::DirectoryHandle hn;
-        KauaiFiles::DirectoryEntry entry;
-        uint32_t grfvol;
-        LegacyLong chVol;
+        MMFilenameEnumCursor cursor{};
+        achar entry[MM_FILENAME_CASE_NAME_CAPACITY] = {};
     };
 
-    FileType _rgftg[kcftgFneBase];
-    FileType *_prgftg;
-    LegacyLong _cftg;
-    bool _fRecurse : 1;
-    bool _fInited : 1;
-    PDynamicArray _pglfes;
+    MMFilenameEnumState _enumeration;
     FES _fesCur;
 
     void _Free(void);
-    bool _FPop(void);
+    MMFilenameEnumHost _EnumHost();
+    MMFilenameEnumFrame _EnumFrame();
 
   public:
     FileNameEnumerator(void);

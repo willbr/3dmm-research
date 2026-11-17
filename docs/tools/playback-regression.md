@@ -12215,3 +12215,96 @@ Evidence: `tmp/c89-filename-case/{original,converted}-{runtime,expensive}-{nativ
 `tmp/c89-filename-case/run-standalone-tests.log`, `tmp/c89-filename-case/asan.log`,
 `tmp/c89-filename-case/run-regular-tests.log`, `tmp/c89-filename-case/trace-comparison.json`
 and `tmp/c89-filename-case/identities.json`.
+
+### Shared C Filename enumeration ownership and traversal (17 November 2026)
+
+`mm/filename_enum.h` now owns enumeration's inline/heap filters, initialized/
+recurse/depth state and recursion storage. Cursor state is a C record holding
+iterator ownership, roots/position and entry flags. The controller implements
+init/free/next, backward type cleaning, filtering, descent, root walking, skips,
+pre/post events, rollback and error/publication ordering. Its recursion stack
+uses the existing C collection storage/array services, five initial frames and
+the legacy growth hints. C storage removes the native DynamicArray object.
+
+Filters gate descent too, while roots bypass filters. Hidden/system entries
+skip before output copying. Dot directories and filtered entries can still
+change the output filename on a false result; output flags stay unchanged.
+Post events precede child close/pop. Skip closes/pops without the child's post
+event. Links are emitted with both flags without descent. Recursion allocation
+failure emits the accepted directory with both flags and reports general
+enumeration failure. Failed child wildcard setup restores the parent frame
+without closing its iterator. Root-build assertions remain advisory. Flags
+publish through byte copying of a native 32-bit unsigned word, preserving
+long/int profiles without reading uninitialized caller storage or delaying
+publication until after provider callbacks.
+
+Native FES snapshots retain Filename storage/metadata and a native-width entry
+buffer, with C cursor fields. Views borrow that fixed current record after raw
+push/pop copies. Standalone callers can use plain C filename records. Native
+FileNameEnumerator embeds owning C state and marks allocations directly. Its
+internal layout changes, requiring all consumers to rebuild; Filename layout
+and movie wire formats are unchanged. Native filename/frame representation,
+object lifetime and default/final facade integration remain work.
+
+The unmodified algorithms at `e89f0eae` were captured directly before conversion,
+in normal and expensive profiles on Native, SDL Release and SDL Debug. Original
+`filename.cpp` is 28,932 bytes/SHA-256
+`599F5E4465C32B579F1E4B836642CA510DD08D313C97FEA46C0CCDEF344BE3A6`.
+The fixture creates a private physical tree with empty/nested directories,
+different file types and a hidden file. It records flat/recursive traversal,
+file-only/tree/no-match/heap filters, skip behavior, optional flags, active
+reinitialization/destruction, uninitialized/after-done calls, empty/missing
+directories, skip at base and a root with an excluding filter. Paths are recorded
+relative to the fixture root; addresses, layout and source locations are excluded.
+Return values, output state on false, flags, messages and error order remain data.
+Normal/expensive traces match their corresponding originals.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, both profiles | 3,404 | `9F9CAFEE` | `757CA480794741D2F4A35466DA06F3C20667931AAE871A681393C26D7E6B2B92` |
+| SDL Release, both profiles | 2,804 | `9C555151` | `427E3FFB2B49B4DD47D1BC0B742007CFCE854610F1DD61FA1ADCD6EDB3CAA4AD` |
+
+`engine-filename-enum` links only C and covers both unit widths, owning cleanup,
+inline/heap filters, hidden/system/dot/filtered output publication, pre/post/skip
+ordering, linked-directory suppression, iterator errors, initial/growth/type
+allocation failures and retry, flag publication before errors, deep stack
+ownership, root filtering/bounds/recursion/failure, advisory build failure,
+wildcard init failure, failed wildcard rollback at a 255-unit child and active
+reinitialization. MSVC AddressSanitizer passes. C tests distinguish the raw
+rollback pop from the closing pop, preventing the parent iterator from being
+closed during failed child setup.
+
+State is owning and noncopyable. Callers supply live initialized views, matching
+units, distinct frame/output/scratch storage, a byte-snapshot-compatible frame
+format and serialized mutation. Providers own iterator resources until close;
+callbacks cannot unwind, reenter or mutate the operation. Native allocators
+retain filter/collection tags. C storage removes the DynamicArray object
+allocation and changes allocation sizes/ordinals. Native object-allocation error
+paths are not established by the native traces.
+Operation-level allocation failure publication and cleanup are covered by the C
+fault-injection tests. Native Unicode/POSIX execution, invalid storage/lifetimes
+and callback mutation remain unverified. This does not complete the backend
+migration.
+
+The final gate passes 244 Native, 239 SDL Release, 240 SDL Debug and 159 standalone
+checks: 882 of 883 selected checks pass. The sole declared skip is the existing
+SDL Release `world-export` Debug fixture. Strict C89 syntax, native renderer,
+playback, player and C89 checks pass. All 195 retained pairs and six enumeration
+pairs match: 201 byte-identical pairs. All ten input identities are unchanged;
+206 executable identities are recorded. Windows text settings remain ACP 1252,
+OEMCP 437 and locale `en-GB`/2057. The regular headless preview harness passes.
+All three hosts retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds
+and 188 cameras. These are correctness checks, not playback timing equivalence.
+
+All hosts, native `chelp`/`ched` and Marcus build after the internal layout change.
+Marcus was stopped before rebuilding and relaunched afterwards. Asset readers
+began after resource regeneration, and tests used private scratch directories
+on C:. The final C edge cases were refreshed in all host binaries before the
+gates. No Marcus UI tests or new retail captures were added; retained retail
+captures remain the playback reference.
+
+Evidence: `tmp/c89-filename-enum/{original,converted}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-filename-enum/filename-original.cpp`, `tmp/c89-filename-enum/run-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-filename-enum/run-standalone-tests.log`, `tmp/c89-filename-enum/asan.log`,
+`tmp/c89-filename-enum/run-regular-tests.log`, `tmp/c89-filename-enum/trace-comparison.json`
+and `tmp/c89-filename-enum/identities.json`.

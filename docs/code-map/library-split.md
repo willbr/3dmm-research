@@ -648,7 +648,7 @@ to their original profile. Baseline reconstruction and evidence are in the
 
 Path construction/search, filesystem dispatch, navigation and unique/temp naming
 also use the C controllers described below. Default cache owner/configuration
-bindings, enumeration, native object lifetime and final C-only
+bindings, native filename/frame representation, object lifetime and final C-only
 host/facade integration remain conversion work. This does not complete the
 backend migration.
 
@@ -756,8 +756,55 @@ errors, partial resolution, trailing separators, literal backslashes, non-ASCII
 bytes and long entries. The C-only test adds both unit widths, Unicode units,
 capacity limits, iterator lifetime and optional hooks. The
 [regression log](../tools/playback-regression.md) records source hashes, adapter
-details and the lack of native POSIX execution evidence. Enumeration policy,
-default bindings, native object lifetime and final facade integration remain.
+details and the lack of native POSIX execution evidence. Enumeration uses the
+C controller below. Default bindings, native representation/object lifetime and
+final facade integration remain.
+
+### Filename enumeration ownership and traversal
+
+`mm/filename_enum.h` owns filter state, the twenty inline type slots, larger
+filter allocations, recursion storage and initialized/recurse/depth flags.
+Cursor state is also a C record, containing the iterator, root mask/position and
+entry directory/hidden/system/link flags. The C controller implements initialization,
+cleanup, enumeration, filtering, root walking, descent, skip and pre/post events.
+Its stack uses the existing C collection storage and array modules with five
+initial frames and the legacy growth hints. The native DynamicArray stack object
+is removed. Fixed-memory allocators retain native filter and collection tags;
+the default C entry points can use the C heap.
+
+Filters are copied, then cleaned backwards using the shared C type service.
+They gate directory descent too; root entries bypass filters. Hidden/system
+entries skip before output copying. Dot directories and filtered entries can
+still change the output on a false return, while output flags stay unchanged.
+Post events precede closing/popping the child. Skip closes/pops without emitting
+that child's post event. Linked directories are emitted with both flags and
+are not descended. Recursion allocation failure also emits both flags and reports
+general enumeration failure. A failed child wildcard setup restores the parent
+frame without closing its iterator. Root-build assertions remain advisory.
+
+State is owning and cannot be copied or moved. Callers provide a fixed current
+frame and distinct output/scratch filename views, matching units, raw entry
+storage and a byte snapshot format. Native FES snapshots retain the existing
+Filename representation and metadata; standalone clients can use plain C names.
+The native enumerator embeds C state/cursor records and marks their allocations
+directly. Its internal layout changes; Filename layout and wire formats do not.
+Native filename/frame representation, object lifetime and default context/facade
+integration remain work. C storage removes the DynamicArray object allocation;
+native allocation ordinals/object-allocation error codes are not established by
+the regression traces.
+
+Providers supply iterator/root operations, optional terminated-String diagnostics,
+fixed-memory allocation and validation/error hooks. They cannot unwind, reenter
+or mutate the operation. Callers serialize state/frame mutation. Flags publish
+as a native 32-bit word through byte copying, preserving long/int profiles without
+reading uninitialized caller storage or delaying publication past callbacks.
+
+`engine-filename-enum` covers both unit widths, ownership/cleanup, filters,
+output mutation, roots, links, skip/post ordering, initial/growth/type allocation
+failures, failed wildcard rollback and active reinitialization. Native normal/
+expensive fixtures capture the original physical-tree traversal, output values,
+flags, errors and diagnostics. The [regression log](../tools/playback-regression.md)
+records source identities, matched traces and verification limits.
 
 ### Collection storage foundation
 

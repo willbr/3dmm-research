@@ -419,8 +419,11 @@ Unique/temp candidate formatting, the shared 16-bit sequence, retry/failure
 publication and temp-directory cache control now also use C89. Explicit legacy
 case resolution now shares C89 exact-first/unique ASCII component matching,
 iterator cleanup and failure publication, with native case-sensitivity and
-filesystem providers. Default cache owner/configuration bindings, enumeration,
-native object lifetime and final representation integration remain.
+filesystem providers. Enumeration now owns C filter state/storage, cursor flags
+and the recursion stack, sharing traversal/filter/skip/pre-post/root/link/error
+policy through native iterator and filename-view providers. Default cache
+owner/configuration bindings, native filename/frame representation and object
+lifetime, and final facade integration remain.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

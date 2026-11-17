@@ -15,6 +15,7 @@
 #include "mm/filename_naming.h"
 #include "mm/filename_case.h"
 ASSERTNAME
+namespace Group { MMStorageAllocator CollectionAllocator(); }
 
 namespace {
 MMFilenameNamingState filenameNaming{};
@@ -170,7 +171,6 @@ bool Filename::FResolveCase(void)
     return mm_filename_resolve_case(&value, &host) != 0;
 }
 
-priv void _CleanFtg(FileType *pftg, PString pstnExt = pvNil);
 Filename _fniTemp;
 
 RTCLASS(Filename)
@@ -459,302 +459,112 @@ bool Filename::_FChangeLeaf(PString pstn)
     return mm_filename_change_leaf(&value, &host, pstn ? pstn->Prgch() : nullptr, pstn ? pstn->Cch() : 0) != 0;
 }
 
-/***************************************************************************
-    Make sure the ftg is all uppercase and has no characters after a zero.
-***************************************************************************/
-priv void _CleanFtg(FileType *pftg, PString pstnExt)
+namespace {
+void *ResizeEnumTypes(void *, void *old, MMU32 oldBytes, MMU32 bytes, int priority)
 {
-    AssertVarMem(pftg); AssertNilOrPo(pstnExt, 0);
-    const auto host = FilenameValueHost();
-    MMStringValue output{}; if (pstnExt) output = FilenameStringValue(pstnExt);
-    *pftg = mm_filename_clean_type(*pftg, &host, pstnExt ? &output : nullptr);
+    void *result = old;
+    const auto mpr = priority == MM_STORAGE_SPEED ? mprForSpeed : mprNormal;
+    const bool ok = old ? _FResizePpvDebug(&result,bytes,oldBytes,fmemNil,mpr,&vdmglob.dmaglPv) :
+                         FAllocPv(&result,bytes,fmemNil,mpr);
+    return ok ? result : nullptr;
 }
-
-/***************************************************************************
-    Constructor for a File Name Enumerator.
-***************************************************************************/
+void FreeEnumTypes(void *, void *data, MMU32) { FreePpv(&data); }
+}
+MMFilenameEnumFrame FileNameEnumerator::_EnumFrame()
+{
+    return {&_fesCur, &_fesCur.cursor, _fesCur.fni._ValueView(), _fesCur.entry};
+}
+MMFilenameEnumHost FileNameEnumerator::_EnumHost()
+{
+    static_assert(kcftgFneBase == MM_FILENAME_ENUM_INLINE && sizeof(FileType) == sizeof(MMI32), "native enum filter profile");
+    static_assert(ffneRecurse == MM_FILENAME_ENUM_RECURSE && ffnePre == MM_FILENAME_ENUM_PRE &&
+                  ffnePost == MM_FILENAME_ENUM_POST && ffneSkipDir == MM_FILENAME_ENUM_SKIP, "native enum flags");
+    static_assert(sizeof(LegacyUlong) == sizeof(MMU32), "native enum flag width");
+    MMFilenameEnumHost host{}; host.path = FilenamePathHost(); host.context = this;
+    host.first = [](void *, const void *pattern, void **iterator, void *name, MMI32 capacity, MMFilenameEnumInfo *out) -> int {
+        Assert(capacity == MM_FILENAME_CASE_NAME_CAPACITY, "enumeration entry capacity");
+        KauaiFiles::DirectoryEntry entry;
+        const auto status = KauaiFiles::First(static_cast<const achar *>(pattern),iterator,&entry);
+        if (status == KauaiFiles::Iteration::Entry) {
+            CopyPb(entry.name,name,sizeof(entry.name));
+            *out = {entry.info.directory,entry.info.hidden,entry.info.system,entry.info.link};
+        }
+        return static_cast<int>(status);
+    };
+    host.next = [](void *, void *iterator, void *name, MMI32 capacity, MMFilenameEnumInfo *out) -> int {
+        Assert(capacity == MM_FILENAME_CASE_NAME_CAPACITY, "enumeration entry capacity");
+        KauaiFiles::DirectoryEntry entry; const auto status = KauaiFiles::Next(iterator,&entry);
+        if (status == KauaiFiles::Iteration::Entry) {
+            CopyPb(entry.name,name,sizeof(entry.name));
+            *out = {entry.info.directory,entry.info.hidden,entry.info.system,entry.info.link};
+        }
+        return static_cast<int>(status);
+    };
+    host.close = [](void *, void *iterator) { KauaiFiles::CloseDirectory(iterator); };
+    host.roots = [](void *) -> MMU32 { return KauaiFiles::RootMask(); };
+    host.root_path = [](void *, unsigned index, void *name, MMI32 capacity) -> int {
+        return KauaiFiles::RootPath(index,static_cast<achar *>(name),capacity);
+    };
+    host.name_length = [](void *, const void *name) -> MMI32 { return CchSz(const_cast<achar *>(static_cast<const achar *>(name))); };
+    host.issue = [](void *) { PushErc(ercFneGeneral); };
+#ifdef DEBUG
+    host.validate = [](void *context, int base) {
+        auto *owner = static_cast<FileNameEnumerator *>(context);
+        if (base) { AssertBasePo(owner,0); } else { AssertPo(owner,0); }
+    };
+    host.assertion = [](void *, int code) {
+        if (code == MM_FILENAME_ENUM_UNINITIALIZED) { Bug("must initialize the FileNameEnumerator before using it!"); }
+        else { Assert(fFalse,0); }
+    };
+#endif
+    return host;
+}
 FileNameEnumerator::FileNameEnumerator(void)
 {
     AssertBaseThis(0);
-    _prgftg = _rgftg;
-    _pglfes = pvNil;
-    _fesCur.hn = nullptr;
-    _fInited = fFalse;
+    const MMStorageAllocator types{nullptr,ResizeEnumTypes,FreeEnumTypes};
+    const auto stack = Group::CollectionAllocator();
+    int trash = 0;
+#ifdef DEBUG
+    trash = 1;
+#endif
+    AssertDo(mm_filename_enum_construct(&_enumeration,sizeof(FES),&types,&stack,trash),"invalid filename enumeration storage");
     AssertThis(0);
 }
-
-/***************************************************************************
-    Destructor for an FileNameEnumerator.
-***************************************************************************/
-FileNameEnumerator::~FileNameEnumerator(void)
-{
-    AssertBaseThis(0);
-    _Free();
-}
-
-/***************************************************************************
-    Free all the memory associated with the FileNameEnumerator.
-***************************************************************************/
+FileNameEnumerator::~FileNameEnumerator(void) { AssertBaseThis(0); _Free(); }
 void FileNameEnumerator::_Free(void)
 {
-    if (_prgftg != _rgftg)
-    {
-        FreePpv((void **)&_prgftg);
-        _prgftg = _rgftg;
-    }
-    do
-    {
-        if (nullptr != _fesCur.hn)
-            KauaiFiles::CloseDirectory(_fesCur.hn);
-    } while (pvNil != _pglfes && _pglfes->IvMac() > 0 && _pglfes->FPop(&_fesCur));
-    _fesCur.hn = nullptr;
-    _fInited = fFalse;
-    ReleasePpo(&_pglfes);
-    AssertThis(0);
+    const auto host = _EnumHost(); const auto frame = _EnumFrame(); mm_filename_enum_free(&_enumeration,&host,&frame);
 }
-
-/***************************************************************************
-    Initialize the fne to do an enumeration.
-***************************************************************************/
-bool FileNameEnumerator::FInit(Filename *pfniDir, FileType *prgftg, LegacyLong cftg, LegacyUlong grffne)
+bool FileNameEnumerator::FInit(Filename *directory, FileType *types, LegacyLong count, LegacyUlong flags)
 {
-    AssertThis(0);
-    AssertNilOrVarMem(pfniDir);
-    AssertIn(cftg, 0, kcbMax);
-    AssertPvCb(prgftg, LwMul(cftg, size(FileType)));
-    FileType *pftg;
-
-    // free the old stuff
-    _Free();
-
-    if (0 >= cftg)
-        _cftg = 0;
-    else
-    {
-        LegacyLong cb = LwMul(cftg, size(FileType));
-
-        if (cftg > kcftgFneBase && !FAllocPv((void **)&_prgftg, cb, fmemNil, mprNormal))
-        {
-            _prgftg = _rgftg;
-            PushErc(ercFneGeneral);
-            AssertThis(0);
-            return fFalse;
-        }
-        CopyPb(prgftg, _prgftg, cb);
-        _cftg = cftg;
-        for (pftg = _prgftg + _cftg; pftg-- > _prgftg;)
-            _CleanFtg(pftg);
-    }
-
-    if (pfniDir == pvNil)
-    {
-        _fesCur.chVol = 'A';
-        _fesCur.grfvol = KauaiFiles::RootMask();
-    }
-    else
-    {
-        String stn;
-
-        _fesCur.grfvol = 0;
-        _fesCur.chVol = 0;
-        _fesCur.fni = *pfniDir;
-        stn = PszLit("*");
-        if (!_fesCur.fni._FChangeLeaf(&stn))
-        {
-            PushErc(ercFneGeneral);
-            _Free();
-            AssertThis(0);
-            return fFalse;
-        }
-    }
-    _fesCur.hn = nullptr;
-    _fRecurse = FPure(grffne & ffneRecurse);
-    _fInited = fTrue;
-    AssertThis(0);
-    return fTrue;
+    AssertNilOrVarMem(directory); AssertIn(count,0,kcbMax); AssertPvCb(types,LwMul(count,sizeof(FileType)));
+    const auto host = _EnumHost(); const auto frame = _EnumFrame();
+    MMFilenameValue input{}; if (directory) input = directory->_ValueView();
+    return mm_filename_enum_init(&_enumeration,&host,&frame,directory ? &input : nullptr,types,count,flags) != 0;
 }
-
-/***************************************************************************
-    Get the next Filename in the enumeration.
-***************************************************************************/
-bool FileNameEnumerator::FNextFni(Filename *pfni, LegacyUlong *pgrffneOut, LegacyUlong grffneIn)
+bool FileNameEnumerator::FNextFni(Filename *output, LegacyUlong *flags, LegacyUlong inputFlags)
 {
-    AssertThis(0);
-    AssertVarMem(pfni);
-    AssertNilOrVarMem(pgrffneOut);
-    String stn;
-    bool fT;
-    LegacyLong fvol;
-    KauaiFiles::Iteration result;
-    FileType *pftg;
-
-    if (!_fInited)
-    {
-        Bug("must initialize the FileNameEnumerator before using it!");
-        return fFalse;
-    }
-
-    if (grffneIn & ffneSkipDir)
-    {
-        // skip the rest of the stuff in this dir
-        if (!_FPop())
-            goto LDone;
-    }
-
-    if (_fesCur.chVol != 0)
-    {
-        // volume
-        for (fvol = 1L << (_fesCur.chVol - 'A'); _fesCur.chVol <= 'Z' && (_fesCur.grfvol & fvol) == 0;
-             _fesCur.chVol++, fvol <<= 1)
-        {
-        }
-
-        if (_fesCur.chVol > 'Z')
-            goto LDone;
-        // we've got one
-        ZString root;
-        if (!KauaiFiles::RootPath(static_cast<unsigned>(_fesCur.chVol++ - 'A'), root, kcchMaxSz))
-            goto LDone;
-        stn = root;
-        AssertDo(pfni->FBuildFromPath(&stn, kftgDir), 0);
-        goto LGotOne;
-    }
-
-    // directory or file
-    for (;;)
-    {
-        if (nullptr == _fesCur.hn)
-            result = KauaiFiles::First(_fesCur.fni._stnFile.Psz(), &_fesCur.hn, &_fesCur.entry);
-        else
-            result = KauaiFiles::Next(_fesCur.hn, &_fesCur.entry);
-        if (result != KauaiFiles::Iteration::Entry)
-        {
-            if (result == KauaiFiles::Iteration::Error)
-                PushErc(ercFneGeneral);
-            goto LPop;
-        }
-        if (_fesCur.entry.info.hidden || _fesCur.entry.info.system)
-            continue;
-        stn.SetSz(_fesCur.entry.name);
-        *pfni = _fesCur.fni;
-        if (_fesCur.entry.info.directory)
-        {
-            if (stn.FEqualSz(PszLit(".")) || stn.FEqualSz(PszLit("..")))
-                continue;
-            AssertDo(pfni->_FChangeLeaf(pvNil), 0);
-            fT = pfni->FDownDir(&stn, ffniMoveToDir);
-        }
-        else
-            fT = pfni->_FChangeLeaf(&stn);
-        if (!fT)
-        {
-            PushErc(ercFneGeneral);
-            continue;
-        }
-
-        if (_cftg == 0)
-            goto LGotOne;
-        for (pftg = _prgftg + _cftg; pftg-- > _prgftg;)
-        {
-            if (*pftg == pfni->_nameState.type)
-                goto LGotOne;
-        }
-    }
-    Bug("How did we fall through to here?");
-
-LPop:
-    if (pvNil == _pglfes || _pglfes->IvMac() == 0)
-    {
-    LDone:
-        _Free();
-        AssertThis(0);
-        return fFalse;
-    }
-
-    // we're about to pop a directory, so send the current directory back
-    // with ffnePost
-    if (pvNil != pgrffneOut)
-        *pgrffneOut = ffnePost;
-    *pfni = _fesCur.fni;
-    AssertDo(pfni->_FChangeLeaf(pvNil), 0);
-    AssertDo(_FPop(), 0);
-    AssertPo(pfni, ffniDir);
-    AssertThis(0);
-    return fTrue;
-
-LGotOne:
-    AssertPo(pfni, ffniFile | ffniDir);
-    if (pvNil != pgrffneOut)
-        *pgrffneOut = ffnePre | ffnePost;
-
-    if (_fRecurse && pfni->_nameState.type == kftgDir && (nullptr == _fesCur.hn || !_fesCur.entry.info.link))
-    {
-        if ((pvNil != _pglfes || pvNil != (_pglfes = DynamicArray::PglNew(size(FES), 5))) && _pglfes->FPush(&_fesCur))
-        {
-            // set up the new fes
-            _fesCur.fni = *pfni;
-            stn = PszLit("*");
-            if (!_fesCur.fni._FChangeLeaf(&stn))
-            {
-                AssertDo(_pglfes->FPop(&_fesCur), 0);
-            }
-            else
-            {
-                _fesCur.hn = nullptr;
-                _fesCur.grfvol = 0;
-                _fesCur.chVol = 0;
-                if (pvNil != pgrffneOut)
-                    *pgrffneOut = ffnePre;
-            }
-        }
-        else
-            PushErc(ercFneGeneral);
-    }
-    AssertThis(0);
-    return fTrue;
+    AssertVarMem(output); AssertNilOrVarMem(flags);
+    Filename scratch;
+    const auto host = _EnumHost(); const auto frame = _EnumFrame();
+    const auto out = output->_ValueView(), temporary = scratch._ValueView();
+    return mm_filename_enum_next(&_enumeration,&host,&frame,&out,flags,inputFlags,&temporary) != 0;
 }
-
-/***************************************************************************
-    Pop a state in the FileNameEnumerator.
-***************************************************************************/
-bool FileNameEnumerator::_FPop(void)
-{
-    AssertBaseThis(0);
-    if (nullptr != _fesCur.hn)
-    {
-        KauaiFiles::CloseDirectory(_fesCur.hn);
-        _fesCur.hn = nullptr;
-    }
-    return pvNil != _pglfes && _pglfes->IvMac() > 0 && _pglfes->FPop(&_fesCur);
-}
-
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a FileNameEnumerator.
-***************************************************************************/
 void FileNameEnumerator::AssertValid(LegacyUlong grf)
 {
     FileNameEnumerator_PAR::AssertValid(0);
-    if (_fInited)
-    {
-        AssertNilOrPo(_pglfes, 0);
-        AssertIn(_cftg, 0, kcbMax);
-        AssertPvCb(_prgftg, LwMul(size(FileType), _cftg));
-        Assert((_cftg <= kcftgFneBase) == (_prgftg == _rgftg), "wrong _prgftg");
-    }
-    else
-        Assert(_pglfes == pvNil, 0);
+    if (_enumeration.initialized) {
+        AssertIn(_enumeration.type_count,0,kcbMax);
+        AssertPvCb(_enumeration.types,LwMul(_enumeration.type_count,sizeof(MMI32)));
+        Assert((_enumeration.type_count <= MM_FILENAME_ENUM_INLINE) == (_enumeration.types == _enumeration.inline_types),"wrong enumeration types");
+    } else Assert(_enumeration.depth == 0 && !_enumeration.stack.buffers[0].data,0);
 }
-
-/***************************************************************************
-    Mark memory for the FileNameEnumerator.
-***************************************************************************/
 void FileNameEnumerator::MarkMem(void)
 {
-    AssertValid(0);
-    FileNameEnumerator_PAR::MarkMem();
-    if (_prgftg != _rgftg)
-        MarkPv(_prgftg);
-    MarkMemObj(_pglfes);
+    AssertValid(0); FileNameEnumerator_PAR::MarkMem();
+    if (_enumeration.types != _enumeration.inline_types) MarkPv(_enumeration.types);
+    MarkPv(_enumeration.stack.buffers[0].data); MarkPv(_enumeration.stack.buffers[1].data);
 }
-#endif // DEBUG
+#endif
