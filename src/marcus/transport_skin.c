@@ -7,15 +7,22 @@ static ImFont *label_font, *number_font;
 static ImFont *installed_font(const char *windows_name, const char *const *fallbacks, float size, ImFontConfig *config)
 {
     SDL_PathInfo info;
-    const char *windows_directory;
+    ImFont *font;
+    char **environment;
     char path[1024];
     int i;
-    windows_directory = SDL_getenv("WINDIR");
-    if (windows_directory) {
-        SDL_snprintf(path, sizeof(path), "%s/Fonts/%s", windows_directory, windows_name);
-        if (SDL_GetPathInfo(path, &info) && info.type == SDL_PATHTYPE_FILE)
-            return ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, path, size, config, NULL);
-    }
+    /* Windows variable names ignore case, but SDL's environment cache does not. */
+    environment = SDL_GetEnvironmentVariables(SDL_GetEnvironment());
+    font = NULL;
+    for (i = 0; environment && environment[i]; ++i)
+        if (!SDL_strncasecmp(environment[i], "windir=", 7)) {
+            SDL_snprintf(path, sizeof(path), "%s/Fonts/%s", environment[i] + 7, windows_name);
+            if (SDL_GetPathInfo(path, &info) && info.type == SDL_PATHTYPE_FILE)
+                font = ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, path, size, config, NULL);
+            break;
+        }
+    SDL_free(environment);
+    if (font) return font;
     for (i = 0; fallbacks[i]; ++i)
         if (SDL_GetPathInfo(fallbacks[i], &info) && info.type == SDL_PATHTYPE_FILE)
             return ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, fallbacks[i], size, config, NULL);
