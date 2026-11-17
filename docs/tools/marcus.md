@@ -938,8 +938,10 @@ The dialog also shows the original effects, speech and music from `snds.3cn`,
 even when the scene has no sound cues. **Show built-in sounds** is on by
 default; turn it off to hide the library while working with scene sounds,
 imports or recordings. Search and the **All / Effects / Speech / Music**
-filters narrow the library. Select a named sound, audition with **Preview**,
-then **Add sound** at the chosen frame. Addition embeds the original audio
+filters narrow the library. Selecting a named sound automatically previews it,
+stopping the previous preview. The dialog's scene list behaves the same way.
+Use **Stop preview** to stop it or **Preview** to replay, then **Add sound** at
+the chosen frame. Addition embeds the original audio
 and name without changing the library, and is one undo step. Existing scene
 cues remain listed separately when the library is hidden.
 

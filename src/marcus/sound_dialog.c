@@ -238,6 +238,19 @@ static void select_asset(MarcusSoundDialog *d, int index)
     if (marcus_sound_asset_waveform(d->player, index, 512, d->waveform, &d->audio) && d->audio.seconds > 0)
         d->waveform_count = 512;
 }
+static void preview_sound(MarcusSoundDialog *d)
+{
+    long volume;
+    int played;
+    if (d->recording_active) return;
+    volume = (long)(d->volume * 65536 / 100 + .5f);
+    if (d->selected >= 0) played = marcus_audition_sound(d->player, d->selected, volume);
+    else if (d->library_selected >= 0) played = marcus_audition_sound_asset(d->player, d->library_selected, volume);
+    else if (d->path[0]) played = marcus_audition_sound_file(d->player, d->path, d->style, volume);
+    else return;
+    if (!played) SDL_strlcpy(d->error, marcus_error(d->player), sizeof(d->error));
+    else d->error[0] = 0;
+}
 static void recording_finished(MarcusSoundDialog *d)
 {
     d->recording_active = 0;
@@ -349,13 +362,7 @@ static void editor(MarcusSoundDialog *d)
     if (igButton(previewing ? "Stop preview###SoundPreview" : "Preview###SoundPreview", vec(120, 0)))
     {
         if (previewing) marcus_stop_sound_preview(d->player);
-        else
-        {
-            changed = existing ? marcus_audition_sound(d->player, d->selected, (long)(d->volume * 65536 / 100 + .5f)) :
-                library ? marcus_audition_sound_asset(d->player, d->library_selected, (long)(d->volume * 65536 / 100 + .5f)) :
-                marcus_audition_sound_file(d->player, d->path, d->style, (long)(d->volume * 65536 / 100 + .5f));
-            if (!changed) SDL_strlcpy(d->error, marcus_error(d->player), sizeof(d->error));
-        }
+        else preview_sound(d);
     }
     igEndDisabled();
     igSeparator();
@@ -448,7 +455,7 @@ void sound_dialog_draw(MarcusSoundDialog *d, MarcusPlayer *player, MarcusUI *ui,
                         (!d->search[0] || SDL_strcasestr(sound.name, d->search) || SDL_strcasestr(sound.owner, d->search)))
                     {
                         SDL_snprintf(label, sizeof(label), "%s / %s##sound%d", sound.name, sound.owner, i);
-                        if (igSelectable_Bool(label, d->selected == i, 0, vec(0, 0))) select_sound(d, i);
+                        if (igSelectable_Bool(label, d->selected == i, 0, vec(0, 0))) { select_sound(d, i); preview_sound(d); }
                     }
                     if (!info.sound_count) igTextDisabled("No sounds in this scene yet.");
                     if (d->show_library)
@@ -464,7 +471,7 @@ void sound_dialog_draw(MarcusSoundDialog *d, MarcusPlayer *player, MarcusUI *ui,
                             (!d->search[0] || SDL_strcasestr(asset.name, d->search)))
                         {
                             SDL_snprintf(label, sizeof(label), "%s##library%d", asset.name, i);
-                            if (igSelectable_Bool(label, d->library_selected == i, 0, vec(0, 0))) select_asset(d, i);
+                            if (igSelectable_Bool(label, d->library_selected == i, 0, vec(0, 0))) { select_asset(d, i); preview_sound(d); }
                         }
                     }
                 }
