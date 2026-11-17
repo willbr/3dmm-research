@@ -173,12 +173,15 @@ static void camera_events(unsigned char *group, int big, int start, MMU32 source
     }
 }
 
+enum { FIXTURE_RECORD_BYTES = 256, FIXTURE_MAX_RECORDS = 24 };
+
 static MMU32 write_fixture(unsigned char *out, size_t capacity, int big, MMU32 count, const MMU32 *types, const MMU32 *numbers,
-                           const MMU32 *lengths, const MMI32 *codecs, unsigned char raw[][160],
+                           const MMU32 *lengths, const MMI32 *codecs, unsigned char raw[][FIXTURE_RECORD_BYTES],
                            const MMU32 links[][3], MMU32 link_count)
 {
     unsigned char *group, *row, *locations, *link;
-    MMU32 offsets[16], sizes[16], parents[16] = {0}, children[16] = {0};
+    MMU32 offsets[FIXTURE_MAX_RECORDS], sizes[FIXTURE_MAX_RECORDS];
+    MMU32 parents[FIXTURE_MAX_RECORDS] = {0}, children[FIXTURE_MAX_RECORDS] = {0};
     MMU32 i, j, end, index_offset = 128;
     const MMU32 row_bytes = count * 20 + link_count * 12;
     CHECK(count <= sizeof(offsets) / sizeof(offsets[0]));
@@ -246,7 +249,7 @@ static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 sour
     static const MMU32 links[][3] = {{BKGD, CAM0, 0}, {BKGD, CAM1, 1}, {ROOT, SCENE, 0},
                                     {SCENE, FRAMES, 0}, {SCENE, STARTS, 1}};
     static const MMU32 lengths[] = {8, 76, 76, 80, 52, 8, 16};
-    unsigned char raw[COUNT][160];
+    unsigned char raw[COUNT][FIXTURE_RECORD_BYTES];
     MMI32 codecs[COUNT] = {0};
     MMU32 i;
 
@@ -274,7 +277,7 @@ static MMU32 source_movie(unsigned char *out, int big, int wide)
     static const MMU32 links[][3] = {{1, 0, 1}};
     static const unsigned char title[] = "D\xe9" "cor/3DMOVIE";
     const MMI32 codecs[] = {0, 0};
-    unsigned char raw[2][160], *table;
+    unsigned char raw[2][FIXTURE_RECORD_BYTES], *table;
     MMU32 lengths[2], i, unit = wide ? 2 : 1, name_bytes = (sizeof(title) + 1) * unit;
     memset(raw, 0, sizeof(raw));
     put16(raw[0], 1, big);
@@ -307,22 +310,25 @@ static void group_header(unsigned char *bytes, MMU32 count, MMU32 data, MMU32 wi
     put32(bytes + 16, width, big);
 }
 
-static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
+static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int missing_paint)
 {
-    enum { ACTN, ACTOR, MODEL, EVENTS, CELS, STARTS, SETS, PARENTS, MATRICES, ROOT, PATH, SCENE, TMPL, COUNT };
-    static const MMU32 types[] = {0x4143544eUL, 0x41435452UL, 0x424d444cUL, 0x47474145UL, 0x4747434cUL,
-                                  0x47475354UL, 0x474c4253UL, 0x474c5049UL, 0x474c5846UL, 0x4d564945UL,
-                                  0x50415448UL, 0x5343454eUL, 0x544d504cUL};
-    static const MMU32 numbers[] = {3, 12, 70, 4, 5, 6, 1, 2, 3, 17, 7, 36, 13};
-    static const MMU32 lengths[] = {8, 44, 112, 136, 60, 40, 14, 14, 108, 8, 44, 16, 16};
+    enum { ACTN, ACTOR, MODEL, HAT, DEFAULT, CUSTOM, EVENTS, CELS, DEFAULTS, STARTS, SETS, PARENTS, MATRICES,
+           MAT_DEFAULT, MAT_CUSTOM, MAT_PAINT, ROOT, PATH, SCENE, TMPL, COUNT };
+    static const MMU32 types[] = {0x4143544eUL, 0x41435452UL, 0x424d444cUL, 0x424d444cUL, 0x434d544cUL,
+                                  0x434d544cUL, 0x47474145UL, 0x4747434cUL, 0x4747434dUL, 0x47475354UL,
+                                  0x474c4253UL, 0x474c5049UL, 0x474c5846UL, 0x4d54524cUL, 0x4d54524cUL,
+                                  0x4d54524cUL, 0x4d564945UL, 0x50415448UL, 0x5343454eUL, 0x544d504cUL};
+    static const MMU32 numbers[] = {3, 12, 70, 71, 80, 81, 4, 5, 15, 6, 1, 2, 3, 90, 91, 92, 17, 7, 36, 13};
+    static const MMU32 lengths[] = {8, 44, 112, 112, 8, 8, 248, 60, 36, 40, 14, 14, 108, 20, 20, 20, 8, 44, 16, 16};
     static const MMI32 codecs[COUNT] = {0};
-    static const MMU32 links[][3] = {{ACTN, CELS, 0}, {ACTN, MATRICES, 0}, {ACTOR, EVENTS, 0},
-                                    {ACTOR, PATH, 0}, {ACTOR, TMPL, 0}, {ROOT, SCENE, 0}, {SCENE, STARTS, 1},
-                                    {SCENE, ACTOR, 5}, {TMPL, ACTN, 0}, {TMPL, MODEL, 0}, {TMPL, SETS, 0},
-                                    {TMPL, PARENTS, 0}};
-    unsigned char raw[COUNT][160];
+    MMU32 links[][3] = {{ACTN, CELS, 0}, {ACTN, MATRICES, 0}, {ACTOR, EVENTS, 0},
+                                    {ACTOR, PATH, 0}, {ACTOR, TMPL, 0}, {DEFAULT, MAT_DEFAULT, 0},
+                                    {CUSTOM, HAT, 0}, {CUSTOM, MAT_CUSTOM, 0}, {ROOT, SCENE, 0}, {SCENE, STARTS, 1},
+                                    {SCENE, ACTOR, 5}, {TMPL, ACTN, 0}, {TMPL, MODEL, 0}, {TMPL, DEFAULT, 0},
+                                    {TMPL, DEFAULTS, 0}, {TMPL, SETS, 0}, {TMPL, PARENTS, 0}, {TMPL, CUSTOM, 1}};
+    unsigned char raw[COUNT][FIXTURE_RECORD_BYTES];
     unsigned char *row;
-    MMU32 i;
+    MMU32 i, link_count = sizeof(links) / sizeof(links[0]);
     memset(raw, 0, sizeof(raw));
     for (i = 0; i < COUNT; ++i)
         put16(raw[i], 1, big);
@@ -337,17 +343,36 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
     put16(raw[MODEL] + 4, 1, big);
     put16(raw[MODEL] + 6, 1, big);
     raw[MODEL][69] = 42;
-    group_header(raw[EVENTS], 3, 92, MM_ACTOR_EVENT_BYTES, big);
+    memcpy(raw[HAT], raw[MODEL], lengths[MODEL]);
+    raw[HAT][69] = 73;
+    group_header(raw[EVENTS], 5, 188, MM_ACTOR_EVENT_BYTES, big);
     row = raw[EVENTS] + 20;
     put32(row + 4, 1, big);
     put32(row + 40, MM_ACTOR_ACTION, big);
     put32(row + 68, MM_ACTOR_STEP, big);
     put32(row + 88, 0xffff0000UL, big);
-    put32(row + 96, 40, big);
-    put32(row + 100, 40, big);
-    put32(row + 104, 28, big);
-    put32(row + 108, 68, big);
-    put32(row + 112, 24, big);
+    put32(row + 92, MM_ACTOR_COSTUME, big);
+    put32(row + 96, 2, big);
+    put32(row + 104, 1, big);
+    put32(row + 116, 1, big);
+    put32(row + 120, 1, big);
+    put32(row + 140, MM_ACTOR_COSTUME, big);
+    put32(row + 144, 3, big);
+    put32(row + 152, 90000, big);
+    put32(row + 180, types[MAT_PAINT], big);
+    put32(row + 184, numbers[MAT_PAINT] + (missing_paint != 0), big);
+    put32(row + 192, 40, big);
+    put32(row + 196, 40, big);
+    put32(row + 200, 28, big);
+    put32(row + 204, 68, big);
+    put32(row + 208, 24, big);
+    put32(row + 212, 92, big);
+    put32(row + 216, 48, big);
+    put32(row + 220, 140, big);
+    put32(row + 224, 48, big);
+    group_header(raw[DEFAULTS], 1, 8, 4, big);
+    put32(raw[DEFAULTS] + 20, 1, big);
+    put32(raw[DEFAULTS] + 32, 8, big);
     group_header(raw[CELS], 2, 24, 8, big);
     put32(raw[CELS] + 24, 65536, big);
     put32(raw[CELS] + 36, 131072, big);
@@ -358,7 +383,6 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
     put32(raw[CELS] + 56, 12, big);
     put32(raw[SETS] + 4, 2, big);
     put32(raw[SETS] + 8, 1, big);
-    put16(raw[SETS] + 12, 4, big);
     put32(raw[PARENTS] + 4, 2, big);
     put32(raw[PARENTS] + 8, 1, big);
     put16(raw[PARENTS] + 12, 0xffffU, big);
@@ -382,8 +406,17 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
     put32(raw[PATH] + 28, 655360, big);
     put32(raw[SCENE] + 4, 10, big);
     put32(raw[SCENE] + 8, 1, big);
-    return write_fixture(out, 2048, big, COUNT, types, numbers, lengths, codecs, raw, links,
-                         sizeof(links) / sizeof(links[0]));
+    if (big)
+    {
+        /* Exercise the template reader for archives without a costume group. */
+        for (i = 0; i < link_count && links[i][1] != DEFAULTS; ++i)
+            ;
+        CHECK(i < link_count);
+        --link_count;
+        memmove(links + i, links + i + 1, (link_count - i) * sizeof(links[0]));
+    }
+    return write_fixture(out, 2048, big, COUNT, types, numbers, lengths, codecs, raw,
+                         (const MMU32 (*)[3])links, link_count);
 }
 
 static void movie_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody *body)
@@ -426,23 +459,24 @@ static void movie_actors(void)
     MMMemoryStream input;
     MMMovieSession *movie;
     MMMovieEvaluatedActor actor;
-    MMMovieEvaluatedBody *body = NULL;
+    MMMovieEvaluatedBody *body = NULL, *previous;
     MMMovieBodyMeshes *geometry = NULL;
     MMU32 size;
     int big;
     for (big = 0; big <= 1; ++big)
     {
-        size = actor_fixture(bytes, big, 0);
+        size = actor_fixture(bytes, big, 0, 0);
         CHECK(mm_memory_stream_init(&input, bytes, size));
         CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
         CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
         CHECK(actor.header.actor_id == 8 && actor.number == 12 && actor.state.onStage && actor.state.action == 0);
-        CHECK(actor.state.cel == 2 && actor.state.nextEvent == 3 && actor.state.position.dxr == 196600);
+        CHECK(actor.state.cel == 2 && actor.state.nextEvent == 5 && actor.state.position.dxr == 196600);
         CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
         CHECK(actor.state.cel == 0 && actor.translation.dxr == 65536);
         CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_OK);
         CHECK(body->part_count == 1 && body->parts[0].model.number == 70 && body->parts[0].parent == -1 &&
-              body->parts[0].set == 4 && body->parts[0].matrix.m[3][0] == 123);
+              body->parts[0].set == 0 && body->parts[0].matrix.m[3][0] == 123);
+        CHECK(body->parts[0].active_model.number == 70 && body->parts[0].material.number == 90);
         CHECK(body->model_owner.type == 0x544d504cUL && body->model_owner.number == 13);
         movie_meshes(movie, body);
         mm_movie_body_dispose(body);
@@ -451,18 +485,34 @@ static void movie_actors(void)
         CHECK(mm_movie_session_body(movie, 0, 1, 1, NULL, NULL, &body) == MM_MOVIE_ACTOR_NOT_FOUND);
         CHECK(body->parts[0].matrix.m[3][0] == 456);
         CHECK(mm_movie_session_body_meshes(movie, body, NULL, NULL, &geometry) == MM_MOVIE_OK);
-        CHECK(geometry->part_count == 1 && !geometry->model_count && geometry->parts[0].model_index == -1);
+        CHECK(body->parts[0].active_model.number == 71 && body->parts[0].material.number == 91 &&
+              body->parts[0].material_owner.type == 0x544d504cUL);
+        CHECK(geometry->part_count == 1 && geometry->model_count == 1 && geometry->parts[0].model_index == 0 &&
+              geometry->models[0].vertices[0].red == 73);
         mm_movie_body_meshes_dispose(geometry);
+        mm_movie_body_dispose(body);
+        CHECK(mm_movie_session_body(movie, 0, 3, 0, NULL, NULL, &body) == MM_MOVIE_OK);
+        CHECK(body->parts[0].active_model.number == 70 && body->parts[0].material.number == 92 &&
+              body->parts[0].material_owner.number == 92);
         mm_movie_body_dispose(body);
         CHECK(mm_movie_session_actor(movie, 0, 1, 1, NULL, NULL, &actor) == MM_MOVIE_ACTOR_NOT_FOUND &&
               actor.number == 12);
         CHECK(mm_movie_session_actor(movie, 0, 11, 0, NULL, NULL, &actor) == MM_MOVIE_FRAME_OUT_OF_RANGE);
         mm_movie_session_close(movie);
     }
-    size = actor_fixture(bytes, 0, 2);
+    size = actor_fixture(bytes, 0, 2, 0);
     CHECK(mm_memory_stream_init(&input, bytes, size));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
     CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_ASSET_NOT_FOUND);
+    mm_movie_session_close(movie);
+    size = actor_fixture(bytes, 0, 0, 1);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_OK);
+    previous = body;
+    CHECK(mm_movie_session_body(movie, 0, 3, 0, NULL, NULL, &body) == MM_MOVIE_ASSET_NOT_FOUND && body == previous);
+    CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
+    mm_movie_body_dispose(body);
     mm_movie_session_close(movie);
 }
 
@@ -512,7 +562,7 @@ static void movie_content(void)
     memset(&archives, 0, sizeof(archives));
     size = camera_fixture(backgrounds, 0, 0, 2, 0);
     CHECK(mm_memory_stream_init(&archives.backdrops, backgrounds, size));
-    size = actor_fixture(templates, 0, 2);
+    size = actor_fixture(templates, 0, 2, 0);
     CHECK(mm_memory_stream_init(&archives.templates, templates, size));
     provider.context = &archives;
     provider.open = fixture_archive_open;

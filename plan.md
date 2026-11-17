@@ -450,10 +450,12 @@ Keep host presentation and device output outside the session.
    one retail content directory. The same session can now resolve each
    on-stage actor's body hierarchy, material set indices, authored model
    bindings and local part matrices, including generated 3D text glyphs.
-   The standalone `--mesh` probe loads the authored meshes from the owning
-   template or font archive and composes world transforms from the body tree.
-   Host mount discovery, retained model bindings, costume effects and
-   rendered output remain open.
+   The body query replays default costumes, custom costumes, generic
+   materials and action cels so that retained model bindings use the prior
+   effective model. The standalone `--mesh` probe loads those models from the
+   owning template or font archive and composes world transforms from the
+   body tree. Host mount discovery, renderer material and texture loading,
+   and rendered output remain open.
 3. Switch both hosts to the same session for the covered operations and retire
    the superseded backend paths. Link and run the standalone consumer and its
    real file/content providers with the C toolchain, without `engine-core`,

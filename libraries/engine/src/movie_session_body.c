@@ -60,40 +60,75 @@ static int array(const MMMovieBodyInput *in, const MMChunkAccess *access, MMU32 
     return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
 }
 
-static int template_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
+int mm_session_body_shape(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body, const MMActorHeader *actor)
 {
     MMChunkAccess access = mm_chunk_index_access(in->index);
-    MMMoviePayload parents, sets, matrices;
-    MMCollectionHeader parent_head, set_head, matrix_head;
+    MMMoviePayload parents, sets;
+    MMCollectionHeader parent_head, set_head;
+    unsigned char parent[2], set[2];
     MMMovieBodyPart *part;
-    MMChunkEntry entry;
-    const unsigned char *cel;
-    unsigned char bytes[48], parent[2], set[2];
-    MMI32 variable, model, matrix;
-    MMU32 i, j;
+    MMU32 i;
     int status;
-    parents.decoded = sets.decoded = matrices.decoded = NULL;
+    parents.decoded = sets.decoded = NULL;
     status = array(in, &access, in->template_position, MM_GLPI, 2, &parents, &parent_head);
     if (status == MM_MOVIE_OK)
         status = array(in, &access, in->template_position, MM_GLBS, 2, &sets, &set_head);
-    if (status == MM_MOVIE_OK)
-        status = array(in, &access, in->action_position, MM_ACTION_GLXF, sizeof(bytes), &matrices, &matrix_head);
     if (status != MM_MOVIE_OK)
         goto done;
-    cel = mm_session_group_row(in->cels, (MMU32)in->cel, &variable);
-    if (!cel || parent_head.count != set_head.count || parent_head.count > (MMU32)variable / 4)
+    if (parent_head.count != set_head.count)
     {
         status = MM_MOVIE_BAD_FILE;
         goto done;
     }
-    cel += in->cels->header.width;
     status = reserve_parts(body, parent_head.count);
     if (status != MM_MOVIE_OK)
         goto done;
-    body->model_owner.source = body->actor.header.source_id;
-    body->model_owner.type = body->actor.header.template_type;
-    body->model_owner.number = body->actor.header.template_number;
-    for (i = 0; i < parent_head.count; ++i, cel += 4)
+    body->model_owner.source = actor->source_id;
+    body->model_owner.type = actor->template_type;
+    body->model_owner.number = actor->template_number;
+    for (i = 0; i < parent_head.count; ++i)
+    {
+        part = &body->parts[i];
+        if (!mm_read_exact(parents.stream, parent_head.header_bytes + i * 2, parent, sizeof(parent)) ||
+            !mm_read_exact(sets.stream, set_head.header_bytes + i * 2, set, sizeof(set)))
+        {
+            status = MM_MOVIE_IO;
+            goto done;
+        }
+        part->parent = signed_short(parent, parent_head.big_endian);
+        part->set = signed_short(set, set_head.big_endian);
+        if (part->set < 0)
+        {
+            status = MM_MOVIE_BAD_FILE;
+            goto done;
+        }
+    }
+done:
+    free(parents.decoded);
+    free(sets.decoded);
+    return status;
+}
+
+int mm_session_body_cel(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
+{
+    MMChunkAccess access = mm_chunk_index_access(in->index);
+    MMMoviePayload matrices;
+    MMCollectionHeader matrix_head;
+    MMMovieBodyPart *part;
+    MMChunkEntry entry;
+    const unsigned char *cel;
+    unsigned char bytes[48];
+    MMI32 variable, model, matrix;
+    MMU32 i, j;
+    int status;
+    cel = mm_session_group_row(in->cels, (MMU32)in->cel, &variable);
+    if (!cel || body->part_count > (MMU32)variable / 4)
+        return MM_MOVIE_BAD_FILE;
+    status = array(in, &access, in->action_position, MM_ACTION_GLXF, sizeof(bytes), &matrices, &matrix_head);
+    if (status != MM_MOVIE_OK)
+        return status;
+    cel += in->cels->header.width;
+    for (i = 0; i < body->part_count; ++i, cel += 4)
     {
         part = &body->parts[i];
         model = signed_short(cel, in->cels->header.big_endian);
@@ -108,26 +143,23 @@ static int template_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body
             status = body_child(&access, in->template_position, (MMU32)model, MM_TEMPLATE_BMDL, &entry);
             if (status != MM_MOVIE_OK)
                 goto done;
-            part->model.source = body->actor.header.source_id;
-            part->model.type = entry.type;
-            part->model.number = entry.number;
+            part->active_model.source = body->model_owner.source;
+            part->active_model.type = entry.type;
+            part->active_model.number = entry.number;
+            part->model = part->active_model;
         }
-        if (!mm_read_exact(parents.stream, parent_head.header_bytes + i * 2, parent, sizeof(parent)) ||
-            !mm_read_exact(sets.stream, set_head.header_bytes + i * 2, set, sizeof(set)) ||
-            !mm_read_exact(matrices.stream, matrix_head.header_bytes + (MMU32)matrix * sizeof(bytes), bytes,
+        else
+            memset(&part->model, 0, sizeof(part->model));
+        if (!mm_read_exact(matrices.stream, matrix_head.header_bytes + (MMU32)matrix * sizeof(bytes), bytes,
                            sizeof(bytes)))
         {
             status = MM_MOVIE_IO;
             goto done;
         }
-        part->parent = signed_short(parent, parent_head.big_endian);
-        part->set = signed_short(set, set_head.big_endian);
         for (j = 0; j < 12; ++j)
             part->matrix.m[j / 3][j % 3] = mm_signed_word(mm_session_word(bytes + j * 4, matrix_head.big_endian));
     }
 done:
-    free(parents.decoded);
-    free(sets.decoded);
     free(matrices.decoded);
     return status;
 }
@@ -304,6 +336,7 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
         body->parts[i].model.source = font.source;
         body->parts[i].model.type = entry.type;
         body->parts[i].model.number = entry.number;
+        body->parts[i].active_model = body->parts[i].model;
     }
     memset(&generation, 0, sizeof(generation));
     generation.context = &text;
@@ -328,5 +361,5 @@ done:
 
 int mm_session_body_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
 {
-    return in->text ? text_parts(in, body) : template_parts(in, body);
+    return in->text ? text_parts(in, body) : mm_session_body_cel(in, body);
 }

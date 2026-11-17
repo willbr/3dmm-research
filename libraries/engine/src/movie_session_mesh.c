@@ -103,7 +103,7 @@ static int load_models(const MMMovieSession *movie, const MMMovieEvaluatedBody *
     MMChunkEntry entry;
     int status = MM_MOVIE_OK;
     for (i = 0; i < body->part_count; ++i)
-        if (body->parts[i].model.type)
+        if (body->parts[i].active_model.type)
             ++count;
     if (!count)
         return MM_MOVIE_OK;
@@ -135,7 +135,7 @@ static int load_models(const MMMovieSession *movie, const MMMovieEvaluatedBody *
     }
     for (i = 0; i < body->part_count; ++i)
     {
-        asset = &body->parts[i].model;
+        asset = &body->parts[i].active_model;
         if (!asset->type)
             continue;
         if (asset->type != MM_TEMPLATE_BMDL || asset->source != owner->source)

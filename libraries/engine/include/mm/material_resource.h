@@ -119,6 +119,8 @@ extern "C"
                                        const MMMaterialServices *);
     int mm_custom_material_fetch(void *cache, MMU32 type, MMU32 number, void *object_out,
                                        void *size_out, const MMMaterialServices *);
+    /* Decode the CMTL header's set and optionally report an unrecognized order marker. */
+    MMI32 mm_custom_material_read_set(const unsigned char[8], int host_big, int *bad_order);
     int mm_custom_material_read(void *object, void *cache, MMU32 type, MMU32 number,
                                       const MMMaterialServices *);
     void mm_custom_material_dispose(MMCustomMaterial *, const MMMaterialServices *);

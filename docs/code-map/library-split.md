@@ -57,14 +57,16 @@ both queries from a single movie session.
 local part matrices and authored model bindings. Ordinary templates use their
 selected cel and linked matrix table. Embedded 3D text uses the shared text
 generator and resolves its font metrics and glyphs through the same content
-provider. The result identifies the template or font that owns the model
-archive so a caller can preserve archive identity during later geometry reads.
-`mm_movie_session_body_meshes` resolves that archive and loads each distinct
-authored `BMDL` into owned arrays of positions, mappings, colours, normals
-and indexed faces. It composes part world transforms from the fixed-point
-actor pose and local hierarchy. A cel that retains a previous model has a
-mesh index of `-1`. The standalone `--mesh` probe prints world matrices,
-model counts and fingerprints of the decoded geometry.
+provider. Body replay applies template defaults and each action or costume
+effect in frame order. Each part exposes the authored cel directive, the
+effective model after any retention or replacement, and its material and
+archive key. Generated text defaults use the text material without an
+authored asset ID.
+`mm_movie_session_body_meshes` resolves the owning template or font archive
+and loads each distinct active `BMDL` into owned arrays of positions, mappings,
+colours, normals and indexed faces. It composes part world transforms from
+the fixed-point actor pose and local hierarchy. The standalone `--mesh`
+probe prints appearance bindings, world matrices and geometry fingerprints.
 Studio and Marcus still use their existing archive owners and resource providers.
 
 | Caller / dependency | Boundary after the first slice |

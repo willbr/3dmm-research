@@ -197,6 +197,7 @@ static int print_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody 
 {
     MMMovieBodyMeshes *geometry;
     const MMMoviePartMesh *part;
+    const MMMovieBodyPart *binding;
     const MMModelMesh *mesh;
     MMU32 i, next = 0;
     unsigned j;
@@ -206,6 +207,11 @@ static int print_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody 
     for (i = 0; i < geometry->part_count; ++i)
     {
         part = &geometry->parts[i];
+        binding = &body->parts[i];
+        printf("APPEARANCE %08lx %lu %ld %08lx %lu %08lx %lu\n", (unsigned long)binding->active_model.type,
+               (unsigned long)binding->active_model.number, (long)binding->material.source,
+               (unsigned long)binding->material.type, (unsigned long)binding->material.number,
+               (unsigned long)binding->material_owner.type, (unsigned long)binding->material_owner.number);
         printf("WORLD %ld", (long)part->model_index);
         for (j = 0; j < 12; ++j)
             printf(" %ld", (long)part->world.m[j / 3][j % 3]);
@@ -215,7 +221,7 @@ static int print_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody 
             mesh = &geometry->models[next++];
             printf("MESH %ld %08lx %lu %lu %ld %ld %08lx\n", (long)body->model_owner.source,
                    (unsigned long)body->model_owner.type, (unsigned long)body->model_owner.number,
-                   (unsigned long)body->parts[i].model.number, (long)mesh->description.vertices,
+                   (unsigned long)binding->active_model.number, (long)mesh->description.vertices,
                    (long)mesh->description.faces, (unsigned long)mesh_hash(mesh));
         }
     }

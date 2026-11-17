@@ -58,6 +58,9 @@ typedef struct MMMovieBodyPart
 {
     MMI32 parent, set;
     MMMovieAsset model; /* Zero type denotes a cel that keeps its previous model. */
+    MMMovieAsset active_model; /* Effective binding after action and costume replay. */
+    MMMovieAsset material; /* Zero type denotes the generated default for 3D text. */
+    MMMovieAsset material_owner; /* Archive lookup key for an authored material. */
     MMActorMatrix matrix; /* Local to the parent, or to the actor for parent -1. */
 } MMMovieBodyPart;
 
@@ -105,8 +108,9 @@ int mm_movie_session_camera(const MMMovieSession *, MMU32 scene_slot, MMI32 fram
 int mm_movie_session_actor(const MMMovieSession *, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
                            MMMovieSourceRead, void *context, MMMovieEvaluatedActor *);
 
-/* Evaluate the selected cel's model bindings and local part matrices. An
- * off-stage actor returns its actor state with zero parts. Each successful
+/* Replay costume and action effects from a fresh body, then evaluate the
+ * selected cel's local matrices and effective model and material bindings.
+ * An off-stage actor returns its actor state with zero parts. Each successful
  * query publishes a newly owned result. On failure the output is unchanged. */
 int mm_movie_session_body(const MMMovieSession *, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
                           MMMovieSourceRead, void *context, MMMovieEvaluatedBody **);
@@ -114,7 +118,7 @@ void mm_movie_body_dispose(MMMovieEvaluatedBody *);
 
 typedef struct MMMoviePartMesh
 {
-    MMI32 model_index; /* -1 for a cel that retains its previous model. */
+    MMI32 model_index; /* -1 when replay leaves the part without a model. */
     MMActorMatrix world;
 } MMMoviePartMesh;
 
@@ -125,7 +129,7 @@ typedef struct MMMovieBodyMeshes
     MMModelMesh *models;
 } MMMovieBodyMeshes;
 
-/* Read each distinct authored BMDL from the body owner's exact archive and
+/* Read each distinct active BMDL from the body owner's exact archive and
  * accumulate the body hierarchy into world transforms. The newly owned result
  * is published only on success. The input body is borrowed during the query. */
 int mm_movie_session_body_meshes(const MMMovieSession *, const MMMovieEvaluatedBody *, MMMovieSourceRead,

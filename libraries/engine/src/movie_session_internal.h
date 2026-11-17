@@ -51,6 +51,18 @@ typedef struct MMMovieBodyInput
     MMI32 cel;
 } MMMovieBodyInput;
 
+typedef struct MMMovieCustomCostume
+{
+    MMU32 position;
+    MMI32 set;
+} MMMovieCustomCostume;
+
+int mm_session_body_shape(const MMMovieBodyInput *, MMMovieEvaluatedBody *, const MMActorHeader *);
+int mm_session_body_cel(const MMMovieBodyInput *, MMMovieEvaluatedBody *);
 int mm_session_body_parts(const MMMovieBodyInput *, MMMovieEvaluatedBody *);
+int mm_session_costume_find(const MMMovieBodyInput *, MMI32 id, MMMovieCustomCostume *);
+int mm_session_costume_apply(const MMMovieBodyInput *, MMMovieEvaluatedBody *, const MMMovieCustomCostume *);
+int mm_session_costume_defaults(const MMMovieBodyInput *, MMMovieEvaluatedBody *);
+int mm_session_costume_material(const MMMovieSession *, MMMovieSourceRead, void *, const MMMovieAsset *);
 
 #endif

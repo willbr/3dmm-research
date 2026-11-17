@@ -12820,6 +12820,39 @@ standalone checks, 11 Marcus-enabled C89 checks and the native
 sources also compile as strict C89 for Linux x64 musl. Applying retained
 bindings and costume overrides and verifying rendered output remain open.
 
+### Standalone C89 body appearance replay (17 November 2026)
+
+The body query now drives the shared actor effects through a standalone body.
+It applies template defaults from `GGCM` or legacy costume children, resolves
+custom `CMTL` and generic `MTRL` events, and updates models when the actor
+selects a cel. A cel with a retain directive uses the model that survived
+earlier action and costume effects. The `--mesh` probe reports both the
+directive and the effective model and material bindings with their archive keys.
+
+Fresh captures from the hash-pinned retail executable used the same
+`actor-audio`, `actor-events` and `scrolling-text` movies as retained seek runs
+1813, 1822 and 1828. All 6,280 visible parts across 180 observed frames matched
+the selected model geometry and material properties, including 180 retained
+model directives, 1,472 generic material assignments and 360 generated text
+materials. A further 24 out-of-order and repeated seeks matched on 840 parts.
+The comparison checked triangle positions and UVs from the native archive
+dumps against live retail meshes. The triangle fingerprints allow for
+BRender vertex welding and reordering. Material checks covered colour,
+lighting coefficients, specular power, texture presence, and palette ramp
+values for untextured materials.
+
+The engine fixtures cover both byte orders, template defaults with and
+without a costume group, costume geometry retained by a later cel, generic
+materials, and a missing material that preserves the caller's previous result.
+All 181 standalone checks, 11 Marcus-enabled C89 checks, and the native
+`material-resource` and `preview-actor-tree` checks pass. The affected
+sources compile as strict C89 for Linux x64 musl. The session exposes material
+bindings for subsequent rendering work. Host integration and renderer
+verification remain open.
+
+Evidence is under `tmp/c89-appearance-oracle/`, including the retail
+captures and both comparison logs.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

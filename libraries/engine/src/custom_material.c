@@ -82,14 +82,22 @@ void *mm_custom_material_new(MMI32 set, MMI32 count, const void *materials,
     }
     return object;
 }
+MMI32 mm_custom_material_read_set(const unsigned char b[8], int big, int *bad_order)
+{
+    if (word(b, 2, big) == 256)
+        big = !big;
+    if (bad_order)
+        *bad_order = word(b, 2, big) != 1;
+    return mm_signed_word(word(b + 4, 4, big));
+}
+
 static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, const MMMaterialServices *s)
 {
     MMCustomMaterial *m = s->custom_state(s->context, object);
     void *file = s->file(s->context, cache), *block;
     unsigned char b[8];
-    int big = s->host_big_endian;
-    MMU32 bo;
-    MMI32 i, id;
+    int bad_order;
+    MMI32 i, id, set;
     MMMaterialChild child;
     block = s->find(s->context, file, type, number);
     if (!block || !s->unpack(s->context, block))
@@ -101,12 +109,10 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, cons
     }
     if (!s->read(s->context, block, b, 8))
         return 0;
-    bo = word(b, 2, big);
-    if (bo == 256)
-        big = !big;
-    if (word(b, 2, big) != 1)
+    set = mm_custom_material_read_set(b, s->host_big_endian, &bad_order);
+    if (bad_order)
         s->diagnostic(s->context, MM_MATERIAL_BAD_CUSTOM_ORDER);
-    m->set = mm_signed_word(word(b + 4, 4, big));
+    m->set = set;
     m->count = 0;
     for (i = 0; s->child_at(s->context, file, type, number, i, &child); ++i)
     {

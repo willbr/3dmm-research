@@ -36,6 +36,9 @@ typedef struct ActorInput
     MMI32 action, cel_count;
     MMU32 action_flags;
     MMMovieGroup cels;
+    MMMovieEvaluatedBody *evaluated_body;
+    MMMovieCustomCostume custom;
+    MMMovieAsset generic, text_material;
     MMPreviewActor actor;
     MMActorPoint translation;
     MMActorMatrix orientation;
@@ -424,15 +427,113 @@ static void put_event(void *p, MMI32 row, const MMActorEvent *value)
 static const MMActorMotionServices motion = {route_width, route_count, route_point, event_width, motion_count,
                                            motion_event, motion_size, motion_payload};
 
+static MMMovieBodyInput body_input(const ActorInput *input)
+{
+    MMMovieBodyInput args;
+    args.movie = input->movie;
+    args.source = input->source;
+    args.context = input->source_context;
+    args.stream = &input->template_stream;
+    args.index = input->template_index;
+    args.template_position = input->template_position;
+    args.action_position = input->action_position;
+    args.text = input->text;
+    args.cels = &input->cels;
+    args.cel = 0;
+    return args;
+}
+
+static int reset_costume(void *p, void *token, void *body)
+{
+    ActorInput *input = (ActorInput *)p;
+    MMMovieBodyInput args;
+    int status;
+    (void)token;
+    if (!body)
+        return 1;
+    if (input->text)
+    {
+        memset(&input->text_material, 0, sizeof(input->text_material));
+        return 1;
+    }
+    args = body_input(input);
+    status = mm_session_costume_defaults(&args, input->evaluated_body);
+    if (status != MM_MOVIE_OK)
+        return fail(input, status);
+    return 1;
+}
+
+static void apply_material(ActorInput *input, MMI32 set, const MMMovieAsset *material)
+{
+    MMMovieEvaluatedBody *body = input->evaluated_body;
+    MMU32 i;
+    if (input->text && set == 0)
+    {
+        input->text_material = *material;
+        return;
+    }
+    for (i = 0; i < body->part_count; ++i)
+        if (body->parts[i].set == set)
+        {
+            body->parts[i].material = *material;
+            body->parts[i].material_owner = *material;
+        }
+}
+
 static void effect(void *p, const MMActorEffectCommand *command, MMActorEffectReply *reply)
 {
     ActorInput *input = (ActorInput *)p;
-    reply->success = load_action(input, command->first);
-    if (reply->success)
+    MMMovieBodyInput args;
+    int status = MM_MOVIE_OK;
+    switch (command->operation)
     {
-        reply->value = input->cel_count;
-        reply->flags = input->action_flags;
+    case MM_EFFECT_CEL_COUNT:
+    case MM_EFFECT_ACTION_FLAGS:
+        reply->success = load_action(input, command->first);
+        if (reply->success)
+        {
+            reply->value = input->cel_count;
+            reply->flags = input->action_flags;
+        }
+        break;
+    case MM_EFFECT_SET_ACTION_CEL:
+        reply->success = load_action(input, command->first);
+        if (reply->success && !input->text)
+        {
+            args = body_input(input);
+            args.cel = wrapped_cel(input, command->second);
+            status = mm_session_body_cel(&args, input->evaluated_body);
+        }
+        break;
+    case MM_EFFECT_DEFAULT_COSTUME:
+        reply->success = reset_costume(input, NULL, input->evaluated_body);
+        break;
+    case MM_EFFECT_FETCH_CUSTOM:
+        args = body_input(input);
+        status = mm_session_costume_find(&args, command->first, &input->custom);
+        if (status == MM_MOVIE_OK)
+            reply->resource = &input->custom;
+        break;
+    case MM_EFFECT_APPLY_CUSTOM:
+        args = body_input(input);
+        status = mm_session_costume_apply(&args, input->evaluated_body, (const MMMovieCustomCostume *)command->resource);
+        break;
+    case MM_EFFECT_FETCH_MATERIAL:
+        input->generic.source = command->tag->sid;
+        input->generic.type = command->tag->type;
+        input->generic.number = command->tag->number;
+        status = mm_session_costume_material(input->movie, input->source, input->source_context, &input->generic);
+        if (status == MM_MOVIE_OK)
+            reply->resource = &input->generic;
+        break;
+    case MM_EFFECT_APPLY_MATERIAL:
+        apply_material(input, command->first, (const MMMovieAsset *)command->resource);
+        break;
+    default:
+        break;
     }
+    if (status != MM_MOVIE_OK)
+        reply->success = fail(input, status);
 }
 static int apply(void *p, MMI32 index)
 {
@@ -446,11 +547,28 @@ static int apply(void *p, MMI32 index)
     origin.dxr = mm_signed_word(input->actor.header.translation[0]);
     origin.dyr = mm_signed_word(input->actor.header.translation[1]);
     origin.dzr = mm_signed_word(input->actor.header.translation[2]);
-    return mm_actor_effect_apply(&input->actor.state, p, input->events, index, &origin, 0, 1, &motion, &effects);
+    return mm_actor_effect_apply(&input->actor.state, p, input->events, index, &origin, input->evaluated_body != NULL,
+                                 input->evaluated_body == NULL, &motion, &effects) && input->status == MM_MOVIE_OK;
 }
 static int fault(void *p) { return ((ActorInput *)p)->status == MM_MOVIE_OK ? 0 : -1; }
 static int bind(void *p, void *token) { (void)p; (void)token; return 1; }
-static int body(void *p, void *token, void **out) { (void)p; (void)token; *out = NULL; return 1; }
+static int create_body(void *p, void *token, void **out)
+{
+    ActorInput *input = (ActorInput *)p;
+    MMMovieBodyInput args;
+    int status;
+    if (input->evaluated_body && !input->text)
+    {
+        args = body_input(input);
+        status = mm_session_body_shape(&args, input->evaluated_body, &input->actor.header);
+        if (status != MM_MOVIE_OK)
+            return fail(input, status);
+        if (!reset_costume(p, token, input->evaluated_body))
+            return 0;
+    }
+    *out = input->evaluated_body;
+    return 1;
+}
 static int text(void *p, void *token) { (void)token; return ((ActorInput *)p)->text; }
 static void rest(void *p, void *token, unsigned short out[3])
 {
@@ -472,7 +590,6 @@ static int pose(void *p, void *t, void *b, MMI32 action, MMI32 cel)
     return load_action((ActorInput *)p, action);
 }
 static void clear(void *p) { (void)p; }
-static int costume(void *p, void *t, void *b) { (void)p; (void)t; (void)b; return 1; }
 static int cues(void *p) { (void)p; return 1; }
 
 static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedActor *out)
@@ -492,14 +609,14 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     services.template_child = template_child;
     services.fetch = fetch_template;
     services.bind = bind;
-    services.body_create = body;
+    services.body_create = create_body;
     services.text = text;
     services.rest = rest;
     services.locate = locate;
     services.pose = pose;
     services.apply = apply;
     services.clear_cues = services.clear_motion = clear;
-    services.default_costume = costume;
+    services.default_costume = reset_costume;
     services.motion_cues = cues;
     mm_preview_actor_init(&input->actor);
     ok = mm_preview_actor_load(&input->actor, number, &services) > 0 &&
@@ -514,38 +631,32 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     return MM_MOVIE_OK;
 }
 
-static int evaluate_body(ActorInput *input, const MMMovieEvaluatedActor *actor, MMMovieEvaluatedBody **out)
+static int evaluate_body(ActorInput *input, const MMMovieEvaluatedActor *actor)
 {
     MMMovieBodyInput arguments;
-    MMMovieEvaluatedBody *body;
+    MMMovieEvaluatedBody *body = input->evaluated_body;
+    MMU32 i;
     int status;
-    if (actor->state.onStage && !load_action(input, actor->state.action))
-        return input->status;
-    body = (MMMovieEvaluatedBody *)calloc(1, sizeof(*body));
-    if (!body)
-        return MM_MOVIE_MEMORY;
     body->actor = *actor;
-    if (actor->state.onStage)
+    if (!actor->state.onStage)
     {
-        arguments.movie = input->movie;
-        arguments.source = input->source;
-        arguments.context = input->source_context;
-        arguments.stream = &input->template_stream;
-        arguments.index = input->template_index;
-        arguments.template_position = input->template_position;
-        arguments.action_position = input->action_position;
-        arguments.text = input->text;
-        arguments.cels = &input->cels;
-        arguments.cel = wrapped_cel(input, actor->state.cel);
-        status = mm_session_body_parts(&arguments, body);
-        if (status != MM_MOVIE_OK)
-        {
-            mm_movie_body_dispose(body);
-            return status;
-        }
+        free(body->parts);
+        body->parts = NULL;
+        body->part_count = 0;
+        return MM_MOVIE_OK;
     }
-    *out = body;
-    return MM_MOVIE_OK;
+    if (!load_action(input, actor->state.action))
+        return input->status;
+    arguments = body_input(input);
+    arguments.cel = wrapped_cel(input, actor->state.cel);
+    status = mm_session_body_parts(&arguments, body);
+    if (status == MM_MOVIE_OK && input->text)
+        for (i = 0; i < body->part_count; ++i)
+        {
+            body->parts[i].material = input->text_material;
+            body->parts[i].material_owner = input->text_material;
+        }
+    return status;
 }
 
 static int evaluate(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
@@ -591,9 +702,19 @@ static int evaluate(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, 
     input.action = -1;
     if (mm_session_child(&access, position, slot, ACTOR_TYPE, &entry, &input.actor_position) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
+    if (body)
+    {
+        input.evaluated_body = (MMMovieEvaluatedBody *)calloc(1, sizeof(*input.evaluated_body));
+        if (!input.evaluated_body)
+            return MM_MOVIE_MEMORY;
+    }
     status = seek(&input, entry.number, frame, out);
     if (status == MM_MOVIE_OK && body)
-        status = evaluate_body(&input, out, body);
+        status = evaluate_body(&input, out);
+    if (status == MM_MOVIE_OK && body)
+        *body = input.evaluated_body;
+    else
+        mm_movie_body_dispose(input.evaluated_body);
     free(input.cels.bytes);
     mm_chunk_index_close(input.content_index);
     release_events(input.events);
