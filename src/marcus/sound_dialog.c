@@ -1,5 +1,6 @@
 /* Sound authoring UI. All application state and widgets use C89 + cimgui. */
 #include "sound_dialog.h"
+#include "sound_recording.h"
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include <cimgui.h>
 #include <stdlib.h>
@@ -17,6 +18,9 @@ struct MarcusSoundDialog
     MarcusPlayer *player;
     SDL_Window *window;
     SoundPick *pick;
+    MarcusSoundRecording *recording;
+    int recording_active;
+    Uint64 recording_started;
     MarcusSound original;
     int open, opening, selected, frame, style, loop, queue, grouped;
     int layout_width, layout_height, changed, chosen;
@@ -30,6 +34,10 @@ struct MarcusSoundDialog
     int waveform_count;
 };
 static ImVec2 vec(float x, float y) { ImVec2 v; v.x = x; v.y = y; return v; }
+static void discard_recording(MarcusSoundDialog *d)
+{
+    sound_recording_destroy(d->recording); d->recording = NULL; d->recording_active = 0;
+}
 static void release_pick(SoundPick *pick)
 {
     if (pick && SDL_AtomicDecRef(&pick->references)) { SDL_DestroyMutex(pick->mutex); free(pick); }
@@ -91,12 +99,13 @@ MarcusSoundDialog *sound_dialog_create(void)
 void sound_dialog_destroy(MarcusSoundDialog *d)
 {
     if (!d) return;
-    release_pick(d->pick); free(d);
+    discard_recording(d); release_pick(d->pick); free(d);
 }
 int sound_dialog_visible(const MarcusSoundDialog *d) { return d && d->open; }
 static void close_dialog(MarcusSoundDialog *d)
 {
     if (d->player) marcus_stop_sound_preview(d->player);
+    discard_recording(d);
     d->open = 0; release_pick(d->pick); d->pick = NULL;
 }
 static void select_sound(MarcusSoundDialog *d, int index)
@@ -106,6 +115,7 @@ static void select_sound(MarcusSoundDialog *d, int index)
     MarcusWaveformColumn peak;
     int i;
     marcus_stop_sound_preview(d->player);
+    discard_recording(d);
     d->selected = index; d->path[0] = d->error[0] = 0; d->waveform_count = d->grouped = 0;
     marcus_info(d->player, &info);
     if (index >= 0 && marcus_sound(d->player, index, &d->original))
@@ -213,6 +223,56 @@ static int find_edited(MarcusSoundDialog *d, const MarcusSoundOptions *options)
         sound.style == options->style && sound.origin_frame == options->frame - scene.first_frame + 1) return i;
     return -1;
 }
+static void recording_finished(MarcusSoundDialog *d)
+{
+    d->recording_active = 0;
+    if (!sound_recording_stop(d->recording))
+    { SDL_strlcpy(d->error, sound_recording_error(d->recording), sizeof(d->error)); return; }
+    SDL_strlcpy(d->path, sound_recording_path(d->recording), sizeof(d->path));
+    if (sound_recording_waveform(d->recording, 512, d->waveform, &d->audio.seconds)) d->waveform_count = 512;
+}
+static void recording_controls(MarcusSoundDialog *d)
+{
+    char elapsed[64];
+    unsigned long seconds;
+    if (d->recording_active)
+    {
+        seconds = (unsigned long)((SDL_GetTicks() - d->recording_started) / 1000);
+        if (seconds > 180) seconds = 180;
+        igText("Recording from your default microphone");
+        SDL_snprintf(elapsed, sizeof(elapsed), "%lu:%02lu / 3:00", seconds / 60, seconds % 60);
+        igProgressBar(seconds / 180.0f, vec(-1, 0), elapsed);
+        if (igButton("Stop recording", vec(150, 0))) recording_finished(d);
+    }
+    else
+    {
+        igBeginDisabled(d->pick != NULL);
+        if (igButton(d->recording ? "Record again" : "Record microphone...", vec(180, 0)))
+        {
+            marcus_stop_sound_preview(d->player);
+            if (!d->recording) d->recording = sound_recording_create();
+            if (!sound_recording_start(d->recording, 180000))
+                SDL_strlcpy(d->error, sound_recording_error(d->recording), sizeof(d->error));
+            else
+            {
+                d->recording_active = 1; d->recording_started = SDL_GetTicks();
+                d->path[0] = d->error[0] = 0; d->waveform_count = 0;
+                d->style = MARCUS_SOUND_SPEECH;
+            }
+        }
+        igEndDisabled();
+    }
+    if (d->recording)
+    {
+        igSameLine(0, 8);
+        if (igButton("Discard recording", vec(160, 0)))
+        {
+            marcus_stop_sound_preview(d->player); discard_recording(d);
+            d->path[0] = d->error[0] = 0; d->waveform_count = 0;
+        }
+    }
+    else igTextDisabled("Default microphone / up to 3 minutes per take");
+}
 static void editor(MarcusSoundDialog *d)
 {
     MarcusInfo info;
@@ -231,17 +291,22 @@ static void editor(MarcusSoundDialog *d)
     }
     else
     {
-        igText("Import audio");
-        igSetNextItemWidth(-110);
-        igInputText("##Audio file", d->path, sizeof(d->path), 0, NULL, NULL);
-        igSameLine(0, 8); igBeginDisabled(d->pick != NULL);
-        if (igButton("Browse...", vec(100, 0))) browse(d);
-        igEndDisabled(); igTextDisabled("WAV / MP3 for effects and speech; MIDI for music");
+        if (!d->recording)
+        {
+            igText("Import audio");
+            igSetNextItemWidth(-110);
+            igInputText("##Audio file", d->path, sizeof(d->path), 0, NULL, NULL);
+            igSameLine(0, 8); igBeginDisabled(d->pick != NULL);
+            if (igButton("Browse...", vec(100, 0))) browse(d);
+            igEndDisabled(); igTextDisabled("WAV / MP3 for effects and speech; MIDI for music");
+        }
+        else if (!d->recording_active && d->path[0]) igText("Microphone recording / ready to preview and add");
+        recording_controls(d);
     }
     igSeparator(); igBeginDisabled(actor || (existing && d->original.style == MARCUS_SOUND_MUSIC));
     igRadioButton_IntPtr("Effect", &d->style, MARCUS_SOUND_EFFECT); igSameLine(0, 16);
     igRadioButton_IntPtr("Speech", &d->style, MARCUS_SOUND_SPEECH); igEndDisabled(); igSameLine(0, 16);
-    igBeginDisabled(actor || (existing && d->original.style != MARCUS_SOUND_MUSIC));
+    igBeginDisabled(actor || d->recording != NULL || (existing && d->original.style != MARCUS_SOUND_MUSIC));
     igRadioButton_IntPtr("Music (MIDI)", &d->style, MARCUS_SOUND_MUSIC);
     igEndDisabled(); igBeginDisabled(actor);
     igText("Start frame"); igSetNextItemWidth(-1);
@@ -256,7 +321,7 @@ static void editor(MarcusSoundDialog *d)
     }
     else if (!actor && d->grouped > 1) igTextWrapped("Frame, volume and loop apply to this queued group. Remove deletes only this sound.");
     waveform(d);
-    valid = existing || d->path[0];
+    valid = (existing || d->path[0]) && !d->recording_active;
     igBeginDisabled(!valid);
     if (igButton("Preview", vec(100, 0)))
     {
@@ -315,7 +380,10 @@ void sound_dialog_draw(MarcusSoundDialog *d, MarcusPlayer *player, MarcusUI *ui,
         if (igBeginPopupModal("Sounds###MarcusSounds", NULL, ImGuiWindowFlags_NoSavedSettings)) { igCloseCurrentPopup(); igEndPopup(); }
         close_dialog(d); return;
     }
-    poll_pick(d); marcus_info(player, &info);
+    poll_pick(d);
+    if (d->recording_active && (sound_recording_poll(d->recording) != 1 ||
+        SDL_GetTicks() - d->recording_started >= 180000)) recording_finished(d);
+    marcus_info(player, &info);
     size = vec((float)width - 32, (float)height - 32);
     if (size.x > 1100) size.x = 1100;
     if (size.y > 820) size.y = 820;
@@ -350,7 +418,7 @@ void sound_dialog_draw(MarcusSoundDialog *d, MarcusPlayer *player, MarcusUI *ui,
                         SDL_snprintf(label, sizeof(label), "%s / %s##sound%d", sound.name, sound.owner, i);
                         if (igSelectable_Bool(label, d->selected == i, 0, vec(0, 0))) select_sound(d, i);
                     }
-                    if (!info.sound_count) igTextWrapped("No sounds in this scene. Import an audio file to add one.");
+                    if (!info.sound_count) igTextWrapped("No sounds in this scene. Import an audio file or record your microphone to add one.");
                 }
                 igEndChild(); igTableNextColumn();
                 if (igBeginChild_Str("Sound details", vec(0, 0), 0, 0)) editor(d);

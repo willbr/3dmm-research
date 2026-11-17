@@ -950,6 +950,17 @@ with **Preview** / **Stop preview** before adding. Audio is embedded in the
 movie; it does not depend on the original file after saving. Music uses MIDI
 to retain retail compatibility. Import currently accepts files up to 64 MiB.
 
+**Record microphone...** captures your system's default microphone. The dialog
+shows elapsed recording time and stops automatically after three minutes, or
+you can choose **Stop recording**. Preview the waveform and audio, choose
+speech or effects, and use **Add sound** to embed the take at the selected
+scene frame. **Record again** replaces the pending take; **Discard recording**
+returns to file import. Closing the dialog or selecting another sound discards
+an unadded take and releases the microphone. Recording itself leaves the
+movie unchanged; adding the take is one undo step. Capture uses Studio's shared
+recorder at 48 kHz mono PCM with its retail-compatible processing, through
+a narrow C interface; private WAV files are removed after use.
+
 Select a cue and choose **Edit sound...**, or select it from the dialog's
 searchable scene list. Scene sounds support timing, volume and loop changes;
 sampled sounds can switch between effects and speech. Frame, category, volume

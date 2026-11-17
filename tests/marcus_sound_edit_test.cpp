@@ -1,6 +1,7 @@
 // Native sound authoring, save and undo checks; no application UI.
 #include "player.h"
 #include "storyboard.h"
+#include "sound_recording.h"
 #include <SDL3/SDL.h>
 #include <cmath>
 #include <cstdio>
@@ -71,6 +72,41 @@ int main(int argc, char **argv)
         const auto saved = (dir / "sound.3mm").u8string(), actorMovie = (dir / "actor.3mm").u8string();
         Wave(wave); Midi(midi);
         check(marcus_add_scene(p.get(), 11, argv[1], argv[2]), "New scene");
+        {
+            auto recording = std::unique_ptr<MarcusSoundRecording, decltype(&sound_recording_destroy)>(sound_recording_create(), sound_recording_destroy);
+            check(recording && !sound_recording_stop(recording.get()) && !sound_recording_start(recording.get(), 180001), "Reject missing take and excessive recording limit");
+            const auto revision = marcus_document(p.get());
+            check(sound_recording_start(recording.get(), 60), "Start dummy microphone capture");
+            const auto deadline = SDL_GetTicks() + 3000;
+            int status;
+            do { SDL_Delay(2); status = sound_recording_poll(recording.get()); } while (status == 1 && SDL_GetTicks() < deadline);
+            check(status == 0 && marcus_document(p.get()) == revision, "Automatic recording cap leaves movie unchanged");
+            const std::string firstTake = sound_recording_path(recording.get());
+            check(!firstTake.empty() && std::filesystem::exists(firstTake), "Completed recording has a private WAV");
+            check(!sound_recording_start(recording.get(), 0) && firstTake == sound_recording_path(recording.get()), "Failed restart retains completed take");
+            check(sound_recording_start(recording.get(), 2000) && !std::filesystem::exists(firstTake), "New take discards previous temporary audio");
+            SDL_Delay(100);
+            check(sound_recording_stop(recording.get()) && sound_recording_poll(recording.get()) == 0, "Stop microphone manually");
+            MarcusWaveformColumn peaks[16] = {}; double seconds = 0;
+            check(sound_recording_waveform(recording.get(), 16, peaks, &seconds) && seconds > .02 && seconds < 2, "Decode captured PCM and waveform");
+            for (const auto &peak : peaks) check(!peak.minimum && !peak.maximum, "Dummy microphone records silence");
+            const std::string take = sound_recording_path(recording.get());
+            MarcusSoundOptions recorded = {1, 65536, MARCUS_SOUND_SPEECH, 0, 1};
+            const int index = marcus_add_sound(p.get(), take.c_str(), &recorded);
+            check(index >= 0, "Add recorded take as speech");
+            recording.reset(); check(!std::filesystem::exists(take), "Discard private capture after embedding");
+            check(marcus_audition_sound(p.get(), index, 65536), "Embedded recording plays without temporary WAV");
+            marcus_stop_sound_preview(p.get());
+            const auto copy = (dir / "recorded.3mm").u8string();
+            check(marcus_save_copy(p.get(), copy.c_str()), "Save native recorded sound");
+            MarcusInfo info = {}; MarcusSound sound = {};
+            check(marcus_undo(p.get()) && marcus_info(p.get(), &info) && !info.sound_count, "Undo recorded cue");
+            check(marcus_open(p.get(), copy.c_str(), argv[1], argv[2]), "Reopen recorded speech");
+            check(marcus_info(p.get(), &info) && info.sound_count == 1 && marcus_sound(p.get(), 0, &sound), "Read reopened recorded cue");
+            check(sound.style == MARCUS_SOUND_SPEECH && std::string(sound.name) == "Recording.wav", "Native movie retains recorded speech");
+            p.reset(); p.reset(marcus_create());
+            check(marcus_add_scene(p.get(), 11, argv[1], argv[2]), "New scene after recording checks");
+        }
         MarcusProp actor = {}; check(marcus_actor_count(p.get(), argv[2]) > 0 && marcus_actor(p.get(), 0, &actor), "Actor catalogue");
         check(marcus_add_actor(p.get(), actor.chunk) == 0, "Insert actor");
         MarcusObject before = {}; check(marcus_object(p.get(), 0, &before), "Actor before");
