@@ -33,6 +33,7 @@
 #define RIBBON_DELTA (MARCUS_RIBBON_HEIGHT - 88)
 #define VIEW_TOP (MARCUS_RIBBON_HEIGHT + 1)
 #define CAMERA_BAR_Y (MARCUS_RIBBON_HEIGHT + 8)
+#define CAMERA_BAR_HEIGHT 56
 #define OBJECT_LIST_TOP (MARCUS_RIBBON_HEIGHT + 38)
 #define OBJECT_LIST_FOOTER 32
 #define FRAME_NAV_X 192
@@ -311,7 +312,7 @@ static SDL_FRect viewport_rect(const App *app, int movie)
 {
     const MarcusRenderResolution *resolution;
     SDL_FRect rect;
-    float left, right, scale, height;
+    float left, right, scale, height, top;
     resolution = marcus_render_resolution(movie || app->movie_only || (!app->second_view && app->authored == 1) ?
                                          app->shortcuts.render_resolution : app->shortcuts.work_render_resolution);
     if (app->movie_only)
@@ -325,27 +326,31 @@ static SDL_FRect viewport_rect(const App *app, int movie)
     }
     left = movie ? 0 : work_left(app);
     right = movie ? app->split_x : view_right(app);
-    height = app->viewport_bottom - (148 + RIBBON_DELTA);
+    top = CAMERA_BAR_Y + CAMERA_BAR_HEIGHT + 8;
+    height = app->viewport_bottom - top - 12;
     scale = (float)minimum((right - left - 32) / resolution->width, height / resolution->height);
     rect.w = resolution->width * scale;
     rect.h = resolution->height * scale;
     rect.x = left + (right - left - rect.w) / 2;
-    rect.y = 136 + RIBBON_DELTA + (height - rect.h) / 2;
+    rect.y = top + (height - rect.h) / 2;
     return rect;
 }
 static int inside_work(const App *app, float x, float y)
 {
-    float left;
+    float left, top;
     if (app->movie_only)
         return 0;
     left = work_left(app);
-    return ui_inside(x, y, left + 12, 132 + RIBBON_DELTA, view_right(app) - left - 24, app->viewport_bottom - (144 + RIBBON_DELTA));
+    top = CAMERA_BAR_Y + CAMERA_BAR_HEIGHT + 8;
+    return ui_inside(x, y, left + 12, top, view_right(app) - left - 24, app->viewport_bottom - top - 12);
 }
 static int inside_movie(const App *app, float x, float y)
 {
+    float top;
     if (app->movie_only)
         return ui_inside(x, y, 0, 0, (float)app->width, (float)app->height);
-    return app->second_view ? ui_inside(x, y, 12, 132 + RIBBON_DELTA, app->split_x - 24, app->viewport_bottom - (144 + RIBBON_DELTA))
+    top = CAMERA_BAR_Y + CAMERA_BAR_HEIGHT + 8;
+    return app->second_view ? ui_inside(x, y, 12, top, app->split_x - 24, app->viewport_bottom - top - 12)
                             : app->authored == 1 && inside_work(app, x, y);
 }
 static void toggle_second_view(App *app)
@@ -1978,25 +1983,36 @@ static void record_camera_render(App *app, int work, Uint64 started)
 }
 static void draw_camera_bar(App *app, int movie)
 {
-    float left, right;
+    float left, right, speed;
     int work;
+    char speed_label[48];
     left = movie ? 0 : work_left(app); right = movie ? app->split_x : view_right(app);
     work = !movie && (app->second_view || app->authored != 1);
-    if (ui_panel(movie ? "Movie camera toolbar" : "View toolbar", left, CAMERA_BAR_Y, right - left, 32, 1, 0)) {
+    if (ui_panel(movie ? "Movie camera toolbar" : "View toolbar", left, CAMERA_BAR_Y, right - left, movie ? 32 : CAMERA_BAR_HEIGHT, 1, 0)) {
         if (ui_button_at("Settings", left + 8, CAMERA_BAR_Y + 2, 68, 26, 0, 1, "Camera rendering settings")) open_rendering_settings(app, work);
         igSetCursorScreenPos(dialog_vec(left + 84, CAMERA_BAR_Y + 6));
         igTextUnformatted(work ? "Work camera" : "Movie camera", NULL);
         if (!movie) {
             if (!app->second_view && ui_button_at("Camera", right - 312, CAMERA_BAR_Y + 2, 84, 26, app->authored == 1, app->loaded, "Movie camera")) view_mode(app, 1);
-            igSetCursorScreenPos(dialog_vec(right - 220, CAMERA_BAR_Y + 2)); igSetNextItemWidth(72);
-            if (igBeginCombo("##Orbit target", "Orbit", 0)) {
-                if (igSelectable_Bool("Scene centre", !app->orbit_selection, 0, dialog_vec(0, 0))) choose_orbit_mode(app, 0);
-                igBeginDisabled(!orbit_selection_available(app));
-                if (igSelectable_Bool("Selection", app->orbit_selection, 0, dialog_vec(0, 0))) choose_orbit_mode(app, 1);
-                igEndDisabled(); igEndCombo();
-            }
+            if (ui_button_at("Orbit", right - 220, CAMERA_BAR_Y + 2, 72, 26, app->authored == 0, app->loaded, "Orbit camera")) view_mode(app, 0);
             if (ui_button_at("Fly", right - 140, CAMERA_BAR_Y + 2, 60, 26, app->authored == 2, app->loaded, "Fly camera")) view_mode(app, 2);
             if (ui_button_at("Reset", right - 72, CAMERA_BAR_Y + 2, 56, 26, 0, app->loaded, "Match the movie camera")) reset_camera_view(app);
+            if (app->loaded && app->authored == 0) {
+                igSetCursorScreenPos(dialog_vec(right - 220, CAMERA_BAR_Y + 32)); igSetNextItemWidth(72);
+                if (igBeginCombo("##Orbit target", app->orbit_selection ? "Selected" : "Scene", 0)) {
+                    if (igSelectable_Bool("Scene centre", !app->orbit_selection, 0, dialog_vec(0, 0))) choose_orbit_mode(app, 0);
+                    igBeginDisabled(!orbit_selection_available(app));
+                    if (igSelectable_Bool("Selection", app->orbit_selection, 0, dialog_vec(0, 0))) choose_orbit_mode(app, 1);
+                    igEndDisabled(); igEndCombo();
+                }
+                if (igIsItemHovered(0)) igSetTooltip("Orbit around the scene centre or selected object");
+            }
+            speed = app->authored == 2 && app->fly_ready ? app->flight.move_speed : app->camera_ready ? app->camera.move_speed : 0;
+            if (app->flying && (app->fly_keys & (MARCUS_FLY_FAST | MARCUS_FLY_FAST_RIGHT))) speed *= 4;
+            if (app->loaded && speed > 0) SDL_snprintf(speed_label, sizeof(speed_label), speed >= 100 ? "%.0f u/s" : "%.1f u/s", (double)speed);
+            else SDL_strlcpy(speed_label, "-- u/s", sizeof(speed_label));
+            igSetCursorScreenPos(dialog_vec(right - 140, CAMERA_BAR_Y + 34)); igTextDisabled("%s", speed_label);
+            if (igIsItemHovered(0)) igSetTooltip("Fly speed in world units per second. Wheel changes speed; Shift moves four times faster.");
         }
     }
     ui_panel_end();
@@ -3051,6 +3067,8 @@ static void draw_debug_panel(App *app, float x, float y, int camera, int frozen)
     SDL_snprintf(identity, sizeof(identity), "Performance %d", camera);
     if (ui_panel(identity, x, y, 304, 212, 0, 0)) {
         igTextUnformatted(camera < 0 ? "App / display" : camera ? "Work camera" : "Movie camera", NULL);
+        if (count) igText("%s: %.1f", performance ? "Render FPS" : "FPS", (double)fps[count - 1]);
+        else igTextDisabled("%s: --", performance ? "Render FPS" : "FPS");
         igPlotLines_FloatPtr("FPS", fps, count, 0, NULL, 0, max_fps, dialog_vec(240, 60), sizeof(float));
         igPlotLines_FloatPtr("ms", ms, count, 0, NULL, 0, max_ms, dialog_vec(240, 60), sizeof(float));
         if (performance) igText("Last render: %.2f ms", performance->last_ms);
@@ -3060,7 +3078,7 @@ static void draw_debug_panel(App *app, float x, float y, int camera, int frozen)
 static void draw_debug_overlay(App *app)
 {
     float y;
-    y = app->movie_only ? 24.0f : 132.0f + RIBBON_DELTA;
+    y = app->movie_only ? 24.0f : CAMERA_BAR_Y + CAMERA_BAR_HEIGHT + 8;
     if (app->shortcuts.debug_overlay)
         draw_debug_panel(app, (float)app->width - 328, app->movie_only ? 80.0f : y, -1, 0);
     if (!app->loaded || app->settings_open)

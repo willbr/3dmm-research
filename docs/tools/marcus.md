@@ -846,14 +846,16 @@ truly coincident faces can still fight. Picking and caption occlusion use the
 same fitted projection as the rendered work view.
 Use Orbit or Fly in the work view; hold its right mouse button and use WASD/QE to
 fly while the movie continues. C switches that work view between Orbit and Fly.
-The **Orbit** split button activates the current orbit mode when its label is
-clicked; only its arrow opens the **Scene centre** and **Selection** menu. Scene centre
+The **Orbit** button activates the current orbit mode. While Orbit is selected,
+its target dropdown appears underneath, offering **Scene centre** and **Selection**. Scene centre
 fits the scene; Selection fits the selected actor/prop's posed bounds and follows
 its movement during playback or scrubbing. Selecting another object changes the
 pivot. Selection is available for on-stage objects; clearing the selection or an
 object leaving the stage falls back to the scene centre. Switching orbit modes
 refits the view, while right drag, Shift+right drag and the wheel still rotate,
 pan and zoom around the chosen pivot.
+The current fly speed appears below **Fly** in world units per second. It updates
+as the wheel changes speed and shows the four-times speed while Shift flight is active.
 Drag the divider to resize either viewport. The strip's arrow collapses and
 reopens the work camera; its pose and divider position are kept.
 Only the movie view consumes viewport clicks for click-to-continue pauses.
@@ -1041,7 +1043,8 @@ UI tests were added.
 
 **App debug overlay (FPS / frame time)** defaults to **Off**. Enable it and
 Apply to show display FPS and frame time in milliseconds, with a separate live
-graph for each, in both editor and expanded movie views. The values average the
+graph for each, in both editor and expanded movie views. App and camera panels
+also show the current numeric FPS above the graphs. The values average the
 latest second and the graphs retain the last 180 individual frames, with an
 automatic scale shown above each graph. Timing includes rendering, presentation
 and frame pacing; it measures Marcus's display loop, not the movie's authored
