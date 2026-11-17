@@ -240,17 +240,16 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
         for (int a = 0; a < 3; ++a) gizmo->anchorOffset[a] = anchor[a] - matrix[12 + a];
     }
     for (int a = 0; a < 3; ++a) matrix[12 + a] += gizmo->anchorOffset[a];
-    std::copy(matrix + 12, matrix + 15, anchor);
+    float displayShift[2] = {};
+    camera_gizmo_display_shift(&image->projection, matrix + 12, insetX, insetY, displayShift);
     const auto manipulation = MarcusGizmo::Manipulate(MarcusGizmo::Object, image->projection, rect, gizmo->mode, matrix,
-        std::min(.1f, 160.f / rect.w));
+        std::min(.1f, 160.f / rect.w), displayShift);
     if (manipulation.active || manipulation.changed) gizmo->Start(1);
     if (manipulation.changed)
     {
         if (!gizmo->mode)
         {
-            float clipped[3];
-            if (camera_gizmo_clip(&image->projection, anchor, matrix + 12, insetX, insetY, clipped))
-                for (int a = 0; a < 3; ++a) gizmo->value[a] = clipped[a] - gizmo->anchorOffset[a];
+            for (int a = 0; a < 3; ++a) gizmo->value[a] = matrix[12 + a] - gizmo->anchorOffset[a];
         }
         else
         {

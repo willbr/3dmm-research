@@ -93,7 +93,7 @@ if(BUILD_TESTING)
     target_link_libraries(marcus-camera-controls-test PRIVATE m)
   endif()
   add_test(NAME marcus-camera-controls COMMAND marcus-camera-controls-test)
-  # Display-anchor projection and constrained movement; no application UI.
+  # Display-anchor projection and off-screen movement; no application UI.
   add_executable(marcus-gizmo-anchor-test EXCLUDE_FROM_ALL ../../tests/marcus_gizmo_anchor_test.c camera_guide.c)
   set_target_properties(marcus-gizmo-anchor-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
   target_include_directories(marcus-gizmo-anchor-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

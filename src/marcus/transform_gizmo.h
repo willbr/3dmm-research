@@ -32,7 +32,8 @@ inline bool Controls(const char *title, const SDL_FRect &rect, int &mode, int co
     ImGui::EndDisabled(); ImGui::End();
     return over;
 }
-inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect &rect, int mode, float matrix[16], float size = .1f)
+inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect &rect, int mode, float matrix[16],
+                         float size = .1f, const float *displayShift = nullptr)
 {
     float view[16], projection[16];
     if (rect.w <= 0 || rect.h <= 0 || !camera_projection_matrices(&camera, view, projection)) return {};
@@ -49,10 +50,20 @@ inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect
     const float step = mode == 1 ? 15.f : mode == 2 ? .1f : 1.f;
     const float snap[3] = {step, step, step};
     const auto operation = mode == 1 ? ImGuizmo::ROTATE : mode == 2 ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
+    const int firstVertex = draw->VtxBuffer.Size;
     Result result;
     result.changed = ImGuizmo::Manipulate(view, projection, operation, mode ? ImGuizmo::LOCAL : ImGuizmo::WORLD,
         matrix, nullptr, ImGui::GetIO().KeyCtrl ? snap : nullptr);
     result.active = ImGuizmo::IsUsing(); result.over = ImGuizmo::IsOver();
+    // Keep the drag's original ray/plane and world-space deltas. Only the
+    // generated overlay is pinned at the edge while the pointer is captured.
+    // On release the caller rebuilds the idle anchor and its hit regions.
+    if (displayShift)
+        for (int i = firstVertex; i < draw->VtxBuffer.Size; ++i)
+        {
+            draw->VtxBuffer[i].pos.x += displayShift[0] * rect.w;
+            draw->VtxBuffer[i].pos.y += displayShift[1] * rect.h;
+        }
     draw->PopClipRect();
     return result;
 }

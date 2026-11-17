@@ -1443,8 +1443,9 @@ limited pose.
 When the object's origin projects outside the viewport, its transform handles
 stay inside a padded screen boundary. This moves only the displayed controls;
 the object's actual position and rotation pivot are retained. Moving the handle
-applies its world-space delta to the object. Drags stop at the viewport boundary
-along the selected axis or plane and resume when dragged inward. The same
+applies its full world-space delta to the object, which can move off-screen.
+During a drag only the gizmo drawing is pinned to the viewport edge; axis/plane
+constraints and snapping keep their original drag reference. The same
 framing works for perspective and orthographic views, including camera roll
 and the movie camera's letterboxing. Resize or focus loss cancels an active drag.
 The World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise

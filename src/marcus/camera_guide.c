@@ -331,33 +331,25 @@ int camera_gizmo_anchor(const MarcusProjection *projection, const float world[3]
     for (i = 0; i < 3; ++i) anchor[i] = (float)result[i];
     return 1;
 }
-int camera_gizmo_clip(const MarcusProjection *projection, const float start[3], const float proposed[3],
-                      float inset_x, float inset_y, float clipped[3])
+int camera_gizmo_display_shift(const MarcusProjection *projection, const float world[3],
+                               float inset_x, float inset_y, float shift[2])
 {
     GuideView view;
-    double from[3], to[3], a[3], b[3], fa, fb, fraction = 1, crossing;
-    int i, plane;
-    if (!start || !proposed || !clipped || !gizmo_view(projection, inset_x, inset_y, &view)) return 0;
+    float anchor[3];
+    double source[3], target[3], a[3], b[3], from_depth, to_depth, result[2];
+    int i;
+    if (!shift || !camera_gizmo_anchor(projection, world, inset_x, inset_y, anchor) || !make_view(projection, &view)) return 0;
     for (i = 0; i < 3; ++i)
     {
-        if (!finite_value(start[i]) || !finite_value(proposed[i])) return 0;
-        from[i] = start[i]; to[i] = proposed[i];
+        source[i] = world[i]; target[i] = anchor[i];
     }
-    view_point(&view, from, a); view_point(&view, to, b);
-    for (plane = 0; plane < 6; ++plane)
-    {
-        fa = plane_distance(&view, a, plane); fb = plane_distance(&view, b, plane);
-        /* Rounding at a previously clipped edge may put the anchor a few ulps
-         * outside. Treat that edge as zero distance, retaining inward motion. */
-        if (fa < 0) fa = 0;
-        if (fb < 0)
-        {
-            crossing = fa / (fa - fb);
-            if (crossing < fraction) fraction = crossing;
-        }
-    }
-    for (i = 0; i < 3; ++i) clipped[i] = fraction == 1 ? proposed[i] :
-        (float)(from[i] + (to[i] - from[i]) * fraction);
+    view_point(&view, source, a); view_point(&view, target, b);
+    from_depth = view.orthographic ? 1 : a[2]; to_depth = view.orthographic ? 1 : b[2];
+    if (fabs(from_depth) < 1e-8 || fabs(to_depth) < 1e-8) return 0;
+    result[0] = (b[0] / to_depth - a[0] / from_depth) / (2 * view.tangent_x);
+    result[1] = (a[1] / from_depth - b[1] / to_depth) / (2 * view.tangent_y);
+    for (i = 0; i < 2; ++i) if (!finite_value(result[i]) || fabs(result[i]) > FLT_MAX) return 0;
+    for (i = 0; i < 2; ++i) shift[i] = (float)result[i];
     return 1;
 }
 void camera_guide_add_line(const MarcusProjection *projection, const float a[3], const float b[3], MarcusCameraGuide *guide)
