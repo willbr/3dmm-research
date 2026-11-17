@@ -29,9 +29,9 @@ int main(int argc, char **argv)
             return c.body_set == choice.body_set && c.costume == choice.costume && c.selected;
         });
     };
-    auto pixels = [&](int object, const MarcusCostume *choice) {
+    auto pixels = [&](int object, const MarcusCostume *choice, float yaw = 25.f, float pitch = -10.f, float zoom = 1.f) {
         MarcusImage image = {};
-        require(marcus_costume_preview(player.get(), object, choice, choice ? 1 : 0, 0, 0, 1, 240, 300, &image), "Render isolated costume preview");
+        require(marcus_costume_preview(player.get(), object, choice, choice ? 1 : 0, yaw, pitch, zoom, 240, 300, &image), "Render isolated costume preview");
         require(image.rgba && image.width == 240 && image.height == 300, "Preview dimensions");
         return std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height);
     };
@@ -51,8 +51,33 @@ int main(int argc, char **argv)
         const auto values = list(object);
         std::printf("%s: %zu costume choices\n", actor.name, values.size());
         require(!values.empty(), "Actor has costumes");
-        const auto document = marcus_document(player.get());
         const auto originalPixels = pixels(object, nullptr);
+        require(pixels(object, nullptr, 25, -10, 4) == originalPixels, "Zoom stops at the full-object fit");
+        for (int angle = 0; angle < 360; angle += 45)
+        {
+            const auto rendered = pixels(object, nullptr, float(angle), angle % 90 ? -35.f : 20.f);
+            int left = 240, top = 300, right = -1, bottom = -1;
+            for (int y = 0; y < 300; ++y) for (int x = 0; x < 240; ++x) if (rendered[(y * 240 + x) * 4 + 3])
+            { left = std::min(left, x); right = std::max(right, x); top = std::min(top, y); bottom = std::max(bottom, y); }
+            require(left > 1 && top > 1 && right < 238 && bottom < 298 && right > left && bottom > top,
+                "Rotated preview fits the complete actor with a visible margin");
+            require(bottom - top > 180 || right - left > 144, "Preview uses the available image area");
+        }
+        MarcusObjectShape shape = {};
+        require(marcus_object_shape(player.get(), object, &shape, nullptr, nullptr), "Read actor transform");
+        shape.rotation[0] = shape.rotation[8] = 0; shape.rotation[2] = -1; shape.rotation[6] = 1;
+        require(marcus_set_object_shape(player.get(), object, &shape), "Turn actor in movie");
+        MarcusImage shot = {};
+        require(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &shot), "Render turned actor in movie");
+        const std::vector<unsigned char> moviePixels(shot.rgba, shot.rgba + shot.pitch * shot.height);
+        require(pixels(object, nullptr) == originalPixels, "Costume view faces consistently regardless of movie rotation");
+        require(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &shot) && moviePixels ==
+            std::vector<unsigned char>(shot.rgba, shot.rgba + shot.pitch * shot.height), "Costume preview restores exact movie pixels");
+        MarcusObjectShape afterPreview = {};
+        require(marcus_object_shape(player.get(), object, &afterPreview, nullptr, nullptr) &&
+            std::equal(shape.rotation, shape.rotation + 9, afterPreview.rotation), "Preview preserves the movie rotation");
+        require(marcus_undo(player.get()), "Restore actor rotation");
+        const auto document = marcus_document(player.get());
         std::vector<MarcusCostume> current;
         for (const auto &c : values) if (c.selected) current.push_back(c);
         require(marcus_set_costumes(player.get(), object, current.data(), int(current.size())) &&

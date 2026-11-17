@@ -292,15 +292,38 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
     auto &actor = *_impl->actors[object]; BodyCostume costume;
     if (!costume.FGet(actor.body)) return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
     const auto orbit = _impl->orbit;
+    const auto transform = actor.body->PbactRoot()->t.t.mat;
     struct Restore
     {
         BodyCostume &costume; PBody body; Impl &impl; decltype(orbit) orbit;
-        ~Restore() { costume.Set(body); impl.orbit = orbit; }
-    } restore{costume, actor.body, *_impl, orbit};
+        BMAT34 transform;
+        ~Restore()
+        {
+            costume.Set(body);
+            // LocateOrient adds its position to the supplied matrix. The saved
+            // root already contains its authored translation.
+            body->LocateOrient(rZero, rZero, rZero, &transform);
+            impl.orbit = orbit;
+        }
+    } restore{costume, actor.body, *_impl, orbit, transform};
+    BMAT34 orientation;
+    actor.CostumeOrientation(orientation);
+    actor.body->LocateOrient(rZero, rZero, rZero, &orientation);
     if (!actor.TryCostumes(values)) return Fail(error, ErrorCode::decode_failed, "Cannot preview this costume.");
     PreviewView isolated = view;
     isolated.authoredCamera = false; isolated.orbitObject = object; isolated.onlyObject = object;
-    isolated.stableOrbit = false;
+    isolated.stableOrbit = false; isolated.freeCamera = false; isolated.orthographic = false;
+    isolated.axisView = 0; isolated.roll = 0; isolated.nearClip = .01f;
+    if (view.width < 64 || view.height < 64 || !std::isfinite(view.zoom) || view.zoom < .1f || view.zoom > 10)
+        return Fail(error, ErrorCode::invalid_argument, "Invalid costume preview size or zoom.");
+    PreviewBounds bounds;
+    if (!ObjectBounds(object, bounds, error) || !bounds.valid) return false;
+    Impl::RenderHost host = {this, _impl.get(), &isolated, &error};
+    const auto services = host.Services(); float fit;
+    if (!mm_preview_camera_fit_object(bounds.corners, view.yaw, view.pitch, float(view.width) / view.height,
+        isolated.verticalFov, .04f, &fit, &services.math))
+        return Fail(error, ErrorCode::invalid_argument, "Cannot fit this costume preview.");
+    isolated.zoom = fit * std::min(1.f, view.zoom);
     ResetOrbitFraming();
     return Render(isolated, image, error);
 }

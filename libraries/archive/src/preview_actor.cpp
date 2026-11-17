@@ -165,6 +165,14 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
     }
     return true;
 }
+void PreviewActor::CostumeOrientation(BMAT34 &matrix) const
+{
+    BRA x, y, z;
+    tmpl->GetRestOrien(&x, &y, &z);
+    BrMatrix34RotateX(&matrix, x);
+    BrMatrix34PostRotateY(&matrix, y);
+    BrMatrix34PostRotateZ(&matrix, z);
+}
 bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
 {
     std::vector<PreviewCostume> available;

@@ -269,6 +269,8 @@ extern "C"
      * Count returns -1 on failure; listing and previews never edit the movie. */
     int marcus_costume_count(MarcusPlayer *player, int object);
     int marcus_costume(MarcusPlayer *player, int object, int index, MarcusCostume *costume);
+    /* Angles orbit the template's rest orientation, independent of movie rotation.
+     * Zoom 1 fits the full model with a margin; larger values stop at that fit. */
     int marcus_costume_preview(MarcusPlayer *player, int object, const MarcusCostume *choices, int count,
         float yaw, float pitch, float zoom, int width, int height, MarcusImage *image);
     /* Apply all chosen sets at the current frame, as a single undo step. */

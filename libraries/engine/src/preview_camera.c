@@ -13,6 +13,47 @@ static int finitef(float x)
 {
     return x >= -FLT_MAX && x <= FLT_MAX;
 }
+int mm_preview_camera_fit_object(const float corners[24], float yaw, float pitch, float aspect, float fov,
+                                float inset, float *zoom, const MMPreviewMath *m)
+{
+    float low[3], high[3], center[3], right[3], up[3], back[3];
+    float sy, cy, sp, cp, x, y, z, delta, tangent, distance = .1f, squared = 0, radius;
+    unsigned a, c;
+    if (!corners || !zoom || !finitef(yaw) || !finitef(pitch) || !finitef(aspect) || aspect <= 0 ||
+        !finitef(fov) || fov <= 0 || fov >= 179 || !finitef(inset) || inset < 0 || inset >= .5f) return 0;
+    for (a = 0; a < 3; ++a) low[a] = high[a] = corners[a];
+    for (c = 0; c < 8; ++c) for (a = 0; a < 3; ++a)
+    {
+        if (!finitef(corners[c * 3 + a])) return 0;
+        low[a] = minf(low[a], corners[c * 3 + a]); high[a] = maxf(high[a], corners[c * 3 + a]);
+    }
+    for (a = 0; a < 3; ++a)
+    {
+        center[a] = (low[a] + high[a]) * .5f;
+        delta = (high[a] - low[a]) * .5f; squared += delta * delta;
+    }
+    radius = maxf(.1f, m->sqrt(squared));
+    yaw = m->fmod(yaw, 360.f) * .01745329252f; pitch *= .01745329252f;
+    sy = m->sin(yaw); cy = m->cos(yaw); sp = m->sin(pitch); cp = m->cos(pitch);
+    right[0] = cy; right[1] = 0; right[2] = -sy;
+    up[0] = -sy * sp; up[1] = cp; up[2] = -cy * sp;
+    back[0] = sy * cp; back[1] = sp; back[2] = cy * cp;
+    tangent = m->tan(fov * .00872664626f) * (1 - 2 * inset);
+    for (c = 0; c < 8; ++c)
+    {
+        x = y = z = 0;
+        for (a = 0; a < 3; ++a)
+        {
+            delta = corners[c * 3 + a] - center[a];
+            x += delta * right[a]; y += delta * up[a]; z += delta * back[a];
+        }
+        distance = maxf(distance, z + (x < 0 ? -x : x) / (tangent * aspect));
+        distance = maxf(distance, z + (y < 0 ? -y : y) / tangent);
+        distance = maxf(distance, z + .1f);
+    }
+    *zoom = minf(10.f, radius * 2.8f / minf(1.f, aspect) / distance);
+    return 1;
+}
 int mm_preview_camera_match(float aspect, MMPreviewOrbit *orbit, MMPreviewCameraPose *out,
                             const MMPreviewRenderServices *s, float (*atan_value)(float))
 {

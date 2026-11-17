@@ -40,6 +40,10 @@ extern "C"
      * is retained through corner accumulation, then rounded once to float. */
     int mm_preview_camera_bounds(const MMI32 low[3], const MMI32 high[3], const MMI32 matrix[12], float corners[24],
                                  const MMPreviewMath *);
+    /* Fit every projected box corner inside a perspective view. Inset is a
+     * fraction of each image edge; zoom is relative to the normal orbit fit. */
+    int mm_preview_camera_fit_object(const float corners[24], float yaw, float pitch, float aspect, float fov,
+                                    float inset, float *zoom, const MMPreviewMath *);
     int mm_preview_camera_admit(int ready, int background, MMU32 count, MMU32 index);
     /* select returns 1 on success, 0 on read/SDK failure, -1 on allocation failure.
      * Read failure clears ready; allocation failure preserves it. Same-camera

@@ -53,6 +53,7 @@ class PreviewActor
     bool Text(PreviewObjectText &) const;
     bool Costumes(std::vector<PreviewCostume> &) const;
     bool TryCostumes(const std::vector<PreviewCostume> &);
+    void CostumeOrientation(BMAT34 &) const;
     bool WriteCostumes(const std::vector<PreviewCostume> &, const std::string &path);
     bool SetEventTrack(std::int32_t source);
     PMaterial_MTRL TextMaterial() const;

@@ -421,6 +421,12 @@ preview shows the current pose, supports drag rotation and wheel zoom, and
 updates as clothing, surfaces or accessories are selected. It uses the available
 window height and recenters when the window is resized. Thumbnails are cached;
 only one uncached visible thumbnail is rendered per frame.
+The initial view uses the template's rest orientation with a front three-quarter
+camera, independent of its rotation in the movie. Each camera angle fits the
+complete model with a small margin; zooming stops at that fit so the head and
+feet remain visible. The main preview renders at its panel's aspect ratio.
+Items with no alternative costumes show a disabled **No costumes** button,
+including templates with only their current default costume.
 
 **Apply costume** changes the chosen body parts at the current frame in a single
 undo step. Cancel/Escape leaves the movie unchanged; applying unchanged choices

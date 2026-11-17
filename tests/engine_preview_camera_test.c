@@ -31,6 +31,7 @@ static float ftan(float x)
 {
     return (float)tan(x);
 }
+static float fsqrt(float x) { return (float)sqrt(x); }
 static float fasin(float x)
 {
     return (float)asin(x);
@@ -256,6 +257,46 @@ static void cache_tests(void)
         assert(!h.live);
     }
 }
+static void fit_tests(void)
+{
+    MMPreviewMath m;
+    float corners[24], zoom, radius, distance, tangent, sy, cy, sp, cp, x, y, z, delta[3];
+    float aspect, yaw, pitch, maximum;
+    int c, a, rotation, portrait;
+    memset(&m, 0, sizeof(m));
+    m.sin = fsin; m.cos = fcos; m.tan = ftan; m.sqrt = fsqrt; m.fmod = ffmod;
+    for (c = 0; c < 8; ++c)
+    {
+        corners[c * 3] = (c & 1) ? 2.f : -2.f;
+        corners[c * 3 + 1] = (c & 2) ? 5.f : -5.f;
+        corners[c * 3 + 2] = (c & 4) ? 1.f : -1.f;
+    }
+    radius = fsqrt(30.f); tangent = ftan(45.f * .00872664626f);
+    for (portrait = 0; portrait < 2; ++portrait) for (rotation = 0; rotation < 8; ++rotation)
+    {
+        aspect = portrait ? .5f : 2.f; yaw = rotation * 45.f; pitch = rotation % 2 ? -35.f : 20.f;
+        assert(mm_preview_camera_fit_object(corners, yaw, pitch, aspect, 45, .04f, &zoom, &m));
+        distance = radius * 2.8f / (aspect < 1 ? aspect : 1) / zoom;
+        yaw *= .01745329252f; pitch *= .01745329252f;
+        sy = fsin(yaw); cy = fcos(yaw); sp = fsin(pitch); cp = fcos(pitch); maximum = 0;
+        for (c = 0; c < 8; ++c)
+        {
+            for (a = 0; a < 3; ++a) delta[a] = corners[c * 3 + a];
+            x = delta[0] * cy - delta[2] * sy;
+            y = -delta[0] * sy * sp + delta[1] * cp - delta[2] * cy * sp;
+            z = delta[0] * sy * cp + delta[1] * sp + delta[2] * cy * cp;
+            assert(distance - z > .01f);
+            x = (float)fabs(x / ((distance - z) * tangent * aspect));
+            y = (float)fabs(y / ((distance - z) * tangent));
+            assert(x <= .9201f && y <= .9201f);
+            if (x > maximum) maximum = x;
+            if (y > maximum) maximum = y;
+        }
+        assert(maximum > .919f);
+    }
+    assert(!mm_preview_camera_fit_object(corners, 0, 0, 0, 45, .04f, &zoom, &m));
+    assert(!mm_preview_camera_fit_object(corners, 0, 0, 1, 45, .5f, &zoom, &m));
+}
 int main(void)
 {
     Host h;
@@ -358,6 +399,7 @@ int main(void)
     assert(mm_preview_camera_select(&ready_value, &current, 1, 2, 1, &h, select_camera) == 0 && current == 1 &&
            h.selected == 1);
     cache_tests();
+    fit_tests();
     puts("C89 Preview cameras: match/pan, bounds, anchors, selection, guide caching and partial allocation recovery "
          "passed.");
     return 0;

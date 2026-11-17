@@ -18,6 +18,11 @@ struct MarcusCostumeDialog
     CostumeTile *tiles;
     int count, object, open, opening, chosen, invalid, preview_dirty;
     int layout_width, layout_height;
+    int preview_width, preview_height;
+    MarcusPlayer *availability_player;
+    unsigned long availability_document;
+    long availability_frame;
+    int availability_object, available;
     int button_drawn, button_visible;
     SDL_FRect button_rect;
     unsigned long document;
@@ -94,7 +99,8 @@ static void show(MarcusCostumeDialog *d, MarcusPlayer *player, int object)
     if (!marcus_object(player, object, &value) || value.text || !value.visible) return;
     clear_images(d); free(d->tiles); d->tiles = NULL; d->count = 0;
     d->player = player; d->object = object; d->document = marcus_document(player);
-    d->chosen = -1; d->error[0] = 0; d->yaw = d->pitch = 0; d->zoom = 1;
+    d->chosen = -1; d->error[0] = 0; d->yaw = 25; d->pitch = -10; d->zoom = 1;
+    d->preview_width = 480; d->preview_height = 600;
     SDL_strlcpy(d->name, value.name, sizeof(d->name));
     count = marcus_costume_count(player, object);
     if (count < 0) SDL_strlcpy(d->error, marcus_error(player), sizeof(d->error));
@@ -115,8 +121,20 @@ static void show(MarcusCostumeDialog *d, MarcusPlayer *player, int object)
 void costume_dialog_button(MarcusCostumeDialog *d, MarcusPlayer *player, int object,
     float x, float y, int enabled)
 {
-    int clicked;
+    int clicked, count, i;
+    MarcusInfo info;
+    MarcusCostume value;
     if (!d || !igGetCurrentContext()) return;
+    if (!marcus_info(player, &info)) return;
+    if (d->availability_player != player || d->availability_document != marcus_document(player) ||
+        d->availability_object != object || d->availability_frame != info.frame)
+    {
+        d->availability_player = player; d->availability_document = marcus_document(player);
+        d->availability_object = object; d->availability_frame = info.frame; d->available = 0;
+        count = marcus_costume_count(player, object);
+        for (i = 0; i < count; ++i)
+            if (marcus_costume(player, object, i, &value) && !value.selected) { d->available = 1; break; }
+    }
     d->button_drawn = 1;
     d->button_rect.x = x; d->button_rect.y = y; d->button_rect.w = 134; d->button_rect.h = 28;
     igSetNextWindowPos(vec(x, y), ImGuiCond_Always, vec(0, 0));
@@ -124,8 +142,8 @@ void costume_dialog_button(MarcusCostumeDialog *d, MarcusPlayer *player, int obj
     igPushStyleVar_Vec2(ImGuiStyleVar_WindowPadding, vec(0, 0));
     igBegin("##MarcusCostumeButton", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollWithMouse);
-    igBeginDisabled(!enabled);
-    clicked = igButton("Costume", vec(134, 28));
+    igBeginDisabled(!enabled || !d->available);
+    clicked = igButton(d->available ? "Costume" : "No costumes", vec(134, 28));
     igEndDisabled(); igEnd(); igPopStyleVar(1);
     if (clicked) show(d, player, object);
 }
@@ -146,9 +164,9 @@ static SDL_Texture *render(MarcusCostumeDialog *d, SDL_Renderer *renderer, int s
     SDL_Texture *texture;
     int count, width, height;
     count = choices(d, selected, sample);
-    width = sample < 0 ? 480 : 240; height = sample < 0 ? 600 : 300;
+    width = sample < 0 ? d->preview_width : 240; height = sample < 0 ? d->preview_height : 300;
     if (!marcus_costume_preview(d->player, d->object, selected, count,
-        sample < 0 ? d->yaw : 0, sample < 0 ? d->pitch : 0, sample < 0 ? d->zoom : 1,
+        sample < 0 ? d->yaw : 25, sample < 0 ? d->pitch : -10, sample < 0 ? d->zoom : 1,
         width, height, &image))
     { SDL_strlcpy(d->error, marcus_error(d->player), sizeof(d->error)); return NULL; }
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, image.width, image.height);
@@ -165,10 +183,13 @@ static void picture(SDL_Texture *texture, ImVec2 origin, ImVec2 size)
     ImTextureRef ref;
     ImVec2 fitted, start;
     ImDrawList *draw;
+    float width, height, aspect;
     memset(&ref, 0, sizeof(ref)); ref._TexID = (ImTextureID)(size_t)texture;
     fitted = size;
-    if (size.x / .8f > size.y) fitted.x = size.y * .8f;
-    else fitted.y = size.x / .8f;
+    aspect = .8f;
+    if (texture && SDL_GetTextureSize(texture, &width, &height) && height > 0) aspect = width / height;
+    if (size.x / aspect > size.y) fitted.x = size.y * aspect;
+    else fitted.y = size.x / aspect;
     start = vec(origin.x + (size.x - fitted.x) * .5f, origin.y + (size.y - fitted.y) * .5f);
     draw = igGetWindowDrawList();
     ImDrawList_AddRectFilled(draw, origin, vec(origin.x + size.x, origin.y + size.y), igGetColorU32_Vec4(colour(0x13161a)), 0, 0);
@@ -218,9 +239,17 @@ static void preview(MarcusCostumeDialog *d)
 {
     ImVec2 size, origin;
     ImGuiIO *io;
+    float scale;
+    int width, height;
     size = igGetContentRegionAvail(); size.y -= 28;
     if (size.x < 1) size.x = 1;
     if (size.y < 1) size.y = 1;
+    scale = 960 / (size.x > size.y ? size.x : size.y);
+    if (scale > 1) scale = 1;
+    width = (int)clamp((size.x - 8) * scale, 64, 1024);
+    height = (int)clamp((size.y - 8) * scale, 64, 1024);
+    if (width != d->preview_width || height != d->preview_height)
+    { d->preview_width = width; d->preview_height = height; d->preview_dirty = 1; }
     igButton("##actorPreview", size); origin = igGetItemRectMin();
     picture(d->preview, vec(origin.x + 4, origin.y + 4), vec(size.x - 8, size.y - 8));
     io = igGetIO_Nil();
@@ -232,7 +261,7 @@ static void preview(MarcusCostumeDialog *d)
     if (igIsItemHovered(0))
     {
         igSetItemKeyOwner_Nil(ImGuiKey_MouseWheelY);
-        if (io->MouseWheel) { d->zoom = clamp(d->zoom * (float)pow(1.15, io->MouseWheel), .25f, 4); d->preview_dirty = 1; }
+        if (io->MouseWheel) { d->zoom = clamp(d->zoom * (float)pow(1.15, io->MouseWheel), .25f, 1); d->preview_dirty = 1; }
     }
     igTextDisabled("Drag to rotate / Wheel to zoom");
 }
