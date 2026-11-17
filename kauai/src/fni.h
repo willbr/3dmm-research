@@ -16,6 +16,7 @@
 #ifndef FNI_H
 #define FNI_H
 #include "mm/filename_value.h"
+#include "mm/filename_owned.h"
 #include "mm/filename_enum.h"
 
 using Group::PDynamicArray;
@@ -72,16 +73,24 @@ class Filename : public Filename_PAR
     friend class FileNameEnumerator;
 
   private:
-    MMFilenameState _nameState;
-    String _stnFile;
+#ifdef UNICODE
+    MMFilenameOwned16 _name;
+#else
+    MMFilenameOwned8 _name;
+#endif
 
     void _SetFtgFromName(void);
     LegacyLong _CchExt(void);
     bool _FChangeLeaf(PString pstn);
     MMFilenameValue _ValueView();
+    MMFilenameValue _StorageView();
+    achar *_Path();
+    void _SetRawPath(achar *);
 
   public:
     Filename(void);
+    Filename(Filename &);
+    Filename &operator=(Filename &);
 
 // building FNIs
 #ifdef MAC

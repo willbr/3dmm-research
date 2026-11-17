@@ -41,11 +41,11 @@ MMFileOwnerHost FileObject::_OwnerHost()
     host.enter = [](void *c) { static_cast<PFileObject>(c)->_mutx.Enter(); };
     host.leave = [](void *c) { static_cast<PFileObject>(c)->_mutx.Leave(); };
     host.open = [](void *c, int create, MMU32 flags) -> void * {
-        return OpenHandle(static_cast<PFileObject>(c)->_fni._stnFile.Psz(), create != 0, flags);
+        return OpenHandle(static_cast<PFileObject>(c)->_fni._Path(), create != 0, flags);
     };
     host.close = [](void *, void *handle) { KauaiFiles::Close(handle); };
     host.flush = [](void *, void *handle) -> int { return KauaiFiles::Flush(handle); };
-    host.remove = [](void *c) -> int { return KauaiFiles::Delete(static_cast<PFileObject>(c)->_fni._stnFile.Psz()); };
+    host.remove = [](void *c) -> int { return KauaiFiles::Delete(static_cast<PFileObject>(c)->_fni._Path()); };
     host.seek = [](void *, void *handle, MMU32 position) -> int { return KauaiFiles::Seek(handle, position); };
     host.resize = [](void *, void *handle, MMU32 bytes) -> int { return KauaiFiles::Resize(handle, bytes); };
     host.size = [](void *, void *handle, MMU32 *bytes) -> int {

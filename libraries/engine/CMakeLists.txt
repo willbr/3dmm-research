@@ -61,6 +61,12 @@ add_executable(engine-filename-path-test EXCLUDE_FROM_ALL "${engine_filename_pat
 target_link_libraries(engine-filename-path-test PRIVATE mm-engine-c89)
 set_target_properties(engine-filename-path-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-filename-path COMMAND engine-filename-path-test)
+target_sources(mm-engine-c89 PRIVATE src/filename_owned.c)
+get_filename_component(engine_filename_owned_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_filename_owned_test.c" ABSOLUTE)
+add_executable(engine-filename-owned-test EXCLUDE_FROM_ALL "${engine_filename_owned_test_source}")
+target_link_libraries(engine-filename-owned-test PRIVATE mm-engine-c89)
+set_target_properties(engine-filename-owned-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-filename-owned COMMAND engine-filename-owned-test)
 target_sources(mm-engine-c89 PRIVATE src/filename_value.c)
 get_filename_component(engine_filename_value_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_filename_value_test.c" ABSOLUTE)
 add_executable(engine-filename-value-test EXCLUDE_FROM_ALL "${engine_filename_value_test_source}")
@@ -978,6 +984,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/file_owner.c" "${engine_file_owner_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/file_ops.c" "${engine_file_ops_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_value.c" "${engine_filename_value_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_owned.c" "${engine_filename_owned_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_path.c" "${engine_filename_path_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_naming.c" "${engine_filename_naming_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/filename_case.c" "${engine_filename_case_test_source}"

@@ -41,7 +41,7 @@ bool Filename::FGetOpen(achar *prgchFilter, HWND hwndOwner)
         return fFalse;
     }
 
-    _stnFile = ofn.lpstrFile;
+    _SetRawPath(ofn.lpstrFile);
     _SetFtgFromName();
     AssertThis(ffniFile);
     return fTrue;
@@ -79,7 +79,7 @@ bool Filename::FGetSave(achar *prgchFilter, HWND hwndOwner)
         return fFalse;
     }
 
-    _stnFile = sz;
+    _SetRawPath(sz);
     _SetFtgFromName();
     AssertThis(ffniFile);
     return fTrue;

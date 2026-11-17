@@ -9,7 +9,10 @@ contains the Win32/shell or POSIX OS calls.
 
 `file_native.cpp` and `filename.cpp` adapt the shared C89 file-owner, file-factory,
 filename and enumeration controllers. They retain native object/default-context
-integration. These replace `filewin.cpp` and
+integration. Filename's type and counted path now use the plain C
+`MMFilenameOwned8`/`MMFilenameOwned16` records; the native facade no longer owns
+a `String` member. C initialization, prefix-only copying, export and validation
+retain native diagnostic ordering. These replace `filewin.cpp` and
 `fniwin.cpp`. Native dialogs remain in the GUI library's `fnidialogwin.cpp`.
 
 The Windows backend preserves `CreateFile` access/share flags, default ACLs,

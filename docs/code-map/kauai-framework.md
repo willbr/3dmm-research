@@ -21,7 +21,7 @@ which side each file lives on.
 | `codkauai.cpp`    | core       | KauaiCodec decoder; pulls in the asm fast path on x86 (`kcdc_386.h`, `kcd2_386.h` codegen). |
 | `file.cpp`        | core       | C file factory/registry/name-transaction facades and native object/Filename providers. See [`../kauai-reference/file-api.md`](../kauai-reference/file-api.md). |
 | `file_native.cpp` | core | C file-owner and name-transaction facades; native file, mutex and diagnostic providers. |
-| `filename.cpp` | core | C filename value/path/navigation/naming/case/enumeration facades; native filesystem/iterator/clock/memory/diagnostic providers and filename/frame/default-context adapters. |
+| `filename.cpp` | core | C-owned filename storage/copy/validation and value/path/navigation/naming/case/enumeration facades; native filesystem/iterator/clock/memory/diagnostic providers and BASE/frame/default-context adapters. |
 | `platform_files_bridge.cpp` | core backend | Shared adapter to the Windows/POSIX C native-files backends. Native [file/path services](platform-files.md) expose no OS types in the interface. |
 | `mssio.cpp`       | core       | Microsoft IStream adapter for OLE / GDI+ interop.             |
 | `stream.cpp`      | core       | In-memory stream abstraction.                                 |

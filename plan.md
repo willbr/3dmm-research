@@ -410,8 +410,10 @@ recursive mutex and diagnostic providers. File factory reuse/create/temp policy,
 registry lookup/cleanup/membership, rename/swap recovery and replacement policy
 now also use C89. Native object allocation/constructors/destructors, the default
 registry binding, virtual destruction and final facade removal remain work.
-Filename's persistent type field and clear/extension/type-cleaning/type-change/
-leaf-change/set/get rules now use C89 over the existing counted path buffer.
+Filename's persistent type and counted path now live in C-owned one/two-byte
+records. Initialization, copy/export and path/name validation now use C89,
+retaining native diagnostics and prefix-only copies. Clear/extension/type-cleaning/
+type-change/leaf-change/set/get rules also use C89 over that storage.
 Path construction/search, existence/status/error precedence, delete/rename,
 equality/same-directory, volume forwarding and directory navigation/create/move
 policy now also use C89 through native filesystem and diagnostic providers.
@@ -422,7 +424,7 @@ iterator cleanup and failure publication, with native case-sensitivity and
 filesystem providers. Enumeration now owns C filter state/storage, cursor flags
 and the recursion stack, sharing traversal/filter/skip/pre-post/root/link/error
 policy through native iterator and filename-view providers. Default cache
-owner/configuration bindings, native filename/frame representation and object
+owner/configuration bindings, native BASE/frame integration and object
 lifetime, and final facade integration remain.
 Windows physical file/path services now also use a C89 component: OS handles,
 sharing/create modes, exact I/O, attributes, lookup/search/path buffers,

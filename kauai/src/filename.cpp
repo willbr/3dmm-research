@@ -19,6 +19,46 @@ namespace Group { MMStorageAllocator CollectionAllocator(); }
 
 namespace {
 MMFilenameNamingState filenameNaming{};
+MMFilenameOwnedHost FilenameOwnedHost();
+void FilenameOwnedCheck(void *,const MMStringValue *value)
+{
+#if defined(DEBUG) && defined(KAUAI_EXPENSIVE_CHECKS)
+    if(vcactAV>0){--vcactAV;const auto host=FilenameOwnedHost();mm_filename_owned_check_path(value,&host);++vcactAV;}
+#else
+    (void)value;
+#endif
+}
+MMFilenameOwnedHost FilenameOwnedHost()
+{
+    MMFilenameOwnedHost host{};host.check_path=FilenameOwnedCheck;
+    host.full_path=[](void *,const void *input,void *output,size_t capacity,void **leaf)->size_t {
+        achar *part=nullptr;
+        const auto length=KauaiFiles::FullPath(static_cast<const achar *>(input),static_cast<achar *>(output),capacity,&part);
+        *leaf=part;return length;
+    };
+    host.equal=[](void *,const void *a,const void *b)->int {return KauaiFiles::EqualPaths(static_cast<const achar *>(a),static_cast<const achar *>(b));};
+    host.separator=[](void *,unsigned ch)->int {return KauaiFiles::IsSeparator(static_cast<achar>(ch));};
+#ifdef DEBUG
+    host.memory=[](void *,const void *buffer,size_t bytes){AssertPvCb(const_cast<void *>(buffer),bytes);};
+    host.arguments=[](void *,const void *input,MMI32 count,unsigned unit){AssertIn(count,0,kcbMax);AssertPvCb(const_cast<void *>(input),count*unit);};
+    host.assertion=[](void *,int code,MMI32 observed){
+        switch(code){
+        case MM_FILENAME_CHECK_COUNT: AssertIn(observed,0,kcchMaxStn+1);break;
+        case MM_FILENAME_CHECK_TERMINATOR: Assert(fFalse,"missing termination byte");break;
+        case MM_FILENAME_CHECK_NULL: Assert(fFalse,"internal null characters");break;
+        case MM_FILENAME_CHECK_EMPTY: Assert(fFalse,"unexpected empty");break;
+        case MM_FILENAME_CHECK_NAMED_EMPTY: Assert(fFalse,"named empty?");break;
+        case MM_FILENAME_CHECK_FULL: Bug("bad fni");break;
+        case MM_FILENAME_CHECK_DIR: Assert(fFalse,"unexpected dir");break;
+        case MM_FILENAME_CHECK_SEPARATOR: Assert(fFalse,"expected trailing slash");break;
+        case MM_FILENAME_CHECK_NO_LEAF: Assert(fFalse,"unexpected filename");break;
+        case MM_FILENAME_CHECK_FILE: Assert(fFalse,"unexpected file");break;
+        case MM_FILENAME_CHECK_LEAF: Assert(fFalse,"expected filename");break;
+        }
+    };
+#endif
+    return host;
+}
 void FilenameCopyCheck(void *, const void *source, void *destination, size_t bytes)
 {
     AssertPvCb(const_cast<void *>(source), bytes); AssertPvCb(destination, bytes);
@@ -153,13 +193,26 @@ MMFilenameCaseHost FilenameCaseHost()
     return host;
 }
 }
-MMFilenameValue Filename::_ValueView()
+MMFilenameValue Filename::_StorageView()
 {
     static_assert(sizeof(MMFilenameState) == sizeof(FileType), "native filename type profile");
     static_assert(ftgNil == MM_FILENAME_NIL && kftgDir == MM_FILENAME_DIRECTORY, "native filename types");
-    MMFilenameValue value{&_nameState, FilenameStringValue(&_stnFile), this};
+    static_assert(offsetof(MMFilenameOwned8,path)==sizeof(MMFilenameState) &&
+                  offsetof(MMFilenameOwned16,path)==sizeof(MMFilenameState),"native filename storage layout");
+#ifdef UNICODE
+    auto value=mm_filename_owned16_view(&_name,this);
+#else
+    auto value=mm_filename_owned8_view(&_name,this);
+#endif
+    value.path.check_copy=FilenameCopyCheck;
     return value;
 }
+MMFilenameValue Filename::_ValueView()
+{auto value=_StorageView();FilenameOwnedCheck(nullptr,&value.path);return value;}
+achar *Filename::_Path()
+{return reinterpret_cast<achar *>(_ValueView().path.buffer)+1;}
+void Filename::_SetRawPath(achar *path)
+{const auto value=_StorageView();const auto host=FilenameOwnedHost();mm_filename_owned_set_path(&value,path,CchSz(path),&host);}
 
 // This is the FileType to use for temp files - clients may set this to whatever
 // they want.
@@ -190,7 +243,19 @@ void Filename::SetNil(void)
 ***************************************************************************/
 Filename::Filename(void)
 {
+    const auto value=_StorageView();const auto host=FilenameOwnedHost();mm_filename_owned_init(&value,&host);
     SetNil();
+}
+Filename::Filename(Filename &source):Filename_PAR(source)
+{
+    const auto value=_StorageView(),input=source._StorageView();const auto host=FilenameOwnedHost();
+    mm_filename_owned_copy(&value,&input,0,&host);
+}
+Filename &Filename::operator=(Filename &source)
+{
+    Filename_PAR::operator=(source);
+    const auto value=_StorageView(),input=source._StorageView();const auto host=FilenameOwnedHost();
+    mm_filename_owned_copy(&value,&input,1,&host);return *this;
 }
 
 /***************************************************************************
@@ -246,7 +311,7 @@ bool Filename::FGetTemp(void)
 FileType Filename::Ftg(void)
 {
     AssertThis(0);
-    return _nameState.type;
+    return _name.state.type;
 }
 
 /***************************************************************************
@@ -296,7 +361,8 @@ void Filename::GetStnPath(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    *pstn = _stnFile;
+    const auto value=_StorageView();const auto host=FilenameOwnedHost();const auto output=FilenameStringValue(pstn);
+    mm_filename_owned_export(&value,&output,&host);AssertPo(pstn,0);
 }
 
 /***************************************************************************
@@ -345,7 +411,7 @@ bool Filename::FEqual(Filename *pfni)
 bool Filename::FDir(void)
 {
     AssertThis(0);
-    return _nameState.type == kftgDir;
+    return _name.state.type == kftgDir;
 }
 
 /***************************************************************************
@@ -392,40 +458,8 @@ bool Filename::FUpDir(PString pstn, LegacyUlong grffni)
 void Filename::AssertValid(LegacyUlong grffni)
 {
     Filename_PAR::AssertValid(0);
-    AssertPo(&_stnFile, 0);
-
-    ZString szT;
-    LegacyLong cch;
-    PZString pszT;
-
-    if (grffni == 0)
-        grffni = ffniEmpty | ffniDir | ffniFile;
-
-    if (_nameState.type == ftgNil)
-    {
-        Assert(grffni & ffniEmpty, "unexpected empty");
-        Assert(_stnFile.Cch() == 0, "named empty?");
-        return;
-    }
-
-    if ((cch = KauaiFiles::FullPath(_stnFile.Psz(), szT, kcchMaxSz, &pszT)) == 0 || cch > kcchMaxSz ||
-        !KauaiFiles::EqualPaths(_stnFile.Psz(), szT))
-    {
-        Bug("bad fni");
-        return;
-    }
-
-    if (_nameState.type == kftgDir)
-    {
-        Assert(grffni & ffniDir, "unexpected dir");
-        Assert(KauaiFiles::IsSeparator(szT[cch - 1]), "expected trailing slash");
-        Assert(pszT == NULL, "unexpected filename");
-    }
-    else
-    {
-        Assert(grffni & ffniFile, "unexpected file");
-        Assert(pszT >= szT && pszT < szT + cch, "expected filename");
-    }
+    const auto value=_StorageView();const auto host=FilenameOwnedHost();
+    mm_filename_owned_validate(&value,static_cast<int>(grffni>>16),&host);
 }
 #endif // DEBUG
 

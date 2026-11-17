@@ -12489,3 +12489,79 @@ and executable hashes, symbols and ELF dependencies), `linux-evidence.tar.gz`,
 syntax recheck after the width guard; `width-*-tests.log` records the Windows
 C API rechecks. Cross evidence: `cross-c89.log`, `mac-c89.log`, `mac-link.log`
 and `mac-native-c-test`.
+
+### C89 owned filename storage, copying and validation (17 November 2026)
+
+`mm/filename_owned.h` and `filename_owned.c` now own Filename's type and counted
+path in plain `MMFilenameOwned8`/`MMFilenameOwned16` records. Native Filename no
+longer owns a C++ String. Initialization, assignment/construction copying, path
+import/export, counted-path checks and full filename validation execute in C89.
+The facade preserves BASE metadata copying and supplies native filesystem,
+memory and assertion services, including the existing assertion-depth guard.
+Physical file opens/deletes and native dialog results use the same C record.
+
+Initialization leaves unused storage untouched. Copy publishes type before
+diagnostics, checks destination/source/destination for assignment or source/
+destination for construction, and transfers only count+2 units. Self-copy keeps
+its original overlap diagnostic. Export retains independent caller storage;
+relocated C records need freshly bound views. Validation retains nil/name and
+allowed-kind checks, full-path/equality early returns, directory separator and
+leaf-pointer diagnostics. Invalid wide counts are diagnosed without scanning
+outside the buffer; this does not make invalid storage a supported copy input.
+
+The original native representation is `70e207ac`, captured before the facade
+conversion. Retained `filename.cpp` is 26,288 bytes, SHA-256
+`1D99F859956F0772F1FFD554406B8BEE3053506954A45E384BE3C26109DDFB8D`;
+`fni.h` is 5,145 bytes, SHA-256
+`50B23A808D88685930393BFF6CE708B6C6D1A60BF6DB9530FDEDFBAB19822E3E`.
+New normal/expensive fixtures capture object sizes, copied reference counts,
+path/type/leaf values, independent mutation, repeated assignment, self-copy,
+near-capacity names, nil publication, diagnostics and errors.
+
+| Profile, normal and expensive | Bytes | FNV | SHA-256 |
+| --- | ---: | --- | --- |
+| Native and SDL Debug | 4,832 | `833914C4` | `4439B5DA72E75334D926F5449034D21BA8FDB1891B07D9E811DC2DEECE8CDE2F` |
+| SDL Release | 4,828 | `EECD005E` | `F97F886A655CFC187DDD66C064FEA2EEAC2FB42C78E30F2410A56FD2F048CCC3` |
+
+All six original/converted pairs match. Captured sizes remain Filename 280,
+String 257 and BASE 16 bytes on these hosts. The six new pairs and all 207
+retained Windows pairs match: 213 byte-identical comparisons. A capture-script
+filename collision initially overwrote three converted ownership snapshots
+with physical-file snapshots. The original baselines were intact; all six
+ownership snapshots were freshly recaptured under separate `owned-*` names
+before recording the final comparisons. No implementation change or baseline
+replacement was needed for that recording correction.
+
+`engine-filename-owned` links only C and exercises both unit profiles, untouched
+tails, type publication, truncation, self-copy, relocation/rebinding, export,
+optional diagnostics and malformed/failed validation. It passes MSVC
+AddressSanitizer. Strict Clang C89 checks include the new public header, C source
+and test in the complete standalone syntax gate. Zig 0.16.0 also compiles strict
+C89 objects for 32-bit Linux GNU, x64 Linux musl and ARM64 macOS; the latter two
+link C-only executables. The Linux executable runs successfully in an isolated
+QEMU guest using the retained Linux kernel/initramfs and powers off afterward.
+Its SHA-256 is `CF6C4AEB839EA7330321A3D02AF2A2ACD35C913EAC3B95223071B2F2D6B02203`.
+macOS execution and a full native Unicode Filename facade remain unverified;
+the two-byte C API and Windows physical UTF-16 backend checks do execute.
+
+The Native gate passes 253 checks, SDL Release passes 248 with the existing
+world-export skip, SDL Debug passes 249, and the standalone C89 engine passes
+164: 914 passed CTest checks and one existing skip. The regular preview harness
+passes. All three hosts retain 12 backgrounds, 188 cameras, 301,996,032 output
+bytes and FNV `E1A71005`. All ten input identities and the Windows ACP/OEM/locale
+identity are unchanged; 230 Windows executable identities are recorded. Native
+tools, Marcus and both SDL application profiles rebuild. Marcus is stopped
+before its rebuild and relaunched afterward. No Marcus UI tests or new retail
+captures are added.
+
+These results establish correctness within the recorded coverage, not timing
+equivalence or every invalid caller/storage/provider case. Interactive native
+dialog selection and all filesystem/locale variants remain outside this check.
+Native BASE/object/default-context bindings, the enumerator's outer frame
+representation and final facade removal remain work; whole-engine conversion
+is not complete.
+
+Evidence: `tmp/c89-filename-owned/owned-{original,converted}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`filename-original.cpp`, `fni-original.h`, `run-{native,sdl-release,sdl-debug}-tests.log`,
+`run-standalone-tests.log`, `run-regular-tests.log`, `asan.log`, `cross.log`,
+`linux-runtime.log`, `trace-comparison.json`, `gates.json` and `identities.json`.

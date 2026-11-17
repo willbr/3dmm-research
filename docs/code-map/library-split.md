@@ -648,9 +648,46 @@ to their original profile. Baseline reconstruction and evidence are in the
 
 Path construction/search, filesystem dispatch, navigation and unique/temp naming
 also use the C controllers described below. Default cache owner/configuration
-bindings, native filename/frame representation, object lifetime and final C-only
+bindings, native BASE/frame integration, object lifetime and final C-only
 host/facade integration remain conversion work. This does not complete the
 backend migration.
+
+### Owned filename storage and validation
+
+`mm/filename_owned.h` owns the persistent type and 257-unit counted path in
+`MMFilenameOwned8`/`MMFilenameOwned16`. Both profiles coexist in one C library.
+The records contain no pointers, allocations or C++ lifetime; rebuild borrowed
+views after relocation. Native `Filename` embeds the matching C record and no
+longer owns a `String`. It retains BASE inheritance, native object metadata and
+the existing API. Its explicit copy constructor/assignment copy BASE metadata
+as before, then call the C copy controller. Object size remains unchanged in
+the captured hosts.
+
+Initialization clears count/terminator without overwriting the tail. Copy
+publishes type before path diagnostics and copies only count+2 units, preserving
+unused destination storage. Construction checks source/destination; assignment
+checks destination/source/destination, retaining self-copy diagnostics. Export
+copies counted units into caller storage. Native dialogs import their selected
+path into the C record before deriving its type; physical file opens/deletes
+read the same record directly through the facade.
+
+Count, terminator and embedded-null validation also use C. Filename validation
+retains allowed-kind checks, nil/name consistency, canonical full-path comparison,
+trailing directory separators and leaf-pointer checks, including diagnostic order
+and early returns. The native adapter supplies filesystem queries, memory checks,
+assertion messages and its existing assertion-depth guard. Invalid wide counts
+are diagnosed without scanning outside the supplied buffer. These remain
+diagnostics rather than a new repair or canonicalization operation.
+
+`engine-filename-owned` links only C and checks both profiles, relocation,
+untouched tails, truncation, copy publication and malformed/failed validation.
+Native normal/expensive fixtures capture copied reference counts, object sizes,
+paths/types, self-copy diagnostics and errors against the original representation.
+Strict C89, C-only cross builds, Linux execution and AddressSanitizer cover this
+boundary; exact results and limits are in the
+[regression log](../tools/playback-regression.md). Native BASE/object/default
+bindings, the enumerator's outer frame representation and final facade removal
+still require conversion.
 
 ### Filename path and navigation rules
 
