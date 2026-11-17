@@ -2007,12 +2007,14 @@ static void draw_camera_bar(App *app, int movie)
                 }
                 if (igIsItemHovered(0)) igSetTooltip("Orbit around the scene centre or selected object");
             }
-            speed = app->authored == 2 && app->fly_ready ? app->flight.move_speed : app->camera_ready ? app->camera.move_speed : 0;
-            if (app->flying && (app->fly_keys & (MARCUS_FLY_FAST | MARCUS_FLY_FAST_RIGHT))) speed *= 4;
-            if (app->loaded && speed > 0) SDL_snprintf(speed_label, sizeof(speed_label), speed >= 100 ? "%.0f u/s" : "%.1f u/s", (double)speed);
-            else SDL_strlcpy(speed_label, "-- u/s", sizeof(speed_label));
-            igSetCursorScreenPos(dialog_vec(right - 140, CAMERA_BAR_Y + 34)); igTextDisabled("%s", speed_label);
-            if (igIsItemHovered(0)) igSetTooltip("Fly speed in world units per second. Wheel changes speed; Shift moves four times faster.");
+            if (app->loaded && app->authored == 2) {
+                speed = app->fly_ready ? app->flight.move_speed : app->camera_ready ? app->camera.move_speed : 0;
+                if (app->flying && (app->fly_keys & (MARCUS_FLY_FAST | MARCUS_FLY_FAST_RIGHT))) speed *= 4;
+                if (speed > 0) SDL_snprintf(speed_label, sizeof(speed_label), speed >= 100 ? "%.0f u/s" : "%.1f u/s", (double)speed);
+                else SDL_strlcpy(speed_label, "-- u/s", sizeof(speed_label));
+                igSetCursorScreenPos(dialog_vec(right - 140, CAMERA_BAR_Y + 34)); igTextDisabled("%s", speed_label);
+                if (igIsItemHovered(0)) igSetTooltip("Fly speed in world units per second. Wheel changes speed; Shift moves four times faster.");
+            }
         }
     }
     ui_panel_end();

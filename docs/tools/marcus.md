@@ -854,7 +854,7 @@ pivot. Selection is available for on-stage objects; clearing the selection or an
 object leaving the stage falls back to the scene centre. Switching orbit modes
 refits the view, while right drag, Shift+right drag and the wheel still rotate,
 pan and zoom around the chosen pivot.
-The current fly speed appears below **Fly** in world units per second. It updates
+While Fly mode is active, its current speed appears below **Fly** in world units per second. It updates
 as the wheel changes speed and shows the four-times speed while Shift flight is active.
 Drag the divider to resize either viewport. The strip's arrow collapses and
 reopens the work camera; its pose and divider position are kept.
