@@ -11,6 +11,7 @@
 #include "sound_dialog.h"
 #include "dialog_widgets.h"
 #include "dialog_host.h"
+#include "transport_skin.h"
 #include "ribbon.h"
 #include "camera_picker.h"
 #include "storyboard_editor.h"
@@ -2593,21 +2594,21 @@ static void draw_transport(App *app)
             enabled = app->loaded && (i < 2 ? app->info.frame > app->info.first_frame : app->info.frame < app->info.last_frame);
             if ((i == 1 || i == 2) && extending) enabled = 1;
             SDL_snprintf(label, sizeof(label), "%s###Frame%d", nav[i], i);
-            if (ui_button_at(label, FRAME_NAV_X + NAV_STEP * i, y + FRAME_NAV_Y, 28, 20, 0, enabled, "Frame navigation / Ctrl at an end adds a frame")) {
+            if (transport_navigation(label, FRAME_NAV_X + NAV_STEP * i, y + FRAME_NAV_Y, i, enabled, "Frame navigation / Ctrl at an end adds a frame")) {
                 if (extending && ((i == 1 && app->info.frame == app->info.first_frame) || (i == 2 && app->info.frame == app->info.last_frame))) add_frame(app, i == 1 ? -1 : 1);
                 else perform_action(app, MARCUS_FIRST_FRAME + i);
             }
             enabled = app->loaded && (i < 2 ? app->info.scene > 0 : app->info.scene + 1 < app->info.scene_count);
             SDL_snprintf(label, sizeof(label), "%s###Scene%d", nav[i], i);
-            if (ui_button_at(label, SCENE_NAV_X + NAV_STEP * i, y + SCENE_NAV_Y, 28, 20, 0, enabled, "Scene navigation")) perform_action(app, MARCUS_FIRST_SCENE + i);
+            if (transport_navigation(label, SCENE_NAV_X + NAV_STEP * i, y + SCENE_NAV_Y, i, enabled, "Scene navigation")) perform_action(app, MARCUS_FIRST_SCENE + i);
         }
-        if (app->loaded) SDL_snprintf(label, sizeof(label), "Frame %.0f / %.0f###Frames", display_frame(app, app->info.frame), display_frame(app, app->info.last_frame));
-        else SDL_strlcpy(label, "Frame --###Frames", sizeof(label));
-        if (ui_button_at(label, 16, y + 4, 164, 20, 0, app->loaded, "Open frame organiser")) open_organiser(app, 1);
-        if (app->loaded) SDL_snprintf(label, sizeof(label), "Scene %d / %d###Scenes", app->info.scene + 1, app->info.scene_count);
-        else SDL_strlcpy(label, "Scene --###Scenes", sizeof(label));
-        if (ui_button_at(label, 16, y + 26, 164, 20, 0, app->loaded, "Open scene organiser")) open_organiser(app, 0);
-        if (ui_button_at(app->playback.wait == 1 ? "Continue" : app->playing ? "Pause" : "Play", PLAY_X, y + 2, 48, 44, 0, app->loaded, "Play / pause / Shift opens movie view")) {
+        if (app->loaded) SDL_snprintf(label, sizeof(label), "%.0f / %.0f", display_frame(app, app->info.frame), display_frame(app, app->info.last_frame));
+        else SDL_strlcpy(label, "-- / --", sizeof(label));
+        if (transport_readout("Frame organiser", 16, y + 4, 0, label, app->loaded, "Open frame organiser")) open_organiser(app, 1);
+        if (app->loaded) SDL_snprintf(label, sizeof(label), "%d / %d", app->info.scene + 1, app->info.scene_count);
+        else SDL_strlcpy(label, "-- / --", sizeof(label));
+        if (transport_readout("Scene organiser", 16, y + 26, 1, label, app->loaded, "Open scene organiser")) open_organiser(app, 0);
+        if (transport_play("Playback", PLAY_X, y + 2, app->playing, app->playback.wait == 1, app->loaded, "Play / pause / Shift opens movie view")) {
             if (igGetIO_Nil()->KeyShift) { app->movie_only = app->movie_dirty = 1; movie_activity(app); if (!app->playing || app->playback.wait == 1) toggle_play(app); }
             else toggle_play(app);
         }
@@ -3003,9 +3004,9 @@ static void draw_movie_controls(App *app)
     if (ui_panel("Movie transport", rect.x, rect.y, rect.w, rect.h, 0, 0)) {
         igText("%s / Scene %d of %d", app->playback.wait == 1 ? "Continue" : app->playing ? "Playing" : "Paused", app->info.scene + 1, app->info.scene_count);
         draw_movie_scrubber(app, available);
-        if (ui_button_at("< Scene", rect.x + 24, rect.y + 86, 76, 28, 0, app->info.scene > 0, NULL)) perform_action(app, MARCUS_PREV_SCENE);
-        if (ui_button_at(app->playback.wait == 1 ? "Continue" : app->playing ? "Pause" : "Play", rect.x + 108, rect.y + 86, 80, 28, 0, app->loaded, NULL)) toggle_play(app);
-        if (ui_button_at("Scene >", rect.x + 196, rect.y + 86, 76, 28, 0, app->info.scene + 1 < app->info.scene_count, NULL)) perform_action(app, MARCUS_NEXT_SCENE);
+        if (transport_navigation("Previous scene", rect.x + 48, rect.y + 90, 1, app->info.scene > 0, "Previous scene")) perform_action(app, MARCUS_PREV_SCENE);
+        if (transport_play("Playback", rect.x + 128, rect.y + 78, app->playing, app->playback.wait == 1, app->loaded, "Play / pause")) toggle_play(app);
+        if (transport_navigation("Next scene", rect.x + 220, rect.y + 90, 2, app->info.scene + 1 < app->info.scene_count, "Next scene")) perform_action(app, MARCUS_NEXT_SCENE);
         if (ui_button_at("-10 s", rect.x + 280, rect.y + 86, 60, 28, 0, available, NULL)) seek_movie(app, app->movie_time.position_seconds - 10);
         if (ui_button_at("+10 s", rect.x + 348, rect.y + 86, 60, 28, 0, available, NULL)) seek_movie(app, app->movie_time.position_seconds + 10);
         if (ui_button_at(app->muted ? "Unmute" : "Mute", rect.x + 416, rect.y + 86, 68, 28, app->muted, 1, NULL)) toggle_mute(app);

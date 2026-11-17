@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "dialog_widgets.h"
+#include "transport_skin.h"
 #include <string.h>
 static ImU32 ink(MarcusUI *ui, unsigned long rgb)
 {
@@ -19,6 +20,7 @@ void ui_configure(const char *font_path)
     igGetIO_Nil()->ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     if (font_path && *font_path && SDL_GetPathInfo(font_path, &font_info) && font_info.type == SDL_PATHTYPE_FILE)
         ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, font_path, 14, NULL, NULL);
+    transport_skin_init();
     style = igGetStyle(); style->WindowPadding = dialog_vec(10, 8); style->ItemSpacing = dialog_vec(8, 5);
     style->WindowBorderSize = 1; style->FrameRounding = 2;
     style->WindowMinSize = dialog_vec(1, 1);

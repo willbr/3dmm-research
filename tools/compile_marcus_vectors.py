@@ -173,7 +173,7 @@ def compile_header():
     icons.update({name: vertices(ICONS / (name + '.svg'), '0 0 46 43')
                   for name in ('dialog_frame', 'dialog_cancel', 'dialog_ok')})
     lines = [
-        '/* Generated from src/marcus/icons/*.svg by tools/compile_marcus_vectors.py. */',
+        '/* Generated from Marcus SVG assets by tools/compile_marcus_vectors.py. */',
         '#ifndef MARCUS_UI_VECTORS_H', '#define MARCUS_UI_VECTORS_H',
         'typedef struct MarcusVectorVertex { float x, y; unsigned long colour; } MarcusVectorVertex;',
         '#define MARCUS_VECTOR_WIDTH 40.0f', '#define MARCUS_VECTOR_HEIGHT 44.0f',

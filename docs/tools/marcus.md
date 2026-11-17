@@ -563,7 +563,12 @@ The playback controls show the current movie position and total duration as
 `m:ss / m:ss`, or `h:mm:ss / h:mm:ss` for movies lasting an hour or more.
 Frame and scene navigation, readouts, Play/Pause/Continue, Loop, Mute and
 movie seeking use standard cimgui buttons and sliders. Frame/scene readout
-buttons open their organisers. The main UI, inspector and debug overlays share
+buttons open their organisers. The readouts, navigation arrows and Play button
+draw the original 3DMM-style SVG artwork on their ImGui buttons: beveled silver
+surrounds, dark arrows, green Play/Continue and red Pause symbols. Installed Arial
+Black and Comic Sans MS supply the readout labels and numbers where available,
+with ordinary ImGui fonts as fallbacks. Interaction, disabled state, focus and
+keyboard activation remain owned by ImGui. The main UI, inspector and debug overlays share
 ImGui's font atlas; `--font file.ttf` supplies a custom UI font.
 Click the **SCENE** readout to open the scene organiser. It pauses playback and
 shows a scrollable cimgui grid in movie order, with saved thumbnails and
@@ -1255,9 +1260,11 @@ view. Boundary buttons otherwise disable unavailable actions.
 The transport, camera toolbar, track filter, layer Solo/Mute controls, object
 list, inspector, split handles and status bar use cimgui. Scene objects and
 properties have standard ImGui scrolling. Timeline markers, waveforms, animation
-lanes and camera/light guides use ImGui drawing APIs. The original SVG artwork
-remains in `src/marcus/icons/` as source assets; the custom vector controls and
-their standalone `marcus-dialog-capture` renderer have been retired.
+lanes and camera/light guides use ImGui drawing APIs. `transport_skin.c` draws
+the SVG transport artwork from `src/marcus/icons/` using ImGui drawing APIs on
+standard buttons. Regenerate its checked-in triangles with
+`python tools/compile_marcus_vectors.py`. The former SDL controls and their
+standalone `marcus-dialog-capture` renderer remain retired.
 
 With Loop off, playback advances through scenes and stops at the movie's final
 frame. With Loop on, the current scene repeats, resetting its animation, captions

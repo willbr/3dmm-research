@@ -1,4 +1,4 @@
-/* Generated from src/marcus/icons/*.svg by tools/compile_marcus_vectors.py. */
+/* Generated from Marcus SVG assets by tools/compile_marcus_vectors.py. */
 #ifndef MARCUS_UI_VECTORS_H
 #define MARCUS_UI_VECTORS_H
 typedef struct MarcusVectorVertex { float x, y; unsigned long colour; } MarcusVectorVertex;
