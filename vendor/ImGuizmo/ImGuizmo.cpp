@@ -731,6 +731,7 @@ namespace IMGUIZMO_NAMESPACE
       vec_t mTranslationPlaneScreenX, mTranslationPlaneScreenY;
       bool mTranslationScreenDrag = false;
       ImVec2 mTranslationMouseOrigin, mTranslationScreenDirection;
+      ImVec2 mTranslationDisplayOffset = ImVec2(0.f, 0.f);
       float mTranslationWorldPerPixel = 0.f;
 
       // rotation
@@ -1791,6 +1792,7 @@ namespace IMGUIZMO_NAMESPACE
       }
 
       // colors
+      const int firstHandleVertex = drawList->VtxBuffer.Size;
       ImU32 colors[7];
       ComputeColors(colors, type, TRANSLATE);
 
@@ -1863,12 +1865,20 @@ namespace IMGUIZMO_NAMESPACE
 
       drawList->AddCircleFilled(gContext.mScreenSquareCenter, gContext.mStyle.CenterCircleSize, colors[0], 32);
 
+      // Pin the moving handles, leaving the drag-start marker in its original
+      // screen position. Feedback below joins that fixed marker to the pinned
+      // endpoint instead of shifting the entire drag trail with the handles.
+      if (gContext.mTranslationDisplayOffset.x != 0.f || gContext.mTranslationDisplayOffset.y != 0.f)
+         for (int i = firstHandleVertex; i < drawList->VtxBuffer.Size; ++i)
+            drawList->VtxBuffer[i].pos += gContext.mTranslationDisplayOffset;
+
       if (gContext.mbUsing && (gContext.GetCurrentID() == gContext.mEditingID) && IsTranslateType(type))
       {
          ImU32 translationLineColor = GetColorU32(TRANSLATION_LINE);
 
          ImVec2 sourcePosOnScreen = worldToPos(gContext.mMatrixOrigin, gContext.mViewProjection);
-         ImVec2 destinationPosOnScreen = worldToPos(gContext.mModel.v.position, gContext.mViewProjection);
+         ImVec2 destinationPosOnScreen = worldToPos(gContext.mModel.v.position, gContext.mViewProjection) +
+            gContext.mTranslationDisplayOffset;
          vec_t dif = { destinationPosOnScreen.x - sourcePosOnScreen.x, destinationPosOnScreen.y - sourcePosOnScreen.y, 0.f, 0.f };
          dif.Normalize();
          dif *= 5.f;
@@ -3134,6 +3144,10 @@ namespace IMGUIZMO_NAMESPACE
    void SetGizmoSizeClipSpace(float value)
    {
       gContext.mGizmoSizeClipSpace = value;
+   }
+   void SetTranslationDisplayOffset(float x, float y)
+   {
+      gContext.mTranslationDisplayOffset = ImVec2(x, y);
    }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////////

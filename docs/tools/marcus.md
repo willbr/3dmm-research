@@ -1445,8 +1445,10 @@ stay inside a padded screen boundary. This moves only the displayed controls;
 the object's actual position and rotation pivot are retained. Moving the handle
 applies its full world-space delta to the object, which can move off-screen.
 During a drag only the gizmo drawing is pinned to the viewport edge; axis/plane
-constraints and snapping keep their original drag reference. The same
-framing works for perspective and orthographic views, including camera roll
+constraints and snapping keep their original drag reference. The
+drag-start marker stays fixed, with its feedback line ending at the pinned
+handle. Its coordinate readout continues to show the actual world-space delta.
+This framing works for perspective and orthographic views, including camera roll
 and the movie camera's letterboxing. Resize or focus loss cancels an active drag.
 The World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
 coordinate. Escape cancels the current move, and losing window focus cancels it.

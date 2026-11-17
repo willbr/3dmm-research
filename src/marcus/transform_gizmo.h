@@ -50,20 +50,13 @@ inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect
     const float step = mode == 1 ? 15.f : mode == 2 ? .1f : 1.f;
     const float snap[3] = {step, step, step};
     const auto operation = mode == 1 ? ImGuizmo::ROTATE : mode == 2 ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
-    const int firstVertex = draw->VtxBuffer.Size;
+    ImGuizmo::SetTranslationDisplayOffset(displayShift ? displayShift[0] * rect.w : 0.f,
+        displayShift ? displayShift[1] * rect.h : 0.f);
     Result result;
     result.changed = ImGuizmo::Manipulate(view, projection, operation, mode ? ImGuizmo::LOCAL : ImGuizmo::WORLD,
         matrix, nullptr, ImGui::GetIO().KeyCtrl ? snap : nullptr);
     result.active = ImGuizmo::IsUsing(); result.over = ImGuizmo::IsOver();
-    // Keep the drag's original ray/plane and world-space deltas. Only the
-    // generated overlay is pinned at the edge while the pointer is captured.
-    // On release the caller rebuilds the idle anchor and its hit regions.
-    if (displayShift)
-        for (int i = firstVertex; i < draw->VtxBuffer.Size; ++i)
-        {
-            draw->VtxBuffer[i].pos.x += displayShift[0] * rect.w;
-            draw->VtxBuffer[i].pos.y += displayShift[1] * rect.h;
-        }
+    ImGuizmo::SetTranslationDisplayOffset(0.f, 0.f);
     draw->PopClipRect();
     return result;
 }

@@ -37,3 +37,10 @@ around the centre handle, with vertical dragging. Short scale projections use
 captured screen-space dragging to avoid unstable ray/plane ratios. Other scale
 handles remain visible during a drag. Ordinary projected axes retain the upstream
 scale solver, with non-finite ratios rejected.
+
+`SetTranslationDisplayOffset(x, y)` shifts translation handles and the current
+drag endpoint in screen pixels without changing the solver, delta, or fixed
+drag-start marker. The feedback line connects the original marker to the
+shifted endpoint; its coordinate readout still reports the real world-space
+delta. Marcus uses this to pin moving handles at the viewport edge while an
+actor continues off-screen, and resets the offset after each manipulation.

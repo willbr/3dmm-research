@@ -259,6 +259,9 @@ namespace IMGUIZMO_NAMESPACE
    // return true if the cursor is over the operation's gizmo
    IMGUI_API bool IsOver(OPERATION op);
    IMGUI_API void SetGizmoSizeClipSpace(float value);
+   // Offset translation handles and the current drag endpoint in display pixels.
+   // The drag-start marker, solver and world-space delta remain unchanged.
+   IMGUI_API void SetTranslationDisplayOffset(float x, float y);
 
    // Handle type used by the translate/rotate/scale gizmos.
    enum MOVETYPE
