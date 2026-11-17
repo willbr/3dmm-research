@@ -26,6 +26,7 @@ typedef struct TextTile
 struct MarcusTextDialog
 {
     int open, opening, font, material, chosen, object;
+    int layout_width, layout_height;
     unsigned long document;
     MarcusPlayer *player;
     MarcusText value;
@@ -693,9 +694,12 @@ void text_dialog_draw(MarcusTextDialog *d, MarcusUI *ui, int width, int height)
     igPushStyleVar_Vec2(ImGuiStyleVar_FramePadding, vec(8, 6));
     igPushStyleVar_Vec2(ImGuiStyleVar_ItemSpacing, vec(10, 8));
     if (opening)
-    {
         igOpenPopup_Str(title, 0);
+    if (opening || d->layout_width != width || d->layout_height != height)
+    {
         igSetNextWindowPos(vec(width * .5f, height * .5f), ImGuiCond_Always, vec(.5f, .5f));
+        d->layout_width = width;
+        d->layout_height = height;
     }
     igSetNextWindowSize(size, ImGuiCond_Always);
     /* Let ImGui store its bool ABI value; application state stays C89 ints. */

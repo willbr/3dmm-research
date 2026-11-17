@@ -372,6 +372,9 @@ invalidates the dependent shape/material samples. The properties pane scrolls
 independently so the main preview remains visible while adjusting lighting and
 texture mapping.
 The dialog uses the available window height instead of a fixed 760-pixel cap.
+It recenters when the app window is resized or maximized, while allowing manual
+placement between resizes. The other centered Marcus dialogs already calculate
+their placement from the current window dimensions each frame.
 The main preview reserves the image button's frame padding inside its column,
 so its right edge remains visible and the loading placeholder has the same size.
 
