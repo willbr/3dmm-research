@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/model_resource.h"
 #include "mm/wide.h"
+#include <stdlib.h>
 #include <string.h>
 static MMU32 word(const unsigned char *p, unsigned n, int big)
 {
@@ -74,6 +75,101 @@ void mm_model_face_write(unsigned char *b, int big, const MMModelFace *f)
     b[18] = (unsigned char)f->flags;
     b[19] = (unsigned char)f->pad;
     put(b + 28, 4, (MMU32)f->distance, big);
+}
+
+static void vertex_read(const unsigned char *bytes, int big, MMModelVertex *v)
+{
+    unsigned i;
+    for (i = 0; i < 3; ++i)
+    {
+        v->position[i] = mm_signed_word(word(bytes + i * 4, 4, big));
+        v->normal[i] = signed16(word(bytes + 26 + i * 2, 2, big));
+    }
+    for (i = 0; i < 2; ++i)
+        v->mapping[i] = mm_signed_word(word(bytes + 12 + i * 4, 4, big));
+    v->index = bytes[20];
+    v->red = bytes[21];
+    v->green = bytes[22];
+    v->blue = bytes[23];
+    v->reserved = word(bytes + 24, 2, big);
+}
+
+void mm_model_mesh_dispose(MMModelMesh *mesh)
+{
+    if (mesh)
+    {
+        free(mesh->vertices);
+        free(mesh->faces);
+        memset(mesh, 0, sizeof(*mesh));
+    }
+}
+
+static int mesh_arrays(const MMReadStream *stream, MMModelMesh *mesh, int big)
+{
+    unsigned char bytes[32 * 128];
+    MMI32 kind, i, n, j, count;
+    MMU32 offset = 48;
+    MMModelFace *face;
+    for (kind = MM_MODEL_VERTICES; kind <= MM_MODEL_FACES; ++kind)
+    {
+        count = kind == MM_MODEL_VERTICES ? mesh->description.vertices : mesh->description.faces;
+        for (i = 0; i < count; i += n)
+        {
+            n = count - i;
+            if (n > 128)
+                n = 128;
+            if (!mm_read_exact(stream, offset, bytes, (size_t)n * 32))
+                return MM_MODEL_MESH_IO;
+            if (kind == MM_MODEL_VERTICES)
+                for (j = 0; j < n; ++j)
+                    vertex_read(bytes + j * 32, big, &mesh->vertices[i + j]);
+            else
+                for (j = 0; j < n; ++j)
+                {
+                    face = &mesh->faces[i + j];
+                    mm_model_face_read(bytes + j * 32, big, face);
+                    if (face->vertices[0] >= (MMU32)mesh->description.vertices ||
+                        face->vertices[1] >= (MMU32)mesh->description.vertices ||
+                        face->vertices[2] >= (MMU32)mesh->description.vertices)
+                        return MM_MODEL_MESH_BAD_FILE;
+                }
+            offset += (MMU32)n * 32;
+        }
+    }
+    return MM_MODEL_MESH_OK;
+}
+
+int mm_model_mesh_read(const MMReadStream *stream, MMModelMesh *out)
+{
+    const unsigned short one = 1;
+    int big = *(const unsigned char *)&one == 0;
+    unsigned char header[48];
+    MMModelMesh mesh;
+    int status;
+    if (!stream || !out || stream->length < sizeof(header))
+        return MM_MODEL_MESH_BAD_FILE;
+    if (!mm_read_exact(stream, 0, header, sizeof(header)))
+        return MM_MODEL_MESH_IO;
+    memset(&mesh, 0, sizeof(mesh));
+    if (!mm_model_header(header, big, &mesh.description, NULL) ||
+        (MMU32)(mesh.description.vertices + mesh.description.faces) > (stream->length - sizeof(header)) / 32)
+        return MM_MODEL_MESH_BAD_FILE;
+    if ((mesh.description.vertices && (size_t)-1 / (size_t)mesh.description.vertices < sizeof(*mesh.vertices)) ||
+        (mesh.description.faces && (size_t)-1 / (size_t)mesh.description.faces < sizeof(*mesh.faces)))
+        return MM_MODEL_MESH_MEMORY;
+    if (mesh.description.vertices)
+        mesh.vertices = (MMModelVertex *)malloc((size_t)mesh.description.vertices * sizeof(*mesh.vertices));
+    if (mesh.description.faces)
+        mesh.faces = (MMModelFace *)malloc((size_t)mesh.description.faces * sizeof(*mesh.faces));
+    if ((mesh.description.vertices && !mesh.vertices) || (mesh.description.faces && !mesh.faces))
+        status = MM_MODEL_MESH_MEMORY;
+    else
+        status = mesh_arrays(stream, &mesh, big);
+    if (status == MM_MODEL_MESH_OK)
+        *out = mesh;
+    else
+        mm_model_mesh_dispose(&mesh);
+    return status;
 }
 void mm_model_init(MMModelResource *m)
 {

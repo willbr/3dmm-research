@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MODEL_RESOURCE_H
 #define MM_ENGINE_MODEL_RESOURCE_H
 #include "body_geometry.h"
+#include "read_stream.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C"
@@ -101,6 +102,25 @@ extern "C"
     int mm_model_header(const unsigned char[48], int host_big, MMModelDescription *, int *bad_order);
     void mm_model_face_read(const unsigned char[32], int big, MMModelFace *);
     void mm_model_face_write(unsigned char[32], int big, const MMModelFace *);
+
+    typedef struct MMModelVertex
+    {
+        MMI32 position[3], mapping[2], normal[3];
+        MMU32 reserved;
+        unsigned char index, red, green, blue;
+    } MMModelVertex;
+    typedef struct MMModelMesh
+    {
+        MMModelDescription description;
+        MMModelVertex *vertices;
+        MMModelFace *faces;
+    } MMModelMesh;
+    enum { MM_MODEL_MESH_OK, MM_MODEL_MESH_BAD_FILE, MM_MODEL_MESH_IO, MM_MODEL_MESH_MEMORY };
+    /* Read an exact-position stream over a decoded BMDL. A nonzero stored radius
+     * marks preprepared geometry. Output is unchanged on failure and owns its
+     * arrays on success. Payload byte order follows the legacy native reader. */
+    int mm_model_mesh_read(const MMReadStream *, MMModelMesh *);
+    void mm_model_mesh_dispose(MMModelMesh *);
 
     enum
     {

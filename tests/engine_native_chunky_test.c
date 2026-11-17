@@ -14,6 +14,8 @@ typedef struct SeekInput
     void *file;
 } SeekInput;
 
+enum { NO_BODY, BODY_PARTS, BODY_MESHES };
+
 static int number(const char *text, MMI32 *out)
 {
     char *end;
@@ -139,7 +141,89 @@ static int check_actors(const MMMovieSession *movie, SeekInput *input, MMMovieSo
     return status == MM_MOVIE_ACTOR_NOT_FOUND;
 }
 
-static int check_bodies(const MMMovieSession *movie, SeekInput *input, MMMovieContent *content)
+static MMU32 fold(MMU32 hash, MMU32 value)
+{
+    return (hash ^ value) * (MMU32)16777619UL;
+}
+
+static MMU32 mesh_hash(const MMModelMesh *mesh)
+{
+    const MMModelDescription *desc = &mesh->description;
+    const MMModelVertex *v;
+    const MMModelFace *f;
+    MMU32 hash = fold((MMU32)2166136261UL, (MMU32)desc->radius);
+    MMI32 i;
+    unsigned j;
+    for (j = 0; j < 3; ++j)
+    {
+        hash = fold(hash, (MMU32)desc->bounds.min[j]);
+        hash = fold(hash, (MMU32)desc->bounds.max[j]);
+        hash = fold(hash, (MMU32)desc->pivot[j]);
+    }
+    for (i = 0; i < desc->vertices; ++i)
+    {
+        v = &mesh->vertices[i];
+        for (j = 0; j < 3; ++j)
+        {
+            hash = fold(hash, (MMU32)v->position[j]);
+            hash = fold(hash, (MMU32)v->normal[j]);
+        }
+        for (j = 0; j < 2; ++j)
+            hash = fold(hash, (MMU32)v->mapping[j]);
+        hash = fold(hash, v->reserved);
+        hash = fold(hash, v->index);
+        hash = fold(hash, v->red);
+        hash = fold(hash, v->green);
+        hash = fold(hash, v->blue);
+    }
+    for (i = 0; i < desc->faces; ++i)
+    {
+        f = &mesh->faces[i];
+        for (j = 0; j < 3; ++j)
+        {
+            hash = fold(hash, f->vertices[j]);
+            hash = fold(hash, f->edges[j]);
+            hash = fold(hash, (MMU32)f->normal[j]);
+        }
+        hash = fold(hash, f->smoothing);
+        hash = fold(hash, f->flags);
+        hash = fold(hash, f->pad);
+        hash = fold(hash, (MMU32)f->distance);
+    }
+    return hash;
+}
+
+static int print_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody *body, MMMovieContent *content)
+{
+    MMMovieBodyMeshes *geometry;
+    const MMMoviePartMesh *part;
+    const MMModelMesh *mesh;
+    MMU32 i, next = 0;
+    unsigned j;
+    int status = mm_movie_session_body_meshes(movie, body, mm_movie_content_source, content, &geometry);
+    if (status != MM_MOVIE_OK)
+        return status;
+    for (i = 0; i < geometry->part_count; ++i)
+    {
+        part = &geometry->parts[i];
+        printf("WORLD %ld", (long)part->model_index);
+        for (j = 0; j < 12; ++j)
+            printf(" %ld", (long)part->world.m[j / 3][j % 3]);
+        putchar('\n');
+        if (part->model_index == (MMI32)next)
+        {
+            mesh = &geometry->models[next++];
+            printf("MESH %ld %08lx %lu %lu %ld %ld %08lx\n", (long)body->model_owner.source,
+                   (unsigned long)body->model_owner.type, (unsigned long)body->model_owner.number,
+                   (unsigned long)body->parts[i].model.number, (long)mesh->description.vertices,
+                   (long)mesh->description.faces, (unsigned long)mesh_hash(mesh));
+        }
+    }
+    mm_movie_body_meshes_dispose(geometry);
+    return status;
+}
+
+static int check_bodies(const MMMovieSession *movie, SeekInput *input, MMMovieContent *content, int bodies)
 {
     MMMovieEvaluatedBody *body;
     const MMMovieBodyPart *part;
@@ -160,7 +244,14 @@ static int check_bodies(const MMMovieSession *movie, SeekInput *input, MMMovieCo
                 printf(" %ld", (long)part->matrix.m[j / 3][j % 3]);
             putchar('\n');
         }
+        if (bodies == BODY_MESHES)
+            status = print_meshes(movie, body, content);
         mm_movie_body_dispose(body);
+        if (status != MM_MOVIE_OK)
+        {
+            fprintf(stderr, "Cannot load body meshes for actor %lu (%d)\n", (unsigned long)ordinal, status);
+            return 0;
+        }
         ++ordinal;
     }
     if (status != MM_MOVIE_ACTOR_NOT_FOUND)
@@ -244,7 +335,7 @@ static int check_seek(const MMReadStream *stream, const MMChunkPolicy *policy, S
         if (vfs && mount_retail(vfs, input->path))
             content = mm_movie_content_open(movie, vfs, &provider);
         if (content)
-            ok = bodies ? check_bodies(movie, input, content)
+            ok = bodies != NO_BODY ? check_bodies(movie, input, content, bodies)
                         : check_camera(movie, input, mm_movie_content_source, content) &&
                           check_actors(movie, input, mm_movie_content_source, content);
         else
@@ -309,14 +400,19 @@ int main(int argc, char **argv)
 
     movie = argc == 3 && strcmp(argv[2], "--movie") == 0;
     actors = argc >= 3 && strcmp(argv[2], "--actors") == 0;
-    bodies = argc >= 3 && strcmp(argv[2], "--body") == 0;
-    auto_content = bodies || (argc >= 3 && strcmp(argv[2], "--seek") == 0);
+    bodies = NO_BODY;
+    if (argc >= 3 && strcmp(argv[2], "--body") == 0)
+        bodies = BODY_PARTS;
+    if (argc >= 3 && strcmp(argv[2], "--mesh") == 0)
+        bodies = BODY_MESHES;
+    auto_content = bodies != NO_BODY || (argc >= 3 && strcmp(argv[2], "--seek") == 0);
     seek = actors || auto_content || (argc >= 3 && strcmp(argv[2], "--camera") == 0);
     if (seek ? !seek_input(&input, argc, argv, auto_content) : argc != 3 || (!movie && strlen(argv[2]) != 4))
     {
         fputs("Usage: engine-native-chunky-test FILE TYPE|--movie|(--camera|--actors) SCENE FRAME [SID CONTENT]\n",
               stderr);
-        fputs("       engine-native-chunky-test FILE (--seek|--body) SCENE FRAME RETAIL_CONTENT_DIRECTORY\n", stderr);
+        fputs("       engine-native-chunky-test FILE (--seek|--body|--mesh) SCENE FRAME RETAIL_CONTENT_DIRECTORY\n",
+              stderr);
         return 1;
     }
     if (!movie && !seek)

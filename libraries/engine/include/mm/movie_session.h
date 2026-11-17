@@ -3,6 +3,7 @@
 
 #include "chunky_file.h"
 #include "background_camera.h"
+#include "model_resource.h"
 #include "movie_data.h"
 
 #ifdef __cplusplus
@@ -110,6 +111,26 @@ int mm_movie_session_actor(const MMMovieSession *, MMU32 scene_slot, MMI32 frame
 int mm_movie_session_body(const MMMovieSession *, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
                           MMMovieSourceRead, void *context, MMMovieEvaluatedBody **);
 void mm_movie_body_dispose(MMMovieEvaluatedBody *);
+
+typedef struct MMMoviePartMesh
+{
+    MMI32 model_index; /* -1 for a cel that retains its previous model. */
+    MMActorMatrix world;
+} MMMoviePartMesh;
+
+typedef struct MMMovieBodyMeshes
+{
+    MMU32 part_count, model_count;
+    MMMoviePartMesh *parts;
+    MMModelMesh *models;
+} MMMovieBodyMeshes;
+
+/* Read each distinct authored BMDL from the body owner's exact archive and
+ * accumulate the body hierarchy into world transforms. The newly owned result
+ * is published only on success. The input body is borrowed during the query. */
+int mm_movie_session_body_meshes(const MMMovieSession *, const MMMovieEvaluatedBody *, MMMovieSourceRead,
+                                void *context, MMMovieBodyMeshes **);
+void mm_movie_body_meshes_dispose(MMMovieBodyMeshes *);
 
 #ifdef __cplusplus
 }

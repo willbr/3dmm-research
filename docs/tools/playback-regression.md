@@ -12795,6 +12795,31 @@ output on failure. The body source also compiles as strict C89 for Linux x64
 musl. Costume application, model geometry, rendering and host integration
 remain open.
 
+### Standalone C89 body meshes and world transforms (17 November 2026)
+
+`engine-native-chunky-test FILE --mesh SCENE FRAME RETAIL_CONTENT_DIRECTORY`
+loads the distinct authored `BMDL` records for each body's template or font.
+It prints each part's world matrix and mesh index, with `-1` for a cel that
+retains its previous model. The mesh fingerprint covers the stored geometry,
+including positions, mappings, prelit colours, normals and indexed faces.
+
+An independent check used native `inspect-chunks` dumps of `tmpls.3cn` and
+`tdfs.3cn` to verify 34 unique meshes and their decoded fields. It also used
+the dumped template parent lists, generated text's flat hierarchy and the
+recorded root and local matrices from retail seek runs 1813, 1822 and 1828 to
+recompute all 6,280 world matrices across 180 frames. These include 360 text
+parts and 180 parts marked to retain their previous models. The matrix
+comparison shifts each fixed-point product before summing, as in retail
+`BrMatrix34Mul`.
+
+The engine fixtures check native payload ordering with both header byte orders,
+truncated records, out-of-range face indices, forward parent references,
+model reuse, cyclic graphs and preservation of output on failure. All 181
+standalone checks, 11 Marcus-enabled C89 checks and the native
+`model-resource` and `preview-actor-tree` checks pass. Both affected C
+sources also compile as strict C89 for Linux x64 musl. Applying retained
+bindings and costume overrides and verifying rendered output remain open.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

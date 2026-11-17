@@ -351,6 +351,39 @@ static void load_tests(MMModelServices *s)
     assert(mm_model_read(f, f, s) && f->bad == 1);
     object_release(f, f);
 }
+static void mesh_tests(void)
+{
+    const unsigned short one = 1;
+    const int big = *(const unsigned char *)&one == 0;
+    Fixture f;
+    MMMemoryStream input;
+    MMModelMesh mesh;
+    MMModelVertex *previous;
+    int header_order;
+    for (header_order = 0; header_order < 2; ++header_order)
+    {
+        init(&f, big, 1);
+        if (header_order != big)
+        {
+            f.block[big ? 1 : 0] = f.block[big ? 5 : 4] = f.block[big ? 7 : 6] = f.block[big ? 11 : 8] = 0;
+            f.block[big ? 0 : 1] = f.block[big ? 6 : 7] = f.block[big ? 8 : 11] = 1;
+            f.block[big ? 4 : 5] = 2;
+        }
+        assert(mm_memory_stream_init(&input, f.block, (MMU32)f.size));
+        assert(mm_model_mesh_read(&input.stream, &mesh) == MM_MODEL_MESH_OK);
+        assert(mesh.description.radius == 1 && mesh.description.vertices == 2 && mesh.description.faces == 1);
+        assert(mesh.vertices[0].position[0] == (big ? 0x0104070aL : 0x0a070401L));
+        assert(mesh.vertices[0].red == 64 && mesh.faces[0].vertices[2] == 1 && mesh.faces[0].normal[1] == -3);
+        previous = mesh.vertices;
+        --input.stream.length;
+        assert(mm_model_mesh_read(&input.stream, &mesh) == MM_MODEL_MESH_BAD_FILE && mesh.vertices == previous);
+        ++input.stream.length;
+        f.block[112 + (big ? 1 : 0)] = 2;
+        assert(mm_model_mesh_read(&input.stream, &mesh) == MM_MODEL_MESH_BAD_FILE && mesh.vertices == previous);
+        mm_model_mesh_dispose(&mesh);
+    }
+}
+
 static void author_tests(MMModelServices *s)
 {
     Fixture *f = (Fixture *)s->context;
@@ -602,6 +635,7 @@ int main(void)
     s.or_flags = flags;
     s.prepare = prepare;
     load_tests(&s);
+    mesh_tests();
     author_tests(&s);
     lighting();
     puts("C89 model resources: wire codecs, factories, partial ownership, glyphs, saves and prelight cleanup passed.");

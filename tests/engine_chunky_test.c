@@ -314,7 +314,7 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
                                   0x47475354UL, 0x474c4253UL, 0x474c5049UL, 0x474c5846UL, 0x4d564945UL,
                                   0x50415448UL, 0x5343454eUL, 0x544d504cUL};
     static const MMU32 numbers[] = {3, 12, 70, 4, 5, 6, 1, 2, 3, 17, 7, 36, 13};
-    static const MMU32 lengths[] = {8, 44, 4, 136, 60, 40, 14, 14, 108, 8, 44, 16, 16};
+    static const MMU32 lengths[] = {8, 44, 112, 136, 60, 40, 14, 14, 108, 8, 44, 16, 16};
     static const MMI32 codecs[COUNT] = {0};
     static const MMU32 links[][3] = {{ACTN, CELS, 0}, {ACTN, MATRICES, 0}, {ACTOR, EVENTS, 0},
                                     {ACTOR, PATH, 0}, {ACTOR, TMPL, 0}, {ROOT, SCENE, 0}, {SCENE, STARTS, 1},
@@ -334,6 +334,9 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
     put32(raw[ACTOR] + 28, source, big);
     put32(raw[ACTOR] + 36, types[TMPL], big);
     put32(raw[ACTOR] + 40, numbers[TMPL], big);
+    put16(raw[MODEL] + 4, 1, big);
+    put16(raw[MODEL] + 6, 1, big);
+    raw[MODEL][69] = 42;
     group_header(raw[EVENTS], 3, 92, MM_ACTOR_EVENT_BYTES, big);
     row = raw[EVENTS] + 20;
     put32(row + 4, 1, big);
@@ -361,6 +364,11 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
     put16(raw[PARENTS] + 12, 0xffffU, big);
     put32(raw[MATRICES] + 4, 48, big);
     put32(raw[MATRICES] + 8, 2, big);
+    for (i = 0; i < 3; ++i)
+    {
+        put32(raw[MATRICES] + 12 + i * 16, 65536, big);
+        put32(raw[MATRICES] + 60 + i * 16, 65536, big);
+    }
     put32(raw[MATRICES] + 48, 123, big);
     put32(raw[MATRICES] + 96, 456, big);
     group_header(raw[STARTS], 1, 12, 8, big);
@@ -378,6 +386,39 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
                          sizeof(links) / sizeof(links[0]));
 }
 
+static void movie_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody *body)
+{
+    MMMovieBodyMeshes *geometry = NULL, *previous;
+    MMMovieEvaluatedBody extended = *body;
+    MMMovieBodyPart parts[2];
+    CHECK(mm_movie_session_body_meshes(movie, body, NULL, NULL, &geometry) == MM_MOVIE_OK);
+    CHECK(geometry->part_count == 1 && geometry->model_count == 1 && geometry->parts[0].model_index == 0);
+    CHECK(geometry->models[0].description.vertices == 1 && geometry->models[0].description.faces == 1);
+    CHECK(geometry->models[0].vertices[0].red == 42 && geometry->models[0].faces[0].vertices[2] == 0);
+    mm_movie_body_meshes_dispose(geometry);
+    extended.parts = parts;
+    extended.part_count = 2;
+    mm_matrix_identity(&extended.actor.orientation);
+    extended.actor.orientation.m[0][0] = extended.actor.orientation.m[1][1] = 0;
+    extended.actor.orientation.m[0][1] = 65536;
+    extended.actor.orientation.m[1][0] = -65536;
+    extended.actor.orientation.m[3][0] = 9;
+    extended.actor.translation.dxr = 65536;
+    extended.actor.translation.dyr = 200;
+    parts[0] = body->parts[0];
+    parts[1] = parts[0];
+    parts[0].parent = 1;
+    CHECK(mm_movie_session_body_meshes(movie, &extended, NULL, NULL, &geometry) == MM_MOVIE_OK);
+    CHECK(geometry->model_count == 1 && geometry->parts[0].model_index == geometry->parts[1].model_index);
+    CHECK(geometry->parts[0].world.m[3][0] == 65536 + 9 && geometry->parts[0].world.m[3][1] == 200 + 246 &&
+          geometry->parts[1].world.m[3][1] == 200 + 123);
+    previous = geometry;
+    parts[1].parent = 0;
+    CHECK(mm_movie_session_body_meshes(movie, &extended, NULL, NULL, &geometry) == MM_MOVIE_BAD_FILE);
+    CHECK(geometry == previous);
+    mm_movie_body_meshes_dispose(geometry);
+}
+
 static void movie_actors(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
@@ -386,6 +427,7 @@ static void movie_actors(void)
     MMMovieSession *movie;
     MMMovieEvaluatedActor actor;
     MMMovieEvaluatedBody *body = NULL;
+    MMMovieBodyMeshes *geometry = NULL;
     MMU32 size;
     int big;
     for (big = 0; big <= 1; ++big)
@@ -402,11 +444,15 @@ static void movie_actors(void)
         CHECK(body->part_count == 1 && body->parts[0].model.number == 70 && body->parts[0].parent == -1 &&
               body->parts[0].set == 4 && body->parts[0].matrix.m[3][0] == 123);
         CHECK(body->model_owner.type == 0x544d504cUL && body->model_owner.number == 13);
+        movie_meshes(movie, body);
         mm_movie_body_dispose(body);
         CHECK(mm_movie_session_body(movie, 0, 2, 0, NULL, NULL, &body) == MM_MOVIE_OK);
         CHECK(body->part_count == 1 && !body->parts[0].model.type && body->parts[0].matrix.m[3][0] == 456);
         CHECK(mm_movie_session_body(movie, 0, 1, 1, NULL, NULL, &body) == MM_MOVIE_ACTOR_NOT_FOUND);
         CHECK(body->parts[0].matrix.m[3][0] == 456);
+        CHECK(mm_movie_session_body_meshes(movie, body, NULL, NULL, &geometry) == MM_MOVIE_OK);
+        CHECK(geometry->part_count == 1 && !geometry->model_count && geometry->parts[0].model_index == -1);
+        mm_movie_body_meshes_dispose(geometry);
         mm_movie_body_dispose(body);
         CHECK(mm_movie_session_actor(movie, 0, 1, 1, NULL, NULL, &actor) == MM_MOVIE_ACTOR_NOT_FOUND &&
               actor.number == 12);
