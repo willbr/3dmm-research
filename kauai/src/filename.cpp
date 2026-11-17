@@ -13,6 +13,52 @@
 #include "util.h"
 ASSERTNAME
 
+namespace {
+void FilenameCopyCheck(void *, const void *source, void *destination, size_t bytes)
+{
+    AssertPvCb(const_cast<void *>(source), bytes); AssertPvCb(destination, bytes);
+    Assert(static_cast<const byte *>(source) + bytes <= destination ||
+           static_cast<byte *>(destination) + bytes <= source, "blocks overlap");
+}
+MMStringValue FilenameStringValue(PString string)
+{
+    MMStringValue value{string->Pst(), sizeof(achar), nullptr, FilenameCopyCheck};
+    return value;
+}
+MMFilenameValueHost FilenameValueHost()
+{
+    MMFilenameValueHost host{};
+    host.upper = [](void *, unsigned ch) -> unsigned { return static_cast<byte>(ChsUpper(static_cast<schar>(ch))); };
+    host.separator = [](void *, unsigned ch) -> int { return KauaiFiles::IsSeparator(static_cast<achar>(ch)); };
+    host.failed = [](void *) { PushErc(ercFniGeneral); };
+#ifdef DEBUG
+    static_assert(ffniFile == (MM_FILENAME_FILE << 16) && ffniDir == (MM_FILENAME_DIR << 16) &&
+                  ffniEmpty == (MM_FILENAME_EMPTY << 16), "native filename validation flags");
+    host.validate = [](void *, const MMFilenameValue *value, int flags) {
+        auto *owner = static_cast<Filename *>(value->owner);
+        if (flags == MM_FILENAME_BASE) { AssertBasePo(owner, 0); }
+        else { AssertPo(owner, static_cast<LegacyUlong>(flags) << 16); }
+    };
+    host.assertion = [](void *, int code) {
+        switch (code) {
+        case MM_FILENAME_BAD_TYPE: Assert(fFalse, "Bad FileType"); break;
+        case MM_FILENAME_LEAF_TYPE: Assert(fFalse, "ftg doesn't match pstn"); break;
+        case MM_FILENAME_BAD_PATH: Assert(fFalse, "bad fni"); break;
+        default: Assert(fFalse, 0); break;
+        }
+    };
+#endif
+    return host;
+}
+}
+MMFilenameValue Filename::_ValueView()
+{
+    static_assert(sizeof(MMFilenameState) == sizeof(FileType), "native filename type profile");
+    static_assert(ftgNil == MM_FILENAME_NIL && kftgDir == MM_FILENAME_DIRECTORY, "native filename types");
+    MMFilenameValue value{&_nameState, FilenameStringValue(&_stnFile), this};
+    return value;
+}
+
 // This is the FileType to use for temp files - clients may set this to whatever
 // they want.
 FileType vftgTemp = kftgTemp;
@@ -76,10 +122,6 @@ bool Filename::FResolveCase(void)
 #endif
 }
 
-// maximal number of short characters in an extension is 4 (so it fits in
-// a long).
-const LegacyLong kcchsMaxExt = 4;
-
 priv void _CleanFtg(FileType *pftg, PString pstnExt = pvNil);
 Filename _fniTemp;
 
@@ -91,9 +133,8 @@ RTCLASS(FileNameEnumerator)
 ***************************************************************************/
 void Filename::SetNil(void)
 {
-    _ftg = ftgNil;
-    _stnFile.SetNil();
-    AssertThis(ffniEmpty);
+    const auto value = _ValueView(); const auto host = FilenameValueHost();
+    mm_filename_value_clear(&value, &host);
 }
 
 /***************************************************************************
@@ -152,12 +193,12 @@ bool Filename::FBuildFromPath(PString pstn, FileType ftgDef)
                 goto LFail;
             }
         }
-        _ftg = kftgDir;
+        _nameState.type = kftgDir;
     }
     else
     {
         _SetFtgFromName();
-        if (_ftg == 0 && ftgDef != ftgNil && pstn->Prgch()[pstn->Cch() - 1] != ChLit('.') && !FChangeFtg(ftgDef))
+        if (_nameState.type == 0 && ftgDef != ftgNil && pstn->Prgch()[pstn->Cch() - 1] != ChLit('.') && !FChangeFtg(ftgDef))
         {
         LFail:
             SetNil();
@@ -243,7 +284,7 @@ bool Filename::FGetTemp(void)
 {
     AssertThis(0);
 
-    if (_fniTemp._ftg != kftgDir)
+    if (_fniTemp._nameState.type != kftgDir)
     {
         // get the temp directory
         ZString sz;
@@ -254,7 +295,7 @@ bool Filename::FGetTemp(void)
             return fFalse;
         }
         _fniTemp._stnFile = sz;
-        _fniTemp._ftg = kftgDir;
+        _fniTemp._nameState.type = kftgDir;
         AssertPo(&_fniTemp, ffniDir);
     }
     *this = _fniTemp;
@@ -267,7 +308,7 @@ bool Filename::FGetTemp(void)
 FileType Filename::Ftg(void)
 {
     AssertThis(0);
-    return _ftg;
+    return _nameState.type;
 }
 
 /***************************************************************************
@@ -284,24 +325,9 @@ LegacyUlong Filename::Grfvk(void)
 ***************************************************************************/
 bool Filename::FSetLeaf(PString pstn, FileType ftg)
 {
-    AssertThis(ffniFile | ffniDir);
     AssertNilOrPo(pstn, 0);
-
-    _CleanFtg(&ftg);
-    Assert(FPure(ftg == kftgDir) == FPure(pstn == pvNil || pstn->Cch() == 0), "ftg doesn't match pstn");
-    if (!_FChangeLeaf(pstn))
-        goto LFail;
-
-    if ((kftgDir != ftg) && (ftgNil != ftg) && !FChangeFtg(ftg))
-        goto LFail;
-
-    AssertThis(ffniFile | ffniDir);
-    return fTrue;
-
-LFail:
-    SetNil();
-    PushErc(ercFniGeneral);
-    return fFalse;
+    const auto value = _ValueView(); const auto host = FilenameValueHost();
+    return mm_filename_set_leaf(&value, &host, pstn ? pstn->Prgch() : nullptr, pstn ? pstn->Cch() : 0, ftg) != 0;
 }
 
 /******************************************************************************
@@ -310,30 +336,8 @@ LFail:
 ******************************************************************************/
 bool Filename::FChangeFtg(FileType ftg)
 {
-    AssertThis(ffniFile);
-    Assert(ftg != ftgNil && ftg != kftgDir, "Bad FileType");
-    String stnFtg;
-    LegacyLong cchBase;
-
-    _CleanFtg(&ftg, &stnFtg);
-    if (_ftg == ftg)
-        return fTrue;
-
-    // set the extension
-    cchBase = _stnFile.Cch() - _CchExt();
-
-    // use >= to leave room for the '.'
-    if (cchBase + stnFtg.Cch() >= kcchMaxStn)
-        return fFalse;
-
-    _stnFile.Delete(cchBase);
-    _ftg = ftg;
-    if (stnFtg.Cch() > 0)
-    {
-        _stnFile.FAppendCh(ChLit('.'));
-        _stnFile.FAppendStn(&stnFtg);
-    }
-    return fTrue;
+    const auto value = _ValueView(); const auto host = FilenameValueHost();
+    return mm_filename_change_type(&value, &host, ftg) != 0;
 }
 
 /***************************************************************************
@@ -341,17 +345,10 @@ bool Filename::FChangeFtg(FileType ftg)
 ***************************************************************************/
 void Filename::GetLeaf(PString pstn)
 {
-    AssertThis(0);
     AssertPo(pstn, 0);
-    achar *pch;
-    PZString psz = _stnFile.Psz();
-
-    for (pch = psz + _stnFile.Cch(); pch-- > psz && !KauaiFiles::IsSeparator(*pch);)
-    {
-    }
-    Assert(pch >= psz, "bad fni");
-
-    pstn->SetSz(pch + 1);
+    const auto value = _ValueView(); const auto host = FilenameValueHost();
+    const auto output = FilenameStringValue(pstn);
+    mm_filename_get_leaf(&value, &host, &output);
 }
 
 /***************************************************************************
@@ -379,7 +376,7 @@ tribool Filename::TExists(void)
 
     // strip off the trailing slash (if a directory).
     pstn = &_stnFile;
-    if (_ftg == kftgDir)
+    if (_nameState.type == kftgDir)
     {
         LegacyLong cch;
 
@@ -399,7 +396,7 @@ tribool Filename::TExists(void)
         PushErc(ercFniGeneral);
         return tMaybe;
     }
-    if ((_ftg == kftgDir) != info.directory)
+    if ((_nameState.type == kftgDir) != info.directory)
     {
         PushErc(ercFniMismatch);
         return tMaybe;
@@ -459,7 +456,7 @@ bool Filename::FEqual(Filename *pfni)
 bool Filename::FDir(void)
 {
     AssertThis(0);
-    return _ftg == kftgDir;
+    return _nameState.type == kftgDir;
 }
 
 /***************************************************************************
@@ -499,7 +496,7 @@ bool Filename::FDownDir(PString pstn, LegacyUlong grffni)
     }
     AssertDo(fniT._stnFile.FAppendStn(pstn), 0);
     AssertDo(fniT._stnFile.FAppendCh(KauaiFiles::Separator()), 0);
-    fniT._ftg = kftgDir;
+    fniT._nameState.type = kftgDir;
     AssertPo(&fniT, ffniDir);
 
     if (fniT.TExists() != tYes)
@@ -581,7 +578,7 @@ void Filename::AssertValid(LegacyUlong grffni)
     if (grffni == 0)
         grffni = ffniEmpty | ffniDir | ffniFile;
 
-    if (_ftg == ftgNil)
+    if (_nameState.type == ftgNil)
     {
         Assert(grffni & ffniEmpty, "unexpected empty");
         Assert(_stnFile.Cch() == 0, "named empty?");
@@ -595,7 +592,7 @@ void Filename::AssertValid(LegacyUlong grffni)
         return;
     }
 
-    if (_ftg == kftgDir)
+    if (_nameState.type == kftgDir)
     {
         Assert(grffni & ffniDir, "unexpected dir");
         Assert(KauaiFiles::IsSeparator(szT[cch - 1]), "expected trailing slash");
@@ -611,32 +608,13 @@ void Filename::AssertValid(LegacyUlong grffni)
 
 /***************************************************************************
     Find the length of the file extension on the fni (including the period).
-    Allow up to kcchsMaxExt characters for the extension (plus one for the
+    Allow up to four characters for the extension (plus one for the
     period).
 ***************************************************************************/
 LegacyLong Filename::_CchExt(void)
 {
-    AssertBaseThis(0);
-    LegacyLong cch;
-    PZString psz = _stnFile.Psz();
-    achar *pch = psz + _stnFile.Cch() - 1;
-
-    for (cch = 1; cch <= kcchsMaxExt + 1 && pch >= psz; cch++, pch--)
-    {
-        if ((achar)(schar)*pch != *pch)
-        {
-            // not an ANSI character - so doesn't qualify for our
-            // definition of an extension
-            return 0;
-        }
-
-        if (*pch == ChLit('.'))
-            return cch;
-        if (KauaiFiles::IsSeparator(*pch))
-            return 0;
-    }
-
-    return 0;
+    const auto value = _ValueView(); const auto host = FilenameValueHost();
+    return mm_filename_extension_length(&value, &host);
 }
 
 /***************************************************************************
@@ -644,23 +622,8 @@ LegacyLong Filename::_CchExt(void)
 ***************************************************************************/
 void Filename::_SetFtgFromName(void)
 {
-    AssertBaseThis(0);
-    Assert(_stnFile.Cch() > 0, 0);
-    LegacyLong cch, ich;
-    achar *pchLim = _stnFile.Psz() + _stnFile.Cch();
-
-    if (KauaiFiles::IsSeparator(pchLim[-1]))
-        _ftg = kftgDir;
-    else
-    {
-        _ftg = 0;
-        cch = _CchExt() - 1;
-        AssertIn(cch, -1, kcchsMaxExt + 1);
-        pchLim -= cch;
-        for (ich = 0; ich < cch; ich++)
-            _ftg = (_ftg << 8) | (LegacyLong)(byte)ChsUpper((schar)pchLim[ich]);
-    }
-    AssertThis(ffniFile | ffniDir);
+    const auto value = _ValueView(); const auto host = FilenameValueHost();
+    mm_filename_derive_type(&value, &host);
 }
 
 /***************************************************************************
@@ -668,31 +631,9 @@ void Filename::_SetFtgFromName(void)
 ***************************************************************************/
 bool Filename::_FChangeLeaf(PString pstn)
 {
-    AssertThis(ffniFile | ffniDir);
     AssertNilOrPo(pstn, 0);
-
-    achar *pch;
-    PZString psz;
-    LegacyLong cchBase, cch;
-
-    psz = _stnFile.Psz();
-    for (pch = psz + _stnFile.Cch(); pch-- > psz && !KauaiFiles::IsSeparator(*pch);)
-    {
-    }
-    Assert(pch >= psz, "bad fni");
-
-    cchBase = pch - psz + 1;
-    _stnFile.Delete(cchBase);
-    _ftg = kftgDir;
-    if (pstn != pvNil && (cch = pstn->Cch()) > 0)
-    {
-        if (cchBase + cch > kcchMaxStn)
-            return fFalse;
-        AssertDo(_stnFile.FAppendStn(pstn), 0);
-        _SetFtgFromName();
-    }
-    AssertThis(ffniFile | ffniDir);
-    return fTrue;
+    const auto value = _ValueView(); const auto host = FilenameValueHost();
+    return mm_filename_change_leaf(&value, &host, pstn ? pstn->Prgch() : nullptr, pstn ? pstn->Cch() : 0) != 0;
 }
 
 /***************************************************************************
@@ -700,36 +641,10 @@ bool Filename::_FChangeLeaf(PString pstn)
 ***************************************************************************/
 priv void _CleanFtg(FileType *pftg, PString pstnExt)
 {
-    AssertVarMem(pftg);
-    AssertNilOrPo(pstnExt, 0);
-
-    LegacyLong ichs;
-    schar chs;
-    bool fZero;
-    FileType ftgNew;
-
-    if (pvNil != pstnExt)
-        pstnExt->SetNil();
-
-    if (*pftg == kftgDir || *pftg == ftgNil)
-        return;
-
-    fZero = fFalse;
-    ftgNew = 0;
-    for (ichs = 0; ichs < kcchsMaxExt; ichs++)
-    {
-        chs = (schar)((LegacyUlong)*pftg >> (ichs * 8));
-        fZero |= (chs == 0);
-        if (!fZero)
-        {
-            chs = ChsUpper(chs);
-            ftgNew |= (LegacyLong)(byte)chs << (8 * ichs);
-            if (pvNil != pstnExt)
-                pstnExt->FInsertCh(0, (achar)(byte)chs);
-        }
-    }
-
-    *pftg = ftgNew;
+    AssertVarMem(pftg); AssertNilOrPo(pstnExt, 0);
+    const auto host = FilenameValueHost();
+    MMStringValue output{}; if (pstnExt) output = FilenameStringValue(pstnExt);
+    *pftg = mm_filename_clean_type(*pftg, &host, pstnExt ? &output : nullptr);
 }
 
 /***************************************************************************
@@ -918,7 +833,7 @@ bool FileNameEnumerator::FNextFni(Filename *pfni, LegacyUlong *pgrffneOut, Legac
             goto LGotOne;
         for (pftg = _prgftg + _cftg; pftg-- > _prgftg;)
         {
-            if (*pftg == pfni->_ftg)
+            if (*pftg == pfni->_nameState.type)
                 goto LGotOne;
         }
     }
@@ -949,7 +864,7 @@ LGotOne:
     if (pvNil != pgrffneOut)
         *pgrffneOut = ffnePre | ffnePost;
 
-    if (_fRecurse && pfni->_ftg == kftgDir && (nullptr == _fesCur.hn || !_fesCur.entry.info.link))
+    if (_fRecurse && pfni->_nameState.type == kftgDir && (nullptr == _fesCur.hn || !_fesCur.entry.info.link))
     {
         if ((pvNil != _pglfes || pvNil != (_pglfes = DynamicArray::PglNew(size(FES), 5))) && _pglfes->FPush(&_fesCur))
         {

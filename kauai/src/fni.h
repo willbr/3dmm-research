@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef FNI_H
 #define FNI_H
+#include "mm/filename_value.h"
 
 using Group::PDynamicArray;
 
@@ -70,12 +71,13 @@ class Filename : public Filename_PAR
     friend class FileNameEnumerator;
 
   private:
-    FileType _ftg;
+    MMFilenameState _nameState;
     String _stnFile;
 
     void _SetFtgFromName(void);
     LegacyLong _CchExt(void);
     bool _FChangeLeaf(PString pstn);
+    MMFilenameValue _ValueView();
 
   public:
     Filename(void);

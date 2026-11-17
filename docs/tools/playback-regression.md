@@ -11858,3 +11858,84 @@ Evidence: `tmp/c89-file-ops-before-{native,sdl-release,sdl-debug}.bin`,
 `tmp/c89-file-ops-standalone-tests.log`, `tmp/c89-file-ops-asan.log`,
 `tmp/c89-file-ops-regular-tests.log`, `tmp/c89-file-ops-trace-comparison.json` and
 `tmp/c89-file-ops-identities.json`.
+
+### Shared C Filename value, type and leaf rules (17 November 2026)
+
+`filename_value.c` now implements clear, extension recognition, type derivation/
+cleaning/change and leaf change/set/extraction. `Filename` embeds a persistent C
+type record of the same width as FileType and supplies borrowed views of its
+existing fixed counted String storage. Native callbacks provide code-page case
+mapping, separators, copy diagnostics, validation and general-error reporting.
+FileNameEnumerator filters use the same C cleaner. No stored formats change.
+
+Recognition scans up to five units including the dot. The two-byte profile
+retains the native signed-byte cast rule, accepting ASCII and `FF80..FFFF`.
+Cleaning proceeds from the low byte, ignoring higher bytes after a zero.
+Type-change overflow preserves both fields, retaining the original `>=255`
+check and early equal-type success. Inner leaf-change overflow publishes the
+parent directory; public set-leaf clears that state before its error callback.
+Extraction preserves the original zero-terminated read. C word arithmetic defines
+high-bit type operations independently of native signed-shift overflow.
+
+The `filename-value-runtime` fixture initially captured the pre-conversion code
+at `d3559505`. Its final path uses a fixed leaf under a native root, so capacity
+results do not depend on the temp-directory prefix. Original normal and expensive
+profiles were then rebuilt from that revision's `filename.cpp`, adapting only
+member access from `_ftg` to the same-width `_nameState.type`. The adapted source
+SHA-256 is `AD141FC77FCF593D9E1EDD73489B799AB68075690F0B7B044E4ECF08AB55B289`.
+Temporary original build targets were removed; no second implementation is
+committed. Original sources and executable identities are retained locally.
+
+The expensive original profile diagnoses legacy noncanonical values such as
+trailing-dot names and a directory path carrying a file type after extension
+removal. These messages and stage order are captured as data and matched to the
+same original profile, including the capacity cases. Normal and expensive
+validation stay enabled in their respective profiles. The fixture records type,
+directory status, relative path/leaf, return values, diagnostics and error stack.
+Raw paths/addresses, source lines and object layout are excluded.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, normal | 11,020 | `C571AB92` | `3D5611CC7E47B7E84BBAEDCC48EA5FA8D9F8A1F1548D9BC12097C55C3A36F1F1` |
+| Native/SDL Debug, expensive | 13,612 | `C4BAFE42` | `43D080A6E93A03AE9396308A87C7EF25310DEE6EACE265D4FE29F07100516975` |
+| SDL Release, both profiles | 10,976 | `E77636C2` | `7997EB0AF2779AE422B89C9AA6AB2142DB543DCF041354A163909C93CD3583A0` |
+
+`engine-filename-value` links only C and covers both unit profiles, every byte
+and wide extension unit, low-byte zero termination, high-bit type words, copy/
+validation hooks, zero-terminated leaf extraction, capacity and partial-state
+publication before failure reporting. It passes MSVC AddressSanitizer.
+
+The final gate passes 232 Native checks, 227 SDL Release checks, 228 SDL Debug
+checks and all 155 standalone checks, including strict C89 syntax: 842 of 843
+selected checks pass. The sole declared skip is the existing SDL Release
+`world-export` Debug fixture. All 171 retained file/value/memory/string/resource/
+undo/Help/Preview pairs and six Filename pairs match. All ten input identities
+are unchanged; identities for 166 binaries, including the six original-profile
+executables, are recorded. Windows text settings remain ACP 1252, OEMCP 437 and
+locale `en-GB`/2057.
+
+SDL Debug resource regeneration initially met a sharing violation while the
+native regression reader held `utest.chk`. An exclusive-open probe confirmed
+Win32 sharing error 32. After the reader exited and Marcus was stopped, the build
+succeeded; the final host gates use rebuilt binaries. Marcus was relaunched.
+Native `chelp` and `ched` compile. The regular headless asset-preview harness
+passes; all hosts retain 301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds
+and 188 cameras. Tests use private temp directories. This is correctness evidence,
+not playback timing equivalence.
+
+The C buffer/type/callback contracts require live storage, matching units,
+nonaliasing input/output ranges and serialized mutation. Callbacks cannot unwind
+or mutate the operation. Native Unicode runtime behavior, other platforms,
+arbitrary invalid storage/lifetimes and native undefined overflow remain
+unverified; dual-unit C tests do not establish those native profiles. Path
+construction/search, unique/temp naming and context, filesystem/navigation/
+case-resolution policy, enumeration, native object lifetime and final C-only
+host/facade integration remain conversion work. No Marcus UI tests or new retail
+captures were added; retained retail captures remain the playback reference.
+This does not complete the backend migration.
+
+Evidence: `tmp/c89-filename-value-{original,converted}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/filename-value-original.cpp`, `tmp/c89-filename-value-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-filename-value-standalone-tests.log`, `tmp/c89-filename-value-asan.log`,
+`tmp/c89-filename-value-regular-tests.log`, `tmp/c89-filename-value-trace-comparison.json`
+and `tmp/c89-filename-value-identities.json`.

@@ -608,6 +608,49 @@ Native object construction/destruction, default registry binding, Filename/path
 representation and services, virtual dispatch and final C-only host/facade
 integration remain conversion work. This does not complete the backend migration.
 
+### Filename value, type and leaf rules
+
+`mm/filename_value.h` now owns persistent file-type state and implements clearing,
+extension recognition, type derivation/cleaning/change and leaf replacement/set/
+extraction. The path view borrows the same 257-unit counted buffer used by the
+preceding C String module. `Filename` embeds `MMFilenameState` in place of its
+scalar FileType and rebuilds borrowed views after copies. Native runtime width
+is unchanged. Native callbacks provide code-page uppercasing, separator syntax,
+copy diagnostics, validation and general-error reporting; no SDK/C++ types enter
+the C API. The same cleaner now serves FileNameEnumerator's existing filters.
+
+Recognition scans at most five units, including the dot. One-byte units round
+trip through signed char; two-byte units accept ASCII and `FF80..FFFF`, preserving
+the original cast test. Cleaning visits low bytes first and ignores higher bytes
+after a zero. C word arithmetic retains 32-bit values without signed shifts.
+Type-change failure preserves the path and type; the historical `>=255` capacity
+check retains room for a dot even for an empty extension. Equal types succeed
+first. Inner leaf-change overflow leaves the parent directory published, while
+public set-leaf clears that intermediate path/type before reporting failure.
+Extraction retains the native zero-terminated leaf read. Directory/type/path
+diagnostics remain advisory. Scratch extension copies use the copy provider too.
+
+State, buffers, input/output units and diagnostic owner tokens stay live. Inputs
+and outputs do not alias the path. Callers serialize mutation; synchronous hooks
+cannot unwind or mutate the operation. The native fixed String storage remains a
+temporary representation adapter; the C implementation can use ordinary C arrays.
+No path canonicalization or filesystem policy is hidden in the value module.
+
+`engine-filename-value` covers both unit profiles, every possible byte/wide
+extension unit, zero-byte type cleaning, high-bit words, capacities, diagnostics,
+copy hooks and failure publication. `filename-value-runtime` captures original
+native values through `MM_FILENAME_VALUE_SNAPSHOT`. `filename-value-expensive`
+compiles the Filename facade with expensive validation. Original normal and
+expensive algorithms are captured separately: the latter diagnoses existing
+noncanonical values such as trailing dots. Messages/stage order remain matched
+to their original profile. Baseline reconstruction and evidence are in the
+[regression log](../tools/playback-regression.md).
+
+Path construction/search, unique/temp naming and context, filesystem/navigation/
+case-resolution policy, enumeration, native object lifetime and final C-only
+host/facade integration remain conversion work. This does not complete the
+backend migration.
+
 ### Collection storage foundation
 
 `mm/collection_storage.h` owns the two buffers underneath `GroupBase`,
