@@ -133,6 +133,15 @@ int main(void)
         f.host.path.value.validate = NULL; f.host.path.value.assertion = NULL; f.host.path.value.failed = NULL;
         CHECK(temporary(&f, 0)); equals(&f.value, "/cached/Temp0001"); CHECK(!f.name_copies);
         CHECK(f.copies > 0);
+        /* Names are unreserved: a collision retry followed by a clock tick
+         * may choose a previously returned name. Callers needing a distinct
+         * in-memory set must check that set as well as disk existence. */
+        init(&f, size); CHECK(unique(&f, 0x545854L)); equals(&f.value, "/p/Temp0001.TXT");
+        set(&f, &f.value, "/p/Temp0001.TXT", 0x545854L);
+        f.status[1] = MM_FILENAME_FOUND;
+        CHECK(unique(&f, 0x545854L)); equals(&f.value, "/p/Temp0005.TXT");
+        set(&f, &f.value, "/p/Temp0001.TXT", 0x545854L); f.ticks = 1;
+        CHECK(unique(&f, 0x545854L)); equals(&f.value, "/p/Temp0005.TXT");
     }
     puts("C89 filename naming: all 16-bit sequences, retries, failure publication and temp cache passed");
     return 0;

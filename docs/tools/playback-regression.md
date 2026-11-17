@@ -12784,6 +12784,16 @@ Python integers for 96-bit intermediates, division/truncation, overflow and outp
 publication; output SHA-256 is
 `F50F1DC60C1C31132216A527F95DB34E057CFB04530571BBDBA551F2793A188E`.
 
+One SDL Debug rerun exposed a silent `file-ops-expensive` fixture failure. Fifty
+focused reruns passed, but a controlled clock/collision reproducer identified
+the setup flaw: independently chosen, unreserved filenames can alias. The old
+fixture fails with `unreserved_alias=1`; the corrected fixture passes with
+`unreserved_alias=0` and its original `860BB78D` fingerprint, using the same
+runtime libraries. The fixture now checks names against its existing in-memory
+set and reports failing lines. The one/two-byte C naming suite also preserves
+the demonstrated legacy alias behavior; production naming policy is unchanged.
+The initial failure and deterministic old/fixed probe logs are retained.
+
 C-only fixtures exercise recursive cross-thread exclusion, single-waiter wake,
 pending-signal coalescing, timed waits, independent contexts, stable thread tokens,
 token-zero wrap, callback failure publication and unlocked callback invocation.
@@ -12818,6 +12828,7 @@ Evidence: `tmp/c89-runtime/{core_platform.cpp,core_platform.h}`,
 `abi-profiles.json`, `math-{input,output}.bin`, `math-check.log`,
 `adapter-original.exe`, `linux-{build-final,runtime}.log`, `linux-identities.json`,
 `error-{original,converted}.log`,
+`run-sdl-debug-tests-initial-failure.log`, `forced-fileops{,-old,-fixed}.log`,
 `run-{native,sdl-release,sdl-debug,standalone}-tests.log`,
 `platform-{ansi,wide}-tests.log`, `asan-runtime.log`, `run-regular-tests.log`,
 `trace-comparison.json`, `gates.json` and `identities.json`.

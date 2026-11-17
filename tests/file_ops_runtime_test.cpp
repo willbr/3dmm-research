@@ -9,7 +9,9 @@ static unsigned hash = 2166136261u;
 static const char *expected;
 static Filename *names;
 static bool observe;
-static void Check(bool value) { if (!value) std::exit(1); }
+static void CheckAt(bool value, int line)
+{ if (!value) { std::fprintf(stderr, "File operations check failed at line %d\n", line); std::exit(1); } }
+#define Check(value) CheckAt(!!(value), __LINE__)
 static void Word(unsigned value)
 {
     for (unsigned i = 0; i < 4; ++i) {
@@ -72,7 +74,16 @@ int main()
     Errors errors; auto *previous = vpers; vpers = &errors;
     Filename n[4]; names = n; Check(!FileObject::PfilFirst());
     Check(n[0].FGetTemp());
-    for (int i = 1; i < 4; ++i) { n[i] = n[0]; Check(n[i].FGetUnique(n[0].Ftg())); }
+    for (int i = 1; i < 4; ++i) {
+        n[i] = n[0]; bool distinct = false;
+        // FGetUnique checks disk, but earlier fixture names are not reserved.
+        // Collision retries and advancing ticks can revisit one of those names.
+        for (unsigned attempt = 0; attempt < 20 && !distinct; ++attempt) {
+            Check(n[i].FGetUnique(n[0].Ftg())); distinct = true;
+            for (int j = 0; j < i; ++j) if (n[i].FEqual(&n[j])) { distinct = false; break; }
+        }
+        Check(distinct);
+    }
     observe = true;
     Check(!FileObject::PfilOpen(&n[3])); Registry();
     auto *a = FileObject::PfilCreate(&n[0]), *b = FileObject::PfilCreate(&n[1]); Check(a && b);
