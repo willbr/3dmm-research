@@ -287,6 +287,79 @@ int camera_project_point(const MarcusProjection *projection, const float world[3
     image[2] = (float)point[2];
     return 1;
 }
+static int gizmo_view(const MarcusProjection *projection, float inset_x, float inset_y, GuideView *view)
+{
+    double middle, padding;
+    if (!valid_projection(projection) || !finite_value(inset_x) || !finite_value(inset_y) ||
+        inset_x < 0 || inset_x >= .5f || inset_y < 0 || inset_y >= .5f || !make_view(projection, view)) return 0;
+    view->tangent_x *= 1 - 2 * inset_x;
+    view->tangent_y *= 1 - 2 * inset_y;
+    middle = (view->near_clip + view->far_clip) * .5;
+    padding = (view->far_clip - view->near_clip) * .0001;
+    /* ImGuizmo's perspective guard also needs a positive clip-space Z. */
+    view->near_clip = view->orthographic ? view->near_clip + padding :
+        (view->near_clip * 2.1 < middle ? view->near_clip * 2.1 : middle);
+    view->far_clip -= padding;
+    return 1;
+}
+int camera_gizmo_anchor(const MarcusProjection *projection, const float world[3], float inset_x, float inset_y,
+                        float anchor[3])
+{
+    GuideView view;
+    double source[3], point[3], original[3], result[3], span;
+    int i, changed;
+    if (!world || !anchor || !gizmo_view(projection, inset_x, inset_y, &view)) return 0;
+    for (i = 0; i < 3; ++i)
+    {
+        if (!finite_value(world[i])) return 0;
+        source[i] = world[i];
+    }
+    view_point(&view, source, point);
+    memcpy(original, point, sizeof(point));
+    if (point[2] < view.near_clip) point[2] = view.near_clip;
+    if (point[2] > view.far_clip) point[2] = view.far_clip;
+    for (i = 0; i < 2; ++i)
+    {
+        span = (i ? view.tangent_y : view.tangent_x) * (view.orthographic ? 1 : point[2]);
+        if (point[i] < -span) point[i] = -span;
+        if (point[i] > span) point[i] = span;
+    }
+    changed = memcmp(original, point, sizeof(point)) != 0;
+    if (!changed) { memcpy(anchor, world, 3 * sizeof(float)); return 1; }
+    world_point(projection, point[0], point[1], point[2], result);
+    for (i = 0; i < 3; ++i) if (!finite_value(result[i]) || fabs(result[i]) > FLT_MAX) return 0;
+    for (i = 0; i < 3; ++i) anchor[i] = (float)result[i];
+    return 1;
+}
+int camera_gizmo_clip(const MarcusProjection *projection, const float start[3], const float proposed[3],
+                      float inset_x, float inset_y, float clipped[3])
+{
+    GuideView view;
+    double from[3], to[3], a[3], b[3], fa, fb, fraction = 1, crossing;
+    int i, plane;
+    if (!start || !proposed || !clipped || !gizmo_view(projection, inset_x, inset_y, &view)) return 0;
+    for (i = 0; i < 3; ++i)
+    {
+        if (!finite_value(start[i]) || !finite_value(proposed[i])) return 0;
+        from[i] = start[i]; to[i] = proposed[i];
+    }
+    view_point(&view, from, a); view_point(&view, to, b);
+    for (plane = 0; plane < 6; ++plane)
+    {
+        fa = plane_distance(&view, a, plane); fb = plane_distance(&view, b, plane);
+        /* Rounding at a previously clipped edge may put the anchor a few ulps
+         * outside. Treat that edge as zero distance, retaining inward motion. */
+        if (fa < 0) fa = 0;
+        if (fb < 0)
+        {
+            crossing = fa / (fa - fb);
+            if (crossing < fraction) fraction = crossing;
+        }
+    }
+    for (i = 0; i < 3; ++i) clipped[i] = fraction == 1 ? proposed[i] :
+        (float)(from[i] + (to[i] - from[i]) * fraction);
+    return 1;
+}
 void camera_guide_add_line(const MarcusProjection *projection, const float a[3], const float b[3], MarcusCameraGuide *guide)
 {
     GuideView view;

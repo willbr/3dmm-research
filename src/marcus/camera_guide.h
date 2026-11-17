@@ -33,6 +33,13 @@ void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, M
 int camera_projection_matrices(const MarcusProjection *projection, float view[16], float clip[16]);
 /* Project a visible world point to normalized X/Y and camera-forward depth. */
 int camera_project_point(const MarcusProjection *projection, const float world[3], float image[3]);
+/* Keep a display-only gizmo anchor inside normalized viewport insets. The
+ * authored object position is never changed by this projection helper. */
+int camera_gizmo_anchor(const MarcusProjection *, const float world[3], float inset_x, float inset_y, float anchor[3]);
+/* Start is the previous clamped anchor. Clip the proposed world-space segment, preserving axis/plane
+ * constraints. A drag beyond an edge stops there and resumes on return. */
+int camera_gizmo_clip(const MarcusProjection *, const float start[3], const float proposed[3],
+                      float inset_x, float inset_y, float clipped[3]);
 /* Append a world-space segment, clipped by the same planes as camera guides. */
 void camera_guide_add_line(const MarcusProjection *projection, const float a[3], const float b[3], MarcusCameraGuide *guide);
 #ifdef __cplusplus

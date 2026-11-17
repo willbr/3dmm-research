@@ -57,6 +57,7 @@ struct MarcusPropGizmo
     SDL_FRect controlRect = {};
     float original[3] = {}, value[3] = {}, applied[3] = {};
     float position[3] = {}, left[9] = {}, right[9] = {};
+    float anchorOffset[3] = {};
     MarcusObjectShape shape = {}, originalShape = {}, appliedShape = {};
     char error[1024] = {};
 
@@ -125,6 +126,8 @@ int prop_gizmo_event(MarcusPropGizmo *gizmo, const SDL_Event *event)
     ImGui::SetCurrentContext(gizmo->context);
     ImGui_ImplSDL3_ProcessEvent(event);
     if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST && gizmo->editing) gizmo->cancel = true;
+    if ((event->type == SDL_EVENT_WINDOW_RESIZED || event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) && gizmo->editing)
+        gizmo->cancel = true;
     if (!gizmo->enabled) return 0;
     if (event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == SDL_SCANCODE_ESCAPE && gizmo->editing)
     { gizmo->cancel = true; return 1; }
@@ -209,6 +212,7 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
         image->document != gizmo->document || image->scene != gizmo->scene || image->frame != gizmo->frame) return;
     if (!image->projection.valid) return;
     auto rect = *viewport;
+    if (rect.w <= 0 || rect.h <= 0) return;
     if (image->authored_camera)
     {
         const float aspect = image->projection.aspect;
@@ -228,11 +232,26 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
     float rotation[9],matrix[16];
     Multiply(gizmo->left,gizmo->shape.rotation,rotation); Multiply(rotation,gizmo->right,rotation);
     Matrix(rotation,gizmo->mode ? gizmo->shape.scale : one,gizmo->mode ? gizmo->position : gizmo->value,matrix);
-    const auto manipulation = MarcusGizmo::Manipulate(MarcusGizmo::Object, image->projection, rect, gizmo->mode, matrix);
+    const float insetX = std::min(.25f, 112.f / rect.w), insetY = std::min(.25f, 112.f / rect.h);
+    float anchor[3];
+    if (!gizmo->editing)
+    {
+        if (!camera_gizmo_anchor(&image->projection, matrix + 12, insetX, insetY, anchor)) return;
+        for (int a = 0; a < 3; ++a) gizmo->anchorOffset[a] = anchor[a] - matrix[12 + a];
+    }
+    for (int a = 0; a < 3; ++a) matrix[12 + a] += gizmo->anchorOffset[a];
+    std::copy(matrix + 12, matrix + 15, anchor);
+    const auto manipulation = MarcusGizmo::Manipulate(MarcusGizmo::Object, image->projection, rect, gizmo->mode, matrix,
+        std::min(.1f, 160.f / rect.w));
     if (manipulation.active || manipulation.changed) gizmo->Start(1);
     if (manipulation.changed)
     {
-        if (!gizmo->mode) std::copy(matrix + 12, matrix + 15, gizmo->value);
+        if (!gizmo->mode)
+        {
+            float clipped[3];
+            if (camera_gizmo_clip(&image->projection, anchor, matrix + 12, insetX, insetY, clipped))
+                for (int a = 0; a < 3; ++a) gizmo->value[a] = clipped[a] - gizmo->anchorOffset[a];
+        }
         else
         {
             float p[3],angles[3],scale[3],unit[16],inverseLeft[9],inverseRight[9],basis[9];

@@ -32,7 +32,7 @@ inline bool Controls(const char *title, const SDL_FRect &rect, int &mode, int co
     ImGui::EndDisabled(); ImGui::End();
     return over;
 }
-inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect &rect, int mode, float matrix[16])
+inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect &rect, int mode, float matrix[16], float size = .1f)
 {
     float view[16], projection[16];
     if (rect.w <= 0 || rect.h <= 0 || !camera_projection_matrices(&camera, view, projection)) return {};
@@ -42,6 +42,7 @@ inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect
     ImGuizmo::SetDrawlist(draw);
     ImGuizmo::SetRect(rect.x, rect.y, rect.w, rect.h);
     ImGuizmo::SetOrthographic(camera.orthographic != 0);
+    ImGuizmo::SetGizmoSizeClipSpace(size);
     ImGuizmo::AllowAxisFlip(false);
     ImGuizmo::SetTranslationAxisMinimumSize(24.f);
     ImGuizmo::SetTranslationPlaneMinimumSize(12.f);

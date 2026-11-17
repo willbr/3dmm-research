@@ -1440,6 +1440,13 @@ world-unit limits. Parallel or behind-camera drag intersections hold the last
 valid pose instead of reversing movement; dragging back resumes movement.
 Non-finite coordinates also retain the last valid value. Releasing commits the
 limited pose.
+When the object's origin projects outside the viewport, its transform handles
+stay inside a padded screen boundary. This moves only the displayed controls;
+the object's actual position and rotation pivot are retained. Moving the handle
+applies its world-space delta to the object. Drags stop at the viewport boundary
+along the selected axis or plane and resume when dragged inward. The same
+framing works for perspective and orthographic views, including camera roll
+and the movie camera's letterboxing. Resize or focus loss cancels an active drag.
 The World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
 coordinate. Escape cancels the current move, and losing window focus cancels it.
 The selected object updates live; releasing the handle or finishing a field commits one
