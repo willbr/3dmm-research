@@ -424,6 +424,11 @@ and the recursion stack, sharing traversal/filter/skip/pre-post/root/link/error
 policy through native iterator and filename-view providers. Default cache
 owner/configuration bindings, native filename/frame representation and object
 lifetime, and final facade integration remain.
+Windows physical file/path services now also use a C89 component: OS handles,
+sharing/create modes, exact I/O, attributes, lookup/search/path buffers,
+directory creation/iteration and media-error/volume calls. The C++ interface is
+a forwarding adapter. ANSI and UTF-16 C-only consumers use the same backend.
+POSIX file services remain C++ and require migration.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

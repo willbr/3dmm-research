@@ -806,6 +806,34 @@ expensive fixtures capture the original physical-tree traversal, output values,
 flags, errors and diagnostics. The [regression log](../tools/playback-regression.md)
 records source identities, matched traces and verification limits.
 
+### Windows physical file services
+
+`mm/native_files.h` and `native_files_win.c` implement Windows OS file/path
+services in C89. The separate `mm-native-files` target links the native system
+libraries and has ANSI and UTF-16 configurations. It is consumed by C-only tests
+without Kauai, engine C++ or the C++ runtime. `platform_files_bridge.cpp` forwards
+the existing C++ API, translating only options, enums and boolean metadata.
+The old Windows C++ implementation is removed. POSIX services remain in
+`platform_files_posix.cpp` and still require C89 migration.
+
+The C backend retains handle ownership, access/sharing/default-ACL/create modes,
+signed 32-bit size/seek/resize limits, exact unsigned 32-bit I/O transfer counts,
+read-only/no-clobber rename/delete behavior, missing-parent status classification,
+path comparison, native path/search/temp/cwd/executable/leaf queries, recursive
+directory creation, roots/volumes/media suppression and directory iteration.
+Failed resize can move the Windows file position before failure. Path-buffer/
+leaf/error publication follows the original wrappers. Directory entry writes
+retain the SDK extent and leave the remaining 1024-unit buffer tail untouched.
+Directory creation uses C heap storage and the existing ownerless shell call.
+Process cwd/error-mode changes require host coordination.
+
+The standalone platform-services project also consumes this C backend. Separate
+ANSI/UTF-16 C-link tests, strict C89 checks including the real Windows SDK, native
+original/converted snapshots and AddressSanitizer verify this boundary. Native
+traces include ANSI non-ASCII and UTF-16 Greek filenames. The
+[regression log](../tools/playback-regression.md) records source identities,
+profile hashes, verification scope and remaining native/default facade work.
+
 ### Collection storage foundation
 
 `mm/collection_storage.h` owns the two buffers underneath `GroupBase`,
@@ -6151,8 +6179,9 @@ installation checks still use native UI. The
 frontend can be built separately with `BUILD_SDL_DIALOGS=ON`; see the
 [Studio SDL notes](../tools/studio-sdl.md) for behavior and verification limits.
 
-File backends: `platform_files_win.cpp` on Windows, `platform_files_posix.cpp`
-on POSIX. `stub.cpp` is selected only on Windows. See [file/path policies](platform-files.md).
+File backends: C89 `mm-native-files` through `platform_files_bridge.cpp` on
+Windows; `platform_files_posix.cpp` remains C++ on POSIX. `stub.cpp` is selected
+only on Windows. See [file/path policies](platform-files.md).
 
 Plus codegen: `kcdc_386.h`, `kcd2_386.h` on x86 only (kauai codec asm).
 

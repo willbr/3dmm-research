@@ -2,12 +2,14 @@
 
 `platform_files.h` is the file/path boundary. It exposes opaque handles,
 fixed-width sizes, native path code units and directory records. It imports no
-Windows, application, SDL or ImGui headers.
+Windows, application, SDL or ImGui headers. Windows implementations now live in
+the C89 `mm/native_files.h` component, with `platform_files_bridge.cpp` adapting
+existing C++ callers. The C interface also has no SDK types; its implementation
+contains the Win32 calls and the ownerless shell directory-creation call.
 
-`file_native.cpp` owns the existing `FileObject` lifecycle, cached-file registry,
-permission upgrades/restoration, sticky error levels, temporary cleanup and
-rename/swap behavior. `filename.cpp` owns extension handling, navigation,
-filtering and recursive pre/post enumeration. These replace `filewin.cpp` and
+`file_native.cpp` and `filename.cpp` adapt the shared C89 file-owner, file-factory,
+filename and enumeration controllers. They retain native object/default-context
+integration. These replace `filewin.cpp` and
 `fniwin.cpp`. Native dialogs remain in the GUI library's `fnidialogwin.cpp`.
 
 The Windows backend preserves `CreateFile` access/share flags, default ACLs,
@@ -16,6 +18,16 @@ enumeration and hidden/system filtering. Path comparison retains the legacy
 equal-length `CharUpperBuff` comparison; locale collation is not substituted.
 ANSI paths stay ANSI and Unicode builds use UTF-16. Neither movie strings nor
 stored text encodings are converted by the backend.
+
+The Windows C component owns OS handle I/O, attributes, sharing/create modes,
+exact transfers, path comparison/query/creation and directory iteration. Signed
+32-bit size/position limits remain. A failed resize may still move the file
+position before `SetEndOfFile` fails. Current/executable/leaf-query failures clear
+nonempty output; full/search/temp queries retain their SDK publication rules.
+Directory name writes retain the SDK extent and leave the rest of a supplied
+1024-unit buffer untouched. Separate ANSI and UTF-16 C-only link tests, SDK-aware
+strict C89 checks, native original/converted traces and AddressSanitizer cover
+this boundary; see the [regression log](../tools/playback-regression.md).
 
 Studio startup uses `CurrentDirectory`, `ExecutablePath` and `LookupLeafName`
 through this boundary. Leaf lookup retains Windows `FindFirstFile` behavior,
@@ -97,5 +109,6 @@ ctest --test-dir out/platform --output-on-failure
 ```
 
 The workflow adds Linux and macOS jobs for this standalone project. Windows
-checks exercise the backend through the real core libraries. No SDL3 or ImGui
+checks exercise the C backend through the real core libraries and the standalone
+platform project. The POSIX backend still requires C89 migration. No SDL3 or ImGui
 dependency is introduced; future host/UI adapters consume the same boundary.

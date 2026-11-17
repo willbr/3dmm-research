@@ -12308,3 +12308,86 @@ Evidence: `tmp/c89-filename-enum/{original,converted}-{runtime,expensive}-{nativ
 `tmp/c89-filename-enum/run-standalone-tests.log`, `tmp/c89-filename-enum/asan.log`,
 `tmp/c89-filename-enum/run-regular-tests.log`, `tmp/c89-filename-enum/trace-comparison.json`
 and `tmp/c89-filename-enum/identities.json`.
+
+### C89 Windows physical file and path services (17 November 2026)
+
+`mm/native_files.h` and `native_files_win.c` now implement the Windows file/path
+backend in C89. The separate `mm-native-files` library exposes opaque handles,
+native path units, plain options/metadata and SDK-free declarations. Separate
+ANSI/UTF-16 C-only consumers link its implementation with system libraries.
+`platform_files_bridge.cpp` forwards existing Kauai C++ calls, converting options,
+enums and boolean metadata. The old Windows C++ implementation is removed.
+The independent platform-services test project also uses the C backend.
+`platform_files_posix.cpp` remains C++ and requires its own migration.
+
+The backend retains access/share/create modes, default ACLs, exact transfers,
+signed 32-bit size/seek/resize limits, unsigned 32-bit I/O counts, read-only/
+no-clobber rename/delete and the distinction between a missing file and missing
+parent. A failed Windows resize can move the file position before failing.
+Info/size failures preserve caller metadata/size. Current/executable/leaf queries
+clear nonempty output on failure; full/search/temp wrappers preserve their SDK
+publication rules. Path comparison still uppercases equal-length 255-unit blocks.
+Directory iteration retains SDK name-write extent and leaves the rest of the
+1024-unit caller buffer alone. Roots, volume kinds and process media-error mode
+retain the original rules. Recursive directory creation uses C heap storage,
+separator conversion, the ownerless shell call and result-directory confirmation.
+There is no new reservation, retry, normalization or encoding policy.
+
+The runtime fixture captured the original implementation at `f1c5a03a` directly
+before conversion, in ANSI and UTF-16 profiles on Native, SDL Release and SDL
+Debug. Original `platform_files_win.cpp` is 10,943 bytes/SHA-256
+`5AAB7DA30D0E5021BD5F7224E734E9254AAC9CDBB991A8CC0EDB63A192344041`.
+No adapted original implementation is needed. Cases include sharing/denied
+truncation, short EOF read and partial buffer state, seek/resize limits, failed
+resize cursor state, read-only/missing/no-clobber paths, directory creation,
+cwd changes/error codes, capacity/leaf publication, search, directory entries,
+root bounds, media suppression and ANSI non-ASCII/UTF-16 Greek filenames.
+Return values, selected native errors, metadata, bytes, names, iterator order
+and unchanged outputs are recorded. Temp prefixes, addresses, source locations
+and layout are excluded. Original and converted traces match per profile.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| All hosts, ANSI | 924 | `D5F48A23` | `A35D54C6A7C8C488DD8C19AC50265E5E8C9E87874A3C1B58A3C54EA4CA523E98` |
+| All hosts, UTF-16 | 924 | `21B7BBFD` | `B28E28B777A2F633AC92E8ADDF5FFE37BC76CC05C56D2C014655BD50D880331C` |
+
+`engine-native-files-ansi` and `engine-native-files-wide` compile and link only C.
+They exercise real OS handles, sharing, exact/partial transfers, bounds, failed
+resize publication, metadata, path queries/cwd, long comparison blocks, root
+guards and retained directory-name buffer tails. Both pass MSVC AddressSanitizer.
+Separate ANSI/UTF-16 strict C89 checks include the implementation, test and real
+Windows SDK headers, using pedantic/declaration-after-statement/warning errors.
+All 163 standalone checks pass, including those checks and the complete engine
+C89 syntax gate.
+
+The final host/engine gate passes 250 Native, 245 SDL Release, 246 SDL Debug and
+163 standalone checks: 904 of 905 selected checks pass. The sole declared skip
+is the existing SDL Release `world-export` Debug fixture. All five independent
+platform-services checks pass, making 909 passes of 910 selected checks overall.
+Native renderer, playback, player and C89 gates pass. All 201 retained pairs
+and six new native-file pairs match: 207 byte-identical pairs. All ten input
+identities are unchanged; 225 executable identities are recorded. Windows text
+settings remain ACP 1252, OEMCP 437 and locale `en-GB`/2057. The regular headless
+preview harness passes. All three hosts retain 301,996,032 bytes/FNV-1a `E1A71005`
+across 12 backgrounds and 188 cameras. These are correctness checks, not playback
+timing equivalence.
+
+All hosts, native `chelp`/`ched` and Marcus build. Marcus was stopped before the
+rebuild and relaunched afterwards. Asset readers started after resource
+regeneration; tests used private C: scratch directories. No Marcus UI tests or
+new retail captures were added. Retained retail captures remain the playback
+reference.
+
+C clients must use the same ANSI/UTF-16 configuration, valid terminated input
+and appropriately sized output storage, and close owned handles once. Process
+cwd/error-mode changes require host coordination. Directory-creation allocation
+ordinals/OOM, invalid storage/unsupported argument combinations, huge capacity
+casts, all filesystem/locale variants and native POSIX execution remain
+unverified. POSIX file services, native object/default bindings and final facade
+integration remain conversion work. This does not complete the backend migration.
+
+Evidence: `tmp/c89-native-files/{original,converted}-{runtime,wide}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-native-files/platform-files-original.cpp`, `tmp/c89-native-files/run-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-native-files/run-standalone-tests.log`, `tmp/c89-native-files/asan-{ansi,wide}.log`,
+`tmp/c89-native-files/platform-tests.log`, `tmp/c89-native-files/run-regular-tests.log`,
+`tmp/c89-native-files/trace-comparison.json` and `tmp/c89-native-files/identities.json`.

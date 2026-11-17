@@ -513,6 +513,15 @@ add_executable(platform-services-test EXCLUDE_FROM_ALL tests/platform_services_t
 target_link_libraries(platform-services-test PRIVATE kauai-core)
 add_executable(file-services-test EXCLUDE_FROM_ALL tests/file_services_test.cpp)
 target_link_libraries(file-services-test PRIVATE kauai-core)
+if(WIN32)
+  add_executable(native-files-runtime-test EXCLUDE_FROM_ALL tests/native_files_runtime_test.cpp kauai/src/platform_files_bridge.cpp)
+  target_include_directories(native-files-runtime-test PRIVATE kauai/src)
+  target_link_libraries(native-files-runtime-test PRIVATE mm-native-files)
+  add_executable(native-files-wide-test EXCLUDE_FROM_ALL tests/native_files_runtime_test.cpp kauai/src/platform_files_bridge.cpp)
+  target_include_directories(native-files-wide-test PRIVATE kauai/src)
+  target_compile_definitions(native-files-wide-test PRIVATE UNICODE _UNICODE)
+  target_link_libraries(native-files-wide-test PRIVATE mm-native-files-wide)
+endif()
 add_executable(user-services-test EXCLUDE_FROM_ALL tests/user_services_test.cpp)
 target_link_libraries(user-services-test PRIVATE kauai-core)
 add_executable(settings-store-test EXCLUDE_FROM_ALL tests/settings_store_test.cpp)
@@ -963,7 +972,7 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/file_browser.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/dib_frame.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/avi_movie.cpp"
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/platform_files_win.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/platform_files_bridge.cpp>
     $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/platform_files_posix.cpp>
     "${PROJECT_SOURCE_DIR}/kauai/src/memwin.cpp"
 
@@ -983,13 +992,14 @@ target_compile_definitions(kauai-core PUBLIC
   _LPCVOID_DEFINED
   STRICT)
 
-# Native file calls stay in platform_files_win/posix; text and GDI still use Win32.
+# Windows file calls use the C native-files backend; POSIX remains native C++.
 # Native dialogs and spelling integration belong to the GUI runtime.
 # Allocation, synchronization and ticks use the portable core_platform layer.
 find_package(Threads REQUIRED)
 target_link_libraries(kauai-core
   PUBLIC
     mm-engine-c89
+    $<$<PLATFORM_ID:Windows>:mm-native-files>
     Threads::Threads
     $<$<PLATFORM_ID:Windows>:advapi32>
     $<$<PLATFORM_ID:Windows>:mpr>
@@ -1637,6 +1647,9 @@ add_dependencies(core-checks filename-path-runtime-test filename-path-expensive-
 add_dependencies(core-checks filename-naming-runtime-test filename-naming-expensive-test)
 add_dependencies(core-checks filename-case-runtime-test filename-case-expensive-test)
 add_dependencies(core-checks filename-enum-runtime-test filename-enum-expensive-test)
+if(WIN32)
+  add_dependencies(core-checks native-files-runtime-test native-files-wide-test)
+endif()
 add_dependencies(core-checks kidspace-descriptor-test)
 add_dependencies(core-checks mcp-io-test)
 add_dependencies(core-checks script-name-test)
@@ -1949,6 +1962,10 @@ if(BUILD_TESTING)
     add_test(NAME video-stream-host COMMAND video-stream-host-test ${PROJECT_BINARY_DIR}/video-host-fixture.avi)
   endif()
   add_test(NAME file-services COMMAND file-services-test)
+  if(WIN32)
+    add_test(NAME native-files-runtime COMMAND native-files-runtime-test)
+    add_test(NAME native-files-wide COMMAND native-files-wide-test)
+  endif()
   add_test(NAME user-services COMMAND user-services-test)
   add_test(NAME settings-store COMMAND settings-store-test)
   if(TARGET settings-ini-test)
