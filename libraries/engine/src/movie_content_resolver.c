@@ -1,4 +1,5 @@
 #include "mm/movie_content_resolver.h"
+#include "mm/resource_lookup.h"
 #include "movie_session_internal.h"
 #include <stdlib.h>
 #include <string.h>
@@ -85,35 +86,62 @@ static int open_archive(MMMovieContent *content, const char *location, Archive *
     return MM_MOVIE_OK;
 }
 
+typedef struct ContentLookup
+{
+    MMMovieContent *content;
+    const MMMovieAsset *asset;
+    const char *source;
+} ContentLookup;
+
+static int next_archive(void *context, size_t *cursor, void **out)
+{
+    ContentLookup *search = (ContentLookup *)context;
+    MMVfsMount mount;
+    Archive *archive;
+    int status;
+    if (!mm_vfs_next_extension(search->content->vfs, search->source, ".3cn", cursor, &mount))
+        return MM_RESOURCE_LOOKUP_MISSING;
+    status = open_archive(search->content, mount.location, &archive);
+    if (status != MM_MOVIE_OK)
+        return status;
+    *out = archive;
+    return MM_RESOURCE_LOOKUP_OK;
+}
+
+static int probe_archive(void *context, void *candidate, void **out)
+{
+    const ContentLookup *search = (const ContentLookup *)context;
+    Archive *archive = (Archive *)candidate;
+    MMChunkAccess access = mm_chunk_index_access(archive->index);
+    MMU32 position;
+    int status = mm_chunk_find(&access, search->asset->type, search->asset->number, &position);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_NOT_FOUND ? MM_RESOURCE_LOOKUP_MISSING : MM_MOVIE_BAD_FILE;
+    *out = archive;
+    return MM_RESOURCE_LOOKUP_OK;
+}
+
 int mm_movie_content_source(void *ctx, const MMMovieAsset *asset, MMReadStream *out)
 {
     MMMovieContent *content = (MMMovieContent *)ctx;
     char source[MM_MOVIE_SOURCE_NAME_BYTES];
-    MMVfsMount mount;
-    Archive *archive;
-    MMChunkAccess access;
-    MMU32 position;
-    size_t cursor = 0;
+    ContentLookup search;
+    MMResourceLookup lookup;
+    void *result;
     int status;
     if (!content || !asset || !out)
         return MM_MOVIE_BAD_FILE;
     status = mm_movie_session_source_name(content->movie, asset->source, source);
     if (status != MM_MOVIE_OK)
         return status;
-    while (mm_vfs_next_extension(content->vfs, source, ".3cn", &cursor, &mount))
-    {
-        status = open_archive(content, mount.location, &archive);
-        if (status != MM_MOVIE_OK)
-            return status;
-        access = mm_chunk_index_access(archive->index);
-        status = mm_chunk_find(&access, asset->type, asset->number, &position);
-        if (status == MM_CHUNK_OK)
-        {
-            *out = archive->stream;
-            return MM_MOVIE_OK;
-        }
-        if (status != MM_CHUNK_NOT_FOUND)
-            return MM_MOVIE_BAD_FILE;
-    }
-    return MM_MOVIE_ASSET_NOT_FOUND;
+    search.content = content;
+    search.asset = asset;
+    search.source = source;
+    lookup.context = &search;
+    lookup.next = next_archive;
+    lookup.probe = probe_archive;
+    status = mm_resource_lookup(&lookup, &result);
+    if (status == MM_RESOURCE_LOOKUP_OK)
+        *out = ((Archive *)result)->stream;
+    return status == MM_RESOURCE_LOOKUP_MISSING ? MM_MOVIE_ASSET_NOT_FOUND : status;
 }

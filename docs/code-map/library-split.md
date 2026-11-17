@@ -65,6 +65,13 @@ conversion. Studio merges names into the existing tag manager and Marcus
 passes the ordered rows to its content mounts. Archive enumeration by filename
 extension uses the C89 VFS in both the host VFS adapter and the standalone
 content resolver.
+`mm/resource_lookup.h` supplies the ordered archive search for the standalone
+resolver, SDL Studio's resource-manager fetch and file lookup, and Marcus
+preview's asset selection. A miss advances to the next eligible archive and
+an open or fetch error stops the search. Each provider supplies its own
+eligible archives and read/cache operation. Marcus uses its movie cache for
+source zero and the mounted cache list for positive source IDs. The standalone
+resolver opens archives lazily and returns the one owning the exact chunk key.
 `mm_movie_session_body` adds the on-stage body's parent and set indices,
 local part matrices and authored model bindings. Ordinary templates use their
 selected cel and linked matrix table. Embedded 3D text uses the shared text

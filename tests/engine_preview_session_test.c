@@ -519,6 +519,10 @@ static void source_tests(void)
     assert(mm_preview_session_resolve(&h.current->state, 0, 22, 11, &s) == &h.current->cache && h.root_queries == 1);
     assert(mm_preview_session_resolve(&h.current->state, 5, 22, 102, &s) == &h.sources[1].cache);
     assert(!mm_preview_session_resolve(&h.current->state, 6, 22, 101, &s));
+    h.sources[1].cache.key = 101;
+    h.lookups = 0;
+    assert(mm_preview_session_resolve(&h.current->state, 5, 22, 101, &s) == &h.sources[0].cache && h.lookups == 1);
+    assert(!mm_preview_session_resolve(&h.current->state, 0, 22, 101, &s) && h.lookups == 2 && h.root_queries == 2);
     h.logged = 0;
     dispose(&h);
     assert(!memcmp(h.log, "AL12CMHDB", 9));

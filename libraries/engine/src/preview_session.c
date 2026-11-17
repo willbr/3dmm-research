@@ -1,4 +1,5 @@
 #include "mm/preview_session.h"
+#include "mm/resource_lookup.h"
 #include <string.h>
 static int runtime_owned;
 static int failure(int r)
@@ -243,20 +244,66 @@ done:
         s->source_release(s->context, source);
     return result;
 }
+typedef struct PreviewLookup
+{
+    const MMPreviewSession *session;
+    const MMPreviewSessionServices *services;
+    MMI32 id;
+    MMU32 type, number;
+} PreviewLookup;
+
+static int next_source_cache(void *context, size_t *cursor, void **out)
+{
+    const PreviewLookup *search = (const PreviewLookup *)context;
+    const MMPreviewSession *p = search->session;
+    const MMPreviewSessionServices *s = search->services;
+    const MMPreviewSessionSource *sources = (const MMPreviewSessionSource *)p->sources.buffers[0].data;
+    const MMPreviewSessionSource *source;
+    if (search->id == 0)
+    {
+        if (*cursor != 0 || !p->cache)
+            return MM_RESOURCE_LOOKUP_MISSING;
+        ++*cursor;
+        *out = p->cache;
+        return MM_RESOURCE_LOOKUP_OK;
+    }
+    while (*cursor < p->source_count)
+    {
+        source = &sources[*cursor];
+        ++*cursor;
+        if (source->id == search->id)
+        {
+            *out = s->source_cache(s->context, source->owner);
+            return MM_RESOURCE_LOOKUP_OK;
+        }
+    }
+    return MM_RESOURCE_LOOKUP_MISSING;
+}
+
+static int probe_source_cache(void *context, void *cache, void **out)
+{
+    const PreviewLookup *search = (const PreviewLookup *)context;
+    const MMPreviewSessionServices *s = search->services;
+    if (!s->contains(s->context, cache, search->type, search->number))
+        return MM_RESOURCE_LOOKUP_MISSING;
+    *out = cache;
+    return MM_RESOURCE_LOOKUP_OK;
+}
+
 void *mm_preview_session_resolve(const MMPreviewSession *p, MMI32 id, MMU32 type, MMU32 number,
                                  const MMPreviewSessionServices *s)
 {
-    MMU32 i;
-    void *cache;
-    const MMPreviewSessionSource *sources = (const MMPreviewSessionSource *)p->sources.buffers[0].data;
-    if (!id && p->cache && s->contains(s->context, p->cache, type, number))
-        return p->cache;
-    for (i = 0; i < p->source_count; ++i)
-        if (sources[i].id == id)
-        {
-            cache = s->source_cache(s->context, sources[i].owner);
-            if (s->contains(s->context, cache, type, number))
-                return cache;
-        }
-    return 0;
+    PreviewLookup search;
+    MMResourceLookup lookup;
+    void *cache = 0;
+    search.session = p;
+    search.services = s;
+    search.id = id;
+    search.type = type;
+    search.number = number;
+    lookup.context = &search;
+    lookup.next = next_source_cache;
+    lookup.probe = probe_source_cache;
+    mm_resource_lookup(&lookup, &cache);
+    return cache;
 }

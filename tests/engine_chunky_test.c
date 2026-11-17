@@ -588,17 +588,26 @@ static void movie_actors(void)
 
 typedef struct MountedArchives
 {
-    MMMemoryStream backdrops, templates;
-    unsigned opens, closes;
+    MMMemoryStream backdrops, templates, duplicate;
+    unsigned opens, closes, failures;
 } MountedArchives;
 
 static int fixture_archive_open(void *p, const char *path, void **handle, MMReadStream *stream)
 {
     MountedArchives *archives = (MountedArchives *)p;
     MMMemoryStream *file;
-    CHECK(strcmp(path, "thumbnail") != 0);
-    CHECK(!strcmp(path, "backgrounds") || !strcmp(path, "templates"));
-    file = !strcmp(path, "backgrounds") ? &archives->backdrops : &archives->templates;
+    if (!strcmp(path, "unreadable"))
+    {
+        ++archives->failures;
+        return MM_MOVIE_IO;
+    }
+    CHECK(!strcmp(path, "backgrounds") || !strcmp(path, "templates") || !strcmp(path, "duplicate"));
+    if (!strcmp(path, "backgrounds"))
+        file = &archives->backdrops;
+    else if (!strcmp(path, "templates"))
+        file = &archives->templates;
+    else
+        file = &archives->duplicate;
     ++archives->opens;
     *stream = file->stream;
     *handle = file;
@@ -608,14 +617,16 @@ static int fixture_archive_open(void *p, const char *path, void **handle, MMRead
 static void fixture_archive_close(void *p, void *handle)
 {
     MountedArchives *archives = (MountedArchives *)p;
-    CHECK(handle == &archives->backdrops || handle == &archives->templates);
+    CHECK(handle == &archives->backdrops || handle == &archives->templates || handle == &archives->duplicate);
     ++archives->closes;
 }
 
 static void movie_content(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
-    const MMVfsMount mounts[] = {{"z.3CN", "templates"}, {"a.3cn", "backgrounds"}, {"0.3th", "thumbnail"}};
+    const MMVfsMount mounts[] = {{"z.3CN", "templates"}, {"a.3cn", "backgrounds"}, {"0.3th", "thumbnail"},
+                                 {"zz.3cn", "duplicate"}};
+    const MMVfsMount unreadable[] = {{"z.3cn", "templates"}, {"a.3cn", "unreadable"}};
     unsigned char bytes[1024], backgrounds[1024], templates[2048];
     char name[MM_MOVIE_SOURCE_NAME_BYTES];
     MMMovieArchiveProvider provider;
@@ -640,6 +651,7 @@ static void movie_content(void)
     CHECK(mm_memory_stream_init(&archives.backdrops, backgrounds, size));
     size = actor_fixture(templates, 0, 2, 0);
     CHECK(mm_memory_stream_init(&archives.templates, templates, size));
+    CHECK(mm_memory_stream_init(&archives.duplicate, templates, size));
     provider.context = &archives;
     provider.open = fixture_archive_open;
     provider.close = fixture_archive_close;
@@ -672,16 +684,27 @@ static void movie_content(void)
         asset.type = 0x544d504cUL;
         asset.number = 13;
         CHECK(mm_movie_content_source(content, &asset, &resolved) == MM_MOVIE_OK);
-        CHECK(resolved.context == &archives.templates);
+        CHECK(resolved.context == &archives.templates && archives.opens == (unsigned)wide * 3 + 2);
         asset.type = 0x424b4744UL;
         asset.number = 4;
         CHECK(mm_movie_content_source(content, &asset, &resolved) == MM_MOVIE_OK);
         CHECK(resolved.context == &archives.backdrops);
         asset.number = 13;
         CHECK(mm_movie_content_source(content, &asset, &resolved) == MM_MOVIE_ASSET_NOT_FOUND);
-        CHECK(resolved.context == &archives.backdrops && archives.opens == (unsigned)(wide + 1) * 2);
+        CHECK(resolved.context == &archives.backdrops && archives.opens == (unsigned)(wide + 1) * 3);
         mm_movie_content_close(content);
         CHECK(archives.closes == archives.opens);
+        mm_vfs_destroy(vfs);
+        vfs = mm_vfs_create(NULL);
+        CHECK(vfs && mm_vfs_mount(vfs, "3dmovie", unreadable, sizeof(unreadable) / sizeof(unreadable[0]), 0) ==
+                         MM_VFS_OK);
+        content = mm_movie_content_open(movie, vfs, &provider);
+        CHECK(content != NULL);
+        asset.type = 0x544d504cUL;
+        CHECK(mm_movie_content_source(content, &asset, &resolved) == MM_MOVIE_IO);
+        CHECK(resolved.context == &archives.backdrops && archives.opens == archives.closes &&
+              archives.failures == (unsigned)wide + 1);
+        mm_movie_content_close(content);
         mm_vfs_destroy(vfs);
         mm_movie_session_close(movie);
     }

@@ -12911,6 +12911,42 @@ the headless player API.
 The retagged fixtures and capture logs are under
 `tmp/c89-host-sources-verify/`.
 
+### Shared C89 movie resource lookup (17 November 2026)
+
+The standalone content resolver, SDL Studio's resource manager and Marcus
+preview now share the ordered C89 archive search. The standalone provider
+opens `.3cn` files on demand. Studio fetches through each resource cache so
+an existing cached object can satisfy the request. Marcus filters its
+candidates by source ID and uses the movie cache for embedded tags.
+
+The headless fixtures cover duplicate keys in eligible archives, a miss
+before a match, an unreadable earlier archive, an absent asset, and the
+embedded-versus-mounted boundary. All 181 standalone and 11 Marcus-enabled
+C89 checks passed, along with `archive-api` and `movie-save-load`. The four
+affected engine sources compiled as strict C89 for Linux x64 musl. Both
+hosts built successfully and Marcus was relaunched from this workspace.
+
+For `actor-events` and `scrolling-text`, the stock and SID 29 editions
+produced 480 seek states and 64 viewport hashes across SDL Studio and
+Marcus. They match the pre-change captures for each host, and the common
+scene and frame metadata agree with the retained retail observations. The
+standalone probe matched 120 pairs of camera, actor, appearance and mesh
+observations after source ID normalization. The duplicate-key and archive
+failure cases were exercised by engine fixtures.
+
+Normal playback in both hosts matched the retained retail frame commit
+order for `actor-events`, `dissolve` and `scrolling-text`, with 180 frames
+per host and the expected final scene and frame. This comparison covers
+frame order and completion.
+
+The SDL VMM workflow passed source-6 authoring, package management, save
+and fresh-process reopen. Marcus rendered the first authored frame of
+the saved bundled VMM through its headless player.
+
+Capture logs, settings and input and build hashes are under
+`tmp/c89-resource-lookup/`. The live actor and camera evaluation cutover
+remains in the [C89 plan](../../plan.md#immediate-next-work-and-completion).
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

@@ -1,6 +1,7 @@
 /* Resource manager converted from Kauai crf.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/resource_cache.h"
+#include "mm/resource_lookup.h"
 #include <string.h>
 static MMArray view(MMResourceManager *m)
 {
@@ -85,33 +86,81 @@ int mm_resource_manager_load(MMResourceManager *m, const MMResourceRequest *q)
     }
     return 0;
 }
+typedef struct ManagerLookup
+{
+    MMResourceManager *manager;
+    const MMResourceRequest *request;
+    MMU32 count;
+    int failed;
+} ManagerLookup;
+
+static int next_cache(void *context, size_t *cursor, void **out)
+{
+    ManagerLookup *search = (ManagerLookup *)context;
+    if (*cursor >= search->count)
+        return MM_RESOURCE_LOOKUP_MISSING;
+    *out = mm_resource_manager_at(search->manager, (MMU32)*cursor);
+    ++*cursor;
+    return MM_RESOURCE_LOOKUP_OK;
+}
+
+static int fetch_cached(void *context, void *cache, void **out)
+{
+    ManagerLookup *search = (ManagerLookup *)context;
+    void *object = search->manager->services.fetch(cache, search->request, &search->failed);
+    if (!object)
+        return search->failed ? MM_STORAGE_IO : MM_RESOURCE_LOOKUP_MISSING;
+    *out = object;
+    return MM_RESOURCE_LOOKUP_OK;
+}
+
+static int contains_chunk(void *context, void *cache, void **out)
+{
+    ManagerLookup *search = (ManagerLookup *)context;
+    const MMResourceRequest *q = search->request;
+    if (!search->manager->services.contains(cache, q->type, q->number, q->scope))
+        return MM_RESOURCE_LOOKUP_MISSING;
+    *out = cache;
+    return MM_RESOURCE_LOOKUP_OK;
+}
+
 void *mm_resource_manager_fetch(MMResourceManager *m, const MMResourceRequest *q, int *error)
 {
-    MMU32 i, count = m->count;
+    ManagerLookup search;
+    MMResourceLookup lookup;
     void *p = NULL;
-    int failed = 0;
-    for (i = 0; i < count; ++i)
-    {
-        p = m->services.fetch(mm_resource_manager_at(m, i), q, &failed);
-        if (p || failed)
-            break;
-    }
+    search.manager = m;
+    search.request = q;
+    search.count = m->count;
+    search.failed = 0;
+    lookup.context = &search;
+    lookup.next = next_cache;
+    lookup.probe = fetch_cached;
+    mm_resource_lookup(&lookup, &p);
     if (error)
-        *error = failed;
+        *error = search.failed;
     return p;
 }
 void *mm_resource_manager_find_file(MMResourceManager *m, MMU32 type, MMU32 number,
                                           MMU32 scope)
 {
-    MMU32 i, count = m->count;
-    void *p;
-    for (i = 0; i < count; ++i)
-    {
-        p = mm_resource_manager_at(m, i);
-        if (m->services.contains(p, type, number, scope))
-            return p;
-    }
-    return NULL;
+    MMResourceRequest q;
+    ManagerLookup search;
+    MMResourceLookup lookup;
+    void *p = NULL;
+    memset(&q, 0, sizeof(q));
+    q.type = type;
+    q.number = number;
+    q.scope = scope;
+    search.manager = m;
+    search.request = &q;
+    search.count = m->count;
+    search.failed = 0;
+    lookup.context = &search;
+    lookup.next = next_cache;
+    lookup.probe = contains_chunk;
+    mm_resource_lookup(&lookup, &p);
+    return p;
 }
 void *mm_resource_manager_find(MMResourceManager *m, const MMResourceRequest *q)
 {
