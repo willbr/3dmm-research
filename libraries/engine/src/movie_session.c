@@ -73,21 +73,83 @@ int mm_session_payload(const MMReadStream *stream, const MMChunkIndex *index, co
     return status;
 }
 
+static int root_entry(const MMChunkAccess *access, MMU32 number, MMChunkEntry *entry, MMU32 *position)
+{
+    int status;
+    if (number == 0xffffffffUL)
+        status = mm_chunk_type_at(access, MOVIE_TYPE, 0, entry, position);
+    else
+    {
+        status = mm_chunk_find(access, MOVIE_TYPE, number, position);
+        if (status == MM_CHUNK_OK)
+            status = mm_chunk_at(access, *position, entry);
+    }
+    return status == MM_CHUNK_OK ? MM_MOVIE_OK
+         : status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ROOT_NOT_FOUND : MM_MOVIE_BAD_FILE;
+}
+
+static int read_root(const MMMovieChunkView *view, const MMChunkEntry *entry, MMU32 position,
+                     MMMovieHeader *out)
+{
+    unsigned char bytes[MM_MOVIE_PREFIX_BYTES];
+    MMMemoryStream stream;
+    MMMovieHeader header;
+    int status = view->read(view->context, position, entry, bytes, sizeof(bytes));
+    if (status != MM_MOVIE_OK)
+        return status;
+    mm_memory_stream_init(&stream, bytes, sizeof(bytes));
+    status = mm_movie_read_header(&stream.stream, &header);
+    if (status == MM_MOVIE_OK && out)
+        *out = header;
+    return status;
+}
+
+int mm_movie_view_root(const MMMovieChunkView *view, MMU32 *number, MMMovieHeader *out)
+{
+    MMChunkEntry entry;
+    MMU32 position;
+    int status;
+    if (!view || !view->read)
+        return MM_MOVIE_BAD_FILE;
+    status = root_entry(&view->chunks, number ? *number : 0xffffffffUL, &entry, &position);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (number)
+        *number = entry.number;
+    return read_root(view, &entry, position, out);
+}
+
+static int read_record(void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size)
+{
+    const MMMovieSession *movie = (const MMMovieSession *)context;
+    MMMoviePayload payload;
+    int status = mm_session_payload(&movie->stream, movie->index, entry, size, &payload);
+    (void)position;
+    if (status != MM_MOVIE_OK)
+        return status;
+    status = mm_read_exact(payload.stream, 0, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+    free(payload.decoded);
+    return status;
+}
+
+static void init_view(MMMovieChunkView *view, const MMMovieSession *movie, const MMChunkAccess *access)
+{
+    view->chunks = *access;
+    view->context = (void *)movie;
+    view->read = read_record;
+}
+
 static int load_root(MMMovieSession *movie)
 {
     MMChunkAccess access = mm_chunk_index_access(movie->index);
+    MMMovieChunkView view;
     MMChunkEntry entry;
-    MMMoviePayload payload;
-    int status;
-    if (mm_chunk_type_at(&access, MOVIE_TYPE, 0, &entry, &movie->root_position) != MM_CHUNK_OK)
-        return MM_MOVIE_BAD_FILE;
-    status = mm_session_payload(&movie->stream, movie->index, &entry, MM_MOVIE_PREFIX_BYTES, &payload);
+    int status = root_entry(&access, 0xffffffffUL, &entry, &movie->root_position);
     if (status != MM_MOVIE_OK)
-        return status;
+        return MM_MOVIE_BAD_FILE;
+    init_view(&view, movie, &access);
     movie->root.number = entry.number;
-    status = mm_movie_read_header(payload.stream, &movie->root.header);
-    free(payload.decoded);
-    return status;
+    return read_root(&view, &entry, movie->root_position, &movie->root.header);
 }
 
 int mm_session_index(const MMReadStream *stream, const MMChunkPolicy *policy, MMChunkIndex **index)
@@ -161,33 +223,92 @@ int mm_session_child(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU3
     return mm_chunk_at(access, *position, entry);
 }
 
-int mm_session_scene(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 slot,
-                      MMU32 *position, MMMovieSessionScene *out)
+static int scene_at_slot(const MMChunkAccess *access, MMU32 root_position, MMU32 slot, MMChunkEntry *entry,
+                          MMU32 *position)
+{
+    int status = mm_session_child(access, root_position, slot, SCENE_TYPE, entry, position);
+    return status == MM_CHUNK_OK ? MM_MOVIE_OK
+         : status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_SCENE_NOT_FOUND : MM_MOVIE_BAD_FILE;
+}
+
+int mm_movie_view_scene_number(const MMChunkAccess *access, MMU32 root, MMU32 slot, MMU32 *number)
 {
     MMChunkEntry entry;
-    MMMoviePayload payload;
+    MMU32 parent, position;
+    int status;
+    if (!access || !number)
+        return MM_MOVIE_BAD_FILE;
+    status = root_entry(access, root, &entry, &parent);
+    if (status == MM_MOVIE_OK)
+        status = scene_at_slot(access, parent, slot, &entry, &position);
+    if (status == MM_MOVIE_OK)
+        *number = entry.number;
+    return status;
+}
+
+static int read_scene(const MMMovieChunkView *view, const MMChunkEntry *entry, MMU32 position,
+                      MMMovieSessionScene *out)
+{
     unsigned char bytes[MM_SCENE_HEADER_BYTES];
     MMMemoryStream header;
     MMSceneState scene;
-    int status = mm_session_child(access, movie->root_position, slot, SCENE_TYPE, &entry, position);
-    if (status != MM_CHUNK_OK)
-        return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_SCENE_NOT_FOUND : MM_MOVIE_BAD_FILE;
-    status = mm_session_payload(&movie->stream, movie->index, &entry, MM_SCENE_HEADER_BYTES, &payload);
-    if (status != MM_MOVIE_OK)
-        return status;
-    status = mm_read_exact(payload.stream, 0, bytes, sizeof(bytes)) ? MM_MOVIE_OK : MM_MOVIE_IO;
-    free(payload.decoded);
+    int status = view->read(view->context, position, entry, bytes, sizeof(bytes));
     if (status != MM_MOVIE_OK)
         return status;
     mm_memory_stream_init(&header, bytes, sizeof(bytes));
     mm_scene_init(&scene, 1);
     if (!mm_scene_decode_header(&header.stream, &scene))
         return MM_MOVIE_BAD_FILE;
-    out->number = entry.number;
+    out->number = entry->number;
     out->first_frame = scene.firstFrame;
     out->last_frame = scene.lastFrame;
     out->transition = scene.transition;
     return MM_MOVIE_OK;
+}
+
+int mm_movie_view_next_scene(const MMMovieChunkView *view, MMU32 root, MMU32 *cursor,
+                             MMMovieSessionScene *out, MMU32 *slot)
+{
+    MMChunkEntry entry;
+    MMChunkChild child;
+    MMU32 parent, position, i;
+    int status;
+    if (!view || !view->read || !cursor || !out)
+        return MM_MOVIE_BAD_FILE;
+    status = root_entry(&view->chunks, root, &entry, &parent);
+    if (status != MM_MOVIE_OK)
+        return status;
+    for (i = *cursor; i < entry.child_count; ++i)
+    {
+        if (mm_chunk_child_at(&view->chunks, parent, i, &child) != MM_CHUNK_OK)
+            return MM_MOVIE_BAD_FILE;
+        if (child.type != SCENE_TYPE)
+            continue;
+        if (mm_chunk_find(&view->chunks, child.type, child.number, &position) != MM_CHUNK_OK ||
+            mm_chunk_at(&view->chunks, position, &entry) != MM_CHUNK_OK)
+            return MM_MOVIE_BAD_FILE;
+        status = read_scene(view, &entry, position, out);
+        if (status == MM_MOVIE_OK)
+        {
+            *cursor = i + 1;
+            if (slot)
+                *slot = child.slot;
+        }
+        return status;
+    }
+    return MM_MOVIE_SCENE_NOT_FOUND;
+}
+
+int mm_session_scene(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 slot,
+                      MMU32 *position, MMMovieSessionScene *out)
+{
+    MMMovieChunkView view;
+    MMChunkEntry entry;
+    int status = scene_at_slot(access, movie->root_position, slot, &entry, position);
+    if (status != MM_MOVIE_OK)
+        return status;
+    init_view(&view, movie, access);
+    return read_scene(&view, &entry, *position, out);
 }
 
 int mm_movie_session_scene(const MMMovieSession *movie, MMU32 slot, MMMovieSessionScene *out)

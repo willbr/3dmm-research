@@ -85,6 +85,18 @@ struct SceneHeader
 {
     std::int32_t firstFrame = 0, lastFrame = 0, transition = 0;
 };
+struct MovieSceneEntry
+{
+    Id id;
+    std::uint32_t slot = 0;
+    SceneHeader header;
+};
+struct MovieDirectory
+{
+    bool hasRoot = false;
+    Id root;
+    std::vector<MovieSceneEntry> scenes;
+};
 struct ActorHeader
 {
     std::int32_t actorId = 0, firstFrame = 0, lastFrame = 0;
@@ -147,6 +159,9 @@ class Archive
     // data at EOF. String pages cap count at 128; payload pages cap at 1 MiB.
     bool ReadPayload(std::size_t index, std::uint32_t offset, std::uint32_t count, PayloadPage &page, Error &error);
     bool ReadRecord(std::size_t index, RecordHeader &record, Error &error);
+    // Discover scenes linked to the first movie root. Rootless resource
+    // archives have an empty directory. Failure preserves the output.
+    bool ReadMovieDirectory(MovieDirectory &directory, Error &error);
     bool ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t count, StringTablePage &page, Error &error);
 };
 std::string TypeLabel(std::uint32_t type);

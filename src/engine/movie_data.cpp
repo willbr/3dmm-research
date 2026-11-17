@@ -3,6 +3,7 @@
 #include "soc_core.h"
 #include "movie_data.h"
 #include "engine_read_stream.h"
+#include "mm/movie_session.h"
 ASSERTNAME
 
 namespace
@@ -260,8 +261,8 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
             AssertDo(mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad movie title");
         },
         [](void *, void *file, MMU32 movie, MMI32 index) -> int {
-            ChildChunkIdentification child;
-            return static_cast<PChunkyFile>(file)->FGetKidChidCtg(kctgMvie, movie, index, kctgScen, &child);
+            ChunkNumber number;
+            return FSceneNumber(static_cast<PChunkyFile>(file), movie, index, &number);
         },
         [](void *, void *file, MMU32 movie, MMU32 *previous) -> int {
             ChildChunkIdentification child;
@@ -344,20 +345,8 @@ MMMovieRootServices MovieRootServices(NativeMovieRootHost *host)
 {
     return {
         host,
-        [](void *c, MMU32 *number) -> int {
-            ChunkIdentification id;
-            if (!static_cast<NativeMovieRootHost *>(c)->file->FGetCkiCtg(kctgMvie, 0, &id))
-                return 0;
-            *number = id.cno;
-            return 1;
-        },
-        [](void *c, MMU32 number, MMReadStream *stream) -> int {
-            auto h = static_cast<NativeMovieRootHost *>(c);
-            if (!h->file->FFind(kctgMvie, number, &h->block) || !h->block.FUnpackData())
-                return 0;
-            *stream = EngineReadStream::FromBlock(h->block);
-            return 1;
-        },
+        nullptr,
+        nullptr,
         [](void *c, MMU32 bytes, MMU32 *number) -> int {
             auto h = static_cast<NativeMovieRootHost *>(c);
             return h->file->FAdd(bytes, kctgMvie, number, &h->block);
@@ -366,7 +355,7 @@ MMMovieRootServices MovieRootServices(NativeMovieRootHost *host)
             return static_cast<NativeMovieRootHost *>(c)->block.FWriteRgb(const_cast<void *>(bytes), count, 0);
         },
         [](void *c, MMU32 number) { static_cast<NativeMovieRootHost *>(c)->file->Delete(kctgMvie, number); },
-        [](void *, int result) { PushErc(result == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile); }};
+        nullptr};
 }
 } // namespace
 bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
@@ -378,9 +367,26 @@ bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
 }
 bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHeader *header)
 {
-    NativeMovieRootHost host = {file};
-    const auto s = MovieRootServices(&host);
-    return mm_movie_verify_root(number, header, &s) != 0;
+    const MMMovieChunkView view = {
+        file->ReadChunkAccess(), file,
+        [](void *context, MMU32, const MMChunkEntry *entry, void *bytes, MMU32 size) -> int {
+            DataBlock block;
+            if (!static_cast<PChunkyFile>(context)->FFind(entry->type, entry->number, &block) ||
+                !block.FUnpackData() || block.Cb() != static_cast<LegacyLong>(size))
+                return MM_MOVIE_BAD_FILE;
+            return block.FReadRgb(bytes, size, 0) ? MM_MOVIE_OK : MM_MOVIE_IO;
+        }};
+    const auto result = mm_movie_view_root(&view, number, header);
+    if (result == MM_MOVIE_OK)
+        return true;
+    PushErc(result == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
+    return false;
+}
+
+bool MovieData::FSceneNumber(PChunkyFile file, ChunkNumber root, ChildChunkID slot, ChunkNumber *number)
+{
+    const auto access = file->ReadChunkAccess();
+    return mm_movie_view_scene_number(&access, root, slot, number) == MM_MOVIE_OK;
 }
 
 bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,

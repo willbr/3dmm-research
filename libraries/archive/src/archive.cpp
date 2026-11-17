@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include "soc_core.h"
 #include "engine_read_stream.h"
+#include "mm/movie_session.h"
 #include "platform_text.h"
 #undef size
 ASSERTNAME
@@ -471,6 +472,62 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
     catch (const std::bad_alloc &)
     {
         return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode record.");
+    }
+}
+bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
+{
+    error = {};
+    Internal::ClearDiagnostic();
+    if (!_impl->file)
+        return Fail(error, ErrorCode::invalid_argument, "Open an archive before listing its movie scenes.");
+    try
+    {
+        struct Host
+        {
+            Impl *archive;
+            Error &error;
+        } host = {_impl.get(), error};
+        const MMMovieChunkView view = {
+            _impl->file->ReadChunkAccess(), &host,
+            [](void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size) -> int {
+                auto &host = *static_cast<Host *>(context);
+                auto &archive = *host.archive;
+                const Id id = {entry->type, entry->number};
+                if (position >= archive.chunks.size() || !(archive.chunks[position].id == id))
+                    return MM_MOVIE_BAD_FILE;
+                if (!archive.Load(position, host.error))
+                    return MM_MOVIE_IO;
+                const auto stream = EngineReadStream::FromBlock(archive.payload);
+                if (stream.length != size)
+                    return MM_MOVIE_BAD_FILE;
+                return mm_read_exact(&stream, 0, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+            }};
+        MovieDirectory result;
+        MMU32 root = cnoNil;
+        const int status = mm_movie_view_root(&view, &root, nullptr);
+        if (status == MM_MOVIE_ROOT_NOT_FOUND)
+        {
+            directory = {};
+            return true;
+        }
+        const Id id = {kctgMvie, root};
+        if (status != MM_MOVIE_OK)
+            return error ? false : Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported movie header.", &id);
+        result.hasRoot = true;
+        result.root = id;
+        MMU32 cursor = 0, slot;
+        MMMovieSessionScene scene;
+        int next;
+        while ((next = mm_movie_view_next_scene(&view, root, &cursor, &scene, &slot)) == MM_MOVIE_OK)
+            result.scenes.push_back({{kctgScen, scene.number}, slot, {scene.first_frame, scene.last_frame, scene.transition}});
+        if (next != MM_MOVIE_SCENE_NOT_FOUND)
+            return error ? false : Fail(error, ErrorCode::corrupt_archive, "The movie has an invalid scene link or header.", &id);
+        directory = std::move(result);
+        return true;
+    }
+    catch (const std::bad_alloc &)
+    {
+        return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to read the movie directory.");
     }
 }
 bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t count, StringTablePage &page,

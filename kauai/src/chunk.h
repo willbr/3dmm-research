@@ -240,6 +240,8 @@ class ChunkyFile : public ChunkyFile_PAR
 
     // enumerating chunks
     LegacyLong Ccki(void);
+    // Borrow the current index for synchronous reads. Reacquire after edits.
+    MMChunkAccess ReadChunkAccess() { return _ChunkAccess(); }
     bool FGetCki(LegacyLong icki, ChunkIdentification *pcki, LegacyLong *pckid = pvNil, PDataBlock pblck = pvNil);
     bool FGetIcki(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picki);
     LegacyLong CckiCtg(ChunkTagOrType ctg);

@@ -12853,6 +12853,30 @@ verification remain open.
 Evidence is under `tmp/c89-appearance-oracle/`, including the retail
 captures and both comparison logs.
 
+### Shared C89 movie directory in SDL Studio and Marcus (17 November 2026)
+
+SDL Studio now verifies movie roots and resolves authored scene slots through
+the C89 movie directory over its current chunk graph. Marcus uses the same
+directory through its archive adapter to validate the movie root and load
+linked scene headers in child order. Its rootless scene fixture continues to
+load through the existing standalone-scene path. The C fixture covers default
+and explicit roots, sparse slots, mixed child types and read failures.
+
+The `actor-events`, `dissolve` and `scrolling-text` seek captures matched the
+retail scene count, scene order and authored frame ranges at all 180 positions
+in each host. Separate continuous playback traces matched the 180 authored
+frame commits per host and reached the same last frame as retail. The seek
+images still show renderer differences. Audio-enabled playback also completed
+for all three players and movies after updating the capture helper. The seek
+and playback records are in `tmp/c89-host-directory-regression/playback.sqlite`
+under suites `20261117T213806Z-87243a0d`, `20261117T214507Z-23c7255b` and
+`20261117T214807Z-c8ece7a8`.
+
+All 181 standalone and 11 Marcus-enabled C89 checks passed, along with
+`archive-api` and `movie-save-load`. The session source compiled under strict
+C89 for Linux x64 musl. Marcus and SDL Studio built successfully. Marcus was
+relaunched from this workspace after the build.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

@@ -29,8 +29,32 @@ enum
     MM_MOVIE_SCENE_NOT_FOUND = MM_MOVIE_MEMORY + 1,
     MM_MOVIE_FRAME_OUT_OF_RANGE,
     MM_MOVIE_ASSET_NOT_FOUND,
-    MM_MOVIE_ACTOR_NOT_FOUND
+    MM_MOVIE_ACTOR_NOT_FOUND,
+    MM_MOVIE_ROOT_NOT_FOUND
 };
+
+/* A borrowed view of the current chunk graph, including edits. The reader
+ * must decode the selected entry and read a record of exactly the given size.
+ * Its result is a movie status. Positions refer to the given chunk access. */
+typedef struct MMMovieChunkView
+{
+    MMChunkAccess chunks;
+    void *context;
+    int (*read)(void *, MMU32 position, const MMChunkEntry *, void *bytes, MMU32 size);
+} MMMovieChunkView;
+
+/* A null number or the nil chunk number selects the first MVIE. A successful
+ * lookup publishes its number before validation, even if the header is invalid. */
+int mm_movie_view_root(const MMMovieChunkView *, MMU32 *number, MMMovieHeader *);
+
+/* Resolve a scene by its authored slot, without reading its payload. */
+int mm_movie_view_scene_number(const MMChunkAccess *, MMU32 root, MMU32 slot, MMU32 *number);
+
+/* Start the cursor at zero. Traverse existing scene links in child order,
+ * preserving gaps in their authored slot numbers. On error the cursor and
+ * outputs are unchanged. End of traversal returns MM_MOVIE_SCENE_NOT_FOUND. */
+int mm_movie_view_next_scene(const MMMovieChunkView *, MMU32 root, MMU32 *cursor,
+                             MMMovieSessionScene *, MMU32 *slot);
 
 typedef struct MMMovieAsset
 {

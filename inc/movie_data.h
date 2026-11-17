@@ -97,6 +97,7 @@ struct MovieData : MMMovieState
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
     static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
+    static bool FSceneNumber(PChunkyFile file, ChunkNumber root, ChildChunkID slot, ChunkNumber *number);
     static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,
                               LegacyLong *actorIdLimit = pvNil);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written);

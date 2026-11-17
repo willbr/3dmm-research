@@ -31,7 +31,7 @@
 
 namespace
 {
-const std::uint32_t sceneType = 0x5343454e, movieType = 0x4d564945, gstType = 0x47535420;
+const std::uint32_t sceneType = 0x5343454e, gstType = 0x47535420;
 template <std::size_t N> void Copy(char (&output)[N], const char *input)
 {
     const auto count = std::min(N - 1, std::strlen(input));
@@ -1965,34 +1965,39 @@ extern "C"
             MM::Archive archive;
             if (!archive.Open(document, error))
                 return false;
+            MM::MovieDirectory movie;
+            if (!archive.ReadMovieDirectory(movie, error))
+                return false;
             std::vector<MM::Id> scenes;
             std::vector<MarcusScene> sceneInfo;
             std::map<std::int32_t, std::string> names;
             std::vector<std::pair<std::int32_t, std::string>> sources;
             bool hasSourceTable = false;
-            const MM::Chunk *root = nullptr;
-            for (const auto &chunk : archive.Chunks())
-                if (chunk.id.type == movieType)
-                {
-                    root = &chunk;
-                    break;
-                }
-            if (root)
+            const auto &chunks = archive.Chunks();
+            const auto addScene = [&](const MM::Chunk &chunk, const MM::SceneHeader &header) {
+                MarcusScene scene = {};
+                scene.chunk = chunk.id.number;
+                scene.first_frame = header.firstFrame;
+                scene.last_frame = header.lastFrame;
+                scene.transition = header.transition;
+                Copy(scene.name, chunk.name.empty() ? "Scene " + std::to_string(sceneInfo.size() + 1) : chunk.name);
+                scenes.push_back(chunk.id);
+                sceneInfo.push_back(scene);
+            };
+            if (movie.hasRoot)
             {
-                MM::RecordHeader metadata;
-                if (!archive.ReadRecord(Find(archive, root->id), metadata, error))
-                    return false;
-                for (const auto &child : root->children)
+                for (const auto &scene : movie.scenes)
                 {
-                    if (child.target.type == sceneType)
-                    {
-                        if (!child.present)
-                        {
-                            error.message = "The movie references a missing scene.";
-                            return false;
-                        }
-                        scenes.push_back(child.target);
-                    }
+                    const auto sceneIndex = Find(archive, scene.id);
+                    if (sceneIndex == chunks.size())
+                        return false;
+                    addScene(chunks[sceneIndex], scene.header);
+                }
+                const auto rootIndex = Find(archive, movie.root);
+                if (rootIndex == chunks.size())
+                    return false;
+                for (const auto &child : chunks[rootIndex].children)
+                {
                     if (child.target.type != gstType || child.slot > 1)
                         continue;
                     hasSourceTable = hasSourceTable || child.slot == 1;
@@ -2024,31 +2029,20 @@ extern "C"
             else
             {
                 // Also accept headless scene fixtures, which use source 1.
-                for (const auto &chunk : archive.Chunks())
-                    if (chunk.id.type == sceneType)
-                        scenes.push_back(chunk.id);
+                for (std::size_t i = 0; i < chunks.size(); ++i)
+                    if (chunks[i].id.type == sceneType)
+                    {
+                        MM::RecordHeader record;
+                        if (!archive.ReadRecord(i, record, error))
+                            return false;
+                        addScene(chunks[i], record.scene);
+                    }
                 sources.push_back({1, "3dmovie"});
             }
             if (scenes.empty())
             {
                 error.message = "This document contains no movie scenes.";
                 return false;
-            }
-            for (const auto &id : scenes)
-            {
-                const auto index = Find(archive, id);
-                MM::RecordHeader record;
-                if (index == archive.Chunks().size() || !archive.ReadRecord(index, record, error) ||
-                    record.kind != MM::RecordKind::scene || record.scene.lastFrame < record.scene.firstFrame)
-                    return false;
-                MarcusScene scene = {};
-                scene.chunk = id.number;
-                scene.first_frame = record.scene.firstFrame;
-                scene.last_frame = record.scene.lastFrame;
-                scene.transition = record.scene.transition;
-                const auto &name = archive.Chunks()[index].name;
-                Copy(scene.name, name.empty() ? "Scene " + std::to_string(sceneInfo.size() + 1) : name);
-                sceneInfo.push_back(scene);
             }
             std::uint64_t nextScene = 0, nextObject = 0;
             std::int64_t nextActor = 0;

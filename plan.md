@@ -436,7 +436,9 @@ Keep host presentation and device output outside the session.
    runs this path on real files with `--movie`. Six archived `.3MM` movies
    matched the legacy dump for root and scene metadata, and the scene frame
    ranges in three hash-matched fixtures agreed with retained retail seek
-   captures. Studio and Marcus still use their existing sessions.
+   captures. SDL Studio and Marcus now use the shared C89 movie directory
+   over their loaded chunk graphs to open and select scenes. SDL Studio
+   resolves live slots and Marcus reads the ordered scene headers at open.
 2. Extend the session to resolve movie and retail content resources and seek
    to an authored frame. Cover actor and camera state, repeat seeks and the
    applicable missing-content behavior with real files. Document which
@@ -457,7 +459,9 @@ Keep host presentation and device output outside the session.
    body tree. Host mount discovery, renderer material and texture loading,
    and rendered output remain open.
 3. Switch both hosts to the same session for the covered operations and retire
-   the superseded backend paths. Link and run the standalone consumer and its
+   the superseded backend paths. Root and scene directory queries now share
+   the standalone policy. Content resolution and frame evaluation still need
+   the host cutover. Link and run the standalone consumer and its
    real file/content providers with the C toolchain, without `engine-core`,
    `engine`, `MM::Archive`, `MM::Preview` or their project-owned C++ providers.
    Verify the host paths with the regression gate above.

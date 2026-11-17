@@ -310,6 +310,76 @@ static void group_header(unsigned char *bytes, MMU32 count, MMU32 data, MMU32 wi
     put32(bytes + 16, width, big);
 }
 
+static int view_record(void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size)
+{
+    (void)position;
+    if (size != entry->bytes)
+        return MM_MOVIE_BAD_FILE;
+    return mm_read_exact((MMReadStream *)context, entry->offset, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+}
+
+static void movie_directory(void)
+{
+    enum { OTHER, MVIE_A, MVIE_B, SCENE_A, SCENE_B, SCENE_C, COUNT };
+    const MMU32 types[] = {0x47535420UL, 0x4d564945UL, 0x4d564945UL, 0x5343454eUL, 0x5343454eUL, 0x5343454eUL};
+    const MMU32 numbers[] = {0, 2, 7, 14, 15, 16};
+    const MMU32 lengths[] = {4, 8, 8, 16, 16, 16};
+    const MMI32 codecs[COUNT] = {0};
+    const MMU32 links[][3] = {{MVIE_A, OTHER, 0}, {MVIE_A, SCENE_B, 2}, {MVIE_A, SCENE_A, 5}, {MVIE_B, SCENE_C, 0}};
+    const MMChunkPolicy policy = {0, 0, 516};
+    unsigned char raw[COUNT][FIXTURE_RECORD_BYTES], bytes[1024];
+    MMMemoryStream memory;
+    MMChunkIndex *index;
+    MMMovieChunkView view;
+    MMMovieHeader header;
+    MMMovieSessionScene scene;
+    MMU32 size, cursor, slot, root, number, i;
+    memset(raw, 0, sizeof(raw));
+    for (i = 0; i < COUNT; ++i)
+        put16(raw[i], 1, 1);
+    put16(raw[MVIE_A] + 4, 3, 1);
+    put16(raw[MVIE_A] + 6, 2, 1);
+    put16(raw[MVIE_B] + 4, 2, 1);
+    put16(raw[MVIE_B] + 6, 2, 1);
+    for (i = SCENE_A; i <= SCENE_C; ++i)
+    {
+        put32(raw[i] + 4, 27 + i, 1);
+        put32(raw[i] + 8, i, 1);
+        put32(raw[i] + 12, 1, 1);
+    }
+    size = write_fixture(bytes, sizeof(bytes), 1, COUNT, types, numbers, lengths, codecs, raw, links,
+                         sizeof(links) / sizeof(links[0]));
+    CHECK(mm_memory_stream_init(&memory, bytes, size));
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_OK);
+    view.chunks = mm_chunk_index_access(index);
+    view.context = &memory.stream;
+    view.read = view_record;
+    root = 0xffffffffUL;
+    CHECK(mm_movie_view_root(&view, &root, &header) == MM_MOVIE_OK && root == 2 && header.current_version == 3);
+    CHECK(mm_movie_view_scene_number(&view.chunks, root, 0, &number) == MM_MOVIE_SCENE_NOT_FOUND);
+    CHECK(mm_movie_view_scene_number(&view.chunks, root, 2, &number) == MM_MOVIE_OK && number == 15);
+    CHECK(mm_movie_view_scene_number(&view.chunks, root, 3, &number) == MM_MOVIE_SCENE_NOT_FOUND && number == 15);
+    cursor = 0;
+    CHECK(mm_movie_view_next_scene(&view, root, &cursor, &scene, &slot) == MM_MOVIE_OK &&
+          scene.number == 15 && slot == 2 && scene.first_frame == SCENE_B && scene.last_frame == 27 + SCENE_B);
+    CHECK(mm_movie_view_next_scene(&view, root, &cursor, &scene, &slot) == MM_MOVIE_OK &&
+          scene.number == 14 && slot == 5 && scene.transition == 1);
+    CHECK(mm_movie_view_next_scene(&view, root, &cursor, &scene, &slot) == MM_MOVIE_SCENE_NOT_FOUND &&
+          scene.number == 14 && slot == 5);
+    root = 7;
+    CHECK(mm_movie_view_root(&view, &root, &header) == MM_MOVIE_OK && header.current_version == 2);
+    CHECK(mm_movie_view_scene_number(&view.chunks, root, 0, &number) == MM_MOVIE_OK && number == 16);
+    cursor = 0;
+    memory.stream.length = 1;
+    CHECK(mm_movie_view_next_scene(&view, root, &cursor, &scene, &slot) == MM_MOVIE_IO &&
+          !cursor && scene.number == 14 && slot == 5);
+    root = 0xffffffffUL;
+    CHECK(mm_movie_view_root(&view, &root, &header) == MM_MOVIE_IO && root == 2 && header.current_version == 2);
+    root = 3;
+    CHECK(mm_movie_view_root(&view, &root, &header) == MM_MOVIE_ROOT_NOT_FOUND && root == 3);
+    mm_chunk_index_close(index);
+}
+
 static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int missing_paint)
 {
     enum { ACTN, ACTOR, MODEL, HAT, DEFAULT, CUSTOM, EVENTS, CELS, DEFAULTS, STARTS, SETS, PARENTS, MATRICES,
@@ -1162,6 +1232,7 @@ int main(void)
     wire_indexes();
     movie_sessions();
     movie_camera();
+    movie_directory();
     movie_actors();
     movie_content();
     graphs();

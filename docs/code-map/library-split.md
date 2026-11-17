@@ -38,6 +38,12 @@ the chunky index from a borrowed `MMReadStream`, validates the first `MVIE`, and
 reads `SCEN` headers by the root's authored slot. It uses the shared KCDC/KCD2
 decoders for packed records. `engine-native-chunky-test FILE --movie` supplies
 a real native file stream and prints root versions and ordered scene ranges.
+A borrowed `MMMovieChunkView` applies the same root and scene directory policy
+to a host's current chunk graph. SDL Studio verifies the root, counts slots
+and resolves scene switches through this view, including after edits. Marcus
+uses the view through `Archive::ReadMovieDirectory` to discover the authored
+scene list and frame ranges at open. The host reader supplies the decoded
+record bytes from its existing archive.
 `mm_movie_session_camera` validates and reads the scene's start and frame event
 groups, evaluates camera cuts at an authored frame, and decodes the specified
 background's `CAM` chunk. Source zero uses the movie's own index. For positive
@@ -67,7 +73,8 @@ and loads each distinct active `BMDL` into owned arrays of positions, mappings,
 colours, normals and indexed faces. It composes part world transforms from
 the fixed-point actor pose and local hierarchy. The standalone `--mesh`
 probe prints appearance bindings, world matrices and geometry fingerprints.
-Studio and Marcus still use their existing archive owners and resource providers.
+Studio and Marcus still use their existing archive owners, playback resource
+providers and renderers.
 
 | Caller / dependency | Boundary after the first slice |
 | --- | --- |

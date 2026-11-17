@@ -1144,10 +1144,11 @@ MMMovieSceneServices Movie::_SceneServices()
     };
     s.read = [](void *p, MMI32 index) -> void * {
         auto movie = static_cast<PMovie>(p);
-        ChildChunkIdentification kid;
-        AssertDo(movie->_data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, movie->_data.movieNumber,
-            index, kctgScen, &kid), "Should never fail");
-        return Scene::PscenRead(movie, movie->_data.Resources(), kid.cki.cno);
+        auto resources = movie->_data.Resources();
+        ChunkNumber number;
+        if (!MovieData::FSceneNumber(resources->Pcfl(), movie->_data.movieNumber, index, &number))
+            return nullptr;
+        return Scene::PscenRead(movie, resources, number);
     };
     s.create = [](void *p) -> void * { return Scene::PscenNew(static_cast<PMovie>(p)); };
     s.start = [](void *p) -> int { return static_cast<PScene>(p)->FPlayStartEvents(); };
@@ -1171,10 +1172,10 @@ MMMovieSceneServices Movie::_SceneServices()
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
     };
     s.scene_number = [](void *p, void *file, MMI32 index) -> MMU32 {
-        ChildChunkIdentification kid;
-        AssertDo(static_cast<PChunkyFile>(file)->FGetKidChidCtg(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
-            index, kctgScen, &kid), "Should never fail");
-        return kid.cki.cno;
+        ChunkNumber number = cnoNil;
+        AssertDo(MovieData::FSceneNumber(static_cast<PChunkyFile>(file), static_cast<PMovie>(p)->_data.movieNumber,
+            index, &number), "Should never fail");
+        return number;
     };
     s.move_child = [](void *p, void *file, MMI32 from, MMI32 to) {
         auto movie = static_cast<PMovie>(p);
