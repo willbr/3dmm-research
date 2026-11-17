@@ -12,9 +12,11 @@
 ***************************************************************************/
 #include "util.h"
 #include "mm/filename_path.h"
+#include "mm/filename_naming.h"
 ASSERTNAME
 
 namespace {
+MMFilenameNamingState filenameNaming{};
 void FilenameCopyCheck(void *, const void *source, void *destination, size_t bytes)
 {
     AssertPvCb(const_cast<void *>(source), bytes); AssertPvCb(destination, bytes);
@@ -106,6 +108,15 @@ MMFilenamePathHost FilenamePathHost()
         else { Assert(fFalse, 0); }
     };
 #endif
+    return host;
+}
+MMFilenameNamingHost FilenameNamingHost()
+{
+    MMFilenameNamingHost host{}; host.path = FilenamePathHost();
+    host.clock = [](void *) -> MMU32 { return TsCurrentSystem(); };
+    host.temp_path = [](void *, void *output, MMI32 capacity) -> MMI32 {
+        return static_cast<MMI32>(KauaiFiles::TempPath(static_cast<achar *>(output), capacity));
+    };
     return host;
 }
 }
@@ -237,30 +248,8 @@ bool Filename::FSearchInPath(PString pstn, PString pstnEnv)
 ***************************************************************************/
 bool Filename::FGetUnique(FileType ftg)
 {
-    AssertThis(ffniFile | ffniDir);
-    static short _dsw = 0;
-    String stn;
-    String stnOld;
-    short sw;
-    LegacyLong cact;
-
-    if (Ftg() == kftgDir)
-        stnOld.SetNil();
-    else
-        GetLeaf(&stnOld);
-
-    sw = (short)TsCurrentSystem() + ++_dsw;
-    for (cact = 20; cact != 0; cact--, sw += ++_dsw)
-    {
-        stn.FFormatSz(PszLit("Temp%04x"), (LegacyLong)sw);
-        if (stn.FEqual(&stnOld))
-            continue;
-        if (FSetLeaf(&stn, ftg) && TExists() == tNo)
-            return fTrue;
-    }
-    SetNil();
-    PushErc(ercFniGeneral);
-    return fFalse;
+    const auto value = _ValueView(); const auto host = FilenameNamingHost();
+    return mm_filename_unique(&value, &host, &filenameNaming, ftg) != 0;
 }
 
 /***************************************************************************
@@ -268,24 +257,8 @@ bool Filename::FGetUnique(FileType ftg)
 ***************************************************************************/
 bool Filename::FGetTemp(void)
 {
-    AssertThis(0);
-
-    if (_fniTemp._nameState.type != kftgDir)
-    {
-        // get the temp directory
-        ZString sz;
-
-        if (KauaiFiles::TempPath(sz, kcchMaxSz) == 0)
-        {
-            PushErc(ercFniGeneral);
-            return fFalse;
-        }
-        _fniTemp._stnFile = sz;
-        _fniTemp._nameState.type = kftgDir;
-        AssertPo(&_fniTemp, ffniDir);
-    }
-    *this = _fniTemp;
-    return FGetUnique(vftgTemp);
+    const auto value = _ValueView(), cached = _fniTemp._ValueView(); const auto host = FilenameNamingHost();
+    return mm_filename_temp(&value, &host, &filenameNaming, &cached, vftgTemp) != 0;
 }
 
 /***************************************************************************

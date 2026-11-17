@@ -415,7 +415,9 @@ leaf-change/set/get rules now use C89 over the existing counted path buffer.
 Path construction/search, existence/status/error precedence, delete/rename,
 equality/same-directory, volume forwarding and directory navigation/create/move
 policy now also use C89 through native filesystem and diagnostic providers.
-Temp/unique naming and context, case resolution, enumeration, native object
+Unique/temp candidate formatting, the shared 16-bit sequence, retry/failure
+publication and temp-directory cache control now also use C89. Default cache
+owner/configuration bindings, case resolution, enumeration, native object
 lifetime and final representation integration remain.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed

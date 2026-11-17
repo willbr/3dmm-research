@@ -12023,3 +12023,106 @@ Evidence: `tmp/c89-filename-path-{original,converted}-{runtime,expensive}-{nativ
 `tmp/c89-filename-path-standalone-tests.log`, `tmp/c89-filename-path-asan.log`,
 `tmp/c89-filename-path-regular-tests.log`, `tmp/c89-filename-path-trace-comparison.json`
 and `tmp/c89-filename-path-identities.json`.
+
+### Shared C Filename unique and temporary naming (17 November 2026)
+
+`mm/filename_naming.h` now owns the shared unique-name sequence and controls
+candidate formatting, retries, failure publication and temporary-directory
+caching. `Filename` delegates through the existing native path/clock/temp-path/
+copy/diagnostic providers. It shares C filename value/path and String formatting
+operations. Native class layout and the public `vftgTemp` configuration binding
+are unchanged; the existing `_fniTemp` owner supplies cache storage and metadata.
+Default cache ownership/configuration binding and native object lifetime remain
+integration work.
+
+Each unique call reads the clock once, advances the sequence modulo 65,536 and
+formats `Temp%04x` with the low 16 bits. It skips an exact old leaf before extension
+replacement, tries at most twenty candidates and accepts only a missing result.
+Failed setters and existing/maybe results continue; the final failed iteration
+advances the sequence once more before clearing/reporting general failure.
+Intermediate setter/status errors remain. An overlong parent can fail and clear
+the value, then recover to a relative candidate on retry. The conversion retains
+that legacy behavior and its normal/expensive diagnostic ordering.
+
+Temporary naming initializes its supplied cache only after native provider
+success. Provider failure leaves caller/cache unchanged and does not read the
+clock. Later calls copy the cached directory and use the current temporary type;
+later environment changes do not invalidate it. Unique failure clears the caller
+but retains the cache. Copy providers preserve native owner metadata, with a C
+type/path fallback. Naming does not create or reserve files. C has no hidden
+globals or heap allocation; callers serialize shared state/cache access and
+supply initialized, live, distinct views with matching character widths.
+
+The native normal and expensive fixtures captured the original code directly
+at `9e42309c`, before conversion, on all three hosts. The existing
+`KauaiPlatform::SetTickSource` hook provides deterministic clock values without
+modifying the original implementation. Cases include signed/high-bit clock
+values, an exact old leaf, twenty physical collisions and subsequent recovery,
+capacity failure/recovery, temp-provider failure, changed temporary type and a
+cached directory after environment changes. Paths are recorded relative to a
+private temp root; raw paths/addresses, source lines and layout are excluded.
+Return values, type/directory state, clock calls, state at errors, error order
+and normal/expensive messages are captured. Original profiles are compared with
+their corresponding converted profiles.
+The original `filename.cpp` is 29,638 bytes/SHA-256
+`EC53D212236AEEB9BD3E876AA5D0FE77F33B940666BBD7156B9011A5D9D26B4B`.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, normal | 1,296 | `A95D1075` | `5F8C1AA9439C207316F176AB3578E3A26FC8488FC52B74D53379A52C1B032E06` |
+| Native/SDL Debug, expensive | 2,448 | `D8B4BC4F` | `D57747464967F3936309C476B58A693E21DB1CC4EF564DB5D427A8BCA1563D4D` |
+| SDL Release, both profiles | 1,100 | `A34648AB` | `F3EEA2BE29C7A7C2AE4B022BCC8750FA4976A8319453F711A52F9D629E023C8E` |
+
+`engine-filename-naming` links only C. It covers every one of 65,536 sequence
+starts in both unit widths, clock/sequence wrapping, hexadecimal digits, exact
+old-leaf comparison before extensions, existing/error/mismatch/hidden retries,
+twenty-attempt exhaustion, final increment, clear-before-error publication,
+setter failure/recovery, temp failure/cache/type behavior, copying a terminated
+temp path independently of the provider's nonzero return value, and optional
+copy/diagnostic hooks. MSVC AddressSanitizer passes. All 157 standalone checks,
+including strict C89 syntax, pass.
+
+A local native arithmetic probe retains the original short expressions and
+checks all 65,536 starts, four clock values and twenty retry updates against
+the C modulo-65,536 rule. Both MSVC `/Od /RTC1` and `/O2` profiles pass. This
+verifies the native narrowing/wrapping assumption independently of the C test.
+The probe and logs remain local evidence.
+
+The final gate passes all 238 Native checks, 233 SDL Release checks, all 234 SDL
+Debug checks and all 157 standalone checks: 862 of 863 selected checks pass.
+The sole declared skip is the existing SDL Release `world-export` Debug fixture.
+Native renderer, playback, player and C89 checks pass. All 183 retained trace
+pairs and six new naming pairs match: 189 byte-identical pairs. All ten input
+identities are unchanged; 186 executable identities are recorded. Windows text
+settings remain ACP 1252, OEMCP 437 and locale `en-GB`/2057. The regular headless
+preview harness passes, and all three hosts retain 301,996,032 bytes/FNV-1a
+`E1A71005` across 12 backgrounds and 188 cameras.
+
+New evidence uses the workspace junction `tmp/c89-filename-naming`, backed by
+`D:/CodexBuildEvidence/3DMMForever-filename-naming`, to avoid exhausting C:.
+After the Native build completed, 130 top-level test/tool linker PDB files were
+preserved at `D:/CodexBuildCacheBackups/3DMMForever-filename-naming-native-symbols`,
+freeing 2,624,356,352 bytes. Executables and Marcus's symbols were retained in
+their build directories. Once C: space recovered, the saved symbols were restored
+to the Native build, retaining their D: backups. The existing local
+non-incremental Debug link settings remain in effect; repository build policy
+is unchanged. All host builds pass, including native `chelp`, `ched` and Marcus.
+Marcus was stopped before rebuilding
+and relaunched afterwards; asset readers began after resource regeneration.
+Native/SDL Release fixtures used D: scratch storage and completed slowly while
+their I/O counters continued advancing. SDL Debug scratch storage stayed on C:.
+
+Native Unicode execution, other platforms, concurrent shared-state mutation,
+invalid storage/lifetimes and callbacks that mutate the operation remain
+unverified. Case resolution, enumeration, native object lifetime and final
+C-only host/facade integration remain conversion work. No Marcus UI tests or
+new retail captures were added. Retained retail captures remain the playback
+reference; these correctness checks do not prove playback timing equivalence
+or complete the backend migration.
+
+Evidence: `tmp/c89-filename-naming/{original,converted}-{runtime,expensive}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-filename-naming/filename-original.cpp`, `tmp/c89-filename-naming/run-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-filename-naming/run-standalone-tests.log`, `tmp/c89-filename-naming/asan.log`,
+`tmp/c89-filename-naming/short-probe-{debug,release}.log`,
+`tmp/c89-filename-naming/run-regular-tests.log`, `tmp/c89-filename-naming/trace-comparison.json`
+and `tmp/c89-filename-naming/identities.json`.

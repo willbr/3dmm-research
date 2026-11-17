@@ -646,10 +646,11 @@ noncanonical values such as trailing dots. Messages/stage order remain matched
 to their original profile. Baseline reconstruction and evidence are in the
 [regression log](../tools/playback-regression.md).
 
-Path construction/search, filesystem dispatch and navigation policy also use
-the C controller described below. Unique/temp naming and context, case resolution,
-enumeration, native object lifetime and final C-only host/facade integration
-remain conversion work. This does not complete the backend migration.
+Path construction/search, filesystem dispatch, navigation and unique/temp naming
+also use the C controllers described below. Default cache owner/configuration
+bindings, case resolution, enumeration, native object lifetime and final C-only
+host/facade integration remain conversion work. This does not complete the
+backend migration.
 
 ### Filename path and navigation rules
 
@@ -687,6 +688,42 @@ root, return values, values observed during errors, diagnostics and error order.
 Both profiles are compared with their corresponding pre-conversion captures;
 details and retained regression evidence are in the
 [regression log](../tools/playback-regression.md).
+
+### Filename unique and temporary naming
+
+`mm/filename_naming.h` owns the shared sequence in `MMFilenameNamingState` and
+controls unique/temp naming over the preceding C filename/path/String modules.
+Each unique call reads the native clock once and advances a sequence modulo
+65,536, preserving the low 16 bits used by legacy `Temp%04x` formatting. It tries
+at most twenty candidates, skips the exact previous leaf before applying an
+extension, and accepts only a missing result. Existing/maybe results and failed
+setters continue the sequence; the final failed iteration increments it once
+more before clearing the name and reporting general failure. Existing errors
+remain visible. A capacity failure can clear the parent and then recover to a
+relative candidate on retry, matching the original code and diagnostics.
+
+Temporary naming initializes a supplied cached-directory view on first provider
+success, then copies it and runs the same unique controller with the current
+temporary type. Provider failure preserves the caller/cache and reads no clock.
+Later environment changes do not invalidate the cache. Unique failure clears
+only the caller. Copy hooks preserve native owner metadata; a null hook copies
+C type/path values. Neither operation reserves or creates a physical file.
+
+The C entry points have no hidden globals or heap allocation. Callers supply
+initialized, live, distinct views, matching character units, shared state/cache
+and serialized access. Clock/temp-path primitives use the existing path-provider
+context. Native `Filename` supplies one default C sequence and the existing
+`_fniTemp` owner; `vftgTemp` remains the public compatibility configuration input.
+Those default bindings and native object lifetime remain integration work.
+
+`engine-filename-naming` checks all 65,536 sequence starts in both unit widths,
+clock/sequence wrapping, old-leaf comparison, status/error precedence, retry
+exhaustion, setter recovery, cache publication/failure and optional hooks using
+only C. Native normal/expensive fixtures use the existing clock hook to capture
+deterministic pre-conversion sequences, collision exhaustion, capacity recovery,
+temp-provider failure, configuration changes and cached environment behavior.
+They compare corresponding original profiles; the
+[regression log](../tools/playback-regression.md) records evidence and limits.
 
 ### Collection storage foundation
 
