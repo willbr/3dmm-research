@@ -38,6 +38,8 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include "engine_movie_source.h"
+#include "engine_read_stream.h"
 PTagManager vptagm;
 
 ASSERTNAME
@@ -319,6 +321,36 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
         },
         [](void *, MMI32) { Bug("Invalid sid"); }};
     return mm_source_names_merge(&_names, &input, bo == kboOther) != 0;
+}
+
+bool TagManager::FMergeMovieSources(PChunkyFile file, ChunkNumber movie)
+{
+    const auto access = file->ReadChunkAccess();
+    MMChunkEntry entry;
+    MMU32 position;
+    const auto status = mm_movie_view_source_table(&access, movie, &entry, &position);
+    if (status == MM_MOVIE_ASSET_NOT_FOUND)
+        return true;
+    DataBlock block;
+    if (status != MM_MOVIE_OK || !file->FFind(entry.type, entry.number, &block) || !block.FUnpackData())
+        return false;
+    const auto stream = EngineReadStream::FromBlock(block);
+    MMMovieSourceTable table;
+    if (mm_movie_source_table_open(&stream, stream.length, &table) != MM_MOVIE_OK)
+        return false;
+    for (MMU32 i = 0; i < table.count; ++i)
+    {
+        MMMovieSourceName row;
+        if (mm_movie_source_table_at(&table, i, &row) != MM_MOVIE_OK)
+            return false;
+        if (row.id < 0)
+            Bug("Invalid sid");
+        String name;
+        EngineMovieSource::ToString(row, name);
+        if (!mm_source_names_add(&_names, row.id, name.Prgch(), name.Cch()))
+            return false;
+    }
+    return true;
 }
 
 /***************************************************************************

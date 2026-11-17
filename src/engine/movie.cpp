@@ -359,13 +359,8 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
 
     bool fSuccess = fFalse, fBeganLongOp = fFalse;
     PMovie pmvie;
-    ChildChunkIdentification kid;
     TagList *ptagl;
     PChunkyFile pcfl = pvNil;
-    DataBlock blck;
-    short bo;
-    short osk;
-    PStringTable_GST pgstSource;
     Filename containerWorking;
 
     //
@@ -467,17 +462,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     // Merge this document's source title list
     //
-    if (pcfl->FGetKidChidCtg(kctgMvie, cno, kchidGstSource, kctgGst, &kid) &&
-        pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-    {
-        pgstSource = StringTable_GST::PgstRead(&blck, &bo, &osk);
-        if (pvNil != pgstSource)
-        {
-            // Ignore result...we can survive failure
-            vptagm->FMergeGstSource(pgstSource, bo, osk);
-            ReleasePpo(&pgstSource);
-        }
-    }
+    vptagm->FMergeMovieSources(pcfl, cno); // Source titles are best-effort.
 
     //
     // Get all the content tags

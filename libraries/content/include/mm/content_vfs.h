@@ -46,6 +46,10 @@ extern "C"
     /* Results are borrowed until mutation/destruction. Start cursor at zero.
      * Enumeration is sorted by virtual filename, independently of physical paths. */
     int mm_vfs_next(const MMVfs *vfs, const char *source, size_t *cursor, MMVfsMount *file);
+    /* Same order and lifetime, with an ASCII-insensitive extension filter.
+     * Include the leading dot in extension. */
+    int mm_vfs_next_extension(const MMVfs *, const char *source, const char *extension,
+                              size_t *cursor, MMVfsMount *);
     const char *mm_vfs_resolve(const MMVfs *vfs, const char *source, const char *name);
     MMVfsFile *mm_vfs_open(const MMVfs *vfs, const char *source, const char *name);
     /* Open handles survive unmounts and VFS destruction; close each explicitly. */

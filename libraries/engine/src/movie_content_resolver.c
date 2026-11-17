@@ -85,13 +85,6 @@ static int open_archive(MMMovieContent *content, const char *location, Archive *
     return MM_MOVIE_OK;
 }
 
-static int content_archive(const char *name)
-{
-    const char *extension = strrchr(name, '.');
-    return extension && strlen(extension) == 4 && extension[1] == '3' &&
-           (extension[2] == 'c' || extension[2] == 'C') && (extension[3] == 'n' || extension[3] == 'N');
-}
-
 int mm_movie_content_source(void *ctx, const MMMovieAsset *asset, MMReadStream *out)
 {
     MMMovieContent *content = (MMMovieContent *)ctx;
@@ -107,10 +100,8 @@ int mm_movie_content_source(void *ctx, const MMMovieAsset *asset, MMReadStream *
     status = mm_movie_session_source_name(content->movie, asset->source, source);
     if (status != MM_MOVIE_OK)
         return status;
-    while (mm_vfs_next(content->vfs, source, &cursor, &mount))
+    while (mm_vfs_next_extension(content->vfs, source, ".3cn", &cursor, &mount))
     {
-        if (!content_archive(mount.name))
-            continue;
         status = open_archive(content, mount.location, &archive);
         if (status != MM_MOVIE_OK)
             return status;

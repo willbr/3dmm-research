@@ -12877,6 +12877,40 @@ All 181 standalone and 11 Marcus-enabled C89 checks passed, along with
 C89 for Linux x64 musl. Marcus and SDL Studio built successfully. Marcus was
 relaunched from this workspace after the build.
 
+### Shared C89 movie source-table loading (17 November 2026)
+
+SDL Studio, Marcus and the standalone session now locate the movie's source
+GST through the same C89 chunk view and decode its authored SID and name rows
+with the same reader. The two hosts retain the native text conversion. The
+standalone resolver and the host VFS adapter share case-insensitive archive
+extension filtering and the existing mount order.
+
+Test copies of `actor-events` and `scrolling-text` changed the retail source
+ID from 2 to 29 in the source table, actors, roll call, backgrounds and 3D
+text font tags. Retail, SDL Studio and Marcus each reproduced their original
+seek states at all 120 authored positions and their original viewport
+hashes at all 16 sampled positions. The standalone C89 probe reproduced
+its actor, part, material and mesh observations across the same 120
+positions after normalizing the authored source ID.
+Original v3dmm matched its own 60 seek states and eight viewport hashes for
+the `actor-events` pair in stock VMM envelopes.
+
+The engine fixtures cover ANSI and UTF-16 source rows, duplicate IDs, empty
+names, decode budgets, the absent-table retail default and missing assets.
+The VFS fixture covers the extension filter with mixed-case names. All 181
+standalone and 11 Marcus-enabled C89 checks passed, along with
+`archive-api` and `movie-save-load`. The affected C files also compiled
+as strict C89 for Linux x64 musl. Both hosts built successfully and Marcus
+was relaunched from this workspace.
+
+The SDL VMM workflow passed source-6 actor authoring, save and fresh-process
+reopen, package management, per-movie activation and saved subsets. Marcus
+opened the resulting bundled VMM and rendered its authored frame through
+the headless player API.
+
+The retagged fixtures and capture logs are under
+`tmp/c89-host-sources-verify/`.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

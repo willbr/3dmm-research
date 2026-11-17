@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STRING_TABLE_TYPE 0x47535420UL
-
 static int utf8(const unsigned short *units, size_t count, char *out)
 {
     size_t i, written = 0;
@@ -39,40 +37,99 @@ static int utf8(const unsigned short *units, size_t count, char *out)
     return 1;
 }
 
-static int find_source(const MMReadStream *stream, MMI32 sid, char *out)
+int mm_movie_source_table_open(const MMReadStream *stream, MMU32 max_bytes, MMMovieSourceTable *out)
 {
     MMCollectionHeader header;
-    unsigned char bytes[510], row[8];
-    unsigned short units[255];
-    MMU32 table, offset, i;
-    size_t unit, count;
-    char name[MM_MOVIE_SOURCE_NAME_BYTES];
-    int status = mm_movie_validate_strings(stream, 0x7fffffffUL);
+    MMMovieSourceTable table;
+    int status;
+    if (!out)
+        return MM_MOVIE_BAD_FILE;
+    status = mm_movie_validate_strings(stream, max_bytes);
     if (status != MM_MOVIE_OK)
         return status;
     status = mm_collection_header_read(stream, MM_COLLECTION_STRINGS, 0, &header);
-    if (status != MM_STORAGE_OK || header.width != sizeof(row))
+    if (status != MM_STORAGE_OK || header.width != 8)
         return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
-    unit = header.system == MM_TEXT_UTF16_BE || header.system == MM_TEXT_UTF16_LE ? 2 : 1;
-    table = header.header_bytes + header.first_bytes;
-    for (i = 0; i < header.count; ++i)
+    table.stream = stream;
+    table.count = header.count;
+    table.strings_offset = header.header_bytes;
+    table.rows_offset = header.header_bytes + header.first_bytes;
+    table.unit = header.system == MM_TEXT_UTF16_BE || header.system == MM_TEXT_UTF16_LE ? 2 : 1;
+    table.big_endian = header.big_endian;
+    table.encoding = header.system;
+    *out = table;
+    return MM_MOVIE_OK;
+}
+
+static int row_header(const MMMovieSourceTable *table, MMU32 row, MMU32 *offset, MMI32 *sid)
+{
+    unsigned char bytes[8];
+    if (!table || row >= table->count)
+        return MM_MOVIE_ASSET_NOT_FOUND;
+    if (!mm_read_exact(table->stream, table->rows_offset + row * sizeof(bytes), bytes, sizeof(bytes)))
+        return MM_MOVIE_IO;
+    *offset = table->strings_offset + mm_session_word(bytes, table->big_endian);
+    *sid = mm_signed_word(mm_session_word(bytes + 4, table->big_endian));
+    return MM_MOVIE_OK;
+}
+
+static int read_name(const MMMovieSourceTable *table, MMU32 offset, MMI32 sid, MMMovieSourceName *out)
+{
+    MMMovieSourceName name;
+    unsigned char length[2];
+    MMU32 count;
+    if (!mm_read_exact(table->stream, offset, length, table->unit))
+        return MM_MOVIE_IO;
+    count = table->unit == 1 ? length[0] : table->encoding == MM_TEXT_UTF16_BE
+                                          ? (MMU32)length[0] * 256 + length[1]
+                                          : (MMU32)length[1] * 256 + length[0];
+    if (count > 255)
+        return MM_MOVIE_BAD_FILE;
+    memset(&name, 0, sizeof(name));
+    name.id = sid;
+    name.encoding = table->encoding;
+    name.size = count * table->unit;
+    if (!mm_read_exact(table->stream, offset + table->unit, name.bytes, name.size))
+        return MM_MOVIE_IO;
+    *out = name;
+    return MM_MOVIE_OK;
+}
+
+int mm_movie_source_table_at(const MMMovieSourceTable *table, MMU32 row, MMMovieSourceName *out)
+{
+    MMU32 offset;
+    MMI32 sid;
+    int status;
+    if (!out)
+        return MM_MOVIE_BAD_FILE;
+    status = row_header(table, row, &offset, &sid);
+    return status == MM_MOVIE_OK ? read_name(table, offset, sid, out) : status;
+}
+
+static int find_source(const MMReadStream *stream, MMI32 sid, char *out)
+{
+    MMMovieSourceTable table;
+    MMMovieSourceName row;
+    MMU32 offset, i;
+    MMI32 id;
+    unsigned short units[255];
+    char name[MM_MOVIE_SOURCE_NAME_BYTES];
+    size_t count;
+    int status = mm_movie_source_table_open(stream, 0x7fffffffUL, &table);
+    if (status != MM_MOVIE_OK)
+        return status;
+    for (i = 0; i < table.count; ++i)
     {
-        if (!mm_read_exact(stream, table + i * sizeof(row), row, sizeof(row)))
-            return MM_MOVIE_IO;
-        if (mm_signed_word(mm_session_word(row + 4, header.big_endian)) != sid)
+        status = row_header(&table, i, &offset, &id);
+        if (status != MM_MOVIE_OK)
+            return status;
+        if (id != sid)
             continue;
-        offset = header.header_bytes + mm_session_word(row, header.big_endian);
-        if (!mm_read_exact(stream, offset, bytes, unit))
-            return MM_MOVIE_IO;
-        count = unit == 1 ? bytes[0] : header.system == MM_TEXT_UTF16_BE
-                                            ? (size_t)bytes[0] * 256 + bytes[1]
-                                            : (size_t)bytes[1] * 256 + bytes[0];
-        if (!count || count > sizeof(units) / sizeof(units[0]))
-            return MM_MOVIE_BAD_FILE;
-        if (!mm_read_exact(stream, offset + unit, bytes, count * unit))
-            return MM_MOVIE_IO;
-        if (mm_text_utf16(NULL, bytes, count * unit, header.system, units, count) != count ||
-            !utf8(units, count, name))
+        status = read_name(&table, offset, id, &row);
+        if (status != MM_MOVIE_OK)
+            return status;
+        count = mm_text_utf16(NULL, row.bytes, row.size, row.encoding, units, sizeof(units) / sizeof(units[0]));
+        if (!count || !utf8(units, count, name))
             return MM_MOVIE_BAD_FILE;
         memcpy(out, name, strlen(name) + 1);
         return MM_MOVIE_OK;
@@ -90,16 +147,16 @@ int mm_movie_session_source_name(const MMMovieSession *movie, MMI32 source, char
     if (!movie || !name || source <= 0)
         return MM_MOVIE_BAD_FILE;
     access = mm_chunk_index_access(movie->index);
-    status = mm_session_child(&access, movie->root_position, 1, STRING_TABLE_TYPE, &entry, &position);
-    if (status == MM_CHUNK_NOT_FOUND)
+    status = mm_movie_view_source_table(&access, movie->root.number, &entry, &position);
+    if (status == MM_MOVIE_ASSET_NOT_FOUND)
     {
-        if (source != 2)
+        if (source != MM_MOVIE_RETAIL_SOURCE_ID)
             return MM_MOVIE_ASSET_NOT_FOUND;
-        memcpy(name, "3dmovie", sizeof("3dmovie"));
+        memcpy(name, MM_MOVIE_RETAIL_SOURCE_NAME, sizeof(MM_MOVIE_RETAIL_SOURCE_NAME));
         return MM_MOVIE_OK;
     }
-    if (status != MM_CHUNK_OK)
-        return MM_MOVIE_BAD_FILE;
+    if (status != MM_MOVIE_OK)
+        return status;
     status = mm_session_payload(&movie->stream, movie->index, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;

@@ -10,6 +10,7 @@
 #define SCENE_TYPE 0x5343454eUL
 #define SCENE_START_TYPE 0x47475354UL
 #define SCENE_FRAME_TYPE 0x47474652UL
+#define STRING_TABLE_TYPE 0x47535420UL
 #define BACKGROUND_TYPE 0x424b4744UL
 #define CAMERA_TYPE 0x43414d20UL
 
@@ -221,6 +222,23 @@ int mm_session_child(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU3
     if (status != MM_CHUNK_OK || mm_chunk_find(access, type, child.number, position) != MM_CHUNK_OK)
         return MM_CHUNK_BAD_FILE;
     return mm_chunk_at(access, *position, entry);
+}
+
+int mm_movie_view_source_table(const MMChunkAccess *access, MMU32 root, MMChunkEntry *entry, MMU32 *position)
+{
+    MMChunkEntry parent_entry;
+    MMU32 parent, child;
+    int status;
+    if (!access || !entry || !position)
+        return MM_MOVIE_BAD_FILE;
+    status = root_entry(access, root, &parent_entry, &parent);
+    if (status != MM_MOVIE_OK)
+        return status;
+    status = mm_session_child(access, parent, 1, STRING_TABLE_TYPE, entry, &child);
+    if (status == MM_CHUNK_OK)
+        *position = child;
+    return status == MM_CHUNK_OK ? MM_MOVIE_OK
+         : status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
 }
 
 static int scene_at_slot(const MMChunkAccess *access, MMU32 root_position, MMU32 slot, MMChunkEntry *entry,

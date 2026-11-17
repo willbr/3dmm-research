@@ -59,6 +59,12 @@ searches mounted `.3cn` archives by exact chunk type and number. Archive
 opening remains a platform service. `engine-native-chunky-test FILE --seek
 SCENE FRAME RETAIL_CONTENT_DIRECTORY` mounts the retail directory and runs
 both queries from a single movie session.
+SDL Studio and Marcus use the same GST link lookup and C89 source-table reader
+for movie-authored sources. Both host adapters preserve the legacy text
+conversion. Studio merges names into the existing tag manager and Marcus
+passes the ordered rows to its content mounts. Archive enumeration by filename
+extension uses the C89 VFS in both the host VFS adapter and the standalone
+content resolver.
 `mm_movie_session_body` adds the on-stage body's parent and set indices,
 local part matrices and authored model bindings. Ordinary templates use their
 selected cel and linked matrix table. Embedded 3D text uses the shared text

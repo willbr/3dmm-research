@@ -92,6 +92,9 @@ int main(void)
     CHECK(mm_vfs_next(vfs, "v3dmm", &cursor, &entry) && !strcmp(entry.name, "A.3th"));
     CHECK(mm_vfs_next(vfs, "v3dmm", &cursor, &entry) && !strcmp(entry.name, "B.3cn"));
     CHECK(!mm_vfs_next(vfs, "v3dmm", &cursor, &entry));
+    cursor = 0;
+    CHECK(mm_vfs_next_extension(vfs, "Virtual3DMM", ".3CN", &cursor, &entry) && !strcmp(entry.name, "B.3cn"));
+    CHECK(!mm_vfs_next_extension(vfs, "Virtual3DMM", ".3CN", &cursor, &entry) && !strcmp(entry.name, "B.3cn"));
     second.name = "caf\351.3cn";
     second.location = "first";
     CHECK(mm_vfs_mount(vfs, "v3dmm", &second, 1, 0) == MM_VFS_OK);

@@ -623,10 +623,16 @@ static void movie_content(void)
     MMMemoryStream input;
     MMMovieSession *movie;
     MMMovieContent *content;
+    MMMovieSourceTable sources;
+    MMMovieSourceName row;
+    MMChunkIndex *index;
+    MMChunkAccess access;
+    MMChunkEntry entry;
+    MMReadSlice table;
     MMVfs *vfs;
     MMMovieAsset asset = {9, 0x544d504cUL, 13};
     MMReadStream resolved;
-    MMU32 size;
+    MMU32 size, position;
     int wide;
 
     memset(&archives, 0, sizeof(archives));
@@ -641,6 +647,20 @@ static void movie_content(void)
     {
         size = source_movie(bytes, wide, wide);
         CHECK(mm_memory_stream_init(&input, bytes, size));
+        CHECK(mm_chunk_index_open(&input.stream, &policy, &index) == MM_CHUNK_OK);
+        access = mm_chunk_index_access(index);
+        CHECK(mm_movie_view_source_table(&access, 17, &entry, &position) == MM_MOVIE_OK &&
+              entry.number == 5 && position == 0);
+        CHECK(mm_read_slice_init(&table, &input.stream, entry.offset, entry.bytes));
+        CHECK(mm_movie_source_table_open(&table.stream, entry.bytes, &sources) == MM_MOVIE_OK &&
+              sources.count == 2 && sources.big_endian == wide);
+        CHECK(mm_movie_source_table_at(&sources, 0, &row) == MM_MOVIE_OK && row.id == 9 &&
+              row.size == 13U * (wide ? 2 : 1) && row.bytes[wide ? 2 : 1] == 0xe9);
+        CHECK(mm_movie_source_table_at(&sources, 1, &row) == MM_MOVIE_OK && row.id == 9 && !row.size);
+        CHECK(mm_movie_source_table_at(&sources, 2, &row) == MM_MOVIE_ASSET_NOT_FOUND && row.id == 9 && !row.size);
+        CHECK(mm_movie_source_table_open(&table.stream, entry.bytes - 1, &sources) == MM_MOVIE_BAD_FILE &&
+              sources.count == 2);
+        mm_chunk_index_close(index);
         CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
         CHECK(mm_movie_session_source_name(movie, 9, name) == MM_MOVIE_OK);
         CHECK(!strcmp(name, "D\xc3\xa9" "cor/3DMOVIE"));

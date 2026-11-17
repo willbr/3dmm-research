@@ -56,6 +56,9 @@ int mm_movie_view_scene_number(const MMChunkAccess *, MMU32 root, MMU32 slot, MM
 int mm_movie_view_next_scene(const MMMovieChunkView *, MMU32 root, MMU32 *cursor,
                              MMMovieSessionScene *, MMU32 *slot);
 
+/* Resolve the first GST linked at the movie's source-table slot. */
+int mm_movie_view_source_table(const MMChunkAccess *, MMU32 root, MMChunkEntry *, MMU32 *position);
+
 typedef struct MMMovieAsset
 {
     MMI32 source;
@@ -110,7 +113,31 @@ int mm_movie_session_open(const MMReadStream *, const MMChunkPolicy *, MMMovieSe
 void mm_movie_session_close(MMMovieSession *);
 const MMMovieSessionRoot *mm_movie_session_root(const MMMovieSession *);
 
-enum { MM_MOVIE_SOURCE_NAME_BYTES = 766 };
+enum { MM_MOVIE_SOURCE_NAME_BYTES = 766, MM_MOVIE_RETAIL_SOURCE_ID = 2 };
+#define MM_MOVIE_RETAIL_SOURCE_NAME "3dmovie"
+typedef struct MMMovieSourceTable
+{
+    const MMReadStream *stream;
+    MMU32 count, strings_offset, rows_offset;
+    unsigned unit;
+    int big_endian, encoding;
+} MMMovieSourceTable;
+
+typedef struct MMMovieSourceName
+{
+    MMI32 id;
+    int encoding;
+    MMU32 size;
+    unsigned char bytes[510];
+} MMMovieSourceName;
+
+/* Open a dense GST of counted source names and four-byte SID extras. Keep the
+ * decoded stream stable throughout iteration. Rows retain wire order and
+ * encoding; duplicate IDs are published for the caller's lookup/merge policy.
+ * The table and row outputs are unchanged on failure. */
+int mm_movie_source_table_open(const MMReadStream *, MMU32 max_bytes, MMMovieSourceTable *);
+int mm_movie_source_table_at(const MMMovieSourceTable *, MMU32 row, MMMovieSourceName *);
+
 /* Read the first matching SID from MVIE's source table as UTF-8. A movie
  * with no source table uses the retail source name for SID 2. Failure leaves
  * the caller's MM_MOVIE_SOURCE_NAME_BYTES-byte buffer unchanged. */

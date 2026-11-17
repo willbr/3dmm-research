@@ -240,10 +240,11 @@ fail:
     free(key);
     return error;
 }
-int mm_vfs_next(const MMVfs *vfs, const char *source, size_t *cursor, MMVfsMount *file)
+static int next_mount(const MMVfs *vfs, const char *source, const char *extension, size_t *cursor, MMVfsMount *file)
 {
     char *key;
     const Entry *entry;
+    const char *suffix;
     if (!vfs || !cursor || !file)
         return 0;
     key = source_key(source);
@@ -252,16 +253,29 @@ int mm_vfs_next(const MMVfs *vfs, const char *source, size_t *cursor, MMVfsMount
     while (*cursor < vfs->count)
     {
         entry = &vfs->entries[(*cursor)++];
-        if (!strcmp(key, entry->source))
+        if (strcmp(key, entry->source))
+            continue;
+        if (extension)
         {
-            file->name = entry->name;
-            file->location = entry->location;
-            free(key);
-            return 1;
+            suffix = strrchr(entry->name, '.');
+            if (!suffix || !equal(suffix, extension))
+                continue;
         }
+        file->name = entry->name;
+        file->location = entry->location;
+        free(key);
+        return 1;
     }
     free(key);
     return 0;
+}
+int mm_vfs_next(const MMVfs *vfs, const char *source, size_t *cursor, MMVfsMount *file)
+{
+    return next_mount(vfs, source, NULL, cursor, file);
+}
+int mm_vfs_next_extension(const MMVfs *vfs, const char *source, const char *extension, size_t *cursor, MMVfsMount *file)
+{
+    return extension && extension[0] == '.' && next_mount(vfs, source, extension, cursor, file);
 }
 int mm_vfs_mounted(const MMVfs *vfs, const char *source)
 {

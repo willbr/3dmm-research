@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include "soc_core.h"
 #include "engine_read_stream.h"
-#include "mm/movie_session.h"
+#include "engine_movie_source.h"
 #include "platform_text.h"
 #undef size
 ASSERTNAME
@@ -35,6 +35,7 @@ struct Archive::Impl
         ReleasePpo(&file);
     }
     bool Load(std::size_t index, Error &error);
+    bool LoadSources(MMU32 root, std::vector<MovieSourceEntry> &sources, Error &error);
 };
 namespace
 {
@@ -474,6 +475,44 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
         return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode record.");
     }
 }
+bool Archive::Impl::LoadSources(MMU32 root, std::vector<MovieSourceEntry> &sources, Error &error)
+{
+    const auto access = file->ReadChunkAccess();
+    MMChunkEntry entry;
+    MMU32 position;
+    const int status = mm_movie_view_source_table(&access, root, &entry, &position);
+    if (status == MM_MOVIE_ASSET_NOT_FOUND)
+    {
+        sources.push_back({MM_MOVIE_RETAIL_SOURCE_ID, MM_MOVIE_RETAIL_SOURCE_NAME});
+        return true;
+    }
+    if (status != MM_MOVIE_OK)
+        return Fail(error, ErrorCode::corrupt_archive, "The movie has an invalid source table link.");
+    const Id id = {entry.type, entry.number};
+    if (position >= chunks.size() || !(chunks[position].id == id))
+        return Fail(error, ErrorCode::corrupt_archive, "Cannot locate the movie source table.", &id);
+    if (!Load(position, error))
+        return false;
+    const auto stream = EngineReadStream::FromBlock(payload);
+    MMMovieSourceTable table;
+    if (stream.length > options.maxStringTableBytes)
+        return Fail(error, ErrorCode::resource_limit, "Source table exceeds this session's preview budget.", &id);
+    const int opened = mm_movie_source_table_open(&stream, options.maxStringTableBytes, &table);
+    if (opened == MM_MOVIE_MEMORY)
+        throw std::bad_alloc();
+    if (opened != MM_MOVIE_OK)
+        return Fail(error, ErrorCode::corrupt_archive, "Invalid movie source table.", &id);
+    for (MMU32 i = 0; i < table.count; ++i)
+    {
+        MMMovieSourceName row;
+        if (mm_movie_source_table_at(&table, i, &row) != MM_MOVIE_OK)
+            return Fail(error, ErrorCode::io_error, "Cannot read a movie source name.", &id);
+        String text;
+        EngineMovieSource::ToString(row, text);
+        sources.push_back({row.id, Utf8(text)});
+    }
+    return true;
+}
 bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
 {
     error = {};
@@ -522,12 +561,18 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
             result.scenes.push_back({{kctgScen, scene.number}, slot, {scene.first_frame, scene.last_frame, scene.transition}});
         if (next != MM_MOVIE_SCENE_NOT_FOUND)
             return error ? false : Fail(error, ErrorCode::corrupt_archive, "The movie has an invalid scene link or header.", &id);
+        if (!_impl->LoadSources(root, result.sources, error))
+            return false;
         directory = std::move(result);
         return true;
     }
     catch (const std::bad_alloc &)
     {
         return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to read the movie directory.");
+    }
+    catch (const std::exception &)
+    {
+        return Fail(error, ErrorCode::unsupported_format, "Movie source names cannot be decoded.");
     }
 }
 bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t count, StringTablePage &page,

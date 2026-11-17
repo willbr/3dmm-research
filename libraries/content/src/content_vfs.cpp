@@ -128,13 +128,10 @@ std::vector<File> Vfs::Entries(const std::string &source) const
 std::vector<std::filesystem::path> Vfs::Files(const std::string &source, const std::string &extension) const
 {
     std::vector<std::filesystem::path> result;
-    for (const auto &file : Entries(source))
-    {
-        // ZIP virtual names may retain legacy bytes; only physical paths are UTF-8.
-        const auto dot = file.name.find_last_of('.');
-        if (dot != std::string::npos && Fold(file.name.substr(dot)) == Fold(extension))
-            result.push_back(file.physical);
-    }
+    MMVfsMount file;
+    std::size_t cursor = 0;
+    while (mm_vfs_next_extension(vfs, source.c_str(), extension.c_str(), &cursor, &file))
+        result.push_back(std::filesystem::u8path(file.location));
     return result;
 }
 std::filesystem::path Vfs::Resolve(const std::string &source, const std::string &name) const

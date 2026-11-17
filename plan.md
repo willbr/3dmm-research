@@ -456,12 +456,14 @@ Keep host presentation and device output outside the session.
    materials and action cels so that retained model bindings use the prior
    effective model. The standalone `--mesh` probe loads those models from the
    owning template or font archive and composes world transforms from the
-   body tree. Host mount discovery, renderer material and texture loading,
-   and rendered output remain open.
+   body tree. SDL Studio and Marcus now read the same authored source-table
+   rows as the standalone session. Mounted archive enumeration uses one C89
+   VFS extension filter. Host-specific mount setup, renderer material and
+   texture loading, and rendered output remain open.
 3. Switch both hosts to the same session for the covered operations and retire
-   the superseded backend paths. Root and scene directory queries now share
-   the standalone policy. Content resolution and frame evaluation still need
-   the host cutover. Link and run the standalone consumer and its
+   the superseded backend paths. Root, scene and source directory queries now
+   share the standalone policy. Live resource selection and frame evaluation
+   still need the host cutover. Link and run the standalone consumer and its
    real file/content providers with the C toolchain, without `engine-core`,
    `engine`, `MM::Archive`, `MM::Preview` or their project-owned C++ providers.
    Verify the host paths with the regression gate above.

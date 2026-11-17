@@ -1971,8 +1971,7 @@ extern "C"
             std::vector<MM::Id> scenes;
             std::vector<MarcusScene> sceneInfo;
             std::map<std::int32_t, std::string> names;
-            std::vector<std::pair<std::int32_t, std::string>> sources;
-            bool hasSourceTable = false;
+            auto sources = std::move(movie.sources);
             const auto &chunks = archive.Chunks();
             const auto addScene = [&](const MM::Chunk &chunk, const MM::SceneHeader &header) {
                 MarcusScene scene = {};
@@ -1998,15 +1997,14 @@ extern "C"
                     return false;
                 for (const auto &child : chunks[rootIndex].children)
                 {
-                    if (child.target.type != gstType || child.slot > 1)
+                    if (child.target.type != gstType || child.slot != 0)
                         continue;
-                    hasSourceTable = hasSourceTable || child.slot == 1;
                     std::vector<MM::StringTableEntry> entries;
                     bool big = false;
                     if (!Strings(archive, child.target, entries, big, error))
                         return false;
                     for (const auto &entry : entries)
-                        if (child.slot == 0 && entry.extra.size() == MM_MOVIE_ACTOR_BYTES)
+                        if (entry.extra.size() == MM_MOVIE_ACTOR_BYTES)
                         {
                             MMMemoryStream memory;
                             MMMovieActor actor;
@@ -2019,12 +2017,7 @@ extern "C"
                             }
                             names[actor.actor_id] = entry.text;
                         }
-                        else if (child.slot == 1 && entry.extra.size() == 4)
-                            sources.push_back({Word(entry.extra, big), entry.text});
                 }
-                // Source 2 is the original retail content when older movies omit a table.
-                if (!hasSourceTable)
-                    sources.push_back({2, "3dmovie"});
             }
             else
             {
@@ -2061,16 +2054,16 @@ extern "C"
             for (const auto &name : names) nextActor = std::max(nextActor, std::int64_t(name.first) + 1);
             std::int32_t retailSource = 2;
             bool retailPrepared = false;
-            for (const auto &source : sources) retailSource = std::max(retailSource, source.first + 1);
+            for (const auto &source : sources) retailSource = std::max(retailSource, source.id + 1);
             for (const auto &source : sources)
-                if (MM::Content::SourceKey(source.second) == "3dmovie") { retailSource = source.first; retailPrepared = true; break; }
+                if (MM::Content::SourceKey(source.name) == "3dmovie") { retailSource = source.id; retailPrepared = true; break; }
             for (const auto &source : sources)
-                content->PrepareSource(source.second);
+                content->PrepareSource(source.name);
             auto loadedBoards = MarcusReadBoards(archive, materialized);
             long nextBoardSource = 0x7ffffffeL;
             for (auto &entry : loadedBoards)
             {
-                while (std::any_of(sources.begin(), sources.end(), [&](const auto &source) { return source.first == nextBoardSource; })) --nextBoardSource;
+                while (std::any_of(sources.begin(), sources.end(), [&](const auto &source) { return source.id == nextBoardSource; })) --nextBoardSource;
                 if (nextBoardSource <= 2) { error.message = "No background source IDs are available."; return false; }
                 // Rebuild from editable pixels, repairing old palettes. Never
                 // treat an outer VMM file as a native chunky resource file.
@@ -2100,7 +2093,7 @@ extern "C"
             initialEdits->storyboards = std::make_shared<MarcusStoryboards>(std::move(loadedBoards));
             player->edits = initialEdits;
             player->contentSourceIds.clear();
-            for (const auto &source : sources) player->contentSourceIds.insert(source.first);
+            for (const auto &source : sources) player->contentSourceIds.insert(source.id);
             player->nextBoardSource = nextBoardSource;
             player->boardFiles.clear(); player->asmBoardFile.reset();
             player->materializedEdits.reset();
@@ -2120,9 +2113,9 @@ extern "C"
             player->movieImageScene = -1;
             if (!player->preserveEditFraming) player->inspectionMatched = false;
             for (const auto &source : sources)
-                for (const auto &path : player->content->files.Files(source.second, ".3cn"))
+                for (const auto &path : player->content->files.Files(source.name, ".3cn"))
                 {
-                    if (!player->preview.AddContent(source.first, path.u8string(), error))
+                    if (!player->preview.AddContent(source.id, path.u8string(), error))
                         return false;
                 }
             player->scenes.swap(scenes);
