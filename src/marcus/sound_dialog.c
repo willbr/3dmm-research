@@ -32,6 +32,8 @@ struct MarcusSoundDialog
     MarcusWaveformColumn waveform[512];
     MarcusWaveformInfo audio;
     int waveform_count;
+    int show_library, library_count, library_selected, library_style;
+    char library_error[512];
 };
 static ImVec2 vec(float x, float y) { ImVec2 v; v.x = x; v.y = y; return v; }
 static void discard_recording(MarcusSoundDialog *d)
@@ -93,7 +95,7 @@ MarcusSoundDialog *sound_dialog_create(void)
 {
     MarcusSoundDialog *d;
     d = (MarcusSoundDialog *)calloc(1, sizeof(*d));
-    if (d) d->selected = d->chosen = -1;
+    if (d) { d->selected = d->chosen = d->library_selected = -1; d->show_library = 1; }
     return d;
 }
 void sound_dialog_destroy(MarcusSoundDialog *d)
@@ -117,6 +119,7 @@ static void select_sound(MarcusSoundDialog *d, int index)
     marcus_stop_sound_preview(d->player);
     discard_recording(d);
     d->selected = index; d->path[0] = d->error[0] = 0; d->waveform_count = d->grouped = 0;
+    d->library_selected = -1;
     marcus_info(d->player, &info);
     if (index >= 0 && marcus_sound(d->player, index, &d->original))
     {
@@ -139,6 +142,9 @@ static void show(MarcusSoundDialog *d, MarcusPlayer *player, SDL_Window *window,
 {
     d->player = player; d->window = window; d->document = marcus_document(player);
     d->open = d->opening = 1; d->search[0] = 0; select_sound(d, selected);
+    d->library_error[0] = 0;
+    d->library_count = marcus_sound_asset_count(player);
+    if (d->library_count < 0) SDL_strlcpy(d->library_error, marcus_error(player), sizeof(d->library_error));
 }
 void sound_dialog_toolbar(MarcusSoundDialog *d, MarcusPlayer *player, SDL_Window *window, int selected,
                           float x, float y, int enabled)
@@ -223,6 +229,15 @@ static int find_edited(MarcusSoundDialog *d, const MarcusSoundOptions *options)
         sound.style == options->style && sound.origin_frame == options->frame - scene.first_frame + 1) return i;
     return -1;
 }
+static void select_asset(MarcusSoundDialog *d, int index)
+{
+    MarcusSoundAsset asset;
+    select_sound(d, -1);
+    if (!marcus_sound_asset(d->player, index, &asset)) return;
+    d->library_selected = index; d->style = asset.style;
+    if (marcus_sound_asset_waveform(d->player, index, 512, d->waveform, &d->audio) && d->audio.seconds > 0)
+        d->waveform_count = 512;
+}
 static void recording_finished(MarcusSoundDialog *d)
 {
     d->recording_active = 0;
@@ -278,8 +293,11 @@ static void editor(MarcusSoundDialog *d)
     MarcusInfo info;
     MarcusScene scene;
     MarcusSoundOptions options;
-    int changed, selected, existing, actor, valid, maximum;
+    MarcusSoundAsset asset;
+    int changed, selected, existing, actor, valid, maximum, library, midi;
     existing = d->selected >= 0; actor = existing && d->original.actor_sound;
+    library = d->library_selected >= 0 && marcus_sound_asset(d->player, d->library_selected, &asset);
+    midi = (existing && d->original.style == MARCUS_SOUND_MUSIC) || (library && asset.style == MARCUS_SOUND_MUSIC);
     marcus_info(d->player, &info);
     marcus_scene(d->player, existing ? d->original.origin_scene : info.scene, &scene);
     maximum = (int)(scene.last_frame - scene.first_frame + 1);
@@ -288,6 +306,10 @@ static void editor(MarcusSoundDialog *d)
         igTextWrapped("%s", d->original.name);
         igTextDisabled("%s", d->original.owner);
         if (d->original.carried) igText("Starts in scene %d", d->original.origin_scene + 1);
+    }
+    else if (library)
+    {
+        igTextWrapped("%s", asset.name); igTextDisabled("Built-in sound");
     }
     else
     {
@@ -303,10 +325,10 @@ static void editor(MarcusSoundDialog *d)
         else if (!d->recording_active && d->path[0]) igText("Microphone recording / ready to preview and add");
         recording_controls(d);
     }
-    igSeparator(); igBeginDisabled(actor || (existing && d->original.style == MARCUS_SOUND_MUSIC));
+    igSeparator(); igBeginDisabled(actor || midi);
     igRadioButton_IntPtr("Effect", &d->style, MARCUS_SOUND_EFFECT); igSameLine(0, 16);
     igRadioButton_IntPtr("Speech", &d->style, MARCUS_SOUND_SPEECH); igEndDisabled(); igSameLine(0, 16);
-    igBeginDisabled(actor || d->recording != NULL || (existing && d->original.style != MARCUS_SOUND_MUSIC));
+    igBeginDisabled(actor || d->recording != NULL || ((existing || library) && !midi));
     igRadioButton_IntPtr("Music (MIDI)", &d->style, MARCUS_SOUND_MUSIC);
     igEndDisabled(); igBeginDisabled(actor);
     igText("Start frame"); igSetNextItemWidth(-1);
@@ -321,11 +343,12 @@ static void editor(MarcusSoundDialog *d)
     }
     else if (!actor && d->grouped > 1) igTextWrapped("Frame, volume and loop apply to this queued group. Remove deletes only this sound.");
     waveform(d);
-    valid = (existing || d->path[0]) && !d->recording_active;
+    valid = (existing || library || d->path[0]) && !d->recording_active;
     igBeginDisabled(!valid);
     if (igButton("Preview", vec(100, 0)))
     {
         changed = existing ? marcus_audition_sound(d->player, d->selected, (long)(d->volume * 65536 / 100 + .5f)) :
+            library ? marcus_audition_sound_asset(d->player, d->library_selected, (long)(d->volume * 65536 / 100 + .5f)) :
             marcus_audition_sound_file(d->player, d->path, d->style, (long)(d->volume * 65536 / 100 + .5f));
         if (!changed) SDL_strlcpy(d->error, marcus_error(d->player), sizeof(d->error));
     }
@@ -340,7 +363,8 @@ static void editor(MarcusSoundDialog *d)
     {
         selected = -1;
         changed = existing ? marcus_set_sound(d->player, d->selected, &options) :
-            (selected = marcus_add_sound(d->player, d->path, &options)) >= 0;
+            (selected = library ? marcus_add_sound_asset(d->player, d->library_selected, &options) :
+                marcus_add_sound(d->player, d->path, &options)) >= 0;
         if (!changed) SDL_strlcpy(d->error, marcus_error(d->player), sizeof(d->error));
         else
         {
@@ -368,6 +392,7 @@ void sound_dialog_draw(MarcusSoundDialog *d, MarcusPlayer *player, MarcusUI *ui,
     ImVec2 size;
     MarcusInfo info;
     MarcusSound sound;
+    MarcusSoundAsset asset;
     char label[512];
     int i;
     (void)ui;
@@ -411,14 +436,33 @@ void sound_dialog_draw(MarcusSoundDialog *d, MarcusPlayer *player, MarcusUI *ui,
                 if (igBeginChild_Str("Scene sounds", vec(0, 0), 0, 0))
                 {
                     if (igButton("+ Add sound...", vec(-1, 0))) select_sound(d, -1);
+                    if (checkbox("Show built-in sounds", &d->show_library) && !d->show_library && d->library_selected >= 0)
+                        select_sound(d, -1);
                     igSetNextItemWidth(-1); igInputTextWithHint("##Find sound", "Find sound", d->search, sizeof(d->search), 0, NULL, NULL);
+                    igSeparatorText("In this scene");
                     for (i = 0; i < info.sound_count; ++i) if (marcus_sound(player, i, &sound) &&
                         (!d->search[0] || SDL_strcasestr(sound.name, d->search) || SDL_strcasestr(sound.owner, d->search)))
                     {
                         SDL_snprintf(label, sizeof(label), "%s / %s##sound%d", sound.name, sound.owner, i);
                         if (igSelectable_Bool(label, d->selected == i, 0, vec(0, 0))) select_sound(d, i);
                     }
-                    if (!info.sound_count) igTextWrapped("No sounds in this scene. Import an audio file or record your microphone to add one.");
+                    if (!info.sound_count) igTextDisabled("No sounds in this scene yet.");
+                    if (d->show_library)
+                    {
+                        igSeparatorText("Built-in library");
+                        igRadioButton_IntPtr("All", &d->library_style, 0); igSameLine(0, 10);
+                        igRadioButton_IntPtr("Effects", &d->library_style, MARCUS_SOUND_EFFECT); igSameLine(0, 10);
+                        igRadioButton_IntPtr("Speech", &d->library_style, MARCUS_SOUND_SPEECH); igSameLine(0, 10);
+                        igRadioButton_IntPtr("Music", &d->library_style, MARCUS_SOUND_MUSIC);
+                        if (d->library_error[0]) igTextWrapped("%s", d->library_error);
+                        for (i = 0; i < d->library_count; ++i) if (marcus_sound_asset(player, i, &asset) &&
+                            (!d->library_style || d->library_style == asset.style) &&
+                            (!d->search[0] || SDL_strcasestr(asset.name, d->search)))
+                        {
+                            SDL_snprintf(label, sizeof(label), "%s##library%d", asset.name, i);
+                            if (igSelectable_Bool(label, d->library_selected == i, 0, vec(0, 0))) select_asset(d, i);
+                        }
+                    }
                 }
                 igEndChild(); igTableNextColumn();
                 if (igBeginChild_Str("Sound details", vec(0, 0), 0, 0)) editor(d);

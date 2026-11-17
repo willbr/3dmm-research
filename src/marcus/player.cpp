@@ -81,6 +81,8 @@ struct MarcusPlayer
     std::vector<MarcusScene> sceneInfo, baseSceneInfo;
     std::vector<MarcusBackground> backgrounds;
     std::vector<MarcusProp> props, actors, fonts, materials;
+    std::vector<MarcusSoundAsset> soundAssets;
+    std::string soundAssetDirectory;
     std::string propCatalogDirectory, actorCatalogDirectory, fontCatalogDirectory, materialCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
     std::map<int, MM::PreviewObject> propPreviews;
@@ -810,14 +812,34 @@ bool OpenSoundBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile> 
     player->materializedPlacements.reset(); player->materializedFrameRanges.reset(); player->movieImageScene = -1;
     return ok;
 }
-bool SoundChange(MarcusPlayer *player, int index, const char *path, const MarcusSoundOptions &options, bool remove, MM::Error &error)
+void ReadSoundAssets(MarcusPlayer *player)
+{
+    if (player->soundAssetDirectory == player->timingContent && !player->soundAssets.empty()) return;
+    auto assets = MarcusReadSoundAssets(std::filesystem::u8path(player->timingContent) / "snds.3cn");
+    player->soundAssets = std::move(assets); player->soundAssetDirectory = player->timingContent;
+}
+bool SoundAssetCue(MarcusPlayer *player, int index, MM::PreviewSoundCue &cue, MM::Error &error)
+{
+    ReadSoundAssets(player);
+    if (index < 0 || std::size_t(index) >= player->soundAssets.size())
+    { error.message = "Choose a built-in sound from the library."; return false; }
+    if (!EnsureRetailContent(*player, error)) return false;
+    const auto &asset = player->soundAssets[index];
+    cue.source = player->retailSource; cue.sound = {0x4d534e44, static_cast<std::uint32_t>(asset.chunk)};
+    cue.style = asset.style; return true;
+}
+bool SoundChange(MarcusPlayer *player, int index, const char *path, const MarcusSoundOptions &options, bool remove, MM::Error &error,
+    const MarcusSoundAsset *asset = nullptr)
 {
     if (player->selected < 0 || options.volume < 0 || options.volume > 65536 ||
         options.style < MARCUS_SOUND_EFFECT || options.style > MARCUS_SOUND_MUSIC ||
         (options.loop != 0 && options.loop != 1) || (options.queue != 0 && options.queue != 1))
     { error.message = "Choose a scene and valid sound settings."; return false; }
     MM::PreviewSoundCue cue;
-    if (!path)
+    const bool adding = path || asset;
+    if (asset && (options.style == MARCUS_SOUND_MUSIC) != (asset->style == MARCUS_SOUND_MUSIC))
+    { error.message = "Music uses MIDI; sampled sounds use Effects or Speech."; return false; }
+    if (!adding)
     {
         if (index < 0 || std::size_t(index) >= player->soundCues.size()) return false;
         cue = player->soundCues[index];
@@ -828,12 +850,14 @@ bool SoundChange(MarcusPlayer *player, int index, const char *path, const Marcus
         if (!remove && cue.frame == options.frame && cue.volume == options.volume && cue.style == options.style &&
             cue.loop == bool(options.loop) && (cue.actorSound ? cue.queue == bool(options.queue) : true)) return true;
     }
-    const int sceneIndex = path ? player->selected : player->sounds[index].origin_scene;
+    const int sceneIndex = adding ? player->selected : player->sounds[index].origin_scene;
     if (sceneIndex < 0 || std::size_t(sceneIndex) >= player->sceneInfo.size() ||
         options.frame < player->sceneInfo[sceneIndex].first_frame || options.frame > player->sceneInfo[sceneIndex].last_frame)
     { error.message = "The cue frame must be inside its scene."; return false; }
     if (!CancelPropPreviews(player, error)) return false;
-    auto file = MarcusEditSound(MaterializedMovie(*player), player->scenes[sceneIndex].number, path ? nullptr : &cue, options, path, remove);
+    const auto library = (std::filesystem::u8path(player->timingContent) / "snds.3cn").u8string();
+    auto file = MarcusEditSound(MaterializedMovie(*player), player->scenes[sceneIndex].number, adding ? nullptr : &cue, options, path, remove,
+        asset ? library.c_str() : nullptr, asset ? asset->chunk : 0);
     EditHistory history(*player); const int selected = player->selected; const auto frame = player->preview.Info().currentFrame;
     auto boards = player->edits->storyboards;
     auto edits = std::make_shared<MarcusLiveEdits>(); edits->storyboards = boards; edits->revision = player->nextEditRevision++;
@@ -2393,6 +2417,47 @@ extern "C"
     int marcus_set_sound(MarcusPlayer *player, int index, const MarcusSoundOptions *options)
     {
         return Guard(player, [&](MM::Error &error) { return options && SoundChange(player, index, nullptr, *options, false, error); });
+    }
+    int marcus_sound_asset_count(MarcusPlayer *player)
+    {
+        return Guard(player, [&](MM::Error &) { ReadSoundAssets(player); return true; }) ? static_cast<int>(player->soundAssets.size()) : -1;
+    }
+    int marcus_sound_asset(const MarcusPlayer *player, int index, MarcusSoundAsset *out)
+    {
+        if (!player || !out || index < 0 || std::size_t(index) >= player->soundAssets.size()) return 0;
+        *out = player->soundAssets[index]; return 1;
+    }
+    int marcus_add_sound_asset(MarcusPlayer *player, int index, const MarcusSoundOptions *options)
+    {
+        int result = -1;
+        Guard(player, [&](MM::Error &error) {
+            ReadSoundAssets(player);
+            if (!options || index < 0 || std::size_t(index) >= player->soundAssets.size()) return false;
+            if (!SoundChange(player, -1, nullptr, *options, false, error, &player->soundAssets[index])) return false;
+            for (int i = int(player->sounds.size()) - 1; i >= 0; --i)
+                if (!player->sounds[i].actor_sound && player->sounds[i].frame == options->frame && player->sounds[i].style == options->style)
+                { result = i; break; }
+            return true;
+        });
+        return result;
+    }
+    int marcus_audition_sound_asset(MarcusPlayer *player, int index, long volume)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MM::PreviewSoundCue cue;
+            if (volume < 0 || volume > 65536 || !SoundAssetCue(player, index, cue, error)) return false;
+            cue.volume = volume; return player->playback.Audition(player->preview, cue, error);
+        });
+    }
+    int marcus_sound_asset_waveform(MarcusPlayer *player, int index, int count, MarcusWaveformColumn *columns, MarcusWaveformInfo *info)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MM::PreviewSoundCue cue;
+            if (!columns || !info || count < 1 || count > 4096 || !SoundAssetCue(player, index, cue, error)) return false;
+            auto length = player->waveforms.Length(player->preview, cue);
+            player->waveforms.Read(player->preview, cue, 0, length.seconds > 0 ? length.seconds / count : 1, count, columns, *info);
+            return true;
+        });
     }
     int marcus_remove_sound(MarcusPlayer *player, int index)
     {

@@ -1,5 +1,6 @@
 #include "sound_edit.h"
 #include "scene_edit.h"
+#include <SDL3/SDL.h>
 #include "soc_core.h"
 #include "midi.h"
 #include "sdl_audio.h"
@@ -212,6 +213,47 @@ void ActorCue(PChunkyFile file, ChunkNumber scene, const MM::PreviewSoundCue &cu
     Require(file->FAdoptChild(kctgScen, scene, kctgActr, copy, link.chid), "Cannot link sound owner.");
 }
 }
+std::vector<MarcusSoundAsset> MarcusReadSoundAssets(const std::filesystem::path &path)
+{
+    MM::Archive archive; MM::Error error;
+    Require(archive.Open(path.u8string(), error), "Cannot open the built-in sound library (snds.3cn). Check the content directory.");
+    auto filename = Path(path);
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflNil));
+    Require(bool(file), "Cannot read the built-in sound library.");
+    struct Info { MMSoundResource resource = {}; MMI32 silent = 0; unsigned char invalid = 0; } info;
+    DataBlock block; MMSoundResourceServices services = {}; services.context = &block;
+    services.owner = [](void *, void *p, MMSoundOwner *out) {
+        auto &i = *static_cast<Info *>(p); *out = {&i.resource, &i.silent, &i.invalid};
+    };
+    services.find = [](void *p, void *f, MMU32 type, MMU32 number) -> void * {
+        auto b = static_cast<DataBlock *>(p); return static_cast<PChunkyFile>(f)->FFind(type, number, b) ? b : nullptr;
+    };
+    services.unpack = [](void *, void *p) -> int { return static_cast<DataBlock *>(p)->FUnpackData(); };
+    services.block_size = [](void *, void *p) -> MMI32 { return static_cast<DataBlock *>(p)->Cb(); };
+    services.read = [](void *, void *p, void *out, MMI32 bytes) -> int { return static_cast<DataBlock *>(p)->FReadRgb(out, bytes, 0); };
+    services.read_name = [](void *, void *, MMU32, MMU32, void *) { return 1; }; // Archive already decoded UTF-8 names.
+    services.child = [](void *, void *f, MMU32 type, MMU32 number, MMSoundChild *out) -> int {
+        ChildChunkIdentification child;
+        for (int i = 0; static_cast<PChunkyFile>(f)->FGetKid(type, number, i, &child); ++i)
+            if (child.cki.ctg == kctgWave || child.cki.ctg == kctgMidi) { *out = {child.cki.ctg, child.cki.cno}; return 1; }
+        return 0;
+    };
+    std::vector<MarcusSoundAsset> result;
+    for (const auto &chunk : archive.Chunks())
+    {
+        if (chunk.id.type != kctgMsnd) continue;
+        info = {};
+        if (!mm_sound_read(&info, file.get(), kctgMsnd, chunk.id.number, &services) || info.invalid || info.silent ||
+            info.resource.style < MARCUS_SOUND_EFFECT || info.resource.style > MARCUS_SOUND_MUSIC) continue;
+        MarcusSoundAsset asset = {}; asset.chunk = chunk.id.number; asset.style = info.resource.style;
+        const auto name = chunk.name.empty() ? "Sound " + std::to_string(asset.chunk) : chunk.name;
+        std::strncpy(asset.name, name.c_str(), sizeof(asset.name) - 1); result.push_back(asset);
+    }
+    std::stable_sort(result.begin(), result.end(), [](const auto &a, const auto &b) {
+        return a.style != b.style ? a.style < b.style : SDL_strcasecmp(a.name, b.name) < 0;
+    });
+    return result;
+}
 std::shared_ptr<MarcusMovieFile> MarcusPrepareSound(const char *path, int style)
 {
     auto result = MarcusCreateEventFile(); auto filename = Path(result->path);
@@ -220,15 +262,23 @@ std::shared_ptr<MarcusMovieFile> MarcusPrepareSound(const char *path, int style)
     return result;
 }
 std::shared_ptr<MarcusMovieFile> MarcusEditSound(const std::shared_ptr<MarcusMovieFile> &movie,
-    unsigned long scene, const MM::PreviewSoundCue *cue, const MarcusSoundOptions &options, const char *importPath, bool remove)
+    unsigned long scene, const MM::PreviewSoundCue *cue, const MarcusSoundOptions &options, const char *importPath, bool remove,
+    const char *libraryPath, unsigned long libraryChunk)
 {
     auto result = MarcusCopyMovie(movie); auto filename = Path(result->path);
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
     Require(bool(file), "Cannot open the sound working copy.");
     WireTag added = {}; ChunkIdentification root;
-    if (importPath)
+    if (importPath || libraryPath)
     {
-        const auto sound = Import(file.get(), importPath, options.style);
+        ChunkNumber sound;
+        if (libraryPath)
+        {
+            auto name = Path(std::filesystem::u8path(libraryPath));
+            std::unique_ptr<ChunkyFile, Release> library(ChunkyFile::PcflOpen(&name, fcflNil));
+            Require(library && library->FCopy(kctgMsnd, libraryChunk, file.get(), &sound), "Cannot copy the selected built-in sound.");
+        }
+        else sound = Import(file.get(), importPath, options.style);
         Require(file->FGetCkiCtg(kctgMvie, 0, &root), "Cannot find movie root.");
         MMU32 slot = 0; ChildChunkIdentification child;
         while (file->FGetKidChidCtg(kctgScen, scene, slot, kctgMsnd, &child)) ++slot;
@@ -238,7 +288,7 @@ std::shared_ptr<MarcusMovieFile> MarcusEditSound(const std::shared_ptr<MarcusMov
         Require(file->FAdoptChild(kctgMvie, root.cno, kctgMsnd, sound, slot), "Cannot retain imported sound.");
     }
     if (cue && cue->actorSound) ActorCue(file.get(), scene, *cue, options, remove);
-    else SceneCue(file.get(), scene, cue, options, importPath ? &added : nullptr, remove);
+    else SceneCue(file.get(), scene, cue, options, (importPath || libraryPath) ? &added : nullptr, remove);
     Require(file->FSave(kctgSoc), "Cannot save sound edits.");
     return result;
 }

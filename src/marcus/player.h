@@ -408,6 +408,19 @@ extern "C"
     /* Import a sampled WAV/MP3 or MIDI file as a scene cue. Return its sound
      * index, or -1 on failure. All committed changes are single undo steps. */
     int marcus_add_sound(MarcusPlayer *, const char *path, const MarcusSoundOptions *);
+    typedef struct MarcusSoundAsset
+    {
+        unsigned long chunk;
+        int style;
+        char name[256];
+    } MarcusSoundAsset;
+    /* Original snds.3cn catalogue, independent of sounds used in the scene.
+     * Listing/preview do not modify the document. Addition embeds the asset. */
+    int marcus_sound_asset_count(MarcusPlayer *);
+    int marcus_sound_asset(const MarcusPlayer *, int index, MarcusSoundAsset *);
+    int marcus_add_sound_asset(MarcusPlayer *, int index, const MarcusSoundOptions *);
+    int marcus_audition_sound_asset(MarcusPlayer *, int index, long volume);
+    int marcus_sound_asset_waveform(MarcusPlayer *, int index, int count, MarcusWaveformColumn *, MarcusWaveformInfo *);
     /* Scene packet settings apply to its queued group. Removing deletes only
      * the selected record. Actor edits retain animation timing and category. */
     int marcus_set_sound(MarcusPlayer *, int index, const MarcusSoundOptions *);

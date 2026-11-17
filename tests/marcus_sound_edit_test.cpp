@@ -73,6 +73,51 @@ int main(int argc, char **argv)
         Wave(wave); Midi(midi);
         check(marcus_add_scene(p.get(), 11, argv[1], argv[2]), "New scene");
         {
+            const auto revision = marcus_document(p.get());
+            const auto libraryPath = (std::filesystem::u8path(argv[2]) / "snds.3cn").u8string();
+            const auto originalLibrary = Bytes(libraryPath);
+            const int count = marcus_sound_asset_count(p.get());
+            check(count > 0, "List original sound library");
+            int first[3] = {-1, -1, -1}, counts[3] = {};
+            for (int i = 0; i < count; ++i) {
+                MarcusSoundAsset asset = {}; check(marcus_sound_asset(p.get(), i, &asset) && asset.name[0], "Read named original sound");
+                check(asset.style >= MARCUS_SOUND_EFFECT && asset.style <= MARCUS_SOUND_MUSIC, "Valid library category");
+                const int style = asset.style - MARCUS_SOUND_EFFECT; ++counts[style];
+                if (first[style] < 0) first[style] = i;
+            }
+            check(first[0] >= 0 && first[1] >= 0 && first[2] >= 0 && marcus_document(p.get()) == revision, "Effects, speech and music available without editing scene");
+            std::printf("Built-in sounds: %d effects, %d speech, %d music.\n", counts[0], counts[1], counts[2]);
+            for (int i = 0; i < 3; ++i) {
+                MarcusSoundAsset asset = {}; marcus_sound_asset(p.get(), first[i], &asset);
+                MarcusWaveformColumn peaks[32] = {}; MarcusWaveformInfo audio = {};
+                check(marcus_sound_asset_waveform(p.get(), first[i], 32, peaks, &audio) &&
+                    audio.kind == (i == 2 ? MARCUS_WAVEFORM_MIDI : MARCUS_WAVEFORM_SAMPLED), "Decode original library sound");
+                check(marcus_audition_sound_asset(p.get(), first[i], 32768) && marcus_document(p.get()) == revision, "Preview library without scene cue");
+                marcus_stop_sound_preview(p.get());
+            }
+            MarcusSoundOptions options = {1, 32768, MARCUS_SOUND_EFFECT, 0, 1};
+            check(marcus_add_sound_asset(p.get(), count, &options) < 0 && marcus_document(p.get()) == revision, "Reject missing library entry without edit");
+            for (int i = 0; i < 3; ++i) {
+                options.style = MARCUS_SOUND_EFFECT + i;
+                check(marcus_add_sound_asset(p.get(), first[i], &options) >= 0, "Add built-in scene sound");
+            }
+            const auto copy = (dir / "built-in.3mm").u8string();
+            check(marcus_save_copy(p.get(), copy.c_str()), "Save embedded original sounds");
+            for (int i = 0; i < 3; ++i) check(marcus_undo(p.get()), "Undo built-in cue addition");
+            MarcusInfo info = {}; check(marcus_info(p.get(), &info) && !info.sound_count, "Undo returns to empty sound scene");
+            check(marcus_open(p.get(), copy.c_str(), argv[1], argv[2]) && marcus_info(p.get(), &info) && info.sound_count == 3, "Reopen original sounds");
+            for (int i = 0; i < info.sound_count; ++i) {
+                MarcusSound sound = {}; MarcusSoundAsset asset = {};
+                check(marcus_sound(p.get(), i, &sound), "Read saved built-in cue");
+                marcus_sound_asset(p.get(), first[sound.style - MARCUS_SOUND_EFFECT], &asset);
+                check(sound.source_id == 0 && std::string(sound.name) == asset.name && marcus_audition_sound(p.get(), i, 32768), "Original name and audio embedded in native movie");
+                marcus_stop_sound_preview(p.get());
+            }
+            check(Bytes(libraryPath) == originalLibrary, "Original sound library stays read-only");
+            p.reset(); p.reset(marcus_create());
+            check(marcus_add_scene(p.get(), 11, argv[1], argv[2]), "New scene after sound library checks");
+        }
+        {
             auto recording = std::unique_ptr<MarcusSoundRecording, decltype(&sound_recording_destroy)>(sound_recording_create(), sound_recording_destroy);
             check(recording && !sound_recording_stop(recording.get()) && !sound_recording_start(recording.get(), 180001), "Reject missing take and excessive recording limit");
             const auto revision = marcus_document(p.get());

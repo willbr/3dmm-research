@@ -950,6 +950,15 @@ with **Preview** / **Stop preview** before adding. Audio is embedded in the
 movie; it does not depend on the original file after saving. Music uses MIDI
 to retain retail compatibility. Import currently accepts files up to 64 MiB.
 
+The dialog also shows the original effects, speech and music from `snds.3cn`,
+even when the scene has no sound cues. **Show built-in sounds** is on by
+default; turn it off to hide the library while working with scene sounds,
+imports or recordings. Search and the **All / Effects / Speech / Music**
+filters narrow the library. Select a named sound, audition with **Preview**,
+then **Add sound** at the chosen frame. Addition embeds the original audio
+and name without changing the library, and is one undo step. Existing scene
+cues remain listed separately when the library is hidden.
+
 **Record microphone...** captures your system's default microphone. The dialog
 shows elapsed recording time and stops automatically after three minutes, or
 you can choose **Stop recording**. Preview the waveform and audio, choose
