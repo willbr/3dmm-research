@@ -72,6 +72,7 @@ struct MarcusPlayer
     MM::PreviewImage image;
     MM::PreviewImage thumbnail;
     MM::PreviewImage movieImage;
+    MM::PreviewImage costumeImage;
     int movieImageScene = -1;
     std::int32_t movieImageFrame = 0;
     MarcusPlayback playback;
@@ -175,7 +176,7 @@ struct EditHistory : KeepHistory
 std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
     if (player.placements->empty() && player.frameRanges->empty() && player.edits->scenes->empty() &&
-        player.edits->props->empty() && player.edits->cameras->empty() && player.edits->shapes->empty() && player.edits->texts->empty() && player.edits->storyboards->empty()) return player.timingInput;
+        player.edits->props->empty() && player.edits->cameras->empty() && player.edits->shapes->empty() && player.edits->texts->empty() && player.edits->costumes->empty() && player.edits->storyboards->empty()) return player.timingInput;
     if (player.materializedPlacements == player.placements && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
     std::vector<MarcusPropPlacement> changes;
@@ -188,6 +189,11 @@ std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
         change.scene = entry.first.first; change.actor = entry.first.second; change.shape = entry.second;
     }
     for (const auto &entry : *player.edits->texts)
+    {
+        auto &change = combined[entry.first];
+        change.scene = entry.first.first; change.actor = entry.first.second;
+    }
+    for (const auto &entry : *player.edits->costumes)
     {
         auto &change = combined[entry.first];
         change.scene = entry.first.first; change.actor = entry.first.second;
@@ -280,6 +286,12 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
         if (player.contentSourceIds.insert(edit.source).second) player.boardFiles.push_back(edit.file);
         if (!player.preview.AddContent(edit.source, edit.file->path.u8string(), error)) return false;
     }
+    for (const auto &entry : *player.edits->costumes)
+    {
+        const auto &edit = entry.second;
+        if (player.contentSourceIds.insert(edit.source).second) player.boardFiles.push_back(edit.file);
+        if (!player.preview.AddContent(edit.source, edit.file->path.u8string(), error)) return false;
+    }
     if (!player.preview.SetDefinitions(*player.edits->scenes, PropDefinitions(*player.edits), error)) return false;
     player.names = player.baseNames;
     for (const auto &prop : *player.edits->props) player.names[prop.definition.actorId] = prop.name;
@@ -306,6 +318,8 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MarcusPlayer::Placem
     for (std::size_t index = 0; index < objects.size(); ++index)
     {
         const auto &object = objects[index];
+        const auto costume = player.edits->costumes->find({player.scenes[scene].number, object.asset.number});
+        if (costume != player.edits->costumes->end() && !player.preview.SetObjectEventTrack(int(index), costume->second.source, error)) return false;
         const auto text = player.edits->texts->find({player.scenes[scene].number, object.asset.number});
         if (text != player.edits->texts->end())
         {
@@ -561,7 +575,7 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
         return false;
     // Send live placements to the same worker as committed ones. Switching to
     // a different evaluator during a drag loses its cached orbit framing.
-    const bool nativeBoards = !player->edits->storyboards->empty();
+    const bool nativeBoards = !player->edits->storyboards->empty() || !player->edits->costumes->empty();
     if (player->renderer == MARCUS_RENDERER_BRENDER_ASM &&
         !(nativeBoards && (!player->propPreviews.empty() || !player->shapePreviews.empty())))
     {
@@ -1235,7 +1249,8 @@ extern "C"
             const auto previousEdits = player->edits;
             const bool boardsChanged = previousEdits->storyboards != before.edits->storyboards;
             const bool textsChanged = previousEdits->texts != before.edits->texts;
-            const bool definitionsChanged = previousEdits->scenes != before.edits->scenes || previousEdits->props != before.edits->props || boardsChanged || textsChanged;
+            const bool costumesChanged = previousEdits->costumes != before.edits->costumes;
+            const bool definitionsChanged = previousEdits->scenes != before.edits->scenes || previousEdits->props != before.edits->props || boardsChanged || textsChanged || costumesChanged;
             const bool rangesChanged = player->frameRanges != before.frameRanges;
             player->edits = before.edits;
             player->placements = before.placements;
@@ -1257,7 +1272,7 @@ extern "C"
             }
             else
             {
-                if (boardsChanged || textsChanged || player->selected != before.scene || !player->preview.Info().scene ||
+                if (boardsChanged || textsChanged || costumesChanged || player->selected != before.scene || !player->preview.Info().scene ||
                     player->preview.Info().asset.number != player->scenes[before.scene].number)
                 {
                     if (!marcus_select_scene_keep_view(player, before.scene)) { error.message = player->error; return false; }
@@ -1315,6 +1330,82 @@ extern "C"
     }
     int marcus_add_prop(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, false); }
     int marcus_add_actor(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, true); }
+    int marcus_costume_count(MarcusPlayer *player, int object)
+    {
+        int count = -1;
+        Guard(player, [&](MM::Error &error) {
+            std::vector<MM::PreviewCostume> values;
+            if (!player->preview.ObjectCostumes(object, values, error)) return false;
+            count = int(values.size()); return true;
+        });
+        return count;
+    }
+    int marcus_costume(MarcusPlayer *player, int object, int index, MarcusCostume *costume)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            std::vector<MM::PreviewCostume> values;
+            if (!costume || !player->preview.ObjectCostumes(object, values, error) || index < 0 || std::size_t(index) >= values.size()) return false;
+            const auto &c = values[index]; *costume = {c.bodySet, c.costume, c.selected, c.accessory}; return true;
+        });
+    }
+    int marcus_costume_preview(MarcusPlayer *player, int object, const MarcusCostume *choices, int count,
+        float yaw, float pitch, float zoom, int width, int height, MarcusImage *image)
+    {
+        if (!image) return 0;
+        *image = {};
+        return Guard(player, [&](MM::Error &error) {
+            if (count < 0 || count > 512 || (count && !choices) || width < 64 || height < 64 || width > 1024 || height > 1024) return false;
+            std::vector<MM::PreviewCostume> values;
+            for (int i = 0; i < count; ++i) values.push_back({choices[i].body_set, choices[i].costume});
+            MM::PreviewView view;
+            view.width = width; view.height = height; view.yaw = yaw; view.pitch = pitch; view.zoom = zoom;
+            if (!player->preview.RenderObjectCostumes(object, values, view, player->costumeImage, error)) return false;
+            image->width = int(player->costumeImage.width); image->height = int(player->costumeImage.height);
+            image->pitch = image->width * 4; image->rgba = player->costumeImage.rgba.data();
+            image->scene = player->selected; image->frame = player->preview.Info().currentFrame; image->document = player->document;
+            return true;
+        });
+    }
+    int marcus_set_costumes(MarcusPlayer *player, int object, const MarcusCostume *choices, int count)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (count < 0 || count > 512 || (count && !choices) || player->selected < 0) return false;
+            MarcusObject selected;
+            if (!marcus_object(player, object, &selected) || selected.text || !selected.visible)
+            { error.message = "Select a visible actor or prop."; return false; }
+            std::vector<MM::PreviewCostume> available, changes;
+            if (!player->preview.ObjectCostumes(object, available, error)) return false;
+            std::set<int> sets;
+            for (int i = 0; i < count; ++i)
+            {
+                const auto &c = choices[i];
+                const auto found = std::find_if(available.begin(), available.end(), [&](const auto &v) { return v.bodySet == c.body_set && v.costume == c.costume; });
+                if (found == available.end() || !sets.insert(c.body_set).second)
+                { error.message = "Choose one available costume per body part."; return false; }
+                if (!found->selected) changes.push_back(*found);
+            }
+            if (changes.empty()) return true;
+            if (!CancelPropPreviews(player, error)) return false;
+            auto file = MarcusCreateEventFile();
+            if (!player->preview.WriteObjectCostumes(object, changes, file->path.u8string(), error)) return false;
+            auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
+            auto costumes = std::make_shared<MarcusLiveEdits::Costumes>(*edits->costumes);
+            (*costumes)[{player->scenes[player->selected].number, selected.chunk}] = {file, player->nextBoardSource--};
+            edits->costumes = costumes; edits->revision = player->nextEditRevision++;
+            EditHistory history(*player); const auto previous = player->edits;
+            const auto frame = player->preview.Info().currentFrame;
+            player->edits = edits;
+            if (!ApplyDefinitions(*player, error) || !ApplyPlacements(*player, player->selected, *player->placements, error))
+            {
+                player->edits = previous;
+                MM::Error ignored; ApplyDefinitions(*player, ignored);
+                if (marcus_select_scene_keep_view(player, player->selected)) marcus_seek(player, frame);
+                return false;
+            }
+            player->animations.clear(); ++player->document; player->movieImageScene = -1;
+            history.Commit(); return true;
+        });
+    }
     int marcus_add_text(MarcusPlayer *player, const char *text, unsigned long font, int shape)
     {
         if (!text || std::strlen(text) >= sizeof(MarcusText::text)) return -1;
@@ -1987,6 +2078,8 @@ extern "C"
             if (first != player->placements->end() && first->first.first == player->scenes[index].number) return true;
             const auto shaped = player->edits->shapes->lower_bound({player->scenes[index].number, 0});
             if (shaped != player->edits->shapes->end() && shaped->first.first == player->scenes[index].number) return true;
+            const auto costumed = player->edits->costumes->lower_bound({player->scenes[index].number, 0});
+            if (costumed != player->edits->costumes->end() && costumed->first.first == player->scenes[index].number) return true;
             if (static_cast<std::size_t>(index) >= player->baseSceneInfo.size()) return true;
             for (const auto &prop : *player->edits->props)
                 if (prop.definition.scene == player->scenes[index].number && prop.definition.first <= player->sceneInfo[index].first_frame)

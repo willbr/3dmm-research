@@ -514,10 +514,36 @@ static void playback(void)
     assert(mm_preview_actor_position(&h.actor, 1, &h.services) == -1 && h.actor.state.onStage == before.onStage);
     dispose(&h);
 }
+static void replace_events(void)
+{
+    Host h;
+    MMActorState expected;
+    int failure;
+    setup(&h);
+    assert(mm_preview_actor_load(&h.actor, 8, &h.services));
+    assert(mm_preview_actor_seek(&h.actor, 2, &h.services));
+    expected = h.actor.state;
+    h.actor.state.action = 99;
+    h.actor.state.nextEvent = h.count;
+    assert(mm_preview_actor_replace_events(&h.actor, &h, 2, &h.services));
+    assert(h.actor.state.frame == expected.frame && h.actor.state.action == expected.action);
+    assert(h.actor.state.nextEvent == expected.nextEvent && h.actor.state.onStage == expected.onStage);
+    assert(h.resets && h.clears && h.motions && h.actor.events == &h);
+    dispose(&h);
+    for (failure = -2; failure <= 0; ++failure)
+    {
+        setup(&h);
+        assert(mm_preview_actor_load(&h.actor, 8, &h.services));
+        h.fail_at = h.calls + 1; h.failure = failure;
+        assert(mm_preview_actor_replace_events(&h.actor, &h, 2, &h.services) == failure);
+        dispose(&h);
+    }
+}
 int main(void)
 {
     loading();
     playback();
+    replace_events();
     puts("Preview actor: load/create prefixes, lifetime, resource ownership, replay, exceptions, pose and placement "
          "passed.");
     return 0;

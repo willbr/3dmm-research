@@ -470,6 +470,19 @@ std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsi
         "Cannot create the 3D text template.");
     return result;
 }
+std::shared_ptr<MarcusMovieFile> MarcusCreateEventFile() { return WorkingCopy({}, nullptr); }
+static void ApplyCostumes(PChunkyFile file, ChunkNumber actor, const MarcusLiveEdits::CostumeEdit &edit)
+{
+    String path; Filename filename;
+    path.SetSzs(const_cast<char *>(edit.file->path.u8string().c_str()));
+    Require(filename.FBuildFromPath(&path), "Invalid costume event path.");
+    std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
+    ChunkNumber number; ChildChunkIdentification child;
+    Require(source && source->FCopy(kctgGgae, 0, file, &number) &&
+        file->FGetKidChidCtg(kctgActr, actor, 0, kctgGgae, &child), "Cannot copy costume events.");
+    file->DeleteChild(kctgActr, actor, kctgGgae, child.cki.cno, 0);
+    Require(file->FAdoptChild(kctgActr, actor, kctgGgae, number, 0), "Cannot link costume events.");
+}
 static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTextEdit &edit)
 {
     String path; Filename filename;
@@ -638,6 +651,8 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
             Require(file->FAdoptChild(kctgActr, number, child.cki.ctg, child.cki.cno, child.chid), "Cannot retain the object animation.");
         const auto text = edits.texts->find({scene, actor});
         if (text != edits.texts->end()) ApplyText(file.get(), number, text->second);
+        const auto costume = edits.costumes->find({scene, actor});
+        if (costume != edits.costumes->end()) ApplyCostumes(file.get(), number, costume->second);
         ApplyShape(file.get(),number,placement.shape);
         file->DeleteChild(kctgScen, scene, kctgActr, actor, link.chid);
         Require(file->FAdoptChild(kctgScen, scene, kctgActr, number, link.chid), "Cannot link the moved object.");

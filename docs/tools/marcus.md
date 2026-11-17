@@ -88,7 +88,7 @@ The current development build in this workspace uses `build/marcus-x64`.
 SDL 3.4.8 is built from `vendor/SDL3` by the shared dependency module, including
 for Studio and the inspector. Marcus's transform controls use the vendored
 ImGuizmo core in `vendor/ImGuizmo` with the existing pinned Dear ImGui dependency.
-The New/Edit 3D text dialog uses cimgui 1.92.5, pinned at
+The New/Edit 3D text and Costume dialogs use cimgui 1.92.5, pinned at
 `bfd30140a9c5832b5e0dcf179d6e1e5c69373d5a`, over that same ImGui implementation
 and context. Configuration checks that the bindings' ImGui headers match the
 shared dependency; no second ImGui implementation or SDL backend is built.
@@ -413,6 +413,29 @@ Headless checks cover material properties, transformed patterns, repeated edits,
 undo and native save/reopen. Retail captures of patterned, restyled and newly
 styled words at 544x306 match all text pixels; each frame has the same single
 differing pixel on the separate actor. The retail error stack remains empty.
+
+Select a visible actor or prop while paused, then choose **Costume** in its
+object properties. The C89/cimgui dialog shows visual choices grouped by body
+part, with separate accessory choices where the template provides them. Its
+preview shows the current pose, supports drag rotation and wheel zoom, and
+updates as clothing, surfaces or accessories are selected. It uses the available
+window height and recenters when the window is resized. Thumbnails are cached;
+only one uncached visible thumbnail is rendered per frame.
+
+**Apply costume** changes the chosen body parts at the current frame in a single
+undo step. Cancel/Escape leaves the movie unchanged; applying unchanged choices
+adds no history entry. Actors and props reopened from movies are editable too.
+The shared C89 retail costume editor preserves earlier frames, later distinct
+costume changes and entrance boundaries. Private event tracks are retained in
+session history and embedded into **Save copy**, alongside the existing actor
+template and animation. The BRender ASM worker receives a materialized native
+movie for costume edits. This picker selects the template's existing costume
+variants; it does not create new costumes or import textures.
+
+Headless native checks cover actor and prop choices, isolated previews, edits
+before later costume events, combined body-part changes, undo, repeated seeking,
+further edits after reopening, and exact preview pixels after native save/reopen.
+No Marcus UI test was added.
 
 Actors, props and 3D text appear at the current frame, at the active background
 camera's next insertion point, and remain through the scene's last frame.
@@ -1486,7 +1509,7 @@ Frame/camera thumbnail helpers receive one cached native snapshot containing all
 scene, prop, camera, placement and frame-range edits. The snapshot is rebuilt
 only after further edits, and its creation does not replace the live movie.
 
-Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, rotation, resize, prop insertion,
+Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed costume change, object move, rotation, resize, prop insertion,
 frame addition, camera change, storyboard stroke/adjustment or new scene. Each drag or completed position-field edit is one
 step. Up to 64 steps are retained in the current session, including after a
 resource reload. Undo restores the movie and the pre-edit scene/frame, retaining

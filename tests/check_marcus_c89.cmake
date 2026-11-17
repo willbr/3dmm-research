@@ -9,6 +9,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "-I${SOURCE}/src/marcus" "${SOURCE}/src/marcus/main.c" "${SOURCE}/src/marcus/ui.c"
   "${SOURCE}/src/marcus/settings.c"
   "${SOURCE}/src/marcus/text_dialog.c"
+  "${SOURCE}/src/marcus/costume_dialog.c"
   "${SOURCE}/src/marcus/ribbon.c"
   "${SOURCE}/src/marcus/camera_guide.c"
   "${SOURCE}/src/marcus/camera_controls.c"

@@ -23,6 +23,20 @@ void mm_preview_actor_dispose(MMPreviewActor *p, const MMPreviewActorServices *s
         s->release_template(s->context, p->tmpl);
     p->tmpl = 0;
 }
+int mm_preview_actor_replace_events(MMPreviewActor *p, void *events, MMI32 frame, const MMPreviewActorServices *s)
+{
+    int r;
+    p->events = events;
+    mm_actor_state_init(&p->state);
+    mm_actor_state_init(&p->orientation);
+    mm_actor_state_rewind(&p->state, p->route, &s->timeline.motion);
+    p->orientation_reset = 1;
+    s->clear_cues(s->context);
+    s->clear_motion(s->context);
+    r = s->default_costume(s->context, p->tmpl, p->body);
+    if (r <= 0) return r;
+    return mm_preview_actor_seek(p, frame, s);
+}
 static void remember_origin(MMPreviewActor *p)
 {
     unsigned i;

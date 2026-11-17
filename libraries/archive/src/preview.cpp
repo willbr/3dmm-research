@@ -265,6 +265,45 @@ bool Preview::ObjectText(int object, PreviewObjectText &text, Error &error) cons
     return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Text(text)) ||
         Fail(error, ErrorCode::invalid_argument, "Select a 3D text object first.");
 }
+bool Preview::ObjectCostumes(int object, std::vector<PreviewCostume> &out, Error &error) const
+{
+    error = {}; out.clear();
+    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Costumes(out)) ||
+        Fail(error, ErrorCode::invalid_argument, "Select an actor or prop with costumes.");
+}
+bool Preview::WriteObjectCostumes(int object, const std::vector<PreviewCostume> &values, const std::string &path, Error &error)
+{
+    error = {};
+    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->WriteCostumes(values, path)) ||
+        Fail(error, ErrorCode::decode_failed, "Cannot write this costume change.");
+}
+bool Preview::SetObjectEventTrack(int object, std::int32_t source, Error &error)
+{
+    error = {};
+    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->SetEventTrack(source)) ||
+        Fail(error, ErrorCode::decode_failed, "Cannot apply this costume change.");
+}
+bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume> &values,
+    const PreviewView &view, PreviewImage &image, Error &error)
+{
+    error = {}; image = {};
+    if (!_impl->ready || object < 0 || std::size_t(object) >= _impl->actors.size() || !_impl->actors[object]->Visible())
+        return Fail(error, ErrorCode::invalid_argument, "Select a visible actor or prop.");
+    auto &actor = *_impl->actors[object]; BodyCostume costume;
+    if (!costume.FGet(actor.body)) return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
+    const auto orbit = _impl->orbit;
+    struct Restore
+    {
+        BodyCostume &costume; PBody body; Impl &impl; decltype(orbit) orbit;
+        ~Restore() { costume.Set(body); impl.orbit = orbit; }
+    } restore{costume, actor.body, *_impl, orbit};
+    if (!actor.TryCostumes(values)) return Fail(error, ErrorCode::decode_failed, "Cannot preview this costume.");
+    PreviewView isolated = view;
+    isolated.authoredCamera = false; isolated.orbitObject = object; isolated.onlyObject = object;
+    isolated.stableOrbit = false;
+    ResetOrbitFraming();
+    return Render(isolated, image, error);
+}
 bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &error)
 {
     error = {};

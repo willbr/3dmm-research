@@ -60,7 +60,7 @@ struct Preview::Impl::RenderHost
             auto &h = *static_cast<RenderHost *>(v);
             auto &i = *h.impl;
             d->scene = i.info.scene;
-            d->background = bool(i.background);
+            d->background = bool(i.background) && (!h.view || h.view->onlyObject < 0);
             d->model = i.model ? i.model->Pbmdl() : nullptr;
             if (i.model)
                 for (unsigned a = 0; a < 3; ++a)
@@ -76,7 +76,7 @@ struct Preview::Impl::RenderHost
                 d->palette[n * 4 + 2] = palette[n].bBlue;
                 d->palette[n * 4 + 3] = 255;
             }
-            if (i.background)
+            if (i.background && d->background)
             {
                 auto &b = *i.background;
                 d->width = b.width;
@@ -116,6 +116,7 @@ struct Preview::Impl::RenderHost
             auto &h = *static_cast<RenderHost *>(v);
             auto &i = *h.impl;
             PBody body = nullptr;
+            if (h.view && h.view->onlyObject >= 0 && index != MMU32(h.view->onlyObject + 1)) return 0;
             std::uint64_t order = 0;
             if (!index)
                 body = i.body;

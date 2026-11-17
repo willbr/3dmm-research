@@ -15,6 +15,11 @@ struct PreviewAction
     std::string name;
     std::uint32_t celCount = 0;
 };
+struct PreviewCostume
+{
+    int bodySet = 0, costume = 0;
+    bool selected = false, accessory = false;
+};
 struct PreviewInfo
 {
     Id asset;
@@ -38,6 +43,7 @@ struct PreviewView
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
     bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until refitting is requested.
     int orbitObject = -1;          // Scene object index to follow; -1 fits the scene.
+    int onlyObject = -1;           // Isolated authoring thumbnail; omit scenery and other objects.
     bool includeDepth = false;     // Return camera-forward distances for host composition.
     bool fitSceneDepth = false;    // Fit inspection clip distances to visible scene geometry.
     int displayMode = 0;           // Host-selected built-in material/edge mode; zero preserves authored materials.
@@ -253,6 +259,11 @@ class Preview
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
     bool ObjectText(int object, PreviewObjectText &, Error &) const;
+    bool ObjectCostumes(int object, std::vector<PreviewCostume> &, Error &) const;
+    // Write a private edited event track, leaving the live actor unchanged.
+    bool WriteObjectCostumes(int object, const std::vector<PreviewCostume> &, const std::string &path, Error &);
+    bool SetObjectEventTrack(int object, std::int32_t source, Error &);
+    bool RenderObjectCostumes(int object, const std::vector<PreviewCostume> &, const PreviewView &, PreviewImage &, Error &);
     // Change only this instance's text template, retaining its authored track.
     bool SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &);
     bool TextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number, PreviewTextMaterial &, Error &);

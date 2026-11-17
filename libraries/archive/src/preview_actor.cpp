@@ -11,6 +11,7 @@
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
 #include "mm/actor_effect.h"
+#include "mm/actor_costume_edit.h"
 #undef size
 #include "preview_cue_view.h"
 ASSERTNAME
@@ -21,6 +22,7 @@ namespace MM
 namespace Internal
 {
 #include "preview_actor_host.h"
+#include "preview_costume_host.h"
 #include "preview_timeline_host.h"
 PreviewActor::~PreviewActor()
 {
@@ -142,6 +144,103 @@ bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, st
     next.release(); nextBody.release();
     oldBody->Release(); oldTemplate->Release();
     return true;
+}
+bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
+{
+    out.clear();
+    if (!tmpl || !body || tmpl->FIsTdt()) return false;
+    for (int set = 0; set < body->Cbset(); ++set)
+    {
+        bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL current;
+        body->GetPartSetMaterial(set, &plain, &material, &current);
+        for (int i = 0; i < tmpl->CcmidOfBset(set); ++i)
+        {
+            const auto id = tmpl->CmidOfBset(set, i);
+            auto costume = tmpl->PcmtlFetch(id);
+            if (!costume) return false;
+            const bool selected = !plain && current == costume;
+            costume->Release();
+            out.push_back({set, int(id), selected, tmpl->FBsetIsAccessory(set)});
+        }
+    }
+    return true;
+}
+bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
+{
+    std::vector<PreviewCostume> available;
+    if (!Costumes(available)) return false;
+    for (const auto &value : values)
+    {
+        if (std::none_of(available.begin(), available.end(), [&](const PreviewCostume &c) {
+            return c.bodySet == value.bodySet && c.costume == value.costume; })) return false;
+        auto costume = tmpl->PcmtlFetch(value.costume);
+        if (!costume) return false;
+        body->SetPartSetCmtl(costume); costume->Release();
+    }
+    return true;
+}
+bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, const std::string &path)
+{
+    if (!Visible() || !tmpl || tmpl->FIsTdt()) return false;
+    // Run the shared event editor on a private track and body. Both are restored
+    // even when allocation, resource resolution, or file output fails.
+    ActorTrack saved;
+    if (!saved.FCloneFrom(track)) return false;
+    auto duplicate = body->PbodyDup();
+    if (!duplicate) return false;
+    const auto original = core; const auto originalBody = body;
+    track.Swap(saved); body = duplicate;
+    core.body = body; core.route = track.Route(); core.events = track.Events();
+    struct Restore
+    {
+        PreviewActor &a; ActorTrack &track; MMPreviewActor core; PBody body;
+        ~Restore() { a.body->Release(); a.track.Swap(track); a.core = core; a.body = body; }
+    } restore{*this, saved, original, originalBody};
+    std::vector<PreviewCostume> available;
+    if (!Costumes(available)) return false;
+    CostumeHost host(this); const auto services = host.Services();
+    const auto motion = EngineActorMotion::Services(); const MMTag tag = {};
+    for (const auto &value : values)
+    {
+        auto found = std::find_if(available.begin(), available.end(), [&](const PreviewCostume &c) {
+            return c.bodySet == value.bodySet && c.costume == value.costume; });
+        if (found == available.end()) return false;
+        if (!host.Result(mm_actor_edit_set_costume(&core.state, motionSounds.Core(), track.Events(), core.header.actor_id,
+            value.bodySet, &tag, value.costume, 1, &motion, &services))) return false;
+    }
+    auto release = [](auto *p) { if (p) p->Release(); };
+    std::unique_ptr<GeneralGroup, decltype(release)> wire(ActorData::PggWriteEvents(track.Events()), release);
+    String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
+    if (!wire || !filename.FBuildFromPath(&text)) return false;
+    std::unique_ptr<ChunkyFile, decltype(release)> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable), release);
+    ChunkNumber number; DataBlock block;
+    return file && file->FAdd(wire->CbOnFile(), kctgGgae, &number, &block) && number == 0 &&
+        wire->FWrite(&block) && file->FSave(kctgSoc);
+}
+bool PreviewActor::SetEventTrack(std::int32_t source)
+{
+    if (source == eventSource) return true;
+    if (!body || !tmpl || tmpl->FIsTdt()) return false;
+    const TAGOnFile tag = {source, 0, kctgGgae, 0};
+    auto file = resolve(tag); DataBlock block;
+    if (!file || !file->Pcfl()->FFind(kctgGgae, 0, &block)) return false;
+    ActorTrack saved;
+    if (!saved.FCloneFrom(track)) return false;
+    auto events = ActorData::PggReadEvents(&block);
+    if (!events) return false;
+    saved.AdoptEvents(events);
+    const auto original = core;
+    BodyCostume costume;
+    if (!costume.FGet(body)) return false;
+    track.Swap(saved); core.route = track.Route(); core.events = track.Events();
+    try
+    {
+        Host host = {this}; const auto services = host.Services();
+        if (host.Result(mm_preview_actor_replace_events(&core, track.Events(), original.state.frame, &services)))
+        { eventSource = source; return true; }
+    }
+    catch (...) { track.Swap(saved); core = original; costume.Set(body); throw; }
+    track.Swap(saved); core = original; costume.Set(body); return false;
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {

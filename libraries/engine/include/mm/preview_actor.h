@@ -64,6 +64,7 @@ extern "C"
     int mm_preview_actor_load(MMPreviewActor *, MMU32 number, const MMPreviewActorServices *);
     int mm_preview_actor_create(MMPreviewActor *, const MMPreviewActorDefinition *, const MMPreviewActorServices *);
     int mm_preview_actor_seek(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
+    int mm_preview_actor_replace_events(MMPreviewActor *, void *events, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_position(MMPreviewActor *, int select_cel, const MMPreviewActorServices *);
     int mm_preview_actor_translate(MMPreviewActor *, const float delta[3], const MMPreviewActorServices *);
     int mm_preview_actor_offset(MMPreviewActor *, const float offset[3], const MMPreviewActorServices *);

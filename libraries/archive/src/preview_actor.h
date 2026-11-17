@@ -16,6 +16,7 @@ class PreviewActor
 {
     struct Host;
     struct TimelineHost;
+    struct CostumeHost;
     MMPreviewActor core;
     ActorTrack track;
     PTemplate tmpl = nullptr;
@@ -26,6 +27,7 @@ class PreviewActor
     ActorSoundList motionSounds;
     std::uint64_t *visibilityClock = nullptr;
     mutable std::uint64_t lastShown = 0;
+    std::int32_t eventSource = 0;
     PreviewSoundCue SoundCue(const ActorEvent::Sound &sound) const;
 
   public:
@@ -49,6 +51,10 @@ class PreviewActor
     void Shape(PreviewObjectShape &, float left[9], float right[9]) const;
     PreviewObject Snapshot() const;
     bool Text(PreviewObjectText &) const;
+    bool Costumes(std::vector<PreviewCostume> &) const;
+    bool TryCostumes(const std::vector<PreviewCostume> &);
+    bool WriteCostumes(const std::vector<PreviewCostume> &, const std::string &path);
+    bool SetEventTrack(std::int32_t source);
     PMaterial_MTRL TextMaterial() const;
     bool SetTextMaterial(std::int32_t source, std::uint32_t number);
     bool SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate);

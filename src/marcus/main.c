@@ -7,6 +7,7 @@
 #include "scene_organiser.h"
 #include "background_browser.h"
 #include "text_dialog.h"
+#include "costume_dialog.h"
 #include "ribbon.h"
 #include "camera_picker.h"
 #include "storyboard_editor.h"
@@ -94,6 +95,7 @@ typedef struct App
     MarcusSceneOrganiser *scene_organiser;
     MarcusBackgroundBrowser *background_browser;
     MarcusTextDialog *text_dialog;
+    MarcusCostumeDialog *costume_dialog;
     MarcusCameraPicker *camera_picker;
     MarcusStoryboardEditor *storyboard_editor;
     MarcusPropGizmo *prop_gizmo;
@@ -2243,6 +2245,14 @@ static void handle_event(App *app, const SDL_Event *event)
             app->ui.mouse_y = event->motion.y;
         }
     }
+    else if (!app->error[0] && costume_dialog_event(app->costume_dialog, event))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
+    }
     else if (!app->error[0] && text_dialog_event(app->text_dialog, event))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
@@ -3043,6 +3053,13 @@ static void draw_object_properties(App *app, float offset)
     ui_label(ui, app->sidebar + 18, offset + 374, 264, object.name, TEXT);
     ui_heading(ui, app->sidebar + 18, offset + 400, object.text ? "3D TEXT" : object.prop ? "PROP" : "ACTOR", ACCENT);
     if (object.text) ui_button_sized(ui, app->sidebar + 148, offset + 392, 134, 28, "Edit 3D text", 0, 1);
+    else if (offset + 392 >= app->object_split + 5 && offset + 420 <= app->height - 24 &&
+        !app->settings_open && !app->zip_input && !browser_visible(app->browser) &&
+        !background_browser_visible(app->background_browser) && !text_dialog_visible(app->text_dialog) &&
+        !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
+        !storyboard_editor_visible(app->storyboard_editor))
+        costume_dialog_button(app->costume_dialog, app->player, app->selected, app->sidebar + 148, offset + 392,
+            object.visible && !app->playing && !app->settings_open && !app->error[0]);
     ui_line(ui, app->sidebar + 18, offset + 435, (float)app->width - 18, offset + 435, LINE);
     property(app, 450, "Visibility", object.visible ? "On stage" : "Off stage");
     ui_heading(ui, app->sidebar + 18, offset + 484, app->prop_fields && prop_gizmo_mode(app->prop_gizmo)==1 ? "ROTATION (DEGREES)" :
@@ -4036,6 +4053,7 @@ static void draw(App *app)
         if (app->settings_open)
             draw_settings(app);
         browser_draw(app->browser, &app->ui, app->width, app->height);
+        costume_dialog_draw(app->costume_dialog, &app->ui, app->width, app->height);
         if (app->error[0])
             draw_error(app);
         return;
@@ -4091,6 +4109,7 @@ static void draw(App *app)
     browser_draw(app->browser, &app->ui, app->width, app->height);
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
     text_dialog_draw(app->text_dialog, &app->ui, app->width, app->height);
+    costume_dialog_draw(app->costume_dialog, &app->ui, app->width, app->height);
     camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
@@ -4105,7 +4124,7 @@ static void update_prop_gizmo(App *app)
     int moved, enabled;
     enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
         !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) && !text_dialog_visible(app->text_dialog) &&
-        !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
+        !costume_dialog_visible(app->costume_dialog) && !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !app->orbit_menu && !app->sheet_menu && !app->flying && !app->orbiting && !app->panning &&
         !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging;
     prop_gizmo_begin(app->prop_gizmo, app->player, app->selected,
@@ -4420,6 +4439,12 @@ int main(int argc, char **argv)
         result = 1;
         goto cleanup;
     }
+    app.costume_dialog = costume_dialog_create();
+    if (!app.costume_dialog)
+    {
+        result = 1;
+        goto cleanup;
+    }
     app.camera_picker = camera_picker_create();
     if (!app.camera_picker)
     {
@@ -4521,6 +4546,11 @@ int main(int argc, char **argv)
             int object, changed, actor, edited;
             edited = 0;
             object = text_dialog_take(app.text_dialog, &edited);
+            if (object < 0)
+            {
+                object = costume_dialog_take(app.costume_dialog);
+                if (object >= 0) edited = 1;
+            }
             changed = object >= 0;
             actor = background_browser_take_actor(app.background_browser, &prop);
             if (actor || background_browser_take_prop(app.background_browser, &prop))
@@ -4650,7 +4680,7 @@ int main(int argc, char **argv)
         }
         SDL_RenderPresent(app.renderer);
         ++frames;
-        if (!app.prop_interacting && !text_dialog_visible(app.text_dialog)) SDL_Delay(10);
+        if (!app.prop_interacting && !text_dialog_visible(app.text_dialog) && !costume_dialog_visible(app.costume_dialog)) SDL_Delay(10);
         completed_tick = SDL_GetTicksNS();
         record_frame(&app, (double)(completed_tick - frame_tick) / 1000000.0);
         frame_tick = completed_tick;
@@ -4663,6 +4693,7 @@ cleanup:
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
     browser_destroy(app.browser);
     text_dialog_destroy(app.text_dialog);
+    costume_dialog_destroy(app.costume_dialog);
     background_browser_destroy(app.background_browser);
     camera_picker_destroy(app.camera_picker);
     storyboard_editor_destroy(app.storyboard_editor);
