@@ -59,6 +59,20 @@ int mm_movie_view_next_scene(const MMMovieChunkView *, MMU32 root, MMU32 *cursor
 /* Resolve the first GST linked at the movie's source-table slot. */
 int mm_movie_view_source_table(const MMChunkAccess *, MMU32 root, MMChunkEntry *, MMU32 *position);
 
+typedef struct MMMovieEventView
+{
+    void *context, *group;
+    MMI32 count;
+    void (*read)(void *, void *group, MMI32 index, MMI32 *frame, int *kind);
+} MMMovieEventView;
+
+/* Return the last qualifying row in group order. Equal-frame events retain
+ * their authored order and a later row wins. Use include_frame=0 when restoring
+ * state before replaying the target frame. Returns -1 on a miss and leaves the
+ * optional event_frame untouched. The view borrows an immutable event prefix. */
+MMI32 mm_movie_view_last_event(const MMMovieEventView *, int kind, MMI32 frame, int include_frame,
+                              MMI32 *event_frame);
+
 typedef struct MMMovieAsset
 {
     MMI32 source;

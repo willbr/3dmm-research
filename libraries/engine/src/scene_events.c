@@ -1,6 +1,7 @@
 /* Scene event dispatch converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_events.h"
+#include "mm/movie_session.h"
 #include <stddef.h>
 void *mm_scene_pick_actor(MMI32 x, MMI32 y, const MMScenePickServices *s)
 {
@@ -115,25 +116,26 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
 }
 int mm_scene_unplay_event(int kind, const MMSceneEventServices *s)
 {
+    MMMovieEventView view;
     MMI32 i, frame, camera;
-    int previous, result;
+    int result;
     void *group = s->owner->owned[MM_SCENE_FRAMES], *c = s->context;
     if (kind != MM_SCENE_PLAY_SOUND && kind != MM_SCENE_CHANGE_CAMERA)
         return 1;
     if (kind == MM_SCENE_CHANGE_CAMERA)
         require_background(s);
-    for (i = s->runtime->next_event - 1; i >= 0; --i)
+    view.context = c;
+    view.group = group;
+    view.count = s->runtime->next_event;
+    view.read = s->event;
+    i = mm_movie_view_last_event(&view, kind, s->data->currentFrame, 0, &frame);
+    if (i >= 0)
     {
-        s->event(c, group, i, &frame, &previous);
-        if (previous == kind && frame < s->data->currentFrame)
-        {
-            result = mm_scene_play_event(
-                frame, previous, s->payload(c, group, i),
-                s->runtime->disabled | (kind == MM_SCENE_PLAY_SOUND ? MM_SCENE_EFFECT_SOUNDS : 0), s);
-            if (kind == MM_SCENE_CHANGE_CAMERA && !result)
-                s->diagnostic(c, MM_SCENE_EVENT_RESTORE_FAILED);
-            return 1;
-        }
+        result = mm_scene_play_event(frame, kind, s->payload(c, group, i),
+                    s->runtime->disabled | (kind == MM_SCENE_PLAY_SOUND ? MM_SCENE_EFFECT_SOUNDS : 0), s);
+        if (kind == MM_SCENE_CHANGE_CAMERA && !result)
+            s->diagnostic(c, MM_SCENE_EVENT_RESTORE_FAILED);
+        return 1;
     }
     if (kind == MM_SCENE_PLAY_SOUND)
         mm_scene_owner_drop(s->owner, s->scene, MM_SCENE_BACKGROUND_SOUND, &s->owners);

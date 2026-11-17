@@ -408,6 +408,9 @@ static void camera_tests(void)
     h.live.status.frame = 30;
     assert(mm_preview_live_cameras(&h.live, &input, &h.services) == 0);
     assert(h.live.status.first == 5 && h.live.status.last == 25 && h.live.status.frame == 25 && h.selected == 2);
+    assert(mm_preview_live_seek(&h.live, 16, &h.services) == 0 && h.selected == 3);
+    assert(mm_preview_live_seek(&h.live, 17, &h.services) == 0 && h.selected == 2);
+    assert(mm_preview_live_seek(&h.live, 25, &h.services) == 0 && h.selected == 2);
     assert(h.live.cameras.count == 4 && cues(&h)[0].frame == 5 && cues(&h)[0].camera == 3 && cues(&h)[1].frame == 9 &&
            cues(&h)[2].frame == 15 && cues(&h)[3].frame == 17 && cues(&h)[3].camera == 2);
     memcpy(saved, cues(&h), 4 * sizeof(*saved));

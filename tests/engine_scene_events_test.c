@@ -502,6 +502,9 @@ static void rewind_events(void)
         f.frames.events[i].kind = MM_SCENE_CHANGE_CAMERA;
         f.frames.events[i].payload.camera = i + 1;
     }
+    f.frames.events[0].frame = 2;
+    f.frames.events[3].frame = 1;
+    f.runtime.next_event = 3;
     f.owner.owned[MM_SCENE_BACKGROUND] = &f.objects[3];
     f.data.currentFrame = 3;
     f.used = 0;
@@ -518,7 +521,7 @@ static void rewind_events(void)
     f.runtime.disabled = 64;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
-    CHECK(f.used == 4);
+    CHECK(f.used == f.runtime.next_event);
     f.owner.owned[MM_SCENE_BACKGROUND] = NULL;
     f.runtime.next_event = 0;
     f.used = 0;

@@ -1,4 +1,5 @@
 #include "mm/preview_live.h"
+#include "mm/movie_session.h"
 #include "mm/scene_runtime.h"
 #include <string.h>
 #define MIN_FRAME (-2147483647 - 1)
@@ -380,10 +381,19 @@ int mm_preview_live_cameras(MMPreviewLive *p, const MMPreviewLiveCameraEdits *ed
         frame = first;
     return mm_preview_live_seek(p, frame, s);
 }
+static void read_camera_change(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
+{
+    const MMPreviewLiveCamera *changes = (const MMPreviewLiveCamera *)group;
+    (void)context;
+    *frame = changes[index].frame;
+    *kind = MM_SCENE_CHANGE_CAMERA;
+}
+
 int mm_preview_live_seek(MMPreviewLive *p, MMI32 frame, const MMPreviewLiveServices *s)
 {
     MMU32 i, camera = p->initial_camera;
-    MMPreviewLiveCamera *changes = (MMPreviewLiveCamera *)data(&p->cameras);
+    MMMovieEventView view;
+    MMI32 selected;
     int effect;
     if (s->begin_seek)
         s->begin_seek(s->context);
@@ -406,9 +416,13 @@ int mm_preview_live_seek(MMPreviewLive *p, MMI32 frame, const MMPreviewLiveServi
     }
     if (p->status.background)
     {
-        for (i = 0; i < p->cameras.count; ++i)
-            if (changes[i].frame <= frame)
-                camera = changes[i].camera;
+        view.context = NULL;
+        view.group = data(&p->cameras);
+        view.count = (MMI32)p->cameras.count;
+        view.read = read_camera_change;
+        selected = mm_movie_view_last_event(&view, MM_SCENE_CHANGE_CAMERA, frame, 1, NULL);
+        if (selected >= 0)
+            camera = ((const MMPreviewLiveCamera *)view.group)[selected].camera;
         effect = s->camera(s->context, camera, &p->status.ready);
         if (effect <= 0)
         {

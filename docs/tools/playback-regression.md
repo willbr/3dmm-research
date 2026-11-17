@@ -12947,6 +12947,38 @@ Capture logs, settings and input and build hashes are under
 `tmp/c89-resource-lookup/`. The live actor and camera evaluation cutover
 remains in the [C89 plan](../../plan.md#immediate-next-work-and-completion).
 
+### Shared C89 camera event selection (17 November 2026)
+
+The standalone movie session and Marcus live seek select a camera through
+the shared C89 event view. They use the last qualifying cue in group order,
+including cues on the target frame. Studio rewinds through the same event
+view with the already processed prefix and a strict frame boundary. Studio
+then applies the target frame's effects through the live dispatcher. The
+same rewind query selects the preceding sound, preserving MIDI cache effects.
+
+Fresh retail captures for `actor-events` and `scrolling-text` crossed the
+frame 15 cut repeatedly in both directions, including repeated seeks to the
+cut and re-entry into both scenes. For the same sequence, SDL Studio and
+Marcus produced 224 seek observations. Their scene, frame and camera state
+agreed with retail, and each host matched its pre-change viewport hashes
+at all 224 positions. The standalone C89 query matched the camera index
+at all 112 retail positions.
+
+Normal playback of `actor-events`, `dissolve` and `scrolling-text` matched
+the retained retail frame order and final position at 180 commits per host.
+The playback comparison measured frame order and completion.
+
+Fixtures covered ties in event order, exclusion of an unprocessed Studio
+event and Marcus seeks across a live camera edit. All 181 standalone and 15
+host checks passed, including `marcus-storyboard`, `marcus-playback`,
+`archive-api` and `movie-save-load`. The existing `marcus-playback` invalid
+MVIE fixture exposed changed diagnostic wording from the movie directory
+cutover. The archive adapter now reports the original record-header message.
+The affected engine sources compiled under strict C89 for Linux x64 musl.
+Both hosts built successfully and Marcus was relaunched.
+
+Capture logs, build identities and test results are under `tmp/c89-live-camera/`.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

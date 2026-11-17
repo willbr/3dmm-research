@@ -13,6 +13,7 @@
 #define STRING_TABLE_TYPE 0x47535420UL
 #define BACKGROUND_TYPE 0x424b4744UL
 #define CAMERA_TYPE 0x43414d20UL
+#define LAST_AUTHORED_FRAME 2147483647L
 
 static void *find_codec(void *context, MMI32 format)
 {
@@ -439,25 +440,64 @@ int mm_session_scene_group(const MMMovieSession *movie, const MMChunkAccess *acc
     return MM_MOVIE_OK;
 }
 
+MMI32 mm_movie_view_last_event(const MMMovieEventView *view, int kind, MMI32 frame, int include_frame,
+                              MMI32 *event_frame)
+{
+    MMI32 i, row_frame;
+    int row_kind;
+    for (i = view->count; i > 0;)
+    {
+        --i;
+        view->read(view->context, view->group, i, &row_frame, &row_kind);
+        if (row_kind == kind && (row_frame < frame || (include_frame && row_frame == frame)))
+        {
+            if (event_frame)
+                *event_frame = row_frame;
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void read_scene_event(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
+{
+    const MMMovieGroup *events = (const MMMovieGroup *)group;
+    MMI32 size;
+    const unsigned char *row = mm_session_group_row(events, (MMU32)index, &size);
+    (void)context;
+    *frame = mm_signed_word(mm_session_word(row, events->header.big_endian));
+    *kind = (int)mm_signed_word(mm_session_word(row + 4, events->header.big_endian));
+}
+
 static int scan_camera_events(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 scene,
                               int start, MMI32 frame, MMMovieCamera *camera)
 {
     MMMovieGroup group;
+    MMMovieEventView view;
     const unsigned char *row;
-    MMU32 i;
-    MMI32 size, kind;
+    MMI32 size, selected;
     int big, status = mm_session_scene_group(movie, access, scene, start, &group);
     if (status != MM_MOVIE_OK)
         return status;
     big = group.header.big_endian;
-    for (i = 0; i < group.header.count; ++i)
+    view.context = NULL;
+    view.group = &group;
+    view.count = (MMI32)group.header.count;
+    view.read = read_scene_event;
+    if (start)
+        frame = LAST_AUTHORED_FRAME; /* A start event is independent of its stored frame. */
+    selected = mm_movie_view_last_event(&view, MM_SCENE_CHANGE_CAMERA, frame, 1, NULL);
+    if (selected >= 0)
     {
-        row = mm_session_group_row(&group, i, &size);
-        kind = mm_signed_word(mm_session_word(row + 4, big));
-        if (kind == MM_SCENE_CHANGE_CAMERA && (start || mm_signed_word(mm_session_word(row, big)) <= frame))
-            camera->slot = mm_session_word(row + 8, big);
-        else if (kind == MM_SCENE_SET_BACKGROUND)
+        row = mm_session_group_row(&group, (MMU32)selected, &size);
+        camera->slot = mm_session_word(row + 8, big);
+    }
+    if (start)
+    {
+        selected = mm_movie_view_last_event(&view, MM_SCENE_SET_BACKGROUND, frame, 1, NULL);
+        if (selected >= 0)
         {
+            row = mm_session_group_row(&group, (MMU32)selected, &size);
             camera->background.source = mm_signed_word(mm_session_word(row + 8, big));
             camera->background.type = mm_session_word(row + 16, big);
             camera->background.number = mm_session_word(row + 20, big);

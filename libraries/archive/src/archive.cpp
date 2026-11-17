@@ -551,7 +551,7 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
         }
         const Id id = {kctgMvie, root};
         if (status != MM_MOVIE_OK)
-            return error ? false : Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported movie header.", &id);
+            return error ? false : Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported record header.", &id);
         result.hasRoot = true;
         result.root = id;
         MMU32 cursor = 0, slot;

@@ -48,6 +48,11 @@ record bytes from its existing archive.
 groups, evaluates camera cuts at an authored frame, and decodes the specified
 background's `CAM` chunk. Source zero uses the movie's own index. For positive
 sources the host supplies a borrowed stream for the requested asset's archive.
+`MMMovieEventView` borrows an event group or prefix for the shared last-event
+selector. The standalone session reads wire event rows. Marcus seeks include
+the target frame and read the current camera cues, including edits. Studio
+rewind finds the last camera or sound in the processed prefix before the
+target frame, then the existing dispatcher replays the target frame's effects.
 `mm_movie_session_actor` follows the scene start group's actor links, creates
 C route and event tables and replays the existing actor evaluator from a fresh
 state. The query uses action tables from the resolved template or the shared

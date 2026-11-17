@@ -464,12 +464,13 @@ Keep host presentation and device output outside the session.
    rendered output remain open.
 3. Switch both hosts to the same session for the covered operations and retire
    the superseded backend paths. Root, scene and source directory queries and
-   ordered resource search now share the standalone policy. The host session
-   cutover still needs live frame evaluation and its renderer bindings. Link
-   and run the standalone consumer and its real file/content providers with
-   the C toolchain, without `engine-core`,
-   `engine`, `MM::Archive`, `MM::Preview` or their project-owned C++ providers.
-   Verify the host paths with the regression gate above.
+   ordered resource search now share the standalone policy. Marcus seek and
+   Studio rewind now share the standalone event selector over their live
+   timelines. The host session cutover still needs live actor evaluation and
+   the camera and actor renderer bindings. Link and run the standalone
+   consumer and its real file/content providers with the C toolchain, without
+   `engine-core`, `engine`, `MM::Archive`, `MM::Preview` or their project-owned
+   C++ providers. Verify the host paths with the regression gate above.
 
 #### Completed slices and remaining dependencies
 
