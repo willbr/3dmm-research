@@ -2489,6 +2489,7 @@ extern "C"
         });
     }
     void marcus_stop_sound_preview(MarcusPlayer *player) { if (player) player->playback.Stop(); }
+    int marcus_sound_preview_playing(const MarcusPlayer *player) { return player && player->playback.Auditioning(); }
     int marcus_sound_waveform(MarcusPlayer *player, int index, double first, double step, int count,
                               MarcusWaveformColumn *columns, MarcusWaveformInfo *info)
     {

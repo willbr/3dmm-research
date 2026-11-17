@@ -428,6 +428,7 @@ extern "C"
     int marcus_audition_sound(MarcusPlayer *, int index, long volume);
     int marcus_audition_sound_file(MarcusPlayer *, const char *path, int style, long volume);
     void marcus_stop_sound_preview(MarcusPlayer *);
+    int marcus_sound_preview_playing(const MarcusPlayer *);
     /* Lazy, cached, silent decoding. Sampled peaks cover successive clip-relative
      * windows; loops repeat and other out-of-clip columns are zero. MIDI,
      * silence and unavailable clips have zero columns and a kind/message.

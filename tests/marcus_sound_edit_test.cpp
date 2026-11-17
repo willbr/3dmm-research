@@ -19,13 +19,13 @@ void Require(bool ok, const char *message, MarcusPlayer *p = nullptr)
 { if (!ok) throw std::runtime_error(std::string(message) + (p ? std::string(": ") + marcus_error(p) : "")); }
 void Word(std::vector<unsigned char> &b, unsigned v, int n)
 { for (int i = 0; i < n; ++i) b.push_back(static_cast<unsigned char>(v >> (i * 8))); }
-void Wave(const std::string &path)
+void Wave(const std::string &path, unsigned frames = 4800)
 {
     std::vector<unsigned char> b = {'R','I','F','F'};
-    Word(b, 36 + 4800 * 2, 4); b.insert(b.end(), {'W','A','V','E','f','m','t',' '});
+    Word(b, 36 + frames * 2, 4); b.insert(b.end(), {'W','A','V','E','f','m','t',' '});
     Word(b, 16, 4); Word(b, 1, 2); Word(b, 1, 2); Word(b, 48000, 4); Word(b, 96000, 4);
-    Word(b, 2, 2); Word(b, 16, 2); b.insert(b.end(), {'d','a','t','a'}); Word(b, 4800 * 2, 4);
-    for (int i = 0; i < 4800; ++i) Word(b, static_cast<unsigned short>(short(std::sin(i * .06) * 12000)), 2);
+    Word(b, 2, 2); Word(b, 16, 2); b.insert(b.end(), {'d','a','t','a'}); Word(b, frames * 2, 4);
+    for (unsigned i = 0; i < frames; ++i) Word(b, static_cast<unsigned short>(short(std::sin(i * .06) * 12000)), 2);
     std::ofstream out(path, std::ios::binary); out.write(reinterpret_cast<char *>(b.data()), b.size());
 }
 void Midi(const std::string &path)
@@ -72,6 +72,21 @@ int main(int argc, char **argv)
         const auto saved = (dir / "sound.3mm").u8string(), actorMovie = (dir / "actor.3mm").u8string();
         Wave(wave); Midi(midi);
         check(marcus_add_scene(p.get(), 11, argv[1], argv[2]), "New scene");
+        {
+            const auto previewPath = (dir / "Preview tone.wav").u8string(); Wave(previewPath, 48000);
+            const auto revision = marcus_document(p.get());
+            check(!marcus_sound_preview_playing(p.get()) && marcus_audition_sound_file(p.get(), previewPath.c_str(), MARCUS_SOUND_EFFECT, 65536) &&
+                marcus_sound_preview_playing(p.get()), "Preview state follows playback start");
+            marcus_stop_sound_preview(p.get());
+            check(!marcus_sound_preview_playing(p.get()), "Preview state follows manual stop");
+            check(marcus_audition_sound_file(p.get(), previewPath.c_str(), MARCUS_SOUND_EFFECT, 65536), "Restart preview");
+            const auto deadline = SDL_GetTicks() + 4000;
+            MarcusPlaybackState state = {};
+            while (marcus_sound_preview_playing(p.get()) && SDL_GetTicks() < deadline) {
+                check(marcus_update(p.get(), 0, 0, 5, 0, &state), "Advance preview while movie is paused"); SDL_Delay(5);
+            }
+            check(!marcus_sound_preview_playing(p.get()) && marcus_document(p.get()) == revision, "Preview state resets at natural completion without document changes");
+        }
         {
             const auto revision = marcus_document(p.get());
             const auto libraryPath = (std::filesystem::u8path(argv[2]) / "snds.3cn").u8string();

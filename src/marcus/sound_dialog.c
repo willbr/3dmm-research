@@ -294,7 +294,7 @@ static void editor(MarcusSoundDialog *d)
     MarcusScene scene;
     MarcusSoundOptions options;
     MarcusSoundAsset asset;
-    int changed, selected, existing, actor, valid, maximum, library, midi;
+    int changed, selected, existing, actor, valid, maximum, library, midi, previewing;
     existing = d->selected >= 0; actor = existing && d->original.actor_sound;
     library = d->library_selected >= 0 && marcus_sound_asset(d->player, d->library_selected, &asset);
     midi = (existing && d->original.style == MARCUS_SOUND_MUSIC) || (library && asset.style == MARCUS_SOUND_MUSIC);
@@ -344,16 +344,20 @@ static void editor(MarcusSoundDialog *d)
     else if (!actor && d->grouped > 1) igTextWrapped("Frame, volume and loop apply to this queued group. Remove deletes only this sound.");
     waveform(d);
     valid = (existing || library || d->path[0]) && !d->recording_active;
-    igBeginDisabled(!valid);
-    if (igButton("Preview", vec(100, 0)))
+    previewing = marcus_sound_preview_playing(d->player);
+    igBeginDisabled(!valid && !previewing);
+    if (igButton(previewing ? "Stop preview###SoundPreview" : "Preview###SoundPreview", vec(120, 0)))
     {
-        changed = existing ? marcus_audition_sound(d->player, d->selected, (long)(d->volume * 65536 / 100 + .5f)) :
-            library ? marcus_audition_sound_asset(d->player, d->library_selected, (long)(d->volume * 65536 / 100 + .5f)) :
-            marcus_audition_sound_file(d->player, d->path, d->style, (long)(d->volume * 65536 / 100 + .5f));
-        if (!changed) SDL_strlcpy(d->error, marcus_error(d->player), sizeof(d->error));
+        if (previewing) marcus_stop_sound_preview(d->player);
+        else
+        {
+            changed = existing ? marcus_audition_sound(d->player, d->selected, (long)(d->volume * 65536 / 100 + .5f)) :
+                library ? marcus_audition_sound_asset(d->player, d->library_selected, (long)(d->volume * 65536 / 100 + .5f)) :
+                marcus_audition_sound_file(d->player, d->path, d->style, (long)(d->volume * 65536 / 100 + .5f));
+            if (!changed) SDL_strlcpy(d->error, marcus_error(d->player), sizeof(d->error));
+        }
     }
-    igEndDisabled(); igSameLine(0, 8);
-    if (igButton("Stop preview", vec(120, 0))) marcus_stop_sound_preview(d->player);
+    igEndDisabled();
     igSeparator();
     options.frame = scene.first_frame + d->frame - 1;
     options.volume = (long)(d->volume * 65536 / 100 + .5f);

@@ -251,7 +251,7 @@ class Audio
                 queue.end());
         }
     }
-    bool Pending()
+    bool Pending() const
     {
         std::lock_guard<std::mutex> lock(mutex);
         for (const auto &queue : queues)
@@ -921,6 +921,10 @@ bool MarcusPlayback::Audition(Preview &preview, PreviewSoundCue cue, Error &erro
     if (!impl->audio.Play(preview, cue, 0, error)) return false;
     impl->auditioning = true; impl->audio.Suspend(false); return true;
 }
+bool MarcusPlayback::Auditioning() const
+{
+    return impl->auditioning && impl->audio.Pending();
+}
 void MarcusPlayback::Statistics(MarcusAudioStats &stats)
 {
     impl->audio.Statistics(stats);
@@ -993,8 +997,9 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
     impl->ObserveCaptions(preview.Info().currentFrame);
     advance = false;
     if (playing && impl->auditioning) { impl->audio.Clear(); impl->auditioning = false; }
-    impl->audio.Suspend(!playing && !impl->auditioning);
     impl->audio.Collect();
+    if (impl->auditioning && !impl->audio.Pending()) impl->auditioning = false;
+    impl->audio.Suspend(!playing && !impl->auditioning);
     if (!playing)
     {
         impl->wasPlaying = false;

@@ -946,7 +946,8 @@ Use `--sounds` or `--both` to open in that mode, including with `--screenshot`.
 While paused, choose **Sounds > Add sound...** to import WAV/MP3 effects or
 speech, or a standard MIDI file for music. Use the native file chooser or enter
 a path, choose the scene frame, volume, loop and queue settings, and audition
-with **Preview** / **Stop preview** before adding. Audio is embedded in the
+with **Preview** before adding. The same button becomes **Stop preview** while
+audio is playing, and returns to **Preview** when it finishes. Audio is embedded in the
 movie; it does not depend on the original file after saving. Music uses MIDI
 to retain retail compatibility. Import currently accepts files up to 64 MiB.
 
