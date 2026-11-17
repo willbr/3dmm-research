@@ -118,6 +118,14 @@ still applies the selected part matrix. `mm_body_apply_set` maps a custom
 costume's consecutive slots to matching parts in shape order. The same
 mapping drives generic material assignment, including generated text, and
 native costume application through `Body`.
+`mm_template_bind_defaults` selects the first authored costume ID in each
+set in both the wire evaluator and the live template path. The live path
+prepares retained references before updating the body. The wire path
+prepares the new snapshot through the same selector.
+`mm_template_scan_costumes` visits `CMTL` links in child order when the
+template has no `GGCM` table. Studio and Marcus populate the complete
+costume table for the editor. The standalone snapshot uses the first
+costume discovered for each set.
 `mm_movie_session_body_meshes` resolves the owning template or font archive
 and loads each distinct active `BMDL` into owned arrays of positions, mappings,
 colours, normals and indexed faces. It composes part world transforms from

@@ -28,6 +28,31 @@ typedef struct MMTemplateState
     unsigned short x,y,z; /* Native sixteen-bit BAM rest angles. */
 } MMTemplateState;
 typedef struct MMTemplateChild { MMU32 type,number,id; } MMTemplateChild;
+typedef struct MMTemplateCostumeScan
+{
+    void *context;
+    int (*child)(void *, MMU32 ordinal, MMTemplateChild *);
+    int (*costume_set)(void *, const MMTemplateChild *, MMI32 *set);
+    int (*visit)(void *, const MMTemplateChild *, MMI32 set);
+} MMTemplateCostumeScan;
+/* Scan CMTL links in child order. Use a negative set to visit every set.
+ * child returns 1 for a link, 0 at the end, and -1 on error. costume_set
+ * returns 1 on success. visit returns 1 to continue, 0 to stop successfully,
+ * and -1 on error. The scan returns one on success. */
+int mm_template_scan_costumes(MMI32 set, const MMTemplateCostumeScan *);
+
+typedef struct MMTemplateDefaultServices
+{
+    void *context;
+    int (*costume_id)(void *, MMI32 set, MMI32 index, MMI32 *id);
+    int (*prepare)(void *, MMI32 set, MMI32 id);
+    void (*apply)(void *, MMI32 set);
+} MMTemplateDefaultServices;
+/* Pick the first costume in each set in set order. Prepare every choice
+ * before changing a live body. A caller preparing a private snapshot can
+ * leave apply null and discard the snapshot on failure. */
+int mm_template_bind_defaults(MMI32 set_count, const MMTemplateDefaultServices *);
+
 typedef struct MMTemplateCreateServices
 {
     void *context;

@@ -477,8 +477,10 @@ Keep host presentation and device output outside the session.
    and depth bitmaps in its owning archive. The standalone evaluator and
    live renderer bodies now share cel wrapping, replacement model and
    matrix application order, and the part-set mapping for generic and
-   custom materials. The host cutover still needs shared default costume
-   resolution and an owning C frame interface for live renderer resources.
+   custom materials. Default costumes now share first-row selection from
+   the authored table and costume discovery in child order for older
+   templates. An owning C frame interface for live renderer resources
+   remains open.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

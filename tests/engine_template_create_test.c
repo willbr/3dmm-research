@@ -12,6 +12,7 @@ typedef struct Fixture
     MMTemplateCreateServices s; MMTemplateState t; Ref object,cache,body,customs[60]; List parents,sets; Group group; Block blocks[4];
     int file,fail,fallback,other,text,gap,custom_count,child_calls,created,initialized,header_calls;
     int fetched,applied,freed,body_created,body_released,default_calls,deleted,diagnostics[5],invalidated;
+    MMI32 applied_ids[2];
     unsigned char encoded[16]; MMU32 written_type,delete_type; int name_calls;
 } Fixture;
 static void put(unsigned char *p,unsigned n,MMU32 v,int big)
@@ -108,12 +109,22 @@ static void *create_body(void *p,void *parents,void *sets)
 { Fixture *f=p; CHECK(parents==&f->parents && sets==&f->sets); ++f->body_created; if (f->fail==15) return NULL; f->body.refs=1; return &f->body; }
 static int default_costume(void *p,void *o,void *body)
 { Fixture *f=p; ++f->default_calls; return mm_template_default_costume(o,body,&f->s); }
-static MMI32 costume_id(void *p,void *o,MMI32 set,MMI32 index) { Fixture *f=p; CHECK(o==&f->object && !index); return set; }
+static MMI32 costume_id(void *p,void *o,MMI32 set,MMI32 index)
+{
+    Fixture *f=p;
+    CHECK(o==&f->object && set>=0 && set<f->group.rows && !index);
+    return (MMI32)word(f->group.data[set],4,f->s.host_big_endian);
+}
 static void *custom(void *p,void *o,MMI32 id)
-{ Fixture *f=p; CHECK(o==&f->object && id>=0 && id<2); ++f->fetched; if (f->fail==14 && id==1) return NULL; ++f->customs[id].refs; return &f->customs[id]; }
+{ Fixture *f=p; CHECK(o==&f->object && id>=0 && id<4); ++f->fetched; if (f->fail==14 && id==1) return NULL; ++f->customs[id].refs; return &f->customs[id]; }
 static int allocate(void *p,MMI32 n,void **out)
 { Fixture *f=p; *out=NULL; CHECK(n==f->t.set_count); if (f->fail==13) return 0; *out=calloc((size_t)n+1,sizeof(void *)); CHECK(*out); return 1; }
-static void apply(void *p,void *body,void *c) { Fixture *f=p; CHECK(body==&f->body && f->fetched==f->t.set_count && ((Ref *)c)->refs==1); ++f->applied; }
+static void apply(void *p,void *body,void *c)
+{
+    Fixture *f=p;
+    CHECK(body==&f->body && f->fetched==f->t.set_count && ((Ref *)c)->refs==1 && f->applied<2);
+    f->applied_ids[f->applied++]=(MMI32)((Ref *)c-f->customs);
+}
 static void free_memory(void *p,void **data) { Fixture *f=p; int i; void **refs=*data; for (i=0;i<f->t.set_count;++i) CHECK(!refs[i]); free(*data); *data=NULL; ++f->freed; }
 static void diagnose(void *p,int n) { CHECK(n>=0 && n<5); ++((Fixture *)p)->diagnostics[n]; }
 static void setup(Fixture *f,int other,int host_big)
@@ -156,7 +167,9 @@ int main(void)
         out=NULL; CHECK(mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],&out,&bytes,&f.s));
         CHECK(out==&f.object && bytes==130 && f.t.custom_count==4 && f.t.action_count==1 && f.t.set_count==2);
         CHECK(word(f.group.fixed[0],4,host)==2 && word(f.group.data[1]+4,4,host)==3);
+        put(f.group.data[0],4,2,host);
         body=mm_template_create_body(&f.object,&f.s); CHECK(body==&f.body && f.applied==2 && f.freed==1); release(&f,body);
+        CHECK(f.applied_ids[0]==2 && f.applied_ids[1]==1);
         number=777; CHECK(mm_template_write_header(&f.object,&f.file,MM_TMPL,&number,&f.s));
         CHECK(number==123 && !f.encoded[10] && !f.encoded[11] && word(f.encoded+4,2,host)==0x1234 && word(f.encoded+12,4,host)==4);
         release(&f,&f.object); disposed(&f);
@@ -191,7 +204,11 @@ int main(void)
         CHECK(number==(failure==19?777U:123U) && f.deleted==(failure==20)); if (f.deleted) CHECK(f.delete_type==0x44415441U);
     }
     setup(&f,0,0); f.fallback=1; f.gap=1;
-    CHECK(mm_template_initialize(&f.object,&f.file,MM_TMPL,1,&f.s)); CHECK(f.t.custom_count==2 && f.group.rows==2 && f.fetched==8); disposed(&f);
+    CHECK(mm_template_initialize(&f.object,&f.file,MM_TMPL,1,&f.s)); CHECK(f.t.custom_count==2 && f.group.rows==2 && f.fetched==8);
+    f.fetched=0;
+    body=mm_template_create_body(&f.object,&f.s);
+    CHECK(body==&f.body && f.applied==2 && f.applied_ids[0]==0 && f.applied_ids[1]==1);
+    release(&f,body); disposed(&f);
     for (i=50;i<=51;++i)
     {
         setup(&f,0,0); f.fallback=1; f.custom_count=i; f.sets.count=f.parents.count=1; put(f.sets.data,2,0,0);

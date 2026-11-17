@@ -424,7 +424,11 @@ static void movie_directory(void)
     mm_chunk_index_close(index);
 }
 
-enum { ACTOR_FIXTURE_OK, ACTOR_FIXTURE_MISSING_PAINT, ACTOR_FIXTURE_BAD_MATRIX };
+enum
+{
+    ACTOR_FIXTURE_OK, ACTOR_FIXTURE_MISSING_PAINT, ACTOR_FIXTURE_BAD_MATRIX,
+    ACTOR_FIXTURE_CUSTOM_DEFAULT, ACTOR_FIXTURE_MISSING_DEFAULT
+};
 
 static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
 {
@@ -488,6 +492,10 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
     put32(row + 224, 48, big);
     group_header(raw[DEFAULTS], 1, 8, 4, big);
     put32(raw[DEFAULTS] + 20, 1, big);
+    if (issue == ACTOR_FIXTURE_CUSTOM_DEFAULT)
+        put32(raw[DEFAULTS] + 24, 1, big);
+    else if (issue == ACTOR_FIXTURE_MISSING_DEFAULT)
+        put32(raw[DEFAULTS] + 24, 2, big);
     put32(raw[DEFAULTS] + 32, 8, big);
     group_header(raw[CELS], 2, 24, 8, big);
     put32(raw[CELS] + 24, 65536, big);
@@ -628,6 +636,21 @@ static void movie_actors(void)
     previous = body;
     CHECK(mm_movie_session_body(movie, 0, 3, 0, NULL, NULL, &body) == MM_MOVIE_ASSET_NOT_FOUND && body == previous);
     CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
+    mm_movie_body_dispose(body);
+    mm_movie_session_close(movie);
+    size = actor_fixture(bytes, 0, 0, ACTOR_FIXTURE_CUSTOM_DEFAULT);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_OK);
+    CHECK(body->parts[0].material.number == 91);
+    previous = body;
+    mm_movie_session_close(movie);
+
+    size = actor_fixture(bytes, 0, 0, ACTOR_FIXTURE_MISSING_DEFAULT);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_ASSET_NOT_FOUND && body == previous);
+    CHECK(body->parts[0].material.number == 91);
     mm_movie_body_dispose(body);
     mm_movie_session_close(movie);
     size = actor_fixture(bytes, 0, 0, ACTOR_FIXTURE_BAD_MATRIX);

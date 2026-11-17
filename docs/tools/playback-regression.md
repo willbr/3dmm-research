@@ -13180,6 +13180,37 @@ The actor-events case included replay in the same process.
 
 Evidence is under `tmp/c89-body-bindings/` on the evidence drive.
 
+### C89 default costume resolution
+
+Studio, Marcus and the standalone session now pick each set's first
+authored costume through the same C89 driver. The live path fetches all
+defaults before updating the body. The standalone path stages the new
+snapshot and preserves the caller's previous snapshot on failure. Older
+templates share a scan of `CMTL` links in child order. The live editor
+keeps the full costume catalog and the standalone reader takes the
+first discovered costume for each set.
+
+The C fixtures cover an authored default that differs from the first
+linked costume, a missing authored default, and legacy table construction
+with sparse child IDs. All 181 standalone and 22 host checks passed.
+AddressSanitizer passed the chunky and template construction checks.
+Both changed C files compiled under strict C89 for Linux x64 musl.
+Studio and Marcus rebuilt and Marcus relaunched.
+
+Across both hosts, stock and SID-29 actor-events and scrolling-text matched
+456 prior seek states and 360 viewport hashes. Actor-events, dissolve and
+scrolling-text matched retail frame order and final position in 240 frame
+commits per host, including a same-process replay. The standalone probe
+matched 300 actor and camera snapshots and 300 model and material snapshots.
+
+After removing the `GGCM` links from two stock templates in a private
+archive copy, both stock actor renders matched their prior bytes and
+30 standalone model and material snapshots matched the pre-change probe.
+Six actor-events seeks in each of retail, SDL Studio and Marcus matched
+that player's stock states and viewport hashes. The retail bridge recorded
+the modified `TMPLS.3CN` as an opened archive.
+Evidence is under `tmp/c89-default-costumes/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root
