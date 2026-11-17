@@ -10,7 +10,6 @@ enum MarcusRibbonAction
     RIBBON_RESET_MIX, RIBBON_WORDS, RIBBON_CAMERAS, RIBBON_CAMERA_GUIDES, RIBBON_NEW_OBJECT,
     RIBBON_STORYBOARD, RIBBON_SAVE_COPY, RIBBON_NEW_TEXT, RIBBON_EDIT_TEXT
 };
-void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded, int modified, int muted,
+int ribbon_draw(MarcusUI *ui, int width, int *tab, const char *name, int loaded, int modified, int muted,
                  unsigned long cameras, int show_cameras, int selected_text);
-int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long cameras, int selected_text);
 #endif

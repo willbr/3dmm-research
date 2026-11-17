@@ -4,6 +4,7 @@
 #include "imgui.h"
 #include "ImGuizmo.h"
 #include <SDL3/SDL.h>
+#include "ui.h"
 
 namespace MarcusGizmo
 {
@@ -17,20 +18,7 @@ inline void Enable(int id, bool enabled)
 // Both tools share one ImGui frame and the same controls, sizing and snapping.
 inline bool Controls(const char *title, const SDL_FRect &rect, int &mode, int count, bool editing)
 {
-    ImGui::SetNextWindowPos(ImVec2(rect.x, rect.y));
-    ImGui::SetNextWindowSize(ImVec2(rect.w, rect.h));
-    ImGui::Begin(title, nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav);
-    ImGui::BeginDisabled(editing);
-    const char *labels[] = {"Move", "Rotate", "Size"};
-    for (int i = 0; i < count; ++i)
-    {
-        if (i) ImGui::SameLine();
-        if (ImGui::Selectable(labels[i], mode == i, 0, ImVec2(56, 24))) mode = i;
-    }
-    const bool over = ImGui::IsWindowHovered();
-    ImGui::EndDisabled(); ImGui::End();
-    return over;
+    return ui_transform_controls(title, &rect, &mode, count, editing) != 0;
 }
 inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect &rect, int mode, float matrix[16],
                          float size = .1f, const float *displayShift = nullptr)

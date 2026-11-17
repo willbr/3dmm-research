@@ -41,17 +41,13 @@ target_compile_features(marcus-preview PRIVATE cxx_std_17)
 target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-core)
 kauai_copy_midi_assets(marcus-preview)
 
-add_executable(marcus WIN32 main.c ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_gizmo.cpp movie_browser.cpp scene_organiser.cpp background_browser.cpp text_dialog.c costume_dialog.c sound_dialog.c camera_picker.cpp storyboard_editor.cpp preview_cache.cpp)
-add_executable(marcus-dialog-capture EXCLUDE_FROM_ALL ../../tools/marcus_dialog_capture.c ui.c)
-set_target_properties(marcus-dialog-capture PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-target_include_directories(marcus-dialog-capture PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(marcus-dialog-capture PRIVATE SDL3::SDL3-static freetype)
+add_executable(marcus WIN32 main.c ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_fields.c storyboard_view.c prop_gizmo.cpp movie_browser.cpp scene_organiser.cpp background_browser.cpp text_dialog.c costume_dialog.c sound_dialog.c camera_picker.cpp storyboard_editor.cpp preview_cache.cpp)
 add_dependencies(marcus marcus-preview)
 find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-target_link_libraries(marcus PRIVATE marcus-player cimgui-sdl3 imguizmo SDL3::SDL3-static freetype engine-core MM::Archive mm-v3dmm Threads::Threads)
+target_link_libraries(marcus PRIVATE marcus-player cimgui-sdl3 imguizmo SDL3::SDL3-static engine-core MM::Archive mm-v3dmm Threads::Threads)
 kauai_copy_midi_assets(marcus)
 add_custom_command(TARGET marcus POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -75,8 +71,7 @@ install(FILES "${PROJECT_SOURCE_DIR}/docs/licenses/ok-color-LICENSE.txt" DESTINA
 # SDL's headers use platform integer/bool extensions. Keep diagnostics on our
 # C89 sources strict while treating external declarations as system headers.
 target_include_directories(marcus SYSTEM PRIVATE
-  "$<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>"
-  "$<TARGET_PROPERTY:freetype,INTERFACE_INCLUDE_DIRECTORIES>")
+  "$<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>")
 if(NOT WIN32)
   target_link_libraries(marcus PRIVATE m)
 endif()
@@ -167,7 +162,6 @@ if(BUILD_TESTING)
     add_test(NAME marcus-c89 COMMAND ${CMAKE_COMMAND}
       "-DCOMPILER=${MARCUS_C89_COMPILER}"
       "-DSDL_INCLUDES=$<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>"
-      "-DFREETYPE_INCLUDES=$<TARGET_PROPERTY:freetype,INTERFACE_INCLUDE_DIRECTORIES>"
       "-DCIMGUI_INCLUDES=${marcus_cimgui_SOURCE_DIR}"
       -DSOURCE=${PROJECT_SOURCE_DIR} -P ${PROJECT_SOURCE_DIR}/tests/check_marcus_c89.cmake)
   endif()

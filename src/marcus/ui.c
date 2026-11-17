@@ -1,833 +1,122 @@
 #include "ui.h"
-#include "ui_vectors.h"
-#include <stdlib.h>
+#include "dialog_widgets.h"
 #include <string.h>
-
-static void colour(MarcusUI *ui, unsigned long value)
+static ImU32 ink(MarcusUI *ui, unsigned long rgb)
 {
-    SDL_SetRenderDrawColor(ui->renderer, (unsigned char)(value >> 16), (unsigned char)(value >> 8),
-                           (unsigned char)value, (unsigned char)(255 * ui->opacity));
-}
-static SDL_Texture *font_atlas(SDL_Renderer *renderer, FT_Face face, MarcusGlyph *glyphs)
-{
-    unsigned char *pixels;
-    int code, x, y, row, column, gx, gy;
-    SDL_Surface *surface;
-    SDL_Texture *texture;
-    MarcusGlyph *glyph;
-    pixels = (unsigned char *)calloc(512 * 256, 4);
-    if (!pixels)
-        return NULL;
-    for (code = 32; code < 256; ++code)
-    {
-        if (FT_Load_Char(face, (unsigned long)code, FT_LOAD_RENDER))
-            continue;
-        column = (code - 32) % 32;
-        row = (code - 32) / 32;
-        gx = column * 16;
-        gy = row * 32;
-        glyph = &glyphs[code - 32];
-        glyph->source.x = (float)gx;
-        glyph->source.y = (float)gy;
-        glyph->source.w = (float)face->glyph->bitmap.width;
-        glyph->source.h = (float)face->glyph->bitmap.rows;
-        glyph->bearing_x = face->glyph->bitmap_left;
-        glyph->bearing_y = face->glyph->bitmap_top;
-        glyph->advance = (int)(face->glyph->advance.x >> 6);
-        for (y = 0; y < (int)face->glyph->bitmap.rows && y < 32; ++y)
-            for (x = 0; x < (int)face->glyph->bitmap.width && x < 16; ++x)
-            {
-                pixels[((gy + y) * 512 + gx + x) * 4] = 255;
-                pixels[((gy + y) * 512 + gx + x) * 4 + 1] = 255;
-                pixels[((gy + y) * 512 + gx + x) * 4 + 2] = 255;
-                pixels[((gy + y) * 512 + gx + x) * 4 + 3] =
-                    face->glyph->bitmap.buffer[y * face->glyph->bitmap.pitch + x];
-            }
-    }
-    texture = NULL;
-    surface = SDL_CreateSurfaceFrom(512, 256, SDL_PIXELFORMAT_RGBA32, pixels, 512 * 4);
-    if (surface)
-    {
-        texture = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_DestroySurface(surface);
-    }
-    free(pixels);
-    if (texture)
-        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    return texture;
-}
-static void init_transport_labels(MarcusUI *ui, FT_Library library)
-{
-    const char *candidates[5];
-    const char *text;
-    FT_Face face;
-    FT_GlyphSlot glyph;
-    SDL_Surface *surface;
-    unsigned char pixels[64 * 20 * 4];
-    int candidate, label, pen, x, y, left, top, offset;
-    candidates[0] = "C:/Windows/Fonts/ariblk.ttf";
-    candidates[1] = "/System/Library/Fonts/Supplemental/Arial Black.ttf";
-    candidates[2] = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
-    candidates[3] = "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf";
-    candidates[4] = NULL;
-    face = NULL;
-    for (candidate = 0; candidates[candidate]; ++candidate)
-        if (!FT_New_Face(library, candidates[candidate], 0, &face))
-            break;
-    if (!face)
-        return;
-    if (FT_Set_Pixel_Sizes(face, 0, 11))
-    {
-        FT_Done_Face(face);
-        return;
-    }
-    ui->heading_font = font_atlas(ui->renderer, face, ui->heading_glyphs);
-    if (ui->heading_font)
-        SDL_SetTextureScaleMode(ui->heading_font, SDL_SCALEMODE_NEAREST);
-    for (label = 0; label < 2; ++label)
-    {
-        memset(pixels, 0, sizeof(pixels));
-        pen = 0;
-        for (text = label ? "SCENE" : "FRAME"; *text; ++text)
-        {
-            if (FT_Load_Char(face, (unsigned char)*text, FT_LOAD_RENDER))
-                continue;
-            glyph = face->glyph;
-            left = pen + glyph->bitmap_left;
-            top = 14 - glyph->bitmap_top;
-            for (y = 0; y < (int)glyph->bitmap.rows; ++y)
-                for (x = 0; x < (int)glyph->bitmap.width; ++x)
-                    if (left + x >= 0 && left + x < 64 && top + y >= 0 && top + y < 20)
-                    {
-                        offset = ((top + y) * 64 + left + x) * 4;
-                        pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
-                        pixels[offset + 3] = glyph->bitmap.buffer[y * glyph->bitmap.pitch + x];
-                    }
-            pen += (int)(glyph->advance.x >> 6);
-        }
-        surface = SDL_CreateSurfaceFrom(64, 20, SDL_PIXELFORMAT_RGBA32, pixels, 64 * 4);
-        if (surface)
-        {
-            ui->transport_labels[label] = SDL_CreateTextureFromSurface(ui->renderer, surface);
-            SDL_DestroySurface(surface);
-            if (ui->transport_labels[label])
-            {
-                SDL_SetTextureBlendMode(ui->transport_labels[label], SDL_BLENDMODE_BLEND);
-                SDL_SetTextureScaleMode(ui->transport_labels[label], SDL_SCALEMODE_NEAREST);
-            }
-        }
-    }
-    FT_Done_Face(face);
-}
-static void init_transport_numbers(MarcusUI *ui, FT_Library library)
-{
-    const char *candidates[5];
-    FT_Face face;
-    FT_GlyphSlot glyph;
-    SDL_Surface *surface;
-    MarcusGlyph *digit;
-    unsigned char pixels[256 * 32 * 4];
-    int candidate, code, x, y, offset, column;
-    candidates[0] = "C:/Windows/Fonts/comic.ttf";
-    candidates[1] = "/System/Library/Fonts/Supplemental/Comic Sans MS.ttf";
-    candidates[2] = "/usr/share/fonts/truetype/msttcorefonts/Comic_Sans_MS.ttf";
-    candidates[3] = "/usr/share/fonts/truetype/msttcorefonts/comic.ttf";
-    candidates[4] = NULL;
-    face = NULL;
-    for (candidate = 0; candidates[candidate]; ++candidate)
-        if (!FT_New_Face(library, candidates[candidate], 0, &face))
-            break;
-    if (!face)
-        return;
-    if (FT_Set_Pixel_Sizes(face, 0, 12))
-    {
-        FT_Done_Face(face);
-        return;
-    }
-    ui->transport_space = !FT_Load_Char(face, ' ', FT_LOAD_RENDER) ? (int)(face->glyph->advance.x >> 6) : 4;
-    memset(pixels, 0, sizeof(pixels));
-    for (code = '-'; code <= '9'; ++code)
-    {
-        if (FT_Load_Char(face, (unsigned long)code, FT_LOAD_RENDER))
-            continue;
-        glyph = face->glyph;
-        column = (code - '-') * 16;
-        digit = &ui->transport_digits[code - '-'];
-        digit->source.x = (float)column;
-        digit->source.y = 0;
-        digit->source.w = (float)glyph->bitmap.width;
-        digit->source.h = (float)glyph->bitmap.rows;
-        digit->bearing_x = glyph->bitmap_left;
-        digit->bearing_y = glyph->bitmap_top;
-        digit->advance = (int)(glyph->advance.x >> 6);
-        for (y = 0; y < (int)glyph->bitmap.rows && y < 32; ++y)
-            for (x = 0; x < (int)glyph->bitmap.width && x < 16; ++x)
-            {
-                offset = (y * 256 + column + x) * 4;
-                pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
-                pixels[offset + 3] = glyph->bitmap.buffer[y * glyph->bitmap.pitch + x];
-            }
-    }
-    surface = SDL_CreateSurfaceFrom(256, 32, SDL_PIXELFORMAT_RGBA32, pixels, 256 * 4);
-    if (surface)
-    {
-        ui->transport_numbers = SDL_CreateTextureFromSurface(ui->renderer, surface);
-        SDL_DestroySurface(surface);
-        if (ui->transport_numbers)
-        {
-            SDL_SetTextureBlendMode(ui->transport_numbers, SDL_BLENDMODE_BLEND);
-            SDL_SetTextureScaleMode(ui->transport_numbers, SDL_SCALEMODE_NEAREST);
-        }
-    }
-    FT_Done_Face(face);
+    return (ImU32)(((rgb >> 16) & 255) | (rgb & 0xff00) | ((rgb & 255) << 16) |
+        ((unsigned long)(255 * ui->opacity) << 24));
 }
 int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 {
-    FT_Library library;
-    FT_Face face;
-    int code;
-    const char *candidates[6];
-    memset(ui, 0, sizeof(*ui));
-    ui->renderer = renderer;
-    ui->opacity = 1;
-    candidates[0] = font_path ? font_path : "";
-    candidates[1] = "C:/Windows/Fonts/segoeui.ttf";
-    candidates[2] = "/System/Library/Fonts/Supplemental/Arial.ttf";
-    candidates[3] = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
-    candidates[4] = "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf";
-    candidates[5] = NULL;
-    if (FT_Init_FreeType(&library))
-        return 0;
-    init_transport_labels(ui, library);
-    init_transport_numbers(ui, library);
-    face = NULL;
-    for (code = 0; candidates[code]; ++code)
-        if (candidates[code][0] && !FT_New_Face(library, candidates[code], 0, &face))
-            break;
-    if (!face)
-    {
-        FT_Done_FreeType(library);
-        return 1; /* SDL's bitmap text remains available on minimal hosts. */
-    }
-    FT_Set_Pixel_Sizes(face, 0, 14);
-    ui->font = font_atlas(renderer, face, ui->glyphs);
-    FT_Done_Face(face);
-    FT_Done_FreeType(library);
-    if (ui->font)
-    {
-        SDL_SetTextureBlendMode(ui->font, SDL_BLENDMODE_BLEND);
-        SDL_SetTextureScaleMode(ui->font, SDL_SCALEMODE_LINEAR);
-    }
-    return 1;
+    (void)font_path; memset(ui, 0, sizeof(*ui)); ui->renderer = renderer; ui->opacity = 1; return renderer != NULL;
 }
-void ui_destroy(MarcusUI *ui)
+void ui_configure(const char *font_path)
 {
-    int i;
-    for (i = 0; i < 8; ++i)
-        SDL_DestroyTexture(ui->dialog_icons[i]);
-    memset(ui->dialog_icons, 0, sizeof(ui->dialog_icons));
-    SDL_DestroyTexture(ui->settings_icons[0]);
-    SDL_DestroyTexture(ui->settings_icons[1]);
-    ui->settings_icons[0] = ui->settings_icons[1] = NULL;
-    SDL_DestroyTexture(ui->transport_numbers);
-    ui->transport_numbers = NULL;
-    SDL_DestroyTexture(ui->transport_labels[0]);
-    SDL_DestroyTexture(ui->transport_labels[1]);
-    ui->transport_labels[0] = ui->transport_labels[1] = NULL;
-    SDL_DestroyTexture(ui->font);
-    ui->font = NULL;
-    SDL_DestroyTexture(ui->heading_font);
-    ui->heading_font = NULL;
+    ImGuiStyle *style;
+    SDL_PathInfo font_info;
+    igStyleColorsDark(NULL);
+    igGetIO_Nil()->IniFilename = NULL; igGetIO_Nil()->LogFilename = NULL;
+    igGetIO_Nil()->ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    if (font_path && *font_path && SDL_GetPathInfo(font_path, &font_info) && font_info.type == SDL_PATHTYPE_FILE)
+        ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, font_path, 14, NULL, NULL);
+    style = igGetStyle(); style->WindowPadding = dialog_vec(10, 8); style->ItemSpacing = dialog_vec(8, 5);
+    style->WindowBorderSize = 1; style->FrameRounding = 2;
+    style->WindowMinSize = dialog_vec(1, 1);
+    igGetIO_Nil()->ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
 }
-void ui_transport_label(MarcusUI *ui, float x, float y, int scene, unsigned long value)
+void ui_destroy(MarcusUI *ui) { (void)ui; }
+void ui_fill(MarcusUI *ui, float x, float y, float w, float h, unsigned long colour)
 {
-    SDL_Texture *texture;
-    SDL_FRect rect;
-    texture = ui->transport_labels[scene ? 1 : 0];
-    if (!texture)
-    {
-        ui_heading(ui, x, y, scene ? "SCENE" : "FRAME", value);
-        return;
-    }
-    SDL_SetTextureColorMod(texture, (unsigned char)(value >> 16), (unsigned char)(value >> 8), (unsigned char)value);
-    SDL_SetTextureAlphaMod(texture, (unsigned char)(255 * ui->opacity));
-    rect.x = x;
-    rect.y = y;
-    rect.w = 64;
-    rect.h = 20;
-    SDL_RenderTexture(ui->renderer, texture, NULL, &rect);
+    if (w > 0 && h > 0) ImDrawList_AddRectFilled(igGetBackgroundDrawList_Nil(), dialog_vec(x, y), dialog_vec(x + w, y + h), ink(ui, colour), 0, 0);
 }
-void ui_opacity(MarcusUI *ui, float opacity)
+void ui_line(MarcusUI *ui, float x, float y, float x2, float y2, unsigned long colour)
+{ ImDrawList_AddLine(igGetBackgroundDrawList_Nil(), dialog_vec(x, y), dialog_vec(x2, y2), ink(ui, colour), 1); }
+void ui_text(MarcusUI *ui, float x, float y, const char *text, unsigned long colour)
+{ ImDrawList_AddText_Vec2(igGetBackgroundDrawList_Nil(), dialog_vec(x, y), ink(ui, colour), text, NULL); }
+void ui_label(MarcusUI *ui, float x, float y, float width, const char *text, unsigned long colour)
 {
-    ui->opacity = opacity < 0 ? 0 : opacity > 1 ? 1 : opacity;
-    SDL_SetRenderDrawBlendMode(ui->renderer, ui->opacity < 1 ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
-    if (ui->font)
-        SDL_SetTextureAlphaMod(ui->font, (unsigned char)(255 * ui->opacity));
-    if (ui->heading_font)
-        SDL_SetTextureAlphaMod(ui->heading_font, (unsigned char)(255 * ui->opacity));
+    ImDrawList *draw;
+    if (width <= 0) return;
+    draw = igGetBackgroundDrawList_Nil();
+    ImDrawList_PushClipRect(draw, dialog_vec(x, y), dialog_vec(x + width, y + igGetTextLineHeight()), 1);
+    ui_text(ui, x, y, text, colour); ImDrawList_PopClipRect(draw);
 }
-void ui_fill(MarcusUI *ui, float x, float y, float w, float h, unsigned long value)
+float ui_text_width(const char *text) { return igCalcTextSize(text, NULL, 0, -1).x; }
+void ui_image(MarcusUI *ui, SDL_Texture *texture, const SDL_FRect *rect)
 {
-    SDL_FRect rect;
-    rect.x = x;
-    rect.y = y;
-    rect.w = w;
-    rect.h = h;
-    colour(ui, value);
-    SDL_RenderFillRect(ui->renderer, &rect);
+    ImTextureRef ref;
+    if (!texture) return;
+    ref._TexData = NULL; ref._TexID = (ImTextureID)(size_t)texture;
+    ImDrawList_AddImage(igGetBackgroundDrawList_Nil(), ref, dialog_vec(rect->x, rect->y),
+        dialog_vec(rect->x + rect->w, rect->y + rect->h), dialog_vec(0, 0), dialog_vec(1, 1), ink(ui, 0xffffff));
 }
-void ui_line(MarcusUI *ui, float x, float y, float x2, float y2, unsigned long value)
+void ui_clip(const SDL_Rect *rect)
+{ ImDrawList_PushClipRect(igGetBackgroundDrawList_Nil(), dialog_vec((float)rect->x, (float)rect->y), dialog_vec((float)(rect->x + rect->w), (float)(rect->y + rect->h)), 1); }
+void ui_unclip(void) { ImDrawList_PopClipRect(igGetBackgroundDrawList_Nil()); }
+void ui_triangles(MarcusUI *ui, const SDL_Vertex *vertices, const int *indices, int count)
 {
-    colour(ui, value);
-    SDL_RenderLine(ui->renderer, x, y, x2, y2);
-}
-static unsigned int next_character(const unsigned char **text)
-{
-    unsigned int result;
-    const unsigned char *p;
-    p = *text;
-    result = *p++;
-    if (result >= 0xc2 && result <= 0xc3 && (*p & 0xc0) == 0x80)
-        result = ((result & 31) << 6) | (*p++ & 63);
-    else if (result >= 128)
-    {
-        while ((*p & 0xc0) == 0x80)
-            ++p;
-        result = '?';
-    }
-    *text = p;
-    return result;
-}
-static void font_label(MarcusUI *ui, SDL_Texture *font, MarcusGlyph *glyphs, float x, float y,
-                       float width, const char *text, unsigned long value)
-{
-    const unsigned char *p;
-    unsigned int code;
-    float end;
-    MarcusGlyph *glyph;
-    SDL_FRect destination;
-    char fallback[256];
-    int length;
-    end = x + width;
-    if (!font)
-    {
-        length = (int)(width / 8);
-        if (length < 0)
-            return;
-        if (length > 255)
-            length = 255;
-        SDL_strlcpy(fallback, text, (size_t)length + 1);
-        colour(ui, value);
-        SDL_RenderDebugText(ui->renderer, x, y + 4, fallback);
-        return;
-    }
-    SDL_SetTextureColorMod(font, (unsigned char)(value >> 16), (unsigned char)(value >> 8), (unsigned char)value);
-    p = (const unsigned char *)text;
-    while (*p)
-    {
-        code = next_character(&p);
-        if (code < 32 || code > 255)
-            code = '?';
-        glyph = &glyphs[code - 32];
-        if (x + glyph->advance > end)
-            break;
-        destination.x = x + glyph->bearing_x;
-        destination.y = y + 14 - glyph->bearing_y;
-        destination.w = glyph->source.w;
-        destination.h = glyph->source.h;
-        SDL_RenderTexture(ui->renderer, font, &glyph->source, &destination);
-        x += glyph->advance;
-    }
-}
-void ui_label(MarcusUI *ui, float x, float y, float width, const char *text, unsigned long value)
-{
-    font_label(ui, ui->font, ui->glyphs, x, y, width, text, value);
-}
-void ui_heading_label(MarcusUI *ui, float x, float y, float width, const char *text, unsigned long value)
-{
-    font_label(ui, ui->heading_font ? ui->heading_font : ui->font,
-               ui->heading_font ? ui->heading_glyphs : ui->glyphs, x, y, width, text, value);
-}
-void ui_heading(MarcusUI *ui, float x, float y, const char *text, unsigned long value)
-{
-    ui_heading_label(ui, x, y, 4096, text, value);
-}
-void ui_text(MarcusUI *ui, float x, float y, const char *text, unsigned long value)
-{
-    ui_label(ui, x, y, 4096, text, value);
-}
-int ui_inside(float px, float py, float x, float y, float w, float h)
-{
-    return px >= x && py >= y && px < x + w && py < y + h;
-}
-void ui_button(MarcusUI *ui, float x, float y, float w, const char *text, int active, int enabled)
-{
-    ui_button_sized(ui, x, y, w, 28, text, active, enabled);
-}
-static void button_label(MarcusUI *ui, float x, float y, float w, float h, const char *text, unsigned long value)
-{
-    const unsigned char *p;
-    unsigned int code;
-    MarcusGlyph *glyph;
-    float advance, left, top, right, bottom, glyph_left, glyph_top, available;
-    int visible, length;
-    /* Compact layer buttons still need room for their single-letter labels. */
-    available = w - (w < 32 ? 8 : 18);
-    if (available <= 0)
-        return;
-    if (!ui->font)
-    {
-        length = (int)(available / 8);
-        if (length > 255)
-            length = 255;
-        if ((size_t)length > SDL_strlen(text))
-            length = (int)SDL_strlen(text);
-        ui_label(ui, SDL_floorf(x + (w - length * 8) / 2), SDL_floorf(y + (h - 8) / 2) - 4, (float)length * 8, text,
-                 value);
-        return;
-    }
-    /* Centre the visible glyph bounds, including single symbols such as + and -. */
-    advance = left = top = right = bottom = 0;
-    visible = 0;
-    p = (const unsigned char *)text;
-    while (*p)
-    {
-        code = next_character(&p);
-        if (code < 32 || code > 255)
-            code = '?';
-        glyph = &ui->glyphs[code - 32];
-        if (advance + glyph->advance > available)
-            break;
-        if (glyph->source.w > 0 && glyph->source.h > 0)
-        {
-            glyph_left = advance + glyph->bearing_x;
-            glyph_top = 14.0f - glyph->bearing_y;
-            if (!visible || glyph_left < left)
-                left = glyph_left;
-            if (!visible || glyph_top < top)
-                top = glyph_top;
-            if (!visible || glyph_left + glyph->source.w > right)
-                right = glyph_left + glyph->source.w;
-            if (!visible || glyph_top + glyph->source.h > bottom)
-                bottom = glyph_top + glyph->source.h;
-            visible = 1;
-        }
-        advance += glyph->advance;
-    }
-    if (visible)
-        ui_label(ui, SDL_floorf(x + (w - (right - left)) / 2 - left), SDL_floorf(y + (h - (bottom - top)) / 2 - top),
-                 advance, text, value);
-}
-void ui_button_sized(MarcusUI *ui, float x, float y, float w, float h, const char *text, int active, int enabled)
-{
-    unsigned long background;
-    background = active ? 0x375e64 : 0x33363b;
-    if (enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, y, w, h))
-        background = active ? 0x467c82 : 0x45494f;
-    ui_fill(ui, x, y, w, h, background);
-    ui_line(ui, x, y + h - 1, x + w, y + h - 1, active ? 0x71c6c0 : 0x45494f);
-    button_label(ui, x, y, w, h, text, enabled ? 0xe3e5e8 : 0x737780);
-}
-void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint)
-{
-    int row;
-    float center;
-    unsigned long colour;
-    ui_button_sized(ui, x, y, 28, UI_NAVIGATION_HEIGHT, "", 0, enabled);
-    colour = enabled ? 0xe3e5e8 : 0x737780;
-    center = x + 14;
-    if (action == 0)
-        center += 2;
-    if (action == 3)
-        center -= 2;
-    for (row = -5; row <= 5; ++row)
-    {
-        if (action <= 1)
-            ui_line(ui, center - 4 + abs(row) * 8 / 5, y + 10 + row, center + 4, y + 10 + row, colour);
-        else
-            ui_line(ui, center - 4, y + 10 + row, center + 4 - abs(row) * 8 / 5, y + 10 + row, colour);
-    }
-    if (action == 0)
-        ui_fill(ui, x + 6, y + 4, 2, 13, colour);
-    if (action == 3)
-        ui_fill(ui, x + 20, y + 4, 2, 13, colour);
-    if (ui_inside(ui->mouse_x, ui->mouse_y, x, y, 28, UI_NAVIGATION_HEIGHT))
-        ui->hint = hint;
-}
-static void draw_vector_scaled(MarcusUI *ui, float x, float y, const MarcusVectorVertex *source, int count,
-                               float scale_x, float scale_y, float brightness, int enabled)
-{
-    SDL_Vertex vertices[MARCUS_VECTOR_MAX_VERTICES];
-    float red, green, blue, grey;
-    int i;
-    for (i = 0; i < count; ++i)
-    {
-        red = ((source[i].colour >> 16) & 255) / 255.0f;
-        green = ((source[i].colour >> 8) & 255) / 255.0f;
-        blue = (source[i].colour & 255) / 255.0f;
-        if (!enabled)
-        {
-            grey = (red + green + blue) / 3;
-            red = green = blue = grey;
-        }
-        red *= brightness;
-        green *= brightness;
-        blue *= brightness;
-        vertices[i].position.x = x + source[i].x * scale_x;
-        vertices[i].position.y = y + source[i].y * scale_y;
-        vertices[i].color.r = red > 1 ? 1 : red;
-        vertices[i].color.g = green > 1 ? 1 : green;
-        vertices[i].color.b = blue > 1 ? 1 : blue;
-        vertices[i].color.a = ui->opacity;
-        vertices[i].tex_coord.x = vertices[i].tex_coord.y = 0;
-    }
-    SDL_RenderGeometry(ui->renderer, NULL, vertices, count, NULL, 0);
-}
-static void draw_vector(MarcusUI *ui, float x, float y, const MarcusVectorVertex *source, int count, float brightness,
-                        int enabled)
-{
-    draw_vector_scaled(ui, x, y, source, count, UI_PLAY_WIDTH / MARCUS_VECTOR_WIDTH,
-                       UI_PLAY_HEIGHT / MARCUS_VECTOR_HEIGHT, brightness, enabled);
-}
-void ui_frame_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint)
-{
-    static const MarcusVectorVertex *const artwork[4] = {
-        marcus_vector_first_frame, marcus_vector_previous_frame, marcus_vector_next_frame, marcus_vector_last_frame
-    };
-    static const int counts[4] = {
-        MARCUS_VECTOR_FIRST_FRAME_COUNT, MARCUS_VECTOR_PREVIOUS_FRAME_COUNT,
-        MARCUS_VECTOR_NEXT_FRAME_COUNT, MARCUS_VECTOR_LAST_FRAME_COUNT
-    };
-    int hovered, pressed;
-    float brightness;
-    if (action < 0 || action > 3)
-        return;
-    hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, 28, UI_NAVIGATION_HEIGHT);
-    pressed = enabled && hovered && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK);
-    brightness = !enabled ? 0.55f : pressed ? 0.80f : hovered ? 1.10f : 1;
-    draw_vector_scaled(ui, x, y, artwork[action], counts[action], 1, UI_NAVIGATION_HEIGHT / 20.0f,
-                       brightness, enabled);
-    if (hovered)
-        ui->hint = hint;
-}
-void ui_slider_thumb(MarcusUI *ui, float x, float y, int scene, int enabled, int active, int sound)
-{
-    float brightness;
-    unsigned long ink;
-    brightness = !enabled ? 0.55f : active ? 1.15f : 1;
-    draw_vector_scaled(ui, x, y, scene ? marcus_vector_scene_slider : marcus_vector_frame_slider,
-                       scene ? MARCUS_VECTOR_SCENE_SLIDER_COUNT : MARCUS_VECTOR_FRAME_SLIDER_COUNT,
-                       1, 1, brightness, enabled);
-    if (!scene && sound)
-    {
-        /* Replace the grip with a small eighth note, as on the retail thumb. */
-        ui_fill(ui, x + 2, y + 2, 6, 16, active ? 0x4f54af : 0x454998);
-        ink = !enabled ? 0x8c8c8c : active ? 0xffffff : 0xf3f3ff;
-        ui_fill(ui, x + 6, y + 4, 1, 10, ink);
-        ui_fill(ui, x + 7, y + 5, 1, 3, ink);
-        ui_fill(ui, x + 3, y + 12, 4, 3, ink);
-        ui_fill(ui, x + 2, y + 13, 1, 2, ink);
-    }
-}
-void ui_transport_readout(MarcusUI *ui, float x, float y, int scene, const char *text, int enabled)
-{
-    unsigned long ink;
-    const char *character;
-    MarcusGlyph *digit;
-    SDL_FRect destination;
-    float width, pen, scale;
-    ink = enabled ? 0x111111 : 0x626262;
-    draw_vector_scaled(ui, x, y, marcus_vector_transport_readout, MARCUS_VECTOR_TRANSPORT_READOUT_COUNT,
-                       1, 1, 1, 1);
-    ui_transport_label(ui, x + 6, y, scene, ink);
-    if (!ui->transport_numbers)
-    {
-        button_label(ui, x + 54, y, 108, 20, text, ink);
-        return;
-    }
-    width = 0;
-    for (character = text; *character; ++character)
-        width += *character >= '-' && *character <= '9'
-                     ? ui->transport_digits[*character - '-'].advance : ui->transport_space;
-    scale = width > 100 ? 100 / width : 1;
-    pen = SDL_floorf(x + 54 + (108 - width * scale) / 2);
-    SDL_SetTextureColorMod(ui->transport_numbers, (unsigned char)(ink >> 16), (unsigned char)(ink >> 8), (unsigned char)ink);
-    SDL_SetTextureAlphaMod(ui->transport_numbers, (unsigned char)(255 * ui->opacity));
-    for (character = text; *character; ++character)
-    {
-        if (*character < '-' || *character > '9')
-        {
-            pen += ui->transport_space * scale;
-            continue;
-        }
-        digit = &ui->transport_digits[*character - '-'];
-        destination.x = pen + digit->bearing_x * scale;
-        destination.y = y + 10 + (4 - digit->bearing_y) * scale;
-        destination.w = digit->source.w * scale;
-        destination.h = digit->source.h * scale;
-        if (destination.w > 0 && destination.h > 0)
-            SDL_RenderTexture(ui->renderer, ui->transport_numbers, &digit->source, &destination);
-        pen += digit->advance * scale;
-    }
-}
-/* Opaque supersample scan conversion. Shared edges use the same ordered edge
- * equation, avoiding cracks between the triangles of a curved SVG contour. */
-static void dialog_raster(Uint32 *pixels, int width, int height, const MarcusVectorVertex *source, int count,
-                          float offset, int enabled)
-{
-    double vx[3], vy[3], ax, ay, bx, by, swap, sample, hits[3], low, high;
-    unsigned long ink, grey;
-    int i, edge, n, row, first, last, left, right, column;
-    for (i = 0; i < count; i += 3)
-    {
-        ink = source[i].colour;
-        if (!enabled)
-        {
-            grey = (((ink >> 16) & 255) + ((ink >> 8) & 255) + (ink & 255) + 1) / 3;
-            ink = (grey << 16) | (grey << 8) | grey;
-        }
-        for (edge = 0; edge < 3; ++edge)
-        {
-            vx[edge] = (source[i + edge].x + offset) * width / UI_DIALOG_BUTTON_WIDTH;
-            vy[edge] = (source[i + edge].y + offset) * height / UI_DIALOG_BUTTON_HEIGHT;
-        }
-        low = high = vy[0];
-        for (edge = 1; edge < 3; ++edge)
-        {
-            if (vy[edge] < low)
-                low = vy[edge];
-            if (vy[edge] > high)
-                high = vy[edge];
-        }
-        first = (int)SDL_ceil(low - 0.5);
-        last = (int)SDL_ceil(high - 0.5);
-        if (first < 0)
-            first = 0;
-        if (last > height)
-            last = height;
-        for (row = first; row < last; ++row)
-        {
-            sample = row + 0.5;
-            n = 0;
-            for (edge = 0; edge < 3; ++edge)
-            {
-                ax = vx[edge];
-                ay = vy[edge];
-                bx = vx[(edge + 1) % 3];
-                by = vy[(edge + 1) % 3];
-                if (by < ay)
-                {
-                    swap = ax;
-                    ax = bx;
-                    bx = swap;
-                    swap = ay;
-                    ay = by;
-                    by = swap;
-                }
-                if (sample >= ay && sample < by)
-                    hits[n++] = ax + (sample - ay) * (bx - ax) / (by - ay);
-            }
-            if (n != 2)
-                continue;
-            low = hits[0] < hits[1] ? hits[0] : hits[1];
-            high = hits[0] > hits[1] ? hits[0] : hits[1];
-            left = (int)SDL_ceil(low - 0.5);
-            right = (int)SDL_ceil(high - 0.5);
-            if (left < 0)
-                left = 0;
-            if (right > width)
-                right = width;
-            for (column = left; column < right; ++column)
-                pixels[row * width + column] = (Uint32)ink;
+    ImDrawList *draw;
+    ImVec2 uv;
+    ImVec4 colour;
+    ImDrawIdx base;
+    int i, j;
+    const SDL_Vertex *vertex;
+    draw = igGetBackgroundDrawList_Nil(); uv = igGetFontTexUvWhitePixel();
+    for (i = 0; i + 2 < count; i += 3) {
+        ImDrawList_PrimReserve(draw, 3, 3); base = (ImDrawIdx)draw->_VtxCurrentIdx;
+        for (j = 0; j < 3; ++j) {
+            vertex = vertices + indices[i + j]; colour.x = vertex->color.r; colour.y = vertex->color.g;
+            colour.z = vertex->color.b; colour.w = vertex->color.a * ui->opacity;
+            ImDrawList_PrimWriteIdx(draw, (ImDrawIdx)(base + j));
+            ImDrawList_PrimWriteVtx(draw, dialog_vec(vertex->position.x, vertex->position.y), uv, igColorConvertFloat4ToU32(colour));
         }
     }
 }
-static SDL_Texture *dialog_icon(SDL_Renderer *renderer, int width, int height, int confirm, int pressed, int enabled)
+int ui_inside(float px, float py, float x, float y, float w, float h) { return px >= x && py >= y && px < x + w && py < y + h; }
+int ui_panel(const char *name, float x, float y, float w, float h, int transparent, int scroll)
 {
-    Uint32 *samples, pixel;
-    unsigned char *out;
-    unsigned int red, green, blue, divisor;
-    SDL_Surface *surface;
-    SDL_Texture *texture;
-    int factor, sw, sh, x, y, sx, sy;
-    /* Box-filter true subpixel coverage rather than enlarging a 46x43 bitmap.
-     * Larger UI scales are rasterized again from vector coordinates. */
-    factor = width <= UI_DIALOG_BUTTON_WIDTH * 2 ? 8 : 4;
-    sw = width * factor;
-    sh = height * factor;
-    samples = (Uint32 *)calloc((size_t)sw * sh, sizeof(*samples));
-    if (!samples)
-        return NULL;
-    dialog_raster(samples, sw, sh, marcus_vector_dialog_frame, MARCUS_VECTOR_DIALOG_FRAME_COUNT, 0, enabled);
-    dialog_raster(samples, sw, sh, confirm ? marcus_vector_dialog_ok : marcus_vector_dialog_cancel,
-                  confirm ? MARCUS_VECTOR_DIALOG_OK_COUNT : MARCUS_VECTOR_DIALOG_CANCEL_COUNT, pressed ? 1.0f : 0.0f,
-                  enabled);
-    surface = SDL_CreateSurface(width, height, SDL_PIXELFORMAT_RGBA32);
-    texture = NULL;
-    if (surface)
-    {
-        divisor = (unsigned int)(factor * factor);
-        for (y = 0; y < height; ++y)
-            for (x = 0; x < width; ++x)
-            {
-                red = green = blue = 0;
-                for (sy = 0; sy < factor; ++sy)
-                    for (sx = 0; sx < factor; ++sx)
-                    {
-                        pixel = samples[(y * factor + sy) * sw + x * factor + sx];
-                        red += (pixel >> 16) & 255;
-                        green += (pixel >> 8) & 255;
-                        blue += pixel & 255;
-                    }
-                out = (unsigned char *)surface->pixels + y * surface->pitch + x * 4;
-                out[0] = (unsigned char)((red + divisor / 2) / divisor);
-                out[1] = (unsigned char)((green + divisor / 2) / divisor);
-                out[2] = (unsigned char)((blue + divisor / 2) / divisor);
-                out[3] = 255;
-            }
-        texture = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_DestroySurface(surface);
-        if (texture)
-        {
-            SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-            SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+    ImGuiWindowFlags flags;
+    flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    if (transparent) flags |= ImGuiWindowFlags_NoBackground;
+    if (!scroll) flags |= ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+    igSetNextWindowPos(dialog_vec(x, y), ImGuiCond_Always, dialog_vec(0, 0));
+    igSetNextWindowSize(dialog_vec(w > 1 ? w : 1, h > 1 ? h : 1), ImGuiCond_Always);
+    if (transparent) igPushStyleVar_Vec2(ImGuiStyleVar_WindowPadding, dialog_vec(0, 0));
+    scroll = igBegin(name, NULL, flags);
+    if (transparent) igPopStyleVar(1);
+    return scroll;
+}
+void ui_panel_end(void) { igEnd(); }
+int ui_button_at(const char *id, float x, float y, float w, float h, int active, int enabled, const char *hint)
+{
+    int clicked;
+    if (active) igPushStyleColor_Vec4(ImGuiCol_Button, igGetStyle()->Colors[ImGuiCol_ButtonActive]);
+    igSetCursorScreenPos(dialog_vec(x, y)); igBeginDisabled(!enabled); clicked = igButton(id, dialog_vec(w, h)); igEndDisabled();
+    if (hint && igIsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) igSetTooltip("%s", hint);
+    if (active) igPopStyleColor(1);
+    return clicked;
+}
+int ui_transform_controls(const char *title, const SDL_FRect *rect, int *mode, int count, int editing)
+{
+    static const char *names[] = {"Move", "Rotate", "Size"};
+    int i, over;
+    over = 0;
+    igPushStyleVar_Vec2(ImGuiStyleVar_WindowPadding, dialog_vec(0, 0));
+    if (ui_panel(title, rect->x, rect->y, rect->w, rect->h, 0, 0)) {
+        igBeginDisabled(editing);
+        for (i = 0; i < count; ++i) {
+            if (i) igSameLine(0, 4);
+            if (igSelectable_Bool(names[i], *mode == i, 0, dialog_vec(56, 24))) *mode = i;
         }
+        over = igIsWindowHovered(0); igEndDisabled();
     }
-    free(samples);
-    return texture;
+    ui_panel_end(); igPopStyleVar(1); return over;
 }
-void ui_dialog_button(MarcusUI *ui, float x, float y, int confirm, int enabled, const char *hint)
+int ui_keyboard_busy(void)
 {
-    int hovered, pressed, width, height, index, i;
-    float brightness, offset, scale_x, scale_y;
-    SDL_Texture *texture;
-    SDL_FRect destination;
-    hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, UI_DIALOG_BUTTON_WIDTH, UI_DIALOG_BUTTON_HEIGHT);
-    pressed = enabled && hovered && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK);
-    brightness = !enabled ? 0.55f : pressed ? 0.80f : hovered ? 1.15f : 1;
-    offset = pressed ? 1 : 0;
-    scale_x = scale_y = 1;
-    SDL_GetRenderScale(ui->renderer, &scale_x, &scale_y);
-    width = (int)SDL_ceilf(UI_DIALOG_BUTTON_WIDTH * SDL_fabsf(scale_x));
-    height = (int)SDL_ceilf(UI_DIALOG_BUTTON_HEIGHT * SDL_fabsf(scale_y));
-    width = width < 1 ? 1 : width > UI_DIALOG_BUTTON_WIDTH * 8 ? UI_DIALOG_BUTTON_WIDTH * 8 : width;
-    height = height < 1 ? 1 : height > UI_DIALOG_BUTTON_HEIGHT * 8 ? UI_DIALOG_BUTTON_HEIGHT * 8 : height;
-    if (width != ui->dialog_width || height != ui->dialog_height)
-    {
-        for (i = 0; i < 8; ++i)
-            SDL_DestroyTexture(ui->dialog_icons[i]);
-        memset(ui->dialog_icons, 0, sizeof(ui->dialog_icons));
-        ui->dialog_width = width;
-        ui->dialog_height = height;
-    }
-    index = ((confirm ? 1 : 0) * 2 + pressed) * 2 + !enabled;
-    if (!ui->dialog_icons[index])
-        ui->dialog_icons[index] = dialog_icon(ui->renderer, width, height, confirm, pressed, enabled);
-    texture = ui->dialog_icons[index];
-    if (texture)
-    {
-        SDL_SetTextureColorModFloat(texture, brightness, brightness, brightness);
-        SDL_SetTextureAlphaModFloat(texture, ui->opacity);
-        destination.x = x;
-        destination.y = y;
-        destination.w = UI_DIALOG_BUTTON_WIDTH;
-        destination.h = UI_DIALOG_BUTTON_HEIGHT;
-        SDL_RenderTexture(ui->renderer, texture, NULL, &destination);
-    }
-    else
-    {
-        draw_vector_scaled(ui, x, y, marcus_vector_dialog_frame, MARCUS_VECTOR_DIALOG_FRAME_COUNT, 1, 1, brightness,
-                           enabled);
-        draw_vector_scaled(ui, x + offset, y + offset, confirm ? marcus_vector_dialog_ok : marcus_vector_dialog_cancel,
-                           confirm ? MARCUS_VECTOR_DIALOG_OK_COUNT : MARCUS_VECTOR_DIALOG_CANCEL_COUNT, 1, 1,
-                           brightness, enabled);
-    }
-    if (hovered)
-        ui->hint = hint;
+    return igGetCurrentContext() && (igGetIO_Nil()->WantTextInput || igIsAnyItemActive() ||
+        igGetIO_Nil()->NavVisible ||
+        igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel));
 }
-static SDL_Texture *settings_icon(SDL_Renderer *renderer, int size)
-{
-    unsigned char pixels[UI_SETTINGS_SIZE * UI_SETTINGS_SIZE * 4];
-    SDL_Surface *surface;
-    SDL_Texture *texture;
-    int x, y, sx, sy, coverage, offset;
-    float dx, dy, phase, radius, squared;
-    /* Six broad teeth and an open centre. Average 8x8 samples at each native
-     * display pixel for clean coverage without a shadow or aliased outlines. */
-    for (y = 0; y < size; ++y)
-        for (x = 0; x < size; ++x)
-        {
-            coverage = 0;
-            for (sy = 0; sy < 8; ++sy)
-                for (sx = 0; sx < 8; ++sx)
-                {
-                    dx = (x + (sx + 0.5f) / 8 - size / 2.0f) * UI_SETTINGS_SIZE / size;
-                    dy = (y + (sy + 0.5f) / 8 - size / 2.0f) * UI_SETTINGS_SIZE / size;
-                    squared = dx * dx + dy * dy;
-                    if (squared < 4.5f * 4.5f || squared > 14 * 14)
-                        continue;
-                    phase = SDL_atan2f(dy, dx) * 0.95492966f;
-                    phase -= SDL_floorf(phase);
-                    radius = phase < 0.18f || phase > 0.82f ? 11.f :
-                             phase < 0.32f ? 11 + (phase - 0.18f) * (3 / 0.14f) :
-                             phase > 0.68f ? 14 - (phase - 0.68f) * (3 / 0.14f) : 14.f;
-                    coverage += squared <= radius * radius;
-                }
-            offset = (y * size + x) * 4;
-            pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
-            pixels[offset + 3] = (unsigned char)((coverage * 255 + 32) / 64);
-        }
-    surface = SDL_CreateSurfaceFrom(size, size, SDL_PIXELFORMAT_RGBA32, pixels, size * 4);
-    if (!surface)
-        return NULL;
-    texture = SDL_CreateTextureFromSurface(renderer, surface);
-    SDL_DestroySurface(surface);
-    if (texture)
-    {
-        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
-    }
-    return texture;
-}
-void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active)
-{
-    SDL_FRect destination;
-    SDL_Texture *texture;
-    unsigned long tint;
-    int index, hovered;
-    index = size <= 28 ? 0 : 1;
-    if (!ui->settings_icons[index])
-        ui->settings_icons[index] = settings_icon(ui->renderer, index ? UI_SETTINGS_SIZE : 28);
-    texture = ui->settings_icons[index];
-    hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, size, size);
-    tint = hovered || active ? 0x78cbc4 : 0xaeb6c0;
-    if (texture)
-    {
-        SDL_SetTextureColorMod(texture, (unsigned char)(tint >> 16), (unsigned char)(tint >> 8), (unsigned char)tint);
-        SDL_SetTextureAlphaMod(texture, (unsigned char)(255 * ui->opacity));
-        destination.x = SDL_floorf(x);
-        destination.y = SDL_floorf(y);
-        destination.w = destination.h = size;
-        SDL_RenderTexture(ui->renderer, texture, NULL, &destination);
-    }
-    if (hovered)
-        ui->hint = "Rendering settings";
-}
-void ui_play_button(MarcusUI *ui, float x, float y, int playing, int waiting, int enabled)
-{
-    int hovered, pressed;
-    float brightness, offset;
-    hovered = enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, y, UI_PLAY_WIDTH, UI_PLAY_HEIGHT);
-    pressed = hovered && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK);
-    brightness = !enabled ? 0.65f : pressed ? 0.82f : hovered ? 1.12f : 1;
-    offset = pressed ? 1 : 0;
-    draw_vector(ui, x, y, marcus_vector_frame, MARCUS_VECTOR_FRAME_COUNT, brightness, enabled);
-    if (playing && waiting)
-        draw_vector(ui, x, y + offset, marcus_vector_continue, MARCUS_VECTOR_CONTINUE_COUNT, brightness, enabled);
-    else if (playing)
-        draw_vector(ui, x, y + offset, marcus_vector_pause, MARCUS_VECTOR_PAUSE_COUNT, brightness, enabled);
-    else
-        draw_vector(ui, x, y + offset, marcus_vector_play, MARCUS_VECTOR_PLAY_COUNT, brightness, enabled);
-    if (hovered)
-        ui->hint = playing && waiting ? "Continue the authored pause" : playing ? "Pause" : "Play";
-}
+void ui_tooltip(const char *text) { igSetTooltip("%s", text); }

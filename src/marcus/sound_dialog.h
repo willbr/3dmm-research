@@ -5,6 +5,7 @@
 typedef struct MarcusSoundDialog MarcusSoundDialog;
 MarcusSoundDialog *sound_dialog_create(void);
 void sound_dialog_destroy(MarcusSoundDialog *);
+void sound_dialog_open(MarcusSoundDialog *, MarcusPlayer *, SDL_Window *, int selected);
 int sound_dialog_visible(const MarcusSoundDialog *);
 int sound_dialog_event(MarcusSoundDialog *, const SDL_Event *);
 void sound_dialog_toolbar(MarcusSoundDialog *, MarcusPlayer *, SDL_Window *, int selected, float x, float y, int enabled);

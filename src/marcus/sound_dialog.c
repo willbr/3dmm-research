@@ -138,7 +138,7 @@ static void select_sound(MarcusSoundDialog *d, int index)
         d->frame = (int)(info.frame - info.first_frame + 1);
     }
 }
-static void show(MarcusSoundDialog *d, MarcusPlayer *player, SDL_Window *window, int selected)
+void sound_dialog_open(MarcusSoundDialog *d, MarcusPlayer *player, SDL_Window *window, int selected)
 {
     d->player = player; d->window = window; d->document = marcus_document(player);
     d->open = d->opening = 1; d->search[0] = 0; select_sound(d, selected);
@@ -163,7 +163,7 @@ void sound_dialog_toolbar(MarcusSoundDialog *d, MarcusPlayer *player, SDL_Window
     igSameLine(0, 8); igBeginDisabled(selected < 0);
     edit = igButton("Edit sound...", vec(136, 44));
     igEndDisabled(); igEndDisabled(); igEnd(); igPopStyleVar(1);
-    if (add || edit) show(d, player, window, add ? -1 : selected);
+    if (add || edit) sound_dialog_open(d, player, window, add ? -1 : selected);
 }
 int sound_dialog_event(MarcusSoundDialog *d, const SDL_Event *event)
 {

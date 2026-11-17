@@ -88,7 +88,7 @@ The current development build in this workspace uses `build/marcus-x64`.
 SDL 3.4.8 is built from `vendor/SDL3` by the shared dependency module, including
 for Studio and the inspector. Marcus's transform controls use the vendored
 ImGuizmo core in `vendor/ImGuizmo` with the existing pinned Dear ImGui dependency.
-All Marcus application dialogs use cimgui 1.92.5, pinned at
+The complete Marcus application UI uses cimgui 1.92.5, pinned at
 `bfd30140a9c5832b5e0dcf179d6e1e5c69373d5a`, over that same ImGui implementation
 and context. Configuration checks that the bindings' ImGui headers match the
 shared dependency; no second ImGui implementation or SDL backend is built.
@@ -179,11 +179,10 @@ use **[ / ]** to resize, **1–9** to choose colours, and **0** for canvas grey.
 returns to the brush; **Alt+click** samples directly. Sampling uses the stored
 paint colour, unaffected by foreground props or dither pixels, and creates no
 undo entry. Escape cancels an armed picker. Paint with canvas grey to cover marks.
-The **OkHSL** colour picker is always visible below the basic swatches. Drag the
-hue ring, then use the rotating triangle to choose saturation and perceptual
-lightness. Its corners are the selected hue, white and black. The preview shows
-the chosen RGB colour on the left and the actual shared-palette dither on the
-right. The same dither is used in the viewport and saved VMM; actor and prop
+The Paint panel uses ImGui's standard colour wheel and RGB inputs. Expand
+**Perceptual colour (OkHSL)** to adjust hue, saturation and perceptual lightness
+numerically. Below the picker, the paint sample shows the actual shared-palette
+dither. The same dither is used in the viewport and saved VMM; actor and prop
 palette entries remain unchanged.
 
 Custom colours join the scene's paint palette when first used for a stroke or
@@ -217,7 +216,7 @@ moving the camera; the sidebar shows the current speed. Releasing right mouse or
 pressing Escape releases capture and commits the camera move as one undo step.
 **Bake grid** in Paint, below **Pick colour**, paints the current
 perspective ground grid into this angle's background using the selected colour
-(**1–9** or the OkHSL picker), ready to draw over. Grid lines are one pixel
+(**1–9** or the colour picker), ready to draw over. Grid lines are one pixel
 wide and stay continuous, with crowded distant lines omitted at the midpoint of
 the live grid's fade at the painting's 544×306 resolution. The bake uses solid ink
 without stippled gaps; repeating a bake retains the same lines.
@@ -562,23 +561,10 @@ for the Marcus session and is constrained to keep both panes usable.
 
 The playback controls show the current movie position and total duration as
 `m:ss / m:ss`, or `h:mm:ss / h:mm:ss` for movies lasting an hour or more.
-Frame and scene navigation, including the movie overlay, use scalable SVG redrawings of 3DMM's
-`frwe`, `frw`, `ffw` and `ffwe` artwork: bevelled grey faces, double arrows for
-previous/next, and stop bars for first/last. Editable sources are in
-`src/marcus/icons/{first,previous,next,last}_frame.svg`; regenerate the compiled
-geometry with `python tools/compile_marcus_vectors.py`. Hover, pressed and
-disabled feedback remain available.
-The FRAME/SCENE readouts use black Arial Black labels on beveled silver panels,
-with centered counts in lighter inset fields. Their scalable surround is
-`src/marcus/icons/transport_readout.svg`.
-All-caps interface headings use the same 11-pixel Arial Black face as FRAME and
-SCENE, including inspector sections, settings sections, timeline group headers,
-browser and organiser titles, and camera debug headers. The heading atlas and
-transport labels share font discovery, with DejaVu Sans Bold or Liberation Sans
-Bold as fallbacks where Arial Black is unavailable. Body text keeps its normal
-UI font; heading styling is explicit, so uppercase movie and object names retain
-their usual appearance.
-
+Frame and scene navigation, readouts, Play/Pause/Continue, Loop, Mute and
+movie seeking use standard cimgui buttons and sliders. Frame/scene readout
+buttons open their organisers. The main UI, inspector and debug overlays share
+ImGui's font atlas; `--font file.ttf` supplies a custom UI font.
 Click the **SCENE** readout to open the scene organiser. It pauses playback and
 shows a scrollable cimgui grid in movie order, with saved thumbnails and
 scene names. Hover a card to see its frame count and outgoing transition.
@@ -633,7 +619,7 @@ selection remains available with an unavailable-thumbnail message. Thumbnails
 show authored frames, rather than extra playback states during scrolling holds
 or transitions between scenes.
 
-The existing timeline playhead uses a blue beveled SVG thumb; the existing
+The timeline playhead uses a blue ImGui drawing marker; the existing
 movie-wide scrubber uses a green one, including in the expanded movie view.
 The artwork is `frame_slider.svg` and `scene_slider.svg` in the same directory.
 Their locations and seeking behavior are unchanged. No extra sliders sit between
@@ -1255,59 +1241,18 @@ shows a message in Settings. `--settings-file path` allows an explicit profile;
 `--show-settings` opens the dialog on launch.
 
 Playback follows movie scene-child order, including scenes with no actors.
-Both navigation groups use matching bar/triangle icons, with their action shown
-in the status bar on hover. The Frame row sits above the Scene row, with aligned
-counters and navigation buttons like retail 3DMM. A tall Play button spans both
-rows beside the navigation controls, with Mute beneath Loop and the movie time
-and scene name to their right.
-Its layered grey bevels and shaded green triangle pay tribute to the retail transport.
-The symbol switches to a red square during playback and an arrow with a bar to
-continue a click wait. Hover/pressed feedback and a muted disabled state use the
-same vector artwork. Buttons at the first/last boundary are disabled.
+The Frame row sits above the Scene row, with matching navigation groups.
+The Play button spans both rows beside the navigation controls and changes to
+Pause or Continue as playback changes. Ctrl+clicking the previous/next frame
+button at a scene boundary adds a frame. Shift+Play enters the expanded movie
+view. Boundary buttons otherwise disable unavailable actions.
 
-Editable transport artwork lives in `src/marcus/icons/*.svg`. Marcus draws native
-SDL triangles from the checked-in `src/marcus/ui_vectors.h`, keeping the artwork
-scalable without a runtime SVG loader or bitmap icon. After editing an SVG, run
-`python tools/compile_marcus_vectors.py`; `--check` verifies the generated data.
-The asset compiler accepts explicit RGB fills on rectangles, convex polygons
-and simple closed paths using absolute M/L/Q/C/Z commands. Quadratic and cubic
-curves are flattened into triangles at build time. Paths with holes, strokes,
-relative commands and gradients remain unsupported. The Cancel/OK controls use
-curved red/green contours and a narrow grey bevel, following the retail buttons;
-the artwork stays editable and scalable without shipping bitmap button images.
-Dialog controls rasterize those vectors with 8x8 subpixel coverage at native
-size, or 4x4 coverage above 2x display scale. The resulting textures are cached
-per control/state and physical pixel size; scale changes rerasterize the curves.
-This avoids jagged triangle edges and avoids enlarging a fixed native bitmap.
-
-For an RGB review of the actual controls without opening an application window:
-
-```powershell
-cmake --build build/marcus-x64 --target marcus-dialog-capture
-New-Item -ItemType Directory -Force tmp/dialog-after
-build/marcus-x64/src/marcus/marcus-dialog-capture.exe tmp/dialog-after 1
-build/marcus-x64/src/marcus/marcus-dialog-capture.exe tmp/dialog-after 4
-python tools/compare_marcus_dialogs.py --reference PATH/retail-buttons.png `
-  --cancel-box 73 37 46 43 --ok-box 130 37 46 43 `
-  --before tmp/dialog-before --after tmp/dialog-after --output tmp/dialog-diff
-```
-
-The capture helper uses `ui_dialog_button` and SDL's software renderer, with a
-normal enabled state and no mouse hover. It verifies that the supersampled
-texture has the requested physical dimensions. Capture `dialog-before` with the
-previous build before rebuilding it. The crop coordinates above refer to the
-supplied 230x112 retail screenshot; use explicit native 46x43 crops for another
-reference. The report records SHA-256 inputs, raw absolute RGB differences,
-per-channel mean errors and a separate coloured-glyph union. It never aligns,
-rescales or masks the comparison pixels. The review sheet labels native pixel
-enlargements separately from the independently rendered 4x controls.
-
-For the supplied reference, the 15 November review reduced mean absolute RGB
-channel error from 41.85 to 15.93 for Cancel and 44.88 to 20.41 for OK (0..255).
-The retail texture and some contours still differ; these numbers are an artwork
-comparison against the supplied screenshot, not a pixel-equivalence claim.
-The review artifacts are `tmp/dialog-rgb-comparison/{comparison.png,report.json}`.
-
+The transport, camera toolbar, track filter, layer Solo/Mute controls, object
+list, inspector, split handles and status bar use cimgui. Scene objects and
+properties have standard ImGui scrolling. Timeline markers, waveforms, animation
+lanes and camera/light guides use ImGui drawing APIs. The original SVG artwork
+remains in `src/marcus/icons/` as source assets; the custom vector controls and
+their standalone `marcus-dialog-capture` renderer have been retired.
 
 With Loop off, playback advances through scenes and stops at the movie's final
 frame. With Loop on, the current scene repeats, resetting its animation, captions
@@ -1514,8 +1459,8 @@ throughout a drag; moving an object does not restart that worker.
 
 Gizmo and position-field input is applied before rendering either viewport, so
 the object and its handles use the current drag update in the same presented frame.
-The loop skips its 10 ms idle pause during a placement interaction, and holding a
-stationary handle no longer triggers redundant scene renders.
+The editor follows the normal vsync cadence without an additional idle delay;
+holding a stationary handle does not trigger redundant scene renders.
 
 A headless Debug-build check on 15 November 2026 measured 100 release commits at
 0.008 ms median and 0.100 ms maximum on the synthetic two-scene fixture. These
@@ -1626,16 +1571,9 @@ field's local text undo. Original movie and content files remain unchanged.
   Disabled/missing required libraries and unsupported package forms remain errors.
 - The renderer retains the preview API's size/decode budgets and one-session,
   one-thread ownership rule. No Studio UI/runtime library is linked.
-- UI text uses FreeType and an available system font: Segoe UI on Windows,
-  Arial on macOS, DejaVu/Liberation Sans on Linux. `--font file.ttf` overrides it.
-  The uppercase FRAME/SCENE labels separately use installed Arial Black at
-  11 pixels, with DejaVu/Liberation Sans Bold fallbacks on Linux. Their rendered
-  labels are cached at startup; no proprietary font file is bundled.
-  Frame/scene numbers separately use installed Comic Sans MS at 12 pixels,
-  matching the original counters' default font. They fall back to the main UI
-  font when Comic Sans is unavailable; large counts shrink to fit their fields.
-  The initial glyph atlas supports Latin-1; other characters display as `?`.
-  SDL bitmap text is a fallback if no font can be opened.
+- UI text uses the shared ImGui font atlas. `--font file.ttf` overrides its
+  default font. No proprietary UI font is bundled. FreeType remains in native
+  movie font services; it no longer implements Marcus controls or text editing.
 
 ## Older movies with expansion assets in source 2
 
@@ -1678,8 +1616,8 @@ the additional `TDF /00000005` font is still unavailable in the checked content.
 
 ## C89 boundary and checks
 
-`src/marcus/main.c` and `ui.c` implement much of the application and legacy
-drawing in C89. `text_dialog.c` owns the New/Edit 3D text dialog's C89 state,
+`src/marcus/main.c` and `ui.c` implement the application shell and ImGui
+drawing helpers in C89. `text_dialog.c` owns the New/Edit 3D text dialog's C89 state,
 catalogues, material/texture controls, transactions and cimgui widgets. Its
 manual caret, selection, clipboard and field hit-testing code has been removed.
 `text_preview.h` exposes opaque native preview services: template preparation
@@ -1691,7 +1629,7 @@ document identity and exact pixel equality with the direct worker, including
 font/shape/material gallery variants loaded into a persistent session. No Marcus
 UI tests were added.
 
-`dialog_views.c` and `dialog_widgets.c` own the remaining picker widgets and
+`dialog_views.c` and `dialog_widgets.c` own the picker widgets and
 input in C89: Open movie, New scene, Add actor or prop, scene/frame organisers
 and camera angles. Settings, camera rendering settings, ZIP member selection
 and errors use standard cimgui controls in `main.c`. The dialogs stay centred
@@ -1700,9 +1638,16 @@ isolated preview workers and bounded caches through the copied data/command
 interface in `dialog_host.h`; their C++ files contain backend services rather
 than widget drawing or manual text editing. Cached SDL textures are retired
 after the shared ImGui frame has been submitted. Native OS file/folder choosers
-remain platform dialogs. The ribbon, timeline, inspector and storyboard panels
-still include custom drawing and need further migration; C++ gizmo callers also
-remain behind their existing bridge.
+remain platform dialogs. `ribbon.c`, the editor panels in `main.c`, `prop_fields.c` and
+`storyboard_view.c` implement all remaining controls in C89/cimgui. Standard
+widgets own buttons, tabs, lists, scrolling, colour selection, numeric fields,
+menus and debug plots. `ui.c` now contains cimgui layout helpers and drawing
+primitives for viewport/timeline artwork, with no FreeType controls or manual
+field editing. `storyboard_view.h` exchanges copied control state and borrowed
+preview geometry with the native storyboard adapter; painting, rendering,
+palette matching and native movie transactions remain behind C interfaces.
+ImGuizmo and the shared SDL backend retain their required C++ bindings; ordinary
+transform buttons and fields call cimgui from C89.
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
 `player.cpp` owns the C++ Archive/Preview backend; `playback.cpp` implements audio,
@@ -1723,7 +1668,7 @@ ownership rule.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
-FreeType and generated cimgui headers are system headers during C89 checking.
+generated cimgui headers are system headers during C89 checking.
 Dear ImGui, cimgui's generated implementation and ImGuizmo still require C++.
 Engine conversion is
 incremental; a C89 frontend does not establish whole-backend C89 compatibility.

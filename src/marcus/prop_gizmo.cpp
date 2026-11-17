@@ -52,8 +52,7 @@ struct MarcusPropGizmo
     long frame = 0;
     unsigned long document = 0, chunk = 0;
     bool enabled = false, cancel = false, finish = false, platform = false, render = false;
-    bool over = false, fields = false;
-    SDL_FRect fieldRect = {};
+    bool over = false;
     SDL_FRect controlRect = {};
     float original[3] = {}, value[3] = {}, applied[3] = {};
     float position[3] = {}, left[9] = {}, right[9] = {};
@@ -93,18 +92,6 @@ MarcusPropGizmo *prop_gizmo_create(SDL_Window *window, SDL_Renderer *renderer)
     gizmo->renderer = renderer;
     IMGUI_CHECKVERSION();
     gizmo->context = ImGui::CreateContext();
-    auto &io = ImGui::GetIO();
-    io.IniFilename = io.LogFilename = nullptr;
-    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    ImGui::StyleColorsDark();
-    auto &style = ImGui::GetStyle();
-    style.WindowPadding = ImVec2(0, 0);
-    style.WindowBorderSize = 0;
-    // Keep clipped position fields compact while satisfying ImGui's >=1 minimum.
-    style.WindowMinSize = ImVec2(1, 1);
-    style.FrameRounding = 2;
-    style.Colors[ImGuiCol_FrameBg] = ImVec4(.15f, .18f, .21f, 1);
     gizmo->platform = ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     if (gizmo->platform) gizmo->render = ImGui_ImplSDLRenderer3_Init(renderer);
     if (!gizmo->render) { prop_gizmo_destroy(gizmo.release()); return nullptr; }
@@ -137,7 +124,7 @@ int prop_gizmo_event(MarcusPropGizmo *gizmo, const SDL_Event *event)
         !(event->key.mod & (SDL_KMOD_SHIFT | SDL_KMOD_ALT)) && gizmo->editing && !io.WantTextInput)
     { gizmo->cancel = true; return 1; }
     if (event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP || event->type == SDL_EVENT_TEXT_INPUT)
-        return gizmo->editing || io.WantCaptureKeyboard;
+        return gizmo->editing != 0;
     if (event->type == SDL_EVENT_MOUSE_WHEEL) return gizmo->editing != 0;
     if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN || event->type == SDL_EVENT_MOUSE_BUTTON_UP ||
         event->type == SDL_EVENT_MOUSE_MOTION)
@@ -146,12 +133,10 @@ int prop_gizmo_event(MarcusPropGizmo *gizmo, const SDL_Event *event)
         if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN || event->type == SDL_EVENT_MOUSE_BUTTON_UP)
         { x = event->button.x; y = event->button.y; }
         if (event->type == SDL_EVENT_MOUSE_MOTION) { x = event->motion.x; y = event->motion.y; }
-        const auto &r = gizmo->fieldRect;
-        const bool inFields = gizmo->fields && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
         const auto &c = gizmo->controlRect;
         const bool inControls = x >= c.x && x < c.x+c.w && y >= c.y && y < c.y+c.h;
         const bool left = event->type == SDL_EVENT_MOUSE_MOTION || event->button.button == SDL_BUTTON_LEFT;
-        return gizmo->editing || (left && (gizmo->over || inFields || inControls));
+        return gizmo->editing || (left && (gizmo->over || inControls));
     }
     return 0;
 }
@@ -176,7 +161,7 @@ void prop_gizmo_begin(MarcusPropGizmo *gizmo, MarcusPlayer *player, int object, 
     gizmo->enabled = eligible;
     gizmo->player = player;
     gizmo->object = object;
-    gizmo->over = gizmo->fields = false;
+    gizmo->over = false;
     gizmo->finish = false;
     if (eligible)
     {
@@ -269,48 +254,30 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
     }
     gizmo->over |= manipulation.over;
     if (gizmo->over && !gizmo->editing)
-        ImGui::SetTooltip(gizmo->mode==1 ? "Drag a ring to rotate. Ctrl snaps to 15 degrees. Escape cancels." : gizmo->mode==2 ?
-            "Drag an axis to resize, or the centre for uniform size. Ctrl snaps to 10%%. Escape cancels." :
+        ui_tooltip(gizmo->mode==1 ? "Drag a ring to rotate. Ctrl snaps to 15 degrees. Escape cancels." : gizmo->mode==2 ?
+            "Drag an axis to resize, or the centre for uniform size. Ctrl snaps to 10%. Escape cancels." :
             "Drag an axis or plane to move the object. Ctrl snaps to 1 unit. Escape cancels.");
     if (gizmo->editing == 1 && !manipulation.active) gizmo->finish = true;
 }
-int prop_gizmo_properties(MarcusPropGizmo *gizmo, float x, float y, const SDL_Rect *clip)
+void prop_gizmo_field_state(MarcusPropGizmo *gizmo, MarcusPropFields *out)
 {
-    if (!gizmo->enabled || gizmo->cancel) return 0;
-    const float top = std::max(y, float(clip->y)), bottom = std::min(y + 78, float(clip->y + clip->h));
-    if (bottom <= top) return 1;
-    gizmo->fieldRect = {x, top, 162, bottom - top};
-    gizmo->fields = true;
-    ImGui::SetNextWindowPos(ImVec2(x, top));
-    ImGui::SetNextWindowSize(ImVec2(162, bottom - top));
-    ImGui::Begin("Object position", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
-        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav |
-        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
-    ImGui::BeginDisabled(gizmo->editing == 1);
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        ImGui::PushID(axis);
-        ImGui::SetCursorScreenPos(ImVec2(x, y + axis * 26));
-        ImGui::SetNextItemWidth(162);
-        float value = gizmo->value[axis];
-        const bool updated = ImGui::DragFloat("##position", &value, gizmo->mode ? .5f : .1f,
-            gizmo->mode==2 ? 1.f : gizmo->mode==1 ? -36000.f : -32700.f,
-            gizmo->mode==2 ? 1000.f : gizmo->mode==1 ? 36000.f : 32700.f,
-            gizmo->mode==2 ? "%.1f %%" : gizmo->mode==1 ? "%.2f deg" : "%.3f", ImGuiSliderFlags_AlwaysClamp);
-        if (ImGui::IsItemActivated()) gizmo->Start(2);
-        if (updated && std::isfinite(value)) { gizmo->Start(2); gizmo->value[axis] = value; }
-        if (ImGui::IsItemDeactivated() && gizmo->editing == 2) gizmo->finish = true;
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Drag to adjust; Ctrl+click to type. Escape cancels. Applies to the whole object track.");
-        ImGui::PopID();
-    }
-    ImGui::EndDisabled();
-    ImGui::End();
-    return 1;
+    *out = {}; if (!gizmo) return;
+    out->enabled = gizmo->enabled && !gizmo->cancel;
+    out->mode = gizmo->mode; out->editing = gizmo->editing;
+    std::copy(gizmo->value, gizmo->value + 3, out->value);
 }
+void prop_gizmo_field_edit(MarcusPropGizmo *gizmo, int axis, float value, int begin, int finish)
+{
+    if (!gizmo || !gizmo->enabled || gizmo->cancel || axis < 0 || axis > 2 || gizmo->editing == 1) return;
+    if (begin || value != gizmo->value[axis]) gizmo->Start(2);
+    if (std::isfinite(value)) gizmo->value[axis] = value;
+    if (finish && gizmo->editing == 2) gizmo->finish = true;
+}
+
 int prop_gizmo_update(MarcusPropGizmo *gizmo)
 {
     ImGuizmo::SetID(MarcusGizmo::Object);
-    int result = gizmo->changed;
+    int result = gizmo->changed; gizmo->changed = 0;
     if (gizmo->editing)
     {
         // Saturate finite coordinates at the world limits. Overshooting must
@@ -330,6 +297,8 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
         if (gizmo->cancel)
         {
             result = gizmo->Restore();
+            std::copy(gizmo->original, gizmo->original + 3, gizmo->value);
+            gizmo->shape = gizmo->originalShape;
             gizmo->editing = 0;
             ImGuizmo::Enable(false);
         }

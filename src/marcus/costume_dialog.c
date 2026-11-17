@@ -137,14 +137,10 @@ void costume_dialog_button(MarcusCostumeDialog *d, MarcusPlayer *player, int obj
     }
     d->button_drawn = 1;
     d->button_rect.x = x; d->button_rect.y = y; d->button_rect.w = 134; d->button_rect.h = 28;
-    igSetNextWindowPos(vec(x, y), ImGuiCond_Always, vec(0, 0));
-    igSetNextWindowSize(vec(134, 28), ImGuiCond_Always);
-    igPushStyleVar_Vec2(ImGuiStyleVar_WindowPadding, vec(0, 0));
-    igBegin("##MarcusCostumeButton", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollWithMouse);
+    igSetCursorScreenPos(vec(x, y));
     igBeginDisabled(!enabled || !d->available);
     clicked = igButton(d->available ? "Costume" : "No costumes", vec(134, 28));
-    igEndDisabled(); igEnd(); igPopStyleVar(1);
+    igEndDisabled();
     if (clicked) show(d, player, object);
 }
 static int choices(MarcusCostumeDialog *d, MarcusCostume *out, int sample)

@@ -13,6 +13,7 @@ int storyboard_editor_show(MarcusStoryboardEditor *editor, MarcusPlayer *player,
     const MarcusImage *work, float fly_speed, const char *resources, const char *content);
 int storyboard_editor_visible(const MarcusStoryboardEditor *editor);
 int storyboard_editor_flying(const MarcusStoryboardEditor *editor);
+int storyboard_editor_capturing(const MarcusStoryboardEditor *editor);
 void storyboard_editor_release_camera(MarcusStoryboardEditor *editor);
 void storyboard_editor_update(MarcusStoryboardEditor *editor, double seconds);
 /* Submit light controls during the shared ImGui/ImGuizmo frame, before scene rendering. */
