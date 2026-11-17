@@ -4,7 +4,7 @@
 #include <float.h>
 
 static ImFont *label_font, *number_font;
-static ImFont *installed_font(const char *windows_name, const char *const *fallbacks, float size)
+static ImFont *installed_font(const char *windows_name, const char *const *fallbacks, float size, ImFontConfig *config)
 {
     SDL_PathInfo info;
     const char *windows_directory;
@@ -14,15 +14,18 @@ static ImFont *installed_font(const char *windows_name, const char *const *fallb
     if (windows_directory) {
         SDL_snprintf(path, sizeof(path), "%s/Fonts/%s", windows_directory, windows_name);
         if (SDL_GetPathInfo(path, &info) && info.type == SDL_PATHTYPE_FILE)
-            return ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, path, size, NULL, NULL);
+            return ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, path, size, config, NULL);
     }
     for (i = 0; fallbacks[i]; ++i)
         if (SDL_GetPathInfo(fallbacks[i], &info) && info.type == SDL_PATHTYPE_FILE)
-            return ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, fallbacks[i], size, NULL, NULL);
+            return ImFontAtlas_AddFontFromFileTTF(igGetIO_Nil()->Fonts, fallbacks[i], size, config, NULL);
     return NULL;
 }
 void transport_skin_init(void)
 {
+    ImFontAtlas *atlas;
+    ImFontConfig *config;
+    int i;
     static const char *const headings[] = {
         "/System/Library/Fonts/Supplemental/Arial Black.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -32,9 +35,18 @@ void transport_skin_init(void)
         "/System/Library/Fonts/Supplemental/Comic Sans MS.ttf", NULL
     };
     /* Keep the ordinary UI font first when the atlas has not baked it yet. */
-    if (!igGetIO_Nil()->Fonts->Fonts.Size) ImFontAtlas_AddFontDefault(igGetIO_Nil()->Fonts, NULL);
-    label_font = installed_font("ariblk.ttf", headings, 11);
-    number_font = installed_font("comic.ttf", numbers, 12);
+    atlas = igGetIO_Nil()->Fonts;
+    if (!atlas->Fonts.Size) ImFontAtlas_AddFontDefault(atlas, NULL);
+    /* Preserve ordinary UI fonts while the transport uses ImGui's hinted loader. */
+    for (i = 0; i < atlas->Sources.Size; ++i)
+        atlas->Sources.Data[i].FontLoader = igImFontAtlasGetFontLoaderForStbTruetype();
+    ImFontAtlas_SetFontLoader(atlas, ImGuiFreeType_GetFontLoader());
+    config = ImFontConfig_ImFontConfig();
+    /* Nominal pixel sizes match the former FT_Set_Pixel_Sizes rendering. */
+    config->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_Bitmap;
+    label_font = installed_font("ariblk.ttf", headings, 11, config);
+    number_font = installed_font("comic.ttf", numbers, 12, config);
+    ImFontConfig_destroy(config);
 }
 static ImU32 colour(unsigned long rgb, float brightness, int enabled)
 {
@@ -73,18 +85,22 @@ static int button(const char *id, float x, float y, float w, float h, int enable
     if (hovered && hint) igSetTooltip("%s", hint);
     return clicked;
 }
-static void centred_text(ImDrawList *draw, ImFont *font, float size, ImVec2 at, ImVec2 area, const char *text, ImU32 ink)
+static void readout_text(ImDrawList *draw, ImFont *font, float size, float x, float y, float width, const char *text, ImU32 ink)
 {
+    ImFontBaked *baked;
     ImVec2 extent;
+    float left;
     if (!font) font = igGetFont();
     extent = ImFont_CalcTextSizeA(font, size, FLT_MAX, 0, text, NULL, NULL);
-    if (extent.x > area.x) {
-        size *= area.x / extent.x;
+    if (width > 0 && extent.x > 100) {
+        size *= 100 / extent.x;
         extent = ImFont_CalcTextSizeA(font, size, FLT_MAX, 0, text, NULL, NULL);
     }
-    ImDrawList_PushClipRect(draw, at, dialog_vec(at.x + area.x, at.y + area.y), 1);
+    baked = ImFont_GetFontBaked(font, size, 1);
+    left = width > 0 ? SDL_floorf(x + (width - extent.x) / 2) : x;
+    ImDrawList_PushClipRect(draw, dialog_vec(x, y), dialog_vec(x + (width > 0 ? width : 48), y + 20), 1);
     ImDrawList_AddText_FontPtr(draw, font, size,
-        dialog_vec(at.x + SDL_floorf((area.x - extent.x) / 2), at.y + SDL_floorf((area.y - extent.y) / 2)),
+        dialog_vec(left, y + 14 - baked->Ascent),
         ink, text, NULL, 0, NULL);
     ImDrawList_PopClipRect(draw);
 }
@@ -113,8 +129,8 @@ int transport_readout(const char *id, float x, float y, int scene, const char *v
     artwork(draw, dialog_vec(x, y), marcus_vector_transport_readout, MARCUS_VECTOR_TRANSPORT_READOUT_COUNT,
         enabled ? brightness : 1, 1);
     ink = colour(enabled ? 0x111111 : 0x626262, 1, 1);
-    centred_text(draw, label_font, 11, dialog_vec(x + 3, y + 3), dialog_vec(48, 14), scene ? "SCENE" : "FRAME", ink);
-    centred_text(draw, number_font, 12, dialog_vec(x + 54, y + 2), dialog_vec(106, 16), value, ink);
+    readout_text(draw, label_font, 11, x + 6, y, 0, scene ? "SCENE" : "FRAME", ink);
+    readout_text(draw, number_font, 12, x + 54, y, 108, value, ink);
     return clicked;
 }
 int transport_play(const char *id, float x, float y, int playing, int waiting, int enabled, const char *hint)

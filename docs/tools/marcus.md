@@ -567,8 +567,10 @@ buttons open their organisers. The readouts, navigation arrows and Play button
 draw the original 3DMM-style SVG artwork on their ImGui buttons: beveled silver
 surrounds, dark arrows, green Play/Continue and red Pause symbols. Installed Arial
 Black and Comic Sans MS supply the readout labels and numbers where available,
-with ordinary ImGui fonts as fallbacks. Interaction, disabled state, focus and
-keyboard activation remain owned by ImGui. The main UI, inspector and debug overlays share
+with ordinary ImGui fonts as fallbacks. These two fonts use ImGui's FreeType
+loader with nominal pixel sizes, native hinting and the original 14-pixel
+baseline; ordinary UI fonts retain their existing renderer. Interaction, disabled
+state, focus and keyboard activation remain owned by ImGui. The main UI, inspector and debug overlays share
 ImGui's font atlas; `--font file.ttf` supplies a custom UI font.
 Click the **SCENE** readout to open the scene organiser. It pauses playback and
 shows a scrollable cimgui grid in movie order, with saved thumbnails and

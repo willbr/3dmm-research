@@ -1,5 +1,6 @@
 include_guard(GLOBAL)
 include(ImGuiDependency)
+include(FreeTypeDependency)
 include(FetchContent)
 
 # Generated bindings for the same Dear ImGui 1.92.5 used by imgui-sdl3.
@@ -21,10 +22,15 @@ foreach(header IN ITEMS imgui.h imgui_internal.h imconfig.h)
   endif()
 endforeach()
 # The generated API also exports the standard demo/style helpers.
-add_library(cimgui-sdl3 STATIC "${marcus_cimgui_SOURCE_DIR}/cimgui.cpp" "${imgui_SOURCE_DIR}/imgui_demo.cpp")
+add_library(cimgui-sdl3 STATIC "${marcus_cimgui_SOURCE_DIR}/cimgui.cpp" "${imgui_SOURCE_DIR}/imgui_demo.cpp"
+  "${marcus_cimgui_SOURCE_DIR}/imgui/misc/freetype/imgui_freetype.cpp")
 target_compile_features(cimgui-sdl3 PRIVATE cxx_std_11)
-target_compile_definitions(cimgui-sdl3 PUBLIC CIMGUI_NO_EXPORT)
+target_compile_definitions(cimgui-sdl3 PUBLIC CIMGUI_NO_EXPORT IMGUI_ENABLE_FREETYPE IMGUI_ENABLE_STB_TRUETYPE)
 # Generated declarations use bool/64-bit extensions. Application code remains C89.
 target_include_directories(cimgui-sdl3 SYSTEM PUBLIC "${marcus_cimgui_SOURCE_DIR}")
-target_link_libraries(cimgui-sdl3 PUBLIC imgui-sdl3)
+# The generated wrapper includes its own imgui.h by relative path. Keep its
+# FreeType header on that same verified copy to avoid duplicate declarations.
+target_include_directories(cimgui-sdl3 BEFORE PRIVATE "${marcus_cimgui_SOURCE_DIR}/imgui")
+# Keep FreeType opt-in for Marcus's atlas; the shared ImGui core keeps stb.
+target_link_libraries(cimgui-sdl3 PUBLIC imgui-sdl3 PRIVATE freetype)
 install(FILES "${marcus_cimgui_SOURCE_DIR}/LICENSE" DESTINATION licenses RENAME cimgui-LICENSE.txt)

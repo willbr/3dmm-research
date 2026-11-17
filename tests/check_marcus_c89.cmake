@@ -5,6 +5,7 @@ foreach(directory IN LISTS SDL_INCLUDES CIMGUI_INCLUDES)
   list(APPEND includes -isystem "${directory}")
 endforeach()
 execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
+  -DIMGUI_ENABLE_FREETYPE -DIMGUI_ENABLE_STB_TRUETYPE
   -Werror=declaration-after-statement -Wall -Wextra -fsyntax-only ${includes}
   "-I${SOURCE}/src/marcus" "${SOURCE}/src/marcus/main.c" "${SOURCE}/src/marcus/ui.c"
   "${SOURCE}/src/marcus/settings.c"
