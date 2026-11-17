@@ -43,9 +43,10 @@ support the conversion and gate each migrated slice.
 The engine owns movie data, resource resolution, evaluation, playback policy,
 editing and serialization. Studio and Marcus remain host applications over
 that backend. Studio's controls, easels and other UI code can remain C++;
-Marcus keeps its C application code and host adapters, and migrates its direct
-ImGui calls to cimgui as part of the C89 work described below. Convert the Kauai and
-BRender wrapper functionality needed by the engine, or replace those
+Marcus keeps its C application code and host adapters, and uses Dear ImGui
+through cimgui for its entire application GUI as part of the C89 work described
+below. Convert the Kauai and BRender wrapper functionality needed by the engine,
+or replace those
 dependencies with C89 services. A C++ dependency hidden behind a C header is
 an intermediate migration state, not completion of the backend conversion.
 
@@ -62,8 +63,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   but its player, playback and Archive/Preview implementations remain C++.
   Its browser and preview-process components also contain C++ host code.
 - Marcus currently calls ImGui's C++ API directly for prop and storyboard
-  gizmos. The playback review tool already uses cimgui from C; adopting cimgui
-  in Marcus is planned work, not a completed conversion.
+  gizmos, while most controls and dialogs use custom SDL/FreeType drawing and
+  event handling. That split does not meet the requirement for an ImGui GUI.
+  The playback review tool already uses cimgui from C; converting all Marcus UI
+  to cimgui is planned work, not a completed conversion.
 - `engine-core` already groups stored data, actor evaluation and playback
   policy. Its playback/startup command evaluators, frame pacer and scrolling
   policy now delegate to `mm-engine-c89` in `libraries/engine/`.
@@ -361,15 +364,31 @@ priority over the older Project 0-4 ordering wherever they conflict.
 Steps 3-5 are dependency groups, not single large rewrites. Land small,
 reviewable slices with both callers updated and validation recorded for each.
 
-### Marcus UI: adopt cimgui
+### Marcus UI: convert the entire GUI to ImGui through cimgui
 
-**Accepted 17 November 2026:** use cimgui for Marcus's ImGui calls as part of
-the C89 migration. Convert the project-owned UI state and control logic to C89;
-wrapping unchanged C++ application logic in a C API does not complete this work.
+**Requirement reaffirmed 17 November 2026:** all Marcus application UI must use
+Dear ImGui through cimgui, not just the existing gizmos. Replace the custom
+SDL/FreeType controls as part of the C89 migration. Convert the project-owned UI
+state and control logic to C89; wrapping unchanged C++ application logic in a C
+API does not complete this work.
 
 - Reuse the playback review tool's cimgui integration as a reference. Pin
   compatible cimgui, Dear ImGui and ImGuizmo revisions, and make Marcus's cimgui,
   SDL backends and gizmos use one Dear ImGui implementation and context.
+- Convert the ribbon, transport, settings, timeline controls, object lists,
+  movie/background browsers, scene organiser, camera picker, storyboard editor
+  and all dialogs, including New/Edit 3D text. Replace manual text editing with
+  ImGui text-input widgets providing caret placement, selection, clipboard and
+  keyboard handling. Prioritize the broken 3D text field in the first slice.
+- Use standard ImGui widgets for ordinary controls and text input. Preserve
+  existing actions, layout intent, artwork and movie behavior; render specialized
+  timeline/movie artwork through ImGui drawing APIs and image widgets. SDL
+  remains the platform/rendering backend, not a parallel widget toolkit.
+- Retire the replaced custom widget drawing, hit testing and text-edit state
+  in `main.c`, `ribbon.c`, `ui.c` and the browser/dialog implementations as each
+  slice lands. Do not add custom SDL controls or expand the manual text editor
+  as an interim fix. Route application input and focus through the shared ImGui
+  context rather than competing SDL text-input owners.
 - Move direct `ImGui::` calls in `src/marcus/prop_gizmo.cpp`,
   `storyboard_editor.cpp` and `transform_gizmo.h` to C89 callers using cimgui.
   Keep UI state, edit transactions, snapping and input decisions in C, sharing
@@ -388,6 +407,8 @@ backend adapters remain explicit external C++ build/runtime dependencies.
 This milestone makes Marcus's application calls C89; it does not make the
 entire executable or every dependency C89, and does not relax the shared
 engine's requirement to remove project-owned C++ engine dependencies.
+It is complete only when all Marcus application controls and dialogs use
+ImGui through cimgui and the parallel custom widget toolkit has been retired.
 
 ### Regression gate for each slice
 

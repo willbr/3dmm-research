@@ -7,6 +7,12 @@
 - Commit completed code and documentation changes as part of finishing each task.
   Include only task-related changes; preserve unrelated existing edits and files.
 - Do not add Marcus UI tests unless the user explicitly asks for them.
+- All Marcus application UI must use Dear ImGui through cimgui, with C89
+  application logic. Replace the existing custom SDL/FreeType controls; do not
+  extend that toolkit or implement manual text editing. Use standard ImGui
+  widgets for controls and text input. Specialized movie/timeline artwork may
+  use ImGui drawing APIs. Keep SDL for platform/rendering services and isolate
+  required third-party C++ bindings such as ImGuizmo behind narrow C interfaces.
 - Before rebuilding Marcus, always stop the running copy from this workspace so
   the build can replace `marcus.exe`. Relaunch it after the rebuild.
 - New Marcus code belongs to this project. Do not copy Microsoft copyright
