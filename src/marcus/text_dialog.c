@@ -672,7 +672,9 @@ static void field(MarcusTextDialog *d, const char *label, float *number, float s
 }
 static void fields(MarcusTextDialog *d)
 {
-    if (igBeginTable("Material properties", 2, ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
+    int textured;
+    textured = d->value.appearance.textured != 0;
+    if (igBeginTable("Material properties", textured ? 2 : 1, ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
     {
         igTableNextColumn();
         igSeparatorText("Lighting");
@@ -680,15 +682,16 @@ static void fields(MarcusTextDialog *d)
         field(d, "Diffuse", &d->value.appearance.diffuse, .01f, 0, 1, 0);
         field(d, "Specular", &d->value.appearance.specular, .01f, 0, 1, 0);
         field(d, "Shininess", &d->value.appearance.shininess, 1, 0, 1000, 0);
-        igTableNextColumn();
-        igSeparatorText("Texture placement");
-        igBeginDisabled(!d->value.appearance.textured);
-        field(d, "U scale", &d->uv[0], .01f, .01f, 32, 1);
-        field(d, "V scale", &d->uv[1], .01f, .01f, 32, 1);
-        field(d, "Rotation", &d->uv[2], 1, -180, 180, 1);
-        field(d, "U offset", &d->uv[3], .01f, -128, 128, 1);
-        field(d, "V offset", &d->uv[4], .01f, -128, 128, 1);
-        igEndDisabled();
+        if (textured)
+        {
+            igTableNextColumn();
+            igSeparatorText("Texture placement");
+            field(d, "U scale", &d->uv[0], .01f, .01f, 32, 1);
+            field(d, "V scale", &d->uv[1], .01f, .01f, 32, 1);
+            field(d, "Rotation", &d->uv[2], 1, -180, 180, 1);
+            field(d, "U offset", &d->uv[3], .01f, -128, 128, 1);
+            field(d, "V offset", &d->uv[4], .01f, -128, 128, 1);
+        }
         igEndTable();
     }
 }

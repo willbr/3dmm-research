@@ -349,8 +349,10 @@ continues to reference original retail content.
 The shared New/Edit dialog also offers native material and colour choices from
 `mtrls.3cn`. Colour swatches choose existing palette materials; the Material
 gallery also includes textured patterns. Ambient, diffuse, specular and shininess
-adjust the material's response to lighting. Textured materials additionally
-expose U/V scale, rotation and U/V offsets. Drag numeric values or Ctrl+click to
+adjust both solid and textured materials' response to lighting. Solid materials
+show lighting controls across the full properties width. Only textured materials
+show the additional U/V scale, rotation and U/V offsets alongside lighting;
+selecting a material updates this layout immediately. Drag numeric values or Ctrl+click to
 type an exact value. The live 3D preview updates as settings change: drag it to
 rotate or scroll over it to zoom. Its view is separate from the object's position
 and rotation in the movie. Previewing does not edit
