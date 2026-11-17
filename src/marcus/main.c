@@ -2626,14 +2626,19 @@ static void draw_track_labels(App *app, int rows)
     if (ui_panel("Track labels", 0, top, app->grid_x, (float)(rows * ROW_HEIGHT), 1, 0)) {
         for (row = 0; row < rows; ++row) {
             kind = sheet_row(app, row + *scroll, &index, &lane);
+            if (!app->loaded || !kind) continue;
+            if (kind == SHEET_SOUND_ROW && !marcus_sound_track(app->player, index, &track)) continue;
+            if (kind == SHEET_OBJECT_ROW && !marcus_object(app->player, index, &object)) continue;
+            /* Cursor positioning must be followed by an item, including when
+             * the movie has fewer tracks than the panel has visible rows. */
             igPushID_Int(row); igSetCursorScreenPos(dialog_vec(8, top + row * ROW_HEIGHT + 2));
             if (kind == SHEET_OBJECT_HEADER || kind == SHEET_SOUND_HEADER) igTextUnformatted(kind == SHEET_OBJECT_HEADER ? "Objects" : "Sounds", NULL);
-            else if (kind == SHEET_SOUND_ROW && marcus_sound_track(app->player, index, &track)) {
+            else if (kind == SHEET_SOUND_ROW) {
                 if (igSelectable_Bool(track.name, app->selected_sound_track == index && app->sound_inspector, 0, dialog_vec(app->grid_x - 76, 22))) { app->selected_sound_track = index; app->selected_sound = -1; app->sound_inspector = 1; }
                 if (ui_button_at("S", app->grid_x - 58, top + row * ROW_HEIGHT + 2, 24, 22, track.solo, 1, "Solo layer across scenes")) marcus_set_sound_track_mix(app->player, index, track.muted, !track.solo);
                 if (ui_button_at("M", app->grid_x - 30, top + row * ROW_HEIGHT + 2, 24, 22, track.muted, 1, "Mute layer across scenes")) marcus_set_sound_track_mix(app->player, index, !track.muted, track.solo);
             }
-            else if (kind == SHEET_OBJECT_ROW && marcus_object(app->player, index, &object)) {
+            else if (kind == SHEET_OBJECT_ROW) {
                 if (lane) igTextDisabled("    %s", lane == 1 ? "Transform" : lane == 2 ? "Appearance" : lane == 3 ? "Timing" : "Visibility");
                 else {
                     selected = app->selected == index;
