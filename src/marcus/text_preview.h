@@ -13,8 +13,12 @@ void text_preview_destroy(MarcusTextPreview *preview);
 void text_preview_stop(MarcusTextPreview *preview);
 int text_preview_start(MarcusTextPreview *preview, MarcusPlayer *player, int object,
                        const MarcusText *text, const char *resources, float yaw, float pitch, float zoom);
+/* Coalesce camera requests on the loaded template. No template construction,
+ * process restart or wait on the caller thread. Returns 0 without a session. */
+int text_preview_view(MarcusTextPreview *preview, float yaw, float pitch, float zoom);
 /* 0 pending/idle, 1 new image, -1 failed. Pixels are borrowed until next start,
- * stop or destroy. A completed result is published only once. */
+ * nonzero poll, stop or destroy. A completed result is published only once.
+ * Stop invalidates queued/in-flight results without joining the worker. */
 int text_preview_poll(MarcusTextPreview *preview, MarcusImage *image);
 const char *text_preview_error(const MarcusTextPreview *preview);
 /* Palette lookup and third-party OkHSL conversion for swatch ordering. */

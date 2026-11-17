@@ -341,6 +341,25 @@ rotate, scroll over it to zoom, or use the preview buttons. Its view is separate
 from the object's position and rotation in the movie. Previewing does not edit
 the movie or add undo entries; Cancel discards every pending setting.
 
+Horizontal dragging turns the text with the pointer; the Rotate buttons use
+the same direction. Rotation and zoom submit camera requests every UI frame
+to a persistent `marcus-preview --text-live` session. That helper keeps the
+template, resources and renderer loaded, and coalesces queued views to the
+latest request. Camera changes do not rebuild a template, launch a process or
+wait for rendering on the UI thread. Only text/font/material edits retain the
+180 ms rebuild throttle. Preview frames update one streaming SDL texture, and
+the open dialog uses the normal vsync cadence without the extra 10 ms idle
+delay. Closing/replacing a session invalidates in-flight frames; process
+teardown happens on the worker thread.
+
+The 17 November Debug headless check renders 20 alternating warm views in
+0.120 seconds (167.2 views/second), including exact pixel comparisons against
+the one-shot renderer. This measures preview/IPC throughput, not displayed UI
+FPS. Before this change, camera previews were capped at 5.6 updates/second and
+restarted the renderer for each update. The insertion check also exercises
+burst coalescing, invalid-camera recovery and stale-result rejection without
+creating a UI or changing the live movie.
+
 To edit existing 3D text, select it and choose **Edit 3D text** in its object
 properties or the **Words** ribbon. This reuses the creation dialog, prefilled
 with that object's wording, font and shape. **Save changes** updates the existing

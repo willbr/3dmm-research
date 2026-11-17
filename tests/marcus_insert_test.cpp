@@ -244,8 +244,54 @@ int main(int argc, char **argv)
             std::memcmp(previewImage.rgba, preview.rgba.data(), preview.rgba.size()) == 0 &&
             marcus_document(player.get()) == previewDocument, "C preview preserves exact pixels and the live document");
         require(text_preview_poll(textPreview.get(), &previewImage) == 0, "C preview publishes a completed image only once");
+        const auto angled = RunPreviewWorker(previewPath, argv[1], [] { return false; }, "-25 10 1.5",
+            false, {}, false, false, true);
+        require(angled.error.empty() && angled.rgba != preview.rgba, "Reference orbit produces a different view");
+        const auto waitPreview = [&] {
+            const auto deadline = SDL_GetTicks() + 20000;
+            int ready = 0;
+            while (!(ready = text_preview_poll(textPreview.get(), &previewImage)) && SDL_GetTicks() < deadline)
+                SDL_Delay(1);
+            return ready;
+        };
+        // Warm camera requests reuse the renderer and template; no UI is created.
+        const auto warmStart = SDL_GetTicksNS();
+        for (int i = 0; i < 20; ++i)
+        {
+            const bool alternate = (i % 2) == 0;
+            require(text_preview_view(textPreview.get(), alternate ? -25.f : 20.f, alternate ? 10.f : -10.f,
+                alternate ? 1.5f : 1.f), "Queue a camera request on the existing text session");
+            const auto &expected = alternate ? angled : preview;
+            require(waitPreview() == 1 && std::memcmp(previewImage.rgba, expected.rgba.data(), expected.rgba.size()) == 0,
+                "Persistent camera views retain exact one-shot pixels, including reset");
+        }
+        const double warmSeconds = (SDL_GetTicksNS() - warmStart) / 1000000000.0;
+        std::printf("Persistent text preview: 20 warm views in %.3f s (%.1f views/s).\n", warmSeconds, 20 / warmSeconds);
+        for (int i = 0; i < 100; ++i) text_preview_view(textPreview.get(), float(i), 0, 1);
+        require(text_preview_view(textPreview.get(), -25, 10, 1.5f), "Coalesce a burst to its final camera request");
+        bool finalView = false;
+        const auto burstDeadline = SDL_GetTicks() + 20000;
+        while (!finalView && SDL_GetTicks() < burstDeadline)
+        {
+            const int ready = text_preview_poll(textPreview.get(), &previewImage);
+            require(ready >= 0, "Coalesced camera transport remains valid");
+            finalView = ready == 1 && std::memcmp(previewImage.rgba, angled.rgba.data(), angled.rgba.size()) == 0;
+            if (!finalView) SDL_Delay(1);
+        }
+        require(finalView, "The final camera in a burst is eventually rendered");
+        require(text_preview_view(textPreview.get(), 0, 0, 0) && waitPreview() == -1 && text_preview_error(textPreview.get())[0],
+            "Invalid camera receives a bounded failure response");
+        require(text_preview_view(textPreview.get(), 20, -10, 1) && waitPreview() == 1 &&
+            std::memcmp(previewImage.rgba, preview.rgba.data(), preview.rgba.size()) == 0,
+            "A camera error does not destroy the loaded renderer");
+        require(text_preview_view(textPreview.get(), -25, 10, 1.5f) &&
+            text_preview_start(textPreview.get(), player.get(), editIndex, &settings, argv[1], 20, -10, 1) &&
+            waitPreview() == 1 && std::memcmp(previewImage.rgba, preview.rgba.data(), preview.rgba.size()) == 0 &&
+            marcus_document(player.get()) == previewDocument, "Replacing a session rejects stale in-flight images");
         text_preview_stop(textPreview.get());
         text_preview_stop(textPreview.get());
+        require(text_preview_poll(textPreview.get(), &previewImage) == 0 && !text_preview_view(textPreview.get(), 0, 0, 1),
+            "Stopped preview publishes no stale image and rejects camera requests");
         auto wording = settings; std::strcpy(wording.text, "Pattern");
         require(marcus_set_text(player.get(), editIndex, &wording) && marcus_text(player.get(), editIndex, &readAppearance) &&
             appearanceMatches(readAppearance.appearance), "Changing wording retains an imported patterned material");

@@ -4650,7 +4650,7 @@ int main(int argc, char **argv)
         }
         SDL_RenderPresent(app.renderer);
         ++frames;
-        if (!app.prop_interacting) SDL_Delay(10);
+        if (!app.prop_interacting && !text_dialog_visible(app.text_dialog)) SDL_Delay(10);
         completed_tick = SDL_GetTicksNS();
         record_frame(&app, (double)(completed_tick - frame_tick) / 1000000.0);
         frame_tick = completed_tick;

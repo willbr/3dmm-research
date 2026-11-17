@@ -142,6 +142,41 @@ int ModelPreviews(char **argv)
     }
 }
 }
+int TextPreviews(char **argv)
+{
+    try
+    {
+        MM::Preview renderer;
+        MM::Error error;
+        if (!renderer.Open(argv[1], argv[2], error) || !renderer.Select({0x544d504c, 0}, error) ||
+            !renderer.UseTextPreviewMaterial(error)) throw std::runtime_error(error.message);
+        MM::PreviewView view;
+        view.width = 480; view.height = 360; view.authoredCamera = false;
+        while (std::cin >> view.yaw >> view.pitch >> view.zoom)
+        {
+            BrowserPreview preview;
+            MM::PreviewImage image;
+            error.message.clear();
+            if (!std::isfinite(view.yaw) || !std::isfinite(view.pitch) || !std::isfinite(view.zoom) ||
+                view.pitch < -89 || view.pitch > 89 || view.zoom < .25f || view.zoom > 4)
+                preview.error = "Invalid text preview camera.";
+            else if (!renderer.Render(view, image, error))
+                preview.error = error.message.empty() ? "Cannot preview this text." : error.message;
+            else
+            {
+                preview.width = image.width; preview.height = image.height;
+                preview.rgba = std::move(image.rgba);
+            }
+            if (!FrameResponse(preview)) return 1;
+        }
+        return 0;
+    }
+    catch (const std::exception &e)
+    {
+        BrowserPreview preview; preview.error = e.what();
+        FrameResponse(preview); return 1;
+    }
+}
 int main(int argc, char **argv)
 {
     const bool duration = (argc == 5 || argc == 6) && !std::strcmp(argv[3], "--duration");
@@ -152,13 +187,15 @@ int main(int argc, char **argv)
     const bool prop = argc == 5 && !std::strcmp(argv[3], "--prop");
     const bool models = argc == 8 && !std::strcmp(argv[3], "--models");
     const bool text = argc == 5 && !std::strcmp(argv[3], "--text");
-    if (argc != 3 && !duration && !timeline && !frames && !background && !prop && !models && !text) return 2;
+    const bool textLive = argc == 4 && !std::strcmp(argv[3], "--text-live");
+    if (argc != 3 && !duration && !timeline && !frames && !background && !prop && !models && !text && !textLive) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
-    if (frames || models) _setmode(_fileno(stdin), _O_BINARY);
+    if (frames || models || textLive) _setmode(_fileno(stdin), _O_BINARY);
 #endif
     if (frames) return FramePreviews(argv, argc >= 7 ? argv[6] : nullptr, argc == 8 ? argv[7] : nullptr, cameras);
     if (models) return ModelPreviews(argv);
+    if (textLive) return TextPreviews(argv);
     BrowserPreview preview;
     try
     {

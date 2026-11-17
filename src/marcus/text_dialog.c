@@ -31,7 +31,7 @@ struct MarcusTextDialog
     TextSwatch swatches[12];
     int swatch_count;
     float uv[5], uv_original[6], uv_start[3];
-    int uv_dirty, preview_dirty;
+    int uv_dirty, preview_dirty, view_dirty;
     float yaw, pitch, zoom;
     Uint64 last_preview;
     char *resources;
@@ -66,6 +66,10 @@ static void changed(MarcusTextDialog *d)
 {
     d->preview_dirty = 1;
     d->error[0] = 0;
+}
+static void view_changed(MarcusTextDialog *d)
+{
+    d->view_dirty = 1;
 }
 static void read_uv(MarcusTextDialog *d)
 {
@@ -293,6 +297,7 @@ static int show(MarcusTextDialog *d, MarcusPlayer *player, SDL_Window *window,
     d->pitch = -10;
     d->zoom = 1;
     d->preview_dirty = 1;
+    d->view_dirty = 0;
     d->last_preview = 0;
     d->error[0] = 0;
     d->open = d->opening = 1;
@@ -332,29 +337,30 @@ static void update_preview(MarcusTextDialog *d, SDL_Renderer *renderer)
 {
     MarcusImage image;
     MarcusText text;
-    SDL_Surface *surface;
-    SDL_Texture *texture;
     Uint64 now;
     if (text_preview_poll(d->preview, &image) == 1)
     {
-        surface = SDL_CreateSurfaceFrom(image.width, image.height, SDL_PIXELFORMAT_RGBA32,
-                                       (void *)image.rgba, image.pitch);
-        texture = surface ? SDL_CreateTextureFromSurface(renderer, surface) : NULL;
-        SDL_DestroySurface(surface);
-        if (texture)
+        if (!d->texture)
         {
-            SDL_DestroyTexture(d->texture);
-            d->texture = texture;
-            SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+            d->texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING,
+                                           image.width, image.height);
+            if (d->texture) SDL_SetTextureScaleMode(d->texture, SDL_SCALEMODE_LINEAR);
         }
+        if (d->texture) SDL_UpdateTexture(d->texture, NULL, image.rgba, image.pitch);
     }
     now = SDL_GetTicks();
-    if (!d->preview_dirty || now - d->last_preview < 180 || !d->value.text[0] ||
-        SDL_utf8strlen(d->value.text) > 50) return;
-    d->preview_dirty = 0;
-    d->last_preview = now;
-    text = value(d);
-    text_preview_start(d->preview, d->player, d->object, &text, d->resources, d->yaw, d->pitch, d->zoom);
+    /* Debounce template edits only. Camera movement reuses the loaded renderer
+     * and can submit every frame without waiting for its previous response. */
+    if (d->preview_dirty && now - d->last_preview >= 180 && d->value.text[0] &&
+        SDL_utf8strlen(d->value.text) <= 50)
+    {
+        d->preview_dirty = 0;
+        d->last_preview = now;
+        text = value(d);
+        text_preview_start(d->preview, d->player, d->object, &text, d->resources, d->yaw, d->pitch, d->zoom);
+    }
+    if (d->view_dirty && text_preview_view(d->preview, d->yaw, d->pitch, d->zoom))
+        d->view_dirty = 0;
 }
 static int text_edited(ImGuiInputTextCallbackData *data)
 {
@@ -467,9 +473,9 @@ static void preview_controls(MarcusTextDialog *d)
     io = igGetIO_Nil();
     if (igIsItemActive() && io->MouseDown[0] && (io->MouseDelta.x || io->MouseDelta.y))
     {
-        d->yaw += io->MouseDelta.x * .6f;
+        d->yaw -= io->MouseDelta.x * .6f;
         d->pitch = clamp(d->pitch + io->MouseDelta.y * .6f, -89, 89);
-        changed(d);
+        view_changed(d);
     }
     if (igIsItemHovered(0))
     {
@@ -477,18 +483,18 @@ static void preview_controls(MarcusTextDialog *d)
         if (io->MouseWheel)
         {
             d->zoom = clamp(d->zoom * (float)pow(1.15, io->MouseWheel), .25f, 4);
-            changed(d);
+            view_changed(d);
         }
     }
-    if (igButton("Rotate <", vec(0, 0))) { d->yaw -= 30; changed(d); }
+    if (igButton("Rotate <", vec(0, 0))) { d->yaw += 30; view_changed(d); }
     igSameLine(0, -1);
-    if (igButton("Rotate >", vec(0, 0))) { d->yaw += 30; changed(d); }
+    if (igButton("Rotate >", vec(0, 0))) { d->yaw -= 30; view_changed(d); }
     igSameLine(0, -1);
-    if (igButton("Zoom -", vec(0, 0))) { d->zoom = clamp(d->zoom * .8f, .25f, 4); changed(d); }
+    if (igButton("Zoom -", vec(0, 0))) { d->zoom = clamp(d->zoom * .8f, .25f, 4); view_changed(d); }
     igSameLine(0, -1);
-    if (igButton("Zoom +", vec(0, 0))) { d->zoom = clamp(d->zoom * 1.25f, .25f, 4); changed(d); }
+    if (igButton("Zoom +", vec(0, 0))) { d->zoom = clamp(d->zoom * 1.25f, .25f, 4); view_changed(d); }
     igSameLine(0, -1);
-    if (igButton("Reset", vec(0, 0))) { d->yaw = 20; d->pitch = -10; d->zoom = 1; changed(d); }
+    if (igButton("Reset", vec(0, 0))) { d->yaw = 20; d->pitch = -10; d->zoom = 1; view_changed(d); }
     igTextWrapped("Drag to rotate / Wheel to zoom. Preview pose does not change the movie.");
     if (text_preview_error(d->preview)[0])
     {
