@@ -332,14 +332,16 @@ int main(int argc, char **argv)
                 else if (opacity == 1) { ++solid; check(baked.pixels[i] == 6, "Nearby baked grid lines retain the full selected ink"); }
                 else if (opacity > .2f && opacity < .8f)
                 {
-                    if (baked.pixels[i] == 6) ++partialInk;
-                    else { ++partialBackground; check(baked.pixels[i] == original[i], "Faded coverage reveals the original paint"); }
+                    if (opacity >= .5f)
+                    { ++partialInk; check(baked.pixels[i] == 6, "Readable middle-distance lines have no stippled gaps"); }
+                    else
+                    { ++partialBackground; check(baked.pixels[i] == original[i], "Crowded distant lines are omitted without scattered speckles"); }
                 }
             }
             check(faded > 500 && solid > 500 && partialInk > 20 && partialBackground > 20,
-                "Baking shares the live fade with a clear horizon, stippled middle distance and solid foreground");
+                "Baking retains continuous lines with a clear cutoff before the crowded horizon");
             auto again = baked; MarcusBoardBakeGrid(again, 6);
-            check(again.pixels == baked.pixels, "Rebaking cannot darken the faded grid or fill its gaps");
+            check(again.pixels == baked.pixels, "Rebaking retains the same solid grid and distant cutoff");
         }
         auto turned = board.angles[0]; turned.camera.yaw = 37; turned.camera.pitch = 24; turned.roll = -18; turned.fov = 5; turned.nearClip = .01f;
         const auto turnedGrid = MarcusBoardGridLines(turned);

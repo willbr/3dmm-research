@@ -200,15 +200,9 @@ void MarcusBoardBakeGrid(MarcusBoardAngle &a, unsigned char colour)
         const size_t i = size_t(y) * MarcusBoardWidth + x;
         if (!mask.pixels[i]) continue;
         const float opacity = fade.Opacity((x + .5) / MarcusBoardWidth, (y + .5) / MarcusBoardHeight);
-        // Indexed paintings store opaque ink. Stable spatial coverage lets the
-        // original paint show through, without adding colours or accumulating
-        // opacity on another bake. Avoid correlating with the palette's Bayer map.
-        std::uint32_t noise = std::uint32_t(i);
-        noise ^= noise >> 16; noise *= 0x7feb352dU;
-        noise ^= noise >> 15; noise *= 0x846ca68bU;
-        noise ^= noise >> 16;
-        const float threshold = ((noise & 0xffff) + .5f) / 65536.f;
-        if (opacity >= threshold) a.pixels[i] = colour;
+        // Indexed paint is opaque. Keep continuous lines and omit the crowded
+        // distance, rather than approximating transparency with scattered gaps.
+        if (opacity >= .5f) a.pixels[i] = colour;
     }
 }
 unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y)
