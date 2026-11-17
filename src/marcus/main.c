@@ -8,6 +8,7 @@
 #include "background_browser.h"
 #include "text_dialog.h"
 #include "costume_dialog.h"
+#include "sound_dialog.h"
 #include "ribbon.h"
 #include "camera_picker.h"
 #include "storyboard_editor.h"
@@ -96,6 +97,7 @@ typedef struct App
     MarcusBackgroundBrowser *background_browser;
     MarcusTextDialog *text_dialog;
     MarcusCostumeDialog *costume_dialog;
+    MarcusSoundDialog *sound_dialog;
     MarcusCameraPicker *camera_picker;
     MarcusStoryboardEditor *storyboard_editor;
     MarcusPropGizmo *prop_gizmo;
@@ -2245,6 +2247,14 @@ static void handle_event(App *app, const SDL_Event *event)
             app->ui.mouse_y = event->motion.y;
         }
     }
+    else if (!app->error[0] && sound_dialog_event(app->sound_dialog, event))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
+    }
     else if (!app->error[0] && costume_dialog_event(app->costume_dialog, event))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
@@ -4054,6 +4064,7 @@ static void draw(App *app)
             draw_settings(app);
         browser_draw(app->browser, &app->ui, app->width, app->height);
         costume_dialog_draw(app->costume_dialog, &app->ui, app->width, app->height);
+        sound_dialog_draw(app->sound_dialog, app->player, &app->ui, app->width, app->height);
         if (app->error[0])
             draw_error(app);
         return;
@@ -4070,6 +4081,13 @@ static void draw(App *app)
     app->ui.hint = NULL;
     ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, BG);
     draw_header(app);
+    if (app->ribbon_tab == 2 && !app->settings_open && !app->zip_input && !app->error[0] &&
+        !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
+        !text_dialog_visible(app->text_dialog) && !costume_dialog_visible(app->costume_dialog) &&
+        !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
+        !storyboard_editor_visible(app->storyboard_editor))
+        sound_dialog_toolbar(app->sound_dialog, app->player, app->window, app->selected_sound,
+            448, 78, app->loaded && !app->playing);
     draw_view(app);
     if (!storyboard_editor_visible(app->storyboard_editor)) draw_sidebar(app);
     draw_timeline(app);
@@ -4110,6 +4128,7 @@ static void draw(App *app)
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
     text_dialog_draw(app->text_dialog, &app->ui, app->width, app->height);
     costume_dialog_draw(app->costume_dialog, &app->ui, app->width, app->height);
+    sound_dialog_draw(app->sound_dialog, app->player, &app->ui, app->width, app->height);
     camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
@@ -4124,7 +4143,7 @@ static void update_prop_gizmo(App *app)
     int moved, enabled;
     enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
         !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) && !text_dialog_visible(app->text_dialog) &&
-        !costume_dialog_visible(app->costume_dialog) && !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
+        !costume_dialog_visible(app->costume_dialog) && !sound_dialog_visible(app->sound_dialog) && !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !app->orbit_menu && !app->sheet_menu && !app->flying && !app->orbiting && !app->panning &&
         !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging;
     prop_gizmo_begin(app->prop_gizmo, app->player, app->selected,
@@ -4445,6 +4464,12 @@ int main(int argc, char **argv)
         result = 1;
         goto cleanup;
     }
+    app.sound_dialog = sound_dialog_create();
+    if (!app.sound_dialog)
+    {
+        result = 1;
+        goto cleanup;
+    }
     app.camera_picker = camera_picker_create();
     if (!app.camera_picker)
     {
@@ -4597,6 +4622,17 @@ int main(int argc, char **argv)
                 reset_view(&app);
             }
         }
+        if (sound_dialog_take(app.sound_dialog, &app.selected_sound))
+        {
+            MarcusSound sound;
+            refresh(&app);
+            app.modified = marcus_modified(app.player);
+            app.selected_sound_track = marcus_sound(app.player, app.selected_sound, &sound) ? sound.track : -1;
+            if (app.sheet_mode == SHEET_OBJECTS) set_sheet_mode(&app, SHEET_SOUNDS);
+            app.sound_inspector = 1;
+            app.dirty = app.movie_dirty = 1;
+            SDL_SetWindowTitle(app.window, app.movie[0] ? "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
+        }
         if (storyboard_editor_take(app.storyboard_editor))
         {
             MarcusInfo previous_info;
@@ -4680,7 +4716,7 @@ int main(int argc, char **argv)
         }
         SDL_RenderPresent(app.renderer);
         ++frames;
-        if (!app.prop_interacting && !text_dialog_visible(app.text_dialog) && !costume_dialog_visible(app.costume_dialog)) SDL_Delay(10);
+        if (!app.prop_interacting && !text_dialog_visible(app.text_dialog) && !costume_dialog_visible(app.costume_dialog) && !sound_dialog_visible(app.sound_dialog)) SDL_Delay(10);
         completed_tick = SDL_GetTicksNS();
         record_frame(&app, (double)(completed_tick - frame_tick) / 1000000.0);
         frame_tick = completed_tick;
@@ -4694,6 +4730,7 @@ cleanup:
     browser_destroy(app.browser);
     text_dialog_destroy(app.text_dialog);
     costume_dialog_destroy(app.costume_dialog);
+    sound_dialog_destroy(app.sound_dialog);
     background_browser_destroy(app.background_browser);
     camera_picker_destroy(app.camera_picker);
     storyboard_editor_destroy(app.storyboard_editor);

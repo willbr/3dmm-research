@@ -476,6 +476,7 @@ struct MarcusPlayback::Impl
     Audio audio;
     RetailScrollPlayback scrollPlayback;
     bool entered = false, wasPlaying = false, scrolling = false, restoreMusic = true;
+    bool auditioning = false;
     int wait = 0, transition = 0;
     double frameTime = 0, waitTime = 0, transitionTime = 0, frameSeconds = 0;
     MMFramePacer pacer = {};
@@ -909,9 +910,16 @@ bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserv
 }
 void MarcusPlayback::Stop()
 {
+    impl->auditioning = false;
     impl->audio.Suspend(true);
     Seek();
     impl->wasPlaying = false;
+}
+bool MarcusPlayback::Audition(Preview &preview, PreviewSoundCue cue, Error &error)
+{
+    Stop(); cue.loop = false; cue.queue = false;
+    if (!impl->audio.Play(preview, cue, 0, error)) return false;
+    impl->auditioning = true; impl->audio.Suspend(false); return true;
 }
 void MarcusPlayback::Statistics(MarcusAudioStats &stats)
 {
@@ -984,7 +992,8 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
 {
     impl->ObserveCaptions(preview.Info().currentFrame);
     advance = false;
-    impl->audio.Suspend(!playing);
+    if (playing && impl->auditioning) { impl->audio.Clear(); impl->auditioning = false; }
+    impl->audio.Suspend(!playing && !impl->auditioning);
     impl->audio.Collect();
     if (!playing)
     {

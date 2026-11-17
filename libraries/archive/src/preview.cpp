@@ -265,6 +265,23 @@ bool Preview::ObjectText(int object, PreviewObjectText &text, Error &error) cons
     return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Text(text)) ||
         Fail(error, ErrorCode::invalid_argument, "Select a 3D text object first.");
 }
+bool Preview::SoundName(const PreviewSoundCue &cue, std::string &out) const
+{
+    out.clear();
+    TAGOnFile tag = {cue.source, 0, kctgMsnd, cue.sound.number};
+    auto cache = _impl->Resolve(tag);
+    if (!cache) return false;
+    auto file = cache->Pcfl(); ChunkNumber number = cue.sound.number;
+    if (!cue.source)
+    {
+        ChildChunkIdentification child;
+        const auto scene = cue.scene.type ? cue.scene.number : _impl->info.asset.number;
+        if (file->FGetKidChidCtg(kctgScen, scene, cue.child, kctgMsnd, &child)) number = child.cki.cno;
+    }
+    String name;
+    if (!file->FGetName(kctgMsnd, number, &name) || !name.Cch()) return false;
+    out.assign(name.Psz(), name.Cch()); return true;
+}
 bool Preview::ObjectCostumes(int object, std::vector<PreviewCostume> &out, Error &error) const
 {
     error = {}; out.clear();

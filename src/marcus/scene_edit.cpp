@@ -471,6 +471,8 @@ std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsi
     return result;
 }
 std::shared_ptr<MarcusMovieFile> MarcusCreateEventFile() { return WorkingCopy({}, nullptr); }
+std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::shared_ptr<MarcusMovieFile> &source)
+{ return WorkingCopy(source->path, source); }
 static void ApplyCostumes(PChunkyFile file, ChunkNumber actor, const MarcusLiveEdits::CostumeEdit &edit)
 {
     String path; Filename filename;

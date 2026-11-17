@@ -88,7 +88,7 @@ The current development build in this workspace uses `build/marcus-x64`.
 SDL 3.4.8 is built from `vendor/SDL3` by the shared dependency module, including
 for Studio and the inspector. Marcus's transform controls use the vendored
 ImGuizmo core in `vendor/ImGuizmo` with the existing pinned Dear ImGui dependency.
-The New/Edit 3D text and Costume dialogs use cimgui 1.92.5, pinned at
+The New/Edit 3D text, Costume and Sounds dialogs use cimgui 1.92.5, pinned at
 `bfd30140a9c5832b5e0dcf179d6e1e5c69373d5a`, over that same ImGui implementation
 and context. Configuration checks that the bindings' ImGui headers match the
 shared dependency; no second ImGui implementation or SDL backend is built.
@@ -942,6 +942,30 @@ Motion bindings can produce repeated sounds when the actor reaches the matching
 cel. Sound identities are shown as source ID and chunk number.
 Selecting or scrubbing a cue is silent; Play uses the existing audio playback.
 Use `--sounds` or `--both` to open in that mode, including with `--screenshot`.
+
+While paused, choose **Sounds > Add sound...** to import WAV/MP3 effects or
+speech, or a standard MIDI file for music. Use the native file chooser or enter
+a path, choose the scene frame, volume, loop and queue settings, and audition
+with **Preview** / **Stop preview** before adding. Audio is embedded in the
+movie; it does not depend on the original file after saving. Music uses MIDI
+to retain retail compatibility. Import currently accepts files up to 64 MiB.
+
+Select a cue and choose **Edit sound...**, or select it from the dialog's
+searchable scene list. Scene sounds support timing, volume and loop changes;
+sampled sounds can switch between effects and speech. Frame, category, volume
+and loop belong to the whole native queued packet. **Remove sound** deletes
+only the selected queued record. Actor sounds retain their animation/cel
+binding and category while allowing volume/loop changes or removal. Carried
+cues edit their original scene, identified in the dialog. Waveforms reflect
+the selected volume; auditioning leaves the document and timeline position
+unchanged and follows the movie's mute/solo settings.
+
+Each add, edit or removal is one undo step. Earlier actor/text/costume,
+placement, camera, frame and storyboard edits are retained, and sounds save
+to native `.3mm` movies or storyboard `.vmm` bundles. The controls use C89 and
+cimgui in the shared ImGui context. The headless `marcus-sound-edit` regression
+covers import, native save/reopen, queues, actor bindings, audition and undo;
+no Marcus UI tests were added.
 
 Both dope sheets mark the boundary after the final scene frame with a violet
 vertical line. It follows timeline zoom and pan; hovering identifies the boundary.

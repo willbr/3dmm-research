@@ -400,6 +400,21 @@ extern "C"
     void marcus_reset_sound_mix(MarcusPlayer *player);
     int marcus_sound_mix_active(const MarcusPlayer *player);
     int marcus_sound(const MarcusPlayer *player, int index, MarcusSound *sound);
+    typedef struct MarcusSoundOptions
+    {
+        long frame, volume; /* Native scene frame; volume 0..65536. */
+        int style, loop, queue;
+    } MarcusSoundOptions;
+    /* Import a sampled WAV/MP3 or MIDI file as a scene cue. Return its sound
+     * index, or -1 on failure. All committed changes are single undo steps. */
+    int marcus_add_sound(MarcusPlayer *, const char *path, const MarcusSoundOptions *);
+    /* Scene packet settings apply to its queued group. Removing deletes only
+     * the selected record. Actor edits retain animation timing and category. */
+    int marcus_set_sound(MarcusPlayer *, int index, const MarcusSoundOptions *);
+    int marcus_remove_sound(MarcusPlayer *, int index);
+    int marcus_audition_sound(MarcusPlayer *, int index, long volume);
+    int marcus_audition_sound_file(MarcusPlayer *, const char *path, int style, long volume);
+    void marcus_stop_sound_preview(MarcusPlayer *);
     /* Lazy, cached, silent decoding. Sampled peaks cover successive clip-relative
      * windows; loops repeat and other out-of-clip columns are zero. MIDI,
      * silence and unavailable clips have zero columns and a kind/message.

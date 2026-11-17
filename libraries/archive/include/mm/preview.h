@@ -299,6 +299,7 @@ class Preview
     // Read another scene's authored sound events without selecting or seeking it.
     bool ReadSoundCues(Id scene, std::vector<PreviewSoundCue> &cues, Error &error);
     std::vector<PreviewSoundCue> FrameSounds() const;
+    bool SoundName(const PreviewSoundCue &, std::string &) const;
     bool ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error);
     // Resolve stored indexed caption colours against the active movie palette.
     std::uint32_t PresentationColour(std::uint32_t colour) const;
