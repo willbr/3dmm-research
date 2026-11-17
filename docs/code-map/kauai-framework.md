@@ -20,7 +20,7 @@ which side each file lives on.
 | `codec.cpp`       | core       | `Codec` interface + KauaiCodec encoder.                       |
 | `codkauai.cpp`    | core       | KauaiCodec decoder; pulls in the asm fast path on x86 (`kcdc_386.h`, `kcd2_386.h` codegen). |
 | `file.cpp`        | core       | `FileObject` cross-platform abstraction. See [`../kauai-reference/file-api.md`](../kauai-reference/file-api.md). |
-| `file_native.cpp` | core | Shared file lifecycle, permission restoration and error policy. |
+| `file_native.cpp` | core | C file-owner facade and native file, mutex and diagnostic providers; remaining name-swap/rename control. |
 | `filename.cpp` | core | Shared filename navigation, filtering and enumeration. |
 | `platform_files_win.cpp` / `platform_files_posix.cpp` | core backend | Native [file/path services](platform-files.md), with no OS types in the interface. |
 | `mssio.cpp`       | core       | Microsoft IStream adapter for OLE / GDI+ interop.             |

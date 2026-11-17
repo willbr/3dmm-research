@@ -403,8 +403,11 @@ footer validation, relocation publication and mark/report scans now also use C89
 HQ size/lock/magic records and allocation/resize/copy/free/validation/mark policy
 now also use C89 through the fixed-memory providers. BaseLinkedList now embeds
 C-owned intrusive links and shares attach/detach/validation policy; FileObject's
-registry uses a C node head with typed owner accessors. Virtual destruction and
-final facade removal remain work.
+registry uses a C node head with typed owner accessors. FileObject's persistent
+handle/open/flags/error state, permission recovery, close/temp deletion and
+seek/read/write/resize/size/flush policy now also use C89, with native file,
+recursive mutex and diagnostic providers. File/name creation/registry coordination,
+rename/swap control, virtual destruction and final facade removal remain work.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

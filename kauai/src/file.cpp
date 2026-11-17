@@ -71,7 +71,7 @@ FileObject::FileObject(Filename *pfni, LegacyUlong grffil)
 {
     AssertPo(pfni, ffniFile);
     _fni = *pfni;
-    _grffil = grffil;
+    mm_file_owner_init(&_file, grffil);
 
     // add it to the linked list
     _mutxList.Enter();
@@ -213,38 +213,8 @@ PFileObject FileObject::PfilFromFni(Filename *pfni)
 ***************************************************************************/
 bool FileObject::FSetGrffil(LegacyUlong grffil, LegacyUlong grffilMask)
 {
-    AssertThis(0);
-    bool fRet = fFalse;
-
-    grffil &= grffilMask;
-
-    _mutx.Enter();
-
-    // make sure the permissions are high enough
-    if ((~_grffil & grffil & kgrffilPerm) && !_FOpen(fFalse, grffil))
-    {
-        PushErc(ercFilePerm);
-        goto LRet;
-    }
-
-    // adjust the mark flag
-    if (grffil & ffilMark)
-        _grffil |= ffilMark;
-
-    // adjust the temp flag
-    if (grffilMask & ffilTemp)
-    {
-        if (grffil & ffilTemp)
-            _grffil |= ffilTemp;
-        else
-            _grffil &= ~ffilTemp;
-    }
-
-    fRet = fTrue;
-
-LRet:
-    _mutx.Leave();
-    return fRet;
+    const auto host = _OwnerHost();
+    return mm_file_owner_set_flags(&_file, &host, grffil, grffilMask) != 0;
 }
 
 /***************************************************************************
@@ -254,7 +224,7 @@ LRet:
 void FileObject::Release(void)
 {
     AssertThis(0);
-    mm_reference_release_marked(&_references, (_grffil & ffilMark) != 0, this,
+    mm_reference_release_marked(&_references, (_file.flags & ffilMark) != 0, this,
         [](void *) { Bug("calling Release without an AddRef"); },
         [](void *p) { delete static_cast<PFileObject>(p); });
 }
@@ -276,14 +246,8 @@ void FileObject::GetStnPath(PString pstn)
 ***************************************************************************/
 void FileObject::SetTemp(bool fTemp)
 {
-    AssertThis(0);
-
-    _mutx.Enter();
-    if (fTemp)
-        _grffil |= ffilTemp;
-    else
-        _grffil &= ~ffilTemp;
-    _mutx.Leave();
+    const auto host = _OwnerHost();
+    mm_file_owner_set_temp(&_file, &host, fTemp);
 }
 
 /***************************************************************************
@@ -344,7 +308,7 @@ void FileObject::CloseUnmarked(void)
     {
         AssertPo(pfil, 0);
         pfilNext = pfil->PfilNext();
-        if (!(pfil->_grffil & ffilMark) && pfil->_references.count == 0)
+        if (!(pfil->_file.flags & ffilMark) && pfil->_references.count == 0)
             delete pfil;
     }
     _mutxList.Leave();

@@ -11698,3 +11698,81 @@ Evidence: `tmp/c89-linked-list-before-native.bin`,
 `tmp/c89-linked-list-regular-tests.log`,
 `tmp/c89-linked-list-trace-comparison.json` and
 `tmp/c89-linked-list-identities.json`.
+
+### Shared C file-owner state, permission recovery and I/O (17 November 2026)
+
+`file_owner.c` now owns persistent physical-handle, open/ever-open/written,
+flags and error-severity state. C controls permission upgrade/restoration,
+close/final temporary deletion, flush, seek, size, resize, read/write and flag/temp
+mutation. `FileObject` embeds the C record; both hosts use the same controller.
+Native callbacks supply the current Filename's physical services, recursive
+locking, validation, diagnostics and error reporting. Private runtime layout
+changes replace bitfields with C fields; stored formats are unchanged.
+
+At revision `c45257eb`, `file-owner-runtime` captured the native fields and public
+behavior before conversion in all three hosts. It covers real OS sharing
+rejection and restored-handle reads, successful permission upgrade, open failure
+and the critical latch, flags/marks/temp state, close/reopen, read/write/resize,
+error thresholds, zero-byte I/O, EOF diagnostics and temporary cleanup. An
+ErrorStack override records state during error publication. The converted
+fixture changes only its protected-field access to the C record.
+`file-owner-expensive` compiles the file facades with expensive validation against
+the common core. Normal and expensive captures match each host's original normal
+capture. Debug adds the original EOF diagnostic; Release omits it.
+
+| Configuration | Bytes | FNV-1a | SHA-256 |
+| --- | ---: | --- | --- |
+| Native/SDL Debug, both profiles | 756 | `CEE01DFA` | `F4A7FB2DE3F9F824362A7CB233528E74140E2E22846FDA673956687E3AE5A632` |
+| SDL Release, both profiles | 608 | `54BBB0B8` | `895BA564E96A471F20292AF68C9AE7BF302E7827DA4BC83C6CD199657E2203DA` |
+
+`engine-file-owner` links only C and forces seek/read/write/resize/size failures,
+permission restoration and double failure, deletion and ignored flush failure.
+It checks callback publication before error escalation, written state before
+physical writes, old/new permission forwarding, recursive lock and validation
+order, debug-size failure, advisory write/EOF diagnostics, zero-byte I/O at
+critical error, repeated final close and optional diagnostic/external-lock hooks.
+It passes MSVC AddressSanitizer. The controller preserves sticky marks: even
+`FSetGrffil(0, ffilMark)` leaves the mark set. This observed native behavior is
+frozen rather than corrected by the conversion.
+
+The wider gate passes 226 Native checks, 221 SDL Release checks, 222 SDL Debug
+checks and all 153 standalone checks, including strict C89 syntax: 822 of 823
+selected checks pass. The sole declared skip is the existing SDL Release
+`world-export` Debug fixture. All 159 retained list/handle/memory/object/error/
+string/text/cache/template/body/undo/Help/Preview trace pairs and all six file-owner
+trace pairs match. All ten input identities are unchanged; identities for 140
+binaries are recorded. Windows text settings remain ACP 1252, OEMCP 437 and locale
+`en-GB`/2057.
+
+The regular headless asset-preview harness passes. Backgrounds retain 301,996,032
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. Native
+`chelp` and `ched` compile. Marcus was stopped for rebuilding and resource
+regeneration, then relaunched. Test processes use private temporary directories.
+Concurrent builds inflated some Debug test durations; a separate SDL Debug model
+resource rerun passes in 1.73 seconds with the same 277,360-byte/`78C575E5` trace.
+These runs establish correctness preservation, not playback timing equivalence.
+
+The record owns its handle, not its native path or provider context; those stay
+live throughout calls. Live owners must not be copied. Callers serialize mutation
+with recursive locks, including nested close/flush, debug read/size and reopen.
+Callbacks cannot unwind, destroy the owner or mutate state. The captures exclude
+raw paths/addresses, implementation lines and physical object sizes. Defined
+debug subtraction wrap is specified separately from native signed-overflow
+equivalence. Actual native disk exhaustion, arbitrary callback overrides,
+concurrent mutation, invalid lifetimes/arguments, historical Macintosh file
+adapters and other platforms remain unverified. C fault checks do not establish
+native fault equivalence beyond the captured sharing/EOF/open failures.
+
+File/name factory and registry coordination, rename/swap/replacement control,
+Filename representation, physical services, virtual destruction and final C-only
+host/facade integration remain conversion work. No Marcus UI tests or new retail
+capture campaign were added; retained retail captures remain the playback
+reference. This does not complete the backend migration.
+
+Evidence: `tmp/c89-file-owner-before-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-file-owner-after-{expensive-,}{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-file-owner-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-file-owner-standalone-tests.log`, `tmp/c89-file-owner-asan.log`,
+`tmp/c89-file-owner-regular-tests.log`,
+`tmp/c89-file-owner-trace-comparison.json` and
+`tmp/c89-file-owner-identities.json`.

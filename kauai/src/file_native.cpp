@@ -28,259 +28,102 @@ KauaiFiles::FileHandle OpenHandle(const achar *path, bool create, LegacyUlong fl
 }
 } // namespace
 
-/***************************************************************************
-    Open or create the file.  If the file is already open, sets the
-    permissions according to grffil.
-***************************************************************************/
-bool FileObject::_FOpen(bool fCreate, LegacyUlong grffil)
+MMFileOwnerHost FileObject::_OwnerHost()
 {
-    AssertBaseThis(0);
-    bool fRet = fFalse;
-
-    _mutx.Enter();
-
-    if (_el >= kelCritical)
-        goto LRet;
-
-    grffil &= kgrffilPerm;
-    if (_fOpen)
-    {
-        Assert(!fCreate, "can't create an open file");
-        if ((~_grffil & grffil) == 0)
-        {
-            // permissions are already set high enough
-            fRet = fTrue;
-            goto LRet;
+    static_assert(ffilWriteEnable == MM_FILE_WRITE && ffilDenyWrite == MM_FILE_DENY_WRITE &&
+                  ffilDenyRead == MM_FILE_DENY_READ && kgrffilPerm == MM_FILE_PERMISSIONS &&
+                  ffilTemp == MM_FILE_TEMP && ffilMark == MM_FILE_MARK, "native file flag contract");
+    static_assert(elNil == MM_FILE_ERROR_NONE && kelWrite == MM_FILE_ERROR_WRITE &&
+                  kelRead == MM_FILE_ERROR_READ && kelSeek == MM_FILE_ERROR_SEEK &&
+                  kelCritical == MM_FILE_ERROR_CRITICAL, "native file error contract");
+    MMFileOwnerHost host{};
+    host.context = this;
+    host.enter = [](void *c) { static_cast<PFileObject>(c)->_mutx.Enter(); };
+    host.leave = [](void *c) { static_cast<PFileObject>(c)->_mutx.Leave(); };
+    host.open = [](void *c, int create, MMU32 flags) -> void * {
+        return OpenHandle(static_cast<PFileObject>(c)->_fni._stnFile.Psz(), create != 0, flags);
+    };
+    host.close = [](void *, void *handle) { KauaiFiles::Close(handle); };
+    host.flush = [](void *, void *handle) -> int { return KauaiFiles::Flush(handle); };
+    host.remove = [](void *c) -> int { return KauaiFiles::Delete(static_cast<PFileObject>(c)->_fni._stnFile.Psz()); };
+    host.seek = [](void *, void *handle, MMU32 position) -> int { return KauaiFiles::Seek(handle, position); };
+    host.resize = [](void *, void *handle, MMU32 bytes) -> int { return KauaiFiles::Resize(handle, bytes); };
+    host.size = [](void *, void *handle, MMU32 *bytes) -> int {
+        uint32_t length = 0;
+        const bool result = KauaiFiles::Size(handle, &length);
+        *bytes = length;
+        return result;
+    };
+    host.read = [](void *, void *handle, void *data, MMU32 bytes) -> int { return KauaiFiles::Read(handle, data, bytes); };
+    host.write = [](void *, void *handle, const void *data, MMU32 bytes) -> int { return KauaiFiles::Write(handle, data, bytes); };
+    host.issue = [](void *, int code) {
+        if (code == MM_FILE_ISSUE_GENERAL) PushErc(ercFileGeneral);
+        else if (code == MM_FILE_ISSUE_PERMISSION) PushErc(ercFilePerm);
+        else Warn("Deleting temp file failed");
+    };
+#ifdef DEBUG
+    host.validate = [](void *c, int base) {
+        auto *file = static_cast<PFileObject>(c);
+        if (base) { AssertBasePo(file, 0); }
+        else { AssertPo(file, 0); }
+    };
+    host.arguments = [](void *, int operation, const void *data, MMI32 bytes, MMI32 position) {
+        if (operation == MM_FILE_ARGUMENT_RESIZE) { AssertIn(position, 0, kcbMax); }
+        else {
+            AssertIn(bytes, 0, kcbMax);
+            AssertIn(position, 0, klwMax);
+            AssertPvCb(const_cast<void *>(data), bytes);
         }
-        KauaiFiles::Close(_hfile);
-        _hfile = nullptr;
-
-        // maintain the permissions we had before
-        grffil |= _grffil & kgrffilPerm;
-    }
-
-    _hfile = OpenHandle(_fni._stnFile.Psz(), fCreate, grffil | (_grffil & ffilTemp));
-
-    if (nullptr == _hfile)
-    {
-        // if it was open, re-open it with old permissions
-        if (_fOpen)
-        {
-            _hfile = OpenHandle(_fni._stnFile.Psz(), fFalse, _grffil);
-            if (nullptr != _hfile)
-                goto LRet;
-        }
-        _fOpen = fFalse;
-        _el = kelCritical;
-        goto LRet;
-    }
-
-    _fOpen = fTrue;
-    _fEverOpen = fTrue;
-    _grffil = (_grffil & ~kgrffilPerm) | grffil;
-    fRet = fTrue;
-
-LRet:
-    _mutx.Leave();
-
-    return fRet;
+    };
+    host.assertion = [](void *, int code) {
+        if (code == MM_FILE_CHECK_WRITE) { Assert(fFalse, "can't write to read only file"); }
+        else if (code == MM_FILE_CHECK_CREATE) { Assert(fFalse, "can't create an open file"); }
+        else { Assert(fFalse, "read past EOF"); }
+    };
+    host.debug_read = 1;
+#endif
+    return host;
 }
 
-/***************************************************************************
-    Close the file.
-***************************************************************************/
-void FileObject::_Close(bool fFinal)
+bool FileObject::_FOpen(bool create, LegacyUlong flags)
 {
-    AssertBaseThis(0);
-
-    _mutx.Enter();
-
-    if (_fOpen)
-    {
-        Flush();
-        KauaiFiles::Close(_hfile);
-        _fOpen = fFalse;
-        _hfile = nullptr;
-    }
-
-    if ((_grffil & ffilTemp) && fFinal && _fEverOpen)
-    {
-        if (!KauaiFiles::Delete(_fni._stnFile.Psz()))
-            Warn("Deleting temp file failed");
-    }
-
-    _mutx.Leave();
+    const auto host = _OwnerHost();
+    return mm_file_owner_open(&_file, &host, create, flags) != 0;
 }
-
-/***************************************************************************
-    Flush the file (and its volume?).
-***************************************************************************/
-void FileObject::Flush(void)
+void FileObject::_Close(bool final)
 {
-    AssertThis(0);
-
-    _mutx.Enter();
-
-    if (_fOpen)
-        KauaiFiles::Flush(_hfile);
-
-    _mutx.Leave();
+    const auto host = _OwnerHost();
+    mm_file_owner_close(&_file, &host, final);
 }
-
-/***************************************************************************
-    Seek to the given fp - assumes the mutx is already entered.
-***************************************************************************/
-void FileObject::_SetFpPos(FilePosition fp)
+void FileObject::Flush()
 {
-    AssertThis(0);
-
-    if (!_fOpen)
-        _FOpen(fFalse, _grffil);
-
-    if (_el < kelSeek && !KauaiFiles::Seek(_hfile, static_cast<uint32_t>(fp)))
-    {
-        PushErc(ercFileGeneral);
-        _el = kelSeek;
-    }
+    const auto host = _OwnerHost();
+    mm_file_owner_flush(&_file, &host);
 }
-
-/***************************************************************************
-    Set the length of the file.  This doesn't zero the appended portion.
-***************************************************************************/
-bool FileObject::FSetFpMac(FilePosition fp)
+void FileObject::_SetFpPos(FilePosition position)
 {
-    AssertThis(0);
-    AssertIn(fp, 0, kcbMax);
-    bool fRet;
-
-    _mutx.Enter();
-
-    Assert(_grffil & ffilWriteEnable, "can't write to read only file");
-    _SetFpPos(fp);
-
-    if (_el < kelWrite)
-    {
-        _fWrote = fTrue;
-        if (!KauaiFiles::Resize(_hfile, static_cast<uint32_t>(fp)))
-        {
-            PushErc(ercFileGeneral);
-            _el = kelWrite;
-        }
-    }
-    fRet = _el < kelWrite;
-
-    _mutx.Leave();
-
-    return fRet;
+    const auto host = _OwnerHost();
+    mm_file_owner_seek(&_file, &host, position);
 }
-
-/***************************************************************************
-    Return the length of the file.
-***************************************************************************/
-FilePosition FileObject::FpMac(void)
+bool FileObject::FSetFpMac(FilePosition bytes)
 {
-    AssertThis(0);
-    uint32_t length = 0;
-
-    _mutx.Enter();
-
-    if (!_fOpen)
-        _FOpen(fFalse, _grffil);
-
-    if (_el < kelSeek && !KauaiFiles::Size(_hfile, &length))
-    {
-        PushErc(ercFileGeneral);
-        _el = kelSeek;
-    }
-
-    if (_el >= kelSeek)
-        length = 0;
-
-    _mutx.Leave();
-
-    return static_cast<FilePosition>(length);
+    const auto host = _OwnerHost();
+    return mm_file_owner_resize(&_file, &host, bytes) != 0;
 }
-
-/***************************************************************************
-    Read a block from the file.
-***************************************************************************/
-bool FileObject::FReadRgb(void *pv, LegacyLong cb, FilePosition fp)
+FilePosition FileObject::FpMac()
 {
-    AssertThis(0);
-    AssertIn(cb, 0, kcbMax);
-    AssertIn(fp, 0, klwMax);
-    AssertPvCb(pv, cb);
-
-    bool fRet = fFalse;
-
-    if (cb <= 0)
-        return fTrue;
-
-    _mutx.Enter();
-
-    if (!_fOpen)
-        _FOpen(fFalse, _grffil);
-
-    Debug(FilePosition dfp = FpMac() - fp;)
-
-        _SetFpPos(fp);
-    if (_el >= kelRead)
-        goto LRet;
-
-    Assert(dfp >= cb, "read past EOF");
-    if (!KauaiFiles::Read(_hfile, pv, static_cast<uint32_t>(cb)))
-    {
-        PushErc(ercFileGeneral);
-        _el = kelRead;
-        goto LRet;
-    }
-
-    fRet = fTrue;
-
-LRet:
-    _mutx.Leave();
-    return fRet;
+    const auto host = _OwnerHost();
+    return static_cast<FilePosition>(mm_file_owner_size(&_file, &host));
 }
-
-/***************************************************************************
-    Write a block to the file.
-***************************************************************************/
-bool FileObject::FWriteRgb(void *pv, LegacyLong cb, FilePosition fp)
+bool FileObject::FReadRgb(void *data, LegacyLong bytes, FilePosition position)
 {
-    AssertThis(0);
-    AssertIn(cb, 0, kcbMax);
-    AssertIn(fp, 0, klwMax);
-    AssertPvCb(pv, cb);
-
-    bool fRet = fFalse;
-
-    if (cb <= 0)
-        return fTrue;
-
-    _mutx.Enter();
-
-    Assert(_grffil & ffilWriteEnable, "can't write to read only file");
-
-    if (!_fOpen)
-        _FOpen(fFalse, _grffil);
-
-    _SetFpPos(fp);
-    if (_el >= kelWrite)
-        goto LRet;
-
-    _fWrote = fTrue;
-    if (!KauaiFiles::Write(_hfile, pv, static_cast<uint32_t>(cb)))
-    {
-        PushErc(ercFileGeneral);
-        _el = kelWrite;
-        goto LRet;
-    }
-
-    fRet = fTrue;
-
-LRet:
-    _mutx.Leave();
-    return fRet;
+    const auto host = _OwnerHost();
+    return mm_file_owner_read(&_file, &host, data, bytes, position) != 0;
+}
+bool FileObject::FWriteRgb(void *data, LegacyLong bytes, FilePosition position)
+{
+    const auto host = _OwnerHost();
+    return mm_file_owner_write(&_file, &host, data, bytes, position) != 0;
 }
 
 /***************************************************************************
@@ -342,8 +185,8 @@ bool FileObject::FSwapNames(PFileObject pfil)
 
 LFail:
     // reopen the files
-    _FOpen(fFalse, _grffil);
-    pfil->_FOpen(fFalse, pfil->_grffil);
+    _FOpen(fFalse, _file.flags);
+    pfil->_FOpen(fFalse, pfil->_file.flags);
 
 LRet:
     _mutx.Leave();
@@ -378,7 +221,7 @@ bool FileObject::FRename(Filename *pfni)
         _fni = *pfni;
 
     // reopen the file
-    if (!_FOpen(fFalse, _grffil))
+    if (!_FOpen(fFalse, _file.flags))
         fRet = fFalse;
 
     _mutx.Leave();

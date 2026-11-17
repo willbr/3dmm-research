@@ -511,6 +511,52 @@ conversion. Verification and retained-trace evidence are recorded in the
 Virtual destruction and final C-only host/facade integration remain conversion
 work. This list extraction does not finish the shared backend migration.
 
+### File-owner state and I/O policy
+
+`mm/file_owner.h` owns persistent flags, error severity, open/ever-open/written
+state and the physical handle. C controls permission upgrades and recovery,
+close/final temporary-file deletion, flush, seek, size, resize, read/write and
+flag/temp mutation. `FileObject` embeds this record and delegates to it in both
+hosts. The native facade supplies physical file primitives over its current
+Filename, recursive mutexes, validation and error/warning callbacks. No C++ types
+or libraries are needed by the C controller. The record's fields replace native
+bitfields; this changes private runtime sizes without changing stored formats.
+
+Upgrades close the old handle, retain old permissions, try the new permissions
+and restore the old handle on failure. A failed restoration latches critical
+error. Validation, recursive locking and diagnostic size queries retain their
+original order. Error callbacks observe the state before I/O error escalation;
+permission errors observe the completed recovery attempt. Write attempts publish
+the written flag before the physical primitive. Read and write error thresholds
+remain distinct; seek still runs before a blocked transfer when error severity
+permits. Debug reads query size before seeking and report EOF before transferring.
+Zero-byte I/O returns without opening or locking even at critical error.
+
+Flush failure remains ignored. Final close deletes an ever-opened temporary
+path, including repeated final-close attempts. `set_flags` retains the original
+sticky marking behavior; even `ClearMarks` cannot clear that mark through this
+helper. This is preserved behavior, not a new policy. Callers keep the state,
+provider context and native path live, do not copy an open owner, and serialize
+operations. Synchronous callbacks cannot unwind, destroy the owner or mutate it.
+Native argument diagnostics remain advisory; C callers supply valid signed
+32-bit counts/positions. Debug subtraction uses defined word wrap separately
+from native signed-overflow equivalence.
+
+`engine-file-owner` links only C and tests physical failures, permission recovery
+and double failure, flags, state publication, error thresholds, nested lock and
+validation order, EOF/debug-size failures, temporary deletion, zero-byte I/O and
+optional diagnostics/external locking. `file-owner-runtime` captures native
+behavior before conversion through `MM_FILE_OWNER_SNAPSHOT`, including real OS
+sharing rejection and restored-handle reads. `file-owner-expensive` overrides
+the file facades with expensive validation against the shared core. See the
+[playback regression log](../tools/playback-regression.md) for evidence.
+
+File/name factory and registry coordination, rename/swap/replacement control,
+Filename representation, native primitives, virtual destruction and final
+C-only host/facade integration remain conversion work. Historical `filemac.cpp`
+is not built by the current Windows/POSIX hosts. This extraction does not finish
+the backend migration.
+
 ### Collection storage foundation
 
 `mm/collection_storage.h` owns the two buffers underneath `GroupBase`,

@@ -18,6 +18,7 @@
 #include "mm/data_stream.h"
 #include "mm/block_io.h"
 #include "mm/block_owner.h"
+#include "mm/file_owner.h"
 
 /****************************************
     Byte order issues
@@ -74,13 +75,7 @@ class FileObject : public FileObject_PAR
     Mutex _mutx;
 
     Filename _fni;
-    bool _fOpen : 1;
-    bool _fEverOpen : 1;
-    bool _fWrote : 1;
-    LegacyUlong _grffil; // permissions, mark and temp flags
-    LegacyLong _el;
-
-    KauaiFiles::FileHandle _hfile;
+    MMFileOwner _file;
 
     // private methods
     FileObject(Filename *pfni, LegacyUlong grffil);
@@ -89,6 +84,7 @@ class FileObject : public FileObject_PAR
     bool _FOpen(bool fCreate, LegacyUlong grffil);
     void _Close(bool fFinal = fFalse);
     void _SetFpPos(FilePosition fp);
+    MMFileOwnerHost _OwnerHost();
 
   public:
     // public static members
@@ -113,26 +109,26 @@ class FileObject : public FileObject_PAR
     virtual void Release(void);
     void Mark(void)
     {
-        _grffil |= ffilMark;
+        _file.flags |= ffilMark;
     }
 
     LegacyLong ElError(void)
     {
-        return _el;
+        return _file.error;
     }
     void SetEl(LegacyLong el = elNil)
     {
-        _el = el;
+        _file.error = el;
     }
     bool FSetGrffil(LegacyUlong grffil, LegacyUlong grffilMask = ~0);
     LegacyUlong GrffilCur(void)
     {
-        return _grffil;
+        return _file.flags;
     }
     void SetTemp(bool fTemp = fTrue);
     bool FTemp(void)
     {
-        return FPure(_grffil & ffilTemp);
+        return FPure(_file.flags & ffilTemp);
     }
     void GetFni(Filename *pfni)
     {
