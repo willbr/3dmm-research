@@ -12706,6 +12706,27 @@ The session also compiles under strict C89 for Linux x64 musl. Windows
 runtime checks cover the standalone reader. Studio and Marcus continue to
 open movies through their existing archive providers.
 
+### Standalone C89 authored camera seeks (17 November 2026)
+
+`engine-native-chunky-test FILE --camera SCENE FRAME SID CONTENT` runs the
+camera part of an authored seek from a C-only executable. It follows the scene's
+background tag and evaluates its camera cues before reading the selected resource.
+The output camera slot matches all 240 authored frame positions in retained
+retail seek runs 1813, 1822 and 1828 in `tmp/c89-movie-data-regression/playback.sqlite`
+and run 1 (`features`) in `tmp/playback-regression/playback.sqlite`. All four
+movies match their captured SHA-256. The C reader uses the checked-in retail
+`bkgds.3cn`, SHA-256 `1af4bfd944354db266b8993dc70d4a93d75cc460a124584b2170634873e0809a`.
+For background 0, both selected CAM numbers (65538 and 57), clip planes, FOV and
+fixed-point matrices also match the links and bytes from native `inspect-chunks`.
+
+The engine test exercises embedded and external backgrounds, both wire byte
+orders and codecs, same-frame cuts in stored order, backward queries, invalid
+group offsets, missing source, and unchanged output on failure. All 181 Windows
+standalone checks pass under the required syntax configuration. The session
+compiles as strict C89 for Linux x64 musl. The retained captures verify camera
+selection. The matrix check uses resource bytes, and this slice does not
+render pixels, evaluate actors or switch either host to the new session.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

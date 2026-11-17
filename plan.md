@@ -440,7 +440,10 @@ Keep host presentation and device output outside the session.
 2. Extend the session to resolve movie and retail content resources and seek
    to an authored frame. Cover actor and camera state, repeat seeks and the
    applicable missing-content behavior with real files. Document which
-   retail captures exercise the path and which behaviors they cover.
+   retail captures exercise the path and which behaviors they cover. The C89
+   session now evaluates camera cuts and resolves the selected `CAM` through
+   the movie's embedded background or a caller-supplied content archive. Actor
+   evaluation, automatic source discovery and rendered output remain open.
 3. Switch both hosts to the same session for the covered operations and retire
    the superseded backend paths. Link and run the standalone consumer and its
    real file/content providers with the C toolchain, without `engine-core`,

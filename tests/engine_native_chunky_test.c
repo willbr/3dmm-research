@@ -1,8 +1,84 @@
 #include "mm/chunky_file.h"
 #include "mm/movie_session.h"
 #include "mm/native_files.h"
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+typedef struct CameraInput
+{
+    MMU32 scene;
+    MMI32 frame, source;
+    const char *path;
+    void *file;
+} CameraInput;
+
+static int number(const char *text, MMI32 *out)
+{
+    char *end;
+    long value;
+    errno = 0;
+    value = strtol(text, &end, 10);
+    if (end == text || *end || errno == ERANGE || value < (-2147483647L - 1) || value > 2147483647L)
+        return 0;
+    *out = (MMI32)value;
+    return 1;
+}
+
+static int camera_input(CameraInput *input, int argc, char **argv)
+{
+    MMI32 scene;
+    if ((argc != 5 && argc != 7) || !number(argv[3], &scene) || scene < 0 || !number(argv[4], &input->frame))
+        return 0;
+    input->scene = (MMU32)scene;
+    if (argc == 7)
+    {
+        if (!number(argv[5], &input->source) || input->source <= 0)
+            return 0;
+        input->path = argv[6];
+    }
+    return 1;
+}
+
+static int open_source(void *context, const MMMovieAsset *asset, MMReadStream *stream)
+{
+    CameraInput *input = (CameraInput *)context;
+    MMNativeOpenOptions options;
+    if (asset->source != input->source || !input->path)
+    {
+        fprintf(stderr, "Missing content source %ld for BKGD %lu\n", (long)asset->source,
+                (unsigned long)asset->number);
+        return MM_MOVIE_ASSET_NOT_FOUND;
+    }
+    mm_native_open_options_init(&options);
+    input->file = mm_native_file_open(input->path, &options);
+    return input->file && mm_native_file_read_stream(input->file, stream) ? MM_MOVIE_OK : MM_MOVIE_IO;
+}
+
+static int check_camera(const MMReadStream *stream, const MMChunkPolicy *policy, CameraInput *input)
+{
+    MMMovieSession *movie = NULL;
+    MMMovieCamera camera;
+    int status = mm_movie_session_open(stream, policy, &movie);
+    unsigned i, j;
+    if (status == MM_MOVIE_OK)
+        status = mm_movie_session_camera(movie, input->scene, input->frame, open_source, input, &camera);
+    mm_movie_session_close(movie);
+    mm_native_file_close(input->file);
+    if (status != MM_MOVIE_OK)
+    {
+        fprintf(stderr, "Cannot seek to camera (%d)\n", status);
+        return 0;
+    }
+    printf("BKGD %ld %lu CAM %lu %lu %ld %ld %u\n", (long)camera.background.source,
+           (unsigned long)camera.background.number, (unsigned long)camera.slot, (unsigned long)camera.number,
+           (long)camera.data.near_z, (long)camera.data.far_z, (unsigned)camera.data.fov);
+    for (i = 0; i < 4; ++i)
+        for (j = 0; j < 3; ++j)
+            printf("%ld%c", (long)camera.data.matrix.m[i][j], i == 3 && j == 2 ? '\n' : ' ');
+    return 1;
+}
 
 static int check_movie(const MMReadStream *stream, const MMChunkPolicy *policy)
 {
@@ -28,7 +104,7 @@ static int check_movie(const MMReadStream *stream, const MMChunkPolicy *policy)
     return result == MM_MOVIE_SCENE_NOT_FOUND;
 }
 
-static int check_index(void *file, MMU32 type, int movie)
+static int check_index(void *file, MMU32 type, int movie, CameraInput *camera)
 {
     const unsigned short native_order = 1;
     MMChunkPolicy policy = {0, 0, 516}; /* Legacy counted name plus terminator and encoding. */
@@ -50,6 +126,8 @@ static int check_index(void *file, MMU32 type, int movie)
         return 0;
     if (movie)
         return check_movie(&stream, &policy);
+    if (camera)
+        return check_camera(&stream, &policy, camera);
     if (mm_chunk_index_open(&stream, &policy, &index) != MM_CHUNK_OK)
         return 0;
 
@@ -69,17 +147,19 @@ static int check_index(void *file, MMU32 type, int movie)
 int main(int argc, char **argv)
 {
     MMNativeOpenOptions options;
+    CameraInput input = {0};
     MMU32 type = 0;
     void *file;
-    int i, movie, ok;
+    int i, movie, camera, ok;
 
     movie = argc == 3 && strcmp(argv[2], "--movie") == 0;
-    if (argc != 3 || (!movie && strlen(argv[2]) != 4))
+    camera = argc >= 3 && strcmp(argv[2], "--camera") == 0;
+    if (camera ? !camera_input(&input, argc, argv) : argc != 3 || (!movie && strlen(argv[2]) != 4))
     {
-        fputs("Usage: engine-native-chunky-test FILE TYPE|--movie\n", stderr);
+        fputs("Usage: engine-native-chunky-test FILE TYPE|--movie|--camera SCENE FRAME [SID CONTENT]\n", stderr);
         return 1;
     }
-    if (!movie)
+    if (!movie && !camera)
         for (i = 0; i < 4; ++i)
             type = (type << 8) | (unsigned char)argv[2][i];
     mm_native_open_options_init(&options);
@@ -89,9 +169,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "Cannot open %s\n", argv[1]);
         return 1;
     }
-    ok = check_index(file, type, movie);
+    ok = check_index(file, type, movie, camera ? &input : NULL);
     mm_native_file_close(file);
     if (!ok)
-        fprintf(stderr, "Cannot read %s from %s\n", movie ? "movie metadata" : argv[2], argv[1]);
+        fprintf(stderr, "Cannot read %s from %s\n", camera ? "camera" : movie ? "movie metadata" : argv[2], argv[1]);
     return ok ? 0 : 1;
 }

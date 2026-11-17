@@ -2,6 +2,7 @@
 #include "mm/codec.h"
 #include "mm/data_stream.h"
 #include "mm/movie_session.h"
+#include "mm/scene_data.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -143,6 +144,151 @@ static void movie_sessions(void)
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_BAD_FILE && !movie);
     CHECK(mm_memory_stream_init(&input, bytes, end - 1));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_BAD_FILE && !movie);
+}
+
+static void camera_events(unsigned char *group, int big, int start, MMU32 source, int bad_row)
+{
+    MMU32 count = start ? 1 : 3, row_size = start ? 24 : 12, i;
+    unsigned char *row = group + 20;
+    unsigned char *locations = row + count * row_size;
+    put16(group, 1, big);
+    put32(group + 4, count, big);
+    put32(group + 8, count * row_size, big);
+    put32(group + 12, 0xffffffffUL, big);
+    put32(group + 16, 8, big);
+    for (i = 0; i < count; ++i)
+    {
+        put32(locations + i * 8, bad_row ? 0xffffffffUL : i * row_size, big);
+        put32(locations + i * 8 + 4, row_size, big);
+        put32(row, i == 2 ? 8 : 5, big);
+        put32(row + 4, start ? MM_SCENE_SET_BACKGROUND : MM_SCENE_CHANGE_CAMERA, big);
+        put32(row + 8, start ? source : i == 1, big);
+        if (start)
+        {
+            put32(row + 16, 0x424b4744UL, big);
+            put32(row + 20, 4, big);
+        }
+        row += row_size;
+    }
+}
+
+static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 source, int bad_row)
+{
+    enum { BKGD, CAM1, CAM0, FRAMES, STARTS, ROOT, SCENE, COUNT };
+    static const MMU32 types[] = {0x424b4744UL, 0x43414d20UL, 0x43414d20UL, 0x47474652UL, 0x47475354UL,
+                                  0x4d564945UL, 0x5343454eUL};
+    static const MMU32 numbers[] = {4, 80, 90, 13, 14, 17, 36};
+    static const MMU32 links[][3] = {{BKGD, CAM0, 0}, {BKGD, CAM1, 1}, {ROOT, SCENE, 0},
+                                    {SCENE, FRAMES, 0}, {SCENE, STARTS, 1}};
+    static const MMU32 children[] = {2, 0, 0, 0, 0, 1, 2};
+    static const MMU32 lengths[] = {8, 76, 76, 80, 52, 8, 16};
+    unsigned char raw[COUNT][80], *group, *row, *locations, *link;
+    MMU32 offsets[COUNT], sizes[COUNT], i, j, end, index_offset = 128;
+    const MMU32 row_bytes = COUNT * 20 + 5 * 12;
+
+    memset(out, 0, 1024);
+    memset(raw, 0, sizeof(raw));
+    for (i = 0; i < COUNT; ++i)
+        put16(raw[i], 1, big);
+    put32(raw[CAM0] + 4, 123, big);
+    put32(raw[CAM1] + 4, 456, big);
+    put32(raw[CAM1] + 72, 0xfffffffeUL, big);
+    camera_events(raw[FRAMES], big, 0, 0, bad_row);
+    camera_events(raw[STARTS], big, 1, source, 0);
+    put16(raw[ROOT] + 4, 2, big);
+    put16(raw[ROOT] + 6, 2, big);
+    put32(raw[SCENE] + 4, 10, big);
+    put32(raw[SCENE] + 8, 1, big);
+    for (i = 0; i < COUNT; ++i)
+    {
+        offsets[i] = index_offset;
+        sizes[i] = store_record(out + index_offset, raw[i], lengths[i], i == FRAMES || i == STARTS ? codec : 0);
+        index_offset += sizes[i];
+    }
+    end = index_offset + 20 + row_bytes + COUNT * 8;
+    memcpy(out, "CHN2", 4);
+    put16(out + 8, 5, big);
+    put16(out + 10, 4, big);
+    put16(out + 12, 1, big);
+    put32(out + 16, end, big);
+    put32(out + 20, index_offset, big);
+    put32(out + 24, end - index_offset, big);
+    put32(out + 28, end, big);
+    group = out + index_offset;
+    put16(group, 1, big);
+    put32(group + 4, COUNT, big);
+    put32(group + 8, row_bytes, big);
+    put32(group + 12, 0xffffffffUL, big);
+    put32(group + 16, 20, big);
+    row = group + 20;
+    locations = row + row_bytes;
+    for (i = 0; i < COUNT; ++i)
+    {
+        put32(locations + i * 8, (MMU32)(row - (group + 20)), big);
+        put32(locations + i * 8 + 4, 20 + 12 * children[i], big);
+        put32(row, types[i], big);
+        put32(row + 4, numbers[i], big);
+        put32(row + 8, offsets[i], big);
+        put32(row + 12, (sizes[i] << 8) | (i == ROOT || i == BKGD ? MM_CHUNK_LONER : 0) |
+                         (codec && (i == FRAMES || i == STARTS) ? MM_CHUNK_PACKED : 0), big);
+        put16(row + 16, children[i], big);
+        put16(row + 18, i != ROOT && i != BKGD, big);
+        link = row + 20;
+        for (j = 0; j < sizeof(links) / sizeof(links[0]); ++j)
+            if (links[j][0] == i)
+            {
+                put32(link, types[links[j][1]], big);
+                put32(link + 4, numbers[links[j][1]], big);
+                put32(link + 8, links[j][2], big);
+                link += 12;
+            }
+        row = link;
+    }
+    return end;
+}
+
+static int camera_source(void *context, const MMMovieAsset *asset, MMReadStream *out)
+{
+    CHECK(asset->source == 2 && asset->type == 0x424b4744UL && asset->number == 4);
+    *out = *(const MMReadStream *)context;
+    return MM_MOVIE_OK;
+}
+
+static void movie_camera(void)
+{
+    const MMChunkPolicy policy = {0, 0, 516};
+    unsigned char bytes[1024];
+    MMMemoryStream input;
+    MMMovieSession *movie;
+    MMMovieCamera camera;
+    MMU32 size;
+    int big;
+    for (big = 0; big <= 1; ++big)
+    {
+        size = camera_fixture(bytes, big, big ? MM_CODEC_KCDC : MM_CODEC_KCD2, 0, 0);
+        CHECK(mm_memory_stream_init(&input, bytes, size));
+        CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+        CHECK(mm_movie_session_camera(movie, 0, 5, NULL, NULL, &camera) == MM_MOVIE_OK);
+        CHECK(camera.background.source == 0 && camera.slot == 1 && camera.number == 80 && camera.data.near_z == 456);
+        CHECK(camera.data.matrix.m[3][2] == -2);
+        CHECK(mm_movie_session_camera(movie, 0, 8, NULL, NULL, &camera) == MM_MOVIE_OK && camera.slot == 0);
+        CHECK(mm_movie_session_camera(movie, 0, 4, NULL, NULL, &camera) == MM_MOVIE_OK && camera.number == 90);
+        CHECK(mm_movie_session_camera(movie, 0, 0, NULL, NULL, &camera) == MM_MOVIE_FRAME_OUT_OF_RANGE &&
+              camera.number == 90);
+        mm_movie_session_close(movie);
+    }
+    size = camera_fixture(bytes, 0, 0, 2, 0);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_camera(movie, 0, 7, NULL, NULL, &camera) == MM_MOVIE_ASSET_NOT_FOUND && camera.number == 90);
+    CHECK(mm_movie_session_camera(movie, 0, 7, camera_source, &input.stream, &camera) == MM_MOVIE_OK &&
+          camera.background.source == 2 && camera.number == 80);
+    mm_movie_session_close(movie);
+    size = camera_fixture(bytes, 0, 0, 0, 1);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_camera(movie, 0, 7, NULL, NULL, &camera) == MM_MOVIE_BAD_FILE && camera.number == 80);
+    mm_movie_session_close(movie);
 }
 /* Three independently encoded records. Root owns the first child twice and
  * the second once; two different targets share a slot and type. */
@@ -662,6 +808,7 @@ int main(void)
 {
     wire_indexes();
     movie_sessions();
+    movie_camera();
     graphs();
     io_failures();
     deep_graph();

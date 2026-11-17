@@ -38,6 +38,10 @@ the chunky index from a borrowed `MMReadStream`, validates the first `MVIE`, and
 reads `SCEN` headers by the root's authored slot. It uses the shared KCDC/KCD2
 decoders for packed records. `engine-native-chunky-test FILE --movie` supplies
 a real native file stream and prints root versions and ordered scene ranges.
+`mm_movie_session_camera` validates and reads the scene's start and frame event
+groups, evaluates camera cuts at an authored frame, and decodes the specified
+background's `CAM` chunk. Source zero uses the movie's own index. For positive
+sources the host supplies a borrowed stream for the requested asset's archive.
 Studio and Marcus still use their existing archive owners and resource providers.
 
 | Caller / dependency | Boundary after the first slice |

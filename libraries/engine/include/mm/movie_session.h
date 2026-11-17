@@ -2,6 +2,7 @@
 #define MM_ENGINE_MOVIE_SESSION_H
 
 #include "chunky_file.h"
+#include "background_camera.h"
 #include "movie_data.h"
 
 #ifdef __cplusplus
@@ -22,7 +23,30 @@ typedef struct MMMovieSessionScene
     MMI32 first_frame, last_frame, transition;
 } MMMovieSessionScene;
 
-enum { MM_MOVIE_SCENE_NOT_FOUND = MM_MOVIE_MEMORY + 1 };
+enum
+{
+    MM_MOVIE_SCENE_NOT_FOUND = MM_MOVIE_MEMORY + 1,
+    MM_MOVIE_FRAME_OUT_OF_RANGE,
+    MM_MOVIE_ASSET_NOT_FOUND
+};
+
+typedef struct MMMovieAsset
+{
+    MMI32 source;
+    MMU32 type, number;
+} MMMovieAsset;
+
+typedef struct MMMovieCamera
+{
+    MMMovieAsset background;
+    MMU32 slot, number;
+    MMBackgroundCameraData data;
+} MMMovieCamera;
+
+/* Resolve a positive source and specific asset to the appropriate content
+ * archive. On MM_MOVIE_OK, the stream's context stays valid through the query.
+ * Source zero always uses the movie's own archive. */
+typedef int (*MMMovieSourceRead)(void *, const MMMovieAsset *, MMReadStream *);
 
 /* Select the first MVIE by chunk number and validate its decoded header.
  * The session owns the index and copies the stream descriptor. Its underlying
@@ -36,6 +60,11 @@ const MMMovieSessionRoot *mm_movie_session_root(const MMMovieSession *);
 /* Look up an exact SCEN child at the authored slot. A missing slot returns
  * MM_MOVIE_SCENE_NOT_FOUND. A link to an absent or invalid chunk is an error. */
 int mm_movie_session_scene(const MMMovieSession *, MMU32 slot, MMMovieSessionScene *);
+
+/* Evaluate the scene's authored camera at frame and decode its resource.
+ * Never modifies the session or publishes output on failure. */
+int mm_movie_session_camera(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
+                            MMMovieSourceRead, void *context, MMMovieCamera *);
 
 #ifdef __cplusplus
 }
