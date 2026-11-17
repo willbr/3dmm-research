@@ -467,9 +467,11 @@ Keep host presentation and device output outside the session.
    ordered resource search now share the standalone policy. Marcus seek and
    Studio rewind now share the standalone event selector over their live
    timelines. Studio, Marcus and the standalone session now share the C89
-   actor seek, frame event and frame effect drivers. The host session
-   cutover still needs a common open/seek owner and actor and camera resource
-   bindings for the renderers. The standalone `engine-native-chunky-test`
+   scene frame transaction, actor seek, frame event and frame effect drivers.
+   The standalone seek returns one camera and actor snapshot after reading the
+   scene start group once. The host session cutover still needs a common open
+   owner and actor and camera resource bindings for the renderers. The
+   standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
    open and seek checks in the standalone `MMEngine` configuration. Verify

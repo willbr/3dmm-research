@@ -1,6 +1,7 @@
 /* Scene frame/replay and prerender policy converted from engine scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_runtime.h"
+#include "mm/movie_session.h"
 void mm_scene_runtime_init(MMSceneRuntime *r)
 {
     r->next_event = 0;
@@ -43,15 +44,26 @@ void mm_scene_extend_range(MMSceneState *d, const MMSceneRuntimeServices *s)
                     d->lastFrame = last;
             }
 }
-int mm_scene_goto(MMSceneRuntime *r, MMSceneState *d, MMI32 target,
-                        const MMSceneRuntimeServices *s)
+typedef struct SceneSeek
 {
-    int sound, update, kind;
+    MMSceneRuntime *runtime;
+    MMSceneState *data;
+    const MMSceneRuntimeServices *services;
+    int sound, update, actors_enabled;
+} SceneSeek;
+
+static int begin_seek(void *context, MMI32 target)
+{
+    SceneSeek *seek = (SceneSeek *)context;
+    MMSceneRuntime *r = seek->runtime;
+    MMSceneState *d = seek->data;
+    const MMSceneRuntimeServices *s = seek->services;
+    int kind;
     MMI32 i, frame;
     MMU32 mask;
     void *c = s->context;
-    sound = 0;
-    update = target != d->currentFrame;
+    seek->sound = 0;
+    seek->update = target != d->currentFrame;
     if (target < d->currentFrame)
     {
         s->notice(c, MM_SCENE_RESET_PAUSE, 0);
@@ -77,7 +89,7 @@ int mm_scene_goto(MMSceneRuntime *r, MMSceneState *d, MMI32 target,
             if (!s->play(c, i, r->disabled))
                 goto failure;
             if (kind == MM_SCENE_PLAY_SOUND && frame == d->currentFrame)
-                sound = 1;
+                seek->sound = 1;
         }
     }
     else if (target > d->currentFrame)
@@ -102,22 +114,62 @@ int mm_scene_goto(MMSceneRuntime *r, MMSceneState *d, MMI32 target,
             if (!s->play(c, r->next_event, mask))
                 goto failure;
             if (kind == MM_SCENE_PLAY_SOUND && frame == d->currentFrame)
-                sound = 1;
+                seek->sound = 1;
         }
     }
-    if (!(r->disabled & MM_SCENE_EFFECT_ACTORS) && !mm_scene_force(target, 0, &sound, s))
-        return 0;
-    if (!(r->disabled & MM_SCENE_EFFECT_TEXTS) && !mm_scene_force(target, 1, 0, s))
-        return 0;
-    if (!(r->disabled & MM_SCENE_EFFECT_ACTORS))
-        mm_scene_prerender(r, d, 0, s);
-    s->notice(c, MM_SCENE_INVALIDATE, 0);
-    if (update)
-        s->notice(c, MM_SCENE_SOUND_INDICATOR, sound);
-    return 1;
+    seek->actors_enabled = !(r->disabled & MM_SCENE_EFFECT_ACTORS);
+    return MM_MOVIE_OK;
 failure:
     s->notice(c, MM_SCENE_GOTO_FAILURE, 0);
-    return 0;
+    return MM_MOVIE_BAD_FILE;
+}
+
+static MMU32 seek_actor_count(void *context)
+{
+    const SceneSeek *seek = (const SceneSeek *)context;
+    const MMSceneRuntimeServices *s = seek->services;
+    MMI32 count = seek->actors_enabled ? s->object_count(s->context, 0) : 0;
+    return count > 0 ? (MMU32)count : 0;
+}
+
+static int seek_actor(void *context, MMU32 ordinal, MMI32 target)
+{
+    SceneSeek *seek = (SceneSeek *)context;
+    const MMSceneRuntimeServices *s = seek->services;
+    void *actor = s->object(s->context, 0, (MMI32)ordinal);
+    return s->seek(s->context, 0, actor, target, &seek->sound) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+static int finish_seek(void *context, MMI32 target)
+{
+    const SceneSeek *seek = (const SceneSeek *)context;
+    const MMSceneRuntime *r = seek->runtime;
+    const MMSceneRuntimeServices *s = seek->services;
+    void *c = s->context;
+    if (!(r->disabled & MM_SCENE_EFFECT_TEXTS) && !mm_scene_force(target, 1, 0, s))
+        return MM_MOVIE_BAD_FILE;
+    if (!(r->disabled & MM_SCENE_EFFECT_ACTORS))
+        mm_scene_prerender(r, seek->data, 0, s);
+    s->notice(c, MM_SCENE_INVALIDATE, 0);
+    if (seek->update)
+        s->notice(c, MM_SCENE_SOUND_INDICATOR, seek->sound);
+    return MM_MOVIE_OK;
+}
+
+int mm_scene_goto(MMSceneRuntime *r, MMSceneState *d, MMI32 target,
+                        const MMSceneRuntimeServices *s)
+{
+    SceneSeek seek;
+    MMMovieFrameServices services;
+    seek.runtime = r;
+    seek.data = d;
+    seek.services = s;
+    services.context = &seek;
+    services.begin = begin_seek;
+    services.actor_count = seek_actor_count;
+    services.seek_actor = seek_actor;
+    services.finish = finish_seek;
+    return mm_movie_seek_frame(target, &services) == MM_MOVIE_OK;
 }
 int mm_scene_replay(MMSceneRuntime *r, const MMSceneState *d, MMU32 enabled,
                           const MMSceneRuntimeServices *s)

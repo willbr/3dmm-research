@@ -37,6 +37,8 @@ int mm_session_scene(const MMMovieSession *, const MMChunkAccess *, MMU32 slot, 
 int mm_session_group(const MMReadStream *, const MMChunkIndex *, const MMChunkEntry *, MMMovieGroup *);
 const unsigned char *mm_session_group_row(const MMMovieGroup *, MMU32 row, MMI32 *size);
 int mm_session_scene_group(const MMMovieSession *, const MMChunkAccess *, MMU32 scene, int start, MMMovieGroup *);
+int mm_session_camera_at(const MMMovieSession *, const MMChunkAccess *, MMU32 scene, const MMMovieGroup *starts,
+                          MMI32 frame, MMMovieSourceRead, void *context, MMMovieCamera *);
 
 typedef struct MMMovieBodyInput
 {

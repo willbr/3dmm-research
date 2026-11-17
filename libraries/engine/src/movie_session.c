@@ -459,6 +459,22 @@ MMI32 mm_movie_view_last_event(const MMMovieEventView *view, int kind, MMI32 fra
     return -1;
 }
 
+int mm_movie_seek_frame(MMI32 frame, const MMMovieFrameServices *services)
+{
+    MMU32 i;
+    void *context = services->context;
+    int status = services->begin(context, frame);
+    if (status)
+        return status;
+    for (i = 0; i < services->actor_count(context); ++i)
+    {
+        status = services->seek_actor(context, i, frame);
+        if (status)
+            return status;
+    }
+    return services->finish ? services->finish(context, frame) : 0;
+}
+
 static void read_scene_event(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
 {
     const MMMovieGroup *events = (const MMMovieGroup *)group;
@@ -469,27 +485,22 @@ static void read_scene_event(void *context, void *group, MMI32 index, MMI32 *fra
     *kind = (int)mm_signed_word(mm_session_word(row + 4, events->header.big_endian));
 }
 
-static int scan_camera_events(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 scene,
-                              int start, MMI32 frame, MMMovieCamera *camera)
+static void scan_camera_events(const MMMovieGroup *group, int start, MMI32 frame, MMMovieCamera *camera)
 {
-    MMMovieGroup group;
     MMMovieEventView view;
     const unsigned char *row;
     MMI32 size, selected;
-    int big, status = mm_session_scene_group(movie, access, scene, start, &group);
-    if (status != MM_MOVIE_OK)
-        return status;
-    big = group.header.big_endian;
+    int big = group->header.big_endian;
     view.context = NULL;
-    view.group = &group;
-    view.count = (MMI32)group.header.count;
+    view.group = (void *)group;
+    view.count = (MMI32)group->header.count;
     view.read = read_scene_event;
     if (start)
         frame = LAST_AUTHORED_FRAME; /* A start event is independent of its stored frame. */
     selected = mm_movie_view_last_event(&view, MM_SCENE_CHANGE_CAMERA, frame, 1, NULL);
     if (selected >= 0)
     {
-        row = mm_session_group_row(&group, (MMU32)selected, &size);
+        row = mm_session_group_row(group, (MMU32)selected, &size);
         camera->slot = mm_session_word(row + 8, big);
     }
     if (start)
@@ -497,14 +508,12 @@ static int scan_camera_events(const MMMovieSession *movie, const MMChunkAccess *
         selected = mm_movie_view_last_event(&view, MM_SCENE_SET_BACKGROUND, frame, 1, NULL);
         if (selected >= 0)
         {
-            row = mm_session_group_row(&group, (MMU32)selected, &size);
+            row = mm_session_group_row(group, (MMU32)selected, &size);
             camera->background.source = mm_signed_word(mm_session_word(row + 8, big));
             camera->background.type = mm_session_word(row + 16, big);
             camera->background.number = mm_session_word(row + 20, big);
         }
     }
-    free(group.bytes);
-    return MM_MOVIE_OK;
 }
 
 static int load_camera(const MMReadStream *stream, MMChunkIndex *index, MMMovieCamera *camera)
@@ -532,30 +541,22 @@ static int load_camera(const MMReadStream *stream, MMChunkIndex *index, MMMovieC
     return status;
 }
 
-int mm_movie_session_camera(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
-                            MMMovieSourceRead source, void *context, MMMovieCamera *out)
+int mm_session_camera_at(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 scene,
+                         const MMMovieGroup *starts, MMI32 frame, MMMovieSourceRead source,
+                         void *context, MMMovieCamera *out)
 {
-    MMChunkAccess access;
-    MMMovieSessionScene scene;
+    MMMovieGroup frames;
     MMMovieCamera camera;
-    MMU32 position;
     MMReadStream stream;
     MMChunkIndex *index;
     int status;
-    if (!movie || !out)
-        return MM_MOVIE_BAD_FILE;
-    access = mm_chunk_index_access(movie->index);
-    status = mm_session_scene(movie, &access, scene_slot, &position, &scene);
-    if (status != MM_MOVIE_OK)
-        return status;
-    if (frame < scene.first_frame || frame > scene.last_frame)
-        return MM_MOVIE_FRAME_OUT_OF_RANGE;
     memset(&camera, 0, sizeof(camera));
-    status = scan_camera_events(movie, &access, position, 1, frame, &camera);
-    if (status == MM_MOVIE_OK)
-        status = scan_camera_events(movie, &access, position, 0, frame, &camera);
+    scan_camera_events(starts, 1, frame, &camera);
+    status = mm_session_scene_group(movie, access, scene, 0, &frames);
     if (status != MM_MOVIE_OK)
         return status;
+    scan_camera_events(&frames, 0, frame, &camera);
+    free(frames.bytes);
     if (camera.background.type != BACKGROUND_TYPE || camera.background.source < 0)
         return MM_MOVIE_ASSET_NOT_FOUND;
     if (!camera.background.source)
@@ -575,5 +576,29 @@ int mm_movie_session_camera(const MMMovieSession *movie, MMU32 scene_slot, MMI32
     }
     if (status == MM_MOVIE_OK)
         *out = camera;
+    return status;
+}
+
+int mm_movie_session_camera(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
+                            MMMovieSourceRead source, void *context, MMMovieCamera *out)
+{
+    MMChunkAccess access;
+    MMMovieSessionScene scene;
+    MMMovieGroup starts;
+    MMU32 position;
+    int status;
+    if (!movie || !out)
+        return MM_MOVIE_BAD_FILE;
+    access = mm_chunk_index_access(movie->index);
+    status = mm_session_scene(movie, &access, scene_slot, &position, &scene);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (frame < scene.first_frame || frame > scene.last_frame)
+        return MM_MOVIE_FRAME_OUT_OF_RANGE;
+    status = mm_session_scene_group(movie, &access, position, 1, &starts);
+    if (status != MM_MOVIE_OK)
+        return status;
+    status = mm_session_camera_at(movie, &access, position, &starts, frame, source, context, out);
+    free(starts.bytes);
     return status;
 }

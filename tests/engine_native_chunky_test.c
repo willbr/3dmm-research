@@ -141,6 +141,23 @@ static int check_actors(const MMMovieSession *movie, SeekInput *input, MMMovieSo
     return status == MM_MOVIE_ACTOR_NOT_FOUND;
 }
 
+static int check_frame(const MMMovieSession *movie, SeekInput *input, MMMovieContent *content)
+{
+    MMMovieEvaluatedFrame *frame;
+    MMU32 i;
+    int status = mm_movie_session_seek(movie, input->scene, input->frame, mm_movie_content_source, content, &frame);
+    if (status != MM_MOVIE_OK)
+    {
+        fprintf(stderr, "Cannot seek to movie frame (%d)\n", status);
+        return 0;
+    }
+    print_camera(&frame->camera);
+    for (i = 0; i < frame->actor_count; ++i)
+        print_actor(&frame->actors[i]);
+    mm_movie_frame_dispose(frame);
+    return 1;
+}
+
 static MMU32 fold(MMU32 hash, MMU32 value)
 {
     return (hash ^ value) * (MMU32)16777619UL;
@@ -341,9 +358,7 @@ static int check_seek(const MMReadStream *stream, const MMChunkPolicy *policy, S
         if (vfs && mount_retail(vfs, input->path))
             content = mm_movie_content_open(movie, vfs, &provider);
         if (content)
-            ok = bodies != NO_BODY ? check_bodies(movie, input, content, bodies)
-                        : check_camera(movie, input, mm_movie_content_source, content) &&
-                          check_actors(movie, input, mm_movie_content_source, content);
+            ok = bodies != NO_BODY ? check_bodies(movie, input, content, bodies) : check_frame(movie, input, content);
         else
             fprintf(stderr, "Cannot mount retail content from %s\n", input->path);
     }

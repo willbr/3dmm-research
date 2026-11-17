@@ -13051,6 +13051,38 @@ under `tmp/c89-actor-frame/`.
 This workspace path links to the evidence drive to keep space available for
 Windows builds.
 
+### Shared C89 scene seek transaction (17 November 2026)
+
+Studio and Marcus now pass their live frame seeks through `mm_movie_seek_frame`.
+The transaction runs the opening phase, seeks actors in scene order, then
+runs the final phase. Studio dispatches scene events before the actors and
+handles captions, prerendering and view notifications afterward. Marcus
+applies its live camera and publishes the frame after the actors. The engine
+fixtures retain failure coverage for both paths, including partial effects.
+
+The standalone `mm_movie_session_seek` returns an owned camera and actor
+snapshot after reading the scene header and start group once. The CLI produced
+identical results at 300 positions across three stock movies and two SID 29
+fixtures. A real seek with only the background archive mounted completed
+camera resolution and returned the existing missing-actor-content error.
+The CLI emitted no partial frame. The C fixture covers empty actor lists,
+packed event groups in both byte orders, an out-of-range frame, and output
+preservation after an invalid event group or missing content.
+
+Both hosts matched 228 pre-change seek observations and 180 viewport
+hashes. Studio's 456 actor records matched the retained retail and v3dmm
+observations, including the fixed-point transforms. Normal playback of
+`actor-events`, `dissolve` and `scrolling-text`, plus an in-process replay
+of `actor-events`, matched retail's frame order and final position across
+240 commits per host. Two direct loopback runs per host captured both
+authored actor tones, and Studio matched retail's 12 sound requests in
+each run. Timing and exact PCM remain inconclusive against the retained
+retail repetitions.
+
+All 181 standalone and 16 host checks passed. The four affected C files
+compiled under strict C89 for Linux x64 musl. Both hosts built and Marcus
+was relaunched. Evidence is under `tmp/c89-scene-seek/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

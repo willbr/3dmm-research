@@ -64,12 +64,20 @@ owns command delivery and failure accumulation. The effect adapters update
 their live state, costume, pose and sound as each command runs.
 The same three paths use `mm_actor_frame_run` for event commands and
 `mm_actor_frame_display` for motion sounds, position, cel selection and pose.
+`mm_movie_seek_frame` drives the scene-level seek in Studio and Marcus. It
+begins the frame, evaluates actors in scene order and runs the final phase
+only when every actor succeeds. Studio dispatches live events in the first
+phase and handles captions and prerendering in the last phase. Marcus
+selects its live camera and publishes the frame in the last phase.
+`mm_movie_session_seek` uses the same transaction for an immutable archive.
+It reads the scene and start group once, resolves the camera and evaluates
+all actors in authored order. It publishes an owned snapshot on success.
 `mm-movie-content` supplies a C resolver for either query. It reads the movie's
 source-name table, resolves its aliases through the existing content VFS and
 searches mounted `.3cn` archives by exact chunk type and number. Archive
 opening remains a platform service. `engine-native-chunky-test FILE --seek
-SCENE FRAME RETAIL_CONTENT_DIRECTORY` mounts the retail directory and runs
-both queries from a single movie session.
+SCENE FRAME RETAIL_CONTENT_DIRECTORY` mounts the retail directory and prints
+the complete frame snapshot.
 SDL Studio and Marcus use the same GST link lookup and C89 source-table reader
 for movie-authored sources. Both host adapters preserve the legacy text
 conversion. Studio merges names into the existing tag manager and Marcus

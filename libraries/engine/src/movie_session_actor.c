@@ -659,48 +659,19 @@ static int evaluate_body(ActorInput *input, const MMMovieEvaluatedActor *actor)
     return status;
 }
 
-static int evaluate(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
-                    MMMovieSourceRead source, void *context, MMMovieEvaluatedActor *out,
-                    MMMovieEvaluatedBody **body)
+static int evaluate_slot(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 scene_position,
+                         MMU32 slot, MMI32 frame, MMMovieSourceRead source, void *context,
+                         MMMovieEvaluatedActor *out, MMMovieEvaluatedBody **body)
 {
-    MMChunkAccess access;
     MMChunkEntry entry;
-    MMMovieSessionScene scene;
-    MMMovieGroup starts;
     ActorInput input;
-    MMU32 position, i, slot = 0;
-    MMI32 size;
     int status;
-    const unsigned char *row;
-    if (!movie || !out)
-        return MM_MOVIE_BAD_FILE;
-    access = mm_chunk_index_access(movie->index);
-    status = mm_session_scene(movie, &access, scene_slot, &position, &scene);
-    if (status != MM_MOVIE_OK)
-        return status;
-    if (frame < scene.first_frame || frame > scene.last_frame || frame == 2147483647L)
-        return MM_MOVIE_FRAME_OUT_OF_RANGE;
-    status = mm_session_scene_group(movie, &access, position, 1, &starts);
-    if (status != MM_MOVIE_OK)
-        return status;
-    for (i = 0; i < starts.header.count; ++i)
-    {
-        row = mm_session_group_row(&starts, i, &size);
-        if (mm_session_word(row + 4, starts.header.big_endian) == MM_SCENE_ADD_ACTOR && ordinal-- == 0)
-        {
-            slot = mm_session_word(row + 8, starts.header.big_endian);
-            break;
-        }
-    }
-    free(starts.bytes);
-    if (i == starts.header.count)
-        return MM_MOVIE_ACTOR_NOT_FOUND;
     memset(&input, 0, sizeof(input));
     input.movie = movie;
     input.source = source;
     input.source_context = context;
     input.action = -1;
-    if (mm_session_child(&access, position, slot, ACTOR_TYPE, &entry, &input.actor_position) != MM_CHUNK_OK)
+    if (mm_session_child(access, scene_position, slot, ACTOR_TYPE, &entry, &input.actor_position) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
     if (body)
     {
@@ -722,6 +693,60 @@ static int evaluate(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, 
     return status;
 }
 
+static int next_actor_start(const MMMovieGroup *starts, MMU32 *cursor, MMU32 *slot)
+{
+    const unsigned char *row;
+    MMI32 size;
+    int big = starts->header.big_endian;
+    while (*cursor < starts->header.count)
+    {
+        row = mm_session_group_row(starts, *cursor, &size);
+        ++*cursor;
+        if (mm_session_word(row + 4, big) == MM_SCENE_ADD_ACTOR)
+        {
+            *slot = mm_session_word(row + 8, big);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int read_actor_scene(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 scene_slot, MMI32 frame,
+                              MMU32 *position, MMMovieSessionScene *scene, MMMovieGroup *starts)
+{
+    int status = mm_session_scene(movie, access, scene_slot, position, scene);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (frame < scene->first_frame || frame > scene->last_frame || frame == 2147483647L)
+        return MM_MOVIE_FRAME_OUT_OF_RANGE;
+    return mm_session_scene_group(movie, access, *position, 1, starts);
+}
+
+static int evaluate(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
+                    MMMovieSourceRead source, void *context, MMMovieEvaluatedActor *out,
+                    MMMovieEvaluatedBody **body)
+{
+    MMChunkAccess access;
+    MMMovieSessionScene scene;
+    MMMovieGroup starts;
+    MMU32 position, slot, cursor = 0;
+    int status;
+    if (!movie || !out)
+        return MM_MOVIE_BAD_FILE;
+    access = mm_chunk_index_access(movie->index);
+    status = read_actor_scene(movie, &access, scene_slot, frame, &position, &scene, &starts);
+    if (status != MM_MOVIE_OK)
+        return status;
+    while (next_actor_start(&starts, &cursor, &slot))
+        if (ordinal-- == 0)
+        {
+            free(starts.bytes);
+            return evaluate_slot(movie, &access, position, slot, frame, source, context, out, body);
+        }
+    free(starts.bytes);
+    return MM_MOVIE_ACTOR_NOT_FOUND;
+}
+
 int mm_movie_session_actor(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
                            MMMovieSourceRead source, void *context, MMMovieEvaluatedActor *out)
 {
@@ -735,4 +760,101 @@ int mm_movie_session_body(const MMMovieSession *movie, MMU32 scene_slot, MMI32 f
     if (!out)
         return MM_MOVIE_BAD_FILE;
     return evaluate(movie, scene_slot, frame, ordinal, source, context, &actor, out);
+}
+
+typedef struct FrameInput
+{
+    const MMMovieSession *movie;
+    MMChunkAccess access;
+    MMMovieGroup starts;
+    MMU32 scene_slot, scene_position, cursor;
+    MMMovieSourceRead source;
+    void *source_context;
+    MMMovieEvaluatedFrame *result;
+} FrameInput;
+
+static int begin_frame(void *context, MMI32 frame)
+{
+    FrameInput *input = (FrameInput *)context;
+    MMMovieEvaluatedFrame *result = input->result;
+    MMMovieGroup starts;
+    MMU32 slot, cursor = 0;
+    size_t bytes;
+    int status = read_actor_scene(input->movie, &input->access, input->scene_slot, frame,
+                                  &input->scene_position, &result->scene, &starts);
+    if (status != MM_MOVIE_OK)
+        return status;
+    input->starts = starts;
+    status = mm_session_camera_at(input->movie, &input->access, input->scene_position, &input->starts,
+                                   frame, input->source, input->source_context, &result->camera);
+    if (status != MM_MOVIE_OK)
+        return status;
+    result->frame = frame;
+    while (next_actor_start(&input->starts, &cursor, &slot))
+        ++result->actor_count;
+    if (result->actor_count)
+    {
+        bytes = (size_t)result->actor_count * sizeof(*result->actors);
+        if (bytes / sizeof(*result->actors) != result->actor_count)
+            return MM_MOVIE_MEMORY;
+        result->actors = (MMMovieEvaluatedActor *)malloc(bytes);
+        if (!result->actors)
+            return MM_MOVIE_MEMORY;
+    }
+    return MM_MOVIE_OK;
+}
+
+static MMU32 frame_actor_count(void *context)
+{
+    return ((const FrameInput *)context)->result->actor_count;
+}
+
+static int seek_frame_actor(void *context, MMU32 ordinal, MMI32 frame)
+{
+    FrameInput *input = (FrameInput *)context;
+    MMU32 slot;
+    if (!next_actor_start(&input->starts, &input->cursor, &slot))
+        return MM_MOVIE_BAD_FILE;
+    return evaluate_slot(input->movie, &input->access, input->scene_position, slot, frame, input->source,
+                          input->source_context, &input->result->actors[ordinal], NULL);
+}
+
+int mm_movie_session_seek(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
+                          MMMovieSourceRead source, void *context, MMMovieEvaluatedFrame **out)
+{
+    FrameInput input;
+    MMMovieFrameServices services;
+    int status;
+    if (!movie || !out)
+        return MM_MOVIE_BAD_FILE;
+    memset(&input, 0, sizeof(input));
+    input.movie = movie;
+    input.access = mm_chunk_index_access(movie->index);
+    input.scene_slot = scene_slot;
+    input.source = source;
+    input.source_context = context;
+    input.result = (MMMovieEvaluatedFrame *)calloc(1, sizeof(*input.result));
+    if (!input.result)
+        return MM_MOVIE_MEMORY;
+    services.context = &input;
+    services.begin = begin_frame;
+    services.actor_count = frame_actor_count;
+    services.seek_actor = seek_frame_actor;
+    services.finish = NULL;
+    status = mm_movie_seek_frame(frame, &services);
+    free(input.starts.bytes);
+    if (status == MM_MOVIE_OK)
+        *out = input.result;
+    else
+        mm_movie_frame_dispose(input.result);
+    return status;
+}
+
+void mm_movie_frame_dispose(MMMovieEvaluatedFrame *frame)
+{
+    if (frame)
+    {
+        free(frame->actors);
+        free(frame);
+    }
 }

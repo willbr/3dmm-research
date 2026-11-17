@@ -727,6 +727,7 @@ static void movie_camera(void)
     MMMemoryStream input;
     MMMovieSession *movie;
     MMMovieCamera camera;
+    MMMovieEvaluatedFrame *frame = NULL, *prior;
     MMU32 size;
     int big;
     for (big = 0; big <= 1; ++big)
@@ -741,7 +742,17 @@ static void movie_camera(void)
         CHECK(mm_movie_session_camera(movie, 0, 4, NULL, NULL, &camera) == MM_MOVIE_OK && camera.number == 90);
         CHECK(mm_movie_session_camera(movie, 0, 0, NULL, NULL, &camera) == MM_MOVIE_FRAME_OUT_OF_RANGE &&
               camera.number == 90);
+        CHECK(mm_movie_session_seek(movie, 0, 5, NULL, NULL, &frame) == MM_MOVIE_OK &&
+              frame->frame == 5 && frame->scene.number == 36 && !frame->actor_count && !frame->actors &&
+              frame->camera.number == 80 && frame->camera.data.near_z == 456);
+        prior = frame;
+        CHECK(mm_movie_session_seek(movie, 0, 0, NULL, NULL, &frame) == MM_MOVIE_FRAME_OUT_OF_RANGE && frame == prior);
+        CHECK(mm_movie_session_seek(movie, 0, 4, NULL, NULL, &frame) == MM_MOVIE_OK &&
+              frame->frame == 4 && frame->camera.number == 90 && prior->camera.number == 80);
         mm_movie_session_close(movie);
+        mm_movie_frame_dispose(prior);
+        mm_movie_frame_dispose(frame);
+        frame = NULL;
     }
     size = camera_fixture(bytes, 0, 0, 2, 0);
     CHECK(mm_memory_stream_init(&input, bytes, size));
@@ -749,11 +760,19 @@ static void movie_camera(void)
     CHECK(mm_movie_session_camera(movie, 0, 7, NULL, NULL, &camera) == MM_MOVIE_ASSET_NOT_FOUND && camera.number == 90);
     CHECK(mm_movie_session_camera(movie, 0, 7, camera_source, &input.stream, &camera) == MM_MOVIE_OK &&
           camera.background.source == 2 && camera.number == 80);
+    CHECK(mm_movie_session_seek(movie, 0, 7, NULL, NULL, &frame) == MM_MOVIE_ASSET_NOT_FOUND && !frame);
+    CHECK(mm_movie_session_seek(movie, 0, 7, camera_source, &input.stream, &frame) == MM_MOVIE_OK &&
+          frame->camera.background.source == 2 && frame->camera.number == 80);
+    prior = frame;
+    CHECK(mm_movie_session_seek(movie, 0, 9, NULL, NULL, &frame) == MM_MOVIE_ASSET_NOT_FOUND && frame == prior);
+    mm_movie_frame_dispose(frame);
+    frame = NULL;
     mm_movie_session_close(movie);
     size = camera_fixture(bytes, 0, 0, 0, 1);
     CHECK(mm_memory_stream_init(&input, bytes, size));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
     CHECK(mm_movie_session_camera(movie, 0, 7, NULL, NULL, &camera) == MM_MOVIE_BAD_FILE && camera.number == 80);
+    CHECK(mm_movie_session_seek(movie, 0, 7, NULL, NULL, &frame) == MM_MOVIE_BAD_FILE && !frame);
     mm_movie_session_close(movie);
 }
 /* Three independently encoded records. Root owns the first child twice and

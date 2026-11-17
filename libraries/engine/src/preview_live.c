@@ -389,31 +389,59 @@ static void read_camera_change(void *context, void *group, MMI32 index, MMI32 *f
     *kind = MM_SCENE_CHANGE_CAMERA;
 }
 
-int mm_preview_live_seek(MMPreviewLive *p, MMI32 frame, const MMPreviewLiveServices *s)
+typedef struct PreviewSeek
 {
-    MMU32 i, camera = p->initial_camera;
-    MMMovieEventView view;
-    MMI32 selected;
-    int effect;
+    MMPreviewLive *live;
+    const MMPreviewLiveServices *services;
+    MMU32 initial_camera;
+} PreviewSeek;
+
+static int begin_seek(void *context, MMI32 frame)
+{
+    const PreviewSeek *seek = (const PreviewSeek *)context;
+    const MMPreviewLive *p = seek->live;
+    const MMPreviewLiveServices *s = seek->services;
     if (s->begin_seek)
         s->begin_seek(s->context);
     if (!p->status.ready || !p->status.timeline || frame < p->status.first || frame > p->status.last)
         return MM_PREVIEW_LIVE_FRAME;
-    for (i = 0; i < p->actors.count; ++i)
+    return MM_PREVIEW_LIVE_OK;
+}
+
+static MMU32 seek_actor_count(void *context)
+{
+    return ((const PreviewSeek *)context)->live->actors.count;
+}
+
+static int seek_actor(void *context, MMU32 ordinal, MMI32 frame)
+{
+    const PreviewSeek *seek = (const PreviewSeek *)context;
+    MMPreviewLive *p = seek->live;
+    const MMPreviewLiveServices *s = seek->services;
+    int effect = s->actor_seek(s->context, mm_preview_live_actor(p, ordinal), frame);
+    if (effect > 0 && s->healthy && !s->healthy(s->context))
+        effect = 0;
+    if (effect <= 0)
     {
-        effect = s->actor_seek(s->context, mm_preview_live_actor(p, i), frame);
-        if (effect > 0 && s->healthy && !s->healthy(s->context))
-            effect = 0;
-        if (effect <= 0)
-        {
-            if (effect != -2)
-                p->status.ready = 0;
-            publish(p, s);
-            return effect == -2   ? MM_PREVIEW_LIVE_EXCEPTION
-                   : effect == -1 ? MM_PREVIEW_LIVE_SEEK_MEMORY
-                                  : MM_PREVIEW_LIVE_SEEK;
-        }
+        if (effect != -2)
+            p->status.ready = 0;
+        publish(p, s);
+        return effect == -2   ? MM_PREVIEW_LIVE_EXCEPTION
+               : effect == -1 ? MM_PREVIEW_LIVE_SEEK_MEMORY
+                              : MM_PREVIEW_LIVE_SEEK;
     }
+    return MM_PREVIEW_LIVE_OK;
+}
+
+static int finish_seek(void *context, MMI32 frame)
+{
+    const PreviewSeek *seek = (const PreviewSeek *)context;
+    MMPreviewLive *p = seek->live;
+    const MMPreviewLiveServices *s = seek->services;
+    MMU32 camera = seek->initial_camera;
+    MMMovieEventView view;
+    MMI32 selected;
+    int effect;
     if (p->status.background)
     {
         view.context = NULL;
@@ -438,4 +466,19 @@ int mm_preview_live_seek(MMPreviewLive *p, MMI32 frame, const MMPreviewLiveServi
     publish(p, s);
     s->stats(s->context);
     return MM_PREVIEW_LIVE_OK;
+}
+
+int mm_preview_live_seek(MMPreviewLive *p, MMI32 frame, const MMPreviewLiveServices *s)
+{
+    PreviewSeek seek;
+    MMMovieFrameServices services;
+    seek.live = p;
+    seek.services = s;
+    seek.initial_camera = p->initial_camera;
+    services.context = &seek;
+    services.begin = begin_seek;
+    services.actor_count = seek_actor_count;
+    services.seek_actor = seek_actor;
+    services.finish = finish_seek;
+    return mm_movie_seek_frame(frame, &services);
 }

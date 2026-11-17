@@ -95,6 +95,31 @@ typedef struct MMMovieEvaluatedActor
     MMActorMatrix orientation;
 } MMMovieEvaluatedActor;
 
+typedef struct MMMovieFrameServices
+{
+    void *context;
+    int (*begin)(void *, MMI32 frame);
+    MMU32 (*actor_count)(void *);
+    int (*seek_actor)(void *, MMU32 ordinal, MMI32 frame);
+    int (*finish)(void *, MMI32 frame);
+} MMMovieFrameServices;
+
+/* Begin once, seek the actors in scene order, then finish. Each operation
+ * returns zero on success or a caller-defined error. The first error stops
+ * the transaction and is returned unchanged. Completed effects remain applied.
+ * The actor count is live. Services are synchronous and may not reenter the
+ * same seek. finish is optional. */
+int mm_movie_seek_frame(MMI32 frame, const MMMovieFrameServices *);
+
+typedef struct MMMovieEvaluatedFrame
+{
+    MMMovieSessionScene scene;
+    MMI32 frame;
+    MMMovieCamera camera;
+    MMU32 actor_count;
+    MMMovieEvaluatedActor *actors;
+} MMMovieEvaluatedFrame;
+
 typedef struct MMMovieBodyPart
 {
     MMI32 parent, set;
@@ -165,6 +190,13 @@ int mm_movie_session_scene(const MMMovieSession *, MMU32 slot, MMMovieSessionSce
  * Never modifies the session or publishes output on failure. */
 int mm_movie_session_camera(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
                             MMMovieSourceRead, void *context, MMMovieCamera *);
+
+/* Evaluate an authored frame's camera and all actors in start-event order.
+ * Success transfers an owned snapshot, including off-stage actor states.
+ * A missing/invalid camera or actor, or any other failure, leaves out unchanged. */
+int mm_movie_session_seek(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
+                          MMMovieSourceRead, void *context, MMMovieEvaluatedFrame **out);
+void mm_movie_frame_dispose(MMMovieEvaluatedFrame *);
 
 /* Actor ordinals follow the ADD_ACTOR rows in the scene's start group. Replay
  * from a fresh state using the actor's stored route, events and action metadata.
