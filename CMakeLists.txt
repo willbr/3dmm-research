@@ -526,6 +526,13 @@ add_executable(user-services-test EXCLUDE_FROM_ALL tests/user_services_test.cpp)
 target_link_libraries(user-services-test PRIVATE kauai-core)
 add_executable(settings-store-test EXCLUDE_FROM_ALL tests/settings_store_test.cpp)
 target_link_libraries(settings-store-test PRIVATE kauai-core)
+add_executable(settings-adapter-test EXCLUDE_FROM_ALL tests/settings_adapter_test.cpp)
+target_link_libraries(settings-adapter-test PRIVATE kauai-core)
+if(MSVC)
+  target_compile_options(settings-adapter-test PRIVATE /UNDEBUG)
+else()
+  target_compile_options(settings-adapter-test PRIVATE -UNDEBUG)
+endif()
 if(STUDIO_SDL3 OR BUILD_MARCUS)
   add_library(studio-settings STATIC src/studio/settings_ini.cpp)
   target_compile_features(studio-settings PUBLIC cxx_std_17)
@@ -902,11 +909,8 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/codkauai.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/core_platform.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/launch_context.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/settings_store.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/settings_paths.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/settings_store_bridge.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/platform_users_bridge.cpp"
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/settings_store_win.cpp>
-    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/settings_store_posix.cpp>
     "${PROJECT_SOURCE_DIR}/kauai/src/platform_text.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/text_utf8.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cursor_data.cpp"
@@ -1008,6 +1012,7 @@ target_link_libraries(kauai-core
     mm-engine-c89
     mm-native-files
     mm-native-users
+    mm-native-settings
     Threads::Threads
     $<$<PLATFORM_ID:Windows>:advapi32>
     $<$<PLATFORM_ID:Windows>:mpr>
@@ -1590,6 +1595,7 @@ add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnosti
   nick-expansion nick-expansion-test
   platform-services-test file-services-test user-services-test settings-store-test filename-test text-services-test
   text-portable-test string-compat-test kauai-core-link-test brender-core-link-test engine-core-link-test)
+add_dependencies(core-checks settings-adapter-test)
 add_dependencies(core-checks picture-data-test dialog-resource-test dialog-api-check dialog-controller-api-check dialog-model-test legacy-math-test pixel-canvas-test font-services-test cursor-data-test)
 add_dependencies(core-checks engine-model-resource-test model-resource-test engine-body-geometry-test engine-sound-payload-test sound-payload-test resource-cache-test engine-event-edit-test engine-action-edit-test engine-costume-edit-test engine-route-edit-test engine-subroute-edit-test engine-placement-test engine-stage-edit-test engine-record-test engine-transform-edit-test engine-actor-owner-test engine-actor-undo-test engine-group-undo-test engine-actor-transaction-test engine-actor-copy-test engine-route-paste-test engine-actor-paste-test engine-actor-clipboard-test engine-actor-create-test engine-movie-sound-test)
 add_dependencies(core-checks bitmap-file-test engine-bitmap-file-test)
@@ -1982,6 +1988,7 @@ if(BUILD_TESTING)
   endif()
   add_test(NAME user-services COMMAND user-services-test)
   add_test(NAME settings-store COMMAND settings-store-test)
+  add_test(NAME settings-adapter COMMAND settings-adapter-test)
   if(TARGET settings-ini-test)
     add_test(NAME settings-ini COMMAND settings-ini-test)
     set_tests_properties(settings-ini PROPERTIES SKIP_RETURN_CODE 77)

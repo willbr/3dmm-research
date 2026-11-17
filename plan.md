@@ -510,6 +510,11 @@ library. Caller-owned result records preserve Windows WNet provider errors,
 POSIX effective-uid lookup/retry limits and Linux/macOS path selection. Existing
 callers use a value-only C++ adapter; username UI, native object integration and
 final facade removal remain work.
+Settings read/write/default transactions, POSIX configuration-root selection,
+Windows registry access/read-only enumeration and POSIX KPS1 file persistence
+now also use C89. Native contexts own the temporary-file counter and mutex;
+the C++ adapter translates values, default bindings and callback exceptions.
+The existing INI frontend and final native facade integration remain work.
 Counted String copy/set/delete/append/insert, exact equality,
 32-bit number parsing and control expansion now also use shared C89 over borrowed
 one/two-byte buffers, retaining native copy diagnostics. Format parsing, numeric/

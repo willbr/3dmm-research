@@ -6043,12 +6043,18 @@ needs platform adapter work; this is not evidence of a full POSIX Studio launch.
 SDL startup product names now come from SDK-free shared constants in
 `inc/studio_product_names.h`; native resource tables use those same definitions.
 
-Studio preference policy now lives in the SDK-free `settings_store.h/.cpp`:
+Studio preference policy now uses the C89 `mm/settings.h` implementation:
 typed byte payloads, get/set/default behavior, missing/error reporting and handle
-cleanup accept a backend table. `settings_store_win.cpp` retains the original
-registry keys and 32-bit view. `settings_store_posix.cpp` now supplies locked,
+cleanup accept a C backend table. `native_settings_win.c` retains the original
+registry keys, 32-bit view and read-only value enumeration. `native_settings_posix.c` supplies locked,
 atomic file replacement under XDG/Application Support configuration roots, with
-typed opaque payloads and corruption checks. Studio selects the matching backend.
+typed opaque payloads and corruption checks. Explicit native contexts own
+temporary-number/mutex state; two-word arithmetic preserves 64-bit numbering
+without C99 integer types. `settings_store_bridge.cpp` translates existing
+`settings_store.h` callers and contains callback exceptions until C cleanup has
+finished. C-only consumers use `mm-native-settings` and caller-owned policy
+records; Windows enumeration borrows buffers through a callback. Studio selects
+the matching backend. The INI frontend and default native bindings remain adapters.
 Native tests use an isolated disposable registry key; Linux runs real filesystem
 tests including failed writes and concurrent defaults. The shared policy
 and POSIX implementation cross-compile for macOS, whose runtime remains

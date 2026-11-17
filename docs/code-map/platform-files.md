@@ -63,6 +63,19 @@ including a measure-only call. Native root queries clear insufficient nonempty
 buffers and never publish a truncated path. C++ value allocation remains only
 in the compatibility adapter; account lookup and path policy execute in C.
 
+Preference storage uses a separate C89 `mm-native-settings` library and
+`mm/native_settings.h`. Windows retains the original registry view and optional
+test namespace. POSIX stores the same typed KPS1 payloads under configuration
+roots selected by `mm_settings_configuration_root`. Each open holds the namespace
+lock until close. Writes retain exclusive temporary creation, exact/retrying I/O,
+file sync/close and rename publication; directory sync remains best effort.
+The context owns its two-word temporary-number sequence and mutex. Destroy it
+after all handles close and all calls finish; coordinate environment changes
+and fork with callers stopped. The shared `mm/settings.h` access policy preserves
+missing/error/default handling, exact explicit payload sizes and output flags.
+`settings_store_bridge.cpp` supplies legacy C++ values/default bindings; its
+exception adapters allow C to close handles before rethrowing to C++ callers.
+
 Temporary files now use exclusive creation after choosing a name. A collision
 fails rather than truncating a file another process created in the meantime.
 Ordinary `PfilCreate` retains its overwrite behavior. Temporary-name selection

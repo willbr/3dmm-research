@@ -12681,3 +12681,65 @@ Evidence: `tmp/c89-native-users/{platform_users_win.cpp,platform_users_posix.cpp
 `run-{native,sdl-release,sdl-debug,standalone}-tests.log`,
 `platform-{ansi,wide}-tests.log`, `asan-runtime.log`, `run-regular-tests.log`,
 `trace-comparison.json`, `gates.json` and `identities.json`.
+
+### C89 preference policy and native settings storage (17 November 2026)
+
+`mm/settings.h` now owns typed get/set/default transactions and configuration-root
+selection. `mm-native-settings` supplies Windows registry access/enumeration and
+POSIX file storage through an explicit C context. The old `settings_store.cpp`,
+`settings_paths.cpp`, `settings_store_win.cpp` and `settings_store_posix.cpp` are
+removed. `settings_store_bridge.cpp` translates existing callers, C++ values and
+callback exceptions; no exception crosses a C callback. Output notifications
+execute in C's assignment order, retaining aliased flags, close-callback
+observations/modifications and typed request updates between callbacks.
+
+Windows retains HKCU/HKLM, the 32-bit registry view, raw payload sizes (including
+legacy one-byte DWORD values), optional validated test isolation and read-only
+enumeration. Unknown types and unnamed setup markers remain excluded from the
+enumeration. POSIX retains ASCII-folded/hex names, 126-byte name limits, KPS1
+records, 16 MiB payload admission, namespace locking, no-follow/regular-file
+checks, permissions, exact/retrying I/O and temporary-file replacement. A context
+owns its temporary sequence and mutex; two-word arithmetic preserves the prior
+64-bit decimal numbering and wrap without C99 integer types. Directory sync
+remains best effort. Existing directories, stored encodings and movie data are
+not rewritten.
+
+The original revision is `13e4d28648f9c8e710f4228c17ca97266296ccf0`. Original policy
+and registry fixtures passed in Native, SDL Release and SDL Debug before
+conversion. An original-versus-C policy grid matches in 163,840 cases per
+character width (327,680 total), covering flags, open/read/write failures, types,
+capacities and cleanup; 196 configuration-root combinations match per profile.
+The focused callback fixture passes against both the original C++ function and
+the adapter, including exceptions, flag publication before close, close-side
+modifications, aliased outputs and callback changes to a request.
+
+The isolated Linux guest passes eight original/converted/C-only/adapter programs.
+The existing physical-store fixture covers persistence, malformed/truncated
+records, symlinks/FIFOs, partial-write recovery, temporary cleanup and concurrent
+defaults. New C checks cover native persistence and query sizes, allocation
+failure cleanup, EINTR/short transfers, name limits, 32-bit sequence carry and
+64-bit wrap. The standalone Linux engine/provider targets build and link with
+the C toolchain under strict C89 diagnostics; the guest powers off after testing.
+Strict 32-bit Linux GNU and ARM64 macOS C objects and the macOS C++ interfaces
+also compile. macOS runtime and precise original allocation-failure ordinals
+remain unverified.
+
+Native passes 269 selected CTest checks, SDL Release passes 264 with the existing
+`world-export` skip, SDL Debug passes 265, and the Windows standalone C89 engine
+passes 175. The ANSI/UTF-16 standalone platform profiles pass nine each;
+AddressSanitizer passes the three new C settings checks. Total: 994 passed CTest
+checks and one existing skip. The regular headless preview harness passes.
+All 219 retained trace pairs match; all three hosts retain 12 backgrounds,
+188 cameras, 301,996,032 background bytes and FNV `E1A71005`. Ten input hashes
+and the Windows ACP/OEM/locale identity remain unchanged; 279 executable
+identities are recorded. Native tools/Marcus and both SDL Studio profiles rebuild;
+Marcus is stopped before rebuilding and relaunched afterward. No Marcus UI tests
+or new retail captures are added. The INI frontend, default C++ bindings and
+other native facades remain work; this is not completion of the C89 migration.
+
+Evidence: `tmp/c89-settings/{settings_store.cpp,settings_paths.cpp,settings_store_win.cpp,settings_store_posix.cpp}`,
+`policy-compare-{ansi,wide}.log`, `adapter-{original,focused}.exe`,
+`linux-{build-final,runtime}.log`, `linux-identities.json`,
+`run-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`platform-{ansi,wide}-tests.log`, `asan-runtime.log`, `run-regular-tests.log`,
+`trace-comparison.json`, `gates.json` and `identities.json`.
