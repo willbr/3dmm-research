@@ -129,7 +129,14 @@ use the existing player actions. The Words tab creates and selects 3D text objec
 preview. Use the arrows, Page Up/Down, Home/End or mouse wheel to browse, then
 **Add scene**, Enter or double-click to confirm. Escape/Cancel leaves the movie
 unchanged. Preview rendering runs in a cancellable helper process and does not
-replace the live movie. Retail choices require the original `bkgds.3cn` and normal
+replace the live movie. Marcus warms all retail background previews in the
+background at startup and keeps their textures when the chooser closes, so
+browsing and reopening use the ready images immediately. Successful previews
+are also saved in `background-previews` under Marcus's preferences folder for
+reuse across launches. Changing the resource file, background archive or preview
+helper (path, size or modification time) invalidates that cache. The first launch
+with new content may briefly show loading while previews are generated; missing
+or corrupt cache files are regenerated automatically. Retail choices require the original `bkgds.3cn` and normal
 Resources/Content paths. Storyboards use the black scene's original palette from
 `bkgds.3cn`, so actors and props retain their normal colours.
 

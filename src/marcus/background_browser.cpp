@@ -1,5 +1,6 @@
 #include "background_browser.h"
 #include "preview_worker.h"
+#include "preview_cache.h"
 #include "frame_previews.h"
 #include <algorithm>
 #include <array>
@@ -19,24 +20,101 @@ SDL_FRect GalleryCard(float x, float y, int cell)
 struct MarcusBackgroundBrowser
 {
     bool open = false, chosen = false, scrollDragging = false, props = false, actors = false;
-    int selected = 0, scroll = 0, previewIndex = -1;
+    int selected = 0, scroll = 0;
     std::vector<MarcusBackground> backgrounds;
     std::string resources, content, error;
     std::shared_ptr<std::atomic<bool>> cancel;
     std::future<BrowserPreview> pending;
-    SDL_Texture *texture = nullptr;
+    struct BackgroundTile
+    {
+        unsigned long chunk;
+        SDL_Texture *texture = nullptr;
+        std::string error;
+        bool attempted = false;
+    };
+    std::vector<BackgroundTile> backgroundTiles;
+    MarcusPreviewCache backgroundCache;
+    std::string backgroundResources, backgroundContent;
+    int loadingBackground = -1;
     struct Tile { SDL_Texture *texture = nullptr; std::string error; Uint64 used = 0; };
     std::vector<Tile> tiles;
     std::unique_ptr<MarcusFramePreviews> models;
     int cachedModels = 0;
     Uint64 cacheClock = 0;
-    ~MarcusBackgroundBrowser() { Stop(); ClearGallery(); SDL_DestroyTexture(texture); }
+    ~MarcusBackgroundBrowser() { Stop(); ClearGallery(); ClearBackgrounds(); }
+    void ClearBackgrounds()
+    {
+        if (cancel) *cancel = true;
+        if (pending.valid()) { pending.wait(); pending = {}; }
+        for (auto &tile : backgroundTiles) SDL_DestroyTexture(tile.texture);
+        backgroundTiles.clear(); loadingBackground = -1;
+    }
+    BackgroundTile *Background(unsigned long chunk)
+    {
+        for (auto &tile : backgroundTiles) if (tile.chunk == chunk) return &tile;
+        return nullptr;
+    }
+    // Runs even while the chooser is closed. All SDL textures stay on this thread;
+    // only disk I/O and the isolated decoder run in the worker.
+    void WarmBackgrounds(MarcusUI *ui)
+    {
+        if (pending.valid() && pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        {
+            auto &tile = backgroundTiles[loadingBackground];
+            tile.attempted = true;
+            try
+            {
+                const auto result = pending.get();
+                tile.error = result.error;
+                if (!result.rgba.empty())
+                {
+                    auto surface = SDL_CreateSurfaceFrom(result.width, result.height, SDL_PIXELFORMAT_RGBA32,
+                        const_cast<unsigned char *>(result.rgba.data()), result.width * 4);
+                    tile.texture = surface ? SDL_CreateTextureFromSurface(ui->renderer, surface) : nullptr;
+                    SDL_DestroySurface(surface);
+                    if (!tile.texture) tile.error = SDL_GetError();
+                }
+            }
+            catch (const std::exception &e) { tile.error = e.what(); }
+        }
+        if (pending.valid()) return;
+        int next = -1;
+        // An uncached selection takes priority over the remaining warm-up work.
+        for (int i = 0; i < int(backgroundTiles.size()); ++i)
+            if (!backgroundTiles[i].attempted)
+            {
+                if (next < 0) next = i;
+                if (open && !props && backgroundTiles[i].chunk == backgrounds[selected].chunk) { next = i; break; }
+            }
+        if (next < 0) return;
+        loadingBackground = next;
+        cancel = std::make_shared<std::atomic<bool>>(false);
+        const auto cancelled = cancel;
+        const auto chunk = backgroundTiles[next].chunk;
+        const auto cache = backgroundCache;
+        const auto resources = backgroundResources, content = backgroundContent;
+        try
+        {
+            pending = std::async(std::launch::async, [=] {
+                BrowserPreview result;
+                if (!cache.Load(chunk, result))
+                {
+                    result = RunPreviewWorker(std::to_string(chunk), resources,
+                        [cancelled] { return cancelled->load(); }, content, false, {}, true);
+                    if (!*cancelled) cache.Store(chunk, result);
+                }
+                return result;
+            });
+        }
+        catch (const std::exception &e)
+        { backgroundTiles[next].attempted = true; backgroundTiles[next].error = e.what(); }
+    }
     void ClearGallery()
     {
         for (auto &tile : tiles) SDL_DestroyTexture(tile.texture);
         tiles.clear(); cachedModels = 0; cacheClock = 0;
     }
-    void Stop() { if (cancel) *cancel = true; if (pending.valid()) pending.wait(); models.reset(); }
+    void Stop() { models.reset(); }
     void Select(int index)
     {
         selected = std::clamp(index, 0, static_cast<int>(backgrounds.size()) - 1);
@@ -170,9 +248,44 @@ MarcusBackgroundBrowser *background_browser_create(void)
 }
 void background_browser_destroy(MarcusBackgroundBrowser *browser) { delete browser; }
 int background_browser_visible(const MarcusBackgroundBrowser *browser) { return browser && browser->open; }
+void background_browser_prepare(MarcusBackgroundBrowser *browser, MarcusPlayer *player, const char *resources, const char *content)
+{
+    if (!browser || !player || !resources || !content) return;
+    try
+    {
+        std::filesystem::path directory;
+        if (auto pref = SDL_GetPrefPath("3DMMForever", "Marcus"))
+        { directory = std::filesystem::u8path(pref) / "background-previews"; SDL_free(pref); }
+        const auto base = SDL_GetBasePath();
+        MarcusPreviewCache cache(directory, {std::filesystem::u8path(resources),
+            std::filesystem::u8path(content) / "bkgds.3cn",
+            std::filesystem::u8path(base ? base : "") / "marcus-preview"
+#ifdef _WIN32
+                ".exe"
+#endif
+        });
+        if (cache.Key() == browser->backgroundCache.Key()) return;
+        browser->ClearBackgrounds();
+        browser->backgroundCache = std::move(cache);
+        browser->backgroundResources = resources; browser->backgroundContent = content;
+        const int count = marcus_background_count(player, content);
+        for (int index = 0; index < count; ++index)
+        {
+            MarcusBackground background = {};
+            if (marcus_background(player, index, &background)) browser->backgroundTiles.push_back({background.chunk});
+        }
+    }
+    catch (const std::exception &) { /* Cache warm-up must not prevent opening Marcus. */ }
+}
 static int ShowAssets(MarcusBackgroundBrowser *browser, MarcusPlayer *player, const char *resources, const char *content, bool props, bool actors = false)
 {
     if (!browser) return 0;
+    if (!props)
+    {
+        background_browser_prepare(browser, player, resources, content);
+        for (auto &tile : browser->backgroundTiles)
+            if (!tile.texture && tile.attempted) { tile.attempted = false; tile.error.clear(); }
+    }
     browser->Stop();
     browser->ClearGallery();
     browser->error.clear();
@@ -207,7 +320,6 @@ static int ShowAssets(MarcusBackgroundBrowser *browser, MarcusPlayer *player, co
     browser->resources = resources;
     browser->content = content;
     browser->selected = browser->scroll = 0;
-    browser->previewIndex = -1;
     browser->chosen = false;
     browser->scrollDragging = false;
     browser->open = true;
@@ -312,43 +424,12 @@ int background_browser_event(MarcusBackgroundBrowser *browser, const SDL_Event *
 }
 void background_browser_draw(MarcusBackgroundBrowser *browser, MarcusUI *ui, int width, int height)
 {
+    if (!browser) return;
+    browser->WarmBackgrounds(ui);
     if (!background_browser_visible(browser)) return;
     if (browser->props) { browser->DrawGallery(ui, width, height); return; }
-    if (browser->previewIndex != browser->selected)
-    {
-        browser->Stop();
-        browser->previewIndex = browser->selected;
-        browser->error.clear();
-        SDL_DestroyTexture(browser->texture); browser->texture = nullptr;
-        browser->cancel = std::make_shared<std::atomic<bool>>(false);
-        const auto cancel = browser->cancel;
-        const auto chunk = std::to_string(browser->backgrounds[browser->selected].chunk);
-        const auto resources = browser->resources, content = browser->content;
-        const auto props = browser->props;
-        if (!props && browser->backgrounds[browser->selected].chunk == MARCUS_BACKGROUND_STORYBOARD) {}
-        else try
-        {
-            browser->pending = std::async(std::launch::async, [=] {
-                return RunPreviewWorker(chunk, resources, [cancel] { return cancel->load(); }, content, false, {}, !props, props);
-            });
-        }
-        catch (const std::exception &e) { browser->error = e.what(); }
-    }
-    if (browser->pending.valid() && browser->pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
-    {
-        try
-        {
-            const auto result = browser->pending.get();
-            browser->error = result.error;
-            if (!result.rgba.empty())
-            {
-                auto surface = SDL_CreateSurfaceFrom(result.width, result.height, SDL_PIXELFORMAT_RGBA32,
-                    const_cast<unsigned char *>(result.rgba.data()), result.width * 4);
-                if (surface) { browser->texture = SDL_CreateTextureFromSurface(ui->renderer, surface); SDL_DestroySurface(surface); }
-            }
-        }
-        catch (const std::exception &e) { browser->error = e.what(); }
-    }
+    const auto preview = browser->Background(browser->backgrounds[browser->selected].chunk);
+    browser->error = preview ? preview->error : "";
     const float x = (width - 940) / 2.0f, y = (height - 560) / 2.0f;
     ui_fill(ui, 0, 0, static_cast<float>(width), static_cast<float>(height), 0x121519);
     ui_fill(ui, x - 1, y - 1, 942, 562, 0x5b6570);
@@ -378,10 +459,10 @@ void background_browser_draw(MarcusBackgroundBrowser *browser, MarcusUI *ui, int
         ui_heading(ui, x + 538, y + 230, "DRAW YOUR SCENE", 0x363a40);
         ui_text(ui, x + 488, y + 264, "Six colours / crunchy brush / no depth", 0x555b63);
     }
-    else if (browser->texture)
+    else if (preview && preview->texture)
     {
         SDL_FRect destination = {x + 388, y + 106, 528, 297};
-        SDL_RenderTexture(ui->renderer, browser->texture, nullptr, &destination);
+        SDL_RenderTexture(ui->renderer, preview->texture, nullptr, &destination);
     }
     else ui_text(ui, x + 552, y + 244, browser->error.empty() ? "Loading preview..." : "Preview unavailable", 0x969da8);
     ui_heading_label(ui, x + 388, y + 422, 528, browser->backgrounds[browser->selected].name, 0xdde0e5);

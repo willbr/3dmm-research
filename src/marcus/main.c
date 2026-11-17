@@ -2307,6 +2307,7 @@ static void handle_event(App *app, const SDL_Event *event)
             }
             else if (app->movie[0])
                 open_input(app, app->movie_input, app->movie_entry, app->movie);
+            background_browser_prepare(app->background_browser, app->player, app->resources, app->content);
         }
         SDL_free(request->path);
         SDL_free(request);
@@ -4477,6 +4478,7 @@ int main(int argc, char **argv)
         open_settings(&app);
     else if (browse && !app.zip_input)
         browser_show(app.browser, browse, app.resources, app.content);
+    background_browser_prepare(app.background_browser, app.player, app.resources, app.content);
     frames = 0;
     previous_tick = (double)SDL_GetTicks();
     frame_tick = SDL_GetTicksNS();
