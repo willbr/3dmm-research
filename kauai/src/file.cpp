@@ -57,7 +57,7 @@ MMI32 ConvertFileText(void *, const void *input, MMU32 bytes, int source, void *
 const MMStorageAllocator *KauaiCopyAllocator() { return &copyAllocator; }
 
 FileType FileObject::vftgCreator = '____';
-PFileObject FileObject::_pfilFirst;
+MMLinkedListNode *FileObject::_pfilFirst;
 Mutex FileObject::_mutxList;
 
 RTCLASS(FileObject)
@@ -193,7 +193,7 @@ PFileObject FileObject::PfilFromFni(Filename *pfni)
     bool fRet;
 
     _mutxList.Enter();
-    for (pfil = _pfilFirst; pfil != pvNil; pfil = pfil->PfilNext())
+    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
     {
         AssertPo(pfil, 0);
         pfil->_mutx.Enter();
@@ -324,7 +324,7 @@ void FileObject::ClearMarks(void)
     PFileObject pfil;
 
     _mutxList.Enter();
-    for (pfil = _pfilFirst; pfil != pvNil; pfil = pfil->PfilNext())
+    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
     {
         AssertPo(pfil, 0);
         pfil->FSetGrffil(ffilNil, ffilMark);
@@ -340,7 +340,7 @@ void FileObject::CloseUnmarked(void)
     PFileObject pfil, pfilNext;
 
     _mutxList.Enter();
-    for (pfil = _pfilFirst; pfil != pvNil; pfil = pfilNext)
+    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfilNext)
     {
         AssertPo(pfil, 0);
         pfilNext = pfil->PfilNext();
@@ -358,7 +358,7 @@ void FileObject::ShutDown(void)
     PFileObject pfil;
 
     _mutxList.Enter();
-    for (pfil = _pfilFirst; pfil != pvNil; pfil = pfil->PfilNext())
+    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
     {
         AssertPo(pfil, 0);
         pfil->_Close(fTrue);
@@ -381,7 +381,7 @@ void FileObject::AssertValid(LegacyUlong grf)
     _mutx.Leave();
 
     _mutxList.Enter();
-    for (pfil = _pfilFirst; pfil != pvNil; pfil = pfil->PfilNext())
+    for (pfil = PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
     {
         if (pfil == this)
             break;

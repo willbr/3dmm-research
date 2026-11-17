@@ -401,8 +401,8 @@ and readable metadata failures. Defined C mark wrap is checked independently of
 native signed-overflow equivalence. The headless `object-graph-runtime` fixture
 captures original public-API behavior through `MM_OBJECT_GRAPH_SNAPSHOT`, including
 out-of-order raw attachment and failed C++ constructor cleanup. Original traces
-match Native/SDL Debug and SDL Release. BaseLinkedList attachment,
-virtual destruction and final C-only host integration remain work.
+match Native/SDL Debug and SDL Release. BaseLinkedList attachment is described
+below; virtual destruction and final C-only host integration remain work.
 
 ### Fixed-memory diagnostic graph
 
@@ -442,7 +442,7 @@ only the allocator facade with expensive checks, leaving the shared core unchang
 Allocator-dependent resize report order is asserted against observed movement,
 then sorted for capture comparison. Native/SDL Debug exercise both profiles; SDL
 Release disables native diagnostics but runs the C policy tests. BaseLinkedList
-attachment and final C-only facade integration remain work.
+attachment is described below; final C-only facade integration remains work.
 
 ### HQ handle storage and lifetime
 
@@ -474,8 +474,42 @@ public HQ and opaque `MMHandleServices` behavior through
 `MM_HANDLE_RUNTIME_SNAPSHOT`. The latter overrides only the HQ/fixed facades with
 expensive validation; Native/SDL Debug exercise both profiles, while SDL Release
 disables native diagnostics. The historical Macintosh handle implementation is
-not the selected portable backend. BaseLinkedList attachment, virtual destruction
-and final C-only host/facade integration remain work.
+not the selected portable backend. BaseLinkedList attachment is described below;
+virtual destruction and final C-only host/facade integration remain work.
+
+### Intrusive linked-list storage and attachment
+
+`mm/linked_list.h` owns persistent `MMLinkedListNode` next/previous links and a
+borrowed owner token. C implements initialization, unlink-before-insert attachment,
+detach and ordered validation. `BaseLinkedList` embeds this record and delegates
+construction, attachment, destruction-time detach and validation. Its public
+`PbllNext` accessor returns the typed owner. `FileObject` stores a C node head,
+using typed accessors for registry lookup, marking, close and shutdown traversal.
+Head and internal next slots have one C pointer type; no derived-owner pointer
+slots are reinterpreted as base-owner or C-node slots. The extra owner field
+changes private runtime object sizes, without affecting stored formats.
+
+Attaching first repairs the old predecessor and successor, then publishes the
+new predecessor and head. Repeated detach and moving to the current head are
+valid. Callers keep nodes, heads and owners live at fixed addresses while linked,
+and supply synchronization. Native file operations retain their existing mutex.
+Diagnostic hooks report the original link messages and address/check order; they
+must not mutate links or unwind. Readable corrupt links report and continue the
+original transaction. Invalid addresses, attaching into one's own next slot and
+concurrent unsynchronized mutation are outside the contract.
+
+`engine-linked-list` links only C and checks head/interior/tail insertion, moves
+between lists, repeated detach, backlink repair, owner identity, ordered address
+and corruption diagnostics, and repeated mixed moves. `linked-list-runtime`
+captures stack and reference-counted destruction, list moves and repeated head
+attachment through `MM_LINKED_LIST_SNAPSHOT`; it also exercises the real temporary
+file registry. `linked-list-expensive` compiles the BASE/list facade with expensive
+validation against the existing core. The normal native capture is frozen before
+conversion. Verification and retained-trace evidence are recorded in the
+[playback regression log](../tools/playback-regression.md).
+
+Virtual destruction and final C-only host/facade integration remain conversion
+work. This list extraction does not finish the shared backend migration.
 
 ### Collection storage foundation
 

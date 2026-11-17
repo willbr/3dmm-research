@@ -11637,3 +11637,64 @@ Evidence: `tmp/c89-handle-{baseline,final}-{runtime,expensive}-{native,sdl-relea
 `tmp/c89-handle-standalone-tests.log`, `tmp/c89-handle-memory-asan.log`,
 `tmp/c89-handle-regular-tests.log`, `tmp/c89-handle-trace-comparison.json` and
 `tmp/c89-handle-identities.json`.
+
+### Shared C intrusive-list storage and attachment (17 November 2026)
+
+`linked_list.c` now owns persistent next/previous links, initialization,
+unlink-before-insert attachment, detach and link validation. `BaseLinkedList`
+embeds the C node with a borrowed typed-owner token; its facade retains native
+BASE validation and diagnostic callbacks. `FileObject` now stores a C node head
+and uses typed owner accessors for lookup, marking, closing and shutdown. This
+removes casts between derived/base owner-pointer slots. The extra owner field
+changes private runtime object sizes; stored movie formats are unchanged.
+
+Before conversion at revision `e182554b`, `linked-list-runtime` captured original
+stack and reference-counted destruction, head/middle/tail moves between lists,
+repeated head attachment and repeated detach. The original fixture used native
+owner-pointer heads; the converted fixture changes only head storage/access and
+adds independent checks of the real temporary-file registry. It verifies middle,
+tail and head release and restoration of the original registry head.
+`linked-list-expensive` compiles the BASE/list facade with expensive checks against
+the shared core. Both profiles in Native, SDL Debug and SDL Release match the
+original normal native capture: 424 bytes, FNV-1a `287C6F91`, SHA-256
+`A092AE92A940A81A8B879C5D63DFBB9D795A9177C8C12464145E1943346BA117`.
+Captures contain logical owner IDs, order and destructor observations, without
+raw addresses, implementation lines or physical object sizes.
+
+`engine-linked-list` links only C and exercises C head/internal slots, cross-list
+moves, predecessor/successor repair, repeated detach, owner identity, ordered
+address/check callbacks, readable link corruption and repeated mixed moves.
+It passes MSVC AddressSanitizer. All 152 standalone checks pass, including strict
+C89 syntax. Native, SDL Debug and SDL Release builds succeed. Marcus was stopped
+for rebuilding and resource regeneration, then relaunched.
+
+The wider gate passes 223 Native checks, 218 SDL Release checks, 219 SDL Debug
+checks and all 152 standalone checks: 812 of 813 selected checks pass. The sole
+declared skip is the existing SDL Release `world-export` Debug fixture. All 153
+retained handle/memory/object/error/string/text/cache/template/body/undo/Help/
+Preview trace pairs and all six list trace pairs match. All ten input identities
+are unchanged; identities for 130 binaries are recorded. Windows text settings
+remain ACP 1252, OEMCP 437 and locale `en-GB`/2057.
+
+The regular headless asset-preview harness passes. Backgrounds retain 301,996,032
+bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. Native
+`chelp` and `ched` compile. Test processes use private temporary directories.
+
+Nodes, owners and head slots must remain live and at fixed addresses until
+detached. Native registry locking remains with the caller. Diagnostic callbacks
+are synchronous and cannot mutate links or unwind. Invalid addresses, attaching
+inside one's own node, arbitrary callback mutation, concurrent unsynchronized
+mutation and other platforms remain unverified. The normal native capture does
+not establish equivalence for corrupt links; C fault checks specify the readable
+corruption behavior independently. No Marcus UI tests or new retail capture
+campaign were added; retained retail captures remain the playback reference.
+Virtual destruction and final C-only host/facade integration remain conversion
+work; this does not complete the backend migration.
+
+Evidence: `tmp/c89-linked-list-before-native.bin`,
+`tmp/c89-linked-list-after-{expensive-,}{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-linked-list-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-linked-list-standalone-tests.log`, `tmp/c89-linked-list-asan.log`,
+`tmp/c89-linked-list-regular-tests.log`,
+`tmp/c89-linked-list-trace-comparison.json` and
+`tmp/c89-linked-list-identities.json`.

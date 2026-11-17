@@ -69,7 +69,7 @@ class FileObject : public FileObject_PAR
   protected:
     // static member variables
     static Mutex _mutxList;
-    static PFileObject _pfilFirst;
+    static MMLinkedListNode *_pfilFirst;
 
     Mutex _mutx;
 
@@ -103,7 +103,7 @@ class FileObject : public FileObject_PAR
     // static methods returning a PFileObject
     static PFileObject PfilFirst(void)
     {
-        return _pfilFirst;
+        return _pfilFirst ? static_cast<PFileObject>(static_cast<PBaseLinkedList>(_pfilFirst->owner)) : pvNil;
     }
     static PFileObject PfilOpen(Filename *pfni, LegacyUlong grffil = ffilDenyWrite);
     static PFileObject PfilCreate(Filename *pfni, LegacyUlong grffil = ffilWriteEnable | ffilDenyWrite);

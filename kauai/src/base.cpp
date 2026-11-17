@@ -308,8 +308,7 @@ void UnmarkAllObjs(void)
 ***************************************************************************/
 BaseLinkedList::BaseLinkedList(void)
 {
-    _ppbllPrev = pvNil;
-    _pbllNext = pvNil;
+    mm_linked_list_init(&_list, this);
 }
 
 /***************************************************************************
@@ -318,44 +317,41 @@ BaseLinkedList::BaseLinkedList(void)
 BaseLinkedList::~BaseLinkedList(void)
 {
     // unlink the thing
-    if (_ppbllPrev != pvNil)
+    if (_list.previous != pvNil)
         _Attach(pvNil);
+}
+
+namespace {
+#ifdef DEBUG
+void ListAddress(void *, const void *address, int owner)
+{
+    if (owner) { AssertVarMem(static_cast<BaseLinkedList *>(const_cast<void *>(address))); }
+    else { AssertVarMem(static_cast<MMLinkedListNode **>(const_cast<void *>(address))); }
+}
+void ListAssertion(void *, int code)
+{
+    switch (code) {
+    case MM_LIST_UNLINK_NEXT: Assert(fFalse, "links corrupt 2"); break;
+    case MM_LIST_ATTACH_NEXT: Assert(fFalse, "links corrupt 3"); break;
+    case MM_LIST_VALIDATE_PREVIOUS: Assert(fFalse, "links corrupt 2"); break;
+    default: Assert(fFalse, "links corrupt"); break;
+    }
+}
+const MMLinkedListHost listHost = {nullptr, ListAddress, ListAssertion};
+#else
+const MMLinkedListHost listHost = {};
+#endif
 }
 
 /***************************************************************************
     Remove the element from the linked list (if it's in one) and reattach
-    it at ppbllPrev (if not pvNil).
+    it at the previous C node slot (if not pvNil).
 ***************************************************************************/
-void BaseLinkedList::_Attach(void *ppbllPrev)
+void BaseLinkedList::_Attach(MMLinkedListNode **previous)
 {
     AssertThis(0);
-    PBaseLinkedList *ppbll = (PBaseLinkedList *)ppbllPrev;
-    AssertNilOrVarMem(ppbll);
-
-    // unlink the thing
-    if (_ppbllPrev != pvNil)
-    {
-        Assert(*_ppbllPrev == this, "links corrupt");
-        if ((*_ppbllPrev = _pbllNext) != pvNil)
-        {
-            Assert(_pbllNext->_ppbllPrev == &_pbllNext, "links corrupt 2");
-            _pbllNext->_ppbllPrev = _ppbllPrev;
-        }
-    }
-
-    // link the thing
-    if ((_ppbllPrev = ppbll) == pvNil)
-    {
-        // not in a linked list
-        _pbllNext = pvNil;
-        return;
-    }
-    if ((_pbllNext = *ppbll) != pvNil)
-    {
-        Assert(_pbllNext->_ppbllPrev == ppbll, "links corrupt 3");
-        _pbllNext->_ppbllPrev = &_pbllNext;
-    }
-    *ppbll = this;
+    AssertNilOrVarMem(previous);
+    mm_linked_list_attach(&_list, previous, &listHost);
 }
 
 #ifdef DEBUG
@@ -366,15 +362,6 @@ void BaseLinkedList::AssertValid(LegacyUlong grf)
 {
     BaseLinkedList_PAR::AssertValid(grf);
 
-    if (_pbllNext != pvNil)
-    {
-        AssertVarMem(_pbllNext);
-        Assert(_pbllNext->_ppbllPrev == &_pbllNext, "links corrupt");
-    }
-    if (_ppbllPrev != pvNil)
-    {
-        AssertVarMem(_ppbllPrev);
-        Assert(*_ppbllPrev == this, "links corrupt 2");
-    }
+    mm_linked_list_validate(&_list, &listHost);
 }
 #endif // DEBUG

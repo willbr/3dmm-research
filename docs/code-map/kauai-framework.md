@@ -46,7 +46,7 @@ which side each file lives on.
 | `utilmem.cpp`     | core       | Fixed-memory transaction/debug-graph C facades; native alignment, stack, heap, lock and diagnostic providers. |
 | `utilglob.cpp`    | core       | Global symbol / class registry, RTCLASS.                      |
 | `utilerro.cpp`    | core       | C-owned error-stack facade, native mutex/reporting providers.   |
-| `base.cpp`        | core       | `BASE` facade over C reference/allocation/debug-graph policy; native diagnostic/virtual dispatch providers and BaseLinkedList attachment. |
+| `base.cpp`        | core       | `BASE` and `BaseLinkedList` facades over C reference/allocation/debug-graph/intrusive-list policy; native diagnostic and virtual dispatch providers. |
 | `spell.cpp`       | core       | Spell-check dictionary (no UI).                               |
 | `mssio.cpp`       | core       | (listed above)                                                |
 | `stub.cpp`        | core       | Stubs for legacy CRT calls absent in modern MSVC.             |

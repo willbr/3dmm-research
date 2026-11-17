@@ -18,6 +18,7 @@
 #define BASE_H
 #include "mm/reference.h"
 #include "mm/object_debug.h"
+#include "mm/linked_list.h"
 
 /***************************************************************************
     Run-time class determination support.  Each class, FOO, that uses this
@@ -287,11 +288,10 @@ class BaseLinkedList : public BaseLinkedList_PAR
     ASSERT
 
   private:
-    PBaseLinkedList _pbllNext;
-    PBaseLinkedList *_ppbllPrev;
+    MMLinkedListNode _list;
 
   protected:
-    void _Attach(void *ppbllPrev);
+    void _Attach(MMLinkedListNode **previous);
 
   public:
     BaseLinkedList(void);
@@ -299,7 +299,7 @@ class BaseLinkedList : public BaseLinkedList_PAR
 
     PBaseLinkedList PbllNext(void)
     {
-        return _pbllNext;
+        return _list.next ? static_cast<PBaseLinkedList>(_list.next->owner) : nullptr;
     }
 };
 
