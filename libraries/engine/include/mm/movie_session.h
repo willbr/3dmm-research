@@ -27,7 +27,8 @@ enum
 {
     MM_MOVIE_SCENE_NOT_FOUND = MM_MOVIE_MEMORY + 1,
     MM_MOVIE_FRAME_OUT_OF_RANGE,
-    MM_MOVIE_ASSET_NOT_FOUND
+    MM_MOVIE_ASSET_NOT_FOUND,
+    MM_MOVIE_ACTOR_NOT_FOUND
 };
 
 typedef struct MMMovieAsset
@@ -42,6 +43,15 @@ typedef struct MMMovieCamera
     MMU32 slot, number;
     MMBackgroundCameraData data;
 } MMMovieCamera;
+
+typedef struct MMMovieEvaluatedActor
+{
+    MMU32 number;
+    MMActorHeader header;
+    MMActorState state;
+    MMActorPoint translation;
+    MMActorMatrix orientation;
+} MMMovieEvaluatedActor;
 
 /* Resolve a positive source and specific asset to the appropriate content
  * archive. On MM_MOVIE_OK, the stream's context stays valid through the query.
@@ -65,6 +75,13 @@ int mm_movie_session_scene(const MMMovieSession *, MMU32 slot, MMMovieSessionSce
  * Never modifies the session or publishes output on failure. */
 int mm_movie_session_camera(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
                             MMMovieSourceRead, void *context, MMMovieCamera *);
+
+/* Actor ordinals follow the ADD_ACTOR rows in the scene's start group. Replay
+ * from a fresh state using the actor's stored route, events and action metadata.
+ * The result describes pose and motion without constructing a renderer body.
+ * The pose fields apply when state.onStage is true. Failures preserve output. */
+int mm_movie_session_actor(const MMMovieSession *, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
+                           MMMovieSourceRead, void *context, MMMovieEvaluatedActor *);
 
 #ifdef __cplusplus
 }

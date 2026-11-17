@@ -442,8 +442,10 @@ Keep host presentation and device output outside the session.
    applicable missing-content behavior with real files. Document which
    retail captures exercise the path and which behaviors they cover. The C89
    session now evaluates camera cuts and resolves the selected `CAM` through
-   the movie's embedded background or a caller-supplied content archive. Actor
-   evaluation, automatic source discovery and rendered output remain open.
+   the movie's embedded background or a caller-supplied content archive. It
+   also evaluates actor route, action, cel and root pose from embedded or
+   supplied templates, including procedural text actions. Automatic source
+   discovery, body resources and rendered output remain open.
 3. Switch both hosts to the same session for the covered operations and retire
    the superseded backend paths. Link and run the standalone consumer and its
    real file/content providers with the C toolchain, without `engine-core`,

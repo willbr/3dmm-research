@@ -12727,6 +12727,30 @@ compiles as strict C89 for Linux x64 musl. The retained captures verify camera
 selection. The matrix check uses resource bytes, and this slice does not
 render pixels, evaluate actors or switch either host to the new session.
 
+### Standalone C89 actor seeks (17 November 2026)
+
+`engine-native-chunky-test FILE --actors SCENE FRAME SID CONTENT` follows
+the start group's actor links and prints standalone C89 actor state. It
+reads stored paths and events and uses the same seek, event-effect and pose
+evaluators as Preview. Action step lengths, flags and cel counts come from
+the resolved template, with procedural metadata shared for embedded 3D text.
+
+On the four retained retail seek runs listed above, 960 actor observations
+over 240 authored frames agree on cast, template identity, stage visibility,
+action, cel, event cursor and fixed-point route position. All 710 captured
+on-stage root matrices in the three newer runs agree. The older `features`
+run supplies the other fields. The same fields agree in its v3dmm seek run 3.
+Movie inputs match the recorded SHA-256 values. The external template archive
+was `content-files/tmpls.3cn`, SHA-256
+`f9a9316e5567504fa57083c35bbf6a594a7c283e89eea51ea4aaf6836412a464`.
+
+All 181 Windows standalone engine checks pass, including the required C89
+syntax gate and the actor fixture's little- and big-endian tracks, dynamic
+step distance, backward query, missing source and frame/actor bounds. The
+actor session source compiles with strict C89 for Linux x64 musl. The capture
+comparison covers actor state and root transforms. Part matrices, costumes,
+audio and host integration remain open.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

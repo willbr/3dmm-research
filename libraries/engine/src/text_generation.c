@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/text_generation.h"
+#include "mm/actor_pose.h"
 #include "mm/wide.h"
 #include <limits.h>
 #if SHRT_MAX != 32767
@@ -62,6 +63,10 @@ MMI32 mm_text_cel_count(MMI32 action)
     default: return 0;
     }
 }
+MMI32 mm_text_cel_distance(MMI32 action)
+{ return action==MM_TEXT_WALK?65536L:327680L; }
+MMU32 mm_text_action_flags(void)
+{ return MM_ACTOR_ROTATE_Y | MM_ACTOR_STATIC_ACTION; }
 void *mm_text_build_cels(void *object,MMI32 action,const MMTextGenerationServices *s)
 {
     MMI32 n=s->length(s->context,object),i,j,cels=mm_text_cel_count(action);
@@ -70,7 +75,7 @@ void *mm_text_build_cels(void *object,MMI32 action,const MMTextGenerationService
     if (!s->allocate(s->context,n*4,(void **)&parts)) goto fail;
     for (i=0;i<cels;++i)
     {
-        cel.sound=0; cel.distance=action==MM_TEXT_WALK?65536L:327680L;
+        cel.sound=0; cel.distance=mm_text_cel_distance(action);
         for (j=0;j<n;++j) { parts[j].model=(short)j; parts[j].matrix=(short)(i*n+j); }
         if (!s->group_add(s->context,group,&cel,n*4,parts)) goto fail;
     }
@@ -120,7 +125,7 @@ void *mm_text_build_action(void *object,MMI32 action,const MMTextGenerationServi
     void *cels=mm_text_build_cels(object,action,s),*matrices=NULL,*result=NULL;
     if (!cels) return NULL;
     matrices=mm_text_build_matrices(object,action,s);
-    if (matrices) result=s->action_new(s->context,cels,matrices,10U);
+    if (matrices) result=s->action_new(s->context,cels,matrices,mm_text_action_flags());
     s->release(s->context,cels); if (matrices) s->release(s->context,matrices); return result;
 }
 void *mm_text_fetch_action(void *object,MMI32 action,const MMTextGenerationServices *s)

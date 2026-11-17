@@ -16,7 +16,8 @@ extern "C"
     {
         MM_ACTOR_ROTATE_X = 1,
         MM_ACTOR_ROTATE_Y = 2,
-        MM_ACTOR_ROTATE_Z = 4
+        MM_ACTOR_ROTATE_Z = 4,
+        MM_ACTOR_STATIC_ACTION = 8
     };
     /* Valid evaluated state required; non-current rotation also needs valid route/
      * event tables and an Add cursor. Preserve the

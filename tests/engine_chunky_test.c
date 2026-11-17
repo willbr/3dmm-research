@@ -172,6 +172,70 @@ static void camera_events(unsigned char *group, int big, int start, MMU32 source
     }
 }
 
+static MMU32 write_fixture(unsigned char *out, int big, MMU32 count, const MMU32 *types, const MMU32 *numbers,
+                           const MMU32 *lengths, const MMI32 *codecs, unsigned char raw[][160],
+                           const MMU32 links[][3], MMU32 link_count)
+{
+    unsigned char *group, *row, *locations, *link;
+    MMU32 offsets[10], sizes[10], parents[10] = {0}, children[10] = {0};
+    MMU32 i, j, end, index_offset = 128;
+    const MMU32 row_bytes = count * 20 + link_count * 12;
+    CHECK(count <= sizeof(offsets) / sizeof(offsets[0]));
+    for (i = 0; i < link_count; ++i)
+    {
+        ++children[links[i][0]];
+        ++parents[links[i][1]];
+    }
+    memset(out, 0, 1024);
+    for (i = 0; i < count; ++i)
+    {
+        offsets[i] = index_offset;
+        sizes[i] = store_record(out + index_offset, raw[i], lengths[i], codecs[i]);
+        index_offset += sizes[i];
+    }
+    end = index_offset + 20 + row_bytes + count * 8;
+    CHECK(end <= 1024);
+    memcpy(out, "CHN2", 4);
+    put16(out + 8, 5, big);
+    put16(out + 10, 4, big);
+    put16(out + 12, 1, big);
+    put32(out + 16, end, big);
+    put32(out + 20, index_offset, big);
+    put32(out + 24, end - index_offset, big);
+    put32(out + 28, end, big);
+    group = out + index_offset;
+    put16(group, 1, big);
+    put32(group + 4, count, big);
+    put32(group + 8, row_bytes, big);
+    put32(group + 12, 0xffffffffUL, big);
+    put32(group + 16, 20, big);
+    row = group + 20;
+    locations = row + row_bytes;
+    for (i = 0; i < count; ++i)
+    {
+        put32(locations + i * 8, (MMU32)(row - (group + 20)), big);
+        put32(locations + i * 8 + 4, 20 + 12 * children[i], big);
+        put32(row, types[i], big);
+        put32(row + 4, numbers[i], big);
+        put32(row + 8, offsets[i], big);
+        put32(row + 12, (sizes[i] << 8) | (!parents[i] ? MM_CHUNK_LONER : 0) |
+                         (codecs[i] ? MM_CHUNK_PACKED : 0), big);
+        put16(row + 16, children[i], big);
+        put16(row + 18, parents[i], big);
+        link = row + 20;
+        for (j = 0; j < link_count; ++j)
+            if (links[j][0] == i)
+            {
+                put32(link, types[links[j][1]], big);
+                put32(link + 4, numbers[links[j][1]], big);
+                put32(link + 8, links[j][2], big);
+                link += 12;
+            }
+        row = link;
+    }
+    return end;
+}
+
 static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 source, int bad_row)
 {
     enum { BKGD, CAM1, CAM0, FRAMES, STARTS, ROOT, SCENE, COUNT };
@@ -180,13 +244,11 @@ static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 sour
     static const MMU32 numbers[] = {4, 80, 90, 13, 14, 17, 36};
     static const MMU32 links[][3] = {{BKGD, CAM0, 0}, {BKGD, CAM1, 1}, {ROOT, SCENE, 0},
                                     {SCENE, FRAMES, 0}, {SCENE, STARTS, 1}};
-    static const MMU32 children[] = {2, 0, 0, 0, 0, 1, 2};
     static const MMU32 lengths[] = {8, 76, 76, 80, 52, 8, 16};
-    unsigned char raw[COUNT][80], *group, *row, *locations, *link;
-    MMU32 offsets[COUNT], sizes[COUNT], i, j, end, index_offset = 128;
-    const MMU32 row_bytes = COUNT * 20 + 5 * 12;
+    unsigned char raw[COUNT][160];
+    MMI32 codecs[COUNT] = {0};
+    MMU32 i;
 
-    memset(out, 0, 1024);
     memset(raw, 0, sizeof(raw));
     for (i = 0; i < COUNT; ++i)
         put16(raw[i], 1, big);
@@ -199,52 +261,104 @@ static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 sour
     put16(raw[ROOT] + 6, 2, big);
     put32(raw[SCENE] + 4, 10, big);
     put32(raw[SCENE] + 8, 1, big);
+    codecs[FRAMES] = codecs[STARTS] = codec;
+    return write_fixture(out, big, COUNT, types, numbers, lengths, codecs, raw, links,
+                         sizeof(links) / sizeof(links[0]));
+}
+
+static void group_header(unsigned char *bytes, MMU32 count, MMU32 data, MMU32 width, int big)
+{
+    put32(bytes + 4, count, big);
+    put32(bytes + 8, data, big);
+    put32(bytes + 12, 0xffffffffUL, big);
+    put32(bytes + 16, width, big);
+}
+
+static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source)
+{
+    enum { ACTN, ACTOR, EVENTS, CELS, STARTS, ROOT, PATH, SCENE, TMPL, COUNT };
+    static const MMU32 types[] = {0x4143544eUL, 0x41435452UL, 0x47474145UL, 0x4747434cUL, 0x47475354UL,
+                                  0x4d564945UL, 0x50415448UL, 0x5343454eUL, 0x544d504cUL};
+    static const MMU32 numbers[] = {3, 12, 4, 5, 6, 17, 7, 36, 13};
+    static const MMU32 lengths[] = {8, 44, 136, 52, 40, 8, 44, 16, 16};
+    static const MMI32 codecs[COUNT] = {0};
+    static const MMU32 links[][3] = {{ACTN, CELS, 0}, {ACTOR, EVENTS, 0}, {ACTOR, PATH, 0}, {ACTOR, TMPL, 0},
+                                    {ROOT, SCENE, 0}, {SCENE, STARTS, 1}, {SCENE, ACTOR, 5}, {TMPL, ACTN, 0}};
+    unsigned char raw[COUNT][160];
+    unsigned char *row;
+    MMU32 i;
+    memset(raw, 0, sizeof(raw));
     for (i = 0; i < COUNT; ++i)
+        put16(raw[i], 1, big);
+    put32(raw[ACTN] + 4, 2, big);
+    put32(raw[ACTOR] + 4, 65536, big);
+    put32(raw[ACTOR] + 16, 8, big);
+    put32(raw[ACTOR] + 20, 1, big);
+    put32(raw[ACTOR] + 24, 10, big);
+    put32(raw[ACTOR] + 28, source, big);
+    put32(raw[ACTOR] + 36, types[TMPL], big);
+    put32(raw[ACTOR] + 40, numbers[TMPL], big);
+    group_header(raw[EVENTS], 3, 92, MM_ACTOR_EVENT_BYTES, big);
+    row = raw[EVENTS] + 20;
+    put32(row + 4, 1, big);
+    put32(row + 40, MM_ACTOR_ACTION, big);
+    put32(row + 68, MM_ACTOR_STEP, big);
+    put32(row + 88, 0xffff0000UL, big);
+    put32(row + 96, 40, big);
+    put32(row + 100, 40, big);
+    put32(row + 104, 28, big);
+    put32(row + 108, 68, big);
+    put32(row + 112, 24, big);
+    group_header(raw[CELS], 2, 16, 8, big);
+    put32(raw[CELS] + 24, 65536, big);
+    put32(raw[CELS] + 32, 131072, big);
+    put32(raw[CELS] + 40, 8, big);
+    put32(raw[CELS] + 44, 8, big);
+    put32(raw[CELS] + 48, 8, big);
+    group_header(raw[STARTS], 1, 12, 8, big);
+    put32(raw[STARTS] + 28, 5, big);
+    put32(raw[STARTS] + 36, 12, big);
+    put16(raw[ROOT] + 4, 2, big);
+    put16(raw[ROOT] + 6, 2, big);
+    put32(raw[PATH] + 4, MM_ACTOR_ROUTE_BYTES, big);
+    put32(raw[PATH] + 8, 2, big);
+    put32(raw[PATH] + 24, 655360, big);
+    put32(raw[PATH] + 28, 655360, big);
+    put32(raw[SCENE] + 4, 10, big);
+    put32(raw[SCENE] + 8, 1, big);
+    return write_fixture(out, big, COUNT, types, numbers, lengths, codecs, raw, links,
+                         sizeof(links) / sizeof(links[0]));
+}
+
+static void movie_actors(void)
+{
+    const MMChunkPolicy policy = {0, 0, 516};
+    unsigned char bytes[1024];
+    MMMemoryStream input;
+    MMMovieSession *movie;
+    MMMovieEvaluatedActor actor;
+    MMU32 size;
+    int big;
+    for (big = 0; big <= 1; ++big)
     {
-        offsets[i] = index_offset;
-        sizes[i] = store_record(out + index_offset, raw[i], lengths[i], i == FRAMES || i == STARTS ? codec : 0);
-        index_offset += sizes[i];
+        size = actor_fixture(bytes, big, 0);
+        CHECK(mm_memory_stream_init(&input, bytes, size));
+        CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+        CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
+        CHECK(actor.header.actor_id == 8 && actor.number == 12 && actor.state.onStage && actor.state.action == 0);
+        CHECK(actor.state.cel == 2 && actor.state.nextEvent == 3 && actor.state.position.dxr == 196600);
+        CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
+        CHECK(actor.state.cel == 0 && actor.translation.dxr == 65536);
+        CHECK(mm_movie_session_actor(movie, 0, 1, 1, NULL, NULL, &actor) == MM_MOVIE_ACTOR_NOT_FOUND &&
+              actor.number == 12);
+        CHECK(mm_movie_session_actor(movie, 0, 11, 0, NULL, NULL, &actor) == MM_MOVIE_FRAME_OUT_OF_RANGE);
+        mm_movie_session_close(movie);
     }
-    end = index_offset + 20 + row_bytes + COUNT * 8;
-    memcpy(out, "CHN2", 4);
-    put16(out + 8, 5, big);
-    put16(out + 10, 4, big);
-    put16(out + 12, 1, big);
-    put32(out + 16, end, big);
-    put32(out + 20, index_offset, big);
-    put32(out + 24, end - index_offset, big);
-    put32(out + 28, end, big);
-    group = out + index_offset;
-    put16(group, 1, big);
-    put32(group + 4, COUNT, big);
-    put32(group + 8, row_bytes, big);
-    put32(group + 12, 0xffffffffUL, big);
-    put32(group + 16, 20, big);
-    row = group + 20;
-    locations = row + row_bytes;
-    for (i = 0; i < COUNT; ++i)
-    {
-        put32(locations + i * 8, (MMU32)(row - (group + 20)), big);
-        put32(locations + i * 8 + 4, 20 + 12 * children[i], big);
-        put32(row, types[i], big);
-        put32(row + 4, numbers[i], big);
-        put32(row + 8, offsets[i], big);
-        put32(row + 12, (sizes[i] << 8) | (i == ROOT || i == BKGD ? MM_CHUNK_LONER : 0) |
-                         (codec && (i == FRAMES || i == STARTS) ? MM_CHUNK_PACKED : 0), big);
-        put16(row + 16, children[i], big);
-        put16(row + 18, i != ROOT && i != BKGD, big);
-        link = row + 20;
-        for (j = 0; j < sizeof(links) / sizeof(links[0]); ++j)
-            if (links[j][0] == i)
-            {
-                put32(link, types[links[j][1]], big);
-                put32(link + 4, numbers[links[j][1]], big);
-                put32(link + 8, links[j][2], big);
-                link += 12;
-            }
-        row = link;
-    }
-    return end;
+    size = actor_fixture(bytes, 0, 2);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_ASSET_NOT_FOUND);
+    mm_movie_session_close(movie);
 }
 
 static int camera_source(void *context, const MMMovieAsset *asset, MMReadStream *out)
@@ -809,6 +923,7 @@ int main(void)
     wire_indexes();
     movie_sessions();
     movie_camera();
+    movie_actors();
     graphs();
     io_failures();
     deep_graph();

@@ -42,6 +42,11 @@ a real native file stream and prints root versions and ordered scene ranges.
 groups, evaluates camera cuts at an authored frame, and decodes the specified
 background's `CAM` chunk. Source zero uses the movie's own index. For positive
 sources the host supplies a borrowed stream for the requested asset's archive.
+`mm_movie_session_actor` follows the scene start group's actor links, creates
+C route and event tables and replays the existing actor evaluator from a fresh
+state. The query uses action tables from the resolved template or the shared
+3D text action metadata. Its outputs include route position, action, cel and
+fixed-point root pose. The query does not create body, costume or audio objects.
 Studio and Marcus still use their existing archive owners and resource providers.
 
 | Caller / dependency | Boundary after the first slice |

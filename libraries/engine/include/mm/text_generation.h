@@ -63,6 +63,8 @@ int mm_text_initialize_lists(void *,const MMTextGenerationServices *);
 void *mm_text_build_indices(void *,int sets,const MMTextGenerationServices *);
 void *mm_text_build_costumes(const MMTextGenerationServices *);
 MMI32 mm_text_cel_count(MMI32 action);
+MMI32 mm_text_cel_distance(MMI32 action);
+MMU32 mm_text_action_flags(void);
 void *mm_text_build_cels(void *,MMI32 action,const MMTextGenerationServices *);
 void *mm_text_build_matrices(void *,MMI32 action,const MMTextGenerationServices *);
 void *mm_text_build_action(void *,MMI32 action,const MMTextGenerationServices *);
