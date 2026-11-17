@@ -96,7 +96,7 @@ MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string
     std::uint32_t hello[2] = {};
     Transfer(impl->output, hello, sizeof(hello), false);
     if (hello[0] != MarcusASM::Magic || hello[1] != 32)
-        throw std::runtime_error("ASM renderer protocol mismatch. Rebuild the 32-bit marcus-asm-worker.exe.");
+        throw std::runtime_error("The x86 ASM renderer helper is outdated or incompatible. Rebuild marcus-asm-worker and Marcus together.");
 }
 MarcusASMRenderer::~MarcusASMRenderer() = default;
 bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view, MM::PreviewImage &image,

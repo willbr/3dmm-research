@@ -4,7 +4,9 @@
 #include <cstdint>
 namespace MarcusASM
 {
-constexpr std::uint32_t Magic = 0x354d5341; // ASM5, little endian x86/x64 only.
+// ASM6 also requires actor-capable live insertion. Older helpers use the same
+// wire sizes but reject actor templates as if every added object were a prop.
+constexpr std::uint32_t Magic = 0x364d5341; // ASM6, little endian x86/x64 only.
 struct PropOffset
 {
     std::int32_t object = 0;

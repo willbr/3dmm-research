@@ -1126,6 +1126,13 @@ cmake --build build/marcus-x86 --target marcus-asm-worker
 Then build/run the normal x64 Marcus from its x64 developer shell. The workspace
 build finds `build/marcus-x86/src/marcus/marcus-asm-worker.exe`; a distributed app
 should put that helper beside `marcus.exe`. `MARCUS_ASM_WORKER` overrides the path.
+Rebuild the x86 helper whenever updating Marcus's engine or live authoring
+code; rebuilding only `marcus.exe` does not rebuild the separate x86 tree.
+The ASM6 handshake requires live actor insertion support. Helpers from the
+earlier prop-only implementation are rejected with an explicit rebuild message,
+rather than failing to render an actor just added to a black scene. The
+headless `marcus-asm` check covers that sequence, another actor insertion,
+work-camera rendering and undo, through the real helper process.
 A missing helper causes an explicit selection error; startup retains the existing
 CPU fallback policy. The helper verifies a versioned 32-bit handshake, retains
 the loaded scene between frames, and closes when its player closes or opens a

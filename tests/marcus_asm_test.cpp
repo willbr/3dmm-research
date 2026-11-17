@@ -21,7 +21,22 @@ int main(int argc, char **argv)
         !MarcusASMRenderer::Available(error))
         return 77;
     std::unique_ptr<MarcusPlayer, decltype(&marcus_destroy)> player(marcus_create(), marcus_destroy);
-    CHECK(player && marcus_open(player.get(), argv[1], argv[2], argv[3]));
+    CHECK(player && marcus_add_scene(player.get(), 11, argv[2], argv[3]));
+    MarcusImage inserted = {};
+    CHECK(marcus_set_renderer(player.get(), MARCUS_RENDERER_BRENDER_ASM));
+    CHECK(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &inserted));
+    const std::vector<unsigned char> empty(inserted.rgba, inserted.rgba + inserted.pitch * inserted.height);
+    // Fresh black scene followed by Alexander: test authoring through the
+    // separate 32-bit helper, not only the in-process CPU renderer.
+    CHECK(marcus_add_actor(player.get(), 0x2010) == 0);
+    CHECK(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &inserted));
+    CHECK(std::memcmp(empty.data(), inserted.rgba, empty.size()) != 0);
+    CHECK(marcus_add_actor(player.get(), 0x2010) == 1);
+    CHECK(marcus_render(player.get(), 320, 180, 0, 15, 10, 1, &inserted));
+    CHECK(marcus_undo(player.get()) && marcus_undo(player.get()));
+    CHECK(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &inserted));
+    CHECK(std::memcmp(empty.data(), inserted.rgba, empty.size()) == 0);
+    CHECK(marcus_open(player.get(), argv[1], argv[2], argv[3]));
     marcus_set_muted(player.get(), 1);
     MarcusInfo info = {};
     MarcusScene scene = {};
