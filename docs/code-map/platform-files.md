@@ -2,10 +2,10 @@
 
 `platform_files.h` is the file/path boundary. It exposes opaque handles,
 fixed-width sizes, native path code units and directory records. It imports no
-Windows, application, SDL or ImGui headers. Windows implementations now live in
+Windows, application, SDL or ImGui headers. Windows and POSIX implementations live in
 the C89 `mm/native_files.h` component, with `platform_files_bridge.cpp` adapting
 existing C++ callers. The C interface also has no SDK types; its implementation
-contains the Win32 calls and the ownerless shell directory-creation call.
+contains the Win32/shell or POSIX OS calls.
 
 `file_native.cpp` and `filename.cpp` adapt the shared C89 file-owner, file-factory,
 filename and enumeration controllers. They retain native object/default-context
@@ -52,9 +52,13 @@ still uses the existing bounded search and is not a new reservation API.
 
 ## POSIX backend
 
-`platform_files_posix.cpp` supplies macOS/Linux file descriptors, native byte
+`native_files_posix.c` supplies macOS/Linux file descriptors, native byte
 paths, lexical absolute-path normalization, directory iteration and filesystem
-operations. It handles interrupted read/write calls and complete transfers.
+operations through `mm/native_files.h`. Both operating-system backends use the
+same `platform_files_bridge.cpp` forwarding adapter; the old POSIX C++
+implementation is removed. C heap buffers replace strings/vectors and an
+explicit directory owner replaces the C++ object. It handles interrupted
+read/write/open/lock/flush calls and complete transfers.
 File sizes/positions remain limited to signed 32-bit range; this is not a large
 file format migration.
 
@@ -82,6 +86,15 @@ Platform policies are explicit:
 - Directory symlinks/reparse points can be listed but are not recursively
   traversed, preventing recursive walks from cycling. Dangling file symlinks
   can be listed, renamed and deleted without changing their target.
+- A failed `lstat` leaves metadata untouched. Once a symlink has been found,
+  metadata is cleared and its link bit is set before the target is queried.
+  Target errors such as a symlink loop can therefore publish partial metadata.
+  Directory iteration can publish the name and partial metadata on error;
+  its handle remains owned by the caller until explicitly closed. The shared
+  adapter seeds and copies metadata on every result to retain those rules.
+- Full/search/temp failures leave the output and leaf pointer untouched.
+  Current-directory, executable-path and leaf-name queries clear nonempty
+  output on failure. In-place full-path normalization remains supported.
 
 The complete core still needs GDI/source/LP64 portability work before it builds
 on macOS. Text and public native-type boundaries are [documented separately](platform-text.md). The standalone project below checks the new backend independently of
@@ -110,5 +123,10 @@ ctest --test-dir out/platform --output-on-failure
 
 The workflow adds Linux and macOS jobs for this standalone project. Windows
 checks exercise the C backend through the real core libraries and the standalone
-platform project. The POSIX backend still requires C89 migration. No SDL3 or ImGui
+platform project. Linux Debug/Release original-versus-C byte traces, GCC/Clang
+strict C89 checks and C-only link checks cover the POSIX boundary; see the
+[regression log](../tools/playback-regression.md) for runtime evidence and limits.
+Windows Unicode builds must define `UNICODE` consistently for C and C++ sources
+(including both `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS` when using global flags).
+No SDL3 or ImGui
 dependency is introduced; future host/UI adapters consume the same boundary.

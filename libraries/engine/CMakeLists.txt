@@ -27,6 +27,15 @@ if(WIN32)
     add_test(NAME engine-native-files-${profile} COMMAND engine-native-files-${profile}-test)
   endforeach()
 endif()
+if(NOT WIN32)
+  add_library(mm-native-files STATIC src/native_files_posix.c)
+  target_include_directories(mm-native-files PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  set_target_properties(mm-native-files PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+  add_executable(engine-native-files-posix-test EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/native_files_c_test.c")
+  target_link_libraries(engine-native-files-posix-test PRIVATE mm-native-files)
+  set_target_properties(engine-native-files-posix-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+  add_test(NAME engine-native-files-posix COMMAND engine-native-files-posix-test)
+endif()
 target_sources(mm-engine-c89 PRIVATE src/reference.c)
 target_sources(mm-engine-c89 PRIVATE src/filename_enum.c)
 get_filename_component(engine_filename_enum_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_filename_enum_test.c" ABSOLUTE)
@@ -951,6 +960,12 @@ if(ENGINE_C89_COMPILER)
     add_test(NAME engine-native-files-wide-c89-syntax
       COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
         -DUNICODE -D_UNICODE "-I${CMAKE_CURRENT_SOURCE_DIR}/include" -fsyntax-only "${CMAKE_CURRENT_SOURCE_DIR}/src/native_files_win.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/native_files_c_test.c")
+  endif()
+  if(NOT WIN32)
+    add_test(NAME engine-native-files-c89-syntax
+      COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+        "-I${CMAKE_CURRENT_SOURCE_DIR}/include" -fsyntax-only "${CMAKE_CURRENT_SOURCE_DIR}/src/native_files_posix.c"
         "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/native_files_c_test.c")
   endif()
   add_test(NAME engine-c89-syntax COMMAND "${ENGINE_C89_COMPILER}"

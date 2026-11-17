@@ -12391,3 +12391,101 @@ Evidence: `tmp/c89-native-files/{original,converted}-{runtime,wide}-{native,sdl-
 `tmp/c89-native-files/run-standalone-tests.log`, `tmp/c89-native-files/asan-{ansi,wide}.log`,
 `tmp/c89-native-files/platform-tests.log`, `tmp/c89-native-files/run-regular-tests.log`,
 `tmp/c89-native-files/trace-comparison.json` and `tmp/c89-native-files/identities.json`.
+
+### C89 POSIX physical file and path services (17 November 2026)
+
+`native_files_posix.c` now implements the POSIX side of `mm/native_files.h`.
+The old `platform_files_posix.cpp` is removed. Windows and POSIX both use
+`platform_files_bridge.cpp`; its only additional work is seeding/copying metadata
+on every result so that partial POSIX error outputs survive the translation.
+`mm-native-files` remains separate from the platform-neutral C89 engine, builds
+as C90 with extensions disabled, and links a C-only API test without Kauai or
+the C++ runtime. Linux's executable depends only on `libc.musl-x86_64.so.1`.
+
+C heap buffers replace strings/vectors and the directory object. Conversion
+retains lexical normalization without symlink resolution, byte-sensitive
+comparison, trailing separators, in-place full-path queries, growing cwd
+buffers, empty search-list components, `PATH`, `TMPDIR` and `/tmp`. Handles
+retain descriptor-zero support, signed 32-bit size/position limits and exact
+retrying I/O. Cooperative locks precede truncation; no-clobber link/unlink
+renames, read-only guards, dangling links, directory ownership and native
+error/output publication remain. POSIX resize failure retains its cursor.
+A failed symlink-target query still publishes cleared metadata with the link
+bit set; iteration can publish a name and partial metadata before an error,
+and callers still close the surviving handle explicitly.
+
+The baseline is the unmodified POSIX implementation from `717cc23e`, captured
+before comparing the C implementation. Its retained CRLF source is 15,118 bytes,
+SHA-256 `7348C8807E92D34722DB9146EFC480A99DAC88C7877B066077996E9A1764AA8C`.
+The LF Git blob has SHA-256
+`1383B777B9D9D1542CF8E270E26B321810D13B2A3CA32142F528ABA3B97A3D12`;
+newline normalization confirms the source identities match. A first fixture
+recorded the randomized root's leaf name; that value was normalized and both
+original profiles were freshly captured before comparison. No converted output
+was accepted as the original baseline.
+
+The Linux fixture covers interrupted open/lock/read/write/flush calls through
+linker interposition, short transfers and partial EOF buffers, shared-reader
+locks, denied truncation, read-only and no-overwrite operations, dot/dangling/
+directory/looping symlinks, UTF-8 and literal backslash names, directory error
+publication, output capacities, cwd errors, search/temp environments, aliased
+and deep lexical paths and a cwd exceeding the initial 256-byte buffer.
+Directory records are sorted for comparison; the generated root and its leaf
+name are normalized. The C-only test also checks a sparse file larger than
+2 GiB when `off_t` can represent it, and a successful open occupying descriptor
+zero. The range-checked seek comparison explicitly uses `off_t`, avoiding an
+unsigned comparison on 32-bit POSIX targets.
+
+An isolated diskless QEMU guest runs Alpine 3.24.4, Linux 6.18.60-0-virt,
+GCC 15.2.0 and Clang 22.1.3. Debug and Release original/C snapshots and the
+Clang AddressSanitizer/UndefinedBehaviorSanitizer adapter snapshot are all
+13,936 bytes, FNV `28F7A6D5`, SHA-256
+`93483AFD2E67388B18C570CC0C67E1A2BDCBF4E2F90FDAFFB6FC245F67E85FD9`.
+Both the C-only API and the adapter pass those sanitizers. GCC and Clang pass
+strict C89 checks with pedantic, mixed-declaration and warning errors. The
+existing file-services fixture also passes against the original implementation
+in both profiles. Final guest source hashes match the workspace sources.
+
+Final CTest gates:
+
+| Configuration | Passed | Skipped |
+| --- | ---: | ---: |
+| Windows Native | 250 | 0 |
+| Windows SDL Release | 245 | 1 existing world-export skip |
+| Windows SDL Debug | 246 | 0 |
+| Windows standalone C89 engine | 163 | 0 |
+| Windows standalone platform, ANSI / UTF-16 | 5 / 5 | 0 |
+| Linux standalone C89 engine | 161 | 0 |
+| Linux standalone platform, Debug / Release | 7 / 7 | 0 |
+
+That is 1,089 passed checks and one existing skip. All 207 retained Windows
+trace pairs and the three Linux pairs match: 210 byte-identical comparisons.
+All ten input identities and the Windows ACP/OEM/locale identity are unchanged.
+Records contain 230 Windows executable identities and 173 Linux gated
+executable identities. The normal headless preview harness passes; all three
+Windows hosts retain 12 backgrounds, 188 cameras, 301,996,032 output bytes and
+FNV `E1A71005`. Native/SDL applications and tools rebuild; Marcus is stopped
+before its rebuild and relaunched afterward. No Marcus UI tests or new retail
+captures are added.
+
+The 32-bit Linux GNU target and ARM64 macOS branch also compile with strict
+C89 flags. macOS links the C-only
+test as a Mach-O executable using the existing Zig 0.16.0 cross toolchain.
+Zig's syntax-only invocation reported a driver `FileNotFound`; separate strict
+object compilation and linking succeed. This is compilation/link evidence,
+not macOS runtime evidence. Timing equivalence, all filesystems/locales,
+allocation-failure ordinals, signal schedules beyond the injected cases and
+invalid caller lifetimes remain unverified. Native object/default-context
+bindings and final facade removal still require conversion; the whole engine
+migration is not complete.
+
+Evidence: `tmp/c89-posix-files/trace-comparison.json`, `identities.json`,
+`platform_files_original.cpp`, `run-{native,sdl-release,sdl-debug}-tests.log`,
+`run-standalone-tests.log`, `platform-{ansi,wide}-tests.log`,
+`run-regular-tests.log`, `linux-sanitizers-final.log`, `linux-final.log`,
+`linux-results/evidence/` (original/C snapshots, platform/engine gates, source
+and executable hashes, symbols and ELF dependencies), `linux-evidence.tar.gz`,
+`native-final-tests.log` in the guest evidence records the affected C API and
+syntax recheck after the width guard; `width-*-tests.log` records the Windows
+C API rechecks. Cross evidence: `cross-c89.log`, `mac-c89.log`, `mac-link.log`
+and `mac-native-c-test`.

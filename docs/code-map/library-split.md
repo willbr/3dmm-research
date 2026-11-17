@@ -813,8 +813,8 @@ services in C89. The separate `mm-native-files` target links the native system
 libraries and has ANSI and UTF-16 configurations. It is consumed by C-only tests
 without Kauai, engine C++ or the C++ runtime. `platform_files_bridge.cpp` forwards
 the existing C++ API, translating only options, enums and boolean metadata.
-The old Windows C++ implementation is removed. POSIX services remain in
-`platform_files_posix.cpp` and still require C89 migration.
+The old Windows C++ implementation is removed. POSIX uses the same interface and
+adapter with the C89 `native_files_posix.c` implementation described below.
 
 The C backend retains handle ownership, access/sharing/default-ACL/create modes,
 signed 32-bit size/seek/resize limits, exact unsigned 32-bit I/O transfer counts,
@@ -833,6 +833,33 @@ original/converted snapshots and AddressSanitizer verify this boundary. Native
 traces include ANSI non-ASCII and UTF-16 Greek filenames. The
 [regression log](../tools/playback-regression.md) records source identities,
 profile hashes, verification scope and remaining native/default facade work.
+
+### POSIX physical file services
+
+The POSIX variant of `mm-native-files` builds `native_files_posix.c` as C90 with
+extensions disabled. It owns file descriptors, advisory locks, complete
+interrupted/short transfers, path buffers and directory streams. C allocations
+replace C++ strings, vectors and directory objects. Both hosts continue through
+the same C++ forwarding adapter, which only translates records and results.
+The standalone engine and platform projects can link the native C API with a
+C-only executable. OS declarations remain behind the implementation: Linux uses
+the POSIX 2008 feature level; macOS keeps its SDK's executable-path service.
+
+Lexical normalization preserves byte spelling, trailing separators and symlink
+independence. Search retains colon-separated empty components and `PATH`;
+temporary paths retain `TMPDIR` and the `/tmp` fallback. Cooperative locks are
+acquired before truncation. No-clobber renames retain the link/unlink sequence,
+read-only guards, dangling-link behavior and rollback attempt. POSIX resize
+does not move the file cursor on failure. Directory owners survive an entry
+error and close their stream and path explicitly. Metadata publication retains
+the original partial outputs when a symlink's target query fails.
+
+The old POSIX C++ implementation is removed. Strict GCC/Clang C89 checks,
+Linux Debug/Release original-versus-converted snapshots, C-only execution and
+the standalone platform gates verify this boundary. The
+[regression log](../tools/playback-regression.md) records exact evidence. These
+checks do not establish macOS runtime behavior or complete the remaining
+native object/default-context integration and whole-engine conversion.
 
 ### Collection storage foundation
 
@@ -6180,7 +6207,7 @@ frontend can be built separately with `BUILD_SDL_DIALOGS=ON`; see the
 [Studio SDL notes](../tools/studio-sdl.md) for behavior and verification limits.
 
 File backends: C89 `mm-native-files` through `platform_files_bridge.cpp` on
-Windows; `platform_files_posix.cpp` remains C++ on POSIX. `stub.cpp` is selected
+Windows and POSIX. `stub.cpp` is selected
 only on Windows. See [file/path policies](platform-files.md).
 
 Plus codegen: `kcdc_386.h`, `kcd2_386.h` on x86 only (kauai codec asm).

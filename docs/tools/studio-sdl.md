@@ -1553,7 +1553,8 @@ remaining below also prevents declaring the complete SDL port finished.
 
 Studio now obtains the current directory and executable path through the
 SDK-free `KauaiFiles` interface. Windows native queries are confined to
-the C89 `native_files_win.c` backend; POSIX current-directory discovery uses `getcwd`,
+the C89 `native_files_win.c` backend; POSIX queries now live in the C89
+`native_files_posix.c` backend. Current-directory discovery uses `getcwd`,
 Linux executable discovery uses `/proc/self/exe`, and macOS uses dyld's
 `_NSGetExecutablePath` followed by path normalization. The Windows path
 representation remains unchanged (ANSI or UTF-16 according to the build).

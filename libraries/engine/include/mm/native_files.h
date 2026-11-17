@@ -1,4 +1,4 @@
-/* Native file services converted from Kauai platform_files_win.cpp.
+/* Native file services converted from Kauai platform_files backends.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_NATIVE_FILES_H
 #define MM_ENGINE_NATIVE_FILES_H
@@ -34,7 +34,16 @@ typedef struct MMNativePathInfo { int directory, hidden, system, read_only, link
  * Lookup input/output do not overlap. Native process cwd/error-mode changes are
  * process-wide and require caller coordination. Make-directories uses C heap
  * storage and the existing ownerless shell call. No C++ types or allocations.
- * POSIX implementation remains a separate migration boundary. */
+ * POSIX uses byte paths, case-sensitive lexical normalization, C heap buffers,
+ * signed 32-bit sizes/positions and retrying exact transfers (EINTR/short I/O).
+ * Cooperative flock locking precedes truncation; no-clobber rename uses
+ * linkat/unlink. Directory iteration owns a stream and its path. POSIX info
+ * leaves metadata untouched if lstat fails, but clears it and sets link before
+ * following a symlink; a target error can therefore publish partial metadata.
+ * Iteration may similarly publish a name/partial metadata before an error.
+ * POSIX full/search/temp failure leaves output/leaf untouched; cwd/executable/
+ * leaf queries clear nonempty output on failure. See platform-files.md for
+ * per-OS creation/sharing/symlink/root/temporary-directory policies. */
 void mm_native_open_options_init(MMNativeOpenOptions *);
 void *mm_native_file_open(const MMNativePathChar *, const MMNativeOpenOptions *);
 void mm_native_file_close(void *);

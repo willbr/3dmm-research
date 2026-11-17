@@ -3,6 +3,8 @@
 #include "platform_files.h"
 #include "mm/native_files.h"
 namespace {
+MMNativePathInfo NativeInfo(const KauaiFiles::PathInfo &value)
+{return {value.directory,value.hidden,value.system,value.readOnly,value.link};}
 void Info(const MMNativePathInfo &value,KauaiFiles::PathInfo *out)
 {
     out->directory=value.directory!=0; out->hidden=value.hidden!=0; out->system=value.system!=0;
@@ -22,7 +24,7 @@ bool KauaiFiles::Size(FileHandle h,std::uint32_t *n) {return mm_native_file_size
 bool KauaiFiles::Read(FileHandle h,void *p,std::uint32_t n) {return mm_native_file_read(h,p,n)!=0;}
 bool KauaiFiles::Write(FileHandle h,const void *p,std::uint32_t n) {return mm_native_file_write(h,p,n)!=0;}
 KauaiFiles::Status KauaiFiles::Info(const PathChar *path,PathInfo *out)
-{MMNativePathInfo value; const auto status=mm_native_path_info(path,&value); if(status==MM_NATIVE_FOUND) ::Info(value,out); return static_cast<Status>(status);}
+{auto value=NativeInfo(*out); const auto status=mm_native_path_info(path,&value); ::Info(value,out); return static_cast<Status>(status);}
 bool KauaiFiles::Delete(const PathChar *p) {return mm_native_path_delete(p)!=0;}
 bool KauaiFiles::Rename(const PathChar *a,const PathChar *b) {return mm_native_path_rename(a,b)!=0;}
 bool KauaiFiles::MakeDirectory(const PathChar *p) {return mm_native_make_directory(p)!=0;}
@@ -44,7 +46,7 @@ std::uint32_t KauaiFiles::VolumeKinds(const PathChar *p) {return mm_native_volum
 std::uint32_t KauaiFiles::SuppressMediaErrors() {return mm_native_suppress_media_errors();}
 void KauaiFiles::RestoreMediaErrors(std::uint32_t n) {mm_native_restore_media_errors(n);}
 KauaiFiles::Iteration KauaiFiles::First(const PathChar *p,DirectoryHandle *h,DirectoryEntry *out)
-{MMNativePathInfo value; const auto result=mm_native_directory_first(p,h,out->name,&value); if(result==MM_NATIVE_ENTRY) ::Info(value,&out->info); return static_cast<Iteration>(result);}
+{auto value=NativeInfo(out->info); const auto result=mm_native_directory_first(p,h,out->name,&value); ::Info(value,&out->info); return static_cast<Iteration>(result);}
 KauaiFiles::Iteration KauaiFiles::Next(DirectoryHandle h,DirectoryEntry *out)
-{MMNativePathInfo value; const auto result=mm_native_directory_next(h,out->name,&value); if(result==MM_NATIVE_ENTRY) ::Info(value,&out->info); return static_cast<Iteration>(result);}
+{auto value=NativeInfo(out->info); const auto result=mm_native_directory_next(h,out->name,&value); ::Info(value,&out->info); return static_cast<Iteration>(result);}
 void KauaiFiles::CloseDirectory(DirectoryHandle h) {mm_native_directory_close(h);}

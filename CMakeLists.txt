@@ -972,8 +972,7 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/file_browser.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/dib_frame.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/avi_movie.cpp"
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/platform_files_bridge.cpp>
-    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/platform_files_posix.cpp>
+    "${PROJECT_SOURCE_DIR}/kauai/src/platform_files_bridge.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/memwin.cpp"
 
     # Stubs for Visual C++ 2.1 CRT functions
@@ -992,14 +991,14 @@ target_compile_definitions(kauai-core PUBLIC
   _LPCVOID_DEFINED
   STRICT)
 
-# Windows file calls use the C native-files backend; POSIX remains native C++.
+# Native file calls use the C native-files backend on Windows and POSIX.
 # Native dialogs and spelling integration belong to the GUI runtime.
 # Allocation, synchronization and ticks use the portable core_platform layer.
 find_package(Threads REQUIRED)
 target_link_libraries(kauai-core
   PUBLIC
     mm-engine-c89
-    $<$<PLATFORM_ID:Windows>:mm-native-files>
+    mm-native-files
     Threads::Threads
     $<$<PLATFORM_ID:Windows>:advapi32>
     $<$<PLATFORM_ID:Windows>:mpr>

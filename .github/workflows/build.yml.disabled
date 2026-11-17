@@ -80,7 +80,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           & ./out/consumer/archive-consumer.exe
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake -S tests/platform -B out/platform-unicode -G Ninja -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_CXX_FLAGS=/DUNICODE /D_UNICODE"
+          cmake -S tests/platform -B out/platform-unicode -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_C_FLAGS=/DUNICODE /D_UNICODE" "-DCMAKE_CXX_FLAGS=/DUNICODE /D_UNICODE"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cmake --build out/platform-unicode
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
