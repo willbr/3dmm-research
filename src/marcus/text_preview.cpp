@@ -22,6 +22,7 @@ struct MarcusTextPreview
         std::string resources;
         float yaw = 20, pitch = -10, zoom = 1;
         unsigned long generation = 0;
+        unsigned width = 480, height = 360;
     };
     std::atomic<bool> exiting{false};
     std::atomic<unsigned long> generation{0};
@@ -134,7 +135,8 @@ struct MarcusTextPreview
                 std::ostringstream camera;
                 if (activeFile != request.file) camera << "load " << std::quoted(request.file->path.u8string()) << ' ';
                 else camera << "view ";
-                camera << request.yaw << ' ' << request.pitch << ' ' << request.zoom << '\n';
+                camera << request.yaw << ' ' << request.pitch << ' ' << request.zoom << ' '
+                       << request.width << ' ' << request.height << '\n';
                 auto command = camera.str();
                 const auto deadline = SDL_GetTicks() + 30000;
                 Transfer(input, command.data(), command.size(), true, request.generation, deadline);
@@ -142,11 +144,11 @@ struct MarcusTextPreview
                 Transfer(outputStream, header.data(), header.size(), false, request.generation, deadline);
                 std::uint32_t size = 0;
                 for (int i = 0; i < 4; ++i) size |= std::uint32_t(header[i]) << (i * 8);
-                if (size < 24 || size > 1024 * 1024) throw std::runtime_error("Text preview response exceeds its limit.");
+                if (size < 24 || size > 5 * 1024 * 1024) throw std::runtime_error("Text preview response exceeds its limit.");
                 std::vector<std::uint8_t> bytes(size);
                 Transfer(outputStream, bytes.data(), bytes.size(), false, request.generation, deadline);
                 result = ReadPreview(bytes);
-                if (result.error.empty() && (result.width != 480 || result.height != 360))
+                if (result.error.empty() && (result.width != int(request.width) || result.height != int(request.height)))
                     throw std::runtime_error("Invalid text preview dimensions.");
                 if (result.error.empty()) activeFile = request.file;
                 loaded = request.generation;
@@ -174,7 +176,13 @@ const char *text_preview_error(const MarcusTextPreview *preview)
 int text_preview_start(MarcusTextPreview *preview, MarcusPlayer *player, int object,
                        const MarcusText *text, const char *resources, float yaw, float pitch, float zoom)
 {
-    if (!preview || !text || !resources) return 0;
+    return text_preview_start_sized(preview, player, object, text, resources, yaw, pitch, zoom, 480, 360);
+}
+int text_preview_start_sized(MarcusTextPreview *preview, MarcusPlayer *player, int object,
+                             const MarcusText *text, const char *resources, float yaw, float pitch, float zoom,
+                             int width, int height)
+{
+    if (!preview || !text || !resources || width < 1 || height < 1 || width > 1024 || height > 1024) return 0;
     try
     {
         auto file = MarcusPrepareTextPreview(player, object, *text);
@@ -182,7 +190,8 @@ int text_preview_start(MarcusTextPreview *preview, MarcusPlayer *player, int obj
         std::lock_guard<std::mutex> lock(preview->mutex);
         ++preview->generation;
         preview->ready = {}; preview->output = {}; preview->available = false; preview->error.clear();
-        preview->desired = {std::move(file), resources, yaw, pitch, zoom, preview->generation.load()};
+        preview->desired = {std::move(file), resources, yaw, pitch, zoom, preview->generation.load(),
+                            unsigned(width), unsigned(height)};
         preview->requested = true;
         preview->wake.notify_one();
         return 1;

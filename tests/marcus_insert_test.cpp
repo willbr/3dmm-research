@@ -306,6 +306,27 @@ int main(int argc, char **argv)
                 marcus_document(player.get()) == previewDocument,
                 "Persistent gallery template loads preserve exact font/shape/material pixels and document identity");
         }
+        auto detailedSample = settings;
+        std::strcpy(detailedSample.text, "The quick brown fox jumped over the lazy dog.");
+        require(!text_preview_start_sized(textPreview.get(), player.get(), -1, &detailedSample, argv[1], 20, -10, 1, 0, 720) &&
+            !text_preview_start_sized(textPreview.get(), player.get(), -1, &detailedSample, argv[1], 20, -10, 1, 1025, 720),
+            "Detailed preview sizes remain within the bounded transport limits");
+        require(text_preview_start_sized(textPreview.get(), player.get(), -1, &detailedSample, argv[1], 20, -10, 1, 960, 720) &&
+            waitPreview() == 1 && previewImage.width == 960 && previewImage.height == 720 && previewImage.pitch == 960 * 4,
+            "Gallery renders provide native high-resolution pixels for long wording");
+        size_t covered = 0;
+        for (int y = 0; y < previewImage.height; ++y)
+            for (int x = 0; x < previewImage.width; ++x)
+                if (previewImage.rgba[y * previewImage.pitch + x * 4 + 3]) ++covered;
+        require(covered > 0 && covered < size_t(960 * 720) / 2 && marcus_document(player.get()) == previewDocument,
+            "Detailed previews retain transparent trim margins without changing the movie");
+        require(text_preview_view(textPreview.get(), -25, 10, 1.5f) && waitPreview() == 1 &&
+            previewImage.width == 960 && previewImage.height == 720,
+            "Camera updates retain the session's chosen resolution");
+        require(text_preview_start(textPreview.get(), player.get(), editIndex, &settings, argv[1], 20, -10, 1) &&
+            waitPreview() == 1 && previewImage.width == 480 && previewImage.height == 360 &&
+            std::memcmp(previewImage.rgba, preview.rgba.data(), preview.rgba.size()) == 0,
+            "Returning to ordinary previews preserves their original pixels and dimensions");
         text_preview_stop(textPreview.get());
         text_preview_stop(textPreview.get());
         require(text_preview_poll(textPreview.get(), &previewImage) == 0 && !text_preview_view(textPreview.get(), 0, 0, 1),

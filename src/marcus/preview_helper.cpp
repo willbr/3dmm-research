@@ -160,12 +160,14 @@ int TextPreviews(char **argv)
             MM::PreviewImage image;
             error.message.clear();
             if (command == "load" && !(std::cin >> std::quoted(path))) return 2;
-            if ((command != "view" && command != "load") || !(std::cin >> view.yaw >> view.pitch >> view.zoom)) return 2;
+            if ((command != "view" && command != "load") ||
+                !(std::cin >> view.yaw >> view.pitch >> view.zoom >> view.width >> view.height)) return 2;
             if (command == "load" && (!renderer.Open(path, argv[2], error) ||
                 !renderer.Select({0x544d504c, 0}, error) || !renderer.UseTextPreviewMaterial(error)))
                 preview.error = error.message.empty() ? "Cannot load this text preview." : error.message;
             else if (!std::isfinite(view.yaw) || !std::isfinite(view.pitch) || !std::isfinite(view.zoom) ||
-                view.pitch < -89 || view.pitch > 89 || view.zoom < .25f || view.zoom > 4)
+                view.pitch < -89 || view.pitch > 89 || view.zoom < .25f || view.zoom > 4 ||
+                view.width < 1 || view.height < 1 || view.width > 1024 || view.height > 1024)
                 preview.error = "Invalid text preview camera.";
             else if (!renderer.Render(view, image, error))
                 preview.error = error.message.empty() ? "Cannot preview this text." : error.message;

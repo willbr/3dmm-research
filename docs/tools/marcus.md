@@ -318,10 +318,14 @@ list and larger selected preview.
 one line, then choose an original 3D font and one of the ten retail shapes from
 the visual pickers. Each selected font, shape and material has a rendered sample;
 click its image to open a thumbnail gallery filling the app window. The grid
-fits its columns and sample sizes to the available width, height and number of
-choices, using larger cards when space permits. Smaller windows retain readable
-cards with scrolling. Thumbnail framing trims transparent margins around the
-complete text, with padding, rather than shrinking a mostly empty render canvas.
+prioritizes readability: cards prefer at least 320 pixels of image width and
+grow wider for longer wording, using fewer columns and vertical scrolling.
+Card height follows the rendered text's proportions, with bounded padding,
+rather than forcing long sentences into large 4:3 boxes. Gallery samples render
+at 960x720 before transparent margins are trimmed independently on each axis;
+the cropped native pixels retain their detail and aspect ratio. The complete
+wording stays visible, including dark materials whose geometry is detected by
+alpha rather than colour. The main interactive preview remains 480x360.
 The separate Choose buttons are
 removed; Back or Escape returns to the dialog. Generated material labels such
 as "Material 25344" are hidden in the tiles and tooltips; authored names remain.

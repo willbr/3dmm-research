@@ -13,6 +13,11 @@ void text_preview_destroy(MarcusTextPreview *preview);
 void text_preview_stop(MarcusTextPreview *preview);
 int text_preview_start(MarcusTextPreview *preview, MarcusPlayer *player, int object,
                        const MarcusText *text, const char *resources, float yaw, float pitch, float zoom);
+/* Detailed gallery renders; each dimension is limited to the 1..1024 range
+ * supported by the bounded preview protocol. The ordinary preview stays 480x360. */
+int text_preview_start_sized(MarcusTextPreview *preview, MarcusPlayer *player, int object,
+                             const MarcusText *text, const char *resources, float yaw, float pitch, float zoom,
+                             int width, int height);
 /* Coalesce camera requests on the loaded template. No template construction,
  * process restart or wait on the caller thread. Returns 0 without a session. */
 int text_preview_view(MarcusTextPreview *preview, float yaw, float pitch, float zoom);
