@@ -448,7 +448,7 @@ struct MarcusStoryboardEditor
         Finish();
         auto next = board.angles[angle]; std::fill(next.pixels.begin(), next.pixels.end(), 0);
         board.angles.push_back(std::move(next)); angle = int(board.angles.size()) - 1;
-        tab = 1; pending = previewDirty = true; Commit();
+        pending = previewDirty = true; Commit();
     }
     std::vector<Field> Fields()
     {

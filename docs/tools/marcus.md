@@ -195,6 +195,7 @@ camera-relative insertion points, adapted to the current pose and lens so they
 start in frame. The extra anchors are also written into exported native CAMs.
 Existing drawings, cameras and prop positions remain authored as saved.
 **New angle** creates a blank grey drawing using the selected camera's settings.
+The current Paint, Camera or Lights tab stays selected.
 Switch angles using the arrows. In **Camera**, drag numeric values or use their
 minus/plus buttons to change position, yaw, pitch, roll, vertical FOV and clipping
 planes. Shift makes value drags finer. Navigation uses the same controls and mouse
