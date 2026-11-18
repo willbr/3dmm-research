@@ -772,9 +772,8 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
         auto actor=static_cast<Actor *>(p); actor->_ptmpl->GetRestOrien(&inputs->restX,&inputs->restY,&inputs->restZ);
         inputs->fixedPathOrientation=actor->_ptmpl->FIsTdt();
     };
-    s.locate_body=[](void *p,const MMActorPoint *position,const MMActorMatrix *value) {
-        BMAT34 matrix; std::memcpy(&matrix,value,sizeof(matrix));
-        static_cast<Actor *>(p)->_pbody->LocateOrient(position->dxr,position->dyr,position->dzr,&matrix);
+    s.locate_body=[](void *p,const MMActorBodyPose *pose) {
+        static_cast<Actor *>(p)->_pbody->ApplyPose(*pose);
     };
     s.seek=[](void *p,MMActorState *state,MMI32 frame) {
         auto actor=static_cast<Actor *>(p); EngineActorMotion::Publish(actor->_state,*state);

@@ -1,5 +1,5 @@
 #include "movie_session_internal.h"
-#include "mm/actor_math.h"
+#include "mm/actor_pose.h"
 #include "mm/template_runtime.h"
 #include <stdlib.h>
 
@@ -25,7 +25,8 @@ void mm_movie_body_meshes_dispose(MMMovieBodyMeshes *geometry)
 static int world_matrices(const MMMovieEvaluatedBody *body, MMMovieBodyMeshes *out)
 {
     enum { UNVISITED, VISITING, COMPLETE };
-    MMActorMatrix root = body->actor.orientation;
+    MMActorBodyPose pose;
+    MMActorMatrix root;
     unsigned char *marks = (unsigned char *)part_array(body->part_count, 1);
     MMU32 *stack = (MMU32 *)part_array(body->part_count, sizeof(*stack));
     MMU32 i, depth, index;
@@ -36,9 +37,9 @@ static int world_matrices(const MMMovieEvaluatedBody *body, MMMovieBodyMeshes *o
         status = MM_MOVIE_MEMORY;
         goto done;
     }
-    root.m[3][0] = mm_fixed_add(root.m[3][0], body->actor.translation.dxr);
-    root.m[3][1] = mm_fixed_add(root.m[3][1], body->actor.translation.dyr);
-    root.m[3][2] = mm_fixed_add(root.m[3][2], body->actor.translation.dzr);
+    pose.translation = body->actor.translation;
+    pose.orientation = body->actor.orientation;
+    mm_actor_pose_root(&pose, &root);
     for (i = 0; i < body->part_count; ++i)
     {
         depth = 0;

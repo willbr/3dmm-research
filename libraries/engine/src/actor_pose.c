@@ -188,3 +188,21 @@ void mm_actor_pose_update(MMActorState *state, void *route, void *events,
         state->transform.bmat34Cur = rotation;
     }
 }
+
+void mm_actor_pose_evaluate(MMActorState *state, void *route, void *events,
+                            const MMActorPoseInputs *inputs, const MMActorPoint *position,
+                            MMActorBodyPose *pose, const MMActorMotionServices *s)
+{
+    mm_actor_pose_update(state, route, events, inputs, position, &pose->orientation, s);
+    pose->translation.dxr = mm_fixed_add(state->routeTranslation.dxr, state->position.dxr);
+    pose->translation.dyr = mm_fixed_add(state->routeTranslation.dyr, state->position.dyr);
+    pose->translation.dzr = mm_fixed_add(state->routeTranslation.dzr, state->position.dzr);
+}
+
+void mm_actor_pose_root(const MMActorBodyPose *pose, MMActorMatrix *matrix)
+{
+    *matrix = pose->orientation;
+    matrix->m[3][0] = mm_fixed_add(matrix->m[3][0], pose->translation.dxr);
+    matrix->m[3][1] = mm_fixed_add(matrix->m[3][1], pose->translation.dyr);
+    matrix->m[3][2] = mm_fixed_add(matrix->m[3][2], pose->translation.dzr);
+}

@@ -19,9 +19,14 @@ void mm_body_hide(void *body,const MMBodyRuntimeServices *s)
 }
 void mm_body_highlight(void *body,int enabled,const MMBodyRuntimeServices *s)
 { s->highlight(s->shape.context,body,enabled); changed(body,s); }
-void mm_body_locate(void *body,MMI32 x,MMI32 y,MMI32 z,const void *matrix,const MMBodyRuntimeServices *s)
-{ s->matrix(s->shape.context,body,0,matrix); s->translate(s->shape.context,body,x,y,z); changed(body,s); }
-void mm_body_set_matrix(void *body,MMI32 part,const void *matrix,const MMBodyRuntimeServices *s)
+void mm_body_locate(void *body,const MMActorBodyPose *pose,const MMBodyRuntimeServices *s)
+{
+    MMActorMatrix root;
+    mm_actor_pose_root(pose, &root);
+    s->matrix(s->shape.context, body, 0, &root);
+    changed(body, s);
+}
+void mm_body_set_matrix(void *body,MMI32 part,const MMActorMatrix *matrix,const MMBodyRuntimeServices *s)
 { s->matrix(s->shape.context,body,part+2,matrix); changed(body,s); }
 void mm_body_set_model(void *body,MMI32 part,void *model,const MMBodyRuntimeServices *s)
 {

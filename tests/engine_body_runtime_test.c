@@ -6,7 +6,7 @@
 typedef struct Ref Ref;
 typedef struct Handle { Ref *owner; int live; } Handle;
 struct Ref { int refs,kind,set,count; Handle raw,parts[4]; Ref *models[4]; };
-typedef struct Part { Ref *model; Handle *material; int matrix; } Part;
+typedef struct Part { Ref *model; Handle *material; MMActorMatrix matrix; } Part;
 typedef struct Fixture
 {
     MMBodyRuntimeServices s; MMBodyShape b; short sets[6]; Part parts[8]; Ref *customs[3];
@@ -35,8 +35,8 @@ static MMI32 custom_count(void *p,void *r) { (void)p; return ((Ref *)r)->count; 
 static void *custom_model(void *p,void *r,MMI32 i) { (void)p; CHECK(i>=0 && i<4); return ((Ref *)r)->models[i]; }
 static void *custom_material(void *p,void *r,MMI32 i) { (void)p; CHECK(i>=0 && i<4 && ((Ref *)r)->parts[i].live); return &((Ref *)r)->parts[i]; }
 static void invalidate(void *p,void **out) { *out=&((Fixture *)p)->poison; }
-static void matrix(void *p,void *b,MMI32 i,const void *m) { Fixture *f=p; CHECK(b==f); f->parts[i].matrix=*(const int *)m; }
-static void translate(void *p,void *b,MMI32 x,MMI32 y,MMI32 z) { Fixture *f=p; CHECK(b==f); f->parts[0].matrix+=x+y+z; }
+static void matrix(void *p,void *b,MMI32 i,const MMActorMatrix *m)
+{ Fixture *f=p; CHECK(b==f); f->parts[i].matrix=*m; }
 static void highlight(void *p,void *b,int enabled) { Fixture *f=p; CHECK(b==f); f->highlight=enabled; }
 static void attach(void *p,void *b) { Fixture *f=p; CHECK(b==f && !f->b.hidden); f->parent=1; ++f->attached; event(f,1); }
 static int attached(void *p,void *b) { Fixture *f=p; CHECK(b==f); return f->parent; }
@@ -64,7 +64,7 @@ static void setup(Fixture *f,int hidden)
     f->s.assign_material=assign_material; f->s.material_object=material_object; f->s.material_handle=material_handle;
     f->s.custom=custom; f->s.assign_custom=assign_custom; f->s.custom_set=custom_set; f->s.custom_count=custom_count;
     f->s.custom_model=custom_model; f->s.custom_material=custom_material; f->s.invalidate_output=invalidate;
-    f->s.matrix=matrix; f->s.translate=translate; f->s.highlight=highlight; f->s.attach=attach; f->s.attached=attached;
+    f->s.matrix=matrix; f->s.highlight=highlight; f->s.attach=attach; f->s.attached=attached;
     f->s.detach=detach; f->s.clear_bounds=bounds; f->s.changed=changed; f->s.is_generic=is_generic; f->s.diagnostic=diagnostic;
     mm_body_set_generic(f,0,&f->ma,&f->s); mm_body_set_generic(f,1,&f->mb,&f->s);
     mm_body_set_model(f,0,&f->a,&f->s); f->changed=f->event_count=0;
@@ -77,15 +77,26 @@ static void cleanup(Fixture *f)
 }
 int main(void)
 {
-    Fixture f; MMBodyCostume costume; int h,n,change,initial,gen; void *m,*c;
+    Fixture f; MMBodyCostume costume; int h,change,initial,gen; void *m,*c;
+    MMActorBodyPose pose;
+    mm_matrix_identity(&pose.orientation);
+    pose.orientation.m[3][0]=3;
+    pose.orientation.m[3][1]=-6;
+    pose.orientation.m[3][2]=2147483647L;
+    pose.translation.dxr=2;
+    pose.translation.dyr=5;
+    pose.translation.dzr=1;
     for (h=0;h<4;h+=h?2:1)
     {
         setup(&f,h); mm_body_set_model(&f,0,&f.a,&f.s); CHECK(!f.event_count);
         mm_body_set_model(&f,0,&f.bmodel,&f.s);
         CHECK(f.events[0]==5 && f.events[1]==6 && f.events[2]==7 && f.event_count==(h?3:4));
         initial=f.changed; mm_body_set_model(&f,0,&f.bmodel,&f.s); CHECK(f.changed==initial);
-        n=7; mm_body_set_matrix(&f,0,&n,&f.s); CHECK(f.parts[2].matrix==7);
-        n=3; mm_body_locate(&f,2,3,4,&n,&f.s); CHECK(f.parts[0].matrix==12);
+        mm_body_set_matrix(&f,0,&pose.orientation,&f.s);
+        CHECK(memcmp(&f.parts[2].matrix,&pose.orientation,sizeof(pose.orientation))==0);
+        mm_body_locate(&f,&pose,&f.s);
+        CHECK(f.parts[0].matrix.m[0][0]==65536L && f.parts[0].matrix.m[3][0]==5 &&
+              f.parts[0].matrix.m[3][1]==-1 && f.parts[0].matrix.m[3][2]==(-2147483647L-1));
         mm_body_highlight(&f,1,&f.s); mm_body_highlight(&f,1,&f.s); mm_body_highlight(&f,0,&f.s);
         CHECK(!f.highlight && f.changed==initial+(h?0:5));
         f.event_count=0; initial=f.changed;

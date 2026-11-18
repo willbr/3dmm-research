@@ -488,6 +488,9 @@ Keep host presentation and device output outside the session.
    `CMTL` child and per-slot material and optional model keys before
    application. Default costumes share first-row selection from the
    authored table and costume discovery in child order for older templates.
+   Studio and Marcus apply the same C89 body pose used by the standalone
+   evaluator. Root matrix composition is shared with the session's mesh
+   path, including route translation and any orientation offset.
    Studio and Marcus submit through a common C frame record for
    the world, camera and colour/depth targets. It owns the temporary render
    and picking targets in Marcus and borrows Studio's live world and buffers.

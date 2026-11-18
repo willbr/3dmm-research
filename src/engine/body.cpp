@@ -112,6 +112,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include <cstring>
 ASSERTNAME
 
 RTCLASS(Body)
@@ -451,8 +452,11 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
     s.custom_model = [](void *, void *object, MMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pmodl(i); };
     s.custom_material = [](void *, void *object, MMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pbmtl(i); };
     s.invalidate_output = [](void *, void **out) { TrashVar(out); };
-    s.matrix = [](void *, void *body, MMI32 actor, const void *matrix) { static_cast<PBody>(body)->_Actors()[actor].t.t.mat = *static_cast<const BMAT34 *>(matrix); };
-    s.translate = [](void *, void *body, MMI32 x, MMI32 y, MMI32 z) { BrMatrix34PostTranslate(&static_cast<PBody>(body)->_PbactRoot()->t.t.mat, x, y, z); };
+    s.matrix = [](void *, void *body, MMI32 actor, const MMActorMatrix *matrix) {
+        auto &native = static_cast<PBody>(body)->_Actors()[actor].t.t.mat;
+        static_assert(sizeof(native) == sizeof(*matrix), "body matrix ABI");
+        std::memcpy(&native, matrix, sizeof(native));
+    };
     s.highlight = [](void *, void *body, int enabled) { static_cast<PBody>(body)->_PbactHilite()->type = enabled ? BR_ACTOR_MODEL : BR_ACTOR_NONE; };
     s.attach = [](void *, void *object) { auto body = static_cast<PBody>(object); if (body->_pfnAttach) body->_pfnAttach(body->_pvRenderContext, body); };
     s.attached = [](void *, void *body) -> int { return static_cast<PBody>(body)->_PbactRoot()->parent != pvNil; };
@@ -523,7 +527,17 @@ void Body::LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34)
 {
     AssertThis(0); AssertVarMem(pbmat34);
     static_assert(sizeof(BRS) == sizeof(MMI32), "body scalar ABI");
-    auto s = _RuntimeServices(); mm_body_locate(this, xr, yr, zr, pbmat34, &s);
+    MMActorBodyPose pose;
+    pose.translation = {static_cast<MMI32>(xr), static_cast<MMI32>(yr), static_cast<MMI32>(zr)};
+    std::memcpy(&pose.orientation, pbmat34, sizeof(pose.orientation));
+    ApplyPose(pose);
+}
+
+void Body::ApplyPose(const MMActorBodyPose &pose)
+{
+    AssertThis(0);
+    auto s = _RuntimeServices();
+    mm_body_locate(this, &pose, &s);
 }
 
 /***************************************************************************
@@ -541,7 +555,16 @@ void Body::SetPartModel(LegacyLong ibact, Model *pmodl)
 void Body::SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34)
 {
     AssertThis(0); AssertIn(ibact, 0, _shape.part_count); AssertVarMem(pbmat34);
-    auto s = _RuntimeServices(); mm_body_set_matrix(this, ibact, pbmat34, &s);
+    MMActorMatrix matrix;
+    std::memcpy(&matrix, pbmat34, sizeof(matrix));
+    SetPartMatrix(ibact, matrix);
+}
+
+void Body::SetPartMatrix(LegacyLong ibact, const MMActorMatrix &matrix)
+{
+    AssertThis(0); AssertIn(ibact, 0, _shape.part_count);
+    auto s = _RuntimeServices();
+    mm_body_set_matrix(this, ibact, &matrix, &s);
 }
 
 /***************************************************************************

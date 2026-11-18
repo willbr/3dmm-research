@@ -17,8 +17,8 @@ static int resolve(void *p,MMI32 action,MMI32 cel,MMI32 *step)
 { SubFixture *f=(SubFixture *)p; (void)action; (void)cel; ++f->resolves; *step=ONE; return !f->fail_resolve; }
 static void last_frame(void *p,MMI32 frame) { ((SubFixture *)p)->base.range.last=frame; }
 static void inputs(void *p,MMActorPoseInputs *out) { (void)p; memset(out,0,sizeof(*out)); }
-static void locate(void *p,const MMActorPoint *point,const MMActorMatrix *matrix)
-{ SubFixture *f=(SubFixture *)p; (void)point; (void)matrix; ++f->locates; }
+static void locate(void *p,const MMActorBodyPose *pose)
+{ SubFixture *f=(SubFixture *)p; (void)pose; ++f->locates; }
 static void sub_diagnostic(void *p,int fault)
 { SubFixture *f=(SubFixture *)p; CHECK(fault==MM_SUBROUTE_BAD_LIFETIME || fault==MM_SUBROUTE_BAD_HOLD); ++f->diagnostic_count; }
 static int seek(void *p,MMActorState *state,MMI32 frame)

@@ -123,8 +123,10 @@ class Body : public Body_PAR
     static void ReleaseSharedMaterial(void);
 
     void LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34);
+    void ApplyPose(const MMActorBodyPose &);
     void SetPartModel(LegacyLong ibact, Model *pmodl);
     void SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34);
+    void SetPartMatrix(LegacyLong ibact, const MMActorMatrix &);
     void SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl);
     void SetPartSetCmtl(CustomMaterial_CMTL *pcmtl);
     void GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl);

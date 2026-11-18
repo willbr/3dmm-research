@@ -44,7 +44,7 @@ extern "C"
         void (*rest)(void *, void *, unsigned short angles[3]);
         MMI32 (*scalar)(float);
         float (*scalar_float)(MMI32);
-        void (*locate)(void *, void *, const MMActorPoint *, const MMActorMatrix *);
+        void (*locate)(void *, void *, const MMActorBodyPose *);
         int (*pose)(void *, void *, void *, MMI32 action, MMI32 cel);
         int (*apply)(void *, MMI32 index);
         void (*clear_cues)(void *), (*clear_motion)(void *);

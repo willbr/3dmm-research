@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_BODY_RUNTIME_H
 #define MM_ENGINE_BODY_RUNTIME_H
 #include "body_create.h"
+#include "actor_pose.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,8 +35,7 @@ typedef struct MMBodyRuntimeServices
     void *(*custom_model)(void *,void *,MMI32);
     void *(*custom_material)(void *,void *,MMI32);
     void (*invalidate_output)(void *,void **);
-    void (*matrix)(void *,void *body,MMI32 actor,const void *);
-    void (*translate)(void *,void *body,MMI32,MMI32,MMI32);
+    void (*matrix)(void *,void *body,MMI32 actor,const MMActorMatrix *);
     void (*highlight)(void *,void *body,int);
     void (*attach)(void *,void *body);
     int (*attached)(void *,void *body);
@@ -58,8 +58,8 @@ typedef struct MMBodyRuntimeServices
 void mm_body_show(void *,const MMBodyRuntimeServices *);
 void mm_body_hide(void *,const MMBodyRuntimeServices *);
 void mm_body_highlight(void *,int,const MMBodyRuntimeServices *);
-void mm_body_locate(void *,MMI32,MMI32,MMI32,const void *,const MMBodyRuntimeServices *);
-void mm_body_set_matrix(void *,MMI32,const void *,const MMBodyRuntimeServices *);
+void mm_body_locate(void *,const MMActorBodyPose *,const MMBodyRuntimeServices *);
+void mm_body_set_matrix(void *,MMI32,const MMActorMatrix *,const MMBodyRuntimeServices *);
 void mm_body_set_model(void *,MMI32,void *,const MMBodyRuntimeServices *);
 void mm_body_remove_material(void *,MMI32,const MMBodyRuntimeServices *);
 void mm_body_set_generic(void *,MMI32,void *,const MMBodyRuntimeServices *);

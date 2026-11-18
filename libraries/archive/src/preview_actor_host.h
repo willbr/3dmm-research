@@ -153,10 +153,8 @@ struct PreviewActor::Host
         s.rest = [](void *, void *t, unsigned short *a) { static_cast<PTemplate>(t)->GetRestOrien(a, a + 1, a + 2); };
         s.scalar = [](float v) -> MMI32 { return BrFloatToScalar(v); };
         s.scalar_float = [](MMI32 v) -> float { return BrScalarToFloat(v); };
-        s.locate = [](void *, void *b, const MMActorPoint *p, const MMActorMatrix *m) {
-            BMAT34 value;
-            std::memcpy(&value, m, sizeof(value));
-            static_cast<PBody>(b)->LocateOrient(p->dxr, p->dyr, p->dzr, &value);
+        s.locate = [](void *, void *b, const MMActorBodyPose *pose) {
+            static_cast<PBody>(b)->ApplyPose(*pose);
         };
         s.pose = [](void *v, void *t, void *b, MMI32 action, MMI32 cel) -> int {
             auto &h = *static_cast<Host *>(v);

@@ -140,8 +140,12 @@ costume discovered for each set.
 `mm_movie_session_body_meshes` resolves the owning template or font archive
 and loads each distinct active `BMDL` into owned arrays of positions, mappings,
 colours, normals and indexed faces. It composes part world transforms from
-the fixed-point actor pose and local hierarchy. The standalone `--mesh`
-probe prints appearance bindings, world matrices and geometry fingerprints.
+the fixed-point actor pose and local hierarchy. Studio's actor runtime and
+Marcus preview publish `MMActorBodyPose` after evaluating motion and any
+preview transform edits. The native body and standalone mesh path both use
+`mm_actor_pose_root` to compose the root matrix. The renderer receives that
+matrix directly. The standalone `--mesh` probe prints appearance bindings,
+world matrices and geometry fingerprints.
 Studio and Marcus still use their existing archive owners, playback resource
 providers and renderers.
 

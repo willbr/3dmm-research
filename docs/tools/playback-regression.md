@@ -13447,6 +13447,33 @@ on four seeks. Marcus was rebuilt and relaunched.
 
 Evidence is under `tmp/c89-costume-consumer/` on the evidence drive.
 
+### Live actors apply the C89 body pose
+
+Studio, Marcus, and the standalone actor evaluator now produce
+`MMActorBodyPose` from live motion state. `mm_actor_pose_root` composes the
+root matrix for both native bodies and standalone meshes. The renderer
+receives the composed value directly. The C body fixture covers an existing
+translation in the orientation matrix, signed fixed-point wrapping, and
+visible versus hidden body notifications.
+
+All 181 standalone, 28 selected host, and six AddressSanitizer checks
+passed. All six changed C engine sources compiled under strict C89 for
+Linux x64 musl. The 300
+native graph and stream frame results matched. All 300 standalone frame
+snapshots and 300 mesh snapshots matched the previous build. Stock and
+SID-29 fixtures matched 456 seek observations and 360 viewport hashes.
+All 25 native actor and body traces matched across 5,755,758 bytes,
+including body placement, duplication, restoration, and geometry. The
+480-byte saved movie and the 188-camera background trace also matched.
+
+Each host matched retail's frame order and final position across 240
+playback commits. Stock Studio and retained v3dmm seeks each matched 456
+retail actor records. Retail reopened the movie saved after a Studio
+actor transform and reproduced the matrices, action, cel, and stage state
+on four seeks. Marcus was rebuilt and relaunched.
+
+Evidence is under `tmp/c89-pose-consumer/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

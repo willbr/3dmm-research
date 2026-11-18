@@ -169,9 +169,9 @@ static int select_pose(MMPreviewActor *p, const MMPreviewActorServices *s)
 }
 int mm_preview_actor_position(MMPreviewActor *p, int select_cel, const MMPreviewActorServices *s)
 {
-    MMActorPoseInputs pose;
-    MMActorMatrix matrix, rotation, combined, *basis;
-    MMActorPoint point;
+    MMActorPoseInputs inputs;
+    MMActorBodyPose pose;
+    MMActorMatrix rotation, combined, *basis;
     MMActorState edited;
     MMPreviewActorShape identity;
     unsigned short angles[3];
@@ -183,11 +183,11 @@ int mm_preview_actor_position(MMPreviewActor *p, int select_cel, const MMPreview
         identity.scale[i] = 1;
     }
     s->rest(s->context, p->tmpl, angles);
-    pose.restX = angles[0];
-    pose.restY = angles[1];
-    pose.restZ = angles[2];
-    pose.fixedPathOrientation = s->text(s->context, p->tmpl);
-    mm_actor_pose_update(&p->state, p->route, p->events, &pose, &p->state.position, &matrix, &s->timeline.motion);
+    inputs.restX = angles[0];
+    inputs.restY = angles[1];
+    inputs.restZ = angles[2];
+    inputs.fixedPathOrientation = s->text(s->context, p->tmpl);
+    mm_actor_pose_evaluate(&p->state, p->route, p->events, &inputs, &p->state.position, &pose, &s->timeline.motion);
     if (!p->state.useCurrentRotation || p->orientation_reset)
     {
         p->orientation = p->state;
@@ -209,12 +209,10 @@ int mm_preview_actor_position(MMPreviewActor *p, int select_cel, const MMPreview
         edited.transform.aevpull.rScaleX = mm_fixed_mul(edited.transform.aevpull.rScaleX, s->scalar(p->shape.scale[0]));
         edited.transform.aevpull.rScaleY = mm_fixed_mul(edited.transform.aevpull.rScaleY, s->scalar(p->shape.scale[1]));
         edited.transform.aevpull.rScaleZ = mm_fixed_mul(edited.transform.aevpull.rScaleZ, s->scalar(p->shape.scale[2]));
-        mm_actor_pose_update(&edited, p->route, p->events, &pose, &p->state.position, &matrix, &s->timeline.motion);
+        mm_actor_pose_update(&edited, p->route, p->events, &inputs, &p->state.position, &pose.orientation,
+                             &s->timeline.motion);
     }
-    point.dxr = mm_fixed_add(p->state.routeTranslation.dxr, p->state.position.dxr);
-    point.dyr = mm_fixed_add(p->state.routeTranslation.dyr, p->state.position.dyr);
-    point.dzr = mm_fixed_add(p->state.routeTranslation.dzr, p->state.position.dzr);
-    s->locate(s->context, p->body, &point, &matrix);
+    s->locate(s->context, p->body, &pose);
     return select_cel ? select_pose(p, s) : 1;
 }
 static int move(MMPreviewActor *p, const float delta[3], int offset, const MMPreviewActorServices *s)

@@ -19,7 +19,7 @@ typedef struct MMActorSubrouteEditServices
     void (*get_flags)(void *,MMActorSubrouteFlags *);
     void (*set_dirty)(void *,int);
     void (*pose_inputs)(void *,MMActorPoseInputs *);
-    void (*locate_body)(void *,const MMActorPoint *,const MMActorMatrix *);
+    void (*locate_body)(void *,const MMActorBodyPose *);
     /* Temporary integration into the already C-owned seek policy. State is
      * input/output even on failure; callbacks retain partial owner-side flags. */
     int (*seek)(void *,MMActorState *,MMI32 frame);

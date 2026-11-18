@@ -466,7 +466,7 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
     };
     s.set_model = [](void *, void *body, MMI32 part, void *model) { static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model)); };
     s.set_matrix = [](void *, void *body, MMI32 part, const MMActorMatrix *data) {
-        BMAT34 matrix; std::memcpy(&matrix, data, sizeof(matrix)); static_cast<PBody>(body)->SetPartMatrix(part, &matrix);
+        static_cast<PBody>(body)->SetPartMatrix(part, *data);
     };
     s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
         auto tag = static_cast<PTAG>(out); static_cast<PActionDefinition>(action)->GetSnd(index, tag); return tag->ctg != ctgNil;

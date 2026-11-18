@@ -228,13 +228,13 @@ static float scalar_float(MMI32 v)
 {
     return (float)v / 65536.f;
 }
-static void locate(void *v, void *b, const MMActorPoint *p, const MMActorMatrix *m)
+static void locate(void *v, void *b, const MMActorBodyPose *pose)
 {
     Host *h = (Host *)v;
     assert(b == h->token + 1);
     ++h->locations;
-    h->point = *p;
-    h->matrix = *m;
+    h->point = pose->translation;
+    h->matrix = pose->orientation;
 }
 static int pose(void *v, void *t, void *b, MMI32 action, MMI32 cel)
 {

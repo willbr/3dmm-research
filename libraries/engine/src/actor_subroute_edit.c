@@ -50,13 +50,11 @@ void mm_actor_subroute_save_orientation(MMActorState *state,void *route,void *ev
 void mm_actor_subroute_position_body(MMActorState *state,void *route,void *events,const MMActorPoint *position,
     const MMActorMotionServices *m,const MMActorSubrouteEditServices *s)
 {
-    MMActorPoseInputs inputs; MMActorMatrix matrix; MMActorPoint absolute;
+    MMActorPoseInputs inputs;
+    MMActorBodyPose pose;
     publish(state,s); s->pose_inputs(s->route.edits.context,&inputs);
-    mm_actor_pose_update(state,route,events,&inputs,position,&matrix,m);
-    absolute.dxr=mm_fixed_add(state->routeTranslation.dxr,position->dxr);
-    absolute.dyr=mm_fixed_add(state->routeTranslation.dyr,position->dyr);
-    absolute.dzr=mm_fixed_add(state->routeTranslation.dzr,position->dzr);
-    publish(state,s); s->locate_body(s->route.edits.context,&absolute,&matrix);
+    mm_actor_pose_evaluate(state,route,events,&inputs,position,&pose,m);
+    publish(state,s); s->locate_body(s->route.edits.context,&pose);
 }
 int mm_actor_subroute_lifetime(void *route,void *events,MMI32 *output,const MMActorSubrouteEditServices *s)
 {

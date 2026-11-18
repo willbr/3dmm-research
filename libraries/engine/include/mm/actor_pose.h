@@ -12,6 +12,11 @@ extern "C"
         unsigned short restX, restY, restZ;
         int fixedPathOrientation;
     } MMActorPoseInputs;
+    typedef struct MMActorBodyPose
+    {
+        MMActorPoint translation;
+        MMActorMatrix orientation;
+    } MMActorBodyPose;
     enum
     {
         MM_ACTOR_ROTATE_X = 1,
@@ -27,6 +32,14 @@ extern "C"
     void mm_actor_pose_update(MMActorState *, void *route, void *events, const MMActorPoseInputs *,
                                     const MMActorPoint *position, MMActorMatrix *matrix,
                                     const MMActorMotionServices *);
+    /* Evaluate the body placement from the live motion state, including route
+     * translation. Position may alias state.position. */
+    void mm_actor_pose_evaluate(MMActorState *, void *route, void *events, const MMActorPoseInputs *,
+                               const MMActorPoint *position, MMActorBodyPose *,
+                               const MMActorMotionServices *);
+    /* Post-translate the evaluated orientation into the renderer root matrix.
+     * Output may alias pose.orientation. */
+    void mm_actor_pose_root(const MMActorBodyPose *, MMActorMatrix *);
     /* Matrix and each angle/axes output are independently optional. Single-point
      * routes leave the matrix unchanged and zero angle/axes outputs. Vector input
      * is read-only apart from caller-aliased outputs; banking remains zero. */

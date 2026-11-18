@@ -40,8 +40,7 @@ typedef struct ActorInput
     MMMovieCustomCostume custom;
     MMMovieAsset generic, text_material;
     MMPreviewActor actor;
-    MMActorPoint translation;
-    MMActorMatrix orientation;
+    MMActorBodyPose body_pose;
 } ActorInput;
 
 static int fail(ActorInput *input, int status)
@@ -534,12 +533,11 @@ static void rest(void *p, void *token, unsigned short out[3])
     (void)token;
     memcpy(out, ((ActorInput *)p)->rest, 3 * sizeof(*out));
 }
-static void locate(void *p, void *token, const MMActorPoint *point, const MMActorMatrix *matrix)
+static void locate(void *p, void *token, const MMActorBodyPose *pose)
 {
     ActorInput *input = (ActorInput *)p;
     (void)token;
-    input->translation = *point;
-    input->orientation = *matrix;
+    input->body_pose = *pose;
 }
 static int pose(void *p, void *t, void *b, MMI32 action, MMI32 cel)
 {
@@ -584,8 +582,8 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     out->number = number;
     out->header = input->actor.header;
     out->state = input->actor.state;
-    out->translation = input->translation;
-    out->orientation = input->orientation;
+    out->translation = input->body_pose.translation;
+    out->orientation = input->body_pose.orientation;
     return MM_MOVIE_OK;
 }
 
