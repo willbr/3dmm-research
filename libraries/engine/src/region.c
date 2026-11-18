@@ -99,6 +99,7 @@ void mm_region_cursor_open(MMRegionCursor *cursor, const MMRegion *region, const
         ++bands->references;
     bands_release(cursor->bands);
     cursor->bands = bands;
+    cursor->clip_left = clip->left;
     scan_region(&cursor->scan, region, clip);
 }
 
@@ -106,6 +107,47 @@ void mm_region_cursor_close(MMRegionCursor *cursor)
 {
     bands_release(cursor->bands);
     cursor->bands = NULL;
+}
+
+int mm_region_cursor_pair(MMRegionCursor *cursor, MMI32 *left, MMI32 *right)
+{
+    if (!mm_region_scan_pair(&cursor->scan, left, right))
+        return 0;
+    *left += cursor->clip_left;
+    *right += cursor->clip_left;
+    return 1;
+}
+
+int mm_region_visit_rectangles(const MMRegion *region, const MMPixelRect *clip,
+                               MMRegionRectangleVisitor visit, void *context)
+{
+    MMRegionCursor cursor = {0};
+    MMPixelRect rect;
+    MMI32 width, height;
+    int ok = 1;
+    if (!mm_pixel_rect_extent(clip, &width, &height) || !width || !height)
+        return 1;
+    if (!region)
+        return visit(context, clip);
+    mm_region_cursor_open(&cursor, region, clip);
+    for (rect.top = clip->top; rect.top < clip->bottom; rect.top = rect.bottom)
+    {
+        height = cursor.scan.rows;
+        if (height > clip->bottom - rect.top)
+            height = clip->bottom - rect.top;
+        rect.bottom = rect.top + height;
+        while (mm_region_cursor_pair(&cursor, &rect.left, &rect.right))
+            if (!visit(context, &rect))
+            {
+                ok = 0;
+                goto done;
+            }
+        if (rect.bottom < clip->bottom)
+            mm_region_scan_advance(&cursor.scan, height);
+    }
+done:
+    mm_region_cursor_close(&cursor);
+    return ok;
 }
 
 void mm_region_set_rect(MMRegion *region, const MMPixelRect *rect)

@@ -13,7 +13,6 @@
 #include "kauai_core.h"
 #include "region.h"
 #include "mbmp.h"
-#include "masked_region.h"
 #include <cstdint>
 ASSERTNAME
 
@@ -36,14 +35,9 @@ void DrawBitmap(const MMMaskedBitmap &bitmap, const RC &bounds, byte *pixels, Le
     const bool big = !*reinterpret_cast<const byte *>(&one);
     if (mask)
         mm_masked_blit_mask(&bitmap, big, pixels, stride, height, x, y, boundsClip);
-    else if (!region)
-        mm_masked_blit8(&bitmap, big, pixels, stride, height, x, y, boundsClip, nullptr);
     else
-    {
-        MaskedRegionSpans source(region);
-        const auto spans = source.Services();
-        mm_masked_blit8(&bitmap, big, pixels, stride, height, x, y, boundsClip, &spans);
-    }
+        mm_masked_blit8(&bitmap, big, pixels, stride, height, x, y, boundsClip,
+                         region ? region->Geometry() : nullptr);
 }
 } // namespace
 

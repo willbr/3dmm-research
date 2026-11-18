@@ -1,6 +1,7 @@
 /* Indexed display policy converted from Kauai pixel_stretch.cpp and palette_state.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/indexed_display.h"
+#include "mm/region.h"
 #include "mm/wide.h"
 #include <string.h>
 
@@ -87,8 +88,9 @@ static void stretch_span(const unsigned char *source, unsigned char *target, uns
 }
 
 int mm_indexed_double_draw(const MMPixelSurface *target, const MMPixelSurface *source, const MMPixelRect *source_rect,
-                           MMI32 x, MMI32 y, int double_width, const MMPixelRect *clip, const MMPixelSpans *spans)
+                           MMI32 x, MMI32 y, int double_width, const MMPixelRect *clip, const struct MMRegion *region)
 {
+    MMRegionCursor cursor = {0};
     MMPixelRect shape, bounds;
     const unsigned char *from;
     unsigned char *to, *second;
@@ -106,14 +108,14 @@ int mm_indexed_double_draw(const MMPixelSurface *target, const MMPixelSurface *s
     if (!mm_pixel_visible_rect(target, &shape, clip, &bounds))
         return 1;
 
-    if (spans)
-        spans->begin(spans->context, &bounds);
+    if (region)
+        mm_region_cursor_open(&cursor, region, &bounds);
     for (row = bounds.top; row < bounds.bottom; row += advance)
     {
-        height = spans ? (spans->height ? spans->height(spans->context) : 1) : bounds.bottom - row;
+        height = region ? cursor.scan.rows : bounds.bottom - row;
         left = bounds.left;
         right = bounds.right;
-        if (spans && !spans->next(spans->context, &left, &right))
+        if (region && !mm_region_cursor_pair(&cursor, &left, &right))
             advance = height;
         else
         {
@@ -129,13 +131,14 @@ int mm_indexed_double_draw(const MMPixelSurface *target, const MMPixelSurface *s
             {
                 stretch_span(from, to + left, second ? second + left : NULL, (MMU32)left - (MMU32)x,
                              right - left, double_width);
-            } while (spans && spans->next(spans->context, &left, &right));
+            } while (region && mm_region_cursor_pair(&cursor, &left, &right));
         }
         if (advance >= bounds.bottom - row)
             break;
-        if (spans)
-            spans->advance(spans->context, advance);
+        if (region)
+            mm_region_scan_advance(&cursor.scan, advance);
     }
+    mm_region_cursor_close(&cursor);
     return 1;
 }
 

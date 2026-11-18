@@ -280,35 +280,24 @@ bool GraphicsPort::_FDrawPackedCopy(PGraphicsPort source, SystemRectangle *sourc
         if (!bounds.FIntersect(&dst) || (drawing->prcsClip && !bounds.FIntersect(&clip)))
             return true;
         std::vector<KauaiPixels::DamageRect> clips;
-        RegionScanner scanner;
-        if (_pregnClip)
-            scanner.Init(_pregnClip, &bounds);
-        else
-            scanner.InitRc(&bounds, &bounds);
-        try
-        {
-            for (LegacyLong y = bounds.ypTop; y < bounds.ypBottom;)
+        const MMPixelRect area{bounds.xpLeft, bounds.ypTop, bounds.xpRight, bounds.ypBottom};
+        const auto collect = [](void *context, const MMPixelRect *rect) -> int {
+            auto &list = *static_cast<std::vector<KauaiPixels::DamageRect> *>(context);
+            try
             {
-                const LegacyLong height = LwMin(scanner.DypCur(), bounds.ypBottom - y);
-                while (scanner.XpCur() < klwMax)
-                {
-                    const auto left = scanner.XpCur() + bounds.xpLeft;
-                    const auto right = scanner.XpFetch() + bounds.xpLeft;
-                    scanner.XpFetch();
-                    clips.push_back({left, y, right, y + height});
-                }
-                y += height;
-                if (y < bounds.ypBottom)
-                    scanner.ScanNext(height);
-            }
-            if (clips.empty() ||
-                KauaiSDL::BlitPixels(destination, input, {src.xpLeft, src.ypTop, src.xpRight, src.ypBottom},
-                                     {dst.xpLeft, dst.ypTop, dst.xpRight, dst.ypBottom}, clips.data(), clips.size()))
+                list.push_back({rect->left, rect->top, rect->right, rect->bottom});
                 return true;
-        }
-        catch (const std::bad_alloc &)
-        {
-        }
+            }
+            catch (const std::bad_alloc &)
+            {
+                return false;
+            }
+        };
+        if (mm_region_visit_rectangles(_pregnClip ? _pregnClip->Geometry() : nullptr, &area, collect, &clips) &&
+            (clips.empty() ||
+             KauaiSDL::BlitPixels(destination, input, {src.xpLeft, src.ypTop, src.xpRight, src.ypBottom},
+                                  {dst.xpLeft, dst.ypTop, dst.xpRight, dst.ypBottom}, clips.data(), clips.size())))
+            return true;
     }
     return KauaiPixels::CopyPacked(destination, input, src, dst, drawing->prcsClip ? &clip : nullptr, _pregnClip);
 }

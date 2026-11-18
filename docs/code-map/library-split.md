@@ -5044,9 +5044,9 @@ factories, serialization and BMP import orientation/cleanup. Persistent HQ
 handles and their resize sequence are removed from `MaskedBitmapMBMP`. Native
 facades provide typed allocation, block and BMP services. The C89 drawing path
 handles unscaled indexed pixels, rectangular and region clips, 1-bit masks,
-and scaled masked bitmaps. The drawing adapters supply surface and palette views
-and borrow clip spans through the same Kauai region scanner. The C reader
-validates every encoded row before drawing and decodes only the rows it samples.
+and scaled masked bitmaps. The drawing adapters supply surface, palette and
+region views. The C reader validates every encoded row before drawing and
+decodes only the rows it samples.
 
 The shared RLE loop leaves transparent indexed pixels untouched. Packed masks
 clear transparent bits and set opaque bits inside the clipped bitmap bounds.
@@ -5069,7 +5069,7 @@ near-size transfer, reduction and sample coordinates whose products exceed
 raw 32-bit copies and indexed-to-indexed copies. It preserves raw same-format
 samples, converts RGB555 and indexed colours, snapshots aliased palette and
 pixel data, and shares clipping and pixel-centre sampling with masked drawing.
-Kauai passes the region spans and checks storage ranges using host addresses.
+Kauai passes the region view and checks storage ranges using host addresses.
 C-only callers can omit the address check to request a source snapshot.
 The legacy near-size true-colour-to-8-bit approximation still uses the host.
 All 39,204 copy cases matched the previous build across 40,184,100 bytes,
@@ -5082,8 +5082,8 @@ using edge sampling measured from the bottom for 24-bit input and pixel-centre
 sampling for 32-bit input. It also expands palette indices to native-order
 XRGB32, leaving pixels untouched for missing indices. Exact-palette snapshots
 validate every source pixel before publishing any index and choose the first
-index for duplicate colours. The shared raster loop consumes clipped region
-spans in the Kauai scanner's original order. All 134,720 DIB and snapshot
+index for duplicate colours. The shared raster loop scans the C89 region
+in the original band order. All 134,720 DIB and snapshot
 cases matched across 20,675,560 bytes. Windows comparisons also passed across
 3,024 DrawDib cases and 4,458 decoded frames from 24 AVI files. Evidence is in
 `tmp/c89-dib-raster`.
@@ -5176,6 +5176,16 @@ before passing a borrowed region to Kauai for window invalidation. Kauai
 translates that view into window coordinates for the dirty-region union.
 The native depth, buffer, camera, render and export snapshots matched
 13,898,362 bytes. Evidence is in `tmp/c89-world-regions`.
+
+Raster entry points consume C clip regions directly for masked drawing, brush
+and glyph painting, surface copies, DIB draws, scrolling and indexed doubling.
+The C89 rectangle visitor also supplies clipped bands to SDL and GDI. It
+releases the retained scan when a consumer stops early, so an SDL clip-list
+allocation failure can fall back to the software rasterizer. Indexed doubling
+uses the full region band for even-phase row pairs and caps the second write
+at the physical destination. Seven before-and-after probes matched
+407,406,464 bytes across 675,319 raster cases, 6,480 stretch plans and 9,216
+palette updates. Evidence is in `tmp/c89-raster-regions`.
 
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.

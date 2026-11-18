@@ -1,4 +1,5 @@
 #include "mm/dib_frame.h"
+#include "mm/region.h"
 #include "mm/runtime_math.h"
 #include "mm/wide.h"
 #include <stdlib.h>
@@ -62,27 +63,30 @@ int mm_pixel_visible_rect(const MMPixelSurface *surface, const MMPixelRect *shap
     return bounds->left < bounds->right && bounds->top < bounds->bottom;
 }
 
-void mm_pixel_visit_spans(const MMPixelRect *bounds, const MMPixelSpans *spans, MMPixelDrawSpan draw, void *context)
+typedef struct PixelSpanPaint
 {
-    MMI32 y, row, height, left, right;
-    if (!spans)
-    {
-        for (y = bounds->top; y < bounds->bottom; ++y)
-            draw(context, y, bounds->left, bounds->right);
-        return;
-    }
-    spans->begin(spans->context, bounds);
-    for (y = bounds->top; y < bounds->bottom; y += height)
-    {
-        height = spans->height ? spans->height(spans->context) : 1;
-        if (height > bounds->bottom - y)
-            height = bounds->bottom - y;
-        while (spans->next(spans->context, &left, &right))
-            for (row = y; row < y + height; ++row)
-                draw(context, row, left, right);
-        if (y + height < bounds->bottom)
-            spans->advance(spans->context, height);
-    }
+    MMPixelDrawSpan draw;
+    void *context;
+} PixelSpanPaint;
+
+static int paint_band(void *context, const MMPixelRect *rect)
+{
+    PixelSpanPaint *p = context;
+    MMI32 y;
+    for (y = rect->top; y < rect->bottom; ++y)
+        p->draw(p->context, y, rect->left, rect->right);
+    return 1;
+}
+
+void mm_pixel_visit_spans(const MMPixelRect *bounds, const struct MMRegion *region, MMPixelDrawSpan draw, void *context)
+{
+    PixelSpanPaint paint;
+    paint.draw = draw;
+    paint.context = context;
+    if (region)
+        mm_region_visit_rectangles(region, bounds, paint_band, &paint);
+    else
+        paint_band(&paint, bounds);
 }
 
 MMU32 mm_pixel_muldiv(MMU32 factor, MMU32 source, MMU32 divisor)
@@ -330,15 +334,15 @@ static void copy_span(void *context, MMI32 y, MMI32 left, MMI32 right)
     }
 }
 
-static void draw_copy(SampledCopy *copy, const MMPixelRect *clip, const MMPixelSpans *spans)
+static void draw_copy(SampledCopy *copy, const MMPixelRect *clip, const struct MMRegion *region)
 {
     MMPixelRect bounds;
     if (mm_pixel_visible_rect(copy->dst, copy->to, clip, &bounds))
-        mm_pixel_visit_spans(&bounds, spans, copy_span, copy);
+        mm_pixel_visit_spans(&bounds, region, copy_span, copy);
 }
 
 int mm_pixel_copy(const MMPixelImage *target, const MMPixelImage *source, const MMPixelRect *source_rect,
-                  const MMPixelRect *target_rect, const MMPixelRect *clip, const MMPixelSpans *spans, int options,
+                  const MMPixelRect *target_rect, const MMPixelRect *clip, const struct MMRegion *region, int options,
                   MMPixelOverlap overlaps)
 {
     const MMPixelSurface *src = &source->surface, *dst = &target->surface;
@@ -386,13 +390,13 @@ int mm_pixel_copy(const MMPixelImage *target, const MMPixelImage *source, const 
         memcpy(snapshot, copy.input, source_bytes);
         copy.input = snapshot;
     }
-    draw_copy(&copy, clip, spans);
+    draw_copy(&copy, clip, region);
     free(snapshot);
     return 1;
 }
 
 int mm_pixel_expand_indexed(const MMPixelSurface *target, const MMPixelImage *source, const MMPixelRect *source_rect,
-                            const MMPixelRect *target_rect, const MMPixelRect *clip, const MMPixelSpans *spans)
+                            const MMPixelRect *target_rect, const MMPixelRect *clip, const struct MMRegion *region)
 {
     SampledCopy copy = {0};
     if (target->depth != 32 || source->surface.depth != 8 || !mm_pixel_surface_valid(target) ||
@@ -401,12 +405,12 @@ int mm_pixel_expand_indexed(const MMPixelSurface *target, const MMPixelImage *so
         return 0;
     copy.indexed_palette = source->palette;
     copy.indexed_colours = source->colours;
-    draw_copy(&copy, clip, spans);
+    draw_copy(&copy, clip, region);
     return 1;
 }
 
 int mm_dib_draw(const MMPixelSurface *target, const MMPixelSurface *frame, size_t frame_bytes, int input_depth,
-                const MMPixelRect *target_rect, const MMPixelRect *clip, const MMPixelSpans *spans, MMPixelOverlap overlaps)
+                const MMPixelRect *target_rect, const MMPixelRect *clip, const struct MMRegion *region, MMPixelOverlap overlaps)
 {
     SampledCopy copy = {0};
     MMPixelRect source_rect;
@@ -425,7 +429,7 @@ int mm_dib_draw(const MMPixelSurface *target, const MMPixelSurface *frame, size_
         return 0;
     copy.raw_copy = 1;
     copy.dib24 = input_depth == 24;
-    draw_copy(&copy, clip, spans);
+    draw_copy(&copy, clip, region);
     return 1;
 }
 

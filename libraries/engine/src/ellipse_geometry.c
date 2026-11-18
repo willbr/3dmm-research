@@ -412,7 +412,7 @@ static void paint_oval_span(void *context, MMI32 y, MMI32 left, MMI32 right)
 }
 
 int mm_pixel_fill_oval(const MMPixelSurface *surface, const MMPixelBrush *brush, const MMPixelRect *shape,
-                       const MMPixelRect *clip, const MMPixelSpans *spans, MMI32 frame_x, MMI32 frame_y)
+                       const MMPixelRect *clip, const struct MMRegion *region, MMI32 frame_x, MMI32 frame_y)
 {
     MMPixelRect bounds;
     MMI32 width, height, first, count;
@@ -449,7 +449,7 @@ int mm_pixel_fill_oval(const MMPixelSurface *surface, const MMPixelBrush *brush,
     paint.frame_x = frame_x;
     paint.outer = output;
     paint.inner = frame ? output + count : NULL;
-    mm_pixel_visit_spans(&bounds, spans, paint_oval_span, &paint);
+    mm_pixel_visit_spans(&bounds, region, paint_oval_span, &paint);
     free(output);
     return 1;
 }

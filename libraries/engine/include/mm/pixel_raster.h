@@ -18,24 +18,13 @@ typedef struct MMPixelRect
     MMI32 left, top, right, bottom;
 } MMPixelRect;
 
-/* begin receives the visible rectangle. next returns sorted, disjoint spans
- * in absolute coordinates. height, when supplied, is the positive number of
- * consecutive rows with this coverage. advance moves by up to that count and
- * resets the span iterator. Without height the iterator advances one row. */
-typedef struct MMPixelSpans
-{
-    void *context;
-    void (*begin)(void *, const MMPixelRect *);
-    int (*next)(void *, MMI32 *left, MMI32 *right);
-    void (*advance)(void *, MMI32 rows);
-    MMI32 (*height)(void *);
-} MMPixelSpans;
+struct MMRegion;
 
 typedef void (*MMPixelDrawSpan)(void *context, MMI32 y, MMI32 left, MMI32 right);
 /* A visible rectangle is the intersection of a shape, surface and optional
  * clip. The span visitor consumes a visible rectangle in region band order. */
 int mm_pixel_visible_rect(const MMPixelSurface *, const MMPixelRect *shape, const MMPixelRect *clip, MMPixelRect *);
-void mm_pixel_visit_spans(const MMPixelRect *visible, const MMPixelSpans *, MMPixelDrawSpan, void *context);
+void mm_pixel_visit_spans(const MMPixelRect *visible, const struct MMRegion *, MMPixelDrawSpan, void *context);
 
 typedef struct MMPixelImage
 {
@@ -79,13 +68,13 @@ void mm_pixel_translate8(const unsigned char *source, MMI32 source_count, const 
  * when a 1-bit image has no palette. Unlisted source indices are black.
  * An omitted overlap service conservatively snapshots the source. */
 int mm_pixel_copy(const MMPixelImage *target, const MMPixelImage *source, const MMPixelRect *source_rect,
-                  const MMPixelRect *target_rect, const MMPixelRect *clip, const MMPixelSpans *, int options,
+                  const MMPixelRect *target_rect, const MMPixelRect *clip, const struct MMRegion *, int options,
                   MMPixelOverlap);
 
 /* Expand indices to native-order XRGB32. Unlisted indices leave pixels intact.
  * Source and target storage must be disjoint. */
 int mm_pixel_expand_indexed(const MMPixelSurface *target, const MMPixelImage *source, const MMPixelRect *source_rect,
-                            const MMPixelRect *target_rect, const MMPixelRect *clip, const MMPixelSpans *);
+                            const MMPixelRect *target_rect, const MMPixelRect *clip, const struct MMRegion *);
 /* Capture native-order XRGB32 as exact palette indices. A pixel missing from
  * the palette fails the entire operation before publication. Supports overlap. */
 int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *source,
@@ -95,7 +84,7 @@ int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *
  * the move and row padding retain their bytes. The legacy monochrome option
  * applies the full-byte pass before edge bits on leftward 1-bit moves. */
 int mm_pixel_scroll(const MMPixelSurface *, const MMPixelRect *rectangle, MMI32 dx, MMI32 dy,
-                    const MMPixelRect *clip, const MMPixelSpans *, int legacy_monochrome);
+                    const MMPixelRect *clip, const struct MMRegion *, int legacy_monochrome);
 
 #ifdef __cplusplus
 }

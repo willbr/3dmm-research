@@ -21,7 +21,7 @@ int mm_dib_decode(const void *data, size_t bytes, const MMPixelSurface *target);
  * 32-bit sampling rule. With no overlap service the caller supplies disjoint
  * buffers. With a service, overlapping buffers are rejected. */
 int mm_dib_draw(const MMPixelSurface *target, const MMPixelSurface *frame, size_t frame_bytes, int input_depth,
-                const MMPixelRect *target_rect, const MMPixelRect *clip, const MMPixelSpans *, MMPixelOverlap);
+                const MMPixelRect *target_rect, const MMPixelRect *clip, const struct MMRegion *, MMPixelOverlap);
 
 #ifdef __cplusplus
 }

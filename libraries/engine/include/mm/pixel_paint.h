@@ -67,17 +67,17 @@ int mm_pixel_resolve_packed(const MMPixelImage *, const MMPixelColorBrush *, con
  * span, the caller supplies a validated surface and in-range coordinates. */
 void mm_pixel_paint_span(const MMPixelSurface *, const MMPixelBrush *, MMI32 y, MMI32 left, MMI32 right);
 void mm_pixel_fill_rect(const MMPixelSurface *, const MMPixelBrush *, const MMPixelRect *, const MMPixelRect *clip,
-                        const MMPixelSpans *, MMI32 frame_x, MMI32 frame_y);
+                        const struct MMRegion *, MMI32 frame_x, MMI32 frame_y);
 int mm_pixel_fill_oval(const MMPixelSurface *, const MMPixelBrush *, const MMPixelRect *, const MMPixelRect *clip,
-                       const MMPixelSpans *, MMI32 frame_x, MMI32 frame_y);
+                       const struct MMRegion *, MMI32 frame_x, MMI32 frame_y);
 int mm_pixel_invert_packed_rect(const MMPixelImage *, const MMPixelRect *, const MMPixelRect *clip,
-                                const MMPixelSpans *);
+                                const struct MMRegion *);
 int mm_pixel_fill_polygon(const MMPixelSurface *, const MMPixelBrush *, const MMPixelPoint *, size_t count,
-                          const MMPixelRect *clip, const MMPixelSpans *);
+                          const MMPixelRect *clip, const struct MMRegion *);
 /* Native XRGB blends an 8-bit mask with rounding. Raw coverage replaces a
  * packed sample when its mask is at least 128. */
 int mm_pixel_draw_coverage(const MMPixelSurface *, const MMPixelCoverage *, MMI32 x, MMI32 y, MMU32 sample,
-                            int blend_rgb, const MMPixelRect *clip, const MMPixelSpans *);
+                            int blend_rgb, const MMPixelRect *clip, const struct MMRegion *);
 
 #ifdef __cplusplus
 }

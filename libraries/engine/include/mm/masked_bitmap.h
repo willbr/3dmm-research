@@ -9,7 +9,6 @@ extern "C"
 {
 #endif
     typedef MMPixelRect MMMaskedRect;
-    typedef MMPixelSpans MMMaskedSpans;
     typedef struct MMMaskedBitmap
     {
         void *data;
@@ -69,7 +68,7 @@ extern "C"
     /* Draw validated pixels at the supplied destination origin. The stride is
      * also the drawable width. Transparent runs leave the destination intact. */
     void mm_masked_blit8(const MMMaskedBitmap *, int host_big, unsigned char *pixels, MMI32 stride, MMI32 height,
-                         MMI32 left, MMI32 top, const MMMaskedRect *clip, const MMMaskedSpans *);
+                         MMI32 left, MMI32 top, const MMMaskedRect *clip, const struct MMRegion *);
     /* One bit per pixel, most significant bit first. Within the clip and bitmap
      * bounds, opaque runs set bits and transparent runs clear them. */
     void mm_masked_blit_mask(const MMMaskedBitmap *, int host_big, unsigned char *pixels, MMI32 stride, MMI32 height,
@@ -96,7 +95,7 @@ extern "C"
      * transfer applies mask OR and colour AND, including transparent cells.
      * BLACKONWHITE shrink combines samples before palette translation. */
     int mm_masked_stretch(const MMPixelSurface *, const MMMaskedRle *, const MMMaskedRect *destination,
-                          const MMMaskedRect *clip, const MMMaskedSpans *, const unsigned char *palette, MMI32 count,
+                          const MMMaskedRect *clip, const struct MMRegion *, const unsigned char *palette, MMI32 count,
                           const MMMaskedTransfer *, int and_shrink);
     /* Successful byte transfer consumes memory-backed blocks before validation or
      * object creation; file-backed blocks stay intact. Allocation/read failure leaves

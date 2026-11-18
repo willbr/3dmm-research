@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "pixel_stretch.h"
 #include "kauai_core.h"
-#include "masked_region.h"
+#include "region.h"
 #include "mm/indexed_display.h"
 #include <limits>
 ASSERTNAME
@@ -27,10 +27,8 @@ void Stretch(byte *src, long sourcePitch, long sourceHeight, const RC *source, b
     const MMPixelSurface to = {dst, MMI32(targetPitch), MMI32(targetHeight), MMI32(targetPitch), 8};
     const auto rect = RasterRect(*source);
     const auto clipping = clip ? RasterRect(*clip) : MMPixelRect{};
-    MaskedRegionSpans scanner(region);
-    const auto spans = scanner.Services();
     mm_indexed_double_draw(&to, &from, &rect, MMI32(x), MMI32(y), doubleWidth, clip ? &clipping : nullptr,
-                           region ? &spans : nullptr);
+                           region ? region->Geometry() : nullptr);
 }
 } // namespace
 

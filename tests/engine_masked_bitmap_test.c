@@ -441,41 +441,6 @@ static void imports(void)
                 balanced(&f);
             }
 }
-typedef struct Scan
-{
-    MMI32 row, span;
-} Scan;
-static void start_scan(void *context, const MMMaskedRect *bounds)
-{
-    Scan *scan = (Scan *)context;
-    assert(bounds->left == 0 && bounds->top == 0 && bounds->right == 4 && bounds->bottom == 2);
-    scan->row = scan->span = 0;
-}
-static int scan_span(void *context, MMI32 *left, MMI32 *right)
-{
-    Scan *scan = (Scan *)context;
-    if (scan->row == 0 && scan->span < 2)
-    {
-        *left = scan->span++ * 2;
-        *right = *left + 1;
-        return 1;
-    }
-    if (scan->row == 1 && !scan->span)
-    {
-        ++scan->span;
-        *left = 1;
-        *right = 4;
-        return 1;
-    }
-    return 0;
-}
-static void next_row(void *context, MMI32 rows)
-{
-    Scan *scan = (Scan *)context;
-    scan->row += rows;
-    scan->span = 0;
-}
-
 static void stream_blitting(void)
 {
     Fixture f;
@@ -483,10 +448,12 @@ static void stream_blitting(void)
     MMMemoryStream stream;
     const MMMaskedRect clip = {1, 1, 2, 3};
     unsigned char pixels[12], expected[12], bits[2];
-    Scan scan;
-    MMMaskedSpans spans = {NULL, start_scan, scan_span, next_row, NULL};
+    const MMMaskedRect first = {0, 0, 1, 1}, second = {2, 0, 3, 1}, last = {1, 1, 4, 2};
+    MMRegion region = {0};
     int big, source, mask;
-    spans.context = &scan;
+    mm_region_set_rect(&region, &first);
+    assert(mm_region_apply_rect(&region, MM_REGION_UNION, &second, NULL, 0, NULL) == MM_REGION_UPDATED);
+    assert(mm_region_apply_rect(&region, MM_REGION_UNION, &last, NULL, 0, NULL) == MM_REGION_UPDATED);
     for (big = 0; big < 2; ++big)
         for (source = 0; source < 2; ++source)
             for (mask = 0; mask < 2; ++mask)
@@ -526,8 +493,8 @@ static void stream_blitting(void)
                 expected[2] = mask ? 37 : 8;
                 expected[5] = mask ? 37 : 5;
                 memset(pixels, 0xa5, sizeof(pixels));
-                mm_masked_blit8(&m, big, pixels, 4, 3, 0, 0, NULL, &spans);
-                assert(scan.row == 1 && !memcmp(pixels, expected, sizeof(pixels)));
+                mm_masked_blit8(&m, big, pixels, 4, 3, 0, 0, NULL, &region);
+                assert(!memcmp(pixels, expected, sizeof(pixels)));
                 memset(bits, 0xa5, sizeof(bits));
                 mm_masked_blit_mask(&m, big, bits, 1, 2, 4, 0, NULL);
                 assert(bits[0] == 0xa6 && bits[1] == 0xac);
@@ -535,6 +502,7 @@ static void stream_blitting(void)
                 assert(!mm_masked_read_stream(&stream.stream, &m, &f.s) && !m.data);
                 balanced(&f);
             }
+    mm_region_set_rect(&region, NULL);
 }
 static void scaled_drawing(void)
 {
@@ -741,36 +709,6 @@ static void ellipse_rows(void)
     assert(spans[1].left == 14606011L && spans[1].right == 52502852L && !spans[2].right);
 }
 
-typedef struct DoubleScan
-{
-    MMPixelRect bounds;
-    int emitted;
-} DoubleScan;
-
-static void double_begin(void *context, const MMPixelRect *bounds)
-{
-    DoubleScan *scan = (DoubleScan *)context;
-    scan->bounds = *bounds;
-    scan->emitted = 0;
-}
-
-static int double_next(void *context, MMI32 *left, MMI32 *right)
-{
-    DoubleScan *scan = (DoubleScan *)context;
-    if (scan->emitted)
-        return 0;
-    scan->emitted = 1;
-    *left = scan->bounds.left;
-    *right = scan->bounds.right;
-    return 1;
-}
-
-static MMI32 double_height(void *context)
-{
-    (void)context;
-    return 2;
-}
-
 static void indexed_double(void)
 {
     const MMPixelRect bounds = {0, 0, 5, 4}, request = {-2, -1, 3, 3}, destination = {1, 2, 11, 10};
@@ -778,9 +716,10 @@ static void indexed_double(void)
     unsigned char pixels[] = {13, 31}, output[10];
     MMPixelRect cropped, visible;
     MMPixelSurface source, target;
-    DoubleScan scan;
-    MMPixelSpans spans = {NULL, double_begin, double_next, NULL, double_height};
-    spans.context = &scan;
+    const MMPixelRect first_band = {0, 0, 4, 2}, second_run = {6, 0, 7, 2};
+    MMRegion region = {0};
+    mm_region_set_rect(&region, &first_band);
+    assert(mm_region_apply_rect(&region, MM_REGION_UNION, &second_run, NULL, 0, NULL) == MM_REGION_UPDATED);
     assert(mm_indexed_double_plan(&bounds, &request, &destination, NULL, &cropped, &visible) == MM_DOUBLE_BOTH);
     assert(cropped.left == 0 && cropped.top == 0 && cropped.right == 3 && cropped.bottom == 3);
     assert(visible.left == 5 && visible.top == 4 && visible.right == 11 && visible.bottom == 10);
@@ -795,13 +734,14 @@ static void indexed_double(void)
     target.pitch = 5;
     target.depth = 8;
     memset(output, 0xee, sizeof(output));
-    assert(mm_indexed_double_draw(&target, &source, &rect, 0, 0, 1, &clip, &spans));
+    assert(mm_indexed_double_draw(&target, &source, &rect, 0, 0, 1, &clip, &region));
     assert(output[0] == 13 && output[1] == 13 && output[2] == 31 && output[3] == 31);
     assert(!memcmp(output, output + 5, 4) && output[4] == 0xee && output[9] == 0xee);
     memset(output, 0xee, sizeof(output));
     target.height = 1;
-    assert(mm_indexed_double_draw(&target, &source, &rect, 0, 0, 1, &clip, &spans));
+    assert(mm_indexed_double_draw(&target, &source, &rect, 0, 0, 1, &clip, &region));
     assert(output[0] == 13 && output[3] == 31 && output[4] == 0xee && output[5] == 0xee && output[8] == 0xee);
+    mm_region_set_rect(&region, NULL);
 }
 
 typedef struct DamageVisit
@@ -949,6 +889,7 @@ static void region_ownership(void)
     MMRegionBands *original;
     RegionAllocation probe = {0, 0, 0};
     MMStorageAllocator allocator = {NULL, resize_region, release_region};
+    DamageVisit clipped;
     int growths;
     allocator.context = &probe;
     mm_region_set_rect(&shape, &left);
@@ -974,6 +915,11 @@ static void region_ownership(void)
            shape.bounds.right == 6 && shape.bounds.bottom == 2 && probe.blocks == 4);
     assert(held.scan.rows == 4 && held.scan.x == 0 && mm_region_scan_fetch(&held.scan) == 6);
 
+    clipped.used = 0;
+    clipped.limit = 1;
+    assert(!mm_region_visit_rectangles(&shape, &shape.bounds, collect_damage, &clipped));
+    assert(clipped.used == 1 && clipped.runs[0].left == -4 && clipped.runs[0].right == -1 &&
+           clipped.runs[0].top == 0 && clipped.runs[0].bottom == 2);
     growths = probe.growths;
     probe.fail_at = growths + 1;
     assert(mm_region_scale(&shape, 1, 2, 1, 1) == MM_REGION_UPDATED);

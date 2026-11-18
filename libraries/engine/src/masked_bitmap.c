@@ -1,6 +1,7 @@
 /* Masked bitmap policy converted from Kauai mbmp.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/masked_bitmap.h"
+#include "mm/region.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -337,9 +338,9 @@ static void fill_bits(unsigned char *line, MMI32 left, MMI32 right, int on)
     line[first] = (unsigned char)(on ? line[first] | leading : line[first] & ~leading);
 }
 
-static int next_span(const MMMaskedSpans *spans, MMI32 origin, MMI32 *left, MMI32 *right)
+static int next_span(MMRegionCursor *cursor, MMI32 origin, MMI32 *left, MMI32 *right)
 {
-    if (!spans || !spans->next(spans->context, left, right))
+    if (!cursor || !mm_region_cursor_pair(cursor, left, right))
         return 0;
     *left -= origin;
     *right -= origin;
@@ -348,10 +349,10 @@ static int next_span(const MMMaskedSpans *spans, MMI32 origin, MMI32 *left, MMI3
 
 static void blit_row(const unsigned char *run, const unsigned char *row_end, unsigned char *line,
                      MMI32 origin, MMI32 left, MMI32 right, int solid, unsigned char fill, int mask,
-                     const MMMaskedSpans *spans)
+                     MMRegionCursor *cursor)
 {
     MMI32 x = 0, count, run_end, start, end;
-    if (spans && !next_span(spans, origin, &left, &right))
+    if (cursor && !next_span(cursor, origin, &left, &right))
         return;
     if (mask)
         fill_bits(line, origin + left, origin + right, 0);
@@ -377,7 +378,7 @@ static void blit_row(const unsigned char *run, const unsigned char *row_end, uns
             }
             if (right > run_end)
                 break;
-            if (!next_span(spans, origin, &left, &right))
+            if (!next_span(cursor, origin, &left, &right))
                 return;
         }
         if (!solid)
@@ -387,8 +388,9 @@ static void blit_row(const unsigned char *run, const unsigned char *row_end, uns
 }
 
 static void blit(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 stride, MMI32 height,
-                 MMI32 left, MMI32 top, const MMMaskedRect *clip, int mask, const MMMaskedSpans *spans)
+                 MMI32 left, MMI32 top, const MMMaskedRect *clip, int mask, const struct MMRegion *region)
 {
+    MMRegionCursor cursor = {0};
     const unsigned char *b = (const unsigned char *)m->data;
     MMMaskedRect r, target;
     const unsigned char *encoded, *row_end;
@@ -415,13 +417,13 @@ static void blit(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 
     if (!visible_span(left, r.right - r.left, target.left, target.right, &x0, &x1) ||
         !visible_span(top, r.bottom - r.top, target.top, target.bottom, &y0, &y1))
         return;
-    if (spans)
+    if (region)
     {
         target.left = left + x0;
         target.right = left + x1;
         target.top = top + y0;
         target.bottom = top + y1;
-        spans->begin(spans->context, &target);
+        mm_region_cursor_open(&cursor, region, &target);
     }
     encoded = b + 28 + m->row_bytes;
     for (row = 0; row < y0; ++row)
@@ -430,17 +432,18 @@ static void blit(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 
     {
         line = pixels + (size_t)(top + row) * (size_t)stride;
         row_end = encoded + word(b + 28 + row * 2, 2, big);
-        blit_row(encoded, row_end, line, left, x0, x1, b[4], b[5], mask, spans);
+        blit_row(encoded, row_end, line, left, x0, x1, b[4], b[5], mask, region ? &cursor : NULL);
         encoded = row_end;
-        if (spans && row + 1 < y1)
-            spans->advance(spans->context, 1);
+        if (region && row + 1 < y1)
+            mm_region_scan_advance(&cursor.scan, 1);
     }
+    mm_region_cursor_close(&cursor);
 }
 
 void mm_masked_blit8(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 stride, MMI32 height,
-                     MMI32 left, MMI32 top, const MMMaskedRect *clip, const MMMaskedSpans *spans)
+                     MMI32 left, MMI32 top, const MMMaskedRect *clip, const struct MMRegion *region)
 {
-    blit(m, big, pixels, stride, height, left, top, clip, 0, spans);
+    blit(m, big, pixels, stride, height, left, top, clip, 0, region);
 }
 
 void mm_masked_blit_mask(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 stride, MMI32 height,
@@ -577,9 +580,10 @@ static void combine_rows(const MMMaskedRle *source, MaskedRows *rows, MMI32 firs
 }
 
 int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, const MMMaskedRect *destination,
-                      const MMMaskedRect *clip, const MMMaskedSpans *spans, const unsigned char *palette, MMI32 count,
+                      const MMMaskedRect *clip, const struct MMRegion *region, const unsigned char *palette, MMI32 count,
                       const MMMaskedTransfer *transfer, int and_shrink)
 {
+    MMRegionCursor cursor = {0};
     MaskedRows rows = {NULL, NULL, -1};
     MMMaskedRect bounds;
     MMI32 width, height, x, y, left, right, sx, sy, i, delta;
@@ -607,13 +611,13 @@ int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, 
     result = 1;
     if (bounds.left >= bounds.right || bounds.top >= bounds.bottom)
         goto done;
-    if (spans)
-        spans->begin(spans->context, &bounds);
+    if (region)
+        mm_region_cursor_open(&cursor, region, &bounds);
     for (y = bounds.top; y < bounds.bottom; ++y)
     {
         left = bounds.left;
         right = bounds.right;
-        if (!spans || spans->next(spans->context, &left, &right))
+        if (!region || mm_region_cursor_pair(&cursor, &left, &right))
         {
             line = (unsigned char *)surface->pixels + (size_t)y * (size_t)surface->pitch;
             delta = y - destination->top;
@@ -655,12 +659,13 @@ int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, 
                         }
                     }
                 }
-            } while (spans && spans->next(spans->context, &left, &right));
+            } while (region && mm_region_cursor_pair(&cursor, &left, &right));
         }
-        if (spans && y + 1 < bounds.bottom)
-            spans->advance(spans->context, 1);
+        if (region && y + 1 < bounds.bottom)
+            mm_region_scan_advance(&cursor.scan, 1);
     }
 done:
+    mm_region_cursor_close(&cursor);
     free(rows.scratch);
     free(rows.offsets);
     return result;

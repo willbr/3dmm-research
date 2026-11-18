@@ -248,7 +248,7 @@ static void paint_rect_span(void *context, MMI32 y, MMI32 left, MMI32 right)
 }
 
 void mm_pixel_fill_rect(const MMPixelSurface *surface, const MMPixelBrush *brush, const MMPixelRect *rect,
-                        const MMPixelRect *clip, const MMPixelSpans *spans, MMI32 frame_x, MMI32 frame_y)
+                        const MMPixelRect *clip, const struct MMRegion *region, MMI32 frame_x, MMI32 frame_y)
 {
     RectPaint paint;
     MMPixelRect bounds;
@@ -266,11 +266,11 @@ void mm_pixel_fill_rect(const MMPixelSurface *surface, const MMPixelBrush *brush
         paint.inset.right = rect->right - frame_x;
         paint.inset.bottom = rect->bottom - frame_y;
     }
-    mm_pixel_visit_spans(&bounds, spans, paint_rect_span, &paint);
+    mm_pixel_visit_spans(&bounds, region, paint_rect_span, &paint);
 }
 
 int mm_pixel_invert_packed_rect(const MMPixelImage *image, const MMPixelRect *rect, const MMPixelRect *clip,
-                                const MMPixelSpans *spans)
+                                const struct MMRegion *region)
 {
     static const MMPixelBrush brush = {{WORD_BITS, WORD_BITS}, {0, 0}, {255, 255, 255, 255, 255, 255, 255, 255}};
     MMI32 depth = image->surface.depth;
@@ -278,7 +278,7 @@ int mm_pixel_invert_packed_rect(const MMPixelImage *image, const MMPixelRect *re
         return 0;
     /* Keep the packed fill's palette admission even though inversion is raw. */
     if (mm_pixel_image_valid(image))
-        mm_pixel_fill_rect(&image->surface, &brush, rect, clip, spans, -1, -1);
+        mm_pixel_fill_rect(&image->surface, &brush, rect, clip, region, -1, -1);
     return 1;
 }
 
@@ -327,7 +327,7 @@ static void paint_coverage_span(void *context, MMI32 y, MMI32 left, MMI32 right)
 }
 
 int mm_pixel_draw_coverage(const MMPixelSurface *target, const MMPixelCoverage *mask, MMI32 x, MMI32 y, MMU32 sample,
-                            int blend_rgb, const MMPixelRect *clip, const MMPixelSpans *spans)
+                            int blend_rgb, const MMPixelRect *clip, const struct MMRegion *region)
 {
     MMPixelSurface input;
     MMPixelRect shape, bounds;
@@ -351,7 +351,7 @@ int mm_pixel_draw_coverage(const MMPixelSurface *target, const MMPixelCoverage *
     paint.y = y;
     paint.sample = sample;
     paint.blend_rgb = blend_rgb;
-    mm_pixel_visit_spans(&bounds, spans, paint_coverage_span, &paint);
+    mm_pixel_visit_spans(&bounds, region, paint_coverage_span, &paint);
     return 1;
 }
 
@@ -438,7 +438,7 @@ static void paint_polygon_span(void *context, MMI32 y, MMI32 left, MMI32 right)
 }
 
 int mm_pixel_fill_polygon(const MMPixelSurface *surface, const MMPixelBrush *brush, const MMPixelPoint *points,
-                          size_t count, const MMPixelRect *clip, const MMPixelSpans *spans)
+                          size_t count, const MMPixelRect *clip, const struct MMRegion *region)
 {
     MMPixelRect shape, bounds;
     PolygonPaint paint;
@@ -471,7 +471,7 @@ int mm_pixel_fill_polygon(const MMPixelSurface *surface, const MMPixelBrush *bru
     paint.count = count;
     paint.used = 0;
     paint.last_row = -1;
-    mm_pixel_visit_spans(&bounds, spans, paint_polygon_span, &paint);
+    mm_pixel_visit_spans(&bounds, region, paint_polygon_span, &paint);
     free(paint.crossings);
     return 1;
 }

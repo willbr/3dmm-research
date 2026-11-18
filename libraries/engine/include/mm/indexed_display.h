@@ -22,7 +22,7 @@ int mm_indexed_double_plan(const MMPixelRect *source_bounds, const MMPixelRect *
  * is in source storage. A legacy paired-row write can extend past the bottom
  * clip when the region continues there, bounded by the target's storage. */
 int mm_indexed_double_draw(const MMPixelSurface *target, const MMPixelSurface *source, const MMPixelRect *source_rect,
-                           MMI32 x, MMI32 y, int double_width, const MMPixelRect *clip, const MMPixelSpans *);
+                           MMI32 x, MMI32 y, int double_width, const MMPixelRect *clip, const struct MMRegion *);
 
 enum
 {

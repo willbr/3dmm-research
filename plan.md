@@ -758,11 +758,11 @@ masked bitmaps and reads the thumbnail palette to produce RGBA for Marcus.
 Both hosts use C89 masked-bitmap drawing for unscaled pixels and one-bit masks,
 as well as scaled indexed, true-colour and packed palette transfers. C89 retains
 the pixel-centre, near-size and BLACKONWHITE sampling rules. Region-clipped
-drawing borrows spans from the platform-independent Kauai scanner.
+drawing consumes C89 clip regions directly.
 Packed surface copies, raw 32-bit copies and indexed-to-indexed copies use
 the same C89 raster code for clipping, sampling, palette conversion and
-snapshotting overlapping buffers. Kauai supplies region spans and the host's
-byte-range overlap check. The near-size true-colour-to-8-bit path still uses
+snapshotting overlapping buffers. Kauai supplies the host's byte-range overlap
+check. The near-size true-colour-to-8-bit path still uses
 the host's legacy palette approximation.
 C89 handles DIB header validation, BGR24/BGRX32 frame decoding and scaled
 video drawing. It preserves the bottom-up edge sampling of 24-bit video
@@ -776,8 +776,9 @@ source and destination region clipping and the original full-byte-first
 rule for leftward monochrome moves.
 C89 owns clip-region bands and bounds, including Boolean operations, band
 compression, translation and rational scaling. Scanners retain their bands
-while a region changes. Kauai supplies its collection allocator, and the
-Windows graphics adapter manages the native region cache.
+while a region changes. Raster operations scan those regions directly, and SDL
+and GDI share the C89 rectangle visitor. Kauai supplies its collection
+allocator and the Windows graphics adapter manages the native region cache.
 C89 validates packed row sizes for offscreen buffers and DIB frames and owns
 the offscreen allocations. It also owns SDL damage masks, including scan-band
 rectangle extraction and scrolling. Kauai retains its atomic allocation counters.

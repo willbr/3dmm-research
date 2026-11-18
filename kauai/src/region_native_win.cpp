@@ -18,45 +18,21 @@ class NativeRegionCache : public BASE
 HRGN Region::HrgnCreate(void)
 {
     RGNDATAHEADER *prd;
-    SystemRectangle *prcs;
-    RegionScanner regsc;
-    long crcMac, crc;
-    HRGN hrgn;
-    long yp, dyp;
-
     const auto &bounds = _region.bounds;
-    RC clip(bounds.left, bounds.top, bounds.right, bounds.bottom);
-    crcMac = mm_region_rectangle_capacity(&_region);
-    if (!FAllocPv((void **)&prd, size(RGNDATAHEADER) + LwMul(crcMac, size(RECT)), fmemNil, mprNormal))
-    {
+    const auto capacity = static_cast<LegacyLong>(mm_region_rectangle_capacity(&_region));
+    if (!FAllocPv((void **)&prd, size(RGNDATAHEADER) + LwMul(capacity, size(RECT)), fmemNil, mprNormal))
         return hNil;
-    }
 
-    prcs = (SystemRectangle *)(prd + 1);
-    regsc.Init(this, &clip);
-    crc = 0;
-    if (!mm_region_empty(&_region))
-    {
-        yp = bounds.top;
-        for (;;)
-        {
-            dyp = regsc.DypCur();
-            while (regsc.XpCur() < klwMax)
-            {
-                prcs->left = regsc.XpCur() + bounds.left;
-                prcs->right = regsc.XpFetch() + bounds.left;
-                regsc.XpFetch();
-                prcs->top = yp;
-                prcs->bottom = yp + dyp;
-                prcs++;
-                crc++;
-            }
-            if ((yp += dyp) >= bounds.bottom)
-                break;
-            regsc.ScanNext(dyp);
-        }
-    }
-    AssertIn(crc, 0, crcMac + 1);
+    auto first = reinterpret_cast<SystemRectangle *>(prd + 1);
+    auto next = first;
+    const auto collect = [](void *context, const MMPixelRect *rect) -> int {
+        auto &out = *static_cast<SystemRectangle **>(context);
+        *out++ = {rect->left, rect->top, rect->right, rect->bottom};
+        return true;
+    };
+    mm_region_visit_rectangles(&_region, &bounds, collect, &next);
+    const auto crc = static_cast<LegacyLong>(next - first);
+    AssertIn(crc, 0, capacity + 1);
     prd->dwSize = size(RGNDATAHEADER);
     prd->iType = RDH_RECTANGLES;
     prd->nCount = crc;
@@ -66,7 +42,7 @@ HRGN Region::HrgnCreate(void)
     prd->rcBound.right = bounds.right;
     prd->rcBound.bottom = bounds.bottom;
 
-    hrgn = ExtCreateRegion(pvNil, size(RGNDATAHEADER) + LwMul(crc, size(RECT)), (RGNDATA *)prd);
+    auto hrgn = ExtCreateRegion(pvNil, size(RGNDATAHEADER) + LwMul(crc, size(RECT)), (RGNDATA *)prd);
     FreePpv((void **)&prd);
     return hrgn;
 }

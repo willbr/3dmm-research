@@ -2,6 +2,7 @@
 #include "pixel_canvas.h"
 #include "dib_frame.h"
 #include "mm/dib_frame.h"
+#include "mm/masked_bitmap.h"
 #include "mm/pixel_paint.h"
 #include <algorithm>
 #include <cstring>
@@ -9,7 +10,6 @@
 #include <vector>
 #include "kauai_core.h"
 #include "region.h"
-#include "masked_region.h"
 #undef size
 ASSERTNAME
 namespace KauaiPixels
@@ -45,14 +45,24 @@ int StorageOverlaps(const void *source, std::size_t sourceBytes, const void *tar
     const auto dst = reinterpret_cast<std::uintptr_t>(target);
     return (src <= dst && dst - src < sourceBytes) || (dst < src && src - dst < targetBytes);
 }
+struct RasterClip
+{
+    MMPixelRect bounds;
+    const MMPixelRect *rectangle;
+    const MMRegion *region;
+
+    RasterClip(const RC *clip, const Region *r)
+        : bounds(clip ? RasterRect(*clip) : MMPixelRect{}), rectangle(clip ? &bounds : nullptr),
+          region(r ? r->Geometry() : nullptr)
+    {
+    }
+};
 bool CopyRaster(const MMPixelImage &target, const MMPixelImage &source, const RC &sourceRect, const RC &targetRect,
                 const RC *clip, Region *region, int options)
 {
     const auto from = RasterRect(sourceRect), to = RasterRect(targetRect);
-    const auto clipping = clip ? RasterRect(*clip) : MMPixelRect{};
-    MaskedRegionSpans scanner(region);
-    const auto spans = scanner.Services();
-    return mm_pixel_copy(&target, &source, &from, &to, clip ? &clipping : nullptr, region ? &spans : nullptr, options,
+    RasterClip clipped(clip, region);
+    return mm_pixel_copy(&target, &source, &from, &to, clipped.rectangle, clipped.region, options,
                          StorageOverlaps) != 0;
 }
 
@@ -60,20 +70,6 @@ MMPixelSurface RasterSurface(const Surface8 &surface)
 {
     return {surface.pixels, surface.width, surface.height, surface.pitch, 8};
 }
-struct RasterClip
-{
-    MMPixelRect bounds;
-    MaskedRegionSpans scanner;
-    MMPixelSpans spans;
-    const MMPixelRect *rectangle;
-    const MMPixelSpans *region;
-
-    RasterClip(const RC *clip, Region *r)
-        : bounds(clip ? RasterRect(*clip) : MMPixelRect{}), scanner(r), spans(scanner.Services()),
-          rectangle(clip ? &bounds : nullptr), region(r ? &spans : nullptr)
-    {
-    }
-};
 MMPixelColorBrush RasterColors(const Brush &brush)
 {
     static_assert(int(InkMode::color) == MM_PIXEL_COLOR && int(InkMode::clear) == MM_PIXEL_CLEAR &&
@@ -270,11 +266,10 @@ bool DrawDibFrame(const Surface32 &destination, const DibFrame &frame, const RC 
 {
     const auto to = RasterSurface(destination);
     const MMPixelSurface image = {const_cast<byte *>(frame.pixels.data()), frame.width, frame.height, frame.pitch, 32};
-    const auto target = RasterRect(rectangle), clipping = clip ? RasterRect(*clip) : MMPixelRect{};
-    MaskedRegionSpans scanner(region);
-    const auto spans = scanner.Services();
-    return mm_dib_draw(&to, &image, frame.pixels.size(), frame.sourceDepth, &target, clip ? &clipping : nullptr,
-                       region ? &spans : nullptr, StorageOverlaps) != 0;
+    const auto target = RasterRect(rectangle);
+    RasterClip clipped(clip, region);
+    return mm_dib_draw(&to, &image, frame.pixels.size(), frame.sourceDepth, &target, clipped.rectangle,
+                       clipped.region, StorageOverlaps) != 0;
 }
 bool SnapshotIndexed(const Surface8 &destination, const Surface32 &source, const RC &sourceRect,
                      const RC &destinationRect, const Color *palette, std::int32_t colors)
@@ -297,10 +292,8 @@ bool ScrollRaster(const MMPixelSurface &surface, const RC &rectangle, MMI32 dx, 
                   Region *region, bool legacyMonochrome)
 {
     const auto area = RasterRect(rectangle);
-    const auto clipping = clip ? RasterRect(*clip) : MMPixelRect{};
-    MaskedRegionSpans scanner(region);
-    const auto spans = scanner.Services();
-    return mm_pixel_scroll(&surface, &area, dx, dy, clip ? &clipping : nullptr, region ? &spans : nullptr,
+    RasterClip clipped(clip, region);
+    return mm_pixel_scroll(&surface, &area, dx, dy, clipped.rectangle, clipped.region,
                            legacyMonochrome) != 0;
 }
 } // namespace
@@ -328,10 +321,8 @@ bool CopyIndexed(const Surface32 &destination, const Indexed8 &source, const RC 
     const auto from = RasterImage(source);
     const auto to = RasterSurface(destination);
     const auto src = RasterRect(sourceRect), dst = RasterRect(destinationRect);
-    const auto clipping = clip ? RasterRect(*clip) : MMPixelRect{};
-    MaskedRegionSpans scanner(region);
-    const auto spans = scanner.Services();
-    return mm_pixel_expand_indexed(&to, &from, &src, &dst, clip ? &clipping : nullptr, region ? &spans : nullptr) != 0;
+    RasterClip clipped(clip, region);
+    return mm_pixel_expand_indexed(&to, &from, &src, &dst, clipped.rectangle, clipped.region) != 0;
 }
 bool CopyIndexed(const Surface8 &destination, const Indexed8 &source, const RC &sourceRect, const RC &destinationRect,
                  const Color *palette, std::int32_t colors, const RC *clip, Region *region)
@@ -349,16 +340,8 @@ bool StretchMasked(const MMPixelSurface &destination, const RleBitmap8 &source, 
     const MMMaskedRle image = {source.data, source.bytes, source.rowBytes, source.width, source.height,
                                source.solid, source.fillIndex};
     const MMMaskedRect target = {rectangle.xpLeft, rectangle.ypTop, rectangle.xpRight, rectangle.ypBottom};
-    MMMaskedRect clipped;
-    if (clip)
-        clipped = {clip->xpLeft, clip->ypTop, clip->xpRight, clip->ypBottom};
-    const auto clipBounds = clip ? &clipped : nullptr;
-    if (!region)
-        return mm_masked_stretch(&destination, &image, &target, clipBounds, nullptr, PaletteBytes(palette),
-                                 count, transfer, andShrink) != 0;
-    MaskedRegionSpans scanner(region);
-    const auto spans = scanner.Services();
-    return mm_masked_stretch(&destination, &image, &target, clipBounds, &spans, PaletteBytes(palette),
+    RasterClip clipped(clip, region);
+    return mm_masked_stretch(&destination, &image, &target, clipped.rectangle, clipped.region, PaletteBytes(palette),
                              count, transfer, andShrink) != 0;
 }
 } // namespace

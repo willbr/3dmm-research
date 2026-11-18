@@ -1,6 +1,7 @@
 /* Pixel scrolling policy converted from Kauai pixel_canvas.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/pixel_raster.h"
+#include "mm/region.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -30,28 +31,33 @@ static int mask_contains(const ScrollMask *mask, MMI32 x, MMI32 y)
     return mm_pixel_read(mask_row(mask, y), x - mask->bounds.left, 1) != 0;
 }
 
-static int mark_region(ScrollMask *mask, const MMPixelRect *bounds, const MMPixelSpans *spans)
+static int mark_region(ScrollMask *mask, const MMPixelRect *bounds, const struct MMRegion *region)
 {
+    MMRegionCursor cursor = {0};
     MMI32 y, left, right, height, row;
-    spans->begin(spans->context, bounds);
+    int ok = 0;
+    mm_region_cursor_open(&cursor, region, bounds);
     for (y = bounds->top; y < bounds->bottom; y += height)
     {
-        height = spans->height ? spans->height(spans->context) : 1;
+        height = cursor.scan.rows;
         if (height > bounds->bottom - y)
             height = bounds->bottom - y;
-        while (spans->next(spans->context, &left, &right))
+        while (mm_region_scan_pair(&cursor.scan, &left, &right))
         {
             if (!mask->bits && !allocate_mask(mask, bounds))
-                return 0;
-            mm_pixel_mask_span(mask_row(mask, y), left - bounds->left, right - bounds->left, 1);
+                goto done;
+            mm_pixel_mask_span(mask_row(mask, y), left, right, 1);
         }
         if (mask->bits)
             for (row = y + 1; row < y + height; ++row)
                 memcpy(mask_row(mask, row), mask_row(mask, y), mask->pitch);
         if (y + height < bounds->bottom)
-            spans->advance(spans->context, height);
+            mm_region_scan_advance(&cursor.scan, height);
     }
-    return 1;
+    ok = 1;
+done:
+    mm_region_cursor_close(&cursor);
+    return ok;
 }
 
 static int covered_move(const ScrollMask *mask, MMI32 x, MMI32 y, MMI32 dx, MMI32 dy)
@@ -160,7 +166,7 @@ static void move_mono_bands(const MMPixelSurface *surface, const ScrollMask *sel
 }
 
 int mm_pixel_scroll(const MMPixelSurface *surface, const MMPixelRect *rectangle, MMI32 dx, MMI32 dy,
-                    const MMPixelRect *clip, const MMPixelSpans *spans, int legacy_monochrome)
+                    const MMPixelRect *clip, const struct MMRegion *region, int legacy_monochrome)
 {
     ScrollMask coverage = {0}, selected = {0};
     MMPixelRect area, moved;
@@ -194,7 +200,7 @@ int mm_pixel_scroll(const MMPixelSurface *surface, const MMPixelRect *rectangle,
         moved.bottom += dy;
 
     legacy_monochrome = legacy_monochrome && surface->depth == 1 && dx < 0;
-    if (!spans)
+    if (!region)
     {
         if (legacy_monochrome)
             move_mono_area(surface, &moved, dx, dy);
@@ -203,7 +209,7 @@ int mm_pixel_scroll(const MMPixelSurface *surface, const MMPixelRect *rectangle,
         return 1;
     }
 
-    result = mark_region(&coverage, &area, spans);
+    result = mark_region(&coverage, &area, region);
     if (result && coverage.bits)
     {
         if (!legacy_monochrome)
