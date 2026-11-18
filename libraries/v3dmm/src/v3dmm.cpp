@@ -1,9 +1,11 @@
 // Licensed under the MIT License.
 #include "mm/v3dmm.h"
+#include "mm/vmm_wire.h"
 #include "physfs_zip_order.h"
 #include <miniz.h>
 #include <algorithm>
 #include <array>
+#include <exception>
 #include <fstream>
 #include <limits>
 #include <set>
@@ -38,20 +40,9 @@ class Input
         Require(bool(stream.read(static_cast<char *>(output), std::streamsize(length))), "Cannot read v3dmm data");
     }
 };
-std::uint32_t Integer(Input &input, std::uint64_t &offset, unsigned bytes)
+std::uint64_t Position(MMWide offset)
 {
-    unsigned char buffer[4]{};
-    input.Read(offset, buffer, bytes);
-    offset += bytes;
-    std::uint32_t value = 0;
-    for (unsigned i = 0; i < bytes; ++i)
-        value |= std::uint32_t(buffer[i]) << (i * 8);
-    return value;
-}
-void Integer(std::ostream &output, std::uint32_t value, unsigned bytes)
-{
-    for (unsigned i = 0; i < bytes; ++i)
-        output.put(char(value >> (i * 8)));
+    return (std::uint64_t(offset.high) << 32) | offset.low;
 }
 void Transfer(const Range &range, std::ostream &output)
 {
@@ -65,6 +56,48 @@ void Transfer(const Range &range, std::ostream &output)
         offset += count;
     }
 }
+
+struct BundleOutput
+{
+    const Range &movie;
+    const std::vector<Dependency> &dependencies;
+    const fs::path &destination;
+    std::ofstream stream;
+    std::exception_ptr error;
+
+    template<class Action> int Attempt(Action action) noexcept
+    {
+        try { action(); return 1; }
+        catch (...) { error = std::current_exception(); return 0; }
+    }
+    static int Begin(void *context)
+    {
+        auto &out = *static_cast<BundleOutput *>(context);
+        return out.Attempt([&] {
+            out.stream.open(out.destination, std::ios::binary | std::ios::trunc);
+            Require(bool(out.stream), "Cannot create VMM output");
+        });
+    }
+    static int Write(void *context, const void *bytes, std::size_t count)
+    {
+        auto &out = *static_cast<BundleOutput *>(context);
+        return out.Attempt([&] {
+            Require(bool(out.stream.write(static_cast<const char *>(bytes), std::streamsize(count))),
+                    "Cannot write v3dmm data");
+        });
+    }
+    static int CopyArchive(void *context, std::size_t entry)
+    {
+        auto &out = *static_cast<BundleOutput *>(context);
+        return out.Attempt([&] { Transfer(out.dependencies[entry].archive, out.stream); });
+    }
+    static int CopyMovie(void *context)
+    {
+        auto &out = *static_cast<BundleOutput *>(context);
+        return out.Attempt([&] { Transfer(out.movie, out.stream); });
+    }
+};
+
 std::string Trim(std::string value)
 {
     auto first = value.find_first_not_of(" \t\r\n");
@@ -203,39 +236,29 @@ Range WholeFile(const std::filesystem::path &path)
 Bundle ReadBundle(const std::filesystem::path &path, const Limits &limits)
 {
     Input input(WholeFile(path));
-    char signature[6];
-    input.Read(0, signature, sizeof(signature));
-    Require(std::string(signature, 6) == std::string("v3dmm\1", 6), "Unsupported VMM signature or version");
-    std::uint64_t offset = 6;
-    auto count = Integer(input, offset, 4);
-    Require(count && count <= limits.dependencies && count <= (input.range.length - offset) / 6,
-            "Invalid VMM dependency count");
-    Bundle bundle;
-    for (std::uint32_t i = 0; i < count; ++i)
+    const auto length = input.range.length;
+    Require(length <= INT64_MAX, "Invalid v3dmm file range");
+    const MMVmmReader reader = {&input, {static_cast<MMU32>(length), static_cast<MMI32>(length >> 32)},
+        [](void *context, MMWide offset, void *bytes, std::size_t count) {
+            try { static_cast<Input *>(context)->Read(Position(offset), bytes, count); return 1; }
+            catch (...) { return 0; }
+        }};
+    struct Directory
     {
-        auto length = Integer(input, offset, 4);
-        auto nameLength = Integer(input, offset, 2);
-        Require(nameLength != 0, "Empty VMM dependency name");
-        std::string name(nameLength, '\0');
-        input.Read(offset, name.data(), nameLength);
-        offset += nameLength;
-        Require(name.find('\0') == std::string::npos, "Invalid VMM dependency name");
-        bundle.dependencies.push_back({name, {input.range.file, 0, length}});
+        MMVmmDirectory value{};
+        ~Directory() { mm_vmm_dispose(&value); }
+    } directory;
+    const auto status = mm_vmm_read(&reader, limits.dependencies, &directory.value);
+    Require(status == MM_VMM_OK, mm_vmm_error(status));
+    Bundle bundle;
+    bundle.dependencies.reserve(directory.value.count);
+    for (std::size_t i = 0; i < directory.value.count; ++i)
+    {
+        const auto &entry = directory.value.entries[i];
+        bundle.dependencies.push_back({std::string(entry.name, entry.name_length),
+            {input.range.file, Position(entry.archive_offset), entry.archive_length}});
     }
-    for (auto &dependency : bundle.dependencies)
-        if (dependency.archive.length)
-        {
-            Require(Integer(input, offset, 2) == 0x0bf0, "Invalid VMM expansion start marker");
-            Require(offset <= input.range.length && dependency.archive.length <= input.range.length - offset,
-                    "Truncated embedded VXP");
-            dependency.archive.offset = offset;
-            offset += dependency.archive.length;
-            Require(Integer(input, offset, 2) == 0xebfe, "Invalid VMM expansion end marker");
-        }
-    char movieMagic[4];
-    input.Read(offset, movieMagic, 4);
-    Require(std::string(movieMagic, 4) == "CHN2", "VMM contains no chunky movie");
-    bundle.movie = {input.range.file, offset, input.range.length - offset};
+    bundle.movie = {input.range.file, Position(directory.value.movie_offset), Position(directory.value.movie_length)};
     return bundle;
 }
 Package ReadPackage(const Range &archive, const Limits &limits)
@@ -282,36 +305,26 @@ std::map<std::string, std::filesystem::path> Materialize(const Range &archive, c
 }
 void WriteBundle(const Range &movie, const std::vector<Dependency> &dependencies, const std::filesystem::path &output)
 {
-    Require(!dependencies.empty() && dependencies.size() <= 10000, "Invalid output dependency count");
-    Require(fs::weakly_canonical(movie.file) != fs::weakly_canonical(output), "Cannot overwrite working movie");
+    Require(!dependencies.empty() && dependencies.size() <= MM_VMM_OUTPUT_ENTRY_LIMIT,
+            mm_vmm_error(MM_VMM_OUTPUT_COUNT));
+    const auto canonical = fs::weakly_canonical(output);
+    Require(fs::weakly_canonical(movie.file) != canonical, "Cannot overwrite working movie");
+    std::vector<MMVmmEntry> entries;
+    entries.reserve(dependencies.size());
     for (const auto &dependency : dependencies)
     {
-        Require(!dependency.name.empty() && dependency.name.size() <= 65535 &&
-                    dependency.name.find('\0') == std::string::npos && dependency.archive.length <= UINT32_MAX,
-                "VMM output dependency exceeds format limits");
+        Require(dependency.archive.length <= UINT32_MAX, mm_vmm_error(MM_VMM_OUTPUT_ENTRY));
         if (dependency.archive.length)
-            Require(fs::weakly_canonical(dependency.archive.file) != fs::weakly_canonical(output),
-                    "Cannot overwrite an expansion archive");
+            Require(fs::weakly_canonical(dependency.archive.file) != canonical, "Cannot overwrite an expansion archive");
+        entries.push_back({dependency.name.data(), dependency.name.size(), static_cast<MMU32>(dependency.archive.length), {}});
     }
-    std::ofstream stream(output, std::ios::binary | std::ios::trunc);
-    Require(bool(stream), "Cannot create VMM output");
-    stream.write("v3dmm\1", 6);
-    Integer(stream, std::uint32_t(dependencies.size()), 4);
-    for (const auto &dependency : dependencies)
-    {
-        Integer(stream, std::uint32_t(dependency.archive.length), 4);
-        Integer(stream, std::uint32_t(dependency.name.size()), 2);
-        stream.write(dependency.name.data(), dependency.name.size());
-    }
-    for (const auto &dependency : dependencies)
-        if (dependency.archive.length)
-        {
-            Integer(stream, 0x0bf0, 2);
-            Transfer(dependency.archive, stream);
-            Integer(stream, 0xebfe, 2);
-        }
-    Transfer(movie, stream);
-    stream.close();
-    Require(bool(stream), "Cannot finish VMM output");
+    BundleOutput writer{movie, dependencies, output, {}, {}};
+    const MMVmmWriter output_stream = {&writer, BundleOutput::Begin, BundleOutput::Write,
+        BundleOutput::CopyArchive, BundleOutput::CopyMovie};
+    const auto status = mm_vmm_write(&output_stream, entries.data(), entries.size());
+    if (writer.error) std::rethrow_exception(writer.error);
+    Require(status == MM_VMM_OK, mm_vmm_error(status));
+    writer.stream.close();
+    Require(bool(writer.stream), "Cannot finish VMM output");
 }
 } // namespace MM::V3dmm

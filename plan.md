@@ -926,8 +926,10 @@ close/new/insert/remove transactions, undoable removal and scene undo/redo dispa
 now also use C89, including current-scene reference/index control and failure
 retry/rollback order. Movie autosave/save transactions, temporary-resource setup,
 saved-file ownership/flags, VMM save-format/publication policy, scene-tag collection
-and asset/sound garbage-collection control now also use C89. Physical file/path/
-block I/O and VMM packaging remain host services. Movie roll-call queries/naming,
+and asset/sound garbage-collection control now also use C89. Studio and Marcus
+share the C89 VMM v1 reader and writer for dependency names, embedded archive
+ranges and the inner movie. Physical file and path I/O, VXP ZIP processing and
+package publication remain host services. Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and
 common undo registration/notification now also use C89. Movie material insertion,

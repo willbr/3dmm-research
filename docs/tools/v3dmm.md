@@ -132,7 +132,12 @@ large files without C99 integer types. Files are exposed under logical product
 namespaces, independent of a movie's numeric source IDs. Legacy chunky readers
 can still obtain physical paths while using the common mount selection.
 
-The VMM/VXP decoder, installed-pack store and host integration remain C++.
+Studio and Marcus use `mm/vmm_wire.h` from the C89 engine for VMM v1
+reading and writing. It bounds directory reads, preserves legacy dependency
+names, and validates embedded archive ranges and the inner movie marker. Two
+32-bit words carry offsets across the 4 GiB boundary. File paths, streaming
+copies, VXP processing and the installed-pack store use the existing host
+adapters.
 Studio activates its per-movie portable set in the VFS and uses the same archive
 enumeration for base content, fixed libraries, thumbnails and portable content.
 Marcus uses that mount policy with read-only Studio preference snapshots and
@@ -156,6 +161,19 @@ range parsing, byte-preserving round trips, materialization, malformed/truncated
 inputs, unsafe names, extraction budgets, persistent preferences and failed
 publication. `v3dmm-test --inspect <movie.vmm>` inspects dependencies and package
 metadata without installation.
+
+`engine-vmm-wire` links through the C toolchain and checks the byte layout,
+truncated directories, output failures and offsets above 4 GiB. It passed
+AddressSanitizer on Windows x86 and x64. The original blank VMM, a Marcus
+storyboard VMM and Batman's 18-archive VMM round-tripped byte for byte.
+All six VMM files from the Studio authoring and package workflow matched the
+pre-conversion files byte for byte. Original v3dmm reopened a new Studio save
+with the embedded prop and two sound cues. The 60 compared frame states and
+sound requests matched. Image and PCM differences still appear in that comparison.
+The actor-event and scrolling-text fixtures matched the previous builds across
+228 Studio and Marcus seeks and 180 viewport hashes. For those fixtures, 456
+Studio actor records matched the retained retail and v3dmm captures.
+Evidence is in `tmp/c89-vmm-wire`.
 
 Duplicate selection has frozen regression cases in `v3dmm-test`. For a direct
 comparison, build the x86 `physfs-zip-probe` target in `tools/retail_oracle`, then

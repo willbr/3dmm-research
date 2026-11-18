@@ -484,7 +484,7 @@ target_include_directories(mm-content PUBLIC "${PROJECT_SOURCE_DIR}/libraries/co
 add_library(mm-v3dmm STATIC libraries/v3dmm/src/v3dmm.cpp libraries/v3dmm/src/publish.cpp)
 target_compile_features(mm-v3dmm PUBLIC cxx_std_17)
 target_include_directories(mm-v3dmm PUBLIC "${PROJECT_SOURCE_DIR}/libraries/v3dmm/include")
-target_link_libraries(mm-v3dmm PRIVATE miniz)
+target_link_libraries(mm-v3dmm PRIVATE miniz mm-engine-c89)
 add_library(studio-pack-store STATIC src/studio/pack_store.cpp src/studio/pack_import.cpp src/studio/pack_hash.cpp)
 include(SQLiteDependency)
 target_link_libraries(studio-pack-store PRIVATE package-sqlite)
