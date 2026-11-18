@@ -58,7 +58,7 @@ extern "C"
     typedef struct MMBackgroundServices
     {
         void *context;
-        int host_big_endian, debug_checks;
+        int host_big_endian, debug_checks, retain_palette;
         MMI32 actor_bytes, light_bytes;
         int (*child)(void *, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type, MMU32 *out);
         int (*child_at)(void *, MMU32 type, MMU32 number, MMI32 index, MMU32 *child_type);
@@ -87,13 +87,15 @@ extern "C"
      * Fresh owners are required. Studio retains partial SDK arrays on failure
      * for factory disposal. Studio tolerates failed decode of a located palette.
      * Preview keeps its stricter palette/light admission, skips sound/name,
-     * publishes visual entries in order, then selects camera zero. Camera
+     * publishes visual entries in order, then selects camera zero. Preview
+     * callers can retain the authored palette for transition playback. Camera
      * numbering starts at zero and stops at the first missing ID. */
     int mm_background_read(MMBackgroundResource *, MMBackgroundCameraState *, MMU32 type,
                                  MMU32 number, int profile, const MMBackgroundServices *);
     void mm_background_lights_on(MMBackgroundResource *, const MMBackgroundServices *);
     void mm_background_lights_off(MMBackgroundResource *, const MMBackgroundServices *);
-    /* Caller must clear leave_on before teardown. Dispose after partial construction. */
+    /* Caller must clear leave_on before teardown. Dispose after partial construction.
+     * Preview can pass NULL services because it owns no native light arrays. */
     void mm_background_resource_dispose(MMBackgroundResource *, const MMBackgroundServices *);
     /* Borrow the native-order four-byte colours until disposal. */
     const unsigned char *mm_background_palette(const MMBackgroundResource *, MMU32 *count, MMI32 *base);

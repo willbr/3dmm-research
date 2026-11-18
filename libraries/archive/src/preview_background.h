@@ -37,6 +37,7 @@ class PreviewBackground
     PreviewBackground(const PreviewBackground &) = delete;
     PreviewBackground &operator=(const PreviewBackground &) = delete;
     bool Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette);
+    void OverlayAuthoredPalette(unsigned char bgrx[1024]) const;
     bool SetCamera(std::uint32_t slot, bool updatePlacement = true);
     bool NextPlacementPoint(float point[3]);
     void ReusePlacementPoint();

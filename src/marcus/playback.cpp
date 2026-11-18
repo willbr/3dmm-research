@@ -489,7 +489,12 @@ struct MarcusPlayback::Impl
     MMU32 transitionSeed = 0;
     MMFramePacer pacer = {};
     double fps = -1, pacingTime = 0, frameCarry = 0;
-    PreviewImage previous;
+    struct TransitionSnapshot
+    {
+        PreviewImage image;
+        std::vector<unsigned short> indices;
+        unsigned char outgoingPalette[1024] = {}, incomingPalette[1024] = {}, targetPalette[1024] = {};
+    } previous;
     void ResetTiming()
     {
         entered = false;
@@ -985,26 +990,46 @@ bool MarcusPlayback::Transitioning() const
 {
     return impl->transition != 0;
 }
+bool MarcusPlayback::PaletteAnimating() const
+{
+    return !impl->previous.indices.empty();
+}
 double MarcusPlayback::FrameSeconds() const
 {
     return impl->transition ? (impl->transitionTime - mm_graphics_movie_transition(impl->transition).duration_ms) / 1000
                             : impl->frameSeconds;
 }
-void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous, const unsigned char *outgoingPalette)
+void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous,
+                                     const unsigned char *outgoingPalette, const MM::Preview &incoming)
 {
     const auto effect = mm_graphics_movie_transition(kind);
     if (previous.rgba.empty() || !effect.duration_ms)
         return;
+    Impl::TransitionSnapshot snapshot;
+    snapshot.image = std::move(previous);
     if (outgoingPalette && effect.dissolve_phase_ms)
     {
-        const auto surface = TransitionSurface(previous);
-        mm_pixel_remap_dissolve_rgba(&surface, outgoingPalette, 256);
+        const auto surface = TransitionSurface(snapshot.image);
+        if (kind == MM_GRAPHICS_MOVIE_DISSOLVE && incoming.CopyPresentationPalette(snapshot.incomingPalette))
+        {
+            std::memcpy(snapshot.targetPalette, outgoingPalette, sizeof(snapshot.targetPalette));
+            incoming.OverlayTransitionPalette(snapshot.targetPalette);
+            if (std::memcmp(outgoingPalette, snapshot.targetPalette, sizeof(snapshot.targetPalette)) ||
+                std::memcmp(snapshot.incomingPalette, snapshot.targetPalette, sizeof(snapshot.targetPalette)))
+            {
+                snapshot.indices.resize(std::size_t(surface.width) * surface.height);
+                std::memcpy(snapshot.outgoingPalette, outgoingPalette, sizeof(snapshot.outgoingPalette));
+            }
+        }
+        if (!mm_pixel_remap_dissolve_rgba(&surface, outgoingPalette, 256,
+                                         snapshot.indices.empty() ? nullptr : snapshot.indices.data()))
+            snapshot.indices.clear();
     }
     impl->transition = kind;
     impl->wasPlaying = true;
     impl->transitionTime = 0;
     impl->transitionSeed = static_cast<MMU32>(SDL_GetTicks());
-    impl->previous = std::move(previous);
+    impl->previous = std::move(snapshot);
 }
 bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, bool click, bool &advance,
                             MM::Error &error)
@@ -1284,7 +1309,11 @@ void MarcusPlayback::CompositeTransition(MM::PreviewImage &image) const
 {
     if (!impl->transition)
         return;
-    const auto outgoing = TransitionSurface(impl->previous);
+    auto &snapshot = impl->previous;
+    const auto outgoing = TransitionSurface(snapshot.image);
     const auto incoming = TransitionSurface(image);
-    mm_graphics_movie_transition_rgba(impl->transition, impl->transitionTime, impl->transitionSeed, &outgoing, &incoming);
+    const MMGraphicsMovieDissolvePalette palette{snapshot.outgoingPalette, snapshot.incomingPalette, snapshot.targetPalette,
+        snapshot.indices.data(), image.paletteIndices.empty() ? nullptr : image.paletteIndices.data()};
+    mm_graphics_movie_transition_rgba(impl->transition, impl->transitionTime, impl->transitionSeed,
+                                      &outgoing, &incoming, PaletteAnimating() ? &palette : nullptr);
 }

@@ -35,6 +35,7 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
     s.context = &host;
     const unsigned short one = 1;
     s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
+    s.retain_palette = 1;
     s.child = [](void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMU32 *out) {
         const auto chunks = static_cast<Host *>(p)->file->ReadChunkAccess();
         return int(mm_chunk_link_number(&chunks, type, number, id, childType, out) == MM_CHUNK_OK);
@@ -63,9 +64,18 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
             return 0;
         }
     };
+    mm_background_resource_dispose(&resource, nullptr);
     mm_background_resource_init(&resource);
     return mm_background_read(&resource, &preview.placement, kctgBkgd, background, MM_BACKGROUND_PREVIEW, &s) !=
            0;
+}
+void PreviewBackground::OverlayAuthoredPalette(unsigned char bgrx[1024]) const
+{
+    MMU32 count;
+    MMI32 base;
+    const auto bytes = mm_background_palette(&resource, &count, &base);
+    if (count)
+        std::memcpy(bgrx + 4 * base, bytes, 4 * count);
 }
 
 namespace
@@ -84,6 +94,7 @@ PreviewBackground::PreviewBackground()
 }
 PreviewBackground::~PreviewBackground()
 {
+    mm_background_resource_dispose(&resource, nullptr);
     mm_preview_projection_cache_dispose(&cameraProjections);
     auto s = Services(nullptr);
     mm_background_preview_dispose(&preview, &s);

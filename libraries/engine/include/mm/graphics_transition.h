@@ -56,6 +56,14 @@ typedef struct MMGraphicsMovieTransition
     double duration_ms;
 } MMGraphicsMovieTransition;
 
+typedef struct MMGraphicsMovieDissolvePalette
+{
+    const unsigned char *outgoing, *incoming; /* Complete BGRX display palettes. */
+    const unsigned char *target;             /* Outgoing base with raw authored entries overlaid. */
+    const unsigned short *outgoing_indices;   /* Remapped snapshot, including unlisted pixels. */
+    const unsigned char *incoming_indices;   /* Optional raster indices as colour lookup hints. */
+} MMGraphicsMovieDissolvePalette;
+
 typedef struct MMGraphicsTransitionServices
 {
     void *context;
@@ -88,9 +96,11 @@ void mm_graphics_transition_run(const MMGraphicsTransition *, const MMGraphicsTr
 
 MMGraphicsMovieTransition mm_graphics_movie_transition(MMI32 authored_kind);
 /* Update an incoming RGBA8 image in place from a separate outgoing image.
- * A stable seed gives the same reveal on repeated presentations. */
+ * A stable seed gives the same reveal on repeated presentations. Optional
+ * dissolve palette indices are tightly packed in each surface's dimensions. */
 int mm_graphics_movie_transition_rgba(MMI32 authored_kind, double elapsed_ms, MMU32 seed,
-                                      const MMPixelSurface *outgoing, const MMPixelSurface *incoming);
+                                      const MMPixelSurface *outgoing, const MMPixelSurface *incoming,
+                                      const MMGraphicsMovieDissolvePalette *);
 
 /* The four-byte colours are BGR and a reserved byte. Missing palettes use
  * the substitute or zero. Preserve the old colour's reserved byte. */

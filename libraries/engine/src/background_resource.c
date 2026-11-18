@@ -161,7 +161,7 @@ static int palette(MMBackgroundResource *b, MMU32 type, MMU32 number, unsigned b
         if (profile == MM_BACKGROUND_PREVIEW)
             s->palette_color(s->context, (MMI32)(base + i), bytes);
     }
-    if (profile == MM_BACKGROUND_PREVIEW)
+    if (profile == MM_BACKGROUND_PREVIEW && !s->retain_palette)
         mm_storage_dispose(&b->palette);
     else
         b->palette_count = array.header.count;
@@ -267,10 +267,13 @@ void mm_background_lights_off(MMBackgroundResource *b, const MMBackgroundService
 }
 void mm_background_resource_dispose(MMBackgroundResource *b, const MMBackgroundServices *s)
 {
-    if (b->actors && b->lights)
-        mm_background_lights_off(b, s);
-    s->free_memory(s->context, &b->actors);
-    s->free_memory(s->context, &b->lights);
+    if (s)
+    {
+        if (b->actors && b->lights)
+            mm_background_lights_off(b, s);
+        s->free_memory(s->context, &b->actors);
+        s->free_memory(s->context, &b->lights);
+    }
     mm_storage_dispose(&b->palette);
     b->palette_count = 0;
 }

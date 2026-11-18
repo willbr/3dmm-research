@@ -1223,22 +1223,51 @@ static void movie_transition_rgba(void)
     size_t i;
     incoming.pixels = next;
     memset(next, 60, sizeof(next));
-    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_DISSOLVE, 1000, 3, &outgoing, &incoming));
+    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_DISSOLVE, 1000, 3, &outgoing, &incoming, NULL));
     assert(!memcmp(next, expected, sizeof(expected)) && next[16] == 60);
     outgoing.width = 2;
-    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_DISSOLVE, 0, 3, &outgoing, &incoming));
+    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_DISSOLVE, 0, 3, &outgoing, &incoming, NULL));
     assert(!memcmp(next, resized, sizeof(resized)));
     memset(next, 60, sizeof(next));
-    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_FADE_WHITE, 2000, 3, NULL, &incoming));
+    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_FADE_WHITE, 2000, 3, NULL, &incoming, NULL));
     for (i = 0; i < 16; ++i)
         assert(next[i] == 255);
     assert(next[16] == 60);
-    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_BLACK, 10, 3, NULL, &incoming));
+    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_BLACK, 10, 3, NULL, &incoming, NULL));
     for (i = 0; i < 16; ++i)
         assert(next[i] == (i % 4 == 3 ? 255 : 0));
     memset(next, 60, sizeof(next));
-    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_DISSOLVE, 4000, 3, NULL, &incoming));
+    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_DISSOLVE, 4000, 3, NULL, &incoming, NULL));
     assert(next[0] == 60);
+}
+
+static void movie_transition_palette(void)
+{
+    static unsigned char old[] = {10, 20, 30, 255, 10, 20, 30, 255, 1, 2, 3, 128, 10, 20, 30, 255};
+    static const unsigned char source[] = {127, 40, 20, 255, 127, 40, 20, 255, 127, 40, 20, 255, 127, 40, 20, 255};
+    static const unsigned char expected[] = {69, 30, 25, 255, 89, 45, 50, 255, 1, 2, 3, 128, 69, 30, 25, 255};
+    static const unsigned short old_indices[] = {42, 42, MM_PIXEL_NO_PALETTE_INDEX, 42};
+    static const unsigned char new_indices[] = {0, 43, 42, 42};
+    unsigned char prior[1024] = {0}, next[1024] = {0}, target[1024], rendered[sizeof(source)];
+    MMPixelSurface incoming = {NULL, 4, 1, 16, 32};
+    const MMPixelSurface outgoing = {old, 4, 1, 16, 32};
+    MMGraphicsMovieDissolvePalette palette = {NULL, NULL, NULL, old_indices, new_indices};
+    palette.outgoing = prior;
+    palette.incoming = next;
+    palette.target = target;
+    incoming.pixels = rendered;
+    memcpy(prior + 4 * 42, "\x1e\x14\x0a\x00", 4);
+    memcpy(prior + 4 * 43, "\x50\x32\x32\x00", 4);
+    memcpy(next + 4 * 42, "\x14\x28\x7f\x00", 4);
+    memcpy(next + 4 * 43, next + 4 * 42, 4);
+    memcpy(target, next, sizeof(target));
+    target[4 * 42 + 2] = target[4 * 43 + 2] = 128;
+    memcpy(rendered, source, sizeof(rendered));
+    assert(mm_graphics_movie_transition_rgba(MM_GRAPHICS_MOVIE_DISSOLVE, 2000, 3,
+                                            &outgoing, &incoming, &palette));
+    /* The same incoming RGB can animate differently at two palette indices.
+     * Pixel 0 has a stale hint. Pixel 2 retains its unlisted RGBA colour. */
+    assert(!memcmp(rendered, expected, sizeof(expected)));
 }
 
 static void dissolve_snapshot(void)
@@ -1255,6 +1284,8 @@ static void dissolve_snapshot(void)
         94, 91, 90, 255, 32, 32, 32, 255, 31, 36, 36, 128, 68, 68, 69, 255, 94, 91, 90, 0, 99, 98, 97, 255
     };
     unsigned char dst[8];
+    unsigned short indices[6];
+    static const unsigned short expected_indices[] = {1, 2, 3, 4, MM_PIXEL_NO_PALETTE_INDEX, MM_PIXEL_NO_PALETTE_INDEX};
     const MMPixelRect full = {0, 0, 6, 1}, valid = {0, 0, 5, 1};
     const MMPixelSurface input = {xrgb, 6, 1, 24, 32};
     MMPixelSurface frame = {NULL, 6, 1, 24, 32};
@@ -1267,8 +1298,9 @@ static void dissolve_snapshot(void)
     assert(!memcmp(dst, "\xa5\xa5\xa5\xa5\xa5\xa5\xa5\xa5", sizeof(dst)));
     assert(mm_pixel_snapshot_dissolve(&snapshot, &input, &valid, &valid));
     assert(!memcmp(dst, expected, sizeof(expected)));
-    assert(mm_pixel_remap_dissolve_rgba(&frame, palette, 6));
+    assert(mm_pixel_remap_dissolve_rgba(&frame, palette, 6, indices));
     assert(!memcmp(rgba, remapped, sizeof(rgba)));
+    assert(!memcmp(indices, expected_indices, sizeof(indices)));
 }
 
 int main(void)
@@ -1294,6 +1326,7 @@ int main(void)
     graphics_transitions();
     graphics_dissolve();
     movie_transition_rgba();
+    movie_transition_palette();
     dissolve_snapshot();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");

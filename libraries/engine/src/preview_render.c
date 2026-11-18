@@ -394,7 +394,7 @@ static void output_pixels(MMPreviewImage *image, const MMPreviewView *v, const M
     MMI32 matrix[16], z;
     const unsigned char *gpu, *row;
     const unsigned short *depths;
-    unsigned char *out;
+    unsigned char *out, *indices;
     double depth_scale, depth_offset, denominator, distance;
     memset(matrix, 0, sizeof(matrix));
     if (v->depth)
@@ -402,6 +402,9 @@ static void output_pixels(MMPreviewImage *image, const MMPreviewView *v, const M
     depth_scale = s->math.scalar_float(matrix[10]);
     depth_offset = s->math.scalar_float(matrix[14]);
     gpu = v->rasterizer ? s->raster_rgba(s->context) : 0;
+    indices = !gpu && s->palette_indices ? s->palette_indices(s->context, v->width, v->height) : NULL;
+    if (indices)
+        memset(indices, 0, v->width * v->height);
     memset(image->rgba, 0, v->width * v->height * 4);
     for (y = 0; y < fh; ++y)
     {
@@ -425,6 +428,8 @@ static void output_pixels(MMPreviewImage *image, const MMPreviewView *v, const M
                 index = mesh->infinite[by * d->width + bx];
             }
             memcpy(out, d->palette + index * 4, 3);
+            if (indices)
+                indices[offset] = (unsigned char)index;
             out[3] = !bg && !infinite && depths[sx] == 0xffff ? 0 : 255;
             if (gpu && !(infinite && depths[sx] == 0xffff))
                 memcpy(out, gpu + (sy * width + sx) * 4, 4);

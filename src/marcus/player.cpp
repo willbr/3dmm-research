@@ -576,8 +576,10 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     options.rasterizer = player->rasterizers[player->renderer].get();
     if (options.rasterizer) MarcusConfigureGPURenderer(options.rasterizer, settings);
     options.includeDepth = !view.authoredCamera || view.freeCamera;
+    options.includePaletteIndices = view.authoredCamera && !view.freeCamera && player->playback.PaletteAnimating();
     if (!image || player->selected < 0)
         return false;
+    player->image.paletteIndices.clear();
     // Send live placements to the same worker as committed ones. Switching to
     // a different evaluator during a drag loses its cached orbit framing.
     const bool nativeBoards = !player->edits->storyboards->empty() || !player->edits->costumes->empty();
@@ -2739,7 +2741,8 @@ extern "C"
                         error.message = player->error;
                         return false;
                     }
-                    player->playback.BeginTransition(transition, std::move(previous), hasPalette ? outgoingPalette : nullptr);
+                    player->playback.BeginTransition(transition, std::move(previous),
+                                                     hasPalette ? outgoingPalette : nullptr, player->preview);
                     state->scene_changed = 1;
                 }
                 else

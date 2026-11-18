@@ -47,6 +47,7 @@ struct PreviewView
     int onlyObject = -1;           // Isolated authoring thumbnail; omit scenery and other objects.
     const PreviewBounds *orbitBounds = nullptr; // Optional framing region for this render only.
     bool includeDepth = false;     // Return camera-forward distances for host composition.
+    bool includePaletteIndices = false;
     bool fitSceneDepth = false;    // Fit inspection clip distances to visible scene geometry.
     int displayMode = 0;           // Host-selected built-in material/edge mode; zero preserves authored materials.
     bool orthographic = false;
@@ -74,6 +75,8 @@ struct PreviewImage
     // Top-down, tightly packed RGBA8. Empty pixels/letterboxing have alpha zero;
     // Authored backgrounds and static infinite backdrops are opaque.
     std::vector<std::uint8_t> rgba;
+    // Native raster indices in the same geometry, when requested and available.
+    std::vector<std::uint8_t> paletteIndices;
     // Optional top-down camera-forward distances, one per pixel. Empty pixels
     // and letterboxing have positive infinity, as do static infinite backdrops.
     // Requested with includeDepth.
@@ -304,6 +307,8 @@ class Preview
     // Resolve stored indexed caption colours against the active movie palette.
     std::uint32_t PresentationColour(std::uint32_t colour) const;
     bool CopyPresentationPalette(unsigned char bgrx[1024]) const;
+    // Overlay this background's raw palette entries on the outgoing display palette.
+    void OverlayTransitionPalette(unsigned char bgrx[1024]) const;
     bool SetPose(std::uint32_t action, std::uint32_t cel, Error &error);
     bool SetFrame(std::int32_t frame, Error &error);
     // Adjust scene edges in memory. Opening camera cues follow the first frame;

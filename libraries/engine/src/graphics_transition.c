@@ -1,6 +1,7 @@
 /* Transition control converted from Kauai gfx.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/graphics_transition.h"
+#include "mm/indexed_display.h"
 #include "mm/wide.h"
 #include <string.h>
 
@@ -262,15 +263,32 @@ MMGraphicsMovieTransition mm_graphics_movie_transition(MMI32 authored_kind)
     return effects[authored_kind];
 }
 
+static void show_palette_colour(unsigned char *pixel, const unsigned char *palette, int index)
+{
+    if (index >= 0 && index < 256)
+    {
+        const unsigned char *colour = palette + 4 * index;
+        pixel[0] = colour[2];
+        pixel[1] = colour[1];
+        pixel[2] = colour[0];
+    }
+}
+
 int mm_graphics_movie_transition_rgba(MMI32 authored_kind, double elapsed_ms, MMU32 seed,
-                                      const MMPixelSurface *outgoing, const MMPixelSurface *incoming)
+                                      const MMPixelSurface *outgoing, const MMPixelSurface *incoming,
+                                      const MMGraphicsMovieDissolvePalette *palette)
 {
     const MMGraphicsMovieTransition effect = mm_graphics_movie_transition(authored_kind);
+    const int indexed = authored_kind == MM_GRAPHICS_MOVIE_DISSOLVE && palette && palette->outgoing &&
+                        palette->incoming && palette->target && palette->outgoing_indices;
+    MMPixelPaletteLookup lookup;
     const unsigned char *old;
-    unsigned char *next;
+    unsigned char *next, *pixel;
     unsigned char fill[4] = {0, 0, 0, 255};
-    MMU32 width, height, count, index, word, reveal, i, x, y, old_x, old_y;
-    int filling, fading, resized;
+    unsigned char active[1024], blend[1024];
+    size_t colours = 256;
+    MMU32 width, height, count, index, word, reveal, i, x, y, old_x, old_y, rgb;
+    int filling, fading, resized, colour;
     if (!(elapsed_ms >= 0))
         return 0;
     if (elapsed_ms >= effect.duration_ms)
@@ -303,6 +321,15 @@ int mm_graphics_movie_transition_rgba(MMI32 authored_kind, double elapsed_ms, MM
         return 0;
     old = outgoing ? outgoing->pixels : NULL;
     resized = outgoing && (outgoing->width != incoming->width || outgoing->height != incoming->height);
+    if (indexed)
+    {
+        mm_graphics_transition_palette(blend, 256, palette->outgoing, 256, palette->target, 256,
+                                       NULL, (MMU32)elapsed_ms, effect.dissolve_phase_ms);
+        memcpy(active, palette->outgoing, sizeof(active));
+        mm_display_palette_set(active, &colours, blend, 256,
+                               MM_DISPLAY_PALETTE_IDENTITY | MM_DISPLAY_PALETTE_ANIMATE);
+        mm_pixel_palette_lookup(&lookup, palette->incoming, 256);
+    }
     count = width * height;
     reveal = mm_pixel_muldiv(count, (MMU32)elapsed_ms, effect.dissolve_phase_ms);
     index = seed % count;
@@ -310,18 +337,31 @@ int mm_graphics_movie_transition_rgba(MMI32 authored_kind, double elapsed_ms, MM
     for (i = 0; i < count; ++i)
     {
         index = dissolve_next(index, count, &word);
-        if (filling || i >= reveal)
+        if (indexed || filling || i >= reveal)
         {
             x = index % width;
             y = index / width;
+            pixel = next + (size_t)y * (MMU32)incoming->pitch + 4 * x;
             if ((filling && i < reveal) || (fading && !filling))
-                memcpy(next + (size_t)y * (MMU32)incoming->pitch + 4 * x, fill, sizeof(fill));
-            else
+                memcpy(pixel, fill, sizeof(fill));
+            else if (filling || i >= reveal)
             {
                 old_x = resized ? (MMU32)mm_pixel_sample((MMI32)x, outgoing->width, incoming->width, 0) : x;
                 old_y = resized ? (MMU32)mm_pixel_sample((MMI32)y, outgoing->height, incoming->height, 0) : y;
-                memcpy(next + (size_t)y * (MMU32)incoming->pitch + 4 * x,
-                       old + (size_t)old_y * (MMU32)outgoing->pitch + 4 * old_x, 4);
+                memcpy(pixel, old + (size_t)old_y * (MMU32)outgoing->pitch + 4 * old_x, 4);
+                if (indexed)
+                    show_palette_colour(pixel, active,
+                                        palette->outgoing_indices[(size_t)old_y * (MMU32)outgoing->width + old_x]);
+            }
+            else if (pixel[3])
+            {
+                /* Captions and true-colour renderers may replace a raster
+                 * sample. Use its index only while its colour still matches. */
+                rgb = ((MMU32)pixel[0] << 16) | ((MMU32)pixel[1] << 8) | pixel[2];
+                colour = palette->incoming_indices ? palette->incoming_indices[index] : -1;
+                if (colour < 0 || mm_pixel_rgb(palette->incoming + 4 * colour) != rgb)
+                    colour = mm_pixel_palette_find(&lookup, rgb);
+                show_palette_colour(pixel, active, colour);
             }
         }
     }

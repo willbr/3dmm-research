@@ -146,6 +146,8 @@ extern "C"
         const unsigned char *(*raster_rgba)(void *);
         void (*depth_projection)(void *, void *camera, MMI32 matrix[16]);
         int (*output)(void *, MMU32, MMU32, int depth, unsigned char **rgba, float **distances);
+        /* Optional caller-owned width * height index plane for indexed output. */
+        unsigned char *(*palette_indices)(void *, MMU32 width, MMU32 height);
     } MMPreviewRenderServices;
     /* All services are initialized, synchronous, non-reentrant and do not throw.
      * A zero allocator selects the C heap. Nonzero allocators provide both callbacks.

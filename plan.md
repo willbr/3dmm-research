@@ -798,6 +798,9 @@ presenter. Marcus uses the shared C89 dissolve permutation and phase lengths
 to compose RGBA movie-camera frames. Both use the C89 RGB555 bin-centre mapping
 for palette colours in the outgoing snapshot. The original fixture now shows
 retail's temporary colour changes even though its endpoint images are identical.
+For transitions between different background palettes, Marcus also uses the
+shared C89 palette interpolation. It keeps the renderer's incoming indices
+and the remapped outgoing indices until the reveal is complete.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.

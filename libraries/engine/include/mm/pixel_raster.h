@@ -61,6 +61,14 @@ void mm_pixel_mask_span(unsigned char *row, MMI32 left, MMI32 right, int marked)
 MMU32 mm_pixel_rgb(const unsigned char *colour);
 MMU32 mm_pixel_rgb555(MMU32 rgb);
 unsigned char mm_pixel_nearest(const unsigned char *palette, MMI32 count, MMU32 rgb);
+typedef struct MMPixelPaletteLookup
+{
+    MMU32 entries[256];
+    MMI32 count;
+} MMPixelPaletteLookup;
+/* Resolve exact BGRX palette colours by RGB value, with first-index ties. */
+int mm_pixel_palette_lookup(MMPixelPaletteLookup *, const unsigned char *palette, MMI32 colours);
+int mm_pixel_palette_find(const MMPixelPaletteLookup *, MMU32 rgb);
 void mm_pixel_translate8(const unsigned char *source, MMI32 source_count, const unsigned char *target,
                          MMI32 target_count, unsigned char indices[256]);
 
@@ -85,9 +93,12 @@ int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *
  * An unlisted input colour fails the snapshot before publication. */
 int mm_pixel_snapshot_dissolve(const MMPixelImage *target, const MMPixelSurface *source,
                                const MMPixelRect *source_rect, const MMPixelRect *target_rect);
-/* Apply the same snapshot remapping to RGBA8 in place, preserving alpha and
- * colours outside the palette. */
-int mm_pixel_remap_dissolve_rgba(const MMPixelSurface *, const unsigned char *palette, MMI32 colours);
+enum { MM_PIXEL_NO_PALETTE_INDEX = 256 };
+/* Remap RGBA8 in place, preserving alpha and colours outside the palette.
+ * Optional indices holds width * height entries in row order. Transparent
+ * and unlisted pixels receive MM_PIXEL_NO_PALETTE_INDEX. */
+int mm_pixel_remap_dissolve_rgba(const MMPixelSurface *, const unsigned char *palette, MMI32 colours,
+                                unsigned short *indices);
 
 /* Move raw samples within the visible rectangle and region. Cells exposed by
  * the move and row padding retain their bytes. The legacy monochrome option

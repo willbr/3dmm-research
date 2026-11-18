@@ -369,6 +369,19 @@ struct Preview::Impl::RenderHost
                 return 0;
             }
         };
+        if (view && view->includePaletteIndices)
+            s.palette_indices = [](void *v, MMU32 w, MMU32 height) -> unsigned char * {
+                auto &indices = static_cast<RenderHost *>(v)->image.paletteIndices;
+                try
+                {
+                    indices.resize(std::size_t(w) * height);
+                    return indices.data();
+                }
+                catch (const std::bad_alloc &)
+                {
+                    return nullptr;
+                }
+            };
         return s;
     }
 };

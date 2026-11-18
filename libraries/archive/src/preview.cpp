@@ -745,6 +745,11 @@ bool Preview::CopyPresentationPalette(unsigned char bgrx[1024]) const
     std::memcpy(bgrx, palette, 256 * sizeof(Color));
     return true;
 }
+void Preview::OverlayTransitionPalette(unsigned char bgrx[1024]) const
+{
+    if (bgrx && _impl->background)
+        _impl->background->OverlayAuthoredPalette(bgrx);
+}
 bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error)
 try
 {

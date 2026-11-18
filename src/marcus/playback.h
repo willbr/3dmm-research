@@ -37,11 +37,13 @@ class MarcusPlayback
     int Wait() const;
     bool Scrolling() const;
     bool Transitioning() const;
+    bool PaletteAnimating() const;
     // Elapsed presentation time within this frame, or a negative incoming
     // transition remainder. User click-wait time is excluded.
     double FrameSeconds() const;
     int Transition() const;
-    void BeginTransition(int kind, MM::PreviewImage previous, const unsigned char *outgoingPalette);
+    void BeginTransition(int kind, MM::PreviewImage previous, const unsigned char *outgoingPalette,
+                         const MM::Preview &incoming);
     bool Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image, MM::Error &error);
     void CompositeTransition(MM::PreviewImage &image) const;
 };

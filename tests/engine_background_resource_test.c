@@ -285,7 +285,7 @@ static void resolve(void *p)
 {
     Host *h = (Host *)p;
     event(h, RESOLVE);
-    CHECK(!h->resource.palette.buffers[0].data);
+    CHECK(h->services.retain_palette || !h->resource.palette.buffers[0].data);
 }
 static int append(void *p, MMU32 number)
 {
@@ -528,6 +528,13 @@ static void read_tests(int big, int host_big)
     CHECK(!h.allocations && !h.resource.actors && !h.resource.lights);
     CHECK(!mm_background_palette(&h.resource, &colour_count, &base) && !colour_count && base == 20);
     dispose(&h);
+    init(&h, big, 1, host_big);
+    h.services.retain_palette = 1;
+    CHECK(load(&h));
+    colours = mm_background_palette(&h.resource, &colour_count, &base);
+    CHECK(colours && colour_count == 2 && base == 20 && h.colors == 2);
+    mm_background_resource_dispose(&h.resource, NULL);
+    CHECK(!mm_background_palette(&h.resource, &colour_count, &base) && !colour_count);
     for (i = 0; i < 6; ++i)
     {
         init(&h, big, 1, host_big);

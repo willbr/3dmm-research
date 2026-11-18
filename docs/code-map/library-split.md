@@ -5267,6 +5267,22 @@ the end of the dissolve. The fade checks matched retail's endpoint images and
 the playback gate matched 480 retail frame commits. Evidence is in
 `tmp/c89-dissolve-colours`.
 
+Marcus now composites dissolves across different background palettes using
+the outgoing snapshot indices and the incoming raster indices. The C89
+background loader retains the authored palette range so the controller can
+overlay it on the outgoing display palette when preparing the target.
+Interpolation uses the authored channel values before reserved-colour
+normalization. The incoming rendering palette remains available for colour
+lookup when the renderer provides RGBA or a caption replaces a raster sample.
+
+A temporary movie dissolves between two stock backgrounds with 89 changed
+palette entries. The comparison derives the possible blended palettes from
+the original background resource and checks both possible pixel indices at
+each position. It found a matching palette phase for every pixel in 232 retail,
+233 V3DMM, 172 SDL Studio and 371 Marcus captures. Each host matched retail's
+endpoint images and 60 authored frames. The frozen Marcus build fit two
+endpoint samples out of 373. Evidence is in `tmp/c89-transition-palettes`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit
