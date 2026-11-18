@@ -1,6 +1,8 @@
 /* Background resources converted from engine/bkgd.cpp and preview_background.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/background_resource.h"
+#include "mm/chunky_file.h"
+#include "mm/collections.h"
 #include "mm/wide.h"
 #include <string.h>
 #define MAXIMUM 2147483647
@@ -61,6 +63,7 @@ void mm_background_light_decode(const unsigned char *b, int big, MMBackgroundLig
 void mm_background_resource_init(MMBackgroundResource *b)
 {
     memset(b, 0, sizeof(*b));
+    mm_storage_init(&b->palette, NULL);
 }
 static MMI32 cameras(MMU32 type, MMU32 number, int profile, const MMBackgroundServices *s)
 {
@@ -90,42 +93,63 @@ static MMI32 cameras(MMU32 type, MMU32 number, int profile, const MMBackgroundSe
     }
     return count;
 }
+static int read_header(void *context, const MMReadStream *stream)
+{
+    return mm_background_header_read(stream, (MMBackgroundHeader *)context);
+}
+static int read_sound(void *context, const MMReadStream *stream)
+{
+    return mm_background_sound_read(stream, (MMBackgroundSound *)context);
+}
+static int read_record(const MMBackgroundServices *s, MMU32 type, MMU32 number, MMReadReceiver read, void *record)
+{
+    int decoded;
+    return s->payload(s->context, type, number, read, record, &decoded) == MM_CHUNK_OK && decoded;
+}
+
+typedef struct BackgroundArray
+{
+    MMCollectionStorage *storage;
+    MMCollectionHeader header;
+} BackgroundArray;
+
+static int read_array(void *context, const MMReadStream *stream)
+{
+    BackgroundArray *array = (BackgroundArray *)context;
+    MMCollectionHeader *header = &array->header;
+    return mm_collection_header_read(stream, MM_COLLECTION_ARRAY, 0, header) == MM_STORAGE_OK &&
+           mm_storage_read(array->storage, stream, header->header_bytes, header->first_bytes, 0) == MM_STORAGE_OK;
+}
+
 static int palette(MMBackgroundResource *b, MMU32 type, MMU32 number, unsigned base, int profile,
                    const MMBackgroundServices *s)
 {
-    MMU32 child;
-    MMI32 count, i;
-    unsigned char bytes[4], t;
-    int big;
-    void *list;
+    BackgroundArray array;
+    unsigned char *bytes, t;
+    MMU32 child, i;
+    int decoded, status;
     if (!s->child(s->context, type, number, 0, MM_BACKGROUND_COLORS, &child))
-    {
-        b->palette = NULL;
         return 1;
-    }
-    if (!s->find(s->context, MM_BACKGROUND_COLORS, child, 0))
+    array.storage = &b->palette;
+    status = s->payload(s->context, MM_BACKGROUND_COLORS, child, read_array, &array, &decoded);
+    if (status == MM_CHUNK_NOT_FOUND)
         return 0;
-    list = s->read_list(s->context, &big);
-    if (profile == MM_BACKGROUND_STUDIO)
-        b->palette = list;
-    if (!list)
+    if (status != MM_CHUNK_OK || !decoded)
     {
+        mm_storage_dispose(&b->palette);
         if (profile == MM_BACKGROUND_STUDIO)
             b->palette_base = base;
         return profile == MM_BACKGROUND_STUDIO;
     }
-    count = s->count(s->context, list);
-    if (s->stride(s->context, list) != 4 || count < 0 ||
-        (profile == MM_BACKGROUND_PREVIEW && (MMU32)count > 256U - base))
+    if (array.header.width != 4 || (profile == MM_BACKGROUND_PREVIEW && array.header.count > 256U - base))
     {
-        if (profile == MM_BACKGROUND_PREVIEW)
-            s->release(s->context, list);
+        mm_storage_dispose(&b->palette);
         return 0;
     }
-    for (i = 0; i < count; ++i)
+    bytes = b->palette.buffers[0].data;
+    for (i = 0; i < array.header.count; ++i, bytes += 4)
     {
-        s->get(s->context, list, i, bytes, 4);
-        if (big != s->host_big_endian)
+        if (array.header.big_endian != s->host_big_endian)
         {
             t = bytes[0];
             bytes[0] = bytes[3];
@@ -134,16 +158,13 @@ static int palette(MMBackgroundResource *b, MMU32 type, MMU32 number, unsigned b
             bytes[1] = bytes[2];
             bytes[2] = t;
         }
-        if (profile == MM_BACKGROUND_STUDIO)
-        {
-            if (big != s->host_big_endian)
-                s->put(s->context, list, i, bytes, 4);
-        }
-        else
-            s->palette_color(s->context, (MMI32)base + i, bytes);
+        if (profile == MM_BACKGROUND_PREVIEW)
+            s->palette_color(s->context, (MMI32)(base + i), bytes);
     }
     if (profile == MM_BACKGROUND_PREVIEW)
-        s->release(s->context, list);
+        mm_storage_dispose(&b->palette);
+    else
+        b->palette_count = array.header.count;
     b->palette_base = base;
     return 1;
 }
@@ -152,12 +173,13 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
 {
     MMBackgroundHeader header;
     MMBackgroundLight light;
-    MMReadStream stream;
+    MMCollectionStorage lights;
+    BackgroundArray array;
+    const unsigned char *bytes;
     MMU32 child;
-    unsigned char bytes[56];
-    void *list = NULL;
     MMI32 i;
-    int big;
+    mm_storage_init(&lights, NULL);
+    array.storage = &lights;
     if (profile == MM_BACKGROUND_STUDIO)
     {
         camera->count = cameras(type, number, profile, s);
@@ -165,10 +187,7 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
         if (camera->count < 0)
             goto fail;
     }
-    if (!s->find(s->context, type, number, 1))
-        goto fail;
-    stream = s->stream(s->context);
-    if (!mm_background_header_read(&stream, &header))
+    if (!read_record(s, type, number, read_header, &header))
         goto fail;
     if (profile == MM_BACKGROUND_STUDIO)
     {
@@ -176,10 +195,7 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
             goto fail;
         if (s->child(s->context, type, number, 0, MM_BACKGROUND_SOUND, &child))
         {
-            if (!s->find(s->context, MM_BACKGROUND_SOUND, child, 1))
-                goto fail;
-            stream = s->stream(s->context);
-            if (!mm_background_sound_read(&stream, &b->sound))
+            if (!read_record(s, MM_BACKGROUND_SOUND, child, read_sound, &b->sound))
                 goto fail;
         }
         else
@@ -191,10 +207,10 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
     if (profile == MM_BACKGROUND_PREVIEW)
         s->resolve_palette(s->context);
     if (!s->child(s->context, type, number, 0, MM_BACKGROUND_LIGHTS, &child) ||
-        !s->find(s->context, MM_BACKGROUND_LIGHTS, child, 0) || !(list = s->read_list(s->context, &big)))
+        !read_record(s, MM_BACKGROUND_LIGHTS, child, read_array, &array))
         goto fail;
-    b->light_count = s->count(s->context, list);
-    if (s->stride(s->context, list) != 56 || b->light_count < 0 ||
+    b->light_count = (MMI32)array.header.count;
+    if (array.header.width != 56 ||
         (profile == MM_BACKGROUND_PREVIEW && b->light_count > 16))
         goto fail;
     if (profile == MM_BACKGROUND_STUDIO)
@@ -205,15 +221,14 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
             !s->allocate(s->context, b->light_count * s->light_bytes, &b->lights))
             goto fail;
     }
-    for (i = 0; i < b->light_count; ++i)
+    bytes = lights.buffers[0].data;
+    for (i = 0; i < b->light_count; ++i, bytes += 56)
     {
-        s->get(s->context, list, i, bytes, 56);
-        mm_background_light_decode(bytes, big, &light);
+        mm_background_light_decode(bytes, array.header.big_endian, &light);
         if (!s->configure_light(s->context, b, i, &light))
             goto fail;
     }
-    s->release(s->context, list);
-    list = NULL;
+    mm_storage_dispose(&lights);
     if (profile == MM_BACKGROUND_PREVIEW)
     {
         camera->count = cameras(type, number, profile, s);
@@ -223,8 +238,7 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
 fail:
     if (profile == MM_BACKGROUND_STUDIO)
         s->diagnostic(s->context, MM_BACKGROUND_READ_ERROR);
-    if (list)
-        s->release(s->context, list);
+    mm_storage_dispose(&lights);
     return 0;
 }
 void mm_background_lights_on(MMBackgroundResource *b, const MMBackgroundServices *s)
@@ -257,17 +271,14 @@ void mm_background_resource_dispose(MMBackgroundResource *b, const MMBackgroundS
         mm_background_lights_off(b, s);
     s->free_memory(s->context, &b->actors);
     s->free_memory(s->context, &b->lights);
-    if (b->palette)
-    {
-        s->release(s->context, b->palette);
-        b->palette = NULL;
-    }
+    mm_storage_dispose(&b->palette);
+    b->palette_count = 0;
 }
-void *mm_background_palette(const MMBackgroundResource *b, MMI32 *base,
-                                  const MMBackgroundServices *s)
+const unsigned char *mm_background_palette(const MMBackgroundResource *b, MMU32 *count, MMI32 *base)
 {
+    *count = b->palette_count;
     *base = (MMI32)b->palette_base;
-    return b->palette ? s->duplicate_palette(s->context, b->palette) : s->new_palette(s->context);
+    return b->palette.buffers[0].data;
 }
 int mm_background_factory(MMU32 type, MMU32 number, int materialize,
                                 const MMBackgroundFactoryServices *s)

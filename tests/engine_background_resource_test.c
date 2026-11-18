@@ -1,4 +1,5 @@
 #include "mm/background_resource.h"
+#include "mm/chunky_file.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,22 +28,17 @@ enum
     RS,
     CP,
     FP,
+    DECODE_PALETTE,
     LP,
-    GP0,
-    PP0,
-    GP1,
-    PP1,
+    GP,
     CL,
     FL,
     LL,
+    GL,
     AA,
     AL,
-    GL0,
     CONFIG0,
-    GL1,
     CONFIG1,
-    REL_LIGHT,
-    REL_PALETTE,
     RESOLVE,
     APPEND0,
     APPEND1,
@@ -58,8 +54,6 @@ enum
     REMOVE1,
     FREE_A,
     FREE_L,
-    NEW_PAL,
-    DUP_PAL,
     SIZE,
     CREATE,
     PUBLISH,
@@ -70,7 +64,6 @@ typedef struct List
 {
     unsigned char bytes[112];
     MMI32 count, stride;
-    int live, kind;
 } List;
 typedef struct Host
 {
@@ -80,9 +73,9 @@ typedef struct Host
     unsigned char header[8], sound[28], actors[32], lights[32];
     List palette, light_list;
     int trace[256], traces, fail, big, profile, has_palette, has_sound, no_lights, no_cameras, gap, block, allocations;
-    int configured, appended, selected, diagnostics, actor_live, light_live, colors, palette_failure;
+    int configured, appended, selected, diagnostics, actor_live, light_live, colors;
     int created, released, published, factory_fail;
-    MMI32 header_length, sound_length, last_size, *base_output;
+    MMI32 header_length, sound_length, last_size;
     MMBackgroundLight values[2];
 } Host;
 static void event(Host *h, int code)
@@ -148,22 +141,8 @@ static int enumerate(void *p, MMU32 type, MMU32 number, MMI32 index, MMU32 *out)
     *out = MM_BACKGROUND_CAMERA;
     return index < (h->no_cameras ? 0 : 2) + h->gap;
 }
-static int find(void *p, MMU32 type, MMU32 number, int unpack)
+static MMReadStream stream(Host *h)
 {
-    Host *h = (Host *)p;
-    int code;
-    code = type == MM_BACKGROUND          ? FH
-           : type == MM_BACKGROUND_SOUND  ? FS
-           : type == MM_BACKGROUND_COLORS ? FP
-                                                : FL;
-    CHECK(number == (code == FH ? 42 : type));
-    CHECK(unpack == (code == FH || code == FS));
-    h->block = code;
-    return effect(h, code);
-}
-static MMReadStream stream(void *p)
-{
-    Host *h = (Host *)p;
     MMReadStream r;
     r.context = h;
     r.read_at = read_at;
@@ -175,52 +154,51 @@ static int name(void *p, MMU32 type, MMU32 number)
     CHECK(type == MM_BACKGROUND && number == 42);
     return effect((Host *)p, NAME);
 }
-static void *read_list(void *p, int *big)
+static int read_array(void *p, MMU32 offset, void *out, size_t bytes)
 {
     Host *h = (Host *)p;
-    List *list = h->block == FP ? &h->palette : &h->light_list;
-    int code = h->block == FP ? LP : LL;
-    *big = h->big;
+    const int palette = h->block == FP;
+    const List *list = palette ? &h->palette : &h->light_list;
+    if (!offset)
+    {
+        unsigned char *header = (unsigned char *)out;
+        CHECK(bytes == 12);
+        if (!effect(h, palette ? LP : LL))
+            return 0;
+        put_word(header, 1, 2, h->big);
+        put_word(header + 2, 0x0303, 2, h->big);
+        put_word(header + 4, (MMU32)list->stride, 4, h->big);
+        put_word(header + 8, (MMU32)list->count, 4, h->big);
+        return 1;
+    }
+    CHECK(offset == 12 && bytes <= sizeof(list->bytes));
+    if (!effect(h, palette ? GP : GL))
+        return 0;
+    memcpy(out, list->bytes, bytes);
+    return 1;
+}
+static int payload(void *p, MMU32 type, MMU32 number, MMReadReceiver receive, void *out, int *result)
+{
+    Host *h = (Host *)p;
+    MMReadStream r;
+    int code = type == MM_BACKGROUND ? FH : type == MM_BACKGROUND_SOUND ? FS : type == MM_BACKGROUND_COLORS ? FP : FL;
+    CHECK(number == (code == FH ? 42 : type));
     if (!effect(h, code))
-        return NULL;
-    CHECK(!list->live);
-    list->live = 1;
-    return list;
-}
-static MMI32 count(void *p, void *list)
-{
-    (void)p;
-    return ((List *)list)->count;
-}
-static MMI32 stride(void *p, void *list)
-{
-    (void)p;
-    return ((List *)list)->stride;
-}
-static void get(void *p, void *value, MMI32 i, void *out, size_t bytes)
-{
-    Host *h = (Host *)p;
-    List *list = (List *)value;
-    CHECK(list->live && i >= 0 && i < list->count && bytes == (size_t)list->stride);
-    CHECK(i < 2);
-    event(h, (list->kind ? GL0 : GP0) + i * 2);
-    memcpy(out, list->bytes + i * list->stride, bytes);
-}
-static void put(void *p, void *value, MMI32 i, const void *in, size_t bytes)
-{
-    Host *h = (Host *)p;
-    List *list = (List *)value;
-    CHECK(list == &h->palette && list->live && bytes == 4);
-    event(h, PP0 + i * 2);
-    memcpy(list->bytes + i * 4, in, 4);
-}
-static void release(void *p, void *value)
-{
-    Host *h = (Host *)p;
-    List *list = (List *)value;
-    CHECK(list->live);
-    list->live = 0;
-    event(h, list->kind ? REL_LIGHT : REL_PALETTE);
+        return MM_CHUNK_NOT_FOUND;
+    if (code == FP && h->fail == DECODE_PALETTE)
+        return MM_CHUNK_BAD_FILE;
+    h->block = code;
+    if (code == FP || code == FL)
+    {
+        const List *list = code == FP ? &h->palette : &h->light_list;
+        r.context = h;
+        r.read_at = read_array;
+        r.length = 12 + (MMU32)(list->count == 2 ? 2 * list->stride : 0);
+    }
+    else
+        r = stream(h);
+    *result = receive(out, &r);
+    return MM_CHUNK_OK;
 }
 static int allocate(void *p, MMI32 bytes, void **out)
 {
@@ -266,7 +244,7 @@ static int configure(void *p, MMBackgroundResource *resource, MMI32 i, const MMB
         CHECK(h->actor_live && h->light_live);
     CHECK(v->matrix.m[0][0] == i * 100 - 500 && v->matrix.m[3][2] == i * 100 - 489 && v->intensity == i * 100 + 12 &&
           v->type == i + 1);
-    if (!effect(h, CONFIG0 + i * 2))
+    if (!effect(h, CONFIG0 + i))
         return 0;
     h->values[i] = *v;
     ++h->configured;
@@ -294,20 +272,6 @@ static void remove_light(void *p, MMBackgroundResource *r, MMI32 i)
 {
     light_effect(p, r, i, REMOVE0, 1);
 }
-static void *new_palette(void *p)
-{
-    Host *h = (Host *)p;
-    CHECK(h->base_output && *h->base_output == (MMI32)h->resource.palette_base);
-    event(h, NEW_PAL);
-    return h->palette_failure ? NULL : &h->palette;
-}
-static void *duplicate(void *p, void *value)
-{
-    Host *h = (Host *)p;
-    CHECK(value == &h->palette && h->palette.live);
-    event(h, DUP_PAL);
-    return h->palette_failure ? NULL : value;
-}
 static void color(void *p, MMI32 index, const unsigned char *bytes)
 {
     Host *h = (Host *)p;
@@ -321,7 +285,7 @@ static void resolve(void *p)
 {
     Host *h = (Host *)p;
     event(h, RESOLVE);
-    CHECK(!h->palette.live);
+    CHECK(!h->resource.palette.buffers[0].data);
 }
 static int append(void *p, MMU32 number)
 {
@@ -335,7 +299,7 @@ static int append(void *p, MMU32 number)
 static int select_camera(void *p, MMI32 index)
 {
     Host *h = (Host *)p;
-    CHECK(!index && h->camera.count == 2 && !h->light_list.live);
+    CHECK(!index && h->camera.count == 2);
     ++h->selected;
     return effect(h, SELECT);
 }
@@ -361,7 +325,6 @@ static void init(Host *h, int big, int profile, int host_big)
     h->palette.count = h->light_list.count = 2;
     h->palette.stride = 4;
     h->light_list.stride = 56;
-    h->light_list.kind = 1;
     put_word(h->header, 1, 2, big);
     put_word(h->header + 2, 0x1234, 2, big);
     h->header[4] = 20;
@@ -388,15 +351,8 @@ static void init(Host *h, int big, int profile, int host_big)
     s->light_bytes = 7;
     s->child = child;
     s->child_at = enumerate;
-    s->find = find;
-    s->stream = stream;
+    s->payload = payload;
     s->name = name;
-    s->read_list = read_list;
-    s->count = count;
-    s->stride = stride;
-    s->get = get;
-    s->put = put;
-    s->release = release;
     s->allocate = allocate;
     s->free_memory = free_memory;
     s->configure_light = configure;
@@ -404,8 +360,6 @@ static void init(Host *h, int big, int profile, int host_big)
     s->enable_light = enable;
     s->disable_light = disable;
     s->remove_light = remove_light;
-    s->new_palette = new_palette;
-    s->duplicate_palette = duplicate;
     s->palette_color = color;
     s->resolve_palette = resolve;
     s->append_camera = append;
@@ -423,8 +377,8 @@ static void expect(Host *h, const int *trace, size_t n)
 static void dispose(Host *h)
 {
     mm_background_resource_dispose(&h->resource, &h->services);
-    CHECK(!h->actor_live && !h->light_live && !h->palette.live && !h->light_list.live);
-    CHECK(!h->resource.actors && !h->resource.lights && !h->resource.palette);
+    CHECK(!h->actor_live && !h->light_live && !h->resource.actors && !h->resource.lights);
+    CHECK(!h->resource.palette.buffers[0].data && !h->resource.palette_count);
 }
 static void decoder_tests(int big)
 {
@@ -433,7 +387,7 @@ static void decoder_tests(int big)
     MMBackgroundHeader header, before_header;
     MMBackgroundSound sound, before_sound;
     init(&h, big, 0, 0);
-    CHECK(find(&h, MM_BACKGROUND, 42, 1));
+    h.block = FH;
     r = stream(&h);
     CHECK(mm_background_header_read(&r, &header) && header.system == 0x1234 && header.palette_base == 20);
     memcpy(&before_header, &header, sizeof(header));
@@ -445,7 +399,7 @@ static void decoder_tests(int big)
     CHECK(!memcmp(&header, &before_header, sizeof(header)));
     r.length = 9;
     CHECK(!mm_background_header_read(&r, &header));
-    CHECK(find(&h, MM_BACKGROUND_SOUND, MM_BACKGROUND_SOUND, 1));
+    h.block = FS;
     r = stream(&h);
     CHECK(mm_background_sound_read(&r, &sound));
     CHECK(sound.system == 0xFEDC && sound.volume == (-2147483647 - 1) && sound.loop && sound.tag.sid == -2);
@@ -464,27 +418,29 @@ static void read_tests(int big, int host_big)
 {
     Host h;
     int i, j, profile;
+    const unsigned char *colours;
     unsigned char expected[4];
+    MMU32 colour_count;
     MMI32 base;
-    const int native[] = {C0,  C1,  C2, FH, RH, NAME, CS, FS,  RS,      CP,  FP,      LP,
-                          GP0, GP1, CL, FL, LL, AA,   AL, GL0, CONFIG0, GL1, CONFIG1, REL_LIGHT};
+    const int native[] = {C0, C1, C2, FH, RH, NAME, CS, FS, RS, CP, FP, LP, GP,
+                          CL, FL, LL, GL, AA, AL, CONFIG0, CONFIG1};
     const int on[] = {ADD0, ENABLE0, ADD1, ENABLE1};
     const int off[] = {DISABLE0, REMOVE0, DISABLE1, REMOVE1};
-    const int teardown[] = {DISABLE0, REMOVE0, DISABLE1, REMOVE1, FREE_A, FREE_L, REL_PALETTE};
-    const int failures[] = {FH, RH, NAME, FS, RS, FP, FL, LL, AA, AL, CONFIG0, CONFIG1};
+    const int teardown[] = {DISABLE0, REMOVE0, DISABLE1, REMOVE1, FREE_A, FREE_L};
+    const int failures[] = {FH, RH, NAME, FS, RS, FP, FL, LL, GL, AA, AL, CONFIG0, CONFIG1};
     init(&h, big, 0, host_big);
     CHECK(load(&h));
     CHECK(h.camera.count == 2 && h.camera.current == -1 && h.resource.light_count == 2);
-    CHECK(h.resource.palette == &h.palette && h.resource.palette_base == 20 && h.configured == 2);
+    CHECK(h.resource.palette_count == 2 && h.resource.palette_base == 20 && h.configured == 2);
     CHECK(h.resource.sound.loop && h.resource.sound.volume == (-2147483647 - 1));
-    if (big == host_big)
-        expect(&h, native, sizeof(native) / sizeof(*native));
-    else
-        CHECK(h.trace[13] == PP0 && h.trace[15] == PP1);
+    expect(&h, native, sizeof(native) / sizeof(*native));
+    colours = mm_background_palette(&h.resource, &colour_count, &base);
+    CHECK(colours && colour_count == 2 && base == 20);
+    memset(h.palette.bytes, 0, sizeof(h.palette.bytes));
     for (i = 0; i < 2; ++i)
     {
         put_word(expected, 0x10203040U + (MMU32)i, 4, host_big);
-        CHECK(!memcmp(h.palette.bytes + i * 4, expected, 4));
+        CHECK(!memcmp(colours + i * 4, expected, 4));
     }
     h.traces = 0;
     mm_background_lights_on(&h.resource, &h.services);
@@ -503,37 +459,36 @@ static void read_tests(int big, int host_big)
     expect(&h, off, 4);
     mm_background_lights_off(&h.resource, &h.services);
     expect(&h, off, 4);
-    h.base_output = &base;
-    base = -1;
-    CHECK(mm_background_palette(&h.resource, &base, &h.services) == &h.palette && base == 20);
-    h.palette_failure = 1;
-    CHECK(!mm_background_palette(&h.resource, &base, &h.services) && base == 20);
     mm_background_lights_on(&h.resource, &h.services);
     h.traces = 0;
     dispose(&h);
-    expect(&h, teardown, 7);
+    expect(&h, teardown, sizeof(teardown) / sizeof(*teardown));
     h.traces = 0;
     dispose(&h);
     CHECK(h.traces == 2 && h.trace[0] == FREE_A && h.trace[1] == FREE_L);
     init(&h, big, 0, host_big);
     h.has_palette = h.has_sound = 0;
     CHECK(load(&h));
-    CHECK(h.resource.sound.tag.sid == -1 && !h.resource.palette && !h.resource.palette_base);
-    h.base_output = &base;
-    base = -1;
-    CHECK(mm_background_palette(&h.resource, &base, &h.services) == &h.palette && !base);
+    CHECK(h.resource.sound.tag.sid == -1);
+    CHECK(!mm_background_palette(&h.resource, &colour_count, &base) && !colour_count && !base);
     dispose(&h);
-    init(&h, big, 0, host_big);
-    h.fail = LP;
-    CHECK(load(&h) && !h.resource.palette && h.resource.palette_base == 20);
-    dispose(&h);
+    for (i = DECODE_PALETTE; i <= GP; ++i)
+    {
+        init(&h, big, 0, host_big);
+        h.fail = i;
+        CHECK(load(&h));
+        CHECK(!mm_background_palette(&h.resource, &colour_count, &base) && !colour_count && base == 20);
+        dispose(&h);
+        init(&h, big, 1, host_big);
+        h.fail = i;
+        CHECK(!load(&h) && !h.colors);
+        dispose(&h);
+    }
     for (i = 0; i < (int)(sizeof(failures) / sizeof(*failures)); ++i)
     {
         init(&h, big, 0, host_big);
         h.fail = failures[i];
-        CHECK(!load(&h) && h.diagnostics == 1 && !h.light_list.live);
-        if (h.fail == AA || h.fail == AL || h.fail == CONFIG0 || h.fail == CONFIG1)
-            CHECK(h.traces >= 2 && h.trace[h.traces - 2] == DIAG && h.trace[h.traces - 1] == REL_LIGHT);
+        CHECK(!load(&h) && h.diagnostics == 1 && h.trace[h.traces - 1] == DIAG);
         dispose(&h);
     }
     for (profile = 0; profile < 2; ++profile)
@@ -570,13 +525,14 @@ static void read_tests(int big, int host_big)
     init(&h, big, 1, host_big);
     CHECK(load(&h));
     CHECK(h.colors == 2 && h.configured == 2 && h.appended == 2 && h.selected == 1);
-    CHECK(!h.allocations && !h.resource.palette && !h.resource.actors && !h.resource.lights && !h.palette.live);
+    CHECK(!h.allocations && !h.resource.actors && !h.resource.lights);
+    CHECK(!mm_background_palette(&h.resource, &colour_count, &base) && !colour_count && base == 20);
     dispose(&h);
     for (i = 0; i < 6; ++i)
     {
         init(&h, big, 1, host_big);
         h.fail = i == 0 ? LP : i == 1 ? CONFIG0 : i == 2 ? CONFIG1 : i == 3 ? APPEND0 : i == 4 ? APPEND1 : SELECT;
-        CHECK(!load(&h) && !h.diagnostics && !h.light_list.live && !h.palette.live);
+        CHECK(!load(&h) && !h.diagnostics && !h.resource.palette.buffers[0].data);
         dispose(&h);
     }
     init(&h, big, 1, host_big);
@@ -671,7 +627,7 @@ static void factory_tests(void)
         else
             h.factory_fail = SIZE;
         CHECK(!mm_background_factory(MM_BACKGROUND, 42, 1, &s) && !h.published && h.last_size == 113);
-        CHECK(h.released == (i != 0) && !h.actor_live && !h.light_live && !h.palette.live);
+        CHECK(h.released == (i != 0) && !h.actor_live && !h.light_live && !h.resource.palette.buffers[0].data);
     }
     init(&h, 0, 0, 0);
     s.object_bytes = 2147483647;

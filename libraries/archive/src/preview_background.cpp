@@ -31,7 +31,6 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
     {
         PreviewBackground *background;
         PChunkyFile file;
-        DataBlock block;
     } host = {this, source->Pcfl()};
     MMBackgroundServices s = {};
     s.context = &host;
@@ -41,24 +40,10 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
         const auto chunks = static_cast<Host *>(p)->file->ReadChunkAccess();
         return int(mm_chunk_link_number(&chunks, type, number, id, childType, out) == MM_CHUNK_OK);
     };
-    s.find = [](void *p, MMU32 type, MMU32 number, int unpack) {
-        auto h = static_cast<Host *>(p);
-        return int(h->file->FFind(type, number, &h->block) && (!unpack || h->block.FUnpackData()));
+    s.payload = [](void *p, MMU32 type, MMU32 number, MMReadReceiver read, void *out, int *result) {
+        return mm_chunk_read_payload(KauaiChunkPayloadServices(), static_cast<Host *>(p)->file, type, number,
+                                     read, out, result);
     };
-    s.stream = [](void *p) { return EngineReadStream::FromBlock(static_cast<Host *>(p)->block); };
-    s.read_list = [](void *p, int *big) -> void * {
-        short order = kboCur;
-        auto list = DynamicArray::PglRead(&static_cast<Host *>(p)->block, &order);
-        const unsigned short one = 1;
-        *big = (*reinterpret_cast<const byte *>(&one) == 0) ^ (order == kboOther);
-        return list;
-    };
-    s.count = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
-    s.stride = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->CbEntry(); };
-    s.get = [](void *, void *list, MMI32 i, void *out, size_t bytes) {
-        std::memcpy(out, static_cast<PDynamicArray>(list)->QvGet(i), bytes);
-    };
-    s.release = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
     s.palette_color = [](void *p, MMI32 index, const unsigned char *bytes) {
         std::memcpy(&static_cast<Host *>(p)->background->palette[index], bytes, 4);
     };

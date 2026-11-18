@@ -40,7 +40,6 @@
 ***************************************************************************/
 #include "soc.h"
 #include "engine_movie_graph.h"
-#include "engine_read_stream.h"
 #include <cstring>
 ASSERTNAME
 
@@ -58,7 +57,6 @@ struct BackgroundResourceHost
     Background *background;
     PChunkyFile file;
     PWorld world;
-    DataBlock block;
 };
 } // namespace
 MMBackgroundServices Background::_ResourceServices(void *host)
@@ -83,32 +81,14 @@ MMBackgroundServices Background::_ResourceServices(void *host)
         *out = child.cki.ctg;
         return 1;
     };
-    s.find = [](void *p, MMU32 type, MMU32 number, int unpack) {
-        auto h = static_cast<BackgroundResourceHost *>(p);
-        return int(h->file->FFind(type, number, &h->block) && (!unpack || h->block.FUnpackData()));
+    s.payload = [](void *p, MMU32 type, MMU32 number, MMReadReceiver read, void *out, int *result) {
+        return mm_chunk_read_payload(KauaiChunkPayloadServices(), static_cast<BackgroundResourceHost *>(p)->file,
+                                     type, number, read, out, result);
     };
-    s.stream = [](void *p) { return EngineReadStream::FromBlock(static_cast<BackgroundResourceHost *>(p)->block); };
     s.name = [](void *p, MMU32 type, MMU32 number) {
         auto h = static_cast<BackgroundResourceHost *>(p);
         return int(h->file->FGetName(type, number, &h->background->_stn));
     };
-    s.read_list = [](void *p, int *big) -> void * {
-        auto h = static_cast<BackgroundResourceHost *>(p);
-        short order = kboCur;
-        auto list = DynamicArray::PglRead(&h->block, &order);
-        const unsigned short one = 1;
-        *big = (*reinterpret_cast<const byte *>(&one) == 0) ^ (order == kboOther);
-        return list;
-    };
-    s.count = [](void *, void *p) -> MMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
-    s.stride = [](void *, void *p) -> MMI32 { return static_cast<PDynamicArray>(p)->CbEntry(); };
-    s.get = [](void *, void *p, MMI32 index, void *out, size_t bytes) {
-        std::memcpy(out, static_cast<PDynamicArray>(p)->QvGet(index), bytes);
-    };
-    s.put = [](void *, void *p, MMI32 index, const void *in, size_t bytes) {
-        std::memcpy(static_cast<PDynamicArray>(p)->QvGet(index), in, bytes);
-    };
-    s.release = [](void *, void *p) { static_cast<PDynamicArray>(p)->Release(); };
     s.allocate = [](void *, MMI32 bytes, void **out) { return int(FAllocPv(out, bytes, fmemClear, mprNormal)); };
     s.free_memory = [](void *, void **out) { FreePpv(out); };
     s.configure_light = [](void *, MMBackgroundResource *state, MMI32 index,
@@ -137,8 +117,6 @@ MMBackgroundServices Background::_ResourceServices(void *host)
     s.remove_light = [](void *, MMBackgroundResource *b, MMI32 i) {
         BrActorRemove(&static_cast<BACT *>(b->actors)[i]);
     };
-    s.new_palette = [](void *) -> void * { return DynamicArray::PglNew(sizeof(Color)); };
-    s.duplicate_palette = [](void *, void *palette) -> void * { return static_cast<PDynamicArray>(palette)->PglDup(); };
     s.diagnostic = [](void *, int issue) {
         if (issue == MM_BACKGROUND_CAMERA_GAPS)
             Bug("cam chids are not consecutive!");
@@ -285,10 +263,18 @@ bool Background::FGetPalette(PDynamicArray *ppglclr, long *piclrMin)
     AssertThis(0);
     AssertVarMem(ppglclr);
     AssertVarMem(piclrMin);
-    *piclrMin = _resource.palette_base;
+    MMU32 count;
     MMI32 base;
-    auto services = _ResourceServices(nullptr);
-    *ppglclr = static_cast<PDynamicArray>(mm_background_palette(&_resource, &base, &services));
+    const auto colours = mm_background_palette(&_resource, &count, &base);
+    *piclrMin = base;
+    *ppglclr = DynamicArray::PglNew(sizeof(Color), count);
+    if (*ppglclr && count)
+    {
+        if (!(*ppglclr)->FSetIvMac(count))
+            ReleasePpo(ppglclr);
+        else
+            std::memcpy((*ppglclr)->QvGet(0), colours, count * sizeof(Color));
+    }
     return *ppglclr != nullptr;
 }
 
@@ -550,7 +536,6 @@ void Background::MarkMem(void)
     Background_PAR::MarkMem();
     MarkPv(_resource.actors);
     MarkPv(_resource.lights);
-    MarkMemObj(static_cast<PDynamicArray>(_resource.palette));
     MarkMemObj(static_cast<PDynamicArray>(_camera.points));
 }
 #endif // DEBUG

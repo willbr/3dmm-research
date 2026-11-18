@@ -761,8 +761,11 @@ mouse-matrix composition control and placement cycling/reuse also use C89.
 Background header/default-sound/palette/light loading, contiguous camera counting,
 resource factory/partial cleanup, tag-list/cache order, palette ownership and
 light attachment/lifetime now use C89 too. Marcus Preview uses the same resource
-loader with its existing stricter visual admission profile. Native BRender math,
-file/list services and representations remain adapters. Preview background image/
+loader with its existing stricter visual admission profile. Both hosts read
+background headers, sounds, palettes and lights through C-owned payload blocks.
+C89 retains Studio's palette in native byte order and owns the temporary light
+rows until publication. Studio creates a native list when a caller requests a
+palette. Preview background image/
 metadata buffers, image-selection control, mesh reconstruction, infinite-backdrop
 fill, SDK preparation/lifetime and the two-entry mesh cache now also use C89.
 Native background/mesh classes expose typed SDK services and borrowed views.

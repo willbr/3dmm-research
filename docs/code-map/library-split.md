@@ -2181,13 +2181,16 @@ appended points through the real block/list bridge. See
 
 ### Background resource loading, caching and light lifetime
 
-`background_resource.c` owns BKGD/BDS/LITE wire decoding, contiguous camera
+`background_resource.c` owns BKGD/BDS/GLCR/GLLT wire decoding, contiguous camera
 enumeration, Studio resource construction/factory control, tag-list/cache order,
-palette ownership/duplication and light attach/enable/disable/remove control.
+palette ownership and light attach/enable/disable/remove control.
 Studio Background embeds the C owner for SDK actor/light allocations, palette,
 default-sound metadata and light flags. Its String is a temporary native view of
-the existing C-backed string storage. Native callbacks provide file/collection
-primitives, debug output poisoning, allocation and typed SDK field operations.
+the existing C-backed string storage. Both hosts use C-owned payload blocks to
+read the records and fixed-width arrays. C89 retains Studio's native-order colours
+and owns the temporary light rows. Studio's `FGetPalette` materializes an
+independent native list from the retained colours. Native callbacks supply file
+primitives, debug diagnostics, allocation and typed SDK field operations.
 `_Ccam` and `_SetupLights` no longer have native implementations.
 
 Marcus PreviewBackground now calls the same C resource loader. The two profiles
@@ -2209,6 +2212,12 @@ pointer slots are ignored; sound tags stay unopened with null caches. The stored
 32-bit loop flag is decoded explicitly. Invalid order markers, malformed palette/
 light strides and allocation-size overflow now reject before unsafe access.
 Valid formats and the legacy tolerant palette-read path remain unchanged.
+
+The C background resource fixture reads arrays in both byte orders and checks
+rejected strides, failed transfers and retained palette bytes. Both builds pass
+the fixture, and the background, collection and storage checks pass under
+AddressSanitizer. The preview fingerprints match across 12 backgrounds and 188
+camera palettes. See `tmp/c89-background-lists` for build and comparison logs.
 
 Background caching builds all four BDS/GLLT/GLCR/CAM-zero child tags before any
 cache effect, then caches parent-without-children and each child-with-children.

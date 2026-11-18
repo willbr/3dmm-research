@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_BACKGROUND_RESOURCE_H
 #define MM_ENGINE_BACKGROUND_RESOURCE_H
 #include "background_camera.h"
+#include "collection_storage.h"
 #include "tag.h"
 #ifdef __cplusplus
 extern "C"
@@ -43,7 +44,9 @@ extern "C"
     } MMBackgroundLight;
     typedef struct MMBackgroundResource
     {
-        void *actors, *lights, *palette;
+        void *actors, *lights;
+        MMCollectionStorage palette;
+        MMU32 palette_count;
         MMI32 light_count;
         unsigned palette_base;
         int enabled, leave_on;
@@ -56,14 +59,9 @@ extern "C"
         MMI32 actor_bytes, light_bytes;
         int (*child)(void *, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type, MMU32 *out);
         int (*child_at)(void *, MMU32 type, MMU32 number, MMI32 index, MMU32 *child_type);
-        int (*find)(void *, MMU32 type, MMU32 number, int unpack);
-        MMReadStream (*stream)(void *);
+        /* Chunk status. Called with a synchronous decoded stream receiver. */
+        int (*payload)(void *, MMU32 type, MMU32 number, MMReadReceiver, void *, int *result);
         int (*name)(void *, MMU32 type, MMU32 number);
-        void *(*read_list)(void *, int *big_endian);
-        MMI32 (*count)(void *, void *), (*stride)(void *, void *);
-        void (*get)(void *, void *, MMI32 index, void *, size_t bytes);
-        void (*put)(void *, void *, MMI32 index, const void *, size_t bytes);
-        void (*release)(void *, void *);
         int (*allocate)(void *, MMI32 bytes, void **);
         void (*free_memory)(void *, void **);
         int (*configure_light)(void *, MMBackgroundResource *, MMI32, const MMBackgroundLight *);
@@ -71,7 +69,6 @@ extern "C"
         void (*enable_light)(void *, MMBackgroundResource *, MMI32);
         void (*disable_light)(void *, MMBackgroundResource *, MMI32);
         void (*remove_light)(void *, MMBackgroundResource *, MMI32);
-        void *(*new_palette)(void *), *(*duplicate_palette)(void *, void *);
         void (*palette_color)(void *, MMI32, const unsigned char native_bytes[4]);
         void (*resolve_palette)(void *);
         int (*append_camera)(void *, MMU32 number);
@@ -84,23 +81,20 @@ extern "C"
     int mm_background_sound_read(const MMReadStream *, MMBackgroundSound *);
     void mm_background_light_decode(const unsigned char bytes[56], int big, MMBackgroundLight *);
     void mm_background_resource_init(MMBackgroundResource *);
-    /* Services are synchronous, non-reentrant and bound to one file/object. find
-     * replaces the borrowed block behind stream/read_list. Fresh owners are required.
-     * Studio retains partial arrays/palette on failure for factory disposal; temporary
-     * light lists always release, after Studio's failure diagnostic. A failed optional palette read is tolerated only
-     * by Studio. Preview keeps its stricter palette/light admission, skips sound/name
-     * loading, publishes visual entries in order, then selects camera zero.
-     * SDK arrays and native lists are opaque owners; typed callbacks provide their
-     * primitives. Camera numbering starts at zero and stops at the first missing ID. */
+    /* Services are synchronous, non-reentrant and bound to one file/object.
+     * Fresh owners are required. Studio retains partial SDK arrays on failure
+     * for factory disposal. Studio tolerates failed decode of a located palette.
+     * Preview keeps its stricter palette/light admission, skips sound/name,
+     * publishes visual entries in order, then selects camera zero. Camera
+     * numbering starts at zero and stops at the first missing ID. */
     int mm_background_read(MMBackgroundResource *, MMBackgroundCameraState *, MMU32 type,
                                  MMU32 number, int profile, const MMBackgroundServices *);
     void mm_background_lights_on(MMBackgroundResource *, const MMBackgroundServices *);
     void mm_background_lights_off(MMBackgroundResource *, const MMBackgroundServices *);
-    /* Caller must clear leave_on before teardown. Disposal preserves off/free/free/
-     * palette-release order, including after partially completed construction. */
+    /* Caller must clear leave_on before teardown. Dispose after partial construction. */
     void mm_background_resource_dispose(MMBackgroundResource *, const MMBackgroundServices *);
-    void *mm_background_palette(const MMBackgroundResource *, MMI32 *base,
-                                      const MMBackgroundServices *);
+    /* Borrow the native-order four-byte colours until disposal. */
+    const unsigned char *mm_background_palette(const MMBackgroundResource *, MMU32 *count, MMI32 *base);
     typedef struct MMBackgroundFactoryServices
     {
         void *context;
