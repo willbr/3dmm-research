@@ -100,6 +100,8 @@ class GroupBase : public GroupBase_PAR
     {
         return _ivMac;
     }
+    // Borrow the underlying records for a C collection copy.
+    const MMCollectionStorage &Storage() const { return _storage; }
     virtual bool FFree(LegacyLong iv) = 0;
     virtual void Delete(LegacyLong iv) = 0;
 
@@ -293,6 +295,7 @@ class VirtualGroup : public VirtualGroup_PAR
     {
         return _cbFixed;
     }
+    LegacyLong RecordBytes() const { return _bvMac; }
     void *QvFixedGet(LegacyLong iv, LegacyLong *pcbVar = pvNil);
     void *PvFixedLock(LegacyLong iv, LegacyLong *pcbVar = pvNil);
     void GetFixed(LegacyLong iv, void *pv);

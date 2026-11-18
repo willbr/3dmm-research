@@ -5,7 +5,7 @@
 class TemplateRuntimeActionAccess : public ActionDefinition
 {
   public:
-    static void Sounds(PActionDefinition action,PDynamicArray sounds)
+    static void Sounds(PActionDefinition action,MMActionTable *sounds)
     { auto member=&TemplateRuntimeActionAccess::_action; (action->*member).sounds=sounds; }
 };
 class TemplateRuntimeFixture : public Template
@@ -51,9 +51,11 @@ static bool TestTemplateRuntime()
             ok=group->FAdd(n*sizeof(CelPartSpec),nullptr,parts,&cel) && matrices->FAdd(&matrix);
         }
         auto action=ok?ActionDefinition::PactnNew(group,matrices,13):nullptr;
-        auto sounds=DynamicArray::PglNew(sizeof(TAG));
-        for (int i=0;ok && i<2;++i) { TAG sound={123+i,nullptr,kctgMsnd,static_cast<ChunkNumber>(456+i)}; ok=sounds && sounds->FAdd(&sound); }
-        if (action && cn%2) TemplateRuntimeActionAccess::Sounds(action,sounds);
+        MMActionTable sounds;
+        mm_action_table_init(&sounds,nullptr,nullptr,nullptr);
+        ok=ok && mm_action_sounds_reserve(&sounds,2);
+        for (int i=0;ok && i<2;++i) { MMTag sound={123+i,nullptr,kctgMsnd,static_cast<ChunkNumber>(456+i)}; ok=mm_action_sounds_append(&sounds,&sound); }
+        if (action && cn%2) TemplateRuntimeActionAccess::Sounds(action,&sounds);
         PBody body=nullptr;
         if (t) { t->action=action; t->models[0]=a; t->models[1]=b; t->mode=mode; }
         auto parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
@@ -81,7 +83,8 @@ static bool TestTemplateRuntime()
             ok=record(queries,sizeof(queries)) && action->CactRef()==1 && ok;
         }
         if (action) TemplateRuntimeActionAccess::Sounds(action,nullptr);
-        ReleasePpo(&sounds); ReleasePpo(&body); ReleasePpo(&t); ReleasePpo(&action); ReleasePpo(&group); ReleasePpo(&matrices); ReleasePpo(&parents); ReleasePpo(&sets); vpers->Clear();
+        mm_action_table_dispose(&sounds);
+        ReleasePpo(&body); ReleasePpo(&t); ReleasePpo(&action); ReleasePpo(&group); ReleasePpo(&matrices); ReleasePpo(&parents); ReleasePpo(&sets); vpers->Clear();
         ok=ok && a->CactRef()==1 && b->CactRef()==1 && material->CactRef()==1;
         if (!ok) std::fprintf(stderr,"Template runtime failed: %d %d %d %d %d\n",shape,mode,cn,kind,failure);
     }

@@ -209,33 +209,28 @@ static int action_header(void *p, unsigned char *bytes)
     return status;
 }
 
-static int action_table(void *p, int kind, void **out, int *other)
+static int action_table(void *p, int kind, MMActionTable **out)
 {
     MMMovieAction *action = (MMMovieAction *)p;
+    MMActionTable *table = kind == MM_ACTION_CELS ? &action->cels : &action->matrices;
+    MMMoviePayload payload;
     MMChunkEntry entry;
-    MMU32 position, type = mm_action_table_type(kind);
-    const unsigned short one = 1;
-    int status;
-    if (kind == MM_ACTION_MATRICES)
-    {
-        status = mm_session_array(action->archive, action->position, type, MM_ACTION_MATRIX_BYTES,
-                                  &action->matrices, &action->matrix_header);
-        if (status != MM_MOVIE_OK)
-            return status;
-        *other = action->matrix_header.big_endian != (*(const unsigned char *)&one == 0);
-        *out = &action->matrices;
-        return MM_MOVIE_OK;
-    }
-    if (mm_session_child(&action->archive->access, action->position, 0, type, &entry, &position) != MM_CHUNK_OK)
-        return MM_MOVIE_ASSET_NOT_FOUND;
-    status = mm_session_group(action->archive, &entry, &action->cels);
+    MMU32 position;
+    int status = mm_session_child(&action->archive->access, action->position, 0, mm_action_table_type(kind),
+                                  &entry, &position);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_NOT_FOUND || kind == MM_ACTION_CELS ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
+    status = mm_session_payload(action->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
-    if (action->cels.header.width != MM_ACTION_CEL_BYTES)
-        return MM_MOVIE_BAD_FILE;
-    *other = action->cels.header.big_endian != (*(const unsigned char *)&one == 0);
-    *out = &action->cels;
-    return MM_MOVIE_OK;
+    mm_action_table_init(table, NULL, NULL, NULL);
+    status = mm_action_table_read(table, payload.stream, kind);
+    free(payload.decoded);
+    if (status == MM_MOVIE_OK)
+        *out = table;
+    else
+        mm_action_table_dispose(table);
+    return status;
 }
 
 static MMActionRead action_reader(MMMovieAction *action)
@@ -253,13 +248,12 @@ int mm_session_action_matrices(MMMovieAction *action)
     if (action->definition.matrices)
         return MM_MOVIE_OK;
     read = action_reader(action);
-    return mm_action_read_matrices(&action->definition, &read, &action->matrix_other);
+    return mm_action_read_matrices(&action->definition, &read);
 }
 
 static void clear_action(MMMovieAction *action)
 {
-    free(action->cels.bytes);
-    free(action->matrices.decoded);
+    mm_action_dispose(&action->definition);
     memset(action, 0, sizeof(*action));
 }
 
@@ -286,10 +280,10 @@ static int load_action(ActorInput *input, MMI32 id)
                              &action->entry, &action->position) != MM_CHUNK_OK)
             return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
         read = action_reader(action);
-        status = mm_action_read_cels(&action->definition, &read, &action->cel_other);
+        status = mm_action_read_cels(&action->definition, &read);
         if (status != MM_MOVIE_OK)
             return fail(input, status);
-        input->cel_count = (MMI32)action->cels.header.count;
+        input->cel_count = mm_action_cel_count(&action->definition);
     }
     if (input->cel_count <= 0)
         return fail(input, MM_MOVIE_BAD_FILE);
@@ -300,8 +294,7 @@ static int load_action(ActorInput *input, MMI32 id)
 static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
 {
     ActorInput *input = (ActorInput *)p;
-    const unsigned char *row;
-    MMI32 size, fields[2];
+    MMI32 fields[2];
     if (!load_action(input, action))
         return 0;
     if (input->text)
@@ -309,10 +302,8 @@ static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
     else
     {
         cel = mm_template_wrap_cel(cel, input->cel_count);
-        row = mm_session_group_row(&input->resources.cels, (MMU32)cel, &size);
-        if (!row)
+        if (!mm_action_get_cel(&input->resources.definition, cel, fields))
             return fail(input, MM_MOVIE_BAD_FILE);
-        mm_action_decode_cel(row, input->resources.cel_other, fields);
         *out = fields[1];
     }
     return 1;

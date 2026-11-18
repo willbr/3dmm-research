@@ -7,31 +7,44 @@ class ActionDefinitionFixtureAccess : public ActionDefinition
     bool Initialize(PChunkyFile file,ChunkNumber number) { return _FInit(file,kctgActn,number); }
     static bool CheckNoSoundMarkers(PActionDefinition a)
     {
-        auto field=&ActionDefinitionFixtureAccess::_action; auto group=static_cast<PGeneralGroup>((a->*field).cels);
-        AnimationCel cel; group->GetFixed(0,&cel); auto original=cel.chidSnd; bool ok=true;
+        auto field=&ActionDefinitionFixtureAccess::_action;
+        auto table=(a->*field).cels;
+        MMGroup group={&table->storage,MM_ACTION_CEL_BYTES,table->header.count,table->header.first_bytes,-1,0};
+        MMGroupLocation location;
+        if (mm_group_location(&group,0,&location)!=MM_STORAGE_OK) return false;
+        auto row=table->storage.buffers[0].data+location.offset;
+        const unsigned short one=1;
+        const bool other=table->header.big_endian!=(*reinterpret_cast<const unsigned char *>(&one)==0);
+        AnimationCel cel;
+        if (!a->FGetCel(0,&cel)) return false;
+        const auto original=cel.chidSnd;
+        bool ok=true;
         const ChildChunkID markers[]={0xffffffff,0x80000000};
-        for (auto marker:markers) { cel.chidSnd=marker; group->PutFixed(0,&cel); TAG tag={123,reinterpret_cast<PChunkyResourceFile>(0x1357),kctgMsnd,456}; a->GetSnd(0,&tag);
+        for (auto marker:markers) { cel.chidSnd=marker; mm_action_decode_cel(&cel,other,row); TAG tag={123,reinterpret_cast<PChunkyResourceFile>(0x1357),kctgMsnd,456}; a->GetSnd(0,&tag);
             ok=ok && tag.sid==123 && tag.pcrf==reinterpret_cast<PChunkyResourceFile>(0x1357) && tag.ctg==ctgNil && tag.cno==456; }
-        cel.chidSnd=original; group->PutFixed(0,&cel); return ok;
+        cel.chidSnd=original; mm_action_decode_cel(&cel,other,row); return ok;
     }
     static bool Record(PActionDefinition a,bool valid,FILE *out)
     {
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
         if (!a) return true;
         auto field=&ActionDefinitionFixtureAccess::_action; auto &state=a->*field;
-        auto cels=static_cast<PGeneralGroup>(state.cels); auto matrices=static_cast<PDynamicArray>(state.matrices); auto sounds=static_cast<PDynamicArray>(state.sounds);
-        LegacyLong fields[]={static_cast<LegacyLong>(a->Grfactn()),cels!=nullptr,cels?cels->IvMac():0,matrices!=nullptr,matrices?matrices->IvMac():0,sounds!=nullptr,sounds?sounds->IvMac():0};
+        const auto matrices=state.matrices,sounds=state.sounds;
+        const auto celCount=mm_action_cel_count(&state);
+        const auto matrixCount=matrices?static_cast<LegacyLong>(matrices->header.count):0;
+        const auto soundCount=sounds?static_cast<LegacyLong>(sounds->header.count):0;
+        LegacyLong fields[]={static_cast<LegacyLong>(a->Grfactn()),state.cels!=nullptr,celCount,matrices!=nullptr,matrixCount,sounds!=nullptr,soundCount};
         if (!record(fields,sizeof(fields))) return false;
-        for (int i=0;cels && i<cels->IvMac();++i)
+        for (int i=0;i<celCount;++i)
         {
-            AnimationCel cel; if (valid) a->GetCel(i,&cel); else cels->GetFixed(i,&cel);
-            LegacyLong n=cels->Cb(i)/sizeof(CelPartSpec);
+            AnimationCel cel; if (!(valid?a->FGetCel(i,&cel):mm_action_get_cel(&state,i,&cel))) return false;
+            LegacyLong n=mm_action_part_count(&state,i);
             if (!record(&cel,sizeof(cel)) || !record(&n,sizeof(n))) return false;
-            for (int j=0;j<n;++j) { CelPartSpec part; if (valid) a->GetCps(i,j,&part); else part=static_cast<CelPartSpec *>(cels->QvGet(i))[j]; if (!record(&part,sizeof(part))) return false; }
+            for (int j=0;j<n;++j) { CelPartSpec part; if (!(valid?a->FGetCps(i,j,&part):mm_action_get_part(&state,i,j,&part)) || !record(&part,sizeof(part))) return false; }
             if (valid) { TAG tag={123,nullptr,0x12345678,456}; a->GetSnd(i,&tag); LegacyLong values[]={tag.sid,tag.pcrf!=nullptr,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)}; if (!record(values,sizeof(values))) return false; }
         }
-        for (int i=0;matrices && i<matrices->IvMac();++i) { BMAT34 m; if (valid) a->GetMatrix(i,&m); else matrices->Get(i,&m); if (!record(&m,sizeof(m))) return false; }
-        for (int i=0;sounds && i<sounds->IvMac();++i) { TAG tag; sounds->Get(i,&tag); LegacyLong values[]={tag.sid,tag.pcrf!=nullptr,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)}; if (!record(values,sizeof(values))) return false; }
+        for (int i=0;i<matrixCount;++i) { BMAT34 m; if (!(valid?a->FGetMatrix(i,&m):mm_action_get_matrix(&state,i,&m)) || !record(&m,sizeof(m))) return false; }
+        for (int i=0;i<soundCount;++i) { MMTag tag; if (!mm_action_sound_tag(sounds,i,&tag)) return false; LegacyLong values[]={tag.sid,tag.cache!=nullptr,static_cast<LegacyLong>(tag.type),static_cast<LegacyLong>(tag.number)}; if (!record(values,sizeof(values))) return false; }
         return true;
     }
 };

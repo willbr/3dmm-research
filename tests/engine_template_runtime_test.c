@@ -8,7 +8,7 @@ typedef struct Edge { MMU32 type,number,id,child_type,child_number; } Edge;
 typedef struct Test
 {
     MMTemplateState state; int action,models[2],refs[2],action_refs;
-    int parts,fail_action,fail_allocate,fail_model,fetches,indices_reads,sets,freed,releases,cel;
+    int parts,fail_action,fail_allocate,fail_model,fail_read,fetches,indices_reads,sets,freed,releases,cel;
     MMI32 distance,body_models[6],body_matrices[6];
     short parents[6],sets_list[6];
     MMPartIndexList parent_indices,set_indices;
@@ -20,16 +20,26 @@ static Test *t(void *p) { return (Test *)p; }
 static MMTemplateState *template_state(void *p,void *o) { assert(o==p); return &t(p)->state; }
 static void *action(void *p,void *object,MMI32 id)
 { assert(object==p && id==0); if (t(p)->fail_action) return NULL; ++t(p)->action_refs; return &t(p)->action; }
-static MMI32 cel_count(void *p,void *a) { assert(a==&t(p)->action); return 3; }
-static MMI32 distance(void *p,void *a,MMI32 cel)
-{ assert(a==&t(p)->action && cel>=0 && cel<3); t(p)->cel=cel; return 100+cel; }
+static MMI32 cel_count(void *p,void *a) { assert(a==&t(p)->action); return t(p)->fail_read==4?0:3; }
+static int distance(void *p,void *a,MMI32 cel,MMI32 *out)
+{
+    assert(a==&t(p)->action && cel>=0 && cel<3);
+    if (t(p)->fail_read==1) return 0;
+    t(p)->cel=cel; *out=100+cel; return 1;
+}
 static MMU32 flags(void *p,void *a) { assert(a==&t(p)->action); return 42; }
-static void part(void *p,void *a,MMI32 cel,MMI32 n,MMI32 *model,MMI32 *matrix)
-{ assert(a==&t(p)->action && cel>=0 && cel<3); ++t(p)->indices_reads; *model=n%3==0?-1:(n+cel)%2; *matrix=cel; }
-static void matrix(void *p,void *a,MMI32 n,MMActorMatrix *out)
+static int part(void *p,void *a,MMI32 cel,MMI32 n,MMI32 *model,MMI32 *matrix)
+{
+    assert(a==&t(p)->action && cel>=0 && cel<3);
+    if (t(p)->fail_read==2) return 0;
+    ++t(p)->indices_reads; *model=n%3==0?-1:(n+cel)%2; *matrix=cel; return 1;
+}
+static int matrix(void *p,void *a,MMI32 n,MMActorMatrix *out)
 {
     int i; assert(a==&t(p)->action && !t(p)->sets && t(p)->distance==-77);
+    if (t(p)->fail_read==3 && t(p)->indices_reads==2) return 0;
     for (i=0;i<12;++i) out->m[i/3][i%3]=1000+n*100+i;
+    return 1;
 }
 static int allocate(void *p,size_t bytes,void **out)
 {
@@ -112,6 +122,12 @@ int main(void)
 {
     Test x; MMTemplateRuntimeServices s; int n,mode,c,i,expected,ok,tag,out; MMI32 value; MMU32 f;
     const MMI32 cels[]={INT_MIN,-7,-1,0,2,INT_MAX};
+    for (mode=1;mode<=4;++mode)
+    {
+        s=init(&x,2); x.fail_read=mode;
+        assert(!mm_template_set_cel(&x,&x,0,0,&x.distance,&s));
+        assert(x.distance==-77 && !x.sets && !x.allocated && !x.action_refs && !x.refs[0] && !x.refs[1]);
+    }
     for (n=0;n<=6;n+=2) for (mode=0;mode<7;++mode) for (c=0;c<6;++c)
     {
         s=init(&x,n); x.fail_action=mode==1; x.fail_allocate=mode==2; x.fail_model=mode>=3?mode-2:0;

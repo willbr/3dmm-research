@@ -29,7 +29,8 @@ MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count)
 
 static MMI32 wrapped(void *action, MMI32 cel, const MMTemplateRuntimeServices *s)
 {
-    return mm_template_wrap_cel(cel, s->cel_count(s->storage.context, action));
+    MMI32 count = s->cel_count(s->storage.context, action);
+    return count > 0 ? mm_template_wrap_cel(cel, count) : -1;
 }
 
 typedef struct TemplateCelPart
@@ -50,7 +51,11 @@ static void render_cel_indices(void *context, MMU32 part, MMI32 *model, MMI32 *m
 {
     const TemplateCel *cel = (const TemplateCel *)context;
     const MMTemplateRuntimeServices *s = cel->services;
-    s->part(s->storage.context, cel->action, cel->index, (MMI32)part, model, matrix);
+    if (!s->part(s->storage.context, cel->action, cel->index, (MMI32)part, model, matrix))
+    {
+        *model = MM_TEMPLATE_KEEP_MODEL;
+        *matrix = -1;
+    }
 }
 
 static int render_cel_model(void *context, MMU32 part, MMU32 slot, MMMovieAsset *asset)
@@ -65,8 +70,7 @@ static int render_cel_matrix(void *context, MMI32 matrix, MMActorMatrix *out)
 {
     const TemplateCel *cel = (const TemplateCel *)context;
     const MMTemplateRuntimeServices *s = cel->services;
-    s->matrix(s->storage.context, cel->action, matrix, out);
-    return MM_MOVIE_OK;
+    return s->matrix(s->storage.context, cel->action, matrix, out) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
 }
 
 int mm_template_set_cel(void *object, void *body, MMI32 id, MMI32 cel, void *distance,
@@ -87,7 +91,8 @@ int mm_template_set_cel(void *object, void *body, MMI32 id, MMI32 cel, void *dis
     request.services = s;
     request.object = object;
     request.index = wrapped(request.action, cel, s);
-    step = s->distance(a->context, request.action, request.index);
+    if (request.index < 0 || !s->distance(a->context, request.action, request.index, &step))
+        goto done;
     if (count < 0 || (MMU32)count > 0x7fffffffUL / sizeof(*request.parts) ||
         !s->allocate_cel(a->context, (size_t)count * sizeof(*request.parts), &storage))
         goto done;
@@ -126,9 +131,13 @@ done:
 }
 int mm_template_distance(void *object,MMI32 id,MMI32 cel,MMI32 *out,const MMTemplateRuntimeServices *s)
 {
-    void *a=s->action(s->storage.context,object,id); MMI32 d;
+    void *a=s->action(s->storage.context,object,id); MMI32 index,d; int ok;
     if (!a) return 0;
-    d=s->distance(s->storage.context,a,wrapped(a,cel,s)); s->storage.release(s->storage.context,a); *out=d; return 1;
+    index=wrapped(a,cel,s);
+    ok=index>=0 && s->distance(s->storage.context,a,index,&d);
+    s->storage.release(s->storage.context,a);
+    if (ok) *out=d;
+    return ok;
 }
 int mm_template_cel_count(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
 {
@@ -142,9 +151,11 @@ int mm_template_action_flags(void *object,MMI32 id,void *out,const MMTemplateRun
 }
 int mm_template_sound(void *object,MMI32 id,MMI32 cel,void *exists,void *tag,const MMTemplateRuntimeServices *s)
 {
+    MMI32 index;
     void *a; s->sound_exists(s->storage.context,exists,0); a=s->action(s->storage.context,object,id); if (!a) return 0;
-    if (s->sound(s->storage.context,a,wrapped(a,cel,s),tag)) s->sound_exists(s->storage.context,exists,1);
-    s->storage.release(s->storage.context,a); return 1;
+    index=wrapped(a,cel,s);
+    if (index>=0 && s->sound(s->storage.context,a,index,tag)) s->sound_exists(s->storage.context,exists,1);
+    s->storage.release(s->storage.context,a); return index>=0;
 }
 MMI32 mm_template_costume_count(void *object,MMI32 set,const MMTemplateRuntimeServices *s)
 {

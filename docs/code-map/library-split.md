@@ -69,11 +69,11 @@ before constructing the runtime group. The standalone query then replays the
 actor evaluator from a fresh state. It uses action tables from the resolved
 template or the shared 3D text action metadata. The template cache uses the
 same C89 TMPL rest-angle and flag decoder as the standalone evaluator. Both
-paths run the C89 ACTN header and GGCL/GLXF load stages with their archive and
-table providers. The snapshot keeps the current action's cel table and reads
-its matrix table on first body use. The native cache loads both at admission
-and continues to resolve optional GLMS sound tags there. Both use the C89
-cel, part and matrix decoders. The actor query returns route position, action,
+paths use the same C89 ACTN header reader and owning GGCL/GLXF tables.
+The snapshot loads the matrix table on first body use and keeps it for the
+current action. The native cache loads both tables at admission and converts
+optional GLMS entries to C-owned sound tags. Both paths read cels, parts
+and matrices through the C accessors. The actor query returns route position, action,
 cel and fixed-point root pose without creating body, costume or audio objects.
 `mm_template_read_shape` acquires GLPI then GLBS through each provider.
 `part_indices.c` decodes both tables into owned arrays of signed 16-bit
@@ -5187,13 +5187,15 @@ Playback evidence and remaining coverage limits are recorded in
 
 ### Action definitions and optional sound ownership
 
-`action_definition.c` owns a persistent `MMActionDefinition`: cel group,
-matrix list, optional runtime sound list and flags. It implements construction
-from duplicated groups, resource factory estimates/cleanup, header/list loading,
-payload byte swapping, sound-tag marshalling, disposal and primitive queries.
-ActionDefinition is a temporary native facade whose services provide allocation,
-field/container/file operations, raw TAG representation copies and diagnostics.
-The three table pointers and flags no longer have separate C++ owner fields.
+`action_definition.c` owns the cel group, matrix array, optional sound
+tags and flags in `MMActionDefinition`. It implements construction from
+borrowed native-order records, resource factory estimates and cleanup,
+header and table loading, disposal, and getters. GGCL location entries use
+native byte order. Cel and matrix payloads retain the authored byte order,
+and accessors decode each requested record. The native facade supplies block
+I/O, allocation, diagnostics and the TAG conversion at its sound query
+boundary. Generated text currently produces temporary native cel and matrix
+collections, then copies their records into this C representation.
 
 Header flags and partial table ownership publish in native order. Direct
 initialization failure leaves acquired tables owned by the caller; factories
@@ -5203,13 +5205,11 @@ of optional sound-list size. Wire sound tags remain 16 bytes, ignore the stale
 wire pointer slot and use a NULL borrowed runtime cache; their tags own no cache
 references. Matrix/cel/part output layouts remain 48/8/4 bytes.
 
-Disposal now releases the optional sound list after cels and matrices, fixing
-the omitted native release, including partially filled lists. Sound queries
-recognize high-bit negative markers under the documented native no-sound
-convention, clear only the output type and avoid indexing the list. This repairs
-the previous unsigned comparison. Zero-length foreign matrix payloads avoid
-requesting element zero. These changes are explicit differences from the former
-leak/invalid-index behavior, not native equivalence claims for those failures.
+Disposal releases cels, matrices and optional sounds in that order. Sound
+queries clear only the output type for high-bit no-sound markers and absent
+tags. Invalid cel rows and matrix indices fail the checked accessors. Template
+cel evaluation releases any models already fetched and returns failure before
+publishing distance or changing the body.
 
 The 2,268-case native trace matches 258,592 bytes without masking, covering
 duplicated groups, native/opposite byte order, empty actions, missing/short/invalid
@@ -5224,6 +5224,20 @@ All 68 checks were rerun with assertions enabled; earlier Release pass counts
 alone did not prove execution of assert-based checks. Debug MSVC and ASan
 coverage were separate. Playback evidence, explicit changes and remaining
 coverage limits are recorded in `docs/tools/playback-regression.md`.
+
+The owning-table conversion matched 31 native traces and the 480-byte
+saved fixture against `a0414aab`. It matched 300 standalone frame snapshots,
+300 model and material snapshots, and 300 native graph and stream evaluations.
+All 181 standalone checks, 189 focused host checks, the 10-check engine and
+Marcus C89 syntax gate, and seven AddressSanitizer checks passed. The
+instrumented standalone probe also reproduced all 300 frame snapshots.
+Studio and Marcus matched 456 previous seek observations, 360 viewport hashes
+and 480 retail frame commits. Retail reopened Studio's edited movie and
+matched the actor state on four seeks. The actor audio fixture confirmed
+silence before Play and both the ordinary and motion cues in each host.
+Studio passed all eight VMM authoring and reopen checks. Marcus rendered
+the retained VMM fixture with the same viewport hash.
+Build identities, traces and captures are in `tmp/c89-action-tables`.
 
 ### Three-dimensional font resources
 

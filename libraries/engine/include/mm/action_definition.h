@@ -4,15 +4,32 @@
 #define MM_ENGINE_ACTION_DEFINITION_H
 #include "tag.h"
 #include "movie_data.h"
+#include "collections.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
-enum MMActionTable { MM_ACTION_CELS, MM_ACTION_MATRICES, MM_ACTION_WIRE_SOUNDS };
+enum MMActionTableKind { MM_ACTION_CELS, MM_ACTION_MATRICES, MM_ACTION_WIRE_SOUNDS, MM_ACTION_SOUNDS };
 enum MMActionChunk { MM_ACTION_GGCL=0x4747434c, MM_ACTION_GLXF=0x474c5846, MM_ACTION_GLMS=0x474c4d53 };
+typedef struct MMActionTable
+{
+    MMCollectionStorage storage;
+    MMCollectionHeader header;
+    void *owner;
+    void (*release_owner)(void *);
+} MMActionTable;
+
+/* Legacy authoring borrows native-order entries until the factory copies
+ * them. bytes is the size of the record area for a cel group. */
+typedef struct MMActionTableSource
+{
+    const MMCollectionStorage *storage;
+    MMU32 count, bytes;
+} MMActionTableSource;
+
 typedef struct MMActionDefinition
 {
-    void *cels,*matrices,*sounds;
+    MMActionTable *cels,*matrices,*sounds;
     MMU32 flags;
 } MMActionDefinition;
 
@@ -23,16 +40,25 @@ typedef struct MMActionRead
     void *context;
     int host_big_endian;
     int (*header)(void *, unsigned char bytes[MM_ACTION_HEADER_BYTES]);
-    int (*table)(void *, int kind, void **out, int *other_order);
+    int (*table)(void *, int kind, MMActionTable **out);
     void (*bad_order)(void *);
 } MMActionRead;
 
-/* The providers return movie statuses. The header flags publish before cels
- * are read. Matrices can be loaded separately when the caller needs a pose.
- * Table ownership and byte order are supplied by the table reader. */
-int mm_action_read_cels(MMActionDefinition *, const MMActionRead *, int *other_order);
-int mm_action_read_matrices(MMActionDefinition *, const MMActionRead *, int *other_order);
+/* Providers return movie statuses. The header flags publish before cels are
+ * read. Matrices can be loaded separately when the caller needs a pose.
+ * The table provider publishes each completed table and transfers ownership. */
+int mm_action_read_cels(MMActionDefinition *, const MMActionRead *);
+int mm_action_read_matrices(MMActionDefinition *, const MMActionRead *);
 MMU32 mm_action_table_type(int kind);
+void mm_action_table_init(MMActionTable *, const MMStorageAllocator *, void *owner, void (*release_owner)(void *));
+void mm_action_table_dispose(MMActionTable *);
+/* Read into a fresh table. Record payloads retain their wire byte order, and
+ * the cel location table uses native byte order. */
+int mm_action_table_read(MMActionTable *, const MMReadStream *, int kind);
+int mm_action_sounds_reserve(MMActionTable *, MMU32 count);
+int mm_action_sounds_append(MMActionTable *, const MMTag *);
+int mm_action_sound_tag(const MMActionTable *, MMU32 index, MMTag *);
+
 /* Copy one wire record into native order. Each input can alias its output. */
 void mm_action_decode_cel(const void *bytes, int other_order, void *out);
 void mm_action_decode_part(const void *bytes, int other_order, void *out);
@@ -43,23 +69,13 @@ typedef struct MMActionDefinitionServices
     MMActionDefinition *(*state)(void *,void *object);
     void *(*create)(void *);
     void (*release)(void *,void *);
-    void *(*duplicate)(void *,void *table,int kind);
+    MMActionTable *(*new_table)(void *,int kind);
     void *(*find)(void *,void *file,MMU32,MMU32);
     int (*unpack)(void *,void *block);
     MMI32 (*block_size)(void *,void *block,int packed);
     int (*block_read)(void *,void *block,void *,size_t);
     int (*child)(void *,void *file,MMU32,MMU32,MMU32 child_type,MMU32 *number);
-    void *(*read_table)(void *,void *block,int kind,int *other);
-    MMI32 (*count)(void *,void *table);
-    MMI32 (*table_size)(void *,void *table);
-    unsigned char *(*fixed)(void *,void *group,MMI32 index);
-    unsigned char *(*variable)(void *,void *group,MMI32 index);
-    MMI32 (*variable_size)(void *,void *group,MMI32 index);
-    unsigned char *(*data)(void *,void *list,MMI32 index);
-    void (*validate_wire_sounds)(void *,void *table);
-    void *(*create_sounds)(void *,MMI32 capacity);
-    int (*append_sound)(void *,void *table,const MMTag *);
-    void (*read_sound)(void *,void *table,MMI32 index,MMTag *);
+    MMReadStream (*stream)(void *,void *block);
     void (*clear_sound_type)(void *,void *out);
     void (*publish_sound)(void *,void *out,const MMTag *);
     int (*initialize)(void *,void *object,void *file,MMU32,MMU32);
@@ -72,7 +88,8 @@ typedef struct MMActionDefinitionServices
  * release partial objects before invalidating outputs. All table layouts,
  * indices and 32-bit allocation/cache-size products satisfy native preconditions.
  * Callbacks may observe publication but must not reenter or mutate the owner. */
-void *mm_action_create(void *cels,void *matrices,MMU32 flags,const MMActionDefinitionServices *);
+void *mm_action_create(const MMActionTableSource *cels,const MMActionTableSource *matrices,MMU32 flags,
+                       const MMActionDefinitionServices *);
 /* Output storage bridges native pointer/32-bit integer representations without
  * typed pointer aliasing. Estimate-only reads do not unpack or allocate. The
  * final cache estimate deliberately excludes optional sounds, as in native. */
@@ -81,11 +98,14 @@ int mm_action_initialize(MMActionDefinition *,void *file,MMU32,MMU32,const MMAct
 /* Releases cels, matrices, then sounds, clearing each slot after release.
  * This includes the optional list omitted by the previous native destructor.
  * Sound tags loaded from wire borrow a NULL cache, never owning references. */
-void mm_action_dispose(MMActionDefinition *,const MMActionDefinitionServices *);
-MMI32 mm_action_cel_count(const MMActionDefinition *,const MMActionDefinitionServices *);
-void mm_action_get_cel(const MMActionDefinition *,MMI32,void *out,const MMActionDefinitionServices *);
-void mm_action_get_part(const MMActionDefinition *,MMI32 cel,MMI32 part,void *out,const MMActionDefinitionServices *);
-void mm_action_get_matrix(const MMActionDefinition *,MMI32,void *out,const MMActionDefinitionServices *);
+void mm_action_dispose(MMActionDefinition *);
+MMI32 mm_action_cel_count(const MMActionDefinition *);
+/* Returns -1 for an unavailable row. Getters return zero and leave the
+ * output untouched when the record is unavailable. */
+MMI32 mm_action_part_count(const MMActionDefinition *,MMI32 cel);
+int mm_action_get_cel(const MMActionDefinition *,MMI32,void *out);
+int mm_action_get_part(const MMActionDefinition *,MMI32 cel,MMI32 part,void *out);
+int mm_action_get_matrix(const MMActionDefinition *,MMI32,void *out);
 /* Clears only type when no sound. High-bit IDs are negative markers under the
  * documented native signed-sound convention, rather than table indices. */
 void mm_action_get_sound(const MMActionDefinition *,MMI32,void *out,const MMActionDefinitionServices *);

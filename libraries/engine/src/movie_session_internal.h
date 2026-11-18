@@ -55,8 +55,6 @@ int mm_session_index(const MMReadStream *, const MMChunkPolicy *, MMChunkIndex *
 int mm_session_child(const MMChunkAccess *, MMU32 parent, MMU32 slot, MMU32 type, MMChunkEntry *, MMU32 *position);
 int mm_session_scene(const MMMovieSession *, const MMChunkAccess *, MMU32 slot, MMU32 *position, MMMovieSessionScene *);
 int mm_session_group(const MMMovieArchive *, const MMChunkEntry *, MMMovieGroup *);
-int mm_session_array(const MMMovieArchive *, MMU32 parent, MMU32 type, MMU32 width,
-                     MMMoviePayload *, MMCollectionHeader *);
 unsigned char *mm_session_group_row(const MMMovieGroup *, MMU32 row, MMI32 *size);
 void mm_session_scene_event(const MMMovieGroup *, MMU32 index, MMMovieSceneEvent *);
 int mm_session_scene_group(const MMMovieArchive *, MMU32 scene, int start, MMMovieGroup *);
@@ -69,10 +67,7 @@ typedef struct MMMovieAction
     MMChunkEntry entry;
     MMU32 position;
     MMActionDefinition definition;
-    MMMovieGroup cels;
-    MMMoviePayload matrices;
-    MMCollectionHeader matrix_header;
-    int cel_other, matrix_other;
+    MMActionTable cels, matrices;
 } MMMovieAction;
 
 int mm_session_action_matrices(MMMovieAction *);

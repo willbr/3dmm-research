@@ -720,25 +720,6 @@ int mm_session_group(const MMMovieArchive *archive, const MMChunkEntry *entry, M
     return MM_MOVIE_OK;
 }
 
-int mm_session_array(const MMMovieArchive *archive, MMU32 parent, MMU32 type, MMU32 width,
-                     MMMoviePayload *payload, MMCollectionHeader *header)
-{
-    MMChunkEntry entry;
-    MMU32 position;
-    int status = mm_session_child(&archive->access, parent, 0, type, &entry, &position);
-    if (status != MM_CHUNK_OK)
-        return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
-    status = mm_session_payload(archive, &entry, 0, payload);
-    if (status != MM_MOVIE_OK)
-        return status;
-    status = mm_collection_header_read(payload->stream, MM_COLLECTION_ARRAY, 0, header);
-    if (status == MM_STORAGE_OK && header->width == width)
-        return MM_MOVIE_OK;
-    free(payload->decoded);
-    payload->decoded = NULL;
-    return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
-}
-
 static int read_template_table(void *context, int kind, MMPartIndexList **out)
 {
     MMMovieTemplate *tmpl = (MMMovieTemplate *)context;

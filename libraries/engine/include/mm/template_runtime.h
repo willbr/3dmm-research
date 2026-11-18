@@ -24,17 +24,17 @@ typedef struct MMTemplateRuntimeServices
     void *(*model)(void *,void *object,MMU32 id,struct MMMovieAsset *);
     int (*allocate_cel)(void *,size_t bytes,void **);
     MMI32 (*cel_count)(void *,void *action);
-    MMI32 (*distance)(void *,void *action,MMI32 cel);
+    int (*distance)(void *,void *action,MMI32 cel,MMI32 *);
     MMU32 (*flags)(void *,void *action);
-    void (*part)(void *,void *action,MMI32 cel,MMI32 part,MMI32 *model,MMI32 *matrix);
-    void (*matrix)(void *,void *action,MMI32 matrix,struct MMActorMatrix *);
+    int (*part)(void *,void *action,MMI32 cel,MMI32 part,MMI32 *model,MMI32 *matrix);
+    int (*matrix)(void *,void *action,MMI32 matrix,struct MMActorMatrix *);
     void (*set_model)(void *,void *body,MMI32 part,void *model);
     void (*set_matrix)(void *,void *body,MMI32 part,const struct MMActorMatrix *);
     int (*sound)(void *,void *action,MMI32 cel,void *tag);
     void (*sound_exists)(void *,void *out,int exists);
 } MMTemplateRuntimeServices;
-/* Actions have positive cel counts. Part counts fit the native signed-short
- * loop range; parent/set/matrix indices and costume indices are valid. Scalar
+/* Part counts fit the native signed-short loop range. Parent, set and costume
+ * indices are valid. The action readers return one when they publish a value. Scalar
  * and matrix elements are signed 32-bit fixed-point representations. Callbacks
  * do not reenter or mutate unrelated state. action/model preserve virtual
  * fetches, including ThreeDText. Model supplies a key in the resource's

@@ -1,144 +1,304 @@
 #include "mm/action_definition.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
-typedef struct Table { unsigned char fixed[16],variable[16],data[96]; MMTag tags[2]; int count,live; } Table;
-typedef struct Test
+
+typedef struct Block { unsigned char bytes[108]; size_t length; } Block;
+typedef struct Test Test;
+typedef struct TableOwner
 {
-    MMActionDefinition state; MMActionDefinitionServices services;
-    Table tables[4]; unsigned char header[8],expected_fixed[16],expected_variable[16],expected_matrix[96];
-    int phase,fail,other,short_header,bad,optional_absent,released[8],releases,object_live,initializations;
-    int invalidations,read_sounds,clears; void *output; MMI32 size;
-} Test;
-static Test *t(void *p) { return (Test *)p; }
-static int checkpoint(Test *x) { return ++x->phase==x->fail; }
-static void put(unsigned char *p,MMU32 n,int big)
-{ int i; for (i=0;i<4;++i) { p[big?3-i:i]=(unsigned char)n; n>>=8; } }
-static void reverse(unsigned char *p,int bytes,int width)
-{ int i,j; unsigned char b; for (i=0;i<bytes;i+=width) for (j=0;j<width/2;++j) { b=p[i+j]; p[i+j]=p[i+width-j-1]; p[i+width-j-1]=b; } }
-static MMActionDefinition *state(void *p,void *object) { assert(p==object); return &t(p)->state; }
-static void *create(void *p) { if (checkpoint(t(p))) return NULL; assert(!t(p)->object_live); t(p)->object_live=1; return p; }
-static void release(void *p,void *object)
+    MMActionTable table;
+    Test *test;
+    int kind, live;
+} TableOwner;
+struct Test
 {
-    Test *x=t(p); int i;
-    if (p==object) { assert(x->object_live && !x->invalidations); mm_action_dispose(&x->state,&x->services); x->object_live=0; return; }
-    for (i=0;i<4;++i) if (object==&x->tables[i]) break;
-    assert(i<4 && x->tables[i].live==1); x->tables[i].live=0; x->released[x->releases++]=i;
+    MMActionDefinition state;
+    MMActionDefinitionServices services;
+    TableOwner tables[4];
+    Block header, blocks[3];
+    int phase, fail, object_live, invalidations, bad, optional_absent;
+    int released[4], releases, clears, publishes;
+};
+
+static int checkpoint(Test *x) { return ++x->phase == x->fail; }
+static void put(unsigned char *p, MMU32 n, int big)
+{
+    int i;
+    for (i=0;i<4;++i) { p[big?3-i:i]=(unsigned char)n; n>>=8; }
 }
-static void *duplicate(void *p,void *table,int kind)
-{ Test *x=t(p); assert(table==&x->tables[kind]); assert(x->state.flags==0x8000000dUL); if (checkpoint(x)) return NULL; x->tables[kind].live=1; return table; }
-static void *find(void *p,void *file,MMU32 type,MMU32 number)
+static MMActionDefinition *state(void *p, void *object)
+{ assert(p==object); return &((Test *)p)->state; }
+
+static void *create(void *p)
 {
-    assert(file==p); if (checkpoint(t(p))) return NULL;
-    if (type==0x4143544eUL) { assert(number==7); return t(p)->header; }
-    assert(number<3 && type==(number==0?MM_ACTION_GGCL:number==1?MM_ACTION_GLXF:MM_ACTION_GLMS)); return &t(p)->tables[number];
+    Test *x=p;
+    if (checkpoint(x)) return NULL;
+    assert(!x->object_live);
+    x->object_live=1;
+    return p;
 }
-static int unpack(void *p,void *block) { assert(block==t(p)->header); return !checkpoint(t(p)); }
-static MMI32 block_size(void *p,void *block,int packed) { assert(block==t(p)->header); return packed?88:t(p)->short_header?7:8; }
-static int block_read(void *p,void *block,void *out,size_t n)
-{ assert(block==t(p)->header && n==8); if (checkpoint(t(p))) return 0; memcpy(out,block,n); return 1; }
-static int child(void *p,void *file,MMU32 type,MMU32 number,MMU32 ct,MMU32 *out)
+
+static void release(void *p, void *object)
 {
-    Test *x=t(p); assert(file==p && type==0x4143544eUL && number==7); if (checkpoint(x)) return 0;
+    Test *x=p;
+    assert(p==object && x->object_live && !x->invalidations);
+    mm_action_dispose(&x->state);
+    x->object_live=0;
+}
+
+static void *resize(void *p, void *bytes, MMU32 old_size, MMU32 size, int priority)
+{
+    (void)old_size;
+    if (priority == MM_STORAGE_SPEED || checkpoint((Test *)p))
+        return NULL;
+    return realloc(bytes, size);
+}
+static void free_bytes(void *p, void *bytes, MMU32 size)
+{ (void)p; (void)size; free(bytes); }
+
+static void release_table(void *p)
+{
+    TableOwner *owner=p;
+    Test *x=owner->test;
+    assert(owner->live);
+    owner->live=0;
+    x->released[x->releases++]=owner->kind;
+}
+
+static MMActionTable *new_table(void *p, int kind)
+{
+    Test *x=p;
+    TableOwner *owner=&x->tables[kind];
+    MMStorageAllocator allocator={NULL,resize,free_bytes};
+    if (checkpoint(x))
+        return NULL;
+    assert(!owner->live && x->state.flags==0x8000000dUL);
+    owner->test=x;
+    owner->kind=kind;
+    owner->live=1;
+    allocator.context=x;
+    mm_action_table_init(&owner->table,&allocator,owner,release_table);
+    return &owner->table;
+}
+
+static void *find(void *p, void *file, MMU32 type, MMU32 number)
+{
+    Test *x=p;
+    assert(file==p);
+    if (checkpoint(x)) return NULL;
+    if (type==0x4143544eUL) { assert(number==7); return &x->header; }
+    assert(number<3 && type==mm_action_table_type((int)number));
+    return &x->blocks[number];
+}
+static int unpack(void *p, void *block) { (void)block; return !checkpoint((Test *)p); }
+static MMI32 block_size(void *p, void *block, int packed)
+{ assert(block==&((Test *)p)->header); return packed?88:(MMI32)((Block *)block)->length; }
+static int block_read(void *p, void *block, void *out, size_t n)
+{
+    assert(block==&((Test *)p)->header && n==8);
+    if (checkpoint((Test *)p)) return 0;
+    memcpy(out,((Block *)block)->bytes,n);
+    return 1;
+}
+static int child(void *p, void *file, MMU32 type, MMU32 number, MMU32 ct, MMU32 *out)
+{
+    Test *x=p;
+    assert(file==p && type==0x4143544eUL && number==7);
+    if (checkpoint(x)) return 0;
     *out=ct==MM_ACTION_GGCL?0:ct==MM_ACTION_GLXF?1:2;
-    if (*out==2 && x->optional_absent) return 0; return 1;
+    return *out!=2 || !x->optional_absent;
 }
-static void *read_table(void *p,void *block,int kind,int *other)
-{ Test *x=t(p); assert(block==&x->tables[kind]); if (checkpoint(x)) return NULL; *other=x->other; x->tables[kind].live=1; return block; }
-static MMI32 count(void *p,void *table) { (void)p; return ((Table *)table)->count; }
-static MMI32 table_size(void *p,void *table)
-{ assert(t(p)->output==p); return table==&t(p)->tables[0]?20:30; }
-static unsigned char *fixed(void *p,void *group,MMI32 i) { assert(group==&t(p)->tables[0] && i>=0 && i<2); return ((Table *)group)->fixed+i*8; }
-static unsigned char *variable(void *p,void *group,MMI32 i) { assert(group==&t(p)->tables[0] && i>=0 && i<2); return ((Table *)group)->variable+i*8; }
-static MMI32 variable_size(void *p,void *group,MMI32 i) { assert(group==&t(p)->tables[0] && i>=0 && i<2); return 8; }
-static unsigned char *data(void *p,void *list,MMI32 i)
-{ assert(i>=0 && i<((Table *)list)->count); return ((Table *)list)->data+i*(list==&t(p)->tables[2]?16:48); }
-static void validate(void *p,void *wire) { assert(wire==&t(p)->tables[2]); }
-static void *create_sounds(void *p,MMI32 capacity)
-{ Test *x=t(p); assert(capacity==x->tables[2].count); if (checkpoint(x)) return NULL; x->tables[3].live=1; x->tables[3].count=0; return &x->tables[3]; }
-static int append(void *p,void *list,const MMTag *tag)
-{ Table *table=(Table *)list; assert(list==&t(p)->tables[3] && table->count<2); if (checkpoint(t(p))) return 0; table->tags[table->count++]=*tag; return 1; }
-static void get_sound(void *p,void *list,MMI32 i,MMTag *out)
-{ assert(list==&t(p)->tables[3] && i>=0 && i<2); ++t(p)->read_sounds; *out=((Table *)list)->tags[i]; }
-static void clear_type(void *p,void *out) { ++t(p)->clears; ((MMTag *)out)->type=0; }
-static void publish(void *p,void *out,const MMTag *tag) { (void)p; assert(!((MMTag *)out)->type); *(MMTag *)out=*tag; }
-static int initialize(void *p,void *object,void *file,MMU32 type,MMU32 number)
-{ assert(p==object); ++t(p)->initializations; return mm_action_initialize(&t(p)->state,file,type,number,&t(p)->services); }
-static MMI32 object_size(void *p) { (void)p; return 80; }
-static void invalidate(void *p,void *out,size_t n) { ++t(p)->invalidations; memset(out,0xab,n); }
-static void bad_order(void *p) { ++t(p)->bad; }
-static MMActionDefinitionServices setup(Test *x,int host,int other)
+static int read_bytes(void *p, MMU32 offset, void *out, size_t bytes)
 {
-    MMActionDefinitionServices s; int i; memset(x,0,sizeof(*x)); memset(&s,0,sizeof(s)); x->other=other;
-    x->header[host?1:0]=1; put(x->header+4,0x8000000dUL,host);
-    for (i=0;i<3;++i) x->tables[i].count=2;
-    for (i=0;i<2;++i) { put(x->tables[0].fixed+i*8,(MMU32)i,host); put(x->tables[0].fixed+i*8+4,100+i,host); }
-    for (i=0;i<16;++i) x->tables[0].variable[i]=(unsigned char)(i+3);
-    for (i=0;i<96;++i) x->tables[1].data[i]=(unsigned char)(i+5);
-    memcpy(x->expected_fixed,x->tables[0].fixed,16); memcpy(x->expected_variable,x->tables[0].variable,16); memcpy(x->expected_matrix,x->tables[1].data,96);
-    if (other) { reverse(x->tables[0].fixed,16,4); reverse(x->tables[0].variable,16,2); reverse(x->tables[1].data,96,4); }
-    for (i=0;i<2;++i) { unsigned char *row=x->tables[2].data+i*16;
-        put(row,i?0:0x80000001UL,host!=other); put(row+4,0xfedcba98UL,host!=other); put(row+8,0x4d534e44UL,host!=other); put(row+12,123+i,host!=other); }
-    s.context=x; s.host_big_endian=host; s.state=state; s.create=create; s.release=release; s.duplicate=duplicate;
-    s.find=find; s.unpack=unpack; s.block_size=block_size; s.block_read=block_read; s.child=child; s.read_table=read_table;
-    s.count=count; s.table_size=table_size; s.fixed=fixed; s.variable=variable; s.variable_size=variable_size; s.data=data;
-    s.validate_wire_sounds=validate; s.create_sounds=create_sounds; s.append_sound=append; s.read_sound=get_sound;
-    s.clear_sound_type=clear_type; s.publish_sound=publish; s.initialize=initialize; s.object_size=object_size; s.invalidate=invalidate; s.bad_order=bad_order;
-    x->services=s; return s;
+    const Block *block=p;
+    if (offset>block->length || bytes>block->length-offset)
+        return 0;
+    memcpy(out,block->bytes+offset,bytes);
+    return 1;
 }
+static MMReadStream stream(void *p, void *block)
+{
+    MMReadStream s={NULL,0,read_bytes};
+    (void)p;
+    s.context=block;
+    s.length=(MMU32)((Block *)block)->length;
+    return s;
+}
+static void clear_type(void *p, void *out)
+{ ++((Test *)p)->clears; ((MMTag *)out)->type=0; }
+static void publish(void *p, void *out, const MMTag *tag)
+{ ++((Test *)p)->publishes; assert(!((MMTag *)out)->type); *(MMTag *)out=*tag; }
+static int initialize(void *p, void *object, void *file, MMU32 type, MMU32 number)
+{
+    assert(p==object);
+    return mm_action_initialize(&((Test *)p)->state,file,type,number,&((Test *)p)->services);
+}
+static MMI32 object_size(void *p) { (void)p; return 80; }
+static void invalidate(void *p, void *out, size_t n)
+{ ++((Test *)p)->invalidations; memset(out,0xab,n); }
+static void bad_order(void *p) { ++((Test *)p)->bad; }
+
+static void setup(Test *x, int header_big, int big, MMU32 count)
+{
+    MMActionDefinitionServices *s=&x->services;
+    unsigned char *row;
+    MMU32 i,j;
+    memset(x,0,sizeof(*x));
+    x->header.length=8;
+    x->header.bytes[header_big?1:0]=1;
+    put(x->header.bytes+4,0x8000000dUL,header_big);
+
+    x->blocks[0].length=20+24*count;
+    x->blocks[0].bytes[big?1:0]=1;
+    put(x->blocks[0].bytes+4,count,big);
+    put(x->blocks[0].bytes+8,count*16,big);
+    put(x->blocks[0].bytes+12,0xffffffffUL,big);
+    put(x->blocks[0].bytes+16,8,big);
+    x->blocks[1].length=12+48*count;
+    x->blocks[1].bytes[big?1:0]=1;
+    put(x->blocks[1].bytes+4,48,big);
+    put(x->blocks[1].bytes+8,count,big);
+    x->blocks[2].length=12+16*count;
+    x->blocks[2].bytes[big?1:0]=1;
+    put(x->blocks[2].bytes+4,16,big);
+    put(x->blocks[2].bytes+8,count,big);
+    for (i=0;i<count;++i)
+    {
+        row=x->blocks[0].bytes+20+i*16;
+        put(row,i,big);
+        put(row+4,100+i,big);
+        for (j=0;j<8;++j) row[8+j]=(unsigned char)(i*8+j+3);
+        row=x->blocks[0].bytes+20+count*16+i*8;
+        put(row,i*16,big);
+        put(row+4,16,big);
+        for (j=0;j<12;++j) put(x->blocks[1].bytes+12+i*48+j*4,100*i+j,big);
+        row=x->blocks[2].bytes+12+i*16;
+        put(row,i?0:0x80000001UL,big);
+        put(row+4,0xfedcba98UL,big);
+        put(row+8,0x4d534e44UL,big);
+        put(row+12,123+i,big);
+    }
+    s->context=x; s->host_big_endian=header_big; s->state=state; s->create=create; s->release=release;
+    s->find=find; s->unpack=unpack; s->block_size=block_size; s->block_read=block_read;
+    s->child=child; s->stream=stream; s->new_table=new_table;
+    s->clear_sound_type=clear_type; s->publish_sound=publish; s->initialize=initialize;
+    s->object_size=object_size; s->invalidate=invalidate; s->bad_order=bad_order;
+}
+
 static void empty(Test *x)
-{ int i; assert(!x->state.cels && !x->state.matrices && !x->state.sounds); for (i=0;i<4;++i) assert(!x->tables[i].live); }
+{
+    int i;
+    assert(!x->state.cels && !x->state.matrices && !x->state.sounds && !x->object_live);
+    for (i=0;i<4;++i) assert(!x->tables[i].live);
+}
+
 int main(void)
 {
-    Test x; MMActionDefinitionServices s; MMTag tag; MMU32 id; int host,other,fail,ok,i; unsigned char out[48];
-    for (host=0;host<2;++host) for (other=0;other<2;++other)
+    const unsigned short one=1;
+    const int native_big=*(const unsigned char *)&one==0;
+    Test x;
+    MMTag tag;
+    MMU32 words[12];
+    unsigned short part[2];
+    unsigned char *first;
+    MMActionTable cels,matrices;
+    MMReadStream input;
+    MMActionTableSource cels_source,matrices_source;
+    void *out;
+    MMI32 size;
+    int host,big,fail,ok,i;
+    for (host=0;host<2;++host) for (big=0;big<2;++big)
     {
-        s=setup(&x,host,other); assert(mm_action_initialize(&x.state,&x,0x4143544eUL,7,&s));
-        assert(x.state.flags==0x8000000dUL && x.tables[3].count==2);
-        assert(!memcmp(x.tables[0].fixed,x.expected_fixed,16) && !memcmp(x.tables[0].variable,x.expected_variable,16) && !memcmp(x.tables[1].data,x.expected_matrix,96));
-        for (i=0;i<2;++i) { MMTag *p=&x.tables[3].tags[i]; assert(p->sid==(i?0:(MMI32)(-2147483647)) && !p->cache && p->type==0x4d534e44UL && p->number==123+(MMU32)i); }
-        assert(mm_action_cel_count(&x.state,&s)==2);
-        mm_action_get_cel(&x.state,1,out,&s); assert(!memcmp(out,x.expected_fixed+8,8));
-        mm_action_get_part(&x.state,1,1,out,&s); assert(!memcmp(out,x.expected_variable+12,4));
-        mm_action_get_matrix(&x.state,1,out,&s); assert(!memcmp(out,x.expected_matrix+48,48));
-        mm_action_dispose(&x.state,&s); empty(&x); assert(x.releases==4 && x.released[0]==2 && x.released[1]==0 && x.released[2]==1 && x.released[3]==3);
-        mm_action_dispose(&x.state,&s); assert(x.releases==4 && x.state.flags==0x8000000dUL);
+        setup(&x,host,big,2);
+        assert(initialize(&x,&x,&x,0x4143544eUL,7) && x.state.flags==0x8000000dUL);
+        assert(mm_action_cel_count(&x.state)==2 && mm_action_part_count(&x.state,1)==2);
+        assert(mm_action_get_cel(&x.state,1,words) && words[0]==1 && words[1]==101);
+        assert(mm_action_get_part(&x.state,1,1,part));
+        assert(part[0]==(big?0x0f10:0x100f) && part[1]==(big?0x1112:0x1211));
+        assert(mm_action_get_matrix(&x.state,1,words) && words[0]==100 && words[11]==111);
+        assert(!mm_action_get_part(&x.state,0,2,part) && !mm_action_get_matrix(&x.state,2,words));
+        for (i=0;i<2;++i)
+        {
+            assert(mm_action_sound_tag(x.state.sounds,(MMU32)i,&tag));
+            assert(tag.sid==(i?0:(MMI32)-2147483647) && !tag.cache && tag.type==0x4d534e44UL && tag.number==123+(MMU32)i);
+        }
+        for (i=0;i<4;++i)
+        {
+            first=x.state.cels->storage.buffers[0].data;
+            put(first,i==0?0:i==1?1:i==2?0xffffffffUL:0x80000000UL,big);
+            tag.sid=77; tag.cache=&x; tag.type=99; tag.number=88;
+            mm_action_get_sound(&x.state,0,&tag,&x.services);
+            if (i<2) assert(!tag.cache && tag.type==0x4d534e44UL && tag.number==123+(MMU32)i);
+            else assert(tag.sid==77 && tag.cache==&x && !tag.type && tag.number==88);
+        }
+        assert(x.publishes==2 && x.clears==4);
+        mm_action_dispose(&x.state); empty(&x);
+        assert(x.releases==4 && x.released[0]==2 && x.released[1]==0 && x.released[2]==1 && x.released[3]==3);
+        mm_action_dispose(&x.state); assert(x.releases==4 && x.state.flags==0x8000000dUL);
     }
-    for (fail=0;fail<=15;++fail)
+    for (fail=0;fail<=21;++fail)
     {
-        s=setup(&x,0,0); x.fail=fail; ok=mm_action_initialize(&x.state,&x,0x4143544eUL,7,&s); assert(ok==(fail==0 || fail==10));
+        setup(&x,0,0,2); x.fail=fail;
+        ok=initialize(&x,&x,&x,0x4143544eUL,7);
+        assert(ok==(fail==0 || fail==15));
         if (fail>=4) assert(x.state.flags==0x8000000dUL);
-        if (fail==14 || fail==15) assert(x.state.sounds && x.tables[3].count==fail-14 && !x.tables[2].live);
-        mm_action_dispose(&x.state,&s); empty(&x);
+        if (fail>=10) assert(x.state.cels);
+        if (fail>=15) assert(x.state.matrices);
+        assert(!x.tables[2].live);
+        mm_action_dispose(&x.state); empty(&x);
     }
-    for (fail=0;fail<=17;++fail)
+    for (fail=0;fail<=23;++fail)
     {
-        s=setup(&x,0,0); x.fail=fail; x.output=NULL; x.size=-77;
-        ok=mm_action_fetch(&x,0x4143544eUL,7,x.header,&x.output,&x.size,&s); assert(ok==(fail==0 || fail==12));
-        if (ok) { assert(x.output==&x && x.size==130); release(&x,&x); }
-        else assert(x.invalidations==2 && x.size==(MMI32)-1414812757);
+        setup(&x,0,0,2); x.fail=fail; out=NULL; size=-77;
+        ok=mm_action_fetch(&x,0x4143544eUL,7,&x.header,&out,&size,&x.services);
+        assert(ok==(fail==0 || fail==17));
+        if (ok) { assert(out==&x && size==256); release(&x,&x); }
+        else assert(x.invalidations==2 && size==(MMI32)-1414812757);
         empty(&x);
     }
-    s=setup(&x,0,0); x.fail=1; assert(mm_action_fetch(&x,0x4143544eUL,7,x.header,NULL,&x.size,&s) && x.size==88 && !x.phase);
-    for (fail=0;fail<4;++fail)
+    setup(&x,0,native_big,2);
+    mm_action_table_init(&cels,NULL,NULL,NULL);
+    mm_action_table_init(&matrices,NULL,NULL,NULL);
+    input=stream(&x,&x.blocks[0]); assert(mm_action_table_read(&cels,&input,MM_ACTION_CELS)==MM_MOVIE_OK);
+    input=stream(&x,&x.blocks[1]); assert(mm_action_table_read(&matrices,&input,MM_ACTION_MATRICES)==MM_MOVIE_OK);
+    cels_source.storage=&cels.storage; cels_source.count=2; cels_source.bytes=32;
+    matrices_source.storage=&matrices.storage; matrices_source.count=2; matrices_source.bytes=0;
+    for (fail=0;fail<=6;++fail)
     {
-        s=setup(&x,0,0); x.fail=fail; assert((mm_action_create(&x.tables[0],&x.tables[1],0x8000000dUL,&s)!=NULL)==!fail);
-        if (!fail) release(&x,&x); empty(&x);
+        setup(&x,0,0,2); x.fail=fail;
+        out=mm_action_create(&cels_source,&matrices_source,0x8000000dUL,&x.services);
+        assert((out!=NULL)==!fail);
+        if (out)
+        {
+            assert(mm_action_get_matrix(&x.state,1,words) && words[0]==100);
+            release(&x,out);
+        }
+        empty(&x);
     }
-    s=setup(&x,0,0); x.short_header=1; assert(!mm_action_initialize(&x.state,&x,0x4143544eUL,7,&s) && !x.state.flags); empty(&x);
-    s=setup(&x,0,1); x.tables[0].count=x.tables[1].count=x.tables[2].count=0;
-    assert(mm_action_initialize(&x.state,&x,0x4143544eUL,7,&s) && x.state.sounds && !x.tables[3].count);
-    mm_action_dispose(&x.state,&s); empty(&x);
-    s=setup(&x,0,0); x.header[0]=3; assert(mm_action_initialize(&x.state,&x,0x4143544eUL,7,&s) && x.bad==1 && x.state.flags==0x8000000dUL); mm_action_dispose(&x.state,&s);
-    s=setup(&x,0,0); assert(mm_action_initialize(&x.state,&x,0x4143544eUL,7,&s));
-    for (i=0;i<4;++i)
-    {
-        tag.sid=77; tag.cache=&x; tag.type=99; tag.number=88; id=i==0?0:i==1?1:i==2?0xffffffffUL:0x80000000UL;
-        memcpy(x.tables[0].fixed,&id,4); mm_action_get_sound(&x.state,0,&tag,&s);
-        if (i<2) assert(tag.sid==x.tables[3].tags[i].sid && !tag.cache && tag.number==123+(MMU32)i);
-        else assert(tag.sid==77 && tag.cache==&x && !tag.type && tag.number==88);
-    }
-    assert(x.read_sounds==2 && x.clears==4); mm_action_dispose(&x.state,&s); empty(&x);
-    s=setup(&x,0,0); tag.sid=77; tag.cache=&x; tag.type=99; tag.number=88; mm_action_get_sound(&x.state,0,&tag,&s);
-    assert(tag.sid==77 && tag.cache==&x && !tag.type && tag.number==88 && !x.read_sounds);
+    mm_action_table_dispose(&cels);
+    mm_action_table_dispose(&matrices);
+
+    setup(&x,0,0,2); x.fail=1;
+    assert(mm_action_fetch(&x,0x4143544eUL,7,&x.header,NULL,&size,&x.services) && size==88 && !x.phase);
+    setup(&x,0,0,2); x.header.length=7;
+    assert(!initialize(&x,&x,&x,0x4143544eUL,7) && !x.state.flags); empty(&x);
+    setup(&x,0,0,2); --x.blocks[1].length;
+    assert(!initialize(&x,&x,&x,0x4143544eUL,7) && x.state.cels && !x.state.matrices);
+    mm_action_dispose(&x.state); empty(&x);
+    setup(&x,0,1,2); put(x.blocks[0].bytes+52,32,1);
+    assert(initialize(&x,&x,&x,0x4143544eUL,7));
+    words[0]=99;
+    assert(!mm_action_get_cel(&x.state,0,words) && words[0]==99 && mm_action_part_count(&x.state,0)==-1);
+    mm_action_dispose(&x.state); empty(&x);
+    setup(&x,0,1,0); x.header.bytes[0]=3;
+    assert(initialize(&x,&x,&x,0x4143544eUL,7) && x.bad==1 && x.state.flags==0x8000000dUL);
+    assert(x.state.sounds && !x.state.sounds->header.count);
+    mm_action_dispose(&x.state); empty(&x);
+    setup(&x,0,0,2); x.optional_absent=1;
+    assert(initialize(&x,&x,&x,0x4143544eUL,7) && !x.state.sounds);
+    tag.sid=77; tag.cache=&x; tag.type=99; tag.number=88; mm_action_get_sound(&x.state,0,&tag,&x.services);
+    assert(tag.sid==77 && tag.cache==&x && !tag.type && tag.number==88 && !x.publishes);
+    mm_action_dispose(&x.state); empty(&x);
     return 0;
 }

@@ -77,6 +77,32 @@ RTCLASS(Template)
     Create a new action
 ***************************************************************************/
 struct ActionDefinitionContext { DataBlock block; };
+
+namespace
+{
+class ActionTableAllocation : public BASE
+{
+  public:
+    MMActionTable table;
+
+    ActionTableAllocation()
+    {
+        const auto allocator = CollectionAllocator();
+        mm_action_table_init(&table, &allocator, this,
+                             [](void *owner) { static_cast<ActionTableAllocation *>(owner)->Release(); });
+    }
+
+#ifdef DEBUG
+    void MarkMem() override
+    {
+        BASE::MarkMem();
+        MarkPv(table.storage.buffers[0].data);
+        MarkPv(table.storage.buffers[1].data);
+    }
+#endif
+};
+}
+
 MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *context)
 {
     MMActionDefinitionServices s = {}; s.context = context;
@@ -85,9 +111,9 @@ MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *
     s.state = [](void *, void *object) { return &static_cast<PActionDefinition>(object)->_action; };
     s.create = [](void *) -> void * { return NewObj ActionDefinition; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.duplicate = [](void *, void *table, int kind) -> void * {
-        return kind == MM_ACTION_CELS ? static_cast<void *>(static_cast<PGeneralGroup>(table)->PggDup()) :
-            static_cast<void *>(static_cast<PDynamicArray>(table)->PglDup());
+    s.new_table = [](void *, int) -> MMActionTable * {
+        const auto allocation = NewObj ActionTableAllocation;
+        return allocation ? &allocation->table : nullptr;
     };
     s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
         auto block = &static_cast<ActionDefinitionContext *>(p)->block;
@@ -100,23 +126,8 @@ MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *
         const auto chunks = static_cast<PChunkyFile>(file)->ReadChunkAccess();
         return mm_chunk_link_number(&chunks, type, number, 0, childType, out) == MM_CHUNK_OK;
     };
-    s.read_table = [](void *, void *block, int kind, int *other) -> void * {
-        short order = kboCur; void *result;
-        if (kind == MM_ACTION_CELS) result = GeneralGroup::PggRead(static_cast<PDataBlock>(block), &order);
-        else result = DynamicArray::PglRead(static_cast<PDataBlock>(block), &order);
-        *other = order == kboOther; return result;
-    };
-    s.count = [](void *, void *table) -> MMI32 { return static_cast<GroupBase *>(table)->IvMac(); };
-    s.table_size = [](void *, void *table) -> MMI32 { return static_cast<GroupBase *>(table)->CbOnFile(); };
-    s.fixed = [](void *, void *group, MMI32 index) { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvFixedGet(index)); };
-    s.variable = [](void *, void *group, MMI32 index) { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvGet(index)); };
-    s.variable_size = [](void *, void *group, MMI32 index) -> MMI32 { return static_cast<PGeneralGroup>(group)->Cb(index); };
-    s.data = [](void *, void *list, MMI32 index) { return static_cast<unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(index)); };
-    s.validate_wire_sounds = [](void *, void *list) { Assert(static_cast<PDynamicArray>(list)->CbEntry() == sizeof(TAGOnFile), "kctgGlms entry size drift"); };
-    s.create_sounds = [](void *, MMI32 count) -> void * { return DynamicArray::PglNew(sizeof(TAG), count); };
-    s.append_sound = [](void *, void *list, const MMTag *tag) -> int { TAG native; TagFromCore(&native, *tag); return static_cast<PDynamicArray>(list)->FAdd(&native); };
-    s.read_sound = [](void *, void *list, MMI32 index, MMTag *out) {
-        TAG tag; static_cast<PDynamicArray>(list)->Get(index, &tag); *out = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
+    s.stream = [](void *, void *block) {
+        return EngineReadStream::FromBlock(*static_cast<PDataBlock>(block));
     };
     s.clear_sound_type = [](void *, void *out) { static_cast<PTAG>(out)->ctg = ctgNil; };
     s.publish_sound = [](void *, void *out, const MMTag *tag) { TagFromCore(static_cast<PTAG>(out), *tag); };
@@ -136,8 +147,13 @@ MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *
 PActionDefinition ActionDefinition::PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, LegacyUlong grfactn)
 {
     AssertPo(pggcel, 0); AssertPo(pglbmat34, 0);
+    Assert(pggcel->CbFixed() == MM_ACTION_CEL_BYTES, "bad animation cel width");
+    Assert(pglbmat34->CbEntry() == MM_ACTION_MATRIX_BYTES, "bad action matrix width");
+    const MMActionTableSource cels{&pggcel->Storage(), static_cast<MMU32>(pggcel->IvMac()),
+                                   static_cast<MMU32>(pggcel->RecordBytes())};
+    const MMActionTableSource matrices{&pglbmat34->Storage(), static_cast<MMU32>(pglbmat34->IvMac()), 0};
     ActionDefinitionContext context; auto s = _Services(&context);
-    return static_cast<PActionDefinition>(mm_action_create(pggcel, pglbmat34, grfactn, &s));
+    return static_cast<PActionDefinition>(mm_action_create(&cels, &matrices, grfactn, &s));
 }
 
 /***************************************************************************
@@ -166,8 +182,7 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
 ActionDefinition::~ActionDefinition(void)
 {
     AssertBaseThis(0);
-    ActionDefinitionContext context; auto s = _Services(&context);
-    mm_action_dispose(&_action, &s);
+    mm_action_dispose(&_action);
 }
 
 /***************************************************************************
@@ -175,26 +190,22 @@ ActionDefinition::~ActionDefinition(void)
 ***************************************************************************/
 LegacyLong ActionDefinition::Ccel(void)
 {
-    ActionDefinitionContext context; auto s = _Services(&context);
-    return mm_action_cel_count(&_action, &s);
+    return mm_action_cel_count(&_action);
 }
 
-void ActionDefinition::GetCel(LegacyLong icel, AnimationCel *pcel)
+bool ActionDefinition::FGetCel(LegacyLong icel, AnimationCel *pcel)
 {
-    AssertThis(0); AssertIn(icel, 0, Ccel()); AssertVarMem(pcel);
-    ActionDefinitionContext context; auto s = _Services(&context);
-    mm_action_get_cel(&_action, icel, pcel, &s);
+    AssertThis(0); AssertVarMem(pcel);
+    return mm_action_get_cel(&_action, icel, pcel) != 0;
 }
 
 /***************************************************************************
     Get a CelPartSpec
 ***************************************************************************/
-void ActionDefinition::GetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps)
+bool ActionDefinition::FGetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps)
 {
-    AssertThis(0); AssertIn(icel, 0, Ccel());
-    AssertIn(icps, 0, static_cast<PGeneralGroup>(_action.cels)->Cb(icel) / sizeof(CelPartSpec)); AssertVarMem(pcps);
-    ActionDefinitionContext context; auto s = _Services(&context);
-    mm_action_get_part(&_action, icel, icps, pcps, &s);
+    AssertThis(0); AssertVarMem(pcps);
+    return mm_action_get_part(&_action, icel, icps, pcps) != 0;
 }
 
 /***************************************************************************
@@ -211,11 +222,10 @@ void ActionDefinition::GetSnd(LegacyLong icel, PTAG ptag)
 /***************************************************************************
     Get a transformation matrix
 ***************************************************************************/
-void ActionDefinition::GetMatrix(LegacyLong imat34, BMAT34 *pbmat34)
+bool ActionDefinition::FGetMatrix(LegacyLong imat34, BMAT34 *pbmat34)
 {
-    AssertThis(0); AssertIn(imat34, 0, static_cast<PDynamicArray>(_action.matrices)->IvMac()); AssertVarMem(pbmat34);
-    ActionDefinitionContext context; auto s = _Services(&context);
-    mm_action_get_matrix(&_action, imat34, pbmat34, &s);
+    AssertThis(0); AssertVarMem(pbmat34);
+    return mm_action_get_matrix(&_action, imat34, pbmat34) != 0;
 }
 
 #ifdef DEBUG
@@ -225,9 +235,7 @@ void ActionDefinition::GetMatrix(LegacyLong imat34, BMAT34 *pbmat34)
 void ActionDefinition::AssertValid(LegacyUlong grf)
 {
     ActionDefinition_PAR::AssertValid(fobjAllocated);
-    AssertPo(static_cast<PGeneralGroup>(_action.cels), 0);
-    AssertPo(static_cast<PDynamicArray>(_action.matrices), 0);
-    AssertNilOrPo(static_cast<PDynamicArray>(_action.sounds), 0);
+    Assert(_action.cels && _action.matrices, "missing action tables");
 }
 
 /***************************************************************************
@@ -237,9 +245,9 @@ void ActionDefinition::MarkMem(void)
 {
     AssertThis(0);
     ActionDefinition_PAR::MarkMem();
-    MarkMemObj(static_cast<PGeneralGroup>(_action.cels));
-    MarkMemObj(static_cast<PDynamicArray>(_action.matrices));
-    MarkMemObj(static_cast<PDynamicArray>(_action.sounds));
+    for (auto table : {_action.cels, _action.matrices, _action.sounds})
+        if (table && table->owner)
+            MarkMemObj(static_cast<BASE *>(table->owner));
 }
 #endif // DEBUG
 
@@ -478,15 +486,28 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
         return FAllocPv(out, static_cast<LegacyLong>(bytes), fmemClear, mprNormal);
     };
     s.cel_count = [](void *, void *action) -> MMI32 { return static_cast<PActionDefinition>(action)->Ccel(); };
-    s.distance = [](void *, void *action, MMI32 index) -> MMI32 {
-        AnimationCel cel; static_cast<PActionDefinition>(action)->GetCel(index, &cel); return cel.dwr;
+    s.distance = [](void *, void *action, MMI32 index, MMI32 *out) -> int {
+        AnimationCel cel;
+        if (!static_cast<PActionDefinition>(action)->FGetCel(index, &cel))
+            return 0;
+        *out = cel.dwr;
+        return 1;
     };
     s.flags = [](void *, void *action) -> MMU32 { return static_cast<PActionDefinition>(action)->Grfactn(); };
-    s.part = [](void *, void *action, MMI32 cel, MMI32 part, MMI32 *model, MMI32 *matrix) {
-        CelPartSpec cps; static_cast<PActionDefinition>(action)->GetCps(cel, part, &cps); *model = cps.chidModl; *matrix = cps.imat34;
+    s.part = [](void *, void *action, MMI32 cel, MMI32 part, MMI32 *model, MMI32 *matrix) -> int {
+        CelPartSpec cps;
+        if (!static_cast<PActionDefinition>(action)->FGetCps(cel, part, &cps))
+            return 0;
+        *model = cps.chidModl;
+        *matrix = cps.imat34;
+        return 1;
     };
-    s.matrix = [](void *, void *action, MMI32 index, MMActorMatrix *out) {
-        BMAT34 matrix; static_cast<PActionDefinition>(action)->GetMatrix(index, &matrix); std::memcpy(out, &matrix, sizeof(matrix));
+    s.matrix = [](void *, void *action, MMI32 index, MMActorMatrix *out) -> int {
+        BMAT34 matrix;
+        if (!static_cast<PActionDefinition>(action)->FGetMatrix(index, &matrix))
+            return 0;
+        std::memcpy(out, &matrix, sizeof(matrix));
+        return 1;
     };
     s.set_model = [](void *, void *body, MMI32 part, void *model) { static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model)); };
     s.set_matrix = [](void *, void *body, MMI32 part, const MMActorMatrix *data) {

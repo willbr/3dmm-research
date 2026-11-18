@@ -83,7 +83,6 @@ typedef struct MovieBodyCel
     const MMMovieBodyInput *input;
     MMI32 source;
     MMChunkAccess access;
-    const unsigned char *parts;
 } MovieBodyCel;
 
 int mm_movie_cel_part(const MMMovieCelRead *read, MMU32 ordinal, MMMovieCelPart *out)
@@ -125,11 +124,16 @@ int mm_movie_cel_model(const MMChunkAccess *access, MMU32 position, MMU32 slot, 
 static void movie_cel_indices(void *context, MMU32 ordinal, MMI32 *model, MMI32 *matrix)
 {
     const MovieBodyCel *cel = (const MovieBodyCel *)context;
-    const MMMovieAction *action = cel->input->action;
+    const MMActionDefinition *action = &cel->input->action->definition;
     unsigned short indices[2];
-    mm_action_decode_part(cel->parts + ordinal * MM_ACTION_PART_BYTES, action->cel_other, indices);
+    if (!mm_action_get_part(action, cel->input->cel, (MMI32)ordinal, indices))
+    {
+        *model = -1;
+        *matrix = -1;
+        return;
+    }
     *model = indices[0] < 32768 ? (MMI32)indices[0] : (MMI32)indices[0] - 65536L;
-    *matrix = (MMU32)indices[1] < action->matrix_header.count && indices[1] < 32768 ? (MMI32)indices[1] : -1;
+    *matrix = indices[1] < 32768 && (MMU32)indices[1] < action->matrices->header.count ? (MMI32)indices[1] : -1;
 }
 
 static int movie_cel_model(void *context, MMU32 ordinal, MMU32 slot, MMMovieAsset *out)
@@ -142,13 +146,7 @@ static int movie_cel_model(void *context, MMU32 ordinal, MMU32 slot, MMMovieAsse
 static int movie_cel_matrix(void *context, MMI32 matrix, MMActorMatrix *out)
 {
     const MovieBodyCel *cel = (const MovieBodyCel *)context;
-    const MMMovieAction *action = cel->input->action;
-    const MMCollectionHeader *head = &action->matrix_header;
-    unsigned char bytes[MM_ACTION_MATRIX_BYTES];
-    if (!mm_read_exact(action->matrices.stream, head->header_bytes + (MMU32)matrix * sizeof(bytes), bytes, sizeof(bytes)))
-        return MM_MOVIE_IO;
-    mm_action_decode_matrix(bytes, action->matrix_other, out);
-    return MM_MOVIE_OK;
+    return mm_action_get_matrix(&cel->input->action->definition, matrix, out) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
 }
 
 int mm_session_body_cel(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
@@ -156,17 +154,14 @@ int mm_session_body_cel(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     MovieBodyCel cel;
     MMMovieCelRead read;
     MMMovieCelPart binding;
-    const unsigned char *row;
     MMU32 i;
-    MMI32 variable;
+    MMI32 parts = mm_action_part_count(&in->action->definition, in->cel);
     int status;
-    row = mm_session_group_row(&in->action->cels, (MMU32)in->cel, &variable);
-    if (!row || body->part_count > (MMU32)variable / MM_ACTION_PART_BYTES)
+    if (parts < 0 || body->part_count > (MMU32)parts)
         return MM_MOVIE_BAD_FILE;
     cel.input = in;
     cel.source = body->model_owner.source;
     cel.access = in->tmpl->archive.access;
-    cel.parts = row + MM_ACTION_CEL_BYTES;
     status = mm_session_action_matrices(in->action);
     if (status != MM_MOVIE_OK)
         return status;

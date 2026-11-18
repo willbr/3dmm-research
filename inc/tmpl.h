@@ -126,9 +126,9 @@ class ActionDefinition : public ActionDefinition_PAR
     }
 
     LegacyLong Ccel(void);
-    void GetCel(LegacyLong icel, AnimationCel *pcel);
-    void GetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps);
-    void GetMatrix(LegacyLong imat34, BMAT34 *pbmat34);
+    bool FGetCel(LegacyLong icel, AnimationCel *pcel);
+    bool FGetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps);
+    bool FGetMatrix(LegacyLong imat34, BMAT34 *pbmat34);
     void GetSnd(LegacyLong icel, PTAG ptagSnd);
 };
 

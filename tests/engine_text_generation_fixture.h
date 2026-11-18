@@ -34,11 +34,13 @@ class TextGenerationFixtureAccess : public ThreeDText
             else
             {
                 AnimationCel cel; auto action=kind==2?static_cast<PActionDefinition>(resource):nullptr;
-                if (action) action->GetCel(i,&cel); else static_cast<PGeneralGroup>(resource)->GetFixed(i,&cel);
+                if (action) { if (!action->FGetCel(i,&cel)) return false; }
+                else static_cast<PGeneralGroup>(resource)->GetFixed(i,&cel);
                 if (!record(&cel,sizeof(cel))) return false;
-                for (int j=0;j<chars;++j) { CelPartSpec part; if (action) action->GetCps(i,j,&part); else part=static_cast<CelPartSpec *>(static_cast<PGeneralGroup>(resource)->QvGet(i))[j];
+                for (int j=0;j<chars;++j) { CelPartSpec part; if (action) { if (!action->FGetCps(i,j,&part)) return false; }
+                    else part=static_cast<CelPartSpec *>(static_cast<PGeneralGroup>(resource)->QvGet(i))[j];
                     if (!record(&part,sizeof(part))) return false;
-                    if (action) { BMAT34 m; action->GetMatrix(part.imat34,&m); if (!record(&m,sizeof(m))) return false; } }
+                    if (action) { BMAT34 m; if (!action->FGetMatrix(part.imat34,&m) || !record(&m,sizeof(m))) return false; } }
             }
         }
         return true;
