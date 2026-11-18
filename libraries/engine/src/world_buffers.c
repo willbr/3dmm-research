@@ -92,16 +92,24 @@ int mm_world_buffers_init(MMWorldBuffers *w, MMI32 width, MMI32 height, MMI32 sc
     if (!build(w, hx, hy, s))
         return 0;
     s->setup_scene(s->context);
-    if (!create_slot(w, MM_WORLD_DIRTY_WORKING, w->buffer_width, w->buffer_height, s) ||
-        !create_slot(w, MM_WORLD_DIRTY_SCREEN, 0, 0, s))
-        return 0;
+    mm_world_buffers_dirty(w, 0);
     return 1;
+}
+void mm_world_buffers_dirty(MMWorldBuffers *w, int screen)
+{
+    MMPixelRect viewport;
+    viewport.left = viewport.top = 0;
+    viewport.right = w->buffer_width;
+    viewport.bottom = w->buffer_height;
+    mm_region_set_rect(&w->dirty_working, &viewport);
+    if (screen)
+        mm_region_set_rect(&w->dirty_screen, &viewport);
 }
 void mm_world_buffers_dispose(MMWorldBuffers *w, const MMWorldBufferServices *s)
 {
     release_buffers(w, s);
-    release_slot(w, MM_WORLD_DIRTY_WORKING, s);
-    release_slot(w, MM_WORLD_DIRTY_SCREEN, s);
+    mm_region_set_rect(&w->dirty_working, NULL);
+    mm_region_set_rect(&w->dirty_screen, NULL);
     release_slot(w, MM_WORLD_CACHE, s);
     w->rgb.pixels = w->z.pixels = NULL;
     s->publish(s->context, w);
@@ -206,7 +214,8 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
         w->owners[MM_WORLD_DEPTH_BACKGROUND] = depth;
         s->publish(s->context, w);
     }
-    s->dirty(s->context, 1, 0, 1);
+    mm_world_buffers_dirty(w, 0);
+    s->changed(s->context);
     s->retain(s->context, cache);
     release_slot(w, MM_WORLD_CACHE, s);
     w->owners[MM_WORLD_CACHE] = cache;
@@ -228,6 +237,8 @@ int mm_world_buffers_mode(MMWorldBuffers *w, int hx, int hy, MMI32 scale,
     hy = hy != 0;
     if (hx == w->half_x && hy == w->half_y && scale == w->scale)
         return 1;
+    /* The snapshot borrows the region bands. A failing mode change has not
+     * changed them, and releasing the old buffers never releases regions. */
     old = *w;
     for (i = 0; i <= MM_WORLD_RGB_STRETCH; ++i)
         w->owners[i] = NULL;
@@ -243,7 +254,8 @@ int mm_world_buffers_mode(MMWorldBuffers *w, int hx, int hy, MMI32 scale,
         return 0;
     }
     release_buffers(&old, s);
-    s->dirty(s->context, 1, 1, 1);
+    mm_world_buffers_dirty(w, 1);
+    s->changed(s->context);
     s->publish(s->context, w);
     return 1;
 }

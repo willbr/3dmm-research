@@ -36,6 +36,8 @@ void mm_region_scan_init(MMRegionScan *, const MMPixelRect *bounds, MMI32 offset
 void mm_region_scan_advance(MMRegionScan *, MMI32 rows);
 MMI32 mm_region_scan_fetch(MMRegionScan *);
 MMI32 mm_region_scan_edge_count(const MMRegionScan *);
+/* Read the next pair of edges relative to the current clip. */
+int mm_region_scan_pair(MMRegionScan *, MMI32 *left, MMI32 *right);
 
 typedef enum MMRegionOperation
 {

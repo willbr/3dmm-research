@@ -66,10 +66,12 @@ struct Access : World
             LegacyLong values[] = {b.type, b.row_bytes, b.width, b.height, b.origin_x, b.origin_y, b.pixels != nullptr};
             Record(values, sizeof(values));
         }
-        for (auto field : {&Access::_pregnDirtyWorking, &Access::_pregnDirtyScreen})
+        const auto &buffers = w->*&Access::_buffers;
+        for (auto region : {&buffers.dirty_working, &buffers.dirty_screen})
         {
-            RC r;
-            Value((w->*field)->FEmpty(&r));
+            const auto &bounds = region->bounds;
+            RC r(bounds.left, bounds.top, bounds.right, bounds.bottom);
+            Value(mm_region_empty(region) != 0);
             Record(&r, sizeof(r));
         }
         if (pixels)

@@ -11,8 +11,8 @@
     resolution by half.  Both modes can be used together to render 1/4 as
     many pixels.  _rcBuffer is the area being rendered into; _rcView is
     the area to copy _rcBuffer into (with stretching, if necessary).
-    _pregnDirtyWorking and _pregnDirtyScreen are in _rcBuffer's coordinate
-    system.  However, in MarkRenderedRegn, _pregnDirtyScreen is briefly
+    dirty_working and dirty_screen are in _rcBuffer's coordinate
+    system.  However, in MarkRenderedRegn, dirty_screen is briefly
     enlarged to _rcView's coordinate system, since the gob will be drawn at
     full view resolution.
 
@@ -104,7 +104,7 @@ static MMWorldMaterialServices WorldMaterialServices()
 struct WorldRenderContext
 {
     PWorld world;
-    RegionScanner scanner;
+    MMStorageAllocator region_allocator = Group::CollectionAllocator();
     PGraphicsEnvironment destination = nullptr;
     PGraphicsObject gob = nullptr;
     PFilename filename = nullptr;
@@ -173,31 +173,8 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         *flat = World::FlatShading();
         *noTexture = World::NoTexture();
     };
-    s.region_bounds = [](void *p, int kind, MMI32 out[4]) -> int {
-        RC r;
-        auto region = static_cast<PRegion>(RenderWorld(p)->_buffers.owners[kind]);
-        if (region->FEmpty(&r))
-            return 0;
-        RenderRectOut(r, out);
-        return 1;
-    };
-    s.region_clear = [](void *p, int kind) {
-        static_cast<PRegion>(RenderWorld(p)->_buffers.owners[kind])->SetRc(nullptr);
-    };
-    s.region_union = [](void *p, int dst, int src) {
-        auto &b = RenderWorld(p)->_buffers;
-        static_cast<PRegion>(b.owners[dst])->FUnion(static_cast<PRegion>(b.owners[src]));
-    };
-    s.region_add = [](void *p, int kind, const MMI32 rect[4]) {
-        auto r = RenderRect(rect);
-        static_cast<PRegion>(RenderWorld(p)->_buffers.owners[kind])->FUnionRc(&r);
-    };
-    s.depth_clean = [](void *p, const MMI32 rect[4]) {
-        auto w = RenderWorld(p);
-        auto r = RenderRect(rect);
-        w->_pzbmpBackground->Draw(static_cast<byte *>(w->_bpmpZ.pixels), w->_bpmpZ.row_bytes, w->_bpmpZ.height, 0, 0,
-                                  &r, w->_pregnDirtyWorking);
-    };
+    s.region_allocator = &static_cast<WorldRenderContext *>(context)->region_allocator;
+    s.depth_background = &_pzbmpBackground->_depth;
     s.lock = [](void *p, int kind, MMWorldPixels *out) -> int {
         auto port = static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind]);
         RC r;
@@ -207,22 +184,6 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         return out->pixels != nullptr;
     };
     s.unlock = [](void *p, int kind) { static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind])->Unlock(); };
-    s.scan_init = [](void *p, const MMI32 rect[4]) {
-        auto c = static_cast<WorldRenderContext *>(p);
-        auto r = RenderRect(rect);
-        c->scanner.Init(c->world->_pregnDirtyWorking, &r);
-    };
-    s.scan_span = [](void *p, MMI32 *left, MMI32 *right) -> int {
-        auto &scan = static_cast<WorldRenderContext *>(p)->scanner;
-        if (scan.XpCur() >= klwMax)
-            return 0;
-        *left = scan.XpCur();
-        *right = scan.XpFetch();
-        scan.XpFetch();
-        return 1;
-    };
-    s.scan_next = [](void *p) { static_cast<WorldRenderContext *>(p)->scanner.ScanNext(1); };
-    s.scan_end = [](void *p) { static_cast<WorldRenderContext *>(p)->scanner.Free(); };
     s.render = [](void *p, const MMRenderFrame *frame) {
         auto world = RenderWorld(p);
         const auto &camera = frame->scene->camera;
@@ -251,13 +212,9 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         auto w = RenderWorld(p);
         w->FSetBackground(w->_pcrf, w->_ctgRGB, w->_cnoRGB, w->_ctgZ, w->_cnoZ);
     };
-    s.screen_scale = [](void *p, MMI32 nx, MMI32 dx, MMI32 ny, MMI32 dy) {
-        RenderWorld(p)->_pregnDirtyScreen->Scale(nx, dx, ny, dy);
-    };
-    s.screen_offset = [](void *p, MMI32 x, MMI32 y) { RenderWorld(p)->_pregnDirtyScreen->Offset(x, y); };
-    s.screen_mark = [](void *p) {
+    s.screen_mark = [](void *p, const MMRegion *region) {
         auto c = static_cast<WorldRenderContext *>(p);
-        vpappb->MarkRegn(c->world->_pregnDirtyScreen, c->gob);
+        vpappb->MarkRegion(region, c->gob);
     };
     s.draw = [](void *p, const MMI32 source[4], const MMI32 destination[4]) {
         auto c = static_cast<WorldRenderContext *>(p);
@@ -284,8 +241,6 @@ MMWorldBufferServices World::_BufferServices()
         RC r(0, 0, width, height);
         if (kind == MM_WORLD_DEPTH_BACKGROUND || kind == MM_WORLD_DEPTH_WORKING)
             return ZBMP::PzbmpNew(width, height);
-        if (kind == MM_WORLD_DIRTY_WORKING || kind == MM_WORLD_DIRTY_SCREEN)
-            return Region::PregnNew(kind == MM_WORLD_DIRTY_SCREEN ? nullptr : &r);
         return GraphicsPort::PgptNewOffscreen(&r, kcbitPixelRGB);
     };
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
@@ -308,8 +263,6 @@ MMWorldBufferServices World::_BufferServices()
         w->_pgptBackground = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_BACKGROUND]);
         w->_pgptWorking = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_WORKING]);
         w->_pgptStretch = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_STRETCH]);
-        w->_pregnDirtyWorking = static_cast<PRegion>(b->owners[MM_WORLD_DIRTY_WORKING]);
-        w->_pregnDirtyScreen = static_cast<PRegion>(b->owners[MM_WORLD_DIRTY_SCREEN]);
         w->_pcrf = static_cast<PChunkyResourceFile>(b->owners[MM_WORLD_CACHE]);
         w->_ctgRGB = b->rgb_type;
         w->_cnoRGB = b->rgb_number;
@@ -340,15 +293,7 @@ MMWorldBufferServices World::_BufferServices()
         w->_bcam.aspect = BR_SCALAR(double(w->_rcView.Dxp()) / double(w->_rcView.Dyp()));
         BrActorAdd(&w->_bactWorld, &w->_bactCamera);
     };
-    s.dirty = [](void *p, int working, int screen, int changed) {
-        auto w = static_cast<PWorld>(p);
-        if (working)
-            w->_pregnDirtyWorking->SetRc(&w->_rcBuffer);
-        if (screen)
-            w->_pregnDirtyScreen->SetRc(&w->_rcBuffer);
-        if (changed)
-            w->MarkDirty();
-    };
+    s.changed = [](void *p) { static_cast<PWorld>(p)->MarkDirty(); };
     s.fetch = [](void *, void *p, int kind, MMU32 type, MMU32 number) -> void * {
         return static_cast<PChunkyResourceFile>(p)->PbacoFetch(
             type, number, kind == MM_WORLD_DEPTH_BACKGROUND ? ZBMP::FReadZbmp : MaskedBitmapMBMP::FReadMbmp);
@@ -514,7 +459,7 @@ MMWorldCameraServices World::_CameraServices()
     };
     s.dirty = [](void *p) {
         auto w = static_cast<PWorld>(p);
-        w->_pregnDirtyWorking->SetRc(&w->_rcBuffer);
+        mm_world_buffers_dirty(&w->_buffers, 0);
     };
     s.pick = [](void *p, MMI32 x, MMI32 y) {
         auto w = static_cast<PWorld>(p);
@@ -597,7 +542,7 @@ void World::Unprerender(void)
 }
 
 /***************************************************************************
-    Copy _pregnDirtyWorking from background Z and RGB buffers to working
+    Copy dirty_working from background Z and RGB buffers to working
     Z and RGB buffers.
 ***************************************************************************/
 void World::_CleanWorkingBuffers(void)
@@ -648,7 +593,7 @@ void World::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
 /***************************************************************************
     Draw the World's working RGB buffer into pgnv.  The movie engine should
     have called World::MarkRenderedRegn before calling this, so only
-    _pregnDirtyScreen's bits will be copied.
+    dirty_screen's bits will be copied.
 ***************************************************************************/
 void World::Draw(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp)
 {
@@ -747,8 +692,6 @@ void World::AssertValid(LegacyUlong grf)
     AssertPo(_pgptBackground, 0);
     AssertPo(_pzbmpWorking, 0);
     AssertPo(_pzbmpBackground, 0);
-    AssertPo(_pregnDirtyWorking, 0);
-    AssertPo(_pregnDirtyScreen, 0);
     AssertNilOrPo(_pcrf, 0);
     if (_renderScale == 1 && !_fHalfX && _fHalfY)
         AssertPo(_pgptStretch, 0);
@@ -767,8 +710,11 @@ void World::MarkMem(void)
     MarkMemObj(_pgptBackground);
     MarkMemObj(_pzbmpWorking);
     MarkMemObj(_pzbmpBackground);
-    MarkMemObj(_pregnDirtyWorking);
-    MarkMemObj(_pregnDirtyScreen);
+    for (auto region : {&_buffers.dirty_working, &_buffers.dirty_screen})
+    {
+        MarkPv(region->bands);
+        MarkPv(const_cast<void *>(mm_region_band_data(region->bands)));
+    }
     MarkMemObj(_pcrf);
     MarkMemObj(_pgptStretch);
 }

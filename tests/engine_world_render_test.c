@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define WORK MM_WORLD_DIRTY_WORKING
-#define SCREEN MM_WORLD_DIRTY_SCREEN
 #define BG MM_WORLD_RGB_BACKGROUND
 #define RGB MM_WORLD_RGB_WORKING
 typedef struct Actor
@@ -20,10 +18,12 @@ typedef struct Fixture
     MMWorldMaterial m[4], original[4];
     Actor a[7];
     MMBodyPartBinding bindings[2][2];
-    unsigned char background[64], working[64];
-    int events[512], n, live, allocations, fail_alloc, fail_lock, invalid_pixels, bad_span;
-    int empty, spans, scanner_live, wire, flat, no_texture, begin_options, rect_enabled, rect_disable, rect_overflow;
-    int change_in_render, scan_y, scan[4], draw_source[4], draw_destination[4], scale[4], offset[2];
+    unsigned char background[64], working[64], z_background[48], z_working[48];
+    MMDepthBitmap depth_source;
+    MMPixelRect marked;
+    int events[512], n, live, allocations, fail_alloc, fail_lock, invalid_pixels;
+    int wire, flat, no_texture, begin_options, rect_enabled, rect_disable, rect_overflow;
+    int change_in_render, draw_source[4], draw_destination[4];
     int body_refs, prepared;
     size_t reported;
 } Fixture;
@@ -146,40 +146,10 @@ static void options(void *p, int *wire, int *flat, int *no_texture)
     *flat = f->flat;
     *no_texture = f->no_texture;
 }
-static int bounds(void *p, int region, MMI32 out[4])
-{
-    Fixture *f = (Fixture *)p;
-    assert(region == WORK);
-    out[0] = -3;
-    out[1] = 1;
-    out[2] = 6;
-    out[3] = 9;
-    return !f->empty;
-}
-static void clear(void *p, int region)
-{
-    event((Fixture *)p, region == WORK ? 31 : 93);
-}
-static void region_union(void *p, int destination, int source)
-{
-    assert(destination == SCREEN && source == WORK);
-    assert(!((Fixture *)p)->scanner_live);
-    event((Fixture *)p, 30);
-}
-static void add(void *p, int region, const MMI32 r[4])
-{
-    Fixture *f = (Fixture *)p;
-    assert(region == WORK && r[0] == -f->b.scale && r[2] == 3 * f->b.scale);
-    event(f, 32);
-}
-static void depth(void *p, const MMI32 r[4])
-{
-    assert(r[0] == 0 && r[1] == 1 && r[2] == 6 && r[3] == 4);
-    event((Fixture *)p, 10);
-}
 static int lock(void *p, int kind, MMWorldPixels *out)
 {
     Fixture *f = (Fixture *)p;
+    assert(f->z_working[14] == f->z_background[14]);
     event(f, kind == BG ? 20 : 21);
     if (f->fail_lock == kind)
         return 0;
@@ -191,36 +161,6 @@ static int lock(void *p, int kind, MMWorldPixels *out)
 static void unlock(void *p, int kind)
 {
     event((Fixture *)p, kind == BG ? 23 : 22);
-}
-static void scan_init(void *p, const MMI32 r[4])
-{
-    Fixture *f = (Fixture *)p;
-    assert(!f->scanner_live++);
-    memcpy(f->scan, r, sizeof(f->scan));
-    f->scan_y = r[1];
-    f->spans = 0;
-    event(f, 11);
-}
-static int scan_span(void *p, MMI32 *left, MMI32 *right)
-{
-    Fixture *f = (Fixture *)p;
-    if (f->spans++)
-        return 0;
-    *left = f->bad_span ? -1 : 1;
-    *right = 3;
-    return 1;
-}
-static void scan_next(void *p)
-{
-    Fixture *f = (Fixture *)p;
-    ++f->scan_y;
-    f->spans = 0;
-}
-static void scan_end(void *p)
-{
-    Fixture *f = (Fixture *)p;
-    assert(f->scanner_live-- == 1);
-    event(f, 24);
 }
 static int body(void *p, void *actor, MMRenderBody *out)
 {
@@ -294,25 +234,11 @@ static void restore(void *p)
 {
     event((Fixture *)p, 84);
 }
-static void scale(void *p, MMI32 nx, MMI32 dx, MMI32 ny, MMI32 dy)
+static void mark(void *p, const MMRegion *region)
 {
     Fixture *f = (Fixture *)p;
-    f->scale[0] = nx;
-    f->scale[1] = dx;
-    f->scale[2] = ny;
-    f->scale[3] = dy;
-    event(f, 90);
-}
-static void offset(void *p, MMI32 x, MMI32 y)
-{
-    Fixture *f = (Fixture *)p;
-    f->offset[0] = x;
-    f->offset[1] = y;
-    event(f, 91);
-}
-static void mark(void *p)
-{
-    event((Fixture *)p, 92);
+    f->marked = region->bounds;
+    event(f, 92);
 }
 static void draw(void *p, const MMI32 src[4], const MMI32 dst[4])
 {
@@ -326,12 +252,24 @@ static void init(Fixture *f)
     MMWorldRenderServices *s;
     MMWorldMaterialServices *m;
     int i;
+    const MMPixelRect dirty = {-3, 1, 6, 9};
     memset(f, 0, sizeof(*f));
     f->b.width = 12;
     f->b.height = 8;
     f->b.buffer_width = 6;
     f->b.buffer_height = 4;
     f->b.scale = 1;
+    mm_region_set_rect(&f->b.dirty_working, &dirty);
+    f->depth_source.bounds.right = 6;
+    f->depth_source.bounds.bottom = 4;
+    f->depth_source.row_bytes = 12;
+    f->depth_source.bytes = 48;
+    f->depth_source.pixels = f->z_background;
+    f->b.z.height = 4;
+    f->b.z.row = 12;
+    f->b.z.pixels = f->z_working;
+    memset(f->z_background, 0x52, sizeof(f->z_background));
+    memset(f->z_working, 0xcc, sizeof(f->z_working));
     f->rect_enabled = 1;
     f->reported = 4;
     f->fail_lock = -1;
@@ -383,17 +321,9 @@ static void init(Fixture *f)
     s->begin = begin;
     s->rect = rect;
     s->options = options;
-    s->region_bounds = bounds;
-    s->region_clear = clear;
-    s->region_union = region_union;
-    s->region_add = add;
-    s->depth_clean = depth;
+    s->depth_background = &f->depth_source;
     s->lock = lock;
     s->unlock = unlock;
-    s->scan_init = scan_init;
-    s->scan_span = scan_span;
-    s->scan_next = scan_next;
-    s->scan_end = scan_end;
     s->render = render;
     s->publish = publish;
     s->snapshot_depth = snapshot_depth;
@@ -401,8 +331,6 @@ static void init(Fixture *f)
     s->snapshot_rgb = snapshot_rgb;
     s->flush = flush;
     s->restore_background = restore;
-    s->screen_scale = scale;
-    s->screen_offset = offset;
     s->screen_mark = mark;
     s->draw = draw;
     m = &s->materials;
@@ -460,42 +388,51 @@ static void materials_tests(void)
         assert(equal_material(&f.m[i], &f.original[i]));
     assert(!f.live && f.n == 3 && f.events[1] == 200 && f.events[2] == 200);
 }
+static void dispose_regions(Fixture *f)
+{
+    mm_region_set_rect(&f->b.dirty_working, NULL);
+    mm_region_set_rect(&f->b.dirty_screen, NULL);
+}
 static void clean_tests(void)
 {
     Fixture f;
+    const MMPixelRect left_gap = {-3, 1, 1, 4}, right_gap = {3, 1, 6, 4};
     int x, y, scenario;
     init(&f);
+    assert(mm_region_apply_rect(&f.b.dirty_working, MM_REGION_DIFFERENCE, &left_gap, NULL, 0, NULL));
+    assert(mm_region_apply_rect(&f.b.dirty_working, MM_REGION_DIFFERENCE, &right_gap, NULL, 0, NULL));
     assert(mm_world_render_clean(&f.b, &f.s));
     for (y = 0; y < 7; ++y)
         for (x = 0; x < 9 && y * 9 + x < 64; ++x)
             assert(f.working[y * 9 + x] == (y >= 1 && y < 4 && x >= 1 && x < 3 ? f.background[y * 8 + x] : 0xcc));
-    assert(f.scan_y == 4 && !f.scanner_live && f.events[0] == 10 && f.events[f.n - 3] == 22 &&
-           f.events[f.n - 2] == 23 && f.events[f.n - 1] == 24);
-    for (scenario = 0; scenario < 5; ++scenario)
+    for (y = 0; y < 4; ++y)
+        for (x = 0; x < 12; ++x)
+            assert(f.z_working[y * 12 + x] == (y >= 1 && x >= 2 && x < 6 ? 0x52 : 0xcc));
+    assert(f.n == 4 && f.events[0] == 20 && f.events[1] == 21 && f.events[2] == 22 && f.events[3] == 23);
+    dispose_regions(&f);
+    for (scenario = 0; scenario < 4; ++scenario)
     {
         init(&f);
         if (scenario == 0)
-            f.empty = 1;
+            mm_region_set_rect(&f.b.dirty_working, NULL);
         if (scenario == 1)
             f.fail_lock = BG;
         if (scenario == 2)
             f.fail_lock = RGB;
         if (scenario == 3)
             f.invalid_pixels = 1;
-        if (scenario == 4)
-            f.bad_span = 1;
         assert(mm_world_render_clean(&f.b, &f.s) == (scenario == 0));
         if (scenario == 0)
             assert(!f.n);
         if (scenario == 1)
-            assert(position(&f, 21) < 0 && position(&f, 23) < 0);
+            assert(f.n == 1 && f.events[0] == 20);
         if (scenario == 2)
-            assert(position(&f, 22) < 0 && f.events[f.n - 2] == 23 && f.events[f.n - 1] == 24);
-        if (scenario >= 3)
-            assert(f.events[f.n - 3] == 22 && f.events[f.n - 2] == 23 && f.events[f.n - 1] == 24);
-        assert(!f.scanner_live);
+            assert(f.n == 3 && f.events[2] == 23);
+        if (scenario == 3)
+            assert(f.n == 4 && f.events[2] == 22 && f.events[3] == 23);
         for (x = 0; x < 64; ++x)
             assert(f.working[x] == 0xcc);
+        dispose_regions(&f);
     }
 }
 static void render_tests(void)
@@ -516,16 +453,19 @@ static void render_tests(void)
         assert(!f.r.changed && !f.live);
         assert(f.a[0].style == 99 && f.a[5].style == bound_style && f.a[6].style == 7 && f.a[3].style == 7);
         assert(f.events[0] == 101 && f.events[1] == 102);
-        assert(position(&f, 31) > position(&f, 30) && position(&f, 44) > position(&f, 31));
+        assert(position(&f, 22) > position(&f, 20) && position(&f, 50) > position(&f, 23));
         assert(position(&f, 200) < position(&f, 50) && position(&f, 151) > position(&f, 50));
         i = position(&f, 50);
         assert(f.events[i + 1] == 200 && f.events[i + 2] == 201 && f.events[i + 3] == 202);
-        assert(f.events[f.n - 2] == 30 && f.events[f.n - 1] == 60);
+        assert(f.events[f.n - 1] == 60);
+        assert(f.b.dirty_working.bounds.left == -1 && f.b.dirty_working.bounds.right == 3);
+        assert(f.b.dirty_screen.bounds.left == -3 && f.b.dirty_screen.bounds.bottom == 9);
         for (i = 0; i < 4; ++i)
             assert(equal_material(&f.m[i], &f.original[i]));
         f.n = 0;
         assert(mm_world_render(&f.r, &f.b, &f.s));
         assert(!f.n);
+        dispose_regions(&f);
     }
     init(&f);
     f.b.scale = 4;
@@ -533,6 +473,8 @@ static void render_tests(void)
     mm_world_render_dirty(&f.r);
     assert(mm_world_render(&f.r, &f.b, &f.s));
     assert(position(&f, 151) >= 0 && position(&f, 152) < 0);
+    assert(f.b.dirty_working.bounds.left == -4 && f.b.dirty_working.bounds.right == 12);
+    dispose_regions(&f);
     init(&f);
     f.fail_alloc = f.flat = 1;
     mm_world_render_dirty(&f.r);
@@ -543,12 +485,14 @@ static void render_tests(void)
     assert(mm_world_prerender(&f.r, &f.b, &f.s));
     assert(!f.r.changed);
     assert(f.events[f.n - 4] == 80 && f.events[f.n - 3] == 81 && f.events[f.n - 2] == 82 && f.events[f.n - 1] == 83);
+    dispose_regions(&f);
     init(&f);
     f.b.scale = 4;
     f.rect_overflow = 1;
     mm_world_render_dirty(&f.r);
     assert(!mm_world_render(&f.r, &f.b, &f.s));
     assert(f.r.changed && !f.live && position(&f, 60) < 0);
+    dispose_regions(&f);
     for (i = 0; i < 2; ++i)
     {
         init(&f);
@@ -561,24 +505,26 @@ static void render_tests(void)
         mm_world_render_dirty(&f.r);
         assert(mm_world_render(&f.r, &f.b, &f.s) == !i);
         assert(!f.body_refs && f.prepared == 2 && f.r.changed == i);
+        dispose_regions(&f);
     }
 }
 static void output_tests(void)
 {
     Fixture f;
-    int mode;
+    int mode, w, h;
+    const MMPixelRect screen = {0, 0, 8, 8};
     for (mode = 0; mode < 6; ++mode)
     {
         init(&f);
         f.b.half_x = mode & 1;
         f.b.half_y = mode & 2;
         f.b.scale = mode < 4 ? 1 : mode == 4 ? 2 : 4;
+        mm_region_set_rect(&f.b.dirty_screen, &screen);
         mm_world_render_mark(&f.b, -3, 4, &f.s);
-        assert(f.n == 4 && f.events[0] == 90 && f.events[1] == 91 && f.events[2] == 92 && f.events[3] == 93);
-        assert(f.scale[0] == (mode < 4 && f.b.half_x ? 2 : 1));
-        assert(f.scale[1] == f.b.scale && f.scale[3] == f.b.scale);
-        assert(f.scale[2] == (mode < 4 && f.b.half_y ? 2 : 1));
-        assert(f.offset[0] == -3 && f.offset[1] == 4);
+        w = (mode < 4 && f.b.half_x ? 16 : 8) / f.b.scale;
+        h = (mode < 4 && f.b.half_y ? 16 : 8) / f.b.scale;
+        assert(f.n == 1 && f.events[0] == 92 && mm_region_empty(&f.b.dirty_screen));
+        assert(f.marked.left == -3 && f.marked.top == 4 && f.marked.right == w - 3 && f.marked.bottom == h + 4);
         assert(mm_world_render_draw(&f.b, 2, -1, &f.s));
         assert(f.draw_source[2] == 6 && f.draw_source[3] == 4 && f.draw_destination[0] == -2 &&
                f.draw_destination[1] == 1 && f.draw_destination[2] == 10 && f.draw_destination[3] == 9);

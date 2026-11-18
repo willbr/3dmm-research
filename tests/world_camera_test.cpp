@@ -53,14 +53,16 @@ struct Access : World
     static void Dirty(PWorld w)
     {
         Value(w->*&Access::_fWorldChanged);
-        RC r;
-        Value((w->*&Access::_pregnDirtyWorking)->FEmpty(&r));
+        const auto &region = (w->*&Access::_buffers).dirty_working;
+        const auto &bounds = region.bounds;
+        RC r(bounds.left, bounds.top, bounds.right, bounds.bottom);
+        Value(mm_region_empty(&region) != 0);
         Record(&r, sizeof(r));
     }
     static void Clear(PWorld w)
     {
         w->*&Access::_fWorldChanged = false;
-        (w->*&Access::_pregnDirtyWorking)->SetRc(nullptr);
+        mm_region_set_rect(&(w->*&Access::_buffers).dirty_working, nullptr);
     }
     static void Origin(PWorld w, int x, int y)
     {

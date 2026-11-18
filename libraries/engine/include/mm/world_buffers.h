@@ -1,7 +1,7 @@
 /* World buffer ownership/control converted from bren/bwld.cpp. */
 #ifndef MM_ENGINE_WORLD_BUFFERS_H
 #define MM_ENGINE_WORLD_BUFFERS_H
-#include "types.h"
+#include "region.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -13,8 +13,6 @@ extern "C"
         MM_WORLD_RGB_BACKGROUND,
         MM_WORLD_RGB_WORKING,
         MM_WORLD_RGB_STRETCH,
-        MM_WORLD_DIRTY_WORKING,
-        MM_WORLD_DIRTY_SCREEN,
         MM_WORLD_CACHE,
         MM_WORLD_OWNERS
     };
@@ -34,6 +32,7 @@ extern "C"
         MMI32 width, height, buffer_width, buffer_height, scale;
         int half_x, half_y;
         void *owners[MM_WORLD_OWNERS];
+        MMRegion dirty_working, dirty_screen;
         MMWorldPixelView rgb, z;
         MMU32 rgb_type, rgb_number, z_type, z_number;
     } MMWorldBuffers;
@@ -48,7 +47,7 @@ extern "C"
         void (*depth_span)(void *, void *, MMWorldDepthSpan *);
         void (*publish)(void *, const MMWorldBuffers *);
         void (*setup_scene)(void *);
-        void (*dirty)(void *, int working, int screen, int changed);
+        void (*changed)(void *);
         void *(*fetch)(void *, void *cache, int kind, MMU32 type, MMU32 number);
         void (*priority)(void *, void *);
         void (*draw_bitmap)(void *, void *port, void *bitmap);
@@ -64,6 +63,8 @@ extern "C"
     int mm_world_buffers_init(MMWorldBuffers *, MMI32 width, MMI32 height, MMI32 scale,
                                     int half_x, int half_y, const MMWorldBufferServices *);
     void mm_world_buffers_dispose(MMWorldBuffers *, const MMWorldBufferServices *);
+    /* Mark the full working buffer dirty and optionally the screen copy. */
+    void mm_world_buffers_dirty(MMWorldBuffers *, int screen);
     /* Shared live/export nearest-neighbor copying of opaque two-byte samples.
      * Scale is 1..16; half-axis sampling applies only at scale 1. Failure may
      * retain completed prefix copies, but never reads/writes outside spans. */

@@ -64,6 +64,9 @@ class Region : public Region_PAR
     bool FDiffRc(RC *prc, PRegion pregn = pvNil);
     bool FDiffFromRc(RC *prc, PRegion pregn = pvNil);
 
+    const MMRegion *Geometry() const { return &_region; }
+    bool FUnionGeometry(const MMRegion *);
+
     // Host-only operations, implemented by the native GUI adapter.
     CoreNative::RegionHandle HrgnCreate(void);
     CoreNative::RegionHandle HrgnEnsure(void);

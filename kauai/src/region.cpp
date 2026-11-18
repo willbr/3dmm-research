@@ -146,6 +146,13 @@ bool Region::FDiffFromRc(RC *rect, PRegion subtract)
     return _FApplyRc(MM_REGION_DIFFERENCE, rect, subtract, true);
 }
 
+bool Region::FUnionGeometry(const MMRegion *other)
+{
+    AssertThis(0);
+    const auto allocator = Group::CollectionAllocator();
+    return _FResult(mm_region_apply(&_region, MM_REGION_UNION, other, nullptr, &allocator));
+}
+
 bool Region::_FApply(MMRegionOperation operation, PRegion first, PRegion second)
 {
     AssertThis(0);

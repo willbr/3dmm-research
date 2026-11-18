@@ -12,7 +12,7 @@ typedef struct Fixture
 {
     MMWorldBufferServices s;
     MMWorldBuffers *world;
-    int phase, fail, objects, locks, setups, working, screen, changed, priorities, publishes, short_depth;
+    int phase, fail, objects, locks, setups, changed, priorities, publishes, short_depth;
 } Fixture;
 static int fail(Fixture *f)
 {
@@ -92,16 +92,14 @@ static void scene(void *p)
 {
     Fixture *f = (Fixture *)p;
     assert(f->world->rgb.pixels && f->world->z.pixels && f->locks == 1);
-    assert(!f->world->owners[5] && !f->world->owners[6]);
+    assert(mm_region_empty(&f->world->dirty_working) && mm_region_empty(&f->world->dirty_screen));
     ++f->setups;
 }
-static void dirty(void *p, int working, int screen, int changed)
+static void changed(void *p)
 {
     Fixture *f = (Fixture *)p;
-    assert(f->world->owners[5] && f->world->owners[6]);
-    f->working += working;
-    f->screen += screen;
-    f->changed += changed;
+    assert(f->world->dirty_working.bounds.right == f->world->buffer_width);
+    ++f->changed;
 }
 static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
 {
@@ -162,7 +160,7 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.depth_span = span;
     f->s.publish = publish;
     f->s.setup_scene = scene;
-    f->s.dirty = dirty;
+    f->s.changed = changed;
     f->s.fetch = fetch;
     f->s.priority = priority;
     f->s.draw_bitmap = bitmap;
@@ -186,6 +184,7 @@ static void initialization(void)
                     setup(&f, &w);
                     f.fail = n;
                     ok = mm_world_buffers_init(&w, 4, 4, scale, hx, hy, &f.s);
+                    assert(ok == (n == 0 || n > 4 + (scale == 1 && !hx && hy)));
                     if (ok)
                     {
                         assert(w.buffer_width == 4 * scale / (scale == 1 && hx ? 2 : 1));
@@ -220,6 +219,7 @@ static void modes(void)
     Fixture f;
     MMWorldBuffers w, old;
     Object *cache;
+    const MMPixelRect viewport = {0, 0, 4, 4}, hole = {1, 1, 3, 3};
     int target, n, ok, count, changed;
     unsigned i;
     for (target = 0; target < 5; ++target)
@@ -227,9 +227,14 @@ static void modes(void)
         {
             setup(&f, &w);
             assert(mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
-            cache = object(&f, 7, 0, 0);
+            cache = object(&f, MM_WORLD_CACHE, 0, 0);
             assert(mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
             check_depth(&w);
+            mm_region_set_rect(&w.dirty_screen, &viewport);
+            assert(mm_region_apply_rect(&w.dirty_working, MM_REGION_DIFFERENCE, &hole, NULL, 0, NULL) ==
+                   MM_REGION_UPDATED);
+            assert(mm_region_apply_rect(&w.dirty_screen, MM_REGION_DIFFERENCE, &hole, NULL, 0, NULL) ==
+                   MM_REGION_UPDATED);
             old = w;
             count = f.objects;
             changed = f.changed;
@@ -246,11 +251,13 @@ static void modes(void)
                 assert(w.rgb.pixels == old.rgb.pixels && w.z.pixels == old.z.pixels && w.scale == old.scale &&
                        w.half_x == old.half_x && w.half_y == old.half_y && w.buffer_width == old.buffer_width &&
                        w.buffer_height == old.buffer_height && f.objects == count && f.changed == changed);
+                assert(w.dirty_working.bands == old.dirty_working.bands && w.dirty_screen.bands == old.dirty_screen.bands);
             }
             else
             {
                 check_depth(&w);
-                assert(f.changed == changed + 2 && f.screen == 1);
+                assert(f.changed == changed + 2 && w.dirty_screen.bounds.right == w.buffer_width);
+                assert(!w.dirty_working.bands && !w.dirty_screen.bands);
             }
             assert(cache->refs == 2 && f.locks == 1);
             mm_world_buffers_dispose(&w, &f.s);
@@ -282,11 +289,11 @@ static void partial_background(void)
     int count;
     setup(&f, &w);
     assert(mm_world_buffers_init(&w, 4, 4, 2, 0, 0, &f.s));
-    cache = object(&f, 7, 0, 0);
+    cache = object(&f, MM_WORLD_CACHE, 0, 0);
     count = f.objects;
     f.fail = f.phase + 4;
     assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
-    assert(!w.owners[7] && cache->refs == 1 && f.objects == count && !f.changed);
+    assert(!w.owners[MM_WORLD_CACHE] && cache->refs == 1 && f.objects == count && !f.changed);
     bg = (Object *)w.owners[2];
     assert(bg->pixels[0] == 0x31 && bg->pixels[bg->bytes - 1] == 0x31);
     mm_world_buffers_dispose(&w, &f.s);
@@ -294,10 +301,10 @@ static void partial_background(void)
     balanced(&f);
     setup(&f, &w);
     assert(mm_world_buffers_init(&w, 4, 4, 1, 1, 1, &f.s));
-    cache = object(&f, 7, 0, 0);
+    cache = object(&f, MM_WORLD_CACHE, 0, 0);
     count = f.objects;
     f.fail = f.phase + 3;
-    assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s) && f.objects == count && !w.owners[7] &&
+    assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s) && f.objects == count && !w.owners[MM_WORLD_CACHE] &&
            !f.changed);
     mm_world_buffers_dispose(&w, &f.s);
     release(&f, cache);

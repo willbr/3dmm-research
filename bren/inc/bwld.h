@@ -62,8 +62,6 @@ class World : public World_PAR
     PZBMP _pzbmpBackground;      // Background Z-buffer
     PZBMP _pzbmpWorking;         // Working Z-buffer to render into
     BPMP _bpmpZ;                 // BRender wrapper around _pzbmpWorking
-    PRegion _pregnDirtyWorking;    // Rgn to copy from bkgd to working buffer
-    PRegion _pregnDirtyScreen;     // Rgn to copy from working buffer to screen
     bool _fHalfX;                // Render at half horizontal resolution
     bool _fHalfY;                // Render at half vertical resolution
     long _renderScale = 1;

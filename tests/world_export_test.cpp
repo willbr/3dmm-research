@@ -90,10 +90,12 @@ struct Access : World
         Value(begins);
         Value(rects);
         Value(rendered);
-        for (auto f : {&Access::_pregnDirtyWorking, &Access::_pregnDirtyScreen})
+        const auto &buffers = w->*&Access::_buffers;
+        for (auto region : {&buffers.dirty_working, &buffers.dirty_screen})
         {
-            RC r;
-            Value((w->*f)->FEmpty(&r));
+            const auto &bounds = region->bounds;
+            RC r(bounds.left, bounds.top, bounds.right, bounds.bottom);
+            Value(mm_region_empty(region) != 0);
             Record(&r, sizeof(r));
         }
         auto rgb = w->*&Access::_pgptWorking;

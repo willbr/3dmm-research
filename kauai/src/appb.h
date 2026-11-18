@@ -175,7 +175,7 @@ class ApplicationBase : public ApplicationBase_PAR
     // fast updating
     virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGraphicsPort pgpt = pvNil);
     virtual void _CopyPixels(PGraphicsEnvironment pgvnSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst);
-    void _MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
+    void _MarkRegnRc(const MMRegion *region, RC *prc, PGraphicsObject pgobCoo);
     void _UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
 
     // to borrow the common offscreen GraphicsPort
@@ -277,6 +277,7 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual void UpdateHwnd(CoreNative::WindowHandle hwnd, RC *prc, ulong grfapp = fappNil);
     virtual void MarkRc(RC *prc, PGraphicsObject pgobCoo);
     virtual void MarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
+    void MarkRegion(const MMRegion *, PGraphicsObject pgobCoo);
     virtual void UnmarkRc(RC *prc, PGraphicsObject pgobCoo);
     virtual void UnmarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
     virtual bool FGetMarkedRc(CoreNative::WindowHandle hwnd, RC *prc);

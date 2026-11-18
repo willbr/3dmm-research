@@ -3,8 +3,6 @@
 #include <string.h>
 #define MAXIMUM 2147483647
 #define MINIMUM (-2147483647 - 1)
-#define WORK MM_WORLD_DIRTY_WORKING
-#define SCREEN MM_WORLD_DIRTY_SCREEN
 typedef struct MaterialContext
 {
     MMWorldMaterials *scope;
@@ -107,60 +105,52 @@ static int valid_pixels(const MMWorldPixels *p, const MMWorldBuffers *b)
 }
 int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldRenderServices *s)
 {
-    MMI32 rect[4], y, left, right;
+    MMPixelRect rect = b->dirty_working.bounds;
+    MMPixelRect viewport;
+    MMRegionCursor cursor = {0};
+    MMI32 y, left, right;
     MMWorldPixels source, destination;
-    int ok = 1;
-    if (!s->region_bounds(s->context, WORK, rect))
+    int ok = 0;
+    viewport.left = viewport.top = 0;
+    viewport.right = b->buffer_width;
+    viewport.bottom = b->buffer_height;
+    mm_pixel_rect_intersect(&rect, &viewport);
+    if (rect.left >= rect.right || rect.top >= rect.bottom)
         return 1;
-    if (rect[0] < 0)
-        rect[0] = 0;
-    if (rect[1] < 0)
-        rect[1] = 0;
-    if (rect[2] > b->buffer_width)
-        rect[2] = b->buffer_width;
-    if (rect[3] > b->buffer_height)
-        rect[3] = b->buffer_height;
-    if (rect[0] >= rect[2] || rect[1] >= rect[3])
-        return 1;
-    s->depth_clean(s->context, rect);
-    s->scan_init(s->context, rect);
+    mm_depth_draw(s->depth_background, b->z.pixels, b->z.row, b->z.height, 0, 0, &rect, &b->dirty_working, 0);
+    mm_region_cursor_open(&cursor, &b->dirty_working, &rect);
     if (!s->lock(s->context, MM_WORLD_RGB_BACKGROUND, &source))
-    {
-        s->scan_end(s->context);
-        return 0;
-    }
+        goto done;
     if (!s->lock(s->context, MM_WORLD_RGB_WORKING, &destination))
+        goto unlock_source;
+    ok = valid_pixels(&source, b) && valid_pixels(&destination, b);
+    for (y = rect.top; ok && y < rect.bottom; ++y)
     {
-        s->unlock(s->context, MM_WORLD_RGB_BACKGROUND);
-        s->scan_end(s->context);
-        return 0;
-    }
-    if (!valid_pixels(&source, b) || !valid_pixels(&destination, b))
-        ok = 0;
-    for (y = rect[1]; ok && y < rect[3]; ++y)
-    {
-        while (s->scan_span(s->context, &left, &right))
+        while (mm_region_scan_pair(&cursor.scan, &left, &right))
         {
-            if (left < 0 || right < left || right > rect[2] - rect[0])
+            if (left < 0 || right < left || right > rect.right - rect.left)
             {
                 ok = 0;
                 break;
             }
-            memcpy(destination.pixels + (size_t)y * destination.row + rect[0] + left,
-                   source.pixels + (size_t)y * source.row + rect[0] + left, (size_t)(right - left));
+            memcpy(destination.pixels + (size_t)y * destination.row + rect.left + left,
+                   source.pixels + (size_t)y * source.row + rect.left + left, (size_t)(right - left));
         }
         if (ok)
-            s->scan_next(s->context);
+            mm_region_scan_advance(&cursor.scan, 1);
     }
     s->unlock(s->context, MM_WORLD_RGB_WORKING);
+unlock_source:
     s->unlock(s->context, MM_WORLD_RGB_BACKGROUND);
-    s->scan_end(s->context);
+done:
+    mm_region_cursor_close(&cursor);
     return ok;
 }
-int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRenderServices *s)
+int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s)
 {
     void *actor;
     MMI32 rect[4];
+    MMPixelRect damage;
     const MMRenderBody *bodies;
     MMRenderBody body;
     MMRenderFrame frame;
@@ -191,8 +181,8 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
             s->prepare_body(s->context, &bodies[index]);
     if (!mm_world_render_clean(b, s))
         goto done;
-    s->region_union(s->context, SCREEN, WORK);
-    s->region_clear(s->context, WORK);
+    mm_region_apply(&b->dirty_screen, MM_REGION_UNION, &b->dirty_working, NULL, s->region_allocator);
+    mm_region_set_rect(&b->dirty_working, NULL);
     s->options(s->context, &wire, &flat, &no_texture);
     mm_world_render_styles(frame.world, wire ? s->edges : s->faces, s);
     if (!mm_world_materials_begin(&materials, flat, no_texture, &s->materials))
@@ -210,9 +200,13 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
                         goto done;
                     rect[i] *= b->scale;
                 }
-            s->region_add(s->context, WORK, rect);
+            damage.left = rect[0];
+            damage.top = rect[1];
+            damage.right = rect[2];
+            damage.bottom = rect[3];
+            mm_region_apply_rect(&b->dirty_working, MM_REGION_UNION, &damage, NULL, 0, s->region_allocator);
         }
-    s->region_union(s->context, SCREEN, WORK);
+    mm_region_apply(&b->dirty_screen, MM_REGION_UNION, &b->dirty_working, NULL, s->region_allocator);
     r->changed = 0;
     s->publish(s->context, r);
     ok = 1;
@@ -220,7 +214,7 @@ done:
     mm_movie_render_scene_dispose(&scene);
     return ok;
 }
-int mm_world_prerender(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRenderServices *s)
+int mm_world_prerender(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s)
 {
     if (!mm_world_render(r, b, s))
         return 0;
@@ -234,16 +228,16 @@ void mm_world_unprerender(const MMWorldRenderServices *s)
 {
     s->restore_background(s->context);
 }
-void mm_world_render_mark(const MMWorldBuffers *b, MMI32 x, MMI32 y,
-                                const MMWorldRenderServices *s)
+void mm_world_render_mark(MMWorldBuffers *b, MMI32 x, MMI32 y, const MMWorldRenderServices *s)
 {
+    MMRegion *screen = &b->dirty_screen;
     if (b->scale > 1)
-        s->screen_scale(s->context, 1, b->scale, 1, b->scale);
+        mm_region_scale(screen, 1, b->scale, 1, b->scale);
     else
-        s->screen_scale(s->context, b->half_x ? 2 : 1, 1, b->half_y ? 2 : 1, 1);
-    s->screen_offset(s->context, x, y);
-    s->screen_mark(s->context);
-    s->region_clear(s->context, SCREEN);
+        mm_region_scale(screen, b->half_x ? 2 : 1, 1, b->half_y ? 2 : 1, 1);
+    mm_region_offset(screen, x, y);
+    s->screen_mark(s->context, screen);
+    mm_region_set_rect(screen, NULL);
 }
 int mm_world_render_draw(const MMWorldBuffers *b, MMI32 x, MMI32 y,
                                const MMWorldRenderServices *s)

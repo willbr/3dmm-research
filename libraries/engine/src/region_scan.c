@@ -120,6 +120,16 @@ MMI32 mm_region_scan_edge_count(const MMRegionScan *scan)
     return scan->first == MM_REGION_END ? 0 : (MMI32)(scan->end_edge - scan->first_edge + 1);
 }
 
+int mm_region_scan_pair(MMRegionScan *scan, MMI32 *left, MMI32 *right)
+{
+    if (scan->x == MM_REGION_END)
+        return 0;
+    *left = scan->x;
+    *right = mm_region_scan_fetch(scan);
+    mm_region_scan_fetch(scan);
+    return 1;
+}
+
 int mm_region_combine(MMRegionOperation operation, MMRegionScan *left, MMRegionScan *right,
                       MMI32 rows, const MMRegionBandSink *sink)
 {

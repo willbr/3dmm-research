@@ -1010,7 +1010,12 @@ void ApplicationBase::MarkRegn(PRegion pregn, PGraphicsObject pgobCoo)
     AssertNilOrPo(pregn, 0);
     AssertPo(pgobCoo, 0);
 
-    _MarkRegnRc(pregn, pvNil, pgobCoo);
+    MarkRegion(pregn ? pregn->Geometry() : nullptr, pgobCoo);
+}
+
+void ApplicationBase::MarkRegion(const MMRegion *region, PGraphicsObject pgobCoo)
+{
+    _MarkRegnRc(region, nullptr, pgobCoo);
 }
 
 /***************************************************************************
@@ -1018,14 +1023,14 @@ void ApplicationBase::MarkRegn(PRegion pregn, PGraphicsObject pgobCoo)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void ApplicationBase::_MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo)
+void ApplicationBase::_MarkRegnRc(const MMRegion *region, RC *prc, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
-    AssertNilOrPo(pregn, 0);
     AssertNilOrVarMem(prc);
     AssertPo(pgobCoo, 0);
 
     MKRGN mkrgn;
+    MMRegion translated;
     long imkrgn;
     RC rc;
     PT pt;
@@ -1037,28 +1042,31 @@ void ApplicationBase::_MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCo
 
     if (pvNil == prc)
     {
-        if (pvNil == pregn)
+        if (!region)
         {
             // use the full rectangle for the GraphicsObject
             if (rc.FEmpty())
                 return;
             prc = &rc;
         }
-        else if (pregn->FEmpty())
+        else if (mm_region_empty(region))
             return;
     }
     else
     {
         // offset *prc to hwnd coordinates
         rc.OffsetCopy(prc, pt.xp, pt.yp);
-        if (rc.FEmpty() && (pvNil == pregn || pregn->FEmpty()))
+        if (rc.FEmpty() && (!region || mm_region_empty(region)))
             return;
         prc = &rc;
     }
 
-    // offset the region to hwnd coordinates
-    if (pvNil != pregn)
-        pregn->Offset(pt.xp, pt.yp);
+    // Translate a borrowed view to window coordinates for this union.
+    if (region)
+    {
+        translated = *region;
+        mm_region_offset(&translated, pt.xp, pt.yp);
+    }
     hwnd = pgobCoo->HwndContainer();
 
     if (pvNil == _pglmkrgn)
@@ -1076,16 +1084,16 @@ void ApplicationBase::_MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCo
                 // already something marked dirty, union in the new stuff
                 if (pvNil != prc && !mkrgn.pregn->FUnionRc(prc))
                     goto LFail;
-                if (pvNil != pregn && !mkrgn.pregn->FUnion(pregn))
+                if (region && !mkrgn.pregn->FUnionGeometry(&translated))
                     goto LFail;
-                goto LDone;
+                return;
             }
         }
     }
 
     // create a new entry
     mkrgn.hwnd = hwnd;
-    if (pvNil == (mkrgn.pregn = Region::PregnNew(prc)) || pvNil != pregn && !mkrgn.pregn->FUnion(pregn) ||
+    if (pvNil == (mkrgn.pregn = Region::PregnNew(prc)) || region && !mkrgn.pregn->FUnionGeometry(&translated) ||
         !_pglmkrgn->FPush(&mkrgn))
     {
         ReleasePpo(&mkrgn.pregn);
@@ -1093,11 +1101,6 @@ void ApplicationBase::_MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCo
         Warn("marking failed");
         pgobCoo->InvalRc(pvNil, kginSysInval);
     }
-
-LDone:
-    // put the region back the way it was
-    if (pvNil != pregn)
-        pregn->Offset(-pt.xp, -pt.yp);
 }
 
 /***************************************************************************

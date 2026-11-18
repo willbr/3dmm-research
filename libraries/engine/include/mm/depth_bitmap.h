@@ -1,15 +1,12 @@
 /* Depth bitmap policy converted from bren/zbmp.cpp. */
 #ifndef MM_ENGINE_DEPTH_BITMAP_H
 #define MM_ENGINE_DEPTH_BITMAP_H
-#include "types.h"
+#include "region.h"
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-    typedef struct MMDepthRect
-    {
-        MMI32 left, top, right, bottom;
-    } MMDepthRect;
+    typedef MMPixelRect MMDepthRect;
     typedef struct MMDepthBitmap
     {
         MMDepthRect bounds;
@@ -34,10 +31,6 @@ extern "C"
         int (*write)(void *, void *, const void *, MMI32 bytes, MMI32 offset);
         void *(*add)(void *, void *file, MMU32 type, MMI32 bytes, MMU32 *number);
         void (*publish_fetch)(void *, int valid, void *object, MMI32 bytes);
-        int (*region_bounds)(void *, void *region, MMDepthRect *);
-        void (*scan_init)(void *, void *region, const MMDepthRect *clip, const MMDepthRect *bounds);
-        int (*scan_pair)(void *, MMI32 *left, MMI32 *right);
-        void (*scan_next)(void *, MMI32 rows);
     } MMDepthServices;
     /* Fresh host objects provide zeroed state. C owns pixel storage. New fills with
      * 0xff unless initial is supplied (a contiguous copy, ignoring renderer stride).
@@ -54,10 +47,9 @@ extern "C"
      * samples every other clip row, starting at its actual (possibly odd) top.
      * Source/destination addressing uses absolute coordinates, without subtracting
      * bounds or reference offsets. Invalid spans fail before that span is copied;
-     * preceding valid spans remain copied. Callbacks must not reenter or mutate state. */
+     * preceding valid spans remain copied. */
     int mm_depth_draw(const MMDepthBitmap *, void *pixels, MMI32 row_bytes, MMI32 height,
-                            MMI32 x, MMI32 y, const MMDepthRect *clip, void *region, int half,
-                            const MMDepthServices *);
+                            MMI32 x, MMI32 y, const MMDepthRect *clip, const MMRegion *, int half);
 #ifdef __cplusplus
 }
 #endif

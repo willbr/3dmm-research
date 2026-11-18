@@ -703,7 +703,8 @@ palette admission, writing and failure cleanup now also use C89. The native
 bitmap facade supplies file/allocation and palette-object services.
 Depth-buffer construction, pixel ownership, native-order wire I/O, cache
 factory control, clipping and full/half-resolution drawing now use C89 as well.
-Native ZBMP objects retain typed allocation/block and region-scanner services.
+Native ZBMP objects retain typed allocation and block services. Depth drawing
+clips and scans C89 regions directly.
 Masked-bitmap construction/cropping, RLE encoding, wire validation/normalization,
 hit testing, cache factories, BMP import control and pixel lifetime now also use
 C89. C-owned contiguous buffers replace persistent HQ owners. Native drawing
@@ -715,8 +716,9 @@ scene setup remain host primitives. Camera matrix/clip/FOV state, nearest-pick
 selection, pick-coordinate conversion, actor-root owner traversal and rendered
 bounds conversion now also use C89. The render-changed latch, begin/render/bounds
 sequencing, model-style traversal, temporary material overrides, clipped dirty
-RGB/depth cleanup, prerendering and screen/draw control now also use C89. Native
-adapters provide SDK, graphics-port, region/scanner and application primitives.
+RGB/depth cleanup, prerendering and screen/draw control now also use C89.
+The world buffer record directly owns its working and screen damage regions.
+Native adapters provide SDK, graphics-port and window invalidation primitives.
 Current/scaled bitmap export sizing, background fill, resource/lock/material/
 callback cleanup and palette ownership now also use C89. Both live and export
 depth copying use the shared C nearest-neighbor resampler. SDK/native object

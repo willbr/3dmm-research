@@ -17,17 +17,12 @@ namespace
 struct DepthContext
 {
     DataBlock block;
-    RegionScanner scanner;
     PBaseCacheableObject *object = nullptr;
     LegacyLong *bytes = nullptr;
 };
 MMDepthRect Rect(const RC &r)
 {
     return {r.xpLeft, r.ypTop, r.xpRight, r.ypBottom};
-}
-RC Rect(const MMDepthRect &r)
-{
-    return RC(r.left, r.top, r.right, r.bottom);
 }
 } // namespace
 MMDepthServices ZBMP::_Services(void *context)
@@ -74,33 +69,6 @@ MMDepthServices ZBMP::_Services(void *context)
             TrashVar(c->bytes);
         }
     };
-    s.region_bounds = [](void *, void *p, MMDepthRect *out) -> int {
-        RC r;
-        bool empty = static_cast<PRegion>(p)->FEmpty(&r);
-        *out = Rect(r);
-        return !empty;
-    };
-    s.scan_init = [](void *p, void *region, const MMDepthRect *clip, const MMDepthRect *bounds) {
-        auto &scanner = static_cast<DepthContext *>(p)->scanner;
-        RC b = Rect(*bounds);
-        if (region)
-            scanner.Init(static_cast<PRegion>(region), &b);
-        else
-        {
-            RC r = Rect(*clip);
-            scanner.InitRc(&r, &b);
-        }
-    };
-    s.scan_pair = [](void *p, MMI32 *left, MMI32 *right) -> int {
-        auto &scanner = static_cast<DepthContext *>(p)->scanner;
-        if (scanner.XpCur() == klwMax)
-            return 0;
-        *left = scanner.XpCur();
-        *right = scanner.XpFetch();
-        scanner.XpFetch();
-        return 1;
-    };
-    s.scan_next = [](void *p, MMI32 rows) { static_cast<DepthContext *>(p)->scanner.ScanNext(rows); };
     return s;
 }
 PZBMP ZBMP::PzbmpNew(LegacyLong w, LegacyLong h)
@@ -153,12 +121,10 @@ void ZBMP::Draw(byte *pixels, LegacyLong row, LegacyLong height, LegacyLong x, L
     AssertPvCb(pixels, LwMul(row, height));
     AssertNilOrVarMem(clip);
     AssertNilOrVarMem(region);
-    DepthContext context;
-    auto s = _Services(&context);
     MMDepthRect c;
     if (clip)
         c = Rect(*clip);
-    mm_depth_draw(&_depth, pixels, row, height, x, y, clip ? &c : nullptr, region, 0, &s);
+    mm_depth_draw(&_depth, pixels, row, height, x, y, clip ? &c : nullptr, region ? region->Geometry() : nullptr, 0);
 }
 void ZBMP::DrawHalf(byte *pixels, LegacyLong row, LegacyLong height, LegacyLong x, LegacyLong y, RC *clip,
                     PRegion region)
@@ -167,12 +133,10 @@ void ZBMP::DrawHalf(byte *pixels, LegacyLong row, LegacyLong height, LegacyLong 
     AssertPvCb(pixels, LwMul(row, height / 2));
     AssertNilOrVarMem(clip);
     AssertNilOrVarMem(region);
-    DepthContext context;
-    auto s = _Services(&context);
     MMDepthRect c;
     if (clip)
         c = Rect(*clip);
-    mm_depth_draw(&_depth, pixels, row, height, x, y, clip ? &c : nullptr, region, 1, &s);
+    mm_depth_draw(&_depth, pixels, row, height, x, y, clip ? &c : nullptr, region ? region->Geometry() : nullptr, 1);
 }
 bool ZBMP::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
 {

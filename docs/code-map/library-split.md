@@ -5009,9 +5009,9 @@ evidence is in `docs/tools/playback-regression.md`.
 `depth_bitmap.c` owns persistent depth bounds, row/byte counts and pixel storage,
 construction/contiguous renderer imports, cache estimate/load control, 12-byte
 headers, exact-size payload reads, chunk writing, clipping and full/half drawing.
-The native `ZBMP` facade supplies object/allocation/block services and the
-existing region scanner; bounds intersection, row traversal and span addressing
-execute in C. Pixel bytes remain mutable through `Prgb()` without a second owner.
+The native `ZBMP` facade supplies object, allocation and block services.
+Bounds intersection, region scanning and span addressing execute in C. Pixel
+bytes remain mutable through `Prgb()` without a second owner.
 
 Reading deliberately ignores the stored byte-order/system markers and decodes
 signed shorts in host order, matching the original reader. Pixel payloads remain
@@ -5024,8 +5024,8 @@ Drawing without a clip or region does nothing. Reference offsets move the
 clipping bounds but do not change absolute source/destination addressing. Half
 mode doubles only the bottom bound and scans every other row from the actual
 clipped top, including odd tops. These native behaviors are preserved. Invalid
-arithmetic or spans now stop before the offending copy; earlier valid spans
-remain copied. Region ownership/scan primitives remain native dependencies.
+arithmetic or spans stop before the offending copy. Earlier valid spans remain
+copied.
 
 `depth-bitmap-test` freezes 65,880 bytes over 256 load attempts, 288 constructor
 attempts and 216 drawing combinations. Two original traces and the converted
@@ -5167,6 +5167,16 @@ native region handles. The expanded comparison matched 24,347,696 bytes of
 bounds and scan output across 15,300 mixed Boolean and scaled cases. Evidence
 is in `tmp/c89-region-owner`.
 
+World buffers now store both dirty regions directly in C. Initialization
+uses inline rectangles. Failed mode changes preserve existing scan bands, and
+successful changes mark the new buffer extent. Depth drawing and world RGB
+cleanup scan the C regions directly, preserving half-depth row parity and
+depth cleanup before RGB locks. The world scales and offsets screen damage
+before passing a borrowed region to Kauai for window invalidation. Kauai
+translates that view into window coordinates for the dirty-region union.
+The native depth, buffer, camera, render and export snapshots matched
+13,898,362 bytes. Evidence is in `tmp/c89-world-regions`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit
@@ -5255,13 +5265,11 @@ Full validation and capture limits are in `docs/tools/playback-regression.md`.
 ### World rendering, material scopes and dirty-region copies
 
 `world_render.c` owns the persistent changed latch, render sequencing, model-style
-traversal, temporary material snapshots/overrides/restoration, clipped dirty RGB
-copy loops and depth-clean dispatch, prerender snapshots, background restoration
-dispatch and screen/draw control. Native World fields borrow the C latch; typed
-services supply actor fields, SDK rasterization, material-registry access,
-graphics-port locks/blits, region/scanner primitives and application marking.
-SDK/object/region representations remain native dependencies. Bitmap export
-policy is described next.
+traversal, temporary material snapshots and restoration, clipped dirty RGB and
+depth copies, prerender snapshots, background restoration dispatch and screen
+damage transforms. Native World fields borrow the C latch. Typed services
+supply actor fields, SDK rasterization, material-registry access, graphics-port
+locks and blits, and application marking.
 
 Immediate NONE roots receive begin callbacks before cleaning. Working dirt is
 unioned into screen dirt before clearing; after render and material restoration,

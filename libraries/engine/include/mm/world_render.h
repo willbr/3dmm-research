@@ -3,6 +3,7 @@
 #define MM_ENGINE_WORLD_RENDER_H
 #include "world_buffers.h"
 #include "render_frame.h"
+#include "depth_bitmap.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C"
@@ -70,23 +71,15 @@ extern "C"
         void (*begin)(void *, void *);
         void (*rect)(void *, void *, MMI32 rect[4]);
         void (*options)(void *, int *wire, int *flat, int *no_texture);
-        int (*region_bounds)(void *, int region, MMI32 rect[4]);
-        void (*region_clear)(void *, int), (*region_union)(void *, int destination, int source);
-        void (*region_add)(void *, int, const MMI32 rect[4]);
-        void (*depth_clean)(void *, const MMI32 rect[4]);
+        const MMStorageAllocator *region_allocator;
+        const MMDepthBitmap *depth_background;
         /* A successful lock must be paired with unlock, including scan failure. */
         int (*lock)(void *, int buffer, MMWorldPixels *);
         void (*unlock)(void *, int);
-        void (*scan_init)(void *, const MMI32 rect[4]);
-        /* Spans are relative to the clipped scan rectangle. End releases any
-         * borrowed region storage before the controller mutates regions. */
-        int (*scan_span)(void *, MMI32 *left, MMI32 *right);
-        void (*scan_next)(void *), (*scan_end)(void *);
         void (*render)(void *, const MMRenderFrame *), (*publish)(void *, const MMWorldRender *);
         void (*snapshot_depth)(void *), (*detach_depth)(void *), (*snapshot_rgb)(void *), (*flush)(void *);
         void (*restore_background)(void *);
-        void (*screen_scale)(void *, MMI32 nx, MMI32 dx, MMI32 ny, MMI32 dy);
-        void (*screen_offset)(void *, MMI32 x, MMI32 y), (*screen_mark)(void *);
+        void (*screen_mark)(void *, const MMRegion *);
         void (*draw)(void *, const MMI32 source[4], const MMI32 destination[4]);
         MMWorldMaterialServices materials;
     } MMWorldRenderServices;
@@ -97,10 +90,10 @@ extern "C"
     void mm_world_render_dirty(MMWorldRender *);
     void mm_world_render_styles(void *root, int style, const MMWorldRenderServices *);
     int mm_world_render_clean(const MMWorldBuffers *, const MMWorldRenderServices *);
-    int mm_world_render(MMWorldRender *, const MMWorldBuffers *, const MMWorldRenderServices *);
-    int mm_world_prerender(MMWorldRender *, const MMWorldBuffers *, const MMWorldRenderServices *);
+    int mm_world_render(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *);
+    int mm_world_prerender(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *);
     void mm_world_unprerender(const MMWorldRenderServices *);
-    void mm_world_render_mark(const MMWorldBuffers *, MMI32 x, MMI32 y,
+    void mm_world_render_mark(MMWorldBuffers *, MMI32 x, MMI32 y,
                                     const MMWorldRenderServices *);
     int mm_world_render_draw(const MMWorldBuffers *, MMI32 x, MMI32 y,
                                    const MMWorldRenderServices *);

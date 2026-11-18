@@ -8,11 +8,9 @@ typedef struct Fixture
     MMDepthServices s;
     unsigned char input[128], output[128];
     MMI32 size, packed, output_size;
-    int phase, fail, objects, memory, warnings, published, valid, unpacks, reads, writes, adds, scans, pair, rows,
-        region_empty, scan_mode;
+    int phase, fail, objects, memory, warnings, published, valid, unpacks, reads, writes, adds;
     void *result;
     MMI32 estimate;
-    MMDepthRect bounds, region;
 } Fixture;
 static int fail(Fixture *f)
 {
@@ -124,41 +122,6 @@ static void publish(void *p, int valid, void *o, MMI32 n)
     f->result = o;
     f->estimate = n;
 }
-static int region_bounds(void *p, void *r, MMDepthRect *out)
-{
-    Fixture *f = (Fixture *)p;
-    (void)r;
-    *out = f->region;
-    return !f->region_empty;
-}
-static void scan_init(void *p, void *region, const MMDepthRect *clip, const MMDepthRect *bounds)
-{
-    Fixture *f = (Fixture *)p;
-    (void)region;
-    (void)clip;
-    f->bounds = *bounds;
-    f->pair = 0;
-    ++f->scans;
-}
-static int scan_pair(void *p, MMI32 *left, MMI32 *right)
-{
-    Fixture *f = (Fixture *)p;
-    if (f->pair++)
-        return 0;
-    *left = 0;
-    *right = f->bounds.right - f->bounds.left;
-    if (f->scan_mode == 1)
-        *left = -1;
-    if (f->scan_mode == 2)
-        ++*right;
-    return 1;
-}
-static void scan_next(void *p, MMI32 rows)
-{
-    Fixture *f = (Fixture *)p;
-    f->rows += rows;
-    f->pair = 0;
-}
 static void put(unsigned char *p, MMU32 n, int big)
 {
     p[big ? 1 : 0] = (unsigned char)n;
@@ -184,10 +147,6 @@ static void setup(Fixture *f, int big)
     f->s.write = write;
     f->s.add = add;
     f->s.publish_fetch = publish;
-    f->s.region_bounds = region_bounds;
-    f->s.scan_init = scan_init;
-    f->s.scan_pair = scan_pair;
-    f->s.scan_next = scan_next;
     f->size = 24;
     f->packed = 9;
     put(f->input, 0x1234, big);
@@ -355,11 +314,12 @@ static void writing(void)
 }
 static void drawing(void)
 {
-    Fixture f;
     MMDepthBitmap m;
     unsigned char source[64], dest[100];
-    MMDepthRect clip;
-    int i, half, n;
+    MMDepthRect clip = {1, 1, 4, 7};
+    const MMDepthRect shape = {1, 2, 4, 5}, hole = {2, 2, 3, 5};
+    MMRegion region = {0};
+    int i, half;
     memset(&m, 0, sizeof(m));
     m.bounds.right = 4;
     m.bounds.bottom = 8;
@@ -370,58 +330,44 @@ static void drawing(void)
         source[i] = (unsigned char)i;
     for (half = 0; half < 2; ++half)
     {
-        setup(&f, 0);
         memset(dest, 0xcc, 100);
-        clip.left = 1;
-        clip.top = 1;
-        clip.right = 4;
-        clip.bottom = 7;
-        assert(mm_depth_draw(&m, dest + 4, 10, 8, 1, 1, &clip, NULL, half, &f.s));
+        assert(mm_depth_draw(&m, dest + 4, 10, 8, 1, 1, &clip, NULL, half));
         for (i = 0; i < 80 / (half ? 2 : 1); ++i)
         {
             int y = i / 10, x = i % 10;
             int copied = y >= (half ? 0 : 1) && y < (half ? 3 : 7) && x >= 2 && x < 8;
             assert(dest[4 + i] == (copied ? source[y * 8 + x] : 0xcc));
         }
-        assert(f.rows == 6);
         for (i = 0; i < 4; ++i)
             assert(dest[i] == 0xcc && dest[96 + i] == 0xcc);
-        balanced(&f);
     }
-    setup(&f, 0);
     memset(dest, 0xcc, 100);
-    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, NULL, NULL, 0, &f.s) && !f.scans);
-    f.region_empty = 1;
-    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, NULL, &f, 0, &f.s) && !f.scans);
-    clip.left = 0;
-    clip.top = 0;
-    clip.right = 4;
-    clip.bottom = 8;
-    for (n = 1; n <= 2; ++n)
-    {
-        setup(&f, 0);
-        f.scan_mode = n;
-        assert(!mm_depth_draw(&m, dest, 10, 8, 0, 0, &clip, NULL, 0, &f.s));
-    }
-    setup(&f, 0);
-    assert(!mm_depth_draw(&m, dest, 10, 8, 2147483647, 0, &clip, NULL, 0, &f.s));
-    assert(!mm_depth_draw(&m, dest, 2147483647, 8, 0, 0, &clip, NULL, 0, &f.s));
+    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, NULL, NULL, 0));
+    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, NULL, &region, 0));
+    assert(!mm_depth_draw(&m, dest, 10, 8, 2147483647, 0, &clip, NULL, 0));
+    assert(!mm_depth_draw(&m, dest, 2147483647, 8, 0, 0, &clip, NULL, 0));
     clip.top = 7;
-    assert(!mm_depth_draw(&m, dest, 10, 7, 0, 0, &clip, NULL, 1, &f.s));
+    clip.bottom = 8;
+    assert(!mm_depth_draw(&m, dest, 10, 7, 0, 0, &clip, NULL, 1));
     for (i = 0; i < 100; ++i)
         assert(dest[i] == 0xcc);
-    setup(&f, 0);
-    f.region.left = 1;
-    f.region.top = 2;
-    f.region.right = 3;
-    f.region.bottom = 4;
     clip.top = 0;
-    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, &clip, &f, 0, &f.s) && f.rows == 2);
+    clip.bottom = 4;
+    mm_region_set_rect(&region, &shape);
+    assert(mm_region_apply_rect(&region, MM_REGION_DIFFERENCE, &hole, NULL, 0, NULL) == MM_REGION_UPDATED);
+    assert(region.bands);
+    assert(mm_depth_draw(&m, dest, 10, 8, 0, 0, &clip, &region, 0));
     for (i = 0; i < 80; ++i)
     {
         int y = i / 10, x = i % 10;
-        assert(dest[i] == (y >= 2 && y < 4 && x >= 2 && x < 6 ? source[y * 8 + x] : 0xcc));
+        int copied = y >= 2 && y < 4 && (x == 2 || x == 3 || x == 6 || x == 7);
+        assert(dest[i] == (copied ? source[y * 8 + x] : 0xcc));
     }
+    memset(dest, 0xcc, 100);
+    assert(!mm_depth_draw(&m, dest, 6, 8, 0, 0, &clip, &region, 0));
+    for (i = 0; i < 100; ++i)
+        assert(dest[i] == (i == 14 ? source[18] : i == 15 ? source[19] : 0xcc));
+    mm_region_set_rect(&region, NULL);
 }
 int main(void)
 {

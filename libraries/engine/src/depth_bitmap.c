@@ -144,24 +144,18 @@ static int add(MMI32 a, MMI32 b, MMI32 *out)
     *out = a + b;
     return 1;
 }
-static int intersect(MMDepthRect *a, const MMDepthRect *b)
+static int empty_rect(const MMDepthRect *rect)
 {
-    if (a->left < b->left)
-        a->left = b->left;
-    if (a->right > b->right)
-        a->right = b->right;
-    if (a->top < b->top)
-        a->top = b->top;
-    if (a->bottom > b->bottom)
-        a->bottom = b->bottom;
-    return a->left < a->right && a->top < a->bottom;
+    return rect->left >= rect->right || rect->top >= rect->bottom;
 }
 int mm_depth_draw(const MMDepthBitmap *m, void *pixels, MMI32 row, MMI32 height, MMI32 x,
-                        MMI32 y, const MMDepthRect *clip, void *region, int half,
-                        const MMDepthServices *s)
+                        MMI32 y, const MMDepthRect *clip, const MMRegion *region, int half)
 {
-    MMDepthRect bounds = m->bounds, r;
+    MMDepthRect bounds = m->bounds;
+    MMRegionCursor cursor = {0};
+    MMRegion rectangle = {0};
     MMI32 step = half ? 2 : 1, yp, left, right, sy, bytes, n, src, dst;
+    int ok = 0;
     if (!clip && !region)
         return 1;
     if (row < 0 || height < 0 || (row && height / step > MAXIMUM / row) || m->row_bytes < 0 || m->bytes < 0)
@@ -176,38 +170,45 @@ int mm_depth_draw(const MMDepthBitmap *m, void *pixels, MMI32 row, MMI32 height,
         !add(bounds.top, y, &bounds.top) || !add(bounds.bottom, y, &bounds.bottom))
         return 0;
     if (region)
-    {
-        if (!s->region_bounds(s->context, region, &r) || !intersect(&bounds, &r))
-            return 1;
-    }
-    if (clip && !intersect(&bounds, clip))
+        mm_pixel_rect_intersect(&bounds, &region->bounds);
+    if (clip)
+        mm_pixel_rect_intersect(&bounds, clip);
+    if (empty_rect(&bounds))
         return 1;
-    s->scan_init(s->context, region, clip, &bounds);
+    if (!region)
+    {
+        rectangle.bounds = bounds;
+        region = &rectangle;
+    }
+    mm_region_cursor_open(&cursor, region, &bounds);
     for (yp = bounds.top; yp < bounds.bottom;)
     {
-        while (s->scan_pair(s->context, &left, &right))
+        while (mm_region_scan_pair(&cursor.scan, &left, &right))
         {
             if (!add(left, bounds.left, &left) || !add(right, bounds.left, &right) || left < bounds.left ||
                 right > bounds.right || left < 0 || right < left || right > MAXIMUM / 2 || yp < 0)
-                return 0;
+                goto done;
             sy = yp / step;
             n = (right - left) * 2;
             if (left > m->row_bytes / 2 || right > m->row_bytes / 2 || right > row / 2 ||
                 (m->row_bytes && sy > m->bytes / m->row_bytes) || (row && sy > bytes / row))
-                return 0;
+                goto done;
             src = sy * m->row_bytes;
             dst = sy * row;
             if (left * 2 > m->bytes - src || n > m->bytes - src - left * 2 || left * 2 > bytes - dst ||
                 n > bytes - dst - left * 2 || (n && (!m->pixels || !pixels)))
-                return 0;
+                goto done;
             if (n)
                 memmove((unsigned char *)pixels + dst + left * 2, (const unsigned char *)m->pixels + src + left * 2,
                         (size_t)n);
         }
-        s->scan_next(s->context, step);
         if (yp > MAXIMUM - step || yp + step >= bounds.bottom)
             break;
+        mm_region_scan_advance(&cursor.scan, step);
         yp += step;
     }
-    return 1;
+    ok = 1;
+done:
+    mm_region_cursor_close(&cursor);
+    return ok;
 }
