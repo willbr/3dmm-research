@@ -93,7 +93,8 @@ void Tests(const fs::path &root, const fs::path &font)
     std::shared_ptr<MarcusMovieFile> held;
     {
         MarcusMovieInput input;
-        input.Open((root / "one.zip").u8string());
+        Write(root / "archive-without-zip-suffix.3mm", original);
+        input.Open((root / "archive-without-zip-suffix.3mm").u8string());
         CHECK(input.Count() == 1 && std::string(input.Entry(0).name) == "sub folder/Movie.3MM");
         CHECK(TemporaryMovies() == originalDirectories); // Listing extracts nothing.
         held = input.Materialize(0);
@@ -166,6 +167,34 @@ void Tests(const fs::path &root, const fs::path &font)
             const auto file = input.Materialize(i);
             CHECK(Read(file->path) == (i == 0 ? "first" : i == 1 ? "second" : "third"));
         }
+    }
+    // Legacy extraction selects by name, so identical names must be rejected
+    // before invoking the external decoder. Modern entries still use slots.
+    const auto legacy = root / "legacy-duplicate.zip";
+    Zip(legacy, {{"duplicate.3mm", "first"}, {"duplicate.3mm", "second"}}, 0);
+    auto legacyBytes = Read(legacy);
+    for (const auto &signature : {std::string("PK\3\4", 4), std::string("PK\1\2", 4)})
+    {
+        const auto methodOffset = signature[2] == 3 ? 8 : 10;
+        std::size_t changed = 0;
+        for (auto offset = legacyBytes.find(signature); offset != std::string::npos;
+             offset = legacyBytes.find(signature, offset + 4))
+        {
+            legacyBytes.at(offset + methodOffset) = 1; // Shrink.
+            ++changed;
+        }
+        CHECK(changed == 2);
+    }
+    Write(legacy, legacyBytes);
+    {
+        MarcusMovieInput input;
+        input.Open(legacy.u8string());
+        CHECK(input.Count() == 2);
+        std::string diagnostic;
+        try { input.Materialize(0); }
+        catch (const std::exception &error) { diagnostic = error.what(); }
+        CHECK(diagnostic == "Legacy-compressed duplicate movie names cannot be selected unambiguously.");
+        CHECK(Read(legacy) == legacyBytes && TemporaryMovies() == originalDirectories);
     }
     MarcusMovieInput *list = marcus_input_create();
     CHECK(list && marcus_input_open(list, (root / "multi.zip").u8string().c_str()));

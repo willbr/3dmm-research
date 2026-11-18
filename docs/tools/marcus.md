@@ -701,6 +701,10 @@ Zipped `.vmm` files then follow the existing bundle/package loading path. Origin
 ZIPs remain unchanged, and extraction failures remove partial output. Entries with
 unsafe names, encryption, or movie sizes above 512 MiB are rejected. A ZIP may
 contain at most 100,000 members and 10,000 movie candidates.
+Marcus uses the shared C ZIP reader for movie archives. C89 retains each
+selected member's original directory slot and checks names and extraction
+limits. Duplicate names in legacy-compressed movie or font entries are
+rejected because the external decoder selects by name.
 
 Fonts anywhere in the selected ZIP are loaded automatically for its movie's
 2D captions. Supported extensions are `.ttf`, `.otf`, `.ttc`, `.otc`, `.fon`,
@@ -724,7 +728,8 @@ provider or change three-dimensional TDF font assets.
 Stored/deflated entries use the existing miniz dependency. Legacy compression
 uses an installed `7z`/`7zz` executable, with standard Windows 7-Zip locations as
 fallbacks. The helper runs without a console, extracts the exact selected name to
-a bounded pipe, and has a 60-second timeout; Marcus still verifies size and CRC.
+a bounded pipe, and has a 60-second timeout. Both decoders use the same C89
+size and CRC checks.
 No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 
 ## Controls
@@ -1862,6 +1867,11 @@ On 9 November 2026 the native ZIP input extracted all 103 movie entries from the
 `aacw01.zip`. All selected entries passed size/CRC checks, original ZIP bytes
 remained unchanged, and temporary directories were removed. Two other ZIPs had
 no `.3mm`/`.vmm` entries. This verifies extraction, not playback of every movie.
+
+After the C89 migration the corpus check covered 130 movie entries in 104
+archives, including `aacw01.zip`. ZIP inputs for the actor-event and scrolling
+caption fixtures matched the plain movies across 114 seeks and 90 viewport
+hashes. Evidence is in `tmp/c89-movie-zip/`.
 
 On 9 November 2026 all six Marcus checks passed, along with the headless
 preview regressions for 45 actors, 21 props, 12 backgrounds and 188 cameras.

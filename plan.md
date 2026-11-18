@@ -956,8 +956,11 @@ accepts valid empty VXP thumbnail indexes, as produced by Marcus storyboard
 export. The movie session shares the same stored-payload decoder.
 Portable VXP ZIP reading and writing now use a C binding to miniz. C89
 selects and names extracted members and defines the generated storyboard CFG
-and member order. Physical file and path I/O, the installed catalog and
-publication of installed packages on disk remain host services. Movie roll-call queries/naming,
+and member order. Marcus also uses that reader for movie ZIPs. C89 owns the
+movie and font catalog, member limits, legacy name disambiguation, and the
+size and CRC checks for both decoders. Physical file and path I/O, the installed
+catalog and publication of installed packages on disk remain host services.
+Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and
 common undo registration/notification now also use C89. Movie material insertion,

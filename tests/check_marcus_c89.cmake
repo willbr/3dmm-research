@@ -7,6 +7,7 @@ endforeach()
 execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   -DIMGUI_ENABLE_FREETYPE -DIMGUI_ENABLE_STB_TRUETYPE
   -Werror=declaration-after-statement -Wall -Wextra -fsyntax-only ${includes}
+  "-I${SOURCE}/libraries/engine/include" "-I${SOURCE}/libraries/v3dmm/include"
   "-I${SOURCE}/src/marcus" "${SOURCE}/src/marcus/main.c" "${SOURCE}/src/marcus/ui.c"
   "${SOURCE}/src/marcus/settings.c"
   "${SOURCE}/src/marcus/text_dialog.c"
@@ -16,6 +17,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/dialog_widgets.c"
   "${SOURCE}/src/marcus/movie_browser.c"
   "${SOURCE}/src/marcus/movie_browser_preferences.c"
+  "${SOURCE}/src/marcus/movie_zip.c"
   "${SOURCE}/src/marcus/scene_organiser.c"
   "${SOURCE}/src/marcus/camera_picker.c"
   "${SOURCE}/src/marcus/background_browser.c"

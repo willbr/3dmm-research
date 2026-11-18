@@ -4,7 +4,7 @@ include(CimguiDependency)
 include(FreeTypeDependency)
 include(EmbedMarcusShaders)
 
-add_library(marcus-player STATIC player.cpp storyboard.cpp storyboard_edit_data.c storyboard_tools.cpp storyboard_export.cpp colour_picker.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp scene_edit.cpp sound_edit.cpp sound_recording.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp preview_worker.cpp text_preview.cpp)
+add_library(marcus-player STATIC player.cpp storyboard.cpp storyboard_edit_data.c storyboard_tools.cpp storyboard_export.cpp colour_picker.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp movie_zip.c scene_edit.cpp sound_edit.cpp sound_recording.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp preview_worker.cpp text_preview.cpp)
 if(WIN32)
   target_compile_definitions(marcus-player PRIVATE MARCUS_ASM_WORKER_PATH="${PROJECT_SOURCE_DIR}/build/marcus-x86/src/marcus/marcus-asm-worker.exe")
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -20,7 +20,7 @@ set_target_properties(marcus-player PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(marcus-player PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/bren/inc")
 target_link_libraries(marcus-player PRIVATE MM::Preview mm-engine-c89 mm-movie-content studio-pack-store studio-settings SDL3::SDL3-static
-  kauai-sdl-audio kauai-midi-synth kauai-font-host miniz Threads::Threads)
+  kauai-sdl-audio kauai-midi-synth kauai-font-host Threads::Threads)
 target_link_libraries(marcus-player PUBLIC mm-v3dmm)
 target_compile_definitions(marcus-player PRIVATE MARCUS_MIDI_BANK="${KAUAI_MIDI_BANK_FILE}")
 

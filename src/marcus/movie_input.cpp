@@ -1,8 +1,9 @@
 #include "movie_input.h"
+#include "movie_zip.h"
 #include "mm/content_vfs.hpp"
 #include "font_catalog.h"
 #include <SDL3/SDL.h>
-#include <miniz.h>
+#include <exception>
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -14,91 +15,71 @@
 namespace fs = std::filesystem;
 namespace
 {
-constexpr std::uint64_t movieBudget = 512ull * 1024 * 1024;
-constexpr std::uint64_t fontBudget = 64ull * 1024 * 1024, fontFileBudget = 16ull * 1024 * 1024;
-bool FontExtension(const std::string &extension)
-{
-    return extension == ".ttf" || extension == ".otf" || extension == ".ttc" || extension == ".otc" ||
-           extension == ".fon" || extension == ".fnt" || extension == ".dfont";
-}
 void Require(bool value, const std::string &message)
 {
     if (!value)
         throw std::runtime_error(message);
 }
-std::string Extension(std::string name)
+std::uint64_t ZipSize(MMZipSize size)
 {
-    const auto dot = name.find_last_of('.');
-    name = dot == std::string::npos ? "" : name.substr(dot);
-    for (auto &c : name)
-        if (c >= 'A' && c <= 'Z')
-            c += 'a' - 'A';
-    return name;
+    return (std::uint64_t(size.high) << 32) | size.low;
 }
-bool SafeName(const std::string &name)
+void RequireZip(const char *error)
 {
-    if (name.empty() || name[0] == '/' || name[0] == '\\' || name.find(':') != std::string::npos ||
-        name.find('\0') != std::string::npos)
-        return false;
-    std::size_t begin = 0;
-    while (begin < name.size())
+    if (error)
+        throw std::runtime_error(error);
+}
+struct Cancellation
+{
+    const std::function<bool()> &check;
+    std::exception_ptr error;
+    static int Check(void *context)
     {
-        auto end = name.find_first_of("/\\", begin);
-        if (end == std::string::npos)
-            end = name.size();
-        if (name.substr(begin, end - begin) == "..")
-            return false;
-        begin = end + 1;
+        auto &operation = *static_cast<Cancellation *>(context);
+        try { return operation.check && operation.check(); }
+        catch (...) { operation.error = std::current_exception(); return 1; }
     }
-    return true;
-}
-struct Member
-{
-    std::string name;
-    unsigned index = 0, crc = 0, method = 0;
-    std::uint64_t bytes = 0;
-    bool encrypted = false, supported = true;
-    std::weak_ptr<MarcusMovieFile> extracted;
 };
 struct Sink
 {
     std::ofstream stream;
-    std::uint64_t written = 0, expected;
-    mz_ulong crc = MZ_CRC32_INIT;
-    std::function<bool()> cancelled;
-    Sink(const fs::path &path, std::uint64_t expected, std::function<bool()> cancelled)
-        : stream(path, std::ios::binary), expected(expected), cancelled(std::move(cancelled))
+    MMZipOutput output{};
+    const std::function<bool()> &cancelled;
+    std::exception_ptr error;
+    Sink(const fs::path &path, MMU32 expected, const std::function<bool()> &cancelled)
+        : stream(path, std::ios::binary), cancelled(cancelled)
     {
         Require(bool(stream), "Cannot create the private movie file.");
+        mm_zip_output_init(&output, expected, Append, this);
     }
-    std::size_t Write(std::uint64_t offset, const void *data, std::size_t bytes)
+    static int Append(void *context, const void *bytes, size_t count)
     {
-        if ((cancelled && cancelled()) || offset != written || bytes > expected - written)
-            return 0;
-        stream.write(static_cast<const char *>(data), static_cast<std::streamsize>(bytes));
-        if (!stream)
-            return 0;
-        crc = mz_crc32(crc, static_cast<const unsigned char *>(data), bytes);
-        written += bytes;
-        return bytes;
+        auto &sink = *static_cast<Sink *>(context);
+        try
+        {
+            if (sink.cancelled && sink.cancelled())
+                return 0;
+            return bool(sink.stream.write(static_cast<const char *>(bytes), static_cast<std::streamsize>(count)));
+        }
+        catch (...) { sink.error = std::current_exception(); return 0; }
     }
-    bool Complete(unsigned expectedCrc)
+    bool Complete(MMU32 expectedCrc)
     {
-        stream.flush();
-        return bool(stream) && written == expected && crc == expectedCrc;
+        stream.close();
+        return bool(stream) && mm_zip_output_complete(&output, expectedCrc);
     }
 };
 // Legacy ZIP methods (notably Shrink in aacw01.zip) are delegated only to an
 // installed 7-Zip. No shell, installation, archive-wide extraction or filenames
 // from the ZIP are used as filesystem targets. The sink still enforces size/CRC.
-void LegacyExtract(const fs::path &archive, const Member &member, Sink &sink)
+void LegacyExtract(const fs::path &archive, const MarcusZipEntry &member, Sink &sink)
 {
     const auto path = archive.u8string();
     SDL_Process *process = nullptr;
     const char *programs[] = {"7z", "7zz", "C:/Program Files/7-Zip/7z.exe", "C:/Program Files (x86)/7-Zip/7z.exe"};
     for (const auto *program : programs)
     {
-        const char *args[] = {program, "x", "-so", "-spd", "-p-", "--", path.c_str(), member.name.c_str(), nullptr};
+        const char *args[] = {program, "x", "-so", "-spd", "-p-", "--", path.c_str(), member.name, nullptr};
         const auto properties = SDL_CreateProperties();
         SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
         SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
@@ -144,7 +125,7 @@ void LegacyExtract(const fs::path &archive, const Member &member, Sink &sink)
             }
             break;
         }
-        if (sink.Write(sink.written, bytes.data(), count) != count)
+        if (!mm_zip_output_write(&sink.output, {sink.output.written, 0}, bytes.data(), count))
         {
             good = false;
             SDL_KillProcess(process, true);
@@ -152,21 +133,46 @@ void LegacyExtract(const fs::path &archive, const Member &member, Sink &sink)
         }
     }
     int status = -1;
-    Require(SDL_WaitProcess(process, true, &status) && status == 0 && good,
+    const bool exited = SDL_WaitProcess(process, true, &status);
+    if (sink.error) std::rethrow_exception(sink.error);
+    Require(exited && status == 0 && good,
             "7-Zip could not extract this movie, or its size exceeded the ZIP declaration.");
 }
+void Extract(MMZip *zip, const fs::path &archive, const MarcusZipList &list, const MarcusZipEntry &entry,
+             const fs::path &target, const std::function<bool()> &cancelled, bool font)
+{
+    Sink sink(target, entry.member.bytes.low, cancelled);
+    if (entry.member.supported)
+    {
+        const auto extracted = mm_zip_extract(zip, entry.slot, mm_zip_output_write, &sink.output);
+        if (sink.error) std::rethrow_exception(sink.error);
+        Require(extracted != 0, font ? std::string("Cannot extract bundled font (data or CRC error): ") + entry.name
+                                     : "Cannot extract the selected ZIP movie (data or CRC error).");
+    }
+    else
+    {
+        Require(marcus_zip_legacy_unambiguous(&list, &entry),
+            font ? "Legacy-compressed duplicate font names cannot be selected unambiguously."
+                 : "Legacy-compressed duplicate movie names cannot be selected unambiguously.");
+        LegacyExtract(archive, entry, sink);
+    }
+    Require(sink.Complete(entry.member.crc), font ? std::string("Bundled font does not match its ZIP size or CRC: ") + entry.name
+                                                  : "The extracted movie does not match its ZIP size or CRC.");
+}
 } // namespace
+
 struct MarcusMovieInput::Impl
 {
     fs::path path;
     std::ifstream stream;
-    mz_zip_archive zip = {};
-    bool zipped = false;
-    std::vector<Member> members;
-    std::vector<Member> fontMembers;
+    MMZip *zip = nullptr;
+    MarcusZipCatalog catalog{};
+    std::uint64_t size = 0;
+    std::vector<std::weak_ptr<MarcusMovieFile>> extracted;
     ~Impl()
     {
-        mz_zip_reader_end(&zip);
+        marcus_zip_catalog_clear(&catalog);
+        mm_zip_close(zip);
     }
 };
 MarcusMovieFile::~MarcusMovieFile()
@@ -191,17 +197,17 @@ void MarcusMovieFile::LoadFonts(const fs::path &directory)
     auto files = std::make_shared<MM::Content::Vfs>();
     std::vector<MM::Content::File> mounts;
     for (const auto &entry : fs::directory_iterator(directory))
-        if (!entry.is_symlink() && entry.is_regular_file() && FontExtension(Extension(entry.path().u8string())))
+        if (!entry.is_symlink() && entry.is_regular_file() && marcus_zip_is_font(entry.path().u8string().c_str()))
             mounts.push_back({entry.path().filename().u8string(), entry.path()});
     files->Mount("movie-fonts", mounts);
     auto catalog = std::make_shared<KauaiFonts::FontCatalog>();
     for (const auto &entry : files->Entries("movie-fonts"))
     {
-        if (!FontExtension(Extension(entry.name))) continue;
+        if (!marcus_zip_is_font(entry.name.c_str())) continue;
         auto stream = files->Open("movie-fonts", entry.name);
         stream.seekg(0, std::ios::end);
         const auto size = stream.tellg();
-        Require(size > 0 && std::uint64_t(size) <= fontFileBudget, "Invalid bundled font size: " + entry.name);
+        Require(size > 0 && std::uint64_t(size) <= MARCUS_ZIP_FONT_FILE_BYTES, "Invalid bundled font size: " + entry.name);
         std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
         stream.seekg(0);
         stream.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
@@ -219,95 +225,70 @@ void MarcusMovieInput::Open(const std::string &path, const std::function<bool()>
     Require(bool(opened->stream), "Cannot open the movie or ZIP file.");
     const auto size = opened->stream.tellg();
     Require(size >= 0, "Cannot determine the movie file size.");
+    opened->size = static_cast<std::uint64_t>(size);
     opened->stream.seekg(0);
     char signature[4] = {};
     opened->stream.read(signature, sizeof(signature));
     opened->stream.clear();
-    opened->zipped = Extension(path) == ".zip" ||
-                     (signature[0] == 'P' && signature[1] == 'K' &&
-                      ((signature[2] == 3 && signature[3] == 4) || (signature[2] == 5 && signature[3] == 6)));
-    if (!opened->zipped)
+    if (marcus_zip_signature(path.c_str(), signature))
     {
-        Member member;
-        member.name = opened->path.filename().u8string();
-        member.bytes = static_cast<std::uint64_t>(size);
-        opened->members.push_back(std::move(member));
+        const MMZipInput source{&opened->stream, {static_cast<MMU32>(opened->size), static_cast<MMU32>(opened->size >> 32)},
+            [](void *context, MMZipSize offset, void *bytes, size_t count) -> int {
+                try
+                {
+                    auto &input = *static_cast<std::ifstream *>(context);
+                    input.clear();
+                    input.seekg(static_cast<std::streamoff>(ZipSize(offset)));
+                    return bool(input.read(static_cast<char *>(bytes), static_cast<std::streamsize>(count)));
+                }
+                catch (...) { return 0; }
+            }};
+        Require(mm_zip_open(&source, &opened->zip) == MM_ZIP_OK, "Invalid ZIP archive.");
+        Cancellation cancellation{cancelled, {}};
+        const auto error = marcus_zip_catalog_read(opened->zip, Cancellation::Check, &cancellation, &opened->catalog);
+        if (cancellation.error) std::rethrow_exception(cancellation.error);
+        RequireZip(error);
     }
-    else
-    {
-        opened->zip.m_pIO_opaque = opened.get();
-        opened->zip.m_pRead = [](void *context, mz_uint64 offset, void *data, std::size_t bytes) -> std::size_t {
-            auto &stream = static_cast<Impl *>(context)->stream;
-            stream.clear();
-            stream.seekg(static_cast<std::streamoff>(offset));
-            stream.read(static_cast<char *>(data), static_cast<std::streamsize>(bytes));
-            return static_cast<std::size_t>(stream.gcount());
-        };
-        Require(mz_zip_reader_init(&opened->zip, static_cast<mz_uint64>(size), 0) != 0, "Invalid ZIP archive.");
-        const auto count = mz_zip_reader_get_num_files(&opened->zip);
-        Require(count <= 100000, "ZIP archives are limited to 100,000 members.");
-        for (unsigned index = 0; index < count; ++index)
-        {
-            Require(!cancelled || !cancelled(), "Movie preparation cancelled.");
-            mz_zip_archive_file_stat stat = {};
-            Require(mz_zip_reader_file_stat(&opened->zip, index, &stat) != 0, "Cannot read a ZIP member record.");
-            if (stat.m_is_directory)
-                continue;
-            const auto length = mz_zip_reader_get_filename(&opened->zip, index, nullptr, 0);
-            Require(length > 1 && length <= 65536, "Invalid ZIP member name.");
-            std::string name(length, '\0');
-            Require(mz_zip_reader_get_filename(&opened->zip, index, &name[0], length) == length,
-                    "Cannot read a ZIP member name.");
-            name.pop_back();
-            const auto extension = Extension(name);
-            const bool font = FontExtension(extension);
-            if (extension != ".3mm" && extension != ".vmm" && !font)
-                continue;
-            Require(SafeName(name) && (font || name.size() < sizeof(MarcusMovieEntry::name)),
-                    "Unsafe or overlong movie/font name in ZIP.");
-            Require(!font || opened->fontMembers.size() < 128, "A ZIP may contain at most 128 bundled font files.");
-            Require(opened->members.size() < 10000, "A ZIP may contain at most 10,000 movie entries.");
-            Member member;
-            member.name = std::move(name);
-            member.index = index;
-            member.crc = stat.m_crc32;
-            member.bytes = stat.m_uncomp_size;
-            member.method = stat.m_method;
-            member.encrypted = stat.m_is_encrypted != 0;
-            member.supported = stat.m_is_supported != 0;
-            (font ? opened->fontMembers : opened->members).push_back(std::move(member));
-        }
-        Require(!opened->members.empty(), "This ZIP contains no .3MM or .VMM movies.");
-    }
+    opened->extracted.resize(opened->zip ? opened->catalog.movies.count : 1);
     impl = std::move(opened);
     prepared.reset();
 }
 int MarcusMovieInput::Count() const
 {
-    return static_cast<int>(impl->members.size());
+    return static_cast<int>(impl->extracted.size());
 }
 MarcusMovieEntry MarcusMovieInput::Entry(int index) const
 {
     Require(index >= 0 && index < Count(), "Movie entry is outside the ZIP list.");
-    const auto &member = impl->members[index];
     MarcusMovieEntry result = {};
-    std::memcpy(result.name, member.name.data(), std::min(member.name.size(), sizeof(result.name) - 1));
-    result.bytes = static_cast<double>(member.bytes);
-    result.zipped = impl->zipped;
+    if (impl->zip)
+    {
+        const auto &entry = impl->catalog.movies.items[index];
+        std::memcpy(result.name, entry.name, std::strlen(entry.name) + 1);
+        result.bytes = static_cast<double>(ZipSize(entry.member.bytes));
+        result.zipped = 1;
+    }
+    else
+    {
+        const auto name = impl->path.filename().u8string();
+        std::memcpy(result.name, name.data(), std::min(name.size(), sizeof(result.name) - 1));
+        result.bytes = static_cast<double>(impl->size);
+    }
     return result;
 }
 std::shared_ptr<MarcusMovieFile> MarcusMovieInput::Materialize(int index, const std::function<bool()> &cancelled)
 {
     Require(!cancelled || !cancelled(), "Movie preparation cancelled.");
     Require(index >= 0 && index < Count(), "Select a movie from this ZIP before opening it.");
-    auto &member = impl->members[index];
-    if (auto existing = member.extracted.lock())
+    auto &cached = impl->extracted[index];
+    if (auto existing = cached.lock())
         return existing;
-    auto selected = std::make_shared<MarcusMovieFile>(impl->zipped ? fs::path{} : impl->path);
-    if (impl->zipped)
+    auto selected = std::make_shared<MarcusMovieFile>(impl->zip ? fs::path{} : impl->path);
+    if (impl->zip)
     {
-        Require(!member.encrypted, "Encrypted ZIP movie entries are not supported.");
-        Require(member.bytes && member.bytes <= movieBudget, "A ZIP movie must be nonempty and at most 512 MiB.");
+        const auto &movies = impl->catalog.movies;
+        const auto &movie = movies.items[index];
+        RequireZip(marcus_zip_check_movie(&movie));
         for (int attempt = 0; attempt < 16 && selected->directory.empty(); ++attempt)
         {
             const auto candidate =
@@ -316,60 +297,26 @@ std::shared_ptr<MarcusMovieFile> MarcusMovieInput::Materialize(int index, const 
                 selected->directory = candidate;
         }
         Require(!selected->directory.empty(), "Cannot create a private ZIP movie directory.");
-        selected->path = selected->directory / ("movie" + Extension(member.name));
-        Sink sink(selected->path, member.bytes, cancelled);
-        if (member.supported)
-        {
-            const auto callback = [](void *context, mz_uint64 offset, const void *data,
-                                     std::size_t bytes) -> std::size_t {
-                return static_cast<Sink *>(context)->Write(offset, data, bytes);
-            };
-            Require(mz_zip_reader_extract_to_callback(&impl->zip, member.index, callback, &sink, 0) != 0,
-                    "Cannot extract the selected ZIP movie (data or CRC error).");
-        }
-        else
-        {
-            Require(std::count_if(impl->members.begin(), impl->members.end(),
-                                  [&](const Member &other) { return other.name == member.name; }) == 1,
-                    "Legacy-compressed duplicate movie names cannot be selected unambiguously.");
-            LegacyExtract(impl->path, member, sink);
-        }
-        Require(sink.Complete(member.crc), "The extracted movie does not match its ZIP size or CRC.");
-        std::uint64_t fontBytes = 0;
-        for (const auto &font : impl->fontMembers)
-        {
-            Require(!font.encrypted && font.bytes && font.bytes <= fontFileBudget &&
-                    font.bytes <= fontBudget - fontBytes,
-                    "Bundled fonts must be unencrypted, at most 16 MiB each and 64 MiB in total.");
-            fontBytes += font.bytes;
-        }
-        if (!impl->fontMembers.empty())
+        selected->path = selected->directory / (std::string("movie") + movie.extension);
+        Extract(impl->zip, impl->path, movies, movie, selected->path, cancelled, false);
+        const auto &fonts = impl->catalog.fonts;
+        Require(marcus_zip_check_fonts(&fonts),
+            "Bundled fonts must be unencrypted, at most 16 MiB each and 64 MiB in total.");
+        if (fonts.count)
         {
             selected->fontDirectory = selected->directory / "fonts";
             Require(fs::create_directory(selected->fontDirectory), "Cannot create the private font cache.");
-            for (const auto &font : impl->fontMembers)
+            for (MMU32 i = 0; i < fonts.count; ++i)
             {
-                const auto target = selected->fontDirectory / ("font-" + std::to_string(font.index) + Extension(font.name));
+                const auto &font = fonts.items[i];
+                const auto target = selected->fontDirectory / ("font-" + std::to_string(font.slot) + font.extension);
                 selected->ownedFonts.push_back(target);
-                Sink fontSink(target, font.bytes, cancelled);
-                if (font.supported)
-                    Require(mz_zip_reader_extract_to_callback(&impl->zip, font.index,
-                        [](void *context, mz_uint64 offset, const void *bytes, std::size_t size) -> std::size_t {
-                            return static_cast<Sink *>(context)->Write(offset, bytes, size);
-                        }, &fontSink, 0) != 0, "Cannot extract bundled font (data or CRC error): " + font.name);
-                else
-                {
-                    Require(std::count_if(impl->fontMembers.begin(), impl->fontMembers.end(),
-                        [&](const Member &other) { return other.name == font.name; }) == 1,
-                        "Legacy-compressed duplicate font names cannot be selected unambiguously.");
-                    LegacyExtract(impl->path, font, fontSink);
-                }
-                Require(fontSink.Complete(font.crc), "Bundled font does not match its ZIP size or CRC: " + font.name);
+                Extract(impl->zip, impl->path, fonts, font, target, cancelled, true);
             }
             selected->LoadFonts(selected->fontDirectory);
         }
     }
-    member.extracted = selected;
+    cached = selected;
     return selected;
 }
 extern "C"

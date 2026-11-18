@@ -481,7 +481,8 @@ add_library(mm-content STATIC libraries/content/src/content_vfs.cpp)
 target_link_libraries(mm-content PUBLIC mm-vfs)
 target_compile_features(mm-content PUBLIC cxx_std_17)
 target_include_directories(mm-content PUBLIC "${PROJECT_SOURCE_DIR}/libraries/content/include")
-add_library(mm-v3dmm STATIC libraries/v3dmm/src/v3dmm.cpp libraries/v3dmm/src/publish.cpp libraries/v3dmm/src/vxp_zip.c)
+add_library(mm-v3dmm STATIC libraries/v3dmm/src/v3dmm.cpp libraries/v3dmm/src/publish.cpp
+  libraries/v3dmm/src/zip.c libraries/v3dmm/src/vxp_zip.c)
 target_compile_features(mm-v3dmm PUBLIC cxx_std_17)
 set_target_properties(mm-v3dmm PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(mm-v3dmm PUBLIC "${PROJECT_SOURCE_DIR}/libraries/v3dmm/include")
@@ -1930,6 +1931,7 @@ if(BUILD_TESTING)
       -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
       "-I${PROJECT_SOURCE_DIR}/libraries/engine/include" "-I${PROJECT_SOURCE_DIR}/libraries/v3dmm/include"
       -isystem "${vxp_miniz_source}" -isystem "${vxp_miniz_binary}"
+      "${PROJECT_SOURCE_DIR}/libraries/v3dmm/src/zip.c"
       "${PROJECT_SOURCE_DIR}/libraries/v3dmm/src/vxp_zip.c")
   endif()
   add_test(NAME content-vfs COMMAND content-vfs-test)

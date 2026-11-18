@@ -107,29 +107,30 @@ std::uint64_t PackageSize(MMVxpSize bytes)
 struct Zip
 {
     Input input;
-    MMVxpZip *zip = nullptr;
+    MMZip *zip = nullptr;
     explicit Zip(const Range &range) : input(range)
     {
-        const MMVxpZipInput source{&input, PackageSize(range.length),
-            [](void *context, MMVxpSize offset, void *bytes, std::size_t length) -> int {
-                try { static_cast<Input *>(context)->Read(PackageSize(offset), bytes, length); return 1; }
+        const auto size = PackageSize(range.length);
+        const MMZipInput source{&input, {size.low, size.high},
+            [](void *context, MMZipSize offset, void *bytes, std::size_t length) -> int {
+                try { static_cast<Input *>(context)->Read(PackageSize({offset.low, offset.high}), bytes, length); return 1; }
                 catch (...) { return 0; }
             }};
-        const auto status = mm_vxp_zip_open(&source, &zip);
-        Require(status == MM_VXP_OK, mm_vxp_error(status));
+        const auto status = mm_zip_open(&source, &zip);
+        Require(status == MM_ZIP_OK, mm_vxp_error(status == MM_ZIP_MEMORY ? MM_VXP_MEMORY : MM_VXP_ZIP_OPEN));
     }
     ~Zip()
     {
-        mm_vxp_zip_close(zip);
+        mm_zip_close(zip);
     }
     Zip(const Zip &) = delete;
     Zip &operator=(const Zip &) = delete;
 
     std::string MemberName(MMU32 index) const
     {
-        const auto length = mm_vxp_zip_member_name(zip, index, nullptr, 0);
+        const auto length = mm_zip_name(zip, index, nullptr, 0);
         std::string name(length, '\0');
-        if (length && mm_vxp_zip_member_name(zip, index, name.data(), length) == length) name.pop_back();
+        if (length && mm_zip_name(zip, index, name.data(), length) == length) name.pop_back();
         return name;
     }
 };
@@ -252,11 +253,11 @@ std::map<std::string, std::filesystem::path> Materialize(const Range &archive, c
     const PackageContents contents(zip, limits);
     struct Output
     {
-        MMVxpZip *zip;
+        MMZip *zip;
         const fs::path &directory;
         std::map<std::string, fs::path> result;
         std::exception_ptr error;
-        static int Sink(void *context, const void *bytes, size_t count)
+        static int Sink(void *context, MMZipSize, const void *bytes, size_t count)
         {
             try
             {
@@ -274,7 +275,7 @@ std::map<std::string, std::filesystem::path> Materialize(const Range &archive, c
                 Require(!fs::exists(path), "VXP extraction target already exists");
                 std::ofstream stream(path, std::ios::binary);
                 Require(bool(stream), "Cannot create VXP content file");
-                Require(mm_vxp_zip_extract(out.zip, member->index, Sink, &stream) != 0,
+                Require(mm_zip_extract(out.zip, member->index, Sink, &stream) != 0,
                         "Cannot extract VXP content (data or CRC error)");
                 stream.close();
                 Require(bool(stream), "Cannot finish VXP content file");
