@@ -38,6 +38,7 @@ extern const MarcusDialogHost marcus_background_dialog_host;
 extern const MarcusDialogHost marcus_scene_dialog_host;
 extern const MarcusDialogHost marcus_camera_dialog_host;
 void dialog_retire_texture(SDL_Texture *texture);
+SDL_Texture *dialog_preview_texture(SDL_Renderer *, const unsigned char *rgba, int width, int height, int pitch);
 /* Release only after the shared ImGui draw data has been submitted. */
 void dialog_release_textures(void);
 #ifdef __cplusplus

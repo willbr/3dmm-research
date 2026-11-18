@@ -1,7 +1,19 @@
 #include "dialog_widgets.h"
+#include "dialog_host.h"
 #include <stdlib.h>
 static SDL_Texture **retired_textures;
 static size_t retired_count, retired_capacity;
+SDL_Texture *dialog_preview_texture(SDL_Renderer *renderer, const unsigned char *rgba, int width, int height, int pitch)
+{
+    SDL_Surface *surface;
+    SDL_Texture *texture;
+    if (!rgba || width <= 0 || height <= 0) return NULL;
+    surface = SDL_CreateSurfaceFrom(width, height, SDL_PIXELFORMAT_RGBA32, (void *)rgba, pitch);
+    if (!surface) return NULL;
+    texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_DestroySurface(surface);
+    return texture;
+}
 void dialog_retire_texture(SDL_Texture *texture)
 {
     SDL_Texture **next;

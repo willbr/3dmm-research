@@ -377,10 +377,12 @@ services. See the [current Marcus boundary](docs/tools/marcus.md#c89-boundary-an
 
 - Scene and frame organiser selection, frame scope, zoom and thumbnail cache
   now live in C89. The organiser submits scene/frame requests through the
-  existing isolated preview worker API. Continue converting selection,
-  filtering and actions in the movie and asset browsers and camera picker.
-  Keep native file choosers, asynchronous preview services and SDL texture
-  management behind narrow interfaces.
+  existing isolated preview worker API. Camera angle and storyboard commands,
+  background and actor/prop selection and filtering, and their thumbnail
+  scheduling now also live in C89. The background preview adapter handles
+  asynchronous jobs and disk caching. Continue converting the movie browser's
+  selection, filtering and actions, with native file choosers, preview services
+  and SDL texture management behind narrow interfaces.
 - Move storyboard editor commands, interaction state, snapping and prop and
   light edit transactions into C89. Move direct `ImGui::` application calls
   from `prop_gizmo.cpp` and `transform_gizmo.h` to cimgui callers. Preserve prop

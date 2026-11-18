@@ -15,6 +15,8 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/dialog_views.c"
   "${SOURCE}/src/marcus/dialog_widgets.c"
   "${SOURCE}/src/marcus/scene_organiser.c"
+  "${SOURCE}/src/marcus/camera_picker.c"
+  "${SOURCE}/src/marcus/background_browser.c"
   "${SOURCE}/src/marcus/prop_fields.c"
   "${SOURCE}/src/marcus/transport_skin.c"
   "${SOURCE}/src/marcus/storyboard_view.c"

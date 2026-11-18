@@ -1655,6 +1655,19 @@ The existing headless preview check verifies frame identity across scenes,
 pixel equality with the authored camera, and cancellation. The actor and
 scrolling-text fixtures retained all 180 SDL Studio and Marcus viewport hashes.
 Evidence is in `tmp/c89-scene-organiser`.
+
+`camera_picker.c` owns angle selection, storyboard actions and requests for
+the selected and visible angles. `background_browser.c` owns background and
+model selection, actor/prop filtering, thumbnail priority and texture limits.
+Each model keeps its preview identity when the filter changes. Background
+warm-up uses the existing disk cache through `background_preview.h`, which
+also opens the isolated model worker. SDL uploads each result on the main
+thread and retires textures after ImGui submits the frame.
+The headless preview check covers camera and model requests. A C probe of
+the background adapter matched repeated results to the direct worker and
+received both actor and prop images with their requested card identities.
+Evidence is in `tmp/c89-camera-asset-pickers`.
+
 Settings, camera rendering settings, ZIP member selection
 and errors use standard cimgui controls in `main.c`. The dialogs stay centred
 and fit the available window when resized. Browsers retain asynchronous loading,
