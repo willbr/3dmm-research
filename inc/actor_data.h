@@ -5,24 +5,16 @@
 #include "kauai_core.h"
 #include "bren_core.h"
 #include "tagman.h"
+#include "mm/actor_motion.h"
 #include <cstdint>
 using namespace BRender;
 
-struct RoutePoint
+using RoutePoint = MMActorPoint;
+inline bool operator==(const RoutePoint &a, const RoutePoint &b)
 {
-    BRS dxr;
-    BRS dyr;
-    BRS dzr;
-
-    bool operator==(RoutePoint &xyz)
-    {
-        return ((dxr == xyz.dxr) && (dyr == xyz.dyr) && (dzr == xyz.dzr));
-    }
-    bool operator!=(RoutePoint &xyz)
-    {
-        return ((dxr != xyz.dxr) || (dyr != xyz.dyr) || (dzr != xyz.dzr));
-    }
-};
+    return a.dxr == b.dxr && a.dyr == b.dyr && a.dzr == b.dzr;
+}
+inline bool operator!=(const RoutePoint &a, const RoutePoint &b) { return !(a == b); }
 static_assert(sizeof(RoutePoint) == 12, "RoutePoint on-disk layout drift");
 
 typedef RoutePoint *PRoutePoint;
@@ -43,46 +35,23 @@ const ByteOrderMask kbomRpt = 0xff000000;
 
 const LegacyLong knfrmInvalid = klwMax;
 const BRS kdwrNil = BR_SCALAR(-1.0); // Authored step sentinel: use the action/cel step.
-struct RouteLocation // RouTE Location - a function of space and time
+using RouteLocation = MMActorLocation;
+inline bool operator==(const RouteLocation &a, const RouteLocation &b)
 {
-    int32_t irpt;  // The preceding node for the given point
-    BRS dwrOffset; // Absolute linear distance beyond node irpt
-    int32_t dnfrm; // Delta frame number (ie, time) at this point
-
-    bool operator==(RouteLocation &rtel)
-    {
-        return (irpt == rtel.irpt && dwrOffset == rtel.dwrOffset && dnfrm == rtel.dnfrm);
-    }
-
-    bool operator!=(RouteLocation &rtel)
-    {
-        return (irpt != rtel.irpt || dwrOffset != rtel.dwrOffset || dnfrm != rtel.dnfrm);
-    }
-
-    bool operator<=(RouteLocation &rtel)
-    {
-        return (irpt < rtel.irpt || (irpt == rtel.irpt && (dwrOffset < rtel.dwrOffset ||
-                                                           (dwrOffset == rtel.dwrOffset && dnfrm <= rtel.dnfrm))));
-    }
-
-    bool operator>=(RouteLocation &rtel)
-    {
-        return (irpt > rtel.irpt || (irpt == rtel.irpt && (dwrOffset > rtel.dwrOffset ||
-                                                           (dwrOffset == rtel.dwrOffset && dnfrm >= rtel.dnfrm))));
-    }
-
-    bool operator<(RouteLocation &rtel)
-    {
-        return (irpt < rtel.irpt || (irpt == rtel.irpt && (dwrOffset < rtel.dwrOffset ||
-                                                           (dwrOffset == rtel.dwrOffset && dnfrm < rtel.dnfrm))));
-    }
-
-    bool operator>(RouteLocation &rtel)
-    {
-        return (irpt > rtel.irpt || (irpt == rtel.irpt && (dwrOffset > rtel.dwrOffset ||
-                                                           (dwrOffset == rtel.dwrOffset && dnfrm > rtel.dnfrm))));
-    }
-};
+    return a.irpt == b.irpt && a.dwrOffset == b.dwrOffset && a.dnfrm == b.dnfrm;
+}
+inline bool operator<(const RouteLocation &a, const RouteLocation &b)
+{
+    if (a.irpt != b.irpt)
+        return a.irpt < b.irpt;
+    if (a.dwrOffset != b.dwrOffset)
+        return a.dwrOffset < b.dwrOffset;
+    return a.dnfrm < b.dnfrm;
+}
+inline bool operator!=(const RouteLocation &a, const RouteLocation &b) { return !(a == b); }
+inline bool operator>(const RouteLocation &a, const RouteLocation &b) { return b < a; }
+inline bool operator<=(const RouteLocation &a, const RouteLocation &b) { return !(b < a); }
+inline bool operator>=(const RouteLocation &a, const RouteLocation &b) { return !(a < b); }
 static_assert(sizeof(RouteLocation) == 12, "RouteLocation on-disk layout drift");
 
 namespace ActorEvent
@@ -128,12 +97,7 @@ const ByteOrderMask kbomAev = 0xffc00000;
 //
 //	Variable part of the Actor EVent GeneralGroup:
 //
-struct Stretch // Squash/stretch
-{
-    BRS rScaleX;
-    BRS rScaleY;
-    BRS rScaleZ;
-};
+using Stretch = MMActorStretch;
 static_assert(sizeof(Stretch) == 12, "ActorEvent::Stretch on-disk layout drift");
 const ByteOrderMask kbomAevpull = 0xfc000000;
 
@@ -261,17 +225,6 @@ enum
 // frame and frame forward orientations in the same frame and must not see the
 // actor jump in angle when choosing between the two methods of editing.
 //
-struct FramePosition
-{
-    BMAT34 bmat34Fwd; // Rotation	fwd	: path rotation post applied to this
-    Stretch aevpull;  // Stretching (pulling) constants
-    BRS rScaleStep;   // Uniform scaling to be applied to step size
-    BMAT34 bmat34Cur; // <<Path independent>> Single frame & static segment rotation
-    BRA xaPath;       // Path portion of the current frame's rotation
-    BRA yaPath;       // Path portion of the current frame's rotation
-    BRA zaPath;       // Path portion of the current frame's rotation
-};
-
 //
 // Current action Motion Match Sounds
 // Aev & Aevsnd grouped together form a gl

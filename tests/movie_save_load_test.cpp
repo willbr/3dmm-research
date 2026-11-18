@@ -662,7 +662,9 @@ class TrackTestActor : public Actor
         _state.frame=20; _state.location={2,rZero,0}; _state.position=tweak; _state.onStage=true; _pbody->Show();
         _state.addEvent=4; _state.actionEvent=5; _state.firstEventInFrame=4; _state.nextEvent=9;
         _state.celCount=4; _state.actionFlags=(mode&32)?factnRotateX|factnRotateY|factnRotateZ:factnRotateY;
-        _state.transform.bmat34Fwd=forward; _state.transform.bmat34Cur=current; _state.useCurrentRotation=(mode&2)!=0;
+        std::memcpy(&_state.transform.bmat34Fwd, &forward, sizeof(forward));
+        std::memcpy(&_state.transform.bmat34Cur, &current, sizeof(current));
+        _state.useCurrentRotation=(mode&2)!=0;
         _state.transform.xaPath=(mode&8)?0:0x1234; _state.transform.yaPath=0x4000; _state.transform.zaPath=(mode&16)?0xFFF0:0;
         const BRS oldScales[]={rOne,BR_SCALAR(2),krScaleMin,krScaleMax-rEps};
         _state.transform.rScaleStep=oldScales[(mode/8)%4]; _state.transform.aevpull=pull;

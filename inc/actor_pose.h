@@ -21,6 +21,8 @@ struct ActorPoseEvaluator
     // a valid Add-event cursor, matching ActorFrameState's evaluated state.
     static void Update(ActorFrameState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
                        const RoutePoint *position, BMAT34 *matrix);
+    static void Update(ActorFrameState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
+                       const RoutePoint *position, MMActorMatrix *matrix);
     static void RouteOrientation(const ActorFrameState &state, const ActorTrack &track, BMAT34 *matrix, BRA *x = pvNil,
                                  BRA *y = pvNil, BRA *z = pvNil, LegacyUlong *axes = pvNil);
     // actionFlags uses the template's factnRotateX/Y bits. Banking remains zero.

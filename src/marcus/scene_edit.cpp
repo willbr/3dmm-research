@@ -637,7 +637,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
         DataBlock block;
         ActorChunkOnFile header;
         Require(file->FFind(kctgActr, actor, &block) && ActorData::FReadHeader(&block, &header), "Cannot read the object placement.");
-        BRS *position[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
+        MMI32 *position[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
         for (int axis = 0; axis < 3; ++axis)
         {
             const double value = double(BrScalarToFloat(*position[axis])) + delta[axis];

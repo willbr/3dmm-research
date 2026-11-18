@@ -13331,6 +13331,35 @@ records.
 
 Evidence is under `tmp/c89-camera-binding/` on the evidence drive.
 
+### C89 live actor state ownership in Studio
+
+Studio actors now store the `MMActorState` record used by Marcus and the
+session evaluator. Normal seeks, frame sequencing, event effects and pose
+updates operate directly on that record. Studio route points, route
+locations and stretch values use the C layouts. Native pose adapters
+copy the resulting matrix into BRender at the SDK boundary. Actors still
+use native resources and render effects.
+
+All 22 native actor traces matched byte for byte across 3,370,910 bytes,
+covering state, route, pose, frame, seek, edit, and rollback cases. The
+480-byte headless save matched the previous build and reopened in Studio.
+The retail bridge timed out on that synthetic blank fixture. A separate
+Studio run applied a position edit to actor-events, saved the movie, and
+reopened it in Studio and retail. Both matched the edited actor's stage,
+root and part matrices, action and cel across four seeks including the
+return to frame one.
+
+All 181 standalone and 20 selected host checks passed, including the C89
+syntax gates, scene content, save/load, and Vulkan raster parity. The stock
+and SID-29 cases matched all 456 previous host seek records and 360 viewport
+hashes. Actor-events, dissolve and scrolling-text matched retail's frame order
+and final position over 240 playback commits per host, including actor-events
+replay. Stock Studio and retained v3dmm seeks each matched 456 retail actor
+records. The 188-camera background trace matched the previous build.
+Studio and Marcus rebuilt and Marcus was relaunched.
+
+Evidence is under `tmp/c89-actor-state-owner/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

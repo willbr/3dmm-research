@@ -74,6 +74,9 @@ owns command delivery and failure accumulation. The effect adapters update
 their live state, costume, pose and sound as each command runs.
 The same three paths use `mm_actor_frame_run` for event commands and
 `mm_actor_frame_display` for motion sounds, position, cel selection and pose.
+Studio's actor embeds the same `MMActorState` as the C evaluator. The seek,
+frame and event drivers work on that live record, so native effects observe
+its state directly.
 `mm_movie_seek_frame` drives the scene-level seek in Studio and Marcus. It
 begins the frame, evaluates actors in scene order and runs the final phase
 only when every actor succeeds. Studio dispatches live events in the first
@@ -3604,10 +3607,11 @@ callbacks; C performs the arithmetic and branching.
 rounded toward negative infinity, and division with the original small-divisor
 reciprocal/saturation policy. It uses unsigned 16-bit partial products and binary
 long division, with no C99 integer types or floating-point approximation. The native
-adapter asserts fixed-point ABI and every copied route/event/transform layout.
-Native ActorFrameState still translates its value fields into/out of the C record;
-this temporary facade, host effects and physical
-table services must be removed as migration continues.
+adapter asserts the fixed-point ABI and native route/event layouts.
+Studio's `ActorFrameState` adds native convenience methods to the stored
+`MMActorState`. Route points and locations use the C types. Native edit
+transactions can still stage copies of the C record for rollback and
+callback publication. Native body effects and table services remain.
 
 `engine-actor-motion-test` covers fixed-point boundary cases, subroute termination,
 clamping, output aliasing, rewind preservation, all pure event kinds, deferred runtime

@@ -205,19 +205,20 @@ priority over the older Project 0-4 ordering wherever they conflict.
   table handles from this state; physical table implementations remain adapters.
 - Actor value-state initialization, rewind/origin updates and pure events now
   use C89, together with route advancement/interpolation and guarded 16.16
-  arithmetic. Native state value translation, resource effects
-  and editing still remain.
+  arithmetic. Studio, Marcus and the session store the same C actor state.
+  Studio's normal seek, frame, event and pose calls update that state directly.
+  Native resource effects and editing adapters still remain.
 - Actor one-frame command sequencing now uses C89-owned sequencer state. Entrance
   pre-scan/order, acknowledgement protocol, sound suppression, cel latches, failure
-  continuation/abort and result flags execute in C. Native state/table adapters and
-  typed commands remain temporary facades.
+  continuation/abort and result flags execute in C. Native table access and
+  effect callbacks remain temporary facades.
 - Actor step metadata policy, lifetime/cache calculation, stalling, backward steps,
   quick backup and outer seek command sequencing now use C89. Per-step rollback,
   partial progress, callback observations and the enabled retail fixes are retained.
   Native metadata/table/state/diagnostic adapters remain temporary facades.
 - Actor pose evaluation, weighted route orientation and fixed matrix/angle math
-  now use C89. Native pose code translates values, table views and aliased outputs;
-  the C implementation has no BRender arithmetic or floating-point dependency.
+  now use C89. Native pose code supplies table views and copies matrices into
+  BRender at the SDK boundary. The C implementation uses fixed-point arithmetic.
 - Actor event dispatch, partial action/cache state, entrance costume rollback and
   material fetch/apply/release ordering now use shared C89 policy in Studio and
   Marcus. Marcus timeline evaluation uses the same state policy with body/sound

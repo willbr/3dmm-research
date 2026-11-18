@@ -35,23 +35,19 @@ MMU32 *Axes(LegacyUlong *native, RoutePoint *vector, MMActorPoint *point, BMAT34
 void ActorPoseEvaluator::Update(ActorFrameState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
                                 const RoutePoint *position, BMAT34 *matrix)
 {
+    AssertVarMem(matrix);
+    MMActorMatrix output;
+    Update(state, track, inputs, position, &output);
+    std::memcpy(matrix, &output, sizeof(output));
+}
+void ActorPoseEvaluator::Update(ActorFrameState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
+                                const RoutePoint *position, MMActorMatrix *matrix)
+{
     AssertVarMem(const_cast<RoutePoint *>(position));
     AssertVarMem(matrix);
-    state.position = *position;
-    auto value = EngineActorMotion::Core(state);
-    const auto point = EngineActorMotion::Point(*position);
     const auto services = EngineActorMotion::Services();
     const MMActorPoseInputs in = {inputs.restX, inputs.restY, inputs.restZ, inputs.fixedPathOrientation};
-    MMActorMatrix output;
-    auto destination = &output;
-    if (matrix == &state.transform.bmat34Cur)
-        destination = &value.transform.bmat34Cur;
-    else if (matrix == &state.transform.bmat34Fwd)
-        destination = &value.transform.bmat34Fwd;
-    mm_actor_pose_update(&value, track.Route(), track.Events(), &in, &point, destination, &services);
-    if (destination == &output)
-        std::memcpy(matrix, &output, sizeof(output));
-    EngineActorMotion::Publish(state, value);
+    mm_actor_pose_update(&state, track.Route(), track.Events(), &in, position, matrix, &services);
 }
 void ActorPoseEvaluator::RouteOrientation(const ActorFrameState &state, const ActorTrack &track, BMAT34 *matrix, BRA *x,
                                           BRA *y, BRA *z, LegacyUlong *axes)
@@ -68,14 +64,13 @@ void ActorPoseEvaluator::RouteOrientation(const ActorFrameState &state, const Ac
         *y = 0;
     if (z)
         *z = 0;
-    const auto value = EngineActorMotion::Core(state);
     const auto services = EngineActorMotion::Services();
     MMActorMatrix output;
     if (matrix)
-        std::memcpy(&output, matrix, sizeof(output));
+        output = EngineActorMotion::Matrix(*matrix);
     MMU32 mask = 0;
     auto flags = Axes(axes, nullptr, nullptr, matrix, &output, &mask);
-    mm_actor_pose_orientation(&value, track.Route(), track.Events(), matrix ? &output : nullptr, x, y, z, flags,
+    mm_actor_pose_orientation(&state, track.Route(), track.Events(), matrix ? &output : nullptr, x, y, z, flags,
                                     &services);
     if (matrix)
         std::memcpy(matrix, &output, sizeof(output));
@@ -92,10 +87,10 @@ void ActorPoseEvaluator::ApplyVectorRotation(LegacyUlong actionFlags, RoutePoint
     AssertNilOrVarMem(z);
     if (axes)
         *axes = 0;
-    auto value = EngineActorMotion::Point(*vector);
+    auto value = *vector;
     MMActorMatrix output;
     if (matrix)
-        std::memcpy(&output, matrix, sizeof(output));
+        output = EngineActorMotion::Matrix(*matrix);
     MMU32 mask = 0;
     auto flags = Axes(axes, vector, &value, matrix, &output, &mask);
     mm_actor_pose_vector(actionFlags, &value, matrix ? &output : nullptr, x, y, z, flags);

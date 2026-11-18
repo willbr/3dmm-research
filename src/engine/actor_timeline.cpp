@@ -35,9 +35,8 @@ bool ActorStepSource::FPlaybackStep(const ActorFrameState &state, BRS *step) con
     *step = rZero;
     EngineActorTimeline::Host host = {this, nullptr, step};
     const auto s = EngineActorTimeline::Services(&host);
-    const auto value = EngineActorMotion::Core(state);
     MMI32 output;
-    const bool ok = mm_actor_playback_step(&value, &output, &s) != 0;
+    const bool ok = mm_actor_playback_step(&state, &output, &s) != 0;
     *step = output;
     return ok;
 }
@@ -64,9 +63,8 @@ bool ActorTimeline::FIsStalled(const ActorTrack &track, LegacyLong first, RouteL
     const ActorStepSource steps;
     EngineActorTimeline::Host host = {&steps};
     const auto s = EngineActorTimeline::Services(&host);
-    const auto value = EngineActorMotion::Location(*location);
     MMI32 output;
-    const bool ok = mm_actor_stalled(track.Events(), first, &value, last ? &output : nullptr, &s) != 0;
+    const bool ok = mm_actor_stalled(track.Events(), first, location, last ? &output : nullptr, &s) != 0;
     if (ok && last)
         *last = output;
     return ok;

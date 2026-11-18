@@ -301,11 +301,10 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
     } host = {this, false, pfSoundInFrame};
     const MMActorSeekEffects effects = {
         &host,
-        [](void *context, const MMActorSeekCommand *command, MMActorState *state) -> int {
+        [](void *context, const MMActorSeekCommand *command, MMActorState *) -> int {
             auto &h = *static_cast<Host *>(context);
             auto &actor = *h.actor;
             bool ok = true;
-            EngineActorMotion::Publish(actor._state, *state);
             switch (command->kind)
             {
             case MM_ACTOR_SEEK_HIDE:
@@ -322,17 +321,14 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
                 ok = actor._FDoFrm(command->displayFrame != 0, &h.positionDirty, h.soundInFrame);
                 break;
             }
-            *state = EngineActorMotion::Core(actor._state);
             return ok;
         },
         nullptr};
     const auto steps = _StepSource();
-    EngineActorTimeline::Host timelineHost = {&steps, &_state};
+    EngineActorTimeline::Host timelineHost = {&steps};
     const auto timeline = EngineActorTimeline::Services(&timelineHost);
-    auto value = EngineActorMotion::Core(_state);
-    const bool success = mm_actor_seek_run(&value, _track.Route(), _track.Events(), _nfrmFirst, _nfrmLast, nfrm,
+    const bool success = mm_actor_seek_run(&_state, _track.Route(), _track.Events(), _nfrmFirst, _nfrmLast, nfrm,
                                            &timeline, &effects) > 0;
-    EngineActorMotion::Publish(_state, value);
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     if (!success)
     {
@@ -395,13 +391,10 @@ bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFr
     AssertPo(_track.Events(), 0);
     const MMActorFrameEffects effects = {
         this,
-        [](void *context, const MMActorFrameCommand *command, MMActorState *state) -> int {
+        [](void *context, const MMActorFrameCommand *command, MMActorState *) -> int {
             auto actor = static_cast<Actor *>(context);
-            EngineActorMotion::Publish(actor->_state, *state);
-            const bool ok = command->kind == MM_ACTOR_CHECK_ENTRANCE ? actor->_FIsAddNow(command->eventIndex)
-                                                                    : actor->_FDoAevCore(command->eventIndex);
-            *state = EngineActorMotion::Core(actor->_state);
-            return ok;
+            return command->kind == MM_ACTOR_CHECK_ENTRANCE ? actor->_FIsAddNow(command->eventIndex)
+                                                            : actor->_FDoAevCore(command->eventIndex);
         },
         [](void *context) -> int { return static_cast<Actor *>(context)->_FEnqueueSmmInMsq(); },
         [](void *context) {
@@ -417,16 +410,14 @@ bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFr
             BMAT34 matrix;
             actor->_MatrixRotUpdate(&actor->_state.position, &matrix);
         }};
-    auto value = EngineActorMotion::Core(_state);
     const auto motion = EngineActorMotion::Services();
     MMActorFrameResult result;
     int dirty = *pfPositionDirty, sound = 0;
-    const int ran = mm_actor_frame_run(&value, _track.Route(), _track.Events(), &inputs, dirty, &motion, &effects,
+    const int ran = mm_actor_frame_run(&_state, _track.Route(), _track.Events(), &inputs, dirty, &motion, &effects,
                                        &result);
-    EngineActorMotion::Publish(_state, value);
     if (ran <= 0)
         return false;
-    const bool success = mm_actor_frame_display(&result, &value, _nfrmLast, MM_ACTOR_FRAME_STUDIO,
+    const bool success = mm_actor_frame_display(&result, &_state, _nfrmLast, MM_ACTOR_FRAME_STUDIO,
                                                  &dirty, &sound, &effects) > 0;
     *pfPositionDirty = dirty != 0;
     if (pfSoundInFrame && sound)
@@ -503,9 +494,8 @@ bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
     AssertBaseThis(0);
     AssertPo(_track.Events(), 0);
     AssertIn(iaev, 0, _track.Events()->IvMac() + 1);
-    const auto location = EngineActorMotion::Location(rtel);
     const auto motion = EngineActorMotion::Services();
-    return mm_actor_subroute_events_done(_track.Events(), iaev, &location, &motion) != 0;
+    return mm_actor_subroute_events_done(_track.Events(), iaev, &rtel, &motion) != 0;
 }
 
 /***************************************************************************
@@ -615,9 +605,6 @@ bool Actor::_FDoAevCore(long iaev)
         std::memcpy(&event, value, sizeof(event));
         static_cast<PGeneralGroup>(events)->PutFixed(index, &event);
     };
-    effects.publish = [](void *context, const MMActorState *value) {
-        EngineActorMotion::Publish(static_cast<Host *>(context)->actor->_state, *value);
-    };
     effects.run = [](void *context, const MMActorEffectCommand *command, MMActorEffectReply *reply) {
         auto &host = *static_cast<Host *>(context);
         auto actor = host.actor;
@@ -691,13 +678,9 @@ bool Actor::_FDoAevCore(long iaev)
             break;
         }
     };
-    auto state = EngineActorMotion::Core(_state);
-    const auto origin = EngineActorMotion::Point(_dxyzFullRte);
     const auto tables = EngineActorMotion::Services();
-    bool success = mm_actor_effect_apply(&state, _track.Route(), _track.Events(), iaev, &origin,
-                                               _pbody != pvNil, 0, &tables, &effects) != 0;
-    EngineActorMotion::Publish(_state, state);
-    return success;
+    return mm_actor_effect_apply(&_state, _track.Route(), _track.Events(), iaev, &_dxyzFullRte,
+                                 _pbody != pvNil, 0, &tables, &effects) != 0;
 }
 
 /***************************************************************************
@@ -1714,12 +1697,10 @@ void Actor::_GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS rFr
 void Actor::_PositionBody(RoutePoint *pxyz)
 {
     AssertBaseThis(0); AssertVarMem(pxyz);
-    auto state=EngineActorMotion::Core(_state);
-    const auto tables=EngineActorMotion::Services();
-    const auto services=_SubrouteEditServices();
-    const auto position=EngineActorMotion::Point(*pxyz);
-    mm_actor_subroute_position_body(&state,_track.Route(),_track.Events(),&position,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    const auto tables = EngineActorMotion::Services();
+    const auto services = _SubrouteEditServices();
+    const auto position = *pxyz;
+    mm_actor_subroute_position_body(&_state, _track.Route(), _track.Events(), &position, &tables, &services);
 }
 
 /***************************************************************************

@@ -2642,7 +2642,7 @@ static void TestActorPoseEvaluation()
     auto orient=[&](const ActorFrameState &state,const ActorTrack &t,BMAT34 *m,BRA *x=nullptr,BRA *y=nullptr,BRA *z=nullptr,LegacyUlong *axes=nullptr) {
         ActorPoseEvaluator::RouteOrientation(state,t,m,x,y,z,axes); outputs(m,x,y,z,axes); RecordActorFrameState(state,snapshot);
     };
-    auto update=[&](ActorFrameState &state,const ActorTrack &t,const ActorPoseInputs &in,const RoutePoint *p,BMAT34 *m) {
+    auto update=[&](ActorFrameState &state,const ActorTrack &t,const ActorPoseInputs &in,const RoutePoint *p,auto *m) {
         ActorPoseEvaluator::Update(state,t,in,p,m); record(m,sizeof(*m)); RecordActorFrameState(state,snapshot);
     };
     RoutePoint vector = {rOne, rOne, rZero};
@@ -2737,8 +2737,10 @@ static void TestActorPoseEvaluation()
         state.InitTransform();
         state.useCurrentRotation = mode == 0;
         state.transform.aevpull = {BR_SCALAR(2), BR_SCALAR(3), BR_SCALAR(4)};
-        BrMatrix34RotateY(&state.transform.bmat34Cur, static_cast<BRA>(0x4000));
-        BrMatrix34RotateY(&state.transform.bmat34Fwd, static_cast<BRA>(0x4000));
+        BMAT34 rotation;
+        BrMatrix34RotateY(&rotation, static_cast<BRA>(0x4000));
+        std::memcpy(&state.transform.bmat34Cur, &rotation, sizeof(rotation));
+        state.transform.bmat34Fwd = state.transform.bmat34Cur;
         update(state, track, inputs, &position, &matrix);
         for (LegacyLong row = 0; row < 3; ++row)
             for (LegacyLong column = 0; column < 3; ++column)
@@ -2787,8 +2789,11 @@ static void TestActorPoseEvaluation()
         rotate(i&7,&direction,&matrix,&x,&y,&z,&axes);
         ActorFrameState sample; sample.addEvent=0; sample.actionFlags=i&7; sample.frame=i+2;
         sample.location={0,BR_SCALAR(2),0}; sample.useCurrentRotation=(i&1)!=0;
-        BrMatrix34RotateY(&sample.transform.bmat34Fwd,static_cast<BRA>(next()));
-        BrMatrix34RotateX(&sample.transform.bmat34Cur,static_cast<BRA>(next()));
+        BMAT34 rotation;
+        BrMatrix34RotateY(&rotation,static_cast<BRA>(next()));
+        std::memcpy(&sample.transform.bmat34Fwd, &rotation, sizeof(rotation));
+        BrMatrix34RotateX(&rotation,static_cast<BRA>(next()));
+        std::memcpy(&sample.transform.bmat34Cur, &rotation, sizeof(rotation));
         sample.transform.aevpull={static_cast<BRS>(next()%0x50000)-0x10000,static_cast<BRS>(next()%0x50000)-0x10000,static_cast<BRS>(next()%0x50000)-0x10000};
         sample.transform.rScaleStep=static_cast<BRS>(next()%0x30000)-0x10000;
         ActorPoseInputs rest; rest.restX=static_cast<BRA>(next()); rest.restY=static_cast<BRA>(next()); rest.restZ=static_cast<BRA>(next()); rest.fixedPathOrientation=(i&2)!=0;
@@ -2877,9 +2882,12 @@ struct CoreFrameHost
                 state.subrouteTranslation = {addition.dxr, addition.dyr, addition.dzr};
                 state.UpdateOrigin(origin);
                 state.InitTransform();
-                BrMatrix34PostRotateX(&state.transform.bmat34Cur, addition.xa);
-                BrMatrix34PostRotateY(&state.transform.bmat34Cur, addition.ya);
-                BrMatrix34PostRotateZ(&state.transform.bmat34Cur, addition.za);
+                BMAT34 rotation;
+                std::memcpy(&rotation, &state.transform.bmat34Cur, sizeof(rotation));
+                BrMatrix34PostRotateX(&rotation, addition.xa);
+                BrMatrix34PostRotateY(&rotation, addition.ya);
+                BrMatrix34PostRotateZ(&rotation, addition.za);
+                std::memcpy(&state.transform.bmat34Cur, &rotation, sizeof(rotation));
                 state.transform.xaPath = addition.xa;
                 state.transform.yaPath = addition.ya;
                 state.transform.zaPath = addition.za;
