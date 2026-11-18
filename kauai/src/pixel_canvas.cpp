@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>
-#include <stdexcept>
+#include <new>
 #include <vector>
 #include "kauai_core.h"
 #include "region.h"
@@ -628,201 +628,33 @@ bool CopyPacked(const PackedSurface &destination, const PackedSurface &source, c
 }
 namespace
 {
-template <class Surface> bool ValidScroll(const Surface &surface)
+bool ScrollRaster(const MMPixelSurface &surface, const RC &rectangle, MMI32 dx, MMI32 dy, const RC *clip,
+                  Region *region, bool legacyMonochrome)
 {
-    return Valid(surface);
-}
-bool ValidScroll(const PackedSurface &surface)
-{
-    // Scrolling moves stored samples without interpreting their colors.
-    return ValidStorage(surface);
-}
-void ScrollPixel(const Surface32 &destination, const Surface32 &source, std::int32_t x, std::int32_t y, std::int32_t sx,
-                 std::int32_t sy)
-{
-    std::memcpy(Pixel(destination, x, y), Pixel(source, sx, sy), 4);
-}
-void ScrollPixel(const Surface8 &destination, const Surface8 &source, std::int32_t x, std::int32_t y, std::int32_t sx,
-                 std::int32_t sy)
-{
-    *Pixel(destination, x, y) = *Pixel(source, sx, sy);
-}
-void ScrollPixel(const PackedSurface &destination, const PackedSurface &source, std::int32_t x, std::int32_t y,
-                 std::int32_t sx, std::int32_t sy)
-{
-    PackedWrite(destination, x, y, PackedRead(source, sx, sy));
-}
-struct CopyScrollPixel
-{
-    template <class Surface>
-    void operator()(const Surface &destination, const Surface &source, std::int32_t x, std::int32_t y, std::int32_t sx,
-                    std::int32_t sy) const
-    {
-        ScrollPixel(destination, source, x, y, sx, sy);
-    }
-};
-template <class Surface, class Draw = CopyScrollPixel>
-bool ScrollCore(const Surface &surface, const RC &rectangle, std::int32_t dx, std::int32_t dy, const RC *clip,
-                Region *region, Draw draw = {})
-{
-    if (!ValidScroll(surface))
-        return false;
-    if (rectangle.xpRight < rectangle.xpLeft || rectangle.ypBottom < rectangle.ypTop)
-        return false;
-    RC area = rectangle, bounds(0, 0, surface.width, surface.height);
-    if ((!dx && !dy) || !area.FIntersect(&bounds) || (region && region->FEmpty()))
-        return true;
-    if (clip)
-    {
-        RC clipping = *clip;
-        if (!area.FIntersect(&clipping))
-            return true;
-    }
-    if (dx >= area.Dxp() || std::int64_t(dx) <= -std::int64_t(area.Dxp()) || dy >= area.Dyp() ||
-        std::int64_t(dy) <= -std::int64_t(area.Dyp()))
-        return true;
-    std::vector<std::uint8_t> snapshot, coverage;
-    const auto count = std::size_t(surface.pitch) * surface.height;
-    const auto coverageCount = std::uint64_t(surface.width) * surface.height;
-    if (count > snapshot.max_size() || (region && coverageCount > coverage.max_size()))
-        return false;
-    try
-    {
-        snapshot.resize(count);
-        if (region)
-            coverage.resize(static_cast<std::size_t>(coverageCount));
-    }
-    catch (const std::bad_alloc &)
-    {
-        return false;
-    }
-    std::memcpy(snapshot.data(), surface.pixels, count);
-    if (region)
-        Spans(surface, rectangle, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-            std::memset(coverage.data() + std::size_t(y) * surface.width + left, 1, right - left);
-        });
-    auto source = surface;
-    source.pixels = snapshot.data();
-    Spans(surface, rectangle, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        const auto sy = std::int64_t(y) - dy;
-        if (sy < 0 || sy >= surface.height || sy < rectangle.ypTop || sy >= rectangle.ypBottom ||
-            (clip && (sy < clip->ypTop || sy >= clip->ypBottom)))
-            return;
-        for (auto x = left; x < right; ++x)
-        {
-            const auto sx = std::int64_t(x) - dx;
-            if (sx >= 0 && sx < surface.width && sx >= rectangle.xpLeft && sx < rectangle.xpRight &&
-                (!clip || (sx >= clip->xpLeft && sx < clip->xpRight)) &&
-                (!region || coverage[std::size_t(sy) * surface.width + std::size_t(sx)]))
-                draw(surface, source, x, y, static_cast<std::int32_t>(sx), static_cast<std::int32_t>(sy));
-        }
-    });
-    return true;
+    const auto area = RasterRect(rectangle);
+    const auto clipping = clip ? RasterRect(*clip) : MMPixelRect{};
+    MaskedRegionSpans scanner(region);
+    const auto spans = scanner.Services();
+    return mm_pixel_scroll(&surface, &area, dx, dy, clip ? &clipping : nullptr, region ? &spans : nullptr,
+                           legacyMonochrome) != 0;
 }
 } // namespace
 bool Scroll(const Surface32 &surface, const RC &rectangle, std::int32_t dx, std::int32_t dy, const RC *clip,
             Region *region)
 {
-    return ScrollCore(surface, rectangle, dx, dy, clip, region);
+    return ScrollRaster(RasterSurface(surface), rectangle, dx, dy, clip, region, false);
 }
 bool Scroll(const Surface8 &surface, const RC &rectangle, std::int32_t dx, std::int32_t dy, const RC *clip,
             Region *region)
 {
-    return ScrollCore(surface, rectangle, dx, dy, clip, region);
+    return ScrollRaster({surface.pixels, surface.width, surface.height, surface.pitch, 8}, rectangle, dx, dy, clip,
+                        region, false);
 }
 bool Scroll(const PackedSurface &surface, const RC &rectangle, std::int32_t dx, std::int32_t dy, const RC *clip,
             Region *region, const PackedScrollOptions &options)
 {
-    if (!options.legacyMonochromeEdges || dx >= 0 || surface.depth != 1 || !ValidStorage(surface))
-        return ScrollCore(surface, rectangle, dx, dy, clip, region);
-    // The native monochrome self-blit moves complete bytes before its
-    // masked edge bytes. Edge reads can therefore observe the completed body.
-    // Keep this legacy Studio policy explicit; the default API uses a snapshot.
-    std::vector<std::uint8_t> masks, snapshot;
-    const auto count = std::size_t(surface.pitch) * surface.height;
-    try
-    {
-        if (!ScrollCore(surface, rectangle, dx, dy, clip, region,
-                        [&](const PackedSurface &, const PackedSurface &, std::int32_t x, std::int32_t y, std::int32_t,
-                            std::int32_t) {
-                            if (masks.empty())
-                                masks.resize(count);
-                            const auto perByte = 8 / surface.depth;
-                            masks[std::size_t(y) * surface.pitch + x / perByte] |= static_cast<std::uint8_t>(
-                                ((1u << surface.depth) - 1) << (8 - surface.depth - (x % perByte) * surface.depth));
-                        }))
-            return false;
-        if (masks.empty())
-            return true;
-        snapshot.resize(count);
-    }
-    catch (const std::bad_alloc &)
-    {
-        return false;
-    }
-    catch (const std::length_error &)
-    {
-        return false;
-    }
-    struct Area
-    {
-        std::int32_t left, top, right, bottom;
-    };
-    std::vector<Area> areas;
-    const auto perByte = 8 / surface.depth;
-    try
-    {
-        for (std::int32_t top = 0; top < surface.height;)
-        {
-            auto bottom = top + 1;
-            while (bottom < surface.height &&
-                   !std::memcmp(masks.data() + std::size_t(top) * surface.pitch,
-                                masks.data() + std::size_t(bottom) * surface.pitch, surface.pitch))
-                ++bottom;
-            const auto selected = [&](std::int32_t x) {
-                return masks[std::size_t(top) * surface.pitch + x / perByte] &
-                       (1u << (7 - (x % perByte) * surface.depth));
-            };
-            for (std::int32_t x = 0; x < surface.width;)
-            {
-                while (x < surface.width && !selected(x))
-                    ++x;
-                const auto left = x;
-                while (x < surface.width && selected(x))
-                    ++x;
-                if (x > left)
-                    areas.push_back({left, top, x, bottom});
-            }
-            top = bottom;
-        }
-    }
-    catch (const std::bad_alloc &)
-    {
-        return false;
-    }
-    catch (const std::length_error &)
-    {
-        return false;
-    }
-    if (dy > 0)
-        std::reverse(areas.begin(), areas.end());
-    auto pixels = static_cast<std::uint8_t *>(surface.pixels);
-    PackedSurface input = surface;
-    input.pixels = snapshot.data();
-    for (const auto &area : areas)
-    {
-        const auto firstFull = area.left / perByte + (area.left % perByte != 0), lastFull = area.right / perByte;
-        for (bool body : {true, false})
-        {
-            std::memcpy(snapshot.data(), pixels, count);
-            for (auto y = area.top; y < area.bottom; ++y)
-                for (auto x = area.left; x < area.right; ++x)
-                    if ((x / perByte >= firstFull && x / perByte < lastFull) == body)
-                        ScrollPixel(surface, input, x, y, static_cast<std::int32_t>(std::int64_t(x) - dx),
-                                    static_cast<std::int32_t>(std::int64_t(y) - dy));
-        }
-    }
-    return true;
+    return ScrollRaster({surface.pixels, surface.width, surface.height, surface.pitch, surface.depth}, rectangle,
+                        dx, dy, clip, region, options.legacyMonochromeEdges);
 }
 
 bool CopyIndexed(const Surface32 &destination, const Indexed8 &source, const RC &sourceRect, const RC &destinationRect,

@@ -79,6 +79,12 @@ int mm_pixel_expand_indexed(const MMPixelSurface *target, const MMPixelImage *so
 int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *source,
                               const MMPixelRect *source_rect, const MMPixelRect *target_rect);
 
+/* Move raw samples within the visible rectangle and region. Cells exposed by
+ * the move and row padding retain their bytes. The legacy monochrome option
+ * applies the full-byte pass before edge bits on leftward 1-bit moves. */
+int mm_pixel_scroll(const MMPixelSurface *, const MMPixelRect *rectangle, MMI32 dx, MMI32 dy,
+                    const MMPixelRect *clip, const MMPixelSpans *, int legacy_monochrome);
+
 #ifdef __cplusplus
 }
 #endif

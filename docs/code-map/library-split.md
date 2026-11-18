@@ -5088,6 +5088,16 @@ cases matched across 20,675,560 bytes. Windows comparisons also passed across
 3,024 DrawDib cases and 4,458 decoded frames from 24 AVI files. Evidence is in
 `tmp/c89-dib-raster`.
 
+`pixel_scroll.c` intersects the scroll rectangle with surface bounds and
+checks that both endpoints are visible. Row and pixel traversal follow the
+movement direction to preserve overlapping source samples without a surface
+snapshot. Region coverage uses clipped 1-bit masks. The leftward monochrome
+path still processes full bytes before partial-byte edges in each region band.
+All 63,632 scroll cases matched return values and storage bytes, including
+row padding, extreme offsets and irregular monochrome regions. The Windows
+GDI oracle passed 111,780 scroll comparisons. Evidence is in
+`tmp/c89-pixel-scroll`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit

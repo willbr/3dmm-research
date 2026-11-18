@@ -659,6 +659,30 @@ static void dib_and_indexed(void)
            ((unsigned char *)&native[1])[2] == 2);
 }
 
+static void pixel_scroll(void)
+{
+    static const unsigned char before[] = {0xa5, 0x3c, 0x96, 0xf0, 0xda};
+    static const unsigned char moved[] = {0xac, 0x96, 0xf6, 0xf0, 0xda};
+    static const unsigned char legacy[] = {0xa6, 0x96, 0xf6, 0xf0, 0xda};
+    unsigned char pixels[sizeof(before)];
+    const MMPixelRect rect = {4, 0, 28, 1};
+    const MMPixelRect extreme = {-2147483647L - 1, 0, 2147483647L, 1};
+    MMPixelSurface surface;
+    surface.pixels = pixels;
+    surface.width = 32;
+    surface.height = 1;
+    surface.pitch = sizeof(pixels);
+    surface.depth = 1;
+    memcpy(pixels, before, sizeof(pixels));
+    assert(mm_pixel_scroll(&surface, &rect, -8, 0, NULL, NULL, 0));
+    assert(!memcmp(pixels, moved, sizeof(pixels)));
+    memcpy(pixels, before, sizeof(pixels));
+    assert(mm_pixel_scroll(&surface, &rect, -8, 0, NULL, NULL, 1));
+    assert(!memcmp(pixels, legacy, sizeof(pixels)));
+    assert(mm_pixel_scroll(&surface, &extreme, -2147483647L - 1, 0, NULL, NULL, 1));
+    assert(!memcmp(pixels, legacy, sizeof(pixels)));
+}
+
 int main(void)
 {
     encode();
@@ -670,6 +694,7 @@ int main(void)
     scaled_drawing();
     packed_copy();
     dib_and_indexed();
+    pixel_scroll();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;
