@@ -161,25 +161,45 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
 {
     void *actor;
     MMI32 rect[4];
+    const MMRenderBody *bodies;
+    MMRenderBody body;
+    MMRenderFrame frame;
+    MMMovieRenderScene scene;
     MMWorldMaterials materials;
-    int wire, flat, no_texture, i;
+    MMU32 index;
+    int wire, flat, no_texture, i, ok = 0;
     if (!r->changed)
         return 1;
+    frame = s->frame;
+    mm_movie_render_scene_init(&scene, NULL, s->context, s->retain_body, s->release_body);
+    if (s->body)
+        for (actor = s->child(s->context, frame.world); actor; actor = s->next(s->context, actor))
+            if (s->type(s->context, actor) == s->actor_none)
+            {
+                memset(&body, 0, sizeof(body));
+                if (s->body(s->context, actor, &body) && !mm_movie_render_scene_add(&scene, &body))
+                    goto done;
+            }
+    mm_movie_render_scene_publish(&scene, &s->camera, &frame);
     if (s->has(s->context, MM_WORLD_BEGIN))
-        for (actor = s->child(s->context, s->frame.world); actor; actor = s->next(s->context, actor))
+        for (actor = s->child(s->context, frame.world); actor; actor = s->next(s->context, actor))
             if (s->type(s->context, actor) == s->actor_none)
                 s->begin(s->context, actor);
+    bodies = (const MMRenderBody *)frame.scene->storage.buffers[0].data;
+    if (s->prepare_body)
+        for (index = 0; index < frame.scene->bodies.count; ++index)
+            s->prepare_body(s->context, &bodies[index]);
     if (!mm_world_render_clean(b, s))
-        return 0;
+        goto done;
     s->region_union(s->context, SCREEN, WORK);
     s->region_clear(s->context, WORK);
     s->options(s->context, &wire, &flat, &no_texture);
-    mm_world_render_styles(s->frame.world, wire ? s->edges : s->faces, s);
+    mm_world_render_styles(frame.world, wire ? s->edges : s->faces, s);
     if (!mm_world_materials_begin(&materials, flat, no_texture, &s->materials))
-        return 0;
-    s->render(s->context, &s->frame);
+        goto done;
+    s->render(s->context, &frame);
     mm_world_materials_end(&materials, &s->materials);
-    for (actor = s->child(s->context, s->frame.world); actor; actor = s->next(s->context, actor))
+    for (actor = s->child(s->context, frame.world); actor; actor = s->next(s->context, actor))
         if (s->type(s->context, actor) == s->actor_none && s->has(s->context, MM_WORLD_RECT))
         {
             s->rect(s->context, actor, rect);
@@ -187,7 +207,7 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
                 for (i = 0; i < 4; ++i)
                 {
                     if (rect[i] > MAXIMUM / b->scale || rect[i] < MINIMUM / b->scale)
-                        return 0;
+                        goto done;
                     rect[i] *= b->scale;
                 }
             s->region_add(s->context, WORK, rect);
@@ -195,7 +215,10 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
     s->region_union(s->context, SCREEN, WORK);
     r->changed = 0;
     s->publish(s->context, r);
-    return 1;
+    ok = 1;
+done:
+    mm_movie_render_scene_dispose(&scene);
+    return ok;
 }
 int mm_world_prerender(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRenderServices *s)
 {

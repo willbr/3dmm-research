@@ -26,12 +26,7 @@ extern "C"
         int valid, orthographic;
         float transform[12], vertical_fov, aspect, near_clip, far_clip, display_depth, ortho_height;
     } MMPreviewProjection;
-    typedef struct MMPreviewCamera
-    {
-        MMI32 matrix[12], near_z, far_z, aspect, width, height;
-        unsigned short fov;
-        int parallel;
-    } MMPreviewCamera;
+    typedef MMRenderCamera MMPreviewCamera;
     typedef struct MMPreviewMath
     {
         float (*sin)(float), (*cos)(float), (*tan)(float), (*sqrt)(float), (*asin)(float), (*atan2)(float, float),
@@ -41,14 +36,7 @@ extern "C"
         MMI32 (*scalar_double)(double);
         unsigned short (*angle)(float);
     } MMPreviewMath;
-    typedef struct MMPreviewBody
-    {
-        MMBodyDrawView draw;
-        void *resource;
-        float low[3], high[3];
-        MMU32 order_low, order_high;
-        MMI32 owner;
-    } MMPreviewBody;
+    typedef MMRenderBody MMPreviewBody;
     typedef struct MMPreviewData
     {
         int scene, background;

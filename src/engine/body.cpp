@@ -679,20 +679,26 @@ int Body::_FFilterSearch(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *ray_pos, 
     (but save the last good bounds in its last-visible C rectangle).  Also size the
     bounding box correctly.
 ***************************************************************************/
-void Body::_PrepareToRender(PBACT pbact)
+int Body::_ReadRenderBody(PBACT root, MMRenderBody *entry)
 {
-    AssertVarMem(pbact);
-    auto services = _GeometryServices();
-    auto body = static_cast<PBody>(services.owner(services.context, pbact));
-    if (body)
-    {
-        const auto view = body->DrawView();
-        mm_body_draw(&view, body->_Actors(), [](void *actors, MMI32 index, MMI32, const MMBodyPartBinding *part) {
-            ApplyDrawBinding(static_cast<PBACT>(actors)[index], *part);
-            return 1;
-        });
-    }
-    mm_body_prepare_render(pbact, &services);
+    const auto services = _GeometryServices();
+    const auto body = static_cast<PBody>(services.owner(services.context, root));
+    if (!body || root != body->_PbactRoot())
+        return 0;
+    entry->draw = body->DrawView();
+    entry->target = root;
+    entry->resource = static_cast<BASE *>(body);
+    return 1;
+}
+
+void Body::_PrepareRenderBody(const MMRenderBody *entry)
+{
+    mm_body_draw(&entry->draw, entry->target, [](void *actors, MMI32 index, MMI32, const MMBodyPartBinding *part) {
+        ApplyDrawBinding(static_cast<PBACT>(actors)[index], *part);
+        return 1;
+    });
+    const auto services = _GeometryServices();
+    mm_body_prepare_render(entry->target, &services);
 }
 
 /***************************************************************************

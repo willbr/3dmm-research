@@ -12,7 +12,9 @@ class BodyGeometryFixtureAccess : public Body
     }
     static void Prepare(PBody body)
     {
-        _PrepareToRender(body->PbactRoot());
+        MMRenderBody entry = {};
+        if (_ReadRenderBody(body->PbactRoot(), &entry))
+            _PrepareRenderBody(&entry);
     }
     static void Rendered(PBACT actor, RC *rect)
     {

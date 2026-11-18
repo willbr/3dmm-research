@@ -18,6 +18,7 @@
 #include "mm/body_edit.h"
 #include "mm/body_runtime.h"
 #include "mm/body_geometry.h"
+#include "mm/render_frame.h"
 
 using namespace BRender;
 
@@ -90,7 +91,8 @@ class Body : public Body_PAR
     static int BR_CALLBACK _FFilterSearch(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos,
                                           BVEC3 *pbvec3RayDir, BRS dzpNear, BRS dzpFar, void *pvArg);
     static void _BactRendered(PBACT pbact, RC *prc);
-    static void _PrepareToRender(PBACT pbact);
+    static int _ReadRenderBody(PBACT, MMRenderBody *);
+    static void _PrepareRenderBody(const MMRenderBody *);
     static void _GetRc(PBACT pbact, RC *prc);
 
   public:

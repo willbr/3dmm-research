@@ -1,6 +1,49 @@
 #include "mm/render_frame.h"
 #include <string.h>
 
+void mm_movie_render_scene_init(MMMovieRenderScene *scene, const MMStorageAllocator *allocator, void *context,
+                               void (*retain)(void *, void *), void (*release)(void *, void *))
+{
+    memset(scene, 0, sizeof(*scene));
+    mm_storage_init(&scene->storage, allocator);
+    scene->bodies.storage = &scene->storage;
+    scene->bodies.width = sizeof(MMRenderBody);
+    scene->bodies.free_count = -1;
+    scene->context = context;
+    if (retain && release)
+    {
+        scene->retain = retain;
+        scene->release = release;
+    }
+}
+
+int mm_movie_render_scene_add(MMMovieRenderScene *scene, const MMRenderBody *body)
+{
+    if (mm_array_add(&scene->bodies, body, NULL) != MM_STORAGE_OK)
+        return 0;
+    if (body->resource && scene->retain)
+        scene->retain(scene->context, body->resource);
+    return 1;
+}
+
+void mm_movie_render_scene_publish(MMMovieRenderScene *scene, const MMRenderCamera *camera, MMRenderFrame *frame)
+{
+    scene->camera = *camera;
+    frame->scene = scene;
+}
+
+void mm_movie_render_scene_dispose(MMMovieRenderScene *scene)
+{
+    const MMRenderBody *bodies = (const MMRenderBody *)scene->storage.buffers[0].data;
+    MMU32 i;
+    if (scene->release)
+        for (i = 0; i < scene->bodies.count; ++i)
+            if (bodies[i].resource)
+                scene->release(scene->context, bodies[i].resource);
+    mm_storage_dispose(&scene->storage);
+    scene->bodies.count = 0;
+}
+
 void mm_render_frame_borrow(MMRenderFrame *frame, void *world, void *camera, void *colour, void *depth)
 {
     memset(frame, 0, sizeof(*frame));

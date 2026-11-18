@@ -56,6 +56,10 @@ extern "C"
     {
         void *context;
         MMRenderFrame frame;
+        MMRenderCamera camera;
+        int (*body)(void *, void *actor, MMRenderBody *);
+        void (*prepare_body)(void *, const MMRenderBody *);
+        void (*retain_body)(void *, void *), (*release_body)(void *, void *);
         int actor_none, actor_model, bounding_points, bounding_edges, bounding_faces, faces, edges;
         void *(*child)(void *, void *), *(*next)(void *, void *);
         int (*type)(void *, void *), (*style)(void *, void *);

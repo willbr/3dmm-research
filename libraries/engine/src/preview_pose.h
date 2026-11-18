@@ -7,8 +7,7 @@
 typedef struct MMPreviewPose
 {
     MMPreviewData scene;
-    MMCollectionStorage storage;
-    MMArray bodies;
+    MMMovieRenderScene render;
 } MMPreviewPose;
 
 void mm_preview_pose_init(MMPreviewPose *, const MMPreviewRenderServices *);

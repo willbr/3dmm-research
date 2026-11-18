@@ -19,10 +19,12 @@ typedef struct Fixture
     MMWorldRenderServices s;
     MMWorldMaterial m[4], original[4];
     Actor a[7];
+    MMBodyPartBinding bindings[2][2];
     unsigned char background[64], working[64];
     int events[512], n, live, allocations, fail_alloc, fail_lock, invalid_pixels, bad_span;
     int empty, spans, scanner_live, wire, flat, no_texture, begin_options, rect_enabled, rect_disable, rect_overflow;
     int change_in_render, scan_y, scan[4], draw_source[4], draw_destination[4], scale[4], offset[2];
+    int body_refs, prepared;
     size_t reported;
 } Fixture;
 static void event(Fixture *f, int e)
@@ -220,11 +222,49 @@ static void scan_end(void *p)
     assert(f->scanner_live-- == 1);
     event(f, 24);
 }
+static int body(void *p, void *actor, MMRenderBody *out)
+{
+    Fixture *f = (Fixture *)p;
+    Actor *root = (Actor *)actor;
+    assert(root->id == 1 || root->id == 2);
+    out->target = root;
+    out->resource = root;
+    out->draw.bindings = f->bindings[root->id - 1];
+    return 1;
+}
+static void retain_body(void *p, void *resource)
+{
+    Fixture *f = (Fixture *)p;
+    assert(resource == &f->a[f->body_refs + 1]);
+    ++f->body_refs;
+}
+static void release_body(void *p, void *resource)
+{
+    Fixture *f = (Fixture *)p;
+    assert(f->body_refs > 0 && resource == &f->a[3 - f->body_refs]);
+    --f->body_refs;
+}
+static void prepare_body(void *p, const MMRenderBody *entry)
+{
+    Fixture *f = (Fixture *)p;
+    assert(f->body_refs == 2 && entry->target == &f->a[f->prepared + 1]);
+    assert(entry->draw.bindings == f->bindings[f->prepared]);
+    ++f->prepared;
+}
 static void render(void *p, const MMRenderFrame *frame)
 {
     Fixture *f = (Fixture *)p;
+    const MMRenderBody *bodies;
     assert(frame->world == &f->a[0] && frame->camera == &f->a[6] &&
            frame->colour == f->working && frame->depth == f->background);
+    assert(frame->scene && frame->scene->camera.matrix[9] == 1234 && frame->scene->camera.fov == 789);
+    assert(frame->scene->bodies.count == (f->s.body ? 2U : 0U));
+    if (f->s.body)
+    {
+        bodies = (const MMRenderBody *)frame->scene->storage.buffers[0].data;
+        assert(f->body_refs == 2 && f->prepared == 2 &&
+               bodies[0].target == &f->a[1] && bodies[1].target == &f->a[2]);
+    }
     event(f, 50);
     if (f->change_in_render)
         mm_world_render_dirty(&f->r);
@@ -325,6 +365,8 @@ static void init(Fixture *f)
     s = &f->s;
     s->context = f;
     mm_render_frame_borrow(&s->frame, &f->a[0], &f->a[6], f->working, f->background);
+    s->camera.matrix[9] = 1234;
+    s->camera.fov = 789;
     s->actor_none = 0;
     s->actor_model = 1;
     s->faces = 8;
@@ -507,6 +549,19 @@ static void render_tests(void)
     mm_world_render_dirty(&f.r);
     assert(!mm_world_render(&f.r, &f.b, &f.s));
     assert(f.r.changed && !f.live && position(&f, 60) < 0);
+    for (i = 0; i < 2; ++i)
+    {
+        init(&f);
+        f.s.body = body;
+        f.s.retain_body = retain_body;
+        f.s.release_body = release_body;
+        f.s.prepare_body = prepare_body;
+        if (i)
+            f.fail_lock = BG;
+        mm_world_render_dirty(&f.r);
+        assert(mm_world_render(&f.r, &f.b, &f.s) == !i);
+        assert(!f.body_refs && f.prepared == 2 && f.r.changed == i);
+    }
 }
 static void output_tests(void)
 {

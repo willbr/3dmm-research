@@ -16,7 +16,7 @@ void BodyWorld::Attach(void *context, Body *body)
 {
     PWorld world = static_cast<PWorld>(context);
     world->AddActor(body->_PbactRoot());
-    world->SetBeginRenderCallback(Body::_PrepareToRender);
+    world->SetBodyRenderCallbacks(Body::_ReadRenderBody, Body::_PrepareRenderBody);
     world->SetActorRenderedCallback(Body::_BactRendered);
     world->SetGetRcCallback(Body::_GetRc);
 }

@@ -174,6 +174,7 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
         mm_preview_pose_submit(&state->pose, frame->world, &state->scratch, &r) != MM_PREVIEW_OK ||
         (d->model && !r.add_model(r.context, frame->world, d->model)))
         return MM_PREVIEW_PICK_MODELS;
+    mm_movie_render_scene_publish(&state->pose.render, &camera, frame);
     if (!bg && d->background)
     {
         memset(&mesh, 0, sizeof(mesh));
@@ -193,7 +194,7 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
         {
             if (z >= 32768)
                 z -= 65536;
-            s->perspective(s->context, &camera, matrix);
+            s->perspective(s->context, &frame->scene->camera, matrix);
             denominator = m->scalar_float(matrix[10]) - z / 32768.0;
             distance = m->scalar_float(matrix[14]) / denominator;
             if (distance >= -DBL_MAX && distance <= DBL_MAX && distance > 0 && (float)distance < state->closest)

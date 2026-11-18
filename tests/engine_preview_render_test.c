@@ -458,6 +458,9 @@ static void render(void *v, const MMRenderFrame *frame)
 {
     Host *h = (Host *)v;
     CHECK(frame->world && frame->camera && frame->colour == &h->colour_token && frame->depth == &h->depth_token);
+    CHECK(frame->scene && frame->scene->bodies.count == (MMU32)h->with_body);
+    CHECK(frame->scene->camera.near_z == h->camera.near_z && frame->scene->camera.far_z == h->camera.far_z &&
+          frame->scene->camera.fov == h->camera.fov);
     CHECK(h->pose_refs == h->with_body + h->with_model);
     h->colours[0] = 42;
     h->depths[0] = 0;

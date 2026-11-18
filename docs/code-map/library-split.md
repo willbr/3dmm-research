@@ -156,6 +156,11 @@ and transforms through `mm_body_draw`. Studio applies the bindings to the
 attached draw tree before rendering. Marcus retains each body while it
 builds the temporary draw and picking trees from the bindings. The ordered
 submission preserves sibling order under the renderer's head insertion.
+The live render frame publishes the chosen projection camera and the
+ordered body bindings in one `MMMovieRenderScene`. The C owner retains
+each body through the draw or pick. Studio collects the attached bodies in
+world order. Marcus preserves its visibility order and publishes the
+camera after applying its view and depth fitting.
 Studio and Marcus still use their existing archive owners, playback resource
 providers and renderers.
 

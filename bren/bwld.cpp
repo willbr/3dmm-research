@@ -129,6 +129,21 @@ MMWorldRenderServices World::_RenderServices(void *context)
     MMWorldRenderServices s = {};
     s.context = context;
     mm_render_frame_borrow(&s.frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
+    static_assert(sizeof(s.camera.matrix) == sizeof(_camera.matrix), "camera matrix layout");
+    std::memcpy(s.camera.matrix, &_camera.matrix, sizeof(s.camera.matrix));
+    s.camera.near_z = _camera.near_z;
+    s.camera.far_z = _camera.far_z;
+    s.camera.fov = _camera.fov;
+    s.camera.aspect = _bcam.aspect;
+    if (_pfnreadbody && _pfnpreparebody)
+    {
+        s.body = [](void *p, void *actor, MMRenderBody *out) -> int {
+            return RenderWorld(p)->_pfnreadbody(static_cast<PBACT>(actor), out);
+        };
+        s.prepare_body = [](void *p, const MMRenderBody *body) { RenderWorld(p)->_pfnpreparebody(body); };
+        s.retain_body = [](void *, void *body) { static_cast<BASE *>(body)->AddRef(); };
+        s.release_body = [](void *, void *body) { static_cast<BASE *>(body)->Release(); };
+    }
     s.actor_none = BR_ACTOR_NONE;
     s.actor_model = BR_ACTOR_MODEL;
     s.bounding_points = BR_RSTYLE_BOUNDING_POINTS;
@@ -206,7 +221,14 @@ MMWorldRenderServices World::_RenderServices(void *context)
     };
     s.scan_next = [](void *p) { static_cast<WorldRenderContext *>(p)->scanner.ScanNext(1); };
     s.scan_end = [](void *p) { static_cast<WorldRenderContext *>(p)->scanner.Free(); };
-    s.render = [](void *, const MMRenderFrame *frame) {
+    s.render = [](void *p, const MMRenderFrame *frame) {
+        auto world = RenderWorld(p);
+        const auto &camera = frame->scene->camera;
+        std::memcpy(&world->_bactCamera.t.t.mat, camera.matrix, sizeof(camera.matrix));
+        world->_bcam.field_of_view = camera.fov;
+        world->_bcam.hither_z = camera.near_z;
+        world->_bcam.yon_z = camera.far_z;
+        world->_bcam.aspect = camera.aspect;
         BrZbSceneRender(static_cast<PBACT>(frame->world), static_cast<PBACT>(frame->camera),
                         static_cast<PBPMP>(frame->colour), static_cast<PBPMP>(frame->depth));
     };

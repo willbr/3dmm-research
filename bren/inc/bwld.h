@@ -69,6 +69,8 @@ class World : public World_PAR
     static long _defaultRenderScale;
     bool _fWorldChanged;         // Mirror of the C render latch
     PFNBEGINREND _pfnbeginrend;  // Callback to each actor before rendering
+    int (*_pfnreadbody)(PBACT, MMRenderBody *) = nullptr;
+    void (*_pfnpreparebody)(const MMRenderBody *) = nullptr;
     PFNBACTREND _pfnbactrend;    // Callback when an actor is rendered
     PFNGETRECT _pfngetrect;      // Callback to get an actor's bounding rect
     PBACT _pbactClosestClicked;  // Borrowed mirror of the C selection
@@ -121,6 +123,11 @@ class World : public World_PAR
     void SetBeginRenderCallback(PFNBEGINREND pfnbeginrend)
     {
         _pfnbeginrend = pfnbeginrend;
+    }
+    void SetBodyRenderCallbacks(int (*read)(PBACT, MMRenderBody *), void (*prepare)(const MMRenderBody *))
+    {
+        _pfnreadbody = read;
+        _pfnpreparebody = prepare;
     }
     void SetActorRenderedCallback(PFNBACTREND pfnbactrend)
     {

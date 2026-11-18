@@ -310,7 +310,9 @@ struct Preview::Impl::RenderHost
             }
         };
         s.sink_off = [](void *) { BrZbSetTriangleSink(nullptr, nullptr); };
-        s.render = [](void *, const MMRenderFrame *frame) {
+        s.render = [](void *v, const MMRenderFrame *frame) {
+            auto &h = *static_cast<RenderHost *>(v);
+            h.Camera(static_cast<br_actor *>(frame->camera), frame->scene->camera);
             BrZbSceneRender(static_cast<br_actor *>(frame->world), static_cast<br_actor *>(frame->camera),
                             static_cast<br_pixelmap *>(frame->colour), static_cast<br_pixelmap *>(frame->depth));
         };

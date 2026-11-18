@@ -13529,6 +13529,36 @@ actor on four seeks. Marcus was rebuilt and relaunched.
 
 Evidence is under `tmp/c89-draw-bindings/` on the evidence drive.
 
+### Live draw frames publish the camera with retained bodies
+
+`MMMovieRenderScene` holds the selected projection camera and ordered
+body bindings for the live draw. Studio publishes attached bodies in
+world order and prepares their draw trees from the published entries.
+Marcus publishes bodies in visibility order and supplies the camera
+after view and depth fitting. Picking uses the same frame record with
+its requested projection. The C fixtures check the camera and body order
+at submission, retained references during drawing, and release when a
+Studio buffer lock fails.
+
+All 181 standalone, 34 selected host, and five AddressSanitizer checks
+passed. The four changed C engine sources compiled under strict C89 for
+Linux x64 musl.
+The 300 standalone frame snapshots and 300 mesh snapshots matched the
+previous build. All 300 native graph and stream frame results matched.
+The 528,048-byte world render and 13,188,586-byte export traces also
+matched byte for byte.
+The 26 actor and body traces matched across 5,843,894 bytes, and the
+480-byte saved movie matched the previous build.
+
+Stock and SID-29 fixtures matched 456 seek observations and 360 viewport
+hashes. Both hosts matched 240 retail playback commits each. Stock Studio
+and retained v3dmm seeks each matched 456 retail actor records. The
+188-camera background trace matched the previous build. Retail reopened
+a Studio-edited movie and matched the actor on four seeks. Marcus was
+rebuilt and relaunched.
+
+Evidence is under `tmp/c89-live-frame/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

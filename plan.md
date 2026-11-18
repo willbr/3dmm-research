@@ -507,9 +507,12 @@ Keep host presentation and device output outside the session.
    and picks with temporary trees built from those bindings and holds the
    body and standalone model references through the operation. Studio
    applies the bindings to its attached tree before drawing.
-   The remaining render cutover is to publish a complete frame through the
-   shared session, with camera and ordered evaluated actor bodies supplied
-   together to the live renderers.
+   Both live renderers now receive one C89 frame record with the selected
+   projection camera and ordered, retained body bindings. Studio uses the
+   attached world order and Marcus preserves visibility order for drawing
+   and picking. The live frame is assembled from the current host state,
+   including unsaved edits. Unifying authored frame evaluation and live
+   frame publication through the same retained movie session remains open.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
