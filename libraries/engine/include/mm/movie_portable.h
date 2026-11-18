@@ -1,7 +1,7 @@
 /* Licensed under the MIT License. */
 #ifndef MM_ENGINE_MOVIE_PORTABLE_H
 #define MM_ENGINE_MOVIE_PORTABLE_H
-#include "read_stream.h"
+#include "chunky_file.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,6 +22,13 @@ typedef enum MMPortableSourceResult
  * stream creates a new GST in the supplied system and byte order. */
 MMPortableSourceResult mm_movie_ensure_portable_source(const MMReadStream *, int system, int big_endian,
                                                          MMByteReceiver, void *context);
+
+/* Assign fresh high, even numbers in each chunk-type namespace. Avoid keys in
+ * the original archive and all supplied portable indexes. The successful write
+ * publishes one new number per old row in numbers. The source snapshot and
+ * numbers remain unchanged on failure. */
+int mm_movie_rekey_portable_chunks(const MMChunkIndex *, const MMChunkAccess *occupied, size_t occupied_count,
+                                  MMU32 seed, MMU32 step, MMU32 *numbers, MMChunkIndexWrite, void *context);
 
 #ifdef __cplusplus
 }

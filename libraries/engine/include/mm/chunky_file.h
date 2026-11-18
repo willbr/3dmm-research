@@ -53,6 +53,7 @@ extern "C"
     } MMChunkAccess;
 
     int mm_chunk_at(const MMChunkAccess *access, MMU32 position, MMChunkEntry *entry);
+    int mm_chunk_keys_ordered(const MMChunkAccess *);
     int mm_chunk_find(const MMChunkAccess *access, MMU32 type, MMU32 number, MMU32 *position);
     int mm_chunk_type_at(const MMChunkAccess *access, MMU32 type, MMU32 ordinal,
                                MMChunkEntry *entry, MMU32 *position);
@@ -109,10 +110,15 @@ extern "C"
     int mm_chunk_index_open(const MMReadStream *stream, const MMChunkPolicy *policy,
                                   MMChunkIndex **index);
     void mm_chunk_index_close(MMChunkIndex *index);
-    MMChunkAccess mm_chunk_index_access(MMChunkIndex *index);
+    MMChunkAccess mm_chunk_index_access(const MMChunkIndex *index);
     const MMChunkHeader *mm_chunk_index_header(const MMChunkIndex *index);
     int mm_chunk_index_name(const MMChunkIndex *index, MMU32 position, const unsigned char **bytes,
                                   MMU32 *count);
+    typedef int (*MMChunkIndexWrite)(void *, MMU32 offset, const unsigned char *bytes, MMU32 count);
+    /* Rewrite chunk numbers and incoming child links using one new number per
+     * old index row. The writer receives the complete replacement index once
+     * after planning succeeds. Chunk bodies and the free map need no rewrite. */
+    int mm_chunk_index_rekey(const MMChunkIndex *, const MMU32 *numbers, MMChunkIndexWrite, void *context);
 
 #ifdef __cplusplus
 }

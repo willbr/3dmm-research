@@ -9,6 +9,78 @@
 
 static const char portable_name[] = "Virtual3dmm/v3dmm";
 
+static int portable_key_status(const MMChunkAccess *source, const MMChunkAccess *occupied,
+                               size_t count, MMU32 type, MMU32 number)
+{
+    MMU32 position;
+    size_t i;
+    int status = mm_chunk_find(source, type, number, &position);
+    for (i = 0; i < count && status == MM_CHUNK_NOT_FOUND; ++i)
+        status = mm_chunk_find(&occupied[i], type, number, &position);
+    return status;
+}
+
+int mm_movie_rekey_portable_chunks(const MMChunkIndex *index, const MMChunkAccess *occupied, size_t occupied_count,
+                                  MMU32 seed, MMU32 step, MMU32 *numbers, MMChunkIndexWrite writer, void *context)
+{
+    const MMU32 mask = 0x3fffffffUL;
+    MMChunkAccess access;
+    MMChunkEntry entry;
+    MMU32 *planned, position, type = 0, slot = 0, stride = 0, visited = 0, number;
+    size_t i;
+    int status;
+    if (!index || (occupied_count && !occupied) || !writer)
+        return MM_CHUNK_BAD_FILE;
+    access = mm_chunk_index_access(index);
+    if (!mm_chunk_keys_ordered(&access) || (access.count && !numbers))
+        return MM_CHUNK_BAD_FILE;
+    for (i = 0; i < occupied_count; ++i)
+        if (!mm_chunk_keys_ordered(&occupied[i]))
+            return MM_CHUNK_BAD_FILE;
+    if (!access.count)
+        return mm_chunk_index_rekey(index, NULL, writer, context);
+    if ((size_t)access.count > (size_t)-1 / sizeof(*planned))
+        return MM_CHUNK_MEMORY;
+    planned = (MMU32 *)malloc((size_t)access.count * sizeof(*planned));
+    if (!planned)
+        return MM_CHUNK_MEMORY;
+    for (position = 0; position < access.count; ++position)
+    {
+        status = mm_chunk_at(&access, position, &entry);
+        if (status != MM_CHUNK_OK)
+            goto done;
+        if (!position || entry.type != type)
+        {
+            type = entry.type;
+            slot = (seed ^ type) & mask;
+            /* An odd stride visits each slot exactly once per type. */
+            stride = ((step ^ (type >> 1)) & mask) | 1U;
+            visited = 0;
+        }
+        do
+        {
+            if (visited > mask)
+            {
+                status = MM_CHUNK_BAD_FILE;
+                goto done;
+            }
+            number = 0x80000000UL | (slot << 1);
+            slot = (slot + stride) & mask;
+            ++visited;
+            status = portable_key_status(&access, occupied, occupied_count, type, number);
+        } while (status == MM_CHUNK_OK);
+        if (status != MM_CHUNK_NOT_FOUND)
+            goto done;
+        planned[position] = number;
+    }
+    status = mm_chunk_index_rekey(index, planned, writer, context);
+    if (status == MM_CHUNK_OK)
+        memcpy(numbers, planned, (size_t)access.count * sizeof(*planned));
+done:
+    free(planned);
+    return status;
+}
+
 static void put(unsigned char *bytes, MMU32 value, unsigned width, int big_endian)
 {
     unsigned i;

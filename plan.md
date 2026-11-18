@@ -947,6 +947,9 @@ background references in scene-start events. C89 validates the portable source
 ID and preserves the source table's byte order and string encoding when adding
 its declaration. New child chunks are linked before the previous child is
 removed, so a failed link leaves the previous child available.
+Storyboard export now allocates portable chunk numbers and rewrites the
+whole index in C89. The pass checks existing source-6 indexes, reorders
+renumbered rows and child links, and preserves payload bytes and the free map.
 Managed expansion import and Portable VXP installation now validate chunky
 archives through the C89 index, child-graph and payload readers. The installer
 accepts valid empty VXP thumbnail indexes, as produced by Marcus storyboard

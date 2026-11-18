@@ -3,6 +3,7 @@
 #include "mm/data_stream.h"
 #include "mm/movie_session.h"
 #include "mm/movie_content_resolver.h"
+#include "mm/movie_portable.h"
 #include "mm/render_frame.h"
 #include "mm/scene_data.h"
 #include <stdio.h>
@@ -1724,6 +1725,76 @@ static void writes(void)
     CHECK(mm_chunk_write_index(NULL, &writer, NULL) == MM_CHUNK_BAD_FILE);
     CHECK(mm_chunk_write_index(&save, NULL, NULL) == MM_CHUNK_BAD_FILE);
 }
+typedef struct RekeyProbe
+{
+    unsigned char bytes[1024];
+    MMU32 size;
+    int calls, reject;
+} RekeyProbe;
+
+static int write_rekey(void *context, MMU32 offset, const unsigned char *bytes, MMU32 count)
+{
+    RekeyProbe *probe = (RekeyProbe *)context;
+    CHECK(offset == 136 && offset + count == probe->size);
+    ++probe->calls;
+    if (probe->reject)
+        return 0;
+    memcpy(probe->bytes + offset, bytes, count);
+    return 1;
+}
+
+static void rekey_portable(int big, int stride)
+{
+    const MMU32 parent_type = 0x41414141UL, child_type = 0x42424242UL;
+    const MMU32 first = 0xfffffffeUL, second = 0x80000002UL;
+    MMChunkPolicy policy = {0, 0, 516};
+    MMU32 depth, position, portable[3] = {11, 11, 11}, reserved[3] = {1, 0x80000000UL, 3};
+    unsigned char source[1024];
+    const unsigned char *name;
+    MMMemoryStream input, rewritten;
+    MMChunkAccess access, occupied;
+    MMChunkEntry entry;
+    MMChunkChild child;
+    MMChunkIndex *index, *other, *saved;
+    RekeyProbe probe = {{0}, 0, 0, 0};
+    const MMU32 seed = 0x3fffffffUL ^ child_type, step = child_type >> 1;
+
+    policy.native_big_endian = big;
+    probe.size = (MMU32)fixture(source, !big, big, stride, 5);
+    memset(source + 128, 0xa3, 8);
+    memcpy(probe.bytes, source, probe.size);
+    CHECK(mm_memory_stream_init(&input, source, probe.size));
+    CHECK(mm_memory_stream_init(&rewritten, probe.bytes, probe.size));
+    CHECK(mm_chunk_index_open(&input.stream, &policy, &index) == MM_CHUNK_OK);
+    CHECK(mm_chunk_index_rekey(index, reserved, write_rekey, &probe) == MM_CHUNK_OK);
+    CHECK(mm_chunk_index_open(&rewritten.stream, &policy, &other) == MM_CHUNK_OK);
+    occupied = mm_chunk_index_access(other);
+
+    /* The first child gets the last high slot. The next probe wraps, skips
+     * the occupied zero slot and gets a smaller number than the first. */
+    probe.reject = 1;
+    CHECK(mm_movie_rekey_portable_chunks(index, &occupied, 1, seed, step, portable, write_rekey, &probe) == MM_CHUNK_IO);
+    CHECK(probe.calls == 2 && portable[0] == 11 && portable[1] == 11 && portable[2] == 11);
+    probe.reject = 0;
+    CHECK(mm_movie_rekey_portable_chunks(index, &occupied, 1, seed, step, portable, write_rekey, &probe) == MM_CHUNK_OK);
+    CHECK(probe.calls == 3 && portable[1] == first && portable[2] == second);
+    CHECK(!memcmp(probe.bytes, source, 136));
+    CHECK(mm_chunk_index_open(&rewritten.stream, &policy, &saved) == MM_CHUNK_OK);
+    access = mm_chunk_index_access(saved);
+    CHECK(mm_chunk_keys_ordered(&access) && mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_OK);
+    CHECK(mm_chunk_find(&access, parent_type, portable[0], &position) == MM_CHUNK_OK);
+    CHECK(mm_chunk_at(&access, position, &entry) == MM_CHUNK_OK && entry.offset == 128 && entry.bytes == 8);
+    CHECK(mm_chunk_index_name(saved, position, &name, &depth) == MM_CHUNK_OK && depth == 4 && !memcmp(name, "name", 4));
+    CHECK(mm_chunk_child_at(&access, position, 0, &child) == MM_CHUNK_OK && child.number == second && child.slot == 0);
+    CHECK(mm_chunk_child_at(&access, position, 1, &child) == MM_CHUNK_OK && child.number == first && child.slot == 0);
+    CHECK(mm_chunk_child_at(&access, position, 2, &child) == MM_CHUNK_OK && child.number == first && child.slot == 1);
+    portable[1] = portable[2];
+    CHECK(mm_chunk_index_rekey(index, portable, write_rekey, &probe) == MM_CHUNK_BAD_FILE && probe.calls == 3);
+    mm_chunk_index_close(saved);
+    mm_chunk_index_close(other);
+    mm_chunk_index_close(index);
+}
+
 int main(void)
 {
     wire_indexes();
@@ -1737,5 +1808,9 @@ int main(void)
     io_failures();
     deep_graph();
     writes();
+    rekey_portable(0, 20);
+    rekey_portable(1, 20);
+    rekey_portable(0, 32);
+    rekey_portable(1, 32);
     return 0;
 }

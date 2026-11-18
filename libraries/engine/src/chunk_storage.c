@@ -199,7 +199,7 @@ MMChunkArchiveResult mm_chunk_archive_validate(const MMReadStream *stream, const
 {
     MMChunkIndex *index;
     MMChunkAccess access;
-    MMChunkEntry entry, previous = {0};
+    MMChunkEntry entry;
     MMChunkStreamPayload payload;
     const MMChunkHeader *header;
     MMChunkArchiveResult result = MM_CHUNK_ARCHIVE_INDEX;
@@ -211,7 +211,7 @@ MMChunkArchiveResult mm_chunk_archive_validate(const MMReadStream *stream, const
     access = mm_chunk_index_access(index);
     header = mm_chunk_index_header(index);
     remaining = header->index_offset - MM_CHUNK_PREFIX_BYTES;
-    if (!access.count && !allow_empty)
+    if ((!access.count && !allow_empty) || !mm_chunk_keys_ordered(&access))
         goto done;
     if (mm_chunk_validate_graph(&access, policy->expanded_runtime ? MM_STORAGE_LIMIT : 65535U) != MM_CHUNK_OK)
     {
@@ -220,9 +220,7 @@ MMChunkArchiveResult mm_chunk_archive_validate(const MMReadStream *stream, const
     }
     for (position = 0; position < access.count; ++position)
     {
-        if (mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK ||
-            (position && (entry.type < previous.type ||
-                         (entry.type == previous.type && entry.number <= previous.number))))
+        if (mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK)
         {
             result = MM_CHUNK_ARCHIVE_INDEX;
             goto done;
@@ -241,7 +239,6 @@ MMChunkArchiveResult mm_chunk_archive_validate(const MMReadStream *stream, const
         free(payload.decoded);
         if (!readable)
             goto done;
-        previous = entry;
     }
     result = MM_CHUNK_ARCHIVE_OK;
 done:

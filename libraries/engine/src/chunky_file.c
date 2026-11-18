@@ -127,6 +127,20 @@ int mm_chunk_at(const MMChunkAccess *access, MMU32 position, MMChunkEntry *entry
     *entry = result;
     return MM_CHUNK_OK;
 }
+int mm_chunk_keys_ordered(const MMChunkAccess *access)
+{
+    MMChunkEntry entry, previous = {0};
+    MMU32 i;
+    for (i = 0; i < access->count; ++i)
+    {
+        if (mm_chunk_at(access, i, &entry) != MM_CHUNK_OK ||
+            (i && (entry.type < previous.type ||
+                  (entry.type == previous.type && entry.number <= previous.number))))
+            return 0;
+        previous = entry;
+    }
+    return 1;
+}
 int mm_chunk_find(const MMChunkAccess *access, MMU32 type, MMU32 number, MMU32 *position)
 {
     MMU32 low = 0, high, middle;
@@ -461,10 +475,10 @@ void mm_chunk_index_close(MMChunkIndex *index)
         free(index);
     }
 }
-MMChunkAccess mm_chunk_index_access(MMChunkIndex *index)
+MMChunkAccess mm_chunk_index_access(const MMChunkIndex *index)
 {
     MMChunkAccess access;
-    access.context = index;
+    access.context = (void *)index;
     access.count = index->count;
     access.entry = wire_entry;
     access.child = wire_child;
@@ -486,6 +500,118 @@ int mm_chunk_index_name(const MMChunkIndex *index, MMU32 position, const unsigne
     *bytes = row + index->stride + entry.child_count * 12;
     *count = variable - entry.child_count * 12;
     return MM_CHUNK_OK;
+}
+
+typedef struct RekeyRow
+{
+    MMU32 type, number, old_position;
+} RekeyRow;
+
+static int compare_rekey_rows(const void *first, const void *second)
+{
+    const RekeyRow *a = (const RekeyRow *)first, *b = (const RekeyRow *)second;
+    if (a->type != b->type)
+        return a->type < b->type ? -1 : 1;
+    return a->number == b->number ? 0 : a->number < b->number ? -1 : 1;
+}
+
+static int compare_rekey_children(const void *first, const void *second)
+{
+    const MMChunkChild *a = (const MMChunkChild *)first, *b = (const MMChunkChild *)second;
+    if (a->slot != b->slot)
+        return a->slot < b->slot ? -1 : 1;
+    if (a->type != b->type)
+        return a->type < b->type ? -1 : 1;
+    return a->number == b->number ? 0 : a->number < b->number ? -1 : 1;
+}
+
+int mm_chunk_index_rekey(const MMChunkIndex *index, const MMU32 *numbers, MMChunkIndexWrite write, void *context)
+{
+    MMChunkAccess access;
+    MMChunkEntry entry;
+    MMChunkChild *children = NULL;
+    RekeyRow *rows = NULL;
+    const unsigned char *original;
+    unsigned char *wire = NULL, *row, *location;
+    MMU32 i, j, variable, fixed_and_variable, rounded, offset = 0, target, largest_child_count = 0;
+    int status = MM_CHUNK_BAD_FILE;
+    if (!index || !write || (!numbers && index->count))
+        return status;
+    access = mm_chunk_index_access(index);
+    if (!mm_chunk_keys_ordered(&access))
+        return status;
+    if (!access.count)
+        return write(context, index->header.index_offset, index->wire, index->header.index_bytes)
+                   ? MM_CHUNK_OK : MM_CHUNK_IO;
+    status = MM_CHUNK_MEMORY;
+    if ((size_t)access.count > (size_t)-1 / sizeof(*rows))
+        return status;
+    rows = (RekeyRow *)malloc((size_t)access.count * sizeof(*rows));
+    if (!rows)
+        return status;
+    for (i = 0; i < access.count; ++i)
+    {
+        wire_entry(access.context, i, &entry);
+        rows[i].type = entry.type;
+        rows[i].number = numbers[i];
+        rows[i].old_position = i;
+        if (entry.child_count > largest_child_count)
+            largest_child_count = entry.child_count;
+    }
+    qsort(rows, access.count, sizeof(*rows), compare_rekey_rows);
+    if (largest_child_count)
+    {
+        if ((size_t)largest_child_count > (size_t)-1 / sizeof(*children))
+            goto done;
+        children = (MMChunkChild *)malloc((size_t)largest_child_count * sizeof(*children));
+        if (!children)
+            goto done;
+    }
+    wire = (unsigned char *)malloc((size_t)index->header.index_bytes);
+    if (!wire)
+        goto done;
+    memcpy(wire, index->wire, 20);
+    location = wire + 20 + index->data_bytes;
+    status = MM_CHUNK_BAD_FILE;
+    for (i = 0; i < access.count; ++i)
+    {
+        MMU32 old = rows[i].old_position;
+        if ((i && !compare_rekey_rows(rows + i - 1, rows + i)) ||
+            !wire_row(index, old, &original, &variable) || !wire_entry(access.context, old, &entry))
+            goto done;
+        fixed_and_variable = index->stride + variable;
+        rounded = (fixed_and_variable + 3U) & ~(MMU32)3;
+        row = wire + 20 + offset;
+        memcpy(row, original, rounded);
+        write32(row + 4, rows[i].number, index->big);
+        for (j = 0; j < entry.child_count; ++j)
+        {
+            if (!wire_child(access.context, old, j, &children[j]) ||
+                mm_chunk_find(&access, children[j].type, children[j].number, &target) != MM_CHUNK_OK)
+                goto done;
+            children[j].number = numbers[target];
+        }
+        if (entry.child_count > 1)
+            qsort(children, entry.child_count, sizeof(*children), compare_rekey_children);
+        for (j = 0; j < entry.child_count; ++j)
+        {
+            unsigned char *child = row + index->stride + j * 12;
+            if (j && !compare_rekey_children(children + j - 1, children + j))
+                goto done;
+            write32(child, children[j].type, index->big);
+            write32(child + 4, children[j].number, index->big);
+            write32(child + 8, children[j].slot, index->big);
+        }
+        write32(location + i * 8, offset, index->big);
+        write32(location + i * 8 + 4, fixed_and_variable, index->big);
+        offset += rounded;
+    }
+    status = write(context, index->header.index_offset, wire, index->header.index_bytes) ? MM_CHUNK_OK : MM_CHUNK_IO;
+done:
+    free(wire);
+    free(children);
+    free(rows);
+    return status;
 }
 
 typedef struct GraphFrame

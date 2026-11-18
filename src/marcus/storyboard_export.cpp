@@ -1,11 +1,12 @@
 #include "storyboard_native.h"
 #undef size
+#include "engine_archive_stream.h"
 #include "engine_read_stream.h"
 #include "mm/chunk_edit.h"
 #include "mm/movie_portable.h"
 #include <miniz.h>
+#include <fstream>
 #include <random>
-#include <set>
 #include <stdexcept>
 ASSERTNAME
 
@@ -94,6 +95,54 @@ void PortableSource(PChunkyFile file)
     Require(result != MM_PORTABLE_SOURCE_INVALID, "Invalid movie sources.");
     Require(result == MM_PORTABLE_SOURCE_OK, "Cannot write movie sources.");
 }
+
+using Index = std::unique_ptr<MMChunkIndex, decltype(&mm_chunk_index_close)>;
+using SceneBackgrounds = std::vector<std::pair<ChunkNumber, ChunkNumber>>;
+
+Index ReadIndex(std::istream &file)
+{
+    const auto policy = EngineArchiveStream::CompactPolicy();
+    MMChunkIndex *index = nullptr;
+    MMReadStream stream;
+    if (EngineArchiveStream::FromFile(file, stream))
+        mm_chunk_index_open(&stream, &policy, &index);
+    return Index(index, mm_chunk_index_close);
+}
+
+void RekeyBackgrounds(const fs::path &contentPath, const std::vector<fs::path> &portableContent,
+                      std::random_device &random, SceneBackgrounds &backgrounds)
+{
+    std::vector<Index> indexes;
+    std::vector<MMChunkAccess> occupied;
+    for (const auto &path : portableContent)
+    {
+        std::ifstream file(path, std::ios::binary);
+        auto index = ReadIndex(file);
+        Require(bool(index), "Cannot inspect existing portable content.");
+        occupied.push_back(mm_chunk_index_access(index.get()));
+        indexes.push_back(std::move(index));
+    }
+    std::fstream file(contentPath, std::ios::binary | std::ios::in | std::ios::out);
+    const auto index = ReadIndex(file);
+    Require(bool(index), "Cannot inspect packaged storyboard content.");
+    const auto access = mm_chunk_index_access(index.get());
+    std::vector<MMU32> numbers(access.count);
+    const MMU32 seed = random(), step = random();
+    const auto result = mm_movie_rekey_portable_chunks(index.get(), occupied.data(), occupied.size(),
+        seed, step, numbers.data(), [](void *context, MMU32 offset, const unsigned char *bytes, MMU32 count) -> int {
+            auto &out = *static_cast<std::fstream *>(context);
+            out.seekp(offset).write(reinterpret_cast<const char *>(bytes), count).flush();
+            return bool(out);
+        }, &file);
+    Require(result == MM_CHUNK_OK, "Cannot assign storyboard package chunk numbers.");
+    for (auto &entry : backgrounds)
+    {
+        MMU32 position;
+        Require(mm_chunk_find(&access, kctgBkgd, entry.second, &position) == MM_CHUNK_OK,
+            "Cannot locate packaged storyboard background.");
+        entry.second = numbers[position];
+    }
+}
 }
 
 void MarcusRetargetStoryboardScene(PChunkyFile file, ChunkNumber scene, LegacyLong source, ChunkNumber background)
@@ -117,14 +166,7 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
     fs::copy_file(movie.path, innerPath);
     fs::permissions(innerPath, fs::perms::owner_write, fs::perm_options::add);
     auto inner = Open(innerPath, false), contents = Open(contentPath, true);
-    std::set<std::pair<unsigned long, unsigned long>> occupied;
-    for (const auto &path : portableContent)
-    {
-        MM::Archive archive; MM::Error error;
-        Require(archive.Open(path.u8string(), error), "Cannot inspect existing portable content.");
-        for (const auto &chunk : archive.Chunks()) occupied.insert({chunk.id.type, chunk.id.number});
-    }
-    std::map<ChunkNumber, ChunkNumber> backgrounds;
+    SceneBackgrounds backgrounds;
     for (const auto &entry : boards)
     {
         // Regenerate from editor data, repairing older storyboard palettes too.
@@ -132,28 +174,17 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
         auto source = Open(resource.file->path, false);
         ChunkNumber background;
         Require(source->FCopy(kctgBkgd, resource.background, contents.get(), &background), "Cannot package storyboard background.");
-        backgrounds[entry.first] = background;
+        backgrounds.emplace_back(entry.first, background);
     }
-    // Source 6 is shared by portable packages. Every resource needs a unique ID.
-    std::vector<ChunkIdentification> chunks;
-    ChunkIdentification chunk;
-    for (LegacyLong i = 0; contents->FGetCki(i, &chunk); ++i) chunks.push_back(chunk);
+    Require(contents->FSave(kctgSoc), "Cannot finish portable storyboard content.");
+    contents.reset();
     std::random_device random;
-    for (const auto &old : chunks)
-    {
-        ChunkNumber number;
-        do { number = 0x80000000UL | (random() & 0x7ffffffeUL); }
-        while (occupied.count({old.ctg, number}) || contents->FFind(old.ctg, number));
-        contents->Move(old.ctg, old.cno, old.ctg, number);
-        occupied.insert({old.ctg, number});
-        if (old.ctg == kctgBkgd)
-            for (auto &entry : backgrounds) if (entry.second == old.cno) entry.second = number;
-    }
+    RekeyBackgrounds(contentPath, portableContent, random, backgrounds);
     for (const auto &entry : backgrounds)
         MarcusRetargetStoryboardScene(inner.get(), entry.first, MM_PORTABLE_SOURCE_ID, entry.second);
     PortableSource(inner.get());
-    Require(contents->FSave(kctgSoc) && inner->FSave(kctgSoc), "Cannot finish portable storyboard content.");
-    contents.reset(); inner.reset();
+    Require(inner->FSave(kctgSoc), "Cannot finish portable storyboard movie.");
+    inner.reset();
     auto thumbnails = Open(thumbnailsPath, true);
     Require(thumbnails->FSave(kctgSoc), "Cannot write storyboard thumbnail archive."); thumbnails.reset();
     // New names avoid the original manager reusing a stale, installed package.

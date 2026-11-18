@@ -276,6 +276,9 @@ renamed `.3mm`; original v3dmm resolves the packaged backgrounds normally.
 Opening an older Marcus storyboard rebuilds its palette from the original black
 scene without changing the source file. New package names and resource IDs avoid
 stale installed-package reuse and collisions with existing portable content.
+C89 checks the existing portable indexes and assigns high even numbers by chunk
+type. It rewrites the generated index and all its child links together. Only
+the private staging archive receives the rewritten index.
 
 The original v3dmm 0.14 runtime loaded an exported two-angle storyboard, displayed
 its drawing and prop, and sought forward/backward across both camera cuts with
@@ -291,6 +294,10 @@ export. Studio now accepts the valid empty thumbnail archive in these packages.
 Both storyboard frames matched original v3dmm in scene state and viewport
 pixels. Captures and logs are in `tmp/c89-portable-wire/` and
 `tmp/c89-pack-archives/`.
+After moving the index rewrite into C89, the same frame comparison passed.
+The two-angle, resaved and multi-page packages also matched the previous
+exports' payload and child-graph signatures after normalizing chunk numbers.
+Evidence is in `tmp/c89-portable-rekey/`.
 
 **Scenes > Camera angles** shows a grid of rendered thumbnails for the current
 background's authored cameras, including actors and captions at the current frame.
