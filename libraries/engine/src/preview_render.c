@@ -312,7 +312,7 @@ int mm_preview_pose_submit(MMPreviewPose *pose, void *world, MMCollectionStorage
 void mm_preview_pose_init(MMPreviewPose *pose, const MMPreviewRenderServices *s)
 {
     memset(pose, 0, sizeof(*pose));
-    mm_movie_render_scene_init(&pose->render, s->allocator.resize ? &s->allocator : NULL,
+    mm_movie_render_scene_init(&pose->render, s->movie, s->allocator.resize ? &s->allocator : NULL,
                                s->context, s->retain_pose_resource, s->release_pose_resource);
 }
 

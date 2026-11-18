@@ -371,6 +371,7 @@ void mm_movie_session_close(MMMovieSession *movie)
     if (movie)
     {
         mm_chunk_index_close(movie->index);
+        free(movie->render_bodies.data);
         free(movie);
     }
 }

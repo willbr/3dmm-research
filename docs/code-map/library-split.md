@@ -160,7 +160,10 @@ The live render frame publishes the chosen projection camera and the
 ordered body bindings in one `MMMovieRenderScene`. The C owner retains
 each body through the draw or pick. Studio collects the attached bodies in
 world order. Marcus preserves its visibility order and publishes the
-camera after applying its view and depth fitting.
+camera after applying its view and depth fitting. Draws borrow the body-list
+allocation from the retained `MMMovieSession` when available. The session
+keeps capacity between draws. Each draw retains and releases its own bodies,
+including during nested submissions.
 Studio and Marcus still use their existing archive owners, playback resource
 providers and renderers.
 

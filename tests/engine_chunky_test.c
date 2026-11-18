@@ -3,6 +3,7 @@
 #include "mm/data_stream.h"
 #include "mm/movie_session.h"
 #include "mm/movie_content_resolver.h"
+#include "mm/render_frame.h"
 #include "mm/scene_data.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -105,6 +106,44 @@ static MMU32 movie_fixture(unsigned char bytes[1024], int big, MMI32 codec, int 
     return end;
 }
 
+static void retain_render_body(void *context, void *body)
+{
+    CHECK(context == body);
+    ++*(int *)body;
+}
+
+static void release_render_body(void *context, void *body)
+{
+    CHECK(context == body);
+    --*(int *)body;
+}
+
+static void session_render_storage(MMMovieSession *movie)
+{
+    MMMovieRenderScene draw, nested;
+    MMRenderBody body = {0};
+    unsigned char *storage;
+    int references = 0;
+    body.resource = &references;
+    mm_movie_render_scene_init(&draw, movie, NULL, &references, retain_render_body, release_render_body);
+    CHECK(mm_movie_render_scene_add(&draw, &body) && references == 1);
+    storage = draw.storage.buffers[0].data;
+    CHECK(storage != NULL);
+    mm_movie_render_scene_dispose(&draw);
+    CHECK(references == 0);
+
+    mm_movie_render_scene_init(&draw, movie, NULL, &references, retain_render_body, release_render_body);
+    CHECK(draw.storage.buffers[0].data == storage && draw.bodies.count == 0);
+    CHECK(mm_movie_render_scene_add(&draw, &body) && references == 1);
+    mm_movie_render_scene_init(&nested, movie, NULL, &references, retain_render_body, release_render_body);
+    CHECK(mm_movie_render_scene_add(&nested, &body) && references == 2);
+    CHECK(draw.storage.buffers[0].data != nested.storage.buffers[0].data);
+    mm_movie_render_scene_dispose(&nested);
+    CHECK(references == 1 && ((const MMRenderBody *)draw.storage.buffers[0].data)->resource == &references);
+    mm_movie_render_scene_dispose(&draw);
+    CHECK(references == 0);
+}
+
 static void movie_sessions(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
@@ -135,6 +174,7 @@ static void movie_sessions(void)
                     CHECK(mm_movie_session_scene(movie, 0, &scene) == MM_MOVIE_OK && scene.number == 36);
                 CHECK(mm_movie_session_scene(movie, 3, &scene) == MM_MOVIE_OK && scene.number == 36 &&
                       scene.first_frame == -6 && scene.last_frame == 25 && scene.transition == 4);
+                session_render_storage(movie);
                 mm_movie_session_close(movie);
             }
     movie = NULL;

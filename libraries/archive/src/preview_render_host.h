@@ -43,6 +43,7 @@ struct Preview::Impl::RenderHost
     {
         MMPreviewRenderServices s = {};
         s.context = this;
+        s.movie = impl->assets.MovieSession();
         s.math.sin = [](float x) { return std::sin(x); };
         s.math.cos = [](float x) { return std::cos(x); };
         s.math.tan = [](float x) { return std::tan(x); };

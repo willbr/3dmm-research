@@ -124,10 +124,11 @@ static void RenderRectOut(const RC &r, MMI32 out[4])
     out[2] = r.xpRight;
     out[3] = r.ypBottom;
 }
-MMWorldRenderServices World::_RenderServices(void *context)
+MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movie)
 {
     MMWorldRenderServices s = {};
     s.context = context;
+    s.movie = movie;
     mm_render_frame_borrow(&s.frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
     static_assert(sizeof(s.camera.matrix) == sizeof(_camera.matrix), "camera matrix layout");
     std::memcpy(s.camera.matrix, &_camera.matrix, sizeof(s.camera.matrix));
@@ -562,11 +563,11 @@ void World::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
     buffers, since they're probably dirty from the last render.  Update
     some regions, and render everything.
 ***************************************************************************/
-void World::Render(void)
+void World::Render(MMMovieSession *movie)
 {
     AssertThis(0);
     WorldRenderContext context = {this};
-    auto services = _RenderServices(&context);
+    auto services = _RenderServices(&context, movie);
     mm_world_render(&_render, &_buffers, &services);
 }
 
@@ -574,11 +575,11 @@ void World::Render(void)
     "Prerender" the world.  That is, render the world, then copy it into
     the background buffers
 ***************************************************************************/
-void World::Prerender(void)
+void World::Prerender(MMMovieSession *movie)
 {
     AssertThis(0);
     WorldRenderContext context = {this};
-    auto services = _RenderServices(&context);
+    auto services = _RenderServices(&context, movie);
     mm_world_prerender(&_render, &_buffers, &services);
 }
 

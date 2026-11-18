@@ -1945,7 +1945,7 @@ static JVal Tool_SeekMovie(const JVal &args)
     if (requestedFrame->AsInt() < 1 || requestedFrame->AsInt() > frameCount) return ContentError("frame_out_of_range");
     const auto frame = std::int64_t(scene->NfrmFirst()) + requestedFrame->AsInt() - 1;
     if (success) success = scene->FGotoFrm(static_cast<long>(frame));
-    if (success) movie->Pbwld()->Render();
+    if (success) movie->Pbwld()->Render(movie->MovieSession());
     movie->Pmcc()->UpdateScrollbars();
     vpappb->UpdateMarked();
     JVal result = JVal::MkObj();

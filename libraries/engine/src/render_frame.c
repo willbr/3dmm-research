@@ -1,11 +1,19 @@
 #include "mm/render_frame.h"
+#include "movie_session_internal.h"
 #include <string.h>
 
-void mm_movie_render_scene_init(MMMovieRenderScene *scene, const MMStorageAllocator *allocator, void *context,
+void mm_movie_render_scene_init(MMMovieRenderScene *scene, MMMovieSession *session,
+                               const MMStorageAllocator *allocator, void *context,
                                void (*retain)(void *, void *), void (*release)(void *, void *))
 {
     memset(scene, 0, sizeof(*scene));
     mm_storage_init(&scene->storage, allocator);
+    if (session && !allocator)
+    {
+        scene->session = session;
+        scene->storage.buffers[0] = session->render_bodies;
+        memset(&session->render_bodies, 0, sizeof(session->render_bodies));
+    }
     scene->bodies.storage = &scene->storage;
     scene->bodies.width = sizeof(MMRenderBody);
     scene->bodies.free_count = -1;
@@ -40,8 +48,15 @@ void mm_movie_render_scene_dispose(MMMovieRenderScene *scene)
         for (i = 0; i < scene->bodies.count; ++i)
             if (bodies[i].resource)
                 scene->release(scene->context, bodies[i].resource);
+    if (scene->session && scene->storage.buffers[0].capacity > scene->session->render_bodies.capacity)
+    {
+        MMStorageBuffer previous = scene->session->render_bodies;
+        scene->session->render_bodies = scene->storage.buffers[0];
+        scene->storage.buffers[0] = previous;
+    }
     mm_storage_dispose(&scene->storage);
     scene->bodies.count = 0;
+    scene->session = NULL;
 }
 
 void mm_render_frame_borrow(MMRenderFrame *frame, void *world, void *camera, void *colour, void *depth)

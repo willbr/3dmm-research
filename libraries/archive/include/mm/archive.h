@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+struct MMMovieSession;
+
 namespace MM
 {
 struct Id
@@ -145,6 +147,7 @@ class Archive
 {
     friend class Preview;
     void *NativeFile() const; // Private bridge to the engine preview adapter.
+    MMMovieSession *MovieSession() const;
     struct Impl;
     std::unique_ptr<Impl> _impl;
 

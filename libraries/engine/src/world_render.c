@@ -171,7 +171,7 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
     if (!r->changed)
         return 1;
     frame = s->frame;
-    mm_movie_render_scene_init(&scene, NULL, s->context, s->retain_body, s->release_body);
+    mm_movie_render_scene_init(&scene, s->movie, NULL, s->context, s->retain_body, s->release_body);
     if (s->body)
         for (actor = s->child(s->context, frame.world); actor; actor = s->next(s->context, actor))
             if (s->type(s->context, actor) == s->actor_none)

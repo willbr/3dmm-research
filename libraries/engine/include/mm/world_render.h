@@ -55,6 +55,7 @@ extern "C"
     typedef struct MMWorldRenderServices
     {
         void *context;
+        struct MMMovieSession *movie;
         MMRenderFrame frame;
         MMRenderCamera camera;
         int (*body)(void *, void *actor, MMRenderBody *);

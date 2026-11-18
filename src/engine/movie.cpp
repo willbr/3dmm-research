@@ -2720,7 +2720,7 @@ bool Movie::FCmdRender(PCommand pcmd)
             reply.success = Pscen()->FGotoFrm(command.value);
             break;
         case MoviePlaybackCommandKind::RenderWorld:
-            Pbwld()->Render();
+            Pbwld()->Render(MovieSession());
             break;
         case MoviePlaybackCommandKind::Finished:
             break;
@@ -3281,7 +3281,7 @@ void Movie::MarkViews(void)
     //
     // Need this call in order to mark correctly the changed regions.
     //
-    Pbwld()->Render();
+    Pbwld()->Render(MovieSession());
 
 #ifdef DEBUG
     if (FWriteBmps())
@@ -4133,7 +4133,7 @@ void MovieView::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     //
     if (Pmvie()->Pscen() != pvNil)
     {
-        Pmvie()->Pbwld()->Render();
+        Pmvie()->Pbwld()->Render(Pmvie()->MovieSession());
         Pmvie()->Pbwld()->Draw(pgnv, prcClip, 0, 0);
 
         //

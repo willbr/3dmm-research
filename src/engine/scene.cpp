@@ -669,9 +669,10 @@ MMSceneRuntimeServices Scene::_RuntimeServices()
     };
     s.set_prerendered = [](void *, void *actor, int value) { static_cast<PActor>(actor)->SetPrerendered(value != 0); };
     s.snapshot = [](void *p, int begin) {
-        auto world = static_cast<PScene>(p)->Pmvie()->Pbwld();
+        auto movie = static_cast<PScene>(p)->Pmvie();
+        auto world = movie->Pbwld();
         if (begin)
-            world->Prerender();
+            world->Prerender(movie->MovieSession());
         else
             world->Unprerender();
     };

@@ -108,6 +108,10 @@ void *Archive::NativeFile() const
 {
     return _impl->file;
 }
+MMMovieSession *Archive::MovieSession() const
+{
+    return _impl->movie;
+}
 void Archive::Close()
 {
     _impl.reset(new Impl(_impl->options));

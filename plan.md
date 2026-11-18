@@ -511,8 +511,11 @@ Keep host presentation and device output outside the session.
    projection camera and ordered, retained body bindings. Studio uses the
    attached world order and Marcus preserves visibility order for drawing
    and picking. The live frame is assembled from the current host state,
-   including unsaved edits. Unifying authored frame evaluation and live
-   frame publication through the same retained movie session remains open.
+   including unsaved edits. Studio rendering and prerendering and Marcus
+   rendering and picking now borrow reusable body-list storage from their
+   retained movie sessions. Each draw holds its own camera and body references.
+   Using the session's authored-frame evaluator to supply live publication
+   remains open.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

@@ -13559,6 +13559,32 @@ rebuilt and relaunched.
 
 Evidence is under `tmp/c89-live-frame/` on the evidence drive.
 
+### Retained movie sessions supply live draw storage
+
+Studio rendering and prerendering, and Marcus rendering and picking, borrow
+body-list storage from the retained `MMMovieSession`. Each draw captures the
+current camera and bodies and releases those references before recycling the
+allocation. Nested draws receive separate storage. The C chunky fixture checks
+reuse, reference counts, and isolation between nested draws. Resource previews
+without a retained session and callers with a custom allocator use draw-local
+storage.
+
+The standalone suite passed all 181 checks. The 18 selected host checks,
+the Marcus player check, and the five AddressSanitizer checks passed. Strict
+C89 compilation passed for the four changed C engine sources on Linux x64 musl.
+All 300 standalone frame snapshots, 300 mesh snapshots, and 300 native graph
+and stream frame results matched. The 26 actor and body traces, saved movie,
+world render and world export traces, and the 188-camera background trace
+matched their retained baselines byte for byte.
+
+The two hosts matched all 456 stock and SID-29 seek observations and 360
+viewport hashes from the previous builds. Each host matched 240 retail
+playback commits. Studio and the retained v3dmm runs each matched 456 retail
+actor records. Retail reopened the Studio-edited movie and matched the
+edited actor on four seeks. Marcus was rebuilt and relaunched.
+
+Evidence is under `tmp/c89-session-bridge/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

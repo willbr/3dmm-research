@@ -8,6 +8,8 @@ extern "C"
 {
 #endif
 
+struct MMMovieSession;
+
 typedef struct MMRenderCamera
 {
     MMI32 matrix[12], near_z, far_z, aspect, width, height;
@@ -29,6 +31,7 @@ typedef struct MMMovieRenderScene
     MMRenderCamera camera;
     MMCollectionStorage storage;
     MMArray bodies;
+    struct MMMovieSession *session;
     void *context;
     void (*retain)(void *, void *), (*release)(void *, void *);
 } MMMovieRenderScene;
@@ -64,8 +67,11 @@ void mm_render_frame_dispose(MMRenderFrame *);
  * retained through submission when both callbacks are supplied. The bindings
  * stay stable throughout the synchronous render or pick. Publish after all
  * bodies and the actual projection camera have been selected. The raster
- * frame borrows the published scene until rendering finishes. */
-void mm_movie_render_scene_init(MMMovieRenderScene *, const MMStorageAllocator *, void *context,
+ * frame borrows the published scene until rendering finishes. Optionally borrow
+ * default-heap body storage from a movie session that outlives the submission.
+ * The session keeps capacity after disposal. Bodies, camera and host callbacks
+ * remain local to each submission, including nested draws. */
+void mm_movie_render_scene_init(MMMovieRenderScene *, struct MMMovieSession *, const MMStorageAllocator *, void *context,
                                void (*retain)(void *, void *), void (*release)(void *, void *));
 int mm_movie_render_scene_add(MMMovieRenderScene *, const MMRenderBody *);
 void mm_movie_render_scene_publish(MMMovieRenderScene *, const MMRenderCamera *, MMRenderFrame *);

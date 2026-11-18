@@ -11,6 +11,7 @@ struct MMMovieSession
     MMChunkIndex *index;
     MMChunkPolicy policy;
     MMMovieSessionRoot root;
+    MMStorageBuffer render_bodies;
 };
 
 typedef struct MMMoviePayload

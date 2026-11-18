@@ -106,6 +106,7 @@ extern "C"
     typedef struct MMPreviewRenderServices
     {
         void *context;
+        struct MMMovieSession *movie;
         MMStorageAllocator allocator;
         MMPreviewMath math;
         MMPreviewTreeServices tree;
