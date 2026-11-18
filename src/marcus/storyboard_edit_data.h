@@ -33,6 +33,7 @@ typedef struct MarcusBoardEditValues
 
 extern const unsigned marcus_board_swatches[MARCUS_BOARD_SWATCH_COUNT];
 void marcus_board_projection(const MarcusBoardPose *, MarcusProjection *);
+int marcus_board_pose_from_view(const MarcusImage *work, MarcusBoardPose *pose);
 void marcus_board_light_matrix(const MarcusBoardLightValues *, float matrix[16]);
 int marcus_board_light_from_matrix(const MarcusBoardLightValues *, const float matrix[16], int rotate,
                                    MarcusBoardLightValues *);

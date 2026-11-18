@@ -449,6 +449,25 @@ int main(int argc, char **argv)
         std::printf("Storyboard prop: %s\n", prop.name); std::fflush(stdout);
         check(marcus_add_prop(player.get(), prop.chunk) >= 0, "Block out with 3D props");
         MarcusObject object; check(marcus_object(player.get(), 0, &object), "Read placed object");
+        MarcusCamera flight = {};
+        check(marcus_match_camera(player.get(), 544, 306, &flight), "Start Fly from the active storyboard angle");
+        flight.x += 2; flight.y += 1; flight.yaw += 5;
+        MarcusImage work = {};
+        check(marcus_render_fly(player.get(), 544, 306, &flight, &work), "Render a new perspective work view");
+        check(marcus_board_copy_camera(player.get(), &work) && marcus_camera_projection(player.get(), 1, &projection),
+              "Copy the work view into the active camera");
+        for (int i = 0; i < 12; ++i)
+            check(std::abs(projection.transform[i] - work.projection.transform[i]) < .002f, "Copied camera transform matches Fly");
+        check(std::abs(projection.vertical_fov - work.projection.vertical_fov) < .01f, "Copied camera lens matches Fly");
+        MarcusObject afterCopy = {};
+        MarcusStoryboard copied;
+        check(marcus_info(player.get(), &info) && info.frame == 2 && info.camera == 1 &&
+              marcus_object(player.get(), 0, &afterCopy) && afterCopy.x == object.x && afterCopy.y == object.y && afterCopy.z == object.z &&
+              MarcusGetStoryboard(player.get(), copied) && copied.angles[1].pixels == board.angles[1].pixels,
+              "Copy preserves timeline, objects, and painting");
+        check(!marcus_board_copy_camera(player.get(), &work), "Reject a stale work projection");
+        check(marcus_undo(player.get()) && MarcusGetStoryboard(player.get(), copied) && MarcusEncodeBoard(copied) == bytes,
+              "One undo restores the previous authored camera");
         check(MarcusRenderLocalWorld(player.get(), view, image, error) &&
             std::any_of(image.depth.begin(), image.depth.end(), [](float d) { return std::isfinite(d); }), "Props render in front of the painting");
         MarcusImage preview;

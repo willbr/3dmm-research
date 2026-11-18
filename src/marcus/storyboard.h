@@ -87,6 +87,8 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
 extern "C" {
 #endif
     int marcus_is_storyboard(const MarcusPlayer *player);
+    /* Copy the work-view pose and lens into the active storyboard angle. */
+    int marcus_board_copy_camera(MarcusPlayer *player, const MarcusImage *work);
     /* Export a movie copy. Storyboards/portable content require a bundled .vmm. */
     int marcus_save_copy(MarcusPlayer *player, const char *path);
 #ifdef __cplusplus

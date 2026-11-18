@@ -374,13 +374,12 @@ static void gallery_previews(MarcusBackgroundBrowser *browser, SDL_Renderer *ren
     collect_model_previews(browser, renderer);
     if (first > browser->filtered_count) first = browser->filtered_count;
     if (end > browser->filtered_count) end = browser->filtered_count;
-    if (end - first > MARCUS_FRAME_PREVIEW_REQUEST_LIMIT) end = first + MARCUS_FRAME_PREVIEW_REQUEST_LIMIT;
     trim_model_textures(browser, first, end);
     if (browser->error[0]) return;
     count = 0;
     if (browser->selected >= first && browser->selected < end)
         count = request_model(browser, browser->selected, requests);
-    for (i = first; i < end; ++i)
+    for (i = first; i < end && count < MARCUS_FRAME_PREVIEW_REQUEST_LIMIT; ++i)
         if (i != browser->selected) count += request_model(browser, i, requests + count);
     if (!marcus_frame_previews_request_positions(browser->model_previews, requests, count))
         SDL_strlcpy(browser->error, "Cannot queue model thumbnails.", sizeof(browser->error));
@@ -453,6 +452,7 @@ static int background_item(void *model, SDL_Renderer *renderer, int index, Marcu
     {
         tile = &browser->models[browser->filtered[index]];
         out->texture = tile->texture;
+        out->preview_unavailable = !tile->texture && (tile->error[0] || browser->error[0]);
         SDL_strlcpy(out->label, tile->entry.name, sizeof(out->label));
         SDL_snprintf(out->detail, sizeof(out->detail), "%s%s%s", tile->actor ? "Actor" : "Prop",
                      tile->error[0] ? "\n" : "", tile->error);

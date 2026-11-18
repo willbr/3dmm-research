@@ -59,6 +59,10 @@ int main(int argc, char **argv)
         MarcusPreviewCache unwritable(source, {source});
         unwritable.Store(42, preview);
         Check(!unwritable.Load(42, loaded), "Unwritable cache accepted.");
+        MarcusPreviewCache bounded(root / "bounded", {source}, 1);
+        bounded.Store(42, preview);
+        bounded.Store(43, preview);
+        Check(!bounded.Load(42, loaded) && bounded.Load(43, loaded), "Cache did not evict an older preview.");
         SDL_Quit();
         return 0;
     }

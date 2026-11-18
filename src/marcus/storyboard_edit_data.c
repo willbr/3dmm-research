@@ -15,6 +15,39 @@ static float clamp(float value, float low, float high)
     return value < low ? low : value > high ? high : value;
 }
 
+static float wrap_yaw(float yaw)
+{
+    /* Match remainder's nearest-even choice at half turns. */
+    float turn = SDL_fmodf(yaw, 720.f);
+    if (turn >= 540.f) return turn - 720.f;
+    if (turn <= -540.f) return turn + 720.f;
+    if (turn == -360.f) return -0.f;
+    if (turn > 180.f) return turn - 360.f;
+    if (turn < -180.f) return turn + 360.f;
+    return turn;
+}
+
+int marcus_board_pose_from_view(const MarcusImage *work, MarcusBoardPose *pose)
+{
+    const float *right;
+    float yaw, pitch, cosine, sine;
+    if (!work || !work->projection.valid || work->projection.orthographic) return 0;
+    right = work->projection.transform;
+    pose->camera = work->camera;
+    pose->camera.yaw = wrap_yaw(pose->camera.yaw);
+    pose->camera.pitch = clamp(pose->camera.pitch, -90.f, 90.f);
+    yaw = pose->camera.yaw * radians;
+    pitch = pose->camera.pitch * radians;
+    cosine = right[0] * SDL_cosf(yaw) - right[2] * SDL_sinf(yaw);
+    sine = -right[0] * SDL_sinf(yaw) * SDL_sinf(pitch) + right[1] * SDL_cosf(pitch) -
+           right[2] * SDL_cosf(yaw) * SDL_sinf(pitch);
+    pose->roll = SDL_atan2f(sine, cosine) / radians;
+    pose->fov = clamp(work->projection.vertical_fov, 5.f, 150.f);
+    pose->near_clip = clamp(work->projection.near_clip, .01f, 100.f);
+    pose->far_clip = clamp(work->projection.far_clip, pose->near_clip + .01f, 32700.f);
+    return 1;
+}
+
 void marcus_board_projection(const MarcusBoardPose *pose, MarcusProjection *projection)
 {
     float cy, sy, cp, sp, cr, sr, *matrix;

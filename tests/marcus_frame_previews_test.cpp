@@ -223,7 +223,9 @@ int main(int argc, char **argv)
         MarcusProp actor = {}, prop = {};
         check(marcus_actor(player.get(), 0, &actor) && marcus_prop(player.get(), 0, &prop), "Model identities");
         auto library = std::make_shared<MarcusMovieFile>(std::filesystem::u8path(argv[3]) / "tmpls.3cn");
-        previews.reset(new MarcusFramePreviews(library, argv[2], argv[3], 0, false, true));
+        const auto cacheDirectory = std::filesystem::u8path(argv[1]).parent_path() / "model-previews";
+        const MarcusPreviewCache cache(cacheDirectory, {library->path, std::filesystem::u8path(argv[2])});
+        previews.reset(new MarcusFramePreviews(library, argv[2], argv[3], 0, false, true, cache));
         const MarcusFramePosition modelRequests[] = {{0, long(actor.chunk)}, {1, -1}, {2, long(prop.chunk)}};
         marcus_frame_previews_request_positions(previews.get(), modelRequests, 3);
         int modelCount = 0;
@@ -249,6 +251,22 @@ int main(int argc, char **argv)
             modelReceived[image.scene] = true; ++modelCount;
         }
         check(modelCount == 3, "Gallery helper continues after an unavailable model");
+        BrowserPreview cached;
+        check(cache.Load(actor.chunk, cached) && cache.Load(prop.chunk, cached), "Successful model renders are saved");
+        previews.reset();
+        const MarcusPreviewCache reopened(cacheDirectory, {library->path, std::filesystem::u8path(argv[2])});
+        // A bad archive path forces a render to fail. The cache lookup still uses the verified source identity.
+        auto missing = std::make_shared<MarcusMovieFile>(cacheDirectory / "missing.3cn");
+        previews.reset(new MarcusFramePreviews(missing, argv[2], argv[3], 0, false, true, reopened));
+        const MarcusFramePosition warmRequest = {13, long(prop.chunk)};
+        marcus_frame_previews_request_positions(previews.get(), &warmRequest, 1);
+        int warmStatus = 0;
+        const auto warmDeadline = SDL_GetTicks() + 5000;
+        while (!(warmStatus = marcus_frame_previews_take(previews.get(), &image, error, sizeof(error))) &&
+               SDL_GetTicks() < warmDeadline) SDL_Delay(5);
+        check(warmStatus == 1 && !error[0] && image.rgba && image.scene == warmRequest.scene &&
+              image.frame == warmRequest.frame && image.width == cached.width && image.height == cached.height &&
+              std::equal(cached.rgba.begin(), cached.rgba.end(), image.rgba), "Reopened gallery reuses pixels by template chunk");
         MarcusInfo untouched = {};
         check(marcus_info(player.get(), &untouched) && untouched.scene == 0 && untouched.frame == 10,
               "Gallery loading leaves the live playhead unchanged");

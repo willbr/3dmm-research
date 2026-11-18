@@ -101,11 +101,10 @@ static float coordinate(double value)
         return 1;
     return (float)value;
 }
-static void add_line(const GuideView *view, const double world_a[3], const double world_b[3], MarcusCameraGuide *guide)
+static int clip_line(const GuideView *view, const double world_a[3], const double world_b[3], MarcusGuideLine *line)
 {
     double a[3], b[3], start[3], end[3], low, high, fa, fb, crossing;
     int plane, axis;
-    MarcusGuideLine *line;
     view_point(view, world_a, a);
     view_point(view, world_b, b);
     low = 0;
@@ -115,7 +114,7 @@ static void add_line(const GuideView *view, const double world_a[3], const doubl
         fa = plane_distance(view, a, plane);
         fb = plane_distance(view, b, plane);
         if (fa < 0 && fb < 0)
-            return;
+            return 0;
         if ((fa < 0) != (fb < 0))
         {
             crossing = fa / (fa - fb);
@@ -128,20 +127,23 @@ static void add_line(const GuideView *view, const double world_a[3], const doubl
                 high = crossing;
         }
         if (low > high)
-            return;
+            return 0;
     }
-    if (guide->line_count >= MARCUS_GUIDE_MAX_LINES)
-        return;
     for (axis = 0; axis < 3; ++axis)
     {
         start[axis] = a[axis] + (b[axis] - a[axis]) * low;
         end[axis] = a[axis] + (b[axis] - a[axis]) * high;
     }
-    line = &guide->lines[guide->line_count++];
     line->x1 = coordinate(0.5 + start[0] / (2 * (view->orthographic ? 1 : start[2]) * view->tangent_x));
     line->y1 = coordinate(0.5 - start[1] / (2 * (view->orthographic ? 1 : start[2]) * view->tangent_y));
     line->x2 = coordinate(0.5 + end[0] / (2 * (view->orthographic ? 1 : end[2]) * view->tangent_x));
     line->y2 = coordinate(0.5 - end[1] / (2 * (view->orthographic ? 1 : end[2]) * view->tangent_y));
+    return 1;
+}
+static void add_line(const GuideView *view, const double world_a[3], const double world_b[3], MarcusCameraGuide *guide)
+{
+    if (guide->line_count < MARCUS_GUIDE_MAX_LINES)
+        guide->line_count += clip_line(view, world_a, world_b, &guide->lines[guide->line_count]);
 }
 void camera_guide_build(const MarcusProjection *projection, const MarcusProjection *camera, MarcusCameraGuide *guide)
 {
@@ -266,6 +268,61 @@ void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, M
         line->x2 = (float)((left + line->x2 * width) / image->width);
         line->y2 = (float)((top + line->y2 * height) / image->height);
     }
+}
+
+int camera_ground_grid(const MarcusImage *image, MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES])
+{
+    const MarcusProjection *projection;
+    GuideView view;
+    double a[3], b[3], centre[3], step, scale, extent, distance, width, height, left, top;
+    int i, count;
+    if (!image || image->width <= 0 || image->height <= 0) return 0;
+    projection = &image->projection;
+    if (!valid_projection(projection) || !make_view(projection, &view)) return 0;
+    scale = projection->orthographic ? projection->ortho_height / 16.0 : fabs(view.origin[1]) / 10.0;
+    for (step = 5; step < scale; step *= 2) {}
+    extent = MARCUS_GROUND_GRID_CELLS * step;
+    distance = 0;
+    if (fabs(projection->transform[7]) > 1e-6)
+    {
+        distance = view.origin[1] / projection->transform[7];
+        if (distance < 0) distance = 0;
+        if (distance > extent / 2) distance = extent / 2;
+    }
+    world_point(projection, 0, 0, distance, centre);
+    centre[0] = floor(centre[0] / step) * step;
+    centre[2] = floor(centre[2] / step) * step;
+    count = 0;
+    a[1] = b[1] = 0;
+    for (i = -MARCUS_GROUND_GRID_CELLS; i <= MARCUS_GROUND_GRID_CELLS; ++i)
+    {
+        a[0] = b[0] = centre[0] + i * step;
+        a[2] = centre[2] - extent;
+        b[2] = centre[2] + extent;
+        count += clip_line(&view, a, b, &lines[count]);
+        a[0] = centre[0] - extent;
+        b[0] = centre[0] + extent;
+        a[2] = b[2] = centre[2] + i * step;
+        count += clip_line(&view, a, b, &lines[count]);
+    }
+    if (!image->authored_camera) return count;
+    width = image->width;
+    height = width / projection->aspect;
+    if (height > image->height)
+    {
+        height = image->height;
+        width = height * projection->aspect;
+    }
+    left = (image->width - width) / 2;
+    top = (image->height - height) / 2;
+    for (i = 0; i < count; ++i)
+    {
+        lines[i].x1 = (float)((left + lines[i].x1 * width) / image->width);
+        lines[i].x2 = (float)((left + lines[i].x2 * width) / image->width);
+        lines[i].y1 = (float)((top + lines[i].y1 * height) / image->height);
+        lines[i].y2 = (float)((top + lines[i].y2 * height) / image->height);
+    }
+    return count;
 }
 
 int camera_project_point(const MarcusProjection *projection, const float world[3], float image[3])

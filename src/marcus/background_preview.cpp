@@ -9,6 +9,24 @@
 #include <memory>
 #include <utility>
 
+namespace
+{
+MarcusPreviewCache ContentPreviewCache(const char *folder, const std::filesystem::path &archive,
+                                       const char *resources, std::size_t fileLimit = 0)
+{
+    std::unique_ptr<char, decltype(&SDL_free)> pref(SDL_GetPrefPath("3DMMForever", "Marcus"), SDL_free);
+    std::filesystem::path directory;
+    if (pref) directory = std::filesystem::u8path(pref.get()) / folder;
+    const auto base = SDL_GetBasePath();
+    return MarcusPreviewCache(directory, {std::filesystem::u8path(resources), archive,
+        std::filesystem::u8path(base ? base : "") / "marcus-preview"
+#ifdef _WIN32
+        ".exe"
+#endif
+    }, fileLimit);
+}
+}
+
 struct MarcusBackgroundPreviews
 {
     MarcusPreviewCache cache;
@@ -37,17 +55,7 @@ void marcus_background_previews_destroy(MarcusBackgroundPreviews *previews) { de
 int marcus_background_previews_configure(MarcusBackgroundPreviews *previews, const char *resources, const char *content)
 try
 {
-    std::unique_ptr<char, decltype(&SDL_free)> pref(SDL_GetPrefPath("3DMMForever", "Marcus"), SDL_free);
-    std::filesystem::path directory;
-    if (pref) directory = std::filesystem::u8path(pref.get()) / "background-previews";
-    const auto base = SDL_GetBasePath();
-    MarcusPreviewCache cache(directory, {std::filesystem::u8path(resources),
-        std::filesystem::u8path(content) / "bkgds.3cn",
-        std::filesystem::u8path(base ? base : "") / "marcus-preview"
-#ifdef _WIN32
-        ".exe"
-#endif
-    });
+    auto cache = ContentPreviewCache("background-previews", std::filesystem::u8path(content) / "bkgds.3cn", resources);
     if (previews->cache.Key() == cache.Key()) return MARCUS_BACKGROUND_PREVIEWS_UNCHANGED;
     std::string nextResources(resources), nextContent(content);
     previews->Stop();
@@ -109,8 +117,10 @@ catch (const std::exception &e)
 MarcusFramePreviews *marcus_model_previews_create(const char *resources, const char *content, char *error, size_t capacity)
 try
 {
-    auto archive = std::make_shared<MarcusMovieFile>(std::filesystem::u8path(content) / "tmpls.3cn");
-    return new MarcusFramePreviews(std::move(archive), resources, content, 0, false, true);
+    const auto path = std::filesystem::u8path(content) / "tmpls.3cn";
+    auto cache = ContentPreviewCache("model-previews", path, resources, 256);
+    return new MarcusFramePreviews(std::make_shared<MarcusMovieFile>(path), resources, content, 0, false, true,
+                                  std::move(cache));
 }
 catch (const std::exception &e)
 {

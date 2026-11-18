@@ -560,37 +560,6 @@ void storyboard_editor_sync(MarcusStoryboardEditor *e, MarcusPlayer *player, con
     }
 }
 
-static float wrap_yaw(float yaw)
-{
-    /* Match remainder's nearest-even choice at half turns. A two-turn
-     * reduction retains the information needed to decide the tie. */
-    float turn = SDL_fmodf(yaw, 720.f);
-    if (turn >= 540.f) return turn - 720.f;
-    if (turn <= -540.f) return turn + 720.f;
-    if (turn == -360.f) return -0.f;
-    if (turn > 180.f) return turn - 360.f;
-    if (turn < -180.f) return turn + 360.f;
-    return turn;
-}
-
-static void capture_work_pose(MarcusBoardPose *pose, const MarcusImage *work)
-{
-    const float *right = work->projection.transform;
-    float yaw, pitch, cosine, sine;
-    pose->camera = work->camera;
-    pose->camera.yaw = wrap_yaw(pose->camera.yaw);
-    pose->camera.pitch = clamp(pose->camera.pitch, -90.f, 90.f);
-    yaw = pose->camera.yaw * .01745329252f;
-    pitch = pose->camera.pitch * .01745329252f;
-    cosine = right[0] * SDL_cosf(yaw) - right[2] * SDL_sinf(yaw);
-    sine = -right[0] * SDL_sinf(yaw) * SDL_sinf(pitch) + right[1] * SDL_cosf(pitch) -
-           right[2] * SDL_cosf(yaw) * SDL_sinf(pitch);
-    pose->roll = SDL_atan2f(sine, cosine) * 57.2957795f;
-    pose->fov = clamp(work->projection.vertical_fov, 5.f, 150.f);
-    pose->near_clip = clamp(work->projection.near_clip, .01f, 100.f);
-    pose->far_clip = clamp(work->projection.far_clip, pose->near_clip + .01f, 32700.f);
-}
-
 int storyboard_editor_show(MarcusStoryboardEditor *e, MarcusPlayer *player, int new_scene, int angle,
     const MarcusImage *work, float fly_speed, const char *resources, const char *content)
 {
@@ -610,8 +579,7 @@ int storyboard_editor_show(MarcusStoryboardEditor *e, MarcusPlayer *player, int 
     if (!e->open) return 0;
     e->fly_speed = fly_speed;
     e->changed = new_scene != 0;
-    e->has_work = work && work->projection.valid && !work->projection.orthographic;
-    if (e->has_work) capture_work_pose(&e->work, work);
+    e->has_work = marcus_board_pose_from_view(work, &e->work);
     e->tab = e->light = e->inspect_lights = e->picking = 0;
     if (new_scene) select_rgb(e, marcus_board_swatches[3]);
     if (angle == -2) add_angle(e);

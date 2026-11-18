@@ -232,6 +232,11 @@ single-pixel spacing, keeping the distant grid from merging into a solid band.
 Baked lines remain part of the background.
 **Use work camera** copies the current
 work-view pose and lens into this angle, retaining its drawing.
+The main Orbit and Fly toolbar's **Copy to camera** applies the perspective
+work view to the active storyboard angle as one undoable edit. Existing
+drawings, lights, and object positions are retained. The control is available
+for storyboard angles, which have editable cameras. Retail angles use fixed
+camera and background pairs.
 
 **Lights** adds, selects, deletes and adjusts up to sixteen directional or point
 lights. Its 3D inspection view shows selectable light widgets and the shot's camera
@@ -336,8 +341,12 @@ model. A scrollbar is available on the right. The confirmation button changes to
 **Add actor** or **Add prop** for the selected model; Enter or double-click also adds it.
 Cancel/Escape leaves the movie unchanged. The chooser requires `tmpls.3cn` in the
 Content folder. Model previews load progressively through one isolated helper
-process and are cached while browsing, with at most 64 model textures retained.
-A failed preview leaves the other cards usable. New scene keeps its background
+process, prioritizing the selected and visible cards. Successful renders are
+saved in `model-previews` under Marcus's preferences folder and reused across
+reopenings and launches. The cache holds up to 256 previews and tracks the
+resource file, template archive, and preview helper. Missing or unreadable
+entries are regenerated. A failed preview is marked unavailable and leaves the
+other cards usable. New scene keeps its background
 list and larger selected preview.
 
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
@@ -1389,6 +1398,11 @@ playback, scrubbing and camera cuts. Shift + right drag pans the pivot in the
 screen plane, with speed following zoom, lens and viewport size. Subsequent
 rotation and zoom use the panned pivot. Inspection views use a far clipping
 distance of 30,000 world units, independent of cached actor bounds.
+
+**Ground grid** in the Orbit and Fly toolbar projects the world XZ plane at
+Y=0 over the work view. It stays aligned to world units as you move and is
+available in both perspective and orthographic work views. It is a viewport
+guide and is omitted from the movie image.
 
 Orbit and Fly reconstruct the active camera's background as textured scenery
 from its colour image and ZBMP depth, placed using the authored camera transform.

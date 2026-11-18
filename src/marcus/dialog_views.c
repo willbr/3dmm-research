@@ -102,7 +102,7 @@ static void grid(const MarcusDialogHost *host, void *model, MarcusDialogState *s
                 memset(&item, 0, sizeof(item)); host->item(model, renderer, index, &item);
                 SDL_snprintf(id, sizeof(id), "##tile%d", index);
                 clicked = dialog_thumbnail(id, item.texture, tile, index == state->selected,
-                    item.directory ? "Folder" : "Loading preview...");
+                    item.directory ? "Folder" : item.preview_unavailable ? "Preview unavailable" : "Loading preview...");
                 if (igIsItemHovered(0)) {
                     igSetTooltip("%s%s%s", item.label, item.detail[0] ? "\n" : "", item.detail);
                     if (igIsMouseDoubleClicked_Nil(0)) { action(host, model, DIALOG_SELECT, index); action(host, model, DIALOG_ACCEPT, index); }

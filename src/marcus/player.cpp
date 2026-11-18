@@ -1205,6 +1205,30 @@ extern "C"
     {
         return player && player->selected >= 0 && player->edits->storyboards->count(player->scenes[player->selected].number) != 0;
     }
+    int marcus_board_copy_camera(MarcusPlayer *player, const MarcusImage *work)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (!marcus_is_storyboard(player))
+            { error.message = "Copy to camera requires a storyboard scene."; return false; }
+            const auto &info = player->preview.Info();
+            MarcusBoardPose pose;
+            if (!work || work->scene != player->selected || work->frame != info.currentFrame ||
+                work->document != player->document || !marcus_board_pose_from_view(work, &pose))
+            { error.message = "Use a current perspective work view."; return false; }
+            MarcusStoryboard board;
+            if (!MarcusGetStoryboard(player, board) || info.currentCamera >= board.angles.size())
+            { error.message = "The active storyboard angle is unavailable."; return false; }
+            const auto camera = info.currentCamera;
+            auto &angle = board.angles[camera];
+            pose.camera.move_speed = angle.camera.move_speed;
+            angle.camera = pose.camera; angle.roll = pose.roll; angle.fov = pose.fov;
+            angle.nearClip = pose.near_clip; angle.farClip = pose.far_clip;
+            if (MarcusApplyStoryboard(player, board, false, camera, player->timingResources.c_str(),
+                                      player->timingContent.c_str())) return true;
+            error.message = player->error;
+            return false;
+        });
+    }
     int marcus_requires_vmm(const MarcusPlayer *player)
     {
         if (!player) return 0;

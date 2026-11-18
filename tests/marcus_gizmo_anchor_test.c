@@ -37,6 +37,35 @@ static void displayed(const MarcusProjection *camera, const float world[3])
     check(screen[0] >= .0999f && screen[0] <= .9001f && screen[1] >= .0999f && screen[1] <= .9001f,
         "Drawing stays inside the viewport while the real position is off-screen");
 }
+static void ground_grid(void)
+{
+    MarcusImage image;
+    MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES];
+    int i, count;
+    memset(&image, 0, sizeof(image));
+    image.width = image.height = 400;
+    image.authored_camera = 1;
+    image.projection.valid = 1;
+    image.projection.aspect = 2;
+    image.projection.vertical_fov = 90;
+    image.projection.near_clip = 1;
+    image.projection.far_clip = 100;
+    image.projection.transform[0] = 1;
+    image.projection.transform[5] = -1;
+    image.projection.transform[7] = 1;
+    image.projection.transform[10] = 20;
+    count = camera_ground_grid(&image, lines);
+    check(count > 0 && count <= MARCUS_GROUND_GRID_MAX_LINES, "Top-down camera sees the ground grid");
+    for (i = 0; i < count; ++i)
+        check(lines[i].y1 >= .25f && lines[i].y1 <= .75f && lines[i].y2 >= .25f && lines[i].y2 <= .75f,
+              "Grid clips to the authored picture inside letterboxing");
+    image.projection.orthographic = 1;
+    image.projection.ortho_height = 20;
+    check(camera_ground_grid(&image, lines) > 0, "Orthographic view sees the ground grid");
+    image.projection.transform[5] = 1;
+    image.projection.transform[7] = -1;
+    check(!camera_ground_grid(&image, lines), "Camera looking up sees no ground grid");
+}
 int main(void)
 {
     MarcusProjection camera;
@@ -90,6 +119,7 @@ int main(void)
     check(!camera_gizmo_anchor(&camera, world, .5f, .1f, anchor), "Reject invalid insets");
     camera.valid = 0;
     check(!camera_gizmo_anchor(&camera, world, .1f, .1f, anchor), "Reject missing projections");
+    ground_grid();
     puts("Gizmo display clamping and unrestricted off-screen movement checks passed.");
     return 0;
 }

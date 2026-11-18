@@ -7,6 +7,8 @@ extern "C" {
 #endif
 
 #define MARCUS_GUIDE_MAX_LINES 24
+#define MARCUS_GROUND_GRID_CELLS 16
+#define MARCUS_GROUND_GRID_MAX_LINES (4 * MARCUS_GROUND_GRID_CELLS + 2)
 typedef struct MarcusGuideLine
 {
     float x1, y1, x2, y2;
@@ -29,6 +31,8 @@ void camera_guide_build_image(const MarcusImage *image, const MarcusProjection *
 /* Project all twelve selection-box edges into the rendered image, preserving
  * authored letterboxing. The box uses the actor's current world-space corners. */
 void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, MarcusCameraGuide *guide);
+/* Project an XZ grid at world Y=0, returning the number of visible segments. */
+int camera_ground_grid(const MarcusImage *image, MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES]);
 /* Column-major view/projection matrices matching the engine camera exactly. */
 int camera_projection_matrices(const MarcusProjection *projection, float view[16], float clip[16]);
 /* Project a visible world point to normalized X/Y and camera-forward depth. */

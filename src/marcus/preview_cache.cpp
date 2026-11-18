@@ -1,12 +1,14 @@
 #include "preview_cache.h"
 #include "preview_worker.h"
 #include <SDL3/SDL.h>
+#include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 
 MarcusPreviewCache::MarcusPreviewCache(const std::filesystem::path &directory,
-    const std::vector<std::filesystem::path> &sources) : directory(directory), available(!directory.empty())
+    const std::vector<std::filesystem::path> &sources, std::size_t fileLimit)
+    : directory(directory), fileLimit(fileLimit), available(!directory.empty())
 {
     std::uint64_t hash = 14695981039346656037ull;
     auto add = [&](const std::string &value) {
@@ -53,6 +55,26 @@ bool MarcusPreviewCache::Load(unsigned long chunk, BrowserPreview &preview) cons
     catch (const std::exception &) { return false; }
 }
 
+void MarcusPreviewCache::Trim(const std::filesystem::path &newest) const
+{
+    if (!fileLimit) return;
+    std::error_code ec;
+    std::vector<std::pair<std::filesystem::file_time_type, std::filesystem::path>> older;
+    for (std::filesystem::directory_iterator entry(directory, ec), end; !ec && entry != end; entry.increment(ec))
+    {
+        const auto &path = entry->path();
+        if (path == newest || path.extension() != ".mpr") continue;
+        std::error_code timeError;
+        if (!std::filesystem::is_regular_file(entry->symlink_status(timeError))) continue;
+        const auto time = entry->last_write_time(timeError);
+        if (!timeError) older.emplace_back(time, path);
+    }
+    if (older.size() < fileLimit) return;
+    std::sort(older.begin(), older.end());
+    for (std::size_t i = 0; i <= older.size() - fileLimit; ++i)
+        std::filesystem::remove(older[i].second, ec);
+}
+
 void MarcusPreviewCache::Store(unsigned long chunk, const BrowserPreview &preview) const
 {
     if (!available || !preview.error.empty() || preview.rgba.empty()) return;
@@ -66,6 +88,10 @@ void MarcusPreviewCache::Store(unsigned long chunk, const BrowserPreview &previe
         std::ofstream output(std::filesystem::u8path(temporary), std::ios::binary | std::ios::trunc);
         if (output && WritePreview(output, preview)) { output.close(); written = bool(output); }
     }
-    if (written && SDL_RenamePath(temporary.c_str(), destination.u8string().c_str())) return;
+    if (written && SDL_RenamePath(temporary.c_str(), destination.u8string().c_str()))
+    {
+        Trim(destination);
+        return;
+    }
     std::filesystem::remove(std::filesystem::u8path(temporary), ec);
 }

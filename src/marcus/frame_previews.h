@@ -2,6 +2,7 @@
 #define MARCUS_FRAME_PREVIEWS_H
 #include "movie_input.h"
 #include "browser_preview.h"
+#include "preview_cache.h"
 #include <SDL3/SDL.h>
 #include <array>
 #include <atomic>
@@ -29,7 +30,7 @@ struct MarcusFramePreviews
     // Model mode uses position.scene as a caller's card ID and position.frame
     // as the template chunk. Individual model errors do not end the stream.
     MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie, std::string resources, std::string content, int scene,
-                        bool cameras = false, bool models = false);
+                        bool cameras = false, bool models = false, MarcusPreviewCache cache = {});
     ~MarcusFramePreviews();
 };
 #endif

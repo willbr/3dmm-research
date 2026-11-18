@@ -20,7 +20,7 @@ typedef struct MarcusDialogState {
 typedef struct MarcusDialogItem {
     char label[1024], detail[2048];
     SDL_Texture *texture;
-    int directory, scene, transition;
+    int directory, scene, transition, preview_unavailable;
     long frame;
 } MarcusDialogItem;
 typedef struct MarcusDialogHost {
