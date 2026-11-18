@@ -130,19 +130,19 @@ MMResourceServices ChunkyResourceFile::_Services()
     s.contains = [](void *file, MMU32 type, MMU32 number) -> int {
         return static_cast<PChunkyFile>(file)->FFind(type, number);
     };
-    s.with_block = [](void *file, MMU32 type, MMU32 number, MMResourceBlockAction action, void *context) -> int {
-        DataBlock block;
-        if (!static_cast<PChunkyFile>(file)->FFind(type, number, &block))
-            return 0;
-        return action(context, &block);
+    s.handles = KauaiHandleServices();
+    s.block_files = KauaiBlockFileServices();
+    s.locate = [](void *file, MMU32 type, MMU32 number, MMBlockFile *location, int *packed) -> int {
+        return static_cast<PChunkyFile>(file)->FFindBlockFile(type, number, location, packed);
     };
-    s.read = [](void *c, MMResourceReader reader, MMU32 type, MMU32 number, void *block, void **object,
+    s.read = [](void *c, MMResourceReader reader, MMU32 type, MMU32 number, MMOwnedBlock *block, void **object,
                 MMI32 *bytes) -> int {
+        DataBlock view(*block);
         PBaseCacheableObject value = nullptr;
         LegacyLong count = *bytes;
         const bool ok =
             reinterpret_cast<PFNRPO>(reader)(static_cast<PChunkyResourceFile>(c), type, number,
-                                             static_cast<PDataBlock>(block), object ? &value : nullptr, &count);
+                                             &view, object ? &value : nullptr, &count);
         if (object)
             *object = value;
         *bytes = count;
@@ -182,6 +182,8 @@ MMResourceServices ChunkyResourceFile::_Services()
             Bug("someone still refers to this ChunkyResourceFile");
         else if (kind == MM_RESOURCE_BAD_RETAIN)
             Bug("reference count not positive");
+        else if (kind == MM_RESOURCE_BAD_BLOCK)
+            Bug("invalid resource block");
         else
             Bug("invalid resource cache ownership");
     };

@@ -230,13 +230,16 @@ class DataBlock : public DataBlock_PAR
   protected:
     MMBlockIO _IOView();
     static int _DecodeHandle(void *, void **);
-    MMOwnedBlock _state;
+    MMOwnedBlock _owned;
+    MMOwnedBlock &_state;
 
   public:
     DataBlock(PFileLocation pflo, bool fPacked = fFalse);
     DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked = fFalse);
     DataBlock(HQ *phq, bool fPacked = fFalse);
     DataBlock(void);
+    // Borrow the caller's owner. Mutations are shared and the caller clears it.
+    explicit DataBlock(MMOwnedBlock &state);
     ~DataBlock(void);
 
     void Set(PFileLocation pflo, bool fPacked = fFalse);

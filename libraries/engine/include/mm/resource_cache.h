@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_RESOURCE_CACHE_H
 #define MM_ENGINE_RESOURCE_CACHE_H
+#include "block_owner.h"
 #include "collections.h"
 #include "wide.h"
 #include "reference.h"
@@ -28,7 +29,8 @@ extern "C"
         MM_RESOURCE_BAD_CHARGE,
         MM_RESOURCE_LOAD_FAILED,
         MM_RESOURCE_BAD_OWNER,
-        MM_RESOURCE_BAD_RETAIN
+        MM_RESOURCE_BAD_RETAIN,
+        MM_RESOURCE_BAD_BLOCK
     };
     typedef struct MMResourceObjectServices
     {
@@ -55,19 +57,19 @@ extern "C"
         MMResourceReader reader;
         MMI32 priority;
     } MMResourceRequest;
-    typedef int (*MMResourceBlockAction)(void *context, void *block);
     typedef struct MMResourceServices
     {
         void *context;
         MMResourceObjectServices objects;
         int (*compare_reader)(MMResourceReader, MMResourceReader);
         int (*contains)(void *file, MMU32 type, MMU32 number);
-        /* If found, call action once with a borrowed block and return its result.
-         * If missing, return zero. The block lives through the entire action. */
-        int (*with_block)(void *file, MMU32 type, MMU32 number, MMResourceBlockAction action,
-                          void *context);
-        int (*read)(void *, MMResourceReader, MMU32 type, MMU32 number, void *block, void **object,
-                    MMI32 *bytes);
+        const MMHandleServices *handles;
+        const MMBlockFileServices *block_files;
+        /* Report an existing chunk's borrowed physical extent and packed bit.
+         * The cache owns the temporary block from lookup through publication. */
+        int (*locate)(void *file, MMU32 type, MMU32 number, MMBlockFile *, int *packed);
+        int (*read)(void *, MMResourceReader, MMU32 type, MMU32 number, MMOwnedBlock *,
+                    void **object, MMI32 *bytes);
         void (*retain_file)(void *file);
         void (*release_file)(void *file);
         void (*destroy_owner)(void *owner);
@@ -91,6 +93,8 @@ extern "C"
      * or object pointers that are independent of movable array storage. Readers
      * may load other keys. Destructors may release other objects and change the
      * table, so insertion searches again and eviction scans restart.
+     * Readers borrow the block for the call. Preload passes the same owning
+     * record to the estimate and object read, including changes to its view.
      * Recursive loading of the same key and disposal re-entry are invalid.
      * Reader success transfers a fresh object reference and a nonnegative i32 charge.
      * Priority retains the original signed-16-bit storage behavior. */

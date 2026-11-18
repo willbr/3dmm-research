@@ -5756,10 +5756,12 @@ and leaves the caller's insertion-position output unchanged.
 
 The manager stores typed C cache pointers and calls their C query functions
 directly. Its factory transfers one reference to the cache owner. The manager
-releases it through C on disposal or failed insertion. A file
-provider lends a block to C on a cache miss. The same block survives preload's
-estimate, read and insertion. Recursive reads borrow separate blocks, and
-cache hits and scope rejections skip block construction.
+releases it through C on disposal or failed insertion. On a miss, the file
+provider supplies the physical extent and packed bit. The cache owns the
+`MMOwnedBlock` and releases its file or memory after the operation. Preload's
+estimate and final read use the same block, including mutations made during
+the estimate. Recursive reads open separate blocks. Cache hits and scope
+rejections skip block construction.
 
 Both tables use C-owned storage. Entries are copied before callbacks; readers
 may load other keys and detach/destruction callbacks may remove other entries.
@@ -5776,11 +5778,13 @@ boundaries in the C test. Native and standalone checks hold 24 resources charged
 at 192 MiB each without allocating those payloads.
 
 `crf.cpp` supplies native class allocation, destructors, state accessors,
-diagnostics, stack-backed file blocks and typed readers. The current host
-cache methods forward public operations to C, including release through the
-existing BASE interface. The host compares and calls reader identities as typed
-function pointers. GenericHQ and generic-object wrappers remain native adapters.
-Container adapters, source discovery and engine objects remain migration work.
+diagnostics and typed readers. It forwards public cache operations to C,
+including release through the BASE interface. The host compares reader
+identities as typed function pointers and calls each reader through a borrowed
+`DataBlock` view. The view updates the C owner in place. The chunk provider uses
+the same extent and packed-bit lookup as the native `FFind` path. GenericHQ and
+generic-object wrappers remain native adapters. Container adapters, source
+discovery and engine objects remain migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,
 speculative allocation fallback, initial/growth failure, cleanup/lifetimes,
@@ -5817,6 +5821,22 @@ Retail reopens the Studio actor edit with matching state on four seeks. Both
 hosts reproduce the ordinary and motion sound cues. Studio passes eight VMM
 workflow checks, and Marcus matches the retained VMM viewport hash. Evidence is
 in `tmp/c89-cache-lifetime`.
+
+The block ownership fixture starts preload from a packed file extent and
+replaces the extent with a memory handle during estimation. The final read sees
+that handle. The cache releases the handle after success, estimate failure and
+read failure. AddressSanitizer passes the fixture. The four frozen cache and
+renderer-resource traces, 31 actor and resource traces, and saved movie fixture
+match byte for byte. The 300 frame and mesh snapshots and the 300 graph/stream
+evaluations also match. Both hosts reproduce 456 seek observations and 360
+viewport hashes and match 480 retail frame commits. Retail reopens the Studio
+actor edit with matching state on four seeks. Both hosts play the ordinary
+and motion sound cues. Studio passes eight VMM workflow checks, and Marcus
+matches the retained VMM viewport hash. All 181 standalone checks, three
+AddressSanitizer checks and the SDL runtime compile check pass. The 195
+focused host checks include 11 C89 syntax checks and one material test that
+passed three isolated reruns after failing to create a temp file in the
+parallel run. Evidence is in `tmp/c89-cache-blocks`.
 
 ### Container construction, lookup and disposal
 

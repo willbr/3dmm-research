@@ -17,6 +17,7 @@
 #define CHUNK_H
 
 #include <cstdint>
+#include "mm/block_owner.h"
 #include "mm/chunky_file.h"
 #include "mm/chunk_graph.h"
 #include "mm/chunk_metadata.h"
@@ -138,6 +139,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FSetName(LegacyLong icrp, PString pstn);
     bool _FGetName(LegacyLong icrp, PString pstn);
     void _GetFlo(LegacyLong icrp, PFileLocation pflo);
+    bool _GetBlockLocation(LegacyLong icrp, PFileLocation pflo);
     void _GetBlck(LegacyLong icrp, PDataBlock pblck);
     bool _FEnsureOnExtra(LegacyLong icrp, FileLocation *pflo = pvNil);
 
@@ -195,6 +197,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FOnExtra(ChunkTagOrType ctg, ChunkNumber cno);
     bool FEnsureOnExtra(ChunkTagOrType ctg, ChunkNumber cno);
     bool FFind(ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck = pvNil);
+    bool FFindBlockFile(ChunkTagOrType ctg, ChunkNumber cno, MMBlockFile *file, int *packed);
     bool FFindFlo(ChunkTagOrType ctg, ChunkNumber cno, PFileLocation pflo);
     bool FReadHq(ChunkTagOrType ctg, ChunkNumber cno, HQ *phq);
     void SetPacked(ChunkTagOrType ctg, ChunkNumber cno, bool fPacked);

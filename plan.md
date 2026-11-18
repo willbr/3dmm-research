@@ -550,12 +550,13 @@ Keep host presentation and device output outside the session.
    mesh reader share the wire layout. The same C89 renderer library binds
    materials, colour and shade maps, and texture views. The C89 resource
    manager now dispatches directly to each C89 cache. A cache hit skips block
-   construction. On a miss, the cache borrows a file block through the full
-   load or fetch, including preload's size estimate and final read. Cacheable
+   construction. On a miss, the cache owns a C file or memory block through
+   the full load or fetch. The legacy readers borrow that block during
+   preload's size estimate and final read. Cacheable
    objects now link to the C cache directly. C handles object and cache
    references, detach, eviction and priority changes through that link.
-   Native object construction, final destructors, file blocks and typed
-   readers remain integration work.
+   Native object construction, final destructors, physical file adapters and
+   typed readers remain integration work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

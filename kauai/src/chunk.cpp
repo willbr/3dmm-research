@@ -1190,17 +1190,20 @@ void ChunkyFile::_GetFlo(LegacyLong icrp, PFileLocation pflo)
 /***************************************************************************
     Get the DataBlock from the chunk.
 ***************************************************************************/
+bool ChunkyFile::_GetBlockLocation(LegacyLong position, PFileLocation location)
+{
+    _GetFlo(position, location);
+    return mm_chunk_record_flags(ChunkFixed(_Index(), position), expandedRecords, fcrpPacked) != 0;
+}
+
 void ChunkyFile::_GetBlck(LegacyLong icrp, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
 
     FileLocation flo;
-    ChunkRepresentation *qcrp;
-
-    _GetFlo(icrp, &flo);
-    qcrp = (ChunkRepresentation *)ChunkFixed(_Index(), icrp);
-    pblck->Set(&flo, mm_chunk_record_flags(qcrp, expandedRecords, fcrpPacked));
+    const bool packed = _GetBlockLocation(icrp, &flo);
+    pblck->Set(&flo, packed);
 }
 
 /***************************************************************************
@@ -1224,6 +1227,21 @@ bool ChunkyFile::FFind(ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck)
         _GetBlck(icrp, pblck);
 
     return fTrue;
+}
+
+bool ChunkyFile::FFindBlockFile(ChunkTagOrType type, ChunkNumber number, MMBlockFile *file, int *packed)
+{
+    AssertThis(0);
+    AssertVarMem(file);
+    AssertVarMem(packed);
+    LegacyLong position;
+    if (!_FFindCtgCno(type, number, &position))
+        return false;
+
+    FileLocation location;
+    *packed = _GetBlockLocation(position, &location);
+    *file = {location.pfil, static_cast<MMU32>(location.fp), static_cast<MMU32>(location.cb)};
+    return true;
 }
 
 /***************************************************************************

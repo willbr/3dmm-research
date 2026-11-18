@@ -23,10 +23,11 @@ typedef struct Object
 struct Host
 {
     MMResourceCache cache;
+    MMHandleServices handles;
     MMReference refs;
     int file_refs, objects, allocations, fail, fail_speed, issues;
     int destroyed[128], deaths, reads, estimates, scope_calls;
-    int block_scans, active_blocks;
+    int block_scans, active_blocks, active_handles, change_estimate_block;
     MMI32 bytes, estimate;
     int fail_read, fail_estimate, recursive, missing;
     MMResourceManager *manager;
@@ -84,7 +85,8 @@ static void destroy_owner(void *p)
     CHECK(h->refs.count == 0 && mm_resource_cache_dispose(&h->cache) == 0);
     if (h->free_owner)
     {
-        CHECK(!h->objects && !h->allocations && h->file_refs == 1 && !h->active_blocks);
+        CHECK(!h->objects && !h->allocations && h->file_refs == 1 &&
+              !h->active_blocks && !h->active_handles);
         free(h);
     }
 }
@@ -137,20 +139,93 @@ static int contains(void *p, MMU32 type, MMU32 number)
     }
     return !h->missing && number > 0 && number < 100;
 }
-static int with_block(void *p, MMU32 type, MMU32 number, MMResourceBlockAction action,
-                      void *context)
+static int locate_block(void *p, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
 {
     Host *h = (Host *)p;
-    MMU32 block = number;
-    int result;
     ++h->block_scans;
     if (!contains(h, type, number))
         return 0;
-    ++h->active_blocks;
-    result = action(context, &block);
-    CHECK(block == number);
+    file->file = h;
+    file->offset = number;
+    file->length = 1;
+    *packed = h->change_estimate_block;
+    return 1;
+}
+static void retain_block(void *context, void *file)
+{
+    (void)context;
+    ++((Host *)file)->active_blocks;
+}
+static void release_block(void *context, void *file)
+{
+    Host *h = (Host *)file;
+    (void)context;
+    CHECK(h->active_blocks > 0);
     --h->active_blocks;
-    return result;
+}
+static void *no_temp(void *context)
+{
+    (void)context;
+    return NULL;
+}
+static int read_block(void *context, void *file, MMU32 offset, void *out, size_t bytes)
+{
+    (void)context;
+    CHECK(((Host *)file)->active_blocks > 0 && bytes == 1 && offset < 100);
+    *(unsigned char *)out = (unsigned char)offset;
+    return 1;
+}
+static int no_write(void *context, void *file, MMU32 offset, const void *in, size_t bytes)
+{
+    (void)context;
+    (void)file;
+    (void)offset;
+    (void)in;
+    (void)bytes;
+    CHECK(0);
+    return 0;
+}
+static const MMBlockFileServices block_files = {
+    NULL, retain_block, release_block, no_temp, read_block, no_write
+};
+static int resize_handle(void *context, void **handle, MMU32 bytes)
+{
+    MMU32 *p = (MMU32 *)realloc(*handle, sizeof(*p) + bytes);
+    (void)context;
+    if (!p)
+        return 0;
+    *p = bytes;
+    *handle = p;
+    return 1;
+}
+static int alloc_handle(void *context, MMU32 bytes, void **handle)
+{
+    *handle = NULL;
+    if (!resize_handle(context, handle, bytes))
+        return 0;
+    ++((Host *)context)->active_handles;
+    return 1;
+}
+static void free_handle(void *context, void *handle)
+{
+    CHECK(((Host *)context)->active_handles > 0);
+    --((Host *)context)->active_handles;
+    free(handle);
+}
+static MMU32 size_handle(void *context, void *handle)
+{
+    (void)context;
+    return *(MMU32 *)handle;
+}
+static void *lock_handle(void *context, void *handle)
+{
+    (void)context;
+    return (unsigned char *)handle + sizeof(MMU32);
+}
+static void unlock_handle(void *context, void *handle)
+{
+    (void)context;
+    (void)handle;
 }
 static Object *fetch(Host *h, MMU32 number, MMResourceReader reader, int *error)
 {
@@ -162,21 +237,33 @@ static Object *fetch(Host *h, MMU32 number, MMResourceReader reader, int *error)
     q.priority = 2;
     return (Object *)mm_resource_cache_fetch(&h->cache, &q, error);
 }
-static int read_object(void *p, MMResourceReader reader, MMU32 type, MMU32 number, void *block,
+static int read_object(void *p, MMResourceReader reader, MMU32 type, MMU32 number, MMOwnedBlock *block,
                        void **out, MMI32 *bytes)
 {
     Host *h = (Host *)p;
     Object *o, *child = NULL;
+    MMBlockIO io;
+    unsigned char key;
     int error;
     (void)type;
-    CHECK(h->active_blocks > 0 && *(MMU32 *)block == number);
+    CHECK(mm_owned_block_io(block, &io) == MM_DATA_OK);
+    CHECK(mm_block_read(&io, 0, &key, 1, 1) == MM_DATA_OK && key == number);
     if (!out)
     {
+        if (h->change_estimate_block)
+        {
+            void *handle = NULL;
+            CHECK(h->active_blocks == 1 && io.view.packed);
+            CHECK(mm_block_read_handle(&io, 0, 1, 1, &handle) == MM_DATA_OK);
+            CHECK(mm_owned_block_set_handle(block, &handle, 0) == MM_DATA_OK && !handle);
+        }
         ++h->estimates;
         *bytes = h->estimate;
         return !h->fail_estimate;
     }
     ++h->reads;
+    if (h->change_estimate_block)
+        CHECK(io.view.kind == MM_BLOCK_MEMORY && !io.view.packed && !h->active_blocks && h->active_handles == 1);
     if (h->fail_read)
         return 0;
     if (h->recursive && number == 2)
@@ -231,7 +318,16 @@ static void init(Host *h, MMI32 budget)
     s.objects = objects;
     s.compare_reader = compare_reader;
     s.contains = contains;
-    s.with_block = with_block;
+    h->handles.context = h;
+    h->handles.allocate = alloc_handle;
+    h->handles.release = free_handle;
+    h->handles.size = size_handle;
+    h->handles.lock = lock_handle;
+    h->handles.unlock = unlock_handle;
+    h->handles.resize = resize_handle;
+    s.handles = &h->handles;
+    s.block_files = &block_files;
+    s.locate = locate_block;
     s.read = read_object;
     s.retain_file = retain_file;
     s.release_file = release_file;
@@ -243,7 +339,8 @@ static void init(Host *h, MMI32 budget)
 static void finish(Host *h)
 {
     mm_resource_cache_release(&h->cache);
-    CHECK(!h->objects && !h->allocations && h->file_refs == 1 && !h->issues && !h->active_blocks);
+    CHECK(!h->objects && !h->allocations && h->file_refs == 1 && !h->issues &&
+          !h->active_blocks && !h->active_handles);
 }
 static int load(Host *h, MMU32 number, MMI32 p)
 {
@@ -272,6 +369,18 @@ static void cache_cases(void)
     CHECK(h.destroyed[1] == 20 && h.destroyed[2] == 40);
     mm_resource_cache_budget(&h.cache, 0);
     CHECK(!h.cache.count && !h.objects && !h.cache.resident.low && !h.cache.resident.high);
+    finish(&h);
+
+    init(&h, 100);
+    h.change_estimate_block = 1;
+    h.fail_estimate = 1;
+    CHECK(load(&h, 1, 2) == 2 && !h.active_handles && !h.active_blocks);
+    h.fail_estimate = 0;
+    h.fail_read = 1;
+    CHECK(load(&h, 1, 2) == 2 && !h.active_handles && !h.active_blocks);
+    h.fail_read = 0;
+    CHECK(load(&h, 1, 2) == 1 && !h.active_handles && !h.active_blocks);
+    CHECK(h.block_scans == 3 && h.estimates == 3 && h.reads == 2);
     finish(&h);
 
     init(&h, 1000);

@@ -55,6 +55,7 @@ MMI32 ConvertFileText(void *, const void *input, MMU32 bytes, int source, void *
 }
 }
 const MMStorageAllocator *KauaiCopyAllocator() { return &copyAllocator; }
+const MMBlockFileServices *KauaiBlockFileServices() { return &blockFiles; }
 
 FileType FileObject::vftgCreator = '____';
 MMLinkedListNode *FileObject::_pfilFirst;
@@ -415,7 +416,7 @@ MMBlockIO DataBlock::_IOView()
 }
 int DataBlock::_DecodeHandle(void *, void **handle) { return vpcodmUtil->FDecompressPhq(handle); }
 
-DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
+DataBlock::DataBlock(PFileLocation pflo, bool fPacked) : _state(_owned)
 {
     AssertBaseThis(0);
     AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
@@ -425,7 +426,7 @@ DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked)
+DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked) : _state(_owned)
 {
     AssertBaseThis(0);
     AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
@@ -436,7 +437,7 @@ DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPac
     Another constructor for a data block.  Assumes ownership of the hq
     (and sets *phq to hqNil).
 ***************************************************************************/
-DataBlock::DataBlock(HQ *phq, bool fPacked)
+DataBlock::DataBlock(HQ *phq, bool fPacked) : _state(_owned)
 {
     AssertBaseThis(0);
     AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
@@ -446,10 +447,16 @@ DataBlock::DataBlock(HQ *phq, bool fPacked)
 /***************************************************************************
     Another constructor for a data block.
 ***************************************************************************/
-DataBlock::DataBlock(void)
+DataBlock::DataBlock(void) : _state(_owned)
 {
     AssertBaseThis(0);
     AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
+    AssertThis(0);
+}
+
+DataBlock::DataBlock(MMOwnedBlock &state) : _state(state)
+{
+    AssertBaseThis(0);
     AssertThis(0);
 }
 
@@ -459,7 +466,8 @@ DataBlock::DataBlock(void)
 DataBlock::~DataBlock(void)
 {
     AssertThis(0);
-    Free();
+    if (&_state == &_owned)
+        Free();
 }
 
 /***************************************************************************
