@@ -12,6 +12,7 @@
 #include "playback.h"
 #include "timing_job.h"
 #include "retail_scroll.h"
+#include "mm/pixel_raster.h"
 #include "mm/playback.h"
 #include <miniz.h>
 #include "soc_core.h"
@@ -628,7 +629,7 @@ void Fixture(const char *path)
     CHECK(file->FSave(kctgSoc));
     ReleasePpo(&file);
 }
-MarcusSoundTiming FixtureTiming(const char *path, const char *resources)
+MarcusSoundTiming FixtureTiming(const char *path, const char *resources, unsigned char palette[1024])
 {
     MM::Archive archive;
     MM::Preview preview;
@@ -638,6 +639,7 @@ MarcusSoundTiming FixtureTiming(const char *path, const char *resources)
         if (chunk.id.type == kctgScen)
         {
             CHECK(preview.Select(chunk.id, error));
+            CHECK(preview.CopyPresentationPalette(palette));
             MM::PreviewPresentation presentation;
             MarcusSoundTiming timing;
             CHECK(preview.ReadPresentation(presentation, error));
@@ -1079,7 +1081,8 @@ int main(int argc, char **argv)
     PresentationClock();
     InvalidMovieHeaders(argv[1], argv[2], argv[3]);
     Fixture(argv[1]);
-    const auto authoredTiming = FixtureTiming(argv[1], argv[2]);
+    unsigned char fixturePalette[1024];
+    const auto authoredTiming = FixtureTiming(argv[1], argv[2], fixturePalette);
     const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
     PlaybackRates(argv[1], argv[2], argv[3]);
     PlaybackCadence(argv[1], argv[2], argv[3]);
@@ -1275,7 +1278,14 @@ int main(int argc, char **argv)
         CHECK(marcus_audio_stats(player, &stats) && stats.midi_sounds == musicBeforeTransition);
         const auto initial = Image();
         if (scene < 3)
-            CHECK(initial == outgoing);
+        {
+            // The three title-only scenes share this palette. Retail remaps
+            // palette colours when taking the snapshot, even before any reveal.
+            auto snapshot = outgoing;
+            const MMPixelSurface surface{snapshot.data(), 480, 360, 480 * 4, 32};
+            CHECK(mm_pixel_remap_dissolve_rgba(&surface, fixturePalette, 256, nullptr));
+            CHECK(initial == snapshot);
+        }
         Tick(scene == 3 ? 80 : 1000);
         CHECK(std::abs(MovieTime().position_seconds - beforeTransition - 1.0 / 6 -
                        (scene == 3 ? .08 : 1)) < 1e-6);
