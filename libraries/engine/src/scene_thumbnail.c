@@ -88,7 +88,7 @@ static int read_thumbnail(void *context, const MMReadStream *stream)
     rgba = preview->image(preview->context, width, height);
     if (rgba)
     {
-        mm_masked_blit8(&bitmap, services.host_big_endian, indices, (MMI32)width, (MMI32)height, 0, 0, NULL);
+        mm_masked_blit8(&bitmap, services.host_big_endian, indices, (MMI32)width, (MMI32)height, 0, 0, NULL, NULL);
         colours = preview->palette;
         palette.big = services.host_big_endian;
         if (preview->resources &&

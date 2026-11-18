@@ -5029,17 +5029,25 @@ both host byte orders, truncations, empty/negative layouts, failure cleanup,
 factory estimates, partial writes, region clipping and bounded drawing.
 Full gates and retail capture limits are in `docs/tools/playback-regression.md`.
 
-### Masked-bitmap ownership, encoding and hit testing
+### Masked-bitmap ownership, encoding and unscaled drawing
 
 `masked_bitmap.c` owns persistent contiguous header/row-table/RLE buffers,
 construction/cropping, 255-byte run continuations, mask-only encoding,
 foreign-to-host normalization, bounded row validation, hit testing, cache
 factories, serialization and BMP import orientation/cleanup. Persistent HQ
 handles and their resize sequence are removed from `MaskedBitmapMBMP`. Native
-facades provide typed allocation/block/BMP services and borrow a host-order view
-for the existing drawing adapters in `mbmpgui.cpp` and `mbmp_pixels.cpp`.
-Those drawing primitives and their region/pixel services remain dependencies of
-the unfinished C-only backend.
+facades provide typed allocation, block and BMP services. The C89 drawing path
+handles unscaled indexed pixels, rectangular and region clips, and 1-bit masks.
+`mbmpgui.cpp` translates the bitmap origin and lends clip spans through the Kauai
+region scanner. `mbmp_pixels.cpp` still supplies scaled and palette-transfer
+drawing through the pixel canvas.
+
+The shared RLE loop leaves transparent indexed pixels untouched. Packed masks
+clear transparent bits and set opaque bits inside the clipped bitmap bounds.
+Run writes stop at the last byte in each row, including at a byte-aligned clip
+edge. The standalone fixture covers both byte orders, multiple region spans and
+packed mask edge bits. All 67,200 native drawing cases match the previous
+renderer byte for byte. Evidence is in `tmp/c89-masked-blits`.
 
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.

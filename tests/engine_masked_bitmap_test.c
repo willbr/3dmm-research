@@ -435,14 +435,52 @@ static void imports(void)
                 balanced(&f);
             }
 }
+typedef struct Scan
+{
+    MMI32 row, span;
+} Scan;
+static void start_scan(void *context, const MMMaskedRect *bounds)
+{
+    Scan *scan = (Scan *)context;
+    assert(bounds->left == 0 && bounds->top == 0 && bounds->right == 4 && bounds->bottom == 2);
+    scan->row = scan->span = 0;
+}
+static int scan_span(void *context, MMI32 *left, MMI32 *right)
+{
+    Scan *scan = (Scan *)context;
+    if (scan->row == 0 && scan->span < 2)
+    {
+        *left = scan->span++ * 2;
+        *right = *left + 1;
+        return 1;
+    }
+    if (scan->row == 1 && !scan->span)
+    {
+        ++scan->span;
+        *left = 1;
+        *right = 4;
+        return 1;
+    }
+    return 0;
+}
+static void next_row(void *context)
+{
+    Scan *scan = (Scan *)context;
+    ++scan->row;
+    scan->span = 0;
+}
+
 static void stream_blitting(void)
 {
     Fixture f;
     MMMaskedBitmap m;
     MMMemoryStream stream;
     const MMMaskedRect clip = {1, 1, 2, 3};
-    unsigned char pixels[12], expected[12];
+    unsigned char pixels[12], expected[12], bits[2];
+    Scan scan;
+    MMMaskedSpans spans = {NULL, start_scan, scan_span, next_row};
     int big, source, mask;
+    spans.context = &scan;
     for (big = 0; big < 2; ++big)
         for (source = 0; source < 2; ++source)
             for (mask = 0; mask < 2; ++mask)
@@ -470,14 +508,23 @@ static void stream_blitting(void)
                 expected[4] = mask ? 37 : 6;
                 expected[5] = mask ? 37 : 5;
                 memset(pixels, 0xa5, sizeof(pixels));
-                mm_masked_blit8(&m, big, pixels, 4, 3, 0, 0, NULL);
+                mm_masked_blit8(&m, big, pixels, 4, 3, 0, 0, NULL, NULL);
                 assert(!memcmp(pixels, expected, sizeof(pixels)));
                 memset(expected, 0xa5, sizeof(expected));
                 expected[5] = mask ? 37 : 8;
                 memset(pixels, 0xa5, sizeof(pixels));
-                mm_masked_blit8(&m, big, pixels, 4, 3, -1, 1, &clip);
-                mm_masked_blit8(&m, big, pixels, 4, 3, (-2147483647 - 1), 0, NULL);
+                mm_masked_blit8(&m, big, pixels, 4, 3, -1, 1, &clip, NULL);
+                mm_masked_blit8(&m, big, pixels, 4, 3, (-2147483647 - 1), 0, NULL, NULL);
                 assert(!memcmp(pixels, expected, sizeof(pixels)));
+                memset(expected, 0xa5, sizeof(expected));
+                expected[2] = mask ? 37 : 8;
+                expected[5] = mask ? 37 : 5;
+                memset(pixels, 0xa5, sizeof(pixels));
+                mm_masked_blit8(&m, big, pixels, 4, 3, 0, 0, NULL, &spans);
+                assert(scan.row == 1 && !memcmp(pixels, expected, sizeof(pixels)));
+                memset(bits, 0xa5, sizeof(bits));
+                mm_masked_blit_mask(&m, big, bits, 1, 2, 4, 0, NULL);
+                assert(bits[0] == 0xa6 && bits[1] == 0xac);
                 mm_masked_dispose(&m, &f.s);
                 assert(!mm_masked_read_stream(&stream.stream, &m, &f.s) && !m.data);
                 balanced(&f);

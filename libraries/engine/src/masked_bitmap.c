@@ -310,19 +310,84 @@ static int visible_span(MMI32 origin, MMI32 extent, MMI32 clip_min, MMI32 clip_m
     return 1;
 }
 
-void mm_masked_blit8(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 stride, MMI32 height,
-                     MMI32 left, MMI32 top, const MMMaskedRect *clip)
+static void fill_bits(unsigned char *line, MMI32 left, MMI32 right, int on)
+{
+    MMI32 first = left / 8, last = (right - 1) / 8;
+    unsigned char leading = (unsigned char)(0xffU >> (left & 7));
+    unsigned char trailing = (unsigned char)(0xffU << (7 - ((right - 1) & 7)));
+    if (first == last)
+        leading &= trailing;
+    else
+    {
+        if (last > first + 1)
+            memset(line + first + 1, on ? 255 : 0, (size_t)(last - first - 1));
+        line[last] = (unsigned char)(on ? line[last] | trailing : line[last] & ~trailing);
+    }
+    line[first] = (unsigned char)(on ? line[first] | leading : line[first] & ~leading);
+}
+
+static int next_span(const MMMaskedSpans *spans, MMI32 origin, MMI32 *left, MMI32 *right)
+{
+    if (!spans || !spans->next(spans->context, left, right))
+        return 0;
+    *left -= origin;
+    *right -= origin;
+    return 1;
+}
+
+static void blit_row(const unsigned char *run, const unsigned char *row_end, unsigned char *line,
+                     MMI32 origin, MMI32 left, MMI32 right, int solid, unsigned char fill, int mask,
+                     const MMMaskedSpans *spans)
+{
+    MMI32 x = 0, count, run_end, start, end;
+    if (spans && !next_span(spans, origin, &left, &right))
+        return;
+    if (mask)
+        fill_bits(line, origin + left, origin + right, 0);
+    while (run < row_end)
+    {
+        x += *run++;
+        if (run == row_end)
+            break;
+        count = *run++;
+        run_end = x + count;
+        while (left < run_end)
+        {
+            start = x < left ? left : x;
+            end = run_end < right ? run_end : right;
+            if (end > start)
+            {
+                if (mask)
+                    fill_bits(line, origin + start, origin + end, 1);
+                else if (solid)
+                    memset(line + (origin + start), fill, (size_t)(end - start));
+                else
+                    memcpy(line + (origin + start), run + (start - x), (size_t)(end - start));
+            }
+            if (right > run_end)
+                break;
+            if (!next_span(spans, origin, &left, &right))
+                return;
+        }
+        if (!solid)
+            run += count;
+        x = run_end;
+    }
+}
+
+static void blit(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 stride, MMI32 height,
+                 MMI32 left, MMI32 top, const MMMaskedRect *clip, int mask, const MMMaskedSpans *spans)
 {
     const unsigned char *b = (const unsigned char *)m->data;
     MMMaskedRect r, target;
     const unsigned char *encoded, *row_end;
     unsigned char *line;
-    MMI32 x0, x1, y0, y1, row, x, start, end, run;
+    MMI32 x0, x1, y0, y1, row;
     if (stride <= 0 || height <= 0 || (size_t)stride != (MMU32)stride || (size_t)height != (MMU32)height ||
-        (size_t)height > (size_t)-1 / (size_t)stride)
+        (size_t)height > (size_t)-1 / (size_t)stride || (mask && stride > MAXIMUM / 8))
         return;
     target.left = target.top = 0;
-    target.right = stride;
+    target.right = mask ? stride * 8 : stride;
     target.bottom = height;
     if (clip)
     {
@@ -339,6 +404,14 @@ void mm_masked_blit8(const MMMaskedBitmap *m, int big, unsigned char *pixels, MM
     if (!visible_span(left, r.right - r.left, target.left, target.right, &x0, &x1) ||
         !visible_span(top, r.bottom - r.top, target.top, target.bottom, &y0, &y1))
         return;
+    if (spans)
+    {
+        target.left = left + x0;
+        target.right = left + x1;
+        target.top = top + y0;
+        target.bottom = top + y1;
+        spans->begin(spans->context, &target);
+    }
     encoded = b + 28 + m->row_bytes;
     for (row = 0; row < y0; ++row)
         encoded += word(b + 28 + row * 2, 2, big);
@@ -346,28 +419,23 @@ void mm_masked_blit8(const MMMaskedBitmap *m, int big, unsigned char *pixels, MM
     {
         line = pixels + (size_t)(top + row) * (size_t)stride;
         row_end = encoded + word(b + 28 + row * 2, 2, big);
-        x = 0;
-        while (encoded < row_end)
-        {
-            x += *encoded++;
-            if (encoded == row_end || x >= x1)
-                break;
-            run = *encoded++;
-            start = x < x0 ? x0 : x;
-            end = x + run < x1 ? x + run : x1;
-            if (end > start)
-            {
-                if (b[4])
-                    memset(line + (left + start), b[5], (size_t)(end - start));
-                else
-                    memcpy(line + (left + start), encoded + (start - x), (size_t)(end - start));
-            }
-            if (!b[4])
-                encoded += run;
-            x += run;
-        }
+        blit_row(encoded, row_end, line, left, x0, x1, b[4], b[5], mask, spans);
         encoded = row_end;
+        if (spans && row + 1 < y1)
+            spans->advance(spans->context);
     }
+}
+
+void mm_masked_blit8(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 stride, MMI32 height,
+                     MMI32 left, MMI32 top, const MMMaskedRect *clip, const MMMaskedSpans *spans)
+{
+    blit(m, big, pixels, stride, height, left, top, clip, 0, spans);
+}
+
+void mm_masked_blit_mask(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 stride, MMI32 height,
+                         MMI32 left, MMI32 top, const MMMaskedRect *clip)
+{
+    blit(m, big, pixels, stride, height, left, top, clip, 1, NULL);
 }
 
 int mm_masked_read_stream(const MMReadStream *stream, MMMaskedBitmap *out, const MMMaskedServices *s)

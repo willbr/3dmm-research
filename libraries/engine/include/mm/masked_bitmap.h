@@ -67,10 +67,24 @@ extern "C"
     /* Copy and normalize a decoded wire stream. A successful read transfers
      * ownership to the empty output. Failure leaves the output unchanged. */
     int mm_masked_read_stream(const MMReadStream *, MMMaskedBitmap *, const MMMaskedServices *);
+    /* Optional region iterator. begin receives the visible rectangle. next
+     * returns a row's sorted, disjoint spans in absolute destination coordinates,
+     * bounded by that rectangle. advance starts the next scan line. */
+    typedef struct MMMaskedSpans
+    {
+        void *context;
+        void (*begin)(void *, const MMMaskedRect *);
+        int (*next)(void *, MMI32 *left, MMI32 *right);
+        void (*advance)(void *);
+    } MMMaskedSpans;
     /* Draw validated pixels at the supplied destination origin. The stride is
      * also the drawable width. Transparent runs leave the destination intact. */
     void mm_masked_blit8(const MMMaskedBitmap *, int host_big, unsigned char *pixels, MMI32 stride, MMI32 height,
-                         MMI32 left, MMI32 top, const MMMaskedRect *clip);
+                         MMI32 left, MMI32 top, const MMMaskedRect *clip, const MMMaskedSpans *);
+    /* One bit per pixel, most significant bit first. Within the clip and bitmap
+     * bounds, opaque runs set bits and transparent runs clear them. */
+    void mm_masked_blit_mask(const MMMaskedBitmap *, int host_big, unsigned char *pixels, MMI32 stride, MMI32 height,
+                             MMI32 left, MMI32 top, const MMMaskedRect *clip);
     /* Successful byte transfer consumes memory-backed blocks before validation or
      * object creation; file-backed blocks stay intact. Allocation/read failure leaves
      * the source block intact. Fetch estimates do not load/consume. Callbacks must
