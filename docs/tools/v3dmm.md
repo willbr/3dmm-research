@@ -135,9 +135,12 @@ can still obtain physical paths while using the common mount selection.
 Studio and Marcus use `mm/vmm_wire.h` from the C89 engine for VMM v1
 reading and writing. It bounds directory reads, preserves legacy dependency
 names, and validates embedded archive ranges and the inner movie marker. Two
-32-bit words carry offsets across the 4 GiB boundary. File paths, streaming
-copies, VXP processing and the installed-pack store use the existing host
-adapters.
+32-bit words carry offsets across the 4 GiB boundary.
+`mm/vxp_package.h` supplies their shared C89 VXP member validation, budgets,
+PhysicsFS duplicate selection and Portable CFG parsing. Both metadata reads and
+extraction use the selected central-directory indices. Miniz supplies ZIP
+directory rows, decompression and CRC checks. File paths, streaming copies and
+the installed-pack store use the existing host adapters.
 Studio activates its per-movie portable set in the VFS and uses the same archive
 enumeration for base content, fixed libraries, thumbnails and portable content.
 Marcus uses that mount policy with read-only Studio preference snapshots and
@@ -152,9 +155,6 @@ The store regression covers legacy migration, rollback/retry, preserved order
 and enable flags, independent updates from two connections, changed used files,
 forced verification and unreadable unused packages. `marcus-content` also checks
 that an unrelated missing installed archive does not prevent VMM resolution.
-The original PhysicsFS comparison passed again after this change: 60 generated
-packages, 120 content reads and all CFG choices matched the original DLL. This
-does not extend the previously documented limits on ambiguous manager activation.
 
 Build `v3dmm-test` and run it, or run CTest's `v3dmm` test. It covers embedded
 range parsing, byte-preserving round trips, materialization, malformed/truncated
@@ -174,6 +174,18 @@ The actor-event and scrolling-text fixtures matched the previous builds across
 228 Studio and Marcus seeks and 180 viewport hashes. For those fixtures, 456
 Studio actor records matched the retained retail and v3dmm captures.
 Evidence is in `tmp/c89-vmm-wire`.
+
+`engine-vxp-package` exercises the C89 package reader independently of miniz,
+including byte-preserving CFG parsing, unsafe names, casing conflicts, CFG
+read failures and unsigned budgets above 4 GiB. It passed AddressSanitizer on Windows
+x86 and x64. All metadata and ordered directory records matched the
+pre-conversion reader across the 609 embedded Batman and CHASE packages. The
+original PhysicsFS DLL agreed on all CFG choices and 120 content reads across
+60 generated packages. Studio's authoring and package workflow produced the
+same six VMM files byte for byte. The Studio and Marcus seek fixtures matched
+228 states and 180 viewport hashes from the previous builds. Their 456 Studio
+actor records matched the retained retail and v3dmm captures. Evidence is in
+`tmp/c89-vxp-package`.
 
 Duplicate selection has frozen regression cases in `v3dmm-test`. For a direct
 comparison, build the x86 `physfs-zip-probe` target in `tools/retail_oracle`, then

@@ -1,15 +1,12 @@
 // Licensed under the MIT License.
 #include "mm/v3dmm.h"
 #include "mm/vmm_wire.h"
-#include "physfs_zip_order.h"
+#include "mm/vxp_package.h"
 #include <miniz.h>
 #include <algorithm>
 #include <array>
 #include <exception>
 #include <fstream>
-#include <limits>
-#include <set>
-#include <sstream>
 #include <stdexcept>
 namespace MM::V3dmm
 {
@@ -98,17 +95,15 @@ struct BundleOutput
     }
 };
 
-std::string Trim(std::string value)
+MMVxpSize PackageSize(std::uint64_t bytes)
 {
-    auto first = value.find_first_not_of(" \t\r\n");
-    return first == std::string::npos ? std::string{}
-                                      : value.substr(first, value.find_last_not_of(" \t\r\n") - first + 1);
+    return {static_cast<MMU32>(bytes), static_cast<MMU32>(bytes >> 32)};
 }
-bool SafeName(const std::string &name)
+std::uint64_t PackageSize(MMVxpSize bytes)
 {
-    // Initial package support is deliberately flat, like all 609 reference VXPs.
-    return !name.empty() && name != "." && name != ".." && name.find_first_of("/\\:\0", 0, 4) == std::string::npos;
+    return (std::uint64_t(bytes.high) << 32) | bytes.low;
 }
+
 struct Zip
 {
     Input input;
@@ -133,95 +128,55 @@ struct Zip
     {
         mz_zip_reader_end(&zip);
     }
-    std::vector<Member> Members(const Limits &limits)
+    static MMVxpResult MemberInfo(void *context, MMU32 index, char *name, std::size_t capacity, MMVxpMemberInfo *info)
     {
-        auto count = mz_zip_reader_get_num_files(&zip);
-        Require(count && count <= limits.members, "Too many or no VXP members");
-        std::map<std::string, std::string> names;
-        std::vector<Member> result;
-        std::uint64_t total = 0;
-        for (mz_uint i = 0; i < count; ++i)
-        {
-            mz_zip_archive_file_stat stat{};
-            Require(mz_zip_reader_file_stat(&zip, i, &stat) != 0, "Invalid VXP member record");
-            auto length = mz_zip_reader_get_filename(&zip, i, nullptr, 0);
-            Require(length > 1 && length <= 65536, "Invalid VXP member name length");
-            std::string name(length, '\0');
-            Require(mz_zip_reader_get_filename(&zip, i, name.data(), length) == length, "Cannot read VXP member name");
-            name.pop_back();
-            Require(SafeName(name) && !stat.m_is_directory && !stat.m_is_encrypted && stat.m_is_supported,
-                    "Unsupported, unsafe or ambiguous VXP member: " + name);
-            const auto prior = names.emplace(Fold(name), name);
-            Require(prior.second || prior.first->second == name, "Ambiguous VXP filename casing: " + name);
-            Require(stat.m_uncomp_size <= limits.memberBytes && total <= limits.expandedBytes &&
-                        stat.m_uncomp_size <= limits.expandedBytes - total,
-                    "VXP exceeds its extraction budget");
-            total += stat.m_uncomp_size;
-            result.push_back({name, stat.m_uncomp_size, i});
-        }
-        // PhysicsFS accepts repeated exact names, including different bytes.
-        // Select its lookup winner once for both CFG parsing and extraction.
-        return Detail::SelectZipMembers(result);
+        auto &zip = static_cast<Zip *>(context)->zip;
+        mz_zip_archive_file_stat stat{};
+        if (!mz_zip_reader_file_stat(&zip, index, &stat)) return MM_VXP_MEMBER_RECORD;
+        const auto length = mz_zip_reader_get_filename(&zip, index, nullptr, 0);
+        if (length <= 1 || length > capacity) return MM_VXP_NAME_LENGTH;
+        if (mz_zip_reader_get_filename(&zip, index, name, length) != length) return MM_VXP_NAME_READ;
+        *info = {PackageSize(stat.m_uncomp_size), length - 1,
+            !stat.m_is_directory && !stat.m_is_encrypted && stat.m_is_supported};
+        return MM_VXP_OK;
     }
-    std::string Text(const Member &member)
+
+    static int Configuration(void *context, MMU32 index, void *bytes, std::size_t count)
     {
-        Require(member.bytes <= 1024 * 1024, "VXP configuration is too large");
-        std::string result(std::size_t(member.bytes), '\0');
-        Require(mz_zip_reader_extract_to_mem(&zip, member.index, result.data(), result.size(), 0) != 0,
-                "Cannot decode VXP configuration");
-        Require(result.find('\0') == std::string::npos, "Invalid VXP configuration text");
-        return result;
+        return mz_zip_reader_extract_to_mem(&static_cast<Zip *>(context)->zip, index, bytes, count, 0);
+    }
+
+    std::string MemberName(MMU32 index)
+    {
+        const auto length = mz_zip_reader_get_filename(&zip, index, nullptr, 0);
+        std::string name(length, '\0');
+        if (length && mz_zip_reader_get_filename(&zip, index, name.data(), length) == length) name.pop_back();
+        return name;
     }
 };
-Package Configuration(Zip &zip, const Limits &limits)
+
+struct PackageContents
 {
-    Package package;
-    package.members = zip.Members(limits);
-    const Member *cfg = nullptr;
-    for (const auto &member : package.members)
-        if (Extension(member.name) == ".cfg")
-        {
-            Require(!cfg, "VXP has multiple configurations");
-            cfg = &member;
-        }
-    Require(cfg != nullptr, "VXP has no configuration");
-    package.shortName = cfg->name.substr(0, cfg->name.rfind('.'));
-    std::istringstream text(zip.Text(*cfg));
-    std::string line;
-    while (std::getline(text, line))
+    MMVxpPackage value{};
+    PackageContents(Zip &zip, const Limits &limits)
     {
-        line = Trim(line);
-        if (line.empty() || line.front() == '#' || line.front() == ';')
-            continue;
-        auto equals = line.find('=');
-        if (equals != std::string::npos)
-            package.metadata[Fold(Trim(line.substr(0, equals)))] = Trim(line.substr(equals + 1));
+        const MMVxpReader reader = {&zip, mz_zip_reader_get_num_files(&zip.zip), Zip::MemberInfo, Zip::Configuration};
+        const MMVxpLimits budget = {limits.members, PackageSize(limits.memberBytes), PackageSize(limits.expandedBytes)};
+        MMU32 failed = reader.count;
+        const auto status = mm_vxp_read_package(&reader, &budget, &value, &failed);
+        if (status == MM_VXP_OK) return;
+        std::string message = mm_vxp_error(status);
+        if (failed < reader.count) message += ": " + zip.MemberName(failed);
+        throw std::runtime_error(message);
     }
-    package.name = package.metadata["name"];
-    package.author = package.metadata["author"];
-    Require(!package.name.empty() && package.name.size() <= 65535 && !package.author.empty(),
-            "VXP configuration needs Name and Author");
-    Require(Fold(package.metadata["type"]) == "portable", "Only Portable VXP packages are supported");
-    for (const auto &setting :
-         std::map<std::string, std::string>{{"mount point", "v3dmm"}, {"regid", "6"}, {"regname", "virtual3dmm/v3dmm"}})
-    {
-        auto field = package.metadata.find(setting.first);
-        Require(field == package.metadata.end() || Fold(field->second) == setting.second,
-                "VXP uses an unsupported portable source override: " + setting.first);
-    }
-    auto root = Fold(package.shortName);
-    for (auto extension : {".3cn", ".3th"})
-        Require(std::any_of(package.members.begin(), package.members.end(),
-                            [&](const Member &member) { return Fold(member.name) == root + extension; }),
-                "VXP has no matching " + std::string(extension));
-    return package;
-}
+    ~PackageContents() { mm_vxp_dispose(&value); }
+    PackageContents(const PackageContents &) = delete;
+    PackageContents &operator=(const PackageContents &) = delete;
+};
 } // namespace
 std::string Fold(std::string text)
 {
-    for (auto &c : text)
-        if (c >= 'A' && c <= 'Z')
-            c += 'a' - 'A';
+    mm_vxp_fold_ascii(text.data(), text.size());
     return text;
 }
 std::string Extension(const std::string &name)
@@ -264,7 +219,21 @@ Bundle ReadBundle(const std::filesystem::path &path, const Limits &limits)
 Package ReadPackage(const Range &archive, const Limits &limits)
 {
     Zip zip(archive);
-    return Configuration(zip, limits);
+    const PackageContents contents(zip, limits);
+    const auto &native = contents.value;
+    Package package;
+    package.name = native.name;
+    package.author = native.author;
+    package.shortName = native.short_name;
+    for (std::size_t i = 0; i < native.field_count; ++i)
+        package.metadata.emplace(native.fields[i].key, native.fields[i].value);
+    package.members.reserve(native.member_count);
+    for (std::size_t i = 0; i < native.member_count; ++i)
+    {
+        const auto &member = native.members[i];
+        package.members.push_back({member.name, PackageSize(member.bytes), member.index});
+    }
+    return package;
 }
 void Copy(const Range &range, const std::filesystem::path &output)
 {
@@ -279,13 +248,14 @@ std::map<std::string, std::filesystem::path> Materialize(const Range &archive, c
                                                          const Limits &limits)
 {
     Zip zip(archive);
-    auto package = Configuration(zip, limits);
+    const PackageContents contents(zip, limits);
+    const auto &package = contents.value;
     std::map<std::string, fs::path> result;
-    for (const auto &member : package.members)
+    for (std::size_t i = 0; i < package.member_count; ++i)
     {
-        auto extension = Extension(member.name);
-        if (extension != ".3cn" && extension != ".3th")
-            continue;
+        const auto &member = package.members[i];
+        const auto extension = mm_vxp_content_extension(member.kind);
+        if (!extension) continue;
         auto path = directory / (std::to_string(member.index) + extension);
         Require(!fs::exists(path), "VXP extraction target already exists");
         std::ofstream stream(path, std::ios::binary);
