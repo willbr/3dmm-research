@@ -652,10 +652,16 @@ PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
     AssertThis(0);
     // A CMID is a child ID, not an ordinal. Imported templates may have gaps
     // (for example, children 0 and 2), so _template.custom_count is not an upper bound on IDs.
-    if (cmid < 0)
+    const auto cache = Pcrf();
+    if (cmid < 0 || !cache)
         return pvNil;
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(this, cmid, MM_TEMPLATE_CUSTOM, &s));
+    const auto graph = cache->Pcfl()->ReadChunkAccess();
+    MMU32 parent;
+    MMChunkEntry costume;
+    if (mm_chunk_find(&graph, Ctg(), Cno(), &parent) != MM_CHUNK_OK ||
+        mm_movie_costume_link(&graph, parent, static_cast<MMU32>(cmid), &costume, nullptr) != MM_MOVIE_OK)
+        return pvNil;
+    return static_cast<PCustomMaterial_CMTL>(cache->PbacoFetch(costume.type, costume.number, CustomMaterial_CMTL::FReadCmtl));
 }
 
 /***************************************************************************

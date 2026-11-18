@@ -36,8 +36,6 @@ MMMaterialServices Material_MTRL::_Services(void *context)
     s.windows_system = koskSbWin;
     s.texture_type = kctgTmap;
     s.transform_type = kctgTxxf;
-    s.material_type = kctgMtrl;
-    s.model_type = kctgBmdl;
     s.material_bytes = sizeof(Material_MTRL);
     s.custom_bytes = sizeof(CustomMaterial_CMTL);
     s.light_flag = BR_MATF_LIGHT;
@@ -94,13 +92,8 @@ MMMaterialServices Material_MTRL::_Services(void *context)
         *out = {kid.cki.ctg, kid.cki.cno, kid.chid};
         return 1;
     };
-    s.child_at = [](void *, void *f, MMU32 type, MMU32 number, MMI32 i,
-                    MMMaterialChild *out) -> int {
-        ChildChunkIdentification kid;
-        if (!static_cast<PChunkyFile>(f)->FGetKid(type, number, i, &kid))
-            return 0;
-        *out = {kid.cki.ctg, kid.cki.cno, kid.chid};
-        return 1;
+    s.chunks = [](void *, void *f, MMChunkAccess *out) {
+        *out = static_cast<PChunkyFile>(f)->ReadChunkAccess();
     };
     s.fetch = [](void *, void *p, const MMMaterialChild *child, int kind) -> void * {
         PFNRPO reader = kind == MM_MATERIAL_TEXTURE ? TextureMap::FReadTmap

@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MATERIAL_RESOURCE_H
 #define MM_ENGINE_MATERIAL_RESOURCE_H
-#include "types.h"
+#include "chunky_file.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C"
@@ -31,6 +31,11 @@ extern "C"
     {
         MMU32 type, number, id;
     } MMMaterialChild;
+    enum { MM_MATERIAL_CHUNK = 0x4d54524c };
+    typedef struct MMCustomMaterialPart
+    {
+        MMMaterialChild material, model;
+    } MMCustomMaterialPart;
     enum
     {
         MM_MATERIAL,
@@ -49,7 +54,7 @@ extern "C"
     {
         void *context;
         int host_big_endian;
-        MMU32 system, windows_system, texture_type, transform_type, material_type, model_type;
+        MMU32 system, windows_system, texture_type, transform_type;
         MMI32 material_bytes, custom_bytes;
         unsigned light_flag, gouraud_flag, smooth_flag, map_flag;
         void *(*create)(void *, int kind);
@@ -66,8 +71,7 @@ extern "C"
         void (*close_block)(void *);
         int (*child)(void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type,
                      MMMaterialChild *);
-        int (*child_at)(void *, void *file, MMU32 type, MMU32 number, MMI32 index,
-                        MMMaterialChild *);
+        void (*chunks)(void *, void *file, MMChunkAccess *);
         void *(*fetch)(void *, void *cache, const MMMaterialChild *, int kind);
         int (*allocate)(void *, MMI32 bytes, void **);
         void (*free_memory)(void *, void **);
@@ -121,6 +125,11 @@ extern "C"
                                        void *size_out, const MMMaterialServices *);
     /* Decode the CMTL header's set and optionally report an unrecognized order marker. */
     MMI32 mm_custom_material_read_set(const unsigned char[8], int host_big, int *bad_order);
+    /* Resolve the exact MTRL and BMDL links at a costume slot. An absent link
+     * gives a zero type. Dangling links and unreadable graph entries fail
+     * without publishing the part. Returns an MMChunkResult. */
+    int mm_custom_material_part(const MMChunkAccess *, MMU32 costume_position, MMU32 slot,
+                                MMCustomMaterialPart *);
     int mm_custom_material_read(void *object, void *cache, MMU32 type, MMU32 number,
                                       const MMMaterialServices *);
     void mm_custom_material_dispose(MMCustomMaterial *, const MMMaterialServices *);

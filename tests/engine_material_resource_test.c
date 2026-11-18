@@ -1,4 +1,5 @@
 #include "mm/material_resource.h"
+#include "mm/template_runtime.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +26,7 @@ typedef struct Test
     MMMaterialServices s;
     MMMaterialShade shade;
     int step, fail, objects, handles, arrays, raw, closed, diagnostic, order[128], ordered;
-    int texture_child, transform_child, custom, transform, adds, deletes[4], deleted;
+    int texture_child, transform_child, custom, transform, bad_model_target, adds, deletes[4], deleted;
     unsigned char header[20], transform_header[28], custom_header[8], written[20];
     MMI32 header_size, transform_size, custom_size;
     Ref texture, material, model, shading;
@@ -144,8 +145,7 @@ static int child(void *p, void *f, MMU32 type, MMU32 n, MMU32 id, MMU32 wanted,
     (void)f;
     (void)type;
     (void)n;
-    found = t->custom ? ((id == 0 && wanted == 3) || (id == 2 && wanted == 4))
-                      : (id == 0 && ((wanted == 1 && t->texture_child) || (wanted == 2 && t->transform_child)));
+    found = id == 0 && ((wanted == 1 && t->texture_child) || (wanted == 2 && t->transform_child));
     if (found)
     {
         out->type = wanted;
@@ -154,25 +154,45 @@ static int child(void *p, void *f, MMU32 type, MMU32 n, MMU32 id, MMU32 wanted,
     }
     return found;
 }
-static int child_at(void *p, void *f, MMU32 type, MMU32 n, MMI32 i, MMMaterialChild *out)
+static int costume_entry(void *p, MMU32 position, MMChunkEntry *out)
 {
+    static const MMU32 types[] = {MM_TEMPLATE_BMDL, MM_CMTL, MM_MATERIAL_CHUNK};
     (void)p;
-    (void)f;
-    (void)type;
-    (void)n;
-    if (i >= 3)
+    if (position >= sizeof(types) / sizeof(types[0]))
         return 0;
-    out->type = i == 0 ? 3 : i == 1 ? 4 : 99;
-    out->number = 7;
-    out->id = (MMU32)i * 2;
+    memset(out, 0, sizeof(*out));
+    out->type = types[position];
+    out->number = position == 1 ? 1 : 7;
+    out->child_count = position == 1 ? 3 : 0;
     return 1;
+}
+static int costume_child(void *p, MMU32 parent, MMU32 position, MMChunkChild *out)
+{
+    static const MMU32 types[] = {MM_MATERIAL_CHUNK, MM_TEMPLATE_BMDL, 0x58585858};
+    if (parent != 1 || position >= sizeof(types) / sizeof(types[0]))
+        return 0;
+    out->type = types[position];
+    out->number = position == 1 && test(p)->bad_model_target ? 8 : 7;
+    out->slot = position * 2;
+    return 1;
+}
+static void costume_chunks(void *p, void *f, MMChunkAccess *out)
+{
+    assert(p == f);
+    out->context = p;
+    out->count = 3;
+    out->entry = costume_entry;
+    out->child = costume_child;
 }
 static void *fetch(void *p, void *c, const MMMaterialChild *child_, int kind)
 {
     Test *t = test(p);
     Ref *r;
     (void)c;
-    (void)child_;
+    if (t->custom)
+        assert(child_->number == 7 &&
+               (kind == MM_MATERIAL ? child_->id == 0 && child_->type == MM_MATERIAL_CHUNK
+                                     : child_->id == 2 && child_->type == MM_TEMPLATE_BMDL));
     if (fail(t))
         return NULL;
     r = kind == MM_MATERIAL_TEXTURE ? &t->texture : kind == MM_MATERIAL_MODEL ? &t->model : &t->material;
@@ -361,8 +381,6 @@ static void setup(Test *t)
     t->s.system = t->s.windows_system = 0x0303;
     t->s.texture_type = 1;
     t->s.transform_type = 2;
-    t->s.material_type = 3;
-    t->s.model_type = 4;
     t->s.material_bytes = 32;
     t->s.custom_bytes = 56;
     t->s.light_flag = 1;
@@ -383,7 +401,7 @@ static void setup(Test *t)
     t->s.read = read;
     t->s.close_block = close_block;
     t->s.child = child;
-    t->s.child_at = child_at;
+    t->s.chunks = costume_chunks;
     t->s.fetch = fetch;
     t->s.allocate = allocate;
     t->s.free_memory = free_memory;
@@ -431,6 +449,28 @@ static void balanced(Test *t)
 {
     assert(!t->objects && !t->handles && !t->arrays && !t->raw && !t->texture.refs && !t->material.refs &&
            !t->model.refs);
+}
+static void costume_slots(void)
+{
+    Test t;
+    MMChunkAccess graph;
+    MMCustomMaterialPart part;
+    Object *o = NULL;
+    MMI32 bytes;
+    setup(&t);
+    t.custom = 1;
+    costume_chunks(&t, &t, &graph);
+    assert(mm_custom_material_part(&graph, 1, 0, &part) == MM_CHUNK_OK);
+    assert(part.material.type == MM_MATERIAL_CHUNK && part.material.number == 7 && !part.model.type);
+    assert(mm_custom_material_part(&graph, 1, 4, &part) == MM_CHUNK_OK);
+    assert(!part.material.type && !part.model.type);
+    assert(mm_custom_material_part(&graph, 1, 2, &part) == MM_CHUNK_OK);
+    assert(!part.material.type && part.model.type == MM_TEMPLATE_BMDL && part.model.number == 7);
+    t.bad_model_target = 1;
+    assert(mm_custom_material_part(&graph, 1, 2, &part) == MM_CHUNK_BAD_FILE);
+    assert(!part.material.type && part.model.number == 7);
+    assert(!mm_custom_material_fetch(&t, MM_CMTL, 1, &o, &bytes, &t.s));
+    balanced(&t);
 }
 static void codecs(void)
 {
@@ -480,7 +520,7 @@ static void loads(void)
         t.custom = 1;
         t.fail = n;
         o = NULL;
-        ok = mm_custom_material_fetch(&t, 5, 1, &o, &bytes, &t.s);
+        ok = mm_custom_material_fetch(&t, MM_CMTL, 1, &o, &bytes, &t.s);
         if (ok)
         {
             assert(o->custom.count == 5 && o->custom.set == 3 && bytes == 56 + 10 * (int)sizeof(void *));
@@ -511,7 +551,7 @@ static void loads(void)
     o = (Object *)create(&t, MM_CUSTOM_MATERIAL);
     t.custom = 1;
     t.custom_size = 9;
-    assert(!mm_custom_material_read(o, &t, 5, 1, &t.s) && t.diagnostic == MM_MATERIAL_BAD_CUSTOM_SIZE + 1);
+    assert(!mm_custom_material_read(o, &t, MM_CMTL, 1, &t.s) && t.diagnostic == MM_MATERIAL_BAD_CUSTOM_SIZE + 1);
     release(&t, o);
     balanced(&t);
 }
@@ -592,6 +632,7 @@ int main(void)
 {
     codecs();
     loads();
+    costume_slots();
     construction_and_writes();
     imports();
     puts("C89 material resources: wire codecs, partial owners, factories, imports, writes and failure cleanup passed.");

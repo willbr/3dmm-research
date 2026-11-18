@@ -4,8 +4,6 @@
 #include "mm/template_runtime.h"
 #include <stdlib.h>
 
-#define MATERIAL_TYPE 0x4d54524cUL
-
 static int read_custom(const MMMovieBodyInput *in, const MMChunkEntry *entry, MMI32 *set)
 {
     const unsigned short one = 1;
@@ -22,6 +20,18 @@ static int read_custom(const MMMovieBodyInput *in, const MMChunkEntry *entry, MM
     return status;
 }
 
+int mm_movie_costume_link(const MMChunkAccess *access, MMU32 parent, MMU32 id,
+                          MMChunkEntry *out, MMU32 *position)
+{
+    MMU32 child;
+    int status = mm_session_child(access, parent, id, MM_CMTL, out, &child);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
+    if (position)
+        *position = child;
+    return MM_MOVIE_OK;
+}
+
 int mm_session_costume_find(const MMMovieBodyInput *in, MMI32 id, MMMovieCustomCostume *out)
 {
     MMChunkAccess access = in->archive->access;
@@ -29,17 +39,17 @@ int mm_session_costume_find(const MMMovieBodyInput *in, MMI32 id, MMMovieCustomC
     int status;
     if (id < 0 || in->text)
         return MM_MOVIE_ASSET_NOT_FOUND;
-    status = mm_session_child(&access, in->template_position, (MMU32)id, MM_CMTL, &entry, &out->position);
-    if (status != MM_CHUNK_OK)
-        return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
+    status = mm_movie_costume_link(&access, in->template_position, (MMU32)id, &entry, &out->position);
+    if (status != MM_MOVIE_OK)
+        return status;
     return read_custom(in, &entry, &out->set);
 }
 
-static void binding(MMMovieAsset *asset, MMI32 source, const MMChunkEntry *entry)
+static void binding(MMMovieAsset *asset, MMI32 source, const MMMaterialChild *child)
 {
     asset->source = source;
-    asset->type = entry->type;
-    asset->number = entry->number;
+    asset->type = child->type;
+    asset->number = child->number;
 }
 
 typedef struct MovieCostumeBinding
@@ -60,24 +70,22 @@ static int movie_custom_part(void *context, void *target, MMI32 ordinal, MMI32 s
     MovieCostumeBinding *request = (MovieCostumeBinding *)context;
     MMMovieEvaluatedBody *body = (MMMovieEvaluatedBody *)target;
     MMMovieBodyPart *part = &body->parts[ordinal];
-    MMChunkEntry entry;
-    MMU32 position;
-    int status = mm_session_child(&request->access, request->position, (MMU32)slot, MATERIAL_TYPE, &entry, &position);
+    MMCustomMaterialPart binding_part;
+    int status = mm_custom_material_part(&request->access, request->position, (MMU32)slot, &binding_part);
     if (status != MM_CHUNK_OK)
-    {
-        request->status = status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
-        return 0;
-    }
-    binding(&part->material, body->model_owner.source, &entry);
-    part->material_owner = body->model_owner;
-    status = mm_session_child(&request->access, request->position, (MMU32)slot, MM_TEMPLATE_BMDL, &entry, &position);
-    if (status == MM_CHUNK_OK)
-        binding(&part->active_model, body->model_owner.source, &entry);
-    else if (status != MM_CHUNK_NOT_FOUND)
     {
         request->status = MM_MOVIE_BAD_FILE;
         return 0;
     }
+    if (!binding_part.material.type)
+    {
+        request->status = MM_MOVIE_ASSET_NOT_FOUND;
+        return 0;
+    }
+    binding(&part->material, body->model_owner.source, &binding_part.material);
+    part->material_owner = body->model_owner;
+    if (binding_part.model.type)
+        binding(&part->active_model, body->model_owner.source, &binding_part.model);
     return 1;
 }
 
@@ -292,7 +300,7 @@ int mm_session_costume_material(const MMMovieSession *movie, const MMMovieSource
     MMMovieArchive archive;
     MMU32 position;
     int status;
-    if (asset->type != MATERIAL_TYPE || asset->source < 0)
+    if (asset->type != MM_MATERIAL_CHUNK || asset->source < 0)
         return MM_MOVIE_BAD_FILE;
     status = mm_session_archive(movie, source, asset, &archive);
     if (status != MM_MOVIE_OK)

@@ -13416,6 +13416,37 @@ cel, and stage state on four seeks. Marcus was rebuilt and relaunched.
 
 Evidence is under `tmp/c89-cel-consumer/` on the evidence drive.
 
+### Live costume caches consume C89 material and model bindings
+
+Studio and Marcus resolve authored costume IDs through the session's exact
+`CMTL` lookup. Their shared cache loader uses the same per-slot `MTRL` and
+optional `BMDL` bindings as the session's evaluated body. The C fixture
+checks sparse slots, an absent replacement model, a dangling model link,
+and cleanup when the loader rejects a costume.
+
+All 181 standalone, 25 selected host, and three AddressSanitizer checks
+passed. Both changed C engine sources compiled under strict C89 for Linux
+x64 musl. The 300 graph and stream results matched. The 300 standalone
+body snapshots and 300 mesh snapshots matched the previous build.
+Another 30 mesh snapshots matched with the legacy costume archive, and
+both native legacy actor renders matched the retained images. The 22
+native actor traces and the 102,316-byte material resource trace matched
+byte for byte.
+
+Stock and SID-29 seek runs matched 456 observations and 360 viewport
+hashes. Both hosts matched retail's frame order and final position across
+240 playback commits each. Stock Studio and retained v3dmm seeks each
+matched 456 retail actor records. The 188-camera background trace matched
+the previous build.
+
+Retail, Studio, and Marcus each matched six actor poses and viewport
+hashes from stock and retained captures when the legacy archive omitted
+the authored `GGCM` links. Retail reopened a movie with an actor transform
+saved by Studio and reproduced the matrices, action, cel, and stage state
+on four seeks. Marcus was rebuilt and relaunched.
+
+Evidence is under `tmp/c89-costume-consumer/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

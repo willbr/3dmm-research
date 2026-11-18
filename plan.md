@@ -484,8 +484,10 @@ Keep host presentation and device output outside the session.
    evaluates from cached action tables. Regular templates use the same exact
    model lookup as the session, and generated 3D text continues to resolve
    glyphs from its font. Part-set mapping is shared for generic and custom
-   materials. Default costumes share first-row selection from the authored
-   table and costume discovery in child order for older templates.
+   materials. The session and live costume cache resolve the same exact
+   `CMTL` child and per-slot material and optional model keys before
+   application. Default costumes share first-row selection from the
+   authored table and costume discovery in child order for older templates.
    Studio and Marcus submit through a common C frame record for
    the world, camera and colour/depth targets. It owns the temporary render
    and picking targets in Marcus and borrows Studio's live world and buffers.

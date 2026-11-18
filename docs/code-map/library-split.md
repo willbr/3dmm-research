@@ -124,6 +124,11 @@ model in place and still applies the selected part matrix.
 `mm_body_apply_set` maps a custom costume's consecutive slots to matching
 parts in shape order. The same mapping drives generic material assignment,
 including generated text, and native costume application through `Body`.
+The session and the live template cache use `mm_movie_costume_link` to find
+the exact `CMTL` child by authored ID. Both resolve the material and optional
+model through `mm_custom_material_part`. The live cache fetches renderer
+objects from those keys when loading a costume and holds them across
+subsequent applications. A slot without a model preserves the current one.
 `mm_template_bind_defaults` selects the first authored costume ID in each
 set in both the wire evaluator and the live template path. The live path
 prepares retained references before updating the body. The wire path

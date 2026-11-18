@@ -114,6 +114,9 @@ int mm_movie_cel_part(const MMMovieCelRead *, MMU32 part, MMMovieCelPart *);
 /* Resolve a replacement model by exact type and ID under its template. */
 int mm_movie_cel_model(const MMChunkAccess *, MMU32 parent_position, MMU32 slot, MMI32 source,
                        MMMovieAsset *);
+/* Resolve the exact CMTL child of a template. Position is optional. */
+int mm_movie_costume_link(const MMChunkAccess *, MMU32 template_position, MMU32 costume_id,
+                          MMChunkEntry *, MMU32 *position);
 
 typedef struct MMMovieCamera
 {

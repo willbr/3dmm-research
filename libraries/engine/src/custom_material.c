@@ -1,6 +1,7 @@
 /* Custom material ownership converted from engine mtrl.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/material_resource.h"
+#include "mm/template_runtime.h"
 #include "mm/wide.h"
 #include <string.h>
 static MMU32 word(const unsigned char *p, unsigned n, int big)
@@ -91,6 +92,39 @@ MMI32 mm_custom_material_read_set(const unsigned char b[8], int big, int *bad_or
     return mm_signed_word(word(b + 4, 4, big));
 }
 
+static int part_child(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU32 type,
+                      MMMaterialChild *out)
+{
+    MMChunkChild child;
+    MMU32 position;
+    int status = mm_chunk_child_exact(access, parent, slot, type, &child);
+    if (status == MM_CHUNK_NOT_FOUND)
+        return MM_CHUNK_OK;
+    if (status != MM_CHUNK_OK)
+        return status;
+    status = mm_chunk_find(access, child.type, child.number, &position);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_NOT_FOUND ? MM_CHUNK_BAD_FILE : status;
+    out->type = child.type;
+    out->number = child.number;
+    out->id = child.slot;
+    return MM_CHUNK_OK;
+}
+
+int mm_custom_material_part(const MMChunkAccess *access, MMU32 position, MMU32 slot,
+                            MMCustomMaterialPart *out)
+{
+    MMCustomMaterialPart part;
+    int status;
+    memset(&part, 0, sizeof(part));
+    status = part_child(access, position, slot, MM_MATERIAL_CHUNK, &part.material);
+    if (status == MM_CHUNK_OK)
+        status = part_child(access, position, slot, MM_TEMPLATE_BMDL, &part.model);
+    if (status == MM_CHUNK_OK)
+        *out = part;
+    return status;
+}
+
 static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, const MMMaterialServices *s)
 {
     MMCustomMaterial *m = s->custom_state(s->context, object);
@@ -98,7 +132,11 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, cons
     unsigned char b[8];
     int bad_order;
     MMI32 i, id, set;
-    MMMaterialChild child;
+    MMU32 position, ordinal;
+    MMChunkAccess access;
+    MMChunkEntry entry;
+    MMChunkChild child;
+    MMCustomMaterialPart part;
     block = s->find(s->context, file, type, number);
     if (!block || !s->unpack(s->context, block))
         return 0;
@@ -114,9 +152,15 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, cons
         s->diagnostic(s->context, MM_MATERIAL_BAD_CUSTOM_ORDER);
     m->set = set;
     m->count = 0;
-    for (i = 0; s->child_at(s->context, file, type, number, i, &child); ++i)
+    s->chunks(s->context, file, &access);
+    if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK)
+        return 0;
+    for (ordinal = 0; ordinal < entry.child_count; ++ordinal)
     {
-        id = mm_signed_word(child.id);
+        if (mm_chunk_child_at(&access, position, ordinal, &child) != MM_CHUNK_OK)
+            return 0;
+        id = mm_signed_word(child.slot);
         if (id > m->count - 1)
         {
             if (id == 2147483647)
@@ -128,15 +172,17 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, cons
         return 0;
     for (i = 0; i < m->count; ++i)
     {
-        if (s->child(s->context, file, type, number, (MMU32)i, s->material_type, &child))
+        if (mm_custom_material_part(&access, position, (MMU32)i, &part) != MM_CHUNK_OK)
+            return 0;
+        if (part.material.type)
         {
-            m->materials[i] = s->fetch(s->context, cache, &child, MM_MATERIAL);
+            m->materials[i] = s->fetch(s->context, cache, &part.material, MM_MATERIAL);
             if (!m->materials[i])
                 return 0;
         }
-        if (s->child(s->context, file, type, number, (MMU32)i, s->model_type, &child))
+        if (part.model.type)
         {
-            m->models[i] = s->fetch(s->context, cache, &child, MM_MATERIAL_MODEL);
+            m->models[i] = s->fetch(s->context, cache, &part.model, MM_MATERIAL_MODEL);
             if (!m->models[i])
                 return 0;
         }
