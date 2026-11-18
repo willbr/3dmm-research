@@ -5144,9 +5144,8 @@ copy. Evidence is in `tmp/c89-pixel-storage`.
 horizontal edges relative to the clip origin. It preserves empty gaps,
 partial-band advances, and the end-of-scan values. Its Boolean sweep processes
 coincident edges together and emits bands for union, intersection and ordered
-difference. The Kauai adapter locks its legacy band storage during a scan and
-still builds and scales the stored bands. The native region cache belongs to
-the Windows graphics adapter. The before-and-after probe matched 23,409,140
+difference. The scan-only extraction used the Kauai allocation and scaling
+path. The before-and-after probe matched 23,409,140
 bytes of band heights, endpoints and bounds across 13,300 mixed Boolean cases,
 scaling, translations, retained scans and clipped scans.
 
@@ -5155,6 +5154,18 @@ hashes. Timed playback matched 480 retail frame commits, and retail reopened
 the actor edit saved by Studio. The Windows `font-gdi` check reports the same
 System bitmap font metrics mismatch in the saved pre-change executable and
 the rebuilt executable. Evidence is in `tmp/c89-region`.
+
+`region.c` now owns clip-region bounds and stored bands. It publishes Boolean
+results after the band builder succeeds, merges identical adjacent rows, and
+reduces rectangular results to bounds alone. Scaling keeps the legacy rounding
+for absolute vertical positions and relative horizontal edges. It rewrites
+exclusive bands without growing the buffer and preserves the original bands
+for an active scanner by building a replacement. Allocation failure leaves
+the region intact. The Kauai wrapper marshals rectangles and supplies its
+collection allocator and debug memory marking. The Windows adapter manages
+native region handles. The expanded comparison matched 24,347,696 bytes of
+bounds and scan output across 15,300 mixed Boolean and scaled cases. Evidence
+is in `tmp/c89-region-owner`.
 
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.

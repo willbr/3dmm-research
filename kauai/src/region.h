@@ -15,7 +15,7 @@
 ***************************************************************************/
 #ifndef REGION_H
 #define REGION_H
-#include "mm/region_scan.h"
+#include "mm/region.h"
 
 typedef class RegionScanner *PRegionScanner;
 
@@ -34,22 +34,17 @@ class Region : public Region_PAR
   protected:
     friend class RegionScanner;
 
-    // The _pglxp contains a bunch of rows.  Each row consists of:
-    // dyp, xp0, xp1, ..., klwMax.
-    // The dyp is the height of the strip in pixels, the xp's are boundary points
-    // The xp's are relative to _rc.xpLeft + _dxp. _pglxp is nil iff the region
-    // is strictly rectangular.
-    RC _rc;     // bounding rectangle
-    LegacyLong _dxp;  // additional offset for xp values
-    PDynamicArray _pglxp; // region data - see above
-    BASE *_nativeCache; // optional runtime-owned resource; no native handle in geometry
-    PT _dptRgn; // pending translation of the optional runtime cache
+    MMRegion _region{};
+    BASE *_nativeCache = nullptr;
+    PT _dptRgn{0, 0}; // pending translation of the optional runtime cache
 
     Region(void)
     {
     }
 
-    bool _FCombine(MMRegionOperation operation, RC *bounds, PRegionScanner first, PRegionScanner second);
+    bool _FApply(MMRegionOperation operation, PRegion first, PRegion second);
+    bool _FApplyRc(MMRegionOperation operation, RC *rect, PRegion other, bool subtractFromRect = false);
+    bool _FResult(MMRegionResult result);
 
   public:
     static PRegion PregnNew(RC *prc = pvNil);
@@ -84,11 +79,7 @@ class RegionScanner : public RegionScanner_PAR
     RTCLASS_DEC
 
   protected:
-    friend class Region;
-    PDynamicArray _pglxpSrc;
-    MMRegionScan _scan;
-
-    void _InitCore(PDynamicArray bands, const RC &bounds, LegacyLong offset, const RC &clip);
+    MMRegionCursor _cursor{};
 
   public:
     RegionScanner(void);
@@ -99,27 +90,27 @@ class RegionScanner : public RegionScanner_PAR
     void InitRc(RC *prc, RC *prcRel);
     void ScanNext(LegacyLong rows)
     {
-        mm_region_scan_advance(&_scan, rows);
+        mm_region_scan_advance(&_cursor.scan, rows);
     }
     LegacyLong XpFetch()
     {
-        return mm_region_scan_fetch(&_scan);
+        return mm_region_scan_fetch(&_cursor.scan);
     }
     bool FOn() const
     {
-        return _scan.opens != 0;
+        return _cursor.scan.opens != 0;
     }
     LegacyLong XpCur() const
     {
-        return _scan.x;
+        return _cursor.scan.x;
     }
     LegacyLong DypCur() const
     {
-        return _scan.rows;
+        return _cursor.scan.rows;
     }
     LegacyLong CxpCur() const
     {
-        return mm_region_scan_edge_count(&_scan);
+        return mm_region_scan_edge_count(&_cursor.scan);
     }
 };
 

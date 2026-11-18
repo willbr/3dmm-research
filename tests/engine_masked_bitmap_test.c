@@ -4,7 +4,7 @@
 #include "mm/ellipse_geometry.h"
 #include "mm/indexed_display.h"
 #include "mm/pixel_paint.h"
-#include "mm/region_scan.h"
+#include "mm/region.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -915,6 +915,80 @@ static void region_bands(void)
     assert(!memcmp(visit.values, expected, sizeof(expected)));
 }
 
+typedef struct RegionAllocation
+{
+    int blocks, growths, fail_at;
+} RegionAllocation;
+
+static void *resize_region(void *context, void *data, MMU32 old_bytes, MMU32 new_bytes, int priority)
+{
+    RegionAllocation *probe = context;
+    void *replacement;
+    (void)priority;
+    if (new_bytes > old_bytes && ++probe->growths == probe->fail_at)
+        return NULL;
+    replacement = realloc(data, (size_t)new_bytes);
+    if (replacement && !old_bytes)
+        ++probe->blocks;
+    return replacement;
+}
+
+static void release_region(void *context, void *data, MMU32 bytes)
+{
+    RegionAllocation *probe = context;
+    (void)bytes;
+    --probe->blocks;
+    free(data);
+}
+
+static void region_ownership(void)
+{
+    const MMPixelRect left = {-8, 0, -2, 4}, right = {6, 0, 12, 4};
+    MMRegion shape = {0};
+    MMRegionCursor held = {0}, current = {0};
+    MMRegionBands *original;
+    RegionAllocation probe = {0, 0, 0};
+    MMStorageAllocator allocator = {NULL, resize_region, release_region};
+    int growths;
+    allocator.context = &probe;
+    mm_region_set_rect(&shape, &left);
+    probe.fail_at = 2;
+    assert(mm_region_apply_rect(&shape, MM_REGION_UNION, &right, NULL, 0, &allocator) == MM_REGION_FAILED);
+    assert(!shape.bands && shape.bounds.left == -8 && shape.bounds.right == -2 && !probe.blocks);
+    probe.fail_at = 0;
+    assert(mm_region_apply_rect(&shape, MM_REGION_UNION, &right, NULL, 0, &allocator) == MM_REGION_UPDATED);
+    original = shape.bands;
+    assert(original && probe.blocks == 2);
+    mm_region_cursor_open(&held, &shape, &shape.bounds);
+
+    probe.fail_at = probe.growths + 1;
+    assert(mm_region_scale(&shape, 1, 2, 1, 2) == MM_REGION_FAILED);
+    assert(shape.bands == original && shape.bounds.right == 12 && probe.blocks == 2);
+    probe.fail_at = probe.growths + 2;
+    assert(mm_region_scale(&shape, 1, 2, 1, 2) == MM_REGION_FAILED);
+    assert(shape.bands == original && shape.bounds.bottom == 4 && probe.blocks == 2);
+
+    probe.fail_at = 0;
+    assert(mm_region_scale(&shape, 1, 2, 1, 2) == MM_REGION_UPDATED);
+    assert(shape.bands != original && shape.bounds.left == -4 &&
+           shape.bounds.right == 6 && shape.bounds.bottom == 2 && probe.blocks == 4);
+    assert(held.scan.rows == 4 && held.scan.x == 0 && mm_region_scan_fetch(&held.scan) == 6);
+
+    growths = probe.growths;
+    probe.fail_at = growths + 1;
+    assert(mm_region_scale(&shape, 1, 2, 1, 1) == MM_REGION_UPDATED);
+    assert(probe.growths == growths && shape.bounds.left == -2 && shape.bounds.right == 3);
+    mm_region_cursor_open(&current, &shape, &shape.bounds);
+    assert(current.scan.rows == 2 && current.scan.x == 0 && mm_region_scan_fetch(&current.scan) == 1);
+    assert(mm_region_scan_fetch(&current.scan) == 3 && mm_region_scan_fetch(&current.scan) == 5);
+
+    mm_region_set_rect(&shape, NULL);
+    assert(probe.blocks == 4 && mm_region_scan_fetch(&held.scan) == 14 && mm_region_scan_fetch(&held.scan) == 20);
+    mm_region_cursor_close(&current);
+    mm_region_cursor_close(&held);
+    assert(!probe.blocks);
+}
+
 int main(void)
 {
     encode();
@@ -933,6 +1007,7 @@ int main(void)
     indexed_double();
     pixel_storage_and_damage();
     region_bands();
+    region_ownership();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

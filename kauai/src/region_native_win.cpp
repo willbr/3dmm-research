@@ -17,7 +17,6 @@ class NativeRegionCache : public BASE
 
 HRGN Region::HrgnCreate(void)
 {
-
     RGNDATAHEADER *prd;
     SystemRectangle *prcs;
     RegionScanner regsc;
@@ -25,32 +24,34 @@ HRGN Region::HrgnCreate(void)
     HRGN hrgn;
     long yp, dyp;
 
-    crcMac = _pglxp == pvNil ? 1 : _pglxp->IvMac() / 2;
+    const auto &bounds = _region.bounds;
+    RC clip(bounds.left, bounds.top, bounds.right, bounds.bottom);
+    crcMac = mm_region_rectangle_capacity(&_region);
     if (!FAllocPv((void **)&prd, size(RGNDATAHEADER) + LwMul(crcMac, size(RECT)), fmemNil, mprNormal))
     {
         return hNil;
     }
 
     prcs = (SystemRectangle *)(prd + 1);
-    regsc.Init(this, &_rc);
+    regsc.Init(this, &clip);
     crc = 0;
-    if (!_rc.FEmpty())
+    if (!mm_region_empty(&_region))
     {
-        yp = _rc.ypTop;
+        yp = bounds.top;
         for (;;)
         {
             dyp = regsc.DypCur();
             while (regsc.XpCur() < klwMax)
             {
-                prcs->left = regsc.XpCur() + _rc.xpLeft;
-                prcs->right = regsc.XpFetch() + _rc.xpLeft;
+                prcs->left = regsc.XpCur() + bounds.left;
+                prcs->right = regsc.XpFetch() + bounds.left;
                 regsc.XpFetch();
                 prcs->top = yp;
                 prcs->bottom = yp + dyp;
                 prcs++;
                 crc++;
             }
-            if ((yp += dyp) >= _rc.ypBottom)
+            if ((yp += dyp) >= bounds.bottom)
                 break;
             regsc.ScanNext(dyp);
         }
@@ -60,10 +61,10 @@ HRGN Region::HrgnCreate(void)
     prd->iType = RDH_RECTANGLES;
     prd->nCount = crc;
     prd->nRgnSize = 0;
-    prd->rcBound.left = _rc.xpLeft;
-    prd->rcBound.top = _rc.ypTop;
-    prd->rcBound.right = _rc.xpRight;
-    prd->rcBound.bottom = _rc.ypBottom;
+    prd->rcBound.left = bounds.left;
+    prd->rcBound.top = bounds.top;
+    prd->rcBound.right = bounds.right;
+    prd->rcBound.bottom = bounds.bottom;
 
     hrgn = ExtCreateRegion(pvNil, size(RGNDATAHEADER) + LwMul(crc, size(RECT)), (RGNDATA *)prd);
     FreePpv((void **)&prd);
