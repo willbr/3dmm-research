@@ -132,6 +132,8 @@ static int open_session(void *c, void *f, MMU32 *n, MMMovieSession **out)
     graph.context = h;
     graph.access = graph_access;
     graph.read = graph_read;
+    graph.payload = NULL;
+    graph.name = NULL;
     h->opening = 1;
     status = mm_movie_session_open_graph(&graph, NULL, n, out);
     h->opening = 0;

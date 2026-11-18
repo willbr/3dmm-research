@@ -28,25 +28,40 @@ typedef struct MMMovieGroup
     const unsigned char *records, *locations;
 } MMMovieGroup;
 
+typedef struct MMMovieSource
+{
+    MMMovieSourceRead stream;
+    MMMovieSourceGraph graph;
+    void *context;
+} MMMovieSource;
+
+typedef struct MMMovieArchive
+{
+    MMChunkAccess access;
+    MMMovieSessionGraph graph;
+    MMReadStream stream;
+    MMChunkIndex *index, *owned_index;
+} MMMovieArchive;
+
 MMU32 mm_session_word(const unsigned char *, int big);
-int mm_session_payload(const MMReadStream *, const MMChunkIndex *, const MMChunkEntry *, MMU32 exact_size,
-                       MMMoviePayload *);
+int mm_session_payload(const MMMovieArchive *, const MMChunkEntry *, MMU32 exact_size, MMMoviePayload *);
+int mm_session_name(const MMMovieArchive *, MMU32 position, MMMoviePayload *);
+int mm_session_archive(const MMMovieSession *, const MMMovieSource *, const MMMovieAsset *, MMMovieArchive *);
+void mm_session_archive_close(MMMovieArchive *);
 int mm_session_index(const MMReadStream *, const MMChunkPolicy *, MMChunkIndex **);
 int mm_session_child(const MMChunkAccess *, MMU32 parent, MMU32 slot, MMU32 type, MMChunkEntry *, MMU32 *position);
 int mm_session_scene(const MMMovieSession *, const MMChunkAccess *, MMU32 slot, MMU32 *position, MMMovieSessionScene *);
-int mm_session_group(const MMReadStream *, const MMChunkIndex *, const MMChunkEntry *, MMMovieGroup *);
+int mm_session_group(const MMMovieArchive *, const MMChunkEntry *, MMMovieGroup *);
 const unsigned char *mm_session_group_row(const MMMovieGroup *, MMU32 row, MMI32 *size);
-int mm_session_scene_group(const MMMovieSession *, const MMChunkAccess *, MMU32 scene, int start, MMMovieGroup *);
-int mm_session_camera_at(const MMMovieSession *, const MMChunkAccess *, MMU32 scene, const MMMovieGroup *starts,
-                          MMI32 frame, MMMovieSourceRead, void *context, MMMovieCamera *);
+int mm_session_scene_group(const MMMovieArchive *, MMU32 scene, int start, MMMovieGroup *);
+int mm_session_camera_at(const MMMovieSession *, const MMMovieArchive *, MMU32 scene, const MMMovieGroup *starts,
+                          MMI32 frame, const MMMovieSource *, MMMovieCamera *);
 
 typedef struct MMMovieBodyInput
 {
     const MMMovieSession *movie;
-    MMMovieSourceRead source;
-    void *context;
-    const MMReadStream *stream;
-    MMChunkIndex *index;
+    const MMMovieSource *source;
+    const MMMovieArchive *archive;
     MMU32 template_position, action_position;
     int text;
     const MMMovieGroup *cels;
@@ -66,6 +81,6 @@ int mm_session_costume_find(const MMMovieBodyInput *, MMI32 id, MMMovieCustomCos
 int mm_session_costume_apply(const MMMovieBodyInput *, MMMovieEvaluatedBody *, const MMMovieCustomCostume *);
 int mm_session_costume_defaults(const MMMovieBodyInput *, MMMovieEvaluatedBody *);
 void mm_session_apply_material(MMMovieEvaluatedBody *, MMI32 set, const MMMovieAsset *);
-int mm_session_costume_material(const MMMovieSession *, MMMovieSourceRead, void *, const MMMovieAsset *);
+int mm_session_costume_material(const MMMovieSession *, const MMMovieSource *, const MMMovieAsset *);
 
 #endif

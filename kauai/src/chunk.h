@@ -230,6 +230,7 @@ class ChunkyFile : public ChunkyFile_PAR
     // chunk naming
     bool FSetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn);
     bool FGetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn);
+    bool FReadNameBytes(ChunkTagOrType, ChunkNumber, void *wire, MMU32 capacity, MMU32 *written);
 
     // graph structure
     bool FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid = 0, bool fClearLoner = fTrue);

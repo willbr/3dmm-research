@@ -43,11 +43,18 @@ typedef struct MMMovieChunkView
     int (*read)(void *, MMU32 position, const MMChunkEntry *, void *bytes, MMU32 size);
 } MMMovieChunkView;
 
+/* On success the provider calls the receiver once, synchronously, with a
+ * decoded chunk or serialized chunk name and returns its status. The stream
+ * only has to live through the call. */
+typedef int (*MMMovieReceiveBytes)(void *, const MMReadStream *);
+typedef int (*MMMovieGraphBytes)(void *, const MMChunkEntry *, MMMovieReceiveBytes, void *);
+
 typedef struct MMMovieSessionGraph
 {
     void *context;
     void (*access)(void *, MMChunkAccess *);
     int (*read)(void *, void *request, MMU32 position, const MMChunkEntry *, void *bytes, MMU32 size);
+    MMMovieGraphBytes payload, name;
 } MMMovieSessionGraph;
 
 /* A null number or the nil chunk number selects the first MVIE. A successful
@@ -147,9 +154,15 @@ typedef struct MMMovieEvaluatedFrame
 } MMMovieEvaluatedFrame;
 
 /* Resolve a positive source and specific asset to the appropriate content
- * archive. On MM_MOVIE_OK, the stream's context stays valid through the query.
- * Source zero always uses the movie's own archive. */
+ * archive. External streams use the policy of a stream-backed movie session.
+ * On MM_MOVIE_OK, the stream's context stays valid through the query. Source
+ * zero always uses the movie's own archive. */
 typedef int (*MMMovieSourceRead)(void *, const MMMovieAsset *, MMReadStream *);
+
+/* Resolve an asset through a loaded archive. The graph and its context stay
+ * valid through the enclosing query. Asset graphs supply access and payload,
+ * and name when serving named templates. Source zero always uses the movie. */
+typedef int (*MMMovieSourceGraph)(void *, const MMMovieAsset *, MMMovieSessionGraph *);
 
 /* Select the first MVIE by chunk number and validate its decoded header.
  * The session owns the index and copies the stream descriptor. Its underlying
@@ -161,7 +174,8 @@ int mm_movie_session_open(const MMReadStream *, const MMChunkPolicy *, MMMovieSe
  * borrows the graph context until close. The provider supplies fresh access
  * on each query, so edits may move records between calls. The optional
  * request belongs to this read only. On failure out is unchanged, but a
- * root found before validation is reported through number. */
+ * root found before validation is reported through number. Evaluation needs
+ * the payload callback, and embedded 3D text also needs name. */
 int mm_movie_session_open_graph(const MMMovieSessionGraph *, void *request, MMU32 *number, MMMovieSession **);
 void mm_movie_session_close(MMMovieSession *);
 const MMMovieSessionRoot *mm_movie_session_root(const MMMovieSession *);
@@ -204,8 +218,7 @@ int mm_movie_session_source_name(const MMMovieSession *, MMI32 source, char *nam
  * MM_MOVIE_SCENE_NOT_FOUND. A link to an absent or invalid chunk is an error. */
 int mm_movie_session_scene(const MMMovieSession *, MMU32 slot, MMMovieSessionScene *);
 
-/* Evaluation and UTF-8 source lookup require a stream-backed session.
- * Evaluate the scene's authored camera at frame and decode its resource.
+/* Evaluate the scene's authored camera at frame and decode its resource.
  * Never modifies the session or publishes output on failure. */
 int mm_movie_session_camera(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
                             MMMovieSourceRead, void *context, MMMovieCamera *);
@@ -221,6 +234,10 @@ int mm_movie_session_seek(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
  * Failure leaves out unchanged. */
 int mm_movie_session_seek_with_bodies(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
                                       MMMovieSourceRead, void *context, MMMovieEvaluatedFrame **out);
+/* Resolve external assets from live chunk graphs. Result ownership and
+ * publication match mm_movie_session_seek_with_bodies. */
+int mm_movie_session_seek_graph(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
+                                MMMovieSourceGraph, void *context, MMMovieEvaluatedFrame **out);
 void mm_movie_frame_dispose(MMMovieEvaluatedFrame *);
 
 /* Actor ordinals follow the ADD_ACTOR rows in the scene's start group. Replay
@@ -256,6 +273,8 @@ typedef struct MMMovieBodyMeshes
  * is published only on success. The input body is borrowed during the query. */
 int mm_movie_session_body_meshes(const MMMovieSession *, const MMMovieEvaluatedBody *, MMMovieSourceRead,
                                 void *context, MMMovieBodyMeshes **);
+int mm_movie_session_body_meshes_graph(const MMMovieSession *, const MMMovieEvaluatedBody *, MMMovieSourceGraph,
+                                       void *context, MMMovieBodyMeshes **);
 void mm_movie_body_meshes_dispose(MMMovieBodyMeshes *);
 
 #ifdef __cplusplus

@@ -23,14 +23,13 @@ typedef struct ActorEvents
 typedef struct ActorInput
 {
     const MMMovieSession *movie;
-    MMMovieSourceRead source;
-    void *source_context;
+    const MMMovieSource *source;
+    const MMMovieArchive *archive;
     MMU32 actor_position;
     MMActorRoutePoint *route;
     MMI32 route_count;
     ActorEvents *events;
-    MMReadStream template_stream;
-    MMChunkIndex *content_index, *template_index;
+    MMMovieArchive template_archive;
     MMU32 template_position, action_position;
     unsigned short rest[3];
     int text, status;
@@ -112,22 +111,20 @@ static int event_insert(void *p, MMU32 row, MMU32 size, const void *data, const 
 
 static int actor_entry(ActorInput *input, MMU32 type, MMChunkEntry *entry)
 {
-    MMChunkAccess access = mm_chunk_index_access(input->movie->index);
     MMU32 position;
-    return mm_session_child(&access, input->actor_position, 0, type, entry, &position);
+    return mm_session_child(&input->archive->access, input->actor_position, 0, type, entry, &position);
 }
 
 static int read_actor_header(void *p, MMU32 number, MMActorHeader *out)
 {
     ActorInput *input = (ActorInput *)p;
-    MMChunkAccess access = mm_chunk_index_access(input->movie->index);
     MMChunkEntry entry;
     MMMoviePayload payload;
     int status;
     (void)number;
-    if (mm_chunk_at(&access, input->actor_position, &entry) != MM_CHUNK_OK)
+    if (mm_chunk_at(&input->archive->access, input->actor_position, &entry) != MM_CHUNK_OK)
         return fail(input, MM_MOVIE_BAD_FILE);
-    status = mm_session_payload(&input->movie->stream, input->movie->index, &entry, 0, &payload);
+    status = mm_session_payload(input->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return fail(input, status);
     status = mm_actor_read_header(payload.stream, out);
@@ -148,7 +145,7 @@ static int read_route(void *p, MMU32 number, void **out)
     (void)number;
     if (actor_entry(input, ROUTE_TYPE, &entry) != MM_CHUNK_OK)
         return fail(input, MM_MOVIE_BAD_FILE);
-    status = mm_session_payload(&input->movie->stream, input->movie->index, &entry, 0, &payload);
+    status = mm_session_payload(input->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return fail(input, status);
     status = mm_collection_header_read(payload.stream, MM_COLLECTION_ARRAY, 0, &header);
@@ -200,7 +197,7 @@ static int read_events(void *p, MMU32 number, void **out)
     (void)number;
     if (actor_entry(input, ACTOR_EVENTS_TYPE, &entry) != MM_CHUNK_OK)
         return fail(input, MM_MOVIE_BAD_FILE);
-    status = mm_session_group(&input->movie->stream, input->movie->index, &entry, &group);
+    status = mm_session_group(input->archive, &entry, &group);
     if (status != MM_MOVIE_OK)
         return fail(input, status);
     status = MM_MOVIE_BAD_FILE;
@@ -249,7 +246,7 @@ static int fetch_template(void *p, const MMActorHeader *header, void **token)
 {
     ActorInput *input = (ActorInput *)p;
     MMMovieAsset asset;
-    MMChunkAccess access;
+    const MMChunkAccess *access = &input->template_archive.access;
     MMChunkEntry entry;
     MMMoviePayload payload;
     MMU32 position;
@@ -260,26 +257,15 @@ static int fetch_template(void *p, const MMActorHeader *header, void **token)
     asset.source = header->source_id;
     asset.type = header->template_type;
     asset.number = header->template_number;
-    input->template_stream = input->movie->stream;
-    input->template_index = input->movie->index;
-    if (asset.source < 0 || (asset.source && !input->source))
-        return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
-    if (asset.source)
-    {
-        status = input->source(input->source_context, &asset, &input->template_stream);
-        if (status == MM_MOVIE_OK)
-            status = mm_session_index(&input->template_stream, &input->movie->policy, &input->content_index);
-        if (status != MM_MOVIE_OK)
-            return fail(input, status);
-        input->template_index = input->content_index;
-    }
-    access = mm_chunk_index_access(input->template_index);
-    status = mm_chunk_find(&access, asset.type, asset.number, &input->template_position);
+    status = mm_session_archive(input->movie, input->source, &asset, &input->template_archive);
+    if (status != MM_MOVIE_OK)
+        return fail(input, status);
+    status = mm_chunk_find(access, asset.type, asset.number, &input->template_position);
     if (status == MM_CHUNK_NOT_FOUND)
         return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
-    if (status != MM_CHUNK_OK || mm_chunk_at(&access, input->template_position, &entry) != MM_CHUNK_OK)
+    if (status != MM_CHUNK_OK || mm_chunk_at(access, input->template_position, &entry) != MM_CHUNK_OK)
         return fail(input, MM_MOVIE_BAD_FILE);
-    status = mm_session_payload(&input->template_stream, input->template_index, &entry, 0, &payload);
+    status = mm_session_payload(&input->template_archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return fail(input, status);
     status = mm_read_exact(payload.stream, 0, bytes, sizeof(bytes));
@@ -292,7 +278,7 @@ static int fetch_template(void *p, const MMActorHeader *header, void **token)
     for (i = 0; i < 3; ++i)
         input->rest[i] = big ? (unsigned short)((unsigned)bytes[4 + 2*i] * 256 + bytes[5 + 2*i])
                              : (unsigned short)((unsigned)bytes[5 + 2*i] * 256 + bytes[4 + 2*i]);
-    status = mm_session_child(&access, input->template_position, 0, MM_TDT, &entry, &position);
+    status = mm_session_child(access, input->template_position, 0, MM_TDT, &entry, &position);
     if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
         return fail(input, MM_MOVIE_BAD_FILE);
     input->text = status == MM_CHUNK_OK;
@@ -302,7 +288,7 @@ static int fetch_template(void *p, const MMActorHeader *header, void **token)
 
 static int load_action(ActorInput *input, MMI32 id)
 {
-    MMChunkAccess access;
+    const MMChunkAccess *access = &input->template_archive.access;
     MMChunkEntry entry;
     MMMoviePayload payload;
     MMU32 parent, position;
@@ -323,11 +309,10 @@ static int load_action(ActorInput *input, MMI32 id)
     }
     else
     {
-        access = mm_chunk_index_access(input->template_index);
-        if (mm_session_child(&access, input->template_position, (MMU32)id, MM_ACTN, &entry, &parent) != MM_CHUNK_OK)
+        if (mm_session_child(access, input->template_position, (MMU32)id, MM_ACTN, &entry, &parent) != MM_CHUNK_OK)
             return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
         input->action_position = parent;
-        status = mm_session_payload(&input->template_stream, input->template_index, &entry, 0, &payload);
+        status = mm_session_payload(&input->template_archive, &entry, 0, &payload);
         if (status != MM_MOVIE_OK)
             return fail(input, status);
         status = mm_read_exact(payload.stream, 0, bytes, sizeof(bytes));
@@ -338,9 +323,9 @@ static int load_action(ActorInput *input, MMI32 id)
         if (!big && (bytes[0] != 1 || bytes[1] != 0))
             big = *(const unsigned char *)&one == 0;
         input->action_flags = mm_session_word(bytes + 4, big);
-        if (mm_session_child(&access, parent, 0, MM_ACTION_GGCL, &entry, &position) != MM_CHUNK_OK)
+        if (mm_session_child(access, parent, 0, MM_ACTION_GGCL, &entry, &position) != MM_CHUNK_OK)
             return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
-        status = mm_session_group(&input->template_stream, input->template_index, &entry, &input->cels);
+        status = mm_session_group(&input->template_archive, &entry, &input->cels);
         if (status != MM_MOVIE_OK)
             return fail(input, status);
         if (input->cels.header.width != 8)
@@ -417,9 +402,7 @@ static MMMovieBodyInput body_input(const ActorInput *input)
     MMMovieBodyInput args;
     args.movie = input->movie;
     args.source = input->source;
-    args.context = input->source_context;
-    args.stream = &input->template_stream;
-    args.index = input->template_index;
+    args.archive = &input->template_archive;
     args.template_position = input->template_position;
     args.action_position = input->action_position;
     args.text = input->text;
@@ -498,7 +481,7 @@ static void effect(void *p, const MMActorEffectCommand *command, MMActorEffectRe
         input->generic.source = command->tag->sid;
         input->generic.type = command->tag->type;
         input->generic.number = command->tag->number;
-        status = mm_session_costume_material(input->movie, input->source, input->source_context, &input->generic);
+        status = mm_session_costume_material(input->movie, input->source, &input->generic);
         if (status == MM_MOVIE_OK)
             reply->resource = &input->generic;
         break;
@@ -570,7 +553,6 @@ static int cues(void *p) { (void)p; return 1; }
 
 static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedActor *out)
 {
-    MMChunkAccess chunks = mm_chunk_index_access(input->movie->index);
     MMPreviewActorServices services;
     int ok;
     memset(&services, 0, sizeof(services));
@@ -595,7 +577,7 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     services.default_costume = reset_costume;
     services.motion_cues = cues;
     mm_preview_actor_init(&input->actor);
-    ok = mm_preview_actor_load(&input->actor, number, &chunks, 1, &services) > 0 &&
+    ok = mm_preview_actor_load(&input->actor, number, &input->archive->access, 1, &services) > 0 &&
          mm_preview_actor_seek(&input->actor, frame, &services) > 0 && input->status == MM_MOVIE_OK;
     if (!ok)
         return input->status ? input->status : MM_MOVIE_BAD_FILE;
@@ -630,8 +612,8 @@ static int evaluate_body(ActorInput *input, const MMMovieEvaluatedActor *actor)
     return status;
 }
 
-static int evaluate_slot(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 scene_position,
-                         MMU32 slot, MMI32 frame, MMMovieSourceRead source, void *context,
+static int evaluate_slot(const MMMovieSession *movie, const MMMovieArchive *archive, MMU32 scene_position,
+                         MMU32 slot, MMI32 frame, const MMMovieSource *source,
                          MMMovieEvaluatedActor *out, MMMovieEvaluatedBody **body)
 {
     MMChunkEntry entry;
@@ -639,10 +621,10 @@ static int evaluate_slot(const MMMovieSession *movie, const MMChunkAccess *acces
     int status;
     memset(&input, 0, sizeof(input));
     input.movie = movie;
+    input.archive = archive;
     input.source = source;
-    input.source_context = context;
     input.action = -1;
-    if (mm_session_child(access, scene_position, slot, ACTOR_TYPE, &entry, &input.actor_position) != MM_CHUNK_OK)
+    if (mm_session_child(&archive->access, scene_position, slot, ACTOR_TYPE, &entry, &input.actor_position) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
     if (body)
     {
@@ -658,7 +640,7 @@ static int evaluate_slot(const MMMovieSession *movie, const MMChunkAccess *acces
     else
         mm_movie_body_dispose(input.evaluated_body);
     free(input.cels.bytes);
-    mm_chunk_index_close(input.content_index);
+    mm_session_archive_close(&input.template_archive);
     release_events(input.events);
     free(input.route);
     return status;
@@ -682,37 +664,43 @@ static int next_actor_start(const MMMovieGroup *starts, MMU32 *cursor, MMU32 *sl
     return 0;
 }
 
-static int read_actor_scene(const MMMovieSession *movie, const MMChunkAccess *access, MMU32 scene_slot, MMI32 frame,
+static int read_actor_scene(const MMMovieSession *movie, const MMMovieArchive *archive, MMU32 scene_slot, MMI32 frame,
                               MMU32 *position, MMMovieSessionScene *scene, MMMovieGroup *starts)
 {
-    int status = mm_session_scene(movie, access, scene_slot, position, scene);
+    int status = mm_session_scene(movie, &archive->access, scene_slot, position, scene);
     if (status != MM_MOVIE_OK)
         return status;
     if (frame < scene->first_frame || frame > scene->last_frame || frame == 2147483647L)
         return MM_MOVIE_FRAME_OUT_OF_RANGE;
-    return mm_session_scene_group(movie, access, *position, 1, starts);
+    return mm_session_scene_group(archive, *position, 1, starts);
 }
 
 static int evaluate(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, MMU32 ordinal,
                     MMMovieSourceRead source, void *context, MMMovieEvaluatedActor *out,
                     MMMovieEvaluatedBody **body)
 {
-    MMChunkAccess access;
+    MMMovieArchive archive;
+    MMMovieSource input;
     MMMovieSessionScene scene;
     MMMovieGroup starts;
     MMU32 position, slot, cursor = 0;
     int status;
-    if (!movie || !movie->index || !out)
+    if (!movie || !out)
         return MM_MOVIE_BAD_FILE;
-    access = mm_chunk_index_access(movie->index);
-    status = read_actor_scene(movie, &access, scene_slot, frame, &position, &scene, &starts);
+    status = mm_session_archive(movie, NULL, NULL, &archive);
+    if (status != MM_MOVIE_OK)
+        return status;
+    status = read_actor_scene(movie, &archive, scene_slot, frame, &position, &scene, &starts);
     if (status != MM_MOVIE_OK)
         return status;
     while (next_actor_start(&starts, &cursor, &slot))
         if (ordinal-- == 0)
         {
             free(starts.bytes);
-            return evaluate_slot(movie, &access, position, slot, frame, source, context, out, body);
+            input.stream = source;
+            input.graph = NULL;
+            input.context = context;
+            return evaluate_slot(movie, &archive, position, slot, frame, &input, out, body);
         }
     free(starts.bytes);
     return MM_MOVIE_ACTOR_NOT_FOUND;
@@ -736,11 +724,10 @@ int mm_movie_session_body(const MMMovieSession *movie, MMU32 scene_slot, MMI32 f
 typedef struct FrameInput
 {
     const MMMovieSession *movie;
-    MMChunkAccess access;
+    MMMovieArchive archive;
     MMMovieGroup starts;
     MMU32 scene_slot, scene_position, cursor;
-    MMMovieSourceRead source;
-    void *source_context;
+    const MMMovieSource *source;
     MMMovieEvaluatedFrame *result;
     int with_bodies;
 } FrameInput;
@@ -752,13 +739,13 @@ static int begin_frame(void *context, MMI32 frame)
     MMMovieGroup starts;
     MMU32 slot, cursor = 0;
     size_t bytes;
-    int status = read_actor_scene(input->movie, &input->access, input->scene_slot, frame,
+    int status = read_actor_scene(input->movie, &input->archive, input->scene_slot, frame,
                                   &input->scene_position, &result->scene, &starts);
     if (status != MM_MOVIE_OK)
         return status;
     input->starts = starts;
-    status = mm_session_camera_at(input->movie, &input->access, input->scene_position, &input->starts,
-                                   frame, input->source, input->source_context, &result->camera);
+    status = mm_session_camera_at(input->movie, &input->archive, input->scene_position, &input->starts,
+                                   frame, input->source, &result->camera);
     if (status != MM_MOVIE_OK)
         return status;
     result->frame = frame;
@@ -796,25 +783,26 @@ static int seek_frame_actor(void *context, MMU32 ordinal, MMI32 frame)
     MMU32 slot;
     if (!next_actor_start(&input->starts, &input->cursor, &slot))
         return MM_MOVIE_BAD_FILE;
-    return evaluate_slot(input->movie, &input->access, input->scene_position, slot, frame, input->source,
-                          input->source_context, &input->result->actors[ordinal],
+    return evaluate_slot(input->movie, &input->archive, input->scene_position, slot, frame, input->source,
+                          &input->result->actors[ordinal],
                           input->result->bodies ? &input->result->bodies[ordinal] : NULL);
 }
 
 static int seek_frame(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, int with_bodies,
-                       MMMovieSourceRead source, void *context, MMMovieEvaluatedFrame **out)
+                       const MMMovieSource *source, MMMovieEvaluatedFrame **out)
 {
     FrameInput input;
     MMMovieFrameServices services;
     int status;
-    if (!movie || !movie->index || !out)
+    if (!movie || !out)
         return MM_MOVIE_BAD_FILE;
     memset(&input, 0, sizeof(input));
     input.movie = movie;
-    input.access = mm_chunk_index_access(movie->index);
+    status = mm_session_archive(movie, NULL, NULL, &input.archive);
+    if (status != MM_MOVIE_OK)
+        return status;
     input.scene_slot = scene_slot;
     input.source = source;
-    input.source_context = context;
     input.with_bodies = with_bodies;
     input.result = (MMMovieEvaluatedFrame *)calloc(1, sizeof(*input.result));
     if (!input.result)
@@ -836,13 +824,31 @@ static int seek_frame(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame
 int mm_movie_session_seek(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
                           MMMovieSourceRead source, void *context, MMMovieEvaluatedFrame **out)
 {
-    return seek_frame(movie, scene_slot, frame, 0, source, context, out);
+    MMMovieSource input;
+    input.stream = source;
+    input.graph = NULL;
+    input.context = context;
+    return seek_frame(movie, scene_slot, frame, 0, &input, out);
 }
 
 int mm_movie_session_seek_with_bodies(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
                                       MMMovieSourceRead source, void *context, MMMovieEvaluatedFrame **out)
 {
-    return seek_frame(movie, scene_slot, frame, 1, source, context, out);
+    MMMovieSource input;
+    input.stream = source;
+    input.graph = NULL;
+    input.context = context;
+    return seek_frame(movie, scene_slot, frame, 1, &input, out);
+}
+
+int mm_movie_session_seek_graph(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
+                                MMMovieSourceGraph source, void *context, MMMovieEvaluatedFrame **out)
+{
+    MMMovieSource input;
+    input.stream = NULL;
+    input.graph = source;
+    input.context = context;
+    return seek_frame(movie, scene_slot, frame, 1, &input, out);
 }
 
 void mm_movie_frame_dispose(MMMovieEvaluatedFrame *frame)

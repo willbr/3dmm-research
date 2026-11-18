@@ -7,7 +7,7 @@
 #include <locale>
 #include <stdexcept>
 #include "soc_core.h"
-#include "engine_read_stream.h"
+#include "engine_movie_graph.h"
 #include "engine_movie_source.h"
 #include "platform_text.h"
 #undef size
@@ -551,6 +551,33 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
                 {
                     return MM_MOVIE_BAD_FILE;
                 }
+            },
+            [](void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out) -> int {
+                auto &archive = *static_cast<Impl *>(context);
+                const auto access = archive.file->ReadChunkAccess();
+                MMU32 position;
+                if (mm_chunk_find(&access, entry->type, entry->number, &position) != MM_CHUNK_OK ||
+                    position >= archive.chunks.size() || !(archive.chunks[position].id == Id{entry->type, entry->number}))
+                    return MM_MOVIE_BAD_FILE;
+                try
+                {
+                    Error error;
+                    if (!archive.Load(position, error))
+                        return error.code == ErrorCode::out_of_memory ? MM_MOVIE_MEMORY : MM_MOVIE_BAD_FILE;
+                    const auto stream = EngineReadStream::FromBlock(archive.payload);
+                    return receive(out, &stream);
+                }
+                catch (const std::bad_alloc &)
+                {
+                    return MM_MOVIE_MEMORY;
+                }
+                catch (const std::exception &)
+                {
+                    return MM_MOVIE_BAD_FILE;
+                }
+            },
+            [](void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out) -> int {
+                return EngineMovieGraph::Name(static_cast<Impl *>(context)->file, entry, receive, out);
             }};
         MovieDirectory result;
         std::unique_ptr<MMMovieSession, decltype(&mm_movie_session_close)> opened(nullptr, mm_movie_session_close);

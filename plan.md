@@ -482,8 +482,11 @@ Keep host presentation and device output outside the session.
    templates. Studio and Marcus submit through a common C frame record for
    the world, camera and colour/depth targets. It owns the temporary render
    and picking targets in Marcus and borrows Studio's live world and buffers.
-   The standalone session can now return an owned frame with the selected
-   camera and effective body bindings for all actors in a single seek.
+   The session can now return an owned frame with the selected camera and
+   effective body bindings for all actors in a single seek. It reads from
+   either standalone streams or the chunk graphs already opened by the
+   hosts. The graph path can also read templates, fonts and other content
+   directly from loaded archives.
    Marcus rendering and picking record the camera and hold references to
    the live bodies and any standalone model used by their temporary world.
    Both hosts still evaluate their live scene state before rendering. The

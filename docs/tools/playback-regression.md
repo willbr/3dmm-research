@@ -13266,6 +13266,38 @@ probe. The hosts still use the live scene evaluation path.
 
 Evidence is under `tmp/c89-owned-frame/` on the evidence drive.
 
+### C89 frame evaluation over loaded chunk graphs
+
+The frame, body and mesh readers now use the same evaluator with stand-alone
+stream indexes and loaded chunk graphs. The graph reads decoded chunk
+payloads and the original serialized names used by embedded 3D text. Its
+resolver can supply loaded content graphs for external assets. The Studio
+movie owner and Marcus's Archive directory reader supply graph adapters.
+Both renderers still get their actor and camera state through live evaluation.
+
+The native graph fixture matched camera and actor poses, effective models
+and materials, world matrices, vertices and faces against the stream
+evaluator on 300 frames of actor-events, dissolve and scrolling-text,
+including the SID-29 variants. The standalone probe matched all 300
+pre-change snapshots. The C fixture checks external graph resolution,
+preservation of the previous snapshot on failure and snapshot lifetime
+after the graph closes.
+
+All 181 standalone and 22 selected host checks passed, including the C89
+syntax gates, movie save/load and Vulkan raster parity. Two targeted
+AddressSanitizer checks passed. The six changed C evaluator units also
+compiled under strict C89 for Linux x64 musl. Studio and Marcus rebuilt.
+Marcus was relaunched.
+
+Both hosts matched all 456 pre-change seek records and 360 viewport hashes
+on the stock and SID-29 fixtures. The 301,996,032-byte trace for 188 cameras
+matched the retained background trace. In normal playback of actor-events,
+dissolve and scrolling-text, each host matched retail's frame order and final
+position over 240 commits, including actor-events replay. The stock Studio
+seeks and retained v3dmm seeks each matched 456 retail actor records.
+
+Evidence is under `tmp/c89-graph-frame/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

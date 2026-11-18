@@ -2109,6 +2109,30 @@ bool ChunkyFile::_FGetName(LegacyLong icrp, PString pstn)
     return mm_chunk_name_get(&names, icrp, &decoder) != 0;
 }
 
+bool ChunkyFile::FReadNameBytes(ChunkTagOrType type, ChunkNumber number, void *wire, MMU32 capacity, MMU32 *written)
+{
+    LegacyLong position;
+    if (!wire || !written || !_FFindCtgCno(type, number, &position))
+        return false;
+    struct Output { void *wire; MMU32 capacity, written; } output = {wire, capacity, 0};
+    const MMChunkNameDecoder decoder = {&output,
+        [](void *p, const void *data, MMU32 bytes) -> int {
+            auto &o = *static_cast<Output *>(p);
+            if (bytes > o.capacity)
+                return 0;
+            std::memcpy(o.wire, data, bytes);
+            o.written = bytes;
+            return 1;
+        },
+        [](void *p) { static_cast<Output *>(p)->written = 0; },
+        [](void *p) -> MMU32 { return static_cast<Output *>(p)->written; }};
+    const auto names = ChunkNameServices(_Index());
+    if (!mm_chunk_name_get(&names, position, &decoder))
+        return false;
+    *written = output.written;
+    return true;
+}
+
 /***************************************************************************
     Make a node a child of another node.  If fClearLoner is set, the loner
     flag of the child is cleared.

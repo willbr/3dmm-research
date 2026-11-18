@@ -27,6 +27,7 @@ ASSERTNAME
 #include <stdio.h>
 #include <cstring>
 #include <cstdlib>
+#include "movie_graph_frame_fixture.h"
 #include "text_live_fixture.h"
 #include "text_document_fixture.h"
 #include "text_materialize_fixture.h"
@@ -2418,6 +2419,12 @@ int __cdecl main(int argc, char **argv)
     papp = NewObj TestApp();
     if (papp == pvNil)
         BAIL("new TestApp failed");
+    if (argc > 1 && std::strcmp(argv[1], "--graph-frame") == 0)
+    {
+        rc = GraphFrameFixture(argc, argv);
+        ReleasePpo(&papp);
+        return rc;
+    }
 #if defined(KAUAI_SDL3) && !defined(WIN)
     {
         auto palette = DynamicArray::PglNew(sizeof(Color), 256);

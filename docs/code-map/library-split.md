@@ -141,6 +141,13 @@ independently of the session and content files. The `--frame-bodies` probe
 prints camera, appearance and mesh data through that result. The lightweight
 seek continues to return camera and actor state.
 
+`mm_movie_session_seek_graph` uses the same evaluator with the live chunk
+graph and a provider for external asset graphs. The C evaluator owns the
+decoded payload bytes it keeps across calls. The native adapters lend each
+decoded block and its serialized chunk name synchronously. Embedded assets
+always use the movie's graph. Studio's movie owner and the Archive reader
+supply these adapters, with Archive retaining its decode limits.
+
 `MMRenderFrame` carries the world, camera and colour/depth targets at the
 renderer boundary. Marcus's C render controller allocates the targets and
 releases its world before the pixelmaps. Picking uses the same owner for

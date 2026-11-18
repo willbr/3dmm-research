@@ -332,6 +332,16 @@ static int graph_record(void *context, void *request, MMU32 position, const MMCh
     return view->read(view->context, position, entry, bytes, size);
 }
 
+static int graph_payload(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    const MMMovieChunkView *view = (const MMMovieChunkView *)context;
+    MMReadSlice slice;
+    if ((entry->flags & MM_CHUNK_PACKED) ||
+        !mm_read_slice_init(&slice, (const MMReadStream *)view->context, entry->offset, entry->bytes))
+        return MM_MOVIE_IO;
+    return receive(out, &slice.stream);
+}
+
 static void movie_directory(void)
 {
     enum { OTHER, MVIE_A, MVIE_B, SCENE_A, SCENE_B, SCENE_C, COUNT };
@@ -400,6 +410,8 @@ static void movie_directory(void)
     graph.context = &view;
     graph.access = graph_access;
     graph.read = graph_record;
+    graph.payload = NULL;
+    graph.name = NULL;
     memory.stream.length = size;
     root = 7;
     CHECK(mm_movie_session_open_graph(&graph, &reads, &root, &session) == MM_MOVIE_OK && reads == 1);
@@ -798,6 +810,13 @@ static int camera_source(void *context, const MMMovieAsset *asset, MMReadStream 
     return MM_MOVIE_OK;
 }
 
+static int graph_camera_source(void *context, const MMMovieAsset *asset, MMMovieSessionGraph *out)
+{
+    CHECK(asset->source == 2 && asset->type == 0x424b4744UL && asset->number == 4);
+    *out = *(const MMMovieSessionGraph *)context;
+    return MM_MOVIE_OK;
+}
+
 static void movie_camera(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
@@ -806,6 +825,9 @@ static void movie_camera(void)
     MMMovieSession *movie;
     MMMovieCamera camera;
     MMMovieEvaluatedFrame *frame = NULL, *prior;
+    MMMovieSessionGraph graph;
+    MMMovieChunkView view;
+    MMChunkIndex *index;
     MMU32 size;
     int big;
     for (big = 0; big <= 1; ++big)
@@ -848,6 +870,27 @@ static void movie_camera(void)
     mm_movie_frame_dispose(frame);
     frame = NULL;
     mm_movie_session_close(movie);
+    CHECK(mm_chunk_index_open(&input.stream, &policy, &index) == MM_CHUNK_OK);
+    view.chunks = mm_chunk_index_access(index);
+    view.context = &input.stream;
+    view.read = view_record;
+    graph.context = &view;
+    graph.access = graph_access;
+    graph.read = graph_record;
+    graph.payload = graph_payload;
+    graph.name = NULL;
+    CHECK(mm_movie_session_open_graph(&graph, NULL, NULL, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_seek_graph(movie, 0, 7, graph_camera_source, &graph, &frame) == MM_MOVIE_OK &&
+          frame->camera.background.source == 2 && frame->camera.number == 80);
+    prior = frame;
+    CHECK(mm_movie_session_seek_graph(movie, 0, 9, NULL, NULL, &frame) == MM_MOVIE_ASSET_NOT_FOUND && frame == prior);
+    input.stream.length = 1;
+    CHECK(mm_movie_session_seek_graph(movie, 0, 7, graph_camera_source, &graph, &frame) == MM_MOVIE_IO && frame == prior);
+    mm_movie_session_close(movie);
+    mm_chunk_index_close(index);
+    CHECK(frame->camera.data.near_z == 456);
+    mm_movie_frame_dispose(frame);
+    frame = NULL;
     size = camera_fixture(bytes, 0, 0, 0, 1);
     CHECK(mm_memory_stream_init(&input, bytes, size));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);

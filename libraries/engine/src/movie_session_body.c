@@ -49,7 +49,7 @@ static int array(const MMMovieBodyInput *in, const MMChunkAccess *access, MMU32 
     int status = body_child(access, parent, 0, type, &entry);
     if (status != MM_MOVIE_OK)
         return status;
-    status = mm_session_payload(in->stream, in->index, &entry, 0, data);
+    status = mm_session_payload(in->archive, &entry, 0, data);
     if (status != MM_MOVIE_OK)
         return status;
     status = mm_collection_header_read(data->stream, MM_COLLECTION_ARRAY, 0, head);
@@ -62,7 +62,7 @@ static int array(const MMMovieBodyInput *in, const MMChunkAccess *access, MMU32 
 
 int mm_session_body_shape(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body, const MMActorHeader *actor)
 {
-    MMChunkAccess access = mm_chunk_index_access(in->index);
+    const MMChunkAccess *access = &in->archive->access;
     MMMoviePayload parents, sets;
     MMCollectionHeader parent_head, set_head;
     unsigned char parent[2], set[2];
@@ -70,9 +70,9 @@ int mm_session_body_shape(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body
     MMU32 i;
     int status;
     parents.decoded = sets.decoded = NULL;
-    status = array(in, &access, in->template_position, MM_GLPI, 2, &parents, &parent_head);
+    status = array(in, access, in->template_position, MM_GLPI, 2, &parents, &parent_head);
     if (status == MM_MOVIE_OK)
-        status = array(in, &access, in->template_position, MM_GLBS, 2, &sets, &set_head);
+        status = array(in, access, in->template_position, MM_GLBS, 2, &sets, &set_head);
     if (status != MM_MOVIE_OK)
         goto done;
     if (parent_head.count != set_head.count)
@@ -183,7 +183,7 @@ int mm_session_body_cel(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
         return MM_MOVIE_BAD_FILE;
     cel.input = in;
     cel.body = body;
-    cel.access = mm_chunk_index_access(in->index);
+    cel.access = in->archive->access;
     cel.parts = row + in->cels->header.width;
     cel.status = array(in, &cel.access, in->action_position, MM_ACTION_GLXF, 48, &cel.matrices, &cel.matrix_head);
     if (cel.status != MM_MOVIE_OK)
@@ -216,12 +216,11 @@ static MMI32 legacy_ansi(void *context, const void *bytes, MMU32 count, int enco
 static int text_name(const MMMovieBodyInput *in, TextBody *text)
 {
     const unsigned short one = 1;
-    const unsigned char *bytes;
-    MMU32 count;
-    MMMemoryStream name;
+    MMMoviePayload name;
     MMStringWire wire;
-    if (mm_chunk_index_name(in->index, in->template_position, &bytes, &count) != MM_CHUNK_OK || !count)
-        return 0;
+    int status = mm_session_name(in->archive, in->template_position, &name);
+    if (status != MM_MOVIE_OK)
+        return status;
     wire.buffer = text->string;
     wire.unit = 1;
     wire.current_encoding = MM_TEXT_WINDOWS;
@@ -229,7 +228,9 @@ static int text_name(const MMMovieBodyInput *in, TextBody *text)
     wire.swapped_unicode_encoding = wire.native_big_endian ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE;
     wire.convert = legacy_ansi;
     wire.context = NULL;
-    return mm_memory_stream_init(&name, bytes, count) && mm_string_wire_read(&wire, &name.stream, 0, NULL);
+    status = mm_string_wire_read(&wire, name.stream, 0, NULL) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+    free(name.decoded);
+    return status;
 }
 
 static int font_unpacked(void *p, void *block) { (void)p; (void)block; return 1; }
@@ -275,10 +276,8 @@ static void text_release(void *p, void *value) { (void)p; (void)value; }
 static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
 {
     const unsigned short one = 1;
-    MMChunkAccess access = mm_chunk_index_access(in->index);
-    MMChunkIndex *font_index = NULL;
-    MMChunkIndex *index = in->movie->index;
-    MMReadStream stream = in->movie->stream;
+    const MMChunkAccess *access = &in->archive->access;
+    MMMovieArchive font_archive;
     MMMoviePayload payload;
     MMChunkEntry entry;
     MMMovieAsset font;
@@ -291,12 +290,13 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     memset(&text, 0, sizeof(text));
     text.body = body;
     text.cel = in->cel;
-    if (!text_name(in, &text))
-        return MM_MOVIE_BAD_FILE;
-    status = body_child(&access, in->template_position, 0, MM_TDT, &entry);
+    status = text_name(in, &text);
     if (status != MM_MOVIE_OK)
         return status;
-    status = mm_session_payload(in->stream, in->index, &entry, 0, &payload);
+    status = body_child(access, in->template_position, 0, MM_TDT, &entry);
+    if (status != MM_MOVIE_OK)
+        return status;
+    status = mm_session_payload(in->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
     status = mm_read_exact(payload.stream, 0, bytes, sizeof(bytes));
@@ -314,25 +314,17 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     font.number = mm_session_word(bytes + 20, big);
     if (font.source < 0 || font.type != MM_FONT_TYPE)
         return MM_MOVIE_ASSET_NOT_FOUND;
-    if (font.source)
-    {
-        if (!in->source)
-            return MM_MOVIE_ASSET_NOT_FOUND;
-        status = in->source(in->context, &font, &stream);
-        if (status == MM_MOVIE_OK)
-            status = mm_session_index(&stream, &in->movie->policy, &font_index);
-        if (status != MM_MOVIE_OK)
-            return status;
-        index = font_index;
-    }
-    access = mm_chunk_index_access(index);
-    if (mm_chunk_find(&access, font.type, font.number, &position) != MM_CHUNK_OK ||
-        mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK)
+    status = mm_session_archive(in->movie, in->source, &font, &font_archive);
+    if (status != MM_MOVIE_OK)
+        return status;
+    access = &font_archive.access;
+    if (mm_chunk_find(access, font.type, font.number, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(access, position, &entry) != MM_CHUNK_OK)
     {
         status = MM_MOVIE_ASSET_NOT_FOUND;
         goto done;
     }
-    status = mm_session_payload(&stream, index, &entry, 0, &payload);
+    status = mm_session_payload(&font_archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         goto done;
     memset(&font_services, 0, sizeof(font_services));
@@ -363,7 +355,7 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
             status = MM_MOVIE_BAD_FILE;
             goto done;
         }
-        status = body_child(&access, position, text.string[i + 1], MM_TEMPLATE_BMDL, &entry);
+        status = body_child(access, position, text.string[i + 1], MM_TEMPLATE_BMDL, &entry);
         if (status != MM_MOVIE_OK)
             goto done;
         body->parts[i].parent = -1;
@@ -389,7 +381,7 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
 done:
     free(text.metrics.widths);
     free(text.metrics.heights);
-    mm_chunk_index_close(font_index);
+    mm_session_archive_close(&font_archive);
     return status;
 }
 

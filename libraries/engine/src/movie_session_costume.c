@@ -11,7 +11,7 @@ static int read_custom(const MMMovieBodyInput *in, const MMChunkEntry *entry, MM
     const unsigned short one = 1;
     MMMoviePayload payload;
     unsigned char bytes[8];
-    int status = mm_session_payload(in->stream, in->index, entry, sizeof(bytes), &payload);
+    int status = mm_session_payload(in->archive, entry, sizeof(bytes), &payload);
     if (status != MM_MOVIE_OK)
         return status;
     if (!mm_read_exact(payload.stream, 0, bytes, sizeof(bytes)))
@@ -24,7 +24,7 @@ static int read_custom(const MMMovieBodyInput *in, const MMChunkEntry *entry, MM
 
 int mm_session_costume_find(const MMMovieBodyInput *in, MMI32 id, MMMovieCustomCostume *out)
 {
-    MMChunkAccess access = mm_chunk_index_access(in->index);
+    MMChunkAccess access = in->archive->access;
     MMChunkEntry entry;
     int status;
     if (id < 0 || in->text)
@@ -86,7 +86,7 @@ int mm_session_costume_apply(const MMMovieBodyInput *in, MMMovieEvaluatedBody *b
     MovieCostumeBinding request;
     MMBodySetServices parts;
     MMI32 count;
-    request.access = mm_chunk_index_access(in->index);
+    request.access = in->archive->access;
     request.position = custom->position;
     request.status = MM_MOVIE_OK;
     parts.context = &request;
@@ -161,7 +161,7 @@ static int group_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body
 {
     MovieDefaultTable table;
     MMTemplateDefaultServices defaults;
-    table.status = mm_session_group(in->stream, in->index, entry, &table.group);
+    table.status = mm_session_group(in->archive, entry, &table.group);
     if (table.status != MM_MOVIE_OK)
         return table.status;
     if (table.group.header.width == 4 && table.group.header.count == (MMU32)sets)
@@ -268,7 +268,7 @@ static int legacy_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *bod
 
 int mm_session_costume_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
 {
-    MMChunkAccess access = mm_chunk_index_access(in->index);
+    MMChunkAccess access = in->archive->access;
     MMChunkEntry entry;
     MMU32 i, position;
     MMI32 sets = 0;
@@ -286,29 +286,19 @@ int mm_session_costume_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody
     return legacy_defaults(in, body, &access, sets);
 }
 
-int mm_session_costume_material(const MMMovieSession *movie, MMMovieSourceRead source, void *context,
+int mm_session_costume_material(const MMMovieSession *movie, const MMMovieSource *source,
                                 const MMMovieAsset *asset)
 {
-    MMChunkAccess access;
-    MMChunkIndex *external = NULL;
-    MMReadStream stream;
+    MMMovieArchive archive;
     MMU32 position;
     int status;
     if (asset->type != MATERIAL_TYPE || asset->source < 0)
         return MM_MOVIE_BAD_FILE;
-    if (asset->source)
-    {
-        if (!source)
-            return MM_MOVIE_ASSET_NOT_FOUND;
-        status = source(context, asset, &stream);
-        if (status == MM_MOVIE_OK)
-            status = mm_session_index(&stream, &movie->policy, &external);
-        if (status != MM_MOVIE_OK)
-            return status;
-    }
-    access = mm_chunk_index_access(external ? external : movie->index);
-    status = mm_chunk_find(&access, asset->type, asset->number, &position);
-    mm_chunk_index_close(external);
+    status = mm_session_archive(movie, source, asset, &archive);
+    if (status != MM_MOVIE_OK)
+        return status;
+    status = mm_chunk_find(&archive.access, asset->type, asset->number, &position);
+    mm_session_archive_close(&archive);
     return status == MM_CHUNK_OK ? MM_MOVIE_OK
          : status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
 }

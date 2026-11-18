@@ -72,11 +72,11 @@ done:
     return status;
 }
 
-static int read_model(const MMReadStream *stream, const MMChunkIndex *index, const MMChunkEntry *entry,
+static int read_model(const MMMovieArchive *archive, const MMChunkEntry *entry,
                       MMModelMesh *mesh)
 {
     MMMoviePayload payload;
-    int status = mm_session_payload(stream, index, entry, 0, &payload);
+    int status = mm_session_payload(archive, entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
     status = mm_model_mesh_read(payload.stream, mesh);
@@ -91,11 +91,9 @@ static int read_model(const MMReadStream *stream, const MMChunkIndex *index, con
 }
 
 static int load_models(const MMMovieSession *movie, const MMMovieEvaluatedBody *body,
-                       MMMovieSourceRead source, void *context, MMMovieBodyMeshes *out)
+                       const MMMovieSource *source, MMMovieBodyMeshes *out)
 {
-    MMReadStream stream = movie->stream;
-    MMChunkIndex *external = NULL, *index = movie->index;
-    MMChunkAccess access;
+    MMMovieArchive archive;
     MMU32 count = 0, i, j, position;
     MMU32 *numbers = NULL;
     const MMMovieAsset *asset;
@@ -109,19 +107,10 @@ static int load_models(const MMMovieSession *movie, const MMMovieEvaluatedBody *
         return MM_MOVIE_OK;
     if (!owner->type || owner->source < 0)
         return MM_MOVIE_BAD_FILE;
-    if (owner->source)
-    {
-        if (!source)
-            return MM_MOVIE_ASSET_NOT_FOUND;
-        status = source(context, owner, &stream);
-        if (status == MM_MOVIE_OK)
-            status = mm_session_index(&stream, &movie->policy, &external);
-        if (status != MM_MOVIE_OK)
-            return status;
-        index = external;
-    }
-    access = mm_chunk_index_access(index);
-    if (mm_chunk_find(&access, owner->type, owner->number, &position) != MM_CHUNK_OK)
+    status = mm_session_archive(movie, source, owner, &archive);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (mm_chunk_find(&archive.access, owner->type, owner->number, &position) != MM_CHUNK_OK)
     {
         status = MM_MOVIE_ASSET_NOT_FOUND;
         goto done;
@@ -147,13 +136,13 @@ static int load_models(const MMMovieSession *movie, const MMMovieEvaluatedBody *
             ;
         if (j == out->model_count)
         {
-            if (mm_chunk_find(&access, asset->type, asset->number, &position) != MM_CHUNK_OK ||
-                mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK)
+            if (mm_chunk_find(&archive.access, asset->type, asset->number, &position) != MM_CHUNK_OK ||
+                mm_chunk_at(&archive.access, position, &entry) != MM_CHUNK_OK)
             {
                 status = MM_MOVIE_ASSET_NOT_FOUND;
                 goto done;
             }
-            status = read_model(&stream, index, &entry, &out->models[j]);
+            status = read_model(&archive, &entry, &out->models[j]);
             if (status != MM_MOVIE_OK)
                 goto done;
             numbers[j] = asset->number;
@@ -163,16 +152,16 @@ static int load_models(const MMMovieSession *movie, const MMMovieEvaluatedBody *
     }
 done:
     free(numbers);
-    mm_chunk_index_close(external);
+    mm_session_archive_close(&archive);
     return status;
 }
 
-int mm_movie_session_body_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody *body, MMMovieSourceRead source,
-                                void *context, MMMovieBodyMeshes **out)
+static int body_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody *body, const MMMovieSource *source,
+                       MMMovieBodyMeshes **out)
 {
     MMMovieBodyMeshes *geometry;
     int status = MM_MOVIE_OK;
-    if (!movie || !movie->index || !body || !out || body->part_count > 0x7fffffffUL ||
+    if (!movie || !body || !out || body->part_count > 0x7fffffffUL ||
         (body->part_count && !body->parts))
         return MM_MOVIE_BAD_FILE;
     geometry = (MMMovieBodyMeshes *)calloc(1, sizeof(*geometry));
@@ -184,11 +173,31 @@ int mm_movie_session_body_meshes(const MMMovieSession *movie, const MMMovieEvalu
         geometry->parts = (MMMoviePartMesh *)part_array(body->part_count, sizeof(*geometry->parts));
         status = geometry->parts ? world_matrices(body, geometry) : MM_MOVIE_MEMORY;
         if (status == MM_MOVIE_OK)
-            status = load_models(movie, body, source, context, geometry);
+            status = load_models(movie, body, source, geometry);
     }
     if (status == MM_MOVIE_OK)
         *out = geometry;
     else
         mm_movie_body_meshes_dispose(geometry);
     return status;
+}
+
+int mm_movie_session_body_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody *body, MMMovieSourceRead source,
+                                void *context, MMMovieBodyMeshes **out)
+{
+    MMMovieSource input;
+    input.stream = source;
+    input.graph = NULL;
+    input.context = context;
+    return body_meshes(movie, body, &input, out);
+}
+
+int mm_movie_session_body_meshes_graph(const MMMovieSession *movie, const MMMovieEvaluatedBody *body,
+                                      MMMovieSourceGraph source, void *context, MMMovieBodyMeshes **out)
+{
+    MMMovieSource input;
+    input.stream = NULL;
+    input.graph = source;
+    input.context = context;
+    return body_meshes(movie, body, &input, out);
 }

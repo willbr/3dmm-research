@@ -2,7 +2,7 @@
    Licensed under the MIT License. */
 #include "soc_core.h"
 #include "movie_data.h"
-#include "engine_read_stream.h"
+#include "engine_movie_graph.h"
 #include "mm/movie_session.h"
 ASSERTNAME
 
@@ -17,13 +17,9 @@ struct NativeRollCallHost
     String name;
     DataBlock block;
 };
-int ReadMovieRecord(void *context, MMU32, const MMChunkEntry *entry, void *bytes, MMU32 count)
+int ReadMovieRecord(void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 count)
 {
-    DataBlock block;
-    if (!static_cast<PChunkyFile>(context)->FFind(entry->type, entry->number, &block) ||
-        !block.FUnpackData() || block.Cb() != static_cast<LegacyLong>(count))
-        return MM_MOVIE_BAD_FILE;
-    return block.FReadRgb(bytes, count, 0) ? MM_MOVIE_OK : MM_MOVIE_IO;
+    return EngineMovieGraph::Read(context, nullptr, position, entry, bytes, count);
 }
 bool CheckMovieOpen(int result)
 {
@@ -247,12 +243,7 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); },
         [](void *c) -> void * { return ChunkyFile::PcflOpen(static_cast<NativeMovieHost *>(c)->filename, fcflNil); },
         [](void *, void *file, MMU32 *number, MMMovieSession **out) -> int {
-            const MMMovieSessionGraph graph = {
-                file,
-                [](void *context, MMChunkAccess *access) { *access = static_cast<PChunkyFile>(context)->ReadChunkAccess(); },
-                [](void *context, void *, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 count) -> int {
-                    return ReadMovieRecord(context, position, entry, bytes, count);
-                }};
+            const auto graph = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file));
             return CheckMovieOpen(mm_movie_session_open_graph(&graph, nullptr, number, out));
         },
         [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
