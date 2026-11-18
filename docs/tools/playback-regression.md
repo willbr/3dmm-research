@@ -13585,6 +13585,34 @@ edited actor on four seeks. Marcus was rebuilt and relaunched.
 
 Evidence is under `tmp/c89-session-bridge/` on the evidence drive.
 
+### Live scene loading reads the retained C89 movie graph
+
+Studio and Marcus use `mm_movie_scene_reader` to read SCEN metadata, start
+events and frame events. The source is the retained movie graph for an open
+movie and the loaded chunk graph for direct scene previews and Studio undo
+snapshots. Studio still constructs its editable frame and start lists and
+opens sound tags in their existing order. Marcus applies scene starts and
+builds camera cues in authored order. The standalone actor and camera
+evaluators read the same event rows.
+
+All 181 standalone tests, 20 selected host checks including the Marcus player,
+and four AddressSanitizer checks passed. Strict C89 compilation passed for the four changed C engine
+sources and three changed C fixtures on Linux x64 musl. The C fixture verified
+both byte orders, packed groups, equal-frame camera order, and malformed rows.
+The native scene and preview session fixtures reproduced the retained frame,
+camera, picking, render and session traces.
+
+The stock and SID-29 runs matched 456 seek observations and 360 viewport
+hashes against the previous builds. Each host matched 240 retail playback
+commits. Studio and the retained v3dmm run each matched 456 retail actor
+records. The 300 standalone frame and 300 mesh snapshots matched the previous
+probe. All 300 native graph and stream frames matched. The saved movie,
+26 actor and body traces, and 188-camera background trace matched byte for byte.
+Retail reopened a Studio-edited movie and matched the edited actor on four
+seeks. Marcus was rebuilt and relaunched.
+
+Evidence is under `tmp/c89-scene-reader/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

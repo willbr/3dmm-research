@@ -13,6 +13,7 @@ typedef struct Host
     int offstage, names[4], appended, rotations, poses, saved, syncs, seeks, backgrounds;
     MMU32 loaded[4], background_number;
     int token[8], allocations, allocation_fail;
+    unsigned char event_data[16];
 } Host;
 static int step(Host *h)
 {
@@ -191,65 +192,67 @@ static int background(void *v, const MMPreviewAdmissionTag *t, int virtual_scene
     h->background_number = t ? t->number : 9;
     return step(h);
 }
-static int scene_header(void *v, MMU32 n, MMI32 *first, MMI32 *last)
+static int scene_header(void *v, MMU32 n, MMMovieSessionScene *out)
 {
     Host *h = (Host *)v;
+    int result = step(h);
     assert(n == 9);
-    *first = 1;
-    *last = 20;
-    return h->header_result ? h->header_result : step(h);
+    out->number = n;
+    out->first_frame = 1;
+    out->last_frame = 20;
+    out->transition = 0;
+    return result < 0 ? result : result == 1 ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
 }
 static int actor_header(void *v, MMU32 n, MMI32 *first, MMI32 *last)
 {
     Host *h = (Host *)v;
-    int r = scene_header(v, n, first, last);
-    if (h->offstage)
-        *first = 2147483647;
-    return r;
+    assert(n == 9);
+    *first = h->offstage ? 2147483647 : 1;
+    *last = 20;
+    return h->header_result ? h->header_result : step(h);
 }
-static int group_read(void *v, MMU32 n, int start, MMPreviewAdmissionGroup *out)
+static int group_read(void *v, MMU32 n, int start, MMMovieSceneGroup *out)
 {
     Host *h = (Host *)v;
     int r = step(h);
     assert(n == 9 && !h->groups);
     if (h->group_result)
-        return h->group_result == 3 ? 0 : h->group_result;
-    if (r > 0)
+        r = h->group_result == 3 ? 0 : h->group_result;
+    if (r == 1)
     {
         out->handle = h->token + (start ? 2 : 3);
         out->count = start ? 7 : 3;
         ++h->groups;
     }
-    return r;
+    return r < 0 ? r : r == 1 ? MM_MOVIE_OK : r == 0 ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
 }
-static void group_release(void *v, MMPreviewAdmissionGroup *g)
+static void group_release(void *v, MMMovieSceneGroup *g)
 {
     Host *h = (Host *)v;
     assert(h->groups == 1 && g->handle);
     --h->groups;
     g->handle = 0;
 }
-static void event(void *v, const MMPreviewAdmissionGroup *g, MMU32 i, MMI32 *kind, MMI32 *frame)
+static void event(void *v, const MMMovieSceneGroup *g, MMU32 i, MMMovieSceneEvent *out)
 {
     Host *h = (Host *)v;
     static const int kinds[] = {MM_SCENE_ADD_ACTOR,      MM_SCENE_ADD_ACTOR,     MM_SCENE_SET_BACKGROUND,
                                 MM_SCENE_SET_BACKGROUND, MM_SCENE_CHANGE_CAMERA, MM_SCENE_CHANGE_CAMERA,
                                 MM_SCENE_PLAY_SOUND};
-    *kind = g->handle == h->token + 2 ? kinds[i] : i == 1 ? MM_SCENE_PAUSE : MM_SCENE_CHANGE_CAMERA;
-    *frame = (MMI32)i + 4;
-}
-static MMU32 event_word(void *v, const MMPreviewAdmissionGroup *g, MMU32 i)
-{
-    Host *h = (Host *)v;
-    return g->handle == h->token + 2 && i < 2 ? i + 10 : i + 2;
-}
-static void event_tag(void *v, const MMPreviewAdmissionGroup *g, MMU32 i, MMPreviewAdmissionTag *t)
-{
-    (void)v;
-    (void)g;
-    t->source = 3;
-    t->type = 44;
-    t->number = i + 3;
+    out->kind = g->handle == h->token + 2 ? kinds[i] : i == 1 ? MM_SCENE_PAUSE : MM_SCENE_CHANGE_CAMERA;
+    out->frame = (MMI32)i + 4;
+    out->big_endian = 0;
+    out->data = h->event_data;
+    memset(out->data, 0, sizeof(h->event_data));
+    out->bytes = 4;
+    out->data[0] = (unsigned char)(g->handle == h->token + 2 && i < 2 ? i + 10 : i + 2);
+    if (out->kind == MM_SCENE_SET_BACKGROUND)
+    {
+        out->bytes = 16;
+        out->data[0] = 3;
+        out->data[8] = 44;
+        out->data[12] = (unsigned char)(i + 3);
+    }
 }
 static int actor_load(void *v, MMU32 number, void **out)
 {
@@ -330,13 +333,12 @@ static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s,
     s->locate = locate;
     s->model_fetch = fetch;
     s->background = background;
-    s->scene_header = scene_header;
+    s->scene.context = h;
+    s->scene.header = scene_header;
+    s->scene.group = group_read;
+    s->scene.close = group_release;
+    s->scene.event = event;
     s->actor_header = actor_header;
-    s->group_read = group_read;
-    s->group_release = group_release;
-    s->event = event;
-    s->event_word = event_word;
-    s->event_tag = event_tag;
     s->actor_load = actor_load;
     s->actor_release = actor_release;
     s->actor_range = actor_range;

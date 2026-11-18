@@ -1133,7 +1133,7 @@ MMMovieSceneServices Movie::_SceneServices()
         ChunkNumber number;
         if (!movie->_data.FResolveScene(index, &number))
             return nullptr;
-        return Scene::PscenRead(movie, resources, number);
+        return Scene::PscenRead(movie, resources, number, movie->MovieSession());
     };
     s.create = [](void *p) -> void * { return Scene::PscenNew(static_cast<PMovie>(p)); };
     s.start = [](void *p) -> int { return static_cast<PScene>(p)->FPlayStartEvents(); };

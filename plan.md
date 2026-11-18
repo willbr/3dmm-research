@@ -514,8 +514,11 @@ Keep host presentation and device output outside the session.
    including unsaved edits. Studio rendering and prerendering and Marcus
    rendering and picking now borrow reusable body-list storage from their
    retained movie sessions. Each draw holds its own camera and body references.
-   Using the session's authored-frame evaluator to supply live publication
-   remains open.
+   Both live scene loaders now read the SCEN header and its validated start
+   and frame event rows through the retained session. The same C reader also
+   supports individual scene chunks and Studio undo snapshots. Live timelines
+   apply those rows through native resource and editing adapters. Using the
+   session's authored-frame evaluator to supply live publication remains open.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

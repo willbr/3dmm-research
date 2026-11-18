@@ -13,6 +13,7 @@
 #include <map>
 #include <utility>
 #include "soc_core.h"
+#include "engine_movie_graph.h"
 #include "mm/scene_runtime.h"
 #include "mm/preview_pick.h"
 #include "mm/preview_camera.h"

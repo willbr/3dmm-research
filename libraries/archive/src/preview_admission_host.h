@@ -1,6 +1,6 @@
 #ifndef MM_PREVIEW_ADMISSION_HOST_H
 #define MM_PREVIEW_ADMISSION_HOST_H
-// Typed resource, group, SDK and presentation primitives for C admission.
+// Typed resource, SDK and presentation primitives for C admission.
 struct Preview::Impl::AdmissionHost
 {
     static_assert(int(sevtAddActr) == MM_SCENE_ADD_ACTOR && int(sevtSetBkgd) == MM_SCENE_SET_BACKGROUND &&
@@ -12,6 +12,7 @@ struct Preview::Impl::AdmissionHost
     std::exception_ptr exception;
     std::string actorError;
     bool missingBackground = false;
+    MMMovieSceneSource sceneSource = {};
     template <class F> int Guard(F f)
     {
         try
@@ -234,17 +235,13 @@ struct Preview::Impl::AdmissionHost
                 return ok;
             });
         };
-        s.scene_header = [](void *v, MMU32 number, MMI32 *first, MMI32 *last) -> int {
-            auto &h = *static_cast<AdmissionHost *>(v);
-            return h.Guard([&] {
-                SceneData scene;
-                if (!scene.FRead(h.impl->cache->Pcfl(), number))
-                    return false;
-                *first = scene.firstFrame;
-                *last = scene.lastFrame;
-                return true;
-            });
-        };
+        if (impl->cache)
+        {
+            auto file = impl->cache->Pcfl();
+            sceneSource = {file == impl->assets.NativeFile() ? impl->assets.MovieSession() : nullptr,
+                           EngineMovieGraph::FromFile(file)};
+        }
+        s.scene = mm_movie_scene_reader(&sceneSource);
         s.actor_header = [](void *v, MMU32 number, MMI32 *first, MMI32 *last) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
@@ -256,54 +253,6 @@ struct Preview::Impl::AdmissionHost
                 *last = header.nfrmLast;
                 return true;
             });
-        };
-        s.group_read = [](void *v, MMU32 number, int start, MMPreviewAdmissionGroup *out) -> int {
-            auto &h = *static_cast<AdmissionHost *>(v);
-            return h.Guard([&] {
-                ChildChunkIdentification child;
-                DataBlock block;
-                auto file = h.impl->cache->Pcfl();
-                if (!file->FGetKidChidCtg(kctgScen, number, start ? 1 : 0, start ? kctgStartGg : kctgFrmGg, &child) ||
-                    !file->FFind(child.cki.ctg, child.cki.cno, &block))
-                    return 0;
-                short order;
-                auto group = SceneData::PggReadEvents(&block, &order, start != 0);
-                if (!group)
-                    return 2;
-                out->handle = group;
-                out->count = group->IvMac();
-                out->other_order = order == kboOther;
-                return 1;
-            });
-        };
-        s.group_release = [](void *, MMPreviewAdmissionGroup *g) {
-            auto group = static_cast<PGeneralGroup>(g->handle);
-            ReleasePpo(&group);
-            g->handle = nullptr;
-        };
-        s.event = [](void *, const MMPreviewAdmissionGroup *g, MMU32 i, MMI32 *kind, MMI32 *frame) {
-            SceneEvent e;
-            static_cast<PGeneralGroup>(g->handle)->GetFixed(i, &e);
-            if (g->other_order)
-                SwapBytesBom(&e, kbomSev);
-            *kind = e.sevt;
-            *frame = e.nfrm;
-        };
-        s.event_word = [](void *, const MMPreviewAdmissionGroup *g, MMU32 i) -> MMU32 {
-            MMU32 word;
-            static_cast<PGeneralGroup>(g->handle)->Get(i, &word);
-            if (g->other_order)
-                SwapBytesRglw(&word, 1);
-            return word;
-        };
-        s.event_tag = [](void *, const MMPreviewAdmissionGroup *g, MMU32 i, MMPreviewAdmissionTag *out) {
-            TAGOnFile tag;
-            static_cast<PGeneralGroup>(g->handle)->Get(i, &tag);
-            if (g->other_order)
-                SwapBytesRglw(&tag, sizeof(tag) / 4);
-            out->source = tag.sid;
-            out->type = tag.ctg;
-            out->number = tag.cno;
         };
         s.actor_load = [](void *v, MMU32 number, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);

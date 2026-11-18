@@ -174,6 +174,12 @@ independently of the session and content files. The `--frame-bodies` probe
 prints camera, appearance and mesh data through that result. The lightweight
 seek continues to return camera and actor state.
 
+`mm_movie_scene_reader` reads an exact SCEN header and validates its GGST and
+GGFR event groups using the current movie graph. Studio and Marcus use it to
+load live scenes. The reader also accepts a graph for resource previews and
+Studio undo snapshots. Each group owns its decoded bytes until release. The
+session's camera and actor queries share the event decoder with the live loaders.
+
 `mm_movie_session_seek_graph` uses the same evaluator with the live chunk
 graph and a provider for external asset graphs. The C evaluator owns the
 decoded payload bytes it keeps across calls. The native adapters lend each

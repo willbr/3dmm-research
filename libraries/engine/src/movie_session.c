@@ -552,7 +552,7 @@ MMU32 mm_session_word(const unsigned char *p, int big)
                : p[0] | ((MMU32)p[1] << 8) | ((MMU32)p[2] << 16) | ((MMU32)p[3] << 24);
 }
 
-const unsigned char *mm_session_group_row(const MMMovieGroup *group, MMU32 row, MMI32 *size)
+unsigned char *mm_session_group_row(const MMMovieGroup *group, MMU32 row, MMI32 *size)
 {
     const unsigned char *location;
     MMU32 offset, bytes;
@@ -567,6 +567,20 @@ const unsigned char *mm_session_group_row(const MMMovieGroup *group, MMU32 row, 
         return NULL;
     *size = (MMI32)(bytes - group->header.width);
     return group->records + offset;
+}
+
+void mm_session_scene_event(const MMMovieGroup *group, MMU32 index, MMMovieSceneEvent *out)
+{
+    unsigned char *row = mm_session_group_row(group, index, &out->bytes);
+    out->big_endian = group->header.big_endian;
+    out->frame = mm_signed_word(mm_session_word(row, out->big_endian));
+    out->kind = mm_signed_word(mm_session_word(row + 4, out->big_endian));
+    out->data = row + MM_SCENE_EVENT_BYTES;
+}
+
+MMU32 mm_movie_scene_event_word(const MMMovieSceneEvent *event, MMU32 offset)
+{
+    return mm_session_word(event->data + offset, event->big_endian);
 }
 
 static MMU32 event_width(void *p) { return ((const MMMovieGroup *)p)->header.width; }
@@ -624,15 +638,16 @@ int mm_session_group(const MMMovieArchive *archive, const MMChunkEntry *entry, M
     return MM_MOVIE_OK;
 }
 
-int mm_session_scene_group(const MMMovieArchive *archive, MMU32 scene, int start, MMMovieGroup *group)
+static int load_scene_group(const MMMovieArchive *archive, MMU32 scene, int start, MMMovieGroup *group)
 {
     const MMSceneGroupServices groups = {event_width, event_count, event_fixed, event_size, event_data};
     MMChunkEntry entry;
     MMU32 position;
     int status;
-    if (mm_session_child(&archive->access, scene, start ? 1 : 0, start ? SCENE_START_TYPE : SCENE_FRAME_TYPE, &entry,
-                         &position) != MM_CHUNK_OK)
-        return MM_MOVIE_BAD_FILE;
+    status = mm_session_child(&archive->access, scene, start ? 1 : 0, start ? SCENE_START_TYPE : SCENE_FRAME_TYPE,
+                              &entry, &position);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
     status = mm_session_group(archive, &entry, group);
     if (status != MM_MOVIE_OK)
         return status;
@@ -642,6 +657,97 @@ int mm_session_scene_group(const MMMovieArchive *archive, MMU32 scene, int start
         return MM_MOVIE_BAD_FILE;
     }
     return MM_MOVIE_OK;
+}
+
+int mm_session_scene_group(const MMMovieArchive *archive, MMU32 scene, int start, MMMovieGroup *group)
+{
+    int status = load_scene_group(archive, scene, start, group);
+    return status == MM_MOVIE_ASSET_NOT_FOUND ? MM_MOVIE_BAD_FILE : status;
+}
+
+static int scene_reader_header(void *context, MMU32 number, MMMovieSessionScene *out)
+{
+    const MMMovieSceneSource *source = (const MMMovieSceneSource *)context;
+    const MMMovieSessionGraph *graph = source->movie ? &source->movie->graph : &source->graph;
+    MMMovieChunkView view;
+    GraphRead read;
+    MMChunkEntry entry;
+    MMU32 position;
+    if (!graph->access || !graph->read)
+        return MM_MOVIE_BAD_FILE;
+    graph->access(graph->context, &view.chunks);
+    if (mm_chunk_find(&view.chunks, SCENE_TYPE, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&view.chunks, position, &entry) != MM_CHUNK_OK)
+        return MM_MOVIE_SCENE_NOT_FOUND;
+    read.graph = graph;
+    read.request = NULL;
+    view.context = &read;
+    view.read = graph_read;
+    return read_scene(&view, &entry, position, out);
+}
+
+static int scene_reader_group(void *context, MMU32 number, int start, MMMovieSceneGroup *out)
+{
+    const MMMovieSceneSource *source = (const MMMovieSceneSource *)context;
+    MMMovieArchive archive;
+    MMMovieGroup *group;
+    MMU32 position;
+    int status;
+    if (source->movie)
+    {
+        status = mm_session_archive(source->movie, NULL, NULL, &archive);
+        if (status != MM_MOVIE_OK)
+            return status;
+    }
+    else
+    {
+        if (!source->graph.access || !source->graph.payload)
+            return MM_MOVIE_BAD_FILE;
+        memset(&archive, 0, sizeof(archive));
+        archive.graph = source->graph;
+        archive.graph.access(archive.graph.context, &archive.access);
+    }
+    if (mm_chunk_find(&archive.access, SCENE_TYPE, number, &position) != MM_CHUNK_OK)
+        return MM_MOVIE_SCENE_NOT_FOUND;
+    group = (MMMovieGroup *)malloc(sizeof(*group));
+    if (!group)
+        return MM_MOVIE_MEMORY;
+    status = load_scene_group(&archive, position, start, group);
+    if (status != MM_MOVIE_OK)
+    {
+        free(group);
+        return status;
+    }
+    out->handle = group;
+    out->count = group->header.count;
+    return MM_MOVIE_OK;
+}
+
+static void scene_reader_event(void *context, const MMMovieSceneGroup *group, MMU32 index, MMMovieSceneEvent *out)
+{
+    (void)context;
+    mm_session_scene_event((const MMMovieGroup *)group->handle, index, out);
+}
+
+static void scene_reader_close(void *context, MMMovieSceneGroup *group)
+{
+    MMMovieGroup *events = (MMMovieGroup *)group->handle;
+    (void)context;
+    free(events->bytes);
+    free(events);
+    group->handle = NULL;
+    group->count = 0;
+}
+
+MMMovieSceneReader mm_movie_scene_reader(MMMovieSceneSource *source)
+{
+    MMMovieSceneReader reader;
+    reader.context = source;
+    reader.header = scene_reader_header;
+    reader.group = scene_reader_group;
+    reader.event = scene_reader_event;
+    reader.close = scene_reader_close;
+    return reader;
 }
 
 MMI32 mm_movie_view_last_event(const MMMovieEventView *view, int kind, MMI32 frame, int include_frame,
@@ -681,20 +787,18 @@ int mm_movie_seek_frame(MMI32 frame, const MMMovieFrameServices *services)
 
 static void read_scene_event(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
 {
-    const MMMovieGroup *events = (const MMMovieGroup *)group;
-    MMI32 size;
-    const unsigned char *row = mm_session_group_row(events, (MMU32)index, &size);
+    MMMovieSceneEvent event;
     (void)context;
-    *frame = mm_signed_word(mm_session_word(row, events->header.big_endian));
-    *kind = (int)mm_signed_word(mm_session_word(row + 4, events->header.big_endian));
+    mm_session_scene_event((const MMMovieGroup *)group, (MMU32)index, &event);
+    *frame = event.frame;
+    *kind = event.kind;
 }
 
 static void scan_camera_events(const MMMovieGroup *group, int start, MMI32 frame, MMMovieCamera *camera)
 {
     MMMovieEventView view;
-    const unsigned char *row;
-    MMI32 size, selected;
-    int big = group->header.big_endian;
+    MMMovieSceneEvent event;
+    MMI32 selected;
     view.context = NULL;
     view.group = (void *)group;
     view.count = (MMI32)group->header.count;
@@ -704,18 +808,18 @@ static void scan_camera_events(const MMMovieGroup *group, int start, MMI32 frame
     selected = mm_movie_view_last_event(&view, MM_SCENE_CHANGE_CAMERA, frame, 1, NULL);
     if (selected >= 0)
     {
-        row = mm_session_group_row(group, (MMU32)selected, &size);
-        camera->slot = mm_session_word(row + 8, big);
+        mm_session_scene_event(group, (MMU32)selected, &event);
+        camera->slot = mm_movie_scene_event_word(&event, 0);
     }
     if (start)
     {
         selected = mm_movie_view_last_event(&view, MM_SCENE_SET_BACKGROUND, frame, 1, NULL);
         if (selected >= 0)
         {
-            row = mm_session_group_row(group, (MMU32)selected, &size);
-            camera->background.source = mm_signed_word(mm_session_word(row + 8, big));
-            camera->background.type = mm_session_word(row + 16, big);
-            camera->background.number = mm_session_word(row + 20, big);
+            mm_session_scene_event(group, (MMU32)selected, &event);
+            camera->background.source = mm_signed_word(mm_movie_scene_event_word(&event, 0));
+            camera->background.type = mm_movie_scene_event_word(&event, 8);
+            camera->background.number = mm_movie_scene_event_word(&event, 12);
         }
     }
 }

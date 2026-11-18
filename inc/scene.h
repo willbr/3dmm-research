@@ -211,7 +211,8 @@ class Scene : public Scene_PAR
     // Create and destroy
     //
     static Scene *PscenNew(PMovie pmvie);                      // Returns pvNil if it fails.
-    static Scene *PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno); // Returns pvNil if it fails.
+    static Scene *PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
+                           const MMMovieSession *movie = nullptr); // Returns pvNil if it fails.
     bool FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
     static void Close(PScene *ppscen);                        // Public destructor
     void RemActrsFromRollCall(bool fDelIfOnlyRef = fFalse);  // Removes actors from movie roll call.

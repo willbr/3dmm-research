@@ -25,8 +25,8 @@ typedef struct MMMoviePayload
 typedef struct MMMovieGroup
 {
     MMCollectionHeader header;
-    unsigned char *bytes;
-    const unsigned char *records, *locations;
+    unsigned char *bytes, *records;
+    const unsigned char *locations;
 } MMMovieGroup;
 
 typedef struct MMMovieSource
@@ -53,7 +53,8 @@ int mm_session_index(const MMReadStream *, const MMChunkPolicy *, MMChunkIndex *
 int mm_session_child(const MMChunkAccess *, MMU32 parent, MMU32 slot, MMU32 type, MMChunkEntry *, MMU32 *position);
 int mm_session_scene(const MMMovieSession *, const MMChunkAccess *, MMU32 slot, MMU32 *position, MMMovieSessionScene *);
 int mm_session_group(const MMMovieArchive *, const MMChunkEntry *, MMMovieGroup *);
-const unsigned char *mm_session_group_row(const MMMovieGroup *, MMU32 row, MMI32 *size);
+unsigned char *mm_session_group_row(const MMMovieGroup *, MMU32 row, MMI32 *size);
+void mm_session_scene_event(const MMMovieGroup *, MMU32 index, MMMovieSceneEvent *);
 int mm_session_scene_group(const MMMovieArchive *, MMU32 scene, int start, MMMovieGroup *);
 int mm_session_camera_at(const MMMovieSession *, const MMMovieArchive *, MMU32 scene, const MMMovieGroup *starts,
                           MMI32 frame, const MMMovieSource *, MMMovieCamera *);

@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_LOAD_H
 #define MM_ENGINE_SCENE_LOAD_H
+#include "movie_session.h"
 #include "scene_owner.h"
 #include "scene_sound.h"
 #ifdef __cplusplus
@@ -13,12 +14,10 @@ extern "C"
         void *context;
         MMSceneOwnerServices owners;
         MMSceneSoundPacketServices packets;
-        int (*metadata)(void *, MMU32 number, MMSceneState *);
+        MMMovieSceneReader read;
         void (*publish_metadata)(void *, void *scene, const MMSceneState *);
         int (*child)(void *, MMU32 scene, int kind, MMU32 child, MMU32 *number);
         void *(*thumbnail)(void *, MMU32 number);
-        void *(*read_group)(void *, MMU32 number, int start, int *swap);
-        void (*fixed)(void *, void *group, MMI32 index, unsigned char bytes[8]);
         void *(*object)(void *, MMU32 number, int kind, void *scene);
         int (*insert)(void *, void *group, MMI32 index, MMI32 frame, int kind, MMI32 bytes,
                       const void *payload);
@@ -26,9 +25,9 @@ extern "C"
         int (*open_tag)(void *, MMSceneSound *, MMI32 index);
         void (*load_name)(void *, void *scene, MMU32 number);
     } MMSceneLoadServices;
-    /* metadata returns validated Scene state; pointer_bytes is sizeof(void *).
+    /* The reader supplies validated scene events; pointer_bytes is sizeof(void *).
      * Reads metadata before creating the scene; optional thumbnail failure is ignored.
-     * read_group returns an owned validated wire group. Fixed headers and child/
+     * The read group owns its wire bytes. Fixed headers and child/
      * background words are decoded into local values; pause/camera bytes pass through
      * unchanged, including opposite-order payloads. Sound decoding normalizes its
      * private wire payload before allocation, as in the packet codec. Insert copies

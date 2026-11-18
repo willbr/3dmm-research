@@ -47,6 +47,7 @@
 
 #include "soc.h"
 #include "body_world.h"
+#include "engine_movie_graph.h"
 #include "scene_sound.h"
 #include "scene_sound_undo.h"
 #include "scene_edit_undo.h"
@@ -2246,7 +2247,7 @@ bool Scene::FChangeCam(long icam)
  *  pvNil, if failure, else a pointer to the scene.
  *
  ****************************************************/
-Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
+Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno, const MMMovieSession *movie)
 {
     AssertPo(pmvie, 0);
     AssertPo(pcrf, 0);
@@ -2255,22 +2256,17 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         PChunkyResourceFile resources;
         PChunkyFile file;
     } host = {pcrf, pcrf->Pcfl()};
+    MMMovieSceneSource source = {movie, EngineMovieGraph::FromFile(host.file)};
     MMSceneLoadServices s = {};
     s.context = &host;
     s.owners = _OwnerServices();
     s.packets = ScenePacketServices(pmvie);
-    s.metadata = [](void *p, MMU32 number, MMSceneState *out) -> int {
-        SceneData value;
-        if (!value.FRead(static_cast<Host *>(p)->file, number))
-            return 0;
-        *out = value;
-        return 1;
-    };
+    s.read = mm_movie_scene_reader(&source);
     s.publish_metadata = [](void *, void *scene, const MMSceneState *value) {
         static_cast<MMSceneState &>(static_cast<PScene>(scene)->_data) = *value;
     };
     s.child = [](void *p, MMU32 scene, int kind, MMU32 child, MMU32 *number) -> int {
-        static const ChunkTagOrType types[] = {kctgFrmGg, kctgStartGg, kctgActr, kctgTbox, 0, 0, kctgThumbMbmp};
+        static const ChunkTagOrType types[] = {0, 0, kctgActr, kctgTbox, 0, 0, kctgThumbMbmp};
         ChildChunkIdentification kid;
         if (!static_cast<Host *>(p)->file->FGetKidChidCtg(kctgScen, scene, child, types[kind], &kid))
             return 0;
@@ -2281,19 +2277,6 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         DataBlock block;
         return static_cast<Host *>(p)->file->FFind(kctgThumbMbmp, number, &block) ? MaskedBitmapMBMP::PmbmpRead(&block)
                                                                                   : nullptr;
-    };
-    s.read_group = [](void *p, MMU32 number, int start, int *swap) -> void * {
-        DataBlock block;
-        short bo;
-        if (!static_cast<Host *>(p)->file->FFind(start ? kctgStartGg : kctgFrmGg, number, &block))
-            return nullptr;
-        auto group = SceneData::PggReadEvents(&block, &bo, start != 0);
-        if (group)
-            *swap = bo == kboOther;
-        return group;
-    };
-    s.fixed = [](void *, void *g, MMI32 index, unsigned char *bytes) {
-        static_cast<PGeneralGroup>(g)->GetFixed(index, bytes);
     };
     s.object = [](void *p, MMU32 number, int kind, void *scene) -> void * {
         auto resources = static_cast<Host *>(p)->resources;

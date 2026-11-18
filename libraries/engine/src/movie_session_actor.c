@@ -646,16 +646,14 @@ static int evaluate_slot(const MMMovieSession *movie, const MMMovieArchive *arch
 
 static int next_actor_start(const MMMovieGroup *starts, MMU32 *cursor, MMU32 *slot)
 {
-    const unsigned char *row;
-    MMI32 size;
-    int big = starts->header.big_endian;
+    MMMovieSceneEvent event;
     while (*cursor < starts->header.count)
     {
-        row = mm_session_group_row(starts, *cursor, &size);
+        mm_session_scene_event(starts, *cursor, &event);
         ++*cursor;
-        if (mm_session_word(row + 4, big) == MM_SCENE_ADD_ACTOR)
+        if (event.kind == MM_SCENE_ADD_ACTOR)
         {
-            *slot = mm_session_word(row + 8, big);
+            *slot = mm_movie_scene_event_word(&event, 0);
             return 1;
         }
     }

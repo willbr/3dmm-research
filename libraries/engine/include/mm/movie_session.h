@@ -57,6 +57,44 @@ typedef struct MMMovieSessionGraph
     MMMovieGraphBytes payload, name;
 } MMMovieSessionGraph;
 
+typedef struct MMMovieSceneSource
+{
+    const MMMovieSession *movie;
+    MMMovieSessionGraph graph; /* Used for individual scenes in archives without a retained movie. */
+} MMMovieSceneSource;
+
+typedef struct MMMovieSceneGroup
+{
+    void *handle;
+    MMU32 count;
+} MMMovieSceneGroup;
+
+typedef struct MMMovieSceneEvent
+{
+    MMI32 frame, kind, bytes;
+    unsigned char *data;
+    int big_endian;
+} MMMovieSceneEvent;
+
+typedef struct MMMovieSceneReader
+{
+    void *context;
+    int (*header)(void *, MMU32 number, MMMovieSessionScene *);
+    int (*group)(void *, MMU32 number, int start, MMMovieSceneGroup *);
+    void (*event)(void *, const MMMovieSceneGroup *, MMU32 index, MMMovieSceneEvent *);
+    void (*close)(void *, MMMovieSceneGroup *);
+} MMMovieSceneReader;
+
+/* Read an exact SCEN chunk number and its frame or start group from the
+ * current graph. Reader and graph contexts are borrowed. Reads return movie
+ * statuses, with MM_MOVIE_ASSET_NOT_FOUND for missing event children. Output
+ * changes only on success. Each loaded group owns its decoded buffer. Read
+ * event indices below the returned count. Payloads may be normalized by the
+ * consumer and live until close. */
+MMMovieSceneReader mm_movie_scene_reader(MMMovieSceneSource *);
+/* Read a complete 32-bit word within a validated event payload. */
+MMU32 mm_movie_scene_event_word(const MMMovieSceneEvent *, MMU32 offset);
+
 /* A null number or the nil chunk number selects the first MVIE. A successful
  * lookup publishes its number before validation, even if the header is invalid. */
 int mm_movie_view_root(const MMMovieChunkView *, MMU32 *number, MMMovieHeader *);

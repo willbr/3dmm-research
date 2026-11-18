@@ -1,56 +1,42 @@
 /* Scene loading and sound resolution converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_load.h"
-#include <string.h>
-static MMU32 word(const void *p, int swap)
-{
-    MMU32 value;
-    memcpy(&value, p, 4);
-    return swap ? ((value & 255U) << 24) | ((value & 65280U) << 8) | ((value >> 8) & 65280U) | (value >> 24) : value;
-}
-static MMI32 signed_word(const void *p, int swap)
-{
-    MMU32 value = word(p, swap);
-    MMI32 result;
-    memcpy(&result, &value, 4);
-    return result;
-}
+#include "mm/wide.h"
+
 static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start, MMI32 *completed,
                       const MMSceneLoadServices *s)
 {
     const MMSceneOwnerServices *o = &s->owners;
     const MMSceneSoundPacketServices *v = &s->packets;
-    void *wire, *group, *data, *object;
+    const MMMovieSceneReader *read = &s->read;
+    const unsigned short endian = 1;
+    const int native_big = *(const unsigned char *)&endian == 0;
+    MMMovieSceneGroup wire;
+    MMMovieSceneEvent event;
+    void *group, *object;
     MMSceneSound *sound;
     MMTag tag;
-    MMU32 child;
-    MMI32 i, j, bytes, frame;
-    int swap, kind, ok, slot = start ? MM_SCENE_STARTS : MM_SCENE_FRAMES;
-    unsigned char fixed[8], background[16];
-    if (!s->child(s->context, number, slot, start ? 1U : 0U, &child))
-        return 0;
-    wire = s->read_group(s->context, child, start, &swap);
-    if (!wire)
+    MMU32 i, child;
+    MMI32 j;
+    int ok, slot = start ? MM_SCENE_STARTS : MM_SCENE_FRAMES;
+    if (read->group(read->context, number, start, &wire) != MM_MOVIE_OK)
         return 0;
     group = o->create_slot(o->context, slot);
     mm_scene_owner_set(owner, scene, slot, group, o);
     if (!group)
         goto fail;
-    for (i = 0; i < o->count(o->context, wire); ++i)
+    for (i = 0; i < wire.count; ++i)
     {
-        s->fixed(s->context, wire, i, fixed);
-        frame = signed_word(fixed, swap);
-        kind = signed_word(fixed + 4, swap);
-        if (!start && kind == MM_SCENE_PLAY_SOUND)
+        read->event(read->context, &wire, i, &event);
+        if (!start && event.kind == MM_SCENE_PLAY_SOUND)
         {
-            data = o->data(o->context, wire, i, &bytes);
-            sound = mm_scene_sound_decode(data, bytes, swap, v);
+            sound = mm_scene_sound_decode(event.data, event.bytes, event.big_endian != native_big, v);
             if (!sound)
                 goto fail;
             for (j = 0; j < sound->ctagc; ++j)
                 if (!s->open_tag(s->context, sound, j))
                     break;
-            ok = j == sound->ctagc && s->insert(s->context, group, i, frame, kind,
+            ok = j == sound->ctagc && s->insert(s->context, group, i, event.frame, event.kind,
                                                 mm_scene_sound_size(sound->ctagc, v->tag_bytes), sound);
             if (!ok)
                 while (j > 0)
@@ -59,39 +45,34 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
             if (!ok)
                 goto fail;
         }
-        else if (start && (kind == MM_SCENE_ADD_ACTOR || kind == MM_SCENE_ADD_TEXT))
+        else if (start && (event.kind == MM_SCENE_ADD_ACTOR || event.kind == MM_SCENE_ADD_TEXT))
         {
-            data = o->data(o->context, wire, i, &bytes);
-            child = word(data, swap);
+            child = mm_movie_scene_event_word(&event, 0);
             if (!s->child(s->context, number,
-                          kind == MM_SCENE_ADD_ACTOR ? MM_SCENE_ACTORS : MM_SCENE_TEXTS, child,
+                          event.kind == MM_SCENE_ADD_ACTOR ? MM_SCENE_ACTORS : MM_SCENE_TEXTS, child,
                           &child))
                 goto fail;
-            object = s->object(s->context, child, kind, scene);
+            object = s->object(s->context, child, event.kind, scene);
             if (!object)
                 goto fail;
-            if (!s->insert(s->context, group, i, frame, kind, o->pointer_bytes, &object))
+            if (!s->insert(s->context, group, i, event.frame, event.kind, o->pointer_bytes, &object))
             {
                 o->release(o->context, object);
                 goto fail;
             }
         }
-        else if (start && kind == MM_SCENE_SET_BACKGROUND)
+        else if (start && event.kind == MM_SCENE_SET_BACKGROUND)
         {
-            /* Copy before a callback can allocate/relocate the source group. */
-            data = o->data(o->context, wire, i, &bytes);
-            memcpy(background, data, 16);
-            tag.sid = signed_word(background, swap);
+            tag.sid = mm_signed_word(mm_movie_scene_event_word(&event, 0));
             tag.cache = NULL;
-            tag.type = word(background + 8, swap);
-            tag.number = word(background + 12, swap);
-            if (!s->insert_tag(s->context, group, i, frame, &tag))
+            tag.type = mm_movie_scene_event_word(&event, 8);
+            tag.number = mm_movie_scene_event_word(&event, 12);
+            if (!s->insert_tag(s->context, group, i, event.frame, &tag))
                 goto fail;
         }
-        else if (kind == MM_SCENE_CHANGE_CAMERA || (!start && kind == MM_SCENE_PAUSE))
+        else if (event.kind == MM_SCENE_CHANGE_CAMERA || (!start && event.kind == MM_SCENE_PAUSE))
         {
-            data = o->data(o->context, wire, i, &bytes);
-            if (!s->insert(s->context, group, i, frame, kind, bytes, data))
+            if (!s->insert(s->context, group, i, event.frame, event.kind, event.bytes, event.data))
                 goto fail;
         }
         else
@@ -101,22 +82,23 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
         }
         ++*completed;
     }
-    o->release(o->context, wire);
+    read->close(read->context, &wire);
     return 1;
 fail:
-    o->release(o->context, wire);
+    read->close(read->context, &wire);
     return 0;
 }
 void *mm_scene_load(void *movie, MMU32 number, unsigned unit, const MMSceneLoadServices *s)
 {
     MMSceneState metadata;
+    MMMovieSessionScene header;
     const MMSceneOwnerServices *o = &s->owners;
     MMSceneOwner *owner;
     MMI32 starts = 0, frames = 0;
     MMU32 child;
     void *scene, *p;
     int slot;
-    if (!mm_scene_init(&metadata, unit) || !s->metadata(s->context, number, &metadata))
+    if (!mm_scene_init(&metadata, unit) || s->read.header(s->read.context, number, &header) != MM_MOVIE_OK)
         return NULL;
     scene = o->create_scene(o->context, movie);
     if (!scene)
@@ -130,6 +112,9 @@ void *mm_scene_load(void *movie, MMU32 number, unsigned unit, const MMSceneLoadS
         if (!p)
             goto fail;
     }
+    metadata.firstFrame = header.first_frame;
+    metadata.lastFrame = header.last_frame;
+    metadata.transition = header.transition;
     metadata.currentFrame = metadata.firstFrame - 1;
     s->publish_metadata(s->context, scene, &metadata);
     if (s->child(s->context, number, MM_SCENE_THUMBNAIL, 0, &child))

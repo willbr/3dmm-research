@@ -154,22 +154,23 @@ static void diagnostic(void *p, int issue)
     (void)issue;
     CHECK(0);
 }
-static int metadata(void *p, MMU32 number, MMSceneState *out)
+static int metadata(void *p, MMU32 number, MMMovieSessionScene *out)
 {
     Loader *f = (Loader *)p;
-    CHECK(number == 42 && out->name.unit == 1);
+    CHECK(number == 42);
     if (!step(f))
-        return 0;
-    out->firstFrame = 3;
-    out->lastFrame = 19;
+        return MM_MOVIE_BAD_FILE;
+    out->first_frame = 3;
+    out->last_frame = 19;
     out->transition = 3;
-    return 1;
+    out->number = number;
+    return MM_MOVIE_OK;
 }
 static void publish_metadata(void *p, void *scene, const MMSceneState *value)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == f->scene && f->owner.owned[2] && f->owner.owned[3]);
-    CHECK(value->currentFrame == 2);
+    CHECK(value->currentFrame == 2 && value->name.unit == 1);
     f->metadata = *value;
     f->published = 1;
     note(f, 2);
@@ -180,11 +181,7 @@ static int child(void *p, MMU32 scene, int kind, MMU32 id, MMU32 *number)
     CHECK(scene == 42 && f->published);
     if (!step(f) || (kind == MM_SCENE_THUMBNAIL && f->no_thumbnail))
         return 0;
-    if (kind == MM_SCENE_FRAMES)
-        CHECK(!id);
-    else if (kind == MM_SCENE_STARTS)
-        CHECK(id == 1);
-    else if (kind == MM_SCENE_ACTORS || kind == MM_SCENE_TEXTS)
+    if (kind == MM_SCENE_ACTORS || kind == MM_SCENE_TEXTS)
         CHECK(id == 7);
     *number = (MMU32)kind + 100;
     return 1;
@@ -194,23 +191,37 @@ static void *thumbnail(void *p, MMU32 number)
     CHECK(number == 106);
     return new_object((Loader *)p, 6);
 }
-static void *read_group(void *p, MMU32 number, int start, int *swap)
+static int read_group(void *p, MMU32 number, int start, MMMovieSceneGroup *out)
 {
     Loader *f = (Loader *)p;
     LoadObject *g = &f->wire[start];
-    CHECK(number == (MMU32)(100 + start));
-    if (!step(f))
-        return NULL;
+    CHECK(number == 42 && f->published);
+    if (!step(f) || !step(f))
+        return MM_MOVIE_BAD_FILE;
     CHECK(!g->refs);
     g->refs = 1;
     ++f->live;
-    *swap = f->swap;
-    return g;
+    out->handle = g;
+    out->count = (MMU32)g->count;
+    return MM_MOVIE_OK;
 }
-static void fixed(void *p, void *g, MMI32 i, unsigned char *bytes)
+static void read_event(void *p, const MMMovieSceneGroup *g, MMU32 i, MMMovieSceneEvent *out)
 {
-    (void)p;
-    memcpy(bytes, ((LoadObject *)g)->events[i].fixed, 8);
+    Loader *f = (Loader *)p;
+    LoadEvent *event = &((LoadObject *)g->handle)->events[i];
+    const unsigned short endian = 1;
+    out->big_endian = (*(const unsigned char *)&endian == 0) != f->swap;
+    out->data = event->fixed;
+    out->bytes = sizeof(event->fixed);
+    out->frame = (MMI32)mm_movie_scene_event_word(out, 0);
+    out->kind = (MMI32)mm_movie_scene_event_word(out, 4);
+    out->data = event->payload.bytes;
+    out->bytes = event->bytes;
+}
+static void release_group(void *p, MMMovieSceneGroup *g)
+{
+    release_object(p, g->handle);
+    g->handle = NULL;
 }
 static void *read_object(void *p, MMU32 number, int kind, void *scene)
 {
@@ -312,12 +323,14 @@ static void init_loader(Loader *f, int swap)
     s->context = f;
     s->packets = f->packets.s;
     s->packets.allocate = packet_allocate;
-    s->metadata = metadata;
+    s->read.context = f;
+    s->read.header = metadata;
+    s->read.group = read_group;
+    s->read.event = read_event;
+    s->read.close = release_group;
     s->publish_metadata = publish_metadata;
     s->child = child;
     s->thumbnail = thumbnail;
-    s->read_group = read_group;
-    s->fixed = fixed;
     s->object = read_object;
     s->insert = insert;
     s->insert_tag = insert_tag;

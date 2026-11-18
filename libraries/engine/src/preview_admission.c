@@ -1,5 +1,6 @@
 #include "mm/preview_admission.h"
 #include "mm/scene_data.h"
+#include "mm/wide.h"
 #include <string.h>
 int mm_preview_budget(const MMPreviewBudgetServices *s, MMU32 *failed)
 {
@@ -101,12 +102,15 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
 {
     MMCollectionStorage storage;
     MMArray actors;
-    MMPreviewAdmissionGroup group;
+    MMMovieSceneGroup group;
+    MMMovieSessionScene header;
+    MMMovieSceneEvent event;
     MMPreviewAdmissionTag tag;
     MMPreviewChunk child;
     MMPreviewLive *live = p->live;
+    const MMMovieSceneReader *reader = &s->scene;
     MMU32 i, word;
-    MMI32 kind, frame, first, last;
+    MMI32 first, last;
     void *actor = 0;
     int r, result = MM_PREVIEW_ADMIT_OK, has_background = 0;
     memset(&actors, 0, sizeof(actors));
@@ -118,28 +122,31 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
     actors.free_count = -1;
     if (p->kind == MM_PREVIEW_SCENE)
     {
-        r = s->scene_header(s->context, p->number, &first, &last);
-        if (r <= 0)
+        r = reader->header(reader->context, p->number, &header);
+        if (r != MM_MOVIE_OK)
         {
-            result = r < 0 ? effect(r) : MM_PREVIEW_ADMIT_SCENE_HEADER;
+            result = r < 0 ? effect(r) : r == MM_MOVIE_MEMORY ? MM_PREVIEW_ADMIT_MEMORY : MM_PREVIEW_ADMIT_SCENE_HEADER;
             goto done;
         }
         live->status.scene = 1;
-        live->original_first = live->status.first = first;
-        live->original_last = live->status.last = last;
+        live->original_first = live->status.first = header.first_frame;
+        live->original_last = live->status.last = header.last_frame;
         publish(p, s);
-        r = s->group_read(s->context, p->number, 1, &group);
-        if (r != 1)
+        r = reader->group(reader->context, p->number, 1, &group);
+        if (r != MM_MOVIE_OK)
         {
-            result = r < 0 ? effect(r) : r == 0 ? MM_PREVIEW_ADMIT_START_MISSING : MM_PREVIEW_ADMIT_START_READ;
+            result = r < 0                          ? effect(r)
+                     : r == MM_MOVIE_MEMORY            ? MM_PREVIEW_ADMIT_MEMORY
+                     : r == MM_MOVIE_ASSET_NOT_FOUND ? MM_PREVIEW_ADMIT_START_MISSING
+                                                     : MM_PREVIEW_ADMIT_START_READ;
             goto done;
         }
         for (i = 0; i < group.count; ++i)
         {
-            s->event(s->context, &group, i, &kind, &frame);
-            if (kind == MM_SCENE_ADD_ACTOR)
+            reader->event(reader->context, &group, i, &event);
+            if (event.kind == MM_SCENE_ADD_ACTOR)
             {
-                word = s->event_word(s->context, &group, i);
+                word = mm_movie_scene_event_word(&event, 0);
                 if (!s->child(s->context, p->type, p->number, word, 1, &child))
                 {
                     p->detail = word;
@@ -153,15 +160,17 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
                     goto done;
                 }
             }
-            else if (kind == MM_SCENE_SET_BACKGROUND)
+            else if (event.kind == MM_SCENE_SET_BACKGROUND)
             {
-                s->event_tag(s->context, &group, i, &tag);
+                tag.source = mm_signed_word(mm_movie_scene_event_word(&event, 0));
+                tag.type = mm_movie_scene_event_word(&event, 8);
+                tag.number = mm_movie_scene_event_word(&event, 12);
                 has_background = 1;
             }
-            else if (kind == MM_SCENE_CHANGE_CAMERA)
-                live->initial_camera = s->event_word(s->context, &group, i);
+            else if (event.kind == MM_SCENE_CHANGE_CAMERA)
+                live->initial_camera = mm_movie_scene_event_word(&event, 0);
         }
-        s->group_release(s->context, &group);
+        reader->close(reader->context, &group);
         if (has_background)
         {
             r = s->background(s->context, &tag, 0);
@@ -171,23 +180,26 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
                 goto done;
             }
         }
-        r = s->group_read(s->context, p->number, 0, &group);
-        if (r != 1)
+        r = reader->group(reader->context, p->number, 0, &group);
+        if (r != MM_MOVIE_OK)
         {
-            result = r < 0 ? effect(r) : r == 0 ? MM_PREVIEW_ADMIT_FRAME_MISSING : MM_PREVIEW_ADMIT_FRAME_READ;
+            result = r < 0                          ? effect(r)
+                     : r == MM_MOVIE_MEMORY            ? MM_PREVIEW_ADMIT_MEMORY
+                     : r == MM_MOVIE_ASSET_NOT_FOUND ? MM_PREVIEW_ADMIT_FRAME_MISSING
+                                                     : MM_PREVIEW_ADMIT_FRAME_READ;
             goto done;
         }
         for (i = 0; i < group.count; ++i)
         {
-            s->event(s->context, &group, i, &kind, &frame);
-            if (kind == MM_SCENE_CHANGE_CAMERA &&
-                mm_preview_live_camera_add(live, frame, s->event_word(s->context, &group, i)) != MM_PREVIEW_LIVE_OK)
+            reader->event(reader->context, &group, i, &event);
+            if (event.kind == MM_SCENE_CHANGE_CAMERA &&
+                mm_preview_live_camera_add(live, event.frame, mm_movie_scene_event_word(&event, 0)) != MM_PREVIEW_LIVE_OK)
             {
                 result = MM_PREVIEW_ADMIT_MEMORY;
                 goto done;
             }
         }
-        s->group_release(s->context, &group);
+        reader->close(reader->context, &group);
     }
     else
     {
@@ -262,7 +274,7 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
         result = MM_PREVIEW_ADMIT_DEPENDENCIES;
 done:
     if (group.handle)
-        s->group_release(s->context, &group);
+        reader->close(reader->context, &group);
     if (actor)
         s->actor_release(s->context, actor);
     mm_storage_dispose(&storage);

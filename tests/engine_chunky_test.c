@@ -905,6 +905,29 @@ static void graph_camera(const MMMovieSessionGraph *graph)
     CHECK(consumer.calls == 2 && consumer.issue == MM_BACKGROUND_CAMERA_TAIL);
 }
 
+static void check_scene_reader(MMMovieSceneSource *source, int big, MMU32 background_source)
+{
+    const MMMovieSceneReader reader = mm_movie_scene_reader(source);
+    MMMovieSessionScene header;
+    MMMovieSceneGroup group = {NULL, 0};
+    MMMovieSceneEvent event;
+    CHECK(reader.header(reader.context, 36, &header) == MM_MOVIE_OK && header.number == 36 &&
+          header.first_frame == 1 && header.last_frame == 10);
+    CHECK(reader.header(reader.context, 17, &header) == MM_MOVIE_SCENE_NOT_FOUND && header.number == 36);
+    CHECK(reader.group(reader.context, 36, 1, &group) == MM_MOVIE_OK && group.count == 1);
+    reader.event(reader.context, &group, 0, &event);
+    CHECK(event.kind == MM_SCENE_SET_BACKGROUND && event.big_endian == big && event.bytes == 16 &&
+          mm_movie_scene_event_word(&event, 0) == background_source && mm_movie_scene_event_word(&event, 12) == 4);
+    reader.close(reader.context, &group);
+    CHECK(!group.handle && !group.count);
+    CHECK(reader.group(reader.context, 36, 0, &group) == MM_MOVIE_OK && group.count == 3);
+    reader.event(reader.context, &group, 0, &event);
+    CHECK(event.frame == 5 && event.kind == MM_SCENE_CHANGE_CAMERA && !mm_movie_scene_event_word(&event, 0));
+    reader.event(reader.context, &group, 1, &event);
+    CHECK(event.frame == 5 && event.kind == MM_SCENE_CHANGE_CAMERA && mm_movie_scene_event_word(&event, 0) == 1);
+    reader.close(reader.context, &group);
+}
+
 static void movie_camera(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
@@ -914,6 +937,9 @@ static void movie_camera(void)
     MMMovieCamera camera;
     MMMovieEvaluatedFrame *frame = NULL, *prior;
     MMMovieSessionGraph graph;
+    MMMovieSceneSource source = {0};
+    MMMovieSceneReader reader;
+    MMMovieSceneGroup group = {NULL, 123};
     MMMovieChunkView view;
     MMChunkIndex *index;
     MMU32 size;
@@ -923,6 +949,8 @@ static void movie_camera(void)
         size = camera_fixture(bytes, big, big ? MM_CODEC_KCDC : MM_CODEC_KCD2, 0, 0);
         CHECK(mm_memory_stream_init(&input, bytes, size));
         CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+        source.movie = movie;
+        check_scene_reader(&source, big, 0);
         CHECK(mm_movie_session_camera(movie, 0, 5, NULL, NULL, &camera) == MM_MOVIE_OK);
         CHECK(camera.background.source == 0 && camera.slot == 1 && camera.number == 80 && camera.data.near_z == 456);
         CHECK(camera.images.present == (MM_BACKGROUND_HAS_COLOUR | MM_BACKGROUND_HAS_DEPTH));
@@ -971,7 +999,12 @@ static void movie_camera(void)
     graph.payload = graph_payload;
     graph.name = NULL;
     graph_camera(&graph);
+    source.movie = NULL;
+    source.graph = graph;
+    check_scene_reader(&source, 0, 2);
     CHECK(mm_movie_session_open_graph(&graph, NULL, NULL, &movie) == MM_MOVIE_OK);
+    source.movie = movie;
+    check_scene_reader(&source, 0, 2);
     CHECK(mm_movie_session_seek_graph(movie, 0, 7, graph_camera_source, &graph, &frame) == MM_MOVIE_OK &&
           frame->camera.background.source == 2 && frame->camera.number == 80);
     CHECK(frame->camera.images.present == (MM_BACKGROUND_HAS_COLOUR | MM_BACKGROUND_HAS_DEPTH));
@@ -987,6 +1020,9 @@ static void movie_camera(void)
     size = camera_fixture(bytes, 0, 0, 0, 1);
     CHECK(mm_memory_stream_init(&input, bytes, size));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    source.movie = movie;
+    reader = mm_movie_scene_reader(&source);
+    CHECK(reader.group(reader.context, 36, 0, &group) == MM_MOVIE_BAD_FILE && !group.handle && group.count == 123);
     CHECK(mm_movie_session_camera(movie, 0, 7, NULL, NULL, &camera) == MM_MOVIE_BAD_FILE && camera.number == 80);
     CHECK(mm_movie_session_seek(movie, 0, 7, NULL, NULL, &frame) == MM_MOVIE_BAD_FILE && !frame);
     mm_movie_session_close(movie);

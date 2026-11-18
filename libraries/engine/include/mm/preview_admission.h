@@ -1,6 +1,7 @@
 /* Preview admission, dependency budgets, pose validation and geometry counts. */
 #ifndef MM_ENGINE_PREVIEW_ADMISSION_H
 #define MM_ENGINE_PREVIEW_ADMISSION_H
+#include "movie_session.h"
 #include "preview_live.h"
 #include "actor_motion.h"
 #ifdef __cplusplus
@@ -45,12 +46,6 @@ extern "C"
         int kind, cache, prop, ready, mark_chunk;
         void *tmpl, *body, *model;
     } MMPreviewAdmission;
-    typedef struct MMPreviewAdmissionGroup
-    {
-        void *handle;
-        MMU32 count;
-        int other_order;
-    } MMPreviewAdmissionGroup;
     typedef struct MMPreviewAdmissionTag
     {
         MMI32 source;
@@ -81,13 +76,8 @@ extern "C"
         void (*locate)(void *, void *, const MMActorMatrix *);
         int (*model_fetch)(void *, MMU32, MMU32, void **);
         int (*background)(void *, const MMPreviewAdmissionTag *, int virtual_scene);
-        int (*scene_header)(void *, MMU32, MMI32 *first, MMI32 *last);
+        MMMovieSceneReader scene; /* Movie statuses, with negative host failures as below. */
         int (*actor_header)(void *, MMU32, MMI32 *first, MMI32 *last);
-        int (*group_read)(void *, MMU32, int start, MMPreviewAdmissionGroup *);
-        void (*group_release)(void *, MMPreviewAdmissionGroup *);
-        void (*event)(void *, const MMPreviewAdmissionGroup *, MMU32, MMI32 *kind, MMI32 *frame);
-        MMU32 (*event_word)(void *, const MMPreviewAdmissionGroup *, MMU32);
-        void (*event_tag)(void *, const MMPreviewAdmissionGroup *, MMU32, MMPreviewAdmissionTag *);
         int (*actor_load)(void *, MMU32, void **);
         void (*actor_release)(void *, void *);
         void (*actor_range)(void *, void *, MMI32 *first, MMI32 *last);
