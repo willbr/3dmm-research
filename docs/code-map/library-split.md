@@ -291,12 +291,25 @@ export pixels.
 | Caller / dependency | Boundary after the first slice |
 | --- | --- |
 | Studio `Movie::Play`, `Movie::FCmdRender` | Apply commands through the `MoviePlayEvaluator` / `MoviePlaybackEvaluator` C++ facades; policy state is the shared C record. |
-| Marcus `playback.cpp` | Uses `RetailScrollPlayback`, a facade over the C scrolling adapter and the same C playback evaluator. Marcus's other presentation/audio logic remains C++. |
+| Marcus `playback.cpp` and `player.cpp` | Poll the C89 controller for frame pacing, transitions, waits and scroll steps. Use the same frame and scene advance decision as Studio, with optional scene looping. |
 | `movie_playback.cpp`, `retail_scroll.cpp` | Translate calls/replies only; the replaced policy implementation lives in C. |
 | Host clocks, views, audio and scene effects | Execute commands and supply facts at the existing query points; retain device and resource ownership. |
 | `engine-core`, `engine`, Archive/Preview, Kauai/BRender wrappers | Still require C++ outside the converted slice; these remain migration work. |
 
 The C interface has caller-owned stack records and explicit initialization.
+The Marcus polling controller advances at most one authored frame per poll.
+It excludes paused time and time spent in a transition, caption scroll or
+authored wait from ordinary frame pacing. Explicit rate settings use the shared
+millisecond pacer. The host supplies the frame's sound cues and wait, measures
+caption overflow, reports pending audio and releases the outgoing image when
+the transition completes.
+
+The C-only checks cover start and resume, transition completion, scrolling
+before sound waits, click and timed waits, and capped and uncapped advancement.
+Across the actor, dissolve and scrolling-text fixtures, SDL Studio and Marcus
+committed 480 frames in retail's frame sequence. The Studio seek actor records
+also matched V3DMM. Evidence is in `tmp/c89-polled-playback`.
+
 Evaluators borrow live playback state, so scene effects can change waits
 between command replies. Apply and acknowledge commands in order, then stop
 at `FINISHED`. Protocol misuse returns failure. Timestamps use checked-width

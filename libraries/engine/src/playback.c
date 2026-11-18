@@ -1,6 +1,8 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "mm/playback.h"
+#include "mm/graphics_transition.h"
+#include <math.h>
 #include <string.h>
 
 typedef enum PlaybackPhase
@@ -71,6 +73,16 @@ void mm_playback_reply_init(MMPlaybackReply *reply)
     memset(reply, 0, sizeof(*reply));
     reply->success = 1;
     reply->position.transition = -1;
+}
+MMPlaybackCommandKind mm_playback_after_frame(const MMPlaybackPosition *position, int loop_scene)
+{
+    if (position->frame < position->lastFrame)
+        return MM_PLAYBACK_ADVANCE_FRAME;
+    if (loop_scene)
+        return MM_PLAYBACK_REPLAY_SCENE;
+    if (position->scene < position->sceneCount - 1)
+        return MM_PLAYBACK_SWITCH_SCENE;
+    return MM_PLAYBACK_FINISHED;
 }
 void mm_playback_init(MMPlaybackEvaluator *evaluator, MMPlaybackState *state,
                             MMPlaybackU32 frameStart)
@@ -335,21 +347,20 @@ int mm_playback_complete(MMPlaybackEvaluator *evaluator, const MMPlaybackReply *
         break;
     case PB_READ_POSITION:
         evaluator->position = reply->position;
-        if (evaluator->position.frame == evaluator->position.lastFrame)
+        switch (mm_playback_after_frame(&evaluator->position, 0))
         {
-            if (evaluator->position.scene == evaluator->position.sceneCount - 1)
-            {
-                evaluator->state->stopRequested = 1;
-                evaluator->phase = PB_DONE;
-            }
-            else
-            {
-                evaluator->state->transition = evaluator->position.transition;
-                evaluator->phase = PB_SWITCH_SCENE;
-            }
-        }
-        else
+        case MM_PLAYBACK_ADVANCE_FRAME:
             evaluator->phase = PB_ADVANCE_FRAME;
+            break;
+        case MM_PLAYBACK_SWITCH_SCENE:
+            evaluator->state->transition = evaluator->position.transition;
+            evaluator->phase = PB_SWITCH_SCENE;
+            break;
+        default:
+            evaluator->state->stopRequested = 1;
+            evaluator->phase = PB_DONE;
+            break;
+        }
         break;
     case PB_SWITCH_SCENE:
         evaluator->phase = reply->success ? PB_REPLAY_SCENE : PB_DONE;
@@ -537,6 +548,160 @@ void mm_frame_pacer_resume(MMFramePacer *pacer, MMPlaybackU32 now)
 {
     if (pacer->pending)
         pacer->due += now - pacer->pausedAt;
+}
+
+void mm_polled_playback_set_rate(MMPolledPlayback *state, double fps)
+{
+    state->frame_ms = state->pacing_ms = state->carry_ms = 0;
+    mm_frame_pacer_reset(&state->pacer, fps);
+}
+void mm_polled_playback_reset(MMPolledPlayback *state, double fps, int continuing)
+{
+    memset(state, 0, sizeof(*state));
+    mm_polled_playback_set_rate(state, fps);
+    state->restore_music = 1;
+    state->was_playing = continuing;
+}
+void mm_polled_playback_begin_transition(MMPolledPlayback *state, int authored_kind)
+{
+    state->transition = authored_kind;
+    state->transition_ms = 0;
+    state->was_playing = 1;
+}
+double mm_polled_playback_frame_seconds(const MMPolledPlayback *state)
+{
+    if (state->transition)
+        return (state->transition_ms - mm_graphics_movie_transition(state->transition).duration_ms) / 1000;
+    return state->frame_seconds;
+}
+
+static int polled_frame_due(MMPolledPlayback *state, double elapsed)
+{
+    const double clock_period = 4294967296.0;
+    const double legacy_interval = 1000.0 * MM_PLAYBACK_FRAME_TICKS / MM_PLAYBACK_TICKS_PER_SECOND;
+    double start, late;
+    MMPlaybackU32 now;
+
+    if (state->pacer.fps < 0)
+    {
+        state->frame_ms += elapsed;
+        if (state->frame_ms < legacy_interval)
+            return 0;
+        /* Carry ordinary host jitter while capping the effect of a stall. */
+        state->frame_ms -= legacy_interval;
+        if (state->frame_ms > legacy_interval / 2)
+            state->frame_ms = legacy_interval / 2;
+        return 1;
+    }
+    /* Keep fractions while wrapping before conversion to the pacer's timestamp. */
+    state->pacing_ms += elapsed < clock_period ? elapsed : fmod(elapsed, clock_period);
+    if (state->pacing_ms >= clock_period)
+        state->pacing_ms -= clock_period;
+    now = (MMPlaybackU32)state->pacing_ms;
+    if (!state->pacer.pending)
+    {
+        start = state->pacing_ms - state->carry_ms;
+        if (start < 0)
+            start += clock_period;
+        mm_frame_pacer_schedule(&state->pacer, (MMPlaybackU32)start);
+        state->carry_ms = 0;
+        return 0;
+    }
+    if (!mm_frame_pacer_take_due(&state->pacer, now))
+        return 0;
+    /* Retain small refresh jitter so each deadline need not round up a tick. */
+    late = (MMPlaybackU32)(now - state->pacer.due);
+    if (state->pacer.fps > 0 && late < 1000.0 / state->pacer.fps)
+        state->carry_ms = late;
+    return 1;
+}
+
+int mm_polled_playback_update(MMPolledPlayback *state, int playing, double elapsed, int click,
+                              const MMPolledPlaybackServices *services, MMPolledPlaybackUpdate *update)
+{
+    MMPolledFrameWait wait = {MM_PLAYBACK_WAIT_NONE, 0};
+    MMScrollUpdate scroll;
+    int was_scrolling, needs_scroll, pending;
+
+    update->advance = update->scroll_step = 0;
+    if (!playing)
+    {
+        state->was_playing = 0;
+        return 1;
+    }
+    if (!state->was_playing)
+        elapsed = 0;
+    state->was_playing = 1;
+    if (state->transition)
+    {
+        state->transition_ms += elapsed;
+        if (state->transition_ms < mm_graphics_movie_transition(state->transition).duration_ms)
+            return 1;
+        state->transition = 0;
+        services->transition_ended(services->context);
+        elapsed = 0;
+    }
+    if (!state->entered)
+    {
+        mm_scroll_reset(&state->scroll);
+        state->frame_seconds = 0;
+        if (!services->enter_frame(services->context, state->restore_music, state->pacer.fps, &wait))
+            return 0;
+        state->entered = 1;
+        state->restore_music = 0;
+        state->wait = wait.kind;
+        state->wait_ms = wait.milliseconds;
+        elapsed = 0;
+    }
+    was_scrolling = state->scroll.holding;
+    if (was_scrolling || state->wait != MM_PLAYBACK_WAIT_CLICK)
+        state->frame_seconds += elapsed / 1000;
+    if (!services->measure_scroll(services->context, &needs_scroll))
+        return 0;
+    scroll = mm_scroll_update(&state->scroll, elapsed, needs_scroll);
+    update->scroll_step = scroll.step;
+    if (scroll.holding)
+    {
+        state->carry_ms = 0;
+        return 1;
+    }
+    if (was_scrolling)
+        elapsed = 0;
+    switch (state->wait)
+    {
+    case MM_PLAYBACK_WAIT_CLICK:
+        state->carry_ms = 0;
+        if (!click)
+            return 1;
+        break;
+    case MM_PLAYBACK_WAIT_SOUND:
+        state->carry_ms = 0;
+        if (!services->sound_pending(services->context, &pending))
+            return 0;
+        if (pending)
+            return 1;
+        break;
+    case MM_PLAYBACK_WAIT_TIME:
+        state->carry_ms = 0;
+        state->wait_ms -= elapsed;
+        if (state->wait_ms > 0)
+            return 1;
+        break;
+    default:
+        break;
+    }
+    if (state->wait >= MM_PLAYBACK_WAIT_CLICK && state->wait <= MM_PLAYBACK_WAIT_TIME)
+    {
+        /* The interval begins when the wait clears. */
+        state->wait = MM_PLAYBACK_WAIT_NONE;
+        elapsed = 0;
+    }
+    if (polled_frame_due(state, elapsed))
+    {
+        state->entered = 0;
+        update->advance = 1;
+    }
+    return 1;
 }
 int mm_playback_should_render(MMPlaybackState *state, int tracking)
 {

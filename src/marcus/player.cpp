@@ -2707,7 +2707,11 @@ extern "C"
             {
                 state->changed = 1;
                 const auto info = player->preview.Info();
-                if (info.currentFrame < info.lastFrame)
+                const MMPlaybackPosition position{player->selected, static_cast<MMI32>(player->scenes.size()),
+                                                  info.currentFrame, info.lastFrame, player->playback.Transition()};
+                switch (mm_playback_after_frame(&position, loop))
+                {
+                case MM_PLAYBACK_ADVANCE_FRAME:
                 {
                     if (!player->preview.SetFrame(info.currentFrame + 1, error))
                         return false;
@@ -2715,9 +2719,9 @@ extern "C"
                     bool ignored = false;
                     if (!player->playback.Update(player->preview, true, 0, false, ignored, error))
                         return false;
+                    break;
                 }
-                else if (loop)
-                {
+                case MM_PLAYBACK_REPLAY_SCENE:
                     // Rewind in place: reset audio/captions and actor poses,
                     // retaining selection, cached event tracks and work framing.
                     if (!marcus_seek(player, info.firstFrame))
@@ -2725,10 +2729,9 @@ extern "C"
                         error.message = player->error;
                         return false;
                     }
-                }
-                else if (player->selected + 1 < static_cast<int>(player->scenes.size()))
+                    break;
+                case MM_PLAYBACK_SWITCH_SCENE:
                 {
-                    const auto transition = player->playback.Transition();
                     // The last image from the movie camera is the outgoing surface.
                     auto previous = player->movieImageScene == player->selected
                                         ? std::move(player->movieImage) : MM::PreviewImage{};
@@ -2741,15 +2744,16 @@ extern "C"
                         error.message = player->error;
                         return false;
                     }
-                    player->playback.BeginTransition(transition, std::move(previous),
+                    player->playback.BeginTransition(position.transition, std::move(previous),
                                                      hasPalette ? outgoingPalette : nullptr, player->preview);
                     state->scene_changed = 1;
+                    break;
                 }
-                else
-                {
+                default:
                     player->playback.Stop();
                     player->finished = true;
                     state->playing = 0;
+                    break;
                 }
             }
             state->wait = player->playback.Wait();

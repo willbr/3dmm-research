@@ -1,5 +1,5 @@
 #include "playback.h"
-#include "retail_scroll.h"
+#include "mm/playback.h"
 #include "caption_quad.h"
 #include "sdl_audio.h"
 #include "midi_synth.h"
@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstring>
 #include <deque>
+#include <exception>
 #include <fstream>
 #include <map>
 #include <mutex>
@@ -481,32 +482,22 @@ struct MarcusPlayback::Impl
     std::map<std::tuple<std::string, int, int, std::u16string>, CaptionRaster> captionRasters;
     std::size_t rasterBytes = 0;
     Audio audio;
-    RetailScrollPlayback scrollPlayback;
-    bool entered = false, wasPlaying = false, scrolling = false, restoreMusic = true;
+    MMPolledPlayback clock = {};
     bool auditioning = false;
-    int wait = 0, transition = 0;
-    double frameTime = 0, waitTime = 0, transitionTime = 0, frameSeconds = 0;
     MMU32 transitionSeed = 0;
-    MMFramePacer pacer = {};
-    double fps = -1, pacingTime = 0, frameCarry = 0;
     struct TransitionSnapshot
     {
         PreviewImage image;
         std::vector<unsigned short> indices;
         unsigned char outgoingPalette[1024] = {}, incomingPalette[1024] = {}, targetPalette[1024] = {};
     } previous;
+    bool EnterFrame(Preview &preview, MMI32 frame, int restoreMusic, double fps, MMPolledFrameWait &wait,
+                    Error &error);
+    bool MeasureScroll(MMI32 frame, int &needsScroll, Error &error);
+    void ScrollStep(MMI32 frame);
     void ResetTiming()
     {
-        entered = false;
-        restoreMusic = true;
-        scrolling = false;
-        scrollPlayback.Reset();
-        wait = 0;
-        frameTime = waitTime = transitionTime = 0;
-        pacingTime = frameCarry = 0;
-        mm_frame_pacer_reset(&pacer, fps);
-        frameSeconds = 0;
-        transition = 0;
+        mm_polled_playback_reset(&clock, clock.pacer.fps, clock.was_playing);
         previous = {};
         for (auto &caption : captions)
             caption.scroll = 0;
@@ -851,6 +842,7 @@ struct MarcusPlayback::Impl
 };
 MarcusPlayback::MarcusPlayback() : impl(new Impl)
 {
+    mm_polled_playback_reset(&impl->clock, -1, 0);
 }
 MarcusPlayback::~MarcusPlayback() = default;
 void MarcusPlayback::SetFonts(std::shared_ptr<KauaiFonts::FontCatalog> fonts)
@@ -879,7 +871,7 @@ bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusS
                 return false;
             const int overflow = std::max(0, caption.height - (data.bottom - data.top - 10));
             timing.scrolling[data.firstFrame] =
-                std::max(timing.scrolling[data.firstFrame], RetailScrollPlayback::NominalSeconds(overflow));
+                std::max(timing.scrolling[data.firstFrame], mm_scroll_nominal_seconds(overflow));
             calculator.captionBytes -= caption.maskBytes;
         }
     return true;
@@ -891,7 +883,7 @@ bool MarcusPlayback::RestoreAudio(Preview &preview, const std::vector<MarcusResu
         if (!impl->audio.Play(preview, sound.cue,
                              static_cast<std::uint64_t>(std::floor(sound.seconds * 48000 + .5)), error))
             return false;
-    impl->restoreMusic = false;
+    impl->clock.restore_music = 0;
     return true;
 }
 bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserveAudio)
@@ -900,7 +892,7 @@ bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserv
     {
         impl->audio.SceneBoundary();
         impl->ResetTiming();
-        impl->wasPlaying = true;
+        impl->clock.was_playing = 1;
     }
     else
         Stop();
@@ -926,7 +918,7 @@ void MarcusPlayback::Stop()
     impl->auditioning = false;
     impl->audio.Suspend(true);
     Seek();
-    impl->wasPlaying = false;
+    impl->clock.was_playing = 0;
 }
 bool MarcusPlayback::Audition(Preview &preview, PreviewSoundCue cue, Error &error)
 {
@@ -964,9 +956,7 @@ bool MarcusPlayback::MixActive() const
 }
 void MarcusPlayback::SetRate(double fps)
 {
-    impl->fps = fps;
-    impl->frameTime = impl->pacingTime = impl->frameCarry = 0;
-    mm_frame_pacer_reset(&impl->pacer, fps);
+    mm_polled_playback_set_rate(&impl->clock, fps);
 }
 void MarcusPlayback::Seek(MM::Preview *preview)
 {
@@ -976,11 +966,11 @@ void MarcusPlayback::Seek(MM::Preview *preview)
 }
 int MarcusPlayback::Wait() const
 {
-    return impl->wait;
+    return impl->clock.wait;
 }
 bool MarcusPlayback::Scrolling() const
 {
-    return impl->scrolling;
+    return impl->clock.scroll.holding != 0;
 }
 int MarcusPlayback::Transition() const
 {
@@ -988,7 +978,7 @@ int MarcusPlayback::Transition() const
 }
 bool MarcusPlayback::Transitioning() const
 {
-    return impl->transition != 0;
+    return impl->clock.transition != 0;
 }
 bool MarcusPlayback::PaletteAnimating() const
 {
@@ -996,8 +986,7 @@ bool MarcusPlayback::PaletteAnimating() const
 }
 double MarcusPlayback::FrameSeconds() const
 {
-    return impl->transition ? (impl->transitionTime - mm_graphics_movie_transition(impl->transition).duration_ms) / 1000
-                            : impl->frameSeconds;
+    return mm_polled_playback_frame_seconds(&impl->clock);
 }
 void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous,
                                      const unsigned char *outgoingPalette, const MM::Preview &incoming)
@@ -1025,180 +1014,119 @@ void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous,
                                          snapshot.indices.empty() ? nullptr : snapshot.indices.data()))
             snapshot.indices.clear();
     }
-    impl->transition = kind;
-    impl->wasPlaying = true;
-    impl->transitionTime = 0;
+    mm_polled_playback_begin_transition(&impl->clock, kind);
     impl->transitionSeed = static_cast<MMU32>(SDL_GetTicks());
     impl->previous = std::move(snapshot);
+}
+bool MarcusPlayback::Impl::EnterFrame(Preview &preview, MMI32 frame, int restoreMusic, double fps,
+                                      MMPolledFrameWait &wait, Error &error)
+{
+    // Restore scene music on a seek; speech and effects fire at their authored frame.
+    const PreviewSoundCue *music = nullptr;
+    if (restoreMusic)
+        for (const auto &cue : scene.sounds)
+            if (cue.style == 4 && cue.frame < frame && (!music || cue.frame >= music->frame))
+                music = &cue;
+    if (music)
+    {
+        const auto musicFrame = music->frame;
+        const auto offset = static_cast<std::uint64_t>(std::max(0.0, (double(frame) - musicFrame) *
+                                                               (fps > 0 ? 48000 / fps : 8000)));
+        for (const auto &cue : scene.sounds)
+            if (cue.style == 4 && cue.frame == musicFrame && !audio.Play(preview, cue, cue.queue ? 0 : offset, error))
+                return false;
+    }
+    for (const auto &cue : scene.sounds)
+        if (cue.frame == frame && !audio.Play(preview, cue, 0, error))
+            return false;
+    const auto sounds = preview.FrameSounds();
+    // Explicit actor sounds take precedence over motion-match sounds in
+    // the same actor/style lane, following the native dispatch policy.
+    for (const auto &cue : sounds)
+    {
+        if (cue.motion && std::any_of(sounds.begin(), sounds.end(), [&](const PreviewSoundCue &other) {
+                return !other.motion && other.actor == cue.actor && other.style == cue.style;
+            }))
+            continue;
+        if (!audio.Play(preview, cue, 0, error))
+            return false;
+    }
+    for (const auto &pause : scene.pauses)
+        if (pause.frame == frame)
+            wait = {pause.kind, static_cast<double>(pause.milliseconds)};
+    return true;
+}
+bool MarcusPlayback::Impl::MeasureScroll(MMI32 frame, int &needsScroll, Error &error)
+{
+    needsScroll = 0;
+    for (auto &caption : captions)
+        if (mm_text_box_scroll_frame(caption.data.story, caption.data.firstFrame, frame))
+        {
+            if (!Layout(caption, error))
+                return false;
+            const auto overflow = std::max(0, caption.height - (caption.data.bottom - caption.data.top - 10));
+            needsScroll = needsScroll || caption.scroll < overflow;
+        }
+    return true;
+}
+void MarcusPlayback::Impl::ScrollStep(MMI32 frame)
+{
+    for (auto &caption : captions)
+        if (mm_text_box_scroll_frame(caption.data.story, caption.data.firstFrame, frame))
+        {
+            const auto overflow = std::max(0, caption.height - (caption.data.bottom - caption.data.top - 10));
+            if (caption.scroll < overflow)
+                ++caption.scroll;
+        }
 }
 bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, bool click, bool &advance,
                             MM::Error &error)
 {
-    impl->ObserveCaptions(preview.Info().currentFrame);
+    const auto frame = preview.Info().currentFrame;
+    impl->ObserveCaptions(frame);
     advance = false;
     if (playing && impl->auditioning) { impl->audio.Clear(); impl->auditioning = false; }
     impl->audio.Collect();
     if (impl->auditioning && !impl->audio.Pending()) impl->auditioning = false;
     impl->audio.Suspend(!playing && !impl->auditioning);
-    if (!playing)
+
+    struct Services
     {
-        impl->wasPlaying = false;
-        return true;
-    }
-    // The first update after Play starts this frame; time spent paused belongs
-    // to neither the authored wait nor the frame clock.
-    if (!impl->wasPlaying)
-        elapsed = 0;
-    impl->wasPlaying = true;
-    if (impl->transition)
+        Impl &host;
+        Preview &preview;
+        Error &error;
+        MMI32 frame;
+        std::exception_ptr failure;
+    } context{*impl, preview, error, frame, {}};
+    const MMPolledPlaybackServices services{
+        &context,
+        [](void *data, int restoreMusic, double fps, MMPolledFrameWait *wait) -> int {
+            auto &ctx = *static_cast<Services *>(data);
+            try { return ctx.host.EnterFrame(ctx.preview, ctx.frame, restoreMusic, fps, *wait, ctx.error); }
+            catch (...) { ctx.failure = std::current_exception(); return 0; }
+        },
+        [](void *data, int *needsScroll) -> int {
+            auto &ctx = *static_cast<Services *>(data);
+            try { return ctx.host.MeasureScroll(ctx.frame, *needsScroll, ctx.error); }
+            catch (...) { ctx.failure = std::current_exception(); return 0; }
+        },
+        [](void *data, int *pending) -> int {
+            auto &ctx = *static_cast<Services *>(data);
+            try { *pending = ctx.host.audio.Pending(); return 1; }
+            catch (...) { ctx.failure = std::current_exception(); return 0; }
+        },
+        [](void *data) { static_cast<Services *>(data)->host.previous = {}; }
+    };
+    MMPolledPlaybackUpdate update;
+    if (!mm_polled_playback_update(&impl->clock, playing, elapsed, click, &services, &update))
     {
-        impl->transitionTime += elapsed;
-        if (impl->transitionTime < mm_graphics_movie_transition(impl->transition).duration_ms)
-            return true;
-        impl->transition = 0;
-        impl->previous = {};
-        elapsed = 0;
+        if (context.failure)
+            std::rethrow_exception(context.failure);
+        return false;
     }
-    const auto frame = preview.Info().currentFrame;
-    if (!impl->entered)
-    {
-        impl->scrollPlayback.Reset();
-        impl->frameSeconds = 0;
-        // Restore scene music on a seek; speech and effects only fire at their
-        // authored frame, so scrubbing never produces a burst of old sounds.
-        const PreviewSoundCue *music = nullptr;
-        for (const auto &cue : impl->scene.sounds)
-            if (cue.style == 4 && cue.frame < frame && (!music || cue.frame >= music->frame))
-                music = &cue;
-        if (music && impl->restoreMusic)
-        {
-            const auto musicFrame = music->frame;
-            for (const auto &cue : impl->scene.sounds)
-                if (cue.style == 4 && cue.frame == musicFrame &&
-                    !impl->audio.Play(preview, cue,
-                                      cue.queue
-                                          ? 0
-                                          : static_cast<std::uint64_t>(std::max(0.0, (double(frame) - musicFrame) *
-                                                (impl->fps > 0 ? 48000 / impl->fps : 8000))),
-                                      error))
-                    return false;
-        }
-        for (const auto &cue : impl->scene.sounds)
-            if (cue.frame == frame && !impl->audio.Play(preview, cue, 0, error))
-                return false;
-        const auto sounds = preview.FrameSounds();
-        // Explicit actor sounds take precedence over motion-match sounds in
-        // the same actor/style lane, following the native dispatch policy.
-        for (const auto &cue : sounds)
-        {
-            if (cue.motion && std::any_of(sounds.begin(), sounds.end(), [&](const PreviewSoundCue &other) {
-                    return !other.motion && other.actor == cue.actor && other.style == cue.style;
-                }))
-                continue;
-            if (!impl->audio.Play(preview, cue, 0, error))
-                return false;
-        }
-        impl->wait = 0;
-        for (const auto &pause : impl->scene.pauses)
-            if (pause.frame == frame)
-            {
-                impl->wait = pause.kind;
-                impl->waitTime = pause.milliseconds;
-            }
-        impl->entered = true;
-        impl->restoreMusic = false;
-        elapsed = 0;
-    }
-    if (impl->scrolling || impl->wait != 1)
-        impl->frameSeconds += elapsed / 1000;
-    const bool wasScrolling = impl->scrolling;
-    bool needsScroll = false;
-    for (auto &caption : impl->captions)
-        if (mm_text_box_scroll_frame(caption.data.story, caption.data.firstFrame, frame))
-        {
-            if (!impl->Layout(caption, error))
-                return false;
-            const auto overflow = std::max(0, caption.height - (caption.data.bottom - caption.data.top - 10));
-            needsScroll = needsScroll || caption.scroll < overflow;
-        }
-    const auto scrollUpdate = impl->scrollPlayback.Update(elapsed, needsScroll);
-    if (scrollUpdate.step)
-        for (auto &caption : impl->captions)
-            if (mm_text_box_scroll_frame(caption.data.story, caption.data.firstFrame, frame))
-            {
-                const auto overflow = std::max(0, caption.height - (caption.data.bottom - caption.data.top - 10));
-                if (caption.scroll < overflow)
-                    ++caption.scroll;
-            }
-    impl->scrolling = scrollUpdate.holding;
-    if (impl->scrolling)
-    {
-        impl->frameCarry = 0;
-        return true;
-    }
-    if (wasScrolling)
-        elapsed = 0;
-    if (impl->wait == 1)
-    {
-        impl->frameCarry = 0;
-        if (!click)
-            return true;
-        impl->wait = 0;
-        elapsed = 0;
-    }
-    else if (impl->wait == 2)
-    {
-        impl->frameCarry = 0;
-        if (impl->audio.Pending())
-            return true;
-        impl->wait = 0;
-        elapsed = 0;
-    }
-    else if (impl->wait == 3)
-    {
-        impl->frameCarry = 0;
-        impl->waitTime -= elapsed;
-        if (impl->waitTime > 0)
-            return true;
-        impl->wait = 0;
-        elapsed = 0;
-    }
-    if (impl->fps >= 0)
-    {
-        // Count only ordinary frame time: pause/resume and authored holds keep
-        // the remaining interval. Shared millisecond pacing carries fractions,
-        // retains bounded display jitter and never skips authored frames.
-        impl->pacingTime += elapsed;
-        const auto now = static_cast<MMPlaybackU32>(static_cast<std::uint64_t>(impl->pacingTime));
-        if (!impl->pacer.pending)
-        {
-            const auto start = static_cast<MMPlaybackU32>(
-                static_cast<std::uint64_t>(std::max(0.0, impl->pacingTime - impl->frameCarry)));
-            mm_frame_pacer_schedule(&impl->pacer, start);
-            impl->frameCarry = 0;
-            return true; // Also makes Uncapped advance once per host update.
-        }
-        if (mm_frame_pacer_take_due(&impl->pacer, now))
-        {
-            // A 60 Hz display should still reach 24 FPS rather than rounding
-            // every interval up to three refreshes. Discard lateness of a full
-            // frame or more so a stall cannot build up catch-up debt.
-            const double late = static_cast<MMPlaybackU32>(now - impl->pacer.due);
-            impl->frameCarry = impl->fps > 0 && late < 1000.0 / impl->fps ? late : 0;
-            advance = true;
-            impl->entered = false;
-        }
-        return true;
-    }
-    impl->frameTime += elapsed;
-    if (impl->frameTime >= 1000.0 / 6)
-    {
-        advance = true;
-        impl->entered = false;
-        // Carry ordinary host jitter into the next frame without skipping
-        // authored frames after an expensive decode or a stalled window.
-        impl->frameTime = std::min(impl->frameTime - 1000.0 / 6, 1000.0 / 12);
-    }
+    if (update.scroll_step)
+        impl->ScrollStep(frame);
+    advance = update.advance != 0;
     return true;
 }
 bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image,
@@ -1307,13 +1235,13 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
 
 void MarcusPlayback::CompositeTransition(MM::PreviewImage &image) const
 {
-    if (!impl->transition)
+    if (!impl->clock.transition)
         return;
     auto &snapshot = impl->previous;
     const auto outgoing = TransitionSurface(snapshot.image);
     const auto incoming = TransitionSurface(image);
     const MMGraphicsMovieDissolvePalette palette{snapshot.outgoingPalette, snapshot.incomingPalette, snapshot.targetPalette,
         snapshot.indices.data(), image.paletteIndices.empty() ? nullptr : image.paletteIndices.data()};
-    mm_graphics_movie_transition_rgba(impl->transition, impl->transitionTime, impl->transitionSeed,
+    mm_graphics_movie_transition_rgba(impl->clock.transition, impl->clock.transition_ms, impl->transitionSeed,
                                       &outgoing, &incoming, PaletteAnimating() ? &palette : nullptr);
 }

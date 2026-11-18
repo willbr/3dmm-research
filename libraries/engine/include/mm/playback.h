@@ -153,6 +153,8 @@ extern "C"
     void mm_playback_reply_init(MMPlaybackReply *reply);
     int mm_playback_should_render(MMPlaybackState *state, int tracking);
     MMPlaybackI32 mm_playback_frame_delay(MMPlaybackU32 frameStart, MMPlaybackU32 now);
+    /* Requires a valid cursor. The polling host can loop the current scene. */
+    MMPlaybackCommandKind mm_playback_after_frame(const MMPlaybackPosition *, int loop_scene);
     void mm_playback_init(MMPlaybackEvaluator *evaluator, MMPlaybackState *state,
                                 MMPlaybackU32 frameStart);
     int mm_playback_next(MMPlaybackEvaluator *evaluator, MMPlaybackCommand *command);
@@ -175,6 +177,43 @@ extern "C"
     void mm_scroll_reset(MMScrollPlayback *scroll);
     MMScrollUpdate mm_scroll_update(MMScrollPlayback *scroll, double milliseconds, int needsScroll);
     double mm_scroll_nominal_seconds(int pixels);
+
+    typedef struct MMPolledPlayback
+    {
+        MMFramePacer pacer;
+        MMScrollPlayback scroll;
+        double frame_ms, wait_ms, transition_ms, frame_seconds, pacing_ms, carry_ms;
+        int entered, was_playing, restore_music, wait, transition;
+    } MMPolledPlayback;
+    typedef struct MMPolledFrameWait
+    {
+        int kind;
+        double milliseconds;
+    } MMPolledFrameWait;
+    typedef struct MMPolledPlaybackServices
+    {
+        void *context;
+        int (*enter_frame)(void *, int restore_music, double fps, MMPolledFrameWait *);
+        int (*measure_scroll)(void *, int *needs_scroll);
+        int (*sound_pending)(void *, int *pending);
+        void (*transition_ended)(void *);
+    } MMPolledPlaybackServices;
+    typedef struct MMPolledPlaybackUpdate
+    {
+        int advance, scroll_step;
+    } MMPolledPlaybackUpdate;
+
+    /* Reset after a seek/scene boundary; changing rate resets ordinary pacing only.
+     * Begin a transition with an authored kind that has nonzero duration.
+     * Hosts may clear restore_music after restoring audio themselves. Update
+     * takes finite nonnegative milliseconds. Services are synchronous and must
+     * report failure without unwinding through C. At most one frame advances. */
+    void mm_polled_playback_reset(MMPolledPlayback *, double fps, int continuing);
+    void mm_polled_playback_set_rate(MMPolledPlayback *, double fps);
+    void mm_polled_playback_begin_transition(MMPolledPlayback *, int authored_kind);
+    double mm_polled_playback_frame_seconds(const MMPolledPlayback *);
+    int mm_polled_playback_update(MMPolledPlayback *, int playing, double elapsed, int click,
+                                  const MMPolledPlaybackServices *, MMPolledPlaybackUpdate *);
 
 #ifdef __cplusplus
 }

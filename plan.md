@@ -801,6 +801,11 @@ retail's temporary colour changes even though its endpoint images are identical.
 For transitions between different background palettes, Marcus also uses the
 shared C89 palette interpolation. It keeps the renderer's incoming indices
 and the remapped outgoing indices until the reveal is complete.
+The C89 playback controller now handles Marcus's frame pacing, pause and
+resume, transitions, caption scrolling and authored waits. Studio and Marcus
+share the decision to advance, switch scenes or finish. Marcus also uses that
+decision to honor its loop setting. The Marcus host supplies audio playback,
+caption layout and transition images.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.
