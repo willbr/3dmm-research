@@ -1,5 +1,5 @@
 // Licensed under the MIT License.
-#include "studio_vxp_store.h"
+#include "studio_vmm_content.h"
 #include "studio_pack_runtime.h"
 #include "studio_settings.h"
 #include "sdl_dialog.h"
@@ -193,41 +193,10 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
             document->bundled = true;
             // A VMM records its own applied set. Installed/default packages
             // from another movie must not silently reappear in this document.
-            document->selection.clear();
             auto bundle = V::ReadBundle(Path(original));
-            for (const auto &dependency : bundle.dependencies)
-                if (!dependency.archive.length && !LibraryAvailable(dependency.name))
-                    throw std::runtime_error("This VMM needs an external expansion that is not installed or enabled: " +
-                                             dependency.name + ". Use Options > Expansions.");
-            for (const auto &dependency : bundle.dependencies)
-            {
-                if (!dependency.archive.length)
-                {
-                    document->libraries.push_back(dependency.name);
-                    continue;
-                }
-                auto installed =
-                    std::find_if(store->Entries().begin(), store->Entries().end(), [&](const Installation &entry) {
-                        return V::Fold(entry.name) == V::Fold(dependency.name);
-                    });
-                Installation package;
-                if (installed != store->Entries().end())
-                {
-                    package = store->Resolve(installed->hash);
-                }
-                else
-                {
-                    auto metadata = V::ReadPackage(dependency.archive);
-                    if (V::Fold(metadata.name) != V::Fold(dependency.name))
-                        throw std::runtime_error("Embedded VXP name does not match its VMM dependency");
-                    package = store->Install(dependency.archive);
-                }
-                auto found = std::find_if(
-                    document->selection.begin(), document->selection.end(),
-                    [&](const Installation &entry) { return V::Fold(entry.name) == V::Fold(package.name); });
-                if (found == document->selection.end())
-                    document->selection.push_back(std::move(package));
-            }
+            auto resolved = ResolveMoviePackages(bundle, LibraryAvailable, [] { return store.get(); });
+            document->selection = std::move(resolved.portable);
+            document->libraries.insert(document->libraries.end(), resolved.libraries.begin(), resolved.libraries.end());
             auto work = store->Root() / "work";
             fs::create_directories(work);
             document->working = work / ("movie-" + std::to_string(std::random_device{}()) + ".3mm");

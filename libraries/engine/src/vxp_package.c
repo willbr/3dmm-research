@@ -45,7 +45,7 @@ void mm_vxp_fold_ascii(char *text, size_t length)
     for (i = 0; i < length; ++i) text[i] = (char)ascii_lower((unsigned char)text[i]);
 }
 
-static int compare_folded(const char *a, const char *b)
+int mm_vxp_compare_names(const char *a, const char *b)
 {
     int difference;
     while (*a && *b)
@@ -60,9 +60,9 @@ static MMVxpMemberKind member_kind(const char *name)
 {
     const char *extension = strrchr(name, '.');
     if (!extension) return MM_VXP_OTHER;
-    if (!compare_folded(extension, ".cfg")) return MM_VXP_CONFIG;
-    if (!compare_folded(extension, ".3cn")) return MM_VXP_CONTENT;
-    if (!compare_folded(extension, ".3th")) return MM_VXP_THUMBNAILS;
+    if (!mm_vxp_compare_names(extension, ".cfg")) return MM_VXP_CONFIG;
+    if (!mm_vxp_compare_names(extension, ".3cn")) return MM_VXP_CONTENT;
+    if (!mm_vxp_compare_names(extension, ".3th")) return MM_VXP_THUMBNAILS;
     return MM_VXP_OTHER;
 }
 
@@ -150,7 +150,7 @@ static int folded_order(const void *a, const void *b)
 {
     const MMVxpMember *left = *(MMVxpMember *const *)a;
     const MMVxpMember *right = *(MMVxpMember *const *)b;
-    int order = compare_folded(left->name, right->name);
+    int order = mm_vxp_compare_names(left->name, right->name);
     if (order) return order;
     return (left->index > right->index) - (left->index < right->index);
 }
@@ -230,7 +230,7 @@ static MMVxpResult select_members(MMVxpPackage *package, MMU32 *failed)
     for (i = 0; i < count; ++i) ordered[i] = package->members + i;
     qsort(ordered, count, sizeof(*ordered), folded_order);
     for (i = 1; i < count; ++i)
-        if (ordered[i]->index < conflict && !compare_folded(ordered[i - 1]->name, ordered[i]->name) &&
+        if (ordered[i]->index < conflict && !mm_vxp_compare_names(ordered[i - 1]->name, ordered[i]->name) &&
             strcmp(ordered[i - 1]->name, ordered[i]->name))
             conflict = ordered[i]->index;
     if (conflict < count)
@@ -333,7 +333,7 @@ static const char *find_field(const MMVxpPackage *package, const char *key)
 static int valid_override(const MMVxpPackage *package, const char *key, const char *expected)
 {
     const char *value = find_field(package, key);
-    return !value || !compare_folded(value, expected);
+    return !value || !mm_vxp_compare_names(value, expected);
 }
 
 static int matching_root(const char *name, const char *root, size_t length)
@@ -376,7 +376,7 @@ static MMVxpResult read_configuration(const MMVxpReader *reader, MMVxpPackage *p
     if (!package->name || !*package->name || strlen(package->name) > 65535 || !package->author || !*package->author)
         return MM_VXP_CONFIG_IDENTITY;
     type = find_field(package, "type");
-    if (!type || compare_folded(type, "portable")) return MM_VXP_CONFIG_TYPE;
+    if (!type || mm_vxp_compare_names(type, "portable")) return MM_VXP_CONFIG_TYPE;
     if (!valid_override(package, "mount point", "v3dmm")) return MM_VXP_MOUNT_POINT;
     if (!valid_override(package, "regid", "6")) return MM_VXP_REGID;
     if (!valid_override(package, "regname", "virtual3dmm/v3dmm")) return MM_VXP_REGNAME;

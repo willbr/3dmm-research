@@ -20,7 +20,7 @@ target_link_libraries(mm-movie-content PUBLIC mm-engine-c89 mm-vfs)
 set_target_properties(mm-movie-content PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_sources(mm-engine-c89 PRIVATE src/settings.c src/settings_paths.c)
 target_sources(mm-engine-c89 PRIVATE src/runtime_math.c)
-target_sources(mm-engine-c89 PRIVATE src/vmm_wire.c src/vxp_package.c)
+target_sources(mm-engine-c89 PRIVATE src/vmm_wire.c src/vxp_package.c src/vmm_dependencies.c)
 if(WIN32)
   set(native_runtime_source src/native_runtime_win.c)
 else()
@@ -503,6 +503,11 @@ add_executable(engine-vxp-package-test EXCLUDE_FROM_ALL "${engine_vxp_package_te
 target_link_libraries(engine-vxp-package-test PRIVATE mm-engine-c89)
 set_target_properties(engine-vxp-package-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-vxp-package COMMAND engine-vxp-package-test)
+get_filename_component(engine_vmm_dependencies_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_vmm_dependencies_test.c" ABSOLUTE)
+add_executable(engine-vmm-dependencies-test EXCLUDE_FROM_ALL "${engine_vmm_dependencies_test_source}")
+target_link_libraries(engine-vmm-dependencies-test PRIVATE mm-engine-c89)
+set_target_properties(engine-vmm-dependencies-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-vmm-dependencies COMMAND engine-vmm-dependencies-test)
 get_filename_component(engine_movie_compose_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_movie_compose_test.c" ABSOLUTE)
 add_executable(engine-movie-compose-test EXCLUDE_FROM_ALL "${engine_movie_compose_test_source}")
 target_link_libraries(engine-movie-compose-test PRIVATE mm-engine-c89)
@@ -1184,6 +1189,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/playback.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/vmm_wire.c" "${engine_vmm_wire_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/vxp_package.c" "${engine_vxp_package_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/vmm_dependencies.c" "${engine_vmm_dependencies_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/reference.c" "${engine_reference_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/handle_memory.c" "${engine_handle_memory_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/linked_list.c" "${engine_linked_list_test_source}"

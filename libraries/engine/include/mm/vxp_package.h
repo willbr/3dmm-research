@@ -93,6 +93,7 @@ const char *mm_vxp_error(MMVxpResult);
 /* Returns a materialized extension for the two chunky content kinds. */
 const char *mm_vxp_content_extension(MMVxpMemberKind);
 void mm_vxp_fold_ascii(char *text, size_t length);
+int mm_vxp_compare_names(const char *, const char *);
 
 #ifdef __cplusplus
 }

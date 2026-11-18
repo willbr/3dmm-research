@@ -930,6 +930,10 @@ and asset/sound garbage-collection control now also use C89. Studio and Marcus
 share the C89 VMM v1 reader and writer for dependency names, embedded archive
 ranges and the inner movie. The same C89 package reader validates VXP directory
 rows, extraction budgets, PhysicsFS duplicate selection and Portable CFG data.
+Both hosts resolve VMM dependencies through one C89 controller. It handles
+external library checks, catalog reuse, embedded name validation and ordered
+package selection. The writable catalog and private materialization policies
+preserve each host's existing handling of repeated declarations.
 ZIP decompression, physical file and path I/O, the installed catalog and package
 publication remain host services. Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound

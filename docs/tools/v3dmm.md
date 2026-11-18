@@ -147,6 +147,14 @@ Marcus uses that mount policy with read-only Studio preference snapshots and
 session-private materialization, without taking over Studio's package manager.
 `content-vfs` and `content-vfs-c89` validate the core and its C89 boundary.
 
+`mm/vmm_dependencies.h` supplies the shared C89 resolver. It checks external
+libraries, looks up installed display names, validates embedded names on
+fallback and produces the ordered per-movie package selection. Studio checks
+all external libraries before importing and keeps the first resolved entry
+for each display name. Marcus also checks CFG shortnames for repeated embedded
+declarations and materializes uncached packages privately. Catalog access,
+installation and mount publication are host callbacks and adapters.
+
 ## Validation
 
 The package-store build uses the pinned, public-domain SQLite 3.50.4 amalgamation
@@ -186,6 +194,16 @@ same six VMM files byte for byte. The Studio and Marcus seek fixtures matched
 228 states and 180 viewport hashes from the previous builds. Their 456 Studio
 actor records matched the retained retail and v3dmm captures. Evidence is in
 `tmp/c89-vxp-package`.
+
+`engine-vmm-dependencies` checks the resolver with a C-only provider,
+including catalog updates during resolution, repeated shortnames and a missing
+external library after an embedded declaration. It passed AddressSanitizer
+on Windows x86 and x64. Studio's save and reopen workflow reproduced all six
+VMM files byte for byte. Original v3dmm reopened a new Studio save and matched
+the 60 compared frame states and both sound requests. Image and PCM differences
+remain in that comparison. The playback seek fixtures also retained all 228
+Studio and Marcus states and 180 viewport hashes from the previous builds.
+Evidence is in `tmp/c89-vmm-dependencies`.
 
 Duplicate selection has frozen regression cases in `v3dmm-test`. For a direct
 comparison, build the x86 `physfs-zip-probe` target in `tools/retail_oracle`, then

@@ -2,13 +2,12 @@
 #include "movie_input.h"
 #include "studio_packs.h"
 #include "studio_settings.h"
-#include "studio_vxp_store.h"
+#include "studio_vmm_content.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <random>
-#include <map>
 #include <stdexcept>
 
 namespace fs = std::filesystem;
@@ -79,31 +78,9 @@ struct MarcusContent::Impl
         }
         files.Replace("v3dmm", candidate.Entries("v3dmm"));
     }
-    StudioV3dmm::Installation Package(const V::Dependency &dependency, std::size_t index, bool repeatedName)
+    StudioV3dmm::Installation Materialize(const V::Dependency &dependency, std::size_t index,
+                                          const V::Package &metadata)
     {
-        Catalog();
-        // A display name can describe multiple distinct shortnames in a VMM.
-        // Name-only installed lookup must not replace every occurrence with
-        // the first package. Disambiguate repeated names using their CFG roots.
-        V::Package metadata;
-        if (repeatedName)
-        {
-            metadata = V::ReadPackage(dependency.archive);
-            if (V::Fold(metadata.name) != V::Fold(dependency.name))
-                throw std::runtime_error("Embedded VXP name does not match its VMM dependency");
-        }
-        if (packages)
-            for (const auto &entry : packages->Entries())
-                if (V::Fold(entry.name) == V::Fold(dependency.name))
-                {
-                    if (!repeatedName ||
-                        V::Fold(entry.shortName) == V::Fold(metadata.shortName))
-                        return packages->Resolve(entry.hash);
-                }
-        if (!repeatedName)
-            metadata = V::ReadPackage(dependency.archive);
-        if (V::Fold(metadata.name) != V::Fold(dependency.name))
-            throw std::runtime_error("Embedded VXP name does not match its VMM dependency");
         auto directory = Working() / ("package-" + std::to_string(index));
         if (!fs::create_directory(directory))
             throw std::runtime_error("Portable package staging path already exists");
@@ -177,24 +154,13 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
     }
     auto bundle = V::ReadBundle(movie);
     impl->dependencies = bundle.dependencies;
-    std::vector<StudioV3dmm::Installation> selection;
-    std::map<std::string, std::size_t> names;
-    for (const auto &dependency : bundle.dependencies)
-        if (dependency.archive.length)
-            ++names[V::Fold(dependency.name)];
-    for (std::size_t i = 0; i < bundle.dependencies.size(); ++i)
-    {
-        const auto &dependency = bundle.dependencies[i];
-        if (!dependency.archive.length)
-        {
-            const auto key = C::SourceKey(dependency.name);
-            if (!files.Mounted(key))
-                throw std::runtime_error("This VMM requires an unavailable or disabled library: " + dependency.name);
-        }
-        else
-            selection.push_back(impl->Package(dependency, i, names[V::Fold(dependency.name)] > 1));
-    }
-    impl->Activate(files, selection);
+    const auto resolved = StudioV3dmm::ResolveMoviePackages(bundle,
+        [&](const std::string &name) { return files.Mounted(C::SourceKey(name)); },
+        [&] { impl->Catalog(); return impl->packages.get(); },
+        [&](const V::Dependency &dependency, std::size_t index, const V::Package &metadata) {
+            return impl->Materialize(dependency, index, metadata);
+        });
+    impl->Activate(files, resolved.portable);
     movie = impl->Working() / "movie.3mm";
     impl->ownedFiles.push_back(movie);
     V::Copy(bundle.movie, movie);
