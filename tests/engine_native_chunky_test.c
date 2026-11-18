@@ -14,7 +14,7 @@ typedef struct SeekInput
     void *file;
 } SeekInput;
 
-enum { NO_BODY, BODY_PARTS, BODY_MESHES };
+enum { NO_BODY, BODY_PARTS, BODY_MESHES, FRAME_BODIES };
 
 static int number(const char *text, MMI32 *out)
 {
@@ -246,27 +246,59 @@ static int print_meshes(const MMMovieSession *movie, const MMMovieEvaluatedBody 
     return status;
 }
 
+static void print_body(const MMMovieEvaluatedBody *body)
+{
+    const MMMovieBodyPart *part;
+    MMU32 i;
+    unsigned j;
+    print_actor(&body->actor);
+    printf("BODY %lu\n", (unsigned long)body->part_count);
+    for (i = 0; i < body->part_count; ++i)
+    {
+        part = &body->parts[i];
+        printf("PART %ld %ld %ld %08lx %lu", (long)part->parent, (long)part->set, (long)part->model.source,
+               (unsigned long)part->model.type, (unsigned long)part->model.number);
+        for (j = 0; j < 12; ++j)
+            printf(" %ld", (long)part->matrix.m[j / 3][j % 3]);
+        putchar('\n');
+    }
+}
+
+static int check_frame_bodies(const MMMovieSession *movie, SeekInput *input, MMMovieContent *content)
+{
+    MMMovieEvaluatedFrame *frame;
+    MMU32 i;
+    int status = mm_movie_session_seek_with_bodies(movie, input->scene, input->frame,
+                                                  mm_movie_content_source, content, &frame);
+    if (status != MM_MOVIE_OK)
+    {
+        fprintf(stderr, "Cannot seek to movie frame with bodies (%d)\n", status);
+        return 0;
+    }
+    print_camera(&frame->camera);
+    for (i = 0; i < frame->actor_count; ++i)
+    {
+        print_body(frame->bodies[i]);
+        status = print_meshes(movie, frame->bodies[i], content);
+        if (status != MM_MOVIE_OK)
+        {
+            fprintf(stderr, "Cannot load body meshes for actor %lu (%d)\n", (unsigned long)i, status);
+            break;
+        }
+    }
+    mm_movie_frame_dispose(frame);
+    return status == MM_MOVIE_OK;
+}
+
 static int check_bodies(const MMMovieSession *movie, SeekInput *input, MMMovieContent *content, int bodies)
 {
     MMMovieEvaluatedBody *body;
-    const MMMovieBodyPart *part;
-    MMU32 ordinal = 0, i;
-    unsigned j;
+    MMU32 ordinal = 0;
     int status;
     while ((status = mm_movie_session_body(movie, input->scene, input->frame, ordinal,
                                            mm_movie_content_source, content, &body)) == MM_MOVIE_OK)
     {
-        print_actor(&body->actor);
-        printf("BODY %lu\n", (unsigned long)body->part_count);
-        for (i = 0; i < body->part_count; ++i)
-        {
-            part = &body->parts[i];
-            printf("PART %ld %ld %ld %08lx %lu", (long)part->parent, (long)part->set, (long)part->model.source,
-                   (unsigned long)part->model.type, (unsigned long)part->model.number);
-            for (j = 0; j < 12; ++j)
-                printf(" %ld", (long)part->matrix.m[j / 3][j % 3]);
-            putchar('\n');
-        }
+        print_body(body);
         if (bodies == BODY_MESHES)
             status = print_meshes(movie, body, content);
         mm_movie_body_dispose(body);
@@ -357,7 +389,9 @@ static int check_seek(const MMReadStream *stream, const MMChunkPolicy *policy, S
         vfs = mm_vfs_create(NULL);
         if (vfs && mount_retail(vfs, input->path))
             content = mm_movie_content_open(movie, vfs, &provider);
-        if (content)
+        if (content && bodies == FRAME_BODIES)
+            ok = check_frame_bodies(movie, input, content);
+        else if (content)
             ok = bodies != NO_BODY ? check_bodies(movie, input, content, bodies) : check_frame(movie, input, content);
         else
             fprintf(stderr, "Cannot mount retail content from %s\n", input->path);
@@ -426,13 +460,15 @@ int main(int argc, char **argv)
         bodies = BODY_PARTS;
     if (argc >= 3 && strcmp(argv[2], "--mesh") == 0)
         bodies = BODY_MESHES;
+    if (argc >= 3 && strcmp(argv[2], "--frame-bodies") == 0)
+        bodies = FRAME_BODIES;
     auto_content = bodies != NO_BODY || (argc >= 3 && strcmp(argv[2], "--seek") == 0);
     seek = actors || auto_content || (argc >= 3 && strcmp(argv[2], "--camera") == 0);
     if (seek ? !seek_input(&input, argc, argv, auto_content) : argc != 3 || (!movie && strlen(argv[2]) != 4))
     {
         fputs("Usage: engine-native-chunky-test FILE TYPE|--movie|(--camera|--actors) SCENE FRAME [SID CONTENT]\n",
               stderr);
-        fputs("       engine-native-chunky-test FILE (--seek|--body|--mesh) SCENE FRAME RETAIL_CONTENT_DIRECTORY\n",
+        fputs("       engine-native-chunky-test FILE (--seek|--body|--mesh|--frame-bodies) SCENE FRAME RETAIL_CONTENT_DIRECTORY\n",
               stderr);
         return 1;
     }

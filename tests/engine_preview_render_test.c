@@ -37,6 +37,7 @@ typedef struct Host
 {
     int fail, allocations, fail_allocation, live_memory, pixels, world, lights, sink, restores, edges, copies, owners;
     int background, with_body, with_model;
+    int pose_refs, pose_retains, pose_releases;
     MMU32 width, height;
     Node nodes[32], source[4];
     unsigned nodes_used;
@@ -197,6 +198,7 @@ static void describe(void *v, MMPreviewData *d)
     if (h->with_model)
     {
         d->model = h->source + 1;
+        d->model_resource = d->model;
         for (i = 0; i < 3; ++i)
         {
             d->model_low[i] = -1;
@@ -221,6 +223,7 @@ static int body(void *v, MMU32 index, MMPreviewBody *out)
     unsigned i;
     CHECK(index < (MMU32)h->with_body);
     out->tree = h->with_body == 1 ? h->source : h->source + 1 + index;
+    out->resource = out->tree;
     out->owner = 3 + index;
     out->order_high = index == 0 ? 1 : 0;
     out->order_low = 1;
@@ -230,6 +233,20 @@ static int body(void *v, MMU32 index, MMPreviewBody *out)
         out->high[i] = 1;
     }
     return 1;
+}
+static void retain_pose_resource(void *v, void *resource)
+{
+    Host *h = (Host *)v;
+    CHECK(resource);
+    ++h->pose_refs;
+    ++h->pose_retains;
+}
+static void release_pose_resource(void *v, void *resource)
+{
+    Host *h = (Host *)v;
+    CHECK(resource && h->pose_refs && !h->world);
+    --h->pose_refs;
+    ++h->pose_releases;
 }
 static int bounds(void *v, MMI32 id, float corners[24], int *valid)
 {
@@ -439,6 +456,7 @@ static void render(void *v, const MMRenderFrame *frame)
 {
     Host *h = (Host *)v;
     CHECK(frame->world && frame->camera && frame->colour == &h->colour_token && frame->depth == &h->depth_token);
+    CHECK(h->pose_refs == h->with_body + h->with_model);
     h->colours[0] = 42;
     h->depths[0] = 0;
 }
@@ -507,6 +525,8 @@ static MMPreviewRenderServices services(Host *h)
     s.mesh = mesh;
     s.body_count = bodies;
     s.body = body;
+    s.retain_pose_resource = retain_pose_resource;
+    s.release_pose_resource = release_pose_resource;
     s.object_bounds = bounds;
     s.frame_factory.colour = colour;
     s.frame_factory.depth = depth;
@@ -582,6 +602,7 @@ static void init(Host *h, MMPreviewView *v, MMPreviewOrbit *o)
 static void clean(const Host *h)
 {
     CHECK(!h->live_memory && !h->world && !h->pixels && !h->lights && !h->sink);
+    CHECK(!h->pose_refs && h->pose_retains == h->pose_releases);
     CHECK(h->material.flags == 7 && h->material.map == h);
 }
 static void depth_test(void)

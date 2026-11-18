@@ -62,6 +62,7 @@ struct Preview::Impl::RenderHost
             d->scene = i.info.scene;
             d->background = bool(i.background) && (!h.view || h.view->onlyObject < 0);
             d->model = i.model ? i.model->Pbmdl() : nullptr;
+            d->model_resource = static_cast<BASE *>(i.model);
             if (i.model)
                 for (unsigned a = 0; a < 3; ++a)
                 {
@@ -128,6 +129,7 @@ struct Preview::Impl::RenderHost
             if (!body)
                 return 0;
             out->tree = body->PbactRoot();
+            out->resource = static_cast<BASE *>(body);
             out->owner = static_cast<MMI32>(index) - 1;
             out->order_low = static_cast<MMU32>(order);
             out->order_high = static_cast<MMU32>(order >> 32);
@@ -143,6 +145,8 @@ struct Preview::Impl::RenderHost
             out->high[2] = BrScalarToFloat(b.zrMax);
             return 1;
         };
+        s.retain_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
+        s.release_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
         s.object_bounds = [](void *v, MMI32 object, float corners[24], int *valid) -> int {
             auto &h = *static_cast<RenderHost *>(v);
             try

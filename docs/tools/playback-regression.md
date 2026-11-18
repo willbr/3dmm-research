@@ -13237,6 +13237,35 @@ The actor-events case included replay in the same process.
 
 Evidence is under `tmp/c89-render-frame/` on the evidence drive.
 
+### C89 evaluated frame and preview resource lifetime
+
+The standalone `--frame-bodies` probe resolves the selected camera and
+every actor's effective body in one seek. All 300 snapshots of the stock
+and SID-29 fixtures matched the previous camera and mesh queries, including
+the resolved materials and world matrices. A directory containing the
+required background but missing actor content returned an error before
+printing a frame.
+
+Marcus rendering and picking now hold references to live bodies and any
+standalone model until their temporary world is released. The headless C
+fixtures check those references during rendering and picking and balance
+them on failure. All 181 standalone and 21 selected host checks passed,
+including the C89 syntax gates and Vulkan raster parity. Three targeted
+AddressSanitizer checks passed with the Visual Studio runtime environment
+loaded. The three changed C engine units also compiled under strict C89
+for Linux x64 musl. Studio and Marcus rebuilt and Marcus was relaunched.
+
+The stock and SID-29 actor-events and scrolling-text cases matched all
+456 prior host seek records and 360 viewport hashes. The 301,996,032-byte
+background trace matched across all 188 cameras. Playback of actor-events,
+dissolve and scrolling-text matched retail's frame order and final position
+over 240 frame commits per host, including same-process actor-events replay.
+The stock SDL Studio seeks and retained v3dmm seeks each matched 456 retail
+actor records. The session's owned bindings are available to the standalone
+probe. The hosts still use the live scene evaluation path.
+
+Evidence is under `tmp/c89-owned-frame/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

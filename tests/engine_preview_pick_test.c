@@ -16,6 +16,7 @@ typedef struct Host
     Node source[3], nodes[16];
     int used, world_live, live, attempts, fail_at, failure, ready, background, with_mesh;
     int scene_calls, copied[3], copies, face_calls, current, transparent;
+    int pose_refs, pose_retains, pose_releases;
     MMU32 width, height;
     MMI32 x, y;
     MMPreviewCamera camera;
@@ -119,9 +120,24 @@ static int body(void *v, MMU32 index, MMPreviewBody *b)
     Host *h = (Host *)v;
     memset(b, 0, sizeof(*b));
     b->tree = h->source + index;
+    b->resource = b->tree;
     b->owner = (MMI32)index;
     b->order_low = index ? 10 : 20;
     return 1;
+}
+static void retain_pose_resource(void *v, void *resource)
+{
+    Host *h = (Host *)v;
+    assert(resource);
+    ++h->pose_refs;
+    ++h->pose_retains;
+}
+static void release_pose_resource(void *v, void *resource)
+{
+    Host *h = (Host *)v;
+    assert(resource && h->pose_refs && !h->world_live);
+    --h->pose_refs;
+    ++h->pose_releases;
 }
 static void *world(void *v)
 {
@@ -180,6 +196,7 @@ static int scene_pick(void *v, void *w, void *c, MMU32 width, MMU32 height, MMI3
     Host *h = (Host *)v;
     Node *n = ((Node *)w)->first;
     (void)c;
+    assert(h->pose_refs == 3);
     ++h->scene_calls;
     h->width = width;
     h->height = height;
@@ -270,6 +287,8 @@ static void init(Host *h, MMPreviewRenderServices *r, MMPreviewPickServices *s, 
     r->describe = describe;
     r->body_count = body_count;
     r->body = body;
+    r->retain_pose_resource = retain_pose_resource;
+    r->release_pose_resource = release_pose_resource;
     r->frame_factory.world = world;
     r->frame_factory.free_world = free_world;
     r->camera = camera;
@@ -303,6 +322,7 @@ static int run(Host *h, MMPreviewProjection *p, MMPreviewPickServices *s, int au
 {
     int result = mm_preview_pick(p, authored, output, w, height, x, y, object, distance, s);
     assert(!h->live && !h->world_live);
+    assert(!h->pose_refs && h->pose_retains == h->pose_releases);
     return result;
 }
 int main(void)

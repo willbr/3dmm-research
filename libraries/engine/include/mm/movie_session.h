@@ -118,15 +118,6 @@ typedef struct MMMovieFrameServices
  * same seek. finish is optional. */
 int mm_movie_seek_frame(MMI32 frame, const MMMovieFrameServices *);
 
-typedef struct MMMovieEvaluatedFrame
-{
-    MMMovieSessionScene scene;
-    MMI32 frame;
-    MMMovieCamera camera;
-    MMU32 actor_count;
-    MMMovieEvaluatedActor *actors;
-} MMMovieEvaluatedFrame;
-
 typedef struct MMMovieBodyPart
 {
     MMI32 parent, set;
@@ -144,6 +135,16 @@ typedef struct MMMovieEvaluatedBody
     MMU32 part_count;
     MMMovieBodyPart *parts;
 } MMMovieEvaluatedBody;
+
+typedef struct MMMovieEvaluatedFrame
+{
+    MMMovieSessionScene scene;
+    MMI32 frame;
+    MMMovieCamera camera;
+    MMU32 actor_count;
+    MMMovieEvaluatedActor *actors;
+    MMMovieEvaluatedBody **bodies; /* Optional, in the same order as actors. */
+} MMMovieEvaluatedFrame;
 
 /* Resolve a positive source and specific asset to the appropriate content
  * archive. On MM_MOVIE_OK, the stream's context stays valid through the query.
@@ -214,6 +215,12 @@ int mm_movie_session_camera(const MMMovieSession *, MMU32 scene_slot, MMI32 fram
  * A missing/invalid camera or actor, or any other failure, leaves out unchanged. */
 int mm_movie_session_seek(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
                           MMMovieSourceRead, void *context, MMMovieEvaluatedFrame **out);
+/* Evaluate the camera, actors and their effective body bindings in one seek.
+ * Off-stage actors have empty bodies. The frame owns every body and its part
+ * data, and remains readable after the session and source archives close.
+ * Failure leaves out unchanged. */
+int mm_movie_session_seek_with_bodies(const MMMovieSession *, MMU32 scene_slot, MMI32 frame,
+                                      MMMovieSourceRead, void *context, MMMovieEvaluatedFrame **out);
 void mm_movie_frame_dispose(MMMovieEvaluatedFrame *);
 
 /* Actor ordinals follow the ADD_ACTOR rows in the scene's start group. Replay

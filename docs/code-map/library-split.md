@@ -134,11 +134,21 @@ probe prints appearance bindings, world matrices and geometry fingerprints.
 Studio and Marcus still use their existing archive owners, playback resource
 providers and renderers.
 
+`mm_movie_session_seek_with_bodies` evaluates the selected camera and
+each actor's effective body bindings in one traversal of the scene start
+group. Its result owns the actor records and ordered body and part arrays
+independently of the session and content files. The `--frame-bodies` probe
+prints camera, appearance and mesh data through that result. The lightweight
+seek continues to return camera and actor state.
+
 `MMRenderFrame` carries the world, camera and colour/depth targets at the
 renderer boundary. Marcus's C render controller allocates the targets and
 releases its world before the pixelmaps. Picking uses the same owner for
-its temporary world and attached camera. Studio passes a borrowed frame
-over the live world and the working targets owned by `MMWorldBuffers`.
+its temporary world and attached camera. Rendering and picking collect live
+camera and body descriptors through the same C code. The pose retains the
+source bodies and any standalone model until the temporary world is gone.
+Studio passes a borrowed frame over the live world and the working targets
+owned by `MMWorldBuffers`.
 The scaled export path uses the frame's world and camera with separate
 export pixels.
 

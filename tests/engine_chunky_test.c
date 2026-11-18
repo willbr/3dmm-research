@@ -822,12 +822,14 @@ static void movie_camera(void)
               camera.number == 90);
         CHECK(mm_movie_session_seek(movie, 0, 5, NULL, NULL, &frame) == MM_MOVIE_OK &&
               frame->frame == 5 && frame->scene.number == 36 && !frame->actor_count && !frame->actors &&
-              frame->camera.number == 80 && frame->camera.data.near_z == 456);
+              !frame->bodies && frame->camera.number == 80 && frame->camera.data.near_z == 456);
         prior = frame;
-        CHECK(mm_movie_session_seek(movie, 0, 0, NULL, NULL, &frame) == MM_MOVIE_FRAME_OUT_OF_RANGE && frame == prior);
-        CHECK(mm_movie_session_seek(movie, 0, 4, NULL, NULL, &frame) == MM_MOVIE_OK &&
-              frame->frame == 4 && frame->camera.number == 90 && prior->camera.number == 80);
+        CHECK(mm_movie_session_seek_with_bodies(movie, 0, 0, NULL, NULL, &frame) == MM_MOVIE_FRAME_OUT_OF_RANGE &&
+              frame == prior);
+        CHECK(mm_movie_session_seek_with_bodies(movie, 0, 4, NULL, NULL, &frame) == MM_MOVIE_OK &&
+              frame->frame == 4 && !frame->actor_count && !frame->actors && !frame->bodies);
         mm_movie_session_close(movie);
+        CHECK(frame->camera.number == 90 && prior->camera.number == 80);
         mm_movie_frame_dispose(prior);
         mm_movie_frame_dispose(frame);
         frame = NULL;

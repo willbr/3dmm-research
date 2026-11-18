@@ -1,4 +1,5 @@
 #include "mm/preview_pick.h"
+#include "preview_pose.h"
 #include <float.h>
 #include <math.h>
 #include <string.h>
@@ -11,8 +12,9 @@ typedef struct PickOwner
 struct MMPreviewPickState
 {
     const MMPreviewPickServices *s;
-    MMCollectionStorage owners, faces;
+    MMCollectionStorage owners, faces, scratch;
     MMArray entries;
+    MMPreviewPose pose;
     MMI32 candidate, object;
     float near_clip, closest, scale, origin;
     int failed;
@@ -107,7 +109,7 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     const MMPreviewPickServices *s = state->s;
     MMPreviewRenderServices r = *s->render;
     const MMPreviewMath *m = &r.math;
-    MMPreviewData d;
+    const MMPreviewData *d = &state->pose.scene;
     MMPreviewMesh mesh;
     MMPreviewCamera camera;
     MMI32 matrix[16], fw, fh, z;
@@ -117,9 +119,8 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     int bg, result;
     if (!r.ready(r.context))
         return MM_PREVIEW_PICK_INVALID;
-    memset(&d, 0, sizeof(d));
-    r.describe(r.context, &d);
-    if (!d.scene || !p->valid || width < 64 || height < 64 || width > 4096 || height > 4096 ||
+    mm_preview_pose_describe(&state->pose, &r);
+    if (!d->scene || !p->valid || width < 64 || height < 64 || width > 4096 || height > 4096 ||
         !finite_float(p->vertical_fov) || p->vertical_fov <= 0 || p->vertical_fov >= 179 || !finite_float(p->aspect) ||
         p->aspect <= 0 || !finite_float(p->near_clip) || !finite_float(p->far_clip) || p->near_clip <= 0 ||
         p->far_clip <= p->near_clip || p->far_clip > 32767)
@@ -129,22 +130,22 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
             return MM_PREVIEW_PICK_RANGE;
     if (x < 0 || y < 0 || x >= (MMI32)width || y >= (MMI32)height)
         return MM_PREVIEW_PICK_OK;
-    bg = authored && d.background;
-    rw = bg ? d.width : width;
-    rh = bg ? d.height : height;
+    bg = authored && d->background;
+    rw = bg ? d->width : width;
+    rh = bg ? d->height : height;
     if (bg && output_resolution)
     {
-        if (width * d.height <= height * d.width)
+        if (width * d->height <= height * d->width)
         {
             rw = width;
-            rh = d.height * width / d.width;
+            rh = d->height * width / d->width;
             if (!rh)
                 rh = 1;
         }
         else
         {
             rh = height;
-            rw = d.width * height / d.height;
+            rw = d->width * height / d->height;
             if (!rw)
                 rw = 1;
         }
@@ -193,9 +194,11 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     r.tree.next = tree_next;
     r.tree.model = tree_model;
     r.tree.clone_attach = tree_clone;
-    if (!mm_preview_copy_bodies(frame->world, &r) || (d.model && !r.add_model(r.context, frame->world, d.model)))
+    if (!mm_preview_pose_bodies(&state->pose, &r) ||
+        mm_preview_pose_copy(&state->pose, frame->world, &state->scratch, &r) != MM_PREVIEW_OK ||
+        (d->model && !r.add_model(r.context, frame->world, d->model)))
         return MM_PREVIEW_PICK_MODELS;
-    if (!bg && d.background)
+    if (!bg && d->background)
     {
         memset(&mesh, 0, sizeof(mesh));
         if (!r.mesh(r.context, &mesh) || !r.add_mesh(r.context, frame->world))
@@ -207,9 +210,9 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     state->origin = p->orthographic ? p->near_clip : 0;
     if (bg)
     {
-        sx = (MMU32)x * d.width / rw;
-        sy = (MMU32)y * d.height / rh;
-        z = d.depths[sy * d.width + sx];
+        sx = (MMU32)x * d->width / rw;
+        sy = (MMU32)y * d->height / rh;
+        z = d->depths[sy * d->width + sx];
         if (z != 0xffff)
         {
             if (z >= 32768)
@@ -242,11 +245,15 @@ int mm_preview_pick(const MMPreviewProjection *p, int authored, int output_resol
     state.object = -1;
     mm_storage_init(&state.owners, r->allocator.resize ? &r->allocator : 0);
     mm_storage_init(&state.faces, r->allocator.resize ? &r->allocator : 0);
+    mm_storage_init(&state.scratch, r->allocator.resize ? &r->allocator : 0);
+    mm_preview_pose_init(&state.pose, r);
     state.entries.storage = &state.owners;
     state.entries.width = sizeof(PickOwner);
     state.entries.free_count = -1;
     result = pick(p, authored, output_resolution, width, height, x, y, &state, &frame);
     mm_render_frame_dispose(&frame);
+    mm_preview_pose_dispose(&state.pose, r);
+    mm_storage_dispose(&state.scratch);
     mm_storage_dispose(&state.faces);
     mm_storage_dispose(&state.owners);
     if (result == MM_PREVIEW_PICK_OK && state.object >= 0)

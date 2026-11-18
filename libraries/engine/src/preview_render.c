@@ -1,5 +1,5 @@
 /* Preview frame control converted from archive/preview.cpp. */
-#include "mm/preview_render.h"
+#include "preview_pose.h"
 #include <float.h>
 #include <math.h>
 #include <string.h>
@@ -13,7 +13,8 @@ typedef struct PreviewFrame
 {
     const MMPreviewRenderServices *s;
     MMRenderFrame targets;
-    PreviewArray lights, light_data, materials, models, pending, bodies, vertices;
+    MMPreviewPose pose;
+    PreviewArray lights, light_data, materials, models, pending, vertices;
     int sink;
 } PreviewFrame;
 static void array_init(PreviewArray *a, MMU32 width, const MMStorageAllocator *allocator)
@@ -61,7 +62,7 @@ static void frame_init(PreviewFrame *f, const MMPreviewRenderServices *s)
     array_init(&f->materials, sizeof(MMPreviewMaterial), &s->allocator);
     array_init(&f->models, sizeof(void *), &s->allocator);
     array_init(&f->pending, sizeof(void *), &s->allocator);
-    array_init(&f->bodies, sizeof(MMPreviewBody), &s->allocator);
+    mm_preview_pose_init(&f->pose, s);
     array_init(&f->vertices, 3 * sizeof(double), &s->allocator);
 }
 static void frame_dispose(PreviewFrame *f)
@@ -78,7 +79,7 @@ static void frame_dispose(PreviewFrame *f)
         s->disable_light(s->context, lights[i]);
     mm_render_frame_dispose(&f->targets);
     mm_storage_dispose(&f->vertices.storage);
-    mm_storage_dispose(&f->bodies.storage);
+    mm_preview_pose_dispose(&f->pose, s);
     mm_storage_dispose(&f->pending.storage);
     mm_storage_dispose(&f->models.storage);
     mm_storage_dispose(&f->materials.storage);
@@ -230,16 +231,16 @@ static int body_before(const MMPreviewBody *a, const MMPreviewBody *b)
     return a->owner < 0 || (b->owner >= 0 && (a->order_high < b->order_high ||
                                               (a->order_high == b->order_high && a->order_low <= b->order_low)));
 }
-static int sort_bodies(PreviewFrame *f)
+static int sort_bodies(MMPreviewPose *pose, MMCollectionStorage *storage)
 {
-    MMPreviewBody *b = (MMPreviewBody *)data(&f->bodies), *scratch;
-    MMU32 n = f->bodies.array.count, width, start, middle, end, i, j, k;
+    MMPreviewBody *b = (MMPreviewBody *)pose->storage.buffers[0].data, *scratch;
+    MMU32 n = pose->bodies.count, width, start, middle, end, i, j, k;
     if (n < 2)
         return 1;
     /* The pending traversal buffer is unused until after bodies are copied. */
-    if (mm_storage_ensure(&f->pending.storage, n * sizeof(*b), 0, 0) != MM_STORAGE_OK)
+    if (mm_storage_ensure(storage, n * sizeof(*b), 0, 0) != MM_STORAGE_OK)
         return 0;
-    scratch = (MMPreviewBody *)data(&f->pending);
+    scratch = (MMPreviewBody *)storage->buffers[0].data;
     for (width = 1; width < n; width *= 2)
     {
         for (start = 0; start < n; start = end)
@@ -264,33 +265,81 @@ static int sort_bodies(PreviewFrame *f)
     }
     return 1;
 }
-static int copy_bodies(PreviewFrame *f, void *world)
+int mm_preview_pose_copy(MMPreviewPose *pose, void *world, MMCollectionStorage *scratch,
+                         const MMPreviewRenderServices *s)
 {
-    const MMPreviewRenderServices *s = f->s;
     MMPreviewBody *bodies;
     MMU32 i;
-    if (!sort_bodies(f))
+    if (!sort_bodies(pose, scratch))
         return MM_PREVIEW_MEMORY;
-    bodies = (MMPreviewBody *)data(&f->bodies);
-    for (i = 0; i < f->bodies.array.count; ++i)
+    bodies = (MMPreviewBody *)pose->storage.buffers[0].data;
+    for (i = 0; i < pose->bodies.count; ++i)
         if (!mm_preview_copy_tree(world, bodies[i].tree, bodies[i].owner,
                                   s->allocator.resize ? &s->allocator : 0, &s->tree))
             return MM_PREVIEW_MODELS;
     return MM_PREVIEW_OK;
 }
-int mm_preview_copy_bodies(void *world, const MMPreviewRenderServices *s)
+void mm_preview_pose_init(MMPreviewPose *pose, const MMPreviewRenderServices *s)
 {
-    PreviewFrame f;
+    memset(pose, 0, sizeof(*pose));
+    mm_storage_init(&pose->storage, s->allocator.resize ? &s->allocator : 0);
+    pose->bodies.storage = &pose->storage;
+    pose->bodies.width = sizeof(MMPreviewBody);
+    pose->bodies.free_count = -1;
+}
+
+void mm_preview_pose_describe(MMPreviewPose *pose, const MMPreviewRenderServices *s)
+{
+    s->describe(s->context, &pose->scene);
+    if (pose->scene.model_resource && s->retain_pose_resource && s->release_pose_resource)
+        s->retain_pose_resource(s->context, pose->scene.model_resource);
+}
+
+int mm_preview_pose_bodies(MMPreviewPose *pose, const MMPreviewRenderServices *s)
+{
     MMPreviewBody body;
     MMU32 i, n = s->body_count(s->context);
-    int ok = 1;
-    frame_init(&f, s);
-    for (i = 0; ok && i < n; ++i)
+    for (i = 0; i < n; ++i)
+    {
+        memset(&body, 0, sizeof(body));
         if (s->body(s->context, i, &body))
-            ok = add(&f.bodies, &body);
-    if (ok)
-        ok = copy_bodies(&f, world) == MM_PREVIEW_OK;
-    frame_dispose(&f);
+        {
+            if (mm_array_add(&pose->bodies, &body, NULL) != MM_STORAGE_OK)
+                return 0;
+            if (body.resource && s->retain_pose_resource && s->release_pose_resource)
+                s->retain_pose_resource(s->context, body.resource);
+        }
+    }
+    return 1;
+}
+
+void mm_preview_pose_dispose(MMPreviewPose *pose, const MMPreviewRenderServices *s)
+{
+    const MMPreviewBody *bodies = (const MMPreviewBody *)pose->storage.buffers[0].data;
+    MMU32 i;
+    if (s->retain_pose_resource && s->release_pose_resource)
+    {
+        for (i = 0; i < pose->bodies.count; ++i)
+            if (bodies[i].resource)
+                s->release_pose_resource(s->context, bodies[i].resource);
+        if (pose->scene.model_resource)
+            s->release_pose_resource(s->context, pose->scene.model_resource);
+    }
+    mm_storage_dispose(&pose->storage);
+    pose->bodies.count = 0;
+    pose->scene.model_resource = NULL;
+}
+
+int mm_preview_copy_bodies(void *world, const MMPreviewRenderServices *s)
+{
+    MMPreviewPose pose;
+    MMCollectionStorage scratch;
+    int ok;
+    mm_preview_pose_init(&pose, s);
+    mm_storage_init(&scratch, s->allocator.resize ? &s->allocator : 0);
+    ok = mm_preview_pose_bodies(&pose, s) && mm_preview_pose_copy(&pose, world, &scratch, s) == MM_PREVIEW_OK;
+    mm_storage_dispose(&scratch);
+    mm_preview_pose_dispose(&pose, s);
     return ok;
 }
 static void blit(const MMPreviewData *d, const MMPreviewBuffer *b, MMU32 width, MMU32 height,
@@ -385,12 +434,12 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
 {
     const MMPreviewRenderServices *s = f->s;
     const MMPreviewMath *m = &s->math;
-    MMPreviewData d;
+    const MMPreviewData *d = &f->pose.scene;
     MMPreviewMesh mesh;
     MMPreviewBuffer buffers;
     MMPreviewCamera camera;
     MMPreviewProjection scene_camera;
-    MMPreviewBody body;
+    const MMPreviewBody *bodies;
     MMBackgroundLight light;
     MMU32 width, height, i, j, n;
     int bg, has_mesh, diagnostic, infinite, first = 1, axis, corner, fits, object = -1, valid, axis_view;
@@ -400,31 +449,30 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         pitch_degrees, yaw, pitch, roll, sy, cy, sp, cp, sr, cr, basis[3][3], position, x, y, z, cosine, sine;
     void *actor;
     void **actors;
-    memset(&d, 0, sizeof(d));
     memset(&mesh, 0, sizeof(mesh));
     memset(&scene_camera, 0, sizeof(scene_camera));
-    s->describe(s->context, &d);
-    bg = v->authored && !v->free_camera && d.background;
-    has_mesh = !bg && d.background;
+    mm_preview_pose_describe(&f->pose, s);
+    bg = v->authored && !v->free_camera && d->background;
+    has_mesh = !bg && d->background;
     if (has_mesh && !s->mesh(s->context, &mesh))
         return MM_PREVIEW_HOST;
     diagnostic = v->display == 1 || v->display >= 4;
     infinite = !diagnostic && has_mesh && mesh.infinite;
-    width = bg ? d.width : v->width;
-    height = bg ? d.height : v->height;
+    width = bg ? d->width : v->width;
+    height = bg ? d->height : v->height;
     if (bg && v->output_resolution)
     {
-        if (v->width * d.height <= v->height * d.width)
+        if (v->width * d->height <= v->height * d->width)
         {
             width = v->width;
-            height = d.height * v->width / d.width;
+            height = d->height * v->width / d->width;
             if (!height)
                 height = 1;
         }
         else
         {
             height = v->height;
-            width = d.width * v->height / d.height;
+            width = d->width * v->height / d->height;
             if (!width)
                 width = 1;
         }
@@ -435,41 +483,40 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     s->fill(s->context, f->targets.depth, 0xffff);
     s->buffers(s->context, f->targets.colour, f->targets.depth, &buffers);
     if (bg)
-        blit(&d, &buffers, width, height, diagnostic);
-    n = s->body_count(s->context);
-    for (i = 0; i < n; ++i)
-        if (s->body(s->context, i, &body))
-        {
-            if (!add(&f->bodies, &body))
-                return MM_PREVIEW_MEMORY;
-            for (axis = 0; axis < 3; ++axis)
-            {
-                low[axis] = first ? body.low[axis] : minf(low[axis], body.low[axis]);
-                high[axis] = first ? body.high[axis] : maxf(high[axis], body.high[axis]);
-            }
-            first = 0;
-        }
-    if (d.model)
+        blit(d, &buffers, width, height, diagnostic);
+    if (!mm_preview_pose_bodies(&f->pose, s))
+        return MM_PREVIEW_MEMORY;
+    bodies = (const MMPreviewBody *)f->pose.storage.buffers[0].data;
+    for (i = 0; i < f->pose.bodies.count; ++i)
     {
-        memcpy(low, d.model_low, sizeof(low));
-        memcpy(high, d.model_high, sizeof(high));
+        for (axis = 0; axis < 3; ++axis)
+        {
+            low[axis] = first ? bodies[i].low[axis] : minf(low[axis], bodies[i].low[axis]);
+            high[axis] = first ? bodies[i].high[axis] : maxf(high[axis], bodies[i].high[axis]);
+        }
+        first = 0;
+    }
+    if (d->model)
+    {
+        memcpy(low, d->model_low, sizeof(low));
+        memcpy(high, d->model_high, sizeof(high));
     }
     if (has_mesh && !mesh.empty)
     {
         for (axis = 0; axis < 3; ++axis)
         {
-            low[axis] = first && !d.model ? mesh.low[axis] : minf(low[axis], mesh.low[axis]);
-            high[axis] = first && !d.model ? mesh.high[axis] : maxf(high[axis], mesh.high[axis]);
+            low[axis] = first && !d->model ? mesh.low[axis] : minf(low[axis], mesh.low[axis]);
+            high[axis] = first && !d->model ? mesh.high[axis] : maxf(high[axis], mesh.high[axis]);
         }
         first = 0;
     }
-    if (d.background)
+    if (d->background)
     {
-        projection(&scene_camera, &d.camera, m);
-        scene_camera.aspect = (float)d.width / d.height;
+        projection(&scene_camera, &d->camera, m);
+        scene_camera.aspect = (float)d->width / d->height;
         scene_camera.display_depth = 10.f;
     }
-    else if (d.scene && v->frame_camera)
+    else if (d->scene && v->frame_camera)
     {
         scene_camera.valid = 1;
         scene_camera.transform[0] = scene_camera.transform[4] = scene_camera.transform[8] = 1;
@@ -485,8 +532,8 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     {
         for (axis = 0; axis < 3; ++axis)
         {
-            guide_low[axis] = first && !d.model ? scene_camera.transform[9 + axis] : low[axis];
-            guide_high[axis] = first && !d.model ? scene_camera.transform[9 + axis] : high[axis];
+            guide_low[axis] = first && !d->model ? scene_camera.transform[9 + axis] : low[axis];
+            guide_high[axis] = first && !d->model ? scene_camera.transform[9 + axis] : high[axis];
         }
         half_height = m->tan(scene_camera.vertical_fov * .00872664626f) * scene_camera.display_depth;
         for (corner = 0; corner < 5; ++corner)
@@ -571,14 +618,14 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     if (!bg && !v->free_camera && distance + radius * 4 > 30000)
         return MM_PREVIEW_ASSET_RANGE;
     memset(&camera, 0, sizeof(camera));
-    camera.fov = bg ? d.camera.fov : m->angle(v->vertical_fov);
-    camera.near_z = bg ? d.camera.near_z : m->scalar(v->free_camera ? .1f : maxf(.01f, distance / 1000));
-    camera.far_z = bg ? d.camera.far_z : m->scalar(30000.f);
+    camera.fov = bg ? d->camera.fov : m->angle(v->vertical_fov);
+    camera.near_z = bg ? d->camera.near_z : m->scalar(v->free_camera ? .1f : maxf(.01f, distance / 1000));
+    camera.far_z = bg ? d->camera.far_z : m->scalar(30000.f);
     if (v->free_camera)
         camera.near_z = m->scalar(.1f);
     if (!bg && v->near_clip > 0)
         camera.near_z = m->scalar(v->near_clip);
-    camera.aspect = m->scalar(bg ? (float)d.width / d.height : aspect);
+    camera.aspect = m->scalar(bg ? (float)d->width / d->height : aspect);
     f->targets.camera = s->camera(s->context, f->targets.world, &camera);
     if (!f->targets.camera)
         return MM_PREVIEW_CAMERA;
@@ -615,7 +662,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
             camera.matrix[9 + axis] = m->scalar(position);
     }
     if (bg)
-        memcpy(camera.matrix, d.camera.matrix, sizeof(camera.matrix));
+        memcpy(camera.matrix, d->camera.matrix, sizeof(camera.matrix));
     if (!bg && v->orthographic)
     {
         camera.parallel = 1;
@@ -623,13 +670,13 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         camera.width = m->scalar(minf(30000.f, m->scalar_float(camera.height) * aspect));
     }
     s->update_camera(s->context, f->targets.camera, &camera);
-    n = d.background ? d.light_count : 1;
+    n = d->background ? d->light_count : 1;
     if (!count(&f->light_data, n) || mm_array_reserve(&f->lights.array, n, 0) != MM_STORAGE_OK)
         return MM_PREVIEW_MEMORY;
     for (i = 0; i < n; ++i)
     {
-        if (d.background)
-            light = d.lights[i];
+        if (d->background)
+            light = d->lights[i];
         else
         {
             memset(&light, 0, sizeof(light));
@@ -645,11 +692,11 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         s->enable_light(s->context, actor);
     }
     {
-        int copied = copy_bodies(f, f->targets.world);
+        int copied = mm_preview_pose_copy(&f->pose, f->targets.world, &f->pending.storage, s);
         if (copied != MM_PREVIEW_OK)
             return copied;
     }
-    if (d.model && !s->add_model(s->context, f->targets.world, d.model))
+    if (d->model && !s->add_model(s->context, f->targets.world, d->model))
         return MM_PREVIEW_MODELS;
     if (has_mesh && !s->add_mesh(s->context, f->targets.world))
         return MM_PREVIEW_MESH;
@@ -658,7 +705,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         if (!collect_models(f))
             return MM_PREVIEW_MEMORY;
     if (v->display == 1 || v->display == 2 || v->display == 3 || (v->display == 4 && !v->rasterizer))
-        if (!overrides(f, v->display, d.palette))
+        if (!overrides(f, v->display, d->palette))
             return MM_PREVIEW_MEMORY;
     if (v->display == 4 && !v->rasterizer)
     {
@@ -670,7 +717,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         return MM_PREVIEW_MEMORY;
     f->sink = 1;
     projection(&image->projection, &camera, m);
-    if (v->rasterizer && !s->raster_begin(s->context, &image->projection, d.palette, bg || infinite, width, height))
+    if (v->rasterizer && !s->raster_begin(s->context, &image->projection, d->palette, bg || infinite, width, height))
         return MM_PREVIEW_HOST;
     s->render(s->context, &f->targets);
     s->sink_off(s->context);
@@ -707,7 +754,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     image->scene_camera = scene_camera;
     if (!s->output(s->context, v->width, v->height, v->depth, &image->rgba, &image->depth))
         return MM_PREVIEW_MEMORY;
-    output_pixels(image, v, &d, &mesh, &buffers, s, f->targets.camera, width, height, bg, infinite);
+    output_pixels(image, v, d, &mesh, &buffers, s, f->targets.camera, width, height, bg, infinite);
     return MM_PREVIEW_OK;
 }
 int mm_preview_render(const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewImage *output,

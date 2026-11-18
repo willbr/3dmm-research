@@ -482,8 +482,13 @@ Keep host presentation and device output outside the session.
    templates. Studio and Marcus submit through a common C frame record for
    the world, camera and colour/depth targets. It owns the temporary render
    and picking targets in Marcus and borrows Studio's live world and buffers.
-   The session still needs an owned frame result carrying the evaluated
-   actor and camera resource bindings into both renderers.
+   The standalone session can now return an owned frame with the selected
+   camera and effective body bindings for all actors in a single seek.
+   Marcus rendering and picking record the camera and hold references to
+   the live bodies and any standalone model used by their temporary world.
+   Both hosts still evaluate their live scene state before rendering. The
+   remaining cutover is to feed the session's evaluated resource bindings
+   into that live render path, including Studio's attached world.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

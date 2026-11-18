@@ -42,7 +42,7 @@ extern "C"
     } MMPreviewMath;
     typedef struct MMPreviewBody
     {
-        void *tree;
+        void *tree, *resource;
         float low[3], high[3];
         MMU32 order_low, order_high;
         MMI32 owner;
@@ -56,7 +56,7 @@ extern "C"
         const MMBackgroundLight *lights;
         unsigned char palette[1024];
         MMPreviewCamera camera;
-        void *model;
+        void *model, *model_resource;
         float model_low[3], model_high[3];
     } MMPreviewData;
     typedef struct MMPreviewMesh
@@ -124,6 +124,7 @@ extern "C"
         int (*mesh)(void *, MMPreviewMesh *);
         MMU32 (*body_count)(void *);
         int (*body)(void *, MMU32, MMPreviewBody *);
+        void (*retain_pose_resource)(void *, void *), (*release_pose_resource)(void *, void *);
         int (*object_bounds)(void *, MMI32, float corners[24], int *valid);
         MMRenderFrameFactory frame_factory;
         void (*fill)(void *, void *pixelmap, MMU32);
@@ -155,10 +156,13 @@ extern "C"
     } MMPreviewRenderServices;
     /* All services are initialized, synchronous, non-reentrant and do not throw.
      * A zero allocator selects the C heap. Nonzero allocators provide both callbacks.
-     * Borrowed input trees/models/materials are never reparented or freed. Copy creates
-     * nodes in reverse sibling order for SDK head insertion; failure retains the
-     * attached prefix, which the caller's world owns. Frame cleanup restores shared
-     * materials, disables lights, frees the world and pixelmaps, then scratch storage.
+     * Input trees are cloned, leaving the originals attached. Services can supply
+     * resource owners for bodies and standalone models with paired retain/release
+     * callbacks. Otherwise these handles stay valid through the synchronous call.
+     * Copy creates nodes in reverse sibling order for SDK head insertion; failure
+     * retains the attached prefix, which the caller's world owns. Frame cleanup
+     * restores materials, disables lights, frees the world and pixelmaps, then
+     * releases pose resources and scratch storage. Scene image pointers are borrowed.
      * Prepared SDK geometry and source images must satisfy their decoded bounds.
      * Input/output dimensions are at most 4096, making pixel products 32-bit bounded.
      * output allocates caller-owned zeroed RGBA and +infinity depth buffers; they
@@ -175,8 +179,8 @@ extern "C"
     void mm_preview_depth_fit(const MMPreviewDepthRange *, double *near_clip, double *far_clip);
     int mm_preview_render(const MMPreviewView *, MMPreviewOrbit *, MMPreviewImage *,
                                 const MMPreviewRenderServices *);
-    /* Copy described bodies in the same stable order used by rendering. The
-     * caller owns world and its attached prefix even when copying fails. */
+    /* Copy described bodies in render order. The caller owns the attached trees
+     * and keeps their source models and materials alive while using them. */
     int mm_preview_copy_bodies(void *world, const MMPreviewRenderServices *);
 #ifdef __cplusplus
 }

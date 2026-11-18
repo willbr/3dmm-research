@@ -742,6 +742,7 @@ typedef struct FrameInput
     MMMovieSourceRead source;
     void *source_context;
     MMMovieEvaluatedFrame *result;
+    int with_bodies;
 } FrameInput;
 
 static int begin_frame(void *context, MMI32 frame)
@@ -771,6 +772,15 @@ static int begin_frame(void *context, MMI32 frame)
         result->actors = (MMMovieEvaluatedActor *)malloc(bytes);
         if (!result->actors)
             return MM_MOVIE_MEMORY;
+        if (input->with_bodies)
+        {
+            bytes = (size_t)result->actor_count * sizeof(*result->bodies);
+            if (bytes / sizeof(*result->bodies) != result->actor_count)
+                return MM_MOVIE_MEMORY;
+            result->bodies = (MMMovieEvaluatedBody **)calloc(1, bytes);
+            if (!result->bodies)
+                return MM_MOVIE_MEMORY;
+        }
     }
     return MM_MOVIE_OK;
 }
@@ -787,11 +797,12 @@ static int seek_frame_actor(void *context, MMU32 ordinal, MMI32 frame)
     if (!next_actor_start(&input->starts, &input->cursor, &slot))
         return MM_MOVIE_BAD_FILE;
     return evaluate_slot(input->movie, &input->access, input->scene_position, slot, frame, input->source,
-                          input->source_context, &input->result->actors[ordinal], NULL);
+                          input->source_context, &input->result->actors[ordinal],
+                          input->result->bodies ? &input->result->bodies[ordinal] : NULL);
 }
 
-int mm_movie_session_seek(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
-                          MMMovieSourceRead source, void *context, MMMovieEvaluatedFrame **out)
+static int seek_frame(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame, int with_bodies,
+                       MMMovieSourceRead source, void *context, MMMovieEvaluatedFrame **out)
 {
     FrameInput input;
     MMMovieFrameServices services;
@@ -804,6 +815,7 @@ int mm_movie_session_seek(const MMMovieSession *movie, MMU32 scene_slot, MMI32 f
     input.scene_slot = scene_slot;
     input.source = source;
     input.source_context = context;
+    input.with_bodies = with_bodies;
     input.result = (MMMovieEvaluatedFrame *)calloc(1, sizeof(*input.result));
     if (!input.result)
         return MM_MOVIE_MEMORY;
@@ -821,10 +833,27 @@ int mm_movie_session_seek(const MMMovieSession *movie, MMU32 scene_slot, MMI32 f
     return status;
 }
 
+int mm_movie_session_seek(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
+                          MMMovieSourceRead source, void *context, MMMovieEvaluatedFrame **out)
+{
+    return seek_frame(movie, scene_slot, frame, 0, source, context, out);
+}
+
+int mm_movie_session_seek_with_bodies(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame,
+                                      MMMovieSourceRead source, void *context, MMMovieEvaluatedFrame **out)
+{
+    return seek_frame(movie, scene_slot, frame, 1, source, context, out);
+}
+
 void mm_movie_frame_dispose(MMMovieEvaluatedFrame *frame)
 {
+    MMU32 i;
     if (frame)
     {
+        if (frame->bodies)
+            for (i = 0; i < frame->actor_count; ++i)
+                mm_movie_body_dispose(frame->bodies[i]);
+        free(frame->bodies);
         free(frame->actors);
         free(frame);
     }
