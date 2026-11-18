@@ -106,15 +106,26 @@ int mm_movie_source_table_at(const MMMovieSourceTable *table, MMU32 row, MMMovie
     return status == MM_MOVIE_OK ? read_name(table, offset, sid, out) : status;
 }
 
+int mm_movie_source_name_utf8(const MMMovieSourceName *row, char out[MM_MOVIE_SOURCE_NAME_BYTES])
+{
+    unsigned short units[255];
+    char name[MM_MOVIE_SOURCE_NAME_BYTES];
+    size_t count;
+    if (!row || !out || row->size > sizeof(row->bytes))
+        return MM_MOVIE_BAD_FILE;
+    count = mm_text_utf16(NULL, row->bytes, row->size, row->encoding, units, sizeof(units) / sizeof(units[0]));
+    if (!count || !utf8(units, count, name))
+        return MM_MOVIE_BAD_FILE;
+    memcpy(out, name, strlen(name) + 1);
+    return MM_MOVIE_OK;
+}
+
 static int find_source(const MMReadStream *stream, MMI32 sid, char *out)
 {
     MMMovieSourceTable table;
     MMMovieSourceName row;
     MMU32 offset, i;
     MMI32 id;
-    unsigned short units[255];
-    char name[MM_MOVIE_SOURCE_NAME_BYTES];
-    size_t count;
     int status = mm_movie_source_table_open(stream, 0x7fffffffUL, &table);
     if (status != MM_MOVIE_OK)
         return status;
@@ -128,11 +139,7 @@ static int find_source(const MMReadStream *stream, MMI32 sid, char *out)
         status = read_name(&table, offset, id, &row);
         if (status != MM_MOVIE_OK)
             return status;
-        count = mm_text_utf16(NULL, row.bytes, row.size, row.encoding, units, sizeof(units) / sizeof(units[0]));
-        if (!count || !utf8(units, count, name))
-            return MM_MOVIE_BAD_FILE;
-        memcpy(out, name, strlen(name) + 1);
-        return MM_MOVIE_OK;
+        return mm_movie_source_name_utf8(&row, out);
     }
     return MM_MOVIE_ASSET_NOT_FOUND;
 }

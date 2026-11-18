@@ -261,6 +261,10 @@ mesh in Orbit/Fly. They are ordinary native BKGD/CAM/MBMP/ZBMP/GLCR/GLLT resourc
 in a Portable VXP inside the exported VMM; a versioned STBD scene child retains
 editable drawings/settings. The inner native movie references the backgrounds
 through the standard portable content source (SID 6).
+The storyboard working copy and VMM export share a C89 editor for those scene
+references. Export accepts existing v3dmm declarations for SID 6 and rejects a
+conflicting library before publishing the copy. Adding the declaration preserves
+the existing source table's byte order, string encoding and rows.
 No retail content files are changed. Resources are still required; creating a
 storyboard requires the original black-scene palette.
 
@@ -280,6 +284,12 @@ an empty error stack. Diagnostic captures and source-preservation checks are in
 round trips, all Marcus rendering backends, unchanged retail palette bytes,
 replacement of generated packages on resave and normal `.3mm` saving for ordinary
 movies. This does not establish stock retail support for VMM files.
+
+After the C89 change, original v3dmm again sought frames 1, 2 and 1 with one
+prop and an empty error stack. The captured images matched the previous
+export. Both exports hit Studio's existing `Invalid VXP chunky content` error
+when opened in the SDL comparison harness. Captures and logs are in
+`tmp/c89-portable-wire/`.
 
 **Scenes > Camera angles** shows a grid of rendered thumbnails for the current
 background's authored cameras, including actors and captions at the current frame.

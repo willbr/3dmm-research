@@ -282,6 +282,7 @@ typedef struct MMMovieSourceName
  * The table and row outputs are unchanged on failure. */
 int mm_movie_source_table_open(const MMReadStream *, MMU32 max_bytes, MMMovieSourceTable *);
 int mm_movie_source_table_at(const MMMovieSourceTable *, MMU32 row, MMMovieSourceName *);
+int mm_movie_source_name_utf8(const MMMovieSourceName *, char name[MM_MOVIE_SOURCE_NAME_BYTES]);
 
 /* Read the first matching SID from MVIE's source table as UTF-8. A movie
  * with no source table uses the retail source name for SID 2. Failure leaves

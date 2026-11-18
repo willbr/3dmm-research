@@ -438,24 +438,7 @@ void MarcusEmbedBoard(PChunkyFile file, ChunkNumber scene, const MarcusBoardReso
     Require(file->FAddPv(bytes.data(), static_cast<LegacyLong>(bytes.size()), MarcusBoardChunk, &metadata) &&
         file->FAdoptChild(kctgScen, scene, MarcusBoardChunk, metadata, 0) &&
         file->FAdoptChild(kctgScen, scene, kctgBkgd, background, 0), "Cannot embed storyboard data.");
-    DataBlock block;
-    Require(file->FGetKidChidCtg(kctgScen, scene, 1, kctgStartGg, &child) && file->FFind(kctgStartGg, child.cki.cno, &block), "Cannot read storyboard scene events.");
-    short order;
-    std::unique_ptr<GeneralGroup, Release> starts(SceneData::PggReadEvents(&block, &order, true));
-    Require(bool(starts), "Invalid storyboard scene events.");
-    bool replaced = false;
-    for (LegacyLong i = 0; i < starts->IvMac(); ++i)
-    {
-        SceneEvent event; starts->GetFixed(i, &event);
-        if (order == kboOther) SwapBytesBom(&event, kbomSev);
-        if (event.sevt != sevtSetBkgd) continue;
-        TAGOnFile tag = {0, 0, kctgBkgd, background};
-        if (order == kboOther) SwapBytesBom(&tag, kbomTag);
-        starts->Put(i, &tag); replaced = true;
-    }
-    Require(replaced && file->FAdd(starts->CbOnFile(), kctgStartGg, &metadata, &block) && starts->FWrite(&block, order), "Cannot write storyboard scene events.");
-    file->DeleteChild(kctgScen, scene, kctgStartGg, child.cki.cno, 1);
-    Require(file->FAdoptChild(kctgScen, scene, kctgStartGg, metadata, 1), "Cannot link storyboard scene events.");
+    MarcusRetargetStoryboardScene(file, scene, 0, background);
     if (file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child)) file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
 }
 MarcusStoryboards MarcusReadBoards(MM::Archive &archive, const std::shared_ptr<MarcusMovieFile> &file)

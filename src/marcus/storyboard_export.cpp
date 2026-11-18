@@ -1,6 +1,8 @@
 #include "storyboard_native.h"
 #undef size
-#include "mm/content_vfs.hpp"
+#include "engine_read_stream.h"
+#include "mm/chunk_edit.h"
+#include "mm/movie_portable.h"
 #include <miniz.h>
 #include <random>
 #include <set>
@@ -44,64 +46,66 @@ struct Staging
         fs::remove(directory, ignored);
     }
 };
+struct ChildReplacement
+{
+    PChunkyFile file;
+    MMU32 parentType, parentNumber;
+    MMChunkChild child;
+    bool linked;
+    static int Receive(void *context, const unsigned char *bytes, MMU32 count)
+    {
+        const auto &host = *static_cast<ChildReplacement *>(context);
+        const MMChunkChildPayload services = {
+            host.file,
+            [](void *c, MMU32 type, const unsigned char *data, MMU32 length, MMU32 *number) -> int {
+                return static_cast<PChunkyFile>(c)->FAddPv(const_cast<unsigned char *>(data), length, type, number);
+            },
+            [](void *c, MMU32 parentType, MMU32 parent, const MMChunkChild *child) -> int {
+                return static_cast<PChunkyFile>(c)->FAdoptChild(parentType, parent, child->type, child->number, child->slot);
+            },
+            [](void *c, MMU32 parentType, MMU32 parent, const MMChunkChild *child, int linked) {
+                const auto file = static_cast<PChunkyFile>(c);
+                if (linked) file->DeleteChild(parentType, parent, child->type, child->number, child->slot);
+                else file->Delete(child->type, child->number);
+            }};
+        return mm_chunk_replace_child_bytes(host.parentType, host.parentNumber, &host.child,
+                                             host.linked, bytes, count, &services);
+    }
+};
+
 void PortableSource(PChunkyFile file)
 {
-    ChunkIdentification root; ChildChunkIdentification child; DataBlock block;
+    ChunkIdentification root;
+    ChildChunkIdentification child{};
+    DataBlock block;
     Require(file->FGetCkiCtg(kctgMvie, 0, &root), "Missing movie root.");
     const bool hadSources = file->FGetKidChidCtg(kctgMvie, root.cno, 1, kctgGst, &child);
-    short order = kboCur;
-    std::unique_ptr<StringTable_GST, Release> sources;
+    MMReadStream stream{};
     if (hadSources)
     {
-        Require(file->FFind(kctgGst, child.cki.cno, &block), "Cannot read movie sources.");
-        sources.reset(StringTable_GST::PgstRead(&block, &order));
+        Require(file->FFind(kctgGst, child.cki.cno, &block) && block.FUnpackData(), "Cannot read movie sources.");
+        stream = EngineReadStream::FromBlock(block);
     }
-    else sources.reset(StringTable_GST::PgstNew(sizeof(LegacyLong)));
-    Require(sources && sources->CbExtra() == sizeof(LegacyLong), "Invalid movie sources.");
-    bool found = false;
-    for (LegacyLong i = 0; i < sources->IvMac(); ++i)
-    {
-        LegacyLong id; sources->GetExtra(i, &id);
-        if (order == kboOther) { SwapBytesRglw(&id, 1); sources->PutExtra(i, &id); }
-        if (id != 6) continue;
-        String title; schar text[1024]; sources->GetStn(i, &title); title.GetSzs(text);
-        Require(MM::Content::SourceKey(text) == "v3dmm", "Source ID 6 is already used by a different library.");
-        found = true;
-    }
-    if (!found)
-    {
-        String name; name.SetSzs(PszLit("Virtual3dmm/v3dmm")); LegacyLong id = 6;
-        Require(sources->FAddStn(&name, &id), "Cannot add portable background source.");
-    }
-    ChunkNumber number;
-    Require(file->FAdd(sources->CbOnFile(), kctgGst, &number, &block) && sources->FWrite(&block), "Cannot write movie sources.");
-    if (hadSources) file->DeleteChild(kctgMvie, root.cno, kctgGst, child.cki.cno, 1);
-    Require(file->FAdoptChild(kctgMvie, root.cno, kctgGst, number, 1), "Cannot link movie sources.");
+    ChildReplacement output{file, kctgMvie, root.cno, {kctgGst, child.cki.cno, 1}, hadSources};
+    const unsigned short one = 1;
+    const auto result = mm_movie_ensure_portable_source(hadSources ? &stream : nullptr, koskCur,
+        *reinterpret_cast<const unsigned char *>(&one) == 0, ChildReplacement::Receive, &output);
+    Require(result != MM_PORTABLE_SOURCE_CONFLICT, "Source ID 6 is already used by a different library.");
+    Require(result != MM_PORTABLE_SOURCE_INVALID, "Invalid movie sources.");
+    Require(result == MM_PORTABLE_SOURCE_OK, "Cannot write movie sources.");
 }
-void SceneBackground(PChunkyFile file, ChunkNumber scene, ChunkNumber background)
+}
+
+void MarcusRetargetStoryboardScene(PChunkyFile file, ChunkNumber scene, LegacyLong source, ChunkNumber background)
 {
-    ChildChunkIdentification child; DataBlock block;
-    Require(file->FGetKidChidCtg(kctgScen, scene, 1, kctgStartGg, &child) && file->FFind(kctgStartGg, child.cki.cno, &block),
-        "Cannot read storyboard scene events.");
-    short order;
-    std::unique_ptr<GeneralGroup, Release> starts(SceneData::PggReadEvents(&block, &order, true));
-    Require(bool(starts), "Invalid storyboard scene events.");
-    bool found = false;
-    for (LegacyLong i = 0; i < starts->IvMac(); ++i)
-    {
-        SceneEvent event; starts->GetFixed(i, &event);
-        if (order == kboOther) SwapBytesBom(&event, kbomSev);
-        if (event.sevt != sevtSetBkgd) continue;
-        TAGOnFile tag = {6, 0, kctgBkgd, background};
-        if (order == kboOther) SwapBytesBom(&tag, kbomTag);
-        starts->Put(i, &tag); found = true;
-    }
-    ChunkNumber number;
-    Require(found && file->FAdd(starts->CbOnFile(), kctgStartGg, &number, &block) && starts->FWrite(&block, order),
-        "Cannot write portable background references.");
-    file->DeleteChild(kctgScen, scene, kctgStartGg, child.cki.cno, 1);
-    Require(file->FAdoptChild(kctgScen, scene, kctgStartGg, number, 1), "Cannot link portable background references.");
-}
+    ChildChunkIdentification child;
+    DataBlock block;
+    Require(file->FGetKidChidCtg(kctgScen, scene, 1, kctgStartGg, &child) &&
+        file->FFind(kctgStartGg, child.cki.cno, &block) && block.FUnpackData(), "Cannot read storyboard scene events.");
+    const auto stream = EngineReadStream::FromBlock(block);
+    ChildReplacement output{file, kctgScen, scene, {kctgStartGg, child.cki.cno, 1}, true};
+    Require(mm_scene_retarget_start_background(&stream, source, background, ChildReplacement::Receive, &output),
+        "Cannot write storyboard background references.");
 }
 
 void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStoryboards &boards,
@@ -124,7 +128,7 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
     for (const auto &entry : boards)
     {
         // Regenerate from editor data, repairing older storyboard palettes too.
-        const auto resource = MarcusBoardContent(*entry.second.board, 6, resources, content);
+        const auto resource = MarcusBoardContent(*entry.second.board, MM_PORTABLE_SOURCE_ID, resources, content);
         auto source = Open(resource.file->path, false);
         ChunkNumber background;
         Require(source->FCopy(kctgBkgd, resource.background, contents.get(), &background), "Cannot package storyboard background.");
@@ -145,7 +149,8 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
         if (old.ctg == kctgBkgd)
             for (auto &entry : backgrounds) if (entry.second == old.cno) entry.second = number;
     }
-    for (const auto &entry : backgrounds) SceneBackground(inner.get(), entry.first, entry.second);
+    for (const auto &entry : backgrounds)
+        MarcusRetargetStoryboardScene(inner.get(), entry.first, MM_PORTABLE_SOURCE_ID, entry.second);
     PortableSource(inner.get());
     Require(contents->FSave(kctgSoc) && inner->FSave(kctgSoc), "Cannot finish portable storyboard content.");
     contents.reset(); inner.reset();

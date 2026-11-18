@@ -63,6 +63,11 @@ extern "C"
      * contents and frame ordering. Byte order describes fixed/variable data, not
      * the already-decoded GG offsets/header. */
     int mm_scene_valid_events(void *group, int big_endian, int start, const MMSceneGroupServices *);
+    /* Replace every background tag in a decoded start group. Preserve the
+     * storage order, other events and the collection's wire byte order. Deliver
+     * a complete group only if all rows are valid and a background is present. */
+    int mm_scene_retarget_start_background(const MMReadStream *, MMI32 source, MMU32 background,
+                                            MMByteReceiver, void *context);
     enum
     {
         MM_SCENE_GROUP_HEADERS_ONLY = -1,

@@ -15,7 +15,7 @@ target_include_directories(mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc
 target_sources(mm-engine-c89 PRIVATE src/movie_session.c src/movie_session_actor.c src/movie_session_source.c
                                     src/movie_session_body.c src/movie_session_costume.c src/movie_session_mesh.c
                                     src/resource_lookup.c)
-add_library(mm-movie-content STATIC src/movie_content_resolver.c)
+add_library(mm-movie-content STATIC src/movie_content_resolver.c src/movie_portable.c)
 target_link_libraries(mm-movie-content PUBLIC mm-engine-c89 mm-vfs)
 set_target_properties(mm-movie-content PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_sources(mm-engine-c89 PRIVATE src/settings.c src/settings_paths.c)
@@ -508,6 +508,11 @@ add_executable(engine-vmm-dependencies-test EXCLUDE_FROM_ALL "${engine_vmm_depen
 target_link_libraries(engine-vmm-dependencies-test PRIVATE mm-engine-c89)
 set_target_properties(engine-vmm-dependencies-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-vmm-dependencies COMMAND engine-vmm-dependencies-test)
+get_filename_component(engine_portable_movie_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_portable_movie_test.c" ABSOLUTE)
+add_executable(engine-portable-movie-test EXCLUDE_FROM_ALL "${engine_portable_movie_test_source}")
+target_link_libraries(engine-portable-movie-test PRIVATE mm-movie-content)
+set_target_properties(engine-portable-movie-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-portable-movie COMMAND engine-portable-movie-test)
 get_filename_component(engine_movie_compose_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_movie_compose_test.c" ABSOLUTE)
 add_executable(engine-movie-compose-test EXCLUDE_FROM_ALL "${engine_movie_compose_test_source}")
 target_link_libraries(engine-movie-compose-test PRIVATE mm-engine-c89)
@@ -1181,6 +1186,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/native_file_stream.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_native_chunky_test.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_actor.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_source.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_content_resolver.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_portable.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_body.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_mesh.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_costume.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime_math.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_runtime_math_test.c"
@@ -1190,6 +1196,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/vmm_wire.c" "${engine_vmm_wire_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/vxp_package.c" "${engine_vxp_package_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/vmm_dependencies.c" "${engine_vmm_dependencies_test_source}"
+    "${engine_portable_movie_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/reference.c" "${engine_reference_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/handle_memory.c" "${engine_handle_memory_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/linked_list.c" "${engine_linked_list_test_source}"

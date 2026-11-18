@@ -942,6 +942,11 @@ stale generated storyboard packages while retaining authored declarations.
 The C89 publisher sequences exclusive staging, candidate writing, atomic
 replacement and cleanup for Studio VMM saves and Marcus Save Copy. Marcus
 also uses the C89 format rule for explicit and inferred 3MM and VMM suffixes.
+The working-copy and export paths now use one C89 editor to update storyboard
+background references in scene-start events. C89 validates the portable source
+ID and preserves the source table's byte order and string encoding when adding
+its declaration. New child chunks are linked before the previous child is
+removed, so a failed link leaves the previous child available.
 ZIP decompression, physical file and path I/O, the installed catalog and
 publication of installed packages on disk remain host services. Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound

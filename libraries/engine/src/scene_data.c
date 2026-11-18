@@ -1,7 +1,9 @@
 /* Scene state and persistence converted from engine scene_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_data.h"
+#include "mm/collections.h"
 #include "mm/wide.h"
+#include <stdlib.h>
 #include <string.h>
 static MMU32 word(const unsigned char *p, int big)
 {
@@ -97,10 +99,34 @@ int mm_scene_transition_write(MMU32 number, unsigned unit, MMI32 transition, int
     data.transition = transition;
     return mm_scene_write(&data, number, system, big, io);
 }
+static int valid_event(MMI32 type, MMI32 bytes, int big, int start, const unsigned char *data)
+{
+    MMI32 count;
+    switch (type)
+    {
+    case MM_SCENE_ADD_ACTOR:
+    case MM_SCENE_ADD_TEXT:
+        return start && bytes == 4;
+    case MM_SCENE_SET_BACKGROUND:
+        return start && bytes == 16;
+    case MM_SCENE_CHANGE_CAMERA:
+        return bytes == 4;
+    case MM_SCENE_PAUSE:
+        return !start && bytes == 8;
+    case MM_SCENE_PLAY_SOUND:
+        if (start || bytes < 16 || !data)
+            return 0;
+        count = mm_signed_word(word(data + 12, big));
+        return count > 0 && (MMU32)count <= (MMU32)(bytes - 16) / 20 &&
+               (MMU32)bytes == 16 + (MMU32)count * 20;
+    default:
+        return 0;
+    }
+}
 int mm_scene_valid_events(void *group, int big, int start, const MMSceneGroupServices *s)
 {
     MMU32 i;
-    MMI32 type, count, bytes;
+    MMI32 type, bytes;
     unsigned char fixed[8];
     const unsigned char *data;
     if (s->fixed_width(group) != 8)
@@ -110,39 +136,52 @@ int mm_scene_valid_events(void *group, int big, int start, const MMSceneGroupSer
         s->fixed(group, i, fixed);
         type = mm_signed_word(word(fixed + 4, big));
         bytes = s->size(group, i);
-        switch (type)
-        {
-        case MM_SCENE_ADD_ACTOR:
-        case MM_SCENE_ADD_TEXT:
-            if (!start || bytes != 4)
-                return 0;
-            break;
-        case MM_SCENE_SET_BACKGROUND:
-            if (!start || bytes != 16)
-                return 0;
-            break;
-        case MM_SCENE_CHANGE_CAMERA:
-            if (bytes != 4)
-                return 0;
-            break;
-        case MM_SCENE_PAUSE:
-            if (start || bytes != 8)
-                return 0;
-            break;
-        case MM_SCENE_PLAY_SOUND:
-            if (start || bytes < 16)
-                return 0;
-            data = (const unsigned char *)s->data(group, i);
-            count = mm_signed_word(word(data + 12, big));
-            if (count <= 0 || (MMU32)count > (MMU32)(bytes - 16) / 20 ||
-                (MMU32)bytes != 16 + (MMU32)count * 20)
-                return 0;
-            break;
-        default:
+        data = type == MM_SCENE_PLAY_SOUND && !start && bytes >= 16
+                   ? (const unsigned char *)s->data(group, i) : NULL;
+        if (!valid_event(type, bytes, big, start, data))
             return 0;
-        }
     }
     return 1;
+}
+int mm_scene_retarget_start_background(const MMReadStream *stream, MMI32 source, MMU32 background,
+                                        MMByteReceiver receive, void *context)
+{
+    MMCollectionHeader header;
+    unsigned char *copy, *records, *tag;
+    MMU32 index, offset;
+    MMI32 bytes, type;
+    int found = 0, result = 0;
+    if (mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &header) != MM_STORAGE_OK ||
+        header.width != MM_SCENE_EVENT_BYTES || (size_t)stream->length != stream->length)
+        return 0;
+    copy = (unsigned char *)malloc((size_t)stream->length);
+    if (!copy)
+        return 0;
+    if (!mm_read_exact(stream, 0, copy, stream->length))
+        goto done;
+    records = copy + header.header_bytes;
+    for (index = 0; index < header.count; ++index)
+    {
+        if (!mm_collection_group_row(&header, records, index, &offset, &bytes))
+            goto done;
+        type = mm_signed_word(word(records + offset + 4, header.big_endian));
+        if (!valid_event(type, bytes, header.big_endian, 1, NULL))
+            goto done;
+        if (type == MM_SCENE_SET_BACKGROUND)
+        {
+            tag = records + offset + MM_SCENE_EVENT_BYTES;
+            put(tag, (MMU32)source, 4, header.big_endian);
+            put(tag + 4, 0, 4, header.big_endian);
+            put(tag + 8, 0x424b4744UL, 4, header.big_endian);
+            put(tag + 12, background, 4, header.big_endian);
+            found = 1;
+        }
+    }
+    if (found)
+        result = receive(context, copy, stream->length);
+done:
+    free(copy);
+    return result;
 }
 void *mm_scene_read_event_group(int start, int native_big, int *order, const MMSceneReadGroupServices *s)
 {

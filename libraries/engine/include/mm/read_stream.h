@@ -21,6 +21,8 @@ extern "C"
 
     /* A synchronous receiver borrows the stream and returns its own status. */
     typedef int (*MMReadReceiver)(void *, const MMReadStream *);
+    /* Receives complete wire bytes borrowed for the duration of the callback. */
+    typedef int (*MMByteReceiver)(void *, const unsigned char *, MMU32);
 
     typedef struct MMMemoryStream
     {
