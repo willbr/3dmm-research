@@ -5752,6 +5752,13 @@ the final cache lookup. Query callbacks may append caches; the initial count
 bounds each search. Allocation failure releases newly created cache references
 and leaves the caller's insertion-position output unchanged.
 
+The manager stores typed C cache pointers and calls their C query functions
+directly. Its factory transfers one reference to the cache owner, released
+through the cache's owner service on disposal or failed insertion. A file
+provider lends a block to C on a cache miss. The same block survives preload's
+estimate, read and insertion. Recursive reads borrow separate blocks, and
+cache hits and scope rejections skip block construction.
+
 Both tables use C-owned storage. Entries are copied before callbacks; readers
 may load other keys and detach/destruction callbacks may remove other entries.
 Insertion searches again after readers, and zero-budget scans restart after
@@ -5766,12 +5773,12 @@ Python arbitrary-precision oracle covers 65,536 pairs, with explicit signed
 boundaries in the C test. Native and standalone checks hold 24 resources charged
 at 192 MiB each without allocating those payloads.
 
-`crf.cpp` remains a native facade for class allocation, virtual/reference
-primitives, diagnostics, file blocks and readers. Reader identity is passed as a
-function pointer and cast back before host comparison/calling; C never converts
-function pointers to data pointers or orders them. GenericHQ and generic-object
-wrappers remain native adapters. Native container adapters, source-name/discovery adapters and engine objects remain
-migration work.
+`crf.cpp` supplies native class allocation, virtual/reference primitives,
+diagnostics, stack-backed file blocks and typed readers. The manager's native
+adapter supplies its factory and translates public results. The host compares
+and calls reader identities as typed function pointers. GenericHQ and
+generic-object wrappers remain native adapters. Container adapters, source
+discovery and engine objects remain migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,
 speculative allocation fallback, initial/growth failure, cleanup/lifetimes,
@@ -5780,6 +5787,20 @@ eviction scoring and manager precedence. MSVC AddressSanitizer passes. The nativ
 releases, distinct readers, scoped lookup and error stops. All eight native
 snapshots and all 51 CLI baselines remain exact. Twenty-five standalone and
 thirty-eight focused native checks pass; no Marcus UI tests were added.
+
+The cache dispatch change preserves the 1,624-byte native cache trace, the
+31 actor and resource traces, and the 480-byte save fixture. The model,
+material and texture traces match the previous build. Five real movies
+match across 300 standalone frame and mesh snapshots and 300 graph/stream
+evaluations. SDL Studio and Marcus reproduce all 456 previous seek
+observations and 360 viewport hashes, and 480 frame commits match retail.
+Retail reopens the Studio actor edit with matching state on four seeks.
+Both hosts play the ordinary and motion sound cues, Studio passes eight
+VMM workflow checks, and Marcus matches the retained VMM viewport hash.
+All 181 standalone checks and three AddressSanitizer checks pass. The 195
+focused host checks include 11 C89 syntax checks and two native tests that
+passed on a serial rerun with an isolated local temp directory.
+Build identities, traces and captures are in `tmp/c89-cache-dispatch`.
 
 ### Container construction, lookup and disposal
 

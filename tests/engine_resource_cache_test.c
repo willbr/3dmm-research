@@ -26,8 +26,12 @@ struct Host
     MMReference refs;
     int file_refs, objects, allocations, fail, fail_speed, issues;
     int destroyed[128], deaths, reads, estimates, scope_calls;
+    int block_scans, active_blocks;
     MMI32 bytes, estimate;
-    int fail_read, fail_estimate, recursive;
+    int fail_read, fail_estimate, recursive, missing;
+    MMResourceManager *manager;
+    Host *append_file;
+    int file_id, *close_order, *close_count;
 };
 static MMResourceObjectServices objects;
 static void *resize(void *context, void *old, MMU32 before, MMU32 bytes, int priority)
@@ -135,20 +139,41 @@ static int contains(void *p, MMU32 type, MMU32 number)
     Host *h = (Host *)p;
     if (type == 0x52534320UL)
     {
+        Host *file = h->append_file;
+        if (file)
+        {
+            h->append_file = NULL;
+            CHECK(mm_resource_manager_add(h->manager, file, 100, NULL) == MM_STORAGE_OK);
+        }
         ++h->scope_calls;
         return number == 7;
     }
-    return number > 0 && number < 100;
+    return !h->missing && number > 0 && number < 100;
 }
-static int find_block(void *p, MMU32 type, MMU32 number, void *block)
+static int with_block(void *p, MMU32 type, MMU32 number, MMResourceBlockAction action,
+                      void *context)
 {
-    *(MMU32 *)block = number;
-    return contains(p, type, number);
+    Host *h = (Host *)p;
+    MMU32 block = number;
+    int result;
+    ++h->block_scans;
+    if (!contains(h, type, number))
+        return 0;
+    ++h->active_blocks;
+    result = action(context, &block);
+    CHECK(block == number);
+    --h->active_blocks;
+    return result;
 }
 static Object *fetch(Host *h, MMU32 number, MMResourceReader reader, int *error)
 {
-    MMU32 block;
-    return (Object *)mm_resource_cache_fetch(&h->cache, 1, number, reader, 0, &block, error);
+    MMResourceRequest q;
+    q.type = 1;
+    q.number = number;
+    q.reader = reader;
+    q.scope = 0;
+    q.priority = 2;
+    return (Object *)mm_resource_cache_fetch(&h->cache, &q, error);
 }
 static int read_object(void *p, MMResourceReader reader, MMU32 type, MMU32 number, void *block,
                        void **out, MMI32 *bytes)
@@ -157,7 +182,7 @@ static int read_object(void *p, MMResourceReader reader, MMU32 type, MMU32 numbe
     Object *o, *child = NULL;
     int error;
     (void)type;
-    CHECK(*(MMU32 *)block == number);
+    CHECK(h->active_blocks > 0 && *(MMU32 *)block == number);
     if (!out)
     {
         ++h->estimates;
@@ -187,7 +212,10 @@ static void retain_file(void *p)
 }
 static void release_file(void *p)
 {
-    --((Host *)p)->file_refs;
+    Host *h = (Host *)p;
+    --h->file_refs;
+    if (h->close_order)
+        h->close_order[(*h->close_count)++] = h->file_id;
 }
 static MMReference *owner_references(void *p)
 {
@@ -220,7 +248,7 @@ static void init(Host *h, MMI32 budget)
     s.objects = objects;
     s.compare_reader = compare_reader;
     s.contains = contains;
-    s.find_block = find_block;
+    s.with_block = with_block;
     s.read = read_object;
     s.retain_file = retain_file;
     s.release_file = release_file;
@@ -232,19 +260,24 @@ static void init(Host *h, MMI32 budget)
 static void finish(Host *h)
 {
     release_owner(h);
-    CHECK(!h->objects && !h->allocations && h->file_refs == 1 && !h->issues);
+    CHECK(!h->objects && !h->allocations && h->file_refs == 1 && !h->issues && !h->active_blocks);
 }
 static int load(Host *h, MMU32 number, MMI32 p)
 {
-    MMU32 block;
-    return mm_resource_cache_load(&h->cache, 1, number, reader_a, 0, p, &block);
+    MMResourceRequest q;
+    q.type = 1;
+    q.number = number;
+    q.reader = reader_a;
+    q.scope = 0;
+    q.priority = p;
+    return mm_resource_cache_load(&h->cache, &q);
 }
 static void cache_cases(void)
 {
     Host h;
     Object *a, *b, *held[24];
     MMResourceEntry e;
-    MMU32 block;
+    MMResourceRequest scoped = {1, 99, 8, reader_a, 2};
     int error, i, full;
     init(&h, 300);
     CHECK(load(&h, 1, 1) == 1 && load(&h, 2, 2) == 1 && load(&h, 3, 3) == 1);
@@ -262,13 +295,18 @@ static void cache_cases(void)
     h.recursive = 1;
     h.fail_speed = 1;
     a = fetch(&h, 2, reader_a, &error);
-    CHECK(a && !error && h.cache.count == 2 && h.reads == 2);
+    CHECK(a && !error && h.cache.count == 2 && h.reads == 2 && h.block_scans == 2 && !h.active_blocks);
+    CHECK(load(&h, 2, 2) == 1 && h.block_scans == 2);
+    b = fetch(&h, 2, reader_a, &error);
+    CHECK(b == a && !error && h.block_scans == 2);
+    release(b);
     CHECK(mm_resource_cache_at(&h.cache, 0, &e) == 0 && state(e.object)->number == 1);
     b = fetch(&h, 2, reader_b, &error);
     CHECK(b && b != a && h.cache.count == 3);
     release(b);
     CHECK(!mm_resource_cache_find(&h.cache, 1, 99, reader_a, 8) && !h.scope_calls);
-    CHECK(!mm_resource_cache_fetch(&h.cache, 1, 99, reader_a, 8, &block, &error) && h.scope_calls == 1);
+    CHECK(!mm_resource_cache_fetch(&h.cache, &scoped, &error) && !error &&
+          h.scope_calls == 1 && h.block_scans == 3);
     CHECK(mm_resource_cache_priority(&h.cache, 32768L, 1, 2, reader_a, 7));
     CHECK(a->state.priority == -32768L);
     priority(a, 32767);
@@ -367,125 +405,87 @@ static void cache_cases(void)
     h.issues = 0;
     finish(&h);
 }
-typedef struct ManagerHost ManagerHost;
-typedef struct Mock
-{
-    ManagerHost *host;
-    int id, result, error, contains, visits;
-    void *object;
-} Mock;
-struct ManagerHost
+typedef struct ManagerHost
 {
     MMResourceManager manager;
     Host memory;
-    Mock mock[4];
-    int fail_create, order[16], deaths, append;
-};
-static void *create_cache(void *p, void *file, MMI32 budget)
+    Host files[3];
+    int fail_create, order[3], closes;
+} ManagerHost;
+static MMResourceCache *create_cache(void *p, void *file, MMI32 budget)
 {
     ManagerHost *h = (ManagerHost *)p;
-    (void)budget;
-    return h->fail_create ? NULL : file;
-}
-static void release_cache(void *p)
-{
-    Mock *m = (Mock *)p;
-    m->host->order[m->host->deaths++] = m->id;
-}
-static int mock_load(void *p, const MMResourceRequest *q)
-{
-    Mock *m = (Mock *)p;
-    ManagerHost *h = m->host;
-    (void)q;
-    ++m->visits;
-    if (h->append)
-    {
-        h->append = 0;
-        CHECK(mm_resource_manager_add(&h->manager, &h->mock[2], 1, NULL) == 0);
-    }
-    return m->result;
-}
-static void *mock_fetch(void *p, const MMResourceRequest *q, int *error)
-{
-    Mock *m = (Mock *)p;
-    (void)q;
-    ++m->visits;
-    *error = m->error;
-    return m->object;
-}
-static void *mock_find(void *p, const MMResourceRequest *q)
-{
-    Mock *m = (Mock *)p;
-    CHECK(q->scope == 0);
-    ++m->visits;
-    return m->object;
-}
-static int mock_contains(void *p, MMU32 type, MMU32 number, MMU32 scope)
-{
-    Mock *m = (Mock *)p;
-    CHECK(type == 1 && number == 2 && scope == 7);
-    return m->contains;
+    Host *owner = (Host *)file;
+    if (h->fail_create)
+        return NULL;
+    init(owner, budget);
+    owner->manager = &h->manager;
+    owner->file_id = (int)(owner - h->files);
+    owner->close_order = h->order;
+    owner->close_count = &h->closes;
+    return &owner->cache;
 }
 static void manager_cases(void)
 {
     ManagerHost h;
     MMResourceManagerServices s;
     MMStorageAllocator a;
-    MMResourceRequest q;
+    MMResourceRequest q = {1, 2, 7, reader_a, 2};
+    Host *first = &h.files[0], *second = &h.files[1], *third = &h.files[2];
+    Object *object;
     MMU32 slot = 99;
-    int error, i;
+    int error, scopes;
     memset(&h, 0, sizeof(h));
-    memset(&s, 0, sizeof(s));
-    memset(&q, 0, sizeof(q));
-    for (i = 0; i < 4; ++i)
-    {
-        h.mock[i].host = &h;
-        h.mock[i].id = i;
-    }
     s.context = &h;
     s.create = create_cache;
-    s.release = release_cache;
-    s.load = mock_load;
-    s.fetch = mock_fetch;
-    s.find = mock_find;
-    s.priority = mock_load;
-    s.contains = mock_contains;
     a = allocator(&h.memory);
     CHECK(mm_resource_manager_init(&h.manager, &s, &a) == 0);
     h.fail_create = 1;
-    CHECK(mm_resource_manager_add(&h.manager, &h.mock[0], 1, &slot) == MM_STORAGE_IO && slot == 99);
+    CHECK(mm_resource_manager_add(&h.manager, first, 100, &slot) == MM_STORAGE_IO && slot == 99);
     h.fail_create = 0;
     h.memory.fail = 1;
-    CHECK(mm_resource_manager_add(&h.manager, &h.mock[0], 1, &slot) == MM_STORAGE_MEMORY && slot == 99);
-    CHECK(h.deaths == 1 && h.order[0] == 0 && !h.manager.count);
-    h.deaths = 0;
+    CHECK(mm_resource_manager_add(&h.manager, first, 100, &slot) == MM_STORAGE_MEMORY && slot == 99);
+    CHECK(h.closes == 1 && h.order[0] == 0 && first->file_refs == 1 && !h.manager.count);
+    h.closes = 0;
     h.memory.fail = 0;
     h.memory.fail_speed = 1;
-    CHECK(mm_resource_manager_add(&h.manager, &h.mock[0], 1, &slot) == 0 && slot == 0);
-    CHECK(mm_resource_manager_add(&h.manager, &h.mock[1], 1, &slot) == 0 && slot == 1);
+    CHECK(mm_resource_manager_add(&h.manager, first, 100, &slot) == 0 && slot == 0);
+    CHECK(mm_resource_manager_add(&h.manager, second, 100, &slot) == 0 && slot == 1);
+    CHECK(mm_resource_manager_at(&h.manager, 0) == &first->cache);
     CHECK(!mm_resource_manager_at(&h.manager, 2));
-    q.type = 1;
-    q.number = 2;
-    q.scope = 7;
-    h.mock[0].result = 2;
-    h.mock[1].result = 1;
-    CHECK(mm_resource_manager_load(&h.manager, &q) == 2 && !h.mock[1].visits);
-    h.mock[0].error = 1;
-    CHECK(!mm_resource_manager_fetch(&h.manager, &q, &error) && error && !h.mock[1].visits);
-    h.mock[0].object = &h;
-    h.mock[0].error = 0;
-    CHECK(mm_resource_manager_fetch(&h.manager, &q, &error) == &h && !error && !h.mock[1].visits);
-    h.mock[0].object = NULL;
-    h.mock[0].contains = h.mock[1].contains = 1;
-    h.mock[1].object = &h;
-    CHECK(!mm_resource_manager_find(&h.manager, &q) && !h.mock[1].visits);
-    h.mock[0].result = 0;
-    CHECK(mm_resource_manager_priority(&h.manager, &q) && h.mock[1].visits == 1);
-    h.mock[1].result = 0;
-    h.append = 1;
-    CHECK(!mm_resource_manager_load(&h.manager, &q) && h.manager.count == 3 && !h.mock[2].visits);
+    first->fail_estimate = 1;
+    CHECK(mm_resource_manager_load(&h.manager, &q) == 2 && !second->scope_calls);
+    first->fail_read = 1;
+    CHECK(!mm_resource_manager_fetch(&h.manager, &q, &error) && error && !second->scope_calls);
+    first->fail_read = 0;
+    first->fail = 1;
+    object = (Object *)mm_resource_manager_fetch(&h.manager, &q, &error);
+    CHECK(object && object->host == first && !object->state.attached && error && !second->scope_calls);
+    release(object);
+    first->fail = 0;
+    object = (Object *)mm_resource_manager_fetch(&h.manager, &q, &error);
+    CHECK(object && object->host == first && !error && !second->scope_calls);
+    release(object);
+    mm_resource_cache_budget(&first->cache, 0);
+    CHECK(load(second, 2, 2) == 1 && second->block_scans == 1);
+    CHECK(mm_resource_manager_find_file(&h.manager, q.type, q.number, q.scope) == &first->cache);
+    CHECK(!mm_resource_manager_find(&h.manager, &q) && !second->scope_calls);
+    q.priority = 3;
+    CHECK(mm_resource_manager_priority(&h.manager, &q) && second->scope_calls == 1);
+    first->missing = 1;
+    scopes = second->scope_calls;
+    object = (Object *)mm_resource_manager_find(&h.manager, &q);
+    CHECK(object && object->host == second && object->state.priority == 3 &&
+          second->scope_calls == scopes + 1);
+    release(object);
+    mm_resource_cache_budget(&second->cache, 0);
+    second->missing = 1;
+    first->append_file = third;
+    CHECK(!mm_resource_manager_load(&h.manager, &q) && h.manager.count == 3 && !third->scope_calls);
     CHECK(mm_resource_manager_dispose(&h.manager) == 0);
-    CHECK(h.deaths == 3 && h.order[0] == 2 && h.order[1] == 1 && h.order[2] == 0 && !h.memory.allocations);
+    CHECK(h.closes == 3 && h.order[0] == 2 && h.order[1] == 1 && h.order[2] == 0 && !h.memory.allocations);
+    CHECK(first->file_refs == 1 && second->file_refs == 1 && third->file_refs == 1);
+    CHECK(!first->active_blocks && !second->active_blocks && !third->active_blocks);
 }
 static MMU32 word_hash(MMU32 hash, MMU32 word)
 {

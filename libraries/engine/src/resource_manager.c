@@ -8,7 +8,7 @@ static MMArray view(MMResourceManager *m)
     MMArray a;
     memset(&a, 0, sizeof(a));
     a.storage = &m->storage;
-    a.width = sizeof(void *);
+    a.width = sizeof(MMResourceCache *);
     a.count = m->count;
     a.free_count = -1;
     return a;
@@ -16,7 +16,7 @@ static MMArray view(MMResourceManager *m)
 int mm_resource_manager_init(MMResourceManager *m, const MMResourceManagerServices *s,
                                    const MMStorageAllocator *allocator)
 {
-    if (!m || !s || !s->create || !s->release || !s->load || !s->fetch || !s->find || !s->priority || !s->contains)
+    if (!m || !s || !s->create)
         return MM_STORAGE_ARGUMENT;
     memset(m, 0, sizeof(*m));
     if (mm_storage_init(&m->storage, allocator) != MM_STORAGE_OK)
@@ -30,9 +30,9 @@ int mm_resource_manager_reserve(MMResourceManager *m, MMU32 additional)
     MMArray a = view(m);
     return mm_array_reserve(&a, additional, 0);
 }
-void *mm_resource_manager_at(const MMResourceManager *m, MMU32 i)
+MMResourceCache *mm_resource_manager_at(const MMResourceManager *m, MMU32 i)
 {
-    void *p;
+    MMResourceCache *p;
     if (!m || i >= m->count || m->count > m->storage.buffers[0].capacity / sizeof(p))
         return NULL;
     memcpy(&p, m->storage.buffers[0].data + i * sizeof(p), sizeof(p));
@@ -40,20 +40,20 @@ void *mm_resource_manager_at(const MMResourceManager *m, MMU32 i)
 }
 int mm_resource_manager_dispose(MMResourceManager *m)
 {
-    void *p;
+    MMResourceCache *p;
     if (!m || m->storage.buffers[0].locks || m->storage.buffers[1].locks)
         return MM_STORAGE_ARGUMENT;
     while (m->count)
     {
         p = mm_resource_manager_at(m, m->count - 1);
         --m->count;
-        m->services.release(p);
+        p->services.objects.release_owner(p->owner);
     }
     return mm_storage_dispose(&m->storage);
 }
 int mm_resource_manager_add(MMResourceManager *m, void *file, MMI32 budget, MMU32 *position)
 {
-    void *p;
+    MMResourceCache *p;
     MMArray a;
     MMU32 i;
     int r;
@@ -67,7 +67,7 @@ int mm_resource_manager_add(MMResourceManager *m, void *file, MMI32 budget, MMU3
     m->count = a.count;
     if (r != MM_STORAGE_OK)
     {
-        m->services.release(p);
+        p->services.objects.release_owner(p->owner);
         return r;
     }
     if (position)
@@ -80,7 +80,7 @@ int mm_resource_manager_load(MMResourceManager *m, const MMResourceRequest *q)
     int r;
     for (i = 0; i < count; ++i)
     {
-        r = m->services.load(mm_resource_manager_at(m, i), q);
+        r = mm_resource_cache_load(mm_resource_manager_at(m, i), q);
         if (r)
             return r;
     }
@@ -107,7 +107,7 @@ static int next_cache(void *context, size_t *cursor, void **out)
 static int fetch_cached(void *context, void *cache, void **out)
 {
     ManagerLookup *search = (ManagerLookup *)context;
-    void *object = search->manager->services.fetch(cache, search->request, &search->failed);
+    void *object = mm_resource_cache_fetch((MMResourceCache *)cache, search->request, &search->failed);
     if (!object)
         return search->failed ? MM_STORAGE_IO : MM_RESOURCE_LOOKUP_MISSING;
     *out = object;
@@ -118,7 +118,7 @@ static int contains_chunk(void *context, void *cache, void **out)
 {
     ManagerLookup *search = (ManagerLookup *)context;
     const MMResourceRequest *q = search->request;
-    if (!search->manager->services.contains(cache, q->type, q->number, q->scope))
+    if (!mm_resource_cache_contains((MMResourceCache *)cache, q->type, q->number, q->scope))
         return MM_RESOURCE_LOOKUP_MISSING;
     *out = cache;
     return MM_RESOURCE_LOOKUP_OK;
@@ -141,8 +141,8 @@ void *mm_resource_manager_fetch(MMResourceManager *m, const MMResourceRequest *q
         *error = search.failed;
     return p;
 }
-void *mm_resource_manager_find_file(MMResourceManager *m, MMU32 type, MMU32 number,
-                                          MMU32 scope)
+MMResourceCache *mm_resource_manager_find_file(MMResourceManager *m, MMU32 type, MMU32 number,
+                                               MMU32 scope)
 {
     MMResourceRequest q;
     ManagerLookup search;
@@ -160,22 +160,21 @@ void *mm_resource_manager_find_file(MMResourceManager *m, MMU32 type, MMU32 numb
     lookup.next = next_cache;
     lookup.probe = contains_chunk;
     mm_resource_lookup(&lookup, &p);
-    return p;
+    return (MMResourceCache *)p;
 }
 void *mm_resource_manager_find(MMResourceManager *m, const MMResourceRequest *q)
 {
-    MMResourceRequest local = *q;
-    void *p = mm_resource_manager_find_file(m, q->type, q->number, q->scope);
+    MMResourceCache *p = mm_resource_manager_find_file(m, q->type, q->number, q->scope);
     if (!p)
         return NULL;
-    local.scope = 0;
-    return m->services.find(p, &local);
+    return mm_resource_cache_find(p, q->type, q->number, q->reader, 0);
 }
 int mm_resource_manager_priority(MMResourceManager *m, const MMResourceRequest *q)
 {
     MMU32 i, count = m->count;
     for (i = 0; i < count; ++i)
-        if (m->services.priority(mm_resource_manager_at(m, i), q))
+        if (mm_resource_cache_priority(mm_resource_manager_at(m, i), q->priority, q->type,
+                                       q->number, q->reader, q->scope))
             return 1;
     return 0;
 }

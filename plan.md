@@ -548,8 +548,12 @@ Keep host presentation and device output outside the session.
    for its requested cel. Live BRender model construction, geometry binding
    and prelighting use a C89 library. The live model loader and standalone
    mesh reader share the wire layout. The same C89 renderer library binds
-   materials, colour and shade maps, and texture views. Native object, file
-   and cache adapters remain work.
+   materials, colour and shade maps, and texture views. The C89 resource
+   manager now dispatches directly to each C89 cache. A cache hit skips block
+   construction. On a miss, the cache borrows a file block through the full
+   load or fetch, including preload's size estimate and final read. Native
+   cache factories, object lifetimes, file blocks and typed readers remain
+   integration work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

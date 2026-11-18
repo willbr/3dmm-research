@@ -55,13 +55,23 @@ extern "C"
         void *object;
         MMI32 bytes;
     } MMResourceEntry;
+    typedef struct MMResourceRequest
+    {
+        MMU32 type, number, scope;
+        MMResourceReader reader;
+        MMI32 priority;
+    } MMResourceRequest;
+    typedef int (*MMResourceBlockAction)(void *context, void *block);
     typedef struct MMResourceServices
     {
         void *context;
         MMResourceObjectServices objects;
         int (*compare_reader)(MMResourceReader, MMResourceReader);
-        int (*contains)(void *, MMU32 type, MMU32 number);
-        int (*find_block)(void *, MMU32 type, MMU32 number, void *block);
+        int (*contains)(void *file, MMU32 type, MMU32 number);
+        /* If found, call action once with a borrowed block and return its result.
+         * If missing, return zero. The block lives through the entire action. */
+        int (*with_block)(void *file, MMU32 type, MMU32 number, MMResourceBlockAction action,
+                          void *context);
         int (*read)(void *, MMResourceReader, MMU32 type, MMU32 number, void *block, void **object,
                     MMI32 *bytes);
         void (*retain_file)(void *file);
@@ -98,10 +108,8 @@ extern "C"
     int mm_resource_cache_at(const MMResourceCache *, MMU32, MMResourceEntry *);
     void mm_resource_cache_budget(MMResourceCache *, MMI32);
     int mm_resource_cache_purge(MMResourceCache *, MMWide bytes, MMI32 last_priority);
-    int mm_resource_cache_load(MMResourceCache *, MMU32 type, MMU32 number, MMResourceReader,
-                                     MMU32 scope, MMI32 priority, void *block);
-    void *mm_resource_cache_fetch(MMResourceCache *, MMU32 type, MMU32 number,
-                                        MMResourceReader, MMU32 scope, void *block, int *error);
+    int mm_resource_cache_load(MMResourceCache *, const MMResourceRequest *);
+    void *mm_resource_cache_fetch(MMResourceCache *, const MMResourceRequest *, int *error);
     int mm_resource_cache_contains(MMResourceCache *, MMU32 type, MMU32 number, MMU32 scope);
     void *mm_resource_cache_find(MMResourceCache *, MMU32 type, MMU32 number,
                                        MMResourceReader, MMU32 scope);
@@ -109,22 +117,11 @@ extern "C"
                                          MMResourceReader, MMU32 scope);
     void mm_resource_cache_detached(MMResourceCache *, void *object);
     void mm_resource_cache_released(MMResourceCache *, void *object);
-    typedef struct MMResourceRequest
-    {
-        MMU32 type, number, scope;
-        MMResourceReader reader;
-        MMI32 priority;
-    } MMResourceRequest;
     typedef struct MMResourceManagerServices
     {
         void *context;
-        void *(*create)(void *, void *file, MMI32 budget);
-        void (*release)(void *cache);
-        int (*load)(void *cache, const MMResourceRequest *);
-        void *(*fetch)(void *cache, const MMResourceRequest *, int *error);
-        void *(*find)(void *cache, const MMResourceRequest *);
-        int (*priority)(void *cache, const MMResourceRequest *);
-        int (*contains)(void *cache, MMU32 type, MMU32 number, MMU32 scope);
+        /* Success transfers one reference to the initialized cache's owner. */
+        MMResourceCache *(*create)(void *, void *file, MMI32 budget);
     } MMResourceManagerServices;
     typedef struct MMResourceManager
     {
@@ -141,14 +138,14 @@ extern "C"
                                        const MMStorageAllocator *);
     int mm_resource_manager_reserve(MMResourceManager *, MMU32);
     int mm_resource_manager_dispose(MMResourceManager *);
-    void *mm_resource_manager_at(const MMResourceManager *, MMU32);
+    MMResourceCache *mm_resource_manager_at(const MMResourceManager *, MMU32);
     /* IO denotes failed cache creation; MEMORY denotes failed append. Output is
      * unchanged on either failure. Append failure releases the new cache. */
     int mm_resource_manager_add(MMResourceManager *, void *file, MMI32 budget, MMU32 *position);
     int mm_resource_manager_load(MMResourceManager *, const MMResourceRequest *);
     void *mm_resource_manager_fetch(MMResourceManager *, const MMResourceRequest *, int *error);
-    void *mm_resource_manager_find_file(MMResourceManager *, MMU32 type, MMU32 number,
-                                              MMU32 scope);
+    MMResourceCache *mm_resource_manager_find_file(MMResourceManager *, MMU32 type,
+                                                    MMU32 number, MMU32 scope);
     void *mm_resource_manager_find(MMResourceManager *, const MMResourceRequest *);
     int mm_resource_manager_priority(MMResourceManager *, const MMResourceRequest *);
 #ifdef __cplusplus
