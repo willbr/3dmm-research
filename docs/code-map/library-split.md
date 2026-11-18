@@ -5245,10 +5245,27 @@ distinct-camera dissolve produced 174 distinct SDL images, up from one in the
 frozen baseline. Marcus produced 376 and retail produced 234. The sample
 counts reflect each host's capture cadence. With the original fixture, Studio
 submitted 169 images during the effect and Marcus submitted 376. Each repeated
-one distinct image. Retail's temporary colour changes on that fixture remain
-open. The standalone, focused host, SDL and AddressSanitizer checks passed, and
+one distinct image while retail showed temporary colour changes. The
+standalone, focused host, SDL and AddressSanitizer checks passed, and
 the playback gate matched 480 retail frame commits. Evidence is in
 `tmp/c89-transition-presentation`.
+
+The retail dissolve snapshot now uses the shared C89 RGB555 remap for colours
+from the active palette. The remap chooses the entry nearest the centre of the
+same bin, resolving ties in palette order. Studio uses it during the indexed
+snapshot copy. Marcus passes its outgoing scene's palette to the RGBA snapshot
+remap before revealing the incoming image.
+
+A temporary retail probe captured the outgoing indices, the dissolve snapshot,
+and the palette. The palette stayed constant and 3,030 pixels changed during
+the snapshot copy. The C89 result matched all 166,464 retail snapshot indices,
+and 1,536 entries tested with GDI across six palettes. The original fixture
+produced 168 distinct SDL snapshots, 374 in Marcus, 233 in retail and 234 in
+V3DMM. In each capture, every pixel used either its remapped outgoing colour
+or its final colour. Once a pixel reached its final colour it held it through
+the end of the dissolve. The fade checks matched retail's endpoint images and
+the playback gate matched 480 retail frame commits. Evidence is in
+`tmp/c89-dissolve-colours`.
 
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.

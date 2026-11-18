@@ -80,6 +80,15 @@ int mm_pixel_expand_indexed(const MMPixelSurface *target, const MMPixelImage *so
 int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *source,
                               const MMPixelRect *source_rect, const MMPixelRect *target_rect);
 
+/* Take the retail dissolve snapshot from an already-paletted XRGB32 frame.
+ * Entries in the same RGB555 bin resolve to the one nearest its centre.
+ * An unlisted input colour fails the snapshot before publication. */
+int mm_pixel_snapshot_dissolve(const MMPixelImage *target, const MMPixelSurface *source,
+                               const MMPixelRect *source_rect, const MMPixelRect *target_rect);
+/* Apply the same snapshot remapping to RGBA8 in place, preserving alpha and
+ * colours outside the palette. */
+int mm_pixel_remap_dissolve_rgba(const MMPixelSurface *, const unsigned char *palette, MMI32 colours);
+
 /* Move raw samples within the visible rectangle and region. Cells exposed by
  * the move and row padding retain their bytes. The legacy monochrome option
  * applies the full-byte pass before edge bits on leftward 1-bit moves. */

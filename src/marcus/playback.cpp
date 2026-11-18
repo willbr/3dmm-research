@@ -34,6 +34,11 @@ static_assert(static_cast<int>(MARCUS_TRANSITION_CUT) == MM_GRAPHICS_MOVIE_CUT &
               static_cast<int>(MARCUS_TRANSITION_FADE_WHITE) == MM_GRAPHICS_MOVIE_FADE_WHITE &&
               static_cast<int>(MARCUS_TRANSITION_DISSOLVE) == MM_GRAPHICS_MOVIE_DISSOLVE &&
               static_cast<int>(MARCUS_TRANSITION_BLACK) == MM_GRAPHICS_MOVIE_BLACK, "Authored movie transition values");
+MMPixelSurface TransitionSurface(PreviewImage &image)
+{
+    return {image.rgba.data(), static_cast<MMI32>(image.width), static_cast<MMI32>(image.height),
+            static_cast<MMI32>(image.width * 4), 32};
+}
 struct AudioClip
 {
     std::tuple<int, unsigned, unsigned> identity;
@@ -985,10 +990,16 @@ double MarcusPlayback::FrameSeconds() const
     return impl->transition ? (impl->transitionTime - mm_graphics_movie_transition(impl->transition).duration_ms) / 1000
                             : impl->frameSeconds;
 }
-void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous)
+void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous, const unsigned char *outgoingPalette)
 {
-    if (previous.rgba.empty() || !mm_graphics_movie_transition(kind).duration_ms)
+    const auto effect = mm_graphics_movie_transition(kind);
+    if (previous.rgba.empty() || !effect.duration_ms)
         return;
+    if (outgoingPalette && effect.dissolve_phase_ms)
+    {
+        const auto surface = TransitionSurface(previous);
+        mm_pixel_remap_dissolve_rgba(&surface, outgoingPalette, 256);
+    }
     impl->transition = kind;
     impl->wasPlaying = true;
     impl->transitionTime = 0;
@@ -1273,10 +1284,7 @@ void MarcusPlayback::CompositeTransition(MM::PreviewImage &image) const
 {
     if (!impl->transition)
         return;
-    auto &previous = impl->previous;
-    const MMPixelSurface outgoing{previous.rgba.data(), static_cast<MMI32>(previous.width),
-                                  static_cast<MMI32>(previous.height), static_cast<MMI32>(previous.width * 4), 32};
-    const MMPixelSurface incoming{image.rgba.data(), static_cast<MMI32>(image.width), static_cast<MMI32>(image.height),
-                                  static_cast<MMI32>(image.width * 4), 32};
+    const auto outgoing = TransitionSurface(impl->previous);
+    const auto incoming = TransitionSurface(image);
     mm_graphics_movie_transition_rgba(impl->transition, impl->transitionTime, impl->transitionSeed, &outgoing, &incoming);
 }

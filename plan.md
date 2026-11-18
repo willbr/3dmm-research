@@ -795,9 +795,9 @@ Kauai supplies the clock, random seed selection, drawing, clip and palette
 services.
 SDL Studio submits intermediate dissolve snapshots through its window
 presenter. Marcus uses the shared C89 dissolve permutation and phase lengths
-to compose RGBA movie-camera frames. Both show the intermediate reveal when
-the outgoing and incoming images differ. Retail also shows temporary colour
-changes in the fixture with identical endpoint images.
+to compose RGBA movie-camera frames. Both use the C89 RGB555 bin-centre mapping
+for palette colours in the outgoing snapshot. The original fixture now shows
+retail's temporary colour changes even though its endpoint images are identical.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.

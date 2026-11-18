@@ -229,7 +229,7 @@ bool GraphicsPort::_FGetPixelBrush8(GraphicsDrawingData *drawing, KauaiPixels::B
 }
 
 bool GraphicsPort::FCopyIndexedSnapshot(PGraphicsPort source, SystemRectangle *sourceRect,
-                                        SystemRectangle *destinationRect)
+                                        SystemRectangle *destinationRect, bool dissolve)
 {
     if (_cbitPixel != 8 || source->_cbitPixel != 32)
         return false;
@@ -238,7 +238,7 @@ bool GraphicsPort::FCopyIndexedSnapshot(PGraphicsPort source, SystemRectangle *s
     return KauaiPixels::SnapshotIndexed(
         {_prgbPixels, _rcOff.Dxp(), _rcOff.Dyp(), _cbRow},
         {source->_prgbPixels, source->_rcOff.Dxp(), source->_rcOff.Dyp(), source->_cbRow}, RC(*sourceRect),
-        RC(*destinationRect), _rgclrPixels, 256);
+        RC(*destinationRect), _rgclrPixels, 256, dissolve);
 }
 bool GraphicsPort::FGetIndexedPalette(Color *colors)
 {

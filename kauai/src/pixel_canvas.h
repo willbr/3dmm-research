@@ -196,7 +196,7 @@ struct Indexed8
 // Capture already-paletted RGB pixels without quantization. Rejects the whole
 // snapshot if any RGB is absent from the palette; leaves padding untouched.
 bool SnapshotIndexed(const Surface8 &destination, const Surface32 &source, const RC &sourceRect,
-                     const RC &destinationRect, const Color *palette, std::int32_t colors);
+                     const RC &destinationRect, const Color *palette, std::int32_t colors, bool dissolve = false);
 // Source and destination storage must not overlap. Palette entries use the
 // legacy BGR color layout; the reserved byte never becomes an alpha channel.
 bool CopyIndexed(const Surface32 &destination, const Indexed8 &source, const RC &sourceRect, const RC &destinationRect,

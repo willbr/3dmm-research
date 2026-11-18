@@ -272,13 +272,14 @@ bool DrawDibFrame(const Surface32 &destination, const DibFrame &frame, const RC 
                        clipped.region, StorageOverlaps) != 0;
 }
 bool SnapshotIndexed(const Surface8 &destination, const Surface32 &source, const RC &sourceRect,
-                     const RC &destinationRect, const Color *palette, std::int32_t colors)
+                     const RC &destinationRect, const Color *palette, std::int32_t colors, bool dissolve)
 {
     const auto from = RasterSurface(source);
     const MMPixelImage to = {{destination.pixels, destination.width, destination.height, destination.pitch, 8},
                              PaletteBytes(palette), colors};
     const auto src = RasterRect(sourceRect), dst = RasterRect(destinationRect);
-    return mm_pixel_snapshot_indexed(&to, &from, &src, &dst) != 0;
+    const auto snapshot = dissolve ? mm_pixel_snapshot_dissolve : mm_pixel_snapshot_indexed;
+    return snapshot(&to, &from, &src, &dst) != 0;
 }
 bool CopyPacked(const PackedSurface &destination, const PackedSurface &source, const RC &sourceRect,
                 const RC &destinationRect, const RC *clip, Region *region, const PackedCopyOptions &options)

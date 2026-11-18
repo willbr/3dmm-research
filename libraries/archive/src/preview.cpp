@@ -736,6 +736,15 @@ std::uint32_t Preview::PresentationColour(std::uint32_t colour) const
     }
     return colour;
 }
+bool Preview::CopyPresentationPalette(unsigned char bgrx[1024]) const
+{
+    if (!bgrx || !_impl->live.status.ready)
+        return false;
+    const auto *palette = _impl->background ? _impl->background->palette : _impl->palette;
+    static_assert(sizeof(Color) == 4, "Preview palette entries use BGRX layout");
+    std::memcpy(bgrx, palette, 256 * sizeof(Color));
+    return true;
+}
 bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error)
 try
 {

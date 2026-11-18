@@ -439,6 +439,39 @@ static int compare_colour_key(const void *first, const void *second)
     return a < b ? -1 : a > b;
 }
 
+static void sort_palette(const unsigned char *palette, MMI32 count, MMU32 entries[256])
+{
+    MMI32 i;
+    /* The low byte orders duplicate colours by original palette index. */
+    for (i = 0; i < count; ++i)
+        entries[i] = (mm_pixel_rgb(palette + 4 * i) << 8) | (MMU32)i;
+    qsort(entries, (size_t)count, sizeof(entries[0]), compare_colour_key);
+}
+
+static void dissolve_palette(const unsigned char *palette, MMI32 count, unsigned char remap[256])
+{
+    MMU32 bins[256];
+    unsigned char distances[256];
+    MMI32 i, j, r, g, b;
+    for (i = 0; i < count; ++i, palette += 4)
+    {
+        bins[i] = mm_pixel_rgb555(mm_pixel_rgb(palette));
+        b = (palette[0] & 7) - 4;
+        g = (palette[1] & 7) - 4;
+        r = (palette[2] & 7) - 4;
+        distances[i] = (unsigned char)(r * r + g * g + b * b);
+    }
+    for (i = 0; i < count; ++i)
+    {
+        MMI32 closest = i;
+        for (j = 0; j < count; ++j)
+            if (bins[i] == bins[j] &&
+                (distances[j] < distances[closest] || (distances[j] == distances[closest] && j < closest)))
+                closest = j;
+        remap[i] = (unsigned char)closest;
+    }
+}
+
 static int palette_index(const MMU32 *entries, MMI32 count, MMU32 rgb)
 {
     int lo = 0, hi = (int)count, mid;
@@ -460,24 +493,24 @@ static int rect_inside(const MMPixelRect *rect, const MMPixelSurface *image, MMI
            mm_pixel_rect_extent(rect, width, height) && *width > 0 && *height > 0;
 }
 
-int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *source,
-                              const MMPixelRect *source_rect, const MMPixelRect *target_rect)
+static int snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *source,
+                            const MMPixelRect *source_rect, const MMPixelRect *target_rect, int dissolve)
 {
     const MMPixelSurface *dst = &target->surface;
     const unsigned char *from;
     unsigned char *indices, *to;
     MMU32 entries[256], rgb;
-    MMI32 width, height, tw, th, i, x, y;
+    unsigned char remap[256];
+    MMI32 width, height, tw, th, x, y;
     int index;
     if (dst->depth != 8 || source->depth != 32 || !mm_pixel_image_valid(target) || !mm_pixel_surface_valid(source) ||
         !rect_inside(source_rect, source, &width, &height) || !rect_inside(target_rect, dst, &tw, &th) ||
         width != tw || height != th)
         return 0;
 
-    /* The low byte orders duplicate colours by original palette index. */
-    for (i = 0; i < target->colours; ++i)
-        entries[i] = (mm_pixel_rgb(target->palette + 4 * i) << 8) | (MMU32)i;
-    qsort(entries, (size_t)target->colours, sizeof(entries[0]), compare_colour_key);
+    sort_palette(target->palette, target->colours, entries);
+    if (dissolve)
+        dissolve_palette(target->palette, target->colours, remap);
     indices = (unsigned char *)malloc((size_t)width * (size_t)height);
     if (!indices)
         return 0;
@@ -497,7 +530,7 @@ int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *
                 free(indices);
                 return 0;
             }
-            to[x] = (unsigned char)index;
+            to[x] = dissolve ? remap[index] : (unsigned char)index;
         }
     }
     for (y = 0; y < height; ++y)
@@ -506,5 +539,49 @@ int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *
         memcpy(to, indices + (size_t)y * (size_t)width, (size_t)width);
     }
     free(indices);
+    return 1;
+}
+
+int mm_pixel_snapshot_indexed(const MMPixelImage *target, const MMPixelSurface *source,
+                              const MMPixelRect *source_rect, const MMPixelRect *target_rect)
+{
+    return snapshot_indexed(target, source, source_rect, target_rect, 0);
+}
+
+int mm_pixel_snapshot_dissolve(const MMPixelImage *target, const MMPixelSurface *source,
+                               const MMPixelRect *source_rect, const MMPixelRect *target_rect)
+{
+    return snapshot_indexed(target, source, source_rect, target_rect, 1);
+}
+
+int mm_pixel_remap_dissolve_rgba(const MMPixelSurface *image, const unsigned char *palette, MMI32 colours)
+{
+    MMU32 entries[256], rgb;
+    unsigned char remap[256], *pixel;
+    const unsigned char *mapped;
+    MMI32 x, y;
+    int index;
+    if (!palette || colours < 1 || colours > 256 || !image || image->depth != 32 || !mm_pixel_surface_valid(image))
+        return 0;
+    sort_palette(palette, colours, entries);
+    dissolve_palette(palette, colours, remap);
+    for (y = 0; y < image->height; ++y)
+    {
+        pixel = (unsigned char *)image->pixels + (size_t)y * (size_t)image->pitch;
+        for (x = 0; x < image->width; ++x, pixel += 4)
+        {
+            if (!pixel[3])
+                continue;
+            rgb = ((MMU32)pixel[0] << 16) | ((MMU32)pixel[1] << 8) | pixel[2];
+            index = palette_index(entries, colours, rgb);
+            if (index >= 0)
+            {
+                mapped = palette + 4 * remap[index];
+                pixel[0] = mapped[2];
+                pixel[1] = mapped[1];
+                pixel[2] = mapped[0];
+            }
+        }
+    }
     return 1;
 }

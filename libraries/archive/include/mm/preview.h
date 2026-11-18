@@ -303,6 +303,7 @@ class Preview
     bool ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error);
     // Resolve stored indexed caption colours against the active movie palette.
     std::uint32_t PresentationColour(std::uint32_t colour) const;
+    bool CopyPresentationPalette(unsigned char bgrx[1024]) const;
     bool SetPose(std::uint32_t action, std::uint32_t cel, Error &error);
     bool SetFrame(std::int32_t frame, Error &error);
     // Adjust scene edges in memory. Opening camera cues follow the first frame;

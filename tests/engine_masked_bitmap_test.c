@@ -1241,6 +1241,36 @@ static void movie_transition_rgba(void)
     assert(next[0] == 60);
 }
 
+static void dissolve_snapshot(void)
+{
+    static const unsigned char palette[] = {
+        90, 91, 94, 0, 92, 92, 92, 0, 32, 32, 32, 0, 36, 36, 31, 0, 67, 68, 68, 0, 69, 68, 68, 0
+    };
+    static MMU32 xrgb[] = {0x995e5b5aUL, 0x005c5c5cUL, 0x00202020UL, 0x001f2424UL, 0x00444445UL, 0};
+    static const unsigned char expected[] = {1, 1, 2, 3, 4, 0xa5, 0xa5, 0xa5};
+    static const unsigned char remapped[] = {
+        92, 92, 92, 255, 32, 32, 32, 255, 31, 36, 36, 128, 68, 68, 67, 255, 94, 91, 90, 0, 99, 98, 97, 255
+    };
+    unsigned char rgba[] = {
+        94, 91, 90, 255, 32, 32, 32, 255, 31, 36, 36, 128, 68, 68, 69, 255, 94, 91, 90, 0, 99, 98, 97, 255
+    };
+    unsigned char dst[8];
+    const MMPixelRect full = {0, 0, 6, 1}, valid = {0, 0, 5, 1};
+    const MMPixelSurface input = {xrgb, 6, 1, 24, 32};
+    MMPixelSurface frame = {NULL, 6, 1, 24, 32};
+    MMPixelImage snapshot = {{NULL, 6, 1, 8, 8}, palette, 6};
+    snapshot.surface.pixels = dst;
+    frame.pixels = rgba;
+
+    memset(dst, 0xa5, sizeof(dst));
+    assert(!mm_pixel_snapshot_dissolve(&snapshot, &input, &full, &full));
+    assert(!memcmp(dst, "\xa5\xa5\xa5\xa5\xa5\xa5\xa5\xa5", sizeof(dst)));
+    assert(mm_pixel_snapshot_dissolve(&snapshot, &input, &valid, &valid));
+    assert(!memcmp(dst, expected, sizeof(expected)));
+    assert(mm_pixel_remap_dissolve_rgba(&frame, palette, 6));
+    assert(!memcmp(rgba, remapped, sizeof(rgba)));
+}
+
 int main(void)
 {
     encode();
@@ -1264,6 +1294,7 @@ int main(void)
     graphics_transitions();
     graphics_dissolve();
     movie_transition_rgba();
+    dissolve_snapshot();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

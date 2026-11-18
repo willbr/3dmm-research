@@ -1094,7 +1094,7 @@ void GraphicsEnvironment::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray p
     Create a temporary GraphicsEnvironment that is a copy of the given rectangle in this
     GraphicsEnvironment.  This is used for several transitions.
 ***************************************************************************/
-bool GraphicsEnvironment::_FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc)
+bool GraphicsEnvironment::_FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc, bool dissolve)
 {
     PGraphicsPort pgpt;
     PGraphicsEnvironment pgnv;
@@ -1110,12 +1110,11 @@ bool GraphicsEnvironment::_FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc)
 #ifdef KAUAI_PORTABLE_RUNTIME
     if (_pgpt->CbitPixel() == 32)
     {
-        // The SDL display stores RGB, but dissolve operates on palette indices.
-        // Capture the already-paletted movie losslessly instead of invoking the
-        // unsupported general true-color-to-indexed copy policy.
+        // Reconstruct the palette indices of the SDL window buffer. Dissolve
+        // uses retail's display-to-indexed snapshot mapping.
         SystemRectangle source, destination;
         if (!_FMapRcRcs(prc, &source) || !pgnv->_FMapRcRcs(prc, &destination) ||
-            !pgnv->_pgpt->FCopyIndexedSnapshot(_pgpt, &source, &destination))
+            !pgnv->_pgpt->FCopyIndexedSnapshot(_pgpt, &source, &destination, dissolve))
         {
             PushErc(ercGfxCantDraw);
             ReleasePpo(&pgnv);
@@ -1275,7 +1274,7 @@ void GraphicsEnvironment::_Transition(MMGraphicsTransition config, AbstractColor
                 pixels->source = {bytes, bounds.Dxp(), bounds.Dyp(), static_cast<MMI32>(port->CbRow()), 8};
                 pixels->source_origin = {mapped.xpLeft - bounds.xpLeft, mapped.ypTop - bounds.ypTop};
             }
-            if (!state.target->_FEnsureTempGnv(&state.snapshot, state.destination))
+            if (!state.target->_FEnsureTempGnv(&state.snapshot, state.destination, true))
                 return false;
             auto port = state.snapshot->Pgpt();
             auto bytes = port->PrgbLockPixels(&bounds);

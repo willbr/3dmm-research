@@ -2731,13 +2731,15 @@ extern "C"
                     auto previous = player->movieImageScene == player->selected
                                         ? std::move(player->movieImage) : MM::PreviewImage{};
                     player->movieImageScene = -1;
+                    unsigned char outgoingPalette[1024];
+                    const bool hasPalette = !previous.rgba.empty() && player->preview.CopyPresentationPalette(outgoingPalette);
                     const auto next = player->selected + 1;
                     if (!SelectScene(player, next, true, true))
                     {
                         error.message = player->error;
                         return false;
                     }
-                    player->playback.BeginTransition(transition, std::move(previous));
+                    player->playback.BeginTransition(transition, std::move(previous), hasPalette ? outgoingPalette : nullptr);
                     state->scene_changed = 1;
                 }
                 else

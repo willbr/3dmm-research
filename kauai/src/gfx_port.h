@@ -289,7 +289,7 @@ class GraphicsPort : public GraphicsPort_PAR
     void DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
 #ifdef KAUAI_SDL3
     bool DrawVideoFrame(const KauaiPixels::DibFrame &, SystemRectangle *, GraphicsDrawingData *);
-    bool FCopyIndexedSnapshot(PGraphicsPort source, SystemRectangle *sourceRect, SystemRectangle *destinationRect);
+    bool FCopyIndexedSnapshot(PGraphicsPort source, SystemRectangle *sourceRect, SystemRectangle *destinationRect, bool dissolve);
     bool FGetIndexedPalette(Color *colors);
     void PresentTransitionFrame();
 #endif

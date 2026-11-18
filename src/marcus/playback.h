@@ -41,7 +41,7 @@ class MarcusPlayback
     // transition remainder. User click-wait time is excluded.
     double FrameSeconds() const;
     int Transition() const;
-    void BeginTransition(int kind, MM::PreviewImage previous);
+    void BeginTransition(int kind, MM::PreviewImage previous, const unsigned char *outgoingPalette);
     bool Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image, MM::Error &error);
     void CompositeTransition(MM::PreviewImage &image) const;
 };

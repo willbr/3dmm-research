@@ -460,7 +460,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
                      RC *destination, PDynamicArray palette, Random *random = nullptr);
     bool _FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PDynamicArray *ppglclrTrans, long cbitPixel = 0);
     void _PaletteTrans(PDynamicArray pglclrOld, PDynamicArray pglclrNew, long lwNum, long lwDen, PDynamicArray pglclrTrans, Color *pclrSub = pvNil);
-    bool _FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc);
+    bool _FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc, bool dissolve = false);
 
   public:
     GraphicsEnvironment(PGraphicsPort pgpt);
