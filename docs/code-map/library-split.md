@@ -79,11 +79,15 @@ the shared driver.
 Studio's actor embeds the same `MMActorState` as the C evaluator. The seek,
 frame and event drivers work on that live record, so native effects observe
 its state directly.
-`mm_movie_seek_frame` drives the scene-level seek in Studio and Marcus. It
-begins the frame, evaluates actors in scene order and runs the final phase
-only when every actor succeeds. Studio dispatches live events in the first
-phase and handles captions and prerendering in the last phase. Marcus
-selects its live camera and publishes the frame in the last phase.
+`mm_movie_session_seek_live` drives the scene-level seek in Studio and Marcus.
+It begins the frame, evaluates actors in scene order and runs the final phase
+only when every actor succeeds. Studio dispatches live events first and handles
+captions and prerendering in finish. Marcus selects its live camera in finish.
+After finish succeeds, the driver commits the cursor before calling either
+host's publication callback. Studio still advances its edit cursor during
+event replay. Its prerender can draw the prepared pose while the session
+is finishing the same scene. Rejected seeks preserve prior publication when
+the cursor never moves. Failed effects retain the pose prefix as partial.
 `mm_movie_session_seek` uses the same transaction for an immutable archive.
 It reads the scene and start group once, resolves the camera and evaluates
 all actors in authored order. It publishes an owned snapshot on success.

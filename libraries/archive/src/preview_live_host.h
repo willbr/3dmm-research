@@ -55,6 +55,7 @@ struct Preview::Impl::LiveHost
     {
         MMPreviewLiveServices s = {};
         s.context = this;
+        s.movie = impl->assets.MovieSession();
         s.actor_new = [](void *v) -> void * {
             auto &h = *static_cast<LiveHost *>(v);
             try

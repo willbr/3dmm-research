@@ -899,6 +899,7 @@ class Movie : public Movie_PAR
         return static_cast<PScene>(_scenes.open);
     }                                           // The currently open scene.
     MMMovieSession *MovieSession() const { return _data.session; }
+    void RenderWorld();
     bool FInsScenCore(long iscen, Scene *pscen); // Insert this scene as scene number.
     bool FNewScenInsCore(long iscen);           // Inserts a blank scene before iscen
     bool FRemScenCore(long iscen);              // Removes a scene from the movie

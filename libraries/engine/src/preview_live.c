@@ -95,6 +95,7 @@ void mm_preview_live_clear(MMPreviewLive *p, const MMPreviewLiveServices *s)
     p->cameras.count = p->original_cameras.count = 0;
     p->virtual_scene = 0;
     memset(&p->status, 0, sizeof(p->status));
+    memset(&p->publication, 0, sizeof(p->publication));
 }
 void mm_preview_live_dispose(MMPreviewLive *p, const MMPreviewLiveServices *s)
 {
@@ -488,10 +489,16 @@ static int finish_seek(void *context, MMI32 frame)
         }
         p->status.current_camera = camera;
     }
-    p->status.frame = frame;
+    return MM_PREVIEW_LIVE_OK;
+}
+
+static void published_seek(void *context)
+{
+    const PreviewSeek *seek = (const PreviewSeek *)context;
+    const MMPreviewLiveServices *s = seek->services;
+    MMPreviewLive *p = seek->live;
     publish(p, s);
     s->stats(s->context);
-    return MM_PREVIEW_LIVE_OK;
 }
 
 int mm_preview_live_seek(MMPreviewLive *p, MMI32 frame, const MMPreviewLiveServices *s)
@@ -506,5 +513,7 @@ int mm_preview_live_seek(MMPreviewLive *p, MMI32 frame, const MMPreviewLiveServi
     services.actor_count = seek_actor_count;
     services.seek_actor = seek_actor;
     services.finish = finish_seek;
-    return mm_movie_seek_frame(frame, &services);
+    services.position = &p->status.frame;
+    services.published = published_seek;
+    return mm_movie_session_seek_live(s->movie, &p->publication, frame, &services);
 }

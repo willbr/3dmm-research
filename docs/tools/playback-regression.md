@@ -13677,6 +13677,40 @@ edited actor on four seeks. Marcus was rebuilt and relaunched.
 
 Evidence is under `tmp/c89-preview-state/` on the evidence drive.
 
+### The retained movie session coordinates live frame publication
+
+Studio and Marcus call `mm_movie_session_seek_live` with the live scene's
+cursor. The driver prepares the pose after actor evaluation and commits
+the cursor before notifying observers. Studio can prerender during finish
+and keeps the partial cursor when an effect fails. Marcus applies the camera
+before commit. The file-backed evaluator also commits its result cursor through
+the shared driver. The live scene's frame and phase accompany the selected
+camera and retained body bindings in the draw packet.
+
+The C fixtures verified commit order, rejection before the cursor moves,
+partial actor and finish failures, and isolation when another scene seeks
+inside finish. All 181 standalone checks and seven AddressSanitizer checks
+passed. Strict C89 compilation passed for the changed C modules and fixtures
+on Linux x64 musl. The native preview scene, session and metadata fixtures
+reproduced their retained traces. The world render and export traces matched
+byte for byte.
+
+Stock and SID-29 fixtures matched 456 seek observations and 360 viewport
+hashes from the previous builds. The 26 actor and body traces, 480-byte saved
+movie and 188-camera background trace also matched. The 300 standalone frame
+and 300 mesh snapshots matched the preceding build, and all 300 native graph
+and stream frames matched.
+
+Studio SDL and V3dmm each matched 456 retail actor observations. Continuous
+playback matched 240 retail frame commits each in Studio SDL and Marcus,
+covering actor events, dissolves and scrolling text. Retail reopened Studio's
+saved actor edit and matched Studio on four seeks, including a return to
+frame one. All 25 selected host checks passed, including the Marcus player
+fixture. Studio and Marcus were rebuilt, and the workspace Marcus was
+relaunched.
+
+Evidence is under `tmp/c89-live-publication/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

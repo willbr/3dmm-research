@@ -56,6 +56,7 @@ extern "C"
     {
         void *context;
         struct MMMovieSession *movie;
+        const MMMovieLiveFrame *position;
         MMRenderFrame frame;
         MMRenderCamera camera;
         int (*body)(void *, void *actor, MMRenderBody *);

@@ -48,7 +48,8 @@ class World : public World_PAR
     MMWorldCamera _camera; // authoritative camera and closest-pick state
     MMWorldCameraServices _CameraServices();
     MMWorldRender _render;
-    MMWorldRenderServices _RenderServices(void *context, MMMovieSession *movie = nullptr);
+    MMWorldRenderServices _RenderServices(void *context, MMMovieSession *movie = nullptr,
+                                          const MMMovieLiveFrame *position = nullptr);
     RC _rcBuffer;                // Bounds of the rendering space
     RC _rcView;                  // Bounds of view
     BACT _bactWorld;             // The world root actor
@@ -193,8 +194,8 @@ class World : public World_PAR
     {
         return _fHalfY;
     }
-    void Render(MMMovieSession *movie = nullptr);
-    void Prerender(MMMovieSession *movie = nullptr);
+    void Render(MMMovieSession *movie = nullptr, const MMMovieLiveFrame *position = nullptr);
+    void Prerender(MMMovieSession *movie = nullptr, const MMMovieLiveFrame *position = nullptr);
     void Unprerender(void);
     void Draw(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp);
 

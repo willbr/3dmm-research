@@ -5,6 +5,7 @@
 #include "background_camera.h"
 #include "model_resource.h"
 #include "movie_data.h"
+#include "movie_frame.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -181,22 +182,6 @@ typedef struct MMMovieEvaluatedActor
     MMActorPoint translation;
     MMActorMatrix orientation;
 } MMMovieEvaluatedActor;
-
-typedef struct MMMovieFrameServices
-{
-    void *context;
-    int (*begin)(void *, MMI32 frame);
-    MMU32 (*actor_count)(void *);
-    int (*seek_actor)(void *, MMU32 ordinal, MMI32 frame);
-    int (*finish)(void *, MMI32 frame);
-} MMMovieFrameServices;
-
-/* Begin once, seek the actors in scene order, then finish. Each operation
- * returns zero on success or a caller-defined error. The first error stops
- * the transaction and is returned unchanged. Completed effects remain applied.
- * The actor count is live. Services are synchronous and may not reenter the
- * same seek. finish is optional. */
-int mm_movie_seek_frame(MMI32 frame, const MMMovieFrameServices *);
 
 typedef struct MMMovieBodyPart
 {

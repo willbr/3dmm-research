@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_PREVIEW_LIVE_H
 #define MM_ENGINE_PREVIEW_LIVE_H
 #include "collections.h"
+#include "movie_frame.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -37,6 +38,7 @@ extern "C"
     {
         MMPreviewLiveArray scenes, props, actors, cameras, original_cameras;
         MMPreviewLiveStatus status;
+        MMMovieLiveFrame publication;
         MMU32 original_actors, initial_camera;
         MMI32 original_first, original_last;
         int virtual_scene;
@@ -57,6 +59,7 @@ extern "C"
     typedef struct MMPreviewLiveServices
     {
         void *context;
+        struct MMMovieSession *movie;
         void *(*actor_new)(void *);
         int (*actor_create)(void *, void *, const MMPreviewLiveProp *);
         int (*actor_seek)(void *, void *, MMI32);

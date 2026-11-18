@@ -744,7 +744,6 @@ static int begin_frame(void *context, MMI32 frame)
                                    frame, input->source, &result->camera);
     if (status != MM_MOVIE_OK)
         return status;
-    result->frame = frame;
     while (next_actor_start(&input->starts, &cursor, &slot))
         ++result->actor_count;
     if (result->actor_count)
@@ -808,6 +807,8 @@ static int seek_frame(const MMMovieSession *movie, MMU32 scene_slot, MMI32 frame
     services.actor_count = frame_actor_count;
     services.seek_actor = seek_frame_actor;
     services.finish = NULL;
+    services.position = &input.result->frame;
+    services.published = NULL;
     status = mm_movie_seek_frame(frame, &services);
     free(input.starts.bytes);
     if (status == MM_MOVIE_OK)

@@ -180,7 +180,7 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
                 if (s->body(s->context, actor, &body) && !mm_movie_render_scene_add(&scene, &body))
                     goto done;
             }
-    mm_movie_render_scene_publish(&scene, &s->camera, &frame);
+    mm_movie_render_scene_publish(&scene, &s->camera, s->position, &frame);
     if (s->has(s->context, MM_WORLD_BEGIN))
         for (actor = s->child(s->context, frame.world); actor; actor = s->next(s->context, actor))
             if (s->type(s->context, actor) == s->actor_none)

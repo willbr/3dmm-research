@@ -729,7 +729,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     }
     if (!bg && v->fit_depth && !fit_depth(f, &camera, width, height))
         return MM_PREVIEW_MEMORY;
-    mm_movie_render_scene_publish(&f->pose.render, &camera, &f->targets);
+    mm_movie_render_scene_publish(&f->pose.render, &camera, s->position, &f->targets);
     f->sink = 1;
     projection(&image->projection, &f->targets.scene->camera, m);
     if (v->rasterizer && !s->raster_begin(s->context, &image->projection, d->palette, bg || infinite, width, height))

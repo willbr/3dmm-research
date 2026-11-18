@@ -172,6 +172,9 @@ static void notice(void *p, int kind, int value)
 {
     Fixture *f = (Fixture *)p;
     CHECK(kind >= 0 && kind < 7);
+    if (kind == MM_SCENE_INVALIDATE)
+        CHECK(f->runtime.publication.phase == MM_MOVIE_FRAME_COMMITTED &&
+              f->runtime.publication.frame == f->data.currentFrame);
     ++f->notices[kind];
     if (kind == MM_SCENE_SOUND_INDICATOR)
         f->sound = value;

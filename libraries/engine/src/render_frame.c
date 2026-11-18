@@ -8,9 +8,10 @@ void mm_movie_render_scene_init(MMMovieRenderScene *scene, MMMovieSession *sessi
 {
     memset(scene, 0, sizeof(*scene));
     mm_storage_init(&scene->storage, allocator);
-    if (session && !allocator)
+    scene->session = session;
+    scene->reuse_bodies = session && !allocator;
+    if (scene->reuse_bodies)
     {
-        scene->session = session;
         scene->storage.buffers[0] = session->render_bodies;
         memset(&session->render_bodies, 0, sizeof(session->render_bodies));
     }
@@ -34,9 +35,15 @@ int mm_movie_render_scene_add(MMMovieRenderScene *scene, const MMRenderBody *bod
     return 1;
 }
 
-void mm_movie_render_scene_publish(MMMovieRenderScene *scene, const MMRenderCamera *camera, MMRenderFrame *frame)
+void mm_movie_render_scene_publish(MMMovieRenderScene *scene, const MMRenderCamera *camera,
+                                    const MMMovieLiveFrame *position, MMRenderFrame *frame)
 {
     scene->camera = *camera;
+    if (position && (position->phase != MM_MOVIE_FRAME_PREPARED || !scene->session ||
+                     scene->session->seeking_frame == position))
+        scene->position = *position;
+    else
+        memset(&scene->position, 0, sizeof(scene->position));
     frame->scene = scene;
 }
 
@@ -48,7 +55,7 @@ void mm_movie_render_scene_dispose(MMMovieRenderScene *scene)
         for (i = 0; i < scene->bodies.count; ++i)
             if (bodies[i].resource)
                 scene->release(scene->context, bodies[i].resource);
-    if (scene->session && scene->storage.buffers[0].capacity > scene->session->render_bodies.capacity)
+    if (scene->reuse_bodies && scene->storage.buffers[0].capacity > scene->session->render_bodies.capacity)
     {
         MMStorageBuffer previous = scene->session->render_bodies;
         scene->session->render_bodies = scene->storage.buffers[0];
@@ -56,6 +63,7 @@ void mm_movie_render_scene_dispose(MMMovieRenderScene *scene)
     }
     mm_storage_dispose(&scene->storage);
     scene->bodies.count = 0;
+    scene->reuse_bodies = 0;
     scene->session = NULL;
 }
 

@@ -7,6 +7,8 @@ void mm_scene_runtime_init(MMSceneRuntime *r)
     r->next_event = 0;
     r->background_frame = 0;
     r->disabled = MM_SCENE_EFFECT_PAUSES;
+    r->publication.frame = 0;
+    r->publication.phase = MM_MOVIE_FRAME_UNPUBLISHED;
 }
 int mm_scene_force(MMI32 frame, int text, int *sound, const MMSceneRuntimeServices *s)
 {
@@ -145,15 +147,21 @@ static int finish_seek(void *context, MMI32 target)
     const SceneSeek *seek = (const SceneSeek *)context;
     const MMSceneRuntime *r = seek->runtime;
     const MMSceneRuntimeServices *s = seek->services;
-    void *c = s->context;
     if (!(r->disabled & MM_SCENE_EFFECT_TEXTS) && !mm_scene_force(target, 1, 0, s))
         return MM_MOVIE_BAD_FILE;
     if (!(r->disabled & MM_SCENE_EFFECT_ACTORS))
         mm_scene_prerender(r, seek->data, 0, s);
+    return MM_MOVIE_OK;
+}
+
+static void published_seek(void *context)
+{
+    const SceneSeek *seek = (const SceneSeek *)context;
+    const MMSceneRuntimeServices *s = seek->services;
+    void *c = s->context;
     s->notice(c, MM_SCENE_INVALIDATE, 0);
     if (seek->update)
         s->notice(c, MM_SCENE_SOUND_INDICATOR, seek->sound);
-    return MM_MOVIE_OK;
 }
 
 int mm_scene_goto(MMSceneRuntime *r, MMSceneState *d, MMI32 target,
@@ -169,7 +177,9 @@ int mm_scene_goto(MMSceneRuntime *r, MMSceneState *d, MMI32 target,
     services.actor_count = seek_actor_count;
     services.seek_actor = seek_actor;
     services.finish = finish_seek;
-    return mm_movie_seek_frame(target, &services) == MM_MOVIE_OK;
+    services.position = &d->currentFrame;
+    services.published = published_seek;
+    return mm_movie_session_seek_live(s->movie, &r->publication, target, &services) == MM_MOVIE_OK;
 }
 int mm_scene_replay(MMSceneRuntime *r, const MMSceneState *d, MMU32 enabled,
                           const MMSceneRuntimeServices *s)

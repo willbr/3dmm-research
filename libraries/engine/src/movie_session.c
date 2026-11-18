@@ -769,20 +769,63 @@ MMI32 mm_movie_view_last_event(const MMMovieEventView *view, int kind, MMI32 fra
     return -1;
 }
 
-int mm_movie_seek_frame(MMI32 frame, const MMMovieFrameServices *services)
+static int seek_frame(MMMovieLiveFrame *live, MMI32 frame, const MMMovieFrameServices *services)
 {
     MMU32 i;
     void *context = services->context;
+    MMI32 previous = live && services->position ? *services->position : frame;
     int status = services->begin(context, frame);
     if (status)
+    {
+        if (live && services->position && *services->position != previous)
+        {
+            live->frame = *services->position;
+            live->phase = MM_MOVIE_FRAME_PARTIAL;
+        }
         return status;
+    }
+    if (live)
+    {
+        live->frame = frame;
+        live->phase = MM_MOVIE_FRAME_PARTIAL;
+    }
     for (i = 0; i < services->actor_count(context); ++i)
     {
         status = services->seek_actor(context, i, frame);
         if (status)
             return status;
     }
-    return services->finish ? services->finish(context, frame) : 0;
+    if (live)
+        live->phase = MM_MOVIE_FRAME_PREPARED;
+    status = services->finish ? services->finish(context, frame) : MM_MOVIE_OK;
+    if (live)
+        live->phase = status ? MM_MOVIE_FRAME_PARTIAL : MM_MOVIE_FRAME_COMMITTED;
+    if (status)
+        return status;
+    if (services->position)
+        *services->position = frame;
+    if (services->published)
+        services->published(context);
+    return MM_MOVIE_OK;
+}
+
+int mm_movie_seek_frame(MMI32 frame, const MMMovieFrameServices *services)
+{
+    return seek_frame(NULL, frame, services);
+}
+
+int mm_movie_session_seek_live(MMMovieSession *movie, MMMovieLiveFrame *live, MMI32 frame,
+                                const MMMovieFrameServices *services)
+{
+    const MMMovieLiveFrame *parent;
+    int status;
+    if (!movie)
+        return seek_frame(live, frame, services);
+    parent = movie->seeking_frame;
+    movie->seeking_frame = live;
+    status = seek_frame(live, frame, services);
+    movie->seeking_frame = parent;
+    return status;
 }
 
 static void read_scene_event(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)

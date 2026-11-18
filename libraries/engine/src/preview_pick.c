@@ -174,7 +174,7 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
         mm_preview_pose_submit(&state->pose, frame->world, &state->scratch, &r) != MM_PREVIEW_OK ||
         (d->model && !r.add_model(r.context, frame->world, d->model)))
         return MM_PREVIEW_PICK_MODELS;
-    mm_movie_render_scene_publish(&state->pose.render, &camera, frame);
+    mm_movie_render_scene_publish(&state->pose.render, &camera, r.position, frame);
     if (!bg && d->background)
     {
         memset(&mesh, 0, sizeof(mesh));

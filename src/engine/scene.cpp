@@ -670,10 +670,11 @@ MMSceneRuntimeServices Scene::_RuntimeServices()
     };
     s.set_prerendered = [](void *, void *actor, int value) { static_cast<PActor>(actor)->SetPrerendered(value != 0); };
     s.snapshot = [](void *p, int begin) {
-        auto movie = static_cast<PScene>(p)->Pmvie();
+        auto scene = static_cast<PScene>(p);
+        auto movie = scene->Pmvie();
         auto world = movie->Pbwld();
         if (begin)
-            world->Prerender(movie->MovieSession());
+            world->Prerender(movie->MovieSession(), scene->PlaybackFrame());
         else
             world->Unprerender();
     };
@@ -725,6 +726,7 @@ bool Scene::FGotoFrm(long nfrm)
 {
     AssertThis(0);
     auto services = _RuntimeServices();
+    services.movie = Pmvie()->MovieSession();
     return mm_scene_goto(&_runtime, &_data, nfrm, &services) != 0;
 }
 

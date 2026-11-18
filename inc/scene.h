@@ -229,6 +229,11 @@ class Scene : public Scene_PAR
     bool FPlayStartEvents(bool fActorsOnly = fFalse); // Play all one-time starting scene events.
     void InvalFrmRange(void);                         // Mark the frame count dirty
     bool FGotoFrm(long nfrm);                         // Jumps to an arbitrary frame.
+    const MMMovieLiveFrame *PlaybackFrame() const
+    {
+        const auto &frame = _runtime.publication;
+        return frame.phase && frame.frame == _data.currentFrame ? &frame : nullptr;
+    }
     long Nfrm(void)                                   // Returns the current frame number
     {
         return (_data.currentFrame);

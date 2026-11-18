@@ -524,8 +524,12 @@ Keep host presentation and device output outside the session.
    apply those rows through native resource and editing adapters. Marcus now
    uses the C live record as the authority for selection, readiness, frame
    range, current frame and camera. Rendering and picking read that state.
-   The public preview information is published from the same record. Using
-   the retained session's evaluator to supply live publication remains open.
+   The public preview information is published from the same record. The
+   retained session now coordinates live seeks and commits the cursor before
+   notifying observers in both hosts. Studio prerendering can submit a
+   prepared pose during the seek. Render packets carry the live publication
+   alongside the selected camera and body bindings. Unifying the file-backed
+   evaluator's resource inputs with the editable live scene remains open.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

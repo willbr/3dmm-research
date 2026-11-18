@@ -107,6 +107,7 @@ extern "C"
     {
         void *context;
         struct MMMovieSession *movie;
+        const MMMovieLiveFrame *position;
         MMStorageAllocator allocator;
         MMPreviewMath math;
         MMPreviewTreeServices tree;

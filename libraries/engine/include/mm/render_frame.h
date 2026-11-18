@@ -2,13 +2,12 @@
 #define MM_ENGINE_RENDER_FRAME_H
 #include "body_create.h"
 #include "collections.h"
+#include "movie_frame.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-
-struct MMMovieSession;
 
 typedef struct MMRenderCamera
 {
@@ -29,9 +28,11 @@ typedef struct MMRenderBody
 typedef struct MMMovieRenderScene
 {
     MMRenderCamera camera;
+    MMMovieLiveFrame position;
     MMCollectionStorage storage;
     MMArray bodies;
     struct MMMovieSession *session;
+    int reuse_bodies;
     void *context;
     void (*retain)(void *, void *), (*release)(void *, void *);
 } MMMovieRenderScene;
@@ -70,11 +71,13 @@ void mm_render_frame_dispose(MMRenderFrame *);
  * frame borrows the published scene until rendering finishes. Optionally borrow
  * default-heap body storage from a movie session that outlives the submission.
  * The session keeps capacity after disposal. Bodies, camera and host callbacks
- * remain local to each submission, including nested draws. */
+ * remain local to each submission, including nested draws. Pass the live
+ * frame record for the scene being drawn when it matches the scene cursor.
+ * A prepared pose is valid only during its own session's finish callback. */
 void mm_movie_render_scene_init(MMMovieRenderScene *, struct MMMovieSession *, const MMStorageAllocator *, void *context,
                                void (*retain)(void *, void *), void (*release)(void *, void *));
 int mm_movie_render_scene_add(MMMovieRenderScene *, const MMRenderBody *);
-void mm_movie_render_scene_publish(MMMovieRenderScene *, const MMRenderCamera *, MMRenderFrame *);
+void mm_movie_render_scene_publish(MMMovieRenderScene *, const MMRenderCamera *, const MMMovieLiveFrame *, MMRenderFrame *);
 void mm_movie_render_scene_dispose(MMMovieRenderScene *);
 
 #ifdef __cplusplus

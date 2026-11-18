@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_SCENE_RUNTIME_H
 #define MM_ENGINE_SCENE_RUNTIME_H
 #include "scene_data.h"
+#include "movie_frame.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -29,6 +30,7 @@ extern "C"
     {
         MMI32 next_event, background_frame;
         MMU32 disabled;
+        MMMovieLiveFrame publication;
     } MMSceneRuntime;
     /* Synchronous, borrowed services. Event groups must not be mutated/reentered
      * during play/unplay; changing their length invalidates the native cursor too.
@@ -40,6 +42,7 @@ extern "C"
     typedef struct MMSceneRuntimeServices
     {
         void *context;
+        struct MMMovieSession *movie;
         MMI32 (*event_count)(void *);
         void (*event)(void *, MMI32 index, MMI32 *frame, int *kind);
         int (*play)(void *, MMI32 index, MMU32 disabled);

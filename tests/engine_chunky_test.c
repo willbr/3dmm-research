@@ -144,6 +144,120 @@ static void session_render_storage(MMMovieSession *movie)
     CHECK(references == 0);
 }
 
+typedef struct LiveFrameProbe
+{
+    MMMovieSession *movie;
+    MMMovieLiveFrame live;
+    struct LiveFrameProbe *nested, *parent;
+    MMI32 cursor;
+    int eager, begin_error, actor_error, finish_error, commits;
+} LiveFrameProbe;
+
+static int probe_live_seek(LiveFrameProbe *probe, MMI32 frame);
+
+static void probe_draw(LiveFrameProbe *probe, const MMMovieLiveFrame *position, int phase)
+{
+    MMMovieRenderScene scene;
+    MMRenderFrame frame;
+    MMRenderCamera camera = {0};
+    camera.near_z = 27;
+    mm_render_frame_borrow(&frame, NULL, NULL, NULL, NULL);
+    mm_movie_render_scene_init(&scene, probe->movie, NULL, NULL, NULL, NULL);
+    mm_movie_render_scene_publish(&scene, &camera, position, &frame);
+    CHECK(frame.scene == &scene && scene.position.phase == phase && scene.camera.near_z == 27);
+    if (phase)
+        CHECK(scene.position.frame == position->frame);
+    mm_movie_render_scene_dispose(&scene);
+}
+
+static int probe_begin(void *context, MMI32 frame)
+{
+    LiveFrameProbe *probe = (LiveFrameProbe *)context;
+    if (probe->eager)
+        probe->cursor = frame;
+    return probe->begin_error;
+}
+
+static MMU32 probe_count(void *context)
+{
+    (void)context;
+    return 1;
+}
+
+static int probe_actor(void *context, MMU32 ordinal, MMI32 frame)
+{
+    LiveFrameProbe *probe = (LiveFrameProbe *)context;
+    CHECK(!ordinal && probe->live.phase == MM_MOVIE_FRAME_PARTIAL && probe->live.frame == frame);
+    return probe->actor_error;
+}
+
+static int probe_finish(void *context, MMI32 frame)
+{
+    LiveFrameProbe *probe = (LiveFrameProbe *)context;
+    CHECK(probe->live.frame == frame && probe->live.phase == MM_MOVIE_FRAME_PREPARED);
+    CHECK((probe->cursor == frame) == probe->eager);
+    probe_draw(probe, &probe->live, MM_MOVIE_FRAME_PREPARED);
+    if (probe->parent)
+        probe_draw(probe, &probe->parent->live, MM_MOVIE_FRAME_UNPUBLISHED);
+    if (probe->nested)
+    {
+        CHECK(probe_live_seek(probe->nested, frame + 1) == MM_MOVIE_OK);
+        probe_draw(probe, &probe->live, MM_MOVIE_FRAME_PREPARED);
+    }
+    return probe->finish_error;
+}
+
+static void probe_committed(void *context)
+{
+    LiveFrameProbe *probe = (LiveFrameProbe *)context;
+    CHECK(probe->cursor == probe->live.frame && probe->live.phase == MM_MOVIE_FRAME_COMMITTED);
+    ++probe->commits;
+}
+
+static int probe_live_seek(LiveFrameProbe *probe, MMI32 frame)
+{
+    MMMovieFrameServices s;
+    s.context = probe;
+    s.begin = probe_begin;
+    s.actor_count = probe_count;
+    s.seek_actor = probe_actor;
+    s.finish = probe_finish;
+    s.position = &probe->cursor;
+    s.published = probe_committed;
+    return mm_movie_session_seek_live(probe->movie, &probe->live, frame, &s);
+}
+
+static void session_live_publication(MMMovieSession *movie)
+{
+    LiveFrameProbe probe, other;
+    memset(&probe, 0, sizeof(probe));
+    memset(&other, 0, sizeof(other));
+    probe.movie = other.movie = movie;
+    probe.nested = &other;
+    other.parent = &probe;
+    CHECK(probe_live_seek(&probe, 4) == MM_MOVIE_OK && probe.cursor == 4 && probe.commits == 1);
+    CHECK(other.commits == 1 && other.cursor == 5);
+    probe_draw(&probe, &probe.live, MM_MOVIE_FRAME_COMMITTED);
+    probe.nested = NULL;
+    probe.begin_error = MM_MOVIE_FRAME_OUT_OF_RANGE;
+    CHECK(probe_live_seek(&probe, 9) == MM_MOVIE_FRAME_OUT_OF_RANGE && probe.live.frame == 4);
+    CHECK(probe.live.phase == MM_MOVIE_FRAME_COMMITTED && probe.cursor == 4 && probe.commits == 1);
+
+    probe.eager = 1;
+    CHECK(probe_live_seek(&probe, 6) == MM_MOVIE_FRAME_OUT_OF_RANGE && probe.live.frame == 6);
+    CHECK(probe.live.phase == MM_MOVIE_FRAME_PARTIAL && probe.cursor == 6 && probe.commits == 1);
+    probe_draw(&probe, &probe.live, MM_MOVIE_FRAME_PARTIAL);
+    probe.begin_error = 0;
+    probe.eager = 0;
+    probe.actor_error = MM_MOVIE_BAD_FILE;
+    CHECK(probe_live_seek(&probe, 7) == MM_MOVIE_BAD_FILE && probe.cursor == 6 && probe.commits == 1);
+    CHECK(probe.live.phase == MM_MOVIE_FRAME_PARTIAL && probe.live.frame == 7);
+    probe.actor_error = 0;
+    probe.finish_error = MM_MOVIE_MEMORY;
+    CHECK(probe_live_seek(&probe, 8) == MM_MOVIE_MEMORY && probe.cursor == 6 && probe.commits == 1);
+    CHECK(probe.live.phase == MM_MOVIE_FRAME_PARTIAL && probe.live.frame == 8);
+}
+
 static void movie_sessions(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
@@ -175,6 +289,7 @@ static void movie_sessions(void)
                 CHECK(mm_movie_session_scene(movie, 3, &scene) == MM_MOVIE_OK && scene.number == 36 &&
                       scene.first_frame == -6 && scene.last_frame == 25 && scene.transition == 4);
                 session_render_storage(movie);
+                session_live_publication(movie);
                 mm_movie_session_close(movie);
             }
     movie = NULL;

@@ -12,6 +12,7 @@ struct MMMovieSession
     MMChunkPolicy policy;
     MMMovieSessionRoot root;
     MMStorageBuffer render_bodies;
+    const MMMovieLiveFrame *seeking_frame;
 };
 
 typedef struct MMMoviePayload

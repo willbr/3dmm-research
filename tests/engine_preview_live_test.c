@@ -122,6 +122,7 @@ static void stats(void *v)
 {
     Host *h = (Host *)v;
     assert(h->published && h->published_frame == h->live.status.frame);
+    assert(h->live.publication.phase == MM_MOVIE_FRAME_COMMITTED && h->live.publication.frame == h->published_frame);
     ++h->stats;
 }
 static int camera(void *v, MMU32 index)
@@ -370,6 +371,8 @@ static void seek_tests(void)
     init(&h);
     assert(mm_preview_live_seek(&h.live, 9, &h.services) == MM_PREVIEW_LIVE_FRAME && !h.seeks && h.begins == 1);
     assert(mm_preview_live_seek(&h.live, 16, &h.services) == 0 && h.live.status.frame == 16 && h.stats == 1);
+    assert(mm_preview_live_seek(&h.live, 21, &h.services) == MM_PREVIEW_LIVE_FRAME && h.stats == 1);
+    assert(h.live.publication.phase == MM_MOVIE_FRAME_COMMITTED && h.live.publication.frame == 16);
     h.live.status.background = 0;
     assert(mm_preview_live_seek(&h.live, 10, &h.services) == 0 && h.live.status.frame == 10 && h.cameras == 1);
     dispose(&h);
