@@ -513,6 +513,95 @@ static void seek_effects(void)
     CHECK(!effects.calls && state.frame == 2);
 }
 
+typedef struct PlaybackLog
+{
+    char order[8];
+    unsigned count;
+    int suppressed, cel_result, fail_index;
+} PlaybackLog;
+
+static void note_playback(PlaybackLog *log, char effect)
+{
+    CHECK(log->count + 1 < sizeof(log->order));
+    log->order[log->count++] = effect;
+    log->order[log->count] = 0;
+}
+
+static int suppress_playback(void *context)
+{
+    return ((PlaybackLog *)context)->suppressed;
+}
+
+static int motion_playback(void *context)
+{
+    note_playback((PlaybackLog *)context, 'm');
+    return 0;
+}
+
+static void position_playback(void *context)
+{
+    note_playback((PlaybackLog *)context, 'p');
+}
+
+static int cel_playback(void *context)
+{
+    PlaybackLog *log = (PlaybackLog *)context;
+    note_playback(log, 'c');
+    return log->cel_result;
+}
+
+static int sound_playback(void *context, MMI32 index)
+{
+    PlaybackLog *log = (PlaybackLog *)context;
+    note_playback(log, (char)('a' + index));
+    return index != log->fail_index;
+}
+
+static void playback_effects(void)
+{
+    Tables t;
+    MMActorState state;
+    MMActorTimelineServices timeline;
+    MMActorPlaybackEffects hooks = {0};
+    PlaybackLog log = {{0}, 0, 0, 1, -1};
+    int profile, result, sound = 0;
+    hooks.context = &log;
+    hooks.suppress_sounds = suppress_playback;
+    hooks.motion_sounds = motion_playback;
+    hooks.position_body = position_playback;
+    hooks.select_cel = cel_playback;
+    for (profile = 0; profile < 3; ++profile)
+    {
+        straight(&t, &state);
+        timeline = services(&t);
+        state.onStage = 1;
+        state.cel = 9;
+        state.step = state.transform.rScaleStep = ONE;
+        log.count = 0;
+        log.suppressed = profile == 1;
+        log.cel_result = profile == 2 ? -2 : 1;
+        result = mm_actor_playback_seek(&state, &t, &t, 1, 20, 8,
+                       profile == 2 ? MM_ACTOR_FRAME_PREVIEW : MM_ACTOR_FRAME_STUDIO, &sound, &timeline, &hooks);
+        CHECK(result == log.cel_result && state.frame == 8 && state.cel == 7 && !sound);
+        CHECK(!strcmp(log.order, profile == 0 ? "mpc" : "pc"));
+    }
+
+    row(&t, 1, MM_ACTOR_SOUND, 8, 0, 0, 0, NULL, 0);
+    row(&t, 2, MM_ACTOR_TWEAK, 8, 0, 0, 0, NULL, 0);
+    row(&t, 3, MM_ACTOR_SOUND, 8, 0, 0, 0, NULL, 0);
+    state.firstEventInFrame = 1;
+    state.nextEvent = 4;
+    log.count = 0;
+    CHECK(mm_actor_replay_frame_sounds(&state, &t, 0, &timeline.motion, &log, sound_playback, motion_playback) == 1);
+    CHECK(!log.count);
+    CHECK(mm_actor_replay_frame_sounds(&state, &t, 1, &timeline.motion, &log, sound_playback, motion_playback) == 0);
+    CHECK(!strcmp(log.order, "bdm"));
+    log.count = 0;
+    log.fail_index = 1;
+    CHECK(mm_actor_replay_frame_sounds(&state, &t, 1, &timeline.motion, &log, sound_playback, motion_playback) == 0);
+    CHECK(!strcmp(log.order, "b"));
+}
+
 int main(void)
 {
     steps_and_lifetime();
@@ -520,6 +609,7 @@ int main(void)
     seek_protocol_and_forward();
     seek_quick_and_rewind();
     seek_effects();
+    playback_effects();
     puts("actor timeline and seek passed");
     return 0;
 }

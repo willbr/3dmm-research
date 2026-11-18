@@ -93,6 +93,38 @@ extern "C"
      * They must not reenter the seek or change the table structure. */
     int mm_actor_seek_run(MMActorState *, void *route, void *events, MMI32 first, MMI32 last, MMI32 target,
                           const MMActorTimelineServices *, const MMActorSeekEffects *);
+
+    typedef struct MMActorPlaybackEffects
+    {
+        void *context;
+        void (*hide)(void *);
+        int (*reset_costume)(void *);
+        /* Optional frame settings and preparation before resolving the step. */
+        void (*prepare)(void *, MMActorFrameInputs *);
+        /* Optional lifetime refresh before testing an entrance's cached frame. */
+        int (*prepare_entrance)(void *, MMI32 index);
+        int (*apply_event)(void *, MMI32 index);
+        /* Optional current lifetime end, queried after applying a frame's events. */
+        MMI32 (*last_frame)(void *);
+        int (*suppress_sounds)(void *);
+        int (*motion_sounds)(void *);
+        void (*position_body)(void *);
+        int (*select_cel)(void *);
+        void (*update_pose)(void *);
+        int (*fault)(void *);
+    } MMActorPlaybackEffects;
+    /* Seek and display the live actor using the given frame profile. Studio
+     * accumulates position dirtiness across frames and considers motion sound
+     * during quick backup. Preview evaluates each frame with a dirty pose and
+     * propagates callback errors. Optional sound is set if a cue is encountered. */
+    int mm_actor_playback_seek(MMActorState *, void *route, void *events, MMI32 first, MMI32 last, MMI32 target,
+                              int profile, int *sound, const MMActorTimelineServices *, const MMActorPlaybackEffects *);
+
+    /* Replay this on-stage actor's sound events in frame order, then motion sound.
+     * Return a nonpositive effect result immediately if playback fails. */
+    int mm_actor_replay_frame_sounds(const MMActorState *, void *events, int enabled,
+                                     const MMActorMotionServices *, void *context,
+                                     int (*apply)(void *, MMI32 index), int (*motion_sounds)(void *));
 #ifdef __cplusplus
 }
 #endif

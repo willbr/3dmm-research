@@ -69,11 +69,13 @@ to recover the embedded template number when a movie edit or import changed
 it. An external source keeps its authored template number and uses the
 ordered archive search.
 Studio and `mm_preview_actor_seek`, which serves Marcus and the standalone
-session, both run `mm_actor_seek_run` from `mm/actor_timeline.h`. The C driver
-owns command delivery and failure accumulation. The effect adapters update
-their live state, costume, pose and sound as each command runs.
-The same three paths use `mm_actor_frame_run` for event commands and
-`mm_actor_frame_display` for motion sounds, position, cel selection and pose.
+session, both run `mm_actor_playback_seek` from `mm/actor_timeline.h`. It
+coordinates seek commands, step resolution, entrance tests, frame events and
+display effects. It carries Studio's position dirtiness across intermediate
+frames and applies the profile's quick-backup sound behavior. Host services
+refresh the lifetime when needed and supply costume, pose and sound effects.
+Studio's current-frame sound replay also walks the C actor's event cursor in
+the shared driver.
 Studio's actor embeds the same `MMActorState` as the C evaluator. The seek,
 frame and event drivers work on that live record, so native effects observe
 its state directly.

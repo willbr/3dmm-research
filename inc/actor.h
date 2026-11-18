@@ -158,13 +158,9 @@ class Actor : public Actor_PAR
     void _GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr);
     void _SetStateRewound(void);
 
-    bool _FApplyQuickSeekEffects();
-    bool _FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame = pvNil);
     bool _FGetStatic(long anid, bool *pfStatic);
     bool _FIsDoneAevSub(long iaev, RouteLocation rtel);
-    bool _FIsAddNow(long iaev);
     ActorStepSource _StepSource() const;
-    bool _FGetDwrPlay(BRS *pdwr);   // Step size if playing
     bool _FGetDwrRecord(BRS *pdwr); // Step size if recording
     bool _FDoAevCur(void);
     bool _FDoAevCore(long iaev);

@@ -469,6 +469,10 @@ Keep host presentation and device output outside the session.
    Studio rewind now share the standalone event selector over their live
    timelines. Studio, Marcus and the standalone session now share the C89
    scene frame transaction, actor seek, frame event and frame effect drivers.
+   One C89 actor playback driver now composes the seek, per-frame step and
+   display effects. It evaluates cached entrances, carries Studio's dirty pose
+   across intermediate frames and preserves each host's quick-backup behavior.
+   Studio also delegates current-frame actor sound replay to C89.
    The standalone seek returns one camera and actor snapshot after reading the
    scene start group once. Studio and Marcus now retain the validated C89
    session over their opened chunk graphs. Studio resolves live scene slots

@@ -13613,6 +13613,41 @@ seeks. Marcus was rebuilt and relaunched.
 
 Evidence is under `tmp/c89-scene-reader/` on the evidence drive.
 
+### Live and standalone actors share the C89 playback driver
+
+`mm_actor_playback_seek` drives actor rewind, per-frame stepping, cached
+entrance tests, event dispatch and display effects in Studio, Marcus and the
+standalone evaluator. Studio carries pose dirtiness across intermediate
+frames and can enqueue motion sound during quick backup. Preview retains its
+own pose and callback failure behavior. Studio's current-frame sound replay
+walks the C actor's event cursor, then plays the motion cue.
+
+All 181 standalone checks, 22 selected host checks including the Marcus
+player, and six AddressSanitizer checks passed. The changed C sources and
+timeline fixture compiled under strict C89 on Linux x64 musl.
+The timeline fixture verifies quick-backup sound suppression and effect order,
+Preview's terminal cel failure, and sound replay stopping at the first failure.
+The native preview scene and session fixtures retained their trace fingerprints.
+
+Stock and SID-29 seeks matched all 456 observations and 360 viewport hashes
+from the previous builds. The 300 standalone frame snapshots, 300 mesh
+snapshots and 300 native graph and stream frames matched. All 26 actor and
+body traces, the saved movie and the 188-camera background trace matched
+byte for byte. Both hosts matched 240 retail playback commits each. Studio
+and the retained v3dmm run each matched 456 retail actor records. Retail
+reopened a Studio-edited movie and matched the edited actor on four seeks.
+Marcus was rebuilt and relaunched.
+
+The actor-audio fixture recorded both the 600 Hz ordinary cue and the 1300 Hz
+motion cue in Studio, Marcus and retail. Each run recorded 60 frame commits.
+The initial capture used an old loopback helper. A fresh helper built in the
+evidence directory recovered the capture. The isolated retry allowed a one-unit
+PCM16 pre-roll floor, then checked the recorded prefix before Play. All three
+prefixes were silent for at least 15,800 sample frames. The tone check measures
+cue presence.
+
+Evidence is under `tmp/c89-actor-playback/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

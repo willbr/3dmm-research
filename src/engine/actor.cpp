@@ -286,49 +286,62 @@ void Actor::_SetStateRewound(void)
     (A scene level interrogation of all actors should find
     that each actor's _nfrmCur is the same).
 
-    Note: The scope of fPosition dirty spans multiple calls to _FDoFrm
+    Position dirtiness spans all the intermediate frames of the seek.
 
 ***************************************************************************/
 bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
-    struct Host
-    {
-        Actor *actor;
-        bool positionDirty;
-        bool *soundInFrame;
-    } host = {this, false, pfSoundInFrame};
-    const MMActorSeekEffects effects = {
-        &host,
-        [](void *context, const MMActorSeekCommand *command, MMActorState *) -> int {
-            auto &h = *static_cast<Host *>(context);
-            auto &actor = *h.actor;
-            bool ok = true;
-            switch (command->kind)
-            {
-            case MM_ACTOR_SEEK_HIDE:
-                actor._Hide();
-                break;
-            case MM_ACTOR_SEEK_RESET_COSTUME:
-                actor._fModeRecord = false;
-                ok = actor._ptmpl->FSetDefaultCost(actor._pbody);
-                break;
-            case MM_ACTOR_SEEK_QUICK_EFFECTS:
-                ok = actor._FApplyQuickSeekEffects();
-                break;
-            case MM_ACTOR_SEEK_FRAME:
-                ok = actor._FDoFrm(command->displayFrame != 0, &h.positionDirty, h.soundInFrame);
-                break;
-            }
-            return ok;
-        },
-        nullptr};
+    MMActorPlaybackEffects effects = {};
+    effects.context = this;
+    effects.hide = [](void *p) { static_cast<Actor *>(p)->_Hide(); };
+    effects.reset_costume = [](void *p) -> int {
+        auto actor = static_cast<Actor *>(p);
+        actor->_fModeRecord = false;
+        return actor->_ptmpl->FSetDefaultCost(actor->_pbody);
+    };
+    effects.prepare = [](void *p, MMActorFrameInputs *inputs) {
+        auto actor = static_cast<Actor *>(p);
+        inputs->firstFrame = actor->_nfrmFirst;
+        inputs->recording = actor->_fModeRecord;
+        inputs->rejoining = actor->_fRejoin;
+    };
+    effects.prepare_entrance = [](void *p, MMI32 index) -> int {
+        auto actor = static_cast<Actor *>(p);
+        AssertIn(index, 0, actor->_track.Events()->IvMac());
+        if (actor->_fLifeDirty && !actor->_FComputeLifetime())
+            return 0;
+        Assert(actor->_track.Events()->Cb(index) == size(Add), "Corrupt event list");
+        return 1;
+    };
+    effects.apply_event = [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); };
+    effects.last_frame = [](void *p) -> MMI32 { return static_cast<Actor *>(p)->_nfrmLast; };
+    effects.suppress_sounds = [](void *p) -> int {
+        return FPure(static_cast<Actor *>(p)->_pscen->GrfScen() & fscenSounds);
+    };
+    effects.motion_sounds = [](void *p) -> int { return static_cast<Actor *>(p)->_FEnqueueSmmInMsq(); };
+    effects.position_body = [](void *p) {
+        auto actor = static_cast<Actor *>(p);
+        actor->_PositionBody(&actor->_state.position);
+    };
+    effects.select_cel = [](void *p) -> int {
+        auto actor = static_cast<Actor *>(p);
+        return actor->_ptmpl->FSetActnCel(actor->_pbody, actor->_state.action, actor->_state.cel, pvNil);
+    };
+    effects.update_pose = [](void *p) {
+        auto actor = static_cast<Actor *>(p);
+        BMAT34 matrix;
+        actor->_MatrixRotUpdate(&actor->_state.position, &matrix);
+    };
     const auto steps = _StepSource();
     EngineActorTimeline::Host timelineHost = {&steps};
     const auto timeline = EngineActorTimeline::Services(&timelineHost);
-    const bool success = mm_actor_seek_run(&_state, _track.Route(), _track.Events(), _nfrmFirst, _nfrmLast, nfrm,
-                                           &timeline, &effects) > 0;
+    int sound = 0;
+    const bool success = mm_actor_playback_seek(&_state, _track.Route(), _track.Events(), _nfrmFirst, _nfrmLast, nfrm,
+                                                MM_ACTOR_FRAME_STUDIO, &sound, &timeline, &effects) > 0;
+    if (pfSoundInFrame && sound)
+        *pfSoundInFrame = true;
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     if (!success)
     {
@@ -346,87 +359,6 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
 
 /***************************************************************************
 
-    Apply runtime sound/body/cel effects after core completes a quick seek.
-
-***************************************************************************/
-bool Actor::_FApplyQuickSeekEffects()
-{
-    AssertThis(0);
-    if (!(_pscen->GrfScen() & fscenSounds) && _state.frame <= _nfrmLast && _state.onStage)
-        _FEnqueueSmmInMsq();
-    _PositionBody(&_state.position);
-    return !_state.onStage || _ptmpl->FSetActnCel(_pbody, _state.action, _state.cel, pvNil);
-}
-
-/***************************************************************************
-
-    Update the internal actor state variables to frame _nfrmCur.
-    Ready the actor to display in frame _nfrmCur if fPositionBody is fTrue.
-    Sets *pfPositionDirty if a change is encountered.
-    Clears *pfPositionDirty after updating Brender.
-
-    Assumes previous frame correctly rendered.
-    Note: PositionBody is delayed until after Events are processed - Tweak,
-    Actn, Step and Transform events all can alter the location or orientation.
-    Also, new Action Events precede Cel Positioning
-
-    Note: The scope of *pfPositionDirty spans multiple _FDoFrm calls
-
-***************************************************************************/
-bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame)
-{
-    AssertThis(0);
-    AssertVarMem(pfPositionDirty);
-
-    MMActorFrameInputs inputs = {};
-    inputs.firstFrame = _nfrmFirst;
-    inputs.recording = _fModeRecord;
-    inputs.rejoining = _fRejoin;
-    inputs.displayFrame = fPositionBody;
-    inputs.suppressSounds = FPure(_pscen->GrfScen() & fscenSounds);
-    BRS step = rZero;
-    inputs.stepSucceeded = _FGetDwrPlay(&step);
-    inputs.step = step;
-    AssertPo(_track.Route(), 0);
-    AssertPo(_track.Events(), 0);
-    const MMActorFrameEffects effects = {
-        this,
-        [](void *context, const MMActorFrameCommand *command, MMActorState *) -> int {
-            auto actor = static_cast<Actor *>(context);
-            return command->kind == MM_ACTOR_CHECK_ENTRANCE ? actor->_FIsAddNow(command->eventIndex)
-                                                            : actor->_FDoAevCore(command->eventIndex);
-        },
-        [](void *context) -> int { return static_cast<Actor *>(context)->_FEnqueueSmmInMsq(); },
-        [](void *context) {
-            auto actor = static_cast<Actor *>(context);
-            actor->_PositionBody(&actor->_state.position);
-        },
-        [](void *context) -> int {
-            auto actor = static_cast<Actor *>(context);
-            return actor->_ptmpl->FSetActnCel(actor->_pbody, actor->_state.action, actor->_state.cel, pvNil);
-        },
-        [](void *context) {
-            auto actor = static_cast<Actor *>(context);
-            BMAT34 matrix;
-            actor->_MatrixRotUpdate(&actor->_state.position, &matrix);
-        }};
-    const auto motion = EngineActorMotion::Services();
-    MMActorFrameResult result;
-    int dirty = *pfPositionDirty, sound = 0;
-    const int ran = mm_actor_frame_run(&_state, _track.Route(), _track.Events(), &inputs, dirty, &motion, &effects,
-                                       &result);
-    if (ran <= 0)
-        return false;
-    const bool success = mm_actor_frame_display(&result, &_state, _nfrmLast, MM_ACTOR_FRAME_STUDIO,
-                                                 &dirty, &sound, &effects) > 0;
-    *pfPositionDirty = dirty != 0;
-    if (pfSoundInFrame && sound)
-        *pfSoundInFrame = true;
-    return success;
-}
-
-/***************************************************************************
-
     FReplayFrame : Replays the sound for the current frame
         -> Re-enqueues sounds for the current frame
     grfscen - Things that are supposed to be played right now.
@@ -435,26 +367,10 @@ bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFr
 bool Actor::FReplayFrame(long grfscen)
 {
     AssertThis(0);
-
-    Base aev;
-    long iaev;
-
-    // Check if there is anything to do
-    if (!(grfscen & fscenSounds) || !_state.onStage)
-        return fTrue;
-
-    for (iaev = _state.firstEventInFrame; iaev < _state.nextEvent; iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.aet != aetSnd)
-            continue;
-
-        if (!_FDoAevCore(iaev))
-            return fFalse;
-    }
-
-    // Also send any motion match sounds to msq to play
-    return _FEnqueueSmmInMsq();
+    const auto motion = EngineActorMotion::Services();
+    return mm_actor_replay_frame_sounds(&_state, _track.Events(), (grfscen & fscenSounds) != 0, &motion, this,
+                                        [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); },
+                                        [](void *p) -> int { return static_cast<Actor *>(p)->_FEnqueueSmmInMsq(); }) > 0;
 }
 
 /***************************************************************************
@@ -500,34 +416,6 @@ bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 
 /***************************************************************************
 
-    Is the actor at an AddOnStage event which can be applied now?
-
-***************************************************************************/
-bool Actor::_FIsAddNow(long iaev)
-{
-    AssertBaseThis(0);
-    AssertIn(iaev, 0, _track.Events()->IvMac());
-
-    Base *paev;
-
-    if (_fLifeDirty)
-    {
-        // Update the nfrm values
-        if (!_FComputeLifetime())
-            return fFalse;
-    }
-
-    Assert(_track.Events()->Cb(iaev) == size(Add), "Corrupt event list");
-    paev = (Base *)_track.Events()->QvFixedGet(iaev);
-
-    if (paev->nfrm <= _state.frame)
-        return fTrue;
-
-    return fFalse;
-}
-
-/***************************************************************************
-
     Return functional (sized) step size when playing
     Zero is a valid return value
 
@@ -540,12 +428,6 @@ ActorStepSource Actor::_StepSource() const
         return ((Template *)context)->FGetDwrActnCel(action, cel, step);
     };
     return source;
-}
-
-bool Actor::_FGetDwrPlay(BRS *pdwr)
-{
-    AssertBaseThis(0);
-    return _StepSource().FPlaybackStep(_state, pdwr);
 }
 
 /***************************************************************************
