@@ -1692,9 +1692,13 @@ remain platform dialogs. `ribbon.c`, the editor panels in `main.c`, `prop_fields
 widgets own buttons, tabs, lists, scrolling, colour selection, numeric fields,
 menus and debug plots. `ui.c` now contains cimgui layout helpers and drawing
 primitives for viewport/timeline artwork, with no FreeType controls or manual
-field editing. `storyboard_view.h` exchanges copied control state and borrowed
-preview geometry with the native storyboard adapter; painting, rendering,
-palette matching and native movie transactions remain behind C interfaces.
+field editing. `storyboard_editor.c` owns camera and light values, paint
+gestures, field edits and the decision to commit a draft or change shots.
+`storyboard_edit_data.c` supplies brush strokes, paint-slot allocation,
+projection and light transforms. The C++ backend supplies draft pixel storage,
+palette matching, preview geometry, serialization and native movie edits
+through a C interface. `storyboard_view.h` carries copied control state and
+borrowed preview geometry to the cimgui view.
 `prop_gizmo.c` owns the shared cimgui context and frame, transform gestures,
 and prop preview, commit and restore decisions. Prop and storyboard light
 controls share clipping, projection and snapping in `transform_gizmo.c`.
@@ -1703,6 +1707,16 @@ The native binding runs Dear ImGui's C++ layout check. The generated C fields
 used by the controller have matching offsets. A full selected-object screenshot
 matched byte for byte before and after the conversion, including the gizmo and
 numeric fields. Evidence is in `tmp/c89-gizmo`.
+
+The storyboard conversion passed the existing headless storyboard authoring
+and VMM round-trip test. A headless probe exercised the C draft interface for
+inking, adding a shot and a light, rendering, exporting, undoing and reloading.
+The selected-object viewport capture also matched the previous build byte
+for byte. The two seek fixtures matched the previous build across 228 Studio
+and Marcus states and 180 viewport hashes. The 456 Studio actor records in
+these fixtures matched the retained retail and V3DMM captures. Evidence is in
+`tmp/c89-storyboard`.
+
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
 `player.cpp` owns the C++ Archive/Preview backend. `playback.cpp` supplies audio,

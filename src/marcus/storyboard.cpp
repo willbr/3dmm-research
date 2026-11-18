@@ -43,8 +43,8 @@ BMAT34 Matrix(float x, float y, float z, float yaw, float pitch, float roll)
 }
 bool MarcusBoardValid(const MarcusStoryboard &board)
 {
-    if (board.angles.empty() || board.angles.size() > 64 || board.lights.size() > 16 ||
-        board.colours.size() < MarcusBoardColourCount || board.colours.size() > 256 ||
+    if (board.angles.empty() || board.angles.size() > MARCUS_BOARD_ANGLE_LIMIT || board.lights.size() > MARCUS_BOARD_LIGHT_LIMIT ||
+        board.colours.size() < MarcusBoardColourCount || board.colours.size() > MARCUS_BOARD_COLOUR_LIMIT ||
         !std::equal(MarcusBoardColours.begin(), MarcusBoardColours.end(), board.colours.begin()) ||
         std::any_of(board.colours.begin(), board.colours.end(), [](auto rgb) { return rgb > 0xffffff; })) return false;
     for (const auto &a : board.angles)
@@ -89,11 +89,11 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
     if (version >= 3)
     {
         const auto colours = w.Get();
-        Require(colours >= MarcusBoardColourCount && colours <= 256, "Invalid storyboard paint palette.");
+        Require(colours >= MarcusBoardColourCount && colours <= MARCUS_BOARD_COLOUR_LIMIT, "Invalid storyboard paint palette.");
         result.colours.resize(colours);
         for (auto &rgb : result.colours) rgb = w.Get();
     }
-    Require(angles > 0 && angles <= 64 && lights <= 16 &&
+    Require(angles > 0 && angles <= MARCUS_BOARD_ANGLE_LIMIT && lights <= MARCUS_BOARD_LIGHT_LIMIT &&
         bytes.size() == w.at + size_t(angles) * (36 + MarcusBoardWidth * MarcusBoardHeight) + size_t(lights) * 28,
         "Invalid storyboard size.");
     result.angles.resize(angles); result.lights.resize(lights);
@@ -114,27 +114,8 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
 }
 void MarcusBoardStroke(MarcusBoardAngle &a, int x0, int y0, int x1, int y1, int size, unsigned char colour)
 {
-    if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight || size < 1 || size > 64 ||
-        x0 < 0 || x0 >= MarcusBoardWidth || x1 < 0 || x1 >= MarcusBoardWidth ||
-        y0 < 0 || y0 >= MarcusBoardHeight || y1 < 0 || y1 >= MarcusBoardHeight) return;
-    const int dx = std::abs(x1 - x0), dy = -std::abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-    int error = dx + dy;
-    for (;;)
-    {
-        for (int y = -size / 2; y < (size + 1) / 2; ++y)
-            for (int x = -size / 2; x < (size + 1) / 2; ++x)
-            {
-                // A blunt, slightly chipped square tip. All marks remain opaque pixels.
-                if (size > 3 && std::abs(x) + std::abs(y) > size - 2) continue;
-                const int px = x0 + x, py = y0 + y;
-                if (px >= 0 && px < MarcusBoardWidth && py >= 0 && py < MarcusBoardHeight)
-                    a.pixels[py * MarcusBoardWidth + px] = colour;
-            }
-        if (x0 == x1 && y0 == y1) break;
-        const int twice = 2 * error;
-        if (twice >= dy) { error += dy; x0 += sx; }
-        if (twice <= dx) { error += dx; y0 += sy; }
-    }
+    if (a.pixels.size() == MARCUS_BOARD_PIXELS)
+        marcus_board_stroke(a.pixels.data(), x0, y0, x1, y1, size, colour);
 }
 std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &a)
 {
@@ -283,15 +264,18 @@ std::array<float, 3> MarcusBoardToHSV(unsigned rgb)
 }
 int MarcusBoardAddColour(MarcusStoryboard &board, unsigned rgb)
 {
-    if (rgb > 0xffffff) return -1;
-    const auto found = std::find(board.colours.begin(), board.colours.end(), rgb);
-    if (found != board.colours.end()) return int(found - board.colours.begin());
-    if (board.colours.size() < 256) { board.colours.push_back(rgb); return int(board.colours.size()) - 1; }
-    std::array<bool, 256> used = {};
-    for (const auto &angle : board.angles) for (auto pixel : angle.pixels) used[pixel] = true;
-    for (unsigned i = MarcusBoardColourCount; i < 256; ++i)
-        if (!used[i]) { board.colours[i] = rgb; return int(i); }
-    return -1;
+    const unsigned char *surfaces[MARCUS_BOARD_ANGLE_LIMIT];
+    if (board.angles.size() > MARCUS_BOARD_ANGLE_LIMIT || board.colours.size() > MARCUS_BOARD_COLOUR_LIMIT) return -1;
+    for (std::size_t i = 0; i < board.angles.size(); ++i)
+    {
+        if (board.angles[i].pixels.size() != MARCUS_BOARD_PIXELS) return -1;
+        surfaces[i] = board.angles[i].pixels.data();
+    }
+    const int count = static_cast<int>(board.colours.size());
+    const int slot = marcus_board_colour_slot(board.colours.data(), count, rgb, surfaces, static_cast<int>(board.angles.size()));
+    if (slot == count) board.colours.push_back(rgb);
+    else if (slot >= 0) board.colours[slot] = rgb;
+    return slot;
 }
 static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette,
     CameraPosition reference, const std::vector<APOS> &referencePlaces)

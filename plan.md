@@ -55,17 +55,17 @@ priority over the older Project 0-4 ordering wherever they conflict.
 
 ## Shared C89 engine migration
 
-### Current status (17 November 2026)
+### Current status (18 November 2026)
 
 - The shared content VFS core, `libraries/content/src/content_vfs.c`, is C89;
   `content_vfs.cpp` remains a C++ adapter. Reuse the existing core.
 - Marcus has C89 application sources and a C API in `src/marcus/player.h`,
   but its player, playback and Archive/Preview implementations remain C++.
   Its browser and preview-process components also contain C++ host code.
-- Marcus's application widgets and text input now use cimgui. Some dialog,
-  storyboard and gizmo state and decisions still live in C++. The
+- Marcus's application widgets and text input use cimgui. Its dialog,
+  storyboard and transform controllers use C89. The
   [Marcus UI milestone](#marcus-ui-convert-the-entire-gui-to-imgui-through-cimgui)
-  lists the remaining work.
+  records the application boundary.
 - `engine-core` already groups stored data, actor evaluation and playback
   policy. Its playback/startup command evaluators, frame pacer and scrolling
   policy now delegate to `mm-engine-c89` in `libraries/engine/`.
@@ -387,16 +387,17 @@ services. See the [current Marcus boundary](docs/tools/marcus.md#c89-boundary-an
 - Prop transform gestures, numeric fields, edit previews, commits and restores
   now use C89. Cimgui owns the shared context and frame. Prop and storyboard
   light controls share C89 clipping and snapping through a narrow C binding
-  to ImGuizmo. Move the storyboard editor's remaining command and interaction
-  state and light edit transactions into C89.
+  to ImGuizmo. The C89 storyboard controller owns shot, paint, camera and light
+  commands, gesture state and commit decisions. A C interface exposes draft
+  storage, palette matching, preview geometry and native movie edits.
 - Include each converted source and its public C interface in `marcus-c89`.
   Run the relevant existing headless checks and record validation for each
   slice. Add Marcus UI tests only when the user requests them.
 
-The UI milestone is complete when cimgui owns all application widgets and C89
-owns their application state and decisions. Dear ImGui, cimgui's generated
-implementation, ImGuizmo and their backend bindings are external C++
-dependencies. The shared engine has its own C-only completion gate.
+Cimgui owns the application widgets and C89 owns their application state and
+decisions. Dear ImGui, cimgui's generated implementation, ImGuizmo and their
+backend bindings still require C++. The shared engine has its own C-only
+completion gate.
 
 ### Regression gate for each slice
 

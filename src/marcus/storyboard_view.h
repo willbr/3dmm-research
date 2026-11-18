@@ -1,6 +1,7 @@
 #ifndef MARCUS_STORYBOARD_VIEW_H
 #define MARCUS_STORYBOARD_VIEW_H
 #include "storyboard_editor.h"
+#include "storyboard_edit_data.h"
 #include "camera_guide.h"
 /* Copied values and borrowed preview geometry; no C++ or widget types. */
 typedef struct MarcusBoardField {
@@ -16,7 +17,7 @@ typedef struct MarcusBoardLightOverlay {
 typedef struct MarcusBoardEditorState {
     int open, tab, angle, angles, light, lights, point, grid, has_work, inspecting;
     int picking, brush, can_undo, can_bake, field_count, editing;
-    unsigned long rgb, swatches[10], dither[64];
+    unsigned long rgb, swatches[MARCUS_BOARD_SWATCH_COUNT], dither[64];
     float colour[3], okhsl[3];
     SDL_FRect canvas, tools, bar;
     SDL_Texture *texture;
@@ -25,7 +26,7 @@ typedef struct MarcusBoardEditorState {
     int index_count;
     MarcusBoardField fields[9];
     MarcusCameraGuide camera_guide;
-    MarcusBoardLightOverlay overlays[16];
+    MarcusBoardLightOverlay overlays[MARCUS_BOARD_LIGHT_LIMIT];
     char error[512];
 } MarcusBoardEditorState;
 enum MarcusBoardCommand {

@@ -27,17 +27,10 @@ Point Ray(const MarcusProjection &view, float x, float y)
 
 MarcusProjection MarcusBoardProjection(const MarcusBoardAngle &a)
 {
-    MarcusProjection p = {};
-    const float cy = std::cos(a.camera.yaw * radians), sy = std::sin(a.camera.yaw * radians);
-    const float cp = std::cos(a.camera.pitch * radians), sp = std::sin(a.camera.pitch * radians);
-    const float cr = std::cos(a.roll * radians), sr = std::sin(a.roll * radians);
-    const float matrix[] = {cy * cr - sy * sp * sr, cp * sr, -sy * cr - cy * sp * sr,
-        -cy * sr - sy * sp * cr, cp * cr, sy * sr - cy * sp * cr,
-        sy * cp, sp, cy * cp, a.camera.x, a.camera.y, a.camera.z};
-    std::copy(matrix, matrix + 12, p.transform);
-    p.valid = 1; p.vertical_fov = a.fov; p.aspect = float(MarcusBoardWidth) / MarcusBoardHeight;
-    p.near_clip = a.nearClip; p.far_clip = a.farClip; p.display_depth = 10;
-    return p;
+    MarcusProjection projection;
+    const auto pose = MarcusBoardPoseOf(a);
+    marcus_board_projection(&pose, &projection);
+    return projection;
 }
 
 MarcusBoardLightWidget MarcusBoardBuildLightWidget(const MarcusProjection &view, const MarcusBoardLight &light, float viewportHeight)
@@ -86,30 +79,15 @@ MarcusBoardLightWidget MarcusBoardBuildLightWidget(const MarcusProjection &view,
 
 void MarcusBoardLightTransform(const MarcusBoardLight &light, float matrix[16])
 {
-    const float sy = std::sin(light.yaw * radians), cy = std::cos(light.yaw * radians);
-    const float sp = std::sin(light.pitch * radians), cp = std::cos(light.pitch * radians);
-    const float values[] = {cy, 0, -sy, 0, -sy * sp, cp, -cy * sp, 0,
-        sy * cp, sp, cy * cp, 0, light.x, light.y, light.z, 1};
-    std::copy(values, values + 16, matrix);
+    const auto values = MarcusBoardLightValuesOf(light);
+    marcus_board_light_matrix(&values, matrix);
 }
 bool MarcusBoardLightFromTransform(const MarcusBoardLight &original, const float matrix[16], bool rotate, MarcusBoardLight &light)
 {
-    for (int i = 0; i < 16; ++i) if (!std::isfinite(matrix[i])) return false;
-    light = original;
-    if (rotate)
-    {
-        if (original.point) return false;
-        const float length = std::hypot(std::hypot(matrix[8], matrix[9]), matrix[10]);
-        if (length < .0001f) return false;
-        light.yaw = std::atan2(matrix[8], matrix[10]) / radians;
-        light.pitch = std::clamp(std::asin(std::clamp(matrix[9] / length, -1.f, 1.f)) / radians, -89.f, 89.f);
-    }
-    else
-    {
-        light.x = std::clamp(matrix[12], -32700.f, 32700.f);
-        light.y = std::clamp(matrix[13], -32700.f, 32700.f);
-        light.z = std::clamp(matrix[14], -32700.f, 32700.f);
-    }
+    const auto values = MarcusBoardLightValuesOf(original);
+    MarcusBoardLightValues next;
+    if (!marcus_board_light_from_matrix(&values, matrix, rotate, &next)) return false;
+    light = MarcusBoardLightFromValues(next);
     return true;
 }
 

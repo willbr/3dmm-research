@@ -1,6 +1,7 @@
 #ifndef MARCUS_STORYBOARD_H
 #define MARCUS_STORYBOARD_H
 #include "player.h"
+#include "storyboard_edit_data.h"
 #ifdef __cplusplus
 #include "movie_input.h"
 #include "mm/archive.h"
@@ -8,12 +9,11 @@
 #include <array>
 #include <map>
 
-constexpr int MarcusBoardWidth = 544, MarcusBoardHeight = 306;
+constexpr int MarcusBoardWidth = MARCUS_BOARD_WIDTH, MarcusBoardHeight = MARCUS_BOARD_HEIGHT;
 constexpr unsigned MarcusBoardChunk = 0x53544244; // STBD, versioned editor data.
-constexpr unsigned MarcusBoardColourCount = 10;
+constexpr unsigned MarcusBoardColourCount = MARCUS_BOARD_SWATCH_COUNT;
 using MarcusBoardPaintColours = std::vector<unsigned>;
-inline const MarcusBoardPaintColours MarcusBoardColours = {0xd3d4d6, 0x000000, 0xffffff,
-    0x9ebfd9, 0xdea5a2, 0xe6d8a0, 0xaac9ad, 0x505050, 0x949494, 0xc4c4c4};
+inline const MarcusBoardPaintColours MarcusBoardColours(marcus_board_swatches, marcus_board_swatches + MarcusBoardColourCount);
 struct MarcusBoardAngle
 {
     // GE-Black's first camera position, downward pitch and lens.
@@ -26,6 +26,18 @@ struct MarcusBoardLight
     float x = 0, y = 10, z = 10, yaw = -30, pitch = -35, intensity = .8f;
     int point = 0;
 };
+inline MarcusBoardPose MarcusBoardPoseOf(const MarcusBoardAngle &angle)
+{
+    return {angle.camera, angle.roll, angle.fov, angle.nearClip, angle.farClip};
+}
+inline MarcusBoardLightValues MarcusBoardLightValuesOf(const MarcusBoardLight &light)
+{
+    return {light.x, light.y, light.z, light.yaw, light.pitch, light.intensity, light.point};
+}
+inline MarcusBoardLight MarcusBoardLightFromValues(const MarcusBoardLightValues &light)
+{
+    return {light.x, light.y, light.z, light.yaw, light.pitch, light.intensity, light.point};
+}
 struct MarcusStoryboard
 {
     MarcusBoardPaintColours colours = MarcusBoardColours;
