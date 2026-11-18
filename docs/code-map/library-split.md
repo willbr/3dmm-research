@@ -146,6 +146,11 @@ preview transform edits. The native body and standalone mesh path both use
 `mm_actor_pose_root` to compose the root matrix. The renderer receives that
 matrix directly. The standalone `--mesh` probe prints appearance bindings,
 world matrices and geometry fingerprints.
+Live bodies own their root and local matrices, parent links, retained
+models, and material bindings in `MMBodyShape`. The body runtime forwards
+changes to the draw tree. Body duplication and reshape read the C state,
+and Marcus uses its matrices when computing object and costume bounds.
+The draw tree and bindings share one allocation.
 Studio and Marcus still use their existing archive owners, playback resource
 providers and renderers.
 

@@ -309,20 +309,18 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
     auto &actor = *_impl->actors[object]; BodyCostume costume;
     if (!costume.FGet(actor.body)) return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
     const auto orbit = _impl->orbit;
-    const auto transform = actor.body->PbactRoot()->t.t.mat;
+    const MMActorBodyPose pose = {{0, 0, 0}, actor.body->RootMatrix()};
     struct Restore
     {
         BodyCostume &costume; PBody body; Impl &impl; decltype(orbit) orbit;
-        BMAT34 transform;
+        MMActorBodyPose pose;
         ~Restore()
         {
             costume.Set(body);
-            // LocateOrient adds its position to the supplied matrix. The saved
-            // root already contains its authored translation.
-            body->LocateOrient(rZero, rZero, rZero, &transform);
+            body->ApplyPose(pose);
             impl.orbit = orbit;
         }
-    } restore{costume, actor.body, *_impl, orbit, transform};
+    } restore{costume, actor.body, *_impl, orbit, pose};
     BMAT34 orientation;
     actor.CostumeOrientation(orientation);
     actor.body->LocateOrient(rZero, rZero, rZero, &orientation);
@@ -593,7 +591,7 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
     BCB box;
     actor.body->GetBcbBounds(&box);
     const MMI32 low[3] = {box.xrMin, box.yrMin, box.zrMin}, high[3] = {box.xrMax, box.yrMax, box.zrMax};
-    const auto &transform = actor.body->PbactRoot()->t.t.mat;
+    const auto &transform = actor.body->RootMatrix();
     MMI32 matrix[12];
     static_assert(sizeof(matrix) == sizeof(transform), "Object bounds matrix layout");
     std::memcpy(matrix, &transform, sizeof(matrix));

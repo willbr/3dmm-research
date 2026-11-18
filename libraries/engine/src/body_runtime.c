@@ -23,16 +23,28 @@ void mm_body_locate(void *body,const MMActorBodyPose *pose,const MMBodyRuntimeSe
 {
     MMActorMatrix root;
     mm_actor_pose_root(pose, &root);
-    s->matrix(s->shape.context, body, 0, &root);
+    mm_body_shape_matrix(s->shape.state(s->shape.context,body),0,&root,&s->shape);
     changed(body, s);
 }
 void mm_body_set_matrix(void *body,MMI32 part,const MMActorMatrix *matrix,const MMBodyRuntimeServices *s)
-{ s->matrix(s->shape.context,body,part+2,matrix); changed(body,s); }
+{
+    mm_body_shape_matrix(s->shape.state(s->shape.context,body),part+2,matrix,&s->shape);
+    changed(body,s);
+}
 void mm_body_set_model(void *body,MMI32 part,void *model,const MMBodyRuntimeServices *s)
 {
-    void *p=s->shape.context,*old=s->model(p,body,part);
+    void *p=s->shape.context;
+    MMBodyPartBinding *binding=&s->shape.state(p,body)->bindings[part+2];
+    void *old=binding->model;
     if (old) { if (old==model) return; s->shape.release(p,old); }
+    binding->model=model;
     s->assign_model(p,body,part,model); s->retain(p,model); changed(body,s);
+}
+static void assign_material(void *body,MMI32 part,void *material,const MMBodyRuntimeServices *s)
+{
+    void *p=s->shape.context;
+    s->shape.state(p,body)->bindings[part+2].material=material;
+    s->assign_material(p,body,part,material);
 }
 void mm_body_remove_material(void *body,MMI32 set,const MMBodyRuntimeServices *s)
 {
@@ -42,8 +54,8 @@ void mm_body_remove_material(void *body,MMI32 set,const MMBodyRuntimeServices *s
     b=*s->shape.state(p,body);
     for (i=0;i<b.part_count;++i) if (set==s->shape.item(p,b.sets,i))
     {
-        raw=s->part_material(p,body,i);
-        if (raw) { if (!had_custom) s->shape.release(p,s->material_object(p,raw)); s->assign_material(p,body,i,NULL); }
+        raw=b.bindings[i+2].material;
+        if (raw) { if (!had_custom) s->shape.release(p,s->material_object(p,raw)); assign_material(body,i,NULL,s); }
     }
 }
 
@@ -80,7 +92,7 @@ static int render_generic(void *context, void *body, MMI32 part, MMI32 slot)
     const MMBodyRuntimeServices *s = binding->services;
     void *p = s->shape.context;
     (void)slot;
-    s->assign_material(p, body, part, s->material_handle(p, binding->material));
+    assign_material(body, part, s->material_handle(p, binding->material), s);
     s->retain(p, binding->material);
     return 1;
 }
@@ -93,7 +105,7 @@ static int render_custom(void *context, void *body, MMI32 part, MMI32 slot)
     void *model = s->custom_model(p, binding->material, slot);
     if (model)
         mm_body_set_model(body, part, model, s);
-    s->assign_material(p, body, part, s->custom_material(p, binding->material, slot));
+    assign_material(body, part, s->custom_material(p, binding->material, slot), s);
     return 1;
 }
 
@@ -144,7 +156,7 @@ void mm_body_get_material(void *body,MMI32 set,int *generic,void **material,void
     b=*s->shape.state(p,body);
     for (i=0;i<b.part_count;++i) if (set==s->shape.item(p,b.sets,i))
     {
-        raw=s->part_material(p,body,i); if (!raw) diagnose(s,MM_BODY_MISSING_MATERIAL);
+        raw=b.bindings[i+2].material; if (!raw) diagnose(s,MM_BODY_MISSING_MATERIAL);
         *material=s->material_object(p,raw); return;
     }
     diagnose(s,MM_BODY_EMPTY_SET);

@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/body_edit.h"
 #include <stddef.h>
+#include <string.h>
 void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
 {
     const MMBodyCreateServices *c=&s->shape;
@@ -15,12 +16,15 @@ void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
     d=*c->state(c->context,copy);
     d.hidden=1; d.set_count=b.set_count; d.part_count=b.part_count;
     *c->state(c->context,copy)=d; s->copy_bindings(c->context,copy,body);
-    if (!c->allocate_actors(c->context,b.part_count+2,&d.actors))
+    if (!c->allocate_actors(c->context,b.part_count+2,&d.actors,&d.bindings))
     { *c->state(c->context,copy)=d; goto fail; }
     *c->state(c->context,copy)=d;
     s->copy_actors(c->context,d.actors,b.actors,b.part_count+2);
+    memcpy(d.bindings,b.bindings,(size_t)(b.part_count+2)*sizeof(*d.bindings));
     for (i=0;i<b.part_count+2;++i) s->rebase_actor(c->context,copy,d.actors,b.actors,i,i==0);
-    for (i=0;i<d.part_count;++i) s->retain_model(c->context,b.actors,i);
+    for (i=0;i<d.part_count;++i)
+        if (d.bindings[i+2].model)
+            s->retain(c->context,d.bindings[i+2].model);
     d.sets=c->duplicate_sets(c->context,b.sets); *c->state(c->context,copy)=d;
     if (!d.sets) goto fail;
     if (!c->allocate_materials(c->context,b.set_count,&d.materials))
@@ -85,11 +89,11 @@ int mm_body_change_shape(void *body,void *parents,void *sets,const MMBodyEditSer
     n=b.part_count<d.part_count?b.part_count:d.part_count;
     for (i=0;i<n;++i)
     {
-        model=s->model(c->context,d.actors,i);
+        model=d.bindings[i+2].model;
         if (model) s->set_model(c->context,body,i,model);
-        s->copy_matrix(c->context,b.actors,i+2,d.actors,i+2);
+        mm_body_shape_matrix(&b,i+2,&d.bindings[i+2].matrix,c);
     }
-    s->copy_matrix(c->context,b.actors,0,d.actors,0);
+    mm_body_shape_matrix(&b,0,&d.bindings[0].matrix,c);
     if (s->highlighted(c->context,d.actors)) s->highlight(c->context,body);
     c->release(c->context,copy); return 1;
 }

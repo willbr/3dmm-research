@@ -12,7 +12,6 @@ typedef struct MMBodyEditServices
     void (*copy_bindings)(void *,void *to,void *from);
     void (*copy_actors)(void *,void *to,void *from,MMI32 count);
     void (*rebase_actor)(void *,void *body,void *to,void *from,MMI32 index,int root);
-    void (*retain_model)(void *,void *actors,MMI32 part);
     void (*copy_materials)(void *,void *to,void *from,MMI32 count);
     void (*copy_bounds)(void *,void *to,void *from);
     void *(*material)(void *,void *body,MMI32 set,int *generic);
@@ -22,9 +21,7 @@ typedef struct MMBodyEditServices
     void (*identify)(void *,void *body,void *actors,MMI32 index);
     void (*set_generic)(void *,void *body,MMI32 set,void *material);
     void (*set_custom)(void *,void *body,void *material);
-    void *(*model)(void *,void *actors,MMI32 part);
     void (*set_model)(void *,void *body,MMI32 part,void *model);
-    void (*copy_matrix)(void *,void *to,MMI32 to_index,void *from,MMI32 from_index);
     int (*highlighted)(void *,void *actors);
     void (*highlight)(void *,void *body);
 } MMBodyEditServices;

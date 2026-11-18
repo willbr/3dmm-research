@@ -22,9 +22,7 @@ typedef struct MMBodyRuntimeServices
 {
     MMBodyCreateServices shape;
     void (*retain)(void *,void *);
-    void *(*model)(void *,void *body,MMI32 part);
     void (*assign_model)(void *,void *body,MMI32 part,void *model);
-    void *(*part_material)(void *,void *body,MMI32 part);
     void (*assign_material)(void *,void *body,MMI32 part,void *raw_material);
     void *(*material_object)(void *,void *raw_material);
     void *(*material_handle)(void *,void *material_object);
@@ -35,7 +33,6 @@ typedef struct MMBodyRuntimeServices
     void *(*custom_model)(void *,void *,MMI32);
     void *(*custom_material)(void *,void *,MMI32);
     void (*invalidate_output)(void *,void **);
-    void (*matrix)(void *,void *body,MMI32 actor,const MMActorMatrix *);
     void (*highlight)(void *,void *body,int);
     void (*attach)(void *,void *body);
     int (*attached)(void *,void *body);

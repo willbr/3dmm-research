@@ -184,9 +184,10 @@ bool PreviewActor::CostumeBounds(int bodySet, PreviewBounds &out) const
         auto part = body->PbactPart(i); LegacyLong set = -1;
         Body::PbodyFromBact(part, &set);
         if (set != bodySet || part->type != BR_ACTOR_MODEL || !part->model) continue;
-        BMAT34 local, world;
-        BrActorToActorMatrix34(&local, part, body->PbactRoot());
-        BrMatrix34Mul(&world, &local, &body->PbactRoot()->t.t.mat);
+        MMActorMatrix matrix;
+        BMAT34 world;
+        body->PartWorldMatrix(i, matrix);
+        std::memcpy(&world, &matrix, sizeof(world));
         for (int corner = 0; corner < 8; ++corner)
         {
             BVEC3 point, transformed;

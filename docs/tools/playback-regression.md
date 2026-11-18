@@ -13474,6 +13474,34 @@ on four seeks. Marcus was rebuilt and relaunched.
 
 Evidence is under `tmp/c89-pose-consumer/` on the evidence drive.
 
+### Live bodies own evaluated bindings in C89
+
+The live body record owns the root and local matrices, part parents,
+retained models, and material bindings. The BRender tree receives changes
+from that record. Duplication and reshaping copy the evaluated state from
+the C record. Marcus also uses the C root and part matrices for object
+and costume bounds. The native draw tree and bindings share an allocation,
+preserving the original allocation and failure order.
+
+All 181 standalone, 31 selected host, and seven AddressSanitizer checks
+passed. The host checks included Marcus costume previews, actor insertion,
+and the headless player suite. The three changed C engine sources compiled
+under strict C89 for Linux x64 musl.
+All 26 native actor and body traces matched across 5,843,894 bytes, including
+allocation failure, restoration, and reshape cases. The 480-byte saved
+movie and 188-camera background trace matched their retained results.
+The 300 graph and stream frame results matched. The 300 standalone frame
+snapshots and 300 mesh snapshots matched the previous build, and both
+native legacy costume renders matched the retained images.
+
+Stock and SID-29 fixtures matched 456 seek observations and 360 viewport
+hashes. Both hosts matched retail on 240 playback commits each. Stock
+Studio and retained v3dmm seeks each matched 456 retail actor records.
+Retail reopened the movie saved after a Studio actor transform and matched
+the edited actor on four seeks. Marcus was rebuilt and relaunched.
+
+Evidence is under `tmp/c89-body-state/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

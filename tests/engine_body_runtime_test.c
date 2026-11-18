@@ -9,7 +9,7 @@ struct Ref { int refs,kind,set,count; Handle raw,parts[4]; Ref *models[4]; };
 typedef struct Part { Ref *model; Handle *material; MMActorMatrix matrix; } Part;
 typedef struct Fixture
 {
-    MMBodyRuntimeServices s; MMBodyShape b; short sets[6]; Part parts[8]; Ref *customs[3];
+    MMBodyRuntimeServices s; MMBodyShape b; short sets[6]; Part parts[8]; MMBodyPartBinding bindings[8]; Ref *customs[3];
     Ref a,bmodel,ma,mb,custom,poison; int events[256],event_count;
     int parent,attached,detached,changed,bounds,highlight,fail,freed,diagnostics[4];
 } Fixture;
@@ -22,10 +22,10 @@ static void release(void *p,void *object)
     Fixture *f=p; Ref *r=object; int i; CHECK(r && r->refs>0); --r->refs; event(f,5);
     if (r->kind==2 && !r->refs) for (i=0;i<4;++i) r->parts[i].live=0;
 }
-static void *model(void *p,void *b,MMI32 i) { Fixture *f=p; CHECK(b==f); return f->parts[i+2].model; }
-static void assign_model(void *p,void *b,MMI32 i,void *r) { Fixture *f=p; CHECK(b==f); f->parts[i+2].model=r; event(f,6); }
-static void *part_material(void *p,void *b,MMI32 i) { Fixture *f=p; CHECK(b==f); return f->parts[i+2].material; }
-static void assign_material(void *p,void *b,MMI32 i,void *r) { Fixture *f=p; CHECK(b==f); f->parts[i+2].material=r; }
+static void assign_model(void *p,void *b,MMI32 i,void *r)
+{ Fixture *f=p; CHECK(b==f && f->bindings[i+2].model==r); f->parts[i+2].model=r; event(f,6); }
+static void assign_material(void *p,void *b,MMI32 i,void *r)
+{ Fixture *f=p; CHECK(b==f && f->bindings[i+2].material==r); f->parts[i+2].material=r; }
 static void *material_object(void *p,void *raw) { Handle *h=raw; (void)p; CHECK(h && h->live && h->owner->kind==1); return h->owner; }
 static void *material_handle(void *p,void *r) { (void)p; CHECK(((Ref *)r)->kind==1); return &((Ref *)r)->raw; }
 static void *custom(void *p,void *b,MMI32 i) { Fixture *f=p; CHECK(b==f); return f->customs[i]; }
@@ -35,8 +35,8 @@ static MMI32 custom_count(void *p,void *r) { (void)p; return ((Ref *)r)->count; 
 static void *custom_model(void *p,void *r,MMI32 i) { (void)p; CHECK(i>=0 && i<4); return ((Ref *)r)->models[i]; }
 static void *custom_material(void *p,void *r,MMI32 i) { (void)p; CHECK(i>=0 && i<4 && ((Ref *)r)->parts[i].live); return &((Ref *)r)->parts[i]; }
 static void invalidate(void *p,void **out) { *out=&((Fixture *)p)->poison; }
-static void matrix(void *p,void *b,MMI32 i,const MMActorMatrix *m)
-{ Fixture *f=p; CHECK(b==f); f->parts[i].matrix=*m; }
+static void matrix(void *p,void *actors,MMI32 i,const MMActorMatrix *m)
+{ Fixture *f=p; CHECK(actors==f->parts && m==&f->bindings[i].matrix); f->parts[i].matrix=*m; }
 static void highlight(void *p,void *b,int enabled) { Fixture *f=p; CHECK(b==f); f->highlight=enabled; }
 static void attach(void *p,void *b) { Fixture *f=p; CHECK(b==f && !f->b.hidden); f->parent=1; ++f->attached; event(f,1); }
 static int attached(void *p,void *b) { Fixture *f=p; CHECK(b==f); return f->parent; }
@@ -58,13 +58,14 @@ static void setup(Fixture *f,int hidden)
     f->custom.models[0]=&f->bmodel; f->custom.models[2]=&f->a;
     for (i=0;i<6;++i) f->sets[i]=(short)(i%2);
     f->b.sets=f->sets; f->b.part_count=6; f->b.set_count=2; f->b.hidden=hidden; f->bounds=99; f->parent=!hidden;
+    f->b.actors=f->parts; f->b.bindings=f->bindings;
     f->s.shape.context=f; f->s.shape.state=body_state; f->s.shape.item=item;
     f->s.shape.release=release; f->s.shape.allocate_materials=allocate; f->s.shape.free_memory=free_memory;
-    f->s.retain=retain; f->s.model=model; f->s.assign_model=assign_model; f->s.part_material=part_material;
+    f->s.retain=retain; f->s.assign_model=assign_model;
     f->s.assign_material=assign_material; f->s.material_object=material_object; f->s.material_handle=material_handle;
     f->s.custom=custom; f->s.assign_custom=assign_custom; f->s.custom_set=custom_set; f->s.custom_count=custom_count;
     f->s.custom_model=custom_model; f->s.custom_material=custom_material; f->s.invalidate_output=invalidate;
-    f->s.matrix=matrix; f->s.highlight=highlight; f->s.attach=attach; f->s.attached=attached;
+    f->s.shape.assign_matrix=matrix; f->s.highlight=highlight; f->s.attach=attach; f->s.attached=attached;
     f->s.detach=detach; f->s.clear_bounds=bounds; f->s.changed=changed; f->s.is_generic=is_generic; f->s.diagnostic=diagnostic;
     mm_body_set_generic(f,0,&f->ma,&f->s); mm_body_set_generic(f,1,&f->mb,&f->s);
     mm_body_set_model(f,0,&f->a,&f->s); f->changed=f->event_count=0;

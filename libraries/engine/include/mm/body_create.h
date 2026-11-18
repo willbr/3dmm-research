@@ -3,12 +3,21 @@
 #ifndef MM_ENGINE_BODY_CREATE_H
 #define MM_ENGINE_BODY_CREATE_H
 #include "movie_data.h"
+#include "actor_math.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
+typedef struct MMBodyPartBinding
+{
+    MMActorMatrix matrix;
+    void *model; /* Retained resource object. */
+    void *material; /* Draw handle held through a generic material or per-set costume. */
+    MMI32 parent;
+} MMBodyPartBinding;
 typedef struct MMBodyShape
 {
     void *sets, *materials, *actors;
+    MMBodyPartBinding *bindings; /* Root at 0, reserved highlight at 1, then parts. */
     MMI32 set_count, part_count, hidden;
 } MMBodyShape;
 enum MMBodyActorRole { MM_BODY_ROOT, MM_BODY_HIGHLIGHT, MM_BODY_PART };
@@ -26,11 +35,11 @@ typedef struct MMBodyCreateServices
     MMI32 (*count)(void *,void *);
     MMI32 (*item)(void *,void *,MMI32);
     int (*allocate_materials)(void *,MMI32,void **);
-    int (*allocate_actors)(void *,MMI32,void **);
+    int (*allocate_actors)(void *,MMI32,void **,MMBodyPartBinding **);
     void (*initialize_actor)(void *,void *body,void *actors,MMI32 index,int role);
+    void (*assign_matrix)(void *,void *actors,MMI32 index,const MMActorMatrix *);
     void (*link)(void *,void *actors,MMI32 parent,MMI32 child);
     void (*hide)(void *,void *body);
-    void (*release_model)(void *,void *actors,MMI32 part);
     void (*remove_material)(void *,void *body,MMI32 set);
     void (*free_memory)(void *,void **);
 } MMBodyCreateServices;
@@ -38,9 +47,10 @@ typedef struct MMBodyCreateServices
  * less than the child index. Set count does not exceed part count. Counts fit
  * native signed-short iteration and
  * allocation products fit the host allocator. Both allocation callbacks clear
- * their storage and retain native zero-size allocation behavior. duplicate_sets
- * returns an owned list reference. free_memory accepts NULL slots and clears
- * released slots. release_model ignores absent models and clears released ones.
+ * their storage and retain native zero-size allocation behavior. The actor
+ * allocation returns the draw actors and their C bindings in one owner freed
+ * through the actor pointer. duplicate_sets returns an owned list reference.
+ * free_memory accepts NULL slots and clears released slots.
  * Bodies start with zeroed ownership. state returns a stable borrowed C owner;
  * access cannot fail, reenter or mutate it. Local value snapshots preserve
  * publication points before renderer/resource callbacks. Do not copy live owners.
@@ -48,6 +58,10 @@ typedef struct MMBodyCreateServices
  * must not reenter or mutate unrelated body fields. Initialization does not
  * roll back: the factory releases its partial body on failure. */
 void mm_body_shape_init(MMBodyShape *);
+/* Publish the authoritative matrix and project it onto the draw actor. */
+void mm_body_shape_matrix(MMBodyShape *,MMI32,const MMActorMatrix *,const MMBodyCreateServices *);
+/* Compose a part through its parents and the root in renderer order. */
+void mm_body_shape_part_world(const MMBodyShape *,MMI32 part,MMActorMatrix *);
 int mm_body_shape_initialize(void *,void *parents,void *sets,const MMBodyCreateServices *);
 int mm_body_initialize(void *,void *parents,void *sets,const MMBodyCreateServices *);
 void *mm_body_create(void *parents,void *sets,const MMBodyCreateServices *);

@@ -491,6 +491,10 @@ Keep host presentation and device output outside the session.
    Studio and Marcus apply the same C89 body pose used by the standalone
    evaluator. Root matrix composition is shared with the session's mesh
    path, including route translation and any orientation offset.
+   The live body record owns the composed root and local matrices, part
+   parents, retained models, and material bindings. The record supplies
+   the native draw tree and preserves the evaluated state through duplicate,
+   restore, and shape edits.
    Studio and Marcus submit through a common C frame record for
    the world, camera and colour/depth targets. It owns the temporary render
    and picking targets in Marcus and borrows Studio's live world and buffers.

@@ -5,6 +5,7 @@
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"body check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
 typedef struct List { int count; short values[8]; } List;
 typedef struct Part { int role,parent,model; } Part;
+typedef struct ActorStorage { Part actors[8]; MMBodyPartBinding bindings[8]; } ActorStorage;
 typedef struct Fixture
 {
     MMBodyShape body;
@@ -24,7 +25,15 @@ static void release(void *p,void *object)
 {
     Fixture *f=p;
     if (object==&f->body) { ++f->released; mm_body_shape_dispose(object,&f->s); ++f->disposed; }
-    else { CHECK(object==&f->copy && !f->body.actors && !f->body.materials); ++f->sets_released; event(f,12); }
+    else if (object==&f->copy)
+    { CHECK(!f->body.actors && !f->body.bindings && !f->body.materials); ++f->sets_released; event(f,12); }
+    else
+    {
+        Part *part=object;
+        CHECK(f->body.hidden && !f->materials && !f->freed);
+        CHECK(part==(Part *)f->body.actors+f->models+2 && part->model);
+        ++f->models; part->model=0; event(f,10);
+    }
 }
 static void *duplicate(void *p,void *sets)
 {
@@ -39,18 +48,26 @@ static int allocate_materials(void *p,MMI32 n,void **out)
     if (f->fail==4) { *out=NULL; return 0; }
     *out=calloc((size_t)n+1,sizeof(int)); CHECK(*out); return 1;
 }
-static int allocate_actors(void *p,MMI32 n,void **out)
+static int allocate_actors(void *p,MMI32 n,void **out,MMBodyPartBinding **bindings)
 {
+    ActorStorage *storage;
     Fixture *f=p; CHECK(n==f->body.part_count+2 && f->body.materials); ++f->actor_alloc; event(f,6);
     if (f->fail==5) { *out=NULL; return 0; }
-    *out=calloc((size_t)n,sizeof(Part)); CHECK(*out); return 1;
+    storage=calloc(1,sizeof(*storage)); CHECK(storage && n<=8);
+    *out=storage; *bindings=storage->bindings; return 1;
 }
 static void initialize(void *p,void *body,void *actors,MMI32 i,int role)
 {
     Fixture *f=p; Part *parts=actors; CHECK(body==&f->body && f->body.actors==actors);
     CHECK(i==f->initialized++ && role==(i<2?i:MM_BODY_PART)); parts[i].role=role; parts[i].parent=-1;
-    if (i>=2) parts[i].model=1;
+    if (i>=2) { parts[i].model=1; f->body.bindings[i].model=&parts[i]; }
     event(f,7);
+}
+static void assign_matrix(void *p,void *actors,MMI32 i,const MMActorMatrix *matrix)
+{
+    Fixture *f=p;
+    CHECK(actors==f->body.actors && matrix==&f->body.bindings[i].matrix);
+    CHECK(matrix->m[0][0]==65536 && matrix->m[3][0]==0);
 }
 static void link_actor(void *p,void *actors,MMI32 parent,MMI32 child)
 {
@@ -61,12 +78,6 @@ static void hide_body(void *p,void *body)
 {
     Fixture *f=p; CHECK(body==&f->body && !f->body.hidden && f->body.actors);
     f->body.hidden=1; ++f->hidden; event(f,9);
-}
-static void release_model(void *p,void *actors,MMI32 i)
-{
-    Fixture *f=p; Part *parts=actors;
-    CHECK(f->body.hidden && i==f->models++ && !f->materials && !f->freed);
-    CHECK(parts[i+2].model); parts[i+2].model=0; event(f,10);
 }
 static void remove_material(void *p,void *body,MMI32 i)
 {
@@ -86,7 +97,7 @@ static void setup(Fixture *f,int n,int fail)
     f->s.allocate_highlight=allocate_highlight; f->s.install_highlight=install_highlight;
     f->s.create=create; f->s.release=release; f->s.duplicate_sets=duplicate; f->s.count=count; f->s.item=item;
     f->s.allocate_materials=allocate_materials; f->s.allocate_actors=allocate_actors; f->s.initialize_actor=initialize;
-    f->s.link=link_actor; f->s.hide=hide_body; f->s.release_model=release_model;
+    f->s.assign_matrix=assign_matrix; f->s.link=link_actor; f->s.hide=hide_body;
     f->s.remove_material=remove_material; f->s.free_memory=free_memory;
 }
 int main(void)
@@ -105,7 +116,11 @@ int main(void)
         {
             CHECK(f.body.hidden==1 && f.body.part_count==n && f.body.set_count==(n?5:0));
             CHECK(f.initialized==n+2 && f.linked==n+1);
-            for (i=0;i<n;++i) CHECK(((Part *)f.body.actors)[i+2].parent==(i?f.parents.values[i]+2:0));
+            for (i=0;i<n;++i)
+            {
+                CHECK(f.body.bindings[i+2].parent==f.parents.values[i]);
+                CHECK(((Part *)f.body.actors)[i+2].parent==(i?f.parents.values[i]+2:0));
+            }
             f.body.hidden=0; release(&f,body); CHECK(f.hidden==1 && f.models==n && f.materials==(n?5:0));
         }
         CHECK(!f.body.actors && !f.body.materials && !f.body.sets);

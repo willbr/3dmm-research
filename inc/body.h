@@ -37,7 +37,7 @@ class Body : public Body_PAR
 
   protected:
     static BMTL *_pbmtlHilite; // hilight material
-    MMBodyShape _shape; // Owns actor/material storage and body part set IDs.
+    MMBodyShape _shape; // Owns body bindings, draw actors and costume state.
     void *_pvRenderContext; // non-owning renderer binding, copied with the body
     void (*_pfnAttach)(void *, Body *);
     void (*_pfnChanged)(void *);
@@ -124,6 +124,8 @@ class Body : public Body_PAR
 
     void LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34);
     void ApplyPose(const MMActorBodyPose &);
+    const MMActorMatrix &RootMatrix() const { return _shape.bindings[0].matrix; }
+    void PartWorldMatrix(LegacyLong part, MMActorMatrix &) const;
     void SetPartModel(LegacyLong ibact, Model *pmodl);
     void SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34);
     void SetPartMatrix(LegacyLong ibact, const MMActorMatrix &);

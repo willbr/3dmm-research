@@ -152,7 +152,7 @@ static bool TestBodyGeometry()
                             root.m[3][0] = BR_SCALAR(12000);
                             root.m[3][1] = BR_SCALAR(-12000);
                         }
-                        *(&body->PbactRoot()->t.t.mat) = root;
+                        body->LocateOrient(0, 0, 0, &root);
                         if (highlight)
                             body->Hilite();
                         BodyGeometryFixtureAccess::Seed(body, bounds);
