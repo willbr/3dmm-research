@@ -1065,6 +1065,28 @@ target_link_libraries(engine-background-preview-test PRIVATE mm-engine-c89)
 set_target_properties(engine-background-preview-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-background-preview COMMAND engine-background-preview-test)
 
+# Make MSVC ASan tests runnable outside a Visual Studio developer prompt.
+if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+  set(engine_c_flags "${CMAKE_C_FLAGS}")
+  foreach(config IN LISTS CMAKE_BUILD_TYPE CMAKE_CONFIGURATION_TYPES)
+    string(TOUPPER "${config}" config_upper)
+    string(APPEND engine_c_flags " ${CMAKE_C_FLAGS_${config_upper}}")
+  endforeach()
+  if(engine_c_flags MATCHES "(^|[ \t])[-/]fsanitize=address([ \t]|$)")
+    get_filename_component(compiler_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+    file(GLOB engine_asan_dlls "${compiler_dir}/clang_rt.asan*_dynamic-*.dll")
+    if(engine_asan_dlls)
+      # The engine test executables share one output directory per configuration.
+      set(engine_test_dir "$<TARGET_FILE_DIR:engine-runtime-math-test>")
+      add_custom_target(engine-asan-runtime
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${engine_test_dir}"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${engine_asan_dlls} "${engine_test_dir}"
+        COMMENT "Staging the MSVC AddressSanitizer runtime for engine tests"
+        VERBATIM)
+    endif()
+  endif()
+endif()
+
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
 get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -1072,6 +1094,9 @@ add_custom_target(engine-c89-checks)
 foreach(engine_test_target IN LISTS engine_test_targets)
   if(engine_test_target MATCHES "^engine-.*-test$")
     add_dependencies(engine-c89-checks ${engine_test_target})
+    if(TARGET engine-asan-runtime)
+      add_dependencies(${engine_test_target} engine-asan-runtime)
+    endif()
     if(MSVC)
       target_compile_options(${engine_test_target} PRIVATE /UNDEBUG)
     else()

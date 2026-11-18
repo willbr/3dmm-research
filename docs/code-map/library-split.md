@@ -352,6 +352,12 @@ cmake --build build/engine-c89 --target engine-preview-render-test engine-previe
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
+For an MSVC AddressSanitizer build, configure a separate build directory with
+`-DCMAKE_C_FLAGS=/fsanitize=address` and build the engine tests from a Visual
+Studio developer prompt with AddressSanitizer installed. CMake copies the
+compiler's sanitizer DLL beside the test executables so they can also run from
+Explorer or a regular terminal.
+
 The root build also registers `engine-c89` and `engine-c89-syntax`; the latter
 uses strict C89 diagnostics when Clang or GCC is present. Existing
 `engine-core-link`, `movie-save-load`, `marcus-player` and `marcus-playback`
