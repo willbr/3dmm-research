@@ -169,6 +169,13 @@ export, replaces the VXP packages marked `MarcusStoryboard=1` with the newly
 generated package. The host adapters provide archive files and read CFG
 metadata through the shared VXP parser.
 
+The C89 publisher runs the same save transaction for Studio VMM and Marcus
+Save Copy. It reserves a staging directory beside the destination and retries
+name collisions. The host writes a complete candidate before replacing the
+destination. Error cleanup targets the reserved staging directory. Marcus
+also uses C89 to choose the default `.3mm` or `.vmm` suffix and enforce the
+VMM requirement for portable content.
+
 ## Validation
 
 The package-store build uses the pinned, public-domain SQLite 3.50.4 amalgamation
@@ -236,6 +243,14 @@ Studio's workflow reproduced all six VMMs byte for byte. Original v3dmm
 reopened a new save with matching frame states and sound requests. Its image
 and PCM comparisons still report differences. Evidence is in
 `tmp/c89-vmm-save-dependencies`.
+
+`engine-movie-save` exercises staging collisions, partial writes, failed
+replacement and suffix selection. It passed AddressSanitizer on Windows x86
+and x64. The native tests verified that an existing destination survives a
+write failure and that failed replacement cleans up the staging directory.
+Studio reproduced six VMM files byte for byte. A fresh Marcus storyboard run
+saved both formats, reopened its VMM copies and left its output directory
+clear of staging directories. Evidence is in `tmp/c89-movie-publication`.
 
 Duplicate selection has frozen regression cases in `v3dmm-test`. For a direct
 comparison, build the x86 `physfs-zip-probe` target in `tools/retail_oracle`, then

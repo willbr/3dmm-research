@@ -1,5 +1,6 @@
 /* Movie save replacement/publication, rollback, retry and ownership checks. */
 #include "mm/movie_save.h"
+#include "mm/movie_publish.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1000,9 +1001,89 @@ static int collecting(void)
     CHECK(!mm_movie_save_gc(&t, &t.s) && t.queries == 1 && !t.liveAlloc);
     return 0;
 }
+typedef struct PublishTest
+{
+    int collisions, fail_reserve, fail_write, fail_replace;
+    char calls[MM_MOVIE_STAGE_ATTEMPTS + 4];
+    size_t used;
+} PublishTest;
+
+static void call(PublishTest *test, char code)
+{
+    test->calls[test->used++] = code;
+    test->calls[test->used] = '\0';
+}
+
+static MMMovieStageResult reserve_stage(void *context)
+{
+    PublishTest *test = (PublishTest *)context;
+    call(test, 'S');
+    if (test->fail_reserve) return MM_MOVIE_STAGE_ERROR;
+    if (test->collisions) { --test->collisions; return MM_MOVIE_STAGE_COLLISION; }
+    return MM_MOVIE_STAGE_OK;
+}
+
+static int write_candidate(void *context)
+{
+    PublishTest *test = (PublishTest *)context;
+    call(test, 'W');
+    return !test->fail_write;
+}
+
+static int replace_candidate(void *context)
+{
+    PublishTest *test = (PublishTest *)context;
+    call(test, 'R');
+    return !test->fail_replace;
+}
+
+static void discard_stage(void *context)
+{
+    call((PublishTest *)context, 'D');
+}
+
+static int publishing(void)
+{
+    PublishTest test = {0};
+    MMMoviePublishServices services = {NULL, reserve_stage, write_candidate, replace_candidate, discard_stage};
+    MMMovieCopyFormat format;
+    const char *suffix;
+    services.context = &test;
+    CHECK(mm_movie_copy_format("", 0, &format, &suffix) == MM_MOVIE_COPY_OK &&
+          format == MM_MOVIE_COPY_NATIVE && !strcmp(suffix, ".3mm"));
+    CHECK(mm_movie_copy_format("", 1, &format, &suffix) == MM_MOVIE_COPY_OK &&
+          format == MM_MOVIE_COPY_BUNDLE && !strcmp(suffix, ".vmm"));
+    CHECK(mm_movie_copy_format(".3MM", 1, &format, &suffix) == MM_MOVIE_COPY_BUNDLE_REQUIRED &&
+          format == MM_MOVIE_COPY_BUNDLE && !strcmp(suffix, ".vmm"));
+    CHECK(mm_movie_copy_format(".VMM", 0, &format, &suffix) == MM_MOVIE_COPY_OK &&
+          format == MM_MOVIE_COPY_BUNDLE && !suffix);
+    CHECK(mm_movie_copy_format(".avi", 0, &format, &suffix) == MM_MOVIE_COPY_BAD_EXTENSION);
+
+    test.collisions = 2;
+    CHECK(mm_movie_publish_save(&services) == MM_MOVIE_PUBLISH_OK && !strcmp(test.calls, "SSSWRD"));
+    test.used = 0;
+    test.collisions = MM_MOVIE_STAGE_ATTEMPTS + 1;
+    CHECK(mm_movie_publish_save(&services) == MM_MOVIE_PUBLISH_STAGE_FAILED &&
+          test.used == MM_MOVIE_STAGE_ATTEMPTS && test.collisions == 1 &&
+          strspn(test.calls, "S") == MM_MOVIE_STAGE_ATTEMPTS);
+    test.used = 0;
+    test.collisions = 0;
+    test.fail_reserve = 1;
+    CHECK(mm_movie_publish_save(&services) == MM_MOVIE_PUBLISH_STAGE_FAILED && !strcmp(test.calls, "S"));
+    test.used = 0;
+    test.fail_reserve = 0;
+    test.fail_write = 1;
+    CHECK(mm_movie_publish_save(&services) == MM_MOVIE_PUBLISH_WRITE_FAILED && !strcmp(test.calls, "SWD"));
+    test.used = 0;
+    test.fail_write = 0;
+    test.fail_replace = 1;
+    CHECK(mm_movie_publish_save(&services) == MM_MOVIE_PUBLISH_REPLACE_FAILED && !strcmp(test.calls, "SWRD"));
+    return 0;
+}
+
 int main(void)
 {
-    if (autosaving() || ownership() || retrying() || packaging() || collecting())
+    if (autosaving() || ownership() || retrying() || packaging() || collecting() || publishing())
         return 1;
     puts("Movie autosave rollback, publication, ownership, packaging and collection passed");
     return 0;

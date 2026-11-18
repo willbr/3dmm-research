@@ -939,6 +939,9 @@ disk budget before publishing a replacement source in either host.
 The C89 save planner owns the canonical external library names, the ordering
 and first-name selection for an active Studio catalog, and the replacement of
 stale generated storyboard packages while retaining authored declarations.
+The C89 publisher sequences exclusive staging, candidate writing, atomic
+replacement and cleanup for Studio VMM saves and Marcus Save Copy. Marcus
+also uses the C89 format rule for explicit and inferred 3MM and VMM suffixes.
 ZIP decompression, physical file and path I/O, the installed catalog and
 publication of installed packages on disk remain host services. Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound

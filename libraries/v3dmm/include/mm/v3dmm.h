@@ -3,6 +3,7 @@
 #define MM_V3DMM_H
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -60,5 +61,9 @@ void WriteStoryboardBundle(const Range &movie, const std::vector<Dependency> &de
                            const std::filesystem::path &output);
 // Atomically replace destination with a completed adjacent candidate.
 void Publish(const std::filesystem::path &candidate, const std::filesystem::path &destination);
+// The writer receives an unused path inside an exclusively reserved adjacent
+// staging directory. It must close the completed candidate before returning.
+void SaveAtomically(const std::filesystem::path &destination,
+                    const std::function<void(const std::filesystem::path &)> &write);
 } // namespace MM::V3dmm
 #endif

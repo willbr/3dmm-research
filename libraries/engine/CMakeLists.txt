@@ -307,7 +307,7 @@ target_sources(mm-engine-c89 PRIVATE src/background_resource.c)
 target_sources(mm-engine-c89 PRIVATE src/background_mesh.c)
 target_sources(mm-engine-c89 PRIVATE src/background_preview.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_scene.c)
-target_sources(mm-engine-c89 PRIVATE src/movie_save.c)
+target_sources(mm-engine-c89 PRIVATE src/movie_save.c src/movie_publish.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_rollcall.c src/movie_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_content.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_compose.c)
@@ -1258,6 +1258,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/background_preview.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_scene.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_save.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_publish.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_rollcall.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_content.c"

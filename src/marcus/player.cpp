@@ -1,5 +1,6 @@
 #include "player.h"
 #include "mm/movie_data.h"
+#include "mm/movie_publish.h"
 #include "mm/playback.h"
 #include "mm/vmm_dependencies.h"
 #include "content.h"
@@ -23,7 +24,6 @@
 #include <limits>
 #include <map>
 #include <set>
-#include <chrono>
 #include <cctype>
 #include <tuple>
 #include <exception>
@@ -1219,12 +1219,17 @@ extern "C"
         return Guard(player, [&](MM::Error &error) {
             if (!path || player->scenes.empty()) { error.message = "Add a scene before saving a movie copy."; return false; }
             auto destination = std::filesystem::absolute(std::filesystem::u8path(path));
-            auto extension = destination.extension().u8string();
-            std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });
-            if (extension.empty()) { extension = marcus_requires_vmm(player) ? ".vmm" : ".3mm"; destination += extension; }
-            if (extension != ".3mm" && extension != ".vmm") { error.message = "Save the movie copy with a .3mm or .vmm extension."; return false; }
-            if (extension == ".3mm" && marcus_requires_vmm(player))
+            const auto extension = destination.extension().u8string();
+            MMMovieCopyFormat format;
+            const char *appendSuffix;
+            auto decision = mm_movie_copy_format(extension.c_str(), 0, &format, &appendSuffix);
+            if (decision == MM_MOVIE_COPY_BAD_EXTENSION)
+            { error.message = "Save the movie copy with a .3mm or .vmm extension."; return false; }
+            if (format == MM_MOVIE_COPY_NATIVE && marcus_requires_vmm(player))
+                decision = mm_movie_copy_format(extension.c_str(), 1, &format, &appendSuffix);
+            if (decision == MM_MOVIE_COPY_BUNDLE_REQUIRED)
             { error.message = "This movie includes storyboard or V3DMM content. Save it with a .vmm filename."; return false; }
+            if (appendSuffix) destination += appendSuffix;
             std::error_code sameSourceError;
             if (player->timingInput && std::filesystem::equivalent(player->timingInput->path, destination, sameSourceError))
             { error.message = "Choose a different filename for Save copy; the current movie is open."; return false; }
@@ -1235,20 +1240,19 @@ extern "C"
             if (!file) return false;
             std::error_code equivalentError;
             if (std::filesystem::equivalent(file->path, destination, equivalentError)) return true;
-            const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-            auto temporary = destination; temporary += ".marcus-" + std::to_string(stamp) + ".tmp";
-            struct Cleanup { std::filesystem::path path; ~Cleanup() { std::error_code e; std::filesystem::remove(path, e); } } cleanup{temporary};
-            if (extension == ".vmm")
-            {
+            MM::V3dmm::SaveAtomically(destination, [&](const std::filesystem::path &temporary) {
+                if (format == MM_MOVIE_COPY_NATIVE)
+                {
+                    std::filesystem::copy_file(file->path, temporary);
+                    return;
+                }
                 const auto dependencies = player->content ? player->content->Dependencies()
                     : std::vector<MM::V3dmm::Dependency>{{mm_vmm_library_name(MM_VMM_BASE_LIBRARY), {}}};
                 if (player->edits->storyboards->empty()) MM::V3dmm::WriteBundle(MM::V3dmm::WholeFile(
                     player->content && player->content->bundled && file == player->timingInput ? player->content->movie : file->path), dependencies, temporary);
                 else MarcusWriteStoryboardBundle(*file, *player->edits->storyboards, player->timingResources, player->timingContent,
                     dependencies, player->content ? player->content->files.Files("v3dmm", ".3cn") : std::vector<std::filesystem::path>{}, temporary);
-            }
-            else std::filesystem::copy_file(file->path, temporary);
-            MM::V3dmm::Publish(temporary, destination);
+            });
             return true;
         });
     }

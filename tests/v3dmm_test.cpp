@@ -291,6 +291,28 @@ void Tests(const fs::path &root)
     Write(root / "candidate", "new data");
     Reject([&] { V::Publish(root / "candidate", failed); });
     Check(fs::is_directory(failed) && Read(root / "candidate") == "new data");
+    const auto destination = root / "published.vmm";
+    Write(destination, "previous data");
+    fs::path stage;
+    bool emptyCandidate = false;
+    Reject([&] { V::SaveAtomically(destination, [&](const fs::path &candidate) {
+        stage = candidate.parent_path();
+        emptyCandidate = stage.parent_path() == root && fs::is_directory(stage) && !fs::exists(candidate);
+        Write(candidate, "partial data");
+        throw std::runtime_error("Incomplete movie");
+    }); });
+    Check(emptyCandidate && !fs::exists(stage) && Read(destination) == "previous data");
+    stage.clear();
+    Reject([&] { V::SaveAtomically(failed, [&](const fs::path &candidate) {
+        stage = candidate.parent_path();
+        Write(candidate, "complete movie");
+    }); });
+    Check(!stage.empty() && !fs::exists(stage) && fs::is_directory(failed));
+    V::SaveAtomically(destination, [&](const fs::path &candidate) {
+        stage = candidate.parent_path();
+        V::WriteBundle(bundle.movie, bundle.dependencies, candidate);
+    });
+    Check(!fs::exists(stage) && Read(destination) == original);
     Check(Read(root / "fixture.vmm") == original);
 }
 int main(int argc, char **argv)

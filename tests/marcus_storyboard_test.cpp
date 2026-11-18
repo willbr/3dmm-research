@@ -546,8 +546,9 @@ int main(int argc, char **argv)
         check(marcus_undo(player.get()) && MarcusGetStoryboard(player.get(), loaded) && MarcusEncodeBoard(loaded) == bytes, "Undo reopened storyboard edit");
         check(!marcus_save_copy(player.get(), path.u8string().c_str()), "Save copy protects its open source");
         auto resavedPath = path; resavedPath.replace_filename(path.stem().u8string() + "-resaved.vmm");
-        check(marcus_save_copy(player.get(), resavedPath.u8string().c_str()) &&
-            MM::V3dmm::ReadBundle(resavedPath).dependencies.size() == 2, "Resaving replaces stale generated packages");
+        auto resaveStem = resavedPath; resaveStem.replace_extension();
+        check(marcus_save_copy(player.get(), resaveStem.u8string().c_str()) &&
+            MM::V3dmm::ReadBundle(resavedPath).dependencies.size() == 2, "Resaving infers VMM and replaces generated packages");
         for (int renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
         {
             if (!marcus_set_renderer(player.get(), renderer)) { std::printf("Renderer %d unavailable: %s\n", renderer, marcus_error(player.get())); continue; }
@@ -567,8 +568,9 @@ int main(int argc, char **argv)
             marcus_select_scene(player.get(), 1) && MarcusGetStoryboard(player.get(), loaded) && loaded.angles.size() == 8, "Reopen paged multi-scene editor data");
         player.reset(); player.reset(marcus_create());
         auto ordinaryPath = path; ordinaryPath.replace_filename("ordinary-black.3mm");
+        auto ordinaryStem = ordinaryPath; ordinaryStem.replace_extension();
         check(marcus_add_scene(player.get(), 11, argv[1], argv[2]) && !marcus_requires_vmm(player.get()) &&
-            marcus_save_copy(player.get(), ordinaryPath.u8string().c_str()), "Ordinary movies retain native 3MM saving");
+            marcus_save_copy(player.get(), ordinaryStem.u8string().c_str()), "Ordinary movies default to native 3MM saving");
         auto ordinaryBundle = ordinaryPath; ordinaryBundle.replace_extension(".vmm");
         auto copiedBundle = ordinaryPath; copiedBundle.replace_filename("ordinary-copy.vmm");
         check(marcus_save_copy(player.get(), ordinaryBundle.u8string().c_str()) &&

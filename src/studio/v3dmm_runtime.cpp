@@ -118,28 +118,19 @@ struct Document : MovieContainer::Document
     }
     bool Save(PFilename movie, PFilename destination) override
     {
-        fs::path candidate;
         try
         {
             if (!movie || !MovieContainer::IsVmm(destination))
                 throw std::runtime_error("This movie uses V3DMM content. Save it with a .vmm filename.");
-            auto path = Path(destination);
-            candidate = path.parent_path() / (".vmm-" + std::to_string(std::random_device{}()) + ".tmp");
-            if (fs::exists(candidate))
-                throw std::runtime_error("VMM save staging path already exists");
-            const auto dependencies = ActiveMovieDependencies(libraries, selection);
-            V::WriteBundle(V::WholeFile(Path(movie)), dependencies, candidate);
-            V::Publish(candidate, path);
+            V::SaveAtomically(Path(destination), [&](const fs::path &candidate) {
+                const auto dependencies = ActiveMovieDependencies(libraries, selection);
+                V::WriteBundle(V::WholeFile(Path(movie)), dependencies, candidate);
+            });
             bundled = true;
             return true;
         }
         catch (const std::exception &error)
         {
-            if (!candidate.empty())
-            {
-                std::error_code ignored;
-                fs::remove(candidate, ignored);
-            }
             Report(error);
             return false;
         }
