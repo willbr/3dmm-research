@@ -18,6 +18,7 @@ extern "C"
         int scene;
         long frame;
     } MarcusFramePosition;
+    enum { MARCUS_FRAME_PREVIEW_REQUEST_LIMIT = 32 };
     typedef struct MarcusMovieEntry
     {
         char name[1024];
@@ -362,9 +363,10 @@ extern "C"
     void marcus_frame_previews_destroy(MarcusFramePreviews *previews);
     void marcus_frame_previews_request(MarcusFramePreviews *previews, const long *frames, int count);
     /* Movie-wide requests identify both the zero-based scene and authored frame.
-     * Returned MarcusImage records include both scene and frame. */
-    void marcus_frame_previews_request_positions(MarcusFramePreviews *previews,
-                                                 const MarcusFramePosition *positions, int count);
+     * Returned MarcusImage records include both. Returns 1 on success. A zero
+     * count clears pending requests and accepts a null positions pointer. */
+    int marcus_frame_previews_request_positions(MarcusFramePreviews *previews,
+                                                const MarcusFramePosition *positions, int count);
     int marcus_frame_previews_take(MarcusFramePreviews *previews, MarcusImage *image, char *error, int error_size);
     int marcus_select_scene(MarcusPlayer *player, int index);
     /* Playback scene changes keep Orbit framing and Fly's clipping reference. */

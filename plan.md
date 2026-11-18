@@ -375,10 +375,12 @@ standard widgets for controls and text input and ImGui drawing APIs for
 specialized movie and timeline artwork. SDL provides platform and rendering
 services. See the [current Marcus boundary](docs/tools/marcus.md#c89-boundary-and-checks).
 
-- Move dialog selection, filtering and actions still in C++ into the C89
-  application. Start with scene/frame organiser commands, then audit the movie
-  and asset browsers and camera picker. Keep native file choosers, asynchronous
-  preview services and SDL texture management behind narrow interfaces.
+- Scene and frame organiser selection, frame scope, zoom and thumbnail cache
+  now live in C89. The organiser submits scene/frame requests through the
+  existing isolated preview worker API. Continue converting selection,
+  filtering and actions in the movie and asset browsers and camera picker.
+  Keep native file choosers, asynchronous preview services and SDL texture
+  management behind narrow interfaces.
 - Move storyboard editor commands, interaction state, snapping and prop and
   light edit transactions into C89. Move direct `ImGui::` application calls
   from `prop_gizmo.cpp` and `transform_gizmo.h` to cimgui callers. Preserve prop

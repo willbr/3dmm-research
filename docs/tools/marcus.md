@@ -1646,7 +1646,16 @@ UI tests were added.
 
 `dialog_views.c` and `dialog_widgets.c` own the picker widgets and
 input in C89: Open movie, New scene, Add actor or prop, scene/frame organisers
-and camera angles. Settings, camera rendering settings, ZIP member selection
+and camera angles. `scene_organiser.c` owns organiser selection, single-scene
+and movie-wide frame indexing, zoom, and thumbnail caching. It looks up cached
+textures through a sorted index and submits up to 32 visible missing frames
+through the existing C preview-worker interface. Results carry authored scene
+and frame identifiers so an in-flight image can be mapped after a scope change.
+The existing headless preview check verifies frame identity across scenes,
+pixel equality with the authored camera, and cancellation. The actor and
+scrolling-text fixtures retained all 180 SDL Studio and Marcus viewport hashes.
+Evidence is in `tmp/c89-scene-organiser`.
+Settings, camera rendering settings, ZIP member selection
 and errors use standard cimgui controls in `main.c`. The dialogs stay centred
 and fit the available window when resized. Browsers retain asynchronous loading,
 isolated preview workers and bounded caches through the copied data/command
@@ -1665,14 +1674,14 @@ ImGuizmo and the shared SDL backend retain their required C++ bindings; ordinary
 transform buttons and fields call cimgui from C89.
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
-`player.cpp` owns the C++ Archive/Preview backend; `playback.cpp` implements audio,
-caption composition and presentation timing. `content.cpp` adapts the
+`player.cpp` owns the C++ Archive/Preview backend. `playback.cpp` supplies audio,
+caption layout and transition snapshots for the C89 playback controller.
+`content.cpp` adapts the
 shared C89 VFS to the existing pack and bundle libraries. Exceptions stop at the
 C boundary. `Preview::Objects()` supplies evaluated actor state.
-The shared playback/startup policy, frame pacer and retail scrolling evaluator
-now live in the C89 `mm-engine-c89` library. Marcus's scrolling facade
-and Studio's playback facades delegate to it; the remaining backend still uses
-C++. See the [engine boundary](../code-map/library-split.md#c89-engine-backend).
+The C89 `mm-engine-c89` library supplies playback and startup policy, frame
+pacing and retail scrolling. Marcus polls its playback controller. Studio uses
+its event-driven evaluator. See the [engine boundary](../code-map/library-split.md#c89-engine-backend).
 Movie opening now also uses the shared C89 MVIE-version and roll-call record
 decoders. Archive's GST wire-layout validation runs through the C89 bounded
 stream interface; legacy string conversion and chunk/resource ownership remain

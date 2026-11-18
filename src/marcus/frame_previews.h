@@ -3,6 +3,7 @@
 #include "movie_input.h"
 #include "browser_preview.h"
 #include <SDL3/SDL.h>
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <deque>
@@ -16,7 +17,8 @@ struct MarcusFramePreviews
     std::atomic<bool> cancel{false};
     std::mutex mutex;
     std::condition_variable wake;
-    std::deque<MarcusFramePosition> pending;
+    std::array<MarcusFramePosition, MARCUS_FRAME_PREVIEW_REQUEST_LIMIT> pending;
+    int pendingRead = 0, pendingCount = 0;
     std::deque<Result> ready;
     bool busy = false;
     MarcusFramePosition active = {};

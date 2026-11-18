@@ -67,10 +67,11 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
                 MarcusFramePosition position;
                 {
                     std::unique_lock<std::mutex> lock(mutex);
-                    wake.wait(lock, [&] { return cancel || (!pending.empty() && ready.size() < 32); });
+                    wake.wait(lock, [&] {
+                        return cancel || (pendingRead < pendingCount && ready.size() < MARCUS_FRAME_PREVIEW_REQUEST_LIMIT);
+                    });
                     if (cancel) break;
-                    position = pending.front();
-                    pending.pop_front();
+                    position = pending[pendingRead++];
                     busy = true;
                     active = position;
                 }
@@ -142,29 +143,37 @@ extern "C"
 void marcus_frame_previews_destroy(MarcusFramePreviews *previews) { delete previews; }
 void marcus_frame_previews_request(MarcusFramePreviews *previews, const long *frames, int count)
 {
-    if (!previews || !frames || count < 0 || count > 32) return;
-    std::array<MarcusFramePosition, 32> positions;
+    if (!previews || !frames || count < 0 || count > MARCUS_FRAME_PREVIEW_REQUEST_LIMIT) return;
+    std::array<MarcusFramePosition, MARCUS_FRAME_PREVIEW_REQUEST_LIMIT> positions;
     for (int i = 0; i < count; ++i) positions[i] = {previews->sourceScene, frames[i]};
     marcus_frame_previews_request_positions(previews, positions.data(), count);
 }
-void marcus_frame_previews_request_positions(MarcusFramePreviews *previews, const MarcusFramePosition *positions, int count)
+int marcus_frame_previews_request_positions(MarcusFramePreviews *previews, const MarcusFramePosition *positions, int count)
+try
 {
-    if (!previews || !positions || count < 0 || count > 32) return;
+    if (!previews || (!positions && count != 0) || count < 0 || count > MARCUS_FRAME_PREVIEW_REQUEST_LIMIT) return 0;
     std::lock_guard<std::mutex> lock(previews->mutex);
-    previews->pending.clear();
+    previews->pendingRead = previews->pendingCount = 0;
     for (int i = 0; i < count; ++i)
     {
         const auto position = positions[i];
+        const auto pendingEnd = previews->pending.begin() + previews->pendingCount;
         if ((previews->busy && SamePosition(previews->active, position)) ||
             std::any_of(previews->ready.begin(), previews->ready.end(),
                         [&](const MarcusFramePreviews::Result &r) { return SamePosition(r.position, position); }) ||
-            std::any_of(previews->pending.begin(), previews->pending.end(),
+            std::any_of(previews->pending.begin(), pendingEnd,
                         [&](const MarcusFramePosition &p) { return SamePosition(p, position); })) continue;
-        previews->pending.push_back(position);
+        previews->pending[previews->pendingCount++] = position;
     }
     previews->wake.notify_all();
+    return 1;
+}
+catch (...)
+{
+    return 0;
 }
 int marcus_frame_previews_take(MarcusFramePreviews *previews, MarcusImage *image, char *error, int errorSize)
+try
 {
     if (!previews || !image) return -1;
     *image = {};
@@ -184,6 +193,11 @@ int marcus_frame_previews_take(MarcusFramePreviews *previews, MarcusImage *image
     }
     if (previews->failure.empty()) return 0;
     if (error && errorSize > 0) SDL_strlcpy(error, previews->failure.c_str(), errorSize);
+    return -1;
+}
+catch (const std::exception &e)
+{
+    if (error && errorSize > 0) SDL_strlcpy(error, e.what(), errorSize);
     return -1;
 }
 }
