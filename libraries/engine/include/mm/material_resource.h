@@ -81,8 +81,9 @@ extern "C"
         void (*configure)(void *, void *handle, const MMMaterialDescription *);
         void (*add_material)(void *, void *), (*remove_material)(void *, void *), (*free_material)(void *, void *);
         void *(*texture)(void *, void *handle);
-        void (*map)(void *, void *handle, void *texture, void *raw_pixelmap, void *shade);
-        MMI32 (*height)(void *, void *texture);
+        void *(*texture_pixelmap)(void *, void *texture);
+        void (*map)(void *, void *handle, void *colour_map, void *shade_map);
+        MMI32 (*height)(void *, void *pixelmap);
         void (*transform)(void *, void *handle, const MMI32 matrix[6]);
         int (*add_chunk)(void *, void *file, MMU32 type, const void *, MMI32 bytes, MMU32 *number);
         int (*write_texture)(void *, void *texture, void *file, MMU32 type, MMU32 *number);
@@ -90,7 +91,8 @@ extern "C"
         void (*delete_chunk)(void *, void *file, MMU32 type, MMU32 number);
         void *(*read_texture)(void *, void *file, MMU32 type, MMU32 number);
         void *(*read_bitmap)(void *, void *filename, void *palette);
-        void *(*read_pixelmap)(void *, void *filename);
+        const void *(*pixelmap_path)(void *, void *filename);
+        void *(*read_pixelmap)(void *, const void *path);
         void *(*wrap_pixelmap)(void *, void *pixelmap);
         void (*free_pixelmap)(void *, void *pixelmap);
         void *(*input_material)(void *, const void *input, MMI32 index);

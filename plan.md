@@ -547,8 +547,9 @@ Keep host presentation and device output outside the session.
    action adopts. The standalone evaluator uses the same matrix generator
    for its requested cel. Live BRender model construction, geometry binding
    and prelighting use a C89 library. The live model loader and standalone
-   mesh reader share the wire layout. Material and texture renderer services
-   and the native object and cache boundaries remain work.
+   mesh reader share the wire layout. The same C89 renderer library binds
+   materials, colour and shade maps, and texture views. Native object, file
+   and cache adapters remain work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

@@ -11,6 +11,7 @@
 ***************************************************************************/
 #include "soc_core.h"
 #include "mm/template_runtime.h"
+#include "material_renderer.h"
 #include <cstring>
 static_assert(sizeof(MaterialOnFile) == 20 && sizeof(CustomMaterialOnFile) == 8 && sizeof(TXXFF) == 28,
               "material wire layouts");
@@ -38,10 +39,7 @@ MMMaterialServices Material_MTRL::_Services(void *context)
     s.transform_type = kctgTxxf;
     s.material_bytes = sizeof(Material_MTRL);
     s.custom_bytes = sizeof(CustomMaterial_CMTL);
-    s.light_flag = BR_MATF_LIGHT;
-    s.gouraud_flag = BR_MATF_GOURAUD;
-    s.smooth_flag = BR_MATF_SMOOTH;
-    s.map_flag = BR_MATF_MAP_COLOUR;
+    mm_brender_material_services(&s);
     s.create = [](void *, int kind) -> void * {
         if (kind == MM_MATERIAL)
             return NewObj Material_MTRL;
@@ -103,52 +101,9 @@ MMMaterialServices Material_MTRL::_Services(void *context)
     };
     s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
-    s.allocate_material = [](void *) -> void * {
-        char name[sizeof(PMaterial_MTRL) + 1];
-        std::memset(name, ' ', sizeof(PMaterial_MTRL));
-        name[sizeof(PMaterial_MTRL)] = 0;
-        return BrMaterialAllocate(name);
-    };
-    s.identify = [](void *, void *p, void *object) {
-        auto owner = static_cast<PMaterial_MTRL>(object);
-        CopyPb(&owner, static_cast<PBMTL>(p)->identifier, sizeof(owner));
-    };
-    s.describe = [](void *, void *p, MMMaterialDescription *out) {
-        auto b = static_cast<PBMTL>(p);
-        *out = {b->colour, b->ka, b->kd, b->ks, b->power, b->index_base, b->index_range, b->opacity, b->flags};
-    };
-    s.configure = [](void *, void *p, const MMMaterialDescription *in) {
-        auto b = static_cast<PBMTL>(p);
-        b->colour = in->colour;
-        b->ka = static_cast<br_ufraction>(in->ambient);
-        b->kd = static_cast<br_ufraction>(in->diffuse);
-        b->ks = static_cast<br_ufraction>(in->specular);
-        b->power = in->power;
-        b->index_base = static_cast<byte>(in->index_base);
-        b->index_range = static_cast<byte>(in->index_range);
-        b->opacity = static_cast<byte>(in->opacity);
-        b->flags = in->flags;
-    };
-    s.add_material = [](void *, void *p) { BrMaterialAdd(static_cast<PBMTL>(p)); };
-    s.remove_material = [](void *, void *p) { BrMaterialRemove(static_cast<PBMTL>(p)); };
-    s.free_material = [](void *, void *p) { BrMaterialFree(static_cast<PBMTL>(p)); };
-    s.texture = [](void *, void *p) -> void * {
-        auto b = static_cast<PBMTL>(p);
-        return b->colour_map ? reinterpret_cast<PTextureMap>(b->colour_map->identifier) : nullptr;
-    };
-    s.map = [](void *, void *p, void *texture, void *raw, void *shade) {
-        auto b = static_cast<PBMTL>(p);
-        b->colour_map = raw ? static_cast<PBPMP>(raw) : texture ? static_cast<PTextureMap>(texture)->Pbpmp() : nullptr;
-        if (shade)
-            b->index_shade = static_cast<PTextureMap>(shade)->Pbpmp();
-    };
-    s.height = [](void *, void *p) -> MMI32 {
-        AssertPo(static_cast<PTextureMap>(p), 0);
-        return static_cast<PTextureMap>(p)->Pbpmp()->height;
-    };
-    s.transform = [](void *, void *p, const MMI32 matrix[6]) {
-        auto b = static_cast<PBMTL>(p);
-        std::memcpy(&b->map_transform, matrix, sizeof(b->map_transform));
+    s.texture_pixelmap = [](void *, void *object) -> void * {
+        auto texture = static_cast<PTextureMap>(object);
+        return texture ? texture->Pbpmp() : nullptr;
     };
     s.add_chunk = [](void *, void *f, MMU32 type, const void *data, MMI32 bytes, MMU32 *number) -> int {
         ChunkNumber n;
@@ -176,13 +131,12 @@ MMMaterialServices Material_MTRL::_Services(void *context)
     s.read_bitmap = [](void *, void *f, void *palette) -> void * {
         return TextureMap::PtmapReadNative(static_cast<PFilename>(f), static_cast<PDynamicArray>(palette));
     };
-    s.read_pixelmap = [](void *p, void *f) -> void * {
+    s.pixelmap_path = [](void *p, void *file) -> const void * {
         auto &path = static_cast<MaterialContext *>(p)->path;
-        static_cast<PFilename>(f)->GetStnPath(&path);
-        return BrPixelmapLoad(path.Psz());
+        static_cast<PFilename>(file)->GetStnPath(&path);
+        return path.Psz();
     };
     s.wrap_pixelmap = [](void *, void *p) -> void * { return TextureMap::PtmapNewFromBpmp(static_cast<PBPMP>(p)); };
-    s.free_pixelmap = [](void *, void *p) { BrPixelmapFree(static_cast<PBPMP>(p)); };
     s.input_material = [](void *, const void *p, MMI32 i) -> void * {
         return static_cast<PMaterial_MTRL const *>(p)[i];
     };
@@ -252,8 +206,7 @@ PMaterial_MTRL Material_MTRL::PmtrlNewFromBmp(PFilename file, PDynamicArray pale
 PMaterial_MTRL Material_MTRL::PmtrlFromBmtl(PBMTL material)
 {
     AssertVarMem(material);
-    PMaterial_MTRL owner;
-    CopyPb(material->identifier, &owner, sizeof(owner));
+    auto owner = static_cast<PMaterial_MTRL>(mm_brender_material_owner(material));
     AssertPo(owner, 0);
     return owner;
 }

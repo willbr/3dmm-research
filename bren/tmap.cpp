@@ -2,6 +2,7 @@
     Texture map (br_pixelmap wrapper) host services.
 ***************************************************************************/
 #include "bren_core.h"
+#include "texture_renderer.h"
 #include <cstring>
 ASSERTNAME
 namespace BRender
@@ -14,15 +15,10 @@ struct TextureContext
 {
     DataBlock block;
 };
-void Description(PBPMP p, MMTextureDescription *d)
-{
-    *d = {p->row_bytes, p->width, p->height, p->base_x, p->base_y, p->origin_x, p->origin_y, p->type, p->flags};
-}
 } // namespace
 void TextureMap::_Sync()
 {
-    Description(&_bpmp, &_texture.description);
-    _texture.pixels = _bpmp.pixels;
+    mm_brender_texture_sync(&_texture, &_bpmp);
 }
 MMTextureServices TextureMap::_Services(void *context)
 {
@@ -33,36 +29,14 @@ MMTextureServices TextureMap::_Services(void *context)
     s.system = koskCur;
     s.packed_signature = klwSigPackedFile;
     s.unpacked_signature = klwSigUnpackedFile;
-    s.indexed_type = BR_PMT_INDEX_8;
-    s.linear_flag = BR_PMF_LINEAR;
+    mm_brender_texture_services(&s);
     s.create = [](void *) -> void * { return NewObj TextureMap; };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.state = [](void *, void *p) -> MMTextureResource * { return &static_cast<PTextureMap>(p)->_texture; };
-    s.publish = [](void *, void *p, const MMTextureResource *m) {
-        auto t = static_cast<PTextureMap>(p);
-        auto &b = t->_bpmp;
-        if (m->imported_owner)
-            b = *static_cast<PBPMP>(m->imported_owner);
-        b.identifier = reinterpret_cast<char *>(t);
-        b.pixels = m->pixels;
-        b.row_bytes = static_cast<br_int_16>(m->description.row_bytes);
-        b.width = static_cast<br_uint_16>(m->description.width);
-        b.height = static_cast<br_uint_16>(m->description.height);
-        b.base_x = static_cast<br_uint_16>(m->description.base_x);
-        b.base_y = static_cast<br_uint_16>(m->description.base_y);
-        b.origin_x = static_cast<br_int_16>(m->description.origin_x);
-        b.origin_y = static_cast<br_int_16>(m->description.origin_y);
-        b.type = static_cast<br_uint_8>(m->description.type);
-        b.flags = static_cast<br_uint_8>(m->description.flags);
-        if (m->imported_owner)
-            static_cast<PBPMP>(m->imported_owner)->identifier = reinterpret_cast<char *>(t);
+    s.publish = [](void *, void *object, const MMTextureResource *resource) {
+        auto texture = static_cast<PTextureMap>(object);
+        mm_brender_texture_publish(&texture->_bpmp, texture, resource);
     };
-    s.describe_import = [](void *, void *p, MMTextureDescription *d, void **pixels) {
-        auto b = static_cast<PBPMP>(p);
-        Description(b, d);
-        *pixels = b->pixels;
-    };
-    s.free_import = [](void *, void *p) { BrPixelmapFree(static_cast<PBPMP>(p)); };
     s.allocate = [](void *, MMI32 n, int clear, void **out) -> int {
         return FAllocPv(out, n, clear ? fmemClear : fmemNil, mprNormal);
     };

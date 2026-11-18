@@ -97,7 +97,7 @@ void mm_material_dispose(MMMaterialResource *m, const MMMaterialServices *s)
     if (texture)
     {
         s->release(s->context, texture);
-        s->map(s->context, m->handle, NULL, NULL, NULL);
+        s->map(s->context, m->handle, NULL, NULL);
     }
     if (m->handle)
     {
@@ -110,11 +110,14 @@ static void attach(void *handle, void *texture, void *raw, const MMMaterialShade
                    const MMMaterialServices *s)
 {
     MMMaterialDescription d;
+    void *colour, *index_shade;
     s->describe(s->context, handle, &d);
-    s->map(s->context, handle, texture, raw, shade->texture);
+    colour = raw ? raw : s->texture_pixelmap(s->context, texture);
+    index_shade = s->texture_pixelmap(s->context, shade->texture);
+    s->map(s->context, handle, colour, index_shade);
     d.flags |= s->map_flag;
     d.index_base = 0;
-    d.index_range = (unsigned)(s->height(s->context, shade->texture) - 1) & 255U;
+    d.index_range = (unsigned)(s->height(s->context, index_shade) - 1) & 255U;
     s->configure(s->context, handle, &d);
 }
 static int read_header(void *file, MMU32 type, MMU32 number, void *b, MMI32 n, int exact,
@@ -163,7 +166,7 @@ static int read_material(void *object, void *cache, MMU32 type, MMU32 number,
             if (!read_header(file, child.type, child.number, b, 28, 0, s))
             {
                 s->release(s->context, texture);
-                s->map(s->context, m->handle, NULL, NULL, NULL);
+                s->map(s->context, m->handle, NULL, NULL);
                 s->free_material(s->context, m->handle);
                 m->handle = NULL;
                 return 0;
@@ -274,7 +277,7 @@ void *mm_material_import(void *filename, void *palette, int bitmap, const MMMate
         s->describe(s->context, handle, &d);
         d.colour = 0;
         s->configure(s->context, handle, &d);
-        raw = s->read_pixelmap(s->context, filename);
+        raw = s->read_pixelmap(s->context, s->pixelmap_path(s->context, filename));
         if (!raw)
             goto fail;
         texture = s->wrap_pixelmap(s->context, raw);

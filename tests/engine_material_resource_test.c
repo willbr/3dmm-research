@@ -30,7 +30,9 @@ typedef struct Test
     unsigned char header[20], transform_header[28], custom_header[8], written[20];
     MMI32 header_size, transform_size, custom_size;
     Ref texture, material, model, shading;
+    int texture_view, shade_view;
 } Test;
+static const char pix_path[] = "material-fixture.pix";
 static Test *test(void *p)
 {
     return (Test *)p;
@@ -266,16 +268,25 @@ static void *texture(void *p, void *h)
     (void)p;
     return ((Handle *)h)->texture;
 }
-static void map(void *p, void *h, void *t, void *raw, void *shade)
+static void *texture_pixelmap(void *p, void *t)
 {
-    (void)p;
-    (void)shade;
-    ((Handle *)h)->texture = (Ref *)t;
-    ((Handle *)h)->raw = raw;
+    Test *fixture = test(p);
+    if (t == &fixture->texture)
+        return &fixture->texture_view;
+    assert(t == &fixture->shading);
+    return &fixture->shade_view;
+}
+static void map(void *p, void *h, void *colour, void *shade)
+{
+    Test *t = test(p);
+    Handle *handle = (Handle *)h;
+    assert(!shade || shade == &t->shade_view);
+    handle->texture = colour ? &t->texture : NULL;
+    handle->raw = colour != &t->texture_view ? colour : NULL;
 }
 static MMI32 height(void *p, void *t)
 {
-    assert(t == &test(p)->shading);
+    assert(t == &test(p)->shade_view);
     return 8;
 }
 static void transform(void *p, void *h, const MMI32 m[6])
@@ -339,11 +350,16 @@ static void *read_bitmap(void *p, void *filename, void *palette)
     ++t->texture.refs;
     return &t->texture;
 }
-static void *read_pixelmap(void *p, void *filename)
+static const void *pixelmap_path(void *p, void *filename)
+{
+    assert(p == filename);
+    return pix_path;
+}
+static void *read_pixelmap(void *p, const void *path)
 {
     Test *t = test(p);
     void *raw;
-    (void)filename;
+    assert(path == pix_path);
     if (fail(t))
         return NULL;
     raw = malloc(1);
@@ -413,6 +429,7 @@ static void setup(Test *t)
     t->s.remove_material = remove_material;
     t->s.free_material = free_material;
     t->s.texture = texture;
+    t->s.texture_pixelmap = texture_pixelmap;
     t->s.map = map;
     t->s.height = height;
     t->s.transform = transform;
@@ -422,6 +439,7 @@ static void setup(Test *t)
     t->s.delete_chunk = delete_chunk;
     t->s.read_texture = read_texture;
     t->s.read_bitmap = read_bitmap;
+    t->s.pixelmap_path = pixelmap_path;
     t->s.read_pixelmap = read_pixelmap;
     t->s.wrap_pixelmap = wrap_pixelmap;
     t->s.free_pixelmap = free_pixelmap;
@@ -585,7 +603,7 @@ static void construction_and_writes(void)
         assert(o);
         assert(((Handle *)o->material.handle)->d.ambient == 6553 && ((Handle *)o->material.handle)->d.index_base == 15);
         ++t.texture.refs;
-        map(&t, o->material.handle, &t.texture, NULL, NULL);
+        map(&t, o->material.handle, &t.texture_view, NULL);
         t.step = 0;
         t.fail = n;
         number = 99;

@@ -1132,6 +1132,23 @@ if(NOT STUDIO_SDL3)
   target_link_libraries(kauai PUBLIC 3DMMForever::AudioMan $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:Msacm32>)
 endif()
 
+# C89 renderer operations for live model, material and texture resources.
+add_library(mm-brender-resources STATIC
+  "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
+  "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
+  "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c")
+set_target_properties(mm-brender-resources PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_include_directories(mm-brender-resources PUBLIC "${PROJECT_SOURCE_DIR}/bren/inc")
+target_link_libraries(mm-brender-resources PUBLIC mm-engine-c89 PRIVATE BRender::Libraries)
+if(BUILD_TESTING AND ENGINE_C89_COMPILER)
+  add_test(NAME brender-resources-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/bren/inc"
+      -fsyntax-only "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
+        "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
+        "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c")
+endif()
+
 # brender-core: BRender wrapper minus the World/PWorld gui binding.
 # Provides _BrDefault{Filesystem,Allocator,Diag} + the TextureMap and
 # ZBMP wrappers + the std{file,err,mem} adapters that BRender::Libraries
@@ -1147,9 +1164,8 @@ target_sources(brender-core
 )
 target_include_directories(brender-core PUBLIC "${PROJECT_SOURCE_DIR}/bren/inc")
 target_link_libraries(brender-core
-  PUBLIC
-    kauai-core
-    BRender::Libraries)
+  PUBLIC kauai-core BRender::Libraries
+  PRIVATE mm-brender-resources)
 
 # brender: full wrapper including bwld.cpp (the World class that
 # wraps a BRender world together with kauai gui bits like
@@ -1165,18 +1181,6 @@ target_link_libraries(brender
     brender-core
     kauai
     BRender::Libraries)
-
-# C89 renderer operations for live model resources.
-add_library(mm-brender-model STATIC "${PROJECT_SOURCE_DIR}/bren/model_renderer.c")
-set_target_properties(mm-brender-model PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-target_include_directories(mm-brender-model PUBLIC "${PROJECT_SOURCE_DIR}/bren/inc")
-target_link_libraries(mm-brender-model PUBLIC mm-engine-c89 PRIVATE BRender::Libraries)
-if(BUILD_TESTING AND ENGINE_C89_COMPILER)
-  add_test(NAME brender-model-c89-syntax
-    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
-      -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/bren/inc"
-      -fsyntax-only "${PROJECT_SOURCE_DIR}/bren/model_renderer.c")
-endif()
 
 # --- engine-core: stored data, assets, evaluation and playback policy ---
 # Actor editing/playback, backgrounds bound to World, sound import/playback
@@ -1212,7 +1216,7 @@ target_include_directories(engine-core PUBLIC
   # brender wrapper headers (BMAT34 alias, etc); the gui-side bwld.cpp
   # is NOT linked from engine-core, so we just need the include path.
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/bren/inc>)
-target_link_libraries(engine-core PUBLIC kauai-core brender-core mm-engine-c89 PRIVATE mm-brender-model)
+target_link_libraries(engine-core PUBLIC kauai-core brender-core mm-engine-c89 PRIVATE mm-brender-resources)
 add_executable(script-name-test EXCLUDE_FROM_ALL tests/script_name_test.cpp)
 target_link_libraries(script-name-test PRIVATE kauai-core)
 add_executable(brender-list-test EXCLUDE_FROM_ALL tests/brender_list_test.c)
@@ -1585,10 +1589,10 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
   set(core_archives ${core})
   if(core STREQUAL "engine-core")
     target_compile_definitions(${core}-link-test PRIVATE TEST_ENGINE_CORE)
-    list(APPEND core_archives mm-brender-model brender-core kauai-core)
+    list(APPEND core_archives mm-brender-resources brender-core kauai-core)
   elseif(core STREQUAL "brender-core")
     target_compile_definitions(${core}-link-test PRIVATE TEST_BRENDER_CORE)
-    list(APPEND core_archives kauai-core)
+    list(APPEND core_archives mm-brender-resources kauai-core)
   endif()
   foreach(archive IN LISTS core_archives)
     if(MSVC)

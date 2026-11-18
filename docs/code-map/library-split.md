@@ -4726,7 +4726,7 @@ coverage limits in `docs/tools/playback-regression.md`.
 `model_resource.c` owns the persistent `MMModelResource` renderer handle,
 construction/factories, packed/unpacked estimates, prepared/unprepared loading,
 partial ownership, disposal, writing, DAT import control, extent queries and
-glyph adjustment. The C89 `mm-brender-model` library binds BRender allocation,
+glyph adjustment. The C89 `mm-brender-resources` library binds BRender allocation,
 geometry, DAT import and prelighting for both hosts. `modl.cpp` supplies object
 and block/file services and routes diagnostics. Header and face codecs read
 48-byte headers and 32-byte faces. The 32-byte vertex records keep their native
@@ -4794,9 +4794,12 @@ factory estimates, header/texture/transform loading, writing, disposal,
 shade-table replacement and PIX/BMP import sequencing. `custom_material.c`
 owns persistent material/model arrays, body-part counts and set identifiers,
 construction/retains, child loading, factory estimates and disposal/queries.
-`mtrl.cpp` retains typed BRender field/allocation, object/reference, block/file
-and TextureMap services. The existing custom-material graph comparisons remain
-in the shared template controller.
+The C89 renderer library allocates BRender materials and binds colour maps,
+shade maps and texture transforms. The material controller resolves texture
+and shade references to borrowed pixelmap views before mapping them.
+`mtrl.cpp` supplies object references, chunk and file services, texture lookup
+and PIX paths. The custom-material graph comparisons remain in the shared
+template controller.
 
 Material headers remain 20 bytes, custom headers 8 and texture transforms 28.
 Both host orders and the narrow zero-order Windows material-header exception
@@ -4831,6 +4834,20 @@ The existing body runtime fixture now fills the C-owned model array directly.
 Both host builds, C89/ASan checks, CLI comparisons and retail playback evidence
 are recorded in `docs/tools/playback-regression.md`. No Marcus UI tests were added.
 
+The C89 renderer conversion reproduces the material, texture and model traces
+against `7e750846`, along with all 31 native traces and the 480-byte saved
+fixture. The stock actor render and the spare costume material render match
+byte for byte. Standalone frame and mesh snapshots and graph/stream
+evaluations each agree across 300 frames. All 181 standalone checks,
+194 focused host checks, 11 C89 syntax checks and seven AddressSanitizer
+checks pass. The hosts match 456 prior seek observations, 360 viewport
+hashes and 480 retail frame commits. Retail reopens the Studio actor edit
+with matching state on four seeks. Both hosts reproduce the ordinary and
+motion cues in the actor audio fixture.
+Studio passes all eight VMM authoring and reopen checks. Marcus reproduces
+the retained VMM viewport hash. Build hashes, traces and captures are in
+`tmp/c89-material-texture`.
+
 ### Texture storage, palette matching and standalone files
 
 `texture_resource.c` owns persistent `MMTextureResource` descriptors,
@@ -4838,10 +4855,12 @@ pixel buffers and imported renderer owners. It controls construction, cache
 factories/estimates, 20-byte header codecs, bounded loading/writing, chunk
 creation and standalone file signatures, packing, reports and failure cleanup.
 `texture_import.c` owns bitmap import, source palette/cache lifetime and nearest
-colour selection. The native `TextureMap` keeps a BRender pixelmap view and typed
-allocation/file/bitmap-reader services. Synchronization before serialization,
-size queries and disposal preserves changes through the exposed renderer view.
-The C library has no BRender or C++ dependency.
+colour selection. The C89 renderer library publishes and synchronizes the
+BRender pixelmap view and releases imported PIX resources through their
+original pixelmap. The native `TextureMap` supplies object allocation, file
+and bitmap-reader services. Synchronization before serialization, size
+queries and disposal preserves changes through the exposed renderer view.
+The standalone engine policies build without BRender or C++.
 
 Loading preserves the legacy swap-on-any-non-native-marker policy and opaque
 pixel payloads. Truncated reads and negative/unrepresentable layouts fail before
@@ -6609,7 +6628,9 @@ See [SDL Studio sound coverage](../tools/studio-sdl.md#remaining-work).
 | `bren/zbmp.cpp`  | ✓ |   |
 | `bren/bwld.cpp`  |   | ✓ |
 
-`brender-core` links `kauai-core` + `BRender::Libraries`.
+`mm-brender-resources` builds the C89 model, material and texture bindings
+against `mm-engine-c89` and `BRender::Libraries`.
+`brender-core` uses `kauai-core`, `BRender::Libraries` and `mm-brender-resources`.
 `brender` links `brender-core` + `kauai` + `BRender::Libraries`.
 
 BRender core diagnostics write to stderr and retain exit code 10 on fatal
@@ -6627,7 +6648,8 @@ body       modl        movie_data  mtrl        scene_data
 tagl      tagman      text_box_data tdf       tdt        tmpl
 ```
 
-Links `kauai-core` + `brender-core`; public headers are in `inc/`.
+Links `kauai-core`, `brender-core`, `mm-engine-c89` and `mm-brender-resources`.
+Public headers are in `inc/`.
 The headless actor render harness uses `soc_core.h` and the real
 Template/Body/Material loaders, with no World or application stubs.
 
