@@ -13388,6 +13388,34 @@ Marcus rebuilt and Marcus was relaunched.
 
 Evidence is under `tmp/c89-camera-consumer/` on the evidence drive.
 
+### Live actors apply the C89 cel binding
+
+Studio, Marcus, and the standalone session use `mm_movie_cel_part` to
+evaluate replacement models and local matrices. The live hosts use cached
+action tables and stage every part before changing the body. Ordinary
+templates share exact `BMDL` child lookup with the session. Generated 3D text
+continues to use its font for glyph models. The runtime fixture checks that
+each part is read once, matrix evaluation finishes before body publication,
+and fetch failures leave the body and step distance unchanged.
+
+All 181 standalone, 22 selected host, and two AddressSanitizer checks
+passed. Both changed C engine sources compiled under strict C89 for
+Linux x64 musl. The 300 native graph and stream results matched, along with
+300 standalone frame snapshots against the previous build. All 22 native
+actor traces matched across 3,370,910 bytes, including costume editing.
+The 480-byte saved movie and the 301,996,032-byte background trace also
+matched the previous build.
+
+Stock and SID-29 actor-events and scrolling-text matched 456 previous seek
+observations and 360 viewport hashes. Actor-events, dissolve, and
+scrolling-text matched retail's frame order and final position across 240
+commits per host, including actor-events replay. Stock Studio and retained
+v3dmm seeks each matched 456 retail actor records. Retail reopened a movie
+with an actor transform saved by Studio and reproduced the matrices, action,
+cel, and stage state on four seeks. Marcus was rebuilt and relaunched.
+
+Evidence is under `tmp/c89-cel-consumer/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

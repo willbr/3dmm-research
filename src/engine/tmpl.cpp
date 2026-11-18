@@ -64,6 +64,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include "mm/movie_session.h"
 ASSERTNAME
 
 RTCLASS(ActionDefinition)
@@ -443,7 +444,15 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
         return static_cast<PChunkyFile>(file)->FGetName(type, number, static_cast<PString>(out));
     };
     s.action = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->_PactnFetch(id); };
-    s.model = [](void *, void *object, MMU32 id) -> void * { return static_cast<PTemplate>(object)->_PmodlFetch(id); };
+    s.model = [](void *, void *object, MMU32 id, MMMovieAsset *asset) -> void * {
+        auto model = static_cast<PTemplate>(object)->_PmodlFetch(id);
+        if (model)
+            *asset = {0, MM_TEMPLATE_BMDL, model->Cno()};
+        return model;
+    };
+    s.allocate_cel = [](void *, size_t bytes, void **out) -> int {
+        return FAllocPv(out, static_cast<LegacyLong>(bytes), fmemClear, mprNormal);
+    };
     s.cel_count = [](void *, void *action) -> MMI32 { return static_cast<PActionDefinition>(action)->Ccel(); };
     s.distance = [](void *, void *action, MMI32 index) -> MMI32 {
         AnimationCel cel; static_cast<PActionDefinition>(action)->GetCel(index, &cel); return cel.dwr;
@@ -452,11 +461,11 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
     s.part = [](void *, void *action, MMI32 cel, MMI32 part, MMI32 *model, MMI32 *matrix) {
         CelPartSpec cps; static_cast<PActionDefinition>(action)->GetCps(cel, part, &cps); *model = cps.chidModl; *matrix = cps.imat34;
     };
-    s.matrix = [](void *, void *action, MMI32 index, MMI32 *out) {
+    s.matrix = [](void *, void *action, MMI32 index, MMActorMatrix *out) {
         BMAT34 matrix; static_cast<PActionDefinition>(action)->GetMatrix(index, &matrix); std::memcpy(out, &matrix, sizeof(matrix));
     };
     s.set_model = [](void *, void *body, MMI32 part, void *model) { static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model)); };
-    s.set_matrix = [](void *, void *body, MMI32 part, const MMI32 *data) {
+    s.set_matrix = [](void *, void *body, MMI32 part, const MMActorMatrix *data) {
         BMAT34 matrix; std::memcpy(&matrix, data, sizeof(matrix)); static_cast<PBody>(body)->SetPartMatrix(part, &matrix);
     };
     s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
@@ -489,8 +498,16 @@ PActionDefinition Template::_PactnFetch(LegacyLong anid)
 PModel Template::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return static_cast<PModel>(mm_template_fetch_child(this, chidModl, MM_TEMPLATE_MODEL, &s));
+    const auto cache = Pcrf();
+    if (!cache)
+        return nullptr;
+    const auto graph = cache->Pcfl()->ReadChunkAccess();
+    MMU32 parent;
+    MMMovieAsset asset;
+    if (mm_chunk_find(&graph, Ctg(), Cno(), &parent) != MM_CHUNK_OK ||
+        mm_movie_cel_model(&graph, parent, chidModl, 0, &asset) != MM_MOVIE_OK)
+        return nullptr;
+    return static_cast<PModel>(cache->PbacoFetch(asset.type, asset.number, Model::FReadModl));
 }
 
 /***************************************************************************

@@ -114,13 +114,16 @@ effective model after any retention or replacement, and its material and
 archive key. Generated text defaults use the text material without an
 authored asset ID.
 The wire evaluator and the live `Template::FSetActnCel` path used by Studio
-and Marcus both run `mm_template_bind_cel`. The driver prepares every part
-before publishing step distance and applying models and matrices. An authored
-keep-model directive leaves the costume or earlier cel model in place and
-still applies the selected part matrix. `mm_body_apply_set` maps a custom
-costume's consecutive slots to matching parts in shape order. The same
-mapping drives generic material assignment, including generated text, and
-native costume application through `Body`.
+and Marcus both use the binding returned by `mm_movie_cel_part`. It contains
+the resolved model key and fixed-point local matrix. Regular templates resolve
+the exact `BMDL` child through `mm_movie_cel_model`. The live path uses cached
+action tables and keeps the font glyph lookup for generated 3D text. It stages
+every binding and model reference before publishing step distance or updating
+the body. An authored keep-model directive leaves the costume or earlier cel
+model in place and still applies the selected part matrix.
+`mm_body_apply_set` maps a custom costume's consecutive slots to matching
+parts in shape order. The same mapping drives generic material assignment,
+including generated text, and native costume application through `Body`.
 `mm_template_bind_defaults` selects the first authored costume ID in each
 set in both the wire evaluator and the live template path. The live path
 prepares retained references before updating the body. The wire path

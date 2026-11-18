@@ -1,4 +1,5 @@
 #include "mm/template_runtime.h"
+#include "mm/movie_session.h"
 #include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -7,7 +8,7 @@ typedef struct Edge { MMU32 type,number,id,child_type,child_number; } Edge;
 typedef struct Test
 {
     MMTemplateState state; int action,models[2],refs[2],action_refs;
-    int parts,fail_action,fail_allocate,fail_model,fetches,sets,freed,releases,cel;
+    int parts,fail_action,fail_allocate,fail_model,fetches,indices_reads,sets,freed,releases,cel;
     MMI32 distance,body_models[6],body_matrices[6],parents[6],sets_list[6],counts[3],ids[3][2];
     void *allocated; int exists,skip_distance; void *probe; int probe_release;
     Edge edges[32]; int edge_count,has_cache,resource_kind,name_fail;
@@ -22,18 +23,22 @@ static MMI32 distance(void *p,void *a,MMI32 cel)
 { assert(a==&t(p)->action && cel>=0 && cel<3); t(p)->cel=cel; return 100+cel; }
 static MMU32 flags(void *p,void *a) { assert(a==&t(p)->action); return 42; }
 static void part(void *p,void *a,MMI32 cel,MMI32 n,MMI32 *model,MMI32 *matrix)
-{ assert(a==&t(p)->action && cel>=0 && cel<3); *model=n%3==0?-1:(n+cel)%2; *matrix=cel; }
-static void matrix(void *p,void *a,MMI32 n,MMI32 out[12])
-{ int i; assert(a==&t(p)->action); for (i=0;i<12;++i) out[i]=1000+n*100+i; }
-static int allocate(void *p,MMI32 n,void **out)
+{ assert(a==&t(p)->action && cel>=0 && cel<3); ++t(p)->indices_reads; *model=n%3==0?-1:(n+cel)%2; *matrix=cel; }
+static void matrix(void *p,void *a,MMI32 n,MMActorMatrix *out)
 {
-    assert(n==t(p)->parts); if (t(p)->fail_allocate) return 0;
-    *out=calloc(n?n:1,sizeof(void *)); t(p)->allocated=*out; return *out!=NULL;
+    int i; assert(a==&t(p)->action && !t(p)->sets && t(p)->distance==-77);
+    for (i=0;i<12;++i) out->m[i/3][i%3]=1000+n*100+i;
 }
-static void *model(void *p,void *object,MMU32 id)
+static int allocate(void *p,size_t bytes,void **out)
+{
+    if (t(p)->fail_allocate) return 0;
+    *out=calloc(1,bytes?bytes:1); t(p)->allocated=*out; return *out!=NULL;
+}
+static void *model(void *p,void *object,MMU32 id,MMMovieAsset *asset)
 {
     assert(object==p && id<2 && !t(p)->sets && t(p)->distance==-77); ++t(p)->fetches;
     if (t(p)->fail_model==t(p)->fetches) return NULL;
+    asset->source=0; asset->type=MM_TEMPLATE_BMDL; asset->number=100+id;
     ++t(p)->refs[id]; return &t(p)->models[id];
 }
 static void set_model(void *p,void *body,MMI32 n,void *m)
@@ -43,11 +48,11 @@ static void set_model(void *p,void *body,MMI32 n,void *m)
     assert(m==&t(p)->models[0] || m==&t(p)->models[1]);
     t(p)->body_models[n]=m==&t(p)->models[0]?0:1;
 }
-static void set_matrix(void *p,void *body,MMI32 n,const MMI32 in[12])
+static void set_matrix(void *p,void *body,MMI32 n,const MMActorMatrix *in)
 {
     int i; assert(body==p && t(p)->distance==(t(p)->skip_distance?-77:100+t(p)->cel));
-    for (i=0;i<12;++i) assert(in[i]==1000+t(p)->cel*100+i);
-    ++t(p)->sets; t(p)->body_matrices[n]=in[0];
+    for (i=0;i<12;++i) assert(in->m[i/3][i%3]==1000+t(p)->cel*100+i);
+    ++t(p)->sets; t(p)->body_matrices[n]=in->m[0][0];
 }
 static void release(void *p,void *v)
 {
@@ -63,8 +68,7 @@ static void release(void *p,void *v)
 }
 static void free_memory(void *p,void **v)
 {
-    MMI32 i; assert(*v==t(p)->allocated && !t(p)->refs[0] && !t(p)->refs[1]);
-    for (i=0;i<t(p)->parts;++i) assert(!((void **)*v)[i]);
+    assert(*v==t(p)->allocated && !t(p)->refs[0] && !t(p)->refs[1]);
     free(*v); *v=NULL; t(p)->allocated=NULL; ++t(p)->freed;
 }
 static int sound(void *p,void *a,MMI32 cel,void *tag)
@@ -97,10 +101,10 @@ static MMTemplateRuntimeServices init(Test *x,int parts)
     x->state.parents=x->parents; x->state.sets=x->sets_list; x->state.costumes=x->counts; x->state.set_count=3;
     for (i=0;i<3;++i) { x->counts[i]=2; x->ids[i][0]=i; x->ids[i][1]=i+3; }
     for (i=0;i<6;++i) { x->body_models[i]=-7; x->body_matrices[i]=-8; x->parents[i]=i?i-1:-1; x->sets_list[i]=i%3; }
-    s.storage.context=x; s.storage.state=template_state; s.storage.count=count; s.storage.allocate_refs=allocate;
+    s.storage.context=x; s.storage.state=template_state; s.storage.count=count;
     s.storage.free_memory=free_memory; s.storage.release=release; s.storage.child=child;
     s.storage.fixed_data=fixed; s.storage.variable_data=variable; s.storage.item=item;
-    s.action=action; s.model=model; s.cel_count=cel_count; s.distance=distance; s.flags=flags; s.part=part;
+    s.action=action; s.model=model; s.allocate_cel=allocate; s.cel_count=cel_count; s.distance=distance; s.flags=flags; s.part=part;
     s.matrix=matrix; s.set_model=set_model; s.set_matrix=set_matrix; s.sound=sound; s.sound_exists=sound_exists;
     s.binding=binding; s.fetch=fetch; s.name=name; return s;
 }
@@ -119,7 +123,7 @@ int main(void)
         assert(!x.action_refs && !x.refs[0] && !x.refs[1]);
         if (ok)
         {
-            assert(x.distance==100+expected && x.sets==n);
+            assert(x.distance==100+expected && x.sets==n && x.indices_reads==n);
             for (i=0;i<n;++i) { assert(x.body_models[i]==(i%3==0?-7:(i+expected)%2)); assert(x.body_matrices[i]==1000+expected*100); }
         }
         else { assert(x.distance==-77 && !x.sets); for (i=0;i<n;++i) assert(x.body_models[i]==-7 && x.body_matrices[i]==-8); }

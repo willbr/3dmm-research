@@ -93,6 +93,28 @@ typedef struct MMMovieAsset
     MMU32 type, number;
 } MMMovieAsset;
 
+typedef struct MMMovieCelPart
+{
+    MMMovieAsset model; /* Zero type means retain the current model. */
+    MMActorMatrix matrix;
+} MMMovieCelPart;
+
+typedef struct MMMovieCelRead
+{
+    void *context;
+    void (*indices)(void *, MMU32 part, MMI32 *model, MMI32 *matrix);
+    int (*model)(void *, MMU32 part, MMU32 slot, MMMovieAsset *);
+    int (*matrix)(void *, MMI32 index, MMActorMatrix *);
+} MMMovieCelRead;
+
+/* Evaluate one part of the selected cel from cached or wire action data.
+ * Model and matrix readers return movie statuses. A keep-model directive
+ * reads only its matrix. Output is published only on success. */
+int mm_movie_cel_part(const MMMovieCelRead *, MMU32 part, MMMovieCelPart *);
+/* Resolve a replacement model by exact type and ID under its template. */
+int mm_movie_cel_model(const MMChunkAccess *, MMU32 parent_position, MMU32 slot, MMI32 source,
+                       MMMovieAsset *);
+
 typedef struct MMMovieCamera
 {
     MMMovieAsset background;

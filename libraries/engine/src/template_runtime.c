@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/template_runtime.h"
+#include "mm/movie_session.h"
 #include <string.h>
 static MMU32 resource_type(int kind)
 { return kind==MM_TEMPLATE_ACTION?MM_ACTN:kind==MM_TEMPLATE_MODEL?MM_TEMPLATE_BMDL:MM_CMTL; }
@@ -26,74 +27,46 @@ MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count)
     return index < 0 ? index + count : index;
 }
 
-int mm_template_bind_cel(MMU32 count, const MMTemplateCelServices *s)
-{
-    MMU32 i;
-    MMI32 model, matrix;
-    void *context = s->context;
-    for (i = 0; i < count; ++i)
-    {
-        s->part(context, i, &model, &matrix);
-        if (!s->prepare_part(context, i, model, matrix, model != MM_TEMPLATE_KEEP_MODEL))
-            return 0;
-    }
-    if (s->begin_apply)
-        s->begin_apply(context);
-    for (i = 0; i < count; ++i)
-    {
-        s->part(context, i, &model, &matrix);
-        s->apply_part(context, i, model != MM_TEMPLATE_KEEP_MODEL, matrix);
-    }
-    return 1;
-}
-
 static MMI32 wrapped(void *action, MMI32 cel, const MMTemplateRuntimeServices *s)
 {
     return mm_template_wrap_cel(cel, s->cel_count(s->storage.context, action));
 }
 
+typedef struct TemplateCelPart
+{
+    MMMovieCelPart binding;
+    void *model;
+} TemplateCelPart;
+
 typedef struct TemplateCel
 {
     const MMTemplateRuntimeServices *services;
-    void *object, *body, *action, *distance;
-    void **models;
-    MMI32 index, step;
+    void *object, *action;
+    TemplateCelPart *parts;
+    MMI32 index;
 } TemplateCel;
 
-static void render_cel_part(void *context, MMU32 part, MMI32 *model, MMI32 *matrix)
+static void render_cel_indices(void *context, MMU32 part, MMI32 *model, MMI32 *matrix)
 {
     const TemplateCel *cel = (const TemplateCel *)context;
     const MMTemplateRuntimeServices *s = cel->services;
     s->part(s->storage.context, cel->action, cel->index, (MMI32)part, model, matrix);
 }
 
-static int render_cel_prepare(void *context, MMU32 part, MMI32 model, MMI32 matrix, int replace_model)
+static int render_cel_model(void *context, MMU32 part, MMU32 slot, MMMovieAsset *asset)
 {
     TemplateCel *cel = (TemplateCel *)context;
     const MMTemplateRuntimeServices *s = cel->services;
-    (void)matrix;
-    if (!replace_model)
-        return 1;
-    cel->models[part] = s->model(s->storage.context, cel->object, (MMU32)model);
-    return cel->models[part] != NULL;
+    cel->parts[part].model = s->model(s->storage.context, cel->object, slot, asset);
+    return cel->parts[part].model ? MM_MOVIE_OK : MM_MOVIE_ASSET_NOT_FOUND;
 }
 
-static void render_cel_begin(void *context)
-{
-    const TemplateCel *cel = (const TemplateCel *)context;
-    if (cel->distance)
-        memcpy(cel->distance, &cel->step, sizeof(cel->step));
-}
-
-static void render_cel_apply(void *context, MMU32 part, int replace_model, MMI32 matrix)
+static int render_cel_matrix(void *context, MMI32 matrix, MMActorMatrix *out)
 {
     const TemplateCel *cel = (const TemplateCel *)context;
     const MMTemplateRuntimeServices *s = cel->services;
-    MMI32 transform[12];
-    if (replace_model)
-        s->set_model(s->storage.context, cel->body, (MMI32)part, cel->models[part]);
-    s->matrix(s->storage.context, cel->action, matrix, transform);
-    s->set_matrix(s->storage.context, cel->body, (MMI32)part, transform);
+    s->matrix(s->storage.context, cel->action, matrix, out);
+    return MM_MOVIE_OK;
 }
 
 int mm_template_set_cel(void *object, void *body, MMI32 id, MMI32 cel, void *distance,
@@ -101,10 +74,10 @@ int mm_template_set_cel(void *object, void *body, MMI32 id, MMI32 cel, void *dis
 {
     const MMTemplateCreateServices *a = &s->storage;
     TemplateCel request;
-    MMTemplateCelServices bindings;
+    MMMovieCelRead read;
     MMTemplateState state;
     void *storage = NULL;
-    MMI32 count, i;
+    MMI32 count, i, step;
     int result = 0;
     state = *a->state(a->context, object);
     count = a->count(a->context, state.parents);
@@ -113,28 +86,38 @@ int mm_template_set_cel(void *object, void *body, MMI32 id, MMI32 cel, void *dis
         return 0;
     request.services = s;
     request.object = object;
-    request.body = body;
-    request.distance = distance;
     request.index = wrapped(request.action, cel, s);
-    request.step = s->distance(a->context, request.action, request.index);
-    if (!a->allocate_refs(a->context, count, &storage))
+    step = s->distance(a->context, request.action, request.index);
+    if (count < 0 || (MMU32)count > 0x7fffffffUL / sizeof(*request.parts) ||
+        !s->allocate_cel(a->context, (size_t)count * sizeof(*request.parts), &storage))
         goto done;
-    request.models = storage;
-    bindings.context = &request;
-    bindings.part = render_cel_part;
-    bindings.prepare_part = render_cel_prepare;
-    bindings.begin_apply = render_cel_begin;
-    bindings.apply_part = render_cel_apply;
-    result = mm_template_bind_cel((MMU32)count, &bindings);
+    request.parts = (TemplateCelPart *)storage;
+    read.context = &request;
+    read.indices = render_cel_indices;
+    read.model = render_cel_model;
+    read.matrix = render_cel_matrix;
+    for (i = 0; i < count; ++i)
+        if (mm_movie_cel_part(&read, (MMU32)i, &request.parts[i].binding) != MM_MOVIE_OK)
+            goto done;
+    if (distance)
+        memcpy(distance, &step, sizeof(step));
+    for (i = 0; i < count; ++i)
+    {
+        const TemplateCelPart *part = &request.parts[i];
+        if (part->binding.model.type)
+            s->set_model(a->context, body, i, part->model);
+        s->set_matrix(a->context, body, i, &part->binding.matrix);
+    }
+    result = 1;
 done:
     if (storage)
     {
-        void **models = storage;
+        TemplateCelPart *parts = (TemplateCelPart *)storage;
         for (i = 0; i < count; ++i)
-            if (models[i])
+            if (parts[i].model)
             {
-                a->release(a->context, models[i]);
-                models[i] = NULL;
+                a->release(a->context, parts[i].model);
+                parts[i].model = NULL;
             }
         a->free_memory(a->context, &storage);
     }

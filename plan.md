@@ -479,11 +479,14 @@ Keep host presentation and device output outside the session.
    The renderers use the supplied colour and depth keys and read placement
    points from the same decoded CAM. Live timelines still select the slot
    so authored cuts and camera edits use the same resource path.
-   The standalone evaluator and live renderer bodies now share cel wrapping,
-   model replacement and matrix application order, and part-set mapping
-   for generic and custom materials. Default costumes share first-row selection from
-   the authored table and costume discovery in child order for older
-   templates. Studio and Marcus submit through a common C frame record for
+   The standalone evaluator and live renderer bodies share cel wrapping and
+   apply the same evaluated model and local matrix bindings. Live playback
+   evaluates from cached action tables. Regular templates use the same exact
+   model lookup as the session, and generated 3D text continues to resolve
+   glyphs from its font. Part-set mapping is shared for generic and custom
+   materials. Default costumes share first-row selection from the authored
+   table and costume discovery in child order for older templates.
+   Studio and Marcus submit through a common C frame record for
    the world, camera and colour/depth targets. It owns the temporary render
    and picking targets in Marcus and borrows Studio's live world and buffers.
    The session can now return an owned frame with the selected camera and
@@ -493,9 +496,9 @@ Keep host presentation and device output outside the session.
    directly from loaded archives.
    Marcus rendering and picking record the camera and hold references to
    the live bodies and any standalone model used by their temporary world.
-   The remaining render cutover is to feed the session's evaluated actor
-   and body bindings into the live render path, including Studio's
-   attached world, and publish the complete frame through the shared session.
+   The remaining render cutover is to feed the full evaluated actor, costume
+   and body state into the live render path, including Studio's attached world,
+   and publish the complete frame through the shared session.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
