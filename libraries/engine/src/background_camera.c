@@ -60,7 +60,7 @@ int mm_background_camera_binding_image(MMBackgroundCameraBinding *binding, int d
     unsigned flag = depth ? MM_BACKGROUND_HAS_DEPTH : MM_BACKGROUND_HAS_COLOUR;
     if (binding->images.present & flag)
         return 1;
-    if (!read(context, binding->number, depth, &number))
+    if (!read || !read(context, binding->number, depth, &number))
         return 0;
     if (depth)
         binding->images.depth = number;
@@ -100,11 +100,7 @@ int mm_background_camera_set(MMBackgroundCameraState *p, MMI32 index,
 {
     MMReadStream r;
     MMBackgroundCameraBinding binding;
-    const MMBackgroundCameraData *d = &binding.data;
-    MMActorPoint place;
     MMU32 number;
-    MMI32 i;
-    unsigned short a, c;
     s->lights_on(s->context);
     if (!s->read(s->context, index, &r, &number))
         return 0;
@@ -118,8 +114,19 @@ int mm_background_camera_set(MMBackgroundCameraState *p, MMI32 index,
         s->diagnostic(s->context, MM_BACKGROUND_CAMERA_TAIL);
         return 0;
     }
-    if (!mm_background_camera_binding_read(&r, number, &binding) ||
-        !mm_background_camera_binding_image(&binding, 0, s->child, s->context) ||
+    return mm_background_camera_binding_read(&r, number, &binding) &&
+           mm_background_camera_apply(p, index, &binding, &r, s);
+}
+
+int mm_background_camera_apply(MMBackgroundCameraState *p, MMI32 index, const MMBackgroundCameraBinding *evaluated,
+                               const MMReadStream *stream, const MMBackgroundCameraServices *s)
+{
+    MMBackgroundCameraBinding binding = *evaluated;
+    const MMBackgroundCameraData *d = &binding.data;
+    MMActorPoint place;
+    MMI32 i;
+    unsigned short a, c;
+    if (!mm_background_camera_binding_image(&binding, 0, s->child, s->context) ||
         !mm_background_camera_binding_image(&binding, 1, s->child, s->context) ||
         !s->background(s->context, binding.images.colour, binding.images.depth))
         return 0;
@@ -129,7 +136,7 @@ int mm_background_camera_set(MMBackgroundCameraState *p, MMI32 index,
         s->lock(s->context, p->points);
         for (i = 0; i < d->point_count; ++i)
         {
-            if (!mm_background_point_decode(&r, d, i, &place))
+            if (!mm_background_point_decode(stream, d, i, &place))
             {
                 s->unlock(s->context, p->points);
                 mm_background_camera_dispose(p, s);

@@ -90,6 +90,11 @@ extern "C"
      * point reads. Mouse math precedes world camera/dirty effects. State owns points. */
     int mm_background_camera_set(MMBackgroundCameraState *, MMI32,
                                        const MMBackgroundCameraServices *);
+    /* Apply an evaluated CAM and read placement from its borrowed payload.
+     * The caller turns on lights before evaluation. A null child service
+     * requires both image links to be present in the binding. */
+    int mm_background_camera_apply(MMBackgroundCameraState *, MMI32, const MMBackgroundCameraBinding *,
+                                   const MMReadStream *, const MMBackgroundCameraServices *);
     /* Release the list and reset its cursors. Other metadata remains available. */
     void mm_background_camera_dispose(MMBackgroundCameraState *, const MMBackgroundCameraServices *);
     /* Cycle default, appended points, default; reuse resets next to last. */

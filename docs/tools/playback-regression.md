@@ -13360,6 +13360,34 @@ Studio and Marcus rebuilt and Marcus was relaunched.
 
 Evidence is under `tmp/c89-actor-state-owner/` on the evidence drive.
 
+### Live cameras consume the C89 session binding
+
+Studio's world and the Marcus preview now apply the result of
+`mm_movie_camera_graph` during normal camera selection. Their live
+timelines choose the slot and the session evaluates it in the loaded
+background graph. The camera and image keys reach both renderers through
+that prepared binding. Placement reads the same decoded payload.
+
+The C fixtures cover missing slots, malformed tails, consumer error
+propagation, and applying a prepared binding without a second camera or
+image-link lookup. They check Studio's fallback on placement allocation
+failure and Preview's colour prefix and cursor when a depth key is absent.
+All 181 standalone, 24 selected host, and three AddressSanitizer checks passed.
+The three changed C sources compiled under strict C89 for Linux x64 musl.
+The 300 graph and stream frame results matched, and all 300 standalone
+probe snapshots matched the previous build. The 188-camera background
+trace matched across all 301,996,032 bytes.
+
+The stock and SID-29 actor-events and scrolling-text runs matched 456
+previous seek records and 360 viewport hashes, including 48 in-scene
+camera changes across forward and backward seeks. Actor-events, dissolve,
+and scrolling-text matched retail's frame order and final position over
+240 playback commits per host, including actor-events replay. Stock Studio
+and retained v3dmm seeks each matched 456 retail actor records. Studio and
+Marcus rebuilt and Marcus was relaunched.
+
+Evidence is under `tmp/c89-camera-consumer/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

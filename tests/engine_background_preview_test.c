@@ -349,6 +349,31 @@ static void placement(void)
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 55);
     dispose(&h);
 }
+static void prepared_camera(void)
+{
+    Host h;
+    MMBackgroundCameraBinding binding;
+    MMActorPoint point;
+    init(&h);
+    word(h.wire + 16, 6);
+    CHECK(mm_background_camera_binding_read(&h.memory.stream, 101, &binding));
+    binding.images.present = MM_BACKGROUND_HAS_COLOUR;
+    binding.images.colour = 700;
+    h.services.camera_read = NULL;
+    h.services.child = NULL;
+    CHECK(!mm_background_preview_apply(&h.preview, 0, &binding, &h.memory.stream, 1, &h.services));
+    CHECK(!h.traces);
+    CHECK(!mm_background_preview_apply(&h.preview, 1, &binding, &h.memory.stream, 1, &h.services));
+    CHECK(h.trace[0] == RGB_FETCH && h.trace[h.traces - 1] == RGB_RELEASE);
+    CHECK(h.preview.rgb_count == 12 && !h.preview.depth_count && !mm_background_preview_place(&h.preview, &point));
+    binding.images.present |= MM_BACKGROUND_HAS_DEPTH;
+    binding.images.depth = 800;
+    h.traces = 0;
+    CHECK(mm_background_preview_apply(&h.preview, 1, &binding, &h.memory.stream, 1, &h.services) == 1);
+    CHECK(h.traces == 8 && h.trace[0] == RGB_FETCH && h.trace[7] == SELECTED);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 6);
+    dispose(&h);
+}
 int main(void)
 {
     Host h;
@@ -447,6 +472,7 @@ int main(void)
           ((Mesh *)a)->live);
     dispose(&h);
     placement();
+    prepared_camera();
     puts("Background preview C passed");
     return 0;
 }

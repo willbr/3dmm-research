@@ -4,7 +4,7 @@
 #include "preview_background.h"
 #include "zbmp.h"
 #include "palette_state.h"
-#include "engine_read_stream.h"
+#include "engine_movie_graph.h"
 #include "mm/background_camera.h"
 #include <cstring>
 #include <new>
@@ -214,11 +214,26 @@ bool PreviewBackground::SetCamera(std::uint32_t slot, bool updatePlacement)
 {
     BackgroundImageHost host = {this, source};
     auto s = Services(&host);
-    const int result = updatePlacement ? mm_background_preview_select_placement(&preview, slot, &s)
-                                       : mm_background_preview_select(&preview, slot, &s);
-    if (result == MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY)
+    s.child = nullptr;
+    struct Selection
+    {
+        MMBackgroundPreview *preview;
+        MMU32 slot;
+        bool placement;
+        const MMBackgroundPreviewServices *services;
+    } selection = {&preview, slot, updatePlacement, &s};
+    const auto graph = EngineMovieGraph::FromFile(source->Pcfl());
+    const int result = mm_movie_camera_graph(&graph, number, slot,
+        [](void *p, const MMBackgroundCameraBinding *binding, const MMReadStream *stream) -> int {
+            auto &s = *static_cast<Selection *>(p);
+            const int applied = mm_background_preview_apply(s.preview, s.slot, binding, stream, s.placement, s.services);
+            if (applied == MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY)
+                return MM_MOVIE_MEMORY;
+            return applied ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+        }, &selection, nullptr);
+    if (result == MM_MOVIE_MEMORY)
         throw std::bad_alloc();
-    return result != 0;
+    return result == MM_MOVIE_OK;
 }
 bool PreviewBackground::NextPlacementPoint(float point[3])
 {

@@ -474,10 +474,11 @@ Keep host presentation and device output outside the session.
    session over their opened chunk graphs. Studio resolves live scene slots
    through it, and Marcus uses it to read the scene and source directory.
    The three paths now share embedded actor template binding and exact
-   camera-slot lookup. Both renderers and the session share a camera
-   binding that decodes the selected CAM and identifies its colour and
-   depth bitmaps in the same archive. Marcus's C camera selection reads the
-   pose and placement points from one payload and owns the placement cursor.
+   camera-slot lookup. Both renderers apply the camera binding evaluated
+   by the session from the selected slot and the active background graph.
+   The renderers use the supplied colour and depth keys and read placement
+   points from the same decoded CAM. Live timelines still select the slot
+   so authored cuts and camera edits use the same resource path.
    The standalone evaluator and live renderer bodies now share cel wrapping,
    model replacement and matrix application order, and part-set mapping
    for generic and custom materials. Default costumes share first-row selection from
@@ -492,9 +493,9 @@ Keep host presentation and device output outside the session.
    directly from loaded archives.
    Marcus rendering and picking record the camera and hold references to
    the live bodies and any standalone model used by their temporary world.
-   Both hosts still evaluate their live scene state before rendering. The
-   remaining cutover is to feed the session's evaluated resource bindings
-   into that live render path, including Studio's attached world.
+   The remaining render cutover is to feed the session's evaluated actor
+   and body bindings into the live render path, including Studio's
+   attached world, and publish the complete frame through the shared session.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

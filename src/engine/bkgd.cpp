@@ -39,7 +39,7 @@
 
 ***************************************************************************/
 #include "soc.h"
-#include "engine_read_stream.h"
+#include "engine_movie_graph.h"
 #include <cstring>
 ASSERTNAME
 
@@ -339,34 +339,12 @@ struct BackgroundCameraHost
 {
     Background *background;
     PWorld world;
-    DataBlock block;
 };
 } // namespace
 MMBackgroundCameraServices Background::_CameraServices(void *host)
 {
     MMBackgroundCameraServices s = {};
     s.context = host;
-    s.lights_on = [](void *p) {
-        auto h = static_cast<BackgroundCameraHost *>(p);
-        h->background->TurnOnLights(h->world);
-    };
-    s.read = [](void *p, MMI32 camera, MMReadStream *out, MMU32 *number) {
-        auto h = static_cast<BackgroundCameraHost *>(p);
-        auto background = h->background;
-        auto file = background->Pcrf()->Pcfl();
-        const auto chunks = file->ReadChunkAccess();
-        if (mm_chunk_link_number(&chunks, background->Ctg(), background->Cno(), camera, MM_BACKGROUND_CAMERA, number) !=
-                MM_CHUNK_OK ||
-            !file->FFind(kctgCam, *number, &h->block) || !h->block.FUnpackData())
-            return 0;
-        *out = EngineReadStream::FromBlock(h->block);
-        return 1;
-    };
-    s.child = [](void *p, MMU32 camera, int depth, MMU32 *number) {
-        auto h = static_cast<BackgroundCameraHost *>(p);
-        const auto chunks = h->background->Pcrf()->Pcfl()->ReadChunkAccess();
-        return int(mm_background_camera_image_link(&chunks, camera, depth, number) == MM_CHUNK_OK);
-    };
     s.background = [](void *p, MMU32 rgb, MMU32 depth) {
         auto h = static_cast<BackgroundCameraHost *>(p);
         return int(h->world->FSetBackground(h->background->Pcrf(), kctgMbmp, rgb, kctgZbmp, depth));
@@ -435,8 +413,24 @@ bool Background::FSetCamera(PWorld pbwld, long icam)
     AssertPo(pbwld, 0);
     AssertIn(icam, 0, Ccam());
     BackgroundCameraHost host = {this, pbwld};
-    auto services = _CameraServices(&host);
-    return mm_background_camera_set(&_camera, icam, &services) != 0;
+    const auto services = _CameraServices(&host);
+    struct Selection
+    {
+        MMBackgroundCameraState *state;
+        MMI32 slot;
+        const MMBackgroundCameraServices *services;
+    } selection = {&_camera, static_cast<MMI32>(icam), &services};
+    TurnOnLights(pbwld);
+    const auto graph = EngineMovieGraph::FromFile(Pcrf()->Pcfl());
+    return mm_movie_camera_graph(&graph, Cno(), icam,
+        [](void *p, const MMBackgroundCameraBinding *binding, const MMReadStream *stream) -> int {
+            auto &s = *static_cast<Selection *>(p);
+            return mm_background_camera_apply(s.state, s.slot, binding, stream, s.services)
+                       ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+        }, &selection, [](void *p, int issue) {
+            const auto &s = *static_cast<Selection *>(p);
+            s.services->diagnostic(s.services->context, issue);
+        }) == MM_MOVIE_OK;
 }
 
 /***************************************************************************

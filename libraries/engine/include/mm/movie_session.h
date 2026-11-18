@@ -101,6 +101,15 @@ typedef struct MMMovieCamera
     MMBackgroundCameraImages images; /* Slot-zero links from the CAM's own graph. */
 } MMMovieCamera;
 
+typedef int (*MMMovieConsumeCamera)(void *, const MMBackgroundCameraBinding *, const MMReadStream *);
+
+/* Evaluate a selected slot in its owning, already loaded background graph.
+ * Slots through the selected slot must be contiguous. The binding and
+ * placement stream are borrowed only during consume. Its movie status is
+ * returned unchanged. An optional diagnostic reports a short CAM or tail. */
+int mm_movie_camera_graph(const MMMovieSessionGraph *, MMU32 background, MMU32 slot,
+                          MMMovieConsumeCamera consume, void *context, void (*diagnostic)(void *, int));
+
 typedef struct MMMovieEvaluatedActor
 {
     MMU32 number;

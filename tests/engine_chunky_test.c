@@ -249,7 +249,7 @@ static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 sour
     static const MMU32 links[][3] = {{BKGD, CAM0, 0}, {BKGD, CAM1, 1}, {ROOT, SCENE, 0},
                                     {SCENE, FRAMES, 0}, {SCENE, STARTS, 1},
                                     {CAM0, RGB, 0}, {CAM1, RGB, 0}, {CAM1, DEPTH, 0}};
-    static const MMU32 lengths[] = {8, 76, 76, 80, 52, 2, 8, 16, 2};
+    static const MMU32 lengths[] = {8, 88, 76, 80, 52, 2, 8, 16, 2};
     unsigned char raw[COUNT][FIXTURE_RECORD_BYTES];
     MMI32 codecs[COUNT] = {0};
     MMU32 i;
@@ -260,6 +260,7 @@ static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 sour
     put32(raw[CAM0] + 4, 123, big);
     put32(raw[CAM1] + 4, 456, big);
     put32(raw[CAM1] + 72, 0xfffffffeUL, big);
+    put32(raw[CAM1] + 76, 0xfffffffdUL, big);
     camera_events(raw[FRAMES], big, 0, 0, bad_row);
     camera_events(raw[STARTS], big, 1, source, 0);
     put16(raw[ROOT] + 4, 2, big);
@@ -818,6 +819,52 @@ static int graph_camera_source(void *context, const MMMovieAsset *asset, MMMovie
     return MM_MOVIE_OK;
 }
 
+typedef struct CameraConsumer
+{
+    int calls, result, issue;
+} CameraConsumer;
+
+static int consume_camera(void *context, const MMBackgroundCameraBinding *binding, const MMReadStream *stream)
+{
+    CameraConsumer *consumer = (CameraConsumer *)context;
+    MMActorPoint point;
+    ++consumer->calls;
+    CHECK(binding->number == 80 && binding->data.near_z == 456 && binding->data.point_count == 1);
+    CHECK(binding->images.present == (MM_BACKGROUND_HAS_COLOUR | MM_BACKGROUND_HAS_DEPTH));
+    CHECK(binding->images.colour == 18 && binding->images.depth == 19);
+    CHECK(mm_background_point_decode(stream, &binding->data, 0, &point) && point.dxr == -3);
+    return consumer->result;
+}
+
+static void camera_diagnostic(void *context, int issue)
+{
+    CameraConsumer *consumer = (CameraConsumer *)context;
+    consumer->issue = issue;
+}
+
+static int camera_bad_tail(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    MMChunkEntry altered = *entry;
+    --altered.bytes;
+    return graph_payload(context, &altered, receive, out);
+}
+
+static void graph_camera(const MMMovieSessionGraph *graph)
+{
+    MMMovieSessionGraph malformed = *graph;
+    CameraConsumer consumer = {0, MM_MOVIE_OK, -1};
+    CHECK(mm_movie_camera_graph(graph, 4, 1, consume_camera, &consumer, camera_diagnostic) == MM_MOVIE_OK);
+    CHECK(consumer.calls == 1 && consumer.issue == -1);
+    consumer.result = MM_MOVIE_MEMORY;
+    CHECK(mm_movie_camera_graph(graph, 4, 1, consume_camera, &consumer, NULL) == MM_MOVIE_MEMORY);
+    CHECK(consumer.calls == 2);
+    CHECK(mm_movie_camera_graph(graph, 4, 2, consume_camera, &consumer, NULL) == MM_MOVIE_ASSET_NOT_FOUND);
+    CHECK(mm_movie_camera_graph(graph, 5, 0, consume_camera, &consumer, NULL) == MM_MOVIE_ASSET_NOT_FOUND);
+    malformed.payload = camera_bad_tail;
+    CHECK(mm_movie_camera_graph(&malformed, 4, 1, consume_camera, &consumer, camera_diagnostic) == MM_MOVIE_BAD_FILE);
+    CHECK(consumer.calls == 2 && consumer.issue == MM_BACKGROUND_CAMERA_TAIL);
+}
+
 static void movie_camera(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
@@ -883,6 +930,7 @@ static void movie_camera(void)
     graph.read = graph_record;
     graph.payload = graph_payload;
     graph.name = NULL;
+    graph_camera(&graph);
     CHECK(mm_movie_session_open_graph(&graph, NULL, NULL, &movie) == MM_MOVIE_OK);
     CHECK(mm_movie_session_seek_graph(movie, 0, 7, graph_camera_source, &graph, &frame) == MM_MOVIE_OK &&
           frame->camera.background.source == 2 && frame->camera.number == 80);

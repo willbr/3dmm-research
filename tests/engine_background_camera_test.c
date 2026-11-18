@@ -427,12 +427,36 @@ static void controller_tests(int big)
         CHECK(v.dxr == -2 && !h.state.last_point);
     }
 }
+static void prepared_camera(int big)
+{
+    Host h;
+    MMReadStream stream;
+    MMBackgroundCameraBinding binding;
+    MMU32 number;
+    init(&h, big);
+    CHECK(read_camera(&h, 1, &stream, &number));
+    CHECK(mm_background_camera_binding_read(&stream, number, &binding));
+    h.traces = 0;
+    h.services.child = NULL;
+    binding.images.colour = 123;
+    binding.images.depth = 789;
+    binding.images.present = MM_BACKGROUND_HAS_COLOUR;
+    CHECK(!mm_background_camera_apply(&h.state, 1, &binding, &stream, &h.services) && !h.traces);
+    unchanged(&h);
+    binding.images.present |= MM_BACKGROUND_HAS_DEPTH;
+    CHECK(mm_background_camera_apply(&h.state, 1, &binding, &stream, &h.services));
+    CHECK(h.trace[0] == BACKGROUND && h.trace[h.traces - 1] == DIRTY);
+    CHECK(h.state.current == 1 && h.state.binding.number == 456 && h.puts == 2);
+    mm_background_camera_dispose(&h.state, &h.services);
+}
 int main(void)
 {
     decode_tests(0);
     decode_tests(1);
     controller_tests(0);
     controller_tests(1);
+    prepared_camera(0);
+    prepared_camera(1);
     puts("Background camera passed");
     return 0;
 }

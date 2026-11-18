@@ -721,40 +721,116 @@ static void scan_camera_events(const MMMovieGroup *group, int start, MMI32 frame
 
 static int image_link(void *p, MMU32 camera, int depth, MMU32 *number)
 {
-    const MMMovieArchive *archive = (const MMMovieArchive *)p;
-    return mm_background_camera_image_link(&archive->access, camera, depth, number) == MM_CHUNK_OK;
+    return mm_background_camera_image_link((const MMChunkAccess *)p, camera, depth, number) == MM_CHUNK_OK;
+}
+
+static int camera_entry(const MMChunkAccess *access, MMU32 background, MMU32 selected, MMChunkEntry *entry)
+{
+    MMU32 parent, position, slot;
+    int status = mm_chunk_find(access, MM_BACKGROUND, background, &parent);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
+    /* The background runtime admits contiguous CAM children from slot zero. */
+    for (slot = 0;; ++slot)
+    {
+        status = mm_session_child(access, parent, slot, MM_BACKGROUND_CAMERA, entry, &position);
+        if (status != MM_CHUNK_OK)
+            return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
+        if (slot == selected)
+            return MM_MOVIE_OK;
+    }
+}
+
+typedef struct CameraRead
+{
+    MMChunkAccess access;
+    MMU32 number;
+    MMMovieConsumeCamera consume;
+    void *context;
+    void (*diagnostic)(void *, int);
+    int called;
+} CameraRead;
+
+static int read_camera_payload(void *context, const MMReadStream *stream)
+{
+    CameraRead *read = (CameraRead *)context;
+    MMBackgroundCameraBinding binding;
+    if (read->called)
+        return MM_MOVIE_BAD_FILE;
+    read->called = 1;
+    if (stream->length < MM_BACKGROUND_CAMERA_BYTES)
+    {
+        if (read->diagnostic)
+            read->diagnostic(read->context, MM_BACKGROUND_CAMERA_SHORT);
+        return MM_MOVIE_BAD_FILE;
+    }
+    if ((stream->length - MM_BACKGROUND_CAMERA_BYTES) % MM_BACKGROUND_POINT_BYTES)
+    {
+        if (read->diagnostic)
+            read->diagnostic(read->context, MM_BACKGROUND_CAMERA_TAIL);
+        return MM_MOVIE_BAD_FILE;
+    }
+    if (!mm_background_camera_binding_read(stream, read->number, &binding))
+        return MM_MOVIE_BAD_FILE;
+    mm_background_camera_binding_image(&binding, 0, image_link, &read->access);
+    mm_background_camera_binding_image(&binding, 1, image_link, &read->access);
+    return read->consume(read->context, &binding, stream);
+}
+
+int mm_movie_camera_graph(const MMMovieSessionGraph *graph, MMU32 background, MMU32 slot,
+                          MMMovieConsumeCamera consume, void *context, void (*diagnostic)(void *, int))
+{
+    CameraRead read;
+    MMChunkEntry entry;
+    int status;
+    if (!graph || !graph->access || !graph->payload || !consume)
+        return MM_MOVIE_BAD_FILE;
+    graph->access(graph->context, &read.access);
+    status = camera_entry(&read.access, background, slot, &entry);
+    if (status != MM_MOVIE_OK)
+        return status;
+    read.number = entry.number;
+    read.consume = consume;
+    read.context = context;
+    read.diagnostic = diagnostic;
+    read.called = 0;
+    status = graph->payload(graph->context, &entry, read_camera_payload, &read);
+    return status == MM_MOVIE_OK && !read.called ? MM_MOVIE_BAD_FILE : status;
+}
+
+static int publish_camera(void *context, const MMBackgroundCameraBinding *binding, const MMReadStream *stream)
+{
+    MMMovieCamera *camera = (MMMovieCamera *)context;
+    (void)stream;
+    camera->number = binding->number;
+    camera->data = binding->data;
+    camera->images = binding->images;
+    return MM_MOVIE_OK;
 }
 
 static int load_camera(const MMMovieArchive *archive, MMMovieCamera *camera)
 {
-    const MMChunkAccess *access = &archive->access;
     MMChunkEntry entry;
-    MMU32 parent, position, slot;
     MMMoviePayload payload;
-    MMBackgroundCameraBinding binding;
-    int status = mm_chunk_find(access, MM_BACKGROUND, camera->background.number, &parent);
-    if (status != MM_CHUNK_OK)
-        return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
-    /* The background runtime admits contiguous CAM children from slot zero. */
-    for (slot = 0; slot <= camera->slot; ++slot)
-    {
-        status = mm_session_child(access, parent, slot, MM_BACKGROUND_CAMERA, &entry, &position);
-        if (status != MM_CHUNK_OK)
-            return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
-    }
+    CameraRead read;
+    int status;
+    if (!archive->index)
+        return mm_movie_camera_graph(&archive->graph, camera->background.number, camera->slot,
+                                     publish_camera, camera, NULL);
+    status = camera_entry(&archive->access, camera->background.number, camera->slot, &entry);
+    if (status != MM_MOVIE_OK)
+        return status;
     status = mm_session_payload(archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
-    status = mm_background_camera_binding_read(payload.stream, entry.number, &binding) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+    read.access = archive->access;
+    read.number = entry.number;
+    read.consume = publish_camera;
+    read.context = camera;
+    read.diagnostic = NULL;
+    read.called = 0;
+    status = read_camera_payload(&read, payload.stream);
     free(payload.decoded);
-    if (status == MM_MOVIE_OK)
-    {
-        mm_background_camera_binding_image(&binding, 0, image_link, (void *)archive);
-        mm_background_camera_binding_image(&binding, 1, image_link, (void *)archive);
-        camera->number = binding.number;
-        camera->data = binding.data;
-        camera->images = binding.images;
-    }
     return status;
 }
 

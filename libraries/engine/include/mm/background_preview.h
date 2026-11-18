@@ -55,6 +55,11 @@ extern "C"
     enum { MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY = -1 };
     int mm_background_preview_select_placement(MMBackgroundPreview *, MMU32 slot,
                                                const MMBackgroundPreviewServices *);
+    /* Apply a prepared binding from the owning graph. Placement borrows the
+     * matching decoded payload until this call returns. With child unset,
+     * image lookup uses only the keys already present in the binding. */
+    int mm_background_preview_apply(MMBackgroundPreview *, MMU32 slot, const MMBackgroundCameraBinding *,
+                                    const MMReadStream *, int update_placement, const MMBackgroundPreviewServices *);
     int mm_background_preview_place(MMBackgroundPreview *, MMActorPoint *);
     void mm_background_preview_reuse_place(MMBackgroundPreview *);
     /* Hits move to the most recent end. Misses build before evicting the oldest;

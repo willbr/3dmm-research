@@ -118,41 +118,48 @@ static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundC
         s->selected(s->context, slot);
     return 1;
 }
-static int select_camera(MMBackgroundPreview *p, MMU32 slot, int update_placement,
-                         const MMBackgroundPreviewServices *s)
+int mm_background_preview_apply(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundCameraBinding *binding,
+                                 const MMReadStream *stream, int update_placement, const MMBackgroundPreviewServices *s)
 {
-    MMReadStream stream;
-    MMBackgroundCameraBinding binding;
     MMActorPoint *points = NULL;
-    MMU32 number;
     MMI32 i;
     unsigned buffer = 1 - p->placement_buffer;
-    if (slot >= p->camera_count)
+    if (slot >= p->camera_count || binding->number != ((const MMU32 *)p->metadata.buffers[0].data)[slot])
         return 0;
-    number = ((const MMU32 *)p->metadata.buffers[0].data)[slot];
-    if (!s->camera_read(s->context, number, &stream) || !mm_background_camera_binding_read(&stream, number, &binding))
-        return 0;
-    if (update_placement && binding.data.point_count)
+    if (update_placement && binding->data.point_count)
     {
-        if (!ensure(&p->placement_points, buffer, (MMU32)binding.data.point_count, sizeof(*points)))
+        if (!ensure(&p->placement_points, buffer, (MMU32)binding->data.point_count, sizeof(*points)))
             return MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY;
         points = (MMActorPoint *)p->placement_points.buffers[buffer].data;
-        for (i = 0; i < binding.data.point_count; ++i)
-            if (!mm_background_point_decode(&stream, &binding.data, i, points + i))
+        for (i = 0; i < binding->data.point_count; ++i)
+            if (!mm_background_point_decode(stream, &binding->data, i, points + i))
                 return 0;
     }
-    if (!select_images(p, slot, &binding, s))
+    if (!select_images(p, slot, binding, s))
         return 0;
     if (update_placement)
     {
         p->placement_buffer = buffer;
         p->placement.binding = p->camera;
         p->placement.points = points;
-        p->placement.place = binding.data.place;
+        p->placement.place = p->camera.data.place;
         p->placement.current = (MMI32)slot;
         p->placement.next_point = p->placement.last_point = 0;
     }
     return 1;
+}
+static int select_camera(MMBackgroundPreview *p, MMU32 slot, int update_placement,
+                         const MMBackgroundPreviewServices *s)
+{
+    MMReadStream stream;
+    MMBackgroundCameraBinding binding;
+    MMU32 number;
+    if (slot >= p->camera_count)
+        return 0;
+    number = ((const MMU32 *)p->metadata.buffers[0].data)[slot];
+    if (!s->camera_read(s->context, number, &stream) || !mm_background_camera_binding_read(&stream, number, &binding))
+        return 0;
+    return mm_background_preview_apply(p, slot, &binding, &stream, update_placement, s);
 }
 int mm_background_preview_select(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundPreviewServices *s)
 {

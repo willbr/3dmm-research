@@ -151,13 +151,13 @@ decoded block and its serialized chunk name synchronously. Embedded assets
 always use the movie's graph. Studio's movie owner and the Archive reader
 supply these adapters, with Archive retaining its decode limits.
 
-`MMBackgroundCameraBinding` pairs the decoded CAM with the linked colour
-and depth keys. The world camera, Preview image selection and projection
-cache use the same binding code as the session. Session results indicate
-which links are present. Each renderer requires both images for a
-background draw. Preview renders from the C camera record and owns the
-placement points in C storage. Temporary camera selections can update
-the view while retaining the active placement cursor.
+`mm_movie_camera_graph` evaluates the selected CAM in its owning background
+graph. Studio and Preview pass the slot chosen by their live timelines
+and apply its `MMBackgroundCameraBinding` directly. The binding contains
+decoded pose and exact colour and depth keys. During application the same
+payload supplies placement points. Studio applies the BRender world effects.
+Preview owns its placement points in C storage and can apply a temporary
+camera while retaining the active placement cursor.
 
 `MMRenderFrame` carries the world, camera and colour/depth targets at the
 renderer boundary. Marcus's C render controller allocates the targets and
