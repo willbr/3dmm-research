@@ -26,7 +26,7 @@ int main(int argc, char **argv)
     if (!check(preview.AddContent(1, argv[3], error)) || !check(preview.AddContent(1, argv[4], error)) ||
         !check(preview.AddContent(1, argv[5], error)) || !check(preview.Select({0x5343454e, 0}, error)))
         return 1;
-    const auto info = preview.Info();
+    const auto &info = preview.Info();
     if (!info.scene || !info.timeline || info.actors != 5 || info.firstFrame != 1 || info.lastFrame != 10 ||
         !info.cameraCount)
         return 1;
@@ -82,10 +82,20 @@ int main(int argc, char **argv)
     view.authoredCamera = false;
     view.includeDepth = true;
     if (!check(preview.Render(view, first, error)) || !first.coveredPixels || !check(preview.SetFrame(5, error)) ||
-        preview.Info().currentCamera != 1 || !check(preview.Render(view, later, error)) || !later.coveredPixels ||
-        later.rgba == first.rgba || !check(preview.SetFrame(1, error)) ||
+        info.currentFrame != 5 || info.currentCamera != 1 || !check(preview.Render(view, later, error)) ||
+        !later.coveredPixels || later.rgba == first.rgba)
+        return 1;
+    const auto cameras = info.cameraCount;
+    if (preview.SetBackground(999, 0, error) || error.code != MM::ErrorCode::decode_failed ||
+        info.currentFrame != 5 || info.currentCamera != 1 || info.cameraCount != cameras ||
+        !check(preview.Render(view, repeated, error)) || repeated.rgba != later.rgba)
+        return 1;
+    if (!check(preview.SetBackground(1, 0, error)) || info.currentFrame != 5 || info.currentCamera != 1 ||
+        info.cameraCount != cameras || !check(preview.Render(view, repeated, error)) || repeated.rgba != later.rgba)
+        return 1;
+    if (!check(preview.SetFrame(1, error)) ||
         !check(preview.Render(view, repeated, error)) || first.rgba != repeated.rgba ||
-        preview.Info().currentCamera != 0)
+        info.currentFrame != 1 || info.currentCamera != 0)
         return 1;
     for (const auto image : {&first, &later, &repeated})
     {

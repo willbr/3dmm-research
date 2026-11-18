@@ -13648,6 +13648,35 @@ cue presence.
 
 Evidence is under `tmp/c89-actor-playback/` on the evidence drive.
 
+### Marcus preview reads its live status from C89
+
+The C live record owns the selected asset, readiness, frame and range,
+reported actor count, and camera state. Admission and camera commands update
+that record. Rendering, picking and metadata consumers read it directly.
+The public `PreviewInfo` reference continues to receive published updates.
+Background replacement applies the selected camera on the new resource
+before installing it. Failed replacement preserves the live selection.
+
+All 181 standalone checks, 20 selected host checks including the Marcus
+player, and six AddressSanitizer checks passed. The two changed C engine
+modules and their fixtures passed strict C89 compilation
+on Linux x64 musl. The background replacement fixture exercised clamping
+and failure before commit. The native scene fixture checked a held
+`PreviewInfo` reference across seeks and compared images after successful
+and failed background replacement. Admission, scene, session, metadata,
+render, picking and camera trace fingerprints matched the retained values.
+
+Stock and SID-29 runs matched 456 seek observations and 360 viewport hashes
+from the previous builds. The 26 actor and body traces, the 480-byte saved
+movie, and the 188-camera background trace matched byte for byte.
+The 300 standalone frame snapshots, 300 mesh snapshots, and 300 native
+graph and stream frames matched. Both hosts matched 240 retail playback
+commits each. Studio and the retained v3dmm run also matched 456 retail
+actor records each. Retail reopened a Studio-edited movie and matched the
+edited actor on four seeks. Marcus was rebuilt and relaunched.
+
+Evidence is under `tmp/c89-preview-state/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

@@ -29,8 +29,8 @@ extern "C"
     } MMPreviewLiveArray;
     typedef struct MMPreviewLiveStatus
     {
-        int ready, scene, timeline, background;
-        MMU32 scene_number, camera_count, reported_actors;
+        int ready, scene, timeline, background, prop;
+        MMU32 asset_type, asset_number, camera_count, current_camera, reported_actors;
         MMI32 first, last, frame;
     } MMPreviewLiveStatus;
     typedef struct MMPreviewLive
@@ -62,11 +62,18 @@ extern "C"
         int (*actor_seek)(void *, void *, MMI32);
         MMU32 (*actor_number)(void *, void *);
         void (*actor_release)(void *, void *);
-        int (*camera)(void *, MMU32, int *ready);
+        int (*camera)(void *, MMU32);
         void (*begin_seek)(void *);
         int (*healthy)(void *);
         void (*publish)(void *, const MMPreviewLive *), (*stats)(void *), (*clear_asset)(void *);
     } MMPreviewLiveServices;
+    typedef struct MMPreviewLiveBackgroundServices
+    {
+        void *context;
+        int (*load)(void *, MMU32 *camera_count);
+        int (*select)(void *, MMU32 camera);
+        void (*commit)(void *);
+    } MMPreviewLiveBackgroundServices;
     enum
     {
         MM_PREVIEW_LIVE_OK,
@@ -79,7 +86,8 @@ extern "C"
         MM_PREVIEW_LIVE_SCENE,
         MM_PREVIEW_LIVE_CAMERA_INDEX,
         MM_PREVIEW_LIVE_EXCEPTION,
-        MM_PREVIEW_LIVE_SEEK_MEMORY
+        MM_PREVIEW_LIVE_SEEK_MEMORY,
+        MM_PREVIEW_LIVE_BACKGROUND
     };
     /* Unique C owner, never copied. Services are synchronous, non-reentrant and
      * never throw; effects return 1, 0, -1 (allocation exception), -2 (other exception).
@@ -104,6 +112,13 @@ extern "C"
     int mm_preview_live_adopt(MMPreviewLive *, void *actor);
     int mm_preview_live_camera_add(MMPreviewLive *, MMI32 frame, MMU32 camera);
     int mm_preview_live_seal(MMPreviewLive *);
+    /* Install the camera state of an already loaded background. */
+    void mm_preview_live_background_loaded(MMPreviewLive *, MMU32 count, MMU32 camera);
+    /* Prepare a new background and select its camera before installing it.
+     * Camera indices beyond the replacement count clamp to its last camera.
+     * Failure preserves the live background status. The caller owns the
+     * uncommitted candidate. Effects have the same status contract as above. */
+    int mm_preview_live_replace_background(MMPreviewLive *, const MMPreviewLiveBackgroundServices *);
     int mm_preview_live_sync(MMPreviewLive *, const MMPreviewLiveServices *);
     int mm_preview_live_definitions(MMPreviewLive *, const MMPreviewLiveDefinitions *, const MMPreviewLiveServices *);
     int mm_preview_live_range(MMPreviewLive *, MMI32 first, MMI32 last);

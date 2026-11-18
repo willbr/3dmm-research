@@ -28,13 +28,15 @@ int mm_preview_budget(const MMPreviewBudgetServices *s, MMU32 *failed)
 }
 static void publish(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s)
 {
+    p->live->status.asset_type = p->type;
+    p->live->status.asset_number = p->number;
     s->publish(s->context, p);
 }
 static void clear(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissionServices *s)
 {
     s->clear(s->context, preserve);
     p->tmpl = p->body = p->model = 0;
-    p->ready = p->prop = 0;
+    p->live->status.ready = p->live->status.prop = 0;
     p->action_count = 0;
 }
 static int effect(int r)
@@ -57,7 +59,7 @@ static int template_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices
     r = s->body_create(s->context, p->tmpl, &p->body);
     if (r < 0)
         return r;
-    p->prop = s->prop(s->context, p->tmpl);
+    p->live->status.prop = s->prop(s->context, p->tmpl);
     publish(p, s);
     for (i = 0; (MMI32)i < s->actions(s->context, p->tmpl); ++i)
     {
@@ -265,7 +267,7 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
     }
     live->status.timeline = 1;
     live->status.reported_actors = live->actors.count;
-    p->ready = 1;
+    live->status.ready = 1;
     publish(p, s);
     r = s->seek(s->context, live->status.first);
     if (r < 0)
@@ -304,7 +306,7 @@ int mm_preview_admit(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissi
         p->live->status.scene = p->live->status.timeline = 1;
         p->live->status.first = p->live->status.last = p->live->status.frame = 1;
         p->live->original_first = p->live->original_last = 1;
-        p->live->virtual_scene = p->ready = 1;
+        p->live->virtual_scene = p->live->status.ready = 1;
         publish(p, s);
         r = s->sync(s->context);
         if (r > 0)
@@ -345,7 +347,7 @@ int mm_preview_admit(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissi
         p->mark_chunk = 1;
         return MM_PREVIEW_ADMIT_DEPENDENCIES;
     }
-    p->ready = 1;
+    p->live->status.ready = 1;
     publish(p, s);
     s->stats(s->context);
 done:
@@ -357,14 +359,14 @@ int mm_preview_admission_pose(MMPreviewAdmission *p, MMU32 action, MMU32 cel, co
 {
     int r;
     s->begin(s->context);
-    if (!p->ready || !p->tmpl || action >= p->action_count || cel >= s->action_cels(s->context, action))
+    if (!p->live->status.ready || !p->tmpl || action >= p->action_count || cel >= s->action_cels(s->context, action))
         return MM_PREVIEW_ADMIT_POSE_RANGE;
     r = s->pose(s->context, p->tmpl, p->body, action, cel);
     if (r < 0)
         return effect(r);
     if (!r || !s->healthy(s->context))
     {
-        p->ready = 0;
+        p->live->status.ready = 0;
         publish(p, s);
         return MM_PREVIEW_ADMIT_POSE;
     }

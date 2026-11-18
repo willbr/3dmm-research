@@ -56,11 +56,11 @@ struct Preview::Impl::RenderHost
         s.math.scalar_double = [](double x) -> MMI32 { return BrFloatToScalar(x); };
         s.math.angle = [](float x) -> unsigned short { return BR_ANGLE_DEG(x); };
         s.tree = Internal::PreviewTreeServices();
-        s.ready = [](void *v) -> int { return static_cast<RenderHost *>(v)->impl->ready; };
+        s.ready = [](void *v) -> int { return static_cast<RenderHost *>(v)->impl->live.status.ready; };
         s.describe = [](void *v, MMPreviewData *d) {
             auto &h = *static_cast<RenderHost *>(v);
             auto &i = *h.impl;
-            d->scene = i.info.scene;
+            d->scene = i.live.status.scene;
             d->background = bool(i.background) && (!h.view || h.view->onlyObject < 0);
             d->model = i.model ? i.model->Pbmdl() : nullptr;
             d->model_resource = static_cast<BASE *>(i.model);

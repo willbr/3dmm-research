@@ -43,7 +43,7 @@ extern "C"
     {
         MMPreviewLive *live;
         MMU32 type, number, action_count, detail;
-        int kind, cache, prop, ready, mark_chunk;
+        int kind, cache, mark_chunk;
         void *tmpl, *body, *model;
     } MMPreviewAdmission;
     typedef struct MMPreviewAdmissionTag

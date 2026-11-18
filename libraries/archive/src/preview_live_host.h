@@ -103,23 +103,20 @@ struct Preview::Impl::LiveHost
         };
         s.actor_number = [](void *, void *a) -> MMU32 { return static_cast<Internal::PreviewActor *>(a)->number; };
         s.actor_release = [](void *, void *a) { delete static_cast<Internal::PreviewActor *>(a); };
-        s.camera = [](void *v, MMU32 camera, int *ready) -> int {
+        s.camera = [](void *v, MMU32 camera) -> int {
             auto &h = *static_cast<LiveHost *>(v);
             try
             {
-                const bool ok = h.preview->SetCamera(camera, *h.error);
-                *ready = h.impl->ready;
-                return ok;
+                return h.preview->SetCamera(camera, *h.error);
             }
             catch (...)
             {
-                *ready = h.impl->ready;
                 return h.Exception();
             }
         };
         s.begin_seek = [](void *) { Internal::ClearDiagnostic(); };
         s.healthy = [](void *) -> int { return !Internal::AssertionFailed(); };
-        s.publish = [](void *v, const MMPreviewLive *) { static_cast<LiveHost *>(v)->impl->PublishLive(); };
+        s.publish = [](void *v, const MMPreviewLive *) { static_cast<LiveHost *>(v)->impl->PublishInfo(); };
         s.stats = [](void *v) { static_cast<LiveHost *>(v)->impl->RefreshStats(); };
         s.clear_asset = [](void *v) { static_cast<LiveHost *>(v)->impl->ClearAsset(); };
         return s;
@@ -127,11 +124,10 @@ struct Preview::Impl::LiveHost
 };
 bool Preview::Impl::SyncActors(Error &error)
 {
-    CaptureLive();
     LiveHost host = {nullptr, this, &error};
     auto services = host.Services();
     const auto result = mm_preview_live_sync(&live, &services);
-    PublishLive();
+    PublishInfo();
     host.Rethrow(result);
     return result == MM_PREVIEW_LIVE_OK ||
            Fail(error, ErrorCode::decode_failed, "Cannot create the selected object and its pose dependencies.");

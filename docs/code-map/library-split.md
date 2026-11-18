@@ -2244,7 +2244,12 @@ removal remain work. Evidence and limits are recorded in
 ### Preview live scene, prop and timeline control
 
 `preview_live.c` owns persistent scene/prop definitions, opaque actor handles,
-camera cue lists and original snapshots. Native code exposes typed borrowed
+camera cue lists and original snapshots. Its status owns the selected asset,
+readiness, frame range, current frame, actor count and selected camera.
+Native effects and render adapters read that status. The public `PreviewInfo`
+reference receives each published state. Replacement backgrounds select a
+camera on the candidate before swapping resources and updating live status.
+Native code exposes typed borrowed
 actor views rather than a second owning vector. Added props reconcile by the
 matching number prefix; changed fields of retained definitions do not recreate
 or move the retained actors. Suffix actors are created and sought before replacing

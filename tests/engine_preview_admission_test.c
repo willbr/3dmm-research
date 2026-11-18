@@ -57,6 +57,7 @@ static void clear_asset(void *v, int preserve)
 }
 static void publish(void *v, const MMPreviewAdmission *p)
 {
+    assert(p->live->status.asset_type == p->type && p->live->status.asset_number == p->number);
     ((Host *)v)->published = *p;
 }
 static void begin(void *v)
@@ -366,10 +367,10 @@ static void admission_tests(void)
     for (kind = MM_PREVIEW_TEMPLATE; kind <= MM_PREVIEW_ACTOR; ++kind)
     {
         setup(&h, &p, &s, &a, kind);
-        assert(mm_preview_admit(&p, 1, &s) == MM_PREVIEW_ADMIT_OK && p.ready && h.stats == 1);
+        assert(mm_preview_admit(&p, 1, &s) == MM_PREVIEW_ADMIT_OK && h.live.status.ready && h.stats == 1);
         n = h.calls;
         if (kind == MM_PREVIEW_TEMPLATE)
-            assert(h.appended == 2 && h.names[0] == 2 && h.names[1] == -1 && h.rotations == 3 && p.prop);
+            assert(h.appended == 2 && h.names[0] == 2 && h.names[1] == -1 && h.rotations == 3 && h.live.status.prop);
         if (kind == MM_PREVIEW_SCENE)
         {
             assert(h.owned == 2 && h.loaded[0] == 100 && h.loaded[1] == 101 && h.background_number == 6 &&
@@ -394,7 +395,7 @@ static void admission_tests(void)
                 if (failure < 0)
                     assert(r == (failure == -1 ? MM_PREVIEW_ADMIT_MEMORY : MM_PREVIEW_ADMIT_EXCEPTION));
                 if (failure == -1)
-                    assert(!p.ready && !h.owned && h.clears == 2);
+                    assert(!h.live.status.ready && !h.owned && h.clears == 2);
                 dispose(&h);
             }
     }
@@ -408,7 +409,7 @@ static void admission_tests(void)
     dispose(&h);
     setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
     h.empty_actions = 1;
-    assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_DEPENDENCIES && !p.ready);
+    assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_DEPENDENCIES && !h.live.status.ready);
     dispose(&h);
     setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
     h.unhealthy = 1;
@@ -456,7 +457,7 @@ static void admission_tests(void)
     h.fail_at = sync_call;
     h.failure = 0;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_EXTERNAL && h.clears == 1 && h.owned == 2 &&
-           h.live.original_actors == 2 && !p.ready);
+           h.live.original_actors == 2 && !h.live.status.ready);
     dispose(&h);
     setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
     h.fail_at = seek_call;
@@ -491,15 +492,15 @@ static void admission_tests(void)
     dispose(&h);
     setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_OK);
-    assert(mm_preview_admission_pose(&p, 2, 0, &s) == MM_PREVIEW_ADMIT_POSE_RANGE && p.ready);
-    assert(mm_preview_admission_pose(&p, 1, 3, &s) == MM_PREVIEW_ADMIT_POSE_RANGE && p.ready);
+    assert(mm_preview_admission_pose(&p, 2, 0, &s) == MM_PREVIEW_ADMIT_POSE_RANGE && h.live.status.ready);
+    assert(mm_preview_admission_pose(&p, 1, 3, &s) == MM_PREVIEW_ADMIT_POSE_RANGE && h.live.status.ready);
     assert(mm_preview_admission_pose(&p, 1, 2, &s) == MM_PREVIEW_ADMIT_OK && h.stats == 2);
     h.fail_at = h.calls + 1;
     h.failure = -1;
-    assert(mm_preview_admission_pose(&p, 0, 0, &s) == MM_PREVIEW_ADMIT_MEMORY && p.ready);
+    assert(mm_preview_admission_pose(&p, 0, 0, &s) == MM_PREVIEW_ADMIT_MEMORY && h.live.status.ready);
     h.fail_at = h.calls + 1;
     h.failure = 0;
-    assert(mm_preview_admission_pose(&p, 0, 0, &s) == MM_PREVIEW_ADMIT_POSE && !p.ready);
+    assert(mm_preview_admission_pose(&p, 0, 0, &s) == MM_PREVIEW_ADMIT_POSE && !h.live.status.ready);
     dispose(&h);
 }
 typedef struct Budget

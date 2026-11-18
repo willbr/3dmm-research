@@ -37,8 +37,6 @@ struct Preview::Impl::AdmissionHost
         p.type = asset.type;
         p.number = asset.number;
         p.cache = impl->cache != nullptr;
-        p.ready = impl->ready;
-        p.prop = impl->info.prop;
         p.tmpl = impl->tmpl;
         p.body = impl->body;
         p.model = impl->model;
@@ -114,13 +112,7 @@ struct Preview::Impl::AdmissionHost
         s.begin = [](void *) { Internal::ClearDiagnostic(); };
         s.healthy = [](void *) -> int { return !Internal::AssertionFailed(); };
         s.clear = [](void *v, int preserve) { static_cast<AdmissionHost *>(v)->impl->ClearAsset(preserve != 0); };
-        s.publish = [](void *v, const MMPreviewAdmission *p) {
-            auto &i = *static_cast<AdmissionHost *>(v)->impl;
-            i.live.status.ready = p->ready;
-            i.PublishLive();
-            i.info.asset = {p->type, p->number};
-            i.info.prop = p->prop != 0;
-        };
+        s.publish = [](void *v, const MMPreviewAdmission *) { static_cast<AdmissionHost *>(v)->impl->PublishInfo(); };
         s.template_fetch = [](void *v, MMU32 type, MMU32 number, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
@@ -229,10 +221,7 @@ struct Preview::Impl::AdmissionHost
                     source = h.impl->Resolve(tag);
                 }
                 h.missingBackground = !source;
-                bool ok = source && h.impl->LoadBackground(source, t ? t->number : h.impl->info.asset.number);
-                h.impl->live.status.background = bool(h.impl->background);
-                h.impl->live.status.camera_count = h.impl->info.cameraCount;
-                return ok;
+                return source && h.impl->LoadBackground(source, t ? t->number : h.impl->live.status.asset_number);
             });
         };
         if (impl->cache)

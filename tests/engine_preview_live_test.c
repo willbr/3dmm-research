@@ -124,12 +124,12 @@ static void stats(void *v)
     assert(h->published && h->published_frame == h->live.status.frame);
     ++h->stats;
 }
-static int camera(void *v, MMU32 index, int *ready)
+static int camera(void *v, MMU32 index)
 {
     Host *h = (Host *)v;
     ++h->cameras;
     h->selected = index;
-    *ready = h->camera_ready;
+    h->live.status.ready = h->camera_ready;
     return h->camera_result;
 }
 static void clear_asset(void *v)
@@ -165,7 +165,7 @@ static void init(Host *h)
     s->clear_asset = clear_asset;
     h->camera_ready = h->camera_result = 1;
     h->live.status.ready = h->live.status.scene = h->live.status.timeline = h->live.status.background = 1;
-    h->live.status.scene_number = 7;
+    h->live.status.asset_number = 7;
     h->live.status.camera_count = 4;
     h->live.status.first = h->live.original_first = 10;
     h->live.status.last = h->live.original_last = 20;
@@ -408,7 +408,7 @@ static void camera_tests(void)
     h.live.status.frame = 30;
     assert(mm_preview_live_cameras(&h.live, &input, &h.services) == 0);
     assert(h.live.status.first == 5 && h.live.status.last == 25 && h.live.status.frame == 25 && h.selected == 2);
-    assert(mm_preview_live_seek(&h.live, 16, &h.services) == 0 && h.selected == 3);
+    assert(mm_preview_live_seek(&h.live, 16, &h.services) == 0 && h.selected == 3 && h.live.status.current_camera == 3);
     assert(mm_preview_live_seek(&h.live, 17, &h.services) == 0 && h.selected == 2);
     assert(mm_preview_live_seek(&h.live, 25, &h.services) == 0 && h.selected == 2);
     assert(h.live.cameras.count == 4 && cues(&h)[0].frame == 5 && cues(&h)[0].camera == 3 && cues(&h)[1].frame == 9 &&
@@ -462,6 +462,66 @@ static void camera_tests(void)
     assert(h.live.original_actors == 3 && h.live.original_cameras.count == 3 && h.actor_live == 3);
     dispose(&h);
 }
+typedef struct Background
+{
+    MMU32 count, selected;
+    int loads, selections, commits, load_result, select_result;
+} Background;
+
+static int load_background(void *context, MMU32 *count)
+{
+    Background *b = (Background *)context;
+    ++b->loads;
+    *count = b->count;
+    return b->load_result;
+}
+
+static int select_background_camera(void *context, MMU32 camera)
+{
+    Background *b = (Background *)context;
+    ++b->selections;
+    b->selected = camera;
+    return b->select_result;
+}
+
+static void commit_background(void *context)
+{
+    ++((Background *)context)->commits;
+}
+
+static void background_tests(void)
+{
+    Host h;
+    Background b = {0};
+    MMPreviewLiveBackgroundServices s;
+    MMPreviewLiveStatus old;
+    init(&h);
+    s.context = &b;
+    s.load = load_background;
+    s.select = select_background_camera;
+    s.commit = commit_background;
+    h.live.status.ready = 0;
+    assert(mm_preview_live_replace_background(&h.live, &s) == MM_PREVIEW_LIVE_SCENE && !b.loads);
+
+    h.live.status.ready = 1;
+    mm_preview_live_background_loaded(&h.live, 4, 3);
+    old = h.live.status;
+    assert(mm_preview_live_replace_background(&h.live, &s) == MM_PREVIEW_LIVE_BACKGROUND && b.loads == 1);
+    assert(!b.selections && !b.commits && !memcmp(&old, &h.live.status, sizeof(old)));
+
+    b.count = 2;
+    b.load_result = 1;
+    b.select_result = -2;
+    assert(mm_preview_live_replace_background(&h.live, &s) == MM_PREVIEW_LIVE_EXCEPTION && b.selected == 1);
+    assert(b.selections == 1 && !b.commits && !memcmp(&old, &h.live.status, sizeof(old)));
+
+    b.select_result = 1;
+    assert(mm_preview_live_replace_background(&h.live, &s) == MM_PREVIEW_LIVE_OK);
+    assert(b.commits == 1 && b.selections == 2 && h.live.status.camera_count == 2 && h.live.status.current_camera == 1);
+    assert(h.live.status.ready && h.live.status.frame == old.frame);
+    dispose(&h);
+}
+
 int main(void)
 {
     MMPreviewLive invalid;
@@ -471,6 +531,7 @@ int main(void)
     reconciliation_tests();
     seek_tests();
     camera_tests();
+    background_tests();
     puts("C89 live Preview: definitions/actor ownership, retained prefixes, cue edits, seek failures and allocation "
          "recovery passed.");
     return 0;

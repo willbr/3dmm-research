@@ -95,7 +95,6 @@ struct Preview::Impl
     PModel model = nullptr;
     PreviewInfo info;
     Color palette[256] = {};
-    bool ready = false;
     MMPreviewSession session = {};
     MMPreviewOrbit &orbit = session.orbit;
     MMPreviewLive live = {};
@@ -120,18 +119,23 @@ struct Preview::Impl
     bool IsVirtualScene(Id scene) const
     { return scene.type == kctgScen && mm_preview_live_scene(&live, scene.number); }
     bool SyncActors(Error &error);
-    void CaptureLive()
+    Id Asset() const
     {
-        auto &s = live.status;
-        s.ready = ready; s.scene = info.scene; s.timeline = info.timeline; s.background = bool(background);
-        s.scene_number = info.asset.number; s.camera_count = info.cameraCount; s.reported_actors = info.actors;
-        s.first = info.firstFrame; s.last = info.lastFrame; s.frame = info.currentFrame;
+        return {live.status.asset_type, live.status.asset_number};
     }
-    void PublishLive()
+    void PublishInfo()
     {
         const auto &s = live.status;
-        ready = s.ready != 0; info.scene = s.scene != 0; info.timeline = s.timeline != 0;
-        info.firstFrame = s.first; info.lastFrame = s.last; info.currentFrame = s.frame; info.actors = s.reported_actors;
+        info.asset = Asset();
+        info.prop = s.prop != 0;
+        info.scene = s.scene != 0;
+        info.timeline = s.timeline != 0;
+        info.firstFrame = s.first;
+        info.lastFrame = s.last;
+        info.currentFrame = s.frame;
+        info.actors = s.reported_actors;
+        info.cameraCount = s.camera_count;
+        info.currentCamera = s.current_camera;
     }
     // Explicit placement edits move the prop through the existing camera.
     // Advance the tracked anchor by the edit only, retaining animation follow.
@@ -163,8 +167,10 @@ struct Preview::Impl
         std::unique_ptr<Internal::PreviewBackground> loaded(new Internal::PreviewBackground);
         if (!loaded->Load(source, number, palette))
             return false;
-        info.cameraCount = static_cast<std::uint32_t>(loaded->cameras.size());
+        const auto count = static_cast<MMU32>(loaded->cameras.size());
         background.swap(loaded);
+        mm_preview_live_background_loaded(&live, count, 0);
+        PublishInfo();
         return true;
     }
     PChunkyResourceFile Resolve(const TAGOnFile &tag);
@@ -194,7 +200,6 @@ struct Preview::Impl
         ReleasePpo(&tmpl);
         ReleasePpo(&model);
         info = {};
-        ready = false;
     }
     ~Impl();
 };
@@ -244,7 +249,7 @@ bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &er
     MMPreviewView v = {};
     v.width = view.width; v.height = view.height; v.yaw = view.yaw; v.pitch = view.pitch;
     v.roll = view.roll; v.vertical_fov = view.verticalFov; v.zoom = view.zoom; v.orthographic = view.orthographic;
-    const auto result = mm_preview_orbit_pan(&v, right, up, &_impl->orbit, _impl->ready, &services.math);
+    const auto result = mm_preview_orbit_pan(&v, right, up, &_impl->orbit, _impl->live.status.ready, &services.math);
     if (result == MM_PREVIEW_CAMERA_PAN_RANGE)
         return Fail(error, ErrorCode::invalid_argument, "Orbit pan exceeds the camera range.");
     if (result != MM_PREVIEW_CAMERA_OK)
@@ -255,7 +260,7 @@ bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &er
 std::vector<PreviewObject> Preview::Objects() const
 {
     std::vector<PreviewObject> result;
-    if (_impl->ready)
+    if (_impl->live.status.ready)
         for (const auto &actor : _impl->actors)
             result.push_back(actor->Snapshot());
     return result;
@@ -263,7 +268,7 @@ std::vector<PreviewObject> Preview::Objects() const
 bool Preview::ObjectText(int object, PreviewObjectText &text, Error &error) const
 {
     error = {};
-    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Text(text)) ||
+    return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Text(text)) ||
         Fail(error, ErrorCode::invalid_argument, "Select a 3D text object first.");
 }
 bool Preview::SoundName(const PreviewSoundCue &cue, std::string &out) const
@@ -276,7 +281,7 @@ bool Preview::SoundName(const PreviewSoundCue &cue, std::string &out) const
     if (!cue.source)
     {
         ChildChunkIdentification child;
-        const auto scene = cue.scene.type ? cue.scene.number : _impl->info.asset.number;
+        const auto scene = cue.scene.type ? cue.scene.number : _impl->live.status.asset_number;
         if (file->FGetKidChidCtg(kctgScen, scene, cue.child, kctgMsnd, &child)) number = child.cki.cno;
     }
     String name;
@@ -286,26 +291,26 @@ bool Preview::SoundName(const PreviewSoundCue &cue, std::string &out) const
 bool Preview::ObjectCostumes(int object, std::vector<PreviewCostume> &out, Error &error) const
 {
     error = {}; out.clear();
-    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Costumes(out)) ||
+    return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Costumes(out)) ||
         Fail(error, ErrorCode::invalid_argument, "Select an actor or prop with costumes.");
 }
 bool Preview::WriteObjectCostumes(int object, const std::vector<PreviewCostume> &values, const std::string &path, Error &error)
 {
     error = {};
-    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->WriteCostumes(values, path)) ||
+    return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->WriteCostumes(values, path)) ||
         Fail(error, ErrorCode::decode_failed, "Cannot write this costume change.");
 }
 bool Preview::SetObjectEventTrack(int object, std::int32_t source, Error &error)
 {
     error = {};
-    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->SetEventTrack(source)) ||
+    return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->SetEventTrack(source)) ||
         Fail(error, ErrorCode::decode_failed, "Cannot apply this costume change.");
 }
 bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume> &values,
     const PreviewView &view, PreviewImage &image, Error &error, int bodySet)
 {
     error = {}; image = {};
-    if (!_impl->ready || object < 0 || std::size_t(object) >= _impl->actors.size() || !_impl->actors[object]->Visible())
+    if (!_impl->live.status.ready || object < 0 || std::size_t(object) >= _impl->actors.size() || !_impl->actors[object]->Visible())
         return Fail(error, ErrorCode::invalid_argument, "Select a visible actor or prop.");
     auto &actor = *_impl->actors[object]; BodyCostume costume;
     if (!costume.FGet(actor.body)) return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
@@ -397,7 +402,7 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
 bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &error)
 {
     error = {};
-    return (_impl->ready && object >= 0 && std::size_t(object) < _impl->actors.size() &&
+    return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() &&
         _impl->actors[object]->SetTextTemplate(source, number, [this](PTemplate value) { _impl->BindTemplate(value); })) ||
         Fail(error, ErrorCode::decode_failed, "Cannot change this 3D text template.");
 }
@@ -499,9 +504,9 @@ try
 {
     timeline = {};
     error = {};
-    if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size())
+    if (!_impl->live.status.ready || !_impl->live.status.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size())
         return Fail(error, ErrorCode::invalid_argument, "Select a scene object before reading animation events.");
-    if (!_impl->actors[object]->ReadTimeline(_impl->info.firstFrame, _impl->info.lastFrame, timeline))
+    if (!_impl->actors[object]->ReadTimeline(_impl->live.status.first, _impl->live.status.last, timeline))
     {
         timeline = {};
         return Fail(error, ErrorCode::decode_failed,
@@ -517,7 +522,7 @@ catch (const std::bad_alloc &)
 bool Preview::TranslateObject(int object, const float delta[3], Error &error)
 {
     error = {};
-    if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
+    if (!_impl->live.status.ready || !_impl->live.status.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !delta)
         return Fail(error, ErrorCode::invalid_argument, "Select a visible object and a position within +/-32700 world units.");
     const auto before = _impl->actors[object]->Snapshot();
@@ -529,7 +534,7 @@ bool Preview::TranslateObject(int object, const float delta[3], Error &error)
 bool Preview::SetObjectOffset(int object, const float offset[3], Error &error)
 {
     error = {};
-    if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
+    if (!_impl->live.status.ready || !_impl->live.status.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !offset)
         return Fail(error, ErrorCode::invalid_argument, "The object placement is out of range.");
     const auto before = _impl->actors[object]->Snapshot();
@@ -541,7 +546,7 @@ bool Preview::SetObjectOffset(int object, const float offset[3], Error &error)
 bool Preview::ObjectShape(int object, PreviewObjectShape &shape, float left[9], float right[9], Error &error) const
 {
     error = {};
-    if (!_impl->ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
+    if (!_impl->live.status.ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !_impl->actors[object]->body) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
     _impl->actors[object]->Shape(shape, left, right);
     return true;
@@ -549,7 +554,7 @@ bool Preview::ObjectShape(int object, PreviewObjectShape &shape, float left[9], 
 bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error &error)
 {
     error = {};
-    if (!_impl->ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
+    if (!_impl->live.status.ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !_impl->actors[object]->body) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
     for (float n : shape.scale)
         if (!std::isfinite(n) || n < .01f || n > 10) return Fail(error, ErrorCode::invalid_argument, "Size must be between 1% and 1000%.");
@@ -584,7 +589,7 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
 {
     bounds = {};
     error = {};
-    if (!_impl->ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size())
+    if (!_impl->live.status.ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size())
         return Fail(error, ErrorCode::invalid_argument, "Select a scene object before reading its bounds.");
     const auto &actor = *_impl->actors[object];
     if (!actor.Visible() || !actor.body)
@@ -657,7 +662,7 @@ catch (const std::bad_alloc &)
 }
 bool Preview::ReadPresentation(PreviewPresentation &presentation, Error &error)
 {
-    return ReadPresentation(_impl->info.asset, presentation, error);
+    return ReadPresentation(_impl->Asset(), presentation, error);
 }
 bool Preview::ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error)
 try
@@ -665,7 +670,7 @@ try
     error = {};
     presentation = {};
     if (_impl->IsVirtualScene(scene)) return true;
-    if (!_impl->ready || scene.type != kctgScen ||
+    if (!_impl->live.status.ready || scene.type != kctgScen ||
         !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the movie's captions, sound cues or pauses.");
     return true;
@@ -683,7 +688,7 @@ std::vector<PreviewSoundCue> Preview::FrameSounds() const
 }
 bool Preview::ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error)
 {
-    return ReadSoundCues(_impl->info.asset, cues, error);
+    return ReadSoundCues(_impl->Asset(), cues, error);
 }
 bool Preview::ReadTimingPresentation(Id scene, PreviewPresentation &presentation, Error &error)
 try
@@ -691,7 +696,7 @@ try
     error = {};
     presentation = {};
     if (_impl->IsVirtualScene(scene)) return true;
-    if (!_impl->ready || scene.type != kctgScen ||
+    if (!_impl->live.status.ready || scene.type != kctgScen ||
         !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read scene timing.");
     Internal::OrderPreviewCues(presentation.sounds, scene);
@@ -709,7 +714,7 @@ try
     cues.clear();
     if (_impl->IsVirtualScene(scene)) return true;
     PreviewPresentation presentation;
-    if (!_impl->ready || scene.type != kctgScen ||
+    if (!_impl->live.status.ready || scene.type != kctgScen ||
         !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the scene's sound events.");
     cues = std::move(presentation.sounds);
@@ -738,7 +743,7 @@ try
     auto services = host.Services();
     const auto input = Internal::PreviewCueCore(cue);
     MMU32 number;
-    const int result = mm_preview_sound(&input, _impl->ready, _impl->info.asset.number, &number, &services);
+    const int result = mm_preview_sound(&input, _impl->live.status.ready, _impl->live.status.asset_number, &number, &services);
     if (host.exception) std::rethrow_exception(host.exception);
     if (result > 0) return true;
     if (result == MM_PREVIEW_SOUND_NOT_READY)
@@ -871,7 +876,7 @@ bool Preview::SetPose(std::uint32_t action, std::uint32_t cel, Error &error)
 {
     error = {};
     Impl::AdmissionHost host = {this, _impl.get(), &error};
-    auto state = host.State(_impl->info.asset);
+    auto state = host.State(_impl->Asset());
     auto services = host.Services();
     const int result = mm_preview_admission_pose(&state, action, cel, &services);
     if (host.exception) std::rethrow_exception(host.exception);
@@ -899,11 +904,10 @@ bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
         out->source = d.source; out->actor_id = d.actorId; out->first = d.first; out->last = d.last;
         std::copy(d.point, d.point + 3, out->point);
     };
-    _impl->CaptureLive();
     Impl::LiveHost host = {this, _impl.get(), &error};
     auto services = host.Services();
     const auto result = mm_preview_live_definitions(&_impl->live, &input, &services);
-    _impl->PublishLive();
+    _impl->PublishInfo();
     host.Rethrow(result);
     return result == MM_PREVIEW_LIVE_OK ||
         Fail(error, ErrorCode::decode_failed, "Cannot create the selected object and its pose dependencies.");
@@ -911,20 +915,52 @@ bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
 bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error &error)
 {
     error = {};
-    if (!_impl->ready || !_impl->info.scene)
+    Impl::LiveHost runtime = {this, _impl.get(), &error};
+    struct Host
+    {
+        Impl::LiveHost &runtime;
+        MMI32 source;
+        MMU32 number;
+        std::unique_ptr<Internal::PreviewBackground> candidate;
+    } host = {runtime, source, background, nullptr};
+    MMPreviewLiveBackgroundServices services = {};
+    services.context = &host;
+    services.load = [](void *p, MMU32 *count) -> int {
+        auto &h = *static_cast<Host *>(p);
+        try
+        {
+            TAGOnFile tag = {h.source, 0, kctgBkgd, h.number};
+            auto impl = h.runtime.impl;
+            auto file = impl->Resolve(tag);
+            h.candidate = std::make_unique<Internal::PreviewBackground>();
+            if (!file || !h.candidate->Load(file, h.number, impl->palette))
+                return 0;
+            *count = static_cast<MMU32>(h.candidate->cameras.size());
+            return 1;
+        }
+        catch (...)
+        {
+            return h.runtime.Exception();
+        }
+    };
+    services.select = [](void *p, MMU32 camera) -> int {
+        auto &h = *static_cast<Host *>(p);
+        try { return h.candidate->SetCamera(camera); }
+        catch (...) { return h.runtime.Exception(); }
+    };
+    services.commit = [](void *p) {
+        auto &h = *static_cast<Host *>(p);
+        h.runtime.impl->background.swap(h.candidate);
+    };
+    const int result = mm_preview_live_replace_background(&_impl->live, &services);
+    runtime.Rethrow(result);
+    if (result == MM_PREVIEW_LIVE_SCENE)
         return Fail(error, ErrorCode::invalid_argument, "Select a scene before replacing its background.");
-    TAGOnFile tag = {source, 0, kctgBkgd, background};
-    auto file = _impl->Resolve(tag);
-    auto loaded = std::make_unique<Internal::PreviewBackground>();
-    if (!file || !loaded->Load(file, background, _impl->palette))
+    if (result == MM_PREVIEW_LIVE_BACKGROUND)
         return Fail(error, ErrorCode::decode_failed, "Cannot load the replacement scene background.");
-    const auto count = static_cast<std::uint32_t>(loaded->cameras.size());
-    const auto camera = std::min(_impl->info.currentCamera, count - 1);
-    if (!loaded->SetCamera(camera))
+    if (result == MM_PREVIEW_LIVE_CAMERA)
         return Fail(error, ErrorCode::decode_failed, "Cannot load the replacement camera image.");
-    _impl->background.swap(loaded);
-    _impl->info.currentCamera = camera; _impl->info.cameraCount = count;
-    _impl->CaptureLive();
+    _impl->PublishInfo();
     return true;
 }
 bool Preview::RenderWithLights(const PreviewView &view, const std::vector<PreviewLight> &lights, PreviewImage &image, Error &error)
@@ -964,7 +1000,6 @@ bool Preview::RenderWithLights(const PreviewView &view, const std::vector<Previe
 bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error &error)
 {
     error = {};
-    _impl->CaptureLive();
     Impl::LiveHost host = {this, _impl.get(), &error};
     auto services = host.Services();
     MMPreviewLiveCameraEdits input = {};
@@ -975,7 +1010,7 @@ bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error 
         out->frame = edit.frame; out->camera = edit.camera;
     };
     const auto result = mm_preview_live_cameras(&_impl->live, &input, &services);
-    _impl->PublishLive();
+    _impl->PublishInfo();
     if (result != MM_PREVIEW_LIVE_SEEK_MEMORY) host.Rethrow(result);
     if (result == MM_PREVIEW_LIVE_SCENE)
         return Fail(error, ErrorCode::invalid_argument, "Select a scene before editing its cameras.");
@@ -988,9 +1023,8 @@ bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error 
 bool Preview::SetSceneRange(std::int32_t first, std::int32_t last, Error &error)
 {
     error = {};
-    _impl->CaptureLive();
     const auto result = mm_preview_live_range(&_impl->live, first, last);
-    _impl->PublishLive();
+    _impl->PublishInfo();
     return result == MM_PREVIEW_LIVE_OK ||
         Fail(error, ErrorCode::invalid_argument, "The scene range must retain the original frames.");
 }
@@ -998,16 +1032,15 @@ bool Preview::SetFrame(std::int32_t frame, Error &error)
 try
 {
     error = {};
-    _impl->CaptureLive();
     Impl::LiveHost host = {this, _impl.get(), &error};
     auto services = host.Services();
     const auto result = mm_preview_live_seek(&_impl->live, frame, &services);
-    _impl->PublishLive();
+    _impl->PublishInfo();
     return host.FrameResult(result);
 }
 catch (const std::bad_alloc &)
 {
-    _impl->ready = false;
+    _impl->live.status.ready = false;
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to evaluate scene frame.");
 }
 bool Preview::PlacementPoint(float point[3]) const
@@ -1020,7 +1053,7 @@ bool Preview::PlacementPoint(float point[3]) const
     }
     MMPreviewMath math = {};
     math.scalar_float = [](MMI32 v) { return BrScalarToFloat(v); };
-    return mm_preview_camera_placement(_impl->ready, _impl->background ? place : nullptr, point, &math) != 0;
+    return mm_preview_camera_placement(_impl->live.status.ready, _impl->background ? place : nullptr, point, &math) != 0;
 }
 bool Preview::CameraProjection(std::uint32_t camera, PreviewProjection &projection, Error &error)
 try
@@ -1028,7 +1061,8 @@ try
     projection = {};
     error = {};
     Internal::ClearDiagnostic();
-    if (!mm_preview_camera_admit(_impl->ready, bool(_impl->background), _impl->info.cameraCount, camera))
+    const auto &status = _impl->live.status;
+    if (!mm_preview_camera_admit(status.ready, status.background, status.camera_count, camera))
         return Fail(error, ErrorCode::invalid_argument, "Background camera is out of range.");
     if (!_impl->background->CameraProjection(camera, projection))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the background camera projection.");
@@ -1041,7 +1075,7 @@ catch (const std::bad_alloc &)
 }
 bool Preview::NextPlacementPoint(float point[3])
 {
-    return _impl->ready && _impl->background && _impl->background->NextPlacementPoint(point);
+    return _impl->live.status.ready && _impl->background && _impl->background->NextPlacementPoint(point);
 }
 void Preview::ReusePlacementPoint()
 {
@@ -1053,16 +1087,15 @@ try
     error = {};
     Internal::ClearDiagnostic();
     struct Host { Impl *impl; std::exception_ptr exception; bool temporary; } host = {_impl.get(), {}, temporary};
-    int ready = _impl->ready;
-    MMU32 current = _impl->info.currentCamera;
-    const auto result = mm_preview_camera_select(&ready, &current, bool(_impl->background), _impl->info.cameraCount,
-        camera, &host, [](void *v, MMU32 index) -> int {
+    auto &status = _impl->live.status;
+    const auto result = mm_preview_camera_select(
+        &status.ready, &status.current_camera, status.background, status.camera_count, camera, &host,
+        [](void *v, MMU32 index) -> int {
             auto &h = *static_cast<Host *>(v);
             try { return h.impl->background->SetCamera(index, !h.temporary) && !Internal::AssertionFailed(); }
             catch (...) { h.exception = std::current_exception(); return -1; }
         });
-    _impl->ready = ready != 0;
-    _impl->info.currentCamera = current;
+    _impl->PublishInfo();
     if (host.exception) std::rethrow_exception(host.exception);
     if (result == MM_PREVIEW_CAMERA_INVALID)
         return Fail(error, ErrorCode::invalid_argument, "Background camera is out of range.");

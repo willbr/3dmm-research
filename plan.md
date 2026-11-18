@@ -521,8 +521,11 @@ Keep host presentation and device output outside the session.
    Both live scene loaders now read the SCEN header and its validated start
    and frame event rows through the retained session. The same C reader also
    supports individual scene chunks and Studio undo snapshots. Live timelines
-   apply those rows through native resource and editing adapters. Using the
-   session's authored-frame evaluator to supply live publication remains open.
+   apply those rows through native resource and editing adapters. Marcus now
+   uses the C live record as the authority for selection, readiness, frame
+   range, current frame and camera. Rendering and picking read that state.
+   The public preview information is published from the same record. Using
+   the retained session's evaluator to supply live publication remains open.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

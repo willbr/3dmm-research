@@ -135,6 +135,31 @@ int mm_preview_live_seal(MMPreviewLive *p)
     p->original_actors = p->actors.count;
     return copy(&p->original_cameras, &p->cameras) ? MM_PREVIEW_LIVE_OK : MM_PREVIEW_LIVE_MEMORY;
 }
+void mm_preview_live_background_loaded(MMPreviewLive *p, MMU32 count, MMU32 camera)
+{
+    p->status.background = 1;
+    p->status.camera_count = count;
+    p->status.current_camera = camera;
+}
+
+int mm_preview_live_replace_background(MMPreviewLive *p, const MMPreviewLiveBackgroundServices *s)
+{
+    MMU32 count = 0, camera;
+    int result;
+    if (!p->status.ready || !p->status.scene)
+        return MM_PREVIEW_LIVE_SCENE;
+    result = s->load(s->context, &count);
+    if (result <= 0 || !count)
+        return result == -1 ? MM_PREVIEW_LIVE_MEMORY : result < 0 ? MM_PREVIEW_LIVE_EXCEPTION : MM_PREVIEW_LIVE_BACKGROUND;
+    camera = p->status.current_camera < count ? p->status.current_camera : count - 1;
+    result = s->select(s->context, camera);
+    if (result <= 0)
+        return result == -1 ? MM_PREVIEW_LIVE_MEMORY : result < 0 ? MM_PREVIEW_LIVE_EXCEPTION : MM_PREVIEW_LIVE_CAMERA;
+    s->commit(s->context);
+    mm_preview_live_background_loaded(p, count, camera);
+    return MM_PREVIEW_LIVE_OK;
+}
+
 int mm_preview_live_sync(MMPreviewLive *p, const MMPreviewLiveServices *s)
 {
     MMPreviewLiveArray desired, added;
@@ -147,7 +172,7 @@ int mm_preview_live_sync(MMPreviewLive *p, const MMPreviewLiveServices *s)
     array_init(&desired, sizeof(MMPreviewLiveProp *), a);
     array_init(&added, sizeof(void *), a);
     for (i = 0; i < p->props.count; ++i)
-        if (props[i].scene == p->status.scene_number)
+        if (props[i].scene == p->status.asset_number)
         {
             const MMPreviewLiveProp *prop = props + i;
             if (!add(&desired, &prop))
@@ -232,7 +257,7 @@ int mm_preview_live_definitions(MMPreviewLive *p, const MMPreviewLiveDefinitions
     }
     p->props.count = d->prop_count;
     result = MM_PREVIEW_LIVE_OK;
-    if (p->virtual_scene && !mm_preview_live_scene(p, p->status.scene_number))
+    if (p->virtual_scene && !mm_preview_live_scene(p, p->status.asset_number))
     {
         mm_preview_live_clear(p, s);
         s->clear_asset(s->context);
@@ -451,7 +476,7 @@ static int finish_seek(void *context, MMI32 frame)
         selected = mm_movie_view_last_event(&view, MM_SCENE_CHANGE_CAMERA, frame, 1, NULL);
         if (selected >= 0)
             camera = ((const MMPreviewLiveCamera *)view.group)[selected].camera;
-        effect = s->camera(s->context, camera, &p->status.ready);
+        effect = s->camera(s->context, camera);
         if (effect <= 0)
         {
             if (effect == -1)
@@ -461,6 +486,7 @@ static int finish_seek(void *context, MMI32 frame)
                    : effect == -1 ? MM_PREVIEW_LIVE_SEEK_MEMORY
                                   : MM_PREVIEW_LIVE_CAMERA;
         }
+        p->status.current_camera = camera;
     }
     p->status.frame = frame;
     publish(p, s);
