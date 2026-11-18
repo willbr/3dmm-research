@@ -299,17 +299,29 @@ void mm_preview_projection_cache_dispose(MMPreviewProjectionCache *c)
     mm_storage_dispose(&c->storage);
     c->count = 0;
 }
+typedef struct ProjectionCameraRead
+{
+    MMU32 number;
+    MMBackgroundCameraBinding binding;
+} ProjectionCameraRead;
+
+static int read_projection_camera(void *context, const MMReadStream *stream)
+{
+    ProjectionCameraRead *read = (ProjectionCameraRead *)context;
+    return mm_background_camera_binding_read(stream, read->number, &read->binding);
+}
+
 int mm_preview_projection_cache_get(MMPreviewProjectionCache *c, const MMU32 *numbers, MMU32 count, MMU32 index,
                                     MMPreviewProjection *out, const MMBackgroundPreviewServices *s)
 {
     MMPreviewProjection *p;
     unsigned char *read;
-    MMReadStream stream;
-    MMBackgroundCameraBinding binding;
-    const MMBackgroundCameraData *camera = &binding.data;
+    ProjectionCameraRead input;
+    MMBackgroundCameraBinding *binding = &input.binding;
+    const MMBackgroundCameraData *camera = &binding->data;
     MMU32 width, height;
     MMI32 bounds[4];
-    int row, axis;
+    int decoded, row, axis;
     void *bitmap;
     memset(out, 0, sizeof(*out));
     if (index >= count)
@@ -328,10 +340,11 @@ int mm_preview_projection_cache_get(MMPreviewProjectionCache *c, const MMU32 *nu
     if (!*read)
     {
         *read = 2;
-        if (!s->camera_read(s->context, numbers[index], &stream) ||
-            !mm_background_camera_binding_read(&stream, numbers[index], &binding) ||
-            !mm_background_camera_binding_image(&binding, 0, s->child, s->context) ||
-            !(bitmap = s->fetch(s->context, binding.images.colour, 0)))
+        input.number = numbers[index];
+        if (s->payload(s->context, MM_BACKGROUND_CAMERA, input.number, read_projection_camera, &input, &decoded) !=
+                MM_CHUNK_OK || !decoded ||
+            !mm_background_camera_binding_image(binding, 0, s->child, s->context) ||
+            !(bitmap = s->fetch(s->context, binding->images.colour, 0)))
             return MM_PREVIEW_CAMERA_READ;
         s->bounds(s->context, bitmap, bounds);
         s->release(s->context, bitmap);

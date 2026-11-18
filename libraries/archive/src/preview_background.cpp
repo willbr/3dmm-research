@@ -5,7 +5,6 @@
 #include "zbmp.h"
 #include "palette_state.h"
 #include "engine_movie_graph.h"
-#include "engine_read_stream.h"
 #include "mm/background_camera.h"
 #include <cstring>
 #include <new>
@@ -65,7 +64,6 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
         }
     };
     mm_background_resource_init(&resource);
-    mm_background_camera_init(&preview.placement);
     return mm_background_read(&resource, &preview.placement, kctgBkgd, background, MM_BACKGROUND_PREVIEW, &s) !=
            0;
 }
@@ -76,7 +74,6 @@ struct BackgroundImageHost
 {
     PreviewBackground *background;
     PChunkyResourceFile source;
-    DataBlock block;
 };
 } // namespace
 PreviewBackground::PreviewBackground()
@@ -121,12 +118,9 @@ MMBackgroundPreviewServices PreviewBackground::Services(void *host)
 {
     MMBackgroundPreviewServices s = {};
     s.context = host;
-    s.camera_read = [](void *p, MMU32 number, MMReadStream *out) {
+    s.payload = [](void *p, MMU32 type, MMU32 number, MMReadReceiver read, void *out, int *result) {
         auto h = static_cast<BackgroundImageHost *>(p);
-        if (!h->source->Pcfl()->FFind(kctgCam, number, &h->block) || !h->block.FUnpackData())
-            return 0;
-        *out = EngineReadStream::FromBlock(h->block);
-        return 1;
+        return mm_chunk_read_payload(KauaiChunkPayloadServices(), h->source->Pcfl(), type, number, read, out, result);
     };
     s.child = [](void *p, MMU32 camera, int depth, MMU32 *out) {
         auto h = static_cast<BackgroundImageHost *>(p);

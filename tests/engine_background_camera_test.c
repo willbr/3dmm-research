@@ -21,10 +21,7 @@ enum
     BACKGROUND,
     RELEASE,
     ALLOCATE,
-    LOCK,
     POINT_READ,
-    PUT,
-    UNLOCK,
     EULER,
     ROTATE,
     TRANSLATE,
@@ -32,20 +29,15 @@ enum
     DIRTY,
     DIAGNOSTIC
 };
-typedef struct Points
-{
-    int live, locked;
-    MMI32 count;
-    MMActorPoint values[2];
-} Points;
 typedef struct Host
 {
     MMBackgroundCameraState state;
     MMBackgroundCameraServices services;
     unsigned char bytes[100];
     MMU32 length;
-    Points old_points, new_points;
-    int trace[64], traces, fail, fail_point, reads, puts;
+    MMActorPoint old_points[2], new_points[2];
+    int allocating_old, old_live, new_live;
+    int trace[64], traces, fail, fail_point, reads;
 } Host;
 static void event(Host *h, int value)
 {
@@ -118,63 +110,32 @@ static int background(void *p, MMU32 rgb, MMU32 depth)
     Host *h = (Host *)p;
     event(h, BACKGROUND);
     CHECK(rgb == 123 && depth == 789);
-    CHECK(h->old_points.live && h->state.next_point == 2 && h->state.last_point == 1);
+    CHECK(h->old_live && h->state.next_point == 2 && h->state.last_point == 1);
     return h->fail != BACKGROUND;
 }
-static void *new_points(void *p, MMI32 count)
+static void *resize_points(void *p, void *data, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Host *h = (Host *)p;
+    CHECK(!data && !old_bytes && bytes == sizeof(h->new_points) && priority == MM_STORAGE_NORMAL);
+    if (h->allocating_old)
+    {
+        h->old_live = 1;
+        return h->old_points;
+    }
     event(h, ALLOCATE);
-    CHECK(!h->old_points.live && !h->state.next_point && !h->state.last_point);
-    CHECK(count == 2);
+    CHECK(!h->old_live && !h->new_live && !h->state.next_point && !h->state.last_point);
     if (h->fail == ALLOCATE)
         return NULL;
-    h->new_points.live = 1;
-    h->new_points.count = count;
-    return &h->new_points;
+    h->new_live = 1;
+    return h->new_points;
 }
-static void release(void *p, void *points)
+static void release(void *p, void *points, MMU32 bytes)
 {
     Host *h = (Host *)p;
-    Points *v = (Points *)points;
+    int *live = points == h->old_points ? &h->old_live : &h->new_live;
+    CHECK((points == h->old_points || points == h->new_points) && bytes == sizeof(h->new_points) && *live);
     event(h, RELEASE);
-    CHECK(v->live && !v->locked);
-    v->live = 0;
-}
-static void lock(void *p, void *points)
-{
-    Points *v = (Points *)points;
-    event((Host *)p, LOCK);
-    CHECK(v->live && !v->locked);
-    v->locked = 1;
-}
-static void unlock(void *p, void *points)
-{
-    Points *v = (Points *)points;
-    event((Host *)p, UNLOCK);
-    CHECK(v->live && v->locked);
-    v->locked = 0;
-}
-static void put(void *p, void *points, MMI32 index, const MMActorPoint *value)
-{
-    Host *h = (Host *)p;
-    Points *v = (Points *)points;
-    event(h, PUT);
-    CHECK(v->live && v->locked && index >= 0 && index < v->count);
-    v->values[index] = *value;
-    ++h->puts;
-}
-static void get(void *p, void *points, MMI32 index, MMActorPoint *value)
-{
-    Points *v = (Points *)points;
-    (void)p;
-    CHECK(v->live && !v->locked && index >= 0 && index < v->count);
-    *value = v->values[index];
-}
-static MMI32 count(void *p, void *points)
-{
-    (void)p;
-    return ((Points *)points)->count;
+    *live = 0;
 }
 static void euler(void *p, const MMActorMatrix *m, unsigned short *a, unsigned short *c)
 {
@@ -221,9 +182,16 @@ static void diagnostic(void *p, int issue)
 static void init(Host *h, int big)
 {
     MMBackgroundCameraServices *s;
+    MMStorageAllocator allocator;
     memset(h, 0, sizeof(*h));
-    mm_background_camera_init(&h->state);
-    CHECK(h->state.current == -1 && !h->state.points && !h->state.count);
+    allocator.context = h;
+    allocator.resize = resize_points;
+    allocator.release = release;
+    CHECK(mm_background_camera_init(&h->state, &allocator));
+    CHECK(h->state.current == -1 && !h->state.point_count && !h->state.count);
+    h->allocating_old = 1;
+    CHECK(mm_storage_resize_exact(&h->state.points, 0, sizeof(h->old_points), MM_STORAGE_NORMAL) == MM_STORAGE_OK);
+    h->allocating_old = 0;
     h->state.count = 3;
     h->state.current = 2;
     h->state.binding.number = 42;
@@ -233,8 +201,7 @@ static void init(Host *h, int big)
     h->state.position.dxr = 888;
     h->state.mouse.m[0][0] = 999;
     h->state.yaw = 0x4444;
-    h->state.points = &h->old_points;
-    h->old_points.live = 1;
+    h->state.point_count = 2;
     h->length = 100;
     h->fail_point = -1;
     wire(h, big);
@@ -244,13 +211,6 @@ static void init(Host *h, int big)
     s->read = read_camera;
     s->child = child;
     s->background = background;
-    s->new_points = new_points;
-    s->release = release;
-    s->lock = lock;
-    s->unlock = unlock;
-    s->put_point = put;
-    s->point = get;
-    s->point_count = count;
     s->euler_yxy = euler;
     s->rotate_y = rotate;
     s->translate = translate;
@@ -327,47 +287,47 @@ static void decode_tests(int big)
     r.length = 76;
     CHECK(!mm_background_point_decode(&r, &d, 2147483646, &v));
     CHECK(!memcmp(&v, &previous, sizeof(v)));
+    mm_background_camera_dispose(&h.state);
 }
 static void controller_tests(int big)
 {
     Host h;
     MMActorPoint v;
     int i;
-    const int success[] = {LIGHTS, READ,       HEADER, RGB,    DEPTH, BACKGROUND, RELEASE,   ALLOCATE, LOCK, POINT_READ,
-                           PUT,    POINT_READ, PUT,    UNLOCK, EULER, ROTATE,     TRANSLATE, CAMERA,   DIRTY};
+    const int success[] = {LIGHTS, READ, HEADER, RGB, DEPTH, BACKGROUND, RELEASE, ALLOCATE,
+                           POINT_READ, POINT_READ, EULER, ROTATE, TRANSLATE, CAMERA, DIRTY};
     const int no_points[] = {LIGHTS,  READ,  HEADER, RGB,       DEPTH,  BACKGROUND,
                              RELEASE, EULER, ROTATE, TRANSLATE, CAMERA, DIRTY};
     const int no_memory[] = {LIGHTS,   READ,  HEADER, RGB,       DEPTH,  BACKGROUND, RELEASE,
                              ALLOCATE, EULER, ROTATE, TRANSLATE, CAMERA, DIRTY};
-    const int failed_point[] = {LIGHTS,  READ,     HEADER, RGB,        DEPTH,  BACKGROUND,
-                                RELEASE, ALLOCATE, LOCK,   POINT_READ, UNLOCK, RELEASE};
-    const int failed_second[] = {LIGHTS,   READ, HEADER,     RGB, DEPTH,      BACKGROUND, RELEASE,
-                                 ALLOCATE, LOCK, POINT_READ, PUT, POINT_READ, UNLOCK,     RELEASE};
+    const int failed_point[] = {LIGHTS, READ, HEADER, RGB, DEPTH, BACKGROUND, RELEASE, ALLOCATE, POINT_READ, RELEASE};
+    const int failed_second[] = {LIGHTS, READ, HEADER, RGB, DEPTH, BACKGROUND, RELEASE, ALLOCATE,
+                                 POINT_READ, POINT_READ, RELEASE};
     init(&h, big);
     CHECK(mm_background_camera_set(&h.state, 1, &h.services));
     expect(&h, success, sizeof(success) / sizeof(*success));
-    CHECK(h.state.points == &h.new_points && h.puts == 2);
+    CHECK(h.state.point_count == 2 && h.new_live && !h.old_live);
     CHECK(h.state.count == 3 && !h.state.last_point && !h.state.next_point);
     CHECK(h.state.binding.number == 456 && h.state.binding.images.colour == 123 &&
           h.state.binding.images.depth == 789 && h.state.binding.data.point_count == 2);
     for (i = 0; i < 7; ++i)
     {
-        mm_background_place(&h.state, &v, &h.services);
+        mm_background_place(&h.state, &v);
         CHECK(v.dxr == (i % 3 == 0 ? -2 : i % 3 == 1 ? -666 : -66));
         if (i == 1)
         {
             mm_background_reuse_place(&h.state);
-            mm_background_place(&h.state, &v, &h.services);
+            mm_background_place(&h.state, &v);
             CHECK(v.dxr == -666);
         }
     }
     h.traces = 0;
-    mm_background_camera_dispose(&h.state, &h.services);
-    CHECK(!h.state.points && !h.new_points.live && h.traces == 1 && h.trace[0] == RELEASE);
+    mm_background_camera_dispose(&h.state);
+    CHECK(!h.state.point_count && !h.new_live && h.traces == 1 && h.trace[0] == RELEASE);
     CHECK(!h.state.next_point && !h.state.last_point);
-    mm_background_place(&h.state, &v, &h.services);
+    mm_background_place(&h.state, &v);
     CHECK(v.dxr == -2 && !h.state.next_point);
-    mm_background_camera_dispose(&h.state, &h.services);
+    mm_background_camera_dispose(&h.state);
     CHECK(h.traces == 1);
     for (i = READ; i <= BACKGROUND; ++i)
     {
@@ -376,8 +336,9 @@ static void controller_tests(int big)
         CHECK(!mm_background_camera_set(&h.state, 1, &h.services));
         expect(&h, success, i);
         unchanged(&h);
-        CHECK(h.state.points == &h.old_points && h.old_points.live);
+        CHECK(h.state.point_count == 2 && h.old_live && !h.new_live);
         CHECK(h.state.next_point == 2 && h.state.last_point == 1);
+        mm_background_camera_dispose(&h.state);
     }
     for (i = 0; i < 2; ++i)
     {
@@ -386,14 +347,16 @@ static void controller_tests(int big)
         CHECK(!mm_background_camera_set(&h.state, 1, &h.services));
         CHECK(h.traces == 3 && h.trace[0] == LIGHTS && h.trace[1] == READ && h.trace[2] == DIAGNOSTIC);
         unchanged(&h);
-        CHECK(h.old_points.live);
+        CHECK(h.old_live);
+        mm_background_camera_dispose(&h.state);
     }
     init(&h, big);
     h.bytes[0] = h.bytes[1] = 0;
     CHECK(!mm_background_camera_set(&h.state, 1, &h.services));
     expect(&h, success, 3);
     unchanged(&h);
-    CHECK(h.old_points.live);
+    CHECK(h.old_live);
+    mm_background_camera_dispose(&h.state);
     for (i = 0; i < 2; ++i)
     {
         init(&h, big);
@@ -404,7 +367,7 @@ static void controller_tests(int big)
         else
             expect(&h, failed_point, sizeof(failed_point) / sizeof(*failed_point));
         unchanged(&h);
-        CHECK(!h.state.points && !h.new_points.live && !h.new_points.locked && h.puts == i);
+        CHECK(!h.state.point_count && !h.new_live && !h.old_live && h.reads == i + 1);
         CHECK(!h.state.next_point && !h.state.last_point);
     }
     for (i = 0; i < 2; ++i)
@@ -415,15 +378,15 @@ static void controller_tests(int big)
         else
             h.fail = ALLOCATE;
         CHECK(mm_background_camera_set(&h.state, 1, &h.services));
-        CHECK(!h.state.points);
+        CHECK(!h.state.point_count && !h.new_live && !h.old_live);
         if (i)
             expect(&h, no_points, sizeof(no_points) / sizeof(*no_points));
         else
             expect(&h, no_memory, sizeof(no_memory) / sizeof(*no_memory));
         mm_background_reuse_place(&h.state);
-        mm_background_place(&h.state, &v, &h.services);
+        mm_background_place(&h.state, &v);
         CHECK(v.dxr == -2 && !h.state.next_point);
-        mm_background_place(&h.state, &v, &h.services);
+        mm_background_place(&h.state, &v);
         CHECK(v.dxr == -2 && !h.state.last_point);
     }
 }
@@ -446,8 +409,8 @@ static void prepared_camera(int big)
     binding.images.present |= MM_BACKGROUND_HAS_DEPTH;
     CHECK(mm_background_camera_apply(&h.state, 1, &binding, &stream, &h.services));
     CHECK(h.trace[0] == BACKGROUND && h.trace[h.traces - 1] == DIRTY);
-    CHECK(h.state.current == 1 && h.state.binding.number == 456 && h.puts == 2);
-    mm_background_camera_dispose(&h.state, &h.services);
+    CHECK(h.state.current == 1 && h.state.binding.number == 456 && h.state.point_count == 2);
+    mm_background_camera_dispose(&h.state);
 }
 int main(void)
 {

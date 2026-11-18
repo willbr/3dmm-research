@@ -4,6 +4,7 @@
 #define MM_ENGINE_BACKGROUND_CAMERA_H
 #include "actor_motion.h"
 #include "chunky_file.h"
+#include "collection_storage.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -42,11 +43,12 @@ extern "C"
     typedef int (*MMBackgroundCameraImageRead)(void *, MMU32 number, int depth, MMU32 *);
     typedef struct MMBackgroundCameraState
     {
-        MMI32 count, current, next_point, last_point;
+        MMI32 count, current, point_count, next_point, last_point;
         MMActorPoint place, position;
         MMActorMatrix mouse;
         unsigned short yaw;
-        void *points;
+        unsigned point_buffer;
+        MMCollectionStorage points;
         MMBackgroundCameraBinding binding;
     } MMBackgroundCameraState;
     typedef struct MMBackgroundCameraServices
@@ -56,11 +58,6 @@ extern "C"
         int (*read)(void *, MMI32 camera, MMReadStream *, MMU32 *number);
         MMBackgroundCameraImageRead child;
         int (*background)(void *, MMU32 rgb, MMU32 depth);
-        void *(*new_points)(void *, MMI32 count);
-        void (*release)(void *, void *), (*lock)(void *, void *), (*unlock)(void *, void *);
-        void (*put_point)(void *, void *, MMI32, const MMActorPoint *);
-        void (*point)(void *, void *, MMI32, MMActorPoint *);
-        MMI32 (*point_count)(void *, void *);
         void (*euler_yxy)(void *, const MMActorMatrix *, unsigned short *a, unsigned short *c);
         void (*rotate_y)(void *, MMActorMatrix *, unsigned short yaw);
         void (*translate)(void *, MMActorMatrix *, const MMActorPoint *);
@@ -81,12 +78,18 @@ extern "C"
     /* Resolve the CAM's slot-zero MBMP or ZBMP in the same archive as the camera.
      * Returns a chunk status and publishes the linked number only on success. */
     int mm_background_camera_image_link(const MMChunkAccess *, MMU32 camera, int depth, MMU32 *number);
-    void mm_background_camera_init(MMBackgroundCameraState *);
+    /* Unique owner of active and staged placement points. A null allocator uses
+     * the C heap. Stage publishes nothing and returns a storage status. Commit
+     * selects the staged buffer, or just the default point when use_points is zero. */
+    int mm_background_camera_init(MMBackgroundCameraState *, const MMStorageAllocator *);
+    int mm_background_placement_stage(MMBackgroundCameraState *, const MMReadStream *, const MMBackgroundCameraData *);
+    void mm_background_placement_commit(MMBackgroundCameraState *, MMI32 index, const MMBackgroundCameraBinding *,
+                                        int use_points);
     /* Valid camera index and synchronous, non-reentrant services are required.
      * Lights turn on before reads; background image changes precede point replacement.
      * Failed point allocation falls back to the default placement and still succeeds.
-     * Failed point reads discard the new list but retain earlier image/reset prefixes;
-     * lock is balanced before release. Current camera/positions publish only after
+     * Failed point reads discard the new list but retain earlier image/reset prefixes.
+     * Current camera/positions publish only after
      * point reads. Mouse math precedes world camera/dirty effects. State owns points. */
     int mm_background_camera_set(MMBackgroundCameraState *, MMI32,
                                        const MMBackgroundCameraServices *);
@@ -96,10 +99,9 @@ extern "C"
     int mm_background_camera_apply(MMBackgroundCameraState *, MMI32, const MMBackgroundCameraBinding *,
                                    const MMReadStream *, const MMBackgroundCameraServices *);
     /* Release the list and reset its cursors. Other metadata remains available. */
-    void mm_background_camera_dispose(MMBackgroundCameraState *, const MMBackgroundCameraServices *);
+    void mm_background_camera_dispose(MMBackgroundCameraState *);
     /* Cycle default, appended points, default; reuse resets next to last. */
-    void mm_background_place(MMBackgroundCameraState *, MMActorPoint *,
-                                   const MMBackgroundCameraServices *);
+    void mm_background_place(MMBackgroundCameraState *, MMActorPoint *);
     void mm_background_reuse_place(MMBackgroundCameraState *);
 #ifdef __cplusplus
 }

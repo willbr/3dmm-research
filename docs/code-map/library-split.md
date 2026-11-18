@@ -2154,30 +2154,34 @@ outputs only after success. Explicit signed-word conversion preserves scalar
 bits independently of native integer widths and endianness.
 
 Studio Background stores camera count/current index, position, placement cursor,
-mouse matrix/yaw and the owned placement-list handle in a persistent C record.
+mouse matrix/yaw and placement points in a persistent C record.
 C sequences lights, chunk reads, RGB/depth lookup, background installation,
 placement replacement, mouse-matrix construction and world camera/dirty effects.
-The native services provide file/list/reference operations and individual BRender
-Euler, rotation and translation primitives. Default/appended placement cycling
-and reuse run in C. Allocation failure still selects the camera with only its
-default point; failed point reads retain the installed-image/reset prefix but
-leave camera metadata unchanged and release the unlocked new list.
+The native services provide file and reference operations and individual BRender
+Euler, rotation and translation primitives. Studio allocation failure still
+selects the camera with only its default point. A failed point read releases the
+new buffer after the image installation and cursor reset.
 
-Foreign-order appended points now decode at their actual stream offsets. This
-removes the original swap beyond a stack-local header and correctly normalizes
-the points. Failed reads now balance the list lock before release. Preview now
-shares Studio's rejection of a partial appended point; its existing clip-plane
-and image-admission checks remain. Background header/default-sound/palette/light
-loading, cache control, palette duplication and light attach/detach now use the
-resource controller below. Preview image/mesh control is described below;
-final native representation removal remains migration work.
+Marcus uses the same C owner for its active and staged placement buffers and the
+same default/appended point cycle. Permanent selections publish staged points
+after both images succeed. Temporary selections preserve the placement cursor.
+Camera projection lookups borrow a decoded CAM stream for the duration of the
+read. The projection cache retains the decoded result and still requires only
+the colour image to calculate aspect ratio.
+
+Both hosts decode foreign-order appended points at their stream offsets and
+reject partial points. Preview also checks clip planes and image admission.
+The resource controller below reads background headers, sounds, palettes and
+lights and manages cache and light lifetime. It is followed by the preview
+image and mesh controller.
 
 `engine-background-camera` exercises both byte orders, scalar/angle extremes,
 maximum stream sizes, unchanged failure outputs, callback order, allocation/read
-failures, cleanup, cycling and reuse. The native Scene-content fixture freezes
-camera changes and placement behavior and separately checks foreign-order
-appended points through the real block/list bridge. See
-`docs/tools/playback-regression.md` for validation and capture coverage.
+failures, cleanup, cycling and reuse. The 31,048-byte Studio scene-content trace
+matches the previous implementation, including foreign-order placement data from
+the real archive. The headless Marcus insertion and storyboard checks pass.
+Camera and background preview fingerprints match the previous build. Results
+are in `tmp/c89-camera-placements`.
 
 ### Background resource loading, caching and light lifetime
 

@@ -124,13 +124,15 @@ static int body(void *v, MMU32 n, MMPreviewBody *b)
     b->high[2] = 1;
     return 1;
 }
-static int camera_read(void *v, MMU32 n, MMReadStream *out)
+static int camera_payload(void *v, MMU32 type, MMU32 n, MMReadReceiver receive, void *out, int *result)
 {
     Host *h = (Host *)v;
-    assert(n == 10 || n == 20);
+    assert(type == MM_BACKGROUND_CAMERA && (n == 10 || n == 20));
     ++h->reads;
-    *out = h->memory.stream;
-    return h->fail != 1;
+    if (h->fail == 1)
+        return MM_CHUNK_NOT_FOUND;
+    *result = receive(out, &h->memory.stream);
+    return MM_CHUNK_OK;
 }
 static int child(void *v, MMU32 n, int depth, MMU32 *out)
 {
@@ -186,7 +188,7 @@ static void cache_tests(void)
     int i, attempts;
     memset(&s, 0, sizeof(s));
     s.context = &h;
-    s.camera_read = camera_read;
+    s.payload = camera_payload;
     s.child = child;
     s.fetch = fetch;
     s.bounds = bounds;

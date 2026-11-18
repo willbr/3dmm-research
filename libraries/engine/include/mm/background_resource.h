@@ -52,6 +52,9 @@ extern "C"
         int enabled, leave_on;
         MMBackgroundSound sound;
     } MMBackgroundResource;
+    /* Chunk status. A successful call supplies a decoded stream to the
+     * receiver synchronously and publishes the receiver's result. */
+    typedef int (*MMBackgroundPayloadRead)(void *, MMU32 type, MMU32 number, MMReadReceiver, void *, int *result);
     typedef struct MMBackgroundServices
     {
         void *context;
@@ -59,8 +62,7 @@ extern "C"
         MMI32 actor_bytes, light_bytes;
         int (*child)(void *, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type, MMU32 *out);
         int (*child_at)(void *, MMU32 type, MMU32 number, MMI32 index, MMU32 *child_type);
-        /* Chunk status. Called with a synchronous decoded stream receiver. */
-        int (*payload)(void *, MMU32 type, MMU32 number, MMReadReceiver, void *, int *result);
+        MMBackgroundPayloadRead payload;
         int (*name)(void *, MMU32 type, MMU32 number);
         int (*allocate)(void *, MMI32 bytes, void **);
         void (*free_memory)(void *, void **);

@@ -238,8 +238,7 @@ Background::~Background(void)
     Assert(!_resource.leave_on, "Shouldn't be freeing background now");
     auto services = _ResourceServices(nullptr);
     mm_background_resource_dispose(&_resource, &services);
-    auto camera = _CameraServices(nullptr);
-    mm_background_camera_dispose(&_camera, &camera);
+    mm_background_camera_dispose(&_camera);
 }
 
 /***************************************************************************
@@ -336,28 +335,6 @@ MMBackgroundCameraServices Background::_CameraServices(void *host)
         auto h = static_cast<BackgroundCameraHost *>(p);
         return int(h->world->FSetBackground(h->background->Pcrf(), kctgMbmp, rgb, kctgZbmp, depth));
     };
-    s.new_points = [](void *, MMI32 count) -> void * {
-        auto points = DynamicArray::PglNew(sizeof(APOS), count);
-        if (points)
-            AssertDo(points->FSetIvMac(count), "Should never fail");
-        return points;
-    };
-    s.release = [](void *, void *points) { static_cast<PDynamicArray>(points)->Release(); };
-    s.lock = [](void *, void *points) { static_cast<PDynamicArray>(points)->Lock(); };
-    s.unlock = [](void *, void *points) { static_cast<PDynamicArray>(points)->Unlock(); };
-    s.put_point = [](void *, void *points, MMI32 index, const MMActorPoint *point) {
-        APOS value;
-        value.xrPlace = point->dxr;
-        value.yrPlace = point->dyr;
-        value.zrPlace = point->dzr;
-        static_cast<PDynamicArray>(points)->Put(index, &value);
-    };
-    s.point = [](void *, void *points, MMI32 index, MMActorPoint *out) {
-        APOS value;
-        static_cast<PDynamicArray>(points)->Get(index, &value);
-        *out = {value.xrPlace, value.yrPlace, value.zrPlace};
-    };
-    s.point_count = [](void *, void *points) -> MMI32 { return static_cast<PDynamicArray>(points)->IvMac(); };
     s.euler_yxy = [](void *, const MMActorMatrix *value, unsigned short *a, unsigned short *c) {
         BMAT34 matrix;
         std::memcpy(&matrix, value, sizeof(matrix));
@@ -440,9 +417,8 @@ void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertVarMem(pxr);
     AssertVarMem(pyr);
     AssertVarMem(pzr);
-    auto services = _CameraServices(nullptr);
     MMActorPoint point;
-    mm_background_place(&_camera, &point, &services);
+    mm_background_place(&_camera, &point);
     *pxr = point.dxr;
     *pyr = point.dyr;
     *pzr = point.dzr;
@@ -524,7 +500,6 @@ void Background::AssertValid(LegacyUlong grf)
     AssertPvCb(_resource.actors, LwMul(_resource.light_count, size(BACT)));
     AssertPvCb(_resource.lights, LwMul(_resource.light_count, size(BLIT)));
     AssertPo(&_stn, 0);
-    AssertNilOrPo(static_cast<PDynamicArray>(_camera.points), 0);
 }
 
 /***************************************************************************
@@ -536,6 +511,5 @@ void Background::MarkMem(void)
     Background_PAR::MarkMem();
     MarkPv(_resource.actors);
     MarkPv(_resource.lights);
-    MarkMemObj(static_cast<PDynamicArray>(_camera.points));
 }
 #endif // DEBUG

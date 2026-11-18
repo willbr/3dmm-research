@@ -316,7 +316,7 @@ static void init(Host *h, int big, int profile, int host_big)
     MMBackgroundServices *s;
     memset(h, 0, sizeof(*h));
     mm_background_resource_init(&h->resource);
-    mm_background_camera_init(&h->camera);
+    CHECK(mm_background_camera_init(&h->camera, NULL));
     h->big = big;
     h->profile = profile;
     h->has_palette = h->has_sound = 1;

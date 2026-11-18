@@ -8,18 +8,17 @@ extern "C"
 #endif
     typedef struct MMBackgroundPreview
     {
-        MMCollectionStorage metadata, images, placement_points;
+        MMCollectionStorage metadata, images;
         MMU32 camera_count, light_count, width, height, rgb_count, depth_count, active;
         MMBackgroundCameraBinding camera;
         MMBackgroundCameraState placement;
-        unsigned placement_buffer;
         void *meshes[2];
         MMU32 keys[2], mesh_count;
     } MMBackgroundPreview;
     typedef struct MMBackgroundPreviewServices
     {
         void *context;
-        int (*camera_read)(void *, MMU32 number, MMReadStream *);
+        MMBackgroundPayloadRead payload;
         MMBackgroundCameraImageRead child;
         void *(*fetch)(void *, MMU32 number, int depth);
         void (*release)(void *, void *);

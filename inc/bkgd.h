@@ -56,7 +56,7 @@ class Background : public Background_PAR
   protected:
     Background(void)
     {
-        mm_background_camera_init(&_camera);
+        mm_background_camera_init(&_camera, nullptr);
         mm_background_resource_init(&_resource);
     }
     MMBackgroundCameraServices _CameraServices(void *host);

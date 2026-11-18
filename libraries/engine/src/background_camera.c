@@ -81,18 +81,52 @@ int mm_background_point_decode(const MMReadStream *r, const MMBackgroundCameraDa
     *out = p;
     return 1;
 }
-void mm_background_camera_init(MMBackgroundCameraState *s)
+int mm_background_camera_init(MMBackgroundCameraState *s, const MMStorageAllocator *allocator)
 {
     memset(s, 0, sizeof(*s));
     s->current = -1;
+    return mm_storage_init(&s->points, allocator) == MM_STORAGE_OK;
 }
-void mm_background_camera_dispose(MMBackgroundCameraState *p, const MMBackgroundCameraServices *s)
+void mm_background_camera_dispose(MMBackgroundCameraState *p)
 {
-    if (p->points)
+    mm_storage_dispose(&p->points);
+    p->point_count = p->next_point = p->last_point = 0;
+    p->point_buffer = 0;
+}
+
+int mm_background_placement_stage(MMBackgroundCameraState *p, const MMReadStream *stream,
+                                  const MMBackgroundCameraData *data)
+{
+    const unsigned buffer = 1 - p->point_buffer;
+    MMActorPoint *points;
+    MMU32 bytes;
+    MMI32 i;
+    int status;
+    if (data->point_count <= 0)
+        return data->point_count == 0 ? MM_STORAGE_OK : MM_STORAGE_IO;
+    if ((MMU32)data->point_count > (MM_STORAGE_LIMIT - 1) / sizeof(*points))
+        return MM_STORAGE_MEMORY;
+    bytes = (MMU32)data->point_count * sizeof(*points);
+    if (bytes > p->points.buffers[buffer].capacity)
     {
-        s->release(s->context, p->points);
-        p->points = NULL;
+        status = mm_storage_resize_exact(&p->points, buffer, bytes, MM_STORAGE_NORMAL);
+        if (status != MM_STORAGE_OK)
+            return status;
     }
+    points = (MMActorPoint *)p->points.buffers[buffer].data;
+    for (i = 0; i < data->point_count; ++i)
+        if (!mm_background_point_decode(stream, data, i, points + i))
+            return MM_STORAGE_IO;
+    return MM_STORAGE_OK;
+}
+void mm_background_placement_commit(MMBackgroundCameraState *p, MMI32 index, const MMBackgroundCameraBinding *binding,
+                                    int use_points)
+{
+    p->point_buffer = 1 - p->point_buffer;
+    p->point_count = use_points ? binding->data.point_count : 0;
+    p->current = index;
+    p->binding = *binding;
+    p->place = binding->data.place;
     p->next_point = p->last_point = 0;
 }
 int mm_background_camera_set(MMBackgroundCameraState *p, MMI32 index,
@@ -123,32 +157,20 @@ int mm_background_camera_apply(MMBackgroundCameraState *p, MMI32 index, const MM
 {
     MMBackgroundCameraBinding binding = *evaluated;
     const MMBackgroundCameraData *d = &binding.data;
-    MMActorPoint place;
-    MMI32 i;
+    int status;
     unsigned short a, c;
     if (!mm_background_camera_binding_image(&binding, 0, s->child, s->context) ||
         !mm_background_camera_binding_image(&binding, 1, s->child, s->context) ||
         !s->background(s->context, binding.images.colour, binding.images.depth))
         return 0;
-    mm_background_camera_dispose(p, s);
-    if (d->point_count > 0 && (p->points = s->new_points(s->context, d->point_count)) != NULL)
+    mm_background_camera_dispose(p);
+    status = mm_background_placement_stage(p, stream, d);
+    if (status != MM_STORAGE_OK && status != MM_STORAGE_MEMORY)
     {
-        s->lock(s->context, p->points);
-        for (i = 0; i < d->point_count; ++i)
-        {
-            if (!mm_background_point_decode(stream, d, i, &place))
-            {
-                s->unlock(s->context, p->points);
-                mm_background_camera_dispose(p, s);
-                return 0;
-            }
-            s->put_point(s->context, p->points, i, &place);
-        }
-        s->unlock(s->context, p->points);
+        mm_background_camera_dispose(p);
+        return 0;
     }
-    p->current = index;
-    p->binding = binding;
-    p->place = d->place;
+    mm_background_placement_commit(p, index, &binding, status == MM_STORAGE_OK);
     p->position.dxr = d->matrix.m[3][0];
     p->position.dyr = d->matrix.m[3][1];
     p->position.dzr = d->matrix.m[3][2];
@@ -160,20 +182,15 @@ int mm_background_camera_apply(MMBackgroundCameraState *p, MMI32 index, const MM
     s->dirty(s->context);
     return 1;
 }
-void mm_background_place(MMBackgroundCameraState *p, MMActorPoint *out,
-                               const MMBackgroundCameraServices *s)
+void mm_background_place(MMBackgroundCameraState *p, MMActorPoint *out)
 {
+    const MMActorPoint *points = (const MMActorPoint *)p->points.buffers[p->point_buffer].data;
     if (!p->next_point)
         *out = p->place;
     else
-        s->point(s->context, p->points, p->next_point - 1, out);
+        *out = points[p->next_point - 1];
     p->last_point = p->next_point;
-    if (p->points)
-    {
-        ++p->next_point;
-        if (p->next_point > s->point_count(s->context, p->points))
-            p->next_point = 0;
-    }
+    p->next_point = p->next_point < p->point_count ? p->next_point + 1 : 0;
 }
 void mm_background_reuse_place(MMBackgroundCameraState *p)
 {

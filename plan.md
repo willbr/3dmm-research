@@ -756,8 +756,9 @@ Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.
 Background camera wire decoding is now shared C89 in Studio and Marcus.
-Studio camera metadata, placement-list ownership, camera-switch sequencing,
-mouse-matrix composition control and placement cycling/reuse also use C89.
+C89 owns placement-point storage, publication and cycling for both hosts.
+Studio's camera-switch sequencing and mouse-matrix composition control also
+use C89. Marcus reads camera projections through C-owned payload blocks.
 Background header/default-sound/palette/light loading, contiguous camera counting,
 resource factory/partial cleanup, tag-list/cache order, palette ownership and
 light attachment/lifetime now use C89 too. Marcus Preview uses the same resource

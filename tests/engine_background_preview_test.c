@@ -84,15 +84,18 @@ static int read_at(void *p, MMU32 offset, void *out, size_t count)
     }
     return mm_read_exact(&h->memory.stream, offset, out, count);
 }
-static int camera_read(void *p, MMU32 number, MMReadStream *out)
+static int camera_payload(void *p, MMU32 type, MMU32 number, MMReadReceiver receive, void *out, int *result)
 {
     Host *h = (Host *)p;
-    CHECK(number >= 100 && number < 103);
+    MMReadStream stream = h->memory.stream;
+    CHECK(type == MM_BACKGROUND_CAMERA && number >= 100 && number < 103);
     event(h, READ);
-    *out = h->memory.stream;
-    out->context = h;
-    out->read_at = read_at;
-    return h->fail != READ;
+    if (h->fail == READ)
+        return MM_CHUNK_NOT_FOUND;
+    stream.context = h;
+    stream.read_at = read_at;
+    *result = receive(out, &stream);
+    return MM_CHUNK_OK;
 }
 static int child(void *p, MMU32 camera, int depth, MMU32 *out)
 {
@@ -268,7 +271,7 @@ static void init(Host *h)
     h->rect[3] = 6;
     s = &h->services;
     s->context = h;
-    s->camera_read = camera_read;
+    s->payload = camera_payload;
     s->child = child;
     s->fetch = fetch;
     s->release = release;
@@ -344,7 +347,7 @@ static void placement(void)
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 66);
     h.memory.stream.length = 76;
     h.traces = 0;
-    CHECK(mm_background_preview_select_placement(&h.preview, 1, &h.services) == 1 && !h.preview.placement.points);
+    CHECK(mm_background_preview_select_placement(&h.preview, 1, &h.services) == 1 && !h.preview.placement.point_count);
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 55);
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 55);
     dispose(&h);
@@ -359,7 +362,7 @@ static void prepared_camera(void)
     CHECK(mm_background_camera_binding_read(&h.memory.stream, 101, &binding));
     binding.images.present = MM_BACKGROUND_HAS_COLOUR;
     binding.images.colour = 700;
-    h.services.camera_read = NULL;
+    h.services.payload = NULL;
     h.services.child = NULL;
     CHECK(!mm_background_preview_apply(&h.preview, 0, &binding, &h.memory.stream, 1, &h.services));
     CHECK(!h.traces);
