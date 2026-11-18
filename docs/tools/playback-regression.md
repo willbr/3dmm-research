@@ -13745,6 +13745,39 @@ and the workspace Marcus was relaunched.
 
 Evidence is under `tmp/c89-actor-input/` on the evidence drive.
 
+### Live and standalone playback share template and action decoding
+
+Studio and Marcus cache actions through the same C89 header, cel and matrix
+read stages that the standalone evaluator uses. All three paths share the
+template rest-angle and flag decoder. The standalone evaluator reads GLXF
+once per selected action when a body first needs it. A big-endian fixture
+with GLXF at the wrong slot still advances the actor and leaves the body
+output unpublished when body evaluation fails.
+
+All 181 standalone tests and five AddressSanitizer checks passed. The changed
+C modules and chunky fixture compiled under strict C89 on Linux x64 musl.
+The instrumented native probe also evaluated a stock actor frame and a SID-29
+text frame with body bindings. All 30 selected host checks passed, including
+the Marcus player and the engine and Marcus C89 syntax checks.
+
+All 300 standalone frame snapshots and 300 mesh snapshots matched the prior
+build. Five movies matched across 300 native graph and stream evaluations.
+The 29 native action, template, actor and body traces matched byte for byte,
+including the action fixture's 2,268 load and allocation cases. The 480-byte
+save/load fixture matched as well. Both hosts were rebuilt, and Marcus was
+relaunched.
+
+Stock and SID-29 cases matched 456 seek observations and 360 viewport hashes
+from the preceding builds. Studio SDL and the retained V3dmm runs each matched
+456 retail actor observations. Studio SDL and Marcus each matched 240 retail
+frame commits across actor events, dissolves and scrolling text. Retail
+reopened Studio's actor edit and matched Studio on four seeks.
+Both hosts reproduced the retail actor-audio fixture's 600 Hz ordinary cue and
+1300 Hz motion cue, with 60 frame commits and at least 15,865 silent sample
+frames before Play. This measures cue presence and silence before playback.
+
+Evidence is under `tmp/c89-action-input/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

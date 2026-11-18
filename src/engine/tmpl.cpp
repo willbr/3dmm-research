@@ -94,8 +94,8 @@ MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *
     s.block_size = [](void *, void *block, int packed) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
     s.block_read = [](void *, void *block, void *out, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(out, static_cast<LegacyLong>(count), 0); };
     s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 childType, MMU32 *out) -> int {
-        ChildChunkIdentification child; if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, 0, childType, &child)) return false;
-        *out = child.cki.cno; return true;
+        const auto chunks = static_cast<PChunkyFile>(file)->ReadChunkAccess();
+        return mm_chunk_link_number(&chunks, type, number, 0, childType, out) == MM_CHUNK_OK;
     };
     s.read_table = [](void *, void *block, int kind, int *other) -> void * {
         short order = kboCur; void *result;

@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/action_definition.h"
+#include "mm/movie_session.h"
 #include <string.h>
 static MMU32 word(const unsigned char *p,int big)
 {
@@ -12,6 +13,60 @@ static void swap(unsigned char *p,MMI32 count,int width)
     MMI32 i; int j; unsigned char t;
     for (i=0;i<count;++i,p+=width) for (j=0;j<width/2;++j)
     { t=p[j]; p[j]=p[width-1-j]; p[width-1-j]=t; }
+}
+
+static void decode_words(const void *bytes, int other, void *out, int count, int width)
+{
+    if (out != bytes)
+        memcpy(out, bytes, (size_t)(count * width));
+    if (other)
+        swap((unsigned char *)out, count, width);
+}
+
+void mm_action_decode_cel(const void *bytes, int other, void *out)
+{
+    decode_words(bytes, other, out, 2, 4);
+}
+
+void mm_action_decode_part(const void *bytes, int other, void *out)
+{
+    decode_words(bytes, other, out, 2, 2);
+}
+
+void mm_action_decode_matrix(const void *bytes, int other, void *out)
+{
+    decode_words(bytes, other, out, 12, 4);
+}
+
+MMU32 mm_action_table_type(int kind)
+{
+    static const MMU32 types[] = {MM_ACTION_GGCL, MM_ACTION_GLXF, MM_ACTION_GLMS};
+    return types[kind];
+}
+
+int mm_action_read_cels(MMActionDefinition *action, const MMActionRead *read, int *other)
+{
+    unsigned char bytes[MM_ACTION_HEADER_BYTES];
+    int big, status = read->header(read->context, bytes);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (bytes[0] == 1 && bytes[1] == 0)
+        big = 0;
+    else if (bytes[0] == 0 && bytes[1] == 1)
+        big = 1;
+    else
+    {
+        if (read->bad_order)
+            read->bad_order(read->context);
+        big = read->host_big_endian;
+    }
+    action->flags = word(bytes + 4, big);
+    return read->table(read->context, MM_ACTION_CELS, &action->cels, other);
+}
+
+int mm_action_read_matrices(MMActionDefinition *action, const MMActionRead *read, int *other)
+{
+    return read->table(read->context, MM_ACTION_MATRICES, &action->matrices, other);
 }
 void *mm_action_create(void *cels,void *matrices,MMU32 flags,const MMActionDefinitionServices *s)
 {
@@ -42,40 +97,72 @@ int mm_action_fetch(void *file,MMU32 type,MMU32 number,void *block,void *out,voi
 fail:
     s->invalidate(s->context,out,sizeof(object)); s->invalidate(s->context,size,sizeof(bytes)); return 0;
 }
-static void *table(void *file,MMU32 type,MMU32 number,MMU32 child_type,int kind,int *other,const MMActionDefinitionServices *s,int *found)
+typedef struct NativeActionRead
 {
-    MMU32 child; void *block; *found=s->child(s->context,file,type,number,child_type,&child);
-    if (!*found) return NULL;
-    block=s->find(s->context,file,child_type,child); if (!block) return NULL;
-    return s->read_table(s->context,block,kind,other);
+    const MMActionDefinitionServices *services;
+    void *file;
+    MMU32 type, number;
+} NativeActionRead;
+
+static int native_header(void *context, unsigned char *bytes)
+{
+    NativeActionRead *read = (NativeActionRead *)context;
+    const MMActionDefinitionServices *s = read->services;
+    void *block = s->find(s->context, read->file, read->type, read->number);
+    if (!block || !s->unpack(s->context, block) || s->block_size(s->context, block, 0) < MM_ACTION_HEADER_BYTES ||
+        !s->block_read(s->context, block, bytes, MM_ACTION_HEADER_BYTES))
+        return MM_MOVIE_BAD_FILE;
+    return MM_MOVIE_OK;
 }
+
+static int native_table(void *context, int kind, void **out, int *other)
+{
+    NativeActionRead *read = (NativeActionRead *)context;
+    const MMActionDefinitionServices *s = read->services;
+    MMU32 child, type = mm_action_table_type(kind);
+    void *block;
+    if (!s->child(s->context, read->file, read->type, read->number, type, &child))
+        return MM_MOVIE_ASSET_NOT_FOUND;
+    block = s->find(s->context, read->file, type, child);
+    if (!block)
+        return MM_MOVIE_BAD_FILE;
+    *out = s->read_table(s->context, block, kind, other);
+    return *out ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+static void native_bad_order(void *context)
+{
+    const MMActionDefinitionServices *s = ((NativeActionRead *)context)->services;
+    if (s->bad_order)
+        s->bad_order(s->context);
+}
+
 int mm_action_initialize(MMActionDefinition *a,void *file,MMU32 type,MMU32 number,const MMActionDefinitionServices *s)
 {
-    unsigned char header[8],*p; void *block,*wire; int big,other,found; MMI32 i,count; MMTag tag; MMU32 sid;
-    block=s->find(s->context,file,type,number);
-    if (!block || !s->unpack(s->context,block) || s->block_size(s->context,block,0)<8 || !s->block_read(s->context,block,header,8)) return 0;
-    if (header[0]==1 && !header[1]) big=0;
-    else if (!header[0] && header[1]==1) big=1;
-    else { if (s->bad_order) s->bad_order(s->context); big=s->host_big_endian; }
-    a->flags=word(header+4,big);
+    NativeActionRead native;
+    MMActionRead read = {NULL, 0, native_header, native_table, native_bad_order};
+    unsigned char *p; void *wire; int big,other,status; MMI32 i,count; MMTag tag; MMU32 sid;
+    native.services = s;
+    native.file = file;
+    native.type = type;
+    native.number = number;
+    read.context = &native;
+    read.host_big_endian = s->host_big_endian;
     /* Missing child/find retains the old slot, just as the native early return.
      * A failed reader publishes NULL. Fresh owners are the supported input. */
-    if (!s->child(s->context,file,type,number,MM_ACTION_GGCL,&sid)) return 0;
-    block=s->find(s->context,file,MM_ACTION_GGCL,sid); if (!block) return 0;
-    a->cels=s->read_table(s->context,block,MM_ACTION_CELS,&other); if (!a->cels) return 0;
+    if (mm_action_read_cels(a, &read, &other) != MM_MOVIE_OK) return 0;
     if (other) for (i=0;i<s->count(s->context,a->cels);++i)
     {
-        swap(s->fixed(s->context,a->cels,i),2,4);
+        p = s->fixed(s->context, a->cels, i);
+        mm_action_decode_cel(p, 1, p);
         swap(s->variable(s->context,a->cels,i),s->variable_size(s->context,a->cels,i)/2,2);
     }
-    if (!s->child(s->context,file,type,number,MM_ACTION_GLXF,&sid)) return 0;
-    block=s->find(s->context,file,MM_ACTION_GLXF,sid); if (!block) return 0;
-    a->matrices=s->read_table(s->context,block,MM_ACTION_MATRICES,&other); if (!a->matrices) return 0;
+    if (mm_action_read_matrices(a, &read, &other) != MM_MOVIE_OK) return 0;
     count=s->count(s->context,a->matrices);
     if (other && count) swap(s->data(s->context,a->matrices,0),count*12,4);
-    wire=table(file,type,number,MM_ACTION_GLMS,MM_ACTION_WIRE_SOUNDS,&other,s,&found);
-    if (!found) return 1;
-    if (!wire) return 0;
+    status = native_table(&native, MM_ACTION_WIRE_SOUNDS, &wire, &other);
+    if (status == MM_MOVIE_ASSET_NOT_FOUND) return 1;
+    if (status != MM_MOVIE_OK) return 0;
     s->validate_wire_sounds(s->context,wire); count=s->count(s->context,wire);
     a->sounds=s->create_sounds(s->context,count);
     if (!a->sounds) { s->release(s->context,wire); return 0; }
@@ -97,11 +184,11 @@ void mm_action_dispose(MMActionDefinition *a,const MMActionDefinitionServices *s
 MMI32 mm_action_cel_count(const MMActionDefinition *a,const MMActionDefinitionServices *s)
 { return s->count(s->context,a->cels); }
 void mm_action_get_cel(const MMActionDefinition *a,MMI32 i,void *out,const MMActionDefinitionServices *s)
-{ memcpy(out,s->fixed(s->context,a->cels,i),8); }
+{ mm_action_decode_cel(s->fixed(s->context,a->cels,i),0,out); }
 void mm_action_get_part(const MMActionDefinition *a,MMI32 cel,MMI32 part,void *out,const MMActionDefinitionServices *s)
-{ memcpy(out,s->variable(s->context,a->cels,cel)+part*4,4); }
+{ mm_action_decode_part(s->variable(s->context,a->cels,cel)+part*MM_ACTION_PART_BYTES,0,out); }
 void mm_action_get_matrix(const MMActionDefinition *a,MMI32 i,void *out,const MMActionDefinitionServices *s)
-{ memcpy(out,s->data(s->context,a->matrices,i),48); }
+{ mm_action_decode_matrix(s->data(s->context,a->matrices,i),0,out); }
 void mm_action_get_sound(const MMActionDefinition *a,MMI32 cel,void *out,const MMActionDefinitionServices *s)
 {
     MMU32 id; MMTag tag; s->clear_sound_type(s->context,out);

@@ -67,9 +67,14 @@ native-order route points and runtime-width events into the caller's storage,
 including unopened tags for sound and costume events. It validates event rows
 before constructing the runtime group. The standalone query then replays the
 actor evaluator from a fresh state. It uses action tables from the resolved
-template or the shared 3D text action metadata. Its outputs include route
-position, action, cel and fixed-point root pose. The query does not create body,
-costume or audio objects.
+template or the shared 3D text action metadata. The template cache uses the
+same C89 TMPL rest-angle and flag decoder as the standalone evaluator. Both
+paths run the C89 ACTN header and GGCL/GLXF load stages with their archive and
+table providers. The snapshot keeps the current action's cel table and reads
+its matrix table on first body use. The native cache loads both at admission
+and continues to resolve optional GLMS sound tags there. Both use the C89
+cel, part and matrix decoders. The actor query returns route position, action,
+cel and fixed-point root pose without creating body, costume or audio objects.
 Studio, Marcus and the standalone evaluator use `mm_actor_template_link`
 to recover the embedded template number when a movie edit or import changed
 it. An external source keeps its authored template number and uses the

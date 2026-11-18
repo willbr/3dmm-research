@@ -27,6 +27,11 @@ typedef struct MMTemplateState
     MMU32 flags;
     unsigned short x,y,z; /* Native sixteen-bit BAM rest angles. */
 } MMTemplateState;
+enum { MM_TEMPLATE_HEADER_BYTES = 16 };
+/* Decode the rest angles and flags, retaining the owner's existing tables.
+ * Returns zero for unknown byte order after decoding with the host fallback. */
+int mm_template_decode_header(const unsigned char bytes[MM_TEMPLATE_HEADER_BYTES], int host_big_endian,
+                              MMTemplateState *);
 typedef struct MMTemplateChild { MMU32 type,number,id; } MMTemplateChild;
 typedef struct MMTemplateCostumeScan
 {

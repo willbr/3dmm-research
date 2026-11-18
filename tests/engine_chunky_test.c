@@ -596,7 +596,7 @@ static void movie_directory(void)
 enum
 {
     ACTOR_FIXTURE_OK, ACTOR_FIXTURE_MISSING_PAINT, ACTOR_FIXTURE_BAD_MATRIX,
-    ACTOR_FIXTURE_CUSTOM_DEFAULT, ACTOR_FIXTURE_MISSING_DEFAULT
+    ACTOR_FIXTURE_CUSTOM_DEFAULT, ACTOR_FIXTURE_MISSING_DEFAULT, ACTOR_FIXTURE_MISSING_MATRICES
 };
 
 static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
@@ -699,6 +699,8 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
     put32(raw[PATH] + 28, 655360, big);
     put32(raw[SCENE] + 4, 10, big);
     put32(raw[SCENE] + 8, 1, big);
+    if (issue == ACTOR_FIXTURE_MISSING_MATRICES)
+        links[1][2] = 1; /* A matrix at another slot cannot serve the action. */
     if (big)
     {
         /* Exercise the template reader for archives without a costume group. */
@@ -829,6 +831,14 @@ static void movie_actors(void)
     previous = body;
     CHECK(mm_movie_session_body(movie, 0, 2, 0, NULL, NULL, &body) == MM_MOVIE_BAD_FILE && body == previous);
     CHECK(body->parts[0].active_model.number == 70 && body->parts[0].matrix.m[3][0] == 123);
+    mm_movie_session_close(movie);
+
+    size = actor_fixture(bytes, 1, 0, ACTOR_FIXTURE_MISSING_MATRICES);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
+    CHECK(actor.state.cel == 2 && actor.state.position.dxr == 196600);
+    CHECK(mm_movie_session_body(movie, 0, 2, 0, NULL, NULL, &body) == MM_MOVIE_ASSET_NOT_FOUND && body == previous);
     mm_movie_body_dispose(body);
     mm_movie_session_close(movie);
 }

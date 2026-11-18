@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_ACTION_DEFINITION_H
 #define MM_ENGINE_ACTION_DEFINITION_H
 #include "tag.h"
+#include "movie_data.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C" {
@@ -14,6 +15,28 @@ typedef struct MMActionDefinition
     void *cels,*matrices,*sounds;
     MMU32 flags;
 } MMActionDefinition;
+
+enum { MM_ACTION_HEADER_BYTES = 8, MM_ACTION_CEL_BYTES = 8, MM_ACTION_PART_BYTES = 4, MM_ACTION_MATRIX_BYTES = 48 };
+
+typedef struct MMActionRead
+{
+    void *context;
+    int host_big_endian;
+    int (*header)(void *, unsigned char bytes[MM_ACTION_HEADER_BYTES]);
+    int (*table)(void *, int kind, void **out, int *other_order);
+    void (*bad_order)(void *);
+} MMActionRead;
+
+/* The providers return movie statuses. The header flags publish before cels
+ * are read. Matrices can be loaded separately when the caller needs a pose.
+ * Table ownership and byte order are supplied by the table reader. */
+int mm_action_read_cels(MMActionDefinition *, const MMActionRead *, int *other_order);
+int mm_action_read_matrices(MMActionDefinition *, const MMActionRead *, int *other_order);
+MMU32 mm_action_table_type(int kind);
+/* Copy one wire record into native order. Each input can alias its output. */
+void mm_action_decode_cel(const void *bytes, int other_order, void *out);
+void mm_action_decode_part(const void *bytes, int other_order, void *out);
+void mm_action_decode_matrix(const void *bytes, int other_order, void *out);
 typedef struct MMActionDefinitionServices
 {
     void *context; int host_big_endian;

@@ -46,17 +46,38 @@ int mm_template_bind_defaults(MMI32 sets, const MMTemplateDefaultServices *s)
     return 1;
 }
 
+int mm_template_decode_header(const unsigned char *bytes, int host_big_endian, MMTemplateState *state)
+{
+    int big, valid = 1;
+    if (bytes[0] == 1 && bytes[1] == 0)
+        big = 0;
+    else if (bytes[0] == 0 && bytes[1] == 1)
+        big = 1;
+    else
+    {
+        valid = 0;
+        big = host_big_endian;
+    }
+    state->x = (unsigned short)word(bytes + 4, 2, big);
+    state->y = (unsigned short)word(bytes + 6, 2, big);
+    state->z = (unsigned short)word(bytes + 8, 2, big);
+    state->flags = word(bytes + 12, 4, big);
+    return valid;
+}
+
 int mm_template_read_header(void *object,void *file,MMU32 type,MMU32 number,const MMTemplateCreateServices *s)
 {
-    unsigned char bytes[16]; int big; MMTemplateState t; void *block;
+    unsigned char bytes[MM_TEMPLATE_HEADER_BYTES]; void *block; MMTemplateState header, *state;
     block=s->find(s->context,file,type,number);
     if (!block || !s->unpack(s->context,block) || s->block_size(s->context,block,0)<16 ||
         !s->block_read(s->context,block,bytes,sizeof(bytes))) return 0;
-    if (bytes[0]==1 && !bytes[1]) big=0;
-    else if (!bytes[0] && bytes[1]==1) big=1;
-    else { diagnostic(s,MM_TEMPLATE_BAD_ORDER); big=s->host_big_endian; }
-    t=*s->state(s->context,object); t.x=word(bytes+4,2,big); t.y=word(bytes+6,2,big);
-    t.z=word(bytes+8,2,big); t.flags=word(bytes+12,4,big); *s->state(s->context,object)=t;
+    if (!mm_template_decode_header(bytes, s->host_big_endian, &header))
+        diagnostic(s, MM_TEMPLATE_BAD_ORDER);
+    state = s->state(s->context, object);
+    state->x = header.x;
+    state->y = header.y;
+    state->z = header.z;
+    state->flags = header.flags;
     return s->read_name(s->context,object,file,type,number);
 }
 int mm_template_write_header(void *object,void *file,MMU32 type,MMU32 *number,const MMTemplateCreateServices *s)

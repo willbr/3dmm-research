@@ -1,5 +1,4 @@
 #include "movie_session_internal.h"
-#include "mm/action_definition.h"
 #include "mm/preview_actor.h"
 #include "mm/scene_data.h"
 #include "mm/template_create.h"
@@ -27,12 +26,11 @@ typedef struct ActorInput
     MMI32 route_count;
     ActorEvents *events;
     MMMovieArchive template_archive;
-    MMU32 template_position, action_position;
+    MMU32 template_position;
     unsigned short rest[3];
     int text, status;
     MMI32 action, cel_count;
-    MMU32 action_flags;
-    MMMovieGroup cels;
+    MMMovieAction resources;
     MMMovieEvaluatedBody *evaluated_body;
     MMMovieCustomCostume custom;
     MMMovieAsset generic, text_material;
@@ -171,9 +169,9 @@ static int fetch_template(void *p, const MMActorHeader *header, void **token)
     MMChunkEntry entry;
     MMMoviePayload payload;
     MMU32 position;
-    unsigned char bytes[16];
-    int status, big;
-    unsigned i;
+    unsigned char bytes[MM_TEMPLATE_HEADER_BYTES];
+    MMTemplateState template_header;
+    int status;
     const unsigned short one = 1;
     asset.source = header->source_id;
     asset.type = header->template_type;
@@ -193,12 +191,10 @@ static int fetch_template(void *p, const MMActorHeader *header, void **token)
     free(payload.decoded);
     if (!status)
         return fail(input, MM_MOVIE_BAD_FILE);
-    big = bytes[0] == 0 && bytes[1] == 1;
-    if (!big && (bytes[0] != 1 || bytes[1] != 0))
-        big = *(const unsigned char *)&one == 0;
-    for (i = 0; i < 3; ++i)
-        input->rest[i] = big ? (unsigned short)((unsigned)bytes[4 + 2*i] * 256 + bytes[5 + 2*i])
-                             : (unsigned short)((unsigned)bytes[5 + 2*i] * 256 + bytes[4 + 2*i]);
+    mm_template_decode_header(bytes, *(const unsigned char *)&one == 0, &template_header);
+    input->rest[0] = template_header.x;
+    input->rest[1] = template_header.y;
+    input->rest[2] = template_header.z;
     status = mm_session_child(access, input->template_position, 0, MM_TDT, &entry, &position);
     if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
         return fail(input, MM_MOVIE_BAD_FILE);
@@ -207,51 +203,99 @@ static int fetch_template(void *p, const MMActorHeader *header, void **token)
     return 1;
 }
 
+static int action_header(void *p, unsigned char *bytes)
+{
+    MMMovieAction *action = (MMMovieAction *)p;
+    MMMoviePayload payload;
+    int status = mm_session_payload(action->archive, &action->entry, 0, &payload);
+    if (status != MM_MOVIE_OK)
+        return status;
+    status = mm_read_exact(payload.stream, 0, bytes, MM_ACTION_HEADER_BYTES) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+    free(payload.decoded);
+    return status;
+}
+
+static int action_table(void *p, int kind, void **out, int *other)
+{
+    MMMovieAction *action = (MMMovieAction *)p;
+    MMChunkEntry entry;
+    MMU32 position, type = mm_action_table_type(kind);
+    const unsigned short one = 1;
+    int status;
+    if (kind == MM_ACTION_MATRICES)
+    {
+        status = mm_session_array(action->archive, action->position, type, MM_ACTION_MATRIX_BYTES,
+                                  &action->matrices, &action->matrix_header);
+        if (status != MM_MOVIE_OK)
+            return status;
+        *other = action->matrix_header.big_endian != (*(const unsigned char *)&one == 0);
+        *out = &action->matrices;
+        return MM_MOVIE_OK;
+    }
+    if (mm_session_child(&action->archive->access, action->position, 0, type, &entry, &position) != MM_CHUNK_OK)
+        return MM_MOVIE_ASSET_NOT_FOUND;
+    status = mm_session_group(action->archive, &entry, &action->cels);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (action->cels.header.width != MM_ACTION_CEL_BYTES)
+        return MM_MOVIE_BAD_FILE;
+    *other = action->cels.header.big_endian != (*(const unsigned char *)&one == 0);
+    *out = &action->cels;
+    return MM_MOVIE_OK;
+}
+
+static MMActionRead action_reader(MMMovieAction *action)
+{
+    const unsigned short one = 1;
+    MMActionRead read = {NULL, 0, action_header, action_table, NULL};
+    read.context = action;
+    read.host_big_endian = *(const unsigned char *)&one == 0;
+    return read;
+}
+
+int mm_session_action_matrices(MMMovieAction *action)
+{
+    MMActionRead read;
+    if (action->definition.matrices)
+        return MM_MOVIE_OK;
+    read = action_reader(action);
+    return mm_action_read_matrices(&action->definition, &read, &action->matrix_other);
+}
+
+static void clear_action(MMMovieAction *action)
+{
+    free(action->cels.bytes);
+    free(action->matrices.decoded);
+    memset(action, 0, sizeof(*action));
+}
+
 static int load_action(ActorInput *input, MMI32 id)
 {
-    const MMChunkAccess *access = &input->template_archive.access;
-    MMChunkEntry entry;
-    MMMoviePayload payload;
-    MMU32 parent, position;
-    unsigned char bytes[8];
-    int status, big;
-    const unsigned short one = 1;
+    MMMovieAction *action = &input->resources;
+    MMActionRead read;
+    int status;
     if (id < 0)
         return fail(input, MM_MOVIE_BAD_FILE);
     if (input->action == id)
         return 1;
     input->action = -1;
-    free(input->cels.bytes);
-    input->cels.bytes = NULL;
+    clear_action(action);
     if (input->text)
     {
         input->cel_count = mm_text_cel_count(id);
-        input->action_flags = mm_text_action_flags();
+        action->definition.flags = mm_text_action_flags();
     }
     else
     {
-        if (mm_session_child(access, input->template_position, (MMU32)id, MM_ACTN, &entry, &parent) != MM_CHUNK_OK)
+        action->archive = &input->template_archive;
+        if (mm_session_child(&action->archive->access, input->template_position, (MMU32)id, MM_ACTN,
+                             &action->entry, &action->position) != MM_CHUNK_OK)
             return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
-        input->action_position = parent;
-        status = mm_session_payload(&input->template_archive, &entry, 0, &payload);
+        read = action_reader(action);
+        status = mm_action_read_cels(&action->definition, &read, &action->cel_other);
         if (status != MM_MOVIE_OK)
             return fail(input, status);
-        status = mm_read_exact(payload.stream, 0, bytes, sizeof(bytes));
-        free(payload.decoded);
-        if (!status)
-            return fail(input, MM_MOVIE_BAD_FILE);
-        big = bytes[0] == 0 && bytes[1] == 1;
-        if (!big && (bytes[0] != 1 || bytes[1] != 0))
-            big = *(const unsigned char *)&one == 0;
-        input->action_flags = mm_session_word(bytes + 4, big);
-        if (mm_session_child(access, parent, 0, MM_ACTION_GGCL, &entry, &position) != MM_CHUNK_OK)
-            return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
-        status = mm_session_group(&input->template_archive, &entry, &input->cels);
-        if (status != MM_MOVIE_OK)
-            return fail(input, status);
-        if (input->cels.header.width != 8)
-            return fail(input, MM_MOVIE_BAD_FILE);
-        input->cel_count = (MMI32)input->cels.header.count;
+        input->cel_count = (MMI32)action->cels.header.count;
     }
     if (input->cel_count <= 0)
         return fail(input, MM_MOVIE_BAD_FILE);
@@ -263,7 +307,7 @@ static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
 {
     ActorInput *input = (ActorInput *)p;
     const unsigned char *row;
-    MMI32 size;
+    MMI32 size, fields[2];
     if (!load_action(input, action))
         return 0;
     if (input->text)
@@ -271,10 +315,11 @@ static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
     else
     {
         cel = mm_template_wrap_cel(cel, input->cel_count);
-        row = mm_session_group_row(&input->cels, (MMU32)cel, &size);
+        row = mm_session_group_row(&input->resources.cels, (MMU32)cel, &size);
         if (!row)
             return fail(input, MM_MOVIE_BAD_FILE);
-        *out = mm_signed_word(mm_session_word(row + 4, input->cels.header.big_endian));
+        mm_action_decode_cel(row, input->resources.cel_other, fields);
+        *out = fields[1];
     }
     return 1;
 }
@@ -318,16 +363,15 @@ static void put_event(void *p, MMI32 row, const MMActorEvent *value)
 static const MMActorMotionServices motion = {route_width, route_count, route_point, event_width, motion_count,
                                            motion_event, motion_size, motion_payload};
 
-static MMMovieBodyInput body_input(const ActorInput *input)
+static MMMovieBodyInput body_input(ActorInput *input)
 {
     MMMovieBodyInput args;
     args.movie = input->movie;
     args.source = input->source;
     args.archive = &input->template_archive;
     args.template_position = input->template_position;
-    args.action_position = input->action_position;
     args.text = input->text;
-    args.cels = &input->cels;
+    args.action = &input->resources;
     args.cel = 0;
     return args;
 }
@@ -373,7 +417,7 @@ static void effect(void *p, const MMActorEffectCommand *command, MMActorEffectRe
         if (reply->success)
         {
             reply->value = input->cel_count;
-            reply->flags = input->action_flags;
+            reply->flags = input->resources.definition.flags;
         }
         break;
     case MM_EFFECT_SET_ACTION_CEL:
@@ -560,7 +604,7 @@ static int evaluate_slot(const MMMovieSession *movie, const MMMovieArchive *arch
         *body = input.evaluated_body;
     else
         mm_movie_body_dispose(input.evaluated_body);
-    free(input.cels.bytes);
+    clear_action(&input.resources);
     mm_session_archive_close(&input.template_archive);
     release_events(input.events);
     release_route(&input);

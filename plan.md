@@ -531,8 +531,11 @@ Keep host presentation and device output outside the session.
    alongside the selected camera and body bindings. The standalone evaluator,
    Studio and Marcus now load ACTR headers and their slot-zero PATH and GGAE
    tracks through the same graph reader. The shared decoder writes directly
-   to the caller's route and runtime event storage. Template and action inputs
-   still use separate snapshot and live cache paths.
+   to the caller's route and runtime event storage. The standalone evaluator
+   and the native template cache share the template header decoder and the C89
+   loader for ACTN flags, GGCL cels and GLXF matrices. Snapshot seeks cache the
+   matrix table per action and read it only when evaluating a body. Template
+   hierarchy and costume storage and native resource ownership remain work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
