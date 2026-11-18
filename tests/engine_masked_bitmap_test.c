@@ -1,5 +1,6 @@
 #include "mm/masked_bitmap.h"
 #include "mm/dib_frame.h"
+#include "mm/damage_map.h"
 #include "mm/ellipse_geometry.h"
 #include "mm/indexed_display.h"
 #include "mm/pixel_paint.h"
@@ -802,6 +803,64 @@ static void indexed_double(void)
     assert(output[0] == 13 && output[3] == 31 && output[4] == 0xee && output[5] == 0xee && output[8] == 0xee);
 }
 
+typedef struct DamageVisit
+{
+    MMPixelRect runs[2];
+    int used, limit;
+} DamageVisit;
+
+static int collect_damage(void *context, const MMPixelRect *rect)
+{
+    DamageVisit *visit = (DamageVisit *)context;
+    if (visit->used >= visit->limit)
+        return 0;
+    visit->runs[visit->used++] = *rect;
+    return 1;
+}
+
+static void pixel_storage_and_damage(void)
+{
+    MMPixelBuffer buffer = {{NULL, 0, 0, 0, 0}, 0};
+    MMDamageMap damage = {0}, copy = {0};
+    const MMPixelRect first = {1, 0, 3, 2}, last = {63, 0, 67, 2}, area = {0, 0, 67, 3};
+    DamageVisit visit;
+    MMPixelRect bounds;
+    unsigned char *pixels;
+    MMI32 pitch;
+    size_t bytes;
+    assert(mm_pixel_layout(2147483647L, 1, 1, 4, &pitch, &bytes));
+    assert(pitch == 268435456L && bytes == (size_t)268435456L);
+    assert(!mm_pixel_layout(2147483647L, 8, 1, 4, &pitch, &bytes));
+    assert(pitch == 268435456L && bytes == (size_t)268435456L);
+    assert(mm_pixel_buffer_init(&buffer, 5, 3, 24, 4));
+    pixels = (unsigned char *)buffer.surface.pixels;
+    assert(buffer.surface.pitch == 16 && buffer.bytes == 48 && pixels[47] == 0);
+    pixels[47] = 0xa7;
+    assert(!mm_pixel_buffer_init(&buffer, 5, 3, 2, 4));
+    assert(buffer.surface.pixels == pixels && pixels[47] == 0xa7);
+    mm_pixel_buffer_reset(&buffer);
+
+    assert(mm_damage_init(&damage, 67, 3));
+    mm_damage_set(&damage, &first, 1);
+    mm_damage_set(&damage, &last, 1);
+    assert(mm_damage_scroll(&damage, &area, 1, 1));
+    assert(mm_damage_bounds(&damage, &bounds) && bounds.left == 2 && bounds.top == 1 &&
+           bounds.right == 67 && bounds.bottom == 3);
+    assert(mm_damage_clone(&copy, &damage));
+    visit.used = 0;
+    visit.limit = 1;
+    assert(!mm_damage_take(&damage, collect_damage, &visit) && visit.used == 1);
+    assert(mm_damage_bounds(&damage, &bounds) && bounds.left == 2 && bounds.right == 67);
+    visit.used = 0;
+    visit.limit = 2;
+    assert(mm_damage_take(&damage, collect_damage, &visit) && visit.used == 2);
+    assert(visit.runs[0].left == 2 && visit.runs[0].right == 4 && visit.runs[0].top == 1 && visit.runs[0].bottom == 3);
+    assert(visit.runs[1].left == 64 && visit.runs[1].right == 67 && visit.runs[1].top == 1 && visit.runs[1].bottom == 3);
+    assert(!mm_damage_bounds(&damage, &bounds) && mm_damage_bounds(&copy, &bounds));
+    mm_damage_reset(&copy);
+    mm_damage_reset(&damage);
+}
+
 int main(void)
 {
     encode();
@@ -818,6 +877,7 @@ int main(void)
     packed_inversion();
     ellipse_rows();
     indexed_double();
+    pixel_storage_and_damage();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

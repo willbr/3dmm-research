@@ -2,6 +2,7 @@
 #include "pixel_buffer.h"
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error Pixel storage must not include native bitmap headers
 #endif

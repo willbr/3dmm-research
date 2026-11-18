@@ -30,21 +30,6 @@ static int mask_contains(const ScrollMask *mask, MMI32 x, MMI32 y)
     return mm_pixel_read(mask_row(mask, y), x - mask->bounds.left, 1) != 0;
 }
 
-static void mark_span(unsigned char *row, MMI32 left, MMI32 right)
-{
-    MMI32 bytes;
-    while (left < right && (left & 7))
-        mm_pixel_write(row, left++, 1, 1);
-    bytes = (right - left) / 8;
-    if (bytes)
-    {
-        memset(row + left / 8, 255, (size_t)bytes);
-        left += bytes * 8;
-    }
-    while (left < right)
-        mm_pixel_write(row, left++, 1, 1);
-}
-
 static int mark_region(ScrollMask *mask, const MMPixelRect *bounds, const MMPixelSpans *spans)
 {
     MMI32 y, left, right, height, row;
@@ -58,7 +43,7 @@ static int mark_region(ScrollMask *mask, const MMPixelRect *bounds, const MMPixe
         {
             if (!mask->bits && !allocate_mask(mask, bounds))
                 return 0;
-            mark_span(mask_row(mask, y), left - bounds->left, right - bounds->left);
+            mm_pixel_mask_span(mask_row(mask, y), left - bounds->left, right - bounds->left, 1);
         }
         if (mask->bits)
             for (row = y + 1; row < y + height; ++row)

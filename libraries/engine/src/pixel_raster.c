@@ -168,6 +168,21 @@ void mm_pixel_write(unsigned char *row, MMI32 x, int depth, MMU32 raw)
         pixel[3] = (unsigned char)(raw >> 24);
 }
 
+void mm_pixel_mask_span(unsigned char *row, MMI32 left, MMI32 right, int marked)
+{
+    MMI32 bytes;
+    while (left < right && (left & 7))
+        mm_pixel_write(row, left++, 1, marked != 0);
+    bytes = (right - left) / 8;
+    if (bytes > 0)
+    {
+        memset(row + left / 8, marked ? 255 : 0, (size_t)bytes);
+        left += bytes * 8;
+    }
+    while (left < right)
+        mm_pixel_write(row, left++, 1, marked != 0);
+}
+
 MMU32 mm_pixel_rgb(const unsigned char *colour)
 {
     return ((MMU32)colour[2] << 16) | ((MMU32)colour[1] << 8) | colour[0];

@@ -5127,6 +5127,19 @@ guard. The unguarded code differed in 23 overlapping-buffer cases. All 6,480
 crop plans and 9,216 palette updates matched outright. The Windows palette
 oracle also matched 2,408 sequential updates. Evidence is in `tmp/c89-indexed-display`.
 
+`pixel_storage.c` checks row alignment and byte counts for all six packed depths
+and owns zero-initialized offscreen buffers. DIB frame validation shares the
+layout checks. A failed resize leaves the current buffer in place. Kauai's
+`PixelBuffer` adapter maintains its atomic allocation counters.
+
+`damage_map.c` owns the packed SDL damage mask and groups identical adjacent
+rows into scan bands. It uses the packed pixel mover to scroll damage and clears
+the newly exposed strips without allocating. It clears pending damage only
+after the rectangle visitor succeeds. Before-and-after comparisons matched
+18,000 damage states, 10,000 buffer states and 134,720 DIB and snapshot cases.
+Allocation-failure checks covered buffer replacement, damage resize and damage
+copy. Evidence is in `tmp/c89-pixel-storage`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit

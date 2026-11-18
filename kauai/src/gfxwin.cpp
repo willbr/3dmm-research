@@ -16,6 +16,7 @@
 #include "pixel_buffer.h"
 #include "palette_state.h"
 #include <cstring>
+#include <memory>
 #include "dib_frame.h"
 #include "font_gdi.h"
 #endif

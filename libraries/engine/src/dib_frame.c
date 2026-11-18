@@ -1,6 +1,7 @@
 /* DIB frame policy converted from Kauai dib_frame.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/dib_frame.h"
+#include "mm/pixel_storage.h"
 #include <string.h>
 
 #define DIB_HEADER_BYTES 40
@@ -8,32 +9,32 @@
 int mm_dib_info(const void *data, size_t available, MMDibInfo *info)
 {
     const unsigned char *header = (const unsigned char *)data;
-    MMU32 width, raw_height, depth, height, pitch, bytes, decoded, declared;
+    MMU32 width, raw_height, depth, height, declared;
+    MMI32 pitch;
+    size_t bytes;
     if (!header || available < DIB_HEADER_BYTES || mm_pixel_read(header, 0, 32) != DIB_HEADER_BYTES)
         return 0;
     width = mm_pixel_read(header, 1, 32);
     raw_height = mm_pixel_read(header, 2, 32);
     depth = mm_pixel_read(header + 14, 0, 16);
-    if (!width || width > 2147483647UL / 4 || !raw_height || raw_height == 0x80000000UL ||
+    if (!width || width > 2147483647UL || !raw_height || raw_height == 0x80000000UL ||
         header[12] != 1 || header[13] || (depth != 24 && depth != 32) || mm_pixel_read(header, 4, 32) ||
         mm_pixel_read(header, 8, 32))
         return 0;
     height = raw_height & 0x80000000UL ? 0U - raw_height : raw_height;
-    if (height > 2147483647UL / (width * 4))
+    if (!mm_pixel_layout((MMI32)width, (MMI32)height, 32, 4, &pitch, &bytes) ||
+        !mm_pixel_layout((MMI32)width, (MMI32)height, (MMI32)depth, 4, &pitch, &bytes))
         return 0;
-    decoded = width * 4 * height;
-    pitch = (width * (depth / 8) + 3) & ~(MMU32)3;
-    bytes = pitch * height;
     declared = mm_pixel_read(header, 5, 32);
-    if ((size_t)decoded != decoded || (size_t)bytes > (size_t)-1 - DIB_HEADER_BYTES || (declared && declared < bytes))
+    if (bytes > (size_t)-1 - DIB_HEADER_BYTES || (declared && declared < bytes))
         return 0;
 
     info->width = (MMI32)width;
     info->height = (MMI32)height;
     info->depth = (MMI32)depth;
-    info->pitch = (MMI32)pitch;
+    info->pitch = pitch;
     info->bottom_up = (raw_height & 0x80000000UL) == 0;
-    info->bytes = (size_t)bytes + DIB_HEADER_BYTES;
+    info->bytes = bytes + DIB_HEADER_BYTES;
     return 1;
 }
 

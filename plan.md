@@ -772,6 +772,9 @@ limits and reserved-slot handling.
 C89 also handles pixel scrolling across all six packed depths, including
 source and destination region clipping and the original full-byte-first
 rule for leftward monochrome moves.
+C89 validates packed row sizes for offscreen buffers and DIB frames and owns
+the offscreen allocations. It also owns SDL damage masks, including scan-band
+rectangle extraction and scrolling. Kauai retains its atomic allocation counters.
 C89 resolves Boolean and monochrome brushes, fills and frames rectangles and
 ovals, fills polygons using nonzero winding, and applies glyph coverage.
 Ellipse subdivision keeps the fixed-point and large-bounds paths and shares

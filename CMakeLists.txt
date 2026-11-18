@@ -47,6 +47,7 @@ target_include_directories(midi-runtime-trace-test PRIVATE "${PROJECT_SOURCE_DIR
 target_link_libraries(midi-runtime-trace-test PRIVATE mm-engine-c89 Threads::Threads)
 add_library(kauai-damage STATIC kauai/src/damage_map.cpp)
 target_include_directories(kauai-damage PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+target_link_libraries(kauai-damage PUBLIC mm-engine-c89)
 add_executable(damage-map-test EXCLUDE_FROM_ALL tests/damage_map_test.cpp)
 target_link_libraries(damage-map-test PRIVATE kauai-damage)
 add_library(studio-content STATIC src/studio/content.cpp

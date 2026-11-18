@@ -2102,8 +2102,10 @@ single-instance name and skips the native build's post-build installation copy.
 
 SDL3 presents a 640 by 480 framebuffer and delivers pointer and keyboard events
 to the existing Kauai command handlers. Offscreen pixel ownership, including
-the presented framebuffer, now lives in SDK-free `KauaiPixels::PixelBuffer`
-storage. Windows DIBs remain as compatibility mirrors for native drawing.
+the presented framebuffer, lives in C89 storage behind `KauaiPixels::PixelBuffer`.
+C89 also tracks dirty rectangles and scrolls the damage mask behind
+`KauaiPixels::DamageMap`. Windows DIBs serve as compatibility mirrors for native
+drawing.
 Rectangle fill/frame/highlight operations, filled polygons, thick
 lines and 32-bit, indexed-to-RGB or indexed-to-indexed bitmap transfers now use the portable
 `kauai-core` pixel canvas. Rectangle/polygon fills, frames, thick lines and

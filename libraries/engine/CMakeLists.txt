@@ -282,7 +282,7 @@ target_sources(mm-engine-c89 PRIVATE src/bitmap_file.c)
 target_sources(mm-engine-c89 PRIVATE src/depth_bitmap.c)
 target_sources(mm-engine-c89 PRIVATE src/masked_bitmap.c)
 target_sources(mm-engine-c89 PRIVATE src/pixel_raster.c src/pixel_paint.c src/ellipse_geometry.c src/pixel_scroll.c
-                                    src/dib_frame.c src/indexed_display.c)
+                                    src/dib_frame.c src/indexed_display.c src/pixel_storage.c src/damage_map.c)
 target_sources(mm-engine-c89 PRIVATE src/world_buffers.c)
 target_sources(mm-engine-c89 PRIVATE src/world_camera.c)
 target_sources(mm-engine-c89 PRIVATE src/render_frame.c src/world_render.c)
@@ -1201,6 +1201,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ellipse_geometry.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/pixel_scroll.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/indexed_display.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/pixel_storage.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/damage_map.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/dib_frame.c"
     "${engine_masked_bitmap_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/world_buffers.c"

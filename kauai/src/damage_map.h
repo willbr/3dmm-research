@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#include "mm/damage_map.h"
 namespace KauaiPixels
 {
 struct DamageRect
@@ -14,15 +15,17 @@ struct DamageRect
 // One bit per pixel; snapshots merge identical adjacent scanlines into bands.
 class DamageMap
 {
-    std::int32_t width = 0, height = 0;
-    std::size_t stride = 0;
-    std::vector<std::uint64_t> bits;
-    mutable bool boundsValid = false;
-    mutable DamageRect cached;
-    bool Clip(DamageRect &rectangle) const;
+    mutable MMDamageMap map{};
     void Apply(const DamageRect *rectangle, bool invalidate);
 
   public:
+    DamageMap() = default;
+    ~DamageMap();
+    DamageMap(const DamageMap &);
+    DamageMap &operator=(const DamageMap &);
+    DamageMap(DamageMap &&) noexcept;
+    DamageMap &operator=(DamageMap &&) noexcept;
+
     // Transactional reset to an empty map. Invalid sizes leave state intact.
     bool Init(std::int32_t width, std::int32_t height);
     void Invalidate(const DamageRect *rectangle = nullptr);

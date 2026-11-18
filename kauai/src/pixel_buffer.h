@@ -3,7 +3,7 @@
 #define KAUAI_PIXEL_BUFFER_H
 #include <cstdint>
 #include <cstddef>
-#include <memory>
+#include "mm/pixel_storage.h"
 namespace KauaiPixels
 {
 struct BufferStatistics
@@ -16,9 +16,7 @@ BufferStatistics PixelBuffers();
 // bitmap, device context, window or SDL resource owns this storage.
 class PixelBuffer
 {
-    std::unique_ptr<std::uint8_t[]> pixels;
-    std::int32_t width = 0, height = 0, depth = 0, pitch = 0;
-    std::size_t bytes = 0;
+    MMPixelBuffer storage{};
 
   public:
     PixelBuffer() = default;
@@ -31,31 +29,31 @@ class PixelBuffer
     void Reset();
     void *Pixels()
     {
-        return pixels.get();
+        return storage.surface.pixels;
     }
     const void *Pixels() const
     {
-        return pixels.get();
+        return storage.surface.pixels;
     }
     std::int32_t Width() const
     {
-        return width;
+        return storage.surface.width;
     }
     std::int32_t Height() const
     {
-        return height;
+        return storage.surface.height;
     }
     std::int32_t Depth() const
     {
-        return depth;
+        return storage.surface.depth;
     }
     std::int32_t Pitch() const
     {
-        return pitch;
+        return storage.surface.pitch;
     }
     std::size_t Bytes() const
     {
-        return bytes;
+        return storage.bytes;
     }
 };
 } // namespace KauaiPixels

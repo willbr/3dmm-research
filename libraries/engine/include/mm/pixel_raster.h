@@ -66,6 +66,8 @@ MMI32 mm_pixel_sample(MMI32 position, MMI32 source, MMI32 destination, int near_
 /* The caller supplies a row and an in-range pixel position. */
 MMU32 mm_pixel_read(const unsigned char *row, MMI32 x, int depth);
 void mm_pixel_write(unsigned char *row, MMI32 x, int depth, MMU32 value);
+/* Set or clear an in-range span of 1-bit pixels, preserving adjacent bits. */
+void mm_pixel_mask_span(unsigned char *row, MMI32 left, MMI32 right, int marked);
 /* Palettes contain blue, green, red and reserved bytes. Ties take the first index. */
 MMU32 mm_pixel_rgb(const unsigned char *colour);
 MMU32 mm_pixel_rgb555(MMU32 rgb);
