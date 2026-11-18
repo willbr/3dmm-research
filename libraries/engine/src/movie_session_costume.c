@@ -9,7 +9,7 @@ static int read_custom(const MMMovieBodyInput *in, const MMChunkEntry *entry, MM
     const unsigned short one = 1;
     MMMoviePayload payload;
     unsigned char bytes[8];
-    int status = mm_session_payload(in->archive, entry, sizeof(bytes), &payload);
+    int status = mm_session_payload(&in->tmpl->archive, entry, sizeof(bytes), &payload);
     if (status != MM_MOVIE_OK)
         return status;
     if (!mm_read_exact(payload.stream, 0, bytes, sizeof(bytes)))
@@ -34,12 +34,12 @@ int mm_movie_costume_link(const MMChunkAccess *access, MMU32 parent, MMU32 id,
 
 int mm_session_costume_find(const MMMovieBodyInput *in, MMI32 id, MMMovieCustomCostume *out)
 {
-    MMChunkAccess access = in->archive->access;
+    MMChunkAccess access = in->tmpl->archive.access;
     MMChunkEntry entry;
     int status;
     if (id < 0 || in->text)
         return MM_MOVIE_ASSET_NOT_FOUND;
-    status = mm_movie_costume_link(&access, in->template_position, (MMU32)id, &entry, &out->position);
+    status = mm_movie_costume_link(&access, in->tmpl->position, (MMU32)id, &entry, &out->position);
     if (status != MM_MOVIE_OK)
         return status;
     return read_custom(in, &entry, &out->set);
@@ -94,7 +94,7 @@ int mm_session_costume_apply(const MMMovieBodyInput *in, MMMovieEvaluatedBody *b
     MovieCostumeBinding request;
     MMBodySetServices parts;
     MMI32 count;
-    request.access = in->archive->access;
+    request.access = in->tmpl->archive.access;
     request.position = custom->position;
     request.status = MM_MOVIE_OK;
     parts.context = &request;
@@ -129,23 +129,24 @@ typedef struct MovieDefaultTable
 {
     const MMMovieBodyInput *input;
     MMMovieEvaluatedBody *body;
-    MMMovieGroup group;
+    const MMMovieGroup *group;
     int status;
 } MovieDefaultTable;
 
 static int movie_costume_id(void *context, MMI32 set, MMI32 index, MMI32 *id)
 {
     MovieDefaultTable *table = (MovieDefaultTable *)context;
-    const MMMovieGroup *group = &table->group;
+    const MMMovieGroup *group = table->group;
     const unsigned char *row;
     MMI32 size, count;
     row = mm_session_group_row(group, (MMU32)set, &size);
-    if (row && size >= 4)
+    if (row && size >= MM_TEMPLATE_COSTUME_WORD_BYTES)
     {
-        count = mm_signed_word(mm_session_word(row, group->header.big_endian));
-        if (index >= 0 && index < count && count <= size / 4)
+        count = mm_template_decode_costume_word(row, group->header.big_endian);
+        if (index >= 0 && index < count && count <= size / MM_TEMPLATE_COSTUME_WORD_BYTES)
         {
-            *id = mm_signed_word(mm_session_word(row + 4 + (MMU32)index * 4, group->header.big_endian));
+            *id = mm_template_decode_costume_word(row + ((MMU32)index + 1) * MM_TEMPLATE_COSTUME_WORD_BYTES,
+                                                  group->header.big_endian);
             return 1;
         }
     }
@@ -164,27 +165,19 @@ static int movie_costume_prepare(void *context, MMI32 set, MMI32 id)
     return table->status == MM_MOVIE_OK;
 }
 
-static int group_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body, const MMChunkEntry *entry,
-                         MMI32 sets)
+static int group_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
 {
     MovieDefaultTable table;
     MMTemplateDefaultServices defaults;
-    table.status = mm_session_group(in->archive, entry, &table.group);
-    if (table.status != MM_MOVIE_OK)
-        return table.status;
-    if (table.group.header.width == 4 && table.group.header.count == (MMU32)sets)
-    {
-        table.input = in;
-        table.body = body;
-        defaults.context = &table;
-        defaults.costume_id = movie_costume_id;
-        defaults.prepare = movie_costume_prepare;
-        defaults.apply = NULL;
-        mm_template_bind_defaults(sets, &defaults);
-    }
-    else
-        table.status = MM_MOVIE_BAD_FILE;
-    free(table.group.bytes);
+    table.group = (const MMMovieGroup *)in->tmpl->state.costumes;
+    table.status = MM_MOVIE_OK;
+    table.input = in;
+    table.body = body;
+    defaults.context = &table;
+    defaults.costume_id = movie_costume_id;
+    defaults.prepare = movie_costume_prepare;
+    defaults.apply = NULL;
+    mm_template_bind_defaults(in->tmpl->state.set_count, &defaults);
     return table.status;
 }
 
@@ -206,7 +199,7 @@ static int movie_legacy_child(void *context, MMU32 ordinal, MMTemplateChild *out
     MMChunkChild child;
     if (ordinal >= legacy->children)
         return 0;
-    if (mm_chunk_child_at(legacy->access, legacy->input->template_position, ordinal, &child) != MM_CHUNK_OK)
+    if (mm_chunk_child_at(legacy->access, legacy->input->tmpl->position, ordinal, &child) != MM_CHUNK_OK)
     {
         legacy->status = MM_MOVIE_BAD_FILE;
         return -1;
@@ -254,7 +247,7 @@ static int legacy_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *bod
     MovieLegacyCostumes legacy;
     MMTemplateCostumeScan scan;
     MMChunkEntry parent;
-    if (mm_chunk_at(access, in->template_position, &parent) != MM_CHUNK_OK)
+    if (mm_chunk_at(access, in->tmpl->position, &parent) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
     legacy.selected = (unsigned char *)calloc((size_t)sets, 1);
     if (!legacy.selected)
@@ -276,22 +269,22 @@ static int legacy_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *bod
 
 int mm_session_costume_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
 {
-    MMChunkAccess access = in->archive->access;
-    MMChunkEntry entry;
-    MMU32 i, position;
-    MMI32 sets = 0;
+    MMMovieTemplate *tmpl = in->tmpl;
+    MMTemplateRead reader;
     int status;
-    for (i = 0; i < body->part_count; ++i)
-        if (body->parts[i].set >= sets)
-            sets = body->parts[i].set + 1;
-    if (!sets)
+    if (!tmpl->state.set_count)
         return MM_MOVIE_OK;
-    status = mm_session_child(&access, in->template_position, 0, MM_GGCM, &entry, &position);
-    if (status == MM_CHUNK_OK)
-        return group_defaults(in, body, &entry, sets);
-    if (status != MM_CHUNK_NOT_FOUND)
-        return MM_MOVIE_BAD_FILE;
-    return legacy_defaults(in, body, &access, sets);
+    if (!tmpl->state.costumes && !tmpl->costumes_absent)
+    {
+        reader = mm_session_template_reader(tmpl);
+        status = mm_template_read_costumes(&tmpl->state, &reader);
+        if (status == MM_TEMPLATE_COSTUMES_ABSENT)
+            tmpl->costumes_absent = 1;
+        else if (status != MM_MOVIE_OK)
+            return status;
+    }
+    return tmpl->state.costumes ? group_defaults(in, body)
+                                : legacy_defaults(in, body, &tmpl->archive.access, tmpl->state.set_count);
 }
 
 int mm_session_costume_material(const MMMovieSession *movie, const MMMovieSource *source,

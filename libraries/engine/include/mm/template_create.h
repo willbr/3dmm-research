@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_TEMPLATE_CREATE_H
 #define MM_ENGINE_TEMPLATE_CREATE_H
 #include "types.h"
+#include "movie_data.h"
 #include <stddef.h>
 #if USHRT_MAX != 65535U
 #error Template rest angles require sixteen-bit unsigned shorts
@@ -32,6 +33,35 @@ enum { MM_TEMPLATE_HEADER_BYTES = 16 };
  * Returns zero for unknown byte order after decoding with the host fallback. */
 int mm_template_decode_header(const unsigned char bytes[MM_TEMPLATE_HEADER_BYTES], int host_big_endian,
                               MMTemplateState *);
+
+enum { MM_TEMPLATE_INDEX_BYTES = 2, MM_TEMPLATE_COSTUME_WORD_BYTES = 4 };
+enum { MM_TEMPLATE_COSTUMES_ABSENT = -1 };
+typedef struct MMTemplateRead
+{
+    void *context;
+    int (*table)(void *, int kind, MMI32 expected, void **out);
+} MMTemplateRead;
+
+/* Table reads return movie statuses, with MM_TEMPLATE_COSTUMES_ABSENT for a
+ * missing GGCM link. The owner publishes each table as the reader acquires it
+ * and retains partial ownership on failure. */
+int mm_template_read_shape(MMTemplateState *, const MMTemplateRead *);
+int mm_template_read_costumes(MMTemplateState *, const MMTemplateRead *);
+MMU32 mm_template_table_type(int kind);
+MMI32 mm_template_decode_index(const unsigned char *, int big_endian);
+MMI32 mm_template_decode_costume_word(const unsigned char *, int big_endian);
+
+typedef struct MMTemplateParts
+{
+    void *context;
+    MMI32 count;
+    int (*part_set)(void *, MMI32 index, MMI32 *set);
+} MMTemplateParts;
+
+/* Count sets up to and including the highest nonnegative set index. The
+ * provider may read the associated parent and prepare the part during the
+ * same traversal. Callers discard partial results when a part read fails. */
+int mm_template_count_sets(MMTemplateState *, const MMTemplateParts *);
 typedef struct MMTemplateChild { MMU32 type,number,id; } MMTemplateChild;
 typedef struct MMTemplateCostumeScan
 {

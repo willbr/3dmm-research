@@ -255,9 +255,12 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
     s.state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PTemplate>(object)->_template; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMTemplateChild *out) -> int {
-        ChildChunkIdentification child;
-        if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, id, childType, &child)) return 0;
-        *out = {child.cki.ctg, child.cki.cno, child.chid}; return 1;
+        const auto chunks = static_cast<PChunkyFile>(file)->ReadChunkAccess();
+        MMU32 child;
+        if (mm_chunk_link_number(&chunks, type, number, id, childType, &child) != MM_CHUNK_OK)
+            return 0;
+        *out = {childType, child, id};
+        return 1;
     };
     s.enumerate = [](void *, void *file, MMU32 type, MMU32 number, MMI32 index, MMTemplateChild *out) -> int {
         ChildChunkIdentification child;
@@ -304,7 +307,11 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
         } else Assert(static_cast<PDynamicArray>(table)->CbEntry() == sizeof(short), "Bad Template part list");
     };
     s.count = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
-    s.item = [](void *, void *list, MMI32 i) -> MMI32 { short value; static_cast<PDynamicArray>(list)->Get(i, &value); return value; };
+    s.item = [](void *, void *list, MMI32 i) -> MMI32 {
+        const unsigned short one = 1;
+        const auto *bytes = static_cast<const unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(i));
+        return mm_template_decode_index(bytes, *reinterpret_cast<const unsigned char *>(&one) == 0);
+    };
     s.list_data = [](void *, void *list) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(0)); };
     s.fixed_data = [](void *, void *group, MMI32 row) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvFixedGet(row)); };
     s.variable_data = [](void *, void *group, MMI32 row) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvGet(row)); };

@@ -1,5 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/template_create.h"
+#include "mm/movie_session.h"
+#include "mm/wide.h"
 #include <string.h>
 void mm_template_state_init(MMTemplateState *state)
 { memset(state, 0, sizeof(*state)); }
@@ -10,6 +12,55 @@ static void put(unsigned char *p,int n,MMU32 value,int big)
 { int i; for (i=0;i<n;++i) { p[big?n-1-i:i]=(unsigned char)(value&255U); value>>=8; } }
 static void swap(unsigned char *p,MMI32 count,int stride)
 { MMI32 i; int j; unsigned char t; for (i=0;i<count;++i,p+=stride) for (j=0;j<stride/2;++j) { t=p[j]; p[j]=p[stride-1-j]; p[stride-1-j]=t; } }
+
+MMU32 mm_template_table_type(int kind)
+{
+    static const MMU32 types[] = {MM_GLPI, MM_GLBS, MM_GGCM};
+    return types[kind];
+}
+
+MMI32 mm_template_decode_index(const unsigned char *bytes, int big)
+{
+    MMU32 value = word(bytes, MM_TEMPLATE_INDEX_BYTES, big);
+    return value < 32768 ? (MMI32)value : (MMI32)value - 65536L;
+}
+
+MMI32 mm_template_decode_costume_word(const unsigned char *bytes, int big)
+{
+    return mm_signed_word(word(bytes, MM_TEMPLATE_COSTUME_WORD_BYTES, big));
+}
+
+int mm_template_read_shape(MMTemplateState *state, const MMTemplateRead *reader)
+{
+    int status = reader->table(reader->context, MM_TEMPLATE_PARENTS, 0, &state->parents);
+    if (status != MM_MOVIE_OK)
+        return status;
+    return reader->table(reader->context, MM_TEMPLATE_SETS, 0, &state->sets);
+}
+
+int mm_template_read_costumes(MMTemplateState *state, const MMTemplateRead *reader)
+{
+    return reader->table(reader->context, MM_TEMPLATE_COSTUMES, state->set_count, &state->costumes);
+}
+
+int mm_template_count_sets(MMTemplateState *state, const MMTemplateParts *parts)
+{
+    MMI32 i, set;
+    int status;
+    state->set_count = -1;
+    for (i = 0; i < parts->count; ++i)
+    {
+        status = parts->part_set(parts->context, i, &set);
+        if (status != MM_MOVIE_OK)
+            return status;
+        if (set >= 0x7fffffffL)
+            return MM_MOVIE_BAD_FILE;
+        if (set > state->set_count)
+            state->set_count = set;
+    }
+    ++state->set_count;
+    return MM_MOVIE_OK;
+}
 
 int mm_template_scan_costumes(MMI32 set, const MMTemplateCostumeScan *s)
 {
@@ -184,49 +235,90 @@ done:
     return ok;
 }
 
-int mm_template_initialize(void *object,void *file,MMU32 type,MMU32 number,const MMTemplateCreateServices *s)
+typedef struct NativeTemplateRead
 {
-    MMTemplateState t; MMTemplateChild child; MMI32 i,count,set;
-    void *block; int other;
-    if (!s->header(s->context,object,file,type,number)) return 0;
-    t=*s->state(s->context,object);
-    if (!s->child(s->context,file,type,number,0,MM_GLPI,&child) ||
-        !(block=s->find(s->context,file,child.type,child.number))) return 0;
-    t.parents=s->read_table(s->context,block,MM_TEMPLATE_PARENTS,&other); *s->state(s->context,object)=t;
-    if (!t.parents) return 0;
-    s->validate_table(s->context,t.parents,MM_TEMPLATE_PARENTS,0);
-    if (other) swap(s->list_data(s->context,t.parents),s->count(s->context,t.parents),2);
-    if (!s->child(s->context,file,type,number,0,MM_GLBS,&child) ||
-        !(block=s->find(s->context,file,child.type,child.number))) return 0;
-    t.sets=s->read_table(s->context,block,MM_TEMPLATE_SETS,&other); *s->state(s->context,object)=t;
-    if (!t.sets) return 0;
-    s->validate_table(s->context,t.sets,MM_TEMPLATE_SETS,0);
-    if (other) swap(s->list_data(s->context,t.sets),s->count(s->context,t.sets),2);
-    if (s->debug_checks && s->child(s->context,file,type,number,0,MM_GLDC,&child)) diagnostic(s,MM_TEMPLATE_OBSOLETE);
-    t.set_count=-1; *s->state(s->context,object)=t;
-    for (i=0;i<s->count(s->context,t.sets);++i)
-    { set=s->item(s->context,t.sets,i); if (set>t.set_count) { t.set_count=set; *s->state(s->context,object)=t; } }
-    ++t.set_count; t.custom_count=0; *s->state(s->context,object)=t;
-    while (s->child(s->context,file,type,number,(MMU32)t.custom_count,MM_CMTL,&child))
-    { ++t.custom_count; *s->state(s->context,object)=t; }
-    t.action_count=0; *s->state(s->context,object)=t;
-    while (s->child(s->context,file,type,number,(MMU32)t.action_count,MM_ACTN,&child))
-    { ++t.action_count; *s->state(s->context,object)=t; }
-    if (s->child(s->context,file,type,number,0,MM_GGCM,&child))
+    const MMTemplateCreateServices *services;
+    MMTemplateState *state;
+    void *file;
+    MMU32 type, number;
+} NativeTemplateRead;
+
+static int read_native_table(void *context, int kind, MMI32 expected, void **out)
+{
+    const NativeTemplateRead *read = (const NativeTemplateRead *)context;
+    const MMTemplateCreateServices *s = read->services;
+    MMTemplateChild child;
+    void *block;
+    unsigned char *fixed;
+    MMI32 i, count;
+    int other;
+    if (!s->child(s->context, read->file, read->type, read->number, 0, mm_template_table_type(kind), &child))
+        return kind == MM_TEMPLATE_COSTUMES ? MM_TEMPLATE_COSTUMES_ABSENT : MM_MOVIE_ASSET_NOT_FOUND;
+    block = s->find(s->context, read->file, child.type, child.number);
+    if (!block)
+        return MM_MOVIE_BAD_FILE;
+    *out = s->read_table(s->context, block, kind, &other);
+    if (!*out)
+        return MM_MOVIE_BAD_FILE;
+    s->validate_table(s->context, *out, kind, expected);
+    if (other && kind == MM_TEMPLATE_COSTUMES)
     {
-        block=s->find(s->context,file,child.type,child.number); if (!block) return 0;
-        t.costumes=s->read_table(s->context,block,MM_TEMPLATE_COSTUMES,&other); *s->state(s->context,object)=t;
-        if (!t.costumes) return 0;
-        s->validate_table(s->context,t.costumes,MM_TEMPLATE_COSTUMES,t.set_count);
-        if (other) for (i=0;i<t.set_count;++i)
+        for (i = 0; i < expected; ++i)
         {
-            swap(s->fixed_data(s->context,t.costumes,i),1,4);
-            count=(MMI32)word(s->fixed_data(s->context,t.costumes,i),4,s->host_big_endian);
-            swap(s->variable_data(s->context,t.costumes,i),count,4);
+            fixed = s->fixed_data(s->context, *out, i);
+            swap(fixed, 1, MM_TEMPLATE_COSTUME_WORD_BYTES);
+            count = mm_template_decode_costume_word(fixed, s->host_big_endian);
+            swap(s->variable_data(s->context, *out, i), count, MM_TEMPLATE_COSTUME_WORD_BYTES);
         }
-        return 1;
     }
-    return build_costumes(object, file, type, number, &t, s);
+    else if (other)
+        swap(s->list_data(s->context, *out), s->count(s->context, *out), MM_TEMPLATE_INDEX_BYTES);
+    return MM_MOVIE_OK;
+}
+
+static int native_part_set(void *context, MMI32 index, MMI32 *set)
+{
+    const NativeTemplateRead *read = (const NativeTemplateRead *)context;
+    const MMTemplateCreateServices *s = read->services;
+    *set = s->item(s->context, read->state->sets, index);
+    return MM_MOVIE_OK;
+}
+
+int mm_template_initialize(void *object, void *file, MMU32 type, MMU32 number, const MMTemplateCreateServices *s)
+{
+    NativeTemplateRead native;
+    MMTemplateRead reader = {NULL, read_native_table};
+    MMTemplateParts parts = {NULL, 0, native_part_set};
+    MMTemplateState *state;
+    MMTemplateChild child;
+    int status;
+    if (!s->header(s->context, object, file, type, number))
+        return 0;
+    state = s->state(s->context, object);
+    native.services = s;
+    native.state = state;
+    native.file = file;
+    native.type = type;
+    native.number = number;
+    reader.context = &native;
+    if (mm_template_read_shape(state, &reader) != MM_MOVIE_OK)
+        return 0;
+    if (s->debug_checks && s->child(s->context, file, type, number, 0, MM_GLDC, &child))
+        diagnostic(s, MM_TEMPLATE_OBSOLETE);
+    parts.context = &native;
+    parts.count = s->count(s->context, state->sets);
+    if (mm_template_count_sets(state, &parts) != MM_MOVIE_OK)
+        return 0;
+    state->custom_count = 0;
+    while (s->child(s->context, file, type, number, (MMU32)state->custom_count, MM_CMTL, &child))
+        ++state->custom_count;
+    state->action_count = 0;
+    while (s->child(s->context, file, type, number, (MMU32)state->action_count, MM_ACTN, &child))
+        ++state->action_count;
+    status = mm_template_read_costumes(state, &reader);
+    if (status == MM_TEMPLATE_COSTUMES_ABSENT)
+        return build_costumes(object, file, type, number, state, s);
+    return status == MM_MOVIE_OK;
 }
 void mm_template_dispose(void *object,const MMTemplateCreateServices *s)
 {

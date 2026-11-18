@@ -596,7 +596,8 @@ static void movie_directory(void)
 enum
 {
     ACTOR_FIXTURE_OK, ACTOR_FIXTURE_MISSING_PAINT, ACTOR_FIXTURE_BAD_MATRIX,
-    ACTOR_FIXTURE_CUSTOM_DEFAULT, ACTOR_FIXTURE_MISSING_DEFAULT, ACTOR_FIXTURE_MISSING_MATRICES
+    ACTOR_FIXTURE_CUSTOM_DEFAULT, ACTOR_FIXTURE_MISSING_DEFAULT, ACTOR_FIXTURE_MISSING_MATRICES,
+    ACTOR_FIXTURE_BAD_COSTUME_TABLE
 };
 
 static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
@@ -660,7 +661,7 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
     put32(row + 220, 140, big);
     put32(row + 224, 48, big);
     group_header(raw[DEFAULTS], 1, 8, 4, big);
-    put32(raw[DEFAULTS] + 20, 1, big);
+    put32(raw[DEFAULTS] + 20, issue == ACTOR_FIXTURE_BAD_COSTUME_TABLE ? 2 : 1, big);
     if (issue == ACTOR_FIXTURE_CUSTOM_DEFAULT)
         put32(raw[DEFAULTS] + 24, 1, big);
     else if (issue == ACTOR_FIXTURE_MISSING_DEFAULT)
@@ -839,6 +840,13 @@ static void movie_actors(void)
     CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
     CHECK(actor.state.cel == 2 && actor.state.position.dxr == 196600);
     CHECK(mm_movie_session_body(movie, 0, 2, 0, NULL, NULL, &body) == MM_MOVIE_ASSET_NOT_FOUND && body == previous);
+    mm_movie_session_close(movie);
+
+    size = actor_fixture(bytes, 0, 0, ACTOR_FIXTURE_BAD_COSTUME_TABLE);
+    CHECK(mm_memory_stream_init(&input, bytes, size));
+    CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_actor(movie, 0, 3, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
+    CHECK(mm_movie_session_body(movie, 0, 2, 0, NULL, NULL, &body) == MM_MOVIE_BAD_FILE && body == previous);
     mm_movie_body_dispose(body);
     mm_movie_session_close(movie);
 }

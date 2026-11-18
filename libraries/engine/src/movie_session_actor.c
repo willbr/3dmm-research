@@ -25,9 +25,7 @@ typedef struct ActorInput
     MMActorRoutePoint *route;
     MMI32 route_count;
     ActorEvents *events;
-    MMMovieArchive template_archive;
-    MMU32 template_position;
-    unsigned short rest[3];
+    MMMovieTemplate tmpl;
     int text, status;
     MMI32 action, cel_count;
     MMMovieAction resources;
@@ -165,37 +163,33 @@ static int fetch_template(void *p, const MMActorHeader *header, void **token)
 {
     ActorInput *input = (ActorInput *)p;
     MMMovieAsset asset;
-    const MMChunkAccess *access = &input->template_archive.access;
+    const MMChunkAccess *access = &input->tmpl.archive.access;
     MMChunkEntry entry;
     MMMoviePayload payload;
     MMU32 position;
     unsigned char bytes[MM_TEMPLATE_HEADER_BYTES];
-    MMTemplateState template_header;
     int status;
     const unsigned short one = 1;
     asset.source = header->source_id;
     asset.type = header->template_type;
     asset.number = header->template_number;
-    status = mm_session_archive(input->movie, input->source, &asset, &input->template_archive);
+    status = mm_session_archive(input->movie, input->source, &asset, &input->tmpl.archive);
     if (status != MM_MOVIE_OK)
         return fail(input, status);
-    status = mm_chunk_find(access, asset.type, asset.number, &input->template_position);
+    status = mm_chunk_find(access, asset.type, asset.number, &input->tmpl.position);
     if (status == MM_CHUNK_NOT_FOUND)
         return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
-    if (status != MM_CHUNK_OK || mm_chunk_at(access, input->template_position, &entry) != MM_CHUNK_OK)
+    if (status != MM_CHUNK_OK || mm_chunk_at(access, input->tmpl.position, &entry) != MM_CHUNK_OK)
         return fail(input, MM_MOVIE_BAD_FILE);
-    status = mm_session_payload(&input->template_archive, &entry, 0, &payload);
+    status = mm_session_payload(&input->tmpl.archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return fail(input, status);
     status = mm_read_exact(payload.stream, 0, bytes, sizeof(bytes));
     free(payload.decoded);
     if (!status)
         return fail(input, MM_MOVIE_BAD_FILE);
-    mm_template_decode_header(bytes, *(const unsigned char *)&one == 0, &template_header);
-    input->rest[0] = template_header.x;
-    input->rest[1] = template_header.y;
-    input->rest[2] = template_header.z;
-    status = mm_session_child(access, input->template_position, 0, MM_TDT, &entry, &position);
+    mm_template_decode_header(bytes, *(const unsigned char *)&one == 0, &input->tmpl.state);
+    status = mm_session_child(access, input->tmpl.position, 0, MM_TDT, &entry, &position);
     if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
         return fail(input, MM_MOVIE_BAD_FILE);
     input->text = status == MM_CHUNK_OK;
@@ -287,8 +281,8 @@ static int load_action(ActorInput *input, MMI32 id)
     }
     else
     {
-        action->archive = &input->template_archive;
-        if (mm_session_child(&action->archive->access, input->template_position, (MMU32)id, MM_ACTN,
+        action->archive = &input->tmpl.archive;
+        if (mm_session_child(&action->archive->access, input->tmpl.position, (MMU32)id, MM_ACTN,
                              &action->entry, &action->position) != MM_CHUNK_OK)
             return fail(input, MM_MOVIE_ASSET_NOT_FOUND);
         read = action_reader(action);
@@ -368,8 +362,7 @@ static MMMovieBodyInput body_input(ActorInput *input)
     MMMovieBodyInput args;
     args.movie = input->movie;
     args.source = input->source;
-    args.archive = &input->template_archive;
-    args.template_position = input->template_position;
+    args.tmpl = &input->tmpl;
     args.text = input->text;
     args.action = &input->resources;
     args.cel = 0;
@@ -496,8 +489,11 @@ static int create_body(void *p, void *token, void **out)
 static int text(void *p, void *token) { (void)token; return ((ActorInput *)p)->text; }
 static void rest(void *p, void *token, unsigned short out[3])
 {
+    const MMTemplateState *state = &((const ActorInput *)p)->tmpl.state;
     (void)token;
-    memcpy(out, ((ActorInput *)p)->rest, 3 * sizeof(*out));
+    out[0] = state->x;
+    out[1] = state->y;
+    out[2] = state->z;
 }
 static void locate(void *p, void *token, const MMActorBodyPose *pose)
 {
@@ -605,7 +601,7 @@ static int evaluate_slot(const MMMovieSession *movie, const MMMovieArchive *arch
     else
         mm_movie_body_dispose(input.evaluated_body);
     clear_action(&input.resources);
-    mm_session_archive_close(&input.template_archive);
+    mm_session_template_dispose(&input.tmpl);
     release_events(input.events);
     release_route(&input);
     return status;

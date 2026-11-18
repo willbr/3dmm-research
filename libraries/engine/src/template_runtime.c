@@ -148,13 +148,18 @@ int mm_template_sound(void *object,MMI32 id,MMI32 cel,void *exists,void *tag,con
 }
 MMI32 mm_template_costume_count(void *object,MMI32 set,const MMTemplateRuntimeServices *s)
 {
-    MMTemplateState t; MMI32 value; t=*s->storage.state(s->storage.context,object);
-    memcpy(&value,s->storage.fixed_data(s->storage.context,t.costumes,set),sizeof(value)); return value;
+    const unsigned short one = 1;
+    const MMTemplateState *state = s->storage.state(s->storage.context, object);
+    return mm_template_decode_costume_word(s->storage.fixed_data(s->storage.context, state->costumes, set),
+                                           *(const unsigned char *)&one == 0);
 }
 MMI32 mm_template_costume_id(void *object,MMI32 set,MMI32 index,const MMTemplateRuntimeServices *s)
 {
-    MMTemplateState t; MMI32 value; t=*s->storage.state(s->storage.context,object);
-    memcpy(&value,s->storage.variable_data(s->storage.context,t.costumes,set)+index*sizeof(value),sizeof(value)); return value;
+    const unsigned short one = 1;
+    const MMTemplateState *state = s->storage.state(s->storage.context, object);
+    const unsigned char *ids = s->storage.variable_data(s->storage.context, state->costumes, set);
+    return mm_template_decode_costume_word(ids + index * MM_TEMPLATE_COSTUME_WORD_BYTES,
+                                           *(const unsigned char *)&one == 0);
 }
 int mm_template_has_models(void *file,MMU32 type,MMU32 number,const MMTemplateCreateServices *s)
 { MMTemplateChild c; return s->child(s->context,file,type,number,0,MM_TEMPLATE_BMDL,&c); }

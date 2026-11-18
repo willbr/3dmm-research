@@ -4,6 +4,7 @@
 #include "mm/movie_session.h"
 #include "mm/collections.h"
 #include "mm/action_definition.h"
+#include "mm/template_create.h"
 
 struct MMMovieSession
 {
@@ -76,12 +77,30 @@ typedef struct MMMovieAction
 
 int mm_session_action_matrices(MMMovieAction *);
 
+typedef struct MMMovieTemplateList
+{
+    MMMoviePayload payload;
+    MMCollectionHeader header;
+} MMMovieTemplateList;
+
+typedef struct MMMovieTemplate
+{
+    MMMovieArchive archive;
+    MMU32 position;
+    MMTemplateState state;
+    MMMovieTemplateList parents, sets;
+    MMMovieGroup costumes;
+    int costumes_absent;
+} MMMovieTemplate;
+
+MMTemplateRead mm_session_template_reader(MMMovieTemplate *);
+void mm_session_template_dispose(MMMovieTemplate *);
+
 typedef struct MMMovieBodyInput
 {
     const MMMovieSession *movie;
     const MMMovieSource *source;
-    const MMMovieArchive *archive;
-    MMU32 template_position;
+    MMMovieTemplate *tmpl;
     int text;
     MMMovieAction *action;
     MMI32 cel;

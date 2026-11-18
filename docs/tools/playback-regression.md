@@ -13778,6 +13778,44 @@ frames before Play. This measures cue presence and silence before playback.
 
 Evidence is under `tmp/c89-action-input/` on the evidence drive.
 
+### Template hierarchy and authored costumes share the C89 read stages
+
+Studio, Marcus and the standalone session load GLPI and GLBS through the
+same template reader. It counts sets up to the highest authored set index.
+The standalone evaluator decodes each parent and set together when it builds
+the body, then uses that set count to read GGCM. The template state retains
+the authored costume table for later resets during the seek. The live cache
+still keeps the complete list of choices for older templates without GGCM.
+
+All 181 standalone tests and four AddressSanitizer checks passed. The changed
+C modules and chunky fixture compiled under strict C89 on Linux x64 musl.
+The fixture confirms that an actor-only seek succeeds with a malformed linked
+GGCM table and body evaluation returns an error without replacing the previous
+result. An absent table still uses the legacy CMTL discovery path. All 30
+selected host checks passed, including the Marcus player and the C89 syntax
+checks for the engine and Marcus.
+
+All 300 standalone frame snapshots, 300 mesh snapshots and 300 native graph
+and stream evaluations matched. The 29 native template, action, actor and body
+traces and the 480-byte saved movie matched byte for byte. Both hosts were
+rebuilt, and the workspace Marcus was relaunched.
+
+Stock and SID-29 cases matched 456 seek observations and 360 viewport hashes
+from the preceding builds. Studio SDL and the retained V3dmm runs each matched
+456 retail actor observations. Studio SDL and Marcus each matched 240 retail
+frame commits across actor events, dissolves and scrolling text. Retail
+reopened Studio's edited movie and matched the actor on four seeks.
+Both hosts reproduced the retail actor-audio fixture's 600 Hz ordinary cue
+and 1300 Hz motion cue across 60 frame commits, with at least 16,370 silent
+sample frames before Play. This measures cue presence and silence before
+playback.
+
+The workspace drive filled during the first capture and sanitizer build.
+The interrupted artifacts were retained on the evidence drive. The capture
+and sanitizer runs were repeated there.
+
+Evidence is under `D:/CodexBuildEvidence/c89-template-input/`.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

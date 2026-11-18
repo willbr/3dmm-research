@@ -7,12 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static MMI32 signed_short(const unsigned char *bytes, int big)
-{
-    MMU32 value = big ? (MMU32)bytes[0] * 256 + bytes[1] : (MMU32)bytes[1] * 256 + bytes[0];
-    return value < 32768 ? (MMI32)value : (MMI32)value - 65536L;
-}
-
 static int reserve_parts(MMMovieEvaluatedBody *body, MMU32 count)
 {
     if ((size_t)count != count || (count && (size_t)-1 / (size_t)count < sizeof(*body->parts)))
@@ -41,52 +35,60 @@ static int body_child(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU
          : status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
 }
 
+typedef struct MovieBodyShape
+{
+    const MMMovieTemplateList *parents, *sets;
+    MMMovieEvaluatedBody *body;
+} MovieBodyShape;
+
+static int read_body_index(const MMMovieTemplateList *list, MMI32 index, MMI32 *out)
+{
+    unsigned char bytes[MM_TEMPLATE_INDEX_BYTES];
+    if (!mm_read_exact(list->payload.stream, list->header.header_bytes + (MMU32)index * sizeof(bytes),
+                       bytes, sizeof(bytes)))
+        return MM_MOVIE_IO;
+    *out = mm_template_decode_index(bytes, list->header.big_endian);
+    return MM_MOVIE_OK;
+}
+
+static int read_body_part(void *context, MMI32 index, MMI32 *set)
+{
+    const MovieBodyShape *shape = (const MovieBodyShape *)context;
+    MMMovieBodyPart *part = &shape->body->parts[index];
+    int status = read_body_index(shape->parents, index, &part->parent);
+    if (status == MM_MOVIE_OK)
+        status = read_body_index(shape->sets, index, &part->set);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (part->set < 0)
+        return MM_MOVIE_BAD_FILE;
+    *set = part->set;
+    return MM_MOVIE_OK;
+}
+
 int mm_session_body_shape(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body, const MMActorHeader *actor)
 {
-    MMMoviePayload parents, sets;
-    MMCollectionHeader parent_head, set_head;
-    unsigned char parent[2], set[2];
-    MMMovieBodyPart *part;
-    MMU32 i;
-    int status;
-    parents.decoded = sets.decoded = NULL;
-    status = mm_session_array(in->archive, in->template_position, MM_GLPI, 2, &parents, &parent_head);
-    if (status == MM_MOVIE_OK)
-        status = mm_session_array(in->archive, in->template_position, MM_GLBS, 2, &sets, &set_head);
+    MMMovieTemplate *tmpl = in->tmpl;
+    MMTemplateRead reader = mm_session_template_reader(tmpl);
+    MMTemplateParts parts = {NULL, 0, read_body_part};
+    MovieBodyShape shape;
+    int status = mm_template_read_shape(&tmpl->state, &reader);
     if (status != MM_MOVIE_OK)
-        goto done;
-    if (parent_head.count != set_head.count)
-    {
-        status = MM_MOVIE_BAD_FILE;
-        goto done;
-    }
-    status = reserve_parts(body, parent_head.count);
+        return status;
+    shape.parents = (const MMMovieTemplateList *)tmpl->state.parents;
+    shape.sets = (const MMMovieTemplateList *)tmpl->state.sets;
+    shape.body = body;
+    if (shape.parents->header.count != shape.sets->header.count)
+        return MM_MOVIE_BAD_FILE;
+    status = reserve_parts(body, shape.parents->header.count);
     if (status != MM_MOVIE_OK)
-        goto done;
+        return status;
     body->model_owner.source = actor->source_id;
     body->model_owner.type = actor->template_type;
     body->model_owner.number = actor->template_number;
-    for (i = 0; i < parent_head.count; ++i)
-    {
-        part = &body->parts[i];
-        if (!mm_read_exact(parents.stream, parent_head.header_bytes + i * 2, parent, sizeof(parent)) ||
-            !mm_read_exact(sets.stream, set_head.header_bytes + i * 2, set, sizeof(set)))
-        {
-            status = MM_MOVIE_IO;
-            goto done;
-        }
-        part->parent = signed_short(parent, parent_head.big_endian);
-        part->set = signed_short(set, set_head.big_endian);
-        if (part->set < 0)
-        {
-            status = MM_MOVIE_BAD_FILE;
-            goto done;
-        }
-    }
-done:
-    free(parents.decoded);
-    free(sets.decoded);
-    return status;
+    parts.context = &shape;
+    parts.count = (MMI32)shape.parents->header.count;
+    return mm_template_count_sets(&tmpl->state, &parts);
 }
 
 typedef struct MovieBodyCel
@@ -147,7 +149,7 @@ static int movie_cel_model(void *context, MMU32 ordinal, MMU32 slot, MMMovieAsse
 {
     const MovieBodyCel *cel = (const MovieBodyCel *)context;
     (void)ordinal;
-    return mm_movie_cel_model(&cel->access, cel->input->template_position, slot, cel->source, out);
+    return mm_movie_cel_model(&cel->access, cel->input->tmpl->position, slot, cel->source, out);
 }
 
 static int movie_cel_matrix(void *context, MMI32 matrix, MMActorMatrix *out)
@@ -176,7 +178,7 @@ int mm_session_body_cel(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
         return MM_MOVIE_BAD_FILE;
     cel.input = in;
     cel.source = body->model_owner.source;
-    cel.access = in->archive->access;
+    cel.access = in->tmpl->archive.access;
     cel.parts = row + MM_ACTION_CEL_BYTES;
     status = mm_session_action_matrices(in->action);
     if (status != MM_MOVIE_OK)
@@ -218,7 +220,7 @@ static int text_name(const MMMovieBodyInput *in, TextBody *text)
     const unsigned short one = 1;
     MMMoviePayload name;
     MMStringWire wire;
-    int status = mm_session_name(in->archive, in->template_position, &name);
+    int status = mm_session_name(&in->tmpl->archive, in->tmpl->position, &name);
     if (status != MM_MOVIE_OK)
         return status;
     wire.buffer = text->string;
@@ -276,7 +278,7 @@ static void text_release(void *p, void *value) { (void)p; (void)value; }
 static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
 {
     const unsigned short one = 1;
-    const MMChunkAccess *access = &in->archive->access;
+    const MMChunkAccess *access = &in->tmpl->archive.access;
     MMMovieArchive font_archive;
     MMMoviePayload payload;
     MMChunkEntry entry;
@@ -293,10 +295,10 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     status = text_name(in, &text);
     if (status != MM_MOVIE_OK)
         return status;
-    status = body_child(access, in->template_position, 0, MM_TDT, &entry);
+    status = body_child(access, in->tmpl->position, 0, MM_TDT, &entry);
     if (status != MM_MOVIE_OK)
         return status;
-    status = mm_session_payload(in->archive, &entry, 0, &payload);
+    status = mm_session_payload(&in->tmpl->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
     status = mm_read_exact(payload.stream, 0, bytes, sizeof(bytes));

@@ -75,6 +75,13 @@ its matrix table on first body use. The native cache loads both at admission
 and continues to resolve optional GLMS sound tags there. Both use the C89
 cel, part and matrix decoders. The actor query returns route position, action,
 cel and fixed-point root pose without creating body, costume or audio objects.
+`mm_template_read_shape` acquires GLPI then GLBS through each provider. Native
+templates use cached collections. The standalone session reads signed parent
+and set indices from their wire tables when it prepares a body. The same C89
+traversal computes the number of sets up to the highest authored set index.
+`mm_template_read_costumes` uses that count to read GGCM. The snapshot retains
+this table for later costume resets during the seek. A missing link triggers
+legacy discovery. A failed read of a linked table propagates the error.
 Studio, Marcus and the standalone evaluator use `mm_actor_template_link`
 to recover the embedded template number when a movie edit or import changed
 it. An external source keeps its authored template number and uses the

@@ -739,6 +739,50 @@ int mm_session_array(const MMMovieArchive *archive, MMU32 parent, MMU32 type, MM
     return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
 }
 
+static int read_template_table(void *context, int kind, MMI32 expected, void **out)
+{
+    MMMovieTemplate *tmpl = (MMMovieTemplate *)context;
+    MMMovieTemplateList *list;
+    MMChunkEntry entry;
+    MMU32 position, type = mm_template_table_type(kind);
+    int status;
+    if (kind != MM_TEMPLATE_COSTUMES)
+    {
+        list = kind == MM_TEMPLATE_PARENTS ? &tmpl->parents : &tmpl->sets;
+        status = mm_session_array(&tmpl->archive, tmpl->position, type, MM_TEMPLATE_INDEX_BYTES,
+                                  &list->payload, &list->header);
+        if (status == MM_MOVIE_OK)
+            *out = list;
+        return status;
+    }
+    status = mm_session_child(&tmpl->archive.access, tmpl->position, 0, type, &entry, &position);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_NOT_FOUND ? MM_TEMPLATE_COSTUMES_ABSENT : MM_MOVIE_BAD_FILE;
+    status = mm_session_group(&tmpl->archive, &entry, &tmpl->costumes);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (tmpl->costumes.header.width != MM_TEMPLATE_COSTUME_WORD_BYTES ||
+        tmpl->costumes.header.count != (MMU32)expected)
+        return MM_MOVIE_BAD_FILE;
+    *out = &tmpl->costumes;
+    return MM_MOVIE_OK;
+}
+
+MMTemplateRead mm_session_template_reader(MMMovieTemplate *tmpl)
+{
+    MMTemplateRead reader = {NULL, read_template_table};
+    reader.context = tmpl;
+    return reader;
+}
+
+void mm_session_template_dispose(MMMovieTemplate *tmpl)
+{
+    free(tmpl->parents.payload.decoded);
+    free(tmpl->sets.payload.decoded);
+    free(tmpl->costumes.bytes);
+    mm_session_archive_close(&tmpl->archive);
+}
+
 static int load_scene_group(const MMMovieArchive *archive, MMU32 scene, int start, MMMovieGroup *group)
 {
     const MMSceneGroupServices groups = {event_width, event_count, event_fixed, event_size, event_data};
