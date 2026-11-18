@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "studio_packs.h"
+#include "pack_archive.h"
 #include "pack_hash.h"
-#include "mm/archive.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <fstream>
@@ -80,21 +80,13 @@ Json Manifest(const fs::path &directory, Id id)
 }
 void ValidateArchive(const fs::path &path)
 {
-    MM::Options options;
-    options.maxDecodedBytes = 128 * 1024 * 1024;
-    MM::Archive archive(options);
-    MM::Error error;
-    if (!archive.Open(path.u8string(), error) || archive.Chunks().empty())
+    const auto result = CheckArchive(path, 128u * 1024 * 1024, false);
+    if (result == MM_CHUNK_ARCHIVE_GRAPH)
+        throw std::runtime_error("Content archive has an invalid child graph");
+    if (result == MM_CHUNK_ARCHIVE_PAYLOAD)
+        throw std::runtime_error("Cannot decode content archive: " + path.filename().u8string());
+    if (result != MM_CHUNK_ARCHIVE_OK)
         throw std::runtime_error("Invalid content archive: " + path.filename().u8string());
-    for (std::size_t i = 0; i < archive.Chunks().size(); ++i)
-    {
-        MM::PayloadPage page;
-        if (!archive.ReadPayload(i, 0, 1, page, error))
-            throw std::runtime_error("Cannot decode content archive: " + path.filename().u8string());
-        for (const auto &child : archive.Chunks()[i].children)
-            if (!child.present)
-                throw std::runtime_error("Content archive has a missing child chunk");
-    }
 }
 unsigned Cleanup(const fs::path &directory, Id id)
 {

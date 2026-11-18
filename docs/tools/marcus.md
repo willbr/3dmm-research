@@ -287,9 +287,10 @@ movies. This does not establish stock retail support for VMM files.
 
 After the C89 change, original v3dmm again sought frames 1, 2 and 1 with one
 prop and an empty error stack. The captured images matched the previous
-export. Both exports hit Studio's existing `Invalid VXP chunky content` error
-when opened in the SDL comparison harness. Captures and logs are in
-`tmp/c89-portable-wire/`.
+export. Studio now accepts the valid empty thumbnail archive in these packages.
+Both storyboard frames matched original v3dmm in scene state and viewport
+pixels. Captures and logs are in `tmp/c89-portable-wire/` and
+`tmp/c89-pack-archives/`.
 
 **Scenes > Camera angles** shows a grid of rendered thumbnails for the current
 background's authored cameras, including actors and captions at the current frame.

@@ -1,6 +1,8 @@
 /* Chunk storage policy converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_storage.h"
+#include "mm/codec.h"
+#include <stdlib.h>
 
 static int locate_payload(const MMChunkPayloadServices *s, void *archive, MMU32 type,
                           MMU32 number, MMOwnedBlock *block)
@@ -114,6 +116,137 @@ int mm_chunk_payload_cache_load(MMChunkPayloadCache *cache, void *archive, size_
 int mm_chunk_payload_cache_stream(MMChunkPayloadCache *cache, MMBlockIO *io, MMReadStream *stream)
 {
     return cache && cache->position != (size_t)-1 && payload_stream(&cache->block, io, stream);
+}
+
+static void *find_codec(void *context, MMI32 format)
+{
+    return format == MM_CODEC_KCDC || format == MM_CODEC_KCD2 ? context : NULL;
+}
+
+static int decode(void *codec, MMI32 format, const void *input, MMU32 bytes, void *output,
+                  MMU32 capacity, MMI32 *written)
+{
+    (void)codec;
+    return mm_codec_decode(format, input, bytes, output, capacity, written) == MM_DATA_OK;
+}
+
+int mm_chunk_payload_open(const MMReadStream *stream, const MMChunkHeader *header, const MMChunkEntry *entry,
+                          MMU32 exact_size, MMU32 max_packed_bytes, MMChunkStreamPayload *payload)
+{
+    MMU32 start = entry->offset, bytes = entry->bytes;
+    MMU32 end = header->index_offset;
+    unsigned char *packed;
+    MMI32 expected, written;
+    MMPackedDecoder decoder;
+    int status;
+    payload->decoded = NULL;
+    if ((start < MM_CHUNK_PREFIX_BYTES && (start || bytes)) || start > end || bytes > end - start ||
+        !mm_read_slice_init(&payload->slice, stream, start, bytes))
+        return MM_CHUNK_BAD_FILE;
+    payload->stream = &payload->slice.stream;
+    if (!(entry->flags & MM_CHUNK_PACKED))
+        return !exact_size || bytes == exact_size ? MM_CHUNK_OK : MM_CHUNK_BAD_FILE;
+    if (bytes <= 8 || bytes >= MM_STORAGE_LIMIT || bytes > max_packed_bytes || (size_t)bytes != bytes)
+        return MM_CHUNK_BAD_FILE;
+    packed = (unsigned char *)malloc((size_t)bytes);
+    if (!packed)
+        return MM_CHUNK_MEMORY;
+    decoder.context = packed;
+    decoder.find = find_codec;
+    decoder.convert = decode;
+    if (!mm_read_exact(payload->stream, 0, packed, (size_t)bytes))
+        status = MM_CHUNK_IO;
+    else if (mm_packed_decode(&decoder, packed, bytes, NULL, 0, &expected) != MM_DATA_OK ||
+             (MMU32)(size_t)expected != (MMU32)expected || (MMU32)expected > max_packed_bytes ||
+             (exact_size && (MMU32)expected != exact_size))
+        status = MM_CHUNK_BAD_FILE;
+    else if (!(payload->decoded = (unsigned char *)malloc((size_t)expected)))
+        status = MM_CHUNK_MEMORY;
+    else if (mm_packed_decode(&decoder, packed, bytes, payload->decoded, (MMU32)expected, &written) != MM_DATA_OK)
+    {
+        free(payload->decoded);
+        payload->decoded = NULL;
+        status = MM_CHUNK_BAD_FILE;
+    }
+    else
+    {
+        mm_memory_stream_init(&payload->memory, payload->decoded, (size_t)written);
+        payload->stream = &payload->memory.stream;
+        status = MM_CHUNK_OK;
+    }
+    free(packed);
+    return status;
+}
+
+static int child_ordered(const MMChunkAccess *access, MMU32 parent, MMU32 count)
+{
+    MMChunkChild child, previous = {0};
+    MMU32 i;
+    for (i = 0; i < count; ++i)
+    {
+        if (mm_chunk_child_at(access, parent, i, &child) != MM_CHUNK_OK ||
+            (i && (child.slot < previous.slot ||
+                   (child.slot == previous.slot && (child.type < previous.type ||
+                       (child.type == previous.type && child.number <= previous.number))))))
+            return 0;
+        previous = child;
+    }
+    return 1;
+}
+
+MMChunkArchiveResult mm_chunk_archive_validate(const MMReadStream *stream, const MMChunkPolicy *policy,
+                                               MMU32 max_packed_bytes, int allow_empty)
+{
+    MMChunkIndex *index;
+    MMChunkAccess access;
+    MMChunkEntry entry, previous = {0};
+    MMChunkStreamPayload payload;
+    const MMChunkHeader *header;
+    MMChunkArchiveResult result = MM_CHUNK_ARCHIVE_INDEX;
+    MMU32 position, remaining;
+    unsigned char first;
+    int readable;
+    if (mm_chunk_index_open(stream, policy, &index) != MM_CHUNK_OK)
+        return result;
+    access = mm_chunk_index_access(index);
+    header = mm_chunk_index_header(index);
+    remaining = header->index_offset - MM_CHUNK_PREFIX_BYTES;
+    if (!access.count && !allow_empty)
+        goto done;
+    if (mm_chunk_validate_graph(&access, policy->expanded_runtime ? MM_STORAGE_LIMIT : 65535U) != MM_CHUNK_OK)
+    {
+        result = MM_CHUNK_ARCHIVE_GRAPH;
+        goto done;
+    }
+    for (position = 0; position < access.count; ++position)
+    {
+        if (mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK ||
+            (position && (entry.type < previous.type ||
+                         (entry.type == previous.type && entry.number <= previous.number))))
+        {
+            result = MM_CHUNK_ARCHIVE_INDEX;
+            goto done;
+        }
+        if (!child_ordered(&access, position, entry.child_count))
+        {
+            result = MM_CHUNK_ARCHIVE_GRAPH;
+            goto done;
+        }
+        result = MM_CHUNK_ARCHIVE_PAYLOAD;
+        if (entry.bytes > remaining ||
+            mm_chunk_payload_open(stream, header, &entry, 0, max_packed_bytes, &payload) != MM_CHUNK_OK)
+            goto done;
+        remaining -= entry.bytes;
+        readable = !payload.stream->length || mm_read_exact(payload.stream, 0, &first, 1);
+        free(payload.decoded);
+        if (!readable)
+            goto done;
+        previous = entry;
+    }
+    result = MM_CHUNK_ARCHIVE_OK;
+done:
+    mm_chunk_index_close(index);
+    return result;
 }
 
 int mm_chunk_storage_allocate(const MMChunkStoragePolicy *policy,

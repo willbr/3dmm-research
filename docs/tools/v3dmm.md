@@ -85,7 +85,9 @@ processes and both hosts to share validation results and catalog updates.
 
 Imports use private staging and catalog updates use SQLite transactions. Movie inputs
 and original VXP files are read only. Decoding checks ZIP CRCs, chunky records
-and child links, with limits on counts and expansion sizes.
+and child links, with limits on counts and expansion sizes. The shared C89
+archive validator accepts a well-formed empty `.3th`. The `.3cn` must contain
+chunks, and both archives must pass index, child graph and payload checks.
 
 Installed package names satisfy VMM dependencies, as in the legacy manager.
 A different standalone VXP with an already installed name is rejected. Exact

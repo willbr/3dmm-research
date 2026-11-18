@@ -109,6 +109,32 @@ extern "C"
      * until the next miss or clear. Legacy readers may borrow the block
      * without mutating it. */
     int mm_chunk_payload_cache_stream(MMChunkPayloadCache *, MMBlockIO *, MMReadStream *);
+
+    typedef struct MMChunkStreamPayload
+    {
+        MMReadSlice slice;
+        MMMemoryStream memory;
+        unsigned char *decoded;
+        const MMReadStream *stream;
+    } MMChunkStreamPayload;
+    /* Open a stored extent as a borrowed slice or an owned decoded buffer.
+     * Zero exact_size allows any decoded length. max_packed_bytes bounds both
+     * the stored and decoded sizes of packed chunks. Keep the output at a
+     * stable address and release its decoded buffer with free after success. */
+    int mm_chunk_payload_open(const MMReadStream *, const MMChunkHeader *, const MMChunkEntry *,
+                              MMU32 exact_size, MMU32 max_packed_bytes, MMChunkStreamPayload *);
+
+    typedef enum MMChunkArchiveResult
+    {
+        MM_CHUNK_ARCHIVE_OK,
+        MM_CHUNK_ARCHIVE_INDEX,
+        MM_CHUNK_ARCHIVE_GRAPH,
+        MM_CHUNK_ARCHIVE_PAYLOAD
+    } MMChunkArchiveResult;
+    /* Validate a physical archive before publishing it to a content source.
+     * An empty index is valid only when allow_empty is set. */
+    MMChunkArchiveResult mm_chunk_archive_validate(const MMReadStream *, const MMChunkPolicy *,
+                                                   MMU32 max_packed_bytes, int allow_empty);
 #ifdef __cplusplus
 }
 #endif

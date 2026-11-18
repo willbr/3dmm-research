@@ -1,7 +1,5 @@
 #include "movie_session_internal.h"
 #include "mm/background_resource.h"
-#include "mm/codec.h"
-#include "mm/data_stream.h"
 #include "mm/scene_data.h"
 #include "mm/wide.h"
 #include <stdlib.h>
@@ -55,64 +53,26 @@ int mm_movie_block_read(const MMChunkPayloadServices *services, void *archive,
     return mm_movie_block_payload(services, archive, entry, read_exact_payload, &read);
 }
 
-static void *find_codec(void *context, MMI32 format)
+static int movie_chunk_status(int status)
 {
-    return format == MM_CODEC_KCDC || format == MM_CODEC_KCD2 ? context : NULL;
-}
-
-static int decode(void *codec, MMI32 format, const void *input, MMU32 bytes, void *output,
-                  MMU32 capacity, MMI32 *written)
-{
-    (void)codec;
-    return mm_codec_decode(format, input, bytes, output, capacity, written) == MM_DATA_OK;
+    switch (status)
+    {
+    case MM_CHUNK_OK:
+        return MM_MOVIE_OK;
+    case MM_CHUNK_IO:
+        return MM_MOVIE_IO;
+    case MM_CHUNK_MEMORY:
+        return MM_MOVIE_MEMORY;
+    default:
+        return MM_MOVIE_BAD_FILE;
+    }
 }
 
 static int stream_payload(const MMReadStream *stream, const MMChunkIndex *index, const MMChunkEntry *entry,
                           MMU32 exact_size, MMMoviePayload *payload)
 {
-    MMU32 index_offset = mm_chunk_index_header(index)->index_offset;
-    unsigned char *packed;
-    MMI32 expected, written;
-    MMPackedDecoder decoder;
-    int status;
-    payload->decoded = NULL;
-    if (entry->offset < MM_CHUNK_PREFIX_BYTES || entry->offset > index_offset ||
-        entry->bytes > index_offset - entry->offset ||
-        !mm_read_slice_init(&payload->slice, stream, entry->offset, entry->bytes))
-        return MM_MOVIE_BAD_FILE;
-    payload->stream = &payload->slice.stream;
-    if (!(entry->flags & MM_CHUNK_PACKED))
-        return !exact_size || entry->bytes == exact_size ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
-    if (entry->bytes <= 8 || entry->bytes >= MM_STORAGE_LIMIT || (size_t)entry->bytes != entry->bytes)
-        return MM_MOVIE_BAD_FILE;
-    packed = (unsigned char *)malloc((size_t)entry->bytes);
-    if (!packed)
-        return MM_MOVIE_MEMORY;
-    decoder.context = packed;
-    decoder.find = find_codec;
-    decoder.convert = decode;
-    if (!mm_read_exact(payload->stream, 0, packed, (size_t)entry->bytes))
-        status = MM_MOVIE_IO;
-    else if (mm_packed_decode(&decoder, packed, entry->bytes, NULL, 0, &expected) != MM_DATA_OK ||
-             (MMU32)(size_t)expected != (MMU32)expected || (exact_size && (MMU32)expected != exact_size))
-        status = MM_MOVIE_BAD_FILE;
-    else if (!(payload->decoded = (unsigned char *)malloc((size_t)expected)))
-        status = MM_MOVIE_MEMORY;
-    else if (mm_packed_decode(&decoder, packed, entry->bytes, payload->decoded, (MMU32)expected,
-                              &written) != MM_DATA_OK)
-    {
-        free(payload->decoded);
-        payload->decoded = NULL;
-        status = MM_MOVIE_BAD_FILE;
-    }
-    else
-    {
-        mm_memory_stream_init(&payload->memory, payload->decoded, (size_t)written);
-        payload->stream = &payload->memory.stream;
-        status = MM_MOVIE_OK;
-    }
-    free(packed);
-    return status;
+    return movie_chunk_status(mm_chunk_payload_open(stream, mm_chunk_index_header(index), entry,
+                                                     exact_size, MM_STORAGE_LIMIT, payload));
 }
 
 typedef struct GraphPayload
@@ -354,17 +314,7 @@ static int load_root(MMMovieSession *movie, void *request, MMU32 *number)
 
 int mm_session_index(const MMReadStream *stream, const MMChunkPolicy *policy, MMChunkIndex **index)
 {
-    switch (mm_chunk_index_open(stream, policy, index))
-    {
-    case MM_CHUNK_OK:
-        return MM_MOVIE_OK;
-    case MM_CHUNK_IO:
-        return MM_MOVIE_IO;
-    case MM_CHUNK_MEMORY:
-        return MM_MOVIE_MEMORY;
-    default:
-        return MM_MOVIE_BAD_FILE;
-    }
+    return movie_chunk_status(mm_chunk_index_open(stream, policy, index));
 }
 
 int mm_movie_session_open(const MMReadStream *stream, const MMChunkPolicy *policy, MMMovieSession **out)

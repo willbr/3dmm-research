@@ -947,6 +947,10 @@ background references in scene-start events. C89 validates the portable source
 ID and preserves the source table's byte order and string encoding when adding
 its declaration. New child chunks are linked before the previous child is
 removed, so a failed link leaves the previous child available.
+Managed expansion import and Portable VXP installation now validate chunky
+archives through the C89 index, child-graph and payload readers. The installer
+accepts valid empty VXP thumbnail indexes, as produced by Marcus storyboard
+export. The movie session shares the same stored-payload decoder.
 ZIP decompression, physical file and path I/O, the installed catalog and
 publication of installed packages on disk remain host services. Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound

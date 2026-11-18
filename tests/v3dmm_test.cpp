@@ -50,7 +50,7 @@ void Write(const fs::path &path, const std::string &bytes)
     file.write(bytes.data(), bytes.size());
     Check(bool(file));
 }
-void Fixture(const fs::path &path)
+void Fixture(const fs::path &path, bool empty = false, bool packed = false)
 {
     auto absolute = fs::absolute(path).string();
     String text;
@@ -58,12 +58,19 @@ void Fixture(const fs::path &path)
     Filename filename;
     Check(filename.FBuildFromPath(&text));
     auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
-    byte bytes[] = {1, 3, 5, 7};
-    Check(file && file->FPutPv(bytes, sizeof(bytes), 'TEST', 0xf1234567) && file->FSave(kctgSoc));
+    Check(bool(file));
+    if (!empty)
+    {
+        byte bytes[256] = {1, 3, 5, 7};
+        Check(file->FPutPv(bytes, packed ? sizeof(bytes) : 4, 'TEST', 0xf1234567));
+        if (packed)
+            Check(file->FPackData('TEST', 0xf1234567));
+    }
+    Check(file->FSave(kctgSoc));
     ReleasePpo(&file);
 }
 void Zip(const fs::path &path, const fs::path &content, const std::string &extra = {}, const std::string &settings = {},
-         const std::string &name = "Synthetic VXP")
+         const std::string &name = "Synthetic VXP", const fs::path &thumbnails = {})
 {
     auto data = Read(content);
     mz_zip_archive zip{};
@@ -71,8 +78,9 @@ void Zip(const fs::path &path, const fs::path &content, const std::string &extra
     std::string cfg = "Name=" + name + "\r\nAuthor=3DMMForever\r\nType=Portable\r\nUnknown=retained\r\n";
     cfg += settings;
     Check(mz_zip_writer_add_mem(&zip, "fixture.cfg", cfg.data(), cfg.size(), MZ_BEST_COMPRESSION) != 0);
-    for (auto name : {"fixture.3cn", "fixture.3th"})
-        Check(mz_zip_writer_add_mem(&zip, name, data.data(), data.size(), MZ_BEST_COMPRESSION) != 0);
+    const auto thumbs = thumbnails.empty() ? data : Read(thumbnails);
+    Check(mz_zip_writer_add_mem(&zip, "fixture.3cn", data.data(), data.size(), MZ_BEST_COMPRESSION) != 0);
+    Check(mz_zip_writer_add_mem(&zip, "fixture.3th", thumbs.data(), thumbs.size(), MZ_BEST_COMPRESSION) != 0);
     if (!extra.empty())
         Check(mz_zip_writer_add_mem(&zip, extra.c_str(), data.data(), data.size(), 0) != 0);
     void *bytes = nullptr;
@@ -213,9 +221,39 @@ void CatalogTests(const fs::path &root)
     fs::copy_file(one.archive.parent_path() / "content.json", repair / one.hash / "content.json");
     Check(incomplete.Resolve(one.hash).members.size() == 2 && incomplete.Entries().front().error.empty());
 }
+void ArchiveTests(const fs::path &root)
+{
+    fs::create_directories(root);
+    const auto content = root / "content.3cn", empty = root / "empty.3th", broken = root / "broken.3th";
+    const auto invalidPacked = root / "bad-packed.3cn";
+    Fixture(content, false, true);
+    Fixture(empty, true);
+    const auto thumbnails = Read(empty);
+    Write(broken, thumbnails.substr(0, thumbnails.size() - 1));
+    auto packed = Read(content);
+    const auto packedHeader = packed.find("KCD", 128);
+    Check(packedHeader != std::string::npos && packed.size() - packedHeader > 8);
+    packed[packedHeader + 4] = char(0x7f);
+    Write(invalidPacked, packed);
+
+    const auto package = root / "archive.vxp";
+    StudioV3dmm::Store store(root / "store");
+    Zip(package, empty, {}, {}, "Empty content", content);
+    Reject([&] { store.Install(V::WholeFile(package)); });
+    Zip(package, content, {}, {}, "Truncated thumbnails", broken);
+    Reject([&] { store.Install(V::WholeFile(package)); });
+    Zip(package, invalidPacked, {}, {}, "Invalid packed length", empty);
+    Reject([&] { store.Install(V::WholeFile(package)); });
+    Check(store.Entries().empty());
+
+    Zip(package, content, {}, {}, "Empty thumbnails", empty);
+    const auto installed = store.Install(V::WholeFile(package));
+    Check(Read(installed.members.at("fixture.3th")) == thumbnails);
+}
 void Tests(const fs::path &root)
 {
     DuplicateTests(root);
+    ArchiveTests(root / "chunk-archives");
     Fixture(root / "fixture.3mm");
     Zip(root / "fixture.vxp", root / "fixture.3mm");
     auto package = V::ReadPackage(V::WholeFile(root / "fixture.vxp"));

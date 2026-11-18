@@ -17,13 +17,7 @@ struct MMMovieSession
     const MMMovieLiveFrame *seeking_frame;
 };
 
-typedef struct MMMoviePayload
-{
-    MMReadSlice slice;
-    MMMemoryStream memory;
-    unsigned char *decoded;
-    const MMReadStream *stream;
-} MMMoviePayload;
+typedef MMChunkStreamPayload MMMoviePayload;
 
 typedef struct MMMovieGroup
 {

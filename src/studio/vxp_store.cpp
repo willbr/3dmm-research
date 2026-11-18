@@ -1,7 +1,7 @@
 // Licensed under the MIT License.
 #include "studio_vxp_store.h"
+#include "pack_archive.h"
 #include "pack_hash.h"
-#include "mm/archive.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <fstream>
@@ -33,18 +33,10 @@ fs::path Checked(const fs::path &root, const std::string &hash)
 }
 void Validate(const fs::path &path)
 {
-    MM::Options options;
-    options.maxDecodedBytes = 256u * 1024 * 1024;
-    MM::Archive archive(options);
-    MM::Error error;
-    Require(archive.Open(path.u8string(), error) && !archive.Chunks().empty(), "Invalid VXP chunky content");
-    for (std::size_t i = 0; i < archive.Chunks().size(); ++i)
-    {
-        MM::PayloadPage payload;
-        Require(archive.ReadPayload(i, 0, 1, payload, error), "Invalid compressed VXP content");
-        for (const auto &child : archive.Chunks()[i].children)
-            Require(child.present, "VXP content has a missing child");
-    }
+    const auto result = StudioPacks::CheckArchive(path, 256u * 1024 * 1024, path.extension() == ".3th");
+    Require(result != MM_CHUNK_ARCHIVE_GRAPH, "VXP content has an invalid child graph");
+    Require(result != MM_CHUNK_ARCHIVE_PAYLOAD, "Invalid VXP chunk payload");
+    Require(result == MM_CHUNK_ARCHIVE_OK, "Invalid VXP chunky content");
 }
 } // namespace
 namespace
