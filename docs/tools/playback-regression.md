@@ -13211,6 +13211,32 @@ that player's stock states and viewport hashes. The retail bridge recorded
 the modified `TMPLS.3CN` as an opened archive.
 Evidence is under `tmp/c89-default-costumes/` on the evidence drive.
 
+### C89 render frame ownership
+
+Studio and Marcus pass a C frame record containing the world, camera and
+colour/depth targets to BRender. Studio borrows its live targets through
+that record. Marcus allocates and owns temporary render targets and the
+world through the same C code. Picking uses the owner for its temporary
+world and attached camera. Scaled export takes its world and camera from
+the live frame and keeps separate output pixels.
+
+The C fixtures check borrowed handles at renderer submission, partial
+allocation, repeat disposal, and world/depth/colour release order. All
+181 standalone and 26 host checks passed, including picking, native world
+export, and the default and Vulkan raster parity cases. Four targeted
+AddressSanitizer checks passed. Five changed C units compiled under strict
+C89 for Linux x64 musl. Studio and Marcus rebuilt and Marcus was relaunched.
+
+The native world-export trace matched all 13,188,586 retained bytes. The
+background trace matched 301,996,032 bytes across 188 cameras and 12
+backgrounds. The stock and SID-29 actor-events and scrolling-text cases
+matched all 456 pre-change seek states and 360 viewport hashes across both
+hosts. Normal playback of actor-events, dissolve and scrolling-text matched
+retail's frame order and final position over 240 frame commits per host.
+The actor-events case included replay in the same process.
+
+Evidence is under `tmp/c89-render-frame/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

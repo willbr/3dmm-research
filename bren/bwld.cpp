@@ -128,7 +128,7 @@ MMWorldRenderServices World::_RenderServices(void *context)
 {
     MMWorldRenderServices s = {};
     s.context = context;
-    s.root = &_bactWorld;
+    mm_render_frame_borrow(&s.frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
     s.actor_none = BR_ACTOR_NONE;
     s.actor_model = BR_ACTOR_MODEL;
     s.bounding_points = BR_RSTYLE_BOUNDING_POINTS;
@@ -206,9 +206,9 @@ MMWorldRenderServices World::_RenderServices(void *context)
     };
     s.scan_next = [](void *p) { static_cast<WorldRenderContext *>(p)->scanner.ScanNext(1); };
     s.scan_end = [](void *p) { static_cast<WorldRenderContext *>(p)->scanner.Free(); };
-    s.render = [](void *p) {
-        auto w = RenderWorld(p);
-        BrZbSceneRender(&w->_bactWorld, &w->_bactCamera, &w->_bpmpRGB, &w->_bpmpZ);
+    s.render = [](void *, const MMRenderFrame *frame) {
+        BrZbSceneRender(static_cast<PBACT>(frame->world), static_cast<PBACT>(frame->camera),
+                        static_cast<PBPMP>(frame->colour), static_cast<PBPMP>(frame->depth));
     };
     s.publish = [](void *p, const MMWorldRender *r) { RenderWorld(p)->_fWorldChanged = r->changed != 0; };
     s.snapshot_depth = [](void *p) {
@@ -781,10 +781,9 @@ MMWorldExportServices World::_ExportServices(void *context)
     s.bounds_callback = [](void *, int enabled) {
         BrZbSetRenderBoundsCallback(enabled ? World::_ActorRendered : nullptr);
     };
-    s.raster = [](void *p, const MMWorldPixelView *rgb, const MMWorldPixelView *depth) {
-        auto w = RenderWorld(p);
+    s.raster = [](void *, const MMRenderFrame *frame, const MMWorldPixelView *rgb, const MMWorldPixelView *depth) {
         auto colour = ExportPixelmap(*rgb), z = ExportPixelmap(*depth);
-        BrZbSceneRender(&w->_bactWorld, &w->_bactCamera, &colour, &z);
+        BrZbSceneRender(static_cast<PBACT>(frame->world), static_cast<PBACT>(frame->camera), &colour, &z);
     };
     s.write = [](void *p, const MMWorldPixels *pixels, void *palette, MMI32 width, MMI32 height) -> int {
         // The shared BMP writer consumes four-byte-aligned indexed rows.

@@ -270,7 +270,7 @@ static void *world(void *v)
 static void free_pixel(void *v, void *p)
 {
     Host *h = (Host *)v;
-    CHECK(p && h->pixels);
+    CHECK(!h->world && (p == &h->depth_token ? h->pixels == 2 : p == &h->colour_token && h->pixels == 1));
     --h->pixels;
 }
 static void free_world(void *v, void *p)
@@ -435,10 +435,10 @@ static void sink_off(void *v)
 {
     ((Host *)v)->sink = 0;
 }
-static void render(void *v, void *w, void *c, void *p, void *d)
+static void render(void *v, const MMRenderFrame *frame)
 {
     Host *h = (Host *)v;
-    CHECK(w && c && p && d);
+    CHECK(frame->world && frame->camera && frame->colour == &h->colour_token && frame->depth == &h->depth_token);
     h->colours[0] = 42;
     h->depths[0] = 0;
 }
@@ -508,11 +508,11 @@ static MMPreviewRenderServices services(Host *h)
     s.body_count = bodies;
     s.body = body;
     s.object_bounds = bounds;
-    s.colour = colour;
-    s.depth = depth;
-    s.world = world;
-    s.free_pixel = free_pixel;
-    s.free_world = free_world;
+    s.frame_factory.colour = colour;
+    s.frame_factory.depth = depth;
+    s.frame_factory.world = world;
+    s.frame_factory.free_pixel = free_pixel;
+    s.frame_factory.free_world = free_world;
     s.fill = fill;
     s.buffers = buffers;
     s.camera = camera;
@@ -609,6 +609,7 @@ int main(void)
     MMPreviewOrbit orbit;
     MMPreviewImage image;
     MMPreviewRenderServices s;
+    MMRenderFrame frame;
     int result, fail, allocations;
     depth_test();
     init(&h, &v, &orbit);
@@ -620,6 +621,18 @@ int main(void)
     CHECK(h.restores == 1 && h.copies == 4 && h.owners == 3 && orbit.framed && h.camera.near_z == scalar(1.5f));
     CHECK(h.nodes[0].first->next->first->id == 1 && h.nodes[0].first->next->first->next->id == 2);
     allocations = h.allocations;
+    init(&h, &v, &orbit);
+    s = services(&h);
+    mm_render_frame_borrow(&frame, h.nodes, h.nodes + 1, &h.colour_token, &h.depth_token);
+    mm_render_frame_dispose(&frame);
+    CHECK(!frame.world && !frame.camera && !frame.colour && !frame.depth);
+    CHECK(!h.world && !h.pixels);
+    h.fail = F_DEPTH;
+    CHECK(!mm_render_frame_allocate(&frame, 96, 64, &h, &s.frame_factory));
+    CHECK(frame.world && frame.colour == &h.colour_token && !frame.depth);
+    mm_render_frame_dispose(&frame);
+    mm_render_frame_dispose(&frame);
+    clean(&h);
     for (fail = 1; fail <= allocations; ++fail)
     {
         init(&h, &v, &orbit);

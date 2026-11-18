@@ -479,8 +479,11 @@ Keep host presentation and device output outside the session.
    matrix application order, and the part-set mapping for generic and
    custom materials. Default costumes now share first-row selection from
    the authored table and costume discovery in child order for older
-   templates. An owning C frame interface for live renderer resources
-   remains open.
+   templates. Studio and Marcus submit through a common C frame record for
+   the world, camera and colour/depth targets. It owns the temporary render
+   and picking targets in Marcus and borrows Studio's live world and buffers.
+   The session still needs an owned frame result carrying the evaluated
+   actor and camera resource bindings into both renderers.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

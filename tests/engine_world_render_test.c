@@ -220,9 +220,11 @@ static void scan_end(void *p)
     assert(f->scanner_live-- == 1);
     event(f, 24);
 }
-static void render(void *p)
+static void render(void *p, const MMRenderFrame *frame)
 {
     Fixture *f = (Fixture *)p;
+    assert(frame->world == &f->a[0] && frame->camera == &f->a[6] &&
+           frame->colour == f->working && frame->depth == f->background);
     event(f, 50);
     if (f->change_in_render)
         mm_world_render_dirty(&f->r);
@@ -322,7 +324,7 @@ static void init(Fixture *f)
     f->a[5].style = 10;
     s = &f->s;
     s->context = f;
-    s->root = &f->a[0];
+    mm_render_frame_borrow(&s->frame, &f->a[0], &f->a[6], f->working, f->background);
     s->actor_none = 0;
     s->actor_model = 1;
     s->faces = 8;

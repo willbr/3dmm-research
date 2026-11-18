@@ -270,8 +270,8 @@ static void init(Host *h, MMPreviewRenderServices *r, MMPreviewPickServices *s, 
     r->describe = describe;
     r->body_count = body_count;
     r->body = body;
-    r->world = world;
-    r->free_world = free_world;
+    r->frame_factory.world = world;
+    r->frame_factory.free_world = free_world;
     r->camera = camera;
     r->mesh = mesh;
     r->add_mesh = add_mesh;

@@ -166,7 +166,7 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
     if (!r->changed)
         return 1;
     if (s->has(s->context, MM_WORLD_BEGIN))
-        for (actor = s->child(s->context, s->root); actor; actor = s->next(s->context, actor))
+        for (actor = s->child(s->context, s->frame.world); actor; actor = s->next(s->context, actor))
             if (s->type(s->context, actor) == s->actor_none)
                 s->begin(s->context, actor);
     if (!mm_world_render_clean(b, s))
@@ -174,12 +174,12 @@ int mm_world_render(MMWorldRender *r, const MMWorldBuffers *b, const MMWorldRend
     s->region_union(s->context, SCREEN, WORK);
     s->region_clear(s->context, WORK);
     s->options(s->context, &wire, &flat, &no_texture);
-    mm_world_render_styles(s->root, wire ? s->edges : s->faces, s);
+    mm_world_render_styles(s->frame.world, wire ? s->edges : s->faces, s);
     if (!mm_world_materials_begin(&materials, flat, no_texture, &s->materials))
         return 0;
-    s->render(s->context);
+    s->render(s->context, &s->frame);
     mm_world_materials_end(&materials, &s->materials);
-    for (actor = s->child(s->context, s->root); actor; actor = s->next(s->context, actor))
+    for (actor = s->child(s->context, s->frame.world); actor; actor = s->next(s->context, actor))
         if (s->type(s->context, actor) == s->actor_none && s->has(s->context, MM_WORLD_RECT))
         {
             s->rect(s->context, actor, rect);

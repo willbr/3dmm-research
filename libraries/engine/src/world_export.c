@@ -95,7 +95,7 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
     if (!depth || !mm_world_export_background(b, rgb, depth, scale, buffers))
         goto cleanup;
     render->options(render->context, &wire, &flat, &no_texture);
-    mm_world_render_styles(render->root, wire ? render->edges : render->faces, render);
+    mm_world_render_styles(render->frame.world, wire ? render->edges : render->faces, render);
     if (!s->lock(s->context, rgb, &pixels))
         goto cleanup;
     buffers->depth_span(buffers->context, depth, &span);
@@ -121,7 +121,7 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
     render->options(render->context, &wire, &flat, &no_texture);
     ready = mm_world_materials_begin(&materials, flat, no_texture, &render->materials);
     if (ready)
-        s->raster(s->context, &rgb_view, &depth_view);
+        s->raster(s->context, &render->frame, &rgb_view, &depth_view);
     mm_world_materials_end(&materials, &render->materials);
     s->bounds_callback(s->context, 1);
     render->flush(render->context);

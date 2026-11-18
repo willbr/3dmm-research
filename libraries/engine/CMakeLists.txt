@@ -283,7 +283,7 @@ target_sources(mm-engine-c89 PRIVATE src/depth_bitmap.c)
 target_sources(mm-engine-c89 PRIVATE src/masked_bitmap.c)
 target_sources(mm-engine-c89 PRIVATE src/world_buffers.c)
 target_sources(mm-engine-c89 PRIVATE src/world_camera.c)
-target_sources(mm-engine-c89 PRIVATE src/world_render.c)
+target_sources(mm-engine-c89 PRIVATE src/render_frame.c src/world_render.c)
 target_sources(mm-engine-c89 PRIVATE src/world_export.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_owner.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_runtime.c)
@@ -1173,6 +1173,7 @@ if(ENGINE_C89_COMPILER)
     "${engine_world_buffers_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/world_camera.c"
     "${engine_world_camera_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/render_frame.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/world_render.c"
     "${engine_world_render_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/world_export.c"

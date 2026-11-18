@@ -14,7 +14,7 @@ extern "C"
         void *(*palette)(void *);
         int (*lock)(void *, void *port, MMWorldPixels *);
         void (*bounds_callback)(void *, int enabled);
-        void (*raster)(void *, const MMWorldPixelView *rgb, const MMWorldPixelView *depth);
+        void (*raster)(void *, const MMRenderFrame *, const MMWorldPixelView *rgb, const MMWorldPixelView *depth);
         int (*write)(void *, const MMWorldPixels *, void *palette, MMI32 width, MMI32 height);
     } MMWorldExportServices;
     /* Services provide uniquely owned zero-filled RGB ports and FF-filled depth

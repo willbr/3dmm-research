@@ -161,15 +161,15 @@ struct Preview::Impl::RenderHost
                 return 0;
             }
         };
-        s.colour = [](void *, MMU32 w, MMU32 h) -> void * {
+        s.frame_factory.colour = [](void *, MMU32 w, MMU32 h) -> void * {
             return BrPixelmapAllocate(BR_PMT_INDEX_8, w, h, nullptr, BR_PMAF_NORMAL);
         };
-        s.depth = [](void *, void *c) -> void * {
+        s.frame_factory.depth = [](void *, void *c) -> void * {
             return BrPixelmapMatch(static_cast<br_pixelmap *>(c), BR_PMMATCH_DEPTH_16);
         };
-        s.world = [](void *) -> void * { return BrActorAllocate(BR_ACTOR_NONE, nullptr); };
-        s.free_pixel = [](void *, void *p) { BrPixelmapFree(static_cast<br_pixelmap *>(p)); };
-        s.free_world = [](void *, void *p) { BrActorFree(static_cast<br_actor *>(p)); };
+        s.frame_factory.world = [](void *) -> void * { return BrActorAllocate(BR_ACTOR_NONE, nullptr); };
+        s.frame_factory.free_pixel = [](void *, void *p) { BrPixelmapFree(static_cast<br_pixelmap *>(p)); };
+        s.frame_factory.free_world = [](void *, void *p) { BrActorFree(static_cast<br_actor *>(p)); };
         s.fill = [](void *, void *p, MMU32 value) { BrPixelmapFill(static_cast<br_pixelmap *>(p), value); };
         s.buffers = [](void *, void *c, void *d, MMPreviewBuffer *out) {
             auto colour = static_cast<br_pixelmap *>(c), depth = static_cast<br_pixelmap *>(d);
@@ -294,9 +294,9 @@ struct Preview::Impl::RenderHost
             }
         };
         s.sink_off = [](void *) { BrZbSetTriangleSink(nullptr, nullptr); };
-        s.render = [](void *, void *w, void *c, void *p, void *d) {
-            BrZbSceneRender(static_cast<br_actor *>(w), static_cast<br_actor *>(c), static_cast<br_pixelmap *>(p),
-                            static_cast<br_pixelmap *>(d));
+        s.render = [](void *, const MMRenderFrame *frame) {
+            BrZbSceneRender(static_cast<br_actor *>(frame->world), static_cast<br_actor *>(frame->camera),
+                            static_cast<br_pixelmap *>(frame->colour), static_cast<br_pixelmap *>(frame->depth));
         };
         s.renderer_ok = [](void *v) -> int {
             return !Internal::AssertionFailed() && !static_cast<RenderHost *>(v)->exception;

@@ -102,7 +102,7 @@ void mm_preview_pick_model(MMPreviewPickState *p, void *actor, void *model, void
     s->model_pick(s->context, model, faces, material, position, direction, near_clip, far_clip, p);
 }
 static int pick(const MMPreviewProjection *p, int authored, int output_resolution, MMU32 width, MMU32 height, MMI32 x,
-                MMI32 y, MMPreviewPickState *state, void **world)
+                MMI32 y, MMPreviewPickState *state, MMRenderFrame *frame)
 {
     const MMPreviewPickServices *s = state->s;
     MMPreviewRenderServices r = *s->render;
@@ -114,7 +114,6 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     MMU32 rw, rh, sx, sy;
     float scale;
     double denominator, distance;
-    void *cam;
     int bg, result;
     if (!r.ready(r.context))
         return MM_PREVIEW_PICK_INVALID;
@@ -165,7 +164,7 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
         x = (MMI32)rw - 1;
     if (y >= (MMI32)rh)
         y = (MMI32)rh - 1;
-    *world = r.world(r.context);
+    mm_render_frame_allocate_world(frame, r.context, &r.frame_factory);
     memset(&camera, 0, sizeof(camera));
     camera.parallel = p->orthographic;
     if (p->orthographic)
@@ -182,10 +181,11 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     camera.far_z = m->scalar(p->far_clip);
     for (sx = 0; sx < 12; ++sx)
         camera.matrix[sx] = m->scalar(p->transform[sx]);
-    cam = *world ? r.camera(r.context, *world, &camera) : 0;
-    if (!cam)
+    if (frame->world)
+        frame->camera = r.camera(r.context, frame->world, &camera);
+    if (!frame->camera)
         return MM_PREVIEW_PICK_CAMERA;
-    if (!s->invertible(s->context, cam))
+    if (!s->invertible(s->context, frame->camera))
         return MM_PREVIEW_PICK_SINGULAR;
     r.tree.context = state;
     r.tree.owner = owner;
@@ -193,12 +193,12 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     r.tree.next = tree_next;
     r.tree.model = tree_model;
     r.tree.clone_attach = tree_clone;
-    if (!mm_preview_copy_bodies(*world, &r) || (d.model && !r.add_model(r.context, *world, d.model)))
+    if (!mm_preview_copy_bodies(frame->world, &r) || (d.model && !r.add_model(r.context, frame->world, d.model)))
         return MM_PREVIEW_PICK_MODELS;
     if (!bg && d.background)
     {
         memset(&mesh, 0, sizeof(mesh));
-        if (!r.mesh(r.context, &mesh) || !r.add_mesh(r.context, *world))
+        if (!r.mesh(r.context, &mesh) || !r.add_mesh(r.context, frame->world))
             return MM_PREVIEW_PICK_MODELS;
     }
     state->near_clip = p->near_clip;
@@ -221,7 +221,8 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
                 state->closest = (float)distance;
         }
     }
-    result = s->scene_pick(s->context, *world, cam, rw, rh, x - (MMI32)rw / 2, y - (MMI32)rh / 2, state);
+    result = s->scene_pick(s->context, frame->world, frame->camera, rw, rh,
+                          x - (MMI32)rw / 2, y - (MMI32)rh / 2, state);
     if (state->failed)
         return MM_PREVIEW_PICK_MEMORY;
     return result ? MM_PREVIEW_PICK_OK : MM_PREVIEW_PICK_RENDERER;
@@ -231,11 +232,12 @@ int mm_preview_pick(const MMPreviewProjection *p, int authored, int output_resol
 {
     MMPreviewPickState state;
     const MMPreviewRenderServices *r = s->render;
-    void *world = 0;
+    MMRenderFrame frame;
     int result;
     *object = -1;
     *distance = (float)HUGE_VAL;
     memset(&state, 0, sizeof(state));
+    memset(&frame, 0, sizeof(frame));
     state.s = s;
     state.object = -1;
     mm_storage_init(&state.owners, r->allocator.resize ? &r->allocator : 0);
@@ -243,9 +245,8 @@ int mm_preview_pick(const MMPreviewProjection *p, int authored, int output_resol
     state.entries.storage = &state.owners;
     state.entries.width = sizeof(PickOwner);
     state.entries.free_count = -1;
-    result = pick(p, authored, output_resolution, width, height, x, y, &state, &world);
-    if (world)
-        r->free_world(r->context, world);
+    result = pick(p, authored, output_resolution, width, height, x, y, &state, &frame);
+    mm_render_frame_dispose(&frame);
     mm_storage_dispose(&state.faces);
     mm_storage_dispose(&state.owners);
     if (result == MM_PREVIEW_PICK_OK && state.object >= 0)

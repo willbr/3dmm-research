@@ -3,6 +3,7 @@
 #define MM_ENGINE_PREVIEW_RENDER_H
 #include "background_resource.h"
 #include "collections.h"
+#include "render_frame.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -124,8 +125,7 @@ extern "C"
         MMU32 (*body_count)(void *);
         int (*body)(void *, MMU32, MMPreviewBody *);
         int (*object_bounds)(void *, MMI32, float corners[24], int *valid);
-        void *(*colour)(void *, MMU32, MMU32), *(*depth)(void *, void *colour), *(*world)(void *);
-        void (*free_pixel)(void *, void *), (*free_world)(void *, void *);
+        MMRenderFrameFactory frame_factory;
         void (*fill)(void *, void *pixelmap, MMU32);
         void (*buffers)(void *, void *colour, void *depth, MMPreviewBuffer *);
         void *(*camera)(void *, void *world, const MMPreviewCamera *);
@@ -147,7 +147,7 @@ extern "C"
         void (*relative)(void *, void *actor, void *camera, MMI32 matrix[12]);
         int (*raster_begin)(void *, const MMPreviewProjection *, const unsigned char *palette, int opaque,
                             MMU32, MMU32);
-        void (*sink_off)(void *), (*render)(void *, void *world, void *camera, void *colour, void *depth);
+        void (*sink_off)(void *), (*render)(void *, const MMRenderFrame *);
         int (*renderer_ok)(void *), (*raster_end)(void *, const MMPreviewBuffer *);
         const unsigned char *(*raster_rgba)(void *);
         void (*depth_projection)(void *, void *camera, MMI32 matrix[16]);

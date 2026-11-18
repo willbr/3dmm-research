@@ -243,10 +243,11 @@ static void flush(void *p)
     assert(f->bounds && f->material.flags == 20 && !f->material_live);
     event(f, 402);
 }
-static void raster(void *p, const MMWorldPixelView *rgb, const MMWorldPixelView *z)
+static void raster(void *p, const MMRenderFrame *frame, const MMWorldPixelView *rgb, const MMWorldPixelView *z)
 {
     Fixture *f = (Fixture *)p;
     int x, y, scale = rgb->width / f->b.width;
+    assert(frame->world == &f->root && frame->camera == &f->model);
     assert(!f->bounds && rgb->width == f->b.width * scale && rgb->height == f->b.height * scale);
     assert(rgb->row == rgb->width && z->row == z->width * 2 && rgb->x == rgb->width / 2 && rgb->y == rgb->height / 2);
     assert(rgb->type == 42 && z->type == 84 && rgb->pixels == f->rgb->pixels && z->pixels == f->depth->pixels);
@@ -337,7 +338,7 @@ static void init(Fixture *f)
     b->unlock = unlock;
     r = &f->s.render;
     r->context = f;
-    r->root = &f->root;
+    mm_render_frame_borrow(&r->frame, &f->root, &f->model, NULL, NULL);
     r->actor_model = 1;
     r->bounding_points = 10;
     r->bounding_edges = 11;

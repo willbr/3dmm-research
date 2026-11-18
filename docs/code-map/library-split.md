@@ -134,6 +134,14 @@ probe prints appearance bindings, world matrices and geometry fingerprints.
 Studio and Marcus still use their existing archive owners, playback resource
 providers and renderers.
 
+`MMRenderFrame` carries the world, camera and colour/depth targets at the
+renderer boundary. Marcus's C render controller allocates the targets and
+releases its world before the pixelmaps. Picking uses the same owner for
+its temporary world and attached camera. Studio passes a borrowed frame
+over the live world and the working targets owned by `MMWorldBuffers`.
+The scaled export path uses the frame's world and camera with separate
+export pixels.
+
 | Caller / dependency | Boundary after the first slice |
 | --- | --- |
 | Studio `Movie::Play`, `Movie::FCmdRender` | Apply commands through the `MoviePlayEvaluator` / `MoviePlaybackEvaluator` C++ facades; policy state is the shared C record. |

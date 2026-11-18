@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_WORLD_RENDER_H
 #define MM_ENGINE_WORLD_RENDER_H
 #include "world_buffers.h"
+#include "render_frame.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C"
@@ -53,7 +54,8 @@ extern "C"
     };
     typedef struct MMWorldRenderServices
     {
-        void *context, *root;
+        void *context;
+        MMRenderFrame frame;
         int actor_none, actor_model, bounding_points, bounding_edges, bounding_faces, faces, edges;
         void *(*child)(void *, void *), *(*next)(void *, void *);
         int (*type)(void *, void *), (*style)(void *, void *);
@@ -74,7 +76,7 @@ extern "C"
          * borrowed region storage before the controller mutates regions. */
         int (*scan_span)(void *, MMI32 *left, MMI32 *right);
         void (*scan_next)(void *), (*scan_end)(void *);
-        void (*render)(void *), (*publish)(void *, const MMWorldRender *);
+        void (*render)(void *, const MMRenderFrame *), (*publish)(void *, const MMWorldRender *);
         void (*snapshot_depth)(void *), (*detach_depth)(void *), (*snapshot_rgb)(void *), (*flush)(void *);
         void (*restore_background)(void *);
         void (*screen_scale)(void *, MMI32 nx, MMI32 dx, MMI32 ny, MMI32 dy);
