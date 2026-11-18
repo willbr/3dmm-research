@@ -793,9 +793,11 @@ C89 controls the timing, draw order and palette updates for wipe, slide, iris,
 fade and dissolve. It also owns dissolve's seeded pixel and cell permutation.
 Kauai supplies the clock, random seed selection, drawing, clip and palette
 services.
-Continuous dissolve presentation remains open in SDL Studio and Marcus. Each
-host recorded one distinct image at the incoming scene's first frame in the
-dissolve fixture, compared with 234 in retail.
+SDL Studio submits intermediate dissolve snapshots through its window
+presenter. Marcus uses the shared C89 dissolve permutation and phase lengths
+to compose RGBA movie-camera frames. Both show the intermediate reveal when
+the outgoing and incoming images differ. Retail also shows temporary colour
+changes in the fixture with identical endpoint images.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.

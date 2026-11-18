@@ -75,7 +75,6 @@ struct MarcusPlayer
     MM::PreviewImage movieImage;
     MM::PreviewImage costumeImage;
     int movieImageScene = -1;
-    std::int32_t movieImageFrame = 0;
     MarcusPlayback playback;
     std::vector<MM::Id> scenes;
     std::vector<MarcusScene> sceneInfo, baseSceneInfo;
@@ -660,9 +659,9 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     }
     if (view.authoredCamera && !view.freeCamera)
     {
+        player->playback.CompositeTransition(player->image);
         player->movieImage = player->image;
         player->movieImageScene = player->selected;
-        player->movieImageFrame = player->preview.Info().currentFrame;
     }
     image->width = static_cast<int>(player->image.width);
     image->height = static_cast<int>(player->image.height);
@@ -2728,18 +2727,17 @@ extern "C"
                 else if (player->selected + 1 < static_cast<int>(player->scenes.size()))
                 {
                     const auto transition = player->playback.Transition();
-                    // Inspection renders must not replace the movie camera's
-                    // outgoing transition image when both views are visible.
-                    const auto previous = player->movieImageScene == player->selected &&
-                                          player->movieImageFrame == info.currentFrame
-                                              ? player->movieImage : player->image;
+                    // The last image from the movie camera is the outgoing surface.
+                    auto previous = player->movieImageScene == player->selected
+                                        ? std::move(player->movieImage) : MM::PreviewImage{};
+                    player->movieImageScene = -1;
                     const auto next = player->selected + 1;
                     if (!SelectScene(player, next, true, true))
                     {
                         error.message = player->error;
                         return false;
                     }
-                    player->playback.BeginTransition(transition, previous);
+                    player->playback.BeginTransition(transition, std::move(previous));
                     state->scene_changed = 1;
                 }
                 else

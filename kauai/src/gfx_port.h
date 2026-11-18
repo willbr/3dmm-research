@@ -291,6 +291,7 @@ class GraphicsPort : public GraphicsPort_PAR
     bool DrawVideoFrame(const KauaiPixels::DibFrame &, SystemRectangle *, GraphicsDrawingData *);
     bool FCopyIndexedSnapshot(PGraphicsPort source, SystemRectangle *sourceRect, SystemRectangle *destinationRect);
     bool FGetIndexedPalette(Color *colors);
+    void PresentTransitionFrame();
 #endif
 
     void Lock(void);

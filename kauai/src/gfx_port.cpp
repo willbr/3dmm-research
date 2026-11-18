@@ -96,4 +96,9 @@ PGraphicsPort GraphicsPort::PgptNewSDLWindow(CoreNative::WindowHandle window)
         host.BindPixels(port->_prgbPixels, port->_cbRow);
     return port;
 }
+
+void GraphicsPort::PresentTransitionFrame()
+{
+    KauaiSDL::Main().PresentBoundPixels(_prgbPixels);
+}
 #endif

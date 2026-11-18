@@ -40,6 +40,22 @@ typedef struct MMGraphicsDissolvePixels
     MMPixelPoint source_origin;
 } MMGraphicsDissolvePixels;
 
+enum MMGraphicsMovieTransitionKind
+{
+    MM_GRAPHICS_MOVIE_CUT = 0,
+    MM_GRAPHICS_MOVIE_FADE_BLACK = 1,
+    MM_GRAPHICS_MOVIE_FADE_WHITE = 2,
+    MM_GRAPHICS_MOVIE_DISSOLVE = 3,
+    MM_GRAPHICS_MOVIE_BLACK = 4
+};
+
+typedef struct MMGraphicsMovieTransition
+{
+    MMU32 dissolve_phase_ms;
+    MMI32 fill; /* A grayscale level, or -1 for a direct dissolve. */
+    double duration_ms;
+} MMGraphicsMovieTransition;
+
 typedef struct MMGraphicsTransitionServices
 {
     void *context;
@@ -61,12 +77,20 @@ typedef struct MMGraphicsTransitionServices
     int (*lock_dissolve)(void *, MMGraphicsDissolvePixels *);
     void (*unlock_dissolve)(void *);
     MMU32 (*random_below)(void *, MMU32 exclusive_limit);
+    /* Optional device submission after the dissolve snapshot has been flushed. */
+    void (*show_dissolve)(void *);
 } MMGraphicsTransitionServices;
 
 /* The clock uses wrapping millisecond words. Host services must stay valid
  * for the synchronous transition. Iris requires the destination view. */
 MMU32 mm_graphics_transition_duration(MMU32);
 void mm_graphics_transition_run(const MMGraphicsTransition *, const MMGraphicsTransitionServices *);
+
+MMGraphicsMovieTransition mm_graphics_movie_transition(MMI32 authored_kind);
+/* Update an incoming RGBA8 image in place from a separate outgoing image.
+ * A stable seed gives the same reveal on repeated presentations. */
+int mm_graphics_movie_transition_rgba(MMI32 authored_kind, double elapsed_ms, MMU32 seed,
+                                      const MMPixelSurface *outgoing, const MMPixelSurface *incoming);
 
 /* The four-byte colours are BGR and a reserved byte. Missing palettes use
  * the substitute or zero. Preserve the old colour's reserved byte. */

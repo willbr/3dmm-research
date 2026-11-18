@@ -6,6 +6,7 @@
 #include "font_host.h"
 #include "font_catalog.h"
 #include "rich_text_layout.h"
+#include "mm/graphics_transition.h"
 #include "mm/text_box_runtime.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -28,10 +29,11 @@ bool Fail(Error &error, const std::string &message)
     error.message = message;
     return false;
 }
-double TransitionSeconds(int kind)
-{
-    return kind == 4 ? 1.0 / 6 : kind > 0 && kind < 4 ? 4 : 0;
-}
+static_assert(static_cast<int>(MARCUS_TRANSITION_CUT) == MM_GRAPHICS_MOVIE_CUT &&
+              static_cast<int>(MARCUS_TRANSITION_FADE_BLACK) == MM_GRAPHICS_MOVIE_FADE_BLACK &&
+              static_cast<int>(MARCUS_TRANSITION_FADE_WHITE) == MM_GRAPHICS_MOVIE_FADE_WHITE &&
+              static_cast<int>(MARCUS_TRANSITION_DISSOLVE) == MM_GRAPHICS_MOVIE_DISSOLVE &&
+              static_cast<int>(MARCUS_TRANSITION_BLACK) == MM_GRAPHICS_MOVIE_BLACK, "Authored movie transition values");
 struct AudioClip
 {
     std::tuple<int, unsigned, unsigned> identity;
@@ -479,6 +481,7 @@ struct MarcusPlayback::Impl
     bool auditioning = false;
     int wait = 0, transition = 0;
     double frameTime = 0, waitTime = 0, transitionTime = 0, frameSeconds = 0;
+    MMU32 transitionSeed = 0;
     MMFramePacer pacer = {};
     double fps = -1, pacingTime = 0, frameCarry = 0;
     PreviewImage previous;
@@ -851,7 +854,7 @@ bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusS
                                 const std::shared_ptr<KauaiFonts::FontCatalog> &fonts)
 {
     timing = {};
-    timing.transition = TransitionSeconds(presentation.transition);
+    timing.transition = mm_graphics_movie_transition(presentation.transition).duration_ms / 1000;
     timing.pauses = presentation.pauses;
     // Use the playback layout itself, including font metrics and rich-text
     // wrapping, so restart offsets use the same scrolling distance and speed.
@@ -979,17 +982,18 @@ bool MarcusPlayback::Transitioning() const
 }
 double MarcusPlayback::FrameSeconds() const
 {
-    return impl->transition ? std::min(0.0, impl->transitionTime / 1000 - TransitionSeconds(impl->transition))
+    return impl->transition ? (impl->transitionTime - mm_graphics_movie_transition(impl->transition).duration_ms) / 1000
                             : impl->frameSeconds;
 }
-void MarcusPlayback::BeginTransition(int kind, const MM::PreviewImage &previous)
+void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous)
 {
-    if (kind < 1 || kind > 4 || previous.rgba.empty())
+    if (previous.rgba.empty() || !mm_graphics_movie_transition(kind).duration_ms)
         return;
     impl->transition = kind;
     impl->wasPlaying = true;
     impl->transitionTime = 0;
-    impl->previous = previous;
+    impl->transitionSeed = static_cast<MMU32>(SDL_GetTicks());
+    impl->previous = std::move(previous);
 }
 bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, bool click, bool &advance,
                             MM::Error &error)
@@ -1013,7 +1017,7 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
     if (impl->transition)
     {
         impl->transitionTime += elapsed;
-        if (impl->transitionTime < TransitionSeconds(impl->transition) * 1000)
+        if (impl->transitionTime < mm_graphics_movie_transition(impl->transition).duration_ms)
             return true;
         impl->transition = 0;
         impl->previous = {};
@@ -1262,34 +1266,17 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
         if (!authored)
             marcus_caption_quad(layer, image.sceneCamera, image);
     }
-    if (authored && impl->transition && impl->previous.rgba.size() == image.rgba.size())
-    {
-        const auto progress = std::min(1.0, impl->transitionTime / (impl->transition == 4 ? 1000.0 / 6 : 4000.0));
-        for (std::size_t pixel = 0; pixel < image.rgba.size() / 4; ++pixel)
-        {
-            // Deterministic per-pixel reveal, stable across window redraws.
-            auto hash = static_cast<std::uint32_t>(pixel);
-            hash ^= hash >> 16;
-            hash *= 0x7feb352d;
-            hash ^= hash >> 15;
-            hash *= 0x846ca68b;
-            hash ^= hash >> 16;
-            const auto threshold = hash / 4294967296.0;
-            const std::uint8_t *source = nullptr;
-            std::uint8_t fill[4] = {0, 0, 0, 255};
-            if (impl->transition == 2)
-                fill[0] = fill[1] = fill[2] = 255;
-            if (impl->transition == 3)
-                source = threshold >= progress ? &impl->previous.rgba[pixel * 4] : &image.rgba[pixel * 4];
-            else if (impl->transition == 4)
-                source = fill;
-            else if (progress < .5)
-                source = threshold >= progress * 2 ? &impl->previous.rgba[pixel * 4] : fill;
-            else
-                source = threshold >= (progress - .5) * 2 ? fill : &image.rgba[pixel * 4];
-            if (source != &image.rgba[pixel * 4])
-                std::copy_n(source, 4, &image.rgba[pixel * 4]);
-        }
-    }
     return true;
+}
+
+void MarcusPlayback::CompositeTransition(MM::PreviewImage &image) const
+{
+    if (!impl->transition)
+        return;
+    auto &previous = impl->previous;
+    const MMPixelSurface outgoing{previous.rgba.data(), static_cast<MMI32>(previous.width),
+                                  static_cast<MMI32>(previous.height), static_cast<MMI32>(previous.width * 4), 32};
+    const MMPixelSurface incoming{image.rgba.data(), static_cast<MMI32>(image.width), static_cast<MMI32>(image.height),
+                                  static_cast<MMI32>(image.width * 4), 32};
+    mm_graphics_movie_transition_rgba(impl->transition, impl->transitionTime, impl->transitionSeed, &outgoing, &incoming);
 }

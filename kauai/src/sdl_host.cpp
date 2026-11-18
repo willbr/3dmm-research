@@ -834,6 +834,11 @@ bool Host::Present(bool force)
     if (impl->presentationObserver) impl->presentationObserver();
     return true;
 }
+void Host::PresentBoundPixels(const void *pixels)
+{
+    if (pixels && pixels == impl->pixels && !impl->presentationPixels)
+        Present();
+}
 void Host::ObservePresentations(void (*observer)())
 {
     impl->presentationObserver = observer;

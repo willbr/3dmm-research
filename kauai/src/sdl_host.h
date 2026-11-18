@@ -137,6 +137,7 @@ class Host
     void BindPixels(const void *pixels, int pitch);
     void UnbindPixels(const void *pixels);
     bool Present(bool force = false);
+    void PresentBoundPixels(const void *pixels);
     // Optional diagnostic observer; called after a successful host present.
     void ObservePresentations(void (*observer)());
     bool Poll(Event &event, int timeoutMs = 0);

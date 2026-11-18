@@ -3375,7 +3375,11 @@ void Movie::BuildActionMenu()
     _pmcc->UpdateAction();
 }
 
-const long kdtsTrans = 4 * kdtsSecond;
+static_assert(static_cast<int>(transCut) == MM_GRAPHICS_MOVIE_CUT &&
+              static_cast<int>(transFadeToBlack) == MM_GRAPHICS_MOVIE_FADE_BLACK &&
+              static_cast<int>(transFadeToWhite) == MM_GRAPHICS_MOVIE_FADE_WHITE &&
+              static_cast<int>(transDissolve) == MM_GRAPHICS_MOVIE_DISSOLVE &&
+              static_cast<int>(transBlack) == MM_GRAPHICS_MOVIE_BLACK, "Authored movie transition values");
 
 /***************************************************************************
  *
@@ -3427,16 +3431,15 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
         break;
 
     case transFadeToBlack:
-        pgnvDst->Dissolve(0, 0, kacrBlack, pgnvSrc, prcSrc, prcDst, kdtsTrans / 2, pglclrSystem);
-        break;
-
     case transFadeToWhite:
-        pgnvDst->Dissolve(0, 0, kacrWhite, pgnvSrc, prcSrc, prcDst, kdtsTrans / 2, pglclrSystem);
-        break;
-
     case transDissolve:
-        pgnvDst->Dissolve(0, 0, kacrClear, pgnvSrc, prcSrc, prcDst, kdtsTrans, pglclrSystem);
+    {
+        const auto effect = mm_graphics_movie_transition(static_cast<MMI32>(_playback.transition));
+        const auto shade = static_cast<byte>(effect.fill);
+        const auto fill = effect.fill < 0 ? kacrClear : AbstractColor(shade, shade, shade);
+        pgnvDst->Dissolve(0, 0, fill, pgnvSrc, prcSrc, prcDst, effect.dissolve_phase_ms, pglclrSystem);
         break;
+    }
 
     case transCut:
         pgnvDst->FillRc(prcDst, kacrBlack);

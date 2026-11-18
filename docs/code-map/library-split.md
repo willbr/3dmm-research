@@ -5230,6 +5230,26 @@ entry to the incoming scene, and each host recorded one. The combined media
 runner stopped at its pre-play audio silence check for all three players.
 Evidence is in `tmp/c89-dissolve`.
 
+Studio SDL now submits the flushed indexed dissolve snapshots through its
+normal rate-limited window presenter. The submission reads the bound target
+buffer directly during the existing paint pass. Marcus applies the same C89
+permutation to the authored-camera RGBA image at output resolution. It uses
+the last image displayed by that camera as its outgoing surface. C89 supplies
+both hosts' four-second dissolve and two two-second phases for fades.
+The native comparison retained all 345,164,224 bytes over 832 cases.
+
+For the visual checks, a temporary fixture starts the incoming scene on a
+different camera. Both hosts matched retail's outgoing and incoming images and
+all 60 authored frames for dissolve and fades through black and white. The
+distinct-camera dissolve produced 174 distinct SDL images, up from one in the
+frozen baseline. Marcus produced 376 and retail produced 234. The sample
+counts reflect each host's capture cadence. With the original fixture, Studio
+submitted 169 images during the effect and Marcus submitted 376. Each repeated
+one distinct image. Retail's temporary colour changes on that fixture remain
+open. The standalone, focused host, SDL and AddressSanitizer checks passed, and
+the playback gate matched 480 retail frame commits. Evidence is in
+`tmp/c89-transition-presentation`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit

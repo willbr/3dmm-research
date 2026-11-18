@@ -2,6 +2,9 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/graphics_transition.h"
 #include "mm/wide.h"
+#include <string.h>
+
+#define MM_DISSOLVE_LIMIT 0x07ffffffUL
 
 static MMI32 add(MMI32 a, MMI32 b)
 {
@@ -244,6 +247,87 @@ static MMU32 dissolve_next(MMU32 index, MMU32 count, MMU32 *word)
     return count - *word;
 }
 
+static MMU32 dissolve_word(MMU32 count, MMU32 initial_index)
+{
+    return (count - initial_index - 1) % 65536UL + 1;
+}
+
+MMGraphicsMovieTransition mm_graphics_movie_transition(MMI32 authored_kind)
+{
+    static const MMGraphicsMovieTransition effects[] = {
+        {0, -1, 0}, {2000, 0, 4000}, {2000, 255, 4000}, {4000, -1, 4000}, {0, 0, 1000.0 / 6.0}
+    };
+    if (authored_kind < MM_GRAPHICS_MOVIE_CUT || authored_kind > MM_GRAPHICS_MOVIE_BLACK)
+        authored_kind = MM_GRAPHICS_MOVIE_CUT;
+    return effects[authored_kind];
+}
+
+int mm_graphics_movie_transition_rgba(MMI32 authored_kind, double elapsed_ms, MMU32 seed,
+                                      const MMPixelSurface *outgoing, const MMPixelSurface *incoming)
+{
+    const MMGraphicsMovieTransition effect = mm_graphics_movie_transition(authored_kind);
+    const unsigned char *old;
+    unsigned char *next;
+    unsigned char fill[4] = {0, 0, 0, 255};
+    MMU32 width, height, count, index, word, reveal, i, x, y, old_x, old_y;
+    int filling, fading, resized;
+    if (!(elapsed_ms >= 0))
+        return 0;
+    if (elapsed_ms >= effect.duration_ms)
+        return 1;
+    if (!incoming || incoming->depth != 32 || !mm_pixel_surface_valid(incoming) ||
+        (MMU32)incoming->height > MM_DISSOLVE_LIMIT / (MMU32)incoming->width)
+        return 0;
+    width = (MMU32)incoming->width;
+    height = (MMU32)incoming->height;
+    next = incoming->pixels;
+    if (!effect.dissolve_phase_ms)
+    {
+        for (y = 0; y < height; ++y)
+            for (x = 0; x < width; ++x)
+                memcpy(next + (size_t)y * (MMU32)incoming->pitch + 4 * x, fill, sizeof(fill));
+        return 1;
+    }
+    fading = effect.fill >= 0;
+    filling = fading && elapsed_ms < effect.dissolve_phase_ms;
+    if (fading)
+    {
+        fill[0] = fill[1] = fill[2] = (unsigned char)effect.fill;
+        if (!filling)
+        {
+            elapsed_ms -= effect.dissolve_phase_ms;
+            seed = seed * 1566083941UL + 2531011UL;
+        }
+    }
+    if ((!fading || filling) && (!outgoing || outgoing->depth != 32 || !mm_pixel_surface_valid(outgoing)))
+        return 0;
+    old = outgoing ? outgoing->pixels : NULL;
+    resized = outgoing && (outgoing->width != incoming->width || outgoing->height != incoming->height);
+    count = width * height;
+    reveal = mm_pixel_muldiv(count, (MMU32)elapsed_ms, effect.dissolve_phase_ms);
+    index = seed % count;
+    word = dissolve_word(count, index);
+    for (i = 0; i < count; ++i)
+    {
+        index = dissolve_next(index, count, &word);
+        if (filling || i >= reveal)
+        {
+            x = index % width;
+            y = index / width;
+            if ((filling && i < reveal) || (fading && !filling))
+                memcpy(next + (size_t)y * (MMU32)incoming->pitch + 4 * x, fill, sizeof(fill));
+            else
+            {
+                old_x = resized ? (MMU32)mm_pixel_sample((MMI32)x, outgoing->width, incoming->width, 0) : x;
+                old_y = resized ? (MMU32)mm_pixel_sample((MMI32)y, outgoing->height, incoming->height, 0) : y;
+                memcpy(next + (size_t)y * (MMU32)incoming->pitch + 4 * x,
+                       old + (size_t)old_y * (MMU32)outgoing->pitch + 4 * old_x, 4);
+            }
+        }
+    }
+    return 1;
+}
+
 static void dissolve_cell(const MMGraphicsTransition *t, const MMGraphicsTransitionServices *s,
                           MMU32 width, MMU32 height, MMU32 columns, MMU32 rows, MMU32 index, int fill)
 {
@@ -297,7 +381,6 @@ static void dissolve_pixel(const MMGraphicsDissolvePixels *pixels, MMU32 index, 
 
 static void dissolve_transition(const MMGraphicsTransition *t, const MMGraphicsTransitionServices *s, MMU32 duration)
 {
-    const MMU32 limit = 0x07ffffffUL;
     const int cells = t->dissolve_cells.x > 0 && t->dissolve_cells.y > 0;
     MMGraphicsDissolvePixels pixels = {0};
     MMPixelRect sample;
@@ -325,7 +408,7 @@ static void dissolve_transition(const MMGraphicsTransition *t, const MMGraphicsT
         rows = (MMU32)height;
         last_row = (MMU32)width;
     }
-    if (last_row > limit || rows - 1 > (limit - last_row) / columns)
+    if (last_row > MM_DISSOLVE_LIMIT || rows - 1 > (MM_DISSOLVE_LIMIT - last_row) / columns)
         goto fallback;
     count = (rows - 1) * columns + last_row;
     if (!cells && t->fill)
@@ -349,7 +432,7 @@ static void dissolve_transition(const MMGraphicsTransition *t, const MMGraphicsT
             if (phase && palette && !s->start_palette(s->context, cells ? 8 : 0))
                 palette = 0;
             index = s->random_below(s->context, count);
-            word = (count - index - 1) % 65536UL + 1;
+            word = dissolve_word(count, index);
             start = s->ticks(s->context);
             for (done = 0; done < count;)
             {
@@ -369,6 +452,8 @@ static void dissolve_transition(const MMGraphicsTransition *t, const MMGraphicsT
                     {
                         s->present(s->context);
                         s->flush(s->context);
+                        if (s->show_dissolve)
+                            s->show_dissolve(s->context);
                     }
                 }
                 if (phase && palette)
@@ -382,6 +467,8 @@ static void dissolve_transition(const MMGraphicsTransition *t, const MMGraphicsT
             {
                 s->present(s->context);
                 s->flush(s->context);
+                if (s->show_dissolve)
+                    s->show_dissolve(s->context);
             }
             palette = 0;
         }

@@ -1294,7 +1294,15 @@ void GraphicsEnvironment::_Transition(MMGraphicsTransition config, AbstractColor
         },
         [](void *p, MMU32 limit) -> MMU32 {
             return static_cast<TransitionContext *>(p)->random->LwNext(static_cast<LegacyLong>(limit));
-        }};
+        },
+#ifdef KAUAI_SDL3
+        [](void *p) {
+            static_cast<TransitionContext *>(p)->target->_pgpt->PresentTransitionFrame();
+        }
+#else
+        nullptr
+#endif
+    };
     mm_graphics_transition_run(&config, &services);
     ReleasePpo(&context.iris);
     ReleasePpo(&context.snapshot);
