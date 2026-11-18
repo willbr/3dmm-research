@@ -150,7 +150,7 @@ struct MarcusStoryboardEditor
     bool Gesture() const { return painting || looking || dragField >= 0 || movingLight; }
     void StopLightGizmo()
     {
-        if (movingLight) MarcusGizmo::Enable(MarcusGizmo::Light, false);
+        if (movingLight) marcus_gizmo_enable(MARCUS_GIZMO_LIGHT, 0);
         movingLight = lightGizmoOver = false; lightControls = {};
     }
     void StopLook()
@@ -319,16 +319,19 @@ void storyboard_editor_gizmo(MarcusStoryboardEditor *e, int enabled)
     {
         if (e && e->movingLight) e->Reload();
         if (e) { e->lightGizmoOver = false; e->lightControls = {}; }
-        MarcusGizmo::Enable(MarcusGizmo::Light, false);
+        marcus_gizmo_enable(MARCUS_GIZMO_LIGHT, 0);
         return;
     }
     auto &light = e->board.lights[e->light];
     if (light.point) e->lightMode = 0;
     e->lightControls = {e->canvas.x + 8, e->canvas.y + 8, light.point ? 64.f : 130.f, 28};
-    e->lightGizmoOver = MarcusGizmo::Controls("Light tools", e->lightControls, e->lightMode, light.point ? 1 : 2, e->movingLight);
+    e->lightGizmoOver = ui_transform_controls("Light tools", &e->lightControls, &e->lightMode, light.point ? 1 : 2,
+                                              e->movingLight) != 0;
     if (!e->movingLight) MarcusBoardLightTransform(light, e->lightMatrix);
-    const auto result = MarcusGizmo::Manipulate(MarcusGizmo::Light, MarcusBoardProjection(e->DisplayAngle()), e->canvas, e->lightMode, e->lightMatrix);
-    e->lightGizmoOver |= result.over;
+    const auto projection = MarcusBoardProjection(e->DisplayAngle());
+    const auto result = marcus_gizmo_manipulate(MARCUS_GIZMO_LIGHT, &projection, &e->canvas, e->lightMode,
+                                              e->lightMatrix, .1f, nullptr);
+    e->lightGizmoOver = e->lightGizmoOver || result.over != 0;
     if (result.active || result.changed) e->movingLight = true;
     if (result.changed)
     {

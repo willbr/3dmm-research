@@ -41,7 +41,7 @@ target_compile_features(marcus-preview PRIVATE cxx_std_17)
 target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-core)
 kauai_copy_midi_assets(marcus-preview)
 
-add_executable(marcus WIN32 main.c ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_fields.c storyboard_view.c transport_skin.c prop_gizmo.cpp movie_browser.c movie_browser_preferences.c movie_browser_worker.cpp scene_organiser.c background_browser.c background_preview.cpp text_dialog.c costume_dialog.c sound_dialog.c camera_picker.c storyboard_editor.cpp preview_cache.cpp)
+add_executable(marcus WIN32 main.c ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_fields.c storyboard_view.c transport_skin.c prop_gizmo.c transform_gizmo.c imgui_bindings.cpp movie_browser.c movie_browser_preferences.c movie_browser_worker.cpp scene_organiser.c background_browser.c background_preview.cpp text_dialog.c costume_dialog.c sound_dialog.c camera_picker.c storyboard_editor.cpp preview_cache.cpp)
 add_dependencies(marcus marcus-preview)
 find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)

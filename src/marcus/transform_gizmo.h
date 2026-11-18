@@ -1,52 +1,23 @@
 #ifndef MARCUS_TRANSFORM_GIZMO_H
 #define MARCUS_TRANSFORM_GIZMO_H
 #include "camera_guide.h"
-#include "imgui.h"
-#include "ImGuizmo.h"
 #include <SDL3/SDL.h>
-#include "ui.h"
 
-namespace MarcusGizmo
-{
-constexpr int Object = 1, Light = 2;
-struct Result { bool changed = false, active = false, over = false; };
-inline void Enable(int id, bool enabled)
-{
-    ImGuizmo::SetID(id);
-    ImGuizmo::Enable(enabled);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+enum { MARCUS_GIZMO_OBJECT = 1, MARCUS_GIZMO_LIGHT = 2 };
+enum { MARCUS_GIZMO_MOVE, MARCUS_GIZMO_ROTATE, MARCUS_GIZMO_SCALE };
+typedef struct MarcusGizmoResult { int changed, active, over; } MarcusGizmoResult;
+
+void marcus_gizmo_enable(int id, int enabled);
+void marcus_gizmo_compose(const float position[3], const float angles[3], const float scale[3], float matrix[16]);
+void marcus_gizmo_decompose(const float matrix[16], float position[3], float angles[3], float scale[3]);
+MarcusGizmoResult marcus_gizmo_manipulate(int id, const MarcusProjection *camera, const SDL_FRect *rect,
+                                         int mode, float matrix[16], float size, const float *display_shift);
+
+#ifdef __cplusplus
 }
-// Both tools share one ImGui frame and the same controls, sizing and snapping.
-inline bool Controls(const char *title, const SDL_FRect &rect, int &mode, int count, bool editing)
-{
-    return ui_transform_controls(title, &rect, &mode, count, editing) != 0;
-}
-inline Result Manipulate(int id, const MarcusProjection &camera, const SDL_FRect &rect, int mode, float matrix[16],
-                         float size = .1f, const float *displayShift = nullptr)
-{
-    float view[16], projection[16];
-    if (rect.w <= 0 || rect.h <= 0 || !camera_projection_matrices(&camera, view, projection)) return {};
-    auto draw = ImGui::GetForegroundDrawList();
-    draw->PushClipRect(ImVec2(rect.x, rect.y), ImVec2(rect.x + rect.w, rect.y + rect.h), true);
-    Enable(id, true);
-    ImGuizmo::SetDrawlist(draw);
-    ImGuizmo::SetRect(rect.x, rect.y, rect.w, rect.h);
-    ImGuizmo::SetOrthographic(camera.orthographic != 0);
-    ImGuizmo::SetGizmoSizeClipSpace(size);
-    ImGuizmo::AllowAxisFlip(false);
-    ImGuizmo::SetTranslationAxisMinimumSize(24.f);
-    ImGuizmo::SetTranslationPlaneMinimumSize(12.f);
-    const float step = mode == 1 ? 15.f : mode == 2 ? .1f : 1.f;
-    const float snap[3] = {step, step, step};
-    const auto operation = mode == 1 ? ImGuizmo::ROTATE : mode == 2 ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
-    ImGuizmo::SetTranslationDisplayOffset(displayShift ? displayShift[0] * rect.w : 0.f,
-        displayShift ? displayShift[1] * rect.h : 0.f);
-    Result result;
-    result.changed = ImGuizmo::Manipulate(view, projection, operation, mode ? ImGuizmo::LOCAL : ImGuizmo::WORLD,
-        matrix, nullptr, ImGui::GetIO().KeyCtrl ? snap : nullptr);
-    result.active = ImGuizmo::IsUsing(); result.over = ImGuizmo::IsOver();
-    ImGuizmo::SetTranslationDisplayOffset(0.f, 0.f);
-    draw->PopClipRect();
-    return result;
-}
-}
+#endif
 #endif

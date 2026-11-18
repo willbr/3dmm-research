@@ -20,6 +20,8 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/camera_picker.c"
   "${SOURCE}/src/marcus/background_browser.c"
   "${SOURCE}/src/marcus/prop_fields.c"
+  "${SOURCE}/src/marcus/prop_gizmo.c"
+  "${SOURCE}/src/marcus/transform_gizmo.c"
   "${SOURCE}/src/marcus/transport_skin.c"
   "${SOURCE}/src/marcus/storyboard_view.c"
   "${SOURCE}/src/marcus/ribbon.c"

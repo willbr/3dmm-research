@@ -384,11 +384,11 @@ services. See the [current Marcus boundary](docs/tools/marcus.md#c89-boundary-an
   navigation, selection, filters, sorting, recents, favourites, preferences
   and thumbnail scheduling. Its worker exposes filesystem, ZIP and movie
   preparation services through a C interface.
-- Move storyboard editor commands, interaction state, snapping and prop and
-  light edit transactions into C89. Move direct `ImGui::` application calls
-  from `prop_gizmo.cpp` and `transform_gizmo.h` to cimgui callers. Preserve prop
-  and storyboard light manipulation in the shared ImGui frame. Restrict the
-  C++ ImGuizmo binding to third-party calls and type translation.
+- Prop transform gestures, numeric fields, edit previews, commits and restores
+  now use C89. Cimgui owns the shared context and frame. Prop and storyboard
+  light controls share C89 clipping and snapping through a narrow C binding
+  to ImGuizmo. Move the storyboard editor's remaining command and interaction
+  state and light edit transactions into C89.
 - Include each converted source and its public C interface in `marcus-c89`.
   Run the relevant existing headless checks and record validation for each
   slice. Add Marcus UI tests only when the user requests them.

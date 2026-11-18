@@ -12,8 +12,8 @@ void prop_gizmo_destroy(MarcusPropGizmo *gizmo);
 int prop_gizmo_event(MarcusPropGizmo *gizmo, const SDL_Event *event);
 void prop_gizmo_begin(MarcusPropGizmo *gizmo, MarcusPlayer *player, int object, int enabled, int width, int height);
 void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL_FRect *viewport);
-/* C89 field widgets exchange copied values with the native transform adapter. */
-typedef struct MarcusPropFields { int enabled, mode, editing; float value[3]; } MarcusPropFields;
+/* C89 widgets receive a snapshot of the transform and its numeric limits. */
+typedef struct MarcusPropFields { int enabled, mode, dragging_gizmo; float value[3], low, high; } MarcusPropFields;
 void prop_gizmo_field_state(MarcusPropGizmo *gizmo, MarcusPropFields *state);
 void prop_gizmo_field_edit(MarcusPropGizmo *gizmo, int axis, float value, int begin, int finish);
 int prop_gizmo_properties(MarcusPropGizmo *gizmo);

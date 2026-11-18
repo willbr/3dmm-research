@@ -1695,8 +1695,14 @@ primitives for viewport/timeline artwork, with no FreeType controls or manual
 field editing. `storyboard_view.h` exchanges copied control state and borrowed
 preview geometry with the native storyboard adapter; painting, rendering,
 palette matching and native movie transactions remain behind C interfaces.
-ImGuizmo and the shared SDL backend retain their required C++ bindings; ordinary
-transform buttons and fields call cimgui from C89.
+`prop_gizmo.c` owns the shared cimgui context and frame, transform gestures,
+and prop preview, commit and restore decisions. Prop and storyboard light
+controls share clipping, projection and snapping in `transform_gizmo.c`.
+`imgui_bindings.cpp` connects the C callers to the SDL backends and ImGuizmo.
+The native binding runs Dear ImGui's C++ layout check. The generated C fields
+used by the controller have matching offsets. A full selected-object screenshot
+matched byte for byte before and after the conversion, including the gizmo and
+numeric fields. Evidence is in `tmp/c89-gizmo`.
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
 `player.cpp` owns the C++ Archive/Preview backend. `playback.cpp` supplies audio,
