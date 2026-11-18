@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef REGION_H
 #define REGION_H
+#include "mm/region_scan.h"
 
 typedef class RegionScanner *PRegionScanner;
 
@@ -48,9 +49,7 @@ class Region : public Region_PAR
     {
     }
 
-    bool _FUnionCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
-    bool _FIntersectCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
-    bool _FDiffCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
+    bool _FCombine(MMRegionOperation operation, RC *bounds, PRegionScanner first, PRegionScanner second);
 
   public:
     static PRegion PregnNew(RC *prc = pvNil);
@@ -85,30 +84,11 @@ class RegionScanner : public RegionScanner_PAR
     RTCLASS_DEC
 
   protected:
-    PDynamicArray _pglxpSrc;    // the list of points
-    LegacyLong *_pxpLimSrc; // the end of the list
-    LegacyLong *_pxpLimCur; // the end of the current row
+    friend class Region;
+    PDynamicArray _pglxpSrc;
+    MMRegionScan _scan;
 
-    LegacyLong _xpMinRow;   // the first xp value of the active part of the current row
-    LegacyLong *_pxpMinRow; // the beginning of the active part of the currrent row
-    LegacyLong *_pxpLimRow; // the end of the active part of the current row
-    LegacyLong *_pxp;       // the current postion in the current row
-
-    LegacyLong _dxp;     // this gets added to all source xp values
-    LegacyLong _xpRight; // the right edge of the active area - left edge is 0
-
-    // current state
-    bool _fOn;    // whether the current xp is a transition to on or off
-    LegacyLong _xp;     // the current xp
-    LegacyLong _dyp;    // the remaining height that this scan is effective for
-    LegacyLong _dypTot; // the remaining total height of the active area
-
-    // When scanning rectangles, _pglxpSrc will be nil and _pxpSrc et al will
-    // point into this.
-    LegacyLong _rgxpRect[4];
-
-    void _InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel);
-    void _ScanNextCore(void);
+    void _InitCore(PDynamicArray bands, const RC &bounds, LegacyLong offset, const RC &clip);
 
   public:
     RegionScanner(void);
@@ -117,51 +97,29 @@ class RegionScanner : public RegionScanner_PAR
 
     void Init(PRegion pregn, RC *prcRel);
     void InitRc(RC *prc, RC *prcRel);
-    void ScanNext(LegacyLong dyp)
+    void ScanNext(LegacyLong rows)
     {
-        _dypTot -= dyp;
-        if ((_dyp -= dyp) <= 0)
-            _ScanNextCore();
-        _pxp = _pxpMinRow;
-        _xp = _xpMinRow;
-        _fOn = fTrue;
+        mm_region_scan_advance(&_scan, rows);
     }
-    LegacyLong XpFetch(void)
+    LegacyLong XpFetch()
     {
-        if (_pxp < _pxpLimRow - 1)
-        {
-            _xp = _dxp + *_pxp++;
-            _fOn = !_fOn;
-        }
-        else if (_pxp < _pxpLimRow)
-        {
-            AssertH(_fOn);
-            _xp = LwMin(_xpRight, _dxp + *_pxp++);
-            _fOn = !_fOn;
-        }
-        else
-        {
-            _xp = klwMax;
-            _fOn = fTrue;
-        }
-        return _xp;
+        return mm_region_scan_fetch(&_scan);
     }
-
-    bool FOn(void)
+    bool FOn() const
     {
-        return _fOn;
+        return _scan.opens != 0;
     }
-    LegacyLong XpCur(void)
+    LegacyLong XpCur() const
     {
-        return _xp;
+        return _scan.x;
     }
-    LegacyLong DypCur(void)
+    LegacyLong DypCur() const
     {
-        return _dyp;
+        return _scan.rows;
     }
-    LegacyLong CxpCur(void)
+    LegacyLong CxpCur() const
     {
-        return _pxpLimRow - _pxpMinRow + 1;
+        return mm_region_scan_edge_count(&_scan);
     }
 };
 

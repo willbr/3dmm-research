@@ -5140,6 +5140,22 @@ after the rectangle visitor succeeds. Before-and-after comparisons matched
 Allocation-failure checks covered buffer replacement, damage resize and damage
 copy. Evidence is in `tmp/c89-pixel-storage`.
 
+`region_scan.c` traverses Kauai's existing clip-region bands and returns
+horizontal edges relative to the clip origin. It preserves empty gaps,
+partial-band advances, and the end-of-scan values. Its Boolean sweep processes
+coincident edges together and emits bands for union, intersection and ordered
+difference. The Kauai adapter locks its legacy band storage during a scan and
+still builds and scales the stored bands. The native region cache belongs to
+the Windows graphics adapter. The before-and-after probe matched 23,409,140
+bytes of band heights, endpoints and bounds across 13,300 mixed Boolean cases,
+scaling, translations, retained scans and clipped scans.
+
+Studio and Marcus matched 456 pre-change seek observations and 360 viewport
+hashes. Timed playback matched 480 retail frame commits, and retail reopened
+the actor edit saved by Studio. The Windows `font-gdi` check reports the same
+System bitmap font metrics mismatch in the saved pre-change executable and
+the rebuilt executable. Evidence is in `tmp/c89-region`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit

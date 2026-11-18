@@ -506,6 +506,49 @@ static void TestRegionDiffEqual()
     ReleasePpo(&pregn);
 }
 
+static void TestRegionScannerBands()
+{
+    RC left(-8, -2, 4, 1), right(4, -2, 10, 1), lower(-8, 3, 10, 5);
+    RC gap(-2, -2, 3, 5), clip(-5, -5, 8, 5), bounds;
+    PRegion region = Region::PregnNew(&left);
+    EXPECT_TRUE(region->FUnionRc(&right));
+    EXPECT_TRUE(region->FIsRc(&bounds));
+    EXPECT_RC(bounds, -8, -2, 10, 1);
+    EXPECT_TRUE(region->FUnionRc(&lower));
+    EXPECT_TRUE(region->FDiffRc(&gap));
+
+    RegionScanner scan;
+    scan.Init(region, &clip);
+    region->SetRc();
+    ReleasePpo(&region);
+    EXPECT_EQ(scan.DypCur(), 3);
+    EXPECT_EQ(scan.CxpCur(), 0);
+    EXPECT_EQ(scan.XpCur(), klwMax);
+    scan.ScanNext(3);
+    EXPECT_EQ(scan.DypCur(), 3);
+    EXPECT_EQ(scan.CxpCur(), 4);
+    EXPECT_EQ(scan.XpCur(), 0);
+    EXPECT_EQ(scan.XpFetch(), 3);
+    EXPECT_FALSE(scan.FOn());
+    scan.ScanNext(1);
+    EXPECT_EQ(scan.DypCur(), 2);
+    EXPECT_EQ(scan.XpCur(), 0);
+    EXPECT_EQ(scan.XpFetch(), 3);
+    EXPECT_EQ(scan.XpFetch(), 8);
+    EXPECT_TRUE(scan.FOn());
+    EXPECT_EQ(scan.XpFetch(), 13);
+    EXPECT_EQ(scan.XpFetch(), klwMax);
+    scan.ScanNext(2);
+    EXPECT_EQ(scan.DypCur(), 2);
+    EXPECT_EQ(scan.CxpCur(), 0);
+    scan.ScanNext(2);
+    EXPECT_EQ(scan.DypCur(), 2);
+    EXPECT_EQ(scan.CxpCur(), 4);
+    scan.ScanNext(2);
+    EXPECT_EQ(scan.DypCur(), kswMax);
+    EXPECT_EQ(scan.XpCur(), klwMax);
+}
+
 /****************************************
     Main + assert hooks
 ****************************************/
@@ -549,6 +592,7 @@ int main(int, char **)
     RUN(TestRegionIntersectRc);
     RUN(TestRegionDiffRc);
     RUN(TestRegionDiffEqual);
+    RUN(TestRegionScannerBands);
 
     printf("=== %d passed, %d failed ===\n", g_pass, g_fail);
     exit(g_fail == 0 ? 0 : 1);

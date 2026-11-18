@@ -260,162 +260,33 @@ void RegionScanner::Free(void)
 ***************************************************************************/
 void RegionScanner::Init(PRegion pregn, RC *prcRel)
 {
-    RC rc = pregn->_rc;
-    rc.Offset(pregn->_dxp, 0);
-    _InitCore(pregn->_pglxp, &rc, prcRel);
+    _InitCore(pregn->_pglxp, pregn->_rc, pregn->_dxp, *prcRel);
 }
 
-/***************************************************************************
-    Initializes a region scanner with the given rectangle.
-***************************************************************************/
 void RegionScanner::InitRc(RC *prc, RC *prcRel)
 {
-    _InitCore(pvNil, prc, prcRel);
+    _InitCore(pvNil, *prc, 0, *prcRel);
 }
 
-/***************************************************************************
-    Initializes a region scanner.  The scanner implicitly intersects the
-    region with *prcRel and returns xp values relative to prcRel->xpLeft.
-***************************************************************************/
-void RegionScanner::_InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel)
+void RegionScanner::_InitCore(PDynamicArray bands, const RC &bounds, LegacyLong offset, const RC &clip)
 {
     Free();
 
-    RC rc = *prc;
-    if (pvNil != (_pglxpSrc = pglxp))
+    const MMRegionWord *words = nullptr;
+    size_t count = 0;
+    _pglxpSrc = bands;
+    if (bands != pvNil)
     {
-        _pglxpSrc->AddRef();
-        _pxpLimCur = (LegacyLong *)_pglxpSrc->PvLock(0);
-        _pxpLimSrc = _pxpLimCur + _pglxpSrc->IvMac();
-    }
-    else
-    {
-        rc.FIntersect(prcRel);
-        _rgxpRect[0] = rc.Dyp();
-        _rgxpRect[1] = 0;
-        _rgxpRect[2] = rc.Dxp();
-        _rgxpRect[3] = klwMax;
-        _pxpLimCur = _rgxpRect;
-        _pxpLimSrc = _rgxpRect + 4;
-    }
-    _dxp = rc.xpLeft - prcRel->xpLeft;
-    _xpRight = prcRel->Dxp();
-
-    _dyp = rc.ypTop - prcRel->ypTop;
-    _dypTot = prcRel->Dyp();
-
-    // initialize to an empty row
-    _pxpLimRow = (_pxpMinRow = _pxpLimCur) - 1;
-    _xpMinRow = klwMax;
-
-    ScanNext(0);
-}
-
-/***************************************************************************
-    Scan the next horizontal strip of the region.
-***************************************************************************/
-void RegionScanner::_ScanNextCore(void)
-{
-    LegacyLong dxpT;
-
-    Assert(_dyp <= 0, "why is _ScanNextCore being called?");
-    if (_dypTot <= 0)
-    {
-        // ran out of region!
-        goto LEndRegion;
+        bands->AddRef();
+        words = static_cast<const MMRegionWord *>(bands->PvLock(0));
+        count = bands->IvMac();
     }
 
-    for (;;)
-    {
-        // do the next scan
-        if (_pxpLimCur >= _pxpLimSrc)
-        {
-            // ran out of region!
-        LEndRegion:
-            // use kswMax, not klwMax, so clients can add this to
-            // another yp value without fear of overflow
-            _dyp = kswMax;
-            _pxpLimRow = (_pxpMinRow = _pxpLimCur = _pxpLimSrc) - 1;
-            _xpMinRow = klwMax;
-            return;
-        }
-        if ((_dyp += *_pxpLimCur++) > 0)
-            break;
-
-        // find the start of the next row
-        while (*_pxpLimCur != klwMax)
-        {
-            _pxpLimCur += 2;
-            Assert(_pxpLimCur < _pxpLimSrc && _pxpLimCur[-1] != klwMax, "bad region 1");
-        }
-        _pxpLimCur++;
-    }
-
-    //_pxpLimCur now points to the beginning of the correct row
-    // find the first xp value in our range
-    if (*_pxpLimCur < -_dxp)
-    {
-        do
-        {
-            _pxpLimCur += 2;
-            Assert(_pxpLimCur < _pxpLimSrc && _pxpLimCur[-1] != klwMax, "bad region 2");
-        } while (*_pxpLimCur < -_dxp);
-
-        // see if we went too far
-        if (_pxpLimCur[-1] > -_dxp)
-        {
-            _xpMinRow = 0;
-            _pxpMinRow = _pxpLimCur - 1;
-            goto LFindLim;
-        }
-    }
-    _xpMinRow = *_pxpLimCur++;
-
-    _pxpMinRow = _pxpLimCur;
-    if (_xpMinRow == klwMax)
-    {
-        // empty row
-        _pxpLimRow = _pxpLimCur - 1;
-        return;
-    }
-
-    if ((_xpMinRow += _dxp) >= _xpRight)
-    {
-        // empty row, but we need to find the start of the next row
-        AssertIn(_xpMinRow, 0, kcbMax);
-        Assert(*_pxpLimCur != klwMax, "bad region 3");
-
-        // find the start of the next row
-        _pxpLimCur++;
-        while (*_pxpLimCur != klwMax)
-        {
-            _pxpLimCur += 2;
-            Assert(_pxpLimCur < _pxpLimSrc && _pxpLimCur[-1] != klwMax, "bad region 4");
-        }
-        _pxpLimCur++;
-        _pxpLimRow = (_pxpMinRow = _pxpLimCur) - 1;
-        _xpMinRow = klwMax;
-        return;
-    }
-
-    Assert(*_pxpLimCur != klwMax, "bad region 5");
-    _pxpLimCur++;
-
-LFindLim:
-    dxpT = _xpRight - _dxp;
-    while (*_pxpLimCur < dxpT)
-    {
-        _pxpLimCur += 2;
-        Assert(_pxpLimCur < _pxpLimSrc && _pxpLimCur[-1] != klwMax, "bad region 6");
-    }
-    _pxpLimRow = _pxpLimCur;
-    while (*_pxpLimCur != klwMax)
-    {
-        _pxpLimCur += 2;
-        Assert(_pxpLimCur < _pxpLimSrc && _pxpLimCur[-1] != klwMax, "bad region 6");
-    }
-    _pxpLimCur++;
-    Assert((_pxpLimRow - _pxpMinRow) & 1, "logic error above");
+    const MMPixelRect area{static_cast<MMI32>(bounds.xpLeft), static_cast<MMI32>(bounds.ypTop),
+                           static_cast<MMI32>(bounds.xpRight), static_cast<MMI32>(bounds.ypBottom)};
+    const MMPixelRect relative{static_cast<MMI32>(clip.xpLeft), static_cast<MMI32>(clip.ypTop),
+                               static_cast<MMI32>(clip.xpRight), static_cast<MMI32>(clip.ypBottom)};
+    mm_region_scan_init(&_scan, &area, offset, words, count, &relative);
 }
 
 /***************************************************************************
@@ -631,7 +502,7 @@ bool Region::FUnion(PRegion pregn1, PRegion pregn2)
 
     regsc1.Init(pregn1, &rc);
     regsc2.Init(pregn2, &rc);
-    return _FUnionCore(&rc, &regsc1, &regsc2);
+    return _FCombine(MM_REGION_UNION, &rc, &regsc1, &regsc2);
 }
 
 /***************************************************************************
@@ -669,96 +540,7 @@ bool Region::FUnionRc(RC *prc, PRegion pregn)
 
     regsc1.InitRc(prc, &rc);
     regsc2.Init(pregn, &rc);
-    return _FUnionCore(&rc, &regsc1, &regsc2);
-}
-
-/***************************************************************************
-    Core union routine.
-***************************************************************************/
-bool Region::_FUnionCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
-{
-    AssertThis(0);
-    AssertPo(pregsc1, 0);
-    AssertPo(pregsc2, 0);
-    void *pvSwap;
-    LegacyLong dyp;
-    RegionBuilder regbl;
-
-    if (!regbl.FInit(prc))
-        return fFalse;
-
-    for (;;)
-    {
-        dyp = LwMin(pregsc1->DypCur(), pregsc2->DypCur());
-        if (!regbl.FStartRow(dyp, pregsc1->CxpCur() + pregsc2->CxpCur()))
-            return fFalse;
-
-        for (;;)
-        {
-            Assert(FPure(pregsc1->FOn()) == FPure(pregsc2->FOn()), "region scanners have different on/off states");
-            if (pregsc1->XpCur() > pregsc2->XpCur())
-            {
-                // swap them
-                pvSwap = pregsc1;
-                pregsc1 = pregsc2;
-                pregsc2 = (PRegionScanner)pvSwap;
-            }
-            if (pregsc2->XpCur() == klwMax)
-                break;
-
-            if (pregsc1->FOn())
-            {
-                // both on
-                regbl.AddXp(pregsc1->XpCur());
-                pregsc1->XpFetch();
-                // 1 off, 2 on
-                if (pregsc1->XpCur() < pregsc2->XpCur())
-                {
-                    regbl.AddXp(pregsc1->XpCur());
-                    pregsc1->XpFetch();
-                    continue;
-                }
-                pregsc2->XpFetch();
-            }
-            else
-            {
-                // both off
-                pregsc1->XpFetch();
-                // 1 on, 2 off
-                if (pregsc1->XpCur() <= pregsc2->XpCur())
-                {
-                    pregsc1->XpFetch();
-                    continue;
-                }
-                regbl.AddXp(pregsc2->XpCur());
-                pregsc2->XpFetch();
-            }
-        }
-        Assert(pregsc1->FOn(), "bad regions");
-        Assert(pregsc2->XpCur() == klwMax, 0);
-
-        // copy the remainder of this row from pregsc1
-        while (pregsc1->XpCur() < klwMax)
-        {
-            regbl.AddXp(pregsc1->XpCur());
-            pregsc1->XpFetch();
-        }
-        Assert(pregsc1->FOn(), "bad region");
-
-        regbl.EndRow();
-        if (regbl.FDone())
-            break;
-
-        pregsc1->ScanNext(dyp);
-        pregsc2->ScanNext(dyp);
-    }
-
-    ReleasePpo(&_pglxp);
-    ReleasePpo(&_nativeCache);
-
-    _pglxp = regbl.PglxpFree(&_rc, &_dxp);
-    AssertThis(0);
-    return fTrue;
+    return _FCombine(MM_REGION_UNION, &rc, &regsc1, &regsc2);
 }
 
 /***************************************************************************
@@ -797,7 +579,7 @@ bool Region::FIntersect(PRegion pregn1, PRegion pregn2)
 
     regsc1.Init(pregn1, &rc);
     regsc2.Init(pregn2, &rc);
-    return _FIntersectCore(&rc, &regsc1, &regsc2);
+    return _FCombine(MM_REGION_INTERSECTION, &rc, &regsc1, &regsc2);
 }
 
 /***************************************************************************
@@ -835,86 +617,7 @@ bool Region::FIntersectRc(RC *prc, PRegion pregn)
 
     regsc1.InitRc(prc, &rc);
     regsc2.Init(pregn, &rc);
-    return _FIntersectCore(&rc, &regsc1, &regsc2);
-}
-
-/***************************************************************************
-    Core intersect routine.
-***************************************************************************/
-bool Region::_FIntersectCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
-{
-    AssertThis(0);
-    AssertPo(pregsc1, 0);
-    AssertPo(pregsc2, 0);
-    LegacyLong dyp;
-    void *pvSwap;
-    RegionBuilder regbl;
-
-    if (!regbl.FInit(prc))
-        return fFalse;
-
-    for (;;)
-    {
-        dyp = LwMin(pregsc1->DypCur(), pregsc2->DypCur());
-        if (!regbl.FStartRow(dyp, pregsc1->CxpCur() + pregsc2->CxpCur()))
-            return fFalse;
-
-        while (pregsc1->XpCur() < klwMax && pregsc2->XpCur() < klwMax)
-        {
-            Assert(FPure(pregsc1->FOn()) == FPure(pregsc2->FOn()), "region scanners have different on/off states");
-            if (pregsc1->XpCur() > pregsc2->XpCur())
-            {
-                // swap them
-                pvSwap = pregsc1;
-                pregsc1 = pregsc2;
-                pregsc2 = (PRegionScanner)pvSwap;
-            }
-
-            // NOTE: this is pretty much the adjoint of what's in _FUnionCore - ie,
-            // swap the sense of FOn
-            if (pregsc1->FOn())
-            {
-                // both on
-                pregsc1->XpFetch();
-                // 1 off, 2 on
-                if (pregsc1->XpCur() <= pregsc2->XpCur())
-                {
-                    pregsc1->XpFetch();
-                    continue;
-                }
-                regbl.AddXp(pregsc2->XpCur());
-                pregsc2->XpFetch();
-            }
-            else
-            {
-                // both off
-                regbl.AddXp(pregsc1->XpCur());
-                pregsc1->XpFetch();
-                // 1 on, 2 off
-                if (pregsc1->XpCur() < pregsc2->XpCur())
-                {
-                    regbl.AddXp(pregsc1->XpCur());
-                    pregsc1->XpFetch();
-                    continue;
-                }
-                pregsc2->XpFetch();
-            }
-        }
-        Assert(pregsc1->FOn(), "bad regions");
-        regbl.EndRow();
-        if (regbl.FDone())
-            break;
-
-        pregsc1->ScanNext(dyp);
-        pregsc2->ScanNext(dyp);
-    }
-
-    ReleasePpo(&_pglxp);
-    ReleasePpo(&_nativeCache);
-
-    _pglxp = regbl.PglxpFree(&_rc, &_dxp);
-    AssertThis(0);
-    return fTrue;
+    return _FCombine(MM_REGION_INTERSECTION, &rc, &regsc1, &regsc2);
 }
 
 /***************************************************************************
@@ -948,7 +651,7 @@ bool Region::FDiff(PRegion pregn1, PRegion pregn2)
     rc = pregn2->_rc;
     regsc1.Init(pregn1, &rc);
     regsc2.Init(pregn2, &rc);
-    return _FDiffCore(&rc, &regsc2, &regsc1);
+    return _FCombine(MM_REGION_DIFFERENCE, &rc, &regsc2, &regsc1);
 }
 
 /***************************************************************************
@@ -982,7 +685,7 @@ bool Region::FDiffRc(RC *prc, PRegion pregn)
     rc = pregn->_rc;
     regsc1.InitRc(prc, &rc);
     regsc2.Init(pregn, &rc);
-    return _FDiffCore(&rc, &regsc2, &regsc1);
+    return _FCombine(MM_REGION_DIFFERENCE, &rc, &regsc2, &regsc1);
 }
 
 /***************************************************************************
@@ -1017,90 +720,29 @@ bool Region::FDiffFromRc(RC *prc, PRegion pregn)
 
     regsc1.InitRc(prc, prc);
     regsc2.Init(pregn, prc);
-    return _FDiffCore(prc, &regsc1, &regsc2);
+    return _FCombine(MM_REGION_DIFFERENCE, prc, &regsc1, &regsc2);
 }
 
-/***************************************************************************
-    Core diff routine.  Compute pregsc1 minus pregsc2.
-***************************************************************************/
-bool Region::_FDiffCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
-{
-    AssertThis(0);
-    AssertPo(pregsc1, 0);
-    AssertPo(pregsc2, 0);
-    LegacyLong dyp;
-    LegacyLong xp1, xp2;
-    RegionBuilder regbl;
 
-    if (!regbl.FInit(prc))
+bool Region::_FCombine(MMRegionOperation operation, RC *bounds, PRegionScanner first, PRegionScanner second)
+{
+    RegionBuilder builder;
+    if (!builder.FInit(bounds))
         return fFalse;
 
-    for (;;)
-    {
-        dyp = LwMin(pregsc1->DypCur(), pregsc2->DypCur());
-        if (!regbl.FStartRow(dyp, pregsc1->CxpCur() + pregsc2->CxpCur()))
-            return fFalse;
-
-        xp1 = pregsc1->XpCur();
-        xp2 = pregsc2->XpCur();
-        while (xp1 < klwMax)
-        {
-            if (pregsc1->FOn())
-            {
-                while (xp2 <= xp1)
-                    xp2 = pregsc2->XpFetch();
-
-                // xp1 < xp2
-                if (pregsc2->FOn())
-                {
-                    // both on
-                    regbl.AddXp(xp1);
-                }
-                xp1 = pregsc1->XpFetch();
-            }
-
-            Assert(!pregsc1->FOn(), "why are we here?");
-            if (!pregsc2->FOn())
-            {
-                // both off
-                if (xp1 <= xp2)
-                {
-                    xp1 = pregsc1->XpFetch();
-                    continue;
-                }
-
-                // xp2 < xp1
-                regbl.AddXp(xp2);
-                xp2 = pregsc2->XpFetch();
-            }
-
-            Assert(!pregsc1->FOn() && pregsc2->FOn(), "we shouldn't be here");
-            // 1 off, 2 on
-            if (xp2 < xp1)
-            {
-                regbl.AddXp(xp2);
-                xp2 = pregsc2->XpFetch();
-            }
-            else
-            {
-                regbl.AddXp(xp1);
-                xp1 = pregsc1->XpFetch();
-            }
-        }
-
-        Assert(pregsc1->FOn(), "bad region");
-        regbl.EndRow();
-        if (regbl.FDone())
-            break;
-
-        pregsc1->ScanNext(dyp);
-        pregsc2->ScanNext(dyp);
-    }
+    const MMRegionBandSink sink{
+        &builder,
+        [](void *context, MMI32 height, MMI32 maxEdges) -> int {
+            return static_cast<RegionBuilder *>(context)->FStartRow(height, maxEdges);
+        },
+        [](void *context, MMI32 x) { static_cast<RegionBuilder *>(context)->AddXp(x); },
+        [](void *context) { static_cast<RegionBuilder *>(context)->EndRow(); }};
+    if (!mm_region_combine(operation, &first->_scan, &second->_scan, bounds->Dyp(), &sink))
+        return fFalse;
 
     ReleasePpo(&_pglxp);
     ReleasePpo(&_nativeCache);
-
-    _pglxp = regbl.PglxpFree(&_rc, &_dxp);
+    _pglxp = builder.PglxpFree(&_rc, &_dxp);
     AssertThis(0);
     return fTrue;
 }

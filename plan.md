@@ -772,6 +772,9 @@ limits and reserved-slot handling.
 C89 also handles pixel scrolling across all six packed depths, including
 source and destination region clipping and the original full-byte-first
 rule for leftward monochrome moves.
+C89 scans clip-region bands and combines spans for union, intersection and
+difference. The Kauai wrapper retains band allocation and scaling, and the
+Windows graphics adapter owns the native region cache.
 C89 validates packed row sizes for offscreen buffers and DIB frames and owns
 the offscreen allocations. It also owns SDL damage masks, including scan-band
 rectangle extraction and scrolling. Kauai retains its atomic allocation counters.

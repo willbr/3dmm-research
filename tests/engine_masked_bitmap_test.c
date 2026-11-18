@@ -4,6 +4,7 @@
 #include "mm/ellipse_geometry.h"
 #include "mm/indexed_display.h"
 #include "mm/pixel_paint.h"
+#include "mm/region_scan.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -861,6 +862,59 @@ static void pixel_storage_and_damage(void)
     mm_damage_reset(&damage);
 }
 
+typedef struct RegionVisit
+{
+    int bands, capacity, count;
+    MMI32 values[16];
+} RegionVisit;
+
+static void collect_region_edge(void *context, MMI32 value)
+{
+    RegionVisit *visit = (RegionVisit *)context;
+    assert(visit->count < 16);
+    visit->values[visit->count++] = value;
+}
+
+static int start_region_band(void *context, MMI32 height, MMI32 max_edges)
+{
+    RegionVisit *visit = (RegionVisit *)context;
+    if (visit->bands == visit->capacity)
+        return 0;
+    ++visit->bands;
+    assert(max_edges >= 0 && max_edges % 2 == 0);
+    collect_region_edge(context, height);
+    return 1;
+}
+
+static void end_region_band(void *context)
+{
+    collect_region_edge(context, MM_REGION_END);
+}
+
+static void region_bands(void)
+{
+    const MMRegionWord data[] = {3, 0, 5, 7, 14, MM_REGION_END};
+    const MMPixelRect bounds = {-2, 1, 12, 4}, subtract = {3, 2, 8, 5}, clip = {0, 0, 10, 5};
+    const MMI32 expected[] = {1, MM_REGION_END, 1, 0, 3, 5, 10, MM_REGION_END,
+                              2, 0, 3, 8, 10, MM_REGION_END, 1, MM_REGION_END};
+    MMRegionScan first, second;
+    RegionVisit visit = {0, 2, 0, {0}};
+    MMRegionBandSink sink = {NULL, start_region_band, collect_region_edge, end_region_band};
+    sink.context = &visit;
+    mm_region_scan_init(&first, &bounds, 0, data, sizeof(data) / sizeof(data[0]), &clip);
+    mm_region_scan_init(&second, &subtract, 0, NULL, 0, &clip);
+    assert(!mm_region_combine(MM_REGION_DIFFERENCE, &first, &second, 5, &sink));
+    assert(visit.count == 8 && !memcmp(visit.values, expected, 8 * sizeof(MMI32)));
+
+    mm_region_scan_init(&first, &bounds, 0, data, sizeof(data) / sizeof(data[0]), &clip);
+    mm_region_scan_init(&second, &subtract, 0, NULL, 0, &clip);
+    visit.bands = visit.count = 0;
+    visit.capacity = 4;
+    assert(mm_region_combine(MM_REGION_DIFFERENCE, &first, &second, 5, &sink));
+    assert(visit.count == sizeof(expected) / sizeof(expected[0]));
+    assert(!memcmp(visit.values, expected, sizeof(expected)));
+}
+
 int main(void)
 {
     encode();
@@ -878,6 +932,7 @@ int main(void)
     ellipse_rows();
     indexed_double();
     pixel_storage_and_damage();
+    region_bands();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;
