@@ -542,10 +542,10 @@ Keep host presentation and device output outside the session.
    hierarchy decoding. The live cache builds older templates' CMTL choices
    in child order. Generated 3D text uses the same part-index and costume
    collections. Body construction and reshaping consume borrowed index views,
-   and each live body owns its copy of the part sets. Generated text still
-   builds temporary native cel and matrix collections before copying them
-   into the shared action representation. Renderer resources and cache
-   ownership remain work.
+   and each live body owns its copy of the part sets. Live 3D text generates
+   its cels and matrices directly into the shared C action tables, which the
+   action adopts. The standalone evaluator uses the same matrix generator
+   for its requested cel. Renderer resources and cache ownership remain work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

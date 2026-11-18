@@ -9,8 +9,8 @@ class TextGenerationFixtureAccess : public ThreeDText
     static void *Build(PThreeDText t,int kind,int action)
     {
         if (kind==2) { auto member=&TextGenerationFixtureAccess::_PactnFetch; return (t->*member)(action); }
-        if (kind==3) { auto member=&TextGenerationFixtureAccess::_Pglbmat34Build; return (t->*member)(action); }
-        auto member=&TextGenerationFixtureAccess::_PggcelBuild; return (t->*member)(action);
+        auto services=_GenerationServices();
+        return kind==3 ? mm_text_build_matrices(t,action,&services) : mm_text_build_cels(t,action,&services);
     }
     static bool Record(PThreeDText t,FILE *out)
     {
@@ -26,19 +26,21 @@ class TextGenerationFixtureAccess : public ThreeDText
     {
         if (!resource) return true;
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
-        LegacyLong count=kind==2?static_cast<PActionDefinition>(resource)->Ccel():static_cast<GroupBase *>(resource)->IvMac();
+        auto action=kind==2?static_cast<PActionDefinition>(resource):nullptr;
+        auto table=kind==2?nullptr:static_cast<MMActionTable *>(resource);
+        MMActionDefinition view={kind==4?table:nullptr,kind==3?table:nullptr,nullptr,0};
+        LegacyLong count=action?action->Ccel():static_cast<LegacyLong>(table->header.count);
         if (!record(&count,sizeof(count))) return false;
         for (int i=0;i<count;++i)
         {
-            if (kind==3) { BMAT34 m; static_cast<PDynamicArray>(resource)->Get(i,&m); if (!record(&m,sizeof(m))) return false; }
+            if (kind==3) { BMAT34 m; if (!mm_action_get_matrix(&view,i,&m) || !record(&m,sizeof(m))) return false; }
             else
             {
-                AnimationCel cel; auto action=kind==2?static_cast<PActionDefinition>(resource):nullptr;
-                if (action) { if (!action->FGetCel(i,&cel)) return false; }
-                else static_cast<PGeneralGroup>(resource)->GetFixed(i,&cel);
+                AnimationCel cel;
+                if (!(action?action->FGetCel(i,&cel):mm_action_get_cel(&view,i,&cel))) return false;
                 if (!record(&cel,sizeof(cel))) return false;
-                for (int j=0;j<chars;++j) { CelPartSpec part; if (action) { if (!action->FGetCps(i,j,&part)) return false; }
-                    else part=static_cast<CelPartSpec *>(static_cast<PGeneralGroup>(resource)->QvGet(i))[j];
+                for (int j=0;j<chars;++j) { CelPartSpec part;
+                    if (!(action?action->FGetCps(i,j,&part):mm_action_get_part(&view,i,j,&part))) return false;
                     if (!record(&part,sizeof(part))) return false;
                     if (action) { BMAT34 m; if (!action->FGetMatrix(part.imat34,&m) || !record(&m,sizeof(m))) return false; } }
             }
@@ -105,7 +107,8 @@ static bool TestTextGeneration()
         LegacyLong values[]={text,operation,missing,kind,failure,success,context.fetches,held?held->CactRef():0};
         ok=record(values,sizeof(values)) && TextGenerationFixtureAccess::Record(t,snapshot) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
         if (result) ok=TextGenerationFixtureAccess::Resource(result,operation,normalized.Cch(),snapshot) && ok;
-        if (result) static_cast<BASE *>(result)->Release(); ReleasePpo(&held); ReleasePpo(&body); ReleasePpo(&t); vpers->Clear();
+        if (result) { if (operation==2) static_cast<PActionDefinition>(result)->Release(); else mm_action_table_dispose(static_cast<MMActionTable *>(result)); }
+        ReleasePpo(&held); ReleasePpo(&body); ReleasePpo(&t); vpers->Clear();
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv;
 #endif
@@ -114,7 +117,7 @@ static bool TestTextGeneration()
     ReleasePpo(&cache); ReleasePpo(&file);
     std::fprintf(stderr,"[text generation] generated=%d attempts=%d successful=%d\n",generated,attempts,successful);
 #ifdef DEBUG
-    ok=ok && successful==678;
+    ok=ok && successful==690;
 #else
     ok=ok && successful==720;
 #endif

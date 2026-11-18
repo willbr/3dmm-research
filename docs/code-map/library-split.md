@@ -5188,14 +5188,15 @@ Playback evidence and remaining coverage limits are recorded in
 ### Action definitions and optional sound ownership
 
 `action_definition.c` owns the cel group, matrix array, optional sound
-tags and flags in `MMActionDefinition`. It implements construction from
-borrowed native-order records, resource factory estimates and cleanup,
-header and table loading, disposal, and getters. GGCL location entries use
+tags and flags in `MMActionDefinition`. It implements adoption of generated
+tables, resource factory estimates and cleanup, header and table loading,
+disposal, and getters. GGCL location entries use
 native byte order. Cel and matrix payloads retain the authored byte order,
 and accessors decode each requested record. The native facade supplies block
 I/O, allocation, diagnostics and the TAG conversion at its sound query
-boundary. Generated text currently produces temporary native cel and matrix
-collections, then copies their records into this C representation.
+boundary. Generation writes the cel parts and matrices directly into native-order
+C tables. A successful action allocation takes both tables, and the text
+builder releases them on failure.
 
 Header flags and partial table ownership publish in native order. Direct
 initialization failure leaves acquired tables owned by the caller; factories
@@ -5283,9 +5284,10 @@ evidence and remaining coverage limits are in `docs/tools/playback-regression.md
 of generated lists/material references, cel/matrix/action generation, the action
 cache, glyph fetch control, body adjustment/default costumes and generated-owner
 disposal. `MMTextGenerated` holds the material, cached action and cache ID;
-these are no longer separate C++ owner fields. Native services expose primitive
-container/material/action factories, retained font providers, metric/glyph access,
-body operations and template field views.
+these are no longer separate C++ owner fields. Native services supply object and
+table allocation, retained font providers, metric and glyph access, body
+operations and template field views. The standalone evaluator calls the same
+matrix generator for one cel and writes its outputs directly to the body.
 The template view now borrows the same persistent `MMTemplateState` used by
 ordinary templates. Text generation fills C89 parent and set lists with
 root parents and set zero. Generated list replacement publishes directly into
@@ -5323,6 +5325,22 @@ ownership/publication order, failure phases, cache invalidation/hits, zero-lengt
 glyph failures, body boundaries and math invariants. All 70 standalone C checks
 run with assertions enabled; full gate evidence is in
 `docs/tools/playback-regression.md`.
+
+Direct generation and action adoption preserve all 800 generated pose cases,
+29 other native traces and the 480-byte saved fixture against `4d21f8cb`.
+The two allocation traces record 19 cases that now succeed after the copy
+or scratch allocation was removed. In two further cases the missing-font
+lookup now runs and still leaves the action cache empty. The verifier compares
+new successes with the corresponding no-fault results. A C-only test compares
+single-cel output against the generated table for every shape and action.
+All 181 standalone, 189 focused host, 10 C89 syntax and seven AddressSanitizer
+checks pass. Standalone frame and mesh snapshots and native graph/stream
+evaluations each agree across 300 frames. The instrumented probe also matches
+the 300 standalone frame snapshots. Both hosts match 456 prior seek
+observations, 360 viewport hashes and 480 retail frame commits. The actor
+audio fixture confirms silence before Play and both cues in each host.
+Retail reopens the Studio actor edit with matching actor state on four seeks.
+Build identities and captures are in `tmp/c89-generated-actions`.
 
 ### Three-dimensional text resources
 

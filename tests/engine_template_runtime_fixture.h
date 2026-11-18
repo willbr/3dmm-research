@@ -1,5 +1,6 @@
 #ifndef ENGINE_TEMPLATE_RUNTIME_FIXTURE_H
 #define ENGINE_TEMPLATE_RUNTIME_FIXTURE_H
+#include "engine_action_tables_fixture.h"
 #include "engine_template_costumes.h"
 #include "engine_part_indices.h"
 class TemplateRuntimeActionAccess : public ActionDefinition
@@ -50,7 +51,7 @@ static bool TestTemplateRuntime()
             BMAT34 matrix; BrMatrix34Identity(&matrix); matrix.m[3][0]=BR_SCALAR(i+5);
             ok=group->FAdd(n*sizeof(CelPartSpec),nullptr,parts,&cel) && matrices->FAdd(&matrix);
         }
-        auto action=ok?ActionDefinition::PactnNew(group,matrices,13):nullptr;
+        auto action=ok?MakeFixtureAction(group,matrices,13):nullptr;
         MMActionTable sounds;
         mm_action_table_init(&sounds,nullptr,nullptr,nullptr);
         ok=ok && mm_action_sounds_reserve(&sounds,2);

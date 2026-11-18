@@ -3,11 +3,10 @@
 #include "mm/actor_pose.h"
 #include "mm/wide.h"
 #include <limits.h>
+#include <string.h>
 #if SHRT_MAX != 32767
 #error Text cel parts require 16-bit shorts
 #endif
-typedef struct Cel { MMU32 sound; MMI32 distance; } Cel;
-typedef struct Part { short model,matrix; } Part;
 static MMI32 half(MMI32 value)
 { return mm_signed_word(((MMU32)value>>1)|((MMU32)value&0x80000000UL)); }
 static MMPartIndexList *build_indices(MMI32 count, short value, const MMTextGenerationServices *s)
@@ -80,32 +79,51 @@ MMI32 mm_text_cel_distance(MMI32 action)
 { return action==MM_TEXT_WALK?65536L:327680L; }
 MMU32 mm_text_action_flags(void)
 { return MM_ACTOR_ROTATE_Y | MM_ACTOR_STATIC_ACTION; }
-void *mm_text_build_cels(void *object,MMI32 action,const MMTextGenerationServices *s)
+static int text_action_size(MMI32 characters, MMI32 cels)
 {
-    MMI32 n=s->length(s->context,object),i,j,cels=mm_text_cel_count(action);
-    void *group=s->group_new(s->context,8,0,0); Part *parts=NULL; Cel cel;
-    if (!group) return NULL;
-    if (!s->allocate(s->context,n*4,(void **)&parts)) goto fail;
-    for (i=0;i<cels;++i)
-    {
-        cel.sound=0; cel.distance=mm_text_cel_distance(action);
-        for (j=0;j<n;++j) { parts[j].model=(short)j; parts[j].matrix=(short)(i*n+j); }
-        if (!s->group_add(s->context,group,&cel,n*4,parts)) goto fail;
-    }
-    s->free_memory(s->context,(void **)&parts); return group;
-fail:
-    s->free_memory(s->context,(void **)&parts); s->release(s->context,group); return NULL;
+    return characters >= 0 && cels > 0 && characters <= ((MMI32)SHRT_MAX + 1) / cels;
 }
-void *mm_text_build_matrices(void *object,MMI32 action,const MMTextGenerationServices *s)
+
+MMActionTable *mm_text_build_cels(void *object, MMI32 action, const MMTextGenerationServices *s)
 {
-    MMI32 n=s->length(s->context,object),i,j,cels,cw,ch,total=0,height=0,x,y,center,width,phase,theta,stretch;
-    void *font=s->font(s->context,object),*list=NULL; MMActorMatrix matrix;
-    if (!font) return NULL;
-    cels=mm_text_cel_count(action); list=s->list_new(s->context,48,cels*n); if (!list) goto fail;
-    s->list_count(s->context,list,cels*n);
+    MMI32 n = s->length(s->context, object), cels = mm_text_cel_count(action);
+    MMI32 i, j, distance = mm_text_cel_distance(action);
+    MMActionTable *table;
+    unsigned char *parts;
+    short indices[2];
+    if (!text_action_size(n, cels))
+        return NULL;
+    table = s->table_new(s->context);
+    if (!table)
+        return NULL;
+    mm_action_cels_prepare(table);
+    for (i = 0; i < cels; ++i)
+    {
+        parts = mm_action_cel_append(table, 0, distance, (MMU32)n);
+        if (!parts)
+        {
+            mm_action_table_dispose(table);
+            return NULL;
+        }
+        for (j = 0; j < n; ++j)
+        {
+            indices[0] = (short)j;
+            indices[1] = (short)(i * n + j);
+            memcpy(parts + j * MM_ACTION_PART_BYTES, indices, MM_ACTION_PART_BYTES);
+        }
+    }
+    return table;
+}
+
+static void write_matrices(void *object, void *font, MMI32 action, MMI32 n, MMI32 first, MMI32 end,
+                           MMTextMatrixWrite write, void *target, const MMTextGenerationServices *s)
+{
+    MMI32 i,j,cels=mm_text_cel_count(action),cw,ch,total=0,height=0,x,y,center,width,phase,theta,stretch;
+    MMI32 shape=s->shape(s->context,object);
+    MMActorMatrix matrix;
     for (j=0;j<n;++j) total+=s->font_width(s->context,font,s->character(s->context,object,j));
     for (j=0;j<n;++j) height+=s->font_height(s->context,font,s->character(s->context,object,j));
-    for (i=0;i<cels;++i)
+    for (i=first;i<end;++i)
     {
         x=-half(total); y=0;
         for (j=0;j<n;++j)
@@ -118,28 +136,75 @@ void *mm_text_build_matrices(void *object,MMI32 action,const MMTextGenerationSer
                 stretch=98304L+half(mm_angle_sin((unsigned short)mm_fixed_mul(theta,10430L)));
                 center=mm_fixed_mul(center,stretch); width=mm_fixed_mul(total,stretch);
             }
-            mm_text_apply_shape(&matrix,s->shape(s->context,object),n,j,center,width,y+ch,s->font_maximum(s->context,font),height);
+            mm_text_apply_shape(&matrix,shape,n,j,center,width,y+ch,s->font_maximum(s->context,font),height);
             mm_text_apply_action(&matrix,action,j,cels,i,center,width);
-            if (s->shape(s->context,object)==MM_TEXT_CIRCLE_Z)
+            if (shape==MM_TEXT_CIRCLE_Z)
             {
                 MMActorMatrix translation,result; mm_matrix_identity(&translation);
                 translation.m[3][1]=mm_fixed_div(total,411774L)+s->font_maximum(s->context,font);
                 mm_matrix_multiply(&result,&matrix,&translation); matrix=result;
             }
-            x+=cw; y+=ch; s->list_put(s->context,list,i*n+j,&matrix);
+            x+=cw; y+=ch; write(target,(i-first)*n+j,&matrix);
         }
     }
-    s->release(s->context,font); return list;
-fail:
-    s->release(s->context,font); if (list) s->release(s->context,list); return NULL;
 }
-void *mm_text_build_action(void *object,MMI32 action,const MMTextGenerationServices *s)
+static void store_matrix(void *table, MMI32 index, const MMActorMatrix *matrix)
 {
-    void *cels=mm_text_build_cels(object,action,s),*matrices=NULL,*result=NULL;
-    if (!cels) return NULL;
-    matrices=mm_text_build_matrices(object,action,s);
-    if (matrices) result=s->action_new(s->context,cels,matrices,mm_text_action_flags());
-    s->release(s->context,cels); if (matrices) s->release(s->context,matrices); return result;
+    mm_action_matrix_put((MMActionTable *)table, (MMU32)index, matrix);
+}
+
+MMActionTable *mm_text_build_matrices(void *object, MMI32 action, const MMTextGenerationServices *s)
+{
+    MMI32 n = s->length(s->context, object), cels = mm_text_cel_count(action);
+    MMActionTable *table;
+    void *font;
+    if (!text_action_size(n, cels))
+        return NULL;
+    font = s->font(s->context, object);
+    if (!font)
+        return NULL;
+    table = s->table_new(s->context);
+    if (table && !mm_action_matrices_prepare(table, (MMU32)(cels * n)))
+    {
+        mm_action_table_dispose(table);
+        table = NULL;
+    }
+    if (table)
+        write_matrices(object, font, action, n, 0, cels, store_matrix, table, s);
+    s->release(s->context, font);
+    return table;
+}
+
+int mm_text_evaluate_cel(void *object, MMI32 action, MMI32 cel, MMTextMatrixWrite write, void *target,
+                         const MMTextGenerationServices *s)
+{
+    MMI32 n = s->length(s->context, object), cels = mm_text_cel_count(action);
+    void *font;
+    if (!text_action_size(n, cels) || cel < 0 || cel >= cels)
+        return 0;
+    font = s->font(s->context, object);
+    if (!font)
+        return 0;
+    write_matrices(object, font, action, n, cel, cel + 1, write, target, s);
+    s->release(s->context, font);
+    return 1;
+}
+
+static void *build_action(void *object, MMI32 action, const MMTextGenerationServices *s)
+{
+    MMActionTable *cels = mm_text_build_cels(object, action, s), *matrices;
+    void *result = NULL;
+    if (!cels)
+        return NULL;
+    matrices = mm_text_build_matrices(object, action, s);
+    if (matrices)
+        result = s->action_new(s->context, cels, matrices, mm_text_action_flags());
+    if (!result)
+    {
+        mm_action_table_dispose(cels);
+        mm_action_table_dispose(matrices);
+    }
+    return result;
 }
 void *mm_text_fetch_action(void *object,MMI32 action,const MMTextGenerationServices *s)
 {
@@ -147,7 +212,7 @@ void *mm_text_fetch_action(void *object,MMI32 action,const MMTextGenerationServi
     if (action!=a->action_id)
     {
         if (a->action) { s->release(s->context,a->action); a->action=NULL; }
-        a->action_id=-1; a->action=mm_text_build_action(object,action,s);
+        a->action_id=-1; a->action=build_action(object,action,s);
     }
     if (a->action) { s->retain(s->context,a->action); a->action_id=action; }
     return a->action;

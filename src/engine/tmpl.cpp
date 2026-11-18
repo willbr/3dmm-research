@@ -103,6 +103,12 @@ class ActionTableAllocation : public BASE
 };
 }
 
+MMActionTable *ActionDefinition::NewTable()
+{
+    const auto allocation = NewObj ActionTableAllocation;
+    return allocation ? &allocation->table : nullptr;
+}
+
 MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *context)
 {
     MMActionDefinitionServices s = {}; s.context = context;
@@ -111,10 +117,7 @@ MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *
     s.state = [](void *, void *object) { return &static_cast<PActionDefinition>(object)->_action; };
     s.create = [](void *) -> void * { return NewObj ActionDefinition; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.new_table = [](void *, int) -> MMActionTable * {
-        const auto allocation = NewObj ActionTableAllocation;
-        return allocation ? &allocation->table : nullptr;
-    };
+    s.new_table = [](void *, int) { return NewTable(); };
     s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
         auto block = &static_cast<ActionDefinitionContext *>(p)->block;
         return static_cast<PChunkyFile>(file)->FFind(type, number, block) ? block : nullptr;
@@ -144,16 +147,14 @@ MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *
     return s;
 }
 
-PActionDefinition ActionDefinition::PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, LegacyUlong grfactn)
+PActionDefinition ActionDefinition::PactnNew(MMActionTable *cels, MMActionTable *matrices, LegacyUlong grfactn)
 {
-    AssertPo(pggcel, 0); AssertPo(pglbmat34, 0);
-    Assert(pggcel->CbFixed() == MM_ACTION_CEL_BYTES, "bad animation cel width");
-    Assert(pglbmat34->CbEntry() == MM_ACTION_MATRIX_BYTES, "bad action matrix width");
-    const MMActionTableSource cels{&pggcel->Storage(), static_cast<MMU32>(pggcel->IvMac()),
-                                   static_cast<MMU32>(pggcel->RecordBytes())};
-    const MMActionTableSource matrices{&pglbmat34->Storage(), static_cast<MMU32>(pglbmat34->IvMac()), 0};
+    Assert(cels && cels->header.kind == MM_COLLECTION_GROUP && cels->header.width == MM_ACTION_CEL_BYTES,
+           "bad animation cel table");
+    Assert(matrices && matrices->header.kind == MM_COLLECTION_ARRAY && matrices->header.width == MM_ACTION_MATRIX_BYTES,
+           "bad action matrix table");
     ActionDefinitionContext context; auto s = _Services(&context);
-    return static_cast<PActionDefinition>(mm_action_create(&cels, &matrices, grfactn, &s));
+    return static_cast<PActionDefinition>(mm_action_create(cels, matrices, grfactn, &s));
 }
 
 /***************************************************************************

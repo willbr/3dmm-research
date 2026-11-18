@@ -1,5 +1,6 @@
 #ifndef ENGINE_ACTION_DEFINITION_FIXTURE_H
 #define ENGINE_ACTION_DEFINITION_FIXTURE_H
+#include "engine_action_tables_fixture.h"
 class ActionDefinitionFixtureAccess : public ActionDefinition
 {
   public:
@@ -52,7 +53,7 @@ static bool TestActionDefinition()
 {
     FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_ACTION_DEFINITION_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-    bool ok=true; int attempts=0,loaded=0,copied=0;
+    bool ok=true; int attempts=0,loaded=0,adopted=0;
     const int counts[]={0,1,3};
     for (int shape=0;ok && shape<3;++shape) for (int variant=0;ok && variant<8;++variant)
     for (int stage=0;ok && stage<3;++stage) for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<18;++failure)
@@ -86,35 +87,37 @@ static bool TestActionDefinition()
         DataBlock block; LegacyLong estimate=-77; ok=ok && file->FFind(kctgActn,number,&block) && ActionDefinition::FReadActn(cache,kctgActn,number,&block,nullptr,&estimate);
         if (variant==7) { file->Delete(kctgActn,number); }
         PActionDefinition action=stage==1?ActionDefinitionFixtureAccess::Create():nullptr; bool initialized=false;
+        FixtureActionTables tables;
+        if (stage==2) ok=ok && tables.Copy(cels,matrices);
 #ifdef DEBUG
         vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;
         allocator->cactDo=failure-1; allocator->cactFail=failure?1:0; vmutxMem.Leave();
 #endif
         if (stage==0) { PBaseCacheableObject out=nullptr; initialized=ActionDefinition::FReadActn(cache,kctgActn,number,&block,&out,&estimate); if (initialized) action=static_cast<PActionDefinition>(out); }
         else if (stage==1) initialized=static_cast<ActionDefinitionFixtureAccess *>(action)->Initialize(file,number);
-        else { action=ActionDefinition::PactnNew(cels,matrices,0x8000000d); initialized=action!=nullptr; }
+        else if (ok) { action=tables.Create(0x8000000d); initialized=action!=nullptr; }
 #ifdef DEBUG
         vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
-        ++attempts; if (initialized) { if (stage==2) ++copied; else ++loaded; }
+        ++attempts; if (initialized) { if (stage==2) ++adopted; else ++loaded; }
         LegacyLong values[]={shape,variant,stage,kind,failure,initialized,action!=nullptr,estimate,cels->CactRef(),matrices->CactRef()};
         ok=record(values,sizeof(values)) && ActionDefinitionFixtureAccess::Record(action,initialized,snapshot) && ok;
         // The new C owner releases optional and partially filled sound lists.
         // Cleanup is outside the state trace; allocation balance verifies it.
         if (initialized && stage==1 && n && (variant==1 || variant==2))
             ok=ActionDefinitionFixtureAccess::CheckNoSoundMarkers(action) && ok;
-        block.Free(); ReleasePpo(&action); ReleasePpo(&cels); ReleasePpo(&matrices); ReleasePpo(&sounds); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
+        block.Free(); ReleasePpo(&action); tables.Reset(); ReleasePpo(&cels); ReleasePpo(&matrices); ReleasePpo(&sounds); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==beforeBase && vdmglob.dmaglHq.cv==beforeHq && vdmglob.dmaglPv.cv==beforePv;
 #endif
         if (!ok) std::fprintf(stderr,"Action definition failed: %d %d %d %d %d\n",shape,variant,stage,kind,failure);
     }
-    std::fprintf(stderr,"[action definition] attempts=%d loaded=%d copied=%d\n",attempts,loaded,copied);
+    std::fprintf(stderr,"[action definition] attempts=%d loaded=%d adopted=%d\n",attempts,loaded,adopted);
 #ifdef DEBUG
-    ok=ok && loaded==597 && copied==152;
+    ok=ok && loaded==597 && adopted==159;
 #else
-    ok=ok && loaded==648 && copied==162;
+    ok=ok && loaded==648 && adopted==162;
 #endif
-    if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && attempts==2268 && loaded && copied;
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && attempts==2268 && loaded && adopted;
 }
 #endif

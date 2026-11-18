@@ -79,6 +79,54 @@ static MMGroup cel_group(const MMActionTable *table)
     return group;
 }
 
+void mm_action_cels_prepare(MMActionTable *table)
+{
+    table->header.kind = MM_COLLECTION_GROUP;
+    table->header.width = MM_ACTION_CEL_BYTES;
+    table->header.big_endian = native_big_endian();
+    table->header.free_count = -1;
+    mm_collection_layout(&table->header);
+    table->storage.min_grow[0] = 128;
+    table->storage.min_grow[1] = 128;
+}
+
+unsigned char *mm_action_cel_append(MMActionTable *table, MMU32 sound, MMI32 distance, MMU32 parts)
+{
+    MMGroup group = cel_group(table);
+    MMU32 offset = group.bytes, fields[2];
+    fields[0] = sound;
+    fields[1] = (MMU32)distance;
+    if (parts >= MM_STORAGE_LIMIT / MM_ACTION_PART_BYTES ||
+        mm_group_add(&group, parts * MM_ACTION_PART_BYTES, NULL, fields, NULL) != MM_STORAGE_OK)
+        return NULL;
+    table->header.count = group.count;
+    table->header.bytes = table->header.first_bytes = group.bytes;
+    table->header.second_bytes = group.count * 8;
+    return table->storage.buffers[0].data + offset + MM_ACTION_CEL_BYTES;
+}
+
+int mm_action_matrices_prepare(MMActionTable *table, MMU32 count)
+{
+    MMCollectionHeader header = {0};
+    header.kind = MM_COLLECTION_ARRAY;
+    header.width = MM_ACTION_MATRIX_BYTES;
+    header.big_endian = native_big_endian();
+    header.count = count;
+    header.free_count = -1;
+    table->storage.min_grow[0] = 128;
+    table->storage.min_grow[1] = 16;
+    if (mm_collection_layout(&header) != MM_STORAGE_OK ||
+        mm_storage_ensure(&table->storage, header.first_bytes, 0, 0) != MM_STORAGE_OK)
+        return 0;
+    table->header = header;
+    return 1;
+}
+
+void mm_action_matrix_put(MMActionTable *table, MMU32 index, const void *matrix)
+{
+    memcpy(table->storage.buffers[0].data + index * MM_ACTION_MATRIX_BYTES, matrix, MM_ACTION_MATRIX_BYTES);
+}
+
 int mm_action_table_read(MMActionTable *table, const MMReadStream *stream, int kind)
 {
     static const MMU32 widths[] = {MM_ACTION_CEL_BYTES, MM_ACTION_MATRIX_BYTES, MM_ACTION_WIRE_TAG_BYTES};
@@ -165,45 +213,18 @@ int mm_action_read_matrices(MMActionDefinition *action, const MMActionRead *read
     return read->table(read->context, MM_ACTION_MATRICES, &action->matrices);
 }
 
-static MMActionTable *copy_table(const MMActionTableSource *source, int kind, const MMActionDefinitionServices *s)
-{
-    MMCollectionHeader header = {0};
-    MMActionTable *table;
-    header.kind = kind == MM_ACTION_CELS ? MM_COLLECTION_GROUP : MM_COLLECTION_ARRAY;
-    header.width = kind == MM_ACTION_CELS ? MM_ACTION_CEL_BYTES : MM_ACTION_MATRIX_BYTES;
-    header.big_endian = native_big_endian();
-    header.count = source->count;
-    header.bytes = source->bytes;
-    header.free_count = -1;
-    if (mm_collection_layout(&header) != MM_STORAGE_OK)
-        return NULL;
-    table = s->new_table(s->context, kind);
-    if (!table)
-        return NULL;
-    table->storage.min_grow[0] = 128;
-    table->storage.min_grow[1] = kind == MM_ACTION_CELS ? 128 : 16;
-    if (mm_storage_copy(&table->storage, source->storage, header.first_bytes, header.second_bytes) != MM_STORAGE_OK)
-    {
-        mm_action_table_dispose(table);
-        return NULL;
-    }
-    table->header = header;
-    return table;
-}
-
-void *mm_action_create(const MMActionTableSource *cels, const MMActionTableSource *matrices, MMU32 flags,
+void *mm_action_create(MMActionTable *cels, MMActionTable *matrices, MMU32 flags,
                        const MMActionDefinitionServices *s)
 {
-    void *object=s->create(s->context); MMActionDefinition *a;
-    if (!object) return NULL;
-    a=s->state(s->context,object); a->flags=flags;
-    a->cels=copy_table(cels,MM_ACTION_CELS,s);
-    if (a->cels)
-    {
-        a->matrices=copy_table(matrices,MM_ACTION_MATRICES,s);
-        if (a->matrices) return object;
-    }
-    s->release(s->context,object); return NULL;
+    void *object = s->create(s->context);
+    MMActionDefinition *action;
+    if (!object)
+        return NULL;
+    action = s->state(s->context, object);
+    action->flags = flags;
+    action->cels = cels;
+    action->matrices = matrices;
+    return object;
 }
 
 static MMI32 table_size(const MMActionTable *table)

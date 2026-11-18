@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_TEXT_GENERATION_H
 #define MM_ENGINE_TEXT_GENERATION_H
 #include "template_create.h"
+#include "action_definition.h"
 #include "actor_math.h"
 #ifdef __cplusplus
 extern "C" {
@@ -32,15 +33,8 @@ typedef struct MMTextGenerationServices
     MMI32 (*character)(void *,void *object,MMI32 index);
     MMI32 (*shape)(void *,void *object);
     MMTemplateState *(*template_state)(void *,void *object);
-    void *(*list_new)(void *,MMI32 entry,MMI32 capacity);
-    void (*list_count)(void *,void *list,MMI32 count);
-    void (*list_put)(void *,void *list,MMI32 index,const void *data);
-    void *(*group_new)(void *,MMI32 fixed,MMI32 rows,MMI32 variable);
-    int (*group_add)(void *,void *group,const void *fixed,MMI32 bytes,const void *variable);
     MMPartIndexList *(*indices_new)(void *);
     MMTemplateCostumeTable *(*costumes_new)(void *);
-    int (*allocate)(void *,MMI32 bytes,void **out);
-    void (*free_memory)(void *,void **);
     void *(*material_new)(void *);
     void (*retain)(void *,void *);
     void (*release)(void *,void *);
@@ -49,7 +43,10 @@ typedef struct MMTextGenerationServices
     MMI32 (*font_height)(void *,void *font,MMI32 character);
     MMI32 (*font_maximum)(void *,void *font);
     void *(*glyph)(void *,void *font,MMI32 character);
-    void *(*action_new)(void *,void *cels,void *matrices,MMU32 flags);
+    MMActionTable *(*table_new)(void *);
+    /* Successful creation consumes both tables. Failure leaves them owned
+     * by the caller. */
+    void *(*action_new)(void *,MMActionTable *cels,MMActionTable *matrices,MMU32 flags);
     int (*body_shape)(void *,void *body,const MMPartIndexView *parents,const MMPartIndexView *sets);
     void (*body_material)(void *,void *body,MMI32 set,void *material);
 } MMTextGenerationServices;
@@ -57,17 +54,20 @@ typedef struct MMTextGenerationServices
  * publishing any owner fields. Failure releases locals in native order and
  * leaves the existing owner untouched. Success replaces parent/set/costume/
  * material owners in order, then clears the cached action and publishes counts.
- * Strings are normalized by the caller; byte characters and native short cel
- * indices, positive cel counts and bounded scalar sums are preconditions.
- * list_count is guaranteed by the capacity supplied to list_new. Font/provider
- * services return retained references. Callbacks must not reenter/mutate owners. */
+ * Strings are normalized by the caller. Byte characters and bounded scalar
+ * sums are preconditions. Font/provider services return retained references.
+ * Callbacks must not reenter or mutate owners. */
 int mm_text_initialize_lists(void *,const MMTextGenerationServices *);
 MMI32 mm_text_cel_count(MMI32 action);
 MMI32 mm_text_cel_distance(MMI32 action);
 MMU32 mm_text_action_flags(void);
-void *mm_text_build_cels(void *,MMI32 action,const MMTextGenerationServices *);
-void *mm_text_build_matrices(void *,MMI32 action,const MMTextGenerationServices *);
-void *mm_text_build_action(void *,MMI32 action,const MMTextGenerationServices *);
+MMActionTable *mm_text_build_cels(void *,MMI32 action,const MMTextGenerationServices *);
+MMActionTable *mm_text_build_matrices(void *,MMI32 action,const MMTextGenerationServices *);
+/* Evaluate one cel without allocating an action table. The writer receives
+ * one matrix per character in order, starting at index zero. */
+typedef void (*MMTextMatrixWrite)(void *,MMI32 index,const MMActorMatrix *);
+int mm_text_evaluate_cel(void *,MMI32 action,MMI32 cel,MMTextMatrixWrite,void *target,
+                         const MMTextGenerationServices *);
 /* Cache misses release the old action BEFORE building; failure leaves a NULL
  * cache/id -1. Hits retain without rebuilding. ID publishes after retain. */
 void *mm_text_fetch_action(void *,MMI32 action,const MMTextGenerationServices *);

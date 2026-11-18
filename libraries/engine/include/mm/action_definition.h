@@ -19,14 +19,6 @@ typedef struct MMActionTable
     void (*release_owner)(void *);
 } MMActionTable;
 
-/* Legacy authoring borrows native-order entries until the factory copies
- * them. bytes is the size of the record area for a cel group. */
-typedef struct MMActionTableSource
-{
-    const MMCollectionStorage *storage;
-    MMU32 count, bytes;
-} MMActionTableSource;
-
 typedef struct MMActionDefinition
 {
     MMActionTable *cels,*matrices,*sounds;
@@ -55,6 +47,12 @@ void mm_action_table_dispose(MMActionTable *);
 /* Read into a fresh table. Record payloads retain their wire byte order, and
  * the cel location table uses native byte order. */
 int mm_action_table_read(MMActionTable *, const MMReadStream *, int kind);
+/* Prepare fresh native-order tables. A cel append returns writable part
+ * records which must be filled before reading or appending another cel. */
+void mm_action_cels_prepare(MMActionTable *);
+unsigned char *mm_action_cel_append(MMActionTable *, MMU32 sound, MMI32 distance, MMU32 parts);
+int mm_action_matrices_prepare(MMActionTable *, MMU32 count);
+void mm_action_matrix_put(MMActionTable *, MMU32 index, const void *matrix);
 int mm_action_sounds_reserve(MMActionTable *, MMU32 count);
 int mm_action_sounds_append(MMActionTable *, const MMTag *);
 int mm_action_sound_tag(const MMActionTable *, MMU32 index, MMTag *);
@@ -88,8 +86,8 @@ typedef struct MMActionDefinitionServices
  * release partial objects before invalidating outputs. All table layouts,
  * indices and 32-bit allocation/cache-size products satisfy native preconditions.
  * Callbacks may observe publication but must not reenter or mutate the owner. */
-void *mm_action_create(const MMActionTableSource *cels,const MMActionTableSource *matrices,MMU32 flags,
-                       const MMActionDefinitionServices *);
+/* The caller owns the tables on failure. Success transfers both tables. */
+void *mm_action_create(MMActionTable *cels,MMActionTable *matrices,MMU32 flags,const MMActionDefinitionServices *);
 /* Output storage bridges native pointer/32-bit integer representations without
  * typed pointer aliasing. Estimate-only reads do not unpack or allocate. The
  * final cache estimate deliberately excludes optional sounds, as in native. */

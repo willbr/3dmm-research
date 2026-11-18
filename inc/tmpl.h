@@ -116,7 +116,9 @@ class ActionDefinition : public ActionDefinition_PAR
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static PActionDefinition PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, LegacyUlong grfactn);
+    static MMActionTable *NewTable();
+    // Transfers both tables on success.
+    static PActionDefinition PactnNew(MMActionTable *cels, MMActionTable *matrices, LegacyUlong grfactn);
     static bool FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     ~ActionDefinition(void);
 

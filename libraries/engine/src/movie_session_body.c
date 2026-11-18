@@ -184,10 +184,9 @@ int mm_session_body_cel(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
 
 typedef struct TextBody
 {
-    MMMovieEvaluatedBody *body;
     unsigned char string[MM_STRING_MAX + 2];
     MMFontResource metrics;
-    MMI32 shape, cel;
+    MMI32 shape;
     int status;
 } TextBody;
 
@@ -245,15 +244,10 @@ static void *text_font(void *p, void *object) { (void)p; return &((TextBody *)ob
 static MMI32 text_width(void *p, void *font, MMI32 i) { (void)p; return mm_font_width((MMFontResource *)font, i); }
 static MMI32 text_height(void *p, void *font, MMI32 i) { (void)p; return mm_font_height((MMFontResource *)font, i); }
 static MMI32 text_maximum(void *p, void *font) { (void)p; return ((MMFontResource *)font)->maximum_height; }
-static void *text_list(void *p, MMI32 entry, MMI32 capacity) { (void)entry; (void)capacity; return p; }
-static void text_list_count(void *p, void *list, MMI32 count) { (void)p; (void)list; (void)count; }
-static void text_list_put(void *p, void *list, MMI32 i, const void *value)
+static void text_write_matrix(void *p, MMI32 i, const MMActorMatrix *value)
 {
-    TextBody *text = (TextBody *)p;
-    MMI32 count = text->string[0];
-    (void)list;
-    if (i / count == text->cel)
-        memcpy(&text->body->parts[i % count].matrix, value, sizeof(MMActorMatrix));
+    MMMovieEvaluatedBody *body = (MMMovieEvaluatedBody *)p;
+    body->parts[i].matrix = *value;
 }
 static void text_release(void *p, void *value) { (void)p; (void)value; }
 
@@ -272,8 +266,6 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     MMU32 position, i;
     int status, big;
     memset(&text, 0, sizeof(text));
-    text.body = body;
-    text.cel = in->cel;
     status = text_name(in, &text);
     if (status != MM_MOVIE_OK)
         return status;
@@ -353,15 +345,13 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     generation.length = text_count;
     generation.character = text_character;
     generation.shape = text_shape;
-    generation.list_new = text_list;
-    generation.list_count = text_list_count;
-    generation.list_put = text_list_put;
     generation.font = text_font;
     generation.font_width = text_width;
     generation.font_height = text_height;
     generation.font_maximum = text_maximum;
     generation.release = text_release;
-    status = mm_text_build_matrices(&text, body->actor.state.action, &generation) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+    status = mm_text_evaluate_cel(&text, body->actor.state.action, in->cel, text_write_matrix, body, &generation)
+             ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
 done:
     free(text.metrics.widths);
     free(text.metrics.heights);

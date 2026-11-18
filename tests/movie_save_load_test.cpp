@@ -22,6 +22,7 @@
 #include "soc.h"
 #include "engine_template_costumes.h"
 #include "engine_part_indices.h"
+#include "engine_action_tables_fixture.h"
 #include "actor_frame_fixture.h"
 #include "mm/actor_placement.h"
 ASSERTNAME
@@ -228,7 +229,7 @@ class TrackTestTemplate : public Template
         if (ok)
             ok = matrices->FInsert(0, &matrix);
         if (ok)
-            _testAction = ActionDefinition::PactnNew(cels, matrices, factnRotateY);
+            _testAction = MakeFixtureAction(cels, matrices, factnRotateY);
         ReleasePpo(&cels);
         ReleasePpo(&matrices);
         _template.action_count = 1;

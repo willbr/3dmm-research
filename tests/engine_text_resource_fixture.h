@@ -1,5 +1,6 @@
 #ifndef ENGINE_TEXT_RESOURCE_FIXTURE_H
 #define ENGINE_TEXT_RESOURCE_FIXTURE_H
+#include "engine_action_tables_fixture.h"
 static PThreeDFont TextResourceNoFont(void *context,const TAG &)
 { ++*static_cast<int *>(context); return nullptr; }
 class TextResourceFixtureAccess : public ThreeDText
@@ -15,7 +16,7 @@ class TextResourceFixtureAccess : public ThreeDText
         auto cels=GeneralGroup::PggNew(sizeof(AnimationCel)); auto matrices=DynamicArray::PglNew(sizeof(BMAT34));
         AnimationCel cel={}; BMAT34 matrix; BrMatrix34Identity(&matrix);
         bool ok=cels && matrices && cels->FAdd(0,nullptr,nullptr,&cel) && matrices->FAdd(&matrix);
-        auto action=ok?ActionDefinition::PactnNew(cels,matrices,0):nullptr;
+        auto action=ok?MakeFixtureAction(cels,matrices,0):nullptr;
         ReleasePpo(&cels); ReleasePpo(&matrices);
         if (action) { auto field=&TextResourceFixtureAccess::_generated; auto &state=t->*field; state.action=action; state.action_id=tdaRest; action->AddRef(); }
         return action;

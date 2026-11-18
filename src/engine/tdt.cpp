@@ -185,15 +185,8 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.character = [](void *, void *object, MMI32 i) -> MMI32 { return static_cast<uchar>(static_cast<PThreeDText>(object)->_stn.Psz()[i]); };
     s.shape = [](void *, void *object) -> MMI32 { return static_cast<PThreeDText>(object)->_descriptor.shape; };
     s.template_state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PThreeDText>(object)->_template; };
-    s.list_new = [](void *, MMI32 bytes, MMI32 capacity) -> void * { return DynamicArray::PglNew(bytes, capacity); };
-    s.list_count = [](void *, void *list, MMI32 count) { AssertDo(static_cast<PDynamicArray>(list)->FSetIvMac(count), "PglNew should have ensured space!"); };
-    s.list_put = [](void *, void *list, MMI32 index, const void *data) { static_cast<PDynamicArray>(list)->Put(index, const_cast<void *>(data)); };
     s.indices_new = [](void *) { return EnginePartIndices::Create(); };
     s.costumes_new = [](void *) { return EngineTemplateCostumes::Create(); };
-    s.group_new = [](void *, MMI32 fixed, MMI32 rows, MMI32 bytes) -> void * { return GeneralGroup::PggNew(fixed, rows, bytes); };
-    s.group_add = [](void *, void *group, const void *fixed, MMI32 bytes, const void *data) -> int { return static_cast<PGeneralGroup>(group)->FAdd(bytes, nullptr, const_cast<void *>(data), const_cast<void *>(fixed)); };
-    s.allocate = [](void *, MMI32 bytes, void **out) -> int { return FAllocPv(out, bytes, fmemClear, mprNormal); };
-    s.free_memory = [](void *, void **out) { FreePpv(out); };
     s.material_new = [](void *) -> void * { return Material_MTRL::PmtrlNew(); };
     s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
@@ -202,7 +195,10 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.font_height = [](void *, void *font, MMI32 ch) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrChar(ch); };
     s.font_maximum = [](void *, void *font) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrMax(); };
     s.glyph = [](void *, void *font, MMI32 ch) -> void * { return static_cast<PThreeDFont>(font)->PmodlFetch(ch); };
-    s.action_new = [](void *, void *cels, void *matrices, MMU32 flags) -> void * { return ActionDefinition::PactnNew(static_cast<PGeneralGroup>(cels), static_cast<PDynamicArray>(matrices), flags); };
+    s.table_new = [](void *) { return ActionDefinition::NewTable(); };
+    s.action_new = [](void *, MMActionTable *cels, MMActionTable *matrices, MMU32 flags) -> void * {
+        return ActionDefinition::PactnNew(cels, matrices, flags);
+    };
     s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {
         return static_cast<PBody>(body)->FChangeShape(*parents, *sets);
     };
@@ -229,16 +225,6 @@ PActionDefinition ThreeDText::_PactnFetch(LegacyLong tda)
 }
 
 /***************************************************************************
-    Build the given action
-***************************************************************************/
-PActionDefinition ThreeDText::_PactnBuild(LegacyLong tda)
-{
-    AssertThis(0); AssertIn(tda, 0, tdaLim);
-    auto services = _GenerationServices();
-    return static_cast<PActionDefinition>(mm_text_build_action(this, tda, &services));
-}
-
-/***************************************************************************
     Get the name of the given action
 ***************************************************************************/
 bool ThreeDText::FGetActnName(LegacyLong anid, PString pstn)
@@ -256,26 +242,6 @@ PModel ThreeDText::_PmodlFetch(ChildChunkID chidModl)
     AssertThis(0); AssertIn(chidModl, 0, _stn.Cch());
     auto services = _GenerationServices();
     return static_cast<PModel>(mm_text_fetch_model(this, chidModl, &services));
-}
-
-/***************************************************************************
-    Build a DynamicArray of matrices for the action
-***************************************************************************/
-PDynamicArray ThreeDText::_Pglbmat34Build(LegacyLong tda)
-{
-    AssertBaseThis(0); AssertIn(tda, 0, tdaLim);
-    auto services = _GenerationServices();
-    return static_cast<PDynamicArray>(mm_text_build_matrices(this, tda, &services));
-}
-
-/***************************************************************************
-    Build a GeneralGroup of cels for the action
-***************************************************************************/
-PGeneralGroup ThreeDText::_PggcelBuild(LegacyLong tda)
-{
-    AssertBaseThis(0); AssertIn(tda, 0, tdaLim);
-    auto services = _GenerationServices();
-    return static_cast<PGeneralGroup>(mm_text_build_cels(this, tda, &services));
 }
 
 /***************************************************************************

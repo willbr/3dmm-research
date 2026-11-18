@@ -204,7 +204,6 @@ int main(void)
     unsigned char *first;
     MMActionTable cels,matrices;
     MMReadStream input;
-    MMActionTableSource cels_source,matrices_source;
     void *out;
     MMI32 size;
     int host,big,fail,ok,i;
@@ -257,27 +256,30 @@ int main(void)
         else assert(x.invalidations==2 && size==(MMI32)-1414812757);
         empty(&x);
     }
-    setup(&x,0,native_big,2);
-    mm_action_table_init(&cels,NULL,NULL,NULL);
-    mm_action_table_init(&matrices,NULL,NULL,NULL);
-    input=stream(&x,&x.blocks[0]); assert(mm_action_table_read(&cels,&input,MM_ACTION_CELS)==MM_MOVIE_OK);
-    input=stream(&x,&x.blocks[1]); assert(mm_action_table_read(&matrices,&input,MM_ACTION_MATRICES)==MM_MOVIE_OK);
-    cels_source.storage=&cels.storage; cels_source.count=2; cels_source.bytes=32;
-    matrices_source.storage=&matrices.storage; matrices_source.count=2; matrices_source.bytes=0;
-    for (fail=0;fail<=6;++fail)
+    for (fail=0;fail<=1;++fail)
     {
-        setup(&x,0,0,2); x.fail=fail;
-        out=mm_action_create(&cels_source,&matrices_source,0x8000000dUL,&x.services);
+        setup(&x,0,native_big,2);
+        mm_action_table_init(&cels,NULL,NULL,NULL);
+        mm_action_table_init(&matrices,NULL,NULL,NULL);
+        input=stream(&x,&x.blocks[0]); assert(mm_action_table_read(&cels,&input,MM_ACTION_CELS)==MM_MOVIE_OK);
+        input=stream(&x,&x.blocks[1]); assert(mm_action_table_read(&matrices,&input,MM_ACTION_MATRICES)==MM_MOVIE_OK);
+        x.fail=fail;
+        out=mm_action_create(&cels,&matrices,0x8000000dUL,&x.services);
         assert((out!=NULL)==!fail);
         if (out)
         {
+            assert(x.state.cels==&cels && x.state.matrices==&matrices);
             assert(mm_action_get_matrix(&x.state,1,words) && words[0]==100);
             release(&x,out);
         }
+        else
+        {
+            assert(cels.storage.buffers[0].data && matrices.storage.buffers[0].data);
+            mm_action_table_dispose(&cels);
+            mm_action_table_dispose(&matrices);
+        }
         empty(&x);
     }
-    mm_action_table_dispose(&cels);
-    mm_action_table_dispose(&matrices);
 
     setup(&x,0,0,2); x.fail=1;
     assert(mm_action_fetch(&x,0x4143544eUL,7,&x.header,NULL,&size,&x.services) && size==88 && !x.phase);

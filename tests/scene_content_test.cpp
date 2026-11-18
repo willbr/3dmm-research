@@ -6,6 +6,7 @@
 #include "soc.h"
 #include "engine_template_costumes.h"
 #include "engine_part_indices.h"
+#include "engine_action_tables_fixture.h"
 #include "scene_sound.h"
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
@@ -228,7 +229,7 @@ class TrackTestTemplate : public Template
         if (ok)
             ok = matrices->FInsert(0, &matrix);
         if (ok)
-            _testAction = ActionDefinition::PactnNew(cels, matrices, factnRotateY);
+            _testAction = MakeFixtureAction(cels, matrices, factnRotateY);
         ReleasePpo(&cels);
         ReleasePpo(&matrices);
         _template.action_count = 1;
