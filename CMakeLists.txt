@@ -1166,10 +1166,21 @@ target_link_libraries(brender
     kauai
     BRender::Libraries)
 
+# C89 renderer operations for live model resources.
+add_library(mm-brender-model STATIC "${PROJECT_SOURCE_DIR}/bren/model_renderer.c")
+set_target_properties(mm-brender-model PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_include_directories(mm-brender-model PUBLIC "${PROJECT_SOURCE_DIR}/bren/inc")
+target_link_libraries(mm-brender-model PUBLIC mm-engine-c89 PRIVATE BRender::Libraries)
+if(BUILD_TESTING AND ENGINE_C89_COMPILER)
+  add_test(NAME brender-model-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/bren/inc"
+      -fsyntax-only "${PROJECT_SOURCE_DIR}/bren/model_renderer.c")
+endif()
+
 # --- engine-core: stored data, assets, evaluation and playback policy ---
-# Links only kauai-core + brender-core. Actor editing/playback, backgrounds
-# bound to World, sound import/playback and recording belong to engine.
-# World binding lives in body_world.cpp on engine; see library-split.md.
+# Actor editing/playback, backgrounds bound to World, sound import/playback
+# and recording belong to engine. World binding lives in body_world.cpp.
 add_library(engine-core)
 target_sources(engine-core
     PRIVATE
@@ -1201,7 +1212,7 @@ target_include_directories(engine-core PUBLIC
   # brender wrapper headers (BMAT34 alias, etc); the gui-side bwld.cpp
   # is NOT linked from engine-core, so we just need the include path.
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/bren/inc>)
-target_link_libraries(engine-core PUBLIC kauai-core brender-core mm-engine-c89)
+target_link_libraries(engine-core PUBLIC kauai-core brender-core mm-engine-c89 PRIVATE mm-brender-model)
 add_executable(script-name-test EXCLUDE_FROM_ALL tests/script_name_test.cpp)
 target_link_libraries(script-name-test PRIVATE kauai-core)
 add_executable(brender-list-test EXCLUDE_FROM_ALL tests/brender_list_test.c)
@@ -1574,7 +1585,7 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
   set(core_archives ${core})
   if(core STREQUAL "engine-core")
     target_compile_definitions(${core}-link-test PRIVATE TEST_ENGINE_CORE)
-    list(APPEND core_archives brender-core kauai-core)
+    list(APPEND core_archives mm-brender-model brender-core kauai-core)
   elseif(core STREQUAL "brender-core")
     target_compile_definitions(${core}-link-test PRIVATE TEST_BRENDER_CORE)
     list(APPEND core_archives kauai-core)

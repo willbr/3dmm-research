@@ -180,12 +180,12 @@ static void CheckPrelightLifetime(PModel model)
     BrAllocatorSet(underlyingAllocator);
     CHECK(!trackedCount);
 }
-static void Dat()
+static void Dat(const char *identifier)
 {
     auto source = Source(0);
     CHECK(source);
     auto prepared = source->Pbmdl();
-    auto raw = BrModelAllocate("Model resource DAT fixture", prepared->nprepared_vertices, prepared->nprepared_faces);
+    auto raw = BrModelAllocate(const_cast<char *>(identifier), prepared->nprepared_vertices, prepared->nprepared_faces);
     CHECK(raw);
     std::memcpy(raw->vertices, prepared->prepared_vertices, prepared->nprepared_vertices * sizeof(BRV));
     std::memcpy(raw->faces, prepared->prepared_faces, prepared->nprepared_faces * sizeof(BRF));
@@ -336,7 +336,8 @@ int main()
         CHECK(traceBytes == 277360 && fingerprint == 0x78c575e5u);
 #endif
     }
-    Dat();
+    Dat("Model resource DAT fixture");
+    Dat("x");
     BrZbEnd();
     BrEnd();
     if (snapshot)

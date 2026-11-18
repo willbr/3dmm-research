@@ -25,7 +25,7 @@ static MMI32 signed16(MMU32 n)
 {
     return n < 32768U ? (MMI32)n : (MMI32)n - 65536L;
 }
-int mm_model_header(const unsigned char b[48], int big, MMModelDescription *d, int *bad)
+int mm_model_header(const unsigned char b[MM_MODEL_HEADER_BYTES], int big, MMModelDescription *d, int *bad)
 {
     MMU32 bo = word(b, 2, big);
     unsigned i;
@@ -64,7 +64,7 @@ void mm_model_face_read(const unsigned char *b, int big, MMModelFace *f)
 void mm_model_face_write(unsigned char *b, int big, const MMModelFace *f)
 {
     unsigned i;
-    memset(b, 0, 32);
+    memset(b, 0, MM_MODEL_FACE_BYTES);
     for (i = 0; i < 3; ++i)
     {
         put(b + i * 2, 2, f->vertices[i], big);
@@ -75,6 +75,21 @@ void mm_model_face_write(unsigned char *b, int big, const MMModelFace *f)
     b[18] = (unsigned char)f->flags;
     b[19] = (unsigned char)f->pad;
     put(b + 28, 4, (MMU32)f->distance, big);
+}
+
+typedef struct ModelWireLayout
+{
+    MMI32 vertex_bytes, face_offset, end;
+} ModelWireLayout;
+
+/* The serialized counts fit sixteen bits, so both sections fit MMI32. */
+static ModelWireLayout model_layout(const MMModelDescription *description)
+{
+    ModelWireLayout layout;
+    layout.vertex_bytes = description->vertices * MM_MODEL_VERTEX_BYTES;
+    layout.face_offset = MM_MODEL_HEADER_BYTES + layout.vertex_bytes;
+    layout.end = layout.face_offset + description->faces * MM_MODEL_FACE_BYTES;
+    return layout;
 }
 
 static void vertex_read(const unsigned char *bytes, int big, MMModelVertex *v)
@@ -104,36 +119,48 @@ void mm_model_mesh_dispose(MMModelMesh *mesh)
     }
 }
 
-static int mesh_arrays(const MMReadStream *stream, MMModelMesh *mesh, int big)
+static int mesh_arrays(const MMReadStream *stream, MMModelMesh *mesh, const ModelWireLayout *layout, int big)
 {
-    unsigned char bytes[32 * 128];
-    MMI32 kind, i, n, j, count;
-    MMU32 offset = 48;
+    enum { BATCH = 128 };
+    unsigned char bytes[BATCH * (MM_MODEL_VERTEX_BYTES > MM_MODEL_FACE_BYTES ? MM_MODEL_VERTEX_BYTES : MM_MODEL_FACE_BYTES)];
+    MMI32 kind, i, n, j, count, width;
+    MMU32 offset;
     MMModelFace *face;
     for (kind = MM_MODEL_VERTICES; kind <= MM_MODEL_FACES; ++kind)
     {
-        count = kind == MM_MODEL_VERTICES ? mesh->description.vertices : mesh->description.faces;
+        if (kind == MM_MODEL_VERTICES)
+        {
+            count = mesh->description.vertices;
+            offset = MM_MODEL_HEADER_BYTES;
+            width = MM_MODEL_VERTEX_BYTES;
+        }
+        else
+        {
+            count = mesh->description.faces;
+            offset = (MMU32)layout->face_offset;
+            width = MM_MODEL_FACE_BYTES;
+        }
         for (i = 0; i < count; i += n)
         {
             n = count - i;
-            if (n > 128)
-                n = 128;
-            if (!mm_read_exact(stream, offset, bytes, (size_t)n * 32))
+            if (n > BATCH)
+                n = BATCH;
+            if (!mm_read_exact(stream, offset, bytes, (size_t)n * width))
                 return MM_MODEL_MESH_IO;
             if (kind == MM_MODEL_VERTICES)
                 for (j = 0; j < n; ++j)
-                    vertex_read(bytes + j * 32, big, &mesh->vertices[i + j]);
+                    vertex_read(bytes + j * width, big, &mesh->vertices[i + j]);
             else
                 for (j = 0; j < n; ++j)
                 {
                     face = &mesh->faces[i + j];
-                    mm_model_face_read(bytes + j * 32, big, face);
+                    mm_model_face_read(bytes + j * width, big, face);
                     if (face->vertices[0] >= (MMU32)mesh->description.vertices ||
                         face->vertices[1] >= (MMU32)mesh->description.vertices ||
                         face->vertices[2] >= (MMU32)mesh->description.vertices)
                         return MM_MODEL_MESH_BAD_FILE;
                 }
-            offset += (MMU32)n * 32;
+            offset += (MMU32)(n * width);
         }
     }
     return MM_MODEL_MESH_OK;
@@ -143,16 +170,19 @@ int mm_model_mesh_read(const MMReadStream *stream, MMModelMesh *out)
 {
     const unsigned short one = 1;
     int big = *(const unsigned char *)&one == 0;
-    unsigned char header[48];
+    unsigned char header[MM_MODEL_HEADER_BYTES];
     MMModelMesh mesh;
+    ModelWireLayout layout;
     int status;
     if (!stream || !out || stream->length < sizeof(header))
         return MM_MODEL_MESH_BAD_FILE;
     if (!mm_read_exact(stream, 0, header, sizeof(header)))
         return MM_MODEL_MESH_IO;
     memset(&mesh, 0, sizeof(mesh));
-    if (!mm_model_header(header, big, &mesh.description, NULL) ||
-        (MMU32)(mesh.description.vertices + mesh.description.faces) > (stream->length - sizeof(header)) / 32)
+    if (!mm_model_header(header, big, &mesh.description, NULL))
+        return MM_MODEL_MESH_BAD_FILE;
+    layout = model_layout(&mesh.description);
+    if ((MMU32)layout.end > stream->length)
         return MM_MODEL_MESH_BAD_FILE;
     if ((mesh.description.vertices && (size_t)-1 / (size_t)mesh.description.vertices < sizeof(*mesh.vertices)) ||
         (mesh.description.faces && (size_t)-1 / (size_t)mesh.description.faces < sizeof(*mesh.faces)))
@@ -164,7 +194,7 @@ int mm_model_mesh_read(const MMReadStream *stream, MMModelMesh *out)
     if ((mesh.description.vertices && !mesh.vertices) || (mesh.description.faces && !mesh.faces))
         status = MM_MODEL_MESH_MEMORY;
     else
-        status = mesh_arrays(stream, &mesh, big);
+        status = mesh_arrays(stream, &mesh, &layout, big);
     if (status == MM_MODEL_MESH_OK)
         *out = mesh;
     else
@@ -245,13 +275,13 @@ static int faces(void *block, void *handle, int prepared, MMI32 count, MMI32 off
     int ok = 0;
     if (!count)
         return 1;
-    if (!s->allocate(s->context, count * 32, 0, &memory))
+    if (!s->allocate(s->context, count * MM_MODEL_FACE_BYTES, 0, &memory))
         goto done;
-    if (!read_at(block, memory, count * 32, offset, s))
+    if (!read_at(block, memory, count * MM_MODEL_FACE_BYTES, offset, s))
         goto done;
     for (i = 0; i < count; ++i)
     {
-        mm_model_face_read((const unsigned char *)memory + i * 32, s->host_big_endian, &face);
+        mm_model_face_read((const unsigned char *)memory + i * MM_MODEL_FACE_BYTES, s->host_big_endian, &face);
         s->set_face(s->context, handle, prepared, i, &face);
     }
     ok = 1;
@@ -263,10 +293,10 @@ int mm_model_read(void *object, void *block, const MMModelServices *s)
 {
     MMModelResource *m = s->state(s->context, object);
     MMModelDescription d;
-    unsigned char header[48];
-    MMI32 vb;
+    unsigned char header[MM_MODEL_HEADER_BYTES];
+    ModelWireLayout layout;
     int prepared, bad, valid;
-    if (!s->unpack(s->context, block) || !read_at(block, header, 48, 0, s))
+    if (!s->unpack(s->context, block) || !read_at(block, header, MM_MODEL_HEADER_BYTES, 0, s))
         return 0;
     valid = mm_model_header(header, s->host_big_endian, &d, &bad);
     if (bad && s->diagnostic)
@@ -278,19 +308,19 @@ int mm_model_read(void *object, void *block, const MMModelServices *s)
         return 0;
     }
     prepared = d.radius != 0;
-    vb = d.vertices * 32;
+    layout = model_layout(&d);
     m->handle = s->allocate_model(s->context, prepared ? 0 : d.vertices, prepared ? 0 : d.faces);
     if (!m->handle)
         return 0;
     s->identify(s->context, m->handle, object);
     if (prepared)
     {
-        if (!s->component(s->context, m->handle, MM_MODEL_VERTICES, vb) ||
+        if (!s->component(s->context, m->handle, MM_MODEL_VERTICES, layout.vertex_bytes) ||
             !s->component(s->context, m->handle, MM_MODEL_FACES, d.faces * s->face_bytes))
             return 0;
     }
-    if (!read_at(block, s->vertex_data(s->context, m->handle, prepared), vb, 48, s) ||
-        !faces(block, m->handle, prepared, d.faces, 48 + vb, s))
+    if (!read_at(block, s->vertex_data(s->context, m->handle, prepared), layout.vertex_bytes, MM_MODEL_HEADER_BYTES, s) ||
+        !faces(block, m->handle, prepared, d.faces, layout.face_offset, s))
         return 0;
     /* Native normalized the order marker before testing it here, so neither
      * prepared nor unprepared payloads were swapped. Preserve that policy. */
@@ -315,14 +345,14 @@ int mm_model_write(const MMModelResource *m, void *file, MMU32 type, MMU32 numbe
     MMModelFace face;
     void *memory = NULL;
     unsigned char *b;
-    MMI32 i, vb, bytes;
+    MMI32 i;
+    ModelWireLayout layout;
     int ok = 0;
     s->describe(s->context, m->handle, &d);
     if (d.vertices < 0 || d.vertices > 65535L || d.faces < 0 || d.faces > 65535L)
         goto done;
-    vb = d.vertices * 32;
-    bytes = 48 + vb + d.faces * 32;
-    if (!s->allocate(s->context, bytes, 1, &memory))
+    layout = model_layout(&d);
+    if (!s->allocate(s->context, layout.end, 1, &memory))
         goto done;
     b = (unsigned char *)memory;
     put(b, 2, 1, s->host_big_endian);
@@ -336,14 +366,14 @@ int mm_model_write(const MMModelResource *m, void *file, MMU32 type, MMU32 numbe
         put(b + 24 + i * 4, 4, (MMU32)d.bounds.max[i], s->host_big_endian);
         put(b + 36 + i * 4, 4, (MMU32)d.pivot[i], s->host_big_endian);
     }
-    if (vb)
-        memcpy(b + 48, s->vertex_data(s->context, m->handle, 1), (size_t)vb);
+    if (layout.vertex_bytes)
+        memcpy(b + MM_MODEL_HEADER_BYTES, s->vertex_data(s->context, m->handle, 1), (size_t)layout.vertex_bytes);
     for (i = 0; i < d.faces; ++i)
     {
         s->get_face(s->context, m->handle, i, &face);
-        mm_model_face_write(b + 48 + vb + i * 32, s->host_big_endian, &face);
+        mm_model_face_write(b + layout.face_offset + i * MM_MODEL_FACE_BYTES, s->host_big_endian, &face);
     }
-    ok = s->put(s->context, file, type, number, b, bytes);
+    ok = s->put(s->context, file, type, number, b, layout.end);
 done:
     if (!ok && s->save_failed)
         s->save_failed(s->context);

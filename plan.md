@@ -545,7 +545,10 @@ Keep host presentation and device output outside the session.
    and each live body owns its copy of the part sets. Live 3D text generates
    its cels and matrices directly into the shared C action tables, which the
    action adopts. The standalone evaluator uses the same matrix generator
-   for its requested cel. Renderer resources and cache ownership remain work.
+   for its requested cel. Live BRender model construction, geometry binding
+   and prelighting use a C89 library. The live model loader and standalone
+   mesh reader share the wire layout. Material and texture renderer services
+   and the native object and cache boundaries remain work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

@@ -4726,12 +4726,14 @@ coverage limits in `docs/tools/playback-regression.md`.
 `model_resource.c` owns the persistent `MMModelResource` renderer handle,
 construction/factories, packed/unpacked estimates, prepared/unprepared loading,
 partial ownership, disposal, writing, DAT import control, extent queries and
-glyph adjustment. `modl.cpp` supplies typed BRender field/allocation, block/file
-and object-reference services. Header and face codecs operate on explicit
-48-byte headers and 32-byte faces; 32-byte vertex records retain their native
+glyph adjustment. The C89 `mm-brender-model` library binds BRender allocation,
+geometry, DAT import and prelighting for both hosts. `modl.cpp` supplies object
+and block/file services and routes diagnostics. Header and face codecs read
+48-byte headers and 32-byte faces. The 32-byte vertex records keep their native
 opaque representation. Runtime faces may be larger because their material
 field is a pointer. Serialized material slots and implicit face padding are
-zero; explicit `_pad0` bytes remain preserved.
+zero. Explicit `_pad0` bytes remain preserved. The live loader, standalone
+mesh reader and writer share the vertex and face section layout.
 
 Loading preserves radius-based preparation selection and the original ordering
 of group publication, allocation, binding and renderer registration. Failure
@@ -4751,7 +4753,9 @@ resource leaks without changing the frozen prepared geometry. Native debug
 still diagnoses more than one light; C mocks cover counts 1 through 9 and every
 creation failure. The native model allocator now supplies a nonempty pointer-
 sized identifier string so BRender reserves room for the owner pointer. Owner
-encoding/decoding uses typed copies. DAT testing also exposed an uninitialized
+encoding/decoding uses representation copies in C. Imported DAT models with
+short identifiers receive a resource-owned slot before the model owner is
+stored. DAT testing also exposed an uninitialized
 non-count chunk-handler argument in BRender; initializing it to zero removes
 the runtime-check failure. Count-bearing chunks retain their read argument.
 
@@ -4765,6 +4769,22 @@ the test enforces FNV-1a `78C575E5` on native debug little-endian hosts. Real
 retail/SDL/Marcus captures and the native-model caption control are recorded
 with coverage limits in `docs/tools/playback-regression.md`. Material/texture
 resources and final native facade removal remain migration work.
+
+The C89 renderer binding reproduces the full 277,360-byte native model trace,
+and DAT import passes with both a one-character identifier and a longer name.
+The renderer archive references C BRender, engine and runtime symbols. Headless
+actor renders exercise stock and spare costume materials. The standalone probes
+agree with the preceding build on 300 frame snapshots and 300 model and material
+snapshots. Native graph and stream providers match on 300 frames. All 181
+standalone checks, 191 focused host checks, 11 C89 syntax checks and five
+AddressSanitizer checks pass. The 31 native traces and the 480-byte saved
+fixture match the preceding build. The hosts match 456 prior seek observations,
+360 viewport hashes and 480 retail frame commits. Retail reopens the Studio
+actor edit with matching state on four seeks. Both hosts reproduce the
+ordinary and motion cues in the actor audio fixture.
+Studio passes all eight VMM authoring and reopen checks, and Marcus reproduces
+the viewport hash for the retained VMM fixture. Build hashes, traces and
+captures are in `tmp/c89-model-renderer`.
 
 ### Materials, custom materials and shade-table ownership
 

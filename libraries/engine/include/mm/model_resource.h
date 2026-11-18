@@ -9,6 +9,7 @@
 extern "C"
 {
 #endif
+    enum { MM_MODEL_HEADER_BYTES = 48, MM_MODEL_VERTEX_BYTES = 32, MM_MODEL_FACE_BYTES = 32 };
     typedef struct MMModelResource
     {
         void *handle;
@@ -99,9 +100,9 @@ extern "C"
      * implicit padding on output. Vertices are opaque native-order 32-byte records.
      * The old reader normalized its header before testing bo again: foreign vertex
      * and face arrays therefore remain unswapped in both preparation branches. */
-    int mm_model_header(const unsigned char[48], int host_big, MMModelDescription *, int *bad_order);
-    void mm_model_face_read(const unsigned char[32], int big, MMModelFace *);
-    void mm_model_face_write(unsigned char[32], int big, const MMModelFace *);
+    int mm_model_header(const unsigned char[MM_MODEL_HEADER_BYTES], int host_big, MMModelDescription *, int *bad_order);
+    void mm_model_face_read(const unsigned char[MM_MODEL_FACE_BYTES], int big, MMModelFace *);
+    void mm_model_face_write(unsigned char[MM_MODEL_FACE_BYTES], int big, const MMModelFace *);
 
     typedef struct MMModelVertex
     {
