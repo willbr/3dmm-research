@@ -57,27 +57,6 @@ struct MarcusContent::Impl
             packages = std::make_unique<StudioV3dmm::Store>(root / "v3dmm");
         catalogRead = true;
     }
-    void Activate(C::Vfs &files, const std::vector<StudioV3dmm::Installation> &selection)
-    {
-        std::vector<C::File> mounts;
-        for (const auto &package : selection)
-            for (const auto &member : package.members)
-            {
-                const auto extension = V::Extension(member.first);
-                if (extension == ".3cn" || extension == ".3th")
-                    mounts.push_back({member.first, member.second});
-            }
-        C::Vfs candidate;
-        candidate.Replace("v3dmm", mounts);
-        std::uint64_t bytes = 0;
-        for (const auto &file : candidate.Entries("v3dmm"))
-        {
-            bytes += fs::file_size(file.physical);
-            if (bytes > V::Limits{}.expandedBytes)
-                throw std::runtime_error("Applied portable content exceeds its disk budget");
-        }
-        files.Replace("v3dmm", candidate.Entries("v3dmm"));
-    }
     StudioV3dmm::Installation Materialize(const V::Dependency &dependency, std::size_t index,
                                           const V::Package &metadata)
     {
@@ -160,7 +139,7 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
         [&](const V::Dependency &dependency, std::size_t index, const V::Package &metadata) {
             return impl->Materialize(dependency, index, metadata);
         });
-    impl->Activate(files, resolved.portable);
+    StudioV3dmm::MountMoviePackages(files, resolved.portable);
     movie = impl->Working() / "movie.3mm";
     impl->ownedFiles.push_back(movie);
     V::Copy(bundle.movie, movie);
@@ -187,7 +166,7 @@ void MarcusContent::PrepareSource(const std::string &name)
         for (const auto &entry : impl->packages->Entries())
             if (entry.enabled)
                 selection.push_back(impl->packages->Resolve(entry.hash));
-    impl->Activate(files, selection);
+    StudioV3dmm::MountMoviePackages(files, selection);
     impl->defaultsRead = true;
     for (const auto &package : selection)
         impl->dependencies.push_back({package.name, V::WholeFile(package.archive)});

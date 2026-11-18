@@ -49,35 +49,15 @@ void Report(const std::exception &error)
     }
     PushErc(ercSocBadFile);
 }
-std::vector<MM::Content::File> Mounts(const std::vector<Installation> &selection)
-{
-    std::vector<MM::Content::File> result;
-    for (const auto &entry : selection)
-        for (const auto &member : entry.members)
-        {
-            const auto extension = V::Extension(member.first);
-            if (extension == ".3cn" || extension == ".3th")
-                result.push_back({member.first, member.second});
-        }
-    return result;
-}
 void Activate(const std::vector<Installation> &selection)
 {
-    MM::Content::Vfs candidate;
-    candidate.Replace("v3dmm", Mounts(selection));
-    std::uint64_t bytes = 0;
-    for (auto extension : {".3cn", ".3th"})
-        for (const auto &path : candidate.Files("v3dmm", extension))
-        {
-            Filename name;
-            if (!FilenameOf(path, &name))
-                throw std::runtime_error("VXP content path cannot be represented by the movie engine");
-            bytes += fs::file_size(path);
-            if (bytes > V::Limits{}.expandedBytes)
-                throw std::runtime_error("Active VXP content exceeds its disk budget");
-        }
-    StudioPacks::Filesystem().Replace("v3dmm", candidate.Entries("v3dmm"));
-    active = selection;
+    auto next = selection;
+    MountMoviePackages(StudioPacks::Filesystem(), next, [](const fs::path &path) {
+        Filename name;
+        if (!FilenameOf(path, &name))
+            throw std::runtime_error("VXP content path cannot be represented by the movie engine");
+    });
+    active.swap(next);
     ++revision;
     if (vptagm)
         vptagm->InvalidateSource(6);

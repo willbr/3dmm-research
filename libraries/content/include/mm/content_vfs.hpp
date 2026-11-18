@@ -35,6 +35,8 @@ class Vfs
     // names; ambiguous casing is rejected. Replace publishes atomically.
     void Mount(const std::string &source, const std::vector<File> &files);
     void Replace(const std::string &source, const std::vector<File> &files);
+    // Normalize the physical paths and run the C89 portable mount transaction.
+    int ReplacePortable(const std::vector<File> &, const MMVfsPortableCheck &);
     void MountDirectory(const std::string &source, const std::filesystem::path &directory);
     bool Mounted(const std::string &source) const;
     std::vector<File> Entries(const std::string &source) const;

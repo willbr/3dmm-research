@@ -934,8 +934,10 @@ Both hosts resolve VMM dependencies through one C89 controller. It handles
 external library checks, catalog reuse, embedded name validation and ordered
 package selection. The writable catalog and private materialization policies
 preserve each host's existing handling of repeated declarations.
-ZIP decompression, physical file and path I/O, the installed catalog and package
-publication remain host services. Movie roll-call queries/naming,
+The C89 VFS selects the effective portable files and validates their aggregate
+disk budget before publishing a replacement source in either host.
+ZIP decompression, physical file and path I/O, the installed catalog and
+publication of installed packages on disk remain host services. Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and
 common undo registration/notification now also use C89. Movie material insertion,

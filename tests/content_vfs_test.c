@@ -46,6 +46,63 @@ static void memory_close(void *context, void *handle)
     if (handle == context)
         ++memory->closed;
 }
+typedef struct PortableSizes
+{
+    MMVfsPosition archive, thumbnail;
+    char order[2];
+    size_t inspected;
+} PortableSizes;
+static int portable_size(void *context, const char *location, MMVfsPosition *size)
+{
+    PortableSizes *sizes = (PortableSizes *)context;
+    if (sizes->inspected >= sizeof(sizes->order))
+        return 0;
+    if (!strcmp(location, "archive"))
+    {
+        sizes->order[sizes->inspected++] = 'C';
+        *size = sizes->archive;
+        return 1;
+    }
+    if (!strcmp(location, "thumb"))
+    {
+        sizes->order[sizes->inspected++] = 'T';
+        *size = sizes->thumbnail;
+        return 1;
+    }
+    return 0;
+}
+static int portable_mounts(MMVfs *vfs)
+{
+    MMVfsMount files[] = {{"A.3TH", "thumb"}, {"Z.3cn", "archive"},
+                          {"Z.3cn", "shadowed"}, {"notes.txt", NULL}};
+    MMVfsMount broken = {"another.3cn", "missing"};
+    PortableSizes sizes = {{0, 0xffffffffUL}, {0, 5}, {0, 0}, 0};
+    MMVfsPortableCheck check = {NULL, portable_size, {1, 4}, 0};
+    check.context = &sizes;
+    CHECK(mm_vfs_replace_portable(vfs, files, 4, &check) == MM_VFS_OK);
+    CHECK(sizes.inspected == 2 && !memcmp(sizes.order, "TC", 2));
+    CHECK(!strcmp(mm_vfs_resolve(vfs, "v3dmm", "Z.3cn"), "archive"));
+    CHECK(!mm_vfs_resolve(vfs, "v3dmm", "notes.txt") && !mm_vfs_resolve(vfs, "v3dmm", "B.3cn"));
+    CHECK(!strcmp(mm_vfs_resolve(vfs, "3dmovie", "B.3cn"), "second"));
+    check.archives_first = 1;
+    --check.budget.low;
+    files[0].name = "B.3th";
+    sizes.inspected = 0;
+    CHECK(mm_vfs_replace_portable(vfs, files, 4, &check) == MM_VFS_BUDGET);
+    CHECK(sizes.inspected == 2 && !memcmp(sizes.order, "CT", 2));
+    CHECK(!mm_vfs_resolve(vfs, "v3dmm", "B.3th"));
+    CHECK(mm_vfs_replace_portable(vfs, &broken, 1, &check) == MM_VFS_IO);
+    CHECK(!mm_vfs_resolve(vfs, "v3dmm", "another.3cn"));
+    CHECK(!strcmp(mm_vfs_resolve(vfs, "v3dmm", "A.3th"), "thumb"));
+    sizes.inspected = 0;
+    check.budget.high = check.budget.low = sizes.archive.high = 0xffffffffUL;
+    CHECK(mm_vfs_replace_portable(vfs, files, 4, &check) == MM_VFS_BUDGET);
+    files[2].name = "z.3cn";
+    sizes.inspected = 0;
+    CHECK(mm_vfs_replace_portable(vfs, files, 4, &check) == MM_VFS_CASE && sizes.inspected == 0);
+    CHECK(!strcmp(mm_vfs_resolve(vfs, "v3dmm", "Z.3cn"), "archive"));
+    return 0;
+}
 int main(void)
 {
     Memory memory;
@@ -107,12 +164,13 @@ int main(void)
     CHECK(mm_vfs_read(file, bytes, 4) == 4 && bytes[0] == 254 && bytes[2] == 0);
     position = mm_vfs_tell(file);
     CHECK(position.high == 1 && position.low == 2 && memory.last.high == 0);
+    CHECK(portable_mounts(vfs) == 0);
     CHECK(mm_vfs_mount(vfs, "v3dmm", NULL, 0, 1) == MM_VFS_OK);
     CHECK(!mm_vfs_mounted(vfs, "v3dmm") && mm_vfs_mounted(vfs, "3dmovie"));
     mm_vfs_destroy(vfs);
     CHECK(mm_vfs_read(file, bytes, 1) == 1 && memory.last.high == 1);
     mm_vfs_close(file);
     CHECK(memory.closed == 1);
-    puts("C89 VFS: aliases, namespaces, precedence, atomic mounts, casing, traversal and 64-bit streams passed.");
+    puts("C89 VFS: aliases, namespaces, precedence, atomic mounts, portable budgets, casing, traversal and 64-bit streams passed.");
     return 0;
 }

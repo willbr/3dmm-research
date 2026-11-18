@@ -95,6 +95,30 @@ struct MoviePackageProvider
         });
     }
 };
+
+struct PortableInspection
+{
+    const std::function<void(const std::filesystem::path &)> &validatePath;
+    std::exception_ptr error;
+
+    static int Size(void *context, const char *location, MMVfsPosition *size) noexcept
+    {
+        auto &self = *static_cast<PortableInspection *>(context);
+        try
+        {
+            const auto path = std::filesystem::u8path(location);
+            if (self.validatePath) self.validatePath(path);
+            const auto bytes = std::filesystem::file_size(path);
+            *size = {static_cast<unsigned long>(bytes >> 32), static_cast<unsigned long>(bytes & 0xffffffffU)};
+            return 1;
+        }
+        catch (...)
+        {
+            self.error = std::current_exception();
+            return 0;
+        }
+    }
+};
 } // namespace
 
 MoviePackages ResolveMoviePackages(const V::Bundle &bundle,
@@ -125,5 +149,26 @@ MoviePackages ResolveMoviePackages(const V::Bundle &bundle,
         throw std::runtime_error("Embedded VXP name does not match its VMM dependency");
     if (status != MM_VMM_DEPENDENCIES_OK) throw std::runtime_error("Cannot resolve VMM dependencies");
     return std::move(provider.result);
+}
+
+void MountMoviePackages(MM::Content::Vfs &filesystem, const std::vector<Installation> &selection,
+                        const std::function<void(const std::filesystem::path &)> &validatePath)
+{
+    std::vector<MM::Content::File> files;
+    for (const auto &package : selection)
+        for (const auto &member : package.members)
+            files.push_back({member.first, member.second});
+    PortableInspection inspection{validatePath, {}};
+    const auto limit = V::Limits{}.expandedBytes;
+    const MMVfsPortableCheck check = {&inspection, PortableInspection::Size,
+        {static_cast<unsigned long>(limit >> 32), static_cast<unsigned long>(limit & 0xffffffffU)},
+        validatePath ? 1 : 0};
+    const int status = filesystem.ReplacePortable(files, check);
+    if (inspection.error) std::rethrow_exception(inspection.error);
+    if (status == MM_VFS_BUDGET)
+        throw std::runtime_error(validatePath ? "Active VXP content exceeds its disk budget"
+                                               : "Applied portable content exceeds its disk budget");
+    if (status != MM_VFS_OK)
+        throw std::runtime_error(std::string(mm_vfs_error(status)) + " in v3dmm");
 }
 } // namespace StudioV3dmm

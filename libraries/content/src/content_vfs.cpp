@@ -45,7 +45,7 @@ void CloseFile(void *, void *handle)
 {
     delete static_cast<std::ifstream *>(handle);
 }
-void Mount(MMVfs *vfs, const std::string &source, const std::vector<File> &files, bool replace)
+template<class Publish> int WithMounts(const std::vector<File> &files, bool portable, Publish publish)
 {
     std::vector<std::string> locations;
     std::vector<MMVfsMount> mounts;
@@ -53,12 +53,20 @@ void Mount(MMVfs *vfs, const std::string &source, const std::vector<File> &files
     mounts.reserve(files.size());
     for (const auto &file : files)
     {
+        if (portable && !mm_vfs_is_portable_member(file.name.c_str()))
+            continue;
         if (file.name.find('\0') != std::string::npos || file.physical.empty())
             throw std::runtime_error("Invalid mounted content file: " + file.name);
         locations.push_back(std::filesystem::absolute(file.physical).lexically_normal().u8string());
         mounts.push_back({file.name.c_str(), locations.back().c_str()});
     }
-    const auto error = mm_vfs_mount(vfs, source.c_str(), mounts.data(), mounts.size(), replace);
+    return publish(mounts.data(), mounts.size());
+}
+void Mount(MMVfs *vfs, const std::string &source, const std::vector<File> &files, bool replace)
+{
+    const auto error = WithMounts(files, false, [&](const MMVfsMount *mounts, std::size_t count) {
+        return mm_vfs_mount(vfs, source.c_str(), mounts, count, replace);
+    });
     if (error != MM_VFS_OK)
         throw std::runtime_error(std::string(mm_vfs_error(error)) + " in " + source);
 }
@@ -100,6 +108,12 @@ void Vfs::Mount(const std::string &source, const std::vector<File> &files)
 void Vfs::Replace(const std::string &source, const std::vector<File> &files)
 {
     Content::Mount(vfs, source, files, true);
+}
+int Vfs::ReplacePortable(const std::vector<File> &files, const MMVfsPortableCheck &check)
+{
+    return WithMounts(files, true, [&](const MMVfsMount *mounts, std::size_t count) {
+        return mm_vfs_replace_portable(vfs, mounts, count, &check);
+    });
 }
 void Vfs::MountDirectory(const std::string &source, const std::filesystem::path &directory)
 {

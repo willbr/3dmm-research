@@ -31,6 +31,18 @@ static int equal(const char *a, const char *b)
     }
     return *a == *b;
 }
+static int portable_kind(const char *name)
+{
+    const char *suffix = name ? strrchr(name, '.') : NULL;
+    if (!suffix) return 0;
+    if (equal(suffix, ".3cn")) return 1;
+    if (equal(suffix, ".3th")) return 2;
+    return 0;
+}
+int mm_vfs_is_portable_member(const char *name)
+{
+    return portable_kind(name) != 0;
+}
 static int span_equal(const char *text, size_t length, const char *other)
 {
     size_t i;
@@ -177,10 +189,43 @@ const char *mm_vfs_error(int error)
                                      "Invalid virtual content name",
                                      "Content mounts have ambiguous filename casing",
                                      "Content file is not mounted",
-                                     "Cannot open mounted content"};
+                                     "Cannot open mounted content",
+                                     "Portable content exceeds its disk budget"};
     return error >= 0 && error < (int)(sizeof(messages) / sizeof(messages[0])) ? messages[error] : "VFS error";
 }
-int mm_vfs_mount(MMVfs *vfs, const char *source, const MMVfsMount *files, size_t count, int replace)
+static int position_valid(MMVfsPosition position)
+{
+    return position.high <= 0xffffffffUL && position.low <= 0xffffffffUL;
+}
+static int add_size(MMVfsPosition *total, MMVfsPosition size, MMVfsPosition budget)
+{
+    unsigned long room = 0xffffffffUL - total->high;
+    int carry = size.low > 0xffffffffUL - total->low;
+    if (size.high > room || (carry && size.high == room))
+        return 0;
+    total->high += size.high + (unsigned long)carry;
+    total->low = (total->low + size.low) & 0xffffffffUL;
+    return total->high < budget.high || (total->high == budget.high && total->low <= budget.low);
+}
+static int check_portable(const Entry *entries, size_t count, const char *key, const MMVfsPortableCheck *check)
+{
+    MMVfsPosition total = {0, 0}, size;
+    size_t i;
+    int kind, last = check->archives_first ? 2 : 0;
+    for (kind = check->archives_first ? 1 : 0; kind <= last; ++kind)
+        for (i = 0; i < count; ++i)
+        {
+            if (strcmp(entries[i].source, key) || (kind && kind != portable_kind(entries[i].name)))
+                continue;
+            if (!check->file_size(check->context, entries[i].location, &size) || !position_valid(size))
+                return MM_VFS_IO;
+            if (!add_size(&total, size, check->budget))
+                return MM_VFS_BUDGET;
+        }
+    return MM_VFS_OK;
+}
+static int mount(MMVfs *vfs, const char *source, const MMVfsMount *files, size_t count, int replace,
+                 const MMVfsPortableCheck *check)
 {
     Entry *next;
     char *key;
@@ -206,6 +251,8 @@ int mm_vfs_mount(MMVfs *vfs, const char *source, const MMVfsMount *files, size_t
         }
     for (i = 0; i < count; ++i)
     {
+        if (check && files[i].name && !mm_vfs_is_portable_member(files[i].name))
+            continue;
         if (!files[i].name || !files[i].name[0] || !files[i].location || !files[i].location[0] ||
             !strcmp(files[i].name, ".") || !strcmp(files[i].name, "..") || strpbrk(files[i].name, "/\\:"))
         {
@@ -229,6 +276,12 @@ int mm_vfs_mount(MMVfs *vfs, const char *source, const MMVfsMount *files, size_t
         ++used;
     }
     qsort(next, used, sizeof(*next), compare);
+    if (check)
+    {
+        error = check_portable(next, used, key, check);
+        if (error != MM_VFS_OK)
+            goto fail;
+    }
     release(vfs->entries, vfs->count);
     vfs->entries = next;
     vfs->count = used;
@@ -239,6 +292,16 @@ fail:
         release(next, capacity);
     free(key);
     return error;
+}
+int mm_vfs_mount(MMVfs *vfs, const char *source, const MMVfsMount *files, size_t count, int replace)
+{
+    return mount(vfs, source, files, count, replace, NULL);
+}
+int mm_vfs_replace_portable(MMVfs *vfs, const MMVfsMount *files, size_t count, const MMVfsPortableCheck *check)
+{
+    if (!check || !check->file_size || !position_valid(check->budget))
+        return MM_VFS_NAME;
+    return mount(vfs, "v3dmm", files, count, 1, check);
 }
 static int next_mount(const MMVfs *vfs, const char *source, const char *extension, size_t *cursor, MMVfsMount *file)
 {
@@ -338,7 +401,7 @@ size_t mm_vfs_read(MMVfsFile *file, void *buffer, size_t capacity)
 }
 int mm_vfs_seek(MMVfsFile *file, MMVfsPosition position)
 {
-    if (!file || position.high > 0xffffffffUL || position.low > 0xffffffffUL)
+    if (!file || !position_valid(position))
         return 0;
     file->position = position;
     return 1;

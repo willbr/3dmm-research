@@ -152,8 +152,14 @@ libraries, looks up installed display names, validates embedded names on
 fallback and produces the ordered per-movie package selection. Studio checks
 all external libraries before importing and keeps the first resolved entry
 for each display name. Marcus also checks CFG shortnames for repeated embedded
-declarations and materializes uncached packages privately. Catalog access,
-installation and mount publication are host callbacks and adapters.
+declarations and materializes uncached packages privately. Catalog access and
+installation use host callbacks.
+
+The C89 VFS stages the replacement portable source, selects the first file for
+each exact name and checks the aggregate size of the winning files before
+publication. A casing conflict, unreadable file or excess size leaves the active
+source intact. Both hosts supply filesystem size checks. Studio also validates
+its native filename representation and retains archive-first inspection.
 
 ## Validation
 
@@ -204,6 +210,15 @@ the 60 compared frame states and both sound requests. Image and PCM differences
 remain in that comparison. The playback seek fixtures also retained all 228
 Studio and Marcus states and 180 viewport hashes from the previous builds.
 Evidence is in `tmp/c89-vmm-dependencies`.
+
+The portable mount tests in `content-vfs` exercise first-mount precedence,
+inspection order, budget carry across 4 GiB, overflow and preservation of the
+previous source on failure. The tests passed under AddressSanitizer on Windows
+x86 and x64. Studio's six workflow VMMs remained byte-identical. The 228 host
+seek states and 180 viewport hashes matched the previous builds, and 456
+Studio actor records matched the retained retail and v3dmm captures. Original
+v3dmm reopened the new save with matching frame states and sound requests.
+Image and PCM differences remain. Evidence is in `tmp/c89-portable-mounts`.
 
 Duplicate selection has frozen regression cases in `v3dmm-test`. For a direct
 comparison, build the x86 `physfs-zip-probe` target in `tools/retail_oracle`, then

@@ -29,7 +29,8 @@ extern "C"
         MM_VFS_NAME,
         MM_VFS_CASE,
         MM_VFS_MISSING,
-        MM_VFS_IO
+        MM_VFS_IO,
+        MM_VFS_BUDGET
     };
     /* Names preserve their original bytes and use ASCII case folding. Physical
      * locations are opaque to the core; the host supplies platform I/O. Provider
@@ -42,6 +43,20 @@ extern "C"
      * casing and path traversal names are rejected. replace clears this source. */
     int mm_vfs_mount(MMVfs *vfs, const char *source, const MMVfsMount *files, size_t count,
                            int replace);
+    typedef struct MMVfsPortableCheck
+    {
+        void *context;
+        int (*file_size)(void *, const char *location, MMVfsPosition *size);
+        MMVfsPosition budget;
+        int archives_first;
+    } MMVfsPortableCheck;
+    /* Replace the portable source using ordered package members. Only .3cn
+     * and .3th files participate. The callback inspects each effective file
+     * after precedence and casing checks, in filename order or archives first.
+     * The total uses both 32-bit words. No mount changes on inspection failure
+     * or excess size. The callback must not mutate the VFS. */
+    int mm_vfs_replace_portable(MMVfs *, const MMVfsMount *, size_t count, const MMVfsPortableCheck *);
+    int mm_vfs_is_portable_member(const char *name);
     int mm_vfs_mounted(const MMVfs *vfs, const char *source);
     /* Results are borrowed until mutation/destruction. Start cursor at zero.
      * Enumeration is sorted by virtual filename, independently of physical paths. */
