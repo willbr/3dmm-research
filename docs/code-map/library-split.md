@@ -5197,6 +5197,20 @@ points and rectangles. The comparison matched 80,000 view states against
 legacy geometry arithmetic and 8,515,584 bytes across 768 native drawing
 cases. Evidence is in `tmp/c89-graphics-view`.
 
+`graphics_transition.c` schedules wipe and slide strips, iris clip bands,
+and the two palette phases of a fade. It keeps the legacy palette and flush
+order, including a final slide copy after installing a palette on true-colour
+ports. Kauai supplies the clock, offscreen snapshot, temporary clip and
+drawing services. Dissolve uses the shared duration and palette interpolation
+while Kauai still schedules its randomized cells and pixels. The native
+before-and-after comparison matched 92,183,200 bytes across 640 cases and
+10,628 intermediate clock snapshots, covering both indexed and true-colour
+ports. The C fixture also checks fallback ordering and timestamp wrap.
+SDL Studio and Marcus matched 480 retail frame commits, including dissolve
+playback, and reproduced all 360 viewport hashes from the prior builds.
+The V3DMM seek and authoring checks passed. Evidence, including the build
+and input hashes for playback, is in `tmp/c89-transitions`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit

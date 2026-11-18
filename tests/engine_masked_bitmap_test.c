@@ -2,6 +2,7 @@
 #include "mm/dib_frame.h"
 #include "mm/damage_map.h"
 #include "mm/ellipse_geometry.h"
+#include "mm/graphics_transition.h"
 #include "mm/graphics_view.h"
 #include "mm/indexed_display.h"
 #include "mm/pixel_paint.h"
@@ -990,6 +991,146 @@ static void graphics_view(void)
         assert(polygon[i].x == expected[i].x && polygon[i].y == expected[i].y);
 }
 
+typedef struct TransitionTrace
+{
+    MMU32 now;
+    char log[80];
+    size_t used;
+    int fail_prepare, fail_palette, fail_iris;
+} TransitionTrace;
+
+static void transition_event(void *context, char event)
+{
+    TransitionTrace *trace = context;
+    assert(trace->used + 1 < sizeof(trace->log));
+    trace->log[trace->used++] = event;
+    trace->log[trace->used] = '\0';
+}
+
+static MMU32 transition_ticks(void *context)
+{
+    TransitionTrace *trace = context;
+    trace->now += 2;
+    return trace->now;
+}
+
+static void transition_flush(void *context) { transition_event(context, 'F'); }
+static void transition_present(void *context) { transition_event(context, 'V'); }
+static int transition_depth(void *context)
+{
+    (void)context;
+    return 32;
+}
+static int transition_prepare(void *context, MMGraphicsTransitionKind kind)
+{
+    TransitionTrace *trace = context;
+    transition_event(context, 'P');
+    assert(kind == MM_GRAPHICS_SLIDE || kind == MM_GRAPHICS_IRIS);
+    return !trace->fail_prepare;
+}
+static int transition_start_palette(void *context, int depth)
+{
+    TransitionTrace *trace = context;
+    assert(depth == 0 || depth == 8);
+    transition_event(context, 'B');
+    return !trace->fail_palette;
+}
+static void transition_palette_step(void *context, MMGraphicsPalettePhase phase, MMU32 step, MMU32 total)
+{
+    assert(step > 0 && step <= total);
+    transition_event(context, phase == MM_GRAPHICS_PALETTE_BLEND ? 'A' :
+                              phase == MM_GRAPHICS_PALETTE_TO_FILL ? 'T' : 'R');
+}
+static void transition_set_palette(void *context, int restore)
+{
+    transition_event(context, restore ? 'O' : 'C');
+}
+static void transition_draw(void *context, int snap, int fill, const MMPixelRect *src, const MMPixelRect *dst)
+{
+    assert(src->right - src->left == dst->right - dst->left);
+    assert(src->bottom - src->top == dst->bottom - dst->top);
+    transition_event(context, snap ? (fill ? 'd' : 'D') : 'I');
+}
+static void transition_scroll(void *context, MMPixelPoint move)
+{
+    assert(move.x != 0 || move.y != 0);
+    transition_event(context, 'S');
+}
+static int transition_iris(void *context, int fill, const MMPixelRect *outer, const MMPixelRect *inner)
+{
+    TransitionTrace *trace = context;
+    assert(outer->left <= inner->left && outer->top <= inner->top &&
+           outer->right >= inner->right && outer->bottom >= inner->bottom);
+    transition_event(context, fill ? 'e' : 'E');
+    return !trace->fail_iris;
+}
+
+static void graphics_transitions(void)
+{
+    static const unsigned char old[] = {10, 200, 60, 9, 32, 45, 97, 7}, next[] = {17, 195, 10, 90};
+    static const unsigned char fill[] = {5, 10, 15, 88};
+    unsigned char palette[8];
+    TransitionTrace trace;
+    const MMPixelPoint base = {0, 0};
+    MMGraphicsView view;
+    MMGraphicsTransition t = {0};
+    MMGraphicsTransitionServices s = {NULL, transition_ticks, transition_flush, transition_prepare, transition_depth,
+                                        transition_start_palette, transition_palette_step, transition_set_palette,
+                                        transition_draw, transition_scroll, transition_present, transition_iris};
+    s.context = &trace;
+    memset(palette, 0xa5, sizeof(palette));
+    mm_graphics_transition_palette(palette, 2, old, 2, next, 1, NULL, 2, 3);
+    assert(palette[0] == 14 && palette[1] == 197 && palette[2] == 27 && palette[3] == 9 && palette[4] == 0xa5);
+    mm_graphics_transition_palette(palette, 2, NULL, 0, next, 1, fill, 1, 2);
+    assert(palette[0] == 11 && palette[1] == 102 && palette[2] == 13 && palette[3] == 88);
+    assert(mm_graphics_transition_duration(0) == 1000 && mm_graphics_transition_duration(30000) == 1000);
+
+    mm_graphics_view_init(&view, base);
+    t.source.right = t.destination.right = 6;
+    t.source.bottom = t.destination.bottom = 6;
+    t.view = &view;
+    t.focus.x = t.focus.y = 3;
+    t.duration = 6;
+    t.kind = MM_GRAPHICS_WIPE;
+    t.palette = 1;
+    t.directions = 12;
+    memset(&trace, 0, sizeof(trace));
+    trace.now = 0xfffffffcUL;
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "FBAIFAIFAIFC"));
+
+    t.kind = MM_GRAPHICS_SLIDE;
+    memset(&trace, 0, sizeof(trace));
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "PBSDAVFSDAVFSDAVFCVF"));
+    memset(&trace, 0, sizeof(trace));
+    trace.fail_prepare = 1;
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "PCIF"));
+
+    t.kind = MM_GRAPHICS_FADE;
+    t.fade_steps = 3;
+    t.palette = 0;
+    memset(&trace, 0, sizeof(trace));
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "BFTTTIFRRRO"));
+    memset(&trace, 0, sizeof(trace));
+    trace.fail_palette = 1;
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "BIF"));
+
+    t.kind = MM_GRAPHICS_IRIS;
+    t.palette = 1;
+    t.directions = 2;
+    memset(&trace, 0, sizeof(trace));
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "FPBAEAEAEC"));
+    memset(&trace, 0, sizeof(trace));
+    trace.fail_iris = 1;
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "FPBAECI"));
+}
+
 int main(void)
 {
     encode();
@@ -1010,6 +1151,7 @@ int main(void)
     region_bands();
     region_ownership();
     graphics_view();
+    graphics_transitions();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

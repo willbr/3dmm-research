@@ -16,7 +16,7 @@ ASSERTNAME
 RTCLASS(GraphicsEnvironment)
 RTCLASS(Polygon)
 
-const long kdtsMaxTrans = 30 * kdtsSecond;
+static_assert(kdtsSecond == 1000, "Transition clock ticks are milliseconds");
 
 namespace
 {
@@ -1021,10 +1021,6 @@ void GraphicsEnvironment::CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, R
     _pgpt->CopyPixels(pgnvSrc->_pgpt, &rcsSrc, &rcsDst, &_gdd);
 }
 
-ulong _mpgfdgrfpt[4] = {fptNegateXp, fptNil, fptNegateYp | fptTranspose, fptTranspose};
-
-ulong _mpgfdgrfptInv[4] = {fptNegateXp, fptNil, fptNegateXp | fptTranspose, fptTranspose};
-
 /***************************************************************************
     Get the old palette in *ppglclrOld, allocate a transitionary palette
     in *ppglclrTrans, and get init the palette animation.  On failure set
@@ -1070,33 +1066,26 @@ void GraphicsEnvironment::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray p
     AssertIn(lwNum, 0, lwDen + 1);
     AssertNilOrVarMem(pclrSub);
 
-    long iclr;
-    Color clrOld, clrNew;
-    Color clrSub;
-
-    iclr = pglclrTrans->IvMac();
-    if (pvNil != pglclrOld)
-        iclr = LwMin(pglclrOld->IvMac(), iclr);
-    if (pvNil != pglclrNew)
-        iclr = LwMin(pglclrNew->IvMac(), iclr);
-    if (pvNil != pclrSub)
-        clrSub = *pclrSub;
-    else
-        ClearPb(&clrSub, size(clrSub));
-
-    while (iclr-- > 0)
-    {
-        clrOld = clrNew = clrSub;
-        if (pvNil != pglclrOld)
-            pglclrOld->Get(iclr, &clrOld);
-        if (pvNil != pglclrNew)
-            pglclrNew->Get(iclr, &clrNew);
-
-        clrOld.bRed += (byte)LwMulDiv((long)clrNew.bRed - clrOld.bRed, lwNum, lwDen);
-        clrOld.bGreen += (byte)LwMulDiv((long)clrNew.bGreen - clrOld.bGreen, lwNum, lwDen);
-        clrOld.bBlue += (byte)LwMulDiv((long)clrNew.bBlue - clrOld.bBlue, lwNum, lwDen);
-        pglclrTrans->Put(iclr, &clrOld);
-    }
+    static_assert(sizeof(Color) == 4, "Transition palette colour layout");
+    const auto lock = [](PDynamicArray palette) -> const byte * {
+        static const byte empty[4] = {};
+        if (!palette)
+            return nullptr;
+        return palette->IvMac() ? static_cast<const byte *>(palette->PvLock(0)) : empty;
+    };
+    const auto *old = lock(pglclrOld);
+    const auto *next = lock(pglclrNew);
+    const auto count = pglclrTrans->IvMac();
+    auto *out = count ? static_cast<byte *>(pglclrTrans->PvLock(0)) : nullptr;
+    mm_graphics_transition_palette(out, count, old, pglclrOld ? pglclrOld->IvMac() : 0,
+                                   next, pglclrNew ? pglclrNew->IvMac() : 0,
+                                   reinterpret_cast<const byte *>(pclrSub), lwNum, lwDen);
+    if (count)
+        pglclrTrans->Unlock();
+    if (pglclrNew && pglclrNew->IvMac())
+        pglclrNew->Unlock();
+    if (pglclrOld && pglclrOld->IvMac())
+        pglclrOld->Unlock();
 
     GraphicsPort::SetActiveColors(pglclrTrans, fpalIdentity | fpalAnimate);
 }
@@ -1142,215 +1131,137 @@ bool GraphicsEnvironment::_FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc)
     return fTrue;
 }
 
-/***************************************************************************
-    Wipe the source gnv onto this one.  If acrFill is not kacrClear, first
-    wipe acrFill on.  The source and destination rectangles must be the same
-    size.  gfd indicates which direction the wipe is.  If pglclr is not
-    nil and acrFill is clear, the palette transition is gradual.
-***************************************************************************/
-void GraphicsEnvironment::Wipe(long gfd, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::_Transition(MMGraphicsTransitionKind kind, long direction, long fadeSteps,
+                                     MMPixelPoint focus, AbstractColor fill, PGraphicsEnvironment source,
+                                     RC *sourceRect, RC *destination, ulong duration, PDynamicArray palette)
 {
     AssertThis(0);
-    AssertPo(&acrFill, 0);
-    AssertPo(pgnvSrc, 0);
-    AssertVarMem(prcSrc);
-    AssertVarMem(prcDst);
-    AssertNilOrPo(pglclr, 0);
+    AssertPo(&fill, 0);
+    AssertPo(source, 0);
+    AssertVarMem(sourceRect);
+    AssertVarMem(destination);
+    AssertNilOrPo(palette, 0);
+    Assert((kind != MM_GRAPHICS_WIPE && kind != MM_GRAPHICS_SLIDE) ||
+               (sourceRect->Dyp() == destination->Dyp() && sourceRect->Dxp() == destination->Dxp()), "rc's are scaled");
 
-    ulong grfpt, grfptInv;
-    ulong tsStart, dtsT;
-    long dxp, dxpTot;
-    long cact;
-    RC rcSrc, rcDst;
-    RC rc1, rc2;
-    PDynamicArray pglclrOld = pvNil;
-    PDynamicArray pglclrTrans = pvNil;
-
-    Assert(prcSrc->Dyp() == prcDst->Dyp() && prcSrc->Dxp() == prcDst->Dxp(), "rc's are scaled");
-
-    GraphicsPort::Flush();
-    if (!FIn(dts, 1, kdtsMaxTrans))
-        dts = kdtsSecond;
-
-    for (cact = 0; cact < 2; cact++)
+    struct TransitionContext
     {
-        grfpt = _mpgfdgrfpt[gfd & 0x03];
-        grfptInv = _mpgfdgrfptInv[gfd & 0x03];
-        gfd >>= 2;
-
-        if (cact == 0)
-        {
-            if (kacrClear == acrFill)
-                continue;
-        }
-        else if (pvNil != pglclr && !_FInitPaletteTrans(pglclr, &pglclrOld, &pglclrTrans, 8))
-        {
-            pglclr = pvNil; // so we don't try to transition
-        }
-
-        tsStart = TsCurrent();
-        rcSrc = *prcSrc;
-        rcDst = *prcDst;
-        rcSrc.Transform(grfpt);
-        rcDst.Transform(grfpt);
-        dxpTot = rcDst.Dxp();
-        for (dxp = 0; dxp < dxpTot;)
-        {
-            rc1 = rcSrc;
-            rc2 = rcDst;
-            rc1.xpLeft = rcSrc.xpLeft + dxp;
-            rc2.xpLeft = rcDst.xpLeft + dxp;
-            dtsT = LwMin(TsCurrent() - tsStart, dts);
-            dxp = LwMulDiv(dxpTot, dtsT, dts);
-            rc1.xpRight = rcSrc.xpLeft + dxp;
-            rc2.xpRight = rcDst.xpLeft + dxp;
-
-            if (cact == 1 && pglclr != pvNil)
-                _PaletteTrans(pglclrOld, pglclr, dtsT, dts, pglclrTrans);
-
-            if (!rc2.FEmpty())
-            {
-                rc1.Transform(grfptInv);
-                rc2.Transform(grfptInv);
-                if (cact == 0)
-                    FillRc(&rc2, acrFill);
-                else
-                    CopyPixels(pgnvSrc, &rc1, &rc2);
-                GraphicsPort::Flush();
-            }
-        }
-
-        if (pvNil != pglclr)
-        {
-            // set the palette
-            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
-            pglclr = pvNil; // so we don't transition during the second wipe
-        }
+        PGraphicsEnvironment target, source, snapshot;
+        RC *sourceRect, *destination;
+        AbstractColor fill;
+        PDynamicArray palette, original, blend;
+        PRegion iris;
+        Color fillColor;
+    } context{this, source, nullptr, sourceRect, destination, fill, palette, nullptr, nullptr, nullptr, {}};
+    if (kind == MM_GRAPHICS_FADE)
+        fill.GetClr(&context.fillColor);
+    MMGraphicsTransition config{};
+    config.kind = kind;
+    config.duration = static_cast<MMU32>(duration);
+    config.directions = static_cast<MMU32>(direction);
+    config.fade_steps = static_cast<MMI32>(fadeSteps);
+    config.fill = fill != kacrClear;
+    config.palette = palette != nullptr;
+    config.source = ViewRect(*sourceRect);
+    config.destination = ViewRect(*destination);
+    config.view = &_view;
+    config.focus = focus;
+    if (kind == MM_GRAPHICS_IRIS)
+    {
+        PT base;
+        _pgpt->GetPtBase(&base);
+        config.port_base = ViewPoint(base);
     }
 
-    ReleasePpo(&pglclrOld);
-    ReleasePpo(&pglclrTrans);
+    const MMGraphicsTransitionServices services{
+        &context,
+        [](void *) -> MMU32 { return TsCurrent(); },
+        [](void *) { GraphicsPort::Flush(); },
+        [](void *p, MMGraphicsTransitionKind effect) -> int {
+            auto &state = *static_cast<TransitionContext *>(p);
+            if (effect == MM_GRAPHICS_SLIDE)
+                return state.target->_FEnsureTempGnv(&state.snapshot, state.destination);
+            state.iris = Region::PregnNew(state.destination);
+            return state.iris != nullptr;
+        },
+        [](void *p) -> int { return static_cast<TransitionContext *>(p)->target->_pgpt->CbitPixel(); },
+        [](void *p, int depth) -> int {
+            auto &state = *static_cast<TransitionContext *>(p);
+            return state.target->_FInitPaletteTrans(state.palette, &state.original, &state.blend, depth);
+        },
+        [](void *p, MMGraphicsPalettePhase phase, MMU32 step, MMU32 total) {
+            auto &state = *static_cast<TransitionContext *>(p);
+            auto old = phase == MM_GRAPHICS_PALETTE_FROM_FILL ? nullptr : state.original;
+            auto next = state.palette;
+            if (phase == MM_GRAPHICS_PALETTE_TO_FILL)
+                next = nullptr;
+            else if (phase == MM_GRAPHICS_PALETTE_FROM_FILL && !next)
+                next = state.original;
+            state.target->_PaletteTrans(old, next, step, total, state.blend,
+                                        phase == MM_GRAPHICS_PALETTE_BLEND ? nullptr : &state.fillColor);
+        },
+        [](void *p, int originalIfUnspecified) {
+            auto &state = *static_cast<TransitionContext *>(p);
+            auto next = state.palette ? state.palette : originalIfUnspecified ? state.original : nullptr;
+            GraphicsPort::SetActiveColors(next, fpalIdentity);
+        },
+        [](void *p, int snapshot, int fillPhase, const MMPixelRect *src, const MMPixelRect *dst) {
+            auto &state = *static_cast<TransitionContext *>(p);
+            auto target = snapshot ? state.snapshot : state.target;
+            auto destination = NativeRect(*dst);
+            if (fillPhase)
+                target->FillRc(&destination, state.fill);
+            else
+            {
+                auto source = NativeRect(*src);
+                target->CopyPixels(state.source, &source, &destination);
+            }
+        },
+        [](void *p, MMPixelPoint delta) {
+            auto &state = *static_cast<TransitionContext *>(p);
+            state.snapshot->ScrollRc(state.destination, delta.x, delta.y);
+        },
+        [](void *p) {
+            auto &state = *static_cast<TransitionContext *>(p);
+            state.target->CopyPixels(state.snapshot, state.destination, state.destination);
+        },
+        [](void *p, int fillPhase, const MMPixelRect *include, const MMPixelRect *exclude) -> int {
+            auto &state = *static_cast<TransitionContext *>(p);
+            auto port = state.target->_pgpt;
+            auto outer = NativeRect(*include), inner = NativeRect(*exclude);
+            PRegion clip = nullptr;
+            port->ClipToRegn(&clip);
+            state.iris->SetRc(&outer);
+            bool ok = state.iris->FDiffRc(&inner) && (!clip || state.iris->FIntersect(clip));
+            port->ClipToRegn(&clip);
+            if (!ok)
+                return false;
+            port->ClipToRegn(&state.iris);
+            if (fillPhase)
+                state.target->FillRc(state.destination, state.fill);
+            else
+                state.target->CopyPixels(state.source, state.sourceRect, state.destination);
+            GraphicsPort::Flush();
+            port->ClipToRegn(&state.iris);
+            return true;
+        }};
+    mm_graphics_transition_run(&config, &services);
+    ReleasePpo(&context.iris);
+    ReleasePpo(&context.snapshot);
+    ReleasePpo(&context.original);
+    ReleasePpo(&context.blend);
 }
 
-/***************************************************************************
-    Slide the source gnv onto this one.  The source and destination
-    rectangles must be the same size.
-***************************************************************************/
-void GraphicsEnvironment::Slide(long gfd, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Wipe(long gfd, AbstractColor fill, PGraphicsEnvironment source, RC *sourceRect,
+                               RC *destination, ulong duration, PDynamicArray palette)
 {
-    AssertThis(0);
-    AssertPo(&acrFill, 0);
-    AssertPo(pgnvSrc, 0);
-    AssertVarMem(prcSrc);
-    AssertVarMem(prcDst);
-    AssertNilOrPo(pglclr, 0);
+    _Transition(MM_GRAPHICS_WIPE, gfd, 0, {0, 0}, fill, source, sourceRect, destination, duration, palette);
+}
 
-    ulong grfpt, grfptInv;
-    ulong dtsT, tsStart;
-    long cact;
-    long dxp, dxpTot, dxpOld;
-    RC rcSrc, rcDst;
-    RC rc1, rc2;
-    PGraphicsEnvironment pgnv;
-    PT dpt;
-    PDynamicArray pglclrOld = pvNil;
-    PDynamicArray pglclrTrans = pvNil;
-
-    Assert(prcSrc->Dyp() == prcDst->Dyp() && prcSrc->Dxp() == prcDst->Dxp(), "rc's are scaled");
-
-    // allocate the offscreen port and copy the destination into it.
-    if (!_FEnsureTempGnv(&pgnv, prcDst))
-    {
-        if (pvNil != pglclr)
-            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
-        CopyPixels(pgnvSrc, prcSrc, prcDst);
-        GraphicsPort::Flush();
-        return;
-    }
-
-    if (!FIn(dts, 1, kdtsMaxTrans))
-        dts = kdtsSecond;
-
-    for (cact = 0; cact < 2; cact++)
-    {
-        grfpt = _mpgfdgrfpt[gfd & 0x03];
-        grfptInv = _mpgfdgrfptInv[gfd & 0x03];
-        gfd >>= 2;
-
-        if (cact == 0)
-        {
-            if (kacrClear == acrFill)
-                continue;
-        }
-        else if (pvNil != pglclr && !_FInitPaletteTrans(pglclr, &pglclrOld, &pglclrTrans))
-        {
-            pglclr = pvNil; // so we don't try to transition
-        }
-
-        tsStart = TsCurrent();
-        rcSrc = *prcSrc;
-        rcDst = *prcDst;
-        rcSrc.Transform(grfpt);
-        rcDst.Transform(grfpt);
-        dxpTot = rcDst.Dxp();
-        for (dxp = 0; dxp < dxpTot;)
-        {
-            dxpOld = dxp;
-            dtsT = LwMin(TsCurrent() - tsStart, dts);
-            dxp = LwMulDiv(dxpTot, dtsT, dts);
-
-            if (dxp != dxpOld)
-            {
-                // scroll the stuff that's already there
-                dpt.xp = dxp - dxpOld;
-                dpt.yp = 0;
-                dpt.Transform(grfptInv);
-                pgnv->ScrollRc(prcDst, dpt.xp, dpt.yp);
-
-                // copy in the new stuff
-                rc1 = rcSrc;
-                rc2 = rcDst;
-                rc1.xpLeft = rc1.xpRight - dxp;
-                rc1.xpRight -= dxpOld;
-                rc2.xpRight = rc2.xpLeft + dxp - dxpOld;
-                rc1.Transform(grfptInv);
-                rc2.Transform(grfptInv);
-                if (cact == 0)
-                    pgnv->FillRc(&rc2, acrFill);
-                else
-                    pgnv->CopyPixels(pgnvSrc, &rc1, &rc2);
-            }
-
-            if (pvNil != pglclr && 1 == cact)
-                _PaletteTrans(pglclrOld, pglclr, dtsT, dts, pglclrTrans);
-
-            if (dxp != dxpOld)
-            {
-                // copy the result to the destination
-                CopyPixels(pgnv, prcDst, prcDst);
-                GraphicsPort::Flush();
-            }
-        }
-
-        if (pvNil != pglclr)
-        {
-            // set the palette
-            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
-
-            // if we're not in 8 bit and cact is 1, copy the pixels so we
-            // make sure we've drawn the picture after the last palette change
-            if (1 == cact && _pgpt->CbitPixel() != 8)
-            {
-                CopyPixels(pgnv, prcDst, prcDst);
-                GraphicsPort::Flush();
-            }
-            pglclr = pvNil; // so we don't transition during the second wipe
-        }
-    }
-
-    ReleasePpo(&pgnv);
-    ReleasePpo(&pglclrOld);
-    ReleasePpo(&pglclrTrans);
+void GraphicsEnvironment::Slide(long gfd, AbstractColor fill, PGraphicsEnvironment source, RC *sourceRect,
+                                RC *destination, ulong duration, PDynamicArray palette)
+{
+    _Transition(MM_GRAPHICS_SLIDE, gfd, 0, {0, 0}, fill, source, sourceRect, destination, duration, palette);
 }
 
 // klwPrime must be a prime and klwRoot must be a primitive root for klwPrime.
@@ -1501,8 +1412,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
         crcFill = LwMul(crcWidth, crcHeight);
     }
 
-    if (!FIn(dts, 1, kdtsMaxTrans))
-        dts = kdtsSecond;
+    dts = mm_graphics_transition_duration(static_cast<MMU32>(dts));
 
     // the first time through, dissolve to the color; the second time
     // through dissolve to the source bitmap
@@ -1669,187 +1579,19 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
     ReleasePpo(&pglclrTrans);
 }
 
-/***************************************************************************
-    Fade the palette to color acrFade, copy the pixels from pgnvSrc to
-    this gnv, then fade to the new palette or original palette.  Each fade
-    is given dts time.  Asserts that acrFade is an rgb color.  cactMax is
-    the maximum number of palette interpolations to do.  It doesn't make
-    sense for this to be bigger than 256.  If it's zero, we'll use 256.
-***************************************************************************/
-void GraphicsEnvironment::Fade(long cactMax, AbstractColor acrFade, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Fade(long cactMax, AbstractColor fill, PGraphicsEnvironment source, RC *sourceRect,
+                               RC *destination, ulong duration, PDynamicArray palette)
 {
-    AssertThis(0);
     AssertIn(cactMax, 0, 257);
-    AssertPo(&acrFade, facrRgb);
-    AssertPo(pgnvSrc, 0);
-    AssertVarMem(prcSrc);
-    AssertVarMem(prcDst);
-    AssertNilOrPo(pglclr, 0);
-
-    ulong tsStart;
-    long cact, cactOld;
-    Color clr;
-    PDynamicArray pglclrOld = pvNil;
-    PDynamicArray pglclrTrans = pvNil;
-
-    cactMax = (cactMax <= 0) ? 256 : LwMin(cactMax, 256);
-
-    if (!_FInitPaletteTrans(pglclr, &pglclrOld, &pglclrTrans, 8))
-    {
-        CopyPixels(pgnvSrc, prcSrc, prcDst);
-        GraphicsPort::Flush();
-        return;
-    }
-
-    GraphicsPort::Flush();
-
-    if (!FIn(dts, 1, kdtsMaxTrans))
-        dts = kdtsSecond;
-
-    acrFade.GetClr(&clr);
-
-    tsStart = TsCurrent();
-    for (cact = 0; cact < cactMax;)
-    {
-        cactOld = cact;
-        cact = LwMulDiv(cactMax, LwMin(TsCurrent() - tsStart, dts), dts);
-        if (cactOld < cact)
-            _PaletteTrans(pglclrOld, pvNil, cact, cactMax, pglclrTrans, &clr);
-    }
-
-    CopyPixels(pgnvSrc, prcSrc, prcDst);
-    GraphicsPort::Flush();
-
-    if (pvNil == pglclr)
-        pglclr = pglclrOld;
-
-    tsStart = TsCurrent();
-    for (cact = 0; cact < cactMax;)
-    {
-        cactOld = cact;
-        cact = LwMulDiv(cactMax, LwMin(TsCurrent() - tsStart, dts), dts);
-        if (cactOld < cact)
-            _PaletteTrans(pvNil, pglclr, cact, cactMax, pglclrTrans, &clr);
-    }
-
-    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
-    ReleasePpo(&pglclrOld);
-    ReleasePpo(&pglclrTrans);
+    AssertPo(&fill, facrRgb);
+    _Transition(MM_GRAPHICS_FADE, 0, cactMax, {0, 0}, fill, source, sourceRect, destination, duration, palette);
 }
 
-/***************************************************************************
-    Open and/or close a rectangular iris onto the gnvSrc with an
-    intermediate color of acrFill (if not clear).  xp, yp are the focus
-    point of the iris (in destination coordinates).
-***************************************************************************/
-void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor fill, PGraphicsEnvironment source, RC *sourceRect,
+                               RC *destination, ulong duration, PDynamicArray palette)
 {
-    AssertThis(0);
-    AssertPo(&acrFill, 0);
-    AssertPo(pgnvSrc, 0);
-    AssertVarMem(prcSrc);
-    AssertVarMem(prcDst);
-    AssertNilOrPo(pglclr, 0);
-
-    ulong tsStart, dtsT;
-    RC rc, rcOld, rcDst;
-    PT pt, ptBase;
-    long cact;
-    bool fOpen;
-    PRegion pregn, pregnClip;
-    PDynamicArray pglclrOld = pvNil;
-    PDynamicArray pglclrTrans = pvNil;
-
-    GraphicsPort::Flush();
-
-    if (pvNil == (pregn = Region::PregnNew(prcDst)))
-        goto LFail;
-
-    if (!FIn(dts, 1, kdtsMaxTrans))
-        dts = kdtsSecond;
-
-    _pgpt->GetPtBase(&ptBase);
-
-    pt.xp = LwBound(xp, prcDst->xpLeft, prcDst->xpRight + 1);
-    pt.yp = LwBound(yp, prcDst->ypTop, prcDst->ypBottom + 1);
-    pt = _MapPoint(pt.xp, pt.yp);
-    pt += ptBase;
-    rcDst = _MapRc(*prcDst);
-    rcDst.Offset(ptBase.xp, ptBase.yp);
-
-    for (cact = 0; cact < 2; cact++)
-    {
-        if (cact == 0)
-        {
-            if (kacrClear == acrFill)
-                continue;
-        }
-        else if (pvNil != pglclr && !_FInitPaletteTrans(pglclr, &pglclrOld, &pglclrTrans, 8))
-        {
-            pglclr = pvNil; // so we don't try to transition
-        }
-
-        fOpen = !(gfd & (1 << cact));
-        if (fOpen)
-            rc.Set(pt.xp, pt.yp, pt.xp, pt.yp);
-        else
-            rc = rcDst;
-
-        pregnClip = pvNil;
-        tsStart = TsCurrent();
-        for (dtsT = 0; dtsT < dts;)
-        {
-            rcOld = rc;
-            dtsT = LwMin(TsCurrent() - tsStart, dts);
-            if (!fOpen)
-                dtsT = dts - dtsT;
-            rc.xpLeft = pt.xp + LwMulDiv(rcDst.xpLeft - pt.xp, dtsT, dts);
-            rc.xpRight = pt.xp + LwMulDiv(rcDst.xpRight - pt.xp, dtsT, dts);
-            rc.ypTop = pt.yp + LwMulDiv(rcDst.ypTop - pt.yp, dtsT, dts);
-            rc.ypBottom = pt.yp + LwMulDiv(rcDst.ypBottom - pt.yp, dtsT, dts);
-            if (!fOpen)
-                dtsT = dts - dtsT;
-
-            if (cact == 1 && pglclr != pvNil)
-                _PaletteTrans(pglclrOld, pglclr, dtsT, dts, pglclrTrans);
-
-            if (rc == rcOld)
-                continue;
-
-            _pgpt->ClipToRegn(&pregnClip);
-            pregn->SetRc(fOpen ? &rc : &rcOld);
-            if (!pregn->FDiffRc(fOpen ? &rcOld : &rc) || pvNil != pregnClip && !pregn->FIntersect(pregnClip))
-            {
-                _pgpt->ClipToRegn(&pregnClip);
-                ReleasePpo(&pregn);
-            LFail:
-                if (pvNil != pglclr)
-                    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
-                CopyPixels(pgnvSrc, prcSrc, prcDst);
-                return;
-            }
-            _pgpt->ClipToRegn(&pregnClip);
-
-            _pgpt->ClipToRegn(&pregn);
-            if (cact == 0)
-                FillRc(prcDst, acrFill);
-            else
-                CopyPixels(pgnvSrc, prcSrc, prcDst);
-            GraphicsPort::Flush();
-            _pgpt->ClipToRegn(&pregn);
-        }
-
-        if (pvNil != pglclr)
-        {
-            // set the palette
-            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
-            pglclr = pvNil; // so we don't transition during the second iris
-        }
-    }
-
-    ReleasePpo(&pregn);
-    ReleasePpo(&pglclrOld);
-    ReleasePpo(&pglclrTrans);
+    _Transition(MM_GRAPHICS_IRIS, gfd, 0, {static_cast<MMI32>(xp), static_cast<MMI32>(yp)}, fill, source, sourceRect,
+                destination, duration, palette);
 }
 
 /***************************************************************************

@@ -1,0 +1,67 @@
+#ifndef MM_ENGINE_GRAPHICS_TRANSITION_H
+#define MM_ENGINE_GRAPHICS_TRANSITION_H
+#include "graphics_view.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum MMGraphicsTransitionKind
+{
+    MM_GRAPHICS_WIPE,
+    MM_GRAPHICS_SLIDE,
+    MM_GRAPHICS_FADE,
+    MM_GRAPHICS_IRIS
+} MMGraphicsTransitionKind;
+
+typedef enum MMGraphicsPalettePhase
+{
+    MM_GRAPHICS_PALETTE_BLEND,
+    MM_GRAPHICS_PALETTE_TO_FILL,
+    MM_GRAPHICS_PALETTE_FROM_FILL
+} MMGraphicsPalettePhase;
+
+typedef struct MMGraphicsTransition
+{
+    MMGraphicsTransitionKind kind;
+    MMU32 duration, directions;
+    MMI32 fade_steps;
+    int fill, palette;
+    MMPixelRect source, destination;
+    const MMGraphicsView *view;
+    MMPixelPoint focus, port_base;
+} MMGraphicsTransition;
+
+typedef struct MMGraphicsTransitionServices
+{
+    void *context;
+    MMU32 (*ticks)(void *);
+    void (*flush)(void *);
+    /* Prepare supplies a slide snapshot or a reusable native iris clip. */
+    int (*prepare)(void *, MMGraphicsTransitionKind);
+    int (*depth)(void *);
+    int (*start_palette)(void *, int depth);
+    void (*animate_palette)(void *, MMGraphicsPalettePhase, MMU32 step, MMU32 total);
+    void (*set_palette)(void *, int original_if_unspecified);
+    void (*draw)(void *, int snapshot, int fill, const MMPixelRect *source, const MMPixelRect *destination);
+    void (*scroll)(void *, MMPixelPoint);
+    void (*present)(void *);
+    /* Draw and flush under the temporary clip before restoring the port. */
+    int (*iris)(void *, int fill, const MMPixelRect *include, const MMPixelRect *exclude);
+} MMGraphicsTransitionServices;
+
+/* The clock uses wrapping millisecond words. Host services must stay valid
+ * for the synchronous transition. Iris requires the destination view. */
+MMU32 mm_graphics_transition_duration(MMU32);
+void mm_graphics_transition_run(const MMGraphicsTransition *, const MMGraphicsTransitionServices *);
+
+/* The four-byte colours are BGR and a reserved byte. Missing palettes use
+ * the substitute or zero. Preserve the old colour's reserved byte. */
+void mm_graphics_transition_palette(unsigned char *out, MMI32 count,
+                                   const unsigned char *old, MMI32 old_count,
+                                   const unsigned char *next, MMI32 next_count,
+                                   const unsigned char *substitute, MMU32 step, MMU32 total);
+
+#ifdef __cplusplus
+}
+#endif
+#endif

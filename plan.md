@@ -789,6 +789,9 @@ exact edge rounding with polygon filling.
 C89 owns graphics view coordinate mapping, visibility and clipping. It also
 calculates pen and font scaling, the strips exposed by scrolling, and the
 six-point line footprint. Kauai publishes native clip and drawing state.
+C89 controls the timing, draw order and palette updates for wipe, slide, iris
+and fade. Kauai supplies the clock, drawing, clip and palette services.
+Dissolve shares the C89 duration and palette interpolation rules.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.
