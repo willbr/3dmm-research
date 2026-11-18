@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_PREVIEW_RENDER_H
 #define MM_ENGINE_PREVIEW_RENDER_H
 #include "background_resource.h"
+#include "body_create.h"
 #include "collections.h"
 #include "render_frame.h"
 #ifdef __cplusplus
@@ -42,7 +43,8 @@ extern "C"
     } MMPreviewMath;
     typedef struct MMPreviewBody
     {
-        void *tree, *resource;
+        MMBodyDrawView draw;
+        void *resource;
         float low[3], high[3];
         MMU32 order_low, order_high;
         MMI32 owner;
@@ -124,6 +126,7 @@ extern "C"
         int (*mesh)(void *, MMPreviewMesh *);
         MMU32 (*body_count)(void *);
         int (*body)(void *, MMU32, MMPreviewBody *);
+        void *(*attach_body_part)(void *, void *parent, MMI32 index, const MMBodyPartBinding *);
         void (*retain_pose_resource)(void *, void *), (*release_pose_resource)(void *, void *);
         int (*object_bounds)(void *, MMI32, float corners[24], int *valid);
         MMRenderFrameFactory frame_factory;
@@ -156,10 +159,10 @@ extern "C"
     } MMPreviewRenderServices;
     /* All services are initialized, synchronous, non-reentrant and do not throw.
      * A zero allocator selects the C heap. Nonzero allocators provide both callbacks.
-     * Input trees are cloned, leaving the originals attached. Services can supply
+     * Body bindings are submitted to a temporary world. Services can supply
      * resource owners for bodies and standalone models with paired retain/release
      * callbacks. Otherwise these handles stay valid through the synchronous call.
-     * Copy creates nodes in reverse sibling order for SDK head insertion; failure
+     * Submission preserves sibling order with SDK head insertion. Failure
      * retains the attached prefix, which the caller's world owns. Frame cleanup
      * restores materials, disables lights, frees the world and pixelmaps, then
      * releases pose resources and scratch storage. Scene image pointers are borrowed.
@@ -179,7 +182,7 @@ extern "C"
     void mm_preview_depth_fit(const MMPreviewDepthRange *, double *near_clip, double *far_clip);
     int mm_preview_render(const MMPreviewView *, MMPreviewOrbit *, MMPreviewImage *,
                                 const MMPreviewRenderServices *);
-    /* Copy described bodies in render order. The caller owns the attached trees
+    /* Submit described bodies in render order. The caller owns the attached trees
      * and keeps their source models and materials alive while using them. */
     int mm_preview_copy_bodies(void *world, const MMPreviewRenderServices *);
 #ifdef __cplusplus

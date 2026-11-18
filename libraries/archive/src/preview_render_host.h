@@ -130,7 +130,7 @@ struct Preview::Impl::RenderHost
             }
             if (!body)
                 return 0;
-            out->tree = body->PbactRoot();
+            out->draw = body->DrawView();
             out->resource = static_cast<BASE *>(body);
             out->owner = static_cast<MMI32>(index) - 1;
             out->order_low = static_cast<MMU32>(order);
@@ -146,6 +146,16 @@ struct Preview::Impl::RenderHost
             out->high[1] = BrScalarToFloat(b.yrMax);
             out->high[2] = BrScalarToFloat(b.zrMax);
             return 1;
+        };
+        s.attach_body_part = [](void *, void *parent, MMI32 index, const MMBodyPartBinding *binding) -> void * {
+            auto actor = BrActorAllocate(index ? BR_ACTOR_MODEL : BR_ACTOR_NONE, nullptr);
+            if (!actor)
+                return nullptr;
+            BrActorAdd(static_cast<br_actor *>(parent), actor);
+            if (index)
+                actor->render_style = BR_RSTYLE_FACES;
+            Body::ApplyDrawBinding(*actor, *binding);
+            return actor;
         };
         s.retain_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
         s.release_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };

@@ -13,7 +13,8 @@ typedef struct Node
 } Node;
 typedef struct Host
 {
-    Node source[3], nodes[16];
+    MMBodyPartBinding bindings[3][2];
+    Node nodes[16];
     int used, world_live, live, attempts, fail_at, failure, ready, background, with_mesh;
     int scene_calls, copied[3], copies, face_calls, current, transparent;
     int pose_refs, pose_retains, pose_releases;
@@ -72,30 +73,15 @@ static Node *node(Host *h, Node *parent, int id)
     }
     return n;
 }
-static void *first(void *v, const void *n)
-{
-    assert(v);
-    return ((const Node *)n)->first;
-}
-static void *next(void *v, const void *n)
-{
-    assert(v);
-    return ((const Node *)n)->next;
-}
-static void *model(void *v, const void *n)
-{
-    assert(v);
-    return (void *)n;
-}
-static void *clone(void *v, void *parent, const void *source)
+static void *attach_body_part(void *v, void *parent, MMI32 index, const MMBodyPartBinding *binding)
 {
     Host *h = (Host *)v;
-    const Node *n = (const Node *)source;
+    MMI32 id = binding->matrix.m[3][0];
     if (h->failure == 4)
         return 0;
-    assert(h->copies < 3);
-    h->copied[h->copies++] = n->id;
-    return node(h, (Node *)parent, n->id);
+    assert(index == 0 && parent && binding->model && h->copies < 3);
+    h->copied[h->copies++] = id;
+    return node(h, (Node *)parent, id);
 }
 static int ready(void *v)
 {
@@ -119,8 +105,8 @@ static int body(void *v, MMU32 index, MMPreviewBody *b)
 {
     Host *h = (Host *)v;
     memset(b, 0, sizeof(*b));
-    b->tree = h->source + index;
-    b->resource = b->tree;
+    b->draw.bindings = h->bindings[index];
+    b->resource = h->bindings[index];
     b->owner = (MMI32)index;
     b->order_low = index ? 10 : 20;
     return 1;
@@ -275,7 +261,10 @@ static void init(Host *h, MMPreviewRenderServices *r, MMPreviewPickServices *s, 
         h->hit[i][1] = 5;
     }
     for (i = 0; i < 3; ++i)
-        h->source[i].id = i;
+    {
+        h->bindings[i][0].model = h;
+        h->bindings[i][0].matrix.m[3][0] = i;
+    }
     r->context = h;
     r->allocator.context = h;
     r->allocator.resize = resize;
@@ -287,6 +276,7 @@ static void init(Host *h, MMPreviewRenderServices *r, MMPreviewPickServices *s, 
     r->describe = describe;
     r->body_count = body_count;
     r->body = body;
+    r->attach_body_part = attach_body_part;
     r->retain_pose_resource = retain_pose_resource;
     r->release_pose_resource = release_pose_resource;
     r->frame_factory.world = world;
@@ -294,11 +284,6 @@ static void init(Host *h, MMPreviewRenderServices *r, MMPreviewPickServices *s, 
     r->camera = camera;
     r->mesh = mesh;
     r->add_mesh = add_mesh;
-    r->tree.context = h;
-    r->tree.first = first;
-    r->tree.next = next;
-    r->tree.model = model;
-    r->tree.clone_attach = clone;
     s->context = h;
     s->render = r;
     s->invertible = invertible;

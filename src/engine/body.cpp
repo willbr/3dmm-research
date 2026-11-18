@@ -543,6 +543,16 @@ void Body::PartWorldMatrix(LegacyLong part, MMActorMatrix &out) const
     mm_body_shape_part_world(&_shape, part, &out);
 }
 
+void Body::ApplyDrawBinding(BACT &actor, const MMBodyPartBinding &binding)
+{
+    auto model = static_cast<PModel>(binding.model);
+    actor.model = model ? model->Pbmdl() : nullptr;
+    actor.material = static_cast<PBMTL>(binding.material);
+    actor.t.type = BR_TRANSFORM_MATRIX34;
+    static_assert(sizeof(actor.t.t.mat) == sizeof(binding.matrix), "body matrix ABI");
+    std::memcpy(&actor.t.t.mat, &binding.matrix, sizeof(binding.matrix));
+}
+
 /***************************************************************************
     Set the ibact'th body part to use model pmodl
 ***************************************************************************/
@@ -673,6 +683,15 @@ void Body::_PrepareToRender(PBACT pbact)
 {
     AssertVarMem(pbact);
     auto services = _GeometryServices();
+    auto body = static_cast<PBody>(services.owner(services.context, pbact));
+    if (body)
+    {
+        const auto view = body->DrawView();
+        mm_body_draw(&view, body->_Actors(), [](void *actors, MMI32 index, MMI32, const MMBodyPartBinding *part) {
+            ApplyDrawBinding(static_cast<PBACT>(actors)[index], *part);
+            return 1;
+        });
+    }
     mm_body_prepare_render(pbact, &services);
 }
 

@@ -503,11 +503,13 @@ Keep host presentation and device output outside the session.
    either standalone streams or the chunk graphs already opened by the
    hosts. The graph path can also read templates, fonts and other content
    directly from loaded archives.
-   Marcus rendering and picking record the camera and hold references to
-   the live bodies and any standalone model used by their temporary world.
-   The remaining render cutover is to feed the full evaluated actor, costume
-   and body state into the live render path, including Studio's attached world,
-   and publish the complete frame through the shared session.
+   Both hosts submit live actor bodies from the C89 bindings. Marcus renders
+   and picks with temporary trees built from those bindings and holds the
+   body and standalone model references through the operation. Studio
+   applies the bindings to its attached tree before drawing.
+   The remaining render cutover is to publish a complete frame through the
+   shared session, with camera and ordered evaluated actor bodies supplied
+   together to the live renderers.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

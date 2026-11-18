@@ -265,18 +265,48 @@ static int sort_bodies(MMPreviewPose *pose, MMCollectionStorage *storage)
     }
     return 1;
 }
-int mm_preview_pose_copy(MMPreviewPose *pose, void *world, MMCollectionStorage *scratch,
-                         const MMPreviewRenderServices *s)
+typedef struct PreviewDraw
 {
-    MMPreviewBody *bodies;
-    MMU32 i;
+    const MMPreviewRenderServices *services;
+    void *world, **nodes;
+    MMI32 owner;
+} PreviewDraw;
+
+static int attach_part(void *context, MMI32 index, MMI32 parent, const MMBodyPartBinding *binding)
+{
+    PreviewDraw *draw = (PreviewDraw *)context;
+    const MMPreviewRenderServices *s = draw->services;
+    void *node = s->attach_body_part(s->context, parent < 0 ? draw->world : draw->nodes[parent], index, binding);
+    if (!node)
+        return 0;
+    draw->nodes[index] = node;
+    return !binding->model || !s->tree.owner || s->tree.owner(s->tree.context, node, draw->owner);
+}
+
+int mm_preview_pose_submit(MMPreviewPose *pose, void *world, MMCollectionStorage *scratch,
+                           const MMPreviewRenderServices *s)
+{
+    const MMPreviewBody *bodies;
+    PreviewDraw draw;
+    MMU32 i, nodes;
     if (!sort_bodies(pose, scratch))
         return MM_PREVIEW_MEMORY;
-    bodies = (MMPreviewBody *)pose->storage.buffers[0].data;
+    bodies = (const MMPreviewBody *)pose->storage.buffers[0].data;
+    draw.services = s;
+    draw.world = world;
     for (i = 0; i < pose->bodies.count; ++i)
-        if (!mm_preview_copy_tree(world, bodies[i].tree, bodies[i].owner,
-                                  s->allocator.resize ? &s->allocator : 0, &s->tree))
+    {
+        if (bodies[i].draw.part_count < 0 || !bodies[i].draw.bindings)
             return MM_PREVIEW_MODELS;
+        nodes = (MMU32)bodies[i].draw.part_count + 2;
+        if (nodes > MM_STORAGE_LIMIT / sizeof(*draw.nodes) ||
+            mm_storage_ensure(scratch, nodes * sizeof(*draw.nodes), 0, 0) != MM_STORAGE_OK)
+            return MM_PREVIEW_MEMORY;
+        draw.nodes = (void **)scratch->buffers[0].data;
+        draw.owner = bodies[i].owner;
+        if (!mm_body_draw(&bodies[i].draw, &draw, attach_part))
+            return MM_PREVIEW_MODELS;
+    }
     return MM_PREVIEW_OK;
 }
 void mm_preview_pose_init(MMPreviewPose *pose, const MMPreviewRenderServices *s)
@@ -337,7 +367,7 @@ int mm_preview_copy_bodies(void *world, const MMPreviewRenderServices *s)
     int ok;
     mm_preview_pose_init(&pose, s);
     mm_storage_init(&scratch, s->allocator.resize ? &s->allocator : 0);
-    ok = mm_preview_pose_bodies(&pose, s) && mm_preview_pose_copy(&pose, world, &scratch, s) == MM_PREVIEW_OK;
+    ok = mm_preview_pose_bodies(&pose, s) && mm_preview_pose_submit(&pose, world, &scratch, s) == MM_PREVIEW_OK;
     mm_storage_dispose(&scratch);
     mm_preview_pose_dispose(&pose, s);
     return ok;
@@ -692,9 +722,9 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         s->enable_light(s->context, actor);
     }
     {
-        int copied = mm_preview_pose_copy(&f->pose, f->targets.world, &f->pending.storage, s);
-        if (copied != MM_PREVIEW_OK)
-            return copied;
+        int submitted = mm_preview_pose_submit(&f->pose, f->targets.world, &f->pending.storage, s);
+        if (submitted != MM_PREVIEW_OK)
+            return submitted;
     }
     if (d->model && !s->add_model(s->context, f->targets.world, d->model))
         return MM_PREVIEW_MODELS;

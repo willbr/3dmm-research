@@ -20,6 +20,24 @@ void mm_body_shape_part_world(const MMBodyShape *shape,MMI32 part,MMActorMatrix 
     }
     mm_matrix_multiply(out,&matrix,&bindings[0].matrix);
 }
+int mm_body_draw(const MMBodyDrawView *view,void *context,MMBodyDrawPart submit)
+{
+    const MMBodyPartBinding *binding;
+    MMI32 part;
+    if (!view->bindings || view->part_count<0 || view->part_count>2147483645L)
+        return 0;
+    if (!submit(context,0,-1,&view->bindings[0]))
+        return 0;
+    for (part=0;part<view->part_count;++part)
+    {
+        binding=&view->bindings[part+2];
+        if (binding->parent < -1 || binding->parent>=part)
+            return 0;
+        if (!submit(context,part+2,binding->parent<0?0:binding->parent+2,binding))
+            return 0;
+    }
+    return 1;
+}
 int mm_body_shape_initialize(void *body,void *parents,void *sets,const MMBodyCreateServices *s)
 {
     MMBodyShape b;

@@ -163,7 +163,19 @@ static bool TestBodyGeometry()
                         body->GetBcbBounds(&local);
                         body->GetBcbBounds(&world, true);
                         ok = record(&local, sizeof(local)) && record(&world, sizeof(world)) && ok;
+                        auto drawRoot = body->PbactRoot();
+                        auto firstPart = body->Cbact() > 2 ? body->PbactPart(0) : nullptr;
+                        const auto savedModel = firstPart ? firstPart->model : nullptr;
+                        const auto savedMaterial = firstPart ? firstPart->material : nullptr;
+                        drawRoot->t.t.mat.m[3][0] = BR_SCALAR(-4);
+                        if (firstPart)
+                        {
+                            firstPart->model = nullptr;
+                            firstPart->material = nullptr;
+                        }
                         BodyGeometryFixtureAccess::Prepare(body);
+                        ok = drawRoot->t.t.mat.m[3][0] == root.m[3][0] &&
+                             (!firstPart || (firstPart->model == savedModel && firstPart->material == savedMaterial)) && ok;
                         ok = record(&body->PbactRoot()[1].t.t.mat, sizeof(BMAT34)) && ok;
                         for (int stage = 0; stage < 5; ++stage)
                         {

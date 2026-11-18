@@ -39,7 +39,8 @@ typedef struct Host
     int background, with_body, with_model;
     int pose_refs, pose_retains, pose_releases;
     MMU32 width, height;
-    Node nodes[32], source[4];
+    Node nodes[32];
+    MMBodyPartBinding bindings[4][5];
     unsigned nodes_used;
     MMPreviewMaterial material;
     MMPreviewCamera camera;
@@ -144,16 +145,16 @@ static Node *node(Host *h, Node *parent)
     }
     return n;
 }
-static void *clone(void *v, void *parent, const void *source)
+static void *attach_body_part(void *v, void *parent, MMI32 index, const MMBodyPartBinding *binding)
 {
     Host *h = (Host *)v;
-    const Node *old = (const Node *)source;
     Node *out;
+    CHECK(index != 1 && parent);
     if (h->fail == F_COPY)
         return NULL;
     out = node(h, (Node *)parent);
-    out->model = old->model;
-    out->id = old->id;
+    out->model = binding->model != NULL;
+    out->id = binding->matrix.m[3][0];
     ++h->copies;
     return out;
 }
@@ -197,7 +198,7 @@ static void describe(void *v, MMPreviewData *d)
     d->camera.matrix[11] = scalar(10);
     if (h->with_model)
     {
-        d->model = h->source + 1;
+        d->model = h->bindings[1];
         d->model_resource = d->model;
         for (i = 0; i < 3; ++i)
         {
@@ -222,8 +223,9 @@ static int body(void *v, MMU32 index, MMPreviewBody *out)
     Host *h = (Host *)v;
     unsigned i;
     CHECK(index < (MMU32)h->with_body);
-    out->tree = h->with_body == 1 ? h->source : h->source + 1 + index;
-    out->resource = out->tree;
+    out->draw.bindings = h->bindings[h->with_body == 1 ? 0 : 1 + index];
+    out->draw.part_count = h->with_body == 1 ? 3 : 0;
+    out->resource = h->bindings;
     out->owner = 3 + index;
     out->order_high = index == 0 ? 1 : 0;
     out->order_low = 1;
@@ -517,7 +519,6 @@ static MMPreviewRenderServices services(Host *h)
     s.tree.context = h;
     s.tree.first = first;
     s.tree.next = next;
-    s.tree.clone_attach = clone;
     s.tree.model = model;
     s.tree.owner = owner;
     s.ready = ready;
@@ -525,6 +526,7 @@ static MMPreviewRenderServices services(Host *h)
     s.mesh = mesh;
     s.body_count = bodies;
     s.body = body;
+    s.attach_body_part = attach_body_part;
     s.retain_pose_resource = retain_pose_resource;
     s.release_pose_resource = release_pose_resource;
     s.object_bounds = bounds;
@@ -578,13 +580,13 @@ static void init(Host *h, MMPreviewView *v, MMPreviewOrbit *o)
     h->material.material = &h->material;
     h->material.flags = 7;
     h->material.map = h;
-    h->source[0].first = h->source + 1;
-    h->source[1].next = h->source + 2;
-    h->source[2].next = h->source + 3;
     for (i = 1; i < 4; ++i)
     {
-        h->source[i].model = 1;
-        h->source[i].id = (int)i;
+        h->bindings[0][i+1].model = h;
+        h->bindings[0][i+1].parent = -1;
+        h->bindings[0][i+1].matrix.m[3][0] = 4-i;
+        h->bindings[i][0].model = h;
+        h->bindings[i][0].matrix.m[3][0] = i;
     }
     memset(h->background_colours, 23, sizeof(h->background_colours));
     for (i = 0; i < 128 * 128; ++i)

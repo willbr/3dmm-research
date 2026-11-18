@@ -74,6 +74,16 @@ static void link_actor(void *p,void *actors,MMI32 parent,MMI32 child)
     Fixture *f=p; Part *parts=actors; CHECK(parent>=0 && parent<child && child==f->linked+1);
     parts[child].parent=parent; ++f->linked; event(f,8);
 }
+typedef struct DrawCheck { Fixture *fixture; int submitted, fail; } DrawCheck;
+static int draw_part(void *p,MMI32 index,MMI32 parent,const MMBodyPartBinding *binding)
+{
+    DrawCheck *draw=p;
+    Fixture *f=draw->fixture;
+    const Part *actors=f->body.actors;
+    CHECK(index==(draw->submitted?draw->submitted+1:0));
+    CHECK(binding==&f->body.bindings[index] && parent==actors[index].parent);
+    return ++draw->submitted!=draw->fail;
+}
 static void hide_body(void *p,void *body)
 {
     Fixture *f=p; CHECK(body==&f->body && !f->body.hidden && f->body.actors);
@@ -114,6 +124,8 @@ int main(void)
         CHECK(f.installed==(!warm && fail!=1));
         if (body)
         {
+            MMBodyDrawView view;
+            DrawCheck draw;
             CHECK(f.body.hidden==1 && f.body.part_count==n && f.body.set_count==(n?5:0));
             CHECK(f.initialized==n+2 && f.linked==n+1);
             for (i=0;i<n;++i)
@@ -121,6 +133,11 @@ int main(void)
                 CHECK(f.body.bindings[i+2].parent==f.parents.values[i]);
                 CHECK(((Part *)f.body.actors)[i+2].parent==(i?f.parents.values[i]+2:0));
             }
+            view.bindings=f.body.bindings; view.part_count=n;
+            draw.fixture=&f; draw.submitted=0; draw.fail=0;
+            CHECK(mm_body_draw(&view,&draw,draw_part) && draw.submitted==n+1);
+            draw.submitted=0; draw.fail=n?2:1;
+            CHECK(!mm_body_draw(&view,&draw,draw_part) && draw.submitted==draw.fail);
             f.body.hidden=0; release(&f,body); CHECK(f.hidden==1 && f.models==n && f.materials==(n?5:0));
         }
         CHECK(!f.body.actors && !f.body.materials && !f.body.sets);

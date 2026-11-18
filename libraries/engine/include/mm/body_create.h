@@ -20,6 +20,12 @@ typedef struct MMBodyShape
     MMBodyPartBinding *bindings; /* Root at 0, reserved highlight at 1, then parts. */
     MMI32 set_count, part_count, hidden;
 } MMBodyShape;
+typedef struct MMBodyDrawView
+{
+    const MMBodyPartBinding *bindings;
+    MMI32 part_count;
+} MMBodyDrawView;
+typedef int (*MMBodyDrawPart)(void *, MMI32 index, MMI32 parent, const MMBodyPartBinding *);
 enum MMBodyActorRole { MM_BODY_ROOT, MM_BODY_HIGHLIGHT, MM_BODY_PART };
 typedef struct MMBodyCreateServices
 {
@@ -62,6 +68,10 @@ void mm_body_shape_init(MMBodyShape *);
 void mm_body_shape_matrix(MMBodyShape *,MMI32,const MMActorMatrix *,const MMBodyCreateServices *);
 /* Compose a part through its parents and the root in renderer order. */
 void mm_body_shape_part_world(const MMBodyShape *,MMI32 part,MMActorMatrix *);
+/* Visit the root and the parts in parent-before-child order. Indices are in
+ * the draw array. Parent -1 means the root attaches to the caller's world.
+ * The selection highlight is separate. Stop when the consumer returns zero. */
+int mm_body_draw(const MMBodyDrawView *, void *context, MMBodyDrawPart);
 int mm_body_shape_initialize(void *,void *parents,void *sets,const MMBodyCreateServices *);
 int mm_body_initialize(void *,void *parents,void *sets,const MMBodyCreateServices *);
 void *mm_body_create(void *parents,void *sets,const MMBodyCreateServices *);

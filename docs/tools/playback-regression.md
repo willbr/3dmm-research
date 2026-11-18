@@ -13502,6 +13502,33 @@ the edited actor on four seeks. Marcus was rebuilt and relaunched.
 
 Evidence is under `tmp/c89-body-state/` on the evidence drive.
 
+### Live renderers submit the C89 body bindings
+
+Studio reapplies the evaluated root and part bindings before drawing
+its attached bodies. Marcus builds its temporary render and picking
+trees from those bindings in parent-first order. The C fixtures check
+submission order, a stopped submission, picking ownership, and resource
+cleanup after a failed draw or pick. The native body fixture changes the
+renderer projection before drawing and checks that the C bindings restore
+the root transform, model, and material.
+
+All 181 standalone, 33 selected host, and five AddressSanitizer checks
+passed. The host checks included world render and export, Marcus costume
+previews and actor insertion, and the headless player suite. All three
+changed C sources compiled under strict C89 for Linux x64 musl. The 300
+standalone frame and 300 mesh snapshots matched the previous build, and
+all 300 native graph and stream frame results matched. Stock and SID-29
+seeks matched 456 observations and 360 viewport hashes.
+All 26 native actor and body traces matched across 5,843,894 bytes.
+The 480-byte saved movie and 188-camera background trace also matched.
+
+Both hosts matched retail on 240 playback commits each. Stock Studio and
+retained v3dmm seeks each matched 456 retail actor records. Retail reopened
+the movie saved after a Studio actor transform and matched the edited
+actor on four seeks. Marcus was rebuilt and relaunched.
+
+Evidence is under `tmp/c89-draw-bindings/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

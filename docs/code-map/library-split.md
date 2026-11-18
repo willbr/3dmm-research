@@ -151,6 +151,11 @@ models, and material bindings in `MMBodyShape`. The body runtime forwards
 changes to the draw tree. Body duplication and reshape read the C state,
 and Marcus uses its matrices when computing object and costume bounds.
 The draw tree and bindings share one allocation.
+Both renderers submit the C89 body's root, hierarchy, models, materials,
+and transforms through `mm_body_draw`. Studio applies the bindings to the
+attached draw tree before rendering. Marcus retains each body while it
+builds the temporary draw and picking trees from the bindings. The ordered
+submission preserves sibling order under the renderer's head insertion.
 Studio and Marcus still use their existing archive owners, playback resource
 providers and renderers.
 

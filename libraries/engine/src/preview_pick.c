@@ -31,26 +31,6 @@ static int owner(void *v, void *actor, MMI32 object)
     entry.object = object;
     return mm_array_add(&p->entries, &entry, 0) == MM_STORAGE_OK;
 }
-static void *tree_first(void *v, const void *actor)
-{
-    const MMPreviewTreeServices *t = &((MMPreviewPickState *)v)->s->render->tree;
-    return t->first(t->context, actor);
-}
-static void *tree_next(void *v, const void *actor)
-{
-    const MMPreviewTreeServices *t = &((MMPreviewPickState *)v)->s->render->tree;
-    return t->next(t->context, actor);
-}
-static void *tree_model(void *v, const void *actor)
-{
-    const MMPreviewTreeServices *t = &((MMPreviewPickState *)v)->s->render->tree;
-    return t->model(t->context, actor);
-}
-static void *tree_clone(void *v, void *parent, const void *actor)
-{
-    const MMPreviewTreeServices *t = &((MMPreviewPickState *)v)->s->render->tree;
-    return t->clone_attach(t->context, parent, actor);
-}
 static MMI32 wrap(float value, MMI32 extent)
 {
     MMI32 coordinate = (MMI32)floor(value * extent);
@@ -190,12 +170,8 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
         return MM_PREVIEW_PICK_SINGULAR;
     r.tree.context = state;
     r.tree.owner = owner;
-    r.tree.first = tree_first;
-    r.tree.next = tree_next;
-    r.tree.model = tree_model;
-    r.tree.clone_attach = tree_clone;
     if (!mm_preview_pose_bodies(&state->pose, &r) ||
-        mm_preview_pose_copy(&state->pose, frame->world, &state->scratch, &r) != MM_PREVIEW_OK ||
+        mm_preview_pose_submit(&state->pose, frame->world, &state->scratch, &r) != MM_PREVIEW_OK ||
         (d->model && !r.add_model(r.context, frame->world, d->model)))
         return MM_PREVIEW_PICK_MODELS;
     if (!bg && d->background)
