@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MOVIE_DATA_H
 #define MM_ENGINE_MOVIE_DATA_H
 #include "read_stream.h"
+#include "string_table.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -43,11 +44,30 @@ extern "C"
                                   MMI32 *actor_id_limit);
     void mm_movie_write_actor(const MMMovieActor *, unsigned char bytes[28], int big_endian);
 
-    /* General string-table layout validation used by Archive before the legacy
-     * text transcoder. This retains its existing strict, dense-GST policy; Studio
-     * roll-call loading still uses the legacy GST reader's acceptance rules.
-     * max_bytes is the caller's existing decode budget, not a new engine limit. */
+    /* Strict, dense general string-table layout validation. max_bytes is the
+     * caller's decode budget. Studio roll-call loading has its own acceptance rules. */
     int mm_movie_validate_strings(const MMReadStream *stream, MMU32 max_bytes);
+
+    typedef struct MMMovieStringTable MMMovieStringTable;
+    typedef struct MMMovieStringPage
+    {
+        MMU32 total, extra_bytes, first, count;
+    } MMMovieStringPage;
+    typedef struct MMMovieStringRow
+    {
+        const void *text;
+        MMU32 units;
+        const unsigned char *extra;
+    } MMMovieStringRow;
+
+    /* Copy a validated dense GST from the stream and convert it to the host's
+     * current string encoding. The stream and converter are used only during
+     * open. On failure, out is unchanged. Row pointers are borrowed until close. */
+    int mm_movie_string_table_open(const MMReadStream *, MMU32 max_bytes, int encoding,
+                                   MMStringConvert, void *context, MMMovieStringTable **out);
+    void mm_movie_string_table_close(MMMovieStringTable *);
+    void mm_movie_string_table_page(const MMMovieStringTable *, MMU32 first, MMU32 count, MMMovieStringPage *);
+    int mm_movie_string_table_row(const MMMovieStringTable *, MMU32 index, MMMovieStringRow *);
 
 #ifdef __cplusplus
 }

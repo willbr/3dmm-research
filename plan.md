@@ -511,8 +511,9 @@ Keep host presentation and device output outside the session.
    decoding. They consume a bounded stream while C holds the source file or
    decoded memory. The Archive preview directory and inspector now use a C89
    payload cache. It retains the packed and decoded size limits and supplies
-   bounded streams to the directory, payload pages, and actor headers.
-   The legacy string-table parser borrows that cache's block.
+   bounded streams to the directory, payload pages, actor headers, and string
+   tables. C89 validates and owns the decoded string table, including page
+   ranges and per-entry extra bytes. Archive presents the page as UTF-8.
    Both hosts submit live actor bodies from the C89 bindings. Marcus renders
    and picks with temporary trees built from those bindings and holds the
    body and standalone model references through the operation. Studio

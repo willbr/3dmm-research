@@ -1,5 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_data.h"
+#include "mm/collections.h"
+#include "mm/text.h"
 #include <stdlib.h>
 
 static unsigned int word16(const unsigned char *bytes, int big)
@@ -153,4 +155,104 @@ int mm_movie_validate_strings(const MMReadStream *stream, MMU32 max_bytes)
 done:
     free(starts);
     return result;
+}
+
+struct MMMovieStringTable
+{
+    MMCollectionStorage storage;
+    MMStringTable view;
+};
+
+static void bind_string_buffers(MMStringTable *view, const MMCollectionStorage *storage)
+{
+    view->strings = storage->buffers[0].data;
+    view->entries = storage->buffers[1].data;
+    view->string_capacity = storage->buffers[0].capacity;
+    view->entry_capacity = storage->buffers[1].capacity;
+}
+
+static int reserve_strings(void *context, MMStringTable *view, MMU32 strings, MMU32 entries)
+{
+    MMCollectionStorage *storage = (MMCollectionStorage *)context;
+    int status = mm_storage_ensure(storage, strings, entries, 0);
+    bind_string_buffers(view, storage);
+    return status == MM_STORAGE_OK;
+}
+
+void mm_movie_string_table_close(MMMovieStringTable *table)
+{
+    if (table)
+    {
+        mm_storage_dispose(&table->storage);
+        free(table);
+    }
+}
+
+int mm_movie_string_table_open(const MMReadStream *stream, MMU32 max_bytes, int encoding,
+                               MMStringConvert convert, void *context, MMMovieStringTable **out)
+{
+    MMCollectionHeader header;
+    MMMovieStringTable *table;
+    MMStringTable *view;
+    const unsigned short one = 1;
+    int status;
+    if (!out)
+        return MM_MOVIE_BAD_FILE;
+    status = mm_movie_validate_strings(stream, max_bytes);
+    if (status != MM_MOVIE_OK)
+        return status;
+    status = mm_collection_header_read(stream, MM_COLLECTION_STRINGS, 0, &header);
+    if (status != MM_STORAGE_OK)
+        return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
+    table = (MMMovieStringTable *)calloc(1, sizeof(*table));
+    if (!table)
+        return MM_MOVIE_MEMORY;
+    mm_storage_init(&table->storage, NULL);
+    table->storage.min_grow[0] = 120;
+    status = mm_storage_read(&table->storage, stream, header.header_bytes, header.first_bytes, header.second_bytes);
+    if (status != MM_STORAGE_OK)
+    {
+        mm_movie_string_table_close(table);
+        if (status == MM_STORAGE_MEMORY)
+            return MM_MOVIE_MEMORY;
+        return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
+    }
+    view = &table->view;
+    view->bytes = header.bytes;
+    view->count = header.count;
+    view->stride = header.width;
+    view->free_count = header.free_count;
+    view->unit_bytes = encoding == MM_TEXT_UTF16_LE || encoding == MM_TEXT_UTF16_BE ? 2 : 1;
+    view->context = &table->storage;
+    view->reserve = reserve_strings;
+    bind_string_buffers(view, &table->storage);
+    if (header.big_endian != (*(const unsigned char *)&one == 0))
+        mm_strings_swap_offsets(view);
+    if (!mm_strings_translate(view, header.system, encoding, convert, context))
+    {
+        mm_movie_string_table_close(table);
+        return MM_MOVIE_BAD_FILE;
+    }
+    *out = table;
+    return MM_MOVIE_OK;
+}
+
+void mm_movie_string_table_page(const MMMovieStringTable *table, MMU32 first, MMU32 count, MMMovieStringPage *page)
+{
+    const MMStringTable *view = &table->view;
+    page->total = view->count;
+    page->extra_bytes = view->stride - 4;
+    page->first = first > page->total ? page->total : first;
+    page->count = page->total - page->first;
+    if (count < page->count)
+        page->count = count;
+}
+
+int mm_movie_string_table_row(const MMMovieStringTable *table, MMU32 index, MMMovieStringRow *row)
+{
+    const MMStringTable *view = &table->view;
+    if (!mm_strings_get(view, index, &row->text, &row->units))
+        return 0;
+    row->extra = view->entries + (size_t)index * view->stride + 4;
+    return 1;
 }

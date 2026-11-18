@@ -228,8 +228,17 @@ at the same index and checks both the packed length and the declared decoded
 length before calling the codec. It invalidates the dependent string table
 before releasing an old block and publishes the new index after decoding and
 native diagnostic acceptance. Page reads, actor headers, and movie and source
-tables consume bounded C streams. The native GST parser borrows the cache's
-block after C validation.
+tables consume bounded C streams. The Archive GST reader validates the dense
+layout, owns the decoded strings and rows in C89, and keeps extra bytes in wire
+order. It uses the existing platform callback for cross-width text conversion.
+Archive converts the returned page text to UTF-8 for its callers.
+
+The GST fixture checks both header byte orders, the four supported encodings,
+empty tables, page bounds, and access after the source bytes change. The movie
+data, string table and collection checks pass under AddressSanitizer. Page
+output, including UTF-8 text and opaque row bytes, matches the previous reader
+for the Archive fixture and retail `3DMOVIE.CHK`. Evidence is in
+`tmp/c89-archive-strings`.
 
 Cache tests cover position hits, invalidation order, exact budget boundaries,
 short prefixes, decode failures and retry. The Archive API fixture verifies

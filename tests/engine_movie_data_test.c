@@ -1,4 +1,5 @@
 #include "mm/movie_data.h"
+#include "mm/text.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -147,12 +148,22 @@ static void actors(void)
                 }
             }
 }
+static size_t convert_to_ansi(void *context, const void *input, size_t bytes, int encoding,
+                              void *output, size_t capacity)
+{
+    (void)context;
+    return mm_text_ansi(NULL, input, bytes, encoding, (char *)output, capacity);
+}
+
 static void strings(void)
 {
     unsigned char bytes[64];
     MMMemoryStream memory;
     MMReadStream failing;
     ReadProbe probe;
+    MMMovieStringTable *table = NULL;
+    MMMovieStringPage page;
+    MMMovieStringRow row;
     int big, encoding, wide;
     unsigned int encodings[] = {0x0202, 0x0303, 0x0404, 0x0505};
     MMU32 string_bytes;
@@ -182,12 +193,24 @@ static void strings(void)
             CHECK(mm_memory_stream_init(&memory, bytes, 20 + string_bytes + 32));
             CHECK(mm_movie_validate_strings(&memory.stream, 64) == MM_MOVIE_OK);
             CHECK(mm_movie_validate_strings(&memory.stream, 20) == MM_MOVIE_BAD_FILE);
+            bytes[20 + string_bytes + 4] = 0xff;
+            CHECK(mm_movie_string_table_open(&memory.stream, 64, MM_TEXT_WINDOWS, convert_to_ansi, NULL, &table) ==
+                  MM_MOVIE_OK);
             /* An entry pointing into a string must not reach the legacy reader. */
             put32(bytes + 20 + string_bytes, wide ? 2 : 1, big);
             CHECK(mm_movie_validate_strings(&memory.stream, 64) == MM_MOVIE_BAD_FILE);
             put32(bytes + 20 + string_bytes, 0, big);
             bytes[wide && encoding == 2 ? 23 : wide ? 22 : 21] = 0;
             CHECK(mm_movie_validate_strings(&memory.stream, 64) == MM_MOVIE_BAD_FILE);
+            CHECK(mm_movie_string_table_row(table, 0, &row) && row.units == 1 && *(const char *)row.text == 'A');
+            CHECK(row.extra[0] == 0xff);
+            CHECK(!mm_movie_string_table_row(table, 1, &row));
+            mm_movie_string_table_page(table, 0, 128, &page);
+            CHECK(page.total == 1 && page.extra_bytes == 28 && page.first == 0 && page.count == 1);
+            mm_movie_string_table_page(table, (MMU32)0xffffffffUL, (MMU32)0xffffffffUL, &page);
+            CHECK(page.first == 1 && page.count == 0);
+            mm_movie_string_table_close(table);
+            table = NULL;
         }
     /* Overflowing index counts/strides and truncated strings are rejected. */
     put32(bytes + 4, 0xfffffffcUL, 1);
@@ -199,12 +222,18 @@ static void strings(void)
     put32(bytes + 16, 0xffffffffUL, 0);
     CHECK(mm_memory_stream_init(&memory, bytes, 20));
     CHECK(mm_movie_validate_strings(&memory.stream, 64) == MM_MOVIE_OK);
+    CHECK(mm_movie_string_table_open(&memory.stream, 64, MM_TEXT_WINDOWS, NULL, NULL, &table) == MM_MOVIE_OK);
+    mm_movie_string_table_page(table, 0, 128, &page);
+    CHECK(page.total == 0 && page.extra_bytes == 0 && page.count == 0);
+    mm_movie_string_table_close(table);
+    table = NULL;
     memset(&probe, 0, sizeof(probe));
     probe.fail = 1;
     failing.context = &probe;
     failing.length = 20;
     failing.read_at = read_probe;
     CHECK(mm_movie_validate_strings(&failing, 64) == MM_MOVIE_IO);
+    CHECK(mm_movie_string_table_open(&failing, 64, MM_TEXT_WINDOWS, NULL, NULL, &table) == MM_MOVIE_IO && !table);
 }
 int main(void)
 {

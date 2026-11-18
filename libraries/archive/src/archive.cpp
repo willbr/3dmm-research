@@ -10,6 +10,7 @@
 #include "engine_movie_graph.h"
 #include "engine_movie_source.h"
 #include "mm/actor_data.h"
+#include "mm/movie_data.h"
 #include "platform_text.h"
 #undef size
 ASSERTNAME
@@ -24,7 +25,7 @@ struct Archive::Impl
     std::string path;
     std::vector<Chunk> chunks;
     MMChunkPayloadCache payload = {};
-    PStringTable_GST strings = pvNil;
+    MMMovieStringTable *strings = nullptr;
     bool stringsAttempted = false;
     Error stringsError;
     explicit Impl(Options value) : options(value)
@@ -35,7 +36,7 @@ struct Archive::Impl
     ~Impl()
     {
         mm_movie_session_close(movie);
-        ReleasePpo(&strings);
+        mm_movie_string_table_close(strings);
         ReleasePpo(&file);
         mm_chunk_payload_cache_clear(&payload);
     }
@@ -44,26 +45,20 @@ struct Archive::Impl
 };
 namespace
 {
-std::string Utf8(String &value)
+std::string Utf8(const void *value, std::size_t unitsCount)
 {
-    const auto count = KauaiText::ToUtf16(
-        value.Psz(), value.Cch() * sizeof(achar),
-        sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE, nullptr, 0);
+    const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
+    const auto bytes = unitsCount * sizeof(achar);
+    const auto count = KauaiText::ToUtf16(value, bytes, encoding, nullptr, 0);
     std::vector<uint16_t> units(count);
-    if (!count ||
-        !KauaiText::ToUtf16(value.Psz(), value.Cch() * sizeof(achar),
-                            sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE,
-                            units.data(), count))
+    if (!count || !KauaiText::ToUtf16(value, bytes, encoding, units.data(), count))
         return {};
     std::u16string text(units.begin(), units.end());
     return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
 }
-bool ValidStringTable(const MMReadStream &stream, std::uint32_t limit)
+std::string Utf8(String &value)
 {
-    const int result = mm_movie_validate_strings(&stream, limit);
-    if (result == MM_MOVIE_MEMORY)
-        throw std::bad_alloc();
-    return result == MM_MOVIE_OK;
+    return Utf8(value.Psz(), value.Cch());
 }
 
 bool NativePath(const std::string &input, String &path, std::string &error)
@@ -372,7 +367,8 @@ bool Archive::Impl::Load(std::size_t index, Error &error)
         this,
         [](void *context) {
             auto archive = static_cast<Impl *>(context);
-            ReleasePpo(&archive->strings);
+            mm_movie_string_table_close(archive->strings);
+            archive->strings = nullptr;
             archive->stringsAttempted = false;
             archive->stringsError = {};
         },
@@ -677,9 +673,16 @@ bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t 
                      "String table exceeds this session's preview budget.", &id);
             else
             {
-                DataBlock view(_impl->payload.block);
-                if (!ValidStringTable(stream, _impl->options.maxStringTableBytes) ||
-                    !(_impl->strings = StringTable_GST::PgstRead(&view)) || Internal::AssertionFailed())
+                const auto convert = [](void *, const void *input, size_t bytes, int source, void *output,
+                                        size_t capacity) -> size_t {
+                    return CchTranslateRgb(const_cast<void *>(input), bytes, source, static_cast<achar *>(output),
+                                           capacity);
+                };
+                const auto status = mm_movie_string_table_open(&stream, _impl->options.maxStringTableBytes, koskCur,
+                                                               convert, nullptr, &_impl->strings);
+                if (status == MM_MOVIE_MEMORY)
+                    throw std::bad_alloc();
+                if (status != MM_MOVIE_OK || Internal::AssertionFailed())
                     Fail(_impl->stringsError, ErrorCode::corrupt_archive, "Invalid or unsupported General String Table.",
                          &id);
             }
@@ -690,25 +693,25 @@ bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t 
             error = _impl->stringsError;
             return false;
         }
+        MMMovieStringPage range;
+        mm_movie_string_table_page(_impl->strings, first, count, &range);
         StringTablePage result;
-        result.totalEntries = _impl->strings->IstnMac();
-        result.extraBytes = _impl->strings->CbExtra();
-        result.firstEntry = std::min(first, result.totalEntries);
-        const auto end = std::min(result.totalEntries, result.firstEntry + count);
-        for (auto i = result.firstEntry; i < end; ++i)
+        result.totalEntries = range.total;
+        result.extraBytes = range.extra_bytes;
+        result.firstEntry = range.first;
+        for (auto i = range.first; i < range.first + range.count; ++i)
         {
-            String text;
-            _impl->strings->GetStn(i, &text);
+            MMMovieStringRow row;
+            if (!mm_movie_string_table_row(_impl->strings, i, &row))
+                return Fail(error, ErrorCode::corrupt_archive, "Invalid General String Table entry.", &id);
             StringTableEntry entry;
             entry.index = i;
-            entry.text = Utf8(text);
-            entry.extra.resize(result.extraBytes);
-            if (result.extraBytes)
-                _impl->strings->GetExtra(i, entry.extra.data());
+            entry.text = Utf8(row.text, row.units);
+            entry.extra.assign(row.extra, row.extra + range.extra_bytes);
             result.entries.push_back(std::move(entry));
         }
         if (Internal::AssertionFailed())
-            return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected a string entry.", &id);
+            return Fail(error, ErrorCode::corrupt_archive, "Invalid General String Table entry.", &id);
         page = std::move(result);
         return true;
     }
