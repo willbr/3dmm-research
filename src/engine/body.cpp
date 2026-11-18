@@ -112,6 +112,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include "engine_part_indices.h"
 #include <cstring>
 ASSERTNAME
 
@@ -188,17 +189,26 @@ MMBodyCreateServices Body::_CreateServices(void)
     s.create = [](void *) -> void * { return NewObj Body; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.validate_lists = [](void *, void *parents, void *sets) {
-        auto par = static_cast<PDynamicArray>(parents); auto list = static_cast<PDynamicArray>(sets);
-        AssertPo(par, 0); AssertPo(list, 0);
-        Assert(par->CbEntry() == size(short), "bad pglibactPar");
-        Assert(list->CbEntry() == size(short), "bad pglibset");
-        Assert(par->IvMac() == 0 || ivNil == *(short *)par->QvGet(0), "bad first item in pglibactPar");
-        Assert(par->IvMac() == list->IvMac(), "pglibactPar must be same size as pglibset");
+        const auto par = static_cast<const MMPartIndexView *>(parents);
+        const auto list = static_cast<const MMPartIndexView *>(sets);
+        Assert(par->count == 0 || ivNil == mm_part_index_get(par, 0), "bad first parent index");
+        Assert(par->count == list->count, "body parent and set lists must have the same size");
+        (void)par; (void)list;
     };
-    s.duplicate_sets = [](void *, void *sets) -> void * { return static_cast<PDynamicArray>(sets)->PglDup(); };
-    s.count = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
+    s.duplicate_sets = [](void *, void *sets) -> void * {
+        auto list = EnginePartIndices::Create();
+        if (list && !mm_part_indices_copy(list, static_cast<const MMPartIndexView *>(sets)))
+        {
+            mm_part_indices_dispose(list);
+            return nullptr;
+        }
+        return list;
+    };
+    s.release_sets = [](void *, void *sets) { mm_part_indices_dispose(static_cast<MMPartIndexList *>(sets)); };
+    // An owned list begins with the same view passed by borrowed callers.
+    s.count = [](void *, void *list) -> MMI32 { return static_cast<const MMPartIndexView *>(list)->count; };
     s.item = [](void *, void *list, MMI32 i) -> MMI32 {
-        short value; static_cast<PDynamicArray>(list)->Get(i, &value); return value;
+        return mm_part_index_get(static_cast<const MMPartIndexView *>(list), i);
     };
     s.allocate_materials = [](void *, MMI32 count, void **out) -> int {
         return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal);
@@ -239,42 +249,16 @@ MMBodyCreateServices Body::_CreateServices(void)
 
 Body *Body::PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
-    AssertPo(pglibactPar, 0);
-    Assert(pglibactPar->CbEntry() == size(short), "bad pglibactPar");
-    AssertPo(pglibset, 0);
-    Assert(pglibset->CbEntry() == size(short), "bad pglibset");
+    return PbodyNew(EnginePartIndices::Borrow(pglibactPar), EnginePartIndices::Borrow(pglibset));
+}
+
+Body *Body::PbodyNew(const MMPartIndexView &parents, const MMPartIndexView &sets)
+{
     auto services = _CreateServices();
-    auto body = static_cast<PBody>(mm_body_create(pglibactPar, pglibset, &services));
+    auto body = static_cast<PBody>(mm_body_create(const_cast<MMPartIndexView *>(&parents),
+                                                 const_cast<MMPartIndexView *>(&sets), &services));
     AssertNilOrPo(body, fobjAssertFull);
     return body;
-}
-
-/***************************************************************************
-    Build the Body
-***************************************************************************/
-bool Body::_FInit(PDynamicArray pglibactPar, PDynamicArray pglibset)
-{
-    AssertBaseThis(0);
-    AssertPo(pglibactPar, 0);
-    AssertPo(pglibset, 0);
-    auto services = _CreateServices();
-    return mm_body_initialize(this, pglibactPar, pglibset, &services) != 0;
-}
-
-/***************************************************************************
-    Build the Body
-***************************************************************************/
-bool Body::_FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
-{
-    AssertBaseThis(0);
-    AssertPo(pglibactPar, 0);
-    Assert(pglibactPar->CbEntry() == size(short), "bad pglibactPar");
-    AssertPo(pglibset, 0);
-    Assert(pglibset->CbEntry() == size(short), "bad pglibset");
-    Assert(pglibactPar->IvMac() == 0 || ivNil == *(short *)pglibactPar->QvGet(0), "bad first item in pglibactPar");
-    Assert(pglibactPar->IvMac() == pglibset->IvMac(), "pglibactPar must be same size as pglibset");
-    auto services = _CreateServices();
-    return mm_body_shape_initialize(this, pglibactPar, pglibset, &services) != 0;
 }
 
 /***************************************************************************
@@ -284,11 +268,15 @@ bool Body::_FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
 ***************************************************************************/
 bool Body::FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
+    return FChangeShape(EnginePartIndices::Borrow(pglibactPar), EnginePartIndices::Borrow(pglibset));
+}
+
+bool Body::FChangeShape(const MMPartIndexView &parents, const MMPartIndexView &sets)
+{
     AssertThis(fobjAssertFull);
-    AssertPo(pglibactPar, 0);
-    AssertPo(pglibset, 0);
     auto services = _EditServices();
-    const bool ok = mm_body_change_shape(this, pglibactPar, pglibset, &services) != 0;
+    const bool ok = mm_body_change_shape(this, const_cast<MMPartIndexView *>(&parents),
+                                         const_cast<MMPartIndexView *>(&sets), &services) != 0;
     AssertThis(fobjAssertFull);
     return ok;
 }
@@ -824,8 +812,7 @@ void Body::AssertValid(LegacyUlong grf)
     AssertPvCb(_Materials(), LwMul(_shape.set_count, size(PCustomMaterial_CMTL)));
     Assert(pvNil == _PbactRoot()->model, "Body root shouldn't have a model!!");
     Assert(pvNil == _PbactRoot()->material, "Body root shouldn't have a material!!");
-    AssertPo(_Sets(), 0);
-    Assert(_Sets()->CbEntry() == size(short), "bad _Sets()");
+    Assert(_Sets() && _Sets()->view.count == _shape.part_count, "bad body part set list");
 
     if (grf & fobjAssertFull)
     {
@@ -861,7 +848,8 @@ void Body::MarkMem(void)
     Body_PAR::MarkMem();
     MarkPv(_Actors());
     MarkPv(_Materials());
-    MarkMemObj(_Sets());
+    if (_Sets())
+        MarkMemObj(static_cast<BASE *>(_Sets()->owner));
 
     for (ibact = 0; ibact < _shape.part_count; ibact++)
     {

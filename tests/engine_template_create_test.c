@@ -4,7 +4,7 @@
 #include <string.h>
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"template check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
 typedef struct Ref { int refs,kind,set; } Ref;
-typedef struct List { Ref ref; int count; unsigned char data[12]; } List;
+typedef struct List { MMPartIndexList list; int refs,count; unsigned char data[12]; } List;
 typedef struct Block { int kind,length; unsigned char data[16]; } Block;
 typedef struct Fixture
 {
@@ -23,8 +23,6 @@ static void release(void *p,void *o)
 {
     Fixture *f=p; Ref *r=o; CHECK(r && r->refs>0); --r->refs;
     if (o==&f->object) { CHECK(!r->refs); mm_template_dispose(o,&f->s); }
-    else if (o==&f->parents) CHECK(f->t.parents==o);
-    else if (o==&f->sets) CHECK(!f->t.parents && f->t.sets==o);
     else if (o==&f->body) ++f->body_released;
 }
 static int child(void *p,void *file,MMU32 type,MMU32 number,MMU32 id,MMU32 wanted,MMTemplateChild *out)
@@ -71,20 +69,42 @@ static int initialize(void *p,void *o,void *file,MMU32 type,MMU32 number)
     return mm_template_initialize(o,file,type,number,&f->s);
 }
 static MMI32 object_size(void *p,int text) { (void)p; return text?200:100; }
-static MMI32 table_size(void *p,void *table) { (void)p; CHECK(table); return 10; }
 static void invalidate(void *p,void *out,size_t n) { Fixture *f=p; CHECK(!f->object.refs); memset(out,0xa5,n); ++f->invalidated; }
 static int header(void *p,void *o,void *file,MMU32 type,MMU32 number)
 { Fixture *f=p; ++f->header_calls; return mm_template_read_header(o,file,type,number,&f->s); }
-static void *read_table(void *p,void *b,int kind,int *other)
+static void release_parents(void *p)
 {
-    Fixture *f=p; Ref *r; CHECK(((Block *)b)->kind==kind); *other=f->other;
-    if (f->fail==2+kind*2) return NULL;
-    CHECK(kind==0 || kind==1); r=kind==0?&f->parents.ref:&f->sets.ref; ++r->refs; return r;
+    Fixture *f=p;
+    CHECK(f->t.parents==&f->parents.list && f->parents.refs==1);
+    --f->parents.refs;
 }
-static void validate(void *p,void *table,int kind,MMI32 n) { Fixture *f=p; (void)table; CHECK(kind!=2 || n==f->t.set_count); }
-static MMI32 count(void *p,void *list) { (void)p; return ((List *)list)->count; }
-static MMI32 item(void *p,void *list,MMI32 i) { Fixture *f=p; CHECK(i>=0 && i<((List *)list)->count); return (MMI32)word(((List *)list)->data+i*2,2,f->s.host_big_endian); }
-static unsigned char *list_data(void *p,void *list) { (void)p; return ((List *)list)->data; }
+static void release_sets(void *p)
+{
+    Fixture *f=p;
+    CHECK(!f->t.parents && f->t.sets==&f->sets.list && f->sets.refs==1);
+    --f->sets.refs;
+}
+static int read_part_indices(void *p,void *b,MMPartIndexList **out)
+{
+    Fixture *f=p;
+    int kind=((Block *)b)->kind, big=f->other!=f->s.host_big_endian;
+    List *source=kind==0?&f->parents:&f->sets;
+    unsigned char wire[24]={0};
+    MMMemoryStream stream;
+    CHECK(kind==0 || kind==1);
+    if (f->fail==2+kind*2)
+        return MM_MOVIE_MEMORY;
+    put(wire,2,1,big);
+    put(wire+4,4,2,big);
+    put(wire+8,4,(MMU32)source->count,big);
+    memcpy(wire+12,source->data,source->count*2);
+    CHECK(mm_memory_stream_init(&stream,wire,12+source->count*2));
+    mm_part_indices_init(&source->list,NULL,f,kind==0?release_parents:release_sets);
+    CHECK(mm_part_indices_read(&source->list,&stream.stream)==MM_MOVIE_OK);
+    ++source->refs;
+    *out=&source->list;
+    return MM_MOVIE_OK;
+}
 static void *create_cache(void *p,void *file) { Fixture *f=p; CHECK(file==&f->file); if (f->fail==7) return NULL; ++f->cache.refs; return &f->cache; }
 static void release_costumes(void *p)
 {
@@ -141,8 +161,8 @@ static int append(void *p,MMTemplateCostumeTable *group,const MMI32 *ids,MMI32 n
     if (f->fail==10 && group->rows==1) return 0;
     return mm_template_costumes_append(group, ids, n);
 }
-static void *create_body(void *p,void *parents,void *sets)
-{ Fixture *f=p; CHECK(parents==&f->parents && sets==&f->sets); ++f->body_created; if (f->fail==15) return NULL; f->body.refs=1; return &f->body; }
+static void *create_body(void *p,const MMPartIndexView *parents,const MMPartIndexView *sets)
+{ Fixture *f=p; CHECK(parents==&f->parents.list.view && sets==&f->sets.list.view); ++f->body_created; if (f->fail==15) return NULL; f->body.refs=1; return &f->body; }
 static int default_costume(void *p,void *o,void *body)
 { Fixture *f=p; ++f->default_calls; return mm_template_default_costume(o,body,&f->s); }
 static MMI32 costume_id(void *p,void *o,MMI32 set,MMI32 index)
@@ -167,7 +187,7 @@ static void diagnose(void *p,int n) { CHECK(n>=0 && n<5); ++((Fixture *)p)->diag
 static void setup(Fixture *f,int other,int host_big)
 {
     int i; memset(f,0,sizeof(*f)); f->other=other; f->s.host_big_endian=host_big; f->s.system=0x0303; f->custom_count=4;
-    f->parents.ref.kind=1; f->sets.ref.kind=2; f->cache.kind=4; f->body.kind=5;
+    f->cache.kind=4; f->body.kind=5;
     f->parents.count=f->sets.count=6;
     for (i=0;i<4;++i) { f->blocks[i].kind=i-1; f->blocks[i].length=16; }
     put(f->blocks[0].data,2,1,other); put(f->blocks[0].data+4,2,0x1234,other); put(f->blocks[0].data+6,2,0xabcd,other);
@@ -177,8 +197,8 @@ static void setup(Fixture *f,int other,int host_big)
     f->s.context=f; f->s.state=template_state; f->s.release=release; f->s.child=child; f->s.enumerate=enumerate;
     f->s.find=find; f->s.unpack=unpack; f->s.block_size=block_size; f->s.block_read=block_read; f->s.read_name=read_name;
     f->s.add_chunk=add_chunk; f->s.set_name=set_name; f->s.delete_chunk=delete_chunk; f->s.create=create; f->s.initialize=initialize;
-    f->s.object_size=object_size; f->s.table_size=table_size; f->s.invalidate=invalidate; f->s.header=header; f->s.read_table=read_table;
-    f->s.validate_table=validate; f->s.count=count; f->s.item=item; f->s.list_data=list_data; f->s.read_costumes=read_costumes;
+    f->s.object_size=object_size; f->s.invalidate=invalidate; f->s.header=header;
+    f->s.read_part_indices=read_part_indices; f->s.read_costumes=read_costumes;
     f->s.create_cache=create_cache; f->s.create_costumes=create_costumes; f->s.fetch_custom=fetch_custom; f->s.custom_set=custom_set;
     f->s.append_costumes=append; f->s.create_body=create_body; f->s.default_costume=default_costume; f->s.costume_id=costume_id;
     f->s.custom=custom; f->s.allocate_refs=allocate; f->s.apply_custom=apply; f->s.free_memory=free_memory; f->s.diagnostic=diagnose;
@@ -186,7 +206,7 @@ static void setup(Fixture *f,int other,int host_big)
 static void disposed(Fixture *f)
 {
     int i; mm_template_dispose(&f->object,&f->s);
-    CHECK(!f->parents.ref.refs && !f->sets.ref.refs && !f->group_refs && !f->cache.refs);
+    CHECK(!f->parents.refs && !f->sets.refs && !f->group_refs && !f->cache.refs);
     CHECK(!f->t.parents && !f->t.sets && !f->t.costumes);
     for (i=0;i<60;++i) CHECK(!f->customs[i].refs);
 }
@@ -201,7 +221,9 @@ int main(void)
     {
         setup(&f,other,host); CHECK(mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],NULL,&bytes,&f.s)); CHECK(bytes==16 && !f.created && !f.child_calls);
         out=NULL; CHECK(mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],&out,&bytes,&f.s));
-        CHECK(out==&f.object && bytes==180 && f.t.custom_count==4 && f.t.action_count==1 && f.t.set_count==2);
+        CHECK(out==&f.object && bytes==208 && f.t.custom_count==4 && f.t.action_count==1 && f.t.set_count==2);
+        CHECK(mm_part_index_get(&f.t.parents->view,0)==-1 && mm_part_index_get(&f.t.parents->view,5)==4);
+        CHECK(mm_part_index_get(&f.t.sets->view,5)==1);
         CHECK(mm_template_costumes_count(&f.group,0)==2 && mm_template_costumes_id(&f.group,1,1,&id) && id==3);
         put(f.group.storage.buffers[0].data + 4,4,2,f.group.big_endian);
         body=mm_template_create_body(&f.object,&f.s); CHECK(body==&f.body && f.applied==2 && f.freed==1); release(&f,body);
@@ -214,7 +236,7 @@ int main(void)
     {
         setup(&f,0,0); f.fail=failure; f.fallback=failure>=7;
         CHECK(!mm_template_initialize(&f.object,&f.file,MM_TMPL,1,&f.s));
-        CHECK(f.t.parents==(failure<=2?NULL:&f.parents)); CHECK(f.t.sets==(failure<=4?NULL:&f.sets));
+        CHECK(f.t.parents==(failure<=2?NULL:&f.parents.list)); CHECK(f.t.sets==(failure<=4?NULL:&f.sets.list));
         if (failure>=9) CHECK(f.t.costumes==&f.group && f.group.rows==1);
         CHECK(!f.cache.refs); disposed(&f);
     }

@@ -77,18 +77,12 @@ typedef struct MMMovieAction
 
 int mm_session_action_matrices(MMMovieAction *);
 
-typedef struct MMMovieTemplateList
-{
-    MMMoviePayload payload;
-    MMCollectionHeader header;
-} MMMovieTemplateList;
-
 typedef struct MMMovieTemplate
 {
     MMMovieArchive archive;
     MMU32 position;
     MMTemplateState state;
-    MMMovieTemplateList parents, sets;
+    MMPartIndexList parents, sets;
     MMTemplateCostumeTable costumes;
     int costumes_absent;
 } MMMovieTemplate;

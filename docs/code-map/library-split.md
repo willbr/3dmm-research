@@ -75,10 +75,11 @@ its matrix table on first body use. The native cache loads both at admission
 and continues to resolve optional GLMS sound tags there. Both use the C89
 cel, part and matrix decoders. The actor query returns route position, action,
 cel and fixed-point root pose without creating body, costume or audio objects.
-`mm_template_read_shape` acquires GLPI then GLBS through each provider. Native
-templates use cached collections. The standalone session reads signed parent
-and set indices from their wire tables when it prepares a body. The same C89
-traversal computes the number of sets up to the highest authored set index.
+`mm_template_read_shape` acquires GLPI then GLBS through each provider.
+`part_indices.c` decodes both tables into owned arrays of signed 16-bit
+indices in native byte order. The live template cache and standalone session
+use the same reader and index accessors. The same C89 traversal computes the
+number of sets up to the highest authored set index.
 `mm_template_read_costumes` uses that count to read GGCM into a C-owned
 collection. It checks row boundaries and ID counts and retains the authored
 word order. Studio, Marcus and the snapshot use the same count and ID
@@ -4580,11 +4581,12 @@ remains published without rollback; the factory releases its failed body while
 direct initialization callers retain cleanup responsibility. Disposal clears
 ownership pointers while retaining counts, matching native behavior.
 
-Native services adapt allocation, C-backed lists, BRender actor/material fields
-and links, reference release and renderer notifications. The native Body now
-embeds its owning `MMBodyShape` directly: actor/material allocation handles,
-duplicated set-list reference, part/set counts and hidden count. One borrowed
-state accessor replaces native-field read/write marshalling. C value snapshots
+Native services adapt allocation, BRender actor/material fields and links,
+reference release and renderer notifications. Body creation and reshaping
+read borrowed parent and set views. Each body owns a C89 copy of its part
+sets. The native Body embeds `MMBodyShape` with actor and material allocation
+handles, the set-list reference, part and set counts, and the hidden count.
+One borrowed state accessor exposes this record to the C code. C value snapshots
 retain the previous publication points around allocation, visibility and cleanup;
 initialization explicitly clears a fresh owner, not a live one. Typed actor,
 set-list and custom-material views read that same C owner. Model/material
@@ -5105,12 +5107,13 @@ set/costume/action counts. The native Template embeds that owner and initializes
 it explicitly; one borrowed state view replaces native-field read/write
 marshalling. Typed list/group accessors, getters and debug validation read the
 same C record. Local C snapshots retain the earlier publication points.
-Parents, sets and costume groups
-publish in native order; direct initialization failure retains partial ownership,
-while the factory releases its failed object. Parent/set payloads and costume
-counts/IDs swap in C for opposite-endian files. Costume/action counts retain
-dense-prefix lookup behavior; the legacy missing-GGCM path instead enumerates
-all costume children once per set, using a temporary zero-budget resource cache.
+Parents, sets and costume groups publish in native order. Direct initialization
+failure retains partial ownership, while the factory releases its failed object.
+The C parent and set decoder converts opposite-endian indices. The costume
+reader retains the authored byte order and decodes counts and IDs on access.
+Costume and action counts retain dense-prefix lookup behavior. When GGCM is
+absent, the fallback enumerates all costume children once per set using a
+temporary zero-budget resource cache.
 
 Default costumes are all fetched before any body mutation. Failed fetching
 releases the fetched references without applying a partial costume. Body creation
@@ -5136,6 +5139,17 @@ name/header/tables, generated GGCM rows, missing default resources and ownership
 cleanup. Standalone C tests additionally exercise factory output invalidation,
 virtual dispatch, direct-call partial ownership, header/name failures, dense gaps,
 opposite host order and the fallback's 50/51 boundary.
+
+The part-index storage change matched 31 native traces and the 480-byte
+save/reopen fixture against `58942077`. The standalone probe matched 300
+frame snapshots and 300 model and material snapshots, and the native
+graph and stream providers matched on 300 frames. All 181 standalone
+checks, 189 host checks and eight AddressSanitizer checks passed.
+The two hosts matched 456 earlier seek observations and 360 viewport hashes.
+Their timed playback matched 480 retail frame commits, and retail reopened
+the Studio actor edit with the same actor state on four seeks. Both hosts
+also passed the actor audio fixture. Captures and binary hashes are in
+`tmp/c89-part-indices`.
 
 ### Template actions and accessory relationships
 
@@ -5259,10 +5273,11 @@ these are no longer separate C++ owner fields. Native services expose primitive
 container/material/action factories, retained font providers, metric/glyph access,
 body operations and template field views.
 The template view now borrows the same persistent `MMTemplateState` used by
-ordinary templates. Generated list replacement publishes directly into that C
-owner at the existing release/clear/replace points; it no longer marshals
-inherited native fields. The generated-resource owner remains separate, retaining
-material/action ownership and cache publication order.
+ordinary templates. Text generation fills C89 parent and set lists with
+root parents and set zero. Generated list replacement publishes directly into
+the template state at the existing release, clear and replace points.
+The generated-resource owner still holds the material and action references
+and preserves the cache publication order.
 The resource controller below owns
 string/tag construction, change/save/load orchestration and localized names.
 Remaining resources and final native facade removal still keep the full C89

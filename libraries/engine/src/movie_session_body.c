@@ -37,29 +37,16 @@ static int body_child(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU
 
 typedef struct MovieBodyShape
 {
-    const MMMovieTemplateList *parents, *sets;
+    const MMPartIndexView *parents, *sets;
     MMMovieEvaluatedBody *body;
 } MovieBodyShape;
-
-static int read_body_index(const MMMovieTemplateList *list, MMI32 index, MMI32 *out)
-{
-    unsigned char bytes[MM_TEMPLATE_INDEX_BYTES];
-    if (!mm_read_exact(list->payload.stream, list->header.header_bytes + (MMU32)index * sizeof(bytes),
-                       bytes, sizeof(bytes)))
-        return MM_MOVIE_IO;
-    *out = mm_template_decode_index(bytes, list->header.big_endian);
-    return MM_MOVIE_OK;
-}
 
 static int read_body_part(void *context, MMI32 index, MMI32 *set)
 {
     const MovieBodyShape *shape = (const MovieBodyShape *)context;
     MMMovieBodyPart *part = &shape->body->parts[index];
-    int status = read_body_index(shape->parents, index, &part->parent);
-    if (status == MM_MOVIE_OK)
-        status = read_body_index(shape->sets, index, &part->set);
-    if (status != MM_MOVIE_OK)
-        return status;
+    part->parent = mm_part_index_get(shape->parents, index);
+    part->set = mm_part_index_get(shape->sets, index);
     if (part->set < 0)
         return MM_MOVIE_BAD_FILE;
     *set = part->set;
@@ -75,19 +62,19 @@ int mm_session_body_shape(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body
     int status = mm_template_read_shape(&tmpl->state, &reader);
     if (status != MM_MOVIE_OK)
         return status;
-    shape.parents = (const MMMovieTemplateList *)tmpl->state.parents;
-    shape.sets = (const MMMovieTemplateList *)tmpl->state.sets;
+    shape.parents = &tmpl->state.parents->view;
+    shape.sets = &tmpl->state.sets->view;
     shape.body = body;
-    if (shape.parents->header.count != shape.sets->header.count)
+    if (shape.parents->count != shape.sets->count)
         return MM_MOVIE_BAD_FILE;
-    status = reserve_parts(body, shape.parents->header.count);
+    status = reserve_parts(body, (MMU32)shape.parents->count);
     if (status != MM_MOVIE_OK)
         return status;
     body->model_owner.source = actor->source_id;
     body->model_owner.type = actor->template_type;
     body->model_owner.number = actor->template_number;
     parts.context = &shape;
-    parts.count = (MMI32)shape.parents->header.count;
+    parts.count = shape.parents->count;
     return mm_template_count_sets(&tmpl->state, &parts);
 }
 

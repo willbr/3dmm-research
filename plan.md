@@ -535,14 +535,14 @@ Keep host presentation and device output outside the session.
    and the native template cache share the template header decoder and the C89
    loader for ACTN flags, GGCL cels and GLXF matrices. Snapshot seeks cache the
    matrix table per action and read it only when evaluating a body. The same
-   C89 template reader coordinates loading GLPI, GLBS and authored GGCM tables
-   in both paths. The snapshot retains the template state, reuses its authored
-   costume table across resets and computes the set count during hierarchy
-   decoding. The authored GGCM tables now use the same C-owned costume
-   collection in both paths. The live cache builds older templates' CMTL
-   choices in child order and generates the text default into that collection.
-   Native hierarchy and action collections, renderer resources and cache
-   ownership remain work.
+   C89 template reader loads GLPI, GLBS and authored GGCM tables into C-owned
+   collections in both paths. The snapshot retains the template state, reuses
+   its authored costume table across resets and computes the set count during
+   hierarchy decoding. The live cache builds older templates' CMTL choices
+   in child order. Generated 3D text uses the same part-index and costume
+   collections. Body construction and reshaping consume borrowed index views,
+   and each live body owns its copy of the part sets. Native action
+   collections, renderer resources and cache ownership remain work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

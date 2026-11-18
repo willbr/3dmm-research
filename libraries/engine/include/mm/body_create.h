@@ -38,6 +38,7 @@ typedef struct MMBodyCreateServices
     void (*release)(void *,void *);
     void (*validate_lists)(void *,void *parents,void *sets);
     void *(*duplicate_sets)(void *,void *);
+    void (*release_sets)(void *,void *);
     MMI32 (*count)(void *,void *);
     MMI32 (*item)(void *,void *,MMI32);
     int (*allocate_materials)(void *,MMI32,void **);

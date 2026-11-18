@@ -80,7 +80,7 @@ int mm_template_set_cel(void *object, void *body, MMI32 id, MMI32 cel, void *dis
     MMI32 count, i, step;
     int result = 0;
     state = *a->state(a->context, object);
-    count = a->count(a->context, state.parents);
+    count = state.parents->view.count;
     request.action = s->action(a->context, object, id);
     if (!request.action)
         return 0;
@@ -183,11 +183,11 @@ int mm_template_accessory_set(void *object,MMI32 set,void *out,const MMTemplateR
     MMTemplateState t; MMI32 candidate,part,parent; t=*s->storage.state(s->storage.context,object);
     if (mm_template_is_accessory(object,set,s)) { memcpy(out,&set,sizeof(set)); return 1; }
     for (candidate=0;candidate<t.set_count;++candidate) if (mm_template_is_accessory(object,candidate,s))
-        for (part=0;part<s->storage.count(s->storage.context,t.parents);++part)
-            if (s->storage.item(s->storage.context,t.sets,part)==candidate)
+        for (part=0;part<t.parents->view.count;++part)
+            if (mm_part_index_get(&t.sets->view,part)==candidate)
             {
-                parent=s->storage.item(s->storage.context,t.parents,part);
-                if (s->storage.item(s->storage.context,t.sets,parent)==set) { memcpy(out,&candidate,sizeof(candidate)); return 1; }
+                parent=mm_part_index_get(&t.parents->view,part);
+                if (mm_part_index_get(&t.sets->view,parent)==set) { memcpy(out,&candidate,sizeof(candidate)); return 1; }
             }
     return 0;
 }

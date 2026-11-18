@@ -1,6 +1,7 @@
 #ifndef ENGINE_TEMPLATE_CREATE_FIXTURE_H
 #define ENGINE_TEMPLATE_CREATE_FIXTURE_H
 #include "engine_template_costumes.h"
+#include "engine_part_indices.h"
 class TemplateCreateFixtureAccess : public Template
 {
   public:
@@ -10,11 +11,16 @@ class TemplateCreateFixtureAccess : public Template
         if (!t) return false;
         t->_template.x=0x1234; t->_template.y=0xabcd; t->_template.z=0x8000; t->_template.flags=ftmplProp;
         t->_stn.SetSzs(PszLit("Template construction fixture")); t->_template.set_count=parts?2:0; t->_template.custom_count=parts?4:0; t->_template.action_count=1;
-        t->_template.parents=DynamicArray::PglNew(sizeof(short)); t->_template.sets=DynamicArray::PglNew(sizeof(short));
+        t->_template.parents=EnginePartIndices::Create(); t->_template.sets=EnginePartIndices::Create();
         t->_template.costumes=EngineTemplateCostumes::Create();
+        auto wireParents=DynamicArray::PglNew(sizeof(short)),wireSets=DynamicArray::PglNew(sizeof(short));
         auto wireCosts=GeneralGroup::PggNew(sizeof(int32_t));
-        bool ok=t->_Parents() && t->_Sets() && t->_template.costumes && wireCosts;
-        for (int i=0;ok && i<parts;++i) { short parent=i?static_cast<short>((i-1)/2):-1,set=static_cast<short>(i%2); ok=t->_Parents()->FAdd(&parent) && t->_Sets()->FAdd(&set); }
+        bool ok=t->_template.parents && t->_template.sets && t->_template.costumes && wireParents && wireSets && wireCosts;
+        for (int i=0;ok && i<parts;++i) {
+            short parent=i?static_cast<short>((i-1)/2):-1,set=static_cast<short>(i%2);
+            ok=mm_part_indices_append(t->_template.parents,parent) && mm_part_indices_append(t->_template.sets,set) &&
+                wireParents->FAdd(&parent) && wireSets->FAdd(&set);
+        }
         for (int i=0;ok && i<t->_template.set_count;++i) { int32_t ids[]={i,i+2},count=2; ok=mm_template_costumes_append(t->_template.costumes,ids,count) && wireCosts->FAdd(sizeof(ids),nullptr,ids,&count); }
         ok=ok && t->_FWriteTmplf(file,kctgTmpl,number);
         TemplateOnFile header={}; DataBlock block;
@@ -25,13 +31,13 @@ class TemplateCreateFixtureAccess : public Template
         const bool other=variant==1 && parts;
         if (other)
         {
-            SwapBytesRgsw(t->_Parents()->QvGet(0),parts); SwapBytesRgsw(t->_Sets()->QvGet(0),parts);
+            SwapBytesRgsw(wireParents->QvGet(0),parts); SwapBytesRgsw(wireSets->QvGet(0),parts);
             for (int i=0;i<t->_template.set_count;++i) { SwapBytesRglw(wireCosts->QvGet(i),2); SwapBytesRglw(wireCosts->QvFixedGet(i),1); }
         }
         auto table=[&](ChunkTagOrType type,auto *data) { ChunkNumber child; DataBlock b;
             return file->FAddChild(kctgTmpl,*number,0,data->CbOnFile(),type,&child,&b) && data->FWrite(&b,other?kboOther:kboCur); };
-        if (ok && variant!=3) ok=table(kctgGlpi,t->_Parents());
-        if (ok && variant!=4) ok=table(kctgGlbs,t->_Sets());
+        if (ok && variant!=3) ok=table(kctgGlpi,wireParents);
+        if (ok && variant!=4) ok=table(kctgGlbs,wireSets);
         if (ok && variant!=2) ok=table(kctgGgcm,wireCosts);
         byte action=0; ChunkNumber child;
         ok=ok && file->FAddChildPv(kctgTmpl,*number,0,&action,1,kctgActn,&child) && file->FAddChildPv(kctgTmpl,*number,2,&action,1,kctgActn,&child);
@@ -43,9 +49,7 @@ class TemplateCreateFixtureAccess : public Template
             ok=file->FAddChildPv(kctgTmpl,*number,i,&costume,sizeof(costume),kctgCmtl,&child);
             for (int j=0;ok && j<3;++j) ok=file->FAdoptChild(kctgCmtl,child,kctgMtrl,materialNumber,j);
         }
-        // Restore payloads before the author's debug validation/destruction.
-        if (other) { SwapBytesRgsw(t->_Parents()->QvGet(0),parts); SwapBytesRgsw(t->_Sets()->QvGet(0),parts);
-            for (int i=0;i<t->_template.set_count;++i) { SwapBytesRglw(wireCosts->QvGet(i),2); SwapBytesRglw(wireCosts->QvFixedGet(i),1); } }
+        ReleasePpo(&wireParents); ReleasePpo(&wireSets);
         ReleasePpo(&wireCosts); ReleasePpo(&t); return ok;
     }
     static bool Write(PTemplate t,PChunkyFile file,ChunkNumber *number)
@@ -55,11 +59,14 @@ class TemplateCreateFixtureAccess : public Template
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
         if (!t) return true;
         auto field=&TemplateCreateFixtureAccess::_template; const auto &state=t->*field;
-        auto parents=static_cast<PDynamicArray>(state.parents),partsets=static_cast<PDynamicArray>(state.sets);
         BRA x,y,z; t->GetRestOrien(&x,&y,&z); String name; t->GetName(&name);
         LegacyLong values[]={state.set_count,state.custom_count,t->Cactn(),x,y,z,t->FIsProp(),name.FEqualSz(PszLit("Template construction fixture"))};
         if (!record(values,sizeof(values))) return false;
-        for (int i=0;i<parents->IvMac();++i) { short p,s; parents->Get(i,&p); partsets->Get(i,&s); if (!record(&p,sizeof(p)) || !record(&s,sizeof(s))) return false; }
+        for (int i=0;i<state.parents->view.count;++i) {
+            const auto p=static_cast<short>(mm_part_index_get(&state.parents->view,i));
+            const auto s=static_cast<short>(mm_part_index_get(&state.sets->view,i));
+            if (!record(&p,sizeof(p)) || !record(&s,sizeof(s))) return false;
+        }
         for (int i=0;i<state.set_count;++i) { LegacyLong n=t->CcmidOfBset(i); if (!record(&n,sizeof(n))) return false; for (int j=0;j<n;++j) { LegacyLong id=t->CmidOfBset(i,j); if (!record(&id,sizeof(id))) return false; } }
         return true;
     }

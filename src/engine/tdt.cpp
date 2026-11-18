@@ -39,6 +39,7 @@
 ***************************************************************************/
 #include "soc_core.h"
 #include "engine_template_costumes.h"
+#include "engine_part_indices.h"
 ASSERTNAME
 
 RTCLASS(ThreeDText)
@@ -187,6 +188,7 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.list_new = [](void *, MMI32 bytes, MMI32 capacity) -> void * { return DynamicArray::PglNew(bytes, capacity); };
     s.list_count = [](void *, void *list, MMI32 count) { AssertDo(static_cast<PDynamicArray>(list)->FSetIvMac(count), "PglNew should have ensured space!"); };
     s.list_put = [](void *, void *list, MMI32 index, const void *data) { static_cast<PDynamicArray>(list)->Put(index, const_cast<void *>(data)); };
+    s.indices_new = [](void *) { return EnginePartIndices::Create(); };
     s.costumes_new = [](void *) { return EngineTemplateCostumes::Create(); };
     s.group_new = [](void *, MMI32 fixed, MMI32 rows, MMI32 bytes) -> void * { return GeneralGroup::PggNew(fixed, rows, bytes); };
     s.group_add = [](void *, void *group, const void *fixed, MMI32 bytes, const void *data) -> int { return static_cast<PGeneralGroup>(group)->FAdd(bytes, nullptr, const_cast<void *>(data), const_cast<void *>(fixed)); };
@@ -201,7 +203,9 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.font_maximum = [](void *, void *font) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrMax(); };
     s.glyph = [](void *, void *font, MMI32 ch) -> void * { return static_cast<PThreeDFont>(font)->PmodlFetch(ch); };
     s.action_new = [](void *, void *cels, void *matrices, MMU32 flags) -> void * { return ActionDefinition::PactnNew(static_cast<PGeneralGroup>(cels), static_cast<PDynamicArray>(matrices), flags); };
-    s.body_shape = [](void *, void *body, void *parents, void *sets) -> int { return static_cast<PBody>(body)->FChangeShape(static_cast<PDynamicArray>(parents), static_cast<PDynamicArray>(sets)); };
+    s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {
+        return static_cast<PBody>(body)->FChangeShape(*parents, *sets);
+    };
     s.body_material = [](void *, void *body, MMI32 set, void *material) { static_cast<PBody>(body)->SetPartSetMtrl(set, static_cast<PMaterial_MTRL>(material)); };
     return s;
 }
@@ -252,28 +256,6 @@ PModel ThreeDText::_PmodlFetch(ChildChunkID chidModl)
     AssertThis(0); AssertIn(chidModl, 0, _stn.Cch());
     auto services = _GenerationServices();
     return static_cast<PModel>(mm_text_fetch_model(this, chidModl, &services));
-}
-
-/***************************************************************************
-    Build the BACT tree DynamicArray for Body creation.  ThreeDTexts all have the same
-    body part tree: every part is a child of the root.
-***************************************************************************/
-PDynamicArray ThreeDText::_PglibactParBuild(void)
-{
-    AssertBaseThis(0);
-    auto services = _GenerationServices();
-    return static_cast<PDynamicArray>(mm_text_build_indices(this, 0, &services));
-}
-
-/***************************************************************************
-    Build the body part set DynamicArray for Body creation.  For ThreeDTexts, all body parts
-    belong to a single body part set
-***************************************************************************/
-PDynamicArray ThreeDText::_PglibsetBuild(void)
-{
-    AssertBaseThis(0);
-    auto services = _GenerationServices();
-    return static_cast<PDynamicArray>(mm_text_build_indices(this, 1, &services));
 }
 
 /***************************************************************************

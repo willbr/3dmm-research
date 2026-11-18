@@ -28,8 +28,8 @@ static void release(void *p,void *v)
     if (r->object)
     {
         o=(Object *)v; mm_text_dispose(&o->generated,&c->services.generation);
-        if (o->template_state.parents) release(c,o->template_state.parents);
-        if (o->template_state.sets) release(c,o->template_state.sets);
+        mm_part_indices_dispose(o->template_state.parents);
+        mm_part_indices_dispose(o->template_state.sets);
         mm_template_costumes_dispose(o->template_state.costumes);
     }
     --c->live; free(v);
@@ -52,6 +52,27 @@ static MMTemplateState *template_state(void *p,void *o) { (void)p; return &((Obj
 static void *list_new(void *p,MMI32 bytes,MMI32 count) { (void)bytes; (void)count; return allocate((Context *)p,sizeof(Root),0); }
 static void list_count(void *p,void *list,MMI32 n) { (void)p; (void)list; (void)n; }
 static void list_put(void *p,void *list,MMI32 i,const void *v) { (void)p; (void)list; (void)i; (void)v; }
+typedef struct IndicesOwner
+{
+    Root root;
+    MMPartIndexList list;
+    Context *context;
+} IndicesOwner;
+static void release_indices(void *p)
+{
+    IndicesOwner *owner = (IndicesOwner *)p;
+    release(owner->context, owner);
+}
+static MMPartIndexList *indices_new(void *p)
+{
+    Context *c = (Context *)p;
+    IndicesOwner *owner = (IndicesOwner *)allocate(c, sizeof(*owner), 0);
+    if (!owner)
+        return NULL;
+    owner->context = c;
+    mm_part_indices_init(&owner->list, NULL, owner, release_indices);
+    return &owner->list;
+}
 typedef struct CostumeOwner
 {
     Root root;
@@ -105,7 +126,7 @@ static void init(Context *c)
     MMTextResourceServices *s; MMTextGenerationServices *g;
     memset(c,0,sizeof(*c)); c->bytes=24; c->header=c->child=c->found=c->unpacked=1; s=&c->services; g=&s->generation;
     s->context=c; g->context=c; g->state=generated; g->length=length; g->template_state=template_state;
-    g->list_new=list_new; g->list_count=list_count; g->list_put=list_put; g->costumes_new=costumes_new; g->material_new=material_new; g->retain=retain; g->release=release;
+    g->list_new=list_new; g->list_count=list_count; g->list_put=list_put; g->indices_new=indices_new; g->costumes_new=costumes_new; g->material_new=material_new; g->retain=retain; g->release=release;
     s->state=state; s->create=create; s->text=text; s->assign=assign; s->space=space; s->clear=clear; s->saved_text=saved; s->provider_copy=provider_copy;
     s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template; s->write_template=write_template;
     s->child=child; s->find=find; s->unpack=unpack; s->block_size=block_size; s->read=read_block; s->add=add; s->write=write_block; s->delete_child=delete_child;

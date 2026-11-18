@@ -27,13 +27,13 @@ class TextResourceFixtureAccess : public ThreeDText
         auto text=&TextResourceFixtureAccess::_stn; auto descriptor=&TextResourceFixtureAccess::_descriptor;
         auto generated=&TextResourceFixtureAccess::_generated; auto &g=t->*generated; auto &d=t->*descriptor; auto &font=d.font;
         auto field=&TextResourceFixtureAccess::_template; const auto &base=t->*field;
-        auto parents=static_cast<PDynamicArray>(base.parents),sets=static_cast<PDynamicArray>(base.sets);
+        auto parents=base.parents,sets=base.sets;
         LegacyLong fields[]={d.shape,(t->*text).Cch(),font.sid,static_cast<LegacyLong>(font.type),static_cast<LegacyLong>(font.number),font.cache?(font.cache==cache?1:2):0,
             base.set_count,base.custom_count,base.action_count,static_cast<LegacyLong>(base.flags),parents!=nullptr,sets!=nullptr,base.costumes!=nullptr,
             g.material!=nullptr,g.action!=nullptr,g.action_id,g.action?static_cast<BASE *>(g.action)->CactRef():0};
         if (!record(fields,sizeof(fields)) || !record((t->*text).Psz(),(t->*text).Cch())) return false;
-        if (parents) for (int i=0;i<parents->IvMac();++i) { short v; parents->Get(i,&v); if (!record(&v,sizeof(v))) return false; }
-        if (sets) for (int i=0;i<sets->IvMac();++i) { short v; sets->Get(i,&v); if (!record(&v,sizeof(v))) return false; }
+        if (parents) for (int i=0;i<parents->view.count;++i) { const auto v=static_cast<short>(mm_part_index_get(&parents->view,i)); if (!record(&v,sizeof(v))) return false; }
+        if (sets) for (int i=0;i<sets->view.count;++i) { const auto v=static_cast<short>(mm_part_index_get(&sets->view,i)); if (!record(&v,sizeof(v))) return false; }
         return true;
     }
 };

@@ -5,6 +5,7 @@
 #include <vector>
 #include "soc.h"
 #include "engine_template_costumes.h"
+#include "engine_part_indices.h"
 #include "scene_sound.h"
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
@@ -125,7 +126,8 @@ class TrackTestTemplate : public Template
         auto cels = GeneralGroup::PggNew(sizeof(AnimationCel));
         auto matrices = DynamicArray::PglNew(sizeof(BMAT34));
         auto costumeWire = GeneralGroup::PggNew(sizeof(int32_t));
-        bool ok = tmpl && tmpl->FInit() && cels && matrices && costumeWire;
+        auto indexWire = DynamicArray::PglNew(sizeof(short));
+        bool ok = tmpl && tmpl->FInit() && cels && matrices && costumeWire && indexWire;
         if (ok)
         {
             tmpl->_stn.SetSzs(PszLit("Fixture template"));
@@ -147,13 +149,13 @@ class TrackTestTemplate : public Template
         };
         ChunkNumber action = 0;
         ActionChunkOnFile header = {kboCur, koskCur, factnRotateY};
-        ok = ok && table(kctgTmpl, *number, kctgGlpi, tmpl->_Parents()) &&
-             table(kctgTmpl, *number, kctgGlbs, tmpl->_Sets()) &&
+        ok = ok && table(kctgTmpl, *number, kctgGlpi, indexWire) &&
+             table(kctgTmpl, *number, kctgGlbs, indexWire) &&
              table(kctgTmpl, *number, kctgGgcm, costumeWire) &&
              file->FAddChild(kctgTmpl, *number, 0, sizeof(header), kctgActn, &action) &&
              file->FPutPv(&header, sizeof(header), kctgActn, action) && table(kctgActn, action, kctgGgcl, cels) &&
              table(kctgActn, action, kctgGlxf, matrices);
-        ReleasePpo(&costumeWire); ReleasePpo(&tmpl);
+        ReleasePpo(&indexWire); ReleasePpo(&costumeWire); ReleasePpo(&tmpl);
         ReleasePpo(&cels);
         ReleasePpo(&matrices);
         return ok;
@@ -205,10 +207,10 @@ class TrackTestTemplate : public Template
     bool FInit()
     {
         _template.y = BR_ANGLE_DEG(90);
-        _template.parents = DynamicArray::PglNew(sizeof(short));
-        _template.sets = DynamicArray::PglNew(sizeof(short));
+        _template.parents = EnginePartIndices::Create();
+        _template.sets = EnginePartIndices::Create();
         _template.costumes = EngineTemplateCostumes::Create();
-        return _Parents() != pvNil && _Sets() != pvNil && _template.costumes != pvNil;
+        return _template.parents && _template.sets && _template.costumes;
     }
     bool FInitAction()
     {

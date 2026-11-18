@@ -123,6 +123,6 @@ void mm_body_shape_dispose(void *body,const MMBodyCreateServices *s)
         *s->state(s->context,body)=b;
     }
     s->free_memory(s->context,&b.materials); *s->state(s->context,body)=b;
-    if (b.sets) s->release(s->context,b.sets);
+    if (b.sets) s->release_sets(s->context,b.sets);
     b.sets=NULL; *s->state(s->context,body)=b;
 }

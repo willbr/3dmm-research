@@ -739,16 +739,27 @@ int mm_session_array(const MMMovieArchive *archive, MMU32 parent, MMU32 type, MM
     return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
 }
 
-static int read_template_table(void *context, int kind, MMI32 expected, void **out)
+static int read_template_table(void *context, int kind, MMPartIndexList **out)
 {
     MMMovieTemplate *tmpl = (MMMovieTemplate *)context;
-    MMMovieTemplateList *list = kind == MM_TEMPLATE_PARENTS ? &tmpl->parents : &tmpl->sets;
-    int status;
-    (void)expected;
-    status = mm_session_array(&tmpl->archive, tmpl->position, mm_template_table_type(kind), MM_TEMPLATE_INDEX_BYTES,
-                              &list->payload, &list->header);
+    MMPartIndexList *list = kind == MM_TEMPLATE_PARENTS ? &tmpl->parents : &tmpl->sets;
+    MMMoviePayload payload;
+    MMChunkEntry entry;
+    MMU32 position;
+    int status = mm_session_child(&tmpl->archive.access, tmpl->position, 0, mm_template_table_type(kind),
+                                  &entry, &position);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
+    status = mm_session_payload(&tmpl->archive, &entry, 0, &payload);
+    if (status != MM_MOVIE_OK)
+        return status;
+    mm_part_indices_init(list, NULL, NULL, NULL);
+    status = mm_part_indices_read(list, payload.stream);
+    free(payload.decoded);
     if (status == MM_MOVIE_OK)
         *out = list;
+    else
+        mm_part_indices_dispose(list);
     return status;
 }
 
@@ -784,8 +795,8 @@ MMTemplateRead mm_session_template_reader(MMMovieTemplate *tmpl)
 
 void mm_session_template_dispose(MMMovieTemplate *tmpl)
 {
-    free(tmpl->parents.payload.decoded);
-    free(tmpl->sets.payload.decoded);
+    mm_part_indices_dispose(tmpl->state.parents);
+    mm_part_indices_dispose(tmpl->state.sets);
     mm_template_costumes_dispose(tmpl->state.costumes);
     mm_session_archive_close(&tmpl->archive);
 }

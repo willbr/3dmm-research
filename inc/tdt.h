@@ -81,8 +81,6 @@ class ThreeDText : public ThreeDText_PAR
     static MMTextGenerationServices _GenerationServices();
     static MMTextResourceServices _ResourceServices(void *context);
     bool _FInitLists(void);
-    PDynamicArray _PglibactParBuild(void);
-    PDynamicArray _PglibsetBuild(void);
     PDynamicArray _Pglbmat34Build(LegacyLong tda);
     PGeneralGroup _PggcelBuild(LegacyLong tda);
     virtual PActionDefinition _PactnFetch(LegacyLong tda);

@@ -5,6 +5,7 @@
 #include "types.h"
 #include "movie_data.h"
 #include "collection_storage.h"
+#include "part_indices.h"
 #include <stddef.h>
 #if USHRT_MAX != 65535U
 #error Template rest angles require sixteen-bit unsigned shorts
@@ -45,7 +46,7 @@ MMI32 mm_template_costumes_wire_size(const MMTemplateCostumeTable *);
 
 typedef struct MMTemplateState
 {
-    void *parents,*sets;
+    MMPartIndexList *parents,*sets;
     MMTemplateCostumeTable *costumes;
     MMI32 set_count,custom_count,action_count;
     MMU32 flags;
@@ -57,12 +58,12 @@ enum { MM_TEMPLATE_HEADER_BYTES = 16 };
 int mm_template_decode_header(const unsigned char bytes[MM_TEMPLATE_HEADER_BYTES], int host_big_endian,
                               MMTemplateState *);
 
-enum { MM_TEMPLATE_INDEX_BYTES = 2, MM_TEMPLATE_COSTUME_WORD_BYTES = 4 };
+enum { MM_TEMPLATE_COSTUME_WORD_BYTES = 4 };
 enum { MM_TEMPLATE_COSTUMES_ABSENT = -1 };
 typedef struct MMTemplateRead
 {
     void *context;
-    int (*table)(void *, int kind, MMI32 expected, void **out);
+    int (*table)(void *, int kind, MMPartIndexList **out);
     int (*costumes)(void *, MMI32 expected, MMTemplateCostumeTable **out);
 } MMTemplateRead;
 
@@ -72,7 +73,6 @@ typedef struct MMTemplateRead
 int mm_template_read_shape(MMTemplateState *, const MMTemplateRead *);
 int mm_template_read_costumes(MMTemplateState *, const MMTemplateRead *);
 MMU32 mm_template_table_type(int kind);
-MMI32 mm_template_decode_index(const unsigned char *, int big_endian);
 MMI32 mm_template_decode_costume_word(const unsigned char *, int big_endian);
 
 typedef struct MMTemplateParts
@@ -132,21 +132,16 @@ typedef struct MMTemplateCreateServices
     void *(*create)(void *,int text);
     int (*initialize)(void *,void *object,void *file,MMU32,MMU32);
     MMI32 (*object_size)(void *,int text);
-    MMI32 (*table_size)(void *,void *);
     void (*invalidate)(void *,void *,size_t);
     int (*header)(void *,void *object,void *file,MMU32,MMU32);
-    void *(*read_table)(void *,void *block,int kind,int *other);
-    void (*validate_table)(void *,void *,int kind,MMI32 expected);
-    MMI32 (*count)(void *,void *list);
-    MMI32 (*item)(void *,void *list,MMI32);
-    unsigned char *(*list_data)(void *,void *list);
+    int (*read_part_indices)(void *,void *block,MMPartIndexList **out);
     int (*read_costumes)(void *, void *block, MMI32 expected, MMTemplateCostumeTable **out);
     void *(*create_cache)(void *,void *file);
     MMTemplateCostumeTable *(*create_costumes)(void *);
     void *(*fetch_custom)(void *,void *cache,MMU32,MMU32);
     MMI32 (*custom_set)(void *,void *custom);
     int (*append_costumes)(void *,MMTemplateCostumeTable *,const MMI32 *,MMI32 count);
-    void *(*create_body)(void *,void *parents,void *sets);
+    void *(*create_body)(void *,const MMPartIndexView *parents,const MMPartIndexView *sets);
     int (*default_costume)(void *,void *object,void *body);
     MMI32 (*costume_id)(void *,void *object,MMI32 set,MMI32 index);
     void *(*custom)(void *,void *object,MMI32 id);

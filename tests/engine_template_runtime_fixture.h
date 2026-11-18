@@ -1,6 +1,7 @@
 #ifndef ENGINE_TEMPLATE_RUNTIME_FIXTURE_H
 #define ENGINE_TEMPLATE_RUNTIME_FIXTURE_H
 #include "engine_template_costumes.h"
+#include "engine_part_indices.h"
 class TemplateRuntimeActionAccess : public ActionDefinition
 {
   public:
@@ -17,10 +18,10 @@ class TemplateRuntimeFixture : public Template
     {
         auto t=NewObj TemplateRuntimeFixture; if (!t) return nullptr;
         t->_template.action_count=1; t->_template.set_count=parts?2:0;
-        t->_template.parents=DynamicArray::PglNew(sizeof(short)); t->_template.sets=DynamicArray::PglNew(sizeof(short));
+        t->_template.parents=EnginePartIndices::Create(); t->_template.sets=EnginePartIndices::Create();
         t->_template.costumes=EngineTemplateCostumes::Create();
-        bool ok=t->_Parents() && t->_Sets() && t->_template.costumes;
-        for (int i=0;ok && i<parts;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=t->_Parents()->FAdd(&p) && t->_Sets()->FAdd(&s); }
+        bool ok=t->_template.parents && t->_template.sets && t->_template.costumes;
+        for (int i=0;ok && i<parts;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=mm_part_indices_append(t->_template.parents,p) && mm_part_indices_append(t->_template.sets,s); }
         for (int i=0;ok && i<t->_template.set_count;++i) { int32_t id=i,count=1; ok=mm_template_costumes_append(t->_template.costumes,&id,count); }
         if (!ok) { ReleasePpo(&t); return nullptr; } return t;
     }

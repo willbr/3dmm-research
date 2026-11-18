@@ -10,11 +10,15 @@ typedef struct Cel { MMU32 sound; MMI32 distance; } Cel;
 typedef struct Part { short model,matrix; } Part;
 static MMI32 half(MMI32 value)
 { return mm_signed_word(((MMU32)value>>1)|((MMU32)value&0x80000000UL)); }
-void *mm_text_build_indices(void *object,int sets,const MMTextGenerationServices *s)
+static MMPartIndexList *build_indices(MMI32 count, short value, const MMTextGenerationServices *s)
 {
-    MMI32 i,n=s->length(s->context,object); short value=(short)(sets?0:-1);
-    void *list=s->list_new(s->context,2,n); if (!list) return NULL;
-    s->list_count(s->context,list,n); for (i=0;i<n;++i) s->list_put(s->context,list,i,&value); return list;
+    MMPartIndexList *list = s->indices_new(s->context);
+    if (list && !mm_part_indices_fill(list, count, value))
+    {
+        mm_part_indices_dispose(list);
+        return NULL;
+    }
+    return list;
 }
 static MMTemplateCostumeTable *build_costumes(const MMTextGenerationServices *s)
 {
@@ -30,19 +34,21 @@ static MMTemplateCostumeTable *build_costumes(const MMTextGenerationServices *s)
 }
 int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
 {
-    void *parents=NULL,*sets=NULL,*material=NULL; MMTemplateState t;
+    MMPartIndexList *parents=NULL,*sets=NULL;
+    void *material=NULL; MMTemplateState t;
+    MMI32 count=s->length(s->context,object);
     MMTemplateCostumeTable *costumes = NULL;
     MMTextGenerated *a=s->state(s->context,object);
-    parents=mm_text_build_indices(object,0,s); if (!parents) goto fail;
-    sets=mm_text_build_indices(object,1,s); if (!sets) goto fail;
+    parents=build_indices(count,-1,s); if (!parents) goto fail;
+    sets=build_indices(count,0,s); if (!sets) goto fail;
     costumes=build_costumes(s); if (!costumes) goto fail;
     if (!a->material) material=s->material_new(s->context);
     else { material=a->material; s->retain(s->context,material); }
     if (!material) goto fail;
     t=*s->template_state(s->context,object);
-    if (t.parents) { s->release(s->context,t.parents); t.parents=NULL; *s->template_state(s->context,object)=t; }
+    if (t.parents) { mm_part_indices_dispose(t.parents); t.parents=NULL; *s->template_state(s->context,object)=t; }
     t.parents=parents; *s->template_state(s->context,object)=t;
-    if (t.sets) { s->release(s->context,t.sets); t.sets=NULL; *s->template_state(s->context,object)=t; }
+    if (t.sets) { mm_part_indices_dispose(t.sets); t.sets=NULL; *s->template_state(s->context,object)=t; }
     t.sets=sets; *s->template_state(s->context,object)=t;
     if (t.costumes) { mm_template_costumes_dispose(t.costumes); t.costumes=NULL; *s->template_state(s->context,object)=t; }
     t.costumes=costumes; *s->template_state(s->context,object)=t;
@@ -52,8 +58,8 @@ int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
     a->action_id=-1; t.action_count=MM_TEXT_ACTION_COUNT; t.custom_count=t.set_count=1; t.flags|=2U;
     *s->template_state(s->context,object)=t; return 1;
 fail:
-    if (parents) s->release(s->context,parents);
-    if (sets) s->release(s->context,sets);
+    mm_part_indices_dispose(parents);
+    mm_part_indices_dispose(sets);
     mm_template_costumes_dispose(costumes);
     if (material) s->release(s->context,material); return 0;
 }
@@ -153,7 +159,7 @@ void *mm_text_fetch_model(void *object,MMI32 index,const MMTextGenerationService
     model=s->glyph(s->context,font,s->character(s->context,object,index)); s->release(s->context,font); return model;
 }
 int mm_text_adjust_body(void *object,void *body,const MMTextGenerationServices *s)
-{ MMTemplateState t; t=*s->template_state(s->context,object); return s->body_shape(s->context,body,t.parents,t.sets); }
+{ MMTemplateState t; t=*s->template_state(s->context,object); return s->body_shape(s->context,body,&t.parents->view,&t.sets->view); }
 int mm_text_default_costume(void *object,void *body,const MMTextGenerationServices *s)
 { s->body_material(s->context,body,0,s->state(s->context,object)->material); return 1; }
 void mm_text_dispose(MMTextGenerated *a,const MMTextGenerationServices *s)

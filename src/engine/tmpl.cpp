@@ -65,6 +65,7 @@
 ***************************************************************************/
 #include "soc_core.h"
 #include "engine_template_costumes.h"
+#include "engine_part_indices.h"
 #include "mm/movie_session.h"
 #include "engine_read_stream.h"
 ASSERTNAME
@@ -287,7 +288,6 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
     s.create = [](void *, int text) -> void * { return text ? static_cast<PTemplate>(NewObj ThreeDText) : NewObj Template; };
     s.initialize = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
     s.object_size = [](void *, int text) -> MMI32 { return static_cast<MMI32>(text ? sizeof(ThreeDText) : sizeof(Template)); };
-    s.table_size = [](void *, void *table) -> MMI32 { return static_cast<GroupBase *>(table)->CbOnFile(); };
     s.invalidate = [](void *, void *out, size_t count) {
 #ifdef DEBUG
         FillPb(out, static_cast<LegacyLong>(count), kbGarbage);
@@ -296,16 +296,22 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
 #endif
     };
     s.header = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PTemplate>(object)->_FReadTmplf(static_cast<PChunkyFile>(file), type, number); };
-    s.read_table = [](void *, void *block, int kind, int *other) -> void * {
-        (void)kind;
-        short order = kboCur;
-        auto result = DynamicArray::PglRead(static_cast<PDataBlock>(block), &order);
-        *other = order == kboOther; return result;
-    };
-    s.validate_table = [](void *, void *table, int kind, MMI32 expected) {
-        (void)kind;
-        (void)expected;
-        Assert(static_cast<PDynamicArray>(table)->CbEntry() == sizeof(short), "Bad Template part list");
+    s.read_part_indices = [](void *, void *block, MMPartIndexList **out) -> int {
+        auto list = EnginePartIndices::Create();
+        if (!list)
+            return MM_MOVIE_MEMORY;
+        auto data = static_cast<PDataBlock>(block);
+        int status = MM_MOVIE_BAD_FILE;
+        if (data->FUnpackData())
+        {
+            const auto stream = EngineReadStream::FromBlock(*data);
+            status = mm_part_indices_read(list, &stream);
+        }
+        if (status == MM_MOVIE_OK)
+            *out = list;
+        else
+            mm_part_indices_dispose(list);
+        return status;
     };
     s.read_costumes = [](void *, void *block, MMI32 rows, MMTemplateCostumeTable **out) -> int {
         auto table = EngineTemplateCostumes::Create();
@@ -324,13 +330,6 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
             mm_template_costumes_dispose(table);
         return status;
     };
-    s.count = [](void *, void *list) -> MMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
-    s.item = [](void *, void *list, MMI32 i) -> MMI32 {
-        const unsigned short one = 1;
-        const auto *bytes = static_cast<const unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(i));
-        return mm_template_decode_index(bytes, *reinterpret_cast<const unsigned char *>(&one) == 0);
-    };
-    s.list_data = [](void *, void *list) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(0)); };
     s.create_cache = [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); };
     s.create_costumes = [](void *) { return EngineTemplateCostumes::Create(); };
     s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, CustomMaterial_CMTL::FReadCmtl); };
@@ -338,7 +337,9 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
     s.append_costumes = [](void *, MMTemplateCostumeTable *table, const MMI32 *ids, MMI32 count) -> int {
         return mm_template_costumes_append(table, ids, count);
     };
-    s.create_body = [](void *, void *parents, void *sets) -> void * { return Body::PbodyNew(static_cast<PDynamicArray>(parents), static_cast<PDynamicArray>(sets)); };
+    s.create_body = [](void *, const MMPartIndexView *parents, const MMPartIndexView *sets) -> void * {
+        return Body::PbodyNew(*parents, *sets);
+    };
     s.default_costume = [](void *, void *object, void *body) -> int { return static_cast<PTemplate>(object)->FSetDefaultCost(static_cast<PBody>(body)); };
     s.costume_id = [](void *, void *object, MMI32 set, MMI32 index) -> MMI32 { return static_cast<PTemplate>(object)->CmidOfBset(set, index); };
     s.custom = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->PcmtlFetch(id); };
@@ -705,8 +706,7 @@ void Template::GetName(PString pstn)
 void Template::AssertValid(LegacyUlong grftmpl)
 {
     Template_PAR::AssertValid(fobjAllocated);
-    AssertPo(_Parents(), 0);
-    AssertPo(_Sets(), 0);
+    Assert(_template.parents && _template.sets, "missing Template part lists");
     AssertPo(&_stn, 0);
     Assert(_template.costumes && _template.costumes->rows == static_cast<MMU32>(_template.set_count),
            "Bad template costume table");
@@ -719,8 +719,10 @@ void Template::MarkMem(void)
 {
     AssertThis(0);
     Template_PAR::MarkMem();
-    MarkMemObj(_Parents());
-    MarkMemObj(_Sets());
+    if (_template.parents)
+        MarkMemObj(static_cast<BASE *>(_template.parents->owner));
+    if (_template.sets)
+        MarkMemObj(static_cast<BASE *>(_template.sets->owner));
     if (_template.costumes)
         MarkMemObj(static_cast<BASE *>(_template.costumes->owner));
 }

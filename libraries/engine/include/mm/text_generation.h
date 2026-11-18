@@ -37,6 +37,7 @@ typedef struct MMTextGenerationServices
     void (*list_put)(void *,void *list,MMI32 index,const void *data);
     void *(*group_new)(void *,MMI32 fixed,MMI32 rows,MMI32 variable);
     int (*group_add)(void *,void *group,const void *fixed,MMI32 bytes,const void *variable);
+    MMPartIndexList *(*indices_new)(void *);
     MMTemplateCostumeTable *(*costumes_new)(void *);
     int (*allocate)(void *,MMI32 bytes,void **out);
     void (*free_memory)(void *,void **);
@@ -49,7 +50,7 @@ typedef struct MMTextGenerationServices
     MMI32 (*font_maximum)(void *,void *font);
     void *(*glyph)(void *,void *font,MMI32 character);
     void *(*action_new)(void *,void *cels,void *matrices,MMU32 flags);
-    int (*body_shape)(void *,void *body,void *parents,void *sets);
+    int (*body_shape)(void *,void *body,const MMPartIndexView *parents,const MMPartIndexView *sets);
     void (*body_material)(void *,void *body,MMI32 set,void *material);
 } MMTextGenerationServices;
 /* Initialization builds all replacement lists/material references before
@@ -61,7 +62,6 @@ typedef struct MMTextGenerationServices
  * list_count is guaranteed by the capacity supplied to list_new. Font/provider
  * services return retained references. Callbacks must not reenter/mutate owners. */
 int mm_text_initialize_lists(void *,const MMTextGenerationServices *);
-void *mm_text_build_indices(void *,int sets,const MMTextGenerationServices *);
 MMI32 mm_text_cel_count(MMI32 action);
 MMI32 mm_text_cel_distance(MMI32 action);
 MMU32 mm_text_action_flags(void);

@@ -21,6 +21,7 @@
 #include <vector>
 #include "soc.h"
 #include "engine_template_costumes.h"
+#include "engine_part_indices.h"
 #include "actor_frame_fixture.h"
 #include "mm/actor_placement.h"
 ASSERTNAME
@@ -158,7 +159,8 @@ class TrackTestTemplate : public Template
         auto tmpl=NewObj TrackTestTemplate();
         auto cels=GeneralGroup::PggNew(sizeof(AnimationCel)); auto matrices=DynamicArray::PglNew(sizeof(BMAT34));
         auto costumeWire = GeneralGroup::PggNew(sizeof(int32_t));
-        bool ok=tmpl && tmpl->FInit() && cels && matrices && costumeWire;
+        auto indexWire = DynamicArray::PglNew(sizeof(short));
+        bool ok=tmpl && tmpl->FInit() && cels && matrices && costumeWire && indexWire;
         if (ok) { tmpl->_stn.SetSzs(PszLit("Fixture template")); ok=tmpl->_FWriteTmplf(file,kctgTmpl,number); }
         AnimationCel cel={chidNil,rOne}; BMAT34 matrix; BrMatrix34Identity(&matrix);
         for (int i=0;ok && i<4;++i) { cel.dwr=BR_SCALAR(i+1); ok=cels->FInsert(i,0,nullptr,&cel); }
@@ -168,11 +170,11 @@ class TrackTestTemplate : public Template
             return file->FAddChild(parent,root,0,data->CbOnFile(),type,&child,&block) && data->FWrite(&block);
         };
         ChunkNumber action=0; ActionChunkOnFile header={kboCur,koskCur,factnRotateY};
-        ok=ok && table(kctgTmpl,*number,kctgGlpi,tmpl->_Parents()) && table(kctgTmpl,*number,kctgGlbs,tmpl->_Sets()) &&
+        ok=ok && table(kctgTmpl,*number,kctgGlpi,indexWire) && table(kctgTmpl,*number,kctgGlbs,indexWire) &&
             table(kctgTmpl,*number,kctgGgcm,costumeWire) &&
             file->FAddChild(kctgTmpl,*number,0,sizeof(header),kctgActn,&action) && file->FPutPv(&header,sizeof(header),kctgActn,action) &&
             table(kctgActn,action,kctgGgcl,cels) && table(kctgActn,action,kctgGlxf,matrices);
-        ReleasePpo(&costumeWire); ReleasePpo(&tmpl); ReleasePpo(&cels); ReleasePpo(&matrices); return ok;
+        ReleasePpo(&indexWire); ReleasePpo(&costumeWire); ReleasePpo(&tmpl); ReleasePpo(&cels); ReleasePpo(&matrices); return ok;
     }
     static bool FReadCostumeFixture(PChunkyResourceFile,ChunkTagOrType,ChunkNumber,PDataBlock,
                                     PBaseCacheableObject *out,LegacyLong *bytes)
@@ -205,10 +207,10 @@ class TrackTestTemplate : public Template
     bool FInit()
     {
         _template.y = BR_ANGLE_DEG(90);
-        _template.parents = DynamicArray::PglNew(sizeof(short));
-        _template.sets = DynamicArray::PglNew(sizeof(short));
+        _template.parents = EnginePartIndices::Create();
+        _template.sets = EnginePartIndices::Create();
         _template.costumes = EngineTemplateCostumes::Create();
-        return _Parents() != pvNil && _Sets() != pvNil && _template.costumes != pvNil;
+        return _template.parents && _template.sets && _template.costumes;
     }
     bool FInitAction()
     {

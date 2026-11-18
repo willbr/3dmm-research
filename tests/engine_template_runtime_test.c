@@ -9,14 +9,15 @@ typedef struct Test
 {
     MMTemplateState state; int action,models[2],refs[2],action_refs;
     int parts,fail_action,fail_allocate,fail_model,fetches,indices_reads,sets,freed,releases,cel;
-    MMI32 distance,body_models[6],body_matrices[6],parents[6],sets_list[6];
+    MMI32 distance,body_models[6],body_matrices[6];
+    short parents[6],sets_list[6];
+    MMPartIndexList parent_indices,set_indices;
     MMTemplateCostumeTable costumes;
     void *allocated; int exists,skip_distance; void *probe; int probe_release;
     Edge edges[32]; int edge_count,has_cache,resource_kind,name_fail;
 } Test;
 static Test *t(void *p) { return (Test *)p; }
 static MMTemplateState *template_state(void *p,void *o) { assert(o==p); return &t(p)->state; }
-static MMI32 count(void *p,void *list) { assert(list==t(p)->parents); return t(p)->parts; }
 static void *action(void *p,void *object,MMI32 id)
 { assert(object==p && id==0); if (t(p)->fail_action) return NULL; ++t(p)->action_refs; return &t(p)->action; }
 static MMI32 cel_count(void *p,void *a) { assert(a==&t(p)->action); return 3; }
@@ -91,17 +92,16 @@ static void *fetch(void *p,void *cache,MMU32 type,MMU32 number,int kind)
 { assert(cache==p && number==10+(MMU32)kind); assert(type==(kind==0?MM_ACTN:kind==1?MM_TEMPLATE_BMDL:MM_CMTL)); t(p)->resource_kind=kind; return &t(p)->action; }
 static int name(void *p,void *file,MMU32 type,MMU32 number,void *out)
 { assert(file==p && type==MM_ACTN && number==10); if (t(p)->name_fail) return 0; *(int *)out=42; return 1; }
-static MMI32 item(void *p,void *list,MMI32 n)
-{ assert(n>=0 && n<t(p)->parts); assert(list==t(p)->parents || list==t(p)->sets_list); return ((MMI32 *)list)[n]; }
 static MMTemplateRuntimeServices init(Test *x,int parts)
 {
     MMTemplateRuntimeServices s; int i; memset(x,0,sizeof(*x)); memset(&s,0,sizeof(s));
     x->parts=parts; x->distance=-77; x->has_cache=1;
-    x->state.parents=x->parents; x->state.sets=x->sets_list; x->state.set_count=3;
+    x->state.parents=&x->parent_indices; x->state.sets=&x->set_indices; x->state.set_count=3;
+    x->parent_indices.view.bytes=(const unsigned char *)x->parents; x->parent_indices.view.count=parts;
+    x->set_indices.view.bytes=(const unsigned char *)x->sets_list; x->set_indices.view.count=parts;
     for (i=0;i<6;++i) { x->body_models[i]=-7; x->body_matrices[i]=-8; x->parents[i]=i?i-1:-1; x->sets_list[i]=i%3; }
-    s.storage.context=x; s.storage.state=template_state; s.storage.count=count;
+    s.storage.context=x; s.storage.state=template_state;
     s.storage.free_memory=free_memory; s.storage.release=release; s.storage.child=child;
-    s.storage.item=item;
     s.action=action; s.model=model; s.allocate_cel=allocate; s.cel_count=cel_count; s.distance=distance; s.flags=flags; s.part=part;
     s.matrix=matrix; s.set_model=set_model; s.set_matrix=set_matrix; s.sound=sound; s.sound_exists=sound_exists;
     s.binding=binding; s.fetch=fetch; s.name=name; return s;

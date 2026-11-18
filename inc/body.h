@@ -15,6 +15,7 @@
 #define Body_H
 
 #include "mm/body_create.h"
+#include "mm/part_indices.h"
 #include "mm/body_edit.h"
 #include "mm/body_runtime.h"
 #include "mm/body_geometry.h"
@@ -55,10 +56,8 @@ class Body : public Body_PAR
     static MMBodyRuntimeServices _RuntimeServices(void);
     static MMBodyGeometryServices _GeometryServices(void);
     void _DestroyShape(void);
-    bool _FInit(PDynamicArray pglibactPar, PDynamicArray pglibset);
-    bool _FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
     PBACT _Actors(void) const { return static_cast<PBACT>(_shape.actors); }
-    PDynamicArray _Sets(void) const { return static_cast<PDynamicArray>(_shape.sets); }
+    const MMPartIndexList *_Sets(void) const { return static_cast<const MMPartIndexList *>(_shape.sets); }
     PCustomMaterial_CMTL *_Materials(void) const { return static_cast<PCustomMaterial_CMTL *>(_shape.materials); }
     PBACT _PbactRoot(void) // ptr to root BACT
     {
@@ -78,7 +77,7 @@ class Body : public Body_PAR
     }                       // root, hilite, and body part BACTs
     LegacyLong _Ibset(LegacyLong ipart) // body part set that this part belongs to
     {
-        return *(short *)_Sets()->QvGet(ipart);
+        return mm_part_index_get(&_Sets()->view, ipart);
     }
     void _RenderChanged(void)
     {
@@ -97,6 +96,7 @@ class Body : public Body_PAR
 
   public:
     static PBody PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset);
+    static PBody PbodyNew(const MMPartIndexView &parents, const MMPartIndexView &sets);
     static PBody PbodyFromBact(BACT *pbact, LegacyLong *pibset = pvNil);
     /* Public accessors for the BACT tree -- needed by headless test
      * harnesses that walk the body to render via BrZbScene without
@@ -111,6 +111,7 @@ class Body : public Body_PAR
                                     BRS dzpNear, BRS dzpFar, void *pv);
 
     bool FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
+    bool FChangeShape(const MMPartIndexView &parents, const MMPartIndexView &sets);
     // Binding lifetime must cover the body and any duplicates. Configure
     // while hidden; the core owns its actor tree, the adapter owns its host.
     void SetRenderCallbacks(void *context, void (*attach)(void *, Body *), void (*changed)(void *));

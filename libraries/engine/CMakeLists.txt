@@ -546,6 +546,7 @@ target_sources(mm-engine-c89 PRIVATE src/actor_clipboard.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_create.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_sound.c)
 target_sources(mm-engine-c89 PRIVATE src/body_create.c)
+target_sources(mm-engine-c89 PRIVATE src/part_indices.c)
 target_sources(mm-engine-c89 PRIVATE src/body_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/body_runtime.c src/body_geometry.c src/model_resource.c src/model_lighting.c)
 target_sources(mm-engine-c89 PRIVATE src/template_create.c)
@@ -1337,6 +1338,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_create.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_sound.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_create.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/part_indices.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_runtime.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_geometry.c"

@@ -164,8 +164,6 @@ class Template : public Template_PAR
     {
         mm_template_state_init(&_template);
     } // can't instantiate directly; must use FReadTmpl
-    PDynamicArray _Parents() const { return static_cast<PDynamicArray>(_template.parents); }
-    PDynamicArray _Sets() const { return static_cast<PDynamicArray>(_template.sets); }
     static MMTemplateCreateServices _CreateServices(TemplateCreateContext *);
     static MMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
