@@ -59,6 +59,8 @@ int mm_pixel_rect_extent(const MMPixelRect *, MMI32 *width, MMI32 *height);
 void mm_pixel_rect_intersect(MMPixelRect *bounds, const MMPixelRect *clip);
 /* Unsigned floor(a * b / divisor) with nonzero divisor and a one-word result. */
 MMU32 mm_pixel_muldiv(MMU32 a, MMU32 b, MMU32 divisor);
+/* Round the edge crossing toward positive infinity. Requires y0 <= y < y1. */
+MMI32 mm_pixel_edge_ceil(MMI32 x0, MMI32 y0, MMI32 x1, MMI32 y1, MMI32 y);
 /* position is in [0, destination) and both extents are positive. */
 MMI32 mm_pixel_sample(MMI32 position, MMI32 source, MMI32 destination, int near_size);
 /* The caller supplies a row and an in-range pixel position. */

@@ -1,7 +1,6 @@
 /* Brush and shape policy converted from Kauai pixel_canvas.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/pixel_paint.h"
-#include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -373,21 +372,6 @@ typedef struct PolygonPaint
     MMI32 last_row;
 } PolygonPaint;
 
-static MMI32 crossing_x(const MMPixelPoint *a, const MMPixelPoint *b, MMI32 y)
-{
-    MMU32 height = (MMU32)b->y - (MMU32)a->y;
-    MMU32 offset = (MMU32)y - (MMU32)a->y;
-    MMU32 dx;
-    if (b->x < a->x)
-    {
-        dx = (MMU32)a->x - (MMU32)b->x;
-        return mm_signed_word((MMU32)a->x - mm_pixel_muldiv(offset, dx, height));
-    }
-    /* ceil(offset * dx / height) equals dx minus the remaining floor. */
-    dx = (MMU32)b->x - (MMU32)a->x;
-    return mm_signed_word((MMU32)b->x - mm_pixel_muldiv(height - offset, dx, height));
-}
-
 static int compare_crossings(const void *left, const void *right)
 {
     MMI32 a = ((const Crossing *)left)->x, b = ((const Crossing *)right)->x;
@@ -416,7 +400,7 @@ static void collect_crossings(PolygonPaint *paint, MMI32 y)
         if (y < a->y || y >= b->y)
             continue;
         next = paint->crossings + paint->used++;
-        next->x = crossing_x(a, b, y);
+        next->x = mm_pixel_edge_ceil(a->x, a->y, b->x, b->y, y);
         next->ascending = ascending;
     }
     qsort(paint->crossings, paint->used, sizeof(*paint->crossings), compare_crossings);

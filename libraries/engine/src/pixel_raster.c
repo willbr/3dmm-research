@@ -1,5 +1,6 @@
 #include "mm/dib_frame.h"
 #include "mm/runtime_math.h"
+#include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -94,6 +95,21 @@ MMU32 mm_pixel_muldiv(MMU32 factor, MMU32 source, MMU32 divisor)
     input.high = frequency.high = 0;
     mm_runtime_counter_scale(input, source, frequency, &quotient);
     return quotient.low;
+}
+
+MMI32 mm_pixel_edge_ceil(MMI32 x0, MMI32 y0, MMI32 x1, MMI32 y1, MMI32 y)
+{
+    MMU32 height = (MMU32)y1 - (MMU32)y0;
+    MMU32 offset = (MMU32)y - (MMU32)y0;
+    MMU32 dx;
+    if (x1 < x0)
+    {
+        dx = (MMU32)x0 - (MMU32)x1;
+        return mm_signed_word((MMU32)x0 - mm_pixel_muldiv(offset, dx, height));
+    }
+    /* ceil(offset * dx / height) equals dx minus the remaining floor. */
+    dx = (MMU32)x1 - (MMU32)x0;
+    return mm_signed_word((MMU32)x1 - mm_pixel_muldiv(height - offset, dx, height));
 }
 
 MMI32 mm_pixel_sample(MMI32 position, MMI32 source, MMI32 destination, int near_size)

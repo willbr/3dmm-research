@@ -2608,9 +2608,9 @@ to `Ellipse` with right/bottom expanded by one, while frames XOR two unexpanded
 elliptic regions. Small degenerate shapes retain native behavior: a 2 by 2
 filled oval is empty, and a 3 by 3 fill has spans [1,2), [0,3), [1,2).
 
-The SDK-free `ellipse_geometry.cpp` constructs fixed-point cubic outlines,
-uses the native small/large-bound subdivision policies and scan-converts only
-the requested rows. Invalid/oversized geometry is rejected before drawing.
+The shared C89 `ellipse_geometry.c` constructs cubic outlines using the
+fixed-point and large-ellipse subdivision policies. It scan-converts only the
+requested rows and rejects invalid or oversized geometry before drawing.
 The fixed-point subdivision is adapted from Apache-2.0 licensed
 [emf-converter](https://github.com/christophervr/emf-converter); its pinned
 source and modifications are recorded in

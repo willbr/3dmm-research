@@ -1,6 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "pixel_canvas.h"
-#include "ellipse_geometry.h"
 #include "dib_frame.h"
 #include "mm/dib_frame.h"
 #include "mm/pixel_paint.h"
@@ -121,51 +120,8 @@ bool FillOvalRaster(const MMPixelSurface &surface, const MMPixelBrush &brush, co
                     Region *region, MMI32 frameX, MMI32 frameY)
 {
     const auto shape = RasterRect(rectangle);
-    MMI32 width, height;
-    if (!mm_pixel_surface_valid(&surface) || !mm_pixel_rect_extent(&shape, &width, &height) ||
-        width > (1 << 26) || height > (1 << 26))
-        return false;
     RasterClip clipped(clip, region);
-    MMPixelRect bounds;
-    if (!mm_pixel_visible_rect(&surface, &shape, clipped.rectangle, &bounds))
-        return true;
-    const bool frame = frameX >= 0 && frameY >= 0 && 2 * MMU32(frameX) < MMU32(width) &&
-                       2 * MMU32(frameY) < MMU32(height);
-    const auto first = bounds.top - shape.top, count = bounds.bottom - bounds.top;
-    std::vector<EllipseSpan> outside, inside;
-    if (!EllipseRows(width - (frame ? 1 : 0), height - (frame ? 1 : 0), first, count, outside) ||
-        (frame && !EllipseRows(width - 2 * frameX - 1, height - 2 * frameY - 1, first - frameY, count, inside)))
-        return false;
-    struct OvalPaint
-    {
-        const MMPixelSurface &surface;
-        const MMPixelBrush &brush;
-        const EllipseSpan *outside, *inside;
-        MMI32 x, top, frameX;
-    } paint{surface, brush, outside.data(), frame ? inside.data() : nullptr, shape.left, bounds.top, frameX};
-    mm_pixel_visit_spans(&bounds, clipped.region, [](void *context, MMI32 y, MMI32 left, MMI32 right) {
-        const auto &state = *static_cast<const OvalPaint *>(context);
-        const auto row = y - state.top;
-        const auto draw = [&](MMI32 start, MMI32 end) {
-            start = std::max(left, start);
-            end = std::min(right, end);
-            if (start < end)
-                mm_pixel_paint_span(&state.surface, &state.brush, y, start, end);
-        };
-        const auto &outer = state.outside[row];
-        if (!state.inside)
-            draw(state.x + outer.left, state.x + outer.right);
-        else
-        {
-            const auto &inner = state.inside[row];
-            MMI32 edges[] = {state.x + outer.left, state.x + outer.right, state.x + state.frameX + inner.left,
-                             state.x + state.frameX + inner.right};
-            std::sort(edges, edges + 4);
-            draw(edges[0], edges[1]);
-            draw(edges[2], edges[3]);
-        }
-    }, &paint);
-    return true;
+    return mm_pixel_fill_oval(&surface, &brush, &shape, clipped.rectangle, clipped.region, frameX, frameY) != 0;
 }
 bool DrawCoverageRaster(const MMPixelSurface &target, const Coverage8 &mask, MMI32 x, MMI32 y, MMU32 sample,
                         const RC *clip, Region *region, bool blend)

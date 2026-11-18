@@ -5102,11 +5102,20 @@ GDI oracle passed 111,780 scroll comparisons. Evidence is in
 monochrome ink using the original palette and reference rules, paints framed
 rectangles and nonzero-winding polygons, and applies thresholded or blended
 glyph coverage. Polygon intersections retain exact rounding across the full
-signed coordinate range. Oval drawing also uses C89 brush spans, with the
-existing curve subdivision supplying its outline. All 35,331 before-and-after
-cases matched across 60,936,207 bytes. The GDI font test reports the same
-System font metrics mismatch with both versions, after its packed glyph
+signed coordinate range. Oval drawing also uses C89 brush spans. All 35,331
+before-and-after cases matched across 60,936,207 bytes. The GDI font test
+reports the same System font metrics mismatch with both versions, after its packed glyph
 drawing comparisons pass. Evidence is in `tmp/c89-pixel-paint`.
+
+`ellipse_geometry.c` owns fixed-point and large-ellipse subdivision, exact
+row intersections, and filled and framed oval painting. It shares upward
+edge rounding with polygon filling and uses only the clipped row range for
+rasterization. Kauai supplies surface and region views. Its legacy vector
+geometry interface adapts to the same C implementation. All 15,101 outline
+queries matched the previous implementation, including extreme aspect ratios
+at the maximum extent. The Windows GDI oracle passed 16,808 region comparisons.
+Allocation failure probes preserve both the row output and the painted surface.
+Evidence is in `tmp/c89-ellipse`.
 
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.

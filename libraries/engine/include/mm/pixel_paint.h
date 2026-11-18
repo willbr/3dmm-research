@@ -68,6 +68,8 @@ int mm_pixel_resolve_packed(const MMPixelImage *, const MMPixelColorBrush *, con
 void mm_pixel_paint_span(const MMPixelSurface *, const MMPixelBrush *, MMI32 y, MMI32 left, MMI32 right);
 void mm_pixel_fill_rect(const MMPixelSurface *, const MMPixelBrush *, const MMPixelRect *, const MMPixelRect *clip,
                         const MMPixelSpans *, MMI32 frame_x, MMI32 frame_y);
+int mm_pixel_fill_oval(const MMPixelSurface *, const MMPixelBrush *, const MMPixelRect *, const MMPixelRect *clip,
+                       const MMPixelSpans *, MMI32 frame_x, MMI32 frame_y);
 int mm_pixel_invert_packed_rect(const MMPixelImage *, const MMPixelRect *, const MMPixelRect *clip,
                                 const MMPixelSpans *);
 int mm_pixel_fill_polygon(const MMPixelSurface *, const MMPixelBrush *, const MMPixelPoint *, size_t count,

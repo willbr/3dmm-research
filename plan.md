@@ -769,9 +769,10 @@ palette snapshots for transitions use the same C89 raster core.
 C89 also handles pixel scrolling across all six packed depths, including
 source and destination region clipping and the original full-byte-first
 rule for leftward monochrome moves.
-C89 resolves Boolean and monochrome brushes, fills and frames rectangles,
-fills polygons using nonzero winding, and applies glyph coverage. Oval
-drawing shares the span painter and still uses Kauai's curve subdivision.
+C89 resolves Boolean and monochrome brushes, fills and frames rectangles and
+ovals, fills polygons using nonzero winding, and applies glyph coverage.
+Ellipse subdivision keeps the fixed-point and large-bounds paths and shares
+exact edge rounding with polygon filling.
 Typed offscreen graphics and view drawing remain adapters.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as

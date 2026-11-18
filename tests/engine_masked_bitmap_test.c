@@ -1,5 +1,6 @@
 #include "mm/masked_bitmap.h"
 #include "mm/dib_frame.h"
+#include "mm/ellipse_geometry.h"
 #include "mm/pixel_paint.h"
 #include <assert.h>
 #include <stdio.h>
@@ -722,6 +723,21 @@ static void packed_inversion(void)
     assert(mm_pixel_invert_packed_rect(&image, &rect, NULL, NULL) && bits == 0xc7);
 }
 
+static void ellipse_rows(void)
+{
+    MMEllipseSpan spans[3] = {{19, 21}, {19, 21}, {19, 21}};
+    assert(!mm_ellipse_rows(MM_ELLIPSE_MAX_EXTENT + 1, 3, 0, 3, spans));
+    assert(spans[0].left == 19 && spans[2].right == 21);
+    assert(mm_ellipse_rows(3, 3, -2147483647L - 1, 3, spans));
+    assert(!spans[0].right && !spans[1].right && !spans[2].right);
+    assert(mm_ellipse_rows(3, 3, 2147483647L, 3, spans));
+    assert(!spans[0].right && !spans[1].right && !spans[2].right);
+    assert(mm_ellipse_rows(MM_ELLIPSE_MAX_EXTENT, 3, 1, 3, spans));
+    /* The previous large-outline path yields these spans for a very thin oval. */
+    assert(spans[0].left == 10286 && spans[0].right == 67098578L);
+    assert(spans[1].left == 14606011L && spans[1].right == 52502852L && !spans[2].right);
+}
+
 int main(void)
 {
     encode();
@@ -736,6 +752,7 @@ int main(void)
     pixel_scroll();
     pixel_polygon();
     packed_inversion();
+    ellipse_rows();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;
