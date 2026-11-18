@@ -2,6 +2,7 @@
    Licensed under the MIT License. */
 #include "soc_core.h"
 #include "engine_movie_graph.h"
+#include "engine_read_stream.h"
 #include "mm/actor_data.h"
 #include <cstddef>
 ASSERTNAME
@@ -33,23 +34,14 @@ static_assert(aetAdd == MM_ACTOR_ADD && aetActn == MM_ACTOR_ACTION && aetCost ==
               "actor event kinds");
 namespace
 {
-struct HeaderHost
+MMActorHeaderIO HeaderIO(PChunkyFile file)
 {
-    PChunkyFile file;
-    DataBlock block;
-};
-MMActorHeaderIO HeaderIO(HeaderHost *host)
-{
-    return {host,
-            [](void *c, MMU32 number, MMReadStream *stream) -> int {
-                auto h = static_cast<HeaderHost *>(c);
-                if (!h->file->FFind(kctgActr, number, &h->block) || !h->block.FUnpackData())
-                    return 0;
-                *stream = EngineReadStream::FromBlock(h->block);
-                return 1;
+    return {file,
+            [](void *c, MMU32 number, MMReadReceiver receive, void *out) -> int {
+                return EngineMovieGraph::ReceivePayload(static_cast<PChunkyFile>(c), kctgActr, number, receive, out);
             },
             [](void *c, MMU32 number, const void *header, MMU32 bytes) -> int {
-                return static_cast<HeaderHost *>(c)->file->FPutPv(const_cast<void *>(header), bytes, kctgActr, number);
+                return static_cast<PChunkyFile>(c)->FPutPv(const_cast<void *>(header), bytes, kctgActr, number);
             }};
 }
 const MMActorRouteReader kRouteReader = {nullptr,
@@ -96,14 +88,12 @@ bool ActorData::FReadHeader(PChunkyFile file, ChunkNumber actor, void *header)
 }
 bool ActorData::FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header)
 {
-    HeaderHost host = {file};
-    const auto io = HeaderIO(&host);
+    const auto io = HeaderIO(file);
     return mm_actor_write_header(number, header, &io) != 0;
 }
 bool ActorData::FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta)
 {
-    HeaderHost host = {file};
-    const auto io = HeaderIO(&host);
+    const auto io = HeaderIO(file);
     return mm_actor_adjust_id(number, delta, &io) != 0;
 }
 PDynamicArray ActorData::PglReadRoute(PDataBlock block)

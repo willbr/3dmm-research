@@ -31,6 +31,9 @@ extern "C"
         int (*read_file)(void *, MMU32, void *, size_t);
         int (*write_file)(void *, MMU32, const void *, size_t);
     } MMBlockIO;
+    /* Borrow an unpacked block and its I/O descriptor for exact reads. Both
+     * must stay live and unchanged until the stream is no longer in use. */
+    int mm_block_io_stream(MMBlockIO *, MMReadStream *);
     int mm_stream_copy(const MMReadStream *, const MMStorageWriter *, const MMStorageAllocator *);
     int mm_block_read(const MMBlockIO *, MMU32 offset, void *, MMU32 bytes, int packed_ok);
     int mm_block_write(const MMBlockIO *, MMU32 offset, const void *, MMU32 bytes, int packed_ok);

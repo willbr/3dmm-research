@@ -3,6 +3,7 @@
 #include "soc_core.h"
 #include "movie_data.h"
 #include "engine_movie_graph.h"
+#include "engine_read_stream.h"
 #include "mm/movie_session.h"
 ASSERTNAME
 

@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "soc_core.h"
-#include "engine_read_stream.h"
+#include "engine_movie_graph.h"
 ASSERTNAME
 static_assert(transNil == -1 && transCut == 0 && transLim == MM_SCENE_TRANSITION_LIMIT,
               "scene transition encoding");
@@ -25,34 +25,30 @@ void SetNameValue(MMMovieTitle *name, PString value)
 {
     AssertDo(mm_movie_title_set(name, value->Prgch(), value->Cch()), "bad scene name");
 }
-struct Host
+struct SceneEventHost
 {
     PChunkyFile file;
     DataBlock block;
 };
-MMSceneIO SceneIO(Host *host)
+MMSceneIO SceneIO(PChunkyFile file)
 {
-    return {host,
-            [](void *c, MMU32 number, MMReadStream *stream) -> int {
-                auto h = static_cast<Host *>(c);
-                if (!h->file->FFind(kctgScen, number, &h->block) || !h->block.FUnpackData())
-                    return 0;
-                *stream = EngineReadStream::FromBlock(h->block);
-                return 1;
+    return {file,
+            [](void *c, MMU32 number, MMReadReceiver receive, void *out) -> int {
+                return EngineMovieGraph::ReceivePayload(static_cast<PChunkyFile>(c), kctgScen, number, receive, out);
             },
             [](void *c, MMU32 number, MMMovieTitle *name) {
                 String value;
                 GetNameValue(name, &value);
-                static_cast<Host *>(c)->file->FGetName(kctgScen, number, &value);
+                static_cast<PChunkyFile>(c)->FGetName(kctgScen, number, &value);
                 SetNameValue(name, &value);
             },
             [](void *c, MMU32 number, const unsigned char *bytes) -> int {
-                return static_cast<Host *>(c)->file->FPutPv(const_cast<unsigned char *>(bytes), 16, kctgScen, number);
+                return static_cast<PChunkyFile>(c)->FPutPv(const_cast<unsigned char *>(bytes), 16, kctgScen, number);
             },
             [](void *c, MMU32 number, const MMMovieTitle *name) -> int {
                 String value;
                 GetNameValue(name, &value);
-                return static_cast<Host *>(c)->file->FSetName(kctgScen, number, &value);
+                return static_cast<PChunkyFile>(c)->FSetName(kctgScen, number, &value);
             }};
 }
 MMSceneGroupServices Groups()
@@ -63,7 +59,7 @@ MMSceneGroupServices Groups()
             [](void *g, MMU32 i) -> MMI32 { return static_cast<PGeneralGroup>(g)->Cb(i); },
             [](void *g, MMU32 i) -> const void * { return static_cast<PGeneralGroup>(g)->QvGet(i); }};
 }
-MMSceneEventIO Events(Host *host)
+MMSceneEventIO Events(SceneEventHost *host)
 {
     return {
         host,
@@ -71,30 +67,32 @@ MMSceneEventIO Events(Host *host)
         [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbOnFile(); },
         [](void *c, MMU32 scene, int start, MMU32 *number) -> int {
             ChildChunkIdentification child;
-            if (!static_cast<Host *>(c)->file->FGetKidChidCtg(kctgScen, scene, start, start ? kctgStartGg : kctgFrmGg,
-                                                              &child))
+            auto file = static_cast<SceneEventHost *>(c)->file;
+            if (!file->FGetKidChidCtg(kctgScen, scene, start, start ? kctgStartGg : kctgFrmGg, &child))
                 return 0;
             *number = child.cki.cno;
             return 1;
         },
         [](void *c, int start, MMU32 bytes, MMU32 *number) -> int {
-            auto h = static_cast<Host *>(c);
+            auto h = static_cast<SceneEventHost *>(c);
             return h->file->FAdd(bytes, start ? kctgStartGg : kctgFrmGg, number, &h->block);
         },
-        [](void *c, void *g) -> int { return static_cast<PGeneralGroup>(g)->FWrite(&static_cast<Host *>(c)->block); },
+        [](void *c, void *g) -> int {
+            return static_cast<PGeneralGroup>(g)->FWrite(&static_cast<SceneEventHost *>(c)->block);
+        },
         [](void *c, MMU32 scene, int start, MMU32 number) -> int {
-            return static_cast<Host *>(c)->file->FAdoptChild(kctgScen, scene, start ? kctgStartGg : kctgFrmGg, number,
-                                                             start);
+            auto file = static_cast<SceneEventHost *>(c)->file;
+            return file->FAdoptChild(kctgScen, scene, start ? kctgStartGg : kctgFrmGg, number, start);
         },
         [](void *c, MMU32 scene, int start, MMU32 number, int linked) {
-            auto file = static_cast<Host *>(c)->file;
+            auto file = static_cast<SceneEventHost *>(c)->file;
             if (linked)
                 file->DeleteChild(kctgScen, scene, start ? kctgStartGg : kctgFrmGg, number, start);
             else
                 file->Delete(start ? kctgStartGg : kctgFrmGg, number);
         },
         [](void *c, int start, MMU32 number) {
-            static_cast<Host *>(c)->file->SetLoner(start ? kctgStartGg : kctgFrmGg, number, fFalse);
+            static_cast<SceneEventHost *>(c)->file->SetLoner(start ? kctgStartGg : kctgFrmGg, number, fFalse);
         }};
 }
 } // namespace
@@ -108,32 +106,27 @@ void SceneData::SetName(PString value)
 }
 void SceneData::LoadName(PChunkyFile file, ChunkNumber number)
 {
-    Host host = {file};
-    const auto io = SceneIO(&host);
+    const auto io = SceneIO(file);
     io.load_name(io.context, number, &name);
 }
 bool SceneData::FRead(PChunkyFile file, ChunkNumber number)
 {
-    Host host = {file};
-    const auto io = SceneIO(&host);
+    const auto io = SceneIO(file);
     return mm_scene_read(this, number, &io) != 0;
 }
 bool SceneData::FWrite(PChunkyFile file, ChunkNumber number)
 {
-    Host host = {file};
-    const auto io = SceneIO(&host);
+    const auto io = SceneIO(file);
     return mm_scene_write(this, number, koskCur, NativeBig(), &io) != 0;
 }
 bool SceneData::FReadTransition(PChunkyFile file, ChunkNumber number, MMI32 *out)
 {
-    Host host = {file};
-    const auto io = SceneIO(&host);
+    const auto io = SceneIO(file);
     return mm_scene_transition_read(number, sizeof(achar), out, &io) != 0;
 }
 bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, MMI32 transition)
 {
-    Host host = {file};
-    const auto io = SceneIO(&host);
+    const auto io = SceneIO(file);
     return mm_scene_transition_write(number, sizeof(achar), transition, koskCur, NativeBig(), &io) != 0;
 }
 static PGeneralGroup ReadSceneEvents(PDataBlock block, short *byteOrder, int layout)
@@ -165,21 +158,21 @@ PGeneralGroup SceneData::PggReadEventHeaders(PDataBlock block, short *byteOrder)
 }
 bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts)
 {
-    Host host = {file};
+    SceneEventHost host = {file};
     const auto io = Events(&host);
     return mm_scene_write_events(number, frames, starts, &io) != 0;
 }
 bool SceneData::FCreate(PChunkyFile file, ChunkNumber *number)
 {
-    Host host = {file};
+    SceneEventHost host = {file};
     const MMSceneCreateServices services = {
-        SceneIO(&host),
+        SceneIO(file),
         Events(&host),
         [](void *) -> void * { return GeneralGroup::PggNew(MM_SCENE_EVENT_BYTES); },
         [](void *g) { static_cast<PGeneralGroup>(g)->Release(); },
         [](void *c, MMU32 bytes, MMU32 *number) -> int {
-            return static_cast<Host *>(c)->file->FAdd(bytes, kctgScen, number);
+            return static_cast<PChunkyFile>(c)->FAdd(bytes, kctgScen, number);
         },
-        [](void *c, MMU32 number) { static_cast<Host *>(c)->file->Delete(kctgScen, number); }};
+        [](void *c, MMU32 number) { static_cast<PChunkyFile>(c)->Delete(kctgScen, number); }};
     return mm_scene_create(this, number, koskCur, NativeBig(), &services) != 0;
 }

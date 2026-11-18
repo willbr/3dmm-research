@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_CHUNK_STORAGE_H
 #define MM_ENGINE_CHUNK_STORAGE_H
+#include "block_owner.h"
 #include "chunk_edit.h"
 #ifdef __cplusplus
 extern "C"
@@ -54,6 +55,21 @@ extern "C"
      * Trace is optional and preserves native cache/fetch diagnostic ordering. */
     int mm_chunk_storage_fetch(const MMChunkStoragePolicy *, const MMChunkStorageServices *,
                                      MMU32 position, MMChunkLocation *);
+
+    typedef struct MMChunkPayloadServices
+    {
+        const MMHandleServices *handles;
+        const MMBlockFileServices *files;
+        int (*locate)(void *archive, MMU32 type, MMU32 number, MMBlockFile *, int *packed);
+        void *decode_context;
+        MMBlockTransform decode;
+    } MMChunkPayloadServices;
+    /* Locate a borrowed extent by key, own the block through the receiver call,
+     * and release it afterward. A NULL, zero-length extent is the legacy empty
+     * extra-cache result. The receiver's result is published only on delivery.
+     * Lookup and decoding failures return a chunk status without calling it. */
+    int mm_chunk_read_payload(const MMChunkPayloadServices *, void *archive, MMU32 type,
+                              MMU32 number, MMReadReceiver, void *context, int *result);
 #ifdef __cplusplus
 }
 #endif

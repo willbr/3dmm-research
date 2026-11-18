@@ -4,5 +4,6 @@
 #include "mm/block_owner.h"
 const MMHandleServices *KauaiHandleServices();
 const MMBlockFileServices *KauaiBlockFileServices();
+int KauaiDecodeBlockHandle(void *, void **handle);
 const MMStorageAllocator *KauaiCopyAllocator();
 #endif

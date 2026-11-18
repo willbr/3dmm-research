@@ -40,6 +40,7 @@
 ***************************************************************************/
 #include "soc.h"
 #include "engine_movie_graph.h"
+#include "engine_read_stream.h"
 #include <cstring>
 ASSERTNAME
 

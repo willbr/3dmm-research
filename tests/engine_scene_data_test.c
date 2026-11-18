@@ -257,15 +257,16 @@ static int read_at(void *c, MMU32 offset, void *out, size_t bytes)
     memcpy(out, h->header + offset, bytes);
     return 1;
 }
-static int read_scene(void *c, MMU32 n, MMReadStream *stream)
+static int read_scene(void *c, MMU32 n, MMReadReceiver receive, void *out)
 {
     Host *h = (Host *)c;
+    MMReadStream stream;
     CHECK(n == 7);
     event(h, 'R');
-    stream->context = h;
-    stream->length = h->length;
-    stream->read_at = read_at;
-    return !h->read_fail;
+    stream.context = h;
+    stream.length = h->length;
+    stream.read_at = read_at;
+    return !h->read_fail && receive(out, &stream);
 }
 static void load_name(void *c, MMU32 n, MMMovieTitle *name)
 {

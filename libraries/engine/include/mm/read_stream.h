@@ -19,6 +19,9 @@ extern "C"
         int (*read_at)(void *context, MMU32 offset, void *bytes, size_t count);
     } MMReadStream;
 
+    /* A synchronous receiver borrows the stream and returns its own status. */
+    typedef int (*MMReadReceiver)(void *, const MMReadStream *);
+
     typedef struct MMMemoryStream
     {
         MMReadStream stream;

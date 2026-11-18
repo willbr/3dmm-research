@@ -59,12 +59,15 @@ int mm_scene_encode_header(const MMSceneState *s, int system, int big, unsigned 
     put(bytes + 12, (MMU32)s->transition, 4, big);
     return 1;
 }
+static int read_header(void *out, const MMReadStream *stream)
+{
+    return mm_scene_decode_header(stream, (MMSceneState *)out);
+}
 int mm_scene_read(MMSceneState *s, MMU32 number, const MMSceneIO *io)
 {
-    MMReadStream stream;
     MMSceneState loaded;
     mm_scene_init(&loaded, s->name.unit);
-    if (!io->read(io->context, number, &stream) || !mm_scene_decode_header(&stream, &loaded))
+    if (!io->read(io->context, number, read_header, &loaded))
         return 0;
     io->load_name(io->context, number, &loaded.name);
     *s = loaded;

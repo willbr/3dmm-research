@@ -402,7 +402,7 @@ static void test_playback(void)
         expect(&h, e, 1);
     }
 }
-static int read(void *p, MMU32 number, MMReadStream *out)
+static int read(void *p, MMU32 number, MMReadReceiver receive, void *out)
 {
     Host *h = (Host *)p;
     CHECK(number == 7);
@@ -410,8 +410,7 @@ static int read(void *p, MMU32 number, MMReadStream *out)
     if (h->fail == 1)
         return 0;
     CHECK(mm_memory_stream_init(&h->memory, h->header, 16));
-    *out = h->memory.stream;
-    return 1;
+    return receive(out, &h->memory.stream);
 }
 static void load_name(void *p, MMU32 number, MMMovieTitle *name)
 {

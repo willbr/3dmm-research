@@ -47,6 +47,8 @@ typedef uint32_t ChunkTagOrType; // chunk tag/type
 typedef uint32_t ChunkNumber;    // chunk number
 typedef uint32_t ChildChunkID;   // child chunk id
 
+const MMChunkPayloadServices *KauaiChunkPayloadServices();
+
 enum
 {
     fcflNil = 0x0000,

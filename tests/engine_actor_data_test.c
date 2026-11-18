@@ -48,14 +48,15 @@ static int read_at(void *c, MMU32 offset, void *out, size_t bytes)
     memcpy(out, h->bytes + offset, h->fail_read ? 3 : bytes);
     return !h->fail_read;
 }
-static int find_header(void *c, MMU32 number, MMReadStream *s)
+static int find_header(void *c, MMU32 number, MMReadReceiver receive, void *out)
 {
     HeaderIO *h = (HeaderIO *)c;
+    MMReadStream stream;
     CHECK(number == 7);
-    s->context = h;
-    s->length = h->length;
-    s->read_at = read_at;
-    return !h->fail_find;
+    stream.context = h;
+    stream.length = h->length;
+    stream.read_at = read_at;
+    return !h->fail_find && receive(out, &stream);
 }
 static int put_header(void *c, MMU32 number, const void *bytes, MMU32 size)
 {

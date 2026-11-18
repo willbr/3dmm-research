@@ -130,11 +130,10 @@ MMResourceServices ChunkyResourceFile::_Services()
     s.contains = [](void *file, MMU32 type, MMU32 number) -> int {
         return static_cast<PChunkyFile>(file)->FFind(type, number);
     };
-    s.handles = KauaiHandleServices();
-    s.block_files = KauaiBlockFileServices();
-    s.locate = [](void *file, MMU32 type, MMU32 number, MMBlockFile *location, int *packed) -> int {
-        return static_cast<PChunkyFile>(file)->FFindBlockFile(type, number, location, packed);
-    };
+    const auto blocks = KauaiChunkPayloadServices();
+    s.handles = blocks->handles;
+    s.block_files = blocks->files;
+    s.locate = blocks->locate;
     s.read = [](void *c, MMResourceReader reader, MMU32 type, MMU32 number, MMOwnedBlock *block, void **object,
                 MMI32 *bytes) -> int {
         DataBlock view(*block);

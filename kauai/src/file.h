@@ -229,7 +229,6 @@ class DataBlock : public DataBlock_PAR
 
   protected:
     MMBlockIO _IOView();
-    static int _DecodeHandle(void *, void **);
     MMOwnedBlock _owned;
     MMOwnedBlock &_state;
 

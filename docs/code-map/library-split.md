@@ -212,10 +212,31 @@ session's camera and actor queries share the event decoder with the live loaders
 
 `mm_movie_session_seek_graph` uses the same evaluator with the live chunk
 graph and a provider for external asset graphs. The C evaluator owns the
-decoded payload bytes it keeps across calls. The native adapters lend each
-decoded block and its serialized chunk name synchronously. Embedded assets
-always use the movie's graph. Studio's movie owner and the Archive reader
-supply these adapters, with Archive retaining its decode limits.
+decoded payload bytes it keeps across calls. The ChunkyFile provider supplies
+the physical extent and packed bit. `mm_chunk_read_payload` retains the file,
+decodes packed blocks through the registered codec, lends a bounded stream
+to the receiver, then releases the file or decoded memory. Fixed movie
+records require the exact decoded size. Studio uses this path for the live
+movie graph, actor ID edits, and scene metadata and transition edits.
+Marcus uses it to evaluate live background camera chunks. Archive's movie
+directory still uses its cached block reader and decode limits. Embedded
+assets use the movie's graph, and the name adapter lends the serialized
+chunk name synchronously.
+
+The block-owner fixture exercises raw and packed extents, the exact-size
+check, decoder and receiver failures, a missing key and the legacy empty
+extra-cache extent. AddressSanitizer verifies file and handle cleanup.
+The actor and scene fixtures cover header edits and transition read/write
+ordering. The live graph and standalone stream readers agree across 300
+frames in five real movies. The 31 native actor and resource traces, four
+cache and renderer traces, and 480-byte saved fixture match byte for byte.
+The 181 standalone tests, 195 focused host tests, five AddressSanitizer
+checks, and SDL runtime compile check pass. Both hosts match 456 prior seek
+observations and 360 viewport hashes, with 480 frame commits matching retail.
+Retail reopens the Studio actor edit with matching state on four seeks. Both
+hosts reproduce the ordinary and motion sound cues. Studio passes all eight
+VMM workflow checks, and Marcus matches the retained VMM viewport hash.
+Validation is in `tmp/c89-graph-blocks`.
 
 `mm_movie_camera_graph` evaluates the selected CAM in its owning background
 graph. Studio and Preview pass the slot chosen by their live timelines

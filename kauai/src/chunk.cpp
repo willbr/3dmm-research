@@ -1244,6 +1244,20 @@ bool ChunkyFile::FFindBlockFile(ChunkTagOrType type, ChunkNumber number, MMBlock
     return true;
 }
 
+const MMChunkPayloadServices *KauaiChunkPayloadServices()
+{
+    static const MMChunkPayloadServices services = {
+        KauaiHandleServices(),
+        KauaiBlockFileServices(),
+        [](void *archive, MMU32 type, MMU32 number, MMBlockFile *file, int *packed) -> int {
+            return static_cast<PChunkyFile>(archive)->FFindBlockFile(type, number, file, packed);
+        },
+        nullptr,
+        KauaiDecodeBlockHandle,
+    };
+    return &services;
+}
+
 /***************************************************************************
     Map the (ctg, cno) to a pflo.
 ***************************************************************************/

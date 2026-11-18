@@ -74,7 +74,8 @@ extern "C"
     typedef struct MMActorHeaderIO
     {
         void *context;
-        int (*read)(void *, MMU32 number, MMReadStream *);
+        /* Calls the receiver with the decoded ACTR and returns its success. */
+        int (*read)(void *, MMU32 number, MMReadReceiver, void *out);
         int (*put)(void *, MMU32 number, const void *native_header, MMU32 bytes);
     } MMActorHeaderIO;
     int mm_actor_write_header(MMU32 number, const void *header, const MMActorHeaderIO *);

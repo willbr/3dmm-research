@@ -9,6 +9,7 @@
 #include "soc_core.h"
 #include "engine_movie_graph.h"
 #include "engine_movie_source.h"
+#include "engine_read_stream.h"
 #include "platform_text.h"
 #undef size
 ASSERTNAME

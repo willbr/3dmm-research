@@ -56,6 +56,7 @@ MMI32 ConvertFileText(void *, const void *input, MMU32 bytes, int source, void *
 }
 const MMStorageAllocator *KauaiCopyAllocator() { return &copyAllocator; }
 const MMBlockFileServices *KauaiBlockFileServices() { return &blockFiles; }
+int KauaiDecodeBlockHandle(void *, void **handle) { return vpcodmUtil->FDecompressPhq(handle); }
 
 FileType FileObject::vftgCreator = '____';
 MMLinkedListNode *FileObject::_pfilFirst;
@@ -414,8 +415,6 @@ MMBlockIO DataBlock::_IOView()
     AssertDo(mm_owned_block_io(&_state, &io) == MM_DATA_OK, "invalid block state");
     return io;
 }
-int DataBlock::_DecodeHandle(void *, void **handle) { return vpcodmUtil->FDecompressPhq(handle); }
-
 DataBlock::DataBlock(PFileLocation pflo, bool fPacked) : _state(_owned)
 {
     AssertBaseThis(0);
@@ -708,7 +707,7 @@ bool DataBlock::FPackData(LegacyLong cfmt)
 bool DataBlock::FUnpackData(void)
 {
     AssertThis(0);
-    const bool ok = mm_owned_block_code(&_state, 0, nullptr, _DecodeHandle, nullptr) == MM_DATA_OK;
+    const bool ok = mm_owned_block_code(&_state, 0, nullptr, KauaiDecodeBlockHandle, nullptr) == MM_DATA_OK;
     AssertThis(0);
     return ok;
 }

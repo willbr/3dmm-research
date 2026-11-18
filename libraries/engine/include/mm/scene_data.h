@@ -34,7 +34,8 @@ extern "C"
     typedef struct MMSceneIO
     {
         void *context;
-        int (*read)(void *, MMU32 number, MMReadStream *);
+        /* Calls the receiver with the decoded SCEN and returns its success. */
+        int (*read)(void *, MMU32 number, MMReadReceiver, void *out);
         void (*load_name)(void *, MMU32 number, MMMovieTitle *);
         int (*put_header)(void *, MMU32 number, const unsigned char bytes[16]);
         int (*set_name)(void *, MMU32 number, const MMMovieTitle *);

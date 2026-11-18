@@ -1,4 +1,5 @@
 #include "mm/block_owner.h"
+#include "mm/movie_session.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -373,10 +374,90 @@ static void coding(void)
           !memcmp(((Handle *)owner.view.memory)->bytes, "defgh", 5));
     CHECK(mm_owned_block_clear(&owner) == MM_DATA_OK && !h.handles && !h.files && !h.locks);
 }
+
+typedef struct PayloadArchive
+{
+    File *file;
+    int packed;
+} PayloadArchive;
+
+static int locate_payload(void *context, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
+{
+    PayloadArchive *archive = (PayloadArchive *)context;
+    CHECK(type == 11);
+    if (number > 2)
+        return 0;
+    out->file = number == 1 ? archive->file : NULL;
+    out->offset = number == 1 ? 3 : 0;
+    out->length = number != 1 ? 0 : archive->packed ? 9 : 4;
+    *packed = archive->packed;
+    return 1;
+}
+
+static int reject_payload(void *context, const MMReadStream *stream)
+{
+    Host *h = (Host *)context;
+    unsigned char bytes[4];
+    CHECK(h->handles == 1 && stream->length == 4);
+    CHECK(mm_read_exact(stream, 1, bytes, 3) && !memcmp(bytes, "ODE", 3));
+    CHECK(!mm_read_exact(stream, 3, bytes, 2));
+    return MM_MOVIE_MEMORY;
+}
+
+static void payloads(void)
+{
+    Host h;
+    MMHandleServices handles;
+    MMBlockFileServices files;
+    MMChunkPayloadServices input;
+    PayloadArchive archive;
+    MMChunkEntry entry;
+    unsigned char output[5];
+    memset(&h, 0, sizeof(h));
+    memset(&entry, 0, sizeof(entry));
+    services(&h, &handles, &files);
+    archive.file = (File *)create_temp(&h);
+    CHECK(archive.file);
+    archive.file->size = 16;
+    memcpy(archive.file->bytes, "0123456789abcdef", 16);
+    archive.packed = 0;
+    input.handles = &handles;
+    input.files = &files;
+    input.locate = locate_payload;
+    input.decode_context = &h;
+    input.decode = transform;
+    entry.type = 11;
+    entry.number = 1;
+
+    CHECK(mm_movie_block_read(&input, &archive, &entry, output, 4) == MM_MOVIE_OK);
+    CHECK(!memcmp(output, "3456", 4) && archive.file->refs == 1 && !h.codes);
+    memset(output, 0x5a, sizeof(output));
+    CHECK(mm_movie_block_read(&input, &archive, &entry, output, 5) == MM_MOVIE_BAD_FILE);
+    CHECK(output[0] == 0x5a && archive.file->refs == 1);
+    h.read_fail = 1;
+    CHECK(mm_movie_block_read(&input, &archive, &entry, output, 4) == MM_MOVIE_IO);
+    CHECK(archive.file->refs == 1);
+    h.read_fail = 0;
+
+    archive.packed = 1;
+    CHECK(mm_movie_block_payload(&input, &archive, &entry, reject_payload, &h) == MM_MOVIE_MEMORY);
+    CHECK(h.codes == 1 && !h.handles && !h.locks && archive.file->refs == 1);
+    h.code_fail = 1;
+    CHECK(mm_movie_block_payload(&input, &archive, &entry, reject_payload, &h) == MM_MOVIE_BAD_FILE);
+    CHECK(h.codes == 2 && !h.handles && !h.locks && archive.file->refs == 1);
+    entry.number = 2;
+    CHECK(mm_movie_block_read(&input, &archive, &entry, NULL, 0) == MM_MOVIE_OK);
+    entry.number = 3;
+    CHECK(mm_movie_block_read(&input, &archive, &entry, NULL, 0) == MM_MOVIE_BAD_FILE);
+    CHECK(h.codes == 2 && archive.file->refs == 1);
+    release_file(&h, archive.file);
+    CHECK(!h.files && !h.handles && !h.locks);
+}
 int main(void)
 {
     golden();
     failures();
     coding();
+    payloads();
     return 0;
 }

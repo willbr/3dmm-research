@@ -5,6 +5,7 @@
 #include "zbmp.h"
 #include "palette_state.h"
 #include "engine_movie_graph.h"
+#include "engine_read_stream.h"
 #include "mm/background_camera.h"
 #include <cstring>
 #include <new>

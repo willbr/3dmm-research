@@ -1,18 +1,21 @@
 #ifndef ENGINE_MOVIE_GRAPH_H
 #define ENGINE_MOVIE_GRAPH_H
 
-#include "engine_read_stream.h"
+#include "kauai_core.h"
 #include "mm/movie_session.h"
 
 namespace EngineMovieGraph
 {
+inline bool ReceivePayload(PChunkyFile file, MMU32 type, MMU32 number, MMReadReceiver receive, void *out)
+{
+    int result;
+    return mm_chunk_read_payload(KauaiChunkPayloadServices(), file, type, number,
+                                 receive, out, &result) == MM_CHUNK_OK && result;
+}
+
 inline int Payload(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
 {
-    DataBlock block;
-    if (!static_cast<PChunkyFile>(context)->FFind(entry->type, entry->number, &block) || !block.FUnpackData())
-        return MM_MOVIE_BAD_FILE;
-    const auto stream = EngineReadStream::FromBlock(block);
-    return receive(out, &stream);
+    return mm_movie_block_payload(KauaiChunkPayloadServices(), context, entry, receive, out);
 }
 
 inline int Name(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
@@ -28,13 +31,7 @@ inline int Name(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes re
 
 inline int Read(void *context, void *, MMU32, const MMChunkEntry *entry, void *bytes, MMU32 size)
 {
-    struct Record { void *bytes; MMU32 size; } record = {bytes, size};
-    return Payload(context, entry, [](void *p, const MMReadStream *stream) -> int {
-        auto &r = *static_cast<Record *>(p);
-        if (stream->length != r.size)
-            return MM_MOVIE_BAD_FILE;
-        return mm_read_exact(stream, 0, r.bytes, r.size) ? MM_MOVIE_OK : MM_MOVIE_IO;
-    }, &record);
+    return mm_movie_block_read(KauaiChunkPayloadServices(), context, entry, bytes, size);
 }
 
 inline MMMovieSessionGraph FromFile(PChunkyFile file)

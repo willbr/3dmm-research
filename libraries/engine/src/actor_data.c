@@ -109,11 +109,14 @@ int mm_actor_write_header(MMU32 number, const void *header, const MMActorHeaderI
 {
     return io->put(io->context, number, header, 44);
 }
+static int read_header(void *out, const MMReadStream *stream)
+{
+    return mm_actor_read_header(stream, out);
+}
 int mm_actor_adjust_id(MMU32 number, MMI32 delta, const MMActorHeaderIO *io)
 {
-    MMReadStream stream;
     MMActorHeader header;
-    if (!io->read(io->context, number, &stream) || !mm_actor_read_header(&stream, &header) ||
+    if (!io->read(io->context, number, read_header, &header) ||
         !mm_actor_adjust_header_id(&header, delta))
         return 0;
     return mm_actor_write_header(number, &header, io);

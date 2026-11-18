@@ -2,6 +2,7 @@
 #define MM_ENGINE_MOVIE_SESSION_H
 
 #include "chunky_file.h"
+#include "chunk_storage.h"
 #include "background_camera.h"
 #include "model_resource.h"
 #include "movie_data.h"
@@ -47,8 +48,15 @@ typedef struct MMMovieChunkView
 /* On success the provider calls the receiver once, synchronously, with a
  * decoded chunk or serialized chunk name and returns its status. The stream
  * only has to live through the call. */
-typedef int (*MMMovieReceiveBytes)(void *, const MMReadStream *);
+typedef MMReadReceiver MMMovieReceiveBytes;
 typedef int (*MMMovieGraphBytes)(void *, const MMChunkEntry *, MMMovieReceiveBytes, void *);
+
+/* Open and decode the live extent through the archive provider. Fixed records
+ * require the exact decoded size, even when the stored chunk is packed. */
+int mm_movie_block_payload(const MMChunkPayloadServices *, void *archive, const MMChunkEntry *,
+                           MMMovieReceiveBytes, void *out);
+int mm_movie_block_read(const MMChunkPayloadServices *, void *archive, const MMChunkEntry *,
+                        void *bytes, MMU32 size);
 
 typedef struct MMMovieSessionGraph
 {

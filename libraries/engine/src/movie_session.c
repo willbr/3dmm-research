@@ -17,6 +17,39 @@
 #define ACTOR_EVENTS_TYPE 0x47474145UL
 #define LAST_AUTHORED_FRAME 2147483647L
 
+int mm_movie_block_payload(const MMChunkPayloadServices *services, void *archive,
+                           const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    int result;
+    if (!entry || mm_chunk_read_payload(services, archive, entry->type, entry->number,
+                                         receive, out, &result) != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    return result;
+}
+
+typedef struct MovieBlockRead
+{
+    void *bytes;
+    MMU32 size;
+} MovieBlockRead;
+
+static int read_exact_payload(void *context, const MMReadStream *stream)
+{
+    MovieBlockRead *read = (MovieBlockRead *)context;
+    if (stream->length != read->size)
+        return MM_MOVIE_BAD_FILE;
+    return mm_read_exact(stream, 0, read->bytes, read->size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+}
+
+int mm_movie_block_read(const MMChunkPayloadServices *services, void *archive,
+                        const MMChunkEntry *entry, void *bytes, MMU32 size)
+{
+    MovieBlockRead read;
+    read.bytes = bytes;
+    read.size = size;
+    return mm_movie_block_payload(services, archive, entry, read_exact_payload, &read);
+}
+
 static void *find_codec(void *context, MMI32 format)
 {
     return format == MM_CODEC_KCDC || format == MM_CODEC_KCD2 ? context : NULL;

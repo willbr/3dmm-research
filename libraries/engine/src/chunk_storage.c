@@ -1,6 +1,36 @@
 /* Chunk storage policy converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_storage.h"
+
+int mm_chunk_read_payload(const MMChunkPayloadServices *s, void *archive, MMU32 type,
+                          MMU32 number, MMReadReceiver receive, void *context, int *result)
+{
+    MMBlockFile file;
+    MMOwnedBlock block;
+    MMBlockIO io;
+    MMReadStream stream;
+    int packed, status = MM_CHUNK_BAD_FILE;
+    if (!s || !s->locate || !s->decode || !archive || !receive || !result)
+        return MM_CHUNK_BAD_FILE;
+    if (!s->locate(archive, type, number, &file, &packed))
+        return MM_CHUNK_NOT_FOUND;
+    if (mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
+        return MM_CHUNK_BAD_FILE;
+    if ((file.file || file.offset || file.length) &&
+        mm_owned_block_set_file(&block, &file, packed) != MM_DATA_OK)
+        return MM_CHUNK_BAD_FILE;
+
+    if (mm_owned_block_code(&block, 0, s->decode_context, s->decode, NULL) == MM_DATA_OK &&
+        mm_owned_block_io(&block, &io) == MM_DATA_OK &&
+        mm_block_io_stream(&io, &stream) == MM_DATA_OK)
+    {
+        *result = receive(context, &stream);
+        status = MM_CHUNK_OK;
+    }
+    mm_owned_block_clear(&block);
+    return status;
+}
+
 int mm_chunk_storage_allocate(const MMChunkStoragePolicy *policy,
                                     const MMChunkStorageServices *services, MMU32 bytes, int force_extra,
                                     MMChunkLocation *output)

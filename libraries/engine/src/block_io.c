@@ -70,6 +70,24 @@ int mm_block_read(const MMBlockIO *b, MMU32 offset, void *output, MMU32 n, int p
     }
     return OK;
 }
+static int stream_read(void *context, MMU32 offset, void *output, size_t bytes)
+{
+    return (size_t)(MMU32)bytes == bytes &&
+           mm_block_read((const MMBlockIO *)context, offset, output, (MMU32)bytes, 0) == OK;
+}
+int mm_block_io_stream(MMBlockIO *io, MMReadStream *out)
+{
+    int result;
+    if (!io || !out)
+        return BAD;
+    result = mm_block_check(&io->view, 0, io->view.length, 0, NULL);
+    if (result != OK)
+        return result;
+    out->context = io;
+    out->length = io->view.length;
+    out->read_at = stream_read;
+    return OK;
+}
 int mm_block_write(const MMBlockIO *b, MMU32 offset, const void *input, MMU32 n, int packed_ok)
 {
     MMU32 physical;

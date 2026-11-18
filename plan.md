@@ -506,7 +506,11 @@ Keep host presentation and device output outside the session.
    effective body bindings for all actors in a single seek. It reads from
    either standalone streams or the chunk graphs already opened by the
    hosts. The graph path can also read templates, fonts and other content
-   directly from loaded archives.
+   directly from loaded archives. The live ChunkyFile graph, actor ID edits
+   and scene header and transition edits now share C89 payload ownership and
+   decoding. They consume a bounded stream while C holds the source file or
+   decoded memory. The Archive preview directory still has its own cached
+   reader and decode limits.
    Both hosts submit live actor bodies from the C89 bindings. Marcus renders
    and picks with temporary trees built from those bindings and holds the
    body and standalone model references through the operation. Studio
