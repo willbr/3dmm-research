@@ -566,6 +566,41 @@ static void scaled_drawing(void)
     assert(mm_masked_stretch(&surface, &source, &rect, NULL, NULL, NULL, 0, NULL, 0));
     assert(pixels[0] == 0xaf && pixels[1] == 0xaf && pixels[2] == 0x0f);
 }
+
+static void packed_copy(void)
+{
+    MMPixelImage source, target;
+    const MMPixelRect row = {0, 0, 2, 1};
+    const MMPixelRect wide = {-2147483645L, 0, 2, 1};
+    unsigned char pixels[] = {1, 2, 3, 0xf0, 5, 6, 7, 0x80, 0, 0, 0, 0};
+    unsigned char palette[] = {0, 0, 0, 0, 255, 255, 255, 0};
+    unsigned char colours[] = {255, 255, 255, 128, 128, 128};
+
+    source.surface.pixels = pixels;
+    source.surface.width = 2;
+    source.surface.height = 1;
+    source.surface.pitch = 8;
+    source.surface.depth = 32;
+    source.palette = NULL;
+    source.colours = 0;
+    target = source;
+    target.surface.pixels = pixels + 4;
+    assert(mm_pixel_copy(&target, &source, &wide, &wide, &row, NULL, 0, NULL));
+    assert(memcmp(pixels, pixels + 4, 4) == 0);
+    assert(pixels[8] == 5 && pixels[9] == 6 && pixels[10] == 7 && pixels[11] == 0x80);
+
+    source.surface.pixels = colours;
+    source.surface.pitch = 6;
+    source.surface.depth = 24;
+    target.surface.pixels = palette;
+    target.surface.pitch = 1;
+    target.surface.depth = 4;
+    target.palette = palette;
+    target.colours = 2;
+    assert(mm_pixel_copy(&target, &source, &row, &row, NULL, NULL, 0, NULL));
+    assert(palette[0] == 0x11);
+}
+
 int main(void)
 {
     encode();
@@ -575,6 +610,7 @@ int main(void)
     imports();
     stream_blitting();
     scaled_drawing();
+    packed_copy();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

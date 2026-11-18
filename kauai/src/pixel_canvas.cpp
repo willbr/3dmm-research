@@ -4,7 +4,6 @@
 #include "dib_frame.h"
 #include <algorithm>
 #include <array>
-#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -100,6 +99,31 @@ std::uint32_t Rgb(const Color &color)
 {
     return mm_pixel_rgb(PaletteBytes(&color));
 }
+MMPixelImage RasterImage(const PackedSurface &surface)
+{
+    return {{surface.pixels, surface.width, surface.height, surface.pitch, surface.depth}, PaletteBytes(surface.palette),
+            surface.colors};
+}
+MMPixelRect RasterRect(const RC &rect)
+{
+    return {rect.xpLeft, rect.ypTop, rect.xpRight, rect.ypBottom};
+}
+int StorageOverlaps(const void *source, std::size_t sourceBytes, const void *target, std::size_t targetBytes)
+{
+    const auto src = reinterpret_cast<std::uintptr_t>(source);
+    const auto dst = reinterpret_cast<std::uintptr_t>(target);
+    return (src <= dst && dst - src < sourceBytes) || (dst < src && src - dst < targetBytes);
+}
+bool CopyRaster(const MMPixelImage &target, const MMPixelImage &source, const RC &sourceRect, const RC &targetRect,
+                const RC *clip, Region *region, int options)
+{
+    const auto from = RasterRect(sourceRect), to = RasterRect(targetRect);
+    const auto clipping = clip ? RasterRect(*clip) : MMPixelRect{};
+    MaskedRegionSpans scanner(region);
+    const auto spans = scanner.Services();
+    return mm_pixel_copy(&target, &source, &from, &to, clip ? &clipping : nullptr, region ? &spans : nullptr, options,
+                         StorageOverlaps) != 0;
+}
 bool ValidStorage(const PackedSurface &surface)
 {
     const MMPixelSurface layout = {surface.pixels, surface.width, surface.height, surface.pitch, surface.depth};
@@ -107,12 +131,8 @@ bool ValidStorage(const PackedSurface &surface)
 }
 bool Valid(const PackedSurface &surface)
 {
-    if (!ValidStorage(surface))
-        return false;
-    const auto depth = surface.depth;
-    if (depth == 1)
-        return (!surface.palette && surface.colors == 0) || (surface.palette && surface.colors == 2);
-    return (depth != 4 && depth != 8) || (surface.palette && surface.colors > 0 && surface.colors <= (1 << depth));
+    const auto image = RasterImage(surface);
+    return mm_pixel_image_valid(&image) != 0;
 }
 std::uint32_t PackedRead(const PackedSurface &surface, std::int32_t x, std::int32_t y)
 {
@@ -128,38 +148,20 @@ std::uint32_t Rgb555(std::uint32_t rgb)
 {
     return mm_pixel_rgb555(rgb);
 }
-std::uint32_t Expand555(std::uint32_t raw)
-{
-    const auto r = (raw >> 10) & 31, g = (raw >> 5) & 31, b = raw & 31;
-    return (((r << 3) | (r >> 2)) << 16) | (((g << 3) | (g >> 2)) << 8) | (b << 3) | (b >> 2);
-}
-void TranslateIndices8(const Color *source, std::int32_t sourceColors, const Color *destination,
-                       std::int32_t destinationColors, std::uint8_t *indices)
-{
-    mm_pixel_translate8(PaletteBytes(source), sourceColors, PaletteBytes(destination), destinationColors, indices);
-}
 template <class Surface, class Sample>
 bool MappedCopy(const Surface &destination, const RC &sourceRect, const RC &destinationRect, const RC *clip,
-                Region *region, Sample sample, bool nearSizeCopy = false)
+                Region *region, Sample sample)
 {
-    const auto sw = std::int64_t(sourceRect.xpRight) - sourceRect.xpLeft;
-    const auto sh = std::int64_t(sourceRect.ypBottom) - sourceRect.ypTop;
-    const auto dw = std::int64_t(destinationRect.xpRight) - destinationRect.xpLeft;
-    const auto dh = std::int64_t(destinationRect.ypBottom) - destinationRect.ypTop;
-    if (!Valid(destination) || sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0 || sw > INT32_MAX || sh > INT32_MAX ||
-        dw > INT32_MAX || dh > INT32_MAX)
+    const auto from = RasterRect(sourceRect), to = RasterRect(destinationRect);
+    MMI32 sw, sh, dw, dh;
+    if (!Valid(destination) || !mm_pixel_rect_extent(&from, &sw, &sh) || !mm_pixel_rect_extent(&to, &dw, &dh) ||
+        !sw || !sh || !dw || !dh)
         return false;
-    const bool nearCopy = nearSizeCopy && std::abs(sw - dw) <= 1 && std::abs(sh - dh) <= 1;
-    const auto coordinate = [&](std::int64_t position, std::int64_t size, std::int64_t target) {
-        return nearCopy ? std::min(position, size - 1) : (2 * position + 1) * size / (2 * target);
-    };
     Spans(destination, destinationRect, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        // COLORONCOLOR chooses the source cell under the destination pixel's
-        // center. Sampling the left edge drifts on non-integral stretches.
-        const auto sy = sourceRect.ypTop + coordinate(std::int64_t(y) - destinationRect.ypTop, sh, dh);
+        const auto sy = from.top + mm_pixel_sample(y - to.top, sh, dh, 0);
         for (auto x = left; x < right; ++x)
         {
-            const auto sx = sourceRect.xpLeft + coordinate(std::int64_t(x) - destinationRect.xpLeft, sw, dw);
+            const auto sx = from.left + mm_pixel_sample(x - to.left, sw, dw, 0);
             sample(Pixel(destination, x, y), sx, sy);
         }
     });
@@ -605,36 +607,9 @@ bool FillPolygon(const PackedSurface &surface, const Point *points, std::size_t 
 bool Copy(const Surface32 &destination, const Surface32 &source, const RC &sourceRect, const RC &destinationRect,
           const RC *clip, Region *region)
 {
-    if (!Valid(destination) || !Valid(source))
-        return false;
-    Surface32 input = source;
-    std::vector<std::uint8_t> snapshot;
-    const auto sourceStart = reinterpret_cast<std::uintptr_t>(source.pixels);
-    const auto destinationStart = reinterpret_cast<std::uintptr_t>(destination.pixels);
-    const auto sourceBytes = std::size_t(source.pitch) * source.height;
-    const auto destinationBytes = std::size_t(destination.pitch) * destination.height;
-    if ((sourceStart <= destinationStart && destinationStart - sourceStart < sourceBytes) ||
-        (destinationStart < sourceStart && sourceStart - destinationStart < destinationBytes))
-    {
-        if (sourceBytes > snapshot.max_size())
-            return false;
-        try
-        {
-            snapshot.resize(sourceBytes);
-        }
-        catch (const std::bad_alloc &)
-        {
-            return false;
-        }
-        std::memcpy(snapshot.data(), source.pixels, sourceBytes);
-        input.pixels = snapshot.data();
-    }
-    return MappedCopy(destination, sourceRect, destinationRect, clip, region,
-                      [&](std::uint8_t *pixel, std::int64_t sx, std::int64_t sy) {
-                          if (sx >= 0 && sx < source.width && sy >= 0 && sy < source.height)
-                              std::memcpy(
-                                  pixel, Pixel(input, static_cast<std::int32_t>(sx), static_cast<std::int32_t>(sy)), 4);
-                      });
+    return CopyRaster({{destination.pixels, destination.width, destination.height, destination.pitch, 32}, nullptr, 0},
+                      {{source.pixels, source.width, source.height, source.pitch, 32}, nullptr, 0}, sourceRect,
+                      destinationRect, clip, region, 0);
 }
 bool DrawDibFrame(const Surface32 &destination, const DibFrame &frame, const RC &rectangle, const RC *clip,
                   Region *region)
@@ -648,10 +623,8 @@ bool DrawDibFrame(const Surface32 &destination, const DibFrame &frame, const RC 
         return false;
     if (!width || !height)
         return true;
-    const auto src = reinterpret_cast<std::uintptr_t>(frame.pixels.data());
-    const auto dst = reinterpret_cast<std::uintptr_t>(destination.pixels);
     const auto srcBytes = frame.pixels.size(), dstBytes = std::size_t(destination.pitch) * destination.height;
-    if ((src <= dst && dst - src < srcBytes) || (dst < src && src - dst < dstBytes))
+    if (StorageOverlaps(frame.pixels.data(), srcBytes, destination.pixels, dstBytes))
         return false;
     const auto sample = [](std::int64_t p, std::int64_t source, std::int64_t target) {
         return (p * source + (source > target ? target - 1 : 0)) / target;
@@ -720,91 +693,8 @@ bool SnapshotIndexed(const Surface8 &destination, const Surface32 &source, const
 bool CopyPacked(const PackedSurface &destination, const PackedSurface &source, const RC &sourceRect,
                 const RC &destinationRect, const RC *clip, Region *region, const PackedCopyOptions &options)
 {
-    if (!Valid(destination) || !Valid(source))
-        return false;
-    const auto sw = std::int64_t(sourceRect.xpRight) - sourceRect.xpLeft;
-    const auto sh = std::int64_t(sourceRect.ypBottom) - sourceRect.ypTop;
-    const auto dw = std::int64_t(destinationRect.xpRight) - destinationRect.xpLeft;
-    const auto dh = std::int64_t(destinationRect.ypBottom) - destinationRect.ypTop;
-    if (sw < 0 || sh < 0 || dw < 0 || dh < 0 || sw > INT32_MAX || sh > INT32_MAX || dw > INT32_MAX || dh > INT32_MAX)
-        return false;
-    if (!sw || !sh || !dw || !dh)
-        return true;
-    const bool near = options.nearSizeCopy && std::abs(sw - dw) <= 1 && std::abs(sh - dh) <= 1;
-    if (near && source.depth >= 16 && destination.depth == 8)
-        return false;
-    // Snapshot palette metadata before any destination byte can overwrite it.
-    Color sourcePalette[256] = {}, destinationPalette[256] = {};
-    const int sourceColors = source.depth == 1 ? 2 : source.depth <= 8 ? source.colors : 0;
-    const int destinationColors = destination.depth == 1 ? 2 : destination.depth <= 8 ? destination.colors : 0;
-    if (sourceColors && source.palette)
-        std::memcpy(sourcePalette, source.palette, sourceColors * sizeof(Color));
-    else if (source.depth == 1)
-        sourcePalette[1] = {255, 255, 255, 0};
-    if (destinationColors && destination.palette)
-        std::memcpy(destinationPalette, destination.palette, destinationColors * sizeof(Color));
-    else if (destination.depth == 1)
-        destinationPalette[1] = {255, 255, 255, 0};
-    bool rawCopy = source.depth == destination.depth && (source.depth == 1 || source.depth >= 16);
-    if (destinationColors && source.depth == destination.depth && destinationColors == (1 << destination.depth))
-    {
-        rawCopy = true;
-        for (int i = 0; i < destinationColors; ++i)
-            rawCopy &= Rgb(sourcePalette[i]) == Rgb(destinationPalette[i]);
-    }
-    const auto encode = [&](std::uint32_t raw) {
-        if (rawCopy)
-            return raw;
-        const auto rgb = sourceColors         ? Rgb(sourcePalette[raw & 255])
-                         : source.depth == 16 ? Expand555(raw)
-                                              : raw & 0xFFFFFF;
-        if (destinationColors)
-            return std::uint32_t(NearestIndex(destinationPalette, destinationColors, rgb));
-        return destination.depth == 16 ? Rgb555(rgb) : rgb;
-    };
-    std::uint32_t mapping[256] = {};
-    if (source.depth <= 8)
-        for (unsigned i = 0; i < (1u << source.depth); ++i)
-            mapping[i] = encode(i);
-    PackedSurface input = source;
-    std::vector<std::uint8_t> snapshot;
-    const auto srcStart = reinterpret_cast<std::uintptr_t>(source.pixels);
-    const auto dstStart = reinterpret_cast<std::uintptr_t>(destination.pixels);
-    const auto srcBytes = std::size_t(source.pitch) * source.height;
-    const auto dstBytes = std::size_t(destination.pitch) * destination.height;
-    if ((srcStart <= dstStart && dstStart - srcStart < srcBytes) ||
-        (dstStart < srcStart && srcStart - dstStart < dstBytes))
-    {
-        if (srcBytes > snapshot.max_size())
-            return false;
-        try
-        {
-            snapshot.resize(srcBytes);
-        }
-        catch (const std::bad_alloc &)
-        {
-            return false;
-        }
-        std::memcpy(snapshot.data(), source.pixels, srcBytes);
-        input.pixels = snapshot.data();
-    }
-    const auto coordinate = [&](std::int64_t p, std::int64_t extent, std::int64_t target) {
-        return near ? std::min(p, extent - 1) : (2 * p + 1) * extent / (2 * target);
-    };
-    Spans(destination, destinationRect, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        const auto sy = sourceRect.ypTop + coordinate(std::int64_t(y) - destinationRect.ypTop, sh, dh);
-        if (sy < 0 || sy >= input.height)
-            return;
-        for (auto x = left; x < right; ++x)
-        {
-            const auto sx = sourceRect.xpLeft + coordinate(std::int64_t(x) - destinationRect.xpLeft, sw, dw);
-            if (sx < 0 || sx >= input.width)
-                continue;
-            const auto raw = PackedRead(input, static_cast<std::int32_t>(sx), static_cast<std::int32_t>(sy));
-            PackedWrite(destination, x, y, source.depth <= 8 ? mapping[raw] : encode(raw));
-        }
-    });
-    return true;
+    const int flags = MM_PIXEL_COPY_ALLOW_EMPTY | (options.nearSizeCopy ? MM_PIXEL_COPY_NEAR_SIZE : 0);
+    return CopyRaster(RasterImage(destination), RasterImage(source), sourceRect, destinationRect, clip, region, flags);
 }
 namespace
 {
@@ -1030,41 +920,11 @@ bool CopyIndexed(const Surface32 &destination, const Indexed8 &source, const RC 
 bool CopyIndexed(const Surface8 &destination, const Indexed8 &source, const RC &sourceRect, const RC &destinationRect,
                  const Color *palette, std::int32_t colors, const RC *clip, Region *region)
 {
-    if (!Valid(destination) || !source.pixels || !source.palette || source.colors < 1 || source.colors > 256 ||
-        source.width < 1 || source.height < 1 || source.pitch < source.width || !palette || colors < 1 ||
-        colors > 256 || std::uint64_t(source.pitch) * source.height > std::numeric_limits<std::size_t>::max())
-        return false;
-    auto input = static_cast<const std::uint8_t *>(source.pixels);
-    std::vector<std::uint8_t> snapshot;
-    const auto sourceStart = reinterpret_cast<std::uintptr_t>(source.pixels);
-    const auto destinationStart = reinterpret_cast<std::uintptr_t>(destination.pixels);
-    const auto sourceBytes = std::size_t(source.pitch) * source.height;
-    const auto destinationBytes = std::size_t(destination.pitch) * destination.height;
-    if ((sourceStart <= destinationStart && destinationStart - sourceStart < sourceBytes) ||
-        (destinationStart < sourceStart && sourceStart - destinationStart < destinationBytes))
-    {
-        if (sourceBytes > snapshot.max_size())
-            return false;
-        try
-        {
-            snapshot.resize(sourceBytes);
-        }
-        catch (const std::bad_alloc &)
-        {
-            return false;
-        }
-        std::memcpy(snapshot.data(), input, sourceBytes);
-        input = snapshot.data();
-    }
-    std::uint8_t indices[256];
-    TranslateIndices8(source.palette, source.colors, palette, colors, indices);
-    return MappedCopy(
-        destination, sourceRect, destinationRect, clip, region,
-        [&](std::uint8_t *pixel, std::int64_t sx, std::int64_t sy) {
-            if (sx >= 0 && sx < source.width && sy >= 0 && sy < source.height)
-                *pixel = indices[input[std::size_t(sy) * source.pitch + std::size_t(sx)]];
-        },
-        true);
+    const MMPixelImage from = {{const_cast<void *>(source.pixels), source.width, source.height, source.pitch, 8},
+                               PaletteBytes(source.palette), source.colors};
+    const MMPixelImage to = {{destination.pixels, destination.width, destination.height, destination.pitch, 8},
+                             PaletteBytes(palette), colors};
+    return CopyRaster(to, from, sourceRect, destinationRect, clip, region, MM_PIXEL_COPY_NEAR_SIZE);
 }
 namespace
 {

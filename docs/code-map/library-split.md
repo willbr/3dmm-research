@@ -5065,6 +5065,17 @@ indexed, true-colour and packed targets. Standalone checks cover malformed rows,
 near-size transfer, reduction and sample coordinates whose products exceed
 32 bits. Reports are in `tmp/c89-scaled-masked`.
 
+`mm_pixel_copy` also handles packed surface copies across all six DIB depths,
+raw 32-bit copies and indexed-to-indexed copies. It preserves raw same-format
+samples, converts RGB555 and indexed colours, snapshots aliased palette and
+pixel data, and shares clipping and pixel-centre sampling with masked drawing.
+Kauai passes the region spans and checks storage ranges using host addresses.
+C-only callers can omit the address check to request a source snapshot.
+The legacy near-size true-colour-to-8-bit approximation still uses the host.
+All 39,204 copy cases matched the previous build across 40,184,100 bytes,
+including return values, aliased storage, custom palettes, disjoint region
+spans and extreme rectangle extents. Evidence is in `tmp/c89-packed-copy`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit

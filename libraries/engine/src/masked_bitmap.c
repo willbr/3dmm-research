@@ -1,7 +1,6 @@
 /* Masked bitmap policy converted from Kauai mbmp.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/masked_bitmap.h"
-#include "mm/runtime_math.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -550,28 +549,11 @@ static void load_row(const MMMaskedRle *source, MaskedRows *rows, MMI32 y)
     rows->decoded = y;
 }
 
-static MMI32 sample(MMI32 position, MMI32 source, MMI32 destination, int near)
-{
-    MMU32 factor, divisor;
-    MMRuntimeCounter input, frequency, quotient;
-    if (near)
-        return position < source ? position : source - 1;
-    factor = (MMU32)position * 2 + 1;
-    divisor = (MMU32)destination * 2;
-    if (factor <= (MMU32)0xffffffffUL / (MMU32)source)
-        return (MMI32)(factor * (MMU32)source / divisor);
-    input.low = factor;
-    frequency.low = divisor;
-    input.high = frequency.high = 0;
-    mm_runtime_counter_scale(input, (MMU32)source, frequency, &quotient);
-    return (MMI32)quotient.low;
-}
-
 static MMI32 first_sample(MMI32 position, MMI32 source, MMI32 destination, MMI32 last, int reduce)
 {
     if (!reduce || source <= destination)
         return last;
-    return position ? sample(position - 1, source, destination, 0) + 1 : 0;
+    return position ? mm_pixel_sample(position - 1, source, destination, 0) + 1 : 0;
 }
 
 static void combine_rows(const MMMaskedRle *source, MaskedRows *rows, MMI32 first, MMI32 last, unsigned char background)
@@ -594,18 +576,6 @@ static void combine_rows(const MMMaskedRle *source, MaskedRows *rows, MMI32 firs
     }
 }
 
-static void intersect(MMMaskedRect *bounds, const MMMaskedRect *clip)
-{
-    if (clip->left > bounds->left)
-        bounds->left = clip->left;
-    if (clip->right < bounds->right)
-        bounds->right = clip->right;
-    if (clip->top > bounds->top)
-        bounds->top = clip->top;
-    if (clip->bottom < bounds->bottom)
-        bounds->bottom = clip->bottom;
-}
-
 int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, const MMMaskedRect *destination,
                       const MMMaskedRect *clip, const MMMaskedSpans *spans, const unsigned char *palette, MMI32 count,
                       const MMMaskedTransfer *transfer, int and_shrink)
@@ -616,8 +586,8 @@ int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, 
     unsigned char *line, *indices, *opaque, colour, covered;
     MMU32 value;
     int near, reduce, result = 0;
-    if (!mm_pixel_surface_valid(surface) || !subtract(destination->right, destination->left, &width) ||
-        !subtract(destination->bottom, destination->top, &height) || width <= 0 || height <= 0 ||
+    if (!mm_pixel_surface_valid(surface) || !mm_pixel_rect_extent(destination, &width, &height) ||
+        width <= 0 || height <= 0 ||
         (transfer ? surface->depth == 32 :
                     surface->depth != 8 && (surface->depth != 32 || !palette || count < 1 || count > 256)))
         return 0;
@@ -631,9 +601,9 @@ int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, 
     bounds.left = bounds.top = 0;
     bounds.right = surface->width;
     bounds.bottom = surface->height;
-    intersect(&bounds, destination);
+    mm_pixel_rect_intersect(&bounds, destination);
     if (clip)
-        intersect(&bounds, clip);
+        mm_pixel_rect_intersect(&bounds, clip);
     result = 1;
     if (bounds.left >= bounds.right || bounds.top >= bounds.bottom)
         goto done;
@@ -647,7 +617,7 @@ int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, 
         {
             line = (unsigned char *)surface->pixels + (size_t)y * (size_t)surface->pitch;
             delta = y - destination->top;
-            sy = sample(delta, source->height, height, near);
+            sy = mm_pixel_sample(delta, source->height, height, near);
             if (transfer)
                 combine_rows(source, &rows, first_sample(delta, source->height, height, sy, reduce), sy,
                              transfer->background);
@@ -658,7 +628,7 @@ int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, 
                 for (x = left; x < right; ++x)
                 {
                     delta = x - destination->left;
-                    sx = sample(delta, source->width, width, near);
+                    sx = mm_pixel_sample(delta, source->width, width, near);
                     if (transfer)
                     {
                         colour = 255;

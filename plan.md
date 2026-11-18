@@ -757,6 +757,11 @@ Both hosts use C89 masked-bitmap drawing for unscaled pixels and one-bit masks,
 as well as scaled indexed, true-colour and packed palette transfers. C89 retains
 the pixel-centre, near-size and BLACKONWHITE sampling rules. Region-clipped
 drawing borrows spans from the platform-independent Kauai scanner.
+Packed surface copies, raw 32-bit copies and indexed-to-indexed copies use
+the same C89 raster code for clipping, sampling, palette conversion and
+snapshotting overlapping buffers. Kauai supplies region spans and the host's
+byte-range overlap check. The near-size true-colour-to-8-bit path still uses
+the host's legacy palette approximation.
 Typed offscreen graphics and view drawing remain adapters.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
