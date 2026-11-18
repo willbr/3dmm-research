@@ -1,4 +1,6 @@
 #include "mm/actor_data.h"
+#include "mm/collections.h"
+#include "mm/movie_data.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -205,6 +207,61 @@ static void routes(void)
     CHECK(!mm_actor_finish_route(&r, 0, &s) && r.released == 1);
     r.width = 16;
     CHECK(!mm_actor_finish_route(&r, MM_ACTOR_INVALID_ORDER, &s) && r.released == 2);
+}
+
+static void *create_route(void *p, MMU32 count, void **rows)
+{
+    Route *r = (Route *)p;
+    CHECK(count <= 2);
+    r->count = count;
+    *rows = count ? r->bits : NULL;
+    return r;
+}
+
+static int fail_track_body(void *p, MMU32 offset, void *out, size_t bytes)
+{
+    if (offset)
+        return 0;
+    memcpy(out, p, bytes);
+    return 1;
+}
+
+static void route_streams(void)
+{
+    unsigned char bytes[44];
+    const unsigned short one = 1;
+    const MMU32 points[8] = {0xffffffffUL, 1, 0x7ffffffdUL, 65536, 17, 21, 0x80000000UL, 0};
+    Route route;
+    MMActorRouteReader reader = {NULL, create_route, release_route};
+    MMCollectionHeader header;
+    MMMemoryStream stream;
+    void *out;
+    int other;
+    memset(&route, 0, sizeof(route));
+    memset(&header, 0, sizeof(header));
+    reader.context = &route;
+    header.kind = MM_COLLECTION_ARRAY;
+    header.width = MM_ACTOR_ROUTE_BYTES;
+    header.count = 2;
+    for (other = 0; other < 2; ++other)
+    {
+        header.big_endian = (*(const unsigned char *)&one == 0) != other;
+        CHECK(mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK);
+        memcpy(bytes + 12, points, sizeof(points));
+        if (other)
+            words(bytes + 12, 8);
+        CHECK(mm_memory_stream_init(&stream, bytes, sizeof(bytes)));
+        CHECK(mm_actor_read_route_stream(&stream.stream, &reader, &out) == MM_MOVIE_OK && out == &route &&
+              route.count == 2 && !memcmp(route.bits, points, sizeof(points)));
+    }
+    out = NULL;
+    stream.stream.context = bytes;
+    stream.stream.read_at = fail_track_body;
+    CHECK(mm_actor_read_route_stream(&stream.stream, &reader, &out) == MM_MOVIE_IO && !out && route.released == 1);
+    header.count = 0;
+    CHECK(mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK);
+    CHECK(mm_memory_stream_init(&stream, bytes, 12));
+    CHECK(mm_actor_read_route_stream(&stream.stream, &reader, &out) == MM_MOVIE_OK && out == &route && !route.count);
 }
 typedef struct Host Host;
 typedef struct Group
@@ -457,11 +514,81 @@ static void events(void)
     release_group(source);
     CHECK(!h.live);
 }
+
+static void event_streams(void)
+{
+    Host h;
+    MMActorEventServices s;
+    Group *source, *wire, *actual;
+    MMActorCostume costume;
+    MMActorSound sound;
+    MMCollectionHeader header;
+    MMMemoryStream stream;
+    unsigned char bytes[1024], *locations;
+    const unsigned short one = 1;
+    MMU32 row, length, offset, size;
+    void *out = NULL;
+    int other;
+    initialize(&h);
+    s = services(&h);
+    source = runtime(&h);
+    wire = (Group *)mm_actor_write_events(source, &s);
+    CHECK(wire != NULL);
+    memset(&header, 0, sizeof(header));
+    header.kind = MM_COLLECTION_GROUP;
+    header.width = wire->width;
+    header.count = wire->count;
+    header.free_count = -1;
+    for (row = 0; row < wire->count; ++row)
+        header.bytes += header.width + (MMU32)wire->sizes[row];
+    locations = bytes + 20 + header.bytes;
+    length = 20 + header.bytes + header.count * 8;
+    CHECK(length <= sizeof(bytes));
+    for (other = 0; other < 2; ++other)
+    {
+        header.big_endian = (*(const unsigned char *)&one == 0) != other;
+        CHECK(mm_collection_header_write(&header, bytes, length) == MM_STORAGE_OK);
+        if (other)
+            foreign(wire);
+        offset = 0;
+        for (row = 0; row < wire->count; ++row)
+        {
+            size = header.width + (MMU32)wire->sizes[row];
+            memcpy(bytes + 20 + offset, wire->fixed[row], header.width);
+            memcpy(bytes + 20 + offset + header.width, wire->data[row], (size_t)wire->sizes[row]);
+            memcpy(locations + row * 8, &offset, 4);
+            memcpy(locations + row * 8 + 4, &size, 4);
+            if (other)
+                words(locations + row * 8, 2);
+            offset += size;
+        }
+        CHECK(mm_memory_stream_init(&stream, bytes, length));
+        CHECK(mm_actor_read_events_stream(&stream.stream, &s, &out) == MM_MOVIE_OK && h.live == 3);
+        actual = (Group *)out;
+        CHECK(actual->count == source->count && !memcmp(actual->fixed, source->fixed, sizeof(actual->fixed)));
+        CHECK(!memcmp(actual->data[0], source->data[0], 20) && !memcmp(actual->data[12], source->data[12], 48));
+        memcpy(&costume, actual->data[2], sizeof(costume));
+        memcpy(&sound, actual->data[6], sizeof(sound));
+        CHECK(!costume.tag.cache && costume.tag.number == 77 && !sound.tag.cache && sound.tag.number == 73);
+        release_group(actual);
+    }
+    h.fail_at = 4;
+    out = NULL;
+    CHECK(mm_actor_read_events_stream(&stream.stream, &s, &out) == MM_MOVIE_MEMORY && !out && h.live == 2);
+    memset(locations + (header.count - 1) * 8, 0xff, 4);
+    h.used = 0;
+    CHECK(mm_actor_read_events_stream(&stream.stream, &s, &out) == MM_MOVIE_BAD_FILE && !out && h.used == 0);
+    release_group(wire);
+    release_group(source);
+    CHECK(!h.live);
+}
 int main(void)
 {
     headers();
     routes();
+    route_streams();
     events();
+    event_streams();
     puts("actor data passed");
     return 0;
 }

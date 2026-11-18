@@ -117,6 +117,23 @@ int mm_collection_header_read(const MMReadStream *stream, int kind, int allocate
     *out = h;
     return MM_STORAGE_OK;
 }
+int mm_collection_group_row(const MMCollectionHeader *header, const unsigned char *records, MMU32 row,
+                            MMU32 *offset, MMI32 *bytes)
+{
+    const unsigned char *location;
+    MMU32 start, size;
+    if (row >= header->count)
+        return 0;
+    location = records + header->first_bytes + row * 8;
+    start = u32(location, header->big_endian);
+    size = u32(location + 4, header->big_endian);
+    if (start > header->first_bytes || size < header->width || size > header->first_bytes - start)
+        return 0;
+    *offset = start;
+    *bytes = (MMI32)(size - header->width);
+    return 1;
+}
+
 int mm_collection_header_write(const MMCollectionHeader *header, unsigned char *output, size_t capacity)
 {
     MMCollectionHeader h;

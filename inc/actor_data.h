@@ -254,11 +254,14 @@ const ByteOrderMask kbomActf = 0x5fffff00;
 struct ActorData
 {
     static bool FReadHeader(PDataBlock block, ActorChunkOnFile *header);
+    static bool FReadHeader(PChunkyFile file, ChunkNumber actor, void *header);
     static bool FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header);
     static bool FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta);
     static PDynamicArray PglReadRoute(PDataBlock block);
+    static PDynamicArray PglReadRoute(PChunkyFile file, ChunkNumber actor);
     // Returned events have runtime-width values with unopened TAGs (pcrf=nil).
     static PGeneralGroup PggReadEvents(PDataBlock block);
+    static PGeneralGroup PggReadEvents(PChunkyFile file, ChunkNumber actor);
     // Borrows runtime events. Returned wire values own no TAG references.
     static PGeneralGroup PggWriteEvents(PGeneralGroup events);
 };

@@ -59,11 +59,17 @@ All three readers use the same C89 exact child lookup to select a `CAM` at
 its authored slot. Studio and Marcus resolve its slot-zero `MBMP` and `ZBMP`
 through the same C89 binding in the archive that owns the camera. Their
 renderer adapters load, cache and present the selected records.
-`mm_movie_session_actor` follows the scene start group's actor links, creates
-C route and event tables and replays the existing actor evaluator from a fresh
-state. The query uses action tables from the resolved template or the shared
-3D text action metadata. Its outputs include route position, action, cel and
-fixed-point root pose. The query does not create body, costume or audio objects.
+`mm_movie_session_actor` follows the scene start group's actor links. It reads
+the ACTR header and the slot-zero PATH and GGAE children through the same graph
+reader as Studio and Marcus. The reader accepts decoded streams from either
+the standalone index or an open native graph. The shared track decoder writes
+native-order route points and runtime-width events into the caller's storage,
+including unopened tags for sound and costume events. It validates event rows
+before constructing the runtime group. The standalone query then replays the
+actor evaluator from a fresh state. It uses action tables from the resolved
+template or the shared 3D text action metadata. Its outputs include route
+position, action, cel and fixed-point root pose. The query does not create body,
+costume or audio objects.
 Studio, Marcus and the standalone evaluator use `mm_actor_template_link`
 to recover the embedded template number when a movie edit or import changed
 it. An external source keeps its authored template number and uses the

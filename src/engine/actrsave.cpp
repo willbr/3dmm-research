@@ -163,7 +163,6 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
     AssertPo(pcrf, 0);
 
     Actor *pactr;
-    ChildChunkIdentification kid;
     PChunkyFile pcfl = pcrf->Pcfl();
 
     pactr = NewObj Actor;
@@ -171,13 +170,9 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
         goto LFail;
     if (!pactr->_FReadActor(pcfl, cnoActr))
         goto LFail;
-    if (!pcfl->FGetKidChidCtg(kctgActr, cnoActr, kchidPath, kctgPath, &kid))
+    if (!pactr->_track.AdoptRoute(ActorData::PglReadRoute(pcfl, cnoActr)))
         goto LFail;
-    if (!pactr->_FReadRoute(pcfl, kid.cki.cno))
-        goto LFail;
-    if (!pcfl->FGetKidChidCtg(kctgActr, cnoActr, kchidGgae, kctgGgae, &kid))
-        goto LFail;
-    if (!pactr->_FReadEvents(pcfl, kid.cki.cno))
+    if (!pactr->_track.AdoptEvents(ActorData::PggReadEvents(pcfl, cnoActr)))
         goto LFail;
     if (!pactr->_FOpenTags(pcrf))
         goto LFail;
@@ -218,9 +213,7 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
     AssertPo(pcfl, 0);
 
     ActorChunkOnFile actf;
-    DataBlock blck;
-
-    if (!pcfl->FFind(kctgActr, cno, &blck) || !ActorData::FReadHeader(&blck, &actf))
+    if (!ActorData::FReadHeader(pcfl, cno, &actf))
         return fFalse;
 
     Assert(kboCur == actf.bo, "bad ActorChunkOnFile");
@@ -262,42 +255,6 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
 bool Actor::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
 {
     return ActorData::FAdjustId(pcfl, cno, darid);
-}
-
-/***************************************************************************
-    Read the PATH (_track.Route()) chunk
-***************************************************************************/
-bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
-{
-    AssertBaseThis(0);
-    AssertPo(pcfl, 0);
-
-    DataBlock block;
-    if (!pcfl->FFind(kctgPath, cno, &block))
-        return fFalse;
-    _track.AdoptRoute(ActorData::PglReadRoute(&block));
-    return _track.Route() != pvNil;
-}
-
-/***************************************************************************
-    Read the GGAE (_track.Events()) chunk.
-
-    The wire-format GG embeds CostumeOnFile/SoundOnFile (with TAGOnFile) for
-    aetCost/aetSnd entries; the runtime GG holds Costume/Sound (with full TAG
-    including the runtime pcrf). On x86 the two layouts coincide; on x64 the
-    runtime variant is wider. We marshal entry-by-entry: read into a transient
-    on-file GG, walk it into a fresh runtime GG, then drop the on-file copy.
-***************************************************************************/
-bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
-{
-    AssertBaseThis(0);
-    AssertPo(pcfl, 0);
-
-    DataBlock block;
-    if (!pcfl->FFind(kctgGgae, cno, &block))
-        return fFalse;
-    _track.AdoptEvents(ActorData::PggReadEvents(&block));
-    return _track.Events() != pvNil;
 }
 
 /***************************************************************************

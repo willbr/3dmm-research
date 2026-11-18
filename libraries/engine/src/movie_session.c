@@ -12,6 +12,9 @@
 #define SCENE_START_TYPE 0x47475354UL
 #define SCENE_FRAME_TYPE 0x47474652UL
 #define STRING_TABLE_TYPE 0x47535420UL
+#define ACTOR_TYPE 0x41435452UL
+#define ACTOR_ROUTE_TYPE 0x50415448UL
+#define ACTOR_EVENTS_TYPE 0x47474145UL
 #define LAST_AUTHORED_FRAME 2147483647L
 
 static void *find_codec(void *context, MMI32 format)
@@ -264,6 +267,19 @@ static int read_record(void *context, void *request, MMU32 position, const MMChu
     return status;
 }
 
+static int read_movie_payload(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes consume, void *out)
+{
+    const MMMovieSession *movie = (const MMMovieSession *)context;
+    MMMoviePayload payload;
+    int status = stream_payload(&movie->stream, movie->index, entry, 0, &payload);
+    if (status == MM_MOVIE_OK)
+    {
+        status = consume(out, payload.stream);
+        free(payload.decoded);
+    }
+    return status;
+}
+
 typedef struct GraphRead
 {
     const MMMovieSessionGraph *graph;
@@ -335,6 +351,7 @@ int mm_movie_session_open(const MMReadStream *stream, const MMChunkPolicy *polic
     movie->graph.context = movie;
     movie->graph.access = stream_access;
     movie->graph.read = read_record;
+    movie->graph.payload = read_movie_payload;
     status = load_root(movie, NULL, NULL);
     if (status != MM_MOVIE_OK)
     {
@@ -392,6 +409,80 @@ int mm_session_child(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU3
     if (status != MM_CHUNK_OK || mm_chunk_find(access, type, child.number, position) != MM_CHUNK_OK)
         return MM_CHUNK_BAD_FILE;
     return mm_chunk_at(access, *position, entry);
+}
+
+typedef struct ActorRead
+{
+    void *value;
+    const MMActorRouteReader *route;
+    const MMActorEventServices *events;
+    int called;
+} ActorRead;
+
+static int actor_receive(void *context, const MMReadStream *stream)
+{
+    ActorRead *read = (ActorRead *)context;
+    if (read->called)
+        return MM_MOVIE_BAD_FILE;
+    read->called = 1;
+    if (read->route)
+        return mm_actor_read_route_stream(stream, read->route, &read->value);
+    if (read->events)
+        return mm_actor_read_events_stream(stream, read->events, &read->value);
+    return mm_actor_read_header(stream, read->value) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+static int actor_read(const MMMovieSessionGraph *graph, MMU32 number, MMU32 type, ActorRead *read)
+{
+    MMChunkAccess chunks;
+    MMChunkEntry entry;
+    MMU32 position, child;
+    int status;
+    if (!graph || !graph->access || !graph->payload)
+        return MM_MOVIE_BAD_FILE;
+    graph->access(graph->context, &chunks);
+    if (mm_chunk_find(&chunks, ACTOR_TYPE, number, &position) != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    status = type == ACTOR_TYPE ? mm_chunk_at(&chunks, position, &entry)
+                                : mm_session_child(&chunks, position, 0, type, &entry, &child);
+    if (status != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    status = graph->payload(graph->context, &entry, actor_receive, read);
+    return status == MM_MOVIE_OK && !read->called ? MM_MOVIE_BAD_FILE : status;
+}
+
+int mm_movie_actor_header(const MMMovieSessionGraph *graph, MMU32 number, void *header)
+{
+    ActorRead read = {NULL, NULL, NULL, 0};
+    read.value = header;
+    return actor_read(graph, number, ACTOR_TYPE, &read);
+}
+
+int mm_movie_actor_route(const MMMovieSessionGraph *graph, MMU32 number, const MMActorRouteReader *reader, void **out)
+{
+    ActorRead read = {NULL, NULL, NULL, 0};
+    int status;
+    read.route = reader;
+    status = actor_read(graph, number, ACTOR_ROUTE_TYPE, &read);
+    if (status == MM_MOVIE_OK)
+        *out = read.value;
+    else if (read.value)
+        reader->release(read.value);
+    return status;
+}
+
+int mm_movie_actor_events(const MMMovieSessionGraph *graph, MMU32 number, const MMActorEventServices *services,
+                          void **out)
+{
+    ActorRead read = {NULL, NULL, NULL, 0};
+    int status;
+    read.events = services;
+    status = actor_read(graph, number, ACTOR_EVENTS_TYPE, &read);
+    if (status == MM_MOVIE_OK)
+        *out = read.value;
+    else if (read.value)
+        services->release(read.value);
+    return status;
 }
 
 int mm_movie_view_source_table(const MMChunkAccess *access, MMU32 root, MMChunkEntry *entry, MMU32 *position)
@@ -554,18 +645,10 @@ MMU32 mm_session_word(const unsigned char *p, int big)
 
 unsigned char *mm_session_group_row(const MMMovieGroup *group, MMU32 row, MMI32 *size)
 {
-    const unsigned char *location;
-    MMU32 offset, bytes;
+    MMU32 offset;
     *size = -1;
-    if (row >= group->header.count)
+    if (!mm_collection_group_row(&group->header, group->records, row, &offset, size))
         return NULL;
-    location = group->locations + row * 8;
-    offset = mm_session_word(location, group->header.big_endian);
-    bytes = mm_session_word(location + 4, group->header.big_endian);
-    if (offset > group->header.first_bytes || bytes < group->header.width ||
-        bytes > group->header.first_bytes - offset)
-        return NULL;
-    *size = (MMI32)(bytes - group->header.width);
     return group->records + offset;
 }
 
@@ -634,7 +717,6 @@ int mm_session_group(const MMMovieArchive *archive, const MMChunkEntry *entry, M
     }
     group->bytes = bytes;
     group->records = bytes + group->header.header_bytes;
-    group->locations = group->records + group->header.first_bytes;
     return MM_MOVIE_OK;
 }
 

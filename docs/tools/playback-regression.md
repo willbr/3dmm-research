@@ -13711,6 +13711,40 @@ relaunched.
 
 Evidence is under `tmp/c89-live-publication/` on the evidence drive.
 
+### Studio, Marcus and the standalone session share actor track loading
+
+The C89 graph reader resolves the ACTR header and its slot-zero PATH and GGAE
+children in the owning archive. Studio and Marcus supply editable route and
+event storage. The standalone session supplies its C storage. The decoder
+normalizes route words and validates the GGAE rows before building the runtime
+group. Sound and costume rows carry unopened tags with native pointer width.
+
+All 181 standalone checks and three AddressSanitizer checks passed. The
+actor-data fixture exercises both byte orders, truncated route reads, malformed
+event locations and partial event-group cleanup after an insertion fails. The
+changed C modules and fixture compiled under strict C89 on Linux x64 musl.
+All 28 selected host checks passed, including the Marcus player and the C89
+syntax checks for the engine and Marcus.
+
+Stock and SID-29 cases matched 456 seek observations and 360 viewport hashes
+from the preceding builds. Studio SDL and the retained V3dmm runs each matched
+456 retail actor observations. Studio SDL and Marcus each matched 240 retail
+playback commits across actor events, dissolves and scrolling text. Retail
+reopened Studio's saved actor edit and matched it on four seeks.
+
+The actor-audio fixture recorded the 600 Hz ordinary cue and the 1300 Hz
+motion cue from the retail capture in both rebuilt hosts. Each host committed
+60 frames and recorded at least 15,859 silent sample frames before Play.
+This measures cue presence and silence before playback.
+
+The two standalone probes matched all 300 frame and 300 mesh snapshots, and
+all 300 graph-versus-stream frames matched. The 26 actor and body traces and
+the 480-byte round-trip movie also matched byte for byte. Missing actor
+content left the standalone frame output unpublished. Both hosts were rebuilt,
+and the workspace Marcus was relaunched.
+
+Evidence is under `tmp/c89-actor-input/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

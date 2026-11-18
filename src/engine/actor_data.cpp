@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "soc_core.h"
-#include "engine_read_stream.h"
+#include "engine_movie_graph.h"
 #include "mm/actor_data.h"
 #include <cstddef>
 ASSERTNAME
@@ -33,10 +33,6 @@ static_assert(aetAdd == MM_ACTOR_ADD && aetActn == MM_ACTOR_ACTION && aetCost ==
               "actor event kinds");
 namespace
 {
-int Order(short bo)
-{
-    return bo == kboCur ? MM_ACTOR_NATIVE : bo == kboOther ? MM_ACTOR_OTHER : MM_ACTOR_INVALID_ORDER;
-}
 struct HeaderHost
 {
     PChunkyFile file;
@@ -56,6 +52,18 @@ MMActorHeaderIO HeaderIO(HeaderHost *host)
                 return static_cast<HeaderHost *>(c)->file->FPutPv(const_cast<void *>(header), bytes, kctgActr, number);
             }};
 }
+const MMActorRouteReader kRouteReader = {nullptr,
+    [](void *, MMU32 count, void **rows) -> void * {
+        auto route = DynamicArray::PglNew(MM_ACTOR_ROUTE_BYTES);
+        if (!route || !route->FSetIvMac(count))
+        {
+            ReleasePpo(&route);
+            return nullptr;
+        }
+        *rows = count ? route->QvGet(0) : nullptr;
+        return route;
+    },
+    [](void *g) { static_cast<PDynamicArray>(g)->Release(); }};
 MMActorEventServices Events()
 {
     return {nullptr,
@@ -81,6 +89,11 @@ bool ActorData::FReadHeader(PDataBlock block, ActorChunkOnFile *header)
     const auto stream = EngineReadStream::FromBlock(*block);
     return mm_actor_read_header(&stream, header) != 0;
 }
+bool ActorData::FReadHeader(PChunkyFile file, ChunkNumber actor, void *header)
+{
+    const auto graph = EngineMovieGraph::FromFile(file);
+    return mm_movie_actor_header(&graph, actor, header) == MM_MOVIE_OK;
+}
 bool ActorData::FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header)
 {
     HeaderHost host = {file};
@@ -95,21 +108,41 @@ bool ActorData::FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta
 }
 PDynamicArray ActorData::PglReadRoute(PDataBlock block)
 {
-    short bo = kboCur;
-    auto route = DynamicArray::PglRead(block, &bo);
-    const MMActorRouteServices services = {
-        [](void *g) -> MMU32 { return static_cast<PDynamicArray>(g)->CbEntry(); },
-        [](void *g) -> MMU32 { return static_cast<PDynamicArray>(g)->IvMac(); },
-        [](void *g) -> void * { return static_cast<PDynamicArray>(g)->QvGet(0); },
-        [](void *g) { static_cast<PDynamicArray>(g)->Release(); }};
-    return static_cast<PDynamicArray>(mm_actor_finish_route(route, Order(bo), &services));
+    if (!block->FUnpackData())
+        return nullptr;
+    const auto stream = EngineReadStream::FromBlock(*block);
+    void *route;
+    if (mm_actor_read_route_stream(&stream, &kRouteReader, &route) != MM_MOVIE_OK)
+        return nullptr;
+    return static_cast<PDynamicArray>(route);
+}
+PDynamicArray ActorData::PglReadRoute(PChunkyFile file, ChunkNumber actor)
+{
+    const auto graph = EngineMovieGraph::FromFile(file);
+    void *route;
+    if (mm_movie_actor_route(&graph, actor, &kRouteReader, &route) != MM_MOVIE_OK)
+        return nullptr;
+    return static_cast<PDynamicArray>(route);
 }
 PGeneralGroup ActorData::PggReadEvents(PDataBlock block)
 {
-    short bo = kboCur;
-    auto wire = GeneralGroup::PggRead(block, &bo);
+    if (!block->FUnpackData())
+        return nullptr;
+    const auto stream = EngineReadStream::FromBlock(*block);
     const auto services = Events();
-    return static_cast<PGeneralGroup>(mm_actor_read_events(wire, Order(bo), &services));
+    void *events;
+    if (mm_actor_read_events_stream(&stream, &services, &events) != MM_MOVIE_OK)
+        return nullptr;
+    return static_cast<PGeneralGroup>(events);
+}
+PGeneralGroup ActorData::PggReadEvents(PChunkyFile file, ChunkNumber actor)
+{
+    const auto graph = EngineMovieGraph::FromFile(file);
+    const auto services = Events();
+    void *events;
+    if (mm_movie_actor_events(&graph, actor, &services, &events) != MM_MOVIE_OK)
+        return nullptr;
+    return static_cast<PGeneralGroup>(events);
 }
 PGeneralGroup ActorData::PggWriteEvents(PGeneralGroup events)
 {

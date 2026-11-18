@@ -10,8 +10,6 @@
 #include <string.h>
 
 #define ACTOR_TYPE 0x41435452UL
-#define ROUTE_TYPE 0x50415448UL
-#define ACTOR_EVENTS_TYPE 0x47474145UL
 
 typedef struct ActorEvents
 {
@@ -25,7 +23,6 @@ typedef struct ActorInput
     const MMMovieSession *movie;
     const MMMovieSource *source;
     const MMMovieArchive *archive;
-    MMU32 actor_position;
     MMActorRoutePoint *route;
     MMI32 route_count;
     ActorEvents *events;
@@ -108,136 +105,61 @@ static int event_insert(void *p, MMU32 row, MMU32 size, const void *data, const 
     return result == MM_STORAGE_OK;
 }
 
-static int actor_entry(ActorInput *input, MMU32 type, MMChunkEntry *entry)
-{
-    MMU32 position;
-    return mm_session_child(&input->archive->access, input->actor_position, 0, type, entry, &position);
-}
-
 static int read_actor_header(void *p, MMU32 number, MMActorHeader *out)
 {
     ActorInput *input = (ActorInput *)p;
-    MMChunkEntry entry;
-    MMMoviePayload payload;
-    int status;
-    (void)number;
-    if (mm_chunk_at(&input->archive->access, input->actor_position, &entry) != MM_CHUNK_OK)
-        return fail(input, MM_MOVIE_BAD_FILE);
-    status = mm_session_payload(input->archive, &entry, 0, &payload);
-    if (status != MM_MOVIE_OK)
-        return fail(input, status);
-    status = mm_actor_read_header(payload.stream, out);
-    free(payload.decoded);
-    return status ? 1 : fail(input, MM_MOVIE_BAD_FILE);
+    int status = mm_movie_actor_header(&input->archive->graph, number, out);
+    return status == MM_MOVIE_OK ? 1 : fail(input, status);
+}
+
+static void *create_route(void *p, MMU32 count, void **rows)
+{
+    ActorInput *input = (ActorInput *)p;
+    if (count)
+    {
+        input->route = (MMActorRoutePoint *)malloc((size_t)count * sizeof(*input->route));
+        if (!input->route)
+            return NULL;
+    }
+    input->route_count = (MMI32)count;
+    *rows = input->route;
+    return input;
+}
+
+static void release_route(void *p)
+{
+    ActorInput *input = (ActorInput *)p;
+    free(input->route);
+    input->route = NULL;
+    input->route_count = 0;
 }
 
 static int read_route(void *p, MMU32 number, void **out)
 {
     ActorInput *input = (ActorInput *)p;
-    MMChunkEntry entry;
-    MMMoviePayload payload;
-    MMCollectionHeader header;
-    unsigned char bytes[MM_ACTOR_ROUTE_BYTES];
-    MMActorRoutePoint *point;
-    MMU32 i;
+    MMActorRouteReader reader = {NULL, create_route, release_route};
     int status;
-    (void)number;
-    if (actor_entry(input, ROUTE_TYPE, &entry) != MM_CHUNK_OK)
-        return fail(input, MM_MOVIE_BAD_FILE);
-    status = mm_session_payload(input->archive, &entry, 0, &payload);
-    if (status != MM_MOVIE_OK)
-        return fail(input, status);
-    status = mm_collection_header_read(payload.stream, MM_COLLECTION_ARRAY, 0, &header);
-    if (status != MM_STORAGE_OK || header.width != sizeof(bytes) || (size_t)header.first_bytes != header.first_bytes)
-    {
-        free(payload.decoded);
-        return fail(input, status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE);
-    }
-    input->route_count = (MMI32)header.count;
-    if (header.count)
-    {
-        input->route = (MMActorRoutePoint *)calloc((size_t)header.count, sizeof(*input->route));
-        if (!input->route)
-        {
-            free(payload.decoded);
-            return fail(input, MM_MOVIE_MEMORY);
-        }
-    }
-    for (i = 0; i < header.count; ++i)
-    {
-        if (!mm_read_exact(payload.stream, header.header_bytes + i * sizeof(bytes), bytes, sizeof(bytes)))
-        {
-            free(payload.decoded);
-            return fail(input, MM_MOVIE_IO);
-        }
-        point = input->route + i;
-        point->xyz.dxr = mm_signed_word(mm_session_word(bytes, header.big_endian));
-        point->xyz.dyr = mm_signed_word(mm_session_word(bytes + 4, header.big_endian));
-        point->xyz.dzr = mm_signed_word(mm_session_word(bytes + 8, header.big_endian));
-        point->dwr = mm_signed_word(mm_session_word(bytes + 12, header.big_endian));
-    }
-    free(payload.decoded);
-    *out = input;
-    return 1;
+    reader.context = input;
+    status = mm_movie_actor_route(&input->archive->graph, number, &reader, out);
+    return status == MM_MOVIE_OK ? 1 : fail(input, status);
 }
 
 static int read_events(void *p, MMU32 number, void **out)
 {
     ActorInput *input = (ActorInput *)p;
     MMActorEventServices services;
-    MMChunkEntry entry;
-    MMMovieGroup group;
-    ActorEvents *wire = NULL;
-    MMU32 i;
-    MMI32 size;
-    const unsigned char *row;
-    int status, order;
-    const unsigned short one = 1;
-    (void)number;
-    if (actor_entry(input, ACTOR_EVENTS_TYPE, &entry) != MM_CHUNK_OK)
-        return fail(input, MM_MOVIE_BAD_FILE);
-    status = mm_session_group(input->archive, &entry, &group);
-    if (status != MM_MOVIE_OK)
-        return fail(input, status);
-    status = MM_MOVIE_BAD_FILE;
-    if (group.header.width != MM_ACTOR_EVENT_BYTES)
-        goto done;
-    wire = (ActorEvents *)new_events(input, group.header.width);
-    if (!wire)
-    {
-        status = MM_MOVIE_MEMORY;
-        goto done;
-    }
-    for (i = 0; i < group.header.count; ++i)
-    {
-        row = mm_session_group_row(&group, i, &size);
-        if (!row)
-            goto done;
-        if (!event_insert(wire, i, (MMU32)size, row + group.header.width, row))
-        {
-            status = input->status;
-            goto done;
-        }
-    }
+    void *events;
+    int status;
+    memset(&services, 0, sizeof(services));
     services.context = input;
-    services.fixed_width = event_width;
-    services.count = event_count;
-    services.fixed = event_fixed;
-    services.size = event_size;
-    services.data = event_data;
     services.new_group = new_events;
     services.insert = event_insert;
     services.release = release_events;
-    order = (group.header.big_endian == (*(const unsigned char *)&one == 0)) ? MM_ACTOR_NATIVE : MM_ACTOR_OTHER;
-    input->events = (ActorEvents *)mm_actor_read_events(wire, order, &services);
-    wire = NULL;
-    status = input->events ? MM_MOVIE_OK : (input->status ? input->status : MM_MOVIE_BAD_FILE);
-done:
-    release_events(wire);
-    free(group.bytes);
+    status = mm_movie_actor_events(&input->archive->graph, number, &services, &events);
     if (status != MM_MOVIE_OK)
-        return fail(input, status);
-    *out = input->events;
+        return fail(input, input->status ? input->status : status);
+    input->events = (ActorEvents *)events;
+    *out = events;
     return 1;
 }
 
@@ -616,13 +538,14 @@ static int evaluate_slot(const MMMovieSession *movie, const MMMovieArchive *arch
 {
     MMChunkEntry entry;
     ActorInput input;
+    MMU32 actor_position;
     int status;
     memset(&input, 0, sizeof(input));
     input.movie = movie;
     input.archive = archive;
     input.source = source;
     input.action = -1;
-    if (mm_session_child(&archive->access, scene_position, slot, ACTOR_TYPE, &entry, &input.actor_position) != MM_CHUNK_OK)
+    if (mm_session_child(&archive->access, scene_position, slot, ACTOR_TYPE, &entry, &actor_position) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
     if (body)
     {
@@ -640,7 +563,7 @@ static int evaluate_slot(const MMMovieSession *movie, const MMMovieArchive *arch
     free(input.cels.bytes);
     mm_session_archive_close(&input.template_archive);
     release_events(input.events);
-    free(input.route);
+    release_route(&input);
     return status;
 }
 

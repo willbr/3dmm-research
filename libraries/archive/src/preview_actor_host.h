@@ -53,41 +53,19 @@ struct PreviewActor::Host
         s.fault = [](void *v) { return static_cast<Host *>(v)->failure; };
         s.header = [](void *v, MMU32 n, MMActorHeader *out) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                DataBlock block;
-                ActorChunkOnFile value;
-                static_assert(sizeof(value) == sizeof(*out), "Preview actor header layout");
-                std::memcpy(&value, out, sizeof(value));
-                if (!h.file->Pcfl()->FFind(kctgActr, n, &block))
-                    return false;
-                bool ok = ActorData::FReadHeader(&block, &value);
-                std::memcpy(out, &value, sizeof(value));
-                return ok;
-            });
+            return h.Guard([&] { return ActorData::FReadHeader(h.file->Pcfl(), n, out); });
         };
         s.route = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                DataBlock block;
-                ChildChunkIdentification child;
-                auto f = h.file->Pcfl();
-                if (!f->FGetKidChidCtg(kctgActr, n, 0, kctgPath, &child) ||
-                    !f->FFind(child.cki.ctg, child.cki.cno, &block))
-                    return false;
-                *out = h.actor->track.AdoptRoute(ActorData::PglReadRoute(&block));
+                *out = h.actor->track.AdoptRoute(ActorData::PglReadRoute(h.file->Pcfl(), n));
                 return *out != nullptr;
             });
         };
         s.events = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                DataBlock block;
-                ChildChunkIdentification child;
-                auto f = h.file->Pcfl();
-                if (!f->FGetKidChidCtg(kctgActr, n, 0, kctgGgae, &child) ||
-                    !f->FFind(child.cki.ctg, child.cki.cno, &block))
-                    return false;
-                *out = h.actor->track.AdoptEvents(ActorData::PggReadEvents(&block));
+                *out = h.actor->track.AdoptEvents(ActorData::PggReadEvents(h.file->Pcfl(), n));
                 return *out != nullptr;
             });
         };

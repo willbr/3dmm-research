@@ -90,6 +90,16 @@ extern "C"
      * Empty routes never request a first-row pointer. Scalar bits stay unchanged
      * except for foreign-order word swaps. */
     void *mm_actor_finish_route(void *route, int order, const MMActorRouteServices *);
+    typedef struct MMActorRouteReader
+    {
+        void *context;
+        void *(*create)(void *, MMU32 count, void **rows);
+        void (*release)(void *);
+    } MMActorRouteReader;
+    /* The factory supplies count contiguous writable route rows, or returns
+     * NULL on allocation failure. Empty routes can have a NULL row pointer.
+     * Returns a movie status and publishes the new owner only on success. */
+    int mm_actor_read_route_stream(const MMReadStream *, const MMActorRouteReader *, void **out);
     typedef struct MMActorEventServices
     {
         void *context;
@@ -114,6 +124,10 @@ extern "C"
      * re-enter these operations or mutate their borrowed source groups. */
     int mm_actor_valid_events(void *group, int wire, int order, const MMActorEventServices *);
     void *mm_actor_read_events(void *wire, int order, const MMActorEventServices *);
+    /* Decode a dense GGAE stream into an owned native event group. The factory,
+     * insert and release callbacks supply only the runtime storage. Returns a
+     * movie status and publishes the new group only on success. */
+    int mm_actor_read_events_stream(const MMReadStream *, const MMActorEventServices *, void **out);
     void *mm_actor_write_events(void *runtime, const MMActorEventServices *);
 #ifdef __cplusplus
 }

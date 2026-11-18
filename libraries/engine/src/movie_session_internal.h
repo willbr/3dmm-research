@@ -27,7 +27,6 @@ typedef struct MMMovieGroup
 {
     MMCollectionHeader header;
     unsigned char *bytes, *records;
-    const unsigned char *locations;
 } MMMovieGroup;
 
 typedef struct MMMovieSource

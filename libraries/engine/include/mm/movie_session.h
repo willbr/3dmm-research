@@ -58,6 +58,13 @@ typedef struct MMMovieSessionGraph
     MMMovieGraphBytes payload, name;
 } MMMovieSessionGraph;
 
+/* Read an ACTR and the PATH/GGAE children at slot zero from their owning
+ * graph. Header storage follows mm_actor_read_header. Track outputs transfer
+ * ownership only on success. */
+int mm_movie_actor_header(const MMMovieSessionGraph *, MMU32 number, void *header);
+int mm_movie_actor_route(const MMMovieSessionGraph *, MMU32 number, const MMActorRouteReader *, void **out);
+int mm_movie_actor_events(const MMMovieSessionGraph *, MMU32 number, const MMActorEventServices *, void **out);
+
 typedef struct MMMovieSceneSource
 {
     const MMMovieSession *movie;

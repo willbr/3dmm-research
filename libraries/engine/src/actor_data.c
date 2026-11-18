@@ -1,8 +1,11 @@
 /* Actor persistence converted from engine actor_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_data.h"
+#include "mm/collections.h"
+#include "mm/movie_data.h"
 #include "mm/template_create.h"
 #include "mm/wide.h"
+#include <stdlib.h>
 #include <string.h>
 int mm_actor_template_link(const MMChunkAccess *access, MMU32 actor, MMI32 source, int require_target, MMU32 *number)
 {
@@ -133,6 +136,41 @@ void *mm_actor_finish_route(void *route, int order, const MMActorRouteServices *
     }
     return route;
 }
+
+static int collection_status(int status)
+{
+    return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
+}
+
+static int foreign_order(const MMCollectionHeader *header)
+{
+    const unsigned short one = 1;
+    return header->big_endian != (*(const unsigned char *)&one == 0);
+}
+
+int mm_actor_read_route_stream(const MMReadStream *stream, const MMActorRouteReader *reader, void **out)
+{
+    MMCollectionHeader header;
+    void *route, *rows = NULL;
+    int status = mm_collection_header_read(stream, MM_COLLECTION_ARRAY, 0, &header);
+    if (status != MM_STORAGE_OK)
+        return collection_status(status);
+    if (header.width != MM_ACTOR_ROUTE_BYTES || (size_t)header.first_bytes != header.first_bytes)
+        return MM_MOVIE_BAD_FILE;
+    route = reader->create(reader->context, header.count, &rows);
+    if (!route)
+        return MM_MOVIE_MEMORY;
+    if (header.count && !mm_read_exact(stream, header.header_bytes, rows, (size_t)header.first_bytes))
+    {
+        reader->release(route);
+        return MM_MOVIE_IO;
+    }
+    if (header.count && foreign_order(&header))
+        swap_words(rows, header.count * 4);
+    *out = route;
+    return MM_MOVIE_OK;
+}
+
 static MMI32 payload_size(MMI32 type, int wire)
 {
     switch (type)
@@ -177,32 +215,17 @@ int mm_actor_valid_events(void *g, int wire, int order, const MMActorEventServic
     }
     return 1;
 }
-static void swap_events(void *g, const MMActorEventServices *s)
+static void swap_event_data(MMI32 type, unsigned char *data)
 {
-    MMU32 i, j;
-    MMI32 type, bytes;
-    unsigned char *data;
-    void *fixed;
-    for (i = 0; i < s->count(g); ++i)
+    unsigned i;
+    if (type == MM_ACTOR_ADD)
     {
-        fixed = s->fixed(g, i);
-        swap_words(fixed, 5);
-        type = kind(fixed, MM_ACTOR_NATIVE);
-        if (type == MM_ACTOR_REMOVE)
-            continue;
-        data = (unsigned char *)s->data(g, i);
-        if (type == MM_ACTOR_ADD)
-        {
-            swap_words(data, 3);
-            for (j = 0; j < 3; ++j)
-                swap16(data + 12 + j * 2);
-        }
-        else
-        {
-            bytes = payload_size(type, 1);
-            swap_words(data, (MMU32)bytes / 4);
-        }
+        swap_words(data, 3);
+        for (i = 0; i < 3; ++i)
+            swap16(data + 12 + i * 2);
     }
+    else if (type != MM_ACTOR_REMOVE)
+        swap_words(data, (MMU32)payload_size(type, 1) / 4);
 }
 static void read_tag(MMTag *t, const unsigned char *p)
 {
@@ -218,20 +241,59 @@ static void write_tag(unsigned char *p, const MMTag *t)
     put_word(p + 8, t->type);
     put_word(p + 12, t->number);
 }
+static int insert_decoded_event(const MMActorEventServices *s, void *out, MMU32 row,
+                                const void *fixed, const unsigned char *data, MMU32 bytes)
+{
+    MMActorCostume costume;
+    MMActorSound sound;
+    MMI32 type = kind(fixed, MM_ACTOR_NATIVE);
+    if (type == MM_ACTOR_COSTUME)
+    {
+        memset(&costume, 0, sizeof(costume));
+        memcpy(&costume.body_set, data, 4);
+        memcpy(&costume.costume, data + 4, 4);
+        memcpy(&costume.custom, data + 8, 4);
+        read_tag(&costume.tag, data + 12);
+        return s->insert(out, row, sizeof(costume), &costume, fixed);
+    }
+    if (type == MM_ACTOR_SOUND)
+    {
+        memset(&sound, 0, sizeof(sound));
+        memcpy(&sound.loop, data, 4);
+        memcpy(&sound.queue, data + 4, 4);
+        memcpy(&sound.volume, data + 8, 4);
+        memcpy(&sound.cel, data + 12, 4);
+        memcpy(&sound.style, data + 16, 4);
+        memcpy(&sound.no_sound, data + 20, 4);
+        memcpy(&sound.child, data + 24, 4);
+        read_tag(&sound.tag, data + 28);
+        return s->insert(out, row, sizeof(sound), &sound, fixed);
+    }
+    return s->insert(out, row, bytes, data, fixed);
+}
+
 void *mm_actor_read_events(void *wire, int order, const MMActorEventServices *s)
 {
     void *out = NULL, *fixed;
-    const unsigned char *data;
+    unsigned char *data;
     MMU32 i, count;
-    MMI32 type;
-    MMActorCostume costume;
-    MMActorSound sound;
+    MMI32 type, bytes;
     if (!wire)
         return NULL;
     if (!mm_actor_valid_events(wire, 1, order, s))
         goto fail;
     if (order == MM_ACTOR_OTHER)
-        swap_events(wire, s);
+        for (i = 0; i < s->count(wire); ++i)
+        {
+            fixed = s->fixed(wire, i);
+            swap_words(fixed, 5);
+            type = kind(fixed, MM_ACTOR_NATIVE);
+            if (type != MM_ACTOR_REMOVE)
+            {
+                data = (unsigned char *)s->data(wire, i);
+                swap_event_data(type, data);
+            }
+        }
     out = s->new_group(s->context, 20);
     if (!out)
         goto fail;
@@ -240,32 +302,9 @@ void *mm_actor_read_events(void *wire, int order, const MMActorEventServices *s)
     {
         fixed = s->fixed(wire, i);
         type = kind(fixed, MM_ACTOR_NATIVE);
-        data = (const unsigned char *)s->data(wire, i);
-        if (type == MM_ACTOR_COSTUME)
-        {
-            memset(&costume, 0, sizeof(costume));
-            memcpy(&costume.body_set, data, 4);
-            memcpy(&costume.costume, data + 4, 4);
-            memcpy(&costume.custom, data + 8, 4);
-            read_tag(&costume.tag, data + 12);
-            if (!s->insert(out, i, sizeof(costume), &costume, fixed))
-                goto fail;
-        }
-        else if (type == MM_ACTOR_SOUND)
-        {
-            memset(&sound, 0, sizeof(sound));
-            memcpy(&sound.loop, data, 4);
-            memcpy(&sound.queue, data + 4, 4);
-            memcpy(&sound.volume, data + 8, 4);
-            memcpy(&sound.cel, data + 12, 4);
-            memcpy(&sound.style, data + 16, 4);
-            memcpy(&sound.no_sound, data + 20, 4);
-            memcpy(&sound.child, data + 24, 4);
-            read_tag(&sound.tag, data + 28);
-            if (!s->insert(out, i, sizeof(sound), &sound, fixed))
-                goto fail;
-        }
-        else if (!s->insert(out, i, (MMU32)s->size(wire, i), data, fixed))
+        data = (unsigned char *)s->data(wire, i);
+        bytes = type == MM_ACTOR_COSTUME || type == MM_ACTOR_SOUND ? 0 : s->size(wire, i);
+        if (!insert_decoded_event(s, out, i, fixed, data, (MMU32)bytes))
             goto fail;
     }
     s->release(wire);
@@ -276,6 +315,67 @@ fail:
         s->release(out);
     return NULL;
 }
+
+int mm_actor_read_events_stream(const MMReadStream *stream, const MMActorEventServices *s, void **out)
+{
+    MMCollectionHeader header;
+    unsigned char *records = NULL, fixed[MM_ACTOR_EVENT_BYTES], data[48];
+    MMU32 row, offset, total;
+    MMI32 bytes, type;
+    void *group = NULL;
+    int order, status = mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &header);
+    if (status != MM_STORAGE_OK)
+        return collection_status(status);
+    total = header.first_bytes + header.second_bytes;
+    if (header.width != MM_ACTOR_EVENT_BYTES || (size_t)total != total)
+        return MM_MOVIE_BAD_FILE;
+    if (total)
+    {
+        records = (unsigned char *)malloc((size_t)total);
+        if (!records)
+            return MM_MOVIE_MEMORY;
+        if (!mm_read_exact(stream, header.header_bytes, records, (size_t)total))
+        {
+            status = MM_MOVIE_IO;
+            goto done;
+        }
+    }
+    order = foreign_order(&header) ? MM_ACTOR_OTHER : MM_ACTOR_NATIVE;
+    status = MM_MOVIE_BAD_FILE;
+    for (row = 0; row < header.count; ++row)
+    {
+        if (!mm_collection_group_row(&header, records, row, &offset, &bytes))
+            goto done;
+        type = kind(records + offset, order);
+        if (payload_size(type, 1) != bytes)
+            goto done;
+    }
+    status = MM_MOVIE_MEMORY;
+    group = s->new_group(s->context, header.width);
+    if (!group)
+        goto done;
+    for (row = 0; row < header.count; ++row)
+    {
+        mm_collection_group_row(&header, records, row, &offset, &bytes);
+        memcpy(fixed, records + offset, sizeof(fixed));
+        memcpy(data, records + offset + sizeof(fixed), (size_t)bytes);
+        if (order == MM_ACTOR_OTHER)
+        {
+            swap_words(fixed, 5);
+            swap_event_data(kind(fixed, MM_ACTOR_NATIVE), data);
+        }
+        if (!insert_decoded_event(s, group, row, fixed, data, (MMU32)bytes))
+            goto done;
+    }
+    *out = group;
+    status = MM_MOVIE_OK;
+done:
+    free(records);
+    if (status != MM_MOVIE_OK && group)
+        s->release(group);
+    return status;
+}
+
 void *mm_actor_write_events(void *runtime, const MMActorEventServices *s)
 {
     void *out, *fixed;

@@ -78,6 +78,10 @@ extern "C"
     int mm_collection_header_read(const MMReadStream *, int kind, int allocated_group,
                                         MMCollectionHeader *);
     int mm_collection_header_write(const MMCollectionHeader *, unsigned char *output, size_t capacity);
+    /* Given a decoded GG header and the complete bytes following it, return
+     * the offset of a dense row and its variable byte count. */
+    int mm_collection_group_row(const MMCollectionHeader *, const unsigned char *records, MMU32 row,
+                                MMU32 *offset, MMI32 *bytes);
 #ifdef __cplusplus
 }
 #endif

@@ -528,8 +528,11 @@ Keep host presentation and device output outside the session.
    retained session now coordinates live seeks and commits the cursor before
    notifying observers in both hosts. Studio prerendering can submit a
    prepared pose during the seek. Render packets carry the live publication
-   alongside the selected camera and body bindings. Unifying the file-backed
-   evaluator's resource inputs with the editable live scene remains open.
+   alongside the selected camera and body bindings. The standalone evaluator,
+   Studio and Marcus now load ACTR headers and their slot-zero PATH and GGAE
+   tracks through the same graph reader. The shared decoder writes directly
+   to the caller's route and runtime event storage. Template and action inputs
+   still use separate snapshot and live cache paths.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
