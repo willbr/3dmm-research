@@ -13298,6 +13298,39 @@ seeks and retained v3dmm seeks each matched 456 retail actor records.
 
 Evidence is under `tmp/c89-graph-frame/` on the evidence drive.
 
+### C89 camera bindings and placement
+
+Studio, Marcus and the session now use the same decoded camera binding
+and exact colour and depth links. Session snapshots carry both link keys
+when available. Marcus reads the camera and placement points from a single
+payload and renders using the C camera data. The C owner publishes the
+new placement cursor after both images draw successfully. Temporary camera
+changes leave the placement cursor in effect.
+
+The camera fixtures check little- and big-endian bindings, absent depth
+links, single reads, placement cycling and reuse, temporary selections,
+and cursor preservation after allocation, point-read and image failures.
+All 300 native graph and stream frame comparisons included the bitmap
+keys, and 300 standalone probe results matched the previous build.
+
+All 181 standalone and 24 selected host checks passed, including camera
+placement, C89 syntax, movie save/load, and Vulkan raster parity. The
+storyboard test exercised prop placement against the three insertion
+points read from the retail black camera, cursor reuse after moving a
+prop, and camera switching. Four targeted AddressSanitizer checks passed.
+The four changed C units compiled under strict C89 for Linux x64 musl.
+The 301,996,032-byte background trace matched across 188 cameras. Studio
+and Marcus rebuilt and Marcus was relaunched.
+
+Both hosts matched the previous 456 seek records and 360 viewport hashes
+on stock and SID-29 scenes. Normal playback of actor-events, dissolve
+and scrolling-text matched retail's frame order and final position for
+240 frame commits per host, including actor-events replay. The stock
+Studio seeks and retained v3dmm seeks each matched 456 retail actor
+records.
+
+Evidence is under `tmp/c89-camera-binding/` on the evidence drive.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

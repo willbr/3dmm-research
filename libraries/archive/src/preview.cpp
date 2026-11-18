@@ -1016,8 +1016,8 @@ bool Preview::PlacementPoint(float point[3]) const
     MMI32 place[3] = {};
     if (_impl->background)
     {
-        const auto &p = _impl->background->camera.apos;
-        place[0] = p.xrPlace; place[1] = p.yrPlace; place[2] = p.zrPlace;
+        const auto &p = _impl->background->Camera().place;
+        place[0] = p.dxr; place[1] = p.dyr; place[2] = p.dzr;
     }
     MMPreviewMath math = {};
     math.scalar_float = [](MMI32 v) { return BrScalarToFloat(v); };

@@ -719,12 +719,19 @@ static void scan_camera_events(const MMMovieGroup *group, int start, MMI32 frame
     }
 }
 
+static int image_link(void *p, MMU32 camera, int depth, MMU32 *number)
+{
+    const MMMovieArchive *archive = (const MMMovieArchive *)p;
+    return mm_background_camera_image_link(&archive->access, camera, depth, number) == MM_CHUNK_OK;
+}
+
 static int load_camera(const MMMovieArchive *archive, MMMovieCamera *camera)
 {
     const MMChunkAccess *access = &archive->access;
     MMChunkEntry entry;
     MMU32 parent, position, slot;
     MMMoviePayload payload;
+    MMBackgroundCameraBinding binding;
     int status = mm_chunk_find(access, MM_BACKGROUND, camera->background.number, &parent);
     if (status != MM_CHUNK_OK)
         return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
@@ -738,9 +745,16 @@ static int load_camera(const MMMovieArchive *archive, MMMovieCamera *camera)
     status = mm_session_payload(archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
-    status = mm_background_camera_decode(payload.stream, &camera->data) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
-    camera->number = entry.number;
+    status = mm_background_camera_binding_read(payload.stream, entry.number, &binding) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
     free(payload.decoded);
+    if (status == MM_MOVIE_OK)
+    {
+        mm_background_camera_binding_image(&binding, 0, image_link, (void *)archive);
+        mm_background_camera_binding_image(&binding, 1, image_link, (void *)archive);
+        camera->number = binding.number;
+        camera->data = binding.data;
+        camera->images = binding.images;
+    }
     return status;
 }
 

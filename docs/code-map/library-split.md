@@ -148,6 +148,14 @@ decoded block and its serialized chunk name synchronously. Embedded assets
 always use the movie's graph. Studio's movie owner and the Archive reader
 supply these adapters, with Archive retaining its decode limits.
 
+`MMBackgroundCameraBinding` pairs the decoded CAM with the linked colour
+and depth keys. The world camera, Preview image selection and projection
+cache use the same binding code as the session. Session results indicate
+which links are present. Each renderer requires both images for a
+background draw. Preview renders from the C camera record and owns the
+placement points in C storage. Temporary camera selections can update
+the view while retaining the active placement cursor.
+
 `MMRenderFrame` carries the world, camera and colour/depth targets at the
 renderer boundary. Marcus's C render controller allocates the targets and
 releases its world before the pixelmaps. Picking uses the same owner for

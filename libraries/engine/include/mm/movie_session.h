@@ -98,6 +98,7 @@ typedef struct MMMovieCamera
     MMMovieAsset background;
     MMU32 slot, number;
     MMBackgroundCameraData data;
+    MMBackgroundCameraImages images; /* Slot-zero links from the CAM's own graph. */
 } MMMovieCamera;
 
 typedef struct MMMovieEvaluatedActor

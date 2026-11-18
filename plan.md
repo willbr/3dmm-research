@@ -473,11 +473,13 @@ Keep host presentation and device output outside the session.
    session over their opened chunk graphs. Studio resolves live scene slots
    through it, and Marcus uses it to read the scene and source directory.
    The three paths now share embedded actor template binding and exact
-   camera-slot lookup. The renderers share lookup of the camera's colour
-   and depth bitmaps in its owning archive. The standalone evaluator and
-   live renderer bodies now share cel wrapping, replacement model and
-   matrix application order, and the part-set mapping for generic and
-   custom materials. Default costumes now share first-row selection from
+   camera-slot lookup. Both renderers and the session share a camera
+   binding that decodes the selected CAM and identifies its colour and
+   depth bitmaps in the same archive. Marcus's C camera selection reads the
+   pose and placement points from one payload and owns the placement cursor.
+   The standalone evaluator and live renderer bodies now share cel wrapping,
+   model replacement and matrix application order, and part-set mapping
+   for generic and custom materials. Default costumes share first-row selection from
    the authored table and costume discovery in child order for older
    templates. Studio and Marcus submit through a common C frame record for
    the world, camera and colour/depth targets. It owns the temporary render

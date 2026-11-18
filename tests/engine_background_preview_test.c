@@ -23,7 +23,8 @@ enum
     DEPTH_FETCH,
     DEPTH_DRAW,
     DEPTH_RELEASE,
-    SELECTED
+    SELECTED,
+    POINT_READ
 };
 typedef struct Mesh
 {
@@ -34,7 +35,7 @@ typedef struct Host
     MMBackgroundPreview preview;
     MMBackgroundPreviewServices services;
     MMMemoryStream memory;
-    unsigned char wire[76];
+    unsigned char wire[100];
     MMI32 rect[4];
     int allocations, fail_allocation, live_memory, fail, trace[64], traces, publishes, rgb, depth;
     Mesh meshes[32];
@@ -72,12 +73,25 @@ static void word(unsigned char *p, MMU32 value)
     for (i = 0; i < 4; ++i)
         p[i] = (unsigned char)(value >> (i * 8));
 }
+static int read_at(void *p, MMU32 offset, void *out, size_t count)
+{
+    Host *h = (Host *)p;
+    if (offset >= MM_BACKGROUND_CAMERA_BYTES)
+    {
+        event(h, POINT_READ);
+        if (h->fail == POINT_READ)
+            return 0;
+    }
+    return mm_read_exact(&h->memory.stream, offset, out, count);
+}
 static int camera_read(void *p, MMU32 number, MMReadStream *out)
 {
     Host *h = (Host *)p;
     CHECK(number >= 100 && number < 103);
     event(h, READ);
     *out = h->memory.stream;
+    out->context = h;
+    out->read_at = read_at;
     return h->fail != READ;
 }
 static int child(void *p, MMU32 camera, int depth, MMU32 *out)
@@ -160,7 +174,7 @@ static void draw_depth(void *p, void *object, unsigned short *pixels, MMU32 w, M
 static void publish(void *p, const MMBackgroundPreview *state)
 {
     Host *h = (Host *)p;
-    CHECK(state == &h->preview && state->camera.far_z == 65536000 && state->camera.matrix.m[3][0] == 196608);
+    CHECK(state == &h->preview && state->camera.data.far_z == 65536000 && state->camera.data.matrix.m[3][0] == 196608);
     ++h->publishes;
 }
 static void selected(void *p, MMU32 slot)
@@ -283,6 +297,58 @@ static void dispose(Host *h)
     for (i = 0; i < h->created; ++i)
         CHECK(!h->meshes[i].live);
 }
+static void placement(void)
+{
+    Host h;
+    MMActorPoint point;
+    init(&h);
+    CHECK(!mm_background_preview_place(&h.preview, &point));
+    h.memory.stream.length = sizeof(h.wire);
+    word(h.wire + 16, 5);
+    word(h.wire + 76, 6);
+    word(h.wire + 88, 7);
+    CHECK(mm_background_preview_select_placement(&h.preview, 1, &h.services) == 1);
+    CHECK(h.traces == 13 && h.trace[0] == READ && h.trace[1] == POINT_READ && h.trace[2] == POINT_READ &&
+          h.trace[3] == RGB_CHILD);
+    CHECK(h.preview.camera.number == 101 && h.preview.camera.images.colour == 700 && h.preview.camera.images.depth == 800);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 5);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 6);
+    mm_background_preview_reuse_place(&h.preview);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 6);
+
+    word(h.wire + 16, 55);
+    word(h.wire + 76, 66);
+    word(h.wire + 88, 77);
+    CHECK(select_camera(&h, 2));
+    CHECK(h.traces == 11 && h.trace[1] == RGB_CHILD);
+    CHECK(h.preview.active == 2 && h.preview.placement.current == 1);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 7);
+    h.traces = 0;
+    h.fail_allocation = h.allocations + 1;
+    CHECK(mm_background_preview_select_placement(&h.preview, 0, &h.services) == MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY);
+    CHECK(h.traces == 1 && h.preview.camera.number == 102 && h.preview.placement.current == 1);
+    h.fail_allocation = 0;
+    h.traces = 0;
+    h.fail = POINT_READ;
+    CHECK(!mm_background_preview_select_placement(&h.preview, 0, &h.services));
+    CHECK(h.traces == 2 && h.preview.camera.number == 102 && h.preview.placement.current == 1);
+    h.fail = DEPTH_CHILD;
+    h.traces = 0;
+    CHECK(!mm_background_preview_select_placement(&h.preview, 0, &h.services));
+    CHECK(h.preview.active == 2 && h.preview.camera.images.present == MM_BACKGROUND_HAS_COLOUR &&
+          h.preview.placement.current == 1);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 5);
+    h.fail = h.traces = 0;
+    CHECK(mm_background_preview_select_placement(&h.preview, 0, &h.services) == 1 &&
+          mm_background_preview_place(&h.preview, &point) && point.dxr == 55);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 66);
+    h.memory.stream.length = 76;
+    h.traces = 0;
+    CHECK(mm_background_preview_select_placement(&h.preview, 1, &h.services) == 1 && !h.preview.placement.points);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 55);
+    CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 55);
+    dispose(&h);
+}
 int main(void)
 {
     Host h;
@@ -345,7 +411,7 @@ int main(void)
     }
     init(&h);
     word(h.wire + 4, 0);
-    CHECK(!select_camera(&h, 1) && h.publishes == 1 && !h.preview.camera.near_z && h.traces == 1);
+    CHECK(!select_camera(&h, 1) && h.publishes == 1 && !h.preview.camera.data.near_z && h.traces == 1);
     dispose(&h);
     init(&h);
     h.memory.stream.length = 75;
@@ -380,6 +446,7 @@ int main(void)
     CHECK(c && c != a && c != b && h.preview.keys[0] == 0 && h.preview.keys[1] == 2 && !((Mesh *)b)->live &&
           ((Mesh *)a)->live);
     dispose(&h);
+    placement();
     puts("Background preview C passed");
     return 0;
 }

@@ -226,6 +226,7 @@ static void init(Host *h, int big)
     CHECK(h->state.current == -1 && !h->state.points && !h->state.count);
     h->state.count = 3;
     h->state.current = 2;
+    h->state.binding.number = 42;
     h->state.next_point = 2;
     h->state.last_point = 1;
     h->state.place.dxr = 777;
@@ -264,6 +265,7 @@ static void expect(Host *h, const int *values, int n)
 static void unchanged(Host *h)
 {
     CHECK(h->state.current == 2 && h->state.place.dxr == 777 && h->state.position.dxr == 888);
+    CHECK(h->state.binding.number == 42);
     CHECK(h->state.mouse.m[0][0] == 999 && h->state.yaw == 0x4444 && h->state.count == 3);
 }
 static void decode_tests(int big)
@@ -346,6 +348,8 @@ static void controller_tests(int big)
     expect(&h, success, sizeof(success) / sizeof(*success));
     CHECK(h.state.points == &h.new_points && h.puts == 2);
     CHECK(h.state.count == 3 && !h.state.last_point && !h.state.next_point);
+    CHECK(h.state.binding.number == 456 && h.state.binding.images.colour == 123 &&
+          h.state.binding.images.depth == 789 && h.state.binding.data.point_count == 2);
     for (i = 0; i < 7; ++i)
     {
         mm_background_place(&h.state, &v, &h.services);

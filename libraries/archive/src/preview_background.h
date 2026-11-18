@@ -2,7 +2,6 @@
 #ifndef MM_PREVIEW_BACKGROUND_H
 #define MM_PREVIEW_BACKGROUND_H
 #include <memory>
-#include <vector>
 #include "preview_background_mesh.h"
 #include "soc_core.h"
 #include "mm/background_resource.h"
@@ -23,13 +22,10 @@ class PreviewBackground
     MMBackgroundPreviewServices Services(void *host);
     void Publish(const MMBackgroundPreview &);
     MMBackgroundResource resource = {};
-    MMBackgroundCameraState cameraState = {};
-    // Own the point list borrowed by cameraState; selection uses retail's cursor policy.
-    std::vector<MMActorPoint> placementPoints;
     MMPreviewProjectionCache cameraProjections = {};
 
   public:
-    CameraPosition camera = {};
+    const MMBackgroundCameraData &Camera() const { return preview.camera.data; }
     PreviewBufferView<ChunkNumber> cameras;
     PreviewBufferView<MMBackgroundLight> lights;
     PreviewBufferView<byte> colours;

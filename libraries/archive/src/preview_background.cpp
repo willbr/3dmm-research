@@ -79,8 +79,8 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
         }
     };
     mm_background_resource_init(&resource);
-    mm_background_camera_init(&cameraState);
-    return mm_background_read(&resource, &cameraState, kctgBkgd, background, MM_BACKGROUND_PREVIEW, &s) !=
+    mm_background_camera_init(&preview.placement);
+    return mm_background_read(&resource, &preview.placement, kctgBkgd, background, MM_BACKGROUND_PREVIEW, &s) !=
            0;
 }
 
@@ -92,17 +92,6 @@ struct BackgroundImageHost
     PChunkyResourceFile source;
     DataBlock block;
 };
-MMBackgroundCameraServices PlacementServices()
-{
-    MMBackgroundCameraServices s = {};
-    s.point = [](void *, void *points, MMI32 i, MMActorPoint *out) {
-        *out = (*static_cast<std::vector<MMActorPoint> *>(points))[i];
-    };
-    s.point_count = [](void *, void *points) -> MMI32 {
-        return static_cast<MMI32>(static_cast<std::vector<MMActorPoint> *>(points)->size());
-    };
-    return s;
-}
 } // namespace
 PreviewBackground::PreviewBackground()
 {
@@ -118,15 +107,6 @@ PreviewBackground::~PreviewBackground()
 }
 void PreviewBackground::Publish(const MMBackgroundPreview &p)
 {
-    camera.bo = kboCur;
-    camera.zrHither = p.camera.near_z;
-    camera.zrYon = p.camera.far_z;
-    camera.aFov = p.camera.fov;
-    camera.apos.xrPlace = p.camera.place.dxr;
-    camera.apos.yrPlace = p.camera.place.dyr;
-    camera.apos.zrPlace = p.camera.place.dzr;
-    static_assert(sizeof(camera.bmat34Cam) == sizeof(p.camera.matrix), "Camera matrix layout");
-    std::memcpy(&camera.bmat34Cam, &p.camera.matrix, sizeof(camera.bmat34Cam));
     width = p.width;
     height = p.height;
     cameras.Reset(reinterpret_cast<const ChunkNumber *>(p.metadata.buffers[0].data), p.camera_count);
@@ -234,34 +214,17 @@ bool PreviewBackground::SetCamera(std::uint32_t slot, bool updatePlacement)
 {
     BackgroundImageHost host = {this, source};
     auto s = Services(&host);
-    MMReadStream stream;
-    MMBackgroundCameraData data = {};
-    std::vector<MMActorPoint> points;
-    if (updatePlacement)
-    {
-        if (slot >= preview.camera_count || !s.camera_read(&host,
-            reinterpret_cast<const MMU32 *>(preview.metadata.buffers[0].data)[slot], &stream) ||
-            !mm_background_camera_decode(&stream, &data)) return false;
-        points.resize(data.point_count);
-        for (MMI32 i = 0; i < data.point_count; ++i)
-            if (!mm_background_point_decode(&stream, &data, i, &points[i])) return false;
-    }
-    if (!mm_background_preview_select(&preview, slot, &s)) return false;
-    if (updatePlacement)
-    {
-        placementPoints = std::move(points);
-        cameraState.points = placementPoints.empty() ? nullptr : &placementPoints;
-        cameraState.place = data.place; cameraState.current = slot;
-        cameraState.next_point = cameraState.last_point = 0;
-    }
-    return true;
+    const int result = updatePlacement ? mm_background_preview_select_placement(&preview, slot, &s)
+                                       : mm_background_preview_select(&preview, slot, &s);
+    if (result == MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY)
+        throw std::bad_alloc();
+    return result != 0;
 }
 bool PreviewBackground::NextPlacementPoint(float point[3])
 {
-    if (!point || cameraState.current < 0) return false;
-    auto s = PlacementServices();
     MMActorPoint place;
-    mm_background_place(&cameraState, &place, &s);
+    if (!point || !mm_background_preview_place(&preview, &place))
+        return false;
     point[0] = BrScalarToFloat(place.dxr);
     point[1] = BrScalarToFloat(place.dyr);
     point[2] = BrScalarToFloat(place.dzr);
@@ -269,7 +232,7 @@ bool PreviewBackground::NextPlacementPoint(float point[3])
 }
 void PreviewBackground::ReusePlacementPoint()
 {
-    mm_background_reuse_place(&cameraState);
+    mm_background_preview_reuse_place(&preview);
 }
 PreviewBackgroundMesh &PreviewBackground::Mesh()
 {

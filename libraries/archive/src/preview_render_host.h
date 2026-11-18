@@ -86,10 +86,12 @@ struct Preview::Impl::RenderHost
                 d->lights = b.lights.data();
                 d->colours = b.colours.data();
                 d->depths = b.depths.data();
-                std::memcpy(d->camera.matrix, &b.camera.bmat34Cam, sizeof(d->camera.matrix));
-                d->camera.fov = b.camera.aFov;
-                d->camera.near_z = b.camera.zrHither;
-                d->camera.far_z = b.camera.zrYon;
+                const auto &camera = b.Camera();
+                static_assert(sizeof(d->camera.matrix) == sizeof(camera.matrix.m), "Camera matrix layout");
+                std::memcpy(d->camera.matrix, camera.matrix.m, sizeof(d->camera.matrix));
+                d->camera.fov = camera.fov;
+                d->camera.near_z = camera.near_z;
+                d->camera.far_z = camera.far_z;
                 d->camera.aspect = BrFloatToScalar(float(b.width) / b.height);
             }
         };

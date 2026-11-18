@@ -27,6 +27,19 @@ extern "C"
         unsigned short fov;
         int big;
     } MMBackgroundCameraData;
+    enum { MM_BACKGROUND_HAS_COLOUR = 1, MM_BACKGROUND_HAS_DEPTH = 2 };
+    typedef struct MMBackgroundCameraImages
+    {
+        MMU32 colour, depth;
+        unsigned present;
+    } MMBackgroundCameraImages;
+    typedef struct MMBackgroundCameraBinding
+    {
+        MMBackgroundCameraData data;
+        MMU32 number;
+        MMBackgroundCameraImages images;
+    } MMBackgroundCameraBinding;
+    typedef int (*MMBackgroundCameraImageRead)(void *, MMU32 number, int depth, MMU32 *);
     typedef struct MMBackgroundCameraState
     {
         MMI32 count, current, next_point, last_point;
@@ -34,13 +47,14 @@ extern "C"
         MMActorMatrix mouse;
         unsigned short yaw;
         void *points;
+        MMBackgroundCameraBinding binding;
     } MMBackgroundCameraState;
     typedef struct MMBackgroundCameraServices
     {
         void *context;
         void (*lights_on)(void *);
         int (*read)(void *, MMI32 camera, MMReadStream *, MMU32 *number);
-        int (*child)(void *, MMU32 camera, int depth, MMU32 *number);
+        MMBackgroundCameraImageRead child;
         int (*background)(void *, MMU32 rgb, MMU32 depth);
         void *(*new_points)(void *, MMI32 count);
         void (*release)(void *, void *), (*lock)(void *, void *), (*unlock)(void *, void *);
@@ -57,6 +71,11 @@ extern "C"
      * Decode failures leave output unchanged. Appended points decode independently
      * from their source offsets; no in-place access past a camera header. */
     int mm_background_camera_decode(const MMReadStream *, MMBackgroundCameraData *);
+    /* Bind the selected CAM number to its decoded record. Link resolution
+     * fills each image independently. A failed operation preserves output. */
+    int mm_background_camera_binding_read(const MMReadStream *, MMU32 number, MMBackgroundCameraBinding *);
+    int mm_background_camera_binding_image(MMBackgroundCameraBinding *, int depth, MMBackgroundCameraImageRead,
+                                           void *context);
     int mm_background_point_decode(const MMReadStream *, const MMBackgroundCameraData *, MMI32,
                                          MMActorPoint *);
     /* Resolve the CAM's slot-zero MBMP or ZBMP in the same archive as the camera.

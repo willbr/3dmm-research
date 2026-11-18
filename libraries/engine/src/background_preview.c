@@ -28,8 +28,10 @@ static int ensure(MMCollectionStorage *s, unsigned section, MMU32 count, MMU32 s
 int mm_background_preview_init(MMBackgroundPreview *p, const MMStorageAllocator *allocator)
 {
     memset(p, 0, sizeof(*p));
+    mm_background_camera_init(&p->placement);
     return mm_storage_init(&p->metadata, allocator) == MM_STORAGE_OK &&
-           mm_storage_init(&p->images, allocator) == MM_STORAGE_OK;
+           mm_storage_init(&p->images, allocator) == MM_STORAGE_OK &&
+           mm_storage_init(&p->placement_points, allocator) == MM_STORAGE_OK;
 }
 void mm_background_preview_dispose(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
 {
@@ -37,6 +39,8 @@ void mm_background_preview_dispose(MMBackgroundPreview *p, const MMBackgroundPre
     for (i = 0; i < p->mesh_count; ++i)
         s->mesh_release(s->context, p->meshes[i]);
     p->mesh_count = 0;
+    mm_storage_dispose(&p->placement_points);
+    mm_background_camera_init(&p->placement);
     mm_storage_dispose(&p->images);
     mm_storage_dispose(&p->metadata);
     p->camera_count = p->light_count = p->rgb_count = p->depth_count = p->width = p->height = 0;
@@ -55,24 +59,18 @@ int mm_background_preview_light(MMBackgroundPreview *p, const MMBackgroundLight 
     ((MMBackgroundLight *)p->metadata.buffers[1].data)[p->light_count++] = *light;
     return 1;
 }
-int mm_background_preview_select(MMBackgroundPreview *p, MMU32 slot,
-                                       const MMBackgroundPreviewServices *s)
+static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundCameraBinding *binding,
+                         const MMBackgroundPreviewServices *s)
 {
-    MMReadStream stream;
-    MMBackgroundCameraData camera;
-    MMU32 number, child, width, height, n;
+    MMU32 width, height, n;
     MMI32 r[4];
     void *bitmap;
-    if (slot >= p->camera_count)
-        return 0;
-    number = ((MMU32 *)p->metadata.buffers[0].data)[slot];
-    if (!s->camera_read(s->context, number, &stream) || !mm_background_camera_decode(&stream, &camera))
-        return 0;
-    p->camera = camera;
+    p->camera = *binding;
     s->publish(s->context, p);
-    if (camera.near_z <= 0 || camera.far_z <= camera.near_z)
+    if (binding->data.near_z <= 0 || binding->data.far_z <= binding->data.near_z)
         return 0;
-    if (!s->child(s->context, number, 0, &child) || !(bitmap = s->fetch(s->context, child, 0)))
+    if (!mm_background_camera_binding_image(&p->camera, 0, s->child, s->context) ||
+        !(bitmap = s->fetch(s->context, p->camera.images.colour, 0)))
         return 0;
     s->bounds(s->context, bitmap, r);
     if (r[2] <= r[0] || r[3] <= r[1])
@@ -101,7 +99,8 @@ int mm_background_preview_select(MMBackgroundPreview *p, MMU32 slot,
     s->publish(s->context, p);
     s->draw_rgb(s->context, bitmap, p->images.buffers[0].data, width, height, -r[0], -r[1]);
     s->release(s->context, bitmap);
-    if (!s->child(s->context, number, 1, &child) || !(bitmap = s->fetch(s->context, child, 1)))
+    if (!mm_background_camera_binding_image(&p->camera, 1, s->child, s->context) ||
+        !(bitmap = s->fetch(s->context, p->camera.images.depth, 1)))
         return 0;
     if (!ensure(&p->images, 1, n, 2))
     {
@@ -119,8 +118,80 @@ int mm_background_preview_select(MMBackgroundPreview *p, MMU32 slot,
         s->selected(s->context, slot);
     return 1;
 }
+static int select_camera(MMBackgroundPreview *p, MMU32 slot, int update_placement,
+                         const MMBackgroundPreviewServices *s)
+{
+    MMReadStream stream;
+    MMBackgroundCameraBinding binding;
+    MMActorPoint *points = NULL;
+    MMU32 number;
+    MMI32 i;
+    unsigned buffer = 1 - p->placement_buffer;
+    if (slot >= p->camera_count)
+        return 0;
+    number = ((const MMU32 *)p->metadata.buffers[0].data)[slot];
+    if (!s->camera_read(s->context, number, &stream) || !mm_background_camera_binding_read(&stream, number, &binding))
+        return 0;
+    if (update_placement && binding.data.point_count)
+    {
+        if (!ensure(&p->placement_points, buffer, (MMU32)binding.data.point_count, sizeof(*points)))
+            return MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY;
+        points = (MMActorPoint *)p->placement_points.buffers[buffer].data;
+        for (i = 0; i < binding.data.point_count; ++i)
+            if (!mm_background_point_decode(&stream, &binding.data, i, points + i))
+                return 0;
+    }
+    if (!select_images(p, slot, &binding, s))
+        return 0;
+    if (update_placement)
+    {
+        p->placement_buffer = buffer;
+        p->placement.binding = p->camera;
+        p->placement.points = points;
+        p->placement.place = binding.data.place;
+        p->placement.current = (MMI32)slot;
+        p->placement.next_point = p->placement.last_point = 0;
+    }
+    return 1;
+}
+int mm_background_preview_select(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundPreviewServices *s)
+{
+    return select_camera(p, slot, 0, s);
+}
+int mm_background_preview_select_placement(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundPreviewServices *s)
+{
+    return select_camera(p, slot, 1, s);
+}
+static void placement_point(void *context, void *points, MMI32 index, MMActorPoint *out)
+{
+    (void)context;
+    *out = ((const MMActorPoint *)points)[index];
+}
+static MMI32 placement_count(void *context, void *points)
+{
+    const MMBackgroundPreview *p = (const MMBackgroundPreview *)context;
+    (void)points;
+    return p->placement.binding.data.point_count;
+}
+int mm_background_preview_place(MMBackgroundPreview *p, MMActorPoint *out)
+{
+    MMBackgroundCameraServices s;
+    if (!out || p->placement.current < 0)
+        return 0;
+    memset(&s, 0, sizeof(s));
+    s.context = p;
+    s.point = placement_point;
+    s.point_count = placement_count;
+    mm_background_place(&p->placement, out, &s);
+    return 1;
+}
+void mm_background_preview_reuse_place(MMBackgroundPreview *p)
+{
+    mm_background_reuse_place(&p->placement);
+}
 void *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
 {
+    const MMBackgroundCameraData *camera = &p->camera.data;
     MMU32 i, row, axis, key;
     MMI32 native_projection[16], aspect;
     double transform[16], projection[16];
@@ -146,14 +217,14 @@ void *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBackgroundPrevi
     transform[15] = 1;
     for (row = 0; row < 4; ++row)
         for (axis = 0; axis < 3; ++axis)
-            transform[row * 4 + axis] = s->scalar_float(s->context, p->camera.matrix.m[row][axis]);
-    if (!p->height || p->camera.near_z <= 0 || p->camera.far_z <= p->camera.near_z)
+            transform[row * 4 + axis] = s->scalar_float(s->context, camera->matrix.m[row][axis]);
+    if (!p->height || camera->near_z <= 0 || camera->far_z <= camera->near_z)
     {
         s->mesh_release(s->context, mesh);
         return NULL;
     }
     aspect = s->float_scalar(s->context, (float)p->width / p->height);
-    s->perspective(s->context, p->camera.fov, aspect, -p->camera.near_z, -p->camera.far_z, native_projection);
+    s->perspective(s->context, camera->fov, aspect, -camera->near_z, -camera->far_z, native_projection);
     for (i = 0; i < 16; ++i)
         projection[i] = s->scalar_float(s->context, native_projection[i]);
     if (!s->mesh_build(s->context, mesh, p, transform, projection))

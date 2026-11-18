@@ -8,9 +8,11 @@ extern "C"
 #endif
     typedef struct MMBackgroundPreview
     {
-        MMCollectionStorage metadata, images;
+        MMCollectionStorage metadata, images, placement_points;
         MMU32 camera_count, light_count, width, height, rgb_count, depth_count, active;
-        MMBackgroundCameraData camera;
+        MMBackgroundCameraBinding camera;
+        MMBackgroundCameraState placement;
+        unsigned placement_buffer;
         void *meshes[2];
         MMU32 keys[2], mesh_count;
     } MMBackgroundPreview;
@@ -18,7 +20,7 @@ extern "C"
     {
         void *context;
         int (*camera_read)(void *, MMU32 number, MMReadStream *);
-        int (*child)(void *, MMU32 camera, int depth, MMU32 *number);
+        MMBackgroundCameraImageRead child;
         void *(*fetch)(void *, MMU32 number, int depth);
         void (*release)(void *, void *);
         void (*bounds)(void *, void *, MMI32 rect[4]);
@@ -47,6 +49,14 @@ extern "C"
     int mm_background_preview_light(MMBackgroundPreview *, const MMBackgroundLight *);
     int mm_background_preview_select(MMBackgroundPreview *, MMU32 slot,
                                            const MMBackgroundPreviewServices *);
+    /* A normal selection also reads the placement points from its CAM.
+     * Prepare the points before drawing and replace the active cursor only
+     * after both images succeed. Temporary selections leave it untouched. */
+    enum { MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY = -1 };
+    int mm_background_preview_select_placement(MMBackgroundPreview *, MMU32 slot,
+                                               const MMBackgroundPreviewServices *);
+    int mm_background_preview_place(MMBackgroundPreview *, MMActorPoint *);
+    void mm_background_preview_reuse_place(MMBackgroundPreview *);
     /* Hits move to the most recent end. Misses build before evicting the oldest;
      * failed construction leaves the existing cache untouched. */
     void *mm_background_preview_mesh(MMBackgroundPreview *, const MMBackgroundPreviewServices *);

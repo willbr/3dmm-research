@@ -105,6 +105,9 @@ bool EqualFrame(const MMMovieEvaluatedFrame &a, const MMMovieEvaluatedFrame &b)
     const auto &right = b.camera;
     if (a.frame != b.frame || a.scene.number != b.scene.number || a.actor_count != b.actor_count ||
         !EqualAsset(left.background, right.background) || left.slot != right.slot || left.number != right.number ||
+        left.images.present != (MM_BACKGROUND_HAS_COLOUR | MM_BACKGROUND_HAS_DEPTH) ||
+        left.images.present != right.images.present || left.images.colour != right.images.colour ||
+        left.images.depth != right.images.depth ||
         !EqualMatrix(left.data.matrix, right.data.matrix) || !EqualPoint(left.data.place, right.data.place) ||
         left.data.near_z != right.data.near_z || left.data.far_z != right.data.far_z || left.data.fov != right.data.fov)
         return false;

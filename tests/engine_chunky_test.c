@@ -242,13 +242,14 @@ static MMU32 write_fixture(unsigned char *out, size_t capacity, int big, MMU32 c
 
 static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 source, int bad_row)
 {
-    enum { BKGD, CAM1, CAM0, FRAMES, STARTS, ROOT, SCENE, COUNT };
+    enum { BKGD, CAM1, CAM0, FRAMES, STARTS, RGB, ROOT, SCENE, DEPTH, COUNT };
     static const MMU32 types[] = {0x424b4744UL, 0x43414d20UL, 0x43414d20UL, 0x47474652UL, 0x47475354UL,
-                                  0x4d564945UL, 0x5343454eUL};
-    static const MMU32 numbers[] = {4, 80, 90, 13, 14, 17, 36};
+                                  0x4d424d50UL, 0x4d564945UL, 0x5343454eUL, 0x5a424d50UL};
+    static const MMU32 numbers[] = {4, 80, 90, 13, 14, 18, 17, 36, 19};
     static const MMU32 links[][3] = {{BKGD, CAM0, 0}, {BKGD, CAM1, 1}, {ROOT, SCENE, 0},
-                                    {SCENE, FRAMES, 0}, {SCENE, STARTS, 1}};
-    static const MMU32 lengths[] = {8, 76, 76, 80, 52, 8, 16};
+                                    {SCENE, FRAMES, 0}, {SCENE, STARTS, 1},
+                                    {CAM0, RGB, 0}, {CAM1, RGB, 0}, {CAM1, DEPTH, 0}};
+    static const MMU32 lengths[] = {8, 76, 76, 80, 52, 2, 8, 16, 2};
     unsigned char raw[COUNT][FIXTURE_RECORD_BYTES];
     MMI32 codecs[COUNT] = {0};
     MMU32 i;
@@ -837,9 +838,12 @@ static void movie_camera(void)
         CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
         CHECK(mm_movie_session_camera(movie, 0, 5, NULL, NULL, &camera) == MM_MOVIE_OK);
         CHECK(camera.background.source == 0 && camera.slot == 1 && camera.number == 80 && camera.data.near_z == 456);
+        CHECK(camera.images.present == (MM_BACKGROUND_HAS_COLOUR | MM_BACKGROUND_HAS_DEPTH));
+        CHECK(camera.images.colour == 18 && camera.images.depth == 19);
         CHECK(camera.data.matrix.m[3][2] == -2);
         CHECK(mm_movie_session_camera(movie, 0, 8, NULL, NULL, &camera) == MM_MOVIE_OK && camera.slot == 0);
         CHECK(mm_movie_session_camera(movie, 0, 4, NULL, NULL, &camera) == MM_MOVIE_OK && camera.number == 90);
+        CHECK(camera.images.present == MM_BACKGROUND_HAS_COLOUR && camera.images.colour == 18 && !camera.images.depth);
         CHECK(mm_movie_session_camera(movie, 0, 0, NULL, NULL, &camera) == MM_MOVIE_FRAME_OUT_OF_RANGE &&
               camera.number == 90);
         CHECK(mm_movie_session_seek(movie, 0, 5, NULL, NULL, &frame) == MM_MOVIE_OK &&
@@ -882,6 +886,7 @@ static void movie_camera(void)
     CHECK(mm_movie_session_open_graph(&graph, NULL, NULL, &movie) == MM_MOVIE_OK);
     CHECK(mm_movie_session_seek_graph(movie, 0, 7, graph_camera_source, &graph, &frame) == MM_MOVIE_OK &&
           frame->camera.background.source == 2 && frame->camera.number == 80);
+    CHECK(frame->camera.images.present == (MM_BACKGROUND_HAS_COLOUR | MM_BACKGROUND_HAS_DEPTH));
     prior = frame;
     CHECK(mm_movie_session_seek_graph(movie, 0, 9, NULL, NULL, &frame) == MM_MOVIE_ASSET_NOT_FOUND && frame == prior);
     input.stream.length = 1;

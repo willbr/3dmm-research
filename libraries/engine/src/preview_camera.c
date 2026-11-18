@@ -305,8 +305,9 @@ int mm_preview_projection_cache_get(MMPreviewProjectionCache *c, const MMU32 *nu
     MMPreviewProjection *p;
     unsigned char *read;
     MMReadStream stream;
-    MMBackgroundCameraData camera;
-    MMU32 child, width, height;
+    MMBackgroundCameraBinding binding;
+    const MMBackgroundCameraData *camera = &binding.data;
+    MMU32 width, height;
     MMI32 bounds[4];
     int row, axis;
     void *bitmap;
@@ -327,8 +328,10 @@ int mm_preview_projection_cache_get(MMPreviewProjectionCache *c, const MMU32 *nu
     if (!*read)
     {
         *read = 2;
-        if (!s->camera_read(s->context, numbers[index], &stream) || !mm_background_camera_decode(&stream, &camera) ||
-            !s->child(s->context, numbers[index], 0, &child) || !(bitmap = s->fetch(s->context, child, 0)))
+        if (!s->camera_read(s->context, numbers[index], &stream) ||
+            !mm_background_camera_binding_read(&stream, numbers[index], &binding) ||
+            !mm_background_camera_binding_image(&binding, 0, s->child, s->context) ||
+            !(bitmap = s->fetch(s->context, binding.images.colour, 0)))
             return MM_PREVIEW_CAMERA_READ;
         s->bounds(s->context, bitmap, bounds);
         s->release(s->context, bitmap);
@@ -340,10 +343,10 @@ int mm_preview_projection_cache_get(MMPreviewProjectionCache *c, const MMU32 *nu
             return MM_PREVIEW_CAMERA_READ;
         for (row = 0; row < 4; ++row)
             for (axis = 0; axis < 3; ++axis)
-                p->transform[row * 3 + axis] = s->scalar_float(s->context, camera.matrix.m[row][axis]);
-        p->vertical_fov = camera.fov * (360.f / 65536.f);
-        p->near_clip = s->scalar_float(s->context, camera.near_z);
-        p->far_clip = s->scalar_float(s->context, camera.far_z);
+                p->transform[row * 3 + axis] = s->scalar_float(s->context, camera->matrix.m[row][axis]);
+        p->vertical_fov = camera->fov * (360.f / 65536.f);
+        p->near_clip = s->scalar_float(s->context, camera->near_z);
+        p->far_clip = s->scalar_float(s->context, camera->far_z);
         p->aspect = (float)width / height;
         p->display_depth = 10.f;
         p->valid = p->vertical_fov > 0 && p->vertical_fov < 179 && p->near_clip > 0 && p->far_clip > p->near_clip;

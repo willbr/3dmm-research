@@ -43,6 +43,32 @@ int mm_background_camera_decode(const MMReadStream *r, MMBackgroundCameraData *o
     *out = d;
     return 1;
 }
+int mm_background_camera_binding_read(const MMReadStream *stream, MMU32 number, MMBackgroundCameraBinding *out)
+{
+    MMBackgroundCameraBinding binding;
+    memset(&binding, 0, sizeof(binding));
+    if (!mm_background_camera_decode(stream, &binding.data))
+        return 0;
+    binding.number = number;
+    *out = binding;
+    return 1;
+}
+int mm_background_camera_binding_image(MMBackgroundCameraBinding *binding, int depth,
+                                       MMBackgroundCameraImageRead read, void *context)
+{
+    MMU32 number;
+    unsigned flag = depth ? MM_BACKGROUND_HAS_DEPTH : MM_BACKGROUND_HAS_COLOUR;
+    if (binding->images.present & flag)
+        return 1;
+    if (!read(context, binding->number, depth, &number))
+        return 0;
+    if (depth)
+        binding->images.depth = number;
+    else
+        binding->images.colour = number;
+    binding->images.present |= flag;
+    return 1;
+}
 int mm_background_point_decode(const MMReadStream *r, const MMBackgroundCameraData *d, MMI32 index,
                                      MMActorPoint *out)
 {
@@ -73,9 +99,10 @@ int mm_background_camera_set(MMBackgroundCameraState *p, MMI32 index,
                                    const MMBackgroundCameraServices *s)
 {
     MMReadStream r;
-    MMBackgroundCameraData d;
+    MMBackgroundCameraBinding binding;
+    const MMBackgroundCameraData *d = &binding.data;
     MMActorPoint place;
-    MMU32 number, rgb, depth;
+    MMU32 number;
     MMI32 i;
     unsigned short a, c;
     s->lights_on(s->context);
@@ -91,16 +118,18 @@ int mm_background_camera_set(MMBackgroundCameraState *p, MMI32 index,
         s->diagnostic(s->context, MM_BACKGROUND_CAMERA_TAIL);
         return 0;
     }
-    if (!mm_background_camera_decode(&r, &d) || !s->child(s->context, number, 0, &rgb) ||
-        !s->child(s->context, number, 1, &depth) || !s->background(s->context, rgb, depth))
+    if (!mm_background_camera_binding_read(&r, number, &binding) ||
+        !mm_background_camera_binding_image(&binding, 0, s->child, s->context) ||
+        !mm_background_camera_binding_image(&binding, 1, s->child, s->context) ||
+        !s->background(s->context, binding.images.colour, binding.images.depth))
         return 0;
     mm_background_camera_dispose(p, s);
-    if (d.point_count > 0 && (p->points = s->new_points(s->context, d.point_count)) != NULL)
+    if (d->point_count > 0 && (p->points = s->new_points(s->context, d->point_count)) != NULL)
     {
         s->lock(s->context, p->points);
-        for (i = 0; i < d.point_count; ++i)
+        for (i = 0; i < d->point_count; ++i)
         {
-            if (!mm_background_point_decode(&r, &d, i, &place))
+            if (!mm_background_point_decode(&r, d, i, &place))
             {
                 s->unlock(s->context, p->points);
                 mm_background_camera_dispose(p, s);
@@ -111,15 +140,16 @@ int mm_background_camera_set(MMBackgroundCameraState *p, MMI32 index,
         s->unlock(s->context, p->points);
     }
     p->current = index;
-    p->place = d.place;
-    p->position.dxr = d.matrix.m[3][0];
-    p->position.dyr = d.matrix.m[3][1];
-    p->position.dzr = d.matrix.m[3][2];
-    s->euler_yxy(s->context, &d.matrix, &a, &c);
+    p->binding = binding;
+    p->place = d->place;
+    p->position.dxr = d->matrix.m[3][0];
+    p->position.dyr = d->matrix.m[3][1];
+    p->position.dzr = d->matrix.m[3][2];
+    s->euler_yxy(s->context, &d->matrix, &a, &c);
     p->yaw = (unsigned short)(a + c);
     s->rotate_y(s->context, &p->mouse, p->yaw);
     s->translate(s->context, &p->mouse, &p->position);
-    s->camera(s->context, &d);
+    s->camera(s->context, &p->binding.data);
     s->dirty(s->context);
     return 1;
 }
