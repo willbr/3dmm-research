@@ -3,10 +3,28 @@
 #include "mm/resource_cache.h"
 #include <string.h>
 #define SCOPE_TYPE 0x52534320UL
+
+static void cache_released(MMResourceCache *, void *object, const MMResourceObject *);
+static void cache_detached(MMResourceCache *, void *object, const MMResourceObject *);
+
 static MMI32 priority16(MMI32 n)
 {
     MMU32 low = (MMU32)n & 65535U;
     return low < 32768U ? (MMI32)low : (MMI32)low - 65536L;
+}
+static void retain_object(void *object, const MMResourceObjectServices *s)
+{
+    if (mm_reference_add(s->references(object)) <= 0 && s->issue)
+        s->issue(object, MM_RESOURCE_BAD_RETAIN);
+}
+static void retain_cache(MMResourceCache *c)
+{
+    if (mm_reference_add(c->references) <= 0 && c->services.issue)
+        c->services.issue(c->services.context, MM_RESOURCE_BAD_RETAIN, 0, 0);
+}
+void mm_resource_cache_release(MMResourceCache *c)
+{
+    mm_reference_release(c->references, c->owner, c->services.destroy_owner);
 }
 void mm_resource_object_init(MMResourceObject *state)
 {
@@ -15,57 +33,55 @@ void mm_resource_object_init(MMResourceObject *state)
 void mm_resource_object_dispose(void *object, const MMResourceObjectServices *s)
 {
     MMResourceObject *state = s->state(object);
-    void *owner = state->owner;
+    MMResourceCache *cache = state->cache;
     if (state->attached)
     {
         if (s->issue)
             s->issue(object, MM_RESOURCE_BAD_OBJECT);
         return;
     }
-    state->owner = NULL;
-    if (owner)
-        s->release_owner(owner);
+    state->cache = NULL;
+    if (cache)
+        mm_resource_cache_release(cache);
 }
 void mm_resource_object_release(void *object, const MMResourceObjectServices *s)
 {
-    MMI32 refs = s->references(object)->count;
+    MMReference *refs = s->references(object);
     MMResourceObject *state;
-    if (refs <= 0)
+    if (refs->count <= 0)
     {
-        s->references(object)->count = 0;
+        refs->count = 0;
         if (s->issue)
             s->issue(object, MM_RESOURCE_BAD_REFS);
     }
     else
-        s->references(object)->count = refs - 1;
-    if (s->references(object)->count == 0)
+        mm_reference_drop(refs);
+    if (refs->count == 0)
     {
         state = s->state(object);
         if (!state->attached)
             s->destroy(object);
         else
-            s->released(state->owner, object);
+            cache_released(state->cache, object, state);
     }
 }
 void mm_resource_object_detach(void *object, const MMResourceObjectServices *s)
 {
     MMResourceObject *state = s->state(object);
-    void *owner;
     if (state->attached)
     {
-        owner = state->owner;
-        s->retain_owner(owner);
+        retain_cache(state->cache);
         state->attached = 0;
-        s->detached(owner, object);
+        cache_detached(state->cache, object, state);
     }
     if (s->references(object)->count <= 0)
         s->destroy(object);
 }
 void mm_resource_object_priority(void *object, MMI32 priority, const MMResourceObjectServices *s)
 {
-    s->retain(object);
+    retain_object(object, s);
     s->state(object)->priority = priority16(priority);
-    s->release(object);
+    mm_resource_object_release(object, s);
 }
 static MMArray view(MMResourceCache *c)
 {
@@ -106,15 +122,13 @@ static MMI32 tick(MMResourceCache *c)
     c->releases = mm_signed_word((MMU32)c->releases + 1);
     return old;
 }
-int mm_resource_cache_init(MMResourceCache *c, void *owner, void *file, MMI32 budget,
-                                 const MMResourceServices *s, const MMStorageAllocator *allocator,
-                                 int diagnostic_refs)
+int mm_resource_cache_init(MMResourceCache *c, void *owner, MMReference *references,
+                           void *file, MMI32 budget, const MMResourceServices *s,
+                           const MMStorageAllocator *allocator, int diagnostic_refs)
 {
-    if (!c || !owner || !file || !s || budget < 0 || !s->compare_reader || !s->contains || !s->with_block || !s->read ||
-        !s->retain_file || !s->release_file || !s->owner_references || !s->objects.state ||
-        !s->objects.references || !s->objects.retain || !s->objects.release || !s->objects.detach ||
-        !s->objects.priority || !s->objects.destroy || !s->objects.retain_owner || !s->objects.release_owner ||
-        !s->objects.released || !s->objects.detached)
+    if (!c || !owner || !references || !file || !s || budget < 0 || !s->compare_reader ||
+        !s->contains || !s->with_block || !s->read || !s->retain_file || !s->release_file ||
+        !s->destroy_owner || !s->objects.state || !s->objects.references || !s->objects.destroy)
         return MM_STORAGE_ARGUMENT;
     memset(c, 0, sizeof(*c));
     if (mm_storage_init(&c->storage, allocator) != MM_STORAGE_OK)
@@ -122,6 +136,7 @@ int mm_resource_cache_init(MMResourceCache *c, void *owner, void *file, MMI32 bu
     c->services = *s;
     c->owner = owner;
     c->file = file;
+    c->references = references;
     c->budget = budget;
     c->diagnostic_refs = diagnostic_refs;
     c->storage.min_grow[0] = 128;
@@ -163,9 +178,10 @@ static int find(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceReader r
     *position = low;
     return 0;
 }
-static int find_object(MMResourceCache *c, void *object, MMU32 *position)
+static int find_object(MMResourceCache *c, void *object, const MMResourceObject *key,
+                       MMU32 *position)
 {
-    MMResourceObject key = *c->services.objects.state(object), *state;
+    const MMResourceObject *state;
     MMResourceEntry e;
     MMU32 low = 0, high = c->count, middle, i;
     while (low < high)
@@ -173,9 +189,9 @@ static int find_object(MMResourceCache *c, void *object, MMU32 *position)
         middle = low + (high - low) / 2;
         mm_resource_cache_at(c, middle, &e);
         state = c->services.objects.state(e.object);
-        if (key.type < state->type || (key.type == state->type && key.number < state->number))
+        if (key->type < state->type || (key->type == state->type && key->number < state->number))
             high = middle;
-        else if (key.type > state->type || key.number > state->number)
+        else if (key->type > state->type || key->number > state->number)
             low = middle + 1;
         else
         {
@@ -188,7 +204,7 @@ static int find_object(MMResourceCache *c, void *object, MMU32 *position)
             {
                 mm_resource_cache_at(c, i, &e);
                 state = c->services.objects.state(e.object);
-                if (state->type != key.type || state->number != key.number)
+                if (state->type != key->type || state->number != key->number)
                     break;
                 if (e.object == object)
                 {
@@ -200,7 +216,7 @@ static int find_object(MMResourceCache *c, void *object, MMU32 *position)
             {
                 mm_resource_cache_at(c, i, &e);
                 state = c->services.objects.state(e.object);
-                if (state->type != key.type || state->number != key.number)
+                if (state->type != key->type || state->number != key->number)
                     break;
                 if (e.object == object)
                 {
@@ -213,13 +229,12 @@ static int find_object(MMResourceCache *c, void *object, MMU32 *position)
     }
     return 0;
 }
-void mm_resource_cache_detached(MMResourceCache *c, void *object)
+static void cache_detached(MMResourceCache *c, void *object, const MMResourceObject *state)
 {
     MMU32 i;
     MMResourceEntry e;
     MMArray a;
-    if (c->services.objects.state(object)->owner != c->owner || c->services.objects.state(object)->attached ||
-        !find_object(c, object, &i))
+    if (!find_object(c, object, state, &i))
     {
         issue(c, MM_RESOURCE_BAD_OBJECT, 0, 0);
         return;
@@ -230,13 +245,11 @@ void mm_resource_cache_detached(MMResourceCache *c, void *object)
     mm_array_delete(&a, i, 1);
     c->count = a.count;
 }
-void mm_resource_cache_released(MMResourceCache *c, void *object)
+static void cache_released(MMResourceCache *c, void *object, const MMResourceObject *state)
 {
-    MMResourceObject *state = c->services.objects.state(object);
     MMResourceEntry e;
     MMU32 i;
-    if (state->owner != c->owner || !state->attached || c->services.objects.references(object)->count != 0 ||
-        !find_object(c, object, &i))
+    if (!find_object(c, object, state, &i))
     {
         issue(c, MM_RESOURCE_BAD_OBJECT, 0, 0);
         return;
@@ -245,7 +258,7 @@ void mm_resource_cache_released(MMResourceCache *c, void *object)
     e.released = tick(c);
     put(c, i, &e);
     if (state->priority <= 0 || mm_wide_compare(c->resident, mm_wide_i32(c->budget)) > 0)
-        c->services.objects.detach(object);
+        mm_resource_object_detach(object, &c->services.objects);
 }
 int mm_resource_cache_purge(MMResourceCache *c, MMWide need, MMI32 last)
 {
@@ -292,7 +305,7 @@ int mm_resource_cache_purge(MMResourceCache *c, MMWide need, MMI32 last)
         }
         if (chosen == c->count)
             return 0;
-        c->services.objects.detach(best.object);
+        mm_resource_object_detach(best.object, &c->services.objects);
         need = mm_wide_subtract(need, mm_wide_i32(best.bytes));
         if (mm_wide_compare(need, zero) <= 0)
             return 1;
@@ -313,7 +326,7 @@ void mm_resource_cache_budget(MMResourceCache *c, MMI32 budget)
             mm_resource_cache_at(c, i, &e);
             if (c->services.objects.references(e.object)->count == 0)
             {
-                c->services.objects.detach(e.object);
+                mm_resource_object_detach(e.object, &c->services.objects);
                 i = c->count;
             }
         }
@@ -336,17 +349,17 @@ static int charge(MMResourceCache *c, MMI32 bytes, void *object, MMU32 type, MMU
         return 1;
     issue(c, MM_RESOURCE_BAD_CHARGE, type, number);
     if (object)
-        c->services.objects.release(object);
+        mm_resource_object_release(object, &c->services.objects);
     return 0;
 }
 static void bind(MMResourceCache *c, void *object, MMU32 type, MMU32 number, MMI32 priority)
 {
     MMResourceObject *s = c->services.objects.state(object);
-    s->owner = c->owner;
+    s->cache = c;
     s->type = type;
     s->number = number;
     s->priority = priority16(priority);
-    c->services.objects.retain_owner(c->owner);
+    retain_cache(c);
     s->attached = 0;
 }
 typedef struct ResourceMiss
@@ -385,7 +398,7 @@ static int load_block(void *context, void *block)
     if (mm_wide_compare(excess, mm_wide_i32(0)) > 0 &&
         !mm_resource_cache_purge(c, excess, priority - 1))
     {
-        c->services.objects.release(e.object);
+        mm_resource_object_release(e.object, &c->services.objects);
         return 2;
     }
     bind(c, e.object, type, number, priority);
@@ -395,13 +408,13 @@ static int load_block(void *context, void *block)
         issue(c, MM_RESOURCE_DUPLICATE, type, number);
     if (!insert(c, i, &e))
     {
-        c->services.objects.release(e.object);
+        mm_resource_object_release(e.object, &c->services.objects);
         return 2;
     }
     c->resident = mm_wide_add(c->resident, mm_wide_i32(e.bytes));
     c->services.objects.state(e.object)->attached = 1;
-    c->services.objects.release(e.object);
-    c->services.objects.release_owner(c->owner);
+    mm_resource_object_release(e.object, &c->services.objects);
+    mm_resource_cache_release(c);
     return 1;
 }
 int mm_resource_cache_load(MMResourceCache *c, const MMResourceRequest *q)
@@ -418,7 +431,8 @@ int mm_resource_cache_load(MMResourceCache *c, const MMResourceRequest *q)
     {
         mm_resource_cache_at(c, i, &e);
         current_priority = c->services.objects.state(e.object)->priority;
-        c->services.objects.priority(e.object, current_priority > q->priority ? current_priority : q->priority);
+        mm_resource_object_priority(e.object, current_priority > q->priority ? current_priority : q->priority,
+                                    &c->services.objects);
         if (find(c, q->type, q->number, q->reader, &i))
         {
             mm_resource_cache_at(c, i, &e);
@@ -458,7 +472,7 @@ static int fetch_block(void *context, void *block)
         return 1;
     c->resident = mm_wide_add(c->resident, mm_wide_i32(e.bytes));
     c->services.objects.state(e.object)->attached = 1;
-    c->services.objects.release_owner(c->owner);
+    mm_resource_cache_release(c);
     if (mm_wide_compare(c->resident, mm_wide_i32(c->budget)) > 0)
         mm_resource_cache_purge(c, mm_wide_subtract(c->resident, mm_wide_i32(c->budget)),
                                       0x7fffffffL);
@@ -478,7 +492,7 @@ void *mm_resource_cache_fetch(MMResourceCache *c, const MMResourceRequest *q, in
     if (find(c, q->type, q->number, q->reader, &i))
     {
         mm_resource_cache_at(c, i, &e);
-        c->services.objects.retain(e.object);
+        retain_object(e.object, &c->services.objects);
         return e.object;
     }
     miss.cache = c;
@@ -497,7 +511,7 @@ void *mm_resource_cache_find(MMResourceCache *c, MMU32 type, MMU32 number,
     if (!reader || !find(c, type, number, reader, &i) || !scope(c, rsc))
         return NULL;
     mm_resource_cache_at(c, i, &e);
-    c->services.objects.retain(e.object);
+    retain_object(e.object, &c->services.objects);
     return e.object;
 }
 int mm_resource_cache_priority(MMResourceCache *c, MMI32 priority, MMU32 type, MMU32 number,
@@ -508,7 +522,7 @@ int mm_resource_cache_priority(MMResourceCache *c, MMI32 priority, MMU32 type, M
     if (!reader || !find(c, type, number, reader, &i) || !scope(c, rsc))
         return 0;
     mm_resource_cache_at(c, i, &e);
-    c->services.objects.priority(e.object, priority);
+    mm_resource_object_priority(e.object, priority, &c->services.objects);
     return 1;
 }
 int mm_resource_cache_dispose(MMResourceCache *c)
@@ -519,19 +533,19 @@ int mm_resource_cache_dispose(MMResourceCache *c)
     int result;
     if (!c || c->storage.buffers[0].locks || c->storage.buffers[1].locks)
         return MM_STORAGE_ARGUMENT;
-    mm_reference_add(c->services.owner_references(c->services.context));
+    mm_reference_add(c->references);
     while (c->count)
     {
         mm_resource_cache_at(c, 0, &e);
-        c->services.objects.retain(e.object);
-        c->services.objects.detach(e.object);
+        retain_object(e.object, &c->services.objects);
+        mm_resource_object_detach(e.object, &c->services.objects);
         state = c->services.objects.state(e.object);
-        state->owner = NULL;
+        state->cache = NULL;
         if (c->diagnostic_refs)
-            mm_reference_drop(c->services.owner_references(c->services.context));
-        c->services.objects.release(e.object);
+            mm_reference_drop(c->references);
+        mm_resource_object_release(e.object, &c->services.objects);
     }
-    if (c->diagnostic_refs && c->services.owner_references(c->services.context)->count != 1)
+    if (c->diagnostic_refs && c->references->count != 1)
         issue(c, MM_RESOURCE_BAD_OWNER, 0, 0);
     result = mm_storage_dispose(&c->storage);
     file = c->file;

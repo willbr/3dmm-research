@@ -31,7 +31,7 @@ struct Host
     int fail_read, fail_estimate, recursive, missing;
     MMResourceManager *manager;
     Host *append_file;
-    int file_id, *close_order, *close_count;
+    int file_id, *close_order, *close_count, free_owner;
 };
 static MMResourceObjectServices objects;
 static void *resize(void *context, void *old, MMU32 before, MMU32 bytes, int priority)
@@ -66,10 +66,6 @@ static MMReference *references(void *p)
 {
     return &((Object *)p)->refs;
 }
-static void retain(void *p)
-{
-    mm_reference_add(&((Object *)p)->refs);
-}
 static void release(void *p)
 {
     mm_resource_object_release(p, &objects);
@@ -82,16 +78,15 @@ static void priority(void *p, MMI32 n)
 {
     mm_resource_object_priority(p, n, &objects);
 }
-static void retain_owner(void *p)
-{
-    mm_reference_add(&((Host *)p)->refs);
-}
-static void release_owner(void *p)
+static void destroy_owner(void *p)
 {
     Host *h = (Host *)p;
-    CHECK(h->refs.count > 0);
-    if (mm_reference_drop(&h->refs) == 0)
-        CHECK(mm_resource_cache_dispose(&h->cache) == 0);
+    CHECK(h->refs.count == 0 && mm_resource_cache_dispose(&h->cache) == 0);
+    if (h->free_owner)
+    {
+        CHECK(!h->objects && !h->allocations && h->file_refs == 1 && !h->active_blocks);
+        free(h);
+    }
 }
 static void destroyed(void *p)
 {
@@ -101,17 +96,9 @@ static void destroyed(void *p)
     h->destroyed[h->deaths++] = o->id;
     if (o->cascade)
         release(o->cascade);
-    mm_resource_object_dispose(o, &objects);
     --h->objects;
+    mm_resource_object_dispose(o, &objects);
     free(o);
-}
-static void released(void *h, void *p)
-{
-    mm_resource_cache_released(&((Host *)h)->cache, p);
-}
-static void detached(void *h, void *p)
-{
-    mm_resource_cache_detached(&((Host *)h)->cache, p);
 }
 static void object_issue(void *p, int kind)
 {
@@ -217,10 +204,6 @@ static void release_file(void *p)
     if (h->close_order)
         h->close_order[(*h->close_count)++] = h->file_id;
 }
-static MMReference *owner_references(void *p)
-{
-    return &((Host *)p)->refs;
-}
 static void issue(void *p, int kind, MMU32 type, MMU32 number)
 {
     (void)kind;
@@ -252,14 +235,14 @@ static void init(Host *h, MMI32 budget)
     s.read = read_object;
     s.retain_file = retain_file;
     s.release_file = release_file;
-    s.owner_references = owner_references;
+    s.destroy_owner = destroy_owner;
     s.issue = issue;
-    CHECK(mm_resource_cache_init(&h->cache, h, h, budget, &s, &a, 1) == 0);
+    CHECK(mm_resource_cache_init(&h->cache, h, &h->refs, h, budget, &s, &a, 1) == 0);
     CHECK(h->file_refs == 2);
 }
 static void finish(Host *h)
 {
-    release_owner(h);
+    mm_resource_cache_release(&h->cache);
     CHECK(!h->objects && !h->allocations && h->file_refs == 1 && !h->issues && !h->active_blocks);
 }
 static int load(Host *h, MMU32 number, MMI32 p)
@@ -296,6 +279,7 @@ static void cache_cases(void)
     h.fail_speed = 1;
     a = fetch(&h, 2, reader_a, &error);
     CHECK(a && !error && h.cache.count == 2 && h.reads == 2 && h.block_scans == 2 && !h.active_blocks);
+    CHECK(a->state.cache == &h.cache && a->state.attached && h.refs.count == 1);
     CHECK(load(&h, 2, 2) == 1 && h.block_scans == 2);
     b = fetch(&h, 2, reader_a, &error);
     CHECK(b == a && !error && h.block_scans == 2);
@@ -331,16 +315,16 @@ static void cache_cases(void)
     init(&h, 1000);
     a = fetch(&h, 1, reader_a, &error);
     detach(a);
-    CHECK(!h.cache.count && !a->state.attached && h.refs.count == 2);
-    release_owner(&h);
+    CHECK(!h.cache.count && a->state.cache == &h.cache && !a->state.attached && h.refs.count == 2);
+    mm_resource_cache_release(&h.cache);
     CHECK(h.file_refs == 2);
     release(a);
     CHECK(!h.objects && !h.allocations && h.file_refs == 1 && !h.issues);
 
     init(&h, 1000);
     a = fetch(&h, 1, reader_a, &error);
-    release_owner(&h);
-    CHECK(!a->state.owner && !a->state.attached && h.file_refs == 1 && !h.allocations);
+    mm_resource_cache_release(&h.cache);
+    CHECK(!a->state.cache && !a->state.attached && h.file_refs == 1 && !h.allocations);
     release(a);
     CHECK(!h.objects && !h.issues);
 
@@ -404,6 +388,25 @@ static void cache_cases(void)
     CHECK(!fetch(&h, 2, reader_a, &error) && error && h.issues == 2 && !h.objects);
     h.issues = 0;
     finish(&h);
+}
+
+static void last_detached_reference(void)
+{
+    Host *h = (Host *)malloc(sizeof(*h));
+    Object *object;
+    int error, closes = 0, closed_file = -1;
+    CHECK(h != NULL);
+    init(h, 100);
+    h->free_owner = 1;
+    h->close_order = &closed_file;
+    h->close_count = &closes;
+    object = fetch(h, 1, reader_a, &error);
+    CHECK(object && !error);
+    detach(object);
+    mm_resource_cache_release(&h->cache);
+    CHECK(!closes && object->state.cache == &h->cache && h->refs.count == 1);
+    release(object);
+    CHECK(closes == 1 && closed_file == 0);
 }
 typedef struct ManagerHost
 {
@@ -538,18 +541,11 @@ int main(void)
 {
     objects.state = state;
     objects.references = references;
-    objects.retain = retain;
-    objects.release = release;
-    objects.detach = detach;
-    objects.priority = priority;
     objects.destroy = destroyed;
-    objects.retain_owner = retain_owner;
-    objects.release_owner = release_owner;
-    objects.released = released;
-    objects.detached = detached;
     objects.issue = object_issue;
     wide_cases();
     cache_cases();
+    last_detached_reference();
     manager_cases();
     puts("resource cache C89 checks passed");
     return 0;

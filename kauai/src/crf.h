@@ -59,10 +59,10 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     ~BaseCacheableObject(void);
 
   public:
-    virtual void Release(void);
+    void Release(void) override;
 
-    virtual void SetCrep(LegacyLong crep);
-    virtual void Detach(void);
+    void SetCrep(LegacyLong crep);
+    void Detach(void);
 
     ChunkTagOrType Ctg(void)
     {
@@ -74,7 +74,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     }
     PChunkyResourceFile Pcrf(void)
     {
-        return static_cast<PChunkyResourceFile>(_resource.owner);
+        return _resource.cache ? static_cast<PChunkyResourceFile>(_resource.cache->owner) : nullptr;
     }
     LegacyLong Crep(void)
     {
@@ -136,6 +136,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
   public:
     ~ChunkyResourceFile(void);
     static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
+    void Release(void) override;
 
     virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil,
                           LegacyLong crep = crepNormal);
@@ -155,10 +156,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     {
         return static_cast<PChunkyFile>(_cache.file);
     }
-
-    // These APIs are intended for BaseCacheableObject use only
-    void BacoDetached(PBaseCacheableObject pbaco);
-    void BacoReleased(PBaseCacheableObject pbaco);
 };
 
 /***************************************************************************

@@ -5726,12 +5726,14 @@ before clamping to zero. Destroy callbacks can free the owner and counter, with
 no subsequent C access. A dedicated C suite checks that behavior under ASan,
 including a destruction callback that frees itself and releases another owner.
 
-Resource objects and cache owners expose borrowed C counter views rather than
-numeric read/write callbacks. Cache-specific zero-reference retention,
-notifications, detach/owner balancing and disposal guards remain in the cache
-controller. Document/graphics overrides use the same C drop primitive while
-retaining their existing finalization services. Native allocation, debug tracking,
-virtual destruction, physical view cleanup and COM audio adapter counters remain
+Resource objects expose a borrowed C counter, and the cache holds a direct
+pointer to its owner's C counter. Resource objects link to the C cache record.
+`resource_cache.c` updates both counters and handles zero-reference retention,
+detach, priority changes, and disposal directly. A detached object can own the
+last cache reference, which it releases during destruction. During cache disposal,
+C clears the links of surviving attached objects. Document and graphics
+overrides use the same C drop primitive. Native allocation, final destructors,
+debug tracking, physical view cleanup and COM audio adapter counters remain
 outside this common C reference owner.
 
 The `engine-c89-checks` build target gathers every engine C test executable from
@@ -5753,8 +5755,8 @@ bounds each search. Allocation failure releases newly created cache references
 and leaves the caller's insertion-position output unchanged.
 
 The manager stores typed C cache pointers and calls their C query functions
-directly. Its factory transfers one reference to the cache owner, released
-through the cache's owner service on disposal or failed insertion. A file
+directly. Its factory transfers one reference to the cache owner. The manager
+releases it through C on disposal or failed insertion. A file
 provider lends a block to C on a cache miss. The same block survives preload's
 estimate, read and insertion. Recursive reads borrow separate blocks, and
 cache hits and scope rejections skip block construction.
@@ -5773,12 +5775,12 @@ Python arbitrary-precision oracle covers 65,536 pairs, with explicit signed
 boundaries in the C test. Native and standalone checks hold 24 resources charged
 at 192 MiB each without allocating those payloads.
 
-`crf.cpp` supplies native class allocation, virtual/reference primitives,
-diagnostics, stack-backed file blocks and typed readers. The manager's native
-adapter supplies its factory and translates public results. The host compares
-and calls reader identities as typed function pointers. GenericHQ and
-generic-object wrappers remain native adapters. Container adapters, source
-discovery and engine objects remain migration work.
+`crf.cpp` supplies native class allocation, destructors, state accessors,
+diagnostics, stack-backed file blocks and typed readers. The current host
+cache methods forward public operations to C, including release through the
+existing BASE interface. The host compares and calls reader identities as typed
+function pointers. GenericHQ and generic-object wrappers remain native adapters.
+Container adapters, source discovery and engine objects remain migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,
 speculative allocation fallback, initial/growth failure, cleanup/lifetimes,
@@ -5801,6 +5803,20 @@ All 181 standalone checks and three AddressSanitizer checks pass. The 195
 focused host checks include 11 C89 syntax checks and two native tests that
 passed on a serial rerun with an isolated local temp directory.
 Build identities, traces and captures are in `tmp/c89-cache-dispatch`.
+
+The lifetime change adds a C fixture that frees a cache owner when its last
+detached object is released. It passes under AddressSanitizer alongside the
+reference and block ownership fixtures. The frozen cache, model, material and
+texture traces, 31 actor and resource traces, and the native saved movie remain
+exact.
+The five graph/stream fixture runs and 300 standalone frame and mesh snapshots
+also match. The 181 standalone and 195 focused host checks pass, including
+11 C89 syntax checks in the host configuration. The hosts reproduce 456 seek
+observations and 360 viewport hashes, and match 480 retail frame commits.
+Retail reopens the Studio actor edit with matching state on four seeks. Both
+hosts reproduce the ordinary and motion sound cues. Studio passes eight VMM
+workflow checks, and Marcus matches the retained VMM viewport hash. Evidence is
+in `tmp/c89-cache-lifetime`.
 
 ### Container construction, lookup and disposal
 

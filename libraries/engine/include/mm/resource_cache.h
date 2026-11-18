@@ -12,9 +12,10 @@ extern "C"
     /* Function-pointer keys are cast back by the host before comparison/calling.
      * No function/data pointer conversions or ordered function comparisons enter C. */
     typedef void (*MMResourceReader)(void);
+    typedef struct MMResourceCache MMResourceCache;
     typedef struct MMResourceObject
     {
-        void *owner;
+        MMResourceCache *cache;
         MMU32 type, number;
         MMI32 priority;
         int attached;
@@ -26,21 +27,14 @@ extern "C"
         MM_RESOURCE_DUPLICATE,
         MM_RESOURCE_BAD_CHARGE,
         MM_RESOURCE_LOAD_FAILED,
-        MM_RESOURCE_BAD_OWNER
+        MM_RESOURCE_BAD_OWNER,
+        MM_RESOURCE_BAD_RETAIN
     };
     typedef struct MMResourceObjectServices
     {
         MMResourceObject *(*state)(void *object);
         MMReference *(*references)(void *object);
-        void (*retain)(void *object);
-        void (*release)(void *object);
-        void (*detach)(void *object);
-        void (*priority)(void *object, MMI32);
         void (*destroy)(void *object);
-        void (*retain_owner)(void *owner);
-        void (*release_owner)(void *owner);
-        void (*released)(void *owner, void *object);
-        void (*detached)(void *owner, void *object);
         void (*issue)(void *object, int kind);
     } MMResourceObjectServices;
     void mm_resource_object_init(MMResourceObject *);
@@ -76,34 +70,36 @@ extern "C"
                     MMI32 *bytes);
         void (*retain_file)(void *file);
         void (*release_file)(void *file);
-        MMReference *(*owner_references)(void *);
+        void (*destroy_owner)(void *owner);
         void (*issue)(void *, int kind, MMU32 type, MMU32 number);
     } MMResourceServices;
-    typedef struct MMResourceCache
+    struct MMResourceCache
     {
         MMCollectionStorage storage;
         MMResourceServices services;
         void *owner, *file;
+        MMReference *references;
         MMU32 count;
         MMI32 budget, releases;
         MMWide resident;
         int diagnostic_refs;
-    } MMResourceCache;
-    /* Reference accessors return stable borrowed C counters without mutation or
-     * failure; object/owner lifetimes cover each access. Virtual retain/release
-     * callbacks remain distinct from temporary direct count adjustments.
-     * Cache owns its file reference and array storage. Attached objects retain no
-     * owner reference; detached objects retain one. Every callback uses copied
-     * entries, never pointers into movable array storage. Readers may load other
-     * resources; insertion searches again afterwards. Detach callbacks may remove
-     * other entries/change references; purge/zero-budget scans restart accordingly.
+    };
+    /* Cache and object lifetimes cover their borrowed C counters. State and
+     * reference accessors are side-effect free. The cache owns its file reference
+     * and array storage. Attached objects link to the cache without retaining it.
+     * Detached objects retain it until disposal. Callbacks receive copied entries
+     * or object pointers that are independent of movable array storage. Readers
+     * may load other keys. Destructors may release other objects and change the
+     * table, so insertion searches again and eviction scans restart.
      * Recursive loading of the same key and disposal re-entry are invalid.
      * Reader success transfers a fresh object reference and a nonnegative i32 charge.
      * Priority retains the original signed-16-bit storage behavior. */
-    int mm_resource_cache_init(MMResourceCache *, void *owner, void *file, MMI32 budget,
-                                     const MMResourceServices *, const MMStorageAllocator *,
-                                     int diagnostic_refs);
+    int mm_resource_cache_init(MMResourceCache *, void *owner, MMReference *references,
+                               void *file, MMI32 budget, const MMResourceServices *,
+                               const MMStorageAllocator *, int diagnostic_refs);
     int mm_resource_cache_reserve(MMResourceCache *, MMU32 additional);
+    /* A final release may destroy the owner and cache before returning. */
+    void mm_resource_cache_release(MMResourceCache *);
     int mm_resource_cache_dispose(MMResourceCache *);
     int mm_resource_cache_at(const MMResourceCache *, MMU32, MMResourceEntry *);
     void mm_resource_cache_budget(MMResourceCache *, MMI32);
@@ -115,8 +111,6 @@ extern "C"
                                        MMResourceReader, MMU32 scope);
     int mm_resource_cache_priority(MMResourceCache *, MMI32, MMU32 type, MMU32 number,
                                          MMResourceReader, MMU32 scope);
-    void mm_resource_cache_detached(MMResourceCache *, void *object);
-    void mm_resource_cache_released(MMResourceCache *, void *object);
     typedef struct MMResourceManagerServices
     {
         void *context;

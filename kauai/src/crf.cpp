@@ -46,22 +46,12 @@ const MMResourceObjectServices *BaseCacheableObject::_ObjectServices()
     static const MMResourceObjectServices services = {
         [](void *o) -> MMResourceObject * { return &static_cast<PBaseCacheableObject>(o)->_resource; },
         [](void *o) -> MMReference * { return &static_cast<PBaseCacheableObject>(o)->_references; },
-        [](void *o) { static_cast<PBaseCacheableObject>(o)->AddRef(); },
-        [](void *o) { static_cast<PBaseCacheableObject>(o)->Release(); },
-        [](void *o) { static_cast<PBaseCacheableObject>(o)->Detach(); },
-        [](void *o, MMI32 n) { static_cast<PBaseCacheableObject>(o)->SetCrep(n); },
         [](void *o) { delete static_cast<PBaseCacheableObject>(o); },
-        [](void *c) { static_cast<PChunkyResourceFile>(c)->AddRef(); },
-        [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); },
-        [](void *c, void *o) {
-            static_cast<PChunkyResourceFile>(c)->BacoReleased(static_cast<PBaseCacheableObject>(o));
-        },
-        [](void *c, void *o) {
-            static_cast<PChunkyResourceFile>(c)->BacoDetached(static_cast<PBaseCacheableObject>(o));
-        },
         [](void *, int kind) {
             if (kind == MM_RESOURCE_BAD_REFS)
                 Bug("calling Release without an AddRef");
+            else if (kind == MM_RESOURCE_BAD_RETAIN)
+                Bug("reference count not positive");
             else
                 Bug("invalid cacheable object ownership");
         }};
@@ -116,15 +106,16 @@ void BaseCacheableObject::SetCrep(LegacyLong priority)
 void BaseCacheableObject::AssertValid(LegacyUlong flags)
 {
     BaseCacheableObject_PAR::AssertValid(fobjAllocated);
-    Assert(!_resource.attached || _resource.owner != nullptr, "attached baco has no crf");
-    AssertNilOrVarMem(static_cast<PChunkyResourceFile>(_resource.owner));
+    Assert(!_resource.attached || _resource.cache != nullptr, "attached baco has no crf");
+    AssertNilOrVarMem(_resource.cache);
+    AssertNilOrVarMem(Pcrf());
 }
 void BaseCacheableObject::MarkMem(void)
 {
     AssertValid(0);
     BaseCacheableObject_PAR::MarkMem();
     if (!_resource.attached)
-        MarkMemObj(static_cast<PChunkyResourceFile>(_resource.owner));
+        MarkMemObj(Pcrf());
 }
 #endif
 MMResourceServices ChunkyResourceFile::_Services()
@@ -159,7 +150,11 @@ MMResourceServices ChunkyResourceFile::_Services()
     };
     s.retain_file = [](void *file) { static_cast<PChunkyFile>(file)->AddRef(); };
     s.release_file = [](void *file) { static_cast<PChunkyFile>(file)->Release(); };
-    s.owner_references = [](void *c) -> MMReference * { return &static_cast<PChunkyResourceFile>(c)->_references; };
+    s.destroy_owner = [](void *c) {
+        auto cache = static_cast<PChunkyResourceFile>(c);
+        AssertPo(cache, fobjAllocated);
+        delete cache;
+    };
     s.issue = [](void *c, int kind, MMU32 type, MMU32 number) {
         if (kind == MM_RESOURCE_LOAD_FAILED)
         {
@@ -185,6 +180,8 @@ MMResourceServices ChunkyResourceFile::_Services()
             Bug("negative resource size");
         else if (kind == MM_RESOURCE_BAD_OWNER)
             Bug("someone still refers to this ChunkyResourceFile");
+        else if (kind == MM_RESOURCE_BAD_RETAIN)
+            Bug("reference count not positive");
         else
             Bug("invalid resource cache ownership");
     };
@@ -199,8 +196,8 @@ ChunkyResourceFile::ChunkyResourceFile(PChunkyFile file, LegacyLong budget)
     const auto services = _Services();
     int diagnostic = 0;
     Debug(diagnostic = 1;)
-        AssertDo(mm_resource_cache_init(&_cache, this, file, budget, &services, KauaiCopyAllocator(),
-                                              diagnostic) == MM_STORAGE_OK,
+        AssertDo(mm_resource_cache_init(&_cache, this, &_references, file, budget, &services,
+                                       KauaiCopyAllocator(), diagnostic) == MM_STORAGE_OK,
                  "invalid resource cache");
 }
 ChunkyResourceFile::~ChunkyResourceFile(void)
@@ -217,6 +214,11 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong bud
         ReleasePpo(&cache);
     AssertNilOrPo(cache, 0);
     return cache;
+}
+void ChunkyResourceFile::Release(void)
+{
+    AssertThis(0);
+    mm_resource_cache_release(&_cache);
 }
 void ChunkyResourceFile::SetCbMax(LegacyLong budget)
 {
@@ -266,18 +268,6 @@ PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType type, Chunk
     AssertThis(0);
     return mm_resource_cache_contains(&_cache, type, number, scope) ? this : nullptr;
 }
-void ChunkyResourceFile::BacoDetached(PBaseCacheableObject object)
-{
-    AssertThis(0);
-    AssertPo(object, 0);
-    mm_resource_cache_detached(&_cache, object);
-}
-void ChunkyResourceFile::BacoReleased(PBaseCacheableObject object)
-{
-    AssertThis(0);
-    AssertPo(object, 0);
-    mm_resource_cache_released(&_cache, object);
-}
 #ifdef DEBUG
 void ChunkyResourceFile::AssertValid(LegacyUlong flags)
 {
@@ -300,8 +290,7 @@ void ChunkyResourceFile::MarkMem(void)
         AssertDo(mm_resource_cache_at(&_cache, i, &row) == MM_STORAGE_OK, "bad cache row");
         auto object = static_cast<PBaseCacheableObject>(row.object);
         AssertPo(object, 0);
-        Assert(object->_resource.attached, "baco not attached");
-        object->_resource.attached = 1;
+        Assert(object->_resource.cache == &_cache && object->_resource.attached, "baco not attached to this cache");
         MarkMemObj(object);
     }
 }

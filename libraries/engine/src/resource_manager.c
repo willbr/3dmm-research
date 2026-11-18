@@ -47,7 +47,7 @@ int mm_resource_manager_dispose(MMResourceManager *m)
     {
         p = mm_resource_manager_at(m, m->count - 1);
         --m->count;
-        p->services.objects.release_owner(p->owner);
+        mm_resource_cache_release(p);
     }
     return mm_storage_dispose(&m->storage);
 }
@@ -67,7 +67,7 @@ int mm_resource_manager_add(MMResourceManager *m, void *file, MMI32 budget, MMU3
     m->count = a.count;
     if (r != MM_STORAGE_OK)
     {
-        p->services.objects.release_owner(p->owner);
+        mm_resource_cache_release(p);
         return r;
     }
     if (position)
