@@ -11,6 +11,7 @@
 #include <vector>
 #include "kauai_core.h"
 #include "region.h"
+#include "masked_region.h"
 #undef size
 ASSERTNAME
 namespace KauaiPixels
@@ -86,37 +87,23 @@ void Paint(std::uint8_t *pixel, const Ink8 &ink)
 {
     *pixel = (*pixel & ink.andMask) ^ ink.xorMask;
 }
+const unsigned char *PaletteBytes(const Color *palette)
+{
+    static_assert(sizeof(Color) == 4, "Raster palette layout");
+    return reinterpret_cast<const unsigned char *>(palette);
+}
 std::uint8_t NearestIndex(const Color *palette, std::int32_t colors, std::uint32_t rgb)
 {
-    std::int32_t distance = INT32_MAX;
-    std::uint8_t result = 0;
-    for (std::int32_t i = 0; i < colors; ++i)
-    {
-        const auto red = std::int32_t(palette[i].bRed) - std::int32_t((rgb >> 16) & 255);
-        const auto green = std::int32_t(palette[i].bGreen) - std::int32_t((rgb >> 8) & 255);
-        const auto blue = std::int32_t(palette[i].bBlue) - std::int32_t(rgb & 255);
-        const auto candidate = red * red + green * green + blue * blue;
-        if (candidate < distance)
-        {
-            distance = candidate;
-            result = static_cast<std::uint8_t>(i);
-        }
-    }
-    return result;
+    return mm_pixel_nearest(PaletteBytes(palette), colors, rgb);
 }
 std::uint32_t Rgb(const Color &color)
 {
-    return (std::uint32_t(color.bRed) << 16) | (std::uint32_t(color.bGreen) << 8) | color.bBlue;
+    return mm_pixel_rgb(PaletteBytes(&color));
 }
 bool ValidStorage(const PackedSurface &surface)
 {
-    const auto depth = surface.depth;
-    if (!surface.pixels || surface.width < 1 || surface.height < 1 || surface.pitch < 1 ||
-        (depth != 1 && depth != 4 && depth != 8 && depth != 16 && depth != 24 && depth != 32) ||
-        (std::uint64_t(surface.width) * depth + 7) / 8 > static_cast<unsigned>(surface.pitch) ||
-        std::uint64_t(surface.pitch) * surface.height > std::numeric_limits<std::size_t>::max())
-        return false;
-    return true;
+    const MMPixelSurface layout = {surface.pixels, surface.width, surface.height, surface.pitch, surface.depth};
+    return mm_pixel_surface_valid(&layout) != 0;
 }
 bool Valid(const PackedSurface &surface)
 {
@@ -130,47 +117,16 @@ bool Valid(const PackedSurface &surface)
 std::uint32_t PackedRead(const PackedSurface &surface, std::int32_t x, std::int32_t y)
 {
     const auto row = static_cast<const std::uint8_t *>(surface.pixels) + std::size_t(y) * surface.pitch;
-    if (surface.depth == 1)
-        return (row[x / 8] >> (7 - (x & 7))) & 1;
-    if (surface.depth == 4)
-        return (row[x / 2] >> ((x & 1) ? 0 : 4)) & 15;
-    const auto pixel = row + std::size_t(x) * (surface.depth / 8);
-    std::uint32_t raw = pixel[0];
-    if (surface.depth >= 16)
-        raw |= std::uint32_t(pixel[1]) << 8;
-    if (surface.depth >= 24)
-        raw |= std::uint32_t(pixel[2]) << 16;
-    if (surface.depth == 32)
-        raw |= std::uint32_t(pixel[3]) << 24;
-    return raw;
+    return mm_pixel_read(row, x, surface.depth);
 }
 void PackedWrite(const PackedSurface &surface, std::int32_t x, std::int32_t y, std::uint32_t raw)
 {
     const auto row = static_cast<std::uint8_t *>(surface.pixels) + std::size_t(y) * surface.pitch;
-    if (surface.depth == 1)
-    {
-        const unsigned shift = 7 - (x & 7), mask = 1u << shift;
-        row[x / 8] = static_cast<std::uint8_t>((row[x / 8] & ~mask) | ((raw & 1) << shift));
-        return;
-    }
-    if (surface.depth == 4)
-    {
-        const unsigned shift = (x & 1) ? 0 : 4, mask = 15u << shift;
-        row[x / 2] = static_cast<std::uint8_t>((row[x / 2] & ~mask) | ((raw & 15) << shift));
-        return;
-    }
-    const auto pixel = row + std::size_t(x) * (surface.depth / 8);
-    pixel[0] = static_cast<std::uint8_t>(raw);
-    if (surface.depth >= 16)
-        pixel[1] = static_cast<std::uint8_t>(raw >> 8);
-    if (surface.depth >= 24)
-        pixel[2] = static_cast<std::uint8_t>(raw >> 16);
-    if (surface.depth == 32)
-        pixel[3] = static_cast<std::uint8_t>(raw >> 24);
+    mm_pixel_write(row, x, surface.depth, raw);
 }
 std::uint32_t Rgb555(std::uint32_t rgb)
 {
-    return ((rgb >> 9) & 0x7C00) | ((rgb >> 6) & 0x3E0) | ((rgb >> 3) & 31);
+    return mm_pixel_rgb555(rgb);
 }
 std::uint32_t Expand555(std::uint32_t raw)
 {
@@ -180,13 +136,7 @@ std::uint32_t Expand555(std::uint32_t raw)
 void TranslateIndices8(const Color *source, std::int32_t sourceColors, const Color *destination,
                        std::int32_t destinationColors, std::uint8_t *indices)
 {
-    bool identity = destinationColors == 256;
-    for (int i = 0; identity && i < 256; ++i)
-        identity = Rgb(i < sourceColors ? source[i] : Color{}) == Rgb(destination[i]);
-    for (int i = 0; i < 256; ++i)
-        indices[i] = identity
-                         ? static_cast<std::uint8_t>(i)
-                         : NearestIndex(destination, destinationColors, Rgb(i < sourceColors ? source[i] : Color{}));
+    mm_pixel_translate8(PaletteBytes(source), sourceColors, PaletteBytes(destination), destinationColors, indices);
 }
 template <class Surface, class Sample>
 bool MappedCopy(const Surface &destination, const RC &sourceRect, const RC &destinationRect, const RC *clip,
@@ -1118,247 +1068,71 @@ bool CopyIndexed(const Surface8 &destination, const Indexed8 &source, const RC &
 }
 namespace
 {
-class RleRows
+bool StretchMasked(const MMPixelSurface &destination, const RleBitmap8 &source, const RC &rectangle, const RC *clip,
+                   Region *region, const Color *palette, std::int32_t count, const MMMaskedTransfer *transfer,
+                   bool andShrink)
 {
-    const RleBitmap8 &source;
-    std::vector<std::size_t> offsets;
-    std::int32_t decoded = -1;
-
-  public:
-    std::vector<std::uint8_t> indices, opaque;
-    explicit RleRows(const RleBitmap8 &bitmap) : source(bitmap)
-    {
-    }
-    bool Init()
-    {
-        if (!source.rowBytes || (!source.data && source.bytes) || source.width <= 0 || source.height <= 0 ||
-            std::size_t(source.height) + 1 > offsets.max_size() || std::size_t(source.width) > indices.max_size())
-            return false;
-        try
-        {
-            offsets.resize(std::size_t(source.height) + 1);
-            indices.resize(source.width);
-            opaque.resize(source.width);
-        }
-        catch (const std::bad_alloc &)
-        {
-            return false;
-        }
-        std::size_t offset = 0;
-        for (std::int32_t y = 0; y < source.height; ++y)
-        {
-            std::int16_t length;
-            std::memcpy(&length, source.rowBytes + y, sizeof(length));
-            if (length < 0 || std::size_t(length) > source.bytes - offset)
-                return false;
-            offsets[y] = offset;
-            const auto end = offset + length;
-            std::int32_t x = 0;
-            while (offset < end)
-            {
-                const auto skip = source.data[offset++];
-                if (skip > source.width - x)
-                    return false;
-                x += skip;
-                if (offset == end)
-                    break;
-                const auto run = source.data[offset++];
-                if (run > source.width - x || (!source.solid && run > end - offset))
-                    return false;
-                x += run;
-                if (!source.solid)
-                    offset += run;
-            }
-        }
-        offsets[source.height] = offset;
-        return offset == source.bytes;
-    }
-    void Decode(std::int32_t y)
-    {
-        if (decoded == y)
-            return;
-        std::fill(opaque.begin(), opaque.end(), 0);
-        auto cursor = offsets[y];
-        const auto end = offsets[std::size_t(y) + 1];
-        std::int32_t x = 0;
-        while (cursor < end)
-        {
-            x += source.data[cursor++];
-            if (cursor == end)
-                break;
-            const auto run = source.data[cursor++];
-            for (std::int32_t count = 0; count < run; ++count, ++x)
-            {
-                indices[x] = source.solid ? source.fillIndex : source.data[cursor++];
-                opaque[x] = 1;
-            }
-        }
-        decoded = y;
-    }
-};
-template <class Surface, class Write>
-bool DrawRleCore(const Surface &destination, const RleBitmap8 &source, const RC &destinationRect, const RC *clip,
-                 Region *region, Write write)
-{
-    if (!Valid(destination))
-        return false;
-    RleRows rows(source);
-    if (!rows.Init())
-        return false;
-    RC bounds(0, 0, source.width, source.height);
-    return MappedCopy(destination, bounds, destinationRect, clip, region,
-                      [&](std::uint8_t *pixel, std::int64_t sx, std::int64_t sy) {
-                          rows.Decode(static_cast<std::int32_t>(sy));
-                          const bool covered = rows.opaque[std::size_t(sx)] != 0;
-                          write(pixel, covered ? rows.indices[std::size_t(sx)] : 0, covered);
-                      });
-}
-template <class Surface, class Transfer, class Write>
-bool DrawRleTransfer(const Surface &destination, const RleBitmap8 &source, const RC &rectangle,
-                     const Transfer &transfer, const RC *clip, Region *region, bool andShrink, Write write)
-{
-    const auto width = std::int64_t(rectangle.xpRight) - rectangle.xpLeft;
-    const auto height = std::int64_t(rectangle.ypBottom) - rectangle.ypTop;
-    if (!Valid(destination) || width <= 0 || height <= 0 || width > INT32_MAX || height > INT32_MAX)
-        return false;
-    RleRows rows(source);
-    if (!rows.Init())
-        return false;
-    std::vector<std::uint8_t> colors, covered;
-    try
-    {
-        colors.resize(source.width);
-        covered.resize(source.width);
-    }
-    catch (const std::bad_alloc &)
-    {
-        return false;
-    }
-    // When both dimensions differ by at most one pixel, GDI copies samples
-    // directly and repeats the last one when enlarging. Otherwise BLACKONWHITE
-    // reduces through each nearest sample, starting after the previous sample;
-    // the tail after the last sample is not consumed.
-    const bool nearCopy = std::abs(width - source.width) <= 1 && std::abs(height - source.height) <= 1;
-    const auto range = [&](std::int64_t position, std::int64_t sourceSize, std::int64_t targetSize) {
-        const auto sample = [&](std::int64_t p) {
-            return nearCopy ? std::min(p, sourceSize - 1) : (2 * p + 1) * sourceSize / (2 * targetSize);
-        };
-        const auto end = sample(position) + 1;
-        const auto first =
-            andShrink && !nearCopy && sourceSize > targetSize ? (position ? sample(position - 1) + 1 : 0) : end - 1;
-        return std::pair<std::int64_t, std::int64_t>(first, end);
-    };
-    std::int32_t lastRow = -1;
-    Spans(destination, rectangle, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        if (lastRow != y)
-        {
-            std::fill(colors.begin(), colors.end(), 255);
-            std::fill(covered.begin(), covered.end(), 1);
-            auto vertical = range(std::int64_t(y) - rectangle.ypTop, source.height, height);
-            for (auto sy = vertical.first; sy < vertical.second; ++sy)
-            {
-                rows.Decode(static_cast<std::int32_t>(sy));
-                for (std::int32_t x = 0; x < source.width; ++x)
-                {
-                    covered[x] &= rows.opaque[x];
-                    colors[x] &= rows.opaque[x] ? rows.indices[x] : transfer.backgroundIndex;
-                }
-            }
-            lastRow = y;
-        }
-        for (auto x = left; x < right; ++x)
-        {
-            auto horizontal = range(std::int64_t(x) - rectangle.xpLeft, source.width, width);
-            std::uint8_t color = 255, opaque = 1;
-            for (auto sx = horizontal.first; sx < horizontal.second; ++sx)
-            {
-                color &= colors[std::size_t(sx)];
-                opaque &= covered[std::size_t(sx)];
-            }
-            write(x, y, opaque ? transfer.maskWhite : transfer.maskBlack, transfer.colorIndices[color]);
-        }
-    });
-    return true;
+    const MMMaskedRle image = {source.data, source.bytes, source.rowBytes, source.width, source.height,
+                               source.solid, source.fillIndex};
+    const MMMaskedRect target = {rectangle.xpLeft, rectangle.ypTop, rectangle.xpRight, rectangle.ypBottom};
+    MMMaskedRect clipped;
+    if (clip)
+        clipped = {clip->xpLeft, clip->ypTop, clip->xpRight, clip->ypBottom};
+    const auto clipBounds = clip ? &clipped : nullptr;
+    if (!region)
+        return mm_masked_stretch(&destination, &image, &target, clipBounds, nullptr, PaletteBytes(palette),
+                                 count, transfer, andShrink) != 0;
+    MaskedRegionSpans scanner(region);
+    const auto spans = scanner.Services();
+    return mm_masked_stretch(&destination, &image, &target, clipBounds, &spans, PaletteBytes(palette),
+                             count, transfer, andShrink) != 0;
 }
 } // namespace
+
 bool DrawRle(const Surface32 &destination, const RleBitmap8 &source, const RC &destinationRect, const Color *palette,
              std::int32_t colors, const RC *clip, Region *region)
 {
-    if (!palette || colors < 1 || colors > 256)
-        return false;
-    return DrawRleCore(destination, source, destinationRect, clip, region,
-                       [&](std::uint8_t *pixel, std::uint8_t index, bool covered) {
-                           if (covered && index < colors)
-                           {
-                               const auto color = palette[index];
-                               const std::uint32_t rgb =
-                                   (std::uint32_t(color.bRed) << 16) | (std::uint32_t(color.bGreen) << 8) | color.bBlue;
-                               std::memcpy(pixel, &rgb, 4);
-                           }
-                       });
+    const MMPixelSurface surface = {destination.pixels, destination.width, destination.height, destination.pitch, 32};
+    return StretchMasked(surface, source, destinationRect, clip, region, palette, colors, nullptr, false);
 }
 bool ResolveMaskedTransfer8(const Color *source, std::int32_t sourceColors, const Color *destination,
                             std::int32_t destinationColors, MaskedTransfer8 &transfer)
 {
-    if (!source || !destination || sourceColors < 1 || sourceColors > 256 || destinationColors < 1 ||
-        destinationColors > 256)
+    MMMaskedTransfer resolved;
+    if (!mm_masked_transfer_resolve(8, PaletteBytes(source), sourceColors, PaletteBytes(destination),
+                                    destinationColors, &resolved))
         return false;
-    transfer.maskWhite = NearestIndex(destination, destinationColors, 0xFFFFFF);
-    transfer.maskBlack = NearestIndex(destination, destinationColors, 0);
-    transfer.backgroundIndex = NearestIndex(source, sourceColors, 0xFFFFFF);
-    TranslateIndices8(source, sourceColors, destination, destinationColors, transfer.colorIndices);
+    std::copy(resolved.colours, resolved.colours + 256, transfer.colorIndices);
+    transfer.maskWhite = static_cast<std::uint8_t>(resolved.mask_white);
+    transfer.maskBlack = static_cast<std::uint8_t>(resolved.mask_black);
+    transfer.backgroundIndex = resolved.background;
     return true;
 }
 bool DrawRle(const Surface8 &destination, const RleBitmap8 &source, const RC &destinationRect, const RC *clip,
              Region *region)
 {
-    return DrawRleCore(destination, source, destinationRect, clip, region,
-                       [](std::uint8_t *pixel, std::uint8_t index, bool covered) {
-                           if (covered)
-                               *pixel = index;
-                       });
+    const MMPixelSurface surface = {destination.pixels, destination.width, destination.height, destination.pitch, 8};
+    return StretchMasked(surface, source, destinationRect, clip, region, nullptr, 0, nullptr, false);
 }
 bool DrawRle(const Surface8 &destination, const RleBitmap8 &source, const RC &destinationRect,
              const MaskedTransfer8 &transfer, const RC *clip, Region *region, bool andShrink)
 {
-    return DrawRleTransfer(destination, source, destinationRect, transfer, clip, region, andShrink,
-                           [&](LegacyLong x, LegacyLong y, std::uint8_t mask, std::uint8_t color) {
-                               auto pixel = Pixel(destination, x, y);
-                               *pixel = (*pixel | mask) & color;
-                           });
+    const MMPixelSurface surface = {destination.pixels, destination.width, destination.height, destination.pitch, 8};
+    MMMaskedTransfer resolved;
+    std::copy(transfer.colorIndices, transfer.colorIndices + 256, resolved.colours);
+    resolved.mask_white = transfer.maskWhite;
+    resolved.mask_black = transfer.maskBlack;
+    resolved.background = transfer.backgroundIndex;
+    return StretchMasked(surface, source, destinationRect, clip, region, nullptr, 0, &resolved, andShrink);
 }
 bool DrawRle(const PackedSurface &destination, const RleBitmap8 &source, const RC &rectangle, const Color *palette,
              std::int32_t colors, const RC *clip, Region *region, bool andShrink)
 {
-    if ((destination.depth != 1 && destination.depth != 4 && destination.depth != 16 && destination.depth != 24) ||
-        !Valid(destination) || !palette || colors < 1 || colors > 256)
-        return false;
-    struct Transfer
-    {
-        std::uint32_t colorIndices[256] = {};
-        std::uint32_t maskWhite = 0, maskBlack = 0;
-        std::uint8_t backgroundIndex = 0;
-    } transfer;
-    static constexpr Color monochrome[] = {{0, 0, 0, 0}, {255, 255, 255, 0}};
-    const auto targetPalette = destination.palette ? destination.palette : monochrome;
-    const auto targetColors = destination.depth == 1 ? 2 : destination.colors;
-    transfer.maskWhite = destination.depth == 1    ? 1
-                         : destination.depth == 4  ? NearestIndex(destination.palette, destination.colors, 0xFFFFFF)
-                         : destination.depth == 16 ? 0x7FFF
-                                                   : 0xFFFFFF;
-    if (destination.depth == 4)
-        transfer.maskBlack = NearestIndex(destination.palette, destination.colors, 0);
-    transfer.backgroundIndex = NearestIndex(palette, colors, 0xFFFFFF);
-    for (int i = 0; i < 256; ++i)
-    {
-        const auto rgb = i < colors ? Rgb(palette[i]) : 0;
-        transfer.colorIndices[i] = destination.depth <= 4    ? NearestIndex(targetPalette, targetColors, rgb)
-                                   : destination.depth == 16 ? Rgb555(rgb)
-                                                             : rgb;
-    }
-    return DrawRleTransfer(destination, source, rectangle, transfer, clip, region, andShrink,
-                           [&](LegacyLong x, LegacyLong y, std::uint32_t mask, std::uint32_t color) {
-                               PackedWrite(destination, x, y, (PackedRead(destination, x, y) | mask) & color);
-                           });
+    const auto depth = destination.depth;
+    const MMPixelSurface surface = {destination.pixels, destination.width, destination.height, destination.pitch, depth};
+    MMMaskedTransfer transfer;
+    return depth != 8 && mm_masked_transfer_resolve(depth, PaletteBytes(palette), colors, PaletteBytes(destination.palette),
+                                                    destination.colors, &transfer) &&
+           StretchMasked(surface, source, rectangle, clip, region, nullptr, 0, &transfer, andShrink);
 }
 } // namespace KauaiPixels

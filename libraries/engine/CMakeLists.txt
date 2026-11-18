@@ -281,6 +281,7 @@ endif()
 target_sources(mm-engine-c89 PRIVATE src/bitmap_file.c)
 target_sources(mm-engine-c89 PRIVATE src/depth_bitmap.c)
 target_sources(mm-engine-c89 PRIVATE src/masked_bitmap.c)
+target_sources(mm-engine-c89 PRIVATE src/pixel_raster.c)
 target_sources(mm-engine-c89 PRIVATE src/world_buffers.c)
 target_sources(mm-engine-c89 PRIVATE src/world_camera.c)
 target_sources(mm-engine-c89 PRIVATE src/render_frame.c src/world_render.c)
@@ -1169,6 +1170,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/depth_bitmap.c"
     "${engine_depth_bitmap_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/masked_bitmap.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/pixel_raster.c"
     "${engine_masked_bitmap_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/world_buffers.c"
     "${engine_world_buffers_test_source}"

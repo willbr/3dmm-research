@@ -5029,7 +5029,7 @@ both host byte orders, truncations, empty/negative layouts, failure cleanup,
 factory estimates, partial writes, region clipping and bounded drawing.
 Full gates and retail capture limits are in `docs/tools/playback-regression.md`.
 
-### Masked-bitmap ownership, encoding and unscaled drawing
+### Masked-bitmap ownership, encoding and drawing
 
 `masked_bitmap.c` owns persistent contiguous header/row-table/RLE buffers,
 construction/cropping, 255-byte run continuations, mask-only encoding,
@@ -5037,10 +5037,10 @@ foreign-to-host normalization, bounded row validation, hit testing, cache
 factories, serialization and BMP import orientation/cleanup. Persistent HQ
 handles and their resize sequence are removed from `MaskedBitmapMBMP`. Native
 facades provide typed allocation, block and BMP services. The C89 drawing path
-handles unscaled indexed pixels, rectangular and region clips, and 1-bit masks.
-`mbmpgui.cpp` translates the bitmap origin and lends clip spans through the Kauai
-region scanner. `mbmp_pixels.cpp` still supplies scaled and palette-transfer
-drawing through the pixel canvas.
+handles unscaled indexed pixels, rectangular and region clips, 1-bit masks,
+and scaled masked bitmaps. The drawing adapters supply surface and palette views
+and borrow clip spans through the same Kauai region scanner. The C reader
+validates every encoded row before drawing and decodes only the rows it samples.
 
 The shared RLE loop leaves transparent indexed pixels untouched. Packed masks
 clear transparent bits and set opaque bits inside the clipped bitmap bounds.
@@ -5048,6 +5048,16 @@ Run writes stop at the last byte in each row, including at a byte-aligned clip
 edge. The standalone fixture covers both byte orders, multiple region spans and
 packed mask edge bits. All 67,200 native drawing cases match the previous
 renderer byte for byte. Evidence is in `tmp/c89-masked-blits`.
+
+Scaled drawing preserves pixel-centre sampling, GDI's near-size copy rule and
+BLACKONWHITE reduction of source indices and coverage before palette translation.
+Transfer mode applies mask OR and colour AND to each clipped pixel, including
+transparent cells. `pixel_raster.c` shares packed format access, nearest-colour
+selection and indexed palette mapping with the pixel canvas.
+The before-and-after comparison matched 24,192 scaled drawing cases across
+indexed, true-colour and packed targets. Standalone checks cover malformed rows,
+near-size transfer, reduction and sample coordinates whose products exceed
+32 bits. Reports are in `tmp/c89-scaled-masked`.
 
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.

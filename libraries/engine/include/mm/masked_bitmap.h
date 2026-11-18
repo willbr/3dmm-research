@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MASKED_BITMAP_H
 #define MM_ENGINE_MASKED_BITMAP_H
 #include "read_stream.h"
+#include "pixel_raster.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -85,6 +86,30 @@ extern "C"
      * bounds, opaque runs set bits and transparent runs clear them. */
     void mm_masked_blit_mask(const MMMaskedBitmap *, int host_big, unsigned char *pixels, MMI32 stride, MMI32 height,
                              MMI32 left, MMI32 top, const MMMaskedRect *clip);
+    typedef struct MMMaskedRle
+    {
+        const unsigned char *data;
+        size_t bytes;
+        const void *row_bytes; /* One native-endian 16-bit length per row. */
+        MMI32 width, height;
+        int solid;
+        unsigned char fill;
+    } MMMaskedRle;
+    typedef struct MMMaskedTransfer
+    {
+        MMU32 colours[256], mask_white, mask_black;
+        unsigned char background;
+    } MMMaskedTransfer;
+    int mm_masked_transfer_resolve(MMI32 depth, const unsigned char *source, MMI32 source_count,
+                                   const unsigned char *target, MMI32 target_count, MMMaskedTransfer *);
+    /* Validate all rows before writing. Borrowed source, palette and transfer
+     * data must not overlap destination storage. With transfer unset, write
+     * covered pixels directly to an indexed or native XRGB surface. A resolved
+     * transfer applies mask OR and colour AND, including transparent cells.
+     * BLACKONWHITE shrink combines samples before palette translation. */
+    int mm_masked_stretch(const MMPixelSurface *, const MMMaskedRle *, const MMMaskedRect *destination,
+                          const MMMaskedRect *clip, const MMMaskedSpans *, const unsigned char *palette, MMI32 count,
+                          const MMMaskedTransfer *, int and_shrink);
     /* Successful byte transfer consumes memory-backed blocks before validation or
      * object creation; file-backed blocks stay intact. Allocation/read failure leaves
      * the source block intact. Fetch estimates do not load/consume. Callbacks must

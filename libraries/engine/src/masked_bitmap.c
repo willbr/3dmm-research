@@ -1,7 +1,9 @@
 /* Masked bitmap policy converted from Kauai mbmp.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/masked_bitmap.h"
+#include "mm/runtime_math.h"
 #include "mm/wide.h"
+#include <stdlib.h>
 #include <string.h>
 #define MAXIMUM 2147483647
 #define MINIMUM (-2147483647 - 1)
@@ -179,12 +181,44 @@ void mm_masked_bounds(const MMMaskedBitmap *m, int big, MMMaskedRect *r)
     r->right = mm_signed_word(word(b + 16, 4, big));
     r->bottom = mm_signed_word(word(b + 20, 4, big));
 }
+static int decode_row(const unsigned char *row, size_t length, MMI32 width, int solid,
+                      unsigned char fill, unsigned char *indices, unsigned char *opaque)
+{
+    size_t pos = 0;
+    MMI32 x = 0, count;
+    if (opaque)
+        memset(opaque, 0, (size_t)width);
+    while (pos < length)
+    {
+        count = row[pos++];
+        if (count > width - x)
+            return 0;
+        x += count;
+        if (pos == length)
+            break;
+        count = row[pos++];
+        if (count > width - x || (!solid && (size_t)count > length - pos))
+            return 0;
+        if (opaque)
+        {
+            memset(opaque + x, 1, (size_t)count);
+            if (solid)
+                memset(indices + x, fill, (size_t)count);
+            else
+                memcpy(indices + x, row + pos, (size_t)count);
+        }
+        x += count;
+        if (!solid)
+            pos += (size_t)count;
+    }
+    return 1;
+}
 int mm_masked_validate(MMMaskedBitmap *m, int big)
 {
     unsigned char *b = (unsigned char *)m->data;
     MMMaskedRect r;
     MMU32 marker, width, height, i, offset;
-    MMI32 n = m->bytes, rows, at, end, pos, dxp, k, len;
+    MMI32 n = m->bytes, rows, at, len;
     int source = big;
     if (n < 28 || !b)
         return 0;
@@ -225,31 +259,9 @@ int mm_masked_validate(MMMaskedBitmap *m, int big)
         len = (MMI32)word(b + offset, 2, source);
         if (source != big)
             put(b + offset, 2, (MMU32)len, big);
-        if (len > 32767 || len > n - at)
+        if (len > 32767 || len > n - at || !decode_row(b + at, (size_t)len, (MMI32)width, b[4], 0, NULL, NULL))
             return 0;
-        end = at + len;
-        pos = at;
-        dxp = 0;
-        while (pos < end)
-        {
-            k = b[pos++];
-            if ((MMU32)k > width - (MMU32)dxp)
-                return 0;
-            dxp += k;
-            if (pos == end)
-                break;
-            k = b[pos++];
-            if ((MMU32)k > width - (MMU32)dxp)
-                return 0;
-            dxp += k;
-            if (!b[4])
-            {
-                if (k > end - pos)
-                    return 0;
-                pos += k;
-            }
-        }
-        at = end;
+        at += len;
     }
     if (at != n)
         return 0;
@@ -436,6 +448,252 @@ void mm_masked_blit_mask(const MMMaskedBitmap *m, int big, unsigned char *pixels
                          MMI32 left, MMI32 top, const MMMaskedRect *clip)
 {
     blit(m, big, pixels, stride, height, left, top, clip, 1, NULL);
+}
+
+int mm_masked_transfer_resolve(MMI32 depth, const unsigned char *source, MMI32 source_count,
+                               const unsigned char *target, MMI32 target_count, MMMaskedTransfer *transfer)
+{
+    static const unsigned char monochrome[8] = {0, 0, 0, 0, 255, 255, 255, 0};
+    unsigned char indices[256];
+    MMI32 i;
+    MMU32 rgb;
+    if (!source || source_count < 1 || source_count > 256)
+        return 0;
+    switch (depth)
+    {
+    case 1:
+        if ((!target && target_count != 0) || (target && target_count != 2))
+            return 0;
+        if (!target)
+            target = monochrome;
+        target_count = 2;
+        break;
+    case 4:
+    case 8:
+        if (!target || target_count < 1 || target_count > (1 << depth))
+            return 0;
+        break;
+    case 16:
+    case 24:
+        break;
+    default:
+        return 0;
+    }
+    transfer->mask_black = 0;
+    transfer->mask_white = depth == 1 ? 1 : depth == 16 ? 0x7fff : 0xffffffUL;
+    if (depth == 4 || depth == 8)
+    {
+        transfer->mask_black = mm_pixel_nearest(target, target_count, 0);
+        transfer->mask_white = mm_pixel_nearest(target, target_count, 0xffffffUL);
+    }
+    transfer->background = mm_pixel_nearest(source, source_count, 0xffffffUL);
+    if (depth == 8)
+    {
+        mm_pixel_translate8(source, source_count, target, target_count, indices);
+        for (i = 0; i < 256; ++i)
+            transfer->colours[i] = indices[i];
+    }
+    else
+        for (i = 0; i < 256; ++i)
+        {
+            rgb = i < source_count ? mm_pixel_rgb(source + 4 * i) : 0;
+            transfer->colours[i] = depth <= 4 ? mm_pixel_nearest(target, target_count, rgb)
+                                             : depth == 16 ? mm_pixel_rgb555(rgb) : rgb;
+        }
+    return 1;
+}
+
+typedef struct MaskedRows
+{
+    size_t *offsets;
+    unsigned char *scratch;
+    MMI32 decoded;
+} MaskedRows;
+
+static int prepare_rows(const MMMaskedRle *source, MaskedRows *rows, unsigned planes)
+{
+    const unsigned char *lengths = (const unsigned char *)source->row_bytes;
+    const unsigned short one = 1;
+    const int big = *(const unsigned char *)&one == 0;
+    size_t offset = 0, length;
+    MMI32 y;
+    if (!lengths || (!source->data && source->bytes) || source->width <= 0 || source->height <= 0 ||
+        (size_t)source->width != (MMU32)source->width || (size_t)source->height != (MMU32)source->height ||
+        (size_t)source->width > (size_t)-1 / planes || (size_t)source->height >= (size_t)-1 / sizeof(size_t))
+        return 0;
+    rows->offsets = (size_t *)malloc(((size_t)source->height + 1) * sizeof(size_t));
+    rows->scratch = (unsigned char *)malloc((size_t)source->width * planes);
+    if (!rows->offsets || !rows->scratch)
+        return 0;
+    for (y = 0; y < source->height; ++y, lengths += 2)
+    {
+        length = (size_t)word(lengths, 2, big);
+        rows->offsets[y] = offset;
+        if (length > 32767 || length > source->bytes - offset ||
+            (length && !decode_row(source->data + offset, length, source->width, source->solid, 0, NULL, NULL)))
+            return 0;
+        offset += length;
+    }
+    rows->offsets[y] = offset;
+    return offset == source->bytes;
+}
+
+static void load_row(const MMMaskedRle *source, MaskedRows *rows, MMI32 y)
+{
+    size_t offset, length;
+    if (rows->decoded == y)
+        return;
+    offset = rows->offsets[y];
+    length = rows->offsets[y + 1] - offset;
+    decode_row(length ? source->data + offset : NULL, length, source->width, source->solid, source->fill,
+               rows->scratch, rows->scratch + source->width);
+    rows->decoded = y;
+}
+
+static MMI32 sample(MMI32 position, MMI32 source, MMI32 destination, int near)
+{
+    MMU32 factor, divisor;
+    MMRuntimeCounter input, frequency, quotient;
+    if (near)
+        return position < source ? position : source - 1;
+    factor = (MMU32)position * 2 + 1;
+    divisor = (MMU32)destination * 2;
+    if (factor <= (MMU32)0xffffffffUL / (MMU32)source)
+        return (MMI32)(factor * (MMU32)source / divisor);
+    input.low = factor;
+    frequency.low = divisor;
+    input.high = frequency.high = 0;
+    mm_runtime_counter_scale(input, (MMU32)source, frequency, &quotient);
+    return (MMI32)quotient.low;
+}
+
+static MMI32 first_sample(MMI32 position, MMI32 source, MMI32 destination, MMI32 last, int reduce)
+{
+    if (!reduce || source <= destination)
+        return last;
+    return position ? sample(position - 1, source, destination, 0) + 1 : 0;
+}
+
+static void combine_rows(const MMMaskedRle *source, MaskedRows *rows, MMI32 first, MMI32 last, unsigned char background)
+{
+    const size_t width = (size_t)source->width;
+    const unsigned char *indices = rows->scratch, *opaque = indices + width;
+    unsigned char *colours = rows->scratch + width * 2, *covered = colours + width;
+    size_t x;
+    MMI32 y;
+    memset(colours, 255, width);
+    memset(covered, 1, width);
+    for (y = first; y <= last; ++y)
+    {
+        load_row(source, rows, y);
+        for (x = 0; x < width; ++x)
+        {
+            covered[x] &= opaque[x];
+            colours[x] &= opaque[x] ? indices[x] : background;
+        }
+    }
+}
+
+static void intersect(MMMaskedRect *bounds, const MMMaskedRect *clip)
+{
+    if (clip->left > bounds->left)
+        bounds->left = clip->left;
+    if (clip->right < bounds->right)
+        bounds->right = clip->right;
+    if (clip->top > bounds->top)
+        bounds->top = clip->top;
+    if (clip->bottom < bounds->bottom)
+        bounds->bottom = clip->bottom;
+}
+
+int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, const MMMaskedRect *destination,
+                      const MMMaskedRect *clip, const MMMaskedSpans *spans, const unsigned char *palette, MMI32 count,
+                      const MMMaskedTransfer *transfer, int and_shrink)
+{
+    MaskedRows rows = {NULL, NULL, -1};
+    MMMaskedRect bounds;
+    MMI32 width, height, x, y, left, right, sx, sy, i, delta;
+    unsigned char *line, *indices, *opaque, colour, covered;
+    MMU32 value;
+    int near, reduce, result = 0;
+    if (!mm_pixel_surface_valid(surface) || !subtract(destination->right, destination->left, &width) ||
+        !subtract(destination->bottom, destination->top, &height) || width <= 0 || height <= 0 ||
+        (transfer ? surface->depth == 32 :
+                    surface->depth != 8 && (surface->depth != 32 || !palette || count < 1 || count > 256)))
+        return 0;
+    if (!prepare_rows(source, &rows, transfer ? 4 : 2))
+        goto done;
+    near = transfer && width - source->width >= -1 && width - source->width <= 1 &&
+           height - source->height >= -1 && height - source->height <= 1;
+    reduce = transfer && and_shrink && !near;
+    indices = rows.scratch + (transfer ? (size_t)source->width * 2 : 0);
+    opaque = indices + source->width;
+    bounds.left = bounds.top = 0;
+    bounds.right = surface->width;
+    bounds.bottom = surface->height;
+    intersect(&bounds, destination);
+    if (clip)
+        intersect(&bounds, clip);
+    result = 1;
+    if (bounds.left >= bounds.right || bounds.top >= bounds.bottom)
+        goto done;
+    if (spans)
+        spans->begin(spans->context, &bounds);
+    for (y = bounds.top; y < bounds.bottom; ++y)
+    {
+        left = bounds.left;
+        right = bounds.right;
+        if (!spans || spans->next(spans->context, &left, &right))
+        {
+            line = (unsigned char *)surface->pixels + (size_t)y * (size_t)surface->pitch;
+            delta = y - destination->top;
+            sy = sample(delta, source->height, height, near);
+            if (transfer)
+                combine_rows(source, &rows, first_sample(delta, source->height, height, sy, reduce), sy,
+                             transfer->background);
+            else
+                load_row(source, &rows, sy);
+            do
+            {
+                for (x = left; x < right; ++x)
+                {
+                    delta = x - destination->left;
+                    sx = sample(delta, source->width, width, near);
+                    if (transfer)
+                    {
+                        colour = 255;
+                        covered = 1;
+                        for (i = first_sample(delta, source->width, width, sx, reduce); i <= sx; ++i)
+                        {
+                            colour &= indices[i];
+                            covered &= opaque[i];
+                        }
+                        value = mm_pixel_read(line, x, surface->depth);
+                        value = (value | (covered ? transfer->mask_white : transfer->mask_black)) &
+                                transfer->colours[colour];
+                        mm_pixel_write(line, x, surface->depth, value);
+                    }
+                    else if (opaque[sx])
+                    {
+                        colour = indices[sx];
+                        if (surface->depth == 8)
+                            line[x] = colour;
+                        else if (colour < count)
+                        {
+                            value = mm_pixel_rgb(palette + 4 * colour);
+                            memcpy(line + (size_t)x * 4, &value, 4);
+                        }
+                    }
+                }
+            } while (spans && spans->next(spans->context, &left, &right));
+        }
+        if (spans && y + 1 < bounds.bottom)
+            spans->advance(spans->context);
+    }
+done:
+    free(rows.scratch);
+    free(rows.offsets);
+    return result;
 }
 
 int mm_masked_read_stream(const MMReadStream *stream, MMMaskedBitmap *out, const MMMaskedServices *s)

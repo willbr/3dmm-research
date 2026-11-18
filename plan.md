@@ -753,8 +753,10 @@ transition-file read/modify/write and playback startup/shutdown now also use C89
 Scene thumbnail generation, cache access and dirty propagation also use C89.
 Studio and Marcus read saved thumbnails through C-owned streams. C89 decodes
 masked bitmaps and reads the thumbnail palette to produce RGBA for Marcus.
-Both hosts use the C89 unscaled indexed drawing and one-bit mask routines.
-Region-clipped drawing borrows spans from the platform-independent Kauai scanner.
+Both hosts use C89 masked-bitmap drawing for unscaled pixels and one-bit masks,
+as well as scaled indexed, true-colour and packed palette transfers. C89 retains
+the pixel-centre, near-size and BLACKONWHITE sampling rules. Region-clipped
+drawing borrows spans from the platform-independent Kauai scanner.
 Typed offscreen graphics and view drawing remain adapters.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as

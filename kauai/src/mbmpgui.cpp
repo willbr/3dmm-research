@@ -13,43 +13,12 @@
 #include "kauai_core.h"
 #include "region.h"
 #include "mbmp.h"
+#include "masked_region.h"
 #include <cstdint>
 ASSERTNAME
 
 namespace
 {
-struct RegionSpans
-{
-    PRegion region;
-    RegionScanner scanner;
-    MMI32 left;
-
-    explicit RegionSpans(PRegion value) : region(value), left(0)
-    {
-    }
-
-    MMMaskedSpans Services()
-    {
-        return {this,
-            [](void *context, const MMMaskedRect *bounds) {
-                auto &state = *static_cast<RegionSpans *>(context);
-                RC clip(bounds->left, bounds->top, bounds->right, bounds->bottom);
-                state.left = bounds->left;
-                state.scanner.Init(state.region, &clip);
-            },
-            [](void *context, MMI32 *left, MMI32 *right) -> int {
-                auto &state = *static_cast<RegionSpans *>(context);
-                if (state.scanner.XpCur() == klwMax)
-                    return 0;
-                *left = state.left + state.scanner.XpCur();
-                *right = state.left + state.scanner.XpFetch();
-                state.scanner.XpFetch();
-                return 1;
-            },
-            [](void *context) { static_cast<RegionSpans *>(context)->scanner.ScanNext(1); }};
-    }
-};
-
 void DrawBitmap(const MMMaskedBitmap &bitmap, const RC &bounds, byte *pixels, LegacyLong stride,
                 LegacyLong height, LegacyLong xref, LegacyLong yref, const RC *clip, PRegion region, bool mask)
 {
@@ -71,7 +40,7 @@ void DrawBitmap(const MMMaskedBitmap &bitmap, const RC &bounds, byte *pixels, Le
         mm_masked_blit8(&bitmap, big, pixels, stride, height, x, y, boundsClip, nullptr);
     else
     {
-        RegionSpans source(region);
+        MaskedRegionSpans source(region);
         const auto spans = source.Services();
         mm_masked_blit8(&bitmap, big, pixels, stride, height, x, y, boundsClip, &spans);
     }

@@ -530,6 +530,42 @@ static void stream_blitting(void)
                 balanced(&f);
             }
 }
+static void scaled_drawing(void)
+{
+    static const unsigned char encoded[] = {0, 4, 0x0f, 0x33, 0xa5, 0xf0, 0, 1, 0xff, 1, 2, 0xf7, 0xaf};
+    static const unsigned short lengths[] = {6, 7};
+    const MMMaskedRle source = {encoded, sizeof(encoded), lengths, 4, 2, 0, 0};
+    MMMaskedRle invalid = source;
+    MMMaskedRect rect = {0, 0, 3, 1};
+    MMMaskedTransfer transfer;
+    unsigned char pixels[4];
+    MMPixelSurface surface;
+    int i;
+    surface.pixels = pixels;
+    surface.width = surface.pitch = 4;
+    surface.height = 1;
+    surface.depth = 8;
+    memset(pixels, 0x0f, sizeof(pixels));
+    assert(mm_masked_stretch(&surface, &source, &rect, NULL, NULL, NULL, 0, NULL, 0));
+    assert(pixels[0] == 0xff && pixels[1] == 0xf7 && pixels[2] == 0xaf && pixels[3] == 0x0f);
+    transfer.mask_black = 0;
+    transfer.mask_white = 255;
+    transfer.background = 0x55;
+    for (i = 0; i < 256; ++i)
+        transfer.colours[i] = (MMU32)i;
+    assert(mm_masked_stretch(&surface, &source, &rect, NULL, NULL, NULL, 0, &transfer, 1));
+    assert(pixels[0] == 0x0f && pixels[1] == 0x33 && pixels[2] == 0xa5 && pixels[3] == 0x0f);
+    rect.right = 2;
+    memset(pixels, 0x0f, sizeof(pixels));
+    assert(mm_masked_stretch(&surface, &source, &rect, NULL, NULL, NULL, 0, &transfer, 1));
+    assert(pixels[0] == 1 && pixels[1] == 0xa0 && pixels[2] == 0x0f);
+    invalid.bytes--;
+    assert(!mm_masked_stretch(&surface, &invalid, &rect, NULL, NULL, NULL, 0, &transfer, 1));
+    assert(pixels[0] == 1 && pixels[1] == 0xa0);
+    rect.left = -2147483645L;
+    assert(mm_masked_stretch(&surface, &source, &rect, NULL, NULL, NULL, 0, NULL, 0));
+    assert(pixels[0] == 0xaf && pixels[1] == 0xaf && pixels[2] == 0x0f);
+}
 int main(void)
 {
     encode();
@@ -538,6 +574,7 @@ int main(void)
     malformed();
     imports();
     stream_blitting();
+    scaled_drawing();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;
