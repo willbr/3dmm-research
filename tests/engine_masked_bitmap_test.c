@@ -2,6 +2,7 @@
 #include "mm/dib_frame.h"
 #include "mm/damage_map.h"
 #include "mm/ellipse_geometry.h"
+#include "mm/graphics_view.h"
 #include "mm/indexed_display.h"
 #include "mm/pixel_paint.h"
 #include "mm/region.h"
@@ -935,6 +936,60 @@ static void region_ownership(void)
     assert(!probe.blocks);
 }
 
+static void graphics_view(void)
+{
+    const MMPixelPoint base = {23, -11}, before_source = {-11, 99}, size = {1, -1};
+    const MMPixelRect source = {-10, 100, 10, 110}, destination = {5, 20, 35, 25};
+    const MMPixelRect visible = {-5, 102, 6, 108}, clip = {-10, 104, 0, 112}, away = {50, 200, 60, 210};
+    const MMPixelRect degenerate = {1, 4, 1, 58}, scroll = {5, 6, 10, 11};
+    const MMPixelPoint start = {9, 3}, end = {3, 8}, pen = {2, 4};
+    const MMPixelPoint expected[] = {{3, 8}, {3, 12}, {5, 12}, {11, 7}, {11, 3}, {9, 3}};
+    MMGraphicsView view;
+    MMPixelRect rect, first, second;
+    MMPixelPoint mapped, polygon[6];
+    size_t i;
+
+    mm_graphics_view_init(&view, base);
+    assert(!view.has_clip && view.destination.left == -23 && view.destination.top == 11);
+    mm_graphics_view_set_source(&view, &source);
+    mm_graphics_view_set_destination(&view, &destination, base);
+    rect = mm_graphics_view_destination(&view, base);
+    assert(rect.left == 5 && rect.top == 20 && rect.right == 35 && rect.bottom == 25);
+    mapped = mm_graphics_view_map_point(&view, before_source);
+    assert(mapped.x == -19 && mapped.y == 31);
+    mapped = mm_graphics_view_scale_size(&view, size);
+    assert(mapped.x == 2 && mapped.y == 1);
+    rect = mm_graphics_view_map_rect(&view, view.destination, 1);
+    assert(rect.left == -10 && rect.top == 100 && rect.right == 10 && rect.bottom == 110);
+    mapped = mm_graphics_view_pattern_origin(&view);
+    assert(mapped.x == -8 && mapped.y == -69);
+
+    mm_graphics_view_set_visible(&view, &visible);
+    assert(view.has_clip && view.clip.left == -11 && view.clip.top == 32 && view.clip.right == 6 &&
+           view.clip.bottom == 35);
+    mm_graphics_view_clip(&view, &clip);
+    assert(view.has_clip && view.clip.left == -11 && view.clip.top == 33 && view.clip.right == -3 &&
+           view.clip.bottom == 35);
+    mm_graphics_view_clip(&view, NULL);
+    assert(view.has_clip && view.clip.top == 32 && view.clip.right == 6);
+    mm_graphics_view_intersect_visible(&view, &away);
+    assert(view.has_clip && view.clip.left == 0 && view.clip.bottom == 0);
+    mm_graphics_view_set_source(&view, &degenerate);
+    assert(view.source.right == 2 && view.source.bottom == 5 && view.has_clip);
+    mm_graphics_view_set_destination(&view, &degenerate, base);
+    assert(!view.has_clip && view.destination.right - view.destination.left == 1 &&
+           view.destination.bottom - view.destination.top == 1);
+
+    mm_graphics_scroll_exposed(&scroll, -2, 3, &first, &second);
+    assert(first.left == 8 && first.top == 6 && first.right == 10 && first.bottom == 11);
+    assert(second.left == 5 && second.top == 6 && second.right == 8 && second.bottom == 9);
+    mm_graphics_scroll_exposed(&scroll, 0, 0, &first, &second);
+    assert(first.right == 0 && first.bottom == 0 && second.right == 0 && second.bottom == 0);
+    mm_graphics_line_polygon(start, end, pen, polygon);
+    for (i = 0; i < 6; ++i)
+        assert(polygon[i].x == expected[i].x && polygon[i].y == expected[i].y);
+}
+
 int main(void)
 {
     encode();
@@ -954,6 +1009,7 @@ int main(void)
     pixel_storage_and_damage();
     region_bands();
     region_ownership();
+    graphics_view();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

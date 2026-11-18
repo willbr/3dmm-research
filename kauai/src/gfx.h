@@ -18,6 +18,7 @@
 #include "kauai_core.h"
 #include "region.h"
 #include "color.h"
+#include "mm/graphics_view.h"
 class GraphicsPort;
 class GraphicsObject;
 class GraphicsEnvironment;
@@ -425,9 +426,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
   private:
     PGraphicsPort _pgpt; // the port
 
-    // coordinate mapping
-    RC _rcSrc;
-    RC _rcDst;
+    MMGraphicsView _view;
 
     // current pen location and clipping
     long _xp;
@@ -437,7 +436,6 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
 #else
     SystemRectangle _rcsClip;
 #endif
-    RC _rcVis; // always clipped to - this is in Dst coordinates
 
     // Current font
     FontDescription _dsf;
@@ -447,6 +445,10 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     GraphicsDrawingData _gdd;
 
     void _Init(PGraphicsPort pgpt);
+    void _PublishClip();
+    void _OffsetPattern();
+    RC _MapRc(const RC &, bool reverse = false) const;
+    PT _MapPoint(long x, long y) const;
     bool _FMapRcRcs(RC *prc, SystemRectangle *prcs);
     void _MapPtPts(long xp, long yp, SystemPoint *ppts);
     HQ _HqolyCreate(PPolygon pogn, ulong grfogn);

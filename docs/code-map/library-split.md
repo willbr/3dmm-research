@@ -5187,6 +5187,16 @@ at the physical destination. Seven before-and-after probes matched
 407,406,464 bytes across 675,319 raster cases, 6,480 stretch plans and 9,216
 palette updates. Evidence is in `tmp/c89-raster-regions`.
 
+`graphics_view.c` owns logical and port rectangles, mapped visibility and the
+active clip. It preserves truncation for coordinate transforms and the
+legacy remainder rounding for pen and font sizes. Empty mapping rectangles
+become unit rectangles and changing the destination reopens the clip. C89
+also computes pattern origins, the two exposed scroll strips and the shared
+six-point line footprint. Kauai supplies the port base and publishes typed
+points and rectangles. The comparison matched 80,000 view states against
+legacy geometry arithmetic and 8,515,584 bytes across 768 native drawing
+cases. Evidence is in `tmp/c89-graphics-view`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit

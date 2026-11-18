@@ -786,7 +786,9 @@ C89 resolves Boolean and monochrome brushes, fills and frames rectangles and
 ovals, fills polygons using nonzero winding, and applies glyph coverage.
 Ellipse subdivision keeps the fixed-point and large-bounds paths and shares
 exact edge rounding with polygon filling.
-Typed offscreen graphics and view drawing remain adapters.
+C89 owns graphics view coordinate mapping, visibility and clipping. It also
+calculates pen and font scaling, the strips exposed by scrolling, and the
+six-point line footprint. Kauai publishes native clip and drawing state.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.

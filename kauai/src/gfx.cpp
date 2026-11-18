@@ -18,6 +18,25 @@ RTCLASS(Polygon)
 
 const long kdtsMaxTrans = 30 * kdtsSecond;
 
+namespace
+{
+MMPixelRect ViewRect(const RC &rect)
+{
+    return {static_cast<MMI32>(rect.xpLeft), static_cast<MMI32>(rect.ypTop),
+            static_cast<MMI32>(rect.xpRight), static_cast<MMI32>(rect.ypBottom)};
+}
+
+RC NativeRect(const MMPixelRect &rect)
+{
+    return RC(rect.left, rect.top, rect.right, rect.bottom);
+}
+
+MMPixelPoint ViewPoint(const PT &point)
+{
+    return {static_cast<MMI32>(point.xp), static_cast<MMI32>(point.yp)};
+}
+} // namespace
+
 /***************************************************************************
     Constructor for Graphics environment.
 ***************************************************************************/
@@ -72,9 +91,9 @@ void GraphicsEnvironment::_Init(PGraphicsPort pgpt)
 
     _pgpt = pgpt;
     pgpt->AddRef();
-    Mac(pgpt->Lock();) _rcSrc.Set(0, 0, 1, 1);
+    Mac(pgpt->Lock();)
     pgpt->GetPtBase(&pt);
-    _rcDst.OffsetCopy(&_rcSrc, -pt.xp, -pt.yp);
+    mm_graphics_view_init(&_view, ViewPoint(pt));
     _xp = _yp = 0;
 
     _dsf.onn = vntl.OnnSystem();
@@ -85,7 +104,6 @@ void GraphicsEnvironment::_Init(PGraphicsPort pgpt)
 
     _gdd.dxpPen = _gdd.dypPen = 1;
     _gdd.prcsClip = pvNil;
-    _rcVis.Max();
 }
 
 /***************************************************************************
@@ -113,8 +131,8 @@ void GraphicsEnvironment::AssertValid(LegacyUlong grf)
     GraphicsEnvironment_PAR::AssertValid(0);
     AssertPo(_pgpt, 0);
     AssertPo(&_dsf, 0);
-    Assert(!_rcSrc.FEmpty(), "empty src rectangle");
-    Assert(!_rcDst.FEmpty(), "empty dst rectangle");
+    Assert(!NativeRect(_view.source).FEmpty(), "empty src rectangle");
+    Assert(!NativeRect(_view.destination).FEmpty(), "empty dst rectangle");
     Assert(_gdd.prcsClip == pvNil || _gdd.prcsClip == &_rcsClip, "bad _gdd.prcsClip");
 }
 
@@ -147,7 +165,7 @@ void GraphicsEnvironment::FillRcApt(RC *prc, AbstractPattern *papt, AbstractColo
 
     _gdd.grfgdd = fgddFill | fgddPattern;
     _gdd.apt = *papt;
-    _gdd.apt.MoveOrigin(_rcDst.xpLeft - _rcSrc.xpLeft, _rcDst.ypTop - _rcSrc.ypTop);
+    _OffsetPattern();
     _gdd.acrFore = acrFore;
     _gdd.acrBack = acrBack;
 
@@ -192,7 +210,7 @@ void GraphicsEnvironment::FrameRcApt(RC *prc, AbstractPattern *papt, AbstractCol
 
     _gdd.grfgdd = fgddFrame | fgddPattern;
     _gdd.apt = *papt;
-    _gdd.apt.MoveOrigin(_rcDst.xpLeft - _rcSrc.xpLeft, _rcDst.ypTop - _rcSrc.ypTop);
+    _OffsetPattern();
     _gdd.acrFore = acrFore;
     _gdd.acrBack = acrBack;
 
@@ -254,7 +272,7 @@ void GraphicsEnvironment::FillOvalApt(RC *prc, AbstractPattern *papt, AbstractCo
 
     _gdd.grfgdd = fgddFill | fgddPattern;
     _gdd.apt = *papt;
-    _gdd.apt.MoveOrigin(_rcDst.xpLeft - _rcSrc.xpLeft, _rcDst.ypTop - _rcSrc.ypTop);
+    _OffsetPattern();
     _gdd.acrFore = acrFore;
     _gdd.acrBack = acrBack;
 
@@ -299,7 +317,7 @@ void GraphicsEnvironment::FrameOvalApt(RC *prc, AbstractPattern *papt, AbstractC
 
     _gdd.grfgdd = fgddFrame | fgddPattern;
     _gdd.apt = *papt;
-    _gdd.apt.MoveOrigin(_rcDst.xpLeft - _rcSrc.xpLeft, _rcDst.ypTop - _rcSrc.ypTop);
+    _OffsetPattern();
     _gdd.acrFore = acrFore;
     _gdd.acrBack = acrBack;
 
@@ -341,7 +359,7 @@ void GraphicsEnvironment::LineApt(long xp1, long yp1, long xp2, long yp2, Abstra
     {
         _gdd.grfgdd = fgddFrame | fgddPattern;
         _gdd.apt = *papt;
-        _gdd.apt.MoveOrigin(_rcDst.xpLeft - _rcSrc.xpLeft, _rcDst.ypTop - _rcSrc.ypTop);
+        _OffsetPattern();
         _gdd.acrFore = acrFore;
         _gdd.acrBack = acrBack;
 
@@ -395,7 +413,7 @@ void GraphicsEnvironment::FillOgnApt(PPolygon pogn, AbstractPattern *papt, Abstr
 
     _gdd.grfgdd = fgddFill | fgddPattern;
     _gdd.apt = *papt;
-    _gdd.apt.MoveOrigin(_rcDst.xpLeft - _rcSrc.xpLeft, _rcDst.ypTop - _rcSrc.ypTop);
+    _OffsetPattern();
     _gdd.acrFore = acrFore;
     _gdd.acrBack = acrBack;
 
@@ -451,7 +469,7 @@ void GraphicsEnvironment::FrameOgnApt(PPolygon pogn, AbstractPattern *papt, Abst
 
     _gdd.grfgdd = fgddFrame | fgddPattern;
     _gdd.apt = *papt;
-    _gdd.apt.MoveOrigin(_rcDst.xpLeft - _rcSrc.xpLeft, _rcDst.ypTop - _rcSrc.ypTop);
+    _OffsetPattern();
     _gdd.acrFore = acrFore;
     _gdd.acrBack = acrBack;
 
@@ -510,7 +528,7 @@ void GraphicsEnvironment::FramePolyLineApt(PPolygon pogn, AbstractPattern *papt,
 
     _gdd.grfgdd = fgddFrame | fgddPattern;
     _gdd.apt = *papt;
-    _gdd.apt.MoveOrigin(_rcDst.xpLeft - _rcSrc.xpLeft, _rcDst.ypTop - _rcSrc.ypTop);
+    _OffsetPattern();
     _gdd.acrFore = acrFore;
     _gdd.acrBack = acrBack;
 
@@ -686,38 +704,13 @@ void GraphicsEnvironment::GetBadRcForScroll(RC *prc, long dxp, long dyp, RC *prc
     AssertNilOrVarMem(prc1);
     AssertNilOrVarMem(prc2);
 
-    if (pvNil != prc1)
-    {
-        *prc1 = *prc;
-        if (0 < dxp)
-            prc1->xpRight = prc1->xpLeft + dxp;
-        else if (0 > dxp)
-            prc1->xpLeft = prc1->xpRight + dxp;
-        else if (0 < dyp)
-            prc1->ypBottom = prc1->ypTop + dyp;
-        else
-            prc1->ypTop = prc1->ypBottom + dyp;
-        prc1->FIntersect(prc);
-    }
-
-    if (pvNil != prc2)
-    {
-        if (0 == dxp || 0 == dyp)
-            prc2->Zero();
-        else
-        {
-            *prc2 = *prc;
-            if (0 < dyp)
-                prc2->ypBottom = prc2->ypTop + dyp;
-            else
-                prc2->ypTop = prc2->ypBottom + dyp;
-            if (0 < dxp)
-                prc2->xpLeft += dxp;
-            else
-                prc2->xpRight += dxp;
-            prc2->FIntersect(prc);
-        }
-    }
+    const auto area = ViewRect(*prc);
+    MMPixelRect first, second;
+    mm_graphics_scroll_exposed(&area, dxp, dyp, prc1 ? &first : nullptr, prc2 ? &second : nullptr);
+    if (prc1)
+        *prc1 = NativeRect(first);
+    if (prc2)
+        *prc2 = NativeRect(second);
 }
 
 /***************************************************************************
@@ -727,7 +720,7 @@ void GraphicsEnvironment::GetRcSrc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
-    *prc = _rcSrc;
+    *prc = NativeRect(_view.source);
 }
 
 /***************************************************************************
@@ -737,13 +730,8 @@ void GraphicsEnvironment::SetRcSrc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
-
-    _rcSrc = *prc;
-    if (_rcSrc.FEmpty())
-    {
-        _rcSrc.xpRight = _rcSrc.xpLeft + 1;
-        _rcSrc.ypBottom = _rcSrc.ypTop + 1;
-    }
+    const auto rect = ViewRect(*prc);
+    mm_graphics_view_set_source(&_view, &rect);
     AssertThis(0);
 }
 
@@ -755,10 +743,8 @@ void GraphicsEnvironment::GetRcDst(RC *prc)
     AssertThis(0);
     AssertVarMem(prc);
     PT pt;
-
-    *prc = _rcDst;
     _pgpt->GetPtBase(&pt);
-    prc->Offset(pt.xp, pt.yp);
+    *prc = NativeRect(mm_graphics_view_destination(&_view, ViewPoint(pt)));
 }
 
 /***************************************************************************
@@ -771,16 +757,10 @@ void GraphicsEnvironment::SetRcDst(RC *prc)
     AssertVarMem(prc);
     PT pt;
 
-    _rcDst = *prc;
-    if (_rcDst.FEmpty())
-    {
-        _rcDst.xpRight = _rcDst.xpLeft + 1;
-        _rcDst.ypBottom = _rcDst.ypTop + 1;
-    }
     _pgpt->GetPtBase(&pt);
-    _rcDst.Offset(-pt.xp, -pt.yp);
-    _gdd.prcsClip = pvNil;
-    _rcVis.Max();
+    const auto rect = ViewRect(*prc);
+    mm_graphics_view_set_destination(&_view, &rect, ViewPoint(pt));
+    _PublishClip();
 
     _dsf.onn = vntl.OnnSystem();
     _dsf.grfont = fontNil;
@@ -803,19 +783,9 @@ void GraphicsEnvironment::SetRcVis(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
-
-    if (prc == pvNil)
-    {
-        _rcVis.Max();
-        _gdd.prcsClip = pvNil;
-    }
-    else
-    {
-        _rcVis = *prc;
-        _rcVis.Map(&_rcSrc, &_rcDst);
-        _rcsClip = MacWin(SystemRectangle(_rcVis),_rcVis);
-        _gdd.prcsClip = &_rcsClip;
-    }
+    const auto rect = prc ? ViewRect(*prc) : MMPixelRect{};
+    mm_graphics_view_set_visible(&_view, prc ? &rect : nullptr);
+    _PublishClip();
     AssertThis(0);
 }
 
@@ -828,13 +798,9 @@ void GraphicsEnvironment::IntersectRcVis(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
-    RC rc;
-
-    rc = *prc;
-    rc.Map(&_rcSrc, &_rcDst);
-    _rcVis.FIntersect(&rc);
-    _rcsClip = MacWin(SystemRectangle(_rcVis),_rcVis);
-    _gdd.prcsClip = &_rcsClip;
+    const auto rect = ViewRect(*prc);
+    mm_graphics_view_intersect_visible(&_view, &rect);
+    _PublishClip();
     AssertThis(0);
 }
 
@@ -847,29 +813,9 @@ void GraphicsEnvironment::ClipRc(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
-
-    RC rc;
-
-    if (prc == pvNil)
-    {
-        rc.Max();
-        if (rc == _rcVis)
-        {
-            // no clipping
-            _gdd.prcsClip = pvNil;
-            return;
-        }
-        rc = _rcVis;
-    }
-    else
-    {
-        rc = *prc;
-        rc.Map(&_rcSrc, &_rcDst);
-        rc.FIntersect(&_rcVis);
-    }
-
-    _rcsClip = MacWin(SystemRectangle(rc),rc);
-    _gdd.prcsClip = &_rcsClip;
+    const auto rect = prc ? ViewRect(*prc) : MMPixelRect{};
+    mm_graphics_view_clip(&_view, prc ? &rect : nullptr);
+    _PublishClip();
 }
 
 /***************************************************************************
@@ -878,7 +824,26 @@ void GraphicsEnvironment::ClipRc(RC *prc)
 void GraphicsEnvironment::ClipToSrc(void)
 {
     AssertThis(0);
-    ClipRc(&_rcSrc);
+    mm_graphics_view_clip(&_view, &_view.source);
+    _PublishClip();
+}
+
+void GraphicsEnvironment::_PublishClip()
+{
+    if (_view.has_clip)
+    {
+        auto rect = NativeRect(_view.clip);
+        _rcsClip = MacWin(SystemRectangle(rect), rect);
+        _gdd.prcsClip = &_rcsClip;
+    }
+    else
+        _gdd.prcsClip = nullptr;
+}
+
+void GraphicsEnvironment::_OffsetPattern()
+{
+    const auto origin = mm_graphics_view_pattern_origin(&_view);
+    _gdd.apt.MoveOrigin(origin.x, origin.y);
 }
 
 /***************************************************************************
@@ -889,8 +854,10 @@ void GraphicsEnvironment::SetPenSize(long dxpPen, long dypPen)
     AssertThis(0);
     AssertIn(dxpPen, 0, kswMax);
     AssertIn(dypPen, 0, kswMax);
-    _gdd.dxpPen = LwMulDivAway(dxpPen, _rcDst.Dxp(), _rcSrc.Dxp());
-    _gdd.dypPen = LwMulDivAway(dypPen, _rcDst.Dyp(), _rcSrc.Dyp());
+    const auto pen = mm_graphics_view_scale_size(&_view,
+                                                {static_cast<MMI32>(dxpPen), static_cast<MMI32>(dypPen)});
+    _gdd.dxpPen = pen.x;
+    _gdd.dypPen = pen.y;
 }
 
 /***************************************************************************
@@ -901,7 +868,7 @@ void GraphicsEnvironment::SetFont(long onn, ulong grfont, long dypFont, long tah
     AssertThis(0);
     _dsf.onn = onn;
     _dsf.grfont = grfont;
-    _dsf.dyp = LwMulDivAway(dypFont, _rcDst.Dyp(), _rcSrc.Dyp());
+    _dsf.dyp = mm_graphics_view_scale_size(&_view, {0, static_cast<MMI32>(dypFont)}).y;
     _dsf.tah = tah;
     _dsf.tav = tav;
     AssertThis(0);
@@ -933,7 +900,7 @@ void GraphicsEnvironment::SetFontStyle(ulong grfont)
 void GraphicsEnvironment::SetFontSize(long dyp)
 {
     AssertThis(0);
-    _dsf.dyp = LwMulDivAway(dyp, _rcDst.Dyp(), _rcSrc.Dyp());
+    _dsf.dyp = mm_graphics_view_scale_size(&_view, {0, static_cast<MMI32>(dyp)}).y;
     AssertThis(0);
 }
 
@@ -1022,7 +989,7 @@ void GraphicsEnvironment::GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp
     _MapPtPts(xp, yp, &pts);
     _pgpt->GetRcsFromRgch(&rcs, prgch, cch, pts, &_dsf);
     *prc = rcs;
-    prc->Map(&_rcDst, &_rcSrc);
+    *prc = _MapRc(*prc, true);
 }
 
 /******************************************************************************
@@ -1478,8 +1445,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
                 Bug("Can't dissolve from this GraphicsPort");
                 goto LFail;
             }
-            rc1 = *prcSrc;
-            rc1.Map(&pgnvSrc->_rcSrc, &pgnvSrc->_rcDst);
+            rc1 = pgnvSrc->_MapRc(*prcSrc);
             if (!rc2.FContains(&rc1))
             {
                 Bug("Source rectangle is outside the source bitmap");
@@ -1806,10 +1772,9 @@ void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill
 
     pt.xp = LwBound(xp, prcDst->xpLeft, prcDst->xpRight + 1);
     pt.yp = LwBound(yp, prcDst->ypTop, prcDst->ypBottom + 1);
-    pt.Map(&_rcSrc, &_rcDst);
+    pt = _MapPoint(pt.xp, pt.yp);
     pt += ptBase;
-    rcDst = *prcDst;
-    rcDst.Map(&_rcSrc, &_rcDst);
+    rcDst = _MapRc(*prcDst);
     rcDst.Offset(ptBase.xp, ptBase.yp);
 
     for (cact = 0; cact < 2; cact++)
@@ -1934,6 +1899,17 @@ void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, RC *prc)
     _pgpt->DrawMbmp(pmbmp, &rcs, &_gdd);
 }
 
+RC GraphicsEnvironment::_MapRc(const RC &rect, bool reverse) const
+{
+    return NativeRect(mm_graphics_view_map_rect(&_view, ViewRect(rect), reverse));
+}
+
+PT GraphicsEnvironment::_MapPoint(long x, long y) const
+{
+    const auto point = mm_graphics_view_map_point(&_view, {static_cast<MMI32>(x), static_cast<MMI32>(y)});
+    return PT(point.x, point.y);
+}
+
 /***************************************************************************
     Map a rectangle to a system rectangle.  Return true iff the result
     is non-empty.
@@ -1943,9 +1919,7 @@ bool GraphicsEnvironment::_FMapRcRcs(RC *prc, SystemRectangle *prcs)
     AssertThis(0);
     AssertVarMem(prc);
     AssertVarMem(prcs);
-    RC rc = *prc;
-
-    rc.Map(&_rcSrc, &_rcDst);
+    RC rc = _MapRc(*prc);
     *prcs = SystemRectangle(rc);
     return prcs->left < prcs->right && prcs->top < prcs->bottom;
 }
@@ -1957,9 +1931,7 @@ void GraphicsEnvironment::_MapPtPts(long xp, long yp, SystemPoint *ppts)
 {
     AssertThis(0);
     AssertVarMem(ppts);
-    PT pt(xp, yp);
-
-    pt.Map(&_rcSrc, &_rcDst);
+    PT pt = _MapPoint(xp, yp);
     *ppts = SystemPoint(pt);
 }
 

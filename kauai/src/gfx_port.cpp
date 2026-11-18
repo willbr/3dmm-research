@@ -72,52 +72,16 @@ void OLY::AssertValid(LegacyUlong grf)
 // The original six-point line footprint, shared by native and CPU ports.
 void BuildLinePolygon(OLY *poly, SystemPoint first, SystemPoint last, LegacyLong penX, LegacyLong penY)
 {
-    SystemPoint *ppts1 = &first, *ppts2 = &last, *pptsDst;
-    LegacyLong dxp, dyp, dypPen;
+    MMPixelPoint footprint[6];
+    mm_graphics_line_polygon({static_cast<MMI32>(first.x), static_cast<MMI32>(first.y)},
+                             {static_cast<MMI32>(last.x), static_cast<MMI32>(last.y)},
+                             {static_cast<MMI32>(penX), static_cast<MMI32>(penY)}, footprint);
     poly->cpts = 6;
-
-    if (ppts2->x < ppts1->x)
+    for (int i = 0; i < 6; ++i)
     {
-        // swap them
-        SystemPoint *pptsT;
-
-        pptsT = ppts2;
-        ppts2 = ppts1;
-        ppts1 = pptsT;
+        poly->rgpts[i].x = footprint[i].x;
+        poly->rgpts[i].y = footprint[i].y;
     }
-    Assert(ppts2->x >= ppts1->x, "points still not in order");
-
-    dxp = ppts2->x - ppts1->x;
-    dyp = ppts2->y - ppts1->y;
-    dypPen = penY;
-
-    pptsDst = poly->rgpts;
-    *pptsDst = *ppts1;
-    if (dyp < 0)
-    {
-        dypPen = -dypPen;
-        pptsDst[1].x = pptsDst[0].x;
-        pptsDst[1].y = pptsDst[0].y - dypPen;
-        pptsDst++;
-    }
-    pptsDst[1].x = pptsDst[0].x + penX;
-    pptsDst[1].y = pptsDst[0].y;
-    pptsDst++;
-    pptsDst[1].x = pptsDst[0].x + dxp;
-    pptsDst[1].y = pptsDst[0].y + dyp;
-    pptsDst++;
-    pptsDst[1].x = pptsDst[0].x;
-    pptsDst[1].y = pptsDst[0].y + dypPen;
-    pptsDst++;
-    pptsDst[1].x = pptsDst[0].x - penX;
-    pptsDst[1].y = pptsDst[0].y;
-    if (dyp >= 0)
-    {
-        pptsDst++;
-        pptsDst[1].x = pptsDst[0].x - dxp;
-        pptsDst[1].y = pptsDst[0].y - dyp;
-    }
-    Assert(pptsDst == &poly->rgpts[4], "wrote off end of OLY");
 }
 
 #ifdef KAUAI_SDL3
