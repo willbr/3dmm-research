@@ -1668,6 +1668,18 @@ the background adapter matched repeated results to the direct worker and
 received both actor and prop images with their requested card identities.
 Evidence is in `tmp/c89-camera-asset-pickers`.
 
+`movie_browser.c` owns navigation, sorting, filtering, selection, recent and
+favourite locations, and the thumbnail cache. Pending work and cached thumbnails
+use the listing row's identity even when filters or sorting change its position.
+The worker interface supplies directory and ZIP entries, transfers a prepared
+movie input, and returns preview images and duration results. Replacing a listing cancels
+obsolete preparation. `movie_browser_preferences.c` preserves the quoted
+`movie-browser.cfg` fields and writes updates through the temporary file.
+The headless worker probe exercised a single-member ZIP thumbnail and open,
+multi-member ZIP navigation and duration lookup, and a VMM inner-movie preview.
+It also round-tripped legacy paths, quotes, and browser preferences. Evidence
+is in `tmp/c89-movie-browser`.
+
 Settings, camera rendering settings, ZIP member selection
 and errors use standard cimgui controls in `main.c`. The dialogs stay centred
 and fit the available window when resized. Browsers retain asynchronous loading,
