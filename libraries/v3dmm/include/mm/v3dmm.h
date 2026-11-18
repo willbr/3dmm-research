@@ -55,6 +55,9 @@ std::map<std::string, std::filesystem::path> Materialize(const Range &archive, c
                                                          const Limits &limits = {});
 // Writes a complete candidate. Publication/replacement is the caller's job.
 void WriteBundle(const Range &movie, const std::vector<Dependency> &dependencies, const std::filesystem::path &output);
+// Preserve authored dependency order and replace generated storyboard packages.
+void WriteStoryboardBundle(const Range &movie, const std::vector<Dependency> &dependencies, const Dependency &replacement,
+                           const std::filesystem::path &output);
 // Atomically replace destination with a completed adjacent candidate.
 void Publish(const std::filesystem::path &candidate, const std::filesystem::path &destination);
 } // namespace MM::V3dmm

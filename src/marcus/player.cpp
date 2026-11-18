@@ -1,6 +1,7 @@
 #include "player.h"
 #include "mm/movie_data.h"
 #include "mm/playback.h"
+#include "mm/vmm_dependencies.h"
 #include "content.h"
 #include "movie_input.h"
 #include "playback.h"
@@ -1239,7 +1240,8 @@ extern "C"
             struct Cleanup { std::filesystem::path path; ~Cleanup() { std::error_code e; std::filesystem::remove(path, e); } } cleanup{temporary};
             if (extension == ".vmm")
             {
-                const auto dependencies = player->content ? player->content->Dependencies() : std::vector<MM::V3dmm::Dependency>{{"3dmm", {}}};
+                const auto dependencies = player->content ? player->content->Dependencies()
+                    : std::vector<MM::V3dmm::Dependency>{{mm_vmm_library_name(MM_VMM_BASE_LIBRARY), {}}};
                 if (player->edits->storyboards->empty()) MM::V3dmm::WriteBundle(MM::V3dmm::WholeFile(
                     player->content && player->content->bundled && file == player->timingInput ? player->content->movie : file->path), dependencies, temporary);
                 else MarcusWriteStoryboardBundle(*file, *player->edits->storyboards, player->timingResources, player->timingContent,

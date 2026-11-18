@@ -3,6 +3,7 @@
 #include "studio_packs.h"
 #include "studio_settings.h"
 #include "studio_vmm_content.h"
+#include "mm/vmm_dependencies.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <cstdlib>
@@ -19,7 +20,7 @@ struct MarcusContent::Impl
     fs::path root, work;
     std::vector<fs::path> ownedFiles, ownedDirectories;
     std::unique_ptr<StudioV3dmm::Store> packages;
-    std::vector<V::Dependency> dependencies{{"3dmm", {}}};
+    std::vector<V::Dependency> dependencies{{mm_vmm_library_name(MM_VMM_BASE_LIBRARY), {}}};
     bool catalogRead = false, defaultsRead = false;
     ~Impl()
     {
@@ -151,12 +152,13 @@ void MarcusContent::PrepareSource(const std::string &name)
     if (!bundled)
     {
         const auto key = C::SourceKey(name);
-        const char *libraries[] = {"Nickelodeon", "Doraemon", "3DMM Expansion Pack"};
-        const auto &definitions = StudioPacks::Definitions();
-        for (std::size_t i = 0; i < definitions.size(); ++i)
-            if (key == C::SourceKey(definitions[i].sourceTitle, definitions[i].sourceFolder) &&
-                std::none_of(impl->dependencies.begin(), impl->dependencies.end(), [&](const auto &d) { return d.name == libraries[i]; }))
-                impl->dependencies.push_back({libraries[i], {}});
+        for (int id = MM_VMM_NICKELODEON; id < MM_VMM_LIBRARY_COUNT; ++id)
+        {
+            const auto library = mm_vmm_library_name(static_cast<MMVmmLibrary>(id));
+            if (key == C::SourceKey(library) &&
+                std::none_of(impl->dependencies.begin(), impl->dependencies.end(), [&](const auto &d) { return d.name == library; }))
+                impl->dependencies.push_back({library, {}});
+        }
     }
     if (bundled || C::SourceKey(name) != "v3dmm" || impl->defaultsRead)
         return;

@@ -5,13 +5,24 @@
 
 typedef struct NamedSlot
 {
-    const char *name;
+    const MMVmmEntry *entry;
     size_t index;
 } NamedSlot;
 
+static int compare_entries(const MMVmmEntry *a, const MMVmmEntry *b)
+{
+    int order = mm_vxp_compare_names(a->name, b->name);
+    if (order) return order;
+    return (a->name_length > b->name_length) - (a->name_length < b->name_length);
+}
+
 static int order_names(const void *a, const void *b)
 {
-    return mm_vxp_compare_names(((const NamedSlot *)a)->name, ((const NamedSlot *)b)->name);
+    const NamedSlot *left = (const NamedSlot *)a;
+    const NamedSlot *right = (const NamedSlot *)b;
+    int order = compare_entries(left->entry, right->entry);
+    if (order) return order;
+    return (left->index > right->index) - (left->index < right->index);
 }
 
 static unsigned char *repeated_names(const MMVmmEntry *entries, size_t count)
@@ -26,12 +37,12 @@ static unsigned char *repeated_names(const MMVmmEntry *entries, size_t count)
     for (i = 0; i < count; ++i)
         if (entries[i].archive_length)
         {
-            names[next].name = entries[i].name;
+            names[next].entry = &entries[i];
             names[next++].index = i;
         }
     qsort(names, next, sizeof(*names), order_names);
     for (i = 1; i < next; ++i)
-        if (!mm_vxp_compare_names(names[i - 1].name, names[i].name))
+        if (!compare_entries(names[i - 1].entry, names[i].entry))
             repeated[names[i - 1].index] = repeated[names[i].index] = 1;
     free(names);
     return repeated;
@@ -126,4 +137,71 @@ MMVmmDependencyResult mm_vmm_resolve_dependencies(const MMVmmEntry *entries, siz
     free(repeated);
     *failed = i;
     return status;
+}
+
+static const char *const library_names[] = {"3dmm", "Nickelodeon", "Doraemon", "3DMM Expansion Pack"};
+
+const char *mm_vmm_library_name(MMVmmLibrary library)
+{
+    return library >= MM_VMM_BASE_LIBRARY && library < MM_VMM_LIBRARY_COUNT ? library_names[library] : NULL;
+}
+
+MMVmmLibrary mm_vmm_library_id(const char *name)
+{
+    int i;
+    for (i = 0; i < MM_VMM_LIBRARY_COUNT; ++i)
+        if (!mm_vxp_compare_names(name, library_names[i])) return (MMVmmLibrary)i;
+    return MM_VMM_UNKNOWN_LIBRARY;
+}
+
+static int order_slots(const void *a, const void *b)
+{
+    size_t left = *(const size_t *)a, right = *(const size_t *)b;
+    return (left > right) - (left < right);
+}
+
+MMVmmDependencyResult mm_vmm_save_active_dependencies(const MMVmmEntry *entries, size_t count,
+                                                       size_t *slots, size_t *selected)
+{
+    NamedSlot *rows;
+    size_t i, used = 0, output = 1;
+    slots[0] = MM_VMM_SAVE_BASE;
+    if (count)
+    {
+        if (count > (size_t)-1 / sizeof(*rows)) return MM_VMM_DEPENDENCIES_MEMORY;
+        rows = (NamedSlot *)malloc(count * sizeof(*rows));
+        if (!rows) return MM_VMM_DEPENDENCIES_MEMORY;
+        for (i = 0; i < count; ++i)
+        {
+            if (entries[i].name_length == 4 && !mm_vxp_compare_names(entries[i].name, library_names[MM_VMM_BASE_LIBRARY]))
+                continue;
+            rows[used].entry = &entries[i];
+            rows[used++].index = i;
+        }
+        qsort(rows, used, sizeof(*rows), order_names);
+        for (i = 0; i < used; ++i)
+            if (i == 0 || compare_entries(rows[i - 1].entry, rows[i].entry))
+                slots[output++] = rows[i].index;
+        free(rows);
+        if (output > 2) qsort(slots + 1, output - 1, sizeof(*slots), order_slots);
+    }
+    *selected = output;
+    return MM_VMM_DEPENDENCIES_OK;
+}
+
+MMVmmDependencyResult mm_vmm_save_storyboard_dependencies(const MMVmmEntry *entries, size_t count,
+                                                           MMVmmStoryboardPackage inspect, void *context,
+                                                           size_t *slots, size_t *selected)
+{
+    size_t i, output = 0;
+    int storyboard;
+    for (i = 0; i < count; ++i)
+    {
+        storyboard = 0;
+        if (entries[i].archive_length && !inspect(context, i, &storyboard)) return MM_VMM_DEPENDENCY_IO;
+        if (!storyboard) slots[output++] = i;
+    }
+    slots[output++] = MM_VMM_SAVE_STORYBOARD;
+    *selected = output;
+    return MM_VMM_DEPENDENCIES_OK;
 }

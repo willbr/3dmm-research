@@ -70,7 +70,7 @@ bool MarcusGetStoryboardPalette(MarcusPlayer *player, MarcusBoardPalette &palett
 std::shared_ptr<MarcusMovieFile> MarcusPrepareTextPreview(MarcusPlayer *player, int object, const MarcusText &text);
 bool MarcusGetStoryboardColours(MarcusPlayer *player, MarcusBoardPaintColours &colours);
 void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStoryboards &boards,
-    const std::string &resources, const std::string &content, std::vector<MM::V3dmm::Dependency> dependencies,
+    const std::string &resources, const std::string &content, const std::vector<MM::V3dmm::Dependency> &dependencies,
     const std::vector<std::filesystem::path> &portableContent, const std::filesystem::path &destination);
 MarcusStoryboards MarcusReadBoards(MM::Archive &archive, const std::shared_ptr<MarcusMovieFile> &file);
 // Drawing uses integer stamps and interpolation, with no smoothing or alpha blending.

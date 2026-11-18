@@ -121,6 +121,35 @@ struct PortableInspection
 };
 } // namespace
 
+std::vector<V::Dependency> ActiveMovieDependencies(const std::vector<std::string> &libraries,
+                                                   const std::vector<Installation> &portable)
+{
+    std::vector<MMVmmEntry> entries;
+    entries.reserve(libraries.size() + portable.size());
+    for (const auto &name : libraries) entries.push_back({name.c_str(), name.size(), 0, {}});
+    for (const auto &package : portable) entries.push_back({package.name.c_str(), package.name.size(), 1, {}});
+    std::vector<std::size_t> slots(entries.size() + 1);
+    std::size_t selected;
+    if (mm_vmm_save_active_dependencies(entries.data(), entries.size(), slots.data(), &selected) != MM_VMM_DEPENDENCIES_OK)
+        throw std::runtime_error("Cannot plan active VMM dependencies");
+    std::vector<V::Dependency> output;
+    output.reserve(selected);
+    for (std::size_t i = 0; i < selected; ++i)
+    {
+        const auto slot = slots[i];
+        if (slot == MM_VMM_SAVE_BASE)
+            output.push_back({mm_vmm_library_name(MM_VMM_BASE_LIBRARY), {}});
+        else if (entries[slot].archive_length)
+        {
+            const auto &package = portable[slot - libraries.size()];
+            output.push_back({package.name, V::WholeFile(package.archive)});
+        }
+        else
+            output.push_back({libraries[slot], {}});
+    }
+    return output;
+}
+
 MoviePackages ResolveMoviePackages(const V::Bundle &bundle,
                                   const std::function<bool(const std::string &)> &libraryAvailable,
                                   const std::function<Store *()> &openCatalog, const PrivatePackage &materialize)

@@ -1,5 +1,6 @@
 // Licensed under the MIT License.
 #include "mm/v3dmm.h"
+#include "mm/vmm_dependencies.h"
 #include "mm/vmm_wire.h"
 #include "mm/vxp_package.h"
 #include <miniz.h>
@@ -173,6 +174,28 @@ struct PackageContents
     PackageContents(const PackageContents &) = delete;
     PackageContents &operator=(const PackageContents &) = delete;
 };
+
+struct StoryboardInspection
+{
+    const std::vector<Dependency> &dependencies;
+    std::exception_ptr error;
+    static int Inspect(void *context, std::size_t slot, int *storyboard)
+    {
+        auto &self = *static_cast<StoryboardInspection *>(context);
+        try
+        {
+            Zip zip(self.dependencies[slot].archive);
+            const PackageContents contents(zip, Limits{});
+            *storyboard = mm_vxp_is_storyboard_package(&contents.value);
+            return 1;
+        }
+        catch (...)
+        {
+            self.error = std::current_exception();
+            return 0;
+        }
+    }
+};
 } // namespace
 std::string Fold(std::string text)
 {
@@ -296,5 +319,26 @@ void WriteBundle(const Range &movie, const std::vector<Dependency> &dependencies
     Require(status == MM_VMM_OK, mm_vmm_error(status));
     writer.stream.close();
     Require(bool(writer.stream), "Cannot finish VMM output");
+}
+
+void WriteStoryboardBundle(const Range &movie, const std::vector<Dependency> &dependencies, const Dependency &replacement,
+                           const std::filesystem::path &output)
+{
+    StoryboardInspection inspection{dependencies, {}};
+    std::vector<MMVmmEntry> entries;
+    entries.reserve(dependencies.size());
+    for (const auto &dependency : dependencies)
+        entries.push_back({dependency.name.c_str(), dependency.name.size(), dependency.archive.length ? 1U : 0U, {}});
+    std::vector<std::size_t> slots(entries.size() + 1);
+    std::size_t selected;
+    const auto status = mm_vmm_save_storyboard_dependencies(entries.data(), entries.size(), StoryboardInspection::Inspect,
+                                                            &inspection, slots.data(), &selected);
+    if (inspection.error) std::rethrow_exception(inspection.error);
+    Require(status == MM_VMM_DEPENDENCIES_OK, "Cannot plan storyboard dependencies");
+    std::vector<Dependency> outputEntries;
+    outputEntries.reserve(selected);
+    for (std::size_t i = 0; i < selected; ++i)
+        outputEntries.push_back(slots[i] == MM_VMM_SAVE_STORYBOARD ? replacement : dependencies[slots[i]]);
+    WriteBundle(movie, outputEntries, output);
 }
 } // namespace MM::V3dmm

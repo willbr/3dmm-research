@@ -330,6 +330,12 @@ static const char *find_field(const MMVxpPackage *package, const char *key)
     return NULL;
 }
 
+int mm_vxp_is_storyboard_package(const MMVxpPackage *package)
+{
+    const char *value = find_field(package, "marcusstoryboard");
+    return value && !strcmp(value, "1");
+}
+
 static int valid_override(const MMVxpPackage *package, const char *key, const char *expected)
 {
     const char *value = find_field(package, key);

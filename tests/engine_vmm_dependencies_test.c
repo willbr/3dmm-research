@@ -90,6 +90,47 @@ static const Fixture initial = {
     2, 0, {NULL}, NULL, {0}, 1, 0, 0, 0, 0, 0, 0
 };
 
+typedef struct SaveFixture
+{
+    size_t inspected, fail_slot;
+} SaveFixture;
+static int inspect_storyboard(void *context, size_t slot, int *storyboard)
+{
+    SaveFixture *f = (SaveFixture *)context;
+    assert(slot >= 2); /* The first two entries are external libraries. */
+    ++f->inspected;
+    if (slot == f->fail_slot) return 0;
+    *storyboard = slot == 2 || slot == 4;
+    return 1;
+}
+
+static void test_save(void)
+{
+    static const MMVmmEntry rows[] = {
+        {"Doraemon", 8, 0, {0, 0}}, {"3DMM", 4, 0, {0, 0}},
+        {"New", 3, 1, {0, 0}}, {"dOrAeMoN", 8, 1, {0, 0}},
+        {"new", 3, 1, {0, 0}}, {"A package", 9, 1, {0, 0}}
+    };
+    size_t slots[7], selected;
+    SaveFixture f = {0, 6};
+    assert(mm_vmm_library_id("3dmm") == MM_VMM_BASE_LIBRARY);
+    assert(mm_vmm_library_id("NiCkElOdEoN") == MM_VMM_NICKELODEON);
+    assert(mm_vmm_library_id("Missing") == MM_VMM_UNKNOWN_LIBRARY);
+    assert(!strcmp(mm_vmm_library_name(MM_VMM_EXPANSION_PACK), "3DMM Expansion Pack"));
+    assert(mm_vmm_save_active_dependencies(NULL, 0, slots, &selected) == MM_VMM_DEPENDENCIES_OK);
+    assert(selected == 1 && slots[0] == MM_VMM_SAVE_BASE);
+    assert(mm_vmm_save_active_dependencies(rows, 6, slots, &selected) == MM_VMM_DEPENDENCIES_OK);
+    assert(selected == 4 && slots[0] == MM_VMM_SAVE_BASE && slots[1] == 0 && slots[2] == 2 && slots[3] == 5);
+    assert(mm_vmm_save_storyboard_dependencies(rows, 6, inspect_storyboard, &f, slots, &selected) ==
+           MM_VMM_DEPENDENCIES_OK);
+    assert(f.inspected == 4 && selected == 5 && slots[0] == 0 && slots[1] == 1 && slots[2] == 3 &&
+           slots[3] == 5 && slots[4] == MM_VMM_SAVE_STORYBOARD);
+    f.fail_slot = 3;
+    f.inspected = 0;
+    assert(mm_vmm_save_storyboard_dependencies(rows, 6, inspect_storyboard, &f, slots, &selected) == MM_VMM_DEPENDENCY_IO);
+    assert(f.inspected == 2 && selected == 5);
+}
+
 int main(void)
 {
     Fixture f;
@@ -122,6 +163,7 @@ int main(void)
     f.embedded[2].name = "Wrong package";
     assert(mm_vmm_resolve_dependencies(dependencies, 4, MM_VMM_PRIVATE_CONTENT, &io, &failed) == MM_VMM_PACKAGE_NAME_MISMATCH);
     assert(failed == 2 && f.selected == 1 && f.inspected == 2);
-    puts("VMM dependency order, installed reuse, shortnames and external preflight passed.");
+    test_save();
+    puts("VMM dependency resolution, save order and generated storyboard replacement passed.");
     return 0;
 }

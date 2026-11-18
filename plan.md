@@ -936,6 +936,9 @@ package selection. The writable catalog and private materialization policies
 preserve each host's existing handling of repeated declarations.
 The C89 VFS selects the effective portable files and validates their aggregate
 disk budget before publishing a replacement source in either host.
+The C89 save planner owns the canonical external library names, the ordering
+and first-name selection for an active Studio catalog, and the replacement of
+stale generated storyboard packages while retaining authored declarations.
 ZIP decompression, physical file and path I/O, the installed catalog and
 publication of installed packages on disk remain host services. Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound

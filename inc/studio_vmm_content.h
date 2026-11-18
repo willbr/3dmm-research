@@ -13,6 +13,10 @@ struct MoviePackages
     std::vector<std::string> libraries;
 };
 
+// Build the active-catalog VMM declarations and open only selected archives.
+std::vector<MM::V3dmm::Dependency> ActiveMovieDependencies(const std::vector<std::string> &libraries,
+                                                        const std::vector<Installation> &portable);
+
 // A private materializer leaves the installed catalog unchanged. The catalog
 // provider is called lazily when the movie has an embedded dependency.
 using PrivatePackage = std::function<Installation(const MM::V3dmm::Dependency &, std::size_t,

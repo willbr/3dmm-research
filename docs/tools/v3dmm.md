@@ -161,6 +161,14 @@ publication. A casing conflict, unreadable file or excess size leaves the active
 source intact. Both hosts supply filesystem size checks. Studio also validates
 its native filename representation and retains archive-first inspection.
 
+The C89 dependency planner also supplies the external library names and
+selects declarations for save. Studio emits the base library first, followed
+by the first occurrence of each external library and active package name in
+input order. Marcus keeps authored declaration order and, on storyboard
+export, replaces the VXP packages marked `MarcusStoryboard=1` with the newly
+generated package. The host adapters provide archive files and read CFG
+metadata through the shared VXP parser.
+
 ## Validation
 
 The package-store build uses the pinned, public-domain SQLite 3.50.4 amalgamation
@@ -219,6 +227,15 @@ seek states and 180 viewport hashes matched the previous builds, and 456
 Studio actor records matched the retained retail and v3dmm captures. Original
 v3dmm reopened the new save with matching frame states and sound requests.
 Image and PCM differences remain. Evidence is in `tmp/c89-portable-mounts`.
+
+The save planning cases in `engine-vmm-dependencies` cover first-name
+precedence, declaration order and generated package replacement. They passed
+AddressSanitizer on Windows x86 and x64. Marcus's headless content and
+storyboard tests passed for canonical library aliases and resaving a storyboard.
+Studio's workflow reproduced all six VMMs byte for byte. Original v3dmm
+reopened a new save with matching frame states and sound requests. Its image
+and PCM comparisons still report differences. Evidence is in
+`tmp/c89-vmm-save-dependencies`.
 
 Duplicate selection has frozen regression cases in `v3dmm-test`. For a direct
 comparison, build the x86 `physfs-zip-probe` target in `tools/retail_oracle`, then

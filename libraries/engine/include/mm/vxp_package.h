@@ -90,6 +90,7 @@ typedef struct MMVxpPackage
 MMVxpResult mm_vxp_read_package(const MMVxpReader *, const MMVxpLimits *, MMVxpPackage *, MMU32 *failed_member);
 void mm_vxp_dispose(MMVxpPackage *);
 const char *mm_vxp_error(MMVxpResult);
+int mm_vxp_is_storyboard_package(const MMVxpPackage *);
 /* Returns a materialized extension for the two chunky content kinds. */
 const char *mm_vxp_content_extension(MMVxpMemberKind);
 void mm_vxp_fold_ascii(char *text, size_t length);

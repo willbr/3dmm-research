@@ -1,5 +1,6 @@
 // Licensed under the MIT License.
 #include "studio_vmm_content.h"
+#include "mm/vmm_dependencies.h"
 #include "studio_pack_runtime.h"
 #include "studio_settings.h"
 #include "sdl_dialog.h"
@@ -70,12 +71,12 @@ bool SameSelection(const std::vector<Installation> &left, const std::vector<Inst
 }
 bool LibraryAvailable(const std::string &name)
 {
-    auto lower = V::Fold(name);
-    if (lower == "3dmm")
+    const auto library = mm_vmm_library_id(name.c_str());
+    if (library == MM_VMM_BASE_LIBRARY)
         return true;
-    int index = lower == "nickelodeon" ? 0 : lower == "doraemon" ? 1 : lower == "3dmm expansion pack" ? 2 : -1;
-    if (index < 0)
+    if (library == MM_VMM_UNKNOWN_LIBRARY)
         return false;
+    const auto index = library - MM_VMM_NICKELODEON;
     auto products = StudioPacks::Products();
     auto source = std::to_string(StudioPacks::ActivePreferences()[index].sourceId);
     return std::any_of(products.entries.begin(), products.entries.end(), [&](const StudioContent::Product &product) {
@@ -126,14 +127,7 @@ struct Document : MovieContainer::Document
             candidate = path.parent_path() / (".vmm-" + std::to_string(std::random_device{}()) + ".tmp");
             if (fs::exists(candidate))
                 throw std::runtime_error("VMM save staging path already exists");
-            std::vector<V::Dependency> dependencies{{"3dmm", {}}};
-            std::set<std::string> names{"3dmm"};
-            for (const auto &library : libraries)
-                if (names.insert(V::Fold(library)).second)
-                    dependencies.push_back({library, {}});
-            for (const auto &entry : selection)
-                if (names.insert(V::Fold(entry.name)).second)
-                    dependencies.push_back({entry.name, V::WholeFile(entry.archive)});
+            const auto dependencies = ActiveMovieDependencies(libraries, selection);
             V::WriteBundle(V::WholeFile(Path(movie)), dependencies, candidate);
             V::Publish(candidate, path);
             bundled = true;
@@ -164,10 +158,12 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
                     document->selection.push_back(store->Resolve(entry.hash));
         // Preserve legacy library dependencies, even when a movie does not use
         // every enabled pack. Portable exports must never embed these packs.
-        const char *libraryNames[] = {"Nickelodeon", "Doraemon", "3DMM Expansion Pack"};
-        for (auto name : libraryNames)
+        for (int id = MM_VMM_NICKELODEON; id < MM_VMM_LIBRARY_COUNT; ++id)
+        {
+            const auto name = mm_vmm_library_name(static_cast<MMVmmLibrary>(id));
             if (LibraryAvailable(name))
                 document->libraries.push_back(name);
+        }
         if (MovieContainer::IsVmm(original))
         {
             document->bundled = true;

@@ -128,6 +128,18 @@ void Tests(const fs::path &root)
     const auto firstBytes = Read(first.file), secondBytes = Read(second.file);
     V::WriteBundle(V::WholeFile(root / "movie.3mm"), {{"Stage", first}, {"sTaGe", second}}, root / "movie.vmm");
     Environment("THREEDMM_PACK_DIR", (root / "packs").u8string());
+    {
+        MarcusContent content((root / "movie.3mm").u8string(), {});
+        content.PrepareSource("N3DMM EXPANSION/N3DMMExp");
+        content.PrepareSource("Nickelodeon");
+        content.PrepareSource("Doraemon Character Kit");
+        content.PrepareSource("Expansions");
+        const auto dependencies = content.Dependencies();
+        Check(dependencies.size() == 4 && dependencies[0].name == "3dmm" &&
+            dependencies[1].name == "Nickelodeon" && dependencies[2].name == "Doraemon" &&
+            dependencies[3].name == "3DMM Expansion Pack");
+        for (const auto &dependency : dependencies) Check(dependency.archive.length == 0);
+    }
     Open(root / "movie.vmm", root / "first.3cn", root / "second.3cn", Read(root / "first.3cn"));
     Check(!fs::exists(root / "packs/v3dmm/catalog.json"));
     // An installed same-name package may satisfy its own shortname, never

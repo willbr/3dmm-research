@@ -2,7 +2,6 @@
 #undef size
 #include "mm/content_vfs.hpp"
 #include <miniz.h>
-#include <algorithm>
 #include <random>
 #include <set>
 #include <stdexcept>
@@ -106,7 +105,7 @@ void SceneBackground(PChunkyFile file, ChunkNumber scene, ChunkNumber background
 }
 
 void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStoryboards &boards,
-    const std::string &resources, const std::string &content, std::vector<V::Dependency> dependencies,
+    const std::string &resources, const std::string &content, const std::vector<V::Dependency> &dependencies,
     const std::vector<fs::path> &portableContent, const fs::path &destination)
 {
     Staging work;
@@ -164,10 +163,5 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
         mz_zip_writer_add_file(&zip.archive, (shortName + ".3th").c_str(), thumbnailsPath.u8string().c_str(), nullptr, 0, MZ_BEST_COMPRESSION) &&
         mz_zip_writer_finalize_archive(&zip.archive), "Cannot write storyboard VXP package.");
     Require(mz_zip_writer_end(&zip.archive), "Cannot close storyboard VXP package."); zip.closed = true;
-    // Replace our old background-only packages; retain all other dependencies.
-    dependencies.erase(std::remove_if(dependencies.begin(), dependencies.end(), [](const auto &dependency) {
-        return dependency.archive.length && V::ReadPackage(dependency.archive).metadata["marcusstoryboard"] == "1";
-    }), dependencies.end());
-    dependencies.push_back({name, V::WholeFile(archivePath)});
-    V::WriteBundle(V::WholeFile(innerPath), dependencies, destination);
+    V::WriteStoryboardBundle(V::WholeFile(innerPath), dependencies, {name, V::WholeFile(archivePath)}, destination);
 }
