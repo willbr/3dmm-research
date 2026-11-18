@@ -32,7 +32,8 @@ struct MaskedRegionSpans
                 state.scanner.XpFetch();
                 return 1;
             },
-            [](void *context) { static_cast<MaskedRegionSpans *>(context)->scanner.ScanNext(1); }};
+            [](void *context, MMI32 rows) { static_cast<MaskedRegionSpans *>(context)->scanner.ScanNext(rows); },
+            [](void *context) -> MMI32 { return static_cast<MaskedRegionSpans *>(context)->scanner.DypCur(); }};
     }
 };
 

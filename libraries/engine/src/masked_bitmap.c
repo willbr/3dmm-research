@@ -433,7 +433,7 @@ static void blit(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 
         blit_row(encoded, row_end, line, left, x0, x1, b[4], b[5], mask, spans);
         encoded = row_end;
         if (spans && row + 1 < y1)
-            spans->advance(spans->context);
+            spans->advance(spans->context, 1);
     }
 }
 
@@ -658,7 +658,7 @@ int mm_masked_stretch(const MMPixelSurface *surface, const MMMaskedRle *source, 
             } while (spans && spans->next(spans->context, &left, &right));
         }
         if (spans && y + 1 < bounds.bottom)
-            spans->advance(spans->context);
+            spans->advance(spans->context, 1);
     }
 done:
     free(rows.scratch);

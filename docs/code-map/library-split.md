@@ -5076,6 +5076,18 @@ All 39,204 copy cases matched the previous build across 40,184,100 bytes,
 including return values, aliased storage, custom palettes, disjoint region
 spans and extreme rectangle extents. Evidence is in `tmp/c89-packed-copy`.
 
+`dib_frame.c` validates bounded 40-byte DIB headers and decodes their padded
+top-down or bottom-up rows into BGRX32. `pixel_raster.c` draws decoded frames
+using edge sampling measured from the bottom for 24-bit input and pixel-centre
+sampling for 32-bit input. It also expands palette indices to native-order
+XRGB32, leaving pixels untouched for missing indices. Exact-palette snapshots
+validate every source pixel before publishing any index and choose the first
+index for duplicate colours. The shared raster loop consumes clipped region
+spans in the Kauai scanner's original order. All 134,720 DIB and snapshot
+cases matched across 20,675,560 bytes. Windows comparisons also passed across
+3,024 DrawDib cases and 4,458 decoded frames from 24 AVI files. Evidence is in
+`tmp/c89-dib-raster`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit

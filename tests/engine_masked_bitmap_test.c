@@ -1,4 +1,5 @@
 #include "mm/masked_bitmap.h"
+#include "mm/dib_frame.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -463,10 +464,10 @@ static int scan_span(void *context, MMI32 *left, MMI32 *right)
     }
     return 0;
 }
-static void next_row(void *context)
+static void next_row(void *context, MMI32 rows)
 {
     Scan *scan = (Scan *)context;
-    ++scan->row;
+    scan->row += rows;
     scan->span = 0;
 }
 
@@ -478,7 +479,7 @@ static void stream_blitting(void)
     const MMMaskedRect clip = {1, 1, 2, 3};
     unsigned char pixels[12], expected[12], bits[2];
     Scan scan;
-    MMMaskedSpans spans = {NULL, start_scan, scan_span, next_row};
+    MMMaskedSpans spans = {NULL, start_scan, scan_span, next_row, NULL};
     int big, source, mask;
     spans.context = &scan;
     for (big = 0; big < 2; ++big)
@@ -601,6 +602,63 @@ static void packed_copy(void)
     assert(palette[0] == 0x11);
 }
 
+static void dib_and_indexed(void)
+{
+    static const unsigned char dib[] = {
+        40, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0, 1, 0, 24, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0x20, 1, 2, 0x21, 1, 2, 0x22, 1, 2, 0xda, 0xda, 0xda,
+        0x10, 3, 4, 0x11, 3, 4, 0x12, 3, 4, 0xdb, 0xdb, 0xdb
+    };
+    static const unsigned char palette[] = {1, 2, 3, 255, 1, 2, 3, 0, 4, 5, 6, 31};
+    const MMPixelRect wide = {-2147483644L, 0, 3, 2}, row = {0, 0, 4, 1}, valid = {0, 0, 3, 1};
+    unsigned char decoded[28], drawn[26], indices[] = {1, 0, 2, 4};
+    MMU32 native[4];
+    MMPixelSurface frame, surface;
+    MMPixelImage indexed;
+    MMDibInfo info;
+    int x;
+
+    frame.pixels = decoded;
+    frame.width = 3;
+    frame.height = 2;
+    frame.pitch = 14;
+    frame.depth = 32;
+    memset(decoded, 0xaa, sizeof(decoded));
+    assert(mm_dib_info(dib, 40, &info) && info.bytes == sizeof(dib) && info.bottom_up && info.pitch == 12);
+    assert(!mm_dib_decode(dib, sizeof(dib) - 1, &frame) && decoded[0] == 0xaa);
+    assert(mm_dib_decode(dib, sizeof(dib), &frame));
+    assert(decoded[0] == 0x10 && decoded[2] == 4 && decoded[3] == 0 && decoded[12] == 0xaa);
+    assert(decoded[14] == 0x20 && decoded[16] == 2 && decoded[17] == 0 && decoded[26] == 0xaa);
+    surface = frame;
+    surface.pixels = drawn;
+    surface.pitch = 13;
+    memset(drawn, 0xbb, sizeof(drawn));
+    assert(mm_dib_draw(&surface, &frame, sizeof(decoded), 24, &wide, NULL, NULL, NULL));
+    for (x = 0; x < 3; ++x)
+        assert(drawn[4 * x] == 0x12 && drawn[13 + 4 * x] == 0x22);
+    assert(drawn[12] == 0xbb && drawn[25] == 0xbb);
+
+    surface.pixels = native;
+    surface.width = 4;
+    surface.height = 1;
+    surface.pitch = 16;
+    indexed.surface.pixels = indices;
+    indexed.surface.width = indexed.surface.pitch = 4;
+    indexed.surface.height = 1;
+    indexed.surface.depth = 8;
+    indexed.palette = palette;
+    indexed.colours = 3;
+    native[3] = 0xabcdefUL;
+    assert(mm_pixel_expand_indexed(&surface, &indexed, &row, &row, NULL, NULL));
+    assert(native[0] == 0x030201UL && native[1] == native[0] && native[2] == 0x060504UL && native[3] == 0xabcdefUL);
+    assert(!mm_pixel_snapshot_indexed(&indexed, &surface, &row, &row) && indices[0] == 1 && indices[3] == 4);
+    indexed.surface.pixels = (unsigned char *)&native[1];
+    assert(mm_pixel_snapshot_indexed(&indexed, &surface, &valid, &valid));
+    assert(((unsigned char *)&native[1])[0] == 0 && ((unsigned char *)&native[1])[1] == 0 &&
+           ((unsigned char *)&native[1])[2] == 2);
+}
+
 int main(void)
 {
     encode();
@@ -611,6 +669,7 @@ int main(void)
     stream_blitting();
     scaled_drawing();
     packed_copy();
+    dib_and_indexed();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

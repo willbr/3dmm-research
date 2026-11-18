@@ -762,6 +762,10 @@ the same C89 raster code for clipping, sampling, palette conversion and
 snapshotting overlapping buffers. Kauai supplies region spans and the host's
 byte-range overlap check. The near-size true-colour-to-8-bit path still uses
 the host's legacy palette approximation.
+C89 handles DIB header validation, BGR24/BGRX32 frame decoding and scaled
+video drawing. It preserves the bottom-up edge sampling of 24-bit video
+and the pixel-centre sampling of 32-bit video. Indexed expansion and exact
+palette snapshots for transitions use the same C89 raster core.
 Typed offscreen graphics and view drawing remain adapters.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as

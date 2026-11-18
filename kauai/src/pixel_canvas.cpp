@@ -2,8 +2,8 @@
 #include "pixel_canvas.h"
 #include "ellipse_geometry.h"
 #include "dib_frame.h"
+#include "mm/dib_frame.h"
 #include <algorithm>
-#include <array>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -104,6 +104,15 @@ MMPixelImage RasterImage(const PackedSurface &surface)
     return {{surface.pixels, surface.width, surface.height, surface.pitch, surface.depth}, PaletteBytes(surface.palette),
             surface.colors};
 }
+MMPixelImage RasterImage(const Indexed8 &image)
+{
+    return {{const_cast<void *>(image.pixels), image.width, image.height, image.pitch, 8}, PaletteBytes(image.palette),
+            image.colors};
+}
+MMPixelSurface RasterSurface(const Surface32 &surface)
+{
+    return {surface.pixels, surface.width, surface.height, surface.pitch, 32};
+}
 MMPixelRect RasterRect(const RC &rect)
 {
     return {rect.xpLeft, rect.ypTop, rect.xpRight, rect.ypBottom};
@@ -147,25 +156,6 @@ void PackedWrite(const PackedSurface &surface, std::int32_t x, std::int32_t y, s
 std::uint32_t Rgb555(std::uint32_t rgb)
 {
     return mm_pixel_rgb555(rgb);
-}
-template <class Surface, class Sample>
-bool MappedCopy(const Surface &destination, const RC &sourceRect, const RC &destinationRect, const RC *clip,
-                Region *region, Sample sample)
-{
-    const auto from = RasterRect(sourceRect), to = RasterRect(destinationRect);
-    MMI32 sw, sh, dw, dh;
-    if (!Valid(destination) || !mm_pixel_rect_extent(&from, &sw, &sh) || !mm_pixel_rect_extent(&to, &dw, &dh) ||
-        !sw || !sh || !dw || !dh)
-        return false;
-    Spans(destination, destinationRect, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        const auto sy = from.top + mm_pixel_sample(y - to.top, sh, dh, 0);
-        for (auto x = left; x < right; ++x)
-        {
-            const auto sx = from.left + mm_pixel_sample(x - to.left, sw, dw, 0);
-            sample(Pixel(destination, x, y), sx, sy);
-        }
-    });
-    return true;
 }
 struct PackedInk
 {
@@ -607,88 +597,28 @@ bool FillPolygon(const PackedSurface &surface, const Point *points, std::size_t 
 bool Copy(const Surface32 &destination, const Surface32 &source, const RC &sourceRect, const RC &destinationRect,
           const RC *clip, Region *region)
 {
-    return CopyRaster({{destination.pixels, destination.width, destination.height, destination.pitch, 32}, nullptr, 0},
-                      {{source.pixels, source.width, source.height, source.pitch, 32}, nullptr, 0}, sourceRect,
+    return CopyRaster({RasterSurface(destination), nullptr, 0}, {RasterSurface(source), nullptr, 0}, sourceRect,
                       destinationRect, clip, region, 0);
 }
 bool DrawDibFrame(const Surface32 &destination, const DibFrame &frame, const RC &rectangle, const RC *clip,
                   Region *region)
 {
-    const auto width = std::int64_t(rectangle.xpRight) - rectangle.xpLeft;
-    const auto height = std::int64_t(rectangle.ypBottom) - rectangle.ypTop;
-    if (!Valid(destination) || frame.width <= 0 || frame.height <= 0 || frame.width > INT32_MAX / 4 ||
-        frame.pitch < frame.width * 4 || (frame.sourceDepth != 24 && frame.sourceDepth != 32) ||
-        std::uint64_t(frame.pitch) * frame.height > frame.pixels.size() || width < 0 || height < 0 ||
-        width > INT32_MAX || height > INT32_MAX)
-        return false;
-    if (!width || !height)
-        return true;
-    const auto srcBytes = frame.pixels.size(), dstBytes = std::size_t(destination.pitch) * destination.height;
-    if (StorageOverlaps(frame.pixels.data(), srcBytes, destination.pixels, dstBytes))
-        return false;
-    const auto sample = [](std::int64_t p, std::int64_t source, std::int64_t target) {
-        return (p * source + (source > target ? target - 1 : 0)) / target;
-    };
-    Spans(destination, rectangle, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        const auto row = height - 1 - (std::int64_t(y) - rectangle.ypTop);
-        const auto y0 =
-            frame.sourceDepth == 32
-                ? frame.height - 1 - (2 * (std::int64_t(y) - rectangle.ypTop) + 1) * frame.height / (2 * height)
-                : sample(row, frame.height, height);
-        for (auto x = left; x < right; ++x)
-        {
-            const auto column = std::int64_t(x) - rectangle.xpLeft;
-            const auto x0 = frame.sourceDepth == 32 ? (2 * column + 1) * frame.width / (2 * width)
-                                                    : sample(column, frame.width, width);
-            const auto pixel =
-                frame.pixels.data() + std::size_t(frame.height - 1 - y0) * frame.pitch + std::size_t(x0) * 4;
-            std::memcpy(Pixel(destination, x, y), pixel, 4);
-        }
-    });
-    return true;
+    const auto to = RasterSurface(destination);
+    const MMPixelSurface image = {const_cast<byte *>(frame.pixels.data()), frame.width, frame.height, frame.pitch, 32};
+    const auto target = RasterRect(rectangle), clipping = clip ? RasterRect(*clip) : MMPixelRect{};
+    MaskedRegionSpans scanner(region);
+    const auto spans = scanner.Services();
+    return mm_dib_draw(&to, &image, frame.pixels.size(), frame.sourceDepth, &target, clip ? &clipping : nullptr,
+                       region ? &spans : nullptr, StorageOverlaps) != 0;
 }
 bool SnapshotIndexed(const Surface8 &destination, const Surface32 &source, const RC &sourceRect,
                      const RC &destinationRect, const Color *palette, std::int32_t colors)
 {
-    RC src = sourceRect, dst = destinationRect;
-    if (!Valid(destination) || !Valid(source) || !palette || colors < 1 || colors > 256 || src.FEmpty() ||
-        dst.FEmpty() || sourceRect.xpLeft < 0 || sourceRect.ypTop < 0 || sourceRect.xpRight > source.width ||
-        sourceRect.ypBottom > source.height || destinationRect.xpLeft < 0 || destinationRect.ypTop < 0 ||
-        destinationRect.xpRight > destination.width || destinationRect.ypBottom > destination.height ||
-        src.Dxp() != dst.Dxp() || src.Dyp() != dst.Dyp())
-        return false;
-    std::array<std::pair<std::uint32_t, std::uint8_t>, 256> entries;
-    for (int i = 0; i < colors; ++i)
-        entries[i] = {Rgb(palette[i]), static_cast<std::uint8_t>(i)};
-    std::sort(entries.begin(), entries.begin() + colors);
-    const auto width = src.Dxp(), height = src.Dyp();
-    std::vector<std::uint8_t> indices;
-    try
-    {
-        indices.resize(std::size_t(width) * height);
-    }
-    catch (const std::exception &)
-    {
-        return false;
-    }
-    // Preflight every pixel before writing: a non-palette color must not leave
-    // behind a partially converted transition frame.
-    for (int y = 0; y < height; ++y)
-        for (int x = 0; x < width; ++x)
-        {
-            std::uint32_t rgb;
-            std::memcpy(&rgb, Pixel(source, sourceRect.xpLeft + x, sourceRect.ypTop + y), sizeof(rgb));
-            rgb &= 0xFFFFFF;
-            const auto found =
-                std::lower_bound(entries.begin(), entries.begin() + colors, std::make_pair(rgb, std::uint8_t(0)));
-            if (found == entries.begin() + colors || found->first != rgb)
-                return false;
-            indices[std::size_t(y) * width + x] = found->second;
-        }
-    for (int y = 0; y < height; ++y)
-        std::memcpy(Pixel(destination, destinationRect.xpLeft, destinationRect.ypTop + y),
-                    indices.data() + std::size_t(y) * width, width);
-    return true;
+    const auto from = RasterSurface(source);
+    const MMPixelImage to = {{destination.pixels, destination.width, destination.height, destination.pitch, 8},
+                             PaletteBytes(palette), colors};
+    const auto src = RasterRect(sourceRect), dst = RasterRect(destinationRect);
+    return mm_pixel_snapshot_indexed(&to, &from, &src, &dst) != 0;
 }
 bool CopyPacked(const PackedSurface &destination, const PackedSurface &source, const RC &sourceRect,
                 const RC &destinationRect, const RC *clip, Region *region, const PackedCopyOptions &options)
@@ -898,33 +828,20 @@ bool Scroll(const PackedSurface &surface, const RC &rectangle, std::int32_t dx, 
 bool CopyIndexed(const Surface32 &destination, const Indexed8 &source, const RC &sourceRect, const RC &destinationRect,
                  const RC *clip, Region *region)
 {
-    if (!source.pixels || !source.palette || source.colors < 1 || source.colors > 256 || source.width < 1 ||
-        source.height < 1 || source.pitch < source.width ||
-        std::uint64_t(source.pitch) * source.height > std::numeric_limits<std::size_t>::max())
-        return false;
-    return MappedCopy(destination, sourceRect, destinationRect, clip, region,
-                      [&](std::uint8_t *pixel, std::int64_t sx, std::int64_t sy) {
-                          if (sx < 0 || sx >= source.width || sy < 0 || sy >= source.height)
-                              return;
-                          const auto index = static_cast<const std::uint8_t *>(
-                              source.pixels)[std::size_t(sy) * source.pitch + std::size_t(sx)];
-                          if (index < source.colors)
-                          {
-                              const Color color = source.palette[index];
-                              const std::uint32_t rgb =
-                                  (std::uint32_t(color.bRed) << 16) | (std::uint32_t(color.bGreen) << 8) | color.bBlue;
-                              std::memcpy(pixel, &rgb, 4);
-                          }
-                      });
+    const auto from = RasterImage(source);
+    const auto to = RasterSurface(destination);
+    const auto src = RasterRect(sourceRect), dst = RasterRect(destinationRect);
+    const auto clipping = clip ? RasterRect(*clip) : MMPixelRect{};
+    MaskedRegionSpans scanner(region);
+    const auto spans = scanner.Services();
+    return mm_pixel_expand_indexed(&to, &from, &src, &dst, clip ? &clipping : nullptr, region ? &spans : nullptr) != 0;
 }
 bool CopyIndexed(const Surface8 &destination, const Indexed8 &source, const RC &sourceRect, const RC &destinationRect,
                  const Color *palette, std::int32_t colors, const RC *clip, Region *region)
 {
-    const MMPixelImage from = {{const_cast<void *>(source.pixels), source.width, source.height, source.pitch, 8},
-                               PaletteBytes(source.palette), source.colors};
     const MMPixelImage to = {{destination.pixels, destination.width, destination.height, destination.pitch, 8},
                              PaletteBytes(palette), colors};
-    return CopyRaster(to, from, sourceRect, destinationRect, clip, region, MM_PIXEL_COPY_NEAR_SIZE);
+    return CopyRaster(to, RasterImage(source), sourceRect, destinationRect, clip, region, MM_PIXEL_COPY_NEAR_SIZE);
 }
 namespace
 {
