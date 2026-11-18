@@ -766,6 +766,9 @@ C89 handles DIB header validation, BGR24/BGRX32 frame decoding and scaled
 video drawing. It preserves the bottom-up edge sampling of 24-bit video
 and the pixel-centre sampling of 32-bit video. Indexed expansion and exact
 palette snapshots for transitions use the same C89 raster core.
+Native Windows and SDL share C89 planning and drawing for raw indexed double
+stretches. C89 also applies the display palette's identity colours, animation
+limits and reserved-slot handling.
 C89 also handles pixel scrolling across all six packed depths, including
 source and destination region clipping and the original full-byte-first
 rule for leftward monochrome moves.

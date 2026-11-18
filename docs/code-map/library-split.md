@@ -5117,6 +5117,16 @@ at the maximum extent. The Windows GDI oracle passed 16,808 region comparisons.
 Allocation failure probes preserve both the row output and the painted surface.
 Evidence is in `tmp/c89-ellipse`.
 
+`indexed_display.c` handles raw indexed 1-by-2 and 2-by-2 stretching, including
+the source crop and destination clip used by native Windows and SDL. It keeps
+the original destination origin and scan-band row pairing. A paired write
+stops at the physical surface boundary. The same module owns the display
+palette's static identity entries, animation count, and alias-safe updates.
+All 311,040 stretch cases matched the legacy code with a final-row boundary
+guard. The unguarded code differed in 23 overlapping-buffer cases. All 6,480
+crop plans and 9,216 palette updates matched outright. The Windows palette
+oracle also matched 2,408 sequential updates. Evidence is in `tmp/c89-indexed-display`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit
@@ -6608,10 +6618,9 @@ native-picture operations and root-window attachment are unfinished. See the
 [POSIX pixel-port checkpoint](../tools/studio-sdl.md#posix-pixel-port-runtime-update-for-3-november-2026).
 
 Bitmap copies, scrolling and masked artwork now share their CPU dispatch between
-Windows SDL and POSIX. The original indexed double-stretch routines moved into
-`kauai-core` (`pixel_stretch.cpp`); a C fallback bug in vertical stretching was
-fixed to match the x86 assembly. Exact-byte portable-port tests run on Windows
-and headless Linux alongside the existing offscreen Windows GDI comparisons.
+Windows SDL and POSIX. `pixel_stretch.cpp` adapts the original indexed
+double-stretch entry points to the shared C89 renderer. Exact-byte portable-port
+tests run on Windows and headless Linux alongside the offscreen GDI comparisons.
 Near-size true-color-to-8-bit conversion remains an explicit unsupported case
 on POSIX. See the [bitmap transfer checkpoint](../tools/studio-sdl.md#portable-bitmap-transfers-update-for-3-november-2026).
 

@@ -4,6 +4,16 @@
 #include <cstdint>
 class RC;
 class Region;
+enum class IndexedDoubleStretch
+{
+    unavailable,
+    clipped,
+    vertical,
+    both
+};
+IndexedDoubleStretch PlanDoubleStretch(const RC &sourceBounds, const RC &source, const RC &destination,
+                                       const RC *clip, RC &sourceCrop, RC &destinationClip);
+
 // stretch by a factor of 2 in each dimension.
 void DoubleStretch(std::uint8_t *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, std::uint8_t *prgbDst, long cbRowDst,
                    long dypDst, long xpDst, long ypDst, RC *prcClip, Region *pregnClip);

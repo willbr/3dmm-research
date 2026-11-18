@@ -982,13 +982,11 @@ background color. The indexed double-stretch fast paths, same-size raw-index
 artwork behavior, palette translation and masked shrink policy are retained.
 This changes graphics implementation only, not `.3mm` storage or serialization.
 
-The original `DoubleStretch`/`DoubleVertStretch` routines moved from the GUI
-graphics source into `kauai-core` as `pixel_stretch.cpp`, with an SDK-free header.
-The new integration test exposed a bug in the old vertical-stretch C fallback:
-its second-row copy offset the source and overwrote the first destination row.
-It now copies the same source into the second destination row, matching the
-existing x86 assembly behavior. The test checks both vertical-only and full 2x
-stretching, including clipped regions with holes.
+`DoubleStretch` and `DoubleVertStretch` now call the shared C89 indexed renderer.
+Native Windows and SDL use its planner to crop the source and keep the original
+destination origin. The renderer copies the same source into a pair of rows
+and stops paired writes at the physical surface boundary. Portable-port tests
+check vertical-only and full 2x stretching with clipped regions that have holes.
 
 `pixel-port-test` exercises the real portable entry points in all six pixel
 formats. Independent packed-byte expectations cover scaled and overlapping

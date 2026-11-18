@@ -1,6 +1,7 @@
 #include "mm/masked_bitmap.h"
 #include "mm/dib_frame.h"
 #include "mm/ellipse_geometry.h"
+#include "mm/indexed_display.h"
 #include "mm/pixel_paint.h"
 #include <assert.h>
 #include <stdio.h>
@@ -738,6 +739,69 @@ static void ellipse_rows(void)
     assert(spans[1].left == 14606011L && spans[1].right == 52502852L && !spans[2].right);
 }
 
+typedef struct DoubleScan
+{
+    MMPixelRect bounds;
+    int emitted;
+} DoubleScan;
+
+static void double_begin(void *context, const MMPixelRect *bounds)
+{
+    DoubleScan *scan = (DoubleScan *)context;
+    scan->bounds = *bounds;
+    scan->emitted = 0;
+}
+
+static int double_next(void *context, MMI32 *left, MMI32 *right)
+{
+    DoubleScan *scan = (DoubleScan *)context;
+    if (scan->emitted)
+        return 0;
+    scan->emitted = 1;
+    *left = scan->bounds.left;
+    *right = scan->bounds.right;
+    return 1;
+}
+
+static MMI32 double_height(void *context)
+{
+    (void)context;
+    return 2;
+}
+
+static void indexed_double(void)
+{
+    const MMPixelRect bounds = {0, 0, 5, 4}, request = {-2, -1, 3, 3}, destination = {1, 2, 11, 10};
+    const MMPixelRect rect = {0, 0, 2, 1}, clip = {0, 0, 4, 1};
+    unsigned char pixels[] = {13, 31}, output[10];
+    MMPixelRect cropped, visible;
+    MMPixelSurface source, target;
+    DoubleScan scan;
+    MMPixelSpans spans = {NULL, double_begin, double_next, NULL, double_height};
+    spans.context = &scan;
+    assert(mm_indexed_double_plan(&bounds, &request, &destination, NULL, &cropped, &visible) == MM_DOUBLE_BOTH);
+    assert(cropped.left == 0 && cropped.top == 0 && cropped.right == 3 && cropped.bottom == 3);
+    assert(visible.left == 5 && visible.top == 4 && visible.right == 11 && visible.bottom == 10);
+
+    source.pixels = pixels;
+    source.width = source.pitch = 2;
+    source.height = 1;
+    source.depth = 8;
+    target.pixels = output;
+    target.width = 4;
+    target.height = 2;
+    target.pitch = 5;
+    target.depth = 8;
+    memset(output, 0xee, sizeof(output));
+    assert(mm_indexed_double_draw(&target, &source, &rect, 0, 0, 1, &clip, &spans));
+    assert(output[0] == 13 && output[1] == 13 && output[2] == 31 && output[3] == 31);
+    assert(!memcmp(output, output + 5, 4) && output[4] == 0xee && output[9] == 0xee);
+    memset(output, 0xee, sizeof(output));
+    target.height = 1;
+    assert(mm_indexed_double_draw(&target, &source, &rect, 0, 0, 1, &clip, &spans));
+    assert(output[0] == 13 && output[3] == 31 && output[4] == 0xee && output[5] == 0xee && output[8] == 0xee);
+}
+
 int main(void)
 {
     encode();
@@ -753,6 +817,7 @@ int main(void)
     pixel_polygon();
     packed_inversion();
     ellipse_rows();
+    indexed_double();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

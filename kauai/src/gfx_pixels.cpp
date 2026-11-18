@@ -351,7 +351,6 @@ bool GraphicsPort::_FCopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc,
 {
     if (!_prgbPixels || !pgptSrc->_prgbPixels)
         return false;
-    long dxpSrc, dxpDst;
 
     if ((_cbitPixel != 8 || pgptSrc->_cbitPixel != 8) && _FDrawPackedCopy(pgptSrc, prcsSrc, prcsDst, pgdd))
     {
@@ -359,56 +358,23 @@ bool GraphicsPort::_FCopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc,
         return true;
     }
 
-    // see if we're doing an offscreen (2x, 2x) stretch or (1x, 2x) stretch -
-    // optimize for these
-    if (pgptSrc->_cbitPixel == 8 && _cbitPixel == 8 &&
-        ((dxpSrc = prcsSrc->right - prcsSrc->left) == (dxpDst = prcsDst->right - prcsDst->left) ||
-         2 * dxpSrc == dxpDst) &&
-        2 * (prcsSrc->bottom - prcsSrc->top) == prcsDst->bottom - prcsDst->top && !pgptSrc->_PixelOwnPalette() &&
-        !_PixelOwnPalette())
+    if (pgptSrc->_cbitPixel == 8 && _cbitPixel == 8 && !pgptSrc->_PixelOwnPalette() && !_PixelOwnPalette())
     {
-        RC rcClip;
-        RC rcDouble(*prcsDst);
-        RC rcSrc(*prcsSrc);
-
-        if (!rcSrc.FIntersect(&pgptSrc->_rcOff))
-            return true;
-
-        if (dxpSrc == dxpDst)
+        RC source, clip, requestedClip;
+        if (pgdd->prcsClip)
+            requestedClip = *pgdd->prcsClip;
+        const auto mode = PlanDoubleStretch(pgptSrc->_rcOff, RC(*prcsSrc), RC(*prcsDst),
+                                            pgdd->prcsClip ? &requestedClip : nullptr, source, clip);
+        if (mode != IndexedDoubleStretch::unavailable)
         {
-            rcDouble.xpLeft += rcSrc.xpLeft - prcsSrc->left;
-            rcDouble.xpRight += rcSrc.xpRight - prcsSrc->right;
-        }
-        else
-        {
-            rcDouble.xpLeft += 2 * (rcSrc.xpLeft - prcsSrc->left);
-            rcDouble.xpRight += 2 * (rcSrc.xpRight - prcsSrc->right);
-        }
-        rcDouble.ypTop += 2 * (rcSrc.ypTop - prcsSrc->top);
-        rcDouble.ypBottom += 2 * (rcSrc.ypBottom - prcsSrc->bottom);
-
-        if (pvNil != pgdd->prcsClip)
-        {
-            rcClip = *pgdd->prcsClip;
-            if (!rcClip.FIntersect(&rcDouble))
+            if (mode == IndexedDoubleStretch::clipped)
                 return true;
+            Flush();
+            const auto stretch = mode == IndexedDoubleStretch::vertical ? DoubleVertStretch : DoubleStretch;
+            stretch(pgptSrc->_prgbPixels, pgptSrc->_cbRow, pgptSrc->_rcOff.Dyp(), &source, _prgbPixels, _cbRow,
+                    _rcOff.Dyp(), prcsDst->left, prcsDst->top, &clip, _pregnClip);
+            return true;
         }
-        else
-            rcClip = rcDouble;
-
-        Flush();
-
-        if (dxpSrc == dxpDst)
-        {
-            DoubleVertStretch(pgptSrc->_prgbPixels, pgptSrc->_cbRow, pgptSrc->_rcOff.Dyp(), &rcSrc, _prgbPixels, _cbRow,
-                              _rcOff.Dyp(), prcsDst->left, prcsDst->top, &rcClip, _pregnClip);
-        }
-        else
-        {
-            DoubleStretch(pgptSrc->_prgbPixels, pgptSrc->_cbRow, pgptSrc->_rcOff.Dyp(), &rcSrc, _prgbPixels, _cbRow,
-                          _rcOff.Dyp(), prcsDst->left, prcsDst->top, &rcClip, _pregnClip);
-        }
-        return true;
     }
 
     _fPixelColorOnColor = true;
