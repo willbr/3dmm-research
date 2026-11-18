@@ -49,16 +49,51 @@ void mm_pixel_rect_intersect(MMPixelRect *bounds, const MMPixelRect *clip)
         bounds->bottom = clip->bottom;
 }
 
-static MMI32 scale_floor(MMU32 factor, MMU32 source, MMU32 divisor)
+int mm_pixel_visible_rect(const MMPixelSurface *surface, const MMPixelRect *shape, const MMPixelRect *clip,
+                          MMPixelRect *bounds)
+{
+    bounds->left = bounds->top = 0;
+    bounds->right = surface->width;
+    bounds->bottom = surface->height;
+    mm_pixel_rect_intersect(bounds, shape);
+    if (clip)
+        mm_pixel_rect_intersect(bounds, clip);
+    return bounds->left < bounds->right && bounds->top < bounds->bottom;
+}
+
+void mm_pixel_visit_spans(const MMPixelRect *bounds, const MMPixelSpans *spans, MMPixelDrawSpan draw, void *context)
+{
+    MMI32 y, row, height, left, right;
+    if (!spans)
+    {
+        for (y = bounds->top; y < bounds->bottom; ++y)
+            draw(context, y, bounds->left, bounds->right);
+        return;
+    }
+    spans->begin(spans->context, bounds);
+    for (y = bounds->top; y < bounds->bottom; y += height)
+    {
+        height = spans->height ? spans->height(spans->context) : 1;
+        if (height > bounds->bottom - y)
+            height = bounds->bottom - y;
+        while (spans->next(spans->context, &left, &right))
+            for (row = y; row < y + height; ++row)
+                draw(context, row, left, right);
+        if (y + height < bounds->bottom)
+            spans->advance(spans->context, height);
+    }
+}
+
+MMU32 mm_pixel_muldiv(MMU32 factor, MMU32 source, MMU32 divisor)
 {
     MMRuntimeCounter input, frequency, quotient;
-    if (factor <= (MMU32)0xffffffffUL / source)
-        return (MMI32)(factor * source / divisor);
+    if (!source || factor <= (MMU32)0xffffffffUL / source)
+        return factor * source / divisor;
     input.low = factor;
     frequency.low = divisor;
     input.high = frequency.high = 0;
     mm_runtime_counter_scale(input, source, frequency, &quotient);
-    return (MMI32)quotient.low;
+    return quotient.low;
 }
 
 MMI32 mm_pixel_sample(MMI32 position, MMI32 source, MMI32 destination, int near_size)
@@ -66,15 +101,15 @@ MMI32 mm_pixel_sample(MMI32 position, MMI32 source, MMI32 destination, int near_
     if (near_size)
         return position < source ? position : source - 1;
     /* COLORONCOLOR uses the source cell under the centre of the target pixel. */
-    return scale_floor((MMU32)position * 2 + 1, (MMU32)source, (MMU32)destination * 2);
+    return (MMI32)mm_pixel_muldiv((MMU32)position * 2 + 1, (MMU32)source, (MMU32)destination * 2);
 }
 
 static MMI32 sample_edge(MMI32 position, MMI32 source, MMI32 destination)
 {
     /* For reduction, compute the ceiling as source minus the remaining floor. */
     if (source > destination)
-        return source - scale_floor((MMU32)(destination - position), (MMU32)source, (MMU32)destination);
-    return scale_floor((MMU32)position, (MMU32)source, (MMU32)destination);
+        return source - (MMI32)mm_pixel_muldiv((MMU32)(destination - position), (MMU32)source, (MMU32)destination);
+    return (MMI32)mm_pixel_muldiv((MMU32)position, (MMU32)source, (MMU32)destination);
 }
 MMU32 mm_pixel_read(const unsigned char *row, MMI32 x, int depth)
 {
@@ -216,8 +251,9 @@ static int set_geometry(SampledCopy *copy, const MMPixelSurface *dst, const MMPi
     return mm_pixel_rect_extent(from, &copy->sw, &copy->sh) && mm_pixel_rect_extent(to, &copy->dw, &copy->dh);
 }
 
-static void copy_span(const SampledCopy *copy, MMI32 y, MMI32 left, MMI32 right)
+static void copy_span(void *context, MMI32 y, MMI32 left, MMI32 right)
 {
+    const SampledCopy *copy = (const SampledCopy *)context;
     const MMPixelSurface *src = copy->src, *dst = copy->dst;
     MMI32 dy = y - copy->to->top, sx, sy, x, dx;
     const unsigned char *src_row;
@@ -263,36 +299,11 @@ static void copy_span(const SampledCopy *copy, MMI32 y, MMI32 left, MMI32 right)
     }
 }
 
-static void draw_copy(const SampledCopy *copy, const MMPixelRect *clip, const MMPixelSpans *spans)
+static void draw_copy(SampledCopy *copy, const MMPixelRect *clip, const MMPixelSpans *spans)
 {
     MMPixelRect bounds;
-    MMI32 y, row, height, left, right;
-    bounds.left = bounds.top = 0;
-    bounds.right = copy->dst->width;
-    bounds.bottom = copy->dst->height;
-    mm_pixel_rect_intersect(&bounds, copy->to);
-    if (clip)
-        mm_pixel_rect_intersect(&bounds, clip);
-    if (bounds.left >= bounds.right || bounds.top >= bounds.bottom)
-        return;
-    if (!spans)
-    {
-        for (y = bounds.top; y < bounds.bottom; ++y)
-            copy_span(copy, y, bounds.left, bounds.right);
-        return;
-    }
-    spans->begin(spans->context, &bounds);
-    for (y = bounds.top; y < bounds.bottom; y += height)
-    {
-        height = spans->height ? spans->height(spans->context) : 1;
-        if (height > bounds.bottom - y)
-            height = bounds.bottom - y;
-        while (spans->next(spans->context, &left, &right))
-            for (row = y; row < y + height; ++row)
-                copy_span(copy, row, left, right);
-        if (y + height < bounds.bottom)
-            spans->advance(spans->context, height);
-    }
+    if (mm_pixel_visible_rect(copy->dst, copy->to, clip, &bounds))
+        mm_pixel_visit_spans(&bounds, spans, copy_span, copy);
 }
 
 int mm_pixel_copy(const MMPixelImage *target, const MMPixelImage *source, const MMPixelRect *source_rect,

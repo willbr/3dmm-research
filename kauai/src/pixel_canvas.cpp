@@ -3,9 +3,9 @@
 #include "ellipse_geometry.h"
 #include "dib_frame.h"
 #include "mm/dib_frame.h"
+#include "mm/pixel_paint.h"
 #include <algorithm>
 #include <cstring>
-#include <limits>
 #include <new>
 #include <vector>
 #include "kauai_core.h"
@@ -17,87 +17,10 @@ namespace KauaiPixels
 {
 namespace
 {
-bool Valid(const Surface32 &surface)
-{
-    return surface.pixels && surface.width > 0 && surface.height > 0 &&
-           surface.width <= std::numeric_limits<std::int32_t>::max() / 4 && surface.pitch >= surface.width * 4 &&
-           std::uint64_t(surface.pitch) * surface.height <= std::numeric_limits<std::size_t>::max();
-}
-bool Valid(const Surface8 &surface)
-{
-    return surface.pixels && surface.width > 0 && surface.height > 0 && surface.pitch >= surface.width &&
-           std::uint64_t(surface.pitch) * surface.height <= std::numeric_limits<std::size_t>::max();
-}
-std::uint8_t *Pixel(const Surface32 &surface, std::int32_t x, std::int32_t y)
-{
-    return static_cast<std::uint8_t *>(surface.pixels) + std::size_t(y) * surface.pitch + std::size_t(x) * 4;
-}
-std::uint8_t *Pixel(const Surface8 &surface, std::int32_t x, std::int32_t y)
-{
-    return static_cast<std::uint8_t *>(surface.pixels) + std::size_t(y) * surface.pitch + x;
-}
-template <class Surface, class DrawSpan>
-void Spans(const Surface &surface, const RC &rectangle, const RC *clip, Region *region, DrawSpan draw)
-{
-    RC bounds(0, 0, surface.width, surface.height);
-    RC shape = rectangle;
-    if (!bounds.FIntersect(&shape))
-        return;
-    if (clip)
-    {
-        RC clipping = *clip;
-        if (!bounds.FIntersect(&clipping))
-            return;
-    }
-    RegionScanner scanner;
-    if (region)
-        scanner.Init(region, &bounds);
-    else
-        scanner.InitRc(&bounds, &bounds);
-    for (LegacyLong y = bounds.ypTop; y < bounds.ypBottom;)
-    {
-        const auto height = LwMin(scanner.DypCur(), bounds.ypBottom - y);
-        while (scanner.XpCur() < klwMax)
-        {
-            const auto left = scanner.XpCur() + bounds.xpLeft;
-            const auto right = scanner.XpFetch() + bounds.xpLeft;
-            scanner.XpFetch();
-            for (LegacyLong row = y; row < y + height; ++row)
-                draw(row, left, right);
-        }
-        y += height;
-        if (y < bounds.ypBottom)
-            scanner.ScanNext(height);
-    }
-}
-void Paint(std::uint8_t *pixel, const Ink &ink)
-{
-    if (ink.mode == InkMode::clear)
-        return;
-    std::uint32_t value = ink.rgb & 0xFFFFFF;
-    if (ink.mode == InkMode::invert)
-    {
-        std::memcpy(&value, pixel, 4);
-        value ^= 0xFFFFFF;
-    }
-    std::memcpy(pixel, &value, 4);
-}
-void Paint(std::uint8_t *pixel, const Ink8 &ink)
-{
-    *pixel = (*pixel & ink.andMask) ^ ink.xorMask;
-}
 const unsigned char *PaletteBytes(const Color *palette)
 {
     static_assert(sizeof(Color) == 4, "Raster palette layout");
     return reinterpret_cast<const unsigned char *>(palette);
-}
-std::uint8_t NearestIndex(const Color *palette, std::int32_t colors, std::uint32_t rgb)
-{
-    return mm_pixel_nearest(PaletteBytes(palette), colors, rgb);
-}
-std::uint32_t Rgb(const Color &color)
-{
-    return mm_pixel_rgb(PaletteBytes(&color));
 }
 MMPixelImage RasterImage(const PackedSurface &surface)
 {
@@ -133,465 +56,251 @@ bool CopyRaster(const MMPixelImage &target, const MMPixelImage &source, const RC
     return mm_pixel_copy(&target, &source, &from, &to, clip ? &clipping : nullptr, region ? &spans : nullptr, options,
                          StorageOverlaps) != 0;
 }
-bool ValidStorage(const PackedSurface &surface)
+
+MMPixelSurface RasterSurface(const Surface8 &surface)
 {
-    const MMPixelSurface layout = {surface.pixels, surface.width, surface.height, surface.pitch, surface.depth};
-    return mm_pixel_surface_valid(&layout) != 0;
+    return {surface.pixels, surface.width, surface.height, surface.pitch, 8};
 }
-bool Valid(const PackedSurface &surface)
+struct RasterClip
 {
-    const auto image = RasterImage(surface);
-    return mm_pixel_image_valid(&image) != 0;
-}
-std::uint32_t PackedRead(const PackedSurface &surface, std::int32_t x, std::int32_t y)
-{
-    const auto row = static_cast<const std::uint8_t *>(surface.pixels) + std::size_t(y) * surface.pitch;
-    return mm_pixel_read(row, x, surface.depth);
-}
-void PackedWrite(const PackedSurface &surface, std::int32_t x, std::int32_t y, std::uint32_t raw)
-{
-    const auto row = static_cast<std::uint8_t *>(surface.pixels) + std::size_t(y) * surface.pitch;
-    mm_pixel_write(row, x, surface.depth, raw);
-}
-std::uint32_t Rgb555(std::uint32_t rgb)
-{
-    return mm_pixel_rgb555(rgb);
-}
-struct PackedInk
-{
-    std::uint32_t andMask = 0, xorMask = 0;
+    MMPixelRect bounds;
+    MaskedRegionSpans scanner;
+    MMPixelSpans spans;
+    const MMPixelRect *rectangle;
+    const MMPixelSpans *region;
+
+    RasterClip(const RC *clip, Region *r)
+        : bounds(clip ? RasterRect(*clip) : MMPixelRect{}), scanner(r), spans(scanner.Services()),
+          rectangle(clip ? &bounds : nullptr), region(r ? &spans : nullptr)
+    {
+    }
 };
-struct PackedBrush
+MMPixelColorBrush RasterColors(const Brush &brush)
 {
-    PackedInk foreground, background;
-    std::uint8_t pattern[8] = {255, 255, 255, 255, 255, 255, 255, 255};
-};
-struct PackedPixel
-{
-    const PackedSurface &surface;
-    std::int32_t x, y;
-};
-PackedPixel Pixel(const PackedSurface &surface, std::int32_t x, std::int32_t y)
-{
-    return {surface, x, y};
+    static_assert(int(InkMode::color) == MM_PIXEL_COLOR && int(InkMode::clear) == MM_PIXEL_CLEAR &&
+                  int(InkMode::invert) == MM_PIXEL_INVERT, "Raster ink modes");
+    MMPixelColorBrush result = {{brush.foreground.rgb, int(brush.foreground.mode)},
+                                {brush.background.rgb, int(brush.background.mode)}, {}};
+    std::memcpy(result.pattern, brush.pattern, sizeof(result.pattern));
+    return result;
 }
-void Paint(const PackedPixel &pixel, const PackedInk &ink)
+MMPixelMono RasterMono(const MonochromeBrushState &state)
 {
-    PackedWrite(pixel.surface, pixel.x, pixel.y,
-                (PackedRead(pixel.surface, pixel.x, pixel.y) & ink.andMask) ^ ink.xorMask);
+    return {state.backgroundRgb, state.backgroundReference, state.foregroundReference, state.alternateReference,
+            state.collapseEqualColors};
 }
-template <class Surface, class PixelBrush>
-void FillRectCore(const Surface &surface, const RC &rectangle, const PixelBrush &brush, const RC *clip, Region *region,
-                  std::int32_t frameX, std::int32_t frameY)
+MMPixelBrush RasterBrush(const Brush &brush)
 {
-    if (!Valid(surface))
-        return;
-    const bool frame = frameX >= 0 && frameY >= 0 &&
-                       std::int64_t(frameX) * 2 < std::int64_t(rectangle.xpRight) - rectangle.xpLeft &&
-                       std::int64_t(frameY) * 2 < std::int64_t(rectangle.ypBottom) - rectangle.ypTop;
-    Spans(surface, rectangle, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        for (auto x = left; x < right; ++x)
-        {
-            if (frame && x >= rectangle.xpLeft + frameX && x < rectangle.xpRight - frameX &&
-                y >= rectangle.ypTop + frameY && y < rectangle.ypBottom - frameY)
-                continue;
-            const auto &ink = brush.pattern[y & 7] & (0x80 >> (x & 7)) ? brush.foreground : brush.background;
-            Paint(Pixel(surface, x, y), ink);
-        }
-    });
+    const auto colors = RasterColors(brush);
+    MMPixelBrush result;
+    mm_pixel_resolve_rgb(&colors, &result);
+    return result;
 }
-template <class PixelBrush, class Convert>
-void ResolveBrushCore(const Brush &source, PixelBrush &indexed, Convert nearest, bool highlight = false)
+MMPixelBrush RasterBrush(const Brush8 &brush)
 {
-    using PixelInk = decltype(indexed.foreground);
-    using Word = decltype(indexed.foreground.andMask);
-    const auto full = static_cast<Word>(~Word{});
-    indexed = {};
-    if (highlight)
+    MMPixelBrush result = {{brush.foreground.andMask, brush.foreground.xorMask},
+                           {brush.background.andMask, brush.background.xorMask}, {}};
+    std::memcpy(result.pattern, brush.pattern, sizeof(result.pattern));
+    return result;
+}
+bool ResolvePacked(const MMPixelImage &image, const Brush &brush, const MonochromeBrushState &state,
+                   MMPixelBrush &result)
+{
+    const auto colors = RasterColors(brush);
+    const auto mono = RasterMono(state);
+    return mm_pixel_resolve_packed(&image, &colors, &mono, &result) != 0;
+}
+void FillRectRaster(const MMPixelSurface &surface, const MMPixelBrush &brush, const RC &rectangle, const RC *clip,
+                    Region *region, MMI32 frameX, MMI32 frameY)
+{
+    const auto shape = RasterRect(rectangle);
+    RasterClip clipped(clip, region);
+    mm_pixel_fill_rect(&surface, &brush, &shape, clipped.rectangle, clipped.region, frameX, frameY);
+}
+bool FillOvalRaster(const MMPixelSurface &surface, const MMPixelBrush &brush, const RC &rectangle, const RC *clip,
+                    Region *region, MMI32 frameX, MMI32 frameY)
+{
+    const auto shape = RasterRect(rectangle);
+    MMI32 width, height;
+    if (!mm_pixel_surface_valid(&surface) || !mm_pixel_rect_extent(&shape, &width, &height) ||
+        width > (1 << 26) || height > (1 << 26))
+        return false;
+    RasterClip clipped(clip, region);
+    MMPixelRect bounds;
+    if (!mm_pixel_visible_rect(&surface, &shape, clipped.rectangle, &bounds))
+        return true;
+    const bool frame = frameX >= 0 && frameY >= 0 && 2 * MMU32(frameX) < MMU32(width) &&
+                       2 * MMU32(frameY) < MMU32(height);
+    const auto first = bounds.top - shape.top, count = bounds.bottom - bounds.top;
+    std::vector<EllipseSpan> outside, inside;
+    if (!EllipseRows(width - (frame ? 1 : 0), height - (frame ? 1 : 0), first, count, outside) ||
+        (frame && !EllipseRows(width - 2 * frameX - 1, height - 2 * frameY - 1, first - frameY, count, inside)))
+        return false;
+    struct OvalPaint
     {
-        indexed.foreground = PixelInk{full, full};
-        return;
-    }
-    const auto white = nearest(0xFFFFFF), black = nearest(0);
-    const auto solid = [&](const Ink &ink) {
-        return ink.mode == InkMode::clear    ? PixelInk{full, 0}
-               : ink.mode == InkMode::invert ? PixelInk{full, white}
-                                             : PixelInk{0, nearest(ink.rgb)};
-    };
-    bool allFore = true, allBack = true;
-    for (auto row : source.pattern)
-    {
-        allFore &= row == 255;
-        allBack &= row == 0;
-    }
-    const bool same = source.foreground.mode == source.background.mode &&
-                      (source.foreground.mode != InkMode::color || source.foreground.rgb == source.background.rgb);
-    if (allFore || same)
-    {
-        indexed.foreground = solid(source.foreground);
-        return;
-    }
-    if (allBack)
-    {
-        indexed.foreground = solid(source.background);
-        return;
-    }
-    Brush brush = source;
-    if (brush.background.mode == InkMode::invert ||
-        (brush.background.mode == InkMode::clear && brush.foreground.mode != InkMode::invert))
-    {
-        std::swap(brush.foreground, brush.background);
-        for (auto &row : brush.pattern)
-            row ^= 255;
-    }
-    std::memcpy(indexed.pattern, brush.pattern, 8);
-    const auto transform = [&](bool foreground) {
-        const auto mapping = [&](Word before) {
-            const Word mask = foreground ? white : black;
-            if (brush.foreground.mode == InkMode::invert)
-            {
-                before ^= mask;
-                if (brush.background.mode == InkMode::clear)
-                    return before;
-            }
-            if (brush.foreground.mode == InkMode::clear || brush.foreground.mode == InkMode::invert)
-                return static_cast<Word>((before | static_cast<Word>(~mask)) &
-                                         (foreground ? white : nearest(brush.background.rgb)));
-            return nearest(foreground ? brush.foreground.rgb : brush.background.rgb);
+        const MMPixelSurface &surface;
+        const MMPixelBrush &brush;
+        const EllipseSpan *outside, *inside;
+        MMI32 x, top, frameX;
+    } paint{surface, brush, outside.data(), frame ? inside.data() : nullptr, shape.left, bounds.top, frameX};
+    mm_pixel_visit_spans(&bounds, clipped.region, [](void *context, MMI32 y, MMI32 left, MMI32 right) {
+        const auto &state = *static_cast<const OvalPaint *>(context);
+        const auto row = y - state.top;
+        const auto draw = [&](MMI32 start, MMI32 end) {
+            start = std::max(left, start);
+            end = std::min(right, end);
+            if (start < end)
+                mm_pixel_paint_span(&state.surface, &state.brush, y, start, end);
         };
-        const auto zero = mapping(0), ones = mapping(full);
-        return PixelInk{static_cast<Word>(zero ^ ones), zero};
-    };
-    indexed.foreground = transform(true);
-    indexed.background = transform(false);
+        const auto &outer = state.outside[row];
+        if (!state.inside)
+            draw(state.x + outer.left, state.x + outer.right);
+        else
+        {
+            const auto &inner = state.inside[row];
+            MMI32 edges[] = {state.x + outer.left, state.x + outer.right, state.x + state.frameX + inner.left,
+                             state.x + state.frameX + inner.right};
+            std::sort(edges, edges + 4);
+            draw(edges[0], edges[1]);
+            draw(edges[2], edges[3]);
+        }
+    }, &paint);
+    return true;
+}
+bool DrawCoverageRaster(const MMPixelSurface &target, const Coverage8 &mask, MMI32 x, MMI32 y, MMU32 sample,
+                        const RC *clip, Region *region, bool blend)
+{
+    const MMPixelCoverage coverage = {mask.pixels, mask.width, mask.height, mask.pitch};
+    RasterClip clipped(clip, region);
+    return mm_pixel_draw_coverage(&target, &coverage, x, y, sample, blend, clipped.rectangle, clipped.region) != 0;
+}
+bool FillPolygonRaster(const MMPixelSurface &surface, const MMPixelBrush &brush, const Point *points, std::size_t count,
+                       const RC *clip, Region *region)
+{
+    MMPixelPoint local[32];
+    auto input = local;
+    std::vector<MMPixelPoint> extended;
+    if (!points && count)
+        return false;
+    if (count > sizeof(local) / sizeof(local[0]))
+    {
+        if (count > extended.max_size())
+            return false;
+        try
+        {
+            extended.resize(count);
+        }
+        catch (const std::bad_alloc &)
+        {
+            return false;
+        }
+        input = extended.data();
+    }
+    for (std::size_t i = 0; i < count; ++i)
+        input[i] = {points[i].x, points[i].y};
+    RasterClip clipped(clip, region);
+    return mm_pixel_fill_polygon(&surface, &brush, input, count, clipped.rectangle, clipped.region) != 0;
 }
 } // namespace
+
 std::uint8_t ResolveMonochromeColor(std::uint32_t rgb, std::uint8_t reference, const MonochromeBrushState &state,
                                     const Color *palette)
 {
-    static constexpr Color standard[] = {{0, 0, 0, 0}, {255, 255, 255, 0}};
-    if (!palette)
-        palette = standard;
-    rgb &= 0xFFFFFF;
-    for (unsigned i = 0; i < 2; ++i)
-        if (Rgb(palette[i]) == rgb)
-            return static_cast<std::uint8_t>(i);
-    const auto background = NearestIndex(palette, 2, state.backgroundRgb);
-    return rgb == (state.backgroundRgb & 0xFFFFFF) && reference == state.backgroundReference ? background
-                                                                                             : 1u - background;
+    const auto mono = RasterMono(state);
+    return mm_pixel_monochrome_colour(rgb, reference, &mono, PaletteBytes(palette));
 }
-namespace
-{
-bool MonochromeSolidBrush(const PackedSurface &surface, const Brush &brush, PackedBrush &packed,
-                          const MonochromeBrushState &state)
-{
-    bool allFore = true, allBack = true;
-    for (auto row : brush.pattern)
-    {
-        allFore &= row == 255;
-        allBack &= row == 0;
-    }
-    const bool same = brush.foreground.mode == brush.background.mode &&
-                      (brush.foreground.mode != InkMode::color ||
-                       (state.collapseEqualColors && brush.foreground.rgb == brush.background.rgb &&
-                        state.foregroundReference == state.alternateReference));
-    if (!allFore && !allBack && !same)
-        return false;
-    const bool alternate = allBack && !same;
-    const auto &ink = alternate ? brush.background : brush.foreground;
-    const auto pixel = [&](std::uint32_t rgb, std::uint8_t reference) -> std::uint32_t {
-        return ResolveMonochromeColor(rgb, reference, state, surface.palette);
-    };
-    packed = {};
-    packed.foreground =
-        ink.mode == InkMode::clear ? PackedInk{UINT32_MAX, 0}
-        : ink.mode == InkMode::invert
-            ? PackedInk{UINT32_MAX, pixel(0xFFFFFF, 0)}
-            : PackedInk{0, pixel(ink.rgb, alternate ? state.alternateReference : state.foregroundReference)};
-    return true;
-}
-bool PackedShapeBrush(const PackedSurface &surface, const Brush &brush, PackedBrush &packed,
-                      const MonochromeBrushState &monochrome)
-{
-    if (!Valid(surface) || (surface.depth != 1 && surface.depth != 4 && surface.depth != 16 && surface.depth != 24))
-        return false;
-    if (surface.depth == 1)
-        return MonochromeSolidBrush(surface, brush, packed, monochrome);
-    ResolveBrushCore(brush, packed, [&](std::uint32_t rgb) -> std::uint32_t {
-        if (surface.depth == 4)
-            return NearestIndex(surface.palette, surface.colors, rgb);
-        return surface.depth == 16 ? Rgb555(rgb) : rgb & 0xFFFFFF;
-    });
-    return true;
-}
-} // namespace
 bool ResolveBrush8(const Brush &source, const Color *palette, std::int32_t colors, Brush8 &indexed, bool highlight)
 {
-    if (!palette || colors < 1 || colors > 256)
+    const auto input = RasterColors(source);
+    MMPixelBrush brush;
+    if (!mm_pixel_resolve_indexed(&input, PaletteBytes(palette), colors, highlight, &brush))
         return false;
-    ResolveBrushCore(
-        source, indexed, [&](std::uint32_t rgb) { return NearestIndex(palette, colors, rgb); }, highlight);
+    indexed.foreground = {byte(brush.foreground.and_mask), byte(brush.foreground.xor_mask)};
+    indexed.background = {byte(brush.background.and_mask), byte(brush.background.xor_mask)};
+    std::memcpy(indexed.pattern, brush.pattern, sizeof(indexed.pattern));
     return true;
 }
 
 void FillRect(const Surface32 &surface, const RC &rectangle, const Brush &brush, const RC *clip, Region *region,
               std::int32_t frameX, std::int32_t frameY)
 {
-    FillRectCore(surface, rectangle, brush, clip, region, frameX, frameY);
+    FillRectRaster(RasterSurface(surface), RasterBrush(brush), rectangle, clip, region, frameX, frameY);
 }
 void FillRect(const Surface8 &surface, const RC &rectangle, const Brush8 &brush, const RC *clip, Region *region,
               std::int32_t frameX, std::int32_t frameY)
 {
-    FillRectCore(surface, rectangle, brush, clip, region, frameX, frameY);
+    FillRectRaster(RasterSurface(surface), RasterBrush(brush), rectangle, clip, region, frameX, frameY);
 }
 bool FillRect(const PackedSurface &surface, const RC &rectangle, const Brush &brush, const RC *clip, Region *region,
               std::int32_t frameX, std::int32_t frameY, const MonochromeBrushState &monochrome)
 {
-    PackedBrush packed;
-    if (!PackedShapeBrush(surface, brush, packed, monochrome))
+    const auto image = RasterImage(surface);
+    MMPixelBrush result;
+    if (!ResolvePacked(image, brush, monochrome, result))
         return false;
-    FillRectCore(surface, rectangle, packed, clip, region, frameX, frameY);
+    FillRectRaster(image.surface, result, rectangle, clip, region, frameX, frameY);
     return true;
 }
 bool InvertRect(const PackedSurface &surface, const RC &rectangle, const RC *clip, Region *region)
 {
-    if (!ValidStorage(surface) || (surface.depth != 1 && surface.depth != 4 && surface.depth != 16 && surface.depth != 24))
-        return false;
-    PackedBrush packed;
-    packed.foreground = {UINT32_MAX, UINT32_MAX};
-    FillRectCore(surface, rectangle, packed, clip, region, -1, -1);
-    return true;
+    const auto target = RasterImage(surface);
+    const auto shape = RasterRect(rectangle);
+    RasterClip clipped(clip, region);
+    return mm_pixel_invert_packed_rect(&target, &shape, clipped.rectangle, clipped.region) != 0;
 }
 
-namespace
-{
-template <class Surface, class PixelBrush>
-bool FillOvalCore(const Surface &surface, const RC &rectangle, const PixelBrush &brush, const RC *clip, Region *region,
-                  std::int32_t frameX, std::int32_t frameY)
-{
-    const auto width = std::int64_t(rectangle.xpRight) - rectangle.xpLeft;
-    const auto height = std::int64_t(rectangle.ypBottom) - rectangle.ypTop;
-    if (!Valid(surface) || width < 0 || height < 0 || width > (1 << 26) || height > (1 << 26))
-        return false;
-    RC bounds(0, 0, surface.width, surface.height), shape = rectangle;
-    if (!bounds.FIntersect(&shape))
-        return true;
-    if (clip)
-    {
-        RC clipping = *clip;
-        if (!bounds.FIntersect(&clipping))
-            return true;
-    }
-    const bool frame = frameX >= 0 && frameY >= 0 && 2LL * frameX < width && 2LL * frameY < height;
-    const auto first = bounds.ypTop - rectangle.ypTop;
-    std::vector<EllipseSpan> outside, inside;
-    if (!EllipseRows(static_cast<std::int32_t>(width - (frame ? 1 : 0)),
-                     static_cast<std::int32_t>(height - (frame ? 1 : 0)), first, bounds.Dyp(), outside))
-        return false;
-    if (frame &&
-        !EllipseRows(static_cast<std::int32_t>(width - 2LL * frameX - 1),
-                     static_cast<std::int32_t>(height - 2LL * frameY - 1), first - frameY, bounds.Dyp(), inside))
-        return false;
-    Spans(surface, rectangle, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        const auto row = y - bounds.ypTop;
-        const auto &outer = outside[row];
-        const auto outerLeft = rectangle.xpLeft + outer.left, outerRight = rectangle.xpLeft + outer.right;
-        const auto innerLeft = frame ? rectangle.xpLeft + frameX + inside[row].left : 0;
-        const auto innerRight = frame ? rectangle.xpLeft + frameX + inside[row].right : 0;
-        for (auto x = left; x < right; ++x)
-        {
-            const bool inOuter = x >= outerLeft && x < outerRight;
-            const bool inInner = frame && x >= innerLeft && x < innerRight;
-            if (inOuter != inInner)
-            {
-                const auto &ink = brush.pattern[y & 7] & (0x80 >> (x & 7)) ? brush.foreground : brush.background;
-                Paint(Pixel(surface, x, y), ink);
-            }
-        }
-    });
-    return true;
-}
-} // namespace
 bool FillOval(const Surface32 &surface, const RC &rectangle, const Brush &brush, const RC *clip, Region *region,
               std::int32_t frameX, std::int32_t frameY)
 {
-    return FillOvalCore(surface, rectangle, brush, clip, region, frameX, frameY);
+    return FillOvalRaster(RasterSurface(surface), RasterBrush(brush), rectangle, clip, region, frameX, frameY);
 }
 bool FillOval(const Surface8 &surface, const RC &rectangle, const Brush8 &brush, const RC *clip, Region *region,
               std::int32_t frameX, std::int32_t frameY)
 {
-    return FillOvalCore(surface, rectangle, brush, clip, region, frameX, frameY);
+    return FillOvalRaster(RasterSurface(surface), RasterBrush(brush), rectangle, clip, region, frameX, frameY);
 }
 bool FillOval(const PackedSurface &surface, const RC &rectangle, const Brush &brush, const RC *clip, Region *region,
               std::int32_t frameX, std::int32_t frameY, const MonochromeBrushState &monochrome)
 {
-    PackedBrush packed;
-    return PackedShapeBrush(surface, brush, packed, monochrome) &&
-           FillOvalCore(surface, rectangle, packed, clip, region, frameX, frameY);
+    const auto image = RasterImage(surface);
+    MMPixelBrush result;
+    return ResolvePacked(image, brush, monochrome, result) &&
+           FillOvalRaster(image.surface, result, rectangle, clip, region, frameX, frameY);
 }
 
-namespace
-{
-template <class Surface, class Blend>
-void CoverageCore(const Surface &destination, const Coverage8 &mask, std::int32_t x, std::int32_t y, const RC *clip,
-                  Region *region, Blend blend)
-{
-    if (!Valid(destination) || !mask.pixels || mask.width <= 0 || mask.height <= 0 || mask.pitch < mask.width ||
-        std::uint64_t(mask.pitch) * mask.height > std::numeric_limits<std::size_t>::max())
-        return;
-    const auto right = std::min<std::int64_t>(INT32_MAX, std::int64_t(x) + mask.width);
-    const auto bottom = std::min<std::int64_t>(INT32_MAX, std::int64_t(y) + mask.height);
-    RC bounds(x, y, static_cast<LegacyLong>(right), static_cast<LegacyLong>(bottom));
-    Spans(destination, bounds, clip, region, [&](LegacyLong row, LegacyLong left, LegacyLong end) {
-        const auto source = mask.pixels + std::size_t(std::int64_t(row) - y) * mask.pitch;
-        for (auto column = left; column < end; ++column)
-            blend(Pixel(destination, column, row), source[std::size_t(std::int64_t(column) - x)]);
-    });
-}
-} // namespace
 void DrawCoverage(const Surface32 &destination, const Coverage8 &mask, std::int32_t x, std::int32_t y,
                   std::uint32_t rgb, const RC *clip, Region *region)
 {
-    CoverageCore(destination, mask, x, y, clip, region, [&](std::uint8_t *pixel, std::uint8_t alpha) {
-        if (!alpha)
-            return;
-        std::uint32_t result = rgb & 0xFFFFFF;
-        if (alpha != 255)
-        {
-            std::uint32_t previous;
-            std::memcpy(&previous, pixel, 4);
-            result = 0;
-            for (unsigned shift = 0; shift < 24; shift += 8)
-                result |= (((((previous >> shift) & 255) * (255 - alpha) + ((rgb >> shift) & 255) * alpha + 127) / 255)
-                           << shift);
-        }
-        std::memcpy(pixel, &result, 4);
-    });
+    DrawCoverageRaster(RasterSurface(destination), mask, x, y, rgb, clip, region, true);
 }
 void DrawCoverage(const Surface8 &destination, const Coverage8 &mask, std::int32_t x, std::int32_t y,
                   std::uint8_t index, const RC *clip, Region *region)
 {
-    CoverageCore(destination, mask, x, y, clip, region, [=](std::uint8_t *pixel, std::uint8_t alpha) {
-        if (alpha >= 128)
-            *pixel = index;
-    });
+    DrawCoverageRaster(RasterSurface(destination), mask, x, y, index, clip, region, false);
 }
 bool DrawCoverage(const PackedSurface &destination, const Coverage8 &mask, std::int32_t x, std::int32_t y,
                   std::uint32_t rawPixel, const RC *clip, Region *region)
 {
-    if (!ValidStorage(destination) || !mask.pixels || mask.width <= 0 || mask.height <= 0 || mask.pitch < mask.width ||
-        std::uint64_t(mask.pitch) * mask.height > std::numeric_limits<std::size_t>::max())
-        return false;
-    const auto right = std::min<std::int64_t>(INT32_MAX, std::int64_t(x) + mask.width);
-    const auto bottom = std::min<std::int64_t>(INT32_MAX, std::int64_t(y) + mask.height);
-    RC bounds(x, y, static_cast<LegacyLong>(right), static_cast<LegacyLong>(bottom));
-    Spans(destination, bounds, clip, region, [&](LegacyLong row, LegacyLong left, LegacyLong end) {
-        const auto source = mask.pixels + std::size_t(std::int64_t(row) - y) * mask.pitch;
-        for (auto column = left; column < end; ++column)
-            if (source[std::size_t(std::int64_t(column) - x)] >= 128)
-                PackedWrite(destination, column, row, rawPixel);
-    });
-    return true;
+    return DrawCoverageRaster(RasterImage(destination).surface, mask, x, y, rawPixel, clip, region, false);
 }
-namespace
-{
-template <class Surface, class PixelBrush>
-bool FillPolygonCore(const Surface &surface, const Point *points, std::size_t count, const PixelBrush &brush,
-                     const RC *clip, Region *region)
-{
-    if (!Valid(surface) || (!points && count))
-        return false;
-    if (count < 3)
-        return true;
-    RC bounds(points[0].x, points[0].y, points[0].x, points[0].y);
-    for (std::size_t i = 1; i < count; ++i)
-    {
-        bounds.xpLeft = std::min<LegacyLong>(bounds.xpLeft, points[i].x);
-        bounds.xpRight = std::max<LegacyLong>(bounds.xpRight, points[i].x);
-        bounds.ypTop = std::min<LegacyLong>(bounds.ypTop, points[i].y);
-        bounds.ypBottom = std::max<LegacyLong>(bounds.ypBottom, points[i].y);
-    }
-    struct Crossing
-    {
-        std::int64_t x;
-        std::int64_t winding;
-    };
-    std::vector<Crossing> crossings;
-    if (count > crossings.max_size())
-        return false;
-    try
-    {
-        crossings.reserve(count);
-    }
-    catch (const std::bad_alloc &)
-    {
-        return false;
-    }
-    std::int64_t lastRow = INT64_MIN;
-    Spans(surface, bounds, clip, region, [&](LegacyLong y, LegacyLong left, LegacyLong right) {
-        if (lastRow != y)
-        {
-            crossings.clear();
-            for (std::size_t i = 0; i < count; ++i)
-            {
-                Point a = points[i], b = points[i + 1 == count ? 0 : i + 1];
-                const auto winding = a.y < b.y ? 1 : -1;
-                if (a.y > b.y)
-                    std::swap(a, b);
-                if (y < a.y || y >= b.y)
-                    continue;
-                const auto dy = std::uint64_t(std::int64_t(b.y) - a.y);
-                const auto dx = std::int64_t(b.x) - a.x;
-                // Each factor fits 32 unsigned bits, including for edges
-                // crossing the full signed coordinate range. No signed
-                // product overflow or floating-point edge rounding.
-                const auto product = std::uint64_t(std::int64_t(y) - a.y) * std::uint64_t(dx < 0 ? -dx : dx);
-                const auto quotient = static_cast<std::int64_t>(product / dy);
-                const auto cut = std::int64_t(a.x) + (dx < 0 ? -quotient : quotient + (product % dy != 0));
-                crossings.push_back({cut, winding});
-            }
-            std::sort(crossings.begin(), crossings.end(),
-                      [](const Crossing &a, const Crossing &b) { return a.x < b.x; });
-            lastRow = y;
-        }
-        std::int64_t winding = 0, start = 0;
-        for (std::size_t i = 0; i < crossings.size();)
-        {
-            const auto cut = crossings[i].x;
-            const bool inside = winding != 0;
-            do
-            {
-                winding += crossings[i++].winding;
-            } while (i < crossings.size() && crossings[i].x == cut);
-            if (!inside && winding)
-                start = cut;
-            if (inside && !winding)
-                for (auto x = std::max<std::int64_t>(left, start); x < std::min<std::int64_t>(right, cut); ++x)
-                {
-                    const auto &ink = brush.pattern[y & 7] & (0x80 >> (x & 7)) ? brush.foreground : brush.background;
-                    Paint(Pixel(surface, static_cast<std::int32_t>(x), y), ink);
-                }
-        }
-    });
-    return true;
-}
-} // namespace
+
 bool FillPolygon(const Surface32 &surface, const Point *points, std::size_t count, const Brush &brush, const RC *clip,
                  Region *region)
 {
-    return FillPolygonCore(surface, points, count, brush, clip, region);
+    return FillPolygonRaster(RasterSurface(surface), RasterBrush(brush), points, count, clip, region);
 }
 bool FillPolygon(const Surface8 &surface, const Point *points, std::size_t count, const Brush8 &brush, const RC *clip,
                  Region *region)
 {
-    return FillPolygonCore(surface, points, count, brush, clip, region);
+    return FillPolygonRaster(RasterSurface(surface), RasterBrush(brush), points, count, clip, region);
 }
 bool FillPolygon(const PackedSurface &surface, const Point *points, std::size_t count, const Brush &brush,
                  const RC *clip, Region *region, const MonochromeBrushState &monochrome)
 {
-    PackedBrush packed;
-    return PackedShapeBrush(surface, brush, packed, monochrome) &&
-           FillPolygonCore(surface, points, count, packed, clip, region);
+    const auto image = RasterImage(surface);
+    MMPixelBrush result;
+    return ResolvePacked(image, brush, monochrome, result) &&
+           FillPolygonRaster(image.surface, result, points, count, clip, region);
 }
 
 bool Copy(const Surface32 &destination, const Surface32 &source, const RC &sourceRect, const RC &destinationRect,

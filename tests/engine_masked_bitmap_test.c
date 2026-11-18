@@ -1,5 +1,6 @@
 #include "mm/masked_bitmap.h"
 #include "mm/dib_frame.h"
+#include "mm/pixel_paint.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -683,6 +684,44 @@ static void pixel_scroll(void)
     assert(!memcmp(pixels, legacy, sizeof(pixels)));
 }
 
+static void pixel_polygon(void)
+{
+    static const MMPixelPoint triangle[] = {
+        {-2147483647L - 1, -2147483647L - 1}, {2147483647L, 2147483647L}, {-2147483647L - 1, 2147483647L}
+    };
+    const MMPixelBrush brush = {{0, 0x7e}, {0, 0}, {255, 255, 255, 255, 255, 255, 255, 255}};
+    MMPixelSurface surface;
+    unsigned char pixels[32];
+    MMI32 x, y;
+    surface.pixels = pixels;
+    surface.width = 7;
+    surface.height = 4;
+    surface.pitch = 8;
+    surface.depth = 8;
+    memset(pixels, 0xe7, sizeof(pixels));
+    assert(mm_pixel_fill_polygon(&surface, &brush, triangle, 3, NULL, NULL));
+    for (y = 0; y < surface.height; ++y)
+        for (x = 0; x < surface.pitch; ++x)
+            assert(pixels[y * surface.pitch + x] == (x < y ? 0x7e : 0xe7));
+}
+
+static void packed_inversion(void)
+{
+    static const unsigned char palette[] = {0, 0, 0, 0};
+    const MMPixelRect rect = {0, 0, 1, 1};
+    unsigned char bits = 0x37;
+    MMPixelImage image;
+    image.surface.pixels = &bits;
+    image.surface.width = image.surface.height = image.surface.pitch = 1;
+    image.surface.depth = 4;
+    image.palette = NULL;
+    image.colours = 0;
+    assert(mm_pixel_invert_packed_rect(&image, &rect, NULL, NULL) && bits == 0x37);
+    image.palette = palette;
+    image.colours = 1;
+    assert(mm_pixel_invert_packed_rect(&image, &rect, NULL, NULL) && bits == 0xc7);
+}
+
 int main(void)
 {
     encode();
@@ -695,6 +734,8 @@ int main(void)
     packed_copy();
     dib_and_indexed();
     pixel_scroll();
+    pixel_polygon();
+    packed_inversion();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

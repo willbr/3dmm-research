@@ -158,7 +158,7 @@ bool FillPolygon(const PackedSurface &surface, const Point *points, std::size_t 
                  const RC *clip = nullptr, Region *region = nullptr,
                  const MonochromeBrushState &monochrome = MonochromeBrushState{});
 // Highlight inversion also supports monochrome; it toggles every selected
-// stored bit, including RGB555's unused bit. No palette is required.
+// stored bit, including RGB555's unused bit. Uses packed fill validation.
 // Brush inversion instead XORs the packed representation of white.
 bool InvertRect(const PackedSurface &surface, const RC &rectangle, const RC *clip = nullptr, Region *region = nullptr);
 // Nearest-neighbor stretch, destination clipping and overlap-safe self-copy.

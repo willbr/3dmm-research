@@ -31,6 +31,12 @@ typedef struct MMPixelSpans
     MMI32 (*height)(void *);
 } MMPixelSpans;
 
+typedef void (*MMPixelDrawSpan)(void *context, MMI32 y, MMI32 left, MMI32 right);
+/* A visible rectangle is the intersection of a shape, surface and optional
+ * clip. The span visitor consumes a visible rectangle in region band order. */
+int mm_pixel_visible_rect(const MMPixelSurface *, const MMPixelRect *shape, const MMPixelRect *clip, MMPixelRect *);
+void mm_pixel_visit_spans(const MMPixelRect *visible, const MMPixelSpans *, MMPixelDrawSpan, void *context);
+
 typedef struct MMPixelImage
 {
     MMPixelSurface surface;
@@ -51,6 +57,8 @@ int mm_pixel_image_valid(const MMPixelImage *);
 /* Zero extents are valid. Reversed or unrepresentable extents fail. */
 int mm_pixel_rect_extent(const MMPixelRect *, MMI32 *width, MMI32 *height);
 void mm_pixel_rect_intersect(MMPixelRect *bounds, const MMPixelRect *clip);
+/* Unsigned floor(a * b / divisor) with nonzero divisor and a one-word result. */
+MMU32 mm_pixel_muldiv(MMU32 a, MMU32 b, MMU32 divisor);
 /* position is in [0, destination) and both extents are positive. */
 MMI32 mm_pixel_sample(MMI32 position, MMI32 source, MMI32 destination, int near_size);
 /* The caller supplies a row and an in-range pixel position. */

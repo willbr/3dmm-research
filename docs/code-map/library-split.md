@@ -5098,6 +5098,16 @@ row padding, extreme offsets and irregular monochrome regions. The Windows
 GDI oracle passed 111,780 scroll comparisons. Evidence is in
 `tmp/c89-pixel-scroll`.
 
+`pixel_paint.c` resolves solid and patterned Boolean brushes, converts
+monochrome ink using the original palette and reference rules, paints framed
+rectangles and nonzero-winding polygons, and applies thresholded or blended
+glyph coverage. Polygon intersections retain exact rounding across the full
+signed coordinate range. Oval drawing also uses C89 brush spans, with the
+existing curve subdivision supplying its outline. All 35,331 before-and-after
+cases matched across 60,936,207 bytes. The GDI font test reports the same
+System font metrics mismatch with both versions, after its packed glyph
+drawing comparisons pass. Evidence is in `tmp/c89-pixel-paint`.
+
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.
 Empty output retains the translated reference point. Row lengths must fit
