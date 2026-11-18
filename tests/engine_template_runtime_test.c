@@ -9,7 +9,8 @@ typedef struct Test
 {
     MMTemplateState state; int action,models[2],refs[2],action_refs;
     int parts,fail_action,fail_allocate,fail_model,fetches,indices_reads,sets,freed,releases,cel;
-    MMI32 distance,body_models[6],body_matrices[6],parents[6],sets_list[6],counts[3],ids[3][2];
+    MMI32 distance,body_models[6],body_matrices[6],parents[6],sets_list[6];
+    MMTemplateCostumeTable costumes;
     void *allocated; int exists,skip_distance; void *probe; int probe_release;
     Edge edges[32]; int edge_count,has_cache,resource_kind,name_fail;
 } Test;
@@ -90,20 +91,17 @@ static void *fetch(void *p,void *cache,MMU32 type,MMU32 number,int kind)
 { assert(cache==p && number==10+(MMU32)kind); assert(type==(kind==0?MM_ACTN:kind==1?MM_TEMPLATE_BMDL:MM_CMTL)); t(p)->resource_kind=kind; return &t(p)->action; }
 static int name(void *p,void *file,MMU32 type,MMU32 number,void *out)
 { assert(file==p && type==MM_ACTN && number==10); if (t(p)->name_fail) return 0; *(int *)out=42; return 1; }
-static unsigned char *fixed(void *p,void *group,MMI32 n) { assert(group==t(p)->counts); return (unsigned char *)&t(p)->counts[n]; }
-static unsigned char *variable(void *p,void *group,MMI32 n) { assert(group==t(p)->counts); return (unsigned char *)t(p)->ids[n]; }
 static MMI32 item(void *p,void *list,MMI32 n)
 { assert(n>=0 && n<t(p)->parts); assert(list==t(p)->parents || list==t(p)->sets_list); return ((MMI32 *)list)[n]; }
 static MMTemplateRuntimeServices init(Test *x,int parts)
 {
     MMTemplateRuntimeServices s; int i; memset(x,0,sizeof(*x)); memset(&s,0,sizeof(s));
     x->parts=parts; x->distance=-77; x->has_cache=1;
-    x->state.parents=x->parents; x->state.sets=x->sets_list; x->state.costumes=x->counts; x->state.set_count=3;
-    for (i=0;i<3;++i) { x->counts[i]=2; x->ids[i][0]=i; x->ids[i][1]=i+3; }
+    x->state.parents=x->parents; x->state.sets=x->sets_list; x->state.set_count=3;
     for (i=0;i<6;++i) { x->body_models[i]=-7; x->body_matrices[i]=-8; x->parents[i]=i?i-1:-1; x->sets_list[i]=i%3; }
     s.storage.context=x; s.storage.state=template_state; s.storage.count=count;
     s.storage.free_memory=free_memory; s.storage.release=release; s.storage.child=child;
-    s.storage.fixed_data=fixed; s.storage.variable_data=variable; s.storage.item=item;
+    s.storage.item=item;
     s.action=action; s.model=model; s.allocate_cel=allocate; s.cel_count=cel_count; s.distance=distance; s.flags=flags; s.part=part;
     s.matrix=matrix; s.set_model=set_model; s.set_matrix=set_matrix; s.sound=sound; s.sound_exists=sound_exists;
     s.binding=binding; s.fetch=fetch; s.name=name; return s;
@@ -150,6 +148,15 @@ int main(void)
     x.name_fail=1; out=-77; assert(!mm_template_action_name(&x,0,&out,&s) && out==-77);
     assert(!mm_template_action_name(&x,1,&out,&s) && out==-77);
     s=init(&x,4); x.sets_list[3]=2; x.parents[3]=0;
+    mm_template_costumes_init(&x.costumes, NULL, NULL, NULL);
+    x.state.costumes = &x.costumes;
+    for (i=0;i<3;++i)
+    {
+        MMI32 row[2];
+        row[0] = i;
+        row[1] = i + 3;
+        assert(mm_template_costumes_append(&x.costumes, row, 2));
+    }
     for (i=0;i<3;++i) edge(&x,MM_TMPL,1,i,MM_CMTL,20+i);
     edge(&x,MM_CMTL,22,0,MM_TEMPLATE_BMDL,100);
     for (i=0;i<3;++i) { assert(mm_template_costume_count(&x,i,&s)==2); assert(mm_template_costume_id(&x,i,1,&s)==i+3); }
@@ -167,5 +174,6 @@ int main(void)
     assert(!mm_template_same_accessory(&x,0,1,&s));
     x.has_cache=0; value=-77; assert(!mm_template_is_accessory(&x,2,&s));
     assert(!mm_template_accessory_set(&x,0,&value,&s) && value==-77);
+    mm_template_costumes_dispose(&x.costumes);
     return 0;
 }

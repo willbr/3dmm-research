@@ -48,6 +48,36 @@ static void *material_new(void *p) { if (checkpoint(t(p))) return NULL; return o
 static void retain(void *p,void *v) { Object *o=(Object *)v; assert(o->refs>0); if (v==t(p)->generated.action) t(p)->last_retain_id=t(p)->generated.action_id; ++o->refs; t(p)->events[t(p)->event_count++]=o->id; }
 static void release(void *p,void *v)
 { Object *o=(Object *)v; assert(o->refs>0); if (v==t(p)->generated.action) t(p)->last_release_id=t(p)->generated.action_id; t(p)->events[t(p)->event_count++]=-o->id; if (!--o->refs) { free(o->data); free(o); --t(p)->live; } }
+typedef struct TestCostume
+{
+    MMTemplateCostumeTable table;
+    Test *context;
+    Object *object;
+} TestCostume;
+static void release_costume(void *p)
+{
+    TestCostume *owner = (TestCostume *)p;
+    release(owner->context, owner->object);
+    free(owner);
+}
+static MMTemplateCostumeTable *costumes_new(void *p)
+{
+    Test *x = (Test *)p;
+    TestCostume *owner;
+    if (checkpoint(x))
+        return NULL;
+    owner = (TestCostume *)calloc(1, sizeof(*owner));
+    assert(owner);
+    owner->context = x;
+    owner->object = object(x, 2, 4, 0);
+    mm_template_costumes_init(&owner->table, NULL, owner, release_costume);
+    if (checkpoint(x))
+    {
+        mm_template_costumes_dispose(&owner->table);
+        return NULL;
+    }
+    return &owner->table;
+}
 static void *font(void *p,void *owner)
 { assert(owner==p); if (t(p)->missing_font) return NULL; retain(p,t(p)->font); return t(p)->font; }
 static MMI32 font_width(void *p,void *f,MMI32 ch) { assert(f==t(p)->font); return (ch%4+1)*65536L+1; }
@@ -70,7 +100,7 @@ static MMTextGenerationServices setup(Test *x)
     MMTextGenerationServices s; memset(x,0,sizeof(*x)); memset(&s,0,sizeof(s)); x->length=2; x->chars[0]=233; x->chars[1]=65;
     x->template_state.flags=4; x->template_state.x=1234; x->font=object(x,5,0,0);
     s.context=x; s.state=state; s.length=length; s.character=character; s.shape=shape; s.template_state=template_state;
-    s.list_new=list_new; s.list_count=list_count; s.list_put=list_put; s.group_new=group_new; s.group_add=group_add; s.allocate=allocate; s.free_memory=free_memory;
+    s.list_new=list_new; s.list_count=list_count; s.list_put=list_put; s.costumes_new=costumes_new; s.group_new=group_new; s.group_add=group_add; s.allocate=allocate; s.free_memory=free_memory;
     s.material_new=material_new; s.retain=retain; s.release=release; s.font=font; s.font_width=font_width; s.font_height=font_height; s.font_maximum=font_maximum;
     s.glyph=glyph; s.action_new=action_new; s.body_shape=body_shape; s.body_material=body_material; x->services=s; return s;
 }
@@ -79,7 +109,7 @@ static void cleanup(Test *x)
     MMTextGenerationServices *s=&x->services; mm_text_dispose(&x->generated,s);
     if (x->template_state.parents) release(x,x->template_state.parents);
     if (x->template_state.sets) release(x,x->template_state.sets);
-    if (x->template_state.costumes) release(x,x->template_state.costumes);
+    mm_template_costumes_dispose(x->template_state.costumes);
     release(x,x->font); assert(!x->live && !x->buffers);
 }
 int main(void)
@@ -94,14 +124,14 @@ int main(void)
         else { assert(x.generated.action_id==-1 && x.template_state.flags==6 && x.template_state.x==1234 && x.template_state.set_count==1 && x.template_state.action_count==16);
             list=(Object *)x.template_state.parents; memcpy(indices,list->data,4); assert(indices[0]==-1 && indices[1]==-1);
             list=(Object *)x.template_state.sets; memcpy(indices,list->data,4); assert(!indices[0] && !indices[1]);
-            group=(Object *)x.template_state.costumes; memcpy(row,group->data,8); assert(row[0]==1 && !row[1]); }
+            assert(mm_template_costumes_count(x.template_state.costumes,0)==1 && mm_template_costumes_id(x.template_state.costumes,0,0,&row[1]) && !row[1]); }
         cleanup(&x);
     }
     for (fail=0;fail<=4;++fail)
     {
         s=setup(&x); assert(mm_text_initialize_lists(&x,&s)); x.generated.action=object(&x,4,0,0); x.generated.action_id=7;
         saved=x.template_state; old=(Object *)x.generated.material;
-        ids[0]=((Object *)saved.parents)->id; ids[1]=((Object *)saved.sets)->id; ids[2]=((Object *)saved.costumes)->id; ids[3]=old->id; ids[4]=((Object *)x.generated.action)->id;
+        ids[0]=((Object *)saved.parents)->id; ids[1]=((Object *)saved.sets)->id; ids[2]=((TestCostume *)saved.costumes->owner)->object->id; ids[3]=old->id; ids[4]=((Object *)x.generated.action)->id;
         x.phase=0; x.fail=fail; x.event_count=0; ok=mm_text_initialize_lists(&x,&s); assert(ok==!fail);
         assert(x.generated.material==old && old->refs==1);
         if (!ok) assert(same_template(&x.template_state,&saved) && x.template_state.parents==saved.parents && x.template_state.sets==saved.sets && x.template_state.costumes==saved.costumes && x.generated.action && x.generated.action_id==7);

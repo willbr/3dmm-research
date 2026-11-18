@@ -16,19 +16,26 @@ void *mm_text_build_indices(void *object,int sets,const MMTextGenerationServices
     void *list=s->list_new(s->context,2,n); if (!list) return NULL;
     s->list_count(s->context,list,n); for (i=0;i<n;++i) s->list_put(s->context,list,i,&value); return list;
 }
-void *mm_text_build_costumes(const MMTextGenerationServices *s)
+static MMTemplateCostumeTable *build_costumes(const MMTextGenerationServices *s)
 {
-    MMI32 count=1,id=0; void *group=s->group_new(s->context,4,1,4);
-    if (group && !s->group_add(s->context,group,&count,4,&id)) { s->release(s->context,group); group=NULL; }
-    return group;
+    MMI32 id = 0;
+    MMTemplateCostumeTable *table = s->costumes_new(s->context);
+    if (table && (!mm_template_costumes_reserve(table, 1, MM_TEMPLATE_COSTUME_WORD_BYTES) ||
+                  !mm_template_costumes_append(table, &id, 1)))
+    {
+        mm_template_costumes_dispose(table);
+        return NULL;
+    }
+    return table;
 }
 int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
 {
-    void *parents=NULL,*sets=NULL,*costumes=NULL,*material=NULL; MMTemplateState t;
+    void *parents=NULL,*sets=NULL,*material=NULL; MMTemplateState t;
+    MMTemplateCostumeTable *costumes = NULL;
     MMTextGenerated *a=s->state(s->context,object);
     parents=mm_text_build_indices(object,0,s); if (!parents) goto fail;
     sets=mm_text_build_indices(object,1,s); if (!sets) goto fail;
-    costumes=mm_text_build_costumes(s); if (!costumes) goto fail;
+    costumes=build_costumes(s); if (!costumes) goto fail;
     if (!a->material) material=s->material_new(s->context);
     else { material=a->material; s->retain(s->context,material); }
     if (!material) goto fail;
@@ -37,7 +44,7 @@ int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
     t.parents=parents; *s->template_state(s->context,object)=t;
     if (t.sets) { s->release(s->context,t.sets); t.sets=NULL; *s->template_state(s->context,object)=t; }
     t.sets=sets; *s->template_state(s->context,object)=t;
-    if (t.costumes) { s->release(s->context,t.costumes); t.costumes=NULL; *s->template_state(s->context,object)=t; }
+    if (t.costumes) { mm_template_costumes_dispose(t.costumes); t.costumes=NULL; *s->template_state(s->context,object)=t; }
     t.costumes=costumes; *s->template_state(s->context,object)=t;
     if (a->material) { s->release(s->context,a->material); a->material=NULL; }
     a->material=material;
@@ -47,7 +54,7 @@ int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
 fail:
     if (parents) s->release(s->context,parents);
     if (sets) s->release(s->context,sets);
-    if (costumes) s->release(s->context,costumes);
+    mm_template_costumes_dispose(costumes);
     if (material) s->release(s->context,material); return 0;
 }
 MMI32 mm_text_cel_count(MMI32 action)

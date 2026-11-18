@@ -742,35 +742,42 @@ int mm_session_array(const MMMovieArchive *archive, MMU32 parent, MMU32 type, MM
 static int read_template_table(void *context, int kind, MMI32 expected, void **out)
 {
     MMMovieTemplate *tmpl = (MMMovieTemplate *)context;
-    MMMovieTemplateList *list;
-    MMChunkEntry entry;
-    MMU32 position, type = mm_template_table_type(kind);
+    MMMovieTemplateList *list = kind == MM_TEMPLATE_PARENTS ? &tmpl->parents : &tmpl->sets;
     int status;
-    if (kind != MM_TEMPLATE_COSTUMES)
-    {
-        list = kind == MM_TEMPLATE_PARENTS ? &tmpl->parents : &tmpl->sets;
-        status = mm_session_array(&tmpl->archive, tmpl->position, type, MM_TEMPLATE_INDEX_BYTES,
-                                  &list->payload, &list->header);
-        if (status == MM_MOVIE_OK)
-            *out = list;
-        return status;
-    }
-    status = mm_session_child(&tmpl->archive.access, tmpl->position, 0, type, &entry, &position);
+    (void)expected;
+    status = mm_session_array(&tmpl->archive, tmpl->position, mm_template_table_type(kind), MM_TEMPLATE_INDEX_BYTES,
+                              &list->payload, &list->header);
+    if (status == MM_MOVIE_OK)
+        *out = list;
+    return status;
+}
+
+static int read_template_costumes(void *context, MMI32 expected, MMTemplateCostumeTable **out)
+{
+    MMMovieTemplate *tmpl = (MMMovieTemplate *)context;
+    MMMoviePayload payload;
+    MMChunkEntry entry;
+    MMU32 position;
+    int status;
+    status = mm_session_child(&tmpl->archive.access, tmpl->position, 0, MM_GGCM, &entry, &position);
     if (status != MM_CHUNK_OK)
         return status == MM_CHUNK_NOT_FOUND ? MM_TEMPLATE_COSTUMES_ABSENT : MM_MOVIE_BAD_FILE;
-    status = mm_session_group(&tmpl->archive, &entry, &tmpl->costumes);
+    status = mm_session_payload(&tmpl->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
-    if (tmpl->costumes.header.width != MM_TEMPLATE_COSTUME_WORD_BYTES ||
-        tmpl->costumes.header.count != (MMU32)expected)
-        return MM_MOVIE_BAD_FILE;
-    *out = &tmpl->costumes;
-    return MM_MOVIE_OK;
+    mm_template_costumes_init(&tmpl->costumes, NULL, NULL, NULL);
+    status = mm_template_costumes_read(&tmpl->costumes, payload.stream, expected);
+    free(payload.decoded);
+    if (status == MM_MOVIE_OK)
+        *out = &tmpl->costumes;
+    else
+        mm_template_costumes_dispose(&tmpl->costumes);
+    return status;
 }
 
 MMTemplateRead mm_session_template_reader(MMMovieTemplate *tmpl)
 {
-    MMTemplateRead reader = {NULL, read_template_table};
+    MMTemplateRead reader = {NULL, read_template_table, read_template_costumes};
     reader.context = tmpl;
     return reader;
 }
@@ -779,7 +786,7 @@ void mm_session_template_dispose(MMMovieTemplate *tmpl)
 {
     free(tmpl->parents.payload.decoded);
     free(tmpl->sets.payload.decoded);
-    free(tmpl->costumes.bytes);
+    mm_template_costumes_dispose(tmpl->state.costumes);
     mm_session_archive_close(&tmpl->archive);
 }
 

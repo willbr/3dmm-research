@@ -4,6 +4,7 @@
 #define MM_ENGINE_TEMPLATE_CREATE_H
 #include "types.h"
 #include "movie_data.h"
+#include "collection_storage.h"
 #include <stddef.h>
 #if USHRT_MAX != 65535U
 #error Template rest angles require sixteen-bit unsigned shorts
@@ -21,9 +22,31 @@ enum MMTemplateTable { MM_TEMPLATE_PARENTS, MM_TEMPLATE_SETS, MM_TEMPLATE_COSTUM
 enum MMTemplateDiagnostic
 { MM_TEMPLATE_BAD_ORDER, MM_TEMPLATE_OBSOLETE, MM_TEMPLATE_BUILD_COSTUMES,
   MM_TEMPLATE_COSTUME_LIMIT, MM_TEMPLATE_WRONG_SET };
+typedef struct MMTemplateCostumeTable
+{
+    MMCollectionStorage storage;
+    MMU32 rows, bytes;
+    int big_endian;
+    void *owner;
+    void (*release_owner)(void *);
+} MMTemplateCostumeTable;
+
+/* A dense GGCM table. The collection owns both buffers and retains the
+ * authored word order. Appending requires a table constructed in host order. */
+void mm_template_costumes_init(MMTemplateCostumeTable *, const MMStorageAllocator *, void *owner,
+                               void (*release_owner)(void *));
+void mm_template_costumes_dispose(MMTemplateCostumeTable *);
+int mm_template_costumes_read(MMTemplateCostumeTable *, const MMReadStream *, MMI32 expected_rows);
+int mm_template_costumes_reserve(MMTemplateCostumeTable *, MMU32 rows, MMU32 variable_bytes);
+int mm_template_costumes_append(MMTemplateCostumeTable *, const MMI32 *ids, MMI32 count);
+MMI32 mm_template_costumes_count(const MMTemplateCostumeTable *, MMI32 set);
+int mm_template_costumes_id(const MMTemplateCostumeTable *, MMI32 set, MMI32 index, MMI32 *);
+MMI32 mm_template_costumes_wire_size(const MMTemplateCostumeTable *);
+
 typedef struct MMTemplateState
 {
-    void *parents,*sets,*costumes;
+    void *parents,*sets;
+    MMTemplateCostumeTable *costumes;
     MMI32 set_count,custom_count,action_count;
     MMU32 flags;
     unsigned short x,y,z; /* Native sixteen-bit BAM rest angles. */
@@ -40,6 +63,7 @@ typedef struct MMTemplateRead
 {
     void *context;
     int (*table)(void *, int kind, MMI32 expected, void **out);
+    int (*costumes)(void *, MMI32 expected, MMTemplateCostumeTable **out);
 } MMTemplateRead;
 
 /* Table reads return movie statuses, with MM_TEMPLATE_COSTUMES_ABSENT for a
@@ -116,13 +140,12 @@ typedef struct MMTemplateCreateServices
     MMI32 (*count)(void *,void *list);
     MMI32 (*item)(void *,void *list,MMI32);
     unsigned char *(*list_data)(void *,void *list);
-    unsigned char *(*fixed_data)(void *,void *group,MMI32);
-    unsigned char *(*variable_data)(void *,void *group,MMI32);
+    int (*read_costumes)(void *, void *block, MMI32 expected, MMTemplateCostumeTable **out);
     void *(*create_cache)(void *,void *file);
-    void *(*create_costumes)(void *);
+    MMTemplateCostumeTable *(*create_costumes)(void *);
     void *(*fetch_custom)(void *,void *cache,MMU32,MMU32);
     MMI32 (*custom_set)(void *,void *custom);
-    int (*append_costumes)(void *,void *group,const MMI32 *,MMI32 count);
+    int (*append_costumes)(void *,MMTemplateCostumeTable *,const MMI32 *,MMI32 count);
     void *(*create_body)(void *,void *parents,void *sets);
     int (*default_costume)(void *,void *object,void *body);
     MMI32 (*costume_id)(void *,void *object,MMI32 set,MMI32 index);

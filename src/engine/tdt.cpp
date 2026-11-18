@@ -38,6 +38,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include "engine_template_costumes.h"
 ASSERTNAME
 
 RTCLASS(ThreeDText)
@@ -186,6 +187,7 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.list_new = [](void *, MMI32 bytes, MMI32 capacity) -> void * { return DynamicArray::PglNew(bytes, capacity); };
     s.list_count = [](void *, void *list, MMI32 count) { AssertDo(static_cast<PDynamicArray>(list)->FSetIvMac(count), "PglNew should have ensured space!"); };
     s.list_put = [](void *, void *list, MMI32 index, const void *data) { static_cast<PDynamicArray>(list)->Put(index, const_cast<void *>(data)); };
+    s.costumes_new = [](void *) { return EngineTemplateCostumes::Create(); };
     s.group_new = [](void *, MMI32 fixed, MMI32 rows, MMI32 bytes) -> void * { return GeneralGroup::PggNew(fixed, rows, bytes); };
     s.group_add = [](void *, void *group, const void *fixed, MMI32 bytes, const void *data) -> int { return static_cast<PGeneralGroup>(group)->FAdd(bytes, nullptr, const_cast<void *>(data), const_cast<void *>(fixed)); };
     s.allocate = [](void *, MMI32 bytes, void **out) -> int { return FAllocPv(out, bytes, fmemClear, mprNormal); };
@@ -272,17 +274,6 @@ PDynamicArray ThreeDText::_PglibsetBuild(void)
     AssertBaseThis(0);
     auto services = _GenerationServices();
     return static_cast<PDynamicArray>(mm_text_build_indices(this, 1, &services));
-}
-
-/***************************************************************************
-    Build the costume GeneralGroup for Template creation.  For ThreeDTexts, the costume is
-    simple: all body part sets get cmid 0.
-***************************************************************************/
-PGeneralGroup ThreeDText::_PggcmidBuild(void)
-{
-    AssertBaseThis(0);
-    auto services = _GenerationServices();
-    return static_cast<PGeneralGroup>(mm_text_build_costumes(&services));
 }
 
 /***************************************************************************

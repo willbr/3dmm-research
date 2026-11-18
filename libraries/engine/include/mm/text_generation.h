@@ -37,6 +37,7 @@ typedef struct MMTextGenerationServices
     void (*list_put)(void *,void *list,MMI32 index,const void *data);
     void *(*group_new)(void *,MMI32 fixed,MMI32 rows,MMI32 variable);
     int (*group_add)(void *,void *group,const void *fixed,MMI32 bytes,const void *variable);
+    MMTemplateCostumeTable *(*costumes_new)(void *);
     int (*allocate)(void *,MMI32 bytes,void **out);
     void (*free_memory)(void *,void **);
     void *(*material_new)(void *);
@@ -61,7 +62,6 @@ typedef struct MMTextGenerationServices
  * services return retained references. Callbacks must not reenter/mutate owners. */
 int mm_text_initialize_lists(void *,const MMTextGenerationServices *);
 void *mm_text_build_indices(void *,int sets,const MMTextGenerationServices *);
-void *mm_text_build_costumes(const MMTextGenerationServices *);
 MMI32 mm_text_cel_count(MMI32 action);
 MMI32 mm_text_cel_distance(MMI32 action);
 MMU32 mm_text_action_flags(void);

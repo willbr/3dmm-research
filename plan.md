@@ -538,8 +538,11 @@ Keep host presentation and device output outside the session.
    C89 template reader coordinates loading GLPI, GLBS and authored GGCM tables
    in both paths. The snapshot retains the template state, reuses its authored
    costume table across resets and computes the set count during hierarchy
-   decoding. Older files still discover CMTL choices in child order. Native
-   backing collections, renderer resources and cache ownership remain work.
+   decoding. The authored GGCM tables now use the same C-owned costume
+   collection in both paths. The live cache builds older templates' CMTL
+   choices in child order and generates the text default into that collection.
+   Native hierarchy and action collections, renderer resources and cache
+   ownership remain work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file

@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/template_create.h"
+#include "mm/collections.h"
 #include "mm/movie_session.h"
 #include "mm/wide.h"
 #include <string.h>
@@ -30,6 +31,122 @@ MMI32 mm_template_decode_costume_word(const unsigned char *bytes, int big)
     return mm_signed_word(word(bytes, MM_TEMPLATE_COSTUME_WORD_BYTES, big));
 }
 
+static MMGroup costume_group(MMTemplateCostumeTable *table)
+{
+    MMGroup group = {NULL, MM_TEMPLATE_COSTUME_WORD_BYTES, 0, 0, -1, 0};
+    group.storage = &table->storage;
+    group.count = table->rows;
+    group.bytes = table->bytes;
+    return group;
+}
+
+void mm_template_costumes_init(MMTemplateCostumeTable *table, const MMStorageAllocator *allocator,
+                               void *owner, void (*release_owner)(void *))
+{
+    const unsigned short one = 1;
+    memset(table, 0, sizeof(*table));
+    mm_storage_init(&table->storage, allocator);
+    table->storage.min_grow[0] = 16 * MM_TEMPLATE_COSTUME_WORD_BYTES;
+    table->storage.min_grow[1] = 16 * 8;
+    table->big_endian = *(const unsigned char *)&one == 0;
+    table->owner = owner;
+    table->release_owner = release_owner;
+}
+
+void mm_template_costumes_dispose(MMTemplateCostumeTable *table)
+{
+    if (table)
+    {
+        mm_storage_dispose(&table->storage);
+        if (table->release_owner)
+            table->release_owner(table->owner);
+    }
+}
+
+static const unsigned char *costume_row(const MMTemplateCostumeTable *table, MMI32 set, MMI32 *count)
+{
+    MMGroupLocation location;
+    const unsigned char *row;
+    /* The location reader borrows storage without editing it. */
+    MMGroup group = costume_group((MMTemplateCostumeTable *)table);
+    if (set < 0 || mm_group_location(&group, (MMU32)set, &location) != MM_STORAGE_OK)
+        return NULL;
+    row = table->storage.buffers[0].data + location.offset;
+    *count = mm_template_decode_costume_word(row, table->big_endian);
+    if (*count < 0 || *count > (location.bytes - MM_TEMPLATE_COSTUME_WORD_BYTES) / MM_TEMPLATE_COSTUME_WORD_BYTES)
+        return NULL;
+    return row + MM_TEMPLATE_COSTUME_WORD_BYTES;
+}
+
+int mm_template_costumes_read(MMTemplateCostumeTable *table, const MMReadStream *stream, MMI32 expected)
+{
+    MMCollectionHeader header;
+    MMGroup group;
+    MMI32 count, i;
+    int status = mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &header);
+    if (status != MM_STORAGE_OK)
+        return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_BAD_FILE;
+    if (header.width != MM_TEMPLATE_COSTUME_WORD_BYTES || header.count != (MMU32)expected)
+        return MM_MOVIE_BAD_FILE;
+    /* The legacy reader allocates the records at their exact decoded size. */
+    table->storage.min_grow[0] = 0;
+    status = mm_storage_read(&table->storage, stream, header.header_bytes, header.first_bytes, header.second_bytes);
+    if (status != MM_STORAGE_OK)
+        return status == MM_STORAGE_IO ? MM_MOVIE_IO : MM_MOVIE_MEMORY;
+    table->rows = header.count;
+    table->bytes = header.first_bytes;
+    if (table->big_endian != header.big_endian)
+    {
+        group = costume_group(table);
+        mm_group_swap_locations(&group);
+        table->big_endian = header.big_endian;
+    }
+    for (i = 0; i < expected; ++i)
+        if (!costume_row(table, i, &count))
+            return MM_MOVIE_BAD_FILE;
+    return MM_MOVIE_OK;
+}
+
+int mm_template_costumes_reserve(MMTemplateCostumeTable *table, MMU32 rows, MMU32 bytes)
+{
+    MMGroup group = costume_group(table);
+    return mm_group_reserve(&group, rows, bytes, 0) == MM_STORAGE_OK;
+}
+
+int mm_template_costumes_append(MMTemplateCostumeTable *table, const MMI32 *ids, MMI32 count)
+{
+    const unsigned short one = 1;
+    MMGroup group = costume_group(table);
+    if (table->big_endian != (*(const unsigned char *)&one == 0) || count < 0 ||
+        (MMU32)count >= MM_STORAGE_LIMIT / MM_TEMPLATE_COSTUME_WORD_BYTES ||
+        mm_group_add(&group, (MMU32)count * MM_TEMPLATE_COSTUME_WORD_BYTES, ids, &count, NULL) != MM_STORAGE_OK)
+        return 0;
+    table->rows = group.count;
+    table->bytes = group.bytes;
+    return 1;
+}
+
+MMI32 mm_template_costumes_count(const MMTemplateCostumeTable *table, MMI32 set)
+{
+    MMI32 count;
+    return table && costume_row(table, set, &count) ? count : -1;
+}
+
+int mm_template_costumes_id(const MMTemplateCostumeTable *table, MMI32 set, MMI32 index, MMI32 *id)
+{
+    MMI32 count;
+    const unsigned char *ids = table ? costume_row(table, set, &count) : NULL;
+    if (!ids || index < 0 || index >= count)
+        return 0;
+    *id = mm_template_decode_costume_word(ids + (MMU32)index * MM_TEMPLATE_COSTUME_WORD_BYTES, table->big_endian);
+    return 1;
+}
+
+MMI32 mm_template_costumes_wire_size(const MMTemplateCostumeTable *table)
+{
+    return (MMI32)(20 + table->bytes + table->rows * 8);
+}
+
 int mm_template_read_shape(MMTemplateState *state, const MMTemplateRead *reader)
 {
     int status = reader->table(reader->context, MM_TEMPLATE_PARENTS, 0, &state->parents);
@@ -40,7 +157,7 @@ int mm_template_read_shape(MMTemplateState *state, const MMTemplateRead *reader)
 
 int mm_template_read_costumes(MMTemplateState *state, const MMTemplateRead *reader)
 {
-    return reader->table(reader->context, MM_TEMPLATE_COSTUMES, state->set_count, &state->costumes);
+    return reader->costumes(reader->context, state->set_count, &state->costumes);
 }
 
 int mm_template_count_sets(MMTemplateState *state, const MMTemplateParts *parts)
@@ -156,7 +273,7 @@ int mm_template_fetch(void *file,MMU32 type,MMU32 number,void *block,void **out,
     *out=object; t=*s->state(s->context,object);
     if (t.flags&2U) *bytes=s->object_size(s->context,1);
     else *bytes=s->object_size(s->context,0)+s->table_size(s->context,t.parents)+
-        s->table_size(s->context,t.sets)+s->table_size(s->context,t.costumes);
+        s->table_size(s->context,t.sets)+mm_template_costumes_wire_size(t.costumes);
     return 1;
 }
 typedef struct LegacyCostumeTable
@@ -249,11 +366,9 @@ static int read_native_table(void *context, int kind, MMI32 expected, void **out
     const MMTemplateCreateServices *s = read->services;
     MMTemplateChild child;
     void *block;
-    unsigned char *fixed;
-    MMI32 i, count;
     int other;
     if (!s->child(s->context, read->file, read->type, read->number, 0, mm_template_table_type(kind), &child))
-        return kind == MM_TEMPLATE_COSTUMES ? MM_TEMPLATE_COSTUMES_ABSENT : MM_MOVIE_ASSET_NOT_FOUND;
+        return MM_MOVIE_ASSET_NOT_FOUND;
     block = s->find(s->context, read->file, child.type, child.number);
     if (!block)
         return MM_MOVIE_BAD_FILE;
@@ -261,19 +376,21 @@ static int read_native_table(void *context, int kind, MMI32 expected, void **out
     if (!*out)
         return MM_MOVIE_BAD_FILE;
     s->validate_table(s->context, *out, kind, expected);
-    if (other && kind == MM_TEMPLATE_COSTUMES)
-    {
-        for (i = 0; i < expected; ++i)
-        {
-            fixed = s->fixed_data(s->context, *out, i);
-            swap(fixed, 1, MM_TEMPLATE_COSTUME_WORD_BYTES);
-            count = mm_template_decode_costume_word(fixed, s->host_big_endian);
-            swap(s->variable_data(s->context, *out, i), count, MM_TEMPLATE_COSTUME_WORD_BYTES);
-        }
-    }
-    else if (other)
+    if (other)
         swap(s->list_data(s->context, *out), s->count(s->context, *out), MM_TEMPLATE_INDEX_BYTES);
     return MM_MOVIE_OK;
+}
+
+static int read_native_costumes(void *context, MMI32 expected, MMTemplateCostumeTable **out)
+{
+    const NativeTemplateRead *read = (const NativeTemplateRead *)context;
+    const MMTemplateCreateServices *s = read->services;
+    MMTemplateChild child;
+    void *block;
+    if (!s->child(s->context, read->file, read->type, read->number, 0, MM_GGCM, &child))
+        return MM_TEMPLATE_COSTUMES_ABSENT;
+    block = s->find(s->context, read->file, child.type, child.number);
+    return block ? s->read_costumes(s->context, block, expected, out) : MM_MOVIE_BAD_FILE;
 }
 
 static int native_part_set(void *context, MMI32 index, MMI32 *set)
@@ -287,7 +404,7 @@ static int native_part_set(void *context, MMI32 index, MMI32 *set)
 int mm_template_initialize(void *object, void *file, MMU32 type, MMU32 number, const MMTemplateCreateServices *s)
 {
     NativeTemplateRead native;
-    MMTemplateRead reader = {NULL, read_native_table};
+    MMTemplateRead reader = {NULL, read_native_table, read_native_costumes};
     MMTemplateParts parts = {NULL, 0, native_part_set};
     MMTemplateState *state;
     MMTemplateChild child;
@@ -325,7 +442,7 @@ void mm_template_dispose(void *object,const MMTemplateCreateServices *s)
     MMTemplateState t; t=*s->state(s->context,object);
     if (t.parents) { s->release(s->context,t.parents); } t.parents=NULL; *s->state(s->context,object)=t;
     if (t.sets) { s->release(s->context,t.sets); } t.sets=NULL; *s->state(s->context,object)=t;
-    if (t.costumes) { s->release(s->context,t.costumes); } t.costumes=NULL; *s->state(s->context,object)=t;
+    mm_template_costumes_dispose(t.costumes); t.costumes=NULL; *s->state(s->context,object)=t;
 }
 void *mm_template_create_body(void *object,const MMTemplateCreateServices *s)
 {

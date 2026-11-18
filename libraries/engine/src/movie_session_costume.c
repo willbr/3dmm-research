@@ -129,27 +129,14 @@ typedef struct MovieDefaultTable
 {
     const MMMovieBodyInput *input;
     MMMovieEvaluatedBody *body;
-    const MMMovieGroup *group;
     int status;
 } MovieDefaultTable;
 
 static int movie_costume_id(void *context, MMI32 set, MMI32 index, MMI32 *id)
 {
     MovieDefaultTable *table = (MovieDefaultTable *)context;
-    const MMMovieGroup *group = table->group;
-    const unsigned char *row;
-    MMI32 size, count;
-    row = mm_session_group_row(group, (MMU32)set, &size);
-    if (row && size >= MM_TEMPLATE_COSTUME_WORD_BYTES)
-    {
-        count = mm_template_decode_costume_word(row, group->header.big_endian);
-        if (index >= 0 && index < count && count <= size / MM_TEMPLATE_COSTUME_WORD_BYTES)
-        {
-            *id = mm_template_decode_costume_word(row + ((MMU32)index + 1) * MM_TEMPLATE_COSTUME_WORD_BYTES,
-                                                  group->header.big_endian);
-            return 1;
-        }
-    }
+    if (mm_template_costumes_id(table->input->tmpl->state.costumes, set, index, id))
+        return 1;
     table->status = MM_MOVIE_BAD_FILE;
     return 0;
 }
@@ -169,7 +156,6 @@ static int group_defaults(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body
 {
     MovieDefaultTable table;
     MMTemplateDefaultServices defaults;
-    table.group = (const MMMovieGroup *)in->tmpl->state.costumes;
     table.status = MM_MOVIE_OK;
     table.input = in;
     table.body = body;

@@ -13816,6 +13816,37 @@ and sanitizer runs were repeated there.
 
 Evidence is under `D:/CodexBuildEvidence/c89-template-input/`.
 
+### C89 owns the template costume collection
+
+Studio, Marcus and the standalone evaluator now use the same C collection
+for authored GGCM rows and costume ID lookups. The reader bounds-checks the
+row locations and declared ID counts. It retains the authored word order
+and normalizes the location directory. Studio and Marcus also append legacy
+CMTL choices and the generated 3D text default to the C collection. The native
+allocation adapter retains the allocator and memory tracking used by the host.
+The resource cache still charges the table's serialized size.
+
+All 181 standalone tests and six AddressSanitizer checks passed. The changed
+C modules and fixtures compiled under strict C89 on Linux x64 musl. The
+standalone probes matched 300 frame snapshots and 300 mesh snapshots. All
+300 native graph and stream evaluations matched. Stock and SID-29 cases
+matched 456 seek observations and 360 viewport hashes from the prior builds.
+All 33 selected host checks passed, including the Marcus player and the C89
+syntax checks for the engine and Marcus. Both hosts were rebuilt, and the
+workspace Marcus was relaunched.
+
+The 31 native action, template, actor, body and 3D text traces matched
+byte for byte, as did the 480-byte saved movie. The AddressSanitizer probe
+also evaluated a stock actor frame and a SID-29 text frame with body bindings.
+Studio SDL and the retained V3dmm runs each matched 456 retail actor
+observations. Studio SDL and Marcus each matched 240 retail frame commits
+across actor events, dissolves and scrolling text. Retail reopened the Studio
+actor edit and matched it on four seeks. Both hosts recorded the retail
+actor-audio fixture's 600 Hz ordinary cue and 1300 Hz motion cue across 60
+frame commits, with at least 16,328 silent sample frames before Play.
+
+Evidence is under `D:/CodexBuildEvidence/c89-costume-storage/`.
+
 ### C89 preference policy and native settings storage (17 November 2026)
 
 `mm/settings.h` now owns typed get/set/default transactions and configuration-root

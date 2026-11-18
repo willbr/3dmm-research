@@ -166,7 +166,6 @@ class Template : public Template_PAR
     } // can't instantiate directly; must use FReadTmpl
     PDynamicArray _Parents() const { return static_cast<PDynamicArray>(_template.parents); }
     PDynamicArray _Sets() const { return static_cast<PDynamicArray>(_template.sets); }
-    PGeneralGroup _Costumes() const { return static_cast<PGeneralGroup>(_template.costumes); }
     static MMTemplateCreateServices _CreateServices(TemplateCreateContext *);
     static MMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);

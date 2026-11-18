@@ -79,9 +79,14 @@ cel and fixed-point root pose without creating body, costume or audio objects.
 templates use cached collections. The standalone session reads signed parent
 and set indices from their wire tables when it prepares a body. The same C89
 traversal computes the number of sets up to the highest authored set index.
-`mm_template_read_costumes` uses that count to read GGCM. The snapshot retains
-this table for later costume resets during the seek. A missing link triggers
-legacy discovery. A failed read of a linked table propagates the error.
+`mm_template_read_costumes` uses that count to read GGCM into a C-owned
+collection. It checks row boundaries and ID counts and retains the authored
+word order. Studio, Marcus and the snapshot use the same count and ID
+accessors. The snapshot retains the table for later costume resets during the
+seek. A missing link triggers legacy discovery. A failed read of a linked
+table propagates the error. The live cache appends discovered choices and
+3D text's generated default directly to the C collection. Its native adapter
+supplies the allocator and debug memory tracking.
 Studio, Marcus and the standalone evaluator use `mm_actor_template_link`
 to recover the embedded template number when a movie edit or import changed
 it. An external source keeps its authored template number and uses the

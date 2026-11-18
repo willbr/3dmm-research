@@ -1,5 +1,6 @@
 #ifndef ENGINE_TEMPLATE_CREATE_FIXTURE_H
 #define ENGINE_TEMPLATE_CREATE_FIXTURE_H
+#include "engine_template_costumes.h"
 class TemplateCreateFixtureAccess : public Template
 {
   public:
@@ -10,10 +11,11 @@ class TemplateCreateFixtureAccess : public Template
         t->_template.x=0x1234; t->_template.y=0xabcd; t->_template.z=0x8000; t->_template.flags=ftmplProp;
         t->_stn.SetSzs(PszLit("Template construction fixture")); t->_template.set_count=parts?2:0; t->_template.custom_count=parts?4:0; t->_template.action_count=1;
         t->_template.parents=DynamicArray::PglNew(sizeof(short)); t->_template.sets=DynamicArray::PglNew(sizeof(short));
-        t->_template.costumes=GeneralGroup::PggNew(sizeof(int32_t));
-        bool ok=t->_Parents() && t->_Sets() && t->_Costumes();
+        t->_template.costumes=EngineTemplateCostumes::Create();
+        auto wireCosts=GeneralGroup::PggNew(sizeof(int32_t));
+        bool ok=t->_Parents() && t->_Sets() && t->_template.costumes && wireCosts;
         for (int i=0;ok && i<parts;++i) { short parent=i?static_cast<short>((i-1)/2):-1,set=static_cast<short>(i%2); ok=t->_Parents()->FAdd(&parent) && t->_Sets()->FAdd(&set); }
-        for (int i=0;ok && i<t->_template.set_count;++i) { int32_t ids[]={i,i+2},count=2; ok=t->_Costumes()->FAdd(sizeof(ids),nullptr,ids,&count); }
+        for (int i=0;ok && i<t->_template.set_count;++i) { int32_t ids[]={i,i+2},count=2; ok=mm_template_costumes_append(t->_template.costumes,ids,count) && wireCosts->FAdd(sizeof(ids),nullptr,ids,&count); }
         ok=ok && t->_FWriteTmplf(file,kctgTmpl,number);
         TemplateOnFile header={}; DataBlock block;
         ok=ok && file->FFind(kctgTmpl,*number,&block) && block.FReadRgb(&header,sizeof(header),0);
@@ -24,13 +26,13 @@ class TemplateCreateFixtureAccess : public Template
         if (other)
         {
             SwapBytesRgsw(t->_Parents()->QvGet(0),parts); SwapBytesRgsw(t->_Sets()->QvGet(0),parts);
-            for (int i=0;i<t->_template.set_count;++i) { SwapBytesRglw(t->_Costumes()->QvGet(i),2); SwapBytesRglw(t->_Costumes()->QvFixedGet(i),1); }
+            for (int i=0;i<t->_template.set_count;++i) { SwapBytesRglw(wireCosts->QvGet(i),2); SwapBytesRglw(wireCosts->QvFixedGet(i),1); }
         }
         auto table=[&](ChunkTagOrType type,auto *data) { ChunkNumber child; DataBlock b;
             return file->FAddChild(kctgTmpl,*number,0,data->CbOnFile(),type,&child,&b) && data->FWrite(&b,other?kboOther:kboCur); };
         if (ok && variant!=3) ok=table(kctgGlpi,t->_Parents());
         if (ok && variant!=4) ok=table(kctgGlbs,t->_Sets());
-        if (ok && variant!=2) ok=table(kctgGgcm,t->_Costumes());
+        if (ok && variant!=2) ok=table(kctgGgcm,wireCosts);
         byte action=0; ChunkNumber child;
         ok=ok && file->FAddChildPv(kctgTmpl,*number,0,&action,1,kctgActn,&child) && file->FAddChildPv(kctgTmpl,*number,2,&action,1,kctgActn,&child);
         auto material=Material_MTRL::PmtrlNew(); ChunkNumber materialNumber=0;
@@ -43,8 +45,8 @@ class TemplateCreateFixtureAccess : public Template
         }
         // Restore payloads before the author's debug validation/destruction.
         if (other) { SwapBytesRgsw(t->_Parents()->QvGet(0),parts); SwapBytesRgsw(t->_Sets()->QvGet(0),parts);
-            for (int i=0;i<t->_template.set_count;++i) { SwapBytesRglw(t->_Costumes()->QvGet(i),2); SwapBytesRglw(t->_Costumes()->QvFixedGet(i),1); } }
-        ReleasePpo(&t); return ok;
+            for (int i=0;i<t->_template.set_count;++i) { SwapBytesRglw(wireCosts->QvGet(i),2); SwapBytesRglw(wireCosts->QvFixedGet(i),1); } }
+        ReleasePpo(&wireCosts); ReleasePpo(&t); return ok;
     }
     static bool Write(PTemplate t,PChunkyFile file,ChunkNumber *number)
     { auto member=&TemplateCreateFixtureAccess::_FWriteTmplf; return (t->*member)(file,kctgTmpl,number); }

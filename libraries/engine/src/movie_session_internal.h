@@ -89,7 +89,7 @@ typedef struct MMMovieTemplate
     MMU32 position;
     MMTemplateState state;
     MMMovieTemplateList parents, sets;
-    MMMovieGroup costumes;
+    MMTemplateCostumeTable costumes;
     int costumes_absent;
 } MMMovieTemplate;
 

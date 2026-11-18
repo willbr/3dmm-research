@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "engine_template_costumes.h"
 #include "scene_sound.h"
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
@@ -123,7 +124,8 @@ class TrackTestTemplate : public Template
         auto tmpl = NewObj TrackTestTemplate();
         auto cels = GeneralGroup::PggNew(sizeof(AnimationCel));
         auto matrices = DynamicArray::PglNew(sizeof(BMAT34));
-        bool ok = tmpl && tmpl->FInit() && cels && matrices;
+        auto costumeWire = GeneralGroup::PggNew(sizeof(int32_t));
+        bool ok = tmpl && tmpl->FInit() && cels && matrices && costumeWire;
         if (ok)
         {
             tmpl->_stn.SetSzs(PszLit("Fixture template"));
@@ -147,11 +149,11 @@ class TrackTestTemplate : public Template
         ActionChunkOnFile header = {kboCur, koskCur, factnRotateY};
         ok = ok && table(kctgTmpl, *number, kctgGlpi, tmpl->_Parents()) &&
              table(kctgTmpl, *number, kctgGlbs, tmpl->_Sets()) &&
-             table(kctgTmpl, *number, kctgGgcm, tmpl->_Costumes()) &&
+             table(kctgTmpl, *number, kctgGgcm, costumeWire) &&
              file->FAddChild(kctgTmpl, *number, 0, sizeof(header), kctgActn, &action) &&
              file->FPutPv(&header, sizeof(header), kctgActn, action) && table(kctgActn, action, kctgGgcl, cels) &&
              table(kctgActn, action, kctgGlxf, matrices);
-        ReleasePpo(&tmpl);
+        ReleasePpo(&costumeWire); ReleasePpo(&tmpl);
         ReleasePpo(&cels);
         ReleasePpo(&matrices);
         return ok;
@@ -205,8 +207,8 @@ class TrackTestTemplate : public Template
         _template.y = BR_ANGLE_DEG(90);
         _template.parents = DynamicArray::PglNew(sizeof(short));
         _template.sets = DynamicArray::PglNew(sizeof(short));
-        _template.costumes = GeneralGroup::PggNew(sizeof(int32_t));
-        return _Parents() != pvNil && _Sets() != pvNil && _Costumes() != pvNil;
+        _template.costumes = EngineTemplateCostumes::Create();
+        return _Parents() != pvNil && _Sets() != pvNil && _template.costumes != pvNil;
     }
     bool FInitAction()
     {
