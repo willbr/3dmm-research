@@ -296,30 +296,142 @@ int mm_masked_hit(const MMMaskedBitmap *m, int big, MMI32 x, MMI32 y)
     }
     return 0;
 }
-void *mm_masked_read(void *block, const MMMaskedServices *s)
+static int visible_span(MMI32 origin, MMI32 extent, MMI32 clip_min, MMI32 clip_max, MMI32 *first, MMI32 *end)
+{
+    MMU32 start, stop;
+    if (origin >= clip_max || clip_min >= clip_max)
+        return 0;
+    start = origin < clip_min ? (MMU32)clip_min - (MMU32)origin : 0;
+    stop = (MMU32)clip_max - (MMU32)origin;
+    if (start >= (MMU32)extent)
+        return 0;
+    *first = (MMI32)start;
+    *end = stop < (MMU32)extent ? (MMI32)stop : extent;
+    return 1;
+}
+
+void mm_masked_blit8(const MMMaskedBitmap *m, int big, unsigned char *pixels, MMI32 stride, MMI32 height,
+                     MMI32 left, MMI32 top, const MMMaskedRect *clip)
+{
+    const unsigned char *b = (const unsigned char *)m->data;
+    MMMaskedRect r, target;
+    const unsigned char *encoded, *row_end;
+    unsigned char *line;
+    MMI32 x0, x1, y0, y1, row, x, start, end, run;
+    if (stride <= 0 || height <= 0 || (size_t)stride != (MMU32)stride || (size_t)height != (MMU32)height ||
+        (size_t)height > (size_t)-1 / (size_t)stride)
+        return;
+    target.left = target.top = 0;
+    target.right = stride;
+    target.bottom = height;
+    if (clip)
+    {
+        if (clip->left > target.left)
+            target.left = clip->left;
+        if (clip->top > target.top)
+            target.top = clip->top;
+        if (clip->right < target.right)
+            target.right = clip->right;
+        if (clip->bottom < target.bottom)
+            target.bottom = clip->bottom;
+    }
+    mm_masked_bounds(m, big, &r);
+    if (!visible_span(left, r.right - r.left, target.left, target.right, &x0, &x1) ||
+        !visible_span(top, r.bottom - r.top, target.top, target.bottom, &y0, &y1))
+        return;
+    encoded = b + 28 + m->row_bytes;
+    for (row = 0; row < y0; ++row)
+        encoded += word(b + 28 + row * 2, 2, big);
+    for (; row < y1; ++row)
+    {
+        line = pixels + (size_t)(top + row) * (size_t)stride;
+        row_end = encoded + word(b + 28 + row * 2, 2, big);
+        x = 0;
+        while (encoded < row_end)
+        {
+            x += *encoded++;
+            if (encoded == row_end || x >= x1)
+                break;
+            run = *encoded++;
+            start = x < x0 ? x0 : x;
+            end = x + run < x1 ? x + run : x1;
+            if (end > start)
+            {
+                if (b[4])
+                    memset(line + (left + start), b[5], (size_t)(end - start));
+                else
+                    memcpy(line + (left + start), encoded + (start - x), (size_t)(end - start));
+            }
+            if (!b[4])
+                encoded += run;
+            x += run;
+        }
+        encoded = row_end;
+    }
+}
+
+int mm_masked_read_stream(const MMReadStream *stream, MMMaskedBitmap *out, const MMMaskedServices *s)
 {
     MMMaskedBitmap m;
-    void *o;
     memset(&m, 0, sizeof(m));
+    if (stream->length < 28 || stream->length > MAXIMUM || (size_t)stream->length != stream->length)
+        return 0;
+    m.bytes = (MMI32)stream->length;
+    if (!s->allocate(s->context, m.bytes, &m.data))
+        return 0;
+    if (!mm_read_exact(stream, 0, m.data, (size_t)m.bytes) || !mm_masked_validate(&m, s->host_big_endian))
+    {
+        mm_masked_dispose(&m, s);
+        return 0;
+    }
+    *out = m;
+    return 1;
+}
+
+typedef struct MaskedBlockStream
+{
+    void *block;
+    const MMMaskedServices *services;
+} MaskedBlockStream;
+
+static int read_block(void *context, MMU32 offset, void *data, size_t bytes)
+{
+    MaskedBlockStream *source = (MaskedBlockStream *)context;
+    const MMMaskedServices *s = source->services;
+    if (offset || !s->read(s->context, source->block, data, (MMI32)bytes))
+        return 0;
+    if (s->is_memory(s->context, source->block))
+        s->consume(s->context, source->block);
+    return 1;
+}
+
+void *mm_masked_read(void *block, const MMMaskedServices *s)
+{
+    MMMaskedBitmap m = {0};
+    MaskedBlockStream source;
+    MMReadStream stream;
+    MMI32 bytes;
+    void *o;
     if (!s->unpack(s->context, block))
         return NULL;
-    m.bytes = s->size(s->context, block, 0);
-    if (m.bytes < 28 || !s->allocate(s->context, m.bytes, &m.data))
+    bytes = s->size(s->context, block, 0);
+    if (bytes < 0)
         return NULL;
-    if (!s->read(s->context, block, m.data, m.bytes))
-        goto fail;
-    if (s->is_memory(s->context, block))
-        s->consume(s->context, block);
-    if (!mm_masked_validate(&m, s->host_big_endian))
-        goto fail;
+    source.block = block;
+    source.services = s;
+    stream.context = &source;
+    stream.read_at = read_block;
+    stream.length = (MMU32)bytes;
+    if (!mm_masked_read_stream(&stream, &m, s))
+        return NULL;
     o = s->create(s->context);
     if (!o)
-        goto fail;
+    {
+        mm_masked_dispose(&m, s);
+        return NULL;
+    }
     *s->state(s->context, o) = m;
     return o;
-fail:
-    mm_masked_dispose(&m, s);
-    return NULL;
 }
 int mm_masked_fetch(void *block, int want, const MMMaskedServices *s)
 {

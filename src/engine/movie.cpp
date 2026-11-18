@@ -2966,10 +2966,15 @@ MMMovieComposeServices Movie::_ComposeServices()
     };
     s.transition=[](void *p)->MMI32 { return static_cast<PScene>(p)->Trans(); };
     s.read_thumbnail=[](void *p,MMU32 number)->void* {
-        auto file=static_cast<PChunkyFile>(p); ChildChunkIdentification child; DataBlock block;
-        if(!file->FGetKidChidCtg(kctgScen,number,0,kctgThumbMbmp,&child)) { Bug("Scene doesn't have a thumbnail"); return nullptr; }
-        if(!file->FFind(child.cki.ctg,child.cki.cno,&block)) return nullptr;
-        return MaskedBitmapMBMP::PmbmpRead(&block);
+        auto file = static_cast<PChunkyFile>(p);
+        const auto chunks = file->ReadChunkAccess();
+        MMU32 thumbnail;
+        if (mm_scene_thumbnail_link(&chunks, number, &thumbnail) != MM_CHUNK_OK)
+        {
+            Bug("Scene doesn't have a thumbnail");
+            return nullptr;
+        }
+        return MaskedBitmapMBMP::PmbmpReadChunk(file, kctgThumbMbmp, thumbnail);
     };
     s.thumbnail=[](void *p)->void* { return static_cast<PScene>(p)->PmbmpThumbnail(); };
     s.clone_movie=[](void *p,MMU32 number,void *out,MMU32 *copied)->int {

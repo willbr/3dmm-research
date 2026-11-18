@@ -750,8 +750,11 @@ adapters. Scene forward/backward chopping, its public undo transaction and
 persistent snapshot resource ownership/save/swap control now also use C89.
 Scene name/transition editing, persistent property undo payloads/swaps,
 transition-file read/modify/write and playback startup/shutdown now also use C89.
-Scene thumbnail generation/cache access and dirty propagation now also use C89;
-typed offscreen graphics, view drawing and palette primitives remain adapters.
+Scene thumbnail generation, cache access and dirty propagation also use C89.
+Studio and Marcus read saved thumbnails through C-owned streams. They share
+masked-bitmap decoding and rectangular indexed drawing. C89 also reads the
+thumbnail palette and produces RGBA for Marcus. Typed offscreen graphics and
+view drawing remain adapters.
 Scene background-tag and click-to-actor queries and full/header-only event-group
 acceptance now also use C89. The remaining Scene bridge branches were audited as
 typed operations/output marshaling or debug validation, not C-only integration.

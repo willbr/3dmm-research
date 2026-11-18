@@ -2062,6 +2062,17 @@ final C-only integration remain conversion work. No Marcus UI tests were added.
 
 ### Scene thumbnail generation and dirty propagation
 
+The saved-thumbnail path resolves the slot-zero THUM link through the shared
+chunk graph and reads the decoded payload through a C-owned block. Studio loads
+it into the C bitmap record held by its native resource object. Marcus uses the
+same decoder and rectangular indexed blit, then expands the pixels to opaque
+RGBA with the saved-thumbnail palette. Missing palettes use the active preview
+palette. The stored-size and dimension limits stay in the preview path.
+The saved-thumbnail comparison matches metadata and RGBA byte for byte across
+2,289 images. The rectangular blit also matches the previous renderer across
+13,440 combinations of source rows, placement, clipping and mask flags. The
+comparison and sanitizer logs are in `tmp/c89-scene-thumbnails`.
+
 `scene_thumbnail.c` owns thumbnail update/cache access and dirty propagation.
 It captures selected primary objects and sound time, mutes sound, checks for
 background/view/dirty state, creates indexed source/thumbnail ports, sets the

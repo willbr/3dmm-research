@@ -99,6 +99,7 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
                                  byte bDefault = 0);
 
     static PMaskedBitmapMBMP PmbmpRead(PDataBlock pblck);
+    static PMaskedBitmapMBMP PmbmpReadChunk(PChunkyFile, ChunkTagOrType, ChunkNumber);
 
     void GetRc(RC *prc);
     void Draw(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, LegacyLong xpRef, LegacyLong ypRef, RC *prcClip = pvNil,

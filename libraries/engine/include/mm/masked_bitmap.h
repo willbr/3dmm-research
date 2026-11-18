@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MASKED_BITMAP_H
 #define MM_ENGINE_MASKED_BITMAP_H
-#include "types.h"
+#include "read_stream.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -64,6 +64,13 @@ extern "C"
     int mm_masked_validate(MMMaskedBitmap *, int host_big);
     void mm_masked_bounds(const MMMaskedBitmap *, int host_big, MMMaskedRect *);
     int mm_masked_hit(const MMMaskedBitmap *, int host_big, MMI32 x, MMI32 y);
+    /* Copy and normalize a decoded wire stream. A successful read transfers
+     * ownership to the empty output. Failure leaves the output unchanged. */
+    int mm_masked_read_stream(const MMReadStream *, MMMaskedBitmap *, const MMMaskedServices *);
+    /* Draw validated pixels at the supplied destination origin. The stride is
+     * also the drawable width. Transparent runs leave the destination intact. */
+    void mm_masked_blit8(const MMMaskedBitmap *, int host_big, unsigned char *pixels, MMI32 stride, MMI32 height,
+                         MMI32 left, MMI32 top, const MMMaskedRect *clip);
     /* Successful byte transfer consumes memory-backed blocks before validation or
      * object creation; file-backed blocks stay intact. Allocation/read failure leaves
      * the source block intact. Fetch estimates do not load/consume. Callbacks must

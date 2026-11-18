@@ -435,6 +435,54 @@ static void imports(void)
                 balanced(&f);
             }
 }
+static void stream_blitting(void)
+{
+    Fixture f;
+    MMMaskedBitmap m;
+    MMMemoryStream stream;
+    const MMMaskedRect clip = {1, 1, 2, 3};
+    unsigned char pixels[12], expected[12];
+    int big, source, mask;
+    for (big = 0; big < 2; ++big)
+        for (source = 0; source < 2; ++source)
+            for (mask = 0; mask < 2; ++mask)
+            {
+                setup(&f, big);
+                seed(&f, source);
+                if (mask)
+                {
+                    f.size = 36;
+                    f.input[4] = 1;
+                    f.input[5] = 37;
+                    put(f.input + 24, 4, 36, source);
+                    put(f.input + 28, 2, 2, source);
+                    put(f.input + 30, 2, 2, source);
+                    f.input[34] = 0;
+                    f.input[35] = 2;
+                }
+                memset(&m, 0, sizeof(m));
+                assert(mm_memory_stream_init(&stream, f.input, (size_t)f.size));
+                assert(mm_masked_read_stream(&stream.stream, &m, &f.s));
+                memset(f.input, 0, sizeof(f.input));
+                memset(expected, 0xa5, sizeof(expected));
+                expected[1] = mask ? 37 : 9;
+                expected[2] = mask ? 37 : 8;
+                expected[4] = mask ? 37 : 6;
+                expected[5] = mask ? 37 : 5;
+                memset(pixels, 0xa5, sizeof(pixels));
+                mm_masked_blit8(&m, big, pixels, 4, 3, 0, 0, NULL);
+                assert(!memcmp(pixels, expected, sizeof(pixels)));
+                memset(expected, 0xa5, sizeof(expected));
+                expected[5] = mask ? 37 : 8;
+                memset(pixels, 0xa5, sizeof(pixels));
+                mm_masked_blit8(&m, big, pixels, 4, 3, -1, 1, &clip);
+                mm_masked_blit8(&m, big, pixels, 4, 3, (-2147483647 - 1), 0, NULL);
+                assert(!memcmp(pixels, expected, sizeof(pixels)));
+                mm_masked_dispose(&m, &f.s);
+                assert(!mm_masked_read_stream(&stream.stream, &m, &f.s) && !m.data);
+                balanced(&f);
+            }
+}
 int main(void)
 {
     encode();
@@ -442,6 +490,7 @@ int main(void)
     loading();
     malformed();
     imports();
+    stream_blitting();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

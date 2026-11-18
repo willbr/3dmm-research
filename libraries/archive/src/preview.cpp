@@ -22,6 +22,7 @@
 #include "mm/preview_session.h"
 #include "mm/preview_media.h"
 #include "mm/scene_data.h"
+#include "mm/scene_thumbnail.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
 #include "preview_background.h"
@@ -794,53 +795,38 @@ try
     auto file = static_cast<PChunkyFile>(_impl->assets.NativeFile());
     if (!file || scene.type != kctgScen)
         return Fail(error, ErrorCode::invalid_argument, "Open a movie before reading scene thumbnails.");
-    ChildChunkIdentification kid;
-    if (!file->FGetKidChidCtg(scene.type, scene.number, 0, kctgThumbMbmp, &kid))
+    static_assert(sizeof(Color) == 4, "Thumbnail palette colour layout");
+    const auto chunks = file->ReadChunkAccess();
+    const MMSceneThumbnailPreview preview = {
+        KauaiChunkPayloadServices(), file, _impl->resources.NativeFile(),
+        reinterpret_cast<const unsigned char *>(_impl->palette), &image,
+        [](void *out, MMU32 width, MMU32 height) -> unsigned char * {
+            auto &result = *static_cast<PreviewImage *>(out);
+            try
+            {
+                result.rgba.resize(static_cast<std::size_t>(width) * height * 4);
+            }
+            catch (const std::bad_alloc &)
+            {
+                return nullptr;
+            }
+            result.width = width;
+            result.height = height;
+            return result.rgba.data();
+        }};
+    switch (mm_scene_thumbnail_preview(&chunks, scene.number, &preview))
+    {
+    case MM_SCENE_THUMBNAIL_OK:
         return true;
-    DataBlock block;
-    if (!file->FFind(kid.cki.ctg, kid.cki.cno, &block) || block.Cb() > 1024 * 1024)
+    case MM_SCENE_THUMBNAIL_READ:
         return Fail(error, ErrorCode::decode_failed, "Cannot read the saved scene thumbnail.");
-    auto bitmap = MaskedBitmapMBMP::PmbmpRead(&block);
-    if (!bitmap)
-        return Fail(error, ErrorCode::decode_failed, "Cannot decode the saved scene thumbnail.");
-    const auto releaseBitmap = [](MaskedBitmapMBMP *value) { ReleasePpo(&value); };
-    std::unique_ptr<MaskedBitmapMBMP, decltype(releaseBitmap)> bitmapOwner(bitmap, releaseBitmap);
-    RC bounds;
-    bitmap->GetRc(&bounds);
-    const auto width = bounds.Dxp(), height = bounds.Dyp();
-    if (width <= 0 || height <= 0 || width > 1024 || height > 1024)
-    {
+    case MM_SCENE_THUMBNAIL_DIMENSIONS:
         return Fail(error, ErrorCode::decode_failed, "Invalid saved scene thumbnail dimensions.");
+    case MM_SCENE_THUMBNAIL_MEMORY:
+        return Fail(error, ErrorCode::out_of_memory, "Insufficient memory for the saved scene thumbnail.");
+    default:
+        return Fail(error, ErrorCode::decode_failed, "Cannot decode the saved scene thumbnail.");
     }
-    std::vector<byte> indices(static_cast<std::size_t>(width) * height, 0);
-    image.rgba.resize(indices.size() * 4);
-    bitmap->Draw(indices.data(), width, height, -bounds.xpLeft, -bounds.ypTop);
-    Color palette[256];
-    std::memcpy(palette, _impl->palette, sizeof(palette));
-    auto resources = static_cast<PChunkyFile>(_impl->resources.NativeFile());
-    if (resources->FFind(kctgColorTable, 0x20001, &block))
-    {
-        short order;
-        auto colours = DynamicArray::PglRead(&block, &order);
-        if (colours && colours->CbEntry() == sizeof(Color) && colours->IvMac() == 256)
-        {
-            if (order == kboOther)
-                SwapBytesRglw(colours->QvGet(0), colours->IvMac());
-            std::memcpy(palette, colours->QvGet(0), sizeof(palette));
-        }
-        ReleasePpo(&colours);
-    }
-    image.width = width;
-    image.height = height;
-    for (std::size_t i = 0; i < indices.size(); ++i)
-    {
-        const auto &colour = palette[indices[i]];
-        image.rgba[i * 4] = colour.bRed;
-        image.rgba[i * 4 + 1] = colour.bGreen;
-        image.rgba[i * 4 + 2] = colour.bBlue;
-        image.rgba[i * 4 + 3] = 255;
-    }
-    return true;
 }
 catch (const std::bad_alloc &)
 {

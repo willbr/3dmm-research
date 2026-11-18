@@ -13,6 +13,7 @@
 #include "kauai_core.h"
 #include "region.h"
 #include "mbmp.h"
+#include <cstdint>
 ASSERTNAME
 
 /***************************************************************************
@@ -30,6 +31,22 @@ void MaskedBitmapMBMP::Draw(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, 
     AssertPvCb(prgbPixels, LwMul(cbRow, dyp));
     AssertNilOrVarMem(prcClip);
     AssertNilOrPo(pregnClip, 0);
+
+    if (pvNil == pregnClip)
+    {
+        const auto &bounds = _Qmbmph()->rc;
+        const auto left = static_cast<std::int64_t>(bounds.xpLeft) + xpRef;
+        const auto top = static_cast<std::int64_t>(bounds.ypTop) + ypRef;
+        if (left < INT32_MIN || left > INT32_MAX || top < INT32_MIN || top > INT32_MAX)
+            return;
+        MMMaskedRect clip;
+        if (prcClip)
+            clip = {prcClip->xpLeft, prcClip->ypTop, prcClip->xpRight, prcClip->ypBottom};
+        const unsigned short one = 1;
+        mm_masked_blit8(&_bitmap, !*reinterpret_cast<const byte *>(&one), prgbPixels, cbRow, dyp,
+                        static_cast<MMI32>(left), static_cast<MMI32>(top), prcClip ? &clip : nullptr);
+        return;
+    }
 
 #ifdef IN_80386
     // NOTE the "rep movsd" and "rep movsb" used for writing the bytes is
@@ -61,10 +78,7 @@ void MaskedBitmapMBMP::Draw(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, 
         return;
 
     // Set up the region scanner
-    if (pvNil != pregnClip)
-        regsc.Init(pregnClip, &rcClip);
-    else
-        regsc.InitRc(&rcClip, &rcClip);
+    regsc.Init(pregnClip, &rcClip);
 
     qcb = _Qrgcb();
     qbRowSrc = (byte *)PvAddBv(qcb, _bitmap.row_bytes);
@@ -311,10 +325,7 @@ LFill:
         return;
 
     // Set up the region scanner
-    if (pvNil != pregnClip)
-        regsc.Init(pregnClip, &rcClip);
-    else
-        regsc.InitRc(&rcClip, &rcClip);
+    regsc.Init(pregnClip, &rcClip);
 
     qcb = _Qrgcb();
     qbRowSrc = (byte *)PvAddBv(qcb, _bitmap.row_bytes);

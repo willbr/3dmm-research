@@ -2276,9 +2276,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
         return 1;
     };
     s.thumbnail = [](void *p, MMU32 number) -> void * {
-        DataBlock block;
-        return static_cast<Host *>(p)->file->FFind(kctgThumbMbmp, number, &block) ? MaskedBitmapMBMP::PmbmpRead(&block)
-                                                                                  : nullptr;
+        return MaskedBitmapMBMP::PmbmpReadChunk(static_cast<Host *>(p)->file, kctgThumbMbmp, number);
     };
     s.object = [](void *p, MMU32 number, int kind, void *scene) -> void * {
         auto resources = static_cast<Host *>(p)->resources;
