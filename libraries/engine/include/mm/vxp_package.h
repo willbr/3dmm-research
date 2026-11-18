@@ -30,7 +30,10 @@ typedef enum MMVxpResult
     MM_VXP_REGID,
     MM_VXP_REGNAME,
     MM_VXP_NO_CONTENT,
-    MM_VXP_NO_THUMBNAILS
+    MM_VXP_NO_THUMBNAILS,
+    MM_VXP_ZIP_OPEN,
+    MM_VXP_ZIP_WRITE,
+    MM_VXP_ZIP_CLOSE
 } MMVxpResult;
 
 /* ZIP file sizes and budgets are unsigned even on 32-bit hosts. */
@@ -93,6 +96,26 @@ const char *mm_vxp_error(MMVxpResult);
 int mm_vxp_is_storyboard_package(const MMVxpPackage *);
 /* Returns a materialized extension for the two chunky content kinds. */
 const char *mm_vxp_content_extension(MMVxpMemberKind);
+/* Visit the selected chunky members in directory order using flat filenames
+ * based on the original directory slot. The filename is borrowed by the call. */
+typedef int (*MMVxpMaterializeMember)(void *, const MMVxpMember *, const char *filename);
+int mm_vxp_materialize(const MMVxpPackage *, MMVxpMaterializeMember, void *context);
+
+enum { MM_VXP_STORYBOARD_NAME_CAPACITY = sizeof("Marcus Storyboard 4294967295_4294967295") };
+typedef struct MMVxpStoryboardWriter
+{
+    void *context;
+    int (*begin)(void *);
+    int (*configuration)(void *, const char *member, const void *bytes, size_t count);
+    int (*chunky)(void *, const char *member, MMVxpMemberKind);
+    int (*finish)(void *);
+    int (*close)(void *);
+} MMVxpStoryboardWriter;
+/* Write the CFG, content and thumbnails in that order. After a successful
+ * begin, close is called once even if a member or finalization fails. The
+ * name is published only once the writer has closed a complete archive. */
+MMVxpResult mm_vxp_write_storyboard(const MMVxpStoryboardWriter *, MMU32 nonce, MMU32 sequence,
+                                   char name[MM_VXP_STORYBOARD_NAME_CAPACITY]);
 void mm_vxp_fold_ascii(char *text, size_t length);
 int mm_vxp_compare_names(const char *, const char *);
 

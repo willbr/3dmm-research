@@ -73,6 +73,92 @@ const char *mm_vxp_content_extension(MMVxpMemberKind kind)
     return NULL;
 }
 
+static char *decimal(char *out, MMU32 value)
+{
+    char reverse[10];
+    size_t count = 0;
+    do
+    {
+        reverse[count++] = (char)('0' + value % 10);
+        value /= 10;
+    } while (value);
+    while (count)
+        *out++ = reverse[--count];
+    *out = '\0';
+    return out;
+}
+
+static char *copy_text(char *out, const char *text)
+{
+    size_t length = strlen(text);
+    memcpy(out, text, length + 1);
+    return out + length;
+}
+
+int mm_vxp_materialize(const MMVxpPackage *package, MMVxpMaterializeMember write, void *context)
+{
+    size_t i;
+    char filename[sizeof("4294967295.3cn")];
+    const char *extension;
+    for (i = 0; i < package->member_count; ++i)
+    {
+        extension = mm_vxp_content_extension(package->members[i].kind);
+        if (!extension)
+            continue;
+        copy_text(decimal(filename, package->members[i].index), extension);
+        if (!write(context, &package->members[i], filename))
+            return 0;
+    }
+    return 1;
+}
+
+#define STORYBOARD_DISPLAY "Marcus Storyboard "
+#define STORYBOARD_SHORT "marcus_storyboard_"
+#define STORYBOARD_CFG "\r\nAuthor=Marcus\r\nType=Portable\r\nContent=Backgrounds\r\nMarcusStoryboard=1\r\n"
+#define MAX_STORYBOARD_SUFFIX "4294967295_4294967295"
+
+MMVxpResult mm_vxp_write_storyboard(const MMVxpStoryboardWriter *writer, MMU32 nonce, MMU32 sequence,
+                                   char name[MM_VXP_STORYBOARD_NAME_CAPACITY])
+{
+    char suffix[sizeof(MAX_STORYBOARD_SUFFIX)];
+    char member[sizeof(STORYBOARD_SHORT MAX_STORYBOARD_SUFFIX ".cfg")];
+    char cfg[sizeof("Name=" STORYBOARD_DISPLAY MAX_STORYBOARD_SUFFIX STORYBOARD_CFG)];
+    char display[MM_VXP_STORYBOARD_NAME_CAPACITY];
+    char *end = decimal(suffix, nonce);
+    size_t cfg_length;
+    int complete, closed;
+    *end++ = '_';
+    decimal(end, sequence);
+    copy_text(copy_text(display, STORYBOARD_DISPLAY), suffix);
+    end = copy_text(cfg, "Name=");
+    end = copy_text(end, display);
+    cfg_length = (size_t)(copy_text(end, STORYBOARD_CFG) - cfg);
+    end = copy_text(copy_text(member, STORYBOARD_SHORT), suffix);
+
+    if (!writer->begin(writer->context))
+        return MM_VXP_ZIP_WRITE;
+    copy_text(end, ".cfg");
+    complete = writer->configuration(writer->context, member, cfg, cfg_length);
+    if (complete)
+    {
+        copy_text(end, mm_vxp_content_extension(MM_VXP_CONTENT));
+        complete = writer->chunky(writer->context, member, MM_VXP_CONTENT);
+    }
+    if (complete)
+    {
+        copy_text(end, mm_vxp_content_extension(MM_VXP_THUMBNAILS));
+        complete = writer->chunky(writer->context, member, MM_VXP_THUMBNAILS);
+    }
+    complete = complete && writer->finish(writer->context);
+    closed = writer->close(writer->context);
+    if (!complete)
+        return MM_VXP_ZIP_WRITE;
+    if (!closed)
+        return MM_VXP_ZIP_CLOSE;
+    copy_text(name, display);
+    return MM_VXP_OK;
+}
+
 static int greater(MMVxpSize a, MMVxpSize b)
 {
     return a.high > b.high || (a.high == b.high && a.low > b.low);
@@ -446,6 +532,9 @@ const char *mm_vxp_error(MMVxpResult status)
     case MM_VXP_REGNAME: return "VXP uses an unsupported portable source override: regname";
     case MM_VXP_NO_CONTENT: return "VXP has no matching .3cn";
     case MM_VXP_NO_THUMBNAILS: return "VXP has no matching .3th";
+    case MM_VXP_ZIP_OPEN: return "Invalid VXP ZIP archive";
+    case MM_VXP_ZIP_WRITE: return "Cannot write storyboard VXP package";
+    case MM_VXP_ZIP_CLOSE: return "Cannot close storyboard VXP package";
     }
     return "Invalid VXP package";
 }

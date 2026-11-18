@@ -279,6 +279,8 @@ stale installed-package reuse and collisions with existing portable content.
 C89 checks the existing portable indexes and assigns high even numbers by chunk
 type. It rewrites the generated index and all its child links together. Only
 the private staging archive receives the rewritten index.
+C89 also writes the package identity and CFG and orders the CFG, content and
+thumbnail members. The VMM save publishes the package after ZIP close succeeds.
 
 The original v3dmm 0.14 runtime loaded an exported two-angle storyboard, displayed
 its drawing and prop, and sought forward/backward across both camera cuts with
@@ -298,6 +300,9 @@ After moving the index rewrite into C89, the same frame comparison passed.
 The two-angle, resaved and multi-page packages also matched the previous
 exports' payload and child-graph signatures after normalizing chunk numbers.
 Evidence is in `tmp/c89-portable-rekey/`.
+After the ZIP migration, both storyboard frames again matched original v3dmm.
+The C-only ZIP round trip passed on x86 and x64 with AddressSanitizer.
+Evidence is in `tmp/c89-vxp-zip/`.
 
 **Scenes > Camera angles** shows a grid of rendered thumbnails for the current
 background's authored cameras, including actors and captions at the current frame.

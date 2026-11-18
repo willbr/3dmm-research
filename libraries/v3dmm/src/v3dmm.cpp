@@ -2,8 +2,7 @@
 #include "mm/v3dmm.h"
 #include "mm/vmm_dependencies.h"
 #include "mm/vmm_wire.h"
-#include "mm/vxp_package.h"
-#include <miniz.h>
+#include "mm/vxp_zip.h"
 #include <algorithm>
 #include <array>
 #include <exception>
@@ -108,50 +107,29 @@ std::uint64_t PackageSize(MMVxpSize bytes)
 struct Zip
 {
     Input input;
-    mz_zip_archive zip{};
+    MMVxpZip *zip = nullptr;
     explicit Zip(const Range &range) : input(range)
     {
-        zip.m_pIO_opaque = this;
-        zip.m_pRead = [](void *context, mz_uint64 offset, void *buffer, size_t length) -> size_t {
-            try
-            {
-                static_cast<Zip *>(context)->input.Read(offset, buffer, length);
-                return length;
-            }
-            catch (...)
-            {
-                return 0;
-            }
-        };
-        Require(mz_zip_reader_init(&zip, range.length, 0) != 0, "Invalid VXP ZIP archive");
+        const MMVxpZipInput source{&input, PackageSize(range.length),
+            [](void *context, MMVxpSize offset, void *bytes, std::size_t length) -> int {
+                try { static_cast<Input *>(context)->Read(PackageSize(offset), bytes, length); return 1; }
+                catch (...) { return 0; }
+            }};
+        const auto status = mm_vxp_zip_open(&source, &zip);
+        Require(status == MM_VXP_OK, mm_vxp_error(status));
     }
     ~Zip()
     {
-        mz_zip_reader_end(&zip);
+        mm_vxp_zip_close(zip);
     }
-    static MMVxpResult MemberInfo(void *context, MMU32 index, char *name, std::size_t capacity, MMVxpMemberInfo *info)
-    {
-        auto &zip = static_cast<Zip *>(context)->zip;
-        mz_zip_archive_file_stat stat{};
-        if (!mz_zip_reader_file_stat(&zip, index, &stat)) return MM_VXP_MEMBER_RECORD;
-        const auto length = mz_zip_reader_get_filename(&zip, index, nullptr, 0);
-        if (length <= 1 || length > capacity) return MM_VXP_NAME_LENGTH;
-        if (mz_zip_reader_get_filename(&zip, index, name, length) != length) return MM_VXP_NAME_READ;
-        *info = {PackageSize(stat.m_uncomp_size), length - 1,
-            !stat.m_is_directory && !stat.m_is_encrypted && stat.m_is_supported};
-        return MM_VXP_OK;
-    }
+    Zip(const Zip &) = delete;
+    Zip &operator=(const Zip &) = delete;
 
-    static int Configuration(void *context, MMU32 index, void *bytes, std::size_t count)
+    std::string MemberName(MMU32 index) const
     {
-        return mz_zip_reader_extract_to_mem(&static_cast<Zip *>(context)->zip, index, bytes, count, 0);
-    }
-
-    std::string MemberName(MMU32 index)
-    {
-        const auto length = mz_zip_reader_get_filename(&zip, index, nullptr, 0);
+        const auto length = mm_vxp_zip_member_name(zip, index, nullptr, 0);
         std::string name(length, '\0');
-        if (length && mz_zip_reader_get_filename(&zip, index, name.data(), length) == length) name.pop_back();
+        if (length && mm_vxp_zip_member_name(zip, index, name.data(), length) == length) name.pop_back();
         return name;
     }
 };
@@ -161,13 +139,13 @@ struct PackageContents
     MMVxpPackage value{};
     PackageContents(Zip &zip, const Limits &limits)
     {
-        const MMVxpReader reader = {&zip, mz_zip_reader_get_num_files(&zip.zip), Zip::MemberInfo, Zip::Configuration};
         const MMVxpLimits budget = {limits.members, PackageSize(limits.memberBytes), PackageSize(limits.expandedBytes)};
-        MMU32 failed = reader.count;
-        const auto status = mm_vxp_read_package(&reader, &budget, &value, &failed);
+        MMU32 failed;
+        const auto status = mm_vxp_zip_package(zip.zip, &budget, &value, &failed);
         if (status == MM_VXP_OK) return;
         std::string message = mm_vxp_error(status);
-        if (failed < reader.count) message += ": " + zip.MemberName(failed);
+        const auto name = zip.MemberName(failed);
+        if (!name.empty()) message += ": " + name;
         throw std::runtime_error(message);
     }
     ~PackageContents() { mm_vxp_dispose(&value); }
@@ -272,30 +250,45 @@ std::map<std::string, std::filesystem::path> Materialize(const Range &archive, c
 {
     Zip zip(archive);
     const PackageContents contents(zip, limits);
-    const auto &package = contents.value;
-    std::map<std::string, fs::path> result;
-    for (std::size_t i = 0; i < package.member_count; ++i)
+    struct Output
     {
-        const auto &member = package.members[i];
-        const auto extension = mm_vxp_content_extension(member.kind);
-        if (!extension) continue;
-        auto path = directory / (std::to_string(member.index) + extension);
-        Require(!fs::exists(path), "VXP extraction target already exists");
-        std::ofstream stream(path, std::ios::binary);
-        Require(bool(stream), "Cannot create VXP content file");
-        auto callback = [](void *context, mz_uint64, const void *bytes, size_t count) -> size_t {
-            auto &out = *static_cast<std::ofstream *>(context);
-            out.write(static_cast<const char *>(bytes), std::streamsize(count));
-            return out ? count : 0;
-        };
-        Require(mz_zip_reader_extract_to_callback(&zip.zip, member.index, callback, &stream, 0) != 0,
-                "Cannot extract VXP content (data or CRC error)");
-        stream.close();
-        Require(bool(stream), "Cannot finish VXP content file");
-        result.emplace(member.name, path);
-    }
-    return result;
+        MMVxpZip *zip;
+        const fs::path &directory;
+        std::map<std::string, fs::path> result;
+        std::exception_ptr error;
+        static int Sink(void *context, const void *bytes, size_t count)
+        {
+            try
+            {
+                auto &out = *static_cast<std::ofstream *>(context);
+                return bool(out.write(static_cast<const char *>(bytes), std::streamsize(count)));
+            }
+            catch (...) { return 0; }
+        }
+        static int Write(void *context, const MMVxpMember *member, const char *filename)
+        {
+            auto &out = *static_cast<Output *>(context);
+            try
+            {
+                auto path = out.directory / filename;
+                Require(!fs::exists(path), "VXP extraction target already exists");
+                std::ofstream stream(path, std::ios::binary);
+                Require(bool(stream), "Cannot create VXP content file");
+                Require(mm_vxp_zip_extract(out.zip, member->index, Sink, &stream) != 0,
+                        "Cannot extract VXP content (data or CRC error)");
+                stream.close();
+                Require(bool(stream), "Cannot finish VXP content file");
+                out.result.emplace(member->name, path);
+                return 1;
+            }
+            catch (...) { out.error = std::current_exception(); return 0; }
+        }
+    } out{zip.zip, directory, {}, {}};
+    if (!mm_vxp_materialize(&contents.value, Output::Write, &out))
+        std::rethrow_exception(out.error);
+    return std::move(out.result);
 }
+
 void WriteBundle(const Range &movie, const std::vector<Dependency> &dependencies, const std::filesystem::path &output)
 {
     Require(!dependencies.empty() && dependencies.size() <= MM_VMM_OUTPUT_ENTRY_LIMIT,

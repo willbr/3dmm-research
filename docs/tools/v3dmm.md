@@ -88,6 +88,9 @@ and original VXP files are read only. Decoding checks ZIP CRCs, chunky records
 and child links, with limits on counts and expansion sizes. The shared C89
 archive validator accepts a well-formed empty `.3th`. The `.3cn` must contain
 chunks, and both archives must pass index, child graph and payload checks.
+The C89 package reader and miniz C binding retain the selected directory slots
+and derive the staging filenames from those slots. Studio and Marcus use the
+same reader for inspection and extraction.
 
 Installed package names satisfy VMM dependencies, as in the legacy manager.
 A different standalone VXP with an already installed name is rejected. Exact

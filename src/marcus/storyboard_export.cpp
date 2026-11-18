@@ -4,7 +4,7 @@
 #include "engine_read_stream.h"
 #include "mm/chunk_edit.h"
 #include "mm/movie_portable.h"
-#include <miniz.h>
+#include "mm/vxp_zip.h"
 #include <fstream>
 #include <random>
 #include <stdexcept>
@@ -188,16 +188,11 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
     auto thumbnails = Open(thumbnailsPath, true);
     Require(thumbnails->FSave(kctgSoc), "Cannot write storyboard thumbnail archive."); thumbnails.reset();
     // New names avoid the original manager reusing a stale, installed package.
-    const auto shortName = "marcus_storyboard_" + std::to_string(random()) + "_" + std::to_string(random());
-    const auto name = "Marcus Storyboard " + shortName.substr(18);
     const auto archivePath = work.Path("backgrounds.vxp");
-    const std::string cfg = "Name=" + name + "\r\nAuthor=Marcus\r\nType=Portable\r\nContent=Backgrounds\r\nMarcusStoryboard=1\r\n";
-    struct Zip { mz_zip_archive archive = {}; bool closed = false; ~Zip() { if (!closed) mz_zip_writer_end(&archive); } } zip;
-    Require(mz_zip_writer_init_file(&zip.archive, archivePath.u8string().c_str(), 0) &&
-        mz_zip_writer_add_mem(&zip.archive, (shortName + ".cfg").c_str(), cfg.data(), cfg.size(), MZ_BEST_COMPRESSION) &&
-        mz_zip_writer_add_file(&zip.archive, (shortName + ".3cn").c_str(), contentPath.u8string().c_str(), nullptr, 0, MZ_BEST_COMPRESSION) &&
-        mz_zip_writer_add_file(&zip.archive, (shortName + ".3th").c_str(), thumbnailsPath.u8string().c_str(), nullptr, 0, MZ_BEST_COMPRESSION) &&
-        mz_zip_writer_finalize_archive(&zip.archive), "Cannot write storyboard VXP package.");
-    Require(mz_zip_writer_end(&zip.archive), "Cannot close storyboard VXP package."); zip.closed = true;
+    const MMU32 nonce = random(), sequence = random();
+    char name[MM_VXP_STORYBOARD_NAME_CAPACITY];
+    const auto status = mm_vxp_zip_write_storyboard(archivePath.u8string().c_str(), contentPath.u8string().c_str(),
+        thumbnailsPath.u8string().c_str(), nonce, sequence, name);
+    Require(status == MM_VXP_OK, mm_vxp_error(status));
     V::WriteStoryboardBundle(V::WholeFile(innerPath), dependencies, {name, V::WholeFile(archivePath)}, destination);
 }

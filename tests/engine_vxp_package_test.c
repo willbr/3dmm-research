@@ -56,6 +56,88 @@ static const char *field(const MMVxpPackage *package, const char *key)
     return NULL;
 }
 
+static int materialize_member(void *context, const MMVxpMember *member, const char *filename)
+{
+    int *count = (int *)context;
+    if (*count == 0)
+        assert(member->index == 1 && !strcmp(filename, "1.3cn") && !strcmp(member->name, "scene.3CN"));
+    else
+        assert(*count == 1 && member->index == 3 && !strcmp(filename, "3.3th"));
+    ++*count;
+    return 1;
+}
+
+typedef struct StoryboardOutput
+{
+    char calls[6];
+    int count, fail_at;
+} StoryboardOutput;
+
+static int record(StoryboardOutput *out, char code)
+{
+    assert(out->count < (int)sizeof(out->calls));
+    out->calls[out->count++] = code;
+    return out->count != out->fail_at;
+}
+
+static int start_zip(void *context)
+{
+    return record((StoryboardOutput *)context, 'B');
+}
+
+static int write_configuration(void *context, const char *member, const void *bytes, size_t count)
+{
+    static const char cfg[] = "Name=Marcus Storyboard 4294967295_0\r\nAuthor=Marcus\r\n"
+                              "Type=Portable\r\nContent=Backgrounds\r\nMarcusStoryboard=1\r\n";
+    assert(!strcmp(member, "marcus_storyboard_4294967295_0.cfg"));
+    assert(count == sizeof(cfg) - 1 && !memcmp(bytes, cfg, count));
+    return record((StoryboardOutput *)context, 'C');
+}
+
+static int write_chunky(void *context, const char *member, MMVxpMemberKind kind)
+{
+    if (kind == MM_VXP_CONTENT)
+    {
+        assert(!strcmp(member, "marcus_storyboard_4294967295_0.3cn"));
+        return record((StoryboardOutput *)context, 'R');
+    }
+    assert(kind == MM_VXP_THUMBNAILS && !strcmp(member, "marcus_storyboard_4294967295_0.3th"));
+    return record((StoryboardOutput *)context, 'T');
+}
+
+static int finish_zip(void *context)
+{
+    return record((StoryboardOutput *)context, 'F');
+}
+
+static int close_zip(void *context)
+{
+    return record((StoryboardOutput *)context, 'X');
+}
+
+static void write_storyboard(void)
+{
+    static const char *const expected[] = {"BCRTFX", "B", "BCX", "BCRX", "BCRTX", "BCRTFX", "BCRTFX"};
+    StoryboardOutput out;
+    MMVxpStoryboardWriter writer = {NULL, start_zip, write_configuration, write_chunky, finish_zip, close_zip};
+    MMVxpResult status;
+    char name[MM_VXP_STORYBOARD_NAME_CAPACITY];
+    int fail;
+    writer.context = &out;
+    for (fail = 0; fail <= 6; ++fail)
+    {
+        out.count = 0;
+        out.fail_at = fail;
+        name[0] = 0;
+        status = mm_vxp_write_storyboard(&writer, 0xffffffffUL, 0, name);
+        assert(out.count == (int)strlen(expected[fail]) && !memcmp(out.calls, expected[fail], (size_t)out.count));
+        if (!fail)
+            assert(status == MM_VXP_OK && !strcmp(name, "Marcus Storyboard 4294967295_0"));
+        else
+            assert(status == (fail == 6 ? MM_VXP_ZIP_CLOSE : MM_VXP_ZIP_WRITE) && !*name);
+    }
+}
+
 int main(void)
 {
     Fixture fixture = {
@@ -66,6 +148,7 @@ int main(void)
     MMVxpLimits limits = {5, {64, 1}, {4096, 1}};
     MMVxpPackage package = {0};
     MMU32 failed;
+    int materialized = 0;
     char invalid_text[sizeof(configuration)];
     reader.context = &fixture;
     assert(mm_vxp_read_package(&reader, &limits, &package, &failed) == MM_VXP_OK);
@@ -77,6 +160,7 @@ int main(void)
     assert(package.members[1].index == 1 && package.members[2].index == 2 && package.members[3].index == 3);
     assert(package.members[2].bytes.high == 1 && package.members[2].bytes.low == 64);
     assert(!strcmp(mm_vxp_content_extension(package.members[1].kind), ".3cn"));
+    assert(mm_vxp_materialize(&package, materialize_member, &materialized) && materialized == 2);
     assert(!strcmp(mm_vxp_content_extension(package.members[3].kind), ".3th"));
     mm_vxp_dispose(&package);
 
@@ -111,6 +195,7 @@ int main(void)
     fixture.readme_bytes = limits.member_bytes;
     assert(mm_vxp_read_package(&reader, &limits, &package, &failed) == MM_VXP_BUDGET);
     assert(!package.members && !package.configuration && !package.fields);
+    write_storyboard();
     puts("VXP metadata, directory order, wide budgets, CRC handling and rejection passed.");
     return 0;
 }

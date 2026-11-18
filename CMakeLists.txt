@@ -481,8 +481,9 @@ add_library(mm-content STATIC libraries/content/src/content_vfs.cpp)
 target_link_libraries(mm-content PUBLIC mm-vfs)
 target_compile_features(mm-content PUBLIC cxx_std_17)
 target_include_directories(mm-content PUBLIC "${PROJECT_SOURCE_DIR}/libraries/content/include")
-add_library(mm-v3dmm STATIC libraries/v3dmm/src/v3dmm.cpp libraries/v3dmm/src/publish.cpp)
+add_library(mm-v3dmm STATIC libraries/v3dmm/src/v3dmm.cpp libraries/v3dmm/src/publish.cpp libraries/v3dmm/src/vxp_zip.c)
 target_compile_features(mm-v3dmm PUBLIC cxx_std_17)
+set_target_properties(mm-v3dmm PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(mm-v3dmm PUBLIC "${PROJECT_SOURCE_DIR}/libraries/v3dmm/include")
 target_link_libraries(mm-v3dmm PRIVATE miniz mm-engine-c89)
 add_library(studio-pack-store STATIC src/studio/pack_store.cpp src/studio/pack_import.cpp src/studio/pack_hash.cpp
@@ -1922,6 +1923,15 @@ if(BUILD_TESTING)
   add_test(NAME studio-packs COMMAND studio-packs-test "${PROJECT_SOURCE_DIR}/tmp/packs-unit")
   add_dependencies(core-checks studio-packs-test)
   add_test(NAME v3dmm COMMAND v3dmm-test "${PROJECT_SOURCE_DIR}/tmp/v3dmm-unit")
+  if(ENGINE_C89_COMPILER)
+    get_target_property(vxp_miniz_source miniz SOURCE_DIR)
+    get_target_property(vxp_miniz_binary miniz BINARY_DIR)
+    add_test(NAME vxp-zip-c89-syntax COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors
+      -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
+      "-I${PROJECT_SOURCE_DIR}/libraries/engine/include" "-I${PROJECT_SOURCE_DIR}/libraries/v3dmm/include"
+      -isystem "${vxp_miniz_source}" -isystem "${vxp_miniz_binary}"
+      "${PROJECT_SOURCE_DIR}/libraries/v3dmm/src/vxp_zip.c")
+  endif()
   add_test(NAME content-vfs COMMAND content-vfs-test)
   add_dependencies(core-checks content-vfs-test)
   find_program(VFS_C89_COMPILER NAMES clang gcc)
