@@ -456,8 +456,8 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     HQ _HqolyFrame(PPolygon pogn, ulong grfogn);
 
     // transition related methods
-    void _Transition(MMGraphicsTransitionKind, long direction, long fadeSteps, MMPixelPoint focus, AbstractColor fill,
-                     PGraphicsEnvironment source, RC *sourceRect, RC *destination, ulong duration, PDynamicArray palette);
+    void _Transition(MMGraphicsTransition config, AbstractColor fill, PGraphicsEnvironment source, RC *sourceRect,
+                     RC *destination, PDynamicArray palette, Random *random = nullptr);
     bool _FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PDynamicArray *ppglclrTrans, long cbitPixel = 0);
     void _PaletteTrans(PDynamicArray pglclrOld, PDynamicArray pglclrNew, long lwNum, long lwDen, PDynamicArray pglclrTrans, Color *pclrSub = pvNil);
     bool _FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc);

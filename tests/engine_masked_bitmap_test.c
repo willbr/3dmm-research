@@ -997,6 +997,8 @@ typedef struct TransitionTrace
     char log[80];
     size_t used;
     int fail_prepare, fail_palette, fail_iris;
+    MMGraphicsDissolvePixels dissolve_pixels;
+    int fail_lock;
 } TransitionTrace;
 
 static void transition_event(void *context, char event)
@@ -1076,7 +1078,8 @@ static void graphics_transitions(void)
     MMGraphicsTransition t = {0};
     MMGraphicsTransitionServices s = {NULL, transition_ticks, transition_flush, transition_prepare, transition_depth,
                                         transition_start_palette, transition_palette_step, transition_set_palette,
-                                        transition_draw, transition_scroll, transition_present, transition_iris};
+                                        transition_draw, transition_scroll, transition_present, transition_iris,
+                                        NULL, NULL, NULL};
     s.context = &trace;
     memset(palette, 0xa5, sizeof(palette));
     mm_graphics_transition_palette(palette, 2, old, 2, next, 1, NULL, 2, 3);
@@ -1131,6 +1134,83 @@ static void graphics_transitions(void)
     assert(!strcmp(trace.log, "FPBAECI"));
 }
 
+static int dissolve_lock(void *context, MMGraphicsDissolvePixels *pixels)
+{
+    TransitionTrace *trace = context;
+    transition_event(context, 'L');
+    *pixels = trace->dissolve_pixels;
+    return !trace->fail_lock;
+}
+
+static void dissolve_unlock(void *context) { transition_event(context, 'U'); }
+
+static MMU32 dissolve_random(void *context, MMU32 limit)
+{
+    assert(limit == 7);
+    transition_event(context, 'N');
+    return 3;
+}
+
+static void dissolve_draw(void *context, int snapshot, int fill, const MMPixelRect *src, const MMPixelRect *dst)
+{
+    TransitionTrace *trace = context;
+    (void)src;
+    if (snapshot)
+    {
+        assert(fill && dst->left == 0 && dst->top == 0 && dst->right == 1 && dst->bottom == 1);
+        *(unsigned char *)trace->dissolve_pixels.destination.pixels = 0xcc;
+    }
+    transition_event(context, snapshot ? 'd' : 'I');
+}
+
+static void graphics_dissolve(void)
+{
+    static unsigned char source[] = {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
+    static const unsigned char copied[] = {16, 17, 18, 19, 21, 22, 23, 0xa5};
+    unsigned char destination[8];
+    MMGraphicsDissolvePixels pixels = {{NULL, 3, 2, 4, 8}, {source, 5, 3, 5, 8}, {1, 1}};
+    TransitionTrace trace;
+    MMGraphicsTransition t = {0};
+    MMGraphicsTransitionServices s = {NULL, transition_ticks, transition_flush, NULL, transition_depth,
+                                      transition_start_palette, transition_palette_step, transition_set_palette,
+                                      dissolve_draw, NULL, transition_present, NULL,
+                                      dissolve_lock, dissolve_unlock, dissolve_random};
+    pixels.destination.pixels = destination;
+    s.context = &trace;
+    t.kind = MM_GRAPHICS_DISSOLVE;
+    t.duration = 6;
+    t.destination.right = 3;
+    t.destination.bottom = 2;
+    t.palette = t.fill = t.has_source = 1;
+    memset(&trace, 0, sizeof(trace));
+    memset(destination, 0xa5, sizeof(destination));
+    trace.dissolve_pixels = pixels;
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "LdFNVFVFVFCNVFVFVFU"));
+    assert(!memcmp(destination, copied, sizeof(destination)));
+
+    t.fill = 0;
+    memset(&trace, 0, sizeof(trace));
+    trace.dissolve_pixels = pixels;
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "LBNVFAVFAVFACVFU"));
+
+    memset(&trace, 0, sizeof(trace));
+    trace.fail_lock = 1;
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "LUCIF"));
+
+    t.fill = 1;
+    t.has_source = 0;
+    memset(&trace, 0, sizeof(trace));
+    memset(destination, 0xa5, sizeof(destination));
+    trace.dissolve_pixels = pixels;
+    trace.dissolve_pixels.source.pixels = NULL;
+    mm_graphics_transition_run(&t, &s);
+    assert(!strcmp(trace.log, "LdFNVFVFVFCU"));
+    assert(!memcmp(destination, "\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xa5", sizeof(destination)));
+}
+
 int main(void)
 {
     encode();
@@ -1152,6 +1232,7 @@ int main(void)
     region_ownership();
     graphics_view();
     graphics_transitions();
+    graphics_dissolve();
     puts("C89 masked bitmap: cropping/RLE, endian normalization, hits, malformed rows, transactional ownership and "
          "source consumption passed.");
     return 0;

@@ -10,7 +10,8 @@ typedef enum MMGraphicsTransitionKind
     MM_GRAPHICS_WIPE,
     MM_GRAPHICS_SLIDE,
     MM_GRAPHICS_FADE,
-    MM_GRAPHICS_IRIS
+    MM_GRAPHICS_IRIS,
+    MM_GRAPHICS_DISSOLVE
 } MMGraphicsTransitionKind;
 
 typedef enum MMGraphicsPalettePhase
@@ -29,7 +30,15 @@ typedef struct MMGraphicsTransition
     MMPixelRect source, destination;
     const MMGraphicsView *view;
     MMPixelPoint focus, port_base;
+    MMPixelPoint dissolve_cells;
+    int has_source;
 } MMGraphicsTransition;
+
+typedef struct MMGraphicsDissolvePixels
+{
+    MMPixelSurface destination, source;
+    MMPixelPoint source_origin;
+} MMGraphicsDissolvePixels;
 
 typedef struct MMGraphicsTransitionServices
 {
@@ -47,6 +56,11 @@ typedef struct MMGraphicsTransitionServices
     void (*present)(void *);
     /* Draw and flush under the temporary clip before restoring the port. */
     int (*iris)(void *, int fill, const MMPixelRect *include, const MMPixelRect *exclude);
+    /* Pixel dissolve borrows an 8-bit snapshot and, if supplied, an 8-bit
+     * source. Unlock is called after every lock attempt, including failure. */
+    int (*lock_dissolve)(void *, MMGraphicsDissolvePixels *);
+    void (*unlock_dissolve)(void *);
+    MMU32 (*random_below)(void *, MMU32 exclusive_limit);
 } MMGraphicsTransitionServices;
 
 /* The clock uses wrapping millisecond words. Host services must stay valid

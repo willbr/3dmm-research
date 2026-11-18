@@ -5201,15 +5201,34 @@ cases. Evidence is in `tmp/c89-graphics-view`.
 and the two palette phases of a fade. It keeps the legacy palette and flush
 order, including a final slide copy after installing a palette on true-colour
 ports. Kauai supplies the clock, offscreen snapshot, temporary clip and
-drawing services. Dissolve uses the shared duration and palette interpolation
-while Kauai still schedules its randomized cells and pixels. The native
-before-and-after comparison matched 92,183,200 bytes across 640 cases and
-10,628 intermediate clock snapshots, covering both indexed and true-colour
-ports. The C fixture also checks fallback ordering and timestamp wrap.
+drawing services. The native before-and-after comparison matched 92,183,200
+bytes across 640 cases and 10,628 intermediate clock snapshots on indexed and
+true-colour ports. The C fixture checks fallback ordering and timestamp wrap.
 SDL Studio and Marcus matched 480 retail frame commits, including dissolve
 playback, and reproduced all 360 viewport hashes from the prior builds.
 The V3DMM seek and authoring checks passed. Evidence, including the build
 and input hashes for playback, is in `tmp/c89-transitions`.
+
+The same controller now runs both tiled and indexed-pixel dissolve. C89 retains
+the seeded permutation modulo 65537, the row-padding positions and the order of
+pixel copies, flushes and palette animation. The host supplies the initial
+random index, locks the indexed surfaces and blits snapshots to the target.
+The C fixture checks padded rows, palette and flush order, cleanup after a
+failed lock, and fill-only dissolve without a source buffer.
+
+The native comparison matched 345,164,224 bytes across 832 cases and 11,996
+intermediate snapshots. It included scaled tiles, fill-only transitions, and
+surfaces larger than one permutation period. The baseline comparison copy
+initializes the unused source stride read by the legacy debug build during
+fill-only dissolve. The 181 standalone checks, 210 focused host checks, and
+x86 and x64 AddressSanitizer checks passed.
+
+Studio SDL and Marcus matched 480 retail frame commits and passed the V3DMM
+workflow checks. In a separate visual-only dissolve playback capture, all three
+players matched the 60 authored frames. Retail recorded 234 distinct images on
+entry to the incoming scene, and each host recorded one. The combined media
+runner stopped at its pre-play audio silence check for all three players.
+Evidence is in `tmp/c89-dissolve`.
 
 Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
 continuations between long runs, and stores no opaque pixel bytes in mask mode.

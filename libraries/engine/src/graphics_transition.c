@@ -227,6 +227,177 @@ static void fade_transition(const MMGraphicsTransition *t, const MMGraphicsTrans
     s->set_palette(s->context, 1);
 }
 
+/* 32767 generates all 65536 nonzero residues modulo 65537. Each residue
+ * visits its column of indices in reverse, retaining the legacy draw order. */
+static MMU32 dissolve_next(MMU32 index, MMU32 count, MMU32 *word)
+{
+    MMU32 product;
+    MMI32 remainder;
+    if (index >= 65536UL)
+        return index - 65536UL;
+    do
+    {
+        product = *word * 32767UL;
+        remainder = (MMI32)(product & 65535UL) - (MMI32)(product >> 16);
+        *word = (MMU32)(remainder < 0 ? remainder + 65537L : remainder);
+    } while (*word > count);
+    return count - *word;
+}
+
+static void dissolve_cell(const MMGraphicsTransition *t, const MMGraphicsTransitionServices *s,
+                          MMU32 width, MMU32 height, MMU32 columns, MMU32 rows, MMU32 index, int fill)
+{
+    const MMU32 x = index % columns, y = index / columns;
+    const MMU32 left = mm_pixel_muldiv(width, x, columns), right = mm_pixel_muldiv(width, x + 1, columns);
+    const MMU32 top = mm_pixel_muldiv(height, y, rows), bottom = mm_pixel_muldiv(height, y + 1, rows);
+    MMPixelRect from = t->source, to;
+    to.left = add(t->destination.left, (MMI32)left);
+    to.right = add(t->destination.left, (MMI32)right);
+    to.top = add(t->destination.top, (MMI32)top);
+    to.bottom = add(t->destination.top, (MMI32)bottom);
+    if (!fill)
+    {
+        from.left = interpolate(t->source.left, t->source.right, left, width);
+        from.right = interpolate(t->source.left, t->source.right, right, width);
+        from.top = interpolate(t->source.top, t->source.bottom, top, height);
+        from.bottom = interpolate(t->source.top, t->source.bottom, bottom, height);
+    }
+    s->draw(s->context, 0, fill, &from, &to);
+}
+
+static int dissolve_pixels_valid(const MMGraphicsDissolvePixels *pixels, MMI32 width, MMI32 height, int has_source)
+{
+    const MMPixelSurface *dest = &pixels->destination, *source = &pixels->source;
+    const MMPixelPoint origin = pixels->source_origin;
+    if (dest->depth != 8 || dest->width != width || dest->height != height || !mm_pixel_surface_valid(dest))
+        return 0;
+    return !has_source || (source->depth == 8 && mm_pixel_surface_valid(source) &&
+                           origin.x >= 0 && origin.x <= source->width - width &&
+                           origin.y >= 0 && origin.y <= source->height - height);
+}
+
+static void dissolve_pixel(const MMGraphicsDissolvePixels *pixels, MMU32 index, int fill, unsigned char fill_index)
+{
+    unsigned char *dest = pixels->destination.pixels;
+    const unsigned char *source = pixels->source.pixels;
+    size_t row, column, pitch;
+    if (fill)
+        dest[index] = fill_index;
+    else
+    {
+        pitch = (size_t)pixels->source.pitch;
+        row = (size_t)pixels->source_origin.y + index / (MMU32)pixels->destination.pitch;
+        column = (size_t)pixels->source_origin.x + index % (MMU32)pixels->destination.pitch;
+        /* Padding participates in the permutation even if the corresponding
+         * byte lies outside the source buffer. Padding never gets presented. */
+        if (column < ((size_t)pixels->source.height - row) * pitch)
+            dest[index] = source[row * pitch + column];
+    }
+}
+
+static void dissolve_transition(const MMGraphicsTransition *t, const MMGraphicsTransitionServices *s, MMU32 duration)
+{
+    const MMU32 limit = 0x07ffffffUL;
+    const int cells = t->dissolve_cells.x > 0 && t->dissolve_cells.y > 0;
+    MMGraphicsDissolvePixels pixels = {0};
+    MMPixelRect sample;
+    unsigned char *first;
+    unsigned char original, fill_index = 0;
+    MMI32 width, height;
+    MMU32 columns, rows, last_row, count, done, end, index, word, start, time;
+    int phase, palette = t->palette, pixel_lock = 0;
+    if (empty(&t->destination))
+        return;
+    if (!mm_pixel_rect_extent(&t->destination, &width, &height))
+        goto fallback;
+    if (cells)
+    {
+        columns = (MMU32)(width < t->dissolve_cells.x ? width : t->dissolve_cells.x);
+        rows = (MMU32)(height < t->dissolve_cells.y ? height : t->dissolve_cells.y);
+        last_row = columns;
+    }
+    else
+    {
+        pixel_lock = 1;
+        if (!s->lock_dissolve(s->context, &pixels) || !dissolve_pixels_valid(&pixels, width, height, t->has_source))
+            goto fallback;
+        columns = (MMU32)pixels.destination.pitch;
+        rows = (MMU32)height;
+        last_row = (MMU32)width;
+    }
+    if (last_row > limit || rows - 1 > (limit - last_row) / columns)
+        goto fallback;
+    count = (rows - 1) * columns + last_row;
+    if (!cells && t->fill)
+    {
+        sample = t->destination;
+        sample.right = sample.left + 1;
+        sample.bottom = sample.top + 1;
+        first = pixels.destination.pixels;
+        original = *first;
+        s->draw(s->context, 1, 1, &t->source, &sample);
+        s->flush(s->context);
+        fill_index = *first;
+        *first = original;
+    }
+    for (phase = 0; phase < 2; ++phase)
+    {
+        if (phase == 0 && !t->fill)
+            continue;
+        if (phase == 0 || t->has_source)
+        {
+            if (phase && palette && !s->start_palette(s->context, cells ? 8 : 0))
+                palette = 0;
+            index = s->random_below(s->context, count);
+            word = (count - index - 1) % 65536UL + 1;
+            start = s->ticks(s->context);
+            for (done = 0; done < count;)
+            {
+                time = elapsed(s, start, duration);
+                end = mm_pixel_muldiv(count, time, duration);
+                if (done < end)
+                {
+                    for (; done < end; ++done)
+                    {
+                        index = dissolve_next(index, count, &word);
+                        if (cells)
+                            dissolve_cell(t, s, (MMU32)width, (MMU32)height, columns, rows, index, !phase);
+                        else
+                            dissolve_pixel(&pixels, index, !phase, fill_index);
+                    }
+                    if (!cells)
+                    {
+                        s->present(s->context);
+                        s->flush(s->context);
+                    }
+                }
+                if (phase && palette)
+                    s->animate_palette(s->context, MM_GRAPHICS_PALETTE_BLEND, time, duration);
+            }
+        }
+        if (palette)
+        {
+            s->set_palette(s->context, 0);
+            if (!cells && phase && s->depth(s->context) != 8)
+            {
+                s->present(s->context);
+                s->flush(s->context);
+            }
+            palette = 0;
+        }
+    }
+    if (pixel_lock)
+        s->unlock_dissolve(s->context);
+    return;
+fallback:
+    if (pixel_lock)
+        s->unlock_dissolve(s->context);
+    if (palette)
+        s->set_palette(s->context, 0);
+    s->draw(s->context, 0, !t->has_source, &t->source, &t->destination);
+    s->flush(s->context);
+}
+
 void mm_graphics_transition_run(const MMGraphicsTransition *t, const MMGraphicsTransitionServices *s)
 {
     const MMU32 duration = mm_graphics_transition_duration(t->duration);
@@ -234,6 +405,11 @@ void mm_graphics_transition_run(const MMGraphicsTransition *t, const MMGraphicsT
     MMPixelRect dest = t->destination;
     MMPixelPoint focus = t->focus;
     int phase, palette = t->palette;
+    if (t->kind == MM_GRAPHICS_DISSOLVE)
+    {
+        dissolve_transition(t, s, duration);
+        return;
+    }
     if (t->kind == MM_GRAPHICS_FADE)
     {
         fade_transition(t, s, duration);
