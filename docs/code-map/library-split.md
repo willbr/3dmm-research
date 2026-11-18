@@ -218,10 +218,32 @@ decodes packed blocks through the registered codec, lends a bounded stream
 to the receiver, then releases the file or decoded memory. Fixed movie
 records require the exact decoded size. Studio uses this path for the live
 movie graph, actor ID edits, and scene metadata and transition edits.
-Marcus uses it to evaluate live background camera chunks. Archive's movie
-directory still uses its cached block reader and decode limits. Embedded
-assets use the movie's graph, and the name adapter lends the serialized
-chunk name synchronously.
+Marcus uses it to evaluate live background camera chunks. Embedded assets
+use the movie's graph, and the name adapter lends the serialized chunk name
+synchronously.
+
+The Archive movie directory and inspector share the extent lookup and codec
+provider with that graph path. Their C89 cache retains the payload across calls
+at the same index and checks both the packed length and the declared decoded
+length before calling the codec. It invalidates the dependent string table
+before releasing an old block and publishes the new index after decoding and
+native diagnostic acceptance. Page reads, actor headers, and movie and source
+tables consume bounded C streams. The native GST parser borrows the cache's
+block after C validation.
+
+Cache tests cover position hits, invalidation order, exact budget boundaries,
+short prefixes, decode failures and retry. The Archive API fixture verifies
+directory reads after a failed decode-budget check and preserves the previous
+directory when a malformed scene cannot be read. The CLI dump and the suite
+of actor, scene, media, text and background previews pass. The C89 cache
+and storage tests also pass under AddressSanitizer. The 181 standalone
+and 200 focused host checks pass. The frozen native traces and saved movie
+match byte for byte, along with the 300 frame and mesh snapshots and 300
+graph/stream evaluations. Both hosts match 456 prior seeks and 360 viewport
+hashes and log 480 frame commits matching retail. Retail reopens the Studio
+actor edit with matching state on four seeks. All eight VMM workflow checks
+pass, and Marcus matches the retained VMM viewport hash. Validation is in
+`tmp/c89-archive-blocks`.
 
 The block-owner fixture exercises raw and packed extents, the exact-size
 check, decoder and receiver failures, a missing key and the legacy empty

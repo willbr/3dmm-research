@@ -379,6 +379,7 @@ typedef struct PayloadArchive
 {
     File *file;
     int packed;
+    MMU32 packed_bytes;
 } PayloadArchive;
 
 static int locate_payload(void *context, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
@@ -389,7 +390,7 @@ static int locate_payload(void *context, MMU32 type, MMU32 number, MMBlockFile *
         return 0;
     out->file = number == 1 ? archive->file : NULL;
     out->offset = number == 1 ? 3 : 0;
-    out->length = number != 1 ? 0 : archive->packed ? 9 : 4;
+    out->length = number != 1 ? 0 : archive->packed ? archive->packed_bytes : 4;
     *packed = archive->packed;
     return 1;
 }
@@ -421,6 +422,7 @@ static void payloads(void)
     archive.file->size = 16;
     memcpy(archive.file->bytes, "0123456789abcdef", 16);
     archive.packed = 0;
+    archive.packed_bytes = 9;
     input.handles = &handles;
     input.files = &files;
     input.locate = locate_payload;
@@ -453,11 +455,116 @@ static void payloads(void)
     release_file(&h, archive.file);
     CHECK(!h.files && !h.handles && !h.locks);
 }
+
+typedef struct PayloadObserver
+{
+    MMChunkPayloadCache *cache;
+    File *file;
+    unsigned invalidations, acceptances;
+    int reject;
+    unsigned previous_refs;
+} PayloadObserver;
+
+static void invalidate_payload(void *context)
+{
+    PayloadObserver *observer = (PayloadObserver *)context;
+    CHECK(observer->cache->position == (size_t)-1);
+    observer->previous_refs = observer->file->refs;
+    ++observer->invalidations;
+}
+
+static int accept_payload(void *context)
+{
+    PayloadObserver *observer = (PayloadObserver *)context;
+    CHECK(observer->cache->position == (size_t)-1);
+    ++observer->acceptances;
+    return !observer->reject;
+}
+
+static void payload_cache(void)
+{
+    Host h;
+    MMHandleServices handles;
+    MMBlockFileServices files;
+    MMChunkPayloadServices input;
+    MMChunkPayloadCache cache;
+    MMChunkPayloadCacheCallbacks callbacks;
+    PayloadArchive archive;
+    PayloadObserver observer;
+    MMChunkEntry entry;
+    MMBlockIO io;
+    MMReadStream stream;
+    unsigned char bytes[4];
+    memset(&h, 0, sizeof(h));
+    memset(&entry, 0, sizeof(entry));
+    memset(&observer, 0, sizeof(observer));
+    services(&h, &handles, &files);
+    archive.file = (File *)create_temp(&h);
+    CHECK(archive.file);
+    archive.file->size = 12;
+    memcpy(archive.file->bytes, "abcKCDC\0\0\0\4z", 12);
+    archive.packed = 0;
+    archive.packed_bytes = 9;
+    input.handles = &handles;
+    input.files = &files;
+    input.locate = locate_payload;
+    input.decode_context = &h;
+    input.decode = transform;
+    observer.cache = &cache;
+    observer.file = archive.file;
+    callbacks.context = &observer;
+    callbacks.invalidate = invalidate_payload;
+    callbacks.accept = accept_payload;
+    entry.type = 11;
+    entry.number = 1;
+
+    CHECK(mm_chunk_payload_cache_init(&cache, &input) == MM_CHUNK_PAYLOAD_OK);
+    CHECK(!mm_chunk_payload_cache_stream(&cache, &io, &stream));
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 0, &entry, 0, &callbacks) == MM_CHUNK_PAYLOAD_OK);
+    CHECK(mm_chunk_payload_cache_stream(&cache, &io, &stream) && stream.length == 4);
+    CHECK(mm_read_exact(&stream, 0, bytes, 4) && !memcmp(bytes, "KCDC", 4));
+    CHECK(archive.file->refs == 2 && observer.invalidations == 1 && observer.acceptances == 1);
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 0, &entry, 0, &callbacks) == MM_CHUNK_PAYLOAD_OK);
+    CHECK(observer.invalidations == 1 && observer.acceptances == 1);
+
+    archive.packed = 1;
+    entry.flags = MM_CHUNK_PACKED;
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 1, &entry, 8, &callbacks) == MM_CHUNK_PAYLOAD_LIMIT);
+    CHECK(observer.previous_refs == 2 && archive.file->refs == 1 && !h.codes);
+    CHECK(!mm_chunk_payload_cache_stream(&cache, &io, &stream));
+    archive.file->bytes[10] = 10;
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 1, &entry, 9, &callbacks) == MM_CHUNK_PAYLOAD_LIMIT);
+    archive.file->bytes[10] = 4;
+    archive.packed_bytes = 7;
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 1, &entry, 9, &callbacks) == MM_CHUNK_PAYLOAD_BAD_HEADER);
+    archive.packed_bytes = 9;
+    h.read_fail = 1;
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 1, &entry, 9, &callbacks) == MM_CHUNK_PAYLOAD_BAD_HEADER);
+    CHECK(!h.codes && observer.acceptances == 1 && archive.file->refs == 1);
+    h.read_fail = 0;
+    h.code_fail = 1;
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 1, &entry, 9, &callbacks) == MM_CHUNK_PAYLOAD_DECODE_FAILED);
+    h.code_fail = 0;
+    observer.reject = 1;
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 1, &entry, 9, &callbacks) == MM_CHUNK_PAYLOAD_INVALID);
+    CHECK(h.codes == 2 && !h.handles && archive.file->refs == 1 && !mm_chunk_payload_cache_stream(&cache, &io, &stream));
+    observer.reject = 0;
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 1, &entry, 9, &callbacks) == MM_CHUNK_PAYLOAD_OK);
+    CHECK(mm_chunk_payload_cache_stream(&cache, &io, &stream) && stream.length == 4 && h.handles == 1);
+    CHECK(mm_read_exact(&stream, 0, bytes, 4) && !memcmp(bytes, "CODE", 4));
+    entry.number = 3;
+    CHECK(mm_chunk_payload_cache_load(&cache, &archive, 2, &entry, 9, &callbacks) == MM_CHUNK_PAYLOAD_MISSING);
+    CHECK(!h.handles && observer.invalidations == 9 && observer.acceptances == 3);
+    CHECK(mm_chunk_payload_cache_clear(&cache) == MM_CHUNK_PAYLOAD_OK && archive.file->refs == 1);
+    release_file(&h, archive.file);
+    CHECK(!h.files && !h.handles && !h.locks);
+}
 int main(void)
 {
     golden();
     failures();
     coding();
     payloads();
+    payload_cache();
     return 0;
 }

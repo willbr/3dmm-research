@@ -33,12 +33,17 @@ typedef struct MovieBlockRead
     MMU32 size;
 } MovieBlockRead;
 
+int mm_movie_read_fixed(const MMReadStream *stream, void *bytes, MMU32 size)
+{
+    if (!stream || stream->length != size)
+        return MM_MOVIE_BAD_FILE;
+    return mm_read_exact(stream, 0, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+}
+
 static int read_exact_payload(void *context, const MMReadStream *stream)
 {
     MovieBlockRead *read = (MovieBlockRead *)context;
-    if (stream->length != read->size)
-        return MM_MOVIE_BAD_FILE;
-    return mm_read_exact(stream, 0, read->bytes, read->size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+    return mm_movie_read_fixed(stream, read->bytes, read->size);
 }
 
 int mm_movie_block_read(const MMChunkPayloadServices *services, void *archive,

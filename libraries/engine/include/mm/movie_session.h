@@ -57,6 +57,7 @@ int mm_movie_block_payload(const MMChunkPayloadServices *, void *archive, const 
                            MMMovieReceiveBytes, void *out);
 int mm_movie_block_read(const MMChunkPayloadServices *, void *archive, const MMChunkEntry *,
                         void *bytes, MMU32 size);
+int mm_movie_read_fixed(const MMReadStream *, void *bytes, MMU32 size);
 
 typedef struct MMMovieSessionGraph
 {

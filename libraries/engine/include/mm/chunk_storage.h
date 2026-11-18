@@ -70,6 +70,45 @@ extern "C"
      * Lookup and decoding failures return a chunk status without calling it. */
     int mm_chunk_read_payload(const MMChunkPayloadServices *, void *archive, MMU32 type,
                               MMU32 number, MMReadReceiver, void *context, int *result);
+
+    enum
+    {
+        MM_CHUNK_PAYLOAD_OK,
+        MM_CHUNK_PAYLOAD_MISSING,
+        MM_CHUNK_PAYLOAD_INVALID,
+        MM_CHUNK_PAYLOAD_BAD_HEADER,
+        MM_CHUNK_PAYLOAD_LIMIT,
+        MM_CHUNK_PAYLOAD_DECODE_FAILED
+    };
+    /* Initialize once and keep the cache at a stable address. The borrowed
+     * services must remain live until the cache has been cleared. */
+    typedef struct MMChunkPayloadCache
+    {
+        MMOwnedBlock block;
+        const MMChunkPayloadServices *services;
+        size_t position;
+    } MMChunkPayloadCache;
+    typedef struct MMChunkPayloadCacheCallbacks
+    {
+        void *context;
+        void (*invalidate)(void *);
+        int (*accept)(void *);
+    } MMChunkPayloadCacheCallbacks;
+    int mm_chunk_payload_cache_init(MMChunkPayloadCache *, const MMChunkPayloadServices *);
+    int mm_chunk_payload_cache_clear(MMChunkPayloadCache *);
+    /* One cache belongs to one archive. A hit at the given position skips the
+     * callbacks and I/O. On a miss invalidate runs before releasing the old
+     * block. Packed index entries check both stored and advertised decoded
+     * lengths. The position is published only after successful decoding and
+     * acceptance. Callbacks are optional and must not re-enter this cache.
+     * Clear invalidates the cache without calling the load callbacks. */
+    int mm_chunk_payload_cache_load(MMChunkPayloadCache *, void *archive, size_t position,
+                                    const MMChunkEntry *, MMU32 max_packed_bytes,
+                                    const MMChunkPayloadCacheCallbacks *);
+    /* Returns nonzero with a descriptor and stream that borrow the cache
+     * until the next miss or clear. Legacy readers may borrow the block
+     * without mutating it. */
+    int mm_chunk_payload_cache_stream(MMChunkPayloadCache *, MMBlockIO *, MMReadStream *);
 #ifdef __cplusplus
 }
 #endif

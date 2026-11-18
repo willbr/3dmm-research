@@ -9,7 +9,7 @@
 #include "soc_core.h"
 #include "engine_movie_graph.h"
 #include "engine_movie_source.h"
-#include "engine_read_stream.h"
+#include "mm/actor_data.h"
 #include "platform_text.h"
 #undef size
 ASSERTNAME
@@ -23,19 +23,21 @@ struct Archive::Impl
     MMMovieSession *movie = nullptr;
     std::string path;
     std::vector<Chunk> chunks;
-    DataBlock payload;
-    std::size_t payloadIndex = static_cast<std::size_t>(-1);
+    MMChunkPayloadCache payload = {};
     PStringTable_GST strings = pvNil;
     bool stringsAttempted = false;
     Error stringsError;
     explicit Impl(Options value) : options(value)
     {
+        AssertDo(mm_chunk_payload_cache_init(&payload, KauaiChunkPayloadServices()) == MM_CHUNK_PAYLOAD_OK,
+                 "invalid archive payload services");
     }
     ~Impl()
     {
         mm_movie_session_close(movie);
         ReleasePpo(&strings);
         ReleasePpo(&file);
+        mm_chunk_payload_cache_clear(&payload);
     }
     bool Load(std::size_t index, Error &error);
     bool LoadSources(const MMMovieSession *, std::vector<MovieSourceEntry> &sources, Error &error);
@@ -56,9 +58,8 @@ std::string Utf8(String &value)
     std::u16string text(units.begin(), units.end());
     return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
 }
-bool ValidStringTable(DataBlock &block, std::uint32_t limit)
+bool ValidStringTable(const MMReadStream &stream, std::uint32_t limit)
 {
-    const auto stream = EngineReadStream::FromBlock(block);
     const int result = mm_movie_validate_strings(&stream, limit);
     if (result == MM_MOVIE_MEMORY)
         throw std::bad_alloc();
@@ -309,13 +310,15 @@ bool Archive::Open(const std::string &utf8Path, Error &error)
         for (LegacyLong i = 0; i < opened->file->Ccki(); ++i)
         {
             ChunkIdentification id;
-            DataBlock block;
-            if (!opened->file->FGetCki(i, &id, pvNil, &block))
+            MMBlockFile extent;
+            int packed;
+            if (!opened->file->FGetCki(i, &id) ||
+                !opened->file->FFindBlockFile(id.ctg, id.cno, &extent, &packed))
                 return Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.");
             Chunk chunk;
             chunk.id = {id.ctg, id.cno};
-            chunk.storedBytes = block.Cb(fTrue);
-            chunk.packed = opened->file->FPacked(id.ctg, id.cno);
+            chunk.storedBytes = extent.length;
+            chunk.packed = packed != 0;
             chunk.loner = opened->file->FLoner(id.ctg, id.cno);
             chunk.forest = opened->file->FForest(id.ctg, id.cno);
             String name;
@@ -360,32 +363,36 @@ bool Archive::Impl::Load(std::size_t index, Error &error)
 {
     if (index >= chunks.size())
         return Fail(error, ErrorCode::invalid_argument, "Chunk index is out of range.");
-    if (payloadIndex == index)
-        return true;
-    payloadIndex = static_cast<std::size_t>(-1);
-    ReleasePpo(&strings);
-    stringsAttempted = false;
-    stringsError = {};
-    payload.Free();
-    const auto &id = chunks[index].id;
-    if (!file->FFind(id.type, id.number, &payload))
-        return Fail(error, ErrorCode::io_error, "Cannot read this chunk.", &id);
-    if (chunks[index].packed)
+    const auto &chunk = chunks[index];
+    MMChunkEntry entry = {};
+    entry.type = chunk.id.type;
+    entry.number = chunk.id.number;
+    entry.flags = chunk.packed ? MM_CHUNK_PACKED : 0;
+    const MMChunkPayloadCacheCallbacks callbacks = {
+        this,
+        [](void *context) {
+            auto archive = static_cast<Impl *>(context);
+            ReleasePpo(&archive->strings);
+            archive->stringsAttempted = false;
+            archive->stringsError = {};
+        },
+        [](void *) -> int { return !Internal::AssertionFailed(); },
+    };
+    switch (mm_chunk_payload_cache_load(&payload, file, index, &entry, options.maxDecodedBytes, &callbacks))
     {
-        byte header[8];
-        if (payload.Cb(fTrue) < 8 || !payload.FReadRgb(header, 8, 0, fTrue))
-            return Fail(error, ErrorCode::decode_failed, "Invalid compressed payload header.", &id);
-        const auto decoded =
-            (uint32_t(header[4]) << 24) | (uint32_t(header[5]) << 16) | (uint32_t(header[6]) << 8) | header[7];
-        if (decoded > options.maxDecodedBytes || static_cast<uint32_t>(payload.Cb(fTrue)) > options.maxDecodedBytes)
-            return Fail(error, ErrorCode::resource_limit, "Packed payload exceeds this session's decode budget.", &id);
+    case MM_CHUNK_PAYLOAD_OK:
+        return true;
+    case MM_CHUNK_PAYLOAD_MISSING:
+        return Fail(error, ErrorCode::io_error, "Cannot read this chunk.", &chunk.id);
+    case MM_CHUNK_PAYLOAD_BAD_HEADER:
+        return Fail(error, ErrorCode::decode_failed, "Invalid compressed payload header.", &chunk.id);
+    case MM_CHUNK_PAYLOAD_LIMIT:
+        return Fail(error, ErrorCode::resource_limit, "Packed payload exceeds this session's decode budget.", &chunk.id);
+    case MM_CHUNK_PAYLOAD_DECODE_FAILED:
+        return Fail(error, ErrorCode::decode_failed, "Cannot decode this payload.", &chunk.id);
+    default:
+        return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected this payload.", &chunk.id);
     }
-    if (!payload.FUnpackData())
-        return Fail(error, ErrorCode::decode_failed, "Cannot decode this payload.", &id);
-    if (Internal::AssertionFailed())
-        return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected this payload.", &id);
-    payloadIndex = index;
-    return true;
 }
 bool Archive::ReadPayload(std::size_t index, std::uint32_t offset, std::uint32_t count, PayloadPage &page, Error &error)
 {
@@ -398,16 +405,19 @@ bool Archive::ReadPayload(std::size_t index, std::uint32_t offset, std::uint32_t
     {
         if (!_impl->Load(index, error))
             return false;
+        MMBlockIO io;
+        MMReadStream stream;
+        const auto &id = _impl->chunks[index].id;
+        if (!mm_chunk_payload_cache_stream(&_impl->payload, &io, &stream))
+            return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected this payload.", &id);
         PayloadPage result;
-        result.totalBytes = _impl->payload.Cb();
+        result.totalBytes = stream.length;
         result.offset = std::min(offset, result.totalBytes);
         result.bytes.resize(std::min(count, result.totalBytes - result.offset));
-        if (!result.bytes.empty() &&
-            !_impl->payload.FReadRgb(result.bytes.data(), static_cast<LegacyLong>(result.bytes.size()), result.offset))
-            return Fail(error, ErrorCode::io_error, "Cannot read payload bytes.", &_impl->chunks[index].id);
+        if (!mm_read_exact(&stream, result.offset, result.bytes.data(), result.bytes.size()))
+            return Fail(error, ErrorCode::io_error, "Cannot read payload bytes.", &id);
         if (Internal::AssertionFailed())
-            return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected payload bytes.",
-                        &_impl->chunks[index].id);
+            return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected payload bytes.", &id);
         page = std::move(result);
         return true;
     }
@@ -426,7 +436,6 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
         if (!_impl->Load(index, error))
             return false;
         const auto &id = _impl->chunks[index].id;
-        auto &block = _impl->payload;
         RecordHeader result;
         bool valid = true;
         if (id.type == kctgMvie)
@@ -452,7 +461,10 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
         {
             result.kind = RecordKind::actor;
             ActorChunkOnFile actor;
-            valid = ActorData::FReadHeader(&block, &actor);
+            MMBlockIO io;
+            MMReadStream stream;
+            valid = mm_chunk_payload_cache_stream(&_impl->payload, &io, &stream) &&
+                    mm_actor_read_header(&stream, &actor);
             if (valid)
                 result.actor = {actor.arid, actor.nfrmFirst, actor.nfrmLast};
         }
@@ -499,7 +511,10 @@ bool Archive::Impl::LoadSources(const MMMovieSession *session, std::vector<Movie
         return Fail(error, ErrorCode::corrupt_archive, "Cannot locate the movie source table.", &id);
     if (!Load(position, error))
         return false;
-    const auto stream = EngineReadStream::FromBlock(payload);
+    MMBlockIO io;
+    MMReadStream stream;
+    if (!mm_chunk_payload_cache_stream(&payload, &io, &stream))
+        return Fail(error, ErrorCode::corrupt_archive, "Invalid movie source table.", &id);
     MMMovieSourceTable table;
     if (stream.length > options.maxStringTableBytes)
         return Fail(error, ErrorCode::resource_limit, "Source table exceeds this session's preview budget.", &id);
@@ -543,10 +558,11 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
                     auto &error = request ? *static_cast<Error *>(request) : scratch;
                     if (!archive.Load(position, error))
                         return MM_MOVIE_IO;
-                    const auto stream = EngineReadStream::FromBlock(archive.payload);
-                    if (stream.length != size)
+                    MMBlockIO io;
+                    MMReadStream stream;
+                    if (!mm_chunk_payload_cache_stream(&archive.payload, &io, &stream))
                         return MM_MOVIE_BAD_FILE;
-                    return mm_read_exact(&stream, 0, bytes, size) ? MM_MOVIE_OK : MM_MOVIE_IO;
+                    return mm_movie_read_fixed(&stream, bytes, size);
                 }
                 catch (const std::bad_alloc &)
                 {
@@ -569,8 +585,10 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
                     Error error;
                     if (!archive.Load(position, error))
                         return error.code == ErrorCode::out_of_memory ? MM_MOVIE_MEMORY : MM_MOVIE_BAD_FILE;
-                    const auto stream = EngineReadStream::FromBlock(archive.payload);
-                    return receive(out, &stream);
+                    MMBlockIO io;
+                    MMReadStream stream;
+                    return mm_chunk_payload_cache_stream(&archive.payload, &io, &stream) ?
+                               receive(out, &stream) : MM_MOVIE_BAD_FILE;
                 }
                 catch (const std::bad_alloc &)
                 {
@@ -650,13 +668,21 @@ bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t 
             return false;
         if (!_impl->stringsAttempted)
         {
-            if (static_cast<uint32_t>(_impl->payload.Cb()) > _impl->options.maxStringTableBytes)
+            MMBlockIO io;
+            MMReadStream stream;
+            if (!mm_chunk_payload_cache_stream(&_impl->payload, &io, &stream))
+                return Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported General String Table.", &id);
+            if (stream.length > _impl->options.maxStringTableBytes)
                 Fail(_impl->stringsError, ErrorCode::resource_limit,
                      "String table exceeds this session's preview budget.", &id);
-            else if (!ValidStringTable(_impl->payload, _impl->options.maxStringTableBytes) ||
-                     !(_impl->strings = StringTable_GST::PgstRead(&_impl->payload)) || Internal::AssertionFailed())
-                Fail(_impl->stringsError, ErrorCode::corrupt_archive, "Invalid or unsupported General String Table.",
-                     &id);
+            else
+            {
+                DataBlock view(_impl->payload.block);
+                if (!ValidStringTable(stream, _impl->options.maxStringTableBytes) ||
+                    !(_impl->strings = StringTable_GST::PgstRead(&view)) || Internal::AssertionFailed())
+                    Fail(_impl->stringsError, ErrorCode::corrupt_archive, "Invalid or unsupported General String Table.",
+                         &id);
+            }
             _impl->stringsAttempted = true;
         }
         if (_impl->stringsError)

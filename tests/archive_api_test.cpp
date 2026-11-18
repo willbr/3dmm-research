@@ -33,6 +33,7 @@ int main(int argc, char **argv)
     PayloadPage payload;
     RecordHeader record;
     StringTablePage strings;
+    MovieDirectory directory;
     Check(!archive.Open("", error) && error.code == ErrorCode::invalid_path && !error.hasChunk);
     Check(!archive.ReadPayload(0, 0, 16, payload, error) && error.code == ErrorCode::invalid_argument);
     Check(payload.bytes.empty());
@@ -48,6 +49,12 @@ int main(int argc, char **argv)
     Check(archive.Chunks()[scene].name.find('\n') != std::string::npos);
     Check(!archive.Chunks()[scene].nameUnits.empty());
     Check(archive.Chunks()[scene].children[0].slot == 1);
+    Check(archive.ReadMovieDirectory(directory, error) && directory.hasRoot && directory.scenes.size() == 1);
+    Check(directory.root.number == 7 && directory.scenes[0].id == archive.Chunks()[scene].id &&
+          directory.scenes[0].header.lastFrame == 12);
+    Check(archive.ReadRecord(Find(archive, "ACTR"), record, error) && record.kind == RecordKind::actor &&
+          record.actor.actorId == 23 && record.actor.lastFrame == 12);
+    Check(archive.ReadMovieDirectory(directory, error) && directory.scenes[0].header.lastFrame == 12);
     const auto caption = Find(archive, "TBOX");
     Check(archive.ReadRecord(caption, record, error) && record.kind == RecordKind::caption);
     Check(record.caption.firstFrame == 2 && record.caption.bounds.right == 101);
@@ -60,6 +67,8 @@ int main(int argc, char **argv)
     Check(!archive.ReadRecord(Find(archive, "SCEN"), record, error) && error.code == ErrorCode::corrupt_archive &&
           error.hasChunk);
     Check(record.kind == RecordKind::opaque);
+    Check(!archive.ReadMovieDirectory(directory, error) && error.code == ErrorCode::corrupt_archive);
+    Check(directory.hasRoot && directory.scenes.size() == 1 && directory.scenes[0].header.lastFrame == 12);
     Check(archive.ReadPayload(Find(archive, "SCEN"), 0, 16, payload, error) && payload.bytes.size() == 1 && !error);
     Options limitedOptions;
     limitedOptions.maxDecodedBytes = 16;
@@ -68,6 +77,9 @@ int main(int argc, char **argv)
     Check(!limited.ReadPayload(Find(limited, "ZZZZ"), 0, 16, payload, error) &&
           error.code == ErrorCode::resource_limit);
     Check(payload.bytes.empty() && error.hasChunk);
+    Check(limited.ReadMovieDirectory(directory, error) && directory.scenes.size() == 1);
+    Check(!limited.ReadPayload(Find(limited, "ZZZZ"), 0, 16, payload, error) &&
+          error.code == ErrorCode::resource_limit);
     Check(archive.Open(argv[3], error));
     Check(archive.ReadPayload(Find(archive, "ZZZZ"), 1000, 4096, payload, error));
     Check(payload.totalBytes == 1024 && payload.bytes.size() == 24);

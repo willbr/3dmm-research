@@ -509,8 +509,10 @@ Keep host presentation and device output outside the session.
    directly from loaded archives. The live ChunkyFile graph, actor ID edits
    and scene header and transition edits now share C89 payload ownership and
    decoding. They consume a bounded stream while C holds the source file or
-   decoded memory. The Archive preview directory still has its own cached
-   reader and decode limits.
+   decoded memory. The Archive preview directory and inspector now use a C89
+   payload cache. It retains the packed and decoded size limits and supplies
+   bounded streams to the directory, payload pages, and actor headers.
+   The legacy string-table parser borrows that cache's block.
    Both hosts submit live actor bodies from the C89 bindings. Marcus renders
    and picks with temporary trees built from those bindings and holds the
    body and standalone model references through the operation. Studio
