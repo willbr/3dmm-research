@@ -2391,6 +2391,15 @@ Studio matched retail's sound requests. Mixed PCM still differed in both
 ports, and SDL Studio's frame timing still differed. Evidence is in
 `tmp/c89-sound-links/`.
 
+After Studio save and close switched to the shared sound graph, both the SDL
+Release and native Debug save/reopen fixtures reproduced their save trace, sound
+trace and saved movie byte for byte. The C save test exercised the purge prompt,
+slot-zero payload checks, and reverse traversal through index compaction. Fresh
+actor-audio captures matched retail's 60-frame sequence in both ports. Both
+tones played only in the first scene, and SDL Studio matched retail's sound
+requests. Mixed PCM differed in both ports, and SDL Studio's frame timing
+differed. Evidence is in `tmp/c89-save-graph/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

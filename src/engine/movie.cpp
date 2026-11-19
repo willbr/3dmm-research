@@ -147,7 +147,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
 {
     static_assert(kctgScen == MM_SAVE_SCENE && kctgGst == MM_SAVE_TABLE &&
         kctgMtrl == MM_SAVE_MATERIAL && kctgTmpl == MM_SAVE_TEMPLATE &&
-        kctgMsnd == MM_SAVE_SOUND && ksidUseCrf == 0 && kchidGstSource == 1 && cnoNil == 0xffffffffU,
+        ksidUseCrf == 0 && kchidGstSource == 1 && cnoNil == 0xffffffffU,
         "Movie save ABI");
     MMMovieSaveServices s = {};
     s.context = host;
@@ -281,26 +281,10 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         auto reader = type == kctgMtrl ? Material_MTRL::FReadMtrl : Template::FReadTmpl;
         static_cast<SaveHost *>(p)->movie->_data.Resources()->FSetCrep(crepToss, type, number, reader);
     };
-    s.child_count = [](void *p, MMU32 root) -> MMI32 { return static_cast<PChunkyFile>(p)->Ckid(kctgMvie, root); };
-    s.references = [](void *p, MMU32 type, MMU32 number) -> MMI32 { return static_cast<PChunkyFile>(p)->CckiRef(type, number); };
-    s.child_at = [](void *p, MMU32 root, MMI32 index, MMChunkChild *value) -> int {
-        ChildChunkIdentification child;
-        if (!static_cast<PChunkyFile>(p)->FGetKid(kctgMvie, root, index, &child)) return 0;
-        value->type = child.cki.ctg; value->number = child.cki.cno; value->slot = child.chid;
-        return 1;
-    };
-    s.sound_child = [](void *p, MMU32 number) -> int {
-        ChildChunkIdentification child;
-        return static_cast<PChunkyFile>(p)->FGetKidChid(kctgMsnd, number, kchidSnd, &child);
-    };
-    s.unused_sounds = [](void *p, int *valid) -> int {
-        bool haveValid;
-        bool unused = static_cast<SaveHost *>(p)->movie->FUnusedSndsUser(&haveValid);
-        *valid = haveValid;
-        return unused;
-    };
+    s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
     s.purge_sounds = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->Pmcc()->FQueryPurgeSounds(); };
     s.bad_child = [](void *) { Bug("ChunkyFile returned bogus Ckid()"); };
+    s.bad_sound_index = [](void *) { Bug("Should never fail"); };
     s.missing_scene = [](void *) { AssertDo(false, "Should never fail"); };
     return s;
 }
@@ -1239,7 +1223,8 @@ bool Movie::FNewScenInsCore(long iscen)
 MMMovieSoundServices Movie::_SoundServices()
 {
     static_assert(kctgMvie==MM_SOUND_MOVIE && kctgScen==MM_SOUND_SCENE &&
-        kctgMsnd==MM_SOUND_CHUNK && kctgSoc==MM_SOUND_CREATOR && kchidSnd==0 && ksidUseCrf==0,"Movie sound ABI");
+        kctgMsnd==MM_SOUND_CHUNK && kctgSoc==MM_SOUND_CREATOR && kchidSnd==MM_SOUND_PAYLOAD_SLOT && ksidUseCrf==0,
+        "Movie sound ABI");
     static_assert(sizeof(TAG)==sizeof(MMTag) && sizeof(ChunkNumber)==sizeof(MMU32) &&
         sizeof(ChildChunkID)==sizeof(MMU32),"Movie sound record ABI");
     MMMovieSoundServices s{}; s.context=this;

@@ -1008,6 +1008,10 @@ Studio resolves sound links, finds referenced sounds and scans for unused
 sounds directly through the C89 graph. Studio and Marcus share the free-slot
 calculation for scene and movie sound adoption. Studio still takes candidate
 slots from its working file when it adopts into a different archive.
+Studio save and close use the same C89 unused-sound scan. C89 walks the movie's
+sound links in reverse order, keeps sounds referenced by more than one parent,
+and resolves the movie row again after a deletion shifts the live index.
+The Studio host supplies the purge prompt and applies link deletions.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

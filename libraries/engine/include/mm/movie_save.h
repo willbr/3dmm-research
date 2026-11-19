@@ -15,8 +15,7 @@ extern "C"
         MM_SAVE_SCENE = 0x5343454e,
         MM_SAVE_TABLE = 0x47535420,
         MM_SAVE_MATERIAL = 0x4d54524c,
-        MM_SAVE_TEMPLATE = 0x544d504c,
-        MM_SAVE_SOUND = 0x4d534e44
+        MM_SAVE_TEMPLATE = 0x544d504c
     };
     typedef struct MMMovieSaveState
     {
@@ -70,12 +69,9 @@ extern "C"
         void (*tag)(void *tags, MMI32 index, MMTag *), (*release_tags)(void *tags);
         int (*chunk)(void *file, MMU32 type, MMI32 index, MMU32 *);
         void (*toss_cache)(void *, MMU32 type, MMU32 number);
-        MMI32 (*child_count)(void *file, MMU32 root),
-            (*references)(void *file, MMU32 type, MMU32 number);
-        int (*child_at)(void *file, MMU32 root, MMI32 index, MMChunkChild *);
-        int (*sound_child)(void *file, MMU32 number), (*unused_sounds)(void *, int *valid),
-            (*purge_sounds)(void *);
-        void (*bad_child)(void *), (*missing_scene)(void *);
+        MMChunkAccess (*chunks)(void *file);
+        int (*purge_sounds)(void *);
+        void (*bad_child)(void *), (*bad_sound_index)(void *), (*missing_scene)(void *);
     } MMMovieSaveServices;
     /* State owns the saved-file reference; resources remain owned by MovieState.
      * States must be initialized and invoked callbacks present. Temporary-file,

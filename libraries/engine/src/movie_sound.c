@@ -206,45 +206,51 @@ int mm_movie_sound_import(void *source,MMI32 style,MMU32 *output,void *name,cons
     if (!finish_copy(file,*output,s)) return 0;
     s->mark_gc(s->context); return 1;
 }
-int mm_movie_sound_unused(int *valid, const MMMovieSoundServices *s)
+int mm_movie_sound_scan_unused(const MMChunkAccess *chunks, int *unused, int *valid)
 {
-    MMMovieSoundState state;
-    MMChunkAccess chunks;
     MMChunkEntry sound;
     MMChunkChild child;
     MMU32 row;
-    int status, unused = 0;
+    int status;
+    *unused = 0;
     if (valid)
         *valid = 0;
-    s->read(s->context, &state);
-    if (!state.cache)
-        return 0;
-    chunks = s->chunks(s->file(state.cache));
-    status = mm_chunk_find(&chunks, MM_SOUND_CHUNK, 0, &row);
+    status = mm_chunk_find(chunks, MM_SOUND_CHUNK, 0, &row);
     if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
+        return status;
+    for (; row < chunks->count; ++row)
     {
-        s->diagnostic(s->context, MM_SOUND_BAD_CHUNK_ENUM);
-        return 0;
-    }
-    for (; row < chunks.count; ++row)
-    {
-        if (mm_chunk_at(&chunks, row, &sound) != MM_CHUNK_OK)
-        {
-            s->diagnostic(s->context, MM_SOUND_BAD_CHUNK_ENUM);
-            break;
-        }
+        status = mm_chunk_at(chunks, row, &sound);
+        if (status != MM_CHUNK_OK)
+            return status;
         if (sound.type != MM_SOUND_CHUNK)
             break;
         if (sound.parent_count >= 2)
             continue;
-        unused = 1;
+        *unused = 1;
         if (!valid)
             break;
-        if (mm_chunk_child_type(&chunks, row, 0, 0, &child) == MM_CHUNK_OK)
+        if (mm_chunk_child_type(chunks, row, MM_SOUND_PAYLOAD_SLOT, 0, &child) == MM_CHUNK_OK)
         {
             *valid = 1;
             break;
         }
     }
+    return MM_CHUNK_OK;
+}
+int mm_movie_sound_unused(int *valid, const MMMovieSoundServices *s)
+{
+    MMMovieSoundState state;
+    MMChunkAccess chunks;
+    int unused = 0;
+    s->read(s->context, &state);
+    if (state.cache)
+    {
+        chunks = s->chunks(s->file(state.cache));
+        if (mm_movie_sound_scan_unused(&chunks, &unused, valid) != MM_CHUNK_OK)
+            s->diagnostic(s->context, MM_SOUND_BAD_CHUNK_ENUM);
+    }
+    else if (valid)
+        *valid = 0;
     return unused;
 }

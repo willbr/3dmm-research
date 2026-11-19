@@ -1,6 +1,7 @@
 /* Movie save transactions converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_save.h"
+#include "mm/movie_sound.h"
 #include <string.h>
 #define NIL_NUMBER ((MMU32)0xffffffffUL)
 
@@ -365,29 +366,63 @@ done:
 }
 void mm_movie_save_sounds(int purge_all, const MMMovieSaveServices *s)
 {
-    MMI32 i;
-    MMChunkChild child;
+    MMChunkAccess chunks;
+    MMChunkEntry root, sound;
+    MMChunkChild child, payload;
+    MMU32 root_row, sound_row, i, movie = s->data->movieNumber;
     void *file;
     if (!s->data->resources || !(file = s->file(s->data->resources)))
         return;
-    i = s->child_count(file, s->data->movieNumber);
-    while (i--)
+    chunks = s->chunks(file);
+    if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, movie, &root_row) != MM_CHUNK_OK ||
+        mm_chunk_at(&chunks, root_row, &root) != MM_CHUNK_OK)
     {
-        if (!s->child_at(file, s->data->movieNumber, i, &child))
+        s->bad_child(s->context);
+        return;
+    }
+    for (i = root.child_count; i > 0; --i)
+    {
+        if (mm_chunk_child_at(&chunks, root_row, i - 1, &child) != MM_CHUNK_OK)
         {
             s->bad_child(s->context);
-            break;
+            return;
         }
-        if (child.type != MM_SAVE_SOUND || s->references(file, MM_SAVE_SOUND, child.number) > 1)
+        if (child.type != MM_SOUND_CHUNK)
             continue;
-        if (purge_all || !s->sound_child(file, child.number))
-            s->delete_child(file, s->data->movieNumber, MM_SAVE_SOUND, child.number, child.slot);
+        if (mm_chunk_find(&chunks, child.type, child.number, &sound_row) != MM_CHUNK_OK ||
+            mm_chunk_at(&chunks, sound_row, &sound) != MM_CHUNK_OK)
+        {
+            s->bad_child(s->context);
+            return;
+        }
+        if (sound.parent_count > 1 ||
+            (!purge_all && mm_chunk_child_type(&chunks, sound_row, MM_SOUND_PAYLOAD_SLOT, 0, &payload) == MM_CHUNK_OK))
+            continue;
+        s->delete_child(file, movie, child.type, child.number, child.slot);
+        /* Dropping a sound subtree can shift the movie row in the live index. */
+        if (i > 1)
+        {
+            chunks = s->chunks(file);
+            if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, movie, &root_row) != MM_CHUNK_OK)
+            {
+                s->bad_child(s->context);
+                return;
+            }
+        }
     }
 }
 int mm_movie_save_gc(void *file, const MMMovieSaveServices *s)
 {
-    int valid, result = mm_movie_save_assets(file, s);
-    if (s->state->closing && s->unused_sounds(s->context, &valid))
-        mm_movie_save_sounds(!valid || s->purge_sounds(s->context), s);
+    MMChunkAccess chunks;
+    void *working;
+    int unused, valid, result = mm_movie_save_assets(file, s);
+    if (s->state->closing && s->data->resources && (working = s->file(s->data->resources)))
+    {
+        chunks = s->chunks(working);
+        if (mm_movie_sound_scan_unused(&chunks, &unused, &valid) != MM_CHUNK_OK)
+            s->bad_sound_index(s->context);
+        if (unused)
+            mm_movie_save_sounds(!valid || s->purge_sounds(s->context), s);
+    }
     return result;
 }

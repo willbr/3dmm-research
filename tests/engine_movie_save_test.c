@@ -1,5 +1,6 @@
 /* Movie save replacement/publication, rollback, retry and ownership checks. */
 #include "mm/movie_save.h"
+#include "mm/movie_sound.h"
 #include "mm/movie_publish.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -76,7 +77,9 @@ struct Test
     int sourceArchive, sourceCalls, tagCount, tagReads, tagReleases, sceneTagCalls;
     MMTag tags[12];
     int actorCount, actorRefs[8], actorIds[8], actorsErased, tagsClosed, rollcalls;
-    int unused, valid, purgeAnswer, queries, badChildren, badIndex, refs[8], soundExists[8];
+    int purgeAnswer, queries, badChildren, badSoundIndex, badIndex;
+    int refs[8], soundExists[8];
+    MMU32 soundSlots[8];
     MMU32 materials[16], templates[16];
     int materialCount, templateCount, tossed, deletedChunks, allocations, failAlloc, liveAlloc;
     int sourceActive, sourceReleases, badSourceLifetime;
@@ -311,6 +314,8 @@ static void delete_child(void *p, MMU32 root_number, MMU32 type, MMU32 n, MMU32 
         {
             memmove(t->children + i, t->children + i + 1, (t->childCount - i - 1) * sizeof(*c));
             --t->childCount;
+            if (type == MM_SOUND_CHUNK)
+                --t->refs[n];
             break;
         }
 }
@@ -524,34 +529,59 @@ static void toss(void *p, MMU32 type, MMU32 n)
     ++t->tossed;
     event(t, CACHE_TOSS);
 }
-static MMI32 child_count(void *p, MMU32 root_number)
-{
-    (void)root_number;
-    return ((Test *)p)->childCount;
-}
-static MMI32 references(void *p, MMU32 type, MMU32 n)
-{
-    (void)type;
-    return ((Test *)p)->refs[n % 8];
-}
-static int child_at(void *p, MMU32 root_number, MMI32 i, MMChunkChild *out)
+/* Sound rows precede the movie row, which shifts whenever a sound is dropped. */
+static int graph_entry(void *p, MMU32 row, MMChunkEntry *entry)
 {
     Test *t = p;
-    (void)root_number;
-    if (i == t->badIndex)
+    MMU32 n;
+    memset(entry, 0, sizeof(*entry));
+    for (n = 0; n < sizeof(t->refs) / sizeof(t->refs[0]); ++n)
+        if (t->refs[n] && row-- == 0)
+        {
+            entry->type = MM_SOUND_CHUNK;
+            entry->number = n;
+            entry->parent_count = t->refs[n];
+            entry->child_count = t->soundExists[n];
+            return 1;
+        }
+    if (row != 0)
+        return 0;
+    entry->type = MM_SOUND_MOVIE;
+    entry->number = t->data.movieNumber;
+    entry->child_count = t->childCount;
+    return 1;
+}
+static int graph_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
+{
+    Test *t = p;
+    MMChunkEntry entry;
+    if (!graph_entry(p, row, &entry))
+        return 0;
+    if (entry.type == MM_SOUND_CHUNK)
+    {
+        out->type = MM_SAVE_TABLE;
+        out->number = 20;
+        out->slot = t->soundSlots[entry.number];
+        return 1;
+    }
+    if ((MMI32)i == t->badIndex)
         return 0;
     *out = t->children[i];
     return 1;
 }
-static int sound_child(void *p, MMU32 n)
-{
-    return ((Test *)p)->soundExists[n % 8];
-}
-static int unused(void *p, int *valid)
+static MMChunkAccess chunks(void *p)
 {
     Test *t = p;
-    *valid = t->valid;
-    return t->unused;
+    MMChunkAccess access;
+    MMU32 n;
+    access.context = p;
+    access.count = 1;
+    for (n = 0; n < sizeof(t->refs) / sizeof(t->refs[0]); ++n)
+        if (t->refs[n])
+            ++access.count;
+    access.entry = graph_entry;
+    access.child = graph_child;
+    return access;
 }
 static int purge(void *p)
 {
@@ -562,6 +592,10 @@ static int purge(void *p)
 static void bad_child(void *p)
 {
     ++((Test *)p)->badChildren;
+}
+static void bad_sound_index(void *p)
+{
+    ++((Test *)p)->badSoundIndex;
 }
 static void *resize(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
@@ -669,13 +703,10 @@ static void init(Test *t)
     s->release_tags = release_tags;
     s->chunk = chunk;
     s->toss_cache = toss;
-    s->child_count = child_count;
-    s->references = references;
-    s->child_at = child_at;
-    s->sound_child = sound_child;
-    s->unused_sounds = unused;
+    s->chunks = chunks;
     s->purge_sounds = purge;
     s->bad_child = bad_child;
+    s->bad_sound_index = bad_sound_index;
     s->missing_scene = missing;
     s->allocator.context = t;
     s->allocator.resize = resize;
@@ -967,15 +998,16 @@ static int collecting(void)
     for (purge_all = 0; purge_all <= 1; ++purge_all)
     {
         init(&t);
-        append(&t, MM_SAVE_SOUND, 0, 20);
-        append(&t, MM_SAVE_SOUND, 1, 21);
-        append(&t, MM_SAVE_SOUND, 2, 22);
+        append(&t, MM_SOUND_CHUNK, 0, 20);
+        append(&t, MM_SOUND_CHUNK, 1, 21);
+        append(&t, MM_SOUND_CHUNK, 2, 22);
         t.refs[0] = t.refs[1] = 1;
         t.refs[2] = 2;
-        t.soundExists[1] = 1;
+        t.soundExists[0] = t.soundExists[1] = 1;
+        t.soundSlots[0] = 1;
         mm_movie_save_sounds(purge_all, &t.s);
-        CHECK(!has(&t, MM_SAVE_SOUND, 0, 20) && has(&t, MM_SAVE_SOUND, 1, 21) == !purge_all &&
-              has(&t, MM_SAVE_SOUND, 2, 22));
+        CHECK(!has(&t, MM_SOUND_CHUNK, 0, 20) && has(&t, MM_SOUND_CHUNK, 1, 21) == !purge_all &&
+              has(&t, MM_SOUND_CHUNK, 2, 22) && !t.badChildren);
         CHECK(t.deletedCount == 1 + purge_all);
         if (purge_all)
             CHECK(t.deleted[0].number == 1 && t.deleted[1].number == 0);
@@ -986,19 +1018,19 @@ static int collecting(void)
     CHECK(t.badChildren == 1 && !t.deletedCount);
     init(&t);
     t.state.closing = 1;
-    t.unused = 1;
-    append(&t, MM_SAVE_SOUND, 0, 20);
+    append(&t, MM_SOUND_CHUNK, 0, 20);
     t.refs[0] = 1;
-    CHECK(mm_movie_save_gc(&t, &t.s) && !has(&t, MM_SAVE_SOUND, 0, 20) && !t.queries);
+    CHECK(mm_movie_save_gc(&foreign, &t.s) && !has(&t, MM_SOUND_CHUNK, 0, 20) && !t.queries);
     init(&t);
     t.state.closing = 1;
-    t.unused = 1;
-    t.valid = 1;
+    append(&t, MM_SOUND_CHUNK, 1, 20);
+    t.refs[1] = t.soundExists[1] = 1;
+    CHECK(mm_movie_save_gc(&t, &t.s) && t.queries == 1 && has(&t, MM_SOUND_CHUNK, 1, 20));
     t.purgeAnswer = 1;
     t.materials[0] = 1;
     t.materialCount = 1;
     t.failAlloc = 1;
-    CHECK(!mm_movie_save_gc(&t, &t.s) && t.queries == 1 && !t.liveAlloc);
+    CHECK(!mm_movie_save_gc(&t, &t.s) && t.queries == 2 && !has(&t, MM_SOUND_CHUNK, 1, 20) && !t.liveAlloc);
     return 0;
 }
 typedef struct PublishTest
