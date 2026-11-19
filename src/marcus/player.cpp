@@ -97,6 +97,8 @@ struct MarcusPlayer
     MM::PreviewImage thumbnail;
     MM::PreviewImage movieImage;
     MM::PreviewImage costumeImage;
+    MM::PreviewBounds actionPreviewBounds;
+    std::tuple<unsigned long, int, std::int32_t, int, int> actionPreviewKey{};
     MM::PreviewImage captionFontSample;
     int movieImageScene = -1;
     MarcusPlayback playback;
@@ -2096,6 +2098,32 @@ extern "C"
         Copy(action->name, entry.name);
         action->cels = static_cast<int>(entry.celCount);
         return 1;
+    }
+    int marcus_action_preview(MarcusPlayer *player, int object, int action, int cel, int clip,
+        float yaw, float pitch, float zoom, int width, int height, MarcusImage *image)
+    {
+        if (!image) return 0;
+        *image = {};
+        return Guard(player, [&](MM::Error &error) {
+            if (width < 64 || height < 64 || width > 1024 || height > 1024) return false;
+            const auto frame = player->preview.Info().currentFrame;
+            if (clip)
+            {
+                const auto key = std::make_tuple(player->document, player->selected, frame, object, action);
+                if (player->actionPreviewKey != key) player->actionPreviewBounds = {};
+                player->actionPreviewKey = key;
+            }
+            MM::PreviewView view;
+            view.width = width; view.height = height; view.yaw = yaw; view.pitch = pitch; view.zoom = zoom;
+            auto &rendered = player->costumeImage;
+            if (!player->preview.RenderObjectAction(object, action, cel, view, rendered, error,
+                clip ? &player->actionPreviewBounds : nullptr)) return false;
+            image->width = int(rendered.width); image->height = int(rendered.height);
+            image->pitch = image->width * 4; image->rgba = rendered.rgba.data();
+            image->projection = CopyProjection(rendered.projection);
+            image->scene = player->selected; image->frame = frame; image->document = player->document;
+            return true;
+        });
     }
     static bool EditAnimation(MarcusPlayer *player, int object, const MM::PreviewAnimationEdit &edit, MM::Error &error)
     {

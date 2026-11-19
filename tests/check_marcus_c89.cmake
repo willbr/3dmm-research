@@ -13,6 +13,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/text_dialog.c"
   "${SOURCE}/src/marcus/caption_editor.c"
   "${SOURCE}/src/marcus/animation_editor.c"
+  "${SOURCE}/src/marcus/animation_dialog.c"
   "${SOURCE}/src/marcus/costume_dialog.c"
   "${SOURCE}/src/marcus/sound_dialog.c"
   "${SOURCE}/src/marcus/sound_schedule.c"

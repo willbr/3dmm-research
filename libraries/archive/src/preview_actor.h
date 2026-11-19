@@ -57,10 +57,12 @@ class PreviewActor
     bool Text(PreviewObjectText &) const;
     bool Costumes(std::vector<PreviewCostume> &) const;
     bool Actions(std::vector<PreviewAction> &) const;
+    LegacyLong ActionCelCount(LegacyLong action) const;
+    bool TryActionCel(LegacyLong action, LegacyLong cel);
     bool WriteAnimation(const PreviewAnimationEdit &, const std::string &path,
                         int &lastActorFrame, int &lastEditedFrame);
     bool TryCostumes(const std::vector<PreviewCostume> &);
-    void CostumeOrientation(BMAT34 &) const;
+    void RestOrientation(BMAT34 &) const;
     bool CostumeBounds(int bodySet, PreviewBounds &) const;
     bool WriteCostumes(const std::vector<PreviewCostume> &, const std::string &path);
     bool SetEventTrack(std::int32_t source);

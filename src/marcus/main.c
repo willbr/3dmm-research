@@ -8,6 +8,7 @@
 #include "background_browser.h"
 #include "text_dialog.h"
 #include "caption_editor.h"
+#include "animation_dialog.h"
 #include "animation_editor.h"
 #include "costume_dialog.h"
 #include "sound_dialog.h"
@@ -98,6 +99,7 @@ typedef struct App
     MarcusBackgroundBrowser *background_browser;
     MarcusTextDialog *text_dialog;
     MarcusCaptionEditor *caption_editor;
+    MarcusAnimationDialog *animation_dialog;
     MarcusAnimationEditor *animation_editor;
     MarcusCostumeDialog *costume_dialog;
     MarcusSoundDialog *sound_dialog;
@@ -1706,6 +1708,7 @@ static void handle_event(App *app, const SDL_Event *event)
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
     else if (caption_event(app, event)) { }
+    else if (animation_dialog_visible(app->animation_dialog) && dialog_input_event(event)) { }
     else if (animation_editor_event(app->animation_editor, event)) { }
     else if ((app->error[0] || app->settings_open || app->zip_input) && dialog_input_event(event))
     {
@@ -2495,12 +2498,16 @@ static void draw_object_properties(App *app)
     if (!marcus_object(app->player, app->selected, &object)) { igTextDisabled("Select an object in the list or timeline."); return; }
     igTextWrapped("%s", object.name);
     igTextUnformatted(object.text ? "3D text" : object.prop ? "Prop" : "Actor", NULL);
-    if (object.text) { if (igButton("Edit 3D text", dialog_vec(-1, 0))) edit_text(app); }
+    if (object.text) { if (igButton("Edit 3D text", dialog_vec(134, 28))) edit_text(app); }
     else {
         cursor = igGetCursorScreenPos();
         costume_dialog_button(app->costume_dialog, app->player, app->selected, cursor.x, cursor.y,
             object.visible && !app->playing && !app->settings_open && !app->error[0]);
     }
+    igSameLine(0, -1);
+    animation_dialog_button(app->animation_dialog, app->player, app->selected, &object,
+        !app->playing && !app->settings_open && !app->error[0] && !app->prop_interacting &&
+        !animation_editor_recording(app->animation_editor));
     igText("Visibility: %s", object.visible ? "On stage" : "Off stage");
     igSeparatorText(prop_gizmo_mode(app->prop_gizmo) == 1 ? "Rotation (degrees)" : prop_gizmo_mode(app->prop_gizmo) == 2 ? "Size (percent)" : "World position");
     editable = prop_gizmo_properties(app->prop_gizmo); app->prop_fields = editable;
@@ -3348,7 +3355,7 @@ static void draw(App *app)
     if (app->ribbon_tab == 2 && !app->settings_open && !app->zip_input && !app->error[0] &&
         !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
         !text_dialog_visible(app->text_dialog) && !editing_caption &&
-        !costume_dialog_visible(app->costume_dialog) &&
+        !costume_dialog_visible(app->costume_dialog) && !animation_dialog_visible(app->animation_dialog) &&
         !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !storyboard_editor_visible(app->storyboard_editor))
         sound_dialog_toolbar(app->sound_dialog, app->player, app->window, app->selected_sound,
@@ -3385,6 +3392,7 @@ static void draw(App *app)
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
     text_dialog_draw(app->text_dialog, &app->ui, app->width, app->height);
     costume_dialog_draw(app->costume_dialog, &app->ui, app->width, app->height);
+    animation_updated(app, animation_dialog_draw(app->animation_dialog, app->renderer, app->width, app->height));
     sound_dialog_draw(app->sound_dialog, app->player, &app->ui, app->width, app->height);
     camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
     if (app->error[0])
@@ -3399,7 +3407,7 @@ static void update_prop_gizmo(App *app)
     enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
         !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
         !text_dialog_visible(app->text_dialog) && !caption_editor_visible(app->caption_editor) &&
-        !animation_editor_recording(app->animation_editor) &&
+        !animation_editor_recording(app->animation_editor) && !animation_dialog_visible(app->animation_dialog) &&
         !costume_dialog_visible(app->costume_dialog) && !sound_dialog_visible(app->sound_dialog) && !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
         !app->flying && !app->orbiting && !app->panning &&
@@ -3731,8 +3739,9 @@ int main(int argc, char **argv)
     }
     app.text_dialog = text_dialog_create();
     app.caption_editor = caption_editor_create();
+    app.animation_dialog = animation_dialog_create();
     app.animation_editor = animation_editor_create();
-    if (!app.text_dialog || !app.caption_editor || !app.animation_editor)
+    if (!app.text_dialog || !app.caption_editor || !app.animation_editor || !app.animation_dialog)
     {
         result = 1;
         goto cleanup;
@@ -4004,6 +4013,7 @@ cleanup:
     browser_destroy(app.browser);
     text_dialog_destroy(app.text_dialog);
     caption_editor_destroy(app.caption_editor);
+    animation_dialog_destroy(app.animation_dialog);
     animation_editor_destroy(app.animation_editor);
     costume_dialog_destroy(app.costume_dialog);
     sound_dialog_destroy(app.sound_dialog);

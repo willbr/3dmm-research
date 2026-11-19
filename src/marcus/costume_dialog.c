@@ -1,10 +1,8 @@
 /* Marcus costume authoring. Application logic and widgets use C89 + cimgui. */
 #include "costume_dialog.h"
-#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#include <cimgui.h>
+#include "dialog_widgets.h"
 #include <math.h>
 #include <stdlib.h>
-#include <string.h>
 
 typedef struct CostumeTile
 {
@@ -216,23 +214,6 @@ static SDL_Texture *render(MarcusCostumeDialog *d, SDL_Renderer *renderer, int s
     }
     return texture;
 }
-static void picture(SDL_Texture *texture, ImVec2 origin, ImVec2 size)
-{
-    ImTextureRef ref;
-    ImVec2 fitted, start;
-    ImDrawList *draw;
-    float width, height, aspect;
-    memset(&ref, 0, sizeof(ref)); ref._TexID = (ImTextureID)(size_t)texture;
-    fitted = size;
-    aspect = .8f;
-    if (texture && SDL_GetTextureSize(texture, &width, &height) && height > 0) aspect = width / height;
-    if (size.x / aspect > size.y) fitted.x = size.y * aspect;
-    else fitted.y = size.x / aspect;
-    start = vec(origin.x + (size.x - fitted.x) * .5f, origin.y + (size.y - fitted.y) * .5f);
-    draw = igGetWindowDrawList();
-    ImDrawList_AddRectFilled(draw, origin, vec(origin.x + size.x, origin.y + size.y), igGetColorU32_Vec4(colour(0x13161a)), 0, 0);
-    if (texture) ImDrawList_AddImage(draw, ref, start, vec(start.x + fitted.x, start.y + fitted.y), vec(0, 0), vec(1, 1), 0xffffffffU);
-}
 static void gallery(MarcusCostumeDialog *d)
 {
     const ImGuiStyle *style;
@@ -263,7 +244,7 @@ static void gallery(MarcusCostumeDialog *d)
             clicked = igButton("##costume", size);
             visible = igIsItemVisible(); d->tiles[i].wanted = visible;
             origin = igGetItemRectMin();
-            picture(d->tiles[i].texture, vec(origin.x + 4, origin.y + 4), vec(size.x - 8, size.y - 8));
+            dialog_object_picture(d->tiles[i].texture, vec(origin.x + 4, origin.y + 4), vec(size.x - 8, size.y - 8));
             if (!d->tiles[i].texture && visible) igSetItemTooltip(d->tiles[i].attempted ? "Preview unavailable" : "Loading preview...");
             if (d->tiles[i].value.selected) igPopStyleColor(1);
             if (clicked)
@@ -299,7 +280,7 @@ static void preview(MarcusCostumeDialog *d)
         else size.y = (size.x - 8) / aspect + 8;
     }
     igButton("##actorPreview", size); origin = igGetItemRectMin();
-    picture(d->preview, vec(origin.x + 4, origin.y + 4), vec(size.x - 8, size.y - 8));
+    dialog_object_picture(d->preview, vec(origin.x + 4, origin.y + 4), vec(size.x - 8, size.y - 8));
     io = igGetIO_Nil();
     if (igIsItemActive() && io->MouseDown[0] && (io->MouseDelta.x || io->MouseDelta.y))
     {

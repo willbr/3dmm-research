@@ -251,6 +251,7 @@ struct PreviewAudio
 class Preview
 {
     bool OpenCore(Archive &&, const std::string &, Error &, bool, bool);
+    bool RenderIsolatedObject(int object, const PreviewView &, const PreviewBounds &, PreviewImage &, Error &, bool crop);
     struct Impl;
     std::unique_ptr<Impl> _impl;
 
@@ -294,6 +295,9 @@ class Preview
     bool WriteObjectCostumes(int object, const std::vector<PreviewCostume> &, const std::string &path, Error &);
     bool SetObjectEventTrack(int object, std::int32_t source, Error &);
     bool RenderObjectCostumes(int object, const std::vector<PreviewCostume> &, const PreviewView &, PreviewImage &, Error &, int bodySet = -1);
+    // An empty clipBounds is filled with the action's framing for reuse on later cels.
+    bool RenderObjectAction(int object, int action, int cel, const PreviewView &, PreviewImage &, Error &,
+                            PreviewBounds *clipBounds = nullptr);
     // Change only this instance's text template, retaining its authored track.
     bool SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &);
     bool TextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number, PreviewTextMaterial &, Error &);

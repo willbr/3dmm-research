@@ -7,7 +7,7 @@ struct MarcusAnimationEditor
 {
     unsigned long document;
     long frame;
-    int object, scene, ready, action_count, action, cel, freeze, replace;
+    int object, scene, ready, replace;
     int armed, dragging, count;
     float position[3], tweak[3], anchor[3];
     ImVec2 pointer_start;
@@ -40,35 +40,6 @@ int animation_editor_event(MarcusAnimationEditor *editor, const SDL_Event *event
     }
     return dialog_input_event(event);
 }
-static void choose_action(MarcusAnimationEditor *editor, const MarcusPlayer *player)
-{
-    MarcusObjectAction action;
-    int i;
-    if (!marcus_object_action(player, editor->action, &action)) return;
-    igSetNextItemWidth(-1);
-    if (igBeginCombo("##Action", action.name, 0))
-    {
-        for (i = 0; i < editor->action_count; ++i)
-        {
-            if (!marcus_object_action(player, i, &action)) continue;
-            igPushID_Int(i);
-            if (igSelectable_Bool(action.name, i == editor->action, 0, dialog_vec(0, 0)))
-            {
-                editor->action = i;
-                editor->cel = 1;
-            }
-            if (i == editor->action) igSetItemDefaultFocus();
-            igPopID();
-        }
-        igEndCombo();
-    }
-    if (!marcus_object_action(player, editor->action, &action)) return;
-    igSetNextItemWidth(94);
-    if (igInputInt("Start cel", &editor->cel, 1, 0, 0))
-        editor->cel = SDL_clamp(editor->cel, 1, SDL_max(1, action.cels));
-    igSameLine(0, 12);
-    dialog_checkbox("Freeze pose", &editor->freeze);
-}
 int animation_editor_properties(MarcusAnimationEditor *editor, MarcusPlayer *player, int object,
                                 const MarcusObject *value, int enabled)
 {
@@ -77,7 +48,8 @@ int animation_editor_properties(MarcusAnimationEditor *editor, MarcusPlayer *pla
     int result;
     if (!marcus_info(player, &info)) return 0;
     document = marcus_document(player);
-    if (!editor->ready || editor->document != document || editor->object != object || editor->scene != info.scene)
+    if (!editor->ready || editor->document != document || editor->object != object ||
+        editor->scene != info.scene || editor->frame != info.frame)
     {
         cancel_path(editor);
         editor->ready = 1;
@@ -85,19 +57,8 @@ int animation_editor_properties(MarcusAnimationEditor *editor, MarcusPlayer *pla
         editor->object = object;
         editor->scene = info.scene;
         editor->frame = info.frame;
-        editor->action_count = marcus_object_action_count(player, object);
-        editor->action = (int)SDL_clamp(value->action, 0, SDL_max(0, editor->action_count - 1));
-        editor->cel = 1;
-        editor->freeze = 0;
     }
-    if (editor->frame != info.frame)
-    {
-        cancel_path(editor);
-        editor->frame = info.frame;
-        editor->action = (int)SDL_clamp(value->action, 0, SDL_max(0, editor->action_count - 1));
-        editor->cel = 1;
-    }
-    igSeparatorText("Animation");
+    igSeparatorText("Path");
     if (editor->armed)
     {
         igTextWrapped("Drag in the viewport to draw the path. Release to apply.");
@@ -106,42 +67,33 @@ int animation_editor_properties(MarcusAnimationEditor *editor, MarcusPlayer *pla
     }
     result = 0;
     igBeginDisabled(!enabled || !value->visible);
-    if (editor->action_count > 0)
+    dialog_checkbox("Replace remaining path", &editor->replace);
+    if (igButton("Draw path", dialog_vec(105, 0)))
     {
-        choose_action(editor, player);
-        if (igButton("Apply action", dialog_vec(-1, 0)))
-            result = marcus_set_object_action(player, object, editor->action, editor->cel - 1, editor->freeze) ? 1 : -1;
+        editor->armed = 1;
+        editor->position[0] = value->x;
+        editor->position[1] = value->y;
+        editor->position[2] = value->z;
     }
-    if (!result)
+    igSameLine(0, 8);
+    if (igButton("Edit path point", dialog_vec(132, 0)))
     {
-        dialog_checkbox("Replace remaining path", &editor->replace);
-        if (igButton("Draw path", dialog_vec(105, 0)))
+        editor->tweak[0] = value->x;
+        editor->tweak[1] = value->y;
+        editor->tweak[2] = value->z;
+        igOpenPopup_Str("Path point", 0);
+    }
+    if (igBeginPopup("Path point", 0))
+    {
+        igInputFloat3("World XYZ", editor->tweak, "%.3f", 0);
+        if (igButton("Set point", dialog_vec(0, 0)))
         {
-            editor->armed = 1;
-            editor->position[0] = value->x;
-            editor->position[1] = value->y;
-            editor->position[2] = value->z;
+            if (editor->tweak[0] != value->x || editor->tweak[1] != value->y || editor->tweak[2] != value->z)
+                result = marcus_tweak_object_path(player, object, editor->tweak[0] - value->x,
+                             editor->tweak[1] - value->y, editor->tweak[2] - value->z) ? 1 : -1;
+            igCloseCurrentPopup();
         }
-        igSameLine(0, 8);
-        if (igButton("Edit path point", dialog_vec(132, 0)))
-        {
-            editor->tweak[0] = value->x;
-            editor->tweak[1] = value->y;
-            editor->tweak[2] = value->z;
-            igOpenPopup_Str("Path point", 0);
-        }
-        if (igBeginPopup("Path point", 0))
-        {
-            igInputFloat3("World XYZ", editor->tweak, "%.3f", 0);
-            if (igButton("Set point", dialog_vec(0, 0)))
-            {
-                if (editor->tweak[0] != value->x || editor->tweak[1] != value->y || editor->tweak[2] != value->z)
-                    result = marcus_tweak_object_path(player, object, editor->tweak[0] - value->x,
-                                 editor->tweak[1] - value->y, editor->tweak[2] - value->z) ? 1 : -1;
-                igCloseCurrentPopup();
-            }
-            igEndPopup();
-        }
+        igEndPopup();
     }
     igEndDisabled();
     return result;

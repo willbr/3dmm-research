@@ -330,29 +330,21 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
         return Fail(error, ErrorCode::invalid_argument, "Select a visible actor or prop.");
     auto &actor = *_impl->actors[object]; BodyCostume costume;
     if (!costume.FGet(actor.body)) return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
-    const auto orbit = _impl->orbit;
     const MMActorBodyPose pose = {{0, 0, 0}, actor.body->RootMatrix()};
     struct Restore
     {
-        BodyCostume &costume; PBody body; Impl &impl; decltype(orbit) orbit;
+        BodyCostume &costume; PBody body;
         MMActorBodyPose pose;
         ~Restore()
         {
             costume.Set(body);
             body->ApplyPose(pose);
-            impl.orbit = orbit;
         }
-    } restore{costume, actor.body, *_impl, orbit, pose};
+    } restore{costume, actor.body, pose};
     BMAT34 orientation;
-    actor.CostumeOrientation(orientation);
+    actor.RestOrientation(orientation);
     actor.body->LocateOrient(rZero, rZero, rZero, &orientation);
     if (!actor.TryCostumes(values)) return Fail(error, ErrorCode::decode_failed, "Cannot preview this costume.");
-    PreviewView isolated = view;
-    isolated.authoredCamera = false; isolated.orbitObject = object; isolated.onlyObject = object;
-    isolated.stableOrbit = false; isolated.freeCamera = false; isolated.orthographic = false;
-    isolated.axisView = 0; isolated.roll = 0; isolated.nearClip = .01f; isolated.fitSceneDepth = true;
-    if (view.width < 64 || view.height < 64 || !std::isfinite(view.zoom) || view.zoom < .1f || view.zoom > 10)
-        return Fail(error, ErrorCode::invalid_argument, "Invalid costume preview size or zoom.");
     PreviewBounds bounds;
     if (!ObjectBounds(object, bounds, error) || !bounds.valid) return false;
     if (bodySet >= 0)
@@ -402,18 +394,93 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
                 bounds.corners[c * 3 + a] = (c & (1 << a)) ? high[a] : low[a];
         }
     }
+    return RenderIsolatedObject(object, view, bounds, image, error, bodySet >= 0);
+}
+bool Preview::RenderIsolatedObject(int object, const PreviewView &view, const PreviewBounds &bounds,
+                                   PreviewImage &image, Error &error, bool crop)
+{
+    if (view.width < 64 || view.height < 64 || !std::isfinite(view.zoom) || view.zoom < .1f || view.zoom > 10)
+        return Fail(error, ErrorCode::invalid_argument, "Invalid object preview size or zoom.");
+    PreviewView isolated = view;
+    isolated.authoredCamera = false; isolated.orbitObject = object; isolated.onlyObject = object;
+    isolated.stableOrbit = false; isolated.freeCamera = false; isolated.orthographic = false;
+    isolated.axisView = 0; isolated.roll = 0; isolated.nearClip = .01f; isolated.fitSceneDepth = true;
     isolated.orbitBounds = &bounds;
     Impl::RenderHost host = {this, _impl.get(), &isolated, &error};
     const auto services = host.Services(); float fit;
     if (!mm_preview_camera_fit_object(bounds.corners, view.yaw, view.pitch, float(view.width) / view.height,
         isolated.verticalFov, .04f, &fit, &services.math))
-        return Fail(error, ErrorCode::invalid_argument, "Cannot fit this costume preview.");
+        return Fail(error, ErrorCode::invalid_argument, "Cannot fit this object preview.");
     isolated.zoom = fit * std::min(1.f, view.zoom);
+    struct RestoreOrbit
+    {
+        Impl &impl;
+        decltype(Impl::orbit) orbit;
+        ~RestoreOrbit() { impl.orbit = orbit; }
+    } restore{*_impl, _impl->orbit};
     ResetOrbitFraming();
     if (!Render(isolated, image, error)) return false;
-    if (bodySet >= 0) mm_preview_camera_crop(bounds.corners, image.projection.transform, image.projection.verticalFov,
+    if (crop) mm_preview_camera_crop(bounds.corners, image.projection.transform, image.projection.verticalFov,
         image.projection.aspect, image.width, image.height, image.contentRect, &services.math);
     return true;
+}
+bool Preview::RenderObjectAction(int object, int action, int cel, const PreviewView &view,
+                                 PreviewImage &image, Error &error, PreviewBounds *clipBounds)
+{
+    image = {}; error = {};
+    if (!_impl->live.status.ready || object < 0 || std::size_t(object) >= _impl->actors.size() ||
+        !_impl->actors[object]->Visible())
+        return Fail(error, ErrorCode::invalid_argument, "Select an on-stage object.");
+    auto &actor = *_impl->actors[object];
+    const auto count = actor.ActionCelCount(action);
+    if (cel < 0 || cel >= count)
+        return Fail(error, ErrorCode::invalid_argument, "Choose an available action and cel.");
+    auto duplicate = actor.body->PbodyDup();
+    if (!duplicate) return Fail(error, ErrorCode::out_of_memory, "Cannot allocate the action preview model.");
+    struct RestoreBody
+    {
+        Internal::PreviewActor &actor;
+        PBody original;
+        ~RestoreBody() { actor.body->Release(); actor.body = original; }
+    } restore{actor, actor.body};
+    actor.body = duplicate;
+    BMAT34 orientation;
+    actor.RestOrientation(orientation);
+    duplicate->LocateOrient(rZero, rZero, rZero, &orientation);
+    PreviewBounds pose;
+    if (!actor.TryActionCel(action, cel) || !ObjectBounds(object, pose, error) || !pose.valid)
+        return Fail(error, ErrorCode::decode_failed, "Cannot display this action cel.");
+    if (clipBounds && !clipBounds->valid)
+    {
+        // Fit the moving actor once so the camera stays still as cels change.
+        float low[3], high[3];
+        std::copy(pose.corners, pose.corners + 3, low);
+        std::copy(low, low + 3, high);
+        const auto include = [&](const PreviewBounds &bounds) {
+            for (int c = 0; c < 8; ++c) for (int a = 0; a < 3; ++a)
+            {
+                low[a] = std::min(low[a], bounds.corners[c * 3 + a]);
+                high[a] = std::max(high[a], bounds.corners[c * 3 + a]);
+            }
+        };
+        include(pose);
+        const int samples = std::min<int>(count, 24);
+        for (int i = 0; i < samples; ++i)
+        {
+            const auto sample = samples == 1 ? 0 : static_cast<int>(std::int64_t(i) * (count - 1) / (samples - 1));
+            if (sample == cel) continue;
+            PreviewBounds bounds;
+            if (!actor.TryActionCel(action, sample) || !ObjectBounds(object, bounds, error) || !bounds.valid)
+                return Fail(error, ErrorCode::decode_failed, "Cannot frame this action preview.");
+            include(bounds);
+        }
+        if (!actor.TryActionCel(action, cel))
+            return Fail(error, ErrorCode::decode_failed, "Cannot display this action cel.");
+        for (int c = 0; c < 8; ++c) for (int a = 0; a < 3; ++a)
+            clipBounds->corners[c * 3 + a] = (c & (1 << a)) ? high[a] : low[a];
+        clipBounds->valid = true;
+    }
+    return RenderIsolatedObject(object, view, clipBounds ? *clipBounds : pose, image, error, false);
 }
 bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32_t number, Error &error)
 {

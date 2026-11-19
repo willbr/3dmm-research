@@ -115,6 +115,23 @@ void dialog_image(SDL_Texture *texture, ImVec2 size)
         dialog_vec(cursor.x + (size.x + fitted.x) / 2, cursor.y + (size.y + fitted.y) / 2),
         dialog_vec(0, 0), dialog_vec(1, 1), 0xffffffffU);
 }
+void dialog_object_picture(SDL_Texture *texture, ImVec2 origin, ImVec2 size)
+{
+    ImTextureRef ref;
+    ImVec2 fitted, start;
+    ImDrawList *draw;
+    float width, height, scale;
+    if (size.x <= 0 || size.y <= 0) return;
+    draw = igGetWindowDrawList();
+    ImDrawList_AddRectFilled(draw, origin, dialog_vec(origin.x + size.x, origin.y + size.y), 0xff1a1613U, 0, 0);
+    if (!texture || !SDL_GetTextureSize(texture, &width, &height) || width <= 0 || height <= 0) return;
+    scale = SDL_min(size.x / width, size.y / height);
+    fitted = dialog_vec(width * scale, height * scale);
+    start = dialog_vec(origin.x + (size.x - fitted.x) * .5f, origin.y + (size.y - fitted.y) * .5f);
+    ref._TexData = NULL; ref._TexID = (ImTextureID)(size_t)texture;
+    ImDrawList_AddImage(draw, ref, start, dialog_vec(start.x + fitted.x, start.y + fitted.y),
+                        dialog_vec(0, 0), dialog_vec(1, 1), 0xffffffffU);
+}
 int dialog_thumbnail(const char *id, SDL_Texture *texture, ImVec2 size, int selected, const char *placeholder)
 {
     ImVec2 origin, padding, fitted;

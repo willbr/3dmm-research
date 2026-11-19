@@ -1526,14 +1526,15 @@ world XYZ, actor ID, current action/cel indices, lifetime and template source/ch
 Original coordinates are retained. Selection uses viewport picking, the list or
 the timeline.
 
-In **Object Properties**, choose an action under **Animation** and click
-**Apply action** to start it at the playhead. **Start cel** counts from one.
-**Freeze pose** holds that cel. Actions and cels come from the selected
-object's template.
+In **Object Properties**, click **Animation...** to browse the selected
+object's actions. Pick a thumbnail to see the action play in the preview.
+Drag the preview to rotate it and use the mouse wheel to zoom. **Start cel**
+counts from one. **Freeze pose** holds that cel. Click **Apply action** to
+start the action at the current playhead.
 
 To record motion, pause where it should start, select the object, and click
-**Draw path**. Drag in the viewport to trace a path from the object's current
-position, in the plane facing the current camera. Release to apply the path or
+**Draw path** under **Path**. Drag in the viewport to trace a path from the
+object's current position in the plane facing the camera. Release to apply it or
 press Esc to cancel. The action's stride controls how much distance each frame
 covers. Stationary actions and props use a fixed distance per frame. With
 **Replace remaining path** cleared, Marcus attempts to rejoin the following

@@ -406,6 +406,24 @@ int main(int argc, char **argv)
             if (i != atStart.action && marcus_object_action(player.get(), i, &action) && action.cels > 1)
             { chosen = i; break; }
         require(chosen >= 0 && action.name[0], "List the selected actor's actions and cels");
+        const auto actionPreviewDocument = marcus_document(player.get());
+        MarcusImage actionPreview = {};
+        require(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image), "Render the scene before previewing an action");
+        const std::vector<unsigned char> scenePixels(image.rgba, image.rgba + image.pitch * image.height);
+        require(marcus_action_preview(player.get(), animated, chosen, 0, 1, 25, -10, 1, 160, 180, &actionPreview),
+            "Render the first cel of an isolated action preview");
+        const auto firstProjection = actionPreview.projection;
+        const std::vector<unsigned char> firstCel(actionPreview.rgba, actionPreview.rgba + actionPreview.pitch * actionPreview.height);
+        require(marcus_action_preview(player.get(), animated, chosen, 1, 1, 25, -10, 1, 160, 180, &actionPreview) &&
+            std::memcmp(firstCel.data(), actionPreview.rgba, firstCel.size()) != 0,
+            "Advancing the preview changes the rendered pose");
+        for (int i = 0; i < 12; ++i)
+            require(std::abs(firstProjection.transform[i] - actionPreview.projection.transform[i]) < .0001f,
+                "Action cels share stable preview framing");
+        require(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image) &&
+            std::memcmp(scenePixels.data(), image.rgba, scenePixels.size()) == 0 &&
+            marcus_document(player.get()) == actionPreviewDocument && marcus_info(player.get(), &after) && after.frame == 2,
+            "The isolated action preview leaves the scene image and playhead unchanged");
         require(!marcus_set_object_action(player.get(), animated, chosen, action.cels, 0),
                 "Reject a starting cel beyond the action");
         require(marcus_set_object_action(player.get(), animated, chosen, 0, 0) &&

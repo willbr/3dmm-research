@@ -296,6 +296,9 @@ extern "C"
     typedef struct MarcusPathPoint { float x, y, z; } MarcusPathPoint;
     int marcus_object_action_count(MarcusPlayer *player, int object);
     int marcus_object_action(const MarcusPlayer *player, int index, MarcusObjectAction *action);
+    /* Render on an isolated body. Fit the whole action when clip is set. */
+    int marcus_action_preview(MarcusPlayer *player, int object, int action, int cel, int clip,
+        float yaw, float pitch, float zoom, int width, int height, MarcusImage *image);
     int marcus_set_object_action(MarcusPlayer *player, int object, int action, int cel, int freeze);
     int marcus_tweak_object_path(MarcusPlayer *player, int object, float x, float y, float z);
     /* Samples are world-axis offsets from the playhead position. */

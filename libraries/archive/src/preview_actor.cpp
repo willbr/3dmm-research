@@ -189,14 +189,21 @@ bool PreviewActor::Actions(std::vector<PreviewAction> &out) const
     out.clear();
     if (!tmpl) return false;
     for (LegacyLong i = 0; i < tmpl->Cactn(); ++i)
-    {
-        LegacyLong count = 0;
-        tmpl->FGetCcelActn(i, &count);
-        out.push_back({ActionName(i), static_cast<std::uint32_t>(std::max<LegacyLong>(0, count))});
-    }
+        out.push_back({ActionName(i), static_cast<std::uint32_t>(ActionCelCount(i))});
     return true;
 }
-void PreviewActor::CostumeOrientation(BMAT34 &matrix) const
+LegacyLong PreviewActor::ActionCelCount(LegacyLong action) const
+{
+    LegacyLong count = 0;
+    if (tmpl && action >= 0 && action < tmpl->Cactn() && tmpl->FGetCcelActn(action, &count))
+        return std::max<LegacyLong>(0, count);
+    return 0;
+}
+bool PreviewActor::TryActionCel(LegacyLong action, LegacyLong cel)
+{
+    return tmpl->FSetActnCel(body, action, cel);
+}
+void PreviewActor::RestOrientation(BMAT34 &matrix) const
 {
     BRA x, y, z;
     tmpl->GetRestOrien(&x, &y, &z);
