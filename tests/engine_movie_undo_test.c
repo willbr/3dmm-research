@@ -93,7 +93,7 @@ static void snapshot_step(SnapshotFixture *s, char step)
 }
 static int snapshot_effect(void *p, MMMovieSnapshotEffect effect, const void *record, int recovering)
 {
-    static const char steps[] = "COIDRTNLVSKXY";
+    static const char steps[] = "COIDRTNLVSKXYF";
     SnapshotFixture *s = p;
     const MMMovieSnapshotView *state = record;
     snapshot_step(s, steps[effect]);
@@ -109,7 +109,8 @@ static int snapshot_effect(void *p, MMMovieSnapshotEffect effect, const void *re
         s->live.scene = scene;
         break;
     }
-    case MM_MOVIE_SNAPSHOT_SELECT: s->live.scene = state->scene; break;
+    case MM_MOVIE_SNAPSHOT_SELECT:
+    case MM_MOVIE_SNAPSHOT_SELECT_RESET_FRAMING: s->live.scene = state->scene; break;
     case MM_MOVIE_SNAPSHOT_CLEAR_SCENE:
     case MM_MOVIE_SNAPSHOT_ABANDON: s->live.scene = -1; break;
     default: break;
@@ -217,6 +218,56 @@ static void test_snapshot_replacement(void)
     mm_movie_snapshot_clear(&stack, release_snapshot);
     CHECK(snapshots_released == 4 && last_released == &older);
 }
+static void test_snapshot_scene_edit(void)
+{
+    static const struct
+    {
+        int fail, fail_recovery, previous, keep_framing, seek_frame;
+        const char *trace;
+    } cases[] = {
+        {-1, -1, -1, 0, 0, "IDF!"},
+        {-1, -1, 2, 1, 1, "IDLK!"},
+        {MM_MOVIE_SNAPSHOT_DEFINITIONS, -1, 2, 0, 0, "IDIDTLK"},
+        {MM_MOVIE_SNAPSHOT_SELECT_RESET_FRAMING, -1, -1, 0, 0, "IDFIDTN"},
+        {MM_MOVIE_SNAPSHOT_SEEK, -1, 2, 1, 1, "IDLKIDTLK"},
+        {MM_MOVIE_SNAPSHOT_SEEK, MM_MOVIE_SNAPSHOT_SELECT, 2, 1, 1, "IDLKIDTLX"}
+    };
+    unsigned i;
+    for (i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        MMMovieSnapshotStack stack = {{NULL}, 0, 0};
+        MMMovieSnapshotView prior, older, next;
+        SnapshotFixture f;
+        MMMovieSnapshotServices s = {NULL, describe_snapshot, same_snapshot_file, matches_snapshot_scene,
+                                     snapshot_effect, publish_snapshot, commit_replacement};
+        memset(&f, 0, sizeof(f));
+        s.context = &f;
+        f.live.scene = cases[i].previous;
+        f.live.scenes = &older;
+        prior = older = next = f.live;
+        next.scene = 4;
+        next.scenes = &next;
+        f.fail = cases[i].fail;
+        f.fail_recovery = cases[i].fail_recovery;
+        snapshots_released = 0;
+        mm_movie_snapshot_put(&stack, &older, release_snapshot);
+        CHECK(mm_movie_snapshot_edit_scene(&stack, &prior, &next, cases[i].keep_framing, cases[i].seek_frame,
+                                           release_snapshot, &s) == (f.fail < 0));
+        CHECK(!strcmp(f.trace, cases[i].trace) && stack.entries[0] == &older && !f.committed);
+        if (f.fail < 0)
+        {
+            CHECK(stack.count == 2 && stack.entries[1] == &prior && f.published == &next && !snapshots_released);
+            CHECK(f.live.scene == next.scene && f.live.scenes == next.scenes);
+        }
+        else
+        {
+            CHECK(stack.count == 1 && !f.published && snapshots_released == 1 && last_released == &prior);
+            CHECK(f.live.scene == (f.fail_recovery < 0 ? prior.scene : -1) && f.live.scenes == prior.scenes);
+        }
+        mm_movie_snapshot_clear(&stack, release_snapshot);
+        CHECK(snapshots_released == 2);
+    }
+}
 int main(void)
 {
     Host h;
@@ -246,6 +297,7 @@ int main(void)
     CHECK(!h.local.base.movie && !h.local.base.scene && !h.local.base.frame);
     test_snapshots();
     test_snapshot_replacement();
+    test_snapshot_scene_edit();
     puts("C89 movie undo publication, sentinel, separate operation index and destruction checks passed");
     return 0;
 }

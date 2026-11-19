@@ -1026,6 +1026,10 @@ records. Scene definitions preserve insertion order. The camera journal
 replaces repeated keys, preserves the opening-frame sentinel, and supplies
 the same ordered cuts to preview, thumbnail checks, native save, and the
 32-bit renderer worker. Undo retains the previous records.
+Ordinary scene insertion and storyboard scene edits publish through the C89
+snapshot transaction. It records undo only after the live scene is ready and
+restores the prior definitions, timing and position on failure. If recovery
+also fails, it clears the live selection.
 Marcus sound archive edits now use C89 for scene packet changes,
 actor binding selection, and imported sound links. Scene changes share
 the camera and range editor's frame-group reader and writer. Actor

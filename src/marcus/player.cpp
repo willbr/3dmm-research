@@ -1028,6 +1028,7 @@ struct SnapshotHost
             case MM_MOVIE_SNAPSHOT_ABANDON:
             case MM_MOVIE_SNAPSHOT_CLEAR_SCENE:
                 movie.selected = -1;
+                movie.movieImageScene = -1;
                 movie.objects.clear();
                 movie.soundSheet.sounds.clear();
                 movie.soundSheet.soundTracks.clear();
@@ -1036,7 +1037,8 @@ struct SnapshotHost
                 movie.playback.Stop();
                 break;
             case MM_MOVIE_SNAPSHOT_SELECT:
-                if (!marcus_select_scene_keep_view(&movie, snapshot->scene))
+            case MM_MOVIE_SNAPSHOT_SELECT_RESET_FRAMING:
+                if (!SelectScene(&movie, snapshot->scene, effect == MM_MOVIE_SNAPSHOT_SELECT))
                 {
                     error.message = movie.error;
                     return 0;
@@ -1137,6 +1139,23 @@ bool ReplaceEditedMovie(MarcusPlayer *player, const std::shared_ptr<MarcusMovieF
     if (host.failure)
         std::rethrow_exception(host.failure);
     return installed != 0;
+}
+bool ApplySceneEdit(MarcusPlayer &movie, std::shared_ptr<const MarcusLiveEdits> edits, MMI32 scene, MMI32 frame,
+                    bool keepFraming, bool seekFrame, MM::Error &error)
+{
+    EditHistory history(movie);
+    auto replacement = history.before;
+    replacement.edits = std::move(edits);
+    replacement.scene = scene;
+    replacement.frame = frame;
+    replacement.modified = true;
+    SnapshotHost host{movie, error, {}};
+    const auto services = host.Services();
+    const auto applied = mm_movie_snapshot_edit_scene(&movie.undo.stack, history.record.release(), &replacement,
+        keepFraming, seekFrame, MarcusPlayer::UndoHistory::Release, &services);
+    if (host.failure)
+        std::rethrow_exception(host.failure);
+    return applied != 0;
 }
 void ReadSoundAssets(MarcusPlayer *player)
 {
@@ -1256,23 +1275,7 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
         cameras->Set({static_cast<MMU32>(scene), mm_scene_camera_key(first, static_cast<MMI32>(frame)),
                       static_cast<MMU32>(camera)});
         edits->cameras = cameras; edits->revision = player->nextEditRevision++;
-        EditHistory history(*player);
-        const auto previous = player->edits;
-        player->edits = edits;
-        if (!ApplyDefinitions(*player, error) || !SelectScene(player, selected, true) || !marcus_seek(player, frame))
-        {
-            const auto failure = error.message.empty() ? std::string(player->error) : error.message;
-            player->edits = previous;
-            MM::Error ignored; ApplyDefinitions(*player, ignored);
-            player->soundTimeline.Reframe(player->sceneInfo);
-            if (history.before.scene >= 0) { SelectScene(player, history.before.scene, true); marcus_seek(player, history.before.frame); }
-            else { player->preview.ClearScene(); player->selected = -1; }
-            error.message = failure;
-            return false;
-        }
-        player->movieImageScene = -1; ++player->document;
-        history.Commit();
-        return true;
+        return ApplySceneEdit(*player, std::move(edits), selected, static_cast<MMI32>(frame), true, true, error);
     });
 }
 namespace
@@ -2303,29 +2306,8 @@ extern "C"
             auto scenes = std::make_shared<MarcusLiveEdits::Scenes>(*edits->scenes);
             scenes->Append({static_cast<MMU32>(player->nextScene++), static_cast<MMU32>(background), player->retailSource});
             edits->scenes = scenes; edits->revision = player->nextEditRevision++;
-            EditHistory history(*player);
-            const auto previous = player->edits;
-            player->edits = edits;
-            if (!ApplyDefinitions(*player, error)) { player->edits = previous; return false; }
-            if (!marcus_select_scene(player, static_cast<int>(player->scenes.size()) - 1))
-            {
-                const auto failure = std::string(player->error);
-                player->edits = previous;
-                MM::Error ignored;
-                ApplyDefinitions(*player, ignored);
-                player->soundTimeline.Reframe(player->sceneInfo);
-                if (history.before.scene >= 0)
-                {
-                    marcus_select_scene_keep_view(player, history.before.scene);
-                    marcus_seek(player, history.before.frame);
-                }
-                else { player->preview.ClearScene(); player->selected = -1; }
-                error.message = failure;
-                return false;
-            }
-            ++player->document; player->movieImageScene = -1;
-            history.Commit();
-            return true;
+            return ApplySceneEdit(*player, std::move(edits), static_cast<MMI32>(player->scenes.size()), 1, false, false,
+                                  error);
         });
     }
     int marcus_open_input(MarcusPlayer *player, MarcusMovieInput *input, int index, const char *resources,

@@ -15002,3 +15002,41 @@ in seek and playback. Original v3dmm was unavailable.
 The probe, before and after files, and test logs are in
 `tmp/c89-scene-journal`. The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`.
+
+## Marcus live scene edit transaction in C89 (19 November 2026)
+
+Ordinary scene insertion and storyboard edits publish through the C89
+snapshot transaction. It installs the candidate definitions, selects the
+scene, and seeks the requested storyboard frame before recording undo and
+publishing the document revision. Failure restores the prior definitions,
+sound schedule and scene position. If recovery fails, the controller clears
+the incomplete view.
+
+The C fixture checks failure during definition publication, selection and
+seek, including an unsuccessful rollback. A headless Marcus probe rejected
+an invalid background as the first scene and again after extending a valid
+scene. The second failure restored the prior range, playhead and rendered
+pixels. Both failures preserved the document revision and undo history.
+
+The edited camera archive and all three native storyboard controls were
+byte-identical. All five VMM outputs matched after normalizing generated
+names and chunk keys. Marcus, SDL Studio, and the 32-bit ASM worker were
+rebuilt. The storyboard renderer checks ran with the worker installed.
+All 41 selected Marcus-enabled checks and eleven standalone C-only Release
+checks passed.
+
+Suite `20261119T063348Z-5925a404` completed all ten captures. The three
+players agreed on all 61 native frame positions. Each player's distinct
+frame and pixel records matched its previous capture. The earlier retail
+seek pixel and mixed PCM differences persisted. SDL timing differed, and
+Marcus timing remained inconclusive. SDL Studio and Marcus matched both
+frames and their pixels in seek and playback of the public storyboard VMM.
+The original v3dmm runtime was unavailable.
+
+Suite `20261119T063541Z-4b0cbf45` captured the three-frame movie made by
+the ordinary scene insertion path. Both ports matched retail's frame
+positions, seek pixels and silent PCM. SDL's final playback frame differed
+from retail by 32.9 ms. Marcus timing remained inconclusive.
+
+The probes, outputs and logs are in `tmp/c89-scene-transaction`.
+The capture database is at `tmp/c89-sound-schedule/capture/playback.sqlite`.

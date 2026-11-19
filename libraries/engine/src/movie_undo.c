@@ -93,12 +93,12 @@ static int restore_snapshot(const void *record, SnapshotRestoreMode mode, const 
     return s->effect(context, MM_MOVIE_SNAPSHOT_SEEK, record, recovering);
 }
 
-static void recover_snapshot(const void *prior, const MMMovieSnapshotServices *s)
+static int recover_snapshot(const void *prior, const MMMovieSnapshotServices *s)
 {
     int recovered = restore_snapshot(prior, SNAPSHOT_RECOVER, s);
     if (!recovered)
         s->effect(s->context, MM_MOVIE_SNAPSHOT_ABANDON, prior, 1);
-    s->publish(s->context, recovered ? prior : NULL);
+    return recovered;
 }
 
 int mm_movie_snapshot_undo(MMMovieSnapshotStack *stack, const void *prior, void (*release)(void *),
@@ -112,7 +112,7 @@ int mm_movie_snapshot_undo(MMMovieSnapshotStack *stack, const void *prior, void 
     record = stack->entries[slot];
     if (!restore_snapshot(record, SNAPSHOT_UNDO, s))
     {
-        recover_snapshot(prior, s);
+        s->publish(s->context, recover_snapshot(prior, s) ? prior : NULL);
         return 0;
     }
     s->publish(s->context, record);
@@ -128,11 +128,31 @@ int mm_movie_snapshot_replace(MMMovieSnapshotStack *stack, void *prior, const vo
     if (!restore_snapshot(replacement, SNAPSHOT_REPLACE, s) ||
         !s->effect(s->context, MM_MOVIE_SNAPSHOT_VERIFY, replacement, 0))
     {
-        recover_snapshot(prior, s);
+        s->publish(s->context, recover_snapshot(prior, s) ? prior : NULL);
         release(prior);
         return 0;
     }
     mm_movie_snapshot_put(stack, prior, release);
     s->commit_replace(s->context);
+    return 1;
+}
+
+int mm_movie_snapshot_edit_scene(MMMovieSnapshotStack *stack, void *prior, const void *replacement,
+                                 int keep_framing, int seek_frame, void (*release)(void *),
+                                 const MMMovieSnapshotServices *s)
+{
+    void *context = s->context;
+    const MMMovieSnapshotEffect select = keep_framing ? MM_MOVIE_SNAPSHOT_SELECT : MM_MOVIE_SNAPSHOT_SELECT_RESET_FRAMING;
+    if (!s->effect(context, MM_MOVIE_SNAPSHOT_INSTALL, replacement, 0) ||
+        !s->effect(context, MM_MOVIE_SNAPSHOT_DEFINITIONS, replacement, 0) ||
+        !s->effect(context, select, replacement, 0) ||
+        (seek_frame && !s->effect(context, MM_MOVIE_SNAPSHOT_SEEK, replacement, 0)))
+    {
+        recover_snapshot(prior, s);
+        release(prior);
+        return 0;
+    }
+    mm_movie_snapshot_put(stack, prior, release);
+    s->publish(context, replacement);
     return 1;
 }
