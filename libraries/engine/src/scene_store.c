@@ -1,6 +1,8 @@
 /* Scene tag collection and saving converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_store.h"
+#include "mm/scene_data.h"
+#include "mm/movie_sound.h"
 #include <string.h>
 static MMU32 word(const void *p, int swap)
 {
@@ -28,16 +30,22 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
     const MMSceneStoreGroups *g = &s->groups;
     const MMSceneSoundPacketServices *v = &s->packets;
     MMTag background, tag;
+    MMChunkChild link;
     MMSceneSound *sound;
     void *group = NULL, *list, *data;
     MMI32 i, j, kind, bytes;
-    MMU32 child;
+    MMU32 child, scene_row;
     unsigned char fixed[8];
     int start, swap, error, ok;
+    if (mm_chunk_find(&s->chunks, MM_SCENE_CHUNK, scene, &scene_row) != MM_CHUNK_OK)
+        return 0;
     background.sid = -1;
     for (start = 1; start >= 0; --start)
     {
-        group = s->read_group(s->context, scene, start, &swap);
+        if (mm_chunk_child_exact(&s->chunks, scene_row, start,
+                                 start ? MM_SCENE_START_GROUP : MM_SCENE_FRAME_GROUP, &link) != MM_CHUNK_OK)
+            return 0;
+        group = s->read_group(s->context, link.type, link.number, &swap);
         if (!group)
             return 0;
         for (i = 0; i < g->count(g->context, group); ++i)
@@ -50,9 +58,9 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
                 if (bytes != 4)
                     goto fail;
                 child = word(data, swap);
-                if (!s->actor_child(s->context, scene, child, &child))
+                if (mm_chunk_child_exact(&s->chunks, scene_row, child, MM_SCENE_ACTOR_CHUNK, &link) != MM_CHUNK_OK)
                     goto fail;
-                list = s->actor_tags(s->context, child, &error);
+                list = s->actor_tags(s->context, link.number, &error);
                 if (error)
                 {
                     if (list)
@@ -133,8 +141,9 @@ static int store_sound(void *frames, MMI32 index, MMI32 frame, MMU32 scene,
 {
     const MMSceneSoundPacketServices *v = &s->values.packets;
     MMSceneSound *sound = mm_scene_sound_group(s->owner->owned[MM_SCENE_FRAMES], index, 1, v);
+    MMChunkAccess chunks;
     MMTag tag;
-    MMU32 child;
+    MMU32 child, match;
     MMI32 i, bytes;
     void *wire;
     int ok = 0;
@@ -143,7 +152,12 @@ static int store_sound(void *frames, MMI32 index, MMI32 frame, MMU32 scene,
     for (i = 0; i < sound->ctagc; ++i)
     {
         v->read_tag(v->context, (unsigned char *)sound + 16 + (size_t)i * v->tag_bytes, &child, &tag);
-        if (tag.sid != 0 || s->sound_child(s->context, scene, child) || !s->sound_exists(s->context, tag.number))
+        if (tag.sid != 0)
+            continue;
+        /* A previous adoption can shift rows or add this slot to the scene. */
+        chunks = s->chunks(s->context);
+        if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, child, MM_SOUND_CHUNK, &match) == MM_CHUNK_OK ||
+            mm_chunk_find(&chunks, MM_SOUND_CHUNK, tag.number, &match) != MM_CHUNK_OK)
             continue;
         if (!s->adopt_sound(s->context, scene, tag.number, child))
             goto done;

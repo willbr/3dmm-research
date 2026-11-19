@@ -6,9 +6,6 @@
 #include <string.h>
 
 #define MOVIE_TYPE 0x4d564945UL
-#define SCENE_TYPE 0x5343454eUL
-#define SCENE_START_TYPE 0x47475354UL
-#define SCENE_FRAME_TYPE 0x47474652UL
 #define STRING_TABLE_TYPE 0x47535420UL
 #define ACTOR_TYPE 0x41435452UL
 #define ACTOR_ROUTE_TYPE 0x50415448UL
@@ -493,7 +490,7 @@ int mm_movie_view_source_table(const MMChunkAccess *access, MMU32 root, MMChunkE
 static int scene_at_slot(const MMChunkAccess *access, MMU32 root_position, MMU32 slot, MMChunkEntry *entry,
                           MMU32 *position)
 {
-    int status = mm_session_child(access, root_position, slot, SCENE_TYPE, entry, position);
+    int status = mm_session_child(access, root_position, slot, MM_SCENE_CHUNK, entry, position);
     return status == MM_CHUNK_OK ? MM_MOVIE_OK
          : status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_SCENE_NOT_FOUND : MM_MOVIE_BAD_FILE;
 }
@@ -567,7 +564,7 @@ int mm_movie_view_next_scene(const MMMovieChunkView *view, MMU32 root, MMU32 *cu
     {
         if (mm_chunk_child_at(&view->chunks, parent, i, &child) != MM_CHUNK_OK)
             return MM_MOVIE_BAD_FILE;
-        if (child.type != SCENE_TYPE)
+        if (child.type != MM_SCENE_CHUNK)
             continue;
         if (mm_chunk_find(&view->chunks, child.type, child.number, &position) != MM_CHUNK_OK ||
             mm_chunk_at(&view->chunks, position, &entry) != MM_CHUNK_OK)
@@ -776,7 +773,7 @@ static int load_scene_group(const MMMovieArchive *archive, MMU32 scene, int star
     MMChunkEntry entry;
     MMU32 position;
     int status;
-    status = mm_session_child(&archive->access, scene, start ? 1 : 0, start ? SCENE_START_TYPE : SCENE_FRAME_TYPE,
+    status = mm_session_child(&archive->access, scene, start ? 1 : 0, start ? MM_SCENE_START_GROUP : MM_SCENE_FRAME_GROUP,
                               &entry, &position);
     if (status != MM_CHUNK_OK)
         return status == MM_CHUNK_NOT_FOUND ? MM_MOVIE_ASSET_NOT_FOUND : MM_MOVIE_BAD_FILE;
@@ -808,7 +805,7 @@ static int scene_reader_header(void *context, MMU32 number, MMMovieSessionScene 
     if (!graph->access || !graph->read)
         return MM_MOVIE_BAD_FILE;
     graph->access(graph->context, &view.chunks);
-    if (mm_chunk_find(&view.chunks, SCENE_TYPE, number, &position) != MM_CHUNK_OK ||
+    if (mm_chunk_find(&view.chunks, MM_SCENE_CHUNK, number, &position) != MM_CHUNK_OK ||
         mm_chunk_at(&view.chunks, position, &entry) != MM_CHUNK_OK)
         return MM_MOVIE_SCENE_NOT_FOUND;
     read.graph = graph;
@@ -839,7 +836,7 @@ static int scene_reader_group(void *context, MMU32 number, int start, MMMovieSce
         archive.graph = source->graph;
         archive.graph.access(archive.graph.context, &archive.access);
     }
-    if (mm_chunk_find(&archive.access, SCENE_TYPE, number, &position) != MM_CHUNK_OK)
+    if (mm_chunk_find(&archive.access, MM_SCENE_CHUNK, number, &position) != MM_CHUNK_OK)
         return MM_MOVIE_SCENE_NOT_FOUND;
     group = (MMMovieGroup *)malloc(sizeof(*group));
     if (!group)

@@ -2411,6 +2411,17 @@ the two pixels that differ from retail. SDL Studio matched retail's sound
 requests. Mixed PCM differed in both ports, and SDL Studio's frame timing
 differed. Evidence is in `tmp/c89-save-index/`.
 
+Scene save and tag collection now resolve event groups, actors, and sounds
+through the shared C89 graph. Both native scene-store traces matched their
+pre-change runs byte for byte, including the Debug allocation-failure trace.
+The Debug fixture's stored fingerprint was refreshed from two identical runs
+of `c29454ea` before the change. Both native save/reopen traces and saved
+movies also matched. Both ports matched retail's 60-frame actor-audio seek
+and playback sequences, and all seek images matched their prior captures.
+SDL Studio matched retail's sound requests. Mixed PCM differed in both ports,
+and SDL Studio's frame timing differed. Evidence is in
+`tmp/c89-scene-save-graph/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

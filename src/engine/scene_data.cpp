@@ -10,6 +10,8 @@ static_assert(sevtAddActr == 0 && sevtPlaySnd == 1 && sevtAddTbox == 2 && sevtCh
               "scene event encoding");
 static_assert(kboCur == MM_SCENE_GROUP_NATIVE_ORDER && kboOther == MM_SCENE_GROUP_OTHER_ORDER,
               "Scene group byte order markers");
+static_assert(kctgScen == MM_SCENE_CHUNK && kctgFrmGg == MM_SCENE_FRAME_GROUP && kctgStartGg == MM_SCENE_START_GROUP,
+              "Scene archive types");
 namespace
 {
 bool NativeBig()
@@ -65,13 +67,8 @@ MMSceneEventIO Events(SceneEventHost *host)
         host,
         Groups(),
         [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbOnFile(); },
-        [](void *c, MMU32 scene, int start, MMU32 *number) -> int {
-            ChildChunkIdentification child;
-            auto file = static_cast<SceneEventHost *>(c)->file;
-            if (!file->FGetKidChidCtg(kctgScen, scene, start, start ? kctgStartGg : kctgFrmGg, &child))
-                return 0;
-            *number = child.cki.cno;
-            return 1;
+        [](void *c) {
+            return static_cast<SceneEventHost *>(c)->file->ReadChunkAccess();
         },
         [](void *c, int start, MMU32 bytes, MMU32 *number) -> int {
             auto h = static_cast<SceneEventHost *>(c);

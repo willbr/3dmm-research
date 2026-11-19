@@ -1,4 +1,6 @@
 #include "mm/scene_store.h"
+#include "mm/scene_data.h"
+#include "mm/movie_sound.h"
 #include "scene_sound_fixture.h"
 typedef union StorePayload {
     void *pointer;
@@ -26,6 +28,7 @@ typedef struct StoreFixture
     StoreGroup runtime[2], temp[2], wire[2], list;
     int attempts, fail, created, live, deleted, thumb_deleted, with_thumb, thumb, updated, old_thumb;
     int written, metadata, diagnostics, missing_background, empty_list, list_error, no_background;
+    int missing_actor, missing_frames;
     int log[512], used, adopted, adoptions, objects, swap, collected, tag_limit;
     MMU32 actor_id, text_id;
     MMTag tags[24];
@@ -142,18 +145,47 @@ static int insert(void *p, void *g, MMI32 i, MMI32 frame, int kind, MMI32 bytes,
     ++group->count;
     return 1;
 }
-static int sound_child(void *p, MMU32 scene, MMU32 child)
+static int store_entry(void *p, MMU32 row, MMChunkEntry *entry)
 {
     StoreFixture *f = (StoreFixture *)p;
-    CHECK(scene == 42);
-    note(f, 50 + (int)child);
-    return child == 3 || (f->adopted & (1 << child));
+    memset(entry, 0, sizeof(*entry));
+    if (row == 0)
+    {
+        entry->type = MM_SOUND_CHUNK;
+        entry->number = 1;
+    }
+    else
+    {
+        CHECK(row == 1);
+        entry->type = MM_SCENE_CHUNK;
+        entry->number = 42;
+        entry->child_count = f->adopted ? 3 : 2;
+    }
+    return 1;
 }
-static int sound_exists(void *p, MMU32 number)
+static int store_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
 {
     StoreFixture *f = (StoreFixture *)p;
-    note(f, 60 + (int)number);
-    return number != 4;
+    CHECK(row == 1 && i < (f->adopted ? 3U : 2U));
+    if (i == 0)
+    {
+        out->type = MM_SCENE_ACTOR_CHUNK;
+        out->number = 77;
+        out->slot = 1;
+    }
+    else
+    {
+        out->type = MM_SOUND_CHUNK;
+        out->number = 1;
+        out->slot = f->adopted && i == 1 ? 1 : 3;
+    }
+    return 1;
+}
+static MMChunkAccess store_chunks(void *p)
+{
+    MMChunkAccess chunks = {NULL, 2, store_entry, store_child};
+    chunks.context = p;
+    return chunks;
 }
 static int adopt_sound(void *p, MMU32 scene, MMU32 number, MMU32 child)
 {
@@ -316,8 +348,7 @@ static void init_store(StoreFixture *f)
     s->delete_scene = delete_scene;
     s->new_group = new_group;
     s->insert = insert;
-    s->sound_child = sound_child;
-    s->sound_exists = sound_exists;
+    s->chunks = store_chunks;
     s->adopt_sound = adopt_sound;
     s->add_child = add_child;
     s->object = object;
@@ -433,11 +464,32 @@ static void wire_event(StoreFixture *f, int start, int kind, const MMU32 *words,
     for (i = 0; i < n; ++i)
         wire_word(e->payload.bytes + i * 4, words[i], f->swap);
 }
-static void *read_group(void *p, MMU32 scene, int start, int *swap)
+static int collect_entry(void *p, MMU32 row, MMChunkEntry *entry)
 {
     StoreFixture *f = (StoreFixture *)p;
+    CHECK(row == 0);
+    memset(entry, 0, sizeof(*entry));
+    entry->type = MM_SCENE_CHUNK;
+    entry->number = 42;
+    entry->child_count = 3 - f->missing_frames - f->missing_actor;
+    return 1;
+}
+static int collect_link(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
+{
+    static const MMChunkChild links[] = {
+        {MM_SCENE_FRAME_GROUP, 80, 0}, {MM_SCENE_START_GROUP, 81, 1}, {MM_SCENE_ACTOR_CHUNK, 77, 7}
+    };
+    StoreFixture *f = (StoreFixture *)p;
+    CHECK(row == 0 && i < 3);
+    *out = links[i + f->missing_frames];
+    return 1;
+}
+static void *read_group(void *p, MMU32 type, MMU32 number, int *swap)
+{
+    StoreFixture *f = (StoreFixture *)p;
+    int start = type == MM_SCENE_START_GROUP;
     StoreGroup *g = &f->wire[start];
-    CHECK(scene == 42);
+    CHECK((start || type == MM_SCENE_FRAME_GROUP) && number == (MMU32)(80 + start));
     if (!step(f, 4 + start))
         return NULL;
     CHECK(!g->live);
@@ -445,12 +497,6 @@ static void *read_group(void *p, MMU32 scene, int start, int *swap)
     ++f->live;
     *swap = f->swap;
     return g;
-}
-static int actor_child(void *p, MMU32 scene, MMU32 id, MMU32 *number)
-{
-    CHECK(scene == 42 && id == 7);
-    *number = 77;
-    return step((StoreFixture *)p, 6);
 }
 static void *actor_tags(void *p, MMU32 number, int *error)
 {
@@ -517,8 +563,11 @@ static void init_collect(StoreFixture *f, int swap)
     s->packets = f->packets.s;
     s->packets.allocate = packet_allocate;
     s->camera_type = 23;
+    s->chunks.context = f;
+    s->chunks.count = 1;
+    s->chunks.entry = collect_entry;
+    s->chunks.child = collect_link;
     s->read_group = read_group;
-    s->actor_child = actor_child;
     s->actor_tags = actor_tags;
     s->list_tag = list_tag;
     s->insert_tag = collect_tag;
@@ -558,6 +607,14 @@ static void test_collect(void)
             CHECK(!f.live && f.collected < 6);
             clean(&f.packets);
         }
+        init_collect(&f, swap);
+        f.missing_actor = 1;
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && !f.collected);
+        clean(&f.packets);
+        init_collect(&f, swap);
+        f.missing_frames = 1;
+        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && f.collected == 4);
+        clean(&f.packets);
         init_collect(&f, swap);
         f.empty_list = 1;
         CHECK(mm_scene_collect_tags(42, &f.collect) && f.collected == 4 && !f.live);

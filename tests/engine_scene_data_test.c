@@ -153,13 +153,32 @@ static MMU32 wire_size(void *g)
     (void)g;
     return 32;
 }
-static int previous(void *c, MMU32 scene, int start, MMU32 *out)
+static int event_entry(void *c, MMU32 row, MMChunkEntry *out)
 {
     Host *h = (Host *)c;
-    CHECK(scene == 7);
-    event(h, start ? 'q' : 'p');
-    *out = 10 + start;
-    return h->have_old;
+    CHECK(row == 0);
+    memset(out, 0, sizeof(*out));
+    out->type = MM_SCENE_CHUNK;
+    out->number = 7;
+    out->child_count = h->have_old ? 3 : 1;
+    return 1;
+}
+static int event_child(void *c, MMU32 row, MMU32 i, MMChunkChild *out)
+{
+    static const MMChunkChild links[] = {
+        {0x41435452UL, 30, 0}, {MM_SCENE_FRAME_GROUP, 10, 0}, {MM_SCENE_START_GROUP, 11, 1}
+    };
+    (void)c;
+    CHECK(row == 0 && i < 3);
+    *out = links[i];
+    return 1;
+}
+static MMChunkAccess event_chunks(void *c)
+{
+    MMChunkAccess chunks = {NULL, 1, event_entry, event_child};
+    chunks.context = c;
+    event((Host *)c, 'p');
+    return chunks;
 }
 static int add(void *c, int start, MMU32 bytes, MMU32 *out)
 {
@@ -218,7 +237,7 @@ static MMSceneEventIO events(Host *h)
     s.context = h;
     s.groups = group_services();
     s.wire_size = wire_size;
-    s.previous = previous;
+    s.chunks = event_chunks;
     s.add = add;
     s.write = write_group;
     s.adopt = adopt;
@@ -234,7 +253,7 @@ static void transactions(void)
     int stage;
     const unsigned short one = 1;
     int big = *(const unsigned char *)&one == 0;
-    const char *logs[] = {"pqawbxABoOlL", "pqa", "pqawd", "pqawbd", "pqawbxde", "pqawbxAde", "pqawbxABDe"};
+    const char *logs[] = {"pawbxABoOlL", "pa", "pawd", "pawbd", "pawbxde", "pawbxAde", "pawbxABDe"};
     reset(&h);
     s = events(&h);
     init_group(&frames, &h, 0, 3, 4, big);
@@ -251,7 +270,7 @@ static void transactions(void)
     }
     reset(&h);
     h.have_old = 0;
-    CHECK(mm_scene_write_events(7, &frames, &starts, &s) && !strcmp(h.log, "pqawbxABlL"));
+    CHECK(mm_scene_write_events(7, &frames, &starts, &s) && !strcmp(h.log, "pawbxABlL"));
     reset(&h);
     frames.sizes[0] = 5;
     CHECK(!mm_scene_write_events(7, &frames, &starts, &s) && !h.used);
@@ -439,7 +458,7 @@ static void creation(void)
     number = 99;
     h.have_old = 0;
     CHECK(mm_scene_create(&state, &number, 0x0303, 0, &s) && number == 7 && !h.groups && h.root &&
-          !strcmp(h.log, "12chnpqawbxABlLrs"));
+          !strcmp(h.log, "12chnpawbxABlLrs"));
     for (i = 1; i <= 2; ++i)
     {
         reset(&h);

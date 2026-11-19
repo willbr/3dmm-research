@@ -3,7 +3,7 @@
 #ifndef MM_ENGINE_SCENE_DATA_H
 #define MM_ENGINE_SCENE_DATA_H
 #include "movie_title.h"
-#include "read_stream.h"
+#include "chunky_file.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -24,6 +24,12 @@ extern "C"
         MM_SCENE_CHANGE_CAMERA,
         MM_SCENE_SET_BACKGROUND,
         MM_SCENE_PAUSE
+    };
+    enum
+    {
+        MM_SCENE_CHUNK = 0x5343454e,
+        MM_SCENE_FRAME_GROUP = 0x47474652,
+        MM_SCENE_START_GROUP = 0x47475354
     };
     typedef struct MMSceneState
     {
@@ -106,7 +112,7 @@ extern "C"
         void *context;
         MMSceneGroupServices groups;
         MMU32 (*wire_size)(void *group);
-        int (*previous)(void *, MMU32 scene, int start, MMU32 *number);
+        MMChunkAccess (*chunks)(void *);
         int (*add)(void *, int start, MMU32 bytes, MMU32 *number);
         int (*write)(void *, void *group);
         int (*adopt)(void *, MMU32 scene, int start, MMU32 number);

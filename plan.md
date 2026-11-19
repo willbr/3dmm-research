@@ -1016,6 +1016,10 @@ The save controller also reads the saved movie root, old scene and table
 links, scene slots for tag collection, and local material and template entries
 through the C89 chunk index. Scene slots for tag collection stop at the first
 gap, with exact type lookup at each slot.
+Inside each scene, the C89 graph now resolves the start and frame event groups,
+actor links used for tag collection, and sound links used during save. Native
+scene saves use the same chunk types as the shared session and archive editor
+when they identify event groups for replacement.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

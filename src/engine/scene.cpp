@@ -58,6 +58,7 @@
 #include <cstring>
 
 ASSERTNAME
+static_assert(kctgActr == MM_SCENE_ACTOR_CHUNK, "Scene actor link type");
 
 //
 // Scene event types
@@ -2394,11 +2395,9 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         SceneEvent event = {frame, static_cast<SceneEventType>(kind)};
         return static_cast<PGeneralGroup>(p)->FInsert(i, bytes, const_cast<void *>(data), &event);
     };
-    s.sound_child = [](void *p, MMU32 scene, MMU32 child) -> int {
-        ChildChunkIdentification kid;
-        return static_cast<Host *>(p)->file->FGetKidChidCtg(kctgScen, scene, child, kctgMsnd, &kid);
+    s.chunks = [](void *p) {
+        return static_cast<Host *>(p)->file->ReadChunkAccess();
     };
-    s.sound_exists = [](void *p, MMU32 n) -> int { return static_cast<Host *>(p)->file->FFind(kctgMsnd, n); };
     s.adopt_sound = [](void *p, MMU32 scene, MMU32 n, MMU32 child) -> int {
         return static_cast<Host *>(p)->file->FAdoptChild(kctgScen, scene, kctgMsnd, n, child);
     };
@@ -2870,25 +2869,17 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
     s.groups = SceneStoreGroups();
     s.packets = ScenePacketServices();
     s.camera_type = kctgCam;
-    s.read_group = [](void *p, MMU32 scene, int start, int *swap) -> void * {
+    s.chunks = pcfl->ReadChunkAccess();
+    s.read_group = [](void *p, MMU32 type, MMU32 number, int *swap) -> void * {
         auto file = static_cast<Host *>(p)->file;
-        ChildChunkIdentification kid;
         DataBlock block;
         short bo;
-        if (!file->FGetKidChidCtg(kctgScen, scene, start ? 1 : 0, start ? kctgStartGg : kctgFrmGg, &kid) ||
-            !file->FFind(kid.cki.ctg, kid.cki.cno, &block))
+        if (!file->FFind(type, number, &block))
             return nullptr;
         auto group = SceneData::PggReadEventHeaders(&block, &bo);
         if (group)
             *swap = bo == kboOther;
         return group;
-    };
-    s.actor_child = [](void *p, MMU32 scene, MMU32 child, MMU32 *n) -> int {
-        ChildChunkIdentification kid;
-        if (!static_cast<Host *>(p)->file->FGetKidChidCtg(kctgScen, scene, child, kctgActr, &kid))
-            return 0;
-        *n = kid.cki.cno;
-        return 1;
     };
     s.actor_tags = [](void *p, MMU32 n, int *error) -> void * {
         bool failed;

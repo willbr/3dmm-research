@@ -3,10 +3,12 @@
 #ifndef MM_ENGINE_SCENE_STORE_H
 #define MM_ENGINE_SCENE_STORE_H
 #include "scene_sound_edit.h"
+#include "chunky_file.h"
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+    enum { MM_SCENE_ACTOR_CHUNK = 0x41435452 };
     typedef struct MMSceneStoreGroups
     {
         void *context;
@@ -21,8 +23,8 @@ extern "C"
         MMSceneStoreGroups groups;
         MMSceneSoundPacketServices packets;
         MMU32 camera_type;
-        void *(*read_group)(void *, MMU32 scene, int start, int *swap);
-        int (*actor_child)(void *, MMU32 scene, MMU32 child, MMU32 *number);
+        MMChunkAccess chunks;
+        void *(*read_group)(void *, MMU32 type, MMU32 number, int *swap);
         void *(*actor_tags)(void *, MMU32 number, int *error);
         void (*list_tag)(void *, void *list, MMI32 index, MMTag *);
         int (*insert_tag)(void *, const MMTag *);
@@ -37,7 +39,7 @@ extern "C"
      * wire group. Collected tags borrow cache pointers; sound decode never opens them.
      * Inputs are private wire groups with eight-byte fixed entries and valid offsets.
      * Unexpected kinds diagnose/skip; wrong fixed-size payloads fail before copying.
-     * Synchronous callbacks cannot reenter or change the groups being traversed. */
+     * Synchronous callbacks cannot reenter or change the index or event groups. */
     int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *);
     typedef struct MMSceneStoreServices
     {
@@ -50,8 +52,7 @@ extern "C"
         void *(*new_group)(void *);
         int (*insert)(void *, void *group, MMI32 index, MMI32 frame, int kind, MMI32 bytes,
                       const void *);
-        int (*sound_child)(void *, MMU32 scene, MMU32 child);
-        int (*sound_exists)(void *, MMU32 number);
+        MMChunkAccess (*chunks)(void *);
         int (*adopt_sound)(void *, MMU32 scene, MMU32 number, MMU32 child);
         int (*add_child)(void *, MMU32 scene, int kind, MMU32 child, MMU32 *number);
         void *(*object)(void *, void *group, MMI32 index);
