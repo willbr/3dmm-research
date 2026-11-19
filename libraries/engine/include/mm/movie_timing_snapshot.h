@@ -66,6 +66,8 @@ typedef struct MMMovieTimingReader
     int (*expected)(void *, size_t, MMMovieTimingRange *);
     /* Copy or consume the scene before returning. The codec owns its arrays. */
     int (*scene)(void *, size_t, const MMMovieTimingScene *);
+    /* Optional initialization of the staged destination after header validation. */
+    int (*begin)(void *, double frame_seconds);
 } MMMovieTimingReader;
 
 /* Matching-build helper IPC with little-endian words and binary64 seconds.

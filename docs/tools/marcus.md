@@ -2273,7 +2273,9 @@ authored frames and movie time. It keeps authored cue order within each frame,
 accounts for caption scrolling and pauses, and applies voice replacement and
 carryover at scene boundaries. The sound sheet, timing queries, waveform
 placement and resume after seeking use the same schedule. When a frame range
-changes, the player rebuilds the schedule from cached cues and clip lengths.
+changes, the C89 engine rebuilds the schedule from its retained cues, clip
+lengths and holds. Extending the range can bring previously clipped cues
+back into the schedule without decoding their media again.
 
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
@@ -2295,6 +2297,12 @@ rate went from 5,952 to 1,640 bytes. The C codec produced identical fixture
 bytes on x86 and x64. Rebuilt SDL Studio matched the retained retail state
 and viewport capture for the credits fixture's opening frame.
 Evidence is in `tmp/c89-timing-snapshot/`.
+
+Moving the cached timing records into C89 preserved all three MMT4 snapshots
+byte for byte. The comparison with the prior scheduler also matched cue spans,
+frame/time mappings and resumed sounds across 480 generated scenes.
+Rebuilt SDL Studio matched the retained retail state and opening viewport
+for the credits movie. The comparisons are in `tmp/c89-sound-sources/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

@@ -273,6 +273,8 @@ int mm_movie_timing_snapshot_read(const MMMovieTimingReader *reader, size_t expe
     if (!order || !reader->read(reader->context, bytes, sizeof(bytes)) || memcmp(bytes, "MMT4", 4) ||
         !read_seconds(bytes + 4, order, &seconds) || seconds == 0 || read_word(bytes + 12) != expected_count)
         return 0;
+    if (reader->begin && !reader->begin(reader->context, seconds))
+        return 0;
     for (i = 0; i < expected_count; ++i)
         if (!read_scene(reader, i, order, &remaining))
             return 0;

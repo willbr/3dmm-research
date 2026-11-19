@@ -1,5 +1,5 @@
-#include "sound_schedule.h"
-#include "player.h"
+#include "mm/movie_sound_schedule.h"
+#include "mm/playback.h"
 #include "mm/movie_audio.h"
 #include <float.h>
 #include <math.h>
@@ -8,12 +8,12 @@
 
 typedef struct FrameHold
 {
-    long frame;
+    MMI32 frame;
     double seconds;
 } FrameHold;
 typedef struct ScheduleScene
 {
-    long first;
+    MMMovieTimingScene source;
     double start;
     FrameHold *holds;
     size_t hold_count;
@@ -22,11 +22,10 @@ typedef struct ScheduleScene
 } ScheduleScene;
 typedef struct ScheduleVoice
 {
-    MarcusScheduledSound span;
-    MarcusScheduledCue cue;
-    long frame;
+    MMScheduledSound span;
+    const MMMovieTimingCue *cue;
 } ScheduleVoice;
-struct MarcusSoundSchedule
+struct MMMovieSoundSchedule
 {
     double frame_seconds, time, transition;
     ScheduleScene *scenes;
@@ -38,9 +37,12 @@ struct MarcusSoundSchedule
     size_t *active;
     size_t active_count, active_capacity;
 };
+enum EventKind { EVENT_CUE, EVENT_SCROLL, EVENT_PAUSE };
+
 typedef struct EventOrder
 {
-    long frame;
+    MMI32 frame;
+    enum EventKind kind;
     size_t row;
 } EventOrder;
 typedef struct ResumeOrder
@@ -74,24 +76,48 @@ static void *rows(size_t count, size_t size)
     return malloc(count * size);
 }
 
-MarcusSoundSchedule *marcus_sound_schedule_create(double frame_seconds)
+static void dispose_scene(ScheduleScene *scene)
 {
-    MarcusSoundSchedule *schedule;
-    schedule = (MarcusSoundSchedule *)calloc(1, sizeof(*schedule));
+    free((void *)scene->source.scrolls);
+    free((void *)scene->source.pauses);
+    free((void *)scene->source.cues);
+    free(scene->holds);
+    free(scene->sounds);
+}
+
+static void *copy_rows(const void *source, size_t count, size_t size)
+{
+    void *copy = rows(count, size);
+    if (copy)
+        memcpy(copy, source, count * size);
+    return copy;
+}
+
+static int copy_source(MMMovieTimingScene *out, const MMMovieTimingScene *source)
+{
+    *out = *source;
+    out->scrolls = (MMMovieTimingScroll *)copy_rows(source->scrolls, source->scroll_count, sizeof(*source->scrolls));
+    out->pauses = (MMMovieTimingPause *)copy_rows(source->pauses, source->pause_count, sizeof(*source->pauses));
+    out->cues = (MMMovieTimingCue *)copy_rows(source->cues, source->cue_count, sizeof(*source->cues));
+    return (!source->scroll_count || out->scrolls) && (!source->pause_count || out->pauses) &&
+        (!source->cue_count || out->cues);
+}
+
+MMMovieSoundSchedule *mm_movie_sound_schedule_create(double frame_seconds)
+{
+    MMMovieSoundSchedule *schedule;
+    schedule = (MMMovieSoundSchedule *)calloc(1, sizeof(*schedule));
     if (schedule)
         schedule->frame_seconds = frame_seconds;
     return schedule;
 }
 
-void marcus_sound_schedule_clear(MarcusSoundSchedule *schedule)
+void mm_movie_sound_schedule_clear(MMMovieSoundSchedule *schedule)
 {
-    MarcusSoundSchedule empty = {0};
+    MMMovieSoundSchedule empty = {0};
     size_t i;
     for (i = 0; i < schedule->scene_count; ++i)
-    {
-        free(schedule->scenes[i].holds);
-        free(schedule->scenes[i].sounds);
-    }
+        dispose_scene(&schedule->scenes[i]);
     free(schedule->scenes);
     free(schedule->voices);
     free(schedule->active);
@@ -99,23 +125,23 @@ void marcus_sound_schedule_clear(MarcusSoundSchedule *schedule)
     *schedule = empty;
 }
 
-void marcus_sound_schedule_destroy(MarcusSoundSchedule *schedule)
+void mm_movie_sound_schedule_destroy(MMMovieSoundSchedule *schedule)
 {
     if (schedule)
     {
-        marcus_sound_schedule_clear(schedule);
+        mm_movie_sound_schedule_clear(schedule);
         free(schedule);
     }
 }
 
-void marcus_sound_schedule_rate(MarcusSoundSchedule *schedule, double fps)
+void mm_movie_sound_schedule_rate(MMMovieSoundSchedule *schedule, double fps)
 {
-    marcus_sound_schedule_clear(schedule);
+    mm_movie_sound_schedule_clear(schedule);
     /* Uncapped playback depends on host throughput. Use a nominal six FPS. */
     schedule->frame_seconds = fps > 0 ? 1.0 / fps : 1.0 / 6;
 }
 
-double marcus_sound_schedule_frame_seconds(const MarcusSoundSchedule *schedule)
+double mm_movie_sound_schedule_frame_seconds(const MMMovieSoundSchedule *schedule)
 {
     return schedule->frame_seconds;
 }
@@ -124,7 +150,7 @@ static double time_at(const ScheduleScene *scene, double frame_seconds, double f
 {
     double result, portion;
     size_t i;
-    result = scene->start + (frame - scene->first) * frame_seconds;
+    result = scene->start + (frame - scene->source.range.first) * frame_seconds;
     for (i = 0; i < scene->hold_count; ++i)
     {
         if (frame <= scene->holds[i].frame)
@@ -135,19 +161,19 @@ static double time_at(const ScheduleScene *scene, double frame_seconds, double f
     return result;
 }
 
-double marcus_sound_schedule_time_at(const MarcusSoundSchedule *schedule, size_t scene, double frame)
+double mm_movie_sound_schedule_time_at(const MMMovieSoundSchedule *schedule, size_t scene, double frame)
 {
     return time_at(&schedule->scenes[scene], schedule->frame_seconds, frame);
 }
 
-double marcus_sound_schedule_frame_at(const MarcusSoundSchedule *schedule, size_t index, double seconds)
+double mm_movie_sound_schedule_frame_at(const MMMovieSoundSchedule *schedule, size_t index, double seconds)
 {
     const ScheduleScene *scene;
     const FrameHold *hold;
     double frame, at, entry, duration;
     size_t i;
     scene = &schedule->scenes[index];
-    frame = scene->first;
+    frame = scene->source.range.first;
     at = scene->start;
     for (i = 0; i < scene->hold_count; ++i)
     {
@@ -164,12 +190,14 @@ double marcus_sound_schedule_frame_at(const MarcusSoundSchedule *schedule, size_
     return frame + (seconds - at) / schedule->frame_seconds;
 }
 
-static int same_lane(const MarcusScheduledCue *a, const MarcusScheduledCue *b)
+static int same_lane(const MMMovieTimingCue *a, const MMMovieTimingCue *b)
 {
-    return a->actor_sound == b->actor_sound && (!a->actor_sound || a->actor == b->actor) && a->style == b->style;
+    int actor = (a->flags & MM_TIMING_ACTOR_SOUND) != 0;
+    return actor == ((b->flags & MM_TIMING_ACTOR_SOUND) != 0) &&
+        (!actor || a->actor == b->actor) && a->style == b->style;
 }
 
-static int same_audio(const MarcusScheduledCue *a, const MarcusScheduledCue *b)
+static int same_audio(const MMMovieTimingCue *a, const MMMovieTimingCue *b)
 {
     return a->resolved_type == b->resolved_type && a->resolved_chunk == b->resolved_chunk &&
            a->resolved_source == b->resolved_source;
@@ -180,7 +208,7 @@ static int finite_time(double time)
     return time >= -DBL_MAX && time <= DBL_MAX;
 }
 
-static void expire(MarcusSoundSchedule *schedule, double at)
+static void expire(MMMovieSoundSchedule *schedule, double at)
 {
     size_t i, kept;
     kept = 0;
@@ -190,7 +218,7 @@ static void expire(MarcusSoundSchedule *schedule, double at)
     schedule->active_count = kept;
 }
 
-static void enter_scene(MarcusSoundSchedule *schedule)
+static void enter_scene(MMMovieSoundSchedule *schedule)
 {
     size_t i, prior;
     ScheduleVoice *voice, *other;
@@ -199,7 +227,7 @@ static void enter_scene(MarcusSoundSchedule *schedule)
     for (i = 0; i < schedule->active_count; ++i)
     {
         voice = &schedule->voices[schedule->active[i]];
-        if (mm_movie_audio_cut_stops(voice->cue.loop, voice->cue.kind == MARCUS_WAVEFORM_MIDI) && at < voice->span.end)
+        if (mm_movie_audio_cut_stops((voice->cue->flags & MM_TIMING_LOOP), voice->cue->audio_kind == MM_SOUND_CLIP_MIDI) && at < voice->span.end)
             voice->span.end = at;
     }
     expire(schedule, at);
@@ -213,47 +241,45 @@ static void enter_scene(MarcusSoundSchedule *schedule)
         for (prior = 0; prior < i; ++prior)
         {
             other = &schedule->voices[schedule->active[prior]];
-            if (same_lane(&other->cue, &voice->cue) && other->span.end > voice->span.start)
+            if (same_lane(other->cue, voice->cue) && other->span.end > voice->span.start)
                 voice->span.start = other->span.end;
         }
-        voice->span.end = voice->cue.loop ? HUGE_VAL : voice->span.start + voice->cue.seconds;
+        voice->span.end = (voice->cue->flags & MM_TIMING_LOOP) ? HUGE_VAL : voice->span.start + voice->cue->seconds;
     }
     schedule->time += schedule->transition;
     expire(schedule, schedule->time);
 }
 
-static void add_cue(MarcusSoundSchedule *schedule, ScheduleScene *scene, const MarcusSoundEvent *event, double at)
+static void add_cue(MMMovieSoundSchedule *schedule, ScheduleScene *scene, size_t row, double at)
 {
-    const MarcusScheduledCue *cue;
+    const MMMovieTimingCue *cue = &scene->source.cues[row];
     ScheduleVoice *voice, *other;
     size_t i, kept, number;
     int playable, queued;
-    cue = &event->data.cue;
     number = schedule->voice_count++;
     voice = &schedule->voices[number];
-    voice->cue = *cue;
-    voice->frame = event->frame;
+    voice->cue = cue;
     voice->span.scene = schedule->scene_count;
-    voice->span.source_row = cue->source_row;
+    voice->span.source_row = row;
     voice->span.start = voice->span.end = at;
     scene->sounds[scene->sound_count++] = number;
-    if (cue->kind == MARCUS_WAVEFORM_MIDI)
+    if (cue->audio_kind == MM_SOUND_CLIP_MIDI)
     {
         for (i = 0; i < schedule->active_count; ++i)
         {
             other = &schedule->voices[schedule->active[i]];
             /* Keep the authored marker while the original music voice plays. */
-            if (other->cue.kind == MARCUS_WAVEFORM_MIDI && same_lane(&other->cue, cue) && same_audio(&other->cue, cue))
+            if (other->cue->audio_kind == MM_SOUND_CLIP_MIDI && same_lane(other->cue, cue) && same_audio(other->cue, cue))
                 return;
         }
     }
-    playable = cue->kind == MARCUS_WAVEFORM_SAMPLED || cue->kind == MARCUS_WAVEFORM_MIDI;
-    queued = cue->queue && playable && !(cue->seconds <= 0);
+    playable = cue->audio_kind == MM_SOUND_CLIP_SAMPLED || cue->audio_kind == MM_SOUND_CLIP_MIDI;
+    queued = (cue->flags & MM_TIMING_QUEUE) && playable && !(cue->seconds <= 0);
     kept = 0;
     for (i = 0; i < schedule->active_count; ++i)
     {
         other = &schedule->voices[schedule->active[i]];
-        if (same_lane(&other->cue, cue))
+        if (same_lane(other->cue, cue))
         {
             if (!queued)
             {
@@ -268,7 +294,7 @@ static void add_cue(MarcusSoundSchedule *schedule, ScheduleScene *scene, const M
     }
     schedule->active_count = kept;
     if (playable)
-        voice->span.end = cue->loop && cue->seconds > 0 ? HUGE_VAL : voice->span.start + cue->seconds;
+        voice->span.end = (cue->flags & MM_TIMING_LOOP) && cue->seconds > 0 ? HUGE_VAL : voice->span.start + cue->seconds;
     else
         voice->span.end = voice->span.start;
     if (playable && cue->seconds > 0)
@@ -282,16 +308,18 @@ static int event_order(const void *left, const void *right)
     b = (const EventOrder *)right;
     if (a->frame != b->frame)
         return a->frame < b->frame ? -1 : 1;
+    if (a->kind != b->kind)
+        return a->kind < b->kind ? -1 : 1;
     return a->row < b->row ? -1 : a->row != b->row;
 }
 
-static void schedule_frames(MarcusSoundSchedule *schedule, ScheduleScene *scene, const MarcusSoundEvent *events,
-                            const EventOrder *order, size_t count)
+static void schedule_frames(MMMovieSoundSchedule *schedule, ScheduleScene *scene, const EventOrder *order, size_t count)
 {
-    const MarcusSoundEvent *event, *pause;
+    const EventOrder *event;
+    const MMMovieTimingPause *pause;
     const ScheduleVoice *voice;
     double at, hold, tail;
-    long frame;
+    MMI32 frame;
     size_t i, j;
     i = 0;
     while (i < count)
@@ -303,29 +331,29 @@ static void schedule_frames(MarcusSoundSchedule *schedule, ScheduleScene *scene,
         pause = NULL;
         do
         {
-            event = &events[order[i++].row];
+            event = &order[i++];
             switch (event->kind)
             {
-            case MARCUS_SCHEDULE_CUE:
-                add_cue(schedule, scene, event, at);
+            case EVENT_CUE:
+                add_cue(schedule, scene, event->row, at);
                 break;
-            case MARCUS_SCHEDULE_SCROLL:
-                hold = event->data.scroll;
+            case EVENT_SCROLL:
+                hold = scene->source.scrolls[event->row].seconds;
                 break;
-            case MARCUS_SCHEDULE_PAUSE:
-                pause = event;
+            case EVENT_PAUSE:
+                pause = &scene->source.pauses[event->row];
                 break;
             }
         } while (i < count && order[i].frame == frame);
         /* Click waits have no authored duration. */
-        if (pause && pause->data.pause.kind == 3)
-            hold += pause->data.pause.milliseconds / 1000.0;
-        else if (pause && pause->data.pause.kind == 2)
+        if (pause && pause->kind == MM_PLAYBACK_WAIT_TIME)
+            hold += pause->milliseconds / 1000.0;
+        else if (pause && pause->kind == MM_PLAYBACK_WAIT_SOUND)
         {
             for (j = 0; j < schedule->active_count; ++j)
             {
                 voice = &schedule->voices[schedule->active[j]];
-                if (!voice->cue.loop && finite_time(voice->span.end))
+                if (!(voice->cue->flags & MM_TIMING_LOOP) && finite_time(voice->span.end))
                 {
                     tail = voice->span.end - at;
                     if (tail > hold)
@@ -341,32 +369,56 @@ static void schedule_frames(MarcusSoundSchedule *schedule, ScheduleScene *scene,
     }
 }
 
-int marcus_sound_schedule_append(MarcusSoundSchedule *schedule, long first, long last, double transition,
-                                 const MarcusSoundEvent *events, size_t count)
+static void add_order(EventOrder *order, size_t *count, MMI32 frame, enum EventKind kind, size_t row)
+{
+    EventOrder *event = &order[(*count)++];
+    event->frame = frame;
+    event->kind = kind;
+    event->row = row;
+}
+
+int mm_movie_sound_schedule_append(MMMovieSoundSchedule *schedule, const MMMovieTimingScene *source)
 {
     ScheduleScene scene;
     EventOrder *order;
-    const MarcusScheduledSound *span;
-    size_t i, ordered, cues, holds, capacity, kept;
+    const MMScheduledSound *span;
+    size_t i, count, ordered, cues, holds, capacity, kept;
+    MMI32 first = source->range.first, last = source->range.last, frame;
     double finish;
     void *grown;
     memset(&scene, 0, sizeof(scene));
+    if (source->scroll_count > (size_t)-1 - source->cue_count ||
+        source->pause_count > (size_t)-1 - source->cue_count - source->scroll_count ||
+        schedule->scene_count == (size_t)-1)
+        return 0;
+    count = source->scroll_count + source->pause_count + source->cue_count;
     order = (EventOrder *)rows(count, sizeof(*order));
     if (count && !order)
         return 0;
-    ordered = cues = holds = 0;
-    for (i = 0; i < count; ++i)
+    ordered = 0;
+    for (i = 0; i < source->cue_count; ++i)
     {
-        if (events[i].frame > last || (events[i].frame < first && events[i].kind != MARCUS_SCHEDULE_CUE))
-            continue;
-        order[ordered].frame = events[i].frame < first ? first : events[i].frame;
-        order[ordered++].row = i;
-        if (events[i].kind == MARCUS_SCHEDULE_CUE)
-            ++cues;
-        else
-            ++holds;
+        frame = source->cues[i].frame;
+        if (frame <= last)
+            add_order(order, &ordered, frame < first ? first : frame, EVENT_CUE, i);
     }
+    cues = ordered;
+    for (i = 0; i < source->scroll_count; ++i)
+    {
+        frame = source->scrolls[i].frame;
+        if (frame >= first && frame <= last)
+            add_order(order, &ordered, frame, EVENT_SCROLL, i);
+    }
+    for (i = 0; i < source->pause_count; ++i)
+    {
+        frame = source->pauses[i].frame;
+        if (frame >= first && frame <= last)
+            add_order(order, &ordered, frame, EVENT_PAUSE, i);
+    }
+    holds = ordered - cues;
     if (cues > (size_t)-1 - schedule->voice_count || cues > (size_t)-1 - schedule->active_count)
+        goto failed;
+    if (!copy_source(&scene.source, source))
         goto failed;
     capacity = schedule->active_count + cues;
     scene.holds = (FrameHold *)rows(holds, sizeof(*scene.holds));
@@ -389,12 +441,11 @@ int marcus_sound_schedule_append(MarcusSoundSchedule *schedule, long first, long
         qsort(order, ordered, sizeof(*order), event_order);
 
     enter_scene(schedule);
-    scene.first = first;
     scene.start = schedule->time;
     scene.sound_count = schedule->active_count;
     if (scene.sound_count)
         memcpy(scene.sounds, schedule->active, scene.sound_count * sizeof(*scene.sounds));
-    schedule_frames(schedule, &scene, events, order, ordered);
+    schedule_frames(schedule, &scene, order, ordered);
     finish = time_at(&scene, schedule->frame_seconds, (double)last + 1);
     kept = 0;
     for (i = 0; i < scene.sound_count; ++i)
@@ -406,23 +457,60 @@ int marcus_sound_schedule_append(MarcusSoundSchedule *schedule, long first, long
     scene.sound_count = kept;
     schedule->scenes[schedule->scene_count++] = scene;
     schedule->time = finish;
-    schedule->transition = transition;
+    schedule->transition = source->transition;
     free(order);
     return 1;
 
 failed:
     free(order);
-    free(scene.holds);
-    free(scene.sounds);
+    dispose_scene(&scene);
     return 0;
 }
 
-size_t marcus_sound_schedule_sound_count(const MarcusSoundSchedule *schedule, size_t scene)
+size_t mm_movie_sound_schedule_size(const MMMovieSoundSchedule *schedule)
+{
+    return schedule->scene_count;
+}
+
+void mm_movie_sound_schedule_source(const MMMovieSoundSchedule *schedule, size_t scene, MMMovieTimingScene *source)
+{
+    *source = schedule->scenes[scene].source;
+}
+
+int mm_movie_sound_schedule_reframe(const MMMovieSoundSchedule *schedule, const MMMovieTimingRange *ranges,
+                                     size_t count, MMMovieSoundSchedule **out)
+{
+    MMMovieSoundSchedule *replacement;
+    MMMovieTimingScene source;
+    size_t i;
+    if (count > schedule->scene_count)
+        count = schedule->scene_count;
+    for (i = 0; i < count; ++i)
+        if (ranges[i].chunk != schedule->scenes[i].source.range.chunk)
+            return MM_SOUND_REFRAME_MISMATCH;
+    replacement = mm_movie_sound_schedule_create(schedule->frame_seconds);
+    if (!replacement)
+        return MM_SOUND_REFRAME_MEMORY;
+    for (i = 0; i < count; ++i)
+    {
+        source = schedule->scenes[i].source;
+        source.range = ranges[i];
+        if (!mm_movie_sound_schedule_append(replacement, &source))
+        {
+            mm_movie_sound_schedule_destroy(replacement);
+            return MM_SOUND_REFRAME_MEMORY;
+        }
+    }
+    *out = replacement;
+    return MM_SOUND_REFRAME_OK;
+}
+
+size_t mm_movie_sound_schedule_sound_count(const MMMovieSoundSchedule *schedule, size_t scene)
 {
     return schedule->scenes[scene].sound_count;
 }
 
-MarcusScheduledSound marcus_sound_schedule_sound(const MarcusSoundSchedule *schedule, size_t scene, size_t index)
+MMScheduledSound mm_movie_sound_schedule_sound(const MMMovieSoundSchedule *schedule, size_t scene, size_t index)
 {
     return schedule->voices[schedule->scenes[scene].sounds[index]].span;
 }
@@ -437,8 +525,8 @@ static int resume_order(const void *left, const void *right)
     return a->row < b->row ? -1 : a->row != b->row;
 }
 
-int marcus_sound_schedule_resume(const MarcusSoundSchedule *schedule, size_t index, long frame,
-                                 MarcusScheduledResume *out, size_t *count)
+int mm_movie_sound_schedule_resume(const MMMovieSoundSchedule *schedule, size_t index, double frame,
+                                 MMScheduledResume *out, size_t *count)
 {
     const ScheduleScene *scene;
     const ScheduleVoice *voice;
@@ -454,8 +542,8 @@ int marcus_sound_schedule_resume(const MarcusSoundSchedule *schedule, size_t ind
     for (i = 0; i < scene->sound_count; ++i)
     {
         voice = &schedule->voices[scene->sounds[i]];
-        if (!voice->cue.motion && voice->span.end > at && finite_time(voice->span.start) &&
-            (voice->span.scene < index || voice->frame < frame))
+        if (!(voice->cue->flags & MM_TIMING_MOTION) && voice->span.end > at && finite_time(voice->span.start) &&
+            (voice->span.scene < index || voice->cue->frame < frame))
         {
             pending[*count].voice = voice;
             pending[(*count)++].row = i;
@@ -471,7 +559,7 @@ int marcus_sound_schedule_resume(const MarcusSoundSchedule *schedule, size_t ind
         out[i].seconds = at > voice->span.start ? at - voice->span.start : 0;
         out[i].queue = 0;
         for (prior = 0; prior < i; ++prior)
-            if (same_lane(&pending[prior].voice->cue, &voice->cue))
+            if (same_lane(pending[prior].voice->cue, voice->cue))
             {
                 out[i].queue = 1;
                 break;

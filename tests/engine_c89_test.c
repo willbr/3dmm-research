@@ -2,6 +2,7 @@
 #include "mm/frame_sound.h"
 #include "mm/caption_render.h"
 #include "mm/movie_timing_snapshot.h"
+#include "mm/movie_sound_schedule.h"
 #include "mm/graphics_transition.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -514,7 +515,7 @@ static void check_timing_snapshot(void)
     TimingBytes data = {0};
     TimingBytes good;
     MMMovieTimingWriter writer = {NULL, timing_write, timing_scene};
-    MMMovieTimingReader reader = {NULL, timing_read, timing_at_end, timing_expected, timing_received};
+    MMMovieTimingReader reader = {NULL, timing_read, timing_at_end, timing_expected, timing_received, NULL};
     static const unsigned char header[] = {'M', 'M', 'T', '4', 0, 0, 0, 0, 0, 0, 192, 63, 1, 0, 0, 0,
                                            4, 3, 2, 1, 252, 255, 255, 255, 21, 0, 0, 0};
     double frame_seconds = -1;
@@ -554,6 +555,62 @@ static void check_timing_snapshot(void)
     data.bytes[154] = 240;
     data.bytes[155] = 127;
     CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && !data.scenes);
+}
+
+static void check_sound_schedule_sources(void)
+{
+    MMMovieTimingCue cues[2] = {{0}, {0}};
+    MMMovieTimingScroll scroll = {2, .5};
+    MMMovieTimingScene source = {0}, stored;
+    MMMovieTimingRange range = {7, 1, 6};
+    MMMovieSoundSchedule *schedule, *reframed = NULL;
+    MMScheduledSound sound;
+    MMScheduledResume resume[1];
+    size_t count;
+    schedule = mm_movie_sound_schedule_create(.25);
+    CHECK(schedule != NULL);
+    source.range = range;
+    source.range.last = 3;
+    source.transition = .5;
+    source.scroll_count = 1;
+    source.scrolls = &scroll;
+    source.cue_count = 2;
+    source.cues = cues;
+    cues[0].frame = 1;
+    cues[0].seconds = 2.0;
+    cues[0].sound_number = 3;
+    cues[0].audio_kind = MM_SOUND_CLIP_SAMPLED;
+    cues[1] = cues[0];
+    cues[1].frame = 6;
+    cues[1].sound_number = 17;
+    CHECK(mm_movie_sound_schedule_append(schedule, &source));
+    CHECK(mm_movie_sound_schedule_time_at(schedule, 0, 4) == 1.25);
+    CHECK(mm_movie_sound_schedule_sound_count(schedule, 0) == 1);
+    cues[0].seconds = 0;
+    cues[1].sound_number = 999;
+    scroll.seconds = 0;
+    mm_movie_sound_schedule_source(schedule, 0, &stored);
+    CHECK(stored.cues != cues && stored.cues[0].seconds == 2.0 && stored.cues[1].sound_number == 17 &&
+          stored.scrolls[0].seconds == .5);
+    memset(&source, 0, sizeof(source));
+    source.range.chunk = 8;
+    source.range.last = 2;
+    CHECK(mm_movie_sound_schedule_append(schedule, &source) && mm_movie_sound_schedule_size(schedule) == 2);
+    CHECK(mm_movie_sound_schedule_time_at(schedule, 1, 0) == 1.75);
+    CHECK(mm_movie_sound_schedule_resume(schedule, 1, 0, resume, &count) && count == 1 &&
+          resume[0].scene == 0 && resume[0].source_row == 0 && resume[0].seconds == 1.75);
+    ++range.chunk;
+    CHECK(mm_movie_sound_schedule_reframe(schedule, &range, 1, &reframed) == MM_SOUND_REFRAME_MISMATCH &&
+          reframed == NULL && mm_movie_sound_schedule_size(schedule) == 2);
+    --range.chunk;
+    CHECK(mm_movie_sound_schedule_reframe(schedule, &range, 1, &reframed) == MM_SOUND_REFRAME_OK);
+    mm_movie_sound_schedule_destroy(schedule);
+    CHECK(mm_movie_sound_schedule_size(reframed) == 1 && mm_movie_sound_schedule_sound_count(reframed, 0) == 2);
+    sound = mm_movie_sound_schedule_sound(reframed, 0, 1);
+    CHECK(sound.scene == 0 && sound.source_row == 1 && sound.start == 1.75);
+    mm_movie_sound_schedule_source(reframed, 0, &stored);
+    CHECK(stored.range.last == 6 && stored.cues[1].sound_number == 17);
+    mm_movie_sound_schedule_destroy(reframed);
 }
 
 /* This executable links with the C linker and only the C89 backend. Existing
@@ -641,5 +698,6 @@ int main(void)
     check_frame_sound();
     check_caption_render();
     check_timing_snapshot();
+    check_sound_schedule_sources();
     return 0;
 }

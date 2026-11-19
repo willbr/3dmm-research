@@ -1,7 +1,7 @@
 #ifndef MARCUS_SOUND_TIMELINE_H
 #define MARCUS_SOUND_TIMELINE_H
 #include "player.h"
-#include "sound_schedule.h"
+#include "mm/movie_sound_schedule.h"
 #include "mm/preview.h"
 #include <functional>
 #include <memory>
@@ -47,21 +47,12 @@ struct MarcusResumeSound
 // same lifetime policy as playback: sampled loops stop, other voices continue.
 class MarcusSoundTimeline
 {
-    struct Source
-    {
-        MarcusScene info = {};
-        std::vector<MM::PreviewSoundCue> cues;
-        std::vector<MarcusWaveformInfo> audio;
-        MarcusSoundTiming timing;
-    };
-    using Schedule = std::unique_ptr<MarcusSoundSchedule, decltype(&marcus_sound_schedule_destroy)>;
+    using Schedule = std::unique_ptr<MMMovieSoundSchedule, decltype(&mm_movie_sound_schedule_destroy)>;
     static Schedule Create(double frameSeconds);
-    static void ScheduleScene(MarcusSoundSchedule *, const MarcusScene &, const Source &);
-    explicit MarcusSoundTimeline(double frameSeconds);
+    MarcusSoundTimeline(Schedule, std::vector<MarcusScene>);
     friend struct MarcusSoundScene;
     Schedule schedule;
-    std::vector<Source> sources;
-    void AppendPrepared(const MarcusScene &, Source);
+    std::vector<MarcusScene> scenes;
 
   public:
     MarcusSoundTimeline();
@@ -73,7 +64,7 @@ class MarcusSoundTimeline
     // Ephemeral IPC between matching Marcus/helper builds, never movie data.
     bool Write(std::ostream &output) const;
     bool Read(std::istream &input, const std::vector<MarcusScene> &expected);
-    std::size_t Size() const { return sources.size(); }
+    std::size_t Size() const { return mm_movie_sound_schedule_size(schedule.get()); }
     MarcusSoundScene Scene(std::size_t index) const { return MarcusSoundScene(*this, index); }
     std::vector<MarcusResumeSound> Resume(std::size_t scene, long frame) const;
     void Append(const MarcusScene &scene, const std::vector<MM::PreviewSoundCue> &cues,

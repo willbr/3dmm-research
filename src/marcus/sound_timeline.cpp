@@ -1,11 +1,11 @@
 #include "sound_timeline.h"
 #include <algorithm>
-#include "mm/movie_timing_snapshot.h"
 #include <exception>
 #include <limits>
 #include <istream>
 #include <new>
 #include <ostream>
+#include <stdexcept>
 
 namespace
 {
@@ -33,6 +33,20 @@ bool TimingCue(const MM::PreviewSoundCue &cue, const MarcusWaveformInfo &audio, 
            MMU32(audio.resolved_type), MMU32(audio.resolved_chunk), MMI32(audio.resolved_source), audio.seconds};
     return true;
 }
+static_assert(int(MARCUS_WAVEFORM_SAMPLED) == MM_SOUND_CLIP_SAMPLED &&
+              int(MARCUS_WAVEFORM_MIDI) == MM_SOUND_CLIP_MIDI, "schedule audio kinds");
+
+MM::PreviewSoundCue PreviewCue(const MMMovieSoundSchedule *schedule, std::size_t scene, std::size_t row)
+{
+    MMMovieTimingScene source;
+    mm_movie_sound_schedule_source(schedule, scene, &source);
+    const auto &cue = source.cues[row];
+    return {cue.frame, cue.source, cue.actor, cue.style, cue.volume,
+            {cue.sound_type, cue.sound_number}, {cue.scene_type, cue.scene_number}, cue.child,
+            bool(cue.flags & MM_TIMING_ACTOR_SOUND), bool(cue.flags & MM_TIMING_LOOP),
+            bool(cue.flags & MM_TIMING_QUEUE), bool(cue.flags & MM_TIMING_SILENT),
+            bool(cue.flags & MM_TIMING_MOTION), cue.motion_cel};
+}
 } // namespace
 
 bool MarcusSoundTimeline::Write(std::ostream &out) const
@@ -40,12 +54,9 @@ bool MarcusSoundTimeline::Write(std::ostream &out) const
     struct Context
     {
         std::ostream &output;
-        const std::vector<Source> &sources;
-        std::vector<MMMovieTimingScroll> scrolls;
-        std::vector<MMMovieTimingPause> pauses;
-        std::vector<MMMovieTimingCue> cues;
+        const MMMovieSoundSchedule *schedule;
         std::exception_ptr failure;
-    } context{out, sources, {}, {}, {}, {}};
+    } context{out, schedule.get(), {}};
     const MMMovieTimingWriter writer{
         &context,
         [](void *p, const void *bytes, std::size_t size) -> int {
@@ -54,38 +65,11 @@ bool MarcusSoundTimeline::Write(std::ostream &out) const
             catch (...) { ctx.failure = std::current_exception(); return false; }
         },
         [](void *p, std::size_t index, MMMovieTimingScene *scene) -> int {
-            auto &ctx = *static_cast<Context *>(p);
-            const auto &source = ctx.sources[index];
-            try
-            {
-                if (!TimingRange(source.info, scene->range)) return false;
-                ctx.scrolls.clear();
-                ctx.scrolls.reserve(source.timing.scrolling.size());
-                for (const auto &scroll : source.timing.scrolling)
-                {
-                    if (!FitsFrame(scroll.first)) return false;
-                    ctx.scrolls.push_back({MMI32(scroll.first), scroll.second});
-                }
-                ctx.pauses.clear();
-                ctx.pauses.reserve(source.timing.pauses.size());
-                for (const auto &pause : source.timing.pauses)
-                    ctx.pauses.push_back({pause.frame, pause.kind, pause.milliseconds});
-                ctx.cues.resize(source.cues.size());
-                for (std::size_t i = 0; i < ctx.cues.size(); ++i)
-                    if (!TimingCue(source.cues[i], source.audio[i], ctx.cues[i])) return false;
-                scene->transition = source.timing.transition;
-                scene->scroll_count = ctx.scrolls.size();
-                scene->pause_count = ctx.pauses.size();
-                scene->cue_count = ctx.cues.size();
-                scene->scrolls = ctx.scrolls.data();
-                scene->pauses = ctx.pauses.data();
-                scene->cues = ctx.cues.data();
-                return true;
-            }
-            catch (...) { ctx.failure = std::current_exception(); return false; }
+            mm_movie_sound_schedule_source(static_cast<Context *>(p)->schedule, index, scene);
+            return true;
         }};
-    const int written = mm_movie_timing_snapshot_write(&writer, sources.size(),
-                                                       marcus_sound_schedule_frame_seconds(schedule.get()));
+    const int written = mm_movie_timing_snapshot_write(&writer, Size(),
+                                                       mm_movie_sound_schedule_frame_seconds(schedule.get()));
     if (context.failure) std::rethrow_exception(context.failure);
     return written != 0;
 }
@@ -96,9 +80,9 @@ bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> 
     {
         std::istream &input;
         const std::vector<MarcusScene> &expected;
-        std::vector<Source> sources;
+        Schedule schedule;
         std::exception_ptr failure;
-    } context{in, expected, {}, {}};
+    } context{in, expected, Schedule(nullptr, mm_movie_sound_schedule_destroy), {}};
     const MMMovieTimingReader reader{
         &context,
         [](void *p, void *bytes, std::size_t size) -> int {
@@ -115,147 +99,112 @@ bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> 
             return TimingRange(static_cast<Context *>(p)->expected[index], *range);
         },
         [](void *p, std::size_t, const MMMovieTimingScene *scene) -> int {
+            return mm_movie_sound_schedule_append(static_cast<Context *>(p)->schedule.get(), scene);
+        },
+        [](void *p, double seconds) -> int {
             auto &ctx = *static_cast<Context *>(p);
-            try
-            {
-                Source source;
-                source.timing.transition = scene->transition;
-                for (std::size_t i = 0; i < scene->scroll_count; ++i)
-                    source.timing.scrolling.emplace_hint(source.timing.scrolling.end(),
-                        scene->scrolls[i].frame, scene->scrolls[i].seconds);
-                source.timing.pauses.reserve(scene->pause_count);
-                for (std::size_t i = 0; i < scene->pause_count; ++i)
-                {
-                    const auto &pause = scene->pauses[i];
-                    source.timing.pauses.push_back({pause.frame, pause.kind, pause.milliseconds});
-                }
-                source.cues.reserve(scene->cue_count);
-                source.audio.resize(scene->cue_count);
-                for (std::size_t i = 0; i < scene->cue_count; ++i)
-                {
-                    const auto &cue = scene->cues[i];
-                    source.cues.push_back({cue.frame, cue.source, cue.actor, cue.style, cue.volume,
-                        {cue.sound_type, cue.sound_number}, {cue.scene_type, cue.scene_number}, cue.child,
-                        bool(cue.flags & MM_TIMING_ACTOR_SOUND), bool(cue.flags & MM_TIMING_LOOP),
-                        bool(cue.flags & MM_TIMING_QUEUE), bool(cue.flags & MM_TIMING_SILENT),
-                        bool(cue.flags & MM_TIMING_MOTION), cue.motion_cel});
-                    auto &audio = source.audio[i];
-                    audio.seconds = cue.seconds;
-                    audio.kind = cue.audio_kind;
-                    audio.resolved_type = cue.resolved_type;
-                    audio.resolved_chunk = cue.resolved_chunk;
-                    audio.resolved_source = cue.resolved_source;
-                }
-                ctx.sources.push_back(std::move(source));
-                return true;
-            }
-            catch (...) { ctx.failure = std::current_exception(); return false; }
+            ctx.schedule.reset(mm_movie_sound_schedule_create(seconds));
+            return bool(ctx.schedule);
         }};
     double frameSeconds;
     const int read = mm_movie_timing_snapshot_read(&reader, expected.size(), &frameSeconds);
     if (context.failure) std::rethrow_exception(context.failure);
     if (!read) return false;
-    MarcusSoundTimeline result(frameSeconds);
-    result.sources.reserve(context.sources.size());
-    for (std::size_t i = 0; i < context.sources.size(); ++i)
-        result.AppendPrepared(expected[i], std::move(context.sources[i]));
-    *this = std::move(result);
+    auto metadata = expected;
+    scenes = std::move(metadata);
+    schedule = std::move(context.schedule);
     return true;
 }
 
 MarcusSoundTimeline::Schedule MarcusSoundTimeline::Create(double frameSeconds)
 {
-    Schedule result(marcus_sound_schedule_create(frameSeconds), marcus_sound_schedule_destroy);
+    Schedule result(mm_movie_sound_schedule_create(frameSeconds), mm_movie_sound_schedule_destroy);
     if (!result) throw std::bad_alloc();
     return result;
 }
 
-MarcusSoundTimeline::MarcusSoundTimeline() : MarcusSoundTimeline(1.0 / 6)
+MarcusSoundTimeline::MarcusSoundTimeline() : schedule(Create(1.0 / 6))
 {
 }
 
-MarcusSoundTimeline::MarcusSoundTimeline(double frameSeconds) : schedule(Create(frameSeconds))
+MarcusSoundTimeline::MarcusSoundTimeline(Schedule data, std::vector<MarcusScene> metadata)
+    : schedule(std::move(data)), scenes(std::move(metadata))
 {
 }
 
 bool MarcusSoundTimeline::Reframe(const std::vector<MarcusScene> &ranges)
 {
-    const auto count = std::min(sources.size(), ranges.size());
-    for (std::size_t i = 0; i < count; ++i)
-        if (ranges[i].chunk != sources[i].info.chunk) return false;
-    auto replacement = Create(marcus_sound_schedule_frame_seconds(schedule.get()));
-    for (std::size_t i = 0; i < count; ++i)
-        ScheduleScene(replacement.get(), ranges[i], sources[i]);
-    for (std::size_t i = 0; i < count; ++i)
-        sources[i].info = ranges[i];
-    sources.resize(count);
-    schedule = std::move(replacement);
+    auto replacement = Reframed(ranges);
+    if (!replacement) return false;
+    *this = std::move(*replacement);
     return true;
 }
 
 std::optional<MarcusSoundTimeline> MarcusSoundTimeline::Reframed(const std::vector<MarcusScene> &ranges) const
 {
-    const auto count = std::min(sources.size(), ranges.size());
+    const auto count = std::min(Size(), ranges.size());
+    std::vector<MMMovieTimingRange> geometry(count);
     for (std::size_t i = 0; i < count; ++i)
-        if (ranges[i].chunk != sources[i].info.chunk) return std::nullopt;
-    MarcusSoundTimeline result(marcus_sound_schedule_frame_seconds(schedule.get()));
-    result.sources.reserve(count);
-    for (std::size_t i = 0; i < count; ++i)
-        result.AppendPrepared(ranges[i], sources[i]);
-    return result;
+        if (!TimingRange(ranges[i], geometry[i])) return std::nullopt;
+    MMMovieSoundSchedule *result = nullptr;
+    const int status = mm_movie_sound_schedule_reframe(schedule.get(), geometry.data(), geometry.size(), &result);
+    if (status == MM_SOUND_REFRAME_MISMATCH) return std::nullopt;
+    if (status == MM_SOUND_REFRAME_MEMORY) throw std::bad_alloc();
+    Schedule replacement(result, mm_movie_sound_schedule_destroy);
+    return MarcusSoundTimeline(std::move(replacement), {ranges.begin(), ranges.begin() + count});
 }
 
 void MarcusSoundTimeline::Clear()
 {
-    marcus_sound_schedule_clear(schedule.get());
-    sources.clear();
+    mm_movie_sound_schedule_clear(schedule.get());
+    scenes.clear();
 }
 
 void MarcusSoundTimeline::SetRate(double fps)
 {
-    marcus_sound_schedule_rate(schedule.get(), fps);
-    sources.clear();
+    mm_movie_sound_schedule_rate(schedule.get(), fps);
+    scenes.clear();
 }
 
 MarcusSoundScene::MarcusSoundScene(const MarcusSoundTimeline &owner, std::size_t index)
-    : start(0), info(owner.sources.at(index).info), owner(owner), index(index)
+    : start(0), info(owner.scenes.at(index)), owner(owner), index(index)
 {
     start = TimeAt(info.first_frame);
 }
 
 double MarcusSoundScene::TimeAt(double frame) const
 {
-    return marcus_sound_schedule_time_at(owner.schedule.get(), index, frame);
+    return mm_movie_sound_schedule_time_at(owner.schedule.get(), index, frame);
 }
 
 double MarcusSoundScene::FrameAt(double seconds) const
 {
-    return marcus_sound_schedule_frame_at(owner.schedule.get(), index, seconds);
+    return mm_movie_sound_schedule_frame_at(owner.schedule.get(), index, seconds);
 }
 
 std::size_t MarcusSoundScene::SoundCount() const
 {
-    return marcus_sound_schedule_sound_count(owner.schedule.get(), index);
+    return mm_movie_sound_schedule_sound_count(owner.schedule.get(), index);
 }
 
 MarcusSoundSpan MarcusSoundScene::Sound(std::size_t row) const
 {
-    const auto span = marcus_sound_schedule_sound(owner.schedule.get(), index, row);
-    return {owner.sources[span.scene].cues[span.source_row], span.scene, span.start, span.end};
+    const auto span = mm_movie_sound_schedule_sound(owner.schedule.get(), index, row);
+    return {PreviewCue(owner.schedule.get(), span.scene, span.source_row), span.scene, span.start, span.end};
 }
 
 std::vector<MarcusResumeSound> MarcusSoundTimeline::Resume(std::size_t index, long frame) const
 {
-    std::vector<MarcusScheduledResume> pending(Scene(index).SoundCount());
+    std::vector<MMScheduledResume> pending(Scene(index).SoundCount());
     std::size_t count;
-    if (!marcus_sound_schedule_resume(schedule.get(), index, frame, pending.data(), &count))
+    if (!mm_movie_sound_schedule_resume(schedule.get(), index, static_cast<double>(frame), pending.data(), &count))
         throw std::bad_alloc();
     std::vector<MarcusResumeSound> result;
     result.reserve(count);
     for (std::size_t i = 0; i < count; ++i)
     {
         const auto &sound = pending[i];
-        auto cue = sources[sound.scene].cues[sound.source_row];
+        auto cue = PreviewCue(schedule.get(), sound.scene, sound.source_row);
         cue.queue = sound.queue != 0;
         result.push_back({cue, sound.seconds});
     }
@@ -266,61 +215,36 @@ void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<MM::
                                 const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,
                                 const MarcusSoundTiming &timing)
 {
-    Source source;
-    source.cues = cues;
-    source.timing = timing;
-    source.audio.reserve(cues.size());
-    for (const auto &cue : cues) source.audio.push_back(read(cue));
-    AppendPrepared(info, std::move(source));
-}
-
-void MarcusSoundTimeline::AppendPrepared(const MarcusScene &info, Source source)
-{
-    source.info = info;
-    sources.push_back(std::move(source));
-    try
+    MMMovieTimingScene source{};
+    if (!TimingRange(info, source.range))
+        throw std::out_of_range("Movie sound scene is outside the native range.");
+    std::vector<MMMovieTimingScroll> scrolls;
+    scrolls.reserve(timing.scrolling.size());
+    for (const auto &scroll : timing.scrolling)
     {
-        ScheduleScene(schedule.get(), info, sources.back());
+        if (!FitsFrame(scroll.first))
+            throw std::out_of_range("Movie sound scroll is outside the native range.");
+        scrolls.push_back({MMI32(scroll.first), scroll.second});
     }
-    catch (...)
+    std::vector<MMMovieTimingPause> pauses;
+    pauses.reserve(timing.pauses.size());
+    for (const auto &pause : timing.pauses)
+        pauses.push_back({pause.frame, pause.kind, pause.milliseconds});
+    std::vector<MMMovieTimingCue> audio(cues.size());
+    for (std::size_t i = 0; i < cues.size(); ++i)
+        if (!TimingCue(cues[i], read(cues[i]), audio[i]))
+            throw std::out_of_range("Movie sound cue is outside the native range.");
+    source.transition = timing.transition;
+    source.scroll_count = scrolls.size();
+    source.pause_count = pauses.size();
+    source.cue_count = audio.size();
+    source.scrolls = scrolls.data();
+    source.pauses = pauses.data();
+    source.cues = audio.data();
+    scenes.push_back(info);
+    if (!mm_movie_sound_schedule_append(schedule.get(), &source))
     {
-        sources.pop_back();
-        throw;
-    }
-}
-
-void MarcusSoundTimeline::ScheduleScene(MarcusSoundSchedule *schedule, const MarcusScene &info, const Source &source)
-{
-    std::vector<MarcusSoundEvent> events;
-    events.reserve(source.cues.size() + source.timing.scrolling.size() + source.timing.pauses.size());
-    for (std::size_t i = 0; i < source.cues.size(); ++i)
-    {
-        const auto &cue = source.cues[i];
-        const auto &audio = source.audio[i];
-        MarcusSoundEvent event = {};
-        event.frame = cue.frame;
-        event.kind = MARCUS_SCHEDULE_CUE;
-        event.data.cue = {cue.actor, cue.style, cue.actorSound, cue.loop, cue.queue, cue.motion,
-                          audio.kind, audio.seconds, audio.resolved_type, audio.resolved_chunk, audio.resolved_source, i};
-        events.push_back(event);
-    }
-    for (const auto &scroll : source.timing.scrolling)
-    {
-        MarcusSoundEvent event = {};
-        event.frame = scroll.first;
-        event.kind = MARCUS_SCHEDULE_SCROLL;
-        event.data.scroll = scroll.second;
-        events.push_back(event);
-    }
-    for (const auto &pause : source.timing.pauses)
-    {
-        MarcusSoundEvent event = {};
-        event.frame = pause.frame;
-        event.kind = MARCUS_SCHEDULE_PAUSE;
-        event.data.pause = {pause.kind, pause.milliseconds};
-        events.push_back(event);
-    }
-    if (!marcus_sound_schedule_append(schedule, info.first_frame, info.last_frame,
-                                      source.timing.transition, events.data(), events.size()))
+        scenes.pop_back();
         throw std::bad_alloc();
+    }
 }

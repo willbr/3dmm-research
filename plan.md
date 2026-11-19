@@ -978,6 +978,9 @@ The snapshot codec now runs in C89. It validates scene IDs and frame
 ranges, bounds timing records, and exchanges explicit scene, hold and cue
 fields. The helper and player supply the file stream and commit the
 decoded schedule after the full snapshot is accepted.
+The shared C89 schedule owns the source cues, clip lengths, scroll holds
+and pauses used for live analysis and timing imports. Frame-range edits
+rebuild it from those records, including cues previously outside the scene.
 The C89 engine also owns live Marcus playback voices, track mute and solo,
 loop and queue progression, and MIDI preroll and rendering decisions.
 Marcus and Studio share PCM accumulation and clipping. The Marcus schedule
