@@ -14041,3 +14041,52 @@ The capture database at `tmp/c89-sound-schedule/capture/playback.sqlite`
 records movie and content hashes, executable hashes and the capture
 environment. The baseline suite is `20261119T010556Z-6a08fbac` and the
 converted suite is `20261119T010849Z-5bfcd8b8`.
+
+## Marcus live movie audio C89 conversion (19 November 2026)
+
+The C89 mixer owns Marcus's voice queues and source positions, handles
+mute and solo, prerolls absolute MIDI events, and advances sampled and
+MIDI voices at 48 kHz. Studio and Marcus use the same stereo accumulation
+and clipping functions. Marcus's sound timeline and live mixer share
+the scene-cut rule for sampled loops. The host supplies SDL output,
+decoded clip storage, synchronization and SoundFont synthesis.
+
+The baseline passed `marcus-playback` and `engine-audio-runtime` at
+`5eed8930`. The converted build used `BUILD_TESTING=ON` and
+`REQUIRE_C89_CHECKS=ON` and passed 19 selected checks, including every
+`c89-syntax` check, `marcus-c89`, the playback, player and sound-edit
+checks, and both frozen Studio audio runtime traces. The C runtime test
+exercises queued playback, offsets wider than 32 bits, track controls,
+clipping, MIDI preroll and scene cuts. Marcus was relaunched after rebuilding.
+
+The before and after mixer probes matched PCM and state fingerprints across
+49,152 operations with deterministic device and synth doubles. The
+AddressSanitizer run matched the same trace. A separate probe injected an
+SDL stream resume failure and verified that retrying opened a new stream and
+published one voice. Probe code, traces and the CTest log are in
+`tmp/c89-movie-audio`.
+
+Retail, SDL Studio and Marcus completed 12 runs per build with one
+fresh-process absolute seek and normal playback pass for each of
+`sampled-audio` and `actor-audio`. The 60 authored frames per case matched
+before and after in both modes. All 240 Studio and Marcus seek images matched
+their respective baseline hashes. The two sets of retail comparison verdicts
+agreed, including the mixed PCM differences and inconclusive Marcus timing.
+
+Marcus's PCM16 peaks were 2,176 for sampled audio and 4,081 for actor audio
+in both builds. Studio's sampled-audio peak was 2,176 in both builds and its
+actor-audio peak was 4,080 before and 4,081 after. Both hosts met the
+first-scene-only 600 Hz and 1300 Hz actor cue contract before and after.
+Captured PCM lengths and start anchors varied across runs.
+
+The actor-audio replay suites completed three runs per build. Retail,
+Studio and Marcus each kept the 60 authored frames and both first-scene
+tones. Studio and Marcus replay peaks were 4,081 before and after. The
+replay suites are `20261119T012310Z-c6d2dfc2` and
+`20261119T012435Z-3a05be02`. These captures cover the retail `.3mm`
+baseline.
+
+The database at `tmp/c89-sound-schedule/capture/playback.sqlite` records the
+movie, content and executable hashes and the capture environment. The fresh
+suites are `20261119T011722Z-625ecd92` before and
+`20261119T012147Z-f836ff4b` after.

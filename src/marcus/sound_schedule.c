@@ -1,5 +1,6 @@
 #include "sound_schedule.h"
 #include "player.h"
+#include "mm/movie_audio.h"
 #include <float.h>
 #include <math.h>
 #include <stdlib.h>
@@ -198,7 +199,7 @@ static void enter_scene(MarcusSoundSchedule *schedule)
     for (i = 0; i < schedule->active_count; ++i)
     {
         voice = &schedule->voices[schedule->active[i]];
-        if (voice->cue.loop && voice->cue.kind != MARCUS_WAVEFORM_MIDI && at < voice->span.end)
+        if (mm_movie_audio_cut_stops(voice->cue.loop, voice->cue.kind == MARCUS_WAVEFORM_MIDI) && at < voice->span.end)
             voice->span.end = at;
     }
     expire(schedule, at);

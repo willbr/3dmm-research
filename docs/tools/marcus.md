@@ -1777,8 +1777,9 @@ these fixtures matched the retained retail and V3DMM captures. Evidence is in
 
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
-`player.cpp` owns the C++ Archive/Preview backend. `playback.cpp` supplies audio,
-caption layout and transition snapshots for the C89 playback controller.
+`player.cpp` owns the C++ Archive/Preview backend. `playback.cpp` adapts SDL
+audio output, decoded clips, SoundFont synthesis, caption layout and transition
+snapshots for the C89 playback controller and movie mixer.
 `content.cpp` adapts the
 shared C89 VFS to the existing pack and bundle libraries. Exceptions stop at the
 C boundary. `Preview::Objects()` supplies evaluated actor state.
@@ -1789,9 +1790,10 @@ Movie opening now also uses the shared C89 MVIE-version and roll-call record
 decoders. Archive's GST wire-layout validation runs through the C89 bounded
 stream interface; legacy string conversion and chunk/resource ownership remain
 behind the C++ host adapter.
-The audio callback uses decoded clips and synthesizers, never the renderer,
-archive readers or UI. The renderer and legacy readers retain their single-thread
-ownership rule.
+The C89 movie mixer owns voice position, queue order, track controls and
+absolute MIDI event dispatch. It uses the same PCM accumulation and clipping
+as Studio. The SDL callback mixes previously decoded audio and advances its
+prepared synths. Archive reads and MIDI preroll run before publishing a voice.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and

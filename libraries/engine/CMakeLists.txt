@@ -551,6 +551,7 @@ add_test(NAME engine-scene-runtime COMMAND engine-scene-runtime-test)
 target_sources(mm-engine-c89 PRIVATE src/texture_resource.c src/texture_import.c)
 target_sources(mm-engine-c89 PRIVATE src/material_resource.c src/custom_material.c)
 target_sources(mm-engine-c89 PRIVATE src/audio_clock.c src/audio_mixer.c src/midi_render.c src/sound_queue.c src/sound_manager.c src/midi_mix.c)
+target_sources(mm-engine-c89 PRIVATE src/movie_audio.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_action_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_costume_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_route_edit.c)
@@ -1360,6 +1361,7 @@ if(ENGINE_C89_COMPILER)
     "${engine_material_resource_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/audio_clock.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/audio_mixer.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_audio.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/midi_render.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/midi_mix.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/sound_queue.c"

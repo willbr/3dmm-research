@@ -46,6 +46,8 @@ extern "C"
     void mm_audio_mixer_begin(MMAudioMixer *);
     void mm_audio_mixer_end(MMAudioMixer *);
     void mm_audio_mixer_render(MMAudioMixer *, float *, size_t);
+    void mm_audio_mix_stereo(float *output, const float *input, size_t frames, float volume);
+    void mm_audio_clip_stereo(float *output, size_t frames);
 #ifdef __cplusplus
 }
 #endif

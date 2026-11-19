@@ -1,5 +1,6 @@
 #include "playback.h"
 #include "mm/playback.h"
+#include "mm/movie_audio.h"
 #include "caption_quad.h"
 #include "sdl_audio.h"
 #include "midi_synth.h"
@@ -10,14 +11,13 @@
 #include "mm/text_box_runtime.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstring>
-#include <deque>
 #include <exception>
 #include <fstream>
 #include <map>
 #include <mutex>
+#include <new>
 #include <tuple>
 #include <stdexcept>
 
@@ -42,107 +42,39 @@ MMPixelSurface TransitionSurface(PreviewImage &image)
 }
 struct AudioClip
 {
-    std::tuple<int, unsigned, unsigned> identity;
+    MMMovieAudioClip data = {};
     std::shared_ptr<const KauaiAudio::Sample> sample;
     std::vector<PreviewMidiEvent> midi;
-    std::uint64_t frames = 0;
 };
-struct AudioVoice
+struct AudioOwner
 {
     std::shared_ptr<AudioClip> clip;
     std::unique_ptr<KauaiMidi::Synth> synth;
-    std::uint64_t position = 0;
-    std::size_t event = 0;
-    float volume = 1;
-    bool loop = false;
 };
-std::uint64_t SoundLane(bool actorSound, long actor, long style)
-{
-    return (std::uint64_t(actorSound ? 1 : 0) << 63) |
-           (std::uint64_t(std::uint32_t(actorSound ? actor : 0)) << 16) | std::uint32_t(style);
-}
 class Audio
 {
     mutable std::mutex mutex;
-    struct LayerMix
-    {
-        bool muted, solo;
-    };
-    // Movie-wide owner/style identities survive scene changes, seeks and queue cleanup.
-    std::map<std::uint64_t, LayerMix> mix;
-    bool anySolo = false;
-    std::map<std::uint64_t, std::deque<std::unique_ptr<AudioVoice>>> queues;
+    std::unique_ptr<MMMovieAudio, decltype(&mm_movie_audio_destroy)> mixer{
+        mm_movie_audio_create(), mm_movie_audio_destroy};
     std::map<std::tuple<int, unsigned, unsigned, int, unsigned>, std::shared_ptr<AudioClip>> clips;
     std::vector<std::uint8_t> bank;
     std::size_t cachedBytes = 0;
     SDL_AudioStream *stream = nullptr;
-    bool paused = true, muted = false, initialized = false;
-    MarcusAudioStats stats = {};
+    bool initialized = false;
+
     static void SDLCALL Feed(void *context, SDL_AudioStream *stream, int additional, int)
     {
         auto self = static_cast<Audio *>(context);
-        std::array<float, 1024> output, scratch;
+        float output[MM_MOVIE_AUDIO_BLOCK_FRAMES * 2];
         while (additional > 0)
         {
-            const auto frames = std::min<std::size_t>(512, (std::size_t(additional) + 7) / 8);
-            std::fill(output.begin(), output.end(), 0.f);
+            const auto frames = std::min<std::size_t>(MM_MOVIE_AUDIO_BLOCK_FRAMES, (std::size_t(additional) + 7) / 8);
             {
                 std::lock_guard<std::mutex> lock(self->mutex);
-                if (!self->paused)
-                    for (auto &queue : self->queues)
-                    {
-                        const bool audible = self->Audible(queue.first);
-                        std::size_t written = 0;
-                        for (auto &owner : queue.second)
-                        {
-                            auto &voice = *owner;
-                            while (written < frames && voice.position < voice.clip->frames)
-                            {
-                                auto count = static_cast<std::size_t>(
-                                    std::min<std::uint64_t>(frames - written, voice.clip->frames - voice.position));
-                                if (voice.synth)
-                                {
-                                    while (voice.event < voice.clip->midi.size() &&
-                                           std::uint64_t(voice.clip->midi[voice.event].milliseconds) * 48 <=
-                                               voice.position)
-                                        voice.synth->Message(voice.clip->midi[voice.event++].message);
-                                    if (voice.event < voice.clip->midi.size())
-                                        count = std::min<std::size_t>(
-                                            count, std::uint64_t(voice.clip->midi[voice.event].milliseconds) * 48 -
-                                                       voice.position);
-                                    voice.synth->Render(scratch.data(), count);
-                                }
-                                else
-                                    std::copy_n(voice.clip->sample->stereo.data() + voice.position * 2, count * 2,
-                                                scratch.data());
-                                if (audible)
-                                    for (std::size_t i = 0; i < count * 2; ++i)
-                                        output[written * 2 + i] += scratch[i] * voice.volume;
-                                written += count;
-                                voice.position += count;
-                                if (voice.position == voice.clip->frames && voice.loop)
-                                {
-                                    voice.position = 0;
-                                    voice.event = 0;
-                                    if (voice.synth)
-                                        voice.synth->Reset();
-                                }
-                            }
-                            if (written == frames)
-                                break;
-                        }
-                    }
-                if (self->muted)
-                    std::fill(output.begin(), output.end(), 0.f);
-                self->stats.rendered_frames += static_cast<unsigned long>(frames);
-                for (std::size_t frame = 0; frame < frames; ++frame)
-                    if (std::abs(output[frame * 2]) > .00001f || std::abs(output[frame * 2 + 1]) > .00001f)
-                        ++self->stats.audible_frames;
+                mm_movie_audio_render(self->mixer.get(), output, frames);
             }
-            for (std::size_t i = 0; i < frames * 2; ++i)
-                output[i] = std::max(-1.f, std::min(1.f, output[i]));
-            auto bytes = static_cast<int>(frames * 8);
-            if (!SDL_PutAudioStreamData(stream, output.data(), bytes))
+            const auto bytes = static_cast<int>(frames * 8);
+            if (!SDL_PutAudioStreamData(stream, output, bytes))
                 break;
             additional -= bytes;
         }
@@ -157,57 +89,88 @@ class Audio
                 return Fail(error, std::string("Cannot initialize movie audio: ") + SDL_GetError());
             initialized = true;
         }
-        const SDL_AudioSpec spec = {SDL_AUDIO_F32, 2, 48000};
-        stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, Feed, this);
-        if (!stream || !SDL_ResumeAudioStreamDevice(stream))
+        const SDL_AudioSpec spec = {SDL_AUDIO_F32, 2, KauaiAudio::SampleRate};
+        std::unique_ptr<SDL_AudioStream, decltype(&SDL_DestroyAudioStream)> opened(
+            SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, Feed, this), SDL_DestroyAudioStream);
+        if (!opened || !SDL_ResumeAudioStreamDevice(opened.get()))
             return Fail(error, std::string("Cannot open movie audio output: ") + SDL_GetError());
+        stream = opened.release();
+        return true;
+    }
+
+    std::shared_ptr<AudioClip> LoadClip(Preview &preview, const PreviewSoundCue &cue, Error &error)
+    {
+        const auto key =
+            std::make_tuple(cue.source, cue.sound.type, cue.sound.number,
+                            cue.source == 0 ? static_cast<int>(cue.scene.type ? cue.scene.number : preview.Info().asset.number)
+                                            : -1, cue.child);
+        const auto found = clips.find(key);
+        if (found != clips.end())
+            return found->second;
+        PreviewAudio data;
+        if (!preview.ReadSound(cue, data, error))
+            return {};
+        auto clip = std::make_shared<AudioClip>();
+        clip->data.source = data.source;
+        clip->data.type = data.asset.type;
+        clip->data.number = data.asset.number;
+        if (!data.silent)
+        {
+            if (data.midi)
+            {
+                clip->midi = std::move(data.events);
+                clip->data.midi_events = clip->midi.size();
+            }
+            else
+            {
+                if (!KauaiAudio::DecodeWave(data.wave.data(), data.wave.size(), clip->sample))
+                {
+                    Fail(error, std::string("Cannot decode movie WAVE audio: ") + SDL_GetError());
+                    return {};
+                }
+                clip->data.stereo = clip->sample->stereo.data();
+                clip->data.sample_frames = clip->sample->stereo.size() / 2;
+            }
+        }
+        const auto bytes = clip->sample ? clip->sample->stereo.size() * sizeof(float)
+                                        : clip->midi.size() * sizeof(PreviewMidiEvent);
+        constexpr std::size_t budget = 256u * 1024 * 1024;
+        if (bytes > budget)
+        {
+            Fail(error, "A decoded movie sound exceeds the 256 MiB audio budget.");
+            return {};
+        }
+        if (cachedBytes + bytes > budget)
+        {
+            clips.clear();
+            cachedBytes = 0;
+        }
+        clips.emplace(key, clip);
+        cachedBytes += bytes;
+        return clip;
+    }
+
+    bool LoadSynth(AudioOwner &owner, Error &error)
+    {
+        if (bank.empty())
+        {
+            const auto base = SDL_GetBasePath();
+            std::ifstream input(std::string(base ? base : "") + "assets/GeneralUserGS.sf2", std::ios::binary);
+            if (!input)
+                input.open(MARCUS_MIDI_BANK, std::ios::binary);
+            bank.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        }
+        owner.synth = std::make_unique<KauaiMidi::Synth>();
+        if (!owner.synth->Load(bank.data(), bank.size(), KauaiAudio::SampleRate))
+            return Fail(error, "Cannot load the General MIDI instrument bank (assets/GeneralUserGS.sf2).");
         return true;
     }
 
   public:
-    // Caller holds mutex. Silenced lanes still render MIDI and advance all voices.
-    bool Audible(std::uint64_t lane) const
+    Audio()
     {
-        const auto found = mix.find(lane);
-        return found == mix.end() ? !anySolo : !found->second.muted && (!anySolo || found->second.solo);
-    }
-    void SetTrackMix(std::uint64_t lane, bool muted, bool solo)
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (muted || solo)
-            mix[lane] = {muted, solo};
-        else
-            mix.erase(lane);
-        anySolo = std::any_of(mix.begin(), mix.end(), [](const auto &entry) { return entry.second.solo; });
-    }
-    void TrackMix(std::uint64_t lane, int &muted, int &solo, int &audible) const
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        const auto found = mix.find(lane);
-        muted = found != mix.end() && found->second.muted;
-        solo = found != mix.end() && found->second.solo;
-        audible = Audible(lane);
-    }
-    void ResetMix()
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        mix.clear();
-        anySolo = false;
-    }
-    bool MixActive() const
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        return !mix.empty();
-    }
-    void Mute(bool value)
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        muted = value;
-    }
-    void Statistics(MarcusAudioStats &output)
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        output = stats;
+        if (!mixer)
+            throw std::bad_alloc();
     }
     ~Audio()
     {
@@ -215,30 +178,54 @@ class Audio
         if (initialized)
             SDL_QuitSubSystem(SDL_INIT_AUDIO);
     }
+    void SetTrackMix(MMAudioCounter lane, bool muted, bool solo)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (!mm_movie_audio_set_mix(mixer.get(), lane, muted, solo))
+            throw std::bad_alloc();
+    }
+    void TrackMix(MMAudioCounter lane, int &muted, int &solo, int &audible) const
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        mm_movie_audio_track_mix(mixer.get(), lane, &muted, &solo, &audible);
+    }
+    void ResetMix()
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        mm_movie_audio_reset_mix(mixer.get());
+    }
+    bool MixActive() const
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        return mm_movie_audio_mix_active(mixer.get()) != 0;
+    }
+    void Mute(bool value)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        mm_movie_audio_mute(mixer.get(), value);
+    }
+    void Statistics(MarcusAudioStats &output)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        MMMovieAudioStats stats;
+        mm_movie_audio_stats(mixer.get(), &stats);
+        output = {stats.wave_sounds, stats.midi_sounds, stats.rendered_frames, stats.audible_frames};
+    }
     void Suspend(bool value)
     {
         std::lock_guard<std::mutex> lock(mutex);
-        paused = value;
+        mm_movie_audio_suspend(mixer.get(), value);
     }
     void Collect()
     {
         std::lock_guard<std::mutex> lock(mutex);
-        for (auto lane = queues.begin(); lane != queues.end();)
-        {
-            auto &queue = lane->second;
-            while (!queue.empty() && queue.front()->position >= queue.front()->clip->frames)
-                queue.pop_front();
-            if (queue.empty())
-                lane = queues.erase(lane);
-            else
-                ++lane;
-        }
+        mm_movie_audio_collect(mixer.get());
     }
     void Clear()
     {
         {
             std::lock_guard<std::mutex> lock(mutex);
-            queues.clear();
+            mm_movie_audio_clear(mixer.get());
         }
         if (stream)
             SDL_ClearAudioStream(stream);
@@ -247,133 +234,56 @@ class Audio
     }
     void SceneBoundary()
     {
-        // Studio stops looping sampled effects when changing scenes, while
-        // unfinished non-looping sounds and MIDI continue through the cut.
         std::lock_guard<std::mutex> lock(mutex);
-        for (auto &lane : queues)
-        {
-            auto &queue = lane.second;
-            queue.erase(
-                std::remove_if(queue.begin(), queue.end(),
-                               [](const std::unique_ptr<AudioVoice> &voice) { return voice->loop && !voice->synth; }),
-                queue.end());
-        }
+        mm_movie_audio_cut(mixer.get());
     }
     bool Pending() const
     {
         std::lock_guard<std::mutex> lock(mutex);
-        for (const auto &queue : queues)
-            for (const auto &voice : queue.second)
-                if (!voice->loop && voice->position < voice->clip->frames)
-                    return true;
-        return false;
+        return mm_movie_audio_pending(mixer.get()) != 0;
     }
+
     bool Play(Preview &preview, const PreviewSoundCue &cue, std::uint64_t offsetFrames, Error &error)
     {
-        const auto key =
-            std::make_tuple(cue.source, cue.sound.type, cue.sound.number,
-                            cue.source == 0 ? static_cast<int>(cue.scene.type ? cue.scene.number : preview.Info().asset.number)
-                                            : -1, cue.child);
-        std::shared_ptr<AudioClip> clip;
-        auto found = clips.find(key);
-        if (!cue.silent && found != clips.end())
-            clip = found->second;
-        if (!clip && !cue.silent)
+        std::unique_ptr<MMMovieAudioVoice, decltype(&mm_movie_audio_voice_destroy)> voice(
+            nullptr, mm_movie_audio_voice_destroy);
+        if (!cue.silent)
         {
-            PreviewAudio data;
-            if (!preview.ReadSound(cue, data, error))
+            auto clip = LoadClip(preview, cue, error);
+            if (!clip)
                 return false;
-            clip = std::make_shared<AudioClip>();
-            clip->identity = std::make_tuple(data.source, data.asset.type, data.asset.number);
-            if (!data.silent)
+            if (clip->data.sample_frames || clip->data.midi_events)
             {
-                if (data.midi)
-                {
-                    clip->midi = std::move(data.events);
-                    if (!clip->midi.empty())
-                        clip->frames = std::uint64_t(clip->midi.back().milliseconds) * 48 + 1;
-                }
-                else
-                {
-                    if (!KauaiAudio::DecodeWave(data.wave.data(), data.wave.size(), clip->sample))
-                        return Fail(error, std::string("Cannot decode movie WAVE audio: ") + SDL_GetError());
-                    clip->frames = clip->sample->stereo.size() / 2;
-                }
+                auto owner = std::make_unique<AudioOwner>();
+                owner->clip = clip;
+                if (clip->data.midi_events && !LoadSynth(*owner, error))
+                    return false;
+                const MMMovieAudioServices services = {
+                    owner.get(),
+                    [](void *p) { delete static_cast<AudioOwner *>(p); },
+                    [](void *p, std::size_t index) {
+                        const auto &event = static_cast<AudioOwner *>(p)->clip->midi[index];
+                        return MMMovieAudioEvent{event.milliseconds, event.message};
+                    },
+                    [](void *p, MMU32 message) { static_cast<AudioOwner *>(p)->synth->Message(message); },
+                    [](void *p, float *output, std::size_t frames) {
+                        static_cast<AudioOwner *>(p)->synth->Render(output, frames);
+                    },
+                    [](void *p) { static_cast<AudioOwner *>(p)->synth->Reset(); }};
+                const auto offset = mm_audio_counter(static_cast<MMU32>(offsetFrames),
+                                                     static_cast<MMU32>(offsetFrames >> 32));
+                voice.reset(mm_movie_audio_prepare(&clip->data, &services, offset, cue.volume, cue.loop));
+                if (!voice)
+                    throw std::bad_alloc();
+                owner.release();
+                if (!Open(error))
+                    return false;
             }
-            auto bytes = clip->sample ? clip->sample->stereo.size() * sizeof(float)
-                                      : clip->midi.size() * sizeof(PreviewMidiEvent);
-            if (bytes > 256u * 1024 * 1024)
-                return Fail(error, "A decoded movie sound exceeds the 256 MiB audio budget.");
-            if (cachedBytes + bytes > 256u * 1024 * 1024)
-            {
-                clips.clear();
-                cachedBytes = 0;
-            }
-            cachedBytes += bytes;
-            clips[key] = clip;
         }
-        const auto lane = SoundLane(cue.actorSound, cue.actor, cue.style);
-        std::unique_ptr<AudioVoice> voice;
-        if (clip && clip->frames)
-        {
-            voice.reset(new AudioVoice);
-            voice->clip = clip;
-            voice->volume = std::max(0.f, std::min(1.f, cue.volume / 65536.f));
-            voice->loop = cue.loop;
-            voice->position = offsetFrames;
-            if (voice->loop)
-                voice->position %= clip->frames;
-            else
-                voice->position = std::min(voice->position, clip->frames);
-            if (!clip->midi.empty())
-            {
-                if (bank.empty())
-                {
-                    const auto base = SDL_GetBasePath();
-                    std::ifstream input(std::string(base ? base : "") + "assets/GeneralUserGS.sf2", std::ios::binary);
-                    if (!input)
-                        input.open(MARCUS_MIDI_BANK, std::ios::binary);
-                    bank.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
-                }
-                voice->synth.reset(new KauaiMidi::Synth);
-                if (!voice->synth->Load(bank.data(), bank.size(), 48000))
-                    return Fail(error, "Cannot load the General MIDI instrument bank (assets/GeneralUserGS.sf2).");
-                // Reconstruct controllers, programs and sounding notes on a mid-song seek.
-                std::array<float, 1024> scratch;
-                std::uint64_t position = 0;
-                while (position < voice->position)
-                {
-                    while (voice->event < clip->midi.size() &&
-                           std::uint64_t(clip->midi[voice->event].milliseconds) * 48 <= position)
-                        voice->synth->Message(clip->midi[voice->event++].message);
-                    auto count = std::min<std::uint64_t>(512, voice->position - position);
-                    if (voice->event < clip->midi.size())
-                        count = std::min(count, std::uint64_t(clip->midi[voice->event].milliseconds) * 48 - position);
-                    voice->synth->Render(scratch.data(), static_cast<std::size_t>(count));
-                    position += count;
-                }
-            }
-            if (!Open(error))
-                return false;
-        }
+        const auto lane = mm_movie_audio_lane(cue.actorSound, cue.actor, cue.style);
         std::lock_guard<std::mutex> lock(mutex);
-        auto &queue = queues[lane];
-        while (!queue.empty() && queue.front()->position >= queue.front()->clip->frames)
-            queue.pop_front();
-        if (voice && voice->synth)
-            for (const auto &existing : queue)
-                if (existing->clip->identity == clip->identity && existing->position < existing->clip->frames)
-                    return true;
-        if (!cue.queue || !clip || !clip->frames)
-            queue.clear();
-        if (voice)
-        {
-            if (voice->synth)
-                ++stats.midi_sounds;
-            else
-                ++stats.wave_sounds;
-            queue.push_back(std::move(voice));
-        }
+        if (!mm_movie_audio_submit(mixer.get(), lane, cue.queue, voice.release()))
+            throw std::bad_alloc();
         return true;
     }
 };
@@ -940,11 +850,11 @@ void MarcusPlayback::Mute(bool muted)
 }
 void MarcusPlayback::SetTrackMix(bool actorSound, long actor, long style, bool muted, bool solo)
 {
-    impl->audio.SetTrackMix(SoundLane(actorSound, actor, style), muted, solo);
+    impl->audio.SetTrackMix(mm_movie_audio_lane(actorSound, static_cast<MMI32>(actor), static_cast<MMI32>(style)), muted, solo);
 }
 void MarcusPlayback::TrackMix(bool actorSound, long actor, long style, int &muted, int &solo, int &audible) const
 {
-    impl->audio.TrackMix(SoundLane(actorSound, actor, style), muted, solo, audible);
+    impl->audio.TrackMix(mm_movie_audio_lane(actorSound, static_cast<MMI32>(actor), static_cast<MMI32>(style)), muted, solo, audible);
 }
 void MarcusPlayback::ResetMix()
 {

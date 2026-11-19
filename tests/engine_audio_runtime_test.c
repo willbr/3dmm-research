@@ -3,6 +3,7 @@
 #include "mm/sound_queue.h"
 #include "mm/sound_manager.h"
 #include "mm/midi_mix.h"
+#include "mm/movie_audio.h"
 #include <assert.h>
 #include <float.h>
 #include <stdio.h>
@@ -159,6 +160,105 @@ static void mixer(void)
     mm_audio_mixer_dispose(&m);
     assert(f.live == 0);
 }
+static void movie_release(void *p)
+{
+    ++((Fixture *)p)->releases;
+}
+
+static MMMovieAudioEvent movie_event(void *p, size_t index)
+{
+    static const MMMovieAudioEvent events[] = {{0, 0x00643c90UL}, {1, 0x00003c80UL}};
+    (void)p;
+    return events[index];
+}
+
+static void movie_render(void *p, float *out, size_t frames)
+{
+    ((Fixture *)p)->current += (MMI32)frames;
+    render(p, out, frames);
+}
+
+static void movie_mixer(void)
+{
+    static const float samples[] = {.75f, -.75f, .5f, -.5f};
+    const MMMovieAudioClip wave = {0, 1, 3, samples, 2, 0};
+    const MMMovieAudioClip midi_clip = {0, 2, 3, NULL, 0, 2};
+    const MMAudioCounter zero = {0, 0}, wide = {1, 1}, seek = {48, 0};
+    MMMovieAudioServices services;
+    MMMovieAudioVoice *voice;
+    MMMovieAudioStats stats;
+    MMMovieAudio *audio;
+    MMAudioCounter scene, actor, music;
+    Fixture pcm, midi, duplicate;
+    float out[4];
+    int muted, solo, audible;
+    memset(&pcm, 0, sizeof(pcm));
+    memset(&midi, 0, sizeof(midi));
+    memset(&duplicate, 0, sizeof(duplicate));
+    memset(&services, 0, sizeof(services));
+    services.owner = &pcm;
+    services.release = movie_release;
+    audio = mm_movie_audio_create();
+    assert(audio);
+    scene = mm_movie_audio_lane(0, 0, 3);
+    actor = mm_movie_audio_lane(1, 0, 3);
+    music = mm_movie_audio_lane(0, 0, 4);
+    assert(mm_audio_count_compare(actor, scene) > 0);
+    voice = mm_movie_audio_prepare(&wave, &services, zero, 65536, 0);
+    assert(voice && mm_movie_audio_submit(audio, scene, 0, voice));
+    voice = mm_movie_audio_prepare(&wave, &services, wide, 32768, 1);
+    assert(voice && mm_movie_audio_submit(audio, scene, 1, voice));
+    voice = mm_movie_audio_prepare(&wave, &services, zero, 65536, 0);
+    assert(voice && mm_movie_audio_submit(audio, actor, 0, voice));
+    assert(mm_movie_audio_pending(audio));
+    mm_movie_audio_render(audio, out, 1);
+    assert(out[0] == 0 && out[1] == 0);
+    mm_movie_audio_suspend(audio, 0);
+    mm_movie_audio_render(audio, out, 1);
+    assert(out[0] == 1 && out[1] == -1);
+    assert(mm_movie_audio_set_mix(audio, scene, 0, 1));
+    mm_movie_audio_track_mix(audio, actor, &muted, &solo, &audible);
+    assert(!muted && !solo && !audible);
+    mm_movie_audio_render(audio, out, 2);
+    assert(out[0] == .5f && out[1] == -.5f && out[2] == .25f && out[3] == -.25f);
+    assert(!mm_movie_audio_pending(audio));
+    mm_movie_audio_mute(audio, 1);
+    mm_movie_audio_render(audio, out, 1);
+    assert(out[0] == 0 && out[1] == 0);
+    mm_movie_audio_cut(audio);
+    mm_movie_audio_collect(audio);
+    assert(pcm.releases == 3 && mm_movie_audio_mix_active(audio));
+    mm_movie_audio_stats(audio, &stats);
+    assert(stats.wave_sounds == 3 && stats.rendered_frames == 5 && stats.audible_frames == 3);
+    mm_movie_audio_reset_mix(audio);
+    mm_movie_audio_mute(audio, 0);
+    assert(!mm_movie_audio_mix_active(audio));
+
+    services.owner = &midi;
+    services.event = movie_event;
+    services.message = message;
+    services.render = movie_render;
+    services.reset = reset;
+    voice = mm_movie_audio_prepare(&midi_clip, &services, seek, 65536, 1);
+    assert(voice && midi.messages == 1 && midi.current == 48);
+    assert(mm_movie_audio_submit(audio, music, 0, voice));
+    services.owner = &duplicate;
+    voice = mm_movie_audio_prepare(&midi_clip, &services, zero, 65536, 1);
+    assert(voice && mm_movie_audio_submit(audio, music, 0, voice));
+    assert(duplicate.releases == 1 && midi.releases == 0);
+    mm_movie_audio_cut(audio);
+    mm_movie_audio_render(audio, out, 2);
+    assert(out[0] == .5f && out[2] == .5f && midi.messages == 3 && midi.resets == 1 && midi.current == 50);
+    assert(!mm_movie_audio_pending(audio) && midi.releases == 0);
+    assert(mm_movie_audio_set_mix(audio, music, 1, 1));
+    mm_movie_audio_clear(audio);
+    mm_movie_audio_track_mix(audio, music, &muted, &solo, &audible);
+    assert(midi.releases == 1 && muted && solo && !audible);
+    mm_movie_audio_stats(audio, &stats);
+    assert(stats.midi_sounds == 1 && stats.rendered_frames == 7 && stats.audible_frames == 5);
+    mm_movie_audio_destroy(audio);
+}
+
 static void midi(void)
 {
     Fixture f;
@@ -539,6 +639,7 @@ int main(void)
 {
     arithmetic();
     mixer();
+    movie_mixer();
     midi();
     queue();
     dispatch();

@@ -180,6 +180,19 @@ static void complete(MMAudioMixer *m, Playing *p)
         m->completed = mm_audio_count_add(m->completed, mm_audio_counter(1, 0));
     }
 }
+void mm_audio_mix_stereo(float *out, const float *in, size_t frames, float volume)
+{
+    size_t i;
+    for (i = 0; i < frames * 2; ++i)
+        out[i] += in[i] * volume;
+}
+void mm_audio_clip_stereo(float *out, size_t frames)
+{
+    size_t i;
+    /* Match std::max(-1, std::min(1, value)), including NaN's result of +1. */
+    for (i = 0; i < frames * 2; ++i)
+        out[i] = out[i] < 1 ? (out[i] < -1 ? -1 : out[i]) : 1;
+}
 void mm_audio_mixer_render(MMAudioMixer *m, float *out, size_t frames)
 {
     MMAudioQueue *q;
@@ -219,8 +232,7 @@ void mm_audio_mixer_render(MMAudioMixer *m, float *out, size_t frames)
             position = mm_audio_count_to_size(rest);
             take = frames - offset < count - position ? frames - offset : count - position;
             volume = p->voice.volume * m->volume;
-            for (i = 0; i < take * 2; ++i)
-                out[offset * 2 + i] += p->voice.stereo[position * 2 + i] * volume;
+            mm_audio_mix_stereo(out + offset * 2, p->voice.stereo + position * 2, take, volume);
             p->position = mm_audio_count_add(p->position, mm_audio_count_size(take));
             offset += take;
             loops = mm_audio_count_divide(p->position, mm_audio_count_size(count), NULL);
@@ -232,8 +244,6 @@ void mm_audio_mixer_render(MMAudioMixer *m, float *out, size_t frames)
             }
         }
     }
-    /* Match std::max(-1, std::min(1, value)), including NaN's result of +1. */
-    for (i = 0; i < frames * 2; ++i)
-        out[i] = out[i] < 1 ? (out[i] < -1 ? -1 : out[i]) : 1;
+    mm_audio_clip_stereo(out, frames);
     m->rendered_frames = mm_audio_count_add(m->rendered_frames, mm_audio_count_size(frames));
 }
