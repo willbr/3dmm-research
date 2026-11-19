@@ -1024,6 +1024,9 @@ the movie roll call during insertion and paste. 3D text renames use
 the same roll-call writer and keep existing reference counts. Movie
 content-source registration also uses C89 for VFS alias matching,
 fallback and new IDs, and the source table's native encoding and link.
+C89 also creates movie roots for scene-only archives, links the existing
+scenes in order, and writes the header and event groups for a new scene.
+The Studio and Marcus paths use the same root and scene-header encoders.
 Marcus provides archive access and the host's character conversion.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound

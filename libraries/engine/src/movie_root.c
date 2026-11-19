@@ -37,16 +37,20 @@ int mm_movie_verify_root(MMU32 *number, MMMovieHeader *header, const MMMovieRoot
         *header = decoded;
     return 1;
 }
-int mm_movie_create_root(MMU32 *number, int system, int big, const MMMovieRootServices *s)
+void mm_movie_encode_root(int system, int big, unsigned char bytes[MM_MOVIE_PREFIX_BYTES])
 {
-    unsigned char bytes[8];
-    if (!s->add(s->context, 8, number))
-        return 0;
     put16(bytes, 1, big);
     put16(bytes + 2, (unsigned)system, big);
     put16(bytes + 4, MM_MOVIE_CURRENT_VERSION, big);
     put16(bytes + 6, MM_MOVIE_BACKWARD_VERSION, big);
-    if (s->write(s->context, bytes, 8))
+}
+int mm_movie_create_root(MMU32 *number, int system, int big, const MMMovieRootServices *s)
+{
+    unsigned char bytes[MM_MOVIE_PREFIX_BYTES];
+    if (!s->add(s->context, sizeof(bytes), number))
+        return 0;
+    mm_movie_encode_root(system, big, bytes);
+    if (s->write(s->context, bytes, sizeof(bytes)))
         return 1;
     s->remove(s->context, *number);
     *number = 0xffffffffUL;

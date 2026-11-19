@@ -1,5 +1,7 @@
 #include "mm/movie_title.h"
 #include "mm/movie_root.h"
+#include "mm/movie_archive_edit.h"
+#include "mm/scene_data.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -276,10 +278,168 @@ static void roots(void)
         h.write_fail = 0;
     }
 }
+#define ARCHIVE_MOVIE 0x4d564945UL
+#define ARCHIVE_SCENE 0x5343454eUL
+#define ARCHIVE_FRAMES 0x47474652UL
+#define ARCHIVE_STARTS 0x47475354UL
+
+typedef struct ArchiveHost
+{
+    unsigned char records[6][MM_SCENE_BACKGROUND_GROUP_BYTES];
+    MMU32 lengths[6], adds, linked_scenes, linked_groups, old_groups;
+    int fail_link, rekeyed, titled;
+} ArchiveHost;
+
+static int archive_entry(void *context, MMU32 position, MMChunkEntry *entry)
+{
+    ArchiveHost *host = (ArchiveHost *)context;
+    memset(entry, 0, sizeof(*entry));
+    if (host->adds && position == 0)
+    {
+        entry->type = ARCHIVE_MOVIE;
+        entry->number = 5;
+        entry->child_count = host->linked_scenes + 1;
+    }
+    else
+    {
+        entry->type = ARCHIVE_SCENE;
+        entry->number = position == (host->adds != 0 ? 1U : 0U) ? 7 : 20;
+    }
+    return 1;
+}
+static int archive_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
+{
+    ArchiveHost *host = (ArchiveHost *)context;
+    CHECK(parent == 0 && i <= host->linked_scenes);
+    out->type = i < host->linked_scenes ? ARCHIVE_SCENE : 0x47535420UL;
+    out->number = i == 0 ? 7 : 20;
+    out->slot = i < host->linked_scenes ? i : 23;
+    return 1;
+}
+static MMChunkAccess archive_chunks(void *context)
+{
+    MMChunkAccess access = {NULL, 2, archive_entry, archive_child};
+    access.context = context;
+    if (((ArchiveHost *)context)->adds)
+        ++access.count;
+    return access;
+}
+static int archive_write(void *context, MMU32 offset, const void *data, size_t length)
+{
+    ArchiveHost *host = (ArchiveHost *)context;
+    CHECK(!offset && length == host->lengths[host->adds - 1]);
+    memcpy(host->records[host->adds - 1], data, length);
+    return 1;
+}
+static int archive_add(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
+{
+    ArchiveHost *host = (ArchiveHost *)context;
+    static const MMU32 types[] = {ARCHIVE_MOVIE, ARCHIVE_SCENE, ARCHIVE_FRAMES, ARCHIVE_STARTS,
+                                  ARCHIVE_FRAMES, ARCHIVE_STARTS};
+    static const MMU32 numbers[] = {5, 0, 3, 4, 5, 6};
+    MMU32 index = host->adds++;
+    CHECK(index < 6 && type == types[index] && size <= sizeof(host->records[0]));
+    CHECK((writer == NULL) == (type == ARCHIVE_SCENE));
+    host->lengths[index] = size;
+    *number = numbers[index];
+    if (writer)
+    {
+        writer->context = context;
+        writer->length = size;
+        writer->write_at = archive_write;
+    }
+    return 1;
+}
+static int archive_put(void *context, MMU32 type, MMU32 number, const void *data, MMU32 size)
+{
+    CHECK(type == ARCHIVE_SCENE && number == 0 && size == MM_SCENE_HEADER_BYTES);
+    return archive_write(context, 0, data, size);
+}
+static int archive_title(void *context, MMU32 type, MMU32 number, const MMMovieTitle *title)
+{
+    ArchiveHost *host = (ArchiveHost *)context;
+    CHECK(type == ARCHIVE_SCENE && number == 0 && host->adds == 2);
+    CHECK(title->unit == 2 && title_is(title, "Scene 3"));
+    host->titled = 1;
+    return 1;
+}
+static int archive_rekey(void *context, MMU32 type, MMU32 old, MMU32 number)
+{
+    ArchiveHost *host = (ArchiveHost *)context;
+    CHECK(type == ARCHIVE_SCENE && old == 0 && number == 80 && host->linked_groups == 2);
+    host->rekeyed = 1;
+    return 1;
+}
+static int archive_adopt(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
+{
+    ArchiveHost *host = (ArchiveHost *)context;
+    if (type == ARCHIVE_MOVIE)
+    {
+        CHECK(parent == 5 && child_type == ARCHIVE_SCENE && slot == host->linked_scenes);
+        CHECK(number == (slot == 0 ? 7U : slot == 1 ? 20U : 80U));
+        if (slot == 2)
+            CHECK(host->old_groups == 2);
+        if (host->fail_link && slot == 1)
+            return 0;
+        ++host->linked_scenes;
+    }
+    else
+    {
+        CHECK(type == ARCHIVE_SCENE && parent == (host->rekeyed ? 80U : 0U));
+        CHECK(slot == host->linked_groups % 2 && child_type == (slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES));
+        CHECK(number == 3 + host->linked_groups);
+        ++host->linked_groups;
+    }
+    return 1;
+}
+static void archive_unlink(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
+{
+    ArchiveHost *host = (ArchiveHost *)context;
+    CHECK(type == ARCHIVE_SCENE && parent == 80 && host->linked_groups == 4 && slot == host->old_groups);
+    CHECK(number == 3 + slot && child_type == (slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES));
+    ++host->old_groups;
+}
+
+static void archived_scenes(void)
+{
+    static const unsigned char start_row[] = {
+        0,0,0,1, 0,0,0,4, 0,0,0,2, 0,0,0,0, 'B','K','G','D', 0,0,0,11, 0,0,0,0, 0,0,0,24
+    };
+    ArchiveHost host;
+    MMMovieArchiveEditor editor = {NULL, 2, MM_TEXT_UTF16_LE, 1, NULL, archive_chunks, NULL, archive_add,
+                                   archive_adopt, archive_unlink, archive_put, archive_rekey, archive_title};
+    MMMovieArchiveRoot root = {999, 0};
+    MMMovieHeader header;
+    MMSceneState scene;
+    MMMemoryStream stream;
+    editor.context = &host;
+    memset(&host, 0, sizeof(host));
+    host.fail_link = 1;
+    CHECK(mm_movie_archive_ensure_root(&editor, &root) == MM_MOVIE_SCENE_ARCHIVE_ROOT_LINK);
+    CHECK(root.number == 999 && !root.created && host.linked_scenes == 1);
+    memset(&host, 0, sizeof(host));
+    CHECK(mm_movie_archive_ensure_root(&editor, &root) == MM_MOVIE_SCENE_ARCHIVE_OK);
+    CHECK(root.number == 5 && root.created && host.linked_scenes == 2);
+    CHECK(mm_memory_stream_init(&stream, host.records[0], host.lengths[0]));
+    CHECK(mm_movie_read_header(&stream.stream, &header) == MM_MOVIE_OK && header.big_endian);
+    CHECK(mm_movie_archive_ensure_root(&editor, &root) == MM_MOVIE_SCENE_ARCHIVE_OK);
+    CHECK(!root.created && host.adds == 1 && host.linked_scenes == 2);
+    CHECK(mm_movie_archive_append_scene(&editor, root.number, 20, 2, 11) == MM_MOVIE_SCENE_ARCHIVE_CREATE);
+    CHECK(host.adds == 1);
+    CHECK(mm_movie_archive_append_scene(&editor, root.number, 80, 2, 11) == MM_MOVIE_SCENE_ARCHIVE_OK);
+    CHECK(host.titled && host.rekeyed && host.linked_scenes == 3 && host.adds == 6);
+    CHECK(mm_scene_init(&scene, 2) && mm_memory_stream_init(&stream, host.records[1], host.lengths[1]));
+    CHECK(mm_scene_decode_header(&stream.stream, &scene));
+    CHECK(scene.firstFrame == 1 && scene.lastFrame == 1 && scene.transition == 0);
+    CHECK(host.lengths[5] == MM_SCENE_BACKGROUND_GROUP_BYTES);
+    CHECK(!memcmp(host.records[5] + MM_SCENE_EMPTY_GROUP_BYTES, start_row, sizeof(start_row)));
+}
+
 int main(void)
 {
     titles();
     roots();
+    archived_scenes();
     puts("movie title/root passed");
     return 0;
 }

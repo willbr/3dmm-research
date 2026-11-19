@@ -2,6 +2,7 @@
 #define MM_ENGINE_MOVIE_ARCHIVE_EDIT_H
 #include "chunky_file.h"
 #include "collection_storage.h"
+#include "movie_title.h"
 #include "string_table.h"
 #include "text.h"
 
@@ -10,7 +11,8 @@ extern "C" {
 #endif
 
 /* Operations on a private archive. The host discards it if an edit fails.
- * A read stream and writer borrow storage through the next read and add. */
+ * A read stream and writer borrow storage through the next read and add.
+ * A NULL writer reserves a chunk without a payload write. */
 typedef struct MMMovieArchiveEditor
 {
     void *context;
@@ -22,7 +24,40 @@ typedef struct MMMovieArchiveEditor
     int (*add)(void *, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *);
     int (*adopt)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
     void (*unlink)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
+    int (*put)(void *, MMU32 type, MMU32 number, const void *bytes, MMU32 size);
+    int (*rekey)(void *, MMU32 type, MMU32 number, MMU32 new_number);
+    int (*set_title)(void *, MMU32 type, MMU32 number, const MMMovieTitle *);
 } MMMovieArchiveEditor;
+
+enum MMMovieSceneArchiveResult
+{
+    MM_MOVIE_SCENE_ARCHIVE_OK,
+    MM_MOVIE_SCENE_ARCHIVE_ROOT_WRITE,
+    MM_MOVIE_SCENE_ARCHIVE_ROOT_LINK,
+    MM_MOVIE_SCENE_ARCHIVE_SLOT,
+    MM_MOVIE_SCENE_ARCHIVE_CREATE,
+    MM_MOVIE_SCENE_ARCHIVE_LINK
+};
+
+typedef struct MMMovieArchiveRoot
+{
+    MMU32 number;
+    int created;
+} MMMovieArchiveRoot;
+
+/* Select the first MVIE. If absent, create it and attach existing SCEN
+ * chunks in their original order of chunk numbers. Publish only on success. */
+int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *, MMMovieArchiveRoot *);
+
+/* Append a named one-frame cut scene with the requested background.
+ * Preserve the native allocation order for the initial and final event groups. */
+int mm_movie_archive_append_scene(const MMMovieArchiveEditor *, MMU32 root, MMU32 scene,
+                                  MMI32 source, MMU32 background);
+
+/* Follow the highest child slot of the requested type, or use zero when
+ * there is no matching child. */
+int mm_movie_archive_next_child(const MMChunkAccess *, MMU32 parent_type, MMU32 parent,
+                                 MMU32 type, MMU32 *slot);
 
 enum MMMovieSourceEditResult
 {

@@ -144,6 +144,40 @@ int mm_scene_valid_events(void *group, int big, int start, const MMSceneGroupSer
     }
     return 1;
 }
+static int encode_group_header(int system, int big, MMU32 rows, MMU32 bytes, unsigned char *out)
+{
+    MMCollectionHeader header = {0};
+    header.kind = MM_COLLECTION_GROUP;
+    header.system = system;
+    header.big_endian = big;
+    header.width = MM_SCENE_EVENT_BYTES;
+    header.count = rows;
+    header.bytes = bytes;
+    header.free_count = -1;
+    return mm_collection_header_write(&header, out, MM_SCENE_EMPTY_GROUP_BYTES) == MM_STORAGE_OK;
+}
+int mm_scene_encode_empty_group(int system, int big, unsigned char out[MM_SCENE_EMPTY_GROUP_BYTES])
+{
+    return encode_group_header(system, big, 0, 0, out);
+}
+int mm_scene_encode_background_group(int system, int big, MMI32 frame, MMI32 source,
+                                     MMU32 background, unsigned char out[MM_SCENE_BACKGROUND_GROUP_BYTES])
+{
+    enum { row_bytes = MM_SCENE_EVENT_BYTES + 16 };
+    unsigned char *row;
+    if (!encode_group_header(system, big, 1, row_bytes, out))
+        return 0;
+    row = out + MM_SCENE_EMPTY_GROUP_BYTES;
+    put(row, (MMU32)frame, 4, big);
+    put(row + 4, MM_SCENE_SET_BACKGROUND, 4, big);
+    put(row + 8, (MMU32)source, 4, big);
+    put(row + 12, 0, 4, big);
+    put(row + 16, 0x424b4744UL, 4, big);
+    put(row + 20, background, 4, big);
+    put(row + row_bytes, 0, 4, big);
+    put(row + row_bytes + 4, row_bytes, 4, big);
+    return 1;
+}
 int mm_scene_retarget_start_background(const MMReadStream *stream, MMI32 source, MMU32 background,
                                         MMByteReceiver receive, void *context)
 {

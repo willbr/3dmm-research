@@ -22,6 +22,7 @@ extern "C"
      * deletes an added chunk after write failure, then publishes the nil number.
      * Add failure retains the physical callback's output, with no extra cleanup. */
     int mm_movie_verify_root(MMU32 *number, MMMovieHeader *, const MMMovieRootServices *);
+    void mm_movie_encode_root(int system, int big_endian, unsigned char bytes[MM_MOVIE_PREFIX_BYTES]);
     int mm_movie_create_root(MMU32 *number, int system, int big_endian, const MMMovieRootServices *);
 #ifdef __cplusplus
 }

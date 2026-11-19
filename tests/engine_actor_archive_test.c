@@ -254,7 +254,7 @@ static void rename_rollcall(void)
 {
     RollEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, movie_chunks,
-                                   open_roll, add_roll, adopt_roll, unlink_roll};
+                                   open_roll, add_roll, adopt_roll, unlink_roll, NULL, NULL, NULL};
     MMActorArchiveName name = {{4, 1, 0, 2, MM_TMPL, 19}, "edited", 6, 1};
     MMMovieActor original = {4, 3, 5, 0, MM_TMPL, 1}, other = {6, 2, 5, 1, MM_TMPL, 2}, actor;
     MMCollectionHeader header = {0};

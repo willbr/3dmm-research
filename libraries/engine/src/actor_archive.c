@@ -22,26 +22,6 @@ typedef struct SoundLink
     MMU32 source, copied, slot;
 } SoundLink;
 
-/* The next slot follows the highest slot of the requested type. */
-static int next_child_slot(const MMChunkAccess *chunks, MMU32 parent_type, MMU32 parent,
-                           MMU32 type, MMU32 *slot)
-{
-    MMChunkChild child;
-    MMU32 position, i, next;
-    next = 0;
-    if (mm_chunk_find(chunks, parent_type, parent, &position) == MM_CHUNK_OK)
-        for (i = 0; mm_chunk_child_at(chunks, position, i, &child) == MM_CHUNK_OK; ++i)
-            if (child.type == type)
-            {
-                if (child.slot >= 0x7fffffffUL)
-                    return 0;
-                if (child.slot >= next)
-                    next = child.slot + 1;
-            }
-    *slot = next;
-    return 1;
-}
-
 static int shift_frame(MMI32 *frame, MMWide delta)
 {
     MMWide shifted;
@@ -69,7 +49,7 @@ static int embed(const MMActorArchiveHost *host, MMU32 parent_type, MMU32 parent
     if (!host->copy_asset(host->context, type, source, copied))
         return MM_ACTOR_ARCHIVE_COPY_ASSET;
     chunks = host->destination_chunks(host->context);
-    if (!next_child_slot(&chunks, parent_type, parent, type, slot))
+    if (!mm_movie_archive_next_child(&chunks, parent_type, parent, type, slot))
         return MM_ACTOR_ARCHIVE_SLOT;
     if (!host->adopt(host->context, parent_type, parent, type, *copied, *slot))
         return parent_type == SCENE_TYPE ? MM_ACTOR_ARCHIVE_ADOPT_SOUND : MM_ACTOR_ARCHIVE_ADOPT_ASSET;
@@ -288,7 +268,7 @@ static int register_scene(const MMMovieArchiveEditor *editor, const MMActorArchi
     int result;
     scene = placement->scene;
     chunks = editor->chunks(editor->context);
-    if (!next_child_slot(&chunks, SCENE_TYPE, scene, ACTOR_TYPE, &slot))
+    if (!mm_movie_archive_next_child(&chunks, SCENE_TYPE, scene, ACTOR_TYPE, &slot))
         return MM_ACTOR_REGISTER_SLOT;
     if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, 1, START_TYPE, &previous) != MM_CHUNK_OK ||
         !editor->read(editor->context, START_TYPE, previous, &stream))

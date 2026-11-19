@@ -247,7 +247,7 @@ static void source_row(const MMMovieSourceTable *table, MMU32 index, MMI32 id, c
 static void register_source(void)
 {
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink};
+                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL};
     SourceEdit edit = {0};
     MMMemoryStream saved;
     MMMovieSourceTable table;

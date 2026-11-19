@@ -14579,3 +14579,49 @@ images in the edited scene. Full captures still show pixel and mixed
 PCM differences. Marcus playback timing remains inconclusive. The
 capture database is at `tmp/c89-sound-schedule/capture/playback.sqlite`.
 The probe, native output and test logs are in `tmp/c89-source-register`.
+
+## Marcus movie roots and scene creation in C89 (19 November 2026)
+
+Marcus uses C89 to select or create the movie root, attach existing
+scene-only chunks in chunk-number order, choose the next scene slot,
+and write the new scene's title, header, and background event. Studio and
+Marcus share the movie-root and scene-header encoders. The archive
+adapter supplies chunk allocation, payload writes, rekeying, title
+storage, and link primitives.
+
+The C regression exercises sparse scene numbers, a failed root-link
+write, a non-scene link with a higher slot, a rekeyed scene, and the
+big-endian background event layout. All 21 selected checks passed.
+The standalone C-only Release build passed the movie root, portable
+movie, and strict C89 checks. A headless probe appended a scene
+to the actor-audio fixture, saved it, undid the edit, and reopened the
+saved movie. It also created and saved a fresh movie with two scenes.
+Both outputs are byte-identical to their pre-change counterparts.
+
+In suite `20261119T041320Z-d5458099`, all six runs of the appended movie
+completed. Retail, SDL Studio and Marcus agreed on all 61 recorded frame
+positions in seek and playback. The newly appended scene's seek image
+matched retail in both ports. Full captures show pixel and mixed PCM
+differences, and Marcus playback timing remains inconclusive.
+
+Marcus captured both frames of the actor-free, two-scene movie in
+both modes. The retail bridge reported `native_object_not_ready`.
+SDL Studio reported no scenes in seek and `scene_out_of_range` in
+playback. These results leave the actor-free movie's cross-player
+coverage incomplete.
+
+Adding one stock actor to the fresh movie produced a save that all
+three players opened in seek and playback in suite
+`20261119T041622Z-2d39d972`. All six runs agreed on both frame
+positions. Both ports matched the retail seek image of the second
+scene. The first scene's seek image differed, and continuous pixel
+comparison remained inconclusive.
+
+For diagnosis, adding only an empty roll-call GST to a copy of the
+actor-free movie let all three players open it. All three seek runs
+in suite `20261119T041832Z-67338f89` agreed on both frame positions
+and both decoded images.
+
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The native outputs,
+probe and test logs are in `tmp/c89-scene-archive`.

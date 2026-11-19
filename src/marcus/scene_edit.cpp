@@ -83,6 +83,7 @@ struct MovieArchiveHost
             },
             [](void *value, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer) -> int {
                 auto &io = *static_cast<MovieArchiveHost *>(value);
+                if (!writer) return io.file->FAdd(bytes, type, number);
                 if (!io.file->FAdd(bytes, type, number, &io.output)) return false;
                 *writer = {&io.output, bytes, [](void *block, MMU32 offset, const void *data, size_t count) -> int {
                     return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), count, offset);
@@ -94,6 +95,19 @@ struct MovieArchiveHost
             },
             [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) {
                 static_cast<MovieArchiveHost *>(value)->file->DeleteChild(type, parent, childType, child, slot);
+            },
+            [](void *value, MMU32 type, MMU32 number, const void *bytes, MMU32 size) -> int {
+                return static_cast<MovieArchiveHost *>(value)->file->FPutPv(const_cast<void *>(bytes), size, type, number);
+            },
+            [](void *value, MMU32 type, MMU32 number, MMU32 newNumber) -> int {
+                auto file = static_cast<MovieArchiveHost *>(value)->file;
+                file->Move(type, number, type, newNumber);
+                return file->FFind(type, newNumber);
+            },
+            [](void *value, MMU32 type, MMU32 number, const MMMovieTitle *title) -> int {
+                String name;
+                name.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(title))), title->count);
+                return static_cast<MovieArchiveHost *>(value)->file->FSetName(type, number, &name);
             }
         };
     }
@@ -123,45 +137,41 @@ static LegacyLong MovieSource(PChunkyFile file, ChunkNumber movie, LegacyLong fa
 static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource)
 { return MovieSource(file, movie, fallbackSource, nullptr); }
 
-static void ApplyNewScene(PChunkyFile file, const MM::PreviewSceneDefinition &definition, int ordinal, bool emptyMovie)
+static void CheckSceneArchive(int status)
 {
-    ChunkIdentification root;
-    const bool hadRoot = file->FGetCkiCtg(kctgMvie, 0, &root);
-    if (!hadRoot)
-    {
-        root.ctg = kctgMvie;
-        Require(MovieData::FCreateRoot(file, &root.cno), "Cannot create the movie header.");
-        // Headless scene-only inputs retain their original ordered scene list.
-        ChunkIdentification existing;
-        for (LegacyLong index = 0; file->FGetCkiCtg(kctgScen, index, &existing); ++index)
-            Require(file->FAdoptChild(kctgMvie, root.cno, kctgScen, existing.cno, index), "Cannot retain an existing scene.");
-    }
-    ChildChunkID slot = 0;
-    ChildChunkIdentification child;
-    for (LegacyLong index = 0; file->FGetKid(kctgMvie, root.cno, index, &child); ++index)
-        if (child.cki.ctg == kctgScen)
-        {
-            Require(child.chid < 0x7fffffffUL, "This movie has no available scene slots.");
-            slot = std::max(slot, child.chid + 1);
-        }
-    const auto sourceId = RetailSource(file, root.cno, hadRoot || emptyMovie ? 2 : 1);
-    SceneData scene;
-    scene.firstFrame = scene.lastFrame = scene.currentFrame = 1;
-    scene.transition = transCut;
-    String name;
-    const auto label = "Scene " + std::to_string(ordinal);
-    name.SetSzs(const_cast<char *>(label.c_str()));
-    scene.SetName(&name);
-    ChunkNumber number;
-    std::unique_ptr<GeneralGroup, Release> starts(GeneralGroup::PggNew(sizeof(SceneEvent)));
-    std::unique_ptr<GeneralGroup, Release> frames(GeneralGroup::PggNew(sizeof(SceneEvent)));
-    TAGOnFile tag = {sourceId, 0, kctgBkgd, definition.background};
-    SceneEvent event = {1, sevtSetBkgd};
-    Require(!file->FFind(kctgScen, definition.number) && starts && frames &&
-            starts->FInsert(0, sizeof(tag), &tag, &event) && scene.FCreate(file, &number), "Cannot create the new scene.");
-    if (number != definition.number) { file->Move(kctgScen, number, kctgScen, definition.number); number = definition.number; }
-    Require(SceneData::FWriteEvents(file, number, frames.get(), starts.get()) &&
-            file->FAdoptChild(kctgMvie, root.cno, kctgScen, number, slot), "Cannot add the new scene to the movie.");
+    static const char *const messages[] = {
+        nullptr,
+        "Cannot create the movie header.",
+        "Cannot retain the movie's scene order.",
+        "This movie has no available scene slots.",
+        "Cannot create the new scene.",
+        "Cannot add the new scene to the movie."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_MOVIE_SCENE_ARCHIVE_LINK + 1, "scene diagnostics");
+    Require(status == MM_MOVIE_SCENE_ARCHIVE_OK, messages[status]);
+}
+
+static MMMovieArchiveRoot EnsureMovieRoot(const MMMovieArchiveEditor &editor)
+{
+    MMMovieArchiveRoot root;
+    CheckSceneArchive(mm_movie_archive_ensure_root(&editor, &root));
+    return root;
+}
+
+static MMMovieArchiveRoot EnsureMovieRoot(PChunkyFile file)
+{
+    MovieArchiveHost host{file, {}, {}};
+    return EnsureMovieRoot(host.Editor());
+}
+
+static void ApplyNewScene(PChunkyFile file, const MM::PreviewSceneDefinition &definition, bool emptyMovie)
+{
+    MovieArchiveHost host{file, {}, {}};
+    const auto editor = host.Editor();
+    const auto root = EnsureMovieRoot(editor);
+    const auto source = RetailSource(file, root.number, root.created && !emptyMovie ? 1 : 2);
+    CheckSceneArchive(mm_movie_archive_append_scene(&editor, root.number, definition.number, source,
+                                                    definition.background));
 }
 struct SceneFrameEvents
 {
@@ -314,17 +324,8 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
     SceneData scene;
     Require(scene.FRead(file, sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
             "The prop insertion frame is outside this scene.");
-    ChunkIdentification root;
-    const bool hadRoot = file->FGetCkiCtg(kctgMvie, 0, &root);
-    if (!hadRoot)
-    {
-        root.ctg = kctgMvie;
-        Require(MovieData::FCreateRoot(file, &root.cno), "Cannot create the movie header.");
-        ChunkIdentification existing;
-        for (LegacyLong index = 0; file->FGetCkiCtg(kctgScen, index, &existing); ++index)
-            Require(file->FAdoptChild(kctgMvie, root.cno, kctgScen, existing.cno, index), "Cannot retain an existing scene.");
-    }
-    const auto sourceId = RetailSource(file, root.cno, hadRoot ? 2 : 1);
+    const auto root = EnsureMovieRoot(file);
+    const auto sourceId = RetailSource(file, root.number, root.created ? 1 : 2);
     ChunkNumber templateNumber = prop;
     if (propEdit.file)
     {
@@ -369,7 +370,7 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
             wire->FWrite(&block), "Cannot write the prop track.");
     const MMActorArchivePlacement placement{static_cast<MMU32>(sceneNumber), actorNumber, scene.firstFrame,
                                             frame == scene.firstFrame};
-    UpdateActorListing(file, root.cno, &placement, header, propEdit.file ? MarcusTextAnsi(name) : std::string(name),
+    UpdateActorListing(file, root.number, &placement, header, propEdit.file ? MarcusTextAnsi(name) : std::string(name),
                        propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0);
 }
 
@@ -656,15 +657,7 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     SceneData scene;
     Require(scene.FRead(destination.get(), sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
             "The paste frame is outside the scene.");
-    ChunkIdentification root;
-    const bool hadRoot = destination->FGetCkiCtg(kctgMvie, 0, &root);
-    if (!hadRoot)
-    {
-        Require(MovieData::FCreateRoot(destination.get(), &root.cno), "Cannot create the movie header.");
-        ChunkIdentification existing;
-        for (LegacyLong i = 0; destination->FGetCkiCtg(kctgScen, i, &existing); ++i)
-            Require(destination->FAdoptChild(kctgMvie, root.cno, kctgScen, existing.cno, i), "Cannot retain scene order.");
-    }
+    const auto root = EnsureMovieRoot(destination.get());
     std::map<LegacyLong, LegacyLong> ids;
     const auto sourceId = [&](LegacyLong id) {
         const auto found = ids.find(id);
@@ -672,17 +665,17 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
         const auto entry = std::find_if(clipboard.sources.begin(), clipboard.sources.end(),
             [id](const auto &value) { return value.id == id; });
         Require(entry != clipboard.sources.end(), "The copied object uses an unknown content source.");
-        const auto mapped = MovieSource(destination.get(), root.cno, hadRoot ? 2 : 1, entry->name.c_str());
+        const auto mapped = MovieSource(destination.get(), root.number, root.created ? 1 : 2, entry->name.c_str());
         ids.emplace(id, mapped);
         return mapped;
     };
     // Headless scene-only movies rely on an implicit retail source.
-    if (!hadRoot) RetailSource(destination.get(), root.cno, 1);
+    if (root.created) RetailSource(destination.get(), root.number, 1);
     ActorChunkOnFile header;
     const auto actor = TransferObject(source.get(), clipboard.actor, clipboard.sounds, destination.get(),
         sceneNumber, actorId, static_cast<std::int32_t>(clipboard.frame), static_cast<std::int32_t>(frame), sourceId, header);
     const MMActorArchivePlacement placement{static_cast<MMU32>(sceneNumber), actor, scene.firstFrame, true};
-    UpdateActorListing(destination.get(), root.cno, &placement, header, clipboard.name, clipboard.browserFlags);
+    UpdateActorListing(destination.get(), root.number, &placement, header, clipboard.name, clipboard.browserFlags);
     Require(destination->FSave(kctgSoc), "Cannot save the pasted object.");
     return result;
 }
@@ -1046,17 +1039,8 @@ static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTex
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
     ChunkNumber textTemplate;
     Require(source && source->FCopy(kctgTmpl, 0, file, &textTemplate), "Cannot embed the edited text template.");
-    ChunkIdentification root;
-    const bool hadRoot = file->FGetCkiCtg(kctgMvie, 0, &root);
-    if (!hadRoot)
-    {
-        root.ctg = kctgMvie;
-        Require(MovieData::FCreateRoot(file, &root.cno), "Cannot create the edited movie header.");
-        ChunkIdentification scene;
-        for (LegacyLong i = 0; file->FGetCkiCtg(kctgScen, i, &scene); ++i)
-            Require(file->FAdoptChild(kctgMvie, root.cno, kctgScen, scene.cno, i), "Cannot retain the edited movie's scenes.");
-    }
-    const auto retail = RetailSource(file, root.cno, hadRoot ? 2 : 1);
+    const auto root = EnsureMovieRoot(file);
+    const auto retail = RetailSource(file, root.number, root.created ? 1 : 2);
     DataBlock block; ChildChunkIdentification child;
     if (edit.retailFont)
     {
@@ -1104,7 +1088,7 @@ static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTex
         file->DeleteChild(kctgActr, actorNumber, kctgGgae, child.cki.cno, 0);
         Require(file->FAdoptChild(kctgActr, actorNumber, kctgGgae, number, 0), "Cannot link text appearance events.");
     }
-    UpdateActorListing(file, root.cno, nullptr, header, MarcusTextAnsi(edit.value.text.c_str()), 2, true);
+    UpdateActorListing(file, root.number, nullptr, header, MarcusTextAnsi(edit.value.text.c_str()), 2, true);
 }
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,
@@ -1118,10 +1102,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
     std::unique_ptr<ChunkyFile, Release> file(source.empty() ? ChunkyFile::PcflCreate(&filename, fcflWriteEnable)
                                                          : ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
     Require(bool(file), "Cannot open the movie working file.");
-    ChunkIdentification existing;
-    int ordinal = 1;
-    while (file->FGetCkiCtg(kctgScen, ordinal - 1, &existing)) ++ordinal;
-    for (const auto &scene : *edits.scenes) ApplyNewScene(file.get(), scene, ordinal++, source.empty());
+    for (const auto &scene : *edits.scenes) ApplyNewScene(file.get(), scene, source.empty());
     for (const auto &entry : *edits.storyboards) MarcusEmbedBoard(file.get(), entry.first, entry.second);
     for (const auto &range : ranges) ApplySceneRange(file.get(), range);
     if (!edits.props->empty())

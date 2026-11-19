@@ -12,6 +12,8 @@ extern "C"
     {
         MM_SCENE_HEADER_BYTES = 16,
         MM_SCENE_EVENT_BYTES = 8,
+        MM_SCENE_EMPTY_GROUP_BYTES = 20,
+        MM_SCENE_BACKGROUND_GROUP_BYTES = 52,
         MM_SCENE_TRANSITION_LIMIT = 5
     };
     enum MMSceneEventKind
@@ -63,6 +65,9 @@ extern "C"
      * contents and frame ordering. Byte order describes fixed/variable data, not
      * the already-decoded GG offsets/header. */
     int mm_scene_valid_events(void *group, int big_endian, int start, const MMSceneGroupServices *);
+    int mm_scene_encode_empty_group(int system, int big_endian, unsigned char bytes[MM_SCENE_EMPTY_GROUP_BYTES]);
+    int mm_scene_encode_background_group(int system, int big_endian, MMI32 first_frame, MMI32 source,
+                                         MMU32 background, unsigned char bytes[MM_SCENE_BACKGROUND_GROUP_BYTES]);
     /* Replace every background tag in a decoded start group. Preserve the
      * storage order, other events and the collection's wire byte order. Deliver
      * a complete group only if all rows are valid and a background is present. */
