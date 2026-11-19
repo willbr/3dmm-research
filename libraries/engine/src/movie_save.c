@@ -179,6 +179,8 @@ retry_save:
         s->delete_chunk(file, MM_SAVE_TABLE, sources);
         goto fail_actors;
     }
+    if (old_scene != NIL_NUMBER && s->preserve_scene_materials && !s->preserve_scene_materials(file, old_scene))
+        goto fail_sources;
     if (!mm_chunk_title_write(&s->data->title, file, MM_MOVIE_CHUNK, s->data->movieNumber, &s->titles))
         goto fail_sources;
     if (old_scene != NIL_NUMBER)
@@ -374,6 +376,9 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
     {
         for (ordinal = 0; mm_chunk_type_at(&chunks, types[type], ordinal, &entry, &row) == MM_CHUNK_OK; ++ordinal)
         {
+            /* The graph owns non-loner resources reachable through other chunks. */
+            if (entry.parent_count && !(entry.flags & MM_CHUNK_LONER))
+                continue;
             used = 0;
             for (tag_index = 0; tag_index < tags.count; ++tag_index)
             {

@@ -1056,6 +1056,10 @@ Studio actor saves and scene undo snapshots use C89 to write the ACTR header
 and tracks and attach their embedded templates, costume materials, and scene
 sounds. Costume events store the destination material number and retain the
 material subtree before the old actor is removed.
+C89 also preserves material subtrees that would lose their final parent when
+Studio removes, replaces, or rearranges scenes. Older costume events can then
+resolve the same chunk numbers through edits and undo. Named saves still prune
+unused standalone materials.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

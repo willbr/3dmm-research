@@ -7121,6 +7121,13 @@ and the live event retains its original tag. Reusing a material preserves its
 loner flag. If a newly copied material cannot be adopted, the C89 writer
 discards it. Dropping a failed candidate scene releases its adopted children.
 
+Before a scene is detached, `mm_movie_archive_preserve_scene_materials`
+projects which chunk references will be removed. The preview follows a shared
+child only after accounting for all of its parents. Once the preview succeeds,
+Studio marks the endangered material roots as loners. Their textures remain
+reachable for event tags in older scenes and for scene undo. The save sweep
+can still remove unused loners and leaves graph-owned resources attached.
+
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor
 payloads remain opaque at this layer. Embedded roll-call TAGs own resource

@@ -280,6 +280,8 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         }
         else if (descriptor.deleted)
         {
+            if (s->preserve_scene_materials && !s->preserve_scene_materials(file, descriptor.number))
+                goto done;
             if (descriptor.child != (MMU32)old)
             {
                 scene = s->read_scene(s->context, resources, descriptor.number);

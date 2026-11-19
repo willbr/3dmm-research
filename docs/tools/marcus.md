@@ -2555,6 +2555,18 @@ SDL, and Marcus each reproduced their 60 seek images from the earlier
 successful save and agreed on playback frame order. The mixed PCM differences
 from retail persisted in both ports. Evidence is in `tmp/c89-actor-store/`.
 
+An older two-scene save still relied on one scene to own the other scene's
+costume materials. Deleting the owner used to stop Studio at the surviving
+scene's frame 12 costume change. C89 now retains materials that would lose
+their last parent. Deletion, undo, redo, and save/reopen all retained both
+textures and matched the original frame 12 viewport. Saving after chopping
+the owning scene to one frame also preserved the other scene's costume.
+A separate save after removing the final use of the second texture pruned
+that material and its texture chunk.
+Retail, SDL, and Marcus each reproduced their 30 prior seek images for the
+surviving scene and agreed on playback frame order. Mixed PCM still differed
+from retail in both ports. Evidence is in `tmp/c89-legacy-materials/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

@@ -1,9 +1,12 @@
 #include "mm/movie_archive_edit.h"
 #include "mm/chunk_edit.h"
+#include "mm/chunk_graph.h"
 #include "mm/collections.h"
+#include "mm/material_resource.h"
 #include "mm/movie_root.h"
 #include "mm/scene_data.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 #define MOVIE_TYPE 0x4d564945UL
 #define SCENE_TYPE 0x5343454eUL
@@ -127,6 +130,102 @@ int mm_movie_archive_next_child(const MMChunkAccess *chunks, MMU32 parent_type, 
             }
     *slot = next;
     return 1;
+}
+
+typedef struct SceneMaterialGraph
+{
+    const MMChunkAccess *chunks;
+    int failed;
+} SceneMaterialGraph;
+
+static MMU32 scene_delete_children(void *p, MMU32 type, MMU32 number)
+{
+    SceneMaterialGraph *graph = (SceneMaterialGraph *)p;
+    const MMChunkAccess *chunks = graph->chunks;
+    MMChunkEntry entry;
+    MMU32 row;
+    if (mm_chunk_find(chunks, type, number, &row) == MM_CHUNK_OK && mm_chunk_at(chunks, row, &entry) == MM_CHUNK_OK)
+        return entry.child_count;
+    graph->failed = 1;
+    return 0;
+}
+
+static int scene_delete_child(void *p, MMU32 type, MMU32 number, MMU32 index, MMChunkChild *child)
+{
+    SceneMaterialGraph *graph = (SceneMaterialGraph *)p;
+    const MMChunkAccess *chunks = graph->chunks;
+    MMU32 row;
+    int status = mm_chunk_find(chunks, type, number, &row);
+    if (status == MM_CHUNK_OK)
+    {
+        status = mm_chunk_child_at(chunks, row, index, child);
+        if (status == MM_CHUNK_OK || status == MM_CHUNK_NOT_FOUND)
+            return status == MM_CHUNK_OK;
+    }
+    graph->failed = 1;
+    return 0;
+}
+
+int mm_movie_archive_preserve_scene_materials(const MMChunkAccess *chunks, MMU32 scene,
+                                              const MMStorageAllocator *allocator, void *context,
+                                              void (*keep)(void *, MMU32 material))
+{
+    SceneMaterialGraph source = {NULL, 0};
+    MMChunkGraph graph = {NULL, scene_delete_children, scene_delete_child};
+    MMChunkWalk walk;
+    MMChunkEntry entry;
+    MMChunkChild node;
+    MMU32 row, flags, first_material, kept = 0, *removed;
+    int status, skip = 0, ok = 0;
+    source.chunks = chunks;
+    graph.context = &source;
+    status = mm_chunk_type_at(chunks, MM_MATERIAL_CHUNK, 0, &entry, &first_material);
+    if (status == MM_CHUNK_NOT_FOUND)
+        return 1;
+    if (status != MM_CHUNK_OK || mm_chunk_find(chunks, SCENE_TYPE, scene, &row) != MM_CHUNK_OK ||
+        mm_chunk_at(chunks, row, &entry) != MM_CHUNK_OK || !entry.parent_count)
+        return 0;
+    if ((entry.flags & MM_CHUNK_LONER) || entry.parent_count > 1 || !entry.child_count)
+        return 1;
+    if ((size_t)chunks->count > (size_t)-1 / sizeof(*removed) ||
+        mm_chunk_walk_init(&walk, allocator) != MM_CHUNK_OK)
+        return 0;
+    removed = (MMU32 *)calloc((size_t)chunks->count, sizeof(*removed));
+    if (!removed || mm_chunk_walk_reset(&walk, &graph, SCENE_TYPE, scene) != MM_CHUNK_OK)
+        goto done;
+    /* Preview the same last-reference rule as ChunkyFile::DeleteChild. Follow
+     * a shared node once, if all of its incoming links are being dropped. */
+    while (mm_chunk_walk_next(&walk, skip, &node, NULL, &flags))
+    {
+        skip = 0;
+        if (source.failed || (flags & MM_WALK_ERROR))
+            goto done;
+        if (!(flags & MM_WALK_PRE))
+            continue;
+        if (mm_chunk_find(chunks, node.type, node.number, &row) != MM_CHUNK_OK ||
+            mm_chunk_at(chunks, row, &entry) != MM_CHUNK_OK || removed[row] >= entry.parent_count)
+            goto done;
+        ++removed[row];
+        skip = (entry.flags & MM_CHUNK_LONER) || removed[row] < entry.parent_count || node.type == MM_MATERIAL_CHUNK;
+    }
+    if (source.failed)
+        goto done;
+    for (row = first_material; row < chunks->count; ++row)
+    {
+        if (mm_chunk_at(chunks, row, &entry) != MM_CHUNK_OK)
+            goto done;
+        if (entry.type != MM_MATERIAL_CHUNK)
+            break;
+        if (removed[row] == entry.parent_count && removed[row] && !(entry.flags & MM_CHUNK_LONER))
+            removed[kept++] = entry.number;
+    }
+    for (row = 0; row < kept; ++row)
+        keep(context, removed[row]);
+    ok = 1;
+done:
+    free(removed);
+    mm_chunk_walk_dispose(&walk);
+    return ok;
 }
 
 int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *editor, MMMovieArchiveRoot *out)

@@ -64,6 +64,7 @@ extern "C"
         void *(*read_scene)(void *, void *resources, MMU32 scene);
         int (*start_scene)(void *scene), (*add_actors)(void *scene);
         void (*remove_actors)(void *scene), (*actor_tools)(void *), (*text_tools)(void *);
+        int (*preserve_scene_materials)(void *file, MMU32 scene);
         void (*delete_scene_child)(void *file, MMU32 movie, MMU32 scene, MMU32 child),
             (*change_child)(void *file, MMU32 movie, MMU32 scene, MMU32 old_child, MMU32 new_child);
         int (*write_transition)(void *resources, MMU32 scene, MMI32);

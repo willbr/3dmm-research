@@ -36,6 +36,7 @@ extern "C"
         MMU32 (*scene_number)(void *, void *file, MMI32 index);
         void (*move_child)(void *, void *file, MMI32 from, MMI32 to);
         int (*adopt)(void *, void *file, MMU32 number, MMI32 index);
+        int (*preserve_scene_materials)(void *file, MMU32 scene);
         void (*delete_child)(void *, void *file, MMU32 number, MMI32 index);
         void (*delete_chunk)(void *, void *file, MMU32 number), (*save)(void *file);
         void (*remove_actors)(void *scene), (*add_actors)(void *scene);

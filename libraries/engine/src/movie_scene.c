@@ -290,11 +290,17 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
         return 0;
     }
     scene = s->state->open;
+    number = s->scene_number(s->context, file, index);
+    if (s->preserve_scene_materials && !s->preserve_scene_materials(file, number))
+    {
+        if (old != index)
+            mm_movie_scene_switch(old, s);
+        return 0;
+    }
     s->retain(scene);
     mm_movie_scene_close_open(s);
     s->remove_actors(scene);
     s->release(scene);
-    number = s->scene_number(s->context, file, index);
     s->delete_child(s->context, file, number, index);
     --*s->count;
     mm_movie_scene_move(index, 0, file, s);

@@ -33,7 +33,8 @@ enum
     FIND,
     UNIQUE,
     SCENE_TAGS,
-    PACKAGE
+    PACKAGE,
+    PRESERVE_MATERIALS
 };
 enum
 {
@@ -83,7 +84,7 @@ struct Test
     int purgeAnswer, queries, badChildren, badSoundIndex, badIndex;
     int refs[8], soundExists[8];
     MMU32 soundSlots[8];
-    MMU32 materials[16], templates[16];
+    MMU32 materials[16], templates[16], materialChild;
     int materialCount, templateCount, tossed, deletedChunks, allocations, failAlloc, liveAlloc;
     int sourceActive, sourceReleases, badSourceLifetime;
     int events[512], eventCount, deletedCount;
@@ -609,6 +610,7 @@ static int graph_entry(void *p, MMU32 row, MMChunkEntry *entry)
     {
         entry->type = MM_SAVE_MATERIAL;
         entry->number = t->materials[row];
+        entry->parent_count = entry->number == t->materialChild;
         return 1;
     }
     row -= t->materialCount;
@@ -781,6 +783,13 @@ static void init(Test *t)
     s->allocator.resize = resize;
     s->allocator.release = free_storage;
 }
+static int preserve_scene_materials(void *file, MMU32 scene)
+{
+    Test *t = (Test *)file;
+    return scene == 10 && has(t, MM_SAVE_SCENE, scene, 0) && has(t, MM_SAVE_SCENE, 100, 0) &&
+           succeeds(t, PRESERVE_MATERIALS);
+}
+
 static int autosaving(void)
 {
     Test t;
@@ -818,6 +827,12 @@ static int autosaving(void)
                 }
                 CHECK(!t.liveAlloc);
             }
+    init(&t);
+    t.s.preserve_scene_materials = preserve_scene_materials;
+    t.fail = PRESERVE_MATERIALS;
+    t.left = 1;
+    CHECK(!mm_movie_autosave(0, 0, &t.s) && !t.left && !t.savedCalls && !t.titleCalls);
+    CHECK(has(&t, MM_SAVE_SCENE, 10, 0) && t.childCount == 3 && !t.sourceActive);
     init(&t);
     CHECK(seed_actor(&t, 1, 0) && seed_actor(&t, 2, 1) && seed_actor(&t, 3, 0));
     CHECK(mm_movie_autosave(0, 1, &t.s));
@@ -1072,6 +1087,12 @@ static int collecting(void)
     CHECK(t.tossed == 2 && t.deletedChunks == 2 && !t.liveAlloc);
     CHECK(t.events[0] == DELETE_CHUNK && t.events[1] == CACHE_TOSS && t.events[2] == DELETE_CHUNK &&
           t.events[3] == CACHE_TOSS);
+    init(&t);
+    t.materials[0] = 1;
+    t.materials[1] = 2;
+    t.materialCount = 2;
+    t.materialChild = 2;
+    CHECK(mm_movie_save_assets(&t, &t.s) && t.materialCount == 1 && t.materials[0] == 2 && t.deletedChunks == 1);
     init(&t);
     t.materials[0] = 1;
     t.materialCount = 1;

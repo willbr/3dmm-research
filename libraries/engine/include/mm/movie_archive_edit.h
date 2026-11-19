@@ -122,6 +122,14 @@ int mm_movie_archive_ensure_empty_rollcall(const MMMovieArchiveEditor *);
 int mm_movie_archive_next_child(const MMChunkAccess *, MMU32 parent_type, MMU32 parent,
                                  MMU32 type, MMU32 *slot);
 
+/* Before detaching a scene, keep material subtrees that would lose their last
+ * parent. Older ACTR records and live undo can still refer to these by number.
+ * The callback marks an existing material as a loner without changing index
+ * positions. No flags are published if the deletion preview fails. */
+int mm_movie_archive_preserve_scene_materials(const MMChunkAccess *, MMU32 scene,
+                                              const MMStorageAllocator *, void *context,
+                                              void (*keep)(void *, MMU32 material));
+
 /* Write and adopt the replacement before unlinking the old child. */
 int mm_movie_archive_replace_child(const MMMovieArchiveEditor *, MMU32 parent_type, MMU32 parent,
                                    const MMChunkChild *, int had_child, const unsigned char *, MMU32 bytes);

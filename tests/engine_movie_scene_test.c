@@ -1,5 +1,6 @@
 /* Movie scene-container transactions, retry paths and ownership. */
 #include "mm/movie_scene.h"
+#include "mm/movie_archive_edit.h"
 #include "mm/movie_scene_journal.h"
 #include "mm/scene_runtime.h"
 #include <stdio.h>
@@ -25,7 +26,8 @@ enum
     SEEK,
     CREATE,
     UNDO,
-    ADD_UNDO
+    ADD_UNDO,
+    PRESERVE_MATERIALS
 };
 typedef struct Test Test;
 typedef struct Scene
@@ -58,6 +60,12 @@ static int succeeds(Test *t, int operation)
     }
     --t->failures;
     return 0;
+}
+static int preserve_scene_materials(void *file, MMU32 scene)
+{
+    Test *t = (Test *)file;
+    CHECK(scene == 101 && !t->removes && !t->deletes);
+    return succeeds(t, PRESERVE_MATERIALS);
 }
 static Scene *new_scene(Test *t, int index)
 {
@@ -438,6 +446,12 @@ static int removal(void)
     t.fail = READ;
     t.failures = 1;
     CHECK(!mm_movie_scene_remove(1, &t.s) && t.state.index == 0 && t.reads == 2 && !t.deletes && clean(&t));
+    init(&t, 3, 0);
+    t.s.preserve_scene_materials = preserve_scene_materials;
+    t.fail = PRESERVE_MATERIALS;
+    t.failures = 1;
+    CHECK(!mm_movie_scene_remove(1, &t.s) && t.state.index == 0 && t.count == 3 && !t.removes &&
+          !t.deletes && !t.saves && !t.dirty && clean(&t));
     init(&t, 3, 0);
     t.fail = READ;
     t.failures = 1;
@@ -831,9 +845,67 @@ static int journal(void)
     return 0;
 }
 
+enum { ACTR = 0x41435452, MTRL = 0x4d54524c, SCEN = 0x5343454e };
+typedef struct MaterialGraph
+{
+    MMU32 kept[4], count;
+    int unreadable;
+} MaterialGraph;
+
+static int material_entry(void *p, MMU32 row, MMChunkEntry *entry)
+{
+    static const MMChunkEntry rows[] = {
+        {ACTR, 0, 0, 0, 0, 4, 1, 0}, {ACTR, 1, 0, 0, 0, 2, 1, 0},
+        {ACTR, 2, 0, 0, 0, 1, 2, 0}, {ACTR, 3, 0, 0, 0, 1, 1, 0},
+        {MTRL, 10, 0, 0, 0, 1, 2, 0}, {MTRL, 11, 0, 0, 0, 0, 2, 0},
+        {MTRL, 12, 0, 0, MM_CHUNK_LONER, 0, 1, 0}, {MTRL, 13, 0, 0, 0, 0, 1, 0},
+        {MTRL, 14, 0, 0, 0, 0, 1, 0}, {SCEN, 1, 0, 0, 0, 2, 1, 0},
+        {SCEN, 2, 0, 0, 0, 1, 1, 0}
+    };
+    (void)p;
+    *entry = rows[row];
+    return 1;
+}
+
+static int material_child(void *p, MMU32 row, MMU32 i, MMChunkChild *child)
+{
+    static const MMChunkChild links[][4] = {
+        {{ACTR, 2, 0}, {MTRL, 10, 1}, {MTRL, 11, 2}, {MTRL, 12, 3}},
+        {{ACTR, 2, 0}, {MTRL, 10, 1}}, {{MTRL, 13, 0}}, {{MTRL, 11, 0}},
+        {{MTRL, 14, 0}}, {{0}}, {{0}}, {{0}}, {{0}},
+        {{ACTR, 0, 0}, {ACTR, 1, 1}}, {{ACTR, 3, 0}}
+    };
+    MaterialGraph *graph = (MaterialGraph *)p;
+    if (graph->unreadable && row == 1)
+        return 0;
+    *child = links[row][i];
+    return 1;
+}
+
+static void keep_material(void *p, MMU32 number)
+{
+    MaterialGraph *graph = (MaterialGraph *)p;
+    graph->kept[graph->count++] = number;
+}
+
+static int remove_materials(void)
+{
+    MaterialGraph graph = {{0}, 0, 0};
+    MMChunkAccess chunks = {NULL, 11, material_entry, material_child};
+    chunks.context = &graph;
+    CHECK(mm_movie_archive_preserve_scene_materials(&chunks, 1, NULL, &graph, keep_material));
+    CHECK(graph.count == 2 && graph.kept[0] == 10 && graph.kept[1] == 13);
+    graph.count = 0;
+    CHECK(mm_movie_archive_preserve_scene_materials(&chunks, 2, NULL, &graph, keep_material) && !graph.count);
+    graph.unreadable = 1;
+    CHECK(!mm_movie_archive_preserve_scene_materials(&chunks, 1, NULL, &graph, keep_material) && !graph.count);
+    return 0;
+}
+
 int main(void)
 {
-    if (switching() || insertion() || removal() || undoing() || cursor_operations() || extending() || journal())
+    if (switching() || insertion() || removal() || remove_materials() || undoing() || cursor_operations() ||
+        extending() || journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;
