@@ -52,8 +52,9 @@ int mm_movie_rollcall_name(MMRollCallTable *table, MMI32 id, const void **name, 
 int mm_movie_rollcall_rename(MMI32 id, const void *name, MMU32 count, const MMMovieRollCallServices *s)
 {
     MMRollCallActor row;
-    MMI32 index = mm_movie_rollcall_find(s->table, id, &row);
-    if (index == -1 || !mm_rollcall_table_rename(s->table, (MMU32)index, name, count))
+    MMRollCallTable *table = &s->data->actors;
+    MMI32 index = mm_movie_rollcall_find(table, id, &row);
+    if (index == -1 || !mm_rollcall_table_rename(table, (MMU32)index, name, count))
         return 0;
     s->changed(s->context);
     return 1;
@@ -67,25 +68,27 @@ int mm_movie_rollcall_has(MMRollCallTable *table, MMI32 index, MMU32 flag)
 void mm_movie_rollcall_change_tag(MMI32 id, const MMTag *tag, const MMMovieRollCallServices *s)
 {
     MMRollCallActor row;
-    MMI32 index = mm_movie_rollcall_find(s->table, id, &row);
+    MMRollCallTable *table = &s->data->actors;
+    MMI32 index = mm_movie_rollcall_find(table, id, &row);
     if (index == -1)
     {
         s->diagnostic(s->context, MM_ROLLCALL_NO_ACTOR);
         return;
     }
     set_tag(&row, tag);
-    mm_rollcall_table_set_extra(s->table, (MMU32)index, &row);
+    mm_rollcall_table_set_extra(table, (MMU32)index, &row);
 }
 int mm_movie_rollcall_add(void *actor, const void *name, MMU32 count, const MMMovieRollCallServices *s)
 {
     MMRollCallActor row;
     MMTag old, fresh;
+    MMRollCallTable *table = &s->data->actors;
     MMI32 index, id = s->actor_id(actor);
-    if (!s->table)
+    if (!table->stride)
         return 0;
     if (id != -1)
     {
-        index = mm_movie_rollcall_find(s->table, id, &row);
+        index = mm_movie_rollcall_find(table, id, &row);
         if (index != -1)
         {
             row.data.reference_count = mm_signed_word((MMU32)row.data.reference_count + 1U);
@@ -97,7 +100,7 @@ int mm_movie_rollcall_add(void *actor, const void *name, MMU32 count, const MMMo
                 set_tag(&row, &fresh);
                 s->duplicate_tag(&fresh);
             }
-            mm_rollcall_table_set_extra(s->table, (MMU32)index, &row);
+            mm_rollcall_table_set_extra(table, (MMU32)index, &row);
             s->changed(s->context);
             return 1;
         }
@@ -120,7 +123,7 @@ int mm_movie_rollcall_add(void *actor, const void *name, MMU32 count, const MMMo
     s->actor_tag(actor, &fresh);
     s->open_tag(s->context, &fresh, s->data->resources);
     set_tag(&row, &fresh);
-    if (!name || !mm_rollcall_table_add(s->table, name, count, &row))
+    if (!name || !mm_rollcall_table_add(table, name, count, &row))
     {
         s->close_tag(&fresh);
         return 0;
@@ -132,7 +135,8 @@ void mm_movie_rollcall_remove(void *actor, int delete_last, const MMMovieRollCal
 {
     MMRollCallActor row;
     MMTag tag;
-    MMI32 index = mm_movie_rollcall_find(s->table, s->actor_id(actor), &row);
+    MMRollCallTable *table = &s->data->actors;
+    MMI32 index = mm_movie_rollcall_find(table, s->actor_id(actor), &row);
     if (index == -1)
     {
         s->diagnostic(s->context, MM_ROLLCALL_BAD_REMOVE);
@@ -145,10 +149,10 @@ void mm_movie_rollcall_remove(void *actor, int delete_last, const MMMovieRollCal
     {
         tag = mm_movie_rollcall_tag(&row);
         s->close_tag(&tag);
-        mm_rollcall_table_delete(s->table, (MMU32)index);
+        mm_rollcall_table_delete(table, (MMU32)index);
     }
     else
-        mm_rollcall_table_set_extra(s->table, (MMU32)index, &row);
+        mm_rollcall_table_set_extra(table, (MMU32)index, &row);
     if (row.data.reference_count == 0)
         s->changed(s->context);
 }

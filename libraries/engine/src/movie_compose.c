@@ -183,12 +183,12 @@ static void close_source_row(MMRollCallTable *source, MMU32 index, const MMMovie
 }
 int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
 {
-    MMRollCallTable source, *destination = s->actors;
+    MMRollCallTable source, *destination = &s->data->actors;
     MMRollCallActor row;
     const void *name;
     MMU32 count, appended = 0, i;
     int ok = 0;
-    if (!destination || destination->stride != sizeof(row) + 4 ||
+    if (destination->stride != sizeof(row) + 4 ||
         mm_rollcall_table_init(&source, sizeof(row), destination->unit, destination->encoding,
                                destination->trash_unused, &destination->storage.allocator) != MM_STORAGE_OK)
         return 0;

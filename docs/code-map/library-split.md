@@ -1529,12 +1529,10 @@ converter. Failed reads may leave partial loading state and must be discarded.
 Failed writes restore native offsets and release locks. Mutation failures preserve
 logical rows while allowing successful partial capacity growth.
 
-The temporary native RollCallTable class provides BASE allocation/diagnostics and
-typed String/TAG conversions for existing callers. Its only table state is the C
-record; it has no GST base class or native table-policy implementation. Studio's
-roll-call edits and movie-merge rollback use the same C table. Physical file/text
-conversion services and final facade
-removal remain migration work.
+The C movie state embeds the table and owns its lifetime. Studio's roll-call
+edits, autosave, and movie-merge rollback use that table directly. Native
+services provide file I/O, text conversion, tag operations, and allocation
+diagnostics for its buffers.
 
 `engine-rollcall-storage-test` checks relocating buffers, partial allocation
 failure, rename/delete/extra mutation, both header byte orders, untouched extras,
@@ -7105,6 +7103,10 @@ supplies actor, tag, and notification services.
 Autosave prunes unused actor rows from the typed table. Scene composition
 loads imported rows into a temporary C89 table and transfers their tag
 references to the destination when the merge succeeds.
+The C movie state embeds the live roll-call table. The movie owner initializes
+and disposes it, including tag references, and publishes a replacement only
+after loading succeeds. Native services provide storage allocation, tag
+operations, and archive I/O.
 
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor

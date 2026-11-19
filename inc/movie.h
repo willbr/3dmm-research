@@ -812,7 +812,7 @@ class Movie : public Movie_PAR
     long CmactrMac(void)
     {
         AssertThis(0);
-        return _data.Actors()->IvMac();
+        return _data.actors.count;
     }
     bool FIsPropBrwsIarid(long iarid); // Identify the roll call browser iarids
     bool FIsIaridTdt(long iarid);      // 3d spletter

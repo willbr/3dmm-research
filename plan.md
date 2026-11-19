@@ -187,13 +187,14 @@ priority over the older Project 0-4 ordering wherever they conflict.
   including SID/name lookup, merging, splitting, provider dispatch and GST writes.
   Local/media directory search order also uses C89. Physical filename/drive calls,
   native locale services, UI prompts, engine objects and final callers remain.
-- MovieData's resource/table handles, movie number, actor-ID limit, title and scene count
+- MovieData's resource handle, actor table, movie number, actor-ID limit, title and scene count
   now live in an owning C state. Empty initialization, transactional load/replace,
   save ordering and roll-call tag cleanup/marshalling use C89. Title selection,
   root creation and version-selection/error policy now also use C89; native file
   services and typed caller facades remain to replace. Runtime and wire
   roll-call names/extras, editing buffers, GST loading/translation and serialization
-  now use owning C storage, with a temporary native object/caller adapter.
+  now use owning C storage. The runtime actor table lives directly in the
+  C movie state.
 - Scene metadata and counted names now live in C state. Header read/write,
   event-layout validation, frame/start child replacement, create sequencing and
   failure cleanup use C89. Native file/group adapters and runtime scene-object,
@@ -1047,6 +1048,8 @@ and 3D text replacement.
 Studio autosave prunes the C89 table directly. Scene import reads source rows
 into a temporary C table, appends counted names and adjusted IDs, and closes
 the imported tags if the merge fails.
+The movie state initializes and owns the live C89 table. Studio, headless
+load and save, and the shared transactions use that same embedded table.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

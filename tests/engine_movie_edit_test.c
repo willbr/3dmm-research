@@ -82,7 +82,6 @@ struct Test
     MMMovieEditServices s;
     MMMovieState data;
     MMMovieScenes scenes;
-    MMRollCallTable table;
     Actor actor, fresh, copy;
     Actor *selected, *placement;
     Undo undo;
@@ -473,8 +472,8 @@ static int seed_rollcall(Test *t)
     row.data.reference_count = 1;
     row.data.source_id = 2;
     row.data.template_type = row.data.template_number = 1;
-    return mm_rollcall_table_init(&t->table, sizeof(row), 1, 0x0303, 0, NULL) == MM_STORAGE_OK &&
-           mm_rollcall_table_add(&t->table, "Actor", 5, &row);
+    return mm_rollcall_table_init(&t->data.actors, sizeof(row), 1, 0x0303, 0, NULL) == MM_STORAGE_OK &&
+           mm_rollcall_table_add(&t->data.actors, "Actor", 5, &row);
 }
 static MMI32 actor_id(void *p)
 {
@@ -524,7 +523,6 @@ static void init(Test *t)
     s->scenes = &t->scenes;
     s->rollcall.context = t;
     s->rollcall.data = &t->data;
-    s->rollcall.table = &t->table;
     s->rollcall.actor_id = actor_id;
     s->rollcall.set_actor_id = set_id;
     s->rollcall.actor_tag = actor_tag;
@@ -642,14 +640,14 @@ static int choosing(void)
         {
             CHECK(t.copy.refs == 1 && t.placement == &t.copy && t.selectionCalls == 2 && t.placeCalls == 1 &&
                   !t.entire);
-            CHECK(mm_rollcall_table_extra(&t.table, 0, &row) && row.data.reference_count == 2 &&
+            CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &row) && row.data.reference_count == 2 &&
                   t.rowChanges == 1 && t.invalidates == 1);
             release(t.placement);
             CHECK(!t.copy.refs);
         }
         if (fault == 2)
             CHECK(t.actor.value == 444); /* Core failure keeps its completed prefix. */
-        CHECK(mm_rollcall_table_dispose(&t.table) == MM_STORAGE_OK);
+        CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     }
     for (fault = 0; fault <= 2; ++fault)
     {
@@ -665,13 +663,13 @@ static int choosing(void)
             release(&t.fresh);
             CHECK(!t.fresh.refs);
         }
-        CHECK(mm_rollcall_table_dispose(&t.table) == MM_STORAGE_OK);
+        CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     }
     init(&t);
     CHECK(seed_rollcall(&t));
     t.inScene = 0;
     CHECK(!mm_movie_choose_actor(6, &t.s) && !t.fresh.refs && !t.placeCalls);
-    CHECK(mm_rollcall_table_dispose(&t.table) == MM_STORAGE_OK);
+    CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     return 0;
 }
 static int actor_edits(void)

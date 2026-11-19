@@ -38,7 +38,6 @@ struct Test
 {
     MMMovieState data;
     MMMovieRollCallServices s;
-    MMRollCallTable table;
     int changed, fail_allocation, issue, diagnostics;
     int events[64], eventCount, textCalls, idPublishedLimit;
     Cache source, destination;
@@ -63,7 +62,7 @@ static void release(void *p, void *data, MMU32 size)
 static MMRollCallActor row(Test *t, MMU32 i)
 {
     MMRollCallActor value;
-    if (!mm_rollcall_table_extra(&t->table, i, &value))
+    if (!mm_rollcall_table_extra(&t->data.actors, i, &value))
         abort();
     return value;
 }
@@ -71,7 +70,7 @@ static int named(Test *t, MMU32 i, const void *text, MMU32 count)
 {
     const void *actual;
     MMU32 length;
-    return mm_rollcall_table_name(&t->table, i, &actual, &length) && length == count && !memcmp(actual, text, count);
+    return mm_rollcall_table_name(&t->data.actors, i, &actual, &length) && length == count && !memcmp(actual, text, count);
 }
 static MMI32 actor_id(void *p)
 {
@@ -156,7 +155,7 @@ static void init(Test *t)
     active = t;
     t->source.refs = 10;
     t->destination.refs = 20;
-    if (mm_rollcall_table_init(&t->table, sizeof(MMRollCallActor), 1, 0x0303, 0, &allocator) != MM_STORAGE_OK)
+    if (mm_rollcall_table_init(&t->data.actors, sizeof(MMRollCallActor), 1, 0x0303, 0, &allocator) != MM_STORAGE_OK)
         abort();
     t->data.resources = &t->destination;
     t->data.actorIdLimit = 7;
@@ -168,7 +167,6 @@ static void init(Test *t)
     s = &t->s;
     s->context = t;
     s->data = &t->data;
-    s->table = &t->table;
     s->actor_id = actor_id;
     s->set_actor_id = set_id;
     s->actor_tag = actor_tag;
@@ -186,13 +184,13 @@ static int clean(Test *t)
     MMU32 i;
     MMRollCallActor value;
     MMTag tag;
-    for (i = 0; i < t->table.count; ++i)
+    for (i = 0; i < t->data.actors.count; ++i)
     {
         value = row(t, i);
         tag = mm_movie_rollcall_tag(&value);
         close_tag(&tag);
     }
-    return mm_rollcall_table_dispose(&t->table) == MM_STORAGE_OK && t->source.refs == 10 && t->destination.refs == 20;
+    return mm_rollcall_table_dispose(&t->data.actors) == MM_STORAGE_OK && t->source.refs == 10 && t->destination.refs == 20;
 }
 static int insertion(void)
 {
@@ -205,18 +203,18 @@ static int insertion(void)
         t.actor.text = (flags & 2) != 0;
         CHECK(mm_movie_rollcall_add(&t.actor, "Actor", 5, &t.s));
         CHECK(t.actor.id == 7 && t.data.actorIdLimit == 8 && t.idPublishedLimit == 8 && t.events[0] == SET_ID);
-        CHECK(t.table.count == 1 && named(&t, 0, "Actor", 5) && row(&t, 0).data.reference_count == 1 &&
+        CHECK(t.data.actors.count == 1 && named(&t, 0, "Actor", 5) && row(&t, 0).data.reference_count == 1 &&
               row(&t, 0).data.actor_id == 7);
         CHECK(row(&t, 0).data.browser_flags == ((flags & 1) ? (flags & 2) ? 3U : 1U : 0U));
         CHECK(t.textCalls == !!(flags & 1) && t.changed == 1 && t.destination.refs == 21 && t.source.refs == 10);
-        CHECK(mm_movie_rollcall_has(&t.table, 0, MM_MOVIE_PROP) == !!(flags & 1));
-        CHECK(mm_movie_rollcall_has(&t.table, 0, MM_MOVIE_TEXT) == (flags == 3));
+        CHECK(mm_movie_rollcall_has(&t.data.actors, 0, MM_MOVIE_PROP) == !!(flags & 1));
+        CHECK(mm_movie_rollcall_has(&t.data.actors, 0, MM_MOVIE_TEXT) == (flags == 3));
         CHECK(clean(&t));
     }
     init(&t);
     t.fail_allocation = 1;
     CHECK(!mm_movie_rollcall_add(&t.actor, "Actor", 5, &t.s));
-    CHECK(t.actor.id == 7 && t.data.actorIdLimit == 8 && !t.table.count && !t.changed && t.destination.refs == 20);
+    CHECK(t.actor.id == 7 && t.data.actorIdLimit == 8 && !t.data.actors.count && !t.changed && t.destination.refs == 20);
     CHECK(t.events[t.eventCount - 2] == OPEN && t.events[t.eventCount - 1] == CLOSE && clean(&t));
     init(&t);
     t.actor.id = 99;
@@ -254,17 +252,17 @@ static int queries(void)
     memset(large, 'X', sizeof(large));
     memset(&tag, 0, sizeof(tag));
     tag.number = 404;
-    CHECK(!mm_movie_rollcall_get(&t.table, -1, &id, &name, &count, &refs, &tag));
-    CHECK(!mm_movie_rollcall_get(&t.table, 0, &id, &name, &count, &refs, &tag));
+    CHECK(!mm_movie_rollcall_get(&t.data.actors, -1, &id, &name, &count, &refs, &tag));
+    CHECK(!mm_movie_rollcall_get(&t.data.actors, 0, &id, &name, &count, &refs, &tag));
     CHECK(id == 101 && refs == 202 && count == 303 && name == &id && tag.number == 404);
     CHECK(mm_movie_rollcall_add(&t.actor, "Actor", 5, &t.s));
-    CHECK(mm_movie_rollcall_get(&t.table, 0, &id, &name, &count, &refs, &tag));
+    CHECK(mm_movie_rollcall_get(&t.data.actors, 0, &id, &name, &count, &refs, &tag));
     CHECK(id == 7 && refs == 1 && count == 5 && !memcmp(name, "Actor", count) &&
           tag.cache == &t.destination && t.destination.refs == 21);
     name = &id;
     count = 999;
-    CHECK(!mm_movie_rollcall_name(&t.table, 9, &name, &count) && name == &id && count == 999);
-    CHECK(mm_movie_rollcall_name(&t.table, 7, &name, &count) && count == 5 && !memcmp(name, "Actor", count));
+    CHECK(!mm_movie_rollcall_name(&t.data.actors, 9, &name, &count) && name == &id && count == 999);
+    CHECK(mm_movie_rollcall_name(&t.data.actors, 7, &name, &count) && count == 5 && !memcmp(name, "Actor", count));
     t.fail_allocation = 1;
     CHECK(!mm_movie_rollcall_rename(7, large, sizeof(large), &t.s) && t.changed == 1 && named(&t, 0, "Actor", 5));
     t.fail_allocation = 0;
@@ -293,7 +291,7 @@ static int removal(void)
         CHECK(row(&t, 0).data.reference_count == 1 && t.changed == 2 && !t.eventCount);
         t.eventCount = 0;
         mm_movie_rollcall_remove(&t.actor, erase_last, &t.s);
-        CHECK(t.changed == 3 && t.table.count == (MMU32)!erase_last);
+        CHECK(t.changed == 3 && t.data.actors.count == (MMU32)!erase_last);
         if (erase_last)
             CHECK(t.eventCount == 2 && t.events[0] == CLOSE && t.events[1] == CHANGED);
         else
@@ -302,12 +300,12 @@ static int removal(void)
     }
     init(&t);
     mm_movie_rollcall_remove(&t.actor, 1, &t.s);
-    CHECK(t.issue == MM_ROLLCALL_BAD_REMOVE && t.diagnostics == 1 && !t.table.count && clean(&t));
+    CHECK(t.issue == MM_ROLLCALL_BAD_REMOVE && t.diagnostics == 1 && !t.data.actors.count && clean(&t));
     init(&t);
     CHECK(mm_movie_rollcall_add(&t.actor, "Actor", 5, &t.s));
     value = row(&t, 0);
     value.data.reference_count = 0;
-    CHECK(mm_rollcall_table_set_extra(&t.table, 0, &value));
+    CHECK(mm_rollcall_table_set_extra(&t.data.actors, 0, &value));
     mm_movie_rollcall_remove(&t.actor, 1, &t.s);
     CHECK(t.issue == MM_ROLLCALL_UNDERFLOW && row(&t, 0).data.reference_count == -1 && t.changed == 1 &&
           clean(&t));

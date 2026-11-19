@@ -108,11 +108,11 @@ int mm_movie_save_ensure(void *output, void (*publish)(void *, void *resources),
 }
 static int clean_actors(const MMMovieSaveServices *s)
 {
-    MMRollCallTable *actors = s->actors;
+    MMRollCallTable *actors = &s->data->actors;
     MMRollCallActor row;
     MMU32 i = 0;
     MMTag tag;
-    while (actors && mm_rollcall_table_extra(actors, i, &row))
+    while (mm_rollcall_table_extra(actors, i, &row))
     {
         if (row.data.reference_count == 0)
         {
@@ -169,7 +169,7 @@ retry_save:
     if (clean_rollcall && !clean_actors(s))
         goto fail_scene;
     old_actors = saved_child(file, MM_SAVE_TABLE, 0, s);
-    if (!s->write_rollcall(s->context, file, s->data->movieNumber, s->actors, &actors))
+    if (!s->write_rollcall(s->context, file, s->data->movieNumber, &s->data->actors, &actors))
         goto fail_scene;
     old_sources = saved_child(file, MM_SAVE_TABLE, 1, s);
     if (!s->add_sources(s->context, file, s->source_bytes(s->context), &sources))

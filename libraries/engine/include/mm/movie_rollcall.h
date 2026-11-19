@@ -23,7 +23,6 @@ extern "C"
     {
         void *context;
         MMMovieState *data;
-        MMRollCallTable *table;
         MMI32 (*actor_id)(void *actor);
         void (*set_actor_id)(void *actor, MMI32 id), (*actor_tag)(void *actor, MMTag *);
         int (*is_prop)(void *actor), (*is_text)(void *actor);

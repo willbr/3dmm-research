@@ -2522,6 +2522,18 @@ Retail, SDL Studio, and Marcus matched their previous 60 seek images and
 agreed on the pruned movie's playback frame sequence. Mixed PCM still
 differed from retail in both ports. Evidence is in `tmp/c89-rollcall-compose/`.
 
+The C movie state now embeds the live roll-call table. Edit, autosave, and
+composition resolve the table from that state. The ownership test verifies
+that a failed load leaves the previous table and resource references intact.
+The ownership and roll-call tests passed on x86. Four native movie snapshots
+matched the baseline byte for byte on x64 Debug and Release. An SDL Studio
+prop insertion, undo, redo, save, and reopen matched the previous build's
+actor rows and viewports, with identical payloads and graph metadata across
+all 47 chunks. Retail, SDL Studio, and Marcus each reproduced all 60 seek
+images from their previous runs and agreed on playback frame order. Mixed
+PCM still differed from retail in both ports. Evidence is in
+`tmp/c89-rollcall-owner/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

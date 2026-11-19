@@ -19,25 +19,7 @@ struct MovieFilePrefix
 static_assert(sizeof(MovieFilePrefix) == 8, "MovieFilePrefix on-disk layout drift");
 const ByteOrderMask kbomMfp = 0x55000000;
 
-//
-// Used to keep track of the roll call list of the movie.
-// Runtime form: embeds a full TAG (with runtime pcrf). Size is allowed to
-// grow on x64 — this struct never reaches disk; the GST is marshalled to/from
-// RollCallActorEntryOnFile at the I/O boundary (see _ReadRollCallExtra and
-// the save path).
-//
-struct RollCallActorEntry
-{
-    int32_t arid;
-    int32_t cactRef;
-    uint32_t grfbrws; // browser properties
-    TAG tagTmpl;
-};
-
-typedef RollCallActorEntry *PRollCallActorEntry;
-
-// Wire format for RollCallActorEntry. Fixed at 28 bytes on every architecture
-// because TAGOnFile is fixed-width. This is what lands in the GST on disk.
+// Fixed-width GST actor row used by the compiler and format fixtures.
 struct RollCallActorEntryOnFile
 {
     int32_t arid;
@@ -46,28 +28,6 @@ struct RollCallActorEntryOnFile
     TAGOnFile tagTmpl;
 };
 static_assert(sizeof(RollCallActorEntryOnFile) == 28, "RollCallActorEntryOnFile wire format drift");
-
-const ByteOrderMask kbomMactr = 0xfffc0000;
-
-// Temporary native adapter over C-owned roll-call storage. Table destruction
-// releases storage only; movie transactions own the opened tag references.
-class RollCallTable : public BASE
-{
-    MARKMEM
-    ASSERT
-  public:
-    MMRollCallTable storage;
-    static RollCallTable *New();
-    ~RollCallTable();
-    LegacyLong IvMac() const { return storage.count; }
-    void GetStn(LegacyLong index, PString name);
-    void GetExtra(LegacyLong index, RollCallActorEntry *actor);
-    void PutExtra(LegacyLong index, const RollCallActorEntry *actor);
-    bool FAddStn(PString name, const RollCallActorEntry *actor);
-    bool FPutStn(LegacyLong index, PString name);
-    void Delete(LegacyLong index);
-};
-typedef RollCallTable *PRollCallTable;
 
 // State shared by document/view and headless persistence hosts. The actor
 // table owns opened TAG references; resources is an owned reference as well.
@@ -78,12 +38,12 @@ struct MovieData : MMMovieState
     void SetTitle(PString);
     bool FWriteTitle(PChunkyFile);
     PChunkyResourceFile Resources() const { return static_cast<PChunkyResourceFile>(resources); }
-    PRollCallTable Actors() const { return static_cast<PRollCallTable>(actors); }
     void ReleaseResources();
     ~MovieData();
     MovieData(const MovieData &) = delete;
     MovieData &operator=(const MovieData &) = delete;
     void ClearActors();
+    bool FInitActors();
     bool FInitEmpty();
     bool FLoad(PFilename filename, ChunkNumber number = cnoNil);
     bool FResolveScene(ChildChunkID slot, ChunkNumber *number);
@@ -93,8 +53,6 @@ struct MovieData : MMMovieState
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
     static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
-    static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,
-                              LegacyLong *actorIdLimit = pvNil);
     static bool FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors,
                               MMI32 *limit = nullptr);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written);

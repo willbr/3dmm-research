@@ -69,7 +69,6 @@ struct Test
     MMCompositeMovie composite;
     Object resources[3], thumbs[3], open, read, tags[3];
     List sceneList, movieList, copy;
-    MMRollCallTable destination;
     int fail, failAt, calls[40], events[256], n, badRef;
     int withActors, actorIds[2], adjusted[8], adjustCount;
     int deleted[8], deletedCount, adopted, removedActors, closed, diagnostic[4];
@@ -264,7 +263,7 @@ static void *resize_actors(void *p, void *data, MMU32 before, MMU32 size, int pr
     void *result;
     (void)before;
     (void)priority;
-    if (!t->readingSource && t->fail == APPEND_ACTOR && t->destination.count == (MMU32)t->failAt)
+    if (!t->readingSource && t->fail == APPEND_ACTOR && t->data.actors.count == (MMU32)t->failAt)
         return NULL;
     result = realloc(data, size);
     if (result && fresh)
@@ -478,10 +477,10 @@ static void init(Test *t)
     object(&t->open, t, 13, 1);
     object(&t->read, t, 14, 0);
     actor_allocator.context = t;
-    if (mm_rollcall_table_init(&t->destination, sizeof(MMRollCallActor), 1, 0x0303, 0,
+    if (mm_rollcall_table_init(&t->data.actors, sizeof(MMRollCallActor), 1, 0x0303, 0,
                                &actor_allocator) != MM_STORAGE_OK)
         abort();
-    t->destination.storage.min_grow[0] = 0;
+    t->data.actors.storage.min_grow[0] = 0;
     t->actorIds[0] = 5;
     t->actorIds[1] = 7;
     t->data.resources = &t->resources[0];
@@ -517,7 +516,6 @@ static void init(Test *t)
     s->clone_movie = clone;
     s->delete_movie = delete_root;
     s->read_rollcall = read_table;
-    s->actors = &t->destination;
     s->close_tag = close_tag;
     s->adjust_actor = adjust;
     s->graph.context = t;
@@ -581,14 +579,14 @@ static int cleanup_tags(Test *t)
     MMRollCallActor row;
     MMU32 i;
     CHECK(t->actorBlocks == 2);
-    for (i = 1; i < t->destination.count; ++i)
+    for (i = 1; i < t->data.actors.count; ++i)
     {
-        CHECK(mm_rollcall_table_extra(&t->destination, i, &row));
+        CHECK(mm_rollcall_table_extra(&t->data.actors, i, &row));
         tag = mm_movie_rollcall_tag(&row);
         close_tag(&tag);
     }
     CHECK(!t->tags[0].refs && !t->tags[1].refs && t->tags[2].refs == 1 && !t->badRef && !t->blocks);
-    CHECK(mm_rollcall_table_dispose(&t->destination) == MM_STORAGE_OK && !t->actorBlocks);
+    CHECK(mm_rollcall_table_dispose(&t->data.actors) == MM_STORAGE_OK && !t->actorBlocks);
     return 0;
 }
 static int seed_destination(Test *t)
@@ -598,7 +596,7 @@ static int seed_destination(Test *t)
     row.data.actor_id = 1;
     row.data.reference_count = 2;
     row.cache = &t->tags[2];
-    return mm_rollcall_table_add(&t->destination, "Base", 4, &row);
+    return mm_rollcall_table_add(&t->data.actors, "Base", 4, &row);
 }
 static int adding(void)
 {
@@ -653,10 +651,10 @@ static int merging(void)
         CHECK(seed_destination(&t));
         t.withActors = 1;
         CHECK(mm_movie_compose_merge(10, offset, &t.s));
-        CHECK(t.destination.count == 3 && !t.blocks);
-        CHECK(mm_rollcall_table_extra(&t.destination, 1, &row));
+        CHECK(t.data.actors.count == 3 && !t.blocks);
+        CHECK(mm_rollcall_table_extra(&t.data.actors, 1, &row));
         CHECK(row.data.actor_id == 5 + offset && !row.data.reference_count);
-        CHECK(mm_rollcall_table_name(&t.destination, 1, &name, &count) && count == 144 &&
+        CHECK(mm_rollcall_table_name(&t.data.actors, 1, &name, &count) && count == 144 &&
               ((const char *)name)[143] == 'A');
         CHECK(t.adjustCount == (offset > 0 ? 2 : 0) && t.actorIds[0] == 5 + (offset > 0 ? offset : 0));
         if (offset > 0)
@@ -670,7 +668,7 @@ static int merging(void)
         t.withActors = 1;
         t.fail = APPEND_ACTOR;
         t.failAt = i;
-        CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.destination.count == 1);
+        CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.data.actors.count == 1);
         CHECK(t.tagCloses == 2 && t.closedTags[0] == (i == 1 ? 21 : 20) &&
               t.closedTags[1] == (i == 1 ? 20 : 21) && !t.adjustCount);
         CHECK(!cleanup_tags(&t));
@@ -680,25 +678,25 @@ static int merging(void)
     t.withActors = 1;
     t.fail = ADJUST;
     t.failAt = 2;
-    CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.destination.count == 1 && t.actorIds[0] == 15 &&
+    CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.data.actors.count == 1 && t.actorIds[0] == 15 &&
           t.actorIds[1] == 7);
     CHECK(t.tagCloses == 2 && t.closedTags[0] == 21 && t.closedTags[1] == 20 && !cleanup_tags(&t));
     init(&t);
     CHECK(seed_destination(&t));
     t.withActors = 1;
     t.allocFailAt = 2;
-    CHECK(!mm_movie_compose_merge(10, 10, &t.s) && !t.adjustCount && t.destination.count == 1 && !t.blocks);
+    CHECK(!mm_movie_compose_merge(10, 10, &t.s) && !t.adjustCount && t.data.actors.count == 1 && !t.blocks);
     CHECK(!cleanup_tags(&t));
     init(&t);
     CHECK(seed_destination(&t));
     t.withActors = 1;
     t.allocFailAt = 1;
-    CHECK(mm_movie_compose_merge(10, 10, &t.s) && !t.adjustCount && t.destination.count == 3 && !t.blocks);
+    CHECK(mm_movie_compose_merge(10, 10, &t.s) && !t.adjustCount && t.data.actors.count == 3 && !t.blocks);
     CHECK(!cleanup_tags(&t));
     init(&t);
     CHECK(seed_destination(&t));
     t.fail = READ_TABLE;
-    CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.destination.count == 1 && !t.tagCloses && !cleanup_tags(&t));
+    CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.data.actors.count == 1 && !t.tagCloses && !cleanup_tags(&t));
     return 0;
 }
 static int applying(void)

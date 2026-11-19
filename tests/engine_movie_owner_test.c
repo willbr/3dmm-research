@@ -18,15 +18,10 @@ typedef struct Resource
     Host *host;
     int refs;
 } Resource;
-typedef struct Table
-{
-    Host *host;
-    MMRollCallTable storage;
-} Table;
 struct Host
 {
     char log[512];
-    int used, tables, resources, fail, scenes, previous, persistent;
+    int used, resources, fail, scenes, previous, persistent;
     int open_calls;
     int opening;
     MMU32 root_number;
@@ -40,7 +35,6 @@ enum
     FAIL_OPEN,
     FAIL_VERIFY,
     FAIL_RESOURCE,
-    FAIL_TABLE,
     FAIL_ROOT,
     FAIL_READ,
     FAIL_WRITE,
@@ -168,32 +162,6 @@ static void release_resource(void *p)
         free(r);
     }
 }
-static void *new_table(void *c)
-{
-    Host *h = (Host *)c;
-    Table *t;
-    event(h, 't');
-    if (h->fail == FAIL_TABLE)
-        return NULL;
-    t = (Table *)calloc(1, sizeof(*t));
-    CHECK(t != NULL);
-    t->host = h;
-    CHECK(mm_rollcall_table_init(&t->storage, sizeof(MMRollCallActor), 1, 0x0303, 0, NULL) == MM_STORAGE_OK);
-    ++h->tables;
-    return t;
-}
-static void release_table(void *p)
-{
-    Table *t = (Table *)p;
-    event(t->host, 'T');
-    CHECK(mm_rollcall_table_dispose(&t->storage) == MM_STORAGE_OK);
-    --t->host->tables;
-    free(t);
-}
-static MMRollCallTable *actor_storage(void *p)
-{
-    return &((Table *)p)->storage;
-}
 static void close_actor(void *c, MMRollCallActor *a)
 {
     Host *h = (Host *)c;
@@ -214,25 +182,19 @@ static int root(void *c, void *f, MMU32 *n)
     *n = 7;
     return h->fail != FAIL_ROOT;
 }
-static int read_call(void *c, void *r, MMU32 n, void **out, MMI32 *limit)
+static int read_call(void *c, void *r, MMU32 n, MMRollCallTable *out, MMI32 *limit)
 {
     Host *h = (Host *)c;
-    Table *t;
     MMRollCallActor actor;
     CHECK(n == 7);
     event(h, 'i');
     if (h->fail == FAIL_READ)
-    {
-        *out = NULL;
         return 0;
-    }
-    t = (Table *)new_table(h);
-    CHECK(t != NULL);
     memset(&actor, 0, sizeof(actor));
     actor.cache = r;
-    CHECK(mm_rollcall_table_add(&t->storage, "Actor", 5, &actor));
+    if (!mm_rollcall_table_add(out, "Actor", 5, &actor))
+        return 0;
     ++((Resource *)r)->refs;
-    *out = t;
     *limit = 1;
     return 1;
 }
@@ -251,7 +213,7 @@ static int previous(void *c, void *f, MMU32 n, MMU32 *out)
     *out = 9;
     return h->previous;
 }
-static int write_call(void *c, void *f, MMU32 n, void *table, MMU32 *out)
+static int write_call(void *c, void *f, MMU32 n, MMRollCallTable *table, MMU32 *out)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7 && table);
@@ -286,13 +248,16 @@ static void persist(void *f)
     event(h, 'P');
     ++h->persistent;
 }
+static void *resize_rollcall(void *, void *, MMU32, MMU32, int);
+static void free_rollcall(void *, void *, MMU32);
 static MMMovieOwnerServices owners(Host *h)
 {
     MMMovieOwnerServices s = {
-        NULL,          create,   open_file,  open_session,    new_resource, release_file, release_resource, new_table,
-        release_table, actor_storage, close_actor, file,      root,         read_call,     load_name,
+        NULL, {NULL, resize_rollcall, free_rollcall}, 0x0303, 0,
+        create, open_file, open_session, new_resource, release_file, release_resource,
+        close_actor, file, root, read_call, load_name,
         previous,      write_call, delete_previous, set_name, save,         persist};
-    s.context = h;
+    s.context = s.actor_allocator.context = h;
     return s;
 }
 static void ownership(void)
@@ -300,20 +265,27 @@ static void ownership(void)
     Host h;
     MMMovieState m;
     MMMovieOwnerServices s;
-    void *old_r, *old_t;
+    void *old_r, *old_entries;
+    MMRollCallActor actor;
     MMMovieSession *original;
     MMU32 number = 99;
     int i;
+    const int load_failures[] = {FAIL_OPEN, FAIL_VERIFY, FAIL_RESOURCE, FAIL_READ, FAIL_WIRE};
     memset(&h, 0, sizeof(h));
     h.root_number = 7;
     s = owners(&h);
     mm_movie_state_init(&m);
-    CHECK(m.movieNumber == 0xffffffffUL && !m.resources && !m.actors);
+    CHECK(m.movieNumber == 0xffffffffUL && !m.resources && !m.actors.stride);
     CHECK(!mm_movie_save(&m, &s) && !h.used);
-    CHECK(mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crftb"));
+    CHECK(mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crfb") && m.actors.stride && !h.buffers);
     CHECK(mm_movie_title_set(&m.title, "Old", 3));
     old_r = m.resources;
-    old_t = m.actors;
+    memset(&actor, 0, sizeof(actor));
+    actor.data.actor_id = 2;
+    actor.cache = old_r;
+    CHECK(mm_rollcall_table_add(&m.actors, "Old actor", 9, &actor));
+    ++((Resource *)old_r)->refs;
+    old_entries = m.actors.storage.buffers[1].data;
     m.sceneCount = 5;
     m.actorIdLimit = 42;
     for (i = FAIL_CREATE; i <= FAIL_ROOT; ++i)
@@ -323,31 +295,28 @@ static void ownership(void)
         reset(&h);
         h.fail = i;
         CHECK(!mm_movie_init_empty(&m, &s));
-        CHECK(m.resources == old_r && m.actors == old_t && m.sceneCount == 5 && m.actorIdLimit == 42 && h.tables == 1 &&
-              h.resources == 1);
+        CHECK(m.resources == old_r && m.actors.storage.buffers[1].data == old_entries && m.actors.count == 1 &&
+              m.sceneCount == 5 && m.actorIdLimit == 42 && h.buffers == 2 && h.resources == 1);
         CHECK(m.title.count == 3 && !memcmp(mm_movie_title_text(&m.title), "Old", 3));
         if (i == FAIL_RESOURCE)
-            CHECK(!strcmp(h.log, "crftT"));
-        if (i == FAIL_TABLE)
-            CHECK(!strcmp(h.log, "crftR"));
+            CHECK(!strcmp(h.log, "crf"));
         if (i == FAIL_ROOT)
-            CHECK(!strcmp(h.log, "crftbTR"));
+            CHECK(!strcmp(h.log, "crfbR"));
     }
-    for (i = FAIL_OPEN; i <= FAIL_READ; ++i)
+    for (i = 0; i < (int)(sizeof(load_failures) / sizeof(*load_failures)); ++i)
     {
-        if (i == FAIL_TABLE || i == FAIL_ROOT)
-            continue;
         reset(&h);
-        h.fail = i;
+        h.fail = load_failures[i];
         CHECK(!mm_movie_load(&m, 99, &s));
-        CHECK(m.resources == old_r && m.actors == old_t && h.resources == 1 && h.tables == 1);
+        CHECK(m.resources == old_r && m.actors.storage.buffers[1].data == old_entries && m.actors.count == 1 &&
+              h.resources == 1 && h.buffers == 2 && ((Resource *)old_r)->refs == 2);
         CHECK(m.title.count == 3 && !memcmp(mm_movie_title_text(&m.title), "Old", 3));
     }
     reset(&h);
     h.fail = 0;
     h.scenes = 2;
     CHECK(mm_movie_load(&m, 99, &s) && m.movieNumber == 7 && m.actorIdLimit == 1 && m.sceneCount == 2);
-    CHECK(!strcmp(h.log, "ovrfitnsssTR") && h.resources == 1 && h.tables == 1);
+    CHECK(!strcmp(h.log, "ovrfinsssCRR") && h.resources == 1 && h.buffers == 2);
     h.previous = 1;
     reset(&h);
     CHECK(mm_movie_save(&m, &s) && !strcmp(h.log, "pjdNSP") && h.persistent == 1);
@@ -372,7 +341,7 @@ static void ownership(void)
           mm_movie_session_root(m.session)->number == 11);
     reset(&h);
     mm_movie_state_dispose(&m, &s);
-    CHECK(!strcmp(h.log, "ARTR") && !h.tables && !h.resources && !m.session);
+    CHECK(!strcmp(h.log, "ARR") && !h.buffers && !h.resources && !m.session && !m.actors.stride);
     reset(&h);
     mm_movie_state_dispose(&m, &s);
     CHECK(!h.used);

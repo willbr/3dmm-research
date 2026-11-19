@@ -2197,9 +2197,9 @@ of native StringTable_GST objects. Append/rename/delete/extra updates, dense GST
 loading, text translation and GST serialization use C. Runtime records store
 MMRollCallActor; wire extras remain 28 bytes. Storage mutation/destruction
 does not retain or close tags, preserving movie transaction and edit-rollback
-ownership. A temporary native RollCallTable adapter supplies BASE diagnostics and
-typed conversions for existing callers. Title/root/version and physical services
-remain migration work. See the
+ownership. This capture used a temporary native RollCallTable adapter for BASE
+diagnostics and typed conversions. The movie state has since taken direct ownership
+of the table. See the
 [implementation boundary](../code-map/library-split.md#owning-roll-call-storage).
 
 Thirty-two standalone C checks, forty-five focused native checks and MSVC

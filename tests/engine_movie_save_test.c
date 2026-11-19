@@ -78,7 +78,6 @@ struct Test
     int sourceArchive, sourceCalls, tagCount, sceneTagCalls, failTags, failFrames;
     MMU32 lastSceneTagged;
     MMTag tags[12];
-    MMRollCallTable actors;
     MMU32 closedTags[8], remainingActors[8];
     int tagsClosed, rollcalls;
     int purgeAnswer, queries, badChildren, badSoundIndex, badIndex;
@@ -349,13 +348,13 @@ static int seed_actor(Test *t, MMU32 id, MMI32 refs)
     actor.data.actor_id = (MMI32)id;
     actor.data.template_number = id;
     actor.data.reference_count = refs;
-    return mm_rollcall_table_add(&t->actors, "Actor", 5, &actor);
+    return mm_rollcall_table_add(&t->data.actors, "Actor", 5, &actor);
 }
 static void close_tag(void *p, MMTag *tag)
 {
     Test *t = p;
     t->closedTags[t->tagsClosed] = tag->number;
-    t->remainingActors[t->tagsClosed] = t->actors.count;
+    t->remainingActors[t->tagsClosed] = t->data.actors.count;
     ++t->tagsClosed;
     event(t, CLOSE_TAG);
 }
@@ -697,7 +696,7 @@ static void init(Test *t)
     memset(t, 0, sizeof(*t));
     mm_movie_save_init(&t->state);
     t->data.resources = t;
-    if (mm_rollcall_table_init(&t->actors, sizeof(MMRollCallActor), 1, 0x0303, 0, NULL) != MM_STORAGE_OK)
+    if (mm_rollcall_table_init(&t->data.actors, sizeof(MMRollCallActor), 1, 0x0303, 0, NULL) != MM_STORAGE_OK)
         abort();
     t->data.movieNumber = t->rootNumber = 9;
     t->scenes.open = t;
@@ -744,7 +743,6 @@ static void init(Test *t)
     s->adopt = adopt;
     s->delete_child = delete_child;
     s->delete_chunk = delete_chunk;
-    s->actors = &t->actors;
     s->close_tag = close_tag;
     s->rollcall_changed = rollcall;
     s->write_rollcall = write_actors;
@@ -817,14 +815,14 @@ static int autosaving(void)
     init(&t);
     CHECK(seed_actor(&t, 1, 0) && seed_actor(&t, 2, 1) && seed_actor(&t, 3, 0));
     CHECK(mm_movie_autosave(0, 1, &t.s));
-    CHECK(mm_rollcall_table_extra(&t.actors, 0, &actor) && actor.data.actor_id == 2);
-    CHECK(!t.state.autosaveDirty && t.dirty == 1 && t.actors.count == 1);
+    CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &actor) && actor.data.actor_id == 2);
+    CHECK(!t.state.autosaveDirty && t.dirty == 1 && t.data.actors.count == 1);
     CHECK(t.tagsClosed == 2 && t.rollcalls == 1 && t.childCount == 3 && t.savedCalls == 1);
     CHECK(t.events[1] == CLOSE_TAG && t.events[2] == CLOSE_TAG && t.closedTags[0] == 1 &&
           t.closedTags[1] == 3 && t.remainingActors[0] == 2 && t.remainingActors[1] == 1);
     CHECK(t.updates == 1 && t.lastTitle == 0 && t.begins == t.ends && t.errors == 0);
     CHECK(mm_movie_autosave(0, 1, &t.s) && t.savedCalls == 1 && t.rollcalls == 1);
-    CHECK(mm_rollcall_table_dispose(&t.actors) == MM_STORAGE_OK);
+    CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     init(&t);
     t.scenes.index = 2;
     t.next = 0;
@@ -846,8 +844,8 @@ static int autosaving(void)
     CHECK(seed_actor(&t, 1, 0) && seed_actor(&t, 2, 1));
     t.fail = TITLE;
     t.left = 1;
-    CHECK(!mm_movie_autosave(0, 1, &t.s) && t.actors.count == 1 && t.tagsClosed == 1 && t.childCount == 3);
-    CHECK(mm_rollcall_table_dispose(&t.actors) == MM_STORAGE_OK);
+    CHECK(!mm_movie_autosave(0, 1, &t.s) && t.data.actors.count == 1 && t.tagsClosed == 1 && t.childCount == 3);
+    CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     init(&t);
     t.data.resources = 0;
     CHECK(!mm_movie_autosave(0, 0, &t.s) && !t.begins);

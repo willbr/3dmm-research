@@ -50,7 +50,6 @@ extern "C"
         int (*adopt)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
         void (*delete_child)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
         void (*delete_chunk)(void *file, MMU32 type, MMU32 number);
-        MMRollCallTable *actors;
         void (*close_tag)(void *, MMTag *);
         void (*rollcall_changed)(void *);
         int (*write_rollcall)(void *, void *file, MMU32 root, MMRollCallTable *, MMU32 *);

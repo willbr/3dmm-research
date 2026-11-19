@@ -218,8 +218,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie, root, type, number, slot);
     };
     s.delete_chunk = [](void *p, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(p)->Delete(type, number); };
-    auto actors = _data.Actors();
-    s.actors = actors ? &actors->storage : nullptr;
     s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->_pmcc->UpdateRollCall(); };
     s.write_rollcall = [](void *, void *p, MMU32 root, MMRollCallTable *table, MMU32 *number) -> int {
@@ -368,17 +366,8 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
         goto LFail;
     }
 
-    //
-    // Create DynamicArray of actors in the movie
-    //
-    if (pvNil == pfni)
-    {
-        pmvie->_data.actors = RollCallTable::New();
-        if (pmvie->_data.Actors() == pvNil)
-        {
-            goto LFail;
-        }
-    }
+    if (!pfni && !pmvie->_data.FInitActors())
+        goto LFail;
 
     //
     // Create the brender world
@@ -611,7 +600,8 @@ void Movie::MarkMem(void)
 
     MarkMemObj(static_cast<PFileObject>(_save.file));
 
-    MarkMemObj(_data.Actors());
+    MarkPv(_data.actors.storage.buffers[0].data);
+    MarkPv(_data.actors.storage.buffers[1].data);
 
     MarkMemObj(Pscen());
 
@@ -640,7 +630,9 @@ void Movie::AssertValid(LegacyUlong grf)
     Movie_PAR::AssertValid(fobjAllocated);
 
     AssertNilOrPo(_data.Resources(), 0);
-    AssertPo(_data.Actors(), 0);
+    Assert(_data.actors.stride == sizeof(MMRollCallActor) + 4 &&
+               _data.actors.count <= _data.actors.storage.buffers[1].capacity / _data.actors.stride,
+           "bad movie roll call");
     AssertNilOrPo(Pbwld(), 0);
     AssertPo(&_clok, 0);
     AssertPo(_pmcc, 0);
@@ -668,8 +660,6 @@ MMMovieRollCallServices Movie::_RollCallServices()
     MMMovieRollCallServices s = {};
     s.context = this;
     s.data = &_data;
-    auto actors = _data.Actors();
-    s.table = actors ? &actors->storage : nullptr;
     s.actor_id = [](void *p) -> MMI32 { return static_cast<PActor>(p)->Arid(); };
     s.set_actor_id = [](void *p, MMI32 id) { static_cast<PActor>(p)->SetArid(id); };
     s.actor_tag = [](void *p, MMTag *out) { TAG tag; static_cast<PActor>(p)->GetTagTmpl(&tag); *out = TagToCore(tag); };
@@ -819,12 +809,11 @@ bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG
     AssertThis(0);
     AssertPvCb(parid, size(long));
     AssertVarMem(pcactRef);
-    auto actors = _data.Actors();
     MMI32 id, refs;
     const void *name;
     MMU32 count;
     MMTag tag;
-    if (!actors || !mm_movie_rollcall_get(&actors->storage, iarid, &id, &name, &count, &refs,
+    if (!mm_movie_rollcall_get(&_data.actors, iarid, &id, &name, &count, &refs,
                                         ptagTmpl ? &tag : nullptr))
         return false;
     pstn->SetRgch(const_cast<achar *>(static_cast<const achar *>(name)), count);
@@ -887,10 +876,9 @@ long Movie::AridSelected(void)
 bool Movie::FGetName(long arid, PString pstn)
 {
     AssertThis(0); AssertPo(pstn, 0);
-    auto actors = _data.Actors();
     const void *name;
     MMU32 count;
-    if (!actors || !mm_movie_rollcall_name(&actors->storage, arid, &name, &count))
+    if (!mm_movie_rollcall_name(&_data.actors, arid, &name, &count))
         return false;
     pstn->SetRgch(const_cast<achar *>(static_cast<const achar *>(name)), count);
     return true;
@@ -920,7 +908,7 @@ bool Movie::FNameActr(long arid, PString pstn)
  * Identifies whether the mactr is in prop browser
  *
  * Parameters:
- *   imactr - index in _data.Actors()
+ *   imactr - index in the roll call
  *
  * Returns:
  *	 bool
@@ -928,8 +916,8 @@ bool Movie::FNameActr(long arid, PString pstn)
  ****************************************************/
 bool Movie::FIsPropBrwsIarid(long iarid)
 {
-    AssertThis(0); AssertIn(iarid, 0, _data.Actors()->IvMac());
-    return mm_movie_rollcall_has(&_data.Actors()->storage, iarid, MM_MOVIE_PROP) != 0;
+    AssertThis(0); AssertIn(iarid, 0, _data.actors.count);
+    return mm_movie_rollcall_has(&_data.actors, iarid, MM_MOVIE_PROP) != 0;
 }
 
 /****************************************************
@@ -937,7 +925,7 @@ bool Movie::FIsPropBrwsIarid(long iarid)
  * Identifies whether the mactr is in 3dtext object
  *
  * Parameters:
- *   imactr - index in _data.Actors()
+ *   imactr - index in the roll call
  *
  * Returns:
  *	 bool
@@ -945,8 +933,8 @@ bool Movie::FIsPropBrwsIarid(long iarid)
  ****************************************************/
 bool Movie::FIsIaridTdt(long iarid)
 {
-    AssertThis(0); AssertIn(iarid, 0, _data.Actors()->IvMac());
-    return mm_movie_rollcall_has(&_data.Actors()->storage, iarid, MM_MOVIE_TEXT) != 0;
+    AssertThis(0); AssertIn(iarid, 0, _data.actors.count);
+    return mm_movie_rollcall_has(&_data.actors, iarid, MM_MOVIE_TEXT) != 0;
 }
 
 /****************************************************
@@ -2928,8 +2916,6 @@ MMMovieComposeServices Movie::_ComposeServices()
         }
     };
 #endif
-    auto actors = _data.Actors();
-    s.actors = actors ? &actors->storage : nullptr;
     s.read_rollcall = [](void *p, MMU32 number, MMRollCallTable *table) -> int {
         return MovieData::FLoadRollCall(static_cast<PChunkyResourceFile>(p), number, table);
     };

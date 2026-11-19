@@ -208,14 +208,14 @@ static bool TestMovieCompose()
         auto client = NewObj MovieComposeClient();
         auto movie = client ? Movie::PmvieNew(false, client) : nullptr;
         PChunkyResourceFile resources = nullptr;
-        auto table = RollCallTable::New();
-        ok = movie && table && movie->FEnsureAutosave(&resources);
+        MovieData table;
+        ok = movie && table.FInitActors() && movie->FEnsureAutosave(&resources);
         ChunkNumber root = 0, scenes[2] = {}, actors[2] = {}, gst;
         if (ok)
             ok = MovieData::FCreateRoot(resources->Pcfl(), &root);
         for (int i = 0; ok && i < 2; ++i)
         {
-            RollCallActorEntry row = {i * 3, 1, 1, {123, nullptr, kctgTmpl, ChunkNumber(100 + i)}};
+            MMRollCallActor row = {{i * 3, 1, 123, 1, kctgTmpl, ChunkNumber(100 + i)}, nullptr};
             String name;
             name.SetSzs(i ? PszLit("Second") : PszLit("First"));
             ActorChunkOnFile header = {kboCur, koskCur, {}, i * 3, 1, 1, {123, 0, kctgTmpl, ChunkNumber(100 + i)}};
@@ -223,13 +223,14 @@ static bool TestMovieCompose()
                 SwapBytesBom(&header, kbomActf);
             auto file = resources->Pcfl();
             byte empty = 0;
-            ok = table->FAddStn(&name, &row) && file->FAddPv(&header, sizeof(header), kctgActr, &actors[i]) &&
+            ok = mm_rollcall_table_add(&table.actors, name.Prgch(), name.Cch(), &row) &&
+                 file->FAddPv(&header, sizeof(header), kctgActr, &actors[i]) &&
                  file->FAddChildPv(kctgMvie, root, i, &empty, 1, kctgScen, &scenes[i]);
         }
         if (ok)
         {
             auto file = resources->Pcfl();
-            ok = MovieData::FWriteRollCall(file, root, &table->storage, &gst) &&
+            ok = MovieData::FWriteRollCall(file, root, &table.actors, &gst) &&
                  file->FAdoptChild(kctgScen, scenes[0], kctgActr, actors[0], 0) &&
                  file->FAdoptChild(kctgScen, scenes[1], kctgActr, actors[0], 0) &&
                  file->FAdoptChild(kctgActr, actors[0], kctgActr, actors[1], 0) &&
@@ -255,7 +256,6 @@ static bool TestMovieCompose()
                 ok = ok && record(values, sizeof(values)) && record(name.Psz(), name.Cch() * sizeof(achar));
             }
         }
-        ReleasePpo(&table);
         ReleasePpo(&movie);
         ReleasePpo(&client);
         if (!ok)

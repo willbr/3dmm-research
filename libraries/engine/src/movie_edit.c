@@ -45,7 +45,7 @@ int mm_movie_choose_actor(MMI32 id, const MMMovieEditServices *s)
         s->invalidate(s->context, 0);
         return 1;
     }
-    if (mm_movie_rollcall_find(s->rollcall.table, id, &row) == -1)
+    if (mm_movie_rollcall_find(&s->rollcall.data->actors, id, &row) == -1)
         return 0;
     tag = mm_movie_rollcall_tag(&row);
     actor = s->new_actor(s->context, &tag);

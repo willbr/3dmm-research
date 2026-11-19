@@ -17,13 +17,21 @@ static void close_rows(MMRollCallTable *table, void *context, void (*close_actor
         if (mm_rollcall_table_extra(table, i, &actor))
             close_actor(context, &actor);
 }
+int mm_movie_init_actors(MMMovieState *m, const MMMovieOwnerServices *s)
+{
+    const MMStorageAllocator *allocator = &s->actor_allocator;
+    if (!allocator->resize && !allocator->release)
+        allocator = NULL;
+    return m->actors.stride || mm_rollcall_table_init(&m->actors, sizeof(MMRollCallActor), m->title.unit,
+               s->actor_encoding, s->actor_trash, allocator) == MM_STORAGE_OK;
+}
 void mm_movie_clear_actors(MMMovieState *m, const MMMovieOwnerServices *s)
 {
-    if (!m->actors)
+    if (!m->actors.stride)
         return;
-    close_rows(s->actor_storage(m->actors), s->context, s->close_actor);
-    s->release_table(m->actors);
-    m->actors = NULL;
+    close_rows(&m->actors, s->context, s->close_actor);
+    mm_rollcall_table_dispose(&m->actors);
+    memset(&m->actors, 0, sizeof(m->actors));
 }
 void mm_movie_release_resources(MMMovieState *m, const MMMovieOwnerServices *s)
 {
@@ -44,8 +52,7 @@ static void replace(MMMovieState *m, MMMovieState *fresh, const MMMovieOwnerServ
 {
     mm_movie_state_dispose(m, s);
     *m = *fresh;
-    fresh->resources = fresh->actors = NULL;
-    fresh->session = NULL;
+    mm_movie_state_init(fresh);
 }
 int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
 {
@@ -58,8 +65,8 @@ int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
         return 0;
     fresh.resources = s->new_resources(s->context, file);
     s->release_file(file);
-    fresh.actors = s->new_actors(s->context);
-    if (!fresh.resources || !fresh.actors || !s->create_root(s->context, s->file(fresh.resources), &fresh.movieNumber))
+    if (!fresh.resources || !mm_movie_init_actors(&fresh, s) ||
+        !s->create_root(s->context, s->file(fresh.resources), &fresh.movieNumber))
     {
         mm_movie_state_dispose(&fresh, s);
         return 0;
@@ -89,7 +96,8 @@ int mm_movie_load(MMMovieState *m, MMU32 number, const MMMovieOwnerServices *s)
     }
     s->release_file(file);
     loaded.movieNumber = number;
-    if (!s->read_rollcall(s->context, loaded.resources, number, &loaded.actors, &loaded.actorIdLimit))
+    if (!mm_movie_init_actors(&loaded, s) ||
+        !s->read_rollcall(s->context, loaded.resources, number, &loaded.actors, &loaded.actorIdLimit))
     {
         mm_movie_state_dispose(&loaded, s);
         return 0;
@@ -123,11 +131,11 @@ int mm_movie_save(MMMovieState *m, const MMMovieOwnerServices *s)
     void *file;
     MMU32 previous, written;
     int had;
-    if (!m->resources || !m->actors)
+    if (!m->resources || !m->actors.stride)
         return 0;
     file = s->file(m->resources);
     had = s->previous_rollcall(s->context, file, m->movieNumber, &previous);
-    if (!s->write_rollcall(s->context, file, m->movieNumber, m->actors, &written))
+    if (!s->write_rollcall(s->context, file, m->movieNumber, &m->actors, &written))
         return 0;
     if (had)
         s->delete_previous(s->context, file, m->movieNumber, previous);

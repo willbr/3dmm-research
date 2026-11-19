@@ -4,6 +4,7 @@
 #include "movie_data.h"
 #include "engine_movie_graph.h"
 #include "engine_read_stream.h"
+#include "mm/movie_rollcall.h"
 #include "mm/movie_session.h"
 ASSERTNAME
 
@@ -24,108 +25,31 @@ bool CheckMovieOpen(int result)
     PushErc(result == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
     return false;
 }
-MMRollCallActor CoreActor(const RollCallActorEntry &a)
+TAG ActorTag(const MMRollCallActor &actor)
 {
-    return {{a.arid, a.cactRef, a.tagTmpl.sid, a.grfbrws, a.tagTmpl.ctg, a.tagTmpl.cno},
-            a.tagTmpl.sid == ksidUseCrf ? a.tagTmpl.pcrf : nullptr};
-}
-RollCallActorEntry NativeActor(const MMRollCallActor &a)
-{
-    RollCallActorEntry out = {};
-    out.arid = a.data.actor_id;
-    out.cactRef = a.data.reference_count;
-    out.grfbrws = a.data.browser_flags;
-    out.tagTmpl.sid = a.data.source_id;
-    out.tagTmpl.ctg = a.data.template_type;
-    out.tagTmpl.cno = a.data.template_number;
-    out.tagTmpl.pcrf = static_cast<PChunkyResourceFile>(a.cache);
-    return out;
+    TAG tag;
+    TagFromCore(&tag, mm_movie_rollcall_tag(&actor));
+    return tag;
 }
 void CloseActor(void *, MMRollCallActor *a)
 {
-    auto value = NativeActor(*a);
-    TagManager::CloseTag(&value.tagTmpl);
-    a->cache = value.tagTmpl.pcrf;
-}
-void ReleaseTable(void *p)
-{
-    static_cast<PRollCallTable>(p)->Release();
+    auto tag = ActorTag(*a);
+    TagManager::CloseTag(&tag);
+    a->cache = tag.pcrf;
 }
 } // namespace
-RollCallTable *RollCallTable::New()
-{
-    auto table = NewObj RollCallTable;
-    if (!table)
-        return nullptr;
-    const auto allocator = CollectionAllocator();
-    if (mm_rollcall_table_init(&table->storage, sizeof(MMRollCallActor), sizeof(achar), koskCur,
-#ifdef DEBUG
-                                     1,
-#else
-                                     0,
-#endif
-                                     &allocator) != MM_STORAGE_OK)
-    {
-        ReleasePpo(&table);
-        return nullptr;
-    }
-    return table;
-}
-RollCallTable::~RollCallTable()
-{
-    if (storage.storage.allocator.release)
-        AssertDo(mm_rollcall_table_dispose(&storage) == MM_STORAGE_OK, "invalid roll-call disposal");
-}
-void RollCallTable::GetStn(LegacyLong index, PString name)
-{
-    const void *text;
-    MMU32 count;
-    AssertDo(mm_rollcall_table_name(&storage, index, &text, &count), "bad actor name");
-    name->SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
-}
-void RollCallTable::GetExtra(LegacyLong index, RollCallActorEntry *actor)
-{
-    MMRollCallActor value;
-    AssertDo(mm_rollcall_table_extra(&storage, index, &value), "bad actor row");
-    *actor = NativeActor(value);
-}
-void RollCallTable::PutExtra(LegacyLong index, const RollCallActorEntry *actor)
-{
-    const auto value = CoreActor(*actor);
-    AssertDo(mm_rollcall_table_set_extra(&storage, index, &value), "bad actor row");
-}
-bool RollCallTable::FAddStn(PString name, const RollCallActorEntry *actor)
-{
-    const auto value = CoreActor(*actor);
-    return mm_rollcall_table_add(&storage, name->Prgch(), name->Cch(), &value) != 0;
-}
-bool RollCallTable::FPutStn(LegacyLong index, PString name)
-{
-    return mm_rollcall_table_rename(&storage, index, name->Prgch(), name->Cch()) != 0;
-}
-void RollCallTable::Delete(LegacyLong index)
-{
-    AssertDo(mm_rollcall_table_delete(&storage, index), "bad actor deletion");
-}
-#ifdef DEBUG
-void RollCallTable::AssertValid(LegacyUlong flags)
-{
-    BASE::AssertValid(flags);
-    Assert(storage.stride >= 4 && storage.stride % 4 == 0, "bad roll-call stride");
-    Assert(storage.count <= storage.storage.buffers[1].capacity / storage.stride, "bad roll-call count");
-}
-void RollCallTable::MarkMem()
-{
-    BASE::MarkMem();
-    MarkPv(storage.storage.buffers[0].data);
-    MarkPv(storage.storage.buffers[1].data);
-}
-#endif
 
 MMMovieOwnerServices MovieData::_OwnerServices(void *context)
 {
     return {
         context,
+        CollectionAllocator(),
+        koskCur,
+#ifdef DEBUG
+        1,
+#else
+        0,
+#endif
         [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); },
         [](void *c) -> void * { return ChunkyFile::PcflOpen(static_cast<NativeMovieHost *>(c)->filename, fcflNil); },
         [](void *, void *file, MMU32 *number, MMMovieSession **out) -> int {
@@ -135,22 +59,13 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
         [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
         [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
-        [](void *) -> void * { return RollCallTable::New(); },
-        ReleaseTable,
-        [](void *p) { return &static_cast<PRollCallTable>(p)->storage; },
         CloseActor,
         [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); },
         [](void *, void *file, MMU32 *number) -> int {
             return FCreateRoot(static_cast<PChunkyFile>(file), number);
         },
-        [](void *, void *resources, MMU32 number, void **actors, MMI32 *limit) -> int {
-            PRollCallTable table = nullptr;
-            LegacyLong next = *limit;
-            const bool ok = FReadRollCall(static_cast<PChunkyResourceFile>(resources), number, &table, &next);
-            if (ok)
-                *limit = next;
-            *actors = table;
-            return ok;
+        [](void *, void *resources, MMU32 number, MMRollCallTable *actors, MMI32 *limit) -> int {
+            return FLoadRollCall(static_cast<PChunkyResourceFile>(resources), number, actors, limit);
         },
         [](void *, void *file, MMU32 number, MMMovieTitle *title) {
             String value;
@@ -164,9 +79,8 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
                 *previous = child.cki.cno;
             return found;
         },
-        [](void *, void *file, MMU32 movie, void *actors, MMU32 *written) -> int {
-            return FWriteRollCall(static_cast<PChunkyFile>(file), movie, &static_cast<PRollCallTable>(actors)->storage,
-                                  written);
+        [](void *, void *file, MMU32 movie, MMRollCallTable *actors, MMU32 *written) -> int {
+            return FWriteRollCall(static_cast<PChunkyFile>(file), movie, actors, written);
         },
         [](void *, void *file, MMU32 movie, MMU32 previous) {
             static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, movie, kctgGst, previous, 0);
@@ -191,6 +105,11 @@ void MovieData::ClearActors()
 {
     const auto s = _OwnerServices(nullptr);
     mm_movie_clear_actors(this, &s);
+}
+bool MovieData::FInitActors()
+{
+    const auto s = _OwnerServices(nullptr);
+    return mm_movie_init_actors(this, &s) != 0;
 }
 void MovieData::ReleaseResources()
 {
@@ -270,26 +189,6 @@ bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHea
     return CheckMovieOpen(mm_movie_view_root(&view, number, header));
 }
 
-bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,
-                              LegacyLong *limit)
-{
-    Assert(*actors == pvNil, "Overwriting existing StringTable_GST");
-    *actors = nullptr;
-    auto table = RollCallTable::New();
-    if (!table)
-        return false;
-    MMI32 next = limit ? *limit : 0;
-    if (!FLoadRollCall(resources, number, &table->storage, limit ? &next : nullptr))
-    {
-        ReleasePpo(&table);
-        return false;
-    }
-    if (limit)
-        *limit = next;
-    *actors = table;
-    return true;
-}
-
 bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors, MMI32 *limit)
 {
     auto file = resources->Pcfl();
@@ -310,9 +209,13 @@ bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number,
             return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
         },
         [](void *, MMRollCallActor *a, void *resources) -> int {
-            auto value = NativeActor(*a);
-            const bool ok = TagManager::FOpenTag(&value.tagTmpl, static_cast<PChunkyResourceFile>(resources));
-            *a = CoreActor(value);
+            auto tag = ActorTag(*a);
+            const bool ok = TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources));
+            const auto value = TagToCore(tag);
+            a->data.source_id = value.sid;
+            a->data.template_type = value.type;
+            a->data.template_number = value.number;
+            a->cache = value.cache;
             return ok;
         },
         CloseActor};

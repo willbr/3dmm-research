@@ -70,7 +70,6 @@ extern "C"
         void (*set_transition)(void *scene, MMI32);
         void (*dirty)(void *), (*scene_nuked)(void *), (*invalidate)(void *), (*rollcall_changed)(void *),
             (*diagnostic)(void *, int), (*validate_children)(void *);
-        MMRollCallTable *actors;
         int (*read_rollcall)(void *resources, MMU32 movie, MMRollCallTable *);
         void (*close_tag)(MMTag *);
         int (*adjust_actor)(void *file, MMU32 actor, MMI32 offset);

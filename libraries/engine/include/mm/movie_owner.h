@@ -17,43 +17,46 @@ extern "C"
     struct MMMovieSession;
     typedef struct MMMovieState
     {
-        void *resources, *actors;
+        void *resources;
         struct MMMovieSession *session;
         MMU32 movieNumber;
         MMI32 actorIdLimit, sceneCount;
         MMMovieTitle title;
+        MMRollCallTable actors;
     } MMMovieState;
     typedef struct MMMovieOwnerServices
     {
         void *context;
+        MMStorageAllocator actor_allocator;
+        int actor_encoding, actor_trash;
         void *(*create_file)(void *);
         void *(*open_file)(void *);
         int (*open_session)(void *, void *file, MMU32 *, struct MMMovieSession **);
         void *(*new_resources)(void *, void *file);
         void (*release_file)(void *);
         void (*release_resources)(void *);
-        void *(*new_actors)(void *);
-        void (*release_table)(void *);
-        MMRollCallTable *(*actor_storage)(void *table);
         void (*close_actor)(void *, MMRollCallActor *);
         void *(*file)(void *resources);
         int (*create_root)(void *, void *file, MMU32 *);
-        int (*read_rollcall)(void *, void *resources, MMU32, void **actors, MMI32 *limit);
+        int (*read_rollcall)(void *, void *resources, MMU32, MMRollCallTable *, MMI32 *limit);
         void (*load_name)(void *, void *file, MMU32, MMMovieTitle *);
         int (*previous_rollcall)(void *, void *file, MMU32 movie, MMU32 *previous);
-        int (*write_rollcall)(void *, void *file, MMU32 movie, void *actors, MMU32 *written);
+        int (*write_rollcall)(void *, void *file, MMU32 movie, MMRollCallTable *, MMU32 *written);
         void (*delete_previous)(void *, void *file, MMU32 movie, MMU32 previous);
         int (*set_name)(void *, void *file, MMU32 movie, const MMMovieTitle *);
         int (*save)(void *, void *file);
         void (*make_persistent)(void *file);
     } MMMovieOwnerServices;
     /* Unique owning state. The session borrows its graph through the resource
-     * reference and is closed before it. File/table handles are host objects; C owns
-     * their references, transactions, replacement, title and ordered cleanup. Name
-     * loading writes the uncommitted state; replacement publishes it on success.
+     * reference and is closed before it. The actor table lives in the state and
+     * owns its opened tags. Title and actor names use the same native unit width.
+     * A zero actor allocator uses the C heap. Reading fills an initialized empty
+     * table and leaves it empty on failure. Replacement publishes the scratch state
+     * on success and disposes the prior table and resources in order.
      * Callbacks cannot mutate/re-enter this state. No rollback after save publication:
      * successful roll-call replacement remains visible if naming/saving later fails. */
     void mm_movie_state_init(MMMovieState *);
+    int mm_movie_init_actors(MMMovieState *, const MMMovieOwnerServices *);
     void mm_movie_clear_actors(MMMovieState *, const MMMovieOwnerServices *);
     void mm_movie_release_resources(MMMovieState *, const MMMovieOwnerServices *);
     void mm_movie_state_dispose(MMMovieState *, const MMMovieOwnerServices *);

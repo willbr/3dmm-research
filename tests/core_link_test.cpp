@@ -1487,7 +1487,7 @@ static void TestMoviePersistence()
     const auto record = [&](MovieData &movie) {
         if (!snapshot) return;
         uint32_t row[] = {movie.movieNumber, static_cast<uint32_t>(movie.actorIdLimit),
-                          static_cast<uint32_t>(movie.sceneCount), static_cast<uint32_t>(movie.Actors()->IvMac()),
+                          static_cast<uint32_t>(movie.sceneCount), movie.actors.count,
                           static_cast<uint32_t>(movie.Resources()->CactRef()), static_cast<uint32_t>(movie.title.count)};
         Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
         Check(std::fwrite(mm_movie_title_text(&movie.title), sizeof(achar), movie.title.count, snapshot) == static_cast<size_t>(movie.title.count));
@@ -1524,17 +1524,12 @@ static void TestMoviePersistence()
         Check(block.FWriteRgb(payload, sizeof(payload), 0));
         Check(file->FAdoptChild(kctgScen, scene, kctgTmpl, actorTemplate, 0));
         Check(file->FAdoptChild(kctgMvie, movie.movieNumber, kctgScen, scene, 0));
-        RollCallActorEntry actor = {};
-        actor.arid = 42;
-        actor.cactRef = 1;
-        actor.grfbrws = 5;
-        actor.tagTmpl.sid = ksidUseCrf;
-        actor.tagTmpl.ctg = kctgTmpl;
-        actor.tagTmpl.cno = actorTemplate;
-        Check(TagManager::FOpenTag(&actor.tagTmpl, movie.Resources()));
+        TAG tag = {ksidUseCrf, nullptr, kctgTmpl, actorTemplate};
+        Check(TagManager::FOpenTag(&tag, movie.Resources()));
+        MMRollCallActor actor = {{42, 1, ksidUseCrf, 5, tag.ctg, tag.cno}, tag.pcrf};
         String name;
         name.SetSzs(PszLit("Actor"));
-        Check(movie.Actors()->FAddStn(&name, &actor));
+        Check(mm_rollcall_table_add(&movie.actors, name.Prgch(), name.Cch(), &actor));
         Check(movie.FSave(&destination));
         record(movie);
         Check(movie.FSave(&destination)); // Replacing the roll call retains graph children.
@@ -1544,15 +1539,15 @@ static void TestMoviePersistence()
         MovieData loaded;
         Check(loaded.FLoad(&destination));
         record(loaded);
-        Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.Actors()->IvMac() == 1);
+        Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.actors.count == 1);
         ChunkNumber explicitRoot = loaded.movieNumber;
         Check(MovieData::FVerifyVersion(loaded.Resources()->Pcfl(), &explicitRoot));
-        RollCallActorEntry actor;
-        loaded.Actors()->GetExtra(0, &actor);
-        Check(actor.arid == 42 && actor.cactRef == 1 && actor.grfbrws == 5);
-        Check(actor.tagTmpl.pcrf == loaded.Resources());
+        MMRollCallActor actor;
+        Check(mm_rollcall_table_extra(&loaded.actors, 0, &actor));
+        Check(actor.data.actor_id == 42 && actor.data.reference_count == 1 && actor.data.browser_flags == 5);
+        Check(actor.cache == loaded.Resources());
         DataBlock block;
-        Check(loaded.Resources()->Pcfl()->FFind(kctgTmpl, actor.tagTmpl.cno, &block));
+        Check(loaded.Resources()->Pcfl()->FFind(kctgTmpl, actor.data.template_number, &block));
         byte bytes[5];
         Check(block.FReadRgb(bytes, sizeof(bytes), 0));
         Check(bytes[0] == 1 && bytes[4] == 9);
@@ -1564,14 +1559,14 @@ static void TestMoviePersistence()
         // A failed load leaves already-open state intact.
         Check(!loaded.FLoad(&destination, explicitRoot + 10000));
         record(loaded);
-        Check(loaded.Actors()->IvMac() == 1 && loaded.actorIdLimit == 43);
+        Check(loaded.actors.count == 1 && loaded.actorIdLimit == 43);
     }
     {
         MovieData reopened; // All prior archive handles have been released.
         Check(reopened.FLoad(&destination));
         record(reopened);
         String movieTitle; reopened.GetTitle(&movieTitle); Check(movieTitle.FEqualSz(PszLit("Saved after load")));
-        Check(reopened.sceneCount == 1 && reopened.Actors()->IvMac() == 1);
+        Check(reopened.sceneCount == 1 && reopened.actors.count == 1);
     }
     // Reject mismatched wire layouts before GetExtra can overrun a row.
     {
@@ -1588,9 +1583,10 @@ static void TestMoviePersistence()
         ReleasePpo(&wrong);
         PChunkyResourceFile resource = ChunkyResourceFile::PcrfNew(malformed, 0);
         Check(resource != pvNil);
-        PRollCallTable output = pvNil;
-        Check(!MovieData::FReadRollCall(resource, number, &output));
-        Check(output == pvNil);
+        MovieData output;
+        Check(output.FInitActors());
+        Check(!MovieData::FLoadRollCall(resource, number, &output.actors));
+        Check(output.actors.count == 0);
         ReleasePpo(&resource);
         ReleasePpo(&malformed);
     }
@@ -1600,44 +1596,57 @@ static void TestMoviePersistence()
 
 static void TestRollCallStorageBaseline()
 {
-    auto table = RollCallTable::New();
-    Check(table);
-    RollCallActorEntry a = {};
-    a.tagTmpl.sid = 1; a.tagTmpl.ctg = kctgTmpl; a.tagTmpl.cno = 77;
+    MovieData data;
+    Check(data.FInitActors());
+    auto table = &data.actors;
+    MMRollCallActor a = {};
+    a.data.source_id = 1; a.data.template_type = kctgTmpl; a.data.template_number = 77;
     String name;
     for (int i = 0; i < 5; ++i)
     {
-        a.arid = 10 + i; a.cactRef = i - 2; a.grfbrws = i * 3;
+        a.data.actor_id = 10 + i; a.data.reference_count = i - 2; a.data.browser_flags = i * 3;
         name.SetSzs(PszLit("original name"));
-        Check(table->FAddStn(&name, &a));
+        Check(mm_rollcall_table_add(table, name.Prgch(), name.Cch(), &a));
     }
-    name.SetSzs(PszLit("x")); Check(table->FPutStn(1, &name));
-    name.SetSzs(PszLit("a much longer replacement name")); Check(table->FPutStn(3, &name));
-    table->GetExtra(2, &a); a.arid = -1234; a.grfbrws = 0x87654321; table->PutExtra(2, &a);
-    table->Delete(0); table->Delete(2);
+    name.SetSzs(PszLit("x")); Check(mm_rollcall_table_rename(table, 1, name.Prgch(), name.Cch()));
+    name.SetSzs(PszLit("a much longer replacement name"));
+    Check(mm_rollcall_table_rename(table, 3, name.Prgch(), name.Cch()));
+    Check(mm_rollcall_table_extra(table, 2, &a));
+    a.data.actor_id = -1234; a.data.browser_flags = 0x87654321;
+    Check(mm_rollcall_table_set_extra(table, 2, &a));
+    Check(mm_rollcall_table_delete(table, 0) && mm_rollcall_table_delete(table, 2));
     achar text[] = {ChLit('A'), ChLit('/'), ChLit('B')}; name.SetRgch(text, 3);
-    Check(table->FAddStn(&name, &a));
-    name.SetNil(); Check(table->FAddStn(&name, &a));
+    Check(mm_rollcall_table_add(table, name.Prgch(), name.Cch(), &a));
+    name.SetNil(); Check(mm_rollcall_table_add(table, name.Prgch(), name.Cch(), &a));
     auto file = ChunkyFile::PcflCreateTemp(); ChunkNumber root, number;
     Check(file && MovieData::FCreateRoot(file, &root));
-    Check(MovieData::FWriteRollCall(file, root, &table->storage, &number));
+    Check(MovieData::FWriteRollCall(file, root, table, &number));
     FILE *snapshot = nullptr;
     if (const char *path = std::getenv("MM_ROLLCALL_STORAGE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
     DataBlock block; Check(file->FFind(kctgGst, number, &block));
     byte bytes[2048]; auto length = block.Cb(); Check(length <= sizeof(bytes) && block.FReadRgb(bytes, length, 0));
     if (snapshot) Check(std::fwrite(bytes, 1, length, snapshot) == static_cast<size_t>(length));
     auto resources = ChunkyResourceFile::PcrfNew(file, 0);
-    PRollCallTable loaded = nullptr; LegacyLong limit = 9;
-    Check(resources && MovieData::FReadRollCall(resources, root, &loaded, &limit));
-    for (LegacyLong i = 0; i < loaded->IvMac(); ++i)
+    MovieData loaded;
+    MMI32 limit = 9;
+    Check(resources && loaded.FInitActors() && MovieData::FLoadRollCall(resources, root, &loaded.actors, &limit));
+    for (MMU32 i = 0; i < loaded.actors.count; ++i)
     {
-        loaded->GetStn(i, &name); loaded->GetExtra(i, &a);
-        uint32_t fields[] = {static_cast<uint32_t>(a.arid), static_cast<uint32_t>(a.cactRef), a.grfbrws,
-                             static_cast<uint32_t>(a.tagTmpl.sid), a.tagTmpl.ctg, a.tagTmpl.cno,
-                             static_cast<uint32_t>(name.Cch()), static_cast<uint32_t>(limit)};
-        if (snapshot) { Check(std::fwrite(fields, sizeof(fields), 1, snapshot) == 1); Check(std::fwrite(name.Prgch(), sizeof(achar), name.Cch(), snapshot) == static_cast<size_t>(name.Cch())); }
+        const void *characters;
+        MMU32 count;
+        Check(mm_rollcall_table_name(&loaded.actors, i, &characters, &count));
+        Check(mm_rollcall_table_extra(&loaded.actors, i, &a));
+        uint32_t fields[] = {static_cast<uint32_t>(a.data.actor_id), static_cast<uint32_t>(a.data.reference_count),
+                             a.data.browser_flags, static_cast<uint32_t>(a.data.source_id), a.data.template_type,
+                             a.data.template_number, count, static_cast<uint32_t>(limit)};
+        if (snapshot)
+        {
+            Check(std::fwrite(fields, sizeof(fields), 1, snapshot) == 1);
+            Check(std::fwrite(characters, sizeof(achar), count, snapshot) == count);
+        }
     }
-    ReleasePpo(&loaded); ReleasePpo(&resources); ReleasePpo(&table); ReleasePpo(&file);
+    loaded.ClearActors();
+    ReleasePpo(&resources); ReleasePpo(&file);
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
@@ -1700,17 +1709,16 @@ static void TestMovieWireFormats()
     Check(file->FAdd(wire->CbOnFile(), kctgGst, &number, &block));
     Check(wire->FWrite(&block, kboOther));
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
-    PRollCallTable decoded = pvNil;
-    LegacyLong limit = 0;
+    MovieData decoded;
+    MMI32 limit = 0;
     LegacyLong refs = resources->CactRef();
-    Check(MovieData::FReadRollCall(resources, root, &decoded, &limit));
+    Check(decoded.FInitActors() && MovieData::FLoadRollCall(resources, root, &decoded.actors, &limit));
     Check(limit == 28 && resources->CactRef() == refs + 1);
-    RollCallActorEntry actor;
-    decoded->GetExtra(0, &actor);
-    Check(actor.arid == 27 && actor.cactRef == 2 && actor.grfbrws == 3);
-    Check(actor.tagTmpl.cno == 123 && actor.tagTmpl.pcrf == resources);
-    TagManager::CloseTag(&actor.tagTmpl);
-    ReleasePpo(&decoded);
+    MMRollCallActor actor;
+    Check(mm_rollcall_table_extra(&decoded.actors, 0, &actor));
+    Check(actor.data.actor_id == 27 && actor.data.reference_count == 2 && actor.data.browser_flags == 3);
+    Check(actor.data.template_number == 123 && actor.cache == resources);
+    decoded.ClearActors();
     Check(resources->CactRef() == refs);
 
     // Historical scene merges can produce signed actor IDs below zero. They
@@ -1730,16 +1738,11 @@ static void TestMovieWireFormats()
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
     file->DeleteChild(kctgMvie, root, kctgGst, old.cki.cno, 0);
     limit = 0;
-    Check(MovieData::FReadRollCall(resources, root, &decoded, &limit));
-    Check(limit == 28 && decoded->IvMac() == 2);
-    decoded->GetExtra(1, &actor);
-    Check(actor.arid == -749027345 && actor.tagTmpl.pcrf == resources);
-    for (LegacyLong index = 0; index < decoded->IvMac(); ++index)
-    {
-        decoded->GetExtra(index, &actor);
-        TagManager::CloseTag(&actor.tagTmpl);
-    }
-    ReleasePpo(&decoded);
+    Check(decoded.FInitActors() && MovieData::FLoadRollCall(resources, root, &decoded.actors, &limit));
+    Check(limit == 28 && decoded.actors.count == 2);
+    Check(mm_rollcall_table_extra(&decoded.actors, 1, &actor));
+    Check(actor.data.actor_id == -749027345 && actor.cache == resources);
+    decoded.ClearActors();
     Check(resources->CactRef() == refs);
 
     // An invalid sentinel row fails after the embedded TAGs were opened.
@@ -1754,8 +1757,9 @@ static void TestMovieWireFormats()
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
     file->DeleteChild(kctgMvie, root, kctgGst, old.cki.cno, 0);
     limit = 8;
-    Check(!MovieData::FReadRollCall(resources, root, &decoded, &limit));
-    Check(decoded == pvNil && limit == 8 && resources->CactRef() == refs);
+    Check(decoded.FInitActors());
+    Check(!MovieData::FLoadRollCall(resources, root, &decoded.actors, &limit));
+    Check(decoded.actors.count == 0 && limit == 8 && resources->CactRef() == refs);
     ReleasePpo(&wire);
     ReleasePpo(&resources);
     ReleasePpo(&file);
