@@ -5,6 +5,7 @@
 #include "sound_timeline.h"
 #include <memory>
 namespace KauaiFonts { class FontCatalog; }
+struct MMPolledPlayback;
 class MarcusPlayback
 {
     struct Impl;
@@ -34,8 +35,7 @@ class MarcusPlayback
     // timing can be exercised without an application window or UI events.
     bool Update(MM::Preview &preview, bool playing, double elapsed, bool click, bool &advance,
                 MM::Error &error);
-    int Wait() const;
-    bool Scrolling() const;
+    const MMPolledPlayback &Clock() const;
     bool Transitioning() const;
     bool PaletteAnimating() const;
     // Elapsed presentation time within this frame, or a negative incoming

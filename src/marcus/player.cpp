@@ -101,8 +101,7 @@ struct MarcusPlayer
     MarcusWaveformCache waveforms;
     MarcusSoundTimeline soundTimeline;
     int playbackRate = 0, playbackModifier = 0;
-    bool restoreAudio = true;
-    bool finished = false;
+    MMPolledMovie polledMovie{1, 0};
     bool inspectionMatched = false;
     bool preserveEditFraming = false;
     unsigned internalOpenDepth = 0;
@@ -772,8 +771,7 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
             return false;
         }
         player->selected = index;
-        player->finished = false;
-        player->restoreAudio = !preserveAudio;
+        mm_polled_movie_reset(&player->polledMovie, preserveAudio);
         return true;
     });
 }
@@ -1953,8 +1951,7 @@ extern "C"
             player->objects = player->preview.Objects();
             player->animations.clear();
             player->movieImageScene = -1;
-            player->finished = false;
-            player->restoreAudio = true;
+            mm_polled_movie_reset(&player->polledMovie, 0);
             ++player->document;
             history.Commit();
             return true;
@@ -2256,8 +2253,7 @@ extern "C"
             if (!ReadSoundSheet(player, 0, error))
                 return false;
             player->selected = 0;
-            player->finished = false;
-            player->restoreAudio = true;
+            mm_polled_movie_reset(&player->polledMovie, 0);
             if (!player->internalOpenDepth)
             {
                 player->undo.clear();
@@ -2412,7 +2408,7 @@ extern "C"
             const auto &scene = player->soundTimeline.Scene(player->selected);
             const double frame = player->preview.Info().currentFrame;
             const double start = scene.TimeAt(frame), end = scene.TimeAt(frame + 1);
-            time->position_seconds = player->finished ? time->duration_seconds
+            time->position_seconds = player->polledMovie.finished ? time->duration_seconds
                 : std::clamp(start + std::min(player->playback.FrameSeconds(), end - start),
                              0.0, time->duration_seconds);
             return true;
@@ -2460,7 +2456,7 @@ extern "C"
                 error.message = player->error;
                 return false;
             }
-            player->finished = static_cast<std::size_t>(index + 1) == player->scenes.size() && seconds >= end;
+            player->polledMovie.finished = static_cast<std::size_t>(index + 1) == player->scenes.size() && seconds >= end;
             return true;
         });
     }
@@ -2729,8 +2725,7 @@ extern "C"
             if (!player->preview.SetFrame(static_cast<std::int32_t>(frame), error))
                 return false;
             player->playback.Seek(&player->preview);
-            player->finished = false;
-            player->restoreAudio = true;
+            mm_polled_movie_reset(&player->polledMovie, 0);
             player->objects = player->preview.Objects();
             return true;
         });
@@ -2740,7 +2735,7 @@ extern "C"
         if (player)
         {
             player->playback.Stop();
-            player->restoreAudio = true;
+            player->polledMovie.restore_audio = 1;
         }
     }
     int marcus_audio_stats(MarcusPlayer *player, MarcusAudioStats *stats)
@@ -2783,95 +2778,106 @@ extern "C"
                       MarcusPlaybackState *state)
     {
         const int success = Guard(player, [&](MM::Error &error) {
-            if (!state || !std::isfinite(elapsed) || elapsed < 0 || player->selected < 0)
+            struct Host
             {
+                MarcusPlayer &movie;
+                MM::Error &error;
+                MM::PreviewImage previous;
+                unsigned char outgoingPalette[1024];
+                bool hasPalette;
+                std::exception_ptr failure;
+            } context{*player, error, {}, {}, false, {}};
+            const MMPolledMovieServices services{
+                &context,
+                [](void *p, int playing, double elapsed, int click, int *advance) -> int {
+                    auto &h = *static_cast<Host *>(p);
+                    try
+                    {
+                        bool next = false;
+                        const bool ok = h.movie.playback.Update(h.movie.preview, playing != 0, elapsed, click != 0,
+                                                                next, h.error);
+                        *advance = next;
+                        return ok;
+                    }
+                    catch (...) { h.failure = std::current_exception(); return 0; }
+                },
+                [](void *p, MMPlaybackPosition *out, MMI32 *firstFrame) {
+                    auto &movie = static_cast<Host *>(p)->movie;
+                    const auto &info = movie.preview.Info();
+                    *out = {movie.selected, static_cast<MMI32>(movie.scenes.size()), info.currentFrame, info.lastFrame,
+                            movie.playback.Transition()};
+                    *firstFrame = info.firstFrame;
+                },
+                [](void *p, MMPolledMovieEffect effect, MMI32 value) -> int {
+                    auto &h = *static_cast<Host *>(p);
+                    auto &movie = h.movie;
+                    try
+                    {
+                        switch (effect)
+                        {
+                        case MM_POLLED_MOVIE_CANCEL_PREVIEWS:
+                            return CancelPropPreviews(&movie, h.error);
+                        case MM_POLLED_MOVIE_RESTORE_AUDIO:
+                            return movie.playback.RestoreAudio(movie.preview,
+                                movie.soundTimeline.Resume(movie.selected, movie.preview.Info().currentFrame), h.error);
+                        case MM_POLLED_MOVIE_SET_FRAME:
+                            if (!movie.preview.SetFrame(value, h.error))
+                                return 0;
+                            movie.objects = movie.preview.Objects();
+                            break;
+                        case MM_POLLED_MOVIE_REWIND:
+                            if (!marcus_seek(&movie, value))
+                            {
+                                h.error.message = movie.error;
+                                return 0;
+                            }
+                            break;
+                        case MM_POLLED_MOVIE_CAPTURE_OUTGOING:
+                            // Transition frames come from the movie camera.
+                            if (movie.movieImageScene == value)
+                                h.previous = std::move(movie.movieImage);
+                            movie.movieImageScene = -1;
+                            h.hasPalette = !h.previous.rgba.empty() && movie.preview.CopyPresentationPalette(h.outgoingPalette);
+                            break;
+                        case MM_POLLED_MOVIE_SELECT_SCENE:
+                            if (!SelectScene(&movie, value, true, true))
+                            {
+                                h.error.message = movie.error;
+                                return 0;
+                            }
+                            break;
+                        case MM_POLLED_MOVIE_START_TRANSITION:
+                            movie.playback.BeginTransition(value, std::move(h.previous),
+                                                           h.hasPalette ? h.outgoingPalette : nullptr, movie.preview);
+                            break;
+                        case MM_POLLED_MOVIE_STOP:
+                            movie.playback.Stop();
+                            break;
+                        }
+                        return 1;
+                    }
+                    catch (...)
+                    {
+                        if (!h.failure)
+                            h.failure = std::current_exception();
+                        return 0;
+                    }
+                }};
+            MMPolledMovieResult result;
+            const int status = mm_polled_movie_update(&player->polledMovie, &player->playback.Clock(), player->selected,
+                                                      playing, loop, elapsed, click, &services, state ? &result : nullptr);
+            if (context.failure)
+                std::rethrow_exception(context.failure);
+            if (status == MM_POLLED_MOVIE_INVALID)
                 error.message = "Playback requires a loaded movie and a finite, nonnegative elapsed time.";
+            if (status != 1)
                 return false;
-            }
-            if (playing && !CancelPropPreviews(player, error)) return false;
-            *state = {};
-            state->playing = playing != 0;
-            const bool wasAnimated = player->playback.Scrolling() || player->playback.Transitioning();
-            bool advance = false;
-            if (playing && player->restoreAudio)
-            {
-                if (!player->playback.RestoreAudio(player->preview,
-                        player->soundTimeline.Resume(player->selected, player->preview.Info().currentFrame), error))
-                    return false;
-                player->restoreAudio = false;
-            }
-            if (!player->playback.Update(player->preview, playing != 0, elapsed, click != 0, advance, error))
-            {
-                player->playback.Stop();
-                state->playing = 0;
-                return false;
-            }
-            state->changed = playing && (wasAnimated || player->playback.Scrolling() ||
-                                         player->playback.Transitioning());
-            if (advance)
-            {
-                state->changed = 1;
-                const auto info = player->preview.Info();
-                const MMPlaybackPosition position{player->selected, static_cast<MMI32>(player->scenes.size()),
-                                                  info.currentFrame, info.lastFrame, player->playback.Transition()};
-                switch (mm_playback_after_frame(&position, loop))
-                {
-                case MM_PLAYBACK_ADVANCE_FRAME:
-                {
-                    if (!player->preview.SetFrame(info.currentFrame + 1, error))
-                        return false;
-                    player->objects = player->preview.Objects();
-                    bool ignored = false;
-                    if (!player->playback.Update(player->preview, true, 0, false, ignored, error))
-                        return false;
-                    break;
-                }
-                case MM_PLAYBACK_REPLAY_SCENE:
-                    // Rewind in place: reset audio/captions and actor poses,
-                    // retaining selection, cached event tracks and work framing.
-                    if (!marcus_seek(player, info.firstFrame))
-                    {
-                        error.message = player->error;
-                        return false;
-                    }
-                    break;
-                case MM_PLAYBACK_SWITCH_SCENE:
-                {
-                    // The last image from the movie camera is the outgoing surface.
-                    auto previous = player->movieImageScene == player->selected
-                                        ? std::move(player->movieImage) : MM::PreviewImage{};
-                    player->movieImageScene = -1;
-                    unsigned char outgoingPalette[1024];
-                    const bool hasPalette = !previous.rgba.empty() && player->preview.CopyPresentationPalette(outgoingPalette);
-                    const auto next = player->selected + 1;
-                    if (!SelectScene(player, next, true, true))
-                    {
-                        error.message = player->error;
-                        return false;
-                    }
-                    player->playback.BeginTransition(position.transition, std::move(previous),
-                                                     hasPalette ? outgoingPalette : nullptr, player->preview);
-                    state->scene_changed = 1;
-                    break;
-                }
-                default:
-                    player->playback.Stop();
-                    player->finished = true;
-                    state->playing = 0;
-                    break;
-                }
-            }
-            state->wait = player->playback.Wait();
-            state->scrolling = player->playback.Scrolling();
-            state->transition = player->playback.Transitioning();
+            *state = {result.playing, result.changed, result.scene_changed, result.wait, result.scrolling,
+                      result.transition};
             return true;
         });
-        if (!success)
-        {
-            marcus_stop(player);
-            if (state)
-                *state = {};
-        }
+        if (!success && state)
+            *state = {};
         return success;
     }
     void marcus_reset_framing(MarcusPlayer *player)

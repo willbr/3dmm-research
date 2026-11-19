@@ -14282,3 +14282,33 @@ suite `20261119T022413Z-c1d31d33` reuses the two retail runs and contains
 four fresh SDL Studio and Marcus runs. The database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The probe, comparison
 and test logs are in `tmp/c89-movie-transition`.
+
+## Marcus movie polling in C89 (19 November 2026)
+
+The movie poller now coordinates audio restore, frame advance, loop
+rewind, scene changes, outgoing capture, and stop and recovery effects.
+It uses Studio's C89 frame and scene advancement rule, and publishes
+playback status after the host effects run. The outgoing image and its
+dissolve indices are released together when the transition ends.
+
+The C engine check traces the order and arguments of effects, including
+restoring audio after a rewind, preserving it on a cut, entering the
+next frame immediately, and resetting playback on a failed scene
+selection or frame entry. All seven selected checks passed, including
+the engine and Marcus C89 syntax checks, C bitmap and caption projection
+tests, and Marcus playback and player integration. Marcus was rebuilt
+and relaunched.
+
+The `dissolve`, `actor-audio` and `scrolling-text` playback cases matched
+all 180 authored frames and the sequences of transition, wait and scrolling
+flags from the previous Marcus build. All 449 image and flag observations
+outside active dissolves matched after collapsing adjacent duplicates,
+including the scrolling steps. The retail comparison verdicts were the
+same in both suites. Actor-audio mixed PCM still differs from retail.
+Continuous image and Marcus timing comparisons remained inconclusive.
+
+The baseline is `20261119T022915Z-ebec32f6`. The converted suite
+`20261119T023356Z-b524aabe` completed nine runs with three fresh Marcus
+captures and six reused retail and SDL Studio captures. The database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. Build, test and comparison
+logs are in `tmp/c89-polled-movie`.

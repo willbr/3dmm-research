@@ -2,6 +2,7 @@
    Licensed under the MIT License. */
 #include "mm/playback.h"
 #include "mm/graphics_transition.h"
+#include <float.h>
 #include <math.h>
 #include <string.h>
 
@@ -703,6 +704,83 @@ int mm_polled_playback_update(MMPolledPlayback *state, int playing, double elaps
     }
     return 1;
 }
+
+void mm_polled_movie_reset(MMPolledMovie *movie, int keep_audio)
+{
+    movie->restore_audio = !keep_audio;
+    movie->finished = 0;
+}
+
+int mm_polled_movie_update(MMPolledMovie *movie, const MMPolledPlayback *clock, int selected, int playing,
+                           int loop_scene, double elapsed, int click, const MMPolledMovieServices *s,
+                           MMPolledMovieResult *result)
+{
+    MMPlaybackPosition position;
+    MMI32 first_frame;
+    int advance = 0, was_animated, status = 0;
+    if (!result || selected < 0 || !(elapsed >= 0 && elapsed <= DBL_MAX))
+    {
+        status = MM_POLLED_MOVIE_INVALID;
+        goto failed;
+    }
+    playing = playing != 0;
+    if (playing && !s->effect(s->context, MM_POLLED_MOVIE_CANCEL_PREVIEWS, 0))
+        goto failed;
+    memset(result, 0, sizeof(*result));
+    result->playing = playing;
+    was_animated = clock->scroll.holding || clock->transition;
+    if (playing && movie->restore_audio)
+    {
+        if (!s->effect(s->context, MM_POLLED_MOVIE_RESTORE_AUDIO, 0))
+            goto failed;
+        movie->restore_audio = 0;
+    }
+    if (!s->poll(s->context, playing, elapsed, click != 0, &advance))
+        goto failed;
+    result->changed = playing && (was_animated || clock->scroll.holding || clock->transition);
+    if (advance)
+    {
+        result->changed = 1;
+        s->position(s->context, &position, &first_frame);
+        switch (mm_playback_after_frame(&position, loop_scene))
+        {
+        case MM_PLAYBACK_ADVANCE_FRAME:
+            if (!s->effect(s->context, MM_POLLED_MOVIE_SET_FRAME, position.frame + 1) ||
+                !s->poll(s->context, 1, 0, 0, &advance))
+                goto failed;
+            break;
+        case MM_PLAYBACK_REPLAY_SCENE:
+            if (!s->effect(s->context, MM_POLLED_MOVIE_REWIND, first_frame))
+                goto failed;
+            break;
+        case MM_PLAYBACK_SWITCH_SCENE:
+            if (!s->effect(s->context, MM_POLLED_MOVIE_CAPTURE_OUTGOING, position.scene) ||
+                !s->effect(s->context, MM_POLLED_MOVIE_SELECT_SCENE, position.scene + 1) ||
+                !s->effect(s->context, MM_POLLED_MOVIE_START_TRANSITION, position.transition))
+                goto failed;
+            result->scene_changed = 1;
+            break;
+        default:
+            if (!s->effect(s->context, MM_POLLED_MOVIE_STOP, 0))
+                goto failed;
+            movie->finished = 1;
+            result->playing = 0;
+            break;
+        }
+    }
+    result->wait = clock->wait;
+    result->scrolling = clock->scroll.holding != 0;
+    result->transition = clock->transition != 0;
+    return 1;
+
+failed:
+    s->effect(s->context, MM_POLLED_MOVIE_STOP, 0);
+    movie->restore_audio = 1;
+    if (result)
+        memset(result, 0, sizeof(*result));
+    return status;
+}
+
 int mm_playback_should_render(MMPlaybackState *state, int tracking)
 {
     if (!state->idleSeen && !tracking)

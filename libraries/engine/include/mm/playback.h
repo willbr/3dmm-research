@@ -215,6 +215,44 @@ extern "C"
     int mm_polled_playback_update(MMPolledPlayback *, int playing, double elapsed, int click,
                                   const MMPolledPlaybackServices *, MMPolledPlaybackUpdate *);
 
+    typedef struct MMPolledMovie
+    {
+        int restore_audio, finished;
+    } MMPolledMovie;
+    typedef struct MMPolledMovieResult
+    {
+        int playing, changed, scene_changed, wait, scrolling, transition;
+    } MMPolledMovieResult;
+    typedef enum MMPolledMovieEffect
+    {
+        MM_POLLED_MOVIE_CANCEL_PREVIEWS,
+        MM_POLLED_MOVIE_RESTORE_AUDIO,
+        MM_POLLED_MOVIE_SET_FRAME,
+        MM_POLLED_MOVIE_REWIND,
+        MM_POLLED_MOVIE_CAPTURE_OUTGOING,
+        MM_POLLED_MOVIE_SELECT_SCENE,
+        MM_POLLED_MOVIE_START_TRANSITION,
+        MM_POLLED_MOVIE_STOP
+    } MMPolledMovieEffect;
+    typedef struct MMPolledMovieServices
+    {
+        void *context;
+        int (*poll)(void *, int playing, double elapsed, int click, int *advance);
+        void (*position)(void *, MMPlaybackPosition *, MMI32 *first_frame);
+        /* Value is the frame for set/rewind, scene for capture/select, or
+         * transition kind for start. The other effects receive zero. */
+        int (*effect)(void *, MMPolledMovieEffect, MMI32 value);
+    } MMPolledMovieServices;
+    enum { MM_POLLED_MOVIE_INVALID = -1 };
+    /* Reset on select, seek or open. A scene cut can keep existing audio. */
+    void mm_polled_movie_reset(MMPolledMovie *, int keep_audio);
+    /* Effects are synchronous and may update movie/clock state. Their failure
+     * is reported as zero and must never unwind through C. A failed update
+     * stops playback and clears the result. Returns 1 on success, 0 on effect
+     * failure, or MM_POLLED_MOVIE_INVALID for invalid update arguments. */
+    int mm_polled_movie_update(MMPolledMovie *, const MMPolledPlayback *, int selected, int playing, int loop_scene,
+                               double elapsed, int click, const MMPolledMovieServices *, MMPolledMovieResult *);
+
 #ifdef __cplusplus
 }
 #endif

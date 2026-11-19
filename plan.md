@@ -990,6 +990,9 @@ The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette
 ranges through the same C89 overlay routine.
+Marcus movie polling now coordinates audio restore, frame entry,
+loop rewinds, outgoing capture, scene selection and failure cleanup in
+C89. The poller uses Studio's C89 frame and scene advancement rule.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

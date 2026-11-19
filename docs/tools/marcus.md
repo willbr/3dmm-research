@@ -1809,6 +1809,10 @@ the height from that same layout pass.
 The C89 transition engine prepares the outgoing movie-camera snapshot and
 stores the dissolve palette indices. Snapshot preparation and Studio's
 indexed transitions use the same authored palette overlay.
+The C89 movie poller coordinates audio restore, frame advance, scene looping
+and outgoing capture before selection. It publishes playback status after
+host effects complete. Transition completion releases the outgoing image
+and dissolve indices together.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and

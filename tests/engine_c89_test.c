@@ -4,6 +4,7 @@
 #include "mm/graphics_transition.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static void check(int condition, int line)
 {
@@ -109,6 +110,126 @@ static void check_polled_playback(void)
     CHECK(mm_polled_playback_update(&state, 1, 2, 0, &services, &update) && !update.advance);
     CHECK(state.wait == MM_PLAYBACK_WAIT_NONE);
     CHECK(mm_polled_playback_update(&state, 1, 0, 0, &services, &update) && update.advance);
+}
+
+typedef struct PolledMovieHost
+{
+    MMPolledMovie movie;
+    MMPolledPlayback clock;
+    MMPlaybackPosition position;
+    char trace[16];
+    MMI32 values[16];
+    int count, polls, fail_poll, advance, fail_effect;
+} PolledMovieHost;
+
+static void movie_trace(PolledMovieHost *host, char step, MMI32 value)
+{
+    CHECK(host->count < (int)sizeof(host->trace) - 1);
+    host->values[host->count] = value;
+    host->trace[host->count++] = step;
+    host->trace[host->count] = 0;
+}
+
+static int movie_poll(void *context, int playing, double elapsed, int click, int *advance)
+{
+    PolledMovieHost *host = (PolledMovieHost *)context;
+    movie_trace(host, 'P', playing);
+    CHECK(elapsed == (host->polls ? 0 : 200));
+    CHECK(click == !host->polls);
+    *advance = !host->polls && host->advance;
+    return ++host->polls != host->fail_poll;
+}
+
+static void movie_position(void *context, MMPlaybackPosition *position, MMI32 *first_frame)
+{
+    PolledMovieHost *host = (PolledMovieHost *)context;
+    movie_trace(host, '?', 0);
+    *position = host->position;
+    *first_frame = -7;
+}
+
+static int movie_effect(void *context, MMPolledMovieEffect effect, MMI32 value)
+{
+    static const char steps[] = "CAFRBSTX";
+    PolledMovieHost *host = (PolledMovieHost *)context;
+    movie_trace(host, steps[effect], value);
+    if (host->fail_effect == steps[effect])
+        return 0;
+    switch (effect)
+    {
+    case MM_POLLED_MOVIE_SET_FRAME:
+        host->clock.wait = MM_PLAYBACK_WAIT_CLICK;
+        break;
+    case MM_POLLED_MOVIE_REWIND:
+        mm_polled_movie_reset(&host->movie, 0);
+        break;
+    case MM_POLLED_MOVIE_SELECT_SCENE:
+        mm_polled_movie_reset(&host->movie, 1);
+        break;
+    case MM_POLLED_MOVIE_START_TRANSITION:
+        mm_polled_playback_begin_transition(&host->clock, value);
+        break;
+    case MM_POLLED_MOVIE_STOP:
+        mm_polled_playback_reset(&host->clock, -1, 0);
+        break;
+    default:
+        break;
+    }
+    return 1;
+}
+
+static int run_polled_movie(PolledMovieHost *host, int playing, int loop, MMPolledMovieResult *result)
+{
+    MMPolledMovieServices services = {NULL, movie_poll, movie_position, movie_effect};
+    services.context = host;
+    host->trace[0] = 0;
+    host->count = host->polls = 0;
+    return mm_polled_movie_update(&host->movie, &host->clock, host->position.scene, playing, loop, 200, -1,
+                                  &services, result);
+}
+
+static void check_polled_movie(void)
+{
+    PolledMovieHost host;
+    MMPolledMovieResult result;
+    memset(&host, 0, sizeof(host));
+    host.position.sceneCount = 2;
+    host.position.frame = 1;
+    host.position.lastFrame = 2;
+    host.position.transition = MM_GRAPHICS_MOVIE_DISSOLVE;
+    mm_polled_movie_reset(&host.movie, 0);
+    mm_polled_playback_reset(&host.clock, -1, 0);
+    host.clock.scroll.holding = 1;
+    CHECK(run_polled_movie(&host, 0, 0, &result) == 1 && !strcmp(host.trace, "P"));
+    CHECK(!result.playing && !result.changed && result.scrolling && host.movie.restore_audio);
+    CHECK(run_polled_movie(&host, -1, 0, &result) == 1 && !strcmp(host.trace, "CAP"));
+    CHECK(result.playing && result.changed && result.scrolling && !host.movie.restore_audio);
+    host.clock.scroll.holding = 0;
+    host.advance = 1;
+    CHECK(run_polled_movie(&host, 1, 1, &result) == 1 && !strcmp(host.trace, "CP?FP"));
+    CHECK(host.values[3] == 2 && result.changed && result.wait == MM_PLAYBACK_WAIT_CLICK);
+    host.position.frame = 2;
+    CHECK(run_polled_movie(&host, 1, 1, &result) == 1 && !strcmp(host.trace, "CP?R"));
+    CHECK(host.values[3] == -7 && host.movie.restore_audio && !result.scene_changed);
+    CHECK(run_polled_movie(&host, 1, 0, &result) == 1 && !strcmp(host.trace, "CAP?BST"));
+    CHECK(host.values[4] == 0 && host.values[5] == 1 && host.values[6] == MM_GRAPHICS_MOVIE_DISSOLVE);
+    CHECK(result.changed && result.scene_changed && result.transition && !host.movie.restore_audio);
+    host.fail_effect = 'S';
+    CHECK(!run_polled_movie(&host, 1, 0, &result) && !strcmp(host.trace, "CP?BSX"));
+    CHECK(!result.playing && !result.changed && !result.scene_changed && !result.wait &&
+          !result.scrolling && !result.transition && host.movie.restore_audio && !host.movie.finished);
+    host.fail_effect = 0;
+    host.position.frame = 1;
+    host.fail_poll = 2;
+    CHECK(!run_polled_movie(&host, 1, 0, &result) && !strcmp(host.trace, "CAP?FPX"));
+    CHECK(host.movie.restore_audio && !result.playing && !result.changed);
+    host.fail_poll = 0;
+    host.position.frame = 2;
+    host.position.scene = 1;
+    CHECK(run_polled_movie(&host, 1, 0, &result) == 1 && !strcmp(host.trace, "CAP?X"));
+    CHECK(!result.playing && result.changed && host.movie.finished && !host.movie.restore_audio);
+    CHECK(run_polled_movie(&host, 1, 0, NULL) == MM_POLLED_MOVIE_INVALID && !strcmp(host.trace, "X"));
+    CHECK(host.movie.finished && host.movie.restore_audio);
 }
 
 typedef struct FrameSoundHost
@@ -326,6 +447,7 @@ int main(void)
     CHECK(mm_scroll_nominal_seconds(0) == 0);
     CHECK(mm_scroll_nominal_seconds(3) == 4.0 / 12);
     check_polled_playback();
+    check_polled_movie();
     check_frame_sound();
     check_caption_render();
     return 0;

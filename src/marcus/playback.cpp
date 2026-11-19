@@ -385,6 +385,11 @@ struct MarcusPlayback::Impl
     {
         mm_graphics_movie_snapshot_dispose(&transitionPalette);
     }
+    void ClearTransition()
+    {
+        previous = {};
+        mm_graphics_movie_snapshot_dispose(&transitionPalette);
+    }
     bool EnterFrame(Preview &preview, MMI32 frame, int restoreMusic, double fps, MMPolledFrameWait &wait,
                     Error &error);
     bool MeasureScroll(MMI32 frame, int &needsScroll, Error &error);
@@ -392,8 +397,7 @@ struct MarcusPlayback::Impl
     void ResetTiming()
     {
         mm_polled_playback_reset(&clock, clock.pacer.fps, clock.was_playing);
-        previous = {};
-        mm_graphics_movie_snapshot_dispose(&transitionPalette);
+        ClearTransition();
         for (auto &row : captionRows)
             row.scroll = 0;
     }
@@ -727,13 +731,9 @@ void MarcusPlayback::Seek(MM::Preview *preview)
     impl->ResetTiming();
     if (preview) impl->ObserveCaptions(preview->Info().currentFrame);
 }
-int MarcusPlayback::Wait() const
+const MMPolledPlayback &MarcusPlayback::Clock() const
 {
-    return impl->clock.wait;
-}
-bool MarcusPlayback::Scrolling() const
-{
-    return impl->clock.scroll.holding != 0;
+    return impl->clock;
 }
 int MarcusPlayback::Transition() const
 {
@@ -888,7 +888,7 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
             try { *pending = ctx.host.audio.Pending(); return 1; }
             catch (...) { ctx.failure = std::current_exception(); return 0; }
         },
-        [](void *data) { static_cast<Services *>(data)->host.previous = {}; }
+        [](void *data) { static_cast<Services *>(data)->host.ClearTransition(); }
     };
     MMPolledPlaybackUpdate update;
     if (!mm_polled_playback_update(&impl->clock, playing, elapsed, click, &services, &update))
