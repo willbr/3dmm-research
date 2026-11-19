@@ -3021,8 +3021,19 @@ static void draw_rendering_settings(App *app)
     igPlotLines_FloatPtr("Render time (ms)", history, count, 0, NULL, 0, maximum_ms, dialog_vec(480, 90), sizeof(float));
     igTextDisabled("Captured before opening settings. Playback is paused.");
 }
-static const char *playback_rates[] = {"Original", "6 FPS", "12 FPS", "24 FPS", "Uncapped"};
+static const char *playback_rates[] = {"6 FPS (Original)", "12 FPS", "24 FPS", "Uncapped"};
 static const char *playback_modifiers[] = {"Normal (1x)", "Win98 -> XP (1.35805x)", "XP -> Win98 (0.918485x)"};
+
+static int playback_rate_combo(const char *label, int *rate)
+{
+    int item;
+    /* The saved IDs remain 0, 2, 3 and 4 after merging the two 6 FPS entries. */
+    item = *rate > 0 ? *rate - 1 : 0;
+    if (!igCombo_Str_arr(label, &item, playback_rates, SDL_arraysize(playback_rates), -1))
+        return 0;
+    *rate = item ? item + 1 : 0;
+    return 1;
+}
 
 static void draw_settings(App *app)
 {
@@ -3061,8 +3072,7 @@ static void draw_settings(App *app)
             igSeparatorText("Playback");
             dialog_checkbox("Pause playback on focus loss", &app->edited_shortcuts.pause_on_focus_loss);
             igSetNextItemWidth(300);
-            igCombo_Str_arr("Movie frame rate", &app->edited_shortcuts.playback_rate,
-                            playback_rates, SDL_arraysize(playback_rates), -1);
+            playback_rate_combo("Movie frame rate", &app->edited_shortcuts.playback_rate);
             igSetNextItemWidth(300);
             igCombo_Str_arr("Compatibility speed modifier", &app->edited_shortcuts.playback_modifier,
                             playback_modifiers, SDL_arraysize(playback_modifiers), -1);
@@ -3244,7 +3254,7 @@ static void draw_editor_status(App *app, const char *hint)
             app->playback.wait == 3 ? "Timed pause" : app->modified ? "Unsaved movie" : "Movie playback";
         frame_height = igGetFrameHeight();
         combo_padding = frame_height + 2 * igGetStyle()->FramePadding.x;
-        rate_width = ui_text_width("Uncapped") + combo_padding;
+        rate_width = ui_text_width(playback_rates[0]) + combo_padding;
         speed_width = ui_text_width("XP -> Win98 (0.918485x)") + combo_padding;
         status_x = app->width - ui_text_width("Click / Space to continue") - 12;
         controls_x = status_x - rate_width - speed_width - ui_text_width("Frame rate") - ui_text_width("Speed") - 36;
@@ -3262,8 +3272,7 @@ static void draw_editor_status(App *app, const char *hint)
         igTextUnformatted("Frame rate", NULL);
         igSameLine(0, 6);
         igSetNextItemWidth(rate_width);
-        changed = igCombo_Str_arr("##Movie frame rate", &next.playback_rate,
-                                  playback_rates, SDL_arraysize(playback_rates), -1);
+        changed = playback_rate_combo("##Movie frame rate", &next.playback_rate);
         igSetItemTooltip("Movie frame rate");
         igSameLine(0, 12);
         igTextUnformatted("Speed", NULL);

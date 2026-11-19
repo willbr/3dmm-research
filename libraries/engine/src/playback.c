@@ -580,6 +580,7 @@ static int polled_frame_due(MMPolledPlayback *state, double elapsed)
 {
     const double clock_period = 4294967296.0;
     const double legacy_interval = 1000.0 * MM_PLAYBACK_FRAME_TICKS / MM_PLAYBACK_TICKS_PER_SECOND;
+    const double poll_jitter = 1000.0 / MM_PLAYBACK_TICKS_PER_SECOND;
     double start, late;
     MMPlaybackU32 now;
 
@@ -588,10 +589,10 @@ static int polled_frame_due(MMPolledPlayback *state, double elapsed)
         state->frame_ms += elapsed;
         if (state->frame_ms < legacy_interval)
             return 0;
-        /* Carry ordinary host jitter while capping the effect of a stall. */
-        state->frame_ms -= legacy_interval;
-        if (state->frame_ms > legacy_interval / 2)
-            state->frame_ms = legacy_interval / 2;
+        /* Only carry the polling error within one original clock tick.
+         * A late frame starts a fresh interval, just as a new Studio alarm does. */
+        late = state->frame_ms - legacy_interval;
+        state->frame_ms = late <= poll_jitter ? late : 0;
         return 1;
     }
     /* Keep fractions while wrapping before conversion to the pacer's timestamp. */
@@ -612,7 +613,7 @@ static int polled_frame_due(MMPolledPlayback *state, double elapsed)
         return 0;
     /* Retain small refresh jitter so each deadline need not round up a tick. */
     late = (MMPlaybackU32)(now - state->pacer.due);
-    if (state->pacer.fps > 0 && late < 1000.0 / state->pacer.fps)
+    if (state->pacer.fps > 0 && late <= poll_jitter && late < 1000.0 / state->pacer.fps)
         state->carry_ms = late;
     return 1;
 }

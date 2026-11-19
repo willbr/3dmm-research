@@ -197,7 +197,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
             if (work)
                 loaded.playback_modifier = (int)key;
             else
-                loaded.playback_rate = (int)key;
+                loaded.playback_rate = key == 1 ? 0 : (int)key; /* Legacy explicit 6 FPS. */
             playback_seen |= 1 << work;
             continue;
         }
@@ -394,7 +394,8 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
                  marcus_renderer_id(shortcuts->renderer), resolution->name,
                  marcus_renderer_id(shortcuts->work_renderer), work_resolution->name,
                  shortcuts->movie_debug_overlay != 0, shortcuts->work_debug_overlay != 0,
-                 shortcuts->playback_rate, shortcuts->playback_modifier, shortcuts->show_cameras != 0);
+                 shortcuts->playback_rate == 1 ? 0 : shortcuts->playback_rate,
+                 shortcuts->playback_modifier, shortcuts->show_cameras != 0);
     length = strlen(data);
     for (i = 0; i < 2; ++i)
     {

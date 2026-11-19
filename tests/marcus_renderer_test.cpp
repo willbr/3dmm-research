@@ -132,8 +132,13 @@ int main(int argc, char **argv)
             CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
             shortcuts_defaults(&loaded);
             CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
-            CHECK(loaded.playback_rate == rate && loaded.playback_modifier == modifier);
+            CHECK(loaded.playback_rate == (rate == 1 ? 0 : rate) && loaded.playback_modifier == modifier);
         }
+    const char oldSixFps[] = "marcus-shortcuts 1\nplayback_rate 1\nplayback_modifier 2\n";
+    CHECK(SDL_SaveFile(path.u8string().c_str(), oldSixFps, sizeof(oldSixFps) - 1));
+    shortcuts_defaults(&loaded);
+    CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
+    CHECK(loaded.playback_rate == 0 && loaded.playback_modifier == 2);
     shortcuts.playback_rate = 5;
     CHECK(!shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
     shortcuts.playback_rate = 0;

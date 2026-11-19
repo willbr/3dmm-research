@@ -798,7 +798,7 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 
 | Control | Behaviour |
 |---|---|
-| Space / Play | Play or pause at the configured movie frame rate (Original by default) |
+| Space / Play | Play or pause at the configured movie frame rate (6 FPS by default) |
 | Alt+Enter | Toggle fullscreen for the window |
 | Shift+click Play | Start or continue playback with only the movie filling the window |
 | D / F | Previous / next frame |
@@ -1107,22 +1107,22 @@ action's name. Escape, Alt+Enter and Ctrl/Command+comma are reserved for the UI.
 window keeps the movie playing. Turn it on to pause when Marcus loses focus.
 Focus loss always releases flight controls and stops mouse drags.
 
-**Movie frame rate** and **Compatibility speed modifier** mirror Studio's
-Playback & sound options. **Original** (default) keeps Marcus's existing nominal
-six-FPS scheduling; **6 FPS**, **12 FPS**, **24 FPS** and **Uncapped** select an
-explicit rate or remove the movie-frame delay. **Normal (1x)** is the default
-modifier. **Win98 -> XP (1.35805x)** and **XP -> Win98 (0.918485x)** multiply the
-selected rate; Original with a modifier uses six FPS as its base. Uncapped
-ignores the modifier. These historical conversion presets do not emulate an OS.
+**6 FPS (Original)** is the default movie frame rate. **12 FPS** and **24 FPS**
+set faster rates. **Uncapped** removes the movie-frame delay. The
+**Compatibility speed modifier** defaults to **Normal (1x)**. **Win98 -> XP
+(1.35805x)** and **XP -> Win98 (0.918485x)** multiply the selected rate.
+Uncapped ignores the modifier.
 
 The editor status bar has **Frame rate** and **Speed** dropdowns that apply
 and save changes immediately. In Settings, **Apply** saves both choices,
-**Cancel** discards edits, and **Restore defaults** selects Original/Normal.
-Older settings files also default to Original/Normal. Explicit rates use the same fractional
-millisecond frame pacer and rate calculation as Studio. A late update advances
-one authored frame without accumulating catch-up debt; pause/resume preserves
-the remaining interval. Actual throughput still depends on rendering and display
-updates, including when Uncapped is selected.
+**Cancel** discards edits, and **Restore defaults** selects **6 FPS (Original)**
+and **Normal (1x)**. Saved **Original** and **6 FPS** choices both load as the
+merged option. Normal 6 FPS uses the original ten ticks per frame on a 60 Hz
+clock. Faster and modified rates use Studio's fractional millisecond pacer
+and rate calculation. Marcus advances one authored frame per due update and
+starts a fresh interval if a poll arrives more than one original clock tick
+late. Pause and resume preserve the remaining interval. Actual throughput depends on
+rendering and display updates, including in Uncapped mode.
 
 These controls change movie-frame advancement without interpolation or changing
 audio pitch/rate. Click, sound and timed waits, scrolling captions and transitions

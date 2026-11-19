@@ -973,6 +973,22 @@ void PlaybackCadence(const char *path, const char *resources, const char *conten
     CHECK(Info().frame == 1);
     Tick(1);
     CHECK(Info().frame == 1); // A stall cannot cause a burst of overdue frames.
+    CHECK(marcus_seek(player, 0));
+    Tick(0);
+    Tick(65);
+    CHECK(Info().frame == 1);
+    Tick(40);
+    CHECK(Info().frame == 1); // A late explicit-rate frame starts a fresh interval.
+    Tick(2);
+    CHECK(Info().frame == 2);
+    CHECK(marcus_set_playback_rate(player, 0, 0) && marcus_seek(player, 0));
+    Tick(0);
+    Tick(250);
+    CHECK(Info().frame == 1);
+    Tick(160);
+    CHECK(Info().frame == 1); // Original starts a fresh 6 FPS interval after the stall.
+    Tick(7);
+    CHECK(Info().frame == 2);
     marcus_destroy(player);
     player = nullptr;
     CHECK(filename.FDelete());
