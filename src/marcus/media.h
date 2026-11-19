@@ -8,7 +8,7 @@ extern "C" {
 
 typedef struct MarcusMediaOptions
 {
-    const char *iso, *doraemon_iso, *expansion_zip, *nick_iso, *nick_fixups;
+    const char *iso, *doraemon_iso, *expansion_zip, *nick_iso, *nick_fixups, *frankie_zip;
 } MarcusMediaOptions;
 
 /* The physical paths are for legacy archive readers and their helper processes.

@@ -4,6 +4,7 @@
 #include "studio_packs.h"
 #include <SDL3/SDL.h>
 #include <miniz.h>
+#include <algorithm>
 #include <fstream>
 #include <memory>
 #include <random>
@@ -62,39 +63,40 @@ struct Staging
     }
 };
 
-void ExtractInstaller(const fs::path &archive, const fs::path &installer)
+void ExtractInstaller(const fs::path &archive, const char *memberName, const fs::path &installer)
 {
     constexpr std::size_t limit = 64u * 1024 * 1024;
     const auto length = fs::file_size(archive);
-    Require(length && length <= limit, "The community Nickelodeon ZIP is too large or empty");
+    Require(length && length <= limit, "The expansion ZIP is too large or empty");
     std::vector<char> raw(static_cast<std::size_t>(length));
     std::ifstream file(archive, std::ios::binary);
-    Require(bool(file.read(raw.data(), raw.size())), "Cannot read the community Nickelodeon ZIP");
+    Require(bool(file.read(raw.data(), raw.size())), "Cannot read the expansion ZIP");
     mz_zip_archive zip{};
     Require(mz_zip_reader_init_mem(&zip, raw.data(), raw.size(), 0) != 0,
-            "Cannot open the community Nickelodeon ZIP");
+            "Cannot open the expansion ZIP");
     const auto closeZip = [](mz_zip_archive *value) { mz_zip_reader_end(value); };
     const std::unique_ptr<mz_zip_archive, decltype(closeZip)> guard(&zip, closeZip);
-    const auto index = mz_zip_reader_locate_file(&zip, "N3DMMEXPb1a.exe", nullptr, 0);
+    const auto index = mz_zip_reader_locate_file(&zip, memberName, nullptr, 0);
     mz_zip_archive_file_stat member{};
     Require(index >= 0 && mz_zip_reader_file_stat(&zip, index, &member) && !member.m_is_directory &&
                 !member.m_is_encrypted && member.m_uncomp_size && member.m_uncomp_size <= limit,
-            "The community ZIP must contain N3DMMEXPb1a.exe");
+            "The expansion ZIP is missing a valid installer payload");
     std::ofstream output(installer, std::ios::binary);
     const auto write = [](void *context, mz_uint64, const void *data, std::size_t count) -> std::size_t {
         auto &stream = *static_cast<std::ofstream *>(context);
         return stream.write(static_cast<const char *>(data), count) ? count : 0;
     };
     Require(mz_zip_reader_extract_to_callback(&zip, index, write, &output, 0) != 0,
-            "Cannot read the installer payload from the community ZIP");
+            "Cannot read the installer payload from the expansion ZIP");
     output.close();
     Require(bool(output), "Cannot write the private installer payload");
 }
 
-void ExtractCommunity(const Definition &pack, const fs::path &archive, const fs::path &installer,
-                      const fs::path &output)
+void ExtractCommunity(const Definition &pack, const fs::path &archive, const char *memberName,
+                      const fs::path &staging, const fs::path &output)
 {
-    ExtractInstaller(archive, installer);
+    const auto installer = staging / "installer.exe";
+    ExtractInstaller(archive, memberName, installer);
     const auto input = installer.u8string();
     const auto destination = "-o" + output.u8string();
     std::vector<std::string> names;
@@ -103,7 +105,7 @@ void ExtractCommunity(const Definition &pack, const fs::path &archive, const fs:
     const char *programs[] = {"7z", "7zz", "C:/Program Files/7-Zip/7z.exe", "C:/Program Files (x86)/7-Zip/7z.exe"};
     for (const auto *program : programs)
     {
-        std::vector<const char *> args{program, "e", "-tNsis", "-y", "-spd", "-p-", destination.c_str(),
+        std::vector<const char *> args{program, "e", "-tNsis", "-y", "-spd", "-ssc-", "-p-", destination.c_str(),
                                        "--", input.c_str()};
         for (const auto &name : names)
             args.push_back(name.c_str());
@@ -118,27 +120,31 @@ void ExtractCommunity(const Definition &pack, const fs::path &archive, const fs:
         int status = -1;
         const auto exited = SDL_WaitProcess(process, true, &status);
         SDL_DestroyProcess(process);
-        Require(exited && status == 0, "7-Zip could not read the Nickelodeon expansion installer");
+        if (!exited || status != 0)
+            throw std::runtime_error("7-Zip could not read the " + std::string(pack.title) + " installer");
         return;
     }
-    throw std::runtime_error("Install 7-Zip to read the community Nickelodeon ZIP, or select the ISO and fixups");
+    throw std::runtime_error("Install 7-Zip to read the " + std::string(pack.title) + " ZIP");
 }
 
 bool Complete(const fs::path &directory, const Definition &pack)
 {
     if (!fs::is_directory(fs::symlink_status(directory)))
         return false;
-    for (const auto &name : pack.files)
+    std::vector<std::string> names;
+    for (const auto &entry : fs::directory_iterator(directory))
     {
-        const auto member = directory / fs::u8path(name);
-        if (!fs::is_regular_file(fs::symlink_status(member)) || !fs::file_size(member))
-            return false;
+        if (fs::is_regular_file(entry.symlink_status()) && entry.file_size())
+            names.push_back(entry.path().filename().u8string());
     }
-    return true;
+    return std::all_of(pack.files.begin(), pack.files.end(), [&](const auto &name) {
+        return std::count_if(names.begin(), names.end(), [&](const auto &actual) {
+            return SDL_strcasecmp(actual.c_str(), name.c_str()) == 0;
+        }) == 1;
+    });
 }
 
-void PreparePack(const Definition &pack, const fs::path &root, const fs::path &iso,
-                 const fs::path &base, const fs::path &fixups, const fs::path &community)
+template<class Prepare> void PreparePack(const Definition &pack, const fs::path &root, Prepare prepare)
 {
     const auto target = root / pack.sourceTitle;
     if (Complete(target, pack))
@@ -146,11 +152,9 @@ void PreparePack(const Definition &pack, const fs::path &root, const fs::path &i
     Staging staging(root);
     const auto output = staging.path / pack.sourceTitle;
     fs::create_directory(output);
-    if (community.empty())
-        StudioPacks::ImportISO(pack.id, iso, base, fixups, output);
-    else
-        ExtractCommunity(pack, community, staging.path / "installer.exe", output);
-    Require(Complete(output, pack), "The selected media is missing expansion archives");
+    prepare(staging.path, output);
+    if (!Complete(output, pack))
+        throw std::runtime_error("The selected " + std::string(pack.title) + " media is missing expansion archives");
     for (unsigned attempt = 0; ; ++attempt)
     {
         std::error_code error;
@@ -184,7 +188,8 @@ try
             "Select either --expansion-zip or both --nick-iso and --nick-fixups");
     if (iso.empty())
     {
-        Require(!useFixups && !options->doraemon_iso && !options->expansion_zip, "Select a base game with --iso");
+        Require(!useFixups && !options->doraemon_iso && !options->expansion_zip && !options->frankie_zip,
+                "Select a base game with --iso");
         return 1;
     }
     const auto doraemon = FindMedia(options->doraemon_iso, beside / "DORAEMON100.iso", source / "dist/DORAEMON100.iso");
@@ -192,17 +197,30 @@ try
                                                             source / "expansions/n3dmmexpb1a-1.zip");
     const auto nick = useFixups ? FindMedia(options->nick_iso, {}, {}) : fs::path{};
     const auto fixups = useFixups ? FindMedia(options->nick_fixups, {}, {}) : fs::path{};
-    const auto identity = Identity(doraemon) + Identity(community) + Identity(nick) + Identity(fixups);
+    const auto frankie = FindMedia(options->frankie_zip, beside / "3dmmexp1v018.zip", source / "expansions/3dmmexp1v018.zip");
+    const auto identity = Identity(doraemon) + Identity(community) + Identity(nick) + Identity(fixups) + Identity(frankie);
     const auto key = StudioPacks::Hash(identity.data(), identity.size()).substr(0, 24);
     const std::unique_ptr<char, decltype(&SDL_free)> preferences(SDL_GetPrefPath("3DMMForever", "Marcus"), SDL_free);
     Require(bool(preferences), "Cannot find the private Marcus media cache");
     const auto cache = fs::u8path(preferences.get()) / "media-cache-v1" / key;
     const auto root = StudioISO::Prepare(iso, cache, {}, StudioISO::ProductNames::Lowercase).root;
     const auto &packs = StudioPacks::Definitions();
-    if (useFixups || !community.empty())
-        PreparePack(packs[0], root, nick, iso, fixups, community);
+    if (useFixups)
+        PreparePack(packs[0], root, [&](const auto &, const auto &output) {
+            StudioPacks::ImportISO(packs[0].id, nick, iso, fixups, output);
+        });
+    else if (!community.empty())
+        PreparePack(packs[0], root, [&](const auto &staging, const auto &output) {
+            ExtractCommunity(packs[0], community, "N3DMMEXPb1a.exe", staging, output);
+        });
     if (!doraemon.empty())
-        PreparePack(packs[1], root, doraemon, {}, {}, {});
+        PreparePack(packs[1], root, [&](const auto &, const auto &output) {
+            StudioPacks::ImportISO(packs[1].id, doraemon, {}, {}, output);
+        });
+    if (!frankie.empty())
+        PreparePack(packs[2], root, [&](const auto &staging, const auto &output) {
+            ExtractCommunity(packs[2], frankie, "3DMMEXP1v18.exe", staging, output);
+        });
     const auto product = root / "3D Movie Maker";
     std::ofstream marker(product / ".marcus-media", std::ios::app);
     Require(bool(marker), "Cannot mark the VFS media root");
@@ -210,7 +228,7 @@ try
         CopyPath(resources, resourcesSize, (product / "3dmovie.chk").u8string());
     CopyPath(content, contentSize, product.u8string());
     std::string summary = iso.u8string();
-    for (const auto &path : {doraemon, community, nick, fixups})
+    for (const auto &path : {doraemon, community, nick, fixups, frankie})
         if (!path.empty())
             summary += "\n" + path.u8string();
     CopyPath(description, descriptionSize, summary);

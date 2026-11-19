@@ -87,16 +87,17 @@ The current development build in this workspace uses `build/marcus-x64`.
 
 Marcus uses the original media automatically when it finds
 `dist/3DMOVIE100.iso` in the workspace. It also picks up
-`dist/DORAEMON100.iso` and the community Nickelodeon expansion at
-`expansions/n3dmmexpb1a-1.zip` when present. For a standalone layout, put
-those three files beside the executable. To select files explicitly:
+`dist/DORAEMON100.iso`, the community Nickelodeon expansion at
+`expansions/n3dmmexpb1a-1.zip`, and Frankie's Expansion Pack 1 at
+`expansions/3dmmexp1v018.zip` when present. For a standalone layout, put
+the media files beside the executable. To select files explicitly:
 
 ```powershell
-.\build\marcus-x64\src\marcus\marcus.exe --iso .\dist\3DMOVIE100.iso --doraemon-iso .\dist\DORAEMON100.iso --expansion-zip .\expansions\n3dmmexpb1a-1.zip
+.\build\marcus-x64\src\marcus\marcus.exe --iso .\dist\3DMOVIE100.iso --doraemon-iso .\dist\DORAEMON100.iso --expansion-zip .\expansions\n3dmmexpb1a-1.zip --frankie-zip .\expansions\3dmmexp1v018.zip
 ```
 
-Marcus uses 7-Zip to read the ten archives inside the community ZIP's NSIS
-payload as data. The installer is never run. To use the reconstructed
+Marcus uses 7-Zip to read the content archives inside each community ZIP's
+NSIS payload as data. To use the reconstructed
 Nickelodeon expansion instead, select the retail disc and matching fixups:
 
 ```powershell

@@ -3318,7 +3318,7 @@ static void usage(void)
     puts("Marcus - 3D Movie Maker player\n"
          "Usage: marcus [movie.3mm|movie.vmm|movies.zip] [--iso base.iso | --content-dir folder]\n"
          "              [--doraemon-iso disc.iso] [--expansion-zip community.zip | --nick-iso disc.iso --nick-fixups fixups.zip]\n"
-         "              [--resources 3dmovie.chk]");
+         "              [--frankie-zip archive.zip] [--resources 3dmovie.chk]");
     puts(
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings] [--sounds|--both] [--second-view]\n"
@@ -3423,6 +3423,8 @@ int main(int argc, char **argv)
             media.nick_iso = argv[++i];
         else if (!strcmp(argv[i], "--nick-fixups") && i + 1 < argc)
             media.nick_fixups = argv[++i];
+        else if (!strcmp(argv[i], "--frankie-zip") && i + 1 < argc)
+            media.frankie_zip = argv[++i];
         else if (!strcmp(argv[i], "--font") && i + 1 < argc)
             font = argv[++i];
         else if (!strcmp(argv[i], "--screenshot") && i + 1 < argc)
@@ -3469,7 +3471,8 @@ int main(int argc, char **argv)
         else
             input = argv[i];
     }
-    if (explicit_content && (media.iso || media.doraemon_iso || media.expansion_zip || media.nick_iso || media.nick_fixups))
+    if (explicit_content && (media.iso || media.doraemon_iso || media.expansion_zip || media.nick_iso ||
+                             media.nick_fixups || media.frankie_zip))
     {
         usage();
         return 2;
