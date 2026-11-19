@@ -404,10 +404,13 @@ static void release_sources(void *p)
     ++t->sourceReleases;
     event(t, RELEASE_SOURCE);
 }
-static int write_title(void *p, void *f)
+static int write_title(void *f, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)
 {
-    Test *t = p;
-    (void)f;
+    static const unsigned char expected[] = {3, 3, 5, 'M', 'o', 'v', 'i', 'e', 0};
+    Test *t = f;
+    if (type != MM_MOVIE_CHUNK || number != t->data.movieNumber || bytes != sizeof(expected) ||
+        memcmp(wire, expected, bytes))
+        abort();
     ++t->titleCalls;
     return succeeds(t, TITLE);
 }
@@ -695,6 +698,8 @@ static void init(Test *t)
     MMMovieSaveServices *s;
     memset(t, 0, sizeof(*t));
     mm_movie_save_init(&t->state);
+    if (!mm_movie_title_init(&t->data.title, 1) || !mm_movie_title_set(&t->data.title, "Movie", 5))
+        abort();
     t->data.resources = t;
     if (mm_rollcall_table_init(&t->data.actors, sizeof(MMRollCallActor), 1, 0x0303, 0, NULL) != MM_STORAGE_OK)
         abort();
@@ -750,7 +755,8 @@ static void init(Test *t)
     s->add_sources = add_sources;
     s->write_sources = write_sources;
     s->release_sources = release_sources;
-    s->write_title = write_title;
+    s->titles.encoding = MM_TEXT_WINDOWS;
+    s->titles.write = write_title;
     s->has_error = error;
     s->reset_error = reset;
     s->clear_errors = clear_errors;

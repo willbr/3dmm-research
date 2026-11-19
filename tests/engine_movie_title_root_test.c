@@ -45,6 +45,81 @@ static int title_is(const MMMovieTitle *t, const char *s)
     memcpy(&value, bytes + n * 2, 2);
     return value == 0;
 }
+typedef struct SavedName
+{
+    unsigned char wire[32];
+    MMU32 size;
+    int bad, reject, converts;
+} SavedName;
+static int read_saved_name(void *p, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
+{
+    SavedName *name = p;
+    CHECK(type == MM_MOVIE_CHUNK && number == 17 && capacity >= name->size);
+    memcpy(wire, name->wire, name->size);
+    *written = name->size;
+    return *written != 0;
+}
+static int write_saved_name(void *p, MMU32 type, MMU32 number, const void *wire, MMU32 size)
+{
+    SavedName *name = p;
+    CHECK(type == MM_MOVIE_CHUNK && number == 17 && size <= sizeof(name->wire));
+    if (name->reject)
+        return 0;
+    if (size)
+        memcpy(name->wire, wire, size);
+    else
+        CHECK(!wire);
+    name->size = size;
+    return 1;
+}
+static MMI32 widen_name(void *p, const void *text, MMU32 bytes, int encoding, void *out, MMU32 capacity)
+{
+    SavedName *name = p;
+    MMU32 i;
+    CHECK(encoding == MM_TEXT_WINDOWS && bytes <= capacity);
+    ++name->converts;
+    for (i = 0; i < bytes; ++i)
+    {
+        unsigned short unit = ((const unsigned char *)text)[i];
+        memcpy((unsigned char *)out + i * 2, &unit, 2);
+    }
+    return (MMI32)bytes;
+}
+static void bad_name(void *p)
+{
+    ++((SavedName *)p)->bad;
+}
+static void archive_titles(void)
+{
+    SavedName name = {{0}, 0, 0, 0, 0};
+    MMMovieTitle t;
+    MMChunkTitleIO io = {NULL, MM_TEXT_WINDOWS, 0, widen_name, read_saved_name, write_saved_name, bad_name};
+    static const unsigned char narrow[] = {3, 3, 4, 'N', 'a', 'm', 'e', 0};
+    const unsigned short one = 1;
+    io.context = &name;
+    CHECK(mm_movie_title_init(&t, 1));
+    title_set(&t, "Name");
+    CHECK(mm_chunk_title_write(&t, &name, MM_MOVIE_CHUNK, 17, &io));
+    CHECK(name.size == sizeof(narrow) && !memcmp(name.wire, narrow, sizeof(narrow)));
+    name.reject = 1;
+    title_set(&t, "New");
+    CHECK(!mm_chunk_title_write(&t, &name, MM_MOVIE_CHUNK, 17, &io));
+    CHECK(name.size == sizeof(narrow) && !memcmp(name.wire, narrow, sizeof(narrow)));
+    name.reject = 0;
+
+    CHECK(mm_movie_title_init(&t, 2));
+    io.encoding = *(const unsigned char *)&one ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE;
+    mm_chunk_title_read(&t, &name, MM_MOVIE_CHUNK, 17, &io);
+    CHECK(title_is(&t, "Name") && name.converts == 1 && !name.bad);
+    CHECK(mm_chunk_title_write(&t, &name, MM_MOVIE_CHUNK, 17, &io) && name.size == 14);
+    name.wire[name.size - 1] = 'x';
+    mm_chunk_title_read(&t, &name, MM_MOVIE_CHUNK, 17, &io);
+    CHECK(title_is(&t, "") && name.bad == 1);
+    CHECK(mm_chunk_title_write(&t, &name, MM_MOVIE_CHUNK, 17, &io) && !name.size);
+    title_set(&t, "Present");
+    mm_chunk_title_read(&t, &name, MM_MOVIE_CHUNK, 17, &io);
+    CHECK(title_is(&t, "") && name.bad == 1);
+}
 typedef struct TitleHost
 {
     char log[16];
@@ -461,6 +536,7 @@ static void archived_scenes(void)
 int main(void)
 {
     titles();
+    archive_titles();
     roots();
     archived_scenes();
     puts("movie title/root passed");

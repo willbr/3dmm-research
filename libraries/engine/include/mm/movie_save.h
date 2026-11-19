@@ -56,7 +56,7 @@ extern "C"
         MMU32 (*source_bytes)(void *);
         int (*add_sources)(void *, void *file, MMU32 bytes, MMU32 *), (*write_sources)(void *);
         void (*release_sources)(void *);
-        int (*write_title)(void *, void *file);
+        MMChunkTitleIO titles;
         int (*has_error)(void *file);
         void (*reset_error)(void *file), (*clear_errors)(void *), (*save_error)(void *), (*bad_file)(void *);
         void (*update_title)(void *, void *path), (*clear_undo)(void *);

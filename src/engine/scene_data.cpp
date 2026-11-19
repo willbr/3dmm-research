@@ -38,20 +38,10 @@ MMSceneIO SceneIO(PChunkyFile file)
             [](void *c, MMU32 number, MMReadReceiver receive, void *out) -> int {
                 return EngineMovieGraph::ReceivePayload(static_cast<PChunkyFile>(c), kctgScen, number, receive, out);
             },
-            [](void *c, MMU32 number, MMMovieTitle *name) {
-                String value;
-                GetNameValue(name, &value);
-                static_cast<PChunkyFile>(c)->FGetName(kctgScen, number, &value);
-                SetNameValue(name, &value);
-            },
             [](void *c, MMU32 number, const unsigned char *bytes) -> int {
                 return static_cast<PChunkyFile>(c)->FPutPv(const_cast<unsigned char *>(bytes), 16, kctgScen, number);
             },
-            [](void *c, MMU32 number, const MMMovieTitle *name) -> int {
-                String value;
-                GetNameValue(name, &value);
-                return static_cast<PChunkyFile>(c)->FSetName(kctgScen, number, &value);
-            }};
+            KauaiChunkTitleIO()};
 }
 MMSceneGroupServices Groups()
 {
@@ -103,8 +93,8 @@ void SceneData::SetName(PString value)
 }
 void SceneData::LoadName(PChunkyFile file, ChunkNumber number)
 {
-    const auto io = SceneIO(file);
-    io.load_name(io.context, number, &name);
+    const auto titles = KauaiChunkTitleIO();
+    mm_chunk_title_read(&name, file, MM_SCENE_CHUNK, number, &titles);
 }
 bool SceneData::FRead(PChunkyFile file, ChunkNumber number)
 {

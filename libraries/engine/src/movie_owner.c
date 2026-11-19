@@ -103,7 +103,7 @@ int mm_movie_load(MMMovieState *m, MMU32 number, const MMMovieOwnerServices *s)
         return 0;
     }
     file = s->file(loaded.resources);
-    s->load_name(s->context, file, number, &loaded.title);
+    mm_chunk_title_read(&loaded.title, file, MM_MOVIE_CHUNK, number, &s->titles);
     while (mm_movie_session_scene_number(loaded.session, (MMU32)loaded.sceneCount, &scene_number) == MM_MOVIE_OK)
         ++loaded.sceneCount;
     replace(m, &loaded, s);
@@ -139,7 +139,8 @@ int mm_movie_save(MMMovieState *m, const MMMovieOwnerServices *s)
         return 0;
     if (had)
         s->delete_previous(s->context, file, m->movieNumber, previous);
-    if (!s->set_name(s->context, file, m->movieNumber, &m->title) || !s->save(s->context, file))
+    if (!mm_chunk_title_write(&m->title, file, MM_MOVIE_CHUNK, m->movieNumber, &s->titles) ||
+        !s->save(s->context, file))
         return 0;
     s->make_persistent(file);
     return 1;

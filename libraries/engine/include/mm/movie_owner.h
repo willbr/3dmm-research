@@ -39,11 +39,10 @@ extern "C"
         void *(*file)(void *resources);
         int (*create_root)(void *, void *file, MMU32 *);
         int (*read_rollcall)(void *, void *resources, MMU32, MMRollCallTable *, MMI32 *limit);
-        void (*load_name)(void *, void *file, MMU32, MMMovieTitle *);
+        MMChunkTitleIO titles;
         int (*previous_rollcall)(void *, void *file, MMU32 movie, MMU32 *previous);
         int (*write_rollcall)(void *, void *file, MMU32 movie, MMRollCallTable *, MMU32 *written);
         void (*delete_previous)(void *, void *file, MMU32 movie, MMU32 previous);
-        int (*set_name)(void *, void *file, MMU32 movie, const MMMovieTitle *);
         int (*save)(void *, void *file);
         void (*make_persistent)(void *file);
     } MMMovieOwnerServices;

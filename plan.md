@@ -1050,6 +1050,8 @@ into a temporary C table, appends counted names and adjusted IDs, and closes
 the imported tags if the merge fails.
 The movie state initializes and owns the live C89 table. Studio, headless
 load and save, and the shared transactions use that same embedded table.
+Movie and scene titles use the C89 string codec for chunk names. The native
+archive adapter provides encoded bytes, code-page conversion, and diagnostics.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

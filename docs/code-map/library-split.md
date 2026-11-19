@@ -7107,6 +7107,10 @@ The C movie state embeds the live roll-call table. The movie owner initializes
 and disposes it, including tag references, and publishes a replacement only
 after loading succeeds. Native services provide storage allocation, tag
 operations, and archive I/O.
+Headless saves, Studio autosave, and scene persistence also share C89 chunk
+title I/O. C encodes and decodes the existing counted strings and removes
+empty names. Kauai reads and writes the encoded bytes, invalidates the
+chunk's runtime ID after a name write, and supplies text conversion.
 
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor

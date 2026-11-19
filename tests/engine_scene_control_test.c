@@ -30,7 +30,8 @@ typedef struct Host
     int trace[128], traces, fail, allocations, releases, dead;
     unsigned char header[16];
     MMMemoryStream memory;
-    MMMovieTitle file_name;
+    unsigned char name_wire[32];
+    MMU32 name_bytes;
 } Host;
 static void event(Host *h, int value)
 {
@@ -412,12 +413,14 @@ static int read(void *p, MMU32 number, MMReadReceiver receive, void *out)
     CHECK(mm_memory_stream_init(&h->memory, h->header, 16));
     return receive(out, &h->memory.stream);
 }
-static void load_name(void *p, MMU32 number, MMMovieTitle *name)
+static int load_name(void *p, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
 {
     Host *h = (Host *)p;
-    CHECK(number == 7);
+    CHECK(type == MM_SCENE_CHUNK && number == 7 && h->name_bytes <= capacity);
     event(h, 111);
-    *name = h->file_name;
+    memcpy(wire, h->name_wire, h->name_bytes);
+    *written = h->name_bytes;
+    return 1;
 }
 static int put(void *p, MMU32 number, const unsigned char *bytes)
 {
@@ -429,22 +432,29 @@ static int put(void *p, MMU32 number, const unsigned char *bytes)
     memcpy(h->header, bytes, 16);
     return 1;
 }
-static int set_name(void *p, MMU32 number, const MMMovieTitle *name)
+static int set_name(void *p, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)
 {
     Host *h = (Host *)p;
-    CHECK(number == 7);
+    CHECK(type == MM_SCENE_CHUNK && number == 7 && bytes && bytes <= sizeof(h->name_wire));
     event(h, 113);
-    CHECK(name->count == 5 && !memcmp(name->text, h->file_name.text, name->count * name->unit));
+    if (h->name_bytes)
+        CHECK(h->name_bytes == bytes && !memcmp(wire, h->name_wire, bytes));
+    else
+    {
+        memcpy(h->name_wire, wire, bytes);
+        h->name_bytes = bytes;
+    }
     return h->fail != 3;
 }
 static void test_files(void)
 {
     Host h;
-    MMSceneIO io;
+    MMSceneIO io = {NULL, read, put, {NULL, MM_TEXT_WINDOWS, 0, NULL, load_name, set_name, NULL}};
     MMSceneState decoded;
     MMI32 value;
     unsigned unit;
     int big, fail;
+    const unsigned short one = 1;
     for (unit = 1; unit <= 2; ++unit)
         for (big = 0; big < 2; ++big)
             for (fail = 0; fail < 4; ++fail)
@@ -452,13 +462,12 @@ static void test_files(void)
                 init(&h, unit);
                 h.data.firstFrame = -2;
                 h.data.lastFrame = 19;
-                h.file_name = h.other.name;
                 CHECK(mm_scene_encode_header(&h.data, 0x303, big, h.header));
                 io.context = &h;
-                io.read = read;
-                io.load_name = load_name;
-                io.put_header = put;
-                io.set_name = set_name;
+                io.titles.encoding = unit == 1 ? MM_TEXT_WINDOWS :
+                    (*(const unsigned char *)&one ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE);
+                CHECK(mm_chunk_title_write(&h.other.name, &h, MM_SCENE_CHUNK, 7, &io.titles));
+                h.traces = 0;
                 value = 99;
                 h.fail = fail;
                 CHECK(mm_scene_transition_read(7, unit, &value, &io) == (fail != 1));

@@ -2534,6 +2534,18 @@ images from their previous runs and agreed on playback frame order. Mixed
 PCM still differed from retail in both ports. Evidence is in
 `tmp/c89-rollcall-owner/`.
 
+Movie titles and scene names now use the same C89 chunk-name codec in
+headless persistence and Studio autosave. Tests cover malformed name data,
+foreign-width text, empty names, and failed name writes. Four native
+snapshots matched their Debug and Release baselines. SDL Studio saved a
+two-scene movie with scene one active and reopened it. The save retained
+both names in Windows-1252, including the name read from UTF-16LE, and both
+scene viewports matched. Retail, SDL, and Marcus each matched all 60 seek
+images from their previous runs and agreed on playback frame order. Mixed
+PCM still differed from retail in both ports. Saving with scene two active
+omitted embedded material `MTRL 0` in both this build and the earlier Studio
+build, causing reopen to fail. Evidence is in `tmp/c89-chunk-titles/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

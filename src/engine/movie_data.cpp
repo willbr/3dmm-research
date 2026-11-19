@@ -67,11 +67,7 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *, void *resources, MMU32 number, MMRollCallTable *actors, MMI32 *limit) -> int {
             return FLoadRollCall(static_cast<PChunkyResourceFile>(resources), number, actors, limit);
         },
-        [](void *, void *file, MMU32 number, MMMovieTitle *title) {
-            String value;
-            static_cast<PChunkyFile>(file)->FGetName(kctgMvie, number, &value);
-            AssertDo(mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad movie title");
-        },
+        KauaiChunkTitleIO(),
         [](void *, void *file, MMU32 movie, MMU32 *previous) -> int {
             ChildChunkIdentification child;
             const bool found = static_cast<PChunkyFile>(file)->FGetKidChidCtg(kctgMvie, movie, 0, kctgGst, &child);
@@ -84,12 +80,6 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         },
         [](void *, void *file, MMU32 movie, MMU32 previous) {
             static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, movie, kctgGst, previous, 0);
-        },
-        [](void *, void *file, MMU32 movie, const MMMovieTitle *title) -> int {
-            String value;
-            value.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(title))),
-                          title->count);
-            return static_cast<PChunkyFile>(file)->FSetName(kctgMvie, movie, &value);
         },
         [](void *c, void *file) -> int {
             return static_cast<PChunkyFile>(file)->FSave(kctgSoc, static_cast<NativeMovieHost *>(c)->filename);
@@ -123,12 +113,6 @@ void MovieData::GetTitle(PString out) const
 void MovieData::SetTitle(PString value)
 {
     AssertDo(mm_movie_title_set(&title, value->Prgch(), value->Cch()), "bad movie title");
-}
-bool MovieData::FWriteTitle(PChunkyFile file)
-{
-    String value;
-    GetTitle(&value);
-    return file->FSetName(kctgMvie, movieNumber, &value);
 }
 bool MovieData::FInitEmpty()
 {

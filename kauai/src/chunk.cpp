@@ -79,6 +79,7 @@
 #include "mm/chunk_edit.h"
 #include "mm/chunk_ops.h"
 #include "mm/chunk_forest.h"
+#include "mm/movie_title.h"
 #include "handle_services.h"
 ASSERTNAME
 
@@ -2059,10 +2060,28 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FilePosition fp, LegacyLong cb)
 /***************************************************************************
     Set the name of the chunk.
 ***************************************************************************/
+namespace {
+MMU32 EncodeChunkName(PString name, void *wire)
+{
+    if (!name || !name->Cch())
+        return 0;
+    name->GetData(wire);
+    return name->CbData();
+}
+MMChunkNames ChunkNameServices(PChunkTable group);
+}
 bool ChunkyFile::FSetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
 {
-    AssertThis(0);
     AssertNilOrPo(pstn, 0);
+    byte wire[kcbMaxDataStn];
+    const auto bytes = EncodeChunkName(pstn, wire);
+    return FWriteNameBytes(ctg, cno, wire, bytes);
+}
+
+bool ChunkyFile::FWriteNameBytes(ChunkTagOrType ctg, ChunkNumber cno, const void *wire, MMU32 bytes)
+{
+    AssertThis(0);
+    AssertNilOrPvCb(const_cast<void *>(wire), bytes);
     LegacyLong icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -2071,7 +2090,9 @@ bool ChunkyFile::FSetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
         return fFalse;
     }
 
-    if (!_FSetName(icrp, pstn))
+    const auto names = ChunkNameServices(_Index());
+    const MMChunkNameValue value = {wire, bytes, bytes != 0};
+    if (mm_chunk_name_set(&names, icrp, &value) != MM_CHUNK_OK)
         return fFalse;
 
     _FSetRti(ctg, cno, rtiNil);
@@ -2099,10 +2120,11 @@ MMChunkNames ChunkNameServices(PChunkTable group)
 bool ChunkyFile::_FSetName(LegacyLong icrp, PString pstn)
 {
     AssertBaseThis(0); AssertIn(icrp, 0, _Index()->count); AssertNilOrPo(pstn, 0);
-    byte wire[kcbMaxDataStn]; MMChunkNameValue value = {};
-    if (pstn) { value.bytes = pstn->CbData(); value.characters = pstn->Cch(); pstn->GetData(wire); value.wire = wire; }
+    byte wire[kcbMaxDataStn];
+    const auto bytes = EncodeChunkName(pstn, wire);
+    const MMChunkNameValue value = {wire, bytes, bytes != 0};
     const auto names = ChunkNameServices(_Index());
-    return mm_chunk_name_set(&names, icrp, pstn ? &value : nullptr) == MM_CHUNK_OK;
+    return mm_chunk_name_set(&names, icrp, &value) == MM_CHUNK_OK;
 }
 
 /***************************************************************************
@@ -2163,6 +2185,22 @@ bool ChunkyFile::FReadNameBytes(ChunkTagOrType type, ChunkNumber number, void *w
         return false;
     *written = output.written;
     return true;
+}
+
+MMChunkTitleIO KauaiChunkTitleIO()
+{
+    return {nullptr, koskCur, MacWin(koskUniWin, koskUniMac),
+        [](void *, const void *input, MMU32 bytes, int encoding, void *output, MMU32 capacity) -> MMI32 {
+            return CchTranslateRgb(const_cast<void *>(input), bytes, static_cast<short>(encoding),
+                                   static_cast<achar *>(output), capacity);
+        },
+        [](void *file, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written) -> int {
+            return static_cast<PChunkyFile>(file)->FReadNameBytes(type, number, wire, capacity, written);
+        },
+        [](void *file, MMU32 type, MMU32 number, const void *wire, MMU32 bytes) -> int {
+            return static_cast<PChunkyFile>(file)->FWriteNameBytes(type, number, wire, bytes);
+        },
+        [](void *) { PushErc(ercStnRead); Warn("bad String data"); }};
 }
 
 /***************************************************************************

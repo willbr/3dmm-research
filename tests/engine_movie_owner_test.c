@@ -198,12 +198,15 @@ static int read_call(void *c, void *r, MMU32 n, MMRollCallTable *out, MMI32 *lim
     *limit = 1;
     return 1;
 }
-static void load_name(void *c, void *f, MMU32 n, MMMovieTitle *title)
+static const unsigned char stored_name[] = {3, 3, 6, 'L', 'o', 'a', 'd', 'e', 'd', 0};
+static int load_name(void *f, MMU32 type, MMU32 n, void *wire, MMU32 capacity, MMU32 *written)
 {
-    Host *h = (Host *)c;
-    CHECK(f == h && n == 7);
+    Host *h = (Host *)f;
+    CHECK(type == MM_MOVIE_CHUNK && n == 7 && capacity >= sizeof(stored_name));
     event(h, 'n');
-    CHECK(mm_movie_title_set(title, "Loaded", 6));
+    memcpy(wire, stored_name, sizeof(stored_name));
+    *written = sizeof(stored_name);
+    return 1;
 }
 static int previous(void *c, void *f, MMU32 n, MMU32 *out)
 {
@@ -227,11 +230,11 @@ static void delete_previous(void *c, void *f, MMU32 n, MMU32 old)
     CHECK(f == h && n == 7 && old == 9);
     event(h, 'd');
 }
-static int set_name(void *c, void *f, MMU32 n, const MMMovieTitle *title)
+static int set_name(void *f, MMU32 type, MMU32 n, const void *wire, MMU32 bytes)
 {
-    Host *h = (Host *)c;
-    CHECK(f == h && n == 7);
-    CHECK(title->count == 6 && !memcmp(mm_movie_title_text(title), "Loaded", 6));
+    Host *h = (Host *)f;
+    CHECK(type == MM_MOVIE_CHUNK && n == 7 && bytes == sizeof(stored_name));
+    CHECK(!memcmp(wire, stored_name, bytes));
     event(h, 'N');
     return h->fail != FAIL_NAME;
 }
@@ -255,8 +258,9 @@ static MMMovieOwnerServices owners(Host *h)
     MMMovieOwnerServices s = {
         NULL, {NULL, resize_rollcall, free_rollcall}, 0x0303, 0,
         create, open_file, open_session, new_resource, release_file, release_resource,
-        close_actor, file, root, read_call, load_name,
-        previous,      write_call, delete_previous, set_name, save,         persist};
+        close_actor, file, root, read_call,
+        {NULL, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, NULL, load_name, set_name, NULL},
+        previous, write_call, delete_previous, save, persist};
     s.context = s.actor_allocator.context = h;
     return s;
 }

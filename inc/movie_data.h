@@ -36,7 +36,6 @@ struct MovieData : MMMovieState
     MovieData() { mm_movie_state_init(this); mm_movie_title_init(&title, sizeof(achar)); }
     void GetTitle(PString) const;
     void SetTitle(PString);
-    bool FWriteTitle(PChunkyFile);
     PChunkyResourceFile Resources() const { return static_cast<PChunkyResourceFile>(resources); }
     void ReleaseResources();
     ~MovieData();

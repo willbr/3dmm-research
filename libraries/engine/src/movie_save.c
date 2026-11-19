@@ -179,7 +179,7 @@ retry_save:
         s->delete_chunk(file, MM_SAVE_TABLE, sources);
         goto fail_actors;
     }
-    if (!s->write_title(s->context, file))
+    if (!mm_chunk_title_write(&s->data->title, file, MM_MOVIE_CHUNK, s->data->movieNumber, &s->titles))
         goto fail_sources;
     if (old_scene != NIL_NUMBER)
         s->delete_child(file, s->data->movieNumber, MM_SAVE_SCENE, old_scene, s->scenes->index);

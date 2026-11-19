@@ -23,7 +23,8 @@ extern "C"
         MM_MOVIE_BACKWARD_VERSION = 2,
         MM_MOVIE_MINIMUM_VERSION = 1,
         MM_MOVIE_PREFIX_BYTES = 8,
-        MM_MOVIE_ACTOR_BYTES = 28
+        MM_MOVIE_ACTOR_BYTES = 28,
+        MM_MOVIE_CHUNK = 0x4d564945
     };
     typedef struct MMMovieHeader
     {

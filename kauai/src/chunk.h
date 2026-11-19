@@ -31,6 +31,7 @@
 
 struct MMChunkEdit;
 struct MMChunkEndpoint;
+struct MMChunkTitleIO;
 
 namespace Chunky {
 
@@ -48,6 +49,7 @@ typedef uint32_t ChunkNumber;    // chunk number
 typedef uint32_t ChildChunkID;   // child chunk id
 
 const MMChunkPayloadServices *KauaiChunkPayloadServices();
+MMChunkTitleIO KauaiChunkTitleIO();
 
 enum
 {
@@ -236,6 +238,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FSetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn);
     bool FGetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn);
     bool FReadNameBytes(ChunkTagOrType, ChunkNumber, void *wire, MMU32 capacity, MMU32 *written);
+    bool FWriteNameBytes(ChunkTagOrType, ChunkNumber, const void *wire, MMU32 bytes);
 
     // graph structure
     bool FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid = 0, bool fClearLoner = fTrue);

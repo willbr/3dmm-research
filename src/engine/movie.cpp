@@ -229,7 +229,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     };
     s.write_sources = [](void *p) -> int { return vptagm->FWriteSourceNames(&static_cast<SaveHost *>(p)->sources); };
     s.release_sources = [](void *p) { static_cast<SaveHost *>(p)->sources.Free(); };
-    s.write_title = [](void *p, void *file) -> int { return static_cast<SaveHost *>(p)->movie->_data.FWriteTitle(static_cast<PChunkyFile>(file)); };
+    s.titles = KauaiChunkTitleIO();
     s.has_error = [](void *p) -> int { return static_cast<PChunkyFile>(p)->ElError() != elNil; };
     s.reset_error = [](void *p) { static_cast<PChunkyFile>(p)->ResetEl(); };
     s.clear_errors = [](void *) { vpers->Clear(); };

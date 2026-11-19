@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MOVIE_TITLE_H
 #define MM_ENGINE_MOVIE_TITLE_H
-#include "types.h"
+#include "string_wire.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -18,6 +18,19 @@ extern "C"
      * Text is borrowed until mutation; no encoding/newline normalization occurs. */
     int mm_movie_title_set(MMMovieTitle *, const void *, MMU32 count);
     const void *mm_movie_title_text(const MMMovieTitle *);
+    typedef struct MMChunkTitleIO
+    {
+        void *context;
+        int encoding, swapped_unicode_encoding;
+        MMI32 (*convert)(void *, const void *, MMU32 bytes, int source_encoding, void *, MMU32 capacity);
+        int (*read)(void *file, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written);
+        int (*write)(void *file, MMU32 type, MMU32 number, const void *wire, MMU32 bytes);
+        void (*bad_string)(void *);
+    } MMChunkTitleIO;
+    /* A missing stored name clears the title. Malformed bytes also clear it
+     * and report the legacy string diagnostic. Empty titles remove the name. */
+    void mm_chunk_title_read(MMMovieTitle *, void *file, MMU32 type, MMU32 number, const MMChunkTitleIO *);
+    int mm_chunk_title_write(const MMMovieTitle *, void *file, MMU32 type, MMU32 number, const MMChunkTitleIO *);
     void mm_movie_title_strip_extension(MMMovieTitle *);
     typedef struct MMMovieTitleServices
     {

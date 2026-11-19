@@ -78,7 +78,7 @@ int mm_scene_read(MMSceneState *s, MMU32 number, const MMSceneIO *io)
     mm_scene_init(&loaded, s->name.unit);
     if (!io->read(io->context, number, read_header, &loaded))
         return 0;
-    io->load_name(io->context, number, &loaded.name);
+    mm_chunk_title_read(&loaded.name, io->context, MM_SCENE_CHUNK, number, &io->titles);
     *s = loaded;
     return 1;
 }
@@ -87,7 +87,8 @@ int mm_scene_write(const MMSceneState *s, MMU32 number, int system, int big, con
     unsigned char bytes[16];
     if (!mm_scene_encode_header(s, system, big, bytes))
         return 0;
-    return io->put_header(io->context, number, bytes) && io->set_name(io->context, number, &s->name);
+    return io->put_header(io->context, number, bytes) &&
+           mm_chunk_title_write(&s->name, io->context, MM_SCENE_CHUNK, number, &io->titles);
 }
 int mm_scene_transition_read(MMU32 number, unsigned unit, MMI32 *out, const MMSceneIO *io)
 {

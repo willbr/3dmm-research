@@ -49,6 +49,8 @@ struct Host
     int group_calls, group_fail, groups, root_fail, root, read_fail, io_fail;
     MMU32 *number, length;
     unsigned char header[16];
+    unsigned char name_wire[32];
+    MMU32 name_bytes;
     Group *read_group;
     int read_order, read_fail_group, read_releases;
 };
@@ -295,12 +297,14 @@ static int read_scene(void *c, MMU32 n, MMReadReceiver receive, void *out)
     stream.read_at = read_at;
     return !h->read_fail && receive(out, &stream);
 }
-static void load_name(void *c, MMU32 n, MMMovieTitle *name)
+static int load_name(void *c, MMU32 type, MMU32 n, void *wire, MMU32 capacity, MMU32 *written)
 {
     Host *h = (Host *)c;
-    CHECK(n == 7 && !name->count);
+    CHECK(type == MM_SCENE_CHUNK && n == 7 && h->name_bytes <= capacity);
     event(h, 'N');
-    set_text(name, "Loaded");
+    memcpy(wire, h->name_wire, h->name_bytes);
+    *written = h->name_bytes;
+    return *written != 0;
 }
 static int put_header(void *c, MMU32 n, const unsigned char *bytes)
 {
@@ -312,17 +316,25 @@ static int put_header(void *c, MMU32 n, const unsigned char *bytes)
     memcpy(h->header, bytes, 16);
     return 1;
 }
-static int set_name(void *c, MMU32 n, const MMMovieTitle *name)
+static int set_name(void *c, MMU32 type, MMU32 n, const void *wire, MMU32 bytes)
 {
     Host *h = (Host *)c;
-    CHECK(n == 7 && name->count == 4);
+    CHECK(type == MM_SCENE_CHUNK && n == 7 && bytes <= sizeof(h->name_wire));
     event(h, 'n');
-    return h->root_fail != 3;
+    if (h->root_fail == 3)
+        return 0;
+    if (bytes)
+        memcpy(h->name_wire, wire, bytes);
+    h->name_bytes = bytes;
+    return 1;
 }
-static MMSceneIO scene_io(Host *h)
+static MMSceneIO scene_io(Host *h, unsigned unit)
 {
-    MMSceneIO io = {NULL, read_scene, load_name, put_header, set_name};
+    MMSceneIO io = {NULL, read_scene, put_header, {NULL, MM_TEXT_WINDOWS, 0, NULL, load_name, set_name, NULL}};
+    const unsigned short one = 1;
     io.context = h;
+    if (unit == 2)
+        io.titles.encoding = *(const unsigned char *)&one ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE;
     return io;
 }
 static void headers(void)
@@ -335,13 +347,13 @@ static void headers(void)
     int big;
     unsigned unit;
     reset(&h);
-    io = scene_io(&h);
     stream.context = &h;
     stream.length = 16;
     stream.read_at = read_at;
     for (unit = 1; unit <= 2; ++unit)
         for (big = 0; big < 2; ++big)
         {
+            io = scene_io(&h, unit);
             CHECK(mm_scene_init(&state, unit));
             state.firstFrame = -3;
             state.lastFrame = 18;
@@ -351,7 +363,8 @@ static void headers(void)
             CHECK(mm_scene_write(&state, 7, 0x0303, big, &io));
             CHECK(mm_scene_init(&loaded, unit) && mm_scene_read(&loaded, 7, &io));
             CHECK(loaded.currentFrame == -4 && loaded.firstFrame == -3 && loaded.lastFrame == 18 &&
-                  loaded.transition == 3 && loaded.name.count == 6 && loaded.name.unit == unit);
+                  loaded.transition == 3 && loaded.name.count == 4 && loaded.name.unit == unit);
+            CHECK(!memcmp(mm_movie_title_text(&loaded.name), mm_movie_title_text(&state.name), 4 * unit));
             old = loaded;
             h.read_fail = 1;
             CHECK(!mm_scene_read(&loaded, 7, &io) && !memcmp(&old, &loaded, sizeof(old)));
@@ -446,7 +459,7 @@ static void creation(void)
     MMU32 number;
     int i;
     reset(&h);
-    s.io = scene_io(&h);
+    s.io = scene_io(&h, 1);
     s.events = events(&h);
     s.new_group = new_group;
     s.release_group = release_group;
