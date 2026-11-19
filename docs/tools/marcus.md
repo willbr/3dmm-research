@@ -1414,8 +1414,9 @@ The movie image is rendered without the guide.
 **Copy to camera** moves and reorients the current scene's objects from the
 playhead onward so the fixed movie camera sees the framing from the paused
 perspective work view. Earlier frames retain their original composition. The
-toolbar stays in Orbit or Fly, so you can set a different view on the next
-frame and copy again. It works on retail backgrounds, including Black, and on
+work viewpoint aligns with the movie camera after the copy while Orbit or Fly
+stays active, so you can set a different view on the next frame and copy again.
+It works on retail backgrounds, including Black, and on
 storyboards. The camera, background, lights, and captions stay in place. The
 edit retains route timing, saves with the movie, and is one undo step.
 

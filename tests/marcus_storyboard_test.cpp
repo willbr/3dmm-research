@@ -646,6 +646,12 @@ int main(int argc, char **argv)
               std::equal(after.corners, after.corners + 24, earlier.corners), "Earlier frame retains its exact pose");
         check(marcus_seek(player.get(), 3), "Seek past the copied frame");
         matchesShot(2);
+        MarcusImage matched;
+        check(marcus_match_camera(player.get(), 544, 306, &flight) &&
+              marcus_render_fly(player.get(), 544, 306, &flight, &matched), "Realign Fly to the movie camera after copying");
+        for (int i = 0; i < 12; ++i)
+            check(std::abs(matched.projection.transform[i] - fixedCamera.transform[i]) < .002f,
+                  "Fly's next movement starts at the fixed movie camera");
         flight.x -= 3; flight.yaw += 8;
         MarcusImage later;
         check(marcus_render_fly(player.get(), 544, 306, &flight, &later) && marcus_copy_to_camera(player.get(), &later) &&

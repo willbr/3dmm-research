@@ -2013,6 +2013,28 @@ static void record_camera_render(App *app, int work, Uint64 started)
     performance->pending_ms += (double)(SDL_GetTicksNS() - started) / 1000000.0;
     performance->pending_rendered = 1;
 }
+static int match_work_camera(App *app)
+{
+    const MarcusRenderResolution *resolution;
+    MarcusCamera camera;
+    float speed;
+    speed = app->fly_ready && !app->work_needs_match ? app->flight.move_speed : 0;
+    resolution = marcus_render_resolution(app->shortcuts.work_render_resolution);
+    if (!marcus_match_camera(app->player, resolution->width, resolution->height, &camera))
+    {
+        fail(app, marcus_error(app->player));
+        return 0;
+    }
+    app->flight = camera;
+    if (speed > 0)
+        app->flight.move_speed = speed;
+    app->yaw = camera.yaw;
+    app->pitch = camera.pitch;
+    app->zoom = 1;
+    app->fly_ready = 1;
+    app->work_needs_match = 0;
+    return 1;
+}
 static void copy_work_camera(App *app, int set_angle)
 {
     char title[2200];
@@ -2025,6 +2047,7 @@ static void copy_work_camera(App *app, int set_angle)
     }
     refresh(app);
     app->modified = app->dirty = 1;
+    if (!set_angle) app->work_matched = match_work_camera(app);
     SDL_snprintf(title, sizeof(title), "Marcus - %s (unsaved changes)", app->movie[0] ? app->movie : "Untitled movie");
     SDL_SetWindowTitle(app->window, title);
 }
@@ -2147,28 +2170,6 @@ static void draw_view_strip(App *app)
         ui_panel_end();
     }
     igPopStyleVar(1);
-}
-static int match_work_camera(App *app)
-{
-    const MarcusRenderResolution *resolution;
-    MarcusCamera camera;
-    float speed;
-    speed = app->fly_ready && !app->work_needs_match ? app->flight.move_speed : 0;
-    resolution = marcus_render_resolution(app->shortcuts.work_render_resolution);
-    if (!marcus_match_camera(app->player, resolution->width, resolution->height, &camera))
-    {
-        fail(app, marcus_error(app->player));
-        return 0;
-    }
-    app->flight = camera;
-    if (speed > 0)
-        app->flight.move_speed = speed;
-    app->yaw = camera.yaw;
-    app->pitch = camera.pitch;
-    app->zoom = 1;
-    app->fly_ready = 1;
-    app->work_needs_match = 0;
-    return 1;
 }
 static void draw_camera_guides(App *app, const SDL_FRect *destination)
 {
