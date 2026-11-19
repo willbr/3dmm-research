@@ -27,6 +27,8 @@ typedef struct MMMovieArchiveEditor
     int (*put)(void *, MMU32 type, MMU32 number, const void *bytes, MMU32 size);
     int (*rekey)(void *, MMU32 type, MMU32 number, MMU32 new_number);
     int (*set_title)(void *, MMU32 type, MMU32 number, const MMMovieTitle *);
+    /* Replace a chunk's payload through a writer while keeping its key and links. */
+    int (*replace)(void *, MMU32 type, MMU32 number, MMU32 bytes, MMStorageWriter *);
 } MMMovieArchiveEditor;
 
 enum MMMovieSceneArchiveResult
@@ -71,7 +73,8 @@ enum MMMovieSourceEditResult
     MM_MOVIE_SOURCE_EDIT_IDS,
     MM_MOVIE_SOURCE_EDIT_MEMORY,
     MM_MOVIE_SOURCE_EDIT_WRITE,
-    MM_MOVIE_SOURCE_EDIT_LINK
+    MM_MOVIE_SOURCE_EDIT_LINK,
+    MM_MOVIE_SOURCE_EDIT_UNKNOWN
 };
 
 /* Register an ANSI source name (NULL selects retail). An absent source table
@@ -81,6 +84,30 @@ enum MMMovieSourceEditResult
  * encoding and byte order, even on a match. Publish the ID after adoption. */
 int mm_movie_archive_register_source(const MMMovieArchiveEditor *, const MMTextHost *, MMU32 movie,
                                      MMI32 fallback_retail, const char *name, MMI32 *source_id);
+
+typedef struct MMMovieArchiveSource
+{
+    MMI32 id;
+    const char *name;
+    MMI32 mapped;
+    size_t ordinal;
+} MMMovieArchiveSource;
+
+typedef struct MMMovieArchiveSourceMap
+{
+    const MMMovieArchiveEditor *destination;
+    const MMTextHost *text;
+    MMMovieArchiveSource *sources;
+    size_t count;
+    MMU32 movie;
+    MMI32 fallback_retail;
+    int result;
+} MMMovieArchiveSourceMap;
+
+/* Borrow source names and sort the caller-owned rows by ID. For duplicate IDs
+ * the earliest input row wins. Register a source only on its first use. */
+void mm_movie_archive_prepare_source_map(MMMovieArchiveSourceMap *);
+int mm_movie_archive_map_source(void *map, MMI32 source, MMI32 *mapped);
 
 #ifdef __cplusplus
 }

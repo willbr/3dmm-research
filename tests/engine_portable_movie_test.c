@@ -247,7 +247,7 @@ static void source_row(const MMMovieSourceTable *table, MMU32 index, MMI32 id, c
 static void register_source(void)
 {
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL};
+                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL};
     SourceEdit edit = {0};
     MMMemoryStream saved;
     MMMovieSourceTable table;
@@ -310,6 +310,32 @@ static void register_source(void)
     assert(id == 123 && edit.step == 0);
 }
 
+static void map_sources(void)
+{
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
+                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL};
+    MMMovieArchiveSource sources[] = {{9, "3DMM", 0, 0}, {4, "Doraemon Character Kit", 0, 0},
+                                     {9, "other", 0, 0}};
+    MMMovieArchiveSourceMap map = {NULL, NULL, NULL, 3, 2, 1, 0};
+    SourceEdit edit = {0};
+    MMI32 id = 123;
+    editor.context = &edit;
+    map.destination = &editor;
+    map.sources = sources;
+    mm_movie_archive_prepare_source_map(&map);
+    assert(!mm_movie_archive_map_source(&map, 5, &id));
+    assert(map.result == MM_MOVIE_SOURCE_EDIT_UNKNOWN && id == 123 && edit.step == 0);
+    assert(mm_movie_archive_map_source(&map, 9, &id));
+    assert(map.result == MM_MOVIE_SOURCE_EDIT_OK && id == 1 && edit.step == 3);
+    assert(mm_movie_archive_map_source(&map, 9, &id) && id == 1 && edit.step == 3);
+    edit.step = 0;
+    edit.fail_link = 1;
+    assert(!mm_movie_archive_map_source(&map, 4, &id));
+    assert(map.result == MM_MOVIE_SOURCE_EDIT_LINK && id == 1 && edit.step == 3);
+    edit.step = edit.fail_link = 0;
+    assert(mm_movie_archive_map_source(&map, 4, &id) && id == 3 && edit.step == 3);
+}
+
 int main(void)
 {
     start_events(0);
@@ -318,6 +344,7 @@ int main(void)
     sources(1, MM_TEXT_UTF16_BE);
     replacement();
     register_source();
+    map_sources();
     puts("Portable movie source and background wire edits and link replacement passed.");
     return 0;
 }

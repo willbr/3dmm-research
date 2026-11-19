@@ -19,6 +19,9 @@
 #define ROUTE 0x50415448UL
 #define THUMB 0x5448554dUL
 #define EVENTS 0x47474145UL
+#define TRANSFER_ROWS 8
+#define TRANSFER_DATA_BYTES (6 * (MM_ACTOR_EVENT_BYTES + 44) + 2 * (MM_ACTOR_EVENT_BYTES + 28))
+#define TRANSFER_WIRE_BYTES (20 + TRANSFER_DATA_BYTES + TRANSFER_ROWS * 8)
 
 typedef struct Graph
 {
@@ -34,11 +37,13 @@ typedef struct Fixture
 {
     Graph source, destination;
     MMActorHeader input, written;
-    MMActorEvent events[8];
-    Payload payloads[8];
+    MMActorEvent events[TRANSFER_ROWS];
+    Payload payloads[TRANSFER_ROWS];
+    MMMemoryStream source_stream, destination_stream;
+    unsigned char source_events[TRANSFER_WIRE_BYTES], destination_events[TRANSFER_WIRE_BYTES];
     unsigned char descriptor[MM_ACTOR_ARCHIVE_TEXT_BYTES];
     MMU32 copies, writes;
-    int fail_write;
+    int big_endian, fail_write;
 } Fixture;
 
 static int entry(void *context, MMU32 i, MMChunkEntry *out)
@@ -60,19 +65,21 @@ static void append_child(Graph *graph, MMU32 parent, MMU32 type, MMU32 number, M
     link->number = number;
     link->slot = slot;
 }
-static MMChunkAccess destination(void *context)
+static MMChunkAccess source(void *context)
 {
-    MMChunkAccess chunks;
-    chunks.context = &((Fixture *)context)->destination;
-    chunks.count = 3;
-    chunks.entry = entry;
-    chunks.child = child;
+    MMChunkAccess chunks = {NULL, 2, entry, child};
+    chunks.context = &((Fixture *)context)->source;
     return chunks;
 }
-static int clone_actor(void *context, MMU32 actor, MMActorHeader *header, MMU32 *copied)
+static MMChunkAccess destination(void *context)
 {
-    CHECK(actor == 1);
-    *header = ((Fixture *)context)->input;
+    MMChunkAccess chunks = {NULL, 3, entry, child};
+    chunks.context = &((Fixture *)context)->destination;
+    return chunks;
+}
+static int clone_actor(void *context, MMU32 actor, MMU32 *copied)
+{
+    CHECK(context && actor == 1);
     *copied = 2;
     return 1;
 }
@@ -102,53 +109,154 @@ static int map_source(void *context, MMI32 source, MMI32 *mapped)
     *mapped = 7;
     return 1;
 }
-static int read_text(void *context, MMU32 number, unsigned char *out)
+static void encode_transfer_events(Fixture *f)
 {
-    CHECK(number == 5);
-    memcpy(out, ((Fixture *)context)->descriptor, MM_ACTOR_ARCHIVE_TEXT_BYTES);
-    return 1;
+    const unsigned short one = 1;
+    MMCollectionHeader header = {0};
+    unsigned char *data, *locations, *row;
+    MMU32 offset, i, prefix, size, word;
+    const MMTag *tag;
+    header.kind = MM_COLLECTION_GROUP;
+    header.width = MM_ACTOR_EVENT_BYTES;
+    header.count = TRANSFER_ROWS;
+    header.bytes = TRANSFER_DATA_BYTES;
+    header.free_count = -1;
+    header.system = MM_TEXT_WINDOWS;
+    header.big_endian = f->big_endian;
+    CHECK(mm_collection_header_write(&header, f->source_events, sizeof(f->source_events)) == MM_STORAGE_OK);
+    data = f->source_events + 20;
+    locations = data + TRANSFER_DATA_BYTES;
+    offset = 0;
+    for (i = 0; i < TRANSFER_ROWS; ++i)
+    {
+        row = data + offset;
+        prefix = i < 6 ? 28 : 12;
+        tag = i < 6 ? &f->payloads[i].sound.tag : &f->payloads[i].costume.tag;
+        size = MM_ACTOR_EVENT_BYTES + prefix + 16;
+        memcpy(row, &f->events[i], MM_ACTOR_EVENT_BYTES);
+        row += MM_ACTOR_EVENT_BYTES;
+        memcpy(row, &f->payloads[i], prefix);
+        memcpy(row + prefix, &tag->sid, 4);
+        memset(row + prefix + 4, 0, 4);
+        memcpy(row + prefix + 8, &tag->type, 4);
+        memcpy(row + prefix + 12, &tag->number, 4);
+        memcpy(locations + i * 8, &offset, 4);
+        memcpy(locations + i * 8 + 4, &size, 4);
+        offset += size;
+    }
+    if (f->big_endian != (*(const unsigned char *)&one == 0))
+        for (i = 0; i < TRANSFER_WIRE_BYTES - 20; i += 4)
+        {
+            memcpy(&word, data + i, 4);
+            word = (word << 24) | ((word << 8) & 0x00ff0000UL) |
+                   ((word >> 8) & 0x0000ff00UL) | (word >> 24);
+            memcpy(data + i, &word, 4);
+        }
 }
-static int write_text(void *context, MMU32 number, unsigned char *bytes)
-{
-    CHECK(number == 5);
-    memcpy(((Fixture *)context)->descriptor, bytes, MM_ACTOR_ARCHIVE_TEXT_BYTES);
-    return 1;
-}
-static int write_header(void *context, MMU32 actor, const MMActorHeader *header)
-{
-    CHECK(actor == 2);
-    ((Fixture *)context)->written = *header;
-    return 1;
-}
-static void *read_events(void *context, MMU32 actor)
-{
-    CHECK(actor == 1);
-    return context;
-}
-static MMU32 count(void *events)
-{
-    CHECK(events);
-    return 8;
-}
-static void *fixed(void *events, MMU32 index) { return &((Fixture *)events)->events[index]; }
-static void *data(void *events, MMU32 index) { return &((Fixture *)events)->payloads[index]; }
-static int write_events(void *context, MMU32 actor, void *events)
+static int source_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     Fixture *f = (Fixture *)context;
-    CHECK(context == events && actor == 2);
+    if (type == ACTOR)
+    {
+        CHECK(number == 1 && mm_memory_stream_init(&f->source_stream, &f->input, sizeof(f->input)));
+    }
+    else
+    {
+        CHECK(type == EVENTS && number == 10);
+        encode_transfer_events(f);
+        CHECK(mm_memory_stream_init(&f->source_stream, f->source_events, sizeof(f->source_events)));
+    }
+    *stream = f->source_stream.stream;
+    return 1;
+}
+static int destination_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(type == MM_TDT && number == 5);
+    CHECK(mm_memory_stream_init(&f->destination_stream, f->descriptor, sizeof(f->descriptor)));
+    *stream = f->destination_stream.stream;
+    return 1;
+}
+static int put(void *context, MMU32 type, MMU32 number, const void *bytes, MMU32 size)
+{
+    Fixture *f = (Fixture *)context;
+    if (type == ACTOR)
+    {
+        CHECK(number == 2 && size == sizeof(f->written));
+        memcpy(&f->written, bytes, size);
+    }
+    else
+    {
+        CHECK(type == MM_TDT && number == 5 && size == sizeof(f->descriptor));
+        memcpy(f->descriptor, bytes, size);
+    }
+    return 1;
+}
+static int write_event_bytes(void *context, MMU32 offset, const void *data, size_t bytes)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(offset <= sizeof(f->destination_events) && bytes <= sizeof(f->destination_events) - offset);
+    if (f->fail_write && offset)
+        return 0;
+    memcpy(f->destination_events + offset, data, bytes);
+    return 1;
+}
+static int replace_events(void *context, MMU32 type, MMU32 number, MMU32 size, MMStorageWriter *writer)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(type == EVENTS && number == 20 && size == sizeof(f->destination_events));
     ++f->writes;
-    return !f->fail_write;
+    writer->context = f;
+    writer->length = size;
+    writer->write_at = write_event_bytes;
+    return 1;
+}
+static void read_output_events(Fixture *f)
+{
+    MMMemoryStream output;
+    MMCollectionHeader header;
+    const unsigned char *records, *payload;
+    MMU32 i, offset;
+    MMI32 size;
+    CHECK(mm_memory_stream_init(&output, f->destination_events, sizeof(f->destination_events)));
+    CHECK(mm_collection_header_read(&output.stream, MM_COLLECTION_GROUP, 0, &header) == MM_STORAGE_OK);
+    CHECK(header.width == MM_ACTOR_EVENT_BYTES && header.count == TRANSFER_ROWS);
+    records = f->destination_events + header.header_bytes;
+    for (i = 0; i < TRANSFER_ROWS; ++i)
+    {
+        CHECK(mm_collection_group_row(&header, records, i, &offset, &size));
+        memcpy(&f->events[i], records + offset, MM_ACTOR_EVENT_BYTES);
+        payload = records + offset + MM_ACTOR_EVENT_BYTES;
+        if (i < 6)
+        {
+            CHECK(f->events[i].aet == MM_ACTOR_SOUND && size == 44);
+            memcpy(&f->payloads[i].sound.child, payload + 24, 4);
+            memcpy(&f->payloads[i].sound.tag.sid, payload + 28, 4);
+            memcpy(&f->payloads[i].sound.tag.number, payload + 40, 4);
+        }
+        else
+        {
+            CHECK(f->events[i].aet == MM_ACTOR_COSTUME && size == 28);
+            memcpy(&f->payloads[i].costume.tag.number, payload + 24, 4);
+        }
+    }
 }
 
 static void init(Fixture *f, int big)
 {
     MMU32 i;
     memset(f, 0, sizeof(*f));
-    f->source.entries[0].type = MM_SOUND_SCENE;
+    f->big_endian = big;
+    f->source.entries[0].type = ACTOR;
     f->source.entries[0].number = 1;
-    append_child(&f->source, 0, MM_SOUND_CHUNK, 23, 2);
+    append_child(&f->source, 0, EVENTS, 10, 0);
+    f->source.entries[1].type = MM_SOUND_SCENE;
+    f->source.entries[1].number = 1;
+    append_child(&f->source, 1, ACTOR, 1, 0);
+    append_child(&f->source, 1, MM_SOUND_CHUNK, 23, 2);
     f->destination.entries[0].type = ACTOR;
     f->destination.entries[0].number = 2;
+    append_child(&f->destination, 0, EVENTS, 20, 0);
     append_child(&f->destination, 0, MM_TMPL, 4, 0);
     append_child(&f->destination, 0, MATERIAL, 7, 1);
     f->destination.entries[1].type = MM_SOUND_SCENE;
@@ -158,6 +266,7 @@ static void init(Fixture *f, int big)
     f->destination.entries[2].number = 4;
     append_child(&f->destination, 2, FONT, 6, 0);
     append_child(&f->destination, 2, MM_TDT, 5, 0);
+    f->input.order = 1;
     f->input.actor_id = 6;
     f->input.first_frame = 9;
     f->input.last_frame = INVALID_FRAME;
@@ -169,7 +278,7 @@ static void init(Fixture *f, int big)
     for (i = 0; i < 4; ++i)
         f->descriptor[big ? 19 - i : 16 + i] = (unsigned char)(FONT >> (i * 8));
     f->descriptor[big ? 23 : 20] = 9;
-    for (i = 0; i < 8; ++i)
+    for (i = 0; i < TRANSFER_ROWS; ++i)
     {
         f->events[i].nfrm = 10 + (MMI32)i;
         f->events[i].rtel.irpt = 15;
@@ -258,7 +367,7 @@ static void rename_rollcall(void)
 {
     RollEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, movie_chunks,
-                                   open_roll, add_roll, adopt_roll, unlink_roll, NULL, NULL, NULL};
+                                   open_roll, add_roll, adopt_roll, unlink_roll, NULL, NULL, NULL, NULL};
     MMActorArchiveName name = {{4, 1, 0, 2, MM_TMPL, 19}, "edited", 6, 1};
     MMMovieActor original = {4, 3, 5, 0, MM_TMPL, 1}, other = {6, 2, 5, 1, MM_TMPL, 2}, actor;
     MMCollectionHeader header = {0};
@@ -388,7 +497,7 @@ static void placement_transaction(void)
     float delta[] = {1.25f, 0, 0};
     PlacementEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, placement_chunks, placement_read,
-                                   placement_add, placement_adopt, placement_unlink, placement_put, NULL, NULL};
+                                   placement_add, placement_adopt, placement_unlink, placement_put, NULL, NULL, NULL};
     MMActorArchivePose pose = {20, 5, NULL, identity, scale, NULL, placement_appearance};
     int fail;
     pose.context = editor.context = &edit;
@@ -605,7 +714,7 @@ static void reframe_transaction(void)
                                   MM_ACTOR_ROTATE_HERE, MM_ACTOR_TWEAK};
     ReframeEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, reframe_chunks, reframe_read,
-                                   reframe_add, reframe_adopt, reframe_unlink, reframe_put, NULL, NULL};
+                                   reframe_add, reframe_adopt, reframe_unlink, reframe_put, NULL, NULL, NULL};
     MMSceneReframeHost host = {NULL, reframe_pose, reframe_from_euler, reframe_to_euler};
     MMSceneReframeCamera work = {identity, 70.0f, 1.0f}, camera = {identity, 70.0f, 2.0f};
     MMMemoryStream output;
@@ -654,39 +763,35 @@ int main(void)
     const MMActorArchiveRequest request = {1, 1, 3, 7, 12, 9};
     const MMActorArchiveRequest forward = {1, 1, 3, 7, 9, 12};
     MMActorArchiveHost host = {0};
+    MMMovieArchiveEditor source_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source, source_read,
+                                          NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+    MMMovieArchiveEditor destination_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, destination, destination_read,
+                                               NULL, adopt, NULL, put, NULL, NULL, replace_events};
     MMU32 actor, i;
     MMActorHeader header;
     unsigned char descriptor[MM_ACTOR_ARCHIVE_TEXT_BYTES];
     int big;
-    host.context = &f;
-    host.source_chunks.context = &f.source;
-    host.source_chunks.count = 1;
-    host.source_chunks.entry = entry;
-    host.source_chunks.child = child;
-    host.destination_chunks = destination;
+    host.context = host.source_map = source_editor.context = destination_editor.context = &f;
+    host.source = &source_editor;
+    host.destination = &destination_editor;
     host.clone_actor = clone_actor;
     host.copy_asset = copy_asset;
-    host.adopt = adopt;
     host.map_source = map_source;
-    host.read_text = read_text;
-    host.write_text = write_text;
-    host.write_header = write_header;
-    host.read_events = read_events;
-    host.write_events = write_events;
-    host.events.count = count;
-    host.events.fixed = fixed;
-    host.events.data = data;
     for (big = 0; big <= 1; ++big)
     {
         init(&f, big);
         memcpy(descriptor, f.descriptor, sizeof(descriptor));
         descriptor[big ? 23 : 20] = 109;
+        actor = 777;
+        CHECK(!mm_actor_archive_find(&source_editor, 1, 7, &actor) && actor == 777);
+        CHECK(mm_actor_archive_find(&source_editor, 1, 6, &actor) && actor == 1);
         CHECK(mm_actor_archive_transfer(&request, &host, &actor, &header) == MM_ACTOR_ARCHIVE_OK);
         CHECK(actor == 2 && header.actor_id == 7 && header.first_frame == 6 &&
               header.last_frame == INVALID_FRAME && header.template_number == 4);
         CHECK(f.written.actor_id == 7 && f.writes == 1 && f.copies == 4);
         CHECK(!memcmp(f.descriptor, descriptor, sizeof(descriptor)));
-        for (i = 0; i < 8; ++i)
+        read_output_events(&f);
+        for (i = 0; i < TRANSFER_ROWS; ++i)
             CHECK(f.events[i].nfrm == (i == 5 ? INVALID_FRAME : 7 + (MMI32)i) && f.events[i].rtel.irpt == 15);
         CHECK(f.payloads[0].sound.child == 5 && f.payloads[0].sound.tag.number == 123);
         CHECK(f.payloads[1].sound.child == 5 && f.payloads[1].sound.tag.number == 123);

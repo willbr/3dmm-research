@@ -1,4 +1,4 @@
-#include "mm/actor_archive.h"
+#include "actor_archive_internal.h"
 #include "mm/actor_motion.h"
 #include "mm/collections.h"
 #include "mm/movie_sound.h"
@@ -37,7 +37,7 @@ static int shift_frame(MMI32 *frame, MMWide delta)
 
 static int map_source(const MMActorArchiveHost *host, MMI32 *source)
 {
-    if (*source > 0 && !host->map_source(host->context, *source, source))
+    if (*source > 0 && host->map_source && !host->map_source(host->source_map, *source, source))
         return MM_ACTOR_ARCHIVE_SOURCE;
     return MM_ACTOR_ARCHIVE_OK;
 }
@@ -46,12 +46,13 @@ static int embed(const MMActorArchiveHost *host, MMU32 parent_type, MMU32 parent
                  MMU32 source, MMU32 *copied, MMU32 *slot)
 {
     MMChunkAccess chunks;
+    const MMMovieArchiveEditor *editor = host->destination;
     if (!host->copy_asset(host->context, type, source, copied))
         return MM_ACTOR_ARCHIVE_COPY_ASSET;
-    chunks = host->destination_chunks(host->context);
+    chunks = editor->chunks(editor->context);
     if (!mm_movie_archive_next_child(&chunks, parent_type, parent, type, slot))
         return MM_ACTOR_ARCHIVE_SLOT;
-    if (!host->adopt(host->context, parent_type, parent, type, *copied, *slot))
+    if (!editor->adopt(editor->context, parent_type, parent, type, *copied, *slot))
         return parent_type == SCENE_TYPE ? MM_ACTOR_ARCHIVE_ADOPT_SOUND : MM_ACTOR_ARCHIVE_ADOPT_ASSET;
     return MM_ACTOR_ARCHIVE_OK;
 }
@@ -89,18 +90,21 @@ static void put_text_word(unsigned char *bytes, MMU32 value, int big)
 static int retarget_template(const MMActorArchiveHost *host, MMU32 copied, MMActorHeader *header)
 {
     MMChunkAccess chunks;
+    MMReadStream stream;
+    const MMMovieArchiveEditor *editor = host->destination;
     MMU32 text;
     unsigned char bytes[MM_ACTOR_ARCHIVE_TEXT_BYTES];
     MMTag font;
     int big, result;
     if (header->source_id != 0)
         return map_source(host, &header->source_id);
-    chunks = host->destination_chunks(host->context);
+    chunks = editor->chunks(editor->context);
     if (mm_actor_template_link(&chunks, copied, 0, 0, &header->template_number) != MM_CHUNK_OK)
         return MM_ACTOR_ARCHIVE_TEMPLATE;
     if (mm_chunk_link_number(&chunks, MM_TMPL, header->template_number, 0, MM_TDT, &text) != MM_CHUNK_OK)
         return MM_ACTOR_ARCHIVE_OK;
-    if (!host->read_text(host->context, text, bytes))
+    if (!editor->read(editor->context, MM_TDT, text, &stream) || stream.length != sizeof(bytes) ||
+        !mm_read_exact(&stream, 0, bytes, sizeof(bytes)))
         return MM_ACTOR_ARCHIVE_READ_TEXT;
     big = bytes[0] == 0 && bytes[1] == 1;
     if (!big && (bytes[0] != 1 || bytes[1] != 0))
@@ -114,7 +118,7 @@ static int retarget_template(const MMActorArchiveHost *host, MMU32 copied, MMAct
         return result;
     put_text_word(bytes + 8, (MMU32)font.sid, big);
     put_text_word(bytes + 20, font.number, big);
-    if (!host->write_text(host->context, text, bytes))
+    if (!editor->put(editor->context, MM_TDT, text, bytes, sizeof(bytes)))
         return MM_ACTOR_ARCHIVE_WRITE_TEXT;
     return MM_ACTOR_ARCHIVE_OK;
 }
@@ -122,13 +126,15 @@ static int retarget_template(const MMActorArchiveHost *host, MMU32 copied, MMAct
 static int retarget_sound(const MMActorArchiveRequest *request, const MMActorArchiveHost *host,
                           MMArray *sounds, MMActorSound *sound)
 {
+    MMChunkAccess chunks;
     SoundLink *links, link;
     MMU32 first, end, middle;
     int result;
     if (sound->tag.sid != 0)
         return map_source(host, &sound->tag.sid);
     link.source = sound->tag.number;
-    mm_chunk_link_number(&host->source_chunks, SCENE_TYPE, request->source_scene,
+    chunks = host->source->chunks(host->source->context);
+    mm_chunk_link_number(&chunks, SCENE_TYPE, request->source_scene,
                          sound->child, MM_SOUND_CHUNK, &link.source);
 
     links = (SoundLink *)sounds->storage->buffers[0].data;
@@ -159,43 +165,40 @@ static int retarget_sound(const MMActorArchiveRequest *request, const MMActorArc
 }
 
 static int retarget_events(const MMActorArchiveRequest *request, const MMActorArchiveHost *host,
-                           MMU32 copied, MMWide delta, void *events, MMArray *sounds)
+                           MMU32 copied, MMWide delta, MMGroup *events, MMArray *sounds)
 {
-    const MMActorEventServices *rows;
-    MMU32 i, count;
+    MMU32 i;
     MMActorEvent event;
     MMActorCostume costume;
     MMActorSound sound;
     void *fixed;
     int result;
-    rows = &host->events;
-    count = rows->count(events);
-    for (i = 0; i < count; ++i)
+    for (i = 0; i < events->count; ++i)
     {
-        fixed = rows->fixed(events, i);
+        fixed = mm_actor_archive_event(events, i);
         memcpy(&event, fixed, sizeof(event));
         if (!shift_frame(&event.nfrm, delta))
             return MM_ACTOR_ARCHIVE_FRAME;
         memcpy(fixed, &event, sizeof(event));
         if (event.aet == MM_ACTOR_COSTUME)
         {
-            memcpy(&costume, rows->data(events, i), sizeof(costume));
+            memcpy(&costume, mm_actor_archive_payload(events, i), sizeof(costume));
             if (costume.custom)
                 continue;
             result = retarget(host, ACTOR_TYPE, copied, &costume.tag);
             if (result != MM_ACTOR_ARCHIVE_OK)
                 return result;
-            memcpy(rows->data(events, i), &costume, sizeof(costume));
+            memcpy(mm_actor_archive_payload(events, i), &costume, sizeof(costume));
         }
         else if (event.aet == MM_ACTOR_SOUND)
         {
-            memcpy(&sound, rows->data(events, i), sizeof(sound));
+            memcpy(&sound, mm_actor_archive_payload(events, i), sizeof(sound));
             if (sound.no_sound)
                 continue;
             result = retarget_sound(request, host, sounds, &sound);
             if (result != MM_ACTOR_ARCHIVE_OK)
                 return result;
-            memcpy(rows->data(events, i), &sound, sizeof(sound));
+            memcpy(mm_actor_archive_payload(events, i), &sound, sizeof(sound));
         }
     }
     return MM_ACTOR_ARCHIVE_OK;
@@ -207,11 +210,13 @@ int mm_actor_archive_transfer(const MMActorArchiveRequest *request, const MMActo
     MMActorHeader header;
     MMU32 copied;
     MMWide delta;
-    void *events;
+    MMGroup *events;
+    const MMMovieArchiveEditor *editor = host->destination;
     MMCollectionStorage storage;
     MMArray sounds;
     int result;
-    if (!host->clone_actor(host->context, request->actor, &header, &copied))
+    if (!mm_actor_archive_read_actor(host->source, request->actor, &header) ||
+        !host->clone_actor(host->context, request->actor, &copied))
         return MM_ACTOR_ARCHIVE_CLONE;
     delta = mm_wide_subtract(mm_wide_i32(request->destination_frame), mm_wide_i32(request->source_frame));
     if (!shift_frame(&header.first_frame, delta) || !shift_frame(&header.last_frame, delta))
@@ -220,9 +225,9 @@ int mm_actor_archive_transfer(const MMActorArchiveRequest *request, const MMActo
     result = retarget_template(host, copied, &header);
     if (result != MM_ACTOR_ARCHIVE_OK)
         return result;
-    if (!host->write_header(host->context, copied, &header))
+    if (!editor->put(editor->context, ACTOR_TYPE, copied, &header, sizeof(header)))
         return MM_ACTOR_ARCHIVE_WRITE_HEADER;
-    events = host->read_events(host->context, request->actor);
+    events = mm_actor_archive_read_event_group(host->source, request->actor, NULL);
     if (!events)
         return MM_ACTOR_ARCHIVE_READ_EVENTS;
     mm_storage_init(&storage, NULL);
@@ -235,12 +240,14 @@ int mm_actor_archive_transfer(const MMActorArchiveRequest *request, const MMActo
     sounds.trash_unused = 0;
     result = retarget_events(request, host, copied, delta, events, &sounds);
     mm_storage_dispose(&storage);
+    if (result == MM_ACTOR_ARCHIVE_OK && !mm_actor_archive_replace_event_group(editor, copied, events))
+        result = MM_ACTOR_ARCHIVE_WRITE_EVENTS;
+    mm_actor_archive_release_event_group(events);
     if (result != MM_ACTOR_ARCHIVE_OK)
         return result;
-    if (!host->write_events(host->context, copied, events))
-        return MM_ACTOR_ARCHIVE_WRITE_EVENTS;
     *actor = copied;
-    *out = header;
+    if (out)
+        *out = header;
     return MM_ACTOR_ARCHIVE_OK;
 }
 

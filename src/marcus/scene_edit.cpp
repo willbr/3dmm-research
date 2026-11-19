@@ -26,8 +26,11 @@ void Require(bool value, const char *message)
     if (!value) throw std::runtime_error(message);
 }
 void UpdateActorListing(PChunkyFile file, ChunkNumber movie, const MMActorArchivePlacement *placement,
-                        const ActorChunkOnFile &header, const std::string &name, MMU32 flags,
-                        bool replaceExisting = false);
+                        const MMMovieActor &actor, const std::string &name, bool replaceExisting = false);
+MMMovieActor ActorListing(const ActorChunkOnFile &header, MMU32 flags)
+{
+    return {header.arid, 1, header.tagTmpl.sid, flags, header.tagTmpl.ctg, header.tagTmpl.cno};
+}
 }
 static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin)
@@ -67,6 +70,13 @@ struct MovieArchiveHost
     PChunkyFile file;
     DataBlock input, output;
 
+    MMStorageWriter OutputWriter(MMU32 bytes)
+    {
+        return {&output, bytes, [](void *block, MMU32 offset, const void *data, size_t count) -> int {
+            return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), count, offset);
+        }};
+    }
+
     MMMovieArchiveEditor Editor()
     {
         const unsigned short one = 1;
@@ -86,9 +96,7 @@ struct MovieArchiveHost
                 auto &io = *static_cast<MovieArchiveHost *>(value);
                 if (!writer) return io.file->FAdd(bytes, type, number);
                 if (!io.file->FAdd(bytes, type, number, &io.output)) return false;
-                *writer = {&io.output, bytes, [](void *block, MMU32 offset, const void *data, size_t count) -> int {
-                    return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), count, offset);
-                }};
+                *writer = io.OutputWriter(bytes);
                 return true;
             },
             [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) -> int {
@@ -109,16 +117,20 @@ struct MovieArchiveHost
                 String name;
                 name.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(title))), title->count);
                 return static_cast<MovieArchiveHost *>(value)->file->FSetName(type, number, &name);
+            },
+            [](void *value, MMU32 type, MMU32 number, MMU32 bytes, MMStorageWriter *writer) -> int {
+                auto &io = *static_cast<MovieArchiveHost *>(value);
+                if (!io.file->FPut(bytes, type, number, &io.output)) return false;
+                *writer = io.OutputWriter(bytes);
+                return true;
             }
         };
     }
 };
 }
 
-static LegacyLong MovieSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource, const char *name)
+static void CheckMovieSource(int status)
 {
-    MovieArchiveHost host{file, {}, {}};
-    const auto editor = host.Editor();
     static const char *const messages[] = {
         nullptr,
         "Cannot read movie content sources.",
@@ -126,17 +138,21 @@ static LegacyLong MovieSource(PChunkyFile file, ChunkNumber movie, LegacyLong fa
         "This movie has no available content source IDs.",
         "Cannot allocate the movie content sources.",
         "Cannot write movie content sources.",
-        "Cannot link movie content sources."
+        "Cannot link movie content sources.",
+        "The copied object uses an unknown content source."
     };
-    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_MOVIE_SOURCE_EDIT_LINK + 1, "source diagnostics");
-    MMI32 id;
-    const auto status = mm_movie_archive_register_source(&editor, KauaiText::Services(), movie, fallbackSource, name, &id);
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_MOVIE_SOURCE_EDIT_UNKNOWN + 1, "source diagnostics");
     Require(status == MM_MOVIE_SOURCE_EDIT_OK, messages[status]);
-    return id;
 }
 
 static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource)
-{ return MovieSource(file, movie, fallbackSource, nullptr); }
+{
+    MovieArchiveHost host{file, {}, {}};
+    const auto editor = host.Editor();
+    MMI32 id;
+    CheckMovieSource(mm_movie_archive_register_source(&editor, KauaiText::Services(), movie, fallbackSource, nullptr, &id));
+    return id;
+}
 
 static void CheckSceneArchive(int status)
 {
@@ -371,8 +387,8 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
             wire->FWrite(&block), "Cannot write the prop track.");
     const MMActorArchivePlacement placement{static_cast<MMU32>(sceneNumber), actorNumber, scene.firstFrame,
                                             frame == scene.firstFrame};
-    UpdateActorListing(file, root.number, &placement, header, propEdit.file ? MarcusTextAnsi(name) : std::string(name),
-                       propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0);
+    UpdateActorListing(file, root.number, &placement, ActorListing(header, propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0),
+                       propEdit.file ? MarcusTextAnsi(name) : std::string(name));
 }
 
 static void CheckActorArchiveEdit(int result)
@@ -445,15 +461,14 @@ Filename ObjectFile(const std::filesystem::path &path)
 }
 
 void UpdateActorListing(PChunkyFile file, ChunkNumber movie, const MMActorArchivePlacement *placement,
-                        const ActorChunkOnFile &header, const std::string &name, MMU32 flags, bool replaceExisting)
+                        const MMMovieActor &actor, const std::string &name, bool replaceExisting)
 {
     MovieArchiveHost host{file, {}, {}};
     const auto editor = host.Editor();
     String caption;
     caption.SetSzs(const_cast<char *>(name.c_str()));
     const MMActorArchiveName entry = {
-        {header.arid, 1, header.tagTmpl.sid, flags, header.tagTmpl.ctg, header.tagTmpl.cno},
-        caption.Prgch(), static_cast<MMU32>(caption.Cch()), replaceExisting
+        actor, caption.Prgch(), static_cast<MMU32>(caption.Cch()), replaceExisting
     };
     static const char *const messages[] = {
         nullptr,
@@ -472,78 +487,27 @@ void UpdateActorListing(PChunkyFile file, ChunkNumber movie, const MMActorArchiv
     Require(status == MM_ACTOR_REGISTER_OK, messages[status]);
 }
 
-ChunkNumber TransferObject(PChunkyFile source, ChunkNumber actor, ChunkNumber sourceScene,
-    PChunkyFile destination, ChunkNumber destinationScene, std::int32_t actorId,
-    std::int32_t sourceFrame, std::int32_t destinationFrame,
-    const std::function<LegacyLong(LegacyLong)> &sourceId, ActorChunkOnFile &header)
+ChunkNumber TransferObject(const MMMovieArchiveEditor &source, const MMMovieArchiveEditor &destination,
+                           const MMActorArchiveRequest &request, MMMovieArchiveSourceMap *sources,
+                           MMActorHeader *header)
 {
     static_assert(knfrmInvalid == 2147483647, "actor invalid frame");
-    struct Host
+    struct Files
     {
         PChunkyFile source, destination;
-        const std::function<LegacyLong(LegacyLong)> &sourceId;
-        std::unique_ptr<GeneralGroup, Release> events;
-        std::exception_ptr error;
-    } context{source, destination, sourceId, {}, {}};
-    const MMActorArchiveRequest request{actor, sourceScene, destinationScene, actorId, sourceFrame, destinationFrame};
-    MMActorArchiveHost host{};
-    host.context = &context;
-    host.source_chunks = source->ReadChunkAccess();
-    host.destination_chunks = [](void *value) { return static_cast<Host *>(value)->destination->ReadChunkAccess(); };
-    host.clone_actor = [](void *value, MMU32 actor, MMActorHeader *header, MMU32 *copied) -> int {
-        auto &io = *static_cast<Host *>(value);
-        return ActorData::FReadHeader(io.source, actor, header) &&
-            io.source->FClone(kctgActr, actor, io.destination, copied);
-    };
-    host.copy_asset = [](void *value, MMU32 type, MMU32 number, MMU32 *copied) -> int {
-        auto &io = *static_cast<Host *>(value);
-        return io.source->FFind(type, number) && io.source->FCopy(type, number, io.destination, copied);
-    };
-    host.adopt = [](void *value, MMU32 parentType, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot) -> int {
-        return static_cast<Host *>(value)->destination->FAdoptChild(parentType, parent, type, number, slot);
-    };
-    host.map_source = [](void *value, MMI32 oldId, MMI32 *newId) -> int {
-        auto &io = *static_cast<Host *>(value);
-        try
-        {
-            *newId = io.sourceId(oldId);
-            return true;
-        }
-        catch (...)
-        {
-            io.error = std::current_exception();
-            return false;
-        }
-    };
-    host.read_text = [](void *value, MMU32 number, unsigned char *bytes) -> int {
-        DataBlock block;
-        return static_cast<Host *>(value)->destination->FFind(kctgTdt, number, &block) &&
-            block.FUnpackData() && block.Cb() == MM_ACTOR_ARCHIVE_TEXT_BYTES &&
-            block.FReadRgb(bytes, MM_ACTOR_ARCHIVE_TEXT_BYTES, 0);
-    };
-    host.write_text = [](void *value, MMU32 number, unsigned char *bytes) -> int {
-        return static_cast<Host *>(value)->destination->FPutPv(bytes, MM_ACTOR_ARCHIVE_TEXT_BYTES, kctgTdt, number);
-    };
-    host.write_header = [](void *value, MMU32 actor, const MMActorHeader *header) -> int {
-        ActorChunkOnFile native;
-        std::memcpy(&native, header, sizeof(native));
-        return ActorData::FWriteHeader(static_cast<Host *>(value)->destination, actor, &native);
-    };
-    host.read_events = [](void *value, MMU32 actor) -> void * {
-        auto &io = *static_cast<Host *>(value);
-        io.events.reset(ActorData::PggReadEvents(io.source, actor));
-        return io.events.get();
-    };
-    host.events.count = [](void *events) -> MMU32 { return static_cast<PGeneralGroup>(events)->IvMac(); };
-    host.events.fixed = [](void *events, MMU32 row) { return static_cast<PGeneralGroup>(events)->QvFixedGet(row); };
-    host.events.data = [](void *events, MMU32 row) { return static_cast<PGeneralGroup>(events)->QvGet(row); };
-    host.write_events = [](void *value, MMU32 actor, void *events) -> int {
-        auto destination = static_cast<Host *>(value)->destination;
-        ChildChunkIdentification child;
-        DataBlock block;
-        std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(static_cast<PGeneralGroup>(events)));
-        return wire && destination->FGetKidChidCtg(kctgActr, actor, 0, kctgGgae, &child) &&
-            destination->FPut(wire->CbOnFile(), kctgGgae, child.cki.cno, &block) && wire->FWrite(&block);
+    } files{static_cast<MovieArchiveHost *>(source.context)->file,
+            static_cast<MovieArchiveHost *>(destination.context)->file};
+    const MMActorArchiveHost host{
+        &files, &source, &destination,
+        [](void *value, MMU32 actor, MMU32 *copied) -> int {
+            const auto &io = *static_cast<Files *>(value);
+            return io.source->FClone(kctgActr, actor, io.destination, copied);
+        },
+        [](void *value, MMU32 type, MMU32 number, MMU32 *copied) -> int {
+            const auto &io = *static_cast<Files *>(value);
+            return io.source->FFind(type, number) && io.source->FCopy(type, number, io.destination, copied);
+        },
+        sources, sources ? mm_movie_archive_map_source : nullptr
     };
 
     static const char *const messages[] = {
@@ -565,12 +529,10 @@ ChunkNumber TransferObject(PChunkyFile source, ChunkNumber actor, ChunkNumber so
         "Cannot allocate the copied sound links."
     };
     static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_ARCHIVE_MEMORY + 1, "archive diagnostics");
-    MMActorHeader transferred;
     ChunkNumber copied;
-    const int status = mm_actor_archive_transfer(&request, &host, &copied, &transferred);
-    if (context.error) std::rethrow_exception(context.error);
+    const int status = mm_actor_archive_transfer(&request, &host, &copied, header);
+    if (sources) CheckMovieSource(sources->result);
     Require(status == MM_ACTOR_ARCHIVE_OK, messages[status]);
-    std::memcpy(&header, &transferred, sizeof(header));
     return copied;
 }
 }
@@ -598,18 +560,17 @@ std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::p
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&original, fcflNil));
     std::unique_ptr<ChunkyFile, Release> destination(ChunkyFile::PcflCreate(&clipboard, fcflWriteEnable));
     Require(source && destination && destination->FAdd(0, kctgScen, &result->sounds), "Cannot create the object clipboard.");
-    ChildChunkIdentification child;
-    ActorChunkOnFile header;
-    for (LegacyLong i = 0; source->FGetKid(kctgScen, scene, i, &child); ++i)
-        if (child.cki.ctg == kctgActr && ActorData::FReadHeader(source.get(), child.cki.cno, &header) &&
-            header.arid == object.actor_id)
-        {
-            result->actor = TransferObject(source.get(), child.cki.cno, scene, destination.get(), result->sounds,
-                header.arid, 0, 0, [](LegacyLong id) { return id; }, header);
-            Require(destination->FSave(kctgSoc), "Cannot save the object clipboard.");
-            return result;
-        }
-    throw std::runtime_error("Cannot find the selected object in the movie.");
+    MovieArchiveHost sourceArchive{source.get(), {}, {}}, destinationArchive{destination.get(), {}, {}};
+    const auto sourceEditor = sourceArchive.Editor();
+    const auto destinationEditor = destinationArchive.Editor();
+    const auto sceneNumber = static_cast<MMU32>(scene);
+    ChunkNumber actor;
+    Require(mm_actor_archive_find(&sourceEditor, sceneNumber, object.actor_id, &actor),
+            "Cannot find the selected object in the movie.");
+    const MMActorArchiveRequest request{actor, sceneNumber, result->sounds, object.actor_id, 0, 0};
+    result->actor = TransferObject(sourceEditor, destinationEditor, request, nullptr, nullptr);
+    Require(destination->FSave(kctgSoc), "Cannot save the object clipboard.");
+    return result;
 }
 
 std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &movie,
@@ -625,24 +586,29 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     Require(scene.FRead(destination.get(), sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
             "The paste frame is outside the scene.");
     const auto root = EnsureMovieRoot(destination.get());
-    std::map<LegacyLong, LegacyLong> ids;
-    const auto sourceId = [&](LegacyLong id) {
-        const auto found = ids.find(id);
-        if (found != ids.end()) return found->second;
-        const auto entry = std::find_if(clipboard.sources.begin(), clipboard.sources.end(),
-            [id](const auto &value) { return value.id == id; });
-        Require(entry != clipboard.sources.end(), "The copied object uses an unknown content source.");
-        const auto mapped = MovieSource(destination.get(), root.number, root.created ? 1 : 2, entry->name.c_str());
-        ids.emplace(id, mapped);
-        return mapped;
-    };
     // Headless scene-only movies rely on an implicit retail source.
     if (root.created) RetailSource(destination.get(), root.number, 1);
-    ActorChunkOnFile header;
-    const auto actor = TransferObject(source.get(), clipboard.actor, clipboard.sounds, destination.get(),
-        sceneNumber, actorId, static_cast<std::int32_t>(clipboard.frame), static_cast<std::int32_t>(frame), sourceId, header);
-    const MMActorArchivePlacement placement{static_cast<MMU32>(sceneNumber), actor, scene.firstFrame, true};
-    UpdateActorListing(destination.get(), root.number, &placement, header, clipboard.name, clipboard.browserFlags);
+
+    MovieArchiveHost sourceArchive{source.get(), {}, {}}, destinationArchive{destination.get(), {}, {}};
+    const auto sourceEditor = sourceArchive.Editor();
+    const auto destinationEditor = destinationArchive.Editor();
+    std::vector<MMMovieArchiveSource> sources;
+    sources.reserve(clipboard.sources.size());
+    for (const auto &sourceEntry : clipboard.sources)
+        sources.push_back({sourceEntry.id, sourceEntry.name.c_str(), 0, 0});
+    MMMovieArchiveSourceMap sourceMap{&destinationEditor, KauaiText::Services(), sources.data(), sources.size(),
+                                     root.number, root.created ? 1 : 2, MM_MOVIE_SOURCE_EDIT_OK};
+    mm_movie_archive_prepare_source_map(&sourceMap);
+
+    const auto targetScene = static_cast<MMU32>(sceneNumber);
+    const MMActorArchiveRequest request{clipboard.actor, clipboard.sounds, targetScene, actorId,
+                                        static_cast<MMI32>(clipboard.frame), static_cast<MMI32>(frame)};
+    MMActorHeader header;
+    const auto actor = TransferObject(sourceEditor, destinationEditor, request, &sourceMap, &header);
+    const MMActorArchivePlacement placement{targetScene, actor, scene.firstFrame, true};
+    const MMMovieActor entry{header.actor_id, 1, header.source_id, static_cast<MMU32>(clipboard.browserFlags),
+                             header.template_type, header.template_number};
+    UpdateActorListing(destination.get(), root.number, &placement, entry, clipboard.name);
     Require(destination->FSave(kctgSoc), "Cannot save the pasted object.");
     return result;
 }
@@ -763,7 +729,7 @@ static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTex
         const auto editor = host.Editor();
         CheckActorArchiveEdit(mm_actor_archive_set_material(&editor, actorNumber, material));
     }
-    UpdateActorListing(file, root.number, nullptr, header, MarcusTextAnsi(edit.value.text.c_str()), 2, true);
+    UpdateActorListing(file, root.number, nullptr, ActorListing(header, 2), MarcusTextAnsi(edit.value.text.c_str()), true);
 }
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,

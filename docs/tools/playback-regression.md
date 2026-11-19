@@ -14716,3 +14716,45 @@ continuous playback pixels remain inconclusive.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. Probe outputs and
 test logs are in `tmp/c89-scene-reframe`.
+
+## Marcus clipboard actor tracks in C89 (19 November 2026)
+
+Marcus copy and paste use the shared C89 actor header and event codecs.
+Paste keeps the cloned event chunk's key and links and replaces its
+payload in place. The C89 source map registers external IDs as they are
+encountered, preserves the first source row for duplicate IDs, and reuses
+successful registrations across template, costume, font and sound tags.
+
+The Marcus-enabled configuration passed all 34 selected checks, including
+the C89 syntax, actor wire format, chunk index and Marcus integration tests.
+The standalone C-only Release configuration passed four checks covering
+actor archive edits, actor wire data, portable movie data and C89 syntax.
+The archive test transfers little- and big-endian event groups, verifies
+shared sound slots and a retargeted text font, and checks that a partial
+write failure leaves the published output unchanged. The portable movie
+test also checks duplicate and unknown IDs, cached mappings and retry
+after a failed source link.
+
+The headless probe copied an actor at frame 10, pasted at frame 12,
+undid the paste and reopened the undo save. Reapplying the paste changed
+only the newly allocated actor ID in the actor header and roll call.
+The saved paste, saved undo and pasted 3D text movie were byte-identical
+to their pre-change files.
+Their SHA-256 hashes are
+`51dc19908b98e4c093eb41c823fa5f861d7fe187b2010db37805ff79d2470afe`,
+`d94c077c21674ed496481c499864379353174d0003778a7492383cd3e796ad76`
+and `44aabe7de44a1c66c8426654846c9675d4ae6f869998b9a97113159c57845fa4`.
+
+All 12 captures completed in suite `20261119T045852Z-73706436`. Retail,
+SDL Studio and Marcus agreed on all 61 frame positions of the retimed
+paste and the single frame of the text paste in seek and playback.
+Both ports matched retail's seek images at frames 10, 12 and 30 in the
+retimed scene. The retimed movie retained the earlier full-sequence
+seek pixel and mixed PCM differences. SDL Studio's retimed sound requests
+matched retail, and its frame timing differed. The pasted text matched
+retail's seek pixels and silent PCM. Marcus playback timing and
+continuous playback pixels remain inconclusive.
+
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The probe, manifest,
+native outputs and test logs are in `tmp/c89-paste-codec`.

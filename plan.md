@@ -1021,7 +1021,11 @@ the actor ID, remap embedded templates, fonts, costumes and sounds, and
 reuse a scene sound link for repeated cues. C89 also assigns the scene
 child slot, appends the start event, updates the chunk links and writes
 the movie roll call during insertion and paste. 3D text renames use
-the same roll-call writer and keep existing reference counts. Movie
+the same roll-call writer and keep existing reference counts. Clipboard
+copy and paste select actors by authored ID, decode and rewrite event
+tracks with the shared C89 actor codecs, and register external source
+IDs on first use through a C89 map. The native adapter still opens the
+writable archive and clones or copies chunk graphs. Movie
 content-source registration also uses C89 for VFS alias matching,
 fallback and new IDs, and the source table's native encoding and link.
 C89 also creates movie roots for scene-only archives, links the existing

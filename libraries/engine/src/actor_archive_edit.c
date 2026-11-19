@@ -93,12 +93,14 @@ MMGroup *mm_actor_archive_read_event_group(const MMMovieArchiveEditor *editor, M
     return (MMGroup *)group;
 }
 
-static int write_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number, const MMU32 *attach)
+static int write_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number,
+                       const MMU32 *attach, int replace)
 {
     MMCollectionHeader header = {0};
     MMStorageWriter writer;
     unsigned char bytes[20];
     const unsigned short one = 1;
+    MMU32 size;
     header.kind = MM_COLLECTION_GROUP;
     header.system = editor->system;
     header.big_endian = *(const unsigned char *)&one == 0;
@@ -106,26 +108,44 @@ static int write_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32
     header.count = group->count;
     header.bytes = group->bytes;
     header.free_count = group->free_count;
-    return mm_collection_layout(&header) == MM_STORAGE_OK &&
-        mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
-        editor->add(editor->context, EVENTS_TYPE, header.header_bytes + header.first_bytes + header.second_bytes,
-                    number, &writer) &&
-        (!attach || editor->adopt(editor->context, ACTOR_TYPE, *attach, EVENTS_TYPE, *number, 0)) &&
+    if (mm_collection_layout(&header) != MM_STORAGE_OK ||
+        mm_collection_header_write(&header, bytes, sizeof(bytes)) != MM_STORAGE_OK)
+        return 0;
+    size = header.header_bytes + header.first_bytes + header.second_bytes;
+    if (replace ? !editor->replace(editor->context, EVENTS_TYPE, *number, size, &writer)
+                : !editor->add(editor->context, EVENTS_TYPE, size, number, &writer))
+        return 0;
+    return (!attach || editor->adopt(editor->context, ACTOR_TYPE, *attach, EVENTS_TYPE, *number, 0)) &&
         mm_storage_write(group->storage, &writer, bytes, sizeof(bytes), header.first_bytes, header.second_bytes) ==
             MM_STORAGE_OK;
 }
 
-int mm_actor_archive_write_event_group(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number,
-                                       const MMU32 *attach)
+static int encode_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number,
+                        const MMU32 *attach, int replace)
 {
     MMGroup *wire;
     int result;
     wire = (MMGroup *)mm_actor_write_events(group, &track_groups);
     if (!wire)
         return 0;
-    result = write_track(editor, wire, number, attach);
+    result = write_track(editor, wire, number, attach, replace);
     release_group(wire);
     return result;
+}
+
+int mm_actor_archive_write_event_group(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number,
+                                       const MMU32 *attach)
+{
+    return encode_track(editor, group, number, attach, 0);
+}
+
+int mm_actor_archive_replace_event_group(const MMMovieArchiveEditor *editor, MMU32 actor, MMGroup *group)
+{
+    MMChunkAccess chunks;
+    MMU32 existing;
+    chunks = editor->chunks(editor->context);
+    return mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, EVENTS_TYPE, &existing) == MM_CHUNK_OK &&
+        encode_track(editor, group, &existing, NULL, 1);
 }
 
 static int replace_track(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 old, MMU32 events)
@@ -284,6 +304,25 @@ static int actor_slot(const MMChunkAccess *chunks, MMU32 scene, MMU32 actor, MMU
                 *slot = child.slot;
                 return 1;
             }
+    return 0;
+}
+
+int mm_actor_archive_find(const MMMovieArchiveEditor *editor, MMU32 scene, MMI32 actor_id, MMU32 *actor)
+{
+    MMChunkAccess chunks;
+    MMChunkChild child;
+    MMActorHeader header;
+    MMU32 position, i;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_find(&chunks, SCENE_TYPE, scene, &position) != MM_CHUNK_OK)
+        return 0;
+    for (i = 0; mm_chunk_child_at(&chunks, position, i, &child) == MM_CHUNK_OK; ++i)
+        if (child.type == ACTOR_TYPE && mm_actor_archive_read_actor(editor, child.number, &header) &&
+            header.actor_id == actor_id)
+        {
+            *actor = child.number;
+            return 1;
+        }
     return 0;
 }
 

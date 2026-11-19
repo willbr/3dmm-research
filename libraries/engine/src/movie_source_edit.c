@@ -166,3 +166,55 @@ done:
     free(key);
     return result;
 }
+
+static int source_order(const void *a, const void *b)
+{
+    const MMMovieArchiveSource *left = (const MMMovieArchiveSource *)a;
+    const MMMovieArchiveSource *right = (const MMMovieArchiveSource *)b;
+    if (left->id != right->id)
+        return left->id < right->id ? -1 : 1;
+    return left->ordinal < right->ordinal ? -1 : left->ordinal != right->ordinal;
+}
+
+void mm_movie_archive_prepare_source_map(MMMovieArchiveSourceMap *map)
+{
+    size_t i;
+    for (i = 0; i < map->count; ++i)
+    {
+        map->sources[i].mapped = 0;
+        map->sources[i].ordinal = i;
+    }
+    if (map->count > 1)
+        qsort(map->sources, map->count, sizeof(*map->sources), source_order);
+    map->result = MM_MOVIE_SOURCE_EDIT_OK;
+}
+
+int mm_movie_archive_map_source(void *context, MMI32 id, MMI32 *out)
+{
+    MMMovieArchiveSourceMap *map = (MMMovieArchiveSourceMap *)context;
+    MMMovieArchiveSource *source;
+    size_t first, end, mid;
+    first = 0;
+    end = map->count;
+    while (first < end)
+    {
+        mid = first + (end - first) / 2;
+        if (map->sources[mid].id < id)
+            first = mid + 1;
+        else
+            end = mid;
+    }
+    if (first == map->count || map->sources[first].id != id)
+    {
+        map->result = MM_MOVIE_SOURCE_EDIT_UNKNOWN;
+        return 0;
+    }
+    source = &map->sources[first];
+    map->result = source->mapped > 0 ? MM_MOVIE_SOURCE_EDIT_OK :
+        mm_movie_archive_register_source(map->destination, map->text, map->movie, map->fallback_retail,
+                                          source->name, &source->mapped);
+    if (map->result != MM_MOVIE_SOURCE_EDIT_OK)
+        return 0;
+    *out = source->mapped;
+    return 1;
+}
