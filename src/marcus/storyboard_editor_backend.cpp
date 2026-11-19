@@ -1,21 +1,22 @@
 #include "storyboard_editor_backend.h"
 #include "storyboard.h"
+#include "storyboard_draft.h"
 #include "storyboard_tools.h"
 #include "colour_picker.h"
 #include <algorithm>
 #include <cmath>
-#include <stdexcept>
 
 struct MarcusBoardEditorBackend
 {
-    MarcusStoryboard board;
-    std::vector<unsigned char> baseline, staged, fallback;
+    MarcusBoardDraft paint{};
+    std::vector<unsigned char> fallback;
     MarcusBoardPaintColours paintColours = MarcusBoardColours;
     MarcusBoardPalette palette = {};
     std::vector<float> depth;
     std::vector<std::array<double, 4>> gridLines;
     std::vector<SDL_Vertex> gridVertices;
     std::vector<int> gridIndices;
+    ~MarcusBoardEditorBackend() { marcus_board_draft_dispose(&paint); }
 };
 
 namespace
@@ -31,27 +32,6 @@ MarcusBoardAngle AngleFor(const MarcusBoardPose &pose)
     return {pose.camera, pose.roll, pose.fov, pose.near_clip, pose.far_clip, {}};
 }
 
-void WritePose(MarcusBoardAngle &angle, const MarcusBoardPose &pose)
-{
-    angle.camera = pose.camera;
-    angle.roll = pose.roll;
-    angle.fov = pose.fov;
-    angle.nearClip = pose.near_clip;
-    angle.farClip = pose.far_clip;
-}
-
-void ImportValues(MarcusStoryboard &board, const MarcusBoardEditValues &values)
-{
-    if (values.angle_count < 1 || values.angle_count > MARCUS_BOARD_ANGLE_LIMIT ||
-        static_cast<std::size_t>(values.angle_count) != board.angles.size() ||
-        values.light_count < 0 || values.light_count > MARCUS_BOARD_LIGHT_LIMIT ||
-        values.colour_count < MARCUS_BOARD_SWATCH_COUNT || values.colour_count > MARCUS_BOARD_COLOUR_LIMIT)
-        throw std::runtime_error("Storyboard settings are out of range.");
-    board.colours.assign(values.colours, values.colours + values.colour_count);
-    board.lights.resize(values.light_count);
-    for (int i = 0; i < values.light_count; ++i) board.lights[i] = MarcusBoardLightFromValues(values.lights[i]);
-    for (int i = 0; i < values.angle_count; ++i) WritePose(board.angles[i], values.angles[i]);
-}
 }
 
 extern "C"
@@ -75,20 +55,17 @@ int marcus_board_editor_load(MarcusBoardEditorBackend *draft, MarcusPlayer *play
 try
 {
     MarcusStoryboard board;
+    MarcusBoardWire wire{};
     if (!MarcusGetStoryboard(player, board)) return Error("Cannot load the selected storyboard.");
-    auto baseline = MarcusEncodeBoard(board);
     auto colours = MarcusBoardColours;
+    MarcusBoardPalette palette{};
     MarcusGetStoryboardColours(player, colours);
-    MarcusGetStoryboardPalette(player, draft->palette);
-    draft->board = std::move(board);
-    draft->baseline = std::move(baseline);
+    MarcusGetStoryboardPalette(player, palette);
+    if (!MarcusBoardView(board, wire) || !marcus_board_draft_load(&draft->paint, &wire))
+        return Error("Cannot copy the selected storyboard.");
+    draft->palette = palette;
     draft->paintColours = std::move(colours);
-    values->angle_count = static_cast<int>(draft->board.angles.size());
-    values->light_count = static_cast<int>(draft->board.lights.size());
-    values->colour_count = static_cast<int>(draft->board.colours.size());
-    for (int i = 0; i < values->angle_count; ++i) values->angles[i] = MarcusBoardPoseOf(draft->board.angles[i]);
-    for (int i = 0; i < values->light_count; ++i) values->lights[i] = MarcusBoardLightValuesOf(draft->board.lights[i]);
-    std::copy(draft->board.colours.begin(), draft->board.colours.end(), values->colours);
+    *values = wire.values;
     std::copy_n(draft->paintColours.begin(), MARCUS_BOARD_SWATCH_COUNT, swatches);
     return 1;
 }
@@ -96,12 +73,13 @@ catch (const std::exception &e) { return Error(e.what()); }
 
 unsigned char *marcus_board_editor_pixels(MarcusBoardEditorBackend *draft, int angle)
 {
-    return draft->board.angles[angle].pixels.data();
+    return marcus_board_draft_pixels(&draft->paint, angle);
 }
 
 int marcus_board_editor_append_surface(MarcusBoardEditorBackend *draft)
-try { draft->board.angles.emplace_back(); return 1; }
-catch (const std::exception &e) { return Error(e.what()); }
+{
+    return marcus_board_draft_append(&draft->paint) ? 1 : Error("Cannot add a storyboard paint surface.");
+}
 
 void marcus_board_editor_default_light(MarcusBoardLightValues *light)
 {
@@ -109,32 +87,30 @@ void marcus_board_editor_default_light(MarcusBoardLightValues *light)
 }
 
 int marcus_board_editor_stage(MarcusBoardEditorBackend *draft, const MarcusBoardEditValues *values, int *changed)
-try
 {
-    ImportValues(draft->board, *values);
-    draft->staged = MarcusEncodeBoard(draft->board);
-    *changed = draft->staged != draft->baseline;
-    return 1;
+    return marcus_board_draft_stage(&draft->paint, values, changed) ? 1 : Error("Cannot stage the storyboard settings.");
 }
-catch (const std::exception &e) { return Error(e.what()); }
 
 int marcus_board_editor_apply(MarcusBoardEditorBackend *draft, MarcusPlayer *player, int angle,
                              const char *resources, const char *content)
 try
 {
-    if (!MarcusApplyStoryboard(player, draft->board, false, angle, resources, content)) return Error(marcus_error(player));
+    MarcusBoardWire wire;
+    if (!marcus_board_draft_staged(&draft->paint, &wire)) return Error("No valid storyboard settings were staged.");
+    if (!MarcusApplyStoryboard(player, MarcusBoardFromWire(wire), false, angle, resources, content))
+        return Error(marcus_error(player));
     return 1;
 }
 catch (const std::exception &e) { return Error(e.what()); }
 
-void marcus_board_editor_accept(MarcusBoardEditorBackend *draft) { draft->baseline.swap(draft->staged); }
+void marcus_board_editor_accept(MarcusBoardEditorBackend *draft) { marcus_board_draft_accept(&draft->paint); }
 
 int marcus_board_editor_bake(MarcusBoardEditorBackend *draft, int angle, const MarcusBoardPose *pose, unsigned char colour)
 try
 {
-    auto &shot = draft->board.angles[angle];
-    WritePose(shot, *pose);
-    MarcusBoardBakeGrid(shot, colour);
+    auto pixels = marcus_board_draft_pixels(&draft->paint, angle);
+    if (!pixels) return Error("Cannot find the storyboard paint surface.");
+    MarcusBoardBakeGrid(AngleFor(*pose), pixels, colour);
     return 1;
 }
 catch (const std::exception &e) { return Error(e.what()); }
@@ -172,25 +148,19 @@ int marcus_board_editor_render(MarcusBoardEditorBackend *draft, MarcusPlayer *pl
                                int angle, const MarcusBoardPose *inspection, const unsigned char **rgba)
 try
 {
-    ImportValues(draft->board, *values);
+    MarcusBoardWire wire;
+    if (!marcus_board_draft_view(&draft->paint, values, &wire) || angle < 0 || angle >= values->angle_count)
+        return Error("Storyboard settings are out of range.");
     const auto view = AngleFor(inspection ? *inspection : values->angles[angle]);
     MarcusImage image = {};
-    if (MarcusRenderStoryboard(player, draft->board, angle, image, &draft->depth, inspection ? &view : nullptr))
+    if (MarcusRenderStoryboardView(player, wire, angle, image, &draft->depth, inspection))
         *rgba = image.rgba;
     else
     {
         draft->depth.clear();
         draft->fallback.resize(MARCUS_BOARD_PIXELS * 4);
-        const auto &pixels = draft->board.angles[angle].pixels;
-        for (std::size_t i = 0; i < pixels.size(); ++i)
-        {
-            const auto index = pixels[i];
-            const auto rgb = index < draft->paintColours.size() ? draft->paintColours[index] : draft->board.colours[index];
-            draft->fallback[i * 4] = static_cast<unsigned char>(rgb >> 16);
-            draft->fallback[i * 4 + 1] = static_cast<unsigned char>(rgb >> 8);
-            draft->fallback[i * 4 + 2] = static_cast<unsigned char>(rgb);
-            draft->fallback[i * 4 + 3] = 255;
-        }
+        marcus_board_fallback_rgba(wire.pixels[angle], draft->paintColours.data(), draft->paintColours.size(),
+                                   &wire.values, draft->fallback.data());
         *rgba = draft->fallback.data();
     }
     draft->gridLines = MarcusBoardVisibleGridLines(view, draft->depth, MARCUS_BOARD_WIDTH, MARCUS_BOARD_HEIGHT);

@@ -1,5 +1,6 @@
 // Headless authoring/native round-trip checks. No application window or UI input.
 #include "storyboard.h"
+#include "storyboard_draft.h"
 #include "storyboard_tools.h"
 #include "colour_picker.h"
 #include "mm/preview.h"
@@ -22,6 +23,40 @@ int main(int argc, char **argv)
     };
     try
     {
+        {
+            MarcusStoryboard original;
+            MarcusBoardWire source{}, staged{};
+            MarcusBoardDraft draft{};
+            const std::unique_ptr<MarcusBoardDraft, decltype(&marcus_board_draft_dispose)>
+                dispose(&draft, marcus_board_draft_dispose);
+            int changed = -1;
+            check(MarcusBoardView(original, source) && marcus_board_draft_load(&draft, &source) &&
+                  marcus_board_draft_stage(&draft, &source.values, &changed) && !changed,
+                "An imported draft starts with the canonical baseline");
+            auto pixels = marcus_board_draft_pixels(&draft, 0);
+            pixels[0] = 4;
+            check(marcus_board_draft_stage(&draft, &source.values, &changed) && changed &&
+                  original.angles[0].pixels[0] == 0, "Draft paint is independently owned");
+            pixels[0] = 5;
+            auto invalid = source.values;
+            invalid.angles[0].fov = 0;
+            check(!marcus_board_draft_stage(&draft, &invalid, &changed) &&
+                  marcus_board_draft_staged(&draft, &staged) && staged.pixels[0][0] == 4,
+                "A failed edit keeps the last staged snapshot");
+            marcus_board_draft_accept(&draft);
+            pixels[0] = 4;
+            check(!marcus_board_draft_staged(&draft, &staged) &&
+                  marcus_board_draft_stage(&draft, &source.values, &changed) && !changed,
+                "Accept publishes the staged snapshot as the draft baseline");
+            check(marcus_board_draft_append(&draft) && marcus_board_draft_pixels(&draft, 0) == pixels &&
+                  marcus_board_draft_pixels(&draft, 1)[0] == 0, "Append creates a blank stable second surface");
+            source.values.angles[1] = source.values.angles[0];
+            ++source.values.angle_count;
+            check(marcus_board_draft_stage(&draft, &source.values, &changed) && changed &&
+                  marcus_board_draft_staged(&draft, &staged) && staged.values.angle_count == 2 &&
+                  staged.pixels[0][0] == 4 && staged.pixels[1][0] == 0,
+                "Staged multi-angle drafts preserve paint independently");
+        }
         // Colour math and picker geometry only; these checks use no UI input.
         for (unsigned red = 0; red <= 255; red += 17)
             for (unsigned green = 0; green <= 255; green += 17)

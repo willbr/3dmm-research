@@ -46,9 +46,8 @@ const MarcusBoardTransforms BoardTransforms = {
     }
 };
 }
-namespace
-{
-bool BoardView(const MarcusStoryboard &board, MarcusBoardWire &view)
+
+bool MarcusBoardView(const MarcusStoryboard &board, MarcusBoardWire &view)
 {
     if (board.angles.size() > MARCUS_BOARD_ANGLE_LIMIT || board.lights.size() > MARCUS_BOARD_LIGHT_LIMIT ||
         board.colours.size() > MARCUS_BOARD_COLOUR_LIMIT)
@@ -67,18 +66,17 @@ bool BoardView(const MarcusStoryboard &board, MarcusBoardWire &view)
         view.values.lights[i] = MarcusBoardLightValuesOf(board.lights[i]);
     return true;
 }
-}
 
 bool MarcusBoardValid(const MarcusStoryboard &board)
 {
     MarcusBoardWire view{};
-    return BoardView(board, view) && marcus_board_wire_size(&view) != 0;
+    return MarcusBoardView(board, view) && marcus_board_wire_size(&view) != 0;
 }
 
 std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board)
 {
     MarcusBoardWire view{};
-    Require(BoardView(board, view), "Storyboard settings are out of range.");
+    Require(MarcusBoardView(board, view), "Storyboard settings are out of range.");
     std::vector<unsigned char> output(marcus_board_wire_size(&view));
     Require(marcus_board_encode(&view, output.data(), output.size()), "Storyboard settings are out of range.");
     return output;
@@ -97,6 +95,11 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
     MarcusBoardWire view;
     const int status = marcus_board_decode(bytes.data(), bytes.size(), &view);
     Require(status == MARCUS_BOARD_WIRE_OK, messages[status]);
+    return MarcusBoardFromWire(view);
+}
+
+MarcusStoryboard MarcusBoardFromWire(const MarcusBoardWire &view)
+{
     MarcusStoryboard board;
     const auto &values = view.values;
     board.colours.assign(values.colours, values.colours + values.colour_count);
@@ -173,20 +176,24 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
 void MarcusBoardBakeGrid(MarcusBoardAngle &a, unsigned char colour)
 {
     if (a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight) return;
-    auto mask = a;
-    std::fill(mask.pixels.begin(), mask.pixels.end(), 0);
+    MarcusBoardBakeGrid(a, a.pixels.data(), colour);
+}
+
+void MarcusBoardBakeGrid(const MarcusBoardAngle &a, unsigned char *pixels, unsigned char colour)
+{
+    std::vector<unsigned char> mask(MARCUS_BOARD_PIXELS);
     for (const auto &line : MarcusBoardGridLines(a))
-        MarcusBoardStroke(mask, int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
+        marcus_board_stroke(mask.data(), int(std::lround(line[0] * (MarcusBoardWidth - 1))), int(std::lround(line[1] * (MarcusBoardHeight - 1))),
             int(std::lround(line[2] * (MarcusBoardWidth - 1))), int(std::lround(line[3] * (MarcusBoardHeight - 1))), 1, 1);
     const MarcusBoardGridFade fade(a, MarcusBoardWidth, MarcusBoardHeight);
     for (int y = 0; y < MarcusBoardHeight; ++y) for (int x = 0; x < MarcusBoardWidth; ++x)
     {
         const size_t i = size_t(y) * MarcusBoardWidth + x;
-        if (!mask.pixels[i]) continue;
+        if (!mask[i]) continue;
         const float opacity = fade.Opacity((x + .5) / MarcusBoardWidth, (y + .5) / MarcusBoardHeight);
         // Indexed paint is opaque. Keep continuous lines and omit the crowded
         // distance, rather than approximating transparency with scattered gaps.
-        if (opacity >= .5f) a.pixels[i] = colour;
+        if (opacity >= .5f) pixels[i] = colour;
     }
 }
 unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y)
@@ -271,7 +278,7 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     const auto retailEditor = retailHost.Editor();
     const auto outputEditor = outputHost.Editor();
     MarcusBoardWire view{};
-    Require(BoardView(board, view), "Invalid storyboard.");
+    Require(MarcusBoardView(board, view), "Invalid storyboard.");
     ChunkNumber background;
     const auto error = marcus_board_write_resources(&view, &resourceEditor, &retailEditor, &outputEditor,
                                                     &BoardTransforms, &background);

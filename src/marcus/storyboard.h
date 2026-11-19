@@ -53,6 +53,8 @@ struct MarcusBoardResource
 };
 using MarcusStoryboards = std::map<unsigned long, MarcusBoardResource>;
 bool MarcusBoardValid(const MarcusStoryboard &board);
+bool MarcusBoardView(const MarcusStoryboard &board, MarcusBoardWire &view);
+MarcusStoryboard MarcusBoardFromWire(const MarcusBoardWire &view);
 std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board);
 MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes);
 MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources, const std::string &content);
@@ -78,9 +80,12 @@ void MarcusBoardStroke(MarcusBoardAngle &angle, int x0, int y0, int x1, int y1, 
 std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &angle);
 // Bake solid ink, cutting off crowded distant lines at the live fade's midpoint.
 void MarcusBoardBakeGrid(MarcusBoardAngle &angle, unsigned char colour);
+void MarcusBoardBakeGrid(const MarcusBoardAngle &angle, unsigned char *pixels, unsigned char colour);
 bool MarcusGetStoryboard(MarcusPlayer *player, MarcusStoryboard &board);
 bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image,
     std::vector<float> *depth = nullptr, const MarcusBoardAngle *inspection = nullptr);
+bool MarcusRenderStoryboardView(MarcusPlayer *player, const MarcusBoardWire &board, unsigned long camera, MarcusImage &image,
+    std::vector<float> *depth, const MarcusBoardPose *inspection);
 bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, bool newScene,
     unsigned long camera, const char *resources, const char *content);
 extern "C" {

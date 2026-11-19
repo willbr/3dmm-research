@@ -1275,38 +1275,51 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
 }
 namespace
 {
-bool PrepareBoardPaint(MarcusPlayer *player, const MarcusBoardPaintColours &targets)
+bool PrepareBoardPaint(MarcusPlayer *player, const unsigned *targets, size_t count)
 {
     MarcusBoardPalette palette;
     if (!MarcusGetStoryboardPalette(player, palette)) return false;
     const bool reuse = player->paintReady && palette == player->paintPalette;
-    player->paintInks.resize(targets.size());
-    for (size_t i = 0; i < targets.size(); ++i)
+    player->paintInks.resize(count);
+    for (size_t i = 0; i < count; ++i)
         if (!reuse || i >= player->paintTargets.size() || targets[i] != player->paintTargets[i])
             player->paintInks[i] = MarcusBoardMatchColour(palette, targets[i]);
-    player->paintPalette = palette; player->paintTargets = targets; player->paintReady = true;
+    player->paintPalette = palette; player->paintTargets.assign(targets, targets + count); player->paintReady = true;
     return true;
 }
 }
 bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image,
     std::vector<float> *depth, const MarcusBoardAngle *inspection)
 {
+    MarcusBoardWire wire{};
+    if (!MarcusBoardView(board, wire)) return false;
+    const auto pose = inspection ? MarcusBoardPoseOf(*inspection) : MarcusBoardPose{};
+    return MarcusRenderStoryboardView(player, wire, camera, image, depth, inspection ? &pose : nullptr);
+}
+bool MarcusRenderStoryboardView(MarcusPlayer *player, const MarcusBoardWire &board, unsigned long camera, MarcusImage &image,
+    std::vector<float> *depth, const MarcusBoardPose *inspection)
+{
     return Guard(player, [&](MM::Error &error) {
-        if (player->selected < 0 || camera >= board.angles.size() || !MarcusBoardValid(board)) return false;
-        const auto &a = inspection ? *inspection : board.angles[camera];
-        if (!PrepareBoardPaint(player, board.colours)) return false;
+        const auto &values = board.values;
+        if (player->selected < 0 || !marcus_board_wire_size(&board) || camera >= static_cast<unsigned>(values.angle_count)) return false;
+        const auto &a = inspection ? *inspection : values.angles[camera];
+        if (!PrepareBoardPaint(player, values.colours, values.colour_count)) return false;
         MM::PreviewView view;
         view.width = MarcusBoardWidth; view.height = MarcusBoardHeight;
         view.authoredCamera = false; view.freeCamera = true; view.includeDepth = true;
         view.cameraX = a.camera.x; view.cameraY = a.camera.y; view.cameraZ = a.camera.z;
-        view.yaw = a.camera.yaw; view.pitch = a.camera.pitch; view.roll = a.roll; view.verticalFov = a.fov; view.nearClip = a.nearClip;
+        view.yaw = a.camera.yaw; view.pitch = a.camera.pitch; view.roll = a.roll; view.verticalFov = a.fov; view.nearClip = a.near_clip;
         std::vector<MM::PreviewLight> lights;
-        for (const auto &l : board.lights) lights.push_back({l.x, l.y, l.z, l.yaw, l.pitch, l.intensity, l.point != 0});
+        for (int i = 0; i < values.light_count; ++i)
+        {
+            const auto &l = values.lights[i];
+            lights.push_back({l.x, l.y, l.z, l.yaw, l.pitch, l.intensity, l.point != 0});
+        }
         if (!player->preview.RenderWithLights(view, lights, player->thumbnail, error)) return false;
         auto &rendered = player->thumbnail;
-        const auto &pixels = board.angles[camera].pixels;
-        for (size_t i = 0; i < pixels.size(); ++i)
-            if (rendered.depth.empty() || !std::isfinite(rendered.depth[i]) || rendered.depth[i] > a.farClip)
+        const auto pixels = board.pixels[camera];
+        for (size_t i = 0; i < MARCUS_BOARD_PIXELS; ++i)
+            if (rendered.depth.empty() || !std::isfinite(rendered.depth[i]) || rendered.depth[i] > a.far_clip)
             {
                 const auto rgb = player->paintPalette[MarcusBoardPaintIndex(player->paintInks[pixels[i]], int(i % MarcusBoardWidth), int(i / MarcusBoardWidth))];
                 rendered.rgba[i * 4] = static_cast<unsigned char>(rgb >> 16);
@@ -1323,7 +1336,7 @@ bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board,
 bool MarcusGetStoryboardColours(MarcusPlayer *player, MarcusBoardPaintColours &colours)
 {
     MarcusStoryboard board;
-    if (!MarcusGetStoryboard(player, board) || !PrepareBoardPaint(player, board.colours)) return false;
+    if (!MarcusGetStoryboard(player, board) || !PrepareBoardPaint(player, board.colours.data(), board.colours.size())) return false;
     colours.resize(board.colours.size());
     for (unsigned i = 0; i < colours.size(); ++i) colours[i] = player->paintInks[i].rgb;
     return true;

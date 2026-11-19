@@ -954,6 +954,9 @@ Marcus generates storyboard backgrounds in C89. The writer reads the retail
 black scene palette and insertion anchors, maps paint inks to indexed pixels,
 and writes the linked palette, lights, depth, cameras, paintings, and muted
 default sound. The host supplies archive I/O and BRender fixed-point transforms.
+The storyboard draft owns editable paint planes and its staged and accepted
+snapshots in C89. Preview borrows the live planes. Apply reads the validated
+snapshot, and a failed stage preserves the previously staged edit.
 Storyboard export now allocates portable chunk numbers and rewrites the
 whole index in C89. The pass checks existing source-6 indexes, reorders
 renumbered rows and child links, and preserves payload bytes and the free map.

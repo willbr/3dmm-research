@@ -14938,3 +14938,34 @@ remain inconclusive. A v3dmm runtime was unavailable.
 
 The inputs, outputs and logs are in `tmp/c89-board-resources`. The capture
 database is at `tmp/c89-sound-schedule/capture/playback.sqlite`.
+
+## Marcus storyboard draft ownership in C89 (19 November 2026)
+
+C89 owns the editable paint planes and stages canonical snapshots for
+change detection and apply. A successful apply advances the accepted
+baseline. The headless fixture checks independent paint storage, blank
+appended angles, and retention of the staged snapshot after invalid input.
+Preview borrows the live paint planes and the C89 fallback maps logical inks
+to RGBA. Player rendering and document publication remain host adapters.
+
+All 41 selected Marcus-enabled checks and nine standalone C-only Release
+checks passed. Three native controls were byte-identical. All five VMM
+outputs matched after normalizing generated storyboard names and chunk keys.
+The headless renderer check reported the 32-bit ASM worker unavailable.
+
+The private painted `.3mm` probe from the preceding suites failed during
+SDL Studio startup. The debugger traced the null archive reference through
+`Movie::PmvieNew`, tag-list caching and `mm_tag_child` while resolving the
+embedded background's BDS child. Marcus Save Copy already requires VMM
+for storyboards. Retail's result for the private probe remains a timeout.
+
+The public VMM from Save Copy opened in SDL Studio and Marcus in suite
+`20261119T061519Z-b92cfb35`. Both ports matched on the two frame positions
+and the distinct per-frame pixel hashes in seek and playback. Both playback
+recordings were silent. A v3dmm runtime was unavailable. The ordinary retail
+`.3mm` control matched both ports on the three frame positions, seek pixels,
+and silent playback PCM. The suite completed all ten requested captures.
+
+The before and after files, debugger output and logs are in
+`tmp/c89-board-draft`. The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`.
