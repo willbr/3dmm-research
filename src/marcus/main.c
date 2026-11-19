@@ -7,6 +7,7 @@
 #include "scene_organiser.h"
 #include "background_browser.h"
 #include "text_dialog.h"
+#include "caption_dialog.h"
 #include "costume_dialog.h"
 #include "sound_dialog.h"
 #include "dialog_widgets.h"
@@ -95,6 +96,7 @@ typedef struct App
     MarcusSceneOrganiser *scene_organiser;
     MarcusBackgroundBrowser *background_browser;
     MarcusTextDialog *text_dialog;
+    MarcusCaptionDialog *caption_dialog;
     MarcusCostumeDialog *costume_dialog;
     MarcusSoundDialog *sound_dialog;
     MarcusCameraPicker *camera_picker;
@@ -1401,6 +1403,13 @@ static void ribbon_action(App *app, int action)
     else if (action == RIBBON_PASTE_OBJECT) paste_object(app);
     else if (action == RIBBON_NEW_TEXT) choose_text(app);
     else if (action == RIBBON_EDIT_TEXT) edit_text(app);
+    else if (action == RIBBON_NEW_CAPTION || action == RIBBON_EDIT_CAPTION)
+    {
+        app->playing = 0;
+        release_camera(app);
+        if (!caption_dialog_show(app->caption_dialog, app->player, &app->info, action == RIBBON_NEW_CAPTION))
+            fail(app, marcus_error(app->player));
+    }
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
     else if (action == RIBBON_CAMERA_GUIDES)
     {
@@ -1652,7 +1661,8 @@ static void handle_event(App *app, const SDL_Event *event)
     gizmo_event = prop_gizmo_event(app->prop_gizmo, event);
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
-    else if ((app->error[0] || app->settings_open || app->zip_input) && dialog_input_event(event))
+    else if ((app->error[0] || app->settings_open || app->zip_input || caption_dialog_visible(app->caption_dialog)) &&
+             dialog_input_event(event))
     {
         if (app->settings_open && app->binding_capture >= 0 && event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
         {
@@ -3267,7 +3277,8 @@ static void draw(App *app)
     draw_header(app);
     if (app->ribbon_tab == 2 && !app->settings_open && !app->zip_input && !app->error[0] &&
         !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
-        !text_dialog_visible(app->text_dialog) && !costume_dialog_visible(app->costume_dialog) &&
+        !text_dialog_visible(app->text_dialog) && !caption_dialog_visible(app->caption_dialog) &&
+        !costume_dialog_visible(app->costume_dialog) &&
         !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !storyboard_editor_visible(app->storyboard_editor))
         sound_dialog_toolbar(app->sound_dialog, app->player, app->window, app->selected_sound,
@@ -3286,6 +3297,14 @@ static void draw(App *app)
     browser_draw(app->browser, &app->ui, app->width, app->height);
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
     text_dialog_draw(app->text_dialog, &app->ui, app->width, app->height);
+    if (caption_dialog_draw(app->caption_dialog, app->player, app->width, app->height))
+    {
+        refresh(app);
+        app->modified = marcus_modified(app->player);
+        app->dirty = app->movie_dirty = 1;
+        if (app->modified) SDL_SetWindowTitle(app->window, app->movie[0] ?
+            "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
+    }
     costume_dialog_draw(app->costume_dialog, &app->ui, app->width, app->height);
     sound_dialog_draw(app->sound_dialog, app->player, &app->ui, app->width, app->height);
     camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
@@ -3299,7 +3318,8 @@ static void update_prop_gizmo(App *app)
     SDL_FRect viewport;
     int enabled;
     enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
-        !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) && !text_dialog_visible(app->text_dialog) &&
+        !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
+        !text_dialog_visible(app->text_dialog) && !caption_dialog_visible(app->caption_dialog) &&
         !costume_dialog_visible(app->costume_dialog) && !sound_dialog_visible(app->sound_dialog) && !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
         !app->flying && !app->orbiting && !app->panning &&
@@ -3630,7 +3650,8 @@ int main(int argc, char **argv)
         goto cleanup;
     }
     app.text_dialog = text_dialog_create();
-    if (!app.text_dialog)
+    app.caption_dialog = caption_dialog_create();
+    if (!app.text_dialog || !app.caption_dialog)
     {
         result = 1;
         goto cleanup;
@@ -3901,6 +3922,7 @@ cleanup:
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
     browser_destroy(app.browser);
     text_dialog_destroy(app.text_dialog);
+    caption_dialog_destroy(app.caption_dialog);
     costume_dialog_destroy(app.costume_dialog);
     sound_dialog_destroy(app.sound_dialog);
     background_browser_destroy(app.background_browser);

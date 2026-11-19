@@ -290,6 +290,9 @@ std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsi
 std::shared_ptr<MarcusMovieFile> MarcusCreateEventFile() { return WorkingCopy({}, nullptr); }
 std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::shared_ptr<MarcusMovieFile> &source)
 { return WorkingCopy(source->path, source); }
+std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::filesystem::path &path,
+    const std::shared_ptr<MarcusMovieFile> &source)
+{ return WorkingCopy(path, source); }
 
 namespace
 {

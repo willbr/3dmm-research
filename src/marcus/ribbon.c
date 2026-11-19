@@ -30,6 +30,8 @@ static const RibbonTool sound_tools[] = {
     {RIBBON_MUTE, 6, "Mute", "Toggle movie audio", 0xe9bc75},
     {RIBBON_RESET_MIX, 7, "Reset mix", "Reset sound track mute and solo choices", 0xaeb6c0}};
 static const RibbonTool word_tools[] = {
+    {RIBBON_NEW_CAPTION, 12, "New 2D text", "Add a flat text box at the current frame", 0xb3a4d6},
+    {RIBBON_EDIT_CAPTION, 8, "Edit 2D text", "Edit the current scene's 2D text boxes", 0x78cbc4},
     {RIBBON_NEW_TEXT, 12, "New 3D text", "Create 3D text using an original font and shape", 0xb3a4d6},
     {RIBBON_EDIT_TEXT, 8, "Edit 3D text", "Edit the selected text's wording, font and shape", 0x78cbc4},
     {RIBBON_WORDS, 8, "3D words", "Select the next 3D text object", 0xe9bc75},

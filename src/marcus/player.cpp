@@ -19,6 +19,7 @@
 #include "scene_edit.h"
 #include "camera_guide.h"
 #include "sound_edit.h"
+#include "caption_edit.h"
 #include "live_edits.h"
 #include "mm/preview.h"
 #include <algorithm>
@@ -1837,6 +1838,67 @@ extern "C"
             const auto file = MarcusReframeScene(path, movie, player->scenes[player->selected].number, info.currentFrame,
                 work->projection, camera, poses);
             return ReplaceEditedMovie(player, file, error);
+        });
+    }
+    MarcusCaptionList *marcus_captions(MarcusPlayer *player)
+    {
+        std::unique_ptr<MarcusCaptionList> result;
+        Guard(player, [&](MM::Error &error) {
+            if (player->selected < 0 || std::size_t(player->selected) >= player->scenes.size())
+            { error.message = "Open a scene before editing 2D text."; return false; }
+            const auto &info = player->preview.Info();
+            if (std::int64_t(info.lastFrame) - info.firstFrame >= std::numeric_limits<int>::max())
+            { error.message = "The scene has too many frames for the 2D text editor."; return false; }
+            if (!CancelPropPreviews(player, error)) return false;
+            const auto movie = MaterializedMovie(*player);
+            const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
+            auto list = std::make_unique<MarcusCaptionList>();
+            list->document = player->document;
+            list->scene = player->scenes[player->selected].number;
+            list->firstFrame = info.firstFrame;
+            list->lastFrame = info.lastFrame;
+            auto &value = list->defaults;
+            value.x = 32;
+            value.y = MM::PreviewCaptionHeight - 88;
+            value.width = MM::PreviewCaptionWidth - 2 * value.x;
+            value.height = 56;
+            value.first_frame = info.currentFrame - info.firstFrame + 1;
+            value.last_frame = info.lastFrame - info.firstFrame + 1;
+            value.through_end = value.transparent = 1;
+            value.font_size = 20;
+            value.alignment = 2;
+            value.ink = 0xffffff;
+            Copy(value.font, "Arial");
+            MarcusReadCaptions(path, player->preview, *list);
+            result = std::move(list);
+            return true;
+        });
+        return result.release();
+    }
+    void marcus_captions_destroy(MarcusCaptionList *list) { delete list; }
+    int marcus_caption_count(const MarcusCaptionList *list) { return list ? static_cast<int>(list->entries.size()) : 0; }
+    const char *marcus_caption(const MarcusCaptionList *list, int index, MarcusCaptionOptions *options)
+    {
+        if (!list || index < -1 || index >= marcus_caption_count(list)) return nullptr;
+        if (options) *options = index < 0 ? list->defaults : list->entries[index].options;
+        return index < 0 ? "" : list->entries[index].text.c_str();
+    }
+    int marcus_edit_caption(MarcusPlayer *player, const MarcusCaptionList *list, int index,
+                            const MarcusCaptionOptions *options, const char *text)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (!list || list->document != player->document || player->selected < 0 ||
+                std::size_t(player->selected) >= player->scenes.size() ||
+                list->scene != player->scenes[player->selected].number)
+            { error.message = "Reopen the 2D text editor for the current scene."; return false; }
+            if (index < -1 || index >= marcus_caption_count(list) ||
+                (text ? !options || !std::memchr(options->font, 0, sizeof(options->font)) : index < 0))
+            { error.message = "Choose a valid 2D text box."; return false; }
+            if (!CancelPropPreviews(player, error)) return false;
+            const auto movie = MaterializedMovie(*player);
+            const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
+            const auto file = MarcusWriteCaption(path, movie, *list, index, options, text);
+            return !file || ReplaceEditedMovie(player, file, error);
         });
     }
     int marcus_costume_count(MarcusPlayer *player, int object)

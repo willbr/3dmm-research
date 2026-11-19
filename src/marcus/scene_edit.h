@@ -36,6 +36,8 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
 std::string MarcusTextAnsi(const char *utf8);
 std::shared_ptr<MarcusMovieFile> MarcusCreateEventFile();
 std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::shared_ptr<MarcusMovieFile> &source);
+std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::filesystem::path &path,
+                                              const std::shared_ptr<MarcusMovieFile> &source);
 std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsigned long font, long source, int shape);
 // Lazy materialization: copy once for all placement and frame-range edits.
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,

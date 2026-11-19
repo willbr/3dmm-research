@@ -152,7 +152,8 @@ The top ribbon follows retail's **Scenes**, **Actors & props**, **Sounds** and
 **Words** categories, with coloured icons above action labels. New/Open movie
 and Settings stay in the title row; Resources and Content remain available on
 every tab. Scene/frame organisers, object selection and sound track controls
-use the existing player actions. The Words tab creates and selects 3D text objects.
+use the existing player actions. The Words tab edits 2D text boxes and
+creates and selects 3D text objects.
 
 **New scene** opens a chooser for a **Storyboard - draw a background** option and the original retail backgrounds, with a rendered
 preview. Use the arrows, Page Up/Down, Home/End or mouse wheel to browse, then
@@ -384,6 +385,18 @@ Paste selects a new object and aligns the copied playhead with the destination
 playhead, keeping the track's placement, animation, appearance, and object
 sounds. External content still needs to be available in the destination.
 Undo removes one paste. Focused text fields use normal text copy and paste.
+
+**Words > New 2D text** adds a multiline text box to the current scene. It
+starts at the playhead and stays visible through the end of the scene by
+default. Set its position and size in the 544×306 movie coordinates, choose
+its font, alignment and colours, and enable scrolling for credits. Set a first
+and last scene frame to limit when the box is visible. The last frame is
+inclusive.
+
+**Words > Edit 2D text** opens the current scene's text boxes. Choose a box
+from the list to edit its wording or properties, or use **Delete box** to
+remove it. Each committed change is one Undo step. **Save copy** writes the
+boxes into the native movie for playback after reopening.
 
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from

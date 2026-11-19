@@ -10,6 +10,7 @@
 #include "waveform.h"
 #include "sound_timeline.h"
 #include "playback.h"
+#include "storyboard.h"
 #include "timing_job.h"
 #include "retail_scroll.h"
 #include "mm/pixel_raster.h"
@@ -466,7 +467,62 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
     check(0, 0, 0);
     check(2, 255, 0); // Direct seek creates green then red: red is frontmost.
     check(3, 255, 0); // Repeated visibility retains the existing order.
+    CHECK(marcus_seek(player, 0));
+    const auto readCaptions = [&] {
+        std::unique_ptr<MarcusCaptionList, decltype(&marcus_captions_destroy)> list(
+            marcus_captions(player), marcus_captions_destroy);
+        CHECK(list != nullptr);
+        return list;
+    };
+    auto list = readCaptions();
+    CHECK(marcus_caption_count(list.get()) == 3);
+    MarcusCaptionOptions value;
+    CHECK(marcus_caption(list.get(), -1, &value) && value.first_frame == 1 && value.through_end);
+    value.x = 310; value.y = 205; value.width = 200; value.height = 48;
+    value.first_frame = 2; value.last_frame = 3; value.through_end = 0;
+    value.font_size = 18; value.bold = 1; value.italic = 1; value.alignment = 1;
+    value.transparent = 0; value.paper = 0x112233; value.ink = 0xfedcba;
+    const char *words = u8"New text\nUnicode \u03a9";
+    CHECK(marcus_edit_caption(player, list.get(), -1, &value, words));
+    CHECK(!marcus_edit_caption(player, list.get(), -1, &value, words)); // Snapshot of prior document.
+    list = readCaptions();
+    CHECK(marcus_caption_count(list.get()) == 4);
+    MarcusCaptionOptions observed;
+    auto savedWords = marcus_caption(list.get(), 3, &observed);
+    CHECK(savedWords && !std::strcmp(savedWords, words));
+    CHECK(observed.x == 310 && observed.y == 205 && observed.width == 200 && observed.height == 48 &&
+          observed.first_frame == 2 && observed.last_frame == 3 && !observed.through_end &&
+          observed.font_size == 18 && observed.bold && observed.italic && observed.alignment == 1 &&
+          observed.ink == 0xfedcba && !observed.transparent && observed.paper == 0x112233);
+    for (long frame : {0, 1, 2, 3})
+    {
+        CHECK(marcus_seek(player, frame));
+        MarcusImage image;
+        CHECK(marcus_render(player, 544, 306, 1, 0, 0, 1, &image));
+        const auto pixel = image.rgba + 211 * image.pitch + 316 * 4;
+        CHECK((pixel[0] == 0x11 && pixel[1] == 0x22 && pixel[2] == 0x33) == (frame == 1 || frame == 2));
+    }
+    value.x = 285;
+    value.scrolling = 1;
+    const char *edited = u8"Edited\nUnicode \u03a9";
+    CHECK(marcus_edit_caption(player, list.get(), 3, &value, edited));
+    CHECK(marcus_undo(player));
+    list = readCaptions();
+    savedWords = marcus_caption(list.get(), 3, &observed);
+    CHECK(savedWords && !std::strcmp(savedWords, words) && observed.x == 310 && !observed.scrolling);
+    CHECK(marcus_edit_caption(player, list.get(), 3, &value, edited));
+    const auto exported = std::string(path) + ".text.3mm";
+    CHECK(marcus_save_copy(player, exported.c_str()));
+    CHECK(marcus_open(player, exported.c_str(), resources, content));
+    list = readCaptions();
+    savedWords = marcus_caption(list.get(), 3, &observed);
+    CHECK(savedWords && !std::strcmp(savedWords, edited) && observed.x == 285 && observed.scrolling &&
+          observed.bold && observed.italic);
+    CHECK(marcus_edit_caption(player, list.get(), 3, nullptr, nullptr));
+    CHECK(marcus_caption_count(readCaptions().get()) == 3);
+    CHECK(marcus_undo(player) && marcus_caption_count(readCaptions().get()) == 4);
     marcus_destroy(player); player = nullptr;
+    CHECK(std::remove(exported.c_str()) == 0);
 }
 void SceneSound(PGeneralGroup events, int frame, ChunkNumber sound, int slot, bool midi, bool loop = false,
                 bool queued = false, int style = styNil)

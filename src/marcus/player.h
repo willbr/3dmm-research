@@ -315,6 +315,24 @@ extern "C"
      * Successful changes are one undo step; identical values are a no-op. */
     int marcus_set_text(MarcusPlayer *player, int object, const MarcusText *text);
     int marcus_add_text_options(MarcusPlayer *player, const MarcusText *text);
+    /* Native 2D text boxes. Frame ranges use one-based scene frames. */
+    typedef struct MarcusCaptionOptions
+    {
+        int x, y, width, height, first_frame, last_frame, through_end;
+        int font_size, bold, italic, alignment, scrolling, transparent;
+        unsigned long ink, paper;
+        char font[1021];
+    } MarcusCaptionOptions;
+    typedef struct MarcusCaptionList MarcusCaptionList;
+    enum { MARCUS_CAPTION_UTF8_CAPACITY = 196609 };
+    MarcusCaptionList *marcus_captions(MarcusPlayer *player);
+    void marcus_captions_destroy(MarcusCaptionList *list);
+    int marcus_caption_count(const MarcusCaptionList *list);
+    /* -1 returns default settings for a new box. Strings belong to the list. */
+    const char *marcus_caption(const MarcusCaptionList *list, int index, MarcusCaptionOptions *options);
+    /* -1 adds a box. A null text deletes an existing box. */
+    int marcus_edit_caption(MarcusPlayer *player, const MarcusCaptionList *list, int index,
+                            const MarcusCaptionOptions *options, const char *text);
     int marcus_material_count(MarcusPlayer *player, const char *content_directory);
     int marcus_material(const MarcusPlayer *player, int index, MarcusProp *material);
     int marcus_text_material_preset(MarcusPlayer *player, unsigned long chunk, MarcusTextMaterial *material);
