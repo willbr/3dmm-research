@@ -1027,6 +1027,9 @@ Actor dependencies for the scan come directly from the C89 movie graph and
 actor event decoder. The collector resolves imported template links and local
 3D text font tags, then stages costume and sound dependencies before inserting
 any of the actor's tags.
+The scene collector inserts background, camera, and sound dependencies into
+the C89 tag list. It uses the same wire sound parser as playback admission
+and cue extraction, with the collector's existing trailing-byte tolerance.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

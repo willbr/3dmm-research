@@ -38,6 +38,7 @@ class TagList : public TagList_PAR
 
     LegacyLong Ctag(void);
     void GetTag(LegacyLong itag, PTAG ptag);
+    MMTagList *Core() { return &_list; }
 
     bool FInsertTag(PTAG ptag, bool fCacheChildren = fTrue);
     bool FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg);

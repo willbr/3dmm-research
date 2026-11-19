@@ -64,7 +64,6 @@ class Background : public Background_PAR
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static bool FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl);
     static bool FCacheToHD(PTAG ptagBkgd);
     static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     ~Background(void);

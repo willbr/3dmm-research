@@ -1,6 +1,7 @@
 /* Scene tag collection and saving converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_store.h"
+#include "mm/background_resource.h"
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
 #include "mm/wide.h"
@@ -12,21 +13,39 @@ static void tag_from_event(MMTag *tag, const MMMovieSceneEvent *event)
     tag->type = mm_movie_scene_event_word(event, 8);
     tag->number = mm_movie_scene_event_word(event, 12);
 }
-int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
+typedef struct CollectActorTags
 {
-    const unsigned short one = 1;
-    const int native_big = *(const unsigned char *)&one == 0;
+    MMTagList *list;
+    const MMSceneCollectServices *services;
+} CollectActorTags;
+
+static int insert_actor_tag(void *p, const MMTag *tag)
+{
+    return mm_tag_list_insert(((CollectActorTags *)p)->list, tag, 1) == MM_STORAGE_OK;
+}
+
+static void actor_diagnostic(void *p, int issue)
+{
+    const MMSceneCollectServices *s = ((const CollectActorTags *)p)->services;
+    if (s->actor_diagnostic)
+        s->actor_diagnostic(s->context, issue);
+}
+
+int mm_scene_collect_tags(MMU32 scene, MMTagList *tags, const MMSceneCollectServices *s)
+{
     const MMMovieSceneReader *read = &s->read;
-    const MMSceneSoundPacketServices *v = &s->packets;
+    CollectActorTags actor;
     MMChunkAccess chunks;
     MMMovieSceneGroup group;
     MMMovieSceneEvent event;
     MMTag background, tag;
     MMChunkChild link;
-    MMSceneSound *sound;
+    MMSceneSoundWire sound;
     MMI32 j;
     MMU32 i, child, scene_row;
-    int start, ok;
+    int start;
+    actor.list = tags;
+    actor.services = s;
     s->graph.access(s->graph.context, &chunks);
     if (mm_chunk_find(&chunks, MM_SCENE_CHUNK, scene, &scene_row) != MM_CHUNK_OK)
         return 0;
@@ -45,7 +64,7 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
                 child = mm_movie_scene_event_word(&event, 0);
                 if (mm_chunk_child_exact(&chunks, scene_row, child, MM_SCENE_ACTOR_CHUNK, &link) != MM_CHUNK_OK)
                     goto fail;
-                if (mm_movie_actor_tags(&s->graph, link.number, s->context, s->insert_tag, s->actor_diagnostic) !=
+                if (mm_movie_actor_tags(&s->graph, link.number, &actor, insert_actor_tag, actor_diagnostic) !=
                     MM_MOVIE_OK)
                     goto fail;
             }
@@ -54,7 +73,7 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
                 if (event.bytes != 16)
                     goto fail;
                 tag_from_event(&tag, &event);
-                if (!s->background(s->context, &tag))
+                if (!mm_background_tags(tags, &tag))
                     goto fail;
                 background = tag;
             }
@@ -68,27 +87,19 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
                     s->diagnostic(s->context, 0, 1);
                     goto fail;
                 }
-                if (!s->insert_child(s->context, &background, child, s->camera_type))
+                if (mm_tag_list_child(tags, &background, child, MM_BACKGROUND_CAMERA) != MM_STORAGE_OK)
                     goto fail;
             }
             else if (!start && event.kind == MM_SCENE_PLAY_SOUND)
             {
-                sound = mm_scene_sound_decode(event.data, event.bytes, event.big_endian != native_big, v);
-                if (!sound)
+                if (!mm_scene_sound_wire(event.data, event.bytes, event.big_endian, &sound))
                     goto fail;
-                ok = 1;
-                for (j = 0; j < sound->ctagc; ++j)
+                for (j = 0; j < sound.header.ctagc; ++j)
                 {
-                    v->read_tag(v->context, (unsigned char *)sound + 16 + (size_t)j * v->tag_bytes, &child, &tag);
-                    if (!s->insert_tag(s->context, &tag))
-                    {
-                        ok = 0;
-                        break;
-                    }
+                    mm_scene_sound_wire_tag(&sound, j, &child, &tag);
+                    if (mm_tag_list_insert(tags, &tag, 1) != MM_STORAGE_OK)
+                        goto fail;
                 }
-                s->free_sound(s->context, sound);
-                if (!ok)
-                    goto fail;
             }
             else if (!((start && event.kind == MM_SCENE_ADD_TEXT) || (!start && event.kind == MM_SCENE_PAUSE)))
                 s->diagnostic(s->context, start, 0);

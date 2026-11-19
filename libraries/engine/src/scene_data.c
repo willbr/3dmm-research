@@ -108,7 +108,7 @@ int mm_scene_transition_write(MMU32 number, unsigned unit, MMI32 transition, int
 }
 static int valid_event(MMI32 type, MMI32 bytes, int big, int start, const unsigned char *data)
 {
-    MMI32 count;
+    MMSceneSoundWire sound;
     switch (type)
     {
     case MM_SCENE_ADD_ACTOR:
@@ -121,11 +121,8 @@ static int valid_event(MMI32 type, MMI32 bytes, int big, int start, const unsign
     case MM_SCENE_PAUSE:
         return !start && bytes == 8;
     case MM_SCENE_PLAY_SOUND:
-        if (start || bytes < 16 || !data)
-            return 0;
-        count = mm_signed_word(word(data + 12, big));
-        return count > 0 && (MMU32)count <= (MMU32)(bytes - 16) / 20 &&
-               (MMU32)bytes == 16 + (MMU32)count * 20;
+        return !start && mm_scene_sound_wire(data, bytes, big, &sound) &&
+               bytes == mm_scene_sound_size(sound.header.ctagc, MM_SCENE_SOUND_WIRE_TAG_BYTES);
     default:
         return 0;
     }

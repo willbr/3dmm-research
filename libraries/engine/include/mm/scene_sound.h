@@ -16,6 +16,17 @@ extern "C"
     {
         MMI32 vlm, sty, fLoop, ctagc;
     } MMSceneSound;
+    typedef struct MMSceneSoundWire
+    {
+        MMSceneSound header;
+        const unsigned char *records;
+        int swap;
+    } MMSceneSoundWire;
+    /* Validates the positive count and complete tag span. Borrows the wire
+     * bytes without modifying them, and permits trailing bytes. Tag indices
+     * are below header.ctagc, and decoded tags have no cache reference. */
+    int mm_scene_sound_wire(const void *, MMI32 bytes, int big_endian, MMSceneSoundWire *);
+    void mm_scene_sound_wire_tag(const MMSceneSoundWire *, MMI32 index, MMU32 *child, MMTag *);
     typedef struct MMSceneSoundPacketServices
     {
         void *context;

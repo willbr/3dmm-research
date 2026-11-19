@@ -648,14 +648,6 @@ typedef struct Tags
 } Tags;
 static const MMU32 kinds[] = {MM_BACKGROUND_SOUND, MM_BACKGROUND_LIGHTS, MM_BACKGROUND_COLORS,
                                    MM_BACKGROUND_CAMERA};
-static int insert(void *p, int parent, MMU32 kind)
-{
-    Tags *t = (Tags *)p;
-    CHECK(parent == (t->calls == 0));
-    CHECK(kind == (parent ? 0 : kinds[t->calls - 1]));
-    t->types[t->calls++] = kind;
-    return t->calls != t->fail;
-}
 static int tag_child(void *p, MMU32 kind, MMTag *out)
 {
     Tags *t = (Tags *)p;
@@ -679,19 +671,42 @@ static void tag_tests(void)
 {
     Tags t;
     MMBackgroundTagServices s;
-    int i;
+    MMTagList list;
+    MMTagCached tag;
+    MMTagChild child;
+    MMGroup group;
+    MMGroupLocation location;
+    int i, j;
+    unsigned types = 0;
     memset(&s, 0, sizeof(s));
     s.context = &t;
-    s.insert = insert;
     s.child = tag_child;
     s.cache = cache;
-    for (i = 0; i <= 5; ++i)
+    memset(&t, 0, sizeof(t));
+    t.parent.type = MM_BACKGROUND;
+    t.parent.number = 42;
+    CHECK(mm_tag_list_init(&list, NULL) == MM_STORAGE_OK);
+    CHECK(mm_background_tags(&list, &t.parent) && list.count == 1);
+    CHECK(mm_tag_list_get(&list, 0, &tag) == MM_STORAGE_OK &&
+          tag.tag.type == MM_BACKGROUND && tag.tag.number == 42 && !tag.children);
+    memset(&group, 0, sizeof(group));
+    group.storage = &list.storage;
+    group.fixed_bytes = sizeof(tag);
+    group.count = list.count;
+    group.bytes = list.bytes;
+    group.free_count = -1;
+    CHECK(mm_group_location(&group, 0, &location) == MM_STORAGE_OK &&
+          location.bytes == (MMI32)(sizeof(tag) + 4 * sizeof(child)));
+    for (i = 0; i < 4; ++i)
     {
-        memset(&t, 0, sizeof(t));
-        t.fail = i;
-        CHECK(mm_background_tags(&s) == !i);
-        CHECK(t.calls == (i ? i : 5));
+        memcpy(&child, list.storage.buffers[0].data + location.offset + sizeof(tag) + i * sizeof(child), sizeof(child));
+        CHECK(child.slot == 0);
+        for (j = 0; j < 4 && child.type != kinds[j]; ++j)
+            ;
+        CHECK(j < 4);
+        types |= 1U << j;
     }
+    CHECK(types == 15U && mm_tag_list_dispose(&list) == MM_STORAGE_OK);
     for (i = 0; i <= 9; ++i)
     {
         memset(&t, 0, sizeof(t));

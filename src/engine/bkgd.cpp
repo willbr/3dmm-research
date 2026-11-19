@@ -127,27 +127,6 @@ MMBackgroundServices Background::_ResourceServices(void *host)
 }
 
 /***************************************************************************
-    Add the background's chunks (excluding camera views) to the tag list
-***************************************************************************/
-bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl)
-{
-    AssertVarMem(ptagBkgd);
-    AssertPo(ptagl, 0);
-    struct Host
-    {
-        PTAG tag;
-        PTagList list;
-    } host = {ptagBkgd, ptagl};
-    MMBackgroundTagServices s = {};
-    s.context = &host;
-    s.insert = [](void *p, int parent, MMU32 type) {
-        auto h = static_cast<Host *>(p);
-        return int(parent ? h->list->FInsertTag(h->tag, fFalse) : h->list->FInsertChild(h->tag, 0, type));
-    };
-    return mm_background_tags(&s) != 0;
-}
-
-/***************************************************************************
     Cache the background's chunks (excluding camera views) to HD
 ***************************************************************************/
 bool Background::FCacheToHD(PTAG ptagBkgd)

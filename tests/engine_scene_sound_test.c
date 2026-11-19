@@ -106,6 +106,11 @@ static void codecs(void)
 {
     Fixture f;
     MMSceneSound *p, *copy;
+    MMSceneSoundWire view;
+    MMTag tag;
+    MMU32 child;
+    const unsigned short one = 1;
+    const int native_big = *(const unsigned char *)&one == 0;
     unsigned char *wire, *buffer, *encoded;
     unsigned char canonical[56], saved[61];
     MMI32 bytes, output;
@@ -144,9 +149,16 @@ static void codecs(void)
         before = f.allocs;
         for (length = 0; length < 56; ++length)
         {
+            CHECK(!mm_scene_sound_wire(buffer + 1, length, native_big != swapped, &view));
             CHECK(!mm_scene_sound_decode(buffer + 1, length, swapped, &f.s));
             CHECK(!memcmp(saved, buffer + 1, 61));
         }
+        CHECK(mm_scene_sound_wire(buffer + 1, 61, native_big != swapped, &view) &&
+              !memcmp(&view.header, p, sizeof(view.header)));
+        mm_scene_sound_wire_tag(&view, 0, &child, &tag);
+        CHECK(child == 0x80000000U && tag.sid == -1 && tag.type == 0xfedcba98U &&
+              tag.number == 0x89abcdefU && !tag.cache);
+        CHECK(!memcmp(saved, buffer + 1, 61));
         CHECK(f.allocs == before);
         f.fail = 1;
         CHECK(!mm_scene_sound_decode(buffer + 1, 61, swapped, &f.s));

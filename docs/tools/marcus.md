@@ -2448,6 +2448,19 @@ matched retail's sound requests. Mixed PCM still differed in both ports,
 and SDL Studio's frame timing differed. Evidence is in
 `tmp/c89-actor-tag-reader/`.
 
+Studio's scene collector now inserts background, camera, and sound
+dependencies directly into the C89 tag list. The shared sound parser checks
+tag spans in both byte orders, and tag collection reads those spans without
+allocating or rewriting a packet. Native Debug and Release save/reopen
+traces and movie files matched their prior builds. The full Release scene
+trace matched. All 324 Debug writes and 42 tag scans without injected faults
+matched. Removing the temporary sound packets changed 16 Debug
+fault-injection cases and the new trace reproduced on rerun. The v3dmm
+format test passed. Both ports matched retail's 60-frame seek and playback
+sequences and reproduced their prior seek images. SDL Studio matched
+retail's sound requests. Mixed PCM differed in both ports, and SDL Studio's
+frame timing differed. Evidence is in `tmp/c89-scene-wire-tags/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

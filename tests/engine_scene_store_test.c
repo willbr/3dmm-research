@@ -1,4 +1,5 @@
 #include "mm/scene_store.h"
+#include "mm/background_resource.h"
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
 #include "scene_sound_fixture.h"
@@ -27,11 +28,11 @@ typedef struct StoreFixture
     MMSceneOwner owner;
     StoreGroup runtime[2], temp[2], wire[2];
     int attempts, fail, created, live, deleted, thumb_deleted, with_thumb, thumb, updated, old_thumb;
-    int written, metadata, diagnostics, missing_background, empty_events, actor_error, no_background;
-    int missing_actor, missing_frames;
-    int log[512], used, adopted, adoptions, objects, swap, collected, tag_limit;
+    int written, metadata, diagnostics, missing_background, empty_events, actor_error;
+    int missing_actor, missing_frames, list_failure;
+    int log[512], used, adopted, adoptions, objects, swap;
     MMU32 actor_id, text_id;
-    MMTag tags[24];
+    MMTagList tags;
 } StoreFixture;
 static void note(StoreFixture *f, int n)
 {
@@ -574,27 +575,20 @@ static void close_group(void *p, MMMovieSceneGroup *group)
 {
     release_group(p, group->handle);
 }
-static int collect_tag(void *p, const MMTag *tag)
+static void *collect_resize(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     StoreFixture *f = (StoreFixture *)p;
-    if (!step(f, 8))
-        return 0;
-    CHECK(f->collected < 24);
-    f->tags[f->collected++] = *tag;
-    return 1;
+    (void)old_bytes;
+    (void)priority;
+    if (!f->list_failure)
+        f->list_failure = !step(f, 8);
+    return f->list_failure ? NULL : realloc(old, bytes);
 }
-static int background(void *p, MMTag *tag)
+static void collect_free(void *p, void *memory, MMU32 bytes)
 {
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(!tag->cache);
-    tag->number += 10;
-    f->tags[f->collected++] = *tag;
-    return step(f, 9);
-}
-static int collect_child(void *p, const MMTag *tag, MMU32 child, MMU32 type)
-{
-    CHECK(tag->number == 29 && child == 0x12345678U && type == 23);
-    return step((StoreFixture *)p, 10);
+    (void)p;
+    (void)bytes;
+    free(memory);
 }
 static void collect_diagnostic(void *p, int start, int missing)
 {
@@ -606,10 +600,13 @@ static void collect_diagnostic(void *p, int start, int missing)
 static void init_collect(StoreFixture *f, int swap)
 {
     MMSceneCollectServices *s;
-    MMU32 child[] = {7}, bg[] = {1, 999, 23, 9}, camera[] = {0x12345678U},
+    MMStorageAllocator allocator = {NULL, collect_resize, collect_free};
+    MMU32 child[] = {7}, bg[] = {1, 999, MM_BACKGROUND, 9}, camera[] = {0x12345678U},
                sound[] = {80, 2, 0, 2, 1, 0, 999, 23, 1, 2, 3, 999, 23, 2}, pause[] = {3, 230};
     memset(f, 0, sizeof(*f));
     init(&f->packets);
+    allocator.context = f;
+    CHECK(mm_tag_list_init(&f->tags, &allocator) == MM_STORAGE_OK);
     f->swap = swap;
     s = &f->collect;
     s->context = f;
@@ -617,16 +614,9 @@ static void init_collect(StoreFixture *f, int swap)
     s->read.group = read_group;
     s->read.event = read_event;
     s->read.close = close_group;
-    s->packets = f->packets.s;
-    s->packets.allocate = packet_allocate;
-    s->camera_type = 23;
     s->graph.context = f;
     s->graph.access = collect_access;
     s->graph.payload = actor_payload;
-    s->free_sound = free_raw;
-    s->insert_tag = collect_tag;
-    s->background = background;
-    s->insert_child = collect_child;
     s->diagnostic = collect_diagnostic;
     f->wire[0].type = 20;
     f->wire[1].type = 21;
@@ -639,6 +629,43 @@ static void init_collect(StoreFixture *f, int swap)
     wire_event(f, 0, 1, sound, 14);
     wire_event(f, 0, 5, pause, 2);
 }
+static void clean_collect(StoreFixture *f)
+{
+    CHECK(!f->live && mm_tag_list_dispose(&f->tags) == MM_STORAGE_OK);
+    clean(&f->packets);
+}
+static void check_collected(StoreFixture *f)
+{
+    MMGroup group = {NULL, sizeof(MMTagCached), 0, 0, -1, 0};
+    static const MMU32 numbers[] = {1, 9, 19, 2, 65, 9};
+    static const MMI32 sources[] = {0, 1, 1, 3, 4, 8};
+    MMGroupLocation loc;
+    MMTagCached tag;
+    MMTagChild child;
+    MMU32 i, j, count;
+    int camera;
+    group.storage = &f->tags.storage;
+    group.count = f->tags.count;
+    group.bytes = f->tags.bytes;
+    CHECK(f->tags.count == 6);
+    for (i = 0; i < 6; ++i)
+    {
+        CHECK(mm_tag_list_get(&f->tags, i, &tag) == MM_STORAGE_OK);
+        CHECK(tag.tag.number == numbers[i] && tag.tag.sid == sources[i] && !tag.tag.cache);
+        CHECK(tag.children == (i != 1 && i != 2));
+        CHECK(mm_group_location(&group, i, &loc) == MM_STORAGE_OK);
+        count = (loc.bytes - sizeof(tag)) / sizeof(child);
+        CHECK(count == (i == 1 ? 4U : i == 2 ? 5U : 0U));
+        camera = 0;
+        for (j = 0; j < count; ++j)
+        {
+            memcpy(&child, group.storage->buffers[0].data + loc.offset + sizeof(tag) + j * sizeof(child), sizeof(child));
+            if (child.slot == 0x12345678U && child.type == MM_BACKGROUND_CAMERA)
+                ++camera;
+        }
+        CHECK(camera == (i == 2));
+    }
+}
 static void test_collect(void)
 {
     StoreFixture f;
@@ -647,60 +674,61 @@ static void test_collect(void)
     for (swap = 0; swap < 2; ++swap)
     {
         init_collect(&f, swap);
-        CHECK(mm_scene_collect_tags(42, &f.collect));
+        f.wire[0].events[1].bytes += 4;
+        CHECK(mm_scene_collect_tags(42, &f.tags, &f.collect));
         attempts = f.attempts;
-        CHECK(f.collected == 6 && !f.live && !f.diagnostics && f.tags[4].cache == NULL && f.tags[5].cache == NULL);
-        CHECK(f.tags[0].sid == 4 && f.tags[0].number == 65 && f.tags[1].sid == 8 && f.tags[1].number == 9);
-        clean(&f.packets);
+        CHECK(!f.diagnostics);
+        check_collected(&f);
+        clean_collect(&f);
         for (fail = 1; fail <= attempts; ++fail)
         {
             init_collect(&f, swap);
             f.fail = fail;
-            CHECK(!mm_scene_collect_tags(42, &f.collect));
-            CHECK(!f.live && f.collected < 6);
-            clean(&f.packets);
+            CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect));
+            CHECK(f.tags.count < 6);
+            clean_collect(&f);
         }
         init_collect(&f, swap);
         f.missing_actor = 1;
-        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && !f.collected);
-        clean(&f.packets);
+        CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect) && !f.tags.count);
+        clean_collect(&f);
         init_collect(&f, swap);
         f.missing_frames = 1;
-        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && f.collected == 4);
-        clean(&f.packets);
+        CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect) && f.tags.count == 4);
+        clean_collect(&f);
         init_collect(&f, swap);
         f.empty_events = 1;
-        CHECK(mm_scene_collect_tags(42, &f.collect) && f.collected == 5 && !f.live);
-        clean(&f.packets);
+        CHECK(mm_scene_collect_tags(42, &f.tags, &f.collect) && f.tags.count == 5);
+        clean_collect(&f);
         init_collect(&f, swap);
         f.actor_error = 1;
-        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && !f.collected && f.log[f.used - 1] == 121);
-        clean(&f.packets);
+        CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect) && !f.tags.count && f.log[f.used - 1] == 121);
+        clean_collect(&f);
         init_collect(&f, swap);
         f.wire[1].count = 1;
-        CHECK(!mm_scene_collect_tags(42, &f.collect) && f.missing_background == 1 && !f.live);
-        clean(&f.packets);
+        CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect) && f.missing_background == 1);
+        clean_collect(&f);
         init_collect(&f, swap);
         f.wire[1].events[0].bytes = 0;
-        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live);
-        clean(&f.packets);
+        CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect) && !f.tags.count);
+        clean_collect(&f);
         init_collect(&f, swap);
         f.wire[1].events[1].bytes = 20;
-        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && f.collected == 2);
-        clean(&f.packets);
+        CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect) && f.tags.count == 2);
+        clean_collect(&f);
         init_collect(&f, swap);
         f.wire[0].events[0].bytes = 0;
-        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live && f.collected == 4);
-        clean(&f.packets);
+        CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect) && f.tags.count == 4);
+        clean_collect(&f);
         init_collect(&f, swap);
         f.wire[0].events[1].bytes = 16;
-        CHECK(!mm_scene_collect_tags(42, &f.collect) && !f.live);
-        clean(&f.packets);
+        CHECK(!mm_scene_collect_tags(42, &f.tags, &f.collect) && f.tags.count == 4);
+        clean_collect(&f);
         init_collect(&f, swap);
         wire_event(&f, 1, 3, &child, 1);
         wire_event(&f, 0, 0, &child, 1);
-        CHECK(mm_scene_collect_tags(42, &f.collect) && f.diagnostics == 2 && !f.live);
-        clean(&f.packets);
+        CHECK(mm_scene_collect_tags(42, &f.tags, &f.collect) && f.diagnostics == 2);
+        clean_collect(&f);
     }
 }
 int main(void)

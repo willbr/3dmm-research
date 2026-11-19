@@ -313,13 +313,13 @@ fail:
 }
 static const MMU32 children[4] = {MM_BACKGROUND_SOUND, MM_BACKGROUND_LIGHTS,
                                        MM_BACKGROUND_COLORS, MM_BACKGROUND_CAMERA};
-int mm_background_tags(const MMBackgroundTagServices *s)
+int mm_background_tags(MMTagList *list, const MMTag *parent)
 {
     int i;
-    if (!s->insert(s->context, 1, 0))
+    if (mm_tag_list_insert(list, parent, 0) != MM_STORAGE_OK)
         return 0;
     for (i = 0; i < 4; ++i)
-        if (!s->insert(s->context, 0, children[i]))
+        if (mm_tag_list_child(list, parent, 0, children[i]) != MM_STORAGE_OK)
             return 0;
     return 1;
 }

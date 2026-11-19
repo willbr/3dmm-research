@@ -1,6 +1,7 @@
 #include "mm/preview_metadata.h"
 #include "mm/movie_session.h"
 #include "mm/scene_data.h"
+#include "mm/scene_sound.h"
 #include <string.h>
 static int marker(void *events, MMI32 index, const MMActorEvent *e, const MMActorState *state, MMPreviewMarker *out,
                   const MMActorMotionServices *m)
@@ -264,23 +265,24 @@ static int present_actor(const MMMovieSessionGraph *graph, MMU32 number, const M
 static int present_sound(const MMMovieSceneEvent *event, const MMPreviewPresentationServices *s)
 {
     MMPreviewCue cue = {0};
-    MMI32 i, count;
-    MMU32 offset;
+    MMSceneSoundWire sound;
+    MMTag tag;
+    MMI32 i;
     int result;
+    if (!mm_scene_sound_wire(event->data, event->bytes, event->big_endian, &sound))
+        return 0;
     cue.frame = event->frame;
-    cue.volume = mm_signed_word(mm_movie_scene_event_word(event, 0));
-    cue.style = mm_signed_word(mm_movie_scene_event_word(event, 4));
-    cue.loop = mm_movie_scene_event_word(event, 8) != 0;
+    cue.volume = sound.header.vlm;
+    cue.style = sound.header.sty;
+    cue.loop = sound.header.fLoop != 0;
     cue.motion_cel = -1;
-    count = mm_signed_word(mm_movie_scene_event_word(event, 12));
-    for (i = 0; i < count; ++i)
+    for (i = 0; i < sound.header.ctagc; ++i)
     {
-        offset = 16 + (MMU32)i * 20;
         cue.queue = i != 0;
-        cue.child = mm_movie_scene_event_word(event, offset);
-        cue.source = mm_signed_word(mm_movie_scene_event_word(event, offset + 4));
-        cue.type = mm_movie_scene_event_word(event, offset + 12);
-        cue.number = mm_movie_scene_event_word(event, offset + 16);
+        mm_scene_sound_wire_tag(&sound, i, &cue.child, &tag);
+        cue.source = tag.sid;
+        cue.type = tag.type;
+        cue.number = tag.number;
         result = s->cue(s->context, &cue);
         if (result <= 0)
             return result;

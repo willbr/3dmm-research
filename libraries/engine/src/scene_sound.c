@@ -1,6 +1,7 @@
 /* Scene sound packets converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_sound.h"
+#include "mm/wide.h"
 #include <string.h>
 typedef char scene_sound_header_must_be_16_bytes[sizeof(MMSceneSound) == 16 ? 1 : -1];
 MMI32 mm_scene_sound_size(MMI32 count, size_t stride)
@@ -134,40 +135,70 @@ static void put(unsigned char *p, MMU32 n)
 {
     memcpy(p, &n, 4);
 }
+static MMU32 wire_word(const unsigned char *p, int swap)
+{
+    MMU32 n = word(p);
+    return swap ? reverse(n) : n;
+}
+int mm_scene_sound_wire(const void *bytes, MMI32 size, int big_endian, MMSceneSoundWire *out)
+{
+    const unsigned short one = 1;
+    const unsigned char *b = (const unsigned char *)bytes;
+    const int swap = (*(const unsigned char *)&one == 0) != big_endian;
+    MMI32 count, width;
+    if (!b || size < MM_SCENE_SOUND_HEADER_BYTES)
+        return 0;
+    count = mm_signed_word(wire_word(b + 12, swap));
+    if (count <= 0)
+        return 0;
+    width = mm_scene_sound_size(count, MM_SCENE_SOUND_WIRE_TAG_BYTES);
+    if (!width || width > size)
+        return 0;
+    out->header.vlm = mm_signed_word(wire_word(b, swap));
+    out->header.sty = mm_signed_word(wire_word(b + 4, swap));
+    out->header.fLoop = mm_signed_word(wire_word(b + 8, swap));
+    out->header.ctagc = count;
+    out->records = b + MM_SCENE_SOUND_HEADER_BYTES;
+    out->swap = swap;
+    return 1;
+}
+void mm_scene_sound_wire_tag(const MMSceneSoundWire *wire, MMI32 i, MMU32 *child, MMTag *tag)
+{
+    const unsigned char *row = wire->records + (size_t)i * MM_SCENE_SOUND_WIRE_TAG_BYTES;
+    *child = wire_word(row, wire->swap);
+    tag->sid = mm_signed_word(wire_word(row + 4, wire->swap));
+    tag->cache = NULL;
+    tag->type = wire_word(row + 12, wire->swap);
+    tag->number = wire_word(row + 16, wire->swap);
+}
 MMSceneSound *mm_scene_sound_decode(void *bytes, MMI32 size, int swap,
                                                const MMSceneSoundPacketServices *s)
 {
-    unsigned char *b = (unsigned char *)bytes, *q;
-    MMU32 count, n;
+    const unsigned short one = 1;
+    unsigned char *b = (unsigned char *)bytes;
+    MMSceneSoundWire wire;
+    MMU32 child;
     MMI32 width, i;
     MMTag tag;
     MMSceneSound *p;
-    if (!b || size < 16)
-        return NULL;
-    count = word(b + 12);
-    if (swap)
-        count = reverse(count);
-    if (!count || count > 2147483647UL)
-        return NULL;
-    width = mm_scene_sound_size((MMI32)count, 20);
-    if (!width || width > size || !mm_scene_sound_size((MMI32)count, s->tag_bytes))
+    if (!mm_scene_sound_wire(bytes, size, (*(const unsigned char *)&one == 0) != (swap != 0), &wire) ||
+        !mm_scene_sound_size(wire.header.ctagc, s->tag_bytes))
         return NULL;
     if (swap)
+    {
+        width = mm_scene_sound_size(wire.header.ctagc, MM_SCENE_SOUND_WIRE_TAG_BYTES);
         for (i = 0; i < width; i += 4)
             put(b + i, reverse(word(b + i)));
-    p = mm_scene_sound_allocate((MMI32)count, s);
+        wire.swap = 0;
+    }
+    p = mm_scene_sound_allocate(wire.header.ctagc, s);
     if (!p)
         return NULL;
-    memcpy(p, b, 16);
+    *p = wire.header;
     for (i = 0; i < p->ctagc; ++i)
     {
-        q = b + 16 + (size_t)i * 20;
-        n = word(q + 4);
-        memcpy(&tag.sid, &n, 4);
-        tag.cache = NULL;
-        tag.type = word(q + 12);
-        tag.number = word(q + 16);
-        s->write_tag(s->context, record(p, i, s), word(q), &tag);
+        mm_scene_sound_wire_tag(&wire, i, &child, &tag);
+        s->write_tag(s->context, record(p, i, s), child, &tag);
     }
     return p;
 }

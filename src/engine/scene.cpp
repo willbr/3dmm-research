@@ -2861,29 +2861,8 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
     AssertPo(ptagl, 0);
     MMMovieSceneSource source = {nullptr, EngineMovieGraph::FromFile(pcfl)};
     MMSceneCollectServices s = {};
-    s.context = ptagl;
     s.read = mm_movie_scene_tag_reader(&source);
-    s.packets = ScenePacketServices();
-    s.camera_type = kctgCam;
     s.graph = source.graph;
-    s.free_sound = [](void *, void *p) { FreePpv(&p); };
-    s.insert_tag = [](void *p, const MMTag *value) -> int {
-        TAG tag;
-        TagFromCore(&tag, *value);
-        return static_cast<PTagList>(p)->FInsertTag(&tag);
-    };
-    s.background = [](void *p, MMTag *value) -> int {
-        TAG tag;
-        TagFromCore(&tag, *value);
-        bool ok = Background::FAddTagsToTagl(&tag, static_cast<PTagList>(p));
-        *value = TagToCore(tag);
-        return ok;
-    };
-    s.insert_child = [](void *p, const MMTag *value, MMU32 child, MMU32 type) -> int {
-        TAG tag;
-        TagFromCore(&tag, *value);
-        return static_cast<PTagList>(p)->FInsertChild(&tag, child, type);
-    };
     s.actor_diagnostic = [](void *, int issue) {
         if (issue == MM_ACTOR_TAG_TEMPLATE_LINK)
             Bug("where's the child Template?");
@@ -2898,7 +2877,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
         else
             Bug("Bad event in frame event list");
     };
-    return mm_scene_collect_tags(cno, &s) != 0;
+    return mm_scene_collect_tags(cno, ptagl->Core(), &s) != 0;
 }
 
 /****************************************************

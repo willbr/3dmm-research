@@ -118,14 +118,13 @@ extern "C"
     typedef struct MMBackgroundTagServices
     {
         void *context;
-        int (*insert)(void *, int parent, MMU32 child_type);
         int (*child)(void *, MMU32 child_type, MMTag *);
         int (*cache)(void *, const MMTag *, int children);
     } MMBackgroundTagServices;
     /* Preserve BDS/GLLT/GLCR/CAM-zero order. Cache resolves every child before any
      * cache effect. Like the native controller, this does not close returned child
      * tags: cache references acquired by child services retain that lifetime. */
-    int mm_background_tags(const MMBackgroundTagServices *);
+    int mm_background_tags(MMTagList *, const MMTag *parent);
     int mm_background_cache(const MMTag *, const MMBackgroundTagServices *);
 #ifdef __cplusplus
 }
