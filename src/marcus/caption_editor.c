@@ -3,6 +3,8 @@
 #include "dialog_host.h"
 #include "dialog_widgets.h"
 #include "mm/caption_render.h"
+#include "mm/rich_text_layout.h"
+#include "mm/text_access.h"
 #include "ui.h"
 
 enum { FINISH_NONE, FINISH_APPLY, FINISH_CANCEL, FINISH_DELETE };
@@ -24,7 +26,7 @@ struct MarcusCaptionEditor
     int selected, focus_text, generation, drag_kind, finish;
     int drag_x, drag_y, drag_width, drag_height;
     int draft_dirty, text_active, caret, selection_start, selection_end;
-    int mouse_offset, mouse_anchor, selecting;
+    int mouse_offset, mouse_anchor, selecting, mouse_word;
     ImVec2 drag_origin;
 };
 
@@ -380,18 +382,54 @@ static ImVec4 colour(unsigned long rgb, float alpha)
     result.w = alpha;
     return result;
 }
-/* ImGui keeps the text buffer, editing, clipboard and undo state. Use the
- * movie's measured positions to place the cursor for a mouse hit. */
+static int caption_text_byte(void *text, MMI32 offset, MMU32 *ch)
+{
+    *ch = ((const unsigned char *)text)[offset];
+    return 1;
+}
+static unsigned caption_word_flags(void *unused, MMU32 ch)
+{
+    (void)unused;
+    return mm_rich_text_flags(ch);
+}
+static void caption_word(ImGuiInputTextCallbackData *data, int hit, MMI32 *first, MMI32 *end)
+{
+    MMTextAccessServices access;
+    unsigned breaks;
+    breaks = MM_TEXT_CHAR_IGNORE | MM_TEXT_CHAR_MAY_BREAK;
+    if (hit >= data->BufTextLen || (mm_rich_text_flags((unsigned char)data->Buf[hit]) & breaks))
+        return;
+    /* The native word breaks are ASCII, so UTF-8 bytes within a letter stay together. */
+    SDL_zero(access);
+    access.context = data->Buf;
+    access.character = caption_text_byte;
+    access.classify = caption_word_flags;
+    mm_text_navigate(MM_TEXT_NAV_PREVIOUS, hit + 1, 1, data->BufTextLen, first, &access);
+    mm_text_navigate(MM_TEXT_NAV_NEXT, *first, 1, data->BufTextLen, end, &access);
+    while (*end > *first && (mm_rich_text_flags((unsigned char)data->Buf[*end - 1]) & breaks))
+        --*end;
+}
+
+/* ImGui owns the text buffer and editing. Supply selection offsets from the
+ * movie's layout as they differ from the widget's font and wrapping. */
 static int edit_cursor(ImGuiInputTextCallbackData *data)
 {
     MarcusCaptionEditor *editor;
+    MMI32 first, end;
     editor = (MarcusCaptionEditor *)data->UserData;
     if (editor->mouse_offset >= 0 && editor->mouse_offset <= data->BufTextLen &&
         editor->mouse_anchor <= data->BufTextLen)
     {
-        data->CursorPos = editor->mouse_offset;
-        data->SelectionStart = editor->mouse_anchor;
-        data->SelectionEnd = editor->mouse_offset;
+        first = editor->mouse_anchor;
+        end = editor->mouse_offset;
+        if (editor->mouse_word)
+        {
+            caption_word(data, editor->mouse_offset, &first, &end);
+            editor->mouse_anchor = first;
+        }
+        data->CursorPos = end;
+        data->SelectionStart = first;
+        data->SelectionEnd = end;
     }
     editor->caret = data->CursorPos;
     editor->selection_start = data->SelectionStart;
@@ -409,14 +447,15 @@ static int closest_stop(const MarcusCaptionStop *stops, int count, float x, floa
         dy = SDL_max(stops[i].y - y, y - (stops[i].y + stops[i].height));
         dy = SDL_max(0, dy);
         dx = SDL_fabsf(stops[i].x - x);
-        if (dy < best_y || (dy == best_y && dx < best_x))
+        if (dy < best_y || (dy == best_y &&
+            (stops[i].y == stops[best].y ? dx < best_x : stops[i].y > stops[best].y)))
         {
             best = i;
             best_y = dy;
             best_x = dx;
         }
     }
-    return stops[best].offset;
+    return best;
 }
 static void draw_selection(const MarcusCaptionEditor *editor, const SDL_FRect *canvas, const SDL_FRect *clip,
                            const MarcusCaptionStop *stops, int count, int scroll)
@@ -467,10 +506,11 @@ static void draw_box(MarcusCaptionEditor *editor, MarcusPlayer *player, const SD
     SDL_FRect box, hit, text;
     const MarcusCaptionStop *stops;
     ImVec2 mouse;
+    ImGuiIO *io;
     ImDrawList *draw;
     ImU32 border;
-    float grip, sx, sy, font;
-    int i, count, scroll, click, styles, vars;
+    float grip, sx, sy, font, x, y;
+    int i, count, scroll, click, shift, styles, vars;
     editor->text_active = 0;
     box = box_rect(canvas, &editor->value);
     if (box.w <= 0 || box.h <= 0 || !SDL_HasRectIntersectionFloat(&box, canvas)) return;
@@ -497,19 +537,43 @@ static void draw_box(MarcusCaptionEditor *editor, MarcusPlayer *player, const SD
     text.w = box.w - 2 * (text.x - box.x); text.h = box.h - 2 * (text.y - box.y);
     stops = marcus_caption_positions(player, &count, &scroll);
     editor->mouse_offset = -1;
-    click = count && !editor->drag_kind && igGetMouseClickedCount(ImGuiMouseButton_Left) == 1 &&
-        igIsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
-        igIsMouseHoveringRect(dialog_vec(text.x, text.y), dialog_vec(text.x + text.w, text.y + text.h), 1);
+    editor->mouse_word = 0;
+    click = count && !editor->drag_kind && igIsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
+        igIsMouseHoveringRect(dialog_vec(text.x, text.y), dialog_vec(text.x + text.w, text.y + text.h), 1)
+        ? igGetMouseClickedCount(ImGuiMouseButton_Left) : 0;
+    io = igGetIO_Nil();
+    shift = io->KeyShift;
     if (!igIsMouseDown_Nil(ImGuiMouseButton_Left)) editor->selecting = 0;
-    if (count && (click || (editor->selecting && igIsMouseDragging(ImGuiMouseButton_Left, -1))))
+    if (click && (shift || click == 1 || !(click & 1)))
     {
         mouse = igGetMousePos();
-        editor->mouse_offset = closest_stop(stops, count, (mouse.x - canvas->x) / sx,
-                                            (mouse.y - canvas->y) / sy + scroll);
-        if (click)
+        x = (mouse.x - canvas->x) / sx;
+        y = (mouse.y - canvas->y) / sy + scroll;
+        i = closest_stop(stops, count, x, y);
+        editor->mouse_offset = stops[i].offset;
+        if (click > 1 && !shift)
         {
-            editor->mouse_anchor = igGetIO_Nil()->KeyShift ? editor->selection_start : editor->mouse_offset;
-            editor->selecting = 1;
+            /* A word hit uses the glyph's span rather than its nearest caret.
+             * On the right half of a glyph, the nearest caret follows it. */
+            if (i > 0 && x < stops[i].x && stops[i - 1].y == stops[i].y) --i;
+            if (i + 1 < count && stops[i].y == stops[i + 1].y &&
+                x >= stops[i].x && x < stops[i + 1].x && y >= stops[i].y && y < stops[i].y + stops[i].height)
+            {
+                editor->mouse_offset = stops[i].offset;
+                editor->mouse_word = 1;
+            }
+        }
+        editor->mouse_anchor = shift ? editor->selection_start : editor->mouse_offset;
+        editor->selecting = 1;
+    }
+    else if (count && editor->selecting && (io->MouseDelta.x || io->MouseDelta.y))
+    {
+        editor->mouse_offset = editor->caret;
+        if (igIsMouseDragging(ImGuiMouseButton_Left, -1))
+        {
+            mouse = igGetMousePos();
+            i = closest_stop(stops, count, (mouse.x - canvas->x) / sx, (mouse.y - canvas->y) / sy + scroll);
+            editor->mouse_offset = stops[i].offset;
         }
     }
     font = SDL_clamp(editor->value.font_size * sy, 8.0f, 72.0f);
