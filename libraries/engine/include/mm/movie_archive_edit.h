@@ -56,6 +56,24 @@ int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *, MMMovieArchiveRoo
 int mm_movie_archive_append_scene(const MMMovieArchiveEditor *, MMU32 root, MMU32 scene,
                                   MMI32 source, MMU32 background);
 
+enum MMSceneArchiveEditResult
+{
+    MM_SCENE_ARCHIVE_EDIT_OK,
+    MM_SCENE_ARCHIVE_EDIT_READ_SCENE,
+    MM_SCENE_ARCHIVE_EDIT_RANGE,
+    MM_SCENE_ARCHIVE_EDIT_READ_FRAMES,
+    MM_SCENE_ARCHIVE_EDIT_INVALID_FRAMES,
+    MM_SCENE_ARCHIVE_EDIT_INSERT_CAMERA,
+    MM_SCENE_ARCHIVE_EDIT_WRITE_FRAMES,
+    MM_SCENE_ARCHIVE_EDIT_LINK_FRAMES,
+    MM_SCENE_ARCHIVE_EDIT_WRITE_SCENE
+};
+
+/* Edit a private archive. Keep the frame group's byte order and unrelated
+ * payloads. Opening edits drop the scene thumbnail. A range may only grow. */
+int mm_scene_archive_set_camera(const MMMovieArchiveEditor *, MMU32 scene, MMI32 key, MMU32 camera);
+int mm_scene_archive_set_range(const MMMovieArchiveEditor *, MMU32 scene, long first, long last);
+
 /* Write the required empty roll call for a rooted archive that has no ACTR
  * chunks and no existing roll-call link. Other archives need no write. */
 int mm_movie_archive_ensure_empty_rollcall(const MMMovieArchiveEditor *);

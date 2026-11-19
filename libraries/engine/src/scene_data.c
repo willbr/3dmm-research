@@ -2,7 +2,9 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_data.h"
 #include "mm/collections.h"
+#include "mm/movie_archive_edit.h"
 #include "mm/movie_data.h"
+#include "mm/scene_edit.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -270,6 +272,225 @@ done:
     free(copy);
     return result;
 }
+
+#define SCENE_TYPE 0x5343454eUL
+#define FRAME_GROUP_TYPE 0x47474652UL
+#define THUMB_TYPE 0x5448554dUL
+
+typedef struct SceneFrameEdit
+{
+    const MMMovieArchiveEditor *editor;
+    MMSceneState scene;
+    MMCollectionStorage storage;
+    MMGroup group;
+    MMU32 number, previous;
+    int big, result;
+} SceneFrameEdit;
+
+static unsigned char *frame_record(SceneFrameEdit *edit, MMU32 row, MMI32 *size)
+{
+    MMGroupLocation location;
+    if (mm_group_location(&edit->group, row, &location) != MM_STORAGE_OK)
+    {
+        edit->result = MM_SCENE_ARCHIVE_EDIT_INVALID_FRAMES;
+        return NULL;
+    }
+    if (size)
+        *size = location.bytes - MM_SCENE_EVENT_BYTES;
+    return edit->storage.buffers[0].data + location.offset;
+}
+
+static int open_frames(void *context)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    const MMMovieArchiveEditor *editor = edit->editor;
+    MMChunkAccess chunks;
+    MMReadStream stream;
+    MMCollectionHeader header;
+    const unsigned short one = 1;
+    const unsigned char *row;
+    MMI32 size, kind;
+    MMU32 i;
+    edit->result = MM_SCENE_ARCHIVE_EDIT_READ_FRAMES;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_link_number(&chunks, SCENE_TYPE, edit->number, 0, FRAME_GROUP_TYPE, &edit->previous) != MM_CHUNK_OK ||
+        !editor->read(editor->context, FRAME_GROUP_TYPE, edit->previous, &stream))
+        return 0;
+    edit->result = MM_SCENE_ARCHIVE_EDIT_INVALID_FRAMES;
+    if (mm_collection_header_read(&stream, MM_COLLECTION_GROUP, 0, &header) != MM_STORAGE_OK ||
+        header.width != MM_SCENE_EVENT_BYTES ||
+        mm_storage_read(&edit->storage, &stream, header.header_bytes, header.first_bytes,
+                        header.second_bytes) != MM_STORAGE_OK)
+        return 0;
+    edit->big = header.big_endian;
+    edit->group.fixed_bytes = header.width;
+    edit->group.count = header.count;
+    edit->group.bytes = header.bytes;
+    edit->group.free_count = header.free_count;
+    if (edit->big != (*(const unsigned char *)&one == 0))
+        mm_group_swap_locations(&edit->group);
+    for (i = 0; i < header.count; ++i)
+    {
+        row = frame_record(edit, i, &size);
+        if (!row)
+            return 0;
+        kind = mm_signed_word(word(row + 4, edit->big));
+        if (!valid_event(kind, size, edit->big, 0, row + MM_SCENE_EVENT_BYTES))
+            return 0;
+    }
+    edit->result = MM_SCENE_ARCHIVE_EDIT_OK;
+    return 1;
+}
+
+static MMI32 frame_count(void *context)
+{
+    return (MMI32)((SceneFrameEdit *)context)->group.count;
+}
+
+static void frame_event(void *context, MMI32 index, MMI32 *frame, int *kind)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    const unsigned char *row = frame_record(edit, (MMU32)index, NULL);
+    *frame = row ? mm_signed_word(word(row, edit->big)) : 0;
+    *kind = row ? mm_signed_word(word(row + 4, edit->big)) : -1;
+}
+
+static void erase_camera(void *context, MMI32 index)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    if (mm_group_delete(&edit->group, (MMU32)index) != MM_STORAGE_OK)
+        edit->result = MM_SCENE_ARCHIVE_EDIT_INVALID_FRAMES;
+}
+
+static int insert_camera(void *context, MMI32 index, MMI32 frame, MMU32 camera)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    unsigned char fixed[MM_SCENE_EVENT_BYTES], payload[4];
+    if (edit->result != MM_SCENE_ARCHIVE_EDIT_OK)
+        return 0;
+    put(fixed, (MMU32)frame, 4, edit->big);
+    put(fixed + 4, MM_SCENE_CHANGE_CAMERA, 4, edit->big);
+    put(payload, camera, 4, edit->big);
+    if (mm_group_insert(&edit->group, (MMU32)index, sizeof(payload), payload, fixed) == MM_STORAGE_OK)
+        return 1;
+    edit->result = MM_SCENE_ARCHIVE_EDIT_INSERT_CAMERA;
+    return 0;
+}
+
+static void move_opening_camera(void *context, MMI32 index, MMI32 frame)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    unsigned char *row = frame_record(edit, (MMU32)index, NULL);
+    if (row)
+    {
+        put(row, (MMU32)frame, 4, edit->big);
+        if (mm_group_move(&edit->group, (MMU32)index, 0) != MM_STORAGE_OK)
+            edit->result = MM_SCENE_ARCHIVE_EDIT_INVALID_FRAMES;
+    }
+}
+
+static int replace_frames(void *context)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    const MMMovieArchiveEditor *editor = edit->editor;
+    MMStorageWriter writer;
+    unsigned char header[MM_SCENE_EMPTY_GROUP_BYTES];
+    const unsigned short one = 1;
+    MMU32 number, size;
+    if (edit->result != MM_SCENE_ARCHIVE_EDIT_OK)
+        return 0;
+    edit->result = MM_SCENE_ARCHIVE_EDIT_WRITE_FRAMES;
+    size = sizeof(header) + edit->group.bytes + edit->group.count * 8;
+    if (!encode_group_header(editor->system, edit->big, edit->group.count, edit->group.bytes, header) ||
+        !editor->add(editor->context, FRAME_GROUP_TYPE, size, &number, &writer))
+        return 0;
+    /* The edit owns this group and discards it after writing. */
+    if (edit->big != (*(const unsigned char *)&one == 0))
+        mm_group_swap_locations(&edit->group);
+    if (mm_storage_write(&edit->storage, &writer, header, sizeof(header), edit->group.bytes,
+                         edit->group.count * 8) != MM_STORAGE_OK)
+        return 0;
+    editor->unlink(editor->context, SCENE_TYPE, edit->number, FRAME_GROUP_TYPE, edit->previous, 0);
+    if (!editor->adopt(editor->context, SCENE_TYPE, edit->number, FRAME_GROUP_TYPE, number, 0))
+    {
+        edit->result = MM_SCENE_ARCHIVE_EDIT_LINK_FRAMES;
+        return 0;
+    }
+    edit->result = MM_SCENE_ARCHIVE_EDIT_OK;
+    return 1;
+}
+
+static int drop_frame_thumbnail(void *context)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    const MMMovieArchiveEditor *editor = edit->editor;
+    MMChunkAccess chunks;
+    MMU32 thumb;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_link_number(&chunks, SCENE_TYPE, edit->number, 0, THUMB_TYPE, &thumb) == MM_CHUNK_OK)
+        editor->unlink(editor->context, SCENE_TYPE, edit->number, THUMB_TYPE, thumb, 0);
+    return 1;
+}
+
+static int write_frame_range(void *context)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    const MMMovieArchiveEditor *editor = edit->editor;
+    unsigned char header[MM_SCENE_HEADER_BYTES];
+    if (mm_scene_encode_header(&edit->scene, editor->system, editor->big_endian, header) &&
+        editor->put(editor->context, SCENE_TYPE, edit->number, header, sizeof(header)))
+        return 1;
+    edit->result = MM_SCENE_ARCHIVE_EDIT_WRITE_SCENE;
+    return 0;
+}
+
+static int begin_frame_edit(SceneFrameEdit *edit, const MMMovieArchiveEditor *editor, MMU32 scene)
+{
+    MMReadStream stream;
+    memset(edit, 0, sizeof(*edit));
+    edit->editor = editor;
+    edit->number = scene;
+    if (!mm_scene_init(&edit->scene, editor->text_unit) ||
+        !editor->read(editor->context, SCENE_TYPE, scene, &stream) ||
+        !mm_scene_decode_header(&stream, &edit->scene))
+        return 0;
+    mm_storage_init(&edit->storage, NULL);
+    edit->group.storage = &edit->storage;
+    return 1;
+}
+
+int mm_scene_archive_set_camera(const MMMovieArchiveEditor *editor, MMU32 scene, MMI32 key, MMU32 camera)
+{
+    SceneFrameEdit edit;
+    MMSceneCameraStoreServices services = {
+        {NULL, frame_count, frame_event, erase_camera, insert_camera}, open_frames, replace_frames,
+        drop_frame_thumbnail};
+    if (!begin_frame_edit(&edit, editor, scene))
+        return MM_SCENE_ARCHIVE_EDIT_READ_SCENE;
+    services.events.context = &edit;
+    mm_scene_camera_store(edit.scene.firstFrame, key, camera, &services);
+    mm_storage_dispose(&edit.storage);
+    return edit.result;
+}
+
+int mm_scene_archive_set_range(const MMMovieArchiveEditor *editor, MMU32 scene, long first, long last)
+{
+    SceneFrameEdit edit;
+    MMSceneRuntimeServices events = {0};
+    MMSceneRangeStoreServices services = {NULL, open_frames, replace_frames, drop_frame_thumbnail, write_frame_range};
+    int result;
+    if (!begin_frame_edit(&edit, editor, scene))
+        return MM_SCENE_ARCHIVE_EDIT_READ_SCENE;
+    events.context = &edit;
+    events.event_count = frame_count;
+    events.event = frame_event;
+    events.move_camera = move_opening_camera;
+    services.events = &events;
+    result = mm_scene_range_store(&edit.scene, first, last, &services);
+    mm_storage_dispose(&edit.storage);
+    return result == MM_SCENE_RANGE_INVALID ? MM_SCENE_ARCHIVE_EDIT_RANGE : edit.result;
+}
+
 void *mm_scene_read_event_group(int start, int native_big, int *order, const MMSceneReadGroupServices *s)
 {
     int loaded_order;

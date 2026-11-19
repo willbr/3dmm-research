@@ -1,6 +1,8 @@
 #include "mm/scene_data.h"
 #include "mm/collections.h"
+#include "mm/movie_archive_edit.h"
 #include "mm/movie_data.h"
+#include "mm/scene_edit.h"
 #include "mm/text.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -609,6 +611,209 @@ static void append_actor(void)
     }
 }
 
+enum { FRAME_WIRE_BYTES = 20 + 68 + 24 };
+#define SCEN 0x5343454eUL
+#define GGFR 0x47474652UL
+#define THUM 0x5448554dUL
+
+typedef struct ArchivedFrames
+{
+    MMMemoryStream reader;
+    unsigned char scene[16], frames[FRAME_WIRE_BYTES], output[FRAME_WIRE_BYTES];
+    int read_frames, header_written, linked, unlinked, thumbnail_removed, fail_write;
+} ArchivedFrames;
+
+static int scene_entry(void *context, MMU32 i, MMChunkEntry *out)
+{
+    CHECK(context && i == 0);
+    memset(out, 0, sizeof(*out));
+    out->type = SCEN;
+    out->number = 5;
+    out->child_count = 2;
+    return 1;
+}
+static int scene_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
+{
+    CHECK(context && parent == 0 && i < 2);
+    out->type = i == 0 ? GGFR : THUM;
+    out->number = i == 0 ? 10 : 11;
+    out->slot = 0;
+    return 1;
+}
+static MMChunkAccess scene_chunks(void *context)
+{
+    MMChunkAccess chunks = {NULL, 1, scene_entry, scene_child};
+    chunks.context = context;
+    return chunks;
+}
+static int read_archive(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    ArchivedFrames *archive = (ArchivedFrames *)context;
+    if (type == SCEN)
+        CHECK(number == 5 && mm_memory_stream_init(&archive->reader, archive->scene, sizeof(archive->scene)));
+    else
+    {
+        CHECK(type == GGFR && number == 10);
+        ++archive->read_frames;
+        CHECK(mm_memory_stream_init(&archive->reader, archive->frames, sizeof(archive->frames)));
+    }
+    *stream = archive->reader.stream;
+    return 1;
+}
+static int write_frames(void *context, MMU32 offset, const void *bytes, size_t size)
+{
+    ArchivedFrames *archive = (ArchivedFrames *)context;
+    CHECK(offset <= sizeof(archive->output) && size <= sizeof(archive->output) - offset);
+    if (archive->fail_write && offset > 0)
+        return 0;
+    memcpy(archive->output + offset, bytes, size);
+    return 1;
+}
+static int add_frames(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
+{
+    CHECK(type == GGFR && size == FRAME_WIRE_BYTES);
+    *number = 12;
+    writer->context = context;
+    writer->length = size;
+    writer->write_at = write_frames;
+    return 1;
+}
+static void unlink_archive(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
+{
+    ArchivedFrames *archive = (ArchivedFrames *)context;
+    CHECK(type == SCEN && scene == 5 && slot == 0);
+    if (child == GGFR)
+    {
+        CHECK(number == 10 && !archive->linked);
+        ++archive->unlinked;
+    }
+    else
+    {
+        CHECK(child == THUM && number == 11 && archive->linked);
+        ++archive->thumbnail_removed;
+    }
+}
+static int link_frames(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
+{
+    ArchivedFrames *archive = (ArchivedFrames *)context;
+    CHECK(type == SCEN && scene == 5 && child == GGFR && number == 12 && slot == 0 && archive->unlinked);
+    ++archive->linked;
+    return 1;
+}
+static int put_range(void *context, MMU32 type, MMU32 number, const void *bytes, MMU32 size)
+{
+    ArchivedFrames *archive = (ArchivedFrames *)context;
+    CHECK(type == SCEN && number == 5 && size == sizeof(archive->scene));
+    memcpy(archive->scene, bytes, size);
+    ++archive->header_written;
+    return 1;
+}
+
+static void init_archive(ArchivedFrames *archive, int big)
+{
+    MMCollectionHeader header = {0};
+    MMSceneState scene;
+    unsigned char *p;
+    memset(archive, 0, sizeof(*archive));
+    CHECK(mm_scene_init(&scene, 1));
+    scene.lastFrame = 5;
+    scene.transition = 2;
+    CHECK(mm_scene_encode_header(&scene, MM_TEXT_MAC, big, archive->scene));
+    header.kind = MM_COLLECTION_GROUP;
+    header.system = MM_TEXT_MAC;
+    header.big_endian = big;
+    header.width = 8;
+    header.count = 3;
+    header.bytes = 68;
+    header.free_count = -1;
+    CHECK(mm_collection_header_write(&header, archive->frames, sizeof(archive->frames)) == MM_STORAGE_OK);
+    p = archive->frames + 20;
+    put32(p, 5, big);
+    put32(p + 4, MM_SCENE_CHANGE_CAMERA, big);
+    put32(p + 8, 3, big);
+    put32(p + 12, 1, big);
+    put32(p + 16, MM_SCENE_PLAY_SOUND, big);
+    memset(p + 20, 0x5a, 36);
+    put32(p + 32, 1, big);
+    put32(p + 56, 1, big);
+    put32(p + 60, MM_SCENE_CHANGE_CAMERA, big);
+    put32(p + 64, 2, big);
+    put32(p + 68, 12, big);
+    put32(p + 72, 44, big);
+    put32(p + 76, 56, big);
+    put32(p + 80, 12, big);
+    put32(p + 88, 12, big);
+}
+
+static MMU32 saved_frame_row(ArchivedFrames *archive, int big, MMU32 index, MMI32 bytes)
+{
+    MMMemoryStream stream;
+    MMCollectionHeader header;
+    MMU32 offset;
+    MMI32 size;
+    CHECK(mm_memory_stream_init(&stream, archive->output, sizeof(archive->output)));
+    CHECK(mm_collection_header_read(&stream.stream, MM_COLLECTION_GROUP, 0, &header) == MM_STORAGE_OK);
+    CHECK(header.big_endian == big && header.system == MM_TEXT_WINDOWS && header.count == 3);
+    CHECK(mm_collection_group_row(&header, archive->output + 20, index, &offset, &size) && size == bytes);
+    return 20 + offset;
+}
+
+static void edit_archived_frames(void)
+{
+    ArchivedFrames archive;
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
+                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL};
+    MMSceneState scene;
+    MMMemoryStream stream;
+    unsigned char value[4];
+    MMU32 row;
+    int big;
+    editor.context = &archive;
+    for (big = 0; big <= 1; ++big)
+    {
+        init_archive(&archive, big);
+        CHECK(mm_scene_archive_set_camera(&editor, 5, 5, 7) == MM_SCENE_ARCHIVE_EDIT_OK);
+        CHECK(archive.linked == 1 && archive.unlinked == 1 && !archive.thumbnail_removed && !archive.header_written);
+        row = saved_frame_row(&archive, big, 0, 36);
+        CHECK(row == 20 && !memcmp(archive.frames + 32, archive.output + row, 44));
+        row = saved_frame_row(&archive, big, 2, 4);
+        put32(value, 7, big);
+        CHECK(row == 76 && !memcmp(archive.output + row + 8, value, 4));
+
+        init_archive(&archive, big);
+        CHECK(mm_scene_archive_set_camera(&editor, 5, MM_SCENE_OPENING_CAMERA_FRAME, 8) == MM_SCENE_ARCHIVE_EDIT_OK);
+        CHECK(archive.linked == 1 && archive.thumbnail_removed == 1 && !archive.header_written);
+        row = saved_frame_row(&archive, big, 1, 4);
+        put32(value, 8, big);
+        CHECK(!memcmp(archive.output + row + 8, value, 4));
+
+        init_archive(&archive, big);
+        CHECK(mm_scene_archive_set_range(&editor, 5, -2, 9) == MM_SCENE_ARCHIVE_EDIT_OK);
+        CHECK(archive.header_written == 1 && archive.linked == 1 && archive.thumbnail_removed == 1);
+        row = saved_frame_row(&archive, big, 0, 4);
+        put32(value, (MMU32)-2, big);
+        CHECK(row == 76 && !memcmp(archive.output + row, value, 4));
+        row = saved_frame_row(&archive, big, 1, 36);
+        CHECK(!memcmp(archive.frames + 32, archive.output + row, 44));
+        CHECK(mm_scene_init(&scene, 1) && mm_memory_stream_init(&stream, archive.scene, sizeof(archive.scene)));
+        CHECK(mm_scene_decode_header(&stream.stream, &scene) && scene.firstFrame == -2 &&
+              scene.lastFrame == 9 && scene.transition == 2);
+
+        init_archive(&archive, big);
+        CHECK(mm_scene_archive_set_range(&editor, 5, 2, 9) == MM_SCENE_ARCHIVE_EDIT_RANGE);
+        CHECK(!archive.read_frames && !archive.header_written);
+        CHECK(mm_scene_archive_set_range(&editor, 5, 1, 9) == MM_SCENE_ARCHIVE_EDIT_OK);
+        CHECK(!archive.read_frames && archive.header_written == 1 && !archive.linked && !archive.thumbnail_removed);
+
+        init_archive(&archive, big);
+        archive.fail_write = 1;
+        CHECK(mm_scene_archive_set_range(&editor, 5, -2, 9) == MM_SCENE_ARCHIVE_EDIT_WRITE_FRAMES);
+        CHECK(!archive.header_written && !archive.linked && !archive.unlinked && !archive.thumbnail_removed);
+        put32(archive.frames + 88, 0x7fffffffUL, big);
+        CHECK(mm_scene_archive_set_camera(&editor, 5, 5, 7) == MM_SCENE_ARCHIVE_EDIT_INVALID_FRAMES);
+    }
+}
+
 int main(void)
 {
     validation();
@@ -617,6 +822,7 @@ int main(void)
     creation();
     group_reading();
     append_actor();
+    edit_archived_frames();
     puts("scene data passed");
     return 0;
 }

@@ -1006,7 +1006,11 @@ Marcus camera edits now stage the journal and undo entry until C89
 accepts the replacement track. Live preview and native save share
 opening-frame resolution and camera-event replacement. Failed live
 evaluation restores the previous track and replays the old frame when
-the preview can recover.
+the preview can recover. C89 also reads and updates the archive's
+frame-event groups and scene header for saved camera and range edits.
+The archive writer preserves the group byte order and unrelated
+payloads, replaces the frame-group link, and removes thumbnails for
+opening edits.
 Marcus undo now uses a C89-owned bounded snapshot stack. C89 chooses
 whether to reopen the base movie or restore the scene in place, rebuilds
 derived state in order, and releases the undo entry after a successful

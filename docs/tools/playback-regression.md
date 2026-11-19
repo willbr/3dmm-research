@@ -14758,3 +14758,35 @@ continuous playback pixels remain inconclusive.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The probe, manifest,
 native outputs and test logs are in `tmp/c89-paste-codec`.
+
+## Marcus scene camera and range archive writes in C89 (19 November 2026)
+
+The shared C89 archive path now reads the scene header and dense frame
+group, updates camera records or the scene bounds, and publishes the new
+frame-group link. It preserves the source group's byte order and other
+event payloads. Opening edits remove the thumbnail. Extending only the
+last frame writes just the scene header.
+
+The Marcus-enabled build passed all 37 selected checks, including strict
+C89 syntax, chunk and scene formats, and headless integration. The
+standalone C-only Release configuration passed five checks. The scene
+archive fixture verifies both byte orders, a preserved sound
+record, opening and later camera cuts, malformed row rejection, and
+that a partial group write leaves the old link and scene header intact.
+
+The headless probe changed the opening camera, prepended a frame,
+replaced a later cut, undid a repeat edit, and reopened the saved
+movie. Both builds reported the same camera indices, scene range,
+playhead and undo state. The saved movies were byte-identical with
+SHA-256 `265a3ee65880e3dcf7751ac125609139e45d873030e140d6bc214238b2e5ae13`.
+
+All six captures completed in suite `20261119T050842Z-4a5f1364`.
+Retail, SDL Studio and Marcus agreed on all 61 frame positions in
+seek and playback. Both ports matched retail's seek images at frames
+0, 1, 14, 15, 16 and 30 in the edited scene. Full-sequence seek pixels,
+mixed PCM and SDL Studio frame timing retained the earlier differences.
+Marcus playback timing and continuous playback pixels remain inconclusive.
+
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. Probe outputs, the
+manifest and test logs are in `tmp/c89-scene-frame-wire`.
