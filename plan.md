@@ -981,6 +981,9 @@ decoded schedule after the full snapshot is accepted.
 The shared C89 schedule owns the source cues, clip lengths, scroll holds
 and pauses used for live analysis and timing imports. Frame-range edits
 rebuild it from those records, including cues previously outside the scene.
+The schedule also builds the sound sheet's tracks and cue extents, computes
+chapter and movie progress, and resolves time seeks to scene and frame.
+Marcus supplies display names and performs the resulting seek.
 The C89 engine also owns live Marcus playback voices, track mute and solo,
 loop and queue progression, and MIDI preroll and rendering decisions.
 Marcus and Studio share PCM accumulation and clipping. The Marcus schedule

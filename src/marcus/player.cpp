@@ -519,51 +519,54 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, const std::vector<MarcusSce
     if (!ReadSoundTimeline(player, index, scenes, timeline, error))
         return false;
     const auto &scene = timeline.Scene(index);
-    // Separate scene and actor lanes, including actor ID zero. Keep styles in
-    // separate lanes so simultaneous speech and effects remain distinguishable.
-    std::map<std::tuple<bool, std::int32_t, std::int32_t>, int> lanes;
-    for (std::size_t row = 0; row < scene.SoundCount(); ++row)
+    struct SheetModel
     {
-        const auto cue = scene.Sound(row).cue;
-        lanes.emplace(std::make_tuple(cue.actorSound, cue.actorSound ? cue.actor : 0, cue.style), 0);
-    }
-    for (auto &lane : lanes)
+        MMMovieSoundSheet data{};
+        ~SheetModel() { mm_movie_sound_sheet_dispose(&data); }
+    } model;
+    if (!scene.BuildSheet(model.data))
+        throw std::bad_alloc();
+    sheet.soundTracks.reserve(model.data.track_count);
+    sheet.sounds.reserve(model.data.cue_count);
+    sheet.soundCues.reserve(model.data.cue_count);
+    for (std::size_t i = 0; i < model.data.track_count; ++i)
     {
+        const auto &lane = model.data.tracks[i];
+        const auto actor = lane.actor, style = lane.style;
         MarcusSoundTrack track = {};
-        const auto actor = std::get<1>(lane.first), style = std::get<2>(lane.first);
-        track.actor_sound = std::get<0>(lane.first);
+        track.actor_sound = lane.actor_sound;
         track.actor_id = actor;
         track.style = style;
+        track.cue_count = static_cast<int>(lane.cue_count);
         const char *kind = style == MARCUS_SOUND_MUSIC ? "Music" : style == MARCUS_SOUND_SPEECH ? "Speech"
                            : style == MARCUS_SOUND_EFFECT ? "Effects" : "Sound";
         std::string owner = "Scene";
-        if (std::get<0>(lane.first))
+        if (lane.actor_sound)
         {
             const auto name = player->names.find(actor);
             owner = name != player->names.end() ? name->second : "Actor " + std::to_string(actor);
         }
         Copy(track.name, owner + " / " + kind);
-        lane.second = static_cast<int>(sheet.soundTracks.size());
         sheet.soundTracks.push_back(track);
     }
-    for (std::size_t row = 0; row < scene.SoundCount(); ++row)
+    for (std::size_t row = 0; row < model.data.cue_count; ++row)
     {
-        const auto span = scene.Sound(row);
-        const auto &cue = span.cue;
+        const auto &extent = model.data.cues[row];
+        const auto cue = scene.Sound(row).cue;
         MarcusSound sound = {};
-        sound.track = lanes.at(std::make_tuple(cue.actorSound, cue.actorSound ? cue.actor : 0, cue.style));
+        sound.track = static_cast<int>(extent.track);
         Copy(sound.name, cue.silent ? "Stop / silence" : "Sound " + std::to_string(cue.sound.number));
         std::string soundName;
         if (!cue.silent && player->preview.SoundName(cue, soundName)) Copy(sound.name, soundName);
         const auto name = player->names.find(cue.actor);
         Copy(sound.owner, !cue.actorSound ? std::string("Scene")
                           : name != player->names.end() ? name->second : "Actor " + std::to_string(cue.actor));
-        sound.carried = span.scene != static_cast<std::size_t>(index);
-        sound.origin_scene = static_cast<int>(span.scene);
-        sound.origin_frame = double(cue.frame) - scenes[span.scene].first_frame + 1;
-        sound.frame = sound.carried ? scene.info.first_frame : cue.frame;
-        sound.timeline_frame = scene.FrameAt(span.start);
-        sound.end_frame = std::min(double(scene.info.last_frame) + 1, scene.FrameAt(span.end));
+        sound.carried = extent.carried;
+        sound.origin_scene = static_cast<int>(extent.origin_scene);
+        sound.origin_frame = extent.origin_frame;
+        sound.frame = extent.frame;
+        sound.timeline_frame = extent.timeline_frame;
+        sound.end_frame = extent.end_frame;
         sound.actor_id = cue.actor;
         sound.source_id = cue.source;
         sound.style = cue.style;
@@ -576,7 +579,6 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, const std::vector<MarcusSce
         sound.queue = cue.queue;
         sound.silent = cue.silent;
         sound.motion = cue.motion;
-        ++sheet.soundTracks[sound.track].cue_count;
         sheet.sounds.push_back(sound);
         sheet.soundCues.push_back(cue);
     }
@@ -2926,14 +2928,9 @@ extern "C"
             if (!time || player->selected < 0 ||
                 !ReadSoundTimeline(player, static_cast<int>(player->scenes.size()) - 1, error))
                 return false;
-            const auto &last = player->soundTimeline.Scene(player->scenes.size() - 1);
-            time->duration_seconds = last.TimeAt(double(last.info.last_frame) + 1);
             const auto &scene = player->soundTimeline.Scene(player->selected);
-            const double frame = player->preview.Info().currentFrame;
-            const double start = scene.TimeAt(frame), end = scene.TimeAt(frame + 1);
-            time->position_seconds = player->polledMovie.finished ? time->duration_seconds
-                : std::clamp(start + std::min(player->playback.FrameSeconds(), end - start),
-                             0.0, time->duration_seconds);
+            scene.MovieTime(player->preview.Info().currentFrame, player->playback.FrameSeconds(),
+                            player->polledMovie.finished, *time);
             return true;
         });
     }
@@ -2945,13 +2942,7 @@ extern "C"
             if (!time || player->selected < 0 || index < 0 ||
                 static_cast<std::size_t>(index) >= player->scenes.size() || !ReadSoundTimeline(player, index, error))
                 return false;
-            if (index)
-            {
-                const auto &previous = player->soundTimeline.Scene(index - 1);
-                time->start_seconds = previous.TimeAt(double(previous.info.last_frame) + 1);
-            }
-            const auto &scene = player->soundTimeline.Scene(index);
-            time->end_seconds = scene.TimeAt(double(scene.info.last_frame) + 1);
+            player->soundTimeline.Scene(index).ChapterTime(*time);
             return true;
         });
     }
@@ -2961,25 +2952,16 @@ extern "C"
             if (player->selected < 0 || !std::isfinite(seconds) ||
                 !ReadSoundTimeline(player, static_cast<int>(player->scenes.size()) - 1, error))
                 return false;
-            int index = 0;
-            while (static_cast<std::size_t>(index + 1) < player->scenes.size())
-            {
-                const auto &scene = player->soundTimeline.Scene(index);
-                if (seconds < scene.TimeAt(double(scene.info.last_frame) + 1))
-                    break;
-                ++index;
-            }
-            const auto &scene = player->soundTimeline.Scene(index);
-            const double end = scene.TimeAt(double(scene.info.last_frame) + 1);
-            const auto frame = static_cast<long>(std::clamp(std::floor(scene.FrameAt(
-                std::clamp(seconds, scene.start, end)) + 1e-7),
-                double(scene.info.first_frame), double(scene.info.last_frame)));
-            if ((index != player->selected && !SelectScene(player, index, true)) || !marcus_seek(player, frame))
+            MMMovieSoundPosition position;
+            if (!player->soundTimeline.Locate(seconds, position))
+                return false;
+            const auto index = static_cast<int>(position.scene);
+            if ((index != player->selected && !SelectScene(player, index, true)) || !marcus_seek(player, position.frame))
             {
                 error.message = player->error;
                 return false;
             }
-            player->polledMovie.finished = static_cast<std::size_t>(index + 1) == player->scenes.size() && seconds >= end;
+            player->polledMovie.finished = position.finished;
             return true;
         });
     }

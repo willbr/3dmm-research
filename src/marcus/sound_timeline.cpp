@@ -193,6 +193,27 @@ MarcusSoundSpan MarcusSoundScene::Sound(std::size_t row) const
     return {PreviewCue(owner.schedule.get(), span.scene, span.source_row), span.scene, span.start, span.end};
 }
 
+bool MarcusSoundScene::BuildSheet(MMMovieSoundSheet &sheet) const
+{
+    return mm_movie_sound_schedule_sheet(owner.schedule.get(), index, &sheet) != 0;
+}
+
+void MarcusSoundScene::ChapterTime(MarcusSceneTime &time) const
+{
+    mm_movie_sound_schedule_scene_time(owner.schedule.get(), index, &time.start_seconds, &time.end_seconds);
+}
+
+void MarcusSoundScene::MovieTime(MMI32 frame, double elapsed, bool finished, MarcusMovieTime &time) const
+{
+    mm_movie_sound_schedule_movie_time(owner.schedule.get(), index, frame, elapsed, finished,
+                                       &time.duration_seconds, &time.position_seconds);
+}
+
+bool MarcusSoundTimeline::Locate(double seconds, MMMovieSoundPosition &position) const
+{
+    return mm_movie_sound_schedule_locate(schedule.get(), seconds, &position) != 0;
+}
+
 std::vector<MarcusResumeSound> MarcusSoundTimeline::Resume(std::size_t index, long frame) const
 {
     std::vector<MMScheduledResume> pending(Scene(index).SoundCount());

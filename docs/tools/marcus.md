@@ -2277,6 +2277,13 @@ changes, the C89 engine rebuilds the schedule from its retained cues, clip
 lengths and holds. Extending the range can bring previously clipped cues
 back into the schedule without decoding their media again.
 
+The scheduler builds the sound sheet's track order, cue counts and extents.
+Scene and actor lanes use separate keys, including when the actor ID is zero.
+It also computes chapter boundaries, clamps movie progress to the current
+frame's presentation span, and resolves time seeks during an incoming
+transition to the new scene's first frame. Marcus resolves display names and
+applies the seek to the player.
+
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
 movie, keeping ZIP/VMM inputs alive. Engine globals remain isolated in the child
@@ -2303,6 +2310,12 @@ byte for byte. The comparison with the prior scheduler also matched cue spans,
 frame/time mappings and resumed sounds across 480 generated scenes.
 Rebuilt SDL Studio matched the retained retail state and opening viewport
 for the credits movie. The comparisons are in `tmp/c89-sound-sources/`.
+
+Moving sound sheet and movie clock queries into C89 preserved the published
+results across three native movies with 10 scenes, 18 tracks, 28 cues and 84
+time seeks. Rebuilt SDL Studio matched the retail seek state at frames 1 and 4
+of the actor-sound movie. Each viewport differed by one pixel out of 169,092.
+The comparisons are in `tmp/c89-sound-sheet/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

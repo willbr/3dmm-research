@@ -563,9 +563,12 @@ static void check_sound_schedule_sources(void)
     MMMovieTimingScroll scroll = {2, .5};
     MMMovieTimingScene source = {0}, stored;
     MMMovieTimingRange range = {7, 1, 6};
+    MMMovieSoundPosition position;
+    MMMovieSoundSheet sheet;
     MMMovieSoundSchedule *schedule, *reframed = NULL;
     MMScheduledSound sound;
     MMScheduledResume resume[1];
+    double start, end, duration, elapsed;
     size_t count;
     schedule = mm_movie_sound_schedule_create(.25);
     CHECK(schedule != NULL);
@@ -597,6 +600,25 @@ static void check_sound_schedule_sources(void)
     source.range.last = 2;
     CHECK(mm_movie_sound_schedule_append(schedule, &source) && mm_movie_sound_schedule_size(schedule) == 2);
     CHECK(mm_movie_sound_schedule_time_at(schedule, 1, 0) == 1.75);
+    mm_movie_sound_schedule_scene_time(schedule, 1, &start, &end);
+    CHECK(start == 1.25 && end == 2.5);
+    mm_movie_sound_schedule_movie_time(schedule, 1, 0, .125, 0, &duration, &elapsed);
+    CHECK(duration == 2.5 && elapsed == 1.875);
+    mm_movie_sound_schedule_movie_time(schedule, 1, 0, 1, 0, &duration, &elapsed);
+    CHECK(elapsed == 2);
+    mm_movie_sound_schedule_movie_time(schedule, 1, 0, 0, 1, &duration, &elapsed);
+    CHECK(elapsed == duration);
+    CHECK(mm_movie_sound_schedule_locate(schedule, -1, &position) && position.scene == 0 &&
+          position.frame == 1 && !position.finished);
+    CHECK(mm_movie_sound_schedule_locate(schedule, 1.25, &position) && position.scene == 1 &&
+          position.frame == 0 && !position.finished);
+    CHECK(mm_movie_sound_schedule_locate(schedule, 2.5, &position) && position.scene == 1 &&
+          position.frame == 2 && position.finished);
+    CHECK(mm_movie_sound_schedule_sheet(schedule, 1, &sheet) && sheet.track_count == 1 && sheet.cue_count == 1);
+    CHECK(sheet.cues[0].track == 0 && sheet.cues[0].carried && sheet.cues[0].origin_scene == 0 &&
+          sheet.cues[0].frame == 0 && sheet.cues[0].origin_frame == 1 &&
+          sheet.cues[0].timeline_frame == -7 && sheet.cues[0].end_frame == 1);
+    mm_movie_sound_sheet_dispose(&sheet);
     CHECK(mm_movie_sound_schedule_resume(schedule, 1, 0, resume, &count) && count == 1 &&
           resume[0].scene == 0 && resume[0].source_row == 0 && resume[0].seconds == 1.75);
     ++range.chunk;
@@ -611,6 +633,41 @@ static void check_sound_schedule_sources(void)
     mm_movie_sound_schedule_source(reframed, 0, &stored);
     CHECK(stored.range.last == 6 && stored.cues[1].sound_number == 17);
     mm_movie_sound_schedule_destroy(reframed);
+}
+
+static void check_sound_sheet_order(void)
+{
+    static const MMI32 actors[] = {0, 99, -4, 0, 33, 16};
+    static const MMI32 styles[] = {2, 2, 2, 1, 2, 1};
+    static const size_t order[] = {4, 1, 2, 3, 1, 0};
+    MMMovieTimingCue cues[6] = {{0}};
+    MMMovieTimingScene source = {0};
+    MMMovieSoundSheet sheet;
+    MMMovieSoundSchedule *schedule = mm_movie_sound_schedule_create(.25);
+    size_t i;
+    CHECK(schedule != NULL);
+    source.range.first = -2;
+    source.range.last = 4;
+    source.cue_count = 6;
+    source.cues = cues;
+    for (i = 0; i < 6; ++i)
+    {
+        cues[i].frame = -1;
+        cues[i].actor = actors[i];
+        cues[i].style = styles[i];
+        cues[i].flags = i == 0 || i == 2 || i == 3 ? MM_TIMING_ACTOR_SOUND : 0;
+    }
+    CHECK(mm_movie_sound_schedule_append(schedule, &source));
+    CHECK(mm_movie_sound_schedule_sheet(schedule, 0, &sheet) && sheet.track_count == 5 && sheet.cue_count == 6);
+    CHECK(!sheet.tracks[0].actor_sound && !sheet.tracks[0].actor && sheet.tracks[0].style == 1);
+    CHECK(!sheet.tracks[1].actor_sound && !sheet.tracks[1].actor && sheet.tracks[1].cue_count == 2);
+    CHECK(sheet.tracks[2].actor_sound && sheet.tracks[2].actor == -4 && sheet.tracks[2].style == 2);
+    CHECK(sheet.tracks[3].actor_sound && !sheet.tracks[3].actor && sheet.tracks[3].style == 1);
+    CHECK(sheet.tracks[4].actor_sound && !sheet.tracks[4].actor && sheet.tracks[4].style == 2);
+    for (i = 0; i < sheet.cue_count; ++i)
+        CHECK(sheet.cues[i].track == order[i] && !sheet.cues[i].carried && sheet.cues[i].origin_frame == 2);
+    mm_movie_sound_sheet_dispose(&sheet);
+    mm_movie_sound_schedule_destroy(schedule);
 }
 
 /* This executable links with the C linker and only the C89 backend. Existing
@@ -699,5 +756,6 @@ int main(void)
     check_caption_render();
     check_timing_snapshot();
     check_sound_schedule_sources();
+    check_sound_sheet_order();
     return 0;
 }

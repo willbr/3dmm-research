@@ -190,11 +190,20 @@ double mm_movie_sound_schedule_frame_at(const MMMovieSoundSchedule *schedule, si
     return frame + (seconds - at) / schedule->frame_seconds;
 }
 
+static int compare_lane(const MMMovieTimingCue *a, const MMMovieTimingCue *b)
+{
+    int a_actor = (a->flags & MM_TIMING_ACTOR_SOUND) != 0;
+    int b_actor = (b->flags & MM_TIMING_ACTOR_SOUND) != 0;
+    if (a_actor != b_actor)
+        return a_actor < b_actor ? -1 : 1;
+    if (a_actor && a->actor != b->actor)
+        return a->actor < b->actor ? -1 : 1;
+    return a->style < b->style ? -1 : a->style != b->style;
+}
+
 static int same_lane(const MMMovieTimingCue *a, const MMMovieTimingCue *b)
 {
-    int actor = (a->flags & MM_TIMING_ACTOR_SOUND) != 0;
-    return actor == ((b->flags & MM_TIMING_ACTOR_SOUND) != 0) &&
-        (!actor || a->actor == b->actor) && a->style == b->style;
+    return compare_lane(a, b) == 0;
 }
 
 static int same_audio(const MMMovieTimingCue *a, const MMMovieTimingCue *b)
@@ -206,6 +215,56 @@ static int same_audio(const MMMovieTimingCue *a, const MMMovieTimingCue *b)
 static int finite_time(double time)
 {
     return time >= -DBL_MAX && time <= DBL_MAX;
+}
+
+static double clamp_time(double value, double first, double last)
+{
+    return value < first ? first : last < value ? last : value;
+}
+
+static double scene_end(const MMMovieSoundSchedule *schedule, size_t index)
+{
+    const ScheduleScene *scene = &schedule->scenes[index];
+    return time_at(scene, schedule->frame_seconds, (double)scene->source.range.last + 1);
+}
+
+void mm_movie_sound_schedule_scene_time(const MMMovieSoundSchedule *schedule, size_t scene, double *start, double *end)
+{
+    *start = scene ? scene_end(schedule, scene - 1) : 0;
+    *end = scene_end(schedule, scene);
+}
+
+void mm_movie_sound_schedule_movie_time(const MMMovieSoundSchedule *schedule, size_t index, MMI32 frame,
+                                        double elapsed, int finished, double *duration, double *position)
+{
+    const ScheduleScene *scene = &schedule->scenes[index];
+    double start = time_at(scene, schedule->frame_seconds, frame);
+    double end = time_at(scene, schedule->frame_seconds, (double)frame + 1);
+    if (end - start < elapsed)
+        elapsed = end - start;
+    *duration = schedule->time;
+    *position = finished ? *duration : clamp_time(start + elapsed, 0, *duration);
+}
+
+int mm_movie_sound_schedule_locate(const MMMovieSoundSchedule *schedule, double seconds, MMMovieSoundPosition *out)
+{
+    const ScheduleScene *scene;
+    size_t index = 0;
+    double end, frame;
+    if (!schedule->scene_count || !finite_time(seconds))
+        return 0;
+    end = scene_end(schedule, index);
+    while (index + 1 < schedule->scene_count && !(seconds < end))
+        end = scene_end(schedule, ++index);
+    scene = &schedule->scenes[index];
+    frame = mm_movie_sound_schedule_frame_at(schedule, index, clamp_time(seconds, scene->start, end));
+    frame = clamp_time(floor(frame + 1e-7), scene->source.range.first, scene->source.range.last);
+    if (!finite_time(frame))
+        return 0;
+    out->scene = index;
+    out->frame = (MMI32)frame;
+    out->finished = index + 1 == schedule->scene_count && seconds >= end;
+    return 1;
 }
 
 static void expire(MMMovieSoundSchedule *schedule, double at)
@@ -513,6 +572,94 @@ size_t mm_movie_sound_schedule_sound_count(const MMMovieSoundSchedule *schedule,
 MMScheduledSound mm_movie_sound_schedule_sound(const MMMovieSoundSchedule *schedule, size_t scene, size_t index)
 {
     return schedule->voices[schedule->scenes[scene].sounds[index]].span;
+}
+
+typedef struct SheetOrder
+{
+    const MMMovieTimingCue *cue;
+    size_t row;
+} SheetOrder;
+
+static int sheet_order(const void *left, const void *right)
+{
+    return compare_lane(((const SheetOrder *)left)->cue, ((const SheetOrder *)right)->cue);
+}
+
+void mm_movie_sound_sheet_dispose(MMMovieSoundSheet *sheet)
+{
+    free(sheet->tracks);
+    free(sheet->cues);
+    memset(sheet, 0, sizeof(*sheet));
+}
+
+int mm_movie_sound_schedule_sheet(const MMMovieSoundSchedule *schedule, size_t index, MMMovieSoundSheet *out)
+{
+    MMMovieSoundSheet sheet = {0};
+    const ScheduleScene *scene;
+    const ScheduleVoice *voice;
+    MMMovieSoundSheetCue *cue;
+    MMMovieSoundTrack *track;
+    SheetOrder *order;
+    double limit;
+    size_t i, lane;
+    if (index >= schedule->scene_count)
+        return 0;
+    scene = &schedule->scenes[index];
+    sheet.cue_count = scene->sound_count;
+    if (!sheet.cue_count)
+    {
+        *out = sheet;
+        return 1;
+    }
+    order = (SheetOrder *)rows(sheet.cue_count, sizeof(*order));
+    sheet.cues = (MMMovieSoundSheetCue *)rows(sheet.cue_count, sizeof(*sheet.cues));
+    if (!order || !sheet.cues)
+        goto failed;
+    limit = (double)scene->source.range.last + 1;
+    for (i = 0; i < sheet.cue_count; ++i)
+    {
+        voice = &schedule->voices[scene->sounds[i]];
+        cue = &sheet.cues[i];
+        cue->origin_scene = voice->span.scene;
+        cue->carried = cue->origin_scene != index;
+        cue->frame = cue->carried ? scene->source.range.first : voice->cue->frame;
+        cue->origin_frame = (double)voice->cue->frame - schedule->scenes[cue->origin_scene].source.range.first + 1;
+        cue->timeline_frame = mm_movie_sound_schedule_frame_at(schedule, index, voice->span.start);
+        cue->end_frame = mm_movie_sound_schedule_frame_at(schedule, index, voice->span.end);
+        if (!(cue->end_frame < limit))
+            cue->end_frame = limit;
+        order[i].row = i;
+        order[i].cue = voice->cue;
+    }
+    qsort(order, sheet.cue_count, sizeof(*order), sheet_order);
+    sheet.track_count = 1;
+    for (i = 1; i < sheet.cue_count; ++i)
+        if (compare_lane(order[i - 1].cue, order[i].cue))
+            ++sheet.track_count;
+    sheet.tracks = (MMMovieSoundTrack *)rows(sheet.track_count, sizeof(*sheet.tracks));
+    if (!sheet.tracks)
+        goto failed;
+    lane = 0;
+    for (i = 0; i < sheet.cue_count; ++i)
+    {
+        if (!i || compare_lane(order[i - 1].cue, order[i].cue))
+        {
+            track = &sheet.tracks[lane++];
+            track->actor_sound = (order[i].cue->flags & MM_TIMING_ACTOR_SOUND) != 0;
+            track->actor = track->actor_sound ? order[i].cue->actor : 0;
+            track->style = order[i].cue->style;
+            track->cue_count = 0;
+        }
+        sheet.cues[order[i].row].track = lane - 1;
+        ++sheet.tracks[lane - 1].cue_count;
+    }
+    free(order);
+    *out = sheet;
+    return 1;
+failed:
+    free(order);
+    mm_movie_sound_sheet_dispose(&sheet);
+    return 0;
 }
 
 static int resume_order(const void *left, const void *right)

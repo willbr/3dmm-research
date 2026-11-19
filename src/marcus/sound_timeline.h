@@ -25,6 +25,9 @@ struct MarcusSoundScene
     double FrameAt(double seconds) const;
     std::size_t SoundCount() const;
     MarcusSoundSpan Sound(std::size_t row) const;
+    bool BuildSheet(MMMovieSoundSheet &) const;
+    void ChapterTime(MarcusSceneTime &) const;
+    void MovieTime(MMI32 frame, double elapsed, bool finished, MarcusMovieTime &) const;
 
   private:
     friend class MarcusSoundTimeline;
@@ -66,6 +69,7 @@ class MarcusSoundTimeline
     bool Read(std::istream &input, const std::vector<MarcusScene> &expected);
     std::size_t Size() const { return mm_movie_sound_schedule_size(schedule.get()); }
     MarcusSoundScene Scene(std::size_t index) const { return MarcusSoundScene(*this, index); }
+    bool Locate(double seconds, MMMovieSoundPosition &) const;
     std::vector<MarcusResumeSound> Resume(std::size_t scene, long frame) const;
     void Append(const MarcusScene &scene, const std::vector<MM::PreviewSoundCue> &cues,
                 const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,
