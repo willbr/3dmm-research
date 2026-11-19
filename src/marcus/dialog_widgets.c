@@ -89,6 +89,16 @@ int dialog_checkbox(const char *label, int *value)
     changed = igCheckbox(label, ImGuiStorage_GetBoolRef(storage, key, *value));
     *value = ImGuiStorage_GetBool(storage, key, *value); return changed;
 }
+int dialog_okhsl(float hsl[3])
+{
+    int changed;
+    igPushItemWidth(124);
+    changed = igSliderFloat("Hue", hsl, 0, 360, "%.0f", ImGuiSliderFlags_AlwaysClamp);
+    changed |= igSliderFloat("Saturation", hsl + 1, 0, 1, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    changed |= igSliderFloat("Lightness", hsl + 2, 0, 1, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    igPopItemWidth();
+    return changed;
+}
 void dialog_image(SDL_Texture *texture, ImVec2 size)
 {
     ImTextureRef ref;

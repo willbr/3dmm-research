@@ -97,6 +97,7 @@ struct MarcusPlayer
     MM::PreviewImage thumbnail;
     MM::PreviewImage movieImage;
     MM::PreviewImage costumeImage;
+    MM::PreviewImage captionFontSample;
     int movieImageScene = -1;
     MarcusPlayback playback;
     std::vector<MM::Id> scenes;
@@ -1893,6 +1894,36 @@ extern "C"
     {
         return player && list && list->document == player->document && player->selected >= 0 &&
             std::size_t(player->selected) < player->scenes.size() && list->scene == player->scenes[player->selected].number;
+    }
+    int marcus_caption_font_count(MarcusPlayer *player, MarcusCaptionList *list)
+    {
+        if (!Guard(player, [&](MM::Error &) {
+            if (!CurrentCaptions(player, list)) return false;
+            list->fontNames = MarcusCaptionFontNames(player->timingInput->fonts.get());
+            return true;
+        })) return 0;
+        return static_cast<int>(list->fontNames.size());
+    }
+    const char *marcus_caption_font_name(const MarcusCaptionList *list, int index)
+    {
+        return list && index >= 0 && std::size_t(index) < list->fontNames.size() ? list->fontNames[index].c_str() : nullptr;
+    }
+    int marcus_caption_font_sample(MarcusPlayer *player, const MarcusCaptionList *list, int index, MarcusImage *image)
+    {
+        if (!image) return 0;
+        *image = {};
+        return Guard(player, [&](MM::Error &) {
+            if (!CurrentCaptions(player, list) || !marcus_caption_font_name(list, index))
+                return false;
+            auto &sample = player->captionFontSample;
+            if (!player->playback.CaptionFontSample(list->fontNames[index], sample))
+                return false;
+            image->width = sample.width;
+            image->height = sample.height;
+            image->pitch = sample.width * 4;
+            image->rgba = sample.rgba.data();
+            return true;
+        });
     }
     void marcus_caption_preview(MarcusPlayer *player, const MarcusCaptionList *list, int index)
     {

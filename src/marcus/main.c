@@ -1666,6 +1666,7 @@ static void update_flight(App *app, double seconds)
 }
 static int caption_event(App *app, const SDL_Event *event)
 {
+    SDL_FRect view;
     int popup, apply, finish;
     float x, y;
     if (!caption_editor_visible(app->caption_editor) || !dialog_input_event(event)) return 0;
@@ -1676,7 +1677,9 @@ static int caption_event(App *app, const SDL_Event *event)
     {
         x = event->button.x;
         y = event->button.y;
-        finish = !inside_movie(app, x, y) &&
+        view = viewport_rect(app, app->second_view);
+        finish = !caption_editor_hit(app->caption_editor, &view,
+                    app->second_view ? &app->movie_image : &app->work_image, x, y) &&
                  !ui_inside(x, y, app->sidebar, VIEW_TOP, app->width - app->sidebar,
                             app->height - EDITOR_STATUS_HEIGHT - VIEW_TOP);
     }
@@ -3343,7 +3346,7 @@ static void draw(App *app)
         caption_inspector.y = VIEW_TOP;
         caption_inspector.w = app->width - app->sidebar;
         caption_inspector.h = app->height - EDITOR_STATUS_HEIGHT - VIEW_TOP;
-        caption_updated(app, caption_editor_draw(app->caption_editor, app->player, &caption_view,
+        caption_updated(app, caption_editor_draw(app->caption_editor, app->player, app->renderer, &caption_view,
             app->second_view ? &app->movie_image : &app->work_image, &caption_inspector));
     }
     if (app->settings_open)

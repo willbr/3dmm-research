@@ -25,7 +25,7 @@ static void paint_controls(MarcusStoryboardEditor *editor, MarcusBoardEditorStat
     static const int sizes[] = {1, 4, 8, 16, 32};
     ImVec2 at;
     ImVec4 colour;
-    int i, x, y, changed;
+    int i, x, y;
     char label[48];
     for (i = 0; i < 10; ++i) {
         if (i % 5) igSameLine(0, 4);
@@ -33,17 +33,7 @@ static void paint_controls(MarcusStoryboardEditor *editor, MarcusBoardEditorStat
         if (igColorButton("Paint swatch", rgb(s->swatches[swatches[i]]), ImGuiColorEditFlags_NoTooltip, dialog_vec(40, 24))) command(editor, BOARD_SWATCH, swatches[i]);
         igPopID();
     }
-    igSetNextItemWidth(-1);
-    if (igColorPicker3("Colour", s->colour, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_DisplayRGB |
-        ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_NoSidePreview))
-        storyboard_editor_command(editor, BOARD_RGB, 0, 0, s->colour);
-    if (igTreeNode_Str("Perceptual colour (OkHSL)")) {
-        changed = igSliderFloat("Hue", s->okhsl, 0, 360, "%.0f", 0);
-        changed |= igSliderFloat("Saturation", s->okhsl + 1, 0, 1, "%.3f", 0);
-        changed |= igSliderFloat("Lightness", s->okhsl + 2, 0, 1, "%.3f", 0);
-        if (changed) storyboard_editor_command(editor, BOARD_HSL, 0, 0, s->okhsl);
-        igTreePop();
-    }
+    if (dialog_okhsl(s->okhsl)) storyboard_editor_command(editor, BOARD_HSL, 0, 0, s->okhsl);
     igText("Paint / #%06lX", s->rgb);
     at = igGetCursorScreenPos(); igDummy(dialog_vec(224, 28));
     for (y = 0; y < 4; ++y) for (x = 0; x < 16; ++x) {

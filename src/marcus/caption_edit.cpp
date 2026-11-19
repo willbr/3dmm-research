@@ -4,11 +4,14 @@
 #include "mm/preview.h"
 #include "mm/text_properties.h"
 #include "platform_text.h"
+#include "font_catalog.h"
+#include "font_host.h"
 #include <algorithm>
 #include <codecvt>
 #include <cstring>
 #include <limits>
 #include <locale>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <tuple>
@@ -115,16 +118,20 @@ std::string Font(RichTextData &rich)
     return Utf8().to_bytes(Decode(rich.fontName.Psz(), rich.fontName.Cch() * sizeof(achar),
                                   static_cast<Encoding>(koskCur)));
 }
+LegacyLong EncodeFont(const std::u16string &units, achar (&native)[kcchMaxStn])
+{
+    auto bytes = LittleEndianText(units);
+    const auto length = CchTranslateRgb(bytes.data(), static_cast<LegacyLong>(bytes.size()),
+                                        static_cast<short>(Encoding::Utf16LE), native, kcchMaxStn);
+    return length > 0 && Decode(native, length * sizeof(achar), static_cast<Encoding>(koskCur)) == units ? length : 0;
+}
 void SetFont(RichTextData &rich, const char *font)
 {
     const auto units = Utf8().from_bytes(font);
     Require(!units.empty() && units.size() <= kcchMaxStn, "Enter a font family of 1 to 255 characters.");
-    auto bytes = LittleEndianText(units);
     achar native[kcchMaxStn];
-    const auto length = CchTranslateRgb(bytes.data(), static_cast<LegacyLong>(bytes.size()),
-                                        static_cast<short>(Encoding::Utf16LE), native, kcchMaxStn);
-    Require(length > 0 && Decode(native, length * sizeof(achar), static_cast<Encoding>(koskCur)) == units,
-            "This font name cannot be represented in a native 3DMM text box.");
+    const auto length = EncodeFont(units, native);
+    Require(length > 0, "This font name cannot be represented in a native 3DMM text box.");
     rich.fontName.SetRgch(native, length);
     rich.defaults.oskFont = koskCur;
 }
@@ -366,6 +373,34 @@ bool UpdateRich(RichTextData &rich, const MarcusCaptionOptions &value, const Mar
     if (draft && wordsChanged) *draft = std::move(newText);
     return true;
 }
+}
+
+std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *bundled)
+{
+    std::vector<KauaiFonts::FamilyInfo> families;
+    KauaiFonts::StudioFontFamilies(families);
+    if (bundled)
+    {
+        const auto extra = bundled->Families(true);
+        families.insert(families.end(), extra.begin(), extra.end());
+    }
+    std::map<std::string, std::string> names;
+    for (auto &family : families)
+    {
+        auto units = Utf8().from_bytes(family.name);
+        achar native[kcchMaxStn];
+        if (units.empty() || units.size() > kcchMaxStn || !EncodeFont(units, native))
+            continue;
+        auto key = family.name;
+        for (auto &c : key)
+            if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
+        names.insert_or_assign(std::move(key), std::move(family.name));
+    }
+    std::vector<std::string> result;
+    result.reserve(names.size());
+    for (auto &entry : names)
+        result.push_back(std::move(entry.second));
+    return result;
 }
 
 void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &preview, MarcusCaptionList &list)

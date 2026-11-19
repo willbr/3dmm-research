@@ -17,11 +17,14 @@ struct MarcusCaptionEntry
 struct MarcusCaptionList
 {
     std::vector<MarcusCaptionEntry> entries;
+    std::vector<std::string> fontNames;
     MarcusCaptionOptions defaults{};
     unsigned long document;
     std::uint32_t scene;
     int firstFrame, lastFrame;
 };
+namespace KauaiFonts { class FontCatalog; }
+std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *bundled);
 void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &preview, MarcusCaptionList &list);
 MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
                                      const MarcusCaptionOptions &options, const char *text);

@@ -1,5 +1,12 @@
 #ifndef MARCUS_COLOUR_PICKER_H
 #define MARCUS_COLOUR_PICKER_H
+#ifdef __cplusplus
+extern "C" {
+#endif
+unsigned marcus_okhsl_rgb(const float hsl[3]);
+void marcus_rgb_okhsl(unsigned rgb, float hsl[3]);
+#ifdef __cplusplus
+}
 #include <array>
 #include <vector>
 
@@ -11,4 +18,5 @@ std::array<float, 2> MarcusOkHSLTrianglePoint(float saturation, float lightness)
 bool MarcusOkHSLTriangleContains(float x, float y);
 std::array<float, 2> MarcusOkHSLTrianglePick(float x, float y);
 std::vector<unsigned char> MarcusOkHSLTrianglePixels(float hue, int side);
+#endif
 #endif

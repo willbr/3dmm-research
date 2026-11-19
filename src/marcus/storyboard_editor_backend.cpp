@@ -2,7 +2,6 @@
 #include "storyboard.h"
 #include "storyboard_draft.h"
 #include "storyboard_tools.h"
-#include "colour_picker.h"
 #include <algorithm>
 #include <cmath>
 
@@ -118,13 +117,6 @@ catch (const std::exception &e) { return Error(e.what()); }
 int marcus_board_editor_can_bake(const MarcusBoardPose *pose)
 try { return !MarcusBoardGridLines(AngleFor(*pose)).empty(); }
 catch (const std::exception &e) { return Error(e.what()); }
-
-unsigned marcus_board_editor_okhsl(const float colour[3]) { return MarcusOkHSL(colour[0], colour[1], colour[2]); }
-void marcus_board_editor_to_okhsl(unsigned rgb, float colour[3])
-{
-    const auto hsl = MarcusToOkHSL(rgb);
-    std::copy(hsl.begin(), hsl.end(), colour);
-}
 
 void marcus_board_editor_dither(const MarcusBoardEditorBackend *draft, unsigned rgb, unsigned long pixels[64])
 {

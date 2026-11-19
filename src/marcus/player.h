@@ -330,6 +330,9 @@ extern "C"
     int marcus_caption_count(const MarcusCaptionList *list);
     /* -1 returns default settings for a new box. Strings belong to the list. */
     const char *marcus_caption(const MarcusCaptionList *list, int index, MarcusCaptionOptions *options);
+    int marcus_caption_font_count(MarcusPlayer *player, MarcusCaptionList *list);
+    const char *marcus_caption_font_name(const MarcusCaptionList *list, int index);
+    int marcus_caption_font_sample(MarcusPlayer *player, const MarcusCaptionList *list, int index, MarcusImage *image);
     /* -1 adds a box. A null text deletes an existing box. */
     int marcus_edit_caption(MarcusPlayer *player, const MarcusCaptionList *list, int index,
                             const MarcusCaptionOptions *options, const char *text);

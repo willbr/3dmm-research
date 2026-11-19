@@ -25,8 +25,6 @@ int marcus_board_editor_apply(MarcusBoardEditorBackend *, MarcusPlayer *, int an
 void marcus_board_editor_accept(MarcusBoardEditorBackend *);
 int marcus_board_editor_bake(MarcusBoardEditorBackend *, int angle, const MarcusBoardPose *, unsigned char colour);
 int marcus_board_editor_can_bake(const MarcusBoardPose *);
-unsigned marcus_board_editor_okhsl(const float colour[3]);
-void marcus_board_editor_to_okhsl(unsigned rgb, float colour[3]);
 void marcus_board_editor_dither(const MarcusBoardEditorBackend *, unsigned rgb, unsigned long pixels[64]);
 void marcus_board_editor_light_widget(const MarcusProjection *, const MarcusBoardLightValues *, float height,
                                       MarcusCameraGuide *shape, MarcusCameraGuide *direction, float centre[3], int *visible);

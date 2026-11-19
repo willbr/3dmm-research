@@ -18,7 +18,7 @@ typedef struct MarcusBoardEditorState {
     int open, tab, angle, angles, light, lights, point, grid, has_work, inspecting;
     int picking, brush, can_undo, can_bake, field_count, editing;
     unsigned long rgb, swatches[MARCUS_BOARD_SWATCH_COUNT], dither[64];
-    float colour[3], okhsl[3];
+    float okhsl[3];
     SDL_FRect canvas, tools, bar;
     SDL_Texture *texture;
     const SDL_Vertex *vertices;
@@ -31,7 +31,7 @@ typedef struct MarcusBoardEditorState {
 } MarcusBoardEditorState;
 enum MarcusBoardCommand {
     BOARD_DONE, BOARD_TAB, BOARD_ANGLE, BOARD_NEW_ANGLE, BOARD_USE_WORK, BOARD_GRID,
-    BOARD_RGB, BOARD_HSL, BOARD_SWATCH, BOARD_PICK, BOARD_BRUSH, BOARD_BAKE, BOARD_CLEAR,
+    BOARD_HSL, BOARD_SWATCH, BOARD_PICK, BOARD_BRUSH, BOARD_BAKE, BOARD_CLEAR,
     BOARD_UNDO, BOARD_LIGHT, BOARD_LIGHT_ADD, BOARD_LIGHT_REMOVE, BOARD_POINT,
     BOARD_FRAME_LIGHTS, BOARD_SHOT_VIEW, BOARD_FIELD_BEGIN, BOARD_FIELD_SET,
     BOARD_FIELD_END, BOARD_FIELD_CANCEL

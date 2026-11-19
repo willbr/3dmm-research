@@ -3,6 +3,7 @@
 #include "storyboard.h"
 #include "dialog_host.h"
 #include "camera_controls.h"
+#include "colour_picker.h"
 #include "transform_gizmo.h"
 #include <float.h>
 #include <math.h>
@@ -77,7 +78,7 @@ static void select_rgb(MarcusStoryboardEditor *e, unsigned rgb)
     e->colour = -1;
     for (i = 0; i < e->values.colour_count; ++i)
         if (e->values.colours[i] == rgb) { e->colour = i; break; }
-    marcus_board_editor_to_okhsl(rgb, next);
+    marcus_rgb_okhsl(rgb, next);
     if (next[1] < .00001f) next[0] = e->okhsl[0];
     memcpy(e->okhsl, next, sizeof(next));
     e->pen_rgb = rgb;
@@ -788,9 +789,6 @@ void storyboard_editor_state(MarcusStoryboardEditor *e, MarcusBoardEditorState *
     out->texture = e->texture;
     marcus_board_editor_grid(e->draft, &out->vertices, &out->indices, &out->index_count);
     out->rgb = e->pen_rgb;
-    out->colour[0] = ((out->rgb >> 16) & 255) / 255.f;
-    out->colour[1] = ((out->rgb >> 8) & 255) / 255.f;
-    out->colour[2] = (out->rgb & 255) / 255.f;
     memcpy(out->okhsl, e->okhsl, sizeof(out->okhsl));
     for (i = 0; i < MARCUS_BOARD_SWATCH_COUNT; ++i) out->swatches[i] = e->swatches[i];
     if (!e->ink_ready)
@@ -817,8 +815,6 @@ void storyboard_editor_command(MarcusStoryboardEditor *e, int command, int index
 {
     BoardField source[9];
     MarcusBoardLightValues *light;
-    unsigned rgb;
-    int i;
     if (!storyboard_editor_visible(e)) return;
     switch (command)
     {
@@ -849,18 +845,12 @@ void storyboard_editor_command(MarcusStoryboardEditor *e, int command, int index
     case BOARD_GRID:
         e->show_grid = !e->show_grid;
         break;
-    case BOARD_RGB:
-        if (!colour) break;
-        rgb = 0;
-        for (i = 0; i < 3; ++i)
-        {
-            if (!(colour[i] >= -FLT_MAX && colour[i] <= FLT_MAX)) return;
-            rgb = (rgb << 8) | (unsigned)(clamp(colour[i], 0.f, 1.f) * 255 + .5f);
-        }
-        select_rgb(e, rgb);
-        break;
     case BOARD_HSL:
-        if (colour) select_rgb(e, marcus_board_editor_okhsl(colour));
+        if (colour)
+        {
+            select_rgb(e, marcus_okhsl_rgb(colour));
+            memcpy(e->okhsl, colour, sizeof(e->okhsl));
+        }
         break;
     case BOARD_SWATCH:
         if (index >= 0 && index < MARCUS_BOARD_SWATCH_COUNT) select_rgb(e, marcus_board_swatches[index]);

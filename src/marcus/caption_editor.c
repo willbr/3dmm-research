@@ -1,14 +1,25 @@
 #include "caption_editor.h"
+#include "colour_picker.h"
+#include "dialog_host.h"
 #include "dialog_widgets.h"
 #include "mm/caption_render.h"
 #include "ui.h"
 
 enum { FINISH_NONE, FINISH_APPLY, FINISH_CANCEL, FINISH_DELETE };
 enum { KEEP_BOX = -2, CAPTION_REJECTED = -1 };
+typedef struct CaptionFontTile
+{
+    SDL_Texture *texture;
+    int tried;
+} CaptionFontTile;
 struct MarcusCaptionEditor
 {
     MarcusCaptionList *list;
     MarcusCaptionOptions value;
+    CaptionFontTile *font_tiles;
+    int font_count;
+    char font_filter[128];
+    float ink_hsl[3], paper_hsl[3];
     char text[MARCUS_CAPTION_UTF8_CAPACITY], error[256], preview_error[256];
     int selected, focus_text, generation, drag_kind, finish;
     int drag_x, drag_y, drag_width, drag_height;
@@ -23,6 +34,13 @@ MarcusCaptionEditor *caption_editor_create(void)
 }
 static void release_list(MarcusCaptionEditor *editor)
 {
+    int i;
+    if (editor->font_tiles)
+        for (i = 0; i < editor->font_count; ++i)
+            dialog_retire_texture(editor->font_tiles[i].texture);
+    SDL_free(editor->font_tiles);
+    editor->font_tiles = NULL;
+    editor->font_count = -1;
     marcus_captions_destroy(editor->list);
     editor->list = NULL;
 }
@@ -159,24 +177,100 @@ static void box_label(const MarcusCaptionList *list, int index, char *label, siz
     else
         SDL_snprintf(label, capacity, "Box %d", index + 1);
 }
-static void edit_colour(const char *label, unsigned long *value)
+static void choose_font(MarcusCaptionEditor *editor, MarcusPlayer *player, SDL_Renderer *renderer)
 {
-    float rgb[3];
-    rgb[0] = (float)((*value >> 16) & 255) / 255;
-    rgb[1] = (float)((*value >> 8) & 255) / 255;
-    rgb[2] = (float)(*value & 255) / 255;
-    if (igColorEdit3(label, rgb, ImGuiColorEditFlags_NoInputs))
-        *value = ((unsigned long)SDL_roundf(rgb[0] * 255) << 16) |
-                 ((unsigned long)SDL_roundf(rgb[1] * 255) << 8) |
-                  (unsigned long)SDL_roundf(rgb[2] * 255);
+    const char *name;
+    CaptionFontTile *tile;
+    MarcusImage sample;
+    float width;
+    int i, shown, selected, choose;
+    igTextUnformatted("Default font", NULL);
+    igSetNextItemWidth(-1);
+    igSetNextWindowSizeConstraints(dialog_vec(260, 0), dialog_vec(450, 370), NULL, NULL);
+    if (!igBeginCombo("##Default font", editor->value.font, 0)) return;
+    if (editor->font_count < 0)
+    {
+        editor->font_count = marcus_caption_font_count(player, editor->list);
+        editor->font_tiles = (CaptionFontTile *)SDL_calloc((size_t)editor->font_count, sizeof(CaptionFontTile));
+    }
+    if (igIsWindowAppearing())
+    {
+        editor->font_filter[0] = 0;
+        igSetKeyboardFocusHere(0);
+    }
+    igSetNextItemWidth(-1);
+    igInputTextWithHint("##Filter fonts", "Search fonts", editor->font_filter, sizeof(editor->font_filter), 0, NULL, NULL);
+    choose = -1;
+    if (igBeginChild_Str("Font list", dialog_vec(0, 248), 0, 0))
+    {
+        width = igGetContentRegionAvail().x;
+        shown = 0;
+        for (i = 0; i < editor->font_count; ++i)
+        {
+            name = marcus_caption_font_name(editor->list, i);
+            if (!SDL_strcasestr(name, editor->font_filter)) continue;
+            ++shown;
+            igPushID_Int(i);
+            selected = SDL_strcasecmp(name, editor->value.font) == 0;
+            if (igSelectable_Bool(name, selected, ImGuiSelectableFlags_NoAutoClosePopups, dialog_vec(width * .53f, 26)))
+                choose = i;
+            if (igIsItemHovered(0)) igSetItemTooltip("%s", name);
+            if (igIsItemVisible() && editor->font_tiles)
+            {
+                tile = &editor->font_tiles[i];
+                if (!tile->tried)
+                {
+                    tile->tried = 1;
+                    if (marcus_caption_font_sample(player, editor->list, i, &sample))
+                        tile->texture = dialog_preview_texture(renderer, sample.rgba, sample.width, sample.height, sample.pitch);
+                }
+                igSameLine(0, 8);
+                dialog_image(tile->texture, dialog_vec(SDL_max(1, width * .47f - 8), 26));
+            }
+            igPopID();
+        }
+        if (!shown) igTextDisabled(editor->font_count ? "No matching fonts" : "No fonts available");
+    }
+    igEndChild();
+    if (choose >= 0)
+    {
+        name = marcus_caption_font_name(editor->list, choose);
+        SDL_strlcpy(editor->value.font, name, sizeof(editor->value.font));
+        igCloseCurrentPopup();
+    }
+    igEndCombo();
 }
-static void fields(MarcusCaptionOptions *value)
+static ImVec4 colour(unsigned long rgb, float alpha);
+static void edit_colour(const char *label, unsigned long *value, float hsl[3])
+{
+    igPushID_Str(label);
+    if (igColorButton("##Colour", colour(*value, 1), ImGuiColorEditFlags_NoTooltip, dialog_vec(24, 0)))
+    {
+        marcus_rgb_okhsl((unsigned)*value, hsl);
+        igOpenPopup_Str("Colour", 0);
+    }
+    igSameLine(0, 4);
+    igTextUnformatted(label, NULL);
+    if (igBeginPopup("Colour", 0))
+    {
+        if (dialog_okhsl(hsl)) *value = marcus_okhsl_rgb(hsl);
+        igText("#%06lX", *value);
+        igEndPopup();
+    }
+    igPopID();
+}
+static void fields(MarcusCaptionEditor *editor, MarcusPlayer *player, SDL_Renderer *renderer)
 {
     static const char *alignments[] = {"Left", "Center", "Right"};
     static const int align_values[] = {0, 2, 1};
+    MarcusCaptionOptions *value;
+    ImVec4 popup;
     int alignment, pair[2];
-    igSetNextItemWidth(148);
-    igInputText("Default font", value->font, sizeof(value->font), 0, NULL, NULL);
+    value = &editor->value;
+    popup = igGetStyle()->Colors[ImGuiCol_PopupBg];
+    popup.w = 1;
+    igPushStyleColor_Vec4(ImGuiCol_PopupBg, popup);
+    choose_font(editor, player, renderer);
     igSetNextItemWidth(88);
     igInputInt("Font size", &value->font_size, 1, 0, 0);
     dialog_checkbox("Bold", &value->bold);
@@ -186,9 +280,9 @@ static void fields(MarcusCaptionOptions *value)
     igSetNextItemWidth(105);
     if (igCombo_Str_arr("Alignment", &alignment, alignments, SDL_arraysize(alignments), -1))
         value->alignment = align_values[alignment];
-    edit_colour("Text", &value->ink);
+    edit_colour("Text", &value->ink, editor->ink_hsl);
     igSameLine(0, 12); igBeginDisabled(value->transparent);
-    edit_colour("Fill", &value->paper); igEndDisabled();
+    edit_colour("Fill", &value->paper, editor->paper_hsl); igEndDisabled();
     igSameLine(0, 12); dialog_checkbox("Transparent", &value->transparent);
 
     pair[0] = value->x; pair[1] = value->y;
@@ -206,6 +300,7 @@ static void fields(MarcusCaptionOptions *value)
     igEndDisabled();
     dialog_checkbox("Through end of scene", &value->through_end);
     dialog_checkbox("Scroll during playback", &value->scrolling);
+    igPopStyleColor(1);
 }
 
 static SDL_FRect box_rect(const SDL_FRect *canvas, const MarcusCaptionOptions *box)
@@ -455,51 +550,41 @@ static void draw_box(MarcusCaptionEditor *editor, MarcusPlayer *player, const SD
     igPopFont();
     igPopID();
 }
-static int draw_canvas(MarcusCaptionEditor *editor, MarcusPlayer *player, const SDL_FRect *view,
-                       const MarcusImage *image)
+static int caption_canvas(const SDL_FRect *view, const MarcusImage *image, SDL_FRect *canvas)
 {
     MMPixelRect clip;
-    SDL_FRect canvas, box;
-    MarcusCaptionOptions option;
-    MarcusInfo info;
-    ImVec2 mouse;
-    ImU32 outline;
-    int frame, index, selected;
     float aspect;
     aspect = image->scene_camera.valid ? image->scene_camera.aspect : (float)MM_CAPTION_WIDTH / MM_CAPTION_HEIGHT;
-    if (view->w <= 0 || view->h <= 0 || !mm_caption_viewport(&clip, image->width, image->height, aspect) ||
-        !marcus_info(player, &info)) return KEEP_BOX;
-    canvas.x = view->x + clip.left * view->w / image->width;
-    canvas.y = view->y + clip.top * view->h / image->height;
-    canvas.w = (clip.right - clip.left) * view->w / image->width;
-    canvas.h = (clip.bottom - clip.top) * view->h / image->height;
-    frame = (int)(info.frame - info.first_frame + 1);
-    selected = -1;
+    if (view->w <= 0 || view->h <= 0 || !mm_caption_viewport(&clip, image->width, image->height, aspect)) return 0;
+    canvas->x = view->x + clip.left * view->w / image->width;
+    canvas->y = view->y + clip.top * view->h / image->height;
+    canvas->w = (clip.right - clip.left) * view->w / image->width;
+    canvas->h = (clip.bottom - clip.top) * view->h / image->height;
+    return 1;
+}
+int caption_editor_hit(const MarcusCaptionEditor *editor, const SDL_FRect *view, const MarcusImage *image,
+                       float x, float y)
+{
+    SDL_FRect canvas, box;
+    float margin;
+    if (!caption_canvas(view, image, &canvas) || !ui_inside(x, y, canvas.x, canvas.y, canvas.w, canvas.h))
+        return 0;
+    box = box_rect(&canvas, &editor->value);
+    if (box.w <= 0 || box.h <= 0 || !SDL_HasRectIntersectionFloat(&box, &canvas)) return 0;
+    margin = SDL_min(8.0f, SDL_min(box.w, box.h) / 3) / 2;
+    return ui_inside(x, y, box.x - margin, box.y - margin, box.w + 2 * margin, box.h + 2 * margin);
+}
+static void draw_canvas(MarcusCaptionEditor *editor, MarcusPlayer *player, const SDL_FRect *view,
+                        const MarcusImage *image)
+{
+    SDL_FRect canvas;
+    if (!caption_canvas(view, image, &canvas)) return;
     if (editor->focus_text) igSetNextWindowFocus();
     if (ui_panel("2D text canvas", canvas.x, canvas.y, canvas.w, canvas.h, 1, 0))
-    {
-        outline = igColorConvertFloat4ToU32(colour(0x78cbc4, .55f));
-        for (index = 0; index < marcus_caption_count(editor->list); ++index)
-            if (index != editor->selected && marcus_caption(editor->list, index, &option) && visible_at(&option, frame))
-            {
-                box = box_rect(&canvas, &option);
-                ImDrawList_AddRect(igGetWindowDrawList(), dialog_vec(box.x, box.y),
-                                   dialog_vec(box.x + box.w, box.y + box.h), outline, 0, 0, 1);
-            }
         draw_box(editor, player, &canvas);
-        if (igIsWindowHovered(0) && !igIsAnyItemHovered() && !editor->drag_kind &&
-            igIsMouseClicked_Bool(ImGuiMouseButton_Left, 0))
-        {
-            mouse = igGetMousePos();
-            selected = marcus_caption_at(player, editor->list,
-                (int)((mouse.x - canvas.x) * MM_CAPTION_WIDTH / canvas.w),
-                (int)((mouse.y - canvas.y) * MM_CAPTION_HEIGHT / canvas.h));
-        }
-    }
     ui_panel_end();
-    return selected >= 0 ? selected : KEEP_BOX;
 }
-static int draw_inspector(MarcusCaptionEditor *editor, const SDL_FRect *area)
+static int draw_inspector(MarcusCaptionEditor *editor, MarcusPlayer *player, SDL_Renderer *renderer, const SDL_FRect *area)
 {
     char label[96];
     int index, select;
@@ -524,7 +609,7 @@ static int draw_inspector(MarcusCaptionEditor *editor, const SDL_FRect *area)
                 }
                 igEndCombo();
             }
-            fields(&editor->value);
+            fields(editor, player, renderer);
         }
         igEndChild();
         if (editor->error[0]) igTextWrapped("%s", editor->error);
@@ -542,16 +627,15 @@ static int draw_inspector(MarcusCaptionEditor *editor, const SDL_FRect *area)
     ui_panel_end();
     return select;
 }
-int caption_editor_draw(MarcusCaptionEditor *editor, MarcusPlayer *player, const SDL_FRect *view,
+int caption_editor_draw(MarcusCaptionEditor *editor, MarcusPlayer *player, SDL_Renderer *renderer, const SDL_FRect *view,
                         const MarcusImage *image, const SDL_FRect *inspector)
 {
     MarcusCaptionOptions before;
-    int selection, clicked, redraw;
+    int selection, redraw;
     SDL_memcpy(&before, &editor->value, sizeof(before));
-    selection = draw_inspector(editor, inspector);
-    clicked = draw_canvas(editor, player, view, image);
+    selection = draw_inspector(editor, player, renderer, inspector);
+    draw_canvas(editor, player, view, image);
     if (editor->finish) return finish_caption(editor, player);
-    if (clicked != KEEP_BOX) selection = clicked;
     if (selection != KEEP_BOX && selection != editor->selected)
         return switch_caption(editor, player, selection);
     redraw = 0;

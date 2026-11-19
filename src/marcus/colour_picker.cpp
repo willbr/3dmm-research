@@ -41,6 +41,15 @@ std::array<float, 3> MarcusToOkHSL(unsigned rgb)
     const auto hsl = ok_color::srgb_to_okhsl(input);
     return {Hue(float(hsl.h * 360)), Unit(hsl.s), Unit(hsl.l)};
 }
+unsigned marcus_okhsl_rgb(const float hsl[3])
+{
+    return MarcusOkHSL(hsl[0], hsl[1], hsl[2]);
+}
+void marcus_rgb_okhsl(unsigned rgb, float hsl[3])
+{
+    const auto value = MarcusToOkHSL(rgb);
+    std::copy(value.begin(), value.end(), hsl);
+}
 std::array<float, 2> MarcusOkHSLTrianglePoint(float saturation, float lightness)
 {
     const float l = Unit(lightness), chromatic = Unit(saturation) * (1 - std::abs(2 * l - 1));

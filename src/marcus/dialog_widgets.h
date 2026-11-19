@@ -9,6 +9,7 @@ int dialog_begin(const char *name, int *open, int width, int height, float prefe
 void dialog_end(int closed);
 void dialog_close(const char *name);
 int dialog_checkbox(const char *label, int *value);
+int dialog_okhsl(float hsl[3]);
 void dialog_image(SDL_Texture *texture, ImVec2 size);
 int dialog_thumbnail(const char *id, SDL_Texture *texture, ImVec2 size, int selected, const char *placeholder);
 void dialog_release_textures(void);

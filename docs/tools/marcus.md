@@ -208,9 +208,8 @@ use **[ / ]** to resize, **1–9** to choose colours, and **0** for canvas grey.
 returns to the brush; **Alt+click** samples directly. Sampling uses the stored
 paint colour, unaffected by foreground props or dither pixels, and creates no
 undo entry. Escape cancels an armed picker. Paint with canvas grey to cover marks.
-The Paint panel uses ImGui's standard colour wheel and RGB inputs. Expand
-**Perceptual colour (OkHSL)** to adjust hue, saturation and perceptual lightness
-numerically. Below the picker, the paint sample shows the actual shared-palette
+The Paint panel uses OkHSL controls for hue, saturation and perceptual
+lightness. Below the picker, the paint sample shows the actual shared-palette
 dither. The same dither is used in the viewport and saved VMM; actor and prop
 palette entries remain unchanged.
 
@@ -390,13 +389,16 @@ Undo removes one paste. Focused text fields use normal text copy and paste.
 directly in the box, drag the top border to move it, and drag the handles to
 resize it. The live draft uses the movie renderer for fonts, colours,
 alignment and wrapping. A new box starts at the playhead and stays visible
-through the end of the scene by default. The side panel has font, alignment, colour,
-scrolling and frame-range settings, plus exact position and size in 544×306
+through the end of the scene by default. Open **Default font** to search and
+preview available font families. The **Text** and **Fill** swatches open the
+same OkHSL controls used for storyboard paint. The side panel also sets
+alignment, scrolling, frame range, and exact position and size in 544×306
 movie coordinates. The last frame is inclusive.
 
-**Words > Edit 2D text** lets you click visible boxes in the movie camera or
-choose a box in the side panel. **Done**, Ctrl+Enter (Cmd+Enter on macOS), or
-leaving the text tools applies the active box. **Cancel** or Escape discards
+**Words > Edit 2D text** opens the active box. Use the box list in the side panel
+to switch boxes. Clicking outside the box and its side panel applies the draft
+and exits edit mode. **Done** and Ctrl+Enter (Cmd+Enter on macOS) also apply it.
+**Cancel** or Escape discards
 its draft. **Delete box** removes the selection. Each committed change is
 one Undo step. **Save copy** writes the boxes into the native movie.
 

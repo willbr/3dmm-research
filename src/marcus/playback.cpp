@@ -1044,6 +1044,23 @@ bool MarcusPlayback::CaptionCaret(int offset)
     return before != scroll;
 }
 
+bool MarcusPlayback::CaptionFontSample(const std::string &family, PreviewImage &image)
+{
+    auto face = impl->Face(family, 20, 0);
+    KauaiFonts::Mask mask;
+    if (!face || !face->Rasterize({"Aa Bb 123", 9}, mask) || mask.width <= 0 || mask.height <= 0 ||
+        mask.width > 1024 || mask.height > 128 || mask.pitch < mask.width ||
+        mask.coverage.size() < std::size_t(mask.pitch) * mask.height)
+        return false;
+    image.width = mask.width;
+    image.height = mask.height;
+    image.rgba.assign(std::size_t(mask.width) * mask.height * 4, 255);
+    for (int y = 0; y < mask.height; ++y)
+        for (int x = 0; x < mask.width; ++x)
+            image.rgba[(std::size_t(y) * mask.width + x) * 4 + 3] = mask.coverage[std::size_t(y) * mask.pitch + x];
+    return true;
+}
+
 bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image,
                                MM::Error &error, const std::uint32_t *hiddenCaption, bool editDraft)
 {
