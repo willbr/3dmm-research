@@ -1,3 +1,4 @@
+#include "mm/caption_layout.h"
 #include "mm/rich_text_layout.h"
 #include <stdio.h>
 #include <string.h>
@@ -63,6 +64,99 @@ static MMRichTextProvider setup(Host *h, const char *text)
     p.context = h; p.call = provide; p.characters = h->buffer; p.unitBytes = 2;
     return p;
 }
+
+typedef struct CaptionRuns
+{
+    MMI32 x[4], baseline[4];
+    unsigned short characters[4];
+    MMCaptionStyle style[4];
+    int count, fail_at;
+} CaptionRuns;
+
+static void caption_property(void *context, size_t index, MMCaptionProperty *out)
+{
+    static const MMCaptionProperty properties[] = {
+        {1, 3, 0x11020304U, {NULL, 0}},
+        {0, 2, 1, {"Alt\0X", 5}},
+        {1, 2, 0, {NULL, 0}},
+        {0, 1, 0xfff6fd05U, {NULL, 0}},
+        {1, 1, 0x01050202U, {NULL, 0}},
+        {0, 4, 2, {NULL, 0}},
+        {0, 128, 0x0101fff3U, {NULL, 0}},
+        {0, 129, 1, {NULL, 0}},
+        {0, 130, 2, {NULL, 0}}
+    };
+    (void)context;
+    *out = properties[index];
+}
+
+static int caption_set_font(void *context, const MMCaptionStyle *style)
+{
+    (void)context;
+    (void)style;
+    return 0;
+}
+
+static int caption_measure(void *context, const unsigned short *text, MMI32 count,
+                           MMI32 *width, MMI32 *top, MMI32 *bottom)
+{
+    (void)context;
+    (void)text;
+    *width = 4 * count;
+    *top = -6;
+    *bottom = 2;
+    return 0;
+}
+
+static int caption_emit(void *context, const MMCaptionStyle *style, const unsigned short *text,
+                        MMI32 count, MMI32 x, MMI32 baseline)
+{
+    CaptionRuns *runs = (CaptionRuns *)context;
+    int i = runs->count;
+    if (i == runs->fail_at || i >= 4 || count != 1)
+        return -70;
+    runs->x[i] = x;
+    runs->baseline[i] = baseline;
+    runs->characters[i] = text[0];
+    runs->style[i] = *style;
+    ++runs->count;
+    return 0;
+}
+
+static int test_caption_layout(void)
+{
+    static const unsigned short text[] = {'A', 'B', '\r', '\n', 'C', '\t', 'D'};
+    MMCaptionLayoutInput input = {text, 7, 40, 12, {"Base", 4}, 9};
+    MMCaptionLayoutServices services = {NULL, caption_property, caption_set_font, caption_measure, caption_emit};
+    CaptionRuns runs;
+    MMI32 height = -1;
+    services.context = &runs;
+    runs.count = 0;
+    runs.fail_at = -1;
+    CHECK(!mm_caption_layout(&input, &services, &height));
+    CHECK(height == 27 && runs.count == 4);
+    CHECK(runs.characters[0] == 'A' && runs.characters[1] == 'B' &&
+          runs.characters[2] == 'C' && runs.characters[3] == 'D');
+    CHECK(runs.x[0] == 32 && runs.x[1] == 36 && runs.x[2] == 31 && runs.x[3] == 36);
+    CHECK(runs.baseline[0] == 6 && runs.baseline[1] == 11 && runs.baseline[2] == 22 && runs.baseline[3] == 22);
+    CHECK(runs.style[0].pixels == 4 && runs.style[0].flags == 5 && runs.style[0].offset == -3 &&
+          runs.style[0].font.length == 5 && !memcmp(runs.style[0].font.name, "Alt\0X", 5) &&
+          runs.style[0].foreground == 0x01000000U && runs.style[0].background == 1);
+    CHECK(runs.style[1].pixels == 255 && runs.style[1].flags == 2 && runs.style[1].offset == 2 &&
+          runs.style[1].font.length == 4 && !memcmp(runs.style[1].font.name, "Base", 4) &&
+          runs.style[1].foreground == 0x12020304U && runs.style[1].background == 1);
+    runs.count = 0;
+    runs.fail_at = 1;
+    height = -1;
+    CHECK(mm_caption_layout(&input, &services, &height) == -70 && runs.count == 1 && height == -1);
+    input.length = 0;
+    input.text = NULL;
+    input.properties = 0;
+    runs.count = 0;
+    CHECK(!mm_caption_layout(&input, &services, &height) && height == 8 && !runs.count);
+    return 0;
+}
+
 int main(void)
 {
     Host h;
@@ -70,6 +164,7 @@ int main(void)
     MMRichTextRun r;
     int i, maximum, status;
     MMU32 ch;
+    CHECK(!test_caption_layout());
     for (ch = 0; ch < 65536U; ++ch)
     {
         MMU32 expected = ch == '\r' ? 22 : ch == '\n' ? 24 : ch == '\t' ? 52 :

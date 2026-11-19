@@ -1802,6 +1802,10 @@ The C89 caption renderer keeps the visible stack across seeks, using the
 same lifetime rule as Studio. It fits the 544×306 workspace into the movie
 view, samples font masks, blends caption colours, and projects the composed
 layer through the work camera with depth occlusion.
+Caption layout decodes authored font, style, colour and paragraph changes in
+C89 and uses Studio's C89 rich-text formatter for wrapping and placement.
+The font host measures and rasterizes the UTF-16 runs. Caption scrolling uses
+the height from that same layout pass.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and

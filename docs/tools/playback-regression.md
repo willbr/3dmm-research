@@ -14217,3 +14217,33 @@ records the executable and content identities. The baseline suite is
 `20261119T015835Z-0fc8939b`. The converted suite
 `20261119T020454Z-a6a05a7a` contains four new Marcus runs and reuses the
 eight matching retail and SDL Studio runs.
+
+## Marcus caption layout in C89 (19 November 2026)
+
+Marcus now interprets authored caption properties and places glyph runs in
+C89. It uses Studio's C89 line and run formatter, including the implicit
+final paragraph break, and publishes the full text height for scrolling.
+The font host supplies metrics and rasterizes each run.
+
+A comparison with `89817972` used the same deterministic font metrics in
+both implementations. All 2,048 captions and 110,910 glyph runs matched
+under AddressSanitizer. The inputs covered UTF-16, tabs, CRLF, mixed styles,
+spacing, and captions up to 65,536 code units. The C regression fixture
+also checks signed property deltas, font fallback, exact placement, and
+preservation of the output height on a failed render callback. Across the
+selected CTest checks, 32 passed, including strict C89 syntax and Marcus
+playback. The ASM check skipped because its x86 worker and expected fixture
+were absent. Marcus was rebuilt and relaunched.
+
+The `static-text` and `scrolling-text` cases completed in seek and playback
+for retail, SDL Studio, and Marcus. Compared with the previous Marcus build,
+all 120 seek images and all 387 playback image observations matched after
+collapsing adjacent duplicates in playback. The authored frame sequences
+matched as well. Retail seek pixel differences and inconclusive Marcus
+playback timing persisted in both builds.
+
+The baseline suite is `20261119T020454Z-a6a05a7a`. The converted suite
+`20261119T021457Z-d6b63823` captures four fresh Marcus runs and reuses the
+eight matching retail and SDL Studio runs. The database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`, with the comparison and
+test logs in `tmp/c89-caption-layout`.

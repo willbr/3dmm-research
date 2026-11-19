@@ -2,13 +2,13 @@
 #include "mm/playback.h"
 #include "mm/movie_audio.h"
 #include "mm/frame_sound.h"
+#include "mm/caption_layout.h"
 #include "mm/caption_render.h"
 #include "caption_quad.h"
 #include "sdl_audio.h"
 #include "midi_synth.h"
 #include "font_host.h"
 #include "font_catalog.h"
-#include "rich_text_layout.h"
 #include "mm/graphics_transition.h"
 #include "mm/text_box_runtime.h"
 #include <SDL3/SDL.h>
@@ -290,7 +290,7 @@ class Audio
 struct Style
 {
     std::string font;
-    int pixels = 12, flags = 0, offset = 0;
+    int pixels = 12, flags = 0;
     std::uint32_t fore = 0x01000000, back = 0xffffffff;
 };
 struct Glyph
@@ -397,26 +397,26 @@ struct MarcusPlayback::Impl
         for (auto &row : captionRows)
             row.scroll = 0;
     }
-    KauaiFonts::Face *Face(const Style &style)
+    KauaiFonts::Face *Face(const std::string &font, int pixels, int flags)
     {
-        auto key = std::make_tuple(style.font, style.pixels, style.flags);
+        auto key = std::make_tuple(font, pixels, flags);
         auto found = faces.find(key);
         if (found != faces.end())
             return found->second.get();
         if (faces.size() >= 128)
             faces.clear();
         std::vector<std::uint16_t> family;
-        auto text = FontText(style.font.empty() ? "Arial" : style.font, family);
+        auto text = FontText(font.empty() ? "Arial" : font, family);
         std::unique_ptr<KauaiFonts::Face> face;
         if (fonts)
         {
             KauaiFonts::FreeTypeOptions options;
-            options.pixels = style.pixels;
-            options.bold = (style.flags & 1) != 0;
-            options.italic = (style.flags & 2) != 0;
-            options.underline = (style.flags & 4) != 0;
+            options.pixels = pixels;
+            options.bold = (flags & 1) != 0;
+            options.italic = (flags & 2) != 0;
+            options.underline = (flags & 4) != 0;
             options.legacyCellMetrics = true;
-            const auto familyName = style.font.empty() ? "Arial" : style.font;
+            const auto familyName = font.empty() ? "Arial" : font;
             if (fonts->Find(familyName, options))
             {
                 face = fonts->Open(familyName, options);
@@ -424,11 +424,11 @@ struct MarcusPlayback::Impl
             }
         }
         if (!face)
-            face = KauaiFonts::CreateStudioFace(text, style.pixels, (style.flags & 1) != 0, (style.flags & 2) != 0,
-                                               (style.flags & 4) != 0);
+            face = KauaiFonts::CreateStudioFace(text, pixels, (flags & 1) != 0, (flags & 2) != 0,
+                                               (flags & 4) != 0);
         if (!face)
-            face = KauaiFonts::CreateStudioFace({"System", 6}, style.pixels, (style.flags & 1) != 0,
-                                                (style.flags & 2) != 0, (style.flags & 4) != 0);
+            face = KauaiFonts::CreateStudioFace({"System", 6}, pixels, (flags & 1) != 0,
+                                                (flags & 2) != 0, (flags & 4) != 0);
         auto result = face.get();
         faces.emplace(key, std::move(face));
         return result;
@@ -441,7 +441,7 @@ struct MarcusPlayback::Impl
         auto found = captionRasters.find(key);
         if (found != captionRasters.end())
             return &found->second;
-        auto face = Face(style);
+        auto face = Face(style.font, style.pixels, style.flags);
         KauaiFonts::Metrics metrics;
         KauaiFonts::Mask mask;
         const KauaiFonts::Text text{glyph.text.data(), glyph.text.size(), KauaiFonts::Encoding::utf16};
@@ -503,162 +503,6 @@ struct MarcusPlayback::Impl
         rasterBytes += bytes;
         return &captionRasters.emplace(key, std::move(raster)).first->second;
     }
-    struct CaptionHost
-    {
-        using Character = std::uint16_t;
-        using CharacterProperties = Style;
-        struct ParagraphProperties
-        {
-            int jc = 0, nd = 0, dxpTab = 18;
-            int numLine = 256, dypExtraLine = 0, numAfter = 256, dypExtraAfter = 0;
-        };
-        struct Rectangle
-        {
-            long xpLeft = 0, xpRight = 0, ypTop = 0, ypBottom = 0;
-            long Dxp() const
-            {
-                return xpRight - xpLeft;
-            }
-            void Offset(long x, long y)
-            {
-                xpLeft += x;
-                xpRight += x;
-                ypTop += y;
-                ypBottom += y;
-            }
-        };
-        Impl &owner;
-        const PreviewCaption &data;
-        std::vector<Character> text;
-        Style style;
-        KauaiFonts::Face *face = nullptr;
-        CaptionHost(Impl &owner, const PreviewCaption &data) : owner(owner), data(data), text(data.text)
-        {
-            // RichTextDocument keeps a final EOP beyond the stored text bytes.
-            text.push_back('\r');
-        }
-        long CpMac() const
-        {
-            return static_cast<long>(text.size());
-        }
-        unsigned long Flags(Character ch) const
-        {
-            return KauaiTextLayout::Flags(ch);
-        }
-        long Offset(const Style &value) const
-        {
-            return value.offset;
-        }
-        bool FMinPara(long cp) const
-        {
-            if (cp <= 0)
-                return cp == 0;
-            if (cp >= CpMac() || (Flags(text[cp]) & KauaiTextLayout::fchIgnore))
-                return false;
-            while (cp-- > 0)
-            {
-                const auto flags = Flags(text[cp]);
-                if (flags & KauaiTextLayout::fchBreak)
-                    return true;
-                if (!(flags & KauaiTextLayout::fchIgnore))
-                    return false;
-            }
-            return true;
-        }
-        void FetchRgch(long cp, long count, Character *out) const
-        {
-            std::copy_n(text.data() + cp, count, out);
-        }
-        void FetchChp(long cp, Style *out, long *limit) const
-        {
-            *out = {};
-            out->font = data.font;
-            out->pixels = data.fontSize;
-            *limit = CpMac();
-            for (const auto &property : data.properties)
-            {
-                if (property.kind < 1 || property.kind > 4)
-                    continue;
-                if (property.position > cp)
-                {
-                    *limit = std::min(*limit, static_cast<long>(property.position));
-                    continue;
-                }
-                switch (property.kind)
-                {
-                case 1:
-                    out->flags = property.value & 255;
-                    out->offset = static_cast<std::int8_t>((property.value >> 8) & 255);
-                    out->pixels = std::clamp(data.fontSize + static_cast<std::int16_t>(property.value >> 16), 4, 255);
-                    break;
-                case 2:
-                    out->font = property.font.empty() ? data.font : property.font;
-                    break;
-                case 3:
-                    out->fore = 0x01000000 + property.value;
-                    break;
-                case 4:
-                    out->back = 0xffffffff + property.value;
-                    break;
-                }
-            }
-        }
-        void FetchPap(long cp, ParagraphProperties *out, long *limit) const
-        {
-            *out = {};
-            *limit = CpMac();
-            for (const auto &property : data.properties)
-            {
-                if (property.kind < 128 || property.kind > 130)
-                    continue;
-                if (property.position > cp)
-                {
-                    *limit = std::min(*limit, static_cast<long>(property.position));
-                    continue;
-                }
-                switch (property.kind)
-                {
-                case 128:
-                    out->jc = property.value >> 24;
-                    out->nd = (property.value >> 16) & 255;
-                    out->dxpTab = std::max(1, 18 + static_cast<std::int16_t>(property.value));
-                    break;
-                case 129:
-                    out->numLine = 256 + static_cast<std::int16_t>(property.value >> 16);
-                    out->dypExtraLine = static_cast<std::int16_t>(property.value);
-                    break;
-                case 130:
-                    out->numAfter = 256 + static_cast<std::int16_t>(property.value >> 16);
-                    out->dypExtraAfter = static_cast<std::int16_t>(property.value);
-                    break;
-                }
-            }
-        }
-        void SetFont(const Style &value)
-        {
-            style = value;
-            face = owner.Face(style);
-            if (!face)
-                throw std::runtime_error("Cannot open a movie caption font.");
-        }
-        void WarmFont() const
-        {
-        }
-        void GetRcFromRgch(Rectangle *rect, Character *characters, long count)
-        {
-            KauaiFonts::Metrics metrics;
-            if (!face->Measure({characters, static_cast<std::size_t>(count), KauaiFonts::Encoding::utf16}, metrics))
-                throw std::runtime_error("Cannot measure a movie caption run.");
-            rect->xpLeft = 0;
-            rect->xpRight = metrics.advance;
-            rect->ypTop = -metrics.ascent;
-            rect->ypBottom = metrics.cellHeight + metrics.externalLeading - metrics.ascent;
-        }
-        bool FGetObjectRc(long, Style *, Rectangle *) const
-        {
-            return false;
-        }
-    };
     bool Layout(CaptionImage &caption, Error &error)
     {
         if (caption.ready)
@@ -670,65 +514,90 @@ struct MarcusPlayback::Impl
         if (data.right <= data.left || data.bottom <= data.top || data.right - std::int64_t(data.left) > 4096 ||
             data.bottom - std::int64_t(data.top) > 4096 || data.text.size() > 65536)
             return Fail(error, "Caption bounds or text exceed the playback layout limits.");
-        CaptionHost host(*this, data);
-        const long width = std::max(1, data.right - data.left - 28);
-        long cp = 0, y = 0;
-        while (cp < host.CpMac())
+
+        struct Context
         {
-            KauaiTextLayout::Line line;
-            KauaiTextLayout::CalculateLine(host, width, cp, y, &line);
-            if (line.ccp <= 0)
-                return Fail(error, "Caption layout did not advance.");
-            CaptionHost::ParagraphProperties paragraph;
-            long paragraphLimit;
-            host.FetchPap(cp, &paragraph, &paragraphLimit);
-            long current = cp, styleLimit = cp, x = 0;
-            const long lineLimit = cp + line.ccp;
-            Style style;
-            KauaiTextLayout::CharacterRun<CaptionHost> run;
-            for (;;)
-            {
-                if (current >= styleLimit)
+            Impl &owner;
+            CaptionImage &caption;
+            Error &error;
+            KauaiFonts::Face *face = nullptr;
+            std::exception_ptr failure;
+        } context{*this, caption, error, nullptr, {}};
+        const MMCaptionLayoutInput input{
+            data.text.data(), static_cast<MMI32>(data.text.size()), std::max(1, data.right - data.left - 28),
+            data.fontSize, {data.font.data(), data.font.size()}, data.properties.size()};
+        const MMCaptionLayoutServices services{
+            &context,
+            [](void *p, std::size_t index, MMCaptionProperty *out) {
+                const auto &property = static_cast<Context *>(p)->caption.data.properties[index];
+                *out = {property.position, property.kind, property.value, {property.font.data(), property.font.size()}};
+            },
+            [](void *p, const MMCaptionStyle *style) -> int {
+                auto &ctx = *static_cast<Context *>(p);
+                try
                 {
-                    host.FetchChp(current, &style, &styleLimit);
-                    styleLimit = std::min(styleLimit, lineLimit);
-                    run.Init(&style, &paragraph, &host, current, styleLimit, x, width, width);
+                    ctx.face = ctx.owner.Face({style->font.name, style->font.length}, style->pixels, style->flags);
+                    if (!ctx.face)
+                        throw std::runtime_error("Cannot open a movie caption font.");
+                    return 0;
                 }
-                run.GetNextRun(true);
-                KauaiTextLayout::RunData position;
-                run.GetChrd(&position);
-                if (position.cpLimDraw > current)
+                catch (...) { ctx.failure = std::current_exception(); return MM_CAPTION_LAYOUT_FAILED; }
+            },
+            [](void *p, const unsigned short *chars, MMI32 count, MMI32 *width, MMI32 *top, MMI32 *bottom) -> int {
+                auto &ctx = *static_cast<Context *>(p);
+                try
+                {
+                    KauaiFonts::Metrics metrics;
+                    if (!ctx.face->Measure({chars, static_cast<std::size_t>(count), KauaiFonts::Encoding::utf16}, metrics))
+                        throw std::runtime_error("Cannot measure a movie caption run.");
+                    *width = metrics.advance;
+                    *top = -metrics.ascent;
+                    *bottom = metrics.cellHeight + metrics.externalLeading - metrics.ascent;
+                    return 0;
+                }
+                catch (...) { ctx.failure = std::current_exception(); return MM_CAPTION_LAYOUT_FAILED; }
+            },
+            [](void *p, const MMCaptionStyle *style, const unsigned short *chars, MMI32 count,
+               MMI32 x, MMI32 baseline) -> int {
+                auto &ctx = *static_cast<Context *>(p);
+                try
                 {
                     Glyph glyph;
-                    glyph.style = style;
-                    glyph.text.assign(run.Prgch(), run.Prgch() + position.cpLimDraw - run.CpMin());
+                    glyph.style = {{style->font.name, style->font.length}, style->pixels, style->flags,
+                                   style->foreground, style->background};
+                    glyph.text.assign(chars, chars + count);
                     const KauaiFonts::Text text{glyph.text.data(), glyph.text.size(), KauaiFonts::Encoding::utf16};
                     KauaiFonts::Metrics metrics;
-                    auto face = Face(style);
+                    auto face = ctx.owner.Face(glyph.style.font, glyph.style.pixels, glyph.style.flags);
                     if (!face || !face->Measure(text, metrics) || !face->Rasterize(text, glyph.mask, true))
-                        return Fail(error, "Cannot rasterize a movie caption run.");
-                    glyph.x = static_cast<int>(line.xpLeft + run.XpMin());
-                    glyph.y = static_cast<int>(y + line.dypAscent + style.offset - metrics.ascent);
+                    {
+                        Fail(ctx.error, "Cannot rasterize a movie caption run.");
+                        return MM_CAPTION_LAYOUT_FAILED;
+                    }
+                    glyph.x = x;
+                    glyph.y = baseline - metrics.ascent;
                     glyph.ascent = metrics.ascent;
                     glyph.height = metrics.cellHeight + metrics.externalLeading;
                     const auto bytes = glyph.mask.coverage.size() + glyph.mask.background.size();
-                    if (captionBytes + bytes > 128u * 1024 * 1024)
-                        return Fail(error, "Movie caption runs exceed the 128 MiB scene budget.");
-                    captionBytes += bytes;
-                    caption.maskBytes += bytes;
-                    caption.glyphs.push_back(std::move(glyph));
+                    if (ctx.owner.captionBytes + bytes > 128u * 1024 * 1024)
+                    {
+                        Fail(ctx.error, "Movie caption runs exceed the 128 MiB scene budget.");
+                        return MM_CAPTION_LAYOUT_FAILED;
+                    }
+                    ctx.owner.captionBytes += bytes;
+                    ctx.caption.maskBytes += bytes;
+                    ctx.caption.glyphs.push_back(std::move(glyph));
+                    return 0;
                 }
-                if (position.cpLim >= lineLimit || run.FBreak())
-                    break;
-                current = position.cpLim;
-                x = position.xpLim;
-            }
-            cp = lineLimit;
-            y += line.dyp;
-        }
-        caption.height = static_cast<int>(y);
-        caption.ready = true;
-        return true;
+                catch (...) { ctx.failure = std::current_exception(); return MM_CAPTION_LAYOUT_FAILED; }
+            }};
+        const int status = mm_caption_layout(&input, &services, &caption.height);
+        if (context.failure)
+            std::rethrow_exception(context.failure);
+        if (status == MM_CAPTION_LAYOUT_STALLED)
+            return Fail(error, "Caption layout did not advance.");
+        caption.ready = status == 0;
+        return caption.ready;
     }
 };
 MarcusPlayback::MarcusPlayback() : impl(new Impl)

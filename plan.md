@@ -983,6 +983,9 @@ visibility rules with Studio and keeps visible captions in presentation
 order across seeks. C owns mask sampling, workspace clipping, blending
 and depth-tested camera-plane projection. The host supplies font faces,
 glyph masks and palette colours.
+Marcus caption layout now decodes authored character and paragraph properties
+in C89. It uses the same C rich-text line and run formatter as Studio and
+publishes positioned glyph runs and the total height used by scrolling.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and
