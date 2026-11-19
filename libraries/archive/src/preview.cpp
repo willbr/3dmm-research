@@ -890,7 +890,6 @@ bool Preview::SetPose(std::uint32_t action, std::uint32_t cel, Error &error)
 bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
                              const std::vector<PreviewPropDefinition> &props, Error &error)
 {
-    error = {};
     struct Definitions
     {
         const std::vector<PreviewSceneDefinition> &scenes;
@@ -909,6 +908,11 @@ bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
         out->source = d.source; out->actor_id = d.actorId; out->first = d.first; out->last = d.last;
         std::copy(d.point, d.point + 3, out->point);
     };
+    return SetLiveDefinitions(input, error);
+}
+bool Preview::SetLiveDefinitions(const MMPreviewLiveDefinitions &input, Error &error)
+{
+    error = {};
     Impl::LiveHost host = {this, _impl.get(), &error};
     auto services = host.Services();
     const auto result = mm_preview_live_definitions(&_impl->live, &input, &services);
@@ -1004,12 +1008,6 @@ bool Preview::RenderWithLights(const PreviewView &view, const std::vector<Previe
 }
 bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error &error)
 {
-    error = {};
-    Error ignored;
-    Impl::LiveHost host = {this, _impl.get(), &error};
-    Impl::LiveHost recovery = {this, _impl.get(), &ignored};
-    auto services = host.Services();
-    auto recoveryServices = recovery.Services();
     MMPreviewLiveCameraEdits input = {};
     input.context = const_cast<std::vector<PreviewCameraEdit> *>(&edits);
     input.count = static_cast<MMU32>(edits.size());
@@ -1017,6 +1015,16 @@ bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error 
         const auto &edit = (*static_cast<const std::vector<PreviewCameraEdit> *>(v))[i];
         out->frame = edit.frame; out->camera = edit.camera;
     };
+    return SetLiveCameraEdits(input, error);
+}
+bool Preview::SetLiveCameraEdits(const MMPreviewLiveCameraEdits &input, Error &error)
+{
+    error = {};
+    Error ignored;
+    Impl::LiveHost host = {this, _impl.get(), &error};
+    Impl::LiveHost recovery = {this, _impl.get(), &ignored};
+    auto services = host.Services();
+    auto recoveryServices = recovery.Services();
     const auto result = mm_preview_live_cameras(&_impl->live, &input, &services, &recoveryServices);
     _impl->PublishInfo();
     if (result != MM_PREVIEW_LIVE_SEEK_MEMORY) host.Rethrow(result);

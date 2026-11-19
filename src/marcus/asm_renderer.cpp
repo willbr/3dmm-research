@@ -114,15 +114,19 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
         {
             request.flags |= 256;
             request.editRevision = edits->revision;
-            request.sceneCount = static_cast<std::uint32_t>(edits->scenes->size());
+            request.sceneCount = edits->scenes->count;
             request.addedPropCount = static_cast<std::uint32_t>(edits->props->size());
-            request.cameraCount = static_cast<std::uint32_t>(edits->cameras->size());
+            request.cameraCount = edits->cameras->count;
         }
         Transfer(impl->input, &request, sizeof(request), true);
         if (!offsets.empty()) Transfer(impl->input, const_cast<MarcusASM::PropOffset *>(offsets.data()), offsets.size() * sizeof(offsets[0]), true);
         if (sendEdits)
         {
-            for (auto scene : *edits->scenes) Transfer(impl->input, &scene, sizeof(scene), true);
+            for (const auto &scene : *edits->scenes)
+            {
+                MM::PreviewSceneDefinition definition{scene.number, scene.background, scene.source};
+                Transfer(impl->input, &definition, sizeof(definition), true);
+            }
             for (const auto &prop : *edits->props)
             {
                 auto definition = prop.definition;
@@ -130,8 +134,7 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
             }
             for (const auto &entry : *edits->cameras)
             {
-                MarcusASM::CameraEdit camera{static_cast<std::uint32_t>(entry.first.scene),
-                    static_cast<std::int32_t>(entry.first.frame), static_cast<std::uint32_t>(entry.second)};
+                MarcusASM::CameraEdit camera{entry.scene, entry.frame, entry.camera};
                 Transfer(impl->input, &camera, sizeof(camera), true);
             }
         }

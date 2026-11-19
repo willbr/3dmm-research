@@ -3,6 +3,9 @@
 #define MM_PREVIEW_H
 #include "archive.h"
 
+struct MMPreviewLiveDefinitions;
+struct MMPreviewLiveCameraEdits;
+
 namespace MM
 {
 class PreviewRasterizer;
@@ -259,6 +262,8 @@ class Preview
     // Reconcile added objects while retaining bodies and templates already loaded.
     bool SetDefinitions(const std::vector<PreviewSceneDefinition> &, const std::vector<PreviewPropDefinition> &, Error &);
     bool SetCameraEdits(const std::vector<PreviewCameraEdit> &, Error &);
+    bool SetLiveDefinitions(const MMPreviewLiveDefinitions &, Error &);
+    bool SetLiveCameraEdits(const MMPreviewLiveCameraEdits &, Error &);
     // Replace scene scenery without changing actor tracks or frame events.
     bool SetBackground(std::int32_t source, std::uint32_t background, Error &);
     // Temporary lighting for an authoring preview; restores the scene after rendering.

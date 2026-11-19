@@ -1021,6 +1021,11 @@ frame-event groups and scene header for saved camera and range edits.
 The archive writer preserves the group byte order and unrelated
 payloads, replaces the frame-group link, and removes thumbnails for
 opening edits.
+Marcus now retains added-scene definitions and camera cuts in C89-owned
+records. Scene definitions preserve insertion order. The camera journal
+replaces repeated keys, preserves the opening-frame sentinel, and supplies
+the same ordered cuts to preview, thumbnail checks, native save, and the
+32-bit renderer worker. Undo retains the previous records.
 Marcus sound archive edits now use C89 for scene packet changes,
 actor binding selection, and imported sound links. Scene changes share
 the camera and range editor's frame-group reader and writer. Actor

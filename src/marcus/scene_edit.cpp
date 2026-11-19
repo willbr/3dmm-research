@@ -101,7 +101,7 @@ static MMMovieArchiveRoot EnsureMovieRoot(const MMMovieArchiveEditor &editor)
     return root;
 }
 
-static void ApplyNewScene(PChunkyFile file, const MM::PreviewSceneDefinition &definition, bool emptyMovie)
+static void ApplyNewScene(PChunkyFile file, const MMPreviewLiveScene &definition, bool emptyMovie)
 {
     MovieArchiveHost host{file, {}, {}};
     const auto editor = host.Editor();
@@ -590,7 +590,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
         CheckActorArchiveEdit(result);
     }
     for (const auto &entry : *edits.cameras)
-        ApplyCamera(file.get(), entry.first.scene, entry.first.frame, entry.second);
+        ApplyCamera(file.get(), entry.scene, entry.frame, entry.camera);
     Require(mm_movie_archive_ensure_empty_rollcall(&editor), "Cannot write the movie's empty roll call.");
     Require(file->FSave(kctgSoc), "Cannot save the object working copy.");
     return result;

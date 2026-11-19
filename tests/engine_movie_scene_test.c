@@ -1,5 +1,6 @@
 /* Movie scene-container transactions, retry paths and ownership. */
 #include "mm/movie_scene.h"
+#include "mm/movie_scene_journal.h"
 #include "mm/scene_runtime.h"
 #include <stdio.h>
 #include <string.h>
@@ -774,9 +775,65 @@ static int extending(void)
     return 0;
 }
 
+static int journal(void)
+{
+    const MMI32 opening = (-2147483647 - 1);
+    MMMovieSceneDefinitions scenes, old_scenes;
+    MMMovieCameraJournal cameras, old_cameras;
+    MMPreviewLiveScene scene = {8, 20, 2};
+    MMMovieCameraEdit cut = {8, 3, 1};
+    const MMPreviewLiveScene *definitions;
+    const MMMovieCameraEdit *edits;
+    MMPreviewLiveCameraEdits view;
+    MMPreviewLiveCamera cue;
+    MMU32 count;
+
+    CHECK(mm_movie_scene_definitions_init(&scenes, NULL) && mm_movie_scene_definitions_init(&old_scenes, NULL));
+    CHECK(mm_movie_scene_definitions_append(&scenes, &scene));
+    scene.number = 2;
+    CHECK(mm_movie_scene_definitions_append(&scenes, &scene));
+    CHECK(mm_movie_scene_definitions_copy(&old_scenes, &scenes));
+    scene.number = 8;
+    scene.source = 6;
+    scene.background = 80;
+    mm_movie_scene_definitions_retarget(&scenes, &scene);
+    definitions = mm_movie_scene_definitions_data(&scenes);
+    CHECK(definitions[0].number == 8 && definitions[0].background == 80 && definitions[1].number == 2);
+    CHECK(mm_movie_scene_definitions_uses_source(&scenes, 6) && !mm_movie_scene_definitions_uses_source(&old_scenes, 6));
+    mm_movie_scene_definitions_dispose(&scenes);
+    mm_movie_scene_definitions_dispose(&old_scenes);
+
+    CHECK(mm_movie_camera_journal_init(&cameras, NULL) && mm_movie_camera_journal_init(&old_cameras, NULL));
+    CHECK(mm_movie_camera_journal_set(&cameras, &cut));
+    cut.frame = opening;
+    cut.camera = 2;
+    CHECK(mm_movie_camera_journal_set(&cameras, &cut));
+    cut.scene = (MMU32)-1;
+    CHECK(mm_movie_camera_journal_set(&cameras, &cut));
+    cut.scene = 2;
+    CHECK(mm_movie_camera_journal_set(&cameras, &cut));
+    CHECK(mm_movie_camera_journal_copy(&old_cameras, &cameras));
+    cut.scene = 8;
+    cut.frame = 3;
+    cut.camera = 5;
+    CHECK(mm_movie_camera_journal_set(&cameras, &cut) && cameras.count == 4);
+    edits = mm_movie_camera_journal_find(&cameras, 8, &count);
+    CHECK(edits && count == 2 && edits[0].frame == opening && edits[1].frame == 3 && edits[1].camera == 5);
+    edits = mm_movie_camera_journal_find(&old_cameras, 8, &count);
+    CHECK(edits && count == 2 && edits[1].camera == 1);
+    CHECK(!mm_movie_camera_journal_find(&cameras, 7, &count) && count == 0);
+    view = mm_movie_camera_journal_preview(&cameras, (MMU32)-1);
+    CHECK(view.count == 1);
+    view.get(view.context, 0, &cue);
+    CHECK(cue.frame == opening && cue.camera == 2);
+    mm_movie_camera_journal_dispose(&cameras);
+    mm_movie_camera_journal_dispose(&old_cameras);
+    return 0;
+}
+
 int main(void)
 {
-    if (switching() || insertion() || removal() || undoing() || cursor_operations() || extending())
+    if (switching() || insertion() || removal() || undoing() || cursor_operations() || extending() || journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

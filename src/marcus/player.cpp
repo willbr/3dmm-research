@@ -195,8 +195,8 @@ struct EditHistory : KeepHistory
 // movie once; cached timing inputs are rescheduled for live frame ranges.
 std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
-    if (player.placements->empty() && player.frameRanges->empty() && player.edits->scenes->empty() &&
-        player.edits->props->empty() && player.edits->cameras->empty() && player.edits->shapes->empty() && player.edits->texts->empty() && player.edits->costumes->empty() && player.edits->storyboards->empty()) return player.timingInput;
+    if (player.placements->empty() && player.frameRanges->empty() && !player.edits->scenes->count &&
+        player.edits->props->empty() && !player.edits->cameras->count && player.edits->shapes->empty() && player.edits->texts->empty() && player.edits->costumes->empty() && player.edits->storyboards->empty()) return player.timingInput;
     if (player.materializedPlacements == player.placements && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
     std::vector<MarcusPropPlacement> changes;
@@ -275,18 +275,10 @@ bool EnsureRetailContent(MarcusPlayer &player, MM::Error &error)
     player.retailPrepared = true;
     return true;
 }
-std::vector<MM::PreviewPropDefinition> PropDefinitions(const MarcusLiveEdits &edits)
-{
-    std::vector<MM::PreviewPropDefinition> result;
-    result.reserve(edits.props->size());
-    for (const auto &prop : *edits.props) result.push_back(prop.definition);
-    return result;
-}
 bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
 {
     if (!EnsureResources(player, error)) return false;
-    const bool retailScene = std::any_of(player.edits->scenes->begin(), player.edits->scenes->end(),
-        [&](const auto &scene) { return scene.source == player.retailSource; });
+    const bool retailScene = mm_movie_scene_definitions_uses_source(player.edits->scenes.get(), player.retailSource);
     if ((retailScene || !player.edits->props->empty()) && !EnsureRetailContent(player, error)) return false;
     for (const auto &entry : *player.edits->storyboards)
         if (entry.second.source)
@@ -312,7 +304,17 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
         if (player.contentSourceIds.insert(edit.source).second) player.boardFiles.push_back(edit.file);
         if (!player.preview.AddContent(edit.source, edit.file->path.u8string(), error)) return false;
     }
-    if (!player.preview.SetDefinitions(*player.edits->scenes, PropDefinitions(*player.edits), error)) return false;
+    const MMPreviewLiveDefinitions definitions{
+        &player, player.edits->scenes->count, static_cast<MMU32>(player.edits->props->size()),
+        [](void *p, MMU32 index, MMPreviewLiveScene *out) {
+            *out = static_cast<MarcusPlayer *>(p)->edits->scenes->begin()[index];
+        },
+        [](void *p, MMU32 index, MMPreviewLiveProp *out) {
+            const auto &prop = (*static_cast<MarcusPlayer *>(p)->edits->props)[index].definition;
+            *out = {prop.scene, prop.number, prop.templateNumber, prop.source, prop.actorId, prop.first, prop.last,
+                    {prop.point[0], prop.point[1], prop.point[2]}};
+        }};
+    if (!player.preview.SetLiveDefinitions(definitions, error)) return false;
     player.names = player.baseNames;
     for (const auto &prop : *player.edits->props) player.names[prop.definition.actorId] = prop.name;
     for (const auto &object : player.preview.Objects())
@@ -325,11 +327,7 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
 }
 bool ApplyCameras(MarcusPlayer &player, int index, const MarcusLiveEdits::Cameras &cameras, MM::Error &error)
 {
-    std::vector<MM::PreviewCameraEdit> changes;
-    const auto scene = player.scenes[index].number;
-    for (const auto &entry : cameras)
-        if (entry.first.scene == scene) changes.push_back({static_cast<std::int32_t>(entry.first.frame), static_cast<std::uint32_t>(entry.second)});
-    return player.preview.SetCameraEdits(changes, error);
+    return player.preview.SetLiveCameraEdits(mm_movie_camera_journal_preview(&cameras, player.scenes[index].number), error);
 }
 bool ApplyCameras(MarcusPlayer &player, int index, MM::Error &error)
 {
@@ -389,12 +387,14 @@ bool MarcusApplyLiveEdits(MarcusPlayer *player, const std::vector<MM::PreviewSce
                          const std::vector<MarcusASM::CameraEdit> &cameras, std::uint64_t revision, MM::Error &error)
 {
     auto edits = std::make_shared<MarcusLiveEdits>();
-    edits->scenes = std::make_shared<MarcusLiveEdits::Scenes>(scenes);
+    auto definitions = std::make_shared<MarcusLiveEdits::Scenes>();
+    for (const auto &scene : scenes) definitions->Append({scene.number, scene.background, scene.source});
+    edits->scenes = definitions;
     auto named = std::make_shared<MarcusLiveEdits::Props>();
     for (const auto &prop : props) named->push_back({prop, {}});
     edits->props = named;
     auto changes = std::make_shared<MarcusLiveEdits::Cameras>();
-    for (const auto &camera : cameras) (*changes)[{camera.scene, camera.frame}] = camera.camera;
+    for (const auto &camera : cameras) changes->Set({camera.scene, camera.frame, camera.camera});
     edits->cameras = changes; edits->revision = revision;
     player->edits = edits;
     if (!ApplyDefinitions(*player, error)) return false;
@@ -1246,13 +1246,15 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
         auto boards = std::make_shared<MarcusStoryboards>(*edits->storyboards);
         (*boards)[scene] = resource; edits->storyboards = boards;
         auto scenes = std::make_shared<MarcusLiveEdits::Scenes>(*edits->scenes);
-        if (newScene) scenes->push_back({static_cast<std::uint32_t>(scene), static_cast<std::uint32_t>(resource.background), static_cast<std::int32_t>(resource.source)});
-        else for (auto &definition : *scenes) if (definition.number == scene)
-        { definition.background = resource.background; definition.source = resource.source; }
+        const MMPreviewLiveScene definition{static_cast<MMU32>(scene), static_cast<MMU32>(resource.background),
+                                            static_cast<MMI32>(resource.source)};
+        if (newScene) scenes->Append(definition);
+        else mm_movie_scene_definitions_retarget(scenes.get(), &definition);
         edits->scenes = scenes;
         auto cameras = std::make_shared<MarcusLiveEdits::Cameras>(*edits->cameras);
         const auto first = newScene ? 1 : player->preview.Info().firstFrame;
-        (*cameras)[{scene, mm_scene_camera_key(first, static_cast<MMI32>(frame))}] = camera;
+        cameras->Set({static_cast<MMU32>(scene), mm_scene_camera_key(first, static_cast<MMI32>(frame)),
+                      static_cast<MMU32>(camera)});
         edits->cameras = cameras; edits->revision = player->nextEditRevision++;
         EditHistory history(*player);
         const auto previous = player->edits;
@@ -2176,7 +2178,7 @@ extern "C"
                         auto &movie = h.movie;
                         h.edits = std::make_shared<MarcusLiveEdits>(*movie.edits);
                         auto cameras = std::make_shared<MarcusLiveEdits::Cameras>(*h.edits->cameras);
-                        (*cameras)[{movie.scenes[movie.selected].number, key}] = camera;
+                        cameras->Set({movie.scenes[movie.selected].number, key, camera});
                         h.edits->cameras = std::move(cameras);
                         h.history.emplace(movie);
                         return 1;
@@ -2299,7 +2301,7 @@ extern "C"
             if (player->nextScene > 0xffffffffULL) { error.message = "No scene IDs are available."; return false; }
             auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
             auto scenes = std::make_shared<MarcusLiveEdits::Scenes>(*edits->scenes);
-            scenes->push_back({static_cast<std::uint32_t>(player->nextScene++), static_cast<std::uint32_t>(background), player->retailSource});
+            scenes->Append({static_cast<MMU32>(player->nextScene++), static_cast<MMU32>(background), player->retailSource});
             edits->scenes = scenes; edits->revision = player->nextEditRevision++;
             EditHistory history(*player);
             const auto previous = player->edits;
@@ -2564,10 +2566,11 @@ extern "C"
             for (const auto &prop : *player->edits->props)
                 if (prop.definition.scene == player->scenes[index].number && prop.definition.first <= player->sceneInfo[index].first_frame)
                     return true;
-            for (const auto &camera : *player->edits->cameras)
-                if (camera.first.scene == player->scenes[index].number &&
-                    mm_scene_camera_frame(static_cast<MMI32>(player->sceneInfo[index].first_frame),
-                                          static_cast<MMI32>(camera.first.frame)) == player->sceneInfo[index].first_frame)
+            MMU32 count;
+            const auto cameras = mm_movie_camera_journal_find(player->edits->cameras.get(), player->scenes[index].number, &count);
+            for (MMU32 i = 0; i < count; ++i)
+                if (mm_scene_camera_frame(static_cast<MMI32>(player->sceneInfo[index].first_frame),
+                                          cameras[i].frame) == player->sceneInfo[index].first_frame)
                     return true;
             if (player->sceneInfo[index].first_frame != player->baseSceneInfo[index].first_frame) return true;
             if (!player->preview.ReadSceneThumbnail(player->scenes[index], player->thumbnail, error))

@@ -14969,3 +14969,36 @@ and silent playback PCM. The suite completed all ten requested captures.
 The before and after files, debugger output and logs are in
 `tmp/c89-board-draft`. The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`.
+
+## Marcus live scene and camera journal in C89 (19 November 2026)
+
+C89 owns the appended scene definitions and the camera edit journal.
+Scene insertion order survives background changes. Camera edits sort by
+scene and signed frame, replace repeated keys, and retain the opening-frame
+sentinel. Preview, thumbnail checks, archive writes, and the renderer worker
+read those records. Undo retains the earlier scene and camera snapshots.
+
+The native camera probe edits the opening frame, prepends a frame, replaces
+and undoes a later cut, then saves and reopens the movie. The states and
+saved bytes matched the previous build. Three ordinary storyboard-suite
+native movies were also byte-identical, and all five VMM outputs matched
+after normalizing generated names and chunk keys.
+
+All 41 selected Marcus-enabled checks and ten standalone C-only Release
+checks passed. The 32-bit ASM worker built and matched the live camera
+before and after replacement and undo. It also loaded a newly added scene
+through the worker protocol. The storyboard and playback checks passed again
+with the worker installed.
+
+Suite `20261119T062552Z-2a154c14` completed all ten captures. Retail,
+SDL Studio and Marcus agreed on all 61 native frame positions. Each player's
+frame positions and per-frame pixel hashes matched its earlier captures
+in suite `20261119T031108Z-ca0f30c8`. Both ports still differed from
+retail by four seek pixels across two frames, and mixed PCM differed.
+SDL timing differed and Marcus timing remained inconclusive. SDL Studio
+and Marcus matched both portable storyboard frames and their pixel hashes
+in seek and playback. Original v3dmm was unavailable.
+
+The probe, before and after files, and test logs are in
+`tmp/c89-scene-journal`. The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`.
