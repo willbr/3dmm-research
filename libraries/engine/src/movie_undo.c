@@ -50,18 +50,29 @@ void mm_movie_snapshot_clear(MMMovieSnapshotStack *stack, void (*release)(void *
     }
     stack->first = 0;
 }
-static int restore_snapshot(const void *record, int recovering, const MMMovieSnapshotServices *s)
+typedef enum SnapshotRestoreMode
+{
+    SNAPSHOT_UNDO,
+    SNAPSHOT_RECOVER,
+    SNAPSHOT_REPLACE
+} SnapshotRestoreMode;
+
+static int restore_snapshot(const void *record, SnapshotRestoreMode mode, const MMMovieSnapshotServices *s)
 {
     MMMovieSnapshotView live, target;
     void *context = s->context;
+    const int recovering = mode == SNAPSHOT_RECOVER;
+    const int replacing = mode == SNAPSHOT_REPLACE;
     int base, reload, definitions, timing;
     s->describe(context, NULL, &live);
     s->describe(context, record, &target);
-    base = live.file != target.file && (!live.file || !target.file || !s->same_file(live.file, target.file));
+    base = replacing ||
+           (live.file != target.file && (!live.file || !target.file || !s->same_file(live.file, target.file)));
     reload = recovering || base || live.boards != target.boards || live.texts != target.texts ||
              live.costumes != target.costumes;
     definitions = reload || live.scenes != target.scenes || live.props != target.props;
-    timing = definitions || live.ranges != target.ranges;
+    /* Opening a replacement already loads timing for its materialized range. */
+    timing = !replacing && (definitions || live.ranges != target.ranges);
     if (base && !s->effect(context, MM_MOVIE_SNAPSHOT_OPEN, record, recovering))
         return 0;
     if (!s->effect(context, MM_MOVIE_SNAPSHOT_INSTALL, record, recovering) ||
@@ -70,7 +81,7 @@ static int restore_snapshot(const void *record, int recovering, const MMMovieSna
     if (timing && !s->effect(context, MM_MOVIE_SNAPSHOT_TIMING, record, recovering))
         return 0;
     if (target.scene < 0)
-        return s->effect(context, MM_MOVIE_SNAPSHOT_CLEAR_SCENE, record, recovering);
+        return !replacing && s->effect(context, MM_MOVIE_SNAPSHOT_CLEAR_SCENE, record, recovering);
     if (reload || !s->matches_scene(context, target.scene))
     {
         if (!s->effect(context, MM_MOVIE_SNAPSHOT_SELECT, record, recovering))
@@ -82,27 +93,46 @@ static int restore_snapshot(const void *record, int recovering, const MMMovieSna
     return s->effect(context, MM_MOVIE_SNAPSHOT_SEEK, record, recovering);
 }
 
+static void recover_snapshot(const void *prior, const MMMovieSnapshotServices *s)
+{
+    int recovered = restore_snapshot(prior, SNAPSHOT_RECOVER, s);
+    if (!recovered)
+        s->effect(s->context, MM_MOVIE_SNAPSHOT_ABANDON, prior, 1);
+    s->publish(s->context, recovered ? prior : NULL);
+}
+
 int mm_movie_snapshot_undo(MMMovieSnapshotStack *stack, const void *prior, void (*release)(void *),
                            const MMMovieSnapshotServices *s)
 {
     unsigned slot;
     void *record;
-    int recovered;
     if (!stack->count || !s->effect(s->context, MM_MOVIE_SNAPSHOT_CANCEL, NULL, 0))
         return 0;
     slot = (stack->first + stack->count - 1) % MM_MOVIE_SNAPSHOT_LIMIT;
     record = stack->entries[slot];
-    if (!restore_snapshot(record, 0, s))
+    if (!restore_snapshot(record, SNAPSHOT_UNDO, s))
     {
-        recovered = restore_snapshot(prior, 1, s);
-        if (!recovered)
-            s->effect(s->context, MM_MOVIE_SNAPSHOT_ABANDON, prior, 1);
-        s->publish(s->context, recovered ? prior : NULL);
+        recover_snapshot(prior, s);
         return 0;
     }
     s->publish(s->context, record);
     stack->entries[slot] = NULL;
     --stack->count;
     release(record);
+    return 1;
+}
+
+int mm_movie_snapshot_replace(MMMovieSnapshotStack *stack, void *prior, const void *replacement,
+                              void (*release)(void *), const MMMovieSnapshotServices *s)
+{
+    if (!restore_snapshot(replacement, SNAPSHOT_REPLACE, s) ||
+        !s->effect(s->context, MM_MOVIE_SNAPSHOT_VERIFY, replacement, 0))
+    {
+        recover_snapshot(prior, s);
+        release(prior);
+        return 0;
+    }
+    mm_movie_snapshot_put(stack, prior, release);
+    s->commit_replace(s->context);
     return 1;
 }

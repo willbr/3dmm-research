@@ -62,7 +62,7 @@ static MMMovieUndoServices setup(Host *h)
 typedef struct SnapshotFixture
 {
     MMMovieSnapshotView live;
-    int fail, fail_recovery, count;
+    int fail, fail_recovery, count, committed;
     char trace[24];
     const void *published;
 } SnapshotFixture;
@@ -93,7 +93,7 @@ static void snapshot_step(SnapshotFixture *s, char step)
 }
 static int snapshot_effect(void *p, MMMovieSnapshotEffect effect, const void *record, int recovering)
 {
-    static const char steps[] = "COIDRTNLVSKX";
+    static const char steps[] = "COIDRTNLVSKXY";
     SnapshotFixture *s = p;
     const MMMovieSnapshotView *state = record;
     snapshot_step(s, steps[effect]);
@@ -122,13 +122,19 @@ static void publish_snapshot(void *p, const void *record)
     snapshot_step(s, '!');
     s->published = record;
 }
+static void commit_replacement(void *p)
+{
+    SnapshotFixture *s = p;
+    snapshot_step(s, '+');
+    ++s->committed;
+}
 static void test_snapshots(void)
 {
     MMMovieSnapshotStack stack = {{NULL}, 0, 0};
     MMMovieSnapshotView prior, records[68];
     SnapshotFixture f;
     MMMovieSnapshotServices s = {NULL, describe_snapshot, same_snapshot_file, matches_snapshot_scene,
-                                 snapshot_effect, publish_snapshot};
+                                 snapshot_effect, publish_snapshot, commit_replacement};
     int i, file = 1, same = 1, other = 2;
     memset(&f, 0, sizeof(f));
     memset(records, 0, sizeof(records));
@@ -172,6 +178,45 @@ static void test_snapshots(void)
     mm_movie_snapshot_clear(&stack, release_snapshot);
     CHECK(stack.first == 0 && stack.count == 0 && snapshots_released == 68 && last_released == &records[4]);
 }
+static void test_snapshot_replacement(void)
+{
+    MMMovieSnapshotStack stack = {{NULL}, 0, 0};
+    MMMovieSnapshotView prior, older, replacement;
+    SnapshotFixture f;
+    MMMovieSnapshotServices s = {NULL, describe_snapshot, same_snapshot_file, matches_snapshot_scene,
+                                 snapshot_effect, publish_snapshot, commit_replacement};
+    int file = 1, other = 2;
+    memset(&f, 0, sizeof(f));
+    f.live.file = &file;
+    f.live.scene = 2;
+    prior = older = replacement = f.live;
+    s.context = &f;
+    snapshots_released = 0;
+    mm_movie_snapshot_put(&stack, &older, release_snapshot);
+
+    replacement.file = &other;
+    f.fail = MM_MOVIE_SNAPSHOT_VERIFY;
+    f.fail_recovery = -1;
+    CHECK(!mm_movie_snapshot_replace(&stack, &prior, &replacement, release_snapshot, &s));
+    CHECK(!strcmp(f.trace, "OIDLKYOIDTLK!") && f.published == &prior && !f.committed);
+    CHECK(f.live.file == &file && f.live.scene == 2 && stack.count == 1 && stack.entries[0] == &older);
+    CHECK(snapshots_released == 1 && last_released == &prior);
+
+    f.count = 0;
+    f.fail = MM_MOVIE_SNAPSHOT_OPEN;
+    CHECK(!mm_movie_snapshot_replace(&stack, &prior, &replacement, release_snapshot, &s));
+    CHECK(!strcmp(f.trace, "OIDTLK!") && f.published == &prior && !f.committed && stack.count == 1);
+    CHECK(snapshots_released == 2 && last_released == &prior);
+
+    f.count = 0;
+    f.fail = -1;
+    replacement.file = &file;
+    CHECK(mm_movie_snapshot_replace(&stack, &prior, &replacement, release_snapshot, &s));
+    CHECK(!strcmp(f.trace, "OIDLKY+") && f.committed == 1);
+    CHECK(stack.count == 2 && stack.entries[1] == &prior && snapshots_released == 2);
+    mm_movie_snapshot_clear(&stack, release_snapshot);
+    CHECK(snapshots_released == 4 && last_released == &older);
+}
 int main(void)
 {
     Host h;
@@ -200,6 +245,7 @@ int main(void)
     s = setup(&h); memset(&h.local.base, 0xa5, sizeof(h.local.base)); mm_movie_undo_context_init(&h.local.base);
     CHECK(!h.local.base.movie && !h.local.base.scene && !h.local.base.frame);
     test_snapshots();
+    test_snapshot_replacement();
     puts("C89 movie undo publication, sentinel, separate operation index and destruction checks passed");
     return 0;
 }

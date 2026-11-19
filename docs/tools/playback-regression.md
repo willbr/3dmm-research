@@ -14457,3 +14457,34 @@ both SDL Studio and Marcus. Full runs still show pixel and mixed PCM
 differences, and Marcus timing remains inconclusive. Capture metadata
 is in `tmp/c89-sound-schedule/capture/playback.sqlite`. The probes, saved
 files and test logs are in `tmp/c89-undo`.
+
+## Marcus structural archive replacement in C89 (19 November 2026)
+
+The C89 snapshot controller now installs the archive produced by object
+paste, sound edits and work-view transforms. It reapplies definitions,
+selects the scene, seeks the saved playhead and verifies the pasted actor
+before recording undo and publishing the result. Failed installation
+uses the same recovery as a failed undo and leaves earlier history intact.
+
+The headless C tests exercise a failed archive open, a failed verification
+after opening and seeking, and a successful replacement. They check
+recovery, prior-record lifetime and the order of commit and release.
+All 12 selected checks passed, including strict C89 and headless sound
+editing, paste, work-view transforms and playback. Marcus was rebuilt
+and relaunched.
+
+A headless before-and-after comparison prepended a frame, changed the
+opening camera, pasted an actor at frame 10, saved the result and undid
+the paste. Scene bounds, playhead, camera, object count and undo flags
+matched after each step. Both the pasted outputs and the outputs saved
+after undo were byte-identical within their pairs. The pasted movie has
+SHA-256 `c7099b4b8e94cfb4be05541dad34a5950cdade5ba7205251e46f9de757176d58`.
+
+Retail, SDL Studio and Marcus reopened the pasted movie in suite
+`20261119T032901Z-dd70a61f`. All six runs completed. The players agreed on
+all 61 authored frame positions in both seek and playback. Seek images at
+frames 0, 9, 10, 11, 15 and 30 of the edited scene matched retail in both
+SDL Studio and Marcus. Full captures still show pixel and mixed PCM
+differences. Marcus timing remains inconclusive. The capture database is
+at `tmp/c89-sound-schedule/capture/playback.sqlite`. The native outputs,
+probe and test logs are in `tmp/c89-structural-edit`.

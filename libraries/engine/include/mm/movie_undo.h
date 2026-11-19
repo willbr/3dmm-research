@@ -58,7 +58,8 @@ typedef enum MMMovieSnapshotEffect
     MM_MOVIE_SNAPSHOT_APPLY_VIEW,
     MM_MOVIE_SNAPSHOT_SOUNDS,
     MM_MOVIE_SNAPSHOT_SEEK,
-    MM_MOVIE_SNAPSHOT_ABANDON
+    MM_MOVIE_SNAPSHOT_ABANDON,
+    MM_MOVIE_SNAPSHOT_VERIFY
 } MMMovieSnapshotEffect;
 typedef struct MMMovieSnapshotServices
 {
@@ -70,12 +71,18 @@ typedef struct MMMovieSnapshotServices
     int (*matches_scene)(void *, MMI32 scene);
     int (*effect)(void *, MMMovieSnapshotEffect, const void *record, int recovering);
     void (*publish)(void *, const void *record); /* Null after abandoning the view. */
+    void (*commit_replace)(void *);
 } MMMovieSnapshotServices;
 /* Callbacks are synchronous and cannot unwind or change the stack. The prior
  * live snapshot is borrowed for recovery. A failed restore keeps the undo
  * entry and restores the prior state or abandons the unfinished live view. */
 int mm_movie_snapshot_undo(MMMovieSnapshotStack *, const void *prior,
                            void (*release)(void *), const MMMovieSnapshotServices *);
+/* Owns the prior record. Opens and verifies the replacement before keeping
+ * the prior snapshot in history. On failure, recovery runs before releasing
+ * the prior snapshot. The replacement record is borrowed. */
+int mm_movie_snapshot_replace(MMMovieSnapshotStack *, void *prior, const void *replacement,
+                              void (*release)(void *), const MMMovieSnapshotServices *);
 #ifdef __cplusplus
 }
 #endif

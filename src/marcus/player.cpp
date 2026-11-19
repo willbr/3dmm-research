@@ -996,6 +996,9 @@ struct SnapshotHost
     MarcusPlayer &movie;
     MM::Error &error;
     std::exception_ptr failure;
+    MMI32 pastedActor = -1;
+    int *outputObject = nullptr;
+    int matchedObject = -1;
 
     static int Apply(void *p, MMMovieSnapshotEffect effect, const void *record, int recovering)
     {
@@ -1054,6 +1057,19 @@ struct SnapshotHost
                     return 0;
                 }
                 break;
+            case MM_MOVIE_SNAPSHOT_VERIFY:
+                if (h.outputObject)
+                {
+                    const auto found = std::find_if(movie.objects.begin(), movie.objects.end(),
+                        [&](const auto &object) { return object.actorId == h.pastedActor; });
+                    if (found == movie.objects.end())
+                    {
+                        error.message = "Cannot load the pasted object and its content.";
+                        return 0;
+                    }
+                    h.matchedObject = static_cast<int>(found - movie.objects.begin());
+                }
+                break;
             }
             return 1;
         }
@@ -1096,6 +1112,12 @@ struct SnapshotHost
                 movie.materializedFrameRanges.reset();
                 movie.materializedEdits.reset();
                 movie.modified = !record || static_cast<const MarcusPlayer::UndoState *>(record)->modified;
+            },
+            [](void *p) {
+                auto &host = *static_cast<SnapshotHost *>(p);
+                host.movie.modified = true;
+                if (host.outputObject)
+                    *host.outputObject = host.matchedObject;
             }};
     }
 };
@@ -1103,37 +1125,18 @@ bool ReplaceEditedMovie(MarcusPlayer *player, const std::shared_ptr<MarcusMovieF
                         std::int32_t actorId = -1, int *newObject = nullptr)
 {
     EditHistory history(*player);
-    const int selected = player->selected;
-    const auto frame = player->preview.Info().currentFrame;
     auto edits = std::make_shared<MarcusLiveEdits>();
     edits->storyboards = player->edits->storyboards;
     edits->revision = player->nextEditRevision++;
-    auto restore = [&] {
-        MM::Error ignored;
-        if (!OpenEditedBase(player, history.before.file, ignored)) return;
-        player->edits = history.before.edits; player->placements = history.before.placements;
-        player->frameRanges = history.before.frameRanges; player->modified = history.before.modified;
-        if (ApplyDefinitions(*player, ignored) && selected >= 0 && marcus_select_scene_keep_view(player, selected))
-            marcus_seek(player, frame);
-    };
-    try
-    {
-        if (!OpenEditedBase(player, file, error)) { restore(); return false; }
-        player->edits = edits;
-        if (!ApplyDefinitions(*player, error) || !marcus_select_scene_keep_view(player, selected) || !marcus_seek(player, frame))
-        { if (error.message.empty()) error.message = player->error; restore(); return false; }
-        if (newObject)
-        {
-            const auto found = std::find_if(player->objects.begin(), player->objects.end(),
-                [actorId](const auto &object) { return object.actorId == actorId; });
-            if (found == player->objects.end())
-            { error.message = "Cannot load the pasted object and its content."; restore(); return false; }
-            *newObject = static_cast<int>(found - player->objects.begin());
-        }
-    }
-    catch (...) { restore(); throw; }
-    history.Commit();
-    return true;
+    const MarcusPlayer::UndoState replacement{std::move(edits), std::make_shared<MarcusPlayer::Placements>(),
+        std::make_shared<MarcusPlayer::FrameRanges>(), history.before.scene, history.before.frame, true, file};
+    SnapshotHost host{*player, error, {}, actorId, newObject};
+    const auto services = host.Services();
+    const int installed = mm_movie_snapshot_replace(&player->undo.stack, history.record.release(), &replacement,
+                                                     MarcusPlayer::UndoHistory::Release, &services);
+    if (host.failure)
+        std::rethrow_exception(host.failure);
+    return installed != 0;
 }
 void ReadSoundAssets(MarcusPlayer *player)
 {
