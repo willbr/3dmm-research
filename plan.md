@@ -960,6 +960,10 @@ and member order. Marcus also uses that reader for movie ZIPs. C89 owns the
 movie and font catalog, member limits, legacy name disambiguation, and the
 size and CRC checks for both decoders. Physical file and path I/O, the installed
 catalog and publication of installed packages on disk remain host services.
+The Marcus sound timeline now owns its cue spans, active voices and frame
+holds in C89. The sound sheet, movie clock, waveform mapping and playback
+resume use that schedule. The preview helper and player adapt decoded cue
+metadata and the matching-build timing snapshot to the C schedule.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

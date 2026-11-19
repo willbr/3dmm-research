@@ -2122,6 +2122,13 @@ flushed-stream length accounting, without resampling to float PCM or building
 waveform envelopes. This retains compressed fact trimming, resampler rounding
 and MIDI event timing. Waveforms are built when requested for display.
 
+The C89 sound scheduler owns cue spans, active lanes and the mapping between
+authored frames and movie time. It keeps authored cue order within each frame,
+accounts for caption scrolling and pauses, and applies voice replacement and
+carryover at scene boundaries. The sound sheet, timing queries, waveform
+placement and resume after seeking use the same schedule. When a frame range
+changes, the player rebuilds the schedule from cached cues and clip lengths.
+
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
 movie, keeping ZIP/VMM inputs alive. Engine globals remain isolated in the child

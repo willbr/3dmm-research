@@ -13997,3 +13997,47 @@ Evidence: `tmp/c89-runtime/{core_platform.cpp,core_platform.h}`,
 `run-{native,sdl-release,sdl-debug,standalone}-tests.log`,
 `platform-{ansi,wide}-tests.log`, `asan-runtime.log`, `run-regular-tests.log`,
 `trace-comparison.json`, `gates.json` and `identities.json`.
+
+## Marcus sound timeline C89 conversion (19 November 2026)
+
+Marcus and its timing helper use the C89 schedule for authored cue order,
+frame holds, sampled loop stops, carried and queued voices, duplicate MIDI
+markers and resume offsets. The player rebuilds the schedule from cached
+inputs after frame range changes. The matching-build MMT3 exchange still
+carries the host scene, cue and clip metadata.
+
+The pre-conversion Marcus playback check passed at `fffac682`. With
+`BUILD_TESTING=ON` and `REQUIRE_C89_CHECKS=ON`, the converted Debug build
+passed every `c89-syntax` check, `marcus-c89`, `marcus-playback`,
+`marcus-player`, `marcus-sound-edit`, `engine-c89` and `engine-audio-runtime`.
+The headless playback check covers the helper exchange, scene carry, seek
+resume and rescheduling from cached cues. Marcus was relaunched after rebuilding.
+
+A deterministic before/after probe compared 1,024 generated timelines,
+including range edits, mixed pauses and scrolling, negative frame numbers,
+queued and looping clips, silent markers and motion cues. The span and
+resume traces, including fractional-frame time conversions, matched byte
+for byte. The AddressSanitizer build produced the same trace.
+Six injected C allocation failures each preserved the prior scene and its
+looping voice. Retrying added the new scene and ended the loop at the cut.
+Probe and CTest evidence is in `tmp/c89-sound-schedule`.
+
+The `actor-audio` and `scrolling-text` cases completed absolute seeks and
+normal playback in retail, SDL Studio and Marcus. The baseline and converted
+suites each contain 12 complete runs with one fresh-process pass per case,
+player and mode. All three players agreed on the 60 authored frames per case
+in both modes. All 120 Marcus seek images matched the baseline build exactly.
+The retail comparisons found the same Marcus seek differences before and
+after conversion, with two changed pixels for actor audio and 41,554 for
+scrolling text across the 60 images per case.
+
+Both Marcus builds met the actor-audio contract for the 600 Hz ordinary cue
+and 1300 Hz motion cue in the first scene only. Mixed PCM differed from
+retail in both builds for actor audio, and both matched retail silence for
+scrolling text. The runner's Marcus presentation timing and continuous image
+comparisons were inconclusive. This run covers the retail `.3mm` comparison.
+
+The capture database at `tmp/c89-sound-schedule/capture/playback.sqlite`
+records movie and content hashes, executable hashes and the capture
+environment. The baseline suite is `20261119T010556Z-6a08fbac` and the
+converted suite is `20261119T010849Z-5bfcd8b8`.

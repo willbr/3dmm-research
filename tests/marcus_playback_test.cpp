@@ -218,23 +218,23 @@ void CarryScheduling()
     timeline.Append(first, {music, loop, effect, speech}, read);
     music.frame = -3;
     timeline.Append(later, {music}, read);
-    CHECK(timeline.Scene(1).sounds.size() == 4); // Three tails plus the duplicate music marker.
-    CHECK(timeline.Scene(1).sounds[0]->scene == 0 && timeline.Scene(1).sounds[0]->start == 0);
-    CHECK(std::abs(timeline.Scene(1).start - timeline.Scene(1).sounds[1]->start - .5) < 1e-6);
-    CHECK(timeline.Scene(0).sounds[1]->end == 1); // Sampled loops stop at the cut.
+    CHECK(timeline.Scene(1).SoundCount() == 4); // Three tails plus the duplicate music marker.
+    CHECK(timeline.Scene(1).Sound(0).scene == 0 && timeline.Scene(1).Sound(0).start == 0);
+    CHECK(std::abs(timeline.Scene(1).start - timeline.Scene(1).Sound(1).start - .5) < 1e-6);
+    CHECK(timeline.Scene(0).Sound(1).end == 1); // Sampled loops stop at the cut.
     effect.frame = -5; effect.sound.number = 4;
     speech.frame = -5; speech.sound.number = 5; speech.queue = true;
     timeline.Append(later, {effect, speech}, read);
-    CHECK(timeline.Scene(2).sounds.size() == 4); // Music, speech tail, replacement, queued speech.
-    CHECK(timeline.Scene(0).sounds[2]->end == 2); // Replacement truncates the carried effect.
-    CHECK(std::abs(timeline.Scene(2).sounds.back()->start - 8.0 / 3) < 1e-6);
+    CHECK(timeline.Scene(2).SoundCount() == 4); // Music, speech tail, replacement, queued speech.
+    CHECK(timeline.Scene(0).Sound(2).end == 2); // Replacement truncates the carried effect.
+    CHECK(std::abs(timeline.Scene(2).Sound(3).start - 8.0 / 3) < 1e-6);
     const auto queuedResume = timeline.Resume(2, -3);
     CHECK(queuedResume.size() == 3 && queuedResume.back().cue.queue && queuedResume.back().seconds == 0);
     timeline.Append(later, {}, read);
-    CHECK(timeline.Scene(3).sounds.size() == 2); // Only music and the queued speech remain.
+    CHECK(timeline.Scene(3).SoundCount() == 2); // Only music and the queued speech remain.
     music.frame = -5; music.silent = true;
     timeline.Append(later, {music}, read);
-    CHECK(timeline.Scene(4).sounds.size() == 1 && timeline.Scene(4).sounds[0]->cue.silent);
+    CHECK(timeline.Scene(4).SoundCount() == 1 && timeline.Scene(4).Sound(0).cue.silent);
     std::ostringstream encoded(std::ios::binary);
     CHECK(timeline.Write(encoded));
     MarcusSoundTimeline imported;
@@ -244,11 +244,11 @@ void CarryScheduling()
     for (std::size_t i = 0; i < imported.Size(); ++i)
     {
         CHECK(imported.Scene(i).start == timeline.Scene(i).start);
-        CHECK(imported.Scene(i).sounds.size() == timeline.Scene(i).sounds.size());
-        for (std::size_t j = 0; j < imported.Scene(i).sounds.size(); ++j)
+        CHECK(imported.Scene(i).SoundCount() == timeline.Scene(i).SoundCount());
+        for (std::size_t j = 0; j < imported.Scene(i).SoundCount(); ++j)
         {
-            CHECK(imported.Scene(i).sounds[j]->start == timeline.Scene(i).sounds[j]->start);
-            CHECK(imported.Scene(i).sounds[j]->end == timeline.Scene(i).sounds[j]->end);
+            CHECK(imported.Scene(i).Sound(j).start == timeline.Scene(i).Sound(j).start);
+            CHECK(imported.Scene(i).Sound(j).end == timeline.Scene(i).Sound(j).end);
         }
         const auto original = timeline.Resume(i, later.first_frame);
         const auto restored = imported.Resume(i, later.first_frame);
@@ -268,8 +268,8 @@ void CarryScheduling()
     effect = loop; effect.loop = false; effect.queue = true; effect.sound.number = 5;
     timeline.Append(first, {loop, effect}, read);
     timeline.Append(later, {}, read);
-    CHECK(timeline.Scene(1).sounds.size() == 1 && timeline.Scene(1).sounds[0]->cue.queue);
-    CHECK(timeline.Scene(1).sounds[0]->start == 1 && timeline.Scene(1).sounds[0]->end == 2);
+    CHECK(timeline.Scene(1).SoundCount() == 1 && timeline.Scene(1).Sound(0).cue.queue);
+    CHECK(timeline.Scene(1).Sound(0).start == 1 && timeline.Scene(1).Sound(0).end == 2);
 }
 void RangeScheduling()
 {
@@ -324,14 +324,17 @@ void RangeScheduling()
         for (std::size_t i = 0; i < changed.size(); ++i)
         {
             const auto &actual = cached.Scene(i), &expected = fresh.Scene(i);
-            CHECK(actual.start == expected.start && actual.holds == expected.holds &&
-                  actual.frameSeconds == expected.frameSeconds && actual.sounds.size() == expected.sounds.size());
-            CHECK(actual.TimeAt(double(changed[i].last_frame) + 1) == expected.TimeAt(double(changed[i].last_frame) + 1));
-            for (std::size_t cue = 0; cue < actual.sounds.size(); ++cue)
+            CHECK(actual.start == expected.start && actual.SoundCount() == expected.SoundCount());
+            for (double frame = changed[i].first_frame; frame <= double(changed[i].last_frame) + 1; frame += .5)
             {
-                CHECK(actual.sounds[cue]->start == expected.sounds[cue]->start &&
-                      actual.sounds[cue]->end == expected.sounds[cue]->end &&
-                      actual.sounds[cue]->cue.frame == expected.sounds[cue]->cue.frame);
+                const double time = actual.TimeAt(frame);
+                CHECK(time == expected.TimeAt(frame) && actual.FrameAt(time) == expected.FrameAt(time));
+            }
+            for (std::size_t cue = 0; cue < actual.SoundCount(); ++cue)
+            {
+                CHECK(actual.Sound(cue).start == expected.Sound(cue).start &&
+                      actual.Sound(cue).end == expected.Sound(cue).end &&
+                      actual.Sound(cue).cue.frame == expected.Sound(cue).cue.frame);
             }
             const auto resume = cached.Resume(i, changed[i].first_frame), expectedResume = fresh.Resume(i, changed[i].first_frame);
             CHECK(resume.size() == expectedResume.size());

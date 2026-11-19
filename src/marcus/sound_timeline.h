@@ -1,6 +1,7 @@
 #ifndef MARCUS_SOUND_TIMELINE_H
 #define MARCUS_SOUND_TIMELINE_H
 #include "player.h"
+#include "sound_schedule.h"
 #include "mm/preview.h"
 #include <functional>
 #include <memory>
@@ -11,18 +12,24 @@
 struct MarcusSoundSpan
 {
     MM::PreviewSoundCue cue;
-    MarcusWaveformInfo audio = {};
-    int scene = 0;
+    std::size_t scene = 0;
     double start = 0, end = 0; // Seconds on the presentation clock.
 };
+class MarcusSoundTimeline;
 struct MarcusSoundScene
 {
-    double start = 0, frameSeconds = 1.0 / 6;
-    MarcusScene info = {};
-    std::map<long, double> holds; // Extra seconds spent on each displayed frame.
-    std::vector<std::shared_ptr<MarcusSoundSpan>> sounds;
+    double start;
+    MarcusScene info;
     double TimeAt(double frame) const;
     double FrameAt(double seconds) const;
+    std::size_t SoundCount() const;
+    MarcusSoundSpan Sound(std::size_t row) const;
+
+  private:
+    friend class MarcusSoundTimeline;
+    MarcusSoundScene(const MarcusSoundTimeline &owner, std::size_t index);
+    const MarcusSoundTimeline &owner;
+    std::size_t index;
 };
 struct MarcusSoundTiming
 {
@@ -41,17 +48,22 @@ class MarcusSoundTimeline
 {
     struct Source
     {
+        MarcusScene info = {};
         std::vector<MM::PreviewSoundCue> cues;
         std::vector<MarcusWaveformInfo> audio;
         MarcusSoundTiming timing;
     };
+    using Schedule = std::unique_ptr<MarcusSoundSchedule, decltype(&marcus_sound_schedule_destroy)>;
+    static Schedule Create(double frameSeconds);
+    static void ScheduleScene(MarcusSoundSchedule *, const MarcusScene &, const Source &);
+    explicit MarcusSoundTimeline(double frameSeconds);
+    friend struct MarcusSoundScene;
+    Schedule schedule;
     std::vector<Source> sources;
-    std::vector<MarcusSoundScene> scenes;
-    void AppendPrepared(const MarcusScene &, const Source &);
-    std::vector<std::shared_ptr<MarcusSoundSpan>> active;
-    double time = 0, transition = 0, frameSeconds = 1.0 / 6;
+    void AppendPrepared(const MarcusScene &, Source);
 
   public:
+    MarcusSoundTimeline();
     void Clear();
     void SetRate(double fps);
     // Reschedule cached cues/lengths after edge edits, without decoding media.
@@ -59,8 +71,8 @@ class MarcusSoundTimeline
     // Ephemeral IPC between matching Marcus/helper builds, never movie data.
     bool Write(std::ostream &output) const;
     bool Read(std::istream &input, const std::vector<MarcusScene> &expected);
-    std::size_t Size() const { return scenes.size(); }
-    const MarcusSoundScene &Scene(std::size_t index) const { return scenes.at(index); }
+    std::size_t Size() const { return sources.size(); }
+    MarcusSoundScene Scene(std::size_t index) const { return MarcusSoundScene(*this, index); }
     std::vector<MarcusResumeSound> Resume(std::size_t scene, long frame) const;
     void Append(const MarcusScene &scene, const std::vector<MM::PreviewSoundCue> &cues,
                 const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,

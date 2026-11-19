@@ -470,9 +470,9 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
     // Separate scene and actor lanes, including actor ID zero. Keep styles in
     // separate lanes so simultaneous speech and effects remain distinguishable.
     std::map<std::tuple<bool, std::int32_t, std::int32_t>, int> lanes;
-    for (const auto &span : scene.sounds)
+    for (std::size_t row = 0; row < scene.SoundCount(); ++row)
     {
-        const auto &cue = span->cue;
+        const auto cue = scene.Sound(row).cue;
         lanes.emplace(std::make_tuple(cue.actorSound, cue.actorSound ? cue.actor : 0, cue.style), 0);
     }
     for (auto &lane : lanes)
@@ -494,9 +494,10 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
         lane.second = static_cast<int>(player->soundTracks.size());
         player->soundTracks.push_back(track);
     }
-    for (const auto &span : scene.sounds)
+    for (std::size_t row = 0; row < scene.SoundCount(); ++row)
     {
-        const auto &cue = span->cue;
+        const auto span = scene.Sound(row);
+        const auto &cue = span.cue;
         MarcusSound sound = {};
         sound.track = lanes.at(std::make_tuple(cue.actorSound, cue.actorSound ? cue.actor : 0, cue.style));
         Copy(sound.name, cue.silent ? "Stop / silence" : "Sound " + std::to_string(cue.sound.number));
@@ -505,12 +506,12 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
         const auto name = player->names.find(cue.actor);
         Copy(sound.owner, !cue.actorSound ? std::string("Scene")
                           : name != player->names.end() ? name->second : "Actor " + std::to_string(cue.actor));
-        sound.carried = span->scene != index;
-        sound.origin_scene = span->scene;
-        sound.origin_frame = double(cue.frame) - player->sceneInfo[span->scene].first_frame + 1;
+        sound.carried = span.scene != static_cast<std::size_t>(index);
+        sound.origin_scene = static_cast<int>(span.scene);
+        sound.origin_frame = double(cue.frame) - player->sceneInfo[span.scene].first_frame + 1;
         sound.frame = sound.carried ? scene.info.first_frame : cue.frame;
-        sound.timeline_frame = scene.FrameAt(span->start);
-        sound.end_frame = std::min(double(scene.info.last_frame) + 1, scene.FrameAt(span->end));
+        sound.timeline_frame = scene.FrameAt(span.start);
+        sound.end_frame = std::min(double(scene.info.last_frame) + 1, scene.FrameAt(span.end));
         sound.actor_id = cue.actor;
         sound.source_id = cue.source;
         sound.style = cue.style;
@@ -2620,16 +2621,16 @@ extern "C"
                 return false;
             }
             const auto &scene = player->soundTimeline.Scene(player->selected);
-            const auto &span = scene.sounds[index];
+            const auto span = scene.Sound(index);
             MarcusWaveformColumn ignored;
-            player->waveforms.Read(player->preview, span->cue, 0, 1, 1, &ignored, *info);
+            player->waveforms.Read(player->preview, span.cue, 0, 1, 1, &ignored, *info);
             std::fill_n(columns, count, MarcusWaveformColumn{});
             for (int column = 0; column < count; ++column)
             {
                 const double at = scene.TimeAt(first + column * step);
-                const double end = std::min(span->end, scene.TimeAt(first + (column + 1) * step));
-                if (at >= span->start && at < span->end && end > at)
-                    player->waveforms.Read(player->preview, span->cue, at - span->start, end - at,
+                const double end = std::min(span.end, scene.TimeAt(first + (column + 1) * step));
+                if (at >= span.start && at < span.end && end > at)
+                    player->waveforms.Read(player->preview, span.cue, at - span.start, end - at,
                                            1, &columns[column], *info);
             }
             return true;
