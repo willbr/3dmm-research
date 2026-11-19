@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace MM { class Preview; }
+namespace MM { class Preview; struct PreviewCaption; }
 
 struct MarcusCaptionEntry
 {
@@ -23,6 +23,8 @@ struct MarcusCaptionList
     int firstFrame, lastFrame;
 };
 void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &preview, MarcusCaptionList &list);
+MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
+                                     const MarcusCaptionOptions &options, const char *text);
 std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path &path,
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusCaptionList &list, int index,
     const MarcusCaptionOptions *options, const char *text);

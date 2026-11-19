@@ -3,14 +3,10 @@
 // Typed rich-text/file/output services. Included after the display FontName helper.
 struct CaptionHost
 {
-    struct Input
-    {
-        TextBoxData box;
-        ChunkIdentification child;
-        RichTextData text;
-    };
-    PChunkyFile file;
-    PreviewCaption *output;
+    const TextBoxData &box;
+    RichTextData &text;
+    const std::u16string *words;
+    PreviewCaption &output;
     std::exception_ptr exception;
     template <class F> int Guard(F f)
     {
@@ -34,48 +30,37 @@ struct CaptionHost
         MMPreviewCaptionServices s = {};
         s.context = this;
         s.create = [](void *v, void **out) -> int {
-            auto &h = *static_cast<CaptionHost *>(v);
-            return h.Guard([&] {
-                *out = new Input;
-                return 1;
-            });
+            *out = v;
+            return 1;
         };
-        s.box = [](void *v, void *p, MMU32 number, MMPreviewCaptionData *out) -> int {
-            auto &h = *static_cast<CaptionHost *>(v);
-            return h.Guard([&] {
-                auto &i = *static_cast<Input *>(p);
-                if (!i.box.FRead(h.file, number, &i.child))
-                    return false;
-                out->first = i.box.state.first;
-                out->end = i.box.state.end;
-                out->left = i.box.state.left;
-                out->top = i.box.state.top;
-                out->right = i.box.state.right;
-                out->bottom = i.box.state.bottom;
-                out->story = i.box.state.story;
-                return true;
-            });
+        s.box = [](void *v, void *, MMU32, MMPreviewCaptionData *out) -> int {
+            const auto &box = static_cast<CaptionHost *>(v)->box.state;
+            out->first = box.first;
+            out->end = box.end;
+            out->left = box.left;
+            out->top = box.top;
+            out->right = box.right;
+            out->bottom = box.bottom;
+            out->story = box.story;
+            return 1;
         };
-        s.rich_text = [](void *v, void *p, MMPreviewCaptionData *out) -> int {
-            auto &h = *static_cast<CaptionHost *>(v);
-            return h.Guard([&] {
-                auto &i = *static_cast<Input *>(p);
-                if (!i.text.FRead(h.file, i.child.ctg, i.child.cno))
-                    return false;
-                out->bytes = i.text.text.cb;
-                out->encoding = i.text.textOsk;
-                out->font_size = i.text.defaults.dypFont;
-                out->background = i.text.defaults.lwAcrBack;
-                out->properties = i.text.properties->IvMac();
-                out->property_swap = i.text.propertyBo == kboOther;
-                out->has_arguments = i.text.arguments != nullptr;
-                out->arguments = i.text.arguments ? i.text.arguments->IvMac() : 0;
-                return true;
-            });
+        s.rich_text = [](void *v, void *, MMPreviewCaptionData *out) -> int {
+            const auto &h = *static_cast<CaptionHost *>(v);
+            const auto &text = h.text;
+            const unsigned short one = 1;
+            out->bytes = h.words ? static_cast<MMI32>(h.words->size() * 2) : text.text.cb;
+            out->encoding = h.words ? (*reinterpret_cast<const byte *>(&one) ? koskUniWin : koskUniMac) : text.textOsk;
+            out->font_size = text.defaults.dypFont;
+            out->background = text.defaults.lwAcrBack;
+            out->properties = text.properties->IvMac();
+            out->property_swap = text.propertyBo == kboOther;
+            out->has_arguments = text.arguments != nullptr;
+            out->arguments = text.arguments ? text.arguments->IvMac() : 0;
+            return 1;
         };
-        s.release = [](void *, void *p) { delete static_cast<Input *>(p); };
+        s.release = [](void *, void *) {};
         s.publish = [](void *v, const MMPreviewCaptionData *p) {
-            auto &o = *static_cast<CaptionHost *>(v)->output;
+            auto &o = static_cast<CaptionHost *>(v)->output;
             o.firstFrame = p->first;
             o.endFrame = p->end;
             o.left = p->left;
@@ -86,16 +71,21 @@ struct CaptionHost
             o.fontSize = p->font_size;
             o.background = p->background;
         };
-        s.font = [](void *v, void *p) -> int {
+        s.font = [](void *v, void *) -> int {
             auto &h = *static_cast<CaptionHost *>(v);
             return h.Guard([&] {
-                h.output->font = FontName(static_cast<Input *>(p)->text.fontName);
+                h.output.font = FontName(h.text.fontName);
                 return 1;
             });
         };
-        s.read_text = [](void *v, void *p, void *out, MMU32 n) -> int {
+        s.read_text = [](void *v, void *, void *out, MMU32 n) -> int {
             auto &h = *static_cast<CaptionHost *>(v);
-            return h.Guard([&] { return static_cast<Input *>(p)->text.text.FReadRgb(out, n, 0); });
+            if (h.words)
+            {
+                std::memcpy(out, h.words->data(), n);
+                return 1;
+            }
+            return h.Guard([&] { return h.text.text.FReadRgb(out, n, 0); });
         };
         s.utf16 = [](void *v, const void *p, MMU32 n, int encoding, unsigned short *out, MMU32 capacity,
                      MMU32 *count) -> int {
@@ -109,20 +99,20 @@ struct CaptionHost
         s.text_buffer = [](void *v, MMU32 n, unsigned short **out) -> int {
             auto &h = *static_cast<CaptionHost *>(v);
             return h.Guard([&] {
-                h.output->text.resize(n);
-                *out = h.output->text.data();
+                h.output.text.resize(n);
+                *out = h.output.text.data();
                 return 1;
             });
         };
-        s.property = [](void *, void *p, MMU32 i, MMU32 *out) {
-            static_cast<Input *>(p)->text.properties->Get(i, out);
+        s.property = [](void *v, void *, MMU32 i, MMU32 *out) {
+            static_cast<CaptionHost *>(v)->text.properties->Get(i, out);
         };
-        s.argument_info = [](void *, void *p, MMU32 i, MMI32 *bytes, int *free_entry) {
-            auto g = static_cast<Input *>(p)->text.arguments;
+        s.argument_info = [](void *v, void *, MMU32 i, MMI32 *bytes, int *free_entry) {
+            auto g = static_cast<CaptionHost *>(v)->text.arguments;
             *free_entry = g->FFree(i);
             *bytes = *free_entry ? 0 : g->Cb(i);
         };
-        s.argument = [](void *, void *p, MMU32 i, void *out) { static_cast<Input *>(p)->text.arguments->Get(i, out); };
+        s.argument = [](void *v, void *, MMU32 i, void *out) { static_cast<CaptionHost *>(v)->text.arguments->Get(i, out); };
         s.append = [](void *v, const MMPreviewTextProperty *p, const void *font, MMU32 n) -> int {
             auto &h = *static_cast<CaptionHost *>(v);
             return h.Guard([&] {
@@ -137,13 +127,13 @@ struct CaptionHost
                         return false;
                     property.font = FontName(name);
                 }
-                h.output->properties.push_back(std::move(property));
+                h.output.properties.push_back(std::move(property));
                 return true;
             });
         };
-        s.position = [](void *v, MMU32 i) { return static_cast<CaptionHost *>(v)->output->properties[i].position; };
+        s.position = [](void *v, MMU32 i) { return static_cast<CaptionHost *>(v)->output.properties[i].position; };
         s.swap = [](void *v, MMU32 a, MMU32 b) {
-            auto &o = *static_cast<CaptionHost *>(v)->output;
+            auto &o = static_cast<CaptionHost *>(v)->output;
             std::swap(o.properties[a], o.properties[b]);
         };
         return s;

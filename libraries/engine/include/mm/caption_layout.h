@@ -33,6 +33,13 @@ typedef struct MMCaptionLayoutInput
     size_t properties;
 } MMCaptionLayoutInput;
 
+typedef struct MMCaptionLayoutRun
+{
+    const unsigned short *text;
+    MMI32 first, drawn, end;
+    MMI32 x, right, top, height;
+} MMCaptionLayoutRun;
+
 typedef struct MMCaptionLayoutServices
 {
     void *context;
@@ -40,6 +47,8 @@ typedef struct MMCaptionLayoutServices
     int (*set_font)(void *, const MMCaptionStyle *);
     int (*measure)(void *, const unsigned short *, MMI32 count, MMI32 *width, MMI32 *top, MMI32 *bottom);
     int (*emit)(void *, const MMCaptionStyle *, const unsigned short *, MMI32 count, MMI32 x, MMI32 baseline);
+    /* Optional coordinates for editor adornments, including tabs and empty rows. */
+    int (*position)(void *, const MMCaptionLayoutRun *);
 } MMCaptionLayoutServices;
 
 enum { MM_CAPTION_LAYOUT_FAILED = -1, MM_CAPTION_LAYOUT_STALLED = -2 };

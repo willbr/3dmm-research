@@ -9,9 +9,11 @@ struct MarcusCaptionEditor
 {
     MarcusCaptionList *list;
     MarcusCaptionOptions value;
-    char text[MARCUS_CAPTION_UTF8_CAPACITY], error[256];
+    char text[MARCUS_CAPTION_UTF8_CAPACITY], error[256], preview_error[256];
     int selected, focus_text, generation, drag_kind, finish;
     int drag_x, drag_y, drag_width, drag_height;
+    int draft_dirty, text_active, caret, selection_start, selection_end;
+    int mouse_offset, mouse_anchor, selecting;
     ImVec2 drag_origin;
 };
 
@@ -29,6 +31,17 @@ void caption_editor_destroy(MarcusCaptionEditor *editor)
     if (editor) release_list(editor);
     SDL_free(editor);
 }
+static void update_draft(MarcusCaptionEditor *editor, MarcusPlayer *player)
+{
+    editor->draft_dirty = 0;
+    if (marcus_caption_draft(player, editor->list, editor->selected, &editor->value, editor->text))
+    {
+        editor->preview_error[0] = 0;
+        editor->error[0] = 0;
+    }
+    else
+        SDL_strlcpy(editor->preview_error, marcus_error(player), sizeof(editor->preview_error));
+}
 static void select_caption(MarcusCaptionEditor *editor, MarcusPlayer *player, int index)
 {
     const char *text;
@@ -37,11 +50,15 @@ static void select_caption(MarcusCaptionEditor *editor, MarcusPlayer *player, in
     SDL_strlcpy(editor->text, text, sizeof(editor->text));
     editor->selected = index;
     editor->error[0] = 0;
+    editor->preview_error[0] = 0;
     editor->focus_text = 1;
+    editor->text_active = editor->selecting = 0;
+    editor->caret = editor->selection_start = editor->selection_end = 0;
     editor->drag_kind = 0;
     editor->finish = FINISH_NONE;
     ++editor->generation;
     marcus_caption_preview(player, editor->list, index);
+    update_draft(editor, player);
 }
 static int visible_at(const MarcusCaptionOptions *box, int frame)
 {
@@ -268,7 +285,83 @@ static ImVec4 colour(unsigned long rgb, float alpha)
     result.w = alpha;
     return result;
 }
-static void draw_box(MarcusCaptionEditor *editor, const SDL_FRect *canvas)
+/* ImGui keeps the text buffer, editing, clipboard and undo state. Use the
+ * movie's measured positions to place the cursor for a mouse hit. */
+static int edit_cursor(ImGuiInputTextCallbackData *data)
+{
+    MarcusCaptionEditor *editor;
+    editor = (MarcusCaptionEditor *)data->UserData;
+    if (editor->mouse_offset >= 0 && editor->mouse_offset <= data->BufTextLen &&
+        editor->mouse_anchor <= data->BufTextLen)
+    {
+        data->CursorPos = editor->mouse_offset;
+        data->SelectionStart = editor->mouse_anchor;
+        data->SelectionEnd = editor->mouse_offset;
+    }
+    editor->caret = data->CursorPos;
+    editor->selection_start = data->SelectionStart;
+    editor->selection_end = data->SelectionEnd;
+    return 0;
+}
+static int closest_stop(const MarcusCaptionStop *stops, int count, float x, float y)
+{
+    float dy, dx, best_y, best_x;
+    int i, best;
+    best = 0;
+    best_y = best_x = SDL_MAX_SINT32;
+    for (i = 0; i < count; ++i)
+    {
+        dy = SDL_max(stops[i].y - y, y - (stops[i].y + stops[i].height));
+        dy = SDL_max(0, dy);
+        dx = SDL_fabsf(stops[i].x - x);
+        if (dy < best_y || (dy == best_y && dx < best_x))
+        {
+            best = i;
+            best_y = dy;
+            best_x = dx;
+        }
+    }
+    return stops[best].offset;
+}
+static void draw_selection(const MarcusCaptionEditor *editor, const SDL_FRect *canvas, const SDL_FRect *clip,
+                           const MarcusCaptionStop *stops, int count, int scroll)
+{
+    ImDrawList *draw;
+    ImU32 highlight;
+    float sx, sy, x, y, right;
+    int i, start, end, caret;
+    draw = igGetWindowDrawList();
+    highlight = igColorConvertFloat4ToU32(colour(0x4b8ee1, .38f));
+    sx = canvas->w / MM_CAPTION_WIDTH;
+    sy = canvas->h / MM_CAPTION_HEIGHT;
+    start = SDL_min(editor->selection_start, editor->selection_end);
+    end = SDL_max(editor->selection_start, editor->selection_end);
+    caret = -1;
+    ImDrawList_PushClipRect(draw, dialog_vec(clip->x, clip->y),
+                           dialog_vec(clip->x + clip->w, clip->y + clip->h), 1);
+    for (i = 0; i < count; ++i)
+    {
+        if (stops[i].offset == editor->caret) caret = i;
+        if (i + 1 == count || stops[i].offset < start || stops[i].offset >= end || stops[i].y != stops[i + 1].y)
+            continue;
+        x = canvas->x + stops[i].x * sx;
+        y = canvas->y + (stops[i].y - scroll) * sy;
+        right = canvas->x + stops[i + 1].x * sx;
+        ImDrawList_AddRectFilled(draw, dialog_vec(x, y),
+            dialog_vec(SDL_max(x + 2, right), y + stops[i].height * sy), highlight, 0, 0);
+    }
+    if (caret >= 0)
+    {
+        x = canvas->x + stops[caret].x * sx;
+        y = canvas->y + (stops[caret].y - scroll) * sy;
+        ImDrawList_AddLine(draw, dialog_vec(x, y), dialog_vec(x, y + stops[caret].height * sy),
+                           igColorConvertFloat4ToU32(colour(0, .85f)), 3);
+        ImDrawList_AddLine(draw, dialog_vec(x, y), dialog_vec(x, y + stops[caret].height * sy),
+                           igColorConvertFloat4ToU32(colour(0xffffff, 1)), 1);
+    }
+    ImDrawList_PopClipRect(draw);
+}
+static void draw_box(MarcusCaptionEditor *editor, MarcusPlayer *player, const SDL_FRect *canvas)
 {
     static const int kinds[] = {DRAG_LEFT | DRAG_TOP, DRAG_TOP, DRAG_RIGHT | DRAG_TOP, DRAG_RIGHT,
         DRAG_RIGHT | DRAG_BOTTOM, DRAG_BOTTOM, DRAG_LEFT | DRAG_BOTTOM, DRAG_LEFT};
@@ -277,10 +370,13 @@ static void draw_box(MarcusCaptionEditor *editor, const SDL_FRect *canvas)
         ImGuiMouseCursor_ResizeNS, ImGuiMouseCursor_ResizeNESW, ImGuiMouseCursor_ResizeEW};
     static const float anchors[8][2] = {{0, 0}, {.5f, 0}, {1, 0}, {1, .5f}, {1, 1}, {.5f, 1}, {0, 1}, {0, .5f}};
     SDL_FRect box, hit, text;
+    const MarcusCaptionStop *stops;
+    ImVec2 mouse;
     ImDrawList *draw;
     ImU32 border;
     float grip, sx, sy, font;
-    int i;
+    int i, count, scroll, click, styles, vars;
+    editor->text_active = 0;
     box = box_rect(canvas, &editor->value);
     if (box.w <= 0 || box.h <= 0 || !SDL_HasRectIntersectionFloat(&box, canvas)) return;
     sx = canvas->w / MM_CAPTION_WIDTH; sy = canvas->h / MM_CAPTION_HEIGHT;
@@ -301,23 +397,61 @@ static void draw_box(MarcusCaptionEditor *editor, const SDL_FRect *canvas)
     hit.w = box.w - grip; hit.h = grip;
     drag_handle(editor, canvas, &hit, DRAG_MOVE, ImGuiMouseCursor_ResizeAll);
     if (igIsItemHovered(0)) igSetItemTooltip("Drag the top border to move");
-    text.x = box.x + SDL_min(box.w / 4, 5 * sx); text.y = box.y + SDL_min(box.h / 4, 5 * sy);
+    text.x = box.x + SDL_min(box.w / 4, MM_CAPTION_BORDER * sx);
+    text.y = box.y + SDL_min(box.h / 4, MM_CAPTION_BORDER * sy);
     text.w = box.w - 2 * (text.x - box.x); text.h = box.h - 2 * (text.y - box.y);
+    stops = marcus_caption_positions(player, &count, &scroll);
+    editor->mouse_offset = -1;
+    click = count && !editor->drag_kind && igGetMouseClickedCount(ImGuiMouseButton_Left) == 1 &&
+        igIsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
+        igIsMouseHoveringRect(dialog_vec(text.x, text.y), dialog_vec(text.x + text.w, text.y + text.h), 1);
+    if (!igIsMouseDown_Nil(ImGuiMouseButton_Left)) editor->selecting = 0;
+    if (count && (click || (editor->selecting && igIsMouseDragging(ImGuiMouseButton_Left, -1))))
+    {
+        mouse = igGetMousePos();
+        editor->mouse_offset = closest_stop(stops, count, (mouse.x - canvas->x) / sx,
+                                            (mouse.y - canvas->y) / sy + scroll);
+        if (click)
+        {
+            editor->mouse_anchor = igGetIO_Nil()->KeyShift ? editor->selection_start : editor->mouse_offset;
+            editor->selecting = 1;
+        }
+    }
     font = SDL_clamp(editor->value.font_size * sy, 8.0f, 72.0f);
     igPushFont(NULL, font);
-    igPushStyleVar_Vec2(ImGuiStyleVar_FramePadding, dialog_vec(SDL_min(text.w / 4, 9 * sx), 1));
-    igPushStyleColor_Vec4(ImGuiCol_FrameBg, colour(editor->value.paper, editor->value.transparent ? 0 : 1));
-    igPushStyleColor_Vec4(ImGuiCol_Text, colour(editor->value.ink, 1));
+    igPushStyleVar_Vec2(ImGuiStyleVar_FramePadding,
+                        dialog_vec(SDL_min(text.w / 4, (MM_CAPTION_INDENT - MM_CAPTION_BORDER) * sx), 0));
+    vars = 1;
+    if (count)
+    {
+        igPushStyleVar_Float(ImGuiStyleVar_ScrollbarSize, 0);
+        ++vars;
+        igPushStyleColor_U32(ImGuiCol_FrameBg, 0);
+        igPushStyleColor_U32(ImGuiCol_Text, 0);
+        igPushStyleColor_U32(ImGuiCol_InputTextCursor, 0);
+        igPushStyleColor_U32(ImGuiCol_TextSelectedBg, 0);
+        styles = 4;
+    }
+    else
+    {
+        igPushStyleColor_Vec4(ImGuiCol_FrameBg, colour(editor->value.paper, editor->value.transparent ? 0 : 1));
+        igPushStyleColor_Vec4(ImGuiCol_Text, colour(editor->value.ink, 1));
+        styles = 2;
+    }
     igSetCursorScreenPos(dialog_vec(text.x, text.y));
     if (editor->focus_text)
     {
         igSetKeyboardFocusHere(0);
         editor->focus_text = 0;
     }
-    igInputTextMultiline("##words", editor->text, sizeof(editor->text), dialog_vec(text.w, text.h),
-                         ImGuiInputTextFlags_WordWrap, NULL, NULL);
-    igPopStyleColor(2);
-    igPopStyleVar(1);
+    if (igInputTextMultiline("##words", editor->text, sizeof(editor->text), dialog_vec(text.w, text.h),
+                             ImGuiInputTextFlags_WordWrap | ImGuiInputTextFlags_CallbackAlways, edit_cursor, editor))
+        editor->draft_dirty = 1;
+    editor->text_active = igIsItemActive();
+    if (count && editor->text_active)
+        draw_selection(editor, canvas, &text, stops, count, scroll);
+    igPopStyleColor(styles);
+    igPopStyleVar(vars);
     igPopFont();
     igPopID();
 }
@@ -352,7 +486,7 @@ static int draw_canvas(MarcusCaptionEditor *editor, MarcusPlayer *player, const 
                 ImDrawList_AddRect(igGetWindowDrawList(), dialog_vec(box.x, box.y),
                                    dialog_vec(box.x + box.w, box.y + box.h), outline, 0, 0, 1);
             }
-        draw_box(editor, &canvas);
+        draw_box(editor, player, &canvas);
         if (igIsWindowHovered(0) && !igIsAnyItemHovered() && !editor->drag_kind &&
             igIsMouseClicked_Bool(ImGuiMouseButton_Left, 0))
         {
@@ -394,6 +528,7 @@ static int draw_inspector(MarcusCaptionEditor *editor, const SDL_FRect *area)
         }
         igEndChild();
         if (editor->error[0]) igTextWrapped("%s", editor->error);
+        else if (editor->preview_error[0]) igTextWrapped("%s", editor->preview_error);
         else igTextDisabled("Type in the box on the canvas.");
         if (igButton("Done", dialog_vec(66, 0))) editor->finish = FINISH_APPLY;
         igSameLine(0, 10);
@@ -410,10 +545,22 @@ static int draw_inspector(MarcusCaptionEditor *editor, const SDL_FRect *area)
 int caption_editor_draw(MarcusCaptionEditor *editor, MarcusPlayer *player, const SDL_FRect *view,
                         const MarcusImage *image, const SDL_FRect *inspector)
 {
-    int selection, clicked;
+    MarcusCaptionOptions before;
+    int selection, clicked, redraw;
+    SDL_memcpy(&before, &editor->value, sizeof(before));
     selection = draw_inspector(editor, inspector);
     clicked = draw_canvas(editor, player, view, image);
     if (editor->finish) return finish_caption(editor, player);
     if (clicked != KEEP_BOX) selection = clicked;
-    return selection != KEEP_BOX ? switch_caption(editor, player, selection) : 0;
+    if (selection != KEEP_BOX && selection != editor->selected)
+        return switch_caption(editor, player, selection);
+    redraw = 0;
+    if (editor->draft_dirty || SDL_memcmp(&before, &editor->value, sizeof(before)))
+    {
+        update_draft(editor, player);
+        redraw = CAPTION_REDRAW;
+    }
+    if (marcus_caption_caret(player, editor->text_active ? editor->caret : -1))
+        redraw = CAPTION_REDRAW;
+    return redraw;
 }

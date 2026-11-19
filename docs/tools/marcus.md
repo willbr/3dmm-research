@@ -388,8 +388,9 @@ Undo removes one paste. Focused text fields use normal text copy and paste.
 
 **Words > New 2D text** places an editable box in the movie camera. Type
 directly in the box, drag the top border to move it, and drag the handles to
-resize it. A new box starts at the playhead and stays visible through the end
-of the scene by default. The side panel has font, alignment, colour,
+resize it. The live draft uses the movie renderer for fonts, colours,
+alignment and wrapping. A new box starts at the playhead and stays visible
+through the end of the scene by default. The side panel has font, alignment, colour,
 scrolling and frame-range settings, plus exact position and size in 544×306
 movie coordinates. The last frame is inclusive.
 

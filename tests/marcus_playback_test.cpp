@@ -492,8 +492,29 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
     value.first_frame = 2; value.last_frame = 3; value.through_end = 0;
     value.font_size = 18; value.bold = 1; value.italic = 1; value.alignment = 1;
     value.transparent = 0; value.paper = 0x112233; value.ink = 0xfedcba;
-    const char *words = u8"New text\nUnicode \u03a9";
+    const char *words = u8"New text\nUnicode \u03a9 and a line long enough to wrap";
+    const auto captionPixels = [&] {
+        MarcusImage image;
+        CHECK(marcus_render(player, 544, 306, 1, 0, 0, 1, &image));
+        return std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height);
+    };
+    CHECK(marcus_seek(player, 1));
+    const auto clean = captionPixels();
+    const auto document = marcus_document(player);
+    CHECK(marcus_caption_draft(player, list.get(), -1, &value, words));
+    int stopCount, scroll;
+    const auto stops = marcus_caption_positions(player, &stopCount, &scroll);
+    CHECK(stops && stopCount > 1 && scroll == 0 && stops[0].offset == 0 && stops[0].x > value.x + 14);
+    CHECK(stops[stopCount - 1].offset == static_cast<int>(std::strlen(words)));
+    CHECK(marcus_caption_caret(player, stops[stopCount - 1].offset));
+    marcus_caption_positions(player, &stopCount, &scroll);
+    CHECK(scroll > 0 && marcus_caption_caret(player, -1));
+    const auto draft = captionPixels();
+    CHECK(draft != clean && marcus_document(player) == document);
+    marcus_caption_preview(player, nullptr, -1);
+    CHECK(captionPixels() == clean);
     CHECK(marcus_edit_caption(player, list.get(), -1, &value, words));
+    CHECK(captionPixels() == draft);
     CHECK(!marcus_edit_caption(player, list.get(), -1, &value, words)); // Snapshot of prior document.
     list = readCaptions();
     CHECK(marcus_caption_count(list.get()) == 4);
@@ -515,7 +536,11 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
     value.x = 285;
     value.scrolling = 1;
     const char *edited = u8"Edited\nUnicode \u03a9";
+    CHECK(marcus_seek(player, 1));
+    CHECK(marcus_caption_draft(player, list.get(), 3, &value, edited));
+    const auto editedDraft = captionPixels();
     CHECK(marcus_edit_caption(player, list.get(), 3, &value, edited));
+    CHECK(captionPixels() == editedDraft);
     CHECK(marcus_undo(player));
     list = readCaptions();
     savedWords = marcus_caption(list.get(), 3, &observed);

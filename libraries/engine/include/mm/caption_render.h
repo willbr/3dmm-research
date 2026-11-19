@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-enum { MM_CAPTION_WIDTH = 544, MM_CAPTION_HEIGHT = 306 };
+enum { MM_CAPTION_WIDTH = 544, MM_CAPTION_HEIGHT = 306, MM_CAPTION_BORDER = 5, MM_CAPTION_INDENT = 14 };
 
 /* The stack uses one-based row indices. Zero marks a missing neighbour.
  * Observe all authored rows at each seek or frame entry. Newly visible rows

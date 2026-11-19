@@ -161,7 +161,7 @@ struct MarcusPlayer
     char error[1024] = {};
     MMI32 selected = -1;
     unsigned long document = 0;
-    struct CaptionPreview { unsigned long document; int scene; std::uint32_t chunk; };
+    struct CaptionPreview { unsigned long document; int scene; std::optional<std::uint32_t> chunk; };
     std::optional<CaptionPreview> captionPreview;
     std::shared_ptr<MarcusMovieFile> timingInput;
     std::string timingResources, timingContent;
@@ -680,9 +680,10 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     }
     else if (!player->preview.Render(options, player->image, error)) return false;
     const auto &caption = player->captionPreview;
-    const auto hide = caption && caption->document == player->document && caption->scene == player->selected
-        ? &caption->chunk : nullptr;
-    if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error, hide))
+    const bool editing = caption && caption->document == player->document && caption->scene == player->selected;
+    const auto hide = editing && caption->chunk ? &*caption->chunk : nullptr;
+    if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error,
+                                    hide, editing))
         return false;
     if (scale > 1)
     {
@@ -1896,17 +1897,52 @@ extern "C"
     void marcus_caption_preview(MarcusPlayer *player, const MarcusCaptionList *list, int index)
     {
         if (!player) return;
+        player->playback.ClearCaptionDraft();
         player->captionPreview.reset();
         if (CurrentCaptions(player, list) && index >= 0 && index < marcus_caption_count(list))
             player->captionPreview = MarcusPlayer::CaptionPreview{player->document, player->selected, list->entries[index].chunk};
+    }
+    int marcus_caption_draft(MarcusPlayer *player, const MarcusCaptionList *list, int index,
+                             const MarcusCaptionOptions *options, const char *text)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (!CurrentCaptions(player, list) || index < -1 || index >= marcus_caption_count(list) ||
+                !options || !std::memchr(options->font, 0, sizeof(options->font)) || !text)
+            {
+                error.message = "Choose a valid 2D text box.";
+                return false;
+            }
+            const auto movie = MaterializedMovie(*player);
+            const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
+            if (!player->playback.CaptionDraft(MarcusDraftCaption(path, *list, index, *options, text), error))
+                return false;
+            MarcusPlayer::CaptionPreview preview{player->document, player->selected, {}};
+            if (index >= 0)
+                preview.chunk = list->entries[index].chunk;
+            player->captionPreview = preview;
+            return true;
+        });
+    }
+    const MarcusCaptionStop *marcus_caption_positions(const MarcusPlayer *player, int *count, int *scroll)
+    {
+        *count = *scroll = 0;
+        if (!player)
+            return nullptr;
+        const auto &stops = player->playback.CaptionPositions(*scroll);
+        *count = static_cast<int>(stops.size());
+        return stops.data();
+    }
+    int marcus_caption_caret(MarcusPlayer *player, int offset)
+    {
+        return player && player->playback.CaptionCaret(offset);
     }
     int marcus_caption_at(const MarcusPlayer *player, const MarcusCaptionList *list, int x, int y)
     {
         if (!CurrentCaptions(player, list)) return -1;
         std::uint32_t chunk;
         const auto &caption = player->captionPreview;
-        const auto hide = caption && caption->document == player->document && caption->scene == player->selected
-            ? &caption->chunk : nullptr;
+        const auto hide = caption && caption->document == player->document && caption->scene == player->selected &&
+            caption->chunk ? &*caption->chunk : nullptr;
         if (player->playback.CaptionAt(x, y, chunk, hide))
             for (std::size_t i = 0; i < list->entries.size(); ++i)
                 if (list->entries[i].chunk == chunk) return static_cast<int>(i);

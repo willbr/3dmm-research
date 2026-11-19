@@ -335,6 +335,7 @@ struct CaptionImage
 {
     PreviewCaption data;
     std::vector<Glyph> glyphs;
+    std::vector<MarcusCaptionStop> stops;
     int height = 0;
     bool ready = false;
     std::size_t maskBytes = 0;
@@ -364,6 +365,8 @@ struct MarcusPlayback::Impl
 {
     PreviewPresentation scene;
     std::vector<CaptionImage> captions;
+    std::unique_ptr<CaptionImage> draft;
+    int draftScroll = 0;
     std::vector<MMCaptionRow> captionRows;
     MMCaptionStack captionStack{};
     void ObserveCaptions(std::int32_t frame)
@@ -507,7 +510,7 @@ struct MarcusPlayback::Impl
         rasterBytes += bytes;
         return &captionRasters.emplace(key, std::move(raster)).first->second;
     }
-    bool Layout(CaptionImage &caption, Error &error)
+    bool Layout(CaptionImage &caption, Error &error, bool editing = false)
     {
         if (caption.ready)
             return true;
@@ -519,16 +522,40 @@ struct MarcusPlayback::Impl
             data.bottom - std::int64_t(data.top) > 4096 || data.text.size() > 65536)
             return Fail(error, "Caption bounds or text exceed the playback layout limits.");
 
+        // Match the editor's UTF-8 buffer, which normalizes paragraph breaks to LF.
+        std::vector<int> offsets;
+        if (editing)
+        {
+            offsets.resize(data.text.size() + 1, -1);
+            int offset = 0;
+            for (std::size_t i = 0; i < data.text.size(); ++i)
+            {
+                offsets[i] = offset;
+                const auto unit = data.text[i];
+                if (unit == '\r' && i + 1 < data.text.size() && data.text[i + 1] == '\n')
+                    ++i;
+                if (unit >= 0xd800 && unit <= 0xdbff && i + 1 < data.text.size() &&
+                    data.text[i + 1] >= 0xdc00 && data.text[i + 1] <= 0xdfff)
+                {
+                    ++i;
+                    offset += 4;
+                }
+                else
+                    offset += unit < 0x80 ? 1 : unit < 0x800 ? 2 : 3;
+            }
+            offsets.back() = offset;
+        }
         struct Context
         {
             Impl &owner;
             CaptionImage &caption;
             Error &error;
+            const std::vector<int> &offsets;
             KauaiFonts::Face *face = nullptr;
             std::exception_ptr failure;
-        } context{*this, caption, error, nullptr, {}};
+        } context{*this, caption, error, offsets, nullptr, {}};
         const MMCaptionLayoutInput input{
-            data.text.data(), static_cast<MMI32>(data.text.size()), std::max(1, data.right - data.left - 28),
+            data.text.data(), static_cast<MMI32>(data.text.size()), std::max(1, data.right - data.left - 2 * MM_CAPTION_INDENT),
             data.fontSize, {data.font.data(), data.font.size()}, data.properties.size()};
         const MMCaptionLayoutServices services{
             &context,
@@ -594,7 +621,43 @@ struct MarcusPlayback::Impl
                     return 0;
                 }
                 catch (...) { ctx.failure = std::current_exception(); return MM_CAPTION_LAYOUT_FAILED; }
-            }};
+            },
+            editing ? +[](void *p, const MMCaptionLayoutRun *run) -> int {
+                auto &ctx = *static_cast<Context *>(p);
+                try
+                {
+                    auto &stops = ctx.caption.stops;
+                    const auto &box = ctx.caption.data;
+                    const auto limit = std::min(run->end, static_cast<MMI32>(box.text.size()));
+                    const float y = float(box.top) + MM_CAPTION_BORDER + run->top;
+                    for (auto i = run->first; i <= limit; ++i)
+                    {
+                        const int offset = ctx.offsets[i];
+                        if (offset < 0)
+                            continue;
+                        MMI32 x = run->x;
+                        const auto drawn = i - run->first;
+                        if (drawn && drawn < run->drawn)
+                        {
+                            KauaiFonts::Metrics metrics;
+                            if (!ctx.face->Measure({run->text, static_cast<std::size_t>(drawn),
+                                                   KauaiFonts::Encoding::utf16}, metrics))
+                                throw std::runtime_error("Cannot measure a movie caption caret.");
+                            x += metrics.advance;
+                        }
+                        else if (drawn)
+                            x = run->right;
+                        const MarcusCaptionStop stop{offset, float(box.left) + MM_CAPTION_INDENT + x,
+                                                     y, float(run->height)};
+                        if (!stops.empty() && stops.back().offset == offset && stops.back().y == y)
+                            stops.back() = stop;
+                        else
+                            stops.push_back(stop);
+                    }
+                    return 0;
+                }
+                catch (...) { ctx.failure = std::current_exception(); return MM_CAPTION_LAYOUT_FAILED; }
+            } : nullptr};
         const int status = mm_caption_layout(&input, &services, &caption.height);
         if (context.failure)
             std::rethrow_exception(context.failure);
@@ -662,6 +725,7 @@ bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserv
     impl->captions.clear();
     impl->captionRows.clear();
     impl->captionStack = {};
+    ClearCaptionDraft();
     impl->captionBytes = 0;
     impl->captionRasters.clear();
     impl->rasterBytes = 0;
@@ -918,11 +982,74 @@ bool MarcusPlayback::CaptionAt(int x, int y, std::uint32_t &chunk, const std::ui
     return false;
 }
 
+void MarcusPlayback::ClearCaptionDraft()
+{
+    if (impl->draft)
+        impl->captionBytes -= impl->draft->maskBytes;
+    impl->draft.reset();
+    impl->draftScroll = 0;
+}
+
+bool MarcusPlayback::CaptionDraft(PreviewCaption data, Error &error)
+{
+    const auto scroll = impl->draftScroll;
+    ClearCaptionDraft();
+    impl->draft = std::make_unique<CaptionImage>();
+    impl->draft->data = std::move(data);
+    try
+    {
+        if (impl->Layout(*impl->draft, error, true))
+        {
+            const auto &box = impl->draft->data;
+            impl->draftScroll = std::min(scroll, mm_caption_scroll_overflow(impl->draft->height, box.top, box.bottom));
+            return true;
+        }
+    }
+    catch (...)
+    {
+        ClearCaptionDraft();
+        throw;
+    }
+    ClearCaptionDraft();
+    return false;
+}
+
+const std::vector<MarcusCaptionStop> &MarcusPlayback::CaptionPositions(int &scroll) const
+{
+    static const std::vector<MarcusCaptionStop> empty;
+    scroll = impl->draftScroll;
+    return impl->draft ? impl->draft->stops : empty;
+}
+
+bool MarcusPlayback::CaptionCaret(int offset)
+{
+    if (!impl->draft)
+        return false;
+    const auto &draft = *impl->draft;
+    const auto &box = draft.data;
+    const auto before = impl->draftScroll;
+    auto scroll = before;
+    const auto caret = std::find_if(draft.stops.rbegin(), draft.stops.rend(),
+                                    [offset](const auto &stop) { return stop.offset == offset; });
+    if (offset < 0)
+        scroll = 0;
+    else if (caret != draft.stops.rend())
+    {
+        const auto top = caret->y - float(box.top) - MM_CAPTION_BORDER;
+        const auto bottom = top + caret->height - (box.bottom - box.top - 2 * MM_CAPTION_BORDER);
+        scroll = std::min(std::max(scroll, static_cast<int>(bottom)), static_cast<int>(top));
+        scroll = std::clamp(scroll, 0, mm_caption_scroll_overflow(draft.height, box.top, box.bottom));
+    }
+    impl->draftScroll = scroll;
+    return before != scroll;
+}
+
 bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image,
-                               MM::Error &error, const std::uint32_t *hiddenCaption)
+                               MM::Error &error, const std::uint32_t *hiddenCaption, bool editDraft)
 {
     impl->ObserveCaptions(preview.Info().currentFrame);
-    if (!impl->captionStack.first || (!authored && !image.sceneCamera.valid))
+    auto *draft = editDraft ? impl->draft.get() : nullptr;
+    if ((!impl->captionStack.first && !draft) || (!authored && !image.sceneCamera.valid))
         return true;
     static_assert(PreviewCaptionWidth == MM_CAPTION_WIDTH && PreviewCaptionHeight == MM_CAPTION_HEIGHT,
                   "Caption workspace dimensions must agree.");
@@ -942,15 +1069,11 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
     MMCaptionCanvas canvas;
     if (!mm_caption_canvas(&canvas, surface->rgba.data(), surface->rgba.size(), surface->width, surface->height, aspect))
         return true;
-    for (auto row = impl->captionStack.first; row; row = impl->captionRows[row - 1].next)
-    {
-        auto &caption = impl->captions[row - 1];
+    const auto draw = [&](CaptionImage &caption, int scroll) {
         const auto &data = caption.data;
-        if (hiddenCaption && data.chunk == *hiddenCaption)
-            continue;
         const MMTextBoxBounds box = {data.left, data.top, data.right, data.bottom};
         if (!mm_caption_box_visible(&box))
-            continue;
+            return true;
         if (!impl->Layout(caption, error))
             return false;
         mm_caption_box(&canvas, &box, preview.PresentationColour(data.background));
@@ -966,9 +1089,24 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
                 mask.background.empty() ? nullptr : mask.background.data(), glyph.x, glyph.y,
                 glyph.ascent, raster ? raster->ascent : 0, raster ? raster->density : 1.f, raster != nullptr,
                 preview.PresentationColour(glyph.style.fore), preview.PresentationColour(glyph.style.back)};
-            mm_caption_glyph(&canvas, &box, impl->captionRows[row - 1].scroll, &run);
+            mm_caption_glyph(&canvas, &box, scroll, &run);
         }
+        return true;
+    };
+    for (auto row = impl->captionStack.first; row; row = impl->captionRows[row - 1].next)
+    {
+        auto &caption = impl->captions[row - 1];
+        if (hiddenCaption && caption.data.chunk == *hiddenCaption)
+        {
+            if (draft && !draw(*draft, impl->draftScroll))
+                return false;
+            draft = nullptr;
+        }
+        else if (!draw(caption, impl->captionRows[row - 1].scroll))
+            return false;
     }
+    if (draft && !draw(*draft, impl->draftScroll))
+        return false;
     if (!authored)
         marcus_caption_quad(layer, image.sceneCamera, image);
     return true;

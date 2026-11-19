@@ -159,6 +159,7 @@ static int emit_line(CaptionLayout *c, const MMRichTextProvider *provider, MMI32
 {
     MMRichTextParagraph paragraph;
     MMRichTextRun run;
+    MMCaptionLayoutRun positions;
     MMI32 limit = cp + c->line.ccp, style_limit = cp, x = 0;
     MMI32 width = c->input->width;
     int status;
@@ -178,6 +179,20 @@ static int emit_line(CaptionLayout *c, const MMRichTextProvider *provider, MMI32
         status = mm_rich_text_run_next(&run, 1);
         if (status < 0)
             return status;
+        if (c->services->position)
+        {
+            positions.text = provider->characters;
+            positions.first = run.cpMin;
+            positions.drawn = run.data.cpLimDraw - run.cpMin;
+            positions.end = run.data.cpLim;
+            positions.x = c->line.xpLeft + run.xpMin;
+            positions.right = c->line.xpLeft + run.data.xpLim;
+            positions.top = y;
+            positions.height = c->line.dyp;
+            status = c->services->position(c->services->context, &positions);
+            if (status < 0)
+                return status;
+        }
         if (run.data.cpLimDraw > cp)
         {
             status = c->services->emit(c->services->context, &c->style, provider->characters,

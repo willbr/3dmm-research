@@ -1,5 +1,6 @@
 #include "caption_edit.h"
 #include "scene_edit.h"
+#include "mm/native_caption.h"
 #include "mm/preview.h"
 #include "mm/text_properties.h"
 #include "platform_text.h"
@@ -282,7 +283,7 @@ void UpdateBox(TextBoxData &box, const MarcusCaptionList &list, const MarcusCapt
     box.state.end = value.through_end ? knfrmInvalid : CheckedInt(last + 1);
 }
 bool UpdateRich(RichTextData &rich, const MarcusCaptionOptions &value, const MarcusCaptionOptions *before,
-                const char *text, bool wordsChanged)
+                const char *text, bool wordsChanged, std::u16string *draft = nullptr)
 {
     if (!before)
     {
@@ -325,7 +326,7 @@ bool UpdateRich(RichTextData &rich, const MarcusCaptionOptions &value, const Mar
     if (!wordsChanged && format.empty()) return changed;
     const auto oldText = before ? ReadText(rich) : std::u16string{};
     Utf8 utf8;
-    const auto newText = wordsChanged ? Paragraphs(utf8.from_bytes(text), u'\r') : oldText;
+    auto newText = wordsChanged ? Paragraphs(utf8.from_bytes(text), u'\r') : oldText;
     Require(!wordsChanged || (utf8.converted() == std::strlen(text) && newText.size() <= MaxText),
             "Enter valid UTF-8 within the 2D text length limit.");
     PropertyMap map{rich, newText};
@@ -356,12 +357,13 @@ bool UpdateRich(RichTextData &rich, const MarcusCaptionOptions &value, const Mar
             Require(mm_text_properties_apply_changes(0, inserted, characters, inherited.data(),
                         static_cast<MMI32>(inherited.size()), &services) > 0 && !map.diagnosed,
                     "Cannot retain the first characters' formatting.");
-        WriteText(rich, newText);
+        if (!draft) WriteText(rich, newText);
     }
     if (!format.empty())
         Require(mm_text_properties_apply_changes(0, characters, characters, format.data(),
                                                  static_cast<MMI32>(format.size()), &services) > 0 && !map.diagnosed,
                 "Cannot apply the 2D text formatting.");
+    if (draft && wordsChanged) *draft = std::move(newText);
     return true;
 }
 }
@@ -417,6 +419,31 @@ void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &pr
         }
         list.entries.push_back(std::move(entry));
     }
+}
+
+MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
+                                     const MarcusCaptionOptions &options, const char *text)
+{
+    const auto *entry = index < 0 ? nullptr : &list.entries.at(index);
+    const bool wordsChanged = !entry || entry->text != text;
+    TextBoxData box;
+    RichTextData rich;
+    // Borrow the authored stream while applying the same changes as Save.
+    Owned<ChunkyFile> file;
+    if (entry)
+    {
+        file = Open(path, false);
+        ChunkIdentification body;
+        Require(box.FRead(file.get(), entry->chunk, &body) && rich.FRead(file.get(), body.ctg, body.cno),
+                "Cannot read the authored text box.");
+    }
+    UpdateBox(box, list, options, entry ? &entry->options : nullptr);
+    std::u16string words;
+    UpdateRich(rich, options, entry ? &entry->options : nullptr, text, wordsChanged, &words);
+    MM::PreviewCaption preview;
+    Require(MM::ReadCaptionData(box, rich, wordsChanged ? &words : nullptr, preview),
+            "Cannot prepare the 2D text preview.");
+    return preview;
 }
 
 std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path &path,

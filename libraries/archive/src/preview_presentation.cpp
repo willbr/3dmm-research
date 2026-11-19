@@ -3,6 +3,7 @@
 #include <locale>
 #include <cstring>
 #include "preview_presentation.h"
+#include "mm/native_caption.h"
 #include "mm/preview_media.h"
 #include "platform_text.h"
 #undef size
@@ -27,13 +28,14 @@ std::string FontName(String &name)
 #include "preview_media_host.h"
 bool Caption(PChunkyFile file, ChunkNumber number, PreviewCaption &out)
 {
-    CaptionHost host = {file, &out};
-    auto services = host.Services();
-    const int result = mm_preview_caption(number, &services);
-    if (host.exception) std::rethrow_exception(host.exception);
-    if (result == -1) throw std::bad_alloc();
-    if (result > 0) out.chunk = number;
-    return result > 0;
+    TextBoxData box;
+    ChunkIdentification child;
+    RichTextData text;
+    if (!box.FRead(file, number, &child) || !text.FRead(file, child.ctg, child.cno) ||
+        !ReadCaptionData(box, text, nullptr, out))
+        return false;
+    out.chunk = number;
+    return true;
 }
 
 } // namespace
@@ -55,4 +57,14 @@ bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, Previe
     return result > 0;
 }
 } // namespace Internal
+
+bool ReadCaptionData(const TextBoxData &box, RichTextData &text, const std::u16string *words, PreviewCaption &out)
+{
+    Internal::CaptionHost host{box, text, words, out};
+    auto services = host.Services();
+    const int result = mm_preview_caption(0, &services);
+    if (host.exception) std::rethrow_exception(host.exception);
+    if (result == -1) throw std::bad_alloc();
+    return result > 0;
+}
 } // namespace MM

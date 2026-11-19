@@ -337,6 +337,15 @@ extern "C"
      * index clears the preview. Hit tests use native movie coordinates. */
     void marcus_caption_preview(MarcusPlayer *player, const MarcusCaptionList *list, int index);
     int marcus_caption_at(const MarcusPlayer *player, const MarcusCaptionList *list, int x, int y);
+    int marcus_caption_draft(MarcusPlayer *player, const MarcusCaptionList *list, int index,
+                             const MarcusCaptionOptions *options, const char *text);
+    typedef struct MarcusCaptionStop
+    {
+        int offset; /* UTF-8 byte offset in the editor. */
+        float x, y, height;
+    } MarcusCaptionStop;
+    const MarcusCaptionStop *marcus_caption_positions(const MarcusPlayer *player, int *count, int *scroll);
+    int marcus_caption_caret(MarcusPlayer *player, int offset);
     int marcus_material_count(MarcusPlayer *player, const char *content_directory);
     int marcus_material(const MarcusPlayer *player, int index, MarcusProp *material);
     int marcus_text_material_preset(MarcusPlayer *player, unsigned long chunk, MarcusTextMaterial *material);

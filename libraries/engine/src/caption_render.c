@@ -115,10 +115,10 @@ static MMI32 pixel_coordinate(MMI32 origin, float value, float scale)
 static MMPixelRect inset(const MMCaptionCanvas *canvas, const MMTextBoxBounds *box)
 {
     MMPixelRect clip;
-    clip.left = pixel_coordinate(canvas->clip.left, (float)((double)box->left + 5), canvas->scale_x);
-    clip.top = pixel_coordinate(canvas->clip.top, (float)((double)box->top + 5), canvas->scale_y);
-    clip.right = pixel_coordinate(canvas->clip.left, (float)((double)box->right - 5), canvas->scale_x);
-    clip.bottom = pixel_coordinate(canvas->clip.top, (float)((double)box->bottom - 5), canvas->scale_y);
+    clip.left = pixel_coordinate(canvas->clip.left, (float)((double)box->left + MM_CAPTION_BORDER), canvas->scale_x);
+    clip.top = pixel_coordinate(canvas->clip.top, (float)((double)box->top + MM_CAPTION_BORDER), canvas->scale_y);
+    clip.right = pixel_coordinate(canvas->clip.left, (float)((double)box->right - MM_CAPTION_BORDER), canvas->scale_x);
+    clip.bottom = pixel_coordinate(canvas->clip.top, (float)((double)box->bottom - MM_CAPTION_BORDER), canvas->scale_y);
     clip.left = max_value(clip.left, canvas->clip.left);
     clip.top = max_value(clip.top, canvas->clip.top);
     clip.right = min_value(clip.right, canvas->clip.right);
@@ -196,8 +196,8 @@ void mm_caption_glyph(MMCaptionCanvas *canvas, const MMTextBoxBounds *box, MMI32
     if (!glyph->ink || mask->width <= 0 || mask->height <= 0 || mask->pitch < mask->width ||
         !(density > 0 && density <= FLT_MAX))
         return;
-    gx = glyph->x + mask->left / density + 14;
-    gy = glyph->y + mask->top / density - scroll + 5 +
+    gx = glyph->x + mask->left / density + MM_CAPTION_INDENT;
+    gy = glyph->y + mask->top / density - scroll + MM_CAPTION_BORDER +
          (glyph->supersampled ? glyph->ascent - glyph->raster_ascent / (density * 2) : 0);
     start_x = pixel_coordinate(canvas->clip.left, box->left + gx, canvas->scale_x);
     start_y = pixel_coordinate(canvas->clip.top, box->top + gy, canvas->scale_y);
