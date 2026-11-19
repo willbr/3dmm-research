@@ -46,6 +46,18 @@ int main(int argc, char **argv)
             actorObject.visible && !actorObject.prop && !actorObject.text, "Insert and select actor");
         require(marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image) &&
             std::memcmp(empty.data(), image.rgba, empty.size()) != 0, "Inserted actor is visible in the shot");
+        using Clipboard = std::unique_ptr<MarcusObjectClipboard, decltype(&marcus_object_clipboard_destroy)>;
+        const auto copyRevision = marcus_document(player.get());
+        Clipboard actorCopy(marcus_copy_object(player.get(), actorIndex), marcus_object_clipboard_destroy);
+        require(actorCopy && marcus_document(player.get()) == copyRevision, "Copy actor without editing the movie");
+        const int duplicate = marcus_paste_object(player.get(), actorCopy.get());
+        MarcusObject pasted = {};
+        require(duplicate >= 0 && marcus_object(player.get(), duplicate, &pasted) && pasted.visible &&
+            pasted.actor_id != actorObject.actor_id && pasted.template_chunk == actorObject.template_chunk &&
+            pasted.x == actorObject.x && pasted.y == actorObject.y && pasted.z == actorObject.z,
+            "Paste an independent actor with the same placement and template");
+        require(marcus_undo(player.get()) && marcus_info(player.get(), &after) && after.object_count == 1,
+            "Undo removes only the pasted actor");
         require(marcus_add_frame(player.get(), 1), "Append second frame");
         const char *words = "Caf\xc3\xa9";
         const int textIndex = marcus_add_text(player.get(), words, font.chunk, 0);
@@ -209,6 +221,23 @@ int main(int argc, char **argv)
         require(marcus_text(player.get(), editIndex, &settings) && appearanceMatches(settings.appearance) &&
             marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image) && materialPixels ==
             std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height), "Native material round trip preserves properties and exact pixels");
+        Clipboard textCopy(marcus_copy_object(player.get(), editIndex), marcus_object_clipboard_destroy);
+        require(bool(textCopy), "Copy textured 3D text");
+        player.reset(marcus_create());
+        require(marcus_add_scene(player.get(), 11, argv[1], argv[2]), "Open a new destination movie");
+        const int pastedText = marcus_paste_object(player.get(), textCopy.get());
+        MarcusText pastedSettings = {};
+        require(pastedText >= 0 && marcus_object(player.get(), pastedText, &pasted) && pasted.visible && pasted.first_frame == 1 &&
+            marcus_text(player.get(), pastedText, &pastedSettings) && std::string(pastedSettings.text) == "Edited" &&
+            pastedSettings.font == otherFont.chunk && appearanceMatches(pastedSettings.appearance),
+            "Paste rebases the entrance and keeps the embedded text, font and material");
+        const auto clipboardPath = (std::filesystem::u8path(argv[3]).parent_path() / "clipboard-text.3mm").u8string();
+        require(marcus_save_copy(player.get(), clipboardPath.c_str()) &&
+            marcus_open(player.get(), clipboardPath.c_str(), argv[1], argv[2]) &&
+            marcus_text(player.get(), 0, &pastedSettings) && appearanceMatches(pastedSettings.appearance),
+            "Pasted text preserves its material after native save and reopen");
+        require(marcus_open(player.get(), materialPath.c_str(), argv[1], argv[2]) && marcus_seek(player.get(), 2),
+            "Return to the source movie after paste");
         const auto previewDocument = marcus_document(player.get());
         auto previewFile = MarcusPrepareTextPreview(player.get(), editIndex, settings);
         require(bool(previewFile) && marcus_document(player.get()) == previewDocument, "Prepare preview without changing the movie");

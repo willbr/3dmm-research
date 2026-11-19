@@ -18,6 +18,8 @@ static const RibbonTool scene_tools[] = {
     {RIBBON_NEXT, 3, "Next", "Go to the next scene", 0xaeb6c0}};
 static const RibbonTool actor_tools[] = {
     {RIBBON_NEW_OBJECT, 11, "Add object", "Choose an actor or prop to add at the current frame", 0xe9bc75},
+    {RIBBON_COPY_OBJECT, 4, "Copy object", "Copy the selected object (Ctrl+C / Cmd+C)", 0x78cbc4},
+    {RIBBON_PASTE_OBJECT, 4, "Paste object", "Paste a new object at the playhead (Ctrl+V / Cmd+V)", 0x78cbc4},
     {RIBBON_OBJECTS, 4, "Objects", "Show object tracks", 0x78cbc4},
     {RIBBON_ACTOR, 4, "Next actor", "Select the next actor in this scene", 0xe9bc75},
     {RIBBON_PROP, 5, "Next prop", "Select the next prop in this scene", 0xb3a4d6},
@@ -40,16 +42,22 @@ static const RibbonTool *tools_for(int tab, int *count)
     *count = sizeof(scene_tools) / sizeof(scene_tools[0]); return scene_tools;
 }
 int ribbon_draw(MarcusUI *ui, int width, int *tab, const char *name, int loaded, int modified, int muted,
-    unsigned long cameras, int show_cameras, int selected_text)
+    unsigned long cameras, int show_cameras, int selected_text, int can_copy, int can_paste)
 {
     static const char *tabs[] = {"Scenes", "Actors & props", "Sounds", "Words"};
     static int displayed_tab = -1;
     const RibbonTool *tools;
     const char *label;
-    int action, index, count, enabled, active, requested, external;
+    int action, index, count, enabled, active, requested, external, modifier;
     action = RIBBON_NONE;
     (void)ui;
     if (ui_panel("Editor ribbon", 0, 0, (float)width, MARCUS_RIBBON_HEIGHT, 0, 0)) {
+        if (!igGetIO_Nil()->WantTextInput && !igIsAnyItemActive() &&
+            !igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel)) {
+            modifier = igGetIO_Nil()->ConfigMacOSXBehaviors ? ImGuiMod_Super : ImGuiMod_Ctrl;
+            if (can_copy && igShortcut_Nil(modifier | ImGuiKey_C, ImGuiInputFlags_RouteGlobal)) action = RIBBON_COPY_OBJECT;
+            if (can_paste && igShortcut_Nil(modifier | ImGuiKey_V, ImGuiInputFlags_RouteGlobal)) action = RIBBON_PASTE_OBJECT;
+        }
         igTextUnformatted("MARCUS", NULL); igSameLine(100, -1);
         igText("%s%s", name, modified ? "  (unsaved)" : "");
         igSameLine((float)width - 448, -1);
@@ -74,7 +82,9 @@ int ribbon_draw(MarcusUI *ui, int width, int *tab, const char *name, int loaded,
         for (index = 0; index < count; ++index) {
             if (index) igSameLine(0, 8);
             enabled = (loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0) &&
-                (tools[index].action != RIBBON_EDIT_TEXT || selected_text)) ||
+                (tools[index].action != RIBBON_EDIT_TEXT || selected_text) &&
+                (tools[index].action != RIBBON_COPY_OBJECT || can_copy) &&
+                (tools[index].action != RIBBON_PASTE_OBJECT || can_paste)) ||
                 tools[index].action == RIBBON_NEW_SCENE || tools[index].action == RIBBON_STORYBOARD;
             active = (tools[index].action == RIBBON_MUTE && muted) ||
                 (tools[index].action == RIBBON_CAMERA_GUIDES && show_cameras);

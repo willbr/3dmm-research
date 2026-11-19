@@ -772,7 +772,7 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
         return true;
     });
 }
-bool OpenSoundBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile> &file, MM::Error &error)
+bool OpenEditedBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile> &file, MM::Error &error)
 {
     KeepHistory history(*player);
     const auto resources = player->timingResources, directory = player->timingContent;
@@ -813,6 +813,42 @@ bool OpenSoundBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile> 
     player->materializedFile.reset(); player->materializedEdits.reset();
     player->materializedPlacements.reset(); player->materializedFrameRanges.reset(); player->movieImageScene = -1;
     return ok;
+}
+bool ReplaceEditedMovie(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile> &file, MM::Error &error,
+                        std::int32_t actorId = -1, int *newObject = nullptr)
+{
+    EditHistory history(*player);
+    const int selected = player->selected;
+    const auto frame = player->preview.Info().currentFrame;
+    auto edits = std::make_shared<MarcusLiveEdits>();
+    edits->storyboards = player->edits->storyboards;
+    edits->revision = player->nextEditRevision++;
+    auto restore = [&] {
+        MM::Error ignored;
+        if (!OpenEditedBase(player, history.before.file, ignored)) return;
+        player->edits = history.before.edits; player->placements = history.before.placements;
+        player->frameRanges = history.before.frameRanges; player->modified = history.before.modified;
+        if (ApplyDefinitions(*player, ignored) && selected >= 0 && marcus_select_scene_keep_view(player, selected))
+            marcus_seek(player, frame);
+    };
+    try
+    {
+        if (!OpenEditedBase(player, file, error)) { restore(); return false; }
+        player->edits = edits;
+        if (!ApplyDefinitions(*player, error) || !marcus_select_scene_keep_view(player, selected) || !marcus_seek(player, frame))
+        { if (error.message.empty()) error.message = player->error; restore(); return false; }
+        if (newObject)
+        {
+            const auto found = std::find_if(player->objects.begin(), player->objects.end(),
+                [actorId](const auto &object) { return object.actorId == actorId; });
+            if (found == player->objects.end())
+            { error.message = "Cannot load the pasted object and its content."; restore(); return false; }
+            *newObject = static_cast<int>(found - player->objects.begin());
+        }
+    }
+    catch (...) { restore(); throw; }
+    history.Commit();
+    return true;
 }
 void ReadSoundAssets(MarcusPlayer *player)
 {
@@ -860,25 +896,7 @@ bool SoundChange(MarcusPlayer *player, int index, const char *path, const Marcus
     const auto library = (std::filesystem::u8path(player->timingContent) / "snds.3cn").u8string();
     auto file = MarcusEditSound(MaterializedMovie(*player), player->scenes[sceneIndex].number, adding ? nullptr : &cue, options, path, remove,
         asset ? library.c_str() : nullptr, asset ? asset->chunk : 0);
-    EditHistory history(*player); const int selected = player->selected; const auto frame = player->preview.Info().currentFrame;
-    auto boards = player->edits->storyboards;
-    auto edits = std::make_shared<MarcusLiveEdits>(); edits->storyboards = boards; edits->revision = player->nextEditRevision++;
-    auto restore = [&] {
-        MM::Error ignored;
-        if (!OpenSoundBase(player, history.before.file, ignored)) return;
-        player->edits = history.before.edits; player->placements = history.before.placements;
-        player->frameRanges = history.before.frameRanges; player->modified = history.before.modified;
-        if (ApplyDefinitions(*player, ignored) && selected >= 0 && marcus_select_scene_keep_view(player, selected)) marcus_seek(player, frame);
-    };
-    try
-    {
-        if (!OpenSoundBase(player, file, error)) { restore(); return false; }
-        player->edits = edits;
-        if (!ApplyDefinitions(*player, error) || !marcus_select_scene_keep_view(player, selected) || !marcus_seek(player, frame))
-        { if (error.message.empty()) error.message = player->error; restore(); return false; }
-    }
-    catch (...) { restore(); throw; }
-    history.Commit(); return true;
+    return ReplaceEditedMovie(player, file, error);
 }
 std::size_t Find(const MM::Archive &archive, MM::Id id)
 {
@@ -1394,7 +1412,7 @@ extern "C"
             if (!CancelPropPreviews(player, error)) return false;
             const bool baseChanged = bool(before.file) != bool(player->timingInput) ||
                 (before.file && player->timingInput && before.file->path != player->timingInput->path);
-            if (baseChanged && !OpenSoundBase(player, before.file, error)) return false;
+            if (baseChanged && !OpenEditedBase(player, before.file, error)) return false;
             const auto previousEdits = player->edits;
             const bool boardsChanged = previousEdits->storyboards != before.edits->storyboards;
             const bool textsChanged = previousEdits->texts != before.edits->texts;
@@ -1479,6 +1497,39 @@ extern "C"
     }
     int marcus_add_prop(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, false); }
     int marcus_add_actor(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, true); }
+    MarcusObjectClipboard *marcus_copy_object(MarcusPlayer *player, int object)
+    {
+        std::unique_ptr<MarcusObjectClipboard> copy;
+        Guard(player, [&](MM::Error &error) {
+            MarcusObject selected;
+            if (player->selected < 0 || !marcus_object(player, object, &selected))
+            { error.message = "Select an object to copy."; return false; }
+            const auto file = MaterializedMovie(*player);
+            const auto &path = file == player->timingInput ? player->content->movie : file->path;
+            copy = MarcusCopyObject(path, player->scenes[player->selected].number, player->preview.Info().currentFrame, selected);
+            return bool(copy);
+        });
+        return copy.release();
+    }
+    void marcus_object_clipboard_destroy(MarcusObjectClipboard *clipboard) { delete clipboard; }
+    int marcus_paste_object(MarcusPlayer *player, const MarcusObjectClipboard *clipboard)
+    {
+        int object = -1;
+        Guard(player, [&](MM::Error &error) {
+            if (!clipboard || player->selected < 0)
+            { error.message = "Copy an object and open a destination scene first."; return false; }
+            if (player->nextActorId > std::numeric_limits<std::int32_t>::max())
+            { error.message = "No object IDs are available."; return false; }
+            if (!CancelPropPreviews(player, error)) return false;
+            const auto movie = MaterializedMovie(*player);
+            const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
+            const auto id = static_cast<std::int32_t>(player->nextActorId);
+            const auto file = MarcusPasteObject(path, movie, *clipboard, player->scenes[player->selected].number,
+                player->preview.Info().currentFrame, id);
+            return ReplaceEditedMovie(player, file, error, id, &object);
+        });
+        return object;
+    }
     int marcus_costume_count(MarcusPlayer *player, int object)
     {
         int count = -1;

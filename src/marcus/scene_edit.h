@@ -14,6 +14,20 @@ struct MarcusSceneRange
     unsigned long scene;
     long first, last;
 };
+struct MarcusObjectClipboard
+{
+    std::shared_ptr<MarcusMovieFile> file;
+    std::vector<MM::MovieSourceEntry> sources;
+    std::uint32_t actor, sounds;
+    long frame;
+    std::string name;
+    int browserFlags;
+};
+std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::path &movie, unsigned long scene,
+    long frame, const MarcusObject &object);
+std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &movie,
+    const std::shared_ptr<MarcusMovieFile> &origin, const MarcusObjectClipboard &clipboard,
+    unsigned long scene, long frame, std::int32_t actorId);
 // Retail text uses Windows ANSI and at most fifty characters.
 std::string MarcusTextAnsi(const char *utf8);
 std::shared_ptr<MarcusMovieFile> MarcusCreateEventFile();

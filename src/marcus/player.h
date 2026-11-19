@@ -263,6 +263,11 @@ extern "C"
     int marcus_actor_count(MarcusPlayer *player, const char *content_directory);
     int marcus_actor(const MarcusPlayer *player, int index, MarcusProp *actor);
     int marcus_add_actor(MarcusPlayer *player, unsigned long chunk);
+    typedef struct MarcusObjectClipboard MarcusObjectClipboard;
+    /* Copy the current object track. Paste returns a new object index or -1. */
+    MarcusObjectClipboard *marcus_copy_object(MarcusPlayer *player, int object);
+    void marcus_object_clipboard_destroy(MarcusObjectClipboard *clipboard);
+    int marcus_paste_object(MarcusPlayer *player, const MarcusObjectClipboard *clipboard);
     typedef struct MarcusCostume
     {
         int body_set, costume, selected, accessory;

@@ -88,6 +88,7 @@ typedef struct App
     SDL_Texture *movie_picture;
     MarcusUI ui;
     MarcusPlayer *player;
+    MarcusObjectClipboard *object_clipboard;
     MarcusBrowser *browser;
     MarcusSceneOrganiser *scene_organiser;
     MarcusBackgroundBrowser *background_browser;
@@ -912,6 +913,30 @@ static void choose_object(App *app)
     if (!background_browser_show_objects(app->background_browser, app->player, app->resources, app->content))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No objects found. Choose your original 3DMM Content folder.");
 }
+static void copy_object(App *app)
+{
+    MarcusObjectClipboard *copy;
+    copy = marcus_copy_object(app->player, app->selected);
+    if (!copy) { fail(app, marcus_error(app->player)); return; }
+    marcus_object_clipboard_destroy(app->object_clipboard);
+    app->object_clipboard = copy;
+}
+static void paste_object(App *app)
+{
+    int object;
+    char title[2200];
+    app->playing = app->continue_click = 0;
+    release_camera(app);
+    object = marcus_paste_object(app->player, app->object_clipboard);
+    if (object < 0) { fail(app, marcus_error(app->player)); return; }
+    refresh(app);
+    app->selected = object;
+    app->selected_sound = app->selected_sound_track = -1;
+    show_object_tracks(app);
+    app->modified = app->dirty = 1;
+    SDL_snprintf(title, sizeof(title), "Marcus - %s (unsaved changes)", app->movie[0] ? app->movie : "Untitled movie");
+    SDL_SetWindowTitle(app->window, title);
+}
 static int selected_text(App *app)
 {
     MarcusObject object;
@@ -1366,6 +1391,8 @@ static void ribbon_action(App *app, int action)
     }
     else if (action == RIBBON_SAVE_COPY) choose_file(app, 4);
     else if (action == RIBBON_NEW_OBJECT) choose_object(app);
+    else if (action == RIBBON_COPY_OBJECT) copy_object(app);
+    else if (action == RIBBON_PASTE_OBJECT) paste_object(app);
     else if (action == RIBBON_NEW_TEXT) choose_text(app);
     else if (action == RIBBON_EDIT_TEXT) edit_text(app);
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
@@ -1913,13 +1940,17 @@ static void handle_event(App *app, const SDL_Event *event)
 static void draw_header(App *app)
 {
     const char *name, *slash;
+    int can_edit;
     name = app->movie[0] ? app->movie : "Untitled movie";
     slash = strrchr(name, '/');
     if (slash) name = slash + 1;
     slash = strrchr(name, '\\');
     if (slash) name = slash + 1;
+    can_edit = app->loaded && !app->flying && !app->settings_open && !app->error[0] &&
+               !storyboard_editor_visible(app->storyboard_editor);
     ribbon_action(app, ribbon_draw(&app->ui, app->width, &app->ribbon_tab, name, app->loaded, app->modified, app->muted,
-                app->info.camera_count, app->shortcuts.show_cameras, selected_text(app)));
+                app->info.camera_count, app->shortcuts.show_cameras, selected_text(app),
+                can_edit && !app->sound_inspector && app->selected >= 0, can_edit && app->object_clipboard != NULL));
 }
 static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *image)
 {
@@ -3783,6 +3814,7 @@ cleanup:
     ui_destroy(&app.ui);
     dialog_retire_texture(app.picture);
     dialog_retire_texture(app.movie_picture);
+    marcus_object_clipboard_destroy(app.object_clipboard);
     marcus_destroy(app.player);
     marcus_input_destroy(app.movie_input);
     marcus_input_destroy(app.zip_input);

@@ -349,6 +349,14 @@ entries are regenerated. A failed preview is marked unavailable and leaves the
 other cards usable. New scene keeps its background
 list and larger selected preview.
 
+Select an actor, prop, or 3D text object and use **Copy object** and **Paste
+object** on **Actors & props**, or Ctrl+C/Ctrl+V (Cmd+C/Cmd+V on macOS). The
+object clipboard follows the open Marcus window across scenes and movies.
+Paste selects a new object and aligns the copied playhead with the destination
+playhead, keeping the track's placement, animation, appearance, and object
+sounds. External content still needs to be available in the destination.
+Undo removes one paste. Focused text fields use normal text copy and paste.
+
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from
 the visual pickers. Each selected font, shape and material has a rendered sample;

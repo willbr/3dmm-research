@@ -159,6 +159,13 @@ int main(int argc, char **argv)
         require(propObject >= 0 && marcus_set_costumes(player.get(), propObject, &propChoice, 1) && selected(propObject, propChoice), "Change prop costume");
         require(marcus_undo(player.get()) && !selected(propObject, propChoice), "Undo prop costume");
         require(marcus_set_costumes(player.get(), propObject, &propChoice, 1), "Reapply prop costume");
+        const std::unique_ptr<MarcusObjectClipboard, decltype(&marcus_object_clipboard_destroy)> propCopy(
+            marcus_copy_object(player.get(), propObject), marcus_object_clipboard_destroy);
+        require(bool(propCopy), "Copy a prop with an edited costume");
+        const int duplicated = marcus_paste_object(player.get(), propCopy.get());
+        require(duplicated >= 0 && selected(duplicated, propChoice) && pixels(duplicated, nullptr) == pixels(propObject, nullptr),
+            "Pasted prop retains its custom costume");
+        require(marcus_undo(player.get()), "Undo the prop paste");
         const auto savedActor = pixels(object, nullptr), savedProp = pixels(propObject, nullptr);
         std::filesystem::create_directories(std::filesystem::u8path(argv[3]).parent_path());
         require(marcus_save_copy(player.get(), argv[3]), "Save native costume events");

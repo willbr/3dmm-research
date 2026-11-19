@@ -236,9 +236,28 @@ int main(int argc, char **argv)
             check(marcus_undo(p.get()), "Undo actor sound edit"); ++edited;
         }
         check(edited >= 2, "Both ordinary and motion actor sound bindings edited");
+        const std::unique_ptr<MarcusObjectClipboard, decltype(&marcus_object_clipboard_destroy)> copy(
+            marcus_copy_object(p.get(), 0), marcus_object_clipboard_destroy);
+        check(bool(copy), "Copy actor with embedded sounds");
         Wave(wave);
         MarcusStoryboard board; board.angles[0].pixels[500] = 1;
         check(MarcusApplyStoryboard(p.get(), board, true, 0, argv[1], argv[2]), "Add storyboard before sound import");
+        const int pasted = marcus_paste_object(p.get(), copy.get());
+        MarcusObject duplicate = {};
+        check(pasted >= 0 && marcus_object(p.get(), pasted, &duplicate) && marcus_is_storyboard(p.get()) &&
+            marcus_info(p.get(), &info), "Paste actor into a new storyboard scene");
+        int copiedSounds = 0;
+        bool motion = false;
+        for (int i = 0; i < info.sound_count; ++i) {
+            check(marcus_sound(p.get(), i, &sound), "Read pasted actor sound");
+            if (sound.actor_sound && sound.actor_id == duplicate.actor_id) {
+                check(marcus_sound_waveform(p.get(), i, 0, .01, 16, peaks, &audio) &&
+                    audio.kind == MARCUS_WAVEFORM_SAMPLED, "Pasted actor sound resolves the new scene child");
+                motion |= sound.motion != 0;
+                ++copiedSounds;
+            }
+        }
+        check(copiedSounds == 2 && motion && marcus_undo(p.get()), "Paste keeps both actor bindings as one undoable edit");
         options = {1, 65536, MARCUS_SOUND_EFFECT, 0, 1};
         check(marcus_add_sound(p.get(), wave.c_str(), &options) >= 0 && marcus_is_storyboard(p.get()), "Storyboard remains editable after sound import");
         MarcusStoryboard restored; check(MarcusGetStoryboard(p.get(), restored) && restored.angles[0].pixels == board.angles[0].pixels, "Retain editable painted pixels");

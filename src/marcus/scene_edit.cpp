@@ -21,6 +21,10 @@ void Require(bool value, const char *message)
 {
     if (!value) throw std::runtime_error(message);
 }
+void AddObjectName(PChunkyFile file, ChunkNumber movie, const ActorChunkOnFile &header,
+                   const std::string &name, int flags);
+void RegisterSceneObject(PChunkyFile file, ChunkNumber sceneNumber, ChunkNumber actor,
+                         LegacyLong firstFrame, bool invalidateThumbnail);
 }
 static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin)
@@ -53,7 +57,8 @@ static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path 
     }
     return result;
 }
-static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource)
+static LegacyLong MovieSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource,
+                              const std::string &name)
 {
     ChildChunkIdentification child;
     DataBlock block;
@@ -68,6 +73,7 @@ static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong f
     else sources.reset(StringTable_GST::PgstNew(sizeof(LegacyLong)));
     Require(sources && sources->CbExtra() == sizeof(LegacyLong), "The movie content source table is invalid.");
     LegacyLong sourceId = -1, maxSource = 2;
+    const auto key = MM::Content::SourceKey(name);
     for (LegacyLong index = 0; index < sources->IvMac(); ++index)
     {
         LegacyLong id;
@@ -78,7 +84,7 @@ static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong f
         schar text[1024];
         sources->GetStn(index, &title);
         title.GetSzs(text);
-        if (id > 0 && MM::Content::SourceKey(text) == "3dmovie") sourceId = id;
+        if (id > 0 && MM::Content::SourceKey(text) == key) sourceId = id;
     }
     String sourceName;
     sourceName.SetSzs(PszLit("3D Movie Maker/3DMOVIE"));
@@ -86,13 +92,14 @@ static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong f
     {
         LegacyLong fallback = fallbackSource;
         Require(sources->FAddStn(&sourceName, &fallback), "Cannot retain original content source.");
-        sourceId = fallback;
+        if (key == "3dmovie") sourceId = fallback;
     }
     if (sourceId < 0)
     {
         Require(maxSource < std::numeric_limits<LegacyLong>::max(), "This movie has no available content source IDs.");
         sourceId = maxSource + 1;
-        Require(sources->FAddStn(&sourceName, &sourceId), "Cannot register the scene background's content source.");
+        sourceName.SetSzs(const_cast<char *>(name.c_str()));
+        Require(sources->FAddStn(&sourceName, &sourceId), "Cannot register the content source.");
     }
     ChunkNumber sourceChunk;
     Require(file->FAdd(sources->CbOnFile(), kctgGst, &sourceChunk, &block) &&
@@ -101,6 +108,8 @@ static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong f
     Require(file->FAdoptChild(kctgMvie, movie, kctgGst, sourceChunk, 1), "Cannot link movie content sources.");
     return sourceId;
 }
+static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource)
+{ return MovieSource(file, movie, fallbackSource, "3D Movie Maker/3DMOVIE"); }
 static void ApplyNewScene(PChunkyFile file, const MM::PreviewSceneDefinition &definition, int ordinal, bool emptyMovie)
 {
     ChunkIdentification root;
@@ -272,57 +281,6 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
         std::int32_t fontSource = sourceId;
         Require(block.FWriteRgb(&fontSource, sizeof(fontSource), 8), "Cannot retain the original 3D font.");
     }
-    ChildChunkIdentification rollChild;
-    const bool hadRoll = file->FGetKidChidCtg(kctgMvie, root.cno, 0, kctgGst, &rollChild);
-    std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
-    Require(bool(roll), "Cannot create the movie roll call.");
-    if (hadRoll)
-    {
-        int big;
-        Require(file->FFind(kctgGst, rollChild.cki.cno, &block), "Cannot read the movie's object names.");
-        std::unique_ptr<RollCallTable, Release> wireRoll(RollCallTable::Read(&block, &big));
-        Require(wireRoll && wireRoll->CbExtra() == MM_MOVIE_ACTOR_BYTES, "The movie roll call is invalid.");
-        for (LegacyLong index = 0; index < wireRoll->IvMac(); ++index)
-        {
-            unsigned char bytes[MM_MOVIE_ACTOR_BYTES];
-            MMMemoryStream memory;
-            MMMovieActor actor;
-            Require(mm_rollcall_table_extra(&wireRoll->storage, index, bytes) &&
-                    mm_memory_stream_init(&memory, bytes, sizeof(bytes)) &&
-                    mm_movie_read_actor(&memory.stream, big, &actor, nullptr) == MM_MOVIE_OK,
-                    "Cannot decode an existing object name.");
-            RollCallActorEntry entry = {};
-            entry.arid = actor.actor_id; entry.cactRef = actor.reference_count; entry.grfbrws = actor.browser_flags;
-            entry.tagTmpl = {actor.source_id, nullptr, actor.template_type, actor.template_number};
-            String existingName;
-            wireRoll->GetStn(index, &existingName);
-            Require(roll->FAddStn(&existingName, &entry), "Cannot retain an existing object name.");
-        }
-    }
-    LegacyLong maximumId = -1;
-    for (LegacyLong index = 0; index < roll->IvMac(); ++index)
-    {
-        RollCallActorEntry entry;
-        roll->GetExtra(index, &entry);
-        maximumId = std::max<LegacyLong>(maximumId, entry.arid);
-    }
-    ChunkIdentification existing;
-    for (LegacyLong index = 0; file->FGetCkiCtg(kctgActr, index, &existing); ++index)
-    {
-        ActorChunkOnFile header;
-        Require(file->FFind(kctgActr, existing.cno, &block) && ActorData::FReadHeader(&block, &header),
-                "Cannot retain existing actor IDs.");
-        maximumId = std::max<LegacyLong>(maximumId, header.arid);
-    }
-    Require(maximumId < std::numeric_limits<LegacyLong>::max(), "No object IDs are available.");
-    ChildChunkID slot = 0;
-    ChildChunkIdentification child;
-    for (LegacyLong index = 0; file->FGetKid(kctgScen, sceneNumber, index, &child); ++index)
-        if (child.cki.ctg == kctgActr)
-        {
-            Require(child.chid < 0x7fffffffUL, "No scene object slots are available.");
-            slot = std::max(slot, child.chid + 1);
-        }
     ActorChunkOnFile header = {};
     header.bo = kboCur; header.osk = koskCur;
     header.arid = definition.actorId;
@@ -353,33 +311,10 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
     std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(track.Events()));
     Require(wire && file->FAddChild(kctgActr, actorNumber, 0, track.Route()->CbOnFile(), kctgPath, &childNumber, &block) &&
             track.Route()->FWrite(&block) && file->FAddChild(kctgActr, actorNumber, 0, wire->CbOnFile(), kctgGgae, &childNumber, &block) &&
-            wire->FWrite(&block) && file->FAdoptChild(kctgScen, sceneNumber, kctgActr, actorNumber, slot),
-            "Cannot write the prop track.");
-    Require(file->FGetKidChidCtg(kctgScen, sceneNumber, 1, kctgStartGg, &child) &&
-            file->FFind(kctgStartGg, child.cki.cno, &block), "Cannot read the scene's object list.");
-    short order;
-    std::unique_ptr<GeneralGroup, Release> starts(SceneData::PggReadEvents(&block, &order, true));
-    Require(bool(starts), "The scene start events are invalid.");
-    SceneEvent start = {scene.firstFrame, sevtAddActr};
-    std::uint32_t value = slot;
-    if (order == kboOther) { SwapBytesBom(&start, kbomSev); SwapBytesRglw(&value, 1); }
-    Require(starts->FInsert(starts->IvMac(), sizeof(value), &value, &start) &&
-            file->FAdd(starts->CbOnFile(), kctgStartGg, &childNumber, &block) && starts->FWrite(&block, order),
-            "Cannot register the prop in this scene.");
-    file->DeleteChild(kctgScen, sceneNumber, kctgStartGg, child.cki.cno, 1);
-    Require(file->FAdoptChild(kctgScen, sceneNumber, kctgStartGg, childNumber, 1), "Cannot link the prop to this scene.");
-    String propName;
-    const auto nativeName = propEdit.file ? MarcusTextAnsi(name) : std::string(name);
-    propName.SetSzs(const_cast<char *>(nativeName.c_str()));
-    RollCallActorEntry entry = {};
-    entry.arid = header.arid; entry.cactRef = 1;
-    entry.tagTmpl = {propEdit.file ? 0 : sourceId, nullptr, kctgTmpl, templateNumber};
-    entry.grfbrws = propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0;
-    Require(roll->FAddStn(&propName, &entry), "Cannot name the new prop.");
-    if (hadRoll) file->DeleteChild(kctgMvie, root.cno, kctgGst, rollChild.cki.cno, 0);
-    Require(MovieData::FWriteRollCall(file, root.cno, roll.get(), &childNumber), "Cannot write the movie's object names.");
-    if (frame == scene.firstFrame && file->FGetKidChidCtg(kctgScen, sceneNumber, 0, kctgThumbMbmp, &child))
-        file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
+            wire->FWrite(&block), "Cannot write the prop track.");
+    RegisterSceneObject(file, sceneNumber, actorNumber, scene.firstFrame, frame == scene.firstFrame);
+    AddObjectName(file, root.cno, header, propEdit.file ? MarcusTextAnsi(name) : std::string(name),
+                  propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0);
 }
 
 static void ApplyShape(PChunkyFile file, ChunkNumber actor, const MM::PreviewObjectShape &shape)
@@ -473,6 +408,292 @@ std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsi
 std::shared_ptr<MarcusMovieFile> MarcusCreateEventFile() { return WorkingCopy({}, nullptr); }
 std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::shared_ptr<MarcusMovieFile> &source)
 { return WorkingCopy(source->path, source); }
+
+namespace
+{
+Filename ObjectFile(const std::filesystem::path &path)
+{
+    String text;
+    text.SetSzs(const_cast<char *>(path.u8string().c_str()));
+    Filename name;
+    Require(name.FBuildFromPath(&text), "Invalid object clipboard path.");
+    return name;
+}
+
+ChildChunkID FreeChildSlot(PChunkyFile file, ChunkTagOrType parent, ChunkNumber number, ChunkTagOrType type)
+{
+    ChildChunkIdentification child;
+    ChildChunkID slot = 0;
+    for (LegacyLong i = 0; file->FGetKid(parent, number, i, &child); ++i)
+        if (child.cki.ctg == type)
+        {
+            Require(child.chid < 0x7fffffffUL, "No available child slots for the pasted object.");
+            slot = std::max(slot, child.chid + 1);
+        }
+    return slot;
+}
+
+void AddObjectName(PChunkyFile file, ChunkNumber movie, const ActorChunkOnFile &header,
+                   const std::string &name, int flags)
+{
+    ChildChunkIdentification child;
+    DataBlock block;
+    const bool hadRoll = file->FGetKidChidCtg(kctgMvie, movie, 0, kctgGst, &child);
+    std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
+    Require(bool(roll), "Cannot allocate the movie roll call.");
+    if (hadRoll)
+    {
+        int big;
+        Require(file->FFind(kctgGst, child.cki.cno, &block), "Cannot read the movie roll call.");
+        std::unique_ptr<RollCallTable, Release> wire(RollCallTable::Read(&block, &big));
+        Require(wire && wire->CbExtra() == MM_MOVIE_ACTOR_BYTES, "The movie roll call is invalid.");
+        for (LegacyLong i = 0; i < wire->IvMac(); ++i)
+        {
+            unsigned char bytes[MM_MOVIE_ACTOR_BYTES];
+            MMMemoryStream stream;
+            MMMovieActor actor;
+            Require(mm_rollcall_table_extra(&wire->storage, i, bytes) &&
+                    mm_memory_stream_init(&stream, bytes, sizeof(bytes)) &&
+                    mm_movie_read_actor(&stream.stream, big, &actor, nullptr) == MM_MOVIE_OK,
+                    "Cannot decode the movie roll call.");
+            RollCallActorEntry entry = {};
+            entry.arid = actor.actor_id; entry.cactRef = actor.reference_count; entry.grfbrws = actor.browser_flags;
+            entry.tagTmpl = {actor.source_id, nullptr, actor.template_type, actor.template_number};
+            String previous;
+            wire->GetStn(i, &previous);
+            Require(roll->FAddStn(&previous, &entry), "Cannot retain an existing object name.");
+        }
+    }
+    String caption;
+    caption.SetSzs(const_cast<char *>(name.c_str()));
+    RollCallActorEntry entry = {};
+    entry.arid = header.arid; entry.cactRef = 1; entry.grfbrws = flags;
+    entry.tagTmpl = {header.tagTmpl.sid, nullptr, header.tagTmpl.ctg, header.tagTmpl.cno};
+    Require(roll->FAddStn(&caption, &entry), "Cannot name the pasted object.");
+    if (hadRoll) file->DeleteChild(kctgMvie, movie, kctgGst, child.cki.cno, 0);
+    ChunkNumber rollNumber;
+    Require(MovieData::FWriteRollCall(file, movie, roll.get(), &rollNumber), "Cannot write the movie roll call.");
+}
+
+void RegisterSceneObject(PChunkyFile file, ChunkNumber sceneNumber, ChunkNumber actor,
+                         LegacyLong firstFrame, bool invalidateThumbnail)
+{
+    const auto slot = FreeChildSlot(file, kctgScen, sceneNumber, kctgActr);
+    ChildChunkIdentification child;
+    DataBlock block;
+    Require(file->FGetKidChidCtg(kctgScen, sceneNumber, 1, kctgStartGg, &child) &&
+            file->FFind(kctgStartGg, child.cki.cno, &block), "Cannot read the scene's object list.");
+    short order;
+    std::unique_ptr<GeneralGroup, Release> starts(SceneData::PggReadEvents(&block, &order, true));
+    Require(bool(starts), "The scene start events are invalid.");
+    SceneEvent start = {firstFrame, sevtAddActr};
+    auto value = slot;
+    if (order == kboOther) { SwapBytesBom(&start, kbomSev); SwapBytesRglw(&value, 1); }
+    ChunkNumber number;
+    Require(starts->FInsert(starts->IvMac(), sizeof(value), &value, &start) &&
+            file->FAdd(starts->CbOnFile(), kctgStartGg, &number, &block) && starts->FWrite(&block, order) &&
+            file->FAdoptChild(kctgScen, sceneNumber, kctgActr, actor, slot), "Cannot register the pasted object.");
+    file->DeleteChild(kctgScen, sceneNumber, kctgStartGg, child.cki.cno, 1);
+    Require(file->FAdoptChild(kctgScen, sceneNumber, kctgStartGg, number, 1), "Cannot link scene start events.");
+    if (invalidateThumbnail && file->FGetKidChidCtg(kctgScen, sceneNumber, 0, kctgThumbMbmp, &child))
+        file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
+}
+
+std::int32_t ShiftFrame(std::int32_t frame, std::int64_t delta)
+{
+    if (frame == knfrmInvalid) return frame;
+    const auto shifted = frame + delta;
+    Require(shifted >= std::numeric_limits<std::int32_t>::min() && shifted < knfrmInvalid,
+            "The pasted object track would exceed the frame range.");
+    return static_cast<std::int32_t>(shifted);
+}
+
+ChunkNumber TransferObject(PChunkyFile source, ChunkNumber actor, ChunkNumber sourceScene,
+    PChunkyFile destination, ChunkNumber destinationScene, std::int32_t actorId, std::int64_t delta,
+    const std::function<LegacyLong(LegacyLong)> &sourceId, ActorChunkOnFile &header)
+{
+    ChunkNumber copied;
+    Require(ActorData::FReadHeader(source, actor, &header) &&
+            source->FClone(kctgActr, actor, destination, &copied), "Cannot copy the object's native track.");
+    const auto local = [&](ChunkTagOrType type, ChunkNumber number) {
+        ChunkNumber result;
+        Require(source->FFind(type, number) && source->FCopy(type, number, destination, &result),
+                "The copied object is missing an embedded asset.");
+        return result;
+    };
+    const auto retarget = [&](auto &tag, ChunkNumber owner, ChunkTagOrType ownerType) {
+        if (tag.sid == 0)
+        {
+            tag.cno = local(tag.ctg, tag.cno);
+            const auto slot = FreeChildSlot(destination, ownerType, owner, tag.ctg);
+            Require(destination->FAdoptChild(ownerType, owner, tag.ctg, tag.cno, slot),
+                    "Cannot retain the object's embedded asset.");
+        }
+        else if (tag.sid > 0) tag.sid = sourceId(tag.sid);
+    };
+    header.arid = actorId;
+    header.nfrmFirst = ShiftFrame(header.nfrmFirst, delta);
+    header.nfrmLast = ShiftFrame(header.nfrmLast, delta);
+    ChildChunkIdentification child, text;
+    DataBlock block;
+    if (header.tagTmpl.sid == 0)
+    {
+        Require(destination->FGetKidChidCtg(kctgActr, copied, 0, kctgTmpl, &child), "The embedded template is missing.");
+        header.tagTmpl.cno = child.cki.cno;
+        if (destination->FGetKidChidCtg(kctgTmpl, child.cki.cno, 0, kctgTdt, &text))
+        {
+            unsigned char descriptor[24];
+            Require(destination->FFind(kctgTdt, text.cki.cno, &block) && block.FUnpackData() &&
+                    block.Cb() == sizeof(descriptor) && block.FReadRgb(descriptor, sizeof(descriptor), 0),
+                    "Cannot read the copied 3D text font.");
+            short order;
+            TAGOnFile font;
+            std::memcpy(&order, descriptor, sizeof(order));
+            Require(order == kboCur || order == kboOther, "Invalid copied 3D text font.");
+            std::memcpy(&font, descriptor + 8, sizeof(font));
+            if (order == kboOther) SwapBytesRglw(&font, 4);
+            retarget(font, child.cki.cno, kctgTmpl);
+            if (order == kboOther) SwapBytesRglw(&font, 4);
+            std::memcpy(descriptor + 8, &font, sizeof(font));
+            Require(destination->FPutPv(descriptor, sizeof(descriptor), kctgTdt, text.cki.cno),
+                    "Cannot write the copied 3D text font.");
+        }
+    }
+    else if (header.tagTmpl.sid > 0) header.tagTmpl.sid = sourceId(header.tagTmpl.sid);
+    Require(ActorData::FWriteHeader(destination, copied, &header), "Cannot write the pasted object ID.");
+
+    std::unique_ptr<GeneralGroup, Release> events(ActorData::PggReadEvents(source, actor));
+    Require(bool(events), "Cannot read the object's animation events.");
+    std::map<ChunkNumber, std::pair<ChunkNumber, ChildChunkID>> sounds;
+    for (LegacyLong i = 0; i < events->IvMac(); ++i)
+    {
+        ActorEvent::Base event;
+        events->GetFixed(i, &event);
+        event.nfrm = ShiftFrame(event.nfrm, delta);
+        events->PutFixed(i, &event);
+        if (event.aet == ActorEvent::aetCost)
+        {
+            ActorEvent::Costume costume;
+            events->Get(i, &costume);
+            // Custom costumes are slots of the actor's template.
+            if (!costume.fCmtl)
+            {
+                retarget(costume.tag, copied, kctgActr);
+                events->Put(i, &costume);
+            }
+        }
+        else if (event.aet == ActorEvent::aetSnd)
+        {
+            ActorEvent::Sound sound;
+            events->Get(i, &sound);
+            if (sound.fNoSound) continue;
+            if (sound.tag.sid == 0)
+            {
+                const auto number = source->FGetKidChidCtg(kctgScen, sourceScene, sound.chid, kctgMsnd, &child)
+                    ? child.cki.cno : sound.tag.cno;
+                auto found = sounds.find(number);
+                if (found == sounds.end())
+                {
+                    const auto asset = local(kctgMsnd, number);
+                    const auto slot = FreeChildSlot(destination, kctgScen, destinationScene, kctgMsnd);
+                    Require(destination->FAdoptChild(kctgScen, destinationScene, kctgMsnd, asset, slot),
+                            "Cannot link the copied actor sound.");
+                    found = sounds.emplace(number, std::make_pair(asset, slot)).first;
+                }
+                sound.tag.cno = found->second.first;
+                sound.chid = found->second.second;
+            }
+            else if (sound.tag.sid > 0) sound.tag.sid = sourceId(sound.tag.sid);
+            events->Put(i, &sound);
+        }
+    }
+    std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(events.get()));
+    Require(wire && destination->FGetKidChidCtg(kctgActr, copied, 0, kctgGgae, &child) &&
+            destination->FPut(wire->CbOnFile(), kctgGgae, child.cki.cno, &block) && wire->FWrite(&block),
+            "Cannot write the pasted animation events.");
+    return copied;
+}
+}
+
+std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::path &movie, unsigned long scene,
+    long frame, const MarcusObject &object)
+{
+    MM::Archive archive;
+    MM::MovieDirectory catalogue;
+    MM::Error error;
+    if (!archive.Open(movie.u8string(), error) || !archive.ReadMovieDirectory(catalogue, error))
+        throw std::runtime_error(error.message);
+    auto result = std::make_unique<MarcusObjectClipboard>();
+    result->sources = std::move(catalogue.sources);
+    if (!catalogue.hasRoot) result->sources.push_back({1, "3D Movie Maker/3DMOVIE"});
+    result->frame = frame;
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
+    const auto wide = convert.from_bytes(object.name);
+    result->name.resize(mm_text_ansi(nullptr, wide.data(), wide.size() * 2, MM_TEXT_UTF16_LE, nullptr, 0));
+    Require(result->name.empty() || mm_text_ansi(nullptr, wide.data(), wide.size() * 2, MM_TEXT_UTF16_LE,
+            result->name.data(), result->name.size()) == result->name.size(), "Cannot encode the object name.");
+    result->browserFlags = object.text ? 2 : object.prop ? 1 : 0;
+    result->file = MarcusCreateEventFile();
+    auto original = ObjectFile(movie), clipboard = ObjectFile(result->file->path);
+    std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&original, fcflNil));
+    std::unique_ptr<ChunkyFile, Release> destination(ChunkyFile::PcflCreate(&clipboard, fcflWriteEnable));
+    Require(source && destination && destination->FAdd(0, kctgScen, &result->sounds), "Cannot create the object clipboard.");
+    ChildChunkIdentification child;
+    ActorChunkOnFile header;
+    for (LegacyLong i = 0; source->FGetKid(kctgScen, scene, i, &child); ++i)
+        if (child.cki.ctg == kctgActr && ActorData::FReadHeader(source.get(), child.cki.cno, &header) &&
+            header.arid == object.actor_id)
+        {
+            result->actor = TransferObject(source.get(), child.cki.cno, scene, destination.get(), result->sounds,
+                header.arid, 0, [](LegacyLong id) { return id; }, header);
+            Require(destination->FSave(kctgSoc), "Cannot save the object clipboard.");
+            return result;
+        }
+    throw std::runtime_error("Cannot find the selected object in the movie.");
+}
+
+std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &movie,
+    const std::shared_ptr<MarcusMovieFile> &origin, const MarcusObjectClipboard &clipboard,
+    unsigned long sceneNumber, long frame, std::int32_t actorId)
+{
+    auto result = WorkingCopy(movie, origin);
+    auto sourceName = ObjectFile(clipboard.file->path), destinationName = ObjectFile(result->path);
+    std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&sourceName, fcflNil));
+    std::unique_ptr<ChunkyFile, Release> destination(ChunkyFile::PcflOpen(&destinationName, fcflWriteEnable));
+    Require(source && destination, "Cannot open the movie or object working copy.");
+    SceneData scene;
+    Require(scene.FRead(destination.get(), sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
+            "The paste frame is outside the scene.");
+    ChunkIdentification root;
+    const bool hadRoot = destination->FGetCkiCtg(kctgMvie, 0, &root);
+    if (!hadRoot)
+    {
+        Require(MovieData::FCreateRoot(destination.get(), &root.cno), "Cannot create the movie header.");
+        ChunkIdentification existing;
+        for (LegacyLong i = 0; destination->FGetCkiCtg(kctgScen, i, &existing); ++i)
+            Require(destination->FAdoptChild(kctgMvie, root.cno, kctgScen, existing.cno, i), "Cannot retain scene order.");
+    }
+    std::map<LegacyLong, LegacyLong> ids;
+    const auto sourceId = [&](LegacyLong id) {
+        const auto found = ids.find(id);
+        if (found != ids.end()) return found->second;
+        const auto entry = std::find_if(clipboard.sources.begin(), clipboard.sources.end(),
+            [id](const auto &value) { return value.id == id; });
+        Require(entry != clipboard.sources.end(), "The copied object uses an unknown content source.");
+        const auto mapped = MovieSource(destination.get(), root.cno, hadRoot ? 2 : 1, entry->name);
+        ids.emplace(id, mapped);
+        return mapped;
+    };
+    // Headless scene-only movies rely on an implicit retail source.
+    if (!hadRoot) RetailSource(destination.get(), root.cno, 1);
+    ActorChunkOnFile header;
+    const auto actor = TransferObject(source.get(), clipboard.actor, clipboard.sounds, destination.get(),
+        sceneNumber, actorId, std::int64_t(frame) - clipboard.frame, sourceId, header);
+    RegisterSceneObject(destination.get(), sceneNumber, actor, scene.firstFrame, true);
+    AddObjectName(destination.get(), root.cno, header, clipboard.name, clipboard.browserFlags);
+    Require(destination->FSave(kctgSoc), "Cannot save the pasted object.");
+    return result;
+}
 static void ApplyCostumes(PChunkyFile file, ChunkNumber actor, const MarcusLiveEdits::CostumeEdit &edit)
 {
     String path; Filename filename;
