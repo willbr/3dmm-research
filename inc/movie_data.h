@@ -58,19 +58,17 @@ class RollCallTable : public BASE
     static RollCallTable *_New(MMU32 extra);
   public:
     MMRollCallTable storage;
-    static RollCallTable *New(bool wire = false);
+    static RollCallTable *New();
     static RollCallTable *Read(PDataBlock block, int *bigEndian);
     ~RollCallTable();
     LegacyLong IvMac() const { return storage.count; }
     LegacyLong CbExtra() const { return storage.stride - 4; }
-    LegacyLong CbOnFile() const { return mm_rollcall_table_wire_size(&storage); }
     void GetStn(LegacyLong index, PString name);
     void GetExtra(LegacyLong index, RollCallActorEntry *actor);
     void PutExtra(LegacyLong index, const RollCallActorEntry *actor);
     bool FAddStn(PString name, const RollCallActorEntry *actor);
     bool FPutStn(LegacyLong index, PString name);
     void Delete(LegacyLong index);
-    bool FWrite(PDataBlock);
 };
 typedef RollCallTable *PRollCallTable;
 

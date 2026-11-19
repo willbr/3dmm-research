@@ -2473,6 +2473,18 @@ images. SDL Studio matched retail's sound requests. Mixed PCM differed in
 both ports, and SDL Studio's frame timing differed. Evidence is in
 `tmp/c89-movie-dependencies/`.
 
+The shared roll-call writer now serializes actor names and extras directly
+from C89 storage. The writer tests cover renaming, the zero cache pointer
+field, and cleanup after allocation, chunk write, or adoption failures.
+SDL Studio saved and reopened the two-scene actor-audio fixture with its
+four actor entries, poses, and first viewport intact. The saved roll-call
+chunk was byte-identical to one produced by the earlier Studio writer.
+Retail and SDL Studio played the saved movie with matching 60-frame
+sequences and sound requests. Marcus rejected both Studio saves at archive
+open. All three players completed seek and playback captures of the original
+fixture, with matching 60-frame sequences. Evidence is in
+`tmp/c89-rollcall-write/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

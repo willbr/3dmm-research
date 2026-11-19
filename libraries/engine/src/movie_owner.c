@@ -151,7 +151,7 @@ int mm_movie_read_rollcall(void *resources, MMU32 movie, void **actors, MMI32 *l
     wire = s->read_wire(s->context, resources, movie, &big);
     if (!wire || s->extra_width(wire) != MM_MOVIE_ACTOR_BYTES)
         goto fail;
-    runtime = s->new_table(s->context, 0);
+    runtime = s->new_runtime(s->context);
     if (!runtime)
         goto fail;
     count = s->count(wire);
@@ -190,44 +190,38 @@ fail:
     *actors = NULL;
     return 0;
 }
-int mm_movie_write_rollcall(void *file, MMU32 movie, void *actors, MMU32 *written,
-                                  const MMRollCallServices *s)
+int mm_movie_write_rollcall(MMU32 movie, MMRollCallTable *actors, MMU32 *written, const MMRollCallWriter *s)
 {
-    void *wire;
-    MMU32 i, count;
+    const unsigned short one = 1;
+    const int big = *(const unsigned char *)&one == 0;
+    MMRollCallTable wire;
+    MMStorageWriter writer;
+    const void *name;
+    MMU32 i, count, size;
     MMRollCallActor actor;
-    unsigned char bytes[28];
-    if (!actors || s->extra_width(actors) != s->runtime_width)
+    unsigned char bytes[MM_MOVIE_ACTOR_BYTES];
+    int added = 0, ok = 0;
+    if (!actors || actors->stride != sizeof(actor) + 4)
         return 0;
-    wire = s->new_table(s->context, 1);
-    if (!wire)
+    if (mm_rollcall_table_init(&wire, sizeof(bytes), actors->unit, actors->encoding, actors->trash_unused,
+                               &actors->storage.allocator) != MM_STORAGE_OK)
         return 0;
-    count = s->count(actors);
-    for (i = 0; i < count; ++i)
+    for (i = 0; i < actors->count; ++i)
     {
-        s->runtime_row(s->context, actors, i, &actor);
-        /* Native GST text/extra payloads are native endian. */
-        {
-            const unsigned short one = 1;
-            mm_movie_write_actor(&actor.data, bytes, *(const unsigned char *)&one == 0);
-        }
-        if (!s->append_wire(s->context, wire, bytes))
-        {
-            s->release_table(wire);
-            return 0;
-        }
+        if (!mm_rollcall_table_name(actors, i, &name, &count) || !mm_rollcall_table_extra(actors, i, &actor))
+            goto done;
+        mm_movie_write_actor(&actor.data, bytes, big);
+        if (!mm_rollcall_table_add(&wire, name, count, bytes))
+            goto done;
     }
-    if (!s->add_chunk(s->context, file, s->wire_size(wire), written))
-    {
-        s->release_table(wire);
-        return 0;
-    }
-    if (!s->write_table(s->context, wire) || !s->adopt(s->context, file, movie, *written))
-    {
-        s->release_table(wire);
-        s->delete_chunk(s->context, file, *written);
-        return 0;
-    }
-    s->release_table(wire);
-    return 1;
+    size = mm_rollcall_table_wire_size(&wire);
+    if (!size || !s->add(s->context, size, written, &writer))
+        goto done;
+    added = 1;
+    ok = mm_rollcall_table_write(&wire, &writer, big) == MM_STORAGE_OK && s->adopt(s->context, movie, *written);
+done:
+    mm_rollcall_table_dispose(&wire);
+    if (added && !ok)
+        s->discard(s->context, *written);
+    return ok;
 }

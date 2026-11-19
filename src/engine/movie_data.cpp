@@ -66,9 +66,9 @@ MMU32 CountActors(void *p)
 {
     return static_cast<PRollCallTable>(p)->IvMac();
 }
-void *NewActors(void *, int wire)
+void *NewActors(void *, int)
 {
-    return RollCallTable::New(wire);
+    return RollCallTable::New();
 }
 MMRollCallServices RollCallServices(NativeRollCallHost *host)
 {
@@ -86,8 +86,7 @@ MMRollCallServices RollCallServices(NativeRollCallHost *host)
                 return RollCallTable::Read(&h->block, big);
             },
             [](void *p) -> MMU32 { return static_cast<PRollCallTable>(p)->CbExtra(); },
-            sizeof(MMRollCallActor),
-            NewActors,
+            [](void *) -> void * { return RollCallTable::New(); },
             ReleaseTable,
             CountActors,
             [](void *c, void *table, MMU32 i, unsigned char *bytes) {
@@ -96,18 +95,9 @@ MMRollCallServices RollCallServices(NativeRollCallHost *host)
                          "bad wire row");
             },
             ReadActor,
-            [](void *c, void *table, MMU32 i, MMRollCallActor *a) {
-                static_cast<PRollCallTable>(table)->GetStn(i, &static_cast<NativeRollCallHost *>(c)->name);
-                ReadActor(table, i, a);
-            },
             [](void *c, void *table, const MMRollCallActor *a) -> int {
                 auto value = NativeActor(*a);
                 return static_cast<PRollCallTable>(table)->FAddStn(&static_cast<NativeRollCallHost *>(c)->name, &value);
-            },
-            [](void *c, void *table, const unsigned char *bytes) -> int {
-                auto name = &static_cast<NativeRollCallHost *>(c)->name;
-                return mm_rollcall_table_add(&static_cast<PRollCallTable>(table)->storage, name->Prgch(),
-                                                   name->Cch(), bytes);
             },
             [](void *, MMRollCallActor *a, void *resources) -> int {
                 auto value = NativeActor(*a);
@@ -115,19 +105,7 @@ MMRollCallServices RollCallServices(NativeRollCallHost *host)
                 *a = CoreActor(value);
                 return ok;
             },
-            CloseActor,
-            [](void *p) -> MMU32 { return static_cast<PRollCallTable>(p)->CbOnFile(); },
-            [](void *c, void *file, MMU32 bytes, MMU32 *number) -> int {
-                return static_cast<PChunkyFile>(file)->FAdd(bytes, kctgGst, number,
-                                                            &static_cast<NativeRollCallHost *>(c)->block);
-            },
-            [](void *c, void *table) -> int {
-                return static_cast<PRollCallTable>(table)->FWrite(&static_cast<NativeRollCallHost *>(c)->block);
-            },
-            [](void *, void *file, MMU32 movie, MMU32 number) -> int {
-                return static_cast<PChunkyFile>(file)->FAdoptChild(kctgMvie, movie, kctgGst, number, 0);
-            },
-            [](void *, void *file, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(kctgGst, number); }};
+            CloseActor};
 }
 } // namespace
 RollCallTable *RollCallTable::_New(MMU32 extra)
@@ -149,9 +127,9 @@ RollCallTable *RollCallTable::_New(MMU32 extra)
     }
     return table;
 }
-RollCallTable *RollCallTable::New(bool wire)
+RollCallTable *RollCallTable::New()
 {
-    return _New(wire ? MM_MOVIE_ACTOR_BYTES : sizeof(MMRollCallActor));
+    return _New(sizeof(MMRollCallActor));
 }
 RollCallTable *RollCallTable::Read(PDataBlock block, int *bigEndian)
 {
@@ -210,17 +188,6 @@ bool RollCallTable::FPutStn(LegacyLong index, PString name)
 void RollCallTable::Delete(LegacyLong index)
 {
     AssertDo(mm_rollcall_table_delete(&storage, index), "bad actor deletion");
-}
-bool RollCallTable::FWrite(PDataBlock block)
-{
-    const MMStorageWriter writer = {block, static_cast<MMU32>(block->Cb()),
-                                         [](void *c, MMU32 offset, const void *data, size_t bytes) -> int {
-                                             return static_cast<PDataBlock>(c)->FWriteRgb(const_cast<void *>(data),
-                                                                                          bytes, offset);
-                                         }};
-    const unsigned short one = 1;
-    return mm_rollcall_table_write(&storage, &writer, *reinterpret_cast<const unsigned char *>(&one) == 0) ==
-           MM_STORAGE_OK;
 }
 #ifdef DEBUG
 void RollCallTable::AssertValid(LegacyUlong flags)
@@ -401,7 +368,25 @@ bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number,
 }
 bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written)
 {
-    NativeRollCallHost host;
-    const auto s = RollCallServices(&host);
-    return mm_movie_write_rollcall(file, number, actors, written, &s) != 0;
+    struct Output
+    {
+        PChunkyFile file;
+        DataBlock block;
+    } output = {file};
+    const MMRollCallWriter writer = {
+        &output,
+        [](void *c, MMU32 bytes, MMU32 *n, MMStorageWriter *out) -> int {
+            auto h = static_cast<Output *>(c);
+            if (!h->file->FAdd(bytes, kctgGst, n, &h->block))
+                return 0;
+            *out = {&h->block, bytes, [](void *p, MMU32 offset, const void *data, size_t count) -> int {
+                return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), count, offset);
+            }};
+            return 1;
+        },
+        [](void *c, MMU32 movie, MMU32 n) -> int {
+            return static_cast<Output *>(c)->file->FAdoptChild(kctgMvie, movie, kctgGst, n, 0);
+        },
+        [](void *c, MMU32 n) { static_cast<Output *>(c)->file->Delete(kctgGst, n); }};
+    return mm_movie_write_rollcall(number, actors ? &actors->storage : nullptr, written, &writer) != 0;
 }

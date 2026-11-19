@@ -4,6 +4,7 @@
 #define MM_ENGINE_MOVIE_OWNER_H
 #include "movie_data.h"
 #include "movie_title.h"
+#include "rollcall_storage.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -71,32 +72,33 @@ extern "C"
          * deliberately does not reject a foreign extra width. C owns that decision. */
         void *(*read_wire)(void *, void *resources, MMU32 movie, int *big_endian);
         MMU32 (*extra_width)(void *);
-        MMU32 runtime_width;
-        void *(*new_table)(void *, int wire);
+        void *(*new_runtime)(void *);
         void (*release_table)(void *);
         MMU32 (*count)(void *);
         void (*wire_row)(void *, void *table, MMU32, unsigned char bytes[28]);
         void (*actor)(void *table, MMU32, MMRollCallActor *);
-        /* row callbacks cache a borrowed name in host scratch. Appending consumes it
-         * immediately. Appends do not duplicate tag ownership. */
-        void (*runtime_row)(void *, void *table, MMU32, MMRollCallActor *);
+        /* wire_row caches a borrowed name in host scratch. Appending consumes it
+         * immediately and does not duplicate tag ownership. */
         int (*append_runtime)(void *, void *table, const MMRollCallActor *);
-        int (*append_wire)(void *, void *table, const unsigned char bytes[28]);
         int (*open_actor)(void *, MMRollCallActor *, void *resources);
         void (*close_actor)(void *, MMRollCallActor *);
-        MMU32 (*wire_size)(void *table);
-        int (*add_chunk)(void *, void *file, MMU32 bytes, MMU32 *number);
-        int (*write_table)(void *, void *table);
-        int (*adopt)(void *, void *file, MMU32 movie, MMU32 number);
-        void (*delete_chunk)(void *, void *file, MMU32 number);
     } MMRollCallServices;
     /* Failed read clears output, preserves caller limit, closes the current tag
      * before earlier rows when insertion fails, then releases the runtime table.
      * Wire extras retain their 28-byte layout with a zero pointer slot. */
     int mm_movie_read_rollcall(void *resources, MMU32 movie, void **actors, MMI32 *limit,
                                      const MMRollCallServices *);
-    int mm_movie_write_rollcall(void *file, MMU32 movie, void *actors, MMU32 *written,
-                                      const MMRollCallServices *);
+    typedef struct MMRollCallWriter
+    {
+        void *context;
+        int (*add)(void *, MMU32 bytes, MMU32 *number, MMStorageWriter *);
+        int (*adopt)(void *, MMU32 movie, MMU32 number);
+        void (*discard)(void *, MMU32 number);
+    } MMRollCallWriter;
+    /* Borrows the runtime table and its tags. Serializes names in actor order,
+     * with native-order GST extras and zero cache pads. An added chunk is
+     * discarded if writing or adoption fails. Callbacks cannot change the source. */
+    int mm_movie_write_rollcall(MMU32 movie, MMRollCallTable *, MMU32 *written, const MMRollCallWriter *);
 #ifdef __cplusplus
 }
 #endif

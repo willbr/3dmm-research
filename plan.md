@@ -1033,6 +1033,9 @@ and cue extraction, with the collector's existing trailing-byte tolerance.
 Studio opens, selects a save format, and checks local assets against the same
 C89 movie dependency list. The movie save code owns the list through its
 collection and disposal. Native Studio supplies archive and cache I/O.
+Studio autosave and headless movie saves serialize their roll-call rows from
+the C89 table. C rebuilds the wire names in actor order, clears cache pointer
+fields, and discards the new chunk if writing or adoption fails.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

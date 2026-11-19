@@ -7092,6 +7092,9 @@ Links `engine-core` + `kauai` + `brender` and re-exports core publicly.
 archive resource file, movie root number, title, actor roll call, next actor
 ID and scene count. Runtime loading delegates to its headless load path;
 runtime autosave shares its version/root and roll-call serialization.
+Both save paths build the wire GST directly from C89 roll-call storage.
+Native code allocates the destination chunk and supplies the positional
+writer and graph edits.
 
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor
