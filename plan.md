@@ -1087,6 +1087,10 @@ The C89 scene archive editor now lists Marcus text boxes in start-event
 order and publishes their insertion, replacement and removal. It reuses
 vacant text slots, keeps unrelated event records and retains the start
 group's byte order. The native rich-text host prepares each box payload.
+C89 also translates caption bounds and frame ranges, normalizes paragraph
+breaks, and applies character and paragraph property edits to the changed
+UTF-16 span. Preview and save share these decisions and retain the first
+character's formatting and argument references when text is inserted there.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

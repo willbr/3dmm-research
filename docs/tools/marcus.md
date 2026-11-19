@@ -412,6 +412,14 @@ scene and actor state for all five saves and matched four viewports pixel
 for pixel. The replacement differed from retail by one pixel in both SDL
 builds. Captures and checks are in `tmp/c89-caption-archive/`.
 
+The draft and save paths share C89 validation for box bounds and frame
+ranges. C89 normalizes line endings and updates the changed UTF-16 span,
+including first-character formatting, before the native text is written.
+Five styled-caption saves, including a Unicode caption with mixed line
+endings, matched their pre-conversion files byte for byte. SDL Studio and
+retail matched scene and actor state and viewport pixels at frame 25 in
+each save. The comparisons are in `tmp/c89-caption-properties/`.
+
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from
 the visual pickers. Each selected font, shape and material has a rendered sample;

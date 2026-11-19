@@ -1,4 +1,5 @@
 #include "mm/text_properties.h"
+#include "mm/caption_edit.h"
 #include "mm/wide.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -562,12 +563,76 @@ static void adjust(void)
     init(&h);
     CHECK(mm_text_properties_adjust(0, 0, 0, 9, &h.s) == 1 && h.clears == 1);
 }
+static void caption_edit(void)
+{
+    static const unsigned short old_text[] = {'A', 'B', 'C'};
+    static const unsigned short new_text[] = {'X', 'A', 'B', 'C'};
+    static const unsigned short normalized[] = {'A', 13, 'B', 13, 'C', 13};
+    unsigned short mixed[] = {'A', 13, 10, 'B', 10, 'C', 13};
+    MMCaptionEditOptions options = {0}, fields = {0}, earlier;
+    MMTextBoxState box = {0};
+    MMCaptionEditFormat format;
+    MMI32 ref;
+    int diagnosed = 0;
+    Host h;
+    CHECK(mm_caption_edit_paragraph_end(mixed, 7, -1) == 3);
+    CHECK(mm_caption_edit_paragraph_end(mixed, 7, 3) == 5);
+    CHECK(mm_caption_edit_paragraph_end(mixed, 7, 7) == 8);
+    CHECK(mm_caption_edit_normalize(mixed, 7, 13) == 6 &&
+          !memcmp(mixed, normalized, sizeof(normalized)));
+
+    options.width = 160;
+    options.height = 40;
+    options.first = 2;
+    options.last = 4;
+    options.scrolling = 1;
+    CHECK(mm_caption_edit_write_box(&box, -3, 4, &options, NULL) == MM_CAPTION_EDIT_OK);
+    CHECK(box.first == -2 && box.end == 1 && !box.story);
+    CHECK(mm_caption_edit_read_box(&box, -3, 4, &fields) == MM_CAPTION_EDIT_OK);
+    CHECK(fields.width == 160 && fields.height == 40 && fields.first == 2 && fields.last == 4 && fields.scrolling);
+    earlier = options;
+    options.x = 2147483647L;
+    CHECK(mm_caption_edit_write_box(&box, -3, 4, &options, &earlier) == MM_CAPTION_EDIT_POSITION);
+    CHECK(!box.left && box.right == 160);
+    options.x = 0;
+    box.first = -5;
+    CHECK(mm_caption_edit_write_box(&box, -3, 4, &options, &earlier) == MM_CAPTION_EDIT_OK && box.first == -5);
+
+    options.font_size = 18;
+    options.bold = 1;
+    options.italic = 1;
+    options.alignment = 2;
+    CHECK(mm_caption_edit_format(&options, NULL, &format) == MM_CAPTION_EDIT_OK && format.count == 3);
+    CHECK(format.changes[0].kind == MM_CAPTION_STYLE && format.changes[0].mask == 3 &&
+          format.changes[0].value == 3 && format.changes[2].value == 0x02000000UL);
+    earlier = options;
+    options.bold = 0;
+    CHECK(mm_caption_edit_format(&options, &earlier, &format) == MM_CAPTION_EDIT_OK && format.count == 1);
+    CHECK(format.changes[0].mask == 1 && !format.changes[0].value && !format.defaults);
+
+    init(&h);
+    ref = ensure(&h, 2, "font", 4);
+    h.entries[0].key = key(1, 0);
+    h.entries[0].value = 1;
+    h.entries[1].key = key(1, 2);
+    h.entries[1].value = 2;
+    h.entries[2].key = key(2, 0);
+    h.entries[2].value = ref;
+    h.count = 3;
+    CHECK(mm_caption_edit_replace(old_text, 3, new_text, 4, &h.s, &diagnosed) == MM_CAPTION_EDIT_OK);
+    CHECK(h.count == 3 && h.entries[0].key == key(1, 0) && h.entries[0].value == 1 &&
+          h.entries[1].key == key(1, 3) && h.entries[1].value == 2 &&
+          h.entries[2].key == key(2, 0) && h.entries[2].value == ref);
+    CHECK(!h.slots[ref - 1].free && h.slots[ref - 1].fixed == ((2UL << 24) | 1));
+}
+
 int main(void)
 {
     arguments();
     lookup();
     apply();
     adjust();
+    caption_edit();
     puts("Text property checks passed");
     return 0;
 }

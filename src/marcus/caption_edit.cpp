@@ -3,19 +3,18 @@
 #include "movie_archive_host.h"
 #include "mm/native_caption.h"
 #include "mm/preview.h"
-#include "mm/text_properties.h"
+#include "mm/caption_edit.h"
 #include "platform_text.h"
 #include "font_catalog.h"
 #include "font_host.h"
-#include <algorithm>
 #include <codecvt>
 #include <cstring>
-#include <limits>
 #include <locale>
 #include <map>
 #include <exception>
 #include <stdexcept>
 #include <tuple>
+#include <utility>
 #include "soc_core.h"
 #undef size
 ASSERTNAME
@@ -25,11 +24,11 @@ namespace
 using Encoding = KauaiText::Encoding;
 constexpr int MaxText = 65536;
 constexpr MMU32 Rgb = 0x01000000, Clear = 0xffffffffU;
-constexpr unsigned Style = 1, Foreground = 3, Alignment = 128;
 
 struct Release { template<class T> void operator()(T *p) const { if (p) p->Release(); } };
 template<class T> using Owned = std::unique_ptr<T, Release>;
 using Utf8 = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>;
+using Words = std::vector<unsigned short>;
 
 void Require(bool ok, const char *message)
 {
@@ -46,40 +45,26 @@ Owned<ChunkyFile> Open(const std::filesystem::path &path, bool write)
     Require(bool(file), "Cannot open the movie's 2D text.");
     return file;
 }
-int CheckedInt(std::int64_t value)
-{
-    Require(value >= std::numeric_limits<int>::min() && value <= std::numeric_limits<int>::max(),
-            "The 2D text position or frame range is out of range.");
-    return static_cast<int>(value);
-}
-std::u16string Decode(const void *bytes, std::size_t length, Encoding encoding)
+Words Decode(const void *bytes, std::size_t length, Encoding encoding)
 {
     if (!length) return {};
-    std::vector<std::uint16_t> native(KauaiText::ToUtf16(bytes, length, encoding, nullptr, 0));
-    Require(!native.empty() && KauaiText::ToUtf16(bytes, length, encoding, native.data(), native.size()) == native.size(),
+    Words units(KauaiText::ToUtf16(bytes, length, encoding, nullptr, 0));
+    Require(!units.empty() && KauaiText::ToUtf16(bytes, length, encoding, units.data(), units.size()) == units.size(),
             "Cannot decode the 2D text encoding.");
-    return {native.begin(), native.end()};
+    return units;
 }
-std::u16string ReadText(RichTextData &rich)
+Words ReadText(RichTextData &rich)
 {
     Require(rich.text.cb >= 0 && rich.text.cb <= MaxText * 4, "The 2D text is too long to edit.");
     std::vector<byte> bytes(rich.text.cb);
     Require(bytes.empty() || rich.text.FReadRgb(bytes.data(), rich.text.cb, 0), "Cannot read the 2D text.");
     return Decode(bytes.data(), bytes.size(), static_cast<Encoding>(rich.textOsk));
 }
-std::u16string Paragraphs(const std::u16string &text, char16_t separator)
+std::string ToUtf8(const Words &words)
 {
-    std::u16string result;
-    result.reserve(text.size());
-    for (std::size_t i = 0; i < text.size(); ++i)
-    {
-        const auto c = text[i];
-        if (c == u'\r' && i + 1 < text.size() && text[i + 1] == u'\n') ++i;
-        result += c == u'\r' || c == u'\n' ? separator : c;
-    }
-    return result;
+    return Utf8().to_bytes(std::u16string(words.begin(), words.end()));
 }
-std::vector<byte> LittleEndianText(const std::u16string &text)
+std::vector<byte> LittleEndianText(const Words &text)
 {
     std::vector<byte> bytes;
     bytes.reserve(text.size() * 2);
@@ -90,7 +75,7 @@ std::vector<byte> LittleEndianText(const std::u16string &text)
     }
     return bytes;
 }
-void WriteText(RichTextData &rich, const std::u16string &text)
+void WriteText(RichTextData &rich, const Words &text)
 {
     auto bytes = LittleEndianText(text);
     auto encoding = Encoding::Utf16LE;
@@ -116,11 +101,12 @@ void WriteText(RichTextData &rich, const std::u16string &text)
 }
 std::string Font(RichTextData &rich)
 {
-    return Utf8().to_bytes(Decode(rich.fontName.Psz(), rich.fontName.Cch() * sizeof(achar),
+    return ToUtf8(Decode(rich.fontName.Psz(), rich.fontName.Cch() * sizeof(achar),
                                   static_cast<Encoding>(koskCur)));
 }
-LegacyLong EncodeFont(const std::u16string &units, achar (&native)[kcchMaxStn])
+LegacyLong EncodeFont(const std::u16string &text, achar (&native)[kcchMaxStn])
 {
+    const Words units(text.begin(), text.end());
     auto bytes = LittleEndianText(units);
     const auto length = CchTranslateRgb(bytes.data(), static_cast<LegacyLong>(bytes.size()),
                                         static_cast<short>(Encoding::Utf16LE), native, kcchMaxStn);
@@ -140,8 +126,8 @@ void SetFont(RichTextData &rich, const char *font)
 struct PropertyMap
 {
     RichTextData &rich;
-    const std::u16string &words;
-    bool diagnosed = false;
+    const Words &words;
+    int diagnosed = 0;
     MMTextPropertyEntry Get(MMI32 index) const
     {
         MMTextPropertyEntry entry;
@@ -171,13 +157,10 @@ struct PropertyMap
         services.clear_cache = [](void *) {};
         services.paragraph_end = [](void *p, MMI32 at, MMI32 *end) -> int {
             const auto &text = static_cast<PropertyMap *>(p)->words;
-            const auto next = text.find_first_of(u"\r\n", (std::max)(0, at));
-            *end = next == std::u16string::npos ? static_cast<MMI32>(text.size()) + 1 : static_cast<MMI32>(next) + 1;
-            if (next != std::u16string::npos && text[next] == u'\r' && next + 1 < text.size() && text[next + 1] == u'\n')
-                ++*end;
+            *end = mm_caption_edit_paragraph_end(text.data(), static_cast<MMI32>(text.size()), at);
             return 1;
         };
-        services.diagnostic = [](void *p, int) { static_cast<PropertyMap *>(p)->diagnosed = true; };
+        services.diagnostic = [](void *p, int) { static_cast<PropertyMap *>(p)->diagnosed = 1; };
         auto &args = services.arguments;
         args.context = this;
         args.objects.context = this;
@@ -222,27 +205,35 @@ auto Fields(const MarcusCaptionOptions &v)
     return std::tie(v.x, v.y, v.width, v.height, v.first_frame, v.last_frame, v.through_end, v.font_size,
                     v.bold, v.italic, v.alignment, v.scrolling, v.transparent, v.ink, v.paper);
 }
-bool ChangedRange(const MarcusCaptionOptions &value, const MarcusCaptionOptions *before)
+MMCaptionEditOptions EngineOptions(const MarcusCaptionOptions &value)
 {
-    return !before || before->first_frame != value.first_frame || before->last_frame != value.last_frame ||
-           before->through_end != value.through_end;
+    return {value.x, value.y, value.width, value.height, value.first_frame, value.last_frame,
+            value.through_end, value.scrolling, value.font_size, value.bold, value.italic,
+            value.alignment, value.transparent, value.ink, value.paper};
+}
+void CheckCaptionEdit(int status)
+{
+    static const char *const messages[] = {
+        nullptr,
+        "The 2D text width and height must be between 1 and 4096 pixels.",
+        "The 2D text position or frame range is out of range.",
+        "Choose a visible frame range within the scene.",
+        "2D font size must be between 4 and 255 pixels.",
+        "Choose left, center or right alignment.",
+        "Cannot allocate the 2D text formatting.",
+        "Cannot retain the 2D text formatting.",
+        "Cannot retain the first characters' formatting."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_CAPTION_EDIT_INHERIT + 1, "caption edit diagnostics");
+    Require(status == MM_CAPTION_EDIT_OK, messages[status]);
 }
 void UpdateBox(TextBoxData &box, const MarcusCaptionList &list, const MarcusCaptionOptions &value,
                const MarcusCaptionOptions *before)
 {
-    Require(value.width > 0 && value.height > 0 && value.width <= 4096 && value.height <= 4096,
-            "The 2D text width and height must be between 1 and 4096 pixels.");
-    box.SetBounds(value.x, value.y, CheckedInt(std::int64_t(value.x) + value.width),
-                 CheckedInt(std::int64_t(value.y) + value.height));
-    box.state.story = !value.scrolling;
-    if (!ChangedRange(value, before)) return;
-    const auto first = std::int64_t(list.firstFrame) + value.first_frame - 1;
-    const auto last = std::int64_t(list.firstFrame) + value.last_frame - 1;
-    Require(value.first_frame >= 1 && first <= list.lastFrame &&
-            (value.through_end || (value.last_frame >= value.first_frame && last <= list.lastFrame)),
-            "Choose a visible frame range within the scene.");
-    box.state.first = CheckedInt(first);
-    box.state.end = value.through_end ? knfrmInvalid : CheckedInt(last + 1);
+    const auto options = EngineOptions(value);
+    const auto prior = before ? EngineOptions(*before) : MMCaptionEditOptions{};
+    CheckCaptionEdit(mm_caption_edit_write_box(&box.state, list.firstFrame, list.lastFrame,
+                                               &options, before ? &prior : nullptr));
 }
 bool UpdateRich(RichTextData &rich, const MarcusCaptionOptions &value, const MarcusCaptionOptions *before,
                 const char *text, bool wordsChanged, std::u16string *draft = nullptr)
@@ -252,80 +243,47 @@ bool UpdateRich(RichTextData &rich, const MarcusCaptionOptions &value, const Mar
         rich.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
         Require(rich.properties != nullptr, "Cannot allocate the 2D text properties.");
     }
-    bool changed = false;
-    if (!before || std::strcmp(before->font, value.font))
-    {
+    const bool fontChanged = !before || std::strcmp(before->font, value.font);
+    if (fontChanged)
         SetFont(rich, value.font);
-        changed = true;
-    }
-    if (!before || value.font_size != before->font_size)
-    {
-        Require(value.font_size >= 4 && value.font_size <= 255, "2D font size must be between 4 and 255 pixels.");
+    const auto options = EngineOptions(value);
+    const auto prior = before ? EngineOptions(*before) : MMCaptionEditOptions{};
+    MMCaptionEditFormat format;
+    CheckCaptionEdit(mm_caption_edit_format(&options, before ? &prior : nullptr, &format));
+    if (format.defaults & MM_CAPTION_EDIT_SET_SIZE)
         rich.defaults.dypFont = value.font_size;
-        changed = true;
-    }
-    if (!before || value.transparent != before->transparent || value.paper != before->paper)
-    {
-        rich.defaults.lwAcrBack = mm_signed_word(value.transparent ? Clear : Rgb | (value.paper & 0xffffffU));
-        changed = true;
-    }
-    if (!before || value.width != before->width)
-    {
+    if (format.defaults & MM_CAPTION_EDIT_SET_PAPER)
+        rich.defaults.lwAcrBack = format.paper;
+    if (format.defaults & MM_CAPTION_EDIT_SET_WIDTH)
         rich.defaults.dxpDef = value.width;
-        changed = true;
-    }
-    std::vector<MMTextPropertyChange> format;
-    unsigned styleMask = 0;
-    if (!before || value.bold != before->bold) styleMask |= 1;
-    if (!before || value.italic != before->italic) styleMask |= 2;
-    if (styleMask) format.push_back({Style, ((value.bold ? 1U : 0U) | (value.italic ? 2U : 0U)) & styleMask, styleMask});
-    if (!before || value.ink != before->ink) format.push_back({Foreground, static_cast<MMU32>(value.ink & 0xffffffU), Clear});
-    if (!before || value.alignment != before->alignment)
-    {
-        Require(value.alignment >= 0 && value.alignment <= 2, "Choose left, center or right alignment.");
-        format.push_back({Alignment, static_cast<MMU32>(value.alignment) << 24, 0xff000000U});
-    }
-    if (!wordsChanged && format.empty()) return changed;
-    const auto oldText = before ? ReadText(rich) : std::u16string{};
-    Utf8 utf8;
-    auto newText = wordsChanged ? Paragraphs(utf8.from_bytes(text), u'\r') : oldText;
-    Require(!wordsChanged || (utf8.converted() == std::strlen(text) && newText.size() <= MaxText),
-            "Enter valid UTF-8 within the 2D text length limit.");
-    PropertyMap map{rich, newText};
-    const auto services = map.Services();
-    const auto characters = static_cast<MMI32>(newText.size()) + 1;
+    if (!wordsChanged && !format.count)
+        return fontChanged || format.defaults;
+    const auto oldText = before ? ReadText(rich) : Words{};
+    Words newText;
     if (wordsChanged)
     {
-        const auto prefix = std::mismatch(oldText.begin(), oldText.end(), newText.begin(), newText.end());
-        const auto suffix = std::mismatch(oldText.rbegin(), std::make_reverse_iterator(prefix.first),
-                                          newText.rbegin(), std::make_reverse_iterator(prefix.second));
-        const auto at = static_cast<MMI32>(prefix.first - oldText.begin());
-        const auto inserted = static_cast<MMI32>(suffix.second.base() - prefix.second);
-        const auto deleted = static_cast<MMI32>(suffix.first.base() - prefix.first);
-        std::vector<MMTextPropertyChange> inherited;
-        if (!at && inserted)
-            for (LegacyLong i = 0; i < rich.properties->IvMac(); ++i)
-            {
-                const auto prior = map.Get(i);
-                const auto kind = prior.key >> 24;
-                if (kind >= Alignment) break;
-                if ((prior.key & 0xffffffU) || !prior.value) continue;
-                inherited.push_back({kind, static_cast<MMU32>(prior.value), Clear});
-                mm_text_property_ref(kind, prior.value, 1, &services.arguments);
-            }
-        Require(mm_text_properties_adjust(at, inserted, deleted, characters, &services) > 0 && !map.diagnosed,
-                "Cannot retain the 2D text formatting.");
-        if (!inherited.empty())
-            Require(mm_text_properties_apply_changes(0, inserted, characters, inherited.data(),
-                        static_cast<MMI32>(inherited.size()), &services) > 0 && !map.diagnosed,
-                    "Cannot retain the first characters' formatting.");
+        Utf8 utf8;
+        const auto decoded = utf8.from_bytes(text);
+        newText.assign(decoded.begin(), decoded.end());
+        newText.resize(mm_caption_edit_normalize(newText.data(), newText.size(), 13));
+        Require(utf8.converted() == std::strlen(text) && newText.size() <= MaxText,
+                "Enter valid UTF-8 within the 2D text length limit.");
+    }
+    const auto &words = wordsChanged ? newText : oldText;
+    PropertyMap map{rich, words};
+    const auto services = map.Services();
+    const auto characters = static_cast<MMI32>(words.size()) + 1;
+    if (wordsChanged)
+    {
+        CheckCaptionEdit(mm_caption_edit_replace(oldText.data(), static_cast<MMI32>(oldText.size()),
+                                                 newText.data(), characters - 1, &services, &map.diagnosed));
         if (!draft) WriteText(rich, newText);
     }
-    if (!format.empty())
-        Require(mm_text_properties_apply_changes(0, characters, characters, format.data(),
-                                                 static_cast<MMI32>(format.size()), &services) > 0 && !map.diagnosed,
+    if (format.count)
+        Require(mm_text_properties_apply_changes(0, characters, characters, format.changes,
+                                                 format.count, &services) > 0 && !map.diagnosed,
                 "Cannot apply the 2D text formatting.");
-    if (draft && wordsChanged) *draft = std::move(newText);
+    if (draft && wordsChanged) draft->assign(newText.begin(), newText.end());
     return true;
 }
 }
@@ -377,20 +335,20 @@ void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &pr
         Require(box.FRead(file.get(), link.number, &body) && rich.FRead(file.get(), body.ctg, body.cno),
                 "Cannot read a native 2D text box.");
         auto words = ReadText(rich);
-        auto text = Utf8().to_bytes(Paragraphs(words, u'\n'));
+        auto display = words;
+        display.resize(mm_caption_edit_normalize(display.data(), display.size(), 10));
+        auto text = ToUtf8(display);
         Require(text.size() < MARCUS_CAPTION_UTF8_CAPACITY && text.find('\0') == std::string::npos,
                 "This 2D text cannot fit in the editor.");
         const auto &s = box.state;
         MarcusCaptionEntry entry{link.slot, link.number, {}, std::move(text)};
         auto &v = entry.options;
-        v.x = s.left;
-        v.y = s.top;
-        v.width = CheckedInt(std::int64_t(s.right) - s.left);
-        v.height = CheckedInt(std::int64_t(s.bottom) - s.top);
-        v.first_frame = CheckedInt(std::int64_t(s.first) - list.firstFrame + 1);
-        v.through_end = s.end == knfrmInvalid;
-        v.last_frame = CheckedInt(std::int64_t(v.through_end ? list.lastFrame : s.end - std::int64_t(1)) - list.firstFrame + 1);
-        v.scrolling = !s.story;
+        MMCaptionEditOptions fields;
+        CheckCaptionEdit(mm_caption_edit_read_box(&s, list.firstFrame, list.lastFrame, &fields));
+        v.x = fields.x; v.y = fields.y;
+        v.width = fields.width; v.height = fields.height;
+        v.first_frame = fields.first; v.last_frame = fields.last;
+        v.through_end = fields.through_end; v.scrolling = fields.scrolling;
         v.font_size = rich.defaults.dypFont;
         v.transparent = static_cast<MMU32>(rich.defaults.lwAcrBack) == Clear;
         v.paper = v.transparent ? 0 : preview.PresentationColour(rich.defaults.lwAcrBack) & 0xffffffU;
@@ -404,9 +362,9 @@ void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &pr
             if (property.key & 0xffffffU) continue;
             switch (property.key >> 24)
             {
-            case Style: v.bold = (property.value & 1) != 0; v.italic = (property.value & 2) != 0; break;
-            case Foreground: v.ink = preview.PresentationColour(Rgb + static_cast<MMU32>(property.value)) & 0xffffffU; break;
-            case Alignment: v.alignment = static_cast<MMU32>(property.value) >> 24; break;
+            case MM_CAPTION_STYLE: v.bold = (property.value & 1) != 0; v.italic = (property.value & 2) != 0; break;
+            case MM_CAPTION_FOREGROUND: v.ink = preview.PresentationColour(Rgb + static_cast<MMU32>(property.value)) & 0xffffffU; break;
+            case MM_CAPTION_ALIGNMENT: v.alignment = static_cast<MMU32>(property.value) >> 24; break;
             }
         }
         list.entries.push_back(std::move(entry));
