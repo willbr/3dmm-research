@@ -973,6 +973,11 @@ Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.
 Archive lookup and SDL decoding supply the media.
+The C89 engine now selects Marcus's frame cues and authored waits, including
+prior scene music, restart sample positions and motion-cue precedence. C89
+also owns Studio's pending movie sound queue, including the signed low-word
+lane key, replacement order, requests held for playback, and timeout policy.
+Studio supplies allocator diagnostics and native sound references.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

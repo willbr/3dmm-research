@@ -1,6 +1,7 @@
 #include "playback.h"
 #include "mm/playback.h"
 #include "mm/movie_audio.h"
+#include "mm/frame_sound.h"
 #include "caption_quad.h"
 #include "sdl_audio.h"
 #include "midi_synth.h"
@@ -243,7 +244,7 @@ class Audio
         return mm_movie_audio_pending(mixer.get()) != 0;
     }
 
-    bool Play(Preview &preview, const PreviewSoundCue &cue, std::uint64_t offsetFrames, Error &error)
+    bool Play(Preview &preview, const PreviewSoundCue &cue, MMAudioCounter offset, Error &error)
     {
         std::unique_ptr<MMMovieAudioVoice, decltype(&mm_movie_audio_voice_destroy)> voice(
             nullptr, mm_movie_audio_voice_destroy);
@@ -270,8 +271,6 @@ class Audio
                         static_cast<AudioOwner *>(p)->synth->Render(output, frames);
                     },
                     [](void *p) { static_cast<AudioOwner *>(p)->synth->Reset(); }};
-                const auto offset = mm_audio_counter(static_cast<MMU32>(offsetFrames),
-                                                     static_cast<MMU32>(offsetFrames >> 32));
                 voice.reset(mm_movie_audio_prepare(&clip->data, &services, offset, cue.volume, cue.loop));
                 if (!voice)
                     throw std::bad_alloc();
@@ -790,8 +789,7 @@ bool MarcusPlayback::RestoreAudio(Preview &preview, const std::vector<MarcusResu
 {
     impl->audio.Suspend(true);
     for (const auto &sound : sounds)
-        if (!impl->audio.Play(preview, sound.cue,
-                             static_cast<std::uint64_t>(std::floor(sound.seconds * 48000 + .5)), error))
+        if (!impl->audio.Play(preview, sound.cue, mm_frame_sound_resume_samples(sound.seconds), error))
             return false;
     impl->clock.restore_music = 0;
     return true;
@@ -833,7 +831,7 @@ void MarcusPlayback::Stop()
 bool MarcusPlayback::Audition(Preview &preview, PreviewSoundCue cue, Error &error)
 {
     Stop(); cue.loop = false; cue.queue = false;
-    if (!impl->audio.Play(preview, cue, 0, error)) return false;
+    if (!impl->audio.Play(preview, cue, {}, error)) return false;
     impl->auditioning = true; impl->audio.Suspend(false); return true;
 }
 bool MarcusPlayback::Auditioning() const
@@ -931,40 +929,50 @@ void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous,
 bool MarcusPlayback::Impl::EnterFrame(Preview &preview, MMI32 frame, int restoreMusic, double fps,
                                       MMPolledFrameWait &wait, Error &error)
 {
-    // Restore scene music on a seek; speech and effects fire at their authored frame.
-    const PreviewSoundCue *music = nullptr;
-    if (restoreMusic)
-        for (const auto &cue : scene.sounds)
-            if (cue.style == 4 && cue.frame < frame && (!music || cue.frame >= music->frame))
-                music = &cue;
-    if (music)
+    struct Context
     {
-        const auto musicFrame = music->frame;
-        const auto offset = static_cast<std::uint64_t>(std::max(0.0, (double(frame) - musicFrame) *
-                                                               (fps > 0 ? 48000 / fps : 8000)));
-        for (const auto &cue : scene.sounds)
-            if (cue.style == 4 && cue.frame == musicFrame && !audio.Play(preview, cue, cue.queue ? 0 : offset, error))
-                return false;
-    }
-    for (const auto &cue : scene.sounds)
-        if (cue.frame == frame && !audio.Play(preview, cue, 0, error))
-            return false;
-    const auto sounds = preview.FrameSounds();
-    // Explicit actor sounds take precedence over motion-match sounds in
-    // the same actor/style lane, following the native dispatch policy.
-    for (const auto &cue : sounds)
-    {
-        if (cue.motion && std::any_of(sounds.begin(), sounds.end(), [&](const PreviewSoundCue &other) {
-                return !other.motion && other.actor == cue.actor && other.style == cue.style;
-            }))
-            continue;
-        if (!audio.Play(preview, cue, 0, error))
-            return false;
-    }
-    for (const auto &pause : scene.pauses)
-        if (pause.frame == frame)
-            wait = {pause.kind, static_cast<double>(pause.milliseconds)};
-    return true;
+        Preview &preview;
+        Audio &audio;
+        Error &error;
+        const PreviewPresentation &scene;
+        std::vector<PreviewSoundCue> actors;
+        std::exception_ptr failure;
+
+        const PreviewSoundCue &Cue(int actor, std::size_t index) const
+        {
+            return actor ? actors[index] : scene.sounds[index];
+        }
+    } context{preview, audio, error, scene, {}, {}};
+    const MMFrameSoundServices services{
+        &context, scene.sounds.size(), scene.pauses.size(),
+        [](void *p, std::size_t *count) -> int {
+            auto &ctx = *static_cast<Context *>(p);
+            try
+            {
+                ctx.actors = ctx.preview.FrameSounds();
+                *count = ctx.actors.size();
+                return 1;
+            }
+            catch (...) { ctx.failure = std::current_exception(); return 0; }
+        },
+        [](void *p, int actor, std::size_t index, MMFrameSoundCue *out) {
+            const auto &cue = static_cast<Context *>(p)->Cue(actor, index);
+            *out = {cue.frame, cue.style, cue.actor, cue.queue, cue.motion};
+        },
+        [](void *p, int actor, std::size_t index, MMAudioCounter offset) -> int {
+            auto &ctx = *static_cast<Context *>(p);
+            try { return ctx.audio.Play(ctx.preview, ctx.Cue(actor, index), offset, ctx.error); }
+            catch (...) { ctx.failure = std::current_exception(); return 0; }
+        },
+        [](void *p, std::size_t index, MMI32 *frame, MMPolledFrameWait *out) {
+            const auto &pause = static_cast<Context *>(p)->scene.pauses[index];
+            *frame = pause.frame;
+            *out = {pause.kind, static_cast<double>(pause.milliseconds)};
+        }};
+    const bool ok = mm_frame_sound_enter(frame, restoreMusic, fps, &services, &wait) != 0;
+    if (context.failure)
+        std::rethrow_exception(context.failure);
+    return ok;
 }
 bool MarcusPlayback::Impl::MeasureScroll(MMI32 frame, int &needsScroll, Error &error)
 {

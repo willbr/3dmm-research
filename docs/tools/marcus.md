@@ -1794,6 +1794,10 @@ The C89 movie mixer owns voice position, queue order, track controls and
 absolute MIDI event dispatch. It uses the same PCM accumulation and clipping
 as Studio. The SDL callback mixes previously decoded audio and advances its
 prepared synths. Archive reads and MIDI preroll run before publishing a voice.
+The C89 frame dispatcher selects earlier scene music when restoring it,
+plays current scene and actor cues in order, and selects the last authored
+wait on the frame. An explicit actor cue takes precedence over motion
+matches for that actor and sound style.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and

@@ -14131,3 +14131,51 @@ records input and executable hashes. The compared suites are
 `20261119T012147Z-f836ff4b` and `20261119T013632Z-ab87631b`. The latter
 contains four new Marcus runs and reuses the eight matching retail and
 SDL Studio runs.
+
+## C89 frame sound dispatch and pending requests (19 November 2026)
+
+Marcus now selects restored music, scene cues, actor cues and authored waits
+in C89. Restored queued music starts at sample zero. Current scene cues
+dispatch before actor cues. Explicit actor cues take precedence over motion
+matches for the same actor and sound style. A failed audio effect preserves
+the prior completed effects and skips the remaining frame work.
+
+C89 also owns Studio's movie sound request storage, including reference
+transfer on dequeue, signed low-word lane matching, queue order, replacement
+and timeout decisions. Studio uses its native allocator and reference
+callbacks. A replacement holds the new reference before releasing the
+previous one.
+
+The baseline at `0f5c0a8f` passed `engine-core-link` and `marcus-playback`.
+The converted build passed 25 selected checks with `BUILD_TESTING=ON` and
+`REQUIRE_C89_CHECKS=ON`. These included C89 syntax, native queue ownership
+and allocation failure checks, C frame dispatch, actor and scene sound,
+and the Marcus playback, player and sound editing checks. Marcus was
+relaunched, and SDL Studio rebuilt in its Release capture configuration.
+
+A deterministic frame-dispatch probe compared 32,768 generated cases,
+including queued restoration, waits and failure prefixes. The before,
+after and AddressSanitizer traces matched byte for byte. The trace SHA-256
+is `6600FE4569B98B025DB0A6D729B6C709A53E72690589C8BBBB78847138143978`.
+The native queue probe checked 65,536 operations against the old queue
+ordering and reference rules, including under AddressSanitizer. The probes
+and test log are in `tmp/c89-frame-audio`.
+
+Retail, SDL Studio and Marcus completed the `sampled-audio` and
+`actor-audio` seek and normal playback cases. Both builds had the same
+60 authored frames per case and mode, and all 240 Studio and Marcus seek
+images matched their respective prior builds. The four Studio sampled
+requests and twelve Studio actor requests matched in order and payload.
+Both hosts kept PCM16 peaks of 2,176 and 4,081 for the two cases and
+both actor tones stayed in scene one.
+
+Actor-audio replay preserved all 60 frames and both cues in the same
+process for each player. Studio's twelve replay request payloads and
+order matched before and after. The retail verdicts agreed across builds,
+including mixed PCM differences and inconclusive Marcus timing. Captured
+PCM lengths varied between runs.
+
+The capture database at `tmp/c89-sound-schedule/capture/playback.sqlite`
+records input and executable hashes. The fresh suites are
+`20261119T013632Z-ab87631b` and `20261119T014854Z-542b8be6`. The replay
+suites are `20261119T015016Z-fd084172` and `20261119T015043Z-d8c363d7`.

@@ -51,7 +51,7 @@ enum class SoundQueueDispatch
     Play
 };
 
-// Owns pending requests and preview-duration policy, not a device or clock.
+// Adapts the C89 pending queue to native resource references.
 // High-priority entries retain FIFO ordering; low-priority entries are pushed
 // onto the next-to-play end. Replacement removes the first matching queue.
 class SoundPlaybackQueue
@@ -78,6 +78,7 @@ class SoundPlaybackQueue
 #endif
 
   private:
-    PDynamicArray _entries = pvNil;
+    class Storage;
+    Storage *_entries = pvNil;
 };
 #endif
