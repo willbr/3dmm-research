@@ -1,6 +1,7 @@
 /* Licensed under the MIT License. */
 #include "mm/chunk_edit.h"
 #include "mm/collections.h"
+#include "mm/movie_archive_edit.h"
 #include "mm/movie_portable.h"
 #include "mm/movie_session.h"
 #include "mm/scene_data.h"
@@ -160,6 +161,155 @@ static void replacement(void)
         links.count == 3 && !memcmp(links.calls, "WAD", 3));
 }
 
+#define MOVIE_TYPE 0x4d564945UL
+#define SOURCE_TYPE 0x47535420UL
+typedef struct SourceEdit
+{
+    MMMemoryStream input;
+    Output output;
+    int has_table, fail_link, step;
+} SourceEdit;
+
+static int source_root(void *context, MMU32 position, MMChunkEntry *entry)
+{
+    SourceEdit *edit = (SourceEdit *)context;
+    assert(position == 0);
+    memset(entry, 0, sizeof(*entry));
+    entry->type = MOVIE_TYPE;
+    entry->number = 2;
+    entry->child_count = edit->has_table;
+    return 1;
+}
+static int source_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *child)
+{
+    assert(parent == 0 && position == 0 && ((SourceEdit *)context)->has_table);
+    child->type = SOURCE_TYPE;
+    child->number = 7;
+    child->slot = 1;
+    return 1;
+}
+static MMChunkAccess source_chunks(void *context)
+{
+    MMChunkAccess chunks = {NULL, 1, source_root, source_child};
+    chunks.context = context;
+    return chunks;
+}
+static int source_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    SourceEdit *edit = (SourceEdit *)context;
+    assert(type == SOURCE_TYPE && number == 7 && edit->has_table && edit->step == 0);
+    *stream = edit->input.stream;
+    return 1;
+}
+static int source_write(void *context, MMU32 offset, const void *bytes, size_t count)
+{
+    SourceEdit *edit = (SourceEdit *)context;
+    assert(edit->step == 1 && offset <= edit->output.length && count <= edit->output.length - offset);
+    memcpy(edit->output.data + offset, bytes, count);
+    return 1;
+}
+static int source_add(void *context, MMU32 type, MMU32 count, MMU32 *number, MMStorageWriter *writer)
+{
+    SourceEdit *edit = (SourceEdit *)context;
+    assert(type == SOURCE_TYPE && edit->step == 0 && count <= sizeof(edit->output.data));
+    edit->step = 1;
+    edit->output.length = count;
+    *number = 8;
+    writer->context = edit;
+    writer->length = count;
+    writer->write_at = source_write;
+    return 1;
+}
+static int source_adopt(void *context, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot)
+{
+    SourceEdit *edit = (SourceEdit *)context;
+    assert(parent_type == MOVIE_TYPE && parent == 2 && type == SOURCE_TYPE && number == 8 && slot == 1);
+    assert(edit->step == (edit->has_table ? 2 : 1));
+    edit->step = 3;
+    return !edit->fail_link;
+}
+static void source_unlink(void *context, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot)
+{
+    SourceEdit *edit = (SourceEdit *)context;
+    assert(parent_type == MOVIE_TYPE && parent == 2 && type == SOURCE_TYPE && number == 7 && slot == 1);
+    assert(edit->step == 1 && edit->has_table);
+    edit->step = 2;
+}
+
+static void source_row(const MMMovieSourceTable *table, MMU32 index, MMI32 id, const char *expected)
+{
+    MMMovieSourceName row;
+    char name[MM_MOVIE_SOURCE_NAME_BYTES];
+    assert(mm_movie_source_table_at(table, index, &row) == MM_MOVIE_OK && row.id == id);
+    assert(mm_movie_source_name_utf8(&row, name) == MM_MOVIE_OK && !strcmp(name, expected));
+}
+
+static void register_source(void)
+{
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
+                                   source_read, source_add, source_adopt, source_unlink};
+    SourceEdit edit = {0};
+    MMMemoryStream saved;
+    MMMovieSourceTable table;
+    MMCollectionHeader header = {0};
+    static const char names[] = "\0043DMM\006ignore\0073DMOVIE";
+    unsigned char input[20 + sizeof(names) - 1 + 24] = {0};
+    unsigned char *rows;
+    MMI32 id;
+    editor.context = &edit;
+    assert(mm_movie_archive_register_source(&editor, NULL, 2, 1, "3dmm", &id) == MM_MOVIE_SOURCE_EDIT_OK);
+    assert(id == 1 && edit.step == 3 && mm_memory_stream_init(&saved, edit.output.data, edit.output.length));
+    assert(mm_movie_source_table_open(&saved.stream, sizeof(edit.output.data), &table) == MM_MOVIE_OK);
+    assert(table.count == 1);
+    source_row(&table, 0, 1, "3D Movie Maker/3DMOVIE");
+    edit.step = 0;
+    assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, "Doraemon Character Kit", &id) ==
+           MM_MOVIE_SOURCE_EDIT_OK);
+    assert(id == 3 && mm_memory_stream_init(&saved, edit.output.data, edit.output.length));
+    assert(mm_movie_source_table_open(&saved.stream, sizeof(edit.output.data), &table) == MM_MOVIE_OK);
+    assert(table.count == 2);
+    source_row(&table, 0, 2, "3D Movie Maker/3DMOVIE");
+    source_row(&table, 1, 3, "Doraemon Character Kit");
+
+    header.kind = MM_COLLECTION_STRINGS;
+    header.width = 8;
+    header.count = 3;
+    header.bytes = sizeof(names) - 1;
+    header.free_count = -1;
+    header.system = MM_TEXT_MAC;
+    header.big_endian = 1;
+    assert(mm_collection_header_write(&header, input, sizeof(input)) == MM_STORAGE_OK);
+    memcpy(input + 20, names, sizeof(names) - 1);
+    rows = input + 20 + sizeof(names) - 1;
+    word(rows + 4, 17, 1);
+    word(rows + 8, 5, 1);
+    word(rows + 12, (MMU32)-4, 1);
+    word(rows + 16, 12, 1);
+    word(rows + 20, 11, 1);
+    assert(mm_memory_stream_init(&edit.input, input, sizeof(input)));
+    edit.has_table = 1;
+    edit.step = 0;
+    assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, NULL, &id) == MM_MOVIE_SOURCE_EDIT_OK);
+    assert(id == 11 && edit.step == 3 && mm_memory_stream_init(&saved, edit.output.data, edit.output.length));
+    assert(mm_movie_source_table_open(&saved.stream, sizeof(edit.output.data), &table) == MM_MOVIE_OK);
+    assert(table.count == 3 && !table.big_endian && table.encoding == MM_TEXT_WINDOWS);
+    source_row(&table, 0, 17, "3DMM");
+    source_row(&table, 1, -4, "ignore");
+    source_row(&table, 2, 11, "3DMOVIE");
+    edit.step = 0;
+    assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, "new", &id) == MM_MOVIE_SOURCE_EDIT_OK);
+    assert(id == 18 && edit.step == 3);
+    edit.step = 0;
+    edit.fail_link = 1;
+    id = 123;
+    assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, "new", &id) == MM_MOVIE_SOURCE_EDIT_LINK);
+    assert(id == 123 && edit.step == 3);
+    edit.step = 0;
+    word(rows + 4, 0x7fffffffUL, 1);
+    assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, "new", &id) == MM_MOVIE_SOURCE_EDIT_IDS);
+    assert(id == 123 && edit.step == 0);
+}
+
 int main(void)
 {
     start_events(0);
@@ -167,6 +317,7 @@ int main(void)
     sources(0, MM_TEXT_WINDOWS);
     sources(1, MM_TEXT_UTF16_BE);
     replacement();
+    register_source();
     puts("Portable movie source and background wire edits and link replacement passed.");
     return 0;
 }

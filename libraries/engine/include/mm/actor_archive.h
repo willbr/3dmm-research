@@ -1,6 +1,7 @@
 #ifndef MM_ENGINE_ACTOR_ARCHIVE_H
 #define MM_ENGINE_ACTOR_ARCHIVE_H
 #include "actor_data.h"
+#include "movie_archive_edit.h"
 #include "movie_data.h"
 #ifdef __cplusplus
 extern "C" {
@@ -89,24 +90,9 @@ typedef struct MMActorArchiveName
     int replace_existing;
 } MMActorArchiveName;
 
-typedef struct MMActorArchiveEditor
-{
-    void *context;
-    unsigned text_unit;
-    int system, big_endian;
-    MMStringConvert convert_text;
-    MMChunkAccess (*chunks)(void *);
-    int (*read)(void *, MMU32 type, MMU32 number, MMReadStream *);
-    int (*add)(void *, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *);
-    int (*adopt)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
-    void (*unlink)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
-} MMActorArchiveEditor;
-
 /* NULL placement updates the roll call only. Matching rows keep their order and
- * reference counts when replace_existing is set. The host owns the candidate
- * archive and discards it if any operation fails. The read stream and writer
- * borrow host storage through the next read and add, respectively. */
-int mm_actor_archive_register(const MMActorArchiveEditor *, MMU32 movie,
+ * reference counts when replace_existing is set. */
+int mm_actor_archive_register(const MMMovieArchiveEditor *, MMU32 movie,
                               const MMActorArchivePlacement *, const MMActorArchiveName *);
 
 #ifdef __cplusplus

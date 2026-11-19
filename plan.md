@@ -1021,8 +1021,10 @@ the actor ID, remap embedded templates, fonts, costumes and sounds, and
 reuse a scene sound link for repeated cues. C89 also assigns the scene
 child slot, appends the start event, updates the chunk links and writes
 the movie roll call during insertion and paste. 3D text renames use
-the same roll-call writer and keep existing reference counts. Marcus
-provides native archive access and movie source registration.
+the same roll-call writer and keep existing reference counts. Movie
+content-source registration also uses C89 for VFS alias matching,
+fallback and new IDs, and the source table's native encoding and link.
+Marcus provides archive access and the host's character conversion.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

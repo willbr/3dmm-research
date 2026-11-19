@@ -266,20 +266,20 @@ int mm_actor_archive_transfer(const MMActorArchiveRequest *request, const MMActo
 
 typedef struct StartWrite
 {
-    const MMActorArchiveEditor *editor;
+    const MMMovieArchiveEditor *editor;
     MMU32 number;
 } StartWrite;
 
 static int write_start(void *context, const unsigned char *bytes, MMU32 count)
 {
     StartWrite *start = (StartWrite *)context;
-    const MMActorArchiveEditor *editor = start->editor;
+    const MMMovieArchiveEditor *editor = start->editor;
     MMStorageWriter writer;
     return editor->add(editor->context, START_TYPE, count, &start->number, &writer) &&
            writer.write_at(writer.context, 0, bytes, count);
 }
 
-static int register_scene(const MMActorArchiveEditor *editor, const MMActorArchivePlacement *placement)
+static int register_scene(const MMMovieArchiveEditor *editor, const MMActorArchivePlacement *placement)
 {
     MMChunkAccess chunks;
     MMReadStream stream;
@@ -314,7 +314,7 @@ static int register_scene(const MMActorArchiveEditor *editor, const MMActorArchi
     return MM_ACTOR_REGISTER_OK;
 }
 
-static int read_rollcall(const MMActorArchiveEditor *editor, MMU32 previous, const MMActorArchiveName *name,
+static int read_rollcall(const MMMovieArchiveEditor *editor, MMU32 previous, const MMActorArchiveName *name,
                          MMRollCallTable *table, int *replaced)
 {
     MMRollCallTable input;
@@ -362,7 +362,7 @@ done:
     return result;
 }
 
-static int register_name(const MMActorArchiveEditor *editor, MMU32 movie, const MMActorArchiveName *name)
+static int register_name(const MMMovieArchiveEditor *editor, MMU32 movie, const MMActorArchiveName *name)
 {
     MMChunkAccess chunks;
     MMRollCallTable table;
@@ -400,7 +400,7 @@ done:
     return result;
 }
 
-int mm_actor_archive_register(const MMActorArchiveEditor *editor, MMU32 movie,
+int mm_actor_archive_register(const MMMovieArchiveEditor *editor, MMU32 movie,
                               const MMActorArchivePlacement *placement, const MMActorArchiveName *name)
 {
     int result;

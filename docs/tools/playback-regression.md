@@ -14549,3 +14549,33 @@ edited scene. Full captures still show pixel and mixed PCM differences,
 and Marcus playback timing remains inconclusive. The database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. Probe outputs and logs
 are in `tmp/c89-actor-register`.
+
+## Marcus content-source registration in C89 (19 November 2026)
+
+Scene and actor insertion, actor paste and 3D text edits use C89 to
+register movie content sources. The C editor reads the GST at movie
+slot 1, recognizes aliases through the shared VFS rules and keeps the
+last matching positive ID. It creates the implicit retail row for a
+movie without a source table, allocates new IDs past the existing
+maximum, and publishes the result after linking the rewritten GST.
+The archive adapter also serves the actor start group and roll call.
+
+The source-table regression checks implicit retail IDs 1 and 2,
+foreign byte order and encoding, duplicate aliases, preservation
+of a negative ID, ID exhaustion and failed adoption. All 20 selected
+checks passed in the Marcus build. The standalone C-only Release
+build passed the portable-movie test and strict C89 syntax check.
+
+The headless probe copied at frame 10 and pasted at frame 12, then saved, undid
+the paste, and saved again. Both output pairs were byte-identical to
+the pre-change outputs. The pasted movie's SHA-256 is
+`51dc19908b98e4c093eb41c823fa5f861d7fe187b2010db37805ff79d2470afe`.
+
+Suite `20261119T040212Z-9cd2e169` compares fresh Marcus runs with
+the earlier retail and SDL Studio captures of the same movie. All
+six runs completed and agreed on all 61 authored frame positions
+in seek and playback. Both ports matched 30 of the 31 retail seek
+images in the edited scene. Full captures still show pixel and mixed
+PCM differences. Marcus playback timing remains inconclusive. The
+capture database is at `tmp/c89-sound-schedule/capture/playback.sqlite`.
+The probe, native output and test logs are in `tmp/c89-source-register`.

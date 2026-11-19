@@ -1,15 +1,14 @@
 #include "scene_edit.h"
-#include "mm/content_vfs.hpp"
 #include <algorithm>
 #include <exception>
 #include <chrono>
 #include <cmath>
-#include <limits>
 #include <stdexcept>
 #include <codecvt>
 #include <locale>
 #include "soc_core.h"
 #include "engine_read_stream.h"
+#include "platform_text.h"
 #include "mm/actor_archive.h"
 #include "mm/text.h"
 #include "mm/scene_runtime.h"
@@ -60,59 +59,70 @@ static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path 
     }
     return result;
 }
-static LegacyLong MovieSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource,
-                              const std::string &name)
+namespace
 {
-    ChildChunkIdentification child;
-    DataBlock block;
-    short order = kboCur;
-    const bool hadSources = file->FGetKidChidCtg(kctgMvie, movie, 1, kctgGst, &child);
-    std::unique_ptr<StringTable_GST, Release> sources;
-    if (hadSources)
+struct MovieArchiveHost
+{
+    PChunkyFile file;
+    DataBlock input, output;
+
+    MMMovieArchiveEditor Editor()
     {
-        Require(file->FFind(kctgGst, child.cki.cno, &block), "Cannot read movie content sources.");
-        sources.reset(StringTable_GST::PgstRead(&block, &order));
+        const unsigned short one = 1;
+        return {
+            this, sizeof(achar), koskCur, *reinterpret_cast<const unsigned char *>(&one) == 0,
+            [](void *, const void *bytes, size_t count, int encoding, void *text, size_t capacity) -> size_t {
+                return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(text), capacity);
+            },
+            [](void *value) { return static_cast<MovieArchiveHost *>(value)->file->ReadChunkAccess(); },
+            [](void *value, MMU32 type, MMU32 number, MMReadStream *stream) -> int {
+                auto &io = *static_cast<MovieArchiveHost *>(value);
+                if (!io.file->FFind(type, number, &io.input) || !io.input.FUnpackData()) return false;
+                *stream = EngineReadStream::FromBlock(io.input);
+                return true;
+            },
+            [](void *value, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer) -> int {
+                auto &io = *static_cast<MovieArchiveHost *>(value);
+                if (!io.file->FAdd(bytes, type, number, &io.output)) return false;
+                *writer = {&io.output, bytes, [](void *block, MMU32 offset, const void *data, size_t count) -> int {
+                    return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), count, offset);
+                }};
+                return true;
+            },
+            [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) -> int {
+                return static_cast<MovieArchiveHost *>(value)->file->FAdoptChild(type, parent, childType, child, slot);
+            },
+            [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) {
+                static_cast<MovieArchiveHost *>(value)->file->DeleteChild(type, parent, childType, child, slot);
+            }
+        };
     }
-    else sources.reset(StringTable_GST::PgstNew(sizeof(LegacyLong)));
-    Require(sources && sources->CbExtra() == sizeof(LegacyLong), "The movie content source table is invalid.");
-    LegacyLong sourceId = -1, maxSource = 2;
-    const auto key = MM::Content::SourceKey(name);
-    for (LegacyLong index = 0; index < sources->IvMac(); ++index)
-    {
-        LegacyLong id;
-        sources->GetExtra(index, &id);
-        if (order == kboOther) { SwapBytesRglw(&id, 1); sources->PutExtra(index, &id); }
-        maxSource = std::max(maxSource, id);
-        String title;
-        schar text[1024];
-        sources->GetStn(index, &title);
-        title.GetSzs(text);
-        if (id > 0 && MM::Content::SourceKey(text) == key) sourceId = id;
-    }
-    String sourceName;
-    sourceName.SetSzs(PszLit("3D Movie Maker/3DMOVIE"));
-    if (!hadSources)
-    {
-        LegacyLong fallback = fallbackSource;
-        Require(sources->FAddStn(&sourceName, &fallback), "Cannot retain original content source.");
-        if (key == "3dmovie") sourceId = fallback;
-    }
-    if (sourceId < 0)
-    {
-        Require(maxSource < std::numeric_limits<LegacyLong>::max(), "This movie has no available content source IDs.");
-        sourceId = maxSource + 1;
-        sourceName.SetSzs(const_cast<char *>(name.c_str()));
-        Require(sources->FAddStn(&sourceName, &sourceId), "Cannot register the content source.");
-    }
-    ChunkNumber sourceChunk;
-    Require(file->FAdd(sources->CbOnFile(), kctgGst, &sourceChunk, &block) &&
-            sources->FWrite(&block), "Cannot write movie content sources.");
-    if (hadSources) file->DeleteChild(kctgMvie, movie, kctgGst, child.cki.cno, 1);
-    Require(file->FAdoptChild(kctgMvie, movie, kctgGst, sourceChunk, 1), "Cannot link movie content sources.");
-    return sourceId;
+};
 }
+
+static LegacyLong MovieSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource, const char *name)
+{
+    MovieArchiveHost host{file, {}, {}};
+    const auto editor = host.Editor();
+    static const char *const messages[] = {
+        nullptr,
+        "Cannot read movie content sources.",
+        "The movie content source table is invalid.",
+        "This movie has no available content source IDs.",
+        "Cannot allocate the movie content sources.",
+        "Cannot write movie content sources.",
+        "Cannot link movie content sources."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_MOVIE_SOURCE_EDIT_LINK + 1, "source diagnostics");
+    MMI32 id;
+    const auto status = mm_movie_archive_register_source(&editor, KauaiText::Services(), movie, fallbackSource, name, &id);
+    Require(status == MM_MOVIE_SOURCE_EDIT_OK, messages[status]);
+    return id;
+}
+
 static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource)
-{ return MovieSource(file, movie, fallbackSource, "3D Movie Maker/3DMOVIE"); }
+{ return MovieSource(file, movie, fallbackSource, nullptr); }
+
 static void ApplyNewScene(PChunkyFile file, const MM::PreviewSceneDefinition &definition, int ordinal, bool emptyMovie)
 {
     ChunkIdentification root;
@@ -469,39 +479,8 @@ Filename ObjectFile(const std::filesystem::path &path)
 void UpdateActorListing(PChunkyFile file, ChunkNumber movie, const MMActorArchivePlacement *placement,
                         const ActorChunkOnFile &header, const std::string &name, MMU32 flags, bool replaceExisting)
 {
-    struct Host
-    {
-        PChunkyFile file;
-        DataBlock input, output;
-    } context{file, {}, {}};
-    const unsigned short one = 1;
-    const MMActorArchiveEditor editor = {
-        &context, sizeof(achar), koskCur, *reinterpret_cast<const unsigned char *>(&one) == 0,
-        [](void *, const void *bytes, size_t count, int encoding, void *text, size_t capacity) -> size_t {
-            return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(text), capacity);
-        },
-        [](void *value) { return static_cast<Host *>(value)->file->ReadChunkAccess(); },
-        [](void *value, MMU32 type, MMU32 number, MMReadStream *stream) -> int {
-            auto &io = *static_cast<Host *>(value);
-            if (!io.file->FFind(type, number, &io.input) || !io.input.FUnpackData()) return false;
-            *stream = EngineReadStream::FromBlock(io.input);
-            return true;
-        },
-        [](void *value, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer) -> int {
-            auto &io = *static_cast<Host *>(value);
-            if (!io.file->FAdd(bytes, type, number, &io.output)) return false;
-            *writer = {&io.output, bytes, [](void *block, MMU32 offset, const void *data, size_t count) -> int {
-                return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), count, offset);
-            }};
-            return true;
-        },
-        [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) -> int {
-            return static_cast<Host *>(value)->file->FAdoptChild(type, parent, childType, child, slot);
-        },
-        [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) {
-            static_cast<Host *>(value)->file->DeleteChild(type, parent, childType, child, slot);
-        }
-    };
+    MovieArchiveHost host{file, {}, {}};
+    const auto editor = host.Editor();
     String caption;
     caption.SetSzs(const_cast<char *>(name.c_str()));
     const MMActorArchiveName entry = {
@@ -693,7 +672,7 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
         const auto entry = std::find_if(clipboard.sources.begin(), clipboard.sources.end(),
             [id](const auto &value) { return value.id == id; });
         Require(entry != clipboard.sources.end(), "The copied object uses an unknown content source.");
-        const auto mapped = MovieSource(destination.get(), root.cno, hadRoot ? 2 : 1, entry->name);
+        const auto mapped = MovieSource(destination.get(), root.cno, hadRoot ? 2 : 1, entry->name.c_str());
         ids.emplace(id, mapped);
         return mapped;
     };
