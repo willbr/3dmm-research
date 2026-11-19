@@ -34,6 +34,7 @@ PreviewActor::~PreviewActor()
     auto services = host.Services();
     mm_preview_actor_dispose(&core, &services);
     ReleasePpo(&textMaterial);
+    mm_actor_sounds_dispose(&motionSounds);
 }
 bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
                         std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
@@ -252,18 +253,21 @@ struct PreviewActor::TrackDraft
     MMPreviewActor original;
     std::uint64_t shown, clock;
     ActorTrack saved;
-    ActorSoundList motion;
+    MMActorSounds motion;
     std::vector<PreviewSoundCue> cues;
     bool active = false;
     explicit TrackDraft(PreviewActor &a)
-        : actor(a), original(a.core), shown(a.lastShown), clock(*a.visibilityClock) {}
+        : actor(a), original(a.core), shown(a.lastShown), clock(*a.visibilityClock)
+    {
+        mm_actor_sounds_init(&motion, nullptr);
+    }
     bool Begin()
     {
-        if (!saved.FCloneFrom(actor.track) || !motion.FCloneFrom(actor.motionSounds)) return false;
+        if (!saved.FCloneFrom(actor.track) || !mm_actor_sounds_clone(&motion, &actor.motionSounds)) return false;
         auto duplicate = actor.Pbody()->PbodyDup();
         if (!duplicate) return false;
         actor.track.Swap(saved);
-        actor.motionSounds.Swap(motion);
+        mm_actor_sounds_swap(&actor.motionSounds, &motion);
         actor.sounds.swap(cues);
         actor.core.body = duplicate;
         actor.core.route = actor.track.Route();
@@ -272,14 +276,17 @@ struct PreviewActor::TrackDraft
     }
     ~TrackDraft()
     {
-        if (!active) return;
-        actor.Pbody()->Release();
-        actor.track.Swap(saved);
-        actor.motionSounds.Swap(motion);
-        actor.sounds.swap(cues);
-        actor.core = original;
-        actor.lastShown = shown;
-        *actor.visibilityClock = clock;
+        if (active)
+        {
+            actor.Pbody()->Release();
+            actor.track.Swap(saved);
+            mm_actor_sounds_swap(&actor.motionSounds, &motion);
+            actor.sounds.swap(cues);
+            actor.core = original;
+            actor.lastShown = shown;
+            *actor.visibilityClock = clock;
+        }
+        mm_actor_sounds_dispose(&motion);
     }
     bool Write(const std::string &path, bool withRoute) const
     {
@@ -312,7 +319,7 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
         auto found = std::find_if(available.begin(), available.end(), [&](const PreviewCostume &c) {
             return c.bodySet == value.bodySet && c.costume == value.costume; });
         if (found == available.end()) return false;
-        if (!host.Result(mm_actor_edit_set_costume(&core.state, motionSounds.Core(), track.Events(), core.header.actor_id,
+        if (!host.Result(mm_actor_edit_set_costume(&core.state, &motionSounds, track.Events(), core.header.actor_id,
             value.bodySet, &tag, value.costume, 1, &motion, &services))) return false;
     }
     return draft.Write(path, false);
@@ -336,7 +343,7 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
     const auto services = host.Record();
     const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? Ptmpl()->Cactn() : 0;
     MMActorAnimationRange range;
-    if (!host.Result(mm_actor_animation_edit(&core, motionSounds.Core(), &host.record, &request, actionCount,
+    if (!host.Result(mm_actor_animation_edit(&core, &motionSounds, &host.record, &request, actionCount,
                                              &services, &range)) || !draft.Write(path, true))
         return false;
     lastActorFrame = range.actor_last;
@@ -377,13 +384,13 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
     return result > 0;
 }
 bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, LegacyLong index, bool metadataOnly,
-                              ActorSoundList *motion, std::vector<PreviewSoundCue> *cues) const
+                              MMActorSounds *motion, std::vector<PreviewSoundCue> *cues) const
 {
     struct Host
     {
         const PreviewActor *actor;
         const MMActorTrack *track;
-        ActorSoundList *motion;
+        MMActorSounds *motion;
         std::vector<PreviewSoundCue> *cues;
         BodyCostume costume;
     } host;
@@ -404,7 +411,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
         switch (command->operation)
         {
         case MM_EFFECT_CLEAR_SOUNDS:
-            host.motion->Clear();
+            mm_actor_sounds_clear(host.motion);
             break;
         case MM_EFFECT_SET_ACTION_CEL:
             reply->success = command->first >= 0 && command->first < actor->Ptmpl()->Cactn() &&
@@ -492,7 +499,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
                     host.cues->push_back(host.actor->SoundCue(sound));
                 return 1;
             };
-            reply->success = mm_actor_sound_event(host.motion->Core(), &event, &sound, command->first, &services);
+            reply->success = mm_actor_sound_event(host.motion, &event, &sound, command->first, &services);
             break;
         }
         }

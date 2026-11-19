@@ -162,7 +162,7 @@ struct PreviewActor::Host
             });
         };
         s.clear_cues = [](void *v) { static_cast<Host *>(v)->actor->sounds.clear(); };
-        s.clear_motion = [](void *v) { static_cast<Host *>(v)->actor->motionSounds.Clear(); };
+        s.clear_motion = [](void *v) { mm_actor_sounds_clear(&static_cast<Host *>(v)->actor->motionSounds); };
         s.default_costume = [](void *v, void *t, void *b) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] { return static_cast<PTemplate>(t)->FSetDefaultCost(static_cast<PBody>(b)); });
@@ -184,7 +184,7 @@ struct PreviewActor::Host
                     actor->sounds.push_back(actor->SoundCue(native));
                     return 1;
                 };
-                return mm_actor_sound_motion(h.actor->motionSounds.Core(), h.actor->core.state.action,
+                return mm_actor_sound_motion(&h.actor->motionSounds, h.actor->core.state.action,
                                              h.actor->core.state.cel, &sound);
             });
         };

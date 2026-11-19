@@ -15,16 +15,16 @@ enum MMActorCreateDiagnostic
 typedef struct MMActorCreateServices
 {
     MMActorOwnerServices owner;
+    MMStorageAllocator track_allocator;
+    int trash_unused;
     void *(*fetch_template)(void *,const MMTag *);
-    int (*create_track)(void *,void *actor);
-    int (*create_sounds)(void *,void *actor);
     int (*action_flags)(void *,void *template_object,MMI32 action,MMU32 *);
     void *(*create_body)(void *,void *template_object);
     void (*bind_body)(void *,void *body,void *scene);
     void (*diagnostic)(void *,int);
 } MMActorCreateServices;
-/* create returns a fresh actor initialized with actor_runtime_init and empty
- * track/sound owners. Initialization publishes the fetched template even on
+/* create returns a fresh actor initialized with mm_actor_owner_init.
+ * Initialization publishes the fetched template even on
  * failure; after success it assigns the tag before duplicating its reference.
  * Track creation precedes sound creation. Neither groups nor initialize rolls
  * back failure: the factory releases the partial actor via owner disposal.
@@ -35,7 +35,7 @@ typedef struct MMActorCreateServices
  * Primitive callbacks may update their table/sound storage and flags output,
  * but must not reenter or independently change unrelated runtime fields.
  */
-int mm_actor_create_groups(void *actor,const MMActorCreateServices *);
+int mm_actor_create_groups(MMActorOwner *,const MMActorCreateServices *);
 int mm_actor_initialize(void *actor,const MMTag *,const MMActorCreateServices *);
 void *mm_actor_create(const MMTag *,const MMActorCreateServices *);
 /* scene is non-NULL and must match an existing binding. A bound actor requires

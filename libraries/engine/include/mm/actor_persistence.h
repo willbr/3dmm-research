@@ -22,10 +22,9 @@ typedef struct MMActorLoadServices
     const MMTagServices *tags;
     const MMStorageAllocator *allocator;
     int trash_unused;
-    /* Allocate an initialized runtime and empty track belonging to the actor. */
-    void *(*create)(void *, MMActorRuntime **, MMActorTrack **);
+    /* Allocate an actor with an initialized owner. */
+    void *(*create)(void *, MMActorOwner **);
     void (*release)(void *, void *actor);
-    int (*create_sounds)(void *, void *actor);
     void *(*fetch_template)(void *, const MMTag *);
     int (*lifetime)(void *, void *actor);
     void (*diagnostic)(void *, int);
@@ -53,8 +52,7 @@ typedef struct MMActorStoreServices
 
 /* Write into the new ACTR under a candidate scene. On failure the caller
  * drops the candidate scene and its children. Live track data is borrowed. */
-int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorRuntime *, const MMActorTrack *,
-                   const MMActorStoreServices *);
+int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorOwner *, const MMActorStoreServices *);
 
 #ifdef __cplusplus
 }

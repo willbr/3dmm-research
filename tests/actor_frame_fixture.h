@@ -4,10 +4,10 @@
 #include <cstring>
 namespace ActorFrameTest
 {
-inline void Rewind(MMActorState &state, const ActorTrack &track)
+inline void Rewind(MMActorState &state, const MMActorTrack &track)
 {
     const auto motion = mm_actor_track_motion_services();
-    mm_actor_state_rewind(&state, track.Route(), &motion);
+    mm_actor_state_rewind(&state, track.route, &motion);
 }
 
 inline bool SameState(const MMActorState &a, const MMActorState &b)
@@ -28,7 +28,7 @@ inline bool SameState(const MMActorState &a, const MMActorState &b)
 }
 
 // Fixed authored track shared by headless sequencing and real runtime seeking.
-inline bool FCreateTrack(ActorTrack &track, bool includeSounds = true)
+inline bool FCreateTrack(MMActorTrack &track, bool includeSounds = true)
 {
     ActorTrack created;
     if (!created.FCreate())
@@ -83,10 +83,10 @@ inline bool FCreateTrack(ActorTrack &track, bool includeSounds = true)
     location.dnfrm = 1;
     if (!append(ActorEvent::aetStep, 9, location, &step, sizeof(step)))
         return false;
-    track.Swap(created);
+    mm_actor_track_swap(&track, &created.Core());
     return true;
 }
-inline bool FCreateMetadataTrack(ActorTrack &track, bool freezeAtFour)
+inline bool FCreateMetadataTrack(MMActorTrack &track, bool freezeAtFour)
 {
     ActorTrack created;
     if (!created.FCreate())
@@ -122,8 +122,16 @@ inline bool FCreateMetadataTrack(ActorTrack &track, bool freezeAtFour)
         if (!mm_actor_events_insert(created.Events(), 4, sizeof(frozen), &frozen, &event))
             return false;
     }
-    track.Swap(created);
+    mm_actor_track_swap(&track, &created.Core());
     return true;
+}
+inline bool FCreateTrack(ActorTrack &track, bool includeSounds = true)
+{
+    return FCreateTrack(track.Core(), includeSounds);
+}
+inline bool FCreateMetadataTrack(ActorTrack &track, bool freezeAtFour)
+{
+    return FCreateMetadataTrack(track.Core(), freezeAtFour);
 }
 } // namespace ActorFrameTest
 #endif

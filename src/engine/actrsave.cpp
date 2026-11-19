@@ -14,7 +14,7 @@
      |
      +---PATH (chid 0) // _pglxyz (actor path)
      |
-     +---GGAE (chid 0) // _track.Events() (actor events)
+     +---GGAE (chid 0) // _owner.track.events (actor events)
      |
      +---MTRL children for embedded costume events
 
@@ -79,7 +79,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
         *writer = archive.OutputWriter(bytes);
         return 1;
     };
-    return mm_actor_store(cnoActr, cnoScene, &_runtime, &_track.Core(), &services) != 0;
+    return mm_actor_store(cnoActr, cnoScene, &_owner, &services) != 0;
 }
 
 /***************************************************************************
@@ -96,17 +96,13 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
     services.tags = &ActorTrack::TagServices();
     services.allocator = &allocator;
     services.trash_unused = DebugShip(1, 0);
-    services.create = [](void *, MMActorRuntime **runtime, MMActorTrack **track) -> void * {
+    services.create = [](void *, MMActorOwner **owner) -> void * {
         auto actor = NewObj Actor;
         if (actor)
-        {
-            *runtime = &actor->_runtime;
-            *track = &actor->_track.Core();
-        }
+            *owner = &actor->_owner;
         return actor;
     };
     services.release = [](void *, void *p) { static_cast<PActor>(p)->Release(); };
-    services.create_sounds = [](void *, void *p) -> int { return static_cast<PActor>(p)->_motionSounds.FCreate(); };
     services.fetch_template = _FetchTemplate;
     services.lifetime = [](void *, void *p) -> int {
         long first, last;

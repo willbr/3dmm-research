@@ -4,7 +4,7 @@
 #include <functional>
 #include "mm/preview.h"
 #include "soc_core.h"
-#include "actor_sound.h"
+#include "mm/actor_sound.h"
 #include "mm/preview_actor.h"
 
 namespace MM
@@ -25,9 +25,9 @@ class PreviewActor
     PMaterial_MTRL textMaterial = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
     bool ApplyEvent(MMActorState &value, const MMActorTrack &events, LegacyLong index, bool metadataOnly,
-                    ActorSoundList *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
+                    MMActorSounds *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
     std::string ActionName(LegacyLong action) const;
-    ActorSoundList motionSounds;
+    MMActorSounds motionSounds;
     std::uint64_t *visibilityClock = nullptr;
     mutable std::uint64_t lastShown = 0;
     std::int32_t eventSource = 0;
@@ -37,6 +37,7 @@ class PreviewActor
     PreviewActor()
     {
         mm_preview_actor_init(&core);
+        mm_actor_sounds_init(&motionSounds, nullptr);
     }
     ChunkNumber number = 0;
     PBody Pbody() const { return static_cast<PBody>(core.body); }

@@ -254,10 +254,10 @@ class ContentActor : public Actor
             return false;
         if (_Template())
             _Template()->Release();
-        _runtime.template_object = tmpl;
-        mm_tag_close(&_runtime.template_tag, &ActorTrack::TagServices());
-        _runtime.template_tag = {ksidUseCrf, resource, kctgTmpl, number};
-        mm_tag_dup(&_runtime.template_tag, &ActorTrack::TagServices());
+        _owner.runtime.template_object = tmpl;
+        mm_tag_close(&_owner.runtime.template_tag, &ActorTrack::TagServices());
+        _owner.runtime.template_tag = {ksidUseCrf, resource, kctgTmpl, number};
+        mm_tag_dup(&_owner.runtime.template_tag, &ActorTrack::TagServices());
         ActorTrack track;
         if (!track.FCreate())
             return false;
@@ -276,21 +276,21 @@ class ContentActor : public Actor
         event.aet = aetStep;
         if (!mm_actor_events_insert(track.Events(), 2, sizeof(step), &step, &event))
             return false;
-        _track.Swap(track);
-        _motionSounds.Clear();
-        _runtime.state = ActorFrameState();
+        mm_actor_track_swap(&_owner.track, &track.Core());
+        mm_actor_sounds_clear(&_owner.sounds);
+        _owner.runtime.state = ActorFrameState();
         const auto motion = mm_actor_track_motion_services();
-        mm_actor_state_rewind(&_runtime.state, _track.Route(), &motion);
-        _runtime.state.frame = 1;
-        _runtime.state.nextEvent = 3;
-        _runtime.state.firstEventInFrame = 0;
-        _runtime.state.addEvent = 0;
-        _runtime.state.actionEvent = 1;
-        _runtime.state.celCount = 4;
-        _runtime.state.actionFlags = factnRotateY;
-        _runtime.first = 1;
-        _runtime.last = 10;
-        _runtime.life_dirty = false;
+        mm_actor_state_rewind(&_owner.runtime.state, _owner.track.route, &motion);
+        _owner.runtime.state.frame = 1;
+        _owner.runtime.state.nextEvent = 3;
+        _owner.runtime.state.firstEventInFrame = 0;
+        _owner.runtime.state.addEvent = 0;
+        _owner.runtime.state.actionEvent = 1;
+        _owner.runtime.state.celCount = 4;
+        _owner.runtime.state.actionFlags = factnRotateY;
+        _owner.runtime.first = 1;
+        _owner.runtime.last = 10;
+        _owner.runtime.life_dirty = false;
         return true;
     }
 };

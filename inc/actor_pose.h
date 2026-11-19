@@ -19,11 +19,11 @@ struct ActorPoseEvaluator
     // Updates position/current rotation/path angles and returns the scaled,
     // rest-oriented matrix for a renderer to apply. Non-current rotation needs
     // a valid Add-event cursor, matching ActorFrameState's evaluated state.
-    static void Update(MMActorState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
+    static void Update(MMActorState &state, const MMActorTrack &track, const ActorPoseInputs &inputs,
                        const RoutePoint *position, BMAT34 *matrix);
-    static void Update(MMActorState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
+    static void Update(MMActorState &state, const MMActorTrack &track, const ActorPoseInputs &inputs,
                        const RoutePoint *position, MMActorMatrix *matrix);
-    static void RouteOrientation(const MMActorState &state, const ActorTrack &track, BMAT34 *matrix, BRA *x = pvNil,
+    static void RouteOrientation(const MMActorState &state, const MMActorTrack &track, BMAT34 *matrix, BRA *x = pvNil,
                                  BRA *y = pvNil, BRA *z = pvNil, LegacyUlong *axes = pvNil);
     // actionFlags uses the template's factnRotateX/Y bits. Banking remains zero.
     static void ApplyVectorRotation(LegacyUlong actionFlags, RoutePoint *vector, BMAT34 *matrix, BRA *x = pvNil,

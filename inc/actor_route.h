@@ -13,9 +13,9 @@ struct ActorRouteEvaluator
     // clampAtEvents stops at the first encountered action/step event. Recording
     // and rejoining disable this. Reaching the final node is not an end signal;
     // a later attempt to advance beyond it is. Zero steps accumulate dwell frames.
-    static void Advance(const ActorTrack &track, BRS step, RouteLocation *location, LegacyLong nextEvent, LegacyLong frame,
+    static void Advance(const MMActorTrack &track, BRS step, RouteLocation *location, LegacyLong nextEvent, LegacyLong frame,
                         LegacyLong firstFrame, bool clampAtEvents, bool *endRoute = pvNil);
-    static void Position(const ActorTrack &track, const RouteLocation *location, RoutePoint *position);
+    static void Position(const MMActorTrack &track, const RouteLocation *location, RoutePoint *position);
     // The output may alias either input point.
     static void Interpolate(const RoutePoint *first, const RoutePoint *second, BRS fraction, RoutePoint *position);
 };

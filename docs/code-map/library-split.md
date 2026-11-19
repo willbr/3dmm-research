@@ -4010,12 +4010,11 @@ resource is released after successful or failed queue insertion. Nonpositive cel
 counts fail safely. Marcus uses cue-only services with its cached action count;
 resource resolution and device playback remain presentation adapters.
 
-`ActorSoundList` is a temporary typed native view over the C owner. Actor creation,
-loading, duplication, undo swap, editing accesses and destruction use that owner;
-Marcus's former vector is removed. Native value copies preserve distinct native
-long/C int types and TAG alignment. No native DynamicArray owns motion records.
-Sound editing/query control, primitive resource/audio implementations and final
-backend integration remain migration work.
+Studio's C actor owner embeds the C sound list alongside the authored track.
+Creation and loading reserve sound storage directly. Duplication and undo clone
+or swap it in C, and teardown disposes it after releasing the template. Marcus
+preview uses the same C sound list for playback and draft edits. Native resource
+and audio implementations remain migration work.
 
 `engine-actor-sound-test` injects allocation, resolution, fetch and queue failures,
 checks partial tag writes and releases, and covers ordinary/cue-only dispatch,
@@ -4398,11 +4397,11 @@ body/resource implementations and final facade removal remain unfinished.
 ### Actor ownership and restoration
 
 `actor_owner.c` owns runtime initialization/disposal, duplication, reset, value
-copying, track and sound swaps, and undo restoration. `MMActorRuntime` is the
-live record for evaluated state, recording state, lifetime, origin and
-resource handles. Creation, scene binding, paste and undo update it directly.
-The native actor supplies typed access to resources, C-backed track and
-sound operations, and scene and view primitives.
+copying, track and sound swaps, and undo restoration. `MMActorOwner` stores the
+runtime, authored track and motion sounds. Its runtime holds evaluated state,
+recording state, lifetime, origin and resource handles. Creation, scene binding,
+paste and undo update it directly. The native actor supplies typed access to
+resources and scene and view primitives.
 
 Duplication publishes its output before cloning tables and retains the shared
 body/template and owning template tag only after both clones succeed. Failure
@@ -4415,8 +4414,9 @@ still invalidates views. The sound tag keeps its existing borrowed semantics.
 Disposal closes template/event tags before releasing body and track, then
 releases the template and disposes sound storage explicitly in C.
 
-`engine-actor-owner-test` checks allocation/clone failure cleanup, output timing,
-resource reference balance, reset, restore swaps and ignored seek failure.
+`engine-actor-owner-test` injects allocation failures in the live C track and
+sound tables and checks clone cleanup, output timing, resource reference balance,
+reset, independent copies, restore swaps and ignored seek failure.
 The twelve native ownership, creation, undo, persistence, edit and
 recording traces match the prior build byte for byte.
 Native traces cover 128 ownership scenarios and 32 real movie/scene undo cases,

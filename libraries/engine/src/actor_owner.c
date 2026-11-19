@@ -1,7 +1,6 @@
 /* Actor ownership/undo restoration converted from actor.cpp and actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_owner.h"
-#include "mm/actor_track.h"
 #include <string.h>
 
 void mm_actor_runtime_init(MMActorRuntime *runtime)
@@ -12,6 +11,13 @@ void mm_actor_runtime_init(MMActorRuntime *runtime)
     runtime->first = 2147483647L;
     runtime->last = (-2147483647L - 1);
     runtime->actor = -1;
+}
+
+void mm_actor_owner_init(MMActorOwner *actor)
+{
+    mm_actor_runtime_init(&actor->runtime);
+    mm_actor_track_init(&actor->track);
+    mm_actor_sounds_init(&actor->sounds, NULL);
 }
 
 int mm_actor_replace_template(MMActorRuntime *r, MMActorEventTable *events, const MMTag *tag,
@@ -63,23 +69,28 @@ static void publish_result(MMActorOwnerResult *out, void *actor)
 
 int mm_actor_owner_duplicate(void *source, int reset, MMActorOwnerResult *out, const MMActorOwnerServices *s)
 {
+    const MMActorOwner *original;
+    MMActorOwner *copy;
     MMActorRuntime *runtime;
     void *actor = s->create(s->context);
     publish_result(out, actor);
     if (!actor)
         return 0;
-    if (!s->clone_track(s->context, actor, source) || !s->clone_sounds(s->context, actor, source))
+    original = s->owner(s->context, source);
+    copy = s->owner(s->context, actor);
+    if (!mm_actor_track_clone(&copy->track, &original->track, s->tags) ||
+        !mm_actor_sounds_clone(&copy->sounds, &original->sounds))
     {
         s->release(s->context, actor);
         publish_result(out, NULL);
         return 0;
     }
-    runtime = s->runtime(s->context, actor);
-    *runtime = *s->runtime(s->context, source);
+    runtime = &copy->runtime;
+    *runtime = original->runtime;
     if (runtime->body)
         s->retain(s->context, runtime->body);
     s->retain(s->context, runtime->template_object);
-    s->duplicate_tag(s->context, &runtime->template_tag);
+    mm_tag_dup(&runtime->template_tag, s->tags);
     runtime->time_frozen = 0;
     if (reset)
         mm_actor_owner_reset(actor, s);
@@ -88,7 +99,9 @@ int mm_actor_owner_duplicate(void *source, int reset, MMActorOwnerResult *out, c
 
 void mm_actor_owner_reset(void *actor, const MMActorOwnerServices *s)
 {
-    MMActorRuntime *runtime = s->runtime(s->context, actor);
+    MMActorOwner *owner = s->owner(s->context, actor);
+    MMActorRuntime *runtime = &owner->runtime;
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
     MMActorState state;
     MMActorRouteEditServices route;
     runtime->scene = NULL;
@@ -98,23 +111,24 @@ void mm_actor_owner_reset(void *actor, const MMActorOwnerServices *s)
     runtime->state.frame = 2147483647L;
     state = runtime->state;
     s->route_services(s->context, actor, &route);
-    mm_actor_route_edit_reset(&state, s->route(s->context, actor), &s->motion, &route);
+    mm_actor_route_edit_reset(&state, owner->track.route, &motion, &route);
     runtime->state = state;
 }
 
 void mm_actor_owner_restore(void *actor, void *snapshot, const MMActorOwnerServices *s)
 {
-    const MMActorRuntime *stored = s->runtime(s->context, snapshot);
-    *s->runtime(s->context, actor) = *stored;
-    s->swap_track(s->context, actor, snapshot);
-    s->swap_sounds(s->context, actor, snapshot);
-    s->invalidate_views(s->context, stored->scene);
+    MMActorOwner *live = s->owner(s->context, actor);
+    MMActorOwner *stored = s->owner(s->context, snapshot);
+    live->runtime = stored->runtime;
+    mm_actor_track_swap(&live->track, &stored->track);
+    mm_actor_sounds_swap(&live->sounds, &stored->sounds);
+    s->invalidate_views(s->context, stored->runtime.scene);
 }
 
 void mm_actor_owner_restore_undo(void *actor, void *snapshot, const MMActorOwnerServices *s)
 {
-    MMActorRuntime *live = s->runtime(s->context, actor);
-    MMActorRuntime *stored = s->runtime(s->context, snapshot);
+    MMActorRuntime *live = &s->owner(s->context, actor)->runtime;
+    MMActorRuntime *stored = &s->owner(s->context, snapshot)->runtime;
     MMActorState state = live->state;
     MMActorRouteEditServices route;
     void *scene = stored->scene;
@@ -132,15 +146,16 @@ void mm_actor_owner_restore_undo(void *actor, void *snapshot, const MMActorOwner
 
 void mm_actor_owner_dispose(void *actor, const MMActorOwnerServices *s)
 {
-    MMActorRuntime *runtime = s->runtime(s->context, actor);
-    s->close_tag(s->context, &runtime->template_tag);
-    s->close_track_tags(s->context, actor);
+    MMActorOwner *owner = s->owner(s->context, actor);
+    MMActorRuntime *runtime = &owner->runtime;
+    mm_tag_close(&runtime->template_tag, s->tags);
+    mm_actor_track_close_tags(&owner->track, s->tags);
     if (runtime->body)
         s->release(s->context, runtime->body);
     runtime->body = NULL;
-    s->clear_track(s->context, actor);
+    mm_actor_track_dispose(&owner->track, s->tags);
     if (runtime->template_object)
         s->release(s->context, runtime->template_object);
     runtime->template_object = NULL;
-    s->dispose_sounds(s->context, actor);
+    mm_actor_sounds_dispose(&owner->sounds);
 }

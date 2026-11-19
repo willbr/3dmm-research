@@ -283,10 +283,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   operations, cached origin publication and scrollbar notification. Undo,
   remaining actor/movie/scene integration and final facade removal remain.
 - Actor construction/disposal, duplication, reset and undo restoration
-  operate on the live C89 runtime record. The record owns evaluated state,
-  recording state, lifetime, origin, resource handles and template tag
-  references. The native actor supplies resource operations, C-backed
-  track and sound access, scene seeking and view invalidation.
+  operate on a live C89 owner with evaluated state, recording state, lifetime,
+  origin, resource handles, template tag references, and the owned track and
+  motion-sound tables. C creates, clones, swaps and disposes those tables
+  directly. Studio and preview use the motion-sound store without a native
+  wrapper. The native actor supplies resource operations, scene seeking and
+  view invalidation.
   Actor undo creation, toggle, redo and snapshot ownership
   now execute in C89 too, including name swaps, replacement/removal, failure
   ordering and sound-queue selection. Scene/body/resource implementations

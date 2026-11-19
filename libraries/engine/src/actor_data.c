@@ -513,9 +513,10 @@ static int store_sounds(MMU32 scene, MMActorEventTable *events, const MMMovieEmb
     return 1;
 }
 
-int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorRuntime *runtime, const MMActorTrack *track,
-                   const MMActorStoreServices *s)
+int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorOwner *owner, const MMActorStoreServices *s)
 {
+    const MMActorRuntime *runtime = &owner->runtime;
+    const MMActorTrack *track = &owner->track;
     MMActorHeader header = {0};
     MMActorEventFactory factory;
     MMActorEventServices events;

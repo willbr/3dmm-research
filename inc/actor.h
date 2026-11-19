@@ -29,7 +29,6 @@ using namespace BRender;
 //
 #include "actor_data.h"
 #include "actor_track.h"
-#include "actor_sound.h"
 #include "mm/actor_sound_edit.h"
 #include "mm/actor_action_edit.h"
 #include "mm/actor_costume_edit.h"
@@ -114,13 +113,11 @@ class Actor : public Actor_PAR
     MARKMEM
 
   protected:
-    MMActorRuntime _runtime;
-    ActorTrack _track;
-    ActorSoundList _motionSounds;
+    MMActorOwner _owner;
 
-    PTemplate _Template() const { return static_cast<PTemplate>(_runtime.template_object); }
-    PBody _Body() const { return static_cast<PBody>(_runtime.body); }
-    PScene _Scene() const { return static_cast<PScene>(_runtime.scene); }
+    PTemplate _Template() const { return static_cast<PTemplate>(_owner.runtime.template_object); }
+    PBody _Body() const { return static_cast<PBody>(_owner.runtime.body); }
+    PScene _Scene() const { return static_cast<PScene>(_owner.runtime.scene); }
 
     Actor(void);
     bool _FInit(TAG *ptmplTag);         // Constructor allocation & file I/O
@@ -205,7 +202,7 @@ class Actor : public Actor_PAR
 
   public:
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
-    const MMActorState &EvaluatedFrameState() const { return _runtime.state; }
+    const MMActorState &EvaluatedFrameState() const { return _owner.runtime.state; }
 #endif
     ~Actor(void);
     static PActor PactrNew(TAG *ptagTmpl);
@@ -213,12 +210,12 @@ class Actor : public Actor_PAR
     void SetArid(long arid)
     {
         AssertBaseThis(0);
-        _runtime.actor = arid;
+        _owner.runtime.actor = arid;
     }
     void SetLifeDirty(void)
     {
         AssertBaseThis(0);
-        _runtime.life_dirty = fTrue;
+        _owner.runtime.life_dirty = fTrue;
     }
     PScene Pscen(void)
     {
@@ -266,24 +263,24 @@ class Actor : public Actor_PAR
     void SetPrerendered(bool fPrerendered)
     {
         AssertBaseThis(0);
-        _runtime.prerendered = fPrerendered;
+        _owner.runtime.prerendered = fPrerendered;
     }
     bool FPrerendered(void)
     {
         AssertBaseThis(0);
-        return _runtime.prerendered;
+        return _owner.runtime.prerendered;
     }
 
     // Actor Information
     long Arid(void)
     {
         AssertBaseThis(0);
-        return (_runtime.actor);
+        return (_owner.runtime.actor);
     }
     bool FOnStage(void)
     {
         AssertBaseThis(0);
-        return (_runtime.state.onStage);
+        return (_owner.runtime.state.onStage);
     }
     bool FIsMyBody(Body *pbody)
     {
@@ -298,7 +295,7 @@ class Actor : public Actor_PAR
     bool FIsModeRecord(void)
     {
         AssertBaseThis(0);
-        return FPure(_runtime.recording.recording);
+        return FPure(_owner.runtime.recording.recording);
     }
     bool FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent);
     PTemplate Ptmpl(void)
@@ -314,36 +311,36 @@ class Actor : public Actor_PAR
     long AnidCur(void)
     {
         AssertBaseThis(0);
-        return _runtime.state.action;
+        return _owner.runtime.state.action;
     }
     long CelnCur(void)
     {
         AssertBaseThis(0);
-        return _runtime.state.cel;
+        return _owner.runtime.state.cel;
     }
     bool FFrozen(void)
     {
         AssertBaseThis(0);
-        return _runtime.state.frozen;
+        return _owner.runtime.state.frozen;
     }
     bool FGetLifetime(long *pnfrmFirst, long *pnfrmLast); // allows nil ptrs
     bool FPtIn(long xp, long yp, long *pibset);
     void GetTagTmpl(PTAG ptag)
     {
         AssertBaseThis(0);
-        TagFromCore(ptag, _runtime.template_tag);
+        TagFromCore(ptag, _owner.runtime.template_tag);
     }
     void GetName(PString pstn);
     bool FChangeTagTmpl(const MMTag &tag);
     bool FTimeFrozen(void)
     {
         AssertBaseThis(0);
-        return _runtime.time_frozen;
+        return _owner.runtime.time_frozen;
     }
     void SetTimeFreeze(bool fTimeFrozen)
     {
         AssertBaseThis(0);
-        _runtime.time_frozen = fTimeFrozen;
+        _owner.runtime.time_frozen = fTimeFrozen;
     }
     bool FIsPropBrws(void)
     {
@@ -413,7 +410,7 @@ class Actor : public Actor_PAR
     void SetTsInsert(ulong tsCurrent)
     {
         AssertBaseThis(0);
-        _runtime.recording.timestamp = tsCurrent;
+        _owner.runtime.recording.timestamp = tsCurrent;
     }
     bool FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore);
     bool FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfLonger, bool *pfStep,

@@ -22,7 +22,7 @@
 #include "mm/actor_motion.h"
 #include "mm/actor_pose.h"
 #include "mm/actor_effect.h"
-#include "actor_sound.h"
+#include "mm/actor_sound.h"
 #include "studio_preferences.h"
 #endif
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
@@ -2256,10 +2256,10 @@ static void TestActorRouteEvaluation()
     auto advance = [&](const ActorTrack &track, BRS step, RouteLocation *location, LegacyLong next, LegacyLong frame,
                        LegacyLong first, bool clamp, bool *end = nullptr) {
         bool ended = false;
-        ActorRouteEvaluator::Advance(track, step, location, next, frame, first, clamp, &ended);
+        ActorRouteEvaluator::Advance(track.Core(), step, location, next, frame, first, clamp, &ended);
         if (end) *end = ended;
         RoutePoint position;
-        ActorRouteEvaluator::Position(track, location, &position);
+        ActorRouteEvaluator::Position(track.Core(), location, &position);
         record(location, sizeof(*location)); record(&position, sizeof(position));
         int flag = ended; record(&flag, sizeof(flag));
     };
@@ -2285,10 +2285,10 @@ static void TestActorRouteEvaluation()
     Check(location.irpt == 0 && location.dwrOffset == rZero && location.dnfrm == 0 && !end);
     advance(track, BR_SCALAR(2), &location, 0, -2, -3, true, &end);
     RoutePoint position;
-    ActorRouteEvaluator::Position(track, &location, &position);
+    ActorRouteEvaluator::Position(track.Core(), &location, &position);
     Check(position.dxr == BR_SCALAR(2) && position.dyr == rZero && !end);
     advance(track, BR_SCALAR(4), &location, 0, -1, -3, true, &end);
-    ActorRouteEvaluator::Position(track, &location, &position);
+    ActorRouteEvaluator::Position(track.Core(), &location, &position);
     Check(location.irpt == 1 && position.dxr == BR_SCALAR(4) && position.dyr == BR_SCALAR(2) && !end);
     advance(track, BR_SCALAR(2), &location, 0, 0, -3, true, &end);
     Check(location.irpt == 2 && location.dwrOffset == rZero && !end);
@@ -2296,7 +2296,7 @@ static void TestActorRouteEvaluation()
     Check(location.irpt == 2 && location.dnfrm == 1 && end);
     advance(track, rZero, &location, 0, 2, -3, true, &end);
     Check(location.irpt == 2 && location.dnfrm == 2 && !end);
-    ActorRouteEvaluator::Position(track, &location, &position);
+    ActorRouteEvaluator::Position(track.Core(), &location, &position);
     Check(position.dxr == BR_SCALAR(4) && position.dyr == BR_SCALAR(4));
 
     // Sound events do not clamp movement. The next Step or Action does.
@@ -2482,8 +2482,11 @@ static void TestActorSoundStorage()
     if (const char *p = std::getenv("MM_ACTOR_SOUND_SNAPSHOT")) { after = std::fopen(p, "wb"); Check(after); }
     auto native = DynamicArray::PglNew(sizeof(ActorEvent::SoundMotionMatch), 2);
     Check(native);
-    ActorSoundList list;
-    Check(list.FCreate());
+    static_assert(sizeof(ActorEvent::SoundMotionMatch) == sizeof(MMActorMotionSound) &&
+                  offsetof(ActorEvent::SoundMotionMatch, aevsnd) == offsetof(MMActorMotionSound, sound),
+                  "actor motion sound ABI");
+    MMActorSounds list;
+    Check(mm_actor_sounds_init(&list, nullptr) && mm_actor_sounds_reserve(&list, MM_ACTOR_SOUND_GROW));
     MMU32 seed = 67119;
     auto next = [&]() { seed = seed * 1664525u + 1013904223u; return seed; };
     auto fields = [](const ActorEvent::SoundMotionMatch &r, MMU32 *v) {
@@ -2515,29 +2518,36 @@ static void TestActorSoundStorage()
         if (replace >= 0) native->Put(replace, &row); else Check(native->FAdd(&row));
         MMActorMotionSound input;
         std::memcpy(&input, &row, sizeof(input));
-        Check(mm_actor_sounds_insert(list.Core(), &input.event, &input.sound));
-        if (i % 13 == 0 && native->IvMac()) { native->Delete(0); list.Delete(0); }
+        Check(mm_actor_sounds_insert(&list, &input.event, &input.sound));
+        if (i % 13 == 0 && native->IvMac()) { native->Delete(0); Check(mm_actor_sounds_delete(&list, 0)); }
         if (i % 17 == 0)
         {
-            ActorSoundList clone;
-            Check(clone.FCloneFrom(list)); clone.Swap(list);
+            MMActorSounds clone;
+            Check(mm_actor_sounds_init(&clone, nullptr) && mm_actor_sounds_clone(&clone, &list));
+            mm_actor_sounds_swap(&clone, &list);
+            mm_actor_sounds_dispose(&clone);
             auto duplicate = native->PglDup(); Check(duplicate); ReleasePpo(&native); native = duplicate;
         }
-        if (i % 61 == 0) { Check(native->FSetIvMac(0)); list.Clear(); }
-        Check(native->IvMac() == list.IvMac() && list.Valid());
-        const MMU32 count = static_cast<MMU32>(list.IvMac());
+        if (i % 61 == 0) { Check(native->FSetIvMac(0)); mm_actor_sounds_clear(&list); }
+        Check(static_cast<MMU32>(native->IvMac()) == list.count &&
+              list.count <= list.storage.buffers[0].capacity / sizeof(MMActorMotionSound));
+        const MMU32 count = list.count;
         if (before) Check(std::fwrite(&count, 1, sizeof(count), before) == sizeof(count));
         if (after) Check(std::fwrite(&count, 1, sizeof(count), after) == sizeof(count));
-        for (LegacyLong j = 0; j < list.IvMac(); ++j)
+        for (MMU32 j = 0; j < list.count; ++j)
         {
             ActorEvent::SoundMotionMatch a, b;
-            native->Get(j, &a); list.Get(j, &b);
+            MMActorMotionSound value;
+            native->Get(j, &a);
+            Check(mm_actor_sounds_get(&list, j, &value));
+            std::memcpy(&b, &value, sizeof(b));
             MMU32 expected[16], actual[16]; fields(a, expected); fields(b, actual);
             Check(!std::memcmp(expected, actual, sizeof(actual)));
             if (before) Check(std::fwrite(expected, 1, sizeof(expected), before) == sizeof(expected));
             if (after) Check(std::fwrite(actual, 1, sizeof(actual), after) == sizeof(actual));
         }
     }
+    mm_actor_sounds_dispose(&list);
     ReleasePpo(&native);
     if (before) Check(std::fclose(before) == 0);
     if (after) Check(std::fclose(after) == 0);
@@ -2644,10 +2654,10 @@ static void TestActorPoseEvaluation()
         ActorPoseEvaluator::ApplyVectorRotation(flags,p,m,x,y,z,axes); outputs(m,x,y,z,axes); record(p,sizeof(*p));
     };
     auto orient=[&](const ActorFrameState &state,const ActorTrack &t,BMAT34 *m,BRA *x=nullptr,BRA *y=nullptr,BRA *z=nullptr,LegacyUlong *axes=nullptr) {
-        ActorPoseEvaluator::RouteOrientation(state,t,m,x,y,z,axes); outputs(m,x,y,z,axes); RecordActorFrameState(state,snapshot);
+        ActorPoseEvaluator::RouteOrientation(state,t.Core(),m,x,y,z,axes); outputs(m,x,y,z,axes); RecordActorFrameState(state,snapshot);
     };
     auto update=[&](ActorFrameState &state,const ActorTrack &t,const ActorPoseInputs &in,const RoutePoint *p,auto *m) {
-        ActorPoseEvaluator::Update(state,t,in,p,m); record(m,sizeof(*m)); RecordActorFrameState(state,snapshot);
+        ActorPoseEvaluator::Update(state,t.Core(),in,p,m); record(m,sizeof(*m)); RecordActorFrameState(state,snapshot);
     };
     RoutePoint vector = {rOne, rOne, rZero};
     BMAT34 matrix;
@@ -2897,7 +2907,7 @@ struct CoreFrameHost
                 state.transform.zaPath = addition.za;
                 state.firstEventInFrame = state.addEvent = command.eventIndex;
                 state.location = event.rtel;
-                ActorRouteEvaluator::Position(track, &state.location, &state.position);
+                ActorRouteEvaluator::Position(track.Core(), &state.location, &state.position);
                 state.onStage = true;
                 break;
             }
@@ -2910,7 +2920,7 @@ struct CoreFrameHost
                 state.actionFlags = factnRotateY;
                 state.actionEvent = command.eventIndex;
                 state.location = event.rtel;
-                ActorRouteEvaluator::Position(track, &state.location, &state.position);
+                ActorRouteEvaluator::Position(track.Core(), &state.location, &state.position);
                 break;
             }
             case ActorEvent::aetRem:
@@ -2966,7 +2976,7 @@ static MMActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track
     {
         ActorPoseInputs poseInputs;
         BMAT34 matrix;
-        ActorPoseEvaluator::Update(state, track, poseInputs, &state.position, &matrix);
+        ActorPoseEvaluator::Update(state, track.Core(), poseInputs, &state.position, &matrix);
     }
     int flags[] = {result.success,result.aborted,result.positionDirty,result.soundInFrame,result.considerMotionSounds,result.positionBody,result.updatePose,result.selectCel};
     RecordActorFrameBytes(flags,sizeof(flags)); RecordActorFrameState(state);
@@ -3199,17 +3209,17 @@ static void TestActorTimeline()
     auto record=[&](const void *p,size_t n) { RecordActorTimelineBytes(actorTimelineSnapshot,p,n); };
     auto cache=[&](const ActorTrack &t) { LegacyLong count=mm_actor_events_count(t.Events()); record(&count,4); for(LegacyLong i=0;i<count;++i) { ActorEvent::Base e; mm_actor_events_get_fixed(t.Events(), i,&e); record(&e,sizeof(e)); } };
     auto lifetime=[&](const ActorTrack &t,LegacyLong first,bool rejoining,const ActorStepSource &steps,LegacyLong *last,LegacyLong bound=klwMax) {
-        bool ok=ActorTimeline::FComputeLifetime(t,first,rejoining,steps,last,bound);
+        bool ok=ActorTimeline::FComputeLifetime(t.Core(),first,rejoining,steps,last,bound);
         LegacyLong values[]={101,first,rejoining,bound,ok,*last}; record(values,sizeof(values)); cache(t); return ok;
     };
     auto stalled=[&](const ActorTrack &t,LegacyLong first,RouteLocation *p,LegacyLong *last=nullptr) {
-        bool ok=ActorTimeline::FIsStalled(t,first,p,last); LegacyLong values[]={102,first,ok,last?*last:-987}; record(values,sizeof(values)); record(p,sizeof(*p)); return ok;
+        bool ok=ActorTimeline::FIsStalled(t.Core(),first,p,last); LegacyLong values[]={102,first,ok,last?*last:-987}; record(values,sizeof(values)); record(p,sizeof(*p)); return ok;
     };
     auto back=[&](ActorFrameState &state,const ActorTrack &t,const ActorStepSource &steps,RouteLocation *p,bool update) {
-        bool ok=ActorTimeline::FStepBack(state,t,steps,p,update); LegacyLong values[]={103,ok,update}; record(values,sizeof(values)); record(p,sizeof(*p)); RecordActorFrameState(state,actorTimelineSnapshot); return ok;
+        bool ok=ActorTimeline::FStepBack(state,t.Core(),steps,p,update); LegacyLong values[]={103,ok,update}; record(values,sizeof(values)); record(p,sizeof(*p)); RecordActorFrameState(state,actorTimelineSnapshot); return ok;
     };
     auto backup=[&](ActorFrameState &state,const ActorTrack &t,LegacyLong last,LegacyLong target,const ActorStepSource &steps) {
-        auto result=ActorTimeline::QuickBackup(state,t,last,target,steps); LegacyLong values[]={104,last,target,result.success,result.valid,result.applyEffects}; record(values,sizeof(values)); RecordActorFrameState(state,actorTimelineSnapshot); return result;
+        auto result=ActorTimeline::QuickBackup(state,t.Core(),last,target,steps); LegacyLong values[]={104,last,target,result.success,result.valid,result.applyEffects}; record(values,sizeof(values)); RecordActorFrameState(state,actorTimelineSnapshot); return result;
     };
     ActorTrack track;
     Check(ActorFrameTest::FCreateTrack(track));
@@ -3355,7 +3365,7 @@ static void TestActorTimeline()
     actorTimelineSnapshot=nullptr;
     ActorTrack observation; Check(ActorFrameTest::FCreateMetadataTrack(observation,false));
     StepProbe publication; publication.observedLast=&last;
-    Check(ActorTimeline::FComputeLifetime(observation,-2,false,publication.Source(),&last) && last==0);
+    Check(ActorTimeline::FComputeLifetime(observation.Core(),-2,false,publication.Source(),&last) && last==0);
 }
 
 struct SeekTrace
@@ -3413,7 +3423,7 @@ static bool RunCoreSeek(ActorFrameState &state, ActorTrack &track, LegacyLong fi
         case MM_ACTOR_SEEK_QUICK_EFFECTS: {
             ActorPoseInputs inputs;
             BMAT34 matrix;
-            ActorPoseEvaluator::Update(state, track, inputs, &state.position, &matrix);
+            ActorPoseEvaluator::Update(state, track.Core(), inputs, &state.position, &matrix);
             complete(!trace.failQuickEffects);
             break;
         }

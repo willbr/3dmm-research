@@ -43,8 +43,8 @@ MMActorCopyServices Actor::_CopyServices()
         return PactrNew(&tag);
     };
     s.release_actor=[](void *,void *p) { static_cast<PActor>(p)->Release(); };
-    s.route=[](void *,void *p)->void * { return static_cast<PActor>(p)->_track.Route(); };
-    s.events=[](void *,void *p)->void * { return static_cast<PActor>(p)->_track.Events(); };
+    s.route=[](void *,void *p)->void * { return static_cast<PActor>(p)->_owner.track.route; };
+    s.events=[](void *,void *p)->void * { return static_cast<PActor>(p)->_owner.track.events; };
     s.lock_events=[](void *,void *p) { mm_actor_events_lock(static_cast<MMActorEventTable *>(p)); };
     s.unlock_events=[](void *,void *p) { mm_actor_events_unlock(static_cast<MMActorEventTable *>(p)); };
     s.payload_view=[](void *,void *p,MMI32 i)->const void * { return mm_actor_events_payload(static_cast<MMActorEventTable *>(p), i, nullptr); };
@@ -79,7 +79,7 @@ MMActorCopyServices Actor::_CopyServices()
 
 bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 {
-    AssertThis(0); AssertVarMem(ppactr); const auto state=_runtime.state; const auto services=_CopyServices();
+    AssertThis(0); AssertVarMem(ppactr); const auto state=_owner.runtime.state; const auto services=_CopyServices();
     MMActorCopyResult out{}; out.context=ppactr;
     out.publish=[](void *p,void *actor) { *static_cast<PActor *>(p)=static_cast<PActor>(actor); };
 #ifdef BUG1950
@@ -87,7 +87,7 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 #else
     const int postponed=0;
 #endif
-    bool ok=mm_actor_copy(&state,_track.Route(),_track.Events(),fEntireScene,postponed,&out,&services)!=0;
+    bool ok=mm_actor_copy(&state,_owner.track.route,_owner.track.events,fEntireScene,postponed,&out,&services)!=0;
     if (ok) { AssertPo(*ppactr,0); }
     return ok;
 }
@@ -106,22 +106,12 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 ***************************************************************************/
 MMActorOwnerServices Actor::_OwnerServices()
 {
-    static_assert(sizeof(TAG)==sizeof(MMTag),"Actor owner tag ABI");
-    MMActorOwnerServices s{}; s.motion=EngineActorMotion::Services();
-    s.runtime=[](void *,void *p) { return &static_cast<Actor *>(p)->_runtime; };
-    s.create=[](void *)->void * { return NewObj Actor(); };
-    s.retain=[](void *,void *p) { static_cast<BASE *>(p)->AddRef(); };
-    s.release=[](void *,void *p) { static_cast<BASE *>(p)->Release(); };
-    s.clone_track=[](void *,void *d,void *p) { return int(static_cast<Actor *>(d)->_track.FCloneFrom(static_cast<Actor *>(p)->_track)); };
-    s.clone_sounds=[](void *,void *d,void *p) { return int(static_cast<Actor *>(d)->_motionSounds.FCloneFrom(static_cast<Actor *>(p)->_motionSounds)); };
-    s.swap_track=[](void *,void *a,void *b) { static_cast<Actor *>(a)->_track.Swap(static_cast<Actor *>(b)->_track); };
-    s.swap_sounds=[](void *,void *a,void *b) { static_cast<Actor *>(a)->_motionSounds.Swap(static_cast<Actor *>(b)->_motionSounds); };
-    s.duplicate_tag=[](void *,const MMTag *tag) { mm_tag_dup(tag, &ActorTrack::TagServices()); };
-    s.close_tag=[](void *,MMTag *tag) { mm_tag_close(tag, &ActorTrack::TagServices()); };
-    s.close_track_tags=[](void *,void *p) { static_cast<Actor *>(p)->_track.CloseTags(); };
-    s.clear_track=[](void *,void *p) { static_cast<Actor *>(p)->_track.Clear(); };
-    s.dispose_sounds=[](void *,void *p) { mm_actor_sounds_dispose(static_cast<Actor *>(p)->_motionSounds.Core()); };
-    s.route=[](void *,void *p)->void * { return static_cast<Actor *>(p)->_track.Route(); };
+    MMActorOwnerServices s = {};
+    s.tags = &ActorTrack::TagServices();
+    s.owner = [](void *, void *p) { return &static_cast<PActor>(p)->_owner; };
+    s.create = [](void *) -> void * { return NewObj Actor(); };
+    s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
+    s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.route_services=[](void *,void *p,MMActorRouteEditServices *r) { *r=static_cast<Actor *>(p)->_RouteEditServices(); };
     s.seek=[](void *,void *p,MMI32 frame) { return int(static_cast<Actor *>(p)->FGotoFrame(frame)); };
     s.invalidate_views=[](void *,void *scene) { static_cast<PScene>(scene)->Pmvie()->InvalViews(); };
@@ -168,10 +158,10 @@ void Actor::_RestoreFromUndo(PActor pactrRestore)
 ***************************************************************************/
 bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
 {
-    AssertThis(0); AssertVarMem(ppactr); const auto state=_runtime.state; const auto services=_CopyServices();
+    AssertThis(0); AssertVarMem(ppactr); const auto state=_owner.runtime.state; const auto services=_CopyServices();
     MMActorCopyResult out{}; out.context=ppactr;
     out.publish=[](void *p,void *actor) { *static_cast<PActor *>(p)=static_cast<PActor>(actor); };
-    return mm_actor_copy_route(&state,_track.Route(),fEntireScene,&out,&services)!=0;
+    return mm_actor_copy_route(&state,_owner.track.route,fEntireScene,&out,&services)!=0;
 }
 
 /***************************************************************************
@@ -188,7 +178,7 @@ bool Actor::FPasteRte(PActor pactr)
 {
     AssertThis(0); AssertVarMem(pactr);
     static_assert(kdwrNil==-65536 && factnStatic==8 && kcbVarStep==4 && kcbVarFreeze==4,"Route paste ABI");
-    auto state=_runtime.state; const auto motion=EngineActorMotion::Services();
+    auto state=_owner.runtime.state; const auto motion=EngineActorMotion::Services();
     MMActorRoutePasteServices s{}; s.subroute=_SubrouteEditServices();
     s.reserve_points=[](void *route,MMU32 count) { return int(mm_array_reserve(&static_cast<MMActorPath *>(route)->rows, count, 0) == MM_STORAGE_OK); };
     s.distance=[](void *,const MMActorPoint *p)->MMI32 { return BR_LENGTH3(p->dxr,p->dyr,p->dzr); };
@@ -204,9 +194,9 @@ bool Actor::FPasteRte(PActor pactr)
 #else
     const int static_mode=0;
 #endif
-    bool ok=mm_actor_route_paste(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
-        pactr->_track.Route(),static_mode,&motion,&s)!=0;
-    _runtime.state = state; return ok;
+    bool ok=mm_actor_route_paste(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
+        pactr->_owner.track.route,static_mode,&motion,&s)!=0;
+    _owner.runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -277,7 +267,7 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     const int migrate_text=0;
 #endif
     const auto motion=EngineActorMotion::Services();
-    return mm_actor_paste(&_runtime,_track.Route(),_track.Events(),nfrm,pscen,migrate_text,&motion,&s)!=0;
+    return mm_actor_paste(&_owner.runtime,_owner.track.route,_owner.track.events,nfrm,pscen,migrate_text,&motion,&s)!=0;
 }
 
 /***************************************************************************
@@ -409,7 +399,7 @@ bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
     s.clear=[](void *p) { static_cast<PActor>(p)->_Scene()->Pmvie()->ClearUndo(); };
     s.release=[](void *,void *p) { static_cast<PActorUndo>(p)->Release(); };
     s.reset_actor=[](void *,void *p) { static_cast<PActor>(p)->Reset(); };
-    return mm_actor_undo_create(pactrDup,_runtime.actor,fSndUndo,pstn,&s)!=0;
+    return mm_actor_undo_create(pactrDup,_owner.runtime.actor,fSndUndo,pstn,&s)!=0;
 }
 
 /***************************************************************************
@@ -442,13 +432,13 @@ MMActorDeleteServices Actor::_DeleteServices(EditContext *context)
 {
     MMActorDeleteServices s{}; s.context=context;
     s.read=[](void *p,MMActorDeleteState *state) {
-        auto a=static_cast<EditContext *>(p)->actor; state->frame=a->_runtime.state.frame; state->add_event=a->_runtime.state.addEvent;
-        state->next_event=a->_runtime.state.nextEvent; state->scene_present=a->_Scene()!=nullptr;
+        auto a=static_cast<EditContext *>(p)->actor; state->frame=a->_owner.runtime.state.frame; state->add_event=a->_owner.runtime.state.addEvent;
+        state->next_event=a->_owner.runtime.state.nextEvent; state->scene_present=a->_Scene()!=nullptr;
     };
     s.add_frame=[](void *p,MMI32 i)->MMI32 {
-        Base event; mm_actor_events_get_fixed(static_cast<EditContext *>(p)->actor->_track.Events(), i,&event); return event.nfrm;
+        Base event; mm_actor_events_get_fixed(static_cast<EditContext *>(p)->actor->_owner.track.events, i,&event); return event.nfrm;
     };
-    s.event_count=[](void *p)->MMI32 { return mm_actor_events_count(static_cast<EditContext *>(p)->actor->_track.Events()); };
+    s.event_count=[](void *p)->MMI32 { return mm_actor_events_count(static_cast<EditContext *>(p)->actor->_owner.track.events); };
     s.delete_subroute=[](void *p) { return int(static_cast<EditContext *>(p)->actor->_FDeleteEntireSubrte()); };
     s.seek=[](void *p,MMI32 frame) { return int(static_cast<EditContext *>(p)->actor->FGotoFrame(frame)); };
     s.delete_forward=[](void *p,int all,int wants_alive,MMI32 original) {

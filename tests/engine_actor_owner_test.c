@@ -8,8 +8,7 @@ typedef struct Ref { int count,actor; } Ref;
 typedef struct Actor
 {
     Ref ref;
-    MMActorRuntime runtime;
-    int track,sounds;
+    MMActorOwner owner;
 } Actor;
 typedef struct Fixture
 {
@@ -17,90 +16,149 @@ typedef struct Fixture
     Ref body,template_object;
     MMActorOwnerServices services;
     MMActorOwnerResult result;
-    int fail,created,tracks,sounds,tags,closed,cleared,disposed,published,hides,seeks,views;
+    int fail,created,tracks,sounds,tags,disposed,published,seeks,views,track_blocks,sound_blocks;
     MMI32 seek_frame;
 } Fixture;
-static MMActorRuntime *runtime(void *p,void *a) { (void)p; return &((Actor *)a)->runtime; }
+static MMActorOwner *owner(void *p, void *actor) { (void)p; return &((Actor *)actor)->owner; }
+
+static void *track_resize(void *p, void *ptr, MMU32 old, MMU32 size, int priority)
+{
+    Fixture *f = (Fixture *)p;
+    void *data;
+    (void)priority;
+    if (f->published)
+    {
+        CHECK(f->published == 1 && f->result.actor == &f->copy && f->tags == 1);
+        f->tracks = 1;
+        if (f->fail == 2)
+            return NULL;
+    }
+    data = realloc(ptr, size);
+    if (data && !old)
+        ++f->track_blocks;
+    return data;
+}
+
+static void track_release(void *p, void *ptr, MMU32 bytes)
+{
+    Fixture *f = (Fixture *)p;
+    (void)bytes;
+    CHECK(--f->track_blocks >= 0);
+    free(ptr);
+}
+
+static void *sound_resize(void *p, void *ptr, MMU32 old, MMU32 size, int priority)
+{
+    Fixture *f = (Fixture *)p;
+    void *data;
+    (void)priority;
+    if (f->published)
+    {
+        CHECK(f->tracks == 1 && f->copy.owner.track.route && f->copy.owner.track.events);
+        f->sounds = 1;
+        if (f->fail == 3)
+            return NULL;
+    }
+    data = realloc(ptr, size);
+    if (data && !old)
+        ++f->sound_blocks;
+    return data;
+}
+
+static void sound_release(void *p, void *ptr, MMU32 bytes)
+{
+    Fixture *f = (Fixture *)p;
+    (void)bytes;
+    CHECK(--f->sound_blocks >= 0);
+    free(ptr);
+}
+
+static void init_owner(Actor *actor, Fixture *f)
+{
+    MMStorageAllocator sounds = {NULL, sound_resize, sound_release};
+    sounds.context = f;
+    mm_actor_owner_init(&actor->owner);
+    CHECK(mm_actor_sounds_init(&actor->owner.sounds, &sounds));
+}
+
 static void *create_actor(void *p)
 {
     Fixture *f=(Fixture *)p; ++f->created;
     if (f->fail==1) return NULL;
     CHECK(!f->copy.ref.count); f->copy.ref.count=1; f->copy.ref.actor=1;
-    mm_actor_runtime_init(&f->copy.runtime); return &f->copy;
+    init_owner(&f->copy, f);
+    return &f->copy;
 }
+
 static void retain(void *p,void *a) { (void)p; CHECK(a!=NULL); ++((Ref *)a)->count; }
 static void release(void *p,void *a)
 {
     Fixture *f=(Fixture *)p; Ref *ref=(Ref *)a; CHECK(ref->count>0);
     if (!--ref->count && ref->actor)
     {
-        /* On failed duplication the native output still identifies the object
-         * while its destructor releases partially cloned storage. */
-        if (f->fail==2 || f->fail==3) CHECK(f->result.actor==a);
+        Actor *actor = (Actor *)a;
+        /* The partial duplicate remains visible until disposal has run. */
+        if ((f->fail==2 || f->fail==3) && actor == &f->copy)
+            CHECK(f->result.actor==a);
         mm_actor_owner_dispose(a,&f->services);
+        CHECK(!actor->owner.runtime.body && !actor->owner.runtime.template_object &&
+              !actor->owner.track.route && !actor->owner.track.events && !actor->owner.sounds.count);
+        ++f->disposed;
     }
 }
-static int clone_track(void *p,void *d,void *a)
-{
-    Fixture *f=(Fixture *)p; ++f->tracks; CHECK(f->published==1);
-    if (f->fail==2) return 0;
-    ((Actor *)d)->track=((Actor *)a)->track; return 1;
-}
-static int clone_sounds(void *p,void *d,void *a)
-{
-    Fixture *f=(Fixture *)p; ++f->sounds; CHECK(f->tracks==1);
-    if (f->fail==3) return 0;
-    ((Actor *)d)->sounds=((Actor *)a)->sounds; return 1;
-}
-static void swap_track(void *p,void *a,void *b)
-{ int t=((Actor *)a)->track; (void)p; ((Actor *)a)->track=((Actor *)b)->track; ((Actor *)b)->track=t; }
-static void swap_sounds(void *p,void *a,void *b)
-{ int t=((Actor *)a)->sounds; (void)p; ((Actor *)a)->sounds=((Actor *)b)->sounds; ((Actor *)b)->sounds=t; }
-static void duplicate_tag(void *p,const MMTag *tag) { Fixture *f=(Fixture *)p; CHECK(tag->sid==7); ++f->tags; }
-static void close_tag(void *p,MMTag *tag)
-{ Fixture *f=(Fixture *)p; if (tag->sid==7) { CHECK(f->tags>0); --f->tags; } tag->sid=-1; ++f->closed; }
-static void close_track(void *p,void *a) { Fixture *f=(Fixture *)p; CHECK(((Actor *)a)->runtime.template_tag.sid==-1); ++f->closed; }
-static void clear_track(void *p,void *a) { Fixture *f=(Fixture *)p; CHECK(!((Actor *)a)->runtime.body); ((Actor *)a)->track=0; ++f->cleared; }
-static void dispose_sounds(void *p,void *a) { Fixture *f=(Fixture *)p; CHECK(!((Actor *)a)->runtime.template_object); ((Actor *)a)->sounds=0; ++f->disposed; }
+
+static void retain_cache(void *p) { ++((Fixture *)p)->tags; }
+static void release_cache(void *p) { CHECK(--((Fixture *)p)->tags >= 0); }
+static const MMTagServices owner_tags = {
+    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
 static void publish_result(void *p,void *a) { Fixture *f=(Fixture *)p; CHECK(f->result.actor==a); ++f->published; }
-static void publish_state(void *p,const MMActorState *s) { ((Actor *)p)->runtime.state=*s; }
-static void dirty(void *p) { ((Actor *)p)->runtime.life_dirty=1; }
-static void recording(void *p,int enabled) { ((Actor *)p)->runtime.recording.recording=enabled; }
-static void hide(void *p) { CHECK(((Actor *)p)->runtime.state.onStage); }
-static void costume(void *p) { CHECK(((Actor *)p)->runtime.life_dirty); }
+static void publish_state(void *p,const MMActorState *s) { ((Actor *)p)->owner.runtime.state=*s; }
+static void dirty(void *p) { ((Actor *)p)->owner.runtime.life_dirty=1; }
+static void recording(void *p,int enabled) { ((Actor *)p)->owner.runtime.recording.recording=enabled; }
+static void hide(void *p) { CHECK(((Actor *)p)->owner.runtime.state.onStage); }
+static void costume(void *p) { CHECK(((Actor *)p)->owner.runtime.life_dirty); }
 static void route_services(void *p,void *a,MMActorRouteEditServices *s)
 {
     (void)p; memset(s,0,sizeof(*s)); s->edits.context=a; s->edits.publish=publish_state;
     s->life_dirty=dirty; s->recording=recording; s->hide_body=hide; s->default_costume=costume;
 }
-static void *route(void *p,void *a) { (void)p; (void)a; return NULL; }
 static int seek(void *p,void *a,MMI32 frame)
 {
     Fixture *f=(Fixture *)p; ++f->seeks; f->seek_frame=frame;
-    CHECK(!f->copy.runtime.body && !f->copy.runtime.scene);
-    ((Actor *)a)->runtime.state.frame=frame; ((Actor *)a)->runtime.state.cel=19;
+    CHECK(!f->copy.owner.runtime.body && !f->copy.owner.runtime.scene);
+    ((Actor *)a)->owner.runtime.state.frame=frame; ((Actor *)a)->owner.runtime.state.cel=19;
     return 0; /* Failure is intentionally ignored by undo restoration. */
 }
 static void views(void *p,void *scene) { Fixture *f=(Fixture *)p; CHECK(scene==f); ++f->views; }
 static void init(Fixture *f)
 {
     MMActorOwnerServices *s;
+    MMStorageAllocator track = {NULL, track_resize, track_release};
+    MMActorRoutePoint point = {0};
+    MMActorEvent event = {0};
+    MMActorSound sound = {0};
+    MMI32 payload = 0;
     memset(f,0,sizeof(*f)); s=&f->services; s->context=f;
-    s->runtime=runtime; s->create=create_actor; s->retain=retain; s->release=release;
-    s->clone_track=clone_track; s->clone_sounds=clone_sounds; s->swap_track=swap_track; s->swap_sounds=swap_sounds;
-    s->duplicate_tag=duplicate_tag; s->close_tag=close_tag; s->close_track_tags=close_track;
-    s->clear_track=clear_track; s->dispose_sounds=dispose_sounds; s->route=route; s->route_services=route_services;
-    s->seek=seek; s->invalidate_views=views;
+    s->owner=owner; s->create=create_actor; s->retain=retain; s->release=release;
+    s->tags=&owner_tags; s->route_services=route_services; s->seek=seek; s->invalidate_views=views;
     f->result.context=f; f->result.publish=publish_result;
-    mm_actor_runtime_init(&f->live.runtime);
-    CHECK(f->live.runtime.first==2147483647L && f->live.runtime.last==(-2147483647L-1));
-    CHECK(f->live.runtime.actor==-1 && f->live.runtime.template_tag.sid==-1 && f->live.runtime.sound_tag.sid==-1);
+    init_owner(&f->live, f);
+    CHECK(f->live.owner.runtime.first==2147483647L && f->live.owner.runtime.last==(-2147483647L-1));
+    CHECK(f->live.owner.runtime.actor==-1 && f->live.owner.runtime.template_tag.sid==-1 && f->live.owner.runtime.sound_tag.sid==-1);
     f->live.ref.count=f->body.count=f->template_object.count=1; f->live.ref.actor=1;
-    f->live.runtime.body=&f->body; f->live.runtime.template_object=&f->template_object;
-    f->live.runtime.scene=f; f->live.runtime.template_tag.sid=7; f->tags=1;
-    f->live.runtime.time_frozen=1; f->live.runtime.state.frame=23; f->live.runtime.state.onStage=1;
-    f->live.runtime.recording.recording=f->live.runtime.recording.rejoining=1;
-    f->live.track=11; f->live.sounds=22;
+    f->live.owner.runtime.body=&f->body; f->live.owner.runtime.template_object=&f->template_object;
+    f->live.owner.runtime.scene=f; f->live.owner.runtime.template_tag.sid=0; f->live.owner.runtime.template_tag.cache=f; f->tags=1;
+    f->live.owner.runtime.time_frozen=1; f->live.owner.runtime.state.frame=23; f->live.owner.runtime.state.onStage=1;
+    f->live.owner.runtime.recording.recording=f->live.owner.runtime.recording.rejoining=1;
+    track.context = f;
+    CHECK(mm_actor_track_create(&f->live.owner.track, &track, 0, &owner_tags));
+    point.xyz.dxr = 11;
+    CHECK(mm_actor_path_insert(f->live.owner.track.route, 0, &point));
+    event.aet = MM_ACTOR_STEP;
+    CHECK(mm_actor_events_insert(f->live.owner.track.events, 0, sizeof(payload), &payload, &event));
+    sound.cel = 22;
+    CHECK(mm_actor_sounds_insert(&f->live.owner.sounds, &event, &sound));
 }
 
 typedef struct Replacement
@@ -243,41 +301,66 @@ static void template_replacement(void)
     }
 }
 
+static void check_storage(const Actor *actor, MMI32 point, MMI32 cel)
+{
+    MMActorRoutePoint row;
+    MMActorMotionSound sound;
+    CHECK(mm_actor_path_get(actor->owner.track.route, 0, &row) && row.xyz.dxr == point);
+    CHECK(mm_actor_events_count(actor->owner.track.events) == 1);
+    CHECK(mm_actor_sounds_get(&actor->owner.sounds, 0, &sound) && sound.sound.cel == cel);
+}
+
 int main(void)
 {
-    Fixture f; int fail,reset;
+    Fixture f;
+    MMActorRoutePoint row;
+    MMActorMotionSound sound;
+    int fail,reset;
     for (fail=1;fail<=3;++fail)
     {
         init(&f); f.fail=fail;
         CHECK(!mm_actor_owner_duplicate(&f.live,0,&f.result,&f.services));
         CHECK(!f.result.actor && !f.copy.ref.count && f.tags==1 && f.body.count==1 && f.template_object.count==1);
-        CHECK(f.tracks==(fail>1) && f.sounds==(fail>2));
+        CHECK(f.tracks==(fail>1) && f.sounds==(fail==3));
         CHECK(f.published==(fail==1?1:2) && f.disposed==(fail>1));
+        check_storage(&f.live, 11, 22);
+        release(&f,&f.live);
+        CHECK(!f.tags && !f.track_blocks && !f.sound_blocks);
     }
     for (reset=0;reset<=1;++reset)
     {
         init(&f); CHECK(mm_actor_owner_duplicate(&f.live,reset,&f.result,&f.services));
         CHECK(f.result.actor==&f.copy && f.template_object.count==2 && f.tags==2);
-        CHECK(!f.copy.runtime.time_frozen && f.copy.runtime.recording.rejoining);
-        CHECK(f.copy.track==11 && f.copy.sounds==22 && f.body.count==(reset?1:2));
-        f.copy.track=33; f.copy.sounds=44; f.copy.runtime.actor=99;
+        CHECK(!f.copy.owner.runtime.time_frozen && f.copy.owner.runtime.recording.rejoining);
+        CHECK(f.body.count==(reset?1:2));
+        CHECK(f.copy.owner.track.route != f.live.owner.track.route && f.copy.owner.track.events != f.live.owner.track.events);
+        check_storage(&f.copy, 11, 22);
+        CHECK(mm_actor_path_get(f.copy.owner.track.route, 0, &row));
+        row.xyz.dxr = 33;
+        CHECK(mm_actor_path_put(f.copy.owner.track.route, 0, &row));
+        CHECK(mm_actor_sounds_get(&f.copy.owner.sounds, 0, &sound));
+        sound.sound.cel = 44;
+        CHECK(mm_actor_sounds_put(&f.copy.owner.sounds, 0, &sound));
+        f.copy.owner.runtime.actor=99;
         if (reset)
         {
-            CHECK(!f.copy.runtime.body && !f.copy.runtime.scene && !f.copy.runtime.recording.recording);
-            CHECK(!f.copy.runtime.state.onStage && f.copy.runtime.state.frame==2147483647L);
+            CHECK(!f.copy.owner.runtime.body && !f.copy.owner.runtime.scene && !f.copy.owner.runtime.recording.recording);
+            CHECK(!f.copy.owner.runtime.state.onStage && f.copy.owner.runtime.state.frame==2147483647L);
             mm_actor_owner_restore_undo(&f.live,&f.copy,&f.services);
-            CHECK(f.seeks==1 && f.seek_frame==23 && f.live.runtime.state.cel==19 && f.views==2);
-            CHECK(!f.copy.runtime.body && !f.copy.runtime.scene);
+            CHECK(f.seeks==1 && f.seek_frame==23 && f.live.owner.runtime.state.cel==19 && f.views==2);
+            CHECK(!f.copy.owner.runtime.body && !f.copy.owner.runtime.scene);
         }
         else
         {
             mm_actor_owner_restore(&f.live,&f.copy,&f.services);
-            CHECK(f.views==1 && f.live.runtime.state.frame==23);
+            CHECK(f.views==1 && f.live.owner.runtime.state.frame==23);
         }
-        CHECK(f.live.runtime.actor==99 && f.live.track==33 && f.copy.track==11);
-        CHECK(f.live.sounds==44 && f.copy.sounds==22);
+        CHECK(f.live.owner.runtime.actor==99);
+        check_storage(&f.live, 33, 44);
+        check_storage(&f.copy, 11, 22);
         release(&f,&f.copy); CHECK(f.body.count==1 && f.template_object.count==1 && f.tags==1);
         release(&f,&f.live); CHECK(!f.body.count && !f.template_object.count && !f.tags && f.disposed==2);
+        CHECK(!f.track_blocks && !f.sound_blocks);
     }
     template_replacement();
     puts("actor ownership C89 checks passed"); return 0;

@@ -51,10 +51,15 @@ void *mm_actor_load(const MMMovieSessionGraph *graph, MMU32 number, void *cache,
 {
     MMActorPathFactory paths = {NULL, 0};
     MMActorEventFactory events = {NULL, 0};
+    MMActorOwner *owner;
     MMActorRuntime *runtime;
     MMActorTrack *track;
-    void *actor = s->create(s->context, &runtime, &track);
-    if (!actor || !read_runtime(graph, number, runtime, s))
+    void *actor = s->create(s->context, &owner);
+    if (!actor)
+        goto fail;
+    runtime = &owner->runtime;
+    track = &owner->track;
+    if (!read_runtime(graph, number, runtime, s))
         goto fail;
     paths.allocator = events.allocator = s->allocator;
     paths.trash_unused = events.trash_unused = s->trash_unused;
@@ -67,7 +72,8 @@ void *mm_actor_load(const MMMovieSessionGraph *graph, MMU32 number, void *cache,
     if (runtime->template_tag.sid < 0)
         s->diagnostic(s->context, MM_ACTOR_LOAD_TEMPLATE_SOURCE);
     if (!mm_tag_open(&runtime->template_tag, cache, NULL, s->tags) ||
-        !mm_actor_track_open_tags(track, cache, NULL, s->tags) || !s->create_sounds(s->context, actor))
+        !mm_actor_track_open_tags(track, cache, NULL, s->tags) ||
+        !mm_actor_sounds_reserve(&owner->sounds, MM_ACTOR_SOUND_GROW))
         goto fail;
     runtime->template_object = s->fetch_template(s->context, &runtime->template_tag);
     if (!runtime->template_object)

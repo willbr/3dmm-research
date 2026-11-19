@@ -2695,6 +2695,14 @@ edit, undo, save/reopen and isolated action preview checks passed. SDL and
 Marcus matched the retained retail frame sequences and their prior seek
 images. Evidence is in `tmp/c89-actor-template/`.
 
+Studio's C89 actor owner now includes the authored track and motion-sound
+tables. Creation, loading, duplication, undo and teardown operate on those
+tables directly. Marcus and Studio use the same C motion-sound storage.
+Nine native actor traces and all 72 saved chunk payloads and graph entries
+matched the retained baselines. SDL and Marcus matched the retail frame
+sequences and their respective prior seek images. Evidence is in
+`tmp/c89-actor-owner-storage/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

@@ -26,19 +26,19 @@ struct ActorTimeline
     // Valid runtime tables required. Updates event frame caches as calculation
     // proceeds; failure leaves partial caches and the last attempted frame.
     // Recording deferral/lifetime-dirty flags remain host responsibilities.
-    static bool FComputeLifetime(const ActorTrack &track, LegacyLong firstFrame, bool rejoining, const ActorStepSource &steps,
+    static bool FComputeLifetime(const MMActorTrack &track, LegacyLong firstFrame, bool rejoining, const ActorStepSource &steps,
                                  LegacyLong *lastFrame);
     // Bounded host variant; the original runtime entry point remains available.
-    static bool FComputeLifetime(const ActorTrack &track, LegacyLong firstFrame, bool rejoining, const ActorStepSource &steps,
+    static bool FComputeLifetime(const MMActorTrack &track, LegacyLong firstFrame, bool rejoining, const ActorStepSource &steps,
                                  LegacyLong *lastFrame, LegacyLong maxFrames);
-    static bool FIsStalled(const ActorTrack &track, LegacyLong firstEvent, RouteLocation *location, LegacyLong *lastEvent = pvNil);
+    static bool FIsStalled(const MMActorTrack &track, LegacyLong firstEvent, RouteLocation *location, LegacyLong *lastEvent = pvNil);
     // Rolls back the individual step on resolver failure. A read-only probe
     // restores cel/frame/location; its output must not alias state.location.
-    static bool FStepBack(MMActorState &state, const ActorTrack &track, const ActorStepSource &steps,
+    static bool FStepBack(MMActorState &state, const MMActorTrack &track, const ActorStepSource &steps,
                           RouteLocation *location, bool updateState);
     // Only valid when no events intervene; failure may leave completed earlier
     // backward steps in state, matching runtime recovery semantics.
-    static ActorQuickSeekResult QuickBackup(MMActorState &state, const ActorTrack &track, LegacyLong lastFrame,
+    static ActorQuickSeekResult QuickBackup(MMActorState &state, const MMActorTrack &track, LegacyLong lastFrame,
                                             LegacyLong targetFrame, const ActorStepSource &steps);
 };
 #endif

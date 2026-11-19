@@ -2,26 +2,29 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_create.h"
 #include <stddef.h>
-int mm_actor_create_groups(void *actor,const MMActorCreateServices *s)
+int mm_actor_create_groups(MMActorOwner *actor,const MMActorCreateServices *s)
 {
-    return s->create_track(s->owner.context,actor) && s->create_sounds(s->owner.context,actor);
+    return mm_actor_track_create(&actor->track, &s->track_allocator, s->trash_unused, s->owner.tags) &&
+           mm_actor_sounds_reserve(&actor->sounds, MM_ACTOR_SOUND_GROW);
 }
 int mm_actor_initialize(void *actor,const MMTag *tag,const MMActorCreateServices *s)
 {
     const MMActorOwnerServices *o=&s->owner;
-    MMActorRuntime *r = o->runtime(o->context, actor);
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorOwner *owner = o->owner(o->context, actor);
+    MMActorRuntime *r = &owner->runtime;
     MMActorState state;
     MMActorRouteEditServices route;
     r->template_object = s->fetch_template(o->context, tag);
     if (!r->template_object)
         return 0;
     r->template_tag = *tag;
-    o->duplicate_tag(o->context, &r->template_tag);
-    if (!mm_actor_create_groups(actor, s))
+    mm_tag_dup(&r->template_tag, o->tags);
+    if (!mm_actor_create_groups(owner, s))
         return 0;
     state = r->state;
     o->route_services(o->context, actor, &route);
-    mm_actor_route_edit_rewind(&state, o->route(o->context, actor), &o->motion, &route);
+    mm_actor_route_edit_rewind(&state, owner->track.route, &motion, &route);
     r->state = state;
     return s->action_flags(o->context, r->template_object, 0, &r->state.actionFlags);
 }
@@ -35,7 +38,7 @@ void *mm_actor_create(const MMTag *tag,const MMActorCreateServices *s)
 void mm_actor_bind_scene(void *actor,void *scene,const MMActorCreateServices *s)
 {
     const MMActorOwnerServices *o = &s->owner;
-    MMActorRuntime *r = o->runtime(o->context, actor);
+    MMActorRuntime *r = &o->owner(o->context, actor)->runtime;
     if (r->scene && r->scene != scene)
         s->diagnostic(o->context, MM_CREATE_WRONG_SCENE);
     if (r->scene)
