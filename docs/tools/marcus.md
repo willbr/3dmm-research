@@ -1446,6 +1446,8 @@ independent of the movie's near/far clipping planes and actor positions. No
 clipping planes are drawn. The marker follows authored camera cuts when
 scrubbing or playing and is hidden in the authored Camera view. It draws above
 the scene geometry, with segments clipped to the viewing camera and viewport.
+The guide depth range is independent of the tighter planes used to render
+scene geometry.
 Orbit places its pivot in front of the matched camera, using visible actors to
 choose the focus distance. After navigation that pivot stays fixed during
 playback, scrubbing and camera cuts. Shift + right drag pans the pivot in the
@@ -1456,7 +1458,8 @@ distance of 30,000 world units, independent of cached actor bounds.
 **Ground grid** in the Orbit and Fly toolbar projects the world XZ plane at
 Y=0 over the work view. It stays aligned to world units as you move and is
 available in both perspective and orthographic work views. The grid uses the
-work view's rendered depth buffer, so foreground objects and scenery hide it.
+same clipping range as the camera markers and the work view's rendered depth
+buffer, so foreground objects and scenery hide it.
 The movie image is rendered without the guide.
 
 **Copy to camera** moves and reorients the current scene's objects from the

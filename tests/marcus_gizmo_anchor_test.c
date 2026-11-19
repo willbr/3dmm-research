@@ -50,14 +50,14 @@ static void ground_grid(void)
     image.projection.valid = 1;
     image.projection.aspect = 2;
     image.projection.vertical_fov = 90;
-    image.projection.near_clip = 1;
+    image.projection.near_clip = 25;
     image.projection.far_clip = 100;
     image.projection.transform[0] = 1;
     image.projection.transform[5] = -1;
     image.projection.transform[7] = 1;
     image.projection.transform[10] = 20;
     count = camera_ground_grid(&image, lines);
-    check(count > 0 && count <= MARCUS_GROUND_GRID_MAX_LINES, "Top-down camera sees the ground grid");
+    check(count > 0 && count <= MARCUS_GROUND_GRID_MAX_LINES, "Top-down grid extends in front of the fitted near plane");
     for (i = 0; i < count; ++i)
         check(lines[i].y1 >= .25f && lines[i].y1 <= .75f && lines[i].y2 >= .25f && lines[i].y2 <= .75f,
               "Grid clips to the authored picture inside letterboxing");
@@ -71,10 +71,12 @@ static void ground_grid(void)
                   "Foreground depth and letterboxing occlude the grid");
             ++drawn;
         }
-    check(drawn > 0, "The grid renders over farther surfaces");
+    check(drawn > 0, "The nearby grid renders over farther surfaces");
     image.projection.orthographic = 1;
     image.projection.ortho_height = 20;
-    check(camera_ground_grid(&image, lines) > 0, "Orthographic view sees the ground grid");
+    image.projection.near_clip = 1;
+    image.projection.far_clip = 10;
+    check(camera_ground_grid(&image, lines) > 0, "Orthographic grid extends past the fitted far plane");
     memset(rgba, 0, sizeof(rgba));
     camera_blend_ground_grid(&image, rgba, depth);
     drawn = 0;
@@ -88,6 +90,38 @@ static void ground_grid(void)
     image.projection.transform[5] = 1;
     image.projection.transform[7] = -1;
     check(!camera_ground_grid(&image, lines), "Camera looking up sees no ground grid");
+}
+static void camera_markers(void)
+{
+    MarcusImage image = {0};
+    MarcusProjection camera;
+    MarcusCameraGuide guide;
+    image.width = 640;
+    image.height = 360;
+    image.projection.valid = 1;
+    image.projection.aspect = 16.f / 9;
+    image.projection.vertical_fov = 60;
+    image.projection.near_clip = 1;
+    image.projection.far_clip = 100;
+    image.projection.transform[0] = image.projection.transform[4] = image.projection.transform[8] = 1;
+    camera = image.projection;
+    camera.vertical_fov = 20;
+    camera.transform[11] = -2;
+    camera.display_depth = 4;
+
+    image.projection.near_clip = 10;
+    camera_guide_build_image(&image, &camera, &guide);
+    check(guide.line_count == 10 && guide.has_label, "Camera marker remains visible in front of the fitted near plane");
+    image.projection.near_clip = 1;
+    image.projection.far_clip = 1.5f;
+    camera_guide_build_image(&image, &camera, &guide);
+    check(guide.line_count == 10 && guide.has_label, "Camera marker remains visible past the fitted far plane");
+    camera.transform[11] = 2;
+    camera_guide_build_image(&image, &camera, &guide);
+    check(guide.line_count > 0 && guide.has_label, "Visible edges survive when a marker crosses the viewer");
+    camera.transform[11] = 6;
+    camera_guide_build_image(&image, &camera, &guide);
+    check(!guide.line_count && !guide.has_label, "Camera marker wholly behind the viewer is clipped");
 }
 int main(void)
 {
@@ -143,6 +177,7 @@ int main(void)
     camera.valid = 0;
     check(!camera_gizmo_anchor(&camera, world, .1f, .1f, anchor), "Reject missing projections");
     ground_grid();
+    camera_markers();
     puts("Gizmo display clamping and unrestricted off-screen movement checks passed.");
     return 0;
 }

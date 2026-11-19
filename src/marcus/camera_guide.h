@@ -26,12 +26,13 @@ typedef struct MarcusCameraGuide
  * view, aspect and orientation are preserved. Lines are clipped to the viewer;
  * invalid or absent cameras produce an empty guide. */
 void camera_guide_build(const MarcusProjection *view, const MarcusProjection *camera, MarcusCameraGuide *guide);
-/* Map guide geometry to the full image, including authored-camera letterboxing. */
+/* Project work-view camera markers using the guide depth range and map them
+ * to the full image, including authored-camera letterboxing. */
 void camera_guide_build_image(const MarcusImage *image, const MarcusProjection *camera, MarcusCameraGuide *guide);
 /* Project all twelve selection-box edges into the rendered image, preserving
  * authored letterboxing. The box uses the actor's current world-space corners. */
 void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, MarcusCameraGuide *guide);
-/* Project an XZ grid at world Y=0, returning the number of visible segments. */
+/* Project an XZ grid at world Y=0 using the work guide depth range. */
 int camera_ground_grid(const MarcusImage *image, MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES]);
 /* Composite ground lines against the renderer's camera-forward depth, one float per pixel. */
 void camera_blend_ground_grid(const MarcusImage *image, unsigned char *rgba, const float *depth);

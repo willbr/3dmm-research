@@ -28,6 +28,16 @@ static int valid_projection(const MarcusProjection *projection)
             return 0;
     return 1;
 }
+static MarcusProjection work_guide_projection(const MarcusImage *image)
+{
+    MarcusProjection projection;
+    projection = image->projection;
+    /* Scene geometry can tighten the render planes for depth precision.
+     * The grid and camera markers also cover empty space in the work view. */
+    projection.near_clip = .01f;
+    projection.far_clip = 30000.0f;
+    return projection;
+}
 static void world_point(const MarcusProjection *camera, double x, double y, double z, double point[3])
 {
     int axis;
@@ -192,19 +202,21 @@ void camera_guide_build(const MarcusProjection *projection, const MarcusProjecti
 }
 void camera_guide_build_image(const MarcusImage *image, const MarcusProjection *camera, MarcusCameraGuide *guide)
 {
+    MarcusProjection projection;
     double width, height, left, top;
     int i;
     MarcusGuideLine *line;
     memset(guide, 0, sizeof(*guide));
     if (!image || image->width <= 0 || image->height <= 0) return;
-    camera_guide_build(&image->projection, camera, guide);
+    projection = work_guide_projection(image);
+    camera_guide_build(&projection, camera, guide);
     if (!image->authored_camera || !guide->line_count) return;
     width = image->width;
-    height = width / image->projection.aspect;
+    height = width / projection.aspect;
     if (height > image->height)
     {
         height = image->height;
-        width = height * image->projection.aspect;
+        width = height * projection.aspect;
     }
     left = (image->width - width) / 2;
     top = (image->height - height) / 2;
@@ -272,24 +284,24 @@ void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, M
 
 int camera_ground_grid(const MarcusImage *image, MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES])
 {
-    const MarcusProjection *projection;
+    MarcusProjection projection;
     GuideView view;
     double a[3], b[3], centre[3], step, scale, extent, distance, width, height, left, top;
     int i, count;
     if (!image || image->width <= 0 || image->height <= 0) return 0;
-    projection = &image->projection;
-    if (!valid_projection(projection) || !make_view(projection, &view)) return 0;
-    scale = projection->orthographic ? projection->ortho_height / 16.0 : fabs(view.origin[1]) / 10.0;
+    projection = work_guide_projection(image);
+    if (!valid_projection(&projection) || !make_view(&projection, &view)) return 0;
+    scale = projection.orthographic ? projection.ortho_height / 16.0 : fabs(view.origin[1]) / 10.0;
     for (step = 5; step < scale; step *= 2) {}
     extent = MARCUS_GROUND_GRID_CELLS * step;
     distance = 0;
-    if (fabs(projection->transform[7]) > 1e-6)
+    if (fabs(projection.transform[7]) > 1e-6)
     {
-        distance = view.origin[1] / projection->transform[7];
+        distance = view.origin[1] / projection.transform[7];
         if (distance < 0) distance = 0;
         if (distance > extent / 2) distance = extent / 2;
     }
-    world_point(projection, 0, 0, distance, centre);
+    world_point(&projection, 0, 0, distance, centre);
     centre[0] = floor(centre[0] / step) * step;
     centre[2] = floor(centre[2] / step) * step;
     count = 0;
@@ -307,11 +319,11 @@ int camera_ground_grid(const MarcusImage *image, MarcusGuideLine lines[MARCUS_GR
     }
     if (!image->authored_camera) return count;
     width = image->width;
-    height = width / projection->aspect;
+    height = width / projection.aspect;
     if (height > image->height)
     {
         height = image->height;
-        width = height * projection->aspect;
+        width = height * projection.aspect;
     }
     left = (image->width - width) / 2;
     top = (image->height - height) / 2;
@@ -329,7 +341,7 @@ void camera_blend_ground_grid(const MarcusImage *image, unsigned char *rgba, con
 {
     static const unsigned char colour[3] = {176, 174, 157};
     MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES];
-    const MarcusProjection *projection;
+    MarcusProjection projection;
     double left, top, width, height, slope, tx, ty, x0, y0, dx, dy, cx, cy, plane_y, ray_y, distance, scene;
     int count, i, steps, at, x, y, axis, alpha, beneath;
     size_t pixel, previous;
@@ -337,18 +349,18 @@ void camera_blend_ground_grid(const MarcusImage *image, unsigned char *rgba, con
     if (!rgba || !depth) return;
     count = camera_ground_grid(image, lines);
     if (!count) return;
-    projection = &image->projection;
+    projection = work_guide_projection(image);
     width = image->width;
     height = image->height;
     if (image->authored_camera)
     {
-        if (width / height > projection->aspect) width = floor(height * projection->aspect);
-        else height = floor(width / projection->aspect);
+        if (width / height > projection.aspect) width = floor(height * projection.aspect);
+        else height = floor(width / projection.aspect);
     }
     left = floor((image->width - width) * .5);
     top = floor((image->height - height) * .5);
-    slope = projection->orthographic ? projection->ortho_height * .5 : tan(projection->vertical_fov * .008726646259971648);
-    tx = 2 * slope * projection->aspect / width;
+    slope = projection.orthographic ? projection.ortho_height * .5 : tan(projection.vertical_fov * .008726646259971648);
+    tx = 2 * slope * projection.aspect / width;
     ty = 2 * slope / height;
     for (i = 0; i < count; ++i)
     {
@@ -369,14 +381,14 @@ void camera_blend_ground_grid(const MarcusImage *image, unsigned char *rgba, con
             previous = pixel;
             cx = (x + .5 - left - width * .5) * tx;
             cy = (top + height * .5 - y - .5) * ty;
-            plane_y = projection->transform[10];
-            ray_y = -projection->transform[7];
-            if (projection->orthographic) plane_y += projection->transform[1] * cx + projection->transform[4] * cy;
-            else ray_y += projection->transform[1] * cx + projection->transform[4] * cy;
+            plane_y = projection.transform[10];
+            ray_y = -projection.transform[7];
+            if (projection.orthographic) plane_y += projection.transform[1] * cx + projection.transform[4] * cy;
+            else ray_y += projection.transform[1] * cx + projection.transform[4] * cy;
             if (fabs(ray_y) < 1e-10) continue;
             distance = -plane_y / ray_y;
             scene = depth[pixel];
-            if (distance < projection->near_clip || distance > projection->far_clip || distance > scene + .01) continue;
+            if (distance < projection.near_clip || distance > projection.far_clip || distance > scene + .01) continue;
             out = rgba + pixel * 4;
             beneath = (out[3] * (255 - 112) + 127) / 255;
             alpha = 112 + beneath;
