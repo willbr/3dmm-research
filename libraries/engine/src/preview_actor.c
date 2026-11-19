@@ -103,11 +103,8 @@ int mm_preview_actor_load(MMPreviewActor *p, MMU32 number, const MMChunkAccess *
 }
 int mm_preview_actor_create(MMPreviewActor *p, const MMPreviewActorDefinition *d, const MMPreviewActorServices *s)
 {
-    MMActorRoutePoint route;
-    MMActorEvent event;
-    MMActorEntrance add;
+    MMActorStationaryTrack track;
     unsigned short angles[3];
-    MMI32 action[2] = {0, 0}, step = 0;
     unsigned i;
     int r;
     p->header = d->header;
@@ -126,27 +123,18 @@ int mm_preview_actor_create(MMPreviewActor *p, const MMPreviewActorDefinition *d
     r = s->track_create(s->context, &p->route, &p->events);
     if (r <= 0)
         return r;
-    memset(&route, 0, sizeof(route));
-    memset(&event, 0, sizeof(event));
-    memset(&add, 0, sizeof(add));
-    event.aet = MM_ACTOR_ADD;
-    event.nfrm = p->header.first_frame;
     s->rest(s->context, p->tmpl, angles);
-    add.x = angles[0];
-    add.y = angles[1];
-    add.z = angles[2];
-    r = s->route_insert(s->context, p->route, 0, &route);
+    mm_actor_stationary_track(&track, p->header.first_frame, angles);
+    r = s->route_insert(s->context, p->route, 0, &track.route);
     if (r <= 0)
         return r;
-    r = s->event_insert(s->context, p->events, 0, sizeof(add), &add, &event);
+    r = s->event_insert(s->context, p->events, 0, sizeof(track.entrance), &track.entrance, &track.events[0]);
     if (r <= 0)
         return r;
-    event.aet = MM_ACTOR_ACTION;
-    r = s->event_insert(s->context, p->events, 1, sizeof(action), action, &event);
+    r = s->event_insert(s->context, p->events, 1, sizeof(track.action), track.action, &track.events[1]);
     if (r <= 0)
         return r;
-    event.aet = MM_ACTOR_STEP;
-    r = s->event_insert(s->context, p->events, 2, sizeof(step), &step, &event);
+    r = s->event_insert(s->context, p->events, 2, sizeof(track.step), &track.step, &track.events[2]);
     if (r <= 0)
         return r;
     mm_actor_state_rewind(&p->state, p->route, &s->timeline.motion);

@@ -1,4 +1,5 @@
 #include "actor_archive_internal.h"
+#include "mm/actor_effect.h"
 #include "mm/actor_math.h"
 #include "mm/collections.h"
 #include "mm/wide.h"
@@ -137,6 +138,47 @@ int mm_actor_archive_write_event_group(const MMMovieArchiveEditor *editor, MMGro
                                        const MMU32 *attach)
 {
     return encode_track(editor, group, number, attach, 0);
+}
+
+int mm_actor_archive_write_route(const MMMovieArchiveEditor *editor, MMU32 actor, const void *points, MMU32 count)
+{
+    MMCollectionHeader header = {0};
+    MMStorageWriter writer;
+    unsigned char bytes[12];
+    const unsigned short one = 1;
+    MMU32 number;
+    header.kind = MM_COLLECTION_ARRAY;
+    header.system = editor->system;
+    header.big_endian = *(const unsigned char *)&one == 0;
+    header.count = count;
+    header.width = MM_ACTOR_ROUTE_BYTES;
+    return mm_collection_layout(&header) == MM_STORAGE_OK &&
+        mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
+        editor->add(editor->context, ROUTE_TYPE, header.header_bytes + header.first_bytes, &number, &writer) &&
+        writer.length == header.header_bytes + header.first_bytes &&
+        editor->adopt(editor->context, ACTOR_TYPE, actor, ROUTE_TYPE, number, 0) &&
+        writer.write_at(writer.context, 0, bytes, sizeof(bytes)) &&
+        (!count || writer.write_at(writer.context, sizeof(bytes), points, header.first_bytes));
+}
+
+int mm_actor_archive_write_stationary(const MMMovieArchiveEditor *editor, MMU32 actor, MMI32 frame,
+                                      const unsigned short angles[3])
+{
+    MMActorStationaryTrack track;
+    MMGroup *group;
+    MMU32 number;
+    int result;
+    group = (MMGroup *)new_group(NULL, MM_ACTOR_EVENT_BYTES);
+    if (!group)
+        return 0;
+    mm_actor_stationary_track(&track, frame, angles);
+    result = group_insert(group, 0, sizeof(track.entrance), &track.entrance, &track.events[0]) &&
+        group_insert(group, 1, sizeof(track.action), track.action, &track.events[1]) &&
+        group_insert(group, 2, sizeof(track.step), &track.step, &track.events[2]) &&
+        mm_actor_archive_write_route(editor, actor, &track.route, 1) &&
+        mm_actor_archive_write_event_group(editor, group, &number, &actor);
+    release_group(group);
+    return result;
 }
 
 int mm_actor_archive_replace_event_group(const MMMovieArchiveEditor *editor, MMU32 actor, MMGroup *group)

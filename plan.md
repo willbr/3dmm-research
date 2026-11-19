@@ -1037,6 +1037,13 @@ scenes in order, and writes the header and event groups for a new scene.
 The Studio and Marcus paths use the same root and scene-header encoders.
 Actor-free Marcus movie materialization writes the empty roll call
 required by the retail and SDL Studio loaders.
+C89 now writes newly inserted actor, prop and 3D text instances,
+including their native chunk numbers, template and font references,
+stationary tracks and roll-call entries. Live preview and saved
+insertion share the stationary track constructor. Saved 3D text
+replacement also uses C89 to keep actor identity, install the copied
+template and material, and update animation events and the roll call.
+Host services open archives and copy the selected asset graphs.
 Saved Marcus object placement uses C89 to copy the actor header,
 retain shared child chunks, install a scene-local actor link and
 invalidate the thumbnail. C89 also rewrites the rotation, stretch and

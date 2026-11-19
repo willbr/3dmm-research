@@ -88,6 +88,62 @@ typedef struct MMActorArchiveName
 int mm_actor_archive_register(const MMMovieArchiveEditor *, MMU32 movie,
                               const MMActorArchivePlacement *, const MMActorArchiveName *);
 
+enum MMActorAuthorResult
+{
+    MM_ACTOR_AUTHOR_OK,
+    MM_ACTOR_AUTHOR_READ_TEMPLATE,
+    MM_ACTOR_AUTHOR_TEMPLATE,
+    MM_ACTOR_AUTHOR_FRAME,
+    MM_ACTOR_AUTHOR_POSITION,
+    MM_ACTOR_AUTHOR_ROOT,
+    MM_ACTOR_AUTHOR_SOURCE,
+    MM_ACTOR_AUTHOR_COPY_TEMPLATE,
+    MM_ACTOR_AUTHOR_FONT,
+    MM_ACTOR_AUTHOR_READ_ACTOR,
+    MM_ACTOR_AUTHOR_WRITE_ACTOR,
+    MM_ACTOR_AUTHOR_ACTOR_NUMBER,
+    MM_ACTOR_AUTHOR_LINK_TEMPLATE,
+    MM_ACTOR_AUTHOR_TRACK,
+    MM_ACTOR_AUTHOR_COPY_MATERIAL,
+    MM_ACTOR_AUTHOR_LINK_MATERIAL,
+    MM_ACTOR_AUTHOR_MATERIAL_EVENTS,
+    MM_ACTOR_AUTHOR_REGISTER
+};
+
+typedef struct MMActorAuthorHost
+{
+    const MMMovieArchiveEditor *source, *destination;
+    const MMTextHost *text;
+    void *context;
+    int (*copy)(void *, MMU32 type, MMU32 number, MMU32 *copied);
+} MMActorAuthorHost;
+
+typedef struct MMActorInsert
+{
+    MMU32 scene, number, template_number;
+    MMI32 actor_id, first, last;
+    const float *point;
+    const void *name;
+    MMU32 characters;
+    int embedded_text;
+} MMActorInsert;
+
+typedef struct MMActorTextReplacement
+{
+    MMU32 actor;
+    const void *name;
+    MMU32 characters;
+    int retail_font, custom_material;
+} MMActorTextReplacement;
+
+/* These operations belong to mm-movie-content. The destination is a private
+ * archive. Names are counted in the destination's native text units.
+ * detail carries the underlying status for root, source, material-event,
+ * and roll-call errors. The text replacement source has template zero
+ * and, when requested, material zero. */
+int mm_actor_archive_insert(const MMActorAuthorHost *, const MMActorInsert *, int *detail);
+int mm_actor_archive_replace_text(const MMActorAuthorHost *, const MMActorTextReplacement *, int *detail);
+
 enum MMActorArchiveEditResult
 {
     MM_ACTOR_EDIT_ARCHIVE_OK,

@@ -87,10 +87,36 @@ static void put_text_word(unsigned char *bytes, MMU32 value, int big)
     }
 }
 
+static int read_text_descriptor(const MMMovieArchiveEditor *editor, MMU32 text,
+                                unsigned char bytes[MM_ACTOR_ARCHIVE_TEXT_BYTES], int *big)
+{
+    MMReadStream stream;
+    if (!editor->read(editor->context, MM_TDT, text, &stream) || stream.length != MM_ACTOR_ARCHIVE_TEXT_BYTES ||
+        !mm_read_exact(&stream, 0, bytes, MM_ACTOR_ARCHIVE_TEXT_BYTES))
+        return MM_ACTOR_ARCHIVE_READ_TEXT;
+    *big = bytes[0] == 0 && bytes[1] == 1;
+    if (!*big && (bytes[0] != 1 || bytes[1] != 0))
+        return MM_ACTOR_ARCHIVE_TEXT_ORDER;
+    return MM_ACTOR_ARCHIVE_OK;
+}
+
+int mm_actor_archive_set_font_source(const MMMovieArchiveEditor *editor, MMU32 text_template, MMI32 source)
+{
+    MMChunkAccess chunks;
+    MMU32 text;
+    unsigned char bytes[MM_ACTOR_ARCHIVE_TEXT_BYTES];
+    int big;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_link_number(&chunks, MM_TMPL, text_template, 0, MM_TDT, &text) != MM_CHUNK_OK ||
+        read_text_descriptor(editor, text, bytes, &big) != MM_ACTOR_ARCHIVE_OK)
+        return 0;
+    put_text_word(bytes + 8, (MMU32)source, big);
+    return editor->patch(editor->context, MM_TDT, text, 8, bytes + 8, 4);
+}
+
 static int retarget_template(const MMActorArchiveHost *host, MMU32 copied, MMActorHeader *header)
 {
     MMChunkAccess chunks;
-    MMReadStream stream;
     const MMMovieArchiveEditor *editor = host->destination;
     MMU32 text;
     unsigned char bytes[MM_ACTOR_ARCHIVE_TEXT_BYTES];
@@ -103,12 +129,9 @@ static int retarget_template(const MMActorArchiveHost *host, MMU32 copied, MMAct
         return MM_ACTOR_ARCHIVE_TEMPLATE;
     if (mm_chunk_link_number(&chunks, MM_TMPL, header->template_number, 0, MM_TDT, &text) != MM_CHUNK_OK)
         return MM_ACTOR_ARCHIVE_OK;
-    if (!editor->read(editor->context, MM_TDT, text, &stream) || stream.length != sizeof(bytes) ||
-        !mm_read_exact(&stream, 0, bytes, sizeof(bytes)))
-        return MM_ACTOR_ARCHIVE_READ_TEXT;
-    big = bytes[0] == 0 && bytes[1] == 1;
-    if (!big && (bytes[0] != 1 || bytes[1] != 0))
-        return MM_ACTOR_ARCHIVE_TEXT_ORDER;
+    result = read_text_descriptor(editor, text, bytes, &big);
+    if (result != MM_ACTOR_ARCHIVE_OK)
+        return result;
     font.sid = mm_signed_word(text_word(bytes + 8, big));
     font.cache = NULL;
     font.type = text_word(bytes + 16, big);

@@ -1,8 +1,10 @@
 #include "mm/actor_archive.h"
+#include "mm/actor_effect.h"
 #include "mm/actor_motion.h"
 #include "mm/movie_sound.h"
 #include "mm/rollcall_storage.h"
 #include "mm/scene_reframe.h"
+#include "mm/scene_data.h"
 #include "mm/template_create.h"
 #include "mm/text.h"
 #include <stdio.h>
@@ -367,7 +369,7 @@ static void rename_rollcall(void)
 {
     RollEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, movie_chunks,
-                                   open_roll, add_roll, adopt_roll, unlink_roll, NULL, NULL, NULL, NULL};
+                                   open_roll, add_roll, adopt_roll, unlink_roll, NULL, NULL, NULL, NULL, NULL};
     MMActorArchiveName name = {{4, 1, 0, 2, MM_TMPL, 19}, "edited", 6, 1};
     MMMovieActor original = {4, 3, 5, 0, MM_TMPL, 1}, other = {6, 2, 5, 1, MM_TMPL, 2}, actor;
     MMCollectionHeader header = {0};
@@ -497,7 +499,7 @@ static void placement_transaction(void)
     float delta[] = {1.25f, 0, 0};
     PlacementEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, placement_chunks, placement_read,
-                                   placement_add, placement_adopt, placement_unlink, placement_put, NULL, NULL, NULL};
+                                   placement_add, placement_adopt, placement_unlink, placement_put, NULL, NULL, NULL, NULL};
     MMActorArchivePose pose = {20, 5, NULL, identity, scale, NULL, placement_appearance};
     int fail;
     pose.context = editor.context = &edit;
@@ -714,7 +716,7 @@ static void reframe_transaction(void)
                                   MM_ACTOR_ROTATE_HERE, MM_ACTOR_TWEAK};
     ReframeEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, reframe_chunks, reframe_read,
-                                   reframe_add, reframe_adopt, reframe_unlink, reframe_put, NULL, NULL, NULL};
+                                   reframe_add, reframe_adopt, reframe_unlink, reframe_put, NULL, NULL, NULL, NULL};
     MMSceneReframeHost host = {NULL, reframe_pose, reframe_from_euler, reframe_to_euler};
     MMSceneReframeCamera work = {identity, 70.0f, 1.0f}, camera = {identity, 70.0f, 2.0f};
     MMMemoryStream output;
@@ -757,6 +759,196 @@ static void reframe_transaction(void)
     CHECK(!edit.copied);
 }
 
+enum { AUTHOR_SCENE = 5, AUTHOR_ACTOR = 42, AUTHOR_TEMPLATE = 8 };
+#define SCENE 0x5343454eUL
+#define START 0x47475354UL
+
+typedef struct AuthorEdit
+{
+    Graph graph;
+    MMMemoryStream input;
+    MMActorHeader header;
+    unsigned char scene[16], start[MM_SCENE_BACKGROUND_GROUP_BYTES], tmpl[16], text[24];
+    unsigned char route[28], events[136], other[128];
+    unsigned char *output;
+    MMU32 length;
+    int tables, copied, rekeyed, linked, dropped;
+} AuthorEdit;
+
+static MMChunkAccess author_chunks(void *context)
+{
+    MMChunkAccess chunks = {NULL, 3, entry, child};
+    chunks.context = &((AuthorEdit *)context)->graph;
+    return chunks;
+}
+static int author_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    AuthorEdit *f = (AuthorEdit *)context;
+    if (type == MM_TMPL)
+        CHECK(number == 7 && mm_memory_stream_init(&f->input, f->tmpl, sizeof(f->tmpl)));
+    else if (type == MM_TDT)
+        CHECK(number == 6 && f->copied && mm_memory_stream_init(&f->input, f->text, sizeof(f->text)));
+    else if (type == SCENE)
+        CHECK(number == AUTHOR_SCENE && mm_memory_stream_init(&f->input, f->scene, sizeof(f->scene)));
+    else
+        CHECK(type == START && number == 4 && mm_memory_stream_init(&f->input, f->start, sizeof(f->start)));
+    *stream = f->input.stream;
+    return 1;
+}
+static int author_write(void *context, MMU32 offset, const void *data, size_t bytes)
+{
+    AuthorEdit *f = (AuthorEdit *)context;
+    CHECK(offset <= f->length && bytes <= f->length - offset);
+    memcpy(f->output + offset, data, bytes);
+    return 1;
+}
+static int author_add(void *context, MMU32 type, MMU32 length, MMU32 *number, MMStorageWriter *writer)
+{
+    AuthorEdit *f = (AuthorEdit *)context;
+    if (type == ACTOR)
+    {
+        CHECK(length == sizeof(f->header) && !writer);
+        *number = 9;
+        return 1;
+    }
+    if (type == ROUTE)
+        CHECK(length == sizeof(f->route));
+    else if (type == EVENTS)
+        CHECK(length == sizeof(f->events));
+    else
+        CHECK((type == START || type == ROLLCALL) && length <= sizeof(f->other));
+    f->output = type == ROUTE ? f->route : type == EVENTS ? f->events : f->other;
+    f->length = length;
+    *number = type == ROLLCALL ? (MMU32)++f->tables : 1;
+    writer->context = context;
+    writer->length = length;
+    writer->write_at = author_write;
+    return 1;
+}
+static int author_put(void *context, MMU32 type, MMU32 number, const void *data, MMU32 bytes)
+{
+    AuthorEdit *f = (AuthorEdit *)context;
+    CHECK(type == ACTOR && number == 9 && bytes == sizeof(f->header));
+    memcpy(&f->header, data, bytes);
+    return 1;
+}
+static int author_patch(void *context, MMU32 type, MMU32 number, MMU32 offset, const void *data, MMU32 bytes)
+{
+    AuthorEdit *f = (AuthorEdit *)context;
+    CHECK(type == MM_TDT && number == 6 && offset == 8 && bytes == 4);
+    memcpy(f->text + offset, data, bytes);
+    return 1;
+}
+static int author_rekey(void *context, MMU32 type, MMU32 old, MMU32 number)
+{
+    CHECK(type == ACTOR && old == 9 && number == AUTHOR_ACTOR);
+    return ++((AuthorEdit *)context)->rekeyed;
+}
+static int author_copy(void *context, MMU32 type, MMU32 number, MMU32 *copied)
+{
+    CHECK(type == MM_TMPL && number == 7);
+    *copied = AUTHOR_TEMPLATE;
+    return ++((AuthorEdit *)context)->copied;
+}
+static int author_adopt(void *context, MMU32 type, MMU32 number, MMU32 child_type, MMU32 child, MMU32 slot)
+{
+    AuthorEdit *f = (AuthorEdit *)context;
+    if (type == MOVIE)
+        CHECK(number == 1 && child_type == ROLLCALL && ((child == 1 && slot == 1) || (child == 2 && slot == 0)));
+    else if (type == SCENE)
+        CHECK(number == AUTHOR_SCENE && ((child_type == ACTOR && child == AUTHOR_ACTOR && slot == 0) ||
+              (child_type == START && child == 1 && slot == 1)));
+    else
+        CHECK(type == ACTOR && number == AUTHOR_ACTOR && slot == 0 &&
+              ((child_type == MM_TMPL && child == AUTHOR_TEMPLATE) || ((child_type == ROUTE || child_type == EVENTS) && child == 1)));
+    return ++f->linked;
+}
+static void author_unlink(void *context, MMU32 type, MMU32 number, MMU32 child_type, MMU32 child, MMU32 slot)
+{
+    CHECK(type == SCENE && number == AUTHOR_SCENE);
+    if (child_type == THUMB)
+    {
+        CHECK(child == 3 && slot == 0);
+        ++((AuthorEdit *)context)->dropped;
+    }
+    else
+        CHECK(child_type == START && child == 4 && slot == 1);
+}
+
+static void insertion_transaction(void)
+{
+    const float point[3] = {1.25f, -2.0f, 0.0f};
+    AuthorEdit f = {0};
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, author_chunks, author_read,
+                                   author_add, author_adopt, author_unlink, author_put, author_rekey, NULL, NULL, author_patch};
+    MMActorAuthorHost host = {NULL, NULL, NULL, NULL, author_copy};
+    MMActorInsert insert = {AUTHOR_SCENE, AUTHOR_ACTOR, 7, 12, 3, 5, NULL, "Text", 4, 1};
+    MMSceneState scene;
+    MMCollectionHeader group;
+    MMActorEvent event;
+    MMActorEntrance add;
+    MMMemoryStream stream;
+    MMRollCallTable listing;
+    MMMovieActor listed;
+    unsigned char row[MM_MOVIE_ACTOR_BYTES];
+    MMU32 offset;
+    MMI32 bytes;
+    int detail, big;
+    editor.context = host.context = &f;
+    host.source = host.destination = &editor;
+    insert.point = point;
+    f.graph.entries[0].type = MOVIE;
+    f.graph.entries[0].number = 1;
+    f.graph.entries[1].type = SCENE;
+    f.graph.entries[1].number = AUTHOR_SCENE;
+    append_child(&f.graph, 1, THUMB, 3, 0);
+    append_child(&f.graph, 1, START, 4, 1);
+    f.graph.entries[2].type = MM_TMPL;
+    f.graph.entries[2].number = AUTHOR_TEMPLATE;
+    append_child(&f.graph, 2, MM_TDT, 6, 0);
+    CHECK(mm_scene_init(&scene, 1));
+    scene.firstFrame = 3;
+    scene.lastFrame = 5;
+    CHECK(mm_scene_encode_header(&scene, MM_TEXT_WINDOWS, 0, f.scene));
+    CHECK(mm_scene_encode_background_group(MM_TEXT_WINDOWS, 0, 3, 2, 11, f.start));
+    f.tmpl[1] = f.text[1] = 1; /* Foreign byte order. */
+    f.tmpl[4] = 0x12; f.tmpl[5] = 0x34; f.tmpl[15] = MM_TEMPLATE_TEXT;
+    f.text[7] = 4; f.text[23] = 19;
+    insert.first = 2;
+    CHECK(mm_actor_archive_insert(&host, &insert, &detail) == MM_ACTOR_AUTHOR_FRAME && !f.linked && !f.copied);
+    insert.first = 3;
+    CHECK(mm_actor_archive_insert(&host, &insert, &detail) == MM_ACTOR_AUTHOR_OK && detail == MM_ACTOR_REGISTER_OK);
+    CHECK(f.copied == 1 && f.rekeyed == 1 && f.linked == 7 && f.dropped == 1 && f.tables == 2);
+    CHECK(f.header.actor_id == 12 && f.header.template_number == AUTHOR_TEMPLATE && !f.header.source_id &&
+          f.header.translation[0] == 81920 && f.header.translation[1] == (MMU32)-131072);
+    CHECK(f.text[7] == 4 && f.text[8] == 0 && f.text[11] == 2 && f.text[23] == 19);
+    CHECK(mm_memory_stream_init(&stream, f.route, sizeof(f.route)));
+    CHECK(mm_collection_header_read(&stream.stream, MM_COLLECTION_ARRAY, 0, &group) == MM_STORAGE_OK &&
+          group.width == MM_ACTOR_ROUTE_BYTES && group.count == 1);
+    CHECK(mm_memory_stream_init(&stream, f.events, sizeof(f.events)));
+    CHECK(mm_collection_header_read(&stream.stream, MM_COLLECTION_GROUP, 0, &group) == MM_STORAGE_OK &&
+          group.width == MM_ACTOR_EVENT_BYTES && group.count == 3);
+    CHECK(mm_collection_group_row(&group, f.events + 20, 0, &offset, &bytes) && bytes == sizeof(add));
+    memcpy(&event, f.events + 20 + offset, sizeof(event));
+    memcpy(&add, f.events + 20 + offset + sizeof(event), sizeof(add));
+    CHECK(event.aet == MM_ACTOR_ADD && event.nfrm == 3 && !event.rtel.irpt && add.x == 0x1234 && !add.y && !add.z);
+
+    f.tables = f.copied = f.rekeyed = f.linked = f.dropped = 0;
+    f.tmpl[15] = MM_TEMPLATE_PROP;
+    insert.embedded_text = 0;
+    insert.first = 4;
+    CHECK(mm_actor_archive_insert(&host, &insert, &detail) == MM_ACTOR_AUTHOR_OK);
+    CHECK(!f.copied && f.rekeyed == 1 && f.linked == 6 && !f.dropped);
+    CHECK(f.header.source_id == 2 && f.header.template_number == 7 && f.header.first_frame == 4);
+    CHECK(mm_rollcall_table_init(&listing, MM_MOVIE_ACTOR_BYTES, 1, MM_TEXT_WINDOWS, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_memory_stream_init(&stream, f.other, f.length));
+    CHECK(mm_rollcall_table_read(&listing, &stream.stream, NULL, NULL, &big) == MM_STORAGE_OK && listing.count == 1);
+    CHECK(mm_rollcall_table_extra(&listing, 0, row) && mm_memory_stream_init(&stream, row, sizeof(row)));
+    CHECK(mm_movie_read_actor(&stream.stream, big, &listed, NULL) == MM_MOVIE_OK &&
+          listed.actor_id == 12 && listed.source_id == 2 && listed.template_number == 7 && listed.browser_flags == 1);
+    CHECK(mm_rollcall_table_dispose(&listing) == MM_STORAGE_OK);
+}
+
 int main(void)
 {
     Fixture f;
@@ -764,9 +956,9 @@ int main(void)
     const MMActorArchiveRequest forward = {1, 1, 3, 7, 9, 12};
     MMActorArchiveHost host = {0};
     MMMovieArchiveEditor source_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source, source_read,
-                                          NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+                                          NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     MMMovieArchiveEditor destination_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, destination, destination_read,
-                                               NULL, adopt, NULL, put, NULL, NULL, replace_events};
+                                               NULL, adopt, NULL, put, NULL, NULL, replace_events, NULL};
     MMU32 actor, i;
     MMActorHeader header;
     unsigned char descriptor[MM_ACTOR_ARCHIVE_TEXT_BYTES];
@@ -820,5 +1012,6 @@ int main(void)
     rename_rollcall();
     placement_transaction();
     reframe_transaction();
+    insertion_transaction();
     return 0;
 }

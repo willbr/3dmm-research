@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <exception>
 #include <chrono>
-#include <cmath>
 #include <stdexcept>
 #include <codecvt>
 #include <locale>
@@ -10,6 +9,7 @@
 #include "engine_read_stream.h"
 #include "platform_text.h"
 #include "mm/actor_archive.h"
+#include "mm/scene_data.h"
 #include "mm/text.h"
 #include "mm/scene_reframe.h"
 #include "storyboard_native.h"
@@ -22,12 +22,6 @@ struct Release { template<class T> void operator()(T *value) const { if (value) 
 void Require(bool value, const char *message)
 {
     if (!value) throw std::runtime_error(message);
-}
-void UpdateActorListing(PChunkyFile file, ChunkNumber movie, const MMActorArchivePlacement *placement,
-                        const MMMovieActor &actor, const std::string &name, bool replaceExisting = false);
-MMMovieActor ActorListing(const ActorChunkOnFile &header, MMU32 flags)
-{
-    return {header.arid, 1, header.tagTmpl.sid, flags, header.tagTmpl.ctg, header.tagTmpl.cno};
 }
 }
 static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path &source,
@@ -121,6 +115,13 @@ struct MovieArchiveHost
                 if (!io.file->FPut(bytes, type, number, &io.output)) return false;
                 *writer = io.OutputWriter(bytes);
                 return true;
+            },
+            [](void *value, MMU32 type, MMU32 number, MMU32 offset, const void *bytes, MMU32 size) -> int {
+                auto &io = *static_cast<MovieArchiveHost *>(value);
+                if (!io.file->FFind(type, number, &io.output)) return false;
+                const bool packed = io.output.FPacked();
+                return io.output.FUnpackData() && io.output.FWriteRgb(const_cast<void *>(bytes), size, offset) &&
+                       (!packed || io.file->FPutBlck(&io.output, type, number));
             }
         };
     }
@@ -173,12 +174,6 @@ static MMMovieArchiveRoot EnsureMovieRoot(const MMMovieArchiveEditor &editor)
     return root;
 }
 
-static MMMovieArchiveRoot EnsureMovieRoot(PChunkyFile file)
-{
-    MovieArchiveHost host{file, {}, {}};
-    return EnsureMovieRoot(host.Editor());
-}
-
 static void ApplyNewScene(PChunkyFile file, const MM::PreviewSceneDefinition &definition, bool emptyMovie)
 {
     MovieArchiveHost host{file, {}, {}};
@@ -220,73 +215,6 @@ static void ApplySceneRange(PChunkyFile file, const MarcusSceneRange &range)
     const auto editor = host.Editor();
     CheckSceneFrameEdit(mm_scene_archive_set_range(&editor, static_cast<MMU32>(range.scene), range.first, range.last));
 }
-static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusNamedProp &propEdit)
-{
-    const auto &definition = propEdit.definition;
-    const auto prop = definition.templateNumber, sceneNumber = definition.scene;
-    const long frame = definition.first;
-    const auto point = definition.point;
-    const auto name = propEdit.name.c_str();
-    DataBlock block;
-    TemplateOnFile tmpl;
-    Require(library->FFind(kctgTmpl, prop, &block) && block.FUnpackData() && block.FReadRgb(&tmpl, sizeof(tmpl), 0),
-            "Cannot read the selected prop template.");
-    if (tmpl.bo == kboOther) SwapBytesBom(&tmpl, kbomTmplf);
-    Require(tmpl.bo == kboCur && bool(tmpl.grftmpl & ftmplTdt) == bool(propEdit.file),
-            "The selected object template is invalid.");
-    SceneData scene;
-    Require(scene.FRead(file, sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
-            "The prop insertion frame is outside this scene.");
-    const auto root = EnsureMovieRoot(file);
-    const auto sourceId = RetailSource(file, root.number, root.created ? 1 : 2);
-    ChunkNumber templateNumber = prop;
-    if (propEdit.file)
-    {
-        Require(library->FCopy(kctgTmpl, prop, file, &templateNumber), "Cannot embed the 3D text template.");
-        ChildChunkIdentification textChild;
-        Require(file->FGetKidChidCtg(kctgTmpl, templateNumber, 0, kctgTdt, &textChild) &&
-                file->FFind(kctgTdt, textChild.cki.cno, &block) && block.FUnpackData(), "Cannot read the 3D text font reference.");
-        // Generated text is embedded; its font remains original retail content.
-        std::int32_t fontSource = sourceId;
-        Require(block.FWriteRgb(&fontSource, sizeof(fontSource), 8), "Cannot retain the original 3D font.");
-    }
-    ActorChunkOnFile header = {};
-    header.bo = kboCur; header.osk = koskCur;
-    header.arid = definition.actorId;
-    header.nfrmFirst = static_cast<int32_t>(frame); header.nfrmLast = definition.last;
-    header.tagTmpl = {propEdit.file ? 0 : sourceId, 0, kctgTmpl, templateNumber};
-    header.dxyzFullRte = {BrFloatToScalar(point[0]), BrFloatToScalar(point[1]), BrFloatToScalar(point[2])};
-    ChunkNumber actorNumber, childNumber;
-    Require(file->FAdd(sizeof(header), kctgActr, &actorNumber) && ActorData::FWriteHeader(file, actorNumber, &header),
-            "Cannot create the prop instance.");
-    Require(actorNumber == definition.number || !file->FFind(kctgActr, definition.number), "The new object ID is already in use.");
-    if (actorNumber != definition.number) { file->Move(kctgActr, actorNumber, kctgActr, definition.number); actorNumber = definition.number; }
-    if (propEdit.file)
-        Require(file->FAdoptChild(kctgActr, actorNumber, kctgTmpl, templateNumber, 0), "Cannot link the embedded 3D text.");
-    ActorTrack track;
-    Require(track.FCreate(), "Cannot create the prop's stationary track.");
-    RouteDistancePoint route = {};
-    ActorEvent::Base event = {ActorEvent::aetAdd, static_cast<int32_t>(frame), {0, rZero, 0}};
-    ActorEvent::Add addition = {};
-    addition.xa = tmpl.xaRest; addition.ya = tmpl.yaRest; addition.za = tmpl.zaRest;
-    Require(track.Route()->FInsert(0, &route) && track.Events()->FInsert(0, sizeof(addition), &addition, &event),
-            "Cannot place the prop in the scene.");
-    ActorEvent::Action action = {0, 0};
-    event.aet = ActorEvent::aetActn;
-    Require(track.Events()->FInsert(1, sizeof(action), &action, &event), "Cannot set the prop's default pose.");
-    event.aet = ActorEvent::aetStep;
-    BRS step = rZero;
-    Require(track.Events()->FInsert(2, sizeof(step), &step, &event), "Cannot keep the prop stationary.");
-    std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(track.Events()));
-    Require(wire && file->FAddChild(kctgActr, actorNumber, 0, track.Route()->CbOnFile(), kctgPath, &childNumber, &block) &&
-            track.Route()->FWrite(&block) && file->FAddChild(kctgActr, actorNumber, 0, wire->CbOnFile(), kctgGgae, &childNumber, &block) &&
-            wire->FWrite(&block), "Cannot write the prop track.");
-    const MMActorArchivePlacement placement{static_cast<MMU32>(sceneNumber), actorNumber, scene.firstFrame,
-                                            frame == scene.firstFrame};
-    UpdateActorListing(file, root.number, &placement, ActorListing(header, propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0),
-                       propEdit.file ? MarcusTextAnsi(name) : std::string(name));
-}
-
 static void CheckActorArchiveEdit(int result)
 {
     static const char *const messages[] = {
@@ -305,6 +233,97 @@ static void CheckActorArchiveEdit(int result)
     };
     static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_EDIT_ARCHIVE_LINK_ACTOR + 1, "actor edit diagnostics");
     Require(result == MM_ACTOR_EDIT_ARCHIVE_OK, messages[result]);
+}
+
+static void CheckActorRegistration(int status)
+{
+    static const char *const messages[] = {
+        nullptr,
+        "No available child slots for the pasted object.",
+        "Cannot read the scene's object list.",
+        "The scene start events are invalid.",
+        "Cannot register the scene object.",
+        "Cannot link scene start events.",
+        "Cannot read the movie roll call.",
+        "The movie roll call is invalid.",
+        "Cannot write the movie roll call.",
+        "Cannot allocate the scene object listing."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_REGISTER_MEMORY + 1, "registration diagnostics");
+    Require(status == MM_ACTOR_REGISTER_OK, messages[status]);
+}
+
+static void CheckActorAuthor(int status, int detail)
+{
+    static const char *const messages[] = {
+        nullptr,
+        "Cannot read the selected prop template.",
+        "The selected object template is invalid.",
+        "The prop insertion frame is outside this scene.",
+        "The object position is outside the native coordinate range.",
+        nullptr,
+        nullptr,
+        "Cannot embed the 3D text template.",
+        "Cannot write the 3D text font reference.",
+        "Cannot read the edited text actor.",
+        "Cannot write the actor instance.",
+        "The new object ID is already in use.",
+        "Cannot link the embedded 3D text template.",
+        "Cannot write the object's stationary track.",
+        "Cannot copy the text appearance.",
+        "Cannot embed the text appearance.",
+        nullptr,
+        nullptr
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_AUTHOR_REGISTER + 1,
+                  "actor archive diagnostics");
+    switch (status)
+    {
+    case MM_ACTOR_AUTHOR_ROOT: CheckSceneArchive(detail); break;
+    case MM_ACTOR_AUTHOR_SOURCE: CheckMovieSource(detail); break;
+    case MM_ACTOR_AUTHOR_MATERIAL_EVENTS: CheckActorArchiveEdit(detail); break;
+    case MM_ACTOR_AUTHOR_REGISTER: CheckActorRegistration(detail); break;
+    default: Require(status == MM_ACTOR_AUTHOR_OK, messages[status]); break;
+    }
+}
+
+namespace
+{
+struct ActorArchiveFiles
+{
+    PChunkyFile source, destination;
+
+    static int Copy(void *value, MMU32 type, MMU32 number, MMU32 *copied)
+    {
+        const auto &io = *static_cast<ActorArchiveFiles *>(value);
+        return io.source->FFind(type, number) && io.source->FCopy(type, number, io.destination, copied);
+    }
+
+    static int Clone(void *value, MMU32 actor, MMU32 *copied)
+    {
+        const auto &io = *static_cast<ActorArchiveFiles *>(value);
+        return io.source->FClone(kctgActr, actor, io.destination, copied);
+    }
+};
+}
+
+static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusNamedProp &prop)
+{
+    MovieArchiveHost sourceArchive{library, {}, {}}, destinationArchive{file, {}, {}};
+    const auto source = sourceArchive.Editor();
+    const auto destination = destinationArchive.Editor();
+    ActorArchiveFiles files{library, file};
+    const MMActorAuthorHost host{&source, &destination, KauaiText::Services(), &files, ActorArchiveFiles::Copy};
+    const auto name = prop.file ? MarcusTextAnsi(prop.name.c_str()) : prop.name;
+    String caption;
+    caption.SetSzs(const_cast<char *>(name.c_str()));
+    const auto &definition = prop.definition;
+    const MMActorInsert insert{definition.scene, definition.number, definition.templateNumber,
+        definition.actorId, definition.first, definition.last, definition.point, caption.Prgch(),
+        static_cast<MMU32>(caption.Cch()), bool(prop.file)};
+    int detail = 0;
+    const int status = mm_actor_archive_insert(&host, &insert, &detail);
+    CheckActorAuthor(status, detail);
 }
 
 std::string MarcusTextAnsi(const char *utf8)
@@ -356,55 +375,15 @@ Filename ObjectFile(const std::filesystem::path &path)
     return name;
 }
 
-void UpdateActorListing(PChunkyFile file, ChunkNumber movie, const MMActorArchivePlacement *placement,
-                        const MMMovieActor &actor, const std::string &name, bool replaceExisting)
-{
-    MovieArchiveHost host{file, {}, {}};
-    const auto editor = host.Editor();
-    String caption;
-    caption.SetSzs(const_cast<char *>(name.c_str()));
-    const MMActorArchiveName entry = {
-        actor, caption.Prgch(), static_cast<MMU32>(caption.Cch()), replaceExisting
-    };
-    static const char *const messages[] = {
-        nullptr,
-        "No available child slots for the pasted object.",
-        "Cannot read the scene's object list.",
-        "The scene start events are invalid.",
-        "Cannot register the scene object.",
-        "Cannot link scene start events.",
-        "Cannot read the movie roll call.",
-        "The movie roll call is invalid.",
-        "Cannot write the movie roll call.",
-        "Cannot allocate the scene object listing."
-    };
-    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_REGISTER_MEMORY + 1, "registration diagnostics");
-    const int status = mm_actor_archive_register(&editor, movie, placement, &entry);
-    Require(status == MM_ACTOR_REGISTER_OK, messages[status]);
-}
-
 ChunkNumber TransferObject(const MMMovieArchiveEditor &source, const MMMovieArchiveEditor &destination,
                            const MMActorArchiveRequest &request, MMMovieArchiveSourceMap *sources,
                            MMActorHeader *header)
 {
     static_assert(knfrmInvalid == 2147483647, "actor invalid frame");
-    struct Files
-    {
-        PChunkyFile source, destination;
-    } files{static_cast<MovieArchiveHost *>(source.context)->file,
-            static_cast<MovieArchiveHost *>(destination.context)->file};
-    const MMActorArchiveHost host{
-        &files, &source, &destination,
-        [](void *value, MMU32 actor, MMU32 *copied) -> int {
-            const auto &io = *static_cast<Files *>(value);
-            return io.source->FClone(kctgActr, actor, io.destination, copied);
-        },
-        [](void *value, MMU32 type, MMU32 number, MMU32 *copied) -> int {
-            const auto &io = *static_cast<Files *>(value);
-            return io.source->FFind(type, number) && io.source->FCopy(type, number, io.destination, copied);
-        },
-        sources, sources ? mm_movie_archive_map_source : nullptr
-    };
+    ActorArchiveFiles files{static_cast<MovieArchiveHost *>(source.context)->file,
+                           static_cast<MovieArchiveHost *>(destination.context)->file};
+    const MMActorArchiveHost host{&files, &source, &destination, ActorArchiveFiles::Clone, ActorArchiveFiles::Copy,
+                                  sources, sources ? mm_movie_archive_map_source : nullptr};
 
     static const char *const messages[] = {
         nullptr,
@@ -478,16 +457,17 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&sourceName, fcflNil));
     std::unique_ptr<ChunkyFile, Release> destination(ChunkyFile::PcflOpen(&destinationName, fcflWriteEnable));
     Require(source && destination, "Cannot open the movie or object working copy.");
-    SceneData scene;
-    Require(scene.FRead(destination.get(), sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
-            "The paste frame is outside the scene.");
-    const auto root = EnsureMovieRoot(destination.get());
-    // Headless scene-only movies rely on an implicit retail source.
-    if (root.created) RetailSource(destination.get(), root.number, 1);
-
     MovieArchiveHost sourceArchive{source.get(), {}, {}}, destinationArchive{destination.get(), {}, {}};
     const auto sourceEditor = sourceArchive.Editor();
     const auto destinationEditor = destinationArchive.Editor();
+    const auto targetScene = static_cast<MMU32>(sceneNumber);
+    MMSceneState scene;
+    Require(mm_scene_archive_read_header(&destinationEditor, targetScene, &scene) &&
+                frame >= scene.firstFrame && frame <= scene.lastFrame,
+            "The paste frame is outside the scene.");
+    const auto root = EnsureMovieRoot(destinationEditor);
+    // Headless scene-only movies rely on an implicit retail source.
+    if (root.created) RetailSource(destination.get(), root.number, 1);
     std::vector<MMMovieArchiveSource> sources;
     sources.reserve(clipboard.sources.size());
     for (const auto &sourceEntry : clipboard.sources)
@@ -496,15 +476,18 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
                                      root.number, root.created ? 1 : 2, MM_MOVIE_SOURCE_EDIT_OK};
     mm_movie_archive_prepare_source_map(&sourceMap);
 
-    const auto targetScene = static_cast<MMU32>(sceneNumber);
     const MMActorArchiveRequest request{clipboard.actor, clipboard.sounds, targetScene, actorId,
                                         static_cast<MMI32>(clipboard.frame), static_cast<MMI32>(frame)};
     MMActorHeader header;
     const auto actor = TransferObject(sourceEditor, destinationEditor, request, &sourceMap, &header);
     const MMActorArchivePlacement placement{targetScene, actor, scene.firstFrame, true};
-    const MMMovieActor entry{header.actor_id, 1, header.source_id, static_cast<MMU32>(clipboard.browserFlags),
-                             header.template_type, header.template_number};
-    UpdateActorListing(destination.get(), root.number, &placement, entry, clipboard.name);
+    String caption;
+    caption.SetSzs(const_cast<char *>(clipboard.name.c_str()));
+    const MMActorArchiveName entry{
+        {header.actor_id, 1, header.source_id, static_cast<MMU32>(clipboard.browserFlags),
+         header.template_type, header.template_number},
+        caption.Prgch(), static_cast<MMU32>(caption.Cch()), 0};
+    CheckActorRegistration(mm_actor_archive_register(&destinationEditor, root.number, &placement, &entry));
     Require(destination->FSave(kctgSoc), "Cannot save the pasted object.");
     return result;
 }
@@ -595,37 +578,19 @@ static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTex
     path.SetSzs(const_cast<char *>(edit.file->path.u8string().c_str()));
     Require(filename.FBuildFromPath(&path), "Invalid edited text template path.");
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
-    ChunkNumber textTemplate;
-    Require(source && source->FCopy(kctgTmpl, 0, file, &textTemplate), "Cannot embed the edited text template.");
-    const auto root = EnsureMovieRoot(file);
-    const auto retail = RetailSource(file, root.number, root.created ? 1 : 2);
-    DataBlock block; ChildChunkIdentification child;
-    if (edit.retailFont)
-    {
-        std::int32_t fontSource = retail;
-        Require(file->FGetKidChidCtg(kctgTmpl, textTemplate, 0, kctgTdt, &child) &&
-            file->FFind(kctgTdt, child.cki.cno, &block) && block.FUnpackData() &&
-            block.FWriteRgb(&fontSource, sizeof(fontSource), 8), "Cannot write the edited text's font reference.");
-    }
-    ActorChunkOnFile header;
-    Require(file->FFind(kctgActr, actorNumber, &block) && ActorData::FReadHeader(&block, &header), "Cannot read the edited text actor.");
-    header.tagTmpl = {0, 0, kctgTmpl, textTemplate};
-    Require(ActorData::FWriteHeader(file, actorNumber, &header), "Cannot write the edited text actor.");
-    if (file->FGetKidChidCtg(kctgActr, actorNumber, 0, kctgTmpl, &child))
-        file->DeleteChild(kctgActr, actorNumber, kctgTmpl, child.cki.cno, 0);
-    Require(file->FAdoptChild(kctgActr, actorNumber, kctgTmpl, textTemplate, 0), "Cannot link the edited text template.");
-    if (edit.hasMaterial)
-    {
-        ChunkNumber material;
-        Require(source->FCopy(kctgMtrl, 0, file, &material), "Cannot copy the text appearance.");
-        if (file->FGetKidChidCtg(kctgActr, actorNumber, 0, kctgMtrl, &child))
-            file->DeleteChild(kctgActr, actorNumber, kctgMtrl, child.cki.cno, 0);
-        Require(file->FAdoptChild(kctgActr, actorNumber, kctgMtrl, material, 0), "Cannot embed the text appearance.");
-        MovieArchiveHost host{file, {}, {}};
-        const auto editor = host.Editor();
-        CheckActorArchiveEdit(mm_actor_archive_set_material(&editor, actorNumber, material));
-    }
-    UpdateActorListing(file, root.number, nullptr, ActorListing(header, 2), MarcusTextAnsi(edit.value.text.c_str()), true);
+    Require(bool(source), "Cannot open the edited text template.");
+    MovieArchiveHost destinationArchive{file, {}, {}};
+    const auto destinationEditor = destinationArchive.Editor();
+    ActorArchiveFiles files{source.get(), file};
+    const MMActorAuthorHost host{nullptr, &destinationEditor, KauaiText::Services(), &files, ActorArchiveFiles::Copy};
+    const auto name = MarcusTextAnsi(edit.value.text.c_str());
+    String caption;
+    caption.SetSzs(const_cast<char *>(name.c_str()));
+    const MMActorTextReplacement request{actorNumber, caption.Prgch(), static_cast<MMU32>(caption.Cch()),
+                                         edit.retailFont, edit.hasMaterial};
+    int detail = 0;
+    const int status = mm_actor_archive_replace_text(&host, &request, &detail);
+    CheckActorAuthor(status, detail);
 }
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,

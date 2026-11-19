@@ -12,6 +12,15 @@ extern "C"
         MMActorPoint translation;
         unsigned short x, y, z, reserved;
     } MMActorEntrance;
+    typedef struct MMActorStationaryTrack
+    {
+        MMActorRoutePoint route;
+        MMActorEvent events[3];
+        MMActorEntrance entrance;
+        MMI32 action[2], step;
+    } MMActorStationaryTrack;
+    /* One zero-distance node and Add, Action and Step at the insertion frame. */
+    void mm_actor_stationary_track(MMActorStationaryTrack *, MMI32 frame, const unsigned short angles[3]);
     enum MMActorEffectOperation
     {
         MM_EFFECT_CLEAR_SOUNDS,

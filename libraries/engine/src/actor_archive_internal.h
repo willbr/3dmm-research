@@ -11,6 +11,10 @@ int mm_actor_archive_write_event_group(const MMMovieArchiveEditor *, MMGroup *, 
                                        const MMU32 *attach_to_actor);
 int mm_actor_archive_replace_event_group(const MMMovieArchiveEditor *, MMU32 actor, MMGroup *);
 int mm_actor_archive_read_actor(const MMMovieArchiveEditor *, MMU32 actor, MMActorHeader *);
+int mm_actor_archive_write_route(const MMMovieArchiveEditor *, MMU32 actor, const void *points, MMU32 count);
+int mm_actor_archive_write_stationary(const MMMovieArchiveEditor *, MMU32 actor, MMI32 frame,
+                                      const unsigned short angles[3]);
+int mm_actor_archive_set_font_source(const MMMovieArchiveEditor *, MMU32 text_template, MMI32 source);
 int mm_actor_archive_copy_actor(const MMMovieArchiveEditor *, MMU32 actor, const MMActorHeader *,
                                 int share_track, MMU32 *copy);
 #endif

@@ -1,7 +1,19 @@
 /* Actor event effects converted from engine actor.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_effect.h"
+#include <string.h>
 typedef char EntranceWidth[(sizeof(MMActorEntrance) == 20) ? 1 : -1];
+void mm_actor_stationary_track(MMActorStationaryTrack *track, MMI32 frame, const unsigned short angles[3])
+{
+    memset(track, 0, sizeof(*track));
+    track->entrance.x = angles[0];
+    track->entrance.y = angles[1];
+    track->entrance.z = angles[2];
+    track->events[0].aet = MM_ACTOR_ADD;
+    track->events[1].aet = MM_ACTOR_ACTION;
+    track->events[2].aet = MM_ACTOR_STEP;
+    track->events[0].nfrm = track->events[1].nfrm = track->events[2].nfrm = frame;
+}
 typedef struct Action
 {
     MMI32 action, cel;

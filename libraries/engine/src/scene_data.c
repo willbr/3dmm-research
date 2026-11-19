@@ -277,6 +277,18 @@ done:
 #define FRAME_GROUP_TYPE 0x47474652UL
 #define THUMB_TYPE 0x5448554dUL
 
+int mm_scene_archive_read_header(const MMMovieArchiveEditor *editor, MMU32 scene, MMSceneState *state)
+{
+    MMReadStream stream;
+    MMSceneState decoded;
+    if (!mm_scene_init(&decoded, editor->text_unit) ||
+        !editor->read(editor->context, SCENE_TYPE, scene, &stream) ||
+        !mm_scene_decode_header(&stream, &decoded))
+        return 0;
+    *state = decoded;
+    return 1;
+}
+
 typedef struct SceneFrameEdit
 {
     const MMMovieArchiveEditor *editor;
@@ -446,13 +458,10 @@ static int write_frame_range(void *context)
 
 static int begin_frame_edit(SceneFrameEdit *edit, const MMMovieArchiveEditor *editor, MMU32 scene)
 {
-    MMReadStream stream;
     memset(edit, 0, sizeof(*edit));
     edit->editor = editor;
     edit->number = scene;
-    if (!mm_scene_init(&edit->scene, editor->text_unit) ||
-        !editor->read(editor->context, SCENE_TYPE, scene, &stream) ||
-        !mm_scene_decode_header(&stream, &edit->scene))
+    if (!mm_scene_archive_read_header(editor, scene, &edit->scene))
         return 0;
     mm_storage_init(&edit->storage, NULL);
     edit->group.storage = &edit->storage;

@@ -14790,3 +14790,45 @@ Marcus playback timing and continuous playback pixels remain inconclusive.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. Probe outputs, the
 manifest and test logs are in `tmp/c89-scene-frame-wire`.
+
+## Marcus actor insertion and 3D text archive writes in C89 (19 November 2026)
+
+Live preview and the native writer share a stationary track with one
+zero-distance route node and Add, Action and Step events at the insertion
+frame. C89 assigns the saved actor chunk number, writes its header and
+tracks, links copied templates, and registers the scene and roll call.
+Text replacement uses the same header and roll-call code and updates the
+material links and events. The native adapter opens archives and copies
+asset graphs.
+
+The retail font source update writes four bytes in place, preserving
+the text descriptor and its byte order. Re-adopting a copied template
+with the same key clears the loner flag set by the copy. The C fixture
+exercises a foreign-order template and font descriptor, a plain retail
+prop, actor chunk renumbering, and an out-of-range insertion.
+All 41 selected checks passed in the Marcus-enabled build, including
+the C89 syntax gates. All five standalone C-only Release checks passed.
+
+The headless insertion test added an actor and 3D text, moved the text,
+changed its wording, font, shape and material, and exercised undo,
+reapplication and native reopen. All six saves were byte-identical to
+their pre-change files. The mixed actor and text insertion save has
+SHA-256 `c790bcc08dba0fbb77c55994d26b5cb1c59dc36d89f5d0201b24bdc14d94b485`.
+The edited text material save has
+SHA-256 `c22551ff51c8c02ea4fd4ea8d3733814eac9d537cbeb6a33841e56b5cf1e7bd5`.
+The reapplied styled text insertion save has
+SHA-256 `5ef5d634c581ac9cf80f8f7f17d177f49ef8c0f6870e952c566bff474cccd7e3`.
+Separate probes produced byte-identical saves and undo saves for the
+retimed actor paste and work-view reframing.
+
+All 18 captures completed in suite `20261119T052447Z-a2fb4cec`.
+Retail, SDL Studio and Marcus agreed on both frame positions in all
+three movies in seek and playback. Silent PCM matched. Across the two
+seek frames, each port differed from retail by three pixels in the
+mixed insertion and two pixels in each of the text edits. Marcus seek
+hashes match its earlier captures for the mixed insertion and material
+edit. Marcus playback timing and continuous pixels remain inconclusive.
+
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The native outputs,
+manifest and logs are in `tmp/c89-insert-archive`.

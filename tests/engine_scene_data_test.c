@@ -762,7 +762,7 @@ static void edit_archived_frames(void)
 {
     ArchivedFrames archive;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
-                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL};
+                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL};
     MMSceneState scene;
     MMMemoryStream stream;
     unsigned char value[4];

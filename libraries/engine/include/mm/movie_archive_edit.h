@@ -29,6 +29,8 @@ typedef struct MMMovieArchiveEditor
     int (*set_title)(void *, MMU32 type, MMU32 number, const MMMovieTitle *);
     /* Replace a chunk's payload through a writer while keeping its key and links. */
     int (*replace)(void *, MMU32 type, MMU32 number, MMU32 bytes, MMStorageWriter *);
+    /* Update a byte range in an existing payload without changing its length. */
+    int (*patch)(void *, MMU32 type, MMU32 number, MMU32 offset, const void *bytes, MMU32 size);
 } MMMovieArchiveEditor;
 
 enum MMMovieSceneArchiveResult

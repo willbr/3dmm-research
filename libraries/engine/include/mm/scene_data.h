@@ -32,6 +32,8 @@ extern "C"
     } MMSceneState;
     int mm_scene_init(MMSceneState *, unsigned unit);
     int mm_scene_decode_header(const MMReadStream *, MMSceneState *);
+    struct MMMovieArchiveEditor;
+    int mm_scene_archive_read_header(const struct MMMovieArchiveEditor *, MMU32 scene, MMSceneState *);
     int mm_scene_encode_header(const MMSceneState *, int system, int big_endian, unsigned char bytes[16]);
     typedef struct MMSceneIO
     {

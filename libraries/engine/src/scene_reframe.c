@@ -446,25 +446,6 @@ static int read_route(const MMMovieArchiveEditor *editor, MMU32 actor, MMArray *
         mm_actor_read_route_stream(&stream, &reader, &loaded) == MM_MOVIE_OK;
 }
 
-static int write_route(const MMMovieArchiveEditor *editor, MMU32 actor, MMArray *route)
-{
-    MMCollectionHeader header = {0};
-    MMStorageWriter writer;
-    unsigned char bytes[12];
-    const unsigned short one = 1;
-    MMU32 number;
-    header.kind = MM_COLLECTION_ARRAY;
-    header.system = editor->system;
-    header.big_endian = *(const unsigned char *)&one == 0;
-    header.count = route->count;
-    header.width = route->width;
-    return mm_collection_layout(&header) == MM_STORAGE_OK &&
-        mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
-        editor->add(editor->context, ROUTE_TYPE, header.header_bytes + header.first_bytes, &number, &writer) &&
-        editor->adopt(editor->context, ACTOR_TYPE, actor, ROUTE_TYPE, number, 0) &&
-        mm_storage_write(route->storage, &writer, bytes, sizeof(bytes), header.first_bytes, 0) == MM_STORAGE_OK;
-}
-
 static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const MMChunkChild *link,
                          MMI32 frame, const Reframe *change, const MMSceneReframeHost *host)
 {
@@ -508,7 +489,7 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
         result = reframe_subroute(&track, row, &row);
     if (result != MM_SCENE_REFRAME_OK)
         goto done;
-    if (!write_route(editor, copy, &track.route) ||
+    if (!mm_actor_archive_write_route(editor, copy, route_storage.buffers[0].data, track.route.count) ||
         !mm_actor_archive_write_event_group(editor, track.events, &number, &copy))
     {
         result = MM_SCENE_REFRAME_WRITE;

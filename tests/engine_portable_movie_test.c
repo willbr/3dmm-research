@@ -247,7 +247,7 @@ static void source_row(const MMMovieSourceTable *table, MMU32 index, MMI32 id, c
 static void register_source(void)
 {
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL};
+                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL, NULL};
     SourceEdit edit = {0};
     MMMemoryStream saved;
     MMMovieSourceTable table;
@@ -313,7 +313,7 @@ static void register_source(void)
 static void map_sources(void)
 {
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL};
+                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL, NULL};
     MMMovieArchiveSource sources[] = {{9, "3DMM", 0, 0}, {4, "Doraemon Character Kit", 0, 0},
                                      {9, "other", 0, 0}};
     MMMovieArchiveSourceMap map = {NULL, NULL, NULL, 3, 2, 1, 0};
