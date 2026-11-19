@@ -14179,3 +14179,41 @@ The capture database at `tmp/c89-sound-schedule/capture/playback.sqlite`
 records input and executable hashes. The fresh suites are
 `20261119T013632Z-ab87631b` and `20261119T014854Z-542b8be6`. The replay
 suites are `20261119T015016Z-fd084172` and `20261119T015043Z-d8c363d7`.
+
+## Marcus caption rendering in C89 (19 November 2026)
+
+The C89 renderer maintains the visible caption stack in presentation order
+across seeks, using Studio's text-box lifetime rule. It fits and clips the
+authored workspace, reduces and enlarges font masks, and blends both the
+authored captions and the camera-plane texture through the same RGBA
+operation. The projected plane uses the work camera and the render depth
+buffer. Font lookup, rich-text layout adapters and glyph rasterization use
+the existing host services.
+
+The baseline at `a12735bd` passed `marcus-caption-quad` and
+`marcus-playback`. The deterministic before and after probes compared
+840 composited views and 840 reduced masks. The views included
+caption entrances and reseeks, authored and inspection cameras,
+orthographic projection, depth, palette colours and alpha blending.
+The before, after and AddressSanitizer traces matched byte for byte.
+Their SHA-256 is
+`23B4123EC59E779C025374C6675A7804D87AD3D62C6A54F799809459CE89B108`.
+The converted build passed 17 selected checks with `BUILD_TESTING=ON` and
+`REQUIRE_C89_CHECKS=ON`, including strict C89 syntax, C stack and compositing
+checks, and the Marcus playback, player and caption projection checks.
+Marcus was relaunched after rebuilding. The probes and CTest log are in
+`tmp/c89-caption-render`.
+
+Retail, SDL Studio and Marcus completed the `static-text` and
+`scrolling-text` seek and playback suites. The 60 authored frames per case
+and mode matched before and after. All 120 Marcus seek images matched its
+prior build. The normal playback comparison also matched 60 static and 327
+scrolling image observations after collapsing adjacent duplicates with the
+same scene, frame and pixel hash. Retail seek pixel differences and
+inconclusive Marcus presentation timing persisted in both builds.
+
+The capture database at `tmp/c89-sound-schedule/capture/playback.sqlite`
+records the executable and content identities. The baseline suite is
+`20261119T015835Z-0fc8939b`. The converted suite
+`20261119T020454Z-a6a05a7a` contains four new Marcus runs and reuses the
+eight matching retail and SDL Studio runs.

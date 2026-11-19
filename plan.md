@@ -978,6 +978,11 @@ prior scene music, restart sample positions and motion-cue precedence. C89
 also owns Studio's pending movie sound queue, including the signed low-word
 lane key, replacement order, requests held for playback, and timeout policy.
 Studio supplies allocator diagnostics and native sound references.
+Marcus caption compositing also uses C89. The renderer shares text-box
+visibility rules with Studio and keeps visible captions in presentation
+order across seeks. C owns mask sampling, workspace clipping, blending
+and depth-tested camera-plane projection. The host supplies font faces,
+glyph masks and palette colours.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

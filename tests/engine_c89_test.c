@@ -1,5 +1,6 @@
 #include "mm/playback.h"
 #include "mm/frame_sound.h"
+#include "mm/caption_render.h"
 #include "mm/graphics_transition.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -204,6 +205,46 @@ static void check_frame_sound(void)
     CHECK(offset.high == 0 && offset.low == 1);
 }
 
+static void check_caption_render(void)
+{
+    static unsigned char rgba[MM_CAPTION_WIDTH * MM_CAPTION_HEIGHT * 4];
+    static const unsigned char source[] = {40, 80, 120, 160};
+    static const unsigned char ink[] = {128};
+    MMCaptionRow rows[3] = {{0, 12, 0, 0, 0, 0}, {4, 7, 0, 0, 0, 0}, {3, 10, 0, 0, 0, 0}};
+    const MMTextBoxBounds box = {0, 0, 40, 40};
+    const MMCaptionMask from = {-1, -1, 2, 2, 2};
+    MMCaptionGlyph glyph = {{0, 0, 1, 1, 1}, ink, NULL, 0, 0, 0, 0, 1, 0, 0xff000000UL, 0xffffffffUL};
+    MMCaptionStack stack = {0, 0};
+    MMCaptionCanvas canvas;
+    MMCaptionMask to;
+    unsigned char reduced[4];
+    unsigned char *pixel;
+
+    mm_caption_observe(&stack, rows, 3, 5);
+    CHECK(stack.first == 1 && stack.last == 3 && rows[0].next == 2 && rows[1].next == 3);
+    mm_caption_observe(&stack, rows, 3, 8);
+    CHECK(stack.first == 1 && stack.last == 3 && rows[0].next == 3 && rows[2].previous == 1);
+    mm_caption_observe(&stack, rows, 3, 5);
+    CHECK(stack.first == 1 && stack.last == 2 && rows[2].next == 2 && rows[1].previous == 3);
+    mm_caption_observe(&stack, rows, 3, 12);
+    CHECK(!stack.first && !stack.last);
+
+    CHECK(mm_caption_canvas(&canvas, rgba, sizeof(rgba), MM_CAPTION_WIDTH, MM_CAPTION_HEIGHT,
+                            (float)MM_CAPTION_WIDTH / MM_CAPTION_HEIGHT));
+    CHECK(mm_caption_box_visible(&box) && mm_caption_scroll_overflow(40, 0, 40) == 10);
+    mm_caption_box(&canvas, &box, 0x01200080UL);
+    mm_caption_glyph(&canvas, &box, 0, &glyph);
+    pixel = rgba + 5 * canvas.stride + 14 * 4;
+    CHECK(pixel[0] == (32 * 127 + 223 * 128) / 255);
+    CHECK(pixel[1] == 128 && pixel[2] == 127 && pixel[3] == 255);
+    CHECK(rgba[4 * canvas.stride + 14 * 4 + 3] == 0);
+
+    mm_caption_mask_half_size(&from, &to);
+    CHECK(to.left == -1 && to.top == -1 && to.width == 2 && to.height == 2);
+    mm_caption_mask_half(&from, source, &to, reduced);
+    CHECK(reduced[0] == 10 && reduced[1] == 20 && reduced[2] == 30 && reduced[3] == 40);
+}
+
 /* This executable links with the C linker and only the C89 backend. Existing
  * engine-core-link and Marcus regressions cover the host adapters and policy
  * branches. These checks exercise the public C contract independently. */
@@ -286,5 +327,6 @@ int main(void)
     CHECK(mm_scroll_nominal_seconds(3) == 4.0 / 12);
     check_polled_playback();
     check_frame_sound();
+    check_caption_render();
     return 0;
 }

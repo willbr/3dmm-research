@@ -1798,6 +1798,10 @@ The C89 frame dispatcher selects earlier scene music when restoring it,
 plays current scene and actor cues in order, and selects the last authored
 wait on the frame. An explicit actor cue takes precedence over motion
 matches for that actor and sound style.
+The C89 caption renderer keeps the visible stack across seeks, using the
+same lifetime rule as Studio. It fits the 544×306 workspace into the movie
+view, samples font masks, blends caption colours, and projects the composed
+layer through the work camera with depth occlusion.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
