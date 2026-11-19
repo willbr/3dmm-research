@@ -295,6 +295,21 @@ bool Preview::ObjectCostumes(int object, std::vector<PreviewCostume> &out, Error
     return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->Costumes(out)) ||
         Fail(error, ErrorCode::invalid_argument, "Select an actor or prop with costumes.");
 }
+bool Preview::ObjectActions(int object, std::vector<PreviewAction> &out, Error &error) const
+{
+    error = {}; out.clear();
+    return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() &&
+            _impl->actors[object]->Actions(out)) ||
+        Fail(error, ErrorCode::invalid_argument, "Select an actor, prop or 3D text object with actions.");
+}
+bool Preview::WriteObjectAnimation(int object, const PreviewAnimationEdit &edit, const std::string &path,
+                                   int &lastActorFrame, int &lastEditedFrame, Error &error)
+{
+    error = {};
+    return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() &&
+            _impl->actors[object]->WriteAnimation(edit, path, lastActorFrame, lastEditedFrame)) ||
+        Fail(error, ErrorCode::decode_failed, "Cannot apply the animation edit. Check the action and path bounds.");
+}
 bool Preview::WriteObjectCostumes(int object, const std::vector<PreviewCostume> &values, const std::string &path, Error &error)
 {
     error = {};

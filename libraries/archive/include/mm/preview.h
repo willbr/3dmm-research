@@ -24,6 +24,15 @@ struct PreviewCostume
     int bodySet = 0, costume = 0;
     bool selected = false, accessory = false;
 };
+struct PreviewPathPoint { float x, y, z; };
+struct PreviewAnimationEdit
+{
+    enum class Kind { action, record, tweak } kind = Kind::action;
+    int action = 0, cel = 0;
+    bool freeze = false, replace = true;
+    // Path positions are world-axis offsets from the object at the playhead.
+    std::vector<PreviewPathPoint> points;
+};
 struct PreviewInfo
 {
     Id asset;
@@ -278,6 +287,9 @@ class Preview
     std::vector<PreviewObject> Objects() const;
     bool ObjectText(int object, PreviewObjectText &, Error &) const;
     bool ObjectCostumes(int object, std::vector<PreviewCostume> &, Error &) const;
+    bool ObjectActions(int object, std::vector<PreviewAction> &, Error &) const;
+    bool WriteObjectAnimation(int object, const PreviewAnimationEdit &, const std::string &path,
+                              int &lastActorFrame, int &lastEditedFrame, Error &);
     // Write a private edited event track, leaving the live actor unchanged.
     bool WriteObjectCostumes(int object, const std::vector<PreviewCostume> &, const std::string &path, Error &);
     bool SetObjectEventTrack(int object, std::int32_t source, Error &);

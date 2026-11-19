@@ -4,11 +4,9 @@
 struct PreviewActor::CostumeHost : PreviewActor::Host
 {
     explicit CostumeHost(PreviewActor *a) : Host{a} {}
-    MMActorCostumeEditServices Services()
+    MMActorEditServices EventEdits()
     {
-        MMActorCostumeEditServices s = {};
-        s.context = this;
-        auto &e = s.edits;
+        MMActorEditServices e = {};
         e.context = this;
         e.close_event_tag = [](void *v, MMI32 i) {
             auto g = static_cast<CostumeHost *>(v)->actor->track.Events(); PTAG tag;
@@ -34,7 +32,8 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         };
         e.apply_event = [](void *v, MMActorState *state, MMI32 i) -> int {
             auto &h = *static_cast<CostumeHost *>(v);
-            return h.Guard([&] { return int(h.actor->ApplyEvent(*state, h.actor->track, i, false)); }) > 0;
+            return h.Guard([&] { return int(h.actor->ApplyEvent(*state, h.actor->track, i, false,
+                                                               &h.actor->motionSounds, &h.actor->sounds)); }) > 0;
         };
         e.dirty = [](void *) {};
         e.get_range = [](void *v, MMActorEditRange *r) {
@@ -46,10 +45,19 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
             auto &p = static_cast<CostumeHost *>(v)->actor->core;
             p.header.first_frame = r->first; p.header.last_frame = r->last;
         };
-        s.reserve_events = [](void *v, MMU32 entries, MMU32 bytes) -> int {
-            auto &h = *static_cast<CostumeHost *>(v);
-            return h.Guard([&] { return int(h.actor->track.Events()->FEnsureSpace(entries, bytes, fgrpNil)); }) > 0;
-        };
+        return e;
+    }
+    static int Reserve(void *v, MMU32 entries, MMU32 bytes)
+    {
+        auto &h = *static_cast<CostumeHost *>(v);
+        return h.Guard([&] { return int(h.actor->track.Events()->FEnsureSpace(entries, bytes, fgrpNil)); }) > 0;
+    }
+    MMActorCostumeEditServices Services()
+    {
+        MMActorCostumeEditServices s = {};
+        s.context = this;
+        s.edits = EventEdits();
+        s.reserve_events = Reserve;
         s.current = [](void *v, MMI32 set, int *custom) -> void * {
             bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
             static_cast<CostumeHost *>(v)->actor->body->GetPartSetMaterial(set, &plain, &material, &costume);

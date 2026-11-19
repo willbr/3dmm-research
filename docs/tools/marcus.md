@@ -1526,6 +1526,21 @@ world XYZ, actor ID, current action/cel indices, lifetime and template source/ch
 Original coordinates are retained. Selection uses viewport picking, the list or
 the timeline.
 
+In **Object Properties**, choose an action under **Animation** and click
+**Apply action** to start it at the playhead. **Start cel** counts from one.
+**Freeze pose** holds that cel. Actions and cels come from the selected
+object's template.
+
+To record motion, pause where it should start, select the object, and click
+**Draw path**. Drag in the viewport to trace a path from the object's current
+position, in the plane facing the current camera. Release to apply the path or
+press Esc to cancel. The action's stride controls how much distance each frame
+covers. Stationary actions and props use a fixed distance per frame. With
+**Replace remaining path** cleared, Marcus attempts to rejoin the following
+path. Recording can extend the scene. **Edit path point** adjusts the object's
+world XYZ at the playhead. Each edit is one Undo step, and **Save copy** writes
+the action, path and position adjustments into the native movie.
+
 Select a visible actor, prop or 3D text while paused to show its world-axis translation handles.
 The viewport's **Move / Rotate / Size** toolbar chooses the active tool. **Rotate**
 shows local rotation rings; **Size** shows per-axis handles and a centre handle

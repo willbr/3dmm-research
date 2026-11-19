@@ -40,6 +40,8 @@ void camera_blend_ground_grid(const MarcusImage *image, unsigned char *rgba, con
 int camera_projection_matrices(const MarcusProjection *projection, float view[16], float clip[16]);
 /* Project a visible world point to normalized X/Y and camera-forward depth. */
 int camera_project_point(const MarcusProjection *projection, const float world[3], float image[3]);
+/* Inverse projection at a camera-forward depth, in normalized viewport coordinates. */
+int camera_world_at_depth(const MarcusProjection *, float x, float y, float depth, float world[3]);
 /* Keep a display-only gizmo anchor inside normalized viewport insets. The
  * authored object position is never changed by this projection helper. */
 int camera_gizmo_anchor(const MarcusProjection *, const float world[3], float inset_x, float inset_y, float anchor[3]);

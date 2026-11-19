@@ -391,7 +391,89 @@ int main(int argc, char **argv)
             styledFound = true;
         }
         require(styledFound, "Find the newly styled text after reopen");
-        std::puts("Actor and 3D text insertion, validation, native save/reopen, movement and undo passed.");
+        int animated = -1;
+        for (int i = 0; i < after.object_count; ++i)
+        {
+            MarcusObject value = {};
+            if (marcus_object(player.get(), i, &value) && value.actor_id == actorObject.actor_id) animated = i;
+        }
+        MarcusObject atStart = {}, atEdit = {};
+        require(animated >= 0 && marcus_object(player.get(), animated, &atStart), "Find actor to animate");
+        const int actionCount = marcus_object_action_count(player.get(), animated);
+        MarcusObjectAction action = {};
+        int chosen = -1;
+        for (int i = 0; i < actionCount; ++i)
+            if (i != atStart.action && marcus_object_action(player.get(), i, &action) && action.cels > 1)
+            { chosen = i; break; }
+        require(chosen >= 0 && action.name[0], "List the selected actor's actions and cels");
+        require(!marcus_set_object_action(player.get(), animated, chosen, action.cels, 0),
+                "Reject a starting cel beyond the action");
+        require(marcus_set_object_action(player.get(), animated, chosen, 0, 0) &&
+            marcus_add_frame(player.get(), 1) && marcus_object(player.get(), animated, &atEdit) &&
+            atEdit.action == chosen && atEdit.cel == 1 && atEdit.x == atStart.x,
+            "A non-frozen action progresses in place after the end of the path");
+        require(marcus_undo(player.get()) && marcus_seek(player.get(), 2), "Undo the added frame");
+        require(marcus_set_object_action(player.get(), animated, chosen, 1, 1) &&
+            marcus_object(player.get(), animated, &atEdit) && atEdit.action == chosen && atEdit.cel == 1,
+            "Set an action and frozen cel at the playhead");
+        require(marcus_seek(player.get(), 1) && marcus_object(player.get(), animated, &atEdit) &&
+            atEdit.action == atStart.action, "An action edit leaves earlier frames alone");
+        MarcusObjectShape animatedShape = {};
+        MarcusBounds beforeTweak = {}, afterTweak = {};
+        require(marcus_seek(player.get(), 2) &&
+            marcus_object_shape(player.get(), animated, &animatedShape, nullptr, nullptr),
+            "Read the actor's editable shape");
+        animatedShape.scale[0] = 1.5f;
+        require(marcus_set_object_shape(player.get(), animated, &animatedShape) &&
+            marcus_object_bounds(player.get(), animated, &beforeTweak) && beforeTweak.valid,
+            "Resize the actor before editing the native path");
+        require(marcus_tweak_object_path(player.get(), animated, 2, 0, 0) &&
+            marcus_object(player.get(), animated, &atEdit) && std::abs(atEdit.x - atStart.x - 2) < .001f,
+            "Tweak the path position at the current frame");
+        require(marcus_object_bounds(player.get(), animated, &afterTweak) && afterTweak.valid,
+            "Read the bounds after the path edit");
+        for (int i = 0; i < 24; ++i)
+            require(std::abs(afterTweak.corners[i] - beforeTweak.corners[i] - (i % 3 == 0 ? 2.f : 0.f)) < .01f,
+                "The path edit retains pending size edits");
+        require(marcus_undo(player.get()) && marcus_object(player.get(), animated, &atEdit) && atEdit.x == atStart.x,
+            "Undo restores the actor's path position");
+        const MarcusPathPoint points[] = {{20, 0, 0}, {40, 0, 0}, {60, 0, 10}};
+        require(marcus_record_object_path(player.get(), animated, points, 3, 1) &&
+            marcus_info(player.get(), &after) && after.last_frame > 2,
+            "Record a native path and extend the scene");
+        const auto endpoint = after.last_frame;
+        require(marcus_seek(player.get(), endpoint) && marcus_object(player.get(), animated, &atEdit) &&
+            atEdit.x > atStart.x + 10, "The recorded path moves the actor over time");
+        const auto animationPath = (std::filesystem::u8path(argv[3]).parent_path() / "animated-actor.3mm").u8string();
+        require(marcus_save_copy(player.get(), animationPath.c_str()) &&
+            marcus_open(player.get(), animationPath.c_str(), argv[1], argv[2]) && marcus_seek(player.get(), endpoint),
+            "Save and reopen the edited native action and path");
+        MarcusObject reopenedPath = {};
+        require(marcus_object(player.get(), animated, &reopenedPath) && reopenedPath.actor_id == atStart.actor_id &&
+            reopenedPath.x == atEdit.x && reopenedPath.y == atEdit.y && reopenedPath.z == atEdit.z &&
+            reopenedPath.action == chosen, "Reopened action and route retain object identity, position and action");
+        const MarcusPathPoint detour[] = {{0, 4, 0}, {4, 4, 0}};
+        require(marcus_seek(player.get(), 25) && marcus_record_object_path(player.get(), animated, detour, 2, 0) &&
+            marcus_info(player.get(), &after) && after.last_frame > endpoint &&
+            marcus_seek(player.get(), after.last_frame) && marcus_object(player.get(), animated, &atEdit) &&
+            std::abs(atEdit.x - reopenedPath.x) < .01f && std::abs(atEdit.z - reopenedPath.z) < .01f,
+            "Rejoin the remaining path and keep its endpoint inside the scene");
+        require(marcus_undo(player.get()) && marcus_seek(player.get(), endpoint), "Undo the rejoined path");
+        MarcusProp prop = {};
+        require(marcus_prop_count(player.get(), argv[2]) > 0 && marcus_prop(player.get(), 0, &prop),
+            "Find a prop to animate");
+        const int movingProp = marcus_add_prop(player.get(), prop.chunk);
+        MarcusObject stationary = {}, movedProp = {};
+        const MarcusPathPoint propPoints[] = {{0, 0, 15}, {0, 0, 40}};
+        require(movingProp >= 0 && marcus_object(player.get(), movingProp, &stationary) &&
+            marcus_record_object_path(player.get(), movingProp, propPoints, 2, 1) &&
+            marcus_info(player.get(), &after) && after.last_frame > endpoint &&
+            marcus_seek(player.get(), after.last_frame) && marcus_object(player.get(), movingProp, &movedProp) &&
+            movedProp.z > stationary.z + 10, "Record a multi-frame path for a stationary prop");
+        require(marcus_undo(player.get()) && marcus_info(player.get(), &after) && after.last_frame == endpoint &&
+            marcus_object(player.get(), movingProp, &movedProp) && movedProp.z == stationary.z,
+            "Undo removes the recorded path and restores the scene range");
+        std::puts("Actor and 3D text insertion, native action and path authoring, save/reopen and undo passed.");
         return 0;
     }
     catch (const std::exception &error) { std::fprintf(stderr, "%s\n", error.what()); return 1; }

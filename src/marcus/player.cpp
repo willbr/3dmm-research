@@ -108,6 +108,7 @@ struct MarcusPlayer
     std::string soundAssetDirectory;
     std::string propCatalogDirectory, actorCatalogDirectory, fontCatalogDirectory, materialCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
+    std::vector<MM::PreviewAction> objectActions;
     std::map<int, MM::PreviewObject> propPreviews;
     std::map<int, MM::PreviewObjectShape> shapePreviews;
     struct AnimationCache
@@ -2080,6 +2081,78 @@ extern "C"
             }
             player->animations.clear(); ++player->document; player->movieImageScene = -1;
             history.Commit(); return true;
+        });
+    }
+    int marcus_object_action_count(MarcusPlayer *player, int object)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            return player->preview.ObjectActions(object, player->objectActions, error);
+        }) ? static_cast<int>(player->objectActions.size()) : 0;
+    }
+    int marcus_object_action(const MarcusPlayer *player, int index, MarcusObjectAction *action)
+    {
+        if (!player || !action || index < 0 || std::size_t(index) >= player->objectActions.size()) return 0;
+        const auto &entry = player->objectActions[index];
+        Copy(action->name, entry.name);
+        action->cels = static_cast<int>(entry.celCount);
+        return 1;
+    }
+    static bool EditAnimation(MarcusPlayer *player, int object, const MM::PreviewAnimationEdit &edit, MM::Error &error)
+    {
+        MarcusObject selected;
+        if (player->selected < 0 || !marcus_object(player, object, &selected) || !selected.visible)
+        {
+            error.message = "Select an on-stage object.";
+            return false;
+        }
+        if (!CancelPropPreviews(player, error)) return false;
+        const auto track = MarcusCreateEventFile();
+        int lastActorFrame, lastEditedFrame;
+        if (!player->preview.WriteObjectAnimation(object, edit, track->path.u8string(),
+                                                 lastActorFrame, lastEditedFrame, error)) return false;
+        const auto movie = MaterializedMovie(*player);
+        const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
+        const auto scene = player->scenes[player->selected].number;
+        const auto key = std::make_pair(static_cast<unsigned long>(scene), selected.chunk);
+        const auto shape = player->edits->shapes->find(key);
+        const auto text = player->edits->texts->find(key);
+        // The native draft contains live events. Replay appearance/shape
+        // overlays that are only written as events when materializing a movie.
+        const auto changed = MarcusApplyAnimation(path, movie, *track, scene, selected.actor_id, selected.last_frame, lastActorFrame,
+            lastEditedFrame, shape == player->edits->shapes->end() ? MM::PreviewObjectShape{} : shape->second,
+            text == player->edits->texts->end() ? nullptr : &text->second);
+        return ReplaceEditedMovie(player, changed, error);
+    }
+    int marcus_set_object_action(MarcusPlayer *player, int object, int action, int cel, int freeze)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MM::PreviewAnimationEdit edit;
+            edit.action = action;
+            edit.cel = cel;
+            edit.freeze = freeze != 0;
+            return EditAnimation(player, object, edit, error);
+        });
+    }
+    int marcus_tweak_object_path(MarcusPlayer *player, int object, float x, float y, float z)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MM::PreviewAnimationEdit edit;
+            edit.kind = MM::PreviewAnimationEdit::Kind::tweak;
+            edit.points.push_back({x, y, z});
+            return EditAnimation(player, object, edit, error);
+        });
+    }
+    int marcus_record_object_path(MarcusPlayer *player, int object, const MarcusPathPoint *points, int count, int replace)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (!points || count <= 0 || count > MARCUS_PATH_MAX_POINTS) return false;
+            MM::PreviewAnimationEdit edit;
+            edit.kind = MM::PreviewAnimationEdit::Kind::record;
+            edit.replace = replace != 0;
+            edit.points.reserve(count);
+            for (int i = 0; i < count; ++i)
+                edit.points.push_back({points[i].x, points[i].y, points[i].z});
+            return EditAnimation(player, object, edit, error);
         });
     }
     int marcus_add_text(MarcusPlayer *player, const char *text, unsigned long font, int shape)

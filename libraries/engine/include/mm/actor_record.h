@@ -41,6 +41,8 @@ typedef struct MMActorRecordServices
     void (*restore)(void *context, void *undo, MMActorState *, MMActorRecording *);
     int (*seek_scene)(void *context, MMActorState *, MMActorRecording *, MMI32 frame);
     void (*diagnostic)(void *context, int fault);
+    /* Optional authored step for templates whose current cel has zero stride. */
+    MMI32 stationary_step;
 } MMActorRecordServices;
 /* Runtime tables and recording invariants are borrowed. Callbacks cannot reenter
  * the operation. Distance is BRender's primitive scalar length; all threshold,

@@ -122,7 +122,7 @@ int mm_actor_record_move(MMActorState *state,MMActorRecording *record,MMActorSou
     MMActorPoint movement,mouse;
     MMActorRoutePoint current,next;
     MMActorEditRange range;
-    MMI32 distance,mouse_distance,fraction;
+    MMI32 distance,mouse_distance,fraction,authored_step=-65536L;
     if (!record->recording) return 1;
     if (!r->reserve_events(e->context,2,8) || !s->reserve_points(route,1)) return restore(state,record,undo,s);
     movement.dxr=smooth(record->raw.dxr,delta->dxr);
@@ -139,6 +139,11 @@ int mm_actor_record_move(MMActorState *state,MMActorRecording *record,MMActorSou
     mouse.dzr=mm_fixed_add(movement.dzr,current.xyz.dzr);
     mouse_distance=s->distance(e->context,&movement); publish(state,record,s);
     if (!mm_actor_record_step(state,&distance,&s->subroute.timeline)) return restore(state,record,undo,s);
+    if (!distance && s->stationary_step>0)
+    {
+        authored_step=s->stationary_step;
+        distance=mm_fixed_mul(authored_step,state->transform.rScaleStep);
+    }
     if (mouse_distance<distance)
     {
         if ((MMU32)(now-record->timestamp)<750U) return 1;
@@ -154,7 +159,7 @@ int mm_actor_record_move(MMActorState *state,MMActorRecording *record,MMActorSou
         mm_fixed_add(next.xyz.dyr,state->routeTranslation.dyr)<0)
         next.xyz.dyr=mm_fixed_sub(0,state->routeTranslation.dyr);
     if (!r->insert_point(route,mm_fixed_add(state->location.irpt,1),&next)) return restore(state,record,undo,s);
-    if (state->step!=-65536L && !step(state,sounds,events,actor,-65536L,m,s)) diagnostic(s,MM_RECORD_STEP_FAILED);
+    if (state->step!=authored_step && !step(state,sounds,events,actor,authored_step,m,s)) diagnostic(s,MM_RECORD_STEP_FAILED);
     current.dwr=distance; r->write_point(route,state->location.irpt,&current);
     mm_actor_route_edit_adjust_insert(route,events,mm_fixed_add(state->location.irpt,1),state->nextEvent,m,r);
     record->inserted=1; publish(state,record,s); result(output,1,1,3);

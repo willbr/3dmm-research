@@ -30,17 +30,7 @@ struct PreviewActor::TimelineHost
         auto found = names.find(action);
         if (found != names.end())
             return found->second;
-        std::string result = "Action " + std::to_string(action);
-        String name;
-        if (action >= 0 && action < actor->tmpl->Cactn() && actor->tmpl->FGetActnName(action, &name) && name.Cch())
-        {
-            const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
-            const auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
-            std::u16string text(count, 0);
-            if (count && KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding,
-                                            reinterpret_cast<std::uint16_t *>(&text[0]), count))
-                result = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
-        }
+        auto result = actor->ActionName(action);
         names.emplace(action, result);
         return result;
     }

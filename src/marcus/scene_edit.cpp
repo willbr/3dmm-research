@@ -490,6 +490,7 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
     return result;
 }
 
+static void ApplyText(PChunkyFile file, ChunkNumber actor, const MarcusTextEdit &edit);
 static void ApplyCostumes(PChunkyFile file, ChunkNumber actor, const MarcusLiveEdits::CostumeEdit &edit)
 {
     String path; Filename filename;
@@ -501,6 +502,68 @@ static void ApplyCostumes(PChunkyFile file, ChunkNumber actor, const MarcusLiveE
     MovieArchiveHost host{file, {}, {}};
     const auto editor = host.Editor();
     CheckActorArchiveEdit(mm_actor_archive_link_events(&editor, actor, number));
+}
+std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::path &path,
+    const std::shared_ptr<MarcusMovieFile> &origin, const MarcusMovieFile &track,
+    unsigned long scene, long actorId, long previousActorFrame, int lastActorFrame, int lastEditedFrame,
+    const MM::PreviewObjectShape &shape, const MarcusTextEdit *text)
+{
+    auto result = WorkingCopy(path, origin);
+    auto targetName = ObjectFile(result->path), sourceName = ObjectFile(track.path);
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&targetName, fcflWriteEnable));
+    std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&sourceName, fcflNil));
+    Require(file && source, "Cannot open the movie or the new animation track.");
+    MovieArchiveHost host{file.get(), {}, {}};
+    const auto editor = host.Editor();
+    const auto sceneNumber = static_cast<MMU32>(scene);
+    ChunkNumber actor;
+    Require(mm_actor_archive_find(&editor, sceneNumber, actorId, &actor),
+            "Cannot find the selected actor in the working movie.");
+    struct Track
+    {
+        PChunkyFile file, source;
+        const MMMovieArchiveEditor &editor;
+        int last;
+        const MarcusTextEdit *text;
+        std::exception_ptr failure;
+    } trackEdit{file.get(), source.get(), editor, lastActorFrame, text, {}};
+    const float offset[3] = {};
+    const MMActorArchivePose pose{sceneNumber, actor, offset, shape.rotation, shape.scale, &trackEdit,
+        [](void *p, MMU32 copied) -> int {
+            auto &edit = *static_cast<Track *>(p);
+            try
+            {
+                ChunkNumber route, events;
+                ChildChunkIdentification oldRoute;
+                DataBlock block;
+                ActorChunkOnFile header;
+                if (!edit.file->FGetKidChidCtg(kctgActr, copied, 0, kctgPath, &oldRoute) ||
+                    !edit.file->FFind(kctgActr, copied, &block) || !ActorData::FReadHeader(&block, &header) ||
+                    !edit.source->FCopy(kctgPath, 0, edit.file, &route) ||
+                    !edit.source->FCopy(kctgGgae, 0, edit.file, &events))
+                    return false;
+                edit.file->DeleteChild(kctgActr, copied, kctgPath, oldRoute.cki.cno, 0);
+                header.nfrmLast = edit.last;
+                if (!edit.file->FAdoptChild(kctgActr, copied, kctgPath, route, 0) ||
+                    mm_actor_archive_link_events(&edit.editor, copied, events) != MM_ACTOR_EDIT_ARCHIVE_OK ||
+                    !ActorData::FWriteHeader(edit.file, copied, &header))
+                    return false;
+                if (edit.text) ApplyText(edit.file, copied, *edit.text);
+                return true;
+            }
+            catch (...) { edit.failure = std::current_exception(); return false; }
+        }};
+    const auto placed = mm_actor_archive_place(&editor, &pose);
+    if (trackEdit.failure) std::rethrow_exception(trackEdit.failure);
+    CheckActorArchiveEdit(placed);
+    MMSceneState range;
+    Require(mm_scene_archive_read_header(&editor, sceneNumber, &range), "Cannot read the scene range.");
+    if (previousActorFrame <= range.lastFrame)
+        lastEditedFrame = std::max(lastEditedFrame, lastActorFrame);
+    if (lastEditedFrame > range.lastFrame)
+        ApplySceneRange(file.get(), {scene, range.firstFrame, lastEditedFrame});
+    Require(file->FSave(kctgSoc), "Cannot save the animation edit.");
+    return result;
 }
 static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTextEdit &edit)
 {

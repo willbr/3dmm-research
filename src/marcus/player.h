@@ -288,6 +288,19 @@ extern "C"
         float yaw, float pitch, float zoom, int width, int height, MarcusImage *image);
     /* Apply all chosen sets at the current frame, as a single undo step. */
     int marcus_set_costumes(MarcusPlayer *player, int object, const MarcusCostume *choices, int count);
+    typedef struct MarcusObjectAction
+    {
+        char name[192];
+        int cels;
+    } MarcusObjectAction;
+    typedef struct MarcusPathPoint { float x, y, z; } MarcusPathPoint;
+    int marcus_object_action_count(MarcusPlayer *player, int object);
+    int marcus_object_action(const MarcusPlayer *player, int index, MarcusObjectAction *action);
+    int marcus_set_object_action(MarcusPlayer *player, int object, int action, int cel, int freeze);
+    int marcus_tweak_object_path(MarcusPlayer *player, int object, float x, float y, float z);
+    /* Samples are world-axis offsets from the playhead position. */
+    enum { MARCUS_PATH_MAX_POINTS = 2048 };
+    int marcus_record_object_path(MarcusPlayer *player, int object, const MarcusPathPoint *points, int count, int replace);
     /* Original 3D fonts, not installed system fonts. UTF-8 text must fit retail's
      * fifty Windows-ANSI characters; shape is the native 0..9 layout. */
     int marcus_font_count(MarcusPlayer *player, const char *content_directory);

@@ -8,6 +8,7 @@
 #include "background_browser.h"
 #include "text_dialog.h"
 #include "caption_editor.h"
+#include "animation_editor.h"
 #include "costume_dialog.h"
 #include "sound_dialog.h"
 #include "dialog_widgets.h"
@@ -97,6 +98,7 @@ typedef struct App
     MarcusBackgroundBrowser *background_browser;
     MarcusTextDialog *text_dialog;
     MarcusCaptionEditor *caption_editor;
+    MarcusAnimationEditor *animation_editor;
     MarcusCostumeDialog *costume_dialog;
     MarcusSoundDialog *sound_dialog;
     MarcusCameraPicker *camera_picker;
@@ -1704,6 +1706,7 @@ static void handle_event(App *app, const SDL_Event *event)
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
     else if (caption_event(app, event)) { }
+    else if (animation_editor_event(app->animation_editor, event)) { }
     else if ((app->error[0] || app->settings_open || app->zip_input) && dialog_input_event(event))
     {
         if (app->settings_open && app->binding_capture >= 0 && event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
@@ -2476,6 +2479,13 @@ static void draw_sound_properties(App *app)
     }
     igTextDisabled(sound.carried ? "Continues from an earlier scene." : "Scrubbing is silent.");
 }
+static void animation_updated(App *app, int result)
+{
+    if (result < 0)
+        fail(app, result == -2 ? "Put the selected object in the viewport before drawing its path." : marcus_error(app->player));
+    else if (result)
+        caption_updated(app, CAPTION_COMMITTED);
+}
 static void draw_object_properties(App *app)
 {
     MarcusObject object;
@@ -2502,6 +2512,8 @@ static void draw_object_properties(App *app)
     if (object.last_frame < app->info.first_frame || object.first_frame > app->info.last_frame) igTextUnformatted("Lifetime: outside scene", NULL);
     else igText("Lifetime: %.0f - %.0f", display_frame(app, maximum(object.first_frame, app->info.first_frame)), display_frame(app, minimum(object.last_frame, app->info.last_frame)));
     igText("Template: %ld : %08lX", object.source_id, object.template_chunk);
+    animation_updated(app, animation_editor_properties(app->animation_editor, app->player, app->selected, &object,
+        !app->playing && !app->settings_open && !app->error[0] && !app->prop_interacting));
 }
 static void draw_sidebar(App *app)
 {
@@ -3345,9 +3357,15 @@ static void draw(App *app)
     if (!storyboard_editor_visible(app->storyboard_editor) && !editing_caption) draw_sidebar(app);
     draw_view(app);
     draw_editor_status(app, editing_caption ? "Drag the border to move   Ctrl+Enter  Done   Esc  Cancel" :
+                       animation_editor_recording(app->animation_editor) ? "Draw the path in the viewport   Esc  Cancel" :
                        app->ui.hint ? app->ui.hint : hint);
     igEndDisabled();
     draw_debug_overlay(app);
+    if (animation_editor_recording(app->animation_editor))
+    {
+        caption_view = viewport_rect(app, 0);
+        animation_updated(app, animation_editor_draw_path(app->animation_editor, app->player, &app->work_image, &caption_view));
+    }
     if (editing_caption)
     {
         caption_view = viewport_rect(app, app->second_view);
@@ -3381,6 +3399,7 @@ static void update_prop_gizmo(App *app)
     enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
         !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
         !text_dialog_visible(app->text_dialog) && !caption_editor_visible(app->caption_editor) &&
+        !animation_editor_recording(app->animation_editor) &&
         !costume_dialog_visible(app->costume_dialog) && !sound_dialog_visible(app->sound_dialog) && !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
         !app->flying && !app->orbiting && !app->panning &&
@@ -3712,7 +3731,8 @@ int main(int argc, char **argv)
     }
     app.text_dialog = text_dialog_create();
     app.caption_editor = caption_editor_create();
-    if (!app.text_dialog || !app.caption_editor)
+    app.animation_editor = animation_editor_create();
+    if (!app.text_dialog || !app.caption_editor || !app.animation_editor)
     {
         result = 1;
         goto cleanup;
@@ -3984,6 +4004,7 @@ cleanup:
     browser_destroy(app.browser);
     text_dialog_destroy(app.text_dialog);
     caption_editor_destroy(app.caption_editor);
+    animation_editor_destroy(app.animation_editor);
     costume_dialog_destroy(app.costume_dialog);
     sound_dialog_destroy(app.sound_dialog);
     background_browser_destroy(app.background_browser);

@@ -17,6 +17,8 @@ class PreviewActor
     struct Host;
     struct TimelineHost;
     struct CostumeHost;
+    struct AnimationHost;
+    struct TrackDraft;
     MMPreviewActor core;
     ActorTrack track;
     PTemplate tmpl = nullptr;
@@ -24,6 +26,7 @@ class PreviewActor
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
     bool ApplyEvent(MMActorState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
                     ActorSoundList *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
+    std::string ActionName(LegacyLong action) const;
     ActorSoundList motionSounds;
     std::uint64_t *visibilityClock = nullptr;
     mutable std::uint64_t lastShown = 0;
@@ -53,6 +56,9 @@ class PreviewActor
     PreviewObject Snapshot() const;
     bool Text(PreviewObjectText &) const;
     bool Costumes(std::vector<PreviewCostume> &) const;
+    bool Actions(std::vector<PreviewAction> &) const;
+    bool WriteAnimation(const PreviewAnimationEdit &, const std::string &path,
+                        int &lastActorFrame, int &lastEditedFrame);
     bool TryCostumes(const std::vector<PreviewCostume> &);
     void CostumeOrientation(BMAT34 &) const;
     bool CostumeBounds(int bodySet, PreviewBounds &) const;

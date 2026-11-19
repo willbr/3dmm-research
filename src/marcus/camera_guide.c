@@ -418,6 +418,24 @@ int camera_project_point(const MarcusProjection *projection, const float world[3
     image[2] = (float)point[2];
     return 1;
 }
+int camera_world_at_depth(const MarcusProjection *projection, float x, float y, float depth, float world[3])
+{
+    GuideView view;
+    double scale, point[3];
+    int i;
+    if (!valid_projection(projection) || !make_view(projection, &view) ||
+        !finite_value(x) || !finite_value(y) || !finite_value(depth) || depth <= 0)
+        return 0;
+    scale = view.orthographic ? 1 : depth;
+    world_point(projection, (2 * x - 1) * scale * view.tangent_x,
+                (1 - 2 * y) * scale * view.tangent_y, depth, point);
+    for (i = 0; i < 3; ++i)
+    {
+        if (!finite_value(point[i]) || fabs(point[i]) > FLT_MAX) return 0;
+        world[i] = (float)point[i];
+    }
+    return 1;
+}
 static int gizmo_view(const MarcusProjection *projection, float inset_x, float inset_y, GuideView *view)
 {
     double middle, padding;

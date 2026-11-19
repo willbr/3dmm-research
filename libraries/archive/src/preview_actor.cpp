@@ -12,6 +12,9 @@
 #include "engine_actor_timeline.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_costume_edit.h"
+#include "mm/actor_record.h"
+#include "mm/actor_transform_edit.h"
+#include "mm/sound_resource.h"
 #undef size
 #include "preview_cue_view.h"
 ASSERTNAME
@@ -23,6 +26,7 @@ namespace Internal
 {
 #include "preview_actor_host.h"
 #include "preview_costume_host.h"
+#include "preview_animation_host.h"
 #include "preview_timeline_host.h"
 PreviewActor::~PreviewActor()
 {
@@ -166,6 +170,32 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
     }
     return true;
 }
+std::string PreviewActor::ActionName(LegacyLong action) const
+{
+    String name;
+    if (action >= 0 && action < tmpl->Cactn() && tmpl->FGetActnName(action, &name) && name.Cch())
+    {
+        const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
+        const auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
+        std::u16string text(count, 0);
+        if (count && KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding,
+                                        reinterpret_cast<std::uint16_t *>(&text[0]), count))
+            return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
+    }
+    return "Action " + std::to_string(action);
+}
+bool PreviewActor::Actions(std::vector<PreviewAction> &out) const
+{
+    out.clear();
+    if (!tmpl) return false;
+    for (LegacyLong i = 0; i < tmpl->Cactn(); ++i)
+    {
+        LegacyLong count = 0;
+        tmpl->FGetCcelActn(i, &count);
+        out.push_back({ActionName(i), static_cast<std::uint32_t>(std::max<LegacyLong>(0, count))});
+    }
+    return true;
+}
 void PreviewActor::CostumeOrientation(BMAT34 &matrix) const
 {
     BRA x, y, z;
@@ -220,23 +250,65 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
     }
     return true;
 }
+struct PreviewActor::TrackDraft
+{
+    PreviewActor &actor;
+    MMPreviewActor original;
+    PBody originalBody;
+    std::uint64_t shown, clock;
+    ActorTrack saved;
+    ActorSoundList motion;
+    std::vector<PreviewSoundCue> cues;
+    bool active = false;
+    explicit TrackDraft(PreviewActor &a)
+        : actor(a), original(a.core), originalBody(a.body), shown(a.lastShown), clock(*a.visibilityClock) {}
+    bool Begin()
+    {
+        if (!saved.FCloneFrom(actor.track) || !motion.FCloneFrom(actor.motionSounds)) return false;
+        auto duplicate = originalBody->PbodyDup();
+        if (!duplicate) return false;
+        actor.track.Swap(saved);
+        actor.motionSounds.Swap(motion);
+        actor.sounds.swap(cues);
+        actor.body = duplicate;
+        actor.core.body = duplicate;
+        actor.core.route = actor.track.Route();
+        actor.core.events = actor.track.Events();
+        return active = true;
+    }
+    ~TrackDraft()
+    {
+        if (!active) return;
+        actor.body->Release();
+        actor.track.Swap(saved);
+        actor.motionSounds.Swap(motion);
+        actor.sounds.swap(cues);
+        actor.body = originalBody;
+        actor.core = original;
+        actor.lastShown = shown;
+        *actor.visibilityClock = clock;
+    }
+    bool Write(const std::string &path, bool withRoute) const
+    {
+        auto release = [](auto *p) { if (p) p->Release(); };
+        std::unique_ptr<GeneralGroup, decltype(release)> wire(ActorData::PggWriteEvents(actor.track.Events()), release);
+        String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
+        if (!wire || !filename.FBuildFromPath(&text)) return false;
+        std::unique_ptr<ChunkyFile, decltype(release)> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable), release);
+        ChunkNumber number; DataBlock block;
+        if (!file || !file->FAdd(wire->CbOnFile(), kctgGgae, &number, &block) || number != 0 || !wire->FWrite(&block))
+            return false;
+        auto route = actor.track.Route();
+        if (withRoute && (!file->FAdd(route->CbOnFile(), kctgPath, &number, &block) || number != 0 || !route->FWrite(&block)))
+            return false;
+        return file->FSave(kctgSoc);
+    }
+};
 bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, const std::string &path)
 {
     if (!Visible() || !tmpl || tmpl->FIsTdt()) return false;
-    // Run the shared event editor on a private track and body. Both are restored
-    // even when allocation, resource resolution, or file output fails.
-    ActorTrack saved;
-    if (!saved.FCloneFrom(track)) return false;
-    auto duplicate = body->PbodyDup();
-    if (!duplicate) return false;
-    const auto original = core; const auto originalBody = body;
-    track.Swap(saved); body = duplicate;
-    core.body = body; core.route = track.Route(); core.events = track.Events();
-    struct Restore
-    {
-        PreviewActor &a; ActorTrack &track; MMPreviewActor core; PBody body;
-        ~Restore() { a.body->Release(); a.track.Swap(track); a.core = core; a.body = body; }
-    } restore{*this, saved, original, originalBody};
+    TrackDraft draft(*this);
+    if (!draft.Begin()) return false;
     std::vector<PreviewCostume> available;
     if (!Costumes(available)) return false;
     CostumeHost host(this); const auto services = host.Services();
@@ -249,14 +321,106 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
         if (!host.Result(mm_actor_edit_set_costume(&core.state, motionSounds.Core(), track.Events(), core.header.actor_id,
             value.bodySet, &tag, value.costume, 1, &motion, &services))) return false;
     }
-    auto release = [](auto *p) { if (p) p->Release(); };
-    std::unique_ptr<GeneralGroup, decltype(release)> wire(ActorData::PggWriteEvents(track.Events()), release);
-    String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
-    if (!wire || !filename.FBuildFromPath(&text)) return false;
-    std::unique_ptr<ChunkyFile, decltype(release)> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable), release);
-    ChunkNumber number; DataBlock block;
-    return file && file->FAdd(wire->CbOnFile(), kctgGgae, &number, &block) && number == 0 &&
-        wire->FWrite(&block) && file->FSave(kctgSoc);
+    return draft.Write(path, false);
+}
+bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::string &path,
+                                  int &lastActorFrame, int &lastEditedFrame)
+{
+    if (!Visible() || !tmpl || edit.points.size() > 2048) return false;
+    const auto start = Snapshot();
+    for (const auto &point : edit.points)
+        if (!(std::abs(double(start.x) + point.x) <= 32700 && std::abs(double(start.y) + point.y) <= 32700 &&
+              std::abs(double(start.z) + point.z) <= 32700))
+            return false;
+    TrackDraft draft(*this);
+    if (!draft.Begin()) return false;
+    AnimationHost host(this);
+    auto &state = core.state;
+    auto route = track.Route();
+    auto events = track.Events();
+    auto motion = motionSounds.Core();
+    const auto actor = core.header.actor_id;
+    const auto services = host.Record();
+    const auto &tables = services.subroute.timeline.motion;
+    const auto &action = services.subroute.action;
+    const auto &edits = services.subroute.route.edits;
+    const auto first = state.frame;
+    switch (edit.kind)
+    {
+    case PreviewAnimationEdit::Kind::action:
+    {
+        LegacyLong count = 0;
+        if (edit.action < 0 || edit.action >= tmpl->Cactn() || !tmpl->FGetCcelActn(edit.action, &count) ||
+            edit.cel < 0 || edit.cel >= count)
+            return false;
+        if (!host.Result(mm_actor_edit_set_action(&state, motion, events, actor, edit.action, edit.cel,
+                                                  edit.freeze, 0, &tables, &action)))
+            return false;
+        // A standalone action can play in place at the end of an existing route.
+        if (!edit.freeze && state.frozen)
+        {
+            MMI32 enabled = 0;
+            if (!host.Result(CostumeHost::Reserve(edits.context, 1, sizeof(enabled)) &&
+                mm_actor_edit_add_apply(&state, motion, events, actor, MM_ACTOR_FREEZE, sizeof(enabled), &enabled,
+                                        &tables, &edits)))
+                return false;
+        }
+        break;
+    }
+    case PreviewAnimationEdit::Kind::tweak:
+    {
+        if (edit.points.size() != 1) return false;
+        const auto &point = edit.points.front();
+        if (!(std::abs(point.x) <= 32700 && std::abs(point.y) <= 32700 && std::abs(point.z) <= 32700)) return false;
+        const MMActorPoint delta{BrFloatToScalar(point.x), BrFloatToScalar(point.y), BrFloatToScalar(point.z)};
+        MMActorTransformEditServices transform{};
+        transform.subroute = services.subroute;
+        if (!host.Result(mm_actor_transform_tweak(&state, motion, route, events, actor, &delta, 0,
+                                                  &tables, &transform))) return false;
+        break;
+    }
+    case PreviewAnimationEdit::Kind::record:
+    {
+        if (edit.points.empty() || first > 2147483647 - 4096) return false;
+        if (!host.Result(mm_actor_record_begin(&state, &host.record, route, events, edit.replace,
+                                               nullptr, &tables, &services))) return false;
+        if (edit.replace)
+            mm_actor_route_edit_delete_forward(&state, motion, route, events, actor, 0, nullptr,
+                                               -1, &tables, &services.subroute.route);
+        for (const auto &point : edit.points)
+        {
+            for (;;)
+            {
+                const auto current = Snapshot();
+                const double x = double(start.x) + point.x - current.x, y = double(start.y) + point.y - current.y,
+                             z = double(start.z) + point.z - current.z;
+                const double length = std::sqrt(x*x + y*y + z*z);
+                MMI32 step = 0;
+                if (!host.Result(mm_actor_record_step(&state, &step, &services.subroute.timeline))) return false;
+                if (!step) step = mm_fixed_mul(services.stationary_step, state.transform.rScaleStep);
+                if (step <= 0 || length < BrScalarToFloat(step)) break;
+                if (state.frame - first >= 4096) return false;
+                const double fraction = std::min(1., 1024. / length);
+                const MMActorPoint delta{BrFloatToScalar(float(x * fraction)), BrFloatToScalar(float(y * fraction)),
+                                         BrFloatToScalar(float(z * fraction))};
+                MMActorRecordResult result{};
+                if (!host.Result(mm_actor_record_move(&state, &host.record, motion, route, events, actor,
+                    &delta, edit.freeze ? MM_RECORD_FREEZE : 0, 0, &result, nullptr, &tables, &services)))
+                    return false;
+                if (!result.frame) break;
+            }
+        }
+        if (state.frame == first || !host.Result(mm_actor_record_end(&state, &host.record, motion, route, events, actor,
+            edit.replace, nullptr, &tables, &services))) return false;
+        break;
+    }
+    }
+    lastEditedFrame = state.frame;
+    MMI32 last = core.header.last_frame;
+    if (!host.Result(mm_actor_lifetime(route, events, core.header.first_frame, 0, &last, 100000,
+                                      &services.subroute.timeline))) return false;
+    lastActorFrame = std::max(last, lastEditedFrame);
+    return draft.Write(path, true);
 }
 bool PreviewActor::SetEventTrack(std::int32_t source)
 {
