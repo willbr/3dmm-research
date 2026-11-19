@@ -109,6 +109,9 @@ typedef struct MMMovieSceneReader
  * event indices below the returned count. Payloads may be normalized by the
  * consumer and live until close. */
 MMMovieSceneReader mm_movie_scene_reader(MMMovieSceneSource *);
+/* Tag collection checks the group layout and row bounds. Its consumer decides
+ * which event kinds and payloads matter, and can diagnose unknown kinds. */
+MMMovieSceneReader mm_movie_scene_tag_reader(MMMovieSceneSource *);
 /* Read a complete 32-bit word within a validated event payload. */
 MMU32 mm_movie_scene_event_word(const MMMovieSceneEvent *, MMU32 offset);
 

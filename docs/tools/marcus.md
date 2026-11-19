@@ -2422,6 +2422,18 @@ SDL Studio matched retail's sound requests. Mixed PCM differed in both ports,
 and SDL Studio's frame timing differed. Evidence is in
 `tmp/c89-scene-save-graph/`.
 
+The shared scene reader now supplies Studio's save-time tag scan. Its tests
+cover unknown events and reject bad row offsets and fixed widths in packed
+groups in both byte orders. Native Debug and Release save/reopen traces and
+movies matched their prior builds. The full Release scene-store trace also
+matched. In Debug, all 324 scene writes and all 42 tag scans without injected
+faults matched. Removing native event-group allocation changed 42 injected
+fault cases. The revised Debug trace reproduced on rerun. Both ports matched
+retail's 60-frame actor-audio seek and playback sequences. The seek images
+matched their prior captures. SDL Studio matched retail's sound requests.
+Mixed PCM differed in both ports, and SDL Studio's frame timing differed.
+Evidence is in `tmp/c89-scene-tag-reader/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

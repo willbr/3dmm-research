@@ -1020,6 +1020,9 @@ Inside each scene, the C89 graph now resolves the start and frame event groups,
 actor links used for tag collection, and sound links used during save. Native
 scene saves use the same chunk types as the shared session and archive editor
 when they identify event groups for replacement.
+Studio tag collection also loads its event groups through the shared movie
+session reader. That path checks the wire layout and row bounds before visiting
+events and retains the collector's handling of unknown event kinds.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

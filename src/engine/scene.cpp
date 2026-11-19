@@ -2864,34 +2864,27 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
         PChunkyFile file;
         PTagList tags;
     } host = {pcfl, ptagl};
+    MMMovieSceneSource source = {nullptr, EngineMovieGraph::FromFile(pcfl)};
     MMSceneCollectServices s = {};
     s.context = &host;
-    s.groups = SceneStoreGroups();
+    s.read = mm_movie_scene_tag_reader(&source);
     s.packets = ScenePacketServices();
     s.camera_type = kctgCam;
     s.chunks = pcfl->ReadChunkAccess();
-    s.read_group = [](void *p, MMU32 type, MMU32 number, int *swap) -> void * {
-        auto file = static_cast<Host *>(p)->file;
-        DataBlock block;
-        short bo;
-        if (!file->FFind(type, number, &block))
-            return nullptr;
-        auto group = SceneData::PggReadEventHeaders(&block, &bo);
-        if (group)
-            *swap = bo == kboOther;
-        return group;
-    };
     s.actor_tags = [](void *p, MMU32 n, int *error) -> void * {
         bool failed;
         auto tags = Actor::PgltagFetch(static_cast<Host *>(p)->file, n, &failed);
         *error = failed;
         return tags;
     };
+    s.list_count = [](void *, void *p) -> MMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
     s.list_tag = [](void *, void *p, MMI32 i, MMTag *out) {
         TAG tag;
         static_cast<PDynamicArray>(p)->Get(i, &tag);
         *out = TagToCore(tag);
     };
+    s.release_list = [](void *, void *p) { static_cast<PDynamicArray>(p)->Release(); };
+    s.free_sound = [](void *, void *p) { FreePpv(&p); };
     s.insert_tag = [](void *p, const MMTag *value) -> int {
         TAG tag;
         TagFromCore(&tag, *value);

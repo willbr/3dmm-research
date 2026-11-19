@@ -767,7 +767,19 @@ void mm_session_template_dispose(MMMovieTemplate *tmpl)
     mm_session_archive_close(&tmpl->archive);
 }
 
-static int load_scene_group(const MMMovieArchive *archive, MMU32 scene, int start, MMMovieGroup *group)
+static int tag_rows_valid(const MMMovieGroup *group)
+{
+    MMU32 i;
+    MMI32 size;
+    if (group->header.width != MM_SCENE_EVENT_BYTES)
+        return 0;
+    for (i = 0; i < group->header.count; ++i)
+        if (!mm_session_group_row(group, i, &size))
+            return 0;
+    return 1;
+}
+
+static int load_scene_group(const MMMovieArchive *archive, MMU32 scene, int start, int for_tags, MMMovieGroup *group)
 {
     const MMSceneGroupServices groups = {event_width, event_count, event_fixed, event_size, event_data};
     MMChunkEntry entry;
@@ -780,7 +792,7 @@ static int load_scene_group(const MMMovieArchive *archive, MMU32 scene, int star
     status = mm_session_group(archive, &entry, group);
     if (status != MM_MOVIE_OK)
         return status;
-    if (!mm_scene_valid_events(group, group->header.big_endian, start, &groups))
+    if (for_tags ? !tag_rows_valid(group) : !mm_scene_valid_events(group, group->header.big_endian, start, &groups))
     {
         free(group->bytes);
         return MM_MOVIE_BAD_FILE;
@@ -790,7 +802,7 @@ static int load_scene_group(const MMMovieArchive *archive, MMU32 scene, int star
 
 int mm_session_scene_group(const MMMovieArchive *archive, MMU32 scene, int start, MMMovieGroup *group)
 {
-    int status = load_scene_group(archive, scene, start, group);
+    int status = load_scene_group(archive, scene, start, 0, group);
     return status == MM_MOVIE_ASSET_NOT_FOUND ? MM_MOVIE_BAD_FILE : status;
 }
 
@@ -815,7 +827,7 @@ static int scene_reader_header(void *context, MMU32 number, MMMovieSessionScene 
     return read_scene(&view, &entry, position, out);
 }
 
-static int scene_reader_group(void *context, MMU32 number, int start, MMMovieSceneGroup *out)
+static int scene_reader_open_group(void *context, MMU32 number, int start, int for_tags, MMMovieSceneGroup *out)
 {
     const MMMovieSceneSource *source = (const MMMovieSceneSource *)context;
     MMMovieArchive archive;
@@ -841,7 +853,7 @@ static int scene_reader_group(void *context, MMU32 number, int start, MMMovieSce
     group = (MMMovieGroup *)malloc(sizeof(*group));
     if (!group)
         return MM_MOVIE_MEMORY;
-    status = load_scene_group(&archive, position, start, group);
+    status = load_scene_group(&archive, position, start, for_tags, group);
     if (status != MM_MOVIE_OK)
     {
         free(group);
@@ -850,6 +862,16 @@ static int scene_reader_group(void *context, MMU32 number, int start, MMMovieSce
     out->handle = group;
     out->count = group->header.count;
     return MM_MOVIE_OK;
+}
+
+static int scene_reader_group(void *context, MMU32 number, int start, MMMovieSceneGroup *out)
+{
+    return scene_reader_open_group(context, number, start, 0, out);
+}
+
+static int scene_tag_group(void *context, MMU32 number, int start, MMMovieSceneGroup *out)
+{
+    return scene_reader_open_group(context, number, start, 1, out);
 }
 
 static void scene_reader_event(void *context, const MMMovieSceneGroup *group, MMU32 index, MMMovieSceneEvent *out)
@@ -876,6 +898,13 @@ MMMovieSceneReader mm_movie_scene_reader(MMMovieSceneSource *source)
     reader.group = scene_reader_group;
     reader.event = scene_reader_event;
     reader.close = scene_reader_close;
+    return reader;
+}
+
+MMMovieSceneReader mm_movie_scene_tag_reader(MMMovieSceneSource *source)
+{
+    MMMovieSceneReader reader = mm_movie_scene_reader(source);
+    reader.group = scene_tag_group;
     return reader;
 }
 

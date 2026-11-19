@@ -552,17 +552,6 @@ static void group_reading(void)
     init_group(&group, &h, 1, MM_SCENE_ADD_ACTOR, 4, 0);
     order = 77;
     CHECK(!mm_scene_read_event_group(0, 0, &order, &s) && order == 77 && h.read_releases == 1);
-    reset(&h);
-    h.read_group = &group;
-    h.read_order = MM_SCENE_GROUP_NATIVE_ORDER;
-    init_group(&group, &h, 0, 99, 7, 0);
-    order = 77;
-    CHECK(mm_scene_read_event_group(MM_SCENE_GROUP_HEADERS_ONLY, 0, &order, &s) == &group);
-    CHECK(order == MM_SCENE_GROUP_NATIVE_ORDER && !h.read_releases);
-    group.fixed_width = 7;
-    order = 77;
-    CHECK(!mm_scene_read_event_group(MM_SCENE_GROUP_HEADERS_ONLY, 0, &order, &s));
-    CHECK(order == 77 && h.read_releases == 1);
 }
 typedef struct StartOutput
 {

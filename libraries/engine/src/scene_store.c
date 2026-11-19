@@ -3,100 +3,82 @@
 #include "mm/scene_store.h"
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
+#include "mm/wide.h"
 #include <string.h>
-static MMU32 word(const void *p, int swap)
+static void tag_from_event(MMTag *tag, const MMMovieSceneEvent *event)
 {
-    MMU32 n;
-    memcpy(&n, p, 4);
-    return swap ? ((n & 255U) << 24) | ((n & 65280U) << 8) | ((n >> 8) & 65280U) | (n >> 24) : n;
-}
-static MMI32 signed_word(const void *p, int swap)
-{
-    MMU32 n = word(p, swap);
-    MMI32 result;
-    memcpy(&result, &n, 4);
-    return result;
-}
-static void tag_from_wire(MMTag *tag, const void *p, int swap)
-{
-    const unsigned char *b = (const unsigned char *)p;
-    tag->sid = signed_word(b, swap);
+    tag->sid = mm_signed_word(mm_movie_scene_event_word(event, 0));
     tag->cache = NULL;
-    tag->type = word(b + 8, swap);
-    tag->number = word(b + 12, swap);
+    tag->type = mm_movie_scene_event_word(event, 8);
+    tag->number = mm_movie_scene_event_word(event, 12);
 }
 int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
 {
-    const MMSceneStoreGroups *g = &s->groups;
+    const unsigned short one = 1;
+    const int native_big = *(const unsigned char *)&one == 0;
+    const MMMovieSceneReader *read = &s->read;
     const MMSceneSoundPacketServices *v = &s->packets;
+    MMMovieSceneGroup group;
+    MMMovieSceneEvent event;
     MMTag background, tag;
     MMChunkChild link;
     MMSceneSound *sound;
-    void *group = NULL, *list, *data;
-    MMI32 i, j, kind, bytes;
-    MMU32 child, scene_row;
-    unsigned char fixed[8];
-    int start, swap, error, ok;
+    void *list;
+    MMI32 j;
+    MMU32 i, child, scene_row;
+    int start, error, ok;
     if (mm_chunk_find(&s->chunks, MM_SCENE_CHUNK, scene, &scene_row) != MM_CHUNK_OK)
         return 0;
     background.sid = -1;
     for (start = 1; start >= 0; --start)
     {
-        if (mm_chunk_child_exact(&s->chunks, scene_row, start,
-                                 start ? MM_SCENE_START_GROUP : MM_SCENE_FRAME_GROUP, &link) != MM_CHUNK_OK)
+        if (read->group(read->context, scene, start, &group) != MM_MOVIE_OK)
             return 0;
-        group = s->read_group(s->context, link.type, link.number, &swap);
-        if (!group)
-            return 0;
-        for (i = 0; i < g->count(g->context, group); ++i)
+        for (i = 0; i < group.count; ++i)
         {
-            g->fixed(g->context, group, i, fixed);
-            kind = signed_word(fixed + 4, swap);
-            if (start && kind == MM_SCENE_ADD_ACTOR)
+            read->event(read->context, &group, i, &event);
+            if (start && event.kind == MM_SCENE_ADD_ACTOR)
             {
-                data = g->data(g->context, group, i, &bytes);
-                if (bytes != 4)
+                if (event.bytes != 4)
                     goto fail;
-                child = word(data, swap);
+                child = mm_movie_scene_event_word(&event, 0);
                 if (mm_chunk_child_exact(&s->chunks, scene_row, child, MM_SCENE_ACTOR_CHUNK, &link) != MM_CHUNK_OK)
                     goto fail;
                 list = s->actor_tags(s->context, link.number, &error);
                 if (error)
                 {
                     if (list)
-                        g->release(g->context, list);
+                        s->release_list(s->context, list);
                     goto fail;
                 }
                 if (list)
                 {
-                    for (j = 0; j < g->count(g->context, list); ++j)
+                    for (j = 0; j < s->list_count(s->context, list); ++j)
                     {
                         s->list_tag(s->context, list, j, &tag);
                         if (!s->insert_tag(s->context, &tag))
                         {
-                            g->release(g->context, list);
+                            s->release_list(s->context, list);
                             goto fail;
                         }
                     }
-                    g->release(g->context, list);
+                    s->release_list(s->context, list);
                 }
             }
-            else if (start && kind == MM_SCENE_SET_BACKGROUND)
+            else if (start && event.kind == MM_SCENE_SET_BACKGROUND)
             {
-                data = g->data(g->context, group, i, &bytes);
-                if (bytes != 16)
+                if (event.bytes != 16)
                     goto fail;
-                tag_from_wire(&tag, data, swap);
+                tag_from_event(&tag, &event);
                 if (!s->background(s->context, &tag))
                     goto fail;
                 background = tag;
             }
-            else if (!start && kind == MM_SCENE_CHANGE_CAMERA)
+            else if (!start && event.kind == MM_SCENE_CHANGE_CAMERA)
             {
-                data = g->data(g->context, group, i, &bytes);
-                if (bytes != 4)
+                if (event.bytes != 4)
                     goto fail;
-                child = word(data, swap);
+                child = mm_movie_scene_event_word(&event, 0);
                 if (background.sid == -1)
                 {
                     s->diagnostic(s->context, 0, 1);
@@ -105,10 +87,9 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
                 if (!s->insert_child(s->context, &background, child, s->camera_type))
                     goto fail;
             }
-            else if (!start && kind == MM_SCENE_PLAY_SOUND)
+            else if (!start && event.kind == MM_SCENE_PLAY_SOUND)
             {
-                data = g->data(g->context, group, i, &bytes);
-                sound = mm_scene_sound_decode(data, bytes, swap, v);
+                sound = mm_scene_sound_decode(event.data, event.bytes, event.big_endian != native_big, v);
                 if (!sound)
                     goto fail;
                 ok = 1;
@@ -121,19 +102,18 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
                         break;
                     }
                 }
-                g->free_raw(g->context, sound);
+                s->free_sound(s->context, sound);
                 if (!ok)
                     goto fail;
             }
-            else if (!((start && kind == MM_SCENE_ADD_TEXT) || (!start && kind == MM_SCENE_PAUSE)))
+            else if (!((start && event.kind == MM_SCENE_ADD_TEXT) || (!start && event.kind == MM_SCENE_PAUSE)))
                 s->diagnostic(s->context, start, 0);
         }
-        g->release(g->context, group);
-        group = NULL;
+        read->close(read->context, &group);
     }
     return 1;
 fail:
-    g->release(g->context, group);
+    read->close(read->context, &group);
     return 0;
 }
 static int store_sound(void *frames, MMI32 index, MMI32 frame, MMU32 scene,
@@ -179,7 +159,8 @@ int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
     MMI32 i, frame, kind, bytes;
     MMU32 actor = 0, text = 0, child, count;
     MMTag tag;
-    unsigned char fixed[8], wire_tag[16];
+    MMI32 fixed[2];
+    unsigned char wire_tag[16];
     *number = 0xffffffffUL;
     if (!s->add_scene(s->context, number))
         goto fail;
@@ -189,9 +170,9 @@ int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
     group = s->owner->owned[MM_SCENE_FRAMES];
     for (i = 0; i < g->count(g->context, group); ++i)
     {
-        g->fixed(g->context, group, i, fixed);
-        frame = signed_word(fixed, 0);
-        kind = signed_word(fixed + 4, 0);
+        g->fixed(g->context, group, i, (unsigned char *)fixed);
+        frame = fixed[0];
+        kind = fixed[1];
         if (kind == MM_SCENE_PLAY_SOUND)
         {
             if (!store_sound(frames, i, frame, *number, s))
@@ -212,9 +193,9 @@ int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
     group = s->owner->owned[MM_SCENE_STARTS];
     for (i = 0; i < g->count(g->context, group); ++i)
     {
-        g->fixed(g->context, group, i, fixed);
-        frame = signed_word(fixed, 0);
-        kind = signed_word(fixed + 4, 0);
+        g->fixed(g->context, group, i, (unsigned char *)fixed);
+        frame = fixed[0];
+        kind = fixed[1];
         if (kind == MM_SCENE_ADD_ACTOR || kind == MM_SCENE_ADD_TEXT)
         {
             count = kind == MM_SCENE_ADD_ACTOR ? actor : text;

@@ -396,7 +396,9 @@ static MMU32 write_fixture(unsigned char *out, size_t capacity, int big, MMU32 c
     return end;
 }
 
-static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 source, int bad_row)
+enum { CAMERA_ROWS_NORMAL, CAMERA_ROWS_BAD_LOCATION, CAMERA_ROWS_UNKNOWN_KIND, CAMERA_ROWS_BAD_WIDTH };
+
+static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 source, int frame_layout)
 {
     enum { BKGD, CAM1, CAM0, FRAMES, STARTS, RGB, ROOT, SCENE, DEPTH, COUNT };
     static const MMU32 types[] = {0x424b4744UL, 0x43414d20UL, 0x43414d20UL, 0x47474652UL, 0x47475354UL,
@@ -417,7 +419,11 @@ static MMU32 camera_fixture(unsigned char *out, int big, MMI32 codec, MMU32 sour
     put32(raw[CAM1] + 4, 456, big);
     put32(raw[CAM1] + 72, 0xfffffffeUL, big);
     put32(raw[CAM1] + 76, 0xfffffffdUL, big);
-    camera_events(raw[FRAMES], big, 0, 0, bad_row);
+    camera_events(raw[FRAMES], big, 0, 0, frame_layout == CAMERA_ROWS_BAD_LOCATION);
+    if (frame_layout == CAMERA_ROWS_UNKNOWN_KIND)
+        put32(raw[FRAMES] + 24, 99, big);
+    if (frame_layout == CAMERA_ROWS_BAD_WIDTH)
+        put32(raw[FRAMES] + 16, 7, big);
     camera_events(raw[STARTS], big, 1, source, 0);
     put16(raw[ROOT] + 4, 2, big);
     put16(raw[ROOT] + 6, 2, big);
@@ -1062,6 +1068,46 @@ static void check_scene_reader(MMMovieSceneSource *source, int big, MMU32 backgr
     reader.close(reader.context, &group);
 }
 
+static void scene_tag_reader(void)
+{
+    const MMChunkPolicy policy = {0, 0, 516};
+    unsigned char bytes[1024];
+    MMMemoryStream input;
+    MMMovieSession *movie;
+    MMMovieSceneSource source = {0};
+    MMMovieSceneReader playback = mm_movie_scene_reader(&source);
+    MMMovieSceneReader tags = mm_movie_scene_tag_reader(&source);
+    MMMovieSceneGroup group;
+    MMMovieSceneEvent event;
+    MMU32 size;
+    int big, layout;
+    for (big = 0; big <= 1; ++big)
+        for (layout = CAMERA_ROWS_BAD_LOCATION; layout <= CAMERA_ROWS_BAD_WIDTH; ++layout)
+        {
+            size = camera_fixture(bytes, big, big ? MM_CODEC_KCDC : MM_CODEC_KCD2, 0, layout);
+            CHECK(mm_memory_stream_init(&input, bytes, size));
+            CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+            source.movie = movie;
+            group.handle = NULL;
+            group.count = 123;
+            CHECK(playback.group(playback.context, 36, 0, &group) == MM_MOVIE_BAD_FILE &&
+                  !group.handle && group.count == 123);
+            if (layout == CAMERA_ROWS_UNKNOWN_KIND)
+            {
+                CHECK(tags.group(tags.context, 36, 0, &group) == MM_MOVIE_OK && group.count == 3);
+                tags.event(tags.context, &group, 0, &event);
+                CHECK(event.kind == 99 && event.frame == 5 && event.big_endian == big && event.bytes == 4);
+                tags.event(tags.context, &group, 1, &event);
+                CHECK(event.kind == MM_SCENE_CHANGE_CAMERA && mm_movie_scene_event_word(&event, 0) == 1);
+                tags.close(tags.context, &group);
+                CHECK(!group.handle && !group.count);
+            }
+            else
+                CHECK(tags.group(tags.context, 36, 0, &group) == MM_MOVIE_BAD_FILE && !group.handle && group.count == 123);
+            mm_movie_session_close(movie);
+        }
+}
+
 static void movie_camera(void)
 {
     const MMChunkPolicy policy = {0, 0, 516};
@@ -1151,7 +1197,7 @@ static void movie_camera(void)
     CHECK(frame->camera.data.near_z == 456);
     mm_movie_frame_dispose(frame);
     frame = NULL;
-    size = camera_fixture(bytes, 0, 0, 0, 1);
+    size = camera_fixture(bytes, 0, 0, 0, CAMERA_ROWS_BAD_LOCATION);
     CHECK(mm_memory_stream_init(&input, bytes, size));
     CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
     source.movie = movie;
@@ -1800,6 +1846,7 @@ int main(void)
     wire_indexes();
     movie_sessions();
     movie_camera();
+    scene_tag_reader();
     movie_directory();
     movie_actors();
     movie_content();

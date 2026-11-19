@@ -126,7 +126,7 @@ bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, MMI32 tra
     const auto io = SceneIO(file);
     return mm_scene_transition_write(number, sizeof(achar), transition, koskCur, NativeBig(), &io) != 0;
 }
-static PGeneralGroup ReadSceneEvents(PDataBlock block, short *byteOrder, int layout)
+PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents)
 {
     const MMSceneReadGroupServices services = {
         block, Groups(),
@@ -140,18 +140,10 @@ static PGeneralGroup ReadSceneEvents(PDataBlock block, short *byteOrder, int lay
         [](void *, void *group) { static_cast<PGeneralGroup>(group)->Release(); }};
     int order;
     auto group =
-        static_cast<PGeneralGroup>(mm_scene_read_event_group(layout, NativeBig(), &order, &services));
+        static_cast<PGeneralGroup>(mm_scene_read_event_group(startEvents, NativeBig(), &order, &services));
     if (group && byteOrder)
         *byteOrder = static_cast<short>(order);
     return group;
-}
-PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents)
-{
-    return ReadSceneEvents(block, byteOrder, startEvents);
-}
-PGeneralGroup SceneData::PggReadEventHeaders(PDataBlock block, short *byteOrder)
-{
-    return ReadSceneEvents(block, byteOrder, MM_SCENE_GROUP_HEADERS_ONLY);
 }
 bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts)
 {

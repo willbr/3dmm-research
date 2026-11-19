@@ -994,10 +994,8 @@ void *mm_scene_read_event_group(int start, int native_big, int *order, const MMS
     if (!group)
         return NULL;
     if ((loaded_order != MM_SCENE_GROUP_NATIVE_ORDER && loaded_order != MM_SCENE_GROUP_OTHER_ORDER) ||
-        (start == MM_SCENE_GROUP_HEADERS_ONLY
-             ? s->groups.fixed_width(group) != MM_SCENE_EVENT_BYTES
-             : !mm_scene_valid_events(
-                   group, (loaded_order == MM_SCENE_GROUP_NATIVE_ORDER) == (native_big != 0), start, &s->groups)))
+        !mm_scene_valid_events(
+            group, (loaded_order == MM_SCENE_GROUP_NATIVE_ORDER) == (native_big != 0), start, &s->groups))
     {
         s->release(s->context, group);
         return NULL;

@@ -88,7 +88,6 @@ extern "C"
                                     MMByteReceiver, void *context);
     enum
     {
-        MM_SCENE_GROUP_HEADERS_ONLY = -1,
         MM_SCENE_GROUP_NATIVE_ORDER = 1,
         MM_SCENE_GROUP_OTHER_ORDER = 256
     };
@@ -104,8 +103,7 @@ extern "C"
      * Scene layout, releasing exactly once. Success transfers ownership and publishes
      * optional order only after validation. Failures leave order untouched. No payload
      * rewriting, host effects or reentrancy. native_big describes the host layout.
-     * HEADERS_ONLY mode checks fixed width only, retaining unknown event/payload
-     * acceptance for tag collection; start=0/1 validates full frame/start layout. */
+     * start=0/1 validates full frame/start layout. */
     void *mm_scene_read_event_group(int start, int native_big, int *order, const MMSceneReadGroupServices *);
     typedef struct MMSceneEventIO
     {

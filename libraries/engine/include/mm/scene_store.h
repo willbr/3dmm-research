@@ -2,8 +2,8 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_STORE_H
 #define MM_ENGINE_SCENE_STORE_H
+#include "movie_session.h"
 #include "scene_sound_edit.h"
-#include "chunky_file.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -20,13 +20,14 @@ extern "C"
     typedef struct MMSceneCollectServices
     {
         void *context;
-        MMSceneStoreGroups groups;
+        MMMovieSceneReader read;
         MMSceneSoundPacketServices packets;
         MMU32 camera_type;
         MMChunkAccess chunks;
-        void *(*read_group)(void *, MMU32 type, MMU32 number, int *swap);
         void *(*actor_tags)(void *, MMU32 number, int *error);
+        MMI32 (*list_count)(void *, void *list);
         void (*list_tag)(void *, void *list, MMI32 index, MMTag *);
+        void (*release_list)(void *, void *list), (*free_sound)(void *, void *allocation);
         int (*insert_tag)(void *, const MMTag *);
         int (*background)(void *, MMTag *);
         int (*insert_child)(void *, const MMTag *, MMU32 child, MMU32 type);
