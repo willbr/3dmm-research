@@ -52,7 +52,7 @@ static void *new_scene(void *p, void *movie)
     Loader *f = (Loader *)p;
     f->scene = (LoadObject *)new_object(f, 200);
     if (f->scene)
-        mm_scene_owner_init(&f->owner, movie);
+        mm_scene_owner_init(&f->owner, movie, NULL);
     return f->scene;
 }
 static MMSceneOwner *owner_state(void *p, void *scene)
@@ -169,7 +169,8 @@ static int metadata(void *p, MMU32 number, MMMovieSessionScene *out)
 static void publish_metadata(void *p, void *scene, const MMSceneState *value)
 {
     Loader *f = (Loader *)p;
-    CHECK(scene == f->scene && f->owner.owned[2] && f->owner.owned[3]);
+    CHECK(scene == f->scene && !mm_scene_member_count(&f->owner, MM_SCENE_ACTORS) &&
+          !mm_scene_member_count(&f->owner, MM_SCENE_TEXTS));
     CHECK(value->currentFrame == 2 && value->name.unit == 1);
     f->metadata = *value;
     f->published = 1;
@@ -188,8 +189,8 @@ static int child(void *p, MMU32 scene, int kind, MMU32 id, MMU32 *number)
 }
 static void *thumbnail(void *p, MMU32 number)
 {
-    CHECK(number == 106);
-    return new_object((Loader *)p, 6);
+    CHECK(number == 100 + MM_SCENE_THUMBNAIL);
+    return new_object((Loader *)p, MM_SCENE_THUMBNAIL);
 }
 static int read_group(void *p, MMU32 number, int start, MMMovieSceneGroup *out)
 {
@@ -227,7 +228,7 @@ static void *read_object(void *p, MMU32 number, int kind, void *scene)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == f->scene);
-    CHECK(number == (kind == MM_SCENE_ADD_ACTOR ? 102U : 103U));
+    CHECK(number == (kind == MM_SCENE_ADD_ACTOR ? 100 + MM_SCENE_ACTORS : 100 + MM_SCENE_TEXTS));
     return new_object(f, 300 + kind);
 }
 static int insert(void *p, void *g, MMI32 i, MMI32 frame, int kind, MMI32 bytes, const void *payload)
@@ -400,7 +401,7 @@ static void test_load(void)
             init_loader(&f, swap);
             f.fail = fail;
             scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
-            CHECK((scene != NULL) == (fail == 5 || fail == 6));
+            CHECK((scene != NULL) == (fail == 3 || fail == 4));
             if (scene)
             {
                 CHECK(f.names == 1);
@@ -412,7 +413,7 @@ static void test_load(void)
         }
         /* Failed second open closes only tag zero, before packet and wire release. */
         init_loader(&f, swap);
-        f.fail = 12;
+        f.fail = 10;
         CHECK(!mm_scene_load(&f, 42, 1, &f.s));
         last = -1;
         for (j = 0; j < f.used; ++j)
@@ -422,7 +423,7 @@ static void test_load(void)
         check_clean(&f);
         /* Failed insertion closes all newly opened tags in reverse order. */
         init_loader(&f, swap);
-        f.fail = 14;
+        f.fail = 12;
         CHECK(!mm_scene_load(&f, 42, 1, &f.s));
         last = -1;
         for (j = 0; j < f.used; ++j)
@@ -434,7 +435,7 @@ static void test_load(void)
         init_loader(&f, swap);
         f.no_thumbnail = 1;
         scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
-        CHECK(scene && !f.owner.owned[6]);
+        CHECK(scene && !f.owner.owned[MM_SCENE_THUMBNAIL]);
         release_object(&f, scene);
         check_clean(&f);
     }
@@ -442,10 +443,10 @@ static void test_load(void)
     CHECK(!mm_scene_load(&f, 42, 3, &f.s) && !f.attempt);
     check_clean(&f);
 }
-static int resolve_actor(void *p, MMI32 i, MMU32 scene)
+static int resolve_actor(void *p, void *actor, MMU32 scene)
 {
     Loader *f = (Loader *)p;
-    CHECK(scene == 42 && i == f->actor_calls && !f->locks);
+    CHECK(scene == 42 && actor == &f->wire[f->actor_calls] && !f->locks);
     ++f->actor_calls;
     return f->actor_calls != f->actor_fail;
 }
@@ -481,15 +482,15 @@ static void test_resolve(void)
 {
     Loader f;
     MMSceneResolveServices s;
-    LoadObject *scene, *actors;
+    LoadObject *scene;
     int fail;
     for (fail = 0; fail < 5; ++fail)
     {
         init_loader(&f, 0);
         scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
         CHECK(scene);
-        actors = (LoadObject *)f.owner.owned[2];
-        actors->count = 2;
+        CHECK(mm_scene_member_append(&f.owner, MM_SCENE_ACTORS, &f.wire[0]));
+        CHECK(mm_scene_member_append(&f.owner, MM_SCENE_ACTORS, &f.wire[1]));
         memset(&s, 0, sizeof(s));
         s.context = &f;
         s.owner = &f.owner;
@@ -520,7 +521,6 @@ static void test_resolve(void)
                 if (at(p, i)->tag.number >= 4)
                     at(p, i)->tag.number -= 4;
         }
-        actors->count = 0;
         release_object(&f, scene);
         check_clean(&f);
     }

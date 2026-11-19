@@ -161,14 +161,11 @@ class Scene : public Scene_PAR
     //
     // Global information
     //
-    PDynamicArray _pglpactr;        // List of actors in the scene.
-    PDynamicArray _pglptbox;        // List of text boxes in the scene.
     PGeneralGroup _pggsevStart;     // List of frame independent events.
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
     MMSceneSelection _selection = {}; // Authoritative borrowed primary selection.
     PActor _pactrSelected; // Published typed view of _selection.actor.
-    PDynamicArray _pglpactrSelExtra; // Additional selected actors (excluding primary). pvNil when no extras.
     PTBOX _ptboxSelected;            // Published typed view of _selection.text.
     PMaskedBitmapMBMP _pmbmp;         // The thumbnail for this scene.
     PSceneSoundEvent _psseBkgd;       // Background scene sound (starts playing
@@ -339,16 +336,16 @@ class Scene : public Scene_PAR
     // clicking a tagged actor recalls its whole group.
     bool FSelectActrsSharingTagsWith(PActor pactrSeed);
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
-    PDynamicArray PglRollCall(void)                              // Return a list of all actors in scene.
+    PActor PactrAt(long index) const
     {
-        return (_pglpactr);
-    } // Only to be used by the movie-class
+        return static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_ACTORS, index));
+    }
     void HideActors(void);
     void ShowActors(void);
     PActor PactrFromArid(long arid); // Finds a current actor in this scene.
-    long Cactr(void)
+    long Cactr(void) const
     {
-        return (_pglpactr == pvNil ? 0 : _pglpactr->IvMac());
+        return mm_scene_member_count(&_owner, MM_SCENE_ACTORS);
     }
 
     //
@@ -381,9 +378,9 @@ class Scene : public Scene_PAR
     }
     void SelectTbox(PTBOX ptbox); // Selects this tbox.
     void HideTboxes(void);        // Hides all text boxes.
-    long Ctbox(void)
+    long Ctbox(void) const
     {
-        return (_pglptbox == pvNil ? 0 : _pglptbox->IvMac());
+        return mm_scene_member_count(&_owner, MM_SCENE_TEXTS);
     }
 
     //

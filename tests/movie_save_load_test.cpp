@@ -256,17 +256,16 @@ class StageTestScene : public Scene
     bool TrackActor(PActor actor,long frame)
     {
         _data.currentFrame=frame; _data.firstFrame=1; _data.lastFrame=100; _runtime.next_event=0;
-        return _pglpactr->FSetIvMac(0) && _pglpactr->FAdd(&actor);
+        mm_scene_member_clear(&_owner, MM_SCENE_ACTORS);
+        return mm_scene_member_append(&_owner, MM_SCENE_ACTORS, actor);
     }
     bool Init()
     {
         _pggsevFrm=GeneralGroup::PggNew(sizeof(SceneEvent));
         _pggsevStart=GeneralGroup::PggNew(sizeof(SceneEvent));
-        _pglpactr=DynamicArray::PglNew(sizeof(PActor));
-        _pglptbox=DynamicArray::PglNew(sizeof(PTBOX));
         auto background=NewObj StageTestBackground(); _pbkgd=background;
         _data.firstFrame=1; _data.lastFrame=20; _data.currentFrame=3;
-        return _pggsevFrm && _pggsevStart && _pglpactr && _pglptbox && background && background->Init();
+        return _pggsevFrm && _pggsevStart && background && background->Init();
     }
 };
 

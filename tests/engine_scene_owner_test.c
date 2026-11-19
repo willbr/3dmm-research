@@ -17,14 +17,14 @@ typedef struct Event
 struct Object
 {
     int slot, id, refs, count, lifetime, first, seek_ok;
-    Object *items[4];
     Event events[8];
 };
 typedef struct Fixture
 {
-    MMSceneOwner owner, mirror;
+    MMSceneOwner owner;
+    void *published[MM_SCENE_OWNERS];
     MMSceneOwnerServices s;
-    Object scene, slots[8], children[5];
+    Object scene, slots[MM_SCENE_OWNERS], children[5];
     Sound frame[2], background;
     int events[256], n, live, attempts, fail, available, late_notify, cursor, loaded, diagnostics, seeks, last_frame;
 } Fixture;
@@ -37,7 +37,7 @@ static void publish(void *p, void *scene, const MMSceneOwner *w)
 {
     Fixture *f = (Fixture *)p;
     assert(scene == &f->scene);
-    f->mirror = *w;
+    memcpy(f->published, w->owned, sizeof(f->published));
 }
 static MMSceneOwner *state(void *p, void *scene)
 {
@@ -52,8 +52,8 @@ static void *create_scene(void *p, void *movie)
         return NULL;
     f->scene.refs = 1;
     f->live = 1;
-    mm_scene_owner_init(&f->owner, movie);
-    f->mirror = f->owner;
+    mm_scene_owner_init(&f->owner, movie, NULL);
+    publish(f, &f->scene, &f->owner);
     return &f->scene;
 }
 static void *create_slot(void *p, int slot)
@@ -63,7 +63,7 @@ static void *create_slot(void *p, int slot)
         return NULL;
     f->slots[slot].refs = 1;
     ++f->live;
-    if (f->late_notify && slot == MM_SCENE_TEXTS)
+    if (f->late_notify && slot == MM_SCENE_STARTS)
         f->available = 1;
     event(f, 10 + slot);
     return &f->slots[slot];
@@ -85,7 +85,7 @@ static void release(void *p, void *object)
     else
     {
         if (o->slot >= 0)
-            assert(f->owner.owned[o->slot] == object && f->mirror.owned[o->slot] == object);
+            assert(f->owner.owned[o->slot] == object && f->published[o->slot] == object);
         event(f, o->slot >= 0 ? 200 + o->slot : 100 + o->id);
         assert(!--o->refs);
         --f->live;
@@ -107,8 +107,8 @@ static void loaded(void *p, void *scene)
     Fixture *f = (Fixture *)p;
     int i;
     assert(scene == &f->scene && !f->cursor);
-    for (i = 0; i < 4; ++i)
-        assert(f->owner.owned[i] == &f->slots[i] && f->mirror.owned[i] == &f->slots[i]);
+    for (i = MM_SCENE_FRAMES; i <= MM_SCENE_STARTS; ++i)
+        assert(f->owner.owned[i] == &f->slots[i] && f->published[i] == &f->slots[i]);
     ++f->loaded;
     event(f, 30);
 }
@@ -134,11 +134,6 @@ static void *object(void *p, void *group, MMI32 index)
 {
     (void)p;
     return ((Object *)group)->events[index].object;
-}
-static void *list_at(void *p, void *list, MMI32 index)
-{
-    (void)p;
-    return ((Object *)list)->items[index];
 }
 static void visibility(void *p, void *actor, int show)
 {
@@ -208,7 +203,7 @@ static void init(Fixture *f)
     int i;
     memset(f, 0, sizeof(*f));
     f->cursor = 99;
-    for (i = 0; i < 8; ++i)
+    for (i = 0; i < MM_SCENE_OWNERS; ++i)
         f->slots[i].slot = i;
     for (i = 0; i < 5; ++i)
     {
@@ -232,7 +227,6 @@ static void init(Fixture *f)
     s->kind = kind;
     s->data = data;
     s->object = object;
-    s->list_at = list_at;
     s->actor_visibility = visibility;
     s->lights_off = lights;
     s->text_lifetime = lifetime;
@@ -275,7 +269,7 @@ static void populate(Fixture *f)
     f->background.style = 4;
     f->background.opened[1] = 1;
     mm_scene_owner_set(&f->owner, &f->scene, MM_SCENE_BACKGROUND_SOUND, &f->background, &f->s);
-    for (i = MM_SCENE_SELECTION; i <= MM_SCENE_THUMBNAIL; ++i)
+    for (i = MM_SCENE_BACKGROUND; i <= MM_SCENE_THUMBNAIL; ++i)
     {
         f->slots[i].refs = 1;
         ++f->live;
@@ -291,13 +285,13 @@ static void factories(void)
     Fixture f;
     void *p;
     int fail, i;
-    for (fail = 1; fail <= 5; ++fail)
+    for (fail = 1; fail <= 3; ++fail)
     {
         init(&f);
         f.fail = fail;
         assert(!mm_scene_owner_new(&f, &f.s));
         assert(!f.live && !f.loaded);
-        for (i = 0; i < 8; ++i)
+        for (i = 0; i < MM_SCENE_OWNERS; ++i)
             assert(!f.owner.owned[i]);
     }
     init(&f);
@@ -318,7 +312,8 @@ static void disposal(void)
 {
     Fixture f;
     int i;
-    const int expected[] = {100, 101, 102, 201, 400, 401, 420, 421, 200, 202, 203, 204, 205, 206, 451, 460};
+    const int expected[] = {100, 101, 102, 201, 400, 401, 420, 421, 200,
+                            200 + MM_SCENE_BACKGROUND, 200 + MM_SCENE_THUMBNAIL, 451, 460};
     init(&f);
     populate(&f);
     mm_scene_owner_dispose(&f.owner, &f.scene, &f.s);
@@ -338,17 +333,13 @@ static void disposal(void)
 static void close_and_visibility(void)
 {
     Fixture f;
-    Object *actors, *texts;
     void *p, *alias;
     init(&f);
     populate(&f);
-    actors = &f.slots[MM_SCENE_ACTORS];
-    texts = &f.slots[MM_SCENE_TEXTS];
-    actors->count = 2;
-    actors->items[0] = &f.children[0];
-    actors->items[1] = &f.children[1];
-    texts->count = 1;
-    texts->items[0] = &f.children[2];
+    assert(mm_scene_member_append(&f.owner, MM_SCENE_ACTORS, &f.children[0]));
+    assert(mm_scene_member_append(&f.owner, MM_SCENE_ACTORS, &f.children[1]));
+    assert(mm_scene_member_append(&f.owner, MM_SCENE_TEXTS, &f.children[2]));
+    assert(mm_scene_member_append(&f.owner, MM_SCENE_SELECTION, &f.children[1]));
     f.children[2].lifetime = f.children[2].seek_ok = 1;
     f.children[2].first = 0;
     mm_scene_owner_actors(&f.owner, 1, &f.s);
@@ -363,9 +354,7 @@ static void close_and_visibility(void)
     assert(!alias && !f.live);
     init(&f);
     populate(&f);
-    texts = &f.slots[MM_SCENE_TEXTS];
-    texts->count = 1;
-    texts->items[0] = &f.children[2];
+    assert(mm_scene_member_append(&f.owner, MM_SCENE_TEXTS, &f.children[2]));
     mm_scene_owner_hide_texts(&f.owner, &f.s);
     assert(!f.seeks);
     f.children[2].lifetime = 1;
@@ -375,6 +364,7 @@ static void close_and_visibility(void)
     f.children[2].first = 10;
     mm_scene_owner_hide_texts(&f.owner, &f.s);
     assert(f.seeks == 1 && f.diagnostics == 2);
+    mm_scene_owner_dispose(&f.owner, &f.scene, &f.s);
 }
 static void malformed(void)
 {

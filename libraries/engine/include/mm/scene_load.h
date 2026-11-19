@@ -44,7 +44,7 @@ extern "C"
         void *context;
         MMSceneOwner *owner;
         MMI32 (*count)(void *, void *group), (*kind)(void *, void *group, MMI32 index);
-        int (*actor)(void *, MMI32 index, MMU32 scene);
+        int (*actor)(void *, void *actor, MMU32 scene);
         void (*lock)(void *, void *group), (*unlock)(void *, void *group);
         MMSceneSound *(*sound)(void *, void *group, MMI32 index);
         MMSceneSoundPacketServices packets;

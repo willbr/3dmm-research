@@ -1,4 +1,5 @@
 #include "mm/scene_chop.h"
+#include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,8 +27,8 @@ typedef struct Host
     MMSceneState data;
     MMSceneRuntime runtime;
     MMSceneOwner owner;
-    Obj objects[5], *lists[2][8];
-    int sizes[2];
+    SceneMemberMemory members;
+    Obj objects[5];
     Frame frames[8];
     int frame_count;
     int trace[128], traces, fail, stage, removal_sticks, seek_fails, show_fails, write_calls, switch_calls, dead;
@@ -47,14 +48,8 @@ static void expect(Host *h, const int *values, int n)
 static MMI32 count(void *p, void *group)
 {
     Host *h = (Host *)p;
-    if (group == h->frames)
-        return h->frame_count;
-    return h->sizes[group == h->lists[1]];
-}
-static void *object(void *p, void *group, MMI32 index)
-{
-    (void)p;
-    return ((Obj **)group)[index];
+    CHECK(group == h->frames);
+    return h->frame_count;
 }
 static void read_event(void *p, void *g, MMI32 i, MMI32 *frame, int *kind)
 {
@@ -109,15 +104,14 @@ static int trim(void *p, void *o, int back)
 }
 static void remove_object(Host *h, void *p, int text)
 {
-    int i;
+    int i, list = text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS;
     event(h, 120 + text);
     if (h->removal_sticks)
         return;
-    for (i = 0; i < h->sizes[text]; ++i)
-        if (h->lists[text][i] == p)
+    for (i = 0; i < mm_scene_member_count(&h->owner, list); ++i)
+        if (mm_scene_member_at(&h->owner, list, i) == p)
         {
-            memmove(h->lists[text] + i, h->lists[text] + i + 1, (h->sizes[text] - i - 1) * sizeof(Obj *));
-            --h->sizes[text];
+            mm_scene_member_remove(&h->owner, list, i);
             return;
         }
     CHECK(0);
@@ -226,6 +220,7 @@ static MMSceneChopServices init(Host *h)
     MMSceneChopServices s;
     int i;
     memset(h, 0, sizeof(*h));
+    init_scene_members(&h->owner, &h->members);
     memset(&s, 0, sizeof(s));
     h->data.firstFrame = 1;
     h->data.lastFrame = 10;
@@ -237,8 +232,6 @@ static MMSceneChopServices init(Host *h)
         h->objects[i].first = 1;
         h->objects[i].last = 10;
     }
-    h->owner.owned[MM_SCENE_ACTORS] = h->lists[0];
-    h->owner.owned[MM_SCENE_TEXTS] = h->lists[1];
     h->owner.owned[MM_SCENE_FRAMES] = h->frames;
     s.context = h;
     s.data = &h->data;
@@ -248,7 +241,6 @@ static MMSceneChopServices init(Host *h)
     s.events.data = &h->data;
     s.events.owners.context = h;
     s.events.owners.count = count;
-    s.events.owners.list_at = object;
     s.events.owners.release = release;
     s.events.owners.publish = publish;
     s.events.owners.sound.context = h;
@@ -283,13 +275,11 @@ static void test_core(void)
     MMSceneChopServices s = init(&h);
     int i;
     const int forward[] = {100, 120, 101, 102, 120, 121, 130, 132, 131, 80, 81, 140, 140, 142};
-    h.sizes[0] = 3;
     for (i = 0; i < 3; ++i)
-        h.lists[0][i] = h.objects + i;
+        CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects + i));
     h.objects[1].alive = 1;
-    h.sizes[1] = 3;
     for (i = 0; i < 3; ++i)
-        h.lists[1][i] = h.objects + i;
+        CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects + i));
     h.objects[0].first = 6;
     h.objects[2].last = 4;
     h.runtime.next_event = 1;
@@ -300,18 +290,20 @@ static void test_core(void)
     h.frames[2].kind = MM_SCENE_PAUSE;
     CHECK(mm_scene_chop(0, &s));
     expect(&h, forward, 14);
-    CHECK(h.sizes[0] == 1 && h.lists[0][0] == h.objects + 1 && h.sizes[1] == 2 && h.frame_count == 1 &&
+    CHECK(mm_scene_member_count(&h.owner, MM_SCENE_ACTORS) == 1 &&
+          mm_scene_member_at(&h.owner, MM_SCENE_ACTORS, 0) == h.objects + 1 &&
+          mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 2 && h.frame_count == 1 &&
           h.data.lastFrame == 5);
     CHECK(mm_scene_chop_edit(0, &s) && !h.traces);
     s = init(&h);
     h.removal_sticks = 1;
-    h.sizes[0] = h.sizes[1] = 1;
-    h.lists[0][0] = h.lists[1][0] = h.objects;
+    CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects));
+    CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects));
     h.objects[0].first = 6;
-    CHECK(mm_scene_chop(0, &s) && h.sizes[0] == 1 && h.sizes[1] == 1 && h.data.lastFrame == 5);
+    CHECK(mm_scene_chop(0, &s) && mm_scene_member_count(&h.owner, MM_SCENE_ACTORS) == 1 &&
+          mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 1 && h.data.lastFrame == 5);
     s = init(&h);
-    h.sizes[1] = 1;
-    h.lists[1][0] = h.objects;
+    CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects));
     h.objects[0].lifetime = 0;
     CHECK(mm_scene_chop(0, &s));
     {
@@ -321,8 +313,7 @@ static void test_core(void)
     for (i = 0; i < 2; ++i)
     {
         s = init(&h);
-        h.sizes[1] = 1;
-        h.lists[1][0] = h.objects;
+        CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects));
         h.seek_fails = !i;
         h.show_fails = i;
         CHECK(mm_scene_chop(0, &s));
@@ -338,9 +329,8 @@ static void test_core(void)
         }
     }
     s = init(&h);
-    h.sizes[1] = 2;
-    h.lists[1][0] = h.objects;
-    h.lists[1][1] = h.objects + 1;
+    CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects));
+    CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects + 1));
     h.objects[0].last = 4;
     h.frame_count = 6;
     h.runtime.next_event = 5;
@@ -361,7 +351,8 @@ static void test_core(void)
     }
     CHECK(h.data.firstFrame == 5 && h.runtime.next_event == 3 && h.frame_count == 4 &&
           h.frames[0].kind == MM_SCENE_CHANGE_CAMERA && h.frames[0].frame == 5);
-    CHECK(h.objects[1].first == 5 && h.sizes[1] == 1 && h.runtime.background_frame == -99);
+    CHECK(h.objects[1].first == 5 && mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 1 &&
+          h.runtime.background_frame == -99);
     CHECK(mm_scene_chop_edit(1, &s) && !h.traces);
     s = init(&h);
     h.owner.owned[MM_SCENE_BACKGROUND_SOUND] = &h.resource;

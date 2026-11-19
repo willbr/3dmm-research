@@ -426,7 +426,7 @@ static void editor_init(Editor *e)
     e->base.s.resolve = packet_resolve;
     e->base.s.fetch = packet_fetch;
     mm_scene_runtime_init(&e->runtime);
-    mm_scene_owner_init(&e->owner, NULL);
+    mm_scene_owner_init(&e->owner, NULL, NULL);
     e->data.firstFrame = e->data.currentFrame = 1;
     e->data.lastFrame = 10;
     for (i = 0; i < 3; ++i)

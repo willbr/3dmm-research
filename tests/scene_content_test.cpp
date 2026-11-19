@@ -370,25 +370,17 @@ struct Access : Scene
     }
     static void Extra(PScene p, PActor actor)
     {
-        auto list = p->*&Access::_pglpactrSelExtra;
-        if (!list)
-        {
-            list = DynamicArray::PglNew(sizeof(PActor));
-            CHECK(list);
-            (p->*&Access::_SetOwner)(MM_SCENE_SELECTION, list);
-        }
-        CHECK(list->FAdd(&actor));
+        CHECK(mm_scene_member_append(&(p->*&Access::_owner), MM_SCENE_SELECTION, actor));
     }
     static long Extras(PScene p)
     {
-        return (p->*&Access::_pglpactrSelExtra)->IvMac();
+        return mm_scene_member_count(&(p->*&Access::_owner), MM_SCENE_SELECTION);
     }
     static void FreshActorLists(PScene p)
     {
         (p->*&Access::_DropOwner)(MM_SCENE_STARTS);
-        (p->*&Access::_DropOwner)(MM_SCENE_ACTORS);
+        mm_scene_member_clear(&(p->*&Access::_owner), MM_SCENE_ACTORS);
         (p->*&Access::_SetOwner)(MM_SCENE_STARTS, GeneralGroup::PggNew(sizeof(SceneEvent)));
-        (p->*&Access::_SetOwner)(MM_SCENE_ACTORS, DynamicArray::PglNew(sizeof(PActor)));
     }
     static void State(PScene p)
     {
@@ -422,22 +414,18 @@ struct Access : Scene
                 Value(box->Pscen() == p);
             }
         }
-        auto actors = p->*&Access::_pglpactr;
-        Value(actors->IvMac());
-        for (long i = 0; i < actors->IvMac(); ++i)
+        Value(p->Cactr());
+        for (long i = 0; i < p->Cactr(); ++i)
         {
-            PActor a;
-            actors->Get(i, &a);
+            PActor a = p->PactrAt(i);
             Value(a->Arid());
             Value(a->CactRef());
             Value(a->Pscen() == p);
         }
-        auto texts = p->*&Access::_pglptbox;
-        Value(texts->IvMac());
-        for (long i = 0; i < texts->IvMac(); ++i)
+        Value(p->Ctbox());
+        for (long i = 0; i < p->Ctbox(); ++i)
         {
-            PTBOX box;
-            texts->Get(i, &box);
+            auto box = static_cast<PTBOX>(mm_scene_member_at(&(p->*&Access::_owner), MM_SCENE_TEXTS, i));
             long first, last;
             Value(box->CactRef());
             Value(box->FGetLifetime(&first, &last));

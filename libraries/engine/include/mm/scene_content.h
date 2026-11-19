@@ -46,7 +46,6 @@ extern "C"
         void (*hide_actor)(void *, void *actor);
         int (*insert_start)(void *, MMI32 index, int kind, void *object);
         void (*put_start)(void *, MMI32 index, void *object),
-            (*put_list)(void *, void *list, MMI32 index, void *object),
             (*erase)(void *, void *group, MMI32 index);
         void *(*selected)(void *, int text);
         void (*set_selected)(void *, int text, void *object), (*select)(void *, int text, void *object),

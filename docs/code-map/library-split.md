@@ -1607,12 +1607,20 @@ new scene/name/header/event snapshot is 526 bytes. No Marcus UI tests were added
 
 ### Scene ownership and lifecycle
 
-`scene_owner.c` owns persistent references to frame/start event groups, actor/text
-roll-call containers, selection extras, background, thumbnail and background
-sound. The parent movie remains borrowed. Native pointer fields are published
-borrowed views; creation, loading and edit replacement sites transfer/release
-through the C owner. SceneData's existing C metadata record is separate; the
-event cursor/disabled flags now belong to the C runtime described below.
+`scene_owner.c` owns persistent references to frame and start event groups,
+background, thumbnail and background sound. It also owns the C collection
+storage for the actor roster, caption roster and extra selection. Scene
+construction and load start with empty rosters. Start-event dispatch fills
+them as it applies each event and removes the new roster entry if its seek
+fails. Actor and caption edits, chopping, selection, and sound resolution
+read those same rows. Their entries borrow objects held by start events.
+Studio enumerates actors through indexed scene access.
+
+The parent movie remains borrowed. Native pointer fields for the remaining
+objects are borrowed views. Creation, loading and edit replacement sites
+transfer and release references through the C owner. SceneData supplies
+metadata, and the C runtime described below owns the event cursor and effect
+mask.
 
 C controls construction order, cursor-reset timing, optional loaded notification,
 partial factory teardown, forward start-object release, frame sound-tag cleanup,
@@ -1623,11 +1631,9 @@ selection entries are borrowed; their objects belong to start events. Owned
 background/undo sound packets close only opened tags, while embedded frame packets
 close every tag and never free the group's payload separately.
 
-Typed adapters still provide C-backed collection/reference primitives and native
-actor, text and background APIs. Caption/background implementation, scene sound
-editing/undo, loading/marshalling/editing transactions and final native facade
-removal remain engine dependencies; this is not a C-only Scene implementation.
-The loader's uncommitted local objects still follow its native read transaction.
+Typed adapters still provide the event-group and reference primitives and
+native actor, caption and background APIs. The loader's uncommitted objects
+follow the event read transaction.
 
 Reverse read cleanup now compares sound size with variable payload bytes, fixing
 the original extra fixed-header-byte comparison that rejected valid packets and
@@ -1648,6 +1654,13 @@ around their teardown. Actual actor/text/light behavior is additionally covered
 by C callback tests, existing integration tests and playback gates. Supplemental
 native tests exercise completed frame-packet cleanup through the real service
 bridge. Full validation and coverage limits are in `docs/tools/playback-regression.md`.
+
+After moving the rosters, the current Release ownership and load traces still
+match their frozen references. Debug ownership and load traces match all
+fault-free cases and every case that succeeds in both builds. Removing the
+empty native arrays shifts four ownership and eight load fault-injection
+cases. The dispatch, content and edit traces match the immediately previous
+build byte for byte.
 
 ### Scene frame movement, replay and prerendering
 

@@ -732,10 +732,11 @@ Current/scaled bitmap export sizing, background fill, resource/lock/material/
 callback cleanup and palette ownership now also use C89. Both live and export
 depth copying use the shared C nearest-neighbor resampler. SDK/native object
 representations still remain for final integration.
-Scene-owned event groups, actor/text roll-call containers, selection extras,
-background, thumbnail and background-sound references now use a persistent C
-owner record. Construction/disposal, completed-prefix read cleanup, hide/show/
-close sequencing and owned scene-sound tag disposal now use C89. Scene frame
+Scene-owned event groups, background, thumbnail and background-sound
+references now use a persistent C owner record. The same record directly
+stores the actor and caption rosters and extra selection in C collections.
+Construction, completed-prefix read cleanup, hide/show/close sequencing and
+owned scene-sound tag disposal now use C89. Scene frame
 movement/replay, actor/text force loops, frame-range extension and two-pass
 prerender decisions now use C89 with persistent cursor/effect-mask state.
 Single-event play/unplay and start-event dispatch also use C89, including MIDI

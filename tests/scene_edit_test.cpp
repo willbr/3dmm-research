@@ -398,7 +398,7 @@ int main()
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
 #ifdef DEBUG
-        CHECK(recorded == 9896 && hash == 0xD6637959U);
+        CHECK(recorded == 9900 && hash == 0x116589AFU);
 #else
         CHECK(recorded == 9928 && hash == 0x1DF02C29U);
 #endif

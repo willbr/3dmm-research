@@ -50,7 +50,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
 {
     void *object, *copy, *c = s->context;
     MMTag tag;
-    int reason, text;
+    int reason, text, list;
     switch (kind)
     {
     case MM_SCENE_PLAY_SOUND:
@@ -84,14 +84,15 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
     case MM_SCENE_ADD_ACTOR:
     case MM_SCENE_ADD_TEXT:
         text = kind == MM_SCENE_ADD_TEXT;
+        list = text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS;
         object = s->read_object(c, payload);
-        if (!s->append(c, text, object))
+        if (!mm_scene_member_append(s->owner, list, object))
             return 0;
         if (!text)
             s->bind_actor(c, object);
         if (!s->seek(c, text, object, s->data->currentFrame))
         {
-            s->remove_last(c, text);
+            mm_scene_member_remove(s->owner, list, mm_scene_member_count(s->owner, list) - 1);
             return 0;
         }
         break;

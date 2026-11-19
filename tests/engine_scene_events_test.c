@@ -1,4 +1,5 @@
 #include "mm/scene_events.h"
+#include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,10 +26,8 @@ enum
     SET_TRANS,
     PUB_TAG,
     OBJECT,
-    APPEND,
     BIND,
     SEEK,
-    REMOVE,
     REASON,
     PAUSE_TYPE,
     DELAY,
@@ -71,13 +70,14 @@ typedef struct Fixture
     MMSceneState data;
     MMSceneRuntime runtime;
     MMSceneOwner owner;
+    SceneMemberMemory members;
     MMSceneEventServices s;
     Group frames, starts;
-    Object objects[4], *lists[2][8];
+    Object objects[4];
     Payload packet, *active;
     MMTag published;
-    int counts[2], ops[128], used, issues[5], live, dup_fail, fetch_fail, camera_fail;
-    int append_fail, seek_fail, transition, camera, releases, sounds, payloads, last_payload, mutate_delay;
+    int ops[128], used, issues[5], live, dup_fail, fetch_fail, camera_fail;
+    int seek_fail, transition, camera, releases, sounds, payloads, last_payload, mutate_delay;
     MMI32 published_frame;
     void *clicked;
     int hit_part, orphan_count;
@@ -201,24 +201,6 @@ static void *read_object(void *p, void *packet)
     log_op((Fixture *)p, OBJECT);
     return ((Payload *)packet)->object;
 }
-static int append(void *p, int text, void *object)
-{
-    Fixture *f = (Fixture *)p;
-    Object *o = (Object *)object;
-    log_op(f, APPEND);
-    if (f->append_fail == o->id)
-        return 0;
-    CHECK(f->counts[text] < 8);
-    f->lists[text][f->counts[text]++] = o;
-    return 1;
-}
-static void remove_last(void *p, int text)
-{
-    Fixture *f = (Fixture *)p;
-    CHECK(f->counts[text] > 0);
-    --f->counts[text];
-    log_op(f, REMOVE);
-}
 static void bind(void *p, void *object)
 {
     ((Object *)object)->bound = 1;
@@ -299,7 +281,7 @@ static void init(Fixture *f)
     MMSceneEventServices *s;
     memset(f, 0, sizeof(*f));
     mm_scene_runtime_init(&f->runtime);
-    mm_scene_owner_init(&f->owner, NULL);
+    init_scene_members(&f->owner, &f->members);
     f->data.currentFrame = 3;
     f->transition = -1;
     f->packet.style = 4;
@@ -336,8 +318,6 @@ static void init(Fixture *f)
     s->set_transition = set_transition;
     s->publish_tag = publish_tag;
     s->read_object = read_object;
-    s->append = append;
-    s->remove_last = remove_last;
     s->bind_actor = bind;
     s->seek = seek;
     s->pause_reason = reason;
@@ -415,30 +395,30 @@ static void backgrounds(void)
 static void objects(void)
 {
     Fixture f;
-    int text;
-    static const int failed[] = {OBJECT, APPEND}, bound[] = {OBJECT, APPEND, BIND, SEEK, REMOVE};
-    static const int text_failed[] = {OBJECT, APPEND, SEEK, REMOVE}, actor[] = {OBJECT, APPEND, BIND, SEEK},
-                     caption[] = {OBJECT, APPEND, SEEK};
+    int text, list;
+    static const int failed[] = {OBJECT}, bound[] = {OBJECT, BIND, SEEK};
+    static const int caption[] = {OBJECT, SEEK};
     for (text = 0; text < 2; ++text)
     {
+        list = text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS;
         init(&f);
         f.packet.object = &f.objects[0];
-        f.append_fail = 1;
+        f.members.fail_at = 1;
         CHECK(!dispatch(&f, text ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR, 65535));
-        expect(&f, failed, 2);
-        CHECK(!f.counts[text] && !f.objects[0].bound && !f.objects[0].seeks);
-        f.append_fail = 0;
+        expect(&f, failed, 1);
+        CHECK(!mm_scene_member_count(&f.owner, list) && !f.objects[0].bound && !f.objects[0].seeks);
+        f.members.fail_at = 0;
         f.seek_fail = 1;
         CHECK(!dispatch(&f, text ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR, 0));
-        expect(&f, text ? text_failed : bound, text ? 4 : 5);
-        CHECK(!f.counts[text] && f.objects[0].bound == !text);
+        expect(&f, text ? caption : bound, text ? 2 : 3);
+        CHECK(!mm_scene_member_count(&f.owner, list) && f.objects[0].bound == !text);
         f.seek_fail = 0;
         CHECK(dispatch(&f, text ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR, 65535));
-        expect(&f, text ? caption : actor, text ? 3 : 4);
-        CHECK(f.counts[text] == 1 && f.lists[text][0] == &f.objects[0]);
+        expect(&f, text ? caption : bound, text ? 2 : 3);
+        CHECK(mm_scene_member_count(&f.owner, list) == 1 && mm_scene_member_at(&f.owner, list, 0) == &f.objects[0]);
         f.packet.object = &f.objects[1];
         CHECK(dispatch(&f, text ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR, 0));
-        CHECK(f.counts[text] == 2 && f.lists[text][1] == &f.objects[1]);
+        CHECK(mm_scene_member_count(&f.owner, list) == 2 && mm_scene_member_at(&f.owner, list, 1) == &f.objects[1]);
     }
 }
 static void pauses_and_cameras(void)
@@ -543,7 +523,8 @@ static void starts(void)
     f.starts.events[2].kind = MM_SCENE_ADD_TEXT;
     f.starts.events[2].payload.object = &f.objects[1];
     CHECK(mm_scene_start_events(1, &f.s));
-    CHECK(f.payloads == 1 && f.last_payload == 1 && f.counts[0] == 1 && !f.counts[1] && f.transition == -1);
+    CHECK(f.payloads == 1 && f.last_payload == 1 && mm_scene_member_count(&f.owner, MM_SCENE_ACTORS) == 1 &&
+          !mm_scene_member_count(&f.owner, MM_SCENE_TEXTS) && f.transition == -1);
     init(&f);
     f.starts.count = 3;
     for (i = 0; i < 3; ++i)
@@ -553,7 +534,8 @@ static void starts(void)
     }
     f.seek_fail = 2;
     CHECK(!mm_scene_start_events(0, &f.s));
-    CHECK(f.payloads == 2 && f.counts[0] == 1 && f.objects[1].bound && !f.objects[2].bound);
+    CHECK(f.payloads == 2 && mm_scene_member_count(&f.owner, MM_SCENE_ACTORS) == 1 && f.objects[1].bound &&
+          !f.objects[2].bound);
     init(&f);
     f.starts.count = 3;
     f.starts.events[0].kind = MM_SCENE_SET_BACKGROUND;
@@ -563,7 +545,8 @@ static void starts(void)
     f.starts.events[2].kind = MM_SCENE_ADD_TEXT;
     f.starts.events[2].payload.object = &f.objects[1];
     CHECK(mm_scene_start_events(0, &f.s));
-    CHECK(f.payloads == 3 && f.counts[0] == 1 && f.counts[1] == 1 && f.transition == 0);
+    CHECK(f.payloads == 3 && mm_scene_member_count(&f.owner, MM_SCENE_ACTORS) == 1 &&
+          mm_scene_member_count(&f.owner, MM_SCENE_TEXTS) == 1 && f.transition == 0);
 }
 static void background_query(void)
 {
@@ -606,14 +589,14 @@ static MMI32 pick_count(void *p)
     Fixture *f = (Fixture *)p;
     CHECK(f->hit_part == 41);
     log_op(f, PICK_COUNT);
-    return f->counts[0];
+    return mm_scene_member_count(&f->owner, MM_SCENE_ACTORS);
 }
 static void *pick_actor(void *p, MMI32 i)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(i >= 0 && i < f->counts[0]);
+    CHECK(i >= 0 && i < mm_scene_member_count(&f->owner, MM_SCENE_ACTORS));
     log_op(f, PICK_ACTOR);
-    return f->lists[0][i];
+    return mm_scene_member_at(&f->owner, MM_SCENE_ACTORS, i);
 }
 static int pick_owner(void *p, void *actor, void *body)
 {
@@ -646,8 +629,7 @@ static void picking(void)
         expect(&f, e, 1);
     }
     for (i = 0; i < 3; ++i)
-        f.lists[0][i] = &f.objects[i];
-    f.counts[0] = 3;
+        CHECK(mm_scene_member_append(&f.owner, MM_SCENE_ACTORS, &f.objects[i]));
     f.clicked = &f.objects[1];
     CHECK(mm_scene_pick_actor(-7, 13, &s) == &f.objects[1]);
     {
@@ -658,7 +640,7 @@ static void picking(void)
     CHECK(!mm_scene_pick_actor(-7, 13, &s) && f.orphan_count == 1 && f.hit_part == 41);
     CHECK(f.used == 12 && f.ops[f.used - 1] == PICK_ORPHAN && !f.releases && !f.live);
     f.used = 0;
-    f.counts[0] = 0;
+    mm_scene_member_clear(&f.owner, MM_SCENE_ACTORS);
     CHECK(!mm_scene_pick_actor(-7, 13, &s) && f.orphan_count == 2);
     {
         const int e[] = {PICK, PICK_COUNT, PICK_ORPHAN};

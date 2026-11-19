@@ -10,10 +10,6 @@ static MMI32 count(int slot, const MMSceneChopServices *s)
 {
     return s->events.owners.count(s->events.owners.context, group(slot, s));
 }
-static void *object(int slot, MMI32 i, const MMSceneChopServices *s)
-{
-    return s->events.owners.list_at(s->events.owners.context, group(slot, s), i);
-}
 static int kind(MMI32 i, MMI32 *frame, const MMSceneChopServices *s)
 {
     int k;
@@ -40,6 +36,7 @@ static void erase(MMI32 i, const MMSceneChopServices *s)
 int mm_scene_chop(int back, const MMSceneChopServices *s)
 {
     MMSceneState *d = s->data;
+    MMSceneOwner *owner = s->events.owner;
     MMSceneRuntime *r = s->events.runtime;
     const MMSceneOwnerServices *o = &s->events.owners;
     MMI32 i, first, last, frame;
@@ -47,21 +44,21 @@ int mm_scene_chop(int back, const MMSceneChopServices *s)
     int k, copy_camera = 1;
     if (d->currentFrame == (back ? d->firstFrame : d->lastFrame))
         return 1;
-    for (i = 0; i < count(MM_SCENE_ACTORS, s);)
+    for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_ACTORS);)
     {
-        p = object(MM_SCENE_ACTORS, i, s);
+        p = mm_scene_member_at(owner, MM_SCENE_ACTORS, i);
         if (!s->trim_actor(s->context, p, back))
         {
             s->remove_actor(s->context, p);
-            if (i < count(MM_SCENE_ACTORS, s) && object(MM_SCENE_ACTORS, i, s) == p)
+            if (i < mm_scene_member_count(owner, MM_SCENE_ACTORS) && mm_scene_member_at(owner, MM_SCENE_ACTORS, i) == p)
                 ++i;
         }
         else
             ++i;
     }
-    for (i = 0; i < count(MM_SCENE_TEXTS, s);)
+    for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_TEXTS);)
     {
-        p = object(MM_SCENE_TEXTS, i, s);
+        p = mm_scene_member_at(owner, MM_SCENE_TEXTS, i);
         if (!s->lifetime(s->context, p, &first, &last))
         {
             s->bad_lifetime(s->context);
@@ -71,7 +68,7 @@ int mm_scene_chop(int back, const MMSceneChopServices *s)
         if ((back && last < d->currentFrame) || (!back && first > d->currentFrame))
         {
             s->remove_text(s->context, p);
-            if (i < count(MM_SCENE_TEXTS, s) && object(MM_SCENE_TEXTS, i, s) == p)
+            if (i < mm_scene_member_count(owner, MM_SCENE_TEXTS) && mm_scene_member_at(owner, MM_SCENE_TEXTS, i) == p)
                 ++i;
         }
         else

@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_SCENE_SELECTION_H
 #define MM_ENGINE_SCENE_SELECTION_H
 #include "actor_motion.h"
+#include "scene_owner.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -15,13 +16,10 @@ extern "C"
     {
         void *context;
         MMSceneSelection *state;
+        MMSceneOwner *owner;
         void (*publish)(void *, int text, void *);
         /* -1: no view; 0: actor mode; 1: text mode. */
         int (*view_mode)(void *);
-        MMI32 (*count)(void *, int extras);
-        void *(*at)(void *, int extras, MMI32);
-        int (*ensure_extras)(void *), (*append_extra)(void *, void *);
-        void (*erase_extra)(void *, MMI32), (*clear_extras)(void *);
         void (*hilite)(void *, void *, int);
         int (*text_selected)(void *, void *);
         void (*select_text)(void *, void *, int);
@@ -36,7 +34,7 @@ extern "C"
      * lists. Plain actor selection clears extras/highlights only in actor view mode;
      * no-view and text-mode selection retain the original extras. Text selection
      * preserves the actor pointer, early-return and notification order. Allocation
-     * failures retain completed selection prefixes and any newly allocated list.
+     * failures retain completed selection prefixes.
      * Names/tags use ASCII token boundaries and case folding. Shared seed tokens
      * retain the native 63-unit truncation. Tag input is counted bytes or UTF-16. */
     void mm_scene_select_actor(void *, const MMSceneSelectionServices *);

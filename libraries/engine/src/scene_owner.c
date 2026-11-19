@@ -1,11 +1,61 @@
 /* Scene ownership/lifecycle converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_owner.h"
+#include "mm/collections.h"
 #include <string.h>
-void mm_scene_owner_init(MMSceneOwner *w, void *movie)
+void mm_scene_owner_init(MMSceneOwner *w, void *movie, const MMStorageAllocator *allocator)
 {
+    int i;
     memset(w, 0, sizeof(*w));
     w->movie = movie;
+    for (i = 0; i < MM_SCENE_MEMBER_LISTS; ++i)
+        mm_storage_init(&w->members[i].storage, allocator);
+}
+MMI32 mm_scene_member_count(const MMSceneOwner *w, int list)
+{
+    return (MMI32)w->members[list].count;
+}
+void *mm_scene_member_at(const MMSceneOwner *w, int list, MMI32 index)
+{
+    const MMSceneMemberList *members = &w->members[list];
+    void *object;
+    if (index < 0 || (MMU32)index >= members->count)
+        return NULL;
+    memcpy(&object, members->storage.buffers[0].data + (size_t)index * sizeof(object), sizeof(object));
+    return object;
+}
+static MMArray member_array(MMSceneMemberList *members)
+{
+    MMArray array = {NULL, sizeof(void *), 0, -1, 0, 0};
+    array.storage = &members->storage;
+    array.count = members->count;
+    return array;
+}
+int mm_scene_member_append(MMSceneOwner *w, int list, void *object)
+{
+    MMSceneMemberList *members = &w->members[list];
+    MMArray array = member_array(members);
+    if (mm_array_add(&array, &object, NULL) != MM_STORAGE_OK)
+        return 0;
+    members->count = array.count;
+    return 1;
+}
+void mm_scene_member_replace(MMSceneOwner *w, int list, MMI32 index, void *object)
+{
+    MMSceneMemberList *members = &w->members[list];
+    if (index >= 0 && (MMU32)index < members->count)
+        memcpy(members->storage.buffers[0].data + (size_t)index * sizeof(object), &object, sizeof(object));
+}
+void mm_scene_member_remove(MMSceneOwner *w, int list, MMI32 index)
+{
+    MMSceneMemberList *members = &w->members[list];
+    MMArray array = member_array(members);
+    if (mm_array_delete(&array, (MMU32)index, 1) == MM_STORAGE_OK)
+        members->count = array.count;
+}
+void mm_scene_member_clear(MMSceneOwner *w, int list)
+{
+    w->members[list].count = 0;
 }
 void mm_scene_sound_release(void **sound, const MMSceneSoundServices *s)
 {
@@ -49,7 +99,7 @@ void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *s)
     if (!scene)
         return NULL;
     w = s->state(s->context, scene);
-    for (slot = MM_SCENE_FRAMES; slot <= MM_SCENE_TEXTS; ++slot)
+    for (slot = MM_SCENE_FRAMES; slot <= MM_SCENE_STARTS; ++slot)
     {
         p = s->create_slot(s->context, slot);
         if (!p)
@@ -133,7 +183,12 @@ void mm_scene_owner_dispose(MMSceneOwner *w, void *scene, const MMSceneOwnerServ
         for (i = 0; i < s->count(s->context, group); ++i)
             frame_event(group, i, 0, s);
     mm_scene_owner_drop(w, scene, MM_SCENE_FRAMES, s);
-    for (slot = MM_SCENE_ACTORS; slot < MM_SCENE_OWNERS; ++slot)
+    for (slot = 0; slot < MM_SCENE_MEMBER_LISTS; ++slot)
+    {
+        mm_storage_dispose(&w->members[slot].storage);
+        w->members[slot].count = 0;
+    }
+    for (slot = MM_SCENE_BACKGROUND; slot < MM_SCENE_OWNERS; ++slot)
         mm_scene_owner_drop(w, scene, slot, s);
 }
 void mm_scene_owner_unwind(MMSceneOwner *w, void *scene, MMI32 starts, MMI32 frames,
@@ -149,17 +204,16 @@ void mm_scene_owner_unwind(MMSceneOwner *w, void *scene, MMI32 starts, MMI32 fra
 void mm_scene_owner_actors(MMSceneOwner *w, int show, const MMSceneOwnerServices *s)
 {
     MMI32 i;
-    void *list = w->owned[MM_SCENE_ACTORS];
-    for (i = 0; i < s->count(s->context, list); ++i)
-        s->actor_visibility(s->context, s->list_at(s->context, list, i), show);
+    for (i = 0; i < mm_scene_member_count(w, MM_SCENE_ACTORS); ++i)
+        s->actor_visibility(s->context, mm_scene_member_at(w, MM_SCENE_ACTORS, i), show);
 }
 void mm_scene_owner_hide_texts(MMSceneOwner *w, const MMSceneOwnerServices *s)
 {
     MMI32 i, first;
-    void *list = w->owned[MM_SCENE_TEXTS], *text;
-    for (i = 0; i < s->count(s->context, list); ++i)
+    void *text;
+    for (i = 0; i < mm_scene_member_count(w, MM_SCENE_TEXTS); ++i)
     {
-        text = s->list_at(s->context, list, i);
+        text = mm_scene_member_at(w, MM_SCENE_TEXTS, i);
         if (s->text_lifetime(s->context, text, &first))
             if (first == (-2147483647 - 1) || !s->text_seek(s->context, text, first - 1))
                 s->diagnostic(s->context, MM_SCENE_TEXT_HIDE_FAILED);

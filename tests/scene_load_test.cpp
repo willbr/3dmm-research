@@ -93,8 +93,8 @@ struct Access : Scene
         Value(d.name.count);
         Record(mm_movie_title_text(&d.name), d.name.count * d.name.unit);
         Value((p->*&Access::_runtime).next_event);
-        Value((p->*&Access::_pglpactr)->IvMac());
-        Value((p->*&Access::_pglptbox)->IvMac());
+        Value(p->Cactr());
+        Value(p->Ctbox());
         Value((p->*&Access::_pmbmp) != nullptr);
         for (auto g : {p->*&Access::_pggsevFrm, p->*&Access::_pggsevStart})
         {
@@ -327,7 +327,7 @@ int main()
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
 #ifdef DEBUG
-        CHECK(recorded == 56000 && hash == 0x662528E5U);
+        CHECK(recorded == 61088 && hash == 0x222F658DU);
 #else
         CHECK(recorded == 66240 && hash == 0x8940A7C9U);
 #endif

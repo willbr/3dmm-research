@@ -391,7 +391,7 @@ static void init_store(StoreFixture *f)
     s->diagnostic = diagnostic;
     f->owner.owned[0] = &f->runtime[0];
     f->owner.owned[1] = &f->runtime[1];
-    f->owner.owned[6] = &f->old_thumb;
+    f->owner.owned[MM_SCENE_THUMBNAIL] = &f->old_thumb;
     f->with_thumb = 1;
     f->packets.input[3].tag.sid = 0;
     for (i = 0; i < 2; ++i)

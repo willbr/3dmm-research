@@ -9,8 +9,7 @@ struct TextBoxEditScene : Scene
     static bool Register(PScene scene, PTBOX box)
     {
         auto &owner = scene->*&TextBoxEditScene::_owner;
-        auto list = static_cast<PDynamicArray>(owner.owned[MM_SCENE_TEXTS]);
-        if (!list->FAdd(&box)) return false;
+        if (!mm_scene_member_append(&owner, MM_SCENE_TEXTS, box)) return false;
         box->AddRef();
         return true;
     }
@@ -19,13 +18,13 @@ struct TextBoxEditScene : Scene
         scene->Pmvie()->ClearUndo();
         scene->SelectTbox(nullptr);
         auto &owner = scene->*&TextBoxEditScene::_owner;
-        auto list = static_cast<PDynamicArray>(owner.owned[MM_SCENE_TEXTS]);
-        for (long i = 0; i < list->IvMac(); ++i)
-        {
-            PTBOX found;
-            list->Get(i, &found);
-            if (found == box) { list->Delete(i); box->Release(); break; }
-        }
+        for (MMI32 i = 0; i < mm_scene_member_count(&owner, MM_SCENE_TEXTS); ++i)
+            if (mm_scene_member_at(&owner, MM_SCENE_TEXTS, i) == box)
+            {
+                mm_scene_member_remove(&owner, MM_SCENE_TEXTS, i);
+                box->Release();
+                break;
+            }
     }
 };
 static bool TestTextBoxEdit(PScene scene, PChunkyFile file)

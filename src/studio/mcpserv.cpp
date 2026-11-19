@@ -1270,11 +1270,9 @@ static std::uint64_t HashMovieBytes(std::uint64_t hash, const void *data, std::s
 static JVal MovieDetails(PScene scene)
 {
     JVal actors = JVal::MkArr();
-    auto roll = scene ? scene->PglRollCall() : nullptr; // Borrowed, read-only.
-    for (long i = 0; roll && i < roll->IvMac(); ++i)
+    for (long i = 0; scene && i < scene->Cactr(); ++i)
     {
-        PActor actor;
-        roll->Get(i, &actor);
+        PActor actor = scene->PactrAt(i);
         auto body = actor->Pbody();
         auto tmpl = actor->Ptmpl();
         JVal item = JVal::MkObj(), textures = JVal::MkArr();

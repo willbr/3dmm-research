@@ -20,13 +20,13 @@ static void clear_extras(const MMSceneSelectionServices *s)
 {
     MMI32 i;
     void *actor;
-    for (i = 0; i < s->count(s->context, 1); ++i)
+    for (i = 0; i < mm_scene_member_count(s->owner, MM_SCENE_SELECTION); ++i)
     {
-        actor = s->at(s->context, 1, i);
+        actor = mm_scene_member_at(s->owner, MM_SCENE_SELECTION, i);
         if (actor)
             s->hilite(s->context, actor, 0);
     }
-    s->clear_extras(s->context);
+    mm_scene_member_clear(s->owner, MM_SCENE_SELECTION);
 }
 void mm_scene_select_actor(void *actor, const MMSceneSelectionServices *s)
 {
@@ -73,13 +73,13 @@ void mm_scene_select_text(void *text, const MMSceneSelectionServices *s)
 }
 MMI32 mm_scene_selection_count(const MMSceneSelectionServices *s)
 {
-    return s->state->actor ? 1 + s->count(s->context, 1) : 0;
+    return s->state->actor ? 1 + mm_scene_member_count(s->owner, MM_SCENE_SELECTION) : 0;
 }
 void *mm_scene_selection_at(MMI32 index, const MMSceneSelectionServices *s)
 {
     if (index < 0 || index >= mm_scene_selection_count(s))
         return NULL;
-    return index == 0 ? s->state->actor : s->at(s->context, 1, index - 1);
+    return index == 0 ? s->state->actor : mm_scene_member_at(s->owner, MM_SCENE_SELECTION, index - 1);
 }
 int mm_scene_selection_contains(void *actor, const MMSceneSelectionServices *s)
 {
@@ -88,8 +88,8 @@ int mm_scene_selection_contains(void *actor, const MMSceneSelectionServices *s)
         return 0;
     if (actor == s->state->actor)
         return 1;
-    for (i = 0; i < s->count(s->context, 1); ++i)
-        if (actor == s->at(s->context, 1, i))
+    for (i = 0; i < mm_scene_member_count(s->owner, MM_SCENE_SELECTION); ++i)
+        if (actor == mm_scene_member_at(s->owner, MM_SCENE_SELECTION, i))
             return 1;
     return 0;
 }
@@ -101,10 +101,10 @@ int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
     {
         if (hilite)
             s->hilite(s->context, actor, 0);
-        if (s->count(s->context, 1) > 0)
+        if (mm_scene_member_count(s->owner, MM_SCENE_SELECTION) > 0)
         {
-            void *promote = s->at(s->context, 1, 0);
-            s->erase_extra(s->context, 0);
+            void *promote = mm_scene_member_at(s->owner, MM_SCENE_SELECTION, 0);
+            mm_scene_member_remove(s->owner, MM_SCENE_SELECTION, 0);
             set_selected(s, 0, promote);
         }
         else
@@ -112,12 +112,12 @@ int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
         notify(s);
         return 1;
     }
-    for (i = 0; i < s->count(s->context, 1); ++i)
-        if (actor == s->at(s->context, 1, i))
+    for (i = 0; i < mm_scene_member_count(s->owner, MM_SCENE_SELECTION); ++i)
+        if (actor == mm_scene_member_at(s->owner, MM_SCENE_SELECTION, i))
         {
             if (hilite)
                 s->hilite(s->context, actor, 0);
-            s->erase_extra(s->context, i);
+            mm_scene_member_remove(s->owner, MM_SCENE_SELECTION, i);
             notify(s);
             return 1;
         }
@@ -126,7 +126,7 @@ int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
         mm_scene_select_actor(actor, s);
         return 1;
     }
-    if (!s->ensure_extras(s->context) || !s->append_extra(s->context, actor))
+    if (!mm_scene_member_append(s->owner, MM_SCENE_SELECTION, actor))
         return 0;
     if (hilite)
         s->hilite(s->context, actor, 1);
@@ -135,15 +135,15 @@ int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
 }
 int mm_scene_selection_all(const MMSceneSelectionServices *s)
 {
-    MMI32 i, count = s->count(s->context, 0);
+    MMI32 i, count = mm_scene_member_count(s->owner, MM_SCENE_ACTORS);
     if (!count)
     {
         mm_scene_select_actor(NULL, s);
         return 1;
     }
-    mm_scene_select_actor(s->at(s->context, 0, 0), s);
+    mm_scene_select_actor(mm_scene_member_at(s->owner, MM_SCENE_ACTORS, 0), s);
     for (i = 1; i < count; ++i)
-        if (!mm_scene_selection_toggle(s->at(s->context, 0, i), s))
+        if (!mm_scene_selection_toggle(mm_scene_member_at(s->owner, MM_SCENE_ACTORS, i), s))
             return 0;
     return 1;
 }
@@ -196,14 +196,14 @@ static int shared(const unsigned short *a, MMI32 na, const unsigned short *b, MM
 }
 int mm_scene_selection_tag(const void *tag, MMI32 length, int wide, const MMSceneSelectionServices *s)
 {
-    MMI32 i, n, count = s->count(s->context, 0);
+    MMI32 i, n, count = mm_scene_member_count(s->owner, MM_SCENE_ACTORS);
     unsigned short name[256];
     void *actor;
     int any = 0;
     mm_scene_select_actor(NULL, s);
     for (i = 0; i < count; ++i)
     {
-        actor = s->at(s->context, 0, i);
+        actor = mm_scene_member_at(s->owner, MM_SCENE_ACTORS, i);
         if (!actor)
             continue;
         n = s->name(s->context, actor, name);
@@ -232,10 +232,10 @@ int mm_scene_selection_shared(void *seed, const MMSceneSelectionServices *s)
     mm_scene_select_actor(seed, s);
     if (!has_tag)
         return 1;
-    count = s->count(s->context, 0);
+    count = mm_scene_member_count(s->owner, MM_SCENE_ACTORS);
     for (i = 0; i < count; ++i)
     {
-        actor = s->at(s->context, 0, i);
+        actor = mm_scene_member_at(s->owner, MM_SCENE_ACTORS, i);
         if (!actor || actor == seed)
             continue;
         nb = s->name(s->context, actor, b);

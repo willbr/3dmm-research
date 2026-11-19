@@ -1,4 +1,5 @@
 #include "mm/scene_content.h"
+#include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,13 +37,14 @@ typedef struct Test
     MMSceneContentServices s;
     MMSceneContentUndoServices us;
     MMSceneOwner owner;
+    SceneMemberMemory members;
     MMSceneState data;
     MMSceneRuntime runtime;
-    Group starts, actors, texts, extras;
+    Group starts;
     Obj *selected[2];
     Undo *active;
     int live, undo_live, next_id, dirty, invalid, indicator, updated, placement, bind_fail, seek_actor_fail,
-        seek_text_fail, append_fail, insert_fail, roll_fail, roll_calls;
+        seek_text_fail, insert_fail, roll_fail, roll_calls;
     int onstage_fail, paste_fail, new_fail, commit_fail, clears, not_undoable, dup_fail, dups, switched, switch_fail,
         seek_calls, seek_fail, flushes, published, hide_text, issues[7];
     int log[512], used;
@@ -139,27 +141,6 @@ static void put_start(void *p, MMI32 i, void *o)
     Test *t = (Test *)p;
     t->starts.v[i].object = (Obj *)o;
     note(t, 4);
-}
-static void put_list(void *p, void *g, MMI32 i, void *o)
-{
-    ((Group *)g)->v[i].object = (Obj *)o;
-    note((Test *)p, 5);
-}
-static int append(void *p, int text, void *o)
-{
-    Test *t = (Test *)p;
-    Group *g = text ? &t->texts : &t->actors;
-    if (t->append_fail)
-        return 0;
-    g->v[g->count++].object = (Obj *)o;
-    return 1;
-}
-static void remove_last(void *p, int text)
-{
-    Test *t = (Test *)p;
-    Group *g = text ? &t->texts : &t->actors;
-    CHECK(g->count > 0);
-    --g->count;
 }
 static void bind(void *p, void *object)
 {
@@ -414,13 +395,12 @@ static void init(Test *t)
     MMSceneEventServices *v;
     MMSceneOwnerServices *o;
     memset(t, 0, sizeof(*t));
+    init_scene_members(&t->owner, &t->members);
     t->next_id = 100;
     t->data.currentFrame = t->data.firstFrame = 1;
     t->data.lastFrame = 9;
     t->owner.owned[1] = &t->starts;
-    t->owner.owned[2] = &t->actors;
-    t->owner.owned[3] = &t->texts;
-    t->owner.owned[4] = &t->extras;
+
     s = &t->s;
     s->context = t;
     v = &s->events;
@@ -430,14 +410,11 @@ static void init(Test *t)
     v->runtime = &t->runtime;
     v->event = event;
     v->read_object = read_object;
-    v->append = append;
-    v->remove_last = remove_last;
     v->bind_actor = bind;
     v->seek = seek_object;
     o = &v->owners;
     o->context = t;
     o->count = count;
-    o->list_at = at;
     o->object = at;
     o->release = release;
     o->publish = publish;
@@ -450,7 +427,6 @@ static void init(Test *t)
     s->hide_actor = hide_actor;
     s->insert_start = insert;
     s->put_start = put_start;
-    s->put_list = put_list;
     s->erase = erase;
     s->selected = selected;
     s->set_selected = set_selected;
@@ -501,24 +477,24 @@ static void test_actor(void)
     int failure;
     init(&t);
     a = new_obj(&t, 0);
-    CHECK(mm_scene_actor_add(a, &t.s) && a->refs == 2 && a->id == 100 && t.actors.count == 1 &&
+    CHECK(mm_scene_actor_add(a, &t.s) && a->refs == 2 && a->id == 100 &&
+          mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) == 1 &&
           t.starts.count == 1 && t.indicator == 1);
     b = new_obj(&t, 0);
     b->id = a->id;
-    t.extras.v[0].object = a;
-    t.extras.count = 1;
+    CHECK(mm_scene_member_append(&t.owner, MM_SCENE_SELECTION, a));
     CHECK(mm_scene_actor_add(b, &t.s) && a->refs == 1 && a->hidden && b->refs == 2 && t.selected[0] == b &&
-          t.actors.v[0].object == b);
-    CHECK(!t.extras.count);
+          ((Obj *)mm_scene_member_at(&t.owner, MM_SCENE_ACTORS, 0)) == b);
+    CHECK(!mm_scene_member_count(&t.owner, MM_SCENE_SELECTION));
     extra = new_obj(&t, 0);
     extra->id = b->id;
-    t.extras.v[0].object = b;
-    t.extras.v[1].object = NULL;
-    t.extras.v[2].object = extra;
-    t.extras.count = 3;
+    CHECK(mm_scene_member_append(&t.owner, MM_SCENE_SELECTION, b));
+    CHECK(mm_scene_member_append(&t.owner, MM_SCENE_SELECTION, NULL));
+    CHECK(mm_scene_member_append(&t.owner, MM_SCENE_SELECTION, extra));
     b->roll = 1;
     mm_scene_actor_remove(b->id, &t.s);
-    CHECK(!t.starts.count && !t.actors.count && t.extras.count == 1 && t.placement == 1 && b->refs == 1);
+    CHECK(!t.starts.count && !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) &&
+          mm_scene_member_count(&t.owner, MM_SCENE_SELECTION) == 1 && t.placement == 1 && b->refs == 1);
     release(&t, a);
     release(&t, b);
     release(&t, extra);
@@ -529,10 +505,11 @@ static void test_actor(void)
         a = new_obj(&t, 0);
         t.insert_fail = failure == 0;
         t.roll_fail = failure == 1 ? 1 : 0;
-        t.append_fail = failure == 2;
+        t.members.fail_at = failure == 2;
         t.seek_actor_fail = failure == 3;
         t.bind_fail = failure == 4;
-        CHECK(!mm_scene_actor_add(a, &t.s) && a->refs == 1 && !t.starts.count && !t.actors.count && !a->roll &&
+        CHECK(!mm_scene_actor_add(a, &t.s) && a->refs == 1 && !t.starts.count &&
+              !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) && !a->roll &&
               !t.dirty);
         release(&t, a);
         clean(&t);
@@ -543,14 +520,15 @@ static void test_actor(void)
     b = new_obj(&t, 0);
     b->id = a->id;
     t.seek_actor_fail = 1;
-    CHECK(!mm_scene_actor_add(b, &t.s) && b->refs == 1 && t.actors.v[0].object == a);
+    CHECK(!mm_scene_actor_add(b, &t.s) && b->refs == 1 &&
+          ((Obj *)mm_scene_member_at(&t.owner, MM_SCENE_ACTORS, 0)) == a);
     release(&t, b);
     release(&t, a);
     clean(&t);
     init(&t);
     a = new_obj(&t, 0);
     t.onstage_fail = 1;
-    CHECK(!mm_scene_actor_add_onstage(a, &t.s) && a->refs == 1 && !t.actors.count);
+    CHECK(!mm_scene_actor_add_onstage(a, &t.s) && a->refs == 1 && !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS));
     release(&t, a);
     clean(&t);
     init(&t);
@@ -569,9 +547,10 @@ static void test_text(void)
         init(&t);
         a = new_obj(&t, 1);
         t.insert_fail = fail == 0;
-        t.append_fail = fail == 1;
+        t.members.fail_at = fail == 1;
         t.seek_text_fail = fail == 2;
-        CHECK(!mm_scene_text_add(a, &t.s) && a->refs == 1 && !t.starts.count && !t.texts.count && a->bound);
+        CHECK(!mm_scene_text_add(a, &t.s) && a->refs == 1 && !t.starts.count &&
+              !mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) && a->bound);
         release(&t, a);
         clean(&t);
     }
@@ -580,7 +559,8 @@ static void test_text(void)
     CHECK(mm_scene_text_add(a, &t.s) && a->refs == 2);
     t.selected[1] = a;
     a->selected = 1;
-    CHECK(mm_scene_text_remove(a, &t.s) && a->refs == 1 && !t.texts.count && !t.selected[1] && !a->selected);
+    CHECK(mm_scene_text_remove(a, &t.s) && a->refs == 1 && !mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) &&
+          !t.selected[1] && !a->selected);
     release(&t, a);
     clean(&t);
     init(&t);
@@ -590,27 +570,30 @@ static void test_text(void)
           a->refs == 3);
     clear(&t);
     t.commit_fail = 1;
-    CHECK(!mm_scene_text_remove_undo(a, &t.s) && a->refs == 2 && t.texts.count == 1 && !t.undo_live);
+    CHECK(!mm_scene_text_remove_undo(a, &t.s) && a->refs == 2 && mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) == 1 &&
+          !t.undo_live);
     release(&t, a);
     clean(&t);
     init(&t);
     a = new_obj(&t, 1);
     CHECK(mm_scene_text_add(a, &t.s));
-    t.texts.count = 0;
+    mm_scene_member_clear(&t.owner, MM_SCENE_TEXTS);
     CHECK(!mm_scene_text_remove(a, &t.s) && a->refs == 1 && !t.starts.count && t.issues[3] == 1);
     release(&t, a);
     clean(&t);
     init(&t);
     a = new_obj(&t, 1);
     t.commit_fail = 1;
-    CHECK(!mm_scene_text_add_undo(a, &t.s) && t.texts.count == 1 && a->refs == 2 && t.not_undoable == 1 &&
+    CHECK(!mm_scene_text_add_undo(a, &t.s) && mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) == 1 && a->refs == 2 &&
+          t.not_undoable == 1 &&
           !t.undo_live);
     release(&t, a);
     clean(&t);
     init(&t);
     a = new_obj(&t, 1);
     a->life = 0;
-    CHECK(!mm_scene_text_add_undo(a, &t.s) && a->refs == 2 && t.texts.count == 1 && !t.undo_live);
+    CHECK(!mm_scene_text_add_undo(a, &t.s) && a->refs == 2 && mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) == 1 &&
+          !t.undo_live);
     release(&t, a);
     clean(&t);
     init(&t);
@@ -625,7 +608,8 @@ static void test_public(void)
     a = new_obj(&t, 0);
     CHECK(mm_scene_actor_add(a, &t.s));
     t.commit_fail = 1;
-    CHECK(!mm_scene_actor_remove_undo(a->id, &t.s) && a->refs == 2 && !t.undo_live && t.actors.count == 1);
+    CHECK(!mm_scene_actor_remove_undo(a->id, &t.s) && a->refs == 2 && !t.undo_live &&
+          mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) == 1);
     release(&t, a);
     clean(&t);
     init(&t);
@@ -661,8 +645,9 @@ static void test_actor_undo(void)
     u->actor.operation = MM_SCENE_ACTOR_ADD;
     t.active = u;
     CHECK(mm_scene_actor_undo(&u->actor, 1, &t.us) && ((Obj *)u->actor.actor)->id == 100 &&
-          t.actors.v[0].object->id == 100);
-    CHECK(mm_scene_actor_undo(&u->actor, 0, &t.us) && !t.actors.count && t.flushes == 2 && t.updated == 2);
+          ((Obj *)mm_scene_member_at(&t.owner, MM_SCENE_ACTORS, 0))->id == 100);
+    CHECK(mm_scene_actor_undo(&u->actor, 0, &t.us) && !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) &&
+          t.flushes == 2 && t.updated == 2);
     clean(&t);
     for (fail = 0; fail < 4; ++fail)
     {
@@ -700,7 +685,8 @@ static void test_actor_undo(void)
     u->actor.actor = a;
     u->actor.operation = 2;
     t.active = u;
-    CHECK(mm_scene_actor_undo(&u->actor, 0, &t.us) && t.actors.count == 1 && u->actor.actor == a);
+    CHECK(mm_scene_actor_undo(&u->actor, 0, &t.us) && mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) == 1 &&
+          u->actor.actor == a);
     clean(&t);
 }
 static void test_text_undo(void)
@@ -739,7 +725,8 @@ static void test_text_undo(void)
         if (fail == 1)
             CHECK(!mm_scene_text_undo(&u->text, 1, &t.us) && !t.active && !t.live);
         else
-            CHECK(mm_scene_text_undo(&u->text, 1, &t.us) && u->text.index == 5 && t.texts.count == 1 &&
+            CHECK(mm_scene_text_undo(&u->text, 1, &t.us) && u->text.index == 5 &&
+                  mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) == 1 &&
                   !t.clears);
         clean(&t);
     }
@@ -767,7 +754,8 @@ static void test_text_undo(void)
     u->text.add = 1;
     u->text.index = 0;
     t.active = u;
-    CHECK(mm_scene_text_undo(&u->text, 0, &t.us) && b->refs == 1 && a->refs == 1 && !t.texts.count);
+    CHECK(mm_scene_text_undo(&u->text, 0, &t.us) && b->refs == 1 && a->refs == 1 &&
+          !mm_scene_member_count(&t.owner, MM_SCENE_TEXTS));
     release(&t, b);
     clean(&t);
     init(&t);

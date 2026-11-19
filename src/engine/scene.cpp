@@ -232,9 +232,6 @@ void Scene::_PublishOwners()
     _pmvie = static_cast<PMovie>(_owner.movie);
     _pggsevFrm = static_cast<PGeneralGroup>(_owner.owned[MM_SCENE_FRAMES]);
     _pggsevStart = static_cast<PGeneralGroup>(_owner.owned[MM_SCENE_STARTS]);
-    _pglpactr = static_cast<PDynamicArray>(_owner.owned[MM_SCENE_ACTORS]);
-    _pglptbox = static_cast<PDynamicArray>(_owner.owned[MM_SCENE_TEXTS]);
-    _pglpactrSelExtra = static_cast<PDynamicArray>(_owner.owned[MM_SCENE_SELECTION]);
     _pbkgd = static_cast<PBackground>(_owner.owned[MM_SCENE_BACKGROUND]);
     _pmbmp = static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]);
     _psseBkgd = static_cast<PSceneSoundEvent>(_owner.owned[MM_SCENE_BACKGROUND_SOUND]);
@@ -258,11 +255,7 @@ MMSceneOwnerServices Scene::_OwnerServices()
     s.sound_header_bytes = sizeof(SceneSoundEvent);
     s.sound_tag_bytes = sizeof(TagChildPair);
     s.create_scene = [](void *, void *movie) -> void * { return NewObj Scene(static_cast<PMovie>(movie)); };
-    s.create_slot = [](void *, int kind) -> void * {
-        if (kind == MM_SCENE_FRAMES || kind == MM_SCENE_STARTS)
-            return GeneralGroup::PggNew(sizeof(SceneEvent));
-        return DynamicArray::PglNew(sizeof(void *), 0);
-    };
+    s.create_slot = [](void *, int) -> void * { return GeneralGroup::PggNew(sizeof(SceneEvent)); };
     s.state = [](void *, void *p) { return &static_cast<PScene>(p)->_owner; };
     s.publish = [](void *, void *p, const MMSceneOwner *) { static_cast<PScene>(p)->_PublishOwners(); };
     s.reset_cursor = [](void *, void *p) { static_cast<PScene>(p)->_runtime.next_event = 0; };
@@ -296,11 +289,6 @@ MMSceneOwnerServices Scene::_OwnerServices()
         group->Get(i, &text);
         AssertPo(text, 0);
         return text;
-    };
-    s.list_at = [](void *, void *p, MMI32 i) -> void * {
-        void *value;
-        static_cast<PDynamicArray>(p)->Get(i, &value);
-        return value;
     };
     s.actor_visibility = [](void *, void *p, int show) {
         auto actor = static_cast<PActor>(p);
@@ -341,7 +329,8 @@ MMSceneOwnerServices Scene::_OwnerServices()
 Scene::Scene(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
-    mm_scene_owner_init(&_owner, pmvie);
+    const auto allocator = CollectionAllocator();
+    mm_scene_owner_init(&_owner, pmvie, &allocator);
     _PublishOwners();
     mm_scene_runtime_init(&_runtime);
 }
@@ -426,32 +415,19 @@ void Scene::MarkMem(void)
 {
     AssertThis(0);
 
-    long iactr;
-    long itbox;
-    PActor pactr;
-    PTBOX ptbox;
-
     Scene_PAR::MarkMem();
 
     MarkMemObj(_pggsevStart);
     MarkMemObj(_pggsevFrm);
-    MarkMemObj(_pglpactr);
-    MarkMemObj(_pglptbox);
-    MarkMemObj(_pglpactrSelExtra);
     MarkMemObj(_pmbmp);
     MarkMemObj(static_cast<PChunkyResourceFile>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
 
-    for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
-    {
-        _pglpactr->Get(iactr, &pactr);
-        MarkMemObj(pactr);
-    }
-
-    for (itbox = 0; itbox < _pglptbox->IvMac(); itbox++)
-    {
-        _pglptbox->Get(itbox, &ptbox);
-        MarkMemObj(ptbox);
-    }
+    for (const auto &list : _owner.members)
+        MarkPv(list.storage.buffers[0].data);
+    for (long i = 0; i < Cactr(); ++i)
+        MarkMemObj(PactrAt(i));
+    for (long i = 0; i < Ctbox(); ++i)
+        MarkMemObj(static_cast<PTBOX>(mm_scene_member_at(&_owner, MM_SCENE_TEXTS, i)));
 
     if (_psseBkgd != pvNil)
         MarkPv(_psseBkgd);
@@ -469,20 +445,10 @@ void Scene::AssertValid(LegacyUlong grf)
 
     Assert(_data.name.count <= 255 && _data.name.unit == sizeof(achar), "bad scene name");
     AssertNilOrPo(_pactrSelected, 0);
-    AssertNilOrPo(_pglpactrSelExtra, 0);
-    if (_pglpactrSelExtra != pvNil)
-    {
-        for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
-        {
-            PActor pactrEntry;
-            _pglpactrSelExtra->Get(iactr, &pactrEntry);
-            AssertPo(pactrEntry, 0);
-        }
-    }
+    for (MMI32 i = 0; i < mm_scene_member_count(&_owner, MM_SCENE_SELECTION); ++i)
+        AssertPo(static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_SELECTION, i)), 0);
     AssertNilOrPo(_pbkgd, 0);
     AssertNilOrPo(_pmbmp, 0);
-    AssertPo(_pglpactr, 0);
-    AssertPo(_pglptbox, 0);
     AssertPo(_pggsevFrm, 0);
     AssertPo(_pggsevStart, 0);
     AssertPo(_pmvie, 0);
@@ -618,20 +584,10 @@ MMSceneRuntimeServices Scene::_RuntimeServices()
         group->Move(i, 0);
     };
     s.object_count = [](void *p, int text) -> MMI32 {
-        auto scene = static_cast<PScene>(p);
-        return (text ? scene->_pglptbox : scene->_pglpactr)->IvMac();
+        return mm_scene_member_count(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS);
     };
     s.object = [](void *p, int text, MMI32 i) -> void * {
-        auto scene = static_cast<PScene>(p);
-        if (text)
-        {
-            PTBOX box;
-            scene->_pglptbox->Get(i, &box);
-            return box;
-        }
-        PActor actor;
-        scene->_pglpactr->Get(i, &actor);
-        return actor;
+        return mm_scene_member_at(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS, i);
     };
     s.seek = [](void *, int text, void *object, MMI32 frame, int *sound) -> int {
         if (text)
@@ -875,28 +831,6 @@ MMSceneEventServices Scene::_EventServices()
         std::memcpy(&object, payload, sizeof(object));
         return object;
     };
-    s.append = [](void *p, int text, void *object) -> int {
-        auto scene = static_cast<PScene>(p);
-        if (text)
-        {
-            auto box = static_cast<PTBOX>(object);
-            AssertPo(box, 0);
-            return scene->_pglptbox->FInsert(scene->_pglptbox->IvMac(), &box);
-        }
-        auto actor = static_cast<PActor>(object);
-        AssertPo(actor, 0);
-        return scene->_pglpactr->FPush(&actor);
-    };
-    s.remove_last = [](void *p, int text) {
-        auto scene = static_cast<PScene>(p);
-        if (text)
-            scene->_pglptbox->Delete(scene->_pglptbox->IvMac() - 1);
-        else
-        {
-            PActor actor;
-            scene->_pglpactr->FPop(&actor);
-        }
-    };
     s.bind_actor = [](void *p, void *actor) { static_cast<PActor>(actor)->SetPscen(static_cast<PScene>(p)); };
     s.seek = [](void *, int text, void *object, MMI32 frame) -> int {
         return text ? static_cast<PTBOX>(object)->FGotoFrame(frame) : static_cast<PActor>(object)->FGotoFrame(frame);
@@ -1055,10 +989,9 @@ MMSceneSoundEditServices Scene::_SoundEditServices()
         auto p = static_cast<PDynamicArray>(list);
         ReleasePpo(&p);
     };
-    s.actor_count = [](void *p) -> MMI32 { return static_cast<PScene>(p)->_pglpactr->IvMac(); };
+    s.actor_count = [](void *p) -> MMI32 { return static_cast<PScene>(p)->Cactr(); };
     s.actor_sound = [](void *p, MMI32 index) -> int {
-        PActor actor;
-        static_cast<PScene>(p)->_pglpactr->Get(index, &actor);
+        auto actor = static_cast<PScene>(p)->PactrAt(index);
         AssertPo(actor, 0);
         return actor->FSoundInFrm();
     };
@@ -1427,6 +1360,7 @@ MMSceneSelectionServices Scene::_SelectionServices()
     MMSceneSelectionServices s = {};
     s.context = this;
     s.state = &_selection;
+    s.owner = &_owner;
     s.publish = [](void *p, int text, void *object) {
         auto scene = static_cast<Scene *>(p);
         if (text)
@@ -1437,33 +1371,6 @@ MMSceneSelectionServices Scene::_SelectionServices()
     s.view_mode = [](void *p) {
         auto view = static_cast<PMovieView>(static_cast<Scene *>(p)->Pmvie()->PddgGet(0));
         return view ? int(view->FTextMode()) : -1;
-    };
-    s.count = [](void *p, int extras) -> MMI32 {
-        auto scene = static_cast<Scene *>(p);
-        auto list = extras ? scene->_pglpactrSelExtra : scene->_pglpactr;
-        return list ? list->IvMac() : 0;
-    };
-    s.at = [](void *p, int extras, MMI32 index) -> void * {
-        auto scene = static_cast<Scene *>(p);
-        PActor actor;
-        (extras ? scene->_pglpactrSelExtra : scene->_pglpactr)->Get(index, &actor);
-        return actor;
-    };
-    s.ensure_extras = [](void *p) {
-        auto scene = static_cast<Scene *>(p);
-        if (!scene->_pglpactrSelExtra)
-            scene->_SetOwner(MM_SCENE_SELECTION, DynamicArray::PglNew(sizeof(PActor)));
-        return int(scene->_pglpactrSelExtra != nullptr);
-    };
-    s.append_extra = [](void *p, void *object) {
-        auto actor = static_cast<PActor>(object);
-        return int(static_cast<Scene *>(p)->_pglpactrSelExtra->FAdd(&actor));
-    };
-    s.erase_extra = [](void *p, MMI32 index) { static_cast<Scene *>(p)->_pglpactrSelExtra->Delete(index); };
-    s.clear_extras = [](void *p) {
-        auto list = static_cast<Scene *>(p)->_pglpactrSelExtra;
-        if (list)
-            list->FSetIvMac(0);
     };
     s.hilite = [](void *, void *object, int selected) {
         if (selected)
@@ -1700,7 +1607,6 @@ MMSceneContentServices Scene::_ContentServices()
         return static_cast<PScene>(p)->_pggsevStart->FInsert(i, sizeof(object), &object, &event);
     };
     s.put_start = [](void *p, MMI32 i, void *object) { static_cast<PScene>(p)->_pggsevStart->Put(i, &object); };
-    s.put_list = [](void *, void *p, MMI32 i, void *object) { static_cast<PDynamicArray>(p)->Put(i, &object); };
     s.erase = [](void *, void *p, MMI32 i) { static_cast<GroupBase *>(p)->Delete(i); };
     s.selected = [](void *p, int text) -> void * {
         auto scene = static_cast<Scene *>(p);
@@ -1890,12 +1796,8 @@ Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
             auto h = static_cast<Host *>(p);
             return BodyWorld::PbodyClicked(x, y, h->scene->Pmvie()->Pbwld(), h->part);
         },
-        [](void *p) -> MMI32 { return static_cast<Host *>(p)->scene->_pglpactr->IvMac(); },
-        [](void *p, MMI32 index) -> void * {
-            PActor actor;
-            static_cast<Host *>(p)->scene->_pglpactr->Get(index, &actor);
-            return actor;
-        },
+        [](void *p) -> MMI32 { return static_cast<Host *>(p)->scene->Cactr(); },
+        [](void *p, MMI32 index) -> void * { return static_cast<Host *>(p)->scene->PactrAt(index); },
         [](void *, void *actor, void *body) {
             return int(static_cast<PActor>(actor)->FIsMyBody(static_cast<Body *>(body)));
         },
@@ -2271,9 +2173,10 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
         static_cast<MMSceneState &>(static_cast<PScene>(scene)->_data) = *value;
     };
     s.child = [](void *p, MMU32 scene, int kind, MMU32 child, MMU32 *number) -> int {
-        static const ChunkTagOrType types[] = {0, 0, kctgActr, kctgTbox, 0, 0, kctgThumbMbmp};
+        const ChunkTagOrType type = kind == MM_SCENE_ACTORS ? kctgActr
+                                  : kind == MM_SCENE_TEXTS ? kctgTbox : kctgThumbMbmp;
         ChildChunkIdentification kid;
-        if (!static_cast<Host *>(p)->file->FGetKidChidCtg(kctgScen, scene, child, types[kind], &kid))
+        if (!static_cast<Host *>(p)->file->FGetKidChidCtg(kctgScen, scene, child, type, &kid))
             return 0;
         *number = kid.cki.cno;
         return 1;
@@ -2473,10 +2376,8 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
     auto owners = _OwnerServices();
     s.count = owners.count;
     s.kind = owners.kind;
-    s.actor = [](void *p, MMI32 index, MMU32 scene) -> int {
-        PActor actor;
-        static_cast<PScene>(p)->_pglpactr->Get(index, &actor);
-        return actor->FResolveAllSndTags(scene);
+    s.actor = [](void *, void *actor, MMU32 scene) -> int {
+        return static_cast<PActor>(actor)->FResolveAllSndTags(scene);
     };
     s.lock = [](void *, void *g) { static_cast<PGeneralGroup>(g)->Lock(); };
     s.unlock = [](void *, void *g) { static_cast<PGeneralGroup>(g)->Unlock(); };
@@ -3014,14 +2915,10 @@ MMScenePlaybackServices Scene::_PlaybackServices()
     s.context = this;
     s.data = &_data;
     s.count = [](void *p, int text) -> MMI32 {
-        auto scene = static_cast<Scene *>(p);
-        return (text ? scene->_pglptbox : scene->_pglpactr)->IvMac();
+        return mm_scene_member_count(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS);
     };
-    s.object = [](void *p, int text, MMI32 index) -> void * {
-        auto scene = static_cast<Scene *>(p);
-        void *object;
-        (text ? scene->_pglptbox : scene->_pglpactr)->Get(index, &object);
-        return object;
+    s.object = [](void *p, int text, MMI32 i) -> void * {
+        return mm_scene_member_at(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS, i);
     };
     s.lifetime = [](void *, int text, void *object, MMI32 *first, MMI32 *last) {
         long a, b;

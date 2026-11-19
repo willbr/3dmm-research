@@ -6847,13 +6847,9 @@ static long _LwNextFreeNumericTagInScene(PScene pscen, PMovie pmvie)
     long cactr = pscen->Cactr();
     long lwMax = 0;
     String stn;
-    PDynamicArray pglpactr = pscen->PglRollCall();
-    if (pglpactr == pvNil)
-        return 1;
     for (long iactr = 0; iactr < cactr; iactr++)
     {
-        PActor pactr;
-        pglpactr->Get(iactr, &pactr);
+        PActor pactr = pscen->PactrAt(iactr);
         if (pactr == pvNil)
             continue;
         pactr->GetName(&stn);

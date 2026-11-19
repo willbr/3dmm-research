@@ -42,8 +42,6 @@ extern "C"
         void (*set_transition)(void *, int);
         void (*publish_tag)(void *, const MMTag *);
         void *(*read_object)(void *, void *payload);
-        int (*append)(void *, int text, void *object);
-        void (*remove_last)(void *, int text);
         void (*bind_actor)(void *, void *actor);
         int (*seek)(void *, int text, void *object, MMI32 frame);
         int (*pause_reason)(void *, void *payload);

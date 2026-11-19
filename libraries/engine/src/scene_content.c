@@ -6,17 +6,9 @@ static void *group(const MMSceneContentServices *s)
 {
     return s->events.owner->owned[MM_SCENE_STARTS];
 }
-static void *list(int text, const MMSceneContentServices *s)
-{
-    return s->events.owner->owned[text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS];
-}
 static MMI32 count(void *p, const MMSceneContentServices *s)
 {
     return s->events.owners.count(s->events.owners.context, p);
-}
-static void *at(void *p, MMI32 i, const MMSceneContentServices *s)
-{
-    return s->events.owners.list_at(s->events.owners.context, p, i);
 }
 static int kind(MMI32 i, const MMSceneContentServices *s)
 {
@@ -35,23 +27,23 @@ static void release(void *p, const MMSceneContentServices *s)
 }
 static void remove_extras(MMI32 id, const MMSceneContentServices *s)
 {
-    void *extras = s->events.owner->owned[MM_SCENE_SELECTION], *entry;
+    MMSceneOwner *owner = s->events.owner;
     MMI32 i;
-    if (extras)
-        for (i = count(extras, s) - 1; i >= 0; --i)
-        {
-            entry = at(extras, i, s);
-            if (entry && s->actor_id(s->context, entry) == id)
-                s->erase(s->context, extras, i);
-        }
+    void *entry;
+    for (i = mm_scene_member_count(owner, MM_SCENE_SELECTION) - 1; i >= 0; --i)
+    {
+        entry = mm_scene_member_at(owner, MM_SCENE_SELECTION, i);
+        if (entry && s->actor_id(s->context, entry) == id)
+            mm_scene_member_remove(owner, MM_SCENE_SELECTION, i);
+    }
 }
 void *mm_scene_actor_find(MMI32 id, const MMSceneContentServices *s)
 {
     MMI32 i;
     void *p;
-    for (i = 0; i < count(list(0, s), s); ++i)
+    for (i = 0; i < mm_scene_member_count(s->events.owner, MM_SCENE_ACTORS); ++i)
     {
-        p = at(list(0, s), i, s);
+        p = mm_scene_member_at(s->events.owner, MM_SCENE_ACTORS, i);
         if (s->actor_id(s->context, p) == id)
             return p;
     }
@@ -69,9 +61,9 @@ int mm_scene_actor_add(void *actor, const MMSceneContentServices *s)
         old = object(i, s);
         if (s->actor_id(s->context, old) != s->actor_id(s->context, actor))
             continue;
-        for (j = 0; j < count(list(0, s), s); ++j)
+        for (j = 0; j < mm_scene_member_count(s->events.owner, MM_SCENE_ACTORS); ++j)
         {
-            old = at(list(0, s), j, s);
+            old = mm_scene_member_at(s->events.owner, MM_SCENE_ACTORS, j);
             if (s->actor_id(s->context, old) != s->actor_id(s->context, actor))
                 continue;
             s->retain(s->context, actor);
@@ -83,7 +75,7 @@ int mm_scene_actor_add(void *actor, const MMSceneContentServices *s)
                 return 0;
             }
             s->put_start(s->context, i, actor);
-            s->put_list(s->context, list(0, s), j, actor);
+            mm_scene_member_replace(s->events.owner, MM_SCENE_ACTORS, j, actor);
             s->select(s->context, 0, actor);
             remove_extras(s->actor_id(s->context, old), s);
             s->hide_actor(s->context, old);
@@ -107,7 +99,8 @@ int mm_scene_actor_add(void *actor, const MMSceneContentServices *s)
     ok = mm_scene_play_event(0, MM_SCENE_ADD_ACTOR, &actor, s->events.runtime->disabled, &s->events);
     if (ok && !s->actor_ready(s->context, actor))
     {
-        s->events.remove_last(s->events.context, 0);
+        mm_scene_member_remove(s->events.owner, MM_SCENE_ACTORS,
+                               mm_scene_member_count(s->events.owner, MM_SCENE_ACTORS) - 1);
         ok = 0;
     }
     if (!ok)
@@ -147,12 +140,12 @@ void mm_scene_actor_remove(MMI32 id, const MMSceneContentServices *s)
             continue;
         removed = actor;
         s->erase(s->context, group(s), i);
-        for (j = 0; j < count(list(0, s), s); ++j)
+        for (j = 0; j < mm_scene_member_count(s->events.owner, MM_SCENE_ACTORS); ++j)
         {
-            actor = at(list(0, s), j, s);
+            actor = mm_scene_member_at(s->events.owner, MM_SCENE_ACTORS, j);
             if (s->actor_id(s->context, actor) != id)
                 continue;
-            s->erase(s->context, list(0, s), j);
+            mm_scene_member_remove(s->events.owner, MM_SCENE_ACTORS, j);
             if (s->selected(s->context, 0) == actor)
             {
                 s->set_selected(s->context, 0, NULL);
@@ -219,11 +212,11 @@ int mm_scene_actor_paste(void *actor, const MMSceneContentServices *s)
 int mm_scene_roll_add(const MMSceneContentServices *s)
 {
     MMI32 i;
-    for (i = 0; i < count(list(0, s), s); ++i)
-        if (!s->add_roll(s->context, at(list(0, s), i, s), 0))
+    for (i = 0; i < mm_scene_member_count(s->events.owner, MM_SCENE_ACTORS); ++i)
+        if (!s->add_roll(s->context, mm_scene_member_at(s->events.owner, MM_SCENE_ACTORS, i), 0))
         {
             while (i > 0)
-                s->remove_roll(s->context, at(list(0, s), --i, s), 0);
+                s->remove_roll(s->context, mm_scene_member_at(s->events.owner, MM_SCENE_ACTORS, --i), 0);
             return 0;
         }
     return 1;
@@ -231,12 +224,12 @@ int mm_scene_roll_add(const MMSceneContentServices *s)
 void mm_scene_roll_remove(int only, const MMSceneContentServices *s)
 {
     MMI32 i;
-    for (i = 0; i < count(list(0, s), s); ++i)
-        s->remove_roll(s->context, at(list(0, s), i, s), only);
+    for (i = 0; i < mm_scene_member_count(s->events.owner, MM_SCENE_ACTORS); ++i)
+        s->remove_roll(s->context, mm_scene_member_at(s->events.owner, MM_SCENE_ACTORS, i), only);
 }
 void *mm_scene_text_at(MMI32 i, const MMSceneContentServices *s)
 {
-    return i >= 0 && i < count(list(1, s), s) ? at(list(1, s), i, s) : NULL;
+    return mm_scene_member_at(s->events.owner, MM_SCENE_TEXTS, i);
 }
 int mm_scene_text_add(void *text, const MMSceneContentServices *s)
 {
@@ -271,10 +264,10 @@ int mm_scene_text_remove(void *text, const MMSceneContentServices *s)
         if (kind(i, s) != MM_SCENE_ADD_TEXT || object(i, s) != text)
             continue;
         s->erase(s->context, group(s), i);
-        for (j = 0; j < count(list(1, s), s); ++j)
-            if (at(list(1, s), j, s) == text)
+        for (j = 0; j < mm_scene_member_count(s->events.owner, MM_SCENE_TEXTS); ++j)
+            if (mm_scene_member_at(s->events.owner, MM_SCENE_TEXTS, j) == text)
             {
-                s->erase(s->context, list(1, s), j);
+                mm_scene_member_remove(s->events.owner, MM_SCENE_TEXTS, j);
                 if (s->text_lifetime(s->context, text, &first, &last) &&
                     !s->events.seek(s->events.context, 1, text, mm_signed_word((MMU32)first - 1U)))
                     s->diagnostic(s->context, MM_SCENE_CONTENT_TEXT_HIDE_FAILED);
@@ -318,8 +311,8 @@ int mm_scene_text_add_undo(void *text, const MMSceneContentServices *s)
         return 0;
     }
     p = s->text_state(s->context, u);
-    for (i = 0; i < count(list(1, s), s); ++i)
-        if (at(list(1, s), i, s) == text)
+    for (i = 0; i < mm_scene_member_count(s->events.owner, MM_SCENE_TEXTS); ++i)
+        if (mm_scene_member_at(s->events.owner, MM_SCENE_TEXTS, i) == text)
         {
             p->index = i;
             break;
@@ -470,13 +463,13 @@ int mm_scene_text_undo(MMSceneTextUndo *p, int redo, const MMSceneContentUndoSer
         s.select(s.context, 1, p->text);
         if (u->seek(u->context, u->frame))
         {
-            for (i = 0; i < count(list(1, &s), &s); ++i)
-                if (at(list(1, &s), i, &s) == p->text)
+            for (i = 0; i < mm_scene_member_count(s.events.owner, MM_SCENE_TEXTS); ++i)
+                if (mm_scene_member_at(s.events.owner, MM_SCENE_TEXTS, i) == p->text)
                 {
                     p->index = i;
                     break;
                 }
-            if (i == count(list(1, &s), &s))
+            if (i == mm_scene_member_count(s.events.owner, MM_SCENE_TEXTS))
             {
                 s.diagnostic(s.context, MM_SCENE_CONTENT_TEXT_MISSING);
                 return failed(u);

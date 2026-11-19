@@ -103,8 +103,7 @@ void *mm_scene_load(void *movie, MMU32 number, unsigned unit, const MMSceneLoadS
     MMSceneOwner *owner;
     MMI32 starts = 0, frames = 0;
     MMU32 child;
-    void *scene, *p;
-    int slot;
+    void *scene;
     if (!mm_scene_init(&metadata, unit) || s->read.header(s->read.context, number, &header) != MM_MOVIE_OK)
         return NULL;
     scene = o->create_scene(o->context, movie);
@@ -112,13 +111,6 @@ void *mm_scene_load(void *movie, MMU32 number, unsigned unit, const MMSceneLoadS
         return NULL;
     owner = o->state(o->context, scene);
     o->reset_cursor(o->context, scene);
-    for (slot = MM_SCENE_ACTORS; slot <= MM_SCENE_TEXTS; ++slot)
-    {
-        p = o->create_slot(o->context, slot);
-        mm_scene_owner_set(owner, scene, slot, p, o);
-        if (!p)
-            goto fail;
-    }
     metadata.firstFrame = header.first_frame;
     metadata.lastFrame = header.last_frame;
     metadata.transition = header.transition;
@@ -135,17 +127,16 @@ void *mm_scene_load(void *movie, MMU32 number, unsigned unit, const MMSceneLoadS
     return scene;
 unwind:
     mm_scene_owner_unwind(owner, scene, starts, frames, o);
-fail:
     o->release(o->context, scene);
     return NULL;
 }
 int mm_scene_resolve_sounds(MMU32 scene, const MMSceneResolveServices *s)
 {
-    void *group = s->owner->owned[MM_SCENE_ACTORS], *entry;
-    MMI32 i, j, count = s->count(s->context, group);
+    void *group, *entry;
+    MMI32 i, j, count = mm_scene_member_count(s->owner, MM_SCENE_ACTORS);
     MMSceneSound *sound;
     for (i = 0; i < count; ++i)
-        if (!s->actor(s->context, i, scene))
+        if (!s->actor(s->context, mm_scene_member_at(s->owner, MM_SCENE_ACTORS, i), scene))
             return 0;
     group = s->owner->owned[MM_SCENE_FRAMES];
     s->lock(s->context, group);

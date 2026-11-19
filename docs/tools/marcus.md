@@ -2616,6 +2616,17 @@ Both ports still differed from retail in seek pixels and mixed PCM. SDL
 Studio's playback timing also differed. Evidence is in
 `tmp/c89-compose-storage/`.
 
+Studio now stores each scene's actor roster, caption roster and extra
+selection directly in the C89 scene owner. The prior and updated Studio
+builds produced identical state and viewports through actor creation, undo
+and redo, caption creation, scene changes, and save and reopen. All 68
+saved chunk payloads and graph records matched. The headless tests also
+cover caption undo and redo. Retail, SDL Studio and Marcus agreed on the
+edited movie's 60-frame playback order. The updated SDL build matched all
+60 seek images from the prior SDL build. Both ports still differed from
+retail in seek pixels and mixed PCM. SDL Studio's playback timing also
+differed. Evidence is in `tmp/c89-scene-members/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

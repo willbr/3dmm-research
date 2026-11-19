@@ -126,12 +126,11 @@ struct Access : Scene
             Value((s->*f)->CbFixed());
             Value((s->*f)->IvMac());
         }
-        for (auto f : {&Access::_pglpactr, &Access::_pglptbox})
-        {
-            Value((s->*f)->CbEntry());
-            Value((s->*f)->IvMac());
-        }
-        Value(s->*&Access::_pglpactrSelExtra != nullptr);
+        Value(sizeof(PActor));
+        Value(s->Cactr());
+        Value(sizeof(PTBOX));
+        Value(s->Ctbox());
+        Value(mm_scene_member_count(&(s->*&Access::_owner), MM_SCENE_SELECTION) != 0);
         Value(s->*&Access::_pmbmp != nullptr);
         Value(s->*&Access::_psseBkgd != nullptr);
         Value(s->CactRef());
@@ -146,9 +145,9 @@ struct Access : Scene
             SceneEvent event = {i, sevtAddActr};
             PActor p = actor;
             CHECK(starts->FInsert(starts->IvMac(), sizeof(p), &p, &event));
+            if (i == 1)
+                CHECK(mm_scene_member_append(&(s->*&Access::_owner), MM_SCENE_SELECTION, p));
         }
-        auto extra = DynamicArray::PglNew(sizeof(PActor));
-        CHECK(extra);
         byte pixels[8] = {1, 2, 3, 4, 5, 6, 7, 8};
         RC rect(0, 0, 4, 2);
         auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 4, 2, &rect, 0, 0, 0);
@@ -160,17 +159,10 @@ struct Access : Scene
         void *sound = nullptr;
         CHECK(FAllocPv(&sound, background.size(), fmemNil, mprNormal));
         std::memcpy(sound, background.data(), background.size());
-#ifdef MM_ENGINE_SCENE_OWNER_H
         auto services = _OwnerServices();
         auto &owner = s->*&Access::_owner;
-        mm_scene_owner_set(&owner, s, MM_SCENE_SELECTION, extra, &services);
         mm_scene_owner_set(&owner, s, MM_SCENE_THUMBNAIL, bitmap, &services);
         mm_scene_owner_set(&owner, s, MM_SCENE_BACKGROUND_SOUND, sound, &services);
-#else
-        s->*&Access::_pglpactrSelExtra = extra;
-        s->*&Access::_pmbmp = bitmap;
-        s->*&Access::_psseBkgd = static_cast<PSceneSoundEvent>(sound);
-#endif
     }
 };
 static bool Missing(const MissingSourceRequest &)
@@ -317,7 +309,7 @@ int main()
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one))
 #ifdef DEBUG
-        CHECK(recorded == 7888 && hash == 0x0EE1BC65U);
+        CHECK(recorded == 8208 && hash == 0x5CE9A3A5U);
 #else
         CHECK(recorded == 8688 && hash == 0x2A12D054U);
 #endif
