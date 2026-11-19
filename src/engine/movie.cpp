@@ -1247,15 +1247,7 @@ MMMovieSoundServices Movie::_SoundServices()
         auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_scenes.index;
     };
     s.file=[](void *p)->void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.count=[](void *p,MMU32 type,MMU32 number)->MMI32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
-    s.child=[](void *p,MMU32 type,MMU32 number,MMI32 index,MMChunkChild *out) {
-        ChildChunkIdentification child; bool ok=static_cast<PChunkyFile>(p)->FGetKid(type,number,index,&child);
-        if (ok) *out={child.cki.ctg,child.cki.cno,child.chid}; return int(ok);
-    };
-    s.find=[](void *p,MMU32 type,MMU32 number,MMU32 slot,MMU32 childType,MMU32 *out) {
-        ChildChunkIdentification child; bool ok=static_cast<PChunkyFile>(p)->FGetKidChidCtg(type,number,slot,childType,&child);
-        if (ok) *out=child.cki.cno; return int(ok);
-    };
+    s.chunks=[](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
     s.adopt=[](void *p,MMU32 type,MMU32 number,MMU32 childType,MMU32 child,MMU32 slot) {
         return int(static_cast<PChunkyFile>(p)->FAdoptChild(type,number,childType,child,slot));
     };
@@ -1288,13 +1280,6 @@ MMMovieSoundServices Movie::_SoundServices()
     };
     s.has_bad_sound_error=[](void *) { return int(vpers->FIn(ercSocBadSoundFile)); };
     s.mark_gc=[](void *p) { static_cast<PMovie>(p)->_fGCSndsOnClose=true; };
-    s.sound_count=[](void *p)->MMI32 { return static_cast<PChunkyFile>(p)->CckiCtg(kctgMsnd); };
-    s.sound_at=[](void *p,MMI32 index,MMU32 *out) {
-        ChunkIdentification chunk; bool ok=static_cast<PChunkyFile>(p)->FGetCkiCtg(kctgMsnd,index,&chunk);
-        if (ok) *out=chunk.cno; return int(ok);
-    };
-    s.references=[](void *p,MMU32 type,MMU32 number)->MMI32 { return static_cast<PChunkyFile>(p)->CckiRef(type,number); };
-    s.child_at_slot=[](void *p,MMU32 type,MMU32 number,MMU32 slot) { ChildChunkIdentification child; return int(static_cast<PChunkyFile>(p)->FGetKidChid(type,number,slot,&child)); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
         case MM_SOUND_BAD_CHILD_ENUM: Bug("ChunkyFile returned bogus ckid"); break;

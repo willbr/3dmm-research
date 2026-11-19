@@ -2305,6 +2305,10 @@ Sound import uses the shared C89 stream writer. The MIDI path converts the
 standard file to the millisecond track payload in C89 and writes it from
 memory. WAV and MP3 import supplies decoded WAVE bytes to the same writer.
 A failed child write or name update removes the new MSND and its child.
+Marcus and Studio share the first-free-slot calculation for adopting sound
+chunks into a scene or movie. Sound links can share a slot with another
+chunk type. Studio reads the graph directly to resolve user tags and find
+unused sounds by their parent counts.
 
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
@@ -2377,6 +2381,15 @@ that failed imports left no sound chunks. Retail opened the three authored
 movies. SDL Studio matched all five sampled seek states. One viewport matched
 exactly and the other four differed by one pixel each. Evidence is in
 `tmp/c89-sound-import/`.
+
+The direct sound-link queries preserved both native integration traces byte
+for byte. The traces cover local tag resolution, external archives, unused
+sounds and sound adoption. Three Marcus-authored movie files also matched
+the prior build byte for byte. In fresh actor-audio captures, both ports matched
+retail's 60-frame sequence and confined both tones to the first scene. SDL
+Studio matched retail's sound requests. Mixed PCM still differed in both
+ports, and SDL Studio's frame timing still differed. Evidence is in
+`tmp/c89-sound-links/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

@@ -9,22 +9,10 @@ int mm_sound_archive_match(const MMMovieSoundArchiveCue *cue, const MMTag *tag, 
 
 static int adopt_sound(const MMMovieArchiveEditor *editor, MMU32 parent_type, MMU32 parent, MMU32 number, MMU32 *slot)
 {
-    MMChunkAccess chunks;
-    MMU32 index, row, next;
-    MMChunkChild child;
-    chunks = editor->chunks(editor->context);
-    if (mm_chunk_find(&chunks, parent_type, parent, &index) != MM_CHUNK_OK)
-        return 0;
-    next = 0;
-    /* Child rows are sorted by slot. Other types can use the same slot. */
-    for (row = 0; mm_chunk_child_at(&chunks, index, row, &child) == MM_CHUNK_OK; ++row)
-    {
-        if (child.slot > next)
-            break;
-        if (child.slot == next && child.type == MM_SOUND_CHUNK)
-            ++next;
-    }
-    if (next >= 0x7fffffffUL || !editor->adopt(editor->context, parent_type, parent, MM_SOUND_CHUNK, number, next))
+    const MMChunkAccess chunks = editor->chunks(editor->context);
+    MMU32 next;
+    if (mm_movie_sound_free_slot(&chunks, parent_type, parent, &next) != MM_CHUNK_OK ||
+        next >= 0x7fffffffUL || !editor->adopt(editor->context, parent_type, parent, MM_SOUND_CHUNK, number, next))
         return 0;
     if (slot)
         *slot = next;

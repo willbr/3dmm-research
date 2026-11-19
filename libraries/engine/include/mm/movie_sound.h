@@ -22,9 +22,7 @@ typedef struct MMMovieSoundServices
     void *context;
     void (*read)(void *,MMMovieSoundState *);
     void *(*file)(void *cache);
-    MMI32 (*count)(void *file,MMU32 type,MMU32 number);
-    int (*child)(void *file,MMU32 type,MMU32 number,MMI32 index,MMChunkChild *);
-    int (*find)(void *file,MMU32 parent_type,MMU32 parent,MMU32 slot,MMU32 type,MMU32 *number);
+    MMChunkAccess (*chunks)(void *file);
     int (*adopt)(void *file,MMU32 parent_type,MMU32 parent,MMU32 type,MMU32 number,MMU32 slot);
     int (*open_tag)(void *,MMTag *,void *cache);
     void (*close_tag)(void *,MMTag *);
@@ -40,12 +38,11 @@ typedef struct MMMovieSoundServices
     int (*copy_wave)(void *source_file,void *destination,MMI32 style,MMU32 *,void *name);
     int (*has_bad_sound_error)(void *);
     void (*mark_gc)(void *);
-    MMI32 (*sound_count)(void *file);
-    int (*sound_at)(void *file,MMI32 index,MMU32 *number);
-    MMI32 (*references)(void *file,MMU32 type,MMU32 number);
-    int (*child_at_slot)(void *file,MMU32 type,MMU32 number,MMU32 slot);
     void (*diagnostic)(void *,int);
 } MMMovieSoundServices;
+/* Locate the first unused sound slot. Other chunk types can use the same
+ * slot. Returns a chunk status and publishes the slot only on success. */
+int mm_movie_sound_free_slot(const MMChunkAccess *, MMU32 parent_type, MMU32 parent, MMU32 *slot);
 /* All operations borrow live movie/cache/file state. Only ensure_autosave and
  * use_temp may replace the movie's working state; other callbacks cannot reenter
  * or change it independently. File graph operations and tag operations may edit
@@ -74,9 +71,8 @@ int mm_movie_sound_copy(void *source,MMU32 number,MMU32 *output,const MMMovieSou
 int mm_movie_sound_import(void *source,MMI32 style,MMU32 *output,void *name,const MMMovieSoundServices *);
 /* Scan every sound, including roots not linked to the movie. Fewer than two
  * parent links means unused; with valid output requested, continue until an
- * unused chunk has any child at slot zero. Trusted chunk enumeration failure is
- * a native assertion precondition; C initializes its otherwise undefined number
- * to zero before diagnosing/continuing. Child enumeration failure in is_child
+ * unused chunk has any child at slot zero. An unreadable index entry diagnoses
+ * and ends the scan. Child enumeration failure in is_child
  * returns false; in adopt it diagnoses and stops with success. */
 int mm_movie_sound_unused(int *valid,const MMMovieSoundServices *);
 #ifdef __cplusplus
