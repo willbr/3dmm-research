@@ -31,6 +31,7 @@ typedef struct MMMovieArchiveEditor
     int (*replace)(void *, MMU32 type, MMU32 number, MMU32 bytes, MMStorageWriter *);
     /* Update a byte range in an existing payload without changing its length. */
     int (*patch)(void *, MMU32 type, MMU32 number, MMU32 offset, const void *bytes, MMU32 size);
+    void (*discard)(void *, MMU32 type, MMU32 number); /* Optional unlinked chunk cleanup. */
 } MMMovieArchiveEditor;
 
 enum MMMovieSceneArchiveResult
@@ -84,6 +85,15 @@ int mm_movie_archive_ensure_empty_rollcall(const MMMovieArchiveEditor *);
  * there is no matching child. */
 int mm_movie_archive_next_child(const MMChunkAccess *, MMU32 parent_type, MMU32 parent,
                                  MMU32 type, MMU32 *slot);
+
+/* Write and adopt the replacement before unlinking the old child. */
+int mm_movie_archive_replace_child(const MMMovieArchiveEditor *, MMU32 parent_type, MMU32 parent,
+                                   const MMChunkChild *, int had_child, const unsigned char *, MMU32 bytes);
+int mm_movie_archive_retarget_background(const MMMovieArchiveEditor *, MMU32 scene, MMI32 source, MMU32 background);
+enum { MM_STORYBOARD_CHUNK = 0x53544244UL };
+/* The background graph has already been copied into this private archive. */
+int mm_movie_archive_embed_storyboard(const MMMovieArchiveEditor *, MMU32 scene, MMU32 background,
+                                       const unsigned char *metadata, MMU32 bytes);
 
 enum MMMovieSourceEditResult
 {

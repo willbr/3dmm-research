@@ -167,7 +167,7 @@ typedef struct SourceEdit
 {
     MMMemoryStream input;
     Output output;
-    int has_table, fail_link, step;
+    int has_table, fail_link, step, portable, fail_write, discards;
 } SourceEdit;
 
 static int source_root(void *context, MMU32 position, MMChunkEntry *entry)
@@ -205,6 +205,7 @@ static int source_write(void *context, MMU32 offset, const void *bytes, size_t c
 {
     SourceEdit *edit = (SourceEdit *)context;
     assert(edit->step == 1 && offset <= edit->output.length && count <= edit->output.length - offset);
+    if (edit->fail_write) return 0;
     memcpy(edit->output.data + offset, bytes, count);
     return 1;
 }
@@ -224,7 +225,7 @@ static int source_adopt(void *context, MMU32 parent_type, MMU32 parent, MMU32 ty
 {
     SourceEdit *edit = (SourceEdit *)context;
     assert(parent_type == MOVIE_TYPE && parent == 2 && type == SOURCE_TYPE && number == 8 && slot == 1);
-    assert(edit->step == (edit->has_table ? 2 : 1));
+    assert(edit->step == (edit->has_table && !edit->portable ? 2 : 1));
     edit->step = 3;
     return !edit->fail_link;
 }
@@ -232,8 +233,15 @@ static void source_unlink(void *context, MMU32 parent_type, MMU32 parent, MMU32 
 {
     SourceEdit *edit = (SourceEdit *)context;
     assert(parent_type == MOVIE_TYPE && parent == 2 && type == SOURCE_TYPE && number == 7 && slot == 1);
-    assert(edit->step == 1 && edit->has_table);
-    edit->step = 2;
+    assert(edit->step == (edit->portable ? 3 : 1) && edit->has_table);
+    edit->step = edit->portable ? 4 : 2;
+}
+
+static void source_discard(void *context, MMU32 type, MMU32 number)
+{
+    SourceEdit *edit = (SourceEdit *)context;
+    assert(edit->portable && type == SOURCE_TYPE && number == 8);
+    ++edit->discards;
 }
 
 static void source_row(const MMMovieSourceTable *table, MMU32 index, MMI32 id, const char *expected)
@@ -247,7 +255,7 @@ static void source_row(const MMMovieSourceTable *table, MMU32 index, MMI32 id, c
 static void register_source(void)
 {
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL, NULL};
+                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL, NULL, NULL};
     SourceEdit edit = {0};
     MMMemoryStream saved;
     MMMovieSourceTable table;
@@ -313,7 +321,7 @@ static void register_source(void)
 static void map_sources(void)
 {
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL, NULL};
+                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL, NULL, NULL};
     MMMovieArchiveSource sources[] = {{9, "3DMM", 0, 0}, {4, "Doraemon Character Kit", 0, 0},
                                      {9, "other", 0, 0}};
     MMMovieArchiveSourceMap map = {NULL, NULL, NULL, 3, 2, 1, 0};
@@ -336,6 +344,41 @@ static void map_sources(void)
     assert(mm_movie_archive_map_source(&map, 4, &id) && id == 3 && edit.step == 3);
 }
 
+static void publish_portable_source(void)
+{
+    SourceEdit edit = {0};
+    Output old;
+    MMMovieSourceTable table;
+    MMMemoryStream output;
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
+                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL,
+                                   NULL, NULL, source_discard};
+    MMI32 id;
+    editor.context = &edit;
+    assert(mm_movie_archive_register_source(&editor, NULL, 2, 1, NULL, &id) == MM_MOVIE_SOURCE_EDIT_OK);
+    old = edit.output;
+    assert(mm_memory_stream_init(&edit.input, old.data, old.length));
+    edit.has_table = edit.portable = 1;
+    edit.step = 0;
+    edit.fail_write = 1;
+    assert(mm_movie_archive_require_portable_source(&editor) == MM_PORTABLE_SOURCE_WRITE_FAILED &&
+           edit.step == 1 && edit.discards == 1);
+    edit.step = edit.fail_write = 0;
+    edit.fail_link = 1;
+    assert(mm_movie_archive_require_portable_source(&editor) == MM_PORTABLE_SOURCE_WRITE_FAILED &&
+           edit.step == 3 && edit.discards == 2);
+    edit.step = edit.fail_link = 0;
+    assert(mm_movie_archive_require_portable_source(&editor) == MM_PORTABLE_SOURCE_OK &&
+           edit.step == 4 && edit.discards == 2);
+    assert(mm_memory_stream_init(&output, edit.output.data, edit.output.length));
+    assert(mm_movie_source_table_open(&output.stream, output.stream.length, &table) == MM_MOVIE_OK && table.count == 2);
+    source_row(&table, 0, 1, "3D Movie Maker/3DMOVIE");
+    source_row(&table, 1, MM_PORTABLE_SOURCE_ID, "Virtual3dmm/v3dmm");
+    edit.input = output;
+    edit.step = 0;
+    assert(mm_movie_archive_require_portable_source(&editor) == MM_PORTABLE_SOURCE_OK && edit.step == 0);
+}
+
 int main(void)
 {
     start_events(0);
@@ -345,6 +388,7 @@ int main(void)
     replacement();
     register_source();
     map_sources();
+    publish_portable_source();
     puts("Portable movie source and background wire edits and link replacement passed.");
     return 0;
 }

@@ -14877,3 +14877,38 @@ playback pixels remain inconclusive.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The native outputs,
 manifest and logs are in `tmp/c89-sound-archive`.
+
+## Marcus storyboard metadata and archive publication in C89 (19 November 2026)
+
+C89 validates editable storyboard values, writes the version-three
+metadata, and reads versions one through three. The working-copy and
+VMM paths share a scene-start background replacement. C89 publishes
+the embedded editor data and background links, drops the old thumbnail,
+and checks and publishes the portable source entry for export. Native
+resource generation and archive I/O still use the host adapter.
+
+The headless storyboard checks cover legacy paint indices, preserved
+palettes, camera and light settings, undo, reopen and export of one or
+multiple boards. All three native comparison files were byte-identical.
+All five VMM outputs retained the same indexed movie data, dependencies,
+packaged payloads and child links after normalizing generated storyboard
+names and chunk keys. Previously freed bytes can still contain an
+earlier randomized key. A v3dmm runtime was unavailable for playback.
+
+The C fixture exercises source-table publication and cleanup after
+payload-write and link failures. All 41 selected Marcus-enabled checks
+and five standalone C-only Release checks passed. The renderer fixture
+reported the 32-bit ASM worker unavailable.
+
+The painted native probe produced identical bytes with the previous and
+C89 metadata and archive writers. Marcus completed seek and playback on
+its three frames in suite `20261119T055454Z-881bbcf8`. Retail timed out
+and SDL Studio exited before capture. The separately reframed native
+control completed all six runs in suite `20261119T055624Z-d0f27c0d`.
+Retail and both ports agreed on all three frame positions, seek pixels,
+and silent PCM in the control. SDL playback timing differed. Marcus
+timing and continuous playback pixels remain inconclusive.
+
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The native and VMM
+outputs, probe and logs are in `tmp/c89-board-archive`.

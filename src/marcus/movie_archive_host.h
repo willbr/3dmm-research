@@ -69,6 +69,9 @@ struct MovieArchiveHost
                 const bool packed = io.output.FPacked();
                 return io.output.FUnpackData() && io.output.FWriteRgb(const_cast<void *>(bytes), size, offset) &&
                        (!packed || io.file->FPutBlck(&io.output, type, number));
+            },
+            [](void *value, MMU32 type, MMU32 number) {
+                static_cast<MovieArchiveHost *>(value)->file->Delete(type, number);
             }
         };
     }

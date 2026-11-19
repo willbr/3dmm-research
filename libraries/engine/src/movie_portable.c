@@ -8,6 +8,45 @@
 #include <string.h>
 
 static const char portable_name[] = "Virtual3dmm/v3dmm";
+#define MOVIE_TYPE 0x4d564945UL
+#define SOURCE_TABLE_TYPE 0x47535420UL
+
+typedef struct PortableSourceEdit
+{
+    const MMMovieArchiveEditor *editor;
+    MMChunkChild previous;
+    MMU32 movie;
+    int had_source;
+} PortableSourceEdit;
+
+static int receive_source(void *context, const unsigned char *data, MMU32 bytes)
+{
+    const PortableSourceEdit *edit = (const PortableSourceEdit *)context;
+    return mm_movie_archive_replace_child(edit->editor, MOVIE_TYPE, edit->movie, &edit->previous,
+                                          edit->had_source, data, bytes);
+}
+
+MMPortableSourceResult mm_movie_archive_require_portable_source(const MMMovieArchiveEditor *editor)
+{
+    MMChunkAccess chunks;
+    MMChunkEntry root;
+    MMReadStream stream;
+    PortableSourceEdit edit = {0};
+    MMU32 position;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_type_at(&chunks, MOVIE_TYPE, 0, &root, &position) != MM_CHUNK_OK)
+        return MM_PORTABLE_SOURCE_MISSING_ROOT;
+    edit.editor = editor;
+    edit.movie = root.number;
+    edit.previous.type = SOURCE_TABLE_TYPE;
+    edit.previous.slot = 1;
+    edit.had_source = mm_chunk_link_number(&chunks, MOVIE_TYPE, root.number, 1, SOURCE_TABLE_TYPE,
+                                            &edit.previous.number) == MM_CHUNK_OK;
+    if (edit.had_source && !editor->read(editor->context, SOURCE_TABLE_TYPE, edit.previous.number, &stream))
+        return MM_PORTABLE_SOURCE_READ_FAILED;
+    return mm_movie_ensure_portable_source(edit.had_source ? &stream : NULL, editor->system, editor->big_endian,
+                                           receive_source, &edit);
+}
 
 static int portable_key_status(const MMChunkAccess *source, const MMChunkAccess *occupied,
                                size_t count, MMU32 type, MMU32 number)

@@ -6,6 +6,7 @@
 #include <cstring>
 #include <stdexcept>
 #include "storyboard_native.h"
+#include "movie_archive_host.h"
 #include "zbmp.h"
 #undef size
 ASSERTNAME
@@ -16,21 +17,6 @@ struct Release { template<class T> void operator()(T *p) const { if (p) p->Relea
 void Require(bool ok, const char *message) { if (!ok) throw std::runtime_error(message); }
 bool Range(float v, float a, float b) { return std::isfinite(v) && v >= a && v <= b; }
 unsigned short Angle(float degrees) { return static_cast<unsigned short>(static_cast<int>(degrees * (65536.f / 360))); }
-struct Wire
-{
-    std::vector<unsigned char> bytes;
-    size_t at = 0;
-    void Put(unsigned v) { for (int i = 0; i < 4; ++i) bytes.push_back(static_cast<unsigned char>(v >> (8 * i))); }
-    unsigned Get()
-    {
-        Require(at + 4 <= bytes.size(), "Truncated storyboard data.");
-        unsigned v = 0;
-        for (int i = 0; i < 4; ++i) v |= unsigned(bytes[at++]) << (8 * i);
-        return v;
-    }
-    void PutFloat(float v) { unsigned u; static_assert(sizeof(v) == sizeof(u), "Float wire size"); std::memcpy(&u, &v, 4); Put(u); }
-    float Float() { auto u = Get(); float v; std::memcpy(&v, &u, 4); return v; }
-};
 BMAT34 Matrix(float x, float y, float z, float yaw, float pitch, float roll)
 {
     BMAT34 m;
@@ -41,76 +27,74 @@ BMAT34 Matrix(float x, float y, float z, float yaw, float pitch, float roll)
     return m;
 }
 }
-bool MarcusBoardValid(const MarcusStoryboard &board)
+namespace
 {
-    if (board.angles.empty() || board.angles.size() > MARCUS_BOARD_ANGLE_LIMIT || board.lights.size() > MARCUS_BOARD_LIGHT_LIMIT ||
-        board.colours.size() < MarcusBoardColourCount || board.colours.size() > MARCUS_BOARD_COLOUR_LIMIT ||
-        !std::equal(MarcusBoardColours.begin(), MarcusBoardColours.end(), board.colours.begin()) ||
-        std::any_of(board.colours.begin(), board.colours.end(), [](auto rgb) { return rgb > 0xffffff; })) return false;
-    for (const auto &a : board.angles)
-        if (!Range(a.camera.x, -32700, 32700) || !Range(a.camera.y, -32700, 32700) || !Range(a.camera.z, -32700, 32700) ||
-            !Range(a.camera.yaw, -360, 360) || !Range(a.camera.pitch, -90, 90) || !Range(a.roll, -180, 180) ||
-            !Range(a.fov, 5, 150) || !Range(a.nearClip, .01f, 100) || !Range(a.farClip, a.nearClip + .01f, 32700) ||
-            a.pixels.size() != MarcusBoardWidth * MarcusBoardHeight ||
-            std::any_of(a.pixels.begin(), a.pixels.end(), [&](auto v) { return v >= board.colours.size(); })) return false;
-    for (const auto &l : board.lights)
-        if (!Range(l.x, -32700, 32700) || !Range(l.y, -32700, 32700) || !Range(l.z, -32700, 32700) ||
-            !Range(l.yaw, -360, 360) || !Range(l.pitch, -89, 89) || !Range(l.intensity, 0, 1) ||
-            (l.point != 0 && l.point != 1)) return false;
+bool BoardView(const MarcusStoryboard &board, MarcusBoardWire &view)
+{
+    if (board.angles.size() > MARCUS_BOARD_ANGLE_LIMIT || board.lights.size() > MARCUS_BOARD_LIGHT_LIMIT ||
+        board.colours.size() > MARCUS_BOARD_COLOUR_LIMIT)
+        return false;
+    view.values.angle_count = static_cast<int>(board.angles.size());
+    view.values.light_count = static_cast<int>(board.lights.size());
+    view.values.colour_count = static_cast<int>(board.colours.size());
+    std::copy(board.colours.begin(), board.colours.end(), view.values.colours);
+    for (size_t i = 0; i < board.angles.size(); ++i)
+    {
+        if (board.angles[i].pixels.size() != MARCUS_BOARD_PIXELS) return false;
+        view.values.angles[i] = MarcusBoardPoseOf(board.angles[i]);
+        view.pixels[i] = board.angles[i].pixels.data();
+    }
+    for (size_t i = 0; i < board.lights.size(); ++i)
+        view.values.lights[i] = MarcusBoardLightValuesOf(board.lights[i]);
     return true;
 }
+}
+
+bool MarcusBoardValid(const MarcusStoryboard &board)
+{
+    MarcusBoardWire view{};
+    return BoardView(board, view) && marcus_board_wire_size(&view) != 0;
+}
+
 std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board)
 {
-    Require(MarcusBoardValid(board), "Storyboard settings are out of range.");
-    Wire w;
-    w.Put(3); w.Put(MarcusBoardWidth); w.Put(MarcusBoardHeight);
-    w.Put(static_cast<unsigned>(board.angles.size())); w.Put(static_cast<unsigned>(board.lights.size()));
-    w.Put(static_cast<unsigned>(board.colours.size()));
-    for (auto rgb : board.colours) w.Put(rgb);
-    for (const auto &a : board.angles)
-    {
-        for (float v : {a.camera.x, a.camera.y, a.camera.z, a.camera.yaw, a.camera.pitch, a.roll, a.fov, a.nearClip, a.farClip}) w.PutFloat(v);
-        w.bytes.insert(w.bytes.end(), a.pixels.begin(), a.pixels.end());
-    }
-    for (const auto &l : board.lights)
-    {
-        for (float v : {l.x, l.y, l.z, l.yaw, l.pitch, l.intensity}) w.PutFloat(v);
-        w.Put(l.point);
-    }
-    return std::move(w.bytes);
+    MarcusBoardWire view{};
+    Require(BoardView(board, view), "Storyboard settings are out of range.");
+    std::vector<unsigned char> output(marcus_board_wire_size(&view));
+    Require(marcus_board_encode(&view, output.data(), output.size()), "Storyboard settings are out of range.");
+    return output;
 }
+
 MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
 {
-    Wire w{bytes};
-    const auto version = w.Get();
-    Require((version >= 1 && version <= 3) && w.Get() == MarcusBoardWidth && w.Get() == MarcusBoardHeight, "Unsupported storyboard format.");
-    const auto angles = w.Get(), lights = w.Get();
-    MarcusStoryboard result;
-    if (version >= 3)
+    static const char *const messages[] = {
+        nullptr,
+        "Unsupported storyboard format.",
+        "Invalid storyboard size.",
+        "Invalid storyboard paint palette.",
+        "Invalid legacy paint colour.",
+        "Invalid storyboard settings."
+    };
+    MarcusBoardWire view;
+    const int status = marcus_board_decode(bytes.data(), bytes.size(), &view);
+    Require(status == MARCUS_BOARD_WIRE_OK, messages[status]);
+    MarcusStoryboard board;
+    const auto &values = view.values;
+    board.colours.assign(values.colours, values.colours + values.colour_count);
+    board.angles.resize(values.angle_count);
+    board.lights.resize(values.light_count);
+    for (int i = 0; i < values.angle_count; ++i)
     {
-        const auto colours = w.Get();
-        Require(colours >= MarcusBoardColourCount && colours <= MARCUS_BOARD_COLOUR_LIMIT, "Invalid storyboard paint palette.");
-        result.colours.resize(colours);
-        for (auto &rgb : result.colours) rgb = w.Get();
+        auto &angle = board.angles[i];
+        const auto &pose = values.angles[i];
+        angle.camera.x = pose.camera.x; angle.camera.y = pose.camera.y; angle.camera.z = pose.camera.z;
+        angle.camera.yaw = pose.camera.yaw; angle.camera.pitch = pose.camera.pitch;
+        angle.roll = pose.roll; angle.fov = pose.fov; angle.nearClip = pose.near_clip; angle.farClip = pose.far_clip;
+        std::copy_n(view.pixels[i], MARCUS_BOARD_PIXELS, angle.pixels.begin());
     }
-    Require(angles > 0 && angles <= MARCUS_BOARD_ANGLE_LIMIT && lights <= MARCUS_BOARD_LIGHT_LIMIT &&
-        bytes.size() == w.at + size_t(angles) * (36 + MarcusBoardWidth * MarcusBoardHeight) + size_t(lights) * 28,
-        "Invalid storyboard size.");
-    result.angles.resize(angles); result.lights.resize(lights);
-    for (auto &a : result.angles)
-    {
-        a.camera.x = w.Float(); a.camera.y = w.Float(); a.camera.z = w.Float();
-        a.camera.yaw = w.Float(); a.camera.pitch = w.Float(); a.roll = w.Float();
-        a.fov = w.Float(); a.nearClip = w.Float(); a.farClip = w.Float();
-        std::copy_n(bytes.data() + w.at, a.pixels.size(), a.pixels.begin()); w.at += a.pixels.size();
-        Require(version != 1 || std::none_of(a.pixels.begin(), a.pixels.end(), [](auto v) { return v > 6; }), "Invalid legacy paint colour.");
-    }
-    for (auto &l : result.lights)
-    {
-        l.x = w.Float(); l.y = w.Float(); l.z = w.Float(); l.yaw = w.Float(); l.pitch = w.Float(); l.intensity = w.Float(); l.point = w.Get();
-    }
-    Require(MarcusBoardValid(result), "Invalid storyboard settings.");
-    return result;
+    for (int i = 0; i < values.light_count; ++i)
+        board.lights[i] = MarcusBoardLightFromValues(values.lights[i]);
+    return board;
 }
 void MarcusBoardStroke(MarcusBoardAngle &a, int x0, int y0, int x1, int y1, int size, unsigned char colour)
 {
@@ -430,16 +414,11 @@ void MarcusEmbedBoard(PChunkyFile file, ChunkNumber scene, const MarcusBoardReso
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
     ChunkNumber background;
     Require(source && source->FCopy(kctgBkgd, resource.background, file, &background), "Cannot embed storyboard resources.");
-    ChildChunkIdentification child;
-    for (auto type : {static_cast<ChunkTagOrType>(kctgBkgd), static_cast<ChunkTagOrType>(MarcusBoardChunk)})
-        if (file->FGetKidChidCtg(kctgScen, scene, 0, type, &child)) file->DeleteChild(kctgScen, scene, type, child.cki.cno, 0);
-    auto bytes = MarcusEncodeBoard(*resource.board);
-    ChunkNumber metadata;
-    Require(file->FAddPv(bytes.data(), static_cast<LegacyLong>(bytes.size()), MarcusBoardChunk, &metadata) &&
-        file->FAdoptChild(kctgScen, scene, MarcusBoardChunk, metadata, 0) &&
-        file->FAdoptChild(kctgScen, scene, kctgBkgd, background, 0), "Cannot embed storyboard data.");
-    MarcusRetargetStoryboardScene(file, scene, 0, background);
-    if (file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child)) file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
+    const auto bytes = MarcusEncodeBoard(*resource.board);
+    MovieArchiveHost host{file, {}, {}};
+    const auto editor = host.Editor();
+    Require(mm_movie_archive_embed_storyboard(&editor, scene, background, bytes.data(), static_cast<MMU32>(bytes.size())),
+            "Cannot embed storyboard data.");
 }
 MarcusStoryboards MarcusReadBoards(MM::Archive &archive, const std::shared_ptr<MarcusMovieFile> &file)
 {

@@ -1,6 +1,7 @@
 #ifndef MARCUS_STORYBOARD_EDIT_DATA_H
 #define MARCUS_STORYBOARD_EDIT_DATA_H
 #include "player.h"
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +31,22 @@ typedef struct MarcusBoardEditValues
     MarcusBoardLightValues lights[MARCUS_BOARD_LIGHT_LIMIT];
     unsigned colours[MARCUS_BOARD_COLOUR_LIMIT];
 } MarcusBoardEditValues;
+typedef struct MarcusBoardWire
+{
+    MarcusBoardEditValues values;
+    const unsigned char *pixels[MARCUS_BOARD_ANGLE_LIMIT];
+} MarcusBoardWire;
+
+enum
+{
+    MARCUS_BOARD_WIRE_OK, MARCUS_BOARD_WIRE_FORMAT, MARCUS_BOARD_WIRE_SIZE,
+    MARCUS_BOARD_WIRE_PALETTE, MARCUS_BOARD_WIRE_LEGACY_COLOUR, MARCUS_BOARD_WIRE_VALUES
+};
+/* Decode borrows pixel planes from the input and publishes only on success. */
+int marcus_board_decode(const unsigned char *, size_t, MarcusBoardWire *);
+/* Return zero for invalid settings. The writer emits the current version. */
+size_t marcus_board_wire_size(const MarcusBoardWire *);
+int marcus_board_encode(const MarcusBoardWire *, unsigned char *, size_t);
 
 extern const unsigned marcus_board_swatches[MARCUS_BOARD_SWATCH_COUNT];
 void marcus_board_projection(const MarcusBoardPose *, MarcusProjection *);

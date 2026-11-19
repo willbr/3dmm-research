@@ -943,10 +943,13 @@ The C89 publisher sequences exclusive staging, candidate writing, atomic
 replacement and cleanup for Studio VMM saves and Marcus Save Copy. Marcus
 also uses the C89 format rule for explicit and inferred 3MM and VMM suffixes.
 The working-copy and export paths now use one C89 editor to update storyboard
-background references in scene-start events. C89 validates the portable source
-ID and preserves the source table's byte order and string encoding when adding
-its declaration. New child chunks are linked before the previous child is
-removed, so a failed link leaves the previous child available.
+background references in scene-start events. C89 validates and serializes
+editable storyboard metadata, reads legacy versions, and handles archive links
+for embedded storyboards and the portable source table. C89 validates the
+portable source ID and preserves the table's byte order and string encoding
+when adding its declaration. Scene-start and source-table replacements link
+the new child before removing the old one, so a failed link keeps the old child
+available.
 Storyboard export now allocates portable chunk numbers and rewrites the
 whole index in C89. The pass checks existing source-6 indexes, reorders
 renumbered rows and child links, and preserves payload bytes and the free map.

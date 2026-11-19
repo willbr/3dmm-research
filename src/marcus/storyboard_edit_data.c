@@ -8,6 +8,183 @@
 const unsigned marcus_board_swatches[MARCUS_BOARD_SWATCH_COUNT] = {
     0xd3d4d6, 0x000000, 0xffffff, 0x9ebfd9, 0xdea5a2, 0xe6d8a0, 0xaac9ad, 0x505050, 0x949494, 0xc4c4c4
 };
+typedef char BoardFloatWidth[sizeof(float) == 4 && sizeof(unsigned) == 4 ? 1 : -1];
+
+static int board_range(float value, float low, float high)
+{
+    return value >= low && value <= high;
+}
+
+static int valid_wire(const MarcusBoardWire *board)
+{
+    const MarcusBoardEditValues *v = &board->values;
+    const MarcusBoardPose *pose;
+    const MarcusBoardLightValues *light;
+    int i, j;
+    if (v->angle_count < 1 || v->angle_count > MARCUS_BOARD_ANGLE_LIMIT ||
+        v->light_count < 0 || v->light_count > MARCUS_BOARD_LIGHT_LIMIT ||
+        v->colour_count < MARCUS_BOARD_SWATCH_COUNT || v->colour_count > MARCUS_BOARD_COLOUR_LIMIT ||
+        memcmp(v->colours, marcus_board_swatches, sizeof(marcus_board_swatches)))
+        return 0;
+    for (i = 0; i < v->colour_count; ++i)
+        if (v->colours[i] > 0xffffffU)
+            return 0;
+    for (i = 0; i < v->angle_count; ++i)
+    {
+        pose = &v->angles[i];
+        if (!board->pixels[i] || !board_range(pose->camera.x, -32700, 32700) ||
+            !board_range(pose->camera.y, -32700, 32700) || !board_range(pose->camera.z, -32700, 32700) ||
+            !board_range(pose->camera.yaw, -360, 360) || !board_range(pose->camera.pitch, -90, 90) ||
+            !board_range(pose->roll, -180, 180) || !board_range(pose->fov, 5, 150) ||
+            !board_range(pose->near_clip, .01f, 100) || !board_range(pose->far_clip, pose->near_clip + .01f, 32700))
+            return 0;
+        for (j = 0; j < MARCUS_BOARD_PIXELS; ++j)
+            if (board->pixels[i][j] >= v->colour_count)
+                return 0;
+    }
+    for (i = 0; i < v->light_count; ++i)
+    {
+        light = &v->lights[i];
+        if (!board_range(light->x, -32700, 32700) || !board_range(light->y, -32700, 32700) ||
+            !board_range(light->z, -32700, 32700) || !board_range(light->yaw, -360, 360) ||
+            !board_range(light->pitch, -89, 89) || !board_range(light->intensity, 0, 1) ||
+            (light->point != 0 && light->point != 1))
+            return 0;
+    }
+    return 1;
+}
+
+static unsigned get_word(const unsigned char **at)
+{
+    const unsigned char *p = *at;
+    *at += 4;
+    return p[0] | (unsigned)p[1] << 8 | (unsigned)p[2] << 16 | (unsigned)p[3] << 24;
+}
+static float get_float(const unsigned char **at)
+{
+    unsigned bits = get_word(at);
+    float value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+static void put_word(unsigned char **at, unsigned value)
+{
+    unsigned i;
+    for (i = 0; i < 4; ++i)
+        *(*at)++ = (unsigned char)(value >> (8 * i));
+}
+static void put_float(unsigned char **at, float value)
+{
+    unsigned bits;
+    memcpy(&bits, &value, sizeof(bits));
+    put_word(at, bits);
+}
+
+static size_t board_bytes(unsigned angles, unsigned lights)
+{
+    return (size_t)angles * (36 + MARCUS_BOARD_PIXELS) + (size_t)lights * 28;
+}
+
+int marcus_board_decode(const unsigned char *bytes, size_t length, MarcusBoardWire *out)
+{
+    MarcusBoardWire decoded;
+    MarcusBoardEditValues *v = &decoded.values;
+    const unsigned char *at = bytes;
+    unsigned version, angles, lights, colours, i, j, point;
+    if (length < 20)
+        return MARCUS_BOARD_WIRE_SIZE;
+    version = get_word(&at);
+    if (version < 1 || version > 3 || get_word(&at) != MARCUS_BOARD_WIDTH || get_word(&at) != MARCUS_BOARD_HEIGHT)
+        return MARCUS_BOARD_WIRE_FORMAT;
+    angles = get_word(&at);
+    lights = get_word(&at);
+    if (!angles || angles > MARCUS_BOARD_ANGLE_LIMIT || lights > MARCUS_BOARD_LIGHT_LIMIT)
+        return MARCUS_BOARD_WIRE_SIZE;
+    memset(&decoded, 0, sizeof(decoded));
+    v->angle_count = (int)angles;
+    v->light_count = (int)lights;
+    if (version >= 3)
+    {
+        if (length < 24)
+            return MARCUS_BOARD_WIRE_SIZE;
+        colours = get_word(&at);
+        if (colours < MARCUS_BOARD_SWATCH_COUNT || colours > MARCUS_BOARD_COLOUR_LIMIT)
+            return MARCUS_BOARD_WIRE_PALETTE;
+        if (length != 24 + 4 * colours + board_bytes(angles, lights))
+            return MARCUS_BOARD_WIRE_SIZE;
+        v->colour_count = (int)colours;
+        for (i = 0; i < colours; ++i) v->colours[i] = get_word(&at);
+    }
+    else
+    {
+        if (length != 20 + board_bytes(angles, lights))
+            return MARCUS_BOARD_WIRE_SIZE;
+        v->colour_count = MARCUS_BOARD_SWATCH_COUNT;
+        memcpy(v->colours, marcus_board_swatches, sizeof(marcus_board_swatches));
+    }
+    for (i = 0; i < angles; ++i)
+    {
+        MarcusBoardPose *pose = &v->angles[i];
+        pose->camera.x = get_float(&at); pose->camera.y = get_float(&at); pose->camera.z = get_float(&at);
+        pose->camera.yaw = get_float(&at); pose->camera.pitch = get_float(&at); pose->roll = get_float(&at);
+        pose->fov = get_float(&at); pose->near_clip = get_float(&at); pose->far_clip = get_float(&at);
+        decoded.pixels[i] = at;
+        if (version == 1)
+            for (j = 0; j < MARCUS_BOARD_PIXELS; ++j)
+                if (at[j] > 6)
+                    return MARCUS_BOARD_WIRE_LEGACY_COLOUR;
+        at += MARCUS_BOARD_PIXELS;
+    }
+    for (i = 0; i < lights; ++i)
+    {
+        MarcusBoardLightValues *light = &v->lights[i];
+        light->x = get_float(&at); light->y = get_float(&at); light->z = get_float(&at);
+        light->yaw = get_float(&at); light->pitch = get_float(&at); light->intensity = get_float(&at);
+        point = get_word(&at);
+        if (point > 1)
+            return MARCUS_BOARD_WIRE_VALUES;
+        light->point = (int)point;
+    }
+    if (!valid_wire(&decoded))
+        return MARCUS_BOARD_WIRE_VALUES;
+    *out = decoded;
+    return MARCUS_BOARD_WIRE_OK;
+}
+
+size_t marcus_board_wire_size(const MarcusBoardWire *board)
+{
+    const MarcusBoardEditValues *v = &board->values;
+    return valid_wire(board) ? 24 + 4 * v->colour_count + board_bytes(v->angle_count, v->light_count) : 0;
+}
+
+int marcus_board_encode(const MarcusBoardWire *board, unsigned char *bytes, size_t length)
+{
+    const MarcusBoardEditValues *v = &board->values;
+    int i;
+    size_t expected = marcus_board_wire_size(board);
+    if (!expected || length != expected)
+        return 0;
+    put_word(&bytes, 3); put_word(&bytes, MARCUS_BOARD_WIDTH); put_word(&bytes, MARCUS_BOARD_HEIGHT);
+    put_word(&bytes, v->angle_count); put_word(&bytes, v->light_count); put_word(&bytes, v->colour_count);
+    for (i = 0; i < v->colour_count; ++i) put_word(&bytes, v->colours[i]);
+    for (i = 0; i < v->angle_count; ++i)
+    {
+        const MarcusBoardPose *pose = &v->angles[i];
+        put_float(&bytes, pose->camera.x); put_float(&bytes, pose->camera.y); put_float(&bytes, pose->camera.z);
+        put_float(&bytes, pose->camera.yaw); put_float(&bytes, pose->camera.pitch); put_float(&bytes, pose->roll);
+        put_float(&bytes, pose->fov); put_float(&bytes, pose->near_clip); put_float(&bytes, pose->far_clip);
+        memcpy(bytes, board->pixels[i], MARCUS_BOARD_PIXELS);
+        bytes += MARCUS_BOARD_PIXELS;
+    }
+    for (i = 0; i < v->light_count; ++i)
+    {
+        const MarcusBoardLightValues *light = &v->lights[i];
+        put_float(&bytes, light->x); put_float(&bytes, light->y); put_float(&bytes, light->z);
+        put_float(&bytes, light->yaw); put_float(&bytes, light->pitch); put_float(&bytes, light->intensity);
+        put_word(&bytes, light->point);
+    }
+    return 1;
+}
 static const float radians = .01745329252f;
 
 static float clamp(float value, float low, float high)

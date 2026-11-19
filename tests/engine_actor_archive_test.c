@@ -374,7 +374,7 @@ static void rename_rollcall(void)
 {
     RollEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, movie_chunks,
-                                   open_roll, add_roll, adopt_roll, unlink_roll, NULL, NULL, NULL, NULL, NULL};
+                                   open_roll, add_roll, adopt_roll, unlink_roll, NULL, NULL, NULL, NULL, NULL, NULL};
     MMActorArchiveName name = {{4, 1, 0, 2, MM_TMPL, 19}, "edited", 6, 1};
     MMMovieActor original = {4, 3, 5, 0, MM_TMPL, 1}, other = {6, 2, 5, 1, MM_TMPL, 2}, actor;
     MMCollectionHeader header = {0};
@@ -504,7 +504,7 @@ static void placement_transaction(void)
     float delta[] = {1.25f, 0, 0};
     PlacementEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, placement_chunks, placement_read,
-                                   placement_add, placement_adopt, placement_unlink, placement_put, NULL, NULL, NULL, NULL};
+                                   placement_add, placement_adopt, placement_unlink, placement_put, NULL, NULL, NULL, NULL, NULL};
     MMActorArchivePose pose = {20, 5, NULL, identity, scale, NULL, placement_appearance};
     int fail;
     pose.context = editor.context = &edit;
@@ -721,7 +721,7 @@ static void reframe_transaction(void)
                                   MM_ACTOR_ROTATE_HERE, MM_ACTOR_TWEAK};
     ReframeEdit edit;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, reframe_chunks, reframe_read,
-                                   reframe_add, reframe_adopt, reframe_unlink, reframe_put, NULL, NULL, NULL, NULL};
+                                   reframe_add, reframe_adopt, reframe_unlink, reframe_put, NULL, NULL, NULL, NULL, NULL};
     MMSceneReframeHost host = {NULL, reframe_pose, reframe_from_euler, reframe_to_euler};
     MMSceneReframeCamera work = {identity, 70.0f, 1.0f}, camera = {identity, 70.0f, 2.0f};
     MMMemoryStream output;
@@ -885,7 +885,7 @@ static void insertion_transaction(void)
     const float point[3] = {1.25f, -2.0f, 0.0f};
     AuthorEdit f = {0};
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, author_chunks, author_read,
-                                   author_add, author_adopt, author_unlink, author_put, author_rekey, NULL, NULL, author_patch};
+                                   author_add, author_adopt, author_unlink, author_put, author_rekey, NULL, NULL, author_patch, NULL};
     MMActorAuthorHost host = {NULL, NULL, NULL, NULL, author_copy};
     MMActorInsert insert = {AUTHOR_SCENE, AUTHOR_ACTOR, 7, 12, 3, 5, NULL, "Text", 4, 1};
     MMSceneState scene;
@@ -1011,7 +1011,7 @@ static void edit_actor_sound(void)
     MMMovieSoundArchiveEdit edit = {NULL, NULL, 10, 22000, 2, 1, 1, 0};
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, sound_scene_graph, source_read,
                                    add_sound_copy, adopt_sound_copy, unlink_sound_copy, put,
-                                   NULL, NULL, NULL, NULL};
+                                   NULL, NULL, NULL, NULL, NULL};
     editor.context = &f;
     edit.cue = &cue;
     init(&f, 1);
@@ -1042,9 +1042,9 @@ int main(void)
     const MMActorArchiveRequest forward = {1, 1, 3, 7, 9, 12};
     MMActorArchiveHost host = {0};
     MMMovieArchiveEditor source_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source, source_read,
-                                          NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+                                          NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     MMMovieArchiveEditor destination_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, destination, destination_read,
-                                               NULL, adopt, NULL, put, NULL, NULL, replace_events, NULL};
+                                               NULL, adopt, NULL, put, NULL, NULL, replace_events, NULL, NULL};
     MMU32 actor, i;
     MMActorHeader header;
     unsigned char descriptor[MM_ACTOR_ARCHIVE_TEXT_BYTES];

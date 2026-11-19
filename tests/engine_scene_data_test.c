@@ -808,7 +808,7 @@ static void edit_archived_frames(void)
 {
     ArchivedFrames archive;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
-                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL};
+                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL, NULL};
     MMSceneState scene;
     MMMemoryStream stream;
     unsigned char value[4];
@@ -878,7 +878,7 @@ static void edit_archived_sounds(void)
 {
     ArchivedFrames archive;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
-                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL};
+                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL, NULL};
     MMMovieSoundArchiveCue cue = {1, 4, 0, 2, -1, 3, 8, 0, 0};
     MMMovieSoundArchiveEdit edit = {NULL, NULL, 5, 12000, 1, 1, 0, 0};
     MMU32 offset, added = 9;
