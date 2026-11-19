@@ -1,6 +1,7 @@
 #ifndef MM_ENGINE_MOVIE_SOUND_ARCHIVE_H
 #define MM_ENGINE_MOVIE_SOUND_ARCHIVE_H
 #include "movie_archive_edit.h"
+#include "movie_session.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +46,11 @@ typedef struct MMMovieSoundArchiveEdit
  * first free MSND slots on the scene and movie. Editing a scene packet can
  * move it in time. Actor edits replace only this scene's actor instance. */
 int mm_movie_archive_edit_sound(const MMMovieArchiveEditor *, MMU32 scene, const MMMovieSoundArchiveEdit *);
+
+/* Before publishing any scene from a cloned movie, install its missing MSND
+ * links using the cloned movie's bank. Explicit scene links take precedence.
+ * The caller discards the cloned graph on failure. */
+int mm_movie_archive_link_imported_sounds(const MMMovieSessionGraph *, MMU32 movie, const MMMovieEmbeddedArchive *);
 
 #ifdef __cplusplus
 }

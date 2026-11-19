@@ -1090,7 +1090,7 @@ static void rebind_materials(void)
 {
     Fixture f;
     MMMovieArchiveEditor editor = {0};
-    MMActorMaterialServices materials = {NULL, destination, copy_cloned_material, adopt_cloned_material,
+    MMMovieEmbeddedArchive materials = {NULL, destination, copy_cloned_material, adopt_cloned_material,
                                         discard_rebound_events};
     editor.context = materials.context = &f;
     editor.system = MM_TEXT_WINDOWS;
@@ -1110,6 +1110,136 @@ static void rebind_materials(void)
     f.fail_write = 1;
     CHECK(!mm_actor_archive_rebind_materials(&editor, 2, &materials));
     CHECK(!f.old_unlinked && f.replacement_discarded == 1 && !f.replacement_adopted);
+}
+
+typedef struct ImportedSounds
+{
+    Fixture wire;
+    MMChunkChild scene[6];
+    MMU32 count;
+    int fail, adoptions;
+} ImportedSounds;
+
+static int import_sound_entry(void *p, MMU32 row, MMChunkEntry *entry)
+{
+    static const MMU32 types[] = {ACTOR, EVENTS, MM_SCENE_FRAME_GROUP, MM_SCENE_START_GROUP, MOVIE, MOVIE, MM_SOUND_SCENE};
+    static const MMU32 numbers[] = {1, 10, 4, 5, 0, 9, 3};
+    static const MMU32 children[] = {1, 0, 0, 0, 1, 5};
+    ImportedSounds *f = (ImportedSounds *)p;
+    memset(entry, 0, sizeof(*entry));
+    entry->type = types[row];
+    entry->number = numbers[row];
+    entry->child_count = row == 6 ? f->count : children[row];
+    return 1;
+}
+
+static int import_sound_child(void *p, MMU32 row, MMU32 index, MMChunkChild *out)
+{
+    static const MMChunkChild group = {EVENTS, 10, 0};
+    static const MMChunkChild other = {MM_SOUND_CHUNK, 55, 2};
+    static const MMChunkChild bank[] = {{MM_SOUND_SCENE, 3, 0}, {MM_SOUND_CHUNK, 21, 2},
+        {MM_SOUND_CHUNK, 24, 4}, {MM_SOUND_CHUNK, 25, 5}, {MM_SOUND_CHUNK, 26, 6}};
+    *out = row == 0 ? group : row == 4 ? other : row == 5 ? bank[index] : ((ImportedSounds *)p)->scene[index];
+    return 1;
+}
+
+static MMChunkAccess import_sound_chunks(void *p)
+{
+    MMChunkAccess access = {NULL, 7, import_sound_entry, import_sound_child};
+    access.context = p;
+    return access;
+}
+
+static void import_sound_access(void *p, MMChunkAccess *out) { *out = import_sound_chunks(p); }
+
+static int import_sound_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    ImportedSounds *f = (ImportedSounds *)p;
+    MMReadStream stream;
+    MMMemoryStream memory;
+    MMCollectionHeader header = {0};
+    unsigned char group[132] = {0};
+    MMU32 i, size, offset = 0;
+    const unsigned short one = 1;
+    const MMU32 packet[] = {65536, 1, 0, 4,
+        4, 0, 0, MM_SOUND_CHUNK, 5,
+        5, 0, 0, MM_SOUND_CHUNK, 5,
+        6, 2, 0, MM_SOUND_CHUNK, 5,
+        7, 0, 0, MM_SOUND_CHUNK, 5};
+    MMU32 row[26] = {3, MM_SCENE_ADD_ACTOR, 0};
+    if (entry->type == EVENTS)
+    {
+        source_read(&f->wire, EVENTS, 10, &stream);
+        return receive(out, &stream);
+    }
+    if (entry->type == MM_SCENE_FRAME_GROUP)
+    {
+        row[1] = MM_SCENE_PLAY_SOUND;
+        memcpy(row + 2, packet, sizeof(packet));
+        size = 8 + sizeof(packet);
+    }
+    else
+        size = 12;
+    header.kind = MM_COLLECTION_GROUP;
+    header.system = MM_TEXT_WINDOWS;
+    header.big_endian = f->wire.big_endian;
+    header.count = 1;
+    header.width = 8;
+    header.free_count = -1;
+    header.bytes = size;
+    CHECK(mm_collection_header_write(&header, group, sizeof(group)) == MM_STORAGE_OK);
+    if (header.big_endian != (*(const unsigned char *)&one == 0))
+        for (i = 0; i < size / 4; ++i)
+            row[i] = ((row[i] & 255U) << 24) | ((row[i] & 65280U) << 8) |
+                     ((row[i] >> 8) & 65280U) | (row[i] >> 24);
+    memcpy(group + 20, row, size);
+    if (header.big_endian != (*(const unsigned char *)&one == 0))
+        offset = size << 24;
+    else
+        offset = size;
+    memcpy(group + 24 + size, &offset, 4);
+    CHECK(mm_memory_stream_init(&memory, group, 28 + size));
+    return receive(out, &memory.stream);
+}
+
+static int adopt_imported_sound(void *p, MMU32 type, MMU32 scene, const MMChunkChild *child, int clear_loner)
+{
+    ImportedSounds *f = (ImportedSounds *)p;
+    CHECK(type == MM_SOUND_SCENE && scene == 3 && child->type == MM_SOUND_CHUNK && !clear_loner);
+    CHECK((child->slot == 2 && child->number == 21) || (child->slot == 4 && child->number == 24));
+    if (++f->adoptions == f->fail)
+        return 0;
+    CHECK(f->count < sizeof(f->scene) / sizeof(f->scene[0]));
+    f->scene[f->count] = f->scene[f->count - 1];
+    f->scene[f->count - 1] = *child;
+    ++f->count;
+    return 1;
+}
+
+static void link_imported_sounds(void)
+{
+    ImportedSounds f;
+    const MMChunkChild initial[] = {{ACTOR, 1, 0}, {MM_SCENE_FRAME_GROUP, 4, 0},
+        {MM_SCENE_START_GROUP, 5, 1}, {MM_SOUND_CHUNK, 99, 5}};
+    MMMovieSessionGraph graph = {NULL, import_sound_access, NULL, import_sound_payload, NULL};
+    MMMovieEmbeddedArchive archive = {NULL, import_sound_chunks, NULL, adopt_imported_sound, NULL};
+    int big;
+    graph.context = archive.context = &f;
+    for (big = 0; big <= 1; ++big)
+    {
+        memset(&f, 0, sizeof(f));
+        init(&f.wire, big);
+        f.wire.payloads[5].sound.child = 6;
+        memcpy(f.scene, initial, sizeof(initial));
+        f.count = 4;
+        CHECK(mm_movie_archive_link_imported_sounds(&graph, 9, &archive));
+        CHECK(f.adoptions == 2 && f.count == 6 && f.scene[5].number == 99);
+        CHECK(mm_movie_archive_link_imported_sounds(&graph, 9, &archive) && f.adoptions == 2);
+    }
+    f.count = 4;
+    memcpy(f.scene, initial, sizeof(initial));
+    f.fail = 4;
+    CHECK(!mm_movie_archive_link_imported_sounds(&graph, 9, &archive) && f.count == 5);
 }
 
 int main(void)
@@ -1178,5 +1308,6 @@ int main(void)
     insertion_transaction();
     edit_actor_sound();
     rebind_materials();
+    link_imported_sounds();
     return 0;
 }

@@ -71,7 +71,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
         PChunkyFile file;
         PTemplate tmpl;
     } host = {pcfl, _ptmpl};
-    ActorMaterialArchive materials = {pcfl, nullptr};
+    MovieEmbeddedArchive materials = {pcfl, nullptr};
     MMActorStoreServices services = {};
     services.context = &host;
     services.header = ActorData::HeaderIO(pcfl);

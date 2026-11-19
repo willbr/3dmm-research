@@ -1063,6 +1063,8 @@ unused standalone materials.
 Scene-sorter imports use C89 to bind cloned costume events to destination
 material numbers before publishing any imported scene. The archive adapter
 serves Studio and Marcus.
+The scene-sorter import also uses C89 to link embedded actor and frame sounds
+from the cloned movie's sound bank at their authored scene slots.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

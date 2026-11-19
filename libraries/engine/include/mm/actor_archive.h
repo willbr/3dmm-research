@@ -56,7 +56,7 @@ int mm_actor_archive_transfer(const MMActorArchiveRequest *, const MMActorArchiv
  * Existing tracks shared with another actor retain their original bytes.
  * The caller discards the cloned graph on failure. */
 int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *, MMU32 actor,
-                                     const MMActorMaterialServices *);
+                                     const MMMovieEmbeddedArchive *);
 
 /* Find the first readable actor header matching the ID in the selected scene. */
 int mm_actor_archive_find(const MMMovieArchiveEditor *, MMU32 scene, MMI32 actor_id, MMU32 *actor);

@@ -7136,6 +7136,13 @@ and writes a replacement track when the number changes. It publishes the new
 track link before releasing the old link, preserving tracks shared by another
 actor. Studio and Marcus use the same native archive adapter.
 
+The scene sorter installs sound links on the cloned scenes before publishing
+them. C89 visits actor and frame cues and attaches a missing scene slot to
+the matching slot in the cloned movie's sound bank. Existing scene links
+keep precedence, and external and silent actor cues keep their authored
+representation. This keeps the sound identity across chunk renumbering and
+allows retail playback to resolve each cue from its scene.
+
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor
 payloads remain opaque at this layer. Embedded roll-call TAGs own resource

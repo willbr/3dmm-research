@@ -58,6 +58,7 @@ extern "C"
         MMI32 (*transition)(void *scene);
         void *(*read_thumbnail)(void *file, MMU32 number), *(*thumbnail)(void *scene);
         int (*clone_movie)(void *source, MMU32 number, void *destination, MMU32 *number_out);
+        int (*link_imported_sounds)(void *file, MMU32 movie);
         void (*delete_movie)(void *file, MMU32 number);
         int (*adopt_scene)(void *file, MMU32 movie, MMU32 scene, MMU32 child),
             (*adopt_sounds)(void *, void *file, MMU32 scene);
@@ -86,6 +87,7 @@ extern "C"
      * it rolls back inserted descriptors and releases empty lists, preserving autosave.
      * Apply keeps completed scene/roll-call/file prefixes on failure; copied Movie roots
      * and cache references are temporary and always cleaned, including failed merge.
+     * Adds missing imported scene sound links before transferring roll-call rows.
      * Rebinds each cloned actor's document materials once before adopting scenes,
      * even when its actor IDs already fit. That import pass aborts on traversal failure.
      * Import actor-start/registration failures are diagnosed but do not abort apply.

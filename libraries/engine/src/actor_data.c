@@ -395,7 +395,7 @@ done:
     return status;
 }
 
-int mm_actor_store_material(MMU32 actor, MMTag *tag, const MMActorMaterialServices *s)
+int mm_actor_store_material(MMU32 actor, MMTag *tag, const MMMovieEmbeddedArchive *s)
 {
     MMChunkAccess chunks;
     MMChunkChild link, existing;
@@ -488,7 +488,7 @@ void *mm_actor_write_events(void *runtime, const MMActorEventServices *s)
 
 static int store_template(MMU32 actor, const MMActorHeader *header, const MMActorStoreServices *s)
 {
-    const MMActorMaterialServices *archive = &s->materials;
+    const MMMovieEmbeddedArchive *archive = &s->materials;
     MMChunkAccess chunks = archive->chunks(archive->context);
     MMChunkChild link;
     MMU32 row, number;
@@ -515,7 +515,7 @@ static int store_template(MMU32 actor, const MMActorHeader *header, const MMActo
 static int store_sounds(MMU32 scene, void *events, const MMActorStoreServices *s)
 {
     const MMActorEventServices *e = &s->events;
-    const MMActorMaterialServices *archive = &s->materials;
+    const MMMovieEmbeddedArchive *archive = &s->materials;
     MMActorSound sound;
     MMChunkAccess chunks;
     MMChunkChild link;

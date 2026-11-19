@@ -249,7 +249,8 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
             void *source = s->file(movie.resources);
             if (!s->clone_movie(source, movie.number, file, &movie.number))
                 goto done;
-            if (!merge(movie.number, offset, s->rebind_actor_materials ? source : NULL, s))
+            if ((s->link_imported_sounds && !s->link_imported_sounds(file, movie.number)) ||
+                !merge(movie.number, offset, s->rebind_actor_materials ? source : NULL, s))
             {
                 s->delete_movie(file, movie.number);
                 goto done;

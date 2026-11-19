@@ -2577,6 +2577,18 @@ all three scenes matched the original viewport and texture hashes at frames
 each reproduced its original seek images for all 90 frames. Mixed PCM still
 differed from retail in both ports. Evidence is in `tmp/c89-compose-materials/`.
 
+Scene-sorter imports also add missing scene sound links in C89. A source
+movie that linked its actor cues only at the movie root stopped after frame
+2 in retail and SDL Studio. Marcus completed that input using the movie
+bank. Imports of that movie and a separate frame-cue movie now store scene
+links to the original WAVE payloads, including when the import renumbers
+the sounds. Existing scene links with a different slot order keep their
+original payloads. Retail, SDL Studio, and Marcus completed both three-scene
+saves in the same 90-frame order and each captured the 600 Hz and 1300 Hz
+tones in the repaired scene. All 270 actor-fixture seek images matched the
+earlier composition. Mixed PCM still differed from retail in both ports.
+Evidence is in `tmp/c89-compose-sounds/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

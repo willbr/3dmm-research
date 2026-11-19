@@ -47,7 +47,8 @@ enum
     ROLL_CHANGED,
     CLOSE_SCENE,
     CLOSE_TAG,
-    REBIND_MATERIALS
+    REBIND_MATERIALS,
+    LINK_SOUNDS
 };
 typedef struct Test Test;
 typedef struct Object
@@ -225,6 +226,12 @@ static int clone(void *p, MMU32 number, void *destination, MMU32 *out)
         return 0;
     *out = number + 100;
     return 1;
+}
+static int link_sounds(void *file, MMU32 number)
+{
+    Object *o = file;
+    CHECK(number == 120);
+    return !fails(o->test, LINK_SOUNDS);
 }
 static void delete_root(void *p, MMU32 number)
 {
@@ -750,6 +757,14 @@ static int applying(void)
         CHECK(t.calls[REBIND_MATERIALS] == 2 && !t.adjustCount && t.deletedCount == 1 && t.deleted[0] == 120);
         CHECK(t.data.actors.count == (i ? 1U : 3U) && t.adopted == !i && !cleanup_tags(&t));
     }
+    init(&t);
+    apply_setup(&t, 1);
+    t.s.link_imported_sounds = link_sounds;
+    t.fail = LINK_SOUNDS;
+    CHECK(!mm_movie_compose_apply(&t.composite, &t.s));
+    CHECK(t.calls[LINK_SOUNDS] == 1 && position(&t, CLONE) < position(&t, LINK_SOUNDS) &&
+          position(&t, LINK_SOUNDS) < position(&t, DELETE_ROOT));
+    CHECK(!t.calls[READ_TABLE] && !t.adopted && t.deletedCount == 1 && t.deleted[0] == 120);
     init(&t);
     apply_setup(&t, 1);
     t.movieList.descriptors[0].actor_limit = 2147483647;

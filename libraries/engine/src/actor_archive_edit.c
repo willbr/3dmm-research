@@ -193,7 +193,7 @@ int mm_actor_archive_replace_event_group(const MMMovieArchiveEditor *editor, MMU
 }
 
 int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 actor,
-                                     const MMActorMaterialServices *materials)
+                                     const MMMovieEmbeddedArchive *materials)
 {
     const MMU32 no_chunk = 0xffffffffUL;
     MMGroup *events;

@@ -4,6 +4,7 @@
 #include "collection_storage.h"
 #include "movie_title.h"
 #include "string_table.h"
+#include "tag.h"
 #include "text.h"
 
 #ifdef __cplusplus
@@ -33,6 +34,16 @@ typedef struct MMMovieArchiveEditor
     int (*patch)(void *, MMU32 type, MMU32 number, MMU32 offset, const void *bytes, MMU32 size);
     void (*discard)(void *, MMU32 type, MMU32 number); /* Optional unlinked chunk cleanup. */
 } MMMovieArchiveEditor;
+
+/* Primitive access for copying and linking document-owned asset subtrees. */
+typedef struct MMMovieEmbeddedArchive
+{
+    void *context;
+    MMChunkAccess (*chunks)(void *);
+    int (*copy_reference)(void *, const MMTag *, MMU32 *number, int *created);
+    int (*adopt)(void *, MMU32 parent_type, MMU32 parent, const MMChunkChild *, int clear_loner);
+    void (*discard)(void *, MMU32 type, MMU32 number);
+} MMMovieEmbeddedArchive;
 
 enum MMMovieSceneArchiveResult
 {

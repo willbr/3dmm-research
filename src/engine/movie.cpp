@@ -35,6 +35,7 @@ Actors, Text boxes, etc.
 #include "mm/indexed_display.h"
 #include "mm/actor_archive.h"
 #include "mm/movie_archive_edit.h"
+#include "mm/movie_sound_archive.h"
 ASSERTNAME
 
 #define krScaleMouseRecord BR_SCALAR(0.20)
@@ -2891,6 +2892,13 @@ MMMovieComposeServices Movie::_ComposeServices()
         ChunkNumber value; bool ok=static_cast<PChunkyFile>(p)->FClone(kctgMvie,number,static_cast<PChunkyFile>(out),&value);
         if(ok) *copied=value; return ok;
     };
+    s.link_imported_sounds = [](void *p, MMU32 movie) {
+        auto file = static_cast<PChunkyFile>(p);
+        const auto graph = EngineMovieGraph::FromFile(file);
+        MovieEmbeddedArchive assets{file, nullptr};
+        const auto archive = assets.Services();
+        return mm_movie_archive_link_imported_sounds(&graph, movie, &archive);
+    };
     s.delete_movie=[](void *p,MMU32 number) { static_cast<PChunkyFile>(p)->Delete(kctgMvie,number); };
     s.adopt_scene=[](void *p,MMU32 movie,MMU32 scene,MMU32 child)->int {
         return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie,movie,kctgScen,scene,child);
@@ -2939,7 +2947,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.rebind_actor_materials = [](void *source, void *destination, MMU32 actor) {
         auto file = static_cast<PChunkyFile>(destination);
         MovieArchiveHost host{file, {}, {}};
-        ActorMaterialArchive materials{file, static_cast<PChunkyFile>(source)};
+        MovieEmbeddedArchive materials{file, static_cast<PChunkyFile>(source)};
         const auto editor = host.Editor();
         const auto services = materials.Services();
         return mm_actor_archive_rebind_materials(&editor, actor, &services);
