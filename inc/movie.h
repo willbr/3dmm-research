@@ -691,7 +691,6 @@ class Movie : public Movie_PAR
     static PMovie PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
     // Create a movie and read it if
     //   pfni != pvNil
-    static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PRollCallTable *ppgst, LegacyLong *paridLim = pvNil);
     // reads roll call for a given movie
     void ForceSaveAs(void);
     void Flush(void);

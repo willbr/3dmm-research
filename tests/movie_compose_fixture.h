@@ -229,7 +229,7 @@ static bool TestMovieCompose()
         if (ok)
         {
             auto file = resources->Pcfl();
-            ok = MovieData::FWriteRollCall(file, root, table, &gst) &&
+            ok = MovieData::FWriteRollCall(file, root, &table->storage, &gst) &&
                  file->FAdoptChild(kctgScen, scenes[0], kctgActr, actors[0], 0) &&
                  file->FAdoptChild(kctgScen, scenes[1], kctgActr, actors[0], 0) &&
                  file->FAdoptChild(kctgActr, actors[0], kctgActr, actors[1], 0) &&

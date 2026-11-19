@@ -165,7 +165,8 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
             return found;
         },
         [](void *, void *file, MMU32 movie, void *actors, MMU32 *written) -> int {
-            return FWriteRollCall(static_cast<PChunkyFile>(file), movie, static_cast<PRollCallTable>(actors), written);
+            return FWriteRollCall(static_cast<PChunkyFile>(file), movie, &static_cast<PRollCallTable>(actors)->storage,
+                                  written);
         },
         [](void *, void *file, MMU32 movie, MMU32 previous) {
             static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, movie, kctgGst, previous, 0);
@@ -274,6 +275,23 @@ bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number,
 {
     Assert(*actors == pvNil, "Overwriting existing StringTable_GST");
     *actors = nullptr;
+    auto table = RollCallTable::New();
+    if (!table)
+        return false;
+    MMI32 next = limit ? *limit : 0;
+    if (!FLoadRollCall(resources, number, &table->storage, limit ? &next : nullptr))
+    {
+        ReleasePpo(&table);
+        return false;
+    }
+    if (limit)
+        *limit = next;
+    *actors = table;
+    return true;
+}
+
+bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors, MMI32 *limit)
+{
     auto file = resources->Pcfl();
     ChildChunkIdentification child;
     DataBlock block;
@@ -284,9 +302,6 @@ bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number,
         return false;
     }
     if (!block.FUnpackData())
-        return false;
-    auto table = RollCallTable::New();
-    if (!table)
         return false;
     const auto stream = EngineReadStream::FromBlock(block);
     const MMRollCallReader reader = {
@@ -301,18 +316,9 @@ bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number,
             return ok;
         },
         CloseActor};
-    MMI32 next = limit ? *limit : 0;
-    if (!mm_movie_read_rollcall(&stream, resources, &table->storage, limit ? &next : nullptr, &reader))
-    {
-        ReleasePpo(&table);
-        return false;
-    }
-    if (limit)
-        *limit = next;
-    *actors = table;
-    return true;
+    return mm_movie_read_rollcall(&stream, resources, actors, limit, &reader) != 0;
 }
-bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written)
+bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written)
 {
     struct Output
     {
@@ -334,5 +340,5 @@ bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTa
             return static_cast<Output *>(c)->file->FAdoptChild(kctgMvie, movie, kctgGst, n, 0);
         },
         [](void *c, MMU32 n) { static_cast<Output *>(c)->file->Delete(kctgGst, n); }};
-    return mm_movie_write_rollcall(number, actors ? &actors->storage : nullptr, written, &writer) != 0;
+    return mm_movie_write_rollcall(number, actors, written, &writer) != 0;
 }

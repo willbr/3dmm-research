@@ -218,18 +218,12 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie, root, type, number, slot);
     };
     s.delete_chunk = [](void *p, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(p)->Delete(type, number); };
-    s.actor_count = [](void *p) -> MMI32 { return static_cast<PRollCallTable>(p)->IvMac(); };
-    s.actor_refs = [](void *p, MMI32 index, MMTag *tag) -> MMI32 {
-        RollCallActorEntry actor;
-        static_cast<PRollCallTable>(p)->GetExtra(index, &actor);
-        *tag = TagToCore(actor.tagTmpl);
-        return actor.cactRef;
-    };
-    s.erase_actor = [](void *p, MMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
+    auto actors = _data.Actors();
+    s.actors = actors ? &actors->storage : nullptr;
     s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->_pmcc->UpdateRollCall(); };
-    s.write_rollcall = [](void *, void *p, MMU32 root, void *table, MMU32 *number) -> int {
-        return MovieData::FWriteRollCall(static_cast<PChunkyFile>(p), root, static_cast<PRollCallTable>(table), number);
+    s.write_rollcall = [](void *, void *p, MMU32 root, MMRollCallTable *table, MMU32 *number) -> int {
+        return MovieData::FWriteRollCall(static_cast<PChunkyFile>(p), root, table, number);
     };
     s.source_bytes = [](void *) -> MMU32 { return vptagm->CbSourceNames(); };
     s.add_sources = [](void *p, void *file, MMU32 bytes, MMU32 *number) -> int {
@@ -479,27 +473,6 @@ LFail:
         vpappb->EndLongOp();
 
     return (pmvie);
-}
-
-/******************************************************************************
-    FReadRollCall
-        Reads the roll call off file for a given movie.  Will swapbytes the
-        extra data in the StringTable_GST if necessary, and will report back on the
-        highest arid found.
-
-    Arguments:
-        PChunkyFile pcfl       -- the file the movie is on
-        PChunkyResourceFile pcrf       -- the autosave ChunkyResourceFile for the movie's Actor tags
-        ChunkNumber cno         -- the cno of the movie
-        PStringTable_GST *ppgst     -- the PStringTable_GST to fill in
-        long *paridLim  -- the max arid to update
-
-    Returns: fTrue if there were no failures, fFalse otherwise
-
-************************************************************ PETED ***********/
-bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PRollCallTable *ppgst, LegacyLong *paridLim)
-{
-    return MovieData::FReadRollCall(pcrf, cno, ppgst, paridLim);
 }
 
 /******************************************************************************
@@ -2955,19 +2928,11 @@ MMMovieComposeServices Movie::_ComposeServices()
         }
     };
 #endif
-    s.read_rollcall=[](void *p,MMU32 number)->void* {
-        PRollCallTable table=nullptr; return Movie::FReadRollCall(static_cast<PChunkyResourceFile>(p),number,&table)?table:nullptr;
+    auto actors = _data.Actors();
+    s.actors = actors ? &actors->storage : nullptr;
+    s.read_rollcall = [](void *p, MMU32 number, MMRollCallTable *table) -> int {
+        return MovieData::FLoadRollCall(static_cast<PChunkyResourceFile>(p), number, table);
     };
-    s.actor_count=[](void *p)->MMI32 { return static_cast<PRollCallTable>(p)->storage.count; };
-    s.actor=[](void *p,MMI32 index,MMRollCallActor *out) { AssertDo(mm_rollcall_table_extra(&static_cast<PRollCallTable>(p)->storage,index,out),"Bad roll-call row"); };
-    s.append_actor=[](void *p,void *source,MMI32 index,const MMRollCallActor *row)->int {
-        auto from=&static_cast<PRollCallTable>(source)->storage; auto to=&static_cast<PRollCallTable>(p)->storage;
-        const void *name; MMU32 characters;
-        if(!mm_rollcall_table_name(from,index,&name,&characters)) return 0;
-        Assert(from->unit==to->unit && from->encoding==to->encoding,"Roll-call name domain changed");
-        return mm_rollcall_table_add(to,name,characters,row);
-    };
-    s.erase_actor=[](void *p,MMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
     s.close_tag=[](MMTag *value) { TAG tag; TagFromCore(&tag,*value); TagManager::CloseTag(&tag); *value=TagToCore(tag); };
     s.adjust_actor=[](void *p,MMU32 number,MMI32 offset)->int { return Actor::FAdjustAridOnFile(static_cast<PChunkyFile>(p),number,offset); };
     s.graph.context=_data.Resources()?_data.Resources()->Pcfl():nullptr;

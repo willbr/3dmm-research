@@ -95,7 +95,9 @@ struct MovieData : MMMovieState
     static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
     static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,
                               LegacyLong *actorIdLimit = pvNil);
-    static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written);
+    static bool FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors,
+                              MMI32 *limit = nullptr);
+    static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written);
   private:
     static MMMovieOwnerServices _OwnerServices(void *);
 };

@@ -7102,6 +7102,9 @@ the C89 rows.
 Studio's roll-call queries and edits also use the typed C89 table. The native
 adapter translates between counted character buffers and Studio strings and
 supplies actor, tag, and notification services.
+Autosave prunes unused actor rows from the typed table. Scene composition
+loads imported rows into a temporary C89 table and transfers their tag
+references to the destination when the merge succeeds.
 
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor

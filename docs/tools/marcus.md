@@ -2511,6 +2511,17 @@ the edited save with matching 60-frame sequences. SDL Studio matched
 retail's sound requests, and both ports differed in mixed PCM. Evidence is in
 `tmp/c89-rollcall-edit/`.
 
+Studio autosave now prunes the typed C89 roll call, and scene composition
+loads imported actor rows into C89 scratch storage. Fault tests exercise
+allocation failure before and after an imported row is appended, including
+tag close order and destination rollback. Debug and Release movie save and
+composition snapshots matched the earlier build byte for byte. SDL Studio
+saved and reopened a movie with one deliberately unused actor row. Save
+omitted that row and retained the other five rows and the first viewport.
+Retail, SDL Studio, and Marcus matched their previous 60 seek images and
+agreed on the pruned movie's playback frame sequence. Mixed PCM still
+differed from retail in both ports. Evidence is in `tmp/c89-rollcall-compose/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

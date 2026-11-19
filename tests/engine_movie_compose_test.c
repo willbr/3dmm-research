@@ -46,7 +46,6 @@ enum
     INVALIDATE,
     ROLL_CHANGED,
     CLOSE_SCENE,
-    ERASE_ROW,
     CLOSE_TAG
 };
 typedef struct Test Test;
@@ -62,12 +61,6 @@ typedef struct List
     MMComposeScene scenes[8];
     MMComposeMovie descriptors[4];
 } List;
-typedef struct Table
-{
-    Object object;
-    int count;
-    MMRollCallActor rows[8];
-} Table;
 struct Test
 {
     MMMovieComposeServices s;
@@ -76,11 +69,12 @@ struct Test
     MMCompositeMovie composite;
     Object resources[3], thumbs[3], open, read, tags[3];
     List sceneList, movieList, copy;
-    Table destination, source;
+    MMRollCallTable destination;
     int fail, failAt, calls[40], events[256], n, badRef;
     int withActors, actorIds[2], adjusted[8], adjustCount;
     int deleted[8], deletedCount, adopted, removedActors, closed, diagnostic[4];
     int memoryCalls, allocFailAt, blocks, openTransition, fileTransition;
+    int readingSource, actorBlocks, closedTags[2], tagCloses;
 };
 static Test *active;
 static void note(Test *t, int operation)
@@ -238,55 +232,57 @@ static void delete_root(void *p, MMU32 number)
     note(o->test, DELETE_ROOT);
     o->test->deleted[o->test->deletedCount++] = (int)number;
 }
-static void *read_table(void *p, MMU32 number)
+static int read_table(void *p, MMU32 number, MMRollCallTable *table)
 {
     Object *o = p;
     Test *t = o->test;
+    MMRollCallActor row;
+    char name[144];
     int i;
     (void)number;
     if (fails(t, READ_TABLE))
         return 0;
-    t->source.object.refs = 1;
-    t->source.count = t->withActors ? 2 : 0;
-    for (i = 0; i < t->source.count; ++i)
+    t->readingSource = 1;
+    for (i = 0; t->withActors && i < 2; ++i)
     {
-        memset(&t->source.rows[i], 0, sizeof(t->source.rows[i]));
-        t->source.rows[i].data.actor_id = i * 2 + 5;
-        t->source.rows[i].data.reference_count = 3;
-        t->source.rows[i].cache = &t->tags[i];
+        memset(name, 'A' + i, sizeof(name));
+        memset(&row, 0, sizeof(row));
+        row.data.actor_id = i * 2 + 5;
+        row.data.reference_count = 3;
+        row.cache = &t->tags[i];
+        if (!mm_rollcall_table_add(table, name, sizeof(name), &row))
+            abort();
         ++t->tags[i].refs;
     }
-    return &t->source;
-}
-static MMI32 actor_count(void *p)
-{
-    return ((Table *)p)->count;
-}
-static void actor_row(void *p, MMI32 i, MMRollCallActor *out)
-{
-    *out = ((Table *)p)->rows[i];
-}
-static int append_actor(void *p, void *source, MMI32 i, const MMRollCallActor *row)
-{
-    Table *a = p;
-    Test *t = a->object.test;
-    (void)source;
-    (void)i;
-    if (fails(t, APPEND_ACTOR))
-        return 0;
-    a->rows[a->count++] = *row;
+    t->readingSource = 0;
     return 1;
 }
-static void erase_actor(void *p, MMI32 i)
+static void *resize_actors(void *p, void *data, MMU32 before, MMU32 size, int priority)
 {
-    Table *a = p;
-    note(a->object.test, ERASE_ROW);
-    --a->count;
-    memmove(a->rows + i, a->rows + i + 1, (size_t)(a->count - i) * sizeof(a->rows[0]));
+    Test *t = p;
+    int fresh = !data;
+    void *result;
+    (void)before;
+    (void)priority;
+    if (!t->readingSource && t->fail == APPEND_ACTOR && t->destination.count == (MMU32)t->failAt)
+        return NULL;
+    result = realloc(data, size);
+    if (result && fresh)
+        ++t->actorBlocks;
+    return result;
+}
+static void free_actors(void *p, void *data, MMU32 size)
+{
+    Test *t = p;
+    (void)size;
+    --t->actorBlocks;
+    free(data);
 }
 static void close_tag(MMTag *tag)
 {
     Object *o = tag->cache;
+    Test *t = o->test;
+    t->closedTags[t->tagCloses++] = o->id;
     note(o->test, CLOSE_TAG);
     release(o);
     tag->cache = 0;
@@ -465,6 +461,7 @@ static void object(Object *o, Test *t, int id, int refs)
 static void init(Test *t)
 {
     MMMovieComposeServices *s = &t->s;
+    MMStorageAllocator actor_allocator = {NULL, resize_actors, free_actors};
     int i;
     memset(t, 0, sizeof(*t));
     active = t;
@@ -480,16 +477,14 @@ static void init(Test *t)
     t->movieList.movies = 1;
     object(&t->open, t, 13, 1);
     object(&t->read, t, 14, 0);
-    object(&t->source.object, t, 15, 0);
-    object(&t->destination.object, t, 16, 1);
-    t->destination.count = 1;
-    t->destination.rows[0].data.actor_id = 1;
-    t->destination.rows[0].data.reference_count = 2;
-    t->destination.rows[0].cache = &t->tags[2];
+    actor_allocator.context = t;
+    if (mm_rollcall_table_init(&t->destination, sizeof(MMRollCallActor), 1, 0x0303, 0,
+                               &actor_allocator) != MM_STORAGE_OK)
+        abort();
+    t->destination.storage.min_grow[0] = 0;
     t->actorIds[0] = 5;
     t->actorIds[1] = 7;
     t->data.resources = &t->resources[0];
-    t->data.actors = &t->destination;
     t->data.movieNumber = 10;
     t->data.actorIdLimit = 10;
     t->data.sceneCount = 2;
@@ -522,10 +517,7 @@ static void init(Test *t)
     s->clone_movie = clone;
     s->delete_movie = delete_root;
     s->read_rollcall = read_table;
-    s->actor_count = actor_count;
-    s->actor = actor_row;
-    s->append_actor = append_actor;
-    s->erase_actor = erase_actor;
+    s->actors = &t->destination;
     s->close_tag = close_tag;
     s->adjust_actor = adjust;
     s->graph.context = t;
@@ -586,14 +578,27 @@ static void apply_setup(Test *t, int external)
 static int cleanup_tags(Test *t)
 {
     MMTag tag;
-    int i;
+    MMRollCallActor row;
+    MMU32 i;
+    CHECK(t->actorBlocks == 2);
     for (i = 1; i < t->destination.count; ++i)
     {
-        tag = mm_movie_rollcall_tag(&t->destination.rows[i]);
+        CHECK(mm_rollcall_table_extra(&t->destination, i, &row));
+        tag = mm_movie_rollcall_tag(&row);
         close_tag(&tag);
     }
     CHECK(!t->tags[0].refs && !t->tags[1].refs && t->tags[2].refs == 1 && !t->badRef && !t->blocks);
+    CHECK(mm_rollcall_table_dispose(&t->destination) == MM_STORAGE_OK && !t->actorBlocks);
     return 0;
+}
+static int seed_destination(Test *t)
+{
+    MMRollCallActor row;
+    memset(&row, 0, sizeof(row));
+    row.data.actor_id = 1;
+    row.data.reference_count = 2;
+    row.cache = &t->tags[2];
+    return mm_rollcall_table_add(&t->destination, "Base", 4, &row);
 }
 static int adding(void)
 {
@@ -639,13 +644,20 @@ static int merging(void)
 {
     Test t;
     int i, offset;
+    MMRollCallActor row;
+    const void *name;
+    MMU32 count;
     for (offset = -3; offset <= 10; offset += 13)
     {
         init(&t);
+        CHECK(seed_destination(&t));
         t.withActors = 1;
         CHECK(mm_movie_compose_merge(10, offset, &t.s));
-        CHECK(t.destination.count == 3 && !t.source.object.refs && !t.blocks);
-        CHECK(t.destination.rows[1].data.actor_id == 5 + offset && !t.destination.rows[1].data.reference_count);
+        CHECK(t.destination.count == 3 && !t.blocks);
+        CHECK(mm_rollcall_table_extra(&t.destination, 1, &row));
+        CHECK(row.data.actor_id == 5 + offset && !row.data.reference_count);
+        CHECK(mm_rollcall_table_name(&t.destination, 1, &name, &count) && count == 144 &&
+              ((const char *)name)[143] == 'A');
         CHECK(t.adjustCount == (offset > 0 ? 2 : 0) && t.actorIds[0] == 5 + (offset > 0 ? offset : 0));
         if (offset > 0)
             CHECK(t.adjusted[0] == 100 && t.adjusted[1] == 101 && t.actorIds[1] == 17);
@@ -654,32 +666,39 @@ static int merging(void)
     for (i = 1; i <= 2; ++i)
     {
         init(&t);
+        CHECK(seed_destination(&t));
         t.withActors = 1;
         t.fail = APPEND_ACTOR;
         t.failAt = i;
-        CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.destination.count == 1 && !t.source.object.refs);
-        CHECK(!t.tags[0].refs && !t.tags[1].refs && t.tags[2].refs == 1 && !t.adjustCount && !t.blocks && !t.badRef);
+        CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.destination.count == 1);
+        CHECK(t.tagCloses == 2 && t.closedTags[0] == (i == 1 ? 21 : 20) &&
+              t.closedTags[1] == (i == 1 ? 20 : 21) && !t.adjustCount);
+        CHECK(!cleanup_tags(&t));
     }
     init(&t);
+    CHECK(seed_destination(&t));
     t.withActors = 1;
     t.fail = ADJUST;
     t.failAt = 2;
     CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.destination.count == 1 && t.actorIds[0] == 15 &&
           t.actorIds[1] == 7);
-    CHECK(!t.tags[0].refs && !t.tags[1].refs && !t.blocks);
+    CHECK(t.tagCloses == 2 && t.closedTags[0] == 21 && t.closedTags[1] == 20 && !cleanup_tags(&t));
     init(&t);
+    CHECK(seed_destination(&t));
     t.withActors = 1;
     t.allocFailAt = 2;
     CHECK(!mm_movie_compose_merge(10, 10, &t.s) && !t.adjustCount && t.destination.count == 1 && !t.blocks);
-    CHECK(!t.tags[0].refs && !t.tags[1].refs);
+    CHECK(!cleanup_tags(&t));
     init(&t);
+    CHECK(seed_destination(&t));
     t.withActors = 1;
     t.allocFailAt = 1;
     CHECK(mm_movie_compose_merge(10, 10, &t.s) && !t.adjustCount && t.destination.count == 3 && !t.blocks);
     CHECK(!cleanup_tags(&t));
     init(&t);
+    CHECK(seed_destination(&t));
     t.fail = READ_TABLE;
-    CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.destination.count == 1 && !t.source.object.refs);
+    CHECK(!mm_movie_compose_merge(10, 10, &t.s) && t.destination.count == 1 && !t.tagCloses && !cleanup_tags(&t));
     return 0;
 }
 static int applying(void)

@@ -1620,7 +1620,7 @@ static void TestRollCallStorageBaseline()
     name.SetNil(); Check(table->FAddStn(&name, &a));
     auto file = ChunkyFile::PcflCreateTemp(); ChunkNumber root, number;
     Check(file && MovieData::FCreateRoot(file, &root));
-    Check(MovieData::FWriteRollCall(file, root, table, &number));
+    Check(MovieData::FWriteRollCall(file, root, &table->storage, &number));
     FILE *snapshot = nullptr;
     if (const char *path = std::getenv("MM_ROLLCALL_STORAGE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
     DataBlock block; Check(file->FFind(kctgGst, number, &block));

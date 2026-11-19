@@ -70,18 +70,17 @@ extern "C"
         void (*set_transition)(void *scene, MMI32);
         void (*dirty)(void *), (*scene_nuked)(void *), (*invalidate)(void *), (*rollcall_changed)(void *),
             (*diagnostic)(void *, int), (*validate_children)(void *);
-        void *(*read_rollcall)(void *resources, MMU32 movie);
-        MMI32 (*actor_count)(void *table);
-        void (*actor)(void *table, MMI32, MMRollCallActor *);
-        int (*append_actor)(void *destination, void *source, MMI32 source_index, const MMRollCallActor *);
-        void (*erase_actor)(void *table, MMI32), (*close_tag)(MMTag *);
+        MMRollCallTable *actors;
+        int (*read_rollcall)(void *resources, MMU32 movie, MMRollCallTable *);
+        void (*close_tag)(MMTag *);
         int (*adjust_actor)(void *file, MMU32 actor, MMI32 offset);
     } MMMovieComposeServices;
     /* Initialized synchronous services, stable owners and valid descriptor indexes
      * are required. Callbacks cannot re-enter editing. Lists own one thumbnail/cache
      * reference per descriptor; duplicate_movies copies borrowed rows without retain.
-     * new_list/read_thumbnail/read_scene/read_rollcall return one reference, thumbnail
-     * is borrowed. Table destruction releases storage only, never embedded tags.
+     * new_list/read_thumbnail/read_scene return one reference, thumbnail is borrowed.
+     * read_rollcall fills the initialized C table and acquires tags on success.
+     * Failure leaves it empty. Table disposal releases storage only.
      * Add requires working resources when temporary_before_save is enabled. On failure
      * it rolls back inserted descriptors and releases empty lists, preserving autosave.
      * Apply keeps completed scene/roll-call/file prefixes on failure; copied Movie roots

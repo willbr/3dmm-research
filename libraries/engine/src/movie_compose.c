@@ -171,46 +171,54 @@ storage:
     mm_storage_dispose(&visited);
     return ok;
 }
-int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
+static void close_source_row(MMRollCallTable *source, MMU32 index, const MMMovieComposeServices *s)
 {
-    void *source = s->read_rollcall(s->data->resources, movie), *destination = s->data->actors;
-    MMI32 i = 0, count, last;
     MMRollCallActor row;
     MMTag tag;
-    if (!source)
-        return 0;
-    count = s->actor_count(source);
-    for (i = 0; i < count; ++i)
+    if (mm_rollcall_table_extra(source, index, &row))
     {
-        s->actor(source, i, &row);
+        tag = mm_movie_rollcall_tag(&row);
+        s->close_tag(&tag);
+    }
+}
+int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
+{
+    MMRollCallTable source, *destination = s->actors;
+    MMRollCallActor row;
+    const void *name;
+    MMU32 count, appended = 0, i;
+    int ok = 0;
+    if (!destination || destination->stride != sizeof(row) + 4 ||
+        mm_rollcall_table_init(&source, sizeof(row), destination->unit, destination->encoding,
+                               destination->trash_unused, &destination->storage.allocator) != MM_STORAGE_OK)
+        return 0;
+    if (!s->read_rollcall(s->data->resources, movie, &source))
+        goto done;
+    for (; appended < source.count; ++appended)
+    {
+        if (!mm_rollcall_table_extra(&source, appended, &row) ||
+            !mm_rollcall_table_name(&source, appended, &name, &count))
+            goto fail;
         row.data.actor_id = mm_signed_word((MMU32)row.data.actor_id + (MMU32)offset);
         row.data.reference_count = 0;
-        if (!s->append_actor(destination, source, i, &row))
+        if (!mm_rollcall_table_add(destination, name, count, &row))
             goto fail;
     }
     if (offset > 0 && !remap(movie, offset, s))
         goto fail;
-    s->release(source);
-    return 1;
+    ok = 1;
+    goto done;
 fail:
-    last = s->actor_count(destination);
-    while (i-- > 0)
+    for (i = appended; i > 0;)
     {
-        s->actor(destination, --last, &row);
-        tag = mm_movie_rollcall_tag(&row);
-        s->close_tag(&tag);
-        s->erase_actor(destination, last);
-        s->erase_actor(source, i);
+        close_source_row(&source, --i, s);
+        mm_rollcall_table_delete(destination, destination->count - 1);
     }
-    i = s->actor_count(source);
-    while (i-- > 0)
-    {
-        s->actor(source, i, &row);
-        tag = mm_movie_rollcall_tag(&row);
-        s->close_tag(&tag);
-    }
-    s->release(source);
-    return 0;
+    for (i = source.count; i > appended;)
+        close_source_row(&source, --i, s);
+done:
+    mm_rollcall_table_dispose(&source);
+    return ok;
 }
 int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeServices *s)
 {

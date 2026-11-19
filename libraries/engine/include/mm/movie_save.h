@@ -50,10 +50,10 @@ extern "C"
         int (*adopt)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
         void (*delete_child)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
         void (*delete_chunk)(void *file, MMU32 type, MMU32 number);
-        MMI32 (*actor_count)(void *table), (*actor_refs)(void *table, MMI32 index, MMTag *);
-        void (*erase_actor)(void *table, MMI32 index), (*close_tag)(void *, MMTag *);
+        MMRollCallTable *actors;
+        void (*close_tag)(void *, MMTag *);
         void (*rollcall_changed)(void *);
-        int (*write_rollcall)(void *, void *file, MMU32 root, void *table, MMU32 *);
+        int (*write_rollcall)(void *, void *file, MMU32 root, MMRollCallTable *, MMU32 *);
         MMU32 (*source_bytes)(void *);
         int (*add_sources)(void *, void *file, MMU32 bytes, MMU32 *), (*write_sources)(void *);
         void (*release_sources)(void *);

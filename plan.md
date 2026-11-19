@@ -1044,6 +1044,9 @@ and tag operations. C closes each acquired tag on failure or movie teardown.
 Studio's roll-call lookup, rename, add, remove, and tag refresh use the C89
 table directly. The same code handles roll-call changes during actor placement
 and 3D text replacement.
+Studio autosave prunes the C89 table directly. Scene import reads source rows
+into a temporary C table, appends counted names and adjusted IDs, and closes
+the imported tags if the merge fails.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

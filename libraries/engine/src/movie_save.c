@@ -1,6 +1,7 @@
 /* Movie save transactions converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_save.h"
+#include "mm/movie_rollcall.h"
 #include "mm/movie_sound.h"
 #include "mm/scene_store.h"
 #include <string.h>
@@ -105,21 +106,26 @@ int mm_movie_save_ensure(void *output, void (*publish)(void *, void *resources),
         publish(output, s->data->resources);
     return mm_movie_save_temporary(s);
 }
-static void clean_actors(const MMMovieSaveServices *s)
+static int clean_actors(const MMMovieSaveServices *s)
 {
-    MMI32 i = 0;
+    MMRollCallTable *actors = s->actors;
+    MMRollCallActor row;
+    MMU32 i = 0;
     MMTag tag;
-    while (i < s->actor_count(s->data->actors))
+    while (actors && mm_rollcall_table_extra(actors, i, &row))
     {
-        if (s->actor_refs(s->data->actors, i, &tag) == 0)
+        if (row.data.reference_count == 0)
         {
-            s->erase_actor(s->data->actors, i);
+            tag = mm_movie_rollcall_tag(&row);
+            if (!mm_rollcall_table_delete(actors, i))
+                return 0;
             s->close_tag(s->context, &tag);
         }
         else
             ++i;
     }
     s->rollcall_changed(s->context);
+    return 1;
 }
 static MMU32 saved_child(void *file, MMU32 type, MMU32 slot, const MMMovieSaveServices *s)
 {
@@ -160,10 +166,10 @@ retry_save:
             goto fail;
         }
     }
-    if (clean_rollcall)
-        clean_actors(s);
+    if (clean_rollcall && !clean_actors(s))
+        goto fail_scene;
     old_actors = saved_child(file, MM_SAVE_TABLE, 0, s);
-    if (!s->write_rollcall(s->context, file, s->data->movieNumber, s->data->actors, &actors))
+    if (!s->write_rollcall(s->context, file, s->data->movieNumber, s->actors, &actors))
         goto fail_scene;
     old_sources = saved_child(file, MM_SAVE_TABLE, 1, s);
     if (!s->add_sources(s->context, file, s->source_bytes(s->context), &sources))
