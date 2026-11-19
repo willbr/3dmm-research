@@ -1034,6 +1034,10 @@ retain shared child chunks, install a scene-local actor link and
 invalidate the thumbnail. C89 also rewrites the rotation, stretch and
 3D text material event tracks using the actor codecs and fixed-point
 math shared with Studio.
+Work-view reframing now uses C89 for camera projection, route splitting,
+event rebasing, and replacement of the selected scene's actor tracks.
+The native adapter supplies evaluated poses and calls BRender's Euler
+conversions.
 Marcus provides archive access and the host's character conversion.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound

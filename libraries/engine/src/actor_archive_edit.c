@@ -1,4 +1,4 @@
-#include "mm/actor_archive.h"
+#include "actor_archive_internal.h"
 #include "mm/actor_math.h"
 #include "mm/collections.h"
 #include "mm/wide.h"
@@ -8,6 +8,7 @@
 #define ACTOR_TYPE 0x41435452UL
 #define SCENE_TYPE 0x5343454eUL
 #define EVENTS_TYPE 0x47474145UL
+#define ROUTE_TYPE 0x50415448UL
 #define THUMB_TYPE 0x5448554dUL
 #define MATERIAL_TYPE 0x4d54524cUL
 
@@ -72,7 +73,27 @@ static const MMActorEventServices track_groups = {
     NULL, group_width, group_count, group_fixed, group_size, group_data, new_group, group_insert, release_group
 };
 
-static int write_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number)
+void *mm_actor_archive_event(MMGroup *group, MMU32 row) { return group_fixed(group, row); }
+void *mm_actor_archive_payload(MMGroup *group, MMU32 row) { return group_data(group, row); }
+void mm_actor_archive_release_event_group(MMGroup *group) { release_group(group); }
+
+MMGroup *mm_actor_archive_read_event_group(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 *number)
+{
+    MMChunkAccess chunks;
+    MMReadStream stream;
+    MMU32 source;
+    void *group;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, EVENTS_TYPE, &source) != MM_CHUNK_OK ||
+        !editor->read(editor->context, EVENTS_TYPE, source, &stream) ||
+        mm_actor_read_events_stream(&stream, &track_groups, &group) != MM_MOVIE_OK)
+        return NULL;
+    if (number)
+        *number = source;
+    return (MMGroup *)group;
+}
+
+static int write_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number, const MMU32 *attach)
 {
     MMCollectionHeader header = {0};
     MMStorageWriter writer;
@@ -89,8 +110,22 @@ static int write_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32
         mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
         editor->add(editor->context, EVENTS_TYPE, header.header_bytes + header.first_bytes + header.second_bytes,
                     number, &writer) &&
+        (!attach || editor->adopt(editor->context, ACTOR_TYPE, *attach, EVENTS_TYPE, *number, 0)) &&
         mm_storage_write(group->storage, &writer, bytes, sizeof(bytes), header.first_bytes, header.second_bytes) ==
             MM_STORAGE_OK;
+}
+
+int mm_actor_archive_write_event_group(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number,
+                                       const MMU32 *attach)
+{
+    MMGroup *wire;
+    int result;
+    wire = (MMGroup *)mm_actor_write_events(group, &track_groups);
+    if (!wire)
+        return 0;
+    result = write_track(editor, wire, number, attach);
+    release_group(wire);
+    return result;
 }
 
 static int replace_track(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 old, MMU32 events)
@@ -113,26 +148,18 @@ int mm_actor_archive_link_events(const MMMovieArchiveEditor *editor, MMU32 actor
 static int rewrite_track(const MMMovieArchiveEditor *editor, MMU32 actor,
                          int (*edit)(MMGroup *, const void *), const void *changes)
 {
-    MMChunkAccess chunks;
-    MMReadStream stream;
-    void *runtime, *wire;
+    MMGroup *runtime;
     MMU32 old, number;
     int result;
-    chunks = editor->chunks(editor->context);
-    if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, EVENTS_TYPE, &old) != MM_CHUNK_OK ||
-        !editor->read(editor->context, EVENTS_TYPE, old, &stream) ||
-        mm_actor_read_events_stream(&stream, &track_groups, &runtime) != MM_MOVIE_OK)
+    runtime = mm_actor_archive_read_event_group(editor, actor, &old);
+    if (!runtime)
         return MM_ACTOR_EDIT_ARCHIVE_READ_EVENTS;
-    result = edit((MMGroup *)runtime, changes);
-    wire = result == MM_ACTOR_EDIT_ARCHIVE_OK ? mm_actor_write_events(runtime, &track_groups) : NULL;
+    result = edit(runtime, changes);
+    if (result == MM_ACTOR_EDIT_ARCHIVE_OK)
+        result = mm_actor_archive_write_event_group(editor, runtime, &number, NULL)
+            ? replace_track(editor, actor, old, number) : MM_ACTOR_EDIT_ARCHIVE_WRITE_EVENTS;
     release_group(runtime);
-    if (result != MM_ACTOR_EDIT_ARCHIVE_OK)
-        return result;
-    if (!wire)
-        return MM_ACTOR_EDIT_ARCHIVE_WRITE_EVENTS;
-    result = write_track(editor, (MMGroup *)wire, &number);
-    release_group(wire);
-    return result ? replace_track(editor, actor, old, number) : MM_ACTOR_EDIT_ARCHIVE_WRITE_EVENTS;
+    return result;
 }
 
 static int replace_material(MMGroup *group, const void *changes)
@@ -260,19 +287,48 @@ static int actor_slot(const MMChunkAccess *chunks, MMU32 scene, MMU32 actor, MMU
     return 0;
 }
 
-int mm_actor_archive_place(const MMMovieArchiveEditor *editor, const MMActorArchivePose *pose)
+int mm_actor_archive_read_actor(const MMMovieArchiveEditor *editor, MMU32 actor, MMActorHeader *header)
+{
+    MMReadStream stream;
+    return editor->read(editor->context, ACTOR_TYPE, actor, &stream) && mm_actor_read_header(&stream, header);
+}
+
+int mm_actor_archive_copy_actor(const MMMovieArchiveEditor *editor, MMU32 actor, const MMActorHeader *header,
+                                int share_track, MMU32 *copy)
 {
     MMChunkAccess chunks;
     MMChunkChild child;
     MMChunkEntry original;
-    MMReadStream stream;
+    MMU32 position, i;
+    if (!editor->add(editor->context, ACTOR_TYPE, sizeof(*header), copy, NULL) ||
+        !editor->put(editor->context, ACTOR_TYPE, *copy, header, sizeof(*header)))
+        return MM_ACTOR_EDIT_ARCHIVE_COPY;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_find(&chunks, ACTOR_TYPE, actor, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&chunks, position, &original) != MM_CHUNK_OK)
+        return MM_ACTOR_EDIT_ARCHIVE_CHILD;
+    for (i = 0; i < original.child_count; ++i)
+    {
+        if (mm_chunk_child_at(&chunks, position, i, &child) != MM_CHUNK_OK)
+            return MM_ACTOR_EDIT_ARCHIVE_CHILD;
+        if (!share_track && (child.type == ROUTE_TYPE || child.type == EVENTS_TYPE))
+            continue;
+        if (!editor->adopt(editor->context, ACTOR_TYPE, *copy, child.type, child.number, child.slot))
+            return MM_ACTOR_EDIT_ARCHIVE_CHILD;
+    }
+    return MM_ACTOR_EDIT_ARCHIVE_OK;
+}
+
+int mm_actor_archive_place(const MMMovieArchiveEditor *editor, const MMActorArchivePose *pose)
+{
+    MMChunkAccess chunks;
     MMActorHeader header;
-    MMU32 slot, copy, position, i, thumb;
+    MMU32 slot, copy, i, thumb;
     int result;
     chunks = editor->chunks(editor->context);
     if (!actor_slot(&chunks, pose->scene, pose->actor, &slot))
         return MM_ACTOR_EDIT_ARCHIVE_SCENE;
-    if (!editor->read(editor->context, ACTOR_TYPE, pose->actor, &stream) || !mm_actor_read_header(&stream, &header))
+    if (!mm_actor_archive_read_actor(editor, pose->actor, &header))
         return MM_ACTOR_EDIT_ARCHIVE_HEADER;
     for (i = 0; i < 3; ++i)
     {
@@ -281,17 +337,9 @@ int mm_actor_archive_place(const MMMovieArchiveEditor *editor, const MMActorArch
             return MM_ACTOR_EDIT_ARCHIVE_RANGE;
         header.translation[i] = (MMU32)(MMI32)((float)translated * 65536.0f);
     }
-    if (!editor->add(editor->context, ACTOR_TYPE, sizeof(header), &copy, NULL) ||
-        !editor->put(editor->context, ACTOR_TYPE, copy, &header, sizeof(header)))
-        return MM_ACTOR_EDIT_ARCHIVE_COPY;
-    chunks = editor->chunks(editor->context);
-    if (mm_chunk_find(&chunks, ACTOR_TYPE, pose->actor, &position) != MM_CHUNK_OK ||
-        mm_chunk_at(&chunks, position, &original) != MM_CHUNK_OK)
-        return MM_ACTOR_EDIT_ARCHIVE_CHILD;
-    for (i = 0; i < original.child_count; ++i)
-        if (mm_chunk_child_at(&chunks, position, i, &child) != MM_CHUNK_OK ||
-            !editor->adopt(editor->context, ACTOR_TYPE, copy, child.type, child.number, child.slot))
-            return MM_ACTOR_EDIT_ARCHIVE_CHILD;
+    result = mm_actor_archive_copy_actor(editor, pose->actor, &header, 1, &copy);
+    if (result != MM_ACTOR_EDIT_ARCHIVE_OK)
+        return result;
     if (pose->appearance && !pose->appearance(pose->context, copy))
         return MM_ACTOR_EDIT_ARCHIVE_APPEARANCE;
     result = apply_shape(editor, copy, pose);

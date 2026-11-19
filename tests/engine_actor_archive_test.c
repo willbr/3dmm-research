@@ -2,6 +2,7 @@
 #include "mm/actor_motion.h"
 #include "mm/movie_sound.h"
 #include "mm/rollcall_storage.h"
+#include "mm/scene_reframe.h"
 #include "mm/template_create.h"
 #include "mm/text.h"
 #include <stdio.h>
@@ -17,6 +18,7 @@
 #define INVALID_FRAME 2147483647L
 #define ROUTE 0x50415448UL
 #define THUMB 0x5448554dUL
+#define EVENTS 0x47474145UL
 
 typedef struct Graph
 {
@@ -416,6 +418,236 @@ static void placement_transaction(void)
     }
 }
 
+typedef struct ReframeEdit
+{
+    Graph graph;
+    MMActorHeader header;
+    MMMemoryStream read;
+    unsigned char source_route[44], source_events[108], saved_route[64], saved_events[288];
+    MMU32 route_size, events_size, write_type;
+    int copied, published, thumbnail_removed, invalid_cut;
+} ReframeEdit;
+
+static MMChunkAccess reframe_chunks(void *context)
+{
+    ReframeEdit *edit = (ReframeEdit *)context;
+    MMChunkAccess chunks = {NULL, 2, entry, child};
+    chunks.context = &edit->graph;
+    chunks.count += edit->copied;
+    return chunks;
+}
+static int reframe_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    ReframeEdit *edit = (ReframeEdit *)context;
+    int ok;
+    if (type == ACTOR)
+    {
+        CHECK(number == 5);
+        ok = mm_memory_stream_init(&edit->read, &edit->header, sizeof(edit->header));
+    }
+    else if (type == ROUTE)
+    {
+        CHECK(number == 4);
+        ok = mm_memory_stream_init(&edit->read, edit->source_route, sizeof(edit->source_route));
+    }
+    else
+    {
+        CHECK(type == EVENTS && number == 3);
+        ok = mm_memory_stream_init(&edit->read, edit->source_events, sizeof(edit->source_events));
+    }
+    *stream = edit->read.stream;
+    return ok;
+}
+static int reframe_write(void *context, MMU32 offset, const void *bytes, size_t size)
+{
+    ReframeEdit *edit = (ReframeEdit *)context;
+    unsigned char *destination = edit->write_type == ROUTE ? edit->saved_route : edit->saved_events;
+    MMU32 length = edit->write_type == ROUTE ? edit->route_size : edit->events_size;
+    CHECK(offset <= length && size <= length - offset);
+    memcpy(destination + offset, bytes, size);
+    return 1;
+}
+static int reframe_add(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
+{
+    ReframeEdit *edit = (ReframeEdit *)context;
+    if (type == ACTOR)
+    {
+        CHECK(!writer && size == MM_ACTOR_HEADER_BYTES && !edit->copied);
+        memmove(&edit->graph.entries[1], edit->graph.entries, 2 * sizeof(edit->graph.entries[0]));
+        memmove(&edit->graph.children[1], edit->graph.children, 2 * sizeof(edit->graph.children[0]));
+        edit->graph.entries[0].number = *number = 2;
+        edit->graph.entries[0].child_count = 0;
+        edit->copied = 1;
+        return 1;
+    }
+    CHECK(edit->copied && writer);
+    if (type == ROUTE)
+    {
+        CHECK(!edit->route_size && size <= sizeof(edit->saved_route));
+        edit->route_size = size;
+        *number = 11;
+    }
+    else
+    {
+        CHECK(type == EVENTS && edit->route_size && !edit->events_size && size <= sizeof(edit->saved_events));
+        edit->events_size = size;
+        *number = 12;
+    }
+    edit->write_type = type;
+    writer->context = context;
+    writer->length = size;
+    writer->write_at = reframe_write;
+    return 1;
+}
+static int reframe_put(void *context, MMU32 type, MMU32 number, const void *bytes, MMU32 size)
+{
+    ReframeEdit *edit = (ReframeEdit *)context;
+    CHECK(type == ACTOR && number == 2 && size == sizeof(edit->header) && !memcmp(bytes, &edit->header, size));
+    return 1;
+}
+static void reframe_unlink(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
+{
+    ReframeEdit *edit = (ReframeEdit *)context;
+    CHECK(type == MM_SOUND_SCENE && parent == 20);
+    if (child_type == ACTOR)
+    {
+        CHECK(number == 5 && slot == 4 && !edit->published && edit->route_size && edit->events_size);
+        edit->published = 1;
+    }
+    else
+    {
+        CHECK(child_type == THUMB && number == 10 && slot == 0 && edit->published == 2);
+        edit->thumbnail_removed = 1;
+    }
+}
+static int reframe_adopt(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
+{
+    ReframeEdit *edit = (ReframeEdit *)context;
+    if (type == ACTOR)
+    {
+        CHECK(parent == 2 && slot == 0 &&
+            ((child_type == ROUTE && number == 11) || (child_type == EVENTS && number == 12)));
+    }
+    else
+    {
+        CHECK(type == MM_SOUND_SCENE && parent == 20 && child_type == ACTOR && number == 2 && slot == 4);
+        CHECK(edit->published == 1);
+        edit->published = 2;
+    }
+    return 1;
+}
+static int reframe_pose(void *context, MMI32 actor, MMSceneReframePose *pose)
+{
+    ReframeEdit *edit = (ReframeEdit *)context;
+    CHECK(actor == 23);
+    memset(pose, 0, sizeof(*pose));
+    pose->location.dwrOffset = (edit->invalid_cut ? 11 : 5) * 65536L;
+    pose->location.dnfrm = 1;
+    pose->position.dxr = 6 * 65536L;
+    pose->rotation[0] = pose->rotation[4] = pose->rotation[8] = 1.0f;
+    return 1;
+}
+static void reframe_from_euler(const MMActorEntrance *entrance, MMActorMatrix *matrix)
+{
+    CHECK(!entrance->x && !entrance->y && !entrance->z);
+    mm_matrix_identity(matrix);
+}
+static void reframe_to_euler(const MMActorMatrix *matrix, MMActorEntrance *entrance)
+{
+    (void)matrix;
+    (void)entrance;
+    CHECK(0); /* Partial entrance keeps the already evaluated orientation. */
+}
+
+static void reframe_fixture(ReframeEdit *edit)
+{
+    const unsigned short one = 1;
+    MMCollectionHeader wire = {0};
+    MMActorRoutePoint nodes[] = {{{0,0,0}, 655360}, {{655360,0,0}, 0}};
+    MMActorEvent add = {MM_ACTOR_ADD, 1, {0,0,0}}, tweak = {MM_ACTOR_TWEAK, 3, {0,524288,0}};
+    MMActorEntrance entrance = {0};
+    MMActorPoint future = {524288,0,0};
+    MMU32 locations[] = {0,40,40,32};
+    memset(edit, 0, sizeof(*edit));
+    edit->header.order = 1;
+    edit->header.actor_id = 23;
+    edit->graph.entries[0].type = ACTOR;
+    edit->graph.entries[0].number = 5;
+    append_child(&edit->graph, 0, EVENTS, 3, 0);
+    append_child(&edit->graph, 0, ROUTE, 4, 0);
+    edit->graph.entries[1].type = MM_SOUND_SCENE;
+    edit->graph.entries[1].number = 20;
+    append_child(&edit->graph, 1, THUMB, 10, 0);
+    append_child(&edit->graph, 1, ACTOR, 5, 4);
+    wire.kind = MM_COLLECTION_ARRAY;
+    wire.big_endian = *(const unsigned char *)&one == 0;
+    wire.system = MM_TEXT_WINDOWS;
+    wire.count = 2;
+    wire.width = MM_ACTOR_ROUTE_BYTES;
+    CHECK(mm_collection_header_write(&wire, edit->source_route, sizeof(edit->source_route)) == MM_STORAGE_OK);
+    memcpy(edit->source_route + 12, nodes, sizeof(nodes));
+    wire.kind = MM_COLLECTION_GROUP;
+    wire.width = MM_ACTOR_EVENT_BYTES;
+    wire.bytes = 72;
+    wire.free_count = -1;
+    CHECK(mm_collection_header_write(&wire, edit->source_events, sizeof(edit->source_events)) == MM_STORAGE_OK);
+    memcpy(edit->source_events + 20, &add, sizeof(add));
+    memcpy(edit->source_events + 40, &entrance, sizeof(entrance));
+    memcpy(edit->source_events + 60, &tweak, sizeof(tweak));
+    memcpy(edit->source_events + 80, &future, sizeof(future));
+    memcpy(edit->source_events + 92, locations, sizeof(locations));
+}
+
+static void reframe_transaction(void)
+{
+    static const float identity[12] = {1,0,0, 0,1,0, 0,0,1, 0,0,0};
+    static const MMI32 kinds[] = {MM_ACTOR_ADD, MM_ACTOR_MOVE, MM_ACTOR_TWEAK,
+                                  MM_ACTOR_ROTATE_HERE, MM_ACTOR_TWEAK};
+    ReframeEdit edit;
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, reframe_chunks, reframe_read,
+                                   reframe_add, reframe_adopt, reframe_unlink, reframe_put, NULL, NULL};
+    MMSceneReframeHost host = {NULL, reframe_pose, reframe_from_euler, reframe_to_euler};
+    MMSceneReframeCamera work = {identity, 70.0f, 1.0f}, camera = {identity, 70.0f, 2.0f};
+    MMMemoryStream output;
+    MMCollectionHeader wire;
+    MMActorRoutePoint nodes[3];
+    MMActorEvent event;
+    MMActorPoint point;
+    MMU32 i, offset;
+    MMI32 size;
+    editor.context = host.context = &edit;
+    reframe_fixture(&edit);
+    CHECK(mm_scene_archive_reframe(&editor, 20, 2, &work, &camera, &host) == MM_SCENE_REFRAME_OK);
+    CHECK(edit.published == 2 && edit.thumbnail_removed && edit.route_size == 12 + sizeof(nodes));
+    memcpy(nodes, edit.saved_route + 12, sizeof(nodes));
+    CHECK(nodes[0].xyz.dxr == 0 && nodes[0].dwr == 327680);
+    CHECK(nodes[1].xyz.dxr == 327680 && nodes[1].dwr == 327680 && nodes[2].xyz.dxr == 983040);
+    CHECK(mm_memory_stream_init(&output, edit.saved_events, edit.events_size));
+    CHECK(mm_collection_header_read(&output.stream, MM_COLLECTION_GROUP, 0, &wire) == MM_STORAGE_OK);
+    CHECK(wire.count == sizeof(kinds) / sizeof(kinds[0]));
+    for (i = 0; i < wire.count; ++i)
+    {
+        CHECK(mm_collection_group_row(&wire, edit.saved_events + 20, i, &offset, &size));
+        memcpy(&event, edit.saved_events + 20 + offset, sizeof(event));
+        CHECK(event.aet == kinds[i]);
+        if (i == 4)
+        {
+            CHECK(event.nfrm == 3 && event.rtel.irpt == 1 && event.rtel.dwrOffset == 196608);
+            CHECK(size == (MMI32)sizeof(point));
+            memcpy(&point, edit.saved_events + 40 + offset, sizeof(point));
+            CHECK(point.dxr == 720896);
+        }
+    }
+    reframe_fixture(&edit);
+    edit.invalid_cut = 1;
+    CHECK(mm_scene_archive_reframe(&editor, 20, 2, &work, &camera, &host) == MM_SCENE_REFRAME_LOCATION);
+    CHECK(edit.copied && !edit.published && !edit.route_size && !edit.thumbnail_removed);
+    reframe_fixture(&edit);
+    camera.aspect = -1;
+    CHECK(mm_scene_archive_reframe(&editor, 20, 2, &work, &camera, &host) == MM_SCENE_REFRAME_LENS);
+    CHECK(!edit.copied);
+}
+
 int main(void)
 {
     Fixture f;
@@ -482,5 +714,6 @@ int main(void)
     CHECK(actor == 777 && header.actor_id == 888 && f.writes == 1);
     rename_rollcall();
     placement_transaction();
+    reframe_transaction();
     return 0;
 }

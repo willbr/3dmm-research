@@ -14682,3 +14682,37 @@ Marcus playback timing remained inconclusive.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The native
 outputs, probe and test logs are in `tmp/c89-actor-edit`.
+
+## Marcus work-view reframing in C89 (19 November 2026)
+
+The C89 reframe path calculates the camera-to-camera transform, splits
+the active route segment, and rebases later event locations around the
+cut. It saves the route and event groups with the shared actor codecs,
+keeps existing actor IDs and non-track children, replaces the selected
+scene's links, and invalidates its thumbnail. Marcus provides evaluated
+poses and adapts the BRender Euler conversions.
+
+The C89 transaction test checks an interior route split, preservation
+of the total interpolation distance and earlier entrance, inserted
+move, tweak and rotation events, and a rebased future tweak. It also
+checks invalid lenses and invalid route positions without publishing
+the edit. All 23 selected checks and all four standalone C-only
+Release checks passed.
+
+The headless probe copied the fly view to the camera at frame 10.
+Actor positions, actions and cels matched the baseline at frames
+9, 10 and 20. The saved reframe and the native save after undo were
+byte-identical to their pre-change counterparts. The reframed movie
+has SHA-256
+`80e28056d2f26684be66a9c3054de95a494f1b8888040883b3275120de15c729`.
+
+All six captures completed in suite `20261119T044457Z-fed557a7`.
+Retail, SDL Studio and Marcus agreed on all 60 frame positions in
+seek and playback. Both ports matched retail's seek images at
+frames 9, 10 and 20 of the edited scene. Full captures still show
+pixel and mixed PCM differences. Marcus playback timing and
+continuous playback pixels remain inconclusive.
+
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. Probe outputs and
+test logs are in `tmp/c89-scene-reframe`.
