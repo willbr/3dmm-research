@@ -697,9 +697,10 @@ or transitions between scenes.
 
 The timeline playhead uses Studio's original frame sprite, including the
 musical-note version for frames with sound cues. The movie-wide scrubber uses
-Studio's original green scene sprite in both the editor and expanded movie
-view. The build uses `fthm.bmp`, `fthms.bmp` and `stmb.bmp` from the Studio
-resources. ImGui handles seeking and keyboard focus for the movie scrubber.
+Studio's original green scene sprite and recessed track in both the editor and
+expanded movie view. The build uses `fthm.bmp`, `fthms.bmp`, `stmb.bmp` and
+`sscl.bmp` from the Studio resources. ImGui handles seeking and keyboard focus
+for the movie scrubber.
 
 Time spans all scenes and follows seeking, playback and scene looping. It includes
 scrolling text, timed pauses, sound waits and transitions between scenes. Click

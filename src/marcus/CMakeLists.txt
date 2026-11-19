@@ -44,7 +44,7 @@ kauai_copy_midi_assets(marcus-preview)
 
 # Use the same indexed bitmaps as the original Studio resource scripts.
 set(transport_sprite_code "")
-foreach(name fthm fthms stmb)
+foreach(name fthm fthms stmb sscl)
   set(sprite "${PROJECT_SOURCE_DIR}/src/studio/bmp/${name}.bmp")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${sprite}")
   file(READ "${sprite}" bytes HEX)

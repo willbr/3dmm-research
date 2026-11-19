@@ -5,9 +5,9 @@
 #include <float.h>
 
 static ImFont *label_font, *number_font;
-static SDL_Texture *frame_thumb, *frame_sound_thumb, *scene_thumb;
+static SDL_Texture *frame_thumb, *frame_sound_thumb, *scene_thumb, *scene_track;
 
-static SDL_Texture *load_thumb(SDL_Renderer *renderer, const unsigned char *bmp, size_t length)
+static SDL_Texture *load_sprite(SDL_Renderer *renderer, const unsigned char *bmp, size_t length)
 {
     SDL_IOStream *input;
     SDL_Surface *surface;
@@ -24,16 +24,18 @@ static SDL_Texture *load_thumb(SDL_Renderer *renderer, const unsigned char *bmp,
 }
 void transport_load_slider_artwork(SDL_Renderer *renderer)
 {
-    frame_thumb = load_thumb(renderer, fthm_bmp, sizeof(fthm_bmp));
-    frame_sound_thumb = load_thumb(renderer, fthms_bmp, sizeof(fthms_bmp));
-    scene_thumb = load_thumb(renderer, stmb_bmp, sizeof(stmb_bmp));
+    frame_thumb = load_sprite(renderer, fthm_bmp, sizeof(fthm_bmp));
+    frame_sound_thumb = load_sprite(renderer, fthms_bmp, sizeof(fthms_bmp));
+    scene_thumb = load_sprite(renderer, stmb_bmp, sizeof(stmb_bmp));
+    scene_track = load_sprite(renderer, sscl_bmp, sizeof(sscl_bmp));
 }
 void transport_destroy_slider_artwork(void)
 {
     SDL_DestroyTexture(frame_thumb);
     SDL_DestroyTexture(frame_sound_thumb);
     SDL_DestroyTexture(scene_thumb);
-    frame_thumb = frame_sound_thumb = scene_thumb = NULL;
+    SDL_DestroyTexture(scene_track);
+    frame_thumb = frame_sound_thumb = scene_thumb = scene_track = NULL;
 }
 
 static ImFont *installed_font(const char *windows_name, const char *const *fallbacks, float size, ImFontConfig *config)
@@ -116,21 +118,65 @@ int transport_frame_thumb(float x, float y, int sound)
     draw_thumb(igGetBackgroundDrawList_Nil(), texture, x, y, size);
     return 1;
 }
+static void draw_scene_track(float x, float y, float width, ImVec2 size)
+{
+    ImDrawList *draw;
+    ImTextureRef ref;
+    ImU32 ink;
+    float edge_u, right, bottom, next;
+    draw = igGetWindowDrawList();
+    ref._TexData = NULL;
+    ref._TexID = (ImTextureID)(size_t)scene_track;
+    ink = colour(0xffffff, 1, 1);
+    edge_u = 1 / size.x;
+    right = x + width;
+    bottom = y + size.y;
+    /* Tile the center at native scale and keep the original edge pixels. */
+    ImDrawList_AddImage(draw, ref, dialog_vec(x, y), dialog_vec(x + 1, bottom),
+                        dialog_vec(0, 0), dialog_vec(edge_u, 1), ink);
+    for (x += 1; x < right - 1; x = next)
+    {
+        next = SDL_min(x + size.x - 2, right - 1);
+        ImDrawList_AddImage(draw, ref, dialog_vec(x, y), dialog_vec(next, bottom),
+                            dialog_vec(edge_u, 0), dialog_vec((1 + next - x) / size.x, 1), ink);
+    }
+    ImDrawList_AddImage(draw, ref, dialog_vec(right - 1, y), dialog_vec(right, bottom),
+                        dialog_vec(1 - edge_u, 0), dialog_vec(1, 1), ink);
+}
 int transport_movie_slider(const SDL_FRect *rect, double *seconds, double duration)
 {
-    ImVec2 size, left, right;
+    ImVec2 size, track_size, padding, left, right;
+    ImVec4 highlight;
     const double low = 0;
     double fraction;
-    float inset, center;
-    int artwork_ready, changed;
+    float inset, center, y, frame_height;
+    int artwork_ready, track_ready, changed;
     artwork_ready = scene_thumb && SDL_GetTextureSize(scene_thumb, &size.x, &size.y) && rect->w >= size.x + 4;
+    track_ready = scene_track && SDL_GetTextureSize(scene_track, &track_size.x, &track_size.y) &&
+                  track_size.x > 2 && rect->w > 2;
+    if (track_ready)
+    {
+        padding = igGetStyle()->FramePadding;
+        padding.y = SDL_max(0, (track_size.y - igGetFontSize()) * 0.5f);
+        igPushStyleVar_Vec2(ImGuiStyleVar_FramePadding, padding);
+        igPushStyleColor_U32(ImGuiCol_FrameBg, 0);
+        highlight.x = highlight.y = highlight.z = 1;
+        highlight.w = 0.08f;
+        igPushStyleColor_Vec4(ImGuiCol_FrameBgHovered, highlight);
+        highlight.w = 0.13f;
+        igPushStyleColor_Vec4(ImGuiCol_FrameBgActive, highlight);
+    }
     if (artwork_ready)
     {
         igPushStyleVar_Float(ImGuiStyleVar_GrabMinSize, size.x);
         igPushStyleColor_U32(ImGuiCol_SliderGrab, 0);
         igPushStyleColor_U32(ImGuiCol_SliderGrabActive, 0);
     }
-    igSetCursorScreenPos(dialog_vec(rect->x, rect->y + (rect->h - 20) / 2));
+    frame_height = igGetFrameHeight();
+    y = SDL_roundf(rect->y + (rect->h - frame_height) * 0.5f);
+    if (track_ready)
+        draw_scene_track(rect->x, SDL_roundf(y + (frame_height - track_size.y) * 0.5f), rect->w, track_size);
+    igSetCursorScreenPos(dialog_vec(rect->x, y));
     igSetNextItemWidth(rect->w);
     changed = igSliderScalar("##Movie position", ImGuiDataType_Double, seconds, &low, &duration, "",
                              ImGuiSliderFlags_AlwaysClamp);
@@ -145,6 +191,11 @@ int transport_movie_slider(const SDL_FRect *rect, double *seconds, double durati
         fraction = duration > 0 ? SDL_clamp(*seconds / duration, 0.0, 1.0) : 0;
         center = left.x + inset + (float)fraction * (right.x - left.x - 2 * inset);
         draw_thumb(igGetWindowDrawList(), scene_thumb, center, SDL_roundf((left.y + right.y - size.y) * 0.5f), size);
+    }
+    if (track_ready)
+    {
+        igPopStyleColor(3);
+        igPopStyleVar(1);
     }
     return changed;
 }
