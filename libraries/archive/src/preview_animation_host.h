@@ -9,7 +9,6 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
     MMSoundResource sound{};
     MMI32 silent = 0;
     unsigned char invalid = 0;
-    DataBlock soundBlock;
 
     static AnimationHost &Get(void *value)
     {
@@ -22,23 +21,13 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         sound = {}; silent = 0; invalid = 0;
         s.context = this;
         s.host_big_endian = *reinterpret_cast<const unsigned char *>(&one) == 0;
-        s.find = [](void *v, void *f, MMU32 type, MMU32 number) -> void * {
-            auto &block = static_cast<AnimationHost *>(v)->soundBlock;
-            return static_cast<PChunkyFile>(f)->FFind(type, number, &block) ? &block : nullptr;
+        s.graph = [](void *, void *f, MMMovieSessionGraph *out) {
+            *out = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(f));
         };
-        s.unpack = [](void *, void *p) { return int(static_cast<DataBlock *>(p)->FUnpackData()); };
-        s.block_size = [](void *, void *p) { return MMI32(static_cast<DataBlock *>(p)->Cb()); };
-        s.read = [](void *, void *p, void *out, MMI32 size) { return int(static_cast<DataBlock *>(p)->FReadRgb(out, size, 0)); };
         s.read_name = [](void *, void *, MMU32, MMU32, void *) { return 1; };
         s.owner = [](void *v, void *, MMSoundOwner *out) {
             auto &h = *static_cast<AnimationHost *>(v);
             *out = {&h.sound, &h.silent, &h.invalid};
-        };
-        s.child = [](void *, void *f, MMU32 type, MMU32 number, MMSoundChild *out) {
-            ChildChunkIdentification child;
-            if (!static_cast<PChunkyFile>(f)->FGetKidChid(type, number, 0, &child)) return 0;
-            *out = {child.cki.ctg, child.cki.cno};
-            return 1;
         };
         return mm_sound_read(this, file, tag.type, tag.number, &s) && !invalid;
     }

@@ -2,22 +2,28 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SOUND_RESOURCE_H
 #define MM_ENGINE_SOUND_RESOURCE_H
-#include "types.h"
+#include "chunky_file.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 enum { MM_SOUND_TYPE=0x4d534e44, MM_SOUND_MIDI=0x4d494453, MM_SOUND_WAVE=0x57415645 };
 enum { MM_SOUND_HEADER_BYTES = 16 };
+enum { MM_SOUND_STYLE_EFFECT = 2, MM_SOUND_STYLE_SPEECH = 3, MM_SOUND_STYLE_MUSIC = 4 };
+struct MMMovieSessionGraph;
 typedef struct MMSoundHeader
 {
     MMI32 style, volume;
-    int invalid, reserved_nonzero;
+    int valid_order, invalid, reserved_nonzero;
 } MMSoundHeader;
 /* Style and volume use the caller's native byte order, irrespective of the marker.
- * The decoded fields are available even when the marker is unrecognized. */
-int mm_sound_decode_header(const unsigned char bytes[MM_SOUND_HEADER_BYTES], int host_big_endian,
-                           MMSoundHeader *);
+ * Returns a movie status. A successful read includes unrecognized markers so each
+ * caller can apply its compatibility policy. I/O failure leaves the header alone. */
+int mm_sound_read_header(const struct MMMovieSessionGraph *, const MMChunkEntry *, int host_big_endian,
+                         MMSoundHeader *);
+/* The catalog accepts Effects, Speech and Music with a WAVE or MIDI child at
+ * any slot. Publishes the style only for an eligible sound. */
+int mm_sound_catalog_style(const struct MMMovieSessionGraph *, MMU32 number, int host_big_endian, MMI32 *style);
 typedef struct MMSoundResource
 {
     MMU32 type,number;
@@ -33,7 +39,6 @@ typedef struct MMSoundOwner
     unsigned char *invalid;
 } MMSoundOwner;
 typedef struct MMSoundLastMidi { MMI32 instance; MMU32 type,number; } MMSoundLastMidi;
-typedef struct MMSoundChild { MMU32 type,number; } MMSoundChild;
 typedef struct MMSoundResourceServices
 {
     void *context; int host_big_endian; MMU32 system;
@@ -43,12 +48,8 @@ typedef struct MMSoundResourceServices
     MMI32 (*object_size)(void *);
     void (*invalidate_output)(void *,void *,size_t);
     void *(*file)(void *,void *cache);
-    void *(*find)(void *,void *file,MMU32 type,MMU32 number);
-    int (*unpack)(void *,void *block);
-    MMI32 (*block_size)(void *,void *block);
-    int (*read)(void *,void *block,void *,MMI32 bytes);
+    void (*graph)(void *,void *file,struct MMMovieSessionGraph *);
     int (*read_name)(void *,void *file,MMU32 type,MMU32 number,void *object);
-    int (*child)(void *,void *file,MMU32 type,MMU32 number,MMSoundChild *);
     void (*publish_invalid)(void *,void *output,int value);
     int (*add)(void *,void *file,const void *header,void *number_out);
     MMI32 (*wave_size)(void *,void *source);
@@ -64,7 +65,7 @@ typedef struct MMSoundResourceServices
     void (*bad_sound)(void *);
     void (*binding)(void *,void *object,void **file,MMU32 *type,MMU32 *number);
     int (*put)(void *,void *file,MMU32 type,MMU32 number,const void *header);
-    void (*delete_child)(void *,void *file,MMU32 type,MMU32 number,const MMSoundChild *);
+    void (*delete_child)(void *,void *file,MMU32 type,MMU32 number,const MMChunkChild *);
     void (*bad_order)(void *);
     MMI32 (*queue_number)(void *,MMI32 style,MMI32 object,int actor);
     int (*playing)(void *,MMI32 instance);

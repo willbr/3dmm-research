@@ -10,6 +10,7 @@
 #include "preview_actor.h"
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
+#include "engine_movie_graph.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_costume_edit.h"
 #include "mm/actor_animation.h"

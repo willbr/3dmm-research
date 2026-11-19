@@ -146,6 +146,7 @@ struct StringTablePage
 class Archive
 {
     friend class Preview;
+    friend bool ReadSoundCatalogStyle(const Archive &, std::uint32_t, std::int32_t &);
     void *NativeFile() const; // Private bridge to the engine preview adapter.
     MMMovieSession *MovieSession() const;
     struct Impl;

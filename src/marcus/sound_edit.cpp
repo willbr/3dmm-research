@@ -6,6 +6,7 @@
 #include "midi.h"
 #include "sdl_audio.h"
 #include "mm/sound_resource.h"
+#include "mm/native_sound.h"
 #include "mm/movie_sound_archive.h"
 #include <algorithm>
 #include <cctype>
@@ -92,35 +93,14 @@ std::vector<MarcusSoundAsset> MarcusReadSoundAssets(const std::filesystem::path 
 {
     MM::Archive archive; MM::Error error;
     Require(archive.Open(path.u8string(), error), "Cannot open the built-in sound library (snds.3cn). Check the content directory.");
-    auto filename = Path(path);
-    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflNil));
-    Require(bool(file), "Cannot read the built-in sound library.");
-    struct Info { MMSoundResource resource = {}; MMI32 silent = 0; unsigned char invalid = 0; } info;
-    DataBlock block; MMSoundResourceServices services = {}; services.context = &block;
-    services.owner = [](void *, void *p, MMSoundOwner *out) {
-        auto &i = *static_cast<Info *>(p); *out = {&i.resource, &i.silent, &i.invalid};
-    };
-    services.find = [](void *p, void *f, MMU32 type, MMU32 number) -> void * {
-        auto b = static_cast<DataBlock *>(p); return static_cast<PChunkyFile>(f)->FFind(type, number, b) ? b : nullptr;
-    };
-    services.unpack = [](void *, void *p) -> int { return static_cast<DataBlock *>(p)->FUnpackData(); };
-    services.block_size = [](void *, void *p) -> MMI32 { return static_cast<DataBlock *>(p)->Cb(); };
-    services.read = [](void *, void *p, void *out, MMI32 bytes) -> int { return static_cast<DataBlock *>(p)->FReadRgb(out, bytes, 0); };
-    services.read_name = [](void *, void *, MMU32, MMU32, void *) { return 1; }; // Archive already decoded UTF-8 names.
-    services.child = [](void *, void *f, MMU32 type, MMU32 number, MMSoundChild *out) -> int {
-        ChildChunkIdentification child;
-        for (int i = 0; static_cast<PChunkyFile>(f)->FGetKid(type, number, i, &child); ++i)
-            if (child.cki.ctg == kctgWave || child.cki.ctg == kctgMidi) { *out = {child.cki.ctg, child.cki.cno}; return 1; }
-        return 0;
-    };
     std::vector<MarcusSoundAsset> result;
     for (const auto &chunk : archive.Chunks())
     {
         if (chunk.id.type != kctgMsnd) continue;
-        info = {};
-        if (!mm_sound_read(&info, file.get(), kctgMsnd, chunk.id.number, &services) || info.invalid || info.silent ||
-            info.resource.style < MARCUS_SOUND_EFFECT || info.resource.style > MARCUS_SOUND_MUSIC) continue;
-        MarcusSoundAsset asset = {}; asset.chunk = chunk.id.number; asset.style = info.resource.style;
+        std::int32_t style;
+        if (!MM::ReadSoundCatalogStyle(archive, chunk.id.number, style))
+            continue;
+        MarcusSoundAsset asset = {}; asset.chunk = chunk.id.number; asset.style = style;
         const auto name = chunk.name.empty() ? "Sound " + std::to_string(asset.chunk) : chunk.name;
         std::strncpy(asset.name, name.c_str(), sizeof(asset.name) - 1); result.push_back(asset);
     }

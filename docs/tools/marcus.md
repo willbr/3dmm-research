@@ -2297,6 +2297,10 @@ for the first matching movie-root link. For each resolved source, C89 reads
 the first slot-zero child of the MSND envelope and streams its decoded data
 into the WAVE buffer or the MIDI parser. Marcus and Studio share the wire
 decoder and retain their handling of invalid markers and flags.
+Studio's resource loader and Marcus action and path editing use the same
+graph reader for motion-match sounds. The built-in sound catalog reads headers
+from the archive it already opened for names. The catalog accepts WAVE or MIDI
+at any child slot, while playback resolves the first child at slot zero.
 
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
@@ -2353,6 +2357,14 @@ the first scene only. SDL Studio's sound requests matched retail. Marcus and
 SDL Studio reproduced their prior seek images, with two pixels differing from
 retail in one frame. The mixed PCM still differed from retail in both ports.
 Evidence is in `tmp/c89-sound-graph/`.
+
+After Studio and the catalog adopted the shared graph reader, all 711 Marcus
+catalog entries matched the prior build byte for byte. The asset-preview
+fingerprints also matched. Fresh actor-audio captures again matched retail's
+60-frame sequence and confined both tones to the first scene. SDL Studio's
+sound requests matched retail. Each port reproduced its prior seek images,
+including the two pixels that differ from retail in one frame. The mixed PCM
+comparison still differs from retail. Evidence is in `tmp/c89-sound-resources/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

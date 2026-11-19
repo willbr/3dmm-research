@@ -487,20 +487,9 @@ static int read_audio_payload(void *context, const MMReadStream *stream)
     return MM_MOVIE_OK;
 }
 
-static int read_sound_header(void *context, const MMReadStream *stream)
-{
-    MMSoundHeader *header = (MMSoundHeader *)context;
-    const unsigned short one = 1;
-    unsigned char bytes[MM_SOUND_HEADER_BYTES];
-    int status = mm_movie_read_fixed(stream, bytes, sizeof(bytes));
-    if (status != MM_MOVIE_OK)
-        return status;
-    return mm_sound_decode_header(bytes, *(const unsigned char *)&one == 0, header) ?
-        MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
-}
-
 static int read_audio(const MMMovieSessionGraph *graph, MMU32 type, MMU32 number, const MMPreviewAudioServices *s)
 {
+    const unsigned short one = 1;
     MMChunkAccess chunks;
     MMChunkEntry entry;
     MMChunkChild child;
@@ -514,9 +503,11 @@ static int read_audio(const MMMovieSessionGraph *graph, MMU32 type, MMU32 number
         return 0;
     if (type == MM_SOUND_TYPE)
     {
-        status = graph->payload(graph->context, &entry, read_sound_header, &header);
+        status = mm_sound_read_header(graph, &entry, *(const unsigned char *)&one == 0, &header);
         if (status != MM_MOVIE_OK)
             return preview_read_failure(status);
+        if (!header.valid_order)
+            return 0;
         status = header.invalid || header.reserved_nonzero ? MM_CHUNK_NOT_FOUND :
                      mm_chunk_child_type(&chunks, position, 0, 0, &child);
         if (status == MM_CHUNK_NOT_FOUND)

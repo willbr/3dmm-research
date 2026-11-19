@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/archive.h"
+#include "mm/native_sound.h"
 #include "diagnostics.h"
 #include <algorithm>
 #include <codecvt>
@@ -11,6 +12,7 @@
 #include "engine_movie_source.h"
 #include "mm/actor_data.h"
 #include "mm/movie_data.h"
+#include "mm/sound_resource.h"
 #include "platform_text.h"
 #undef size
 ASSERTNAME
@@ -104,6 +106,17 @@ Archive::~Archive() = default;
 void *Archive::NativeFile() const
 {
     return _impl->file;
+}
+bool ReadSoundCatalogStyle(const Archive &archive, std::uint32_t number, std::int32_t &style)
+{
+    if (!archive._impl->file)
+        return false;
+    const auto graph = EngineMovieGraph::FromFile(archive._impl->file);
+    MMI32 value;
+    if (!mm_sound_catalog_style(&graph, number, 0, &value))
+        return false;
+    style = value;
+    return true;
 }
 MMMovieSession *Archive::MovieSession() const
 {

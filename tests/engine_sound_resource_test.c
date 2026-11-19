@@ -1,4 +1,6 @@
 #include "mm/sound_resource.h"
+#include "mm/movie_session.h"
+#include "mm/text_store.h"
 #include <assert.h>
 #include <string.h>
 enum { CREATE=1,FIND,UNPACK,READ,NAME,CHILD,ADD,ADD_CHILD,WRITE_MIDI,FIND_WAVE,COPY_WAVE,SET_NAME,READ_MIDI,PUT };
@@ -7,7 +9,7 @@ typedef struct Context
 {
     MMSoundResourceServices services; Object object;
     unsigned char bytes[16]; MMI32 length; int fail,events[32],count,created,released,invalidations,deleted,deleted_child,bad,order,stream;
-    int playing,stopped,plays,queries; MMI32 queue,volume,repeat,priority,sound_class; MMU32 start,lookup_type;
+    int playing,stopped,plays,queries,children; MMI32 queue,volume,repeat,priority,sound_class; MMU32 start,lookup_type;
     void *object_slot,*size_slot; const void *name; int release_after_invalidation;
 } Context;
 static int event(Context *c,int n) { assert(c->count<32); c->events[c->count++]=n; return c->fail!=n; }
@@ -20,15 +22,63 @@ static MMI32 object_size(void *p) { (void)p; return 333; }
 static void invalidate_output(void *p,void *out,size_t bytes)
 { Context *c=(Context *)p; assert(out==c->object_slot || out==c->size_slot); memset(out,0xcd,bytes); ++c->invalidations; }
 static void *file(void *p,void *cache) { assert(cache==p); return p; }
-static void *find(void *p,void *f,MMU32 type,MMU32 n) { (void)type; assert(p==f && n==37); return event((Context *)p,FIND)?p:NULL; }
-static int unpack(void *p,void *b) { assert(p==b); return event((Context *)p,UNPACK); }
-static MMI32 block_size(void *p,void *b) { assert(p==b); return ((Context *)p)->length; }
-static int read_block(void *p,void *b,void *out,MMI32 bytes)
-{ Context *c=(Context *)p; assert(p==b && bytes==16); if (!event(c,READ)) return 0; memcpy(out,c->bytes,16); return 1; }
+static int read_block(void *p, MMU32 offset, void *out, size_t bytes)
+{
+    Context *c = (Context *)p;
+    assert(!offset && bytes == 16);
+    if (!event(c, READ))
+        return 0;
+    memcpy(out, c->bytes, bytes);
+    return 1;
+}
+static int graph_entry(void *p, MMU32 position, MMChunkEntry *entry)
+{
+    const Context *c = (const Context *)p;
+    assert(position < 2);
+    if (c->fail == FIND)
+        return 0;
+    memset(entry, 0, sizeof(*entry));
+    entry->type = position ? MM_SOUND_TYPE : 1;
+    entry->number = 37;
+    entry->child_count = c->children;
+    return 1;
+}
+static int graph_child(void *p, MMU32 parent, MMU32 i, MMChunkChild *out)
+{
+    Context *c = (Context *)p;
+    assert(i < (MMU32)c->children);
+    c->lookup_type = parent ? MM_SOUND_TYPE : 1;
+    out->slot = i ? 4 : 0;
+    out->type = c->children == 2 && !i ? MM_TEXT_ROOT : MM_SOUND_WAVE;
+    out->number = 19 + i;
+    return event(c, CHILD);
+}
+static void graph_access(void *p, MMChunkAccess *out)
+{
+    MMChunkAccess access = {NULL, 2, graph_entry, graph_child};
+    access.context = p;
+    *out = access;
+}
+static int graph_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    Context *c = (Context *)p;
+    MMReadStream stream = {NULL, 0, read_block};
+    assert(entry->number == 37);
+    if (!event(c, UNPACK))
+        return MM_MOVIE_BAD_FILE;
+    stream.context = p;
+    stream.length = c->length;
+    return receive(out, &stream);
+}
+static void graph(void *p, void *file, MMMovieSessionGraph *out)
+{
+    MMMovieSessionGraph source = {NULL, graph_access, NULL, graph_payload, NULL};
+    assert(p == file);
+    source.context = p;
+    *out = source;
+}
 static int read_name(void *p,void *f,MMU32 type,MMU32 n,void *o)
 { (void)type; assert(p==f && n==37); ((Object *)o)->named=1; return event((Context *)p,NAME); }
-static int child(void *p,void *f,MMU32 type,MMU32 n,MMSoundChild *out)
-{ Context *c=(Context *)p; assert(p==f && n==37); c->lookup_type=type; out->type=MM_SOUND_WAVE; out->number=19; return event(c,CHILD); }
 static void publish_invalid(void *p,void *out,int invalid) { (void)p; *(int *)out=invalid; }
 static int add(void *p,void *f,const void *header,void *out)
 { Context *c=(Context *)p; MMU32 n=37; assert(p==f); memcpy(c->bytes,header,16); memcpy(out,&n,4); return event(c,ADD); }
@@ -47,7 +97,7 @@ static void bad_sound(void *p) { ++((Context *)p)->bad; }
 static void binding(void *p,void *o,void **f,MMU32 *type,MMU32 *n) { assert(o==&((Context *)p)->object); *f=p; *type=0x1234; *n=37; }
 static int put(void *p,void *f,MMU32 type,MMU32 n,const void *header)
 { Context *c=(Context *)p; assert(p==f && type==0x1234 && n==37 && !c->object.invalid); memcpy(c->bytes,header,16); assert(c->bytes[12]==1); return event(c,PUT); }
-static void delete_child(void *p,void *f,MMU32 type,MMU32 n,const MMSoundChild *kid)
+static void delete_child(void *p,void *f,MMU32 type,MMU32 n,const MMChunkChild *kid)
 { Context *c=(Context *)p; assert(p==f && type==0x1234 && n==37 && kid->number==19 && !c->object.invalid); ++c->deleted_child; }
 static void bad_order(void *p) { ++((Context *)p)->order; }
 static MMI32 queue_number(void *p,MMI32 style,MMI32 object,int actor)
@@ -59,10 +109,10 @@ static MMI32 play(void *p,const MMSoundResource *r,MMI32 queue,MMI32 volume,MMI3
 static void initialize(Context *c)
 {
     MMSoundResourceServices *s;
-    memset(c,0,sizeof(*c)); c->length=16; c->bytes[0]=1; c->bytes[4]=2; c->bytes[10]=1;
+    memset(c,0,sizeof(*c)); c->length=16; c->children=1; c->bytes[0]=1; c->bytes[4]=2; c->bytes[10]=1;
     c->object.resource.type=17; c->object.resource.number=18; c->object.resource.style=1; c->object.resource.volume=123; c->object.silent=2;
     s=&c->services; s->context=c; s->owner=owner; s->create=create; s->release=release; s->object_size=object_size; s->invalidate_output=invalidate_output;
-    s->file=file; s->find=find; s->unpack=unpack; s->block_size=block_size; s->read=read_block; s->read_name=read_name; s->child=child; s->publish_invalid=publish_invalid;
+    s->file=file; s->graph=graph; s->read_name=read_name; s->publish_invalid=publish_invalid;
     s->add=add; s->wave_size=wave_size; s->midi_size=midi_size; s->add_child=add_child; s->write_midi=write_midi; s->find_wave=find_wave; s->copy_wave=copy_wave;
     s->set_name=set_name; s->delete_parent=delete_parent; s->prepare_name=prepare_name; s->read_midi=read_midi; s->bad_sound=bad_sound;
     s->binding=binding; s->put=put; s->delete_child=delete_child; s->bad_order=bad_order; s->queue_number=queue_number; s->playing=playing; s->stop=stop; s->play=play;
@@ -94,6 +144,32 @@ static void loads(void)
         assert(invalid==(!failure && (i&1)?0:17) && style==(!failure && (i&2)?2:18) && volume==(!failure && (i&4)?65536L:19));
     }
     initialize(&c); c.bytes[0]=c.bytes[1]=0x7f; assert(mm_sound_read(&c.object,&c,1,37,&c.services) && c.order==1);
+}
+static void catalog(void)
+{
+    Context c;
+    MMMovieSessionGraph source;
+    MMI32 style = -1;
+    initialize(&c);
+    graph(&c, &c, &source);
+    c.children = 2;
+    c.bytes[0] = 0x7f; /* Catalog ignores marker and reserved bytes. */
+    c.bytes[13] = 1;
+    assert(mm_sound_catalog_style(&source, 37, 0, &style) && style == 2);
+    c.count = 0;
+    assert(mm_sound_read(&c.object, &c, MM_SOUND_TYPE, 37, &c.services) && !c.object.silent &&
+           c.object.resource.type == MM_TEXT_ROOT && c.object.resource.number == 19 && c.order == 1);
+    c.count = 0;
+    c.children = 0;
+    style = -1;
+    assert(!mm_sound_catalog_style(&source, 37, 0, &style) && style == -1);
+    c.children = 1;
+    c.count = 0;
+    c.bytes[12] = 1;
+    assert(!mm_sound_catalog_style(&source, 37, 0, &style) && style == -1);
+    c.bytes[12] = 0;
+    c.bytes[4] = 1;
+    assert(!mm_sound_catalog_style(&source, 37, 0, &style) && style == -1);
 }
 static void writes(void)
 {
@@ -144,4 +220,4 @@ static void playback(void)
     assert(mm_sound_priority(2,0)==2 && mm_sound_priority(2,1)==4 && mm_sound_priority(2,2)==6);
     assert(mm_sound_priority(3,0)==1 && mm_sound_priority(3,1)==3 && mm_sound_priority(3,2)==5 && mm_sound_priority(4,0)==1 && !mm_sound_priority(0,0));
 }
-int main(void) { loads(); writes(); playback(); return 0; }
+int main(void) { loads(); catalog(); writes(); playback(); return 0; }

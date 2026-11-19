@@ -26,6 +26,7 @@
 #include "sdl_audio.h"
 #endif
 #include "soc.h"
+#include "engine_movie_graph.h"
 #include "mm/wave_import.h"
 #ifndef KAUAI_SDL3
 #include "audioman.h"
@@ -55,11 +56,12 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices(void *context)
     static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 &&
                       sizeof(MMSoundResource) == sizeof(void *) + 16,
                   "sound resource ABI");
-    static_assert(stySfx == 2 && stySpeech == 3 && styMidi == 4 && toolLooper == toolSounder + 1 &&
+    static_assert(stySfx == MM_SOUND_STYLE_EFFECT && stySpeech == MM_SOUND_STYLE_SPEECH &&
+                      styMidi == MM_SOUND_STYLE_MUSIC && toolLooper == toolSounder + 1 &&
                       toolMatcher == toolSounder + 2,
                   "sound policy enums");
     static_assert(kctgMsnd == MM_SOUND_TYPE && kctgMidi == MM_SOUND_MIDI &&
-                      kctgWave == MM_SOUND_WAVE && tNo == 0 && tYes == 1,
+                      kctgWave == MM_SOUND_WAVE && kchidSnd == 0 && tNo == 0 && tYes == 1,
                   "sound wire enums");
     s.owner = [](void *, void *object, MMSoundOwner *out) {
         auto sound = static_cast<PMovieSoundMSND>(object);
@@ -70,24 +72,11 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices(void *context)
     s.object_size = [](void *) -> MMI32 { return sizeof(MovieSoundMSND); };
     s.invalidate_output = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
     s.file = [](void *, void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->Pcfl(); };
-    s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
-        auto block = &static_cast<SoundResourceContext *>(p)->block;
-        return static_cast<PChunkyFile>(file)->FFind(type, number, block) ? block : nullptr;
-    };
-    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(); };
-    s.read = [](void *, void *block, void *out, MMI32 bytes) -> int {
-        return static_cast<PDataBlock>(block)->FReadRgb(out, bytes, 0);
+    s.graph = [](void *, void *file, MMMovieSessionGraph *out) {
+        *out = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file));
     };
     s.read_name = [](void *, void *file, MMU32 type, MMU32 number, void *object) -> int {
         return static_cast<PChunkyFile>(file)->FGetName(type, number, &static_cast<PMovieSoundMSND>(object)->_stn);
-    };
-    s.child = [](void *, void *file, MMU32 type, MMU32 number, MMSoundChild *out) -> int {
-        ChildChunkIdentification child;
-        if (!static_cast<PChunkyFile>(file)->FGetKidChid(type, number, kchidSnd, &child))
-            return 0;
-        *out = {child.cki.ctg, child.cki.cno};
-        return 1;
     };
     s.publish_invalid = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
     s.add = [](void *, void *file, const void *header, void *out) -> int {
@@ -152,7 +141,7 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices(void *context)
     s.put = [](void *, void *file, MMU32 type, MMU32 number, const void *header) -> int {
         return static_cast<PChunkyFile>(file)->FPutPv(const_cast<void *>(header), 16, type, number);
     };
-    s.delete_child = [](void *, void *file, MMU32 type, MMU32 number, const MMSoundChild *child) {
+    s.delete_child = [](void *, void *file, MMU32 type, MMU32 number, const MMChunkChild *child) {
         static_cast<PChunkyFile>(file)->DeleteChild(type, number, child->type, child->number);
     };
     s.bad_order = [](void *) { Assert(false, "bad MovieSoundFile"); };
