@@ -185,11 +185,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.persistent = [](void *p) {
         AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
     };
-    s.first_root = [](void *p) -> MMU32 {
-        ChunkIdentification chunk;
-        AssertDo(static_cast<PChunkyFile>(p)->FGetCkiCtg(kctgMvie, 0, &chunk), "Missing saved movie root");
-        return chunk.cno;
-    };
+    s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
     s.create_root = [](void *, void *p, MMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
@@ -213,12 +209,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.document_dirty = [](void *p, int dirty) { static_cast<SaveHost *>(p)->movie->_fDirty = dirty != 0; };
     s.write_scene = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<SaveHost *>(p)->movie->_data.Resources(), number);
-    };
-    s.child = [](void *p, MMU32 root, MMU32 type, MMU32 slot, MMU32 *number) -> int {
-        ChildChunkIdentification child;
-        bool found = static_cast<PChunkyFile>(p)->FGetKidChidCtg(kctgMvie, root, slot, type, &child);
-        if (found) *number = child.cki.cno;
-        return found;
     };
     s.adopt = [](void *p, MMU32 root, MMU32 type, MMU32 number, MMU32 slot) -> int {
         return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie, root, type, number, slot);
@@ -271,21 +261,15 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.tag_count = [](void *p) -> MMI32 { return static_cast<PTagList>(p)->Ctag(); };
     s.tag = [](void *p, MMI32 index, MMTag *value) { TAG tag; static_cast<PTagList>(p)->GetTag(index, &tag); *value = TagToCore(tag); };
     s.release_tags = [](void *p) { auto tags = static_cast<PTagList>(p); ReleasePpo(&tags); };
-    s.chunk = [](void *p, MMU32 type, MMI32 index, MMU32 *number) -> int {
-        ChunkIdentification chunk;
-        if (!static_cast<PChunkyFile>(p)->FGetCkiCtg(type, index, &chunk)) return 0;
-        *number = chunk.cno;
-        return 1;
-    };
     s.toss_cache = [](void *p, MMU32 type, MMU32 number) {
         auto reader = type == kctgMtrl ? Material_MTRL::FReadMtrl : Template::FReadTmpl;
         static_cast<SaveHost *>(p)->movie->_data.Resources()->FSetCrep(crepToss, type, number, reader);
     };
-    s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
     s.purge_sounds = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->Pmcc()->FQueryPurgeSounds(); };
     s.bad_child = [](void *) { Bug("ChunkyFile returned bogus Ckid()"); };
     s.bad_sound_index = [](void *) { Bug("Should never fail"); };
     s.missing_scene = [](void *) { AssertDo(false, "Should never fail"); };
+    s.missing_root = [](void *) { AssertDo(false, "Missing saved movie root"); };
     return s;
 }
 

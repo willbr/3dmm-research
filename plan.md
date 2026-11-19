@@ -1012,6 +1012,10 @@ Studio save and close use the same C89 unused-sound scan. C89 walks the movie's
 sound links in reverse order, keeps sounds referenced by more than one parent,
 and resolves the movie row again after a deletion shifts the live index.
 The Studio host supplies the purge prompt and applies link deletions.
+The save controller also reads the saved movie root, old scene and table
+links, scene slots for tag collection, and local material and template entries
+through the C89 chunk index. Scene slots for tag collection stop at the first
+gap, with exact type lookup at each slot.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

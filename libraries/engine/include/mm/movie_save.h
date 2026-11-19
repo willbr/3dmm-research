@@ -36,7 +36,7 @@ extern "C"
         void *(*new_resources)(void *, void *file, MMU32 cache_bytes);
         int (*is_temp)(void *file), (*save)(void *file, void *path);
         void (*set_temp)(void *file, int), (*mark_temporary)(void *file), (*persistent)(void *file);
-        MMU32 (*first_root)(void *file);
+        MMChunkAccess (*chunks)(void *file);
         int (*create_root)(void *, void *file, MMU32 *);
         void *(*find_file)(void *, void *path);
         void (*retain_saved)(void *file), (*release_saved)(void *file), (*flush_saved)(void *file);
@@ -46,7 +46,6 @@ extern "C"
         void (*set_container_name)(void *, void *path);
         void (*long_op)(void *, int begin), (*document_dirty)(void *, int);
         int (*write_scene)(void *, void *scene, MMU32 *);
-        int (*child)(void *file, MMU32 root, MMU32 type, MMU32 slot, MMU32 *);
         int (*adopt)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
         void (*delete_child)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
         void (*delete_chunk)(void *file, MMU32 type, MMU32 number);
@@ -67,11 +66,9 @@ extern "C"
         int (*scene_tags)(void *file, MMU32 scene, void *tags);
         MMI32 (*tag_count)(void *tags);
         void (*tag)(void *tags, MMI32 index, MMTag *), (*release_tags)(void *tags);
-        int (*chunk)(void *file, MMU32 type, MMI32 index, MMU32 *);
         void (*toss_cache)(void *, MMU32 type, MMU32 number);
-        MMChunkAccess (*chunks)(void *file);
         int (*purge_sounds)(void *);
-        void (*bad_child)(void *), (*bad_sound_index)(void *), (*missing_scene)(void *);
+        void (*bad_child)(void *), (*bad_sound_index)(void *), (*missing_scene)(void *), (*missing_root)(void *);
     } MMMovieSaveServices;
     /* State owns the saved-file reference; resources remain owned by MovieState.
      * States must be initialized and invoked callbacks present. Temporary-file,

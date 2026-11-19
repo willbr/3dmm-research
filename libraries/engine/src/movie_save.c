@@ -46,6 +46,19 @@ MMI32 mm_movie_save_command(MMI32 command, MMI32 save, MMI32 save_as,
 {
     return command == save && state->readOnly ? save_as : command;
 }
+static int refresh_root(void *file, const MMMovieSaveServices *s)
+{
+    const MMChunkAccess chunks = s->chunks(file);
+    MMChunkEntry root;
+    MMU32 row;
+    if (mm_chunk_type_at(&chunks, MM_SOUND_MOVIE, 0, &root, &row) != MM_CHUNK_OK)
+    {
+        s->missing_root(s->context);
+        return 0;
+    }
+    s->data->movieNumber = root.number;
+    return 1;
+}
 int mm_movie_save_temporary(const MMMovieSaveServices *s)
 {
     void *path, *file = s->file(s->data->resources);
@@ -55,7 +68,7 @@ int mm_movie_save_temporary(const MMMovieSaveServices *s)
         if (!path || !s->save(file, path))
             return 0;
         s->mark_temporary(file);
-        s->data->movieNumber = s->first_root(file);
+        return refresh_root(file, s);
     }
     return 1;
 }
@@ -107,10 +120,18 @@ static void clean_actors(const MMMovieSaveServices *s)
     }
     s->rollcall_changed(s->context);
 }
+static MMU32 saved_child(void *file, MMU32 type, MMU32 slot, const MMMovieSaveServices *s)
+{
+    const MMChunkAccess chunks = s->chunks(file);
+    MMU32 number;
+    if (mm_chunk_link_number(&chunks, MM_SOUND_MOVIE, s->data->movieNumber, slot, type, &number) != MM_CHUNK_OK)
+        return NIL_NUMBER;
+    return number;
+}
 int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices *s)
 {
     void *file, *saved, *retry_path;
-    MMU32 scene = 0, old_scene = 0, actors, old_actors, sources, old_sources;
+    MMU32 scene = 0, old_scene = NIL_NUMBER, actors, old_actors, sources, old_sources;
     int success, retry = 1;
     if (s->has_container(s->context) && s->is_vmm(path))
         return mm_movie_save_to(path, 0, s);
@@ -129,7 +150,8 @@ retry_save:
     {
         if (!s->write_scene(s->context, s->scenes->open, &scene))
             goto fail;
-        if (!s->child(file, s->data->movieNumber, MM_SAVE_SCENE, s->scenes->index, &old_scene))
+        old_scene = saved_child(file, MM_SAVE_SCENE, s->scenes->index, s);
+        if (old_scene == NIL_NUMBER)
             s->missing_scene(s->context);
         if (!s->adopt(file, s->data->movieNumber, MM_SAVE_SCENE, scene, s->scenes->index))
         {
@@ -139,12 +161,10 @@ retry_save:
     }
     if (clean_rollcall)
         clean_actors(s);
-    if (!s->child(file, s->data->movieNumber, MM_SAVE_TABLE, 0, &old_actors))
-        old_actors = NIL_NUMBER;
+    old_actors = saved_child(file, MM_SAVE_TABLE, 0, s);
     if (!s->write_rollcall(s->context, file, s->data->movieNumber, s->data->actors, &actors))
         goto fail_scene;
-    if (!s->child(file, s->data->movieNumber, MM_SAVE_TABLE, 1, &old_sources))
-        old_sources = NIL_NUMBER;
+    old_sources = saved_child(file, MM_SAVE_TABLE, 1, s);
     if (!s->add_sources(s->context, file, s->source_bytes(s->context), &sources))
         goto fail_actors;
     if (!s->write_sources(s->context) || !s->adopt(file, s->data->movieNumber, MM_SAVE_TABLE, sources, 1))
@@ -154,7 +174,7 @@ retry_save:
     }
     if (!s->write_title(s->context, file))
         goto fail_sources;
-    if (s->scenes->open)
+    if (old_scene != NIL_NUMBER)
         s->delete_child(file, s->data->movieNumber, MM_SAVE_SCENE, old_scene, s->scenes->index);
     if (old_actors != NIL_NUMBER)
         s->delete_child(file, s->data->movieNumber, MM_SAVE_TABLE, old_actors, 0);
@@ -236,7 +256,8 @@ int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *s)
         working = s->temporary_path(s->context);
         if (!working || !mm_movie_autosave(working, 1, s))
             return 0;
-        s->data->movieNumber = s->first_root(file);
+        if (!refresh_root(file, s))
+            return 0;
         s->set_temp(file, 1);
         if (!s->package(s->context, working, path))
         {
@@ -261,7 +282,8 @@ int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *s)
     s->persistent(file);
     if (remember)
         mm_movie_save_bind(path, s);
-    s->data->movieNumber = s->first_root(file);
+    if (!refresh_root(file, s))
+        return 0;
     s->document_dirty(s->context, 0);
     return 1;
 }
@@ -292,13 +314,18 @@ int mm_movie_needs_container(const MMMovieSaveServices *s)
 }
 void *mm_movie_save_tags(const MMMovieSaveServices *s)
 {
+    MMChunkAccess chunks;
+    MMChunkChild child;
     void *file, *tags = s->new_tags(s->context);
-    MMU32 child, scene = 0;
+    MMU32 root, scene = 0;
     if (!tags)
         return 0;
     file = s->file(s->data->resources);
-    while (s->child(file, s->data->movieNumber, MM_SAVE_SCENE, scene++, &child))
-        if (!s->scene_tags(file, child, tags))
+    chunks = s->chunks(file);
+    if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, s->data->movieNumber, &root) != MM_CHUNK_OK)
+        return tags;
+    while (mm_chunk_child_exact(&chunks, root, scene++, MM_SAVE_SCENE, &child) == MM_CHUNK_OK)
+        if (!s->scene_tags(file, child.number, tags))
         {
             s->release_tags(tags);
             return 0;
@@ -307,10 +334,14 @@ void *mm_movie_save_tags(const MMMovieSaveServices *s)
 }
 int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
 {
+    static const MMU32 types[] = {MM_SAVE_MATERIAL, MM_SAVE_TEMPLATE};
+    MMChunkAccess chunks;
+    MMChunkEntry entry;
     MMCollectionStorage storage;
     MMArray doomed;
-    MMU32 chunk[2], i;
-    MMI32 material = 0, template_index = 0, tag_index;
+    MMU32 chunk[2], i, ordinal, row;
+    size_t type;
+    MMI32 tag_index;
     MMTag tag;
     int used, result = 1;
     void *tags = mm_movie_save_tags(s);
@@ -326,30 +357,30 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
     doomed.storage = &storage;
     doomed.width = sizeof(chunk);
     doomed.free_count = -1;
-    for (;;)
+    chunks = s->chunks(file);
+    for (type = 0; type < sizeof(types) / sizeof(types[0]); ++type)
     {
-        if (s->chunk(file, MM_SAVE_MATERIAL, material++, &chunk[1]))
-            chunk[0] = MM_SAVE_MATERIAL;
-        else if (s->chunk(file, MM_SAVE_TEMPLATE, template_index++, &chunk[1]))
-            chunk[0] = MM_SAVE_TEMPLATE;
-        else
-            break;
-        used = 0;
-        for (tag_index = 0; tag_index < s->tag_count(tags); ++tag_index)
+        for (ordinal = 0; mm_chunk_type_at(&chunks, types[type], ordinal, &entry, &row) == MM_CHUNK_OK; ++ordinal)
         {
-            s->tag(tags, tag_index, &tag);
-            if (tag.sid != 0)
-                break;
-            if (tag.type == chunk[0] && tag.number == chunk[1])
+            used = 0;
+            for (tag_index = 0; tag_index < s->tag_count(tags); ++tag_index)
             {
-                used = 1;
-                break;
+                s->tag(tags, tag_index, &tag);
+                if (tag.sid != 0)
+                    break;
+                if (tag.type == entry.type && tag.number == entry.number)
+                {
+                    used = 1;
+                    break;
+                }
             }
-        }
-        if (!used && mm_array_add(&doomed, chunk, 0) != MM_STORAGE_OK)
-        {
-            result = 0;
-            goto done;
+            chunk[0] = entry.type;
+            chunk[1] = entry.number;
+            if (!used && mm_array_add(&doomed, chunk, 0) != MM_STORAGE_OK)
+            {
+                result = 0;
+                goto done;
+            }
         }
     }
     for (i = 0; i < doomed.count; ++i)

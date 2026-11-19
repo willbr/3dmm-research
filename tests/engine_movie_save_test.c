@@ -72,9 +72,12 @@ struct Test
     Saved saved[2];
     MMChunkChild children[64];
     int childCount, fail, left, skip, markError, error, resets, errors, clears, missing;
-    int temp, marks, tempSets, persistent, first, archiveRefs, cacheBytes, savedCalls, tempCalls;
+    int temp, marks, tempSets, persistent, missingRoot, archiveRefs, cacheBytes, savedCalls, tempCalls;
+    MMU32 rootNumber, savedRootNumber;
+    int changeSavedRoot;
     int begins, ends, dirty, updates, titleCalls, undos, packages, packageNull, container, bundled;
     int sourceArchive, sourceCalls, tagCount, tagReads, tagReleases, sceneTagCalls;
+    MMU32 lastSceneTagged;
     MMTag tags[12];
     int actorCount, actorRefs[8], actorIds[8], actorsErased, tagsClosed, rollcalls;
     int purgeAnswer, queries, badChildren, badSoundIndex, badIndex;
@@ -108,7 +111,17 @@ static int succeeds(Test *t, int kind)
 }
 static void append(Test *t, MMU32 type, MMU32 number, MMU32 slot)
 {
-    MMChunkChild *c = &t->children[t->childCount++];
+    int i = t->childCount++;
+    MMChunkChild *c;
+    while (i > 0)
+    {
+        c = &t->children[i - 1];
+        if (c->slot < slot || (c->slot == slot &&
+            (c->type < type || (c->type == type && c->number <= number))))
+            break;
+        t->children[i--] = *c;
+    }
+    c = &t->children[i];
     c->type = type;
     c->number = number;
     c->slot = slot;
@@ -172,7 +185,11 @@ static int save(void *p, void *path)
     if (!succeeds(t, SAVE))
         return 0;
     if (path)
+    {
         ((Path *)path)->registered = &t->saved[1];
+        if (t->changeSavedRoot)
+            t->rootNumber = t->savedRootNumber;
+    }
     return 1;
 }
 static void set_temp(void *p, int value)
@@ -193,10 +210,9 @@ static void persistent(void *p)
     t->temp = 0;
     ++t->persistent;
 }
-static MMU32 first(void *p)
+static void missing_root(void *p)
 {
-    ++((Test *)p)->first;
-    return 99;
+    ++((Test *)p)->missingRoot;
 }
 static int root(void *p, void *f, MMU32 *n)
 {
@@ -204,7 +220,7 @@ static int root(void *p, void *f, MMU32 *n)
     (void)f;
     if (!succeeds(t, ROOT))
         return 0;
-    *n = 9;
+    *n = t->rootNumber = 9;
     return 1;
 }
 static void *find(void *p, void *path)
@@ -277,19 +293,6 @@ static int scene(void *p, void *open, MMU32 *n)
         return 0;
     *n = t->next++;
     return 1;
-}
-static int child(void *p, MMU32 root_number, MMU32 type, MMU32 slot, MMU32 *n)
-{
-    Test *t = p;
-    int i;
-    (void)root_number;
-    for (i = 0; i < t->childCount; ++i)
-        if (t->children[i].type == type && t->children[i].slot == slot)
-        {
-            *n = t->children[i].number;
-            return 1;
-        }
-    return 0;
 }
 static int adopt(void *p, MMU32 root_number, MMU32 type, MMU32 n, MMU32 slot)
 {
@@ -494,7 +497,7 @@ static int scene_tags(void *p, MMU32 n, void *list)
 {
     Test *t = list;
     (void)p;
-    (void)n;
+    t->lastSceneTagged = n;
     ++t->sceneTagCalls;
     return succeeds(t, SCENE_TAGS);
 }
@@ -511,15 +514,6 @@ static void tag(void *p, MMI32 i, MMTag *out)
 static void release_tags(void *p)
 {
     ++((Test *)p)->tagReleases;
-}
-static int chunk(void *p, MMU32 type, MMI32 i, MMU32 *n)
-{
-    Test *t = p;
-    int count = type == MM_SAVE_MATERIAL ? t->materialCount : t->templateCount;
-    if (i >= count)
-        return 0;
-    *n = (type == MM_SAVE_MATERIAL ? t->materials : t->templates)[i];
-    return 1;
 }
 static void toss(void *p, MMU32 type, MMU32 n)
 {
@@ -544,11 +538,24 @@ static int graph_entry(void *p, MMU32 row, MMChunkEntry *entry)
             entry->child_count = t->soundExists[n];
             return 1;
         }
-    if (row != 0)
+    if (row < (MMU32)t->materialCount)
+    {
+        entry->type = MM_SAVE_MATERIAL;
+        entry->number = t->materials[row];
+        return 1;
+    }
+    row -= t->materialCount;
+    if (t->rootNumber != NIL && row-- == 0)
+    {
+        entry->type = MM_SOUND_MOVIE;
+        entry->number = t->rootNumber;
+        entry->child_count = t->childCount;
+        return 1;
+    }
+    if (row >= (MMU32)t->templateCount)
         return 0;
-    entry->type = MM_SOUND_MOVIE;
-    entry->number = t->data.movieNumber;
-    entry->child_count = t->childCount;
+    entry->type = MM_SAVE_TEMPLATE;
+    entry->number = t->templates[row];
     return 1;
 }
 static int graph_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
@@ -575,7 +582,7 @@ static MMChunkAccess chunks(void *p)
     MMChunkAccess access;
     MMU32 n;
     access.context = p;
-    access.count = 1;
+    access.count = t->materialCount + t->templateCount + (t->rootNumber != NIL);
     for (n = 0; n < sizeof(t->refs) / sizeof(t->refs[0]); ++n)
         if (t->refs[n])
             ++access.count;
@@ -626,7 +633,7 @@ static void init(Test *t)
     mm_movie_save_init(&t->state);
     t->data.resources = t;
     t->data.actors = t;
-    t->data.movieNumber = 9;
+    t->data.movieNumber = t->rootNumber = 9;
     t->scenes.open = t;
     t->scenes.index = 0;
     t->state.autosaveDirty = 1;
@@ -655,7 +662,6 @@ static void init(Test *t)
     s->set_temp = set_temp;
     s->mark_temporary = mark_temp;
     s->persistent = persistent;
-    s->first_root = first;
     s->create_root = root;
     s->find_file = find;
     s->retain_saved = retain_saved;
@@ -669,7 +675,6 @@ static void init(Test *t)
     s->long_op = long_op;
     s->document_dirty = dirty;
     s->write_scene = scene;
-    s->child = child;
     s->adopt = adopt;
     s->delete_child = delete_child;
     s->delete_chunk = delete_chunk;
@@ -701,13 +706,13 @@ static void init(Test *t)
     s->tag_count = tag_count;
     s->tag = tag;
     s->release_tags = release_tags;
-    s->chunk = chunk;
     s->toss_cache = toss;
     s->chunks = chunks;
     s->purge_sounds = purge;
     s->bad_child = bad_child;
     s->bad_sound_index = bad_sound_index;
     s->missing_scene = missing;
+    s->missing_root = missing_root;
     s->allocator.context = t;
     s->allocator.resize = resize;
     s->allocator.release = free_storage;
@@ -761,6 +766,10 @@ static int autosaving(void)
           t.events[4] == CLOSE_TAG);
     CHECK(t.updates == 1 && t.lastTitle == 0 && t.begins == t.ends && t.errors == 0);
     CHECK(mm_movie_autosave(0, 1, &t.s) && t.savedCalls == 1 && t.rollcalls == 1);
+    init(&t);
+    t.scenes.index = 2;
+    t.next = 0;
+    CHECK(mm_movie_autosave(0, 0, &t.s) && t.missing == 1 && has(&t, MM_SAVE_SCENE, 0, 2));
     t.state.closing = 1;
     CHECK(mm_movie_autosave(0, 0, &t.s) && t.savedCalls == 2);
     init(&t);
@@ -822,7 +831,14 @@ static int ownership(void)
     CHECK(!mm_movie_save_ensure(&t, publish, &t.s) && t.events[0] == PUBLICATION && !t.begins);
     init(&t);
     t.temp = 0;
-    CHECK(mm_movie_save_temporary(&t.s) && t.temp && t.marks == 1 && t.first == 1 && t.data.movieNumber == 99);
+    t.changeSavedRoot = 1;
+    t.savedRootNumber = 99;
+    CHECK(mm_movie_save_temporary(&t.s) && t.temp && t.marks == 1 && t.data.movieNumber == 99);
+    init(&t);
+    t.temp = 0;
+    t.changeSavedRoot = 1;
+    t.savedRootNumber = NIL;
+    CHECK(!mm_movie_save_temporary(&t.s) && t.temp && t.missingRoot == 1 && t.data.movieNumber == 9);
     init(&t);
     t.named.readOnly = 1;
     CHECK(mm_movie_save_bind(&t.named, &t.s) && t.saved[0].refs == 1 && t.state.nameValid && t.state.readOnly);
@@ -907,8 +923,10 @@ static int packaging(void)
         t.container = 1;
         t.named.vmm = 1;
         t.named.readOnly = 1;
+        t.changeSavedRoot = 1;
+        t.savedRootNumber = 99;
         CHECK(mm_movie_save_to(&t.named, remember, &t.s));
-        CHECK(t.packages == 1 && t.undos == 1 && t.tempSets == 1 && t.temp && t.first == 1 &&
+        CHECK(t.packages == 1 && t.undos == 1 && t.tempSets == 1 && t.temp &&
               t.data.movieNumber == 99 && !t.dirty);
         CHECK(t.state.containerNamed == remember && t.state.readOnly == remember && t.state.nameValid == remember);
         CHECK(t.lastTitle == &t.named && t.begins == t.ends && t.rollcalls == 1);
@@ -916,9 +934,11 @@ static int packaging(void)
         mm_movie_save_release(1, &t.s);
         CHECK(!t.saved[1].refs);
         init(&t);
+        t.changeSavedRoot = 1;
+        t.savedRootNumber = 99;
         CHECK(mm_movie_save_to(&t.named, remember, &t.s));
         CHECK(t.persistent == 1 && !t.temp && t.undos == 1 && !t.dirty && t.state.nameValid == remember &&
-              t.first == 1);
+              t.data.movieNumber == 99);
         mm_movie_save_release(1, &t.s);
     }
     init(&t);
@@ -948,7 +968,10 @@ static int packaging(void)
     t.tags[0].sid = 0;
     t.tags[1].sid = 6;
     t.tags[2].sid = 7;
+    append(&t, MM_SAVE_SCENE, 12, 0);
+    append(&t, MM_SAVE_SCENE, 13, 2);
     CHECK(mm_movie_needs_container(&t.s) && t.tagReads == 3 && t.tagReleases == 1 && !t.savedCalls);
+    CHECK(t.sceneTagCalls == 1 && t.lastSceneTagged == 10);
     t.fail = TAGS;
     t.left = 1;
     CHECK(mm_movie_needs_container(&t.s));

@@ -2400,6 +2400,17 @@ tones played only in the first scene, and SDL Studio matched retail's sound
 requests. Mixed PCM differed in both ports, and SDL Studio's frame timing
 differed. Evidence is in `tmp/c89-save-graph/`.
 
+Moving Studio's save index queries into C89 preserved both build profiles'
+save and sound traces and saved movie byte for byte. The save tests covered
+refreshing the movie root after save, collecting scene tags up to the first
+empty slot, and retaining a newly written scene numbered zero when the old
+scene link is missing. The chunk-save and v3dmm format tests also passed.
+Fresh actor-audio seek and playback captures matched retail's 60-frame
+sequence in both ports. All seek images matched their prior captures, including
+the two pixels that differ from retail. SDL Studio matched retail's sound
+requests. Mixed PCM differed in both ports, and SDL Studio's frame timing
+differed. Evidence is in `tmp/c89-save-index/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 
