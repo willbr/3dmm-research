@@ -486,6 +486,33 @@ static void copies(void)
     dispose(&src);
     dispose(&dst);
 }
+
+static void copy_references(void)
+{
+    Host src, dst;
+    MMU32 number, copied;
+    int created;
+    init(&src);
+    init(&dst);
+    graph(&src);
+    add(&dst, 0);
+    CHECK(mm_chunk_copy_reference(&src.ops, &src.ops, 10, 1, &number, &created) == MM_CHUNK_OK &&
+          number == 1 && !created && !(src.nodes[1].e.flags & MM_CHUNK_LONER));
+    src.fail_map = 1;
+    number = 99;
+    created = -1;
+    CHECK(mm_chunk_copy_reference(&src.ops, &dst.ops, 10, 0, &number, &created) == MM_CHUNK_MEMORY &&
+          dst.count == 1 && number == 99 && created == -1);
+    src.fail_map = 0;
+    CHECK(mm_chunk_copy_reference(&src.ops, &dst.ops, 10, 0, &number, &created) == MM_CHUNK_OK &&
+          created && number != 0 && (dst.nodes[find(&dst, 10, number)].e.flags & MM_CHUNK_LONER));
+    link(&dst, 0, number, 0);
+    CHECK(mm_chunk_copy_reference(&src.ops, &dst.ops, 10, 0, &copied, &created) == MM_CHUNK_OK &&
+          copied == number && !created && !(dst.nodes[find(&dst, 10, copied)].e.flags & MM_CHUNK_LONER) &&
+          dst.nodes[find(&dst, 10, copied)].e.parent_count == 1 && dst.count == 4);
+    dispose(&src);
+    dispose(&dst);
+}
 static void swaps_moves(void)
 {
     Host h;
@@ -527,6 +554,7 @@ static void swaps_moves(void)
 int main(void)
 {
     copies();
+    copy_references();
     swaps_moves();
     return 0;
 }

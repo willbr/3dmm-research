@@ -2546,6 +2546,15 @@ PCM still differed from retail in both ports. Saving with scene two active
 omitted embedded material `MTRL 0` in both this build and the earlier Studio
 build, causing reopen to fail. Evidence is in `tmp/c89-chunk-titles/`.
 
+The shared C89 actor writer now links embedded costume materials before
+Studio replaces a scene. The previously failing save from scene two kept
+both `MTRL` roots and their `TMAP` children. Both scenes reopened with the
+same actor state and viewport pixels at frames 1 and 12. Scene chop and
+undo restored the textured costume through a temporary archive. Retail,
+SDL, and Marcus each reproduced their 60 seek images from the earlier
+successful save and agreed on playback frame order. The mixed PCM differences
+from retail persisted in both ports. Evidence is in `tmp/c89-actor-store/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

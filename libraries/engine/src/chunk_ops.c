@@ -257,8 +257,8 @@ static void loner(const MMChunkEndpoint *endpoint, MMU32 type, MMU32 number)
         endpoint->edit.store(endpoint->edit.context, position, &entry, 0);
     }
 }
-int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
-                        MMU32 number, int clone, MMU32 *copied)
+static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
+                      MMU32 number, int clone, MMU32 *copied, int *created)
 {
     MMCollectionStorage storage;
     MMArray map;
@@ -268,7 +268,7 @@ int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 
     NumberMap item, parent_item;
     MMU32 position, target_position, map_position, flags, root = 0;
     MMI32 runtime;
-    int skip = 0, free_root = 0, result = OK;
+    int skip = 0, free_root = 0, new_root = 0, result = OK;
     if (!src || !dst || !copied || !src->identity || !dst->identity || !readable(&src->edit) || !readable(&dst->edit) ||
         !src->runtime || !src->set_runtime || !dst->set_runtime || !dst->edit.store || !src->read_payload ||
         !dst->put_payload || !dst->add_payload || !src->read_name || !dst->write_name)
@@ -277,7 +277,10 @@ int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 
         return MM_CHUNK_NOT_FOUND;
     if (!clone && src->identity == dst->identity)
     {
-        loner(dst, type, number);
+        if (created)
+            *created = 0;
+        else
+            loner(dst, type, number);
         *copied = number;
         return OK;
     }
@@ -358,6 +361,8 @@ int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 
                 map_find(&map, node.type, node.number, NULL, &map_position);
                 if (mm_array_insert(&map, map_position, &item, 1) != MM_STORAGE_OK)
                 {
+                    if (created)
+                        mm_chunk_delete(&dst->edit, node.type, item.destination);
                     result = MM_CHUNK_MEMORY;
                     goto done;
                 }
@@ -367,6 +372,7 @@ int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 
         if (flags & MM_WALK_ROOT)
         {
             root = item.destination;
+            new_root = !skip;
             continue;
         }
         if (!map_find(&map, parent.type, parent.number, &parent_item, NULL))
@@ -386,7 +392,10 @@ int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 
             goto done;
         }
     }
-    loner(dst, type, root);
+    if (created)
+        *created = new_root;
+    if (!created || new_root)
+        loner(dst, type, root);
     *copied = root;
 done:
     mm_storage_dispose(&storage);
@@ -394,4 +403,18 @@ done:
         mm_chunk_delete(&dst->edit, type, root);
     mm_chunk_walk_dispose(&walk);
     return result;
+}
+
+int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
+                  MMU32 number, int clone, MMU32 *copied)
+{
+    return copy_chunk(src, dst, type, number, clone, copied, NULL);
+}
+
+int mm_chunk_copy_reference(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
+                            MMU32 number, MMU32 *copied, int *created)
+{
+    if (!created)
+        return BAD;
+    return copy_chunk(src, dst, type, number, 0, copied, created);
 }

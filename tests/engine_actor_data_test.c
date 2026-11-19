@@ -583,6 +583,133 @@ static void event_streams(void)
     release_group(source);
     CHECK(!h.live);
 }
+
+typedef struct ActorStore
+{
+    HeaderIO header;
+    MMChunkChild link;
+    int copies, linked, tracks, discarded, reject;
+} ActorStore;
+
+static int store_entry(void *p, MMU32 i, MMChunkEntry *out)
+{
+    ActorStore *store = (ActorStore *)p;
+    CHECK(i < 1);
+    memset(out, 0, sizeof(*out));
+    out->type = MM_ACTOR_CHUNK;
+    out->number = 7;
+    out->child_count = store->linked;
+    return 1;
+}
+
+static int store_child(void *p, MMU32 row, MMU32 child, MMChunkChild *out)
+{
+    ActorStore *store = (ActorStore *)p;
+    CHECK(row == 0 && child == 0 && store->linked);
+    *out = store->link;
+    return 1;
+}
+
+static MMChunkAccess store_chunks(void *p)
+{
+    MMChunkAccess access = {NULL, 1, store_entry, store_child};
+    access.context = p;
+    return access;
+}
+
+static int store_track(void *p, MMU32 actor, MMU32 type, void *track)
+{
+    ActorStore *store = (ActorStore *)p;
+    Group *wire;
+    MMU32 number;
+    CHECK(actor == 7);
+    if (!store->tracks++)
+        CHECK(type == MM_ACTOR_ROUTE_CHUNK && track == p);
+    else
+    {
+        CHECK(type == MM_ACTOR_EVENTS_CHUNK && store->linked);
+        wire = (Group *)track;
+        CHECK(wire->count == 2 && wire->sizes[0] == 28 && wire->sizes[1] == 28);
+        memcpy(&number, wire->data[0] + 24, sizeof(number));
+        CHECK(number == 99 && !memcmp(wire->data[0], wire->data[1], 28));
+    }
+    return 1;
+}
+
+static int store_copy(void *p, const MMTag *tag, MMU32 *number, int *created)
+{
+    ActorStore *store = (ActorStore *)p;
+    CHECK(tag->sid == 0 && tag->cache == p && tag->type == 0x4d54524cUL && tag->number == 77);
+    ++store->copies;
+    *number = 99;
+    *created = !store->linked;
+    return 1;
+}
+
+static int store_adopt(void *p, MMU32 type, MMU32 parent, const MMChunkChild *child, int clear_loner)
+{
+    ActorStore *store = (ActorStore *)p;
+    CHECK(type == MM_ACTOR_CHUNK && parent == 7 && child->type == 0x4d54524cUL &&
+          child->number == 99 && child->slot == 0 && clear_loner && !store->linked);
+    if (store->reject)
+        return 0;
+    store->link = *child;
+    store->linked = 1;
+    return 1;
+}
+
+static void store_discard(void *p, MMU32 type, MMU32 number)
+{
+    ActorStore *store = (ActorStore *)p;
+    CHECK(type == 0x4d54524cUL && number == 99 && !store->linked);
+    ++store->discarded;
+}
+
+static void store_actor(void)
+{
+    ActorStore store;
+    MMActorStoreServices s = {0};
+    MMActorHeader header = {0};
+    MMActorCostume costume = {0};
+    MMI32 type = MM_ACTOR_COSTUME;
+    Host h;
+    Group *source;
+    int reject;
+    initialize(&h);
+    s.context = &store;
+    s.header.context = &store.header;
+    s.header.put = put_header;
+    s.events = services(&h);
+    s.chunks = store_chunks;
+    s.write_track = store_track;
+    s.copy_reference = store_copy;
+    s.adopt = store_adopt;
+    s.discard = store_discard;
+    header.source_id = 2;
+    costume.tag.cache = &store;
+    costume.tag.type = 0x4d54524cUL;
+    costume.tag.number = 77;
+    source = new_group_raw(&h, 0);
+    source->count = 2;
+    source->sizes[0] = source->sizes[1] = sizeof(costume);
+    memcpy(source->fixed[0], &type, sizeof(type));
+    memcpy(source->fixed[1], &type, sizeof(type));
+    memcpy(source->data[0], &costume, sizeof(costume));
+    memcpy(source->data[1], &costume, sizeof(costume));
+    for (reject = 0; reject <= 1; ++reject)
+    {
+        memset(&store, 0, sizeof(store));
+        store.reject = reject;
+        CHECK(mm_actor_store(7, 8, &header, &store, source, &s) == !reject);
+        CHECK(store.header.writes == 1 && store.tracks == 2 - reject && store.copies == 2 - reject &&
+              store.discarded == reject && store.linked == !reject && h.live == 1);
+        CHECK(!memcmp(source->data[0], &costume, sizeof(costume)) &&
+              !memcmp(source->data[1], &costume, sizeof(costume)));
+    }
+    release_group(source);
+    CHECK(!h.live);
+}
+
 int main(void)
 {
     headers();
@@ -590,6 +717,7 @@ int main(void)
     route_streams();
     events();
     event_streams();
+    store_actor();
     puts("actor data passed");
     return 0;
 }

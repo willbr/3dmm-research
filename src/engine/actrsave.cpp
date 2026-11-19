@@ -15,16 +15,19 @@
      +---PATH (chid 0) // _pglxyz (actor path)
      |
      +---GGAE (chid 0) // _track.Events() (actor events)
+     |
+     +---MTRL children for embedded costume events
 
 
 ***************************************************************************/
 #include "soc.h"
+#include "mm/actor_data.h"
+#include "mm/movie_sound.h"
+#include "mm/scene_data.h"
+#include <cstring>
 ASSERTNAME
 
 using namespace ActorEvent;
-
-const ChildChunkID kchidPath = 0;
-const ChildChunkID kchidGgae = 0;
 
 /***************************************************************************
     Write the actor out to disk.  Store the root chunk in the given ChunkNumber.
@@ -36,122 +39,71 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    ActorChunkOnFile actf;
-    ChunkNumber cnoPath;
-    ChunkNumber cnoGgae;
-    ChunkNumber cnoTmpl;
-    DataBlock blck;
-    ChildChunkIdentification kid;
-    long iaev;
-    Base *paev;
-    Sound aevsnd;
-    long nfrmFirst;
-    long nfrmLast;
+    static_assert(ksidUseCrf == 0 && kctgActr == MM_ACTOR_CHUNK && kctgScen == MM_SCENE_CHUNK &&
+                  kctgPath == MM_ACTOR_ROUTE_CHUNK && kctgGgae == MM_ACTOR_EVENTS_CHUNK &&
+                  kctgMsnd == MM_SOUND_CHUNK, "actor archive constants");
 
-    // Validate the actor's lifetime if not done already
     if (knfrmInvalid != _nfrmFirst)
     {
-        if (!FGetLifetime(&nfrmFirst, &nfrmLast))
+        long first, last;
+        if (!FGetLifetime(&first, &last))
             return fFalse;
     }
 #ifdef DEBUG
     if (knfrmInvalid == _nfrmFirst)
-        Warn("Dev: Why are we saving an actor who has no first frame number?");
-#endif // DEBUG
+        Warn("Saving an actor who has no first frame number");
+#endif
 
-    // Save and adopt Template chunk if it's a ksidUseCrf chunk
-    if (_tagTmpl.sid == ksidUseCrf)
+    MMActorHeader header = {};
+    header.order = kboCur;
+    header.system = koskCur;
+    std::memcpy(header.translation, &_dxyzFullRte, sizeof(header.translation));
+    header.actor_id = _arid;
+    header.first_frame = _nfrmFirst;
+    header.last_frame = _nfrmLast;
+    header.source_id = _tagTmpl.sid;
+    header.template_type = _tagTmpl.ctg;
+    header.template_number = _tagTmpl.cno;
+
+    struct Host
     {
-        Assert(_ptmpl->FIsTdt(), "only ThreeDTexts should be embedded in user doc");
-        if (!pcfl->FFind(_tagTmpl.ctg, _tagTmpl.cno))
-        {
-            if (!((PThreeDText)_ptmpl)->FWrite(pcfl, _tagTmpl.ctg, &cnoTmpl))
-                return fFalse;
-            // Keep ChunkNumber the same
-            pcfl->Move(_tagTmpl.ctg, cnoTmpl, _tagTmpl.ctg, _tagTmpl.cno);
-        }
-
-        if (tNo == pcfl->TIsDescendent(kctgActr, cnoActr, _tagTmpl.ctg, _tagTmpl.cno))
-        {
-            if (!pcfl->FAdoptChild(kctgActr, cnoActr, _tagTmpl.ctg,
-                                   _tagTmpl.cno)) // clears loner bit
-            {
-                return fFalse;
-            }
-        }
-    }
-
-    // Write the Actor chunk:
-    actf.bo = kboCur;
-    actf.osk = koskCur;
-    actf.dxyzFullRte = _dxyzFullRte;
-    actf.arid = _arid;
-    actf.nfrmFirst = _nfrmFirst;
-    actf.nfrmLast = _nfrmLast;
-    actf.tagTmpl.From(_tagTmpl);
-    if (!ActorData::FWriteHeader(pcfl, cnoActr, &actf))
-        return fFalse;
-
-    // Now write the PATH chunk:
-    if (!pcfl->FAddChild(kctgActr, cnoActr, kchidPath, _track.Route()->CbOnFile(), kctgPath, &cnoPath, &blck))
-    {
-        return fFalse;
-    }
-    if (!_track.Route()->FWrite(&blck))
-        return fFalse;
-
-    // Now write the GGAE chunk. The runtime _track.Events() holds Costume/Sound (with
-    // full TAG including runtime pcrf) for aetCost/aetSnd entries; on x64 those
-    // are wider than the wire format. Marshal into a transient on-file GG that
-    // embeds CostumeOnFile/SoundOnFile (with TAGOnFile) for the wire layout,
-    // then FWrite that.
-    {
-        PGeneralGroup pggaevOnFile = ActorData::PggWriteEvents(_track.Events());
-        if (pggaevOnFile == pvNil)
-            return fFalse;
-        if (!pcfl->FAddChild(kctgActr, cnoActr, kchidGgae, pggaevOnFile->CbOnFile(), kctgGgae, &cnoGgae, &blck))
-        {
-            ReleasePpo(&pggaevOnFile);
-            return fFalse;
-        }
-        if (!pggaevOnFile->FWrite(&blck))
-        {
-            ReleasePpo(&pggaevOnFile);
-            return fFalse;
-        }
-        ReleasePpo(&pggaevOnFile);
-    }
-
-    // Adopt actor sounds into the scene
-    for (iaev = 0; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        paev = (Base *)(_track.Events()->QvFixedGet(iaev));
-        if (aetSnd != paev->aet)
-            continue;
-        _track.Events()->Get(iaev, &aevsnd);
-        if (aevsnd.tag.sid != ksidUseCrf)
-            continue;
-
-        // For user sounds, the tag's cno must already be correct.
-        // Moreover, FResolveSndTag can't succeed if the msnd chunk is
-        // not yet a child of the current scene.
-
-        // If the msnd chunk already exists as this chid of this scene, continue
-        if (pcfl->FGetKidChidCtg(kctgScen, cnoScene, aevsnd.chid, kctgMsnd, &kid))
-            continue;
-
-        // If the msnd does not exist in this file, it exists in the main movie
-        if (!pcfl->FFind(kctgMsnd, aevsnd.tag.cno))
-            continue;
-
-        // The msnd chunk has not been adopted into the scene as the specified chid
-        if (!pcfl->FAdoptChild(kctgScen, cnoScene, kctgMsnd, aevsnd.tag.cno, aevsnd.chid))
-        {
-            return fFalse;
-        }
-    }
-
-    return fTrue;
+        PChunkyFile file;
+        PTemplate tmpl;
+    } host = {pcfl, _ptmpl};
+    MMActorStoreServices services = {};
+    services.context = &host;
+    services.header = ActorData::HeaderIO(pcfl);
+    services.events = ActorData::EventServices();
+    services.chunks = [](void *p) { return static_cast<Host *>(p)->file->ReadChunkAccess(); };
+    services.write_template = [](void *p, MMU32 type, MMU32 number) -> int {
+        auto h = static_cast<Host *>(p);
+        Assert(h->tmpl->FIsTdt(), "Expected an embedded ThreeDText template");
+        ChunkNumber written;
+        if (!static_cast<PThreeDText>(h->tmpl)->FWrite(h->file, type, &written))
+            return 0;
+        if (written != number)
+            h->file->Move(type, written, type, number);
+        return 1;
+    };
+    services.write_track = [](void *p, MMU32 actor, MMU32 type, void *track) -> int {
+        PGroupBase group = type == kctgPath ? static_cast<PGroupBase>(static_cast<PDynamicArray>(track))
+                                          : static_cast<PGroupBase>(static_cast<PGeneralGroup>(track));
+        DataBlock block;
+        ChunkNumber number;
+        return static_cast<Host *>(p)->file->FAddChild(kctgActr, actor, 0, group->CbOnFile(), type, &number, &block) &&
+               group->FWrite(&block);
+    };
+    services.copy_reference = [](void *p, const MMTag *tag, MMU32 *number, int *created) -> int {
+        auto cache = static_cast<PChunkyResourceFile>(tag->cache);
+        return cache && cache->Pcfl()->FCopyReference(tag->type, tag->number, static_cast<Host *>(p)->file,
+                                                      number, created);
+    };
+    services.adopt = [](void *p, MMU32 parent_type, MMU32 parent, const MMChunkChild *child, int clear_loner) -> int {
+        return static_cast<Host *>(p)->file->FAdoptChild(parent_type, parent, child->type, child->number,
+                                                         child->slot, clear_loner != 0);
+    };
+    services.discard = [](void *p, MMU32 type, MMU32 number) { static_cast<Host *>(p)->file->Delete(type, number); };
+    return mm_actor_store(cnoActr, cnoScene, &header, _track.Route(), _track.Events(), &services) != 0;
 }
 
 /***************************************************************************

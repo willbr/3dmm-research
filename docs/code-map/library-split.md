@@ -7112,6 +7112,15 @@ title I/O. C encodes and decodes the existing counted strings and removes
 empty names. Kauai reads and writes the encoded bytes, invalidates the
 chunk's runtime ID after a name write, and supplies text conversion.
 
+Studio writes an actor through `mm_actor_store` when saving a scene or taking
+a scene undo snapshot. The C89 writer stores the header, route, and events,
+links embedded templates and actor sounds, and attaches each embedded costume
+material to the replacement actor. A foreign material can be copied or reused
+in the destination archive. The wire event uses that archive's chunk number
+and the live event retains its original tag. Reusing a material preserves its
+loner flag. If a newly copied material cannot be adopted, the C89 writer
+discards it. Dropping a failed candidate scene releases its adopted children.
+
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor
 payloads remain opaque at this layer. Embedded roll-call TAGs own resource

@@ -1052,6 +1052,10 @@ The movie state initializes and owns the live C89 table. Studio, headless
 load and save, and the shared transactions use that same embedded table.
 Movie and scene titles use the C89 string codec for chunk names. The native
 archive adapter provides encoded bytes, code-page conversion, and diagnostics.
+Studio actor saves and scene undo snapshots use C89 to write the ACTR header
+and tracks and attach their embedded templates, costume materials, and scene
+sounds. Costume events store the destination material number and retain the
+material subtree before the old actor is removed.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

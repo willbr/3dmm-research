@@ -48,6 +48,11 @@ extern "C"
      * with the facade. This is not an atomic destination transaction. */
     int mm_chunk_copy(const MMChunkEndpoint *source, const MMChunkEndpoint *destination,
                             MMU32 type, MMU32 number, int clone, MMU32 *copied_number);
+    /* Stage a reference to a shared chunk. Existing roots keep their loner bit.
+     * Newly copied roots remain loners until adopted or discarded by the caller.
+     * The two outputs are published together on success. */
+    int mm_chunk_copy_reference(const MMChunkEndpoint *source, const MMChunkEndpoint *destination,
+                                MMU32 type, MMU32 number, MMU32 *copied_number, int *created);
 #ifdef __cplusplus
 }
 #endif

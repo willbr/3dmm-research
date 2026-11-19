@@ -15,7 +15,10 @@ extern "C"
         MM_ACTOR_HEADER_BYTES = 44,
         MM_ACTOR_OLD_HEADER_BYTES = 40,
         MM_ACTOR_EVENT_BYTES = 20,
-        MM_ACTOR_ROUTE_BYTES = 16
+        MM_ACTOR_ROUTE_BYTES = 16,
+        MM_ACTOR_CHUNK = 0x41435452,
+        MM_ACTOR_ROUTE_CHUNK = 0x50415448,
+        MM_ACTOR_EVENTS_CHUNK = 0x47474145
     };
     enum MMActorOrder
     {
@@ -132,6 +135,23 @@ extern "C"
      * movie status and publishes the new group only on success. */
     int mm_actor_read_events_stream(const MMReadStream *, const MMActorEventServices *, void **out);
     void *mm_actor_write_events(void *runtime, const MMActorEventServices *);
+
+    typedef struct MMActorStoreServices
+    {
+        void *context;
+        MMActorHeaderIO header;
+        MMActorEventServices events;
+        MMChunkAccess (*chunks)(void *);
+        int (*write_template)(void *, MMU32 type, MMU32 number);
+        int (*write_track)(void *, MMU32 actor, MMU32 type, void *track);
+        int (*copy_reference)(void *, const MMTag *, MMU32 *number, int *created);
+        int (*adopt)(void *, MMU32 parent_type, MMU32 parent, const MMChunkChild *, int clear_loner);
+        void (*discard)(void *, MMU32 type, MMU32 number);
+    } MMActorStoreServices;
+    /* Write into the new ACTR under a candidate scene. On failure the caller
+     * drops the candidate scene and its children. Runtime events are borrowed. */
+    int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorHeader *, void *route, void *events,
+                       const MMActorStoreServices *);
 #ifdef __cplusplus
 }
 #endif

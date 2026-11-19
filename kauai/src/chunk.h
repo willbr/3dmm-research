@@ -134,7 +134,8 @@ class ChunkyFile : public ChunkyFile_PAR
     void _FreeFpCb(bool fOnExtra, FilePosition fp, LegacyLong cb);
     bool _FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck);
     bool _FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv);
-    bool _FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone);
+    bool _FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone,
+                int *created = nullptr);
     bool _FDecRefCount(LegacyLong icrp);
     void _DeleteCore(LegacyLong icrp);
     bool _FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, LegacyLong *pikid);
@@ -219,6 +220,8 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FPutHq(HQ hq, ChunkTagOrType ctg, ChunkNumber cno);
     bool FPutBlck(PDataBlock pblck, ChunkTagOrType ctg, ChunkNumber cno);
     bool FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
+    bool FCopyReference(ChunkTagOrType type, ChunkNumber number, PChunkyFile destination, ChunkNumber *copied,
+                        int *created);
     bool FClone(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
     void SwapData(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType ctg2, ChunkNumber cno2);
     void SwapChildren(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType ctg2, ChunkNumber cno2);

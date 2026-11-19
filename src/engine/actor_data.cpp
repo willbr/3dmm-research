@@ -32,9 +32,7 @@ static_assert(aetAdd == MM_ACTOR_ADD && aetActn == MM_ACTOR_ACTION && aetCost ==
                   aetStep == MM_ACTOR_STEP && aetRem == MM_ACTOR_REMOVE &&
                   aetRotH == MM_ACTOR_ROTATE_HERE,
               "actor event kinds");
-namespace
-{
-MMActorHeaderIO HeaderIO(PChunkyFile file)
+MMActorHeaderIO ActorData::HeaderIO(PChunkyFile file)
 {
     return {file,
             [](void *c, MMU32 number, MMReadReceiver receive, void *out) -> int {
@@ -44,6 +42,8 @@ MMActorHeaderIO HeaderIO(PChunkyFile file)
                 return static_cast<PChunkyFile>(c)->FPutPv(const_cast<void *>(header), bytes, kctgActr, number);
             }};
 }
+namespace
+{
 const MMActorRouteReader kRouteReader = {nullptr,
     [](void *, MMU32 count, void **rows) -> void * {
         auto route = DynamicArray::PglNew(MM_ACTOR_ROUTE_BYTES);
@@ -56,7 +56,8 @@ const MMActorRouteReader kRouteReader = {nullptr,
         return route;
     },
     [](void *g) { static_cast<PDynamicArray>(g)->Release(); }};
-MMActorEventServices Events()
+} // namespace
+MMActorEventServices ActorData::EventServices()
 {
     return {nullptr,
             [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbFixed(); },
@@ -71,7 +72,6 @@ MMActorEventServices Events()
             },
             [](void *g) { static_cast<PGeneralGroup>(g)->Release(); }};
 }
-} // namespace
 bool ActorData::FReadHeader(PDataBlock block, ActorChunkOnFile *header)
 {
     AssertPo(block, 0);
@@ -119,7 +119,7 @@ PGeneralGroup ActorData::PggReadEvents(PDataBlock block)
     if (!block->FUnpackData())
         return nullptr;
     const auto stream = EngineReadStream::FromBlock(*block);
-    const auto services = Events();
+    const auto services = EventServices();
     void *events;
     if (mm_actor_read_events_stream(&stream, &services, &events) != MM_MOVIE_OK)
         return nullptr;
@@ -128,7 +128,7 @@ PGeneralGroup ActorData::PggReadEvents(PDataBlock block)
 PGeneralGroup ActorData::PggReadEvents(PChunkyFile file, ChunkNumber actor)
 {
     const auto graph = EngineMovieGraph::FromFile(file);
-    const auto services = Events();
+    const auto services = EventServices();
     void *events;
     if (mm_movie_actor_events(&graph, actor, &services, &events) != MM_MOVIE_OK)
         return nullptr;
@@ -136,6 +136,6 @@ PGeneralGroup ActorData::PggReadEvents(PChunkyFile file, ChunkNumber actor)
 }
 PGeneralGroup ActorData::PggWriteEvents(PGeneralGroup events)
 {
-    const auto services = Events();
+    const auto services = EventServices();
     return static_cast<PGeneralGroup>(mm_actor_write_events(events, &services));
 }
