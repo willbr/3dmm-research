@@ -993,6 +993,10 @@ ranges through the same C89 overlay routine.
 Marcus movie polling now coordinates audio restore, frame entry,
 loop rewinds, outgoing capture, scene selection and failure cleanup in
 C89. The poller uses Studio's C89 frame and scene advancement rule.
+The C89 movie scene module also coordinates Marcus's first scene, scene
+switches and explicit seeks. It applies edited frame bounds, camera and prop
+placements before publishing a switched scene, and resets playback after a
+successful seek.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

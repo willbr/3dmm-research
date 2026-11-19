@@ -562,9 +562,102 @@ static int undoing(void)
             }
     return 0;
 }
+typedef struct Cursor
+{
+    MMPolledMovie playback;
+    MMI32 selected, frame, range_first, range_last;
+    int keep_audio, keep_framing, count, fail, failure;
+    char trace[24];
+} Cursor;
+
+static int cursor_effect(void *p, MMMovieSceneCursorEffect effect, MMMovieSceneCursorRequest *request)
+{
+    static const char steps[] = "CSLBRGQFAPIVOWXH";
+    Cursor *c = (Cursor *)p;
+    if (c->count >= (int)sizeof(c->trace) - 1)
+        return -99;
+    c->trace[c->count++] = steps[effect];
+    c->trace[c->count] = 0;
+    if ((int)effect == c->fail)
+        return c->failure;
+    switch (effect)
+    {
+    case MM_MOVIE_SCENE_LOAD:
+        c->keep_framing = request->keep_framing;
+        c->keep_audio = request->keep_audio;
+        break;
+    case MM_MOVIE_SCENE_READ_RANGE:
+        request->first = -3; request->last = 10;
+        break;
+    case MM_MOVIE_SCENE_SET_RANGE:
+        c->range_first = request->first; c->range_last = request->last;
+        break;
+    case MM_MOVIE_SCENE_READ_FRAME:
+        request->frame = c->frame;
+        break;
+    case MM_MOVIE_SCENE_SET_FRAME:
+        c->frame = request->frame;
+        break;
+    default:
+        break;
+    }
+    return 1;
+}
+
+static void cursor_clear_trace(Cursor *c)
+{
+    c->count = 0;
+    c->trace[0] = 0;
+}
+
+static int cursor_operations(void)
+{
+    Cursor c;
+    MMMovieSceneCursorServices services = {NULL, NULL, NULL, cursor_effect};
+    const unsigned keep = MM_MOVIE_SCENE_KEEP_AUDIO | MM_MOVIE_SCENE_KEEP_FRAMING;
+    memset(&c, 0, sizeof(c));
+    services.context = &c;
+    services.selected = &c.selected;
+    services.playback = &c.playback;
+    c.selected = -1;
+    c.fail = -1;
+    CHECK(!mm_movie_scene_cursor_select(2, 2, 0, &services) && !c.count && c.selected == -1);
+    CHECK(mm_movie_scene_cursor_select(0, 2, MM_MOVIE_SCENE_INITIAL | keep, &services) == 1);
+    CHECK(!strcmp(c.trace, "LBVOW") && c.selected == 0 && c.keep_framing && !c.keep_audio);
+    CHECK(c.playback.restore_audio && !c.playback.finished);
+    cursor_clear_trace(&c);
+    CHECK(mm_movie_scene_cursor_select(1, 2, keep, &services) == 1);
+    CHECK(!strcmp(c.trace, "CLBRGQFAPVOW") && c.selected == 1 && c.keep_framing && c.keep_audio);
+    CHECK(c.frame == -3 && c.range_first == -3 && c.range_last == 10 && !c.playback.restore_audio);
+    cursor_clear_trace(&c);
+    CHECK(mm_movie_scene_cursor_select(0, 2, 0, &services) == 1);
+    CHECK(!strcmp(c.trace, "CSLBRGQAPIVOW") && c.selected == 0 && !c.keep_framing && !c.keep_audio);
+    cursor_clear_trace(&c);
+    c.fail = MM_MOVIE_SCENE_READ_SOUNDS;
+    c.playback.finished = 1;
+    CHECK(!mm_movie_scene_cursor_select(1, 2, keep, &services));
+    CHECK(!strcmp(c.trace, "CLBRGQAPVOWS") && c.selected == -1 && c.playback.finished);
+    cursor_clear_trace(&c);
+    c.fail = MM_MOVIE_SCENE_LOAD;
+    c.failure = -7;
+    CHECK(mm_movie_scene_cursor_select(0, 2, keep, &services) == -7 && !strcmp(c.trace, "CL"));
+    cursor_clear_trace(&c);
+    CHECK(!mm_movie_scene_cursor_seek(4, &services) && !strcmp(c.trace, "X"));
+    c.selected = 0;
+    c.fail = MM_MOVIE_SCENE_SET_FRAME;
+    c.failure = 0;
+    cursor_clear_trace(&c);
+    CHECK(!mm_movie_scene_cursor_seek(4, &services) && !strcmp(c.trace, "XF") && c.playback.finished);
+    c.fail = -1;
+    cursor_clear_trace(&c);
+    CHECK(mm_movie_scene_cursor_seek(-2, &services) == 1 && !strcmp(c.trace, "XFHO"));
+    CHECK(c.frame == -2 && c.selected == 0 && c.playback.restore_audio && !c.playback.finished);
+    return 0;
+}
+
 int main(void)
 {
-    if (switching() || insertion() || removal() || undoing())
+    if (switching() || insertion() || removal() || undoing() || cursor_operations())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

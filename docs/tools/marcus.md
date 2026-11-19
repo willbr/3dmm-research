@@ -1813,6 +1813,10 @@ The C89 movie poller coordinates audio restore, frame advance, scene looping
 and outgoing capture before selection. It publishes playback status after
 host effects complete. Transition completion releases the outgoing image
 and dissolve indices together.
+The C89 scene cursor coordinates first open, scene switches and seeks.
+Selection publishes after playback, objects and sounds are ready. Switches
+apply edited ranges, cameras and placements in order, and a successful
+seek resets playback before refreshing the objects.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and

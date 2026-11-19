@@ -1,6 +1,7 @@
 #include "player.h"
 #include "mm/movie_data.h"
 #include "mm/movie_publish.h"
+#include "mm/movie_scene.h"
 #include "mm/playback.h"
 #include "mm/vmm_dependencies.h"
 #include "content.h"
@@ -137,7 +138,7 @@ struct MarcusPlayer
     float inspectionRoll = 0, inspectionFov = 45;
     std::map<std::int32_t, std::string> names, baseNames;
     char error[1024] = {};
-    int selected = -1;
+    MMI32 selected = -1;
     unsigned long document = 0;
     std::shared_ptr<MarcusMovieFile> timingInput;
     std::string timingResources, timingContent;
@@ -728,51 +729,110 @@ bool CancelPropPreviews(MarcusPlayer *player, MM::Error &error)
     player->propPreviews.clear();
     return true;
 }
+struct SceneCursorHost
+{
+    MarcusPlayer &movie;
+    MM::Error &error;
+    std::exception_ptr failure;
+
+    static int Effect(void *context, MMMovieSceneCursorEffect effect, MMMovieSceneCursorRequest *request)
+    {
+        auto &host = *static_cast<SceneCursorHost *>(context);
+        auto &movie = host.movie;
+        try
+        {
+            switch (effect)
+            {
+            case MM_MOVIE_SCENE_CLEAR_VIEW:
+                movie.objects.clear();
+                movie.propPreviews.clear();
+                movie.shapePreviews.clear();
+                if (!movie.preserveEditFraming) movie.orbitObject = -1;
+                movie.animations.clear();
+                movie.sounds.clear();
+                movie.soundTracks.clear();
+                break;
+            case MM_MOVIE_SCENE_STOP_PLAYBACK:
+                movie.playback.Stop();
+                break;
+            case MM_MOVIE_SCENE_LOAD:
+                return movie.preview.Select(movie.scenes[request->scene], host.error, request->keep_framing != 0);
+            case MM_MOVIE_SCENE_BACKGROUND:
+            {
+                const auto board = movie.edits->storyboards->find(movie.scenes[request->scene].number);
+                return board == movie.edits->storyboards->end() ||
+                       movie.preview.SetBackground(board->second.source, board->second.background, host.error);
+            }
+            case MM_MOVIE_SCENE_READ_RANGE:
+            {
+                const auto &range = movie.sceneInfo[request->scene];
+                request->first = static_cast<MMI32>(range.first_frame);
+                request->last = static_cast<MMI32>(range.last_frame);
+                break;
+            }
+            case MM_MOVIE_SCENE_SET_RANGE:
+                return movie.preview.SetSceneRange(request->first, request->last, host.error);
+            case MM_MOVIE_SCENE_READ_FRAME:
+                request->frame = movie.preview.Info().currentFrame;
+                break;
+            case MM_MOVIE_SCENE_SET_FRAME:
+                return movie.preview.SetFrame(request->frame, host.error);
+            case MM_MOVIE_SCENE_APPLY_CAMERAS:
+                return ApplyCameras(movie, request->scene, host.error);
+            case MM_MOVIE_SCENE_APPLY_PLACEMENTS:
+                return ApplyPlacements(movie, request->scene, *movie.placements, host.error);
+            case MM_MOVIE_SCENE_RESET_FRAMING:
+                movie.inspectionMatched = false;
+                break;
+            case MM_MOVIE_SCENE_SET_PLAYBACK:
+                return movie.playback.Select(movie.preview, host.error, request->keep_audio != 0);
+            case MM_MOVIE_SCENE_SYNC_OBJECTS:
+                movie.objects = movie.preview.Objects();
+                break;
+            case MM_MOVIE_SCENE_READ_SOUNDS:
+                return ReadSoundSheet(&movie, request->scene, host.error);
+            case MM_MOVIE_SCENE_CANCEL_PREVIEWS:
+                return CancelPropPreviews(&movie, host.error);
+            case MM_MOVIE_SCENE_SEEK_PLAYBACK:
+                movie.playback.Seek(&movie.preview);
+                break;
+            }
+            return 1;
+        }
+        catch (...) { host.failure = std::current_exception(); return -1; }
+    }
+
+    MMMovieSceneCursorServices Services()
+    {
+        return {this, &movie.selected, &movie.polledMovie, Effect};
+    }
+
+    bool Select(MMI32 scene, unsigned flags)
+    {
+        const auto services = Services();
+        return Result(mm_movie_scene_cursor_select(scene, movie.scenes.size(), flags, &services));
+    }
+
+    bool Seek(long frame)
+    {
+        const auto services = Services();
+        return Result(mm_movie_scene_cursor_seek(frame, &services));
+    }
+
+    bool Result(int status)
+    {
+        if (failure)
+            std::rethrow_exception(failure);
+        return status > 0;
+    }
+};
 int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool preserveAudio = false)
 {
     return Guard(player, [&](MM::Error &error) {
-        if (index < 0 || static_cast<std::size_t>(index) >= player->scenes.size())
-            return false;
-        player->selected = -1;
-        player->objects.clear();
-        player->propPreviews.clear();
-        player->shapePreviews.clear();
-        if (!player->preserveEditFraming) player->orbitObject = -1;
-        player->animations.clear();
-        player->sounds.clear();
-        player->soundTracks.clear();
-        if (!preserveAudio)
-            player->playback.Stop();
-        if (!player->preview.Select(player->scenes[index], error, preserveFraming))
-        {
-            player->playback.Stop();
-            return false;
-        }
-        const auto board = player->edits->storyboards->find(player->scenes[index].number);
-        if (board != player->edits->storyboards->end() &&
-            !player->preview.SetBackground(board->second.source, board->second.background, error)) return false;
-        const auto &range = player->sceneInfo[index];
-        if (!player->preview.SetSceneRange(range.first_frame, range.last_frame, error) ||
-            (player->preview.Info().currentFrame != range.first_frame && !player->preview.SetFrame(range.first_frame, error)))
-            return false;
-        if (!ApplyCameras(*player, index, error)) return false;
-        if (!ApplyPlacements(*player, index, *player->placements, error)) return false;
-        if (!preserveFraming)
-            player->inspectionMatched = false;
-        if (!player->playback.Select(player->preview, error, preserveAudio))
-        {
-            player->playback.Stop();
-            return false;
-        }
-        player->objects = player->preview.Objects();
-        if (!ReadSoundSheet(player, index, error))
-        {
-            player->playback.Stop();
-            return false;
-        }
-        player->selected = index;
-        mm_polled_movie_reset(&player->polledMovie, preserveAudio);
-        return true;
+        unsigned flags = 0;
+        if (preserveFraming) flags |= MM_MOVIE_SCENE_KEEP_FRAMING;
+        if (preserveAudio) flags |= MM_MOVIE_SCENE_KEEP_AUDIO;
+        return SceneCursorHost{*player, error, {}}.Select(index, flags);
     });
 }
 bool OpenEditedBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile> &file, MM::Error &error)
@@ -2242,18 +2302,10 @@ extern "C"
                 if (!player->preview.AddContent(resource.source, resource.file->path.u8string(), error)) return false;
                 player->contentSourceIds.insert(resource.source);
             }
-            if (!player->preview.Select(player->scenes[0], error, player->preserveEditFraming))
+            unsigned flags = MM_MOVIE_SCENE_INITIAL;
+            if (player->preserveEditFraming) flags |= MM_MOVIE_SCENE_KEEP_FRAMING;
+            if (!SceneCursorHost{*player, error, {}}.Select(0, flags))
                 return false;
-            const auto firstBoard = player->edits->storyboards->find(player->scenes[0].number);
-            if (firstBoard != player->edits->storyboards->end() &&
-                !player->preview.SetBackground(firstBoard->second.source, firstBoard->second.background, error)) return false;
-            if (!player->playback.Select(player->preview, error))
-                return false;
-            player->objects = player->preview.Objects();
-            if (!ReadSoundSheet(player, 0, error))
-                return false;
-            player->selected = 0;
-            mm_polled_movie_reset(&player->polledMovie, 0);
             if (!player->internalOpenDepth)
             {
                 player->undo.clear();
@@ -2718,16 +2770,7 @@ extern "C"
     int marcus_seek(MarcusPlayer *player, long frame)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (!CancelPropPreviews(player, error)) return false;
-            if (player->selected < 0 || frame < (std::numeric_limits<std::int32_t>::min)() ||
-                frame > (std::numeric_limits<std::int32_t>::max)())
-                return false;
-            if (!player->preview.SetFrame(static_cast<std::int32_t>(frame), error))
-                return false;
-            player->playback.Seek(&player->preview);
-            mm_polled_movie_reset(&player->polledMovie, 0);
-            player->objects = player->preview.Objects();
-            return true;
+            return SceneCursorHost{*player, error, {}}.Seek(frame);
         });
     }
     void marcus_stop(MarcusPlayer *player)

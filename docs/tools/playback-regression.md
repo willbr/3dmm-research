@@ -14312,3 +14312,41 @@ The baseline is `20261119T022915Z-ebec32f6`. The converted suite
 captures and six reused retail and SDL Studio captures. The database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. Build, test and comparison
 logs are in `tmp/c89-polled-movie`.
+
+## Marcus scene selection and seek in C89 (19 November 2026)
+
+The C89 movie scene module coordinates the first scene of an opened
+movie, later scene switches, and explicit seeks. Scene switches apply
+edited frame bounds, cameras and object placements before publishing
+selection. First open uses the authored range and camera. Successful
+seeks reset playback before refreshing the object list.
+
+The C scene test checks effect order, audio and framing flags, seeking
+to an edited first frame and admitting negative frame numbers. It also
+checks that a failed scene load or sound-sheet read keeps the new
+selection unpublished and that a failed seek leaves playback state
+intact. All nine selected checks passed, including engine and Marcus
+C89 syntax and the headless playback, player, insertion, costume and
+storyboard tests. Marcus was rebuilt and relaunched.
+
+Across the `dissolve`, `actor-audio` and `scrolling-text` cases, Marcus
+matched the previous build's 360 authored seek and playback frame
+positions and all 180 seek images. The sequences of wait, transition
+and scrolling flags matched. Outside active dissolves, all 449 playback
+image and flag observations matched after collapsing adjacent duplicates.
+Retail seek pixel and actor-audio PCM differences persisted. Marcus
+playback timing and continuous image comparisons with retail remained
+inconclusive.
+
+The baseline is `20261119T023915Z-6bfc9cf4`. The converted suite
+`20261119T024307Z-dd382125` completed 18 runs with six fresh Marcus
+captures and 12 reused retail and SDL Studio captures. The database is
+at `tmp/c89-sound-schedule/capture/playback.sqlite`. Build, test and
+comparison logs are in `tmp/c89-scene-cursor`.
+
+Retail and both Marcus builds also reopened the same native `.3MM`
+saved by the insertion test and sought both authored frames. The two
+Marcus builds produced identical images. Each differed from retail
+by three pixels in total across the two frames. The reopen suites
+are `20261119T024714Z-9adf6479` for the previous Marcus build and
+`20261119T024628Z-26f2e077` for the converted build.

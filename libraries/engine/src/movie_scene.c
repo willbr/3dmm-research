@@ -2,6 +2,99 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_scene.h"
 
+int mm_movie_scene_cursor_select(MMI32 scene, size_t count, unsigned flags, const MMMovieSceneCursorServices *s)
+{
+    MMMovieSceneCursorRequest request;
+    const int initial = (flags & MM_MOVIE_SCENE_INITIAL) != 0;
+    int status;
+    if (scene < 0 || (size_t)scene >= count)
+        return 0;
+    request.scene = scene;
+    request.frame = request.first = request.last = 0;
+    request.keep_framing = (flags & MM_MOVIE_SCENE_KEEP_FRAMING) != 0;
+    request.keep_audio = !initial && (flags & MM_MOVIE_SCENE_KEEP_AUDIO);
+
+    if (!initial)
+    {
+        *s->selected = -1;
+        status = s->effect(s->context, MM_MOVIE_SCENE_CLEAR_VIEW, &request);
+        if (status <= 0)
+            return status;
+        if (!request.keep_audio)
+        {
+            status = s->effect(s->context, MM_MOVIE_SCENE_STOP_PLAYBACK, &request);
+            if (status <= 0)
+                return status;
+        }
+    }
+    status = s->effect(s->context, MM_MOVIE_SCENE_LOAD, &request);
+    if (status <= 0)
+        goto failed_load;
+    status = s->effect(s->context, MM_MOVIE_SCENE_BACKGROUND, &request);
+    if (status <= 0)
+        return status;
+    if (!initial)
+    {
+        status = s->effect(s->context, MM_MOVIE_SCENE_READ_RANGE, &request);
+        if (status > 0)
+            status = s->effect(s->context, MM_MOVIE_SCENE_SET_RANGE, &request);
+        if (status > 0)
+            status = s->effect(s->context, MM_MOVIE_SCENE_READ_FRAME, &request);
+        if (status > 0 && request.frame != request.first)
+        {
+            request.frame = request.first;
+            status = s->effect(s->context, MM_MOVIE_SCENE_SET_FRAME, &request);
+        }
+        if (status > 0)
+            status = s->effect(s->context, MM_MOVIE_SCENE_APPLY_CAMERAS, &request);
+        if (status > 0)
+            status = s->effect(s->context, MM_MOVIE_SCENE_APPLY_PLACEMENTS, &request);
+        if (status > 0 && !request.keep_framing)
+            status = s->effect(s->context, MM_MOVIE_SCENE_RESET_FRAMING, &request);
+        if (status <= 0)
+            return status;
+    }
+    status = s->effect(s->context, MM_MOVIE_SCENE_SET_PLAYBACK, &request);
+    if (status <= 0)
+        goto failed_load;
+    status = s->effect(s->context, MM_MOVIE_SCENE_SYNC_OBJECTS, &request);
+    if (status <= 0)
+        return status;
+    status = s->effect(s->context, MM_MOVIE_SCENE_READ_SOUNDS, &request);
+    if (status <= 0)
+        goto failed_load;
+    *s->selected = scene;
+    mm_polled_movie_reset(s->playback, request.keep_audio);
+    return 1;
+
+failed_load:
+    if (!initial && !status)
+    {
+        status = s->effect(s->context, MM_MOVIE_SCENE_STOP_PLAYBACK, &request);
+        return status < 0 ? status : 0;
+    }
+    return status;
+}
+
+int mm_movie_scene_cursor_seek(long frame, const MMMovieSceneCursorServices *s)
+{
+    MMMovieSceneCursorRequest request = {0, 0, 0, 0, 0, 0};
+    int status = s->effect(s->context, MM_MOVIE_SCENE_CANCEL_PREVIEWS, &request);
+    if (status <= 0)
+        return status;
+    if (*s->selected < 0 || frame < (-2147483647L - 1) || frame > 2147483647L)
+        return 0;
+    request.scene = *s->selected;
+    request.frame = (MMI32)frame;
+    status = s->effect(s->context, MM_MOVIE_SCENE_SET_FRAME, &request);
+    if (status > 0)
+        status = s->effect(s->context, MM_MOVIE_SCENE_SEEK_PLAYBACK, &request);
+    if (status <= 0)
+        return status;
+    mm_polled_movie_reset(s->playback, 0);
+    return s->effect(s->context, MM_MOVIE_SCENE_SYNC_OBJECTS, &request);
+}
+
 void mm_movie_scenes_init(MMMovieScenes *state)
 {
     state->open = 0;

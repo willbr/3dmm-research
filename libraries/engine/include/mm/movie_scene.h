@@ -2,7 +2,9 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MOVIE_SCENE_H
 #define MM_ENGINE_MOVIE_SCENE_H
+#include "playback.h"
 #include "tag.h"
+#include <stddef.h>
 #ifdef __cplusplus
 extern "C"
 {
@@ -70,6 +72,54 @@ extern "C"
     int mm_movie_scene_new(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *);
+
+    enum
+    {
+        MM_MOVIE_SCENE_INITIAL = 1,
+        MM_MOVIE_SCENE_KEEP_FRAMING = 2,
+        MM_MOVIE_SCENE_KEEP_AUDIO = 4
+    };
+    typedef enum MMMovieSceneCursorEffect
+    {
+        MM_MOVIE_SCENE_CLEAR_VIEW,
+        MM_MOVIE_SCENE_STOP_PLAYBACK,
+        MM_MOVIE_SCENE_LOAD,
+        MM_MOVIE_SCENE_BACKGROUND,
+        MM_MOVIE_SCENE_READ_RANGE,
+        MM_MOVIE_SCENE_SET_RANGE,
+        MM_MOVIE_SCENE_READ_FRAME,
+        MM_MOVIE_SCENE_SET_FRAME,
+        MM_MOVIE_SCENE_APPLY_CAMERAS,
+        MM_MOVIE_SCENE_APPLY_PLACEMENTS,
+        MM_MOVIE_SCENE_RESET_FRAMING,
+        MM_MOVIE_SCENE_SET_PLAYBACK,
+        MM_MOVIE_SCENE_SYNC_OBJECTS,
+        MM_MOVIE_SCENE_READ_SOUNDS,
+        MM_MOVIE_SCENE_CANCEL_PREVIEWS,
+        MM_MOVIE_SCENE_SEEK_PLAYBACK
+    } MMMovieSceneCursorEffect;
+    typedef struct MMMovieSceneCursorRequest
+    {
+        MMI32 scene, frame, first, last;
+        int keep_framing, keep_audio;
+    } MMMovieSceneCursorRequest;
+    typedef struct MMMovieSceneCursorServices
+    {
+        void *context;
+        MMI32 *selected;
+        MMPolledMovie *playback;
+        /* READ_RANGE writes first/last. READ_FRAME writes frame. */
+        int (*effect)(void *, MMMovieSceneCursorEffect, MMMovieSceneCursorRequest *);
+    } MMMovieSceneCursorServices;
+    /* The preview session supplies typed view and playback effects. Effects
+     * return 1/0 or a negative exception status without unwinding through C.
+     * Initial admission uses the loaded scene's authored range and camera.
+     * A switch clears the old selection first and publishes the new index
+     * only after playback, objects and sounds are ready. A failed switch
+     * retains the effects already applied. Seek cancels temporary previews
+     * before validation and resets playback after successful frame evaluation. */
+    int mm_movie_scene_cursor_select(MMI32 scene, size_t count, unsigned flags, const MMMovieSceneCursorServices *);
+    int mm_movie_scene_cursor_seek(long frame, const MMMovieSceneCursorServices *);
 
     typedef struct MMMovieSceneUndoServices
     {
