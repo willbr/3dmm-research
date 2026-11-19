@@ -14643,3 +14643,42 @@ completed all six runs of the new actor-free movie. The players agreed
 on both seek and playback frame positions, both seek images and silent
 PCM. The continuous pixel comparisons and Marcus playback timing
 remained inconclusive.
+
+## Marcus saved actor placement and appearance in C89 (19 November 2026)
+
+The C89 archive path copies the actor header for a scene-local edit,
+keeps the actor ID and shared route and resource children, and replaces
+the selected scene's actor link after applying appearance and shape.
+The C89 group codec rewrites rotation and stretch events and the
+whole-word material at each 3D text entrance. A copied costume track
+also uses the C89 link operation. The native adapter still
+opens and copies appearance assets.
+
+The placement transaction test rejects an out-of-range move before
+allocation, preserves the original link after a failed appearance
+edit, and checks thumbnail invalidation after successful adoption.
+All 23 selected integration and engine checks and all four standalone
+C-only Release checks passed. A headless probe moved, rotated and
+resized a prop, then saved and
+reopened the edited movie. A separate insertion test saved and
+reopened an edited 3D text material. Both native outputs were
+byte-identical to their pre-change counterparts.
+
+The edited placement and shape movie has SHA-256
+`2b0a79b24fbcbe83e45a550ff0ef797d903a8891a459541ad4f7b17d3ebe22bd`.
+The edited 3D text material movie has SHA-256
+`c22551ff51c8c02ea4fd4ea8d3733814eac9d537cbeb6a33841e56b5cf1e7bd5`.
+
+All 12 captures completed in suite `20261119T043226Z-314f6cdb`.
+Retail, SDL Studio and Marcus agreed on the placement movie's 60
+frame positions and the material movie's two frame positions in
+seek and playback. Both ports matched retail's seek images at frames
+1, 10 and 30 of the placement movie's edited scene. Each text
+material seek image differed from retail by one pixel in both ports.
+The placement capture retained mixed PCM differences. Silent PCM
+matched for the text material movie. Continuous playback pixels and
+Marcus playback timing remained inconclusive.
+
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The native
+outputs, probe and test logs are in `tmp/c89-actor-edit`.

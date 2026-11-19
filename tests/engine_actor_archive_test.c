@@ -15,6 +15,8 @@
 #define MOVIE 0x4d564945UL
 #define ROLLCALL 0x47535420UL
 #define INVALID_FRAME 2147483647L
+#define ROUTE 0x50415448UL
+#define THUMB 0x5448554dUL
 
 typedef struct Graph
 {
@@ -303,6 +305,117 @@ static void rename_rollcall(void)
     CHECK(mm_rollcall_table_dispose(&table) == MM_STORAGE_OK);
 }
 
+typedef struct PlacementEdit
+{
+    Graph graph;
+    MMActorHeader original;
+    MMMemoryStream stream;
+    int added, step, fail_appearance;
+} PlacementEdit;
+
+static MMChunkAccess placement_chunks(void *context)
+{
+    PlacementEdit *edit = (PlacementEdit *)context;
+    MMChunkAccess chunks = {NULL, 2, entry, child};
+    chunks.context = &edit->graph;
+    chunks.count += edit->added;
+    return chunks;
+}
+static int placement_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    PlacementEdit *edit = (PlacementEdit *)context;
+    CHECK(type == ACTOR && number == 5 && !edit->added);
+    *stream = edit->stream.stream;
+    return 1;
+}
+static int placement_add(void *context, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer)
+{
+    PlacementEdit *edit = (PlacementEdit *)context;
+    Graph *graph = &edit->graph;
+    CHECK(type == ACTOR && bytes == MM_ACTOR_HEADER_BYTES && !writer && !edit->added);
+    memmove(&graph->entries[1], graph->entries, 2 * sizeof(graph->entries[0]));
+    memmove(&graph->children[1], graph->children, 2 * sizeof(graph->children[0]));
+    graph->entries[0].number = *number = 3;
+    graph->entries[0].child_count = 0;
+    edit->added = 1;
+    return 1;
+}
+static int placement_put(void *context, MMU32 type, MMU32 number, const void *bytes, MMU32 size)
+{
+    PlacementEdit *edit = (PlacementEdit *)context;
+    const MMActorHeader *header = (const MMActorHeader *)bytes;
+    CHECK(type == ACTOR && number == 3 && size == MM_ACTOR_HEADER_BYTES && edit->step++ == 0);
+    CHECK(header->actor_id == 23 && header->translation[0] == 114688 && header->last_frame == 8);
+    return 1;
+}
+static int placement_adopt(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
+{
+    PlacementEdit *edit = (PlacementEdit *)context;
+    if (type == ACTOR)
+    {
+        CHECK(parent == 3 && child_type == ROUTE && number == 9 && slot == 0 && edit->step++ == 1);
+        append_child(&edit->graph, 0, child_type, number, slot);
+    }
+    else
+    {
+        CHECK(type == MM_SOUND_SCENE && parent == 20 && child_type == ACTOR && number == 3 && slot == 4);
+        CHECK(edit->step++ == 4 && edit->graph.children[2][1].number == 5);
+        edit->graph.children[2][1].number = 3;
+    }
+    return 1;
+}
+static void placement_unlink(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
+{
+    PlacementEdit *edit = (PlacementEdit *)context;
+    CHECK(type == MM_SOUND_SCENE && parent == 20);
+    CHECK((child_type == ACTOR && number == 5 && slot == 4 && edit->step == 3) ||
+          (child_type == THUMB && number == 10 && slot == 0 && edit->step == 5));
+    ++edit->step;
+}
+static int placement_appearance(void *context, MMU32 actor)
+{
+    PlacementEdit *edit = (PlacementEdit *)context;
+    CHECK(actor == 3 && edit->step++ == 2 && edit->graph.entries[0].child_count == 1);
+    return !edit->fail_appearance;
+}
+
+static void placement_transaction(void)
+{
+    static const float identity[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    static const float scale[] = {1, 1, 1};
+    float delta[] = {1.25f, 0, 0};
+    PlacementEdit edit;
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, placement_chunks, placement_read,
+                                   placement_add, placement_adopt, placement_unlink, placement_put, NULL, NULL};
+    MMActorArchivePose pose = {20, 5, NULL, identity, scale, NULL, placement_appearance};
+    int fail;
+    pose.context = editor.context = &edit;
+    pose.translation = delta;
+    for (fail = 0; fail <= 1; ++fail)
+    {
+        memset(&edit, 0, sizeof(edit));
+        edit.original.order = 1;
+        edit.original.actor_id = 23;
+        edit.original.last_frame = 8;
+        edit.original.translation[0] = 32768;
+        edit.graph.entries[0].type = ACTOR;
+        edit.graph.entries[0].number = 5;
+        append_child(&edit.graph, 0, ROUTE, 9, 0);
+        edit.graph.entries[1].type = MM_SOUND_SCENE;
+        edit.graph.entries[1].number = 20;
+        append_child(&edit.graph, 1, THUMB, 10, 0);
+        append_child(&edit.graph, 1, ACTOR, 5, 4);
+        CHECK(mm_memory_stream_init(&edit.stream, &edit.original, sizeof(edit.original)));
+        delta[0] = 32700.0f;
+        CHECK(mm_actor_archive_place(&editor, &pose) == MM_ACTOR_EDIT_ARCHIVE_RANGE && !edit.added);
+        delta[0] = 1.25f;
+        edit.fail_appearance = fail;
+        CHECK(mm_actor_archive_place(&editor, &pose) ==
+              (fail ? MM_ACTOR_EDIT_ARCHIVE_APPEARANCE : MM_ACTOR_EDIT_ARCHIVE_OK));
+        CHECK(edit.step == (fail ? 3 : 6) && edit.graph.children[2][1].number == (fail ? 5U : 3U));
+    }
+}
+
 int main(void)
 {
     Fixture f;
@@ -368,5 +481,6 @@ int main(void)
     CHECK(mm_actor_archive_transfer(&request, &host, &actor, &header) == MM_ACTOR_ARCHIVE_WRITE_EVENTS);
     CHECK(actor == 777 && header.actor_id == 888 && f.writes == 1);
     rename_rollcall();
+    placement_transaction();
     return 0;
 }

@@ -95,6 +95,38 @@ typedef struct MMActorArchiveName
 int mm_actor_archive_register(const MMMovieArchiveEditor *, MMU32 movie,
                               const MMActorArchivePlacement *, const MMActorArchiveName *);
 
+enum MMActorArchiveEditResult
+{
+    MM_ACTOR_EDIT_ARCHIVE_OK,
+    MM_ACTOR_EDIT_ARCHIVE_SCENE,
+    MM_ACTOR_EDIT_ARCHIVE_HEADER,
+    MM_ACTOR_EDIT_ARCHIVE_RANGE,
+    MM_ACTOR_EDIT_ARCHIVE_COPY,
+    MM_ACTOR_EDIT_ARCHIVE_CHILD,
+    MM_ACTOR_EDIT_ARCHIVE_APPEARANCE,
+    MM_ACTOR_EDIT_ARCHIVE_READ_EVENTS,
+    MM_ACTOR_EDIT_ARCHIVE_EDIT_EVENTS,
+    MM_ACTOR_EDIT_ARCHIVE_WRITE_EVENTS,
+    MM_ACTOR_EDIT_ARCHIVE_LINK_EVENTS,
+    MM_ACTOR_EDIT_ARCHIVE_LINK_ACTOR
+};
+
+typedef struct MMActorArchivePose
+{
+    MMU32 scene, actor;
+    const float *translation, *rotation, *scale; /* 3, 9 and 3 elements. */
+    void *context;
+    int (*appearance)(void *, MMU32 copied_actor); /* Optional, before shape. */
+} MMActorArchivePose;
+
+/* Keep the actor's native ID and immutable child chunks. Replace only the
+ * selected scene's link, and clear its thumbnail after successful adoption. */
+int mm_actor_archive_place(const MMMovieArchiveEditor *, const MMActorArchivePose *);
+/* Replace the whole-word material after every Add event on the actor track. */
+int mm_actor_archive_set_material(const MMMovieArchiveEditor *, MMU32 actor, MMU32 material);
+/* Install a copied GGAE as the actor's track. */
+int mm_actor_archive_link_events(const MMMovieArchiveEditor *, MMU32 actor, MMU32 events);
+
 #ifdef __cplusplus
 }
 #endif

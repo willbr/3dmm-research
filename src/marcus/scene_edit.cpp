@@ -374,60 +374,26 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
                        propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0);
 }
 
-static void ApplyShape(PChunkyFile file, ChunkNumber actor, const MM::PreviewObjectShape &shape)
+static void CheckActorArchiveEdit(int result)
 {
-    const MM::PreviewObjectShape identity;
-    const bool rotate = !std::equal(shape.rotation,shape.rotation+9,identity.rotation);
-    const bool resize = !std::equal(shape.scale,shape.scale+3,identity.scale);
-    if (!rotate && !resize) return;
-    ChildChunkIdentification child;
-    DataBlock block;
-    Require(file->FGetKidChidCtg(kctgActr,actor,0,kctgGgae,&child) && file->FFind(kctgGgae,child.cki.cno,&block), "Cannot read the object transforms.");
-    std::unique_ptr<GeneralGroup,Release> events(ActorData::PggReadEvents(&block));
-    Require(bool(events),"Cannot decode the object transforms.");
-    BMAT34 rotation = {};
-    for (int i=0;i<9;++i) rotation.m[i/3][i%3]=BrFloatToScalar(shape.rotation[i]);
-    ActorEvent::Stretch stretch={BrFloatToScalar(shape.scale[0]),BrFloatToScalar(shape.scale[1]),BrFloatToScalar(shape.scale[2])};
-    for (LegacyLong i=0;i<events->IvMac();++i)
-    {
-        ActorEvent::Base event;
-        events->GetFixed(i,&event);
-        if (rotate && (event.aet==ActorEvent::aetRotF || event.aet==ActorEvent::aetRotH))
-        {
-            BMAT34 original,combined;
-            events->Get(i,&original);
-            BrMatrix34Mul(&combined,&rotation,&original);
-            events->Put(i,&combined);
-        }
-        if (resize && event.aet==ActorEvent::aetPull)
-        {
-            ActorEvent::Stretch value;
-            events->Get(i,&value);
-            value.rScaleX=BrsMul(value.rScaleX,stretch.rScaleX);
-            value.rScaleY=BrsMul(value.rScaleY,stretch.rScaleY);
-            value.rScaleZ=BrsMul(value.rScaleZ,stretch.rScaleZ);
-            events->Put(i,&value);
-        }
-        if (event.aet==ActorEvent::aetAdd)
-        {
-            if (rotate)
-            {
-                event.aet=ActorEvent::aetRotF;
-                Require(events->FInsert(++i,sizeof(rotation),&rotation,&event),"Cannot write the object rotation.");
-            }
-            if (resize)
-            {
-                event.aet=ActorEvent::aetPull;
-                Require(events->FInsert(++i,sizeof(stretch),&stretch,&event),"Cannot write the object size.");
-            }
-        }
-    }
-    std::unique_ptr<GeneralGroup,Release> wire(ActorData::PggWriteEvents(events.get()));
-    ChunkNumber number;
-    Require(wire && file->FAdd(wire->CbOnFile(),kctgGgae,&number,&block) && wire->FWrite(&block),"Cannot write the transformed track.");
-    file->DeleteChild(kctgActr,actor,kctgGgae,child.cki.cno,0);
-    Require(file->FAdoptChild(kctgActr,actor,kctgGgae,number,0),"Cannot link the transformed track.");
+    static const char *const messages[] = {
+        nullptr,
+        "The selected object does not belong to this scene.",
+        "Cannot read the object placement.",
+        "The object placement or shape is out of range.",
+        "Cannot write the object placement.",
+        "Cannot retain the object animation.",
+        "Cannot save the object's appearance.",
+        "Cannot read the object's animation events.",
+        "Cannot edit the object's animation events.",
+        "Cannot write the object's animation events.",
+        "Cannot link the object's animation events.",
+        "Cannot link the moved object."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_EDIT_ARCHIVE_LINK_ACTOR + 1, "actor edit diagnostics");
+    Require(result == MM_ACTOR_EDIT_ARCHIVE_OK, messages[result]);
 }
+
 std::string MarcusTextAnsi(const char *utf8)
 {
     Require(utf8 && *utf8, "Enter some text first.");
@@ -1025,11 +991,11 @@ static void ApplyCostumes(PChunkyFile file, ChunkNumber actor, const MarcusLiveE
     path.SetSzs(const_cast<char *>(edit.file->path.u8string().c_str()));
     Require(filename.FBuildFromPath(&path), "Invalid costume event path.");
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
-    ChunkNumber number; ChildChunkIdentification child;
-    Require(source && source->FCopy(kctgGgae, 0, file, &number) &&
-        file->FGetKidChidCtg(kctgActr, actor, 0, kctgGgae, &child), "Cannot copy costume events.");
-    file->DeleteChild(kctgActr, actor, kctgGgae, child.cki.cno, 0);
-    Require(file->FAdoptChild(kctgActr, actor, kctgGgae, number, 0), "Cannot link costume events.");
+    ChunkNumber number;
+    Require(source && source->FCopy(kctgGgae, 0, file, &number), "Cannot copy costume events.");
+    MovieArchiveHost host{file, {}, {}};
+    const auto editor = host.Editor();
+    CheckActorArchiveEdit(mm_actor_archive_link_events(&editor, actor, number));
 }
 static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTextEdit &edit)
 {
@@ -1063,30 +1029,9 @@ static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTex
         if (file->FGetKidChidCtg(kctgActr, actorNumber, 0, kctgMtrl, &child))
             file->DeleteChild(kctgActr, actorNumber, kctgMtrl, child.cki.cno, 0);
         Require(file->FAdoptChild(kctgActr, actorNumber, kctgMtrl, material, 0), "Cannot embed the text appearance.");
-        Require(file->FGetKidChidCtg(kctgActr, actorNumber, 0, kctgGgae, &child) &&
-            file->FFind(kctgGgae, child.cki.cno, &block), "Cannot read text appearance events.");
-        std::unique_ptr<GeneralGroup, Release> events(ActorData::PggReadEvents(&block));
-        Require(bool(events), "Cannot decode text appearance events.");
-        // Material properties describe the whole text object. Reapply at every
-        // entrance and remove earlier whole-word material choices.
-        for (LegacyLong i = events->IvMac(); i-- > 0;)
-        {
-            ActorEvent::Base event; events->GetFixed(i, &event);
-            if (event.aet == ActorEvent::aetCost) events->Delete(i);
-        }
-        for (LegacyLong i = 0; i < events->IvMac(); ++i)
-        {
-            ActorEvent::Base event; events->GetFixed(i, &event);
-            if (event.aet != ActorEvent::aetAdd) continue;
-            event.aet = ActorEvent::aetCost;
-            ActorEvent::Costume costume = {}; costume.tag = {0, nullptr, kctgMtrl, material};
-            Require(events->FInsert(++i, sizeof(costume), &costume, &event), "Cannot write text appearance events.");
-        }
-        std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(events.get()));
-        ChunkNumber number;
-        Require(wire && file->FAdd(wire->CbOnFile(), kctgGgae, &number, &block) && wire->FWrite(&block), "Cannot save text appearance events.");
-        file->DeleteChild(kctgActr, actorNumber, kctgGgae, child.cki.cno, 0);
-        Require(file->FAdoptChild(kctgActr, actorNumber, kctgGgae, number, 0), "Cannot link text appearance events.");
+        MovieArchiveHost host{file, {}, {}};
+        const auto editor = host.Editor();
+        CheckActorArchiveEdit(mm_actor_archive_set_material(&editor, actorNumber, material));
     }
     UpdateActorListing(file, root.number, nullptr, header, MarcusTextAnsi(edit.value.text.c_str()), 2, true);
 }
@@ -1123,46 +1068,45 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
             ApplyNewProp(file.get(), textFile.get(), prop);
         }
     }
+    MovieArchiveHost host{file.get(), {}, {}};
+    const auto editor = host.Editor();
     for (const auto &placement : placements)
     {
-        const auto scene = placement.scene, actor = placement.actor;
-        const auto delta = placement.delta;
-        ChildChunkIdentification link, child;
-        bool found = false;
-        for (LegacyLong index = 0; file->FGetKid(kctgScen, scene, index, &link); ++index)
-            if (link.cki.ctg == kctgActr && link.cki.cno == actor) { found = true; break; }
-        Require(found, "The selected object does not belong to this scene.");
-        DataBlock block;
-        ActorChunkOnFile header;
-        Require(file->FFind(kctgActr, actor, &block) && ActorData::FReadHeader(&block, &header), "Cannot read the object placement.");
-        MMI32 *position[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
-        for (int axis = 0; axis < 3; ++axis)
+        const auto key = std::make_pair(placement.scene, placement.actor);
+        const auto text = edits.texts->find(key);
+        const auto costume = edits.costumes->find(key);
+        struct Appearance
         {
-            const double value = double(BrScalarToFloat(*position[axis])) + delta[axis];
-            Require(std::isfinite(value) && std::abs(value) <= 32700, "The object placement is out of range.");
-            *position[axis] = BrFloatToScalar(static_cast<float>(value));
-        }
-        // Scene instances can share an ACTR. Copy its root while retaining immutable
-        // route, event, template and costume children and the original scene slot.
-        ChunkNumber number;
-        Require(file->FAdd(sizeof(header), kctgActr, &number) && ActorData::FWriteHeader(file.get(), number, &header),
-                "Cannot write the object placement.");
-        for (LegacyLong index = 0; file->FGetKid(kctgActr, actor, index, &child); ++index)
-            Require(file->FAdoptChild(kctgActr, number, child.cki.ctg, child.cki.cno, child.chid), "Cannot retain the object animation.");
-        const auto text = edits.texts->find({scene, actor});
-        if (text != edits.texts->end()) ApplyText(file.get(), number, text->second);
-        const auto costume = edits.costumes->find({scene, actor});
-        if (costume != edits.costumes->end()) ApplyCostumes(file.get(), number, costume->second);
-        ApplyShape(file.get(),number,placement.shape);
-        file->DeleteChild(kctgScen, scene, kctgActr, actor, link.chid);
-        Require(file->FAdoptChild(kctgScen, scene, kctgActr, number, link.chid), "Cannot link the moved object.");
-        if (file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
-            file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
+            PChunkyFile file;
+            const MarcusTextEdit *text;
+            const MarcusLiveEdits::CostumeEdit *costume;
+            std::exception_ptr failure;
+        } appearance{file.get(), text == edits.texts->end() ? nullptr : &text->second,
+                     costume == edits.costumes->end() ? nullptr : &costume->second, {}};
+        const MMActorArchivePose pose{
+            static_cast<MMU32>(placement.scene), static_cast<MMU32>(placement.actor), placement.delta,
+            placement.shape.rotation, placement.shape.scale, &appearance,
+            [](void *value, MMU32 copied) -> int {
+                auto &edit = *static_cast<Appearance *>(value);
+                try
+                {
+                    if (edit.text) ApplyText(edit.file, copied, *edit.text);
+                    if (edit.costume) ApplyCostumes(edit.file, copied, *edit.costume);
+                    return true;
+                }
+                catch (...)
+                {
+                    edit.failure = std::current_exception();
+                    return false;
+                }
+            }
+        };
+        const auto result = mm_actor_archive_place(&editor, &pose);
+        if (appearance.failure) std::rethrow_exception(appearance.failure);
+        CheckActorArchiveEdit(result);
     }
     for (const auto &entry : *edits.cameras)
         ApplyCamera(file.get(), entry.first.scene, entry.first.frame, entry.second);
-    MovieArchiveHost host{file.get(), {}, {}};
-    const auto editor = host.Editor();
     Require(mm_movie_archive_ensure_empty_rollcall(&editor), "Cannot write the movie's empty roll call.");
     Require(file->FSave(kctgSoc), "Cannot save the object working copy.");
     return result;
