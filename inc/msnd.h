@@ -89,7 +89,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
 
   protected:
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    static MMSoundResourceServices _ResourceServices(void *context);
+    static MMSoundResourceServices _ResourceServices();
 
   public:
     static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);

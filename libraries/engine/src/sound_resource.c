@@ -1,5 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/sound_resource.h"
+#include "mm/block_io.h"
+#include "mm/midi.h"
 #include "mm/movie_session.h"
 #include <string.h>
 static MMU32 word(const unsigned char *p,int n,int big)
@@ -80,10 +82,15 @@ int mm_sound_catalog_style(const MMMovieSessionGraph *graph, MMU32 number, int h
     return 0;
 }
 
-static void header(unsigned char *b,MMI32 style,MMI32 volume,int invalid,const MMSoundResourceServices *s)
+static void encode_header(unsigned char b[MM_SOUND_HEADER_BYTES], MMI32 style, MMI32 volume,
+                          int invalid, int host_big_endian, MMU32 system)
 {
-    memset(b,0,16); put(b,2,1U,s->host_big_endian); put(b+2,2,s->system,s->host_big_endian);
-    put(b+4,4,(MMU32)style,s->host_big_endian); put(b+8,4,(MMU32)volume,s->host_big_endian); b[12]=(unsigned char)(invalid!=0);
+    memset(b, 0, MM_SOUND_HEADER_BYTES);
+    put(b, 2, 1, host_big_endian);
+    put(b + 2, 2, system, host_big_endian);
+    put(b + 4, 4, (MMU32)style, host_big_endian);
+    put(b + 8, 4, (MMU32)volume, host_big_endian);
+    b[12] = (unsigned char)(invalid != 0);
 }
 int mm_sound_read(void *object, void *file, MMU32 type, MMU32 number, const MMSoundResourceServices *s)
 {
@@ -141,27 +148,45 @@ int mm_sound_info(void *file,MMU32 type,MMU32 number,void *invalid_out,void *sty
     if (volume_out) memcpy(volume_out,&o.resource->volume,4);
     s->release(s->context,object); return 1;
 }
-int mm_sound_write(void *source,int wave,void *file,MMI32 style,const void *name,void *number_out,const MMSoundResourceServices *s)
+int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const void *name,
+                   MMU32 *number, const MMSoundWriteServices *s)
 {
-    unsigned char b[16]; MMU32 number,child; MMI32 bytes;
-    bytes=wave?s->wave_size(s->context,source):0; header(b,wave?style:4,65536L,0,s);
-    if (!s->add(s->context,file,b,number_out)) return 0;
-    memcpy(&number,number_out,4); if (!wave) bytes=s->midi_size(s->context,source);
-    if (!s->add_child(s->context,file,number,wave?MM_SOUND_WAVE:MM_SOUND_MIDI,bytes,&child)) goto fail;
-    if (wave) { if (!s->find_wave(s->context,file,child) || !s->copy_wave(s->context)) goto fail; }
-    else if (!s->write_midi(s->context,source)) goto fail;
-    if (!s->set_name(s->context,file,number,name)) goto fail;
-    return 1;
-fail:
-    s->delete_parent(s->context,file,number); return 0;
+    unsigned char header[MM_SOUND_HEADER_BYTES];
+    MMStorageWriter output;
+    if (!payload || !payload->read_at || payload->length >= MM_STORAGE_LIMIT)
+        return 0;
+    encode_header(header, wave ? style : MM_SOUND_STYLE_MUSIC, 65536L, 0, s->host_big_endian, s->system);
+    if (!s->add_parent(s->context, header, number))
+        return 0;
+    if (s->add_child(s->context, *number, 0, wave ? MM_SOUND_WAVE : MM_SOUND_MIDI, payload->length, &output) &&
+        mm_stream_copy(payload, &output, s->transfer_allocator) == MM_DATA_OK &&
+        s->set_name(s->context, *number, name))
+        return 1;
+    s->delete_parent(s->context, *number);
+    return 0;
 }
-int mm_sound_copy_midi(void *source,void *file,const void *name,void *number_out,const MMSoundResourceServices *s)
+
+int mm_sound_import_midi(const MMReadStream *source, const void *name, MMU32 *number, const MMSoundWriteServices *s)
 {
-    void *prepared,*stream; int result;
-    prepared=s->prepare_name(s->context,source,name); stream=s->read_midi(s->context);
-    if (!stream) { s->bad_sound(s->context); return 0; }
-    result=mm_sound_write(stream,0,file,4,prepared,number_out,s); s->release(s->context,stream); return result;
+    MMCollectionStorage input, decoded;
+    MMMemoryStream payload;
+    MMU32 bytes;
+    int parsed, result = MM_SOUND_BAD_MIDI;
+    if (!source || !source->length || source->length >= MM_STORAGE_LIMIT)
+        return result;
+    mm_storage_init(&input, NULL);
+    mm_storage_init(&decoded, NULL);
+    parsed = mm_storage_resize_exact(&input, 0, source->length, MM_STORAGE_NORMAL) == MM_STORAGE_OK &&
+             mm_read_exact(source, 0, input.buffers[0].data, source->length) &&
+             mm_midi_import(input.buffers[0].data, source->length, &decoded, &bytes) &&
+             mm_memory_stream_init(&payload, decoded.buffers[0].data, bytes);
+    mm_storage_dispose(&input);
+    if (parsed)
+        result = mm_sound_write(&payload.stream, 0, MM_SOUND_STYLE_MUSIC, name, number, s);
+    mm_storage_dispose(&decoded);
+    return result;
 }
+
 int mm_sound_invalidate(void *object, const MMSoundResourceServices *s)
 {
     MMMovieSessionGraph graph;
@@ -178,7 +203,7 @@ int mm_sound_invalidate(void *object, const MMSoundResourceServices *s)
         mm_chunk_child_type(&chunks, position, 0, 0, &child) != MM_CHUNK_OK)
         return 0;
     s->owner(s->context, object, &owner);
-    header(b, owner.resource->style, owner.resource->volume, 1, s);
+    encode_header(b, owner.resource->style, owner.resource->volume, 1, s->host_big_endian, s->system);
     if (!s->put(s->context, file, type, number, b))
         return 0;
     s->delete_child(s->context, file, type, number, &child);

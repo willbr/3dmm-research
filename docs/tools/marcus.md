@@ -2301,6 +2301,10 @@ Studio's resource loader and Marcus action and path editing use the same
 graph reader for motion-match sounds. The built-in sound catalog reads headers
 from the archive it already opened for names. The catalog accepts WAVE or MIDI
 at any child slot, while playback resolves the first child at slot zero.
+Sound import uses the shared C89 stream writer. The MIDI path converts the
+standard file to the millisecond track payload in C89 and writes it from
+memory. WAV and MP3 import supplies decoded WAVE bytes to the same writer.
+A failed child write or name update removes the new MSND and its child.
 
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
@@ -2365,6 +2369,14 @@ fingerprints also matched. Fresh actor-audio captures again matched retail's
 sound requests matched retail. Each port reproduced its prior seek images,
 including the two pixels that differ from retail in one frame. The mixed PCM
 comparison still differs from retail. Evidence is in `tmp/c89-sound-resources/`.
+
+The shared stream writer preserved Studio's 99,336-byte Release sound-resource
+trace and three Marcus-authored movies byte for byte. The Debug fixture passed
+all 96 valid MIDI import attempts under native allocation injection and checked
+that failed imports left no sound chunks. Retail opened the three authored
+movies. SDL Studio matched all five sampled seek states. One viewport matched
+exactly and the other four differed by one pixel each. Evidence is in
+`tmp/c89-sound-import/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

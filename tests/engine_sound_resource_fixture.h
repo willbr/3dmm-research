@@ -174,7 +174,9 @@ static bool TestSoundResources()
         ChunkNumber number=0x13579; inject(kind,failure,true); bool success=MovieSoundMSND::FCopyMidi(source,target,&number,named?&name:nullptr); inject(kind,failure,false);
         ++attempts; copied+=success; String actual; bool rightName=success && target->FGetName(kctgMsnd,number,&actual) && actual.FEqual(&expected);
         LegacyLong fields[]={malformed,named,kind,failure,success,static_cast<LegacyLong>(number),rightName,target->CckiCtg(kctgMsnd),target->CckiCtg(kctgMidi)};
-        ok=record(fields,sizeof(fields)) && (!success || rightName) && ok; ReleasePpo(&target); vpers->Clear();
+        ok=record(fields,sizeof(fields)) && (success ? !malformed && rightName :
+            !target->CckiCtg(kctgMsnd) && !target->CckiCtg(kctgMidi)) && ok;
+        ReleasePpo(&target); vpers->Clear();
 #ifdef DEBUG
         ok=vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv && ok;
 #endif
@@ -206,9 +208,9 @@ static bool TestSoundResources()
     ReleasePpo(&shortSound); ReleasePpo(&shortFile); vpers->Clear();
     std::fprintf(stderr,"[sound resources] attempts=%d loaded=%d written=%d copied=%d invalidated=%d\n",attempts,loaded,written,copied,invalidated);
 #ifdef DEBUG
-    // C track parsing removes native parser/list allocations; injection points
-    // now allow 90 MIDI imports. Successful payloads have a separate frozen trace.
-    ok=ok && loaded==524 && written==192 && copied==90 && invalidated==36;
+    // MIDI import uses C-owned input and track bytes. All 96 valid MIDI
+    // attempts survive the native allocation injections in this fixture.
+    ok=ok && loaded==524 && written==192 && copied==96 && invalidated==36;
 #else
     ok=ok && loaded==540 && written==192 && copied==96 && invalidated==36;
 #endif

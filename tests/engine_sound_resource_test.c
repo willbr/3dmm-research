@@ -1,14 +1,19 @@
 #include "mm/sound_resource.h"
 #include "mm/movie_session.h"
 #include "mm/text_store.h"
+#include "mm/midi.h"
 #include <assert.h>
 #include <string.h>
-enum { CREATE=1,FIND,UNPACK,READ,NAME,CHILD,ADD,ADD_CHILD,WRITE_MIDI,FIND_WAVE,COPY_WAVE,SET_NAME,READ_MIDI,PUT };
+enum { CREATE = 1, FIND, UNPACK, READ, NAME, CHILD, ADD, ADD_CHILD, READ_SOURCE, WRITE_CHILD, SET_NAME, PUT };
 typedef struct Object { MMSoundResource resource; MMI32 silent; unsigned char invalid; int named; } Object;
 typedef struct Context
 {
-    MMSoundResourceServices services; Object object;
-    unsigned char bytes[16]; MMI32 length; int fail,events[32],count,created,released,invalidations,deleted,deleted_child,bad,order,stream;
+    MMSoundResourceServices services; MMSoundWriteServices writer; Object object;
+    unsigned char bytes[16], output[32];
+    MMI32 length;
+    int fail,events[32],count,created,released,invalidations,deleted,deleted_child,order;
+    MMU32 child_type, payload_bytes;
+    MMMemoryStream source;
     int playing,stopped,plays,queries,children; MMI32 queue,volume,repeat,priority,sound_class; MMU32 start,lookup_type;
     void *object_slot,*size_slot; const void *name; int release_after_invalidation;
 } Context;
@@ -17,7 +22,7 @@ static void owner(void *p,void *object,MMSoundOwner *out)
 { Object *o=(Object *)object; (void)p; out->resource=&o->resource; out->silent=&o->silent; out->invalid=&o->invalid; }
 static void *create(void *p) { Context *c=(Context *)p; if (!event(c,CREATE)) return NULL; ++c->created; return &c->object; }
 static void release(void *p,void *object)
-{ Context *c=(Context *)p; assert(object==&c->object || object==&c->stream); ++c->released; if (c->object_slot) { assert(c->invalidations==2); c->release_after_invalidation=1; } }
+{ Context *c=(Context *)p; assert(object==&c->object); ++c->released; if (c->object_slot) { assert(c->invalidations==2); c->release_after_invalidation=1; } }
 static MMI32 object_size(void *p) { (void)p; return 333; }
 static void invalidate_output(void *p,void *out,size_t bytes)
 { Context *c=(Context *)p; assert(out==c->object_slot || out==c->size_slot); memset(out,0xcd,bytes); ++c->invalidations; }
@@ -80,20 +85,46 @@ static void graph(void *p, void *file, MMMovieSessionGraph *out)
 static int read_name(void *p,void *f,MMU32 type,MMU32 n,void *o)
 { (void)type; assert(p==f && n==37); ((Object *)o)->named=1; return event((Context *)p,NAME); }
 static void publish_invalid(void *p,void *out,int invalid) { (void)p; *(int *)out=invalid; }
-static int add(void *p,void *f,const void *header,void *out)
-{ Context *c=(Context *)p; MMU32 n=37; assert(p==f); memcpy(c->bytes,header,16); memcpy(out,&n,4); return event(c,ADD); }
-static MMI32 wave_size(void *p,void *source) { assert(p==source); event((Context *)p,20); return 7; }
-static MMI32 midi_size(void *p,void *source) { Context *c=(Context *)p; assert(source==p || source==&c->stream); event(c,21); return 9; }
-static int add_child(void *p,void *f,MMU32 n,MMU32 type,MMI32 bytes,MMU32 *out)
-{ assert(p==f && n==37 && (type==MM_SOUND_WAVE?bytes==7:bytes==9)); *out=19; return event((Context *)p,ADD_CHILD); }
-static int write_midi(void *p,void *source) { assert(source==p || source==&((Context *)p)->stream); return event((Context *)p,WRITE_MIDI); }
-static int find_wave(void *p,void *f,MMU32 n) { assert(p==f && n==19); return event((Context *)p,FIND_WAVE); }
-static int copy_wave(void *p) { return event((Context *)p,COPY_WAVE); }
-static int set_name(void *p,void *f,MMU32 n,const void *name) { Context *c=(Context *)p; assert(p==f && n==37 && name==c->name); return event(c,SET_NAME); }
-static void delete_parent(void *p,void *f,MMU32 n) { assert(p==f && n==37); ++((Context *)p)->deleted; }
-static void *prepare_name(void *p,void *source,const void *name) { Context *c=(Context *)p; assert(p==source); assert(!name || name==p); c->name=name?name:&c->name; event(c,22); return (void *)c->name; }
-static void *read_midi(void *p) { Context *c=(Context *)p; return event(c,READ_MIDI)?&c->stream:NULL; }
-static void bad_sound(void *p) { ++((Context *)p)->bad; }
+static int add(void *p, const unsigned char *header, MMU32 *out)
+{
+    Context *c = (Context *)p;
+    memcpy(c->bytes, header, sizeof(c->bytes));
+    *out = 37;
+    return event(c, ADD);
+}
+static int write_child(void *p, MMU32 offset, const void *bytes, size_t count)
+{
+    Context *c = (Context *)p;
+    assert(!offset && count == c->payload_bytes && count <= sizeof(c->output));
+    if (!event(c, WRITE_CHILD))
+        return 0;
+    memcpy(c->output, bytes, count);
+    return 1;
+}
+static int add_child(void *p, MMU32 parent, MMU32 slot, MMU32 type, MMU32 bytes, MMStorageWriter *out)
+{
+    Context *c = (Context *)p;
+    MMStorageWriter writer = {NULL, 0, write_child};
+    assert(parent == 37 && !slot && bytes <= sizeof(c->output));
+    c->child_type = type;
+    c->payload_bytes = bytes;
+    writer.context = p;
+    writer.length = bytes;
+    *out = writer;
+    return event(c, ADD_CHILD);
+}
+static int set_name(void *p, MMU32 n, const void *name)
+{
+    Context *c = (Context *)p;
+    assert(n == 37 && name == c->name);
+    return event(c, SET_NAME);
+}
+static void delete_parent(void *p, MMU32 n) { assert(n == 37); ++((Context *)p)->deleted; }
+static int read_source(void *p, MMU32 offset, void *bytes, size_t count)
+{
+    Context *c = (Context *)p;
+    return event(c, READ_SOURCE) && mm_read_exact(&c->source.stream, offset, bytes, count);
+}
 static void binding(void *p,void *o,void **f,MMU32 *type,MMU32 *n) { assert(o==&((Context *)p)->object); *f=p; *type=0x1234; *n=37; }
 static int put(void *p,void *f,MMU32 type,MMU32 n,const void *header)
 { Context *c=(Context *)p; assert(p==f && type==0x1234 && n==37 && !c->object.invalid); memcpy(c->bytes,header,16); assert(c->bytes[12]==1); return event(c,PUT); }
@@ -113,8 +144,11 @@ static void initialize(Context *c)
     c->object.resource.type=17; c->object.resource.number=18; c->object.resource.style=1; c->object.resource.volume=123; c->object.silent=2;
     s=&c->services; s->context=c; s->owner=owner; s->create=create; s->release=release; s->object_size=object_size; s->invalidate_output=invalidate_output;
     s->file=file; s->graph=graph; s->read_name=read_name; s->publish_invalid=publish_invalid;
-    s->add=add; s->wave_size=wave_size; s->midi_size=midi_size; s->add_child=add_child; s->write_midi=write_midi; s->find_wave=find_wave; s->copy_wave=copy_wave;
-    s->set_name=set_name; s->delete_parent=delete_parent; s->prepare_name=prepare_name; s->read_midi=read_midi; s->bad_sound=bad_sound;
+    c->writer.context = c;
+    c->writer.add_parent = add;
+    c->writer.add_child = add_child;
+    c->writer.set_name = set_name;
+    c->writer.delete_parent = delete_parent;
     s->binding=binding; s->put=put; s->delete_child=delete_child; s->bad_order=bad_order; s->queue_number=queue_number; s->playing=playing; s->stop=stop; s->play=play;
 }
 static void loads(void)
@@ -173,29 +207,68 @@ static void catalog(void)
 }
 static void writes(void)
 {
-    Context c; MMU32 number; int wave,failure,big,i,result;
-    for (big=0;big<2;++big) for (wave=0;wave<2;++wave) for (failure=0;failure<5;++failure)
+    const unsigned char payload[] = {4, 1, 2, 3, 4, 0x80, 0x90};
+    const unsigned char smf[] = {'M','T','h','d',0,0,0,6,0,0,0,1,0,96,
+                                 'M','T','r','k',0,0,0,12,0,0x90,60,64,96,0x80,60,0,0,0xff,0x2f,0};
+    const int points[] = {0, ADD, ADD_CHILD, READ_SOURCE, WRITE_CHILD, SET_NAME};
+    Context c;
+    MMReadStream stream = {NULL, 0, read_source};
+    MMMidiParser parser;
+    MMMidiEvent note;
+    MMU32 number;
+    int wave, failure, big, i, result;
+    stream.context = &c;
+    stream.length = sizeof(payload);
+    for (big = 0; big < 2; ++big)
+        for (wave = 0; wave < 2; ++wave)
+            for (failure = 0; failure < 6; ++failure)
+            {
+                initialize(&c);
+                assert(mm_memory_stream_init(&c.source, payload, sizeof(payload)));
+                c.writer.host_big_endian = big;
+                c.writer.system = 0x1234;
+                c.fail = points[failure];
+                c.name = &c;
+                number = 99;
+                result = mm_sound_write(&stream, wave, 3, &c, &number, &c.writer);
+                assert(result == !failure && number == 37 && c.deleted == (failure >= 2));
+                assert(c.bytes[big ? 1 : 0] == 1 && c.bytes[2] == (big ? 0x12 : 0x34) &&
+                       c.bytes[3] == (big ? 0x34 : 0x12));
+                assert(c.bytes[big ? 7 : 4] == (wave ? 3 : 4));
+                for (i = 12; i < 16; ++i)
+                    assert(!c.bytes[i]);
+                assert(c.events[0] == ADD);
+                if (!failure)
+                    assert(c.child_type == (wave ? MM_SOUND_WAVE : MM_SOUND_MIDI) &&
+                           c.payload_bytes == sizeof(payload) && !memcmp(payload, c.output, sizeof(payload)));
+            }
+    for (failure = 0; failure < 6; ++failure)
     {
-        int points[5]; points[0]=0; points[1]=ADD; points[2]=ADD_CHILD; points[3]=wave?COPY_WAVE:WRITE_MIDI; points[4]=SET_NAME;
-        initialize(&c); c.services.host_big_endian=big; c.services.system=0x1234; c.fail=points[failure]; c.name=&c; number=99;
-        result=mm_sound_write(&c,wave,&c,3,&c,&number,&c.services);
-        assert(result==!failure && number==37 && c.deleted==(failure>=2));
-        assert(c.bytes[big?1:0]==1 && c.bytes[2]==(big?0x12:0x34) && c.bytes[3]==(big?0x34:0x12));
-        assert(c.bytes[big?7:4]==(wave?3:4) && !c.bytes[12]); for (i=13;i<16;++i) assert(!c.bytes[i]);
-        assert(c.events[0]==(wave?20:ADD)); if (!wave && failure!=1) assert(c.events[1]==21);
+        initialize(&c);
+        assert(mm_memory_stream_init(&c.source, smf, sizeof(smf)));
+        stream.length = failure == 1 ? 3 : sizeof(smf);
+        c.fail = failure == 2 ? READ_SOURCE : failure == 3 ? ADD : failure == 4 ? WRITE_CHILD :
+                 failure == 5 ? SET_NAME : 0;
+        c.name = &c;
+        number = 99;
+        result = mm_sound_import_midi(&stream, &c, &number, &c.writer);
+        assert(result == (!failure ? 1 : failure <= 2 ? MM_SOUND_BAD_MIDI : 0));
+        assert(number == (failure == 1 || failure == 2 ? 99U : 37U) && c.deleted == (failure >= 4));
+        if (!failure)
+        {
+            assert(c.child_type == MM_SOUND_MIDI);
+            mm_midi_parser_init(&parser, c.output, c.payload_bytes, 0, 500000);
+            assert(mm_midi_next(&parser, &note, 1) && note.timestamp == 0 && note.send[0] == 0x90);
+            assert(mm_midi_next(&parser, &note, 1) && note.timestamp == 500 && note.send[0] == 0x80);
+        }
     }
-    initialize(&c); c.fail=FIND_WAVE; c.name=&c; assert(!mm_sound_write(&c,1,&c,2,&c,&number,&c.services) && c.deleted==1);
-    for (failure=0;failure<3;++failure) for (wave=0;wave<2;++wave)
+    for (failure = 0; failure < 3; ++failure)
     {
-        initialize(&c); c.fail=failure==1?READ_MIDI:failure==2?SET_NAME:0;
-        assert(mm_sound_copy_midi(&c,&c,wave?&c:NULL,&number,&c.services)==!failure);
-        assert(c.bad==(failure==1) && c.released==(failure!=1) && c.deleted==(failure==2));
-    }
-    for (failure=0;failure<3;++failure)
-    {
-        initialize(&c); c.fail=failure==1?CHILD:failure==2?PUT:0;
-        assert(mm_sound_invalidate(&c.object,&c.services)==!failure && c.object.invalid==!failure && c.deleted_child==!failure);
-        assert(c.lookup_type==MM_SOUND_TYPE);
+        initialize(&c);
+        c.fail = failure == 1 ? CHILD : failure == 2 ? PUT : 0;
+        assert(mm_sound_invalidate(&c.object, &c.services) == !failure &&
+               c.object.invalid == !failure && c.deleted_child == !failure);
+        assert(c.lookup_type == MM_SOUND_TYPE);
     }
 }
 static void playback(void)

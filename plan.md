@@ -1000,6 +1000,10 @@ the C89 movie graph. Studio playback, Marcus preview, and the built-in sound
 catalog share the graph reader for MSND headers. Studio resource invalidation
 also resolves its sound child through the graph. The hosts supply content
 sources, names, and native cache and output objects.
+Studio and Marcus import standard MIDI into C-owned bytes and pass sampled
+and MIDI payloads to the same C89 sound writer. The writer owns the MSND
+envelope, slot-zero child and rollback. The hosts supply the file stream and
+chunk I/O. Marcus continues to use the shared audio decoder for WAV and MP3.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

@@ -259,3 +259,17 @@ LegacyLong MidiStream::CbOnFile(void)
 
     return CbOfHq(_hqrgb);
 }
+
+MMReadStream MidiStream::BorrowStream()
+{
+    return {this, static_cast<MMU32>(CbOnFile()), [](void *context, MMU32 offset, void *out, size_t count) -> int {
+        auto stream = static_cast<PMidiStream>(context);
+        auto length = static_cast<MMU32>(stream->CbOnFile());
+        if (offset > length || count > length - offset)
+            return 0;
+        auto bytes = static_cast<const byte *>(PvLockHq(stream->_hqrgb));
+        CopyPb(const_cast<byte *>(bytes + offset), out, static_cast<LegacyLong>(count));
+        UnlockHq(stream->_hqrgb);
+        return 1;
+    }};
+}

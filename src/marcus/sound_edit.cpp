@@ -3,7 +3,8 @@
 #include "movie_archive_host.h"
 #include <SDL3/SDL.h>
 #include "soc_core.h"
-#include "midi.h"
+#include "engine_read_stream.h"
+#include "engine_sound_writer.h"
 #include "sdl_audio.h"
 #include "mm/sound_resource.h"
 #include "mm/native_sound.h"
@@ -29,39 +30,37 @@ ChunkNumber Import(PChunkyFile file, const char *path, int style)
     auto filename = Path(std::filesystem::u8path(path));
     std::unique_ptr<FileObject, Release> input(FileObject::PfilOpen(&filename));
     Require(bool(input), "Cannot open the audio file.");
-    Require(input->FpMac() > 0 && input->FpMac() <= 64 * 1024 * 1024, "Audio files must be between 1 byte and 64 MiB.");
+    const auto source = EngineReadStream::FromFile(*input);
+    Require(source.length > 0 && source.length <= 64 * 1024 * 1024, "Audio files must be between 1 byte and 64 MiB.");
     auto extension = std::filesystem::u8path(path).extension().u8string();
     std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return char(std::tolower(c)); });
     const bool midi = extension == ".mid" || extension == ".midi";
     Require(midi == (style == MARCUS_SOUND_MUSIC), "Music cues use MIDI files; WAV/MP3 audio uses Effects or Speech.");
-    struct Context { std::vector<unsigned char> wave; DataBlock block; } context;
-    std::unique_ptr<MidiStream, Release> music;
-    if (midi) { music.reset(MidiStream::PmidsReadNative(&filename)); Require(bool(music), "Cannot import this MIDI file."); }
+    EngineSoundWriter writer{file, {}};
+    const auto services = writer.Services();
+    String name;
+    filename.GetLeaf(&name);
+    ChunkNumber sound;
+    int written;
+    if (midi)
+    {
+        written = mm_sound_import_midi(&source, &name, &sound, &services);
+        Require(written != MM_SOUND_BAD_MIDI, "Cannot import this MIDI file.");
+    }
     else
     {
-        std::vector<unsigned char> bytes(input->FpMac());
-        Require(input->FReadRgb(bytes.data(), bytes.size(), 0) && KauaiAudio::PrepareWaveImport(bytes.data(), bytes.size(), context.wave),
-            "Cannot decode this WAV or MP3 file.");
+        std::vector<unsigned char> wave;
+        {
+            std::vector<unsigned char> bytes(source.length);
+            Require(mm_read_exact(&source, 0, bytes.data(), bytes.size()) &&
+                        KauaiAudio::PrepareWaveImport(bytes.data(), bytes.size(), wave),
+                    "Cannot decode this WAV or MP3 file.");
+        }
+        MMMemoryStream payload;
+        Require(mm_memory_stream_init(&payload, wave.data(), wave.size()), "Cannot encode this sound in the native movie format.");
+        written = mm_sound_write(&payload.stream, 1, style, &name, &sound, &services);
     }
-    MMSoundResourceServices services = {}; services.context = &context; services.system = koskCur;
-    services.add = [](void *, void *f, const void *header, void *number) -> int {
-        return static_cast<PChunkyFile>(f)->FAddPv(const_cast<void *>(header), 16, kctgMsnd, static_cast<ChunkNumber *>(number));
-    };
-    services.wave_size = [](void *p, void *) -> MMI32 { return MMI32(static_cast<Context *>(p)->wave.size()); };
-    services.midi_size = [](void *, void *p) -> MMI32 { return static_cast<MidiStream *>(p)->CbOnFile(); };
-    services.add_child = [](void *p, void *f, MMU32 parent, MMU32 type, MMI32 bytes, MMU32 *out) -> int {
-        return static_cast<PChunkyFile>(f)->FAddChild(kctgMsnd, parent, 0, bytes, type, out, &static_cast<Context *>(p)->block);
-    };
-    services.find_wave = [](void *, void *, MMU32) { return 1; };
-    services.copy_wave = [](void *p) -> int { auto &c = *static_cast<Context *>(p); return c.block.FWriteRgb(c.wave.data(), c.wave.size(), 0); };
-    services.write_midi = [](void *p, void *source) -> int { return static_cast<MidiStream *>(source)->FWrite(&static_cast<Context *>(p)->block); };
-    services.set_name = [](void *, void *f, MMU32 number, const void *name) -> int {
-        return static_cast<PChunkyFile>(f)->FSetName(kctgMsnd, number, const_cast<String *>(static_cast<const String *>(name)));
-    };
-    services.delete_parent = [](void *, void *f, MMU32 number) { static_cast<PChunkyFile>(f)->Delete(kctgMsnd, number); };
-    String name; filename.GetLeaf(&name); ChunkNumber sound;
-    Require(mm_sound_write(midi ? static_cast<void *>(music.get()) : nullptr, !midi, file, style, &name, &sound, &services) != 0,
-        "Cannot encode this sound in the native movie format.");
+    Require(written > 0, "Cannot encode this sound in the native movie format.");
     return sound;
 }
 void CheckSoundArchive(int status)

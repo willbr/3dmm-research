@@ -27,6 +27,8 @@
 #endif
 #include "soc.h"
 #include "engine_movie_graph.h"
+#include "engine_read_stream.h"
+#include "engine_sound_writer.h"
 #include "mm/wave_import.h"
 #ifndef KAUAI_SDL3
 #include "audioman.h"
@@ -41,17 +43,9 @@ BEGIN_CMD_MAP(MovieSoundQueue, CommandHandler)
 ON_CID_ME(cidAlarm, &MovieSoundQueue::FCmdAlarm, pvNil)
 END_CMD_MAP_NIL()
 
-struct SoundResourceContext
-{
-    DataBlock block;
-    FileLocation source, destination;
-    Filename filename;
-    String name;
-};
-MMSoundResourceServices MovieSoundMSND::_ResourceServices(void *context)
+MMSoundResourceServices MovieSoundMSND::_ResourceServices()
 {
     MMSoundResourceServices s = {};
-    s.context = context;
     s.system = koskCur;
     static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 &&
                       sizeof(MMSoundResource) == sizeof(void *) + 16,
@@ -79,59 +73,6 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices(void *context)
         return static_cast<PChunkyFile>(file)->FGetName(type, number, &static_cast<PMovieSoundMSND>(object)->_stn);
     };
     s.publish_invalid = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
-    s.add = [](void *, void *file, const void *header, void *out) -> int {
-        return static_cast<PChunkyFile>(file)->FAddPv(const_cast<void *>(header), 16, kctgMsnd,
-                                                      static_cast<ChunkNumber *>(out));
-    };
-    s.wave_size = [](void *p, void *source) -> MMI32 {
-        auto location = &static_cast<SoundResourceContext *>(p)->source;
-        location->pfil = static_cast<PFileObject>(source);
-        location->fp = 0;
-        location->cb = location->pfil->FpMac();
-        return location->cb;
-    };
-    s.midi_size = [](void *, void *source) -> MMI32 { return static_cast<PMidiStream>(source)->CbOnFile(); };
-    s.add_child = [](void *p, void *file, MMU32 parent, MMU32 type, MMI32 bytes,
-                     MMU32 *out) -> int {
-        auto block = &static_cast<SoundResourceContext *>(p)->block;
-        ChunkNumber child;
-        if (!static_cast<PChunkyFile>(file)->FAddChild(kctgMsnd, parent, kchidSnd, bytes, type, &child,
-                                                       type == kctgMidi ? block : nullptr))
-            return 0;
-        *out = child;
-        return 1;
-    };
-    s.write_midi = [](void *p, void *source) -> int {
-        return static_cast<PMidiStream>(source)->FWrite(&static_cast<SoundResourceContext *>(p)->block);
-    };
-    s.find_wave = [](void *p, void *file, MMU32 number) -> int {
-        return static_cast<PChunkyFile>(file)->FFindFlo(kctgWave, number,
-                                                        &static_cast<SoundResourceContext *>(p)->destination);
-    };
-    s.copy_wave = [](void *p) -> int {
-        auto c = static_cast<SoundResourceContext *>(p);
-        return c->source.FCopy(&c->destination);
-    };
-    s.set_name = [](void *, void *file, MMU32 number, const void *name) -> int {
-        return static_cast<PChunkyFile>(file)->FSetName(kctgMsnd, number,
-                                                        const_cast<PString>(static_cast<const String *>(name)));
-    };
-    s.delete_parent = [](void *, void *file, MMU32 number) {
-        static_cast<PChunkyFile>(file)->Delete(kctgMsnd, number);
-    };
-    s.prepare_name = [](void *p, void *source, const void *name) -> void * {
-        auto c = static_cast<SoundResourceContext *>(p);
-        static_cast<PFileObject>(source)->GetFni(&c->filename);
-        if (name)
-            c->name = *const_cast<PString>(static_cast<const String *>(name));
-        else
-            c->filename.GetLeaf(&c->name);
-        return &c->name;
-    };
-    s.read_midi = [](void *p) -> void * {
-        return MidiStream::PmidsReadNative(&static_cast<SoundResourceContext *>(p)->filename);
-    };
-    s.bad_sound = [](void *) { PushErc(ercSocBadSoundFile); };
     s.binding = [](void *, void *object, void **file, MMU32 *type, MMU32 *number) {
         auto sound = static_cast<PMovieSoundMSND>(object);
         *file = sound->Pcrf()->Pcfl();
@@ -170,8 +111,7 @@ bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, Chu
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    SoundResourceContext context;
-    auto services = _ResourceServices(&context);
+    const auto services = _ResourceServices();
     return mm_sound_fetch(pcrf, ctg, cno, ppbaco, pcb, &services) != 0;
 }
 
@@ -184,8 +124,7 @@ bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNum
                                   long *pvlm)
 {
     AssertPo(pcfl, 0);
-    SoundResourceContext context;
-    auto services = _ResourceServices(&context);
+    const auto services = _ResourceServices();
     return mm_sound_info(pcfl, ctg, cno, pfInvalid, psty, pvlm, &services) != 0;
 }
 
@@ -198,8 +137,7 @@ bool MovieSoundMSND::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cn
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
-    SoundResourceContext context;
-    auto services = _ResourceServices(&context);
+    const auto services = _ResourceServices();
     return mm_sound_read(this, pcfl, ctg, cno, &services) != 0;
 }
 
@@ -215,9 +153,10 @@ bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String 
     AssertPo(pmids, 0);
     AssertVarMem(pstnName);
     AssertVarMem(pcno);
-    SoundResourceContext context;
-    auto services = _ResourceServices(&context);
-    return mm_sound_write(pmids, 0, pcflDest, styMidi, pstnName, pcno, &services) != 0;
+    EngineSoundWriter writer{pcflDest, {}};
+    const auto services = writer.Services();
+    const auto payload = pmids->BorrowStream();
+    return mm_sound_write(&payload, 0, styMidi, pstnName, pcno, &services) != 0;
 }
 
 /***************************************************************************
@@ -233,9 +172,10 @@ bool MovieSoundMSND::FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long 
     AssertIn(sty, 0, styLim);
     AssertVarMem(pstnName);
     AssertVarMem(pcno);
-    SoundResourceContext context;
-    auto services = _ResourceServices(&context);
-    return mm_sound_write(pfilSrc, 1, pcflDest, sty, pstnName, pcno, &services) != 0;
+    EngineSoundWriter writer{pcflDest, {}};
+    const auto services = writer.Services();
+    const auto payload = EngineReadStream::FromFile(*pfilSrc);
+    return mm_sound_write(&payload, 1, sty, pstnName, pcno, &services) != 0;
 }
 
 /***************************************************************************
@@ -248,9 +188,21 @@ bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkN
 {
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
-    SoundResourceContext context;
-    auto services = _ResourceServices(&context);
-    return mm_sound_copy_midi(pfilSrc, pcflDest, pstn, pcno, &services) != 0;
+    String leaf;
+    if (!pstn)
+    {
+        Filename filename;
+        pfilSrc->GetFni(&filename);
+        filename.GetLeaf(&leaf);
+        pstn = &leaf;
+    }
+    EngineSoundWriter writer{pcflDest, {}};
+    const auto services = writer.Services();
+    const auto source = EngineReadStream::FromFile(*pfilSrc);
+    const int result = mm_sound_import_midi(&source, pstn, pcno, &services);
+    if (result == MM_SOUND_BAD_MIDI)
+        PushErc(ercSocBadSoundFile);
+    return result > 0;
 }
 
 /***************************************************************************
@@ -483,8 +435,7 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
 bool MovieSoundMSND::FInvalidate(void)
 {
     AssertThis(0);
-    SoundResourceContext context;
-    auto services = _ResourceServices(&context);
+    const auto services = _ResourceServices();
     return mm_sound_invalidate(this, &services) != 0;
 }
 
@@ -545,8 +496,7 @@ void MovieSoundMSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long sp
 {
     AssertThis(0);
     static MMSoundLastMidi last = {};
-    SoundResourceContext context;
-    auto services = _ResourceServices(&context);
+    const auto services = _ResourceServices();
     mm_sound_play(this, &last, objID, fLoop, fQueue, vlm, spr, fActr, dtsStart, &services);
 }
 

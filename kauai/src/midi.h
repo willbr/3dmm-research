@@ -17,6 +17,7 @@
 
 #include "mm/sound_payload.h"
 #include "mm/midi.h"
+#include "mm/read_stream.h"
 
 using namespace Chunky;
 
@@ -90,6 +91,7 @@ class MidiStream : public MidiStream_PAR
 
     virtual bool FWrite(PDataBlock pblck);
     virtual LegacyLong CbOnFile(void);
+    MMReadStream BorrowStream();
 };
 
 #endif //! MIDI_H

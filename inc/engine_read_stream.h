@@ -18,5 +18,12 @@ inline MMReadStream FromBlock(DataBlock &block)
 {
     return {&block, static_cast<MMU32>(block.Cb()), ReadBlock};
 }
+inline MMReadStream FromFile(FileObject &file)
+{
+    return {&file, static_cast<MMU32>(file.FpMac()), [](void *context, MMU32 offset, void *bytes, size_t count) -> int {
+        return static_cast<PFileObject>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count),
+                                                         static_cast<FilePosition>(offset));
+    }};
+}
 } // namespace EngineReadStream
 #endif
