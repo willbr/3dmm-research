@@ -4,6 +4,8 @@
 #include "actor_timeline.h"
 #include "actor_pose.h"
 #include "actor_effect.h"
+#include "actor_track.h"
+#include "actor_sound.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -20,6 +22,7 @@ extern "C"
         MMI32 original[3];
         void *tmpl, *body, *route, *events;
         int inactive, orientation_reset, sound_display;
+        MMI32 event_source;
     } MMPreviewActor;
     typedef struct MMPreviewActorDefinition
     {
@@ -38,9 +41,11 @@ extern "C"
         int (*bind)(void *, void *), (*body_create)(void *, void *, void **);
         int (*prop)(void *, void *), (*text)(void *, void *);
         void (*release_body)(void *, void *), (*release_template)(void *, void *);
-        int (*track_create)(void *, void **route, void **events);
-        int (*route_insert)(void *, void *, MMI32, const MMActorRoutePoint *);
-        int (*event_insert)(void *, void *, MMI32, MMU32 bytes, const void *, const MMActorEvent *);
+        /* With tags supplied, load transfers typed PATH/GGAE ownership.
+         * Services without tags supply borrowed evaluator tables. */
+        const MMTagServices *tags;
+        const MMStorageAllocator *track_allocator;
+        int trash_unused;
         void (*rest)(void *, void *, unsigned short angles[3]);
         MMI32 (*scalar)(float);
         float (*scalar_float)(MMI32);
@@ -52,8 +57,8 @@ extern "C"
         int (*duplicate_body)(void *, void *original, void **draft);
         int (*adjust_text_body)(void *, void *text, void *body);
     } MMPreviewActorServices;
-    /* Unique owning template/body handles, with borrowed validated track tables.
-     * Initialize once, dispose before the typed track owner. Effects are synchronous
+    /* Unique owning template/body handles. The track handles can also own
+     * their tables when the services supply tags. Effects are synchronous
      * and do not throw: 1/0 success/failure, -1 allocation, -2 other exception.
      * Timeline resolvers report exceptions through fault after the shared evaluator
      * returns. Completed state/table/resource prefixes remain on failure, as in the
@@ -64,13 +69,44 @@ extern "C"
     void mm_preview_actor_dispose(MMPreviewActor *, const MMPreviewActorServices *);
     int mm_preview_actor_load(MMPreviewActor *, MMU32 number, const MMChunkAccess *, int require_template_target,
                               const MMPreviewActorServices *);
+    /* Create a new actor with owned C tables. Supply the native tag services. */
     int mm_preview_actor_create(MMPreviewActor *, const MMPreviewActorDefinition *, const MMPreviewActorServices *);
+    /* Borrow typed handles from an actor with owned tracks. */
+    MMActorTrack mm_preview_actor_track(const MMPreviewActor *);
+
+    typedef struct MMPreviewActorDraft
+    {
+        MMPreviewActor original;
+        MMActorSounds motion;
+        int active;
+    } MMPreviewActorDraft;
+    /* Use an actor with owned tracks and a zero-initialized draft. A successful begin installs a
+     * separate body, track, and motion list until end restores the original. */
+    int mm_preview_actor_begin_draft(MMPreviewActor *, MMActorSounds *, MMPreviewActorDraft *,
+                                     const MMPreviewActorServices *);
+    void mm_preview_actor_end_draft(MMPreviewActor *, MMActorSounds *, MMPreviewActorDraft *,
+                                    const MMPreviewActorServices *);
+
+    typedef struct MMPreviewEventReplacement
+    {
+        void *context;
+        int (*open)(void *, MMI32 source);
+        /* Transfer a newly decoded event table on success. */
+        int (*read)(void *, MMActorEventTable **);
+        int (*save_costume)(void *);
+        void (*restore_costume)(void *);
+    } MMPreviewEventReplacement;
+    /* Replace a preview's owned track events and replay its current frame.
+     * Failure restores both original tables, evaluation state and costume.
+     * Cue and motion callbacks retain their replay side effects. */
+    int mm_preview_actor_replace_track(MMPreviewActor *, MMI32 source, const MMPreviewEventReplacement *,
+                                       const MMPreviewActorServices *);
     /* Fetch/bind a text template, adjust a body draft, then pose it. Restore
      * the entire actor and release the draft on failure, including pose errors. */
     int mm_preview_actor_replace_template(MMPreviewActor *, MMI32 source, MMU32 number,
                                           const MMPreviewActorServices *);
     int mm_preview_actor_seek(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
-    int mm_preview_actor_replace_events(MMPreviewActor *, void *events, MMI32 frame, const MMPreviewActorServices *);
+    int mm_preview_actor_replay_track(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_position(MMPreviewActor *, int select_cel, const MMPreviewActorServices *);
     int mm_preview_actor_translate(MMPreviewActor *, const float delta[3], const MMPreviewActorServices *);
     int mm_preview_actor_offset(MMPreviewActor *, const float offset[3], const MMPreviewActorServices *);

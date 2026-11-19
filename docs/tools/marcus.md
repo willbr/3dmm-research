@@ -2703,6 +2703,14 @@ matched the retained baselines. SDL and Marcus matched the retail frame
 sequences and their respective prior seek images. Evidence is in
 `tmp/c89-actor-owner-storage/`.
 
+The preview actor owns its live track in C89. Costume and animation drafts
+clone and restore the body, track and motion sounds in C, and live event
+replacement rolls back the track, evaluated state and costume when replay
+fails. The Marcus costume, animation, text and sound editing checks passed.
+SDL and Marcus matched the retained retail frame sequences and their
+respective previous seek images. Evidence is in
+`tmp/c89-preview-track-owner/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

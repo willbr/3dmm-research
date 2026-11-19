@@ -1,6 +1,7 @@
 // A real host supplies assertion reporting; no GUI/application replacements.
 #if defined(TEST_ENGINE_CORE)
 #include "soc_core.h"
+#include "actor_track_fixture.h"
 #elif defined(TEST_BRENDER_CORE)
 #include "bren_core.h"
 #else
@@ -2389,7 +2390,7 @@ static void TestActorValueEvaluation()
         ActorEvent::Base event = {static_cast<int32_t>(type), 277, eventLocation};
         LegacyLong index = mm_actor_events_count(track.Events());
         Check(mm_actor_events_insert(track.Events(), index, bytes, payload, &event));
-        ActorValueEventResult result = state.ApplyValueEvent(track, index, origin);
+        ActorValueEventResult result = state.ApplyValueEvent(track.Core(), index, origin);
         recordState();
         ActorEvent::Base unchanged;
         mm_actor_events_get_fixed(track.Events(), index, &unchanged);
@@ -2402,7 +2403,7 @@ static void TestActorValueEvaluation()
     state.actionFlags = 3;
     state.frozen = true;
     state.action = state.cel = state.nextEvent = 4;
-    state.RewindRoute(track);
+    state.RewindRoute(track.Core());
     recordState();
     Check(state.frame == 9 && state.onStage && state.celCount == 6 && state.actionFlags == 3);
     Check(!state.frozen && state.action == 0 && state.cel == 0 && state.nextEvent == 0 && state.location.dnfrm == -1);
@@ -2451,7 +2452,7 @@ static void TestActorValueEvaluation()
     eventLocation.irpt = 20;
     Check(apply(ActorEvent::aetStep, &scalar, sizeof(scalar)) == ActorValueEventResult::Invalid);
     Check(ActorFrameTest::SameState(state, snapshot));
-    Check(state.ApplyValueEvent(track, -1, origin) == ActorValueEventResult::Invalid);
+    Check(state.ApplyValueEvent(track.Core(), -1, origin) == ActorValueEventResult::Invalid);
     Check(apply(ActorEvent::aetLim, &scalar, sizeof(scalar)) == ActorValueEventResult::Invalid);
     Check(ActorFrameTest::SameState(state, snapshot));
     state.InitTransform();
@@ -2885,7 +2886,7 @@ struct CoreFrameHost
             return 0;
         }
         RoutePoint origin = {};
-        ActorValueEventResult applied = state.ApplyValueEvent(track, command.eventIndex, origin);
+        ActorValueEventResult applied = state.ApplyValueEvent(track.Core(), command.eventIndex, origin);
         if (applied == ActorValueEventResult::NeedsRuntime)
         {
             switch (event.aet)
@@ -2990,7 +2991,7 @@ static void TestActorFrameSequencing()
     ActorTrack track;
     Check(ActorFrameTest::FCreateTrack(track));
     ActorFrameState sequential;
-    sequential.RewindRoute(track);
+    sequential.RewindRoute(track.Core());
     bool dirty = false;
     LegacyLong sounds = 0;
     for (LegacyLong frame = 1; frame <= 9; ++frame)
@@ -3024,7 +3025,7 @@ static void TestActorFrameSequencing()
         // Fresh seek to the same frame: intermediate ordinary sounds are skipped,
         // while state and motion-match registrations remain deterministic.
         ActorFrameState seek;
-        seek.RewindRoute(track);
+        seek.RewindRoute(track.Core());
         bool seekDirty = false;
         LegacyLong seekSounds = 0;
         for (LegacyLong seekFrame = 1; seekFrame <= frame; ++seekFrame)
@@ -3048,7 +3049,7 @@ static void TestActorFrameSequencing()
     inputs.displayFrame = true;
     inputs.suppressSounds = true;
     ActorFrameState suppressed;
-    suppressed.RewindRoute(track);
+    suppressed.RewindRoute(track.Core());
     for (LegacyLong frame = 1; frame <= 2; ++frame)
     {
         suppressed.frame = frame;
@@ -3454,7 +3455,7 @@ static void TestActorSeekControl()
     ActorTrack track;
     Check(ActorFrameTest::FCreateTrack(track));
     ActorFrameState sequential;
-    sequential.RewindRoute(track);
+    sequential.RewindRoute(track.Core());
     ActorFrameState expected[14];
     bool dirty = false;
     for (LegacyLong frame = 1; frame <= 13; ++frame)

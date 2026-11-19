@@ -118,7 +118,7 @@ struct PreviewActor::TimelineHost
         };
         s.reset = [](void *v) { *static_cast<TimelineHost *>(v)->output = {}; };
         s.fault = [](void *v) { return static_cast<TimelineHost *>(v)->failure; };
-        s.tags = &ActorTrack::TagServices();
+        s.tags = &EngineActorTagServices();
         s.apply = [](void *v, MMActorState *state, const MMActorTrack *track, MMI32 index) -> int {
             auto &h = *static_cast<TimelineHost *>(v);
             return h.Guard([&] { return h.actor->ApplyEvent(*state, *track, index, true); });

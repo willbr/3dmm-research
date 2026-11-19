@@ -206,8 +206,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   retained. Studio and preview share the typed decoders. Native services
   supply resource access, chunk creation and byte I/O.
 - Actor track state, table/tag ownership, transactional creation/cloning, tag lookup
-  and ordered cleanup now use C89. Native actor and preview code borrow typed
-  table handles from this state; physical table implementations remain adapters.
+  and ordered cleanup now use C89. Studio and preview borrow typed views of the
+  tables they own in C. Preview also uses C for draft cloning and event-track
+  replacement and rollback. Native services supply decoded block input, tag
+  references and body/costume operations.
 - Actor value-state initialization, rewind/origin updates and pure events now
   use C89, together with route advancement/interpolation and guarded 16.16
   arithmetic. Studio, Marcus and the session store the same C actor state.

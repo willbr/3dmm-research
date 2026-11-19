@@ -2,6 +2,28 @@
 #include "mm/template_create.h"
 #include "mm/wide.h"
 #include <string.h>
+
+MMActorTrack mm_preview_actor_track(const MMPreviewActor *p)
+{
+    MMActorTrack track;
+    track.route = (MMActorPath *)p->route;
+    track.events = (MMActorEventTable *)p->events;
+    return track;
+}
+
+static void install_track(MMPreviewActor *p, const MMActorTrack *track)
+{
+    p->route = track->route;
+    p->events = track->events;
+}
+
+static void release_track(MMPreviewActor *p, const MMTagServices *tags)
+{
+    MMActorTrack track = mm_preview_actor_track(p);
+    mm_actor_track_dispose(&track, tags);
+    install_track(p, &track);
+}
+
 void mm_preview_actor_init(MMPreviewActor *p)
 {
     unsigned i;
@@ -23,11 +45,12 @@ void mm_preview_actor_dispose(MMPreviewActor *p, const MMPreviewActorServices *s
     if (p->tmpl)
         s->release_template(s->context, p->tmpl);
     p->tmpl = 0;
+    if (s->tags)
+        release_track(p, s->tags);
 }
-int mm_preview_actor_replace_events(MMPreviewActor *p, void *events, MMI32 frame, const MMPreviewActorServices *s)
+int mm_preview_actor_replay_track(MMPreviewActor *p, MMI32 frame, const MMPreviewActorServices *s)
 {
     int r;
-    p->events = events;
     mm_actor_state_init(&p->state);
     mm_actor_state_init(&p->orientation);
     mm_actor_state_rewind(&p->state, p->route, &s->timeline.motion);
@@ -105,6 +128,7 @@ int mm_preview_actor_load(MMPreviewActor *p, MMU32 number, const MMChunkAccess *
 int mm_preview_actor_create(MMPreviewActor *p, const MMPreviewActorDefinition *d, const MMPreviewActorServices *s)
 {
     MMActorStationaryTrack track;
+    MMActorTrack owned;
     unsigned short angles[3];
     unsigned i;
     int r;
@@ -121,28 +145,107 @@ int mm_preview_actor_create(MMPreviewActor *p, const MMPreviewActorDefinition *d
     r = s->body_create(s->context, p->tmpl, &p->body);
     if (r <= 0)
         return r;
-    r = s->track_create(s->context, &p->route, &p->events);
-    if (r <= 0)
-        return r;
+    owned = mm_preview_actor_track(p);
+    if (!mm_actor_track_create(&owned, s->track_allocator, s->trash_unused, s->tags))
+        return 0;
+    install_track(p, &owned);
     s->rest(s->context, p->tmpl, angles);
     r = s->fault(s->context);
     if (r)
         return r;
     mm_actor_stationary_track(&track, p->header.first_frame, angles);
-    r = s->route_insert(s->context, p->route, 0, &track.route);
-    if (r <= 0)
-        return r;
-    r = s->event_insert(s->context, p->events, 0, sizeof(track.entrance), &track.entrance, &track.events[0]);
-    if (r <= 0)
-        return r;
-    r = s->event_insert(s->context, p->events, 1, sizeof(track.action), track.action, &track.events[1]);
-    if (r <= 0)
-        return r;
-    r = s->event_insert(s->context, p->events, 2, sizeof(track.step), &track.step, &track.events[2]);
-    if (r <= 0)
-        return r;
+    if (!mm_actor_path_insert(owned.route, 0, &track.route) ||
+        !mm_actor_events_insert(owned.events, 0, sizeof(track.entrance), &track.entrance, &track.events[0]) ||
+        !mm_actor_events_insert(owned.events, 1, sizeof(track.action), track.action, &track.events[1]) ||
+        !mm_actor_events_insert(owned.events, 2, sizeof(track.step), &track.step, &track.events[2]))
+        return 0;
     mm_actor_state_rewind(&p->state, p->route, &s->timeline.motion);
     return 1;
+}
+
+int mm_preview_actor_begin_draft(MMPreviewActor *p, MMActorSounds *motion, MMPreviewActorDraft *draft,
+                                 const MMPreviewActorServices *s)
+{
+    MMActorTrack original = mm_preview_actor_track(p);
+    MMActorTrack candidate = {0};
+    void *body = NULL;
+    int result = 0;
+    mm_actor_sounds_init(&draft->motion, NULL);
+    if (!mm_actor_track_clone(&candidate, &original, s->tags) ||
+        !mm_actor_sounds_clone(&draft->motion, motion))
+        goto fail;
+    result = s->duplicate_body(s->context, p->body, &body);
+    if (result <= 0)
+        goto fail;
+    draft->original = *p;
+    mm_actor_sounds_swap(motion, &draft->motion);
+    p->body = body;
+    install_track(p, &candidate);
+    draft->active = 1;
+    return 1;
+
+fail:
+    if (body)
+        s->release_body(s->context, body);
+    mm_actor_sounds_dispose(&draft->motion);
+    mm_actor_track_dispose(&candidate, s->tags);
+    return result;
+}
+
+void mm_preview_actor_end_draft(MMPreviewActor *p, MMActorSounds *motion, MMPreviewActorDraft *draft,
+                                const MMPreviewActorServices *s)
+{
+    MMActorTrack candidate;
+    if (!draft->active)
+        return;
+    candidate = mm_preview_actor_track(p);
+    s->release_body(s->context, p->body);
+    *p = draft->original;
+    mm_actor_sounds_swap(motion, &draft->motion);
+    mm_actor_sounds_dispose(&draft->motion);
+    mm_actor_track_dispose(&candidate, s->tags);
+    draft->active = 0;
+}
+
+int mm_preview_actor_replace_track(MMPreviewActor *p, MMI32 source, const MMPreviewEventReplacement *edit,
+                                   const MMPreviewActorServices *s)
+{
+    MMPreviewActor original;
+    MMActorTrack candidate = {0}, live;
+    MMActorEventTable *events = NULL;
+    int result;
+    if (source == p->event_source)
+        return 1;
+    if (!p->body || !p->tmpl || s->text(s->context, p->tmpl))
+        return 0;
+    result = edit->open(edit->context, source);
+    if (result <= 0)
+        return result;
+    live = mm_preview_actor_track(p);
+    if (!mm_actor_track_clone(&candidate, &live, s->tags))
+        return 0;
+    result = edit->read(edit->context, &events);
+    if (result <= 0)
+        goto fail;
+    mm_actor_track_adopt_events(&candidate, events, s->tags);
+    result = edit->save_costume(edit->context);
+    if (result <= 0)
+        goto fail;
+    original = *p;
+    install_track(p, &candidate);
+    result = mm_preview_actor_replay_track(p, original.state.frame, s);
+    if (result > 0)
+    {
+        p->event_source = source;
+        mm_actor_track_dispose(&live, s->tags);
+        return 1;
+    }
+    *p = original;
+    edit->restore_costume(edit->context);
+
+fail:
+    mm_actor_track_dispose(&candidate, s->tags);
+    return result;
 }
 
 int mm_preview_actor_replace_template(MMPreviewActor *p, MMI32 source, MMU32 number,

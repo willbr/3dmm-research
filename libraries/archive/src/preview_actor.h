@@ -20,7 +20,7 @@ class PreviewActor
     struct AnimationHost;
     struct TrackDraft;
     MMPreviewActor core;
-    ActorTrack track;
+    MMActorTrack Track() const { return mm_preview_actor_track(&core); }
     PTemplate Ptmpl() const { return static_cast<PTemplate>(core.tmpl); }
     PMaterial_MTRL textMaterial = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
@@ -30,7 +30,6 @@ class PreviewActor
     MMActorSounds motionSounds;
     std::uint64_t *visibilityClock = nullptr;
     mutable std::uint64_t lastShown = 0;
-    std::int32_t eventSource = 0;
     PreviewSoundCue SoundCue(const ActorEvent::Sound &sound) const;
 
   public:

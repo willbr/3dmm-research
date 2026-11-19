@@ -107,7 +107,7 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 MMActorOwnerServices Actor::_OwnerServices()
 {
     MMActorOwnerServices s = {};
-    s.tags = &ActorTrack::TagServices();
+    s.tags = &EngineActorTagServices();
     s.owner = [](void *, void *p) { return &static_cast<PActor>(p)->_owner; };
     s.create = [](void *) -> void * { return NewObj Actor(); };
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };

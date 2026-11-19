@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "actor_track_fixture.h"
 #include "engine_template_costumes.h"
 #include "engine_part_indices.h"
 #include "engine_action_tables_fixture.h"
@@ -255,9 +256,9 @@ class ContentActor : public Actor
         if (_Template())
             _Template()->Release();
         _owner.runtime.template_object = tmpl;
-        mm_tag_close(&_owner.runtime.template_tag, &ActorTrack::TagServices());
+        mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
         _owner.runtime.template_tag = {ksidUseCrf, resource, kctgTmpl, number};
-        mm_tag_dup(&_owner.runtime.template_tag, &ActorTrack::TagServices());
+        mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         ActorTrack track;
         if (!track.FCreate())
             return false;

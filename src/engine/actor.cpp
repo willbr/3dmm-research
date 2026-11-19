@@ -1376,7 +1376,7 @@ MMActorEditServices Actor::_EventEditServices()
     MMActorEditServices services = {};
     services.context = this;
     services.close_event_tag = [](void *p, MMI32 index) {
-        mm_actor_track_close_tag(static_cast<Actor *>(p)->_owner.track.events, index, &ActorTrack::TagServices());
+        mm_actor_track_close_tag(static_cast<Actor *>(p)->_owner.track.events, index, &EngineActorTagServices());
     };
     services.delete_event = [](void *context, MMI32 index) {
         mm_actor_events_delete(static_cast<Actor *>(context)->_owner.track.events, index);
@@ -1395,7 +1395,7 @@ MMActorEditServices Actor::_EventEditServices()
         return mm_actor_events_insert(static_cast<Actor *>(p)->_owner.track.events, index, bytes, payload, value);
     };
     services.duplicate_event_tag = [](void *p, MMI32 index) {
-        mm_actor_track_retain_tag(static_cast<Actor *>(p)->_owner.track.events, index, &ActorTrack::TagServices());
+        mm_actor_track_retain_tag(static_cast<Actor *>(p)->_owner.track.events, index, &EngineActorTagServices());
     };
     services.write_payload = [](void *p, MMI32 index, const void *value) {
         mm_actor_events_set_payload(static_cast<Actor *>(p)->_owner.track.events, index, value);
@@ -2051,7 +2051,7 @@ bool Actor::FChangeTagTmpl(const MMTag &tag)
 
     MMActorTemplateServices services = {};
     services.context = this;
-    services.tags = &ActorTrack::TagServices();
+    services.tags = &EngineActorTagServices();
     services.fetch = _FetchTemplate;
     services.release = [](void *, void *object) { static_cast<PTemplate>(object)->Release(); };
     services.text = [](void *, void *object) -> int { return static_cast<PTemplate>(object)->FIsTdt(); };

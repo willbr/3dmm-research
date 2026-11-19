@@ -3763,17 +3763,17 @@ bytes. No Marcus UI tests were added.
 
 ### Actor track state and embedded tag ownership
 
-`actor_track.c` owns the route/event handles in `MMActorTrack`, replacing
-native ownership fields and their lifetime policy. The temporary ActorTrack facade
-exposes typed borrowed table accessors; actor evaluation/editing, preview and test
-fixtures use those accessors. Studio and Marcus load PATH and GGAE into
-C89-owned rows. The C tables hold reservations and support mutation and
+`actor_track.c` owns the route/event lifecycle for `MMActorTrack`. Studio's
+actor owner embeds that record. Marcus preview keeps the authoritative
+handles in its C actor and borrows typed views for editing and export.
+The C++ `ActorTrack` fixture is used only in tests. Studio and Marcus load
+PATH and GGAE into C89-owned rows. The C tables hold reservations and support mutation and
 cloning. Studio's actor saves and Marcus's animation exports write the
 legacy array and group layouts through the C writers. The standalone
 archive editor shares the PATH layout and uses the same GGAE table and
 writer. The track owner calls the typed C tables directly for allocation,
 growth, cloning and disposal. Studio and Marcus use one C table reader for
-actor evaluation. The native facade supplies heap and block I/O services
+actor evaluation. The native host supplies heap and block I/O services
 and retains or releases resource-cache handles on request.
 
 C creates event tables with 20 fixed bytes, ten initial rows and twenty variable
@@ -3808,7 +3808,14 @@ byte orders through the C writer and reader.
 Marcus derives animation markers and spans from a C track clone held for
 one synchronous metadata replay. C releases the clone on success, allocation
 failure or a failed presentation callback. Source events and live pose stay
-intact. The ownership, creation, all-event persistence, clone, edit, stage
+intact. For authoring drafts, C installs cloned route, event and motion-sound
+tables and a duplicate body. Closing a draft restores the original handles
+and evaluated state. Live event-track replacement clones the route, decodes
+the new event table and replays the frame. Failure restores the original
+track, actor state and costume. The portable C session evaluator still
+supplies its borrowed, bounds-checked table views.
+
+The ownership, creation, all-event persistence, clone, edit, stage
 and recording snapshots match the immediately previous build byte for byte.
 
 `engine-actor-track-test` uses the live C tables and covers every event kind,
@@ -7302,13 +7309,11 @@ write cleanup. Runtime integration loads a core-written caption, checks its
 text, saves it through TextBox and inspects the result through core. This uses
 a test-only system DC/font registry; core checks require neither.
 
-`ActorTrack` owns the mutable route/event tables and embedded TAG references.
-Runtime Actor composes it. Track cloning is transactional, deep-copies both
-tables and acquires independent references for opened TAGs. Track swaps support
-undo restoration; explicit runtime-state copying preserves object identity and
-avoids shallow-copying owning members. The host still owns template/header
-metadata and recording state; evaluated values now live in ActorFrameState. Table mutations must preserve validated
-runtime layouts and close owned TAGs before removing or replacing their rows.
+The C runtime owns the mutable route and event tables and embedded TAG
+references. Track cloning deep-copies both tables and acquires independent
+references for opened TAGs. Track swaps support undo restoration while runtime
+state copying preserves object identity. Table mutations preserve validated
+layouts and close owned TAGs before removing or replacing their rows.
 
 Core tests cover independent clones, TAG counts, unopened/custom-costume TAGs,
 failed-clone isolation, repeated cleanup and wire equivalence. Runtime tests

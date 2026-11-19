@@ -1,6 +1,6 @@
 #ifndef ACTOR_FRAME_FIXTURE_H
 #define ACTOR_FRAME_FIXTURE_H
-#include "soc_core.h"
+#include "actor_track_fixture.h"
 #include <cstring>
 namespace ActorFrameTest
 {

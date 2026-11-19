@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <vector>
 #include "soc_core.h"
+#include "actor_track_fixture.h"
 #undef size
 ASSERTNAME
 namespace {

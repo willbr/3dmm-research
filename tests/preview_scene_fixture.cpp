@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <string>
 #include "soc_core.h"
+#include "actor_track_fixture.h"
 #include "rich_text_data.h"
 ASSERTNAME
 void WarnProc(schar *, LegacyLong, schar *)

@@ -93,7 +93,7 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
     const auto graph = EngineMovieGraph::FromFile(pcrf->Pcfl());
     const auto allocator = CollectionAllocator();
     MMActorLoadServices services = {};
-    services.tags = &ActorTrack::TagServices();
+    services.tags = &EngineActorTagServices();
     services.allocator = &allocator;
     services.trash_unused = DebugShip(1, 0);
     services.create = [](void *, MMActorOwner **owner) -> void * {

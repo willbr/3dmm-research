@@ -19,13 +19,13 @@ struct ActorFrameState : MMActorState
     void InitTransform();
     // Matches runtime rewind: preserves stage visibility, frame and cached
     // action metadata; the host controls hiding and recording state. A non-null
-    // route must contain RouteDistancePoint entries, as in ActorTrack::FCreate.
-    void RewindRoute(const ActorTrack &track);
+    // route must contain RouteDistancePoint entries, as in mm_actor_track_create.
+    void RewindRoute(const MMActorTrack &track);
     void UpdateOrigin(const RoutePoint &origin);
     // Applies pure value events without modifying authored data or emitting
     // effects. Resource/stage/sound events return NeedsRuntime without changes.
     // Pure-event widths and zero-step route locations are checked before reads;
     // malformed input is Invalid. NeedsRuntime leaves payload validation to host.
-    ActorValueEventResult ApplyValueEvent(const ActorTrack &track, LegacyLong index, const RoutePoint &origin);
+    ActorValueEventResult ApplyValueEvent(const MMActorTrack &track, LegacyLong index, const RoutePoint &origin);
 };
 #endif

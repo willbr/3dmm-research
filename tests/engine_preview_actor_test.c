@@ -2,6 +2,7 @@
 #include "mm/template_create.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #define ONE 65536L
 typedef struct Host
@@ -16,6 +17,8 @@ typedef struct Host
     MMI32 sizes[8], routes, count;
     int calls, fail_at, failure, fault, releases[4], released, templates, bodies;
     int prop, text, child_calls, fetches, poses, locations, clears, motions, resets, applies;
+    int fail_alloc, alloc_live, draft_bodies, costume_saved, costume_restored;
+    MMStorageAllocator allocator;
     int token[4];
     MMActorPoint point;
     MMActorMatrix matrix;
@@ -179,40 +182,6 @@ static void release_template(void *v, void *t)
     --h->templates;
     h->releases[h->released++] = 2;
 }
-static int create_track(void *v, void **r, void **e)
-{
-    Host *h = (Host *)v;
-    int result = step(h);
-    if (result > 0)
-    {
-        h->routes = h->count = 0;
-        *r = *e = h;
-    }
-    return result;
-}
-static int insert_route(void *v, void *g, MMI32 i, const MMActorRoutePoint *p)
-{
-    Host *h = (Host *)v;
-    int r = step(h);
-    assert(g == h && i == h->routes);
-    if (r > 0)
-        h->route[h->routes++] = *p;
-    return r;
-}
-static int insert_event(void *v, void *g, MMI32 i, MMU32 n, const void *p, const MMActorEvent *e)
-{
-    Host *h = (Host *)v;
-    int r = step(h);
-    assert(g == h && i == h->count && n <= 64);
-    if (r > 0)
-    {
-        h->events[i] = *e;
-        h->sizes[i] = (MMI32)n;
-        memcpy(h->payload[i], p, n);
-        ++h->count;
-    }
-    return r;
-}
 static void rest(void *v, void *t, unsigned short *a)
 {
     (void)v;
@@ -254,6 +223,20 @@ static void effect(void *v, const MMActorEffectCommand *c, MMActorEffectReply *r
     if (c->operation == MM_EFFECT_SET_ACTION_CEL)
         ++h->poses;
 }
+static void put_owned(void *events, MMI32 i, const MMActorEvent *value)
+{
+    assert(mm_actor_events_set_fixed((MMActorEventTable *)events, i, value));
+}
+
+static void write_event(void *p, MMI32 i, const MMActorEvent *value)
+{
+    Host *h = (Host *)p;
+    if (h->services.tags)
+        put_owned(h->actor.events, i, value);
+    else
+        put(p, i, value);
+}
+
 static int apply(void *v, MMI32 i)
 {
     Host *h = (Host *)v;
@@ -266,11 +249,12 @@ static int apply(void *v, MMI32 i)
     memset(&s, 0, sizeof(s));
     s.context = h;
     s.run = effect;
-    s.write_event = put;
+    s.write_event = write_event;
     origin.dxr = (MMI32)h->actor.header.translation[0];
     origin.dyr = (MMI32)h->actor.header.translation[1];
     origin.dzr = (MMI32)h->actor.header.translation[2];
-    return mm_actor_effect_apply(&h->actor.state, h, h, i, &origin, 1, 0, &h->services.timeline.motion, &s);
+    return mm_actor_effect_apply(&h->actor.state, h->actor.route, h->actor.events, i, &origin,
+                                 1, 0, &h->services.timeline.motion, &s);
 }
 static void clear_cues(void *v)
 {
@@ -347,9 +331,6 @@ static void setup(Host *h)
     s->text = is_text;
     s->release_body = release_body;
     s->release_template = release_template;
-    s->track_create = create_track;
-    s->route_insert = insert_route;
-    s->event_insert = insert_event;
     s->rest = rest;
     s->scalar = scalar;
     s->scalar_float = scalar_float;
@@ -361,10 +342,45 @@ static void setup(Host *h)
     s->default_costume = costume;
     s->motion_cues = motion;
 }
+static void *resize_track(void *p, void *block, MMU32 old, MMU32 bytes, int priority)
+{
+    Host *h = (Host *)p;
+    void *result;
+    int fresh = !block;
+    (void)old;
+    (void)priority;
+    if (h->fail_alloc)
+        return NULL;
+    result = realloc(block, bytes);
+    if (result && fresh)
+        ++h->alloc_live;
+    return result;
+}
+
+static void free_track(void *p, void *block, MMU32 bytes)
+{
+    (void)bytes;
+    --((Host *)p)->alloc_live;
+    free(block);
+}
+
+static void setup_owned(Host *h)
+{
+    static const MMTagServices tags = {0};
+    setup(h);
+    h->allocator.context = h;
+    h->allocator.resize = resize_track;
+    h->allocator.release = free_track;
+    h->services.tags = &tags;
+    h->services.track_allocator = &h->allocator;
+    h->services.timeline.motion = mm_actor_track_motion_services();
+    h->services.timeline.put_event = put_owned;
+}
+
 static void dispose(Host *h)
 {
     mm_preview_actor_dispose(&h->actor, &h->services);
-    assert(!h->templates && !h->bodies);
+    assert(!h->templates && !h->bodies && !h->alloc_live);
     if (h->released == 2)
         assert(h->releases[0] == 1 && h->releases[1] == 2);
     mm_preview_actor_dispose(&h->actor, &h->services);
@@ -444,28 +460,40 @@ static void loading(void)
                    h.actor.header.last_frame == 2147483647);
             dispose(&h);
         }
-    setup(&h);
+    setup_owned(&h);
     assert(mm_preview_actor_create(&h.actor, &d, &h.services));
     n = h.calls;
-    assert(h.count == 3 && h.routes == 1 && h.events[0].aet == MM_ACTOR_ADD && h.events[1].aet == MM_ACTOR_ACTION &&
-           h.events[2].aet == MM_ACTOR_STEP && h.actor.original[0] == 2 * ONE);
+    {
+        MMActorTrack t = mm_preview_actor_track(&h.actor);
+        MMActorEvent e;
+        assert(mm_actor_path_count(t.route) == 1 && mm_actor_events_count(t.events) == 3);
+        assert(mm_actor_events_get_fixed(t.events, 0, &e) && e.aet == MM_ACTOR_ADD);
+        assert(mm_actor_events_get_fixed(t.events, 1, &e) && e.aet == MM_ACTOR_ACTION);
+        assert(mm_actor_events_get_fixed(t.events, 2, &e) && e.aet == MM_ACTOR_STEP);
+        assert(h.actor.original[0] == 2 * ONE);
+    }
     dispose(&h);
     for (failure = -2; failure <= 0; ++failure)
         for (i = 1; i <= n; ++i)
         {
-            setup(&h);
+            setup_owned(&h);
             h.fail_at = i;
             h.failure = failure;
             assert(mm_preview_actor_create(&h.actor, &d, &h.services) == failure);
             dispose(&h);
         }
-    setup(&h);
-    h.prop = 0;
-    assert(mm_preview_actor_create(&h.actor, &d, &h.services) && h.templates && h.bodies && h.count == 3);
+    setup_owned(&h);
+    h.fail_alloc = 1;
+    assert(!mm_preview_actor_create(&h.actor, &d, &h.services));
+    assert(h.templates && h.bodies && !h.actor.route && !h.actor.events);
     dispose(&h);
-    setup(&h);
+    setup_owned(&h);
+    h.prop = 0;
+    assert(mm_preview_actor_create(&h.actor, &d, &h.services) && h.templates && h.bodies);
+    dispose(&h);
+    setup_owned(&h);
     h.text = 1;
-    assert(mm_preview_actor_create(&h.actor, &d, &h.services) && h.templates && h.bodies && h.count == 3);
+    assert(mm_preview_actor_create(&h.actor, &d, &h.services) && h.templates && h.bodies);
     dispose(&h);
 }
 static void playback(void)
@@ -542,7 +570,7 @@ static void replace_events(void)
     expected = h.actor.state;
     h.actor.state.action = 99;
     h.actor.state.nextEvent = h.count;
-    assert(mm_preview_actor_replace_events(&h.actor, &h, 2, &h.services));
+    assert(mm_preview_actor_replay_track(&h.actor, 2, &h.services));
     assert(h.actor.state.frame == expected.frame && h.actor.state.action == expected.action);
     assert(h.actor.state.nextEvent == expected.nextEvent && h.actor.state.onStage == expected.onStage);
     assert(h.resets && h.clears && h.motions && h.actor.events == &h);
@@ -552,7 +580,7 @@ static void replace_events(void)
         setup(&h);
         assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
         h.fail_at = h.calls + 1; h.failure = failure;
-        assert(mm_preview_actor_replace_events(&h.actor, &h, 2, &h.services) == failure);
+        assert(mm_preview_actor_replay_track(&h.actor, 2, &h.services) == failure);
         dispose(&h);
     }
 }
@@ -673,12 +701,143 @@ static void replace_template(void)
     }
 }
 
+static int draft_body(void *p, void *body, void **out)
+{
+    Host *h = (Host *)p;
+    int result = step(h);
+    assert(body == h->token + 1);
+    if (result > 0)
+    {
+        ++h->draft_bodies;
+        *out = h->token + 3;
+    }
+    return result;
+}
+
+static void release_draft_body(void *p, void *body)
+{
+    Host *h = (Host *)p;
+    if (body == h->token + 3)
+    {
+        assert(h->draft_bodies == 1);
+        --h->draft_bodies;
+    }
+    else
+        release_body(p, body);
+}
+
+static void track_draft(void)
+{
+    Host h;
+    MMPreviewActorDefinition d = definition();
+    MMPreviewActor original;
+    MMPreviewActorDraft draft = {0};
+    MMActorSounds motion;
+    MMActorEvent event = {0};
+    MMActorSound sound = {0};
+    int blocks;
+    setup_owned(&h);
+    assert(mm_preview_actor_create(&h.actor, &d, &h.services));
+    h.services.duplicate_body = draft_body;
+    h.services.release_body = release_draft_body;
+    assert(mm_actor_sounds_init(&motion, NULL));
+    assert(mm_actor_sounds_insert(&motion, &event, &sound));
+    original = h.actor;
+    blocks = h.alloc_live;
+
+    h.fail_alloc = 1;
+    assert(!mm_preview_actor_begin_draft(&h.actor, &motion, &draft, &h.services));
+    assert(!draft.active && !h.draft_bodies && h.alloc_live == blocks);
+    h.fail_alloc = 0;
+    h.fail_at = h.calls + 1;
+    h.failure = -2;
+    assert(mm_preview_actor_begin_draft(&h.actor, &motion, &draft, &h.services) == -2);
+    assert(!draft.active && !h.draft_bodies && h.alloc_live == blocks);
+    assert(!memcmp(&h.actor, &original, sizeof(original)) && motion.count == 1);
+
+    assert(mm_preview_actor_begin_draft(&h.actor, &motion, &draft, &h.services) == 1);
+    assert(draft.active && h.draft_bodies == 1 && h.actor.body != original.body);
+    assert(h.actor.route != original.route && h.actor.events != original.events);
+    assert(mm_actor_events_delete(mm_preview_actor_track(&h.actor).events, 1));
+    h.actor.state.frame = 33;
+    mm_actor_sounds_clear(&motion);
+    mm_preview_actor_end_draft(&h.actor, &motion, &draft, &h.services);
+    assert(!draft.active && !h.draft_bodies && h.alloc_live == blocks);
+    assert(!memcmp(&h.actor, &original, sizeof(original)) && motion.count == 1);
+    assert(mm_actor_events_count(mm_preview_actor_track(&h.actor).events) == 3);
+    mm_actor_sounds_dispose(&motion);
+    dispose(&h);
+}
+
+static int open_track_source(void *p, MMI32 source)
+{
+    assert(source == 9);
+    return step((Host *)p);
+}
+
+static int read_track_source(void *p, MMActorEventTable **out)
+{
+    Host *h = (Host *)p;
+    int result = step(h);
+    if (result <= 0)
+        return result;
+    *out = mm_actor_events_clone(mm_preview_actor_track(&h->actor).events);
+    return *out != NULL;
+}
+
+static int save_track_costume(void *p)
+{
+    Host *h = (Host *)p;
+    ++h->costume_saved;
+    return step(h);
+}
+
+static void restore_track_costume(void *p) { ++((Host *)p)->costume_restored; }
+
+static void replace_owned_track(void)
+{
+    Host h;
+    MMPreviewActorDefinition d = definition();
+    MMPreviewActor original;
+    MMPreviewEventReplacement edit = {
+        NULL, open_track_source, read_track_source, save_track_costume, restore_track_costume
+    };
+    int fail_at, blocks;
+    edit.context = &h;
+    for (fail_at = 0; fail_at <= 4; ++fail_at)
+    {
+        setup_owned(&h);
+        assert(mm_preview_actor_create(&h.actor, &d, &h.services));
+        assert(mm_preview_actor_seek(&h.actor, 1, &h.services));
+        original = h.actor;
+        blocks = h.alloc_live;
+        h.fail_at = fail_at ? h.calls + fail_at : 0;
+        h.failure = -2;
+        assert(mm_preview_actor_replace_track(&h.actor, 0, &edit, &h.services));
+        assert(mm_preview_actor_replace_track(&h.actor, 9, &edit, &h.services) == (fail_at ? -2 : 1));
+        if (fail_at)
+        {
+            assert(!memcmp(&h.actor, &original, sizeof(original)) && h.alloc_live == blocks);
+            assert(h.costume_saved == (fail_at >= 3) && h.costume_restored == (fail_at == 4));
+        }
+        else
+        {
+            assert(h.actor.event_source == 9 && h.actor.state.frame == original.state.frame);
+            assert(h.actor.route != original.route && h.actor.events != original.events);
+            assert(h.costume_saved == 1 && !h.costume_restored && h.alloc_live == blocks);
+        }
+        dispose(&h);
+    }
+}
+
 int main(void)
 {
     loading();
     playback();
     replace_events();
     replace_template();
+    track_draft();
+    replace_owned_track();
     puts("Preview actor: load/create prefixes, lifetime, resource ownership, replay, exceptions, pose and placement "
          "passed.");
     return 0;

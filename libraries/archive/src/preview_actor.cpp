@@ -250,56 +250,45 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
 struct PreviewActor::TrackDraft
 {
     PreviewActor &actor;
-    MMPreviewActor original;
     std::uint64_t shown, clock;
-    ActorTrack saved;
-    MMActorSounds motion;
+    MMPreviewActorDraft draft = {};
     std::vector<PreviewSoundCue> cues;
-    bool active = false;
     explicit TrackDraft(PreviewActor &a)
-        : actor(a), original(a.core), shown(a.lastShown), clock(*a.visibilityClock)
+        : actor(a), shown(a.lastShown), clock(*a.visibilityClock)
     {
-        mm_actor_sounds_init(&motion, nullptr);
     }
     bool Begin()
     {
-        if (!saved.FCloneFrom(actor.track) || !mm_actor_sounds_clone(&motion, &actor.motionSounds)) return false;
-        auto duplicate = actor.Pbody()->PbodyDup();
-        if (!duplicate) return false;
-        actor.track.Swap(saved);
-        mm_actor_sounds_swap(&actor.motionSounds, &motion);
+        Host host = {&actor};
+        const auto services = host.Services();
+        if (!host.Result(mm_preview_actor_begin_draft(&actor.core, &actor.motionSounds, &draft, &services)))
+            return false;
         actor.sounds.swap(cues);
-        actor.core.body = duplicate;
-        actor.core.route = actor.track.Route();
-        actor.core.events = actor.track.Events();
-        return active = true;
+        return true;
     }
     ~TrackDraft()
     {
-        if (active)
-        {
-            actor.Pbody()->Release();
-            actor.track.Swap(saved);
-            mm_actor_sounds_swap(&actor.motionSounds, &motion);
-            actor.sounds.swap(cues);
-            actor.core = original;
-            actor.lastShown = shown;
-            *actor.visibilityClock = clock;
-        }
-        mm_actor_sounds_dispose(&motion);
+        if (!draft.active)
+            return;
+        Host host = {&actor};
+        const auto services = host.Services();
+        mm_preview_actor_end_draft(&actor.core, &actor.motionSounds, &draft, &services);
+        actor.sounds.swap(cues);
+        actor.lastShown = shown;
+        *actor.visibilityClock = clock;
     }
     bool Write(const std::string &path, bool withRoute) const
     {
         auto release = [](auto *p) { if (p) p->Release(); };
         std::unique_ptr<MMActorEventTable, decltype(&mm_actor_events_release)> wire(
-            ActorData::PeventsEncode(actor.track.Events()), mm_actor_events_release);
+            ActorData::PeventsEncode(actor.Track().events), mm_actor_events_release);
         String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
         if (!wire || !filename.FBuildFromPath(&text)) return false;
         std::unique_ptr<ChunkyFile, decltype(release)> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable), release);
         ChunkNumber number; DataBlock block;
         if (!file || !file->FAdd(mm_actor_events_wire_size(wire.get()), kctgGgae, &number, &block) || number != 0 || !ActorData::FWriteEvents(wire.get(), &block))
             return false;
-        auto route = actor.track.Route();
+        auto route = actor.Track().route;
         if (withRoute && (!file->FAdd(mm_actor_path_wire_size(route), kctgPath, &number, &block) || number != 0 || !ActorData::FWritePath(route, &block)))
             return false;
         return file->FSave(kctgSoc);
@@ -319,7 +308,7 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
         auto found = std::find_if(available.begin(), available.end(), [&](const PreviewCostume &c) {
             return c.bodySet == value.bodySet && c.costume == value.costume; });
         if (found == available.end()) return false;
-        if (!host.Result(mm_actor_edit_set_costume(&core.state, &motionSounds, track.Events(), core.header.actor_id,
+        if (!host.Result(mm_actor_edit_set_costume(&core.state, &motionSounds, Track().events, core.header.actor_id,
             value.bodySet, &tag, value.costume, 1, &motion, &services))) return false;
     }
     return draft.Write(path, false);
@@ -352,34 +341,49 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
 }
 bool PreviewActor::SetEventTrack(std::int32_t source)
 {
-    if (source == eventSource) return true;
-    if (!Pbody() || !Ptmpl() || Ptmpl()->FIsTdt()) return false;
-    const TAGOnFile tag = {source, 0, kctgGgae, 0};
-    auto file = resolve(tag); DataBlock block;
-    if (!file || !file->Pcfl()->FFind(kctgGgae, 0, &block)) return false;
-    ActorTrack saved;
-    if (!saved.FCloneFrom(track)) return false;
-    auto events = ActorData::PeventsRead(&block);
-    if (!events) return false;
-    saved.AdoptEvents(events);
-    const auto original = core;
-    BodyCostume costume;
-    if (!costume.FGet(Pbody())) return false;
-    track.Swap(saved); core.route = track.Route(); core.events = track.Events();
-    try
+    struct EventSource
     {
-        Host host = {this}; const auto services = host.Services();
-        if (host.Result(mm_preview_actor_replace_events(&core, track.Events(), original.state.frame, &services)))
-        { eventSource = source; return true; }
-    }
-    catch (...) { track.Swap(saved); core = original; costume.Set(Pbody()); throw; }
-    track.Swap(saved); core = original; costume.Set(Pbody()); return false;
+        Host host;
+        DataBlock block;
+        BodyCostume costume;
+    } sourceTrack = {{this}};
+    const auto services = sourceTrack.host.Services();
+    const MMPreviewEventReplacement edit = {
+        &sourceTrack,
+        [](void *p, MMI32 source) -> int {
+            auto &input = *static_cast<EventSource *>(p);
+            return input.host.Guard([&] {
+                const TAGOnFile tag = {source, 0, kctgGgae, 0};
+                auto file = input.host.actor->resolve(tag);
+                return file && file->Pcfl()->FFind(kctgGgae, 0, &input.block);
+            });
+        },
+        [](void *p, MMActorEventTable **out) -> int {
+            auto &input = *static_cast<EventSource *>(p);
+            return input.host.Guard([&] {
+                *out = ActorData::PeventsRead(&input.block);
+                return *out != nullptr;
+            });
+        },
+        [](void *p) -> int {
+            auto &input = *static_cast<EventSource *>(p);
+            return input.host.Guard([&] { return input.costume.FGet(input.host.actor->Pbody()); });
+        },
+        [](void *p) {
+            auto &input = *static_cast<EventSource *>(p);
+            input.host.Guard([&] {
+                input.costume.Set(input.host.actor->Pbody());
+                return true;
+            });
+        }};
+    return sourceTrack.host.Result(mm_preview_actor_replace_track(&core, source, &edit, &services));
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {
     TimelineHost host = {this, &timeline};
     auto services = host.Services();
-    const int result = mm_preview_actor_timeline(&core, &track.Core(), first, last, &services);
+    const auto track = Track();
+    const int result = mm_preview_actor_timeline(&core, &track, first, last, &services);
     if (host.exception) std::rethrow_exception(host.exception);
     return result > 0;
 }

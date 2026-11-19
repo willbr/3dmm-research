@@ -277,8 +277,8 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,number,TrackTestTemplate::FReadSubrouteFixture));
         if (!tmpl) return false;
-        if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &ActorTrack::TagServices());
-        _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,number}; mm_tag_dup(&_owner.runtime.template_tag, &ActorTrack::TagServices());
+        if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
+        _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,number}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint first={{rZero,rZero,rZero},BR_SCALAR(10)},last={{BR_SCALAR(10),rZero,rZero},rZero};
         ActorEvent::Base event={aetAdd,1,{0,rZero,0}}; ActorEvent::Add add={}; ActorEvent::Action action={0,0}; LegacyLong step=rOne;
@@ -381,7 +381,7 @@ class TrackTestActor : public Actor
         if (textTemplate)
         {
             textTemplate->AddRef(); if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = textTemplate;
-            mm_tag_close(&_owner.runtime.template_tag, &ActorTrack::TagServices()); _owner.runtime.template_tag={ksidUseCrf,source,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &ActorTrack::TagServices());
+            mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices()); _owner.runtime.template_tag={ksidUseCrf,source,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         }
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint point={{BR_SCALAR(7),BR_SCALAR(2),-BR_SCALAR(3)},rZero};
@@ -498,8 +498,8 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadSubrouteFixture));
         if (!tmpl) return false;
-        if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &ActorTrack::TagServices());
-        _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &ActorTrack::TagServices());
+        if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
+        _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<5;++i)
         {
@@ -989,7 +989,7 @@ class TrackTestActor : public Actor
             { Sound s; mm_actor_events_get_payload(_owner.track.events, i,&s); LegacyLong fields[]={s.celn,s.sty,s.vlm,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
             else { if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_owner.track.events, i,payload); saved=saved && record(payload,bytes); }
         }
-        _Body()->Hide(); if (_Body()) { _Body()->Release(); _owner.runtime.body = nullptr; } mm_actor_track_dispose(&_owner.track, &ActorTrack::TagServices());
+        _Body()->Hide(); if (_Body()) { _Body()->Release(); _owner.runtime.body = nullptr; } mm_actor_track_dispose(&_owner.track, &EngineActorTagServices());
         return saved;
     }
     bool FTestRouteEdit(int mode,FILE *snapshot)
@@ -1158,7 +1158,7 @@ class TrackTestActor : public Actor
         _Body()->GetPartSetMaterial(0,&ordinary,&material,&custom);
         LegacyLong body[]={ordinary,ordinary ? (material==a?0:material==b?1:2) : (custom==ca?0:custom==cb?1:2)};
         saved=saved && record(body,sizeof(body));
-        mm_actor_track_dispose(&_owner.track, &ActorTrack::TagServices()); if (_Body()) { _Body()->Release(); _owner.runtime.body = nullptr; }
+        mm_actor_track_dispose(&_owner.track, &EngineActorTagServices()); if (_Body()) { _Body()->Release(); _owner.runtime.body = nullptr; }
         LegacyLong refs[]={a->CactRef(),b->CactRef(),ca->CactRef(),cb->CactRef()};
         saved=saved && record(refs,sizeof(refs));
         ReleasePpo(&a); ReleasePpo(&b); ReleasePpo(&ca); ReleasePpo(&cb);
@@ -1270,7 +1270,7 @@ class TrackTestActor : public Actor
             std::fprintf(stderr,"Costume merge lost owning TAG references\n");
             std::exit(1);
         }
-        mm_actor_track_dispose(&_owner.track, &ActorTrack::TagServices());
+        mm_actor_track_dispose(&_owner.track, &EngineActorTagServices());
         return replacement->CactRef()==replacementRefs;
     }
     bool FTestEventEdit(int mode, FILE *snapshot)
@@ -1547,7 +1547,7 @@ class TrackTestActor : public Actor
         _owner.runtime.template_tag.type = kctgTmpl;
         _owner.runtime.template_tag.number = 1;
         _owner.runtime.template_tag.cache = resource;
-        mm_tag_dup(&_owner.runtime.template_tag, &ActorTrack::TagServices());
+        mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         _owner.runtime.scene =  scene;
         RouteDistancePoint point = {{BR_SCALAR(3), rZero, rZero}, rZero};
         ActorEvent::Base event = {};

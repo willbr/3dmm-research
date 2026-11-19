@@ -17,6 +17,7 @@
 #include "mm/playback.h"
 #include <miniz.h>
 #include "soc_core.h"
+#include "actor_track_fixture.h"
 #include <SDL3/SDL.h>
 #include <limits>
 #undef size

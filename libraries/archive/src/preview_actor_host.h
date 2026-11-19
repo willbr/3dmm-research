@@ -8,6 +8,7 @@ struct PreviewActor::Host
     const std::function<void(PTemplate)> *binder = nullptr;
     std::exception_ptr exception;
     int failure = 0;
+    MMStorageAllocator trackAllocator = CollectionAllocator();
     template <class F> int Guard(F f)
     {
         try
@@ -35,6 +36,9 @@ struct PreviewActor::Host
     {
         MMPreviewActorServices s = {};
         s.context = this;
+        s.tags = &EngineActorTagServices();
+        s.track_allocator = &trackAllocator;
+        s.trash_unused = DebugShip(1, 0);
         s.timeline.motion = EngineActorMotion::Services();
         s.timeline.context = this;
         s.timeline.resolve = [](void *v, MMI32 action, MMI32 cel, MMI32 *out) -> int {
@@ -58,14 +62,14 @@ struct PreviewActor::Host
         s.route = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = h.actor->track.AdoptRoute(ActorData::PpathRead(h.file->Pcfl(), n));
+                *out = ActorData::PpathRead(h.file->Pcfl(), n);
                 return *out != nullptr;
             });
         };
         s.events = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = h.actor->track.AdoptEvents(ActorData::PeventsRead(h.file->Pcfl(), n));
+                *out = ActorData::PeventsRead(h.file->Pcfl(), n);
                 return *out != nullptr;
             });
         };
@@ -116,26 +120,6 @@ struct PreviewActor::Host
             auto value = static_cast<PTemplate>(t);
             ReleasePpo(&value);
         };
-        s.track_create = [](void *v, void **route, void **events) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                bool ok = h.actor->track.FCreate();
-                *route = h.actor->track.Route();
-                *events = h.actor->track.Events();
-                return ok;
-            });
-        };
-        s.route_insert = [](void *v, void *g, MMI32 i, const MMActorRoutePoint *p) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard(
-                [&] { return mm_actor_path_insert(static_cast<MMActorPath *>(g), i, p); });
-        };
-        s.event_insert = [](void *v, void *g, MMI32 i, MMU32 n, const void *p, const MMActorEvent *e) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                return mm_actor_events_insert(static_cast<MMActorEventTable *>(g), i, n, p, e);
-            });
-        };
         s.rest = [](void *v, void *t, unsigned short *a) {
             static_cast<Host *>(v)->Guard([&] {
                 static_cast<PTemplate>(t)->GetRestOrien(a, a + 1, a + 2);
@@ -157,7 +141,7 @@ struct PreviewActor::Host
         s.apply = [](void *v, MMI32 index) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                return h.actor->ApplyEvent(h.actor->core.state, h.actor->track.Core(), index, false, &h.actor->motionSounds,
+                return h.actor->ApplyEvent(h.actor->core.state, h.actor->Track(), index, false, &h.actor->motionSounds,
                                            &h.actor->sounds);
             });
         };

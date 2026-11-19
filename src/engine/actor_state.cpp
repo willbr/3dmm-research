@@ -12,20 +12,20 @@ void ActorFrameState::InitTransform()
 {
     mm_actor_state_init_transform(this);
 }
-void ActorFrameState::RewindRoute(const ActorTrack &track)
+void ActorFrameState::RewindRoute(const MMActorTrack &track)
 {
     const auto services = EngineActorMotion::Services();
-    mm_actor_state_rewind(this, track.Route(), &services);
+    mm_actor_state_rewind(this, track.route, &services);
 }
 void ActorFrameState::UpdateOrigin(const RoutePoint &origin)
 {
     mm_actor_state_origin(this, &origin);
 }
-ActorValueEventResult ActorFrameState::ApplyValueEvent(const ActorTrack &track, LegacyLong index,
+ActorValueEventResult ActorFrameState::ApplyValueEvent(const MMActorTrack &track, LegacyLong index,
                                                        const RoutePoint &origin)
 {
     const auto services = EngineActorMotion::Services();
-    int result = mm_actor_state_apply(this, track.Route(), track.Events(), index, &origin, &services);
+    int result = mm_actor_state_apply(this, track.route, track.events, index, &origin, &services);
     return static_cast<ActorValueEventResult>(result);
 }
 static_assert(static_cast<int>(ActorValueEventResult::Applied) == MM_ACTOR_APPLIED &&
