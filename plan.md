@@ -1016,6 +1016,11 @@ Structural edits now use that C89 snapshot path to install the replacement
 archive and restore the prior scene and playhead. Paste verifies the new
 actor before publishing its selection and recording undo. Sound edits and
 work-view transforms use the same installation and recovery sequence.
+Marcus object copy and paste use C89 to retime the saved track, assign
+the actor ID, remap embedded templates, fonts, costumes and sounds, and
+reuse a scene sound link for repeated cues. The native adapter supplies
+archive access, movie source registration, scene links and roll-call
+writes.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

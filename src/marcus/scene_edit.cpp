@@ -9,6 +9,7 @@
 #include <codecvt>
 #include <locale>
 #include "soc_core.h"
+#include "mm/actor_archive.h"
 #include "mm/text.h"
 #include "mm/scene_runtime.h"
 #include "mm/scene_edit.h"
@@ -464,19 +465,6 @@ Filename ObjectFile(const std::filesystem::path &path)
     return name;
 }
 
-ChildChunkID FreeChildSlot(PChunkyFile file, ChunkTagOrType parent, ChunkNumber number, ChunkTagOrType type)
-{
-    ChildChunkIdentification child;
-    ChildChunkID slot = 0;
-    for (LegacyLong i = 0; file->FGetKid(parent, number, i, &child); ++i)
-        if (child.cki.ctg == type)
-        {
-            Require(child.chid < 0x7fffffffUL, "No available child slots for the pasted object.");
-            slot = std::max(slot, child.chid + 1);
-        }
-    return slot;
-}
-
 void AddObjectName(PChunkyFile file, ChunkNumber movie, const ActorChunkOnFile &header,
                    const std::string &name, int flags)
 {
@@ -522,7 +510,10 @@ void AddObjectName(PChunkyFile file, ChunkNumber movie, const ActorChunkOnFile &
 void RegisterSceneObject(PChunkyFile file, ChunkNumber sceneNumber, ChunkNumber actor,
                          LegacyLong firstFrame, bool invalidateThumbnail)
 {
-    const auto slot = FreeChildSlot(file, kctgScen, sceneNumber, kctgActr);
+    const auto chunks = file->ReadChunkAccess();
+    ChildChunkID slot;
+    Require(mm_actor_archive_next_child(&chunks, kctgScen, sceneNumber, kctgActr, &slot),
+            "No available child slots for the pasted object.");
     ChildChunkIdentification child;
     DataBlock block;
     Require(file->FGetKidChidCtg(kctgScen, sceneNumber, 1, kctgStartGg, &child) &&
@@ -543,118 +534,105 @@ void RegisterSceneObject(PChunkyFile file, ChunkNumber sceneNumber, ChunkNumber 
         file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
 }
 
-std::int32_t ShiftFrame(std::int32_t frame, std::int64_t delta)
-{
-    if (frame == knfrmInvalid) return frame;
-    const auto shifted = frame + delta;
-    Require(shifted >= std::numeric_limits<std::int32_t>::min() && shifted < knfrmInvalid,
-            "The pasted object track would exceed the frame range.");
-    return static_cast<std::int32_t>(shifted);
-}
-
 ChunkNumber TransferObject(PChunkyFile source, ChunkNumber actor, ChunkNumber sourceScene,
-    PChunkyFile destination, ChunkNumber destinationScene, std::int32_t actorId, std::int64_t delta,
+    PChunkyFile destination, ChunkNumber destinationScene, std::int32_t actorId,
+    std::int32_t sourceFrame, std::int32_t destinationFrame,
     const std::function<LegacyLong(LegacyLong)> &sourceId, ActorChunkOnFile &header)
 {
-    ChunkNumber copied;
-    Require(ActorData::FReadHeader(source, actor, &header) &&
-            source->FClone(kctgActr, actor, destination, &copied), "Cannot copy the object's native track.");
-    const auto local = [&](ChunkTagOrType type, ChunkNumber number) {
-        ChunkNumber result;
-        Require(source->FFind(type, number) && source->FCopy(type, number, destination, &result),
-                "The copied object is missing an embedded asset.");
-        return result;
-    };
-    const auto retarget = [&](auto &tag, ChunkNumber owner, ChunkTagOrType ownerType) {
-        if (tag.sid == 0)
-        {
-            tag.cno = local(tag.ctg, tag.cno);
-            const auto slot = FreeChildSlot(destination, ownerType, owner, tag.ctg);
-            Require(destination->FAdoptChild(ownerType, owner, tag.ctg, tag.cno, slot),
-                    "Cannot retain the object's embedded asset.");
-        }
-        else if (tag.sid > 0) tag.sid = sourceId(tag.sid);
-    };
-    header.arid = actorId;
-    header.nfrmFirst = ShiftFrame(header.nfrmFirst, delta);
-    header.nfrmLast = ShiftFrame(header.nfrmLast, delta);
-    ChildChunkIdentification child, text;
-    DataBlock block;
-    if (header.tagTmpl.sid == 0)
+    static_assert(knfrmInvalid == 2147483647, "actor invalid frame");
+    struct Host
     {
-        Require(destination->FGetKidChidCtg(kctgActr, copied, 0, kctgTmpl, &child), "The embedded template is missing.");
-        header.tagTmpl.cno = child.cki.cno;
-        if (destination->FGetKidChidCtg(kctgTmpl, child.cki.cno, 0, kctgTdt, &text))
+        PChunkyFile source, destination;
+        const std::function<LegacyLong(LegacyLong)> &sourceId;
+        std::unique_ptr<GeneralGroup, Release> events;
+        std::exception_ptr error;
+    } context{source, destination, sourceId, {}, {}};
+    const MMActorArchiveRequest request{actor, sourceScene, destinationScene, actorId, sourceFrame, destinationFrame};
+    MMActorArchiveHost host{};
+    host.context = &context;
+    host.source_chunks = source->ReadChunkAccess();
+    host.destination_chunks = [](void *value) { return static_cast<Host *>(value)->destination->ReadChunkAccess(); };
+    host.clone_actor = [](void *value, MMU32 actor, MMActorHeader *header, MMU32 *copied) -> int {
+        auto &io = *static_cast<Host *>(value);
+        return ActorData::FReadHeader(io.source, actor, header) &&
+            io.source->FClone(kctgActr, actor, io.destination, copied);
+    };
+    host.copy_asset = [](void *value, MMU32 type, MMU32 number, MMU32 *copied) -> int {
+        auto &io = *static_cast<Host *>(value);
+        return io.source->FFind(type, number) && io.source->FCopy(type, number, io.destination, copied);
+    };
+    host.adopt = [](void *value, MMU32 parentType, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot) -> int {
+        return static_cast<Host *>(value)->destination->FAdoptChild(parentType, parent, type, number, slot);
+    };
+    host.map_source = [](void *value, MMI32 oldId, MMI32 *newId) -> int {
+        auto &io = *static_cast<Host *>(value);
+        try
         {
-            unsigned char descriptor[24];
-            Require(destination->FFind(kctgTdt, text.cki.cno, &block) && block.FUnpackData() &&
-                    block.Cb() == sizeof(descriptor) && block.FReadRgb(descriptor, sizeof(descriptor), 0),
-                    "Cannot read the copied 3D text font.");
-            short order;
-            TAGOnFile font;
-            std::memcpy(&order, descriptor, sizeof(order));
-            Require(order == kboCur || order == kboOther, "Invalid copied 3D text font.");
-            std::memcpy(&font, descriptor + 8, sizeof(font));
-            if (order == kboOther) SwapBytesRglw(&font, 4);
-            retarget(font, child.cki.cno, kctgTmpl);
-            if (order == kboOther) SwapBytesRglw(&font, 4);
-            std::memcpy(descriptor + 8, &font, sizeof(font));
-            Require(destination->FPutPv(descriptor, sizeof(descriptor), kctgTdt, text.cki.cno),
-                    "Cannot write the copied 3D text font.");
+            *newId = io.sourceId(oldId);
+            return true;
         }
-    }
-    else if (header.tagTmpl.sid > 0) header.tagTmpl.sid = sourceId(header.tagTmpl.sid);
-    Require(ActorData::FWriteHeader(destination, copied, &header), "Cannot write the pasted object ID.");
+        catch (...)
+        {
+            io.error = std::current_exception();
+            return false;
+        }
+    };
+    host.read_text = [](void *value, MMU32 number, unsigned char *bytes) -> int {
+        DataBlock block;
+        return static_cast<Host *>(value)->destination->FFind(kctgTdt, number, &block) &&
+            block.FUnpackData() && block.Cb() == MM_ACTOR_ARCHIVE_TEXT_BYTES &&
+            block.FReadRgb(bytes, MM_ACTOR_ARCHIVE_TEXT_BYTES, 0);
+    };
+    host.write_text = [](void *value, MMU32 number, unsigned char *bytes) -> int {
+        return static_cast<Host *>(value)->destination->FPutPv(bytes, MM_ACTOR_ARCHIVE_TEXT_BYTES, kctgTdt, number);
+    };
+    host.write_header = [](void *value, MMU32 actor, const MMActorHeader *header) -> int {
+        ActorChunkOnFile native;
+        std::memcpy(&native, header, sizeof(native));
+        return ActorData::FWriteHeader(static_cast<Host *>(value)->destination, actor, &native);
+    };
+    host.read_events = [](void *value, MMU32 actor) -> void * {
+        auto &io = *static_cast<Host *>(value);
+        io.events.reset(ActorData::PggReadEvents(io.source, actor));
+        return io.events.get();
+    };
+    host.events.count = [](void *events) -> MMU32 { return static_cast<PGeneralGroup>(events)->IvMac(); };
+    host.events.fixed = [](void *events, MMU32 row) { return static_cast<PGeneralGroup>(events)->QvFixedGet(row); };
+    host.events.data = [](void *events, MMU32 row) { return static_cast<PGeneralGroup>(events)->QvGet(row); };
+    host.write_events = [](void *value, MMU32 actor, void *events) -> int {
+        auto destination = static_cast<Host *>(value)->destination;
+        ChildChunkIdentification child;
+        DataBlock block;
+        std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(static_cast<PGeneralGroup>(events)));
+        return wire && destination->FGetKidChidCtg(kctgActr, actor, 0, kctgGgae, &child) &&
+            destination->FPut(wire->CbOnFile(), kctgGgae, child.cki.cno, &block) && wire->FWrite(&block);
+    };
 
-    std::unique_ptr<GeneralGroup, Release> events(ActorData::PggReadEvents(source, actor));
-    Require(bool(events), "Cannot read the object's animation events.");
-    std::map<ChunkNumber, std::pair<ChunkNumber, ChildChunkID>> sounds;
-    for (LegacyLong i = 0; i < events->IvMac(); ++i)
-    {
-        ActorEvent::Base event;
-        events->GetFixed(i, &event);
-        event.nfrm = ShiftFrame(event.nfrm, delta);
-        events->PutFixed(i, &event);
-        if (event.aet == ActorEvent::aetCost)
-        {
-            ActorEvent::Costume costume;
-            events->Get(i, &costume);
-            // Custom costumes are slots of the actor's template.
-            if (!costume.fCmtl)
-            {
-                retarget(costume.tag, copied, kctgActr);
-                events->Put(i, &costume);
-            }
-        }
-        else if (event.aet == ActorEvent::aetSnd)
-        {
-            ActorEvent::Sound sound;
-            events->Get(i, &sound);
-            if (sound.fNoSound) continue;
-            if (sound.tag.sid == 0)
-            {
-                const auto number = source->FGetKidChidCtg(kctgScen, sourceScene, sound.chid, kctgMsnd, &child)
-                    ? child.cki.cno : sound.tag.cno;
-                auto found = sounds.find(number);
-                if (found == sounds.end())
-                {
-                    const auto asset = local(kctgMsnd, number);
-                    const auto slot = FreeChildSlot(destination, kctgScen, destinationScene, kctgMsnd);
-                    Require(destination->FAdoptChild(kctgScen, destinationScene, kctgMsnd, asset, slot),
-                            "Cannot link the copied actor sound.");
-                    found = sounds.emplace(number, std::make_pair(asset, slot)).first;
-                }
-                sound.tag.cno = found->second.first;
-                sound.chid = found->second.second;
-            }
-            else if (sound.tag.sid > 0) sound.tag.sid = sourceId(sound.tag.sid);
-            events->Put(i, &sound);
-        }
-    }
-    std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(events.get()));
-    Require(wire && destination->FGetKidChidCtg(kctgActr, copied, 0, kctgGgae, &child) &&
-            destination->FPut(wire->CbOnFile(), kctgGgae, child.cki.cno, &block) && wire->FWrite(&block),
-            "Cannot write the pasted animation events.");
+    static const char *const messages[] = {
+        nullptr,
+        "Cannot copy the object's native track.",
+        "The pasted object track would exceed the frame range.",
+        "The embedded template is missing.",
+        "Cannot read the copied 3D text font.",
+        "Invalid copied 3D text font.",
+        "Cannot write the copied 3D text font.",
+        "The copied object is missing an embedded asset.",
+        "No available child slots for the pasted object.",
+        "Cannot retain the object's embedded asset.",
+        "Cannot link the copied actor sound.",
+        "The copied object uses an unknown content source.",
+        "Cannot write the pasted object ID.",
+        "Cannot read the object's animation events.",
+        "Cannot write the pasted animation events.",
+        "Cannot allocate the copied sound links."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_ARCHIVE_MEMORY + 1, "archive diagnostics");
+    MMActorHeader transferred;
+    ChunkNumber copied;
+    const int status = mm_actor_archive_transfer(&request, &host, &copied, &transferred);
+    if (context.error) std::rethrow_exception(context.error);
+    Require(status == MM_ACTOR_ARCHIVE_OK, messages[status]);
+    std::memcpy(&header, &transferred, sizeof(header));
     return copied;
 }
 }
@@ -689,7 +667,7 @@ std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::p
             header.arid == object.actor_id)
         {
             result->actor = TransferObject(source.get(), child.cki.cno, scene, destination.get(), result->sounds,
-                header.arid, 0, [](LegacyLong id) { return id; }, header);
+                header.arid, 0, 0, [](LegacyLong id) { return id; }, header);
             Require(destination->FSave(kctgSoc), "Cannot save the object clipboard.");
             return result;
         }
@@ -732,7 +710,7 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     if (!hadRoot) RetailSource(destination.get(), root.cno, 1);
     ActorChunkOnFile header;
     const auto actor = TransferObject(source.get(), clipboard.actor, clipboard.sounds, destination.get(),
-        sceneNumber, actorId, std::int64_t(frame) - clipboard.frame, sourceId, header);
+        sceneNumber, actorId, static_cast<std::int32_t>(clipboard.frame), static_cast<std::int32_t>(frame), sourceId, header);
     RegisterSceneObject(destination.get(), sceneNumber, actor, scene.firstFrame, true);
     AddObjectName(destination.get(), root.cno, header, clipboard.name, clipboard.browserFlags);
     Require(destination->FSave(kctgSoc), "Cannot save the pasted object.");

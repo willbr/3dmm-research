@@ -14488,3 +14488,31 @@ SDL Studio and Marcus. Full captures still show pixel and mixed PCM
 differences. Marcus timing remains inconclusive. The capture database is
 at `tmp/c89-sound-schedule/capture/playback.sqlite`. The native outputs,
 probe and test logs are in `tmp/c89-structural-edit`.
+
+## Marcus object clipboard archive transfer in C89 (19 November 2026)
+
+C89 now retimes the actor header and animation events, remaps the
+template and its 3D text font, and transfers costume and sound tags.
+Multiple cues that resolve to the same embedded sound reuse one
+destination scene link. The native adapter supplies archive access,
+movie source registration, and scene and roll-call writes.
+
+The C89 regression test checks both byte orders for text descriptors,
+an embedded sound referred to by scene link and by chunk number,
+external source remapping, frame overflow and failed event writes.
+All 13 selected checks passed, including strict C89 syntax, native
+actor data, and headless Marcus sound, costume and 3D text editing.
+A headless probe copied an actor at frame 10 and pasted at frame 12,
+then saved, undid the paste, and saved again. Both output pairs are
+byte-identical to the pre-change outputs. The pasted movie has SHA-256
+`51dc19908b98e4c093eb41c823fa5f861d7fe187b2010db37805ff79d2470afe`.
+
+Suite `20261119T034328Z-934f9800` compared two fresh Marcus runs with
+the retail and SDL Studio captures from suite `20261119T034002Z-a88a5d0b`.
+All six runs completed. All three players agreed on the 61 authored
+frame positions in seek and playback. Both ports matched 30 of the
+31 retail seek images in the edited scene, with a difference at frame
+4. Full captures still show pixel and mixed PCM differences. Marcus
+playback timing remains inconclusive. Capture metadata is in
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The headless probe,
+native movie outputs and logs are in `tmp/c89-actor-transfer`.

@@ -569,6 +569,7 @@ target_sources(mm-engine-c89 PRIVATE src/actor_transaction.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_copy.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_route_paste.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_paste.c)
+target_sources(mm-engine-c89 PRIVATE src/actor_archive.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_clipboard.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_create.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_sound.c)
@@ -880,6 +881,11 @@ add_executable(engine-actor-paste-test EXCLUDE_FROM_ALL "${engine_actor_paste_te
 target_link_libraries(engine-actor-paste-test PRIVATE mm-engine-c89)
 set_target_properties(engine-actor-paste-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-actor-paste COMMAND engine-actor-paste-test)
+get_filename_component(engine_actor_archive_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_actor_archive_test.c" ABSOLUTE)
+add_executable(engine-actor-archive-test EXCLUDE_FROM_ALL "${engine_actor_archive_test_source}")
+target_link_libraries(engine-actor-archive-test PRIVATE mm-engine-c89)
+set_target_properties(engine-actor-archive-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-actor-archive COMMAND engine-actor-archive-test)
 get_filename_component(engine_actor_clipboard_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_actor_clipboard_test.c" ABSOLUTE)
 add_executable(engine-actor-clipboard-test EXCLUDE_FROM_ALL "${engine_actor_clipboard_test_source}")
 target_link_libraries(engine-actor-clipboard-test PRIVATE mm-engine-c89)
@@ -1408,6 +1414,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_copy.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_route_paste.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_paste.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_archive.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_clipboard.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_create.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_sound.c"
@@ -1485,6 +1492,7 @@ if(ENGINE_C89_COMPILER)
     "${engine_actor_copy_test_source}"
     "${engine_route_paste_test_source}"
     "${engine_actor_paste_test_source}"
+    "${engine_actor_archive_test_source}"
     "${engine_actor_clipboard_test_source}"
     "${engine_actor_create_test_source}"
     "${engine_movie_sound_test_source}"
