@@ -21,6 +21,7 @@
 
 ***************************************************************************/
 #include "soc.h"
+#include "engine_movie_archive.h"
 #include "mm/actor_data.h"
 #include "mm/movie_sound.h"
 #include "mm/scene_data.h"
@@ -70,11 +71,12 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
         PChunkyFile file;
         PTemplate tmpl;
     } host = {pcfl, _ptmpl};
+    ActorMaterialArchive materials = {pcfl, nullptr};
     MMActorStoreServices services = {};
     services.context = &host;
     services.header = ActorData::HeaderIO(pcfl);
     services.events = ActorData::EventServices();
-    services.chunks = [](void *p) { return static_cast<Host *>(p)->file->ReadChunkAccess(); };
+    services.materials = materials.Services();
     services.write_template = [](void *p, MMU32 type, MMU32 number) -> int {
         auto h = static_cast<Host *>(p);
         Assert(h->tmpl->FIsTdt(), "Expected an embedded ThreeDText template");
@@ -93,16 +95,6 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
         return static_cast<Host *>(p)->file->FAddChild(kctgActr, actor, 0, group->CbOnFile(), type, &number, &block) &&
                group->FWrite(&block);
     };
-    services.copy_reference = [](void *p, const MMTag *tag, MMU32 *number, int *created) -> int {
-        auto cache = static_cast<PChunkyResourceFile>(tag->cache);
-        return cache && cache->Pcfl()->FCopyReference(tag->type, tag->number, static_cast<Host *>(p)->file,
-                                                      number, created);
-    };
-    services.adopt = [](void *p, MMU32 parent_type, MMU32 parent, const MMChunkChild *child, int clear_loner) -> int {
-        return static_cast<Host *>(p)->file->FAdoptChild(parent_type, parent, child->type, child->number,
-                                                         child->slot, clear_loner != 0);
-    };
-    services.discard = [](void *p, MMU32 type, MMU32 number) { static_cast<Host *>(p)->file->Delete(type, number); };
     return mm_actor_store(cnoActr, cnoScene, &header, _track.Route(), _track.Events(), &services) != 0;
 }
 

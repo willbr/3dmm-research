@@ -29,9 +29,11 @@ Actors, Text boxes, etc.
 #include <cstdio>
 #include <exception>
 #include "soc.h"
+#include "engine_movie_archive.h"
 #include "engine_movie_graph.h"
 #include "studio_preferences.h"
 #include "mm/indexed_display.h"
+#include "mm/actor_archive.h"
 #include "mm/movie_archive_edit.h"
 ASSERTNAME
 
@@ -2934,6 +2936,14 @@ MMMovieComposeServices Movie::_ComposeServices()
     };
     s.close_tag=[](MMTag *value) { TAG tag; TagFromCore(&tag,*value); TagManager::CloseTag(&tag); *value=TagToCore(tag); };
     s.adjust_actor=[](void *p,MMU32 number,MMI32 offset)->int { return Actor::FAdjustAridOnFile(static_cast<PChunkyFile>(p),number,offset); };
+    s.rebind_actor_materials = [](void *source, void *destination, MMU32 actor) {
+        auto file = static_cast<PChunkyFile>(destination);
+        MovieArchiveHost host{file, {}, {}};
+        ActorMaterialArchive materials{file, static_cast<PChunkyFile>(source)};
+        const auto editor = host.Editor();
+        const auto services = materials.Services();
+        return mm_actor_archive_rebind_materials(&editor, actor, &services);
+    };
     s.graph.context=_data.Resources()?_data.Resources()->Pcfl():nullptr;
     s.graph.children=[](void *p,MMU32 type,MMU32 number)->MMU32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
     s.graph.child=[](void *p,MMU32 type,MMU32 number,MMU32 i,MMChunkChild *out)->int {

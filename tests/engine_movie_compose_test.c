@@ -46,7 +46,8 @@ enum
     INVALIDATE,
     ROLL_CHANGED,
     CLOSE_SCENE,
-    CLOSE_TAG
+    CLOSE_TAG,
+    REBIND_MATERIALS
 };
 typedef struct Test Test;
 typedef struct Object
@@ -323,6 +324,11 @@ static int adjust(void *p, MMU32 number, MMI32 offset)
     t->actorIds[number - 100] += offset;
     t->adjusted[t->adjustCount++] = (int)number;
     return 1;
+}
+static int rebind_materials(void *source, void *destination, MMU32 actor)
+{
+    Test *t = ((Object *)destination)->test;
+    return source == &t->resources[1] && (actor == 100 || actor == 101) && !fails(t, REBIND_MATERIALS);
 }
 static int adopt(void *p, MMU32 root, MMU32 number, MMU32 slot)
 {
@@ -729,6 +735,20 @@ static int applying(void)
             CHECK(t.openTransition == 7);
         if (i == 6)
             CHECK(t.adopted == 1 && !t.calls[READ_SCENE]);
+    }
+    for (i = 0; i < 2; ++i)
+    {
+        init(&t);
+        apply_setup(&t, 1);
+        CHECK(seed_destination(&t));
+        t.withActors = 1;
+        t.movieList.descriptors[0].actor_limit = 0;
+        t.s.rebind_actor_materials = rebind_materials;
+        t.fail = i ? REBIND_MATERIALS : 0;
+        t.failAt = 2;
+        CHECK(mm_movie_compose_apply(&t.composite, &t.s) == !i);
+        CHECK(t.calls[REBIND_MATERIALS] == 2 && !t.adjustCount && t.deletedCount == 1 && t.deleted[0] == 120);
+        CHECK(t.data.actors.count == (i ? 1U : 3U) && t.adopted == !i && !cleanup_tags(&t));
     }
     init(&t);
     apply_setup(&t, 1);

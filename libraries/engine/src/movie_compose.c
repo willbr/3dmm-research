@@ -130,13 +130,14 @@ fail:
     }
     return 0;
 }
-static int remap(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
+static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeServices *s)
 {
     MMChunkWalk walk;
     MMCollectionStorage visited;
     MMArray ids;
     MMChunkChild node, parent;
     MMU32 flags, i, number;
+    void *destination = s->file(s->data->resources);
     int ok = 0;
     if (mm_storage_init(&visited, &s->allocator) != MM_STORAGE_OK)
         return 0;
@@ -150,6 +151,8 @@ static int remap(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
         goto done;
     while (mm_chunk_walk_next(&walk, 0, &node, &parent, &flags))
     {
+        if (source && (flags & MM_WALK_ERROR))
+            goto done;
         if (!(flags & MM_WALK_PRE) || node.type != 0x41435452U)
             continue;
         for (i = 0; i < ids.count; ++i)
@@ -161,7 +164,8 @@ static int remap(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
         if (i < ids.count)
             continue;
         if (mm_array_add(&ids, &node.number, 0) != MM_STORAGE_OK ||
-            !s->adjust_actor(s->file(s->data->resources), node.number, offset))
+            (offset > 0 && !s->adjust_actor(destination, node.number, offset)) ||
+            (source && !s->rebind_actor_materials(source, destination, node.number)))
             goto done;
     }
     ok = 1;
@@ -181,7 +185,7 @@ static void close_source_row(MMRollCallTable *source, MMU32 index, const MMMovie
         s->close_tag(&tag);
     }
 }
-int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
+static int merge(MMU32 movie, MMI32 offset, void *source_file, const MMMovieComposeServices *s)
 {
     MMRollCallTable source, *destination = &s->data->actors;
     MMRollCallActor row;
@@ -204,7 +208,7 @@ int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServic
         if (!mm_rollcall_table_add(destination, name, count, &row))
             goto fail;
     }
-    if (offset > 0 && !remap(movie, offset, s))
+    if ((offset > 0 || source_file) && !remap(movie, offset, source_file, s))
         goto fail;
     ok = 1;
     goto done;
@@ -219,6 +223,11 @@ fail:
 done:
     mm_rollcall_table_dispose(&source);
     return ok;
+}
+
+int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServices *s)
+{
+    return merge(movie, offset, NULL, s);
 }
 int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeServices *s)
 {
@@ -237,9 +246,10 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         s->movie(movies, i, &movie);
         if (i > 0)
         {
-            if (!s->clone_movie(s->file(movie.resources), movie.number, file, &movie.number))
+            void *source = s->file(movie.resources);
+            if (!s->clone_movie(source, movie.number, file, &movie.number))
                 goto done;
-            if (!mm_movie_compose_merge(movie.number, offset, s))
+            if (!merge(movie.number, offset, s->rebind_actor_materials ? source : NULL, s))
             {
                 s->delete_movie(file, movie.number);
                 goto done;

@@ -6,7 +6,7 @@
 #include <codecvt>
 #include <locale>
 #include "soc_core.h"
-#include "movie_archive_host.h"
+#include "engine_movie_archive.h"
 #include "platform_text.h"
 #include "mm/actor_archive.h"
 #include "mm/scene_data.h"

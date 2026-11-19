@@ -7128,6 +7128,14 @@ Studio marks the endangered material roots as loners. Their textures remain
 reachable for event tags in older scenes and for scene undo. The save sweep
 can still remove unused loners and leaves graph-owned resources attached.
 
+Scene-sorter imports rebind document costume tags while visiting the cloned
+actors for roll-call remapping. The source archive supplies material identity
+even when its chunk number overlaps another movie's material or its material
+is outside the cloned graph. C89 adopts the material under the cloned actor
+and writes a replacement track when the number changes. It publishes the new
+track link before releasing the old link, preserving tracks shared by another
+actor. Studio and Marcus use the same native archive adapter.
+
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor
 payloads remain opaque at this layer. Embedded roll-call TAGs own resource

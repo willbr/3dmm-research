@@ -192,6 +192,54 @@ int mm_actor_archive_replace_event_group(const MMMovieArchiveEditor *editor, MMU
         encode_track(editor, group, &existing, NULL, 1);
 }
 
+int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 actor,
+                                     const MMActorMaterialServices *materials)
+{
+    const MMU32 no_chunk = 0xffffffffUL;
+    MMGroup *events;
+    MMActorEvent event;
+    MMActorCostume costume;
+    MMU32 i, old, number, replacement = no_chunk;
+    void *payload;
+    int changed = 0, ok = 0;
+    events = mm_actor_archive_read_event_group(editor, actor, &old);
+    if (!events)
+        return 0;
+    for (i = 0; i < events->count; ++i)
+    {
+        memcpy(&event, group_fixed(events, i), sizeof(event));
+        if (event.aet != MM_ACTOR_COSTUME)
+            continue;
+        payload = group_data(events, i);
+        memcpy(&costume, payload, sizeof(costume));
+        if (costume.custom || costume.tag.sid != 0 || costume.tag.type != MATERIAL_TYPE)
+            continue;
+        number = costume.tag.number;
+        if (!mm_actor_store_material(actor, &costume.tag, materials))
+            goto done;
+        if (costume.tag.number != number)
+        {
+            memcpy(payload, &costume, sizeof(costume));
+            changed = 1;
+        }
+    }
+    if (changed)
+    {
+        if (!mm_actor_archive_write_event_group(editor, events, &replacement, NULL) ||
+            !editor->adopt(editor->context, ACTOR_TYPE, actor, EVENTS_TYPE, replacement, 0))
+        {
+            if (replacement != no_chunk)
+                editor->discard(editor->context, EVENTS_TYPE, replacement);
+            goto done;
+        }
+        editor->unlink(editor->context, ACTOR_TYPE, actor, EVENTS_TYPE, old, 0);
+    }
+    ok = 1;
+done:
+    release_group(events);
+    return ok;
+}
+
 static int replace_track(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 old, MMU32 events)
 {
     editor->unlink(editor->context, ACTOR_TYPE, actor, EVENTS_TYPE, old, 0);

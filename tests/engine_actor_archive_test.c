@@ -46,6 +46,7 @@ typedef struct Fixture
     unsigned char source_events[TRANSFER_WIRE_BYTES], destination_events[TRANSFER_WIRE_BYTES];
     unsigned char descriptor[MM_ACTOR_ARCHIVE_TEXT_BYTES];
     MMU32 copies, writes;
+    int replacement_adopted, replacement_discarded, old_unlinked;
     int sound_unlinks, sound_scene_links, sound_paths, sound_tracks;
     int big_endian, fail_write;
 } Fixture;
@@ -1035,6 +1036,82 @@ static void edit_actor_sound(void)
           f.payloads[0].sound.queue == 1 && f.payloads[1].sound.volume == 0);
 }
 
+static int read_cloned_events(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    CHECK(type == EVENTS && number == 20);
+    return source_read(context, type, 10, stream);
+}
+
+static int add_rebound_events(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
+{
+    *number = 21;
+    return replace_events(context, type, 20, size, writer);
+}
+
+static int copy_cloned_material(void *context, const MMTag *tag, MMU32 *number, int *created)
+{
+    CHECK(tag->sid == 0 && !tag->cache && tag->type == MATERIAL && tag->number == 8);
+    *created = 1;
+    return copy_asset(context, tag->type, tag->number, number);
+}
+
+static int adopt_cloned_material(void *context, MMU32 type, MMU32 actor, const MMChunkChild *child, int clear_loner)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(type == ACTOR && actor == 2 && clear_loner && child->type == MATERIAL && child->number == 108 &&
+          child->slot == 2 && f->destination.entries[0].child_count == 3);
+    append_child(&f->destination, 0, child->type, child->number, child->slot);
+    return 1;
+}
+
+static int adopt_rebound_events(void *context, MMU32 type, MMU32 actor, MMU32 child_type, MMU32 number, MMU32 slot)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(type == ACTOR && actor == 2 && child_type == EVENTS && number == 21 && slot == 0 && !f->old_unlinked);
+    ++f->replacement_adopted;
+    return 1;
+}
+
+static void unlink_original_events(void *context, MMU32 type, MMU32 actor, MMU32 child_type, MMU32 number, MMU32 slot)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(type == ACTOR && actor == 2 && child_type == EVENTS && number == 20 && slot == 0 && f->replacement_adopted);
+    ++f->old_unlinked;
+}
+
+static void discard_rebound_events(void *context, MMU32 type, MMU32 number)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(type == EVENTS && number == 21 && !f->replacement_adopted);
+    ++f->replacement_discarded;
+}
+
+static void rebind_materials(void)
+{
+    Fixture f;
+    MMMovieArchiveEditor editor = {0};
+    MMActorMaterialServices materials = {NULL, destination, copy_cloned_material, adopt_cloned_material,
+                                        discard_rebound_events};
+    editor.context = materials.context = &f;
+    editor.system = MM_TEXT_WINDOWS;
+    editor.chunks = destination;
+    editor.read = read_cloned_events;
+    editor.add = add_rebound_events;
+    editor.adopt = adopt_rebound_events;
+    editor.unlink = unlink_original_events;
+    editor.discard = discard_rebound_events;
+    init(&f, 1);
+    CHECK(mm_actor_archive_rebind_materials(&editor, 2, &materials));
+    CHECK(f.copies == 1 && f.writes == 1 && f.replacement_adopted == 1 && f.old_unlinked == 1);
+    read_output_events(&f);
+    CHECK(f.payloads[0].sound.tag.number == 777 && f.payloads[6].costume.tag.number == 108 &&
+          f.payloads[7].costume.tag.number == 0 && f.events[7].nfrm == 17);
+    init(&f, 0);
+    f.fail_write = 1;
+    CHECK(!mm_actor_archive_rebind_materials(&editor, 2, &materials));
+    CHECK(!f.old_unlinked && f.replacement_discarded == 1 && !f.replacement_adopted);
+}
+
 int main(void)
 {
     Fixture f;
@@ -1100,5 +1177,6 @@ int main(void)
     reframe_transaction();
     insertion_transaction();
     edit_actor_sound();
+    rebind_materials();
     return 0;
 }

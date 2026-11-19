@@ -2567,6 +2567,16 @@ Retail, SDL, and Marcus each reproduced their 30 prior seek images for the
 surviving scene and agreed on playback frame order. Mixed PCM still differed
 from retail in both ports. Evidence is in `tmp/c89-legacy-materials/`.
 
+Scene-sorter import now rebinds embedded costume tags in C89. The earlier
+Studio build rendered the destination's textures when the source reused the
+same material numbers. The new build saved both imported scenes with the
+source textures at new material numbers. A second run used standalone source
+materials without actor links and produced the same bindings. On reopen,
+all three scenes matched the original viewport and texture hashes at frames
+1 and 12. Retail, SDL, and Marcus agreed on the 90-frame playback order and
+each reproduced its original seek images for all 90 frames. Mixed PCM still
+differed from retail in both ports. Evidence is in `tmp/c89-compose-materials/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

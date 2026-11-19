@@ -51,6 +51,13 @@ typedef struct MMActorArchiveHost
 int mm_actor_archive_transfer(const MMActorArchiveRequest *, const MMActorArchiveHost *,
                               MMU32 *actor, MMActorHeader *);
 
+/* Rebind a cloned actor's document materials from the source archive. The
+ * material services copy from that archive into the editor's destination.
+ * Existing tracks shared with another actor retain their original bytes.
+ * The caller discards the cloned graph on failure. */
+int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *, MMU32 actor,
+                                     const MMActorMaterialServices *);
+
 /* Find the first readable actor header matching the ID in the selected scene. */
 int mm_actor_archive_find(const MMMovieArchiveEditor *, MMU32 scene, MMI32 actor_id, MMU32 *actor);
 

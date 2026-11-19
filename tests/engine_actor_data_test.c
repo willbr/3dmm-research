@@ -680,11 +680,12 @@ static void store_actor(void)
     s.header.context = &store.header;
     s.header.put = put_header;
     s.events = services(&h);
-    s.chunks = store_chunks;
+    s.materials.context = &store;
+    s.materials.chunks = store_chunks;
     s.write_track = store_track;
-    s.copy_reference = store_copy;
-    s.adopt = store_adopt;
-    s.discard = store_discard;
+    s.materials.copy_reference = store_copy;
+    s.materials.adopt = store_adopt;
+    s.materials.discard = store_discard;
     header.source_id = 2;
     costume.tag.cache = &store;
     costume.tag.type = 0x4d54524cUL;

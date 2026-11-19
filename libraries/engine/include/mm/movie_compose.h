@@ -74,6 +74,7 @@ extern "C"
         int (*read_rollcall)(void *resources, MMU32 movie, MMRollCallTable *);
         void (*close_tag)(MMTag *);
         int (*adjust_actor)(void *file, MMU32 actor, MMI32 offset);
+        int (*rebind_actor_materials)(void *source, void *destination, MMU32 actor);
     } MMMovieComposeServices;
     /* Initialized synchronous services, stable owners and valid descriptor indexes
      * are required. Callbacks cannot re-enter editing. Lists own one thumbnail/cache
@@ -85,13 +86,16 @@ extern "C"
      * it rolls back inserted descriptors and releases empty lists, preserving autosave.
      * Apply keeps completed scene/roll-call/file prefixes on failure; copied Movie roots
      * and cache references are temporary and always cleaned, including failed merge.
+     * Rebinds each cloned actor's document materials once before adopting scenes,
+     * even when its actor IDs already fit. That import pass aborts on traversal failure.
      * Import actor-start/registration failures are diagnosed but do not abort apply.
      * The current scene follows its live child slot, excluding deleted descriptors.
      * Merge transfers loaded tag references to appended rows. Failure removes those
      * rows and closes every loaded tag once; adjusted actor-file IDs are not undone.
      * C storage owns the visited-ID set and traversal stack. All actor descendants are
      * walked, matching the native loop's unused skip variable. Traversal error flags
-     * retain the native non-fatal policy; visited-set/actor-write failures abort.
+     * retain the native non-fatal policy for ID-only remapping. Visited-set and
+     * actor-write failures abort.
      * Empty accepts partial/empty state and releases scenes, then movies, in reverse. */
     int mm_composite_insert_scene(void *list, MMI32, const MMComposeScene *,
                                         const MMMovieComposeServices *);

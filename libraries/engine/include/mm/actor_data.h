@@ -136,17 +136,26 @@ extern "C"
     int mm_actor_read_events_stream(const MMReadStream *, const MMActorEventServices *, void **out);
     void *mm_actor_write_events(void *runtime, const MMActorEventServices *);
 
+    typedef struct MMActorMaterialServices
+    {
+        void *context;
+        MMChunkAccess (*chunks)(void *);
+        int (*copy_reference)(void *, const MMTag *, MMU32 *number, int *created);
+        int (*adopt)(void *, MMU32 parent_type, MMU32 parent, const MMChunkChild *, int clear_loner);
+        void (*discard)(void *, MMU32 type, MMU32 number);
+    } MMActorMaterialServices;
+    /* Attach a document tag's material to the actor and update the borrowed
+     * tag number on success. Any new root that cannot be adopted is discarded. */
+    int mm_actor_store_material(MMU32 actor, MMTag *, const MMActorMaterialServices *);
+
     typedef struct MMActorStoreServices
     {
         void *context;
         MMActorHeaderIO header;
         MMActorEventServices events;
-        MMChunkAccess (*chunks)(void *);
+        MMActorMaterialServices materials;
         int (*write_template)(void *, MMU32 type, MMU32 number);
         int (*write_track)(void *, MMU32 actor, MMU32 type, void *track);
-        int (*copy_reference)(void *, const MMTag *, MMU32 *number, int *created);
-        int (*adopt)(void *, MMU32 parent_type, MMU32 parent, const MMChunkChild *, int clear_loner);
-        void (*discard)(void *, MMU32 type, MMU32 number);
     } MMActorStoreServices;
     /* Write into the new ACTR under a candidate scene. On failure the caller
      * drops the candidate scene and its children. Runtime events are borrowed. */

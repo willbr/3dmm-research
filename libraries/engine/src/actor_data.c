@@ -395,7 +395,7 @@ done:
     return status;
 }
 
-static int store_material(MMU32 actor, MMTag *tag, const MMActorStoreServices *s)
+int mm_actor_store_material(MMU32 actor, MMTag *tag, const MMActorMaterialServices *s)
 {
     MMChunkAccess chunks;
     MMChunkChild link, existing;
@@ -448,7 +448,8 @@ static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 ac
         if (type == MM_ACTOR_COSTUME)
         {
             memcpy(&costume, data, sizeof(costume));
-            if (store && !costume.custom && costume.tag.sid == 0 && !store_material(actor, &costume.tag, store))
+            if (store && !costume.custom && costume.tag.sid == 0 &&
+                !mm_actor_store_material(actor, &costume.tag, &store->materials))
                 goto fail;
             memcpy(bytes, &costume.body_set, 4);
             memcpy(bytes + 4, &costume.costume, 4);
@@ -487,7 +488,8 @@ void *mm_actor_write_events(void *runtime, const MMActorEventServices *s)
 
 static int store_template(MMU32 actor, const MMActorHeader *header, const MMActorStoreServices *s)
 {
-    MMChunkAccess chunks = s->chunks(s->context);
+    const MMActorMaterialServices *archive = &s->materials;
+    MMChunkAccess chunks = archive->chunks(archive->context);
     MMChunkChild link;
     MMU32 row, number;
     int created = 0;
@@ -503,16 +505,17 @@ static int store_template(MMU32 actor, const MMActorHeader *header, const MMActo
             return 0;
         created = 1;
     }
-    if (s->adopt(s->context, MM_ACTOR_CHUNK, actor, &link, 1))
+    if (archive->adopt(archive->context, MM_ACTOR_CHUNK, actor, &link, 1))
         return 1;
     if (created)
-        s->discard(s->context, link.type, link.number);
+        archive->discard(archive->context, link.type, link.number);
     return 0;
 }
 
 static int store_sounds(MMU32 scene, void *events, const MMActorStoreServices *s)
 {
     const MMActorEventServices *e = &s->events;
+    const MMActorMaterialServices *archive = &s->materials;
     MMActorSound sound;
     MMChunkAccess chunks;
     MMChunkChild link;
@@ -524,7 +527,7 @@ static int store_sounds(MMU32 scene, void *events, const MMActorStoreServices *s
         memcpy(&sound, e->data(events, i), sizeof(sound));
         if (sound.tag.sid != 0)
             continue;
-        chunks = s->chunks(s->context);
+        chunks = archive->chunks(archive->context);
         /* Undo scenes may refer to sounds that still live in the main movie. */
         if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, sound.child, MM_SOUND_CHUNK, &number) == MM_CHUNK_OK ||
             mm_chunk_find(&chunks, MM_SOUND_CHUNK, sound.tag.number, &number) != MM_CHUNK_OK)
@@ -532,7 +535,7 @@ static int store_sounds(MMU32 scene, void *events, const MMActorStoreServices *s
         link.type = MM_SOUND_CHUNK;
         link.number = sound.tag.number;
         link.slot = sound.child;
-        if (!s->adopt(s->context, MM_SCENE_CHUNK, scene, &link, 1))
+        if (!archive->adopt(archive->context, MM_SCENE_CHUNK, scene, &link, 1))
             return 0;
     }
     return 1;

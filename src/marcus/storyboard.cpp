@@ -6,7 +6,7 @@
 #include <cstring>
 #include <stdexcept>
 #include "storyboard_native.h"
-#include "movie_archive_host.h"
+#include "engine_movie_archive.h"
 #include "storyboard_resource.h"
 #undef size
 ASSERTNAME
