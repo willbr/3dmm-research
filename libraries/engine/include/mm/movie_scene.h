@@ -121,6 +121,35 @@ extern "C"
     int mm_movie_scene_cursor_select(MMI32 scene, size_t count, unsigned flags, const MMMovieSceneCursorServices *);
     int mm_movie_scene_cursor_seek(long frame, const MMMovieSceneCursorServices *);
 
+    typedef struct MMMovieRangeEdit
+    {
+        MMI32 first, last, frame;
+    } MMMovieRangeEdit;
+    typedef enum MMMovieRangeEffect
+    {
+        MM_MOVIE_RANGE_CANCEL_PREVIEWS,
+        MM_MOVIE_RANGE_PREPARE,
+        MM_MOVIE_RANGE_SET_BOUNDS,
+        MM_MOVIE_RANGE_SET_FRAME,
+        MM_MOVIE_RANGE_PREPARE_FRAME,
+        MM_MOVIE_RANGE_ABANDON
+    } MMMovieRangeEffect;
+    typedef struct MMMovieRangeServices
+    {
+        void *context;
+        MMI32 *selected;
+        MMPolledMovie *playback;
+        void (*position)(void *, MMMovieRangeEdit *);
+        int (*effect)(void *, MMMovieRangeEffect, const MMMovieRangeEdit *, int restoring);
+        void (*publish)(void *);
+    } MMMovieRangeServices;
+    enum { MM_MOVIE_RANGE_DIRECTION = -1, MM_MOVIE_RANGE_BOUNDARY = -2 };
+    /* Reserve undo and prepare the replacement schedule before changing the
+     * live view. Failed evaluation restores the prior range and frame. If
+     * restoring fails, clear selection and abandon the view. Effects return
+     * 1/0 and callbacks never unwind. Publish commits the staged edit. */
+    int mm_movie_scene_extend(int direction, const MMMovieRangeServices *);
+
     typedef struct MMMovieSceneUndoServices
     {
         void *context;

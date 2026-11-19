@@ -997,6 +997,11 @@ The C89 movie scene module also coordinates Marcus's first scene, scene
 switches and explicit seeks. It applies edited frame bounds, camera and prop
 placements before publishing a switched scene, and resets playback after a
 successful seek.
+Marcus frame-edge editing now stages undo, bounds and sound timing before
+evaluating the new frame. C89 publishes those changes together and restores
+the prior range and frame after failed evaluation. Preview and native save
+share range validation, while the saved opening camera uses Studio's C89
+relocation rule.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

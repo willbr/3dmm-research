@@ -298,8 +298,8 @@ int mm_preview_live_range(MMPreviewLive *p, MMI32 first, MMI32 last)
 {
     MMSceneState scene;
     MMSceneRuntimeServices s;
-    if (!p->status.ready || !p->status.scene || first == MIN_FRAME || first > p->original_first ||
-        last < p->original_last)
+    if (!p->status.ready || !p->status.scene ||
+        !mm_scene_range_contains(p->original_first, p->original_last, first, last))
         return MM_PREVIEW_LIVE_RANGE;
     if (first == p->status.first && last == p->status.last)
         return MM_PREVIEW_LIVE_OK;

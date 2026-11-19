@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <map>
 #include <set>
 #include <cctype>
@@ -60,6 +61,12 @@ std::int32_t Word(const std::vector<std::uint8_t> &bytes, bool big)
     return result;
 }
 } // namespace
+struct SoundSheet
+{
+    std::vector<MarcusSound> sounds;
+    std::vector<MarcusSoundTrack> soundTracks;
+    std::vector<MM::PreviewSoundCue> soundCues;
+};
 struct MarcusPlayer
 {
     // Destroy the renderer before deleting any private VMM working files.
@@ -96,9 +103,7 @@ struct MarcusPlayer
         bool available = false;
     };
     std::map<int, AnimationCache> animations;
-    std::vector<MarcusSound> sounds;
-    std::vector<MarcusSoundTrack> soundTracks;
-    std::vector<MM::PreviewSoundCue> soundCues;
+    SoundSheet soundSheet;
     MarcusWaveformCache waveforms;
     MarcusSoundTimeline soundTimeline;
     int playbackRate = 0, playbackModifier = 0;
@@ -439,34 +444,40 @@ MarcusPlayer::AnimationCache *Animation(MarcusPlayer *player, int object, MM::Er
     }
     return &found->second;
 }
-bool ReadSoundTimeline(MarcusPlayer *player, int index, MM::Error &error)
+bool ReadSoundTimeline(MarcusPlayer *player, int index, const std::vector<MarcusScene> &scenes,
+                       MarcusSoundTimeline &timeline, MM::Error &error)
 {
-    while (player->soundTimeline.Size() <= static_cast<std::size_t>(index))
+    while (timeline.Size() <= static_cast<std::size_t>(index))
     {
-        const auto next = player->soundTimeline.Size();
+        const auto next = timeline.Size();
         MM::PreviewPresentation presentation;
         MarcusSoundTiming timing;
         if (!player->preview.ReadTimingPresentation(player->scenes[next], presentation, error) ||
             !MarcusPlayback::ReadTiming(presentation, timing, error, player->timingInput ? player->timingInput->fonts : nullptr))
             return false;
-        player->soundTimeline.Append(player->sceneInfo[next], presentation.sounds, [&](const MM::PreviewSoundCue &cue) {
+        timeline.Append(scenes[next], presentation.sounds, [&](const MM::PreviewSoundCue &cue) {
             return player->waveforms.Length(player->preview, cue);
         }, timing);
     }
     return true;
 }
-bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
+bool ReadSoundTimeline(MarcusPlayer *player, int index, MM::Error &error)
 {
-    player->sounds.clear();
-    player->soundTracks.clear();
-    player->soundCues.clear();
+    return ReadSoundTimeline(player, index, player->sceneInfo, player->soundTimeline, error);
+}
+bool ReadSoundSheet(MarcusPlayer *player, int index, const std::vector<MarcusScene> &scenes,
+                    MarcusSoundTimeline &timeline, SoundSheet &sheet, MM::Error &error)
+{
+    sheet.sounds.clear();
+    sheet.soundTracks.clear();
+    sheet.soundCues.clear();
     // A new empty scene has no authored cues. Let the pending base analysis
     // finish before deriving any sounds carried from earlier scenes.
     if (static_cast<std::size_t>(index) >= player->baseSceneInfo.size() &&
-        player->soundTimeline.Size() < player->baseSceneInfo.size()) return true;
-    if (!ReadSoundTimeline(player, index, error))
+        timeline.Size() < player->baseSceneInfo.size()) return true;
+    if (!ReadSoundTimeline(player, index, scenes, timeline, error))
         return false;
-    const auto &scene = player->soundTimeline.Scene(index);
+    const auto &scene = timeline.Scene(index);
     // Separate scene and actor lanes, including actor ID zero. Keep styles in
     // separate lanes so simultaneous speech and effects remain distinguishable.
     std::map<std::tuple<bool, std::int32_t, std::int32_t>, int> lanes;
@@ -491,8 +502,8 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
             owner = name != player->names.end() ? name->second : "Actor " + std::to_string(actor);
         }
         Copy(track.name, owner + " / " + kind);
-        lane.second = static_cast<int>(player->soundTracks.size());
-        player->soundTracks.push_back(track);
+        lane.second = static_cast<int>(sheet.soundTracks.size());
+        sheet.soundTracks.push_back(track);
     }
     for (std::size_t row = 0; row < scene.SoundCount(); ++row)
     {
@@ -508,7 +519,7 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
                           : name != player->names.end() ? name->second : "Actor " + std::to_string(cue.actor));
         sound.carried = span.scene != static_cast<std::size_t>(index);
         sound.origin_scene = static_cast<int>(span.scene);
-        sound.origin_frame = double(cue.frame) - player->sceneInfo[span.scene].first_frame + 1;
+        sound.origin_frame = double(cue.frame) - scenes[span.scene].first_frame + 1;
         sound.frame = sound.carried ? scene.info.first_frame : cue.frame;
         sound.timeline_frame = scene.FrameAt(span.start);
         sound.end_frame = std::min(double(scene.info.last_frame) + 1, scene.FrameAt(span.end));
@@ -524,11 +535,15 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
         sound.queue = cue.queue;
         sound.silent = cue.silent;
         sound.motion = cue.motion;
-        ++player->soundTracks[sound.track].cue_count;
-        player->sounds.push_back(sound);
-        player->soundCues.push_back(cue);
+        ++sheet.soundTracks[sound.track].cue_count;
+        sheet.sounds.push_back(sound);
+        sheet.soundCues.push_back(cue);
     }
     return true;
+}
+bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
+{
+    return ReadSoundSheet(player, index, player->sceneInfo, player->soundTimeline, player->soundSheet, error);
 }
 MarcusProjection CopyProjection(const MM::PreviewProjection &source)
 {
@@ -729,6 +744,91 @@ bool CancelPropPreviews(MarcusPlayer *player, MM::Error &error)
     player->propPreviews.clear();
     return true;
 }
+struct RangeEditHost
+{
+    MarcusPlayer &movie;
+    MM::Error &error;
+    std::optional<EditHistory> history;
+    std::shared_ptr<const MarcusPlayer::FrameRanges> ranges;
+    std::vector<MarcusScene> scenes;
+    std::optional<MarcusSoundTimeline> timeline;
+    SoundSheet sheet;
+    std::vector<MM::PreviewObject> objects;
+    std::exception_ptr failure;
+
+    bool Prepare(const MMMovieRangeEdit &edit)
+    {
+        auto next = std::make_shared<MarcusPlayer::FrameRanges>(*movie.frameRanges);
+        (*next)[movie.scenes[movie.selected].number] = {edit.first, edit.last};
+        ranges = std::move(next);
+        history.emplace(movie);
+        scenes = movie.sceneInfo;
+        scenes[movie.selected].first_frame = edit.first;
+        scenes[movie.selected].last_frame = edit.last;
+        timeline = movie.soundTimeline.Reframed(scenes);
+        return timeline && ReadSoundSheet(&movie, movie.selected, scenes, *timeline, sheet, error);
+    }
+
+    static int Effect(void *context, MMMovieRangeEffect effect, const MMMovieRangeEdit *edit, int restoring)
+    {
+        auto &h = *static_cast<RangeEditHost *>(context);
+        auto &movie = h.movie;
+        MM::Error ignored;
+        auto &error = restoring ? ignored : h.error;
+        try
+        {
+            switch (effect)
+            {
+            case MM_MOVIE_RANGE_CANCEL_PREVIEWS: return CancelPropPreviews(&movie, error);
+            case MM_MOVIE_RANGE_PREPARE: return h.Prepare(*edit);
+            case MM_MOVIE_RANGE_SET_BOUNDS: return movie.preview.SetSceneRange(edit->first, edit->last, error);
+            case MM_MOVIE_RANGE_SET_FRAME: return movie.preview.SetFrame(edit->frame, error);
+            case MM_MOVIE_RANGE_PREPARE_FRAME:
+                h.objects = movie.preview.Objects();
+                movie.playback.Seek(&movie.preview);
+                break;
+            case MM_MOVIE_RANGE_ABANDON:
+                movie.objects.clear();
+                movie.animations.clear();
+                movie.soundSheet = {};
+                movie.movieImageScene = -1;
+                movie.preview.ClearScene();
+                movie.playback.Stop();
+                break;
+            }
+            return 1;
+        }
+        catch (...)
+        {
+            if (!restoring)
+                h.failure = std::current_exception();
+            return 0;
+        }
+    }
+
+    MMMovieRangeServices Services()
+    {
+        return {this, &movie.selected, &movie.polledMovie,
+            [](void *p, MMMovieRangeEdit *out) {
+                const auto &info = static_cast<RangeEditHost *>(p)->movie.preview.Info();
+                *out = {info.firstFrame, info.lastFrame, info.currentFrame};
+            },
+            Effect,
+            [](void *p) {
+                auto &h = *static_cast<RangeEditHost *>(p);
+                auto &movie = h.movie;
+                movie.frameRanges = std::move(h.ranges);
+                movie.sceneInfo.swap(h.scenes);
+                movie.soundTimeline = std::move(*h.timeline);
+                movie.soundSheet = std::move(h.sheet);
+                movie.objects.swap(h.objects);
+                movie.animations.clear();
+                movie.movieImageScene = -1;
+                ++movie.document;
+                h.history->Commit();
+            }};
+    }
+};
 struct SceneCursorHost
 {
     MarcusPlayer &movie;
@@ -749,8 +849,8 @@ struct SceneCursorHost
                 movie.shapePreviews.clear();
                 if (!movie.preserveEditFraming) movie.orbitObject = -1;
                 movie.animations.clear();
-                movie.sounds.clear();
-                movie.soundTracks.clear();
+                movie.soundSheet.sounds.clear();
+                movie.soundSheet.soundTracks.clear();
                 break;
             case MM_MOVIE_SCENE_STOP_PLAYBACK:
                 movie.playback.Stop();
@@ -865,7 +965,7 @@ bool OpenEditedBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile>
             player->baseSceneInfo.clear(); player->baseNames.clear(); player->names.clear();
             player->scenes.clear(); player->sceneInfo.clear(); player->objects.clear();
             player->soundTimeline.Clear(); player->waveforms.Clear(); player->playback.Stop();
-            player->sounds.clear(); player->soundCues.clear(); player->soundTracks.clear();
+            player->soundSheet.sounds.clear(); player->soundSheet.soundCues.clear(); player->soundSheet.soundTracks.clear();
             player->resourcesReady = true; player->retailPrepared = false;
             player->contentSourceIds.clear(); player->boardFiles.clear();
             player->asmRenderer.reset(); player->asmBoardFile.reset(); player->selected = -1;
@@ -942,8 +1042,8 @@ bool SoundChange(MarcusPlayer *player, int index, const char *path, const Marcus
     { error.message = "Music uses MIDI; sampled sounds use Effects or Speech."; return false; }
     if (!adding)
     {
-        if (index < 0 || std::size_t(index) >= player->soundCues.size()) return false;
-        cue = player->soundCues[index];
+        if (index < 0 || std::size_t(index) >= player->soundSheet.soundCues.size()) return false;
+        cue = player->soundSheet.soundCues[index];
         if (!remove && (options.style == MARCUS_SOUND_MUSIC) != (cue.style == MARCUS_SOUND_MUSIC))
         { error.message = "Music uses MIDI; sampled sounds can switch between Effects and Speech."; return false; }
         if (cue.actorSound && (options.frame != cue.frame || options.style != cue.style))
@@ -951,7 +1051,7 @@ bool SoundChange(MarcusPlayer *player, int index, const char *path, const Marcus
         if (!remove && cue.frame == options.frame && cue.volume == options.volume && cue.style == options.style &&
             cue.loop == bool(options.loop) && (cue.actorSound ? cue.queue == bool(options.queue) : true)) return true;
     }
-    const int sceneIndex = adding ? player->selected : player->sounds[index].origin_scene;
+    const int sceneIndex = adding ? player->selected : player->soundSheet.sounds[index].origin_scene;
     if (sceneIndex < 0 || std::size_t(sceneIndex) >= player->sceneInfo.size() ||
         options.frame < player->sceneInfo[sceneIndex].first_frame || options.frame > player->sceneInfo[sceneIndex].last_frame)
     { error.message = "The cue frame must be inside its scene."; return false; }
@@ -1497,7 +1597,7 @@ extern "C"
                 player->preview.ClearScene();
                 player->selected = -1;
                 player->objects.clear();
-                player->sounds.clear(); player->soundTracks.clear(); player->soundCues.clear();
+                player->soundSheet.sounds.clear(); player->soundSheet.soundTracks.clear(); player->soundSheet.soundCues.clear();
                 player->playback.Stop();
             }
             else
@@ -1982,39 +2082,16 @@ extern "C"
     int marcus_add_frame(MarcusPlayer *player, int direction)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (player->selected < 0 || (direction != -1 && direction != 1))
-            { error.message = "Choose the beginning or end of a scene to add a frame."; return false; }
-            if (!CancelPropPreviews(player, error)) return false;
-            const auto info = player->preview.Info();
-            const auto edge = direction < 0 ? info.firstFrame : info.lastFrame;
-            const auto frame = std::int64_t(edge) + direction;
-            if (info.currentFrame != edge || frame <= std::numeric_limits<std::int32_t>::min() ||
-                frame > std::numeric_limits<std::int32_t>::max())
-            { error.message = "A frame can only be added at a valid scene boundary."; return false; }
-            auto ranges = std::make_shared<MarcusPlayer::FrameRanges>(*player->frameRanges);
-            const MarcusPlayer::FrameRange range{direction < 0 ? long(frame) : info.firstFrame,
-                                                 direction > 0 ? long(frame) : info.lastFrame};
-            (*ranges)[player->scenes[player->selected].number] = range;
-            EditHistory history(*player);
-            if (!player->preview.SetSceneRange(range.first, range.last, error)) return false;
-            if (!player->preview.SetFrame(static_cast<std::int32_t>(frame), error))
-            {
-                MM::Error ignored;
-                player->preview.SetSceneRange(info.firstFrame, info.lastFrame, ignored);
-                player->preview.SetFrame(info.currentFrame, ignored);
-                return false;
-            }
-            player->frameRanges = std::move(ranges);
-            UpdateSceneRanges(*player);
-            if (!player->soundTimeline.Reframe(player->sceneInfo) || !ReadSoundSheet(player, player->selected, error)) return false;
-            player->playback.Seek(&player->preview);
-            player->objects = player->preview.Objects();
-            player->animations.clear();
-            player->movieImageScene = -1;
-            mm_polled_movie_reset(&player->polledMovie, 0);
-            ++player->document;
-            history.Commit();
-            return true;
+            RangeEditHost host{*player, error};
+            auto services = host.Services();
+            const int result = mm_movie_scene_extend(direction, &services);
+            if (host.failure)
+                std::rethrow_exception(host.failure);
+            if (result == MM_MOVIE_RANGE_DIRECTION)
+                error.message = "Choose the beginning or end of a scene to add a frame.";
+            else if (result == MM_MOVIE_RANGE_BOUNDARY)
+                error.message = "A frame can only be added at a valid scene boundary.";
+            return result == 1;
         });
     }
     int marcus_camera_projection(MarcusPlayer *player, unsigned long camera, MarcusProjection *projection)
@@ -2277,8 +2354,8 @@ extern "C"
             player->materializedFile.reset();
             player->animations.clear();
             player->names.clear();
-            player->sounds.clear();
-            player->soundTracks.clear();
+            player->soundSheet.sounds.clear();
+            player->soundSheet.soundTracks.clear();
             player->soundTimeline.Clear();
             player->waveforms.Clear();
             player->image = {};
@@ -2396,8 +2473,8 @@ extern "C"
         info->frame = source.currentFrame;
         info->camera = source.currentCamera;
         info->camera_count = source.cameraCount;
-        info->sound_count = static_cast<int>(player->sounds.size());
-        info->sound_track_count = static_cast<int>(player->soundTracks.size());
+        info->sound_count = static_cast<int>(player->soundSheet.sounds.size());
+        info->sound_track_count = static_cast<int>(player->soundSheet.soundTracks.size());
         return 1;
     }
     int marcus_movie_time_async(MarcusPlayer *player, MarcusMovieTime *time)
@@ -2432,8 +2509,8 @@ extern "C"
             }
             if (!timeline->Reframe(player->sceneInfo)) throw std::runtime_error("Invalid live frame ranges.");
             player->soundTimeline = std::move(*timeline);
-            player->sounds.clear();
-            player->soundTracks.clear();
+            player->soundSheet.sounds.clear();
+            player->soundSheet.soundTracks.clear();
             MM::Error error;
             if (!ReadSoundSheet(player, player->selected, error))
                 throw std::runtime_error(error.message);
@@ -2515,9 +2592,9 @@ extern "C"
     int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track)
     {
         if (!player || player->selected < 0 || !track || index < 0 ||
-            static_cast<std::size_t>(index) >= player->soundTracks.size())
+            static_cast<std::size_t>(index) >= player->soundSheet.soundTracks.size())
             return 0;
-        *track = player->soundTracks[index];
+        *track = player->soundSheet.soundTracks[index];
         player->playback.TrackMix(track->actor_sound != 0, track->actor_id, track->style,
                                   track->muted, track->solo, track->audible);
         return 1;
@@ -2548,9 +2625,9 @@ extern "C"
     int marcus_sound(const MarcusPlayer *player, int index, MarcusSound *sound)
     {
         if (!player || player->selected < 0 || !sound || index < 0 ||
-            static_cast<std::size_t>(index) >= player->sounds.size())
+            static_cast<std::size_t>(index) >= player->soundSheet.sounds.size())
             return 0;
-        *sound = player->sounds[index];
+        *sound = player->soundSheet.sounds[index];
         return 1;
     }
     int marcus_add_sound(MarcusPlayer *player, const char *path, const MarcusSoundOptions *options)
@@ -2558,8 +2635,8 @@ extern "C"
         int result = -1;
         Guard(player, [&](MM::Error &error) {
             if (!path || !*path || !options || !SoundChange(player, -1, path, *options, false, error)) return false;
-            for (int i = int(player->sounds.size()) - 1; i >= 0; --i)
-                if (!player->sounds[i].actor_sound && player->sounds[i].frame == options->frame && player->sounds[i].style == options->style)
+            for (int i = int(player->soundSheet.sounds.size()) - 1; i >= 0; --i)
+                if (!player->soundSheet.sounds[i].actor_sound && player->soundSheet.sounds[i].frame == options->frame && player->soundSheet.sounds[i].style == options->style)
                 { result = i; break; }
             return true;
         });
@@ -2585,8 +2662,8 @@ extern "C"
             ReadSoundAssets(player);
             if (!options || index < 0 || std::size_t(index) >= player->soundAssets.size()) return false;
             if (!SoundChange(player, -1, nullptr, *options, false, error, &player->soundAssets[index])) return false;
-            for (int i = int(player->sounds.size()) - 1; i >= 0; --i)
-                if (!player->sounds[i].actor_sound && player->sounds[i].frame == options->frame && player->sounds[i].style == options->style)
+            for (int i = int(player->soundSheet.sounds.size()) - 1; i >= 0; --i)
+                if (!player->soundSheet.sounds[i].actor_sound && player->soundSheet.sounds[i].frame == options->frame && player->soundSheet.sounds[i].style == options->style)
                 { result = i; break; }
             return true;
         });
@@ -2613,8 +2690,8 @@ extern "C"
     int marcus_remove_sound(MarcusPlayer *player, int index)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (index < 0 || std::size_t(index) >= player->soundCues.size()) return false;
-            const auto &cue = player->soundCues[index];
+            if (index < 0 || std::size_t(index) >= player->soundSheet.soundCues.size()) return false;
+            const auto &cue = player->soundSheet.soundCues[index];
             MarcusSoundOptions options = {cue.frame, cue.volume, cue.style, int(cue.loop), int(cue.queue)};
             return SoundChange(player, index, nullptr, options, true, error);
         });
@@ -2622,8 +2699,8 @@ extern "C"
     int marcus_audition_sound(MarcusPlayer *player, int index, long volume)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (index < 0 || std::size_t(index) >= player->soundCues.size() || volume < 0 || volume > 65536) return false;
-            auto cue = player->soundCues[index]; cue.volume = volume;
+            if (index < 0 || std::size_t(index) >= player->soundSheet.soundCues.size() || volume < 0 || volume > 65536) return false;
+            auto cue = player->soundSheet.soundCues[index]; cue.volume = volume;
             return player->playback.Audition(player->preview, cue, error);
         });
     }
@@ -2645,7 +2722,7 @@ extern "C"
                               MarcusWaveformColumn *columns, MarcusWaveformInfo *info)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (player->selected < 0 || index < 0 || static_cast<std::size_t>(index) >= player->soundCues.size() ||
+            if (player->selected < 0 || index < 0 || static_cast<std::size_t>(index) >= player->soundSheet.soundCues.size() ||
                 !columns || !info || count < 1 || count > 4096 || !std::isfinite(first) || first < 0 ||
                 !std::isfinite(step) || step <= 0)
             {
@@ -2653,7 +2730,7 @@ extern "C"
                 error.message = "Waveforms require a sound cue, output columns and a finite clip-relative range.";
                 return false;
             }
-            player->waveforms.Read(player->preview, player->soundCues[index], first, step, count, columns, *info);
+            player->waveforms.Read(player->preview, player->soundSheet.soundCues[index], first, step, count, columns, *info);
             return true;
         });
     }
@@ -2661,7 +2738,7 @@ extern "C"
                                      MarcusWaveformColumn *columns, MarcusWaveformInfo *info)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (player->selected < 0 || index < 0 || static_cast<std::size_t>(index) >= player->soundCues.size() ||
+            if (player->selected < 0 || index < 0 || static_cast<std::size_t>(index) >= player->soundSheet.soundCues.size() ||
                 !columns || !info || count < 1 || count > 4096 || !std::isfinite(first) ||
                 !std::isfinite(step) || step <= 0)
             {
@@ -2812,8 +2889,8 @@ extern "C"
             const double fps = mm_playback_fps(rate, modifier);
             player->playback.SetRate(fps);
             player->soundTimeline.SetRate(fps);
-            player->sounds.clear();
-            player->soundTracks.clear();
+            player->soundSheet.sounds.clear();
+            player->soundSheet.soundTracks.clear();
             return player->selected < 0 || ReadSoundSheet(player, player->selected, error);
         });
     }

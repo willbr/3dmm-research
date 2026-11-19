@@ -1,5 +1,6 @@
 /* Movie scene-container transactions, retry paths and ownership. */
 #include "mm/movie_scene.h"
+#include "mm/scene_runtime.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x)                                                                                                       \
@@ -655,9 +656,127 @@ static int cursor_operations(void)
     return 0;
 }
 
+typedef struct RangeTest
+{
+    MMI32 selected, camera;
+    MMPolledMovie playback;
+    MMMovieRangeEdit live, published;
+    MMSceneState stored;
+    int fail, fail_restore, steps;
+    char trace[20];
+} RangeTest;
+
+static void range_step(RangeTest *r, char step)
+{
+    r->trace[r->steps++] = step;
+    r->trace[r->steps] = 0;
+}
+
+static void range_position(void *p, MMMovieRangeEdit *edit)
+{
+    *edit = ((RangeTest *)p)->live;
+}
+
+static int range_effect(void *p, MMMovieRangeEffect effect, const MMMovieRangeEdit *edit, int restoring)
+{
+    static const char forward[] = "CPBFRX", restore[] = "cpbfrx";
+    RangeTest *r = p;
+    range_step(r, (restoring ? restore : forward)[effect]);
+    if ((!restoring && (int)effect == r->fail) ||
+        (restoring && r->fail_restore && effect == MM_MOVIE_RANGE_SET_BOUNDS))
+        return 0;
+    if (effect == MM_MOVIE_RANGE_SET_BOUNDS)
+    {
+        r->live.first = edit->first;
+        r->live.last = edit->last;
+    }
+    if (effect == MM_MOVIE_RANGE_SET_FRAME)
+        r->live.frame = edit->frame;
+    return 1;
+}
+
+static void range_publish(void *p)
+{
+    RangeTest *r = p;
+    range_step(r, '!');
+    r->published = r->live;
+}
+static MMI32 one_camera(void *p) { (void)p; return 1; }
+static void camera_at(void *p, MMI32 index, MMI32 *frame, int *kind)
+{
+    (void)index;
+    *frame = ((RangeTest *)p)->camera;
+    *kind = MM_SCENE_CHANGE_CAMERA;
+}
+static void move_opening_camera(void *p, MMI32 index, MMI32 frame)
+{
+    (void)index;
+    range_step(p, 'M');
+    ((RangeTest *)p)->camera = frame;
+}
+static int range_open_events(void *p) { range_step(p, 'O'); return 1; }
+static int range_replace_events(void *p) { range_step(p, 'E'); return !((RangeTest *)p)->fail; }
+static int range_drop_thumbnail(void *p) { range_step(p, 'T'); return 1; }
+static int range_write_scene(void *p) { range_step(p, 'W'); return 1; }
+
+static int extending(void)
+{
+    RangeTest r;
+    MMMovieRangeServices edit = {NULL, NULL, NULL, range_position, range_effect, range_publish};
+    MMSceneRuntimeServices events;
+    MMSceneRangeStoreServices store = {NULL, range_open_events, range_replace_events, range_drop_thumbnail,
+                                      range_write_scene};
+    memset(&r, 0, sizeof(r));
+    edit.context = events.context = &r;
+    edit.selected = &r.selected;
+    edit.playback = &r.playback;
+    r.live.first = r.live.last = r.live.frame = 1;
+    r.playback.finished = 1;
+    r.fail = MM_MOVIE_RANGE_PREPARE;
+    CHECK(!mm_movie_scene_extend(-1, &edit) && !strcmp(r.trace, "CP"));
+    CHECK(r.live.first == 1 && r.playback.finished);
+    r.steps = 0;
+    r.fail = MM_MOVIE_RANGE_PREPARE_FRAME;
+    CHECK(!mm_movie_scene_extend(-1, &edit) && !strcmp(r.trace, "CPBFRbf"));
+    CHECK(r.live.first == 1 && r.live.frame == 1 && r.playback.finished && r.selected == 0);
+    r.steps = 0;
+    r.fail = -1;
+    CHECK(mm_movie_scene_extend(-1, &edit) == 1 && !strcmp(r.trace, "CPBFR!"));
+    CHECK(r.published.first == 0 && r.published.frame == 0 && r.published.last == 1);
+    CHECK(!r.playback.finished && r.playback.restore_audio);
+    r.steps = 0;
+    CHECK(mm_movie_scene_extend(1, &edit) == MM_MOVIE_RANGE_BOUNDARY && !strcmp(r.trace, "C"));
+    r.steps = 0;
+    r.fail = MM_MOVIE_RANGE_SET_FRAME;
+    r.fail_restore = 1;
+    CHECK(!mm_movie_scene_extend(-1, &edit) && !strcmp(r.trace, "CPBFbx") && r.selected == -1);
+    CHECK(r.published.first == 0);
+    r.steps = 0;
+    memset(&events, 0, sizeof(events));
+    events.context = &r;
+    events.event_count = one_camera;
+    events.event = camera_at;
+    events.move_camera = move_opening_camera;
+    store.events = &events;
+    r.stored.firstFrame = r.stored.lastFrame = r.camera = 1;
+    CHECK(mm_scene_range_store(&r.stored, -2147483647L - 1L, 2, &store) == MM_SCENE_RANGE_INVALID);
+    CHECK(!r.steps);
+    r.fail = 0;
+    CHECK(mm_scene_range_store(&r.stored, 1, 2, &store) == 1 && !strcmp(r.trace, "W"));
+    CHECK(r.stored.lastFrame == 2 && r.camera == 1);
+    r.steps = 0;
+    CHECK(mm_scene_range_store(&r.stored, -2, 3, &store) == 1 && !strcmp(r.trace, "OMETW"));
+    CHECK(r.stored.firstFrame == -2 && r.stored.lastFrame == 3 && r.camera == -2);
+    r.steps = 0;
+    r.fail = 1;
+    CHECK(!mm_scene_range_store(&r.stored, -3, 4, &store) && !strcmp(r.trace, "OME"));
+    CHECK(r.stored.lastFrame == 3);
+    return 0;
+}
+
 int main(void)
 {
-    if (switching() || insertion() || removal() || undoing() || cursor_operations())
+    if (switching() || insertion() || removal() || undoing() || cursor_operations() || extending())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

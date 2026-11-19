@@ -46,6 +46,29 @@ void mm_scene_extend_range(MMSceneState *d, const MMSceneRuntimeServices *s)
                     d->lastFrame = last;
             }
 }
+int mm_scene_range_contains(MMI32 authored_first, MMI32 authored_last, long first, long last)
+{
+    return first > (-2147483647L - 1L) && first <= authored_first &&
+           last >= authored_last && last <= 2147483647L;
+}
+
+int mm_scene_range_store(MMSceneState *scene, long first, long last, const MMSceneRangeStoreServices *s)
+{
+    void *context = s->events->context;
+    if (!mm_scene_range_contains(scene->firstFrame, scene->lastFrame, first, last))
+        return MM_SCENE_RANGE_INVALID;
+    if (first < scene->firstFrame)
+    {
+        if (!s->open_events(context))
+            return 0;
+        mm_scene_move_first(scene, (MMI32)first, s->events);
+        if (!s->replace_events(context) || !s->drop_thumbnail(context))
+            return 0;
+    }
+    scene->lastFrame = (MMI32)last;
+    return s->write_scene(context);
+}
+
 typedef struct SceneSeek
 {
     MMSceneRuntime *runtime;

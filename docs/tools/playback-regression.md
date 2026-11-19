@@ -14350,3 +14350,37 @@ Marcus builds produced identical images. Each differed from retail
 by three pixels in total across the two frames. The reopen suites
 are `20261119T024714Z-9adf6479` for the previous Marcus build and
 `20261119T024628Z-26f2e077` for the converted build.
+
+## Marcus frame-edge edits and native saving in C89 (19 November 2026)
+
+C89 selects the new scene edge, prepares and evaluates the edit, and
+publishes the range, playhead, sound schedule and undo record together.
+A failed evaluation restores the old bounds and frame. The engine
+clears selection if restoring the view also fails. Preview and native
+serialization use the same range validation. A prepend relocates the
+opening camera using Studio's C89 rule, replaces the frame-event
+group and invalidates the saved thumbnail before writing the bounds.
+
+A headless comparison started with the authored `actor-audio.3mm` and
+extended its second scene from frames 1 through 30 to −1 through 31.
+Both builds matched on consecutive prepends, append, undo, reappend,
+save, reopen and seek to both extended edges. The opening camera stayed
+on the first frame, and the camera at the appended edge matched. The
+two saved native movies are byte-identical and have SHA-256
+`84c2222738f6018686fa92958a78fa5ead1069c62495dd3558d5b938509927b8`.
+
+Retail, SDL Studio and Marcus reopened the extended native movie in
+suite `20261119T025549Z-af958d62`. All six runs completed, and the
+players agreed on all 63 authored frame positions in both seek and
+playback. The six seek images around the edited boundaries matched
+retail in both players. The full runs still showed retail pixel and
+mixed PCM differences, and Marcus timing remained inconclusive.
+
+C fault injection covers preparation failure, frame evaluation rollback,
+view abandonment when rollback also fails, and native frame-event
+replacement failure. All 11 selected checks passed, including strict C89
+syntax and the headless Marcus player, playback, sound-edit, insertion,
+costume and storyboard tests. Marcus was rebuilt and relaunched.
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The two native outputs,
+probe and build logs are in `tmp/c89-frame-range`.

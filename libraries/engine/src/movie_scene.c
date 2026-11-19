@@ -95,6 +95,47 @@ int mm_movie_scene_cursor_seek(long frame, const MMMovieSceneCursorServices *s)
     return s->effect(s->context, MM_MOVIE_SCENE_SYNC_OBJECTS, &request);
 }
 
+int mm_movie_scene_extend(int direction, const MMMovieRangeServices *s)
+{
+    MMMovieRangeEdit before, after;
+    if (*s->selected < 0 || (direction != -1 && direction != 1))
+        return MM_MOVIE_RANGE_DIRECTION;
+    if (!s->effect(s->context, MM_MOVIE_RANGE_CANCEL_PREVIEWS, NULL, 0))
+        return 0;
+    s->position(s->context, &before);
+    after = before;
+    if (direction < 0)
+    {
+        if (before.frame != before.first || before.first <= -2147483647L)
+            return MM_MOVIE_RANGE_BOUNDARY;
+        after.frame = --after.first;
+    }
+    else
+    {
+        if (before.frame != before.last || before.last >= 2147483647L)
+            return MM_MOVIE_RANGE_BOUNDARY;
+        after.frame = ++after.last;
+    }
+    if (!s->effect(s->context, MM_MOVIE_RANGE_PREPARE, &after, 0) ||
+        !s->effect(s->context, MM_MOVIE_RANGE_SET_BOUNDS, &after, 0))
+        return 0;
+    if (!s->effect(s->context, MM_MOVIE_RANGE_SET_FRAME, &after, 0) ||
+        !s->effect(s->context, MM_MOVIE_RANGE_PREPARE_FRAME, &after, 0))
+    {
+        if (!s->effect(s->context, MM_MOVIE_RANGE_SET_BOUNDS, &before, 1) ||
+            !s->effect(s->context, MM_MOVIE_RANGE_SET_FRAME, &before, 1))
+        {
+            *s->selected = -1;
+            mm_polled_movie_reset(s->playback, 0);
+            s->effect(s->context, MM_MOVIE_RANGE_ABANDON, NULL, 1);
+        }
+        return 0;
+    }
+    mm_polled_movie_reset(s->playback, 0);
+    s->publish(s->context);
+    return 1;
+}
+
 void mm_movie_scenes_init(MMMovieScenes *state)
 {
     state->open = 0;

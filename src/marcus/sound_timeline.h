@@ -5,6 +5,7 @@
 #include "mm/preview.h"
 #include <functional>
 #include <memory>
+#include <optional>
 #include <map>
 #include <vector>
 #include <iosfwd>
@@ -68,6 +69,7 @@ class MarcusSoundTimeline
     void SetRate(double fps);
     // Reschedule cached cues/lengths after edge edits, without decoding media.
     bool Reframe(const std::vector<MarcusScene> &ranges);
+    std::optional<MarcusSoundTimeline> Reframed(const std::vector<MarcusScene> &ranges) const;
     // Ephemeral IPC between matching Marcus/helper builds, never movie data.
     bool Write(std::ostream &output) const;
     bool Read(std::istream &input, const std::vector<MarcusScene> &expected);

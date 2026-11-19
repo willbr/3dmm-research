@@ -70,6 +70,20 @@ extern "C"
     int mm_scene_force(MMI32 frame, int text, int *sound, const MMSceneRuntimeServices *);
     void mm_scene_move_first(MMSceneState *, MMI32, const MMSceneRuntimeServices *);
     void mm_scene_extend_range(MMSceneState *, const MMSceneRuntimeServices *);
+    /* The minimum 32-bit frame is reserved. Extensions retain every authored frame. */
+    int mm_scene_range_contains(MMI32 authored_first, MMI32 authored_last, long first, long last);
+    typedef struct MMSceneRangeStoreServices
+    {
+        const MMSceneRuntimeServices *events;
+        int (*open_events)(void *);
+        int (*replace_events)(void *);
+        int (*drop_thumbnail)(void *);
+        int (*write_scene)(void *);
+    } MMSceneRangeStoreServices;
+    enum { MM_SCENE_RANGE_INVALID = -1 };
+    /* Operates on a private working copy. Returns the invalid-range status or
+     * 1/0 from the write effects. Callbacks use events->context and never unwind. */
+    int mm_scene_range_store(MMSceneState *, long first, long last, const MMSceneRangeStoreServices *);
     void mm_scene_prerender(const MMSceneRuntime *, const MMSceneState *, int start_now,
                                   const MMSceneRuntimeServices *);
     void mm_scene_end_prerender(const MMSceneRuntimeServices *);

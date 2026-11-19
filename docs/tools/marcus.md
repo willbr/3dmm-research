@@ -151,6 +151,9 @@ memory; original movies, ZIPs and content files are not overwritten.
 Resource/Content reloads retain the added scenes. An **UNSAVED** indicator marks
 the working movie. **Save copy** (Ctrl+S / Cmd+S) exports the current working
 movie, including scene additions, camera cuts, prop edits and extended frame ranges.
+The C89 frame-edge transaction prepares the new range and sound timing before
+publishing the edit as one undo step. Prepending moves the opening camera to
+the new first frame and preserves the authored positions of the other events.
 Ordinary movies save as `.3mm`; movies containing storyboards or V3DMM content
 require `.vmm`. Storyboard VMMs include their generated backgrounds as a Portable
 VXP package alongside the native movie and retain existing portable dependencies.

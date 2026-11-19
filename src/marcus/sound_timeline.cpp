@@ -116,6 +116,18 @@ bool MarcusSoundTimeline::Reframe(const std::vector<MarcusScene> &ranges)
     return true;
 }
 
+std::optional<MarcusSoundTimeline> MarcusSoundTimeline::Reframed(const std::vector<MarcusScene> &ranges) const
+{
+    const auto count = std::min(sources.size(), ranges.size());
+    for (std::size_t i = 0; i < count; ++i)
+        if (ranges[i].chunk != sources[i].info.chunk) return std::nullopt;
+    MarcusSoundTimeline result(marcus_sound_schedule_frame_seconds(schedule.get()));
+    result.sources.reserve(count);
+    for (std::size_t i = 0; i < count; ++i)
+        result.AppendPrepared(ranges[i], sources[i]);
+    return result;
+}
+
 void MarcusSoundTimeline::Clear()
 {
     marcus_sound_schedule_clear(schedule.get());
