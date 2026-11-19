@@ -2284,6 +2284,12 @@ frame's presentation span, and resolves time seeks during an incoming
 transition to the new scene's first frame. Marcus resolves display names and
 applies the seek to the player.
 
+Playback, timing analysis and the sound sheet read presentation events from
+the live C89 movie graph. Marcus shares the scene and actor wire readers with
+Studio. The readers validate both byte orders before interpreting each group.
+Marcus materializes the rich-text captions and publishes the resulting records
+through its preview API.
+
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
 movie, keeping ZIP/VMM inputs alive. Engine globals remain isolated in the child
@@ -2316,6 +2322,13 @@ results across three native movies with 10 scenes, 18 tracks, 28 cues and 84
 time seeks. Rebuilt SDL Studio matched the retail seek state at frames 1 and 4
 of the actor-sound movie. Each viewport differed by one pixel out of 169,092.
 The comparisons are in `tmp/c89-sound-sheet/`.
+
+The graph reader preserved three timing snapshots and the published sound
+sheet and seek results across three movies byte for byte. The asset-preview
+checks retained the caption, pause, and cue metadata fingerprint. Fresh retail
+captures matched SDL Studio's seek state at all three sampled frames. The
+credits viewport matched exactly. The two actor-sound viewports each differed
+by one pixel out of 169,092. Evidence is in `tmp/c89-presentation-graph/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

@@ -1,4 +1,5 @@
 #include "mm/preview_metadata.h"
+#include "mm/movie_session.h"
 #include "mm/scene_data.h"
 #include <string.h>
 static int marker(void *events, MMI32 index, const MMActorEvent *e, const MMActorState *state, MMPreviewMarker *out,
@@ -202,139 +203,163 @@ void mm_preview_actor_cue(MMPreviewCue *out, const MMActorSound *sound, MMI32 fr
     out->motion = sound->cel != -1;
     out->motion_cel = sound->cel;
 }
-int mm_preview_presentation(MMU32 scene, int sound_sheet, int include_captions, const MMPreviewPresentationServices *s)
+static int presentation_status(int status)
 {
-    MMPreviewCueGroup group, actor_events;
+    return status == MM_MOVIE_OK ? 1 : status == MM_MOVIE_MEMORY ? -1 : 0;
+}
+
+typedef struct ActorCueOutput
+{
+    const MMPreviewPresentationServices *services;
+    MMI32 actor;
+    int result;
+} ActorCueOutput;
+
+/* The stream reader validates every row before calling insert. Borrow the
+ * output context as its sink and emit sound rows without keeping a track. */
+static void *actor_cue_sink(void *context, MMU32 width)
+{
+    (void)width;
+    return context;
+}
+static void release_cue_sink(void *group) { (void)group; }
+static int insert_actor_cue(void *group, MMU32 row, MMU32 bytes, const void *data, const void *fixed)
+{
+    ActorCueOutput *out = (ActorCueOutput *)group;
+    MMActorEvent event;
     MMPreviewCue cue;
+    (void)row;
+    (void)bytes;
+    memcpy(&event, fixed, sizeof(event));
+    if (event.aet == MM_ACTOR_SOUND)
+    {
+        mm_preview_actor_cue(&cue, (const MMActorSound *)data, event.nfrm, out->actor);
+        out->result = out->services->cue(out->services->context, &cue);
+    }
+    return out->result > 0;
+}
+
+static int present_actor(const MMMovieSessionGraph *graph, MMU32 number, const MMPreviewPresentationServices *s)
+{
+    ActorCueOutput output;
+    MMActorEventServices events = {0};
     MMActorHeader header;
-    MMActorSound sound;
-    MMI32 transition, kind, frame, actor_kind, actor_frame, i, count, volume, style, loop, pause_kind, duration;
-    MMU32 row, actor_row, child, slot, offset;
-    int start, r, result = 0;
-    memset(&group, 0, sizeof(group));
-    memset(&actor_events, 0, sizeof(actor_events));
+    void *sink;
+    int status = mm_movie_actor_header(graph, number, &header);
+    if (status != MM_MOVIE_OK)
+        return presentation_status(status);
+    if (header.first_frame == 2147483647)
+        return 1;
+    output.services = s;
+    output.actor = header.actor_id;
+    output.result = 1;
+    events.context = &output;
+    events.new_group = actor_cue_sink;
+    events.insert = insert_actor_cue;
+    events.release = release_cue_sink;
+    status = mm_movie_actor_events(graph, number, &events, &sink);
+    return output.result > 0 ? presentation_status(status) : output.result;
+}
+
+static int present_sound(const MMMovieSceneEvent *event, const MMPreviewPresentationServices *s)
+{
+    MMPreviewCue cue = {0};
+    MMI32 i, count;
+    MMU32 offset;
+    int result;
+    cue.frame = event->frame;
+    cue.volume = mm_signed_word(mm_movie_scene_event_word(event, 0));
+    cue.style = mm_signed_word(mm_movie_scene_event_word(event, 4));
+    cue.loop = mm_movie_scene_event_word(event, 8) != 0;
+    cue.motion_cel = -1;
+    count = mm_signed_word(mm_movie_scene_event_word(event, 12));
+    for (i = 0; i < count; ++i)
+    {
+        offset = 16 + (MMU32)i * 20;
+        cue.queue = i != 0;
+        cue.child = mm_movie_scene_event_word(event, offset);
+        cue.source = mm_signed_word(mm_movie_scene_event_word(event, offset + 4));
+        cue.type = mm_movie_scene_event_word(event, offset + 12);
+        cue.number = mm_movie_scene_event_word(event, offset + 16);
+        result = s->cue(s->context, &cue);
+        if (result <= 0)
+            return result;
+    }
+    return 1;
+}
+
+static int present_group(const MMMovieSessionGraph *graph, const MMChunkAccess *chunks, MMU32 parent,
+                         const MMMovieSceneReader *reader, const MMMovieSceneGroup *group, int sound_sheet,
+                         int include_captions, const MMPreviewPresentationServices *s)
+{
+    const MMU32 actor_type = 0x41435452UL, text_type = 0x54424f58UL;
+    MMMovieSceneEvent event;
+    MMChunkChild child;
+    MMU32 row, slot;
+    MMI32 kind, duration;
+    int actor, result;
+    for (row = 0; row < group->count; ++row)
+    {
+        reader->event(reader->context, group, row, &event);
+        actor = sound_sheet && event.kind == MM_SCENE_ADD_ACTOR;
+        if (actor || ((!sound_sheet || include_captions) && event.kind == MM_SCENE_ADD_TEXT))
+        {
+            slot = mm_movie_scene_event_word(&event, 0);
+            if (mm_chunk_child_exact(chunks, parent, slot, actor ? actor_type : text_type, &child) != MM_CHUNK_OK)
+                return 0;
+            result = actor ? present_actor(graph, child.number, s) : s->caption(s->context, child.number);
+        }
+        else if (event.kind == MM_SCENE_PAUSE)
+        {
+            kind = mm_signed_word(mm_movie_scene_event_word(&event, 0));
+            duration = mm_signed_word(mm_movie_scene_event_word(&event, 4));
+            if (kind < 0 || kind >= 4 || duration < 0)
+                return 0;
+            result = s->pause(s->context, event.frame, kind, duration);
+        }
+        else if (event.kind == MM_SCENE_PLAY_SOUND)
+            result = present_sound(&event, s);
+        else
+            continue;
+        if (result <= 0)
+            return result;
+    }
+    return 1;
+}
+
+int mm_preview_presentation(const MMMovieSessionGraph *graph, MMU32 scene, int sound_sheet, int include_captions,
+                            const MMPreviewPresentationServices *s)
+{
+    const MMU32 scene_type = 0x5343454eUL;
+    MMMovieSceneSource source;
+    MMMovieSceneReader reader;
+    MMMovieSessionScene metadata;
+    MMMovieSceneGroup group;
+    MMChunkAccess chunks;
+    MMU32 parent;
+    int start, status, result;
     s->reset(s->context);
-    r = s->header(s->context, scene, &transition);
-    if (r <= 0)
-        return r;
-    s->transition(s->context, transition);
+    source.movie = NULL;
+    source.graph = *graph;
+    reader = mm_movie_scene_reader(&source);
+    status = reader.header(reader.context, scene, &metadata);
+    if (status != MM_MOVIE_OK)
+        return presentation_status(status);
+    s->transition(s->context, metadata.transition);
+    graph->access(graph->context, &chunks);
+    if (mm_chunk_find(&chunks, scene_type, scene, &parent) != MM_CHUNK_OK)
+        return 0;
     for (start = 1; start >= 0; --start)
     {
-        r = s->group(s->context, scene, start, &group);
-        if (r <= 0)
-        {
-            result = r;
-            goto done;
-        }
-        for (row = 0; row < group.count; ++row)
-        {
-            s->event(s->context, &group, row, &kind, &frame);
-            if (sound_sheet && kind == MM_SCENE_ADD_ACTOR)
-            {
-                slot = s->word(s->context, &group, row, 0);
-                r = s->child(s->context, scene, slot, 1, &child);
-                if (r <= 0)
-                {
-                    result = r;
-                    goto done;
-                }
-                r = s->actor_header(s->context, child, &header);
-                if (r <= 0)
-                {
-                    result = r;
-                    goto done;
-                }
-                if (header.first_frame == 2147483647)
-                    continue;
-                r = s->group(s->context, child, MM_PREVIEW_CUE_ACTOR, &actor_events);
-                if (r <= 0)
-                {
-                    result = r;
-                    goto done;
-                }
-                for (actor_row = 0; actor_row < actor_events.count; ++actor_row)
-                {
-                    s->event(s->context, &actor_events, actor_row, &actor_kind, &actor_frame);
-                    if (actor_kind != MM_ACTOR_SOUND)
-                        continue;
-                    s->actor_sound(s->context, &actor_events, actor_row, &sound);
-                    mm_preview_actor_cue(&cue, &sound, actor_frame, header.actor_id);
-                    r = s->cue(s->context, &cue);
-                    if (r <= 0)
-                    {
-                        result = r;
-                        goto done;
-                    }
-                }
-                s->release(s->context, &actor_events);
-            }
-            else if ((!sound_sheet || include_captions) && kind == MM_SCENE_ADD_TEXT)
-            {
-                slot = s->word(s->context, &group, row, 0);
-                r = s->child(s->context, scene, slot, 0, &child);
-                if (r <= 0)
-                {
-                    result = r;
-                    goto done;
-                }
-                r = s->caption(s->context, child);
-                if (r <= 0)
-                {
-                    result = r;
-                    goto done;
-                }
-            }
-            else if (kind == MM_SCENE_PAUSE)
-            {
-                pause_kind = mm_signed_word(s->word(s->context, &group, row, 0));
-                duration = mm_signed_word(s->word(s->context, &group, row, 1));
-                if (pause_kind < 0 || pause_kind >= 4 || duration < 0)
-                    goto done;
-                r = s->pause(s->context, frame, pause_kind, duration);
-                if (r <= 0)
-                {
-                    result = r;
-                    goto done;
-                }
-            }
-            else if (kind == MM_SCENE_PLAY_SOUND)
-            {
-                volume = mm_signed_word(s->word(s->context, &group, row, 0));
-                style = mm_signed_word(s->word(s->context, &group, row, 1));
-                loop = mm_signed_word(s->word(s->context, &group, row, 2));
-                count = mm_signed_word(s->word(s->context, &group, row, 3));
-                for (i = 0; i < count; ++i)
-                {
-                    memset(&cue, 0, sizeof(cue));
-                    cue.frame = frame;
-                    cue.style = style;
-                    cue.volume = volume;
-                    cue.loop = loop != 0;
-                    cue.queue = i != 0;
-                    cue.motion_cel = -1;
-                    offset = 4 + (MMU32)i * 5;
-                    cue.child = s->word(s->context, &group, row, offset);
-                    cue.source = mm_signed_word(s->word(s->context, &group, row, offset + 1));
-                    cue.type = s->word(s->context, &group, row, offset + 3);
-                    cue.number = s->word(s->context, &group, row, offset + 4);
-                    r = s->cue(s->context, &cue);
-                    if (r <= 0)
-                    {
-                        result = r;
-                        goto done;
-                    }
-                }
-            }
-        }
-        s->release(s->context, &group);
+        status = reader.group(reader.context, scene, start, &group);
+        if (status != MM_MOVIE_OK)
+            return presentation_status(status);
+        result = present_group(graph, &chunks, parent, &reader, &group, sound_sheet, include_captions, s);
+        reader.close(reader.context, &group);
+        if (result <= 0)
+            return result;
     }
-    result = 1;
-done:
-    if (actor_events.handle)
-        s->release(s->context, &actor_events);
-    if (group.handle)
-        s->release(s->context, &group);
-    return result;
+    return 1;
 }
 static int before(const MMPreviewCue *a, const MMPreviewCue *b)
 {

@@ -52,30 +52,11 @@ extern "C"
         int actor_sound, loop, queue, silent, motion;
     } MMPreviewCue;
     void mm_preview_actor_cue(MMPreviewCue *, const MMActorSound *, MMI32 frame, MMI32 actor);
-    typedef struct MMPreviewCueGroup
-    {
-        void *handle;
-        MMU32 count;
-        int kind, swap;
-    } MMPreviewCueGroup;
-    enum
-    {
-        MM_PREVIEW_CUE_FRAMES,
-        MM_PREVIEW_CUE_STARTS,
-        MM_PREVIEW_CUE_ACTOR
-    };
+    struct MMMovieSessionGraph;
     typedef struct MMPreviewPresentationServices
     {
         void *context;
         void (*reset)(void *), (*transition)(void *, MMI32);
-        int (*header)(void *, MMU32 scene, MMI32 *transition);
-        int (*group)(void *, MMU32 number, int kind, MMPreviewCueGroup *);
-        void (*release)(void *, MMPreviewCueGroup *);
-        void (*event)(void *, const MMPreviewCueGroup *, MMU32 row, MMI32 *kind, MMI32 *frame);
-        MMU32 (*word)(void *, const MMPreviewCueGroup *, MMU32 row, MMU32 word_index);
-        int (*child)(void *, MMU32 scene, MMU32 slot, int actor, MMU32 *number);
-        int (*actor_header)(void *, MMU32, MMActorHeader *);
-        void (*actor_sound)(void *, const MMPreviewCueGroup *, MMU32, MMActorSound *);
         int (*caption)(void *, MMU32);
         int (*pause)(void *, MMI32 frame, MMI32 kind, MMI32 milliseconds);
         int (*cue)(void *, const MMPreviewCue *);
@@ -98,9 +79,10 @@ extern "C"
      * numeric display formatting are typed output services. Cue sorting sets scene
      * identity first, is stable by frame then scene-before-actor, and falls back to
      * allocation-free stable merging after scratch failure. Getters cannot mutate/reenter.
-     * Scene event and actor groups are already layout-validated by their readers. */
+     * Presentation reads the borrowed live graph using the movie's validated
+     * scene and actor readers. Output callbacks must not mutate the graph. */
     int mm_preview_actor_timeline(const MMPreviewActor *, MMI32 first, MMI32 last, const MMPreviewTimelineServices *);
-    int mm_preview_presentation(MMU32 scene, int sound_sheet, int include_captions,
+    int mm_preview_presentation(const struct MMMovieSessionGraph *, MMU32 scene, int sound_sheet, int include_captions,
                                 const MMPreviewPresentationServices *);
     void mm_preview_cues_sort(MMU32 scene_type, MMU32 scene_number, const MMPreviewCueOrder *);
 #ifdef __cplusplus

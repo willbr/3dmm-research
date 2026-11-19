@@ -1,4 +1,5 @@
 #include "mm/preview_metadata.h"
+#include "mm/movie_session.h"
 #include "mm/scene_data.h"
 #include <assert.h>
 #include <stdio.h>
@@ -292,25 +293,112 @@ static void timeline_tests(void)
     h.live.route[0].dwr = 0;
     assert(mm_preview_actor_timeline(&h.actor, 1, 1, &h.services) == 0 && h.marker_count == 100000 && !h.owners);
 }
-typedef struct Group
+#define ACTR 0x41435452UL
+#define GGAE 0x47474145UL
+#define GGFR 0x47474652UL
+#define GGST 0x47475354UL
+#define SCEN 0x5343454eUL
+#define TBOX 0x54424f58UL
+
+typedef struct PresentationChunk
 {
-    MMU32 count;
-    MMI32 kind[4], frame[4];
-    MMU32 words[4][14];
-    MMActorSound sounds[4];
-    int live;
-} Group;
+    MMU32 size;
+    unsigned char bytes[192];
+} PresentationChunk;
+
 typedef struct Presentation
 {
-    Group groups[3];
+    PresentationChunk chunks[7];
+    unsigned char *pause_data, *second_actor_event;
+    MMMovieSessionGraph graph;
     MMPreviewPresentationServices services;
     MMPreviewCue cues[8];
     MMI32 transition, pause_kind, pause_duration;
-    int count, captions, pauses, groups_live, calls, fail_at, failure, releases[4], released;
+    int big, count, captions, pauses, calls, fail_at, failure, expected, missing_actor;
 } Presentation;
+
+enum { ACTOR, IDLE_ACTOR, ACTOR_EVENTS, FRAMES, STARTS, SCENE, CAPTION, CHUNKS };
+static const MMU32 chunk_types[] = {ACTR, ACTR, GGAE, GGFR, GGST, SCEN, TBOX};
+static const MMU32 chunk_numbers[] = {10, 11, 20, 21, 22, 9, 12};
+
 static int pr_step(Presentation *h)
 {
-    return ++h->calls == h->fail_at ? h->failure : 1;
+    if (++h->calls != h->fail_at)
+        return 1;
+    h->expected = h->failure;
+    return h->failure;
+}
+static int graph_step(Presentation *h)
+{
+    int result = pr_step(h);
+    if (result > 0)
+        return MM_MOVIE_OK;
+    if (result == -1)
+        return MM_MOVIE_MEMORY;
+    h->expected = 0;
+    return MM_MOVIE_IO;
+}
+static int pr_chunk(void *p, MMU32 i, MMChunkEntry *entry)
+{
+    Presentation *h = (Presentation *)p;
+    assert(i < CHUNKS);
+    memset(entry, 0, sizeof(*entry));
+    entry->type = chunk_types[i];
+    entry->number = chunk_numbers[i];
+    entry->bytes = h->chunks[i].size;
+    entry->child_count = i == SCENE ? 5 : i == ACTOR ? 1 : 0;
+    return 1;
+}
+static int pr_child(void *p, MMU32 parent, MMU32 slot, MMChunkChild *out)
+{
+    const MMChunkChild scene_children[] = {{ACTR, 10, 0}, {GGFR, 21, 0}, {TBOX, 12, 0},
+                                           {ACTR, 11, 1}, {GGST, 22, 1}};
+    Presentation *h = (Presentation *)p;
+    if (parent == ACTOR)
+    {
+        const MMChunkChild events = {GGAE, 20, 0};
+        assert(slot == 0);
+        *out = events;
+    }
+    else
+    {
+        assert(parent == SCENE && slot < 5);
+        *out = scene_children[slot];
+        if (h->missing_actor && slot == 0)
+            out->type = 0;
+    }
+    return 1;
+}
+static void graph_access(void *p, MMChunkAccess *out)
+{
+    MMChunkAccess access = {NULL, CHUNKS, pr_chunk, pr_child};
+    access.context = p;
+    *out = access;
+}
+static int graph_read(void *p, void *request, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size)
+{
+    Presentation *h = (Presentation *)p;
+    int status = graph_step(h);
+    assert(!request && position == SCENE && entry->type == SCEN && size == h->chunks[SCENE].size);
+    if (status == MM_MOVIE_OK)
+        memcpy(bytes, h->chunks[SCENE].bytes, size);
+    return status;
+}
+static int graph_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    Presentation *h = (Presentation *)p;
+    MMMemoryStream stream;
+    MMU32 i;
+    int status = graph_step(h);
+    if (status != MM_MOVIE_OK)
+        return status;
+    for (i = 0; i < CHUNKS; ++i)
+        if (entry->type == chunk_types[i] && entry->number == chunk_numbers[i])
+        {
+            assert(mm_memory_stream_init(&stream, h->chunks[i].bytes, h->chunks[i].size));
+            return receive(out, &stream.stream);
+        }
+    return MM_MOVIE_BAD_FILE;
 }
 static void reset(void *p)
 {
@@ -321,82 +409,6 @@ static void reset(void *p)
 static void transition(void *p, MMI32 value)
 {
     ((Presentation *)p)->transition = value;
-}
-static int scene_header(void *p, MMU32 scene, MMI32 *out)
-{
-    Presentation *h = (Presentation *)p;
-    int r = pr_step(h);
-    assert(scene == 9);
-    if (r > 0)
-        *out = 3;
-    return r;
-}
-static int group(void *p, MMU32 number, int kind, MMPreviewCueGroup *out)
-{
-    Presentation *h = (Presentation *)p;
-    Group *g = h->groups + kind;
-    int r = pr_step(h);
-    assert(number == (kind == MM_PREVIEW_CUE_ACTOR ? 10u : 9u) && !g->live);
-    if (r >= 0)
-    {
-        g->live = 1;
-        ++h->groups_live;
-        out->handle = g;
-        out->count = g->count;
-        out->kind = kind;
-    }
-    return r;
-}
-static void group_release(void *p, MMPreviewCueGroup *g)
-{
-    Presentation *h = (Presentation *)p;
-    Group *group = (Group *)g->handle;
-    assert(group->live);
-    group->live = 0;
-    --h->groups_live;
-    h->releases[h->released++] = g->kind;
-    g->handle = 0;
-}
-static void scene_event(void *p, const MMPreviewCueGroup *g, MMU32 row, MMI32 *kind, MMI32 *frame)
-{
-    Group *data = (Group *)g->handle;
-    (void)p;
-    assert(row < data->count);
-    *kind = data->kind[row];
-    *frame = data->frame[row];
-}
-static MMU32 word(void *p, const MMPreviewCueGroup *g, MMU32 row, MMU32 index)
-{
-    (void)p;
-    assert(index < 14);
-    return ((Group *)g->handle)->words[row][index];
-}
-static int child(void *p, MMU32 scene, MMU32 slot, int actor, MMU32 *out)
-{
-    Presentation *h = (Presentation *)p;
-    int r = pr_step(h);
-    assert(scene == 9);
-    if (r > 0)
-        *out = actor ? 10 + slot : 12;
-    return r;
-}
-static int actor_header(void *p, MMU32 number, MMActorHeader *out)
-{
-    Presentation *h = (Presentation *)p;
-    int r = pr_step(h);
-    assert(number == 10 || number == 11);
-    if (r > 0)
-    {
-        memset(out, 0, sizeof(*out));
-        out->first_frame = number == 11 ? 2147483647 : 1;
-        out->actor_id = 42;
-    }
-    return r;
-}
-static void sound(void *p, const MMPreviewCueGroup *g, MMU32 row, MMActorSound *out)
-{
-    (void)p;
-    *out = ((Group *)g->handle)->sounds[row];
 }
 static int caption(void *p, MMU32 number)
 {
@@ -431,106 +443,138 @@ static int cue(void *p, const MMPreviewCue *value)
     }
     return r;
 }
-static void pr_setup(Presentation *h)
+
+static void word(unsigned char *out, MMU32 value, int big)
 {
-    Group *g;
-    MMPreviewPresentationServices *s = &h->services;
+    unsigned i;
+    for (i = 0; i < 4; ++i)
+        out[big ? 3 - i : i] = (unsigned char)(value >> (i * 8));
+}
+typedef struct WireEvent
+{
+    MMI32 kind, frame;
+    MMU32 words, data[14];
+} WireEvent;
+
+static void write_group(PresentationChunk *chunk, MMU32 width, int big, MMU32 count, const WireEvent *events)
+{
+    MMCollectionHeader header = {0};
+    MMU32 i, j, at = 0, row_size;
+    unsigned char *rows = chunk->bytes + 20, *locations;
+    header.kind = MM_COLLECTION_GROUP;
+    header.big_endian = big;
+    header.system = 0x0303;
+    header.width = width;
+    header.count = count;
+    header.free_count = -1;
+    for (i = 0; i < count; ++i)
+        header.bytes += width + events[i].words * 4;
+    locations = rows + header.bytes;
+    chunk->size = 20 + header.bytes + count * 8;
+    assert(chunk->size <= sizeof(chunk->bytes));
+    assert(mm_collection_header_write(&header, chunk->bytes, sizeof(chunk->bytes)) == MM_STORAGE_OK);
+    for (i = 0; i < count; ++i)
+    {
+        word(rows + at, (MMU32)(width == 8 ? events[i].frame : events[i].kind), big);
+        word(rows + at + 4, (MMU32)(width == 8 ? events[i].kind : events[i].frame), big);
+        for (j = 0; j < events[i].words; ++j)
+            word(rows + at + width + 4 * j, events[i].data[j], big);
+        row_size = width + events[i].words * 4;
+        word(locations + 8 * i, at, big);
+        word(locations + 8 * i + 4, row_size, big);
+        at += row_size;
+    }
+}
+static void pr_setup(Presentation *h, int big)
+{
+    const WireEvent starts[] = {{MM_SCENE_ADD_ACTOR, 1, 1, {0}}, {MM_SCENE_ADD_ACTOR, 1, 1, {1}},
+                                 {MM_SCENE_ADD_TEXT, 1, 1, {0}}};
+    const WireEvent frames[] = {{MM_SCENE_PLAY_SOUND, 1, 9, {ONE, 3, 0, 1, 5, 0, 0, 22, 50}},
+                                 {MM_SCENE_PAUSE, 2, 2, {1, 20}},
+                                 {MM_SCENE_PLAY_SOUND, 3, 14, {1234, 2, 1, 2, 6, 2, 0, 22, 51, 7, 3, 0, 22, 52}},
+                                 {MM_SCENE_CHANGE_CAMERA, 4, 1, {0}}};
+    const WireEvent actor_events[] = {{MM_ACTOR_SOUND, 3, 11, {0, 2, 0, 0xffffffffU, 0, 2, 1, 3, 0, 22, 60}},
+                                      {MM_ACTOR_SOUND, 7, 11, {0, 0, 0, 3, 0, 1, 2, 4, 0, 22, 61}}};
+    const MMMovieSessionGraph graph = {NULL, graph_access, graph_read, graph_payload, NULL};
+    const MMPreviewPresentationServices services = {NULL, reset, transition, caption, pause_emit, cue};
+    MMSceneState scene;
+    unsigned char *header;
     memset(h, 0, sizeof(*h));
-    g = h->groups + MM_PREVIEW_CUE_STARTS;
-    g->count = 3;
-    g->kind[0] = g->kind[1] = MM_SCENE_ADD_ACTOR;
-    g->words[1][0] = 1;
-    g->kind[2] = MM_SCENE_ADD_TEXT;
-    g = h->groups + MM_PREVIEW_CUE_FRAMES;
-    g->count = 4;
-    g->kind[0] = MM_SCENE_PLAY_SOUND;
-    g->words[0][0] = ONE;
-    g->words[0][1] = 3;
-    g->words[0][3] = 1;
-    g->words[0][4] = 5;
-    g->words[0][7] = 22;
-    g->words[0][8] = 50;
-    g->kind[1] = MM_SCENE_PAUSE;
-    g->frame[1] = 2;
-    g->words[1][0] = 1;
-    g->words[1][1] = 20;
-    g->kind[2] = MM_SCENE_PLAY_SOUND;
-    g->frame[2] = 3;
-    g->words[2][0] = 1234;
-    g->words[2][1] = 2;
-    g->words[2][2] = 1;
-    g->words[2][3] = 2;
-    g->words[2][4] = 6;
-    g->words[2][5] = 2;
-    g->words[2][7] = 22;
-    g->words[2][8] = 51;
-    g->words[2][9] = 7;
-    g->words[2][10] = 3;
-    g->words[2][12] = 22;
-    g->words[2][13] = 52;
-    g->kind[3] = MM_SCENE_CHANGE_CAMERA;
-    g = h->groups + MM_PREVIEW_CUE_ACTOR;
-    g->count = 2;
-    g->kind[0] = g->kind[1] = MM_ACTOR_SOUND;
-    g->frame[0] = 3;
-    g->frame[1] = 7;
-    g->sounds[0].tag.type = 22;
-    g->sounds[0].tag.number = 60;
-    g->sounds[0].cel = -1;
-    g->sounds[0].queue = 2;
-    g->sounds[0].no_sound = 2;
-    g->sounds[1].tag.type = 22;
-    g->sounds[1].tag.number = 61;
-    g->sounds[1].cel = 3;
-    g->sounds[1].no_sound = 1;
-    s->context = h;
-    s->reset = reset;
-    s->transition = transition;
-    s->header = scene_header;
-    s->group = group;
-    s->release = group_release;
-    s->event = scene_event;
-    s->word = word;
-    s->child = child;
-    s->actor_header = actor_header;
-    s->actor_sound = sound;
-    s->caption = caption;
-    s->pause = pause_emit;
-    s->cue = cue;
+    h->big = big;
+    h->graph = graph;
+    h->graph.context = h;
+    h->services = services;
+    h->services.context = h;
+    assert(mm_scene_init(&scene, 1));
+    scene.firstFrame = 1;
+    scene.lastFrame = 7;
+    scene.transition = 3;
+    assert(mm_scene_encode_header(&scene, 0x0303, big, h->chunks[SCENE].bytes));
+    h->chunks[SCENE].size = 16;
+    header = h->chunks[ACTOR].bytes;
+    header[big ? 1 : 0] = 1;
+    word(header + 16, 42, big);
+    word(header + 20, 1, big);
+    h->chunks[ACTOR].size = 44;
+    header = h->chunks[IDLE_ACTOR].bytes;
+    header[big ? 1 : 0] = 1;
+    word(header + 20, 2147483647UL, big);
+    h->chunks[IDLE_ACTOR].size = 40;
+    write_group(h->chunks + STARTS, 8, big, 3, starts);
+    write_group(h->chunks + FRAMES, 8, big, 4, frames);
+    write_group(h->chunks + ACTOR_EVENTS, 20, big, 2, actor_events);
+    h->pause_data = h->chunks[FRAMES].bytes + 20 + 44 + 8;
+    h->second_actor_event = h->chunks[ACTOR_EVENTS].bytes + 20 + 64;
+}
+
+static int presentation(Presentation *h, int sheet, int captions)
+{
+    return mm_preview_presentation(&h->graph, 9, sheet, captions, &h->services);
 }
 static void presentation_tests(void)
 {
     Presentation h;
-    int sheet, captions, n, i, f, r;
-    for (sheet = 0; sheet <= 1; ++sheet)
-        for (captions = 0; captions <= 1; ++captions)
-        {
-            pr_setup(&h);
-            assert(mm_preview_presentation(9, sheet, captions, &h.services) == 1);
-            assert(!h.groups_live && h.transition == 3 && h.pauses == 1 && h.pause_kind == 1 &&
-                   h.pause_duration == 20 && h.captions == (!sheet || captions) && h.count == (sheet ? 5 : 3));
-            n = h.calls;
-            if (sheet)
-                assert(h.cues[0].actor_sound && h.cues[0].actor == 42 && h.cues[0].queue && !h.cues[0].silent &&
-                       !h.cues[0].motion && h.cues[1].motion && h.cues[1].silent && h.cues[1].motion_cel == 3 &&
-                       h.releases[0] == MM_PREVIEW_CUE_ACTOR);
-            assert(h.cues[h.count - 1].queue && h.cues[h.count - 1].number == 52 && h.cues[h.count - 1].source == 3);
-            for (f = -2; f <= 0; ++f)
-                for (i = 1; i <= n; ++i)
-                {
-                    pr_setup(&h);
-                    h.fail_at = i;
-                    h.failure = f;
-                    r = mm_preview_presentation(9, sheet, captions, &h.services);
-                    assert(r == f && !h.groups_live);
-                }
-        }
-    pr_setup(&h);
-    h.groups[0].words[1][0] = 4;
-    assert(mm_preview_presentation(9, 0, 0, &h.services) == 0 && h.count == 1 && h.captions == 1 && !h.groups_live);
-    pr_setup(&h);
-    h.groups[0].words[1][1] = 0xffffffffU;
-    assert(mm_preview_presentation(9, 1, 0, &h.services) == 0 && h.count == 3 && !h.groups_live);
+    int sheet, captions, n, i, f, r, big;
+    for (big = 0; big <= 1; ++big)
+        for (sheet = 0; sheet <= 1; ++sheet)
+            for (captions = 0; captions <= 1; ++captions)
+            {
+                pr_setup(&h, big);
+                assert(presentation(&h, sheet, captions) == 1);
+                assert(h.transition == 3 && h.pauses == 1 && h.pause_kind == 1 &&
+                       h.pause_duration == 20 && h.captions == (!sheet || captions) && h.count == (sheet ? 5 : 3));
+                n = h.calls;
+                if (sheet)
+                    assert(h.cues[0].actor_sound && h.cues[0].actor == 42 && h.cues[0].queue && !h.cues[0].silent &&
+                           !h.cues[0].motion && h.cues[0].frame == 3 && h.cues[0].source == 3 &&
+                           h.cues[1].motion && h.cues[1].silent && h.cues[1].motion_cel == 3);
+                assert(h.cues[h.count - 1].queue && h.cues[h.count - 1].number == 52 && h.cues[h.count - 1].source == 3);
+                for (f = -2; f <= 0; ++f)
+                    for (i = 1; i <= n; ++i)
+                    {
+                        pr_setup(&h, big);
+                        h.fail_at = i;
+                        h.failure = f;
+                        r = presentation(&h, sheet, captions);
+                        assert(h.calls == i && r == h.expected);
+                    }
+            }
+    pr_setup(&h, 0);
+    word(h.pause_data, 4, h.big);
+    assert(presentation(&h, 0, 0) == 0 && h.count == 1 && h.captions == 1);
+    pr_setup(&h, 1);
+    word(h.pause_data + 4, 0xffffffffU, h.big);
+    assert(presentation(&h, 1, 0) == 0 && h.count == 3);
+    pr_setup(&h, 1);
+    word(h.second_actor_event, 99, h.big);
+    assert(presentation(&h, 1, 0) == 0 && h.count == 0);
+    assert(presentation(&h, 0, 0) == 1 && h.count == 3);
+    pr_setup(&h, 0);
+    --h.chunks[FRAMES].size;
+    assert(presentation(&h, 1, 1) == 0 && h.count == 2 && h.captions == 1);
+    pr_setup(&h, 1);
+    h.missing_actor = 1;
+    assert(presentation(&h, 1, 0) == 0 && h.count == 0);
 }
 typedef struct Sort
 {

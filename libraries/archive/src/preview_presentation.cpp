@@ -3,6 +3,7 @@
 #include <locale>
 #include <cstring>
 #include "preview_presentation.h"
+#include "engine_movie_graph.h"
 #include "mm/native_caption.h"
 #include "mm/preview_media.h"
 #include "platform_text.h"
@@ -38,14 +39,50 @@ bool Caption(PChunkyFile file, ChunkNumber number, PreviewCaption &out)
     return true;
 }
 
+struct PresentationOutput
+{
+    PChunkyFile file;
+    PreviewPresentation &output;
+    std::exception_ptr exception;
+
+    template <class F> int Store(F effect)
+    {
+        try { return effect(); }
+        catch (...) { exception = std::current_exception(); return -2; }
+    }
+};
 } // namespace
-#include "preview_presentation_host.h"
+
 bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &out, bool soundSheet, bool includeCaptions)
 {
-    PresentationHost host = {file, &out};
-    auto services = host.Services();
-    const int result = mm_preview_presentation(scene, soundSheet, includeCaptions, &services);
-    if (host.exception) std::rethrow_exception(host.exception);
+    static_assert(witNil == 0 && witLim == 4, "Preview pause admission");
+    PresentationOutput output{file, out, {}};
+    const MMPreviewPresentationServices services{
+        &output,
+        [](void *p) { static_cast<PresentationOutput *>(p)->output = {}; },
+        [](void *p, MMI32 transition) { static_cast<PresentationOutput *>(p)->output.transition = transition; },
+        [](void *p, MMU32 number) {
+            auto &host = *static_cast<PresentationOutput *>(p);
+            return host.Store([&] {
+                PreviewCaption caption;
+                if (!Caption(host.file, number, caption))
+                    return 0;
+                host.output.captions.push_back(std::move(caption));
+                return 1;
+            });
+        },
+        [](void *p, MMI32 frame, MMI32 kind, MMI32 duration) {
+            auto &host = *static_cast<PresentationOutput *>(p);
+            return host.Store([&] { host.output.pauses.push_back({frame, kind, duration}); return 1; });
+        },
+        [](void *p, const MMPreviewCue *cue) {
+            auto &host = *static_cast<PresentationOutput *>(p);
+            return host.Store([&] { host.output.sounds.push_back(PreviewCue(*cue)); return 1; });
+        }};
+    const auto graph = EngineMovieGraph::FromFile(file);
+    const int result = mm_preview_presentation(&graph, scene, soundSheet, includeCaptions, &services);
+    if (output.exception) std::rethrow_exception(output.exception);
+    if (result == -1) throw std::bad_alloc();
     return result > 0;
 }
 bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, PreviewAudio &out)
