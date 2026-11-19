@@ -94,11 +94,11 @@ struct Access : Scene
         TagChildPair tag = {0, {0, cache, kctgMsnd, 123}};
         auto packet = SceneSoundEvent::PsseNew(80, stySfx, false, 1, &tag);
         CHECK(packet);
-        auto g = p->*&Access::_pggsevFrm;
+        auto g = (p->*&Access::_FrameTrack)();
         SceneEvent event = {1, sevtPlaySnd};
-        CHECK(g->FAdd(packet->Cb(), nullptr, packet, &event));
+        CHECK(InsertSceneTrackEvent(g, g->rows.count, packet->Cb(), packet, event));
         FreePpv(reinterpret_cast<void **>(&packet));
-        (p->*&Access::_runtime).next_event = g->IvMac();
+        (p->*&Access::_runtime).next_event = g->rows.count;
     }
     static void State(PScene p)
     {
@@ -120,26 +120,27 @@ struct Access : Scene
         Value(t.ctg);
         Value(t.cno);
         Value(t.pcrf != nullptr);
-        for (auto g : {p->*&Access::_pggsevFrm, p->*&Access::_pggsevStart})
+        for (auto g : {(p->*&Access::_FrameTrack)(), (p->*&Access::_StartTrack)()})
         {
-            Value(g->IvMac());
-            for (long i = 0; i < g->IvMac(); ++i)
+            Value(g->rows.count);
+            for (long i = 0; i < g->rows.count; ++i)
             {
-                SceneEvent e;
-                g->GetFixed(i, &e);
+                auto e = ReadSceneTrackEvent(g, i);
                 Value(e.sevt);
                 if (e.sevt != sevtSetBkgd)
                     Value(e.nfrm);
-                Value(g->Cb(i));
+                MMI32 bytes;
+                auto payload = mm_scene_track_payload(g, i, &bytes);
+                Value(bytes);
                 if (e.sevt == sevtSetBkgd)
                 {
-                    auto t = static_cast<PTAG>(g->QvGet(i));
+                    auto t = static_cast<PTAG>(payload);
                     Value(t->sid);
                     Value(t->ctg);
                     Value(t->cno);
                 }
                 else
-                    Record(g->QvGet(i), g->Cb(i));
+                    Record(payload, bytes);
             }
         }
         Value(observed->CactRef());
@@ -147,9 +148,9 @@ struct Access : Scene
     }
     static void Reset(PScene p)
     {
-        auto g = p->*&Access::_pggsevFrm;
-        while (g->IvMac())
-            g->Delete(g->IvMac() - 1);
+        auto g = (p->*&Access::_FrameTrack)();
+        while (g->rows.count)
+            CHECK(mm_group_delete(&g->rows, g->rows.count - 1) == MM_STORAGE_OK);
         (p->*&Access::_runtime).next_event = 0;
         p->SetNfrmCur(1);
     }

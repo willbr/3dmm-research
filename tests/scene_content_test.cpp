@@ -315,9 +315,9 @@ struct Access : Scene
         TagChildPair tag = {0, {ksidUseCrf, cache, kctgMsnd, 123}};
         auto packet = SceneSoundEvent::PsseNew(80, stySfx, false, 1, &tag);
         CHECK(packet);
-        auto events = p->*&Access::_pggsevFrm;
+        auto events = (p->*&Access::_FrameTrack)();
         SceneEvent e = {back ? 1 : 7, sevtPlaySnd};
-        CHECK(events->FInsert(back ? 0 : events->IvMac(), packet->Cb(), packet, &e));
+        CHECK(InsertSceneTrackEvent(events, back ? 0 : events->rows.count, packet->Cb(), packet, e));
         FreePpv(reinterpret_cast<void **>(&packet));
         if (back)
             ++(p->*&Access::_runtime).next_event;
@@ -328,9 +328,9 @@ struct Access : Scene
         d.firstFrame = 1;
         d.lastFrame = 40;
         d.currentFrame = 5;
-        auto events = p->*&Access::_pggsevFrm;
-        while (events->IvMac())
-            events->Delete(events->IvMac() - 1);
+        auto events = (p->*&Access::_FrameTrack)();
+        while (events->rows.count)
+            CHECK(mm_group_delete(&events->rows, events->rows.count - 1) == MM_STORAGE_OK);
         if (!cameras)
         {
             (p->*&Access::_runtime).next_event = 0;
@@ -340,20 +340,19 @@ struct Access : Scene
         {
             SceneEvent e = {frame, sevtChngCamera};
             long camera = 0;
-            CHECK(events->FInsert(events->IvMac(), sizeof(camera), &camera, &e));
+            CHECK(InsertSceneTrackEvent(events, events->rows.count, sizeof(camera), &camera, e));
         }
         (p->*&Access::_runtime).next_event = 4;
     }
     static void ChopState(PScene p)
     {
         State(p);
-        auto events = p->*&Access::_pggsevFrm;
+        auto events = (p->*&Access::_FrameTrack)();
         Value((p->*&Access::_runtime).next_event);
-        Value(events->IvMac());
-        for (long i = 0; i < events->IvMac(); ++i)
+        Value(events->rows.count);
+        for (long i = 0; i < events->rows.count; ++i)
         {
-            SceneEvent e;
-            events->GetFixed(i, &e);
+            auto e = ReadSceneTrackEvent(events, i);
             Value(e.nfrm);
             Value(e.sevt);
         }
@@ -380,7 +379,7 @@ struct Access : Scene
     {
         (p->*&Access::_DropOwner)(MM_SCENE_STARTS);
         mm_scene_member_clear(&(p->*&Access::_owner), MM_SCENE_ACTORS);
-        (p->*&Access::_SetOwner)(MM_SCENE_STARTS, GeneralGroup::PggNew(sizeof(SceneEvent)));
+        (p->*&Access::_SetOwner)(MM_SCENE_STARTS, (p->*&Access::_StartTrack)());
     }
     static void State(PScene p)
     {
@@ -392,24 +391,23 @@ struct Access : Scene
         Value(d.lastFrame);
         Value((p->*&Access::_pactrSelected) != nullptr);
         Value((p->*&Access::_ptboxSelected) != nullptr);
-        auto starts = p->*&Access::_pggsevStart;
-        Value(starts->IvMac());
-        for (long i = 0; i < starts->IvMac(); ++i)
+        auto starts = (p->*&Access::_StartTrack)();
+        Value(starts->rows.count);
+        for (long i = 0; i < starts->rows.count; ++i)
         {
-            SceneEvent e;
-            starts->GetFixed(i, &e);
+            auto e = ReadSceneTrackEvent(starts, i);
             Value(e.sevt);
             if (e.sevt == sevtAddActr)
             {
                 PActor a;
-                starts->Get(i, &a);
+                std::memcpy(&a, mm_scene_track_payload(starts, i, nullptr), sizeof(a));
                 Value(a->Arid());
                 Value(a->CactRef());
             }
             else if (e.sevt == sevtAddTbox)
             {
                 PTBOX box;
-                starts->Get(i, &box);
+                std::memcpy(&box, mm_scene_track_payload(starts, i, nullptr), sizeof(box));
                 Value(box->CactRef());
                 Value(box->Pscen() == p);
             }

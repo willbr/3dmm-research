@@ -128,12 +128,13 @@ extern "C"
     {
         MMSceneIO io;
         MMSceneEventIO events;
+        /* Optional pair for callers supplying their own event storage. */
         void *(*new_group)(void *);
         void (*release_group)(void *);
         int (*add_scene)(void *, MMU32 bytes, MMU32 *number);
         void (*remove_scene)(void *, MMU32 number);
     } MMSceneCreateServices;
-    /* Allocates both groups before publishing nil. Releases frame then start;
+    /* Prepares both groups before adding the scene. Releases frame then start;
      * deletes a successfully created scene on later failure. Every failure publishes
      * nil, including an add callback that changed its output before failing. */
     int mm_scene_create(const MMSceneState *, MMU32 *number, int system, int big_endian,

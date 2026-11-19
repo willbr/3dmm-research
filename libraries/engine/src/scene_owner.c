@@ -10,6 +10,8 @@ void mm_scene_owner_init(MMSceneOwner *w, void *movie, const MMStorageAllocator 
     w->movie = movie;
     for (i = 0; i < MM_SCENE_MEMBER_LISTS; ++i)
         mm_storage_init(&w->members[i].storage, allocator);
+    for (i = MM_SCENE_FRAMES; i <= MM_SCENE_STARTS; ++i)
+        mm_scene_track_init(&w->tracks[i], allocator, 0);
 }
 MMI32 mm_scene_member_count(const MMSceneOwner *w, int list)
 {
@@ -86,14 +88,23 @@ void mm_scene_owner_drop(MMSceneOwner *w, void *scene, int slot, const MMSceneOw
         return;
     if (slot == MM_SCENE_BACKGROUND_SOUND)
         mm_scene_sound_release(&p, &s->sound);
+    else if (slot <= MM_SCENE_STARTS && p == &w->tracks[slot])
+        mm_scene_track_dispose(&w->tracks[slot]);
     else
         s->release(s->context, p);
     w->owned[slot] = NULL;
     s->publish(s->context, scene, w);
 }
+void *mm_scene_owner_open_events(MMSceneOwner *w, void *scene, int slot, const MMSceneOwnerServices *s)
+{
+    void *track = s->create_slot ? s->create_slot(s->context, slot) : &w->tracks[slot];
+    if (track)
+        mm_scene_owner_set(w, scene, slot, track, s);
+    return track;
+}
 void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *s)
 {
-    void *scene = s->create_scene(s->context, movie), *p;
+    void *scene = s->create_scene(s->context, movie);
     MMSceneOwner *w;
     int slot;
     if (!scene)
@@ -101,13 +112,11 @@ void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *s)
     w = s->state(s->context, scene);
     for (slot = MM_SCENE_FRAMES; slot <= MM_SCENE_STARTS; ++slot)
     {
-        p = s->create_slot(s->context, slot);
-        if (!p)
+        if (!mm_scene_owner_open_events(w, scene, slot, s))
         {
             s->release(s->context, scene);
             return NULL;
         }
-        mm_scene_owner_set(w, scene, slot, p, s);
         if (slot == MM_SCENE_FRAMES)
             s->reset_cursor(s->context, scene);
     }

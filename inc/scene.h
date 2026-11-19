@@ -143,9 +143,8 @@ class Scene : public Scene_PAR
 
     //
     // Frames with events in them.  This stuff works as follows.
-    //   _runtime.next_event is the index into the GeneralGroup of a sev with nfrm > nCurFrm.
+    //   _runtime.next_event is the index into the frame track of a sev with nfrm > nCurFrm.
     //
-    PGeneralGroup _pggsevFrm;   // List of events that occur in frames.
     MMSceneRuntime _runtime; // C-owned cursor, effect mask and background-sound frame.
     MMSceneRuntimeServices _RuntimeServices();
     MMSceneEventServices _EventServices();
@@ -161,7 +160,8 @@ class Scene : public Scene_PAR
     //
     // Global information
     //
-    PGeneralGroup _pggsevStart;     // List of frame independent events.
+    MMSceneTrack *_FrameTrack() { return &_owner.tracks[MM_SCENE_FRAMES]; }
+    MMSceneTrack *_StartTrack() { return &_owner.tracks[MM_SCENE_STARTS]; }
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
     MMSceneSelection _selection = {}; // Authoritative borrowed primary selection.

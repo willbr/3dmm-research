@@ -90,31 +90,30 @@ struct Access : Scene
     }
     static long Count(PScene p)
     {
-        return (p->*&Access::_pggsevFrm)->IvMac();
+        return (p->*&Access::_FrameTrack)()->rows.count;
     }
 #endif
     static void State(PScene p)
     {
         auto &data = p->*&Access::_data;
         auto &r = p->*&Access::_runtime;
-        auto group = p->*&Access::_pggsevFrm;
+        auto group = (p->*&Access::_FrameTrack)();
         Value(data.currentFrame);
         Value(data.firstFrame);
         Value(data.lastFrame);
         Value(r.next_event);
         Value(r.disabled);
         Value(r.background_frame);
-        Value(group->IvMac());
+        Value(group->rows.count);
         Value(observed->CactRef());
-        for (int i = 0; i < group->IvMac(); ++i)
+        for (int i = 0; i < group->rows.count; ++i)
         {
-            SceneEvent e;
-            group->GetFixed(i, &e);
+            auto e = ReadSceneTrackEvent(group, i);
             Value(e.nfrm);
             Value(e.sevt);
             if (e.sevt != sevtPlaySnd)
                 continue;
-            Packet(reinterpret_cast<PSceneSoundEvent>(group->QvGet(i)));
+            Packet(reinterpret_cast<PSceneSoundEvent>(mm_scene_track_payload(group, i, nullptr)));
         }
         auto background = p->*&Access::_psseBkgd;
         Value(background != nullptr);

@@ -3,6 +3,27 @@
 #include "soc_core.h"
 #include "engine_movie_graph.h"
 ASSERTNAME
+
+SceneEvent ReadSceneTrackEvent(const MMSceneTrack *track, MMI32 index)
+{
+    MMSceneTrackEvent event = {};
+    AssertDo(mm_scene_track_get(track, index, &event), "invalid scene event index");
+    return {event.frame, static_cast<SceneEventType>(event.kind)};
+}
+
+int InsertSceneTrackEvent(MMSceneTrack *track, MMI32 index, MMI32 bytes, const void *data,
+                                 const SceneEvent &event)
+{
+    const MMSceneTrackEvent header = {event.nfrm, event.sevt};
+    return mm_scene_track_insert(track, index, bytes, data, &header);
+}
+
+void SetSceneTrackEvent(MMSceneTrack *track, MMI32 index, const SceneEvent &event)
+{
+    const MMSceneTrackEvent header = {event.nfrm, event.sevt};
+    AssertDo(mm_scene_track_set(track, index, &header), "invalid scene event index");
+}
+
 static_assert(transNil == -1 && transCut == 0 && transLim == MM_SCENE_TRANSITION_LIMIT,
               "scene transition encoding");
 static_assert(sevtAddActr == 0 && sevtPlaySnd == 1 && sevtAddTbox == 2 && sevtChngCamera == 3 && sevtSetBkgd == 4 &&
@@ -82,6 +103,24 @@ MMSceneEventIO Events(SceneEventHost *host)
             static_cast<SceneEventHost *>(c)->file->SetLoner(start ? kctgStartGg : kctgFrmGg, number, fFalse);
         }};
 }
+MMSceneEventIO TrackEvents(SceneEventHost *host)
+{
+    auto io = Events(host);
+    io.groups = mm_scene_track_wire_groups();
+    io.wire_size = [](void *track) {
+        return mm_scene_track_wire_size(static_cast<const MMSceneTrack *>(track));
+    };
+    io.write = [](void *context, void *track) -> int {
+        auto &block = static_cast<SceneEventHost *>(context)->block;
+        const MMStorageWriter writer = {
+            &block, static_cast<MMU32>(block.Cb()),
+            [](void *p, MMU32 offset, const void *data, size_t bytes) -> int {
+                return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), bytes, offset);
+            }};
+        return mm_scene_track_write(static_cast<MMSceneTrack *>(track), koskCur, &writer);
+    };
+    return io;
+}
 } // namespace
 void SceneData::GetName(PString out) const
 {
@@ -141,14 +180,20 @@ bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup
     const auto io = Events(&host);
     return mm_scene_write_events(number, frames, starts, &io) != 0;
 }
+bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, MMSceneTrack *frames, MMSceneTrack *starts)
+{
+    SceneEventHost host = {file, {}};
+    const auto io = TrackEvents(&host);
+    return mm_scene_write_events(number, frames, starts, &io) != 0;
+}
 bool SceneData::FCreate(PChunkyFile file, ChunkNumber *number)
 {
     SceneEventHost host = {file};
     const MMSceneCreateServices services = {
         SceneIO(file),
-        Events(&host),
-        [](void *) -> void * { return GeneralGroup::PggNew(MM_SCENE_EVENT_BYTES); },
-        [](void *g) { static_cast<PGeneralGroup>(g)->Release(); },
+        TrackEvents(&host),
+        nullptr,
+        nullptr,
         [](void *c, MMU32 bytes, MMU32 *number) -> int {
             return static_cast<PChunkyFile>(c)->FAdd(bytes, kctgScen, number);
         },

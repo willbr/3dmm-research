@@ -70,18 +70,11 @@ static void Reverse(void *p, long bytes)
         b[i + 2] = x;
     }
 }
-struct GroupAccess : GeneralGroup
-{
-    static MMU32 Locks(PGeneralGroup p)
-    {
-        return (p->*&GroupAccess::_CollectionStorage)()->buffers[0].locks;
-    }
-};
 struct Access : Scene
 {
     static MMU32 Locks(PScene p)
     {
-        return GroupAccess::Locks(p->*&Access::_pggsevFrm);
+        return (p->*&Access::_FrameTrack)()->storage.buffers[0].locks;
     }
     static void State(PScene p)
     {
@@ -96,19 +89,20 @@ struct Access : Scene
         Value(p->Cactr());
         Value(p->Ctbox());
         Value((p->*&Access::_pmbmp) != nullptr);
-        for (auto g : {p->*&Access::_pggsevFrm, p->*&Access::_pggsevStart})
+        for (auto g : {(p->*&Access::_FrameTrack)(), (p->*&Access::_StartTrack)()})
         {
-            Value(g->IvMac());
-            for (long i = 0; i < g->IvMac(); ++i)
+            Value(g->rows.count);
+            for (long i = 0; i < g->rows.count; ++i)
             {
-                SceneEvent e;
-                g->GetFixed(i, &e);
+                auto e = ReadSceneTrackEvent(g, i);
                 Value(e.nfrm);
                 Value(e.sevt);
-                Value(g->Cb(i));
+                MMI32 bytes;
+                auto payload = mm_scene_track_payload(g, i, &bytes);
+                Value(bytes);
                 if (e.sevt == sevtPlaySnd)
                 {
-                    auto p = static_cast<PSceneSoundEvent>(g->QvGet(i));
+                    auto p = static_cast<PSceneSoundEvent>(payload);
                     Value(p->vlm);
                     Value(p->sty);
                     Value(p->fLoop);
@@ -125,7 +119,7 @@ struct Access : Scene
                 }
                 else if (e.sevt == sevtSetBkgd)
                 {
-                    auto t = static_cast<PTAG>(g->QvGet(i));
+                    auto t = static_cast<PTAG>(payload);
                     Value(t->sid);
                     Value(t->pcrf != nullptr);
                     Value(t->ctg);
@@ -134,11 +128,11 @@ struct Access : Scene
                 else if (e.sevt == sevtAddTbox)
                 {
                     PTBOX t;
-                    g->Get(i, &t);
+                    std::memcpy(&t, payload, sizeof(t));
                     Value(t->CpMac());
                 }
                 else
-                    Record(g->QvGet(i), g->Cb(i));
+                    Record(payload, bytes);
             }
         }
     }
@@ -327,7 +321,7 @@ int main()
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
 #ifdef DEBUG
-        CHECK(recorded == 61088 && hash == 0x222F658DU);
+        CHECK(recorded == 62784 && hash == 0x2B38A1BDU);
 #else
         CHECK(recorded == 66240 && hash == 0x8940A7C9U);
 #endif

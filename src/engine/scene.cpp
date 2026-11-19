@@ -101,10 +101,12 @@ static MMSceneSoundPacketServices ScenePacketServices(PMovie movie = nullptr)
         TagFromCore(&out->tag, *value);
     };
     s.group_data = [](void *, void *group, MMI32 index) -> void * {
-        return static_cast<PGeneralGroup>(group)->QvGet(index);
+        return mm_scene_track_payload(static_cast<MMSceneTrack *>(group), index, nullptr);
     };
     s.group_size = [](void *, void *group, MMI32 index) -> MMI32 {
-        return static_cast<PGeneralGroup>(group)->Cb(index);
+        MMI32 bytes = -1;
+        mm_scene_track_payload(static_cast<MMSceneTrack *>(group), index, &bytes);
+        return bytes;
     };
     s.resolve = [](void *p, void *record) -> int {
         auto tag = static_cast<PTagChildPair>(record);
@@ -230,8 +232,6 @@ static MMSceneSoundServices SceneSoundServices()
 void Scene::_PublishOwners()
 {
     _pmvie = static_cast<PMovie>(_owner.movie);
-    _pggsevFrm = static_cast<PGeneralGroup>(_owner.owned[MM_SCENE_FRAMES]);
-    _pggsevStart = static_cast<PGeneralGroup>(_owner.owned[MM_SCENE_STARTS]);
     _pbkgd = static_cast<PBackground>(_owner.owned[MM_SCENE_BACKGROUND]);
     _pmbmp = static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]);
     _psseBkgd = static_cast<PSceneSoundEvent>(_owner.owned[MM_SCENE_BACKGROUND_SOUND]);
@@ -255,40 +255,32 @@ MMSceneOwnerServices Scene::_OwnerServices()
     s.sound_header_bytes = sizeof(SceneSoundEvent);
     s.sound_tag_bytes = sizeof(TagChildPair);
     s.create_scene = [](void *, void *movie) -> void * { return NewObj Scene(static_cast<PMovie>(movie)); };
-    s.create_slot = [](void *, int) -> void * { return GeneralGroup::PggNew(sizeof(SceneEvent)); };
     s.state = [](void *, void *p) { return &static_cast<PScene>(p)->_owner; };
     s.publish = [](void *, void *p, const MMSceneOwner *) { static_cast<PScene>(p)->_PublishOwners(); };
     s.reset_cursor = [](void *, void *p) { static_cast<PScene>(p)->_runtime.next_event = 0; };
     s.can_notify = [](void *) -> int { return vpcex != nullptr; };
     s.loaded = [](void *, void *) { vpcex->EnqueueCid(cidSceneLoaded); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
-    s.count = [](void *, void *p) -> MMI32 { return static_cast<GroupBase *>(p)->IvMac(); };
+    s.count = [](void *, void *p) -> MMI32 { return static_cast<const MMSceneTrack *>(p)->rows.count; };
     s.kind = [](void *, void *p, MMI32 i) -> MMI32 {
-        SceneEvent event;
-        static_cast<PGeneralGroup>(p)->GetFixed(i, &event);
-        return event.sevt;
+        return ReadSceneTrackEvent(static_cast<const MMSceneTrack *>(p), i).sevt;
     };
     s.data = [](void *, void *p, MMI32 i, MMI32 *bytes) -> void * {
-        LegacyLong length;
-        auto value = static_cast<PGeneralGroup>(p)->QvGet(i, &length);
-        *bytes = length;
-        return value;
+        return mm_scene_track_payload(static_cast<const MMSceneTrack *>(p), i, bytes);
     };
     s.object = [](void *, void *p, MMI32 i) -> void * {
-        auto group = static_cast<PGeneralGroup>(p);
-        SceneEvent event;
-        group->GetFixed(i, &event);
-        if (event.sevt == sevtAddActr)
+        const auto track = static_cast<const MMSceneTrack *>(p);
+        void *value;
+        std::memcpy(&value, mm_scene_track_payload(track, i, nullptr), sizeof(value));
+        if (ReadSceneTrackEvent(track, i).sevt == sevtAddActr)
         {
-            PActor actor;
-            group->Get(i, &actor);
-            AssertPo(actor, 0);
-            return actor;
+            AssertPo(static_cast<PActor>(value), 0);
         }
-        PTBOX text;
-        group->Get(i, &text);
-        AssertPo(text, 0);
-        return text;
+        else
+        {
+            AssertPo(static_cast<PTBOX>(value), 0);
+        }
+        return value;
     };
     s.actor_visibility = [](void *, void *p, int show) {
         auto actor = static_cast<PActor>(p);
@@ -331,6 +323,10 @@ Scene::Scene(PMovie pmvie)
     AssertNilOrPo(pmvie, 0);
     const auto allocator = CollectionAllocator();
     mm_scene_owner_init(&_owner, pmvie, &allocator);
+#ifdef DEBUG
+    for (auto &track : _owner.tracks)
+        track.rows.trash_unused = 1;
+#endif
     _PublishOwners();
     mm_scene_runtime_init(&_runtime);
 }
@@ -417,8 +413,11 @@ void Scene::MarkMem(void)
 
     Scene_PAR::MarkMem();
 
-    MarkMemObj(_pggsevStart);
-    MarkMemObj(_pggsevFrm);
+    for (const auto &track : _owner.tracks)
+    {
+        MarkPv(track.storage.buffers[0].data);
+        MarkPv(track.storage.buffers[1].data);
+    }
     MarkMemObj(_pmbmp);
     MarkMemObj(static_cast<PChunkyResourceFile>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
 
@@ -438,7 +437,7 @@ void Scene::MarkMem(void)
 ***************************************************************************/
 void Scene::AssertValid(LegacyUlong grf)
 {
-    long isev;
+    MMU32 isev;
     SceneEvent sev;
 
     Scene_PAR::AssertValid(fobjAllocated);
@@ -449,13 +448,13 @@ void Scene::AssertValid(LegacyUlong grf)
         AssertPo(static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_SELECTION, i)), 0);
     AssertNilOrPo(_pbkgd, 0);
     AssertNilOrPo(_pmbmp, 0);
-    AssertPo(_pggsevFrm, 0);
-    AssertPo(_pggsevStart, 0);
+    Assert(_owner.owned[MM_SCENE_FRAMES] == _FrameTrack(), "missing scene frame track");
+    Assert(_owner.owned[MM_SCENE_STARTS] == _StartTrack(), "missing scene start track");
     AssertPo(_pmvie, 0);
 
-    for (isev = 0; isev < _pggsevFrm->IvMac(); isev++)
+    for (isev = 0; isev < _FrameTrack()->rows.count; isev++)
     {
-        sev = *(PSEV)_pggsevFrm->QvFixedGet(isev);
+        sev = ReadSceneTrackEvent(_FrameTrack(), isev);
         switch (sev.sevt)
         {
         case sevtPlaySnd:
@@ -467,9 +466,9 @@ void Scene::AssertValid(LegacyUlong grf)
         }
     }
 
-    for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
+    for (isev = 0; isev < _StartTrack()->rows.count; isev++)
     {
-        sev = *(PSEV)_pggsevStart->QvFixedGet(isev);
+        sev = ReadSceneTrackEvent(_StartTrack(), isev);
         switch (sev.sevt)
         {
         case sevtAddActr:
@@ -556,32 +555,30 @@ MMSceneRuntimeServices Scene::_RuntimeServices()
                   "Scene effect flags");
     MMSceneRuntimeServices s = {};
     s.context = this;
-    s.event_count = [](void *p) -> MMI32 { return static_cast<PScene>(p)->_pggsevFrm->IvMac(); };
+    s.event_count = [](void *p) -> MMI32 { return static_cast<PScene>(p)->_FrameTrack()->rows.count; };
     s.event = [](void *p, MMI32 i, MMI32 *frame, int *kind) {
-        SceneEvent event;
-        static_cast<PScene>(p)->_pggsevFrm->GetFixed(i, &event);
+        auto event = ReadSceneTrackEvent(static_cast<PScene>(p)->_FrameTrack(), i);
         *frame = event.nfrm;
         *kind = event.sevt;
     };
     s.play = [](void *p, MMI32 i, MMU32 disabled) -> int {
         auto scene = static_cast<PScene>(p);
-        SceneEvent event;
-        scene->_pggsevFrm->GetFixed(i, &event);
-        return scene->_FPlaySev(&event, scene->_pggsevFrm->QvGet(i), disabled);
+        auto track = scene->_FrameTrack();
+        auto event = ReadSceneTrackEvent(track, i);
+        return scene->_FPlaySev(&event, mm_scene_track_payload(track, i, nullptr), disabled);
     };
     s.unplay = [](void *p, MMI32 i) -> int {
         auto scene = static_cast<PScene>(p);
-        SceneEvent event;
-        scene->_pggsevFrm->GetFixed(i, &event);
-        return scene->_FUnPlaySev(&event, scene->_pggsevFrm->QvGet(i));
+        auto track = scene->_FrameTrack();
+        auto event = ReadSceneTrackEvent(track, i);
+        return scene->_FUnPlaySev(&event, mm_scene_track_payload(track, i, nullptr));
     };
     s.move_camera = [](void *p, MMI32 i, MMI32 frame) {
-        auto group = static_cast<PScene>(p)->_pggsevFrm;
-        SceneEvent event;
-        group->GetFixed(i, &event);
+        auto track = static_cast<PScene>(p)->_FrameTrack();
+        auto event = ReadSceneTrackEvent(track, i);
         event.nfrm = frame;
-        group->PutFixed(i, &event);
-        group->Move(i, 0);
+        SetSceneTrackEvent(track, i, event);
+        AssertDo(mm_group_move(&track->rows, i, 0) == MM_STORAGE_OK, "cannot move scene camera");
     };
     s.object_count = [](void *p, int text) -> MMI32 {
         return mm_scene_member_count(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS);
@@ -794,13 +791,14 @@ MMSceneEventServices Scene::_EventServices()
     s.owner = &_owner;
     s.owners = _OwnerServices();
     s.event = [](void *p, void *group, MMI32 i, MMI32 *frame, int *kind) {
-        SceneEvent event;
-        static_cast<PGeneralGroup>(group)->GetFixed(i, &event);
+        const auto event = ReadSceneTrackEvent(static_cast<const MMSceneTrack *>(group), i);
         *kind = event.sevt;
         // Start-event callers need not initialize the unused frame field.
-        *frame = group == static_cast<PScene>(p)->_pggsevStart && event.sevt != sevtPlaySnd ? 0 : event.nfrm;
+        *frame = group == static_cast<PScene>(p)->_StartTrack() && event.sevt != sevtPlaySnd ? 0 : event.nfrm;
     };
-    s.payload = [](void *, void *group, MMI32 i) -> void * { return static_cast<PGeneralGroup>(group)->QvGet(i); };
+    s.payload = [](void *, void *group, MMI32 i) -> void * {
+        return mm_scene_track_payload(static_cast<const MMSceneTrack *>(group), i, nullptr);
+    };
     s.sound_style = [](void *, void *payload) -> int { return static_cast<PSceneSoundEvent>(payload)->sty; };
     s.duplicate_sound = [](void *, void *payload) -> void * {
         return static_cast<PSceneSoundEvent>(payload)->PsseDup();
@@ -873,7 +871,7 @@ MMSceneEventServices Scene::_EventServices()
  *
  * This routine plays a single event.
  *
- * Be careful not to modify _pggsevFrm or _pggsevStart from
+ * Be careful not to modify the frame or start track from
  * within this routine.
  *
  * Parameters:
@@ -944,12 +942,15 @@ MMSceneSoundEditServices Scene::_SoundEditServices()
     s.values = SceneSoundValues(Pmvie());
     s.insert = [](void *p, MMI32 index, MMI32 frame, int kind, MMI32 bytes, const void *payload) -> int {
         SceneEvent event = {frame, static_cast<SceneEventType>(kind)};
-        return static_cast<PScene>(p)->_pggsevFrm->FInsert(index, bytes, const_cast<void *>(payload), &event);
+        return InsertSceneTrackEvent(static_cast<PScene>(p)->_FrameTrack(), index, bytes, payload, event);
     };
     s.put = [](void *p, MMI32 index, MMI32 bytes, const void *payload) -> int {
-        return static_cast<PScene>(p)->_pggsevFrm->FPut(index, bytes, const_cast<void *>(payload));
+        return mm_scene_track_put(static_cast<PScene>(p)->_FrameTrack(), index, bytes, payload);
     };
-    s.erase = [](void *p, MMI32 index) { static_cast<PScene>(p)->_pggsevFrm->Delete(index); };
+    s.erase = [](void *p, MMI32 index) {
+        AssertDo(mm_group_delete(&static_cast<PScene>(p)->_FrameTrack()->rows, index) == MM_STORAGE_OK,
+                 "invalid scene frame event index");
+    };
     s.allocate_records = [](void *, MMI32 bytes) -> void * {
         void *p = nullptr;
         return FAllocPv(&p, bytes, fmemClear, mprNormal) ? p : nullptr;
@@ -1604,10 +1605,16 @@ MMSceneContentServices Scene::_ContentServices()
     };
     s.insert_start = [](void *p, MMI32 i, int kind, void *object) -> int {
         SceneEvent event = {0, static_cast<SceneEventType>(kind)};
-        return static_cast<PScene>(p)->_pggsevStart->FInsert(i, sizeof(object), &object, &event);
+        return InsertSceneTrackEvent(static_cast<PScene>(p)->_StartTrack(), i, sizeof(object), &object, event);
     };
-    s.put_start = [](void *p, MMI32 i, void *object) { static_cast<PScene>(p)->_pggsevStart->Put(i, &object); };
-    s.erase = [](void *, void *p, MMI32 i) { static_cast<GroupBase *>(p)->Delete(i); };
+    s.put_start = [](void *p, MMI32 i, void *object) {
+        AssertDo(mm_scene_track_put(static_cast<PScene>(p)->_StartTrack(), i, sizeof(object), &object),
+                 "invalid scene start object");
+    };
+    s.erase = [](void *, void *p, MMI32 i) {
+        AssertDo(mm_group_delete(&static_cast<MMSceneTrack *>(p)->rows, i) == MM_STORAGE_OK,
+                 "invalid scene start event index");
+    };
     s.selected = [](void *p, int text) -> void * {
         auto scene = static_cast<Scene *>(p);
         return text ? scene->_selection.text : scene->_selection.actor;
@@ -1931,19 +1938,25 @@ MMSceneEditServices Scene::_EditServices()
     s.context = this;
     s.sound = _SoundEditServices();
     s.put = [](void *, void *g, MMI32 i, const void *p) {
-        static_cast<PGeneralGroup>(g)->Put(i, const_cast<void *>(p));
+        auto track = static_cast<MMSceneTrack *>(g);
+        MMI32 bytes = 0;
+        mm_scene_track_payload(track, i, &bytes);
+        AssertDo(mm_scene_track_put(track, i, bytes, p), "invalid scene event");
     };
-    s.erase = [](void *, void *g, MMI32 i) { static_cast<PGeneralGroup>(g)->Delete(i); };
+    s.erase = [](void *, void *g, MMI32 i) {
+        AssertDo(mm_group_delete(&static_cast<MMSceneTrack *>(g)->rows, i) == MM_STORAGE_OK,
+                 "invalid scene event index");
+    };
     s.put_background = [](void *p, MMI32 i, const MMTag *value) -> int {
         TAG tag;
         TagFromCore(&tag, *value);
-        return static_cast<PScene>(p)->_pggsevStart->FPut(i, sizeof(tag), &tag);
+        return mm_scene_track_put(static_cast<PScene>(p)->_StartTrack(), i, sizeof(tag), &tag);
     };
     s.insert_background = [](void *p, MMI32 frame, const MMTag *value) -> int {
         TAG tag;
         TagFromCore(&tag, *value);
         SceneEvent event = {frame, sevtSetBkgd};
-        return static_cast<PScene>(p)->_pggsevStart->FInsert(0, sizeof(tag), &tag, &event);
+        return InsertSceneTrackEvent(static_cast<PScene>(p)->_StartTrack(), 0, sizeof(tag), &tag, event);
     };
     s.play_background = [](void *p, MMI32 frame, const MMTag *value, MMU32 mask) -> int {
         TAG tag;
@@ -2193,13 +2206,13 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
     s.insert = [](void *, void *g, MMI32 index, MMI32 frame, int kind, MMI32 bytes,
                   const void *payload) -> int {
         SceneEvent event = {frame, static_cast<SceneEventType>(kind)};
-        return static_cast<PGeneralGroup>(g)->FInsert(index, bytes, const_cast<void *>(payload), &event);
+        return InsertSceneTrackEvent(static_cast<MMSceneTrack *>(g), index, bytes, payload, event);
     };
     s.insert_tag = [](void *, void *g, MMI32 index, MMI32 frame, const MMTag *value) -> int {
         TAG tag;
         TagFromCore(&tag, *value);
         SceneEvent event = {frame, sevtSetBkgd};
-        return static_cast<PGeneralGroup>(g)->FInsert(index, sizeof(tag), &tag, &event);
+        return InsertSceneTrackEvent(static_cast<MMSceneTrack *>(g), index, sizeof(tag), &tag, event);
     };
     s.retain_background_cache = [](void *p) -> void * {
         auto cache = static_cast<Host *>(p)->resources;
@@ -2267,17 +2280,16 @@ bool Scene::FGetTagBkgd(PTAG ptag)
 static MMSceneStoreGroups SceneStoreGroups()
 {
     MMSceneStoreGroups g = {};
-    g.count = [](void *, void *p) -> MMI32 { return static_cast<GroupBase *>(p)->IvMac(); };
+    g.count = [](void *, void *p) -> MMI32 { return static_cast<const MMSceneTrack *>(p)->rows.count; };
     g.fixed = [](void *, void *p, MMI32 i, unsigned char *bytes) {
-        static_cast<PGeneralGroup>(p)->GetFixed(i, bytes);
+        MMSceneTrackEvent event = {};
+        AssertDo(mm_scene_track_get(static_cast<const MMSceneTrack *>(p), i, &event), "invalid scene event index");
+        std::memcpy(bytes, &event, sizeof(event));
     };
     g.data = [](void *, void *p, MMI32 i, MMI32 *bytes) -> void * {
-        LegacyLong cb;
-        auto data = static_cast<PGeneralGroup>(p)->QvGet(i, &cb);
-        *bytes = cb;
-        return data;
+        return mm_scene_track_payload(static_cast<const MMSceneTrack *>(p), i, bytes);
     };
-    g.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    g.release = [](void *, void *p) { mm_scene_track_dispose(static_cast<MMSceneTrack *>(p)); };
     g.free_raw = [](void *, void *p) { FreePpv(&p); };
     return g;
 }
@@ -2290,7 +2302,9 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         PScene scene;
         PChunkyFile file;
         DataBlock block;
-    } host = {this, pcrf->Pcfl()};
+        MMSceneTrack tracks[2];
+        unsigned next_track;
+    } host = {this, pcrf->Pcfl(), {}, {}, 0};
     MovieEmbeddedArchive assets{host.file, nullptr};
     MMSceneStoreServices s = {};
     s.context = &host;
@@ -2300,11 +2314,16 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     s.assets = assets.Services();
     s.add_scene = [](void *p, MMU32 *n) -> int { return static_cast<Host *>(p)->file->FAdd(0, kctgScen, n); };
     s.delete_scene = [](void *p, MMU32 n) { static_cast<Host *>(p)->file->Delete(kctgScen, n); };
-    s.new_group = [](void *) -> void * { return GeneralGroup::PggNew(sizeof(SceneEvent)); };
+    s.new_group = [](void *p) -> void * {
+        auto &h = *static_cast<Host *>(p);
+        const auto allocator = CollectionAllocator();
+        auto &track = h.tracks[h.next_track++];
+        return mm_scene_track_init(&track, &allocator, 0) ? &track : nullptr;
+    };
     s.insert = [](void *, void *p, MMI32 i, MMI32 frame, int kind, MMI32 bytes,
                   const void *data) -> int {
         SceneEvent event = {frame, static_cast<SceneEventType>(kind)};
-        return static_cast<PGeneralGroup>(p)->FInsert(i, bytes, const_cast<void *>(data), &event);
+        return InsertSceneTrackEvent(static_cast<MMSceneTrack *>(p), i, bytes, data, event);
     };
     s.chunks = [](void *p) {
         return static_cast<Host *>(p)->file->ReadChunkAccess();
@@ -2318,7 +2337,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     };
     s.object = [](void *, void *p, MMI32 i) -> void * {
         void *object;
-        static_cast<PGeneralGroup>(p)->Get(i, &object);
+        std::memcpy(&object, mm_scene_track_payload(static_cast<const MMSceneTrack *>(p), i, nullptr), sizeof(object));
         return object;
     };
     s.write_object = [](void *p, void *object, int kind, MMU32 n, MMU32 scene) -> int {
@@ -2327,12 +2346,14 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
                                                 : static_cast<PTBOX>(object)->FWrite(file, n);
     };
     s.read_background = [](void *, void *g, MMI32 i, MMTag *out) -> int {
-        *out = TagToCore(*static_cast<PTAG>(static_cast<PGeneralGroup>(g)->QvGet(i)));
+        TAG tag;
+        std::memcpy(&tag, mm_scene_track_payload(static_cast<const MMSceneTrack *>(g), i, nullptr), sizeof(tag));
+        *out = TagToCore(tag);
         return 1;
     };
     s.write_events = [](void *p, MMU32 scene, void *frames, void *starts) -> int {
-        return SceneData::FWriteEvents(static_cast<Host *>(p)->file, scene, static_cast<PGeneralGroup>(frames),
-                                       static_cast<PGeneralGroup>(starts));
+        return SceneData::FWriteEvents(static_cast<Host *>(p)->file, scene, static_cast<MMSceneTrack *>(frames),
+                                       static_cast<MMSceneTrack *>(starts));
     };
     s.update_thumbnail = [](void *p) { static_cast<Host *>(p)->scene->_UpdateThumbnail(); };
     s.thumbnail_size = [](void *, void *p) -> MMI32 { return static_cast<PMaskedBitmapMBMP>(p)->CbOnFile(); };
@@ -2379,10 +2400,16 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
     s.actor = [](void *, void *actor, MMU32 scene) -> int {
         return static_cast<PActor>(actor)->FResolveAllSndTags(scene);
     };
-    s.lock = [](void *, void *g) { static_cast<PGeneralGroup>(g)->Lock(); };
-    s.unlock = [](void *, void *g) { static_cast<PGeneralGroup>(g)->Unlock(); };
+    s.lock = [](void *, void *g) {
+        AssertDo(mm_storage_lock(&static_cast<MMSceneTrack *>(g)->storage, 0) == MM_STORAGE_OK,
+                 "cannot lock scene frames");
+    };
+    s.unlock = [](void *, void *g) {
+        AssertDo(mm_storage_unlock(&static_cast<MMSceneTrack *>(g)->storage, 0) == MM_STORAGE_OK,
+                 "cannot unlock scene frames");
+    };
     s.sound = [](void *, void *g, MMI32 index) -> MMSceneSound * {
-        return static_cast<PSceneSoundEvent>(static_cast<PGeneralGroup>(g)->QvGet(index));
+        return static_cast<PSceneSoundEvent>(mm_scene_track_payload(static_cast<MMSceneTrack *>(g), index, nullptr));
     };
     s.resolve = [](void *p, void *record, MMU32 scene) -> int {
         auto tag = static_cast<PTagChildPair>(record);
@@ -2812,13 +2839,15 @@ MMSceneChopServices Scene::_ChopServices()
         Assert(text->FIsVisible(), "Bad tbox");
         text->SetStartFrame(frame);
     };
-    s.erase_frame = [](void *p, MMI32 index) { static_cast<Scene *>(p)->_pggsevFrm->Delete(index); };
+    s.erase_frame = [](void *p, MMI32 index) {
+        AssertDo(mm_group_delete(&static_cast<Scene *>(p)->_FrameTrack()->rows, index) == MM_STORAGE_OK,
+                 "invalid scene event index");
+    };
     s.set_frame = [](void *p, MMI32 index, MMI32 frame) {
-        auto events = static_cast<Scene *>(p)->_pggsevFrm;
-        SceneEvent event;
-        events->GetFixed(index, &event);
+        auto track = static_cast<Scene *>(p)->_FrameTrack();
+        auto event = ReadSceneTrackEvent(track, index);
         event.nfrm = frame;
-        events->PutFixed(index, &event);
+        SetSceneTrackEvent(track, index, event);
     };
     s.dirty = [](void *p) { static_cast<Scene *>(p)->Pmvie()->SetDirty(); };
     s.discard_background_frame = [](void *p) { TrashVar(&static_cast<Scene *>(p)->_runtime.background_frame); };
@@ -3990,6 +4019,12 @@ PSceneSoundEvent SceneSoundEvent::PsseDupFromGg(PGeneralGroup pgg, long iv, bool
     AssertIn(iv, 0, pgg->IvMac());
     Assert(pgg->Cb(iv) >= size(SceneSoundEvent), "variable part too small");
     auto services = ScenePacketServices();
+    services.group_data = [](void *, void *group, MMI32 index) {
+        return static_cast<PGeneralGroup>(group)->QvGet(index);
+    };
+    services.group_size = [](void *, void *group, MMI32 index) -> MMI32 {
+        return static_cast<PGeneralGroup>(group)->Cb(index);
+    };
     return static_cast<PSceneSoundEvent>(mm_scene_sound_group(pgg, iv, fDupTags, &services));
 }
 

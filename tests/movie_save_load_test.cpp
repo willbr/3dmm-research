@@ -261,11 +261,11 @@ class StageTestScene : public Scene
     }
     bool Init()
     {
-        _pggsevFrm=GeneralGroup::PggNew(sizeof(SceneEvent));
-        _pggsevStart=GeneralGroup::PggNew(sizeof(SceneEvent));
+        _SetOwner(MM_SCENE_FRAMES, _FrameTrack());
+        _SetOwner(MM_SCENE_STARTS, _StartTrack());
         auto background=NewObj StageTestBackground(); _pbkgd=background;
         _data.firstFrame=1; _data.lastFrame=20; _data.currentFrame=3;
-        return _pggsevFrm && _pggsevStart && background && background->Init();
+        return background && background->Init();
     }
 };
 

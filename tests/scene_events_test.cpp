@@ -93,15 +93,15 @@ struct Access : Scene
     }
     static void Populate(PScene s)
     {
-        auto frames = s->*&Access::_pggsevFrm;
+        auto frames = (s->*&Access::_FrameTrack)();
         const int times[] = {1, 1, 3, 4, 4, 7};
         for (int i = 0; i < 6; ++i)
         {
             SceneEvent event = {times[i], i == 1 || i == 3 || i == 5 ? sevtPlaySnd : sevtPause};
             Header sound = {100 - i * 5, i == 5 ? stySfx : styMidi, 0, 0};
             int32_t pause[2] = {i == 2 ? witUntilClick : witForTime, i + 1};
-            CHECK(frames->FInsert(frames->IvMac(), event.sevt == sevtPlaySnd ? sizeof(sound) : sizeof(pause),
-                                  event.sevt == sevtPlaySnd ? static_cast<void *>(&sound) : pause, &event));
+            CHECK(InsertSceneTrackEvent(frames, frames->rows.count, event.sevt == sevtPlaySnd ? sizeof(sound) : sizeof(pause),
+                                  event.sevt == sevtPlaySnd ? static_cast<void *>(&sound) : pause, event));
         }
     }
     static void State(PScene s)

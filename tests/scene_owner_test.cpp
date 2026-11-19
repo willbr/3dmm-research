@@ -104,8 +104,8 @@ struct Access : Scene
     {
         auto packet = Sound(count);
         SceneEvent event = {2, sevtPlaySnd};
-        auto frames = scene->*&Access::_pggsevFrm;
-        CHECK(frames->FInsert(0, packet.size(), packet.data(), &event));
+        auto frames = (scene->*&Access::_FrameTrack)();
+        CHECK(InsertSceneTrackEvent(frames, 0, packet.size(), packet.data(), event));
         auto services = _OwnerServices();
         mm_scene_owner_unwind(&(scene->*&Access::_owner), scene, 0, 1, &services);
     }
@@ -121,10 +121,10 @@ struct Access : Scene
         Value(data.transition);
         Value(data.name.count);
         Value(data.name.unit);
-        for (auto f : {&Access::_pggsevFrm, &Access::_pggsevStart})
+        for (auto f : {&Access::_FrameTrack, &Access::_StartTrack})
         {
-            Value((s->*f)->CbFixed());
-            Value((s->*f)->IvMac());
+            Value((s->*f)()->rows.fixed_bytes);
+            Value((s->*f)()->rows.count);
         }
         Value(sizeof(PActor));
         Value(s->Cactr());
@@ -137,14 +137,14 @@ struct Access : Scene
     }
     static void Populate(PScene s, int count)
     {
-        auto starts = s->*&Access::_pggsevStart, frames = s->*&Access::_pggsevFrm;
+        auto starts = (s->*&Access::_StartTrack)(), frames = (s->*&Access::_FrameTrack)();
         for (int i = 1; i <= 3; ++i)
         {
             auto actor = NewObj Probe(i);
             CHECK(actor);
             SceneEvent event = {i, sevtAddActr};
             PActor p = actor;
-            CHECK(starts->FInsert(starts->IvMac(), sizeof(p), &p, &event));
+            CHECK(InsertSceneTrackEvent(starts, starts->rows.count, sizeof(p), &p, event));
             if (i == 1)
                 CHECK(mm_scene_member_append(&(s->*&Access::_owner), MM_SCENE_SELECTION, p));
         }
@@ -154,7 +154,7 @@ struct Access : Scene
         CHECK(bitmap);
         auto frame = Sound(count);
         SceneEvent event = {2, sevtPlaySnd};
-        CHECK(frames->FInsert(0, frame.size(), frame.data(), &event));
+        CHECK(InsertSceneTrackEvent(frames, 0, frame.size(), frame.data(), event));
         auto background = Sound(count + 1);
         void *sound = nullptr;
         CHECK(FAllocPv(&sound, background.size(), fmemNil, mprNormal));
@@ -309,7 +309,7 @@ int main()
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one))
 #ifdef DEBUG
-        CHECK(recorded == 8208 && hash == 0x5CE9A3A5U);
+        CHECK(recorded == 8528 && hash == 0xD746FAE5U);
 #else
         CHECK(recorded == 8688 && hash == 0x2A12D054U);
 #endif

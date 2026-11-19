@@ -1,6 +1,7 @@
 /* Scene state and persistence converted from engine scene_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_data.h"
+#include "mm/scene_track.h"
 #include "mm/background_resource.h"
 #include "mm/collections.h"
 #include "mm/movie_archive_edit.h"
@@ -1079,17 +1080,35 @@ fail:
 int mm_scene_create(const MMSceneState *state, MMU32 *number, int system, int big,
                           const MMSceneCreateServices *s)
 {
-    void *frames = s->new_group(s->io.context);
-    void *starts = s->new_group(s->io.context);
+    MMSceneTrack frame_track, start_track;
+    void *frames = &frame_track, *starts = &start_track;
     int created, success;
+    if (s->new_group)
+    {
+        frames = s->new_group(s->io.context);
+        starts = s->new_group(s->io.context);
+    }
+    else
+    {
+        mm_scene_track_init(&frame_track, NULL, 0);
+        mm_scene_track_init(&start_track, NULL, 0);
+    }
     *number = 0xffffffffUL;
     created = frames && starts && s->add_scene(s->io.context, 16, number);
     success = created && mm_scene_write(state, *number, system, big, &s->io) &&
               mm_scene_write_events(*number, frames, starts, &s->events);
-    if (frames)
-        s->release_group(frames);
-    if (starts)
-        s->release_group(starts);
+    if (s->new_group)
+    {
+        if (frames)
+            s->release_group(frames);
+        if (starts)
+            s->release_group(starts);
+    }
+    else
+    {
+        mm_scene_track_dispose(&frame_track);
+        mm_scene_track_dispose(&start_track);
+    }
     if (!success && created)
         s->remove_scene(s->io.context, *number);
     if (!success)

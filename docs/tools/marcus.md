@@ -2627,6 +2627,17 @@ edited movie's 60-frame playback order. The updated SDL build matched all
 retail in seek pixels and mixed PCM. SDL Studio's playback timing also
 differed. Evidence is in `tmp/c89-scene-members/`.
 
+The live scene frame and start tracks now use C89 storage, and scene creation
+and saving write the same on-disk event groups through C89. The Studio
+round-trip added actors and captions, replaced the timed pause at frame 21
+with 75 milliseconds, and removed a second pause. The reopened scene state,
+editor viewports and all 68 saved chunk payloads and graph entries matched
+the prior Studio build. Retail, SDL Studio and Marcus captured the same
+60-frame sequences in seek and playback. SDL Studio matched every prior
+Studio seek image. Both ports differed from retail in seek pixels and mixed
+PCM, and SDL Studio differed in playback timing. Evidence is in
+`tmp/c89-scene-tracks/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

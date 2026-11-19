@@ -1607,8 +1607,8 @@ new scene/name/header/event snapshot is 526 bytes. No Marcus UI tests were added
 
 ### Scene ownership and lifecycle
 
-`scene_owner.c` owns persistent references to frame and start event groups,
-background, thumbnail and background sound. It also owns the C collection
+`scene_owner.c` owns the frame and start event tracks and manages references to
+the background, thumbnail and background sound. It also owns the C collection
 storage for the actor roster, caption roster and extra selection. Scene
 construction and load start with empty rosters. Start-event dispatch fills
 them as it applies each event and removes the new roster entry if its seek
@@ -1631,9 +1631,12 @@ selection entries are borrowed; their objects belong to start events. Owned
 background/undo sound packets close only opened tags, while embedded frame packets
 close every tag and never free the group's payload separately.
 
-Typed adapters still provide the event-group and reference primitives and
-native actor, caption and background APIs. The loader's uncommitted objects
-follow the event read transaction.
+`scene_track.c` stores the live headers and variable payloads in C collections
+with the legacy ordering and buffer growth. Event reads, mutations and sound
+resolution use this storage. The scene creator and save transaction write
+encoded event tracks with the original group header and location table.
+Typed adapters provide the native actor, caption, background and tag APIs.
+The loader's uncommitted objects follow the event read transaction.
 
 Reverse read cleanup now compares sound size with variable payload bytes, fixing
 the original extra fixed-header-byte comparison that rejected valid packets and
@@ -1661,6 +1664,14 @@ fault-free cases and every case that succeeds in both builds. Removing the
 empty native arrays shifts four ownership and eight load fault-injection
 cases. The dispatch, content and edit traces match the immediately previous
 build byte for byte.
+
+Moving the event tracks into the owner removes two native allocations during
+scene creation and load. Saving also drops the two temporary native group
+allocations. The x64 Release scene traces and the Debug event, content, edit,
+runtime and sound-edit traces match their previous reference.
+The Debug traces change in four ownership, eight load and eight store
+allocation failure cases. Cases that succeed in both builds produce identical
+records.
 
 ### Scene frame movement, replay and prerendering
 

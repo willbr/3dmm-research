@@ -373,7 +373,7 @@ int main()
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
 #ifdef DEBUG
         // Scene sound tags are read directly from the event bytes.
-        CHECK(recorded == 165600 && hash == 0xBCD9A5A9U);
+        CHECK(recorded == 167488 && hash == 0xB5A4BB5DU);
 #else
         CHECK(recorded == 171264 && hash == 0x2F550AE5U);
 #endif

@@ -21,8 +21,7 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
     int ok, slot = start ? MM_SCENE_STARTS : MM_SCENE_FRAMES;
     if (read->group(read->context, number, start, &wire) != MM_MOVIE_OK)
         return 0;
-    group = o->create_slot(o->context, slot);
-    mm_scene_owner_set(owner, scene, slot, group, o);
+    group = mm_scene_owner_open_events(owner, scene, slot, o);
     if (!group)
         goto fail;
     for (i = 0; i < wire.count; ++i)

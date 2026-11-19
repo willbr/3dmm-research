@@ -291,6 +291,7 @@ target_sources(mm-engine-c89 PRIVATE src/world_camera.c)
 target_sources(mm-engine-c89 PRIVATE src/render_frame.c src/world_render.c)
 target_sources(mm-engine-c89 PRIVATE src/world_export.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_owner.c)
+target_sources(mm-engine-c89 PRIVATE src/scene_track.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_runtime.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_events.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_sound.c)
@@ -1260,6 +1261,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/world_export.c"
     "${engine_world_export_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_owner.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_track.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_runtime.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_events.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_sound.c"

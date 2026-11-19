@@ -2,8 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_OWNER_H
 #define MM_ENGINE_SCENE_OWNER_H
-#include "scene_data.h"
-#include "collection_storage.h"
+#include "scene_track.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -44,6 +43,7 @@ extern "C"
     {
         void *movie; /* Borrowed; no reference cycle. */
         void *owned[MM_SCENE_OWNERS];
+        MMSceneTrack tracks[2]; /* Live frame and start tables. */
         MMSceneMemberList members[MM_SCENE_MEMBER_LISTS];
     } MMSceneOwner;
     typedef struct MMSceneSoundServices
@@ -58,7 +58,8 @@ extern "C"
     {
         void *context;
         MMI32 pointer_bytes, sound_header_bytes, sound_tag_bytes;
-        void *(*create_scene)(void *, void *movie), *(*create_slot)(void *, int kind);
+        void *(*create_scene)(void *, void *movie);
+        void *(*create_slot)(void *, int kind); /* Optional alternate event storage. */
         MMSceneOwner *(*state)(void *, void *scene);
         void (*publish)(void *, void *scene, const MMSceneOwner *);
         void (*reset_cursor)(void *, void *scene);
@@ -84,6 +85,7 @@ extern "C"
     void mm_scene_owner_set(MMSceneOwner *, void *scene, int slot, void *,
                                   const MMSceneOwnerServices *);
     void mm_scene_owner_drop(MMSceneOwner *, void *scene, int slot, const MMSceneOwnerServices *);
+    void *mm_scene_owner_open_events(MMSceneOwner *, void *scene, int slot, const MMSceneOwnerServices *);
     void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *);
     void mm_scene_owner_dispose(MMSceneOwner *, void *scene, const MMSceneOwnerServices *);
     /* Read-failure cleanup walks only completed prefixes, in reverse order.

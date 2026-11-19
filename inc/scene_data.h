@@ -5,6 +5,7 @@
 #include "kauai_core.h"
 #include <cstdint>
 #include "mm/scene_data.h"
+#include "mm/scene_track.h"
 
 enum TRANS
 {
@@ -51,6 +52,10 @@ struct SceneEvent
 };
 static_assert(sizeof(SceneEvent) == 8, "SceneEvent on-disk layout drift");
 
+SceneEvent ReadSceneTrackEvent(const MMSceneTrack *track, MMI32 index);
+int InsertSceneTrackEvent(MMSceneTrack *track, MMI32 index, MMI32 bytes, const void *data, const SceneEvent &event);
+void SetSceneTrackEvent(MMSceneTrack *track, MMI32 index, const SceneEvent &event);
+
 const auto kbomSev = 0xF0000000;
 const auto kbomSceneLong = 0xC0000000;
 
@@ -85,5 +90,6 @@ struct SceneData : MMSceneState
     // Wire groups contain chunk IDs and fixed-width TAGs, never object pointers.
     static PGeneralGroup PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents);
     static bool FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts);
+    static bool FWriteEvents(PChunkyFile file, ChunkNumber number, MMSceneTrack *frames, MMSceneTrack *starts);
 };
 #endif
