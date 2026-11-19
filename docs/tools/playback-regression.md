@@ -14090,3 +14090,44 @@ The database at `tmp/c89-sound-schedule/capture/playback.sqlite` records the
 movie, content and executable hashes and the capture environment. The fresh
 suites are `20261119T011722Z-625ecd92` before and
 `20261119T012147Z-f836ff4b` after.
+
+## Marcus waveform C89 conversion (19 November 2026)
+
+The C89 waveform implementation owns the duration cache, peak cache and
+stereo envelope. It samples timeline columns on the shared presentation
+clock using one cache lookup per request. The sound asset picker and
+recorder reuse its clip-relative peak reduction. The host supplies media
+resolution, duration measurement and decoded PCM.
+
+The baseline passed `marcus-playback` and `marcus-sound-edit` at
+`7bd5c239`. The converted Windows build passed 18 selected checks with
+`BUILD_TESTING=ON` and `REQUIRE_C89_CHECKS=ON`, including strict C89 syntax,
+the C waveform fixture, the headless playback, player and sound-edit checks,
+and the engine and audio runtime checks. The waveform test covers duration
+cache growth, scene-local keys, silent and unavailable cues, peak entry
+eviction, the decode limit, clip wrapping and timeline clipping. Marcus
+was relaunched after rebuilding.
+
+A deterministic probe compared 16,384 window requests across 128 stereo
+signals and 32,768 waveform cache operations. It included non-finite PCM,
+loop tails, timeline ranges, scene-local and external media, unavailable
+media and explicit silence. The before, after and AddressSanitizer traces
+matched byte for byte. Their SHA-256 is
+`4FBD416DBF0BFE5A3EAC371401B2BBECB6D672C09F2A55325D88DA9941F11DCA`.
+The C waveform fixture also passed under AddressSanitizer. A separate probe
+filled the 32 MiB peak budget and verified that the oldest envelope was
+evicted while the most recently used envelope stayed cached. The probes and
+CTest log are in `tmp/c89-waveform`.
+
+The `sampled-audio` and `actor-audio` captures followed the same 60
+authored frames per case in seek and normal playback. All 120 Marcus
+seek images matched the prior build. Its PCM16 peaks remained 2,176 and
+4,081 respectively, and both actor tones stayed in scene one. The
+retail comparison verdicts agreed across builds, with mixed PCM
+differences and inconclusive Marcus presentation timing.
+
+The capture database at `tmp/c89-sound-schedule/capture/playback.sqlite`
+records input and executable hashes. The compared suites are
+`20261119T012147Z-f836ff4b` and `20261119T013632Z-ab87631b`. The latter
+contains four new Marcus runs and reuses the eight matching retail and
+SDL Studio runs.

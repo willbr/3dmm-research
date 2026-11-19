@@ -2124,6 +2124,12 @@ flushed-stream length accounting, without resampling to float PCM or building
 waveform envelopes. This retains compressed fact trimming, resampler rounding
 and MIDI event timing. Waveforms are built when requested for display.
 
+The waveform cache and peak tree run in C89. Clip lengths use a separate cache
+so timing analysis can measure WAVE data without building peaks. The peak tree
+retains both stereo extrema in 128-frame buckets. Timeline requests look up
+the envelope once, then sample each column on the movie clock. Asset and
+recording previews use the same peak reduction.
+
 The C89 sound scheduler owns cue spans, active lanes and the mapping between
 authored frames and movie time. It keeps authored cue order within each frame,
 accounts for caption scrolling and pauses, and applies voice replacement and

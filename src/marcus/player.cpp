@@ -2622,17 +2622,7 @@ extern "C"
             }
             const auto &scene = player->soundTimeline.Scene(player->selected);
             const auto span = scene.Sound(index);
-            MarcusWaveformColumn ignored;
-            player->waveforms.Read(player->preview, span.cue, 0, 1, 1, &ignored, *info);
-            std::fill_n(columns, count, MarcusWaveformColumn{});
-            for (int column = 0; column < count; ++column)
-            {
-                const double at = scene.TimeAt(first + column * step);
-                const double end = std::min(span.end, scene.TimeAt(first + (column + 1) * step));
-                if (at >= span.start && at < span.end && end > at)
-                    player->waveforms.Read(player->preview, span.cue, at - span.start, end - at,
-                                           1, &columns[column], *info);
-            }
+            player->waveforms.ReadFrames(player->preview, scene, span, first, step, count, columns, *info);
             return true;
         });
     }

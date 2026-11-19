@@ -1,197 +1,134 @@
 #include "waveform.h"
 #include "sdl_audio.h"
-#include <algorithm>
-#include <cmath>
+#include "sound_timeline.h"
 #include <cstdio>
+#include <exception>
+#include <new>
 
 namespace
 {
-constexpr std::size_t bucketFrames = 128;
-constexpr std::size_t cacheBudget = 32u * 1024 * 1024;
-MarcusWaveformColumn Merge(MarcusWaveformColumn a, MarcusWaveformColumn b)
+struct MediaReader
 {
-    return {std::min(a.minimum, b.minimum), std::max(a.maximum, b.maximum)};
+    MM::Preview &preview;
+    const MM::PreviewSoundCue &cue;
+    MM::PreviewAudio audio{};
+    std::shared_ptr<const KauaiAudio::Sample> sample{};
+    std::exception_ptr failure{};
+
+    template <class Effect> int Run(Effect effect)
+    {
+        try { return effect(); }
+        catch (...) { failure = std::current_exception(); return -1; }
+    }
+
+    MarcusWaveformServices Services()
+    {
+        return {
+            this,
+            [](void *context, MarcusWaveformMedia *media, char *message, std::size_t capacity) {
+                auto &reader = *static_cast<MediaReader *>(context);
+                return reader.Run([&] {
+                    MM::Error error;
+                    const bool ok = reader.preview.ReadSound(reader.cue, reader.audio, error);
+                    const auto &audio = reader.audio;
+                    *media = {audio.source, audio.asset.type, audio.asset.number,
+                              audio.events.empty() ? 0 : audio.events.back().milliseconds, audio.midi, audio.silent};
+                    if (!ok)
+                        std::snprintf(message, capacity, "%s", error.message.c_str());
+                    return ok;
+                });
+            },
+            [](void *context, double *seconds) {
+                auto &reader = *static_cast<MediaReader *>(context);
+                return reader.Run([&] {
+                    return KauaiAudio::WaveSeconds(reader.audio.wave.data(), reader.audio.wave.size(), *seconds);
+                });
+            },
+            [](void *context, const float **stereo, std::size_t *frames) {
+                auto &reader = *static_cast<MediaReader *>(context);
+                return reader.Run([&] {
+                    if (!KauaiAudio::DecodeWave(reader.audio.wave.data(), reader.audio.wave.size(), reader.sample))
+                        return false;
+                    *stereo = reader.sample->stereo.data();
+                    *frames = reader.sample->stereo.size() / 2;
+                    return true;
+                });
+            }};
+    }
+
+    void Check(int result) const
+    {
+        if (failure)
+            std::rethrow_exception(failure);
+        if (!result)
+            throw std::bad_alloc();
+    }
+};
+
+MarcusWaveformRequest Request(const MM::PreviewSoundCue &cue)
+{
+    return {cue.source, cue.sound.type, cue.sound.number, cue.child, cue.scene.number, cue.silent};
 }
+} // namespace
+
+MarcusWaveformEnvelope::~MarcusWaveformEnvelope()
+{
+    marcus_waveform_dispose(&wave);
 }
 void MarcusWaveformEnvelope::Build(const float *stereo, std::size_t frameCount)
 {
-    frames = frameCount;
-    leaves = 1;
-    const auto buckets = (frames + bucketFrames - 1) / bucketFrames;
-    while (leaves < buckets)
-        leaves *= 2;
-    tree.assign(leaves * 2, {});
-    for (std::size_t frame = 0; frame < frames; ++frame)
-    {
-        auto &peak = tree[leaves + frame / bucketFrames];
-        for (int channel = 0; channel < 2; ++channel)
-        {
-            const float value = stereo[frame * 2 + channel];
-            if (std::isfinite(value))
-            {
-                peak.minimum = std::min(peak.minimum, value);
-                peak.maximum = std::max(peak.maximum, value);
-            }
-        }
-    }
-    for (auto node = leaves; --node;)
-        tree[node] = Merge(tree[node * 2], tree[node * 2 + 1]);
-}
-double MarcusWaveformEnvelope::Seconds() const
-{
-    return double(frames) / KauaiAudio::SampleRate;
-}
-std::size_t MarcusWaveformEnvelope::Bytes() const
-{
-    return tree.capacity() * sizeof(MarcusWaveformColumn);
+    if (!marcus_waveform_build(&wave, stereo, frameCount))
+        throw std::bad_alloc();
 }
 void MarcusWaveformEnvelope::Read(double first, double step, int count, MarcusWaveformColumn *columns, bool repeat) const
 {
-    std::fill_n(columns, count, MarcusWaveformColumn{});
-    if (!frames)
-        return;
-    for (int column = 0; column < count; ++column)
-    {
-        double start = first + column * step;
-        if (repeat)
-        {
-            if (step >= Seconds())
-            {
-                columns[column] = tree[1];
-                continue;
-            }
-            start = std::fmod(start, Seconds());
-        }
-        if (start >= Seconds())
-            break;
-        const double end = std::min(Seconds(), start + step);
-        auto left = leaves + static_cast<std::size_t>(std::floor(start * KauaiAudio::SampleRate / bucketFrames));
-        auto right = leaves + static_cast<std::size_t>(std::ceil(end * KauaiAudio::SampleRate / bucketFrames));
-        right = std::min(right, leaves * 2);
-        while (left < right)
-        {
-            if (left & 1)
-                columns[column] = Merge(columns[column], tree[left++]);
-            if (right & 1)
-                columns[column] = Merge(columns[column], tree[--right]);
-            left /= 2;
-            right /= 2;
-        }
-        if (repeat && start + step > Seconds())
-        {
-            MarcusWaveformColumn tail;
-            Read(0, start + step - Seconds(), 1, &tail);
-            columns[column] = Merge(columns[column], tail);
-        }
-    }
+    marcus_waveform_read(&wave, first, step, count, columns, repeat);
+}
+double MarcusWaveformEnvelope::Seconds() const
+{
+    return marcus_waveform_seconds(&wave);
+}
+
+MarcusWaveformCache::~MarcusWaveformCache()
+{
+    Clear();
 }
 void MarcusWaveformCache::Clear()
 {
-    entries.clear();
-    lengths.clear();
-    bytes = 0;
-    clock = 0;
+    marcus_waveform_cache_clear(&cache);
 }
 MarcusWaveformInfo MarcusWaveformCache::Length(MM::Preview &preview, const MM::PreviewSoundCue &cue)
 {
-    MarcusWaveformInfo info = {};
-    if (cue.silent)
-    {
-        info.kind = MARCUS_WAVEFORM_SILENT;
-        return info;
-    }
-    const auto key = std::make_tuple(cue.source, cue.sound.type, cue.sound.number, cue.child,
-                                     cue.source == 0 ? cue.scene.number : 0);
-    const auto found = lengths.find(key);
-    if (found != lengths.end())
-        return found->second;
-    MM::PreviewAudio audio;
-    MM::Error error;
-    info.kind = MARCUS_WAVEFORM_UNAVAILABLE;
-    if (!preview.ReadSound(cue, audio, error))
-        std::snprintf(info.message, sizeof(info.message), "%s", error.message.c_str());
-    else if (audio.silent)
-        info.kind = MARCUS_WAVEFORM_SILENT;
-    else if (audio.midi)
-    {
-        info.kind = MARCUS_WAVEFORM_MIDI;
-        if (!audio.events.empty())
-            info.seconds = audio.events.back().milliseconds / 1000.0;
-    }
-    else if (KauaiAudio::WaveSeconds(audio.wave.data(), audio.wave.size(), info.seconds))
-        info.kind = MARCUS_WAVEFORM_SAMPLED;
-    info.resolved_source = audio.source;
-    info.resolved_type = audio.asset.type;
-    info.resolved_chunk = audio.asset.number;
-    lengths.emplace(key, info);
+    MediaReader reader{preview, cue};
+    const auto services = reader.Services();
+    const auto request = Request(cue);
+    MarcusWaveformInfo info;
+    reader.Check(marcus_waveform_cache_length(&cache, &request, &services, &info));
     return info;
+}
+const MarcusWaveform *MarcusWaveformCache::Peaks(MM::Preview &preview, const MM::PreviewSoundCue &cue,
+                                                 MarcusWaveformInfo &info)
+{
+    MediaReader reader{preview, cue};
+    const auto services = reader.Services();
+    const auto request = Request(cue);
+    const MarcusWaveform *wave;
+    reader.Check(marcus_waveform_cache_peaks(&cache, &request, &services, &wave, &info));
+    return wave;
 }
 void MarcusWaveformCache::Read(MM::Preview &preview, const MM::PreviewSoundCue &cue, double first,
                                double step, int count, MarcusWaveformColumn *columns, MarcusWaveformInfo &info)
 {
-    const auto key = std::make_tuple(cue.source, cue.sound.type, cue.sound.number, cue.child,
-                                     cue.source == 0 ? cue.scene.number : 0);
-    // An explicit stop may carry the same identity as its earlier playable cue.
-    if (cue.silent)
-    {
-        std::fill_n(columns, count, MarcusWaveformColumn{});
-        info = {};
-        info.kind = MARCUS_WAVEFORM_SILENT;
-        std::snprintf(info.message, sizeof(info.message), "Stop / silence");
-        return;
-    }
-    auto found = entries.find(key);
-    if (found == entries.end())
-    {
-        Entry entry;
-        MM::PreviewAudio audio;
-        MM::Error error;
-        entry.info.kind = MARCUS_WAVEFORM_UNAVAILABLE;
-        if (!preview.ReadSound(cue, audio, error))
-            std::snprintf(entry.info.message, sizeof(entry.info.message), "%s", error.message.c_str());
-        else if (audio.silent)
-        {
-            entry.info.kind = MARCUS_WAVEFORM_SILENT;
-            std::snprintf(entry.info.message, sizeof(entry.info.message), "Stop / silence");
-        }
-        else if (audio.midi)
-        {
-            entry.info.kind = MARCUS_WAVEFORM_MIDI;
-            if (!audio.events.empty())
-                entry.info.seconds = audio.events.back().milliseconds / 1000.0;
-            std::snprintf(entry.info.message, sizeof(entry.info.message), "MIDI notes (no sampled waveform)");
-        }
-        else
-        {
-            std::shared_ptr<const KauaiAudio::Sample> sample;
-            if (!KauaiAudio::DecodeWave(audio.wave.data(), audio.wave.size(), sample))
-                std::snprintf(entry.info.message, sizeof(entry.info.message), "Cannot decode sound waveform.");
-            else if (sample->stereo.size() > 256u * 1024 * 1024 / sizeof(float))
-                std::snprintf(entry.info.message, sizeof(entry.info.message),
-                              "Sound exceeds the waveform decode budget.");
-            else
-            {
-                entry.envelope.Build(sample->stereo.data(), sample->stereo.size() / 2);
-                entry.info.seconds = entry.envelope.Seconds();
-                entry.info.kind = MARCUS_WAVEFORM_SAMPLED;
-            }
-        }
-        entry.info.resolved_source = audio.source;
-        entry.info.resolved_type = audio.asset.type;
-        entry.info.resolved_chunk = audio.asset.number;
-        const auto required = entry.envelope.Bytes();
-        while (!entries.empty() && (bytes + required > cacheBudget || entries.size() >= 512))
-        {
-            auto oldest = std::min_element(entries.begin(), entries.end(),
-                                           [](const auto &a, const auto &b) { return a.second.used < b.second.used; });
-            bytes -= oldest->second.envelope.Bytes();
-            entries.erase(oldest);
-        }
-        found = entries.emplace(key, std::move(entry)).first;
-        bytes += required;
-    }
-    auto &entry = found->second;
-    entry.used = ++clock;
-    info = entry.info;
-    entry.envelope.Read(first, step, count, columns, cue.loop);
+    const auto wave = Peaks(preview, cue, info);
+    marcus_waveform_read(wave, first, step, count, columns, cue.loop);
+}
+void MarcusWaveformCache::ReadFrames(MM::Preview &preview, const MarcusSoundScene &scene, const MarcusSoundSpan &span,
+                                    double first, double step, int count, MarcusWaveformColumn *columns,
+                                    MarcusWaveformInfo &info)
+{
+    const auto wave = Peaks(preview, span.cue, info);
+    marcus_waveform_read_timeline(wave, span.start, span.end, first, step, count, columns, span.cue.loop,
+                                  [](const void *p, double frame) {
+                                      return static_cast<const MarcusSoundScene *>(p)->TimeAt(frame);
+                                  }, &scene);
 }
