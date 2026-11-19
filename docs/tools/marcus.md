@@ -402,6 +402,16 @@ and exits edit mode. **Done** and Ctrl+Enter (Cmd+Enter on macOS) also apply it.
 its draft. **Delete box** removes the selection. Each committed change is
 one Undo step. **Save copy** writes the boxes into the native movie.
 
+The C89 engine resolves the scene's text boxes in authored order and updates
+the scene links and start events when a box is added, edited or deleted. A
+replacement keeps its slot and a new box uses the first free text slot.
+Five native saves matched their pre-conversion files byte for byte, covering
+insertion, replacement, removal and slot reuse. Retail reopened all five
+saves with the expected boxes. At frame 25, SDL Studio matched retail's
+scene and actor state for all five saves and matched four viewports pixel
+for pixel. The replacement differed from retail by one pixel in both SDL
+builds. Captures and checks are in `tmp/c89-caption-archive/`.
+
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from
 the visual pickers. Each selected font, shape and material has a rendered sample;

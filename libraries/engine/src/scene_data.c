@@ -7,6 +7,7 @@
 #include "mm/movie_sound.h"
 #include "mm/scene_edit.h"
 #include "mm/scene_sound.h"
+#include "mm/text_store.h"
 #include "mm/wide.h"
 #include "sound_archive_internal.h"
 #include <stdlib.h>
@@ -278,6 +279,7 @@ done:
 
 #define SCENE_TYPE 0x5343454eUL
 #define FRAME_GROUP_TYPE 0x47474652UL
+#define START_GROUP_TYPE 0x47475354UL
 #define THUMB_TYPE 0x5448554dUL
 
 int mm_scene_archive_read_header(const MMMovieArchiveEditor *editor, MMU32 scene, MMSceneState *state)
@@ -292,6 +294,66 @@ int mm_scene_archive_read_header(const MMMovieArchiveEditor *editor, MMU32 scene
     return 1;
 }
 
+static unsigned char *event_record(const MMGroup *group, MMU32 row, MMI32 *size)
+{
+    MMGroupLocation location;
+    if (mm_group_location(group, row, &location) != MM_STORAGE_OK)
+        return NULL;
+    if (size)
+        *size = location.bytes - MM_SCENE_EVENT_BYTES;
+    return group->storage->buffers[0].data + location.offset;
+}
+
+static int read_archive_events(const MMReadStream *stream, int start, MMGroup *group, int *big)
+{
+    MMCollectionHeader header;
+    const unsigned short one = 1;
+    const unsigned char *row;
+    MMI32 size, kind;
+    MMU32 i;
+    if (mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &header) != MM_STORAGE_OK ||
+        header.width != MM_SCENE_EVENT_BYTES ||
+        mm_storage_read(group->storage, stream, header.header_bytes, header.first_bytes,
+                        header.second_bytes) != MM_STORAGE_OK)
+        return 0;
+    *big = header.big_endian;
+    group->fixed_bytes = header.width;
+    group->count = header.count;
+    group->bytes = header.bytes;
+    group->free_count = header.free_count;
+    if (*big != (*(const unsigned char *)&one == 0))
+        mm_group_swap_locations(group);
+    for (i = 0; i < header.count; ++i)
+    {
+        row = event_record(group, i, &size);
+        if (!row)
+            return 0;
+        kind = mm_signed_word(word(row + 4, *big));
+        if (!valid_event(kind, size, *big, start, row + MM_SCENE_EVENT_BYTES))
+            return 0;
+    }
+    return 1;
+}
+
+/* The caller owns the group and discards it after writing. */
+static int write_archive_events(const MMMovieArchiveEditor *editor, MMU32 type, MMGroup *group, int big,
+                                MMU32 *number)
+{
+    MMStorageWriter writer;
+    unsigned char header[MM_SCENE_EMPTY_GROUP_BYTES];
+    const unsigned short one = 1;
+    MMU32 size;
+    if (!encode_group_header(editor->system, big, group->count, group->bytes, header))
+        return 0;
+    size = sizeof(header) + group->bytes + group->count * 8;
+    if (!editor->add(editor->context, type, size, number, &writer))
+        return 0;
+    if (big != (*(const unsigned char *)&one == 0))
+        mm_group_swap_locations(group);
+    return mm_storage_write(group->storage, &writer, header, sizeof(header), group->bytes,
+                            group->count * 8) == MM_STORAGE_OK;
+}
+
 typedef struct SceneFrameEdit
 {
     const MMMovieArchiveEditor *editor;
@@ -304,15 +366,11 @@ typedef struct SceneFrameEdit
 
 static unsigned char *frame_record(SceneFrameEdit *edit, MMU32 row, MMI32 *size)
 {
-    MMGroupLocation location;
-    if (mm_group_location(&edit->group, row, &location) != MM_STORAGE_OK)
-    {
+    unsigned char *record;
+    record = event_record(&edit->group, row, size);
+    if (!record)
         edit->result = MM_SCENE_ARCHIVE_EDIT_INVALID_FRAMES;
-        return NULL;
-    }
-    if (size)
-        *size = location.bytes - MM_SCENE_EVENT_BYTES;
-    return edit->storage.buffers[0].data + location.offset;
+    return record;
 }
 
 static int open_frames(void *context)
@@ -321,38 +379,14 @@ static int open_frames(void *context)
     const MMMovieArchiveEditor *editor = edit->editor;
     MMChunkAccess chunks;
     MMReadStream stream;
-    MMCollectionHeader header;
-    const unsigned short one = 1;
-    const unsigned char *row;
-    MMI32 size, kind;
-    MMU32 i;
     edit->result = MM_SCENE_ARCHIVE_EDIT_READ_FRAMES;
     chunks = editor->chunks(editor->context);
     if (mm_chunk_link_number(&chunks, SCENE_TYPE, edit->number, 0, FRAME_GROUP_TYPE, &edit->previous) != MM_CHUNK_OK ||
         !editor->read(editor->context, FRAME_GROUP_TYPE, edit->previous, &stream))
         return 0;
     edit->result = MM_SCENE_ARCHIVE_EDIT_INVALID_FRAMES;
-    if (mm_collection_header_read(&stream, MM_COLLECTION_GROUP, 0, &header) != MM_STORAGE_OK ||
-        header.width != MM_SCENE_EVENT_BYTES ||
-        mm_storage_read(&edit->storage, &stream, header.header_bytes, header.first_bytes,
-                        header.second_bytes) != MM_STORAGE_OK)
+    if (!read_archive_events(&stream, 0, &edit->group, &edit->big))
         return 0;
-    edit->big = header.big_endian;
-    edit->group.fixed_bytes = header.width;
-    edit->group.count = header.count;
-    edit->group.bytes = header.bytes;
-    edit->group.free_count = header.free_count;
-    if (edit->big != (*(const unsigned char *)&one == 0))
-        mm_group_swap_locations(&edit->group);
-    for (i = 0; i < header.count; ++i)
-    {
-        row = frame_record(edit, i, &size);
-        if (!row)
-            return 0;
-        kind = mm_signed_word(word(row + 4, edit->big));
-        if (!valid_event(kind, size, edit->big, 0, row + MM_SCENE_EVENT_BYTES))
-            return 0;
-    }
     edit->result = MM_SCENE_ARCHIVE_EDIT_OK;
     return 1;
 }
@@ -407,22 +441,11 @@ static void move_opening_camera(void *context, MMI32 index, MMI32 frame)
 static int publish_frames(SceneFrameEdit *edit, MMGroup *group)
 {
     const MMMovieArchiveEditor *editor = edit->editor;
-    MMStorageWriter writer;
-    unsigned char header[MM_SCENE_EMPTY_GROUP_BYTES];
-    const unsigned short one = 1;
-    MMU32 number, size;
+    MMU32 number;
     if (edit->result != MM_SCENE_ARCHIVE_EDIT_OK)
         return 0;
     edit->result = MM_SCENE_ARCHIVE_EDIT_WRITE_FRAMES;
-    size = sizeof(header) + group->bytes + group->count * 8;
-    if (!encode_group_header(editor->system, edit->big, group->count, group->bytes, header) ||
-        !editor->add(editor->context, FRAME_GROUP_TYPE, size, &number, &writer))
-        return 0;
-    /* The edit owns this group and discards it after writing. */
-    if (edit->big != (*(const unsigned char *)&one == 0))
-        mm_group_swap_locations(group);
-    if (mm_storage_write(group->storage, &writer, header, sizeof(header), group->bytes,
-                         group->count * 8) != MM_STORAGE_OK)
+    if (!write_archive_events(editor, FRAME_GROUP_TYPE, group, edit->big, &number))
         return 0;
     editor->unlink(editor->context, SCENE_TYPE, edit->number, FRAME_GROUP_TYPE, edit->previous, 0);
     if (!editor->adopt(editor->context, SCENE_TYPE, edit->number, FRAME_GROUP_TYPE, number, 0))
@@ -505,6 +528,201 @@ int mm_scene_archive_set_range(const MMMovieArchiveEditor *editor, MMU32 scene, 
     result = mm_scene_range_store(&edit.scene, first, last, &services);
     mm_storage_dispose(&edit.storage);
     return result == MM_SCENE_RANGE_INVALID ? MM_SCENE_ARCHIVE_EDIT_RANGE : edit.result;
+}
+
+static int open_text_events(const MMMovieArchiveEditor *editor, const MMChunkAccess *chunks, MMU32 parent,
+                            MMChunkChild *previous, MMGroup *group, int *big)
+{
+    MMReadStream stream;
+    if (mm_chunk_child_exact(chunks, parent, 1, START_GROUP_TYPE, previous) != MM_CHUNK_OK ||
+        !editor->read(editor->context, START_GROUP_TYPE, previous->number, &stream))
+        return MM_SCENE_ARCHIVE_TEXT_READ_START;
+    return read_archive_events(&stream, 1, group, big) ? MM_SCENE_ARCHIVE_TEXT_OK
+                                                      : MM_SCENE_ARCHIVE_TEXT_INVALID_START;
+}
+
+static int text_slot(const MMGroup *group, MMU32 index, int big, MMU32 *slot)
+{
+    const unsigned char *row = event_record(group, index, NULL);
+    if (!row || word(row + 4, big) != MM_SCENE_ADD_TEXT)
+        return 0;
+    *slot = word(row + MM_SCENE_EVENT_BYTES, big);
+    return 1;
+}
+
+static int collect_text_links(const MMChunkAccess *chunks, MMU32 parent, const MMGroup *group, int big,
+                              MMSceneArchiveText **out, MMU32 *count)
+{
+    MMChunkEntry scene;
+    MMChunkChild box;
+    MMSceneArchiveText *links = NULL;
+    unsigned char *seen = NULL;
+    MMU32 limit, row, slot, index, found = 0;
+    int result, query;
+    if (mm_chunk_at(chunks, parent, &scene) != MM_CHUNK_OK)
+        return MM_SCENE_ARCHIVE_TEXT_LINK;
+    if (group->count)
+    {
+        limit = scene.child_count < group->count ? scene.child_count : group->count;
+        result = MM_SCENE_ARCHIVE_TEXT_MEMORY;
+        if ((size_t)scene.child_count != scene.child_count)
+            goto done;
+        seen = (unsigned char *)calloc((size_t)scene.child_count, 1);
+        links = (MMSceneArchiveText *)calloc((size_t)limit, sizeof(*links));
+        if (!seen || !links)
+            goto done;
+    }
+    for (row = 0; row < group->count; ++row)
+    {
+        if (!text_slot(group, row, big, &slot))
+            continue;
+        /* Number zero searches for the first child of this type at the slot. */
+        query = mm_chunk_find_child(chunks, parent, slot, MM_TEXT_BOX, 0, &index);
+        if ((query != MM_CHUNK_OK && query != MM_CHUNK_NOT_FOUND) ||
+            mm_chunk_child_at(chunks, parent, index, &box) != MM_CHUNK_OK ||
+            box.slot != slot || box.type != MM_TEXT_BOX)
+        {
+            result = MM_SCENE_ARCHIVE_TEXT_LINK;
+            goto done;
+        }
+        if (!seen[index])
+        {
+            seen[index] = 1;
+            links[found].slot = slot;
+            links[found++].number = box.number;
+        }
+    }
+    *out = links;
+    *count = found;
+    links = NULL;
+    result = MM_SCENE_ARCHIVE_TEXT_OK;
+done:
+    free(seen);
+    free(links);
+    return result;
+}
+
+int mm_scene_archive_list_text(const MMMovieArchiveEditor *editor, MMU32 scene,
+                               MMSceneArchiveText **out, MMU32 *count)
+{
+    MMChunkAccess chunks;
+    MMChunkChild previous;
+    MMCollectionStorage storage;
+    MMGroup group = {0};
+    MMU32 parent;
+    int big, result;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_find(&chunks, SCENE_TYPE, scene, &parent) != MM_CHUNK_OK)
+        return MM_SCENE_ARCHIVE_TEXT_READ_START;
+    mm_storage_init(&storage, NULL);
+    group.storage = &storage;
+    result = open_text_events(editor, &chunks, parent, &previous, &group, &big);
+    if (result == MM_SCENE_ARCHIVE_TEXT_OK)
+        result = collect_text_links(&chunks, parent, &group, big, out, count);
+    mm_storage_dispose(&storage);
+    return result;
+}
+
+void mm_scene_archive_free_text_list(MMSceneArchiveText *links)
+{
+    free(links);
+}
+
+static int first_text_slot(const MMChunkAccess *chunks, MMU32 parent, MMU32 *slot)
+{
+    MMChunkEntry scene;
+    MMChunkChild child;
+    MMU32 index, next = 0;
+    if (mm_chunk_at(chunks, parent, &scene) != MM_CHUNK_OK)
+        return 0;
+    for (index = 0; index < scene.child_count; ++index)
+    {
+        if (mm_chunk_child_at(chunks, parent, index, &child) != MM_CHUNK_OK)
+            return 0;
+        if (child.slot > next)
+            break;
+        if (child.slot == next && child.type == MM_TEXT_BOX)
+            ++next;
+    }
+    *slot = next;
+    return 1;
+}
+
+static int update_text_events(MMGroup *group, int big, const MMSceneArchiveTextEdit *edit, MMU32 slot)
+{
+    unsigned char fixed[MM_SCENE_EVENT_BYTES], payload[4];
+    MMU32 row, existing;
+    if (!edit->original)
+    {
+        put(fixed, (MMU32)edit->opening_frame, 4, big);
+        put(fixed + 4, MM_SCENE_ADD_TEXT, 4, big);
+        put(payload, slot, 4, big);
+        return mm_group_add(group, sizeof(payload), payload, fixed, NULL) == MM_STORAGE_OK;
+    }
+    for (row = group->count; row > 0;)
+    {
+        --row;
+        if (text_slot(group, row, big, &existing) && existing == slot &&
+            mm_group_delete(group, row) != MM_STORAGE_OK)
+            return 0;
+    }
+    return 1;
+}
+
+static int publish_text_edit(const MMMovieArchiveEditor *editor, const MMSceneArchiveTextEdit *edit,
+                             const MMChunkAccess *chunks, MMU32 parent, MMGroup *group, int big, MMU32 previous)
+{
+    MMChunkChild box;
+    MMU32 number, slot;
+    int changes_start = !edit->original || !edit->write_box;
+    if (edit->original)
+    {
+        slot = edit->original->slot;
+        if (mm_chunk_child_exact(chunks, parent, slot, MM_TEXT_BOX, &box) != MM_CHUNK_OK ||
+            box.number != edit->original->number)
+            return MM_SCENE_ARCHIVE_TEXT_CHANGED;
+    }
+    else if (!edit->write_box || !first_text_slot(chunks, parent, &slot))
+        return MM_SCENE_ARCHIVE_TEXT_LINK;
+    if (changes_start && !update_text_events(group, big, edit, slot))
+        return MM_SCENE_ARCHIVE_TEXT_WRITE_START;
+    if (edit->write_box)
+    {
+        if (!edit->write_box(edit->context, edit->original, &number))
+            return MM_SCENE_ARCHIVE_TEXT_WRITE_BOX;
+        if (!editor->adopt(editor->context, SCENE_TYPE, edit->scene, MM_TEXT_BOX, number, slot))
+            return MM_SCENE_ARCHIVE_TEXT_LINK;
+    }
+    if (changes_start)
+    {
+        if (!write_archive_events(editor, START_GROUP_TYPE, group, big, &number) ||
+            !editor->adopt(editor->context, SCENE_TYPE, edit->scene, START_GROUP_TYPE, number, 1))
+            return MM_SCENE_ARCHIVE_TEXT_WRITE_START;
+        editor->unlink(editor->context, SCENE_TYPE, edit->scene, START_GROUP_TYPE, previous, 1);
+    }
+    if (edit->original)
+        editor->unlink(editor->context, SCENE_TYPE, edit->scene, MM_TEXT_BOX, edit->original->number, slot);
+    return MM_SCENE_ARCHIVE_TEXT_OK;
+}
+
+int mm_scene_archive_edit_text(const MMMovieArchiveEditor *editor, const MMSceneArchiveTextEdit *edit)
+{
+    MMChunkAccess chunks;
+    MMChunkChild previous;
+    MMCollectionStorage storage;
+    MMGroup group = {0};
+    MMU32 parent;
+    int big, result;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_find(&chunks, SCENE_TYPE, edit->scene, &parent) != MM_CHUNK_OK)
+        return MM_SCENE_ARCHIVE_TEXT_READ_START;
+    mm_storage_init(&storage, NULL);
+    group.storage = &storage;
+    result = open_text_events(editor, &chunks, parent, &previous, &group, &big);
+    if (result == MM_SCENE_ARCHIVE_TEXT_OK)
+        result = publish_text_edit(editor, edit, &chunks, parent, &group, big, previous.number);
+    mm_storage_dispose(&storage);
+    return result;
 }
 
 typedef struct ArchiveSoundTag

@@ -1,5 +1,6 @@
 #include "caption_edit.h"
 #include "scene_edit.h"
+#include "movie_archive_host.h"
 #include "mm/native_caption.h"
 #include "mm/preview.h"
 #include "mm/text_properties.h"
@@ -12,7 +13,7 @@
 #include <limits>
 #include <locale>
 #include <map>
-#include <set>
+#include <exception>
 #include <stdexcept>
 #include <tuple>
 #include "soc_core.h"
@@ -199,68 +200,22 @@ struct PropertyMap
     }
 };
 
-struct SceneBoxes
+void CheckTextArchive(int status)
 {
-    ChunkNumber startChunk = 0;
-    short order = kboCur;
-    Owned<GeneralGroup> starts;
-
-    SceneBoxes(PChunkyFile file, ChunkNumber scene)
-    {
-        ChildChunkIdentification child;
-        DataBlock block;
-        Require(file->FGetKidChidCtg(kctgScen, scene, 1, kctgStartGg, &child) &&
-                file->FFind(kctgStartGg, child.cki.cno, &block), "Cannot read the scene's text box list.");
-        startChunk = child.cki.cno;
-        starts.reset(SceneData::PggReadEvents(&block, &order, true));
-        Require(bool(starts), "The scene's text box list is invalid.");
-    }
-    bool Slot(LegacyLong row, MMU32 &slot) const
-    {
-        SceneEvent event;
-        starts->GetFixed(row, &event);
-        if (order == kboOther) SwapBytesBom(&event, kbomSev);
-        if (event.sevt != sevtAddTbox) return false;
-        starts->GetRgb(row, 0, sizeof(slot), &slot);
-        if (order == kboOther) SwapBytesRglw(&slot, 1);
-        return true;
-    }
-    MMU32 Append(PChunkyFile file, ChunkNumber scene, MMI32 frame)
-    {
-        std::set<MMU32> used;
-        ChildChunkIdentification child;
-        for (LegacyLong i = 0; file->FGetKid(kctgScen, scene, i, &child); ++i)
-            if (child.cki.ctg == kctgTbox) used.insert(child.chid);
-        MMU32 slot = 0;
-        while (used.count(slot)) ++slot;
-        auto wire = slot;
-        SceneEvent event{frame, sevtAddTbox};
-        if (order == kboOther)
-        {
-            SwapBytesRglw(&wire, 1);
-            SwapBytesBom(&event, kbomSev);
-        }
-        Require(starts->FAdd(sizeof(wire), nullptr, &wire, &event), "Cannot register the new 2D text box.");
-        return slot;
-    }
-    void Delete(MMU32 selected)
-    {
-        for (auto row = starts->IvMac(); row-- > 0;)
-        {
-            MMU32 slot;
-            if (Slot(row, slot) && slot == selected) starts->Delete(row);
-        }
-    }
-    void Save(PChunkyFile file, ChunkNumber scene)
-    {
-        DataBlock block;
-        ChunkNumber replacement;
-        Require(file->FAdd(starts->CbOnFile(), kctgStartGg, &replacement, &block) &&
-                starts->FWrite(&block, order) && file->FAdoptChild(kctgScen, scene, kctgStartGg, replacement, 1),
-                "Cannot save the scene's text box list.");
-        file->DeleteChild(kctgScen, scene, kctgStartGg, startChunk, 1);
-    }
-};
+    static const char *const messages[] = {
+        nullptr,
+        "Cannot read the scene's text box list.",
+        "The scene's text box list is invalid.",
+        "Cannot allocate the scene's text box list.",
+        "Cannot resolve or link a native 2D text box.",
+        "The selected 2D text box has changed.",
+        "Cannot save the native 2D text.",
+        "Cannot save the scene's text box list."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_SCENE_ARCHIVE_TEXT_WRITE_START + 1,
+                  "text archive diagnostics");
+    Require(status == MM_SCENE_ARCHIVE_TEXT_OK, messages[status]);
+}
 
 auto Fields(const MarcusCaptionOptions &v)
 {
@@ -406,25 +361,27 @@ std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *b
 void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &preview, MarcusCaptionList &list)
 {
     auto file = Open(path, false);
-    const SceneBoxes boxes(file.get(), list.scene);
-    std::set<MMU32> seen;
-    for (LegacyLong row = 0; row < boxes.starts->IvMac(); ++row)
+    MovieArchiveHost host{file.get(), {}, {}};
+    const auto editor = host.Editor();
+    MMSceneArchiveText *links;
+    MMU32 count;
+    CheckTextArchive(mm_scene_archive_list_text(&editor, list.scene, &links, &count));
+    const std::unique_ptr<MMSceneArchiveText, decltype(&mm_scene_archive_free_text_list)> owned(
+        links, mm_scene_archive_free_text_list);
+    for (MMU32 i = 0; i < count; ++i)
     {
-        MMU32 slot;
-        if (!boxes.Slot(row, slot) || !seen.insert(slot).second) continue;
-        ChildChunkIdentification child;
+        const auto &link = links[i];
         ChunkIdentification body;
         TextBoxData box;
         RichTextData rich;
-        Require(file->FGetKidChidCtg(kctgScen, list.scene, slot, kctgTbox, &child) &&
-                box.FRead(file.get(), child.cki.cno, &body) && rich.FRead(file.get(), body.ctg, body.cno),
+        Require(box.FRead(file.get(), link.number, &body) && rich.FRead(file.get(), body.ctg, body.cno),
                 "Cannot read a native 2D text box.");
         auto words = ReadText(rich);
         auto text = Utf8().to_bytes(Paragraphs(words, u'\n'));
         Require(text.size() < MARCUS_CAPTION_UTF8_CAPACITY && text.find('\0') == std::string::npos,
                 "This 2D text cannot fit in the editor.");
         const auto &s = box.state;
-        MarcusCaptionEntry entry{slot, child.cki.cno, {}, std::move(text)};
+        MarcusCaptionEntry entry{link.slot, link.number, {}, std::move(text)};
         auto &v = entry.options;
         v.x = s.left;
         v.y = s.top;
@@ -494,46 +451,54 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
                 "Enter text for the new box within the length limit.");
     auto copy = MarcusCopyMovie(path, origin);
     auto file = Open(copy->path, true);
-    SceneBoxes boxes(file.get(), list.scene);
-    ChildChunkIdentification existing;
-    if (entry)
-        Require(file->FGetKidChidCtg(kctgScen, list.scene, entry->slot, kctgTbox, &existing) &&
-                existing.cki.cno == entry->chunk, "The selected 2D text box has changed.");
-
-    if (!text)
+    MovieArchiveHost host{file.get(), {}, {}};
+    const auto editor = host.Editor();
+    const MMSceneArchiveText original{entry ? entry->slot : 0, entry ? entry->chunk : 0};
+    struct Write
     {
-        boxes.Delete(entry->slot);
-        boxes.Save(file.get(), list.scene);
-    }
-    else
-    {
-        ChunkNumber number;
-        TextBoxData box;
-        RichTextData rich;
-        ChunkIdentification prior;
-        if (entry)
-        {
-            Require(file->FClone(kctgTbox, entry->chunk, file.get(), &number) &&
-                    box.FRead(file.get(), number, &prior) && rich.FRead(file.get(), prior.ctg, prior.cno),
-                    "Cannot copy the selected 2D text box.");
-        }
-        else
-            Require(file->FAdd(0, kctgTbox, &number), "Cannot allocate a new 2D text box.");
-        UpdateBox(box, list, *options, entry ? &entry->options : nullptr);
-        if (UpdateRich(rich, *options, entry ? &entry->options : nullptr, text, wordsChanged))
-        {
-            ChunkIdentification body;
-            Require(rich.FWrite(file.get(), &body) &&
-                    file->FAdoptChild(kctgTbox, number, body.ctg, body.cno, box.state.child),
-                    "Cannot save the native 2D text.");
-            if (entry) file->DeleteChild(kctgTbox, number, prior.ctg, prior.cno, box.state.child);
-        }
-        const auto slot = entry ? entry->slot : boxes.Append(file.get(), list.scene, list.firstFrame);
-        Require(box.FWrite(file.get(), number) && file->FAdoptChild(kctgScen, list.scene, kctgTbox, number, slot),
-                "Cannot link the 2D text box to its scene.");
-        if (!entry) boxes.Save(file.get(), list.scene);
-    }
-    if (entry) file->DeleteChild(kctgScen, list.scene, kctgTbox, entry->chunk, entry->slot);
+        PChunkyFile file;
+        const MarcusCaptionList &list;
+        const MarcusCaptionOptions *options;
+        const MarcusCaptionEntry *entry;
+        const char *text;
+        bool wordsChanged;
+        std::exception_ptr failure;
+    } write{file.get(), list, options, entry, text, wordsChanged, {}};
+    MMSceneArchiveTextEdit edit{list.scene, list.firstFrame, entry ? &original : nullptr, &write, nullptr};
+    if (text)
+        edit.write_box = [](void *context, const MMSceneArchiveText *original, MMU32 *number) -> int {
+            auto &write = *static_cast<Write *>(context);
+            try
+            {
+                TextBoxData box;
+                RichTextData rich;
+                ChunkIdentification prior;
+                if (original)
+                {
+                    Require(write.file->FClone(kctgTbox, original->number, write.file, number) &&
+                            box.FRead(write.file, *number, &prior) && rich.FRead(write.file, prior.ctg, prior.cno),
+                            "Cannot copy the selected 2D text box.");
+                }
+                else
+                    Require(write.file->FAdd(0, kctgTbox, number), "Cannot allocate a new 2D text box.");
+                const auto *before = write.entry ? &write.entry->options : nullptr;
+                UpdateBox(box, write.list, *write.options, before);
+                if (UpdateRich(rich, *write.options, before, write.text, write.wordsChanged))
+                {
+                    ChunkIdentification body;
+                    Require(rich.FWrite(write.file, &body) &&
+                            write.file->FAdoptChild(kctgTbox, *number, body.ctg, body.cno, box.state.child),
+                            "Cannot save the native 2D text.");
+                    if (original)
+                        write.file->DeleteChild(kctgTbox, *number, prior.ctg, prior.cno, box.state.child);
+                }
+                return box.FWrite(write.file, *number);
+            }
+            catch (...) { write.failure = std::current_exception(); return false; }
+        };
+    const int result = mm_scene_archive_edit_text(&editor, &edit);
+    if (write.failure) std::rethrow_exception(write.failure);
+    CheckTextArchive(result);
     Require(file->FSave(kctgSoc), "Cannot save the 2D text working copy.");
     return copy;
 }

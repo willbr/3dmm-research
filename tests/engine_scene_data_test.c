@@ -6,6 +6,7 @@
 #include "mm/movie_sound_archive.h"
 #include "mm/scene_edit.h"
 #include "mm/text.h"
+#include "mm/text_store.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -920,6 +921,200 @@ static void edit_archived_sounds(void)
     }
 }
 
+#define GGST 0x47475354UL
+
+typedef struct ArchivedText
+{
+    MMMemoryStream read;
+    unsigned char original[100], written[120];
+    int writes, box_link, start_link, box_unlink, start_unlink, fail_write;
+    MMU32 size, adopted_slot, removed_slot;
+} ArchivedText;
+
+static int text_entry(void *context, MMU32 i, MMChunkEntry *out)
+{
+    (void)context;
+    CHECK(i == 0);
+    memset(out, 0, sizeof(*out));
+    out->type = SCEN;
+    out->number = 5;
+    out->child_count = 5;
+    return 1;
+}
+
+static int text_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
+{
+    static const MMChunkChild children[] = {
+        {0x41435452UL, 4, 0}, {GGST, 6, 1}, {MM_TEXT_BOX, 9, 1}, {MM_TEXT_BOX, 12, 4}, {MM_TEXT_BOX, 13, 4}
+    };
+    (void)context;
+    CHECK(parent == 0 && i < sizeof(children) / sizeof(children[0]));
+    *out = children[i];
+    return 1;
+}
+
+static MMChunkAccess text_chunks(void *context)
+{
+    MMChunkAccess chunks = {NULL, 1, text_entry, text_child};
+    chunks.context = context;
+    return chunks;
+}
+
+static int text_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    ArchivedText *f = (ArchivedText *)context;
+    CHECK(type == GGST && number == 6 && mm_memory_stream_init(&f->read, f->original, sizeof(f->original)));
+    *stream = f->read.stream;
+    return 1;
+}
+
+static int text_write(void *context, MMU32 offset, const void *data, size_t bytes)
+{
+    ArchivedText *f = (ArchivedText *)context;
+    CHECK(offset <= f->size && bytes <= f->size - offset);
+    if (f->fail_write)
+        return 0;
+    memcpy(f->written + offset, data, bytes);
+    return 1;
+}
+
+static int text_add(void *context, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer)
+{
+    ArchivedText *f = (ArchivedText *)context;
+    CHECK(type == GGST && bytes <= sizeof(f->written));
+    f->size = bytes;
+    *number = 7;
+    writer->context = f;
+    writer->length = bytes;
+    writer->write_at = text_write;
+    return 1;
+}
+
+static int text_adopt(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
+{
+    ArchivedText *f = (ArchivedText *)context;
+    CHECK(type == SCEN && scene == 5);
+    if (child == GGST)
+    {
+        CHECK(number == 7 && slot == 1 && !f->start_unlink);
+        ++f->start_link;
+    }
+    else
+    {
+        CHECK(child == MM_TEXT_BOX && number == 14 && f->writes == 1 && !f->box_unlink);
+        f->adopted_slot = slot;
+        ++f->box_link;
+    }
+    return 1;
+}
+
+static void text_unlink(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
+{
+    ArchivedText *f = (ArchivedText *)context;
+    CHECK(type == SCEN && scene == 5);
+    if (child == GGST)
+    {
+        CHECK(number == 6 && slot == 1 && f->start_link == 1);
+        ++f->start_unlink;
+    }
+    else
+    {
+        CHECK(child == MM_TEXT_BOX && ((number == 9 && slot == 1) || (number == 12 && slot == 4)));
+        CHECK(f->start_unlink == 1 || (f->box_link == 1 && f->adopted_slot == slot));
+        f->removed_slot = slot;
+        ++f->box_unlink;
+    }
+}
+
+static int text_box(void *context, const MMSceneArchiveText *original, MMU32 *number)
+{
+    ArchivedText *f = (ArchivedText *)context;
+    CHECK(!original || (original->number == 9 && original->slot == 1));
+    ++f->writes;
+    *number = 14;
+    return 1;
+}
+
+static void init_text_archive(ArchivedText *f, int big)
+{
+    static const MMU32 kinds[] = {MM_SCENE_ADD_TEXT, MM_SCENE_CHANGE_CAMERA, MM_SCENE_ADD_TEXT, MM_SCENE_ADD_TEXT};
+    static const MMU32 values[] = {4, 3, 1, 4};
+    MMCollectionHeader header = {0};
+    MMU32 i;
+    memset(f, 0, sizeof(*f));
+    header.kind = MM_COLLECTION_GROUP;
+    header.system = MM_TEXT_MAC;
+    header.big_endian = big;
+    header.width = MM_SCENE_EVENT_BYTES;
+    header.count = 4;
+    header.bytes = 48;
+    header.free_count = -1;
+    CHECK(mm_collection_header_write(&header, f->original, sizeof(f->original)) == MM_STORAGE_OK);
+    for (i = 0; i < 4; ++i)
+    {
+        put32(f->original + 24 + i * 12, kinds[i], big);
+        put32(f->original + 28 + i * 12, values[i], big);
+        put32(f->original + 68 + i * 8, i * 12, big);
+        put32(f->original + 72 + i * 8, 12, big);
+    }
+}
+
+static void edit_archived_text(void)
+{
+    ArchivedText f;
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, text_chunks, text_read,
+                                   text_add, text_adopt, text_unlink, NULL, NULL, NULL, NULL, NULL, NULL};
+    MMSceneArchiveTextEdit add = {5, -2, NULL, NULL, text_box};
+    MMSceneArchiveTextEdit change = {5, 0, NULL, NULL, text_box};
+    MMSceneArchiveTextEdit remove = {5, 0, NULL, NULL, NULL};
+    MMSceneArchiveText one = {1, 9}, four = {4, 12}, stale = {1, 10};
+    MMSceneArchiveText *list;
+    MMCollectionHeader header;
+    MMMemoryStream output;
+    unsigned char row[12];
+    MMU32 count, offset;
+    MMI32 bytes;
+    int big;
+    editor.context = add.context = change.context = remove.context = &f;
+    remove.original = &four;
+    for (big = 0; big <= 1; ++big)
+    {
+        init_text_archive(&f, big);
+        CHECK(mm_scene_archive_list_text(&editor, 5, &list, &count) == MM_SCENE_ARCHIVE_TEXT_OK);
+        CHECK(count == 2 && list[0].number == 12 && list[0].slot == 4 && list[1].number == 9 && list[1].slot == 1);
+        mm_scene_archive_free_text_list(list);
+        CHECK(mm_scene_archive_edit_text(&editor, &add) == MM_SCENE_ARCHIVE_TEXT_OK);
+        CHECK(f.box_link == 1 && f.adopted_slot == 0 && f.start_link == 1 && f.start_unlink == 1 && !f.box_unlink);
+        CHECK(mm_memory_stream_init(&output, f.written, f.size) &&
+              mm_collection_header_read(&output.stream, MM_COLLECTION_GROUP, 0, &header) == MM_STORAGE_OK);
+        CHECK(header.big_endian == big && header.system == MM_TEXT_WINDOWS && header.count == 5);
+        CHECK(!memcmp(f.original + 20, f.written + 20, 48));
+        CHECK(mm_collection_group_row(&header, f.written + 20, 4, &offset, &bytes) && bytes == 4);
+        put32(row, (MMU32)-2, big);
+        put32(row + 4, MM_SCENE_ADD_TEXT, big);
+        put32(row + 8, 0, big);
+        CHECK(!memcmp(row, f.written + 20 + offset, sizeof(row)));
+
+        init_text_archive(&f, big);
+        change.original = &stale;
+        CHECK(mm_scene_archive_edit_text(&editor, &change) == MM_SCENE_ARCHIVE_TEXT_CHANGED && !f.writes);
+        change.original = &one;
+        CHECK(mm_scene_archive_edit_text(&editor, &change) == MM_SCENE_ARCHIVE_TEXT_OK);
+        CHECK(f.adopted_slot == 1 && f.removed_slot == 1 && f.box_link == 1 && f.box_unlink == 1 && !f.size);
+
+        init_text_archive(&f, big);
+        f.fail_write = 1;
+        CHECK(mm_scene_archive_edit_text(&editor, &remove) == MM_SCENE_ARCHIVE_TEXT_WRITE_START);
+        CHECK(!f.start_link && !f.start_unlink && !f.box_unlink);
+        f.fail_write = 0;
+        CHECK(mm_scene_archive_edit_text(&editor, &remove) == MM_SCENE_ARCHIVE_TEXT_OK);
+        CHECK(!f.writes && f.start_unlink == 1 && f.removed_slot == 4 && f.box_unlink == 1);
+        CHECK(mm_memory_stream_init(&output, f.written, f.size) &&
+              mm_collection_header_read(&output.stream, MM_COLLECTION_GROUP, 0, &header) == MM_STORAGE_OK);
+        CHECK(header.count == 2 && !memcmp(f.original + 32, f.written + 20, 24));
+    }
+}
+
 int main(void)
 {
     validation();
@@ -930,6 +1125,7 @@ int main(void)
     append_actor();
     edit_archived_frames();
     edit_archived_sounds();
+    edit_archived_text();
     puts("scene data passed");
     return 0;
 }

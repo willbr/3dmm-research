@@ -77,6 +77,42 @@ enum MMSceneArchiveEditResult
 int mm_scene_archive_set_camera(const MMMovieArchiveEditor *, MMU32 scene, MMI32 key, MMU32 camera);
 int mm_scene_archive_set_range(const MMMovieArchiveEditor *, MMU32 scene, long first, long last);
 
+typedef struct MMSceneArchiveText
+{
+    MMU32 slot, number;
+} MMSceneArchiveText;
+
+enum MMSceneArchiveTextResult
+{
+    MM_SCENE_ARCHIVE_TEXT_OK,
+    MM_SCENE_ARCHIVE_TEXT_READ_START,
+    MM_SCENE_ARCHIVE_TEXT_INVALID_START,
+    MM_SCENE_ARCHIVE_TEXT_MEMORY,
+    MM_SCENE_ARCHIVE_TEXT_LINK,
+    MM_SCENE_ARCHIVE_TEXT_CHANGED,
+    MM_SCENE_ARCHIVE_TEXT_WRITE_BOX,
+    MM_SCENE_ARCHIVE_TEXT_WRITE_START
+};
+
+/* Resolve the first reference to each text slot in authored start-event order.
+ * On success the caller owns the list, which may be empty. */
+int mm_scene_archive_list_text(const MMMovieArchiveEditor *, MMU32 scene, MMSceneArchiveText **, MMU32 *count);
+void mm_scene_archive_free_text_list(MMSceneArchiveText *);
+
+typedef struct MMSceneArchiveTextEdit
+{
+    MMU32 scene;
+    MMI32 opening_frame;
+    const MMSceneArchiveText *original; /* NULL inserts at the first free text slot. */
+    void *context;
+    int (*write_box)(void *, const MMSceneArchiveText *original, MMU32 *number); /* NULL deletes. */
+} MMSceneArchiveTextEdit;
+
+/* Retain the existing slot on replacement. Insertion appends a start event;
+ * deletion removes every start event referring to the selected slot.
+ * Discard the private candidate archive on failure. */
+int mm_scene_archive_edit_text(const MMMovieArchiveEditor *, const MMSceneArchiveTextEdit *);
+
 /* Write the required empty roll call for a rooted archive that has no ACTR
  * chunks and no existing roll-call link. Other archives need no write. */
 int mm_movie_archive_ensure_empty_rollcall(const MMMovieArchiveEditor *);

@@ -1083,6 +1083,10 @@ Studio's actor action, transform and recording primitives. C89 validates
 targets, samples the path by stride, and computes the edited lifetime.
 It also installs the saved route and events on the selected scene's
 actor, reapplies appearance and shape, and extends the scene as needed.
+The C89 scene archive editor now lists Marcus text boxes in start-event
+order and publishes their insertion, replacement and removal. It reuses
+vacant text slots, keeps unrelated event records and retains the start
+group's byte order. The native rich-text host prepares each box payload.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler
