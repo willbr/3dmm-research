@@ -420,6 +420,14 @@ endings, matched their pre-conversion files byte for byte. SDL Studio and
 retail matched scene and actor state and viewport pixels at frame 25 in
 each save. The comparisons are in `tmp/c89-caption-properties/`.
 
+C89 also places editor caret stops from the rendered layout and computes
+draft scrolling. It keeps both positions where a line wraps and skips
+positions inside UTF-16 surrogate pairs and CRLF breaks.
+The headless comparison matched 107 caret stops, their coordinates and
+scroll offsets, and five saved movies before and after the change.
+SDL Studio matched retail state and viewport pixels at frame 25 in each
+movie. The results are in `tmp/c89-caption-caret/`.
+
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from
 the visual pickers. Each selected font, shape and material has a rendered sample;

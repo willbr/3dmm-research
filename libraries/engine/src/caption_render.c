@@ -49,6 +49,80 @@ MMI32 mm_caption_scroll_overflow(MMI32 height, MMI32 top, MMI32 bottom)
     return overflow <= 0 ? 0 : overflow >= 2147483647.0 ? 2147483647 : (MMI32)overflow;
 }
 
+void mm_caption_caret_offsets(const unsigned short *text, MMI32 length, MMI32 *offsets)
+{
+    MMI32 i, offset = 0;
+    unsigned short unit;
+    for (i = 0; i < length; ++i)
+    {
+        unit = text[i];
+        offsets[i] = offset;
+        if (unit == '\r' && i + 1 < length && text[i + 1] == '\n')
+            offsets[++i] = -1;
+        if (unit >= 0xd800 && unit <= 0xdbff && i + 1 < length &&
+            text[i + 1] >= 0xdc00 && text[i + 1] <= 0xdfff)
+        {
+            offsets[++i] = -1;
+            offset += 4;
+        }
+        else
+            offset += unit < 0x80 ? 1 : unit < 0x800 ? 2 : 3;
+    }
+    offsets[length] = offset;
+}
+
+int mm_caption_caret_run(MMCaptionCaretBuilder *builder, const MMCaptionLayoutRun *run,
+                         const MMCaptionCaretServices *services)
+{
+    MMCaptionCaretStop stop;
+    MMI32 i, span, advance, end = min_value(run->end, builder->length);
+    double x;
+    int status, replace;
+    stop.y = (float)builder->top + MM_CAPTION_BORDER + (float)run->top;
+    stop.height = (float)run->height;
+    for (i = run->first; i <= end; ++i)
+    {
+        stop.offset = builder->offsets[i];
+        if (stop.offset < 0)
+            continue;
+        span = i - run->first;
+        x = run->x;
+        if (span && span < run->drawn)
+        {
+            status = services->advance(services->context, run->text, span, &advance);
+            if (status < 0)
+                return status;
+            x += advance;
+        }
+        else if (span)
+            x = run->right;
+        stop.x = (float)builder->left + MM_CAPTION_INDENT + (float)x;
+        replace = builder->last_offset == stop.offset && builder->last_y == stop.y;
+        status = services->stop(services->context, &stop, replace);
+        if (status < 0)
+            return status;
+        builder->last_offset = stop.offset;
+        builder->last_y = stop.y;
+    }
+    return 0;
+}
+
+static MMI32 caret_scroll_bound(double value)
+{
+    if (!(value > 0.0))
+        return 0;
+    return value >= 2147483647.0 ? 2147483647L : (MMI32)value;
+}
+
+MMI32 mm_caption_scroll_to_caret(MMI32 scroll, MMI32 layout_height, MMI32 top, MMI32 bottom,
+                                float y, float height)
+{
+    float first = y - (float)top - MM_CAPTION_BORDER;
+    float last = first + height - (float)((double)bottom - top - 2 * MM_CAPTION_BORDER);
+    scroll = min_value(max_value(scroll, caret_scroll_bound(last)), caret_scroll_bound(first));
+    return min_value(scroll, mm_caption_scroll_overflow(layout_height, top, bottom));
+}
+
 static int rgba_size(size_t bytes, MMU32 width, MMU32 height)
 {
     return width && height && height <= (size_t)-1 / 4 / width && bytes == (size_t)width * height * 4;

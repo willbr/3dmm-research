@@ -522,40 +522,24 @@ struct MarcusPlayback::Impl
             data.bottom - std::int64_t(data.top) > 4096 || data.text.size() > 65536)
             return Fail(error, "Caption bounds or text exceed the playback layout limits.");
 
-        // Match the editor's UTF-8 buffer, which normalizes paragraph breaks to LF.
-        std::vector<int> offsets;
+        std::vector<MMI32> offsets;
+        const auto length = static_cast<MMI32>(data.text.size());
         if (editing)
         {
-            offsets.resize(data.text.size() + 1, -1);
-            int offset = 0;
-            for (std::size_t i = 0; i < data.text.size(); ++i)
-            {
-                offsets[i] = offset;
-                const auto unit = data.text[i];
-                if (unit == '\r' && i + 1 < data.text.size() && data.text[i + 1] == '\n')
-                    ++i;
-                if (unit >= 0xd800 && unit <= 0xdbff && i + 1 < data.text.size() &&
-                    data.text[i + 1] >= 0xdc00 && data.text[i + 1] <= 0xdfff)
-                {
-                    ++i;
-                    offset += 4;
-                }
-                else
-                    offset += unit < 0x80 ? 1 : unit < 0x800 ? 2 : 3;
-            }
-            offsets.back() = offset;
+            offsets.resize(data.text.size() + 1);
+            mm_caption_caret_offsets(data.text.data(), length, offsets.data());
         }
         struct Context
         {
             Impl &owner;
             CaptionImage &caption;
             Error &error;
-            const std::vector<int> &offsets;
+            MMCaptionCaretBuilder caret;
             KauaiFonts::Face *face = nullptr;
             std::exception_ptr failure;
-        } context{*this, caption, error, offsets, nullptr, {}};
+        } context{*this, caption, error, {offsets.data(), length, data.left, data.top, -1, 0}, nullptr, {}};
         const MMCaptionLayoutInput input{
-            data.text.data(), static_cast<MMI32>(data.text.size()), std::max(1, data.right - data.left - 2 * MM_CAPTION_INDENT),
+            data.text.data(), length, std::max(1, data.right - data.left - 2 * MM_CAPTION_INDENT),
             data.fontSize, {data.font.data(), data.font.size()}, data.properties.size()};
         const MMCaptionLayoutServices services{
             &context,
@@ -624,39 +608,35 @@ struct MarcusPlayback::Impl
             },
             editing ? +[](void *p, const MMCaptionLayoutRun *run) -> int {
                 auto &ctx = *static_cast<Context *>(p);
-                try
-                {
-                    auto &stops = ctx.caption.stops;
-                    const auto &box = ctx.caption.data;
-                    const auto limit = std::min(run->end, static_cast<MMI32>(box.text.size()));
-                    const float y = float(box.top) + MM_CAPTION_BORDER + run->top;
-                    for (auto i = run->first; i <= limit; ++i)
-                    {
-                        const int offset = ctx.offsets[i];
-                        if (offset < 0)
-                            continue;
-                        MMI32 x = run->x;
-                        const auto drawn = i - run->first;
-                        if (drawn && drawn < run->drawn)
+                const MMCaptionCaretServices caret{
+                    p,
+                    [](void *p, const unsigned short *text, MMI32 count, MMI32 *pixels) -> int {
+                        auto &ctx = *static_cast<Context *>(p);
+                        try
                         {
                             KauaiFonts::Metrics metrics;
-                            if (!ctx.face->Measure({run->text, static_cast<std::size_t>(drawn),
+                            if (!ctx.face->Measure({text, static_cast<std::size_t>(count),
                                                    KauaiFonts::Encoding::utf16}, metrics))
                                 throw std::runtime_error("Cannot measure a movie caption caret.");
-                            x += metrics.advance;
+                            *pixels = metrics.advance;
+                            return 0;
                         }
-                        else if (drawn)
-                            x = run->right;
-                        const MarcusCaptionStop stop{offset, float(box.left) + MM_CAPTION_INDENT + x,
-                                                     y, float(run->height)};
-                        if (!stops.empty() && stops.back().offset == offset && stops.back().y == y)
-                            stops.back() = stop;
-                        else
-                            stops.push_back(stop);
-                    }
-                    return 0;
-                }
-                catch (...) { ctx.failure = std::current_exception(); return MM_CAPTION_LAYOUT_FAILED; }
+                        catch (...) { ctx.failure = std::current_exception(); return MM_CAPTION_LAYOUT_FAILED; }
+                    },
+                    [](void *p, const MMCaptionCaretStop *stop, int replace) -> int {
+                        auto &ctx = *static_cast<Context *>(p);
+                        const MarcusCaptionStop value{stop->offset, stop->x, stop->y, stop->height};
+                        try
+                        {
+                            if (replace)
+                                ctx.caption.stops.back() = value;
+                            else
+                                ctx.caption.stops.push_back(value);
+                            return 0;
+                        }
+                        catch (...) { ctx.failure = std::current_exception(); return MM_CAPTION_LAYOUT_FAILED; }
+                    }};
+                return mm_caption_caret_run(&ctx.caret, run, &caret);
             } : nullptr};
         const int status = mm_caption_layout(&input, &services, &caption.height);
         if (context.failure)
@@ -1034,12 +1014,7 @@ bool MarcusPlayback::CaptionCaret(int offset)
     if (offset < 0)
         scroll = 0;
     else if (caret != draft.stops.rend())
-    {
-        const auto top = caret->y - float(box.top) - MM_CAPTION_BORDER;
-        const auto bottom = top + caret->height - (box.bottom - box.top - 2 * MM_CAPTION_BORDER);
-        scroll = std::min(std::max(scroll, static_cast<int>(bottom)), static_cast<int>(top));
-        scroll = std::clamp(scroll, 0, mm_caption_scroll_overflow(draft.height, box.top, box.bottom));
-    }
+        scroll = mm_caption_scroll_to_caret(scroll, draft.height, box.top, box.bottom, caret->y, caret->height);
     impl->draftScroll = scroll;
     return before != scroll;
 }

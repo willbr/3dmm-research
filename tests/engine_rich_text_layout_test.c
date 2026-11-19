@@ -1,4 +1,5 @@
 #include "mm/caption_layout.h"
+#include "mm/caption_render.h"
 #include "mm/rich_text_layout.h"
 #include <stdio.h>
 #include <string.h>
@@ -157,6 +158,71 @@ static int test_caption_layout(void)
     return 0;
 }
 
+typedef struct CaptionStops
+{
+    MMCaptionCaretStop stops[12];
+    int count, measured, fail;
+} CaptionStops;
+
+static int caret_advance(void *context, const unsigned short *text, MMI32 count, MMI32 *advance)
+{
+    CaptionStops *stops = (CaptionStops *)context;
+    CHECK(count == 1 && text[0] == 'A');
+    ++stops->measured;
+    if (stops->fail)
+        return -77;
+    *advance = 6;
+    return 0;
+}
+
+static int caret_stop(void *context, const MMCaptionCaretStop *value, int replace)
+{
+    CaptionStops *stops = (CaptionStops *)context;
+    CHECK(stops->count < 12 && (!replace || stops->count));
+    if (!replace)
+        ++stops->count;
+    stops->stops[stops->count - 1] = *value;
+    return 0;
+}
+
+static int test_caption_carets(void)
+{
+    static const unsigned short text[] = {'A', 0x03a9, '\r', '\n', 0xd83c, 0xdfac, '\t', 'B'};
+    static const MMI32 expected[] = {0, 1, 3, -1, 4, -1, 8, 9, 10};
+    CaptionStops host = {0};
+    MMCaptionLayoutRun run = {text, 0, 2, 4, 10, 23, 4, 16};
+    MMCaptionCaretBuilder builder = {NULL, 8, 100, 40, -1, 0};
+    MMCaptionCaretServices services = {NULL, caret_advance, caret_stop};
+    MMI32 offsets[9];
+    builder.offsets = offsets;
+    services.context = &host;
+    mm_caption_caret_offsets(text, 8, offsets);
+    CHECK(!memcmp(offsets, expected, sizeof(offsets)));
+    CHECK(!mm_caption_caret_run(&builder, &run, &services));
+    CHECK(host.measured == 1 && host.count == 4);
+    CHECK(host.stops[0].offset == 0 && host.stops[0].x == 124 && host.stops[0].y == 49);
+    CHECK(host.stops[1].offset == 1 && host.stops[1].x == 130 && host.stops[1].height == 16);
+    CHECK(host.stops[2].offset == 3 && host.stops[2].x == 137 && host.stops[3].offset == 4);
+    run.text = text + 4;
+    run.first = 4; run.drawn = 2; run.end = 6;
+    run.x = 30; run.right = 40;
+    CHECK(!mm_caption_caret_run(&builder, &run, &services));
+    CHECK(host.measured == 1 && host.count == 5 && host.stops[3].x == 144 && host.stops[4].offset == 8);
+    run.text = text + 6;
+    run.first = 6; run.drawn = 0; run.end = 7;
+    run.x = 0; run.right = 18; run.top = 20;
+    CHECK(!mm_caption_caret_run(&builder, &run, &services));
+    CHECK(host.count == 7 && host.stops[5].offset == 8 && host.stops[5].y == 65 && host.stops[6].x == 132);
+    run.text = text;
+    run.first = 0; run.drawn = 2; run.end = 2;
+    host.fail = 1;
+    CHECK(mm_caption_caret_run(&builder, &run, &services) == -77 && host.count == 8 && host.measured == 2);
+    CHECK(mm_caption_scroll_to_caret(0, 100, 40, 80, 65, 16) == 6);
+    CHECK(mm_caption_scroll_to_caret(45, 100, 40, 80, 65, 16) == 20);
+    CHECK(mm_caption_scroll_to_caret(45, 30, 40, 80, 65, 16) == 0);
+    return 0;
+}
+
 int main(void)
 {
     Host h;
@@ -165,6 +231,7 @@ int main(void)
     int i, maximum, status;
     MMU32 ch;
     CHECK(!test_caption_layout());
+    CHECK(!test_caption_carets());
     for (ch = 0; ch < 65536U; ++ch)
     {
         MMU32 expected = ch == '\r' ? 22 : ch == '\n' ? 24 : ch == '\t' ? 52 :

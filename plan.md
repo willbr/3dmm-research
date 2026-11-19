@@ -1091,6 +1091,9 @@ C89 also translates caption bounds and frame ranges, normalizes paragraph
 breaks, and applies character and paragraph property edits to the changed
 UTF-16 span. Preview and save share these decisions and retain the first
 character's formatting and argument references when text is inserted there.
+The C89 caption renderer also maps UTF-16 layout offsets to the editor's
+UTF-8 byte positions, publishes caret stops for wrapped lines and tabs,
+and clamps draft scrolling to keep the active caret visible.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

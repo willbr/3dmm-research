@@ -1,5 +1,6 @@
 #ifndef MM_CAPTION_RENDER_H
 #define MM_CAPTION_RENDER_H
+#include "caption_layout.h"
 #include "pixel_raster.h"
 #include "preview_render.h"
 #include "text_box_runtime.h"
@@ -23,6 +24,35 @@ typedef struct MMCaptionRow
 typedef struct MMCaptionStack { size_t first, last; } MMCaptionStack;
 void mm_caption_observe(MMCaptionStack *, MMCaptionRow *, size_t count, MMI32 frame);
 MMI32 mm_caption_scroll_overflow(MMI32 layout_height, MMI32 top, MMI32 bottom);
+
+typedef struct MMCaptionCaretStop
+{
+    MMI32 offset;
+    float x, y, height;
+} MMCaptionCaretStop;
+
+typedef struct MMCaptionCaretBuilder
+{
+    const MMI32 *offsets;
+    MMI32 length, left, top, last_offset;
+    float last_y;
+} MMCaptionCaretBuilder;
+
+typedef struct MMCaptionCaretServices
+{
+    void *context;
+    int (*advance)(void *, const unsigned short *, MMI32 length, MMI32 *pixels);
+    int (*stop)(void *, const MMCaptionCaretStop *, int replace_last);
+} MMCaptionCaretServices;
+
+/* Write length+1 editor UTF-8 offsets from the layout's UTF-16 text. CRLF
+ * uses one byte, and the interior of a CRLF or surrogate pair uses -1. */
+void mm_caption_caret_offsets(const unsigned short *, MMI32 length, MMI32 *offsets);
+/* Set last_offset to -1 before the first positioned run. The builder borrows
+ * the offset table. The host measures only partial runs and owns published stops.
+ * Callbacks use the layout convention of zero success or negative failure. */
+int mm_caption_caret_run(MMCaptionCaretBuilder *, const MMCaptionLayoutRun *, const MMCaptionCaretServices *);
+MMI32 mm_caption_scroll_to_caret(MMI32 scroll, MMI32 layout_height, MMI32 top, MMI32 bottom, float y, float height);
 
 typedef struct MMCaptionCanvas
 {
