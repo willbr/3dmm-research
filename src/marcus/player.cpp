@@ -2,6 +2,7 @@
 #include "mm/movie_data.h"
 #include "mm/movie_publish.h"
 #include "mm/movie_scene.h"
+#include "mm/movie_undo.h"
 #include "mm/scene_edit.h"
 #include "mm/playback.h"
 #include "mm/vmm_dependencies.h"
@@ -140,7 +141,12 @@ struct MarcusPlayer
         bool modified;
         std::shared_ptr<MarcusMovieFile> file;
     };
-    std::vector<UndoState> undo;
+    struct UndoHistory
+    {
+        MMMovieSnapshotStack stack{};
+        static void Release(void *record) { delete static_cast<UndoState *>(record); }
+        ~UndoHistory() { mm_movie_snapshot_clear(&stack, Release); }
+    } undo;
     float inspectionRoll = 0, inspectionFov = 45;
     std::map<std::int32_t, std::string> names, baseNames;
     char error[1024] = {};
@@ -165,19 +171,22 @@ struct KeepHistory
     explicit KeepHistory(MarcusPlayer &value) : player(value) { ++player.internalOpenDepth; }
     ~KeepHistory() { --player.internalOpenDepth; }
 };
+MarcusPlayer::UndoState CurrentSnapshot(const MarcusPlayer &movie)
+{
+    return {movie.edits, movie.placements, movie.frameRanges, movie.selected,
+            movie.selected < 0 ? 0 : movie.preview.Info().currentFrame, movie.modified, movie.timingInput};
+}
 struct EditHistory : KeepHistory
 {
-    MarcusPlayer::UndoState before;
-    explicit EditHistory(MarcusPlayer &value) : KeepHistory(value),
-        before{value.edits, value.placements, value.frameRanges, value.selected, value.selected < 0 ? 0 : value.preview.Info().currentFrame, value.modified, value.timingInput}
+    std::unique_ptr<MarcusPlayer::UndoState> record;
+    const MarcusPlayer::UndoState &before;
+    explicit EditHistory(MarcusPlayer &movie) : KeepHistory(movie),
+        record(std::make_unique<MarcusPlayer::UndoState>(CurrentSnapshot(movie))), before(*record)
     {
-        // Reserve before replacing the live document, so recording success cannot allocate.
-        player.undo.reserve(player.undo.size() + 1);
     }
     void Commit()
     {
-        if (player.undo.size() == 64) player.undo.erase(player.undo.begin());
-        player.undo.push_back(std::move(before));
+        mm_movie_snapshot_put(&player.undo.stack, record.release(), MarcusPlayer::UndoHistory::Release);
         player.modified = true;
     }
 };
@@ -982,6 +991,114 @@ bool OpenEditedBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile>
     player->materializedPlacements.reset(); player->materializedFrameRanges.reset(); player->movieImageScene = -1;
     return ok;
 }
+struct SnapshotHost
+{
+    MarcusPlayer &movie;
+    MM::Error &error;
+    std::exception_ptr failure;
+
+    static int Apply(void *p, MMMovieSnapshotEffect effect, const void *record, int recovering)
+    {
+        auto &h = *static_cast<SnapshotHost *>(p);
+        auto &movie = h.movie;
+        const auto *snapshot = static_cast<const MarcusPlayer::UndoState *>(record);
+        MM::Error ignored;
+        auto &error = recovering ? ignored : h.error;
+        try
+        {
+            switch (effect)
+            {
+            case MM_MOVIE_SNAPSHOT_CANCEL: return CancelPropPreviews(&movie, error);
+            case MM_MOVIE_SNAPSHOT_OPEN: return OpenEditedBase(&movie, snapshot->file, error);
+            case MM_MOVIE_SNAPSHOT_INSTALL:
+                movie.edits = snapshot->edits;
+                movie.placements = snapshot->placements;
+                movie.frameRanges = snapshot->frameRanges;
+                break;
+            case MM_MOVIE_SNAPSHOT_DEFINITIONS: return ApplyDefinitions(movie, error);
+            case MM_MOVIE_SNAPSHOT_RANGES: UpdateSceneRanges(movie); break;
+            case MM_MOVIE_SNAPSHOT_TIMING:
+                if (!movie.soundTimeline.Reframe(movie.sceneInfo))
+                    return 0;
+                movie.animations.clear();
+                break;
+            case MM_MOVIE_SNAPSHOT_ABANDON:
+            case MM_MOVIE_SNAPSHOT_CLEAR_SCENE:
+                movie.selected = -1;
+                movie.objects.clear();
+                movie.soundSheet.sounds.clear();
+                movie.soundSheet.soundTracks.clear();
+                movie.soundSheet.soundCues.clear();
+                movie.preview.ClearScene();
+                movie.playback.Stop();
+                break;
+            case MM_MOVIE_SNAPSHOT_SELECT:
+                if (!marcus_select_scene_keep_view(&movie, snapshot->scene))
+                {
+                    error.message = movie.error;
+                    return 0;
+                }
+                break;
+            case MM_MOVIE_SNAPSHOT_APPLY_VIEW:
+            {
+                const auto &range = movie.sceneInfo[snapshot->scene];
+                return movie.preview.SetSceneRange(range.first_frame, range.last_frame, error) &&
+                       ApplyCameras(movie, snapshot->scene, error) &&
+                       ApplyPlacements(movie, snapshot->scene, *snapshot->placements, error);
+            }
+            case MM_MOVIE_SNAPSHOT_SOUNDS: return ReadSoundSheet(&movie, snapshot->scene, error);
+            case MM_MOVIE_SNAPSHOT_SEEK:
+                if (!marcus_seek(&movie, snapshot->frame))
+                {
+                    error.message = movie.error;
+                    return 0;
+                }
+                break;
+            }
+            return 1;
+        }
+        catch (...)
+        {
+            if (!recovering)
+                h.failure = std::current_exception();
+            return 0;
+        }
+    }
+
+    MMMovieSnapshotServices Services()
+    {
+        return {this,
+            [](void *p, const void *record, MMMovieSnapshotView *out) {
+                const auto &movie = static_cast<SnapshotHost *>(p)->movie;
+                const auto *snapshot = static_cast<const MarcusPlayer::UndoState *>(record);
+                const auto &edits = *(snapshot ? snapshot->edits : movie.edits);
+                *out = {snapshot ? snapshot->file.get() : movie.timingInput.get(),
+                        edits.scenes.get(), edits.props.get(), edits.storyboards.get(), edits.texts.get(),
+                        edits.costumes.get(), snapshot ? snapshot->frameRanges.get() : movie.frameRanges.get(),
+                        snapshot ? snapshot->scene : movie.selected};
+            },
+            [](const void *left, const void *right) {
+                return int(static_cast<const MarcusMovieFile *>(left)->path ==
+                           static_cast<const MarcusMovieFile *>(right)->path);
+            },
+            [](void *p, MMI32 scene) {
+                const auto &movie = static_cast<SnapshotHost *>(p)->movie;
+                return int(movie.selected == scene && static_cast<std::size_t>(scene) < movie.scenes.size() &&
+                           movie.preview.Info().scene && movie.preview.Info().asset.number == movie.scenes[scene].number);
+            },
+            Apply,
+            [](void *p, const void *record) {
+                auto &movie = static_cast<SnapshotHost *>(p)->movie;
+                ++movie.document;
+                movie.movieImageScene = -1;
+                movie.materializedFile.reset();
+                movie.materializedPlacements.reset();
+                movie.materializedFrameRanges.reset();
+                movie.materializedEdits.reset();
+                movie.modified = !record || static_cast<const MarcusPlayer::UndoState *>(record)->modified;
+            }};
+    }
+};
 bool ReplaceEditedMovie(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile> &file, MM::Error &error,
                         std::int32_t actorId = -1, int *newObject = nullptr)
 {
@@ -1570,65 +1687,19 @@ extern "C"
             return true;
         });
     }
-    int marcus_can_undo(const MarcusPlayer *player) { return player && !player->undo.empty(); }
+    int marcus_can_undo(const MarcusPlayer *player) { return player && player->undo.stack.count != 0; }
     int marcus_modified(const MarcusPlayer *player) { return player && player->modified; }
     int marcus_undo(MarcusPlayer *player)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (player->undo.empty()) return false;
-            const auto before = player->undo.back();
-            if (!CancelPropPreviews(player, error)) return false;
-            const bool baseChanged = bool(before.file) != bool(player->timingInput) ||
-                (before.file && player->timingInput && before.file->path != player->timingInput->path);
-            if (baseChanged && !OpenEditedBase(player, before.file, error)) return false;
-            const auto previousEdits = player->edits;
-            const bool boardsChanged = previousEdits->storyboards != before.edits->storyboards;
-            const bool textsChanged = previousEdits->texts != before.edits->texts;
-            const bool costumesChanged = previousEdits->costumes != before.edits->costumes;
-            const bool definitionsChanged = baseChanged || previousEdits->scenes != before.edits->scenes || previousEdits->props != before.edits->props || boardsChanged || textsChanged || costumesChanged;
-            const bool rangesChanged = player->frameRanges != before.frameRanges;
-            player->edits = before.edits;
-            player->placements = before.placements;
-            player->frameRanges = before.frameRanges;
-            if (definitionsChanged) { if (!ApplyDefinitions(*player, error)) return false; }
-            else UpdateSceneRanges(*player);
-            if (rangesChanged || definitionsChanged)
-            {
-                if (!player->soundTimeline.Reframe(player->sceneInfo)) return false;
-                player->animations.clear();
-            }
-            if (before.scene < 0)
-            {
-                player->preview.ClearScene();
-                player->selected = -1;
-                player->objects.clear();
-                player->soundSheet.sounds.clear(); player->soundSheet.soundTracks.clear(); player->soundSheet.soundCues.clear();
-                player->playback.Stop();
-            }
-            else
-            {
-                if (baseChanged || boardsChanged || textsChanged || costumesChanged || player->selected != before.scene || !player->preview.Info().scene ||
-                    player->preview.Info().asset.number != player->scenes[before.scene].number)
-                {
-                    if (!marcus_select_scene_keep_view(player, before.scene)) { error.message = player->error; return false; }
-                }
-                else
-                {
-                    const auto &range = player->sceneInfo[before.scene];
-                    if (!player->preview.SetSceneRange(range.first_frame, range.last_frame, error) ||
-                        !ApplyCameras(*player, before.scene, error) ||
-                        !ApplyPlacements(*player, before.scene, *before.placements, error)) return false;
-                    if ((rangesChanged || definitionsChanged) && !ReadSoundSheet(player, before.scene, error)) return false;
-                }
-                if (!marcus_seek(player, before.frame)) { error.message = player->error; return false; }
-            }
-            ++player->document;
-            player->movieImageScene = -1;
-            player->materializedFile.reset(); player->materializedPlacements.reset();
-            player->materializedFrameRanges.reset(); player->materializedEdits.reset();
-            player->modified = before.modified;
-            player->undo.pop_back();
-            return true;
+            const auto prior = CurrentSnapshot(*player);
+            SnapshotHost host{*player, error, {}};
+            const auto services = host.Services();
+            const int restored = mm_movie_snapshot_undo(&player->undo.stack, &prior,
+                                                        MarcusPlayer::UndoHistory::Release, &services);
+            if (host.failure)
+                std::rethrow_exception(host.failure);
+            return restored != 0;
         });
     }
     int marcus_material_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 3); }
@@ -2424,7 +2495,7 @@ extern "C"
                 return false;
             if (!player->internalOpenDepth)
             {
-                player->undo.clear();
+                mm_movie_snapshot_clear(&player->undo.stack, MarcusPlayer::UndoHistory::Release);
                 player->modified = false;
             }
             return true;

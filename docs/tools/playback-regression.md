@@ -14420,3 +14420,40 @@ image comparisons remained inconclusive.
 
 The capture database is at `tmp/c89-sound-schedule/capture/playback.sqlite`.
 The saved movies, probe, build and test logs are in `tmp/c89-camera-edit`.
+
+## Marcus undo history and restoration in C89 (19 November 2026)
+
+The C89 engine owns the 64-entry undo history and orders restoration of
+the base archive, edit definitions, scene, sound timings and playhead.
+It releases the latest entry after a successful restore. If a restore
+fails, C89 reapplies the previous live snapshot and retains the undo
+entry for retry. If recovery also fails, the active view is cleared
+and the document remains marked unsaved.
+
+The headless C test checks eviction order, an in-place range restore,
+reopening a changed base archive, recovery and retry after a failed
+seek, and clearing an unavailable view while keeping history. All 12
+selected checks passed, including strict C89 syntax and the headless
+Marcus playback and authoring tests. Marcus was rebuilt and relaunched.
+
+The headless Marcus comparison prepended a frame, changed the opening camera,
+pasted an object and undid those edits. The two builds matched on the
+playhead, cameras, objects, modified flag and undo availability after each
+step. Saving after undoing the paste produced byte-identical native movies
+with SHA-256
+`d94c077c21674ed496481c499864379353174d0003778a7492383cd3e796ad76`.
+Reopening either output retained the earlier range and camera edits.
+
+A separate fixture temporarily withheld the prior native archive during
+undo. Marcus kept the pasted object and the undo entry and reproduced
+the same authored image. Restoring the file and retrying undo removed the
+pasted object and recovered the original modified flag and playhead.
+
+Retail, SDL Studio and Marcus completed six seek and playback runs on
+the saved movie in suite `20261119T032048Z-4d4b7ee2`. The players agreed
+on all 61 authored frame positions in both modes. The seek images at
+frames 0, 1, 10, 14, 15 and 30 of the edited scene matched retail in
+both SDL Studio and Marcus. Full runs still show pixel and mixed PCM
+differences, and Marcus timing remains inconclusive. Capture metadata
+is in `tmp/c89-sound-schedule/capture/playback.sqlite`. The probes, saved
+files and test logs are in `tmp/c89-undo`.

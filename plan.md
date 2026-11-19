@@ -1007,6 +1007,11 @@ accepts the replacement track. Live preview and native save share
 opening-frame resolution and camera-event replacement. Failed live
 evaluation restores the previous track and replays the old frame when
 the preview can recover.
+Marcus undo now uses a C89-owned bounded snapshot stack. C89 chooses
+whether to reopen the base movie or restore the scene in place, rebuilds
+derived state in order, and releases the undo entry after a successful
+seek. It can replay the prior snapshot after a failed undo. Native
+archive and edit payloads remain typed host resources.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and
