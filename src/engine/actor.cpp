@@ -1977,51 +1977,9 @@ bool Actor::FMustRender(long nfrmRenderLast)
     Assert(nfrmRenderLast >= _runtime.state.frame, "Invalid argument to FMustRender");
     Assert(!_runtime.life_dirty, "FMustRender was called when nfrm values were invalid");
 
-    Base *paev;
-    long iaev;
-
-    if (nfrmRenderLast == _runtime.state.frame)
-        goto LStill;
-    if (nfrmRenderLast < _runtime.first)
-        goto LStill;
-    if (_runtime.state.frame > _runtime.last)
-        goto LStill;
-    if (mm_actor_path_count(_track.Route()) == 0)
-        goto LStill;
-
-    // Intervening events?	Sounds don't affect rendering.
-    if (_runtime.state.nextEvent < mm_actor_events_count(_track.Events()))
-    {
-        paev = (Base *)mm_actor_events_fixed(_track.Events(), _runtime.state.nextEvent);
-        if (paev->nfrm <= nfrmRenderLast)
-        {
-            for (iaev = _runtime.state.nextEvent; iaev < mm_actor_events_count(_track.Events()); iaev++)
-            {
-                paev = (Base *)mm_actor_events_fixed(_track.Events(), iaev);
-                if (paev->nfrm > nfrmRenderLast)
-                    break;
-                if (aetSnd == paev->aet)
-                    continue;
-                if (paev->nfrm < _runtime.last)
-                    goto LMoving;
-                // Freeze and step events affect future frames
-                if (aetFreeze != paev->aet && aetStep != paev->aet)
-                    goto LMoving;
-            }
-        }
-    }
-
-    if (_runtime.state.step != rZero)
-        goto LMoving; // moving along path
-
-    // Not advancing, but moving in place?
-    if (_runtime.state.frozen || _runtime.state.celCount == 1)
-        goto LStill;
-LMoving:
-    return fTrue;
-
-LStill:
-    return fFalse;
+    const auto motion = EngineActorMotion::Services();
+    return mm_actor_must_render(&_runtime.state, _track.Route(), _track.Events(), _runtime.first,
+                                _runtime.last, nfrmRenderLast, &motion) != 0;
 }
 
 /***************************************************************************
@@ -2053,15 +2011,14 @@ void Actor::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertNilOrVarMem(pzr);
 
     RoutePoint xyz;
-
-    _GetXyzFromRtel(&_runtime.state.location, &xyz);
-
-    if (pvNil != pxr)
-        *pxr = BrsAdd(xyz.dxr, _runtime.state.routeTranslation.dxr);
-    if (pvNil != pyr)
-        *pyr = BrsAdd(xyz.dyr, _runtime.state.routeTranslation.dyr);
-    if (pvNil != pzr)
-        *pzr = BrsAdd(xyz.dzr, _runtime.state.routeTranslation.dyr);
+    const auto motion = EngineActorMotion::Services();
+    mm_actor_world_position(&_runtime.state, _track.Route(), &xyz, &motion);
+    if (pxr)
+        *pxr = xyz.dxr;
+    if (pyr)
+        *pyr = xyz.dyr;
+    if (pzr)
+        *pzr = xyz.dzr;
 }
 
 /***************************************************************************
@@ -2088,62 +2045,29 @@ void Actor::Hilite(void)
     deleted.
 
 ***************************************************************************/
-bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
+bool Actor::FChangeTagTmpl(const MMTag &tag)
 {
     AssertThis(0);
-    AssertVarMem(ptagTmplNew);
 
-    PTemplate ptmpl;
-    long cbsetNew;
-    long iaev;
-    Base aev;
-    Costume aevcost;
-
-    ptmpl = (PTemplate)vptagm->PbacoFetch(ptagTmplNew, Template::FReadTmpl);
-    if (pvNil == ptmpl)
-        return fFalse;
-    if (ptmpl->FIsTdt())
-    {
-        if (!((PThreeDText)ptmpl)->FAdjustBody(_Body()))
-        {
-            ReleasePpo(&ptmpl);
-            return fFalse;
-        }
-    }
-    if (!ptmpl->FSetActnCel(_Body(), _runtime.state.action, _runtime.state.cel))
-        return fFalse;
-    _PositionBody(&_runtime.state.position);
-    if (_Template())
-        _Template()->Release();
-    _runtime.template_object = ptmpl;
-    const auto &tag_services = ActorTrack::TagServices();
-    mm_tag_close(&_runtime.template_tag, &tag_services);
-    const auto &tag = *ptagTmplNew;
-    _runtime.template_tag = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
-    mm_tag_dup(&_runtime.template_tag, &tag_services);
-
-    // If the new Template is not a ThreeDText, we're done...although currently this
-    // function should only be called with ptagTmplNew being a ThreeDText
-    if (!ptmpl->FIsTdt())
-        return fTrue;
-
-    cbsetNew = _Body()->Cbset();
-    // Need to remove any costume events acting on ibset >= cbsetNew
-    // Loop backwards to prevent indexing problems since we are deleting
-    // events in this actor track as we go
-    for (iaev = mm_actor_events_count(_track.Events()) - 1; iaev >= 0; iaev--)
-    {
-        mm_actor_events_get_fixed(_track.Events(), iaev, &aev);
-        if (aev.aet == aetCost)
-        {
-            mm_actor_events_get_payload(_track.Events(), iaev, &aevcost);
-            if (aevcost.ibset >= cbsetNew)
-            {
-                _RemoveAev(iaev, fTrue);
-            }
-        }
-    }
-    return fTrue;
+    MMActorTemplateServices services = {};
+    services.context = this;
+    services.tags = &ActorTrack::TagServices();
+    services.fetch = _FetchTemplate;
+    services.release = [](void *, void *object) { static_cast<PTemplate>(object)->Release(); };
+    services.text = [](void *, void *object) -> int { return static_cast<PTemplate>(object)->FIsTdt(); };
+    services.adjust_body = [](void *, void *object, void *body) -> int {
+        return static_cast<PThreeDText>(object)->FAdjustBody(static_cast<PBody>(body));
+    };
+    services.select_cel = [](void *, void *object, void *body, MMI32 action, MMI32 cel) -> int {
+        return static_cast<PTemplate>(object)->FSetActnCel(static_cast<PBody>(body), action, cel);
+    };
+    services.position = [](void *p) {
+        auto actor = static_cast<PActor>(p);
+        actor->_PositionBody(&actor->_runtime.state.position);
+    };
+    services.body_sets = [](void *, void *body) -> MMI32 { return static_cast<PBody>(body)->Cbset(); };
+    const auto edits = _EventEditServices();
+    return mm_actor_replace_template(&_runtime, _track.Events(), &tag, &services, &edits) != 0;
 }
 
 #ifdef DEBUG

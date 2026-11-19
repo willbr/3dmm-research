@@ -293,6 +293,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   and remaining edit/clipboard integration still need conversion. Composite
   move/rename undo now uses C89 for factory/disposal, child reference ownership,
   ordered context propagation/dispatch, name swaps and partial failure policy.
+- Studio and Marcus preview now replace live text actor templates through
+  C89. Studio adjusts its live body, selects the current cel and removes
+  costume events for removed body sets. Preview adjusts and poses a duplicate
+  body before committing its template and body handles. Studio's actor
+  prerender decision and pull-tool world coordinates also execute in C89.
 - Actor edit transactions for action changes, stage add/remove, normalization,
   costumes and deletion now execute in C89, including snapshots, rollback, undo
   registration, optional snapshot transfer and deletion's partial-failure/output

@@ -2685,6 +2685,16 @@ the prior build across all 72 chunk payloads and graph entries, including
 60-frame seek and playback sequences and their respective prior seek
 images. Evidence is in `tmp/c89-actor-persistence/`.
 
+Studio and Marcus preview now replace live text actor templates through C89.
+Studio prunes costume events for removed body sets. Marcus preview adjusts a
+duplicate body and rolls back the actor record on pose failure. The preview
+renderer reads its body and template handles directly from the C record.
+Studio's prerender decision and pull-tool coordinate lookup also use C89.
+The Studio text-edit trace matched its fixture, and Marcus's existing text
+edit, undo, save/reopen and isolated action preview checks passed. SDL and
+Marcus matched the retained retail frame sequences and their prior seek
+images. Evidence is in `tmp/c89-actor-template/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

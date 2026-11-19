@@ -93,3 +93,13 @@ void mm_actor_route_position(void *route, const MMActorLocation *p, MMActorPoint
     s->route_point(route, p->irpt + 1, &b);
     mm_actor_interpolate(&a.xyz, &b.xyz, mm_fixed_div(p->dwrOffset, a.dwr), out);
 }
+
+void mm_actor_world_position(const MMActorState *state, void *route, MMActorPoint *out,
+                             const MMActorMotionServices *motion)
+{
+    MMActorPoint position;
+    mm_actor_route_position(route, &state->location, &position, motion);
+    out->dxr = mm_fixed_add(position.dxr, state->routeTranslation.dxr);
+    out->dyr = mm_fixed_add(position.dyr, state->routeTranslation.dyr);
+    out->dzr = mm_fixed_add(position.dzr, state->routeTranslation.dyr);
+}

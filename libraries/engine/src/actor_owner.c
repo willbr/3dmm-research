@@ -1,6 +1,7 @@
 /* Actor ownership/undo restoration converted from actor.cpp and actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_owner.h"
+#include "mm/actor_track.h"
 #include <string.h>
 
 void mm_actor_runtime_init(MMActorRuntime *runtime)
@@ -11,6 +12,46 @@ void mm_actor_runtime_init(MMActorRuntime *runtime)
     runtime->first = 2147483647L;
     runtime->last = (-2147483647L - 1);
     runtime->actor = -1;
+}
+
+int mm_actor_replace_template(MMActorRuntime *r, MMActorEventTable *events, const MMTag *tag,
+                              const MMActorTemplateServices *s, const MMActorEditServices *edits)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorEvent event;
+    MMActorCostume costume;
+    MMI32 i, sets;
+    void *next = s->fetch(s->context, tag);
+    if (!next)
+        return 0;
+    if (s->text(s->context, next) && !s->adjust_body(s->context, next, r->body))
+    {
+        s->release(s->context, next);
+        return 0;
+    }
+    if (!s->select_cel(s->context, next, r->body, r->state.action, r->state.cel))
+        return 0;
+    s->position(s->context);
+    if (r->template_object)
+        s->release(s->context, r->template_object);
+    r->template_object = next;
+    mm_tag_close(&r->template_tag, s->tags);
+    r->template_tag = *tag;
+    mm_tag_dup(&r->template_tag, s->tags);
+
+    if (!s->text(s->context, next))
+        return 1;
+    sets = s->body_sets(s->context, r->body);
+    for (i = mm_actor_events_count(events) - 1; i >= 0; --i)
+    {
+        mm_actor_events_get_fixed(events, i, &event);
+        if (event.aet != MM_ACTOR_COSTUME)
+            continue;
+        mm_actor_events_get_payload(events, i, &costume);
+        if (costume.body_set >= sets)
+            mm_actor_edit_remove(&r->state, events, i, 1, &motion, edits);
+    }
+    return 1;
 }
 
 static void publish_result(MMActorOwnerResult *out, void *actor)

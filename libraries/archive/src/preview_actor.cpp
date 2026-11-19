@@ -79,8 +79,8 @@ PreviewObject PreviewActor::Snapshot() const
     object.hasLifetime = !core.inactive;
     object.firstFrame = core.inactive ? 0 : core.header.first_frame;
     object.lastFrame = core.inactive ? 0 : core.header.last_frame;
-    object.prop = tmpl && tmpl->FIsProp();
-    object.text = tmpl && tmpl->FIsTdt();
+    object.prop = Ptmpl() && Ptmpl()->FIsProp();
+    object.text = Ptmpl() && Ptmpl()->FIsTdt();
     object.visible = !core.inactive && core.state.onStage;
     object.action = core.state.action;
     object.cel = core.state.cel;
@@ -91,9 +91,9 @@ PreviewObject PreviewActor::Snapshot() const
 }
 bool PreviewActor::Text(PreviewObjectText &out) const
 {
-    if (!tmpl || !tmpl->FIsTdt()) return false;
+    if (!Ptmpl() || !Ptmpl()->FIsTdt()) return false;
     String text; LegacyLong shape; TAG font;
-    static_cast<PThreeDText>(tmpl)->GetInfo(&text, &shape, &font);
+    static_cast<PThreeDText>(Ptmpl())->GetInfo(&text, &shape, &font);
     const auto count = KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi, nullptr, 0);
     if (text.Cch() && !count) return false;
     std::vector<std::uint16_t> units(count);
@@ -105,67 +105,56 @@ bool PreviewActor::Text(PreviewObjectText &out) const
 }
 PMaterial_MTRL PreviewActor::TextMaterial() const
 {
-    if (!tmpl || !tmpl->FIsTdt() || !body) return nullptr;
+    if (!Ptmpl() || !Ptmpl()->FIsTdt() || !Pbody()) return nullptr;
     bool plain; PMaterial_MTRL material = nullptr; PCustomMaterial_CMTL custom = nullptr;
-    body->GetPartSetMaterial(0, &plain, &material, &custom);
+    Pbody()->GetPartSetMaterial(0, &plain, &material, &custom);
     return plain ? material : nullptr;
 }
 bool PreviewActor::SetTextMaterial(std::int32_t source, std::uint32_t number)
 {
-    if (!tmpl || !tmpl->FIsTdt() || !body) return false;
+    if (!Ptmpl() || !Ptmpl()->FIsTdt() || !Pbody()) return false;
     const TAGOnFile tag = {source, 0, kctgMtrl, number};
     auto file = resolve(tag);
     auto material = file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl)) : nullptr;
     if (!material) return false;
     ReleasePpo(&textMaterial); textMaterial = material;
-    body->SetPartSetMtrl(0, material); return true;
+    Pbody()->SetPartSetMtrl(0, material); return true;
 }
 bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate)
 {
-    if (!tmpl || !tmpl->FIsTdt() || !body) return false;
-    if (core.header.source_id == source && core.header.template_number == number) return true;
-    const TAGOnFile tag = {source, 0, kctgTmpl, number};
-    auto file = resolve(tag);
-    if (!file) return false;
-    const auto release = [](auto *p) { if (p) p->Release(); };
-    std::unique_ptr<Template, decltype(release)> next(static_cast<PTemplate>(file->PbacoFetch(kctgTmpl, number, Template::FReadTmpl)), release);
-    if (!next || !next->FIsTdt()) return false;
-    bindTemplate(next.get());
-    // Match retail's FChangeTagTmpl: adjust a body with its current materials,
-    // then reselect its action/cel. Work on a duplicate for atomic failure.
-    std::unique_ptr<Body, decltype(release)> nextBody(body->PbodyDup(), release);
-    if (!nextBody || !static_cast<PThreeDText>(next.get())->FAdjustBody(nextBody.get())) return false;
-    const auto saved = core;
-    auto oldTemplate = tmpl; auto oldBody = body;
-    tmpl = next.get(); body = nextBody.get(); core.tmpl = tmpl; core.body = body;
-    core.header.source_id = source; core.header.template_number = number;
-    try
-    {
-        Host host = {this}; auto services = host.Services();
-        if (!host.Result(mm_preview_actor_position(&core, 1, &services)))
-        { core = saved; tmpl = oldTemplate; body = oldBody; return false; }
-    }
-    catch (...) { core = saved; tmpl = oldTemplate; body = oldBody; throw; }
-    next.release(); nextBody.release();
-    oldBody->Release(); oldTemplate->Release();
-    return true;
+    Host host = {this, nullptr, &bindTemplate};
+    const auto services = host.Services();
+    return host.Result(mm_preview_actor_replace_template(&core, source, number, &services));
 }
+
+PreviewActor::BodyOverride::BodyOverride(PreviewActor &actor, PBody draft)
+    : actor(actor), original(actor.core.body)
+{
+    actor.core.body = draft;
+}
+
+PreviewActor::BodyOverride::~BodyOverride()
+{
+    actor.Pbody()->Release();
+    actor.core.body = original;
+}
+
 bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 {
     out.clear();
-    if (!tmpl || !body || tmpl->FIsTdt()) return false;
-    for (int set = 0; set < body->Cbset(); ++set)
+    if (!Ptmpl() || !Pbody() || Ptmpl()->FIsTdt()) return false;
+    for (int set = 0; set < Pbody()->Cbset(); ++set)
     {
         bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL current;
-        body->GetPartSetMaterial(set, &plain, &material, &current);
-        for (int i = 0; i < tmpl->CcmidOfBset(set); ++i)
+        Pbody()->GetPartSetMaterial(set, &plain, &material, &current);
+        for (int i = 0; i < Ptmpl()->CcmidOfBset(set); ++i)
         {
-            const auto id = tmpl->CmidOfBset(set, i);
-            auto costume = tmpl->PcmtlFetch(id);
+            const auto id = Ptmpl()->CmidOfBset(set, i);
+            auto costume = Ptmpl()->PcmtlFetch(id);
             if (!costume) return false;
             const bool selected = !plain && current == costume;
             costume->Release();
-            out.push_back({set, int(id), selected, tmpl->FBsetIsAccessory(set)});
+            out.push_back({set, int(id), selected, Ptmpl()->FBsetIsAccessory(set)});
         }
     }
     return true;
@@ -173,7 +162,7 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 std::string PreviewActor::ActionName(LegacyLong action) const
 {
     String name;
-    if (action >= 0 && action < tmpl->Cactn() && tmpl->FGetActnName(action, &name) && name.Cch())
+    if (action >= 0 && action < Ptmpl()->Cactn() && Ptmpl()->FGetActnName(action, &name) && name.Cch())
     {
         const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
         const auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
@@ -187,26 +176,26 @@ std::string PreviewActor::ActionName(LegacyLong action) const
 bool PreviewActor::Actions(std::vector<PreviewAction> &out) const
 {
     out.clear();
-    if (!tmpl) return false;
-    for (LegacyLong i = 0; i < tmpl->Cactn(); ++i)
+    if (!Ptmpl()) return false;
+    for (LegacyLong i = 0; i < Ptmpl()->Cactn(); ++i)
         out.push_back({ActionName(i), static_cast<std::uint32_t>(ActionCelCount(i))});
     return true;
 }
 LegacyLong PreviewActor::ActionCelCount(LegacyLong action) const
 {
     LegacyLong count = 0;
-    if (tmpl && action >= 0 && action < tmpl->Cactn() && tmpl->FGetCcelActn(action, &count))
+    if (Ptmpl() && action >= 0 && action < Ptmpl()->Cactn() && Ptmpl()->FGetCcelActn(action, &count))
         return std::max<LegacyLong>(0, count);
     return 0;
 }
 bool PreviewActor::TryActionCel(LegacyLong action, LegacyLong cel)
 {
-    return tmpl->FSetActnCel(body, action, cel);
+    return Ptmpl()->FSetActnCel(Pbody(), action, cel);
 }
 void PreviewActor::RestOrientation(BMAT34 &matrix) const
 {
     BRA x, y, z;
-    tmpl->GetRestOrien(&x, &y, &z);
+    Ptmpl()->GetRestOrien(&x, &y, &z);
     BrMatrix34RotateX(&matrix, x);
     BrMatrix34PostRotateY(&matrix, y);
     BrMatrix34PostRotateZ(&matrix, z);
@@ -214,16 +203,16 @@ void PreviewActor::RestOrientation(BMAT34 &matrix) const
 bool PreviewActor::CostumeBounds(int bodySet, PreviewBounds &out) const
 {
     out = {};
-    if (!body || bodySet < 0 || bodySet >= body->Cbset()) return false;
+    if (!Pbody() || bodySet < 0 || bodySet >= Pbody()->Cbset()) return false;
     float low[3] = {}, high[3] = {};
-    for (int i = 0; i < body->Cbact() - 2; ++i)
+    for (int i = 0; i < Pbody()->Cbact() - 2; ++i)
     {
-        auto part = body->PbactPart(i); LegacyLong set = -1;
+        auto part = Pbody()->PbactPart(i); LegacyLong set = -1;
         Body::PbodyFromBact(part, &set);
         if (set != bodySet || part->type != BR_ACTOR_MODEL || !part->model) continue;
         MMActorMatrix matrix;
         BMAT34 world;
-        body->PartWorldMatrix(i, matrix);
+        Pbody()->PartWorldMatrix(i, matrix);
         std::memcpy(&world, &matrix, sizeof(world));
         for (int corner = 0; corner < 8; ++corner)
         {
@@ -251,9 +240,9 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
     {
         if (std::none_of(available.begin(), available.end(), [&](const PreviewCostume &c) {
             return c.bodySet == value.bodySet && c.costume == value.costume; })) return false;
-        auto costume = tmpl->PcmtlFetch(value.costume);
+        auto costume = Ptmpl()->PcmtlFetch(value.costume);
         if (!costume) return false;
-        body->SetPartSetCmtl(costume); costume->Release();
+        Pbody()->SetPartSetCmtl(costume); costume->Release();
     }
     return true;
 }
@@ -261,23 +250,21 @@ struct PreviewActor::TrackDraft
 {
     PreviewActor &actor;
     MMPreviewActor original;
-    PBody originalBody;
     std::uint64_t shown, clock;
     ActorTrack saved;
     ActorSoundList motion;
     std::vector<PreviewSoundCue> cues;
     bool active = false;
     explicit TrackDraft(PreviewActor &a)
-        : actor(a), original(a.core), originalBody(a.body), shown(a.lastShown), clock(*a.visibilityClock) {}
+        : actor(a), original(a.core), shown(a.lastShown), clock(*a.visibilityClock) {}
     bool Begin()
     {
         if (!saved.FCloneFrom(actor.track) || !motion.FCloneFrom(actor.motionSounds)) return false;
-        auto duplicate = originalBody->PbodyDup();
+        auto duplicate = actor.Pbody()->PbodyDup();
         if (!duplicate) return false;
         actor.track.Swap(saved);
         actor.motionSounds.Swap(motion);
         actor.sounds.swap(cues);
-        actor.body = duplicate;
         actor.core.body = duplicate;
         actor.core.route = actor.track.Route();
         actor.core.events = actor.track.Events();
@@ -286,11 +273,10 @@ struct PreviewActor::TrackDraft
     ~TrackDraft()
     {
         if (!active) return;
-        actor.body->Release();
+        actor.Pbody()->Release();
         actor.track.Swap(saved);
         actor.motionSounds.Swap(motion);
         actor.sounds.swap(cues);
-        actor.body = originalBody;
         actor.core = original;
         actor.lastShown = shown;
         *actor.visibilityClock = clock;
@@ -314,7 +300,7 @@ struct PreviewActor::TrackDraft
 };
 bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, const std::string &path)
 {
-    if (!Visible() || !tmpl || tmpl->FIsTdt()) return false;
+    if (!Visible() || !Ptmpl() || Ptmpl()->FIsTdt()) return false;
     TrackDraft draft(*this);
     if (!draft.Begin()) return false;
     std::vector<PreviewCostume> available;
@@ -334,7 +320,7 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
 bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::string &path,
                                   int &lastActorFrame, int &lastEditedFrame)
 {
-    if (!Visible() || !tmpl || edit.points.size() > MM_ACTOR_ANIMATION_MAX_POINTS) return false;
+    if (!Visible() || !Ptmpl() || edit.points.size() > MM_ACTOR_ANIMATION_MAX_POINTS) return false;
     static_assert(int(PreviewAnimationEdit::Kind::action) == MM_ACTOR_ANIMATION_ACTION &&
                   int(PreviewAnimationEdit::Kind::record) == MM_ACTOR_ANIMATION_RECORD &&
                   int(PreviewAnimationEdit::Kind::tweak) == MM_ACTOR_ANIMATION_TWEAK, "animation edit kinds");
@@ -348,7 +334,7 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
     if (!draft.Begin()) return false;
     AnimationHost host(this);
     const auto services = host.Record();
-    const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? tmpl->Cactn() : 0;
+    const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? Ptmpl()->Cactn() : 0;
     MMActorAnimationRange range;
     if (!host.Result(mm_actor_animation_edit(&core, motionSounds.Core(), &host.record, &request, actionCount,
                                              &services, &range)) || !draft.Write(path, true))
@@ -360,7 +346,7 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
 bool PreviewActor::SetEventTrack(std::int32_t source)
 {
     if (source == eventSource) return true;
-    if (!body || !tmpl || tmpl->FIsTdt()) return false;
+    if (!Pbody() || !Ptmpl() || Ptmpl()->FIsTdt()) return false;
     const TAGOnFile tag = {source, 0, kctgGgae, 0};
     auto file = resolve(tag); DataBlock block;
     if (!file || !file->Pcfl()->FFind(kctgGgae, 0, &block)) return false;
@@ -371,7 +357,7 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
     saved.AdoptEvents(events);
     const auto original = core;
     BodyCostume costume;
-    if (!costume.FGet(body)) return false;
+    if (!costume.FGet(Pbody())) return false;
     track.Swap(saved); core.route = track.Route(); core.events = track.Events();
     try
     {
@@ -379,8 +365,8 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
         if (host.Result(mm_preview_actor_replace_events(&core, track.Events(), original.state.frame, &services)))
         { eventSource = source; return true; }
     }
-    catch (...) { track.Swap(saved); core = original; costume.Set(body); throw; }
-    track.Swap(saved); core = original; costume.Set(body); return false;
+    catch (...) { track.Swap(saved); core = original; costume.Set(Pbody()); throw; }
+    track.Swap(saved); core = original; costume.Set(Pbody()); return false;
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {
@@ -421,33 +407,33 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
             host.motion->Clear();
             break;
         case MM_EFFECT_SET_ACTION_CEL:
-            reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
-                             actor->tmpl->FSetActnCel(actor->body, command->first, command->second);
+            reply->success = command->first >= 0 && command->first < actor->Ptmpl()->Cactn() &&
+                             actor->Ptmpl()->FSetActnCel(actor->Pbody(), command->first, command->second);
             break;
         case MM_EFFECT_CEL_COUNT:
         {
             LegacyLong count = reply->value;
-            reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
-                             actor->tmpl->FGetCcelActn(command->first, &count);
+            reply->success = command->first >= 0 && command->first < actor->Ptmpl()->Cactn() &&
+                             actor->Ptmpl()->FGetCcelActn(command->first, &count);
             reply->value = count;
             break;
         }
         case MM_EFFECT_ACTION_FLAGS:
         {
             LegacyUlong flags = 0;
-            reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
-                             actor->tmpl->FGetGrfactn(command->first, &flags);
+            reply->success = command->first >= 0 && command->first < actor->Ptmpl()->Cactn() &&
+                             actor->Ptmpl()->FGetGrfactn(command->first, &flags);
             reply->flags = flags;
             break;
         }
         case MM_EFFECT_SAVE_COSTUME:
-            reply->success = host.costume.FGet(actor->body);
+            reply->success = host.costume.FGet(actor->Pbody());
             break;
         case MM_EFFECT_DEFAULT_COSTUME:
-            reply->success = actor->tmpl->FSetDefaultCost(actor->body);
+            reply->success = actor->Ptmpl()->FSetDefaultCost(actor->Pbody());
             break;
         case MM_EFFECT_RESTORE_COSTUME:
-            host.costume.Set(actor->body);
+            host.costume.Set(actor->Pbody());
             break;
         case MM_EFFECT_SHOW:
             // Native Body::Show attaches at the head of World's actor list.
@@ -458,7 +444,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
             // Preview presentation uses the shared onStage value; Body has no World.
             break;
         case MM_EFFECT_FETCH_CUSTOM:
-            reply->resource = actor->tmpl->PcmtlFetch(command->first);
+            reply->resource = actor->Ptmpl()->PcmtlFetch(command->first);
             break;
         case MM_EFFECT_FETCH_MATERIAL:
         {
@@ -472,10 +458,10 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
             break;
         }
         case MM_EFFECT_APPLY_CUSTOM:
-            actor->body->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
+            actor->Pbody()->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
             break;
         case MM_EFFECT_APPLY_MATERIAL:
-            actor->body->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
+            actor->Pbody()->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
             break;
         case MM_EFFECT_RELEASE_CUSTOM:
         {
@@ -514,7 +500,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
     const MMActorPoint origin = {MMI32(core.header.translation[0]), MMI32(core.header.translation[1]),
                                  MMI32(core.header.translation[2])};
     const auto tables = EngineActorMotion::Services();
-    bool success = mm_actor_effect_apply(&value, events.route, events.events, index, &origin, body != nullptr,
+    bool success = mm_actor_effect_apply(&value, events.route, events.events, index, &origin, Pbody() != nullptr,
                                          metadataOnly, &tables, &effects) != 0;
     return success;
 }
@@ -558,7 +544,7 @@ void PreviewActor::Shape(PreviewObjectShape &value, float left[9], float right[9
 }
 bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
 {
-    if (!Visible() || !body || !tmpl) return false;
+    if (!Visible() || !Pbody() || !Ptmpl()) return false;
     const auto &state = core.state;
     pose.node = state.location.irpt;
     pose.offset = state.location.dwrOffset;
@@ -568,12 +554,12 @@ bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
     pose.position[0] = position.dxr; pose.position[1] = position.dyr; pose.position[2] = position.dzr;
     pose.translation[0] = translation.dxr; pose.translation[1] = translation.dyr; pose.translation[2] = translation.dzr;
     BRA angles[3];
-    tmpl->GetRestOrien(angles, angles + 1, angles + 2);
+    Ptmpl()->GetRestOrien(angles, angles + 1, angles + 2);
     MMActorMatrix rest;
     mm_matrix_identity(&rest);
     for (int axis = 0; axis < 3; ++axis) mm_matrix_rotate(&rest, axis, angles[axis], 0);
     const BRS stretch[] = {state.transform.aevpull.rScaleX, state.transform.aevpull.rScaleY, state.transform.aevpull.rScaleZ};
-    const auto &root = body->RootMatrix();
+    const auto &root = Pbody()->RootMatrix();
     // Recover the world rotation after removing rest orientation and authored size.
     for (int row = 0; row < 3; ++row)
     {
@@ -595,7 +581,7 @@ bool PreviewActor::Seek(LegacyLong frame)
     Host host = {this};
     auto services = host.Services();
     const bool ok = host.Result(mm_preview_actor_seek(&core, frame, &services));
-    if (ok && textMaterial && body) body->SetPartSetMtrl(0, textMaterial);
+    if (ok && textMaterial && Pbody()) Pbody()->SetPartSetMtrl(0, textMaterial);
     return ok;
 }
 

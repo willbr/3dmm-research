@@ -1,4 +1,5 @@
 #include "mm/preview_actor.h"
+#include "mm/template_create.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,7 +16,7 @@ typedef struct Host
     MMI32 sizes[8], routes, count;
     int calls, fail_at, failure, fault, releases[4], released, templates, bodies;
     int prop, text, child_calls, fetches, poses, locations, clears, motions, resets, applies;
-    int token[2];
+    int token[4];
     MMActorPoint point;
     MMActorMatrix matrix;
 } Host;
@@ -555,11 +556,129 @@ static void replace_events(void)
         dispose(&h);
     }
 }
+
+static int fetch_replacement(void *p, const MMActorHeader *header, void **out)
+{
+    Host *h = (Host *)p;
+    int result = step(h);
+    assert(header->template_type == MM_TMPL && header->source_id == 8 && header->template_number == 20);
+    if (result > 0)
+    {
+        *out = h->token + 2;
+        ++h->templates;
+    }
+    return result;
+}
+
+static int bind_replacement(void *p, void *object)
+{
+    Host *h = (Host *)p;
+    assert(object == h->token + 2 && h->actor.tmpl == h->token);
+    return step(h);
+}
+
+static int duplicate_body(void *p, void *body, void **out)
+{
+    Host *h = (Host *)p;
+    int result = step(h);
+    assert(body == h->token + 1 && h->actor.body == body);
+    if (result > 0)
+    {
+        *out = h->token + 3;
+        ++h->bodies;
+    }
+    return result;
+}
+
+static int adjust_body(void *p, void *object, void *body)
+{
+    Host *h = (Host *)p;
+    assert(object == h->token + 2 && body == h->token + 3 && h->actor.body == h->token + 1);
+    return step(h);
+}
+
+static void locate_replacement(void *p, void *body, const MMActorBodyPose *pose)
+{
+    Host *h = (Host *)p;
+    assert(body == h->token + 3 && h->actor.body == body && h->actor.header.source_id == 8);
+    assert(pose->translation.dxr == h->actor.state.routeTranslation.dxr + h->actor.state.position.dxr);
+    step(h);
+}
+
+static int pose_replacement(void *p, void *object, void *body, MMI32 action, MMI32 cel)
+{
+    Host *h = (Host *)p;
+    assert(object == h->token + 2 && body == h->token + 3 && action == 0 && cel >= 0);
+    return step(h);
+}
+
+static void release_replacement_body(void *p, void *body)
+{
+    Host *h = (Host *)p;
+    assert(body == h->token + 1 || body == h->token + 3);
+    --h->bodies;
+    h->releases[h->released++] = body == h->token + 1 ? 1 : 3;
+}
+
+static void release_replacement_template(void *p, void *object)
+{
+    Host *h = (Host *)p;
+    assert(object == h->token || object == h->token + 2);
+    --h->templates;
+    h->releases[h->released++] = object == h->token ? 2 : 4;
+}
+
+static void replace_template(void)
+{
+    Host h;
+    MMPreviewActor before;
+    int fail_at, result;
+    for (fail_at = 0; fail_at <= 7; ++fail_at)
+    {
+        setup(&h);
+        h.text = 1;
+        assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
+        assert(mm_preview_actor_seek(&h.actor, 1, &h.services) && h.actor.state.onStage);
+        h.services.fetch = fetch_replacement;
+        h.services.bind = bind_replacement;
+        h.services.duplicate_body = duplicate_body;
+        h.services.adjust_text_body = adjust_body;
+        h.services.locate = locate_replacement;
+        h.services.pose = pose_replacement;
+        h.services.release_body = release_replacement_body;
+        h.services.release_template = release_replacement_template;
+        h.calls = 0;
+        h.failure = fail_at == 7 ? 0 : -2;
+        h.fail_at = fail_at == 7 ? 6 : fail_at;
+        before = h.actor;
+        assert(mm_preview_actor_replace_template(&h.actor, before.header.source_id,
+                                                before.header.template_number, &h.services) == 1 && !h.calls);
+        result = mm_preview_actor_replace_template(&h.actor, 8, 20, &h.services);
+        assert(h.templates == 1 && h.bodies == 1);
+        if (fail_at)
+        {
+            assert(result == h.failure && h.calls == h.fail_at);
+            assert(!memcmp(&h.actor, &before, sizeof(before)));
+            if (fail_at > 1)
+                assert(h.releases[h.released - 1] == 4);
+        }
+        else
+        {
+            assert(result == 1 && h.calls == 6 && h.actor.body == h.token + 3 && h.actor.tmpl == h.token + 2);
+            assert(h.actor.header.source_id == 8 && h.actor.header.template_number == 20);
+            assert(h.released == 2 && h.releases[0] == 1 && h.releases[1] == 2);
+        }
+        mm_preview_actor_dispose(&h.actor, &h.services);
+        assert(!h.templates && !h.bodies);
+    }
+}
+
 int main(void)
 {
     loading();
     playback();
     replace_events();
+    replace_template();
     puts("Preview actor: load/create prefixes, lifetime, resource ownership, replay, exceptions, pose and placement "
          "passed.");
     return 0;

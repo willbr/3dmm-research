@@ -4664,6 +4664,27 @@ actual template/sound transfer. Actor creation control is described next.
 Template construction, remaining body/movie/scene/resource/runtime implementation and
 facade removal remain unfinished.
 
+### Actor template replacement and render decisions
+
+Studio template replacement in `actor_owner.c` fetches a template, adjusts
+the live text body, selects the current cel, and repositions with the old
+template before publishing the new reference and tag. Costume rows for
+removed body sets are deleted in reverse order through the shared event
+editor so tag references and cursors stay consistent. A failed adjustment
+discards the candidate. Failed cel selection retains the adjusted body and
+candidate reference, following the original Studio ownership behavior.
+
+Marcus preview's C actor owns its template and body handles. Text replacement
+in `preview_actor.c` binds a fetched text template, adjusts a duplicate
+body, and poses it at the current frame. Failure restores the entire actor
+record before releasing the candidate body and template. Isolated action
+previews borrow the same body slot and restore it when rendering finishes.
+
+Studio uses the C timeline to decide whether an actor invalidates a
+prerender. Sounds do not require a redraw, and Freeze and Step events at
+the terminal frame only affect subsequent frames. The pull tool still adds
+the route's Y translation when reporting depth.
+
 ### Actor creation and scene binding
 
 `actor_create.c` owns factory failure release, template/tag acquisition order,

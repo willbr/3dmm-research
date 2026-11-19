@@ -181,7 +181,7 @@ struct Preview::Impl
         s.context = this; s.body = body; s.model = model ? model->Pbmdl() : nullptr;
         s.actors = static_cast<MMU32>(actors.size());
         s.visible = [](void *v, MMU32 i) -> int { return static_cast<Impl *>(v)->actors[i]->Visible(); };
-        s.actor_body = [](void *v, MMU32 i) -> void * { return static_cast<Impl *>(v)->actors[i]->body; };
+        s.actor_body = [](void *v, MMU32 i) -> void * { return static_cast<Impl *>(v)->actors[i]->Pbody(); };
         s.body_parts = [](void *, void *b) -> MMI32 { return static_cast<PBody>(b)->Cbact(); };
         s.part_model = [](void *, void *b, MMI32 i) -> void * { return static_cast<PBody>(b)->PbactPart(i)->model; };
         s.faces = [](void *, void *m) -> MMU32 { return static_cast<br_model *>(m)->nprepared_faces; };
@@ -328,8 +328,8 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
     if (!_impl->live.status.ready || object < 0 || std::size_t(object) >= _impl->actors.size() || !_impl->actors[object]->Visible())
         return Fail(error, ErrorCode::invalid_argument, "Select a visible actor or prop.");
     auto &actor = *_impl->actors[object]; BodyCostume costume;
-    if (!costume.FGet(actor.body)) return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
-    const MMActorBodyPose pose = {{0, 0, 0}, actor.body->RootMatrix()};
+    if (!costume.FGet(actor.Pbody())) return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
+    const MMActorBodyPose pose = {{0, 0, 0}, actor.Pbody()->RootMatrix()};
     struct Restore
     {
         BodyCostume &costume; PBody body;
@@ -339,10 +339,10 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
             costume.Set(body);
             body->ApplyPose(pose);
         }
-    } restore{costume, actor.body, pose};
+    } restore{costume, actor.Pbody(), pose};
     BMAT34 orientation;
     actor.RestOrientation(orientation);
-    actor.body->LocateOrient(rZero, rZero, rZero, &orientation);
+    actor.Pbody()->LocateOrient(rZero, rZero, rZero, &orientation);
     if (!actor.TryCostumes(values)) return Fail(error, ErrorCode::decode_failed, "Cannot preview this costume.");
     PreviewBounds bounds;
     if (!ObjectBounds(object, bounds, error) || !bounds.valid) return false;
@@ -353,7 +353,7 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
         std::vector<PreviewCostume> variants;
         if (!actor.Costumes(variants)) return false;
         BodyCostume selected;
-        if (!selected.FGet(actor.body)) return false;
+        if (!selected.FGet(actor.Pbody())) return false;
         float low[3] = {}, high[3] = {}; bool found = false, hasSet = false;
         float bodyLow = bounds.corners[1], bodyHigh = bodyLow;
         for (int c = 1; c < 8; ++c)
@@ -364,7 +364,7 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
             PreviewBounds part;
             if (!actor.TryCostumes({variant})) return false;
             BCB whole;
-            actor.body->GetBcbBounds(&whole, fTrue);
+            actor.Pbody()->GetBcbBounds(&whole, fTrue);
             bodyLow = std::min(bodyLow, BrScalarToFloat(whole.yrMin));
             bodyHigh = std::max(bodyHigh, BrScalarToFloat(whole.yrMax));
             if (!actor.CostumeBounds(bodySet, part)) continue;
@@ -378,7 +378,7 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
                 found = true;
             }
         }
-        selected.Set(actor.body);
+        selected.Set(actor.Pbody());
         if (!hasSet) return Fail(error, ErrorCode::invalid_argument, "This object has no such costume body part.");
         if (found)
         {
@@ -434,15 +434,9 @@ bool Preview::RenderObjectAction(int object, int action, int cel, const PreviewV
     const auto count = actor.ActionCelCount(action);
     if (cel < 0 || cel >= count)
         return Fail(error, ErrorCode::invalid_argument, "Choose an available action and cel.");
-    auto duplicate = actor.body->PbodyDup();
+    auto duplicate = actor.Pbody()->PbodyDup();
     if (!duplicate) return Fail(error, ErrorCode::out_of_memory, "Cannot allocate the action preview model.");
-    struct RestoreBody
-    {
-        Internal::PreviewActor &actor;
-        PBody original;
-        ~RestoreBody() { actor.body->Release(); actor.body = original; }
-    } restore{actor, actor.body};
-    actor.body = duplicate;
+    Internal::PreviewActor::BodyOverride restore(actor, duplicate);
     BMAT34 orientation;
     actor.RestOrientation(orientation);
     duplicate->LocateOrient(rZero, rZero, rZero, &orientation);
@@ -629,7 +623,7 @@ bool Preview::ObjectShape(int object, PreviewObjectShape &shape, float left[9], 
 {
     error = {};
     if (!_impl->live.status.ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
-        !_impl->actors[object]->body) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
+        !_impl->actors[object]->Pbody()) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
     _impl->actors[object]->Shape(shape, left, right);
     return true;
 }
@@ -642,7 +636,7 @@ bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error 
 {
     error = {};
     if (!_impl->live.status.ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
-        !_impl->actors[object]->body) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
+        !_impl->actors[object]->Pbody()) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
     for (float n : shape.scale)
         if (!std::isfinite(n) || n < .01f || n > 10) return Fail(error, ErrorCode::invalid_argument, "Size must be between 1% and 1000%.");
     for (float n : shape.rotation)
@@ -659,11 +653,11 @@ bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error 
     BCB before, after;
     auto &actor = *_impl->actors[object];
     const bool hold = mm_preview_orbit_follows(&_impl->orbit, object, actor.Visible()) != 0;
-    if (hold) actor.body->GetBcbBounds(&before, fTrue);
+    if (hold) actor.Pbody()->GetBcbBounds(&before, fTrue);
     if (!actor.SetShape(shape)) return Fail(error, ErrorCode::decode_failed, "Cannot transform the selected object.");
     if (hold)
     {
-        actor.body->GetBcbBounds(&after, fTrue);
+        actor.Pbody()->GetBcbBounds(&after, fTrue);
         const MMI32 a[6] = {before.xrMin,before.yrMin,before.zrMin,before.xrMax,before.yrMax,before.zrMax};
         const MMI32 b[6] = {after.xrMin,after.yrMin,after.zrMin,after.xrMax,after.yrMax,after.zrMax};
         Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
@@ -679,12 +673,12 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
     if (!_impl->live.status.ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size())
         return Fail(error, ErrorCode::invalid_argument, "Select a scene object before reading its bounds.");
     const auto &actor = *_impl->actors[object];
-    if (!actor.Visible() || !actor.body)
+    if (!actor.Visible() || !actor.Pbody())
         return true;
     BCB box;
-    actor.body->GetBcbBounds(&box);
+    actor.Pbody()->GetBcbBounds(&box);
     const MMI32 low[3] = {box.xrMin, box.yrMin, box.zrMin}, high[3] = {box.xrMax, box.yrMax, box.zrMax};
-    const auto &transform = actor.body->RootMatrix();
+    const auto &transform = actor.Pbody()->RootMatrix();
     MMI32 matrix[12];
     static_assert(sizeof(matrix) == sizeof(transform), "Object bounds matrix layout");
     std::memcpy(matrix, &transform, sizeof(matrix));

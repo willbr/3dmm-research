@@ -602,6 +602,51 @@ static void playback_effects(void)
     CHECK(!strcmp(log.order, "b"));
 }
 
+static void render_and_world_position(void)
+{
+    Tables t;
+    MMActorState state;
+    MMActorTimelineServices timeline;
+    MMActorPoint point;
+    init(&t);
+    mm_actor_state_init(&state);
+    timeline = services(&t);
+    state.frame = 5;
+    state.nextEvent = 1;
+    state.frozen = 1;
+    state.celCount = 3;
+    row(&t, 0, MM_ACTOR_ADD, 5, 0, 0, 0, NULL, 0);
+    row(&t, 1, MM_ACTOR_SOUND, 7, 0, 0, 0, NULL, 0);
+    row(&t, 2, MM_ACTOR_STEP, 9, 0, 0, 0, NULL, 0);
+    row(&t, 3, MM_ACTOR_FREEZE, 9, 0, 0, 0, NULL, 0);
+    CHECK(!mm_actor_must_render(&state, &t, &t, 1, 9, 9, &timeline.motion));
+    CHECK(!mm_actor_must_render(&state, &t, &t, 1, 9, 8, &timeline.motion));
+    CHECK(mm_actor_must_render(&state, &t, &t, 1, 10, 9, &timeline.motion));
+    t.events[3].aet = MM_ACTOR_REMOVE;
+    CHECK(mm_actor_must_render(&state, &t, &t, 1, 9, 9, &timeline.motion));
+    state.step = -ONE;
+    CHECK(mm_actor_must_render(&state, &t, &t, 1, 9, 6, &timeline.motion));
+    CHECK(!mm_actor_must_render(&state, &t, &t, 1, 9, 5, &timeline.motion));
+    CHECK(!mm_actor_must_render(&state, &t, &t, 7, 9, 6, &timeline.motion));
+    CHECK(!mm_actor_must_render(&state, &t, &t, 1, 4, 9, &timeline.motion));
+    t.routes = 0;
+    CHECK(!mm_actor_must_render(&state, &t, &t, 1, 9, 9, &timeline.motion));
+    t.routes = 2;
+    state.step = state.frozen = 0;
+    CHECK(mm_actor_must_render(&state, &t, &t, 1, 9, 6, &timeline.motion));
+    state.celCount = 1;
+    CHECK(!mm_actor_must_render(&state, &t, &t, 1, 9, 6, &timeline.motion));
+
+    state.location.irpt = 0;
+    state.location.dwrOffset = 3 * ONE;
+    t.route[1].xyz.dzr = 2 * ONE;
+    state.routeTranslation.dxr = -2 * ONE;
+    state.routeTranslation.dyr = 4 * ONE;
+    state.routeTranslation.dzr = 8 * ONE;
+    mm_actor_world_position(&state, &t, &point, &timeline.motion);
+    CHECK(point.dxr == ONE && point.dyr == 4 * ONE && point.dzr == 5 * ONE);
+}
+
 int main(void)
 {
     steps_and_lifetime();
@@ -610,6 +655,7 @@ int main(void)
     seek_quick_and_rewind();
     seek_effects();
     playback_effects();
+    render_and_world_position();
     puts("actor timeline and seek passed");
     return 0;
 }

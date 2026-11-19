@@ -41,7 +41,7 @@ struct PreviewActor::Host
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
                 BRS value = *out;
-                bool ok = static_cast<PTemplate>(h.actor->core.tmpl)->FGetDwrActnCel(action, cel, &value);
+                bool ok = h.actor->Ptmpl()->FGetDwrActnCel(action, cel, &value);
                 *out = value;
                 return ok;
             }) > 0;
@@ -77,8 +77,7 @@ struct PreviewActor::Host
                 auto source = h.actor->resolve(tag);
                 if (!source)
                     return false;
-                h.actor->tmpl = static_cast<PTemplate>(source->PbacoFetch(tag.ctg, tag.cno, Template::FReadTmpl));
-                *out = h.actor->tmpl;
+                *out = static_cast<PTemplate>(source->PbacoFetch(tag.ctg, tag.cno, Template::FReadTmpl));
                 return *out != nullptr;
             });
         };
@@ -92,10 +91,20 @@ struct PreviewActor::Host
         s.body_create = [](void *v, void *t, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                h.actor->body = static_cast<PTemplate>(t)->PbodyCreate();
-                *out = h.actor->body;
+                *out = static_cast<PTemplate>(t)->PbodyCreate();
                 return *out != nullptr;
             });
+        };
+        s.duplicate_body = [](void *v, void *b, void **out) -> int {
+            auto &h = *static_cast<Host *>(v);
+            return h.Guard([&] {
+                *out = static_cast<PBody>(b)->PbodyDup();
+                return *out != nullptr;
+            });
+        };
+        s.adjust_text_body = [](void *v, void *t, void *b) -> int {
+            auto &h = *static_cast<Host *>(v);
+            return h.Guard([&] { return static_cast<PThreeDText>(t)->FAdjustBody(static_cast<PBody>(b)); });
         };
         s.prop = [](void *, void *t) -> int { return static_cast<PTemplate>(t)->FIsProp(); };
         s.text = [](void *, void *t) -> int { return static_cast<PTemplate>(t)->FIsTdt(); };
@@ -127,11 +136,19 @@ struct PreviewActor::Host
                 return mm_actor_events_insert(static_cast<MMActorEventTable *>(g), i, n, p, e);
             });
         };
-        s.rest = [](void *, void *t, unsigned short *a) { static_cast<PTemplate>(t)->GetRestOrien(a, a + 1, a + 2); };
+        s.rest = [](void *v, void *t, unsigned short *a) {
+            static_cast<Host *>(v)->Guard([&] {
+                static_cast<PTemplate>(t)->GetRestOrien(a, a + 1, a + 2);
+                return 1;
+            });
+        };
         s.scalar = [](float v) -> MMI32 { return BrFloatToScalar(v); };
         s.scalar_float = [](MMI32 v) -> float { return BrScalarToFloat(v); };
-        s.locate = [](void *, void *b, const MMActorBodyPose *pose) {
-            static_cast<PBody>(b)->ApplyPose(*pose);
+        s.locate = [](void *v, void *b, const MMActorBodyPose *pose) {
+            static_cast<Host *>(v)->Guard([&] {
+                static_cast<PBody>(b)->ApplyPose(*pose);
+                return 1;
+            });
         };
         s.pose = [](void *v, void *t, void *b, MMI32 action, MMI32 cel) -> int {
             auto &h = *static_cast<Host *>(v);

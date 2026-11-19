@@ -1,4 +1,5 @@
 #include "mm/preview_actor.h"
+#include "mm/template_create.h"
 #include "mm/wide.h"
 #include <string.h>
 void mm_preview_actor_init(MMPreviewActor *p)
@@ -124,6 +125,9 @@ int mm_preview_actor_create(MMPreviewActor *p, const MMPreviewActorDefinition *d
     if (r <= 0)
         return r;
     s->rest(s->context, p->tmpl, angles);
+    r = s->fault(s->context);
+    if (r)
+        return r;
     mm_actor_stationary_track(&track, p->header.first_frame, angles);
     r = s->route_insert(s->context, p->route, 0, &track.route);
     if (r <= 0)
@@ -140,6 +144,62 @@ int mm_preview_actor_create(MMPreviewActor *p, const MMPreviewActorDefinition *d
     mm_actor_state_rewind(&p->state, p->route, &s->timeline.motion);
     return 1;
 }
+
+int mm_preview_actor_replace_template(MMPreviewActor *p, MMI32 source, MMU32 number,
+                                      const MMPreviewActorServices *s)
+{
+    MMPreviewActor saved;
+    MMActorHeader request;
+    void *next = NULL, *body = NULL;
+    int result;
+    if (!p->tmpl || !p->body || !s->text(s->context, p->tmpl))
+        return 0;
+    if (p->header.source_id == source && p->header.template_number == number)
+        return 1;
+    request = p->header;
+    request.source_id = source;
+    request.template_type = MM_TMPL;
+    request.template_number = number;
+    result = s->fetch(s->context, &request, &next);
+    if (result <= 0)
+        goto fail;
+    if (!s->text(s->context, next))
+    {
+        result = 0;
+        goto fail;
+    }
+    result = s->bind(s->context, next);
+    if (result <= 0)
+        goto fail;
+    result = s->duplicate_body(s->context, p->body, &body);
+    if (result <= 0)
+        goto fail;
+    result = s->adjust_text_body(s->context, next, body);
+    if (result <= 0)
+        goto fail;
+
+    saved = *p;
+    p->tmpl = next;
+    p->body = body;
+    p->header.source_id = source;
+    p->header.template_number = number;
+    result = mm_preview_actor_position(p, 1, s);
+    if (result > 0)
+    {
+        s->release_body(s->context, saved.body);
+        s->release_template(s->context, saved.tmpl);
+        return 1;
+    }
+    *p = saved;
+
+fail:
+    if (body)
+        s->release_body(s->context, body);
+    if (next)
+        s->release_template(s->context, next);
+    return result;
+}
+
 static int equal_shape(const MMPreviewActorShape *a, const MMPreviewActorShape *b)
 {
     unsigned i;
@@ -164,6 +224,7 @@ int mm_preview_actor_position(MMPreviewActor *p, int select_cel, const MMPreview
     MMPreviewActorShape identity;
     unsigned short angles[3];
     unsigned i;
+    int fault;
     memset(&identity, 0, sizeof(identity));
     for (i = 0; i < 3; ++i)
     {
@@ -171,6 +232,9 @@ int mm_preview_actor_position(MMPreviewActor *p, int select_cel, const MMPreview
         identity.scale[i] = 1;
     }
     s->rest(s->context, p->tmpl, angles);
+    fault = s->fault(s->context);
+    if (fault)
+        return fault;
     inputs.restX = angles[0];
     inputs.restY = angles[1];
     inputs.restZ = angles[2];
@@ -201,6 +265,9 @@ int mm_preview_actor_position(MMPreviewActor *p, int select_cel, const MMPreview
                              &s->timeline.motion);
     }
     s->locate(s->context, p->body, &pose);
+    fault = s->fault(s->context);
+    if (fault)
+        return fault;
     return select_cel ? select_pose(p, s) : 1;
 }
 static int move(MMPreviewActor *p, const float delta[3], int offset, const MMPreviewActorServices *s)

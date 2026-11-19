@@ -21,7 +21,7 @@ class PreviewActor
     struct TrackDraft;
     MMPreviewActor core;
     ActorTrack track;
-    PTemplate tmpl = nullptr;
+    PTemplate Ptmpl() const { return static_cast<PTemplate>(core.tmpl); }
     PMaterial_MTRL textMaterial = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
     bool ApplyEvent(MMActorState &value, const MMActorTrack &events, LegacyLong index, bool metadataOnly,
@@ -39,7 +39,18 @@ class PreviewActor
         mm_preview_actor_init(&core);
     }
     ChunkNumber number = 0;
-    PBody body = nullptr;
+    PBody Pbody() const { return static_cast<PBody>(core.body); }
+    class BodyOverride
+    {
+        PreviewActor &actor;
+        void *original;
+
+      public:
+        BodyOverride(PreviewActor &, PBody draft);
+        ~BodyOverride();
+        BodyOverride(const BodyOverride &) = delete;
+        BodyOverride &operator=(const BodyOverride &) = delete;
+    };
     std::vector<PreviewSoundCue> sounds;
     ~PreviewActor();
     bool Load(PChunkyResourceFile file, ChunkNumber number,

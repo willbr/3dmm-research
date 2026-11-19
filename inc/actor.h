@@ -334,7 +334,7 @@ class Actor : public Actor_PAR
         TagFromCore(ptag, _runtime.template_tag);
     }
     void GetName(PString pstn);
-    bool FChangeTagTmpl(PTAG ptagTmplNew);
+    bool FChangeTagTmpl(const MMTag &tag);
     bool FTimeFrozen(void)
     {
         AssertBaseThis(0);

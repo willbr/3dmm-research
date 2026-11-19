@@ -23,6 +23,27 @@ int mm_actor_step(MMI32 action, MMI32 cel, MMI32 *step, const MMActorTimelineSer
     *step = 0;
     return s->resolve && s->resolve(s->context, action, cel, step);
 }
+
+int mm_actor_must_render(const MMActorState *state, void *route, void *events, MMI32 first, MMI32 last,
+                         MMI32 until, const MMActorMotionServices *m)
+{
+    MMI32 i, count;
+    MMActorEvent event;
+    if (until == state->frame || until < first || state->frame > last || !m->route_count(route))
+        return 0;
+    count = m->event_count(events);
+    for (i = state->nextEvent; i < count; ++i)
+    {
+        m->event(events, i, &event);
+        if (event.nfrm > until)
+            break;
+        if (event.aet == MM_ACTOR_SOUND)
+            continue;
+        if (event.nfrm < last || (event.aet != MM_ACTOR_FREEZE && event.aet != MM_ACTOR_STEP))
+            return 1;
+    }
+    return state->step || (!state->frozen && state->celCount != 1);
+}
 int mm_actor_playback_step(const MMActorState *state, MMI32 *step,
                                  const MMActorTimelineServices *s)
 {

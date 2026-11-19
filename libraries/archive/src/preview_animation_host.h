@@ -43,7 +43,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
             auto &h = Get(v);
             return h.Guard([&] {
                 LegacyLong count = 0;
-                const auto ok = h.actor->tmpl->FGetCcelActn(action, &count);
+                const auto ok = h.actor->Ptmpl()->FGetCcelActn(action, &count);
                 *out = count;
                 return ok;
             }) > 0;
@@ -52,7 +52,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
             auto &h = Get(v);
             return h.Guard([&] {
                 TAG tag{}; bool available = false;
-                const auto ok = h.actor->tmpl->FGetSndActnCel(action, cel, &available, &tag);
+                const auto ok = h.actor->Ptmpl()->FGetSndActnCel(action, cel, &available, &tag);
                 *exists = ok && available && tag.sid != 0;
                 if (*exists) std::memcpy(out, &tag, sizeof(tag));
                 return ok;
@@ -79,12 +79,12 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
             auto &h = Get(v);
             return h.Guard([&] {
                 LegacyUlong flags32 = 0;
-                const auto ok = h.actor->tmpl->FGetGrfactn(action, &flags32);
+                const auto ok = h.actor->Ptmpl()->FGetGrfactn(action, &flags32);
                 *flags = flags32;
                 return ok;
             }) > 0;
         };
-        s.text_template = [](void *v) { return int(Get(v).actor->tmpl->FIsTdt()); };
+        s.text_template = [](void *v) { return int(Get(v).actor->Ptmpl()->FIsTdt()); };
         s.mark_life_dirty = [](void *v) { Get(v).lifeDirty = true; };
         return s;
     }
@@ -111,7 +111,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.route.hide_body = [](void *) {};
         s.route.default_costume = [](void *v) {
             auto &h = Get(v);
-            h.Guard([&] { return h.actor->tmpl->FSetDefaultCost(h.actor->body); });
+            h.Guard([&] { return h.actor->Ptmpl()->FSetDefaultCost(h.actor->Pbody()); });
         };
         s.get_flags = [](void *v, MMActorSubrouteFlags *flags) {
             const auto &h = Get(v);
@@ -119,7 +119,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         };
         s.set_dirty = [](void *v, int dirty) { Get(v).lifeDirty = dirty != 0; };
         s.pose_inputs = [](void *v, MMActorPoseInputs *inputs) {
-            auto tmpl = Get(v).actor->tmpl;
+            auto tmpl = Get(v).actor->Ptmpl();
             tmpl->GetRestOrien(&inputs->restX, &inputs->restY, &inputs->restZ);
             inputs->fixedPathOrientation = tmpl->FIsTdt();
         };

@@ -1436,7 +1436,7 @@ MMMovieContentServices Movie::_ContentServices()
         return static_cast<unsigned char>(const_cast<PString>(static_cast<const String *>(name))->Psz()[i]);
     };
     s.change_template = [](void *p, const MMTag *value) -> int {
-        TAG tag; TagFromCore(&tag, *value); return static_cast<PActor>(p)->FChangeTagTmpl(&tag);
+        return static_cast<PActor>(p)->FChangeTagTmpl(*value);
     };
     s.new_caption = [](void *scene, const void *bounds, int story) -> void * {
         return TextBox::PtboxNew(static_cast<PScene>(scene), const_cast<RC *>(static_cast<const RC *>(bounds)), story != 0);

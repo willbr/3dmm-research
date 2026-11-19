@@ -31,6 +31,10 @@ extern "C"
      * Metadata callbacks cannot mutate authored tables or evaluated state. */
     int mm_actor_step(MMI32 action, MMI32 cel, MMI32 *, const MMActorTimelineServices *);
     int mm_actor_playback_step(const MMActorState *, MMI32 *, const MMActorTimelineServices *);
+    /* The current frame is excluded. Sound and terminal Freeze/Step events
+     * alone do not invalidate a prerender. Cached event frames must be valid. */
+    int mm_actor_must_render(const MMActorState *, void *route, void *events, MMI32 first, MMI32 last,
+                             MMI32 until, const MMActorMotionServices *);
     /* Valid runtime tables required. Lifetime updates frame caches immediately;
      * failure leaves partial caches and the last attempted frame. The enabled
      * retail BUG1960/BUG1906 policies are retained. max_frames is a signed bound on

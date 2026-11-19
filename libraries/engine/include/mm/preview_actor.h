@@ -49,6 +49,8 @@ extern "C"
         int (*apply)(void *, MMI32 index);
         void (*clear_cues)(void *), (*clear_motion)(void *);
         int (*default_costume)(void *, void *, void *), (*motion_cues)(void *);
+        int (*duplicate_body)(void *, void *original, void **draft);
+        int (*adjust_text_body)(void *, void *text, void *body);
     } MMPreviewActorServices;
     /* Unique owning template/body handles, with borrowed validated track tables.
      * Initialize once, dispose before the typed track owner. Effects are synchronous
@@ -63,6 +65,10 @@ extern "C"
     int mm_preview_actor_load(MMPreviewActor *, MMU32 number, const MMChunkAccess *, int require_template_target,
                               const MMPreviewActorServices *);
     int mm_preview_actor_create(MMPreviewActor *, const MMPreviewActorDefinition *, const MMPreviewActorServices *);
+    /* Fetch/bind a text template, adjust a body draft, then pose it. Restore
+     * the entire actor and release the draft on failure, including pose errors. */
+    int mm_preview_actor_replace_template(MMPreviewActor *, MMI32 source, MMU32 number,
+                                          const MMPreviewActorServices *);
     int mm_preview_actor_seek(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_replace_events(MMPreviewActor *, void *events, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_position(MMPreviewActor *, int select_cel, const MMPreviewActorServices *);

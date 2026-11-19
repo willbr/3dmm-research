@@ -57,12 +57,12 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         s.reserve_events = Reserve;
         s.current = [](void *v, MMI32 set, int *custom) -> void * {
             bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
-            static_cast<CostumeHost *>(v)->actor->body->GetPartSetMaterial(set, &plain, &material, &costume);
+            static_cast<CostumeHost *>(v)->actor->Pbody()->GetPartSetMaterial(set, &plain, &material, &costume);
             *custom = !plain; return plain ? static_cast<void *>(material) : static_cast<void *>(costume);
         };
         s.fetch_custom = [](void *v, MMI32 id) -> void * {
             auto &h = *static_cast<CostumeHost *>(v); void *out = nullptr;
-            h.Guard([&] { out = h.actor->tmpl->PcmtlFetch(id); return 1; }); return out;
+            h.Guard([&] { out = h.actor->Ptmpl()->PcmtlFetch(id); return 1; }); return out;
         };
         s.fetch_material = [](void *v, const MMTag *value) -> void * {
             auto &h = *static_cast<CostumeHost *>(v); void *out = nullptr;

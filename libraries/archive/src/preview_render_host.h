@@ -128,7 +128,7 @@ struct Preview::Impl::RenderHost
                 body = i.body;
             else if (i.actors[index - 1]->Visible())
             {
-                body = i.actors[index - 1]->body;
+                body = i.actors[index - 1]->Pbody();
                 order = i.actors[index - 1]->DrawOrder();
             }
             if (!body)

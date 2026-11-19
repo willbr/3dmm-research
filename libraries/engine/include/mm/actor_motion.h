@@ -78,6 +78,8 @@ extern "C"
                                       int *end, const MMActorMotionServices *);
     void mm_actor_route_position(void *route, const MMActorLocation *, MMActorPoint *,
                                        const MMActorMotionServices *);
+    /* Studio's pull-tool coordinates use the route Y translation for depth. */
+    void mm_actor_world_position(const MMActorState *, void *route, MMActorPoint *, const MMActorMotionServices *);
     void mm_actor_interpolate(const MMActorPoint *, const MMActorPoint *, MMI32,
                                     MMActorPoint *);
     void mm_actor_state_init(MMActorState *);

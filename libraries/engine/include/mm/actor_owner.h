@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_ACTOR_OWNER_H
 #define MM_ENGINE_ACTOR_OWNER_H
 #include "actor_record.h"
+#include "actor_events.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -61,6 +62,26 @@ void mm_actor_owner_restore_undo(void *actor,void *snapshot,const MMActorOwnerSe
 /* Close template/event tags, release body, dispose track, release template and
  * dispose motion storage. No wrapper-field destructor is required for ownership. */
 void mm_actor_owner_dispose(void *actor,const MMActorOwnerServices *);
+
+typedef struct MMActorTemplateServices
+{
+    void *context;
+    const MMTagServices *tags;
+    void *(*fetch)(void *, const MMTag *);
+    void (*release)(void *, void *object);
+    int (*text)(void *, void *object);
+    int (*adjust_body)(void *, void *object, void *body);
+    int (*select_cel)(void *, void *object, void *body, MMI32 action, MMI32 cel);
+    void (*position)(void *);
+    MMI32 (*body_sets)(void *, void *body);
+} MMActorTemplateServices;
+
+/* Replace the Studio template and discard costume rows whose body sets no
+ * longer exist. Reposition with the old template before publishing the new
+ * one. Adjustment failure releases the candidate. A failed cel selection
+ * retains the adjusted body and the legacy candidate reference. */
+int mm_actor_replace_template(MMActorRuntime *, MMActorEventTable *, const MMTag *,
+                              const MMActorTemplateServices *, const MMActorEditServices *);
 #ifdef __cplusplus
 }
 #endif
