@@ -54,15 +54,16 @@ int mm_movie_insert_text(const void *name, MMI32 shape, const void *font,
 int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void *font,
                                const MMMovieContentServices *s)
 {
-    MMI32 i;
+    MMU32 i, count;
     MMTag tag;
     MMMovieEditRequest request = {0};
     void *snapshot;
     int ok = 0;
-    for (i = 0; i < s->length(name); ++i)
+    const void *units = s->name_units(name, &count);
+    for (i = 0; i < count; ++i)
         if (s->character(name, i) != ' ')
             break;
-    if (i == s->length(name))
+    if (i == count)
         return mm_movie_edit_actor(MM_MOVIE_EDIT_REMOVE, &request, &s->edit);
     if (!author(name, shape, font, &tag, s))
         return 0;
@@ -79,7 +80,7 @@ int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void 
         return 0;
     }
     s->edit.rollcall.set_actor_id(actor, -1);
-    if (!mm_movie_rollcall_add(actor, name, &s->edit.rollcall))
+    if (!mm_movie_rollcall_add(actor, units, count, &s->edit.rollcall))
         s->edit.restore_actor(actor, snapshot);
     else
     {

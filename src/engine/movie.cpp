@@ -695,24 +695,8 @@ MMMovieRollCallServices Movie::_RollCallServices()
     MMMovieRollCallServices s = {};
     s.context = this;
     s.data = &_data;
-    s.count = [](void *p) -> MMI32 { return static_cast<PRollCallTable>(p)->storage.count; };
-    s.row = [](void *p, MMI32 index, MMRollCallActor *out) {
-        AssertDo(mm_rollcall_table_extra(&static_cast<PRollCallTable>(p)->storage, index, out), "bad actor row");
-    };
-    s.put = [](void *p, MMI32 index, const MMRollCallActor *value) {
-        AssertDo(mm_rollcall_table_set_extra(&static_cast<PRollCallTable>(p)->storage, index, value), "bad actor row");
-    };
-    s.name = [](void *p, MMI32 index, void *out) { static_cast<PRollCallTable>(p)->GetStn(index, static_cast<PString>(out)); };
-    s.rename = [](void *p, MMI32 index, const void *name) -> int {
-        auto value = const_cast<PString>(static_cast<const String *>(name));
-        return mm_rollcall_table_rename(&static_cast<PRollCallTable>(p)->storage, index, value->Prgch(), value->Cch());
-    };
-    s.append = [](void *p, const void *name, const MMRollCallActor *row) -> int {
-        auto value = const_cast<PString>(static_cast<const String *>(name));
-        AssertPo(value, 0);
-        return mm_rollcall_table_add(&static_cast<PRollCallTable>(p)->storage, value->Prgch(), value->Cch(), row);
-    };
-    s.erase = [](void *p, MMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
+    auto actors = _data.Actors();
+    s.table = actors ? &actors->storage : nullptr;
     s.actor_id = [](void *p) -> MMI32 { return static_cast<PActor>(p)->Arid(); };
     s.set_actor_id = [](void *p, MMI32 id) { static_cast<PActor>(p)->SetArid(id); };
     s.actor_tag = [](void *p, MMTag *out) { TAG tag; static_cast<PActor>(p)->GetTagTmpl(&tag); *out = TagToCore(tag); };
@@ -862,10 +846,15 @@ bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG
     AssertThis(0);
     AssertPvCb(parid, size(long));
     AssertVarMem(pcactRef);
-    const auto services = _RollCallServices();
+    auto actors = _data.Actors();
     MMI32 id, refs;
+    const void *name;
+    MMU32 count;
     MMTag tag;
-    if (!mm_movie_rollcall_get(iarid, &id, pstn, &refs, ptagTmpl ? &tag : nullptr, &services)) return false;
+    if (!actors || !mm_movie_rollcall_get(&actors->storage, iarid, &id, &name, &count, &refs,
+                                        ptagTmpl ? &tag : nullptr))
+        return false;
+    pstn->SetRgch(const_cast<achar *>(static_cast<const achar *>(name)), count);
     *parid = id; *pcactRef = refs;
     if (ptagTmpl) TagFromCore(ptagTmpl, tag);
     return true;
@@ -925,8 +914,13 @@ long Movie::AridSelected(void)
 bool Movie::FGetName(long arid, PString pstn)
 {
     AssertThis(0); AssertPo(pstn, 0);
-    const auto services = _RollCallServices();
-    return mm_movie_rollcall_name(arid, pstn, &services) != 0;
+    auto actors = _data.Actors();
+    const void *name;
+    MMU32 count;
+    if (!actors || !mm_movie_rollcall_name(&actors->storage, arid, &name, &count))
+        return false;
+    pstn->SetRgch(const_cast<achar *>(static_cast<const achar *>(name)), count);
+    return true;
 }
 
 /****************************************************
@@ -945,7 +939,7 @@ bool Movie::FNameActr(long arid, PString pstn)
 {
     AssertThis(0); AssertIn(arid, 0, 500); AssertPo(pstn, 0);
     const auto services = _RollCallServices();
-    return mm_movie_rollcall_rename(arid, pstn, &services) != 0;
+    return mm_movie_rollcall_rename(arid, pstn->Prgch(), pstn->Cch(), &services) != 0;
 }
 
 /****************************************************
@@ -962,8 +956,7 @@ bool Movie::FNameActr(long arid, PString pstn)
 bool Movie::FIsPropBrwsIarid(long iarid)
 {
     AssertThis(0); AssertIn(iarid, 0, _data.Actors()->IvMac());
-    const auto services = _RollCallServices();
-    return mm_movie_rollcall_has(iarid, MM_MOVIE_PROP, &services) != 0;
+    return mm_movie_rollcall_has(&_data.Actors()->storage, iarid, MM_MOVIE_PROP) != 0;
 }
 
 /****************************************************
@@ -980,8 +973,7 @@ bool Movie::FIsPropBrwsIarid(long iarid)
 bool Movie::FIsIaridTdt(long iarid)
 {
     AssertThis(0); AssertIn(iarid, 0, _data.Actors()->IvMac());
-    const auto services = _RollCallServices();
-    return mm_movie_rollcall_has(iarid, MM_MOVIE_TEXT, &services) != 0;
+    return mm_movie_rollcall_has(&_data.Actors()->storage, iarid, MM_MOVIE_TEXT) != 0;
 }
 
 /****************************************************
@@ -1020,7 +1012,7 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
 {
     AssertThis(0); AssertPo(pactr, 0); AssertNilOrPo(pstn, 0);
     const auto services = _RollCallServices();
-    return mm_movie_rollcall_add(pactr, pstn, &services) != 0;
+    return mm_movie_rollcall_add(pactr, pstn ? pstn->Prgch() : nullptr, pstn ? pstn->Cch() : 0, &services) != 0;
 }
 
 /****************************************************
@@ -1459,7 +1451,11 @@ MMMovieContentServices Movie::_ContentServices()
         *value = TagToCore(tag); return ok;
     };
     s.close_tag = [](MMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
-    s.length = [](const void *name) -> MMI32 { return const_cast<PString>(static_cast<const String *>(name))->Cch(); };
+    s.name_units = [](const void *p, MMU32 *count) -> const void * {
+        auto name = const_cast<PString>(static_cast<const String *>(p));
+        *count = name->Cch();
+        return name->Prgch();
+    };
     s.character = [](const void *name, MMI32 i) -> MMI32 {
         return static_cast<unsigned char>(const_cast<PString>(static_cast<const String *>(name))->Psz()[i]);
     };

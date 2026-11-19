@@ -7099,6 +7099,9 @@ Loading borrows the decoded GST stream and builds the live table in C89.
 Native code locates and unpacks the chunk and supplies character conversion
 and tag operations. Load rollback and movie teardown close references from
 the C89 rows.
+Studio's roll-call queries and edits also use the typed C89 table. The native
+adapter translates between counted character buffers and Studio strings and
+supplies actor, tag, and notification services.
 
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor

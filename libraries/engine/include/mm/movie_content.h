@@ -18,7 +18,8 @@ extern "C"
         void (*release_text)(void *text);
         int (*open_tag)(MMTag *, void *resources);
         void (*close_tag)(MMTag *);
-        MMI32 (*length)(const void *name), (*character)(const void *name, MMI32 index);
+        const void *(*name_units)(const void *name, MMU32 *count);
+        MMI32 (*character)(const void *name, MMI32 index);
         int (*change_template)(void *actor, const MMTag *);
         void *(*new_caption)(void *scene, const void *bounds, int story);
         MMI32 (*default_font)(void *);

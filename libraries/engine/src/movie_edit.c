@@ -36,7 +36,7 @@ int mm_movie_choose_actor(MMI32 id, const MMMovieEditServices *s)
                 return 0;
             }
             s->select_actor(s->scenes->open, actor);
-            if (!mm_movie_rollcall_add(actor, 0, &s->rollcall))
+            if (!mm_movie_rollcall_add(actor, 0, 0, &s->rollcall))
                 s->diagnostic(s->context, MM_MOVIE_EDIT_ROLLCALL_FAILED);
             s->place_actor(view, 0);
             s->placement_undo(view, snapshot);
@@ -45,7 +45,7 @@ int mm_movie_choose_actor(MMI32 id, const MMMovieEditServices *s)
         s->invalidate(s->context, 0);
         return 1;
     }
-    if (mm_movie_rollcall_find(id, &row, &s->rollcall) == -1)
+    if (mm_movie_rollcall_find(s->rollcall.table, id, &row) == -1)
         return 0;
     tag = mm_movie_rollcall_tag(&row);
     actor = s->new_actor(s->context, &tag);

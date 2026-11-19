@@ -23,13 +23,7 @@ extern "C"
     {
         void *context;
         MMMovieState *data;
-        MMI32 (*count)(void *table);
-        void (*row)(void *table, MMI32 index, MMRollCallActor *);
-        void (*put)(void *table, MMI32 index, const MMRollCallActor *);
-        void (*name)(void *table, MMI32 index, void *output);
-        int (*rename)(void *table, MMI32 index, const void *name);
-        int (*append)(void *table, const void *name, const MMRollCallActor *);
-        void (*erase)(void *table, MMI32 index);
+        MMRollCallTable *table;
         MMI32 (*actor_id)(void *actor);
         void (*set_actor_id)(void *actor, MMI32 id), (*actor_tag)(void *actor, MMTag *);
         int (*is_prop)(void *actor), (*is_text)(void *actor);
@@ -39,24 +33,24 @@ extern "C"
         void (*changed)(void *), (*diagnostic)(void *, int issue);
     } MMMovieRollCallServices;
     /* Runtime table and actor/tag services are initialized, synchronous and not
-     * reentrant. New rows require a name. open_tag is a must-succeed primitive
-     * (the native facade retains its diagnostic). Host services marshal names;
-     * output tags are borrowed. Storage owns one opened tag per committed row.
+     * reentrant. New rows require a non-null counted name in the table's native
+     * units. Mutation inputs do not alias the table. Query names are borrowed
+     * until the next table mutation. Output tags are borrowed. Storage owns one
+     * opened tag per committed row. The native open_tag primitive must succeed.
      * Existing rows increment before tag refresh and notify even if already used.
      * New IDs publish before insertion, and remain assigned if insertion fails.
      * Failed append closes its newly opened tag instead of leaking that reference.
      * change_tag is a shallow replacement: its caller arranges tag ownership.
      * Removal closes before erasing and notifies only when the count reaches zero. */
     MMTag mm_movie_rollcall_tag(const MMRollCallActor *);
-    MMI32 mm_movie_rollcall_find(MMI32 id, MMRollCallActor *,
-                                            const MMMovieRollCallServices *);
-    int mm_movie_rollcall_get(MMI32 index, MMI32 *id, void *name, MMI32 *refs, MMTag *tag,
-                                    const MMMovieRollCallServices *);
-    int mm_movie_rollcall_name(MMI32 id, void *name, const MMMovieRollCallServices *);
-    int mm_movie_rollcall_rename(MMI32 id, const void *name, const MMMovieRollCallServices *);
-    int mm_movie_rollcall_has(MMI32 index, MMU32 flag, const MMMovieRollCallServices *);
+    MMI32 mm_movie_rollcall_find(MMRollCallTable *, MMI32 id, MMRollCallActor *);
+    int mm_movie_rollcall_get(MMRollCallTable *, MMI32 index, MMI32 *id, const void **name,
+                             MMU32 *count, MMI32 *refs, MMTag *tag);
+    int mm_movie_rollcall_name(MMRollCallTable *, MMI32 id, const void **name, MMU32 *count);
+    int mm_movie_rollcall_rename(MMI32 id, const void *name, MMU32 count, const MMMovieRollCallServices *);
+    int mm_movie_rollcall_has(MMRollCallTable *, MMI32 index, MMU32 flag);
     void mm_movie_rollcall_change_tag(MMI32 id, const MMTag *, const MMMovieRollCallServices *);
-    int mm_movie_rollcall_add(void *actor, const void *name, const MMMovieRollCallServices *);
+    int mm_movie_rollcall_add(void *actor, const void *name, MMU32 count, const MMMovieRollCallServices *);
     void mm_movie_rollcall_remove(void *actor, int delete_last, const MMMovieRollCallServices *);
 #ifdef __cplusplus
 }

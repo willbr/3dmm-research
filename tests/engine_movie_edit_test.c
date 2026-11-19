@@ -62,7 +62,6 @@ enum
     SOUND_VOLUME,
     SOUND_STYLE,
     SOUND_RELEASE,
-    ROLL_PUT,
     ROLL_CHANGED
 };
 typedef struct Test Test;
@@ -83,7 +82,7 @@ struct Test
     MMMovieEditServices s;
     MMMovieState data;
     MMMovieScenes scenes;
-    MMRollCallActor row;
+    MMRollCallTable table;
     Actor actor, fresh, copy;
     Actor *selected, *placement;
     Undo undo;
@@ -466,22 +465,16 @@ static void notify(void *p, int value)
     t->notify = value;
     event(t, NOTIFY);
 }
-static MMI32 row_count(void *p)
+static int seed_rollcall(Test *t)
 {
-    (void)p;
-    return 1;
-}
-static void row(void *p, MMI32 i, MMRollCallActor *out)
-{
-    (void)i;
-    *out = ((Test *)p)->row;
-}
-static void put_row(void *p, MMI32 i, const MMRollCallActor *value)
-{
-    Test *t = p;
-    (void)i;
-    t->row = *value;
-    event(t, ROLL_PUT);
+    MMRollCallActor row;
+    memset(&row, 0, sizeof(row));
+    row.data.actor_id = 5;
+    row.data.reference_count = 1;
+    row.data.source_id = 2;
+    row.data.template_type = row.data.template_number = 1;
+    return mm_rollcall_table_init(&t->table, sizeof(row), 1, 0x0303, 0, NULL) == MM_STORAGE_OK &&
+           mm_rollcall_table_add(&t->table, "Actor", 5, &row);
 }
 static MMI32 actor_id(void *p)
 {
@@ -515,10 +508,6 @@ static void init(Test *t)
     t->actor.tag.sid = 2;
     t->actor.tag.type = 1;
     t->actor.tag.number = 1;
-    t->row.data.actor_id = 5;
-    t->row.data.reference_count = 1;
-    t->row.data.source_id = 2;
-    t->row.data.template_type = t->row.data.template_number = 1;
     t->undo.test = t;
     t->undo.actor = t->undo.time = 1;
     t->undo.base.frame = 77;
@@ -526,7 +515,6 @@ static void init(Test *t)
     t->scenes.open = t;
     t->scenes.index = 2;
     t->data.sceneCount = 3;
-    t->data.actors = t;
     t->data.title.count = 4;
     t->view = t->inScene = 1;
     t->frame = 9;
@@ -536,9 +524,7 @@ static void init(Test *t)
     s->scenes = &t->scenes;
     s->rollcall.context = t;
     s->rollcall.data = &t->data;
-    s->rollcall.count = row_count;
-    s->rollcall.row = row;
-    s->rollcall.put = put_row;
+    s->rollcall.table = &t->table;
     s->rollcall.actor_id = actor_id;
     s->rollcall.set_actor_id = set_id;
     s->rollcall.actor_tag = actor_tag;
@@ -626,6 +612,7 @@ static int registration(void)
 static int choosing(void)
 {
     Test t;
+    MMRollCallActor row;
     int fault;
     init(&t);
     t.scenes.open = 0;
@@ -645,6 +632,7 @@ static int choosing(void)
     for (fault = 0; fault <= 2; ++fault)
     {
         init(&t);
+        CHECK(seed_rollcall(&t));
         t.fail = fault == 1 ? FAIL_DUP : fault == 2 ? FAIL_STAGE : 0;
         CHECK(mm_movie_choose_actor(5, &t.s) == !fault);
         CHECK(t.resets == 1 && !t.dirty);
@@ -654,16 +642,19 @@ static int choosing(void)
         {
             CHECK(t.copy.refs == 1 && t.placement == &t.copy && t.selectionCalls == 2 && t.placeCalls == 1 &&
                   !t.entire);
-            CHECK(t.row.data.reference_count == 2 && t.rowChanges == 1 && t.invalidates == 1);
+            CHECK(mm_rollcall_table_extra(&t.table, 0, &row) && row.data.reference_count == 2 &&
+                  t.rowChanges == 1 && t.invalidates == 1);
             release(t.placement);
             CHECK(!t.copy.refs);
         }
         if (fault == 2)
             CHECK(t.actor.value == 444); /* Core failure keeps its completed prefix. */
+        CHECK(mm_rollcall_table_dispose(&t.table) == MM_STORAGE_OK);
     }
     for (fault = 0; fault <= 2; ++fault)
     {
         init(&t);
+        CHECK(seed_rollcall(&t));
         t.inScene = 0;
         t.fail = fault == 1 ? FAIL_NEW_ACTOR : fault == 2 ? FAIL_ADD : 0;
         CHECK(mm_movie_choose_actor(5, &t.s) == !fault);
@@ -674,10 +665,13 @@ static int choosing(void)
             release(&t.fresh);
             CHECK(!t.fresh.refs);
         }
+        CHECK(mm_rollcall_table_dispose(&t.table) == MM_STORAGE_OK);
     }
     init(&t);
+    CHECK(seed_rollcall(&t));
     t.inScene = 0;
     CHECK(!mm_movie_choose_actor(6, &t.s) && !t.fresh.refs && !t.placeCalls);
+    CHECK(mm_rollcall_table_dispose(&t.table) == MM_STORAGE_OK);
     return 0;
 }
 static int actor_edits(void)

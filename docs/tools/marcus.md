@@ -2499,6 +2499,18 @@ players produced the same 60-frame playback sequence. SDL Studio matched
 retail's sound requests, and both ports still differed in mixed PCM.
 Evidence is in `tmp/c89-rollcall-read/`.
 
+Studio roll-call lookup and editing now work directly on the C89 table.
+The edit tests cover failed allocation during insert and rename, counted
+names with embedded zeroes, and tag ownership during actor and 3D text
+edits. Native actor undo and movie edit snapshots matched the earlier build.
+In SDL Studio, adding a named prop, undoing and redoing the insertion, then
+saving and reopening matched the earlier build's actor rows and viewports
+at each stage. The two saves had identical payloads and graph metadata for
+all 47 chunks. Retail, SDL Studio, and Marcus completed seek and playback of
+the edited save with matching 60-frame sequences. SDL Studio matched
+retail's sound requests, and both ports differed in mixed PCM. Evidence is in
+`tmp/c89-rollcall-edit/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 
