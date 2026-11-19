@@ -32,10 +32,9 @@ extern "C"
         void *(*new_resources)(void *, void *file);
         void (*release_file)(void *);
         void (*release_resources)(void *);
-        void *(*new_actors)(void *, int wire);
+        void *(*new_actors)(void *);
         void (*release_table)(void *);
-        MMU32 (*count)(void *table);
-        void (*actor)(void *table, MMU32, MMRollCallActor *);
+        MMRollCallTable *(*actor_storage)(void *table);
         void (*close_actor)(void *, MMRollCallActor *);
         void *(*file)(void *resources);
         int (*create_root)(void *, void *file, MMU32 *);
@@ -65,29 +64,19 @@ extern "C"
     int mm_movie_state_scene_number(MMMovieState *, MMU32 slot, MMU32 *number, const MMMovieOwnerServices *);
     int mm_movie_save(MMMovieState *, const MMMovieOwnerServices *);
 
-    typedef struct MMRollCallServices
+    typedef struct MMRollCallReader
     {
         void *context;
-        /* Wire acquisition locates the child and decodes its GST header/text, but
-         * deliberately does not reject a foreign extra width. C owns that decision. */
-        void *(*read_wire)(void *, void *resources, MMU32 movie, int *big_endian);
-        MMU32 (*extra_width)(void *);
-        void *(*new_runtime)(void *);
-        void (*release_table)(void *);
-        MMU32 (*count)(void *);
-        void (*wire_row)(void *, void *table, MMU32, unsigned char bytes[28]);
-        void (*actor)(void *table, MMU32, MMRollCallActor *);
-        /* wire_row caches a borrowed name in host scratch. Appending consumes it
-         * immediately and does not duplicate tag ownership. */
-        int (*append_runtime)(void *, void *table, const MMRollCallActor *);
+        MMStringConvert convert;
         int (*open_actor)(void *, MMRollCallActor *, void *resources);
         void (*close_actor)(void *, MMRollCallActor *);
-    } MMRollCallServices;
-    /* Failed read clears output, preserves caller limit, closes the current tag
-     * before earlier rows when insertion fails, then releases the runtime table.
-     * Wire extras retain their 28-byte layout with a zero pointer slot. */
-    int mm_movie_read_rollcall(void *resources, MMU32 movie, void **actors, MMI32 *limit,
-                                     const MMRollCallServices *);
+    } MMRollCallReader;
+    /* Borrows a decoded GST stream and fills an initialized, empty actor table.
+     * Failed reads restore an empty table and preserve the caller's ID limit.
+     * Failed tag opens acquire no reference. Failed insertions close the current
+     * tag before closing earlier rows. Successful rows own their opened tags. */
+    int mm_movie_read_rollcall(const MMReadStream *, void *resources, MMRollCallTable *actors, MMI32 *limit,
+                                     const MMRollCallReader *);
     typedef struct MMRollCallWriter
     {
         void *context;

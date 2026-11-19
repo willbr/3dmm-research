@@ -1038,6 +1038,9 @@ collection and disposal. Native Studio supplies archive and cache I/O.
 Studio autosave and headless movie saves serialize their roll-call rows from
 the C89 table. C rebuilds the wire names in actor order, clears cache pointer
 fields, and discards the new chunk if writing or adoption fails.
+Studio and headless loads also decode the roll call directly into the C89
+table. Native code supplies the decoded stream, platform text conversion,
+and tag operations. C closes each acquired tag on failure or movie teardown.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

@@ -21,22 +21,18 @@ typedef struct Resource
 typedef struct Table
 {
     Host *host;
-    MMU32 count, width;
-    int wire;
-    MMRollCallActor rows[4];
-    unsigned char bytes[4][28];
+    MMRollCallTable storage;
 } Table;
 struct Host
 {
     char log[512];
     int used, tables, resources, fail, scenes, previous, persistent;
-    int new_calls, append_calls, open_calls, big, wire_count, bad_row, bad_width;
+    int open_calls;
     int opening;
     MMU32 root_number;
     MMU32 rollcall_bytes;
     unsigned char written_rollcall[512];
     int buffers;
-    Table *wire, *written;
 };
 enum
 {
@@ -67,7 +63,7 @@ static void reset(Host *h)
 {
     h->used = 0;
     h->log[0] = 0;
-    h->new_calls = h->append_calls = h->open_calls = 0;
+    h->open_calls = 0;
 }
 static void *create(void *c)
 {
@@ -172,38 +168,31 @@ static void release_resource(void *p)
         free(r);
     }
 }
-static void *new_table(void *c, int wire)
+static void *new_table(void *c)
 {
     Host *h = (Host *)c;
     Table *t;
-    event(h, wire ? 'w' : 't');
-    ++h->new_calls;
-    if (h->fail == FAIL_TABLE || (wire && h->fail == FAIL_WIRE))
+    event(h, 't');
+    if (h->fail == FAIL_TABLE)
         return NULL;
     t = (Table *)calloc(1, sizeof(*t));
     CHECK(t != NULL);
     t->host = h;
-    t->wire = wire;
-    t->width = wire ? 28 : 64;
+    CHECK(mm_rollcall_table_init(&t->storage, sizeof(MMRollCallActor), 1, 0x0303, 0, NULL) == MM_STORAGE_OK);
     ++h->tables;
     return t;
 }
 static void release_table(void *p)
 {
     Table *t = (Table *)p;
-    event(t->host, t->wire ? 'W' : 'T');
+    event(t->host, 'T');
+    CHECK(mm_rollcall_table_dispose(&t->storage) == MM_STORAGE_OK);
     --t->host->tables;
     free(t);
 }
-static MMU32 count(void *p)
+static MMRollCallTable *actor_storage(void *p)
 {
-    return ((Table *)p)->count;
-}
-static void actor(void *p, MMU32 i, MMRollCallActor *out)
-{
-    Table *t = (Table *)p;
-    CHECK(i < t->count);
-    *out = t->rows[i];
+    return &((Table *)p)->storage;
 }
 static void close_actor(void *c, MMRollCallActor *a)
 {
@@ -229,6 +218,7 @@ static int read_call(void *c, void *r, MMU32 n, void **out, MMI32 *limit)
 {
     Host *h = (Host *)c;
     Table *t;
+    MMRollCallActor actor;
     CHECK(n == 7);
     event(h, 'i');
     if (h->fail == FAIL_READ)
@@ -236,11 +226,11 @@ static int read_call(void *c, void *r, MMU32 n, void **out, MMI32 *limit)
         *out = NULL;
         return 0;
     }
-    t = (Table *)new_table(h, 0);
+    t = (Table *)new_table(h);
     CHECK(t != NULL);
-    t->count = 1;
-    t->rows[0].data.actor_id = 0;
-    t->rows[0].cache = r;
+    memset(&actor, 0, sizeof(actor));
+    actor.cache = r;
+    CHECK(mm_rollcall_table_add(&t->storage, "Actor", 5, &actor));
     ++((Resource *)r)->refs;
     *out = t;
     *limit = 1;
@@ -300,7 +290,7 @@ static MMMovieOwnerServices owners(Host *h)
 {
     MMMovieOwnerServices s = {
         NULL,          create,   open_file,  open_session,    new_resource, release_file, release_resource, new_table,
-        release_table, count,    actor,      close_actor,     file,         root,         read_call,        load_name,
+        release_table, actor_storage, close_actor, file,      root,         read_call,     load_name,
         previous,      write_call, delete_previous, set_name, save,         persist};
     s.context = h;
     return s;
@@ -387,57 +377,6 @@ static void ownership(void)
     mm_movie_state_dispose(&m, &s);
     CHECK(!h.used);
 }
-static void *read_wire(void *c, void *r, MMU32 movie, int *big)
-{
-    Host *h = (Host *)c;
-    Table *t;
-    MMMovieActor a;
-    int i;
-    (void)r;
-    CHECK(movie == 7);
-    event(h, 'i');
-    if (h->fail == FAIL_READ)
-        return NULL;
-    t = (Table *)new_table(h, 1);
-    if (!t)
-        return NULL;
-    t->width = h->bad_width ? 4 : 28;
-    t->count = h->wire_count;
-    for (i = 0; i < h->wire_count; ++i)
-    {
-        memset(&a, 0, sizeof(a));
-        a.actor_id = (i == h->bad_row) ? -1 : i;
-        a.reference_count = 3;
-        a.template_number = 123;
-        mm_movie_write_actor(&a, t->bytes[i], h->big);
-    }
-    *big = h->big;
-    return t;
-}
-static MMU32 width(void *p)
-{
-    return ((Table *)p)->width;
-}
-static void wire_row(void *c, void *p, MMU32 i, unsigned char *bytes)
-{
-    Host *h = (Host *)c;
-    Table *t = (Table *)p;
-    event(h, 'g');
-    CHECK(i < t->count);
-    memcpy(bytes, t->bytes[i], 28);
-}
-static int append_runtime(void *c, void *p, const MMRollCallActor *a)
-{
-    Host *h = (Host *)c;
-    Table *t = (Table *)p;
-    event(h, 'a');
-    ++h->append_calls;
-    if (h->fail == FAIL_APPEND && h->append_calls == 2)
-        return 0;
-    CHECK(t->count < 4);
-    t->rows[t->count++] = *a;
-    return 1;
-}
 static int open_actor(void *c, MMRollCallActor *a, void *r)
 {
     Host *h = (Host *)c;
@@ -456,7 +395,7 @@ static void *resize_rollcall(void *p, void *old, MMU32 old_size, MMU32 new_size,
     void *data;
     (void)old_size;
     (void)priority;
-    if (h->fail == FAIL_WIRE)
+    if (h->fail == FAIL_WIRE || (h->fail == FAIL_APPEND && h->open_calls == 2))
         return NULL;
     data = realloc(old, new_size);
     if (data && fresh)
@@ -532,30 +471,50 @@ static void delete_chunk(void *c, MMU32 n)
     CHECK(n == 10);
     event(h, '-');
 }
-static void *new_runtime(void *c)
+static void make_wire_rollcall(Host *h, MMMemoryStream *memory, int big, int bad_row, MMU32 extra)
 {
-    return new_table(c, 0);
+    MMMovieActor actor;
+    MMRollCallTable wire;
+    MMStorageWriter writer = {NULL, 0, write_rollcall};
+    unsigned char row[MM_MOVIE_ACTOR_BYTES];
+    char long_name[160];
+    int i;
+    memset(long_name, 'B', sizeof(long_name));
+    memset(&actor, 0, sizeof(actor));
+    actor.reference_count = 3;
+    actor.template_number = 123;
+    CHECK(mm_rollcall_table_init(&wire, extra, 1, 0x0303, 0, NULL) == MM_STORAGE_OK);
+    for (i = 0; i < 3; ++i)
+    {
+        actor.actor_id = i == bad_row ? -1 : i;
+        mm_movie_write_actor(&actor, row, big);
+        CHECK(mm_rollcall_table_add(&wire, i == 1 ? long_name : "Actor", i == 1 ? sizeof(long_name) : 5, row));
+    }
+    h->rollcall_bytes = mm_rollcall_table_wire_size(&wire);
+    CHECK(h->rollcall_bytes <= sizeof(h->written_rollcall));
+    writer.context = h;
+    writer.length = h->rollcall_bytes;
+    CHECK(mm_rollcall_table_write(&wire, &writer, big) == MM_STORAGE_OK);
+    CHECK(mm_rollcall_table_dispose(&wire) == MM_STORAGE_OK);
+    CHECK(mm_memory_stream_init(memory, h->written_rollcall, h->rollcall_bytes));
 }
-static MMRollCallServices rolls(Host *h)
-{
-    MMRollCallServices s = {NULL, read_wire, width, new_runtime, release_table, count, wire_row,
-                            actor, append_runtime, open_actor, close_actor};
-    s.context = h;
-    return s;
-}
-static void write_rollcalls(Host *h, Table *t)
+static void write_rollcalls(Host *h, MMRollCallTable *source)
 {
     static const char *names[] = {"A", "B", "Third"};
     static const int failures[] = {FAIL_WIRE, FAIL_ADD, FAIL_TABLE_WRITE, FAIL_ADOPT};
     static const char *logs[] = {"", "+", "+=-", "+=>-"};
     MMRollCallTable input;
+    MMRollCallActor actor;
     MMStorageAllocator allocator = {NULL, resize_rollcall, free_rollcall};
     MMRollCallWriter writer = {NULL, add_chunk, adopt, delete_chunk};
     MMU32 i, written = 99;
     allocator.context = writer.context = h;
     CHECK(mm_rollcall_table_init(&input, sizeof(MMRollCallActor), 1, 0x0303, 0, &allocator) == MM_STORAGE_OK);
-    for (i = 0; i < t->count; ++i)
-        CHECK(mm_rollcall_table_add(&input, names[i], (MMU32)strlen(names[i]), &t->rows[i]));
+    for (i = 0; i < source->count; ++i)
+    {
+        CHECK(mm_rollcall_table_extra(source, i, &actor));
+        CHECK(mm_rollcall_table_add(&input, names[i], (MMU32)strlen(names[i]), &actor));
+    }
     CHECK(mm_rollcall_table_rename(&input, 0, "Long first", 10));
     reset(h);
     CHECK(mm_movie_write_rollcall(7, &input, &written, &writer) && written == 10 && !strcmp(h->log, "+=>"));
@@ -565,67 +524,71 @@ static void write_rollcalls(Host *h, Table *t)
         h->fail = failures[i];
         reset(h);
         CHECK(!mm_movie_write_rollcall(7, &input, &written, &writer) && !strcmp(h->log, logs[i]) &&
-              h->buffers == 2 && h->tables == 1);
+              h->buffers == 4);
     }
     h->fail = 0;
-    CHECK(mm_rollcall_table_dispose(&input) == MM_STORAGE_OK && !h->buffers);
+    CHECK(mm_rollcall_table_dispose(&input) == MM_STORAGE_OK && h->buffers == 2);
 }
 static void rollcalls(void)
 {
     Host h;
     Resource *r;
-    MMRollCallServices s;
-    MMMovieOwnerServices o;
-    MMMovieState m;
-    Table *t;
-    void *output;
+    MMRollCallReader reader = {NULL, NULL, open_actor, close_actor};
+    MMStorageAllocator allocator = {NULL, resize_rollcall, free_rollcall};
+    MMRollCallTable actors;
+    MMRollCallActor actor;
+    MMMemoryStream memory;
+    const void *name;
+    MMU32 length, row;
     MMI32 limit;
-    int big, failures[] = {FAIL_READ, FAIL_WIRE, FAIL_TABLE, FAIL_TAG, FAIL_APPEND}, i;
+    int big, failures[] = {FAIL_WIRE, FAIL_TAG, FAIL_APPEND}, i;
     memset(&h, 0, sizeof(h));
-    h.bad_row = -1;
-    h.wire_count = 3;
-    s = rolls(&h);
-    o = owners(&h);
+    reader.context = allocator.context = &h;
     r = (Resource *)new_resource(&h, &h);
+    CHECK(mm_rollcall_table_init(&actors, sizeof(MMRollCallActor), 1, 0x0303, 0, &allocator) == MM_STORAGE_OK);
     for (big = 0; big < 2; ++big)
     {
-        h.big = big;
+        make_wire_rollcall(&h, &memory, big, -2, MM_MOVIE_ACTOR_BYTES);
         reset(&h);
         limit = 0;
-        output = NULL;
-        CHECK(mm_movie_read_rollcall(r, 7, &output, &limit, &s) && limit == 3 && r->refs == 4 && h.tables == 1);
-        t = (Table *)output;
-        write_rollcalls(&h, t);
+        CHECK(mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && limit == 3 && actors.count == 3 &&
+              r->refs == 4 && h.buffers == 2);
+        CHECK(mm_rollcall_table_name(&actors, 1, &name, &length) && length == 160 && ((const char *)name)[159] == 'B');
+        write_rollcalls(&h, &actors);
         CHECK(r->refs == 4);
-        mm_movie_state_init(&m);
-        m.actors = t;
-        mm_movie_clear_actors(&m, &o);
-        CHECK(r->refs == 1 && !h.tables);
-        for (i = 0; i < 5; ++i)
+        for (row = 0; row < actors.count; ++row)
+        {
+            CHECK(mm_rollcall_table_extra(&actors, row, &actor) && actor.cache == r &&
+                  actor.data.actor_id == (MMI32)row && actor.data.template_number == 123);
+            close_actor(&h, &actor);
+        }
+        CHECK(mm_rollcall_table_dispose(&actors) == MM_STORAGE_OK && r->refs == 1 && !h.buffers);
+
+        make_wire_rollcall(&h, &memory, big, -2, MM_MOVIE_ACTOR_BYTES);
+        for (i = 0; i < (int)(sizeof(failures) / sizeof(*failures)); ++i)
         {
             h.fail = failures[i];
             reset(&h);
-            output = (void *)1;
             limit = 42;
-            CHECK(!mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !output && limit == 42 && r->refs == 1 &&
-                  !h.tables);
+            CHECK(!mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && !actors.count &&
+                  limit == 42 && r->refs == 1 && !h.buffers);
             if (h.fail == FAIL_APPEND)
-                CHECK(!strcmp(h.log, "iwtghaghaBRWART"));
+                CHECK(!strcmp(h.log, "hhBRAR"));
         }
         h.fail = 0;
-        h.bad_row = 1;
+        memory.stream.length = 19;
         reset(&h);
-        limit = 42;
-        CHECK(!mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !output && limit == 42 && r->refs == 1 &&
-              !h.tables);
-        h.bad_row = -1;
-        h.bad_width = 1;
+        CHECK(!mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && !h.used && !h.buffers);
+        make_wire_rollcall(&h, &memory, big, 1, MM_MOVIE_ACTOR_BYTES);
         reset(&h);
-        CHECK(!mm_movie_read_rollcall(r, 7, &output, &limit, &s) && !strcmp(h.log, "iwW"));
-        h.bad_width = 0;
+        CHECK(!mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && !actors.count &&
+              limit == 42 && r->refs == 1 && !h.buffers && !strcmp(h.log, "hAR"));
+        make_wire_rollcall(&h, &memory, big, -2, 4);
+        reset(&h);
+        CHECK(!mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && !h.used && !h.buffers);
     }
     release_resource(r);
-    CHECK(!h.resources && !h.tables);
+    CHECK(mm_rollcall_table_dispose(&actors) == MM_STORAGE_OK && !h.resources && !h.buffers);
 }
 int main(void)
 {

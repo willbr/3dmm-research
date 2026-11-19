@@ -9,21 +9,19 @@ void mm_movie_state_init(MMMovieState *m)
     m->movieNumber = 0xffffffffUL;
     mm_movie_title_init(&m->title, 1);
 }
-static void close_rows(void *table, const MMMovieOwnerServices *s)
+static void close_rows(MMRollCallTable *table, void *context, void (*close_actor)(void *, MMRollCallActor *))
 {
     MMU32 i;
     MMRollCallActor actor;
-    for (i = 0; i < s->count(table); ++i)
-    {
-        s->actor(table, i, &actor);
-        s->close_actor(s->context, &actor);
-    }
+    for (i = 0; i < table->count; ++i)
+        if (mm_rollcall_table_extra(table, i, &actor))
+            close_actor(context, &actor);
 }
 void mm_movie_clear_actors(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     if (!m->actors)
         return;
-    close_rows(m->actors, s);
+    close_rows(s->actor_storage(m->actors), s->context, s->close_actor);
     s->release_table(m->actors);
     m->actors = NULL;
 }
@@ -60,7 +58,7 @@ int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
         return 0;
     fresh.resources = s->new_resources(s->context, file);
     s->release_file(file);
-    fresh.actors = s->new_actors(s->context, 0);
+    fresh.actors = s->new_actors(s->context);
     if (!fresh.resources || !fresh.actors || !s->create_root(s->context, s->file(fresh.resources), &fresh.movieNumber))
     {
         mm_movie_state_dispose(&fresh, s);
@@ -138,56 +136,48 @@ int mm_movie_save(MMMovieState *m, const MMMovieOwnerServices *s)
     s->make_persistent(file);
     return 1;
 }
-int mm_movie_read_rollcall(void *resources, MMU32 movie, void **actors, MMI32 *limit,
-                                 const MMRollCallServices *s)
+int mm_movie_read_rollcall(const MMReadStream *stream, void *resources, MMRollCallTable *actors, MMI32 *limit,
+                                 const MMRollCallReader *s)
 {
-    void *wire, *runtime = NULL;
+    MMRollCallTable wire;
     int big;
     MMU32 i, count;
     MMI32 next = limit ? *limit : 0;
-    unsigned char bytes[28];
+    unsigned char bytes[MM_MOVIE_ACTOR_BYTES];
+    const void *name;
     MMMemoryStream memory;
     MMRollCallActor actor;
-    wire = s->read_wire(s->context, resources, movie, &big);
-    if (!wire || s->extra_width(wire) != MM_MOVIE_ACTOR_BYTES)
+    if (!actors || actors->count || actors->bytes || actors->stride != sizeof(actor) + 4 ||
+        mm_rollcall_table_init(&wire, 0, actors->unit, actors->encoding, actors->trash_unused,
+                               &actors->storage.allocator) != MM_STORAGE_OK)
+        return 0;
+    if (mm_rollcall_table_read(&wire, stream, s->convert, s->context, &big) != MM_STORAGE_OK ||
+        wire.stride != sizeof(bytes) + 4)
         goto fail;
-    runtime = s->new_runtime(s->context);
-    if (!runtime)
-        goto fail;
-    count = s->count(wire);
-    for (i = 0; i < count; ++i)
+    for (i = 0; i < wire.count; ++i)
     {
-        s->wire_row(s->context, wire, i, bytes);
+        if (!mm_rollcall_table_name(&wire, i, &name, &count) || !mm_rollcall_table_extra(&wire, i, bytes))
+            goto fail;
         mm_memory_stream_init(&memory, bytes, sizeof(bytes));
         if (mm_movie_read_actor(&memory.stream, big, &actor.data, &next) != MM_MOVIE_OK)
             goto fail;
         actor.cache = NULL;
         if (!s->open_actor(s->context, &actor, resources))
             goto fail;
-        if (!s->append_runtime(s->context, runtime, &actor))
+        if (!mm_rollcall_table_add(actors, name, count, &actor))
         {
             s->close_actor(s->context, &actor);
             goto fail;
         }
     }
-    s->release_table(wire);
-    *actors = runtime;
+    mm_rollcall_table_dispose(&wire);
     if (limit)
         *limit = next;
     return 1;
 fail:
-    if (wire)
-        s->release_table(wire);
-    if (runtime)
-    {
-        for (i = 0; i < s->count(runtime); ++i)
-        {
-            s->actor(runtime, i, &actor);
-            s->close_actor(s->context, &actor);
-        }
-        s->release_table(runtime);
-    }
-    *actors = NULL;
+    mm_rollcall_table_dispose(&wire);
+    close_rows(actors, s->context, s->close_actor);
+    mm_rollcall_table_dispose(actors);
     return 0;
 }
 int mm_movie_write_rollcall(MMU32 movie, MMRollCallTable *actors, MMU32 *written, const MMRollCallWriter *s)

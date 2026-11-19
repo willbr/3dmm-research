@@ -13,11 +13,6 @@ struct NativeMovieHost
 {
     PFilename filename;
 };
-struct NativeRollCallHost
-{
-    String name;
-    DataBlock block;
-};
 int ReadMovieRecord(void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 count)
 {
     return EngineMovieGraph::Read(context, nullptr, position, entry, bytes, count);
@@ -46,12 +41,6 @@ RollCallActorEntry NativeActor(const MMRollCallActor &a)
     out.tagTmpl.pcrf = static_cast<PChunkyResourceFile>(a.cache);
     return out;
 }
-void ReadActor(void *table, MMU32 index, MMRollCallActor *out)
-{
-    RollCallActorEntry a;
-    static_cast<PRollCallTable>(table)->GetExtra(index, &a);
-    *out = CoreActor(a);
-}
 void CloseActor(void *, MMRollCallActor *a)
 {
     auto value = NativeActor(*a);
@@ -62,91 +51,20 @@ void ReleaseTable(void *p)
 {
     static_cast<PRollCallTable>(p)->Release();
 }
-MMU32 CountActors(void *p)
-{
-    return static_cast<PRollCallTable>(p)->IvMac();
-}
-void *NewActors(void *, int)
-{
-    return RollCallTable::New();
-}
-MMRollCallServices RollCallServices(NativeRollCallHost *host)
-{
-    return {host,
-            [](void *c, void *resources, MMU32 movie, int *big) -> void * {
-                auto h = static_cast<NativeRollCallHost *>(c);
-                auto file = static_cast<PChunkyResourceFile>(resources)->Pcfl();
-                ChildChunkIdentification child;
-                if (!file->FGetKidChidCtg(kctgMvie, movie, 0, kctgGst, &child) ||
-                    !file->FFind(child.cki.ctg, child.cki.cno, &h->block))
-                {
-                    PushErc(ercSocBadFile);
-                    return nullptr;
-                }
-                return RollCallTable::Read(&h->block, big);
-            },
-            [](void *p) -> MMU32 { return static_cast<PRollCallTable>(p)->CbExtra(); },
-            [](void *) -> void * { return RollCallTable::New(); },
-            ReleaseTable,
-            CountActors,
-            [](void *c, void *table, MMU32 i, unsigned char *bytes) {
-                static_cast<PRollCallTable>(table)->GetStn(i, &static_cast<NativeRollCallHost *>(c)->name);
-                AssertDo(mm_rollcall_table_extra(&static_cast<PRollCallTable>(table)->storage, i, bytes),
-                         "bad wire row");
-            },
-            ReadActor,
-            [](void *c, void *table, const MMRollCallActor *a) -> int {
-                auto value = NativeActor(*a);
-                return static_cast<PRollCallTable>(table)->FAddStn(&static_cast<NativeRollCallHost *>(c)->name, &value);
-            },
-            [](void *, MMRollCallActor *a, void *resources) -> int {
-                auto value = NativeActor(*a);
-                const bool ok = TagManager::FOpenTag(&value.tagTmpl, static_cast<PChunkyResourceFile>(resources));
-                *a = CoreActor(value);
-                return ok;
-            },
-            CloseActor};
-}
 } // namespace
-RollCallTable *RollCallTable::_New(MMU32 extra)
+RollCallTable *RollCallTable::New()
 {
     auto table = NewObj RollCallTable;
     if (!table)
         return nullptr;
     const auto allocator = CollectionAllocator();
-    if (mm_rollcall_table_init(&table->storage, extra, sizeof(achar), koskCur,
+    if (mm_rollcall_table_init(&table->storage, sizeof(MMRollCallActor), sizeof(achar), koskCur,
 #ifdef DEBUG
                                      1,
 #else
                                      0,
 #endif
                                      &allocator) != MM_STORAGE_OK)
-    {
-        ReleasePpo(&table);
-        return nullptr;
-    }
-    return table;
-}
-RollCallTable *RollCallTable::New()
-{
-    return _New(sizeof(MMRollCallActor));
-}
-RollCallTable *RollCallTable::Read(PDataBlock block, int *bigEndian)
-{
-    auto table = _New(0);
-    if (!table)
-        return nullptr;
-    if (!block->FUnpackData())
-    {
-        ReleasePpo(&table);
-        return nullptr;
-    }
-    const auto stream = EngineReadStream::FromBlock(*block);
-    const auto convert = [](void *, const void *input, size_t bytes, int encoding, void *output,
-                            size_t capacity) -> size_t {
-        return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
-    };
-    if (mm_rollcall_table_read(&table->storage, &stream, convert, nullptr, bigEndian) != MM_STORAGE_OK)
     {
         ReleasePpo(&table);
         return nullptr;
@@ -217,10 +135,9 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
         [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
         [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
-        NewActors,
+        [](void *) -> void * { return RollCallTable::New(); },
         ReleaseTable,
-        CountActors,
-        ReadActor,
+        [](void *p) { return &static_cast<PRollCallTable>(p)->storage; },
         CloseActor,
         [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); },
         [](void *, void *file, MMU32 *number) -> int {
@@ -356,15 +273,44 @@ bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number,
                               LegacyLong *limit)
 {
     Assert(*actors == pvNil, "Overwriting existing StringTable_GST");
-    NativeRollCallHost host;
-    const auto s = RollCallServices(&host);
-    void *output = nullptr;
+    *actors = nullptr;
+    auto file = resources->Pcfl();
+    ChildChunkIdentification child;
+    DataBlock block;
+    if (!file->FGetKidChidCtg(kctgMvie, number, 0, kctgGst, &child) ||
+        !file->FFind(child.cki.ctg, child.cki.cno, &block))
+    {
+        PushErc(ercSocBadFile);
+        return false;
+    }
+    if (!block.FUnpackData())
+        return false;
+    auto table = RollCallTable::New();
+    if (!table)
+        return false;
+    const auto stream = EngineReadStream::FromBlock(block);
+    const MMRollCallReader reader = {
+        nullptr,
+        [](void *, const void *input, size_t bytes, int encoding, void *output, size_t capacity) -> size_t {
+            return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
+        },
+        [](void *, MMRollCallActor *a, void *resources) -> int {
+            auto value = NativeActor(*a);
+            const bool ok = TagManager::FOpenTag(&value.tagTmpl, static_cast<PChunkyResourceFile>(resources));
+            *a = CoreActor(value);
+            return ok;
+        },
+        CloseActor};
     MMI32 next = limit ? *limit : 0;
-    const bool ok = mm_movie_read_rollcall(resources, number, &output, limit ? &next : nullptr, &s) != 0;
-    if (ok && limit)
+    if (!mm_movie_read_rollcall(&stream, resources, &table->storage, limit ? &next : nullptr, &reader))
+    {
+        ReleasePpo(&table);
+        return false;
+    }
+    if (limit)
         *limit = next;
-    *actors = static_cast<PRollCallTable>(output);
-    return ok;
+    *actors = table;
+    return true;
 }
 bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written)
 {

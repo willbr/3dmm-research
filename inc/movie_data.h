@@ -55,14 +55,11 @@ class RollCallTable : public BASE
 {
     MARKMEM
     ASSERT
-    static RollCallTable *_New(MMU32 extra);
   public:
     MMRollCallTable storage;
     static RollCallTable *New();
-    static RollCallTable *Read(PDataBlock block, int *bigEndian);
     ~RollCallTable();
     LegacyLong IvMac() const { return storage.count; }
-    LegacyLong CbExtra() const { return storage.stride - 4; }
     void GetStn(LegacyLong index, PString name);
     void GetExtra(LegacyLong index, RollCallActorEntry *actor);
     void PutExtra(LegacyLong index, const RollCallActorEntry *actor);

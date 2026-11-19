@@ -2488,6 +2488,17 @@ completed seek and playback captures of the new save with matching 60-frame
 sequences. SDL Studio matched retail's sound requests. Both ports differed
 from retail in mixed PCM. Evidence is in `tmp/c89-rollcall-write/`.
 
+Studio and headless loads now build their actor rows directly from the C89
+GST reader. Tests exercise both byte orders and verify that a failed insert
+closes the new tag before earlier rows. The before/after roll-call and movie
+owner snapshots match byte for byte. SDL Studio reopened the two-scene
+fixture with the same actor names, poses, and first viewport, and all 44
+chunk payloads and graph metadata matched the previous save. Retail, SDL
+Studio, and Marcus each matched their previous 60 seek viewports. All three
+players produced the same 60-frame playback sequence. SDL Studio matched
+retail's sound requests, and both ports still differed in mixed PCM.
+Evidence is in `tmp/c89-rollcall-read/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

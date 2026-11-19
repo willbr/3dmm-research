@@ -7095,6 +7095,10 @@ runtime autosave shares its version/root and roll-call serialization.
 Both save paths build the wire GST directly from C89 roll-call storage.
 Native code allocates the destination chunk and supplies the positional
 writer and graph edits.
+Loading borrows the decoded GST stream and builds the live table in C89.
+Native code locates and unpacks the chunk and supplies character conversion
+and tag operations. Load rollback and movie teardown close references from
+the C89 rows.
 
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and
 save it without an application, sound device or renderer. Scene and actor
