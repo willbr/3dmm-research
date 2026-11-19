@@ -41,10 +41,10 @@ MMActorCopyServices Actor::_CopyServices()
     s.release_actor=[](void *,void *p) { static_cast<PActor>(p)->Release(); };
     s.route=[](void *,void *p)->void * { return static_cast<PActor>(p)->_track.Route(); };
     s.events=[](void *,void *p)->void * { return static_cast<PActor>(p)->_track.Events(); };
-    s.lock_events=[](void *,void *p) { static_cast<PGeneralGroup>(p)->Lock(); };
-    s.unlock_events=[](void *,void *p) { static_cast<PGeneralGroup>(p)->Unlock(); };
-    s.payload_view=[](void *,void *p,MMI32 i)->const void * { return static_cast<PGeneralGroup>(p)->QvGet(i); };
-    s.write_payload=[](void *,void *p,MMI32 i,const void *data) { static_cast<PGeneralGroup>(p)->Put(i,const_cast<void *>(data)); };
+    s.lock_events=[](void *,void *p) { mm_actor_events_lock(static_cast<MMActorEventTable *>(p)); };
+    s.unlock_events=[](void *,void *p) { mm_actor_events_unlock(static_cast<MMActorEventTable *>(p)); };
+    s.payload_view=[](void *,void *p,MMI32 i)->const void * { return mm_actor_events_payload(static_cast<MMActorEventTable *>(p), i, nullptr); };
+    s.write_payload=[](void *,void *p,MMI32 i,const void *data) { mm_actor_events_set_payload(static_cast<MMActorEventTable *>(p), i, data); };
     s.resolve_sound=[](void *p,MMActorSound *value) {
         Sound sound; std::memcpy(&sound,value,sizeof(sound));
         bool ok=static_cast<Actor *>(p)->_pscen->Pmvie()->FResolveSndTag(&sound.tag,sound.chid);
@@ -276,9 +276,9 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
         *child=value; return int(ok);
     };
     s.write_event=[](void *p,MMI32 i,const MMActorEvent *v) {
-        Base event; std::memcpy(&event,v,sizeof(event)); static_cast<PGeneralGroup>(p)->PutFixed(i,&event);
+        mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(p), i, v);
     };
-    s.write_payload=[](void *p,MMI32 i,const void *v) { static_cast<PGeneralGroup>(p)->Put(i,const_cast<void *>(v)); };
+    s.write_payload=[](void *p,MMI32 i,const void *v) { mm_actor_events_set_payload(static_cast<MMActorEventTable *>(p), i, v); };
     s.remove_event=[](void *p,MMI32 i) { static_cast<Actor *>(p)->_RemoveAev(i); };
     s.camera_yaw=[](void *,void *p) { return static_cast<PScene>(p)->Pbkgd()->BraRotYCamera(); };
     s.dirty=[](void *,void *p) { static_cast<PScene>(p)->MarkDirty(); };
@@ -467,9 +467,9 @@ MMActorDeleteServices Actor::_DeleteServices(EditContext *context)
         state->next_event=a->_state.nextEvent; state->scene_present=a->_pscen!=nullptr;
     };
     s.add_frame=[](void *p,MMI32 i)->MMI32 {
-        Base event; static_cast<EditContext *>(p)->actor->_track.Events()->GetFixed(i,&event); return event.nfrm;
+        Base event; mm_actor_events_get_fixed(static_cast<EditContext *>(p)->actor->_track.Events(), i,&event); return event.nfrm;
     };
-    s.event_count=[](void *p)->MMI32 { return static_cast<EditContext *>(p)->actor->_track.Events()->IvMac(); };
+    s.event_count=[](void *p)->MMI32 { return mm_actor_events_count(static_cast<EditContext *>(p)->actor->_track.Events()); };
     s.delete_subroute=[](void *p) { return int(static_cast<EditContext *>(p)->actor->_FDeleteEntireSubrte()); };
     s.seek=[](void *p,MMI32 frame) { return int(static_cast<EditContext *>(p)->actor->FGotoFrame(frame)); };
     s.delete_forward=[](void *p,int all,int wants_alive,MMI32 original) {

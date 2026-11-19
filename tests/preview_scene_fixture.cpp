@@ -53,7 +53,7 @@ static bool Costume(ActorTrack &track, int frame, int set, int cmid, PChunkyReso
     costume.fCmtl = resource == pvNil ? tYes : tNo;
     costume.tag = {resource ? 0 : 2, resource, kctgMtrl, material};
     TagManager::DupTag(&costume.tag);
-    if (track.Events()->FInsert(track.Events()->IvMac(), sizeof(costume), &costume, &event))
+    if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), sizeof(costume), &costume, &event))
         return true;
     TagManager::CloseTag(&costume.tag);
     return false;
@@ -62,7 +62,7 @@ static bool AnimationEvents(ActorTrack &track, PChunkyResourceFile resource, Chu
 {
     const auto append = [&](int kind, int offset, int hold, const void *value, int bytes, int cached = 900) {
         ActorEvent::Base event = {kind, cached, {0, BR_SCALAR(offset), hold}};
-        return track.Events()->FInsert(track.Events()->IvMac(), bytes, const_cast<void *>(value), &event);
+        return mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), bytes, const_cast<void *>(value), &event);
     };
     int32_t freeze = 1, unfreeze = 0;
     BRS size = BR_SCALAR(1.5), stop = rZero, speed = BR_SCALAR(2);
@@ -211,14 +211,14 @@ static bool ActorAudioEvents(ActorTrack &track, PChunkyResourceFile resource, co
         sound.tag = {0, resource, kctgMsnd, sounds[sound.chid]};
         TagManager::DupTag(&sound.tag);
         LegacyLong index = 0;
-        for (; index < track.Events()->IvMac(); ++index)
+        for (; index < mm_actor_events_count(track.Events()); ++index)
         {
             ActorEvent::Base old;
-            track.Events()->GetFixed(index, &old);
+            mm_actor_events_get_fixed(track.Events(), index, &old);
             if (old.rtel.dwrOffset > event.rtel.dwrOffset)
                 break;
         }
-        if (!track.Events()->FInsert(index, sizeof(sound), &sound, &event))
+        if (!mm_actor_events_insert(track.Events(), index, sizeof(sound), &sound, &event))
         {
             TagManager::CloseTag(&sound.tag);
             return false;
@@ -419,11 +419,11 @@ int main(int argc, char **argv)
         ActorEvent::Add addition = {};
         ActorEvent::Action action = {movie && actor == 0 ? animation : 0, 0};
         BRS step = BR_SCALAR(2);
-        ok = track.Events()->FInsert(0, sizeof(addition), &addition, &event);
+        ok = mm_actor_events_insert(track.Events(), 0, sizeof(addition), &addition, &event);
         event.aet = ActorEvent::aetActn;
-        ok = ok && track.Events()->FInsert(1, sizeof(action), &action, &event);
+        ok = ok && mm_actor_events_insert(track.Events(), 1, sizeof(action), &action, &event);
         event.aet = ActorEvent::aetStep;
-        ok = ok && track.Events()->FInsert(2, sizeof(step), &step, &event);
+        ok = ok && mm_actor_events_insert(track.Events(), 2, sizeof(step), &step, &event);
         if (movie && actor == 0)
             ok = ok && Costume(track, 8, costumeSet, alternateCostume, pvNil, 0) &&
                  Costume(track, 20, costumeSet, originalCostume, pvNil, 0);
@@ -440,16 +440,16 @@ int main(int argc, char **argv)
         if (actor == 4)
         {
             mm_array_set_count(&track.Route()->rows, 0);
-            while (track.Events()->IvMac())
-                track.Events()->Delete(0);
+            while (mm_actor_events_count(track.Events()))
+                mm_actor_events_delete(track.Events(), 0);
         }
         ChunkNumber child;
         ok = ok && file->FAddChild(kctgActr, actorNumber, 0, mm_actor_path_wire_size(track.Route()), kctgPath, &child, &block) &&
              ActorData::FWritePath(track.Route(), &block);
-        auto wire = ActorData::PggWriteEvents(track.Events());
-        ok = ok && wire && file->FAddChild(kctgActr, actorNumber, 0, wire->CbOnFile(), kctgGgae, &child, &block) &&
-             wire->FWrite(&block);
-        ReleasePpo(&wire);
+        auto wire = ActorData::PeventsEncode(track.Events());
+        ok = ok && wire && file->FAddChild(kctgActr, actorNumber, 0, mm_actor_events_wire_size(wire), kctgGgae, &child, &block) &&
+             ActorData::FWriteEvents(wire, &block);
+        mm_actor_events_release(wire);
         std::uint32_t slot = actor;
         SceneEvent start = {1, sevtAddActr};
         ok = ok && starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &start);

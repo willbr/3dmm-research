@@ -75,7 +75,9 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     MMActorStoreServices services = {};
     services.context = &host;
     services.header = ActorData::HeaderIO(pcfl);
-    services.events = ActorData::EventServices();
+    const auto allocator = CollectionAllocator();
+    MMActorEventFactory factory = {&allocator, DebugShip(1, 0)};
+    services.events = mm_actor_events_services(&factory);
     services.materials = materials.Services();
     services.write_template = [](void *p, MMU32 type, MMU32 number) -> int {
         auto h = static_cast<Host *>(p);
@@ -97,9 +99,9 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
             return file->FAddChild(kctgActr, actor, 0, mm_actor_path_wire_size(path), type, &number, &block) &&
                    ActorData::FWritePath(path, &block);
         }
-        auto group = static_cast<PGeneralGroup>(track);
-        return file->FAddChild(kctgActr, actor, 0, group->CbOnFile(), type, &number, &block) &&
-               group->FWrite(&block);
+        auto events = static_cast<MMActorEventTable *>(track);
+        return file->FAddChild(kctgActr, actor, 0, mm_actor_events_wire_size(events), type, &number, &block) &&
+               ActorData::FWriteEvents(events, &block);
     };
     return mm_actor_store(cnoActr, cnoScene, &header, _track.Route(), _track.Events(), &services) != 0;
 }
@@ -122,7 +124,7 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
         goto LFail;
     if (!pactr->_track.AdoptRoute(ActorData::PpathRead(pcfl, cnoActr)))
         goto LFail;
-    if (!pactr->_track.AdoptEvents(ActorData::PggReadEvents(pcfl, cnoActr)))
+    if (!pactr->_track.AdoptEvents(ActorData::PeventsRead(pcfl, cnoActr)))
         goto LFail;
     if (!pactr->_FOpenTags(pcrf))
         goto LFail;
@@ -228,8 +230,8 @@ bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
     if (!TagManager::FOpenTag(&_tagTmpl, pcrf))
         return fFalse;
 
-    _track.Events()->Lock();
-    for (iaev = 0; iaev < _track.Events()->IvMac(); iaev++)
+    mm_actor_events_lock(_track.Events());
+    for (iaev = 0; iaev < mm_actor_events_count(_track.Events()); iaev++)
     {
         if (_FIsIaevTag(_track.Events(), iaev, &ptag))
         {
@@ -237,7 +239,7 @@ bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
                 goto LFail;
         }
     }
-    _track.Events()->Unlock();
+    mm_actor_events_unlock(_track.Events());
     return fTrue;
 LFail:
     // Close the tags that were opened before failure
@@ -246,7 +248,7 @@ LFail:
         if (_FIsIaevTag(_track.Events(), iaev, &ptag))
             TagManager::CloseTag(ptag);
     }
-    _track.Events()->Unlock();
+    mm_actor_events_unlock(_track.Events());
     return fFalse;
 }
 
@@ -265,7 +267,7 @@ void Actor::_CloseTags(void)
     If the iaev'th event of pggaev has a tag, sets *pptag to point to it.
     WARNING: unless you locked pggaev, *pptag is a qtag!
 ***************************************************************************/
-bool Actor::_FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, PBase *pqaev)
+bool Actor::_FIsIaevTag(MMActorEventTable *events, long iaev, PTAG *pptag, PBase *pqaev)
 {
-    return ActorTrack::FEventTag(pggaev, iaev, pptag, pqaev);
+    return ActorTrack::FEventTag(events, iaev, pptag, pqaev);
 }

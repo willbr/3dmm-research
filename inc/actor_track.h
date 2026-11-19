@@ -3,6 +3,7 @@
 #ifndef ACTOR_TRACK_H
 #define ACTOR_TRACK_H
 #include "actor_data.h"
+#include "mm/actor_events.h"
 #include "mm/actor_path.h"
 #include "mm/actor_track.h"
 
@@ -18,15 +19,15 @@ class ActorTrack
     MMActorTrack _storage = {};
 
   public:
-    PGeneralGroup Events() const
+    MMActorEventTable *Events() const
     {
-        return static_cast<PGeneralGroup>(_storage.events);
+        return static_cast<MMActorEventTable *>(_storage.events);
     }
     MMActorPath *Route() const
     {
         return static_cast<MMActorPath *>(_storage.route);
     }
-    PGeneralGroup AdoptEvents(PGeneralGroup);
+    MMActorEventTable *AdoptEvents(MMActorEventTable *);
     MMActorPath *AdoptRoute(MMActorPath *);
 
     ActorTrack() = default;
@@ -41,6 +42,6 @@ class ActorTrack
     void CloseTags();
     // Legacy byte-address accessor: group rows have four-byte alignment.
     // Copy the returned TAG to an aligned local before accessing its fields.
-    static bool FEventTag(PGeneralGroup events, LegacyLong index, PTAG *tag, ActorEvent::PBase *event = pvNil);
+    static bool FEventTag(MMActorEventTable *events, LegacyLong index, PTAG *tag, ActorEvent::PBase *event = pvNil);
 };
 #endif

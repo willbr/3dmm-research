@@ -188,7 +188,7 @@ static int retarget_sound(const MMActorArchiveRequest *request, const MMActorArc
 }
 
 static int retarget_events(const MMActorArchiveRequest *request, const MMActorArchiveHost *host,
-                           MMU32 copied, MMWide delta, MMGroup *events, MMArray *sounds)
+                           MMU32 copied, MMWide delta, MMActorEventTable *events, MMArray *sounds)
 {
     MMU32 i;
     MMActorEvent event;
@@ -196,32 +196,32 @@ static int retarget_events(const MMActorArchiveRequest *request, const MMActorAr
     MMActorSound sound;
     void *fixed;
     int result;
-    for (i = 0; i < events->count; ++i)
+    for (i = 0; i < events->rows.count; ++i)
     {
-        fixed = mm_actor_archive_event(events, i);
+        fixed = mm_actor_events_fixed(events, i);
         memcpy(&event, fixed, sizeof(event));
         if (!shift_frame(&event.nfrm, delta))
             return MM_ACTOR_ARCHIVE_FRAME;
         memcpy(fixed, &event, sizeof(event));
         if (event.aet == MM_ACTOR_COSTUME)
         {
-            memcpy(&costume, mm_actor_archive_payload(events, i), sizeof(costume));
+            memcpy(&costume, mm_actor_events_payload(events, i, NULL), sizeof(costume));
             if (costume.custom)
                 continue;
             result = retarget(host, ACTOR_TYPE, copied, &costume.tag);
             if (result != MM_ACTOR_ARCHIVE_OK)
                 return result;
-            memcpy(mm_actor_archive_payload(events, i), &costume, sizeof(costume));
+            memcpy(mm_actor_events_payload(events, i, NULL), &costume, sizeof(costume));
         }
         else if (event.aet == MM_ACTOR_SOUND)
         {
-            memcpy(&sound, mm_actor_archive_payload(events, i), sizeof(sound));
+            memcpy(&sound, mm_actor_events_payload(events, i, NULL), sizeof(sound));
             if (sound.no_sound)
                 continue;
             result = retarget_sound(request, host, sounds, &sound);
             if (result != MM_ACTOR_ARCHIVE_OK)
                 return result;
-            memcpy(mm_actor_archive_payload(events, i), &sound, sizeof(sound));
+            memcpy(mm_actor_events_payload(events, i, NULL), &sound, sizeof(sound));
         }
     }
     return MM_ACTOR_ARCHIVE_OK;
@@ -233,7 +233,7 @@ int mm_actor_archive_transfer(const MMActorArchiveRequest *request, const MMActo
     MMActorHeader header;
     MMU32 copied;
     MMWide delta;
-    MMGroup *events;
+    MMActorEventTable *events;
     const MMMovieArchiveEditor *editor = host->destination;
     MMCollectionStorage storage;
     MMArray sounds;
@@ -265,7 +265,7 @@ int mm_actor_archive_transfer(const MMActorArchiveRequest *request, const MMActo
     mm_storage_dispose(&storage);
     if (result == MM_ACTOR_ARCHIVE_OK && !mm_actor_archive_replace_event_group(editor, copied, events))
         result = MM_ACTOR_ARCHIVE_WRITE_EVENTS;
-    mm_actor_archive_release_event_group(events);
+    mm_actor_events_release(events);
     if (result != MM_ACTOR_ARCHIVE_OK)
         return result;
     *actor = copied;

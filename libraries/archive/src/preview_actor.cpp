@@ -298,12 +298,13 @@ struct PreviewActor::TrackDraft
     bool Write(const std::string &path, bool withRoute) const
     {
         auto release = [](auto *p) { if (p) p->Release(); };
-        std::unique_ptr<GeneralGroup, decltype(release)> wire(ActorData::PggWriteEvents(actor.track.Events()), release);
+        std::unique_ptr<MMActorEventTable, decltype(&mm_actor_events_release)> wire(
+            ActorData::PeventsEncode(actor.track.Events()), mm_actor_events_release);
         String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
         if (!wire || !filename.FBuildFromPath(&text)) return false;
         std::unique_ptr<ChunkyFile, decltype(release)> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable), release);
         ChunkNumber number; DataBlock block;
-        if (!file || !file->FAdd(wire->CbOnFile(), kctgGgae, &number, &block) || number != 0 || !wire->FWrite(&block))
+        if (!file || !file->FAdd(mm_actor_events_wire_size(wire.get()), kctgGgae, &number, &block) || number != 0 || !ActorData::FWriteEvents(wire.get(), &block))
             return false;
         auto route = actor.track.Route();
         if (withRoute && (!file->FAdd(mm_actor_path_wire_size(route), kctgPath, &number, &block) || number != 0 || !ActorData::FWritePath(route, &block)))
@@ -365,7 +366,7 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
     if (!file || !file->Pcfl()->FFind(kctgGgae, 0, &block)) return false;
     ActorTrack saved;
     if (!saved.FCloneFrom(track)) return false;
-    auto events = ActorData::PggReadEvents(&block);
+    auto events = ActorData::PeventsRead(&block);
     if (!events) return false;
     saved.AdoptEvents(events);
     const auto original = core;
@@ -409,7 +410,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const ActorTrack &events, Leg
     effects.write_event = [](void *group, MMI32 row, const MMActorEvent *value) {
         Base event;
         std::memcpy(&event, value, sizeof(event));
-        static_cast<PGeneralGroup>(group)->PutFixed(row, &event);
+        mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(group), row, &event);
     };
     effects.run = [](void *context, const MMActorEffectCommand *command, MMActorEffectReply *reply) {
         auto &host = *static_cast<Host *>(context);
@@ -492,8 +493,8 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const ActorTrack &events, Leg
         {
             MMActorEvent event;
             MMActorSound sound;
-            host.track->Events()->GetFixed(command->first, &event);
-            host.track->Events()->Get(command->first, &sound);
+            mm_actor_events_get_fixed(host.track->Events(), command->first, &event);
+            mm_actor_events_get_payload(host.track->Events(), command->first, &sound);
             MMActorSoundServices services = {};
             services.context = &host;
             services.cues_only = 1;

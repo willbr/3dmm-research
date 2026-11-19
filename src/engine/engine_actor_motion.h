@@ -24,11 +24,11 @@ inline MMActorMotionServices Services()
             [](void *p, MMI32 i, MMActorRoutePoint *out) {
                 mm_actor_path_get(static_cast<const MMActorPath *>(p), i, out);
             },
-            [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbFixed(); },
-            [](void *g) -> MMI32 { return static_cast<PGeneralGroup>(g)->IvMac(); },
-            [](void *g, MMI32 i, MMActorEvent *out) { static_cast<PGeneralGroup>(g)->GetFixed(i, out); },
-            [](void *g, MMI32 i) -> MMI32 { return static_cast<PGeneralGroup>(g)->Cb(i); },
-            [](void *g, MMI32 i, void *out) { static_cast<PGeneralGroup>(g)->Get(i, out); }};
+            [](void *g) -> MMU32 { return static_cast<const MMActorEventTable *>(g)->rows.fixed_bytes; },
+            [](void *g) -> MMI32 { return mm_actor_events_count(static_cast<MMActorEventTable *>(g)); },
+            [](void *g, MMI32 i, MMActorEvent *out) { mm_actor_events_get_fixed(static_cast<MMActorEventTable *>(g), i, out); },
+            [](void *g, MMI32 i) -> MMI32 { return mm_actor_events_size(static_cast<MMActorEventTable *>(g), i); },
+            [](void *g, MMI32 i, void *out) { mm_actor_events_get_payload(static_cast<MMActorEventTable *>(g), i, out); }};
 }
 inline MMActorMatrix Matrix(const BMAT34 &native)
 {

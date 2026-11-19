@@ -60,21 +60,6 @@ const MMActorRouteReader kRouteReader = {nullptr,
     },
     [](void *p) { mm_actor_path_release(static_cast<MMActorPath *>(p)); }};
 } // namespace
-MMActorEventServices ActorData::EventServices()
-{
-    return {nullptr,
-            [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbFixed(); },
-            [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->IvMac(); },
-            [](void *g, MMU32 i) -> void * { return static_cast<PGeneralGroup>(g)->QvFixedGet(i); },
-            [](void *g, MMU32 i) -> MMI32 { return static_cast<PGeneralGroup>(g)->Cb(i); },
-            [](void *g, MMU32 i) -> void * { return static_cast<PGeneralGroup>(g)->QvGet(i); },
-            [](void *, MMU32 fixed) -> void * { return GeneralGroup::PggNew(fixed); },
-            [](void *g, MMU32 i, MMU32 bytes, const void *variable, const void *fixed) -> int {
-                return static_cast<PGeneralGroup>(g)->FInsert(i, bytes, const_cast<void *>(variable),
-                                                              const_cast<void *>(fixed));
-            },
-            [](void *g) { static_cast<PGeneralGroup>(g)->Release(); }};
-}
 bool ActorData::FReadHeader(PDataBlock block, ActorChunkOnFile *header)
 {
     AssertPo(block, 0);
@@ -117,37 +102,55 @@ MMActorPath *ActorData::PpathRead(PChunkyFile file, ChunkNumber actor)
         return nullptr;
     return static_cast<MMActorPath *>(route);
 }
-bool ActorData::FWritePath(MMActorPath *path, PDataBlock block)
+namespace
 {
-    const MMStorageWriter writer = {
+MMStorageWriter TrackWriter(PDataBlock block)
+{
+    return {
         block, static_cast<MMU32>(block->Cb()),
         [](void *p, MMU32 offset, const void *data, size_t bytes) -> int {
             return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), bytes, offset);
         }};
+}
+} // namespace
+bool ActorData::FWritePath(MMActorPath *path, PDataBlock block)
+{
+    const auto writer = TrackWriter(block);
     return mm_actor_path_write(path, koskCur, &writer) != 0;
 }
-PGeneralGroup ActorData::PggReadEvents(PDataBlock block)
+MMActorEventTable *ActorData::PeventsRead(PDataBlock block)
 {
     if (!block->FUnpackData())
         return nullptr;
     const auto stream = EngineReadStream::FromBlock(*block);
-    const auto services = EventServices();
+    const auto allocator = CollectionAllocator();
+    MMActorEventFactory factory = {&allocator, DebugShip(1, 0)};
+    const auto services = mm_actor_events_services(&factory);
     void *events;
     if (mm_actor_read_events_stream(&stream, &services, &events) != MM_MOVIE_OK)
         return nullptr;
-    return static_cast<PGeneralGroup>(events);
+    return static_cast<MMActorEventTable *>(events);
 }
-PGeneralGroup ActorData::PggReadEvents(PChunkyFile file, ChunkNumber actor)
+MMActorEventTable *ActorData::PeventsRead(PChunkyFile file, ChunkNumber actor)
 {
     const auto graph = EngineMovieGraph::FromFile(file);
-    const auto services = EventServices();
+    const auto allocator = CollectionAllocator();
+    MMActorEventFactory factory = {&allocator, DebugShip(1, 0)};
+    const auto services = mm_actor_events_services(&factory);
     void *events;
     if (mm_movie_actor_events(&graph, actor, &services, &events) != MM_MOVIE_OK)
         return nullptr;
-    return static_cast<PGeneralGroup>(events);
+    return static_cast<MMActorEventTable *>(events);
 }
-PGeneralGroup ActorData::PggWriteEvents(PGeneralGroup events)
+MMActorEventTable *ActorData::PeventsEncode(MMActorEventTable *events)
 {
-    const auto services = EventServices();
-    return static_cast<PGeneralGroup>(mm_actor_write_events(events, &services));
+    const auto allocator = CollectionAllocator();
+    MMActorEventFactory factory = {&allocator, DebugShip(1, 0)};
+    const auto services = mm_actor_events_services(&factory);
+    return static_cast<MMActorEventTable *>(mm_actor_write_events(events, &services));
+}
+bool ActorData::FWriteEvents(MMActorEventTable *events, PDataBlock block, short order)
+{
+    const auto writer = TrackWriter(block);
+    return mm_actor_events_write(events, koskCur, order == kboOther, &writer) != 0;
 }

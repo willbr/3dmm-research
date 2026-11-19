@@ -253,11 +253,10 @@ const ByteOrderMask kbomActf = 0x5fffff00;
 // Actor persistence without Scene, Movie, World, audio or UI objects.
 struct MMActorPath;
 struct MMActorHeaderIO;
-struct MMActorEventServices;
+struct MMActorEventTable;
 struct ActorData
 {
     static MMActorHeaderIO HeaderIO(PChunkyFile file);
-    static MMActorEventServices EventServices();
     static bool FReadHeader(PDataBlock block, ActorChunkOnFile *header);
     static bool FReadHeader(PChunkyFile file, ChunkNumber actor, void *header);
     static bool FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header);
@@ -266,9 +265,10 @@ struct ActorData
     static MMActorPath *PpathRead(PChunkyFile file, ChunkNumber actor);
     static bool FWritePath(MMActorPath *, PDataBlock);
     // Returned events have runtime-width values with unopened TAGs (pcrf=nil).
-    static PGeneralGroup PggReadEvents(PDataBlock block);
-    static PGeneralGroup PggReadEvents(PChunkyFile file, ChunkNumber actor);
+    static MMActorEventTable *PeventsRead(PDataBlock block);
+    static MMActorEventTable *PeventsRead(PChunkyFile file, ChunkNumber actor);
     // Borrows runtime events. Returned wire values own no TAG references.
-    static PGeneralGroup PggWriteEvents(PGeneralGroup events);
+    static MMActorEventTable *PeventsEncode(MMActorEventTable *events);
+    static bool FWriteEvents(MMActorEventTable *, PDataBlock, short order = kboCur);
 };
 #endif

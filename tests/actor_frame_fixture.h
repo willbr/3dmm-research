@@ -35,7 +35,7 @@ inline bool FCreateTrack(ActorTrack &track, bool includeSounds = true)
             return false;
     auto append = [&](LegacyLong type, LegacyLong frame, RouteLocation location, void *payload, LegacyLong bytes) {
         ActorEvent::Base event = {static_cast<int32_t>(type), static_cast<int32_t>(frame), location};
-        return created.Events()->FInsert(created.Events()->IvMac(), bytes, payload, &event);
+        return mm_actor_events_insert(created.Events(), mm_actor_events_count(created.Events()), bytes, payload, &event);
     };
     RouteLocation location = {0, rZero, 0};
     ActorEvent::Add addition = {};
@@ -93,27 +93,27 @@ inline bool FCreateMetadataTrack(ActorTrack &track, bool freezeAtFour)
         return false;
     ActorEvent::Base event = {ActorEvent::aetAdd, -2, {0, rZero, 0}};
     ActorEvent::Add addition = {};
-    if (!created.Events()->FInsert(0, sizeof(addition), &addition, &event))
+    if (!mm_actor_events_insert(created.Events(), 0, sizeof(addition), &addition, &event))
         return false;
     event.aet = ActorEvent::aetActn;
     event.nfrm = -777; // Calculation must replace stale caches.
     ActorEvent::Action action = {0, 1};
-    if (!created.Events()->FInsert(1, sizeof(action), &action, &event))
+    if (!mm_actor_events_insert(created.Events(), 1, sizeof(action), &action, &event))
         return false;
     event.aet = ActorEvent::aetStep;
     BRS step = kdwrNil;
-    if (!created.Events()->FInsert(2, sizeof(step), &step, &event))
+    if (!mm_actor_events_insert(created.Events(), 2, sizeof(step), &step, &event))
         return false;
     event.aet = ActorEvent::aetSize;
     BRS scale = BR_SCALAR(2);
-    if (!created.Events()->FInsert(3, sizeof(scale), &scale, &event))
+    if (!mm_actor_events_insert(created.Events(), 3, sizeof(scale), &scale, &event))
         return false;
     if (freezeAtFour)
     {
         event.aet = ActorEvent::aetFreeze;
         event.rtel.dwrOffset = BR_SCALAR(4);
         int32_t frozen = 1;
-        if (!created.Events()->FInsert(4, sizeof(frozen), &frozen, &event))
+        if (!mm_actor_events_insert(created.Events(), 4, sizeof(frozen), &frozen, &event))
             return false;
     }
     track.Swap(created);

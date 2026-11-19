@@ -22,7 +22,7 @@ typedef struct Reframe
 typedef struct Track
 {
     MMArray route;
-    MMGroup *events;
+    MMActorEventTable *events;
     const Reframe *change;
     const MMSceneReframeHost *host;
     const MMSceneReframePose *pose;
@@ -156,9 +156,9 @@ static void *route_row(MMArray *route, MMU32 row)
     return route->storage->buffers[0].data + row * route->width;
 }
 
-static void read_event(MMGroup *events, MMU32 row, MMActorEvent *event)
+static void read_event(MMActorEventTable *events, MMU32 row, MMActorEvent *event)
 {
-    memcpy(event, mm_actor_archive_event(events, row), sizeof(*event));
+    memcpy(event, mm_actor_events_fixed(events, row), sizeof(*event));
 }
 
 static int split_segment(Track *track)
@@ -191,7 +191,7 @@ static int split_segment(Track *track)
         first.dwr = old.dwrOffset;
         memcpy(route_row(&track->route, node), &first, sizeof(first));
     }
-    for (i = 0; i < track->events->count; ++i)
+    for (i = 0; i < track->events->rows.count; ++i)
     {
         read_event(track->events, i, &event);
         if (event.rtel.irpt == old.irpt && event.rtel.dwrOffset >= old.dwrOffset)
@@ -207,7 +207,7 @@ static int split_segment(Track *track)
         }
         else
             continue;
-        memcpy(mm_actor_archive_event(track->events, i), &event, sizeof(event));
+        memcpy(mm_actor_events_fixed(track->events, i), &event, sizeof(event));
     }
     ++track->cut.irpt;
     track->cut.dwrOffset = 0;
@@ -222,7 +222,7 @@ static int locate_active_entrance(Track *track)
     if (!track->pose)
         return MM_SCENE_REFRAME_OK;
     track->cut = track->pose->location;
-    for (i = 0; i < track->events->count; ++i)
+    for (i = 0; i < track->events->rows.count; ++i)
     {
         read_event(track->events, i, &event);
         if (event.aet == MM_ACTOR_ADD && event.nfrm <= track->frame && location_le(&event.rtel, &track->cut))
@@ -260,7 +260,7 @@ static int rewrite_entrance(Track *track, MMU32 row, MMActorEntrance *add,
         mm_matrix_multiply(&transformed, entrance, &track->change->rotation);
         track->host->to_euler(&transformed, add);
     }
-    memcpy(mm_actor_archive_payload(track->events, row), add, sizeof(*add));
+    memcpy(mm_actor_events_payload(track->events, row, NULL), add, sizeof(*add));
     return 1;
 }
 
@@ -272,7 +272,7 @@ static int track_event(Track *track, MMU32 row, MMI32 kind, const MMActorPoint *
     void *payload;
     if (kind == MM_ACTOR_MOVE || kind == MM_ACTOR_TWEAK)
     {
-        payload = mm_actor_archive_payload(track->events, row);
+        payload = mm_actor_events_payload(track->events, row, NULL);
         memcpy(&point, payload, sizeof(point));
         if (!point_reframe(track->change, &point, anchor))
             return 0;
@@ -280,7 +280,7 @@ static int track_event(Track *track, MMU32 row, MMI32 kind, const MMActorPoint *
     }
     else if (kind == MM_ACTOR_ROTATE_HERE || (kind == MM_ACTOR_ROTATE_FORWARD && !follows_path))
     {
-        payload = mm_actor_archive_payload(track->events, row);
+        payload = mm_actor_events_payload(track->events, row, NULL);
         memcpy(&before, payload, sizeof(before));
         if (kind == MM_ACTOR_ROTATE_FORWARD)
         {
@@ -309,7 +309,7 @@ static int insert_at_cut(Track *track, MMU32 index, int partial, MMU32 *end)
         if (!displacement(track->change, &track->pose->translation, &track->pivot, &delta))
             return MM_SCENE_REFRAME_RANGE;
         event.aet = MM_ACTOR_MOVE;
-        if (mm_group_insert(track->events, index++, sizeof(delta), &delta, &event) != MM_STORAGE_OK)
+        if (!mm_actor_events_insert(track->events, index++, sizeof(delta), &delta, &event))
             return MM_SCENE_REFRAME_EVENTS;
         ++*end;
         point = track->pose->position;
@@ -318,7 +318,7 @@ static int insert_at_cut(Track *track, MMU32 index, int partial, MMU32 *end)
             if (!point_reframe(track->change, &point, &track->pivot))
                 return MM_SCENE_REFRAME_RANGE;
             event.aet = MM_ACTOR_TWEAK;
-            if (mm_group_insert(track->events, index++, sizeof(point), &point, &event) != MM_STORAGE_OK)
+            if (!mm_actor_events_insert(track->events, index++, sizeof(point), &point, &event))
                 return MM_SCENE_REFRAME_EVENTS;
             ++*end;
         }
@@ -329,7 +329,7 @@ static int insert_at_cut(Track *track, MMU32 index, int partial, MMU32 *end)
     if (!matrix_reframe(track->change, &before, &rotation))
         return MM_SCENE_REFRAME_RANGE;
     event.aet = MM_ACTOR_ROTATE_HERE;
-    if (mm_group_insert(track->events, index, sizeof(rotation), &rotation, &event) != MM_STORAGE_OK)
+    if (!mm_actor_events_insert(track->events, index, sizeof(rotation), &rotation, &event))
         return MM_SCENE_REFRAME_EVENTS;
     ++*end;
     return MM_SCENE_REFRAME_OK;
@@ -347,7 +347,7 @@ static int reframe_subroute(Track *track, MMU32 start, MMU32 *end_out)
     read_event(track->events, start, &entry);
     if (entry.aet != MM_ACTOR_ADD || entry.rtel.irpt < 0 || (MMU32)entry.rtel.irpt >= track->route.count)
         return MM_SCENE_REFRAME_ENTRANCE;
-    for (end = start + 1; end < track->events->count; ++end)
+    for (end = start + 1; end < track->events->rows.count; ++end)
     {
         read_event(track->events, end, &event);
         if (event.aet == MM_ACTOR_ADD)
@@ -361,7 +361,7 @@ static int reframe_subroute(Track *track, MMU32 start, MMU32 *end_out)
         return MM_SCENE_REFRAME_OK;
     }
     first = partial ? (MMU32)track->cut.irpt + 1 : (MMU32)entry.rtel.irpt;
-    last = end < track->events->count ? (MMU32)event.rtel.irpt : track->route.count;
+    last = end < track->events->rows.count ? (MMU32)event.rtel.irpt : track->route.count;
     if (last < first || last > track->route.count)
         return MM_SCENE_REFRAME_SUBROUTE;
     for (node = first; node < last; ++node)
@@ -372,7 +372,7 @@ static int reframe_subroute(Track *track, MMU32 start, MMU32 *end_out)
         /* Preserve interpolation distances and timing. */
         memcpy(route_row(&track->route, node), &point, sizeof(point));
     }
-    memcpy(&add, mm_actor_archive_payload(track->events, start), sizeof(add));
+    memcpy(&add, mm_actor_events_payload(track->events, start, NULL), sizeof(add));
     track->host->from_euler(&add, &entrance);
     inverse_entrance(&entrance, &inverse);
     memcpy(&point, route_row(&track->route, (MMU32)entry.rtel.irpt), sizeof(point));
@@ -388,7 +388,7 @@ static int reframe_subroute(Track *track, MMU32 start, MMU32 *end_out)
         mm_matrix_multiply(&basis, &transformed, &inverse);
         event = entry;
         event.aet = MM_ACTOR_ROTATE_FORWARD;
-        if (mm_group_insert(track->events, at++, sizeof(basis), &basis, &event) != MM_STORAGE_OK)
+        if (!mm_actor_events_insert(track->events, at++, sizeof(basis), &basis, &event))
             return MM_SCENE_REFRAME_EVENTS;
         ++end;
     }
@@ -485,7 +485,7 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
     if (!track.events)
         goto done;
     result = locate_active_entrance(&track);
-    for (row = 0; result == MM_SCENE_REFRAME_OK && row < track.events->count;)
+    for (row = 0; result == MM_SCENE_REFRAME_OK && row < track.events->rows.count;)
         result = reframe_subroute(&track, row, &row);
     if (result != MM_SCENE_REFRAME_OK)
         goto done;
@@ -500,7 +500,7 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
         result = MM_SCENE_REFRAME_LINK;
 done:
     if (track.events)
-        mm_actor_archive_release_event_group(track.events);
+        mm_actor_events_release(track.events);
     mm_storage_dispose(&route_storage);
     return result;
 }

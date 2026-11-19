@@ -10,25 +10,24 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         e.context = this;
         e.close_event_tag = [](void *v, MMI32 i) {
             auto g = static_cast<CostumeHost *>(v)->actor->track.Events(); PTAG tag;
-            g->Lock(); if (ActorTrack::FEventTag(g, i, &tag)) TagManager::CloseTag(tag); g->Unlock();
+            mm_actor_events_lock(g); if (ActorTrack::FEventTag(g, i, &tag)) TagManager::CloseTag(tag); mm_actor_events_unlock(g);
         };
         e.duplicate_event_tag = [](void *v, MMI32 i) {
             auto g = static_cast<CostumeHost *>(v)->actor->track.Events(); PTAG tag;
-            g->Lock(); if (ActorTrack::FEventTag(g, i, &tag)) TagManager::DupTag(tag); g->Unlock();
+            mm_actor_events_lock(g); if (ActorTrack::FEventTag(g, i, &tag)) TagManager::DupTag(tag); mm_actor_events_unlock(g);
         };
-        e.delete_event = [](void *v, MMI32 i) { static_cast<CostumeHost *>(v)->actor->track.Events()->Delete(i); };
+        e.delete_event = [](void *v, MMI32 i) { mm_actor_events_delete(static_cast<CostumeHost *>(v)->actor->track.Events(), i); };
         e.scene_frame = [](void *v, MMI32 *f) { *f = static_cast<CostumeHost *>(v)->actor->core.state.frame; return 1; };
         e.update_sound_frame = [](void *) {};
         e.insert_event = [](void *v, MMI32 i, MMU32 bytes, const void *p, const MMActorEvent *event) -> int {
             auto &h = *static_cast<CostumeHost *>(v);
-            return h.Guard([&] { ActorEvent::Base value; std::memcpy(&value, event, sizeof(value));
-                return int(h.actor->track.Events()->FInsert(i, bytes, const_cast<void *>(p), &value)); }) > 0;
+            return h.Guard([&] { return mm_actor_events_insert(h.actor->track.Events(), i, bytes, p, event); }) > 0;
         };
         e.write_payload = [](void *v, MMI32 i, const void *p) {
-            static_cast<CostumeHost *>(v)->actor->track.Events()->Put(i, const_cast<void *>(p));
+            mm_actor_events_set_payload(static_cast<CostumeHost *>(v)->actor->track.Events(), i, p);
         };
         e.copy_payload = [](void *v, MMI32 dst, MMI32 src) {
-            auto g = static_cast<CostumeHost *>(v)->actor->track.Events(); g->Put(dst, g->QvGet(src));
+            auto g = static_cast<CostumeHost *>(v)->actor->track.Events(); mm_actor_events_copy_payload(g, dst, src);
         };
         e.apply_event = [](void *v, MMActorState *state, MMI32 i) -> int {
             auto &h = *static_cast<CostumeHost *>(v);
@@ -50,7 +49,7 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
     static int Reserve(void *v, MMU32 entries, MMU32 bytes)
     {
         auto &h = *static_cast<CostumeHost *>(v);
-        return h.Guard([&] { return int(h.actor->track.Events()->FEnsureSpace(entries, bytes, fgrpNil)); }) > 0;
+        return h.Guard([&] { return int(mm_actor_events_reserve(h.actor->track.Events(), entries, bytes)); }) > 0;
     }
     MMActorCostumeEditServices Services()
     {

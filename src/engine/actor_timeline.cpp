@@ -58,7 +58,7 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong first, 
 }
 bool ActorTimeline::FIsStalled(const ActorTrack &track, LegacyLong first, RouteLocation *location, LegacyLong *last)
 {
-    AssertIn(first, 0, track.Events()->IvMac());
+    AssertIn(first, 0, mm_actor_events_count(track.Events()));
     AssertNilOrVarMem(last);
     const ActorStepSource steps;
     EngineActorTimeline::Host host = {&steps};
@@ -91,7 +91,7 @@ ActorQuickSeekResult ActorTimeline::QuickBackup(ActorFrameState &state, const Ac
     Assert(target < state.frame, "Illegal call to _FBackupToFrm");
 #ifdef DEBUG
     ActorEvent::Base event;
-    track.Events()->GetFixed(state.nextEvent - 1, &event);
+    mm_actor_events_get_fixed(track.Events(), state.nextEvent - 1, &event);
     Assert(event.nfrm < target, "Invalid Call to _FQuickBackupToFrm()");
 #endif
     EngineActorTimeline::Host host = {&steps, &state};

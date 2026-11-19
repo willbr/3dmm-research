@@ -18,8 +18,7 @@ inline MMActorTimelineServices Services(Host *host)
                                       host,
                                       nullptr,
                                       [](void *g, MMI32 i, const MMActorEvent *e) {
-                                          static_cast<PGeneralGroup>(g)->PutFixed(i,
-                                                                                  const_cast<MMActorEvent *>(e));
+                                          mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(g), i, e);
                                       },
                                       Diagnostic,
                                       [](void *p, const MMActorState *state) {

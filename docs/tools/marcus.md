@@ -2648,6 +2648,17 @@ prior SDL seek image. Both ports still differed from retail in seek pixels
 and mixed PCM, and SDL differed in playback timing. Evidence is in
 `tmp/c89-actor-routes/`.
 
+Actor event tables now use C89 storage for playback, edits, undo and saves
+in Studio and Marcus. The Studio round-trip edited an actor's position and
+embedded material, then exercised undo, redo, seeks and reopen. Both
+builds matched the editor observations and all 72 saved chunk payloads
+and graph entries, including all 12 GGAE chunks with their costume and
+sound events. Retail, SDL Studio and Marcus captured the same 60-frame
+sequence in seek and playback. SDL matched all 60 prior SDL seek
+images. Both ports differed from retail in seek pixels and mixed PCM,
+and SDL differed in playback timing. Evidence is in
+`tmp/c89-actor-events/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

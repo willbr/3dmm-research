@@ -16,128 +16,52 @@
 #define THUMB_TYPE 0x5448554dUL
 #define MATERIAL_TYPE 0x4d54524cUL
 
-typedef struct ActorGroup
-{
-    MMGroup group;
-    MMCollectionStorage storage;
-} ActorGroup;
-
-static void *new_group(void *context, MMU32 width)
-{
-    ActorGroup *owner;
-    (void)context;
-    owner = (ActorGroup *)calloc(1, sizeof(*owner));
-    if (!owner)
-        return NULL;
-    mm_storage_init(&owner->storage, NULL);
-    owner->group.storage = &owner->storage;
-    owner->group.fixed_bytes = width;
-    owner->group.free_count = -1;
-    return &owner->group;
-}
-
-static void release_group(void *value)
-{
-    ActorGroup *owner = (ActorGroup *)value;
-    mm_storage_dispose(&owner->storage);
-    free(owner);
-}
-
-static MMU32 group_width(void *value) { return ((MMGroup *)value)->fixed_bytes; }
-static MMU32 group_count(void *value) { return ((MMGroup *)value)->count; }
-
-static void *group_fixed(void *value, MMU32 row)
-{
-    MMGroup *group = (MMGroup *)value;
-    MMGroupLocation location;
-    return mm_group_location(group, row, &location) == MM_STORAGE_OK
-        ? group->storage->buffers[0].data + location.offset : NULL;
-}
-
-static MMI32 group_size(void *value, MMU32 row)
-{
-    MMGroup *group = (MMGroup *)value;
-    MMGroupLocation location;
-    return mm_group_location(group, row, &location) == MM_STORAGE_OK
-        ? location.bytes - (MMI32)group->fixed_bytes : -1;
-}
-
-static void *group_data(void *value, MMU32 row)
-{
-    unsigned char *fixed = (unsigned char *)group_fixed(value, row);
-    return fixed ? fixed + group_width(value) : NULL;
-}
-
-static int group_insert(void *value, MMU32 row, MMU32 size, const void *data, const void *fixed)
-{
-    return mm_group_insert((MMGroup *)value, row, size, data, fixed) == MM_STORAGE_OK;
-}
-
-static const MMActorEventServices track_groups = {
-    NULL, group_width, group_count, group_fixed, group_size, group_data, new_group, group_insert, release_group
-};
-
-void *mm_actor_archive_event(MMGroup *group, MMU32 row) { return group_fixed(group, row); }
-void *mm_actor_archive_payload(MMGroup *group, MMU32 row) { return group_data(group, row); }
-void mm_actor_archive_release_event_group(MMGroup *group) { release_group(group); }
-
-MMGroup *mm_actor_archive_read_event_group(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 *number)
+MMActorEventTable *mm_actor_archive_read_event_group(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 *number)
 {
     MMChunkAccess chunks;
     MMReadStream stream;
     MMU32 source;
     void *group;
+    MMActorEventServices services = mm_actor_events_services(NULL);
     chunks = editor->chunks(editor->context);
     if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, EVENTS_TYPE, &source) != MM_CHUNK_OK ||
         !editor->read(editor->context, EVENTS_TYPE, source, &stream) ||
-        mm_actor_read_events_stream(&stream, &track_groups, &group) != MM_MOVIE_OK)
+        mm_actor_read_events_stream(&stream, &services, &group) != MM_MOVIE_OK)
         return NULL;
     if (number)
         *number = source;
-    return (MMGroup *)group;
+    return (MMActorEventTable *)group;
 }
 
-static int write_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number,
+static int write_track(const MMMovieArchiveEditor *editor, MMActorEventTable *group, MMU32 *number,
                        const MMU32 *attach, int replace)
 {
-    MMCollectionHeader header = {0};
     MMStorageWriter writer;
-    unsigned char bytes[20];
-    const unsigned short one = 1;
-    MMU32 size;
-    header.kind = MM_COLLECTION_GROUP;
-    header.system = editor->system;
-    header.big_endian = *(const unsigned char *)&one == 0;
-    header.width = group->fixed_bytes;
-    header.count = group->count;
-    header.bytes = group->bytes;
-    header.free_count = group->free_count;
-    if (mm_collection_layout(&header) != MM_STORAGE_OK ||
-        mm_collection_header_write(&header, bytes, sizeof(bytes)) != MM_STORAGE_OK)
+    MMU32 size = mm_actor_events_wire_size(group);
+    if (!size)
         return 0;
-    size = header.header_bytes + header.first_bytes + header.second_bytes;
     if (replace ? !editor->replace(editor->context, EVENTS_TYPE, *number, size, &writer)
                 : !editor->add(editor->context, EVENTS_TYPE, size, number, &writer))
         return 0;
     return (!attach || editor->adopt(editor->context, ACTOR_TYPE, *attach, EVENTS_TYPE, *number, 0)) &&
-        mm_storage_write(group->storage, &writer, bytes, sizeof(bytes), header.first_bytes, header.second_bytes) ==
-            MM_STORAGE_OK;
+        mm_actor_events_write(group, editor->system, 0, &writer);
 }
 
-static int encode_track(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number,
+static int encode_track(const MMMovieArchiveEditor *editor, MMActorEventTable *group, MMU32 *number,
                         const MMU32 *attach, int replace)
 {
-    MMGroup *wire;
+    MMActorEventTable *wire;
+    MMActorEventServices services = mm_actor_events_services(NULL);
     int result;
-    wire = (MMGroup *)mm_actor_write_events(group, &track_groups);
+    wire = (MMActorEventTable *)mm_actor_write_events(group, &services);
     if (!wire)
         return 0;
     result = write_track(editor, wire, number, attach, replace);
-    release_group(wire);
+    mm_actor_events_release(wire);
     return result;
 }
 
-int mm_actor_archive_write_event_group(const MMMovieArchiveEditor *editor, MMGroup *group, MMU32 *number,
+int mm_actor_archive_write_event_group(const MMMovieArchiveEditor *editor, MMActorEventTable *group, MMU32 *number,
                                        const MMU32 *attach)
 {
     return encode_track(editor, group, number, attach, 0);
@@ -162,23 +86,23 @@ int mm_actor_archive_write_stationary(const MMMovieArchiveEditor *editor, MMU32 
                                       const unsigned short angles[3])
 {
     MMActorStationaryTrack track;
-    MMGroup *group;
+    MMActorEventTable *group;
     MMU32 number;
     int result;
-    group = (MMGroup *)new_group(NULL, MM_ACTOR_EVENT_BYTES);
+    group = mm_actor_events_create(NULL, 0, 0);
     if (!group)
         return 0;
     mm_actor_stationary_track(&track, frame, angles);
-    result = group_insert(group, 0, sizeof(track.entrance), &track.entrance, &track.events[0]) &&
-        group_insert(group, 1, sizeof(track.action), track.action, &track.events[1]) &&
-        group_insert(group, 2, sizeof(track.step), &track.step, &track.events[2]) &&
+    result = mm_actor_events_insert(group, 0, sizeof(track.entrance), &track.entrance, &track.events[0]) &&
+        mm_actor_events_insert(group, 1, sizeof(track.action), track.action, &track.events[1]) &&
+        mm_actor_events_insert(group, 2, sizeof(track.step), &track.step, &track.events[2]) &&
         mm_actor_archive_write_route(editor, actor, &track.route, 1) &&
         mm_actor_archive_write_event_group(editor, group, &number, &actor);
-    release_group(group);
+    mm_actor_events_release(group);
     return result;
 }
 
-int mm_actor_archive_replace_event_group(const MMMovieArchiveEditor *editor, MMU32 actor, MMGroup *group)
+int mm_actor_archive_replace_event_group(const MMMovieArchiveEditor *editor, MMU32 actor, MMActorEventTable *group)
 {
     MMChunkAccess chunks;
     MMU32 existing;
@@ -191,7 +115,7 @@ int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 
                                      const MMMovieEmbeddedArchive *materials)
 {
     const MMU32 no_chunk = 0xffffffffUL;
-    MMGroup *events;
+    MMActorEventTable *events;
     MMActorEvent event;
     MMActorCostume costume;
     MMU32 i, old, number, replacement = no_chunk;
@@ -200,12 +124,12 @@ int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 
     events = mm_actor_archive_read_event_group(editor, actor, &old);
     if (!events)
         return 0;
-    for (i = 0; i < events->count; ++i)
+    for (i = 0; i < events->rows.count; ++i)
     {
-        memcpy(&event, group_fixed(events, i), sizeof(event));
+        memcpy(&event, mm_actor_events_fixed(events, i), sizeof(event));
         if (event.aet != MM_ACTOR_COSTUME)
             continue;
-        payload = group_data(events, i);
+        payload = mm_actor_events_payload(events, i, NULL);
         memcpy(&costume, payload, sizeof(costume));
         if (costume.custom || costume.tag.sid != 0 || costume.tag.type != MATERIAL_TYPE)
             continue;
@@ -231,7 +155,7 @@ int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 
     }
     ok = 1;
 done:
-    release_group(events);
+    mm_actor_events_release(events);
     return ok;
 }
 
@@ -253,9 +177,9 @@ int mm_actor_archive_link_events(const MMMovieArchiveEditor *editor, MMU32 actor
 }
 
 static int rewrite_track(const MMMovieArchiveEditor *editor, MMU32 actor,
-                         int (*edit)(MMGroup *, const void *), const void *changes)
+                         int (*edit)(MMActorEventTable *, const void *), const void *changes)
 {
-    MMGroup *runtime;
+    MMActorEventTable *runtime;
     MMU32 old, number;
     int result;
     runtime = mm_actor_archive_read_event_group(editor, actor, &old);
@@ -265,31 +189,31 @@ static int rewrite_track(const MMMovieArchiveEditor *editor, MMU32 actor,
     if (result == MM_ACTOR_EDIT_ARCHIVE_OK)
         result = mm_actor_archive_write_event_group(editor, runtime, &number, NULL)
             ? replace_track(editor, actor, old, number) : MM_ACTOR_EDIT_ARCHIVE_WRITE_EVENTS;
-    release_group(runtime);
+    mm_actor_events_release(runtime);
     return result;
 }
 
-static int replace_material(MMGroup *group, const void *changes)
+static int replace_material(MMActorEventTable *group, const void *changes)
 {
     MMActorEvent event;
     MMActorCostume costume = {0};
     MMU32 row;
     costume.tag.type = MATERIAL_TYPE;
     costume.tag.number = *(const MMU32 *)changes;
-    for (row = group->count; row > 0;)
+    for (row = group->rows.count; row > 0;)
     {
         --row;
-        memcpy(&event, group_fixed(group, row), sizeof(event));
-        if (event.aet == MM_ACTOR_COSTUME && mm_group_delete(group, row) != MM_STORAGE_OK)
+        memcpy(&event, mm_actor_events_fixed(group, row), sizeof(event));
+        if (event.aet == MM_ACTOR_COSTUME && !mm_actor_events_delete(group, row))
             return MM_ACTOR_EDIT_ARCHIVE_EDIT_EVENTS;
     }
-    for (row = 0; row < group->count; ++row)
+    for (row = 0; row < group->rows.count; ++row)
     {
-        memcpy(&event, group_fixed(group, row), sizeof(event));
+        memcpy(&event, mm_actor_events_fixed(group, row), sizeof(event));
         if (event.aet == MM_ACTOR_ADD)
         {
             event.aet = MM_ACTOR_COSTUME;
-            if (!group_insert(group, ++row, sizeof(costume), &costume, &event))
+            if (!mm_actor_events_insert(group, ++row, sizeof(costume), &costume, &event))
                 return MM_ACTOR_EDIT_ARCHIVE_EDIT_EVENTS;
         }
     }
@@ -308,7 +232,7 @@ typedef struct Shape
     int rotate, resize;
 } Shape;
 
-static int replace_shape(MMGroup *group, const void *changes)
+static int replace_shape(MMActorEventTable *group, const void *changes)
 {
     const Shape *shape = (const Shape *)changes;
     MMActorEvent event;
@@ -316,19 +240,19 @@ static int replace_shape(MMGroup *group, const void *changes)
     MMActorStretch stretch;
     void *data;
     MMU32 row;
-    for (row = 0; row < group->count; ++row)
+    for (row = 0; row < group->rows.count; ++row)
     {
-        memcpy(&event, group_fixed(group, row), sizeof(event));
+        memcpy(&event, mm_actor_events_fixed(group, row), sizeof(event));
         if (shape->rotate && (event.aet == MM_ACTOR_ROTATE_FORWARD || event.aet == MM_ACTOR_ROTATE_HERE))
         {
-            data = group_data(group, row);
+            data = mm_actor_events_payload(group, row, NULL);
             memcpy(&original, data, sizeof(original));
             mm_matrix_multiply(&combined, &shape->rotation, &original);
             memcpy(data, &combined, sizeof(combined));
         }
         if (shape->resize && event.aet == MM_ACTOR_STRETCH)
         {
-            data = group_data(group, row);
+            data = mm_actor_events_payload(group, row, NULL);
             memcpy(&stretch, data, sizeof(stretch));
             stretch.rScaleX = mm_fixed_mul(stretch.rScaleX, shape->stretch.rScaleX);
             stretch.rScaleY = mm_fixed_mul(stretch.rScaleY, shape->stretch.rScaleY);
@@ -340,13 +264,13 @@ static int replace_shape(MMGroup *group, const void *changes)
             if (shape->rotate)
             {
                 event.aet = MM_ACTOR_ROTATE_FORWARD;
-                if (!group_insert(group, ++row, sizeof(shape->rotation), &shape->rotation, &event))
+                if (!mm_actor_events_insert(group, ++row, sizeof(shape->rotation), &shape->rotation, &event))
                     return MM_ACTOR_EDIT_ARCHIVE_EDIT_EVENTS;
             }
             if (shape->resize)
             {
                 event.aet = MM_ACTOR_STRETCH;
-                if (!group_insert(group, ++row, sizeof(shape->stretch), &shape->stretch, &event))
+                if (!mm_actor_events_insert(group, ++row, sizeof(shape->stretch), &shape->stretch, &event))
                     return MM_ACTOR_EDIT_ARCHIVE_EDIT_EVENTS;
             }
         }
@@ -472,25 +396,25 @@ int mm_actor_archive_copy_actor(const MMMovieArchiveEditor *editor, MMU32 actor,
     return copy_actor(editor, actor, header, share_track, NULL, copy);
 }
 
-static int edit_sound(MMGroup *group, const MMMovieSoundArchiveEdit *edit)
+static int edit_sound(MMActorEventTable *group, const MMMovieSoundArchiveEdit *edit)
 {
     const MMMovieSoundArchiveCue *cue = edit->cue;
     MMActorEvent event;
     MMActorSound sound;
     MMU32 row;
     void *data;
-    for (row = 0; row < group->count; ++row)
+    for (row = 0; row < group->rows.count; ++row)
     {
-        memcpy(&event, group_fixed(group, row), sizeof(event));
+        memcpy(&event, mm_actor_events_fixed(group, row), sizeof(event));
         if (event.aet != MM_ACTOR_SOUND || event.nfrm != cue->frame)
             continue;
-        data = group_data(group, row);
+        data = mm_actor_events_payload(group, row, NULL);
         memcpy(&sound, data, sizeof(sound));
         if (sound.style != cue->style || sound.cel != cue->cel ||
             !mm_sound_archive_match(cue, &sound.tag, sound.child, sound.queue))
             continue;
         if (edit->remove)
-            return mm_group_delete(group, row) == MM_STORAGE_OK;
+            return mm_actor_events_delete(group, row);
         sound.volume = edit->volume;
         sound.loop = edit->loop;
         sound.queue = edit->queue;
@@ -504,7 +428,7 @@ int mm_actor_archive_edit_sound(const MMMovieArchiveEditor *editor, MMU32 scene,
 {
     MMActorHeader header;
     MMChunkChild link;
-    MMGroup *group;
+    MMActorEventTable *group;
     MMU32 number, copy;
     int result;
     result = find_actor_link(editor, scene, edit->cue->actor, 1, &link, &header);
@@ -518,7 +442,7 @@ int mm_actor_archive_edit_sound(const MMMovieArchiveEditor *editor, MMU32 scene,
         result = MM_SOUND_ARCHIVE_NO_CUE;
     else if (!mm_actor_archive_write_event_group(editor, group, &number, NULL))
         result = MM_SOUND_ARCHIVE_WRITE_TRACK;
-    release_group(group);
+    mm_actor_events_release(group);
     if (result != MM_SOUND_ARCHIVE_OK)
         return result;
     if (copy_actor(editor, link.number, &header, 1, &number, &copy) != MM_ACTOR_EDIT_ARCHIVE_OK)

@@ -7,7 +7,7 @@ void ActorRouteEvaluator::Advance(const ActorTrack &track, BRS step, RouteLocati
                                   LegacyLong frame, LegacyLong firstFrame, bool clamp, bool *end)
 {
     Assert(track.Route(), "missing actor path");
-    AssertPo(track.Events(), 0);
+    Assert(track.Events(), "missing actor events");
     AssertVarMem(location);
     AssertNilOrVarMem(end);
     const auto services = EngineActorMotion::Services();

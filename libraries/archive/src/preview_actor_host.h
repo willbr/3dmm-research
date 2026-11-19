@@ -47,7 +47,7 @@ struct PreviewActor::Host
             }) > 0;
         };
         s.timeline.put_event = [](void *g, MMI32 i, const MMActorEvent *e) {
-            static_cast<PGeneralGroup>(g)->PutFixed(i, const_cast<MMActorEvent *>(e));
+            mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(g), i, e);
         };
         s.timeline.diagnostic = EngineActorTimeline::Diagnostic;
         s.fault = [](void *v) { return static_cast<Host *>(v)->failure; };
@@ -65,7 +65,7 @@ struct PreviewActor::Host
         s.events = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = h.actor->track.AdoptEvents(ActorData::PggReadEvents(h.file->Pcfl(), n));
+                *out = h.actor->track.AdoptEvents(ActorData::PeventsRead(h.file->Pcfl(), n));
                 return *out != nullptr;
             });
         };
@@ -124,8 +124,7 @@ struct PreviewActor::Host
         s.event_insert = [](void *v, void *g, MMI32 i, MMU32 n, const void *p, const MMActorEvent *e) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                return static_cast<PGeneralGroup>(g)->FInsert(i, n, const_cast<void *>(p),
-                                                              const_cast<MMActorEvent *>(e));
+                return mm_actor_events_insert(static_cast<MMActorEventTable *>(g), i, n, p, e);
             });
         };
         s.rest = [](void *, void *t, unsigned short *a) { static_cast<PTemplate>(t)->GetRestOrien(a, a + 1, a + 2); };

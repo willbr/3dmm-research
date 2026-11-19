@@ -40,7 +40,7 @@ static bool TestActorCreation(PMovie movie)
 #endif
             bool expected=asset==0;
 #ifdef DEBUG
-            expected=expected && (!failure || failure>=(warm?2:9));
+            expected=expected && (!failure || failure>=(warm?1:8));
 #endif
             if ((actor!=nullptr)!=expected) ok=false;
         }
@@ -78,7 +78,7 @@ static bool TestActorCreation(PMovie movie)
     std::fprintf(stderr,"[actor creation] successes=%d bodyFailures=%d\n",successes,bodyFailures);
     ok=ok && successes>=2;
 #ifdef DEBUG
-    ok=ok && successes==31 && bodyFailures==8;
+    ok=ok && successes==33 && bodyFailures==9;
 #endif
     if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok;
 }

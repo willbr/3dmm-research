@@ -309,10 +309,10 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
     };
     effects.prepare_entrance = [](void *p, MMI32 index) -> int {
         auto actor = static_cast<Actor *>(p);
-        AssertIn(index, 0, actor->_track.Events()->IvMac());
+        AssertIn(index, 0, mm_actor_events_count(actor->_track.Events()));
         if (actor->_fLifeDirty && !actor->_FComputeLifetime())
             return 0;
-        Assert(actor->_track.Events()->Cb(index) == size(Add), "Corrupt event list");
+        Assert(mm_actor_events_size(actor->_track.Events(), index) == size(Add), "Corrupt event list");
         return 1;
     };
     effects.apply_event = [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); };
@@ -408,8 +408,8 @@ bool Actor::_FGetStatic(long anid, bool *pfStatic)
 bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 {
     AssertBaseThis(0);
-    AssertPo(_track.Events(), 0);
-    AssertIn(iaev, 0, _track.Events()->IvMac() + 1);
+    Assert(_track.Events(), "missing actor events");
+    AssertIn(iaev, 0, mm_actor_events_count(_track.Events()) + 1);
     const auto motion = EngineActorMotion::Services();
     return mm_actor_subroute_events_done(_track.Events(), iaev, &rtel, &motion) != 0;
 }
@@ -460,7 +460,7 @@ bool Actor::_FDoAevCur(void)
         return fFalse;
 
     _state.nextEvent++;
-    Assert(_state.nextEvent <= _track.Events()->IvMac(), "_state.nextEvent bug");
+    Assert(_state.nextEvent <= mm_actor_events_count(_track.Events()), "_state.nextEvent bug");
 
     return fTrue;
 }
@@ -473,7 +473,7 @@ bool Actor::_FDoAevCur(void)
 bool Actor::_FDoAevCore(long iaev)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _track.Events()->IvMac());
+    AssertIn(iaev, 0, mm_actor_events_count(_track.Events()));
     struct Host
     {
         Actor *actor;
@@ -485,7 +485,7 @@ bool Actor::_FDoAevCore(long iaev)
     effects.write_event = [](void *events, MMI32 index, const MMActorEvent *value) {
         Base event;
         std::memcpy(&event, value, sizeof(event));
-        static_cast<PGeneralGroup>(events)->PutFixed(index, &event);
+        mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(events), index, &event);
     };
     effects.run = [](void *context, const MMActorEffectCommand *command, MMActorEffectReply *reply) {
         auto &host = *static_cast<Host *>(context);
@@ -606,8 +606,8 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
 void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
 {
     AssertBaseThis(0);
-    AssertIn(iaevFirst, 0, _track.Events()->IvMac());
-    AssertIn(iaevNew, iaevFirst, _track.Events()->IvMac());
+    AssertIn(iaevFirst, 0, mm_actor_events_count(_track.Events()));
+    AssertIn(iaevNew, iaevFirst, mm_actor_events_count(_track.Events()));
     AssertNilOrVarMem(piaevRtn);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
@@ -715,9 +715,9 @@ MMActorRouteEditServices Actor::_RouteEditServices()
     s.write_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { AssertDo(mm_actor_path_put(static_cast<MMActorPath *>(p), i, v), "invalid actor path index"); };
     s.delete_points=[](void *p,MMI32 i,MMI32 count) { AssertDo(mm_array_delete(&static_cast<MMActorPath *>(p)->rows, i, count) == MM_STORAGE_OK, "invalid actor path range"); };
     s.clear_route=[](void *p) { mm_array_set_count(&static_cast<MMActorPath *>(p)->rows, 0); };
-    s.write_event=[](void *p,MMI32 i,const MMActorEvent *v) { static_cast<PGeneralGroup>(p)->PutFixed(i,const_cast<MMActorEvent *>(v)); };
-    s.swap_events=[](void *p,MMI32 a,MMI32 b) { static_cast<PGeneralGroup>(p)->Swap(a,b); };
-    s.reserve_events=[](void *p,MMU32 count,MMU32 bytes) { return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(count,bytes,fgrpNil)); };
+    s.write_event=[](void *p,MMI32 i,const MMActorEvent *v) { mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(p), i, v); };
+    s.swap_events=[](void *p,MMI32 a,MMI32 b) { mm_actor_events_swap(static_cast<MMActorEventTable *>(p), a,b); };
+    s.reserve_events=[](void *p,MMU32 count,MMU32 bytes) { return int(mm_actor_events_reserve(static_cast<Actor *>(p)->_track.Events(), count,bytes)); };
     s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
     s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_fModeRecord=enabled!=0; };
     s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_pbody) actor->_pbody->Hide(); };
@@ -853,7 +853,7 @@ bool Actor::FAddOnStageCore(void)
 ***************************************************************************/
 bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 {
-    AssertBaseThis(0); AssertIn(iaevLim,0,_track.Events()->IvMac()+1);
+    AssertBaseThis(0); AssertIn(iaevLim,0,mm_actor_events_count(_track.Events())+1);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
@@ -955,7 +955,7 @@ bool Actor::FRemFromStageCore(void)
 bool Actor::_FDeleteEntireSubrte(void)
 {
     AssertThis(0);
-    Assert(static_cast<Base *>(_track.Events()->QvFixedGet(_state.addEvent))->nfrm==_state.frame,
+    Assert(static_cast<Base *>(mm_actor_events_fixed(_track.Events(), _state.addEvent))->nfrm==_state.frame,
            "Logic error: trying to delete whole route from the middle");
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
@@ -1041,7 +1041,7 @@ bool Actor::_FUnfreeze(void)
 ***************************************************************************/
 void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz)
 {
-    AssertThis(0); AssertIn(_state.addEvent,0,_track.Events()->IvMac());
+    AssertThis(0); AssertIn(_state.addEvent,0,mm_actor_events_count(_track.Events()));
     static_assert(kdwrFast==196608 && krOriWeightMin==6553,"actor orientation weight ABI");
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
@@ -1326,7 +1326,7 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
     AssertBaseThis(0);
     Assert(aet==aetSize || aet==aetRotF || aet==aetPull, "Illegal fill event");
     AssertPvCb(pvVar,cbVar); AssertIn(cbVar,0,100);
-    AssertIn(iaevMin,0,_track.Events()->IvMac()+1); AssertIn(iaevCmp,-1,_track.Events()->IvMac()+1);
+    AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1); AssertIn(iaevCmp,-1,mm_actor_events_count(_track.Events())+1);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_FillEditServices();
@@ -1344,15 +1344,15 @@ MMActorFillServices Actor::_FillEditServices()
 {
     MMActorFillServices services={};
     services.edits=_EventEditServices();
-    services.lock_events=[](void *p) { static_cast<PGeneralGroup>(p)->Lock(); };
-    services.unlock_events=[](void *p) { static_cast<PGeneralGroup>(p)->Unlock(); };
-    services.payload_view=[](void *p, MMI32 index)->const void * { return static_cast<PGeneralGroup>(p)->QvGet(index); };
+    services.lock_events=[](void *p) { mm_actor_events_lock(static_cast<MMActorEventTable *>(p)); };
+    services.unlock_events=[](void *p) { mm_actor_events_unlock(static_cast<MMActorEventTable *>(p)); };
+    services.payload_view=[](void *p, MMI32 index)->const void * { return mm_actor_events_payload(static_cast<MMActorEventTable *>(p), index, nullptr); };
     return services;
 }
 bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _track.Events()->IvMac()+1); AssertIn(cbNew, 0, 100);
+    AssertIn(iaev, 0, mm_actor_events_count(_track.Events())+1); AssertIn(cbNew, 0, 100);
     AssertPvCb(paev,sizeof(Base));
     MMActorEvent event; std::memcpy(&event,paev,sizeof(event));
     auto state=EngineActorMotion::Core(_state);
@@ -1374,12 +1374,12 @@ MMActorEditServices Actor::_EventEditServices()
     services.close_event_tag = [](void *context, MMI32 index) {
         auto actor = static_cast<Actor *>(context);
         PTAG tag;
-        actor->_track.Events()->Lock();
+        mm_actor_events_lock(actor->_track.Events());
         if (actor->_FIsIaevTag(actor->_track.Events(), index, &tag)) TagManager::CloseTag(tag);
-        actor->_track.Events()->Unlock();
+        mm_actor_events_unlock(actor->_track.Events());
     };
     services.delete_event = [](void *context, MMI32 index) {
-        static_cast<Actor *>(context)->_track.Events()->Delete(index);
+        mm_actor_events_delete(static_cast<Actor *>(context)->_track.Events(), index);
     };
     services.scene_frame = [](void *context, MMI32 *frame) {
         auto actor = static_cast<Actor *>(context);
@@ -1392,22 +1392,20 @@ MMActorEditServices Actor::_EventEditServices()
         EngineActorMotion::Publish(static_cast<Actor *>(context)->_state, *state);
     };
     services.insert_event = [](void *p, MMI32 index, MMU32 bytes, const void *payload, const MMActorEvent *value) {
-        Base event; std::memcpy(&event,value,sizeof(event));
-        return int(static_cast<Actor *>(p)->_track.Events()->FInsert(index,bytes,const_cast<void *>(payload),&event));
+        return mm_actor_events_insert(static_cast<Actor *>(p)->_track.Events(), index, bytes, payload, value);
     };
     services.duplicate_event_tag = [](void *p, MMI32 index) {
         auto actor=static_cast<Actor *>(p); PTAG tag;
-        actor->_track.Events()->Lock();
+        mm_actor_events_lock(actor->_track.Events());
         if (actor->_FIsIaevTag(actor->_track.Events(),index,&tag)) TagManager::DupTag(tag);
-        actor->_track.Events()->Unlock();
+        mm_actor_events_unlock(actor->_track.Events());
     };
     services.write_payload = [](void *p, MMI32 index, const void *value) {
-        static_cast<Actor *>(p)->_track.Events()->Put(index,const_cast<void *>(value));
+        mm_actor_events_set_payload(static_cast<Actor *>(p)->_track.Events(), index, value);
     };
     services.copy_payload = [](void *p, MMI32 destination, MMI32 source) {
         auto events=static_cast<Actor *>(p)->_track.Events();
-        Assert(events->Cb(source)==events->Cb(destination), "Wrong Var size");
-        events->Put(destination,events->QvGet(source));
+        AssertDo(mm_actor_events_copy_payload(events, destination, source), "invalid actor event payloads");
     };
     services.apply_event = [](void *p, MMActorState *state, MMI32 index) {
         auto actor=static_cast<Actor *>(p);
@@ -1429,7 +1427,7 @@ MMActorEditServices Actor::_EventEditServices()
 void Actor::_RemoveAev(long iaev, bool fUpdateState)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _track.Events()->IvMac());
+    AssertIn(iaev, 0, mm_actor_events_count(_track.Events()));
     auto state = EngineActorMotion::Core(_state);
     const auto tables = EngineActorMotion::Services();
     const auto edits = _EventEditServices();
@@ -1451,7 +1449,7 @@ void Actor::_RemoveAev(long iaev, bool fUpdateState)
 ***************************************************************************/
 void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet)
 {
-    AssertBaseThis(0); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
+    AssertBaseThis(0); AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_EventEditServices();
@@ -1471,7 +1469,7 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
 {
     MMActorCostumeEditServices services={}; services.context=this; services.edits=_EventEditServices();
     services.reserve_events=[](void *p,MMU32 entries,MMU32 bytes) {
-        return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(entries,bytes,fgrpNil));
+        return int(mm_actor_events_reserve(static_cast<Actor *>(p)->_track.Events(), entries,bytes));
     };
     services.current=[](void *p,MMI32 set,int *custom)->void * {
         bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
@@ -1490,7 +1488,7 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
 }
 void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 {
-    AssertBaseThis(0); AssertIn(iaevMin,0,_track.Events()->IvMac()+1); AssertVarMem(paevcost);
+    AssertBaseThis(0); AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1); AssertVarMem(paevcost);
     MMActorCostume costume; std::memcpy(&costume,paevcost,sizeof(costume));
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
@@ -1507,7 +1505,7 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 ***************************************************************************/
 void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 {
-    AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_track.Route())); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
+    AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_track.Route())); AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_adjust_insert(_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
@@ -1520,7 +1518,7 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 ***************************************************************************/
 void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 {
-    AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_track.Route())); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
+    AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_track.Route())); AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
@@ -2011,14 +2009,14 @@ bool Actor::FMustRender(long nfrmRenderLast)
         goto LStill;
 
     // Intervening events?	Sounds don't affect rendering.
-    if (_state.nextEvent < _track.Events()->IvMac())
+    if (_state.nextEvent < mm_actor_events_count(_track.Events()))
     {
-        paev = (Base *)_track.Events()->QvFixedGet(_state.nextEvent);
+        paev = (Base *)mm_actor_events_fixed(_track.Events(), _state.nextEvent);
         if (paev->nfrm <= nfrmRenderLast)
         {
-            for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
+            for (iaev = _state.nextEvent; iaev < mm_actor_events_count(_track.Events()); iaev++)
             {
-                paev = (Base *)_track.Events()->QvFixedGet(iaev);
+                paev = (Base *)mm_actor_events_fixed(_track.Events(), iaev);
                 if (paev->nfrm > nfrmRenderLast)
                     break;
                 if (aetSnd == paev->aet)
@@ -2148,13 +2146,13 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     cbsetNew = _pbody->Cbset();
     // Need to remove any costume events acting on ibset >= cbsetNew
     // Loop backwards to prevent indexing problems since we are deleting
-    // events in this GeneralGroup as we go
-    for (iaev = _track.Events()->IvMac() - 1; iaev >= 0; iaev--)
+    // events in this actor track as we go
+    for (iaev = mm_actor_events_count(_track.Events()) - 1; iaev >= 0; iaev--)
     {
-        _track.Events()->GetFixed(iaev, &aev);
+        mm_actor_events_get_fixed(_track.Events(), iaev, &aev);
         if (aev.aet == aetCost)
         {
-            _track.Events()->Get(iaev, &aevcost);
+            mm_actor_events_get_payload(_track.Events(), iaev, &aevcost);
             if (aevcost.ibset >= cbsetNew)
             {
                 _RemoveAev(iaev, fTrue);
@@ -2176,11 +2174,11 @@ void Actor::AssertValid(LegacyUlong grfobj)
     Actor_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pbody, 0);
     AssertNilOrPo(_ptmpl, 0);
-    AssertPo(_track.Events(), 0);
+    Assert(_track.Events(), "missing actor events");
     Assert(_track.Route(), "missing actor path");
     Assert(_motionSounds.Valid(), "invalid C motion sound storage");
 
-    long iaevMac = _track.Events()->IvMac();
+    long iaevMac = mm_actor_events_count(_track.Events());
     long irptMac = mm_actor_path_count(_track.Route());
     bool fTracing = FPure(grfobj & fobjAssertFull);
 
@@ -2214,12 +2212,12 @@ void Actor::AssertValid(LegacyUlong grfobj)
         }
 
         AssertIn(_state.location.irpt, 0, irptMac + 1); // Supply a debug readable view of the event stream
-        _track.Events()->GetFixed(0, &aev);
+        mm_actor_events_get_fixed(_track.Events(), 0, &aev);
         Assert(aetAdd == aev.aet, "BUG: No add event at front of list");
 
-        for (iaev = 0; iaev < _track.Events()->IvMac(); iaev++)
+        for (iaev = 0; iaev < mm_actor_events_count(_track.Events()); iaev++)
         {
-            _track.Events()->GetFixed(iaev, &aev);
+            mm_actor_events_get_fixed(_track.Events(), iaev, &aev);
             Assert(rtel <= aev.rtel, "Illegal ordering in event list");
             AssertIn(aev.aet, 0, aetLim);
 
@@ -2255,50 +2253,50 @@ void Actor::AssertValid(LegacyUlong grfobj)
             {
             case aetAdd: {
                 Add aevadd;
-                Assert(_track.Events()->Cb(iaev) == kcbVarAdd, "Corrupt size in event list");
-                _track.Events()->Get(iaev, &aevadd);
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarAdd, "Corrupt size in event list");
+                mm_actor_events_get_payload(_track.Events(), iaev, &aevadd);
                 break;
             }
             case aetActn: {
                 Action aevactn;
-                _track.Events()->Get(iaev, &aevactn);
-                Assert(_track.Events()->Cb(iaev) == kcbVarActn, "Corrupt size in event list");
+                mm_actor_events_get_payload(_track.Events(), iaev, &aevactn);
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarActn, "Corrupt size in event list");
                 break;
             }
             case aetCost:
-                Assert(_track.Events()->Cb(iaev) == kcbVarCost, "Corrupt size in event list");
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarCost, "Corrupt size in event list");
                 break;
             case aetRotF:
             case aetRotH:
-                Assert(_track.Events()->Cb(iaev) == kcbVarRot, "Corrupt size in event list");
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarRot, "Corrupt size in event list");
                 break;
             case aetSize:
-                Assert(_track.Events()->Cb(iaev) == kcbVarSize, "Corrupt size in event list");
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarSize, "Corrupt size in event list");
                 break;
             case aetPull:
-                Assert(_track.Events()->Cb(iaev) == kcbVarPull, "Corrupt size in event list");
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarPull, "Corrupt size in event list");
                 break;
             case aetSnd:
                 break;
             case aetFreeze: {
                 int32_t faevfrz;
-                _track.Events()->Get(iaev, &faevfrz);
-                Assert(_track.Events()->Cb(iaev) == kcbVarFreeze, "Corrupt size in event list");
+                mm_actor_events_get_payload(_track.Events(), iaev, &faevfrz);
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarFreeze, "Corrupt size in event list");
                 break;
             }
             case aetTweak:
-                Assert(_track.Events()->Cb(iaev) == kcbVarTweak, "Corrupt size in event list");
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarTweak, "Corrupt size in event list");
                 break;
             case aetStep: {
                 BRS dwrAev;
-                _track.Events()->Get(iaev, &dwrAev);
-                Assert(_track.Events()->Cb(iaev) == kcbVarStep, "Corrupt size in event list");
+                mm_actor_events_get_payload(_track.Events(), iaev, &dwrAev);
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarStep, "Corrupt size in event list");
                 break;
             }
             case aetRem:
                 break;
             case aetMove:
-                Assert(_track.Events()->Cb(iaev) == kcbVarMove, "Corrupt size in event list");
+                Assert(mm_actor_events_size(_track.Events(), iaev) == kcbVarMove, "Corrupt size in event list");
                 break;
             default:
                 Assert(0, "Unknown event type");
@@ -2320,17 +2318,20 @@ void Actor::MarkMem(void)
     Sound *paevsnd;
 
     Actor_PAR::MarkMem();
-    for (iaev = 0; iaev < _track.Events()->IvMac(); iaev++)
+    for (iaev = 0; iaev < mm_actor_events_count(_track.Events()); iaev++)
     {
-        paev = (Base *)_track.Events()->QvFixedGet(iaev);
+        paev = (Base *)mm_actor_events_fixed(_track.Events(), iaev);
         if (aetSnd == paev->aet)
         {
-            paevsnd = (Sound *)_track.Events()->QvGet(iaev);
+            paevsnd = (Sound *)mm_actor_events_payload(_track.Events(), iaev, nullptr);
             if (paevsnd->tag.sid == ksidUseCrf)
                 paevsnd->tag.MarkMem();
         }
     }
-    MarkMemObj(_track.Events());
+    auto events = _track.Events();
+    MarkPv(events);
+    MarkPv(events->storage.buffers[0].data);
+    MarkPv(events->storage.buffers[1].data);
     if (_track.Route())
     {
         MarkPv(_track.Route());

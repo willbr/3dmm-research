@@ -93,7 +93,7 @@ MMActorSoundEditServices Actor::_SoundEditServices()
         info->style = sound->Sty(); info->volume = sound->Vlm(); info->no_sound = sound->FNoSound();
     };
     s.reserve_events = [](void *p, MMU32 entries, MMU32 bytes) {
-        return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(entries, bytes, fgrpNil));
+        return int(mm_actor_events_reserve(static_cast<Actor *>(p)->_track.Events(), entries, bytes));
     };
     s.sound_child = [](void *p, MMU32 number, MMU32 *child) {
         ChildChunkID value = *child;
@@ -157,7 +157,7 @@ MMActorSoundServices Actor::_SoundServices()
     services.write_event = [](void *context, MMI32 index, const MMActorSound *value) {
         Sound sound;
         std::memcpy(&sound, value, sizeof(sound));
-        static_cast<Actor *>(context)->_track.Events()->Put(index, &sound);
+        mm_actor_events_set_payload(static_cast<Actor *>(context)->_track.Events(), index, &sound);
     };
     services.resolution_failed = [](void *) { Bug("Actrsnd: Expected to resolve snd tag"); };
     services.fetch = [](void *, const MMTag *value) -> void * {
@@ -183,11 +183,11 @@ MMActorSoundServices Actor::_SoundServices()
 bool Actor::_FEnqueueSnd(long iaev)
 {
     AssertThis(0);
-    AssertIn(iaev, 0, _track.Events()->IvMac());
+    AssertIn(iaev, 0, mm_actor_events_count(_track.Events()));
     MMActorEvent event;
     MMActorSound sound;
-    _track.Events()->GetFixed(iaev, &event);
-    _track.Events()->Get(iaev, &sound);
+    mm_actor_events_get_fixed(_track.Events(), iaev, &event);
+    mm_actor_events_get_payload(_track.Events(), iaev, &sound);
     const auto services = _SoundServices();
     return mm_actor_sound_event(_motionSounds.Core(), &event, &sound, iaev, &services) != 0;
 }

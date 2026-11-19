@@ -547,9 +547,10 @@ Keep host presentation and device output outside the session.
    alongside the selected camera and body bindings. The standalone evaluator,
    Studio and Marcus now load ACTR headers and their slot-zero PATH and GGAE
    tracks through the same graph reader. Both live hosts decode directly into
-   C-owned actor paths. Playback, route edits, undo and native saves share
-   that storage. The standalone archive editor and live saves share the
-   PATH wire layout. The standalone evaluator
+   C-owned actor path and event tables. Playback, edits, undo and native
+   saves share that storage. The standalone archive editor and live saves
+   share the PATH layout and the GGAE event table and writer.
+   The standalone evaluator
    and the native template cache share the template header decoder and the
    C-owned ACTN, GGCL cel and GLXF matrix representation. Snapshot seeks load
    the matrix table on first body evaluation and cache it per action. Live

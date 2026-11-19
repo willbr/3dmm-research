@@ -3750,12 +3750,13 @@ bytes. No Marcus UI tests were added.
 `actor_track.c` owns the route/event handles in `MMActorTrack`, replacing
 native ownership fields and their lifetime policy. The temporary ActorTrack facade
 exposes typed borrowed table accessors; actor evaluation/editing, preview and test
-fixtures use those accessors. C89 owns each live path's rows, reservations,
-mutations and clone. Studio and Marcus load PATH directly into the same storage.
-Studio's actor saves and Marcus's animation exports write the C89 path using the
-legacy array header and row layout. The standalone archive editor shares the
-layout. Native services supply allocation and block I/O, along with event-group
-operations and tag-cache retain and release.
+fixtures use those accessors. Studio and Marcus load PATH and GGAE into
+C89-owned rows. The C tables hold reservations and support mutation and
+cloning. Studio's actor saves and Marcus's animation exports write the
+legacy array and group layouts through the C writers. The standalone
+archive editor shares the PATH layout and uses the same GGAE table and
+writer. Native services supply allocation, block I/O and tag-cache
+references.
 
 C creates event tables with 20 fixed bytes, ten initial rows and twenty variable
 bytes, and route tables with 16-byte rows, 32 initial rows and minimum growth 32.
@@ -3770,12 +3771,18 @@ access. Only sid-zero, non-null caches own references. Close clears cache pointe
 in their rows and tolerates repeated calls. Cleanup closes tags before releasing
 event tables, then route tables. Adoption transfers a handle and disposes the old
 table; adopting the current handle is a no-op. Callbacks cannot mutate/re-enter the
-participating tracks. Event payloads still use the native group adapter.
+participating tracks.
 
 The actor route, subroute, stage and recording traces match the previous build
 byte for byte. Sixteen of 128 Debug actor ownership cases change when the
 requested native allocation fault targets the replaced path handle. Cases that
 succeed in both builds produce identical records.
+
+Moving the event table changes sixteen of 128 Debug ownership cases and
+two of 120 creation cases that targeted native allocations. The edit,
+sound-edit, route, subroute, stage and recording traces match the prior
+build byte for byte. The all-event persistence fixture exercises both
+byte orders through the C writer and reader.
 
 `engine-actor-track-test` covers every event kind, unaligned tags, custom flag
 values, unopened/positive/invalid-source tags, allocation failures, reference and

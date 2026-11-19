@@ -104,7 +104,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.route.delete_points = [](void *p, MMI32 i, MMI32 count) { mm_array_delete(&static_cast<MMActorPath *>(p)->rows, i, count); };
         s.route.clear_route = [](void *p) { mm_array_set_count(&static_cast<MMActorPath *>(p)->rows, 0); };
         s.route.write_event = s.timeline.put_event;
-        s.route.swap_events = [](void *p, MMI32 a, MMI32 b) { static_cast<PGeneralGroup>(p)->Swap(a, b); };
+        s.route.swap_events = [](void *p, MMI32 a, MMI32 b) { mm_actor_events_swap(static_cast<MMActorEventTable *>(p), a, b); };
         s.route.reserve_events = Reserve;
         s.route.life_dirty = s.action.mark_life_dirty;
         s.route.recording = [](void *v, int enabled) { Get(v).record.recording = enabled; };

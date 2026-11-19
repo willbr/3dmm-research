@@ -237,7 +237,7 @@ class Actor : public Actor_PAR
     bool _FWriteTmpl(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadActor(PChunkyFile pcfl, ChunkNumber cno);
     bool _FOpenTags(PChunkyResourceFile pcrf);
-    static bool _FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, ActorEvent::PBase *pqaev = pvNil);
+    static bool _FIsIaevTag(MMActorEventTable *events, long iaev, PTAG *pptag, ActorEvent::PBase *pqaev = pvNil);
     void _CloseTags(void);
 
   public:

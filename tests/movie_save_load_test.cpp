@@ -282,9 +282,9 @@ class TrackTestActor : public Actor
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint first={{rZero,rZero,rZero},BR_SCALAR(10)},last={{BR_SCALAR(10),rZero,rZero},rZero};
         ActorEvent::Base event={aetAdd,1,{0,rZero,0}}; ActorEvent::Add add={}; ActorEvent::Action action={0,0}; LegacyLong step=rOne;
-        if (!(mm_array_add(&track.Route()->rows, &first, nullptr) == MM_STORAGE_OK) || !(mm_array_add(&track.Route()->rows, &last, nullptr) == MM_STORAGE_OK) || !track.Events()->FInsert(0,sizeof(add),&add,&event)) return false;
-        event.aet=aetActn; if (!track.Events()->FInsert(1,sizeof(action),&action,&event)) return false;
-        event.aet=aetStep; if (!track.Events()->FInsert(2,sizeof(step),&step,&event)) return false;
+        if (!(mm_array_add(&track.Route()->rows, &first, nullptr) == MM_STORAGE_OK) || !(mm_array_add(&track.Route()->rows, &last, nullptr) == MM_STORAGE_OK) || !mm_actor_events_insert(track.Events(), 0,sizeof(add),&add,&event)) return false;
+        event.aet=aetActn; if (!mm_actor_events_insert(track.Events(), 1,sizeof(action),&action,&event)) return false;
+        event.aet=aetStep; if (!mm_actor_events_insert(track.Events(), 2,sizeof(step),&step,&event)) return false;
         _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
         _state.frame=1; _state.nextEvent=3; _state.firstEventInFrame=0; _state.addEvent=0; _state.actionEvent=1;
         _state.celCount=4; _state.actionFlags=factnRotateY; _nfrmFirst=1; _nfrmLast=10; _fLifeDirty=false;
@@ -301,14 +301,14 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={actor->Arid(),actor->*firstMember,actor->*lastMember,state.frame,state.nextEvent,state.firstEventInFrame,
             state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,state.location.dnfrm,state.step,state.frozen,
-            mm_actor_path_count(track.Route()),track.Events()->IvMac(),(actor->*templateMember)->CactRef(),tag.pcrf->CactRef()};
+            mm_actor_path_count(track.Route()),mm_actor_events_count(track.Events()),(actor->*templateMember)->CactRef(),tag.pcrf->CactRef()};
         bool ok=record(values,sizeof(values)) && record(&state.position,sizeof(state.position)) && record(&state.transform,sizeof(state.transform));
         for (long i=0;ok && i<mm_actor_path_count(track.Route());++i) { RouteDistancePoint point; mm_actor_path_get(track.Route(), i,&point); ok=record(&point,sizeof(point)); }
-        for (long i=0;ok && i<track.Events()->IvMac();++i)
+        for (long i=0;ok && i<mm_actor_events_count(track.Events());++i)
         {
-            ActorEvent::Base event; track.Events()->GetFixed(i,&event); LegacyLong bytes=track.Events()->Cb(i);
+            ActorEvent::Base event; mm_actor_events_get_fixed(track.Events(), i,&event); LegacyLong bytes=mm_actor_events_size(track.Events(), i);
             unsigned char data[48]={}; if (bytes>sizeof(data)) return false;
-            track.Events()->Get(i,data); if (event.aet==aetAdd) data[18]=data[19]=0;
+            mm_actor_events_get_payload(track.Events(), i,data); if (event.aet==aetAdd) data[18]=data[19]=0;
             ok=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(data,bytes);
         }
         return ok;
@@ -322,7 +322,7 @@ class TrackTestActor : public Actor
         if (mode&2) { _Hide(); ReleasePpo(&_pbody); }
         Base soundEvent={aetSnd,100,{2,rZero,5}};
         Sound sound={}; sound.tag=_tagTmpl; sound.tag.ctg=kctgMsnd;
-        if (!_track.Events()->FInsert(_track.Events()->IvMac(),sizeof(sound),&sound,&soundEvent)) return false;
+        if (!mm_actor_events_insert(_track.Events(), mm_actor_events_count(_track.Events()),sizeof(sound),&sound,&soundEvent)) return false;
         TagManager::DupTag(&sound.tag);
         _fLifeDirty=(mode&8)!=0; _fPrerendered=(mode&32)!=0; _fTimeFrozen=true;
         _fModeRecord=(mode&4)!=0; _fRejoin=(mode&16)!=0; _fPathInserted=true;
@@ -360,16 +360,16 @@ class TrackTestActor : public Actor
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.onStage,_state.frozen,_state.action,_state.cel,
             _nfrmFirst,_nfrmLast,_arid,_fLifeDirty,_fPrerendered,_fTimeFrozen,_fModeRecord,_fRejoin,_fPathInserted,
             _rtelInsert.irpt,_rtelInsert.dwrOffset,_rtelInsert.dnfrm,static_cast<LegacyLong>(_tsInsert),_dnfrmGap,
-            _tagSnd.sid,static_cast<LegacyLong>(_tagSnd.ctg),static_cast<LegacyLong>(_tagSnd.cno),mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
+            _tagSnd.sid,static_cast<LegacyLong>(_tagSnd.ctg),static_cast<LegacyLong>(_tagSnd.cno),mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
         bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) &&
             record(&_state.position,sizeof(_state.position)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte)) && record(&_dxyzRaw,sizeof(_dxyzRaw));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
-            if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload);
+            Base event; mm_actor_events_get_fixed(_track.Events(), i,&event); LegacyLong bytes=mm_actor_events_size(_track.Events(), i);
+            if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_track.Events(), i,payload);
             if (event.aet==aetSnd)
             { Sound clean; std::memcpy(&clean,payload,sizeof(clean)); clean.tag.pcrf=nullptr; std::memcpy(payload,&clean,sizeof(clean)); }
             saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
@@ -389,13 +389,13 @@ class TrackTestActor : public Actor
         RouteDistancePoint point={{BR_SCALAR(7),BR_SCALAR(2),-BR_SCALAR(3)},rZero};
         Add entrance={BR_SCALAR(4),BR_SCALAR(5),BR_SCALAR(6),111,222,333};
         Base event={(mode&8)?aetRem:aetAdd,1,{0,rZero,0}};
-        if (!(mm_array_add(&track.Route()->rows, &point, nullptr) == MM_STORAGE_OK) || !track.Events()->FInsert(0,sizeof(entrance),&entrance,&event)) return false;
+        if (!(mm_array_add(&track.Route()->rows, &point, nullptr) == MM_STORAGE_OK) || !mm_actor_events_insert(track.Events(), 0,sizeof(entrance),&entrance,&event)) return false;
         for (int i=0;i<3;++i)
         {
             Sound sound={}; sound.celn=-1; sound.vlm=100; sound.sty=2; sound.chid=55;
             sound.tag={((mode&2) && i==2)?1:ksidUseCrf,source,kctgMsnd,((mode&1) && i<2)?999999:soundNumber};
             TagManager::DupTag(&sound.tag); event={aetSnd,2+i,{0,rZero,i}};
-            if (!track.Events()->FInsert(track.Events()->IvMac(),sizeof(sound),&sound,&event))
+            if (!mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(sound),&sound,&event))
             { TagManager::CloseTag(&sound.tag); return false; }
         }
         _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState();
@@ -408,14 +408,14 @@ class TrackTestActor : public Actor
         bool pasted=FPaste(frame,scene); vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,pasted,_nfrmFirst,_nfrmLast,_fLifeDirty,_state.frame,_state.nextEvent,
-            _state.firstEventInFrame,_state.actionEvent,_state.addEvent,_track.Events()->IvMac(),
+            _state.firstEventInFrame,_state.actionEvent,_state.addEvent,mm_actor_events_count(_track.Events()),
             _tagTmpl.sid,static_cast<LegacyLong>(_tagTmpl.cno),_tagTmpl.pcrf==target,_ptmpl->FIsTdt(),source->CactRef(),target->CactRef()};
         bool ok=record(values,sizeof(values)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte)) &&
             record(&_state.routeTranslation,sizeof(_state.routeTranslation)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation));
-        for (long i=0;ok && i<_track.Events()->IvMac();++i)
+        for (long i=0;ok && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base header; _track.Events()->GetFixed(i,&header); LegacyLong bytes=_track.Events()->Cb(i);
-            unsigned char payload[sizeof(Sound)]={}; _track.Events()->Get(i,payload);
+            Base header; mm_actor_events_get_fixed(_track.Events(), i,&header); LegacyLong bytes=mm_actor_events_size(_track.Events(), i);
+            unsigned char payload[sizeof(Sound)]={}; mm_actor_events_get_payload(_track.Events(), i,payload);
             if (i==0) payload[18]=payload[19]=0;
             else { Sound sound; std::memcpy(&sound,payload,sizeof(sound)); sound.tag.pcrf=nullptr; std::memcpy(payload,&sound,sizeof(sound)); }
             ok=record(&header,sizeof(header)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
@@ -453,7 +453,7 @@ class TrackTestActor : public Actor
             case aetSnd: bytes=sizeof(Sound); data.sound.celn=-1; data.sound.sty=2; data.sound.vlm=100;
                 data.sound.tag={ksidUseCrf,resource,kctgMsnd,soundNumber}; TagManager::DupTag(&data.sound.tag); break;
             }
-            if (track.Events()->FInsert(track.Events()->IvMac(),bytes,&data,&event)) return true;
+            if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&data,&event)) return true;
             if (kind==aetCost) TagManager::CloseTag(&data.costume.tag);
             if (kind==aetSnd) TagManager::CloseTag(&data.sound.tag);
             return false;
@@ -472,7 +472,7 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,changed,_state.frame,_state.nextEvent,_state.firstEventInFrame,_state.addEvent,_state.actionEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.step,_state.frozen,
-            _nfrmFirst,_nfrmLast,_fLifeDirty,resource->CactRef(),mm_actor_path_count(_track.Route()),_track.Events()->IvMac(),mm_actor_path_count(clipboard->_track.Route())};
+            _nfrmFirst,_nfrmLast,_fLifeDirty,resource->CactRef(),mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events()),mm_actor_path_count(clipboard->_track.Route())};
         bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) && record(&_state.transform,sizeof(_state.transform));
         for (int source=0;saved && source<2;++source)
         {
@@ -480,10 +480,10 @@ class TrackTestActor : public Actor
             for (long i=0;saved && i<mm_actor_path_count(route);++i) { RouteDistancePoint point; mm_actor_path_get(route, i, &point); saved=record(&point,sizeof(point)); }
         }
         unsigned char payload[100];
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
-            if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload);
+            Base event; mm_actor_events_get_fixed(_track.Events(), i,&event); LegacyLong bytes=mm_actor_events_size(_track.Events(), i);
+            if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_track.Events(), i,payload);
             if (event.aet==aetAdd) payload[18]=payload[19]=0;
             if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
             if (event.aet==aetSnd) { Sound value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
@@ -523,7 +523,7 @@ class TrackTestActor : public Actor
             case aetRem: bytes=0; break;
             default: data.scalar=scalar; break;
             }
-            if (track.Events()->FInsert(track.Events()->IvMac(),bytes,&data,&event)) return true;
+            if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&data,&event)) return true;
             if (kind==aetSnd) TagManager::CloseTag(&data.sound.tag);
             if (kind==aetCost) TagManager::CloseTag(&data.costume.tag);
             return false;
@@ -564,7 +564,7 @@ class TrackTestActor : public Actor
         auto firstMember=&TrackTestActor::_nfrmFirst; auto lastMember=&TrackTestActor::_nfrmLast;
         auto dump=[&](PActor actor) {
             auto &track=actor->*trackMember; auto &state=actor->*stateMember;
-            LegacyLong data[]={mm_actor_path_count(track.Route()),track.Events()->IvMac(),state.frame,state.nextEvent,
+            LegacyLong data[]={mm_actor_path_count(track.Route()),mm_actor_events_count(track.Events()),state.frame,state.nextEvent,
                 state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,
                 state.location.dnfrm,state.position.dxr,state.position.dyr,state.position.dzr,
                 actor->*firstMember,actor->*lastMember,actor->FIsModeRecord(),actor->Pbody()!=nullptr,actor->Pscen()!=nullptr};
@@ -572,10 +572,10 @@ class TrackTestActor : public Actor
             for (long i=0;i<mm_actor_path_count(track.Route());++i)
             { RouteDistancePoint point; mm_actor_path_get(track.Route(), i,&point); if (!record(&point,sizeof(point))) return false; }
             unsigned char payload[100];
-            for (long i=0;i<track.Events()->IvMac();++i)
+            for (long i=0;i<mm_actor_events_count(track.Events());++i)
             {
-                Base event; track.Events()->GetFixed(i,&event); LegacyLong bytes=track.Events()->Cb(i);
-                if (bytes>sizeof(payload)) return false; track.Events()->Get(i,payload);
+                Base event; mm_actor_events_get_fixed(track.Events(), i,&event); LegacyLong bytes=mm_actor_events_size(track.Events(), i);
+                if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(track.Events(), i,payload);
                 if (event.aet==aetAdd) payload[18]=payload[19]=0;
                 if (event.aet==aetSnd) { Sound value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
                 if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
@@ -618,15 +618,15 @@ class TrackTestActor : public Actor
             output?output->CactRef():0,_ptmpl->CactRef(),_pbody?_pbody->CactRef():0,_tagTmpl.pcrf->CactRef(),
             _state.frame,_state.onStage,_state.action,_state.cel,_state.nextEvent,_state.addEvent,_state.actionEvent,_state.firstEventInFrame,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_nfrmFirst,_nfrmLast,_fLifeDirty,
-            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
         bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) && record(&_state.position,sizeof(_state.position));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
-            if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload);
+            Base event; mm_actor_events_get_fixed(_track.Events(), i,&event); LegacyLong bytes=mm_actor_events_size(_track.Events(), i);
+            if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_track.Events(), i,payload);
             if (event.aet==aetAdd) payload[18]=payload[19]=0;
             saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
         }
@@ -647,7 +647,7 @@ class TrackTestActor : public Actor
         }
         auto append=[&](int type,int frame,int node,int offset,int hold,const void *payload,long bytes) {
             Base event={type,frame,{node,BR_SCALAR(offset),hold}};
-            return track.Events()->FInsert(track.Events()->IvMac(),bytes,const_cast<void *>(payload),&event);
+            return mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,const_cast<void *>(payload),&event);
         };
         Add entrance={}; Action action={0,0}; int32_t freeze=1; BRS step=0,scale=BR_SCALAR(2);
         BMAT34 forward,current; BrMatrix34Identity(&forward); BrMatrix34PreRotateX(&forward,0x1000);
@@ -702,17 +702,17 @@ class TrackTestActor : public Actor
         LegacyLong values[]={mode,ok,moved,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
             _state.useCurrentRotation,_state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,scene->Nfrm(),
-            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
         bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) &&
             record(&_state.transform,sizeof(_state.transform)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation)) &&
             record(&_state.routeTranslation,sizeof(_state.routeTranslation)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
-            if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload);
+            Base event; mm_actor_events_get_fixed(_track.Events(), i,&event); LegacyLong bytes=mm_actor_events_size(_track.Events(), i);
+            if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_track.Events(), i,payload);
             saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
         }
         return saved;
@@ -732,7 +732,7 @@ class TrackTestActor : public Actor
         }
         auto append=[&](int type,int frame,int node,int hold,const void *payload,long bytes) {
             Base event={type,frame,{node,rZero,hold}};
-            return track.Events()->FInsert(track.Events()->IvMac(),bytes,const_cast<void *>(payload),&event);
+            return mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,const_cast<void *>(payload),&event);
         };
         Add entrance={}; Action action={0,0}; BRS step=kdwrNil,scale=BR_SCALAR(2); int32_t freeze=1;
         RoutePoint tweak={BR_SCALAR((group==2 && (mode&4))?12:4),rZero,rZero};
@@ -747,8 +747,8 @@ class TrackTestActor : public Actor
         // An early Remove belongs before the later-node events.
         if (group==0 && (mode&8))
         {
-            Base early; track.Events()->GetFixed(8,&early); early.nfrm=7;
-            track.Events()->Delete(8); if (!track.Events()->FInsert(7,0,nullptr,&early)) return false;
+            Base early; mm_actor_events_get_fixed(track.Events(), 8,&early); early.nfrm=7;
+            mm_actor_events_delete(track.Events(), 8); if (!mm_actor_events_insert(track.Events(), 7,0,nullptr,&early)) return false;
         }
         _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
         _state.frame=3; _state.location={1,rZero,0}; _state.position=tweak;
@@ -788,17 +788,17 @@ class TrackTestActor : public Actor
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
             _state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,_fRejoin,_fPathInserted,_dnfrmGap,
             _rtelInsert.irpt,_rtelInsert.dwrOffset,_rtelInsert.dnfrm,static_cast<LegacyLong>(_tsInsert),scene->Nfrm(),
-            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
         bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) &&
             record(&_state.transform,sizeof(_state.transform)) && record(&_dxyzRaw,sizeof(_dxyzRaw));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
+            Base event; mm_actor_events_get_fixed(_track.Events(), i,&event); LegacyLong bytes=mm_actor_events_size(_track.Events(), i);
             if (bytes>sizeof(payload)) return false;
-            _track.Events()->Get(i,payload);
+            mm_actor_events_get_payload(_track.Events(), i,payload);
             saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
         }
         return saved && (!aliasOutputs || (ok && frame && route));
@@ -814,7 +814,7 @@ class TrackTestActor : public Actor
         ActorTrack track; if (!track.FCreate()) return false;
         auto append=[&](long type,long frame,int node,const void *payload,long bytes) {
             Base event={static_cast<int32_t>(type),static_cast<int32_t>(frame),{node,rZero,0}};
-            return track.Events()->FInsert(track.Events()->IvMac(),bytes,const_cast<void *>(payload),&event);
+            return mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,const_cast<void *>(payload),&event);
         };
         Add addition={}; Action action={0,0}; int32_t step=0; BRS scale=BR_SCALAR(2);
         if (kind)
@@ -837,7 +837,7 @@ class TrackTestActor : public Actor
         _state.onStage=kind==3 || kind>=5;
         if (_state.onStage) _pbody->Show();
         _state.addEvent=kind<=1?-1:kind==7?((mode&16)?5:4):0;
-        _state.nextEvent=kind<=1?0:kind==7?_track.Events()->IvMac():4;
+        _state.nextEvent=kind<=1?0:kind==7?mm_actor_events_count(_track.Events()):4;
         _state.firstEventInFrame=kind==7?_state.addEvent:0;
         _state.actionEvent=kind<=1?-1:kind==7?_state.addEvent+1:1;
         _state.location.irpt=kind==7?1:0;
@@ -853,17 +853,17 @@ class TrackTestActor : public Actor
         LegacyLong values[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
             _state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,
-            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
         bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) &&
             record(&_state.position,sizeof(_state.position)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base event; _track.Events()->GetFixed(i,&event);
-            LegacyLong bytes=_track.Events()->Cb(i); if (bytes>sizeof(payload)) return false;
-            _track.Events()->Get(i,payload);
+            Base event; mm_actor_events_get_fixed(_track.Events(), i,&event);
+            LegacyLong bytes=mm_actor_events_size(_track.Events(), i); if (bytes>sizeof(payload)) return false;
+            mm_actor_events_get_payload(_track.Events(), i,payload);
             // The native Add's final two bytes are uninitialized ABI padding.
             if (event.aet==aetAdd) payload[18]=payload[19]=0;
             saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
@@ -907,7 +907,7 @@ class TrackTestActor : public Actor
             case aetTweak: case aetPull: bytes=sizeof(RoutePoint); data.point={BR_SCALAR(2),rOne,rOne}; break;
             default: data.scalar=scalar; break;
             }
-            if (track.Events()->FInsert(track.Events()->IvMac(),bytes,&data,&event)) return true;
+            if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&data,&event)) return true;
             if (kind==aetCost && owningCopy) TagManager::CloseTag(&data.costume.tag);
             return false;
         };
@@ -974,20 +974,20 @@ class TrackTestActor : public Actor
         LegacyLong values[]={mode,ok,alive,averaged,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
             _state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,_state.transform.xaPath,_state.transform.yaPath,_state.transform.zaPath,
-            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
         bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base event; _track.Events()->GetFixed(i,&event); saved=record(&event,sizeof(event));
-            long bytes=_track.Events()->Cb(i);
+            Base event; mm_actor_events_get_fixed(_track.Events(), i,&event); saved=record(&event,sizeof(event));
+            long bytes=mm_actor_events_size(_track.Events(), i);
             if (event.aet==aetCost)
-            { Costume c; _track.Events()->Get(i,&c); LegacyLong fields[]={c.ibset,c.cmid,c.fCmtl}; saved=saved && record(fields,sizeof(fields)); }
+            { Costume c; mm_actor_events_get_payload(_track.Events(), i,&c); LegacyLong fields[]={c.ibset,c.cmid,c.fCmtl}; saved=saved && record(fields,sizeof(fields)); }
             else if (event.aet==aetSnd)
-            { Sound s; _track.Events()->Get(i,&s); LegacyLong fields[]={s.celn,s.sty,s.vlm,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
-            else { if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload); saved=saved && record(payload,bytes); }
+            { Sound s; mm_actor_events_get_payload(_track.Events(), i,&s); LegacyLong fields[]={s.celn,s.sty,s.vlm,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
+            else { if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_track.Events(), i,payload); saved=saved && record(payload,bytes); }
         }
         _pbody->Hide(); ReleasePpo(&_pbody); _track.Clear();
         return saved;
@@ -1012,7 +1012,7 @@ class TrackTestActor : public Actor
             else if (kind==aetTweak) { value.point={rOne,rZero,rZero}; bytes=sizeof(RoutePoint); }
             else if (kind==aetRem) bytes=0;
             else value.scalar=kind==aetFreeze ? 1 : 0;
-            return track.Events()->FInsert(track.Events()->IvMac(),bytes,&value,&e);
+            return mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&value,&e);
         };
         if (!append(aetAdd,1,0,0,0) || !append(aetActn,1,0,0,0) || !append(aetTweak,3,0,2,0) ||
             !append(aetFreeze,4,1,0,0) || !append(aetStep,5,2,0,0) || !append(aetAdd,8,3,0,0) ||
@@ -1030,7 +1030,7 @@ class TrackTestActor : public Actor
             long node=(mode%64)%6,first=((mode%64)/6)%4;
             if (mode&32)
             {
-                Base e; _track.Events()->GetFixed(2,&e); e.rtel.dwrOffset=klwMax-1; _track.Events()->PutFixed(2,&e);
+                Base e; mm_actor_events_get_fixed(_track.Events(), 2,&e); e.rtel.dwrOffset=klwMax-1; mm_actor_events_set_fixed(_track.Events(), 2,&e);
             }
             if (mode<64) _AdjustAevForRteIns(node,first);
             else _AdjustAevForRteDel(node,first);
@@ -1048,10 +1048,10 @@ class TrackTestActor : public Actor
             long add=(mode&1)?5:8,limit=(mode&1)?8:10;
             if (mode&2)
             {
-                Base e; _track.Events()->GetFixed(add-1,&e);
-                Base entrance; _track.Events()->GetFixed(add,&entrance);
+                Base e; mm_actor_events_get_fixed(_track.Events(), add-1,&e);
+                Base entrance; mm_actor_events_get_fixed(_track.Events(), add,&entrance);
                 e.rtel.irpt=entrance.rtel.irpt-((mode&4)?1:0); e.rtel.dwrOffset=(mode&4)?rOne:rZero;
-                _track.Events()->PutFixed(add-1,&e);
+                mm_actor_events_set_fixed(_track.Events(), add-1,&e);
             }
             _state.location.irpt=(mode&8)?5:0;
             _DelAddFrame(add,limit);
@@ -1084,12 +1084,12 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong state[]={mode,ok,alive,found,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
-            _state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,supplied.dwr,mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
+            _state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,supplied.dwr,mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
         bool saved=record(state,sizeof(state));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
-        { Base e; _track.Events()->GetFixed(i,&e); saved=record(&e,sizeof(e)); }
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
+        { Base e; mm_actor_events_get_fixed(_track.Events(), i,&e); saved=record(&e,sizeof(e)); }
         return saved;
     }
     bool FTestCostumeEdit(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,
@@ -1116,13 +1116,13 @@ class TrackTestActor : public Actor
         ActorTrack track; ok=track.FCreate();
         RouteDistancePoint point={{rZero,rZero,rZero},rZero};
         Base event={aetAdd,1,{0,rZero,0}}; Add add={};
-        ok=ok && mm_actor_path_insert(track.Route(), 0,&point) && track.Events()->FInsert(0,sizeof(add),&add,&event);
+        ok=ok && mm_actor_path_insert(track.Route(), 0,&point) && mm_actor_events_insert(track.Events(), 0,sizeof(add),&add,&event);
         auto append=[&](int type,int material,int bodySet,int frame) {
             Costume costume={}; costume.ibset=bodySet; costume.fCmtl=static_cast<tribool>(type); costume.cmid=material;
             costume.tag={ksidUseCrf,resource,kctgMtrl,materials[material%2]};
             event={aetCost,frame,{0,rZero,frame-1}};
             if (!type) TagManager::DupTag(&costume.tag);
-            if (track.Events()->FInsert(track.Events()->IvMac(),sizeof(costume),&costume,&event)) return true;
+            if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(costume),&costume,&event)) return true;
             if (!type) TagManager::CloseTag(&costume.tag);
             return false;
         };
@@ -1130,7 +1130,7 @@ class TrackTestActor : public Actor
         ok=ok && append(oldType,0,0,2) && append(oldType,0,1,3) && append((mode&16)?1:0,1,0,4) &&
             append((mode&16)?1:0,1,0,5) && append((mode&32)?1:0,0,0,6);
         event={aetAdd,7,{0,rZero,6}};
-        ok=ok && track.Events()->FInsert(track.Events()->IvMac(),sizeof(add),&add,&event) && append(oldType,0,0,8);
+        ok=ok && mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(add),&add,&event) && append(oldType,0,0,8);
         if (!ok) return false;
         _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState();
         _state.frame=2; _state.location={0,rZero,1}; _state.onStage=true;
@@ -1142,14 +1142,14 @@ class TrackTestActor : public Actor
             FSetCostumeCore(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl);
         else _PrepCostFill(1,&fresh);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong state[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,_nfrmFirst,_nfrmLast,_track.Events()->IvMac()};
+        LegacyLong state[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,_nfrmFirst,_nfrmLast,mm_actor_events_count(_track.Events())};
         bool saved=record(state,sizeof(state));
-        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
-            Base fixed; _track.Events()->GetFixed(i,&fixed); saved=record(&fixed,sizeof(fixed));
+            Base fixed; mm_actor_events_get_fixed(_track.Events(), i,&fixed); saved=record(&fixed,sizeof(fixed));
             if (fixed.aet==aetCost)
             {
-                Costume costume; _track.Events()->Get(i,&costume);
+                Costume costume; mm_actor_events_get_payload(_track.Events(), i,&costume);
                 LegacyLong fields[]={costume.ibset,costume.fCmtl,costume.cmid,static_cast<LegacyLong>(costume.tag.cno)};
                 saved=saved && record(fields,sizeof(fields));
             }
@@ -1181,7 +1181,7 @@ class TrackTestActor : public Actor
             else if (kind==aetRotF || kind==aetRotH) { BrMatrix34Identity(&payload.matrix); payload.matrix.m[3][0]=BR_SCALAR(value); bytes=sizeof(BMAT34); }
             else if (kind==aetPull || kind==aetTweak) { payload.point={BR_SCALAR(value),rOne,rOne}; bytes=sizeof(RoutePoint); }
             else payload.scalar=static_cast<int32_t>(value);
-            return track.Events()->FInsert(track.Events()->IvMac(),bytes,&payload,&event);
+            return mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&payload,&event);
         };
         const bool actionFill=mode>=384 && mode<512, actionSet=mode>=512;
         int bits=mode%128;
@@ -1232,14 +1232,14 @@ class TrackTestActor : public Actor
         }
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong state[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.action,_state.cel,_state.frozen,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_track.Events()->IvMac()};
+            _state.action,_state.cel,_state.frozen,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,mm_actor_events_count(_track.Events())};
         bool saved=record(state,sizeof(state));
         unsigned char data[100];
-        for (long i=0; saved && i<_track.Events()->IvMac(); ++i)
+        for (long i=0; saved && i<mm_actor_events_count(_track.Events()); ++i)
         {
-            Base event; _track.Events()->GetFixed(i,&event);
-            long bytes=_track.Events()->Cb(i); if (bytes>sizeof(data)) return false;
-            _track.Events()->Get(i,data); saved=record(&event,sizeof(event)) && record(data,bytes);
+            Base event; mm_actor_events_get_fixed(_track.Events(), i,&event);
+            long bytes=mm_actor_events_size(_track.Events(), i); if (bytes>sizeof(data)) return false;
+            mm_actor_events_get_payload(_track.Events(), i,data); saved=record(&event,sizeof(event)) && record(data,bytes);
         }
         return saved;
     }
@@ -1252,14 +1252,14 @@ class TrackTestActor : public Actor
         RouteDistancePoint point={{rZero,rZero,rZero},rZero};
         ActorEvent::Base event={ActorEvent::aetAdd,1,{0,rZero,0}};
         ActorEvent::Add add={};
-        if (!mm_actor_path_insert(track.Route(), 0,&point) || !track.Events()->FInsert(0,sizeof(add),&add,&event)) return false;
+        if (!mm_actor_path_insert(track.Route(), 0,&point) || !mm_actor_events_insert(track.Events(), 0,sizeof(add),&add,&event)) return false;
         for (int i=0; i<2; ++i)
         {
             ActorEvent::Costume costume={};
             costume.ibset=1; costume.tag={0,i ? replacement : original,kctgMtrl,0};
             event.aet=ActorEvent::aetCost; event.nfrm=4;
             TagManager::DupTag(&costume.tag);
-            if (!track.Events()->FInsert(i+1,sizeof(costume),&costume,&event))
+            if (!mm_actor_events_insert(track.Events(), i+1,sizeof(costume),&costume,&event))
             { TagManager::CloseTag(&costume.tag); return false; }
         }
         _track.Swap(track); _motionSounds.Clear();
@@ -1305,7 +1305,7 @@ class TrackTestActor : public Actor
         auto add=[&](int kind,int seed,int frame,int hold) {
             int bytes=fill(kind,seed);
             ActorEvent::Base event={kind,frame,{0,rZero,hold}};
-            return created.Events()->FInsert(created.Events()->IvMac(),bytes,&value,&event);
+            return mm_actor_events_insert(created.Events(), mm_actor_events_count(created.Events()),bytes,&value,&event);
         };
         int oldKind=mode<26 ? mode/2 : ActorEvent::aetFreeze;
         int newKind=oldKind;
@@ -1318,17 +1318,17 @@ class TrackTestActor : public Actor
         if (!add(ActorEvent::aetAdd,0,1,0) || !add(oldKind,1,(mode==26 || mode==29) ? 3 : 4,0)) return false;
         if (mode==30 && !add(ActorEvent::aetRotH,1,4,0)) return false;
         if (!add(newKind,2,4,mode<26 ? mode%2 : 0)) return false;
-        if (mode==31) { value.sound.fQueue=tYes; created.Events()->Put(2,&value.sound); }
-        if (mode==32 || mode==33) { value.sound.sty=3; created.Events()->Put(2,&value.sound); }
-        if (mode==34) { value.costume.ibset=2; created.Events()->Put(2,&value.costume); }
+        if (mode==31) { value.sound.fQueue=tYes; mm_actor_events_set_payload(created.Events(), 2,&value.sound); }
+        if (mode==32 || mode==33) { value.sound.sty=3; mm_actor_events_set_payload(created.Events(), 2,&value.sound); }
+        if (mode==34) { value.costume.ibset=2; mm_actor_events_set_payload(created.Events(), 2,&value.costume); }
         if (mode==35)
         {
             RoutePoint old={klwMax,0,0}, fresh={1,0,0};
-            created.Events()->Put(1,&old); created.Events()->Put(2,&fresh);
+            mm_actor_events_set_payload(created.Events(), 1,&old); mm_actor_events_set_payload(created.Events(), 2,&fresh);
         }
         _track.Swap(created); _motionSounds.Clear();
         _state=ActorFrameState(); _state.RewindRoute(_track);
-        _state.onStage=true; _state.frame=4; _state.firstEventInFrame=1; _state.nextEvent=_track.Events()->IvMac()-1;
+        _state.onStage=true; _state.frame=4; _state.firstEventInFrame=1; _state.nextEvent=mm_actor_events_count(_track.Events())-1;
         _state.actionEvent=-1; _state.addEvent=0; _state.celCount=4;
         _state.subrouteTranslation={BR_SCALAR(7),BR_SCALAR(8),BR_SCALAR(9)};
         _state.routeTranslation={BR_SCALAR(42),BR_SCALAR(43),BR_SCALAR(44)};
@@ -1336,7 +1336,7 @@ class TrackTestActor : public Actor
         if (oldKind==ActorEvent::aetSnd)
         {
             MMActorMotionSound match;
-            _track.Events()->GetFixed(1,&match.event); _track.Events()->Get(1,&match.sound);
+            mm_actor_events_get_fixed(_track.Events(), 1,&match.event); mm_actor_events_get_payload(_track.Events(), 1,&match.sound);
             if (!mm_actor_sounds_insert(_motionSounds.Core(),&match.event,&match.sound)) return false;
         }
         LegacyLong result=-99; bool ok=true;
@@ -1345,7 +1345,7 @@ class TrackTestActor : public Actor
             int32_t freeze=1; ActorEvent::Base event={ActorEvent::aetFreeze,4,{0,rZero,0}};
             _state.actionEvent=1;
             ok=_FInsertAev(1,sizeof(freeze),mode==39 ? pvNil : &freeze,&event,mode!=40);
-            if (ok && mode==39) _track.Events()->Put(1,&freeze);
+            if (ok && mode==39) mm_actor_events_set_payload(_track.Events(), 1,&freeze);
         }
         else if (mode>=41)
         {
@@ -1364,27 +1364,27 @@ class TrackTestActor : public Actor
         LegacyLong state[]={mode,ok,result,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.subrouteTranslation.dxr,_state.subrouteTranslation.dyr,_state.subrouteTranslation.dzr,
             _state.routeTranslation.dxr,_state.routeTranslation.dyr,_state.routeTranslation.dzr,_state.frozen,
-            _nfrmFirst,_nfrmLast,_track.Events()->IvMac(),_motionSounds.IvMac()};
+            _nfrmFirst,_nfrmLast,mm_actor_events_count(_track.Events()),_motionSounds.IvMac()};
         bool saved=record(state,sizeof(state));
-        for (long i=0; i<_track.Events()->IvMac(); ++i)
+        for (long i=0; i<mm_actor_events_count(_track.Events()); ++i)
         {
-            ActorEvent::Base event; _track.Events()->GetFixed(i,&event); saved=saved && record(&event,sizeof(event));
+            ActorEvent::Base event; mm_actor_events_get_fixed(_track.Events(), i,&event); saved=saved && record(&event,sizeof(event));
             if (event.aet==ActorEvent::aetSnd)
             {
-                ActorEvent::Sound sound; _track.Events()->Get(i,&sound);
+                ActorEvent::Sound sound; mm_actor_events_get_payload(_track.Events(), i,&sound);
                 LegacyLong fields[]={sound.celn,sound.sty,sound.vlm,sound.fQueue,sound.tag.sid,static_cast<LegacyLong>(sound.tag.cno)};
                 saved=saved && record(fields,sizeof(fields));
             }
             else if (event.aet==ActorEvent::aetCost)
             {
-                ActorEvent::Costume costume; _track.Events()->Get(i,&costume);
+                ActorEvent::Costume costume; mm_actor_events_get_payload(_track.Events(), i,&costume);
                 LegacyLong fields[]={costume.ibset,costume.cmid,costume.fCmtl,costume.tag.sid,static_cast<LegacyLong>(costume.tag.cno)};
                 saved=saved && record(fields,sizeof(fields));
             }
             else
             {
-                LegacyLong bytes=_track.Events()->Cb(i); std::memset(&value,0,sizeof(value));
-                _track.Events()->Get(i,&value); saved=saved && record(&value,bytes);
+                LegacyLong bytes=mm_actor_events_size(_track.Events(), i); std::memset(&value,0,sizeof(value));
+                mm_actor_events_get_payload(_track.Events(), i,&value); saved=saved && record(&value,bytes);
             }
         }
         return saved && ok==(mode!=43);
@@ -1416,15 +1416,15 @@ class TrackTestActor : public Actor
             if (kinds[i] == ActorEvent::aetAdd) { data=&add; bytes=sizeof(add); }
             if (kinds[i] == ActorEvent::aetActn) { data=&action; bytes=sizeof(action); }
             if (kinds[i] == ActorEvent::aetFreeze) { data=&frozen; bytes=sizeof(frozen); }
-            if (!created.Events()->FInsert(i,bytes,data,&event)) return false;
+            if (!mm_actor_events_insert(created.Events(), i,bytes,data,&event)) return false;
         }
         _track.Swap(created);
         _motionSounds.Clear();
         for (int i : {2,3,10})
         {
             MMActorMotionSound record;
-            _track.Events()->GetFixed(i,&record.event);
-            _track.Events()->Get(i,&record.sound);
+            mm_actor_events_get_fixed(_track.Events(), i,&record.event);
+            mm_actor_events_get_payload(_track.Events(), i,&record.sound);
             if (!mm_actor_sounds_insert(_motionSounds.Core(),&record.event,&record.sound)) return false;
         }
         _state.frame=4; _state.action=0; _state.cel=5; _state.celCount=4;
@@ -1451,7 +1451,7 @@ class TrackTestActor : public Actor
         }
         auto record = [&](const void *p, size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[] = {mode,ok,volume,loop,_state.frame,_state.action,_state.cel,_state.firstEventInFrame,
-            _state.nextEvent,_state.actionEvent,_state.addEvent,_track.Events()->IvMac(),_motionSounds.IvMac(),
+            _state.nextEvent,_state.actionEvent,_state.addEvent,mm_actor_events_count(_track.Events()),_motionSounds.IvMac(),
             tags ? tags->IvMac() : -1};
         bool saved=record(values,sizeof(values));
         for (long i=0; tags && i<tags->IvMac(); ++i)
@@ -1461,13 +1461,13 @@ class TrackTestActor : public Actor
             saved=saved && record(v,sizeof(v));
         }
         ReleasePpo(&tags);
-        for (long i=0; i<_track.Events()->IvMac(); ++i)
+        for (long i=0; i<mm_actor_events_count(_track.Events()); ++i)
         {
-            ActorEvent::Base event; _track.Events()->GetFixed(i,&event);
+            ActorEvent::Base event; mm_actor_events_get_fixed(_track.Events(), i,&event);
             saved=saved && record(&event,sizeof(event));
             if (event.aet == ActorEvent::aetSnd)
             {
-                ActorEvent::Sound sound; _track.Events()->Get(i,&sound);
+                ActorEvent::Sound sound; mm_actor_events_get_payload(_track.Events(), i,&sound);
                 LegacyUlong v[] = {static_cast<LegacyUlong>(sound.celn),static_cast<LegacyUlong>(sound.sty),
                     static_cast<LegacyUlong>(sound.vlm),static_cast<LegacyUlong>(sound.fLoop),
                     static_cast<LegacyUlong>(sound.tag.sid),sound.tag.ctg,sound.tag.cno};
@@ -1553,13 +1553,13 @@ class TrackTestActor : public Actor
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetAdd;
         ActorEvent::Add addition = {};
-        if (!mm_actor_path_insert(_track.Route(), 0, &point) || !_track.Events()->FInsert(0, sizeof(addition), &addition, &event))
+        if (!mm_actor_path_insert(_track.Route(), 0, &point) || !mm_actor_events_insert(_track.Events(), 0, sizeof(addition), &addition, &event))
             return false;
         event.aet = ActorEvent::aetSnd;
         ActorEvent::Sound sound = {};
         sound.tag = _tagTmpl;
         sound.tag.ctg = kctgMsnd;
-        if (!_track.Events()->FInsert(1, sizeof(sound), &sound, &event))
+        if (!mm_actor_events_insert(_track.Events(), 1, sizeof(sound), &sound, &event))
             return false;
         TagManager::DupTag(&sound.tag);
         MMActorMotionSound match = {};
@@ -1575,11 +1575,11 @@ class TrackTestActor : public Actor
     }
     bool FTestRestore(PActor snapshot)
     {
-        PGeneralGroup changedEvents = _track.Events();
+        auto changedEvents = _track.Events();
         MMActorPath *changedRoute = _track.Route();
         RouteDistancePoint point = {{BR_SCALAR(99), rZero, rZero}, rZero};
         mm_actor_path_put(_track.Route(), 0, &point);
-        _track.Events()->Delete(0); // Add has no owned TAG.
+        mm_actor_events_delete(_track.Events(), 0); // Add has no owned TAG.
         _state.frame = 7;
         _arid = 99;
         _state.transform.rScaleStep = BR_SCALAR(3);
@@ -1587,7 +1587,7 @@ class TrackTestActor : public Actor
         Restore(snapshot);
         mm_actor_path_get(_track.Route(), 0, &point);
         return CactRef() == refs && _track.Events() != changedEvents && _track.Route() != changedRoute &&
-               _track.Events()->IvMac() == 2 && point.xyz.dxr == BR_SCALAR(3) && _state.frame == 1 && _arid == 23 &&
+               mm_actor_events_count(_track.Events()) == 2 && point.xyz.dxr == BR_SCALAR(3) && _state.frame == 1 && _arid == 23 &&
                _state.transform.rScaleStep == BR_SCALAR(2) && _state.nextEvent == 1 && _motionSounds.IvMac() == 1;
     }
     bool FTestRoute()
@@ -1601,7 +1601,7 @@ class TrackTestActor : public Actor
         event.aet = ActorEvent::aetStep;
         event.rtel.dwrOffset = BR_SCALAR(2);
         BRS step = rZero;
-        if (!_track.Events()->FInsert(2, sizeof(step), &step, &event))
+        if (!mm_actor_events_insert(_track.Events(), 2, sizeof(step), &step, &event))
             return false;
         for (long mode = 0; mode < 3; ++mode)
         {
@@ -1624,10 +1624,10 @@ class TrackTestActor : public Actor
         _state.frame = 17;
         auto apply = [&](long type, void *payload, long bytes) {
             ActorEvent::Base event = {static_cast<int32_t>(type), -1, {0, BR_SCALAR(2), 3}};
-            long index = _track.Events()->IvMac();
-            if (!_track.Events()->FInsert(index, bytes, payload, &event) || !_FDoAevCore(index))
+            long index = mm_actor_events_count(_track.Events());
+            if (!mm_actor_events_insert(_track.Events(), index, bytes, payload, &event) || !_FDoAevCore(index))
                 return false;
-            _track.Events()->GetFixed(index, &event);
+            mm_actor_events_get_fixed(_track.Events(), index, &event);
             return event.nfrm == 17;
         };
         RoutePoint delta = {BR_SCALAR(2), BR_SCALAR(3), BR_SCALAR(4)};
@@ -1686,15 +1686,15 @@ static bool TestActorTrackRuntime(PScene scene)
         if (actor == pvNil || !actor->FInit(scene, resource))
             goto done;
 #ifdef DEBUG
-        // The second BASE allocation is the event group, after the C path clone.
-        // Failure must release the partial clone and its path.
+        // The C path clone allocates its handle and rows before the event table.
+        // A failure allocating the event table must release the partial path.
         vmutxMem.Enter();
-        vdmglob.dmaglBase.cactDo = 1;
-        vdmglob.dmaglBase.cactFail = 1;
+        vdmglob.dmaglHq.cactDo = 2;
+        vdmglob.dmaglHq.cactFail = 1;
         vmutxMem.Leave();
         bool copied = actor->FDup(&snapshot, false);
         vmutxMem.Enter();
-        vdmglob.dmaglBase.cactFail = 0;
+        vdmglob.dmaglHq.cactFail = 0;
         vmutxMem.Leave();
         vpers->Clear();
         if (copied || snapshot != pvNil || resource->CactRef() != refs + 2)

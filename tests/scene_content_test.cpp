@@ -267,13 +267,13 @@ class ContentActor : public Actor
         ActorEvent::Action action = {0, 0};
         LegacyLong step = rOne;
         if (!(mm_array_add(&track.Route()->rows, &first, nullptr) == MM_STORAGE_OK) || !(mm_array_add(&track.Route()->rows, &last, nullptr) == MM_STORAGE_OK) ||
-            !track.Events()->FInsert(0, sizeof(add), &add, &event))
+            !mm_actor_events_insert(track.Events(), 0, sizeof(add), &add, &event))
             return false;
         event.aet = aetActn;
-        if (!track.Events()->FInsert(1, sizeof(action), &action, &event))
+        if (!mm_actor_events_insert(track.Events(), 1, sizeof(action), &action, &event))
             return false;
         event.aet = aetStep;
-        if (!track.Events()->FInsert(2, sizeof(step), &step, &event))
+        if (!mm_actor_events_insert(track.Events(), 2, sizeof(step), &step, &event))
             return false;
         _track.Swap(track);
         _motionSounds.Clear();
