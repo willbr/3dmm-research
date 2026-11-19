@@ -54,6 +54,10 @@ int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *, MMMovieArchiveRoo
 int mm_movie_archive_append_scene(const MMMovieArchiveEditor *, MMU32 root, MMU32 scene,
                                   MMI32 source, MMU32 background);
 
+/* Write the required empty roll call for a rooted archive that has no ACTR
+ * chunks and no existing roll-call link. Other archives need no write. */
+int mm_movie_archive_ensure_empty_rollcall(const MMMovieArchiveEditor *);
+
 /* Follow the highest child slot of the requested type, or use zero when
  * there is no matching child. */
 int mm_movie_archive_next_child(const MMChunkAccess *, MMU32 parent_type, MMU32 parent,

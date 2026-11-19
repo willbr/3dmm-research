@@ -1027,6 +1027,8 @@ fallback and new IDs, and the source table's native encoding and link.
 C89 also creates movie roots for scene-only archives, links the existing
 scenes in order, and writes the header and event groups for a new scene.
 The Studio and Marcus paths use the same root and scene-header encoders.
+Actor-free Marcus movie materialization writes the empty roll call
+required by the retail and SDL Studio loaders.
 Marcus provides archive access and the host's character conversion.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound

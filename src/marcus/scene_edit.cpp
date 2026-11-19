@@ -1161,6 +1161,9 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
     }
     for (const auto &entry : *edits.cameras)
         ApplyCamera(file.get(), entry.first.scene, entry.first.frame, entry.second);
+    MovieArchiveHost host{file.get(), {}, {}};
+    const auto editor = host.Editor();
+    Require(mm_movie_archive_ensure_empty_rollcall(&editor), "Cannot write the movie's empty roll call.");
     Require(file->FSave(kctgSoc), "Cannot save the object working copy.");
     return result;
 }

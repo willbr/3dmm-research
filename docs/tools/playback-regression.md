@@ -14625,3 +14625,21 @@ and both decoded images.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The native outputs,
 probe and test logs are in `tmp/c89-scene-archive`.
+
+### Actor-free native saves
+
+C89 now writes an empty roll-call GST at movie slot 0 when materializing
+a rooted archive with no actor chunks or roll-call link. The C regression
+checks the big-endian empty table and verifies that a second pass makes
+no additional writes. All 21 selected checks and the three standalone
+C-only Release checks passed after the save change.
+
+The normal Marcus Save copy path produced a two-scene, actor-free movie
+with SHA-256
+`5dd9ab98bace0502115ed57365910f01915d866f0091fdbb9c4550964e493698`.
+The appended actor-audio movie remained byte-identical to its baseline.
+In suite `20261119T042223Z-6a2dd389`, retail, SDL Studio and Marcus
+completed all six runs of the new actor-free movie. The players agreed
+on both seek and playback frame positions, both seek images and silent
+PCM. The continuous pixel comparisons and Marcus playback timing
+remained inconclusive.

@@ -1,6 +1,7 @@
 #include "mm/movie_title.h"
 #include "mm/movie_root.h"
 #include "mm/movie_archive_edit.h"
+#include "mm/collections.h"
 #include "mm/scene_data.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -282,12 +283,13 @@ static void roots(void)
 #define ARCHIVE_SCENE 0x5343454eUL
 #define ARCHIVE_FRAMES 0x47474652UL
 #define ARCHIVE_STARTS 0x47475354UL
+#define ARCHIVE_ROLLCALL 0x47535420UL
 
 typedef struct ArchiveHost
 {
-    unsigned char records[6][MM_SCENE_BACKGROUND_GROUP_BYTES];
-    MMU32 lengths[6], adds, linked_scenes, linked_groups, old_groups;
-    int fail_link, rekeyed, titled;
+    unsigned char records[7][MM_SCENE_BACKGROUND_GROUP_BYTES];
+    MMU32 lengths[7], adds, linked_scenes, linked_groups, old_groups;
+    int fail_link, rekeyed, titled, rollcall;
 } ArchiveHost;
 
 static int archive_entry(void *context, MMU32 position, MMChunkEntry *entry)
@@ -298,7 +300,7 @@ static int archive_entry(void *context, MMU32 position, MMChunkEntry *entry)
     {
         entry->type = ARCHIVE_MOVIE;
         entry->number = 5;
-        entry->child_count = host->linked_scenes + 1;
+        entry->child_count = host->linked_scenes + 1 + host->rollcall;
     }
     else
     {
@@ -310,8 +312,16 @@ static int archive_entry(void *context, MMU32 position, MMChunkEntry *entry)
 static int archive_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
 {
     ArchiveHost *host = (ArchiveHost *)context;
+    if (host->rollcall && i == 0)
+    {
+        out->type = ARCHIVE_ROLLCALL;
+        out->number = 9;
+        out->slot = 0;
+        return 1;
+    }
+    i -= host->rollcall;
     CHECK(parent == 0 && i <= host->linked_scenes);
-    out->type = i < host->linked_scenes ? ARCHIVE_SCENE : 0x47535420UL;
+    out->type = i < host->linked_scenes ? ARCHIVE_SCENE : ARCHIVE_ROLLCALL;
     out->number = i == 0 ? 7 : 20;
     out->slot = i < host->linked_scenes ? i : 23;
     return 1;
@@ -335,10 +345,10 @@ static int archive_add(void *context, MMU32 type, MMU32 size, MMU32 *number, MMS
 {
     ArchiveHost *host = (ArchiveHost *)context;
     static const MMU32 types[] = {ARCHIVE_MOVIE, ARCHIVE_SCENE, ARCHIVE_FRAMES, ARCHIVE_STARTS,
-                                  ARCHIVE_FRAMES, ARCHIVE_STARTS};
-    static const MMU32 numbers[] = {5, 0, 3, 4, 5, 6};
+                                  ARCHIVE_FRAMES, ARCHIVE_STARTS, ARCHIVE_ROLLCALL};
+    static const MMU32 numbers[] = {5, 0, 3, 4, 5, 6, 9};
     MMU32 index = host->adds++;
-    CHECK(index < 6 && type == types[index] && size <= sizeof(host->records[0]));
+    CHECK(index < 7 && type == types[index] && size <= sizeof(host->records[0]));
     CHECK((writer == NULL) == (type == ARCHIVE_SCENE));
     host->lengths[index] = size;
     *number = numbers[index];
@@ -373,6 +383,12 @@ static int archive_rekey(void *context, MMU32 type, MMU32 old, MMU32 number)
 static int archive_adopt(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
 {
     ArchiveHost *host = (ArchiveHost *)context;
+    if (child_type == ARCHIVE_ROLLCALL)
+    {
+        CHECK(type == ARCHIVE_MOVIE && parent == 5 && number == 9 && slot == 0 && !host->rollcall);
+        host->rollcall = 1;
+        return 1;
+    }
     if (type == ARCHIVE_MOVIE)
     {
         CHECK(parent == 5 && child_type == ARCHIVE_SCENE && slot == host->linked_scenes);
@@ -410,6 +426,7 @@ static void archived_scenes(void)
                                    archive_adopt, archive_unlink, archive_put, archive_rekey, archive_title};
     MMMovieArchiveRoot root = {999, 0};
     MMMovieHeader header;
+    MMCollectionHeader rollcall;
     MMSceneState scene;
     MMMemoryStream stream;
     editor.context = &host;
@@ -433,6 +450,12 @@ static void archived_scenes(void)
     CHECK(scene.firstFrame == 1 && scene.lastFrame == 1 && scene.transition == 0);
     CHECK(host.lengths[5] == MM_SCENE_BACKGROUND_GROUP_BYTES);
     CHECK(!memcmp(host.records[5] + MM_SCENE_EMPTY_GROUP_BYTES, start_row, sizeof(start_row)));
+    CHECK(mm_movie_archive_ensure_empty_rollcall(&editor) && host.rollcall && host.adds == 7);
+    CHECK(mm_memory_stream_init(&stream, host.records[6], host.lengths[6]));
+    CHECK(mm_collection_header_read(&stream.stream, MM_COLLECTION_STRINGS, 0, &rollcall) == MM_STORAGE_OK);
+    CHECK(rollcall.big_endian && rollcall.system == MM_TEXT_UTF16_LE && rollcall.count == 0 &&
+          rollcall.width == MM_MOVIE_ACTOR_BYTES + 4);
+    CHECK(mm_movie_archive_ensure_empty_rollcall(&editor) && host.adds == 7);
 }
 
 int main(void)
