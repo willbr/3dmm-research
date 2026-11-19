@@ -711,10 +711,10 @@ void Actor::_Hide(void)
 MMActorRouteEditServices Actor::_RouteEditServices()
 {
     MMActorRouteEditServices s={}; s.edits=_EventEditServices();
-    s.insert_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { return int(static_cast<PDynamicArray>(p)->FInsert(i,const_cast<MMActorRoutePoint *>(v))); };
-    s.write_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { static_cast<PDynamicArray>(p)->Put(i,const_cast<MMActorRoutePoint *>(v)); };
-    s.delete_points=[](void *p,MMI32 i,MMI32 count) { static_cast<PDynamicArray>(p)->Delete(i,count); };
-    s.clear_route=[](void *p) { static_cast<PDynamicArray>(p)->FSetIvMac(0); };
+    s.insert_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { return mm_actor_path_insert(static_cast<MMActorPath *>(p), i, v); };
+    s.write_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { AssertDo(mm_actor_path_put(static_cast<MMActorPath *>(p), i, v), "invalid actor path index"); };
+    s.delete_points=[](void *p,MMI32 i,MMI32 count) { AssertDo(mm_array_delete(&static_cast<MMActorPath *>(p)->rows, i, count) == MM_STORAGE_OK, "invalid actor path range"); };
+    s.clear_route=[](void *p) { mm_array_set_count(&static_cast<MMActorPath *>(p)->rows, 0); };
     s.write_event=[](void *p,MMI32 i,const MMActorEvent *v) { static_cast<PGeneralGroup>(p)->PutFixed(i,const_cast<MMActorEvent *>(v)); };
     s.swap_events=[](void *p,MMI32 a,MMI32 b) { static_cast<PGeneralGroup>(p)->Swap(a,b); };
     s.reserve_events=[](void *p,MMU32 count,MMU32 bytes) { return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(count,bytes,fgrpNil)); };
@@ -733,7 +733,7 @@ MMActorRouteEditServices Actor::_RouteEditServices()
 }
 bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
 {
-    AssertBaseThis(0); AssertIn(irpt,0,_track.Route()->IvMac()+1); AssertVarMem(prpt);
+    AssertBaseThis(0); AssertIn(irpt,0,mm_actor_path_count(_track.Route())+1); AssertVarMem(prpt);
     static_assert(rEps==1,"actor route epsilon ABI");
     MMActorRoutePoint point; std::memcpy(&point,prpt,sizeof(point));
     const auto tables=EngineActorMotion::Services();
@@ -816,7 +816,7 @@ MMActorStageEditServices Actor::_StageEditServices()
                   "Stage edit ABI");
     MMActorStageEditServices s{}; s.subroute=_SubrouteEditServices();
     s.reserve_points=[](void *route,MMU32 count) {
-        return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil));
+        return int(mm_array_reserve(&static_cast<MMActorPath *>(route)->rows, count, 0) == MM_STORAGE_OK);
     };
     s.placement=[](void *p,MMActorPoint *point,MMActorPoint *origin,unsigned short *yaw) {
         auto actor=static_cast<Actor *>(p); BRS x,y,z;
@@ -1507,7 +1507,7 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 ***************************************************************************/
 void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 {
-    AssertBaseThis(0); AssertIn(irptAdjust,0,_track.Route()->IvMac()); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
+    AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_track.Route())); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_adjust_insert(_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
@@ -1520,7 +1520,7 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 ***************************************************************************/
 void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 {
-    AssertBaseThis(0); AssertIn(irptAdjust,0,_track.Route()->IvMac()); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
+    AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_track.Route())); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
@@ -1745,7 +1745,7 @@ MMActorRecordServices Actor::_RecordServices()
                   fmafFreeze==MM_RECORD_FREEZE && fmafGround==MM_RECORD_GROUND && sizeof(ulong)==4,
                   "Actor recording ABI");
     MMActorRecordServices s{}; s.subroute=_SubrouteEditServices();
-    s.reserve_points=[](void *route,MMU32 count) { return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil)); };
+    s.reserve_points=[](void *route,MMU32 count) { return int(mm_array_reserve(&static_cast<MMActorPath *>(route)->rows, count, 0) == MM_STORAGE_OK); };
     s.distance=[](void *,const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
     s.publish_record=[](void *p,const MMActorRecording *record) { static_cast<Actor *>(p)->_PublishRecordingState(*record); };
     s.restore=[](void *p,void *undo,MMActorState *state,MMActorRecording *record) {
@@ -2007,7 +2007,7 @@ bool Actor::FMustRender(long nfrmRenderLast)
         goto LStill;
     if (_state.frame > _nfrmLast)
         goto LStill;
-    if (_track.Route()->IvMac() == 0)
+    if (mm_actor_path_count(_track.Route()) == 0)
         goto LStill;
 
     // Intervening events?	Sounds don't affect rendering.
@@ -2177,11 +2177,11 @@ void Actor::AssertValid(LegacyUlong grfobj)
     AssertNilOrPo(_pbody, 0);
     AssertNilOrPo(_ptmpl, 0);
     AssertPo(_track.Events(), 0);
-    AssertPo(_track.Route(), 0);
+    Assert(_track.Route(), "missing actor path");
     Assert(_motionSounds.Valid(), "invalid C motion sound storage");
 
     long iaevMac = _track.Events()->IvMac();
-    long irptMac = _track.Route()->IvMac();
+    long irptMac = mm_actor_path_count(_track.Route());
     bool fTracing = FPure(grfobj & fobjAssertFull);
 
     AssertIn(_state.nextEvent, -1, iaevMac + 1);
@@ -2210,7 +2210,7 @@ void Actor::AssertValid(LegacyUlong grfobj)
         // Supply a debug readable view of br_scalar path
         for (irpt = 0; irpt < irptMac; irpt++)
         {
-            _track.Route()->Get(irpt, &rpt);
+            mm_actor_path_get(_track.Route(), irpt, &rpt);
         }
 
         AssertIn(_state.location.irpt, 0, irptMac + 1); // Supply a debug readable view of the event stream
@@ -2247,7 +2247,7 @@ void Actor::AssertValid(LegacyUlong grfobj)
 
             mpaetfSeen[aev.aet] = fTrue;
             rtel = aev.rtel;
-            _track.Route()->Get(aev.rtel.irpt, &rpt);
+            mm_actor_path_get(_track.Route(), aev.rtel.irpt, &rpt);
             Assert(aev.rtel.dwrOffset < rpt.dwr || rpt.dwr == rZero, "Invalid rtel.dwrOffset");
 
             // Variable portion of aev retrieved for debug viewing
@@ -2331,7 +2331,11 @@ void Actor::MarkMem(void)
         }
     }
     MarkMemObj(_track.Events());
-    MarkMemObj(_track.Route());
+    if (_track.Route())
+    {
+        MarkPv(_track.Route());
+        MarkPv(_track.Route()->storage.buffers[0].data);
+    }
     MarkMemObj(_pbody);
     MarkMemObj(_ptmpl);
     _tagTmpl.MarkMem();

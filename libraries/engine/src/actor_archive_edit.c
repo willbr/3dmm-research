@@ -1,4 +1,5 @@
 #include "actor_archive_internal.h"
+#include "mm/actor_path.h"
 #include "sound_archive_internal.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_math.h"
@@ -144,17 +145,11 @@ int mm_actor_archive_write_event_group(const MMMovieArchiveEditor *editor, MMGro
 
 int mm_actor_archive_write_route(const MMMovieArchiveEditor *editor, MMU32 actor, const void *points, MMU32 count)
 {
-    MMCollectionHeader header = {0};
+    MMCollectionHeader header;
     MMStorageWriter writer;
     unsigned char bytes[12];
-    const unsigned short one = 1;
     MMU32 number;
-    header.kind = MM_COLLECTION_ARRAY;
-    header.system = editor->system;
-    header.big_endian = *(const unsigned char *)&one == 0;
-    header.count = count;
-    header.width = MM_ACTOR_ROUTE_BYTES;
-    return mm_collection_layout(&header) == MM_STORAGE_OK &&
+    return mm_actor_path_layout(count, editor->system, &header) &&
         mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
         editor->add(editor->context, ROUTE_TYPE, header.header_bytes + header.first_bytes, &number, &writer) &&
         writer.length == header.header_bytes + header.first_bytes &&

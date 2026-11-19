@@ -6,7 +6,7 @@ ASSERTNAME
 void ActorRouteEvaluator::Advance(const ActorTrack &track, BRS step, RouteLocation *location, LegacyLong nextEvent,
                                   LegacyLong frame, LegacyLong firstFrame, bool clamp, bool *end)
 {
-    AssertPo(track.Route(), 0);
+    Assert(track.Route(), "missing actor path");
     AssertPo(track.Events(), 0);
     AssertVarMem(location);
     AssertNilOrVarMem(end);
@@ -19,7 +19,7 @@ void ActorRouteEvaluator::Advance(const ActorTrack &track, BRS step, RouteLocati
 }
 void ActorRouteEvaluator::Position(const ActorTrack &track, const RouteLocation *location, RoutePoint *position)
 {
-    AssertPo(track.Route(), 0);
+    Assert(track.Route(), "missing actor path");
     AssertVarMem(const_cast<RouteLocation *>(location));
     AssertVarMem(position);
     const auto services = EngineActorMotion::Services();

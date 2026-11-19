@@ -31,7 +31,7 @@ inline bool FCreateTrack(ActorTrack &track, bool includeSounds = true)
                                    {{BR_SCALAR(8), rZero, rZero}, rZero},
                                    {{BR_SCALAR(20), rZero, rZero}, rZero}};
     for (LegacyLong index = 0; index < 3; ++index)
-        if (!created.Route()->FInsert(index, &points[index]))
+        if (!mm_actor_path_insert(created.Route(), index, &points[index]))
             return false;
     auto append = [&](LegacyLong type, LegacyLong frame, RouteLocation location, void *payload, LegacyLong bytes) {
         ActorEvent::Base event = {static_cast<int32_t>(type), static_cast<int32_t>(frame), location};
@@ -86,10 +86,10 @@ inline bool FCreateMetadataTrack(ActorTrack &track, bool freezeAtFour)
     if (!created.FCreate())
         return false;
     RouteDistancePoint point = {{rZero, rZero, rZero}, BR_SCALAR(6)};
-    if (!created.Route()->FInsert(0, &point))
+    if (!mm_actor_path_insert(created.Route(), 0, &point))
         return false;
     point = {{BR_SCALAR(6), rZero, rZero}, rZero};
-    if (!created.Route()->FInsert(1, &point))
+    if (!mm_actor_path_insert(created.Route(), 1, &point))
         return false;
     ActorEvent::Base event = {ActorEvent::aetAdd, -2, {0, rZero, 0}};
     ActorEvent::Add addition = {};

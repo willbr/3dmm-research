@@ -282,7 +282,7 @@ class TrackTestActor : public Actor
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint first={{rZero,rZero,rZero},BR_SCALAR(10)},last={{BR_SCALAR(10),rZero,rZero},rZero};
         ActorEvent::Base event={aetAdd,1,{0,rZero,0}}; ActorEvent::Add add={}; ActorEvent::Action action={0,0}; LegacyLong step=rOne;
-        if (!track.Route()->FAdd(&first) || !track.Route()->FAdd(&last) || !track.Events()->FInsert(0,sizeof(add),&add,&event)) return false;
+        if (!(mm_array_add(&track.Route()->rows, &first, nullptr) == MM_STORAGE_OK) || !(mm_array_add(&track.Route()->rows, &last, nullptr) == MM_STORAGE_OK) || !track.Events()->FInsert(0,sizeof(add),&add,&event)) return false;
         event.aet=aetActn; if (!track.Events()->FInsert(1,sizeof(action),&action,&event)) return false;
         event.aet=aetStep; if (!track.Events()->FInsert(2,sizeof(step),&step,&event)) return false;
         _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
@@ -301,9 +301,9 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={actor->Arid(),actor->*firstMember,actor->*lastMember,state.frame,state.nextEvent,state.firstEventInFrame,
             state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,state.location.dnfrm,state.step,state.frozen,
-            track.Route()->IvMac(),track.Events()->IvMac(),(actor->*templateMember)->CactRef(),tag.pcrf->CactRef()};
+            mm_actor_path_count(track.Route()),track.Events()->IvMac(),(actor->*templateMember)->CactRef(),tag.pcrf->CactRef()};
         bool ok=record(values,sizeof(values)) && record(&state.position,sizeof(state.position)) && record(&state.transform,sizeof(state.transform));
-        for (long i=0;ok && i<track.Route()->IvMac();++i) { RouteDistancePoint point; track.Route()->Get(i,&point); ok=record(&point,sizeof(point)); }
+        for (long i=0;ok && i<mm_actor_path_count(track.Route());++i) { RouteDistancePoint point; mm_actor_path_get(track.Route(), i,&point); ok=record(&point,sizeof(point)); }
         for (long i=0;ok && i<track.Events()->IvMac();++i)
         {
             ActorEvent::Base event; track.Events()->GetFixed(i,&event); LegacyLong bytes=track.Events()->Cb(i);
@@ -360,11 +360,11 @@ class TrackTestActor : public Actor
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.onStage,_state.frozen,_state.action,_state.cel,
             _nfrmFirst,_nfrmLast,_arid,_fLifeDirty,_fPrerendered,_fTimeFrozen,_fModeRecord,_fRejoin,_fPathInserted,
             _rtelInsert.irpt,_rtelInsert.dwrOffset,_rtelInsert.dnfrm,static_cast<LegacyLong>(_tsInsert),_dnfrmGap,
-            _tagSnd.sid,static_cast<LegacyLong>(_tagSnd.ctg),static_cast<LegacyLong>(_tagSnd.cno),_track.Route()->IvMac(),_track.Events()->IvMac()};
+            _tagSnd.sid,static_cast<LegacyLong>(_tagSnd.ctg),static_cast<LegacyLong>(_tagSnd.cno),mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
         bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) &&
             record(&_state.position,sizeof(_state.position)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte)) && record(&_dxyzRaw,sizeof(_dxyzRaw));
-        for (long i=0;saved && i<_track.Route()->IvMac();++i)
-        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
+        { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
         for (long i=0;saved && i<_track.Events()->IvMac();++i)
         {
@@ -389,7 +389,7 @@ class TrackTestActor : public Actor
         RouteDistancePoint point={{BR_SCALAR(7),BR_SCALAR(2),-BR_SCALAR(3)},rZero};
         Add entrance={BR_SCALAR(4),BR_SCALAR(5),BR_SCALAR(6),111,222,333};
         Base event={(mode&8)?aetRem:aetAdd,1,{0,rZero,0}};
-        if (!track.Route()->FAdd(&point) || !track.Events()->FInsert(0,sizeof(entrance),&entrance,&event)) return false;
+        if (!(mm_array_add(&track.Route()->rows, &point, nullptr) == MM_STORAGE_OK) || !track.Events()->FInsert(0,sizeof(entrance),&entrance,&event)) return false;
         for (int i=0;i<3;++i)
         {
             Sound sound={}; sound.celn=-1; sound.vlm=100; sound.sty=2; sound.chid=55;
@@ -432,12 +432,12 @@ class TrackTestActor : public Actor
         for (int i=0;i<(later?5:3);++i)
         {
             RouteDistancePoint point={{BR_SCALAR(positions[i]),rZero,rZero},BR_SCALAR(distances[i])};
-            if (!track.Route()->FInsert(i,&point)) return false;
+            if (!mm_actor_path_insert(track.Route(), i,&point)) return false;
         }
         for (int i=0;i<((mode>>2)&3);++i)
         {
             RouteDistancePoint point={{BR_SCALAR(100+i*4),BR_SCALAR(5+((mode&2)?i:0)),BR_SCALAR(-10)},i+1==((mode>>2)&3)?rZero:BR_SCALAR(4)};
-            if (!clip.Route()->FInsert(i,&point)) return false;
+            if (!mm_actor_path_insert(clip.Route(), i,&point)) return false;
         }
         auto append=[&](int kind,int frame,int node) {
             Base event={kind,frame,{node,rZero,0}};
@@ -472,12 +472,12 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,changed,_state.frame,_state.nextEvent,_state.firstEventInFrame,_state.addEvent,_state.actionEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.step,_state.frozen,
-            _nfrmFirst,_nfrmLast,_fLifeDirty,resource->CactRef(),_track.Route()->IvMac(),_track.Events()->IvMac(),clipboard->_track.Route()->IvMac()};
+            _nfrmFirst,_nfrmLast,_fLifeDirty,resource->CactRef(),mm_actor_path_count(_track.Route()),_track.Events()->IvMac(),mm_actor_path_count(clipboard->_track.Route())};
         bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) && record(&_state.transform,sizeof(_state.transform));
         for (int source=0;saved && source<2;++source)
         {
             auto route=source?clipboard->_track.Route():_track.Route();
-            for (long i=0;saved && i<route->IvMac();++i) { RouteDistancePoint point; route->Get(i,&point); saved=record(&point,sizeof(point)); }
+            for (long i=0;saved && i<mm_actor_path_count(route);++i) { RouteDistancePoint point; mm_actor_path_get(route, i, &point); saved=record(&point,sizeof(point)); }
         }
         unsigned char payload[100];
         for (long i=0;saved && i<_track.Events()->IvMac();++i)
@@ -503,7 +503,7 @@ class TrackTestActor : public Actor
         for (int i=0;i<5;++i)
         {
             RouteDistancePoint point={{BR_SCALAR(i*10),BR_SCALAR(i),-BR_SCALAR(i)},(i==1 || i==4)?rZero:BR_SCALAR(10)};
-            if (!track.Route()->FInsert(i,&point)) return false;
+            if (!mm_actor_path_insert(track.Route(), i,&point)) return false;
         }
         auto append=[&](int kind,int frame,int node,int scalar=0) {
             Base event={kind,frame,{node,rZero,0}};
@@ -564,13 +564,13 @@ class TrackTestActor : public Actor
         auto firstMember=&TrackTestActor::_nfrmFirst; auto lastMember=&TrackTestActor::_nfrmLast;
         auto dump=[&](PActor actor) {
             auto &track=actor->*trackMember; auto &state=actor->*stateMember;
-            LegacyLong data[]={track.Route()->IvMac(),track.Events()->IvMac(),state.frame,state.nextEvent,
+            LegacyLong data[]={mm_actor_path_count(track.Route()),track.Events()->IvMac(),state.frame,state.nextEvent,
                 state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,
                 state.location.dnfrm,state.position.dxr,state.position.dyr,state.position.dzr,
                 actor->*firstMember,actor->*lastMember,actor->FIsModeRecord(),actor->Pbody()!=nullptr,actor->Pscen()!=nullptr};
             if (!record(data,sizeof(data))) return false;
-            for (long i=0;i<track.Route()->IvMac();++i)
-            { RouteDistancePoint point; track.Route()->Get(i,&point); if (!record(&point,sizeof(point))) return false; }
+            for (long i=0;i<mm_actor_path_count(track.Route());++i)
+            { RouteDistancePoint point; mm_actor_path_get(track.Route(), i,&point); if (!record(&point,sizeof(point))) return false; }
             unsigned char payload[100];
             for (long i=0;i<track.Events()->IvMac();++i)
             {
@@ -618,10 +618,10 @@ class TrackTestActor : public Actor
             output?output->CactRef():0,_ptmpl->CactRef(),_pbody?_pbody->CactRef():0,_tagTmpl.pcrf->CactRef(),
             _state.frame,_state.onStage,_state.action,_state.cel,_state.nextEvent,_state.addEvent,_state.actionEvent,_state.firstEventInFrame,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_nfrmFirst,_nfrmLast,_fLifeDirty,
-            _track.Route()->IvMac(),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
         bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) && record(&_state.position,sizeof(_state.position));
-        for (long i=0;saved && i<_track.Route()->IvMac();++i)
-        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
+        { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
         for (long i=0;saved && i<_track.Events()->IvMac();++i)
         {
@@ -643,7 +643,7 @@ class TrackTestActor : public Actor
         for (int i=0;i<5;++i)
         {
             RouteDistancePoint point={{BR_SCALAR(coordinates[i]),rZero,rZero},(i==0 || i==2)?BR_SCALAR(4):rZero};
-            if (!track.Route()->FInsert(i,&point)) return false;
+            if (!mm_actor_path_insert(track.Route(), i,&point)) return false;
         }
         auto append=[&](int type,int frame,int node,int offset,int hold,const void *payload,long bytes) {
             Base event={type,frame,{node,BR_SCALAR(offset),hold}};
@@ -702,12 +702,12 @@ class TrackTestActor : public Actor
         LegacyLong values[]={mode,ok,moved,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
             _state.useCurrentRotation,_state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,scene->Nfrm(),
-            _track.Route()->IvMac(),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
         bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) &&
             record(&_state.transform,sizeof(_state.transform)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation)) &&
             record(&_state.routeTranslation,sizeof(_state.routeTranslation)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte));
-        for (long i=0;saved && i<_track.Route()->IvMac();++i)
-        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
+        { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
         for (long i=0;saved && i<_track.Events()->IvMac();++i)
         {
@@ -728,7 +728,7 @@ class TrackTestActor : public Actor
         for (int i=0;i<5;++i)
         {
             RouteDistancePoint point={{BR_SCALAR(i*4),rZero,rZero},i<3?BR_SCALAR(4):rZero};
-            if (!track.Route()->FInsert(i,&point)) return false;
+            if (!mm_actor_path_insert(track.Route(), i,&point)) return false;
         }
         auto append=[&](int type,int frame,int node,int hold,const void *payload,long bytes) {
             Base event={type,frame,{node,rZero,hold}};
@@ -763,7 +763,7 @@ class TrackTestActor : public Actor
         _fRejoin=!(mode&16); _fPathInserted=!(mode&8); _dnfrmGap=-2;
         _rtelInsert={0,rZero,0}; _dxyzRaw={3,-5,7}; _tsInsert=(mode&64)?0xffffff00UL:1000;
         if (group==0 && (mode&2)) _state.location.dwrOffset=BR_SCALAR(2);
-        if (group==2) { RouteDistancePoint point; _track.Route()->Get(1,&point); point.dwr=0; _track.Route()->Put(1,&point); }
+        if (group==2) { RouteDistancePoint point; mm_actor_path_get(_track.Route(), 1,&point); point.dwr=0; mm_actor_path_put(_track.Route(), 1,&point); }
         if (!scene->TrackActor(this,_state.frame)) return false;
         PActor restore=nullptr; if (!FDup(&restore,true)) return false;
         if ((group==0 && (mode&32) && (mode&64)) || (group==1 && (mode&32))) tmpl->FailAfter((mode&64)?2:1);
@@ -788,11 +788,11 @@ class TrackTestActor : public Actor
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
             _state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,_fRejoin,_fPathInserted,_dnfrmGap,
             _rtelInsert.irpt,_rtelInsert.dwrOffset,_rtelInsert.dnfrm,static_cast<LegacyLong>(_tsInsert),scene->Nfrm(),
-            _track.Route()->IvMac(),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
         bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) &&
             record(&_state.transform,sizeof(_state.transform)) && record(&_dxyzRaw,sizeof(_dxyzRaw));
-        for (long i=0;saved && i<_track.Route()->IvMac();++i)
-        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
+        { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
         for (long i=0;saved && i<_track.Events()->IvMac();++i)
         {
@@ -820,15 +820,15 @@ class TrackTestActor : public Actor
         if (kind)
         {
             RouteDistancePoint p={{rZero,rZero,rZero},kind==3?BR_SCALAR(5):rZero};
-            if (!track.Route()->FInsert(0,&p)) return false;
-            if (kind==3) { p={{BR_SCALAR(5),rZero,rZero},rZero}; if (!track.Route()->FInsert(1,&p)) return false; }
+            if (!mm_actor_path_insert(track.Route(), 0,&p)) return false;
+            if (kind==3) { p={{BR_SCALAR(5),rZero,rZero},rZero}; if (!mm_actor_path_insert(track.Route(), 1,&p)) return false; }
             long first=kind==1?5:1;
             if (!append(aetAdd,first,0,&addition,sizeof(addition)) || !append(aetActn,first,0,&action,sizeof(action)) ||
                 !append(aetStep,first,0,&step,sizeof(step)) || !append(aetSize,first,0,&scale,sizeof(scale))) return false;
             if (mode&16) if (!append(aetRem,5,0,nullptr,0)) return false;
             p={{BR_SCALAR(20),rZero,rZero},rZero};
-            int node=track.Route()->IvMac();
-            if (!track.Route()->FInsert(node,&p) || !append(aetAdd,10,node,&addition,sizeof(addition)) ||
+            int node=mm_actor_path_count(track.Route());
+            if (!mm_actor_path_insert(track.Route(), node,&p) || !append(aetAdd,10,node,&addition,sizeof(addition)) ||
                 !append(aetActn,10,node,&action,sizeof(action)) || !append(aetStep,10,node,&step,sizeof(step))) return false;
         }
         _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
@@ -853,11 +853,11 @@ class TrackTestActor : public Actor
         LegacyLong values[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
             _state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,
-            _track.Route()->IvMac(),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
         bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) &&
             record(&_state.position,sizeof(_state.position)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation));
-        for (long i=0;saved && i<_track.Route()->IvMac();++i)
-        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
+        { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
         for (long i=0;saved && i<_track.Events()->IvMac();++i)
         {
@@ -888,7 +888,7 @@ class TrackTestActor : public Actor
         for (int i=0;i<3;++i)
         {
             RouteDistancePoint point={{BR_SCALAR(i*10),rZero,rZero},(i==0 && mode<256)?BR_SCALAR(5):rZero};
-            if (!track.Route()->FInsert(i,&point)) return false;
+            if (!mm_actor_path_insert(track.Route(), i,&point)) return false;
         }
         auto append=[&](int kind,int frame,int node,int offset,int hold,int scalar=0) {
             Base event={kind,frame,{node,BR_SCALAR(offset),hold}};
@@ -974,10 +974,10 @@ class TrackTestActor : public Actor
         LegacyLong values[]={mode,ok,alive,averaged,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
             _state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,_state.transform.xaPath,_state.transform.yaPath,_state.transform.zaPath,
-            _track.Route()->IvMac(),_track.Events()->IvMac()};
+            mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
         bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform));
-        for (long i=0;saved && i<_track.Route()->IvMac();++i)
-        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
+        { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
         for (long i=0;saved && i<_track.Events()->IvMac();++i)
         {
@@ -1001,7 +1001,7 @@ class TrackTestActor : public Actor
         for (int i=0;i<6;++i)
         {
             RouteDistancePoint point={{BR_SCALAR(positions[i]),rZero,rZero},BR_SCALAR(distances[i])};
-            if (!track.Route()->FInsert(i,&point)) return false;
+            if (!mm_actor_path_insert(track.Route(), i,&point)) return false;
         }
         auto append=[&](long kind,long frame,long node,long offset,long hold) {
             Base e={kind,frame,{node,BR_SCALAR(offset),hold}};
@@ -1084,10 +1084,10 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong state[]={mode,ok,alive,found,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
             _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
-            _state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,supplied.dwr,_track.Route()->IvMac(),_track.Events()->IvMac()};
+            _state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,supplied.dwr,mm_actor_path_count(_track.Route()),_track.Events()->IvMac()};
         bool saved=record(state,sizeof(state));
-        for (long i=0;saved && i<_track.Route()->IvMac();++i)
-        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
+        { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         for (long i=0;saved && i<_track.Events()->IvMac();++i)
         { Base e; _track.Events()->GetFixed(i,&e); saved=record(&e,sizeof(e)); }
         return saved;
@@ -1116,7 +1116,7 @@ class TrackTestActor : public Actor
         ActorTrack track; ok=track.FCreate();
         RouteDistancePoint point={{rZero,rZero,rZero},rZero};
         Base event={aetAdd,1,{0,rZero,0}}; Add add={};
-        ok=ok && track.Route()->FInsert(0,&point) && track.Events()->FInsert(0,sizeof(add),&add,&event);
+        ok=ok && mm_actor_path_insert(track.Route(), 0,&point) && track.Events()->FInsert(0,sizeof(add),&add,&event);
         auto append=[&](int type,int material,int bodySet,int frame) {
             Costume costume={}; costume.ibset=bodySet; costume.fCmtl=static_cast<tribool>(type); costume.cmid=material;
             costume.tag={ksidUseCrf,resource,kctgMtrl,materials[material%2]};
@@ -1170,8 +1170,8 @@ class TrackTestActor : public Actor
         ActorTrack track;
         if (!track.FCreate()) return false;
         RouteDistancePoint point={{rZero,rZero,rZero},BR_SCALAR(10)};
-        if (!track.Route()->FInsert(0,&point)) return false;
-        point.dwr=rZero; if (!track.Route()->FInsert(1,&point)) return false;
+        if (!mm_actor_path_insert(track.Route(), 0,&point)) return false;
+        point.dwr=rZero; if (!mm_actor_path_insert(track.Route(), 1,&point)) return false;
         auto append=[&](long kind,long value,long offset) {
             Base event={kind,offset+1,{0,BR_SCALAR(offset),0}};
             union { Add add; Action action; RoutePoint point; BMAT34 matrix; int32_t scalar; } payload={};
@@ -1252,7 +1252,7 @@ class TrackTestActor : public Actor
         RouteDistancePoint point={{rZero,rZero,rZero},rZero};
         ActorEvent::Base event={ActorEvent::aetAdd,1,{0,rZero,0}};
         ActorEvent::Add add={};
-        if (!track.Route()->FInsert(0,&point) || !track.Events()->FInsert(0,sizeof(add),&add,&event)) return false;
+        if (!mm_actor_path_insert(track.Route(), 0,&point) || !track.Events()->FInsert(0,sizeof(add),&add,&event)) return false;
         for (int i=0; i<2; ++i)
         {
             ActorEvent::Costume costume={};
@@ -1278,7 +1278,7 @@ class TrackTestActor : public Actor
         ActorTrack created;
         if (!created.FCreate()) return false;
         RouteDistancePoint points[]={{{rZero,rZero,rZero},BR_SCALAR(10)},{{BR_SCALAR(10),rZero,rZero},rZero}};
-        if (!created.Route()->FInsert(0,&points[0]) || !created.Route()->FInsert(1,&points[1])) return false;
+        if (!mm_actor_path_insert(created.Route(), 0,&points[0]) || !mm_actor_path_insert(created.Route(), 1,&points[1])) return false;
         union Payload { ActorEvent::Add add; ActorEvent::Action action; ActorEvent::Costume costume;
             ActorEvent::Sound sound; BMAT34 matrix; RoutePoint move; int32_t scalar; } value;
         auto fill=[&](int kind,int seed) {
@@ -1394,7 +1394,7 @@ class TrackTestActor : public Actor
         ActorTrack created;
         if (!created.FCreate()) return false;
         RouteDistancePoint point = {{rZero, rZero, rZero}, rZero};
-        if (!created.Route()->FInsert(0, &point)) return false;
+        if (!mm_actor_path_insert(created.Route(), 0, &point)) return false;
         const int kinds[] = {ActorEvent::aetAdd,ActorEvent::aetActn,ActorEvent::aetSnd,ActorEvent::aetSnd,
             ActorEvent::aetSnd,ActorEvent::aetSnd,ActorEvent::aetSnd,ActorEvent::aetFreeze,ActorEvent::aetSnd,
             ActorEvent::aetActn,ActorEvent::aetSnd,ActorEvent::aetAdd};
@@ -1553,7 +1553,7 @@ class TrackTestActor : public Actor
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetAdd;
         ActorEvent::Add addition = {};
-        if (!_track.Route()->FInsert(0, &point) || !_track.Events()->FInsert(0, sizeof(addition), &addition, &event))
+        if (!mm_actor_path_insert(_track.Route(), 0, &point) || !_track.Events()->FInsert(0, sizeof(addition), &addition, &event))
             return false;
         event.aet = ActorEvent::aetSnd;
         ActorEvent::Sound sound = {};
@@ -1576,16 +1576,16 @@ class TrackTestActor : public Actor
     bool FTestRestore(PActor snapshot)
     {
         PGeneralGroup changedEvents = _track.Events();
-        PDynamicArray changedRoute = _track.Route();
+        MMActorPath *changedRoute = _track.Route();
         RouteDistancePoint point = {{BR_SCALAR(99), rZero, rZero}, rZero};
-        _track.Route()->Put(0, &point);
+        mm_actor_path_put(_track.Route(), 0, &point);
         _track.Events()->Delete(0); // Add has no owned TAG.
         _state.frame = 7;
         _arid = 99;
         _state.transform.rScaleStep = BR_SCALAR(3);
         const long refs = CactRef();
         Restore(snapshot);
-        _track.Route()->Get(0, &point);
+        mm_actor_path_get(_track.Route(), 0, &point);
         return CactRef() == refs && _track.Events() != changedEvents && _track.Route() != changedRoute &&
                _track.Events()->IvMac() == 2 && point.xyz.dxr == BR_SCALAR(3) && _state.frame == 1 && _arid == 23 &&
                _state.transform.rScaleStep == BR_SCALAR(2) && _state.nextEvent == 1 && _motionSounds.IvMac() == 1;
@@ -1594,8 +1594,8 @@ class TrackTestActor : public Actor
     {
         RouteDistancePoint start = {{BR_SCALAR(3), rZero, rZero}, BR_SCALAR(4)};
         RouteDistancePoint finish = {{BR_SCALAR(7), rZero, rZero}, rZero};
-        _track.Route()->Put(0, &start);
-        if (!_track.Route()->FInsert(1, &finish))
+        mm_actor_path_put(_track.Route(), 0, &start);
+        if (!mm_actor_path_insert(_track.Route(), 1, &finish))
             return false;
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetStep;
@@ -1686,11 +1686,10 @@ static bool TestActorTrackRuntime(PScene scene)
         if (actor == pvNil || !actor->FInit(scene, resource))
             goto done;
 #ifdef DEBUG
-        // The third BASE allocation is the final native track table. Motion
-        // storage now uses the C allocator (fault-injected in its standalone test).
-        // Failure must release only the clone.
+        // The second BASE allocation is the event group, after the C path clone.
+        // Failure must release the partial clone and its path.
         vmutxMem.Enter();
-        vdmglob.dmaglBase.cactDo = 2;
+        vdmglob.dmaglBase.cactDo = 1;
         vdmglob.dmaglBase.cactFail = 1;
         vmutxMem.Leave();
         bool copied = actor->FDup(&snapshot, false);

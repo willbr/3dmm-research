@@ -56,15 +56,16 @@ MMActorCopyServices Actor::_CopyServices()
     };
     s.merge_event=[](void *,void *p,MMI32 first,MMI32 added) { static_cast<PActor>(p)->_MergeAev(first,added); };
     s.insert_point=[](void *,void *p,MMI32 i,const MMActorRoutePoint *value) {
-        RouteDistancePoint point; std::memcpy(&point,value,sizeof(point)); return int(static_cast<PDynamicArray>(p)->FInsert(i,&point));
+        return mm_actor_path_insert(static_cast<MMActorPath *>(p), i, value);
     };
     s.write_point=[](void *,void *p,MMI32 i,const MMActorRoutePoint *value) {
-        RouteDistancePoint point; std::memcpy(&point,value,sizeof(point)); static_cast<PDynamicArray>(p)->Put(i,&point);
+        AssertDo(mm_actor_path_put(static_cast<MMActorPath *>(p), i, value), "invalid actor path index");
     };
-    s.resize_route=[](void *,void *p,MMI32 count) { return int(static_cast<PDynamicArray>(p)->FSetIvMac(count)); };
-    s.reserve_route=[](void *,void *p,MMI32 count) { return int(static_cast<PDynamicArray>(p)->FEnsureSpace(count,fgrpNil)); };
+    s.resize_route=[](void *,void *p,MMI32 count) { return int(mm_array_set_count(&static_cast<MMActorPath *>(p)->rows, count) == MM_STORAGE_OK); };
+    s.reserve_route=[](void *,void *p,MMI32 count) { return int(mm_array_reserve(&static_cast<MMActorPath *>(p)->rows, count, 0) == MM_STORAGE_OK); };
     s.copy_points=[](void *,void *source,MMI32 first,void *destination,MMI32 to,MMI32 count) {
-        CopyPb(static_cast<PDynamicArray>(source)->QvGet(first),static_cast<PDynamicArray>(destination)->QvGet(to),LwMul(count,size(RouteDistancePoint)));
+        AssertDo(mm_actor_path_copy(static_cast<MMActorPath *>(destination), to,
+                                   static_cast<const MMActorPath *>(source), first, count), "invalid actor path range");
     };
     s.distance=[](void *,const MMActorPoint *v)->MMI32 { return BR_LENGTH3(v->dxr,v->dyr,v->dzr); };
     s.rewind_actor=[](void *,void *p) { static_cast<PActor>(p)->_SetStateRewound(); };
@@ -208,7 +209,7 @@ bool Actor::FPasteRte(PActor pactr)
     static_assert(kdwrNil==-65536 && factnStatic==8 && kcbVarStep==4 && kcbVarFreeze==4,"Route paste ABI");
     auto state=EngineActorMotion::Core(_state); const auto motion=EngineActorMotion::Services();
     MMActorRoutePasteServices s{}; s.subroute=_SubrouteEditServices();
-    s.reserve_points=[](void *route,MMU32 count) { return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil)); };
+    s.reserve_points=[](void *route,MMU32 count) { return int(mm_array_reserve(&static_cast<MMActorPath *>(route)->rows, count, 0) == MM_STORAGE_OK); };
     s.distance=[](void *,const MMActorPoint *p)->MMI32 { return BR_LENGTH3(p->dxr,p->dyr,p->dzr); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {

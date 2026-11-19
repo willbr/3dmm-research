@@ -266,7 +266,7 @@ class ContentActor : public Actor
         ActorEvent::Add add = {};
         ActorEvent::Action action = {0, 0};
         LegacyLong step = rOne;
-        if (!track.Route()->FAdd(&first) || !track.Route()->FAdd(&last) ||
+        if (!(mm_array_add(&track.Route()->rows, &first, nullptr) == MM_STORAGE_OK) || !(mm_array_add(&track.Route()->rows, &last, nullptr) == MM_STORAGE_OK) ||
             !track.Events()->FInsert(0, sizeof(add), &add, &event))
             return false;
         event.aet = aetActn;

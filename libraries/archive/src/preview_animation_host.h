@@ -95,14 +95,14 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.route.edits = s.action.sounds.edits;
         s.timeline = Host::Services().timeline;
         s.route.insert_point = [](void *p, MMI32 i, const MMActorRoutePoint *value) {
-            try { return int(static_cast<PDynamicArray>(p)->FInsert(i, const_cast<MMActorRoutePoint *>(value))); }
+            try { return mm_actor_path_insert(static_cast<MMActorPath *>(p), i, value); }
             catch (...) { return 0; }
         };
         s.route.write_point = [](void *p, MMI32 i, const MMActorRoutePoint *value) {
-            static_cast<PDynamicArray>(p)->Put(i, const_cast<MMActorRoutePoint *>(value));
+            mm_actor_path_put(static_cast<MMActorPath *>(p), i, value);
         };
-        s.route.delete_points = [](void *p, MMI32 i, MMI32 count) { static_cast<PDynamicArray>(p)->Delete(i, count); };
-        s.route.clear_route = [](void *p) { static_cast<PDynamicArray>(p)->FSetIvMac(0); };
+        s.route.delete_points = [](void *p, MMI32 i, MMI32 count) { mm_array_delete(&static_cast<MMActorPath *>(p)->rows, i, count); };
+        s.route.clear_route = [](void *p) { mm_array_set_count(&static_cast<MMActorPath *>(p)->rows, 0); };
         s.route.write_event = s.timeline.put_event;
         s.route.swap_events = [](void *p, MMI32 a, MMI32 b) { static_cast<PGeneralGroup>(p)->Swap(a, b); };
         s.route.reserve_events = Reserve;
@@ -135,7 +135,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         MMActorRecordServices s{};
         s.subroute = Subroute();
         s.reserve_points = [](void *p, MMU32 count) {
-            try { return int(static_cast<PDynamicArray>(p)->FEnsureSpace(count, fgrpNil)); }
+            try { return int(mm_array_reserve(&static_cast<MMActorPath *>(p)->rows, count, 0) == MM_STORAGE_OK); }
             catch (...) { return 0; }
         };
         s.distance = [](void *, const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr, point->dyr, point->dzr)); };

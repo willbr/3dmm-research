@@ -597,7 +597,7 @@ void Actor(PChunkyFile file, ChunkNumber scene, ChunkNumber sound, PGeneralGroup
     ActorTrack track;
     CHECK(track.FCreate());
     RouteDistancePoint point = {};
-    CHECK(track.Route()->FAdd(&point));
+    CHECK((mm_array_add(&track.Route()->rows, &point, nullptr) == MM_STORAGE_OK));
     ActorEvent::Base event = {ActorEvent::aetAdd, -2, {0, rZero, 0}};
     ActorEvent::Add add = {};
     CHECK(track.Events()->FInsert(track.Events()->IvMac(), sizeof(add), &add, &event));
@@ -621,8 +621,8 @@ void Actor(PChunkyFile file, ChunkNumber scene, ChunkNumber sound, PGeneralGroup
     cue.celn = ivNil;
     CHECK(track.Events()->FInsert(track.Events()->IvMac(), sizeof(cue), &cue, &event));
     DataBlock block;
-    CHECK(file->FAddChild(kctgActr, number, 0, track.Route()->CbOnFile(), kctgPath, &child, &block));
-    CHECK(track.Route()->FWrite(&block));
+    CHECK(file->FAddChild(kctgActr, number, 0, mm_actor_path_wire_size(track.Route()), kctgPath, &child, &block));
+    CHECK(ActorData::FWritePath(track.Route(), &block));
     auto wire = ActorData::PggWriteEvents(track.Events());
     CHECK(wire && file->FAddChild(kctgActr, number, 0, wire->CbOnFile(), kctgGgae, &child, &block));
     CHECK(wire->FWrite(&block));

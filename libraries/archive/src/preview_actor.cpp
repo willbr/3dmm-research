@@ -306,7 +306,7 @@ struct PreviewActor::TrackDraft
         if (!file || !file->FAdd(wire->CbOnFile(), kctgGgae, &number, &block) || number != 0 || !wire->FWrite(&block))
             return false;
         auto route = actor.track.Route();
-        if (withRoute && (!file->FAdd(route->CbOnFile(), kctgPath, &number, &block) || number != 0 || !route->FWrite(&block)))
+        if (withRoute && (!file->FAdd(mm_actor_path_wire_size(route), kctgPath, &number, &block) || number != 0 || !ActorData::FWritePath(route, &block)))
             return false;
         return file->FSave(kctgSoc);
     }

@@ -1988,13 +1988,13 @@ static void TestActorPersistence()
     point.dwr = BR_SCALAR(7);
     Check(route->FAdd(&point));
     Check(block.FSetTemp(route->CbOnFile()) && route->FWrite(&block));
-    PDynamicArray readRoute = ActorData::PglReadRoute(&block);
-    Check(readRoute != pvNil && readRoute->IvMac() == 1);
+    auto readRoute = ActorData::PpathRead(&block);
+    Check(readRoute != pvNil && mm_actor_path_count(readRoute) == 1);
     RouteDistancePoint readPoint;
-    readRoute->Get(0, &readPoint);
+    Check(mm_actor_path_get(readRoute, 0, &readPoint));
     Check(readPoint.xyz.dyr == point.xyz.dyr && readPoint.dwr == point.dwr);
-    { DataBlock saved; Check(saved.FSetTemp(readRoute->CbOnFile()) && readRoute->FWrite(&saved)); recordBlock(saved); }
-    ReleasePpo(&readRoute);
+    { DataBlock saved; Check(saved.FSetTemp(mm_actor_path_wire_size(readRoute)) && ActorData::FWritePath(readRoute, &saved)); recordBlock(saved); }
+    mm_actor_path_release(readRoute);
     ReleasePpo(&route);
 
     PGeneralGroup events = GeneralGroup::PggNew(sizeof(ActorEvent::Base));
@@ -2151,7 +2151,7 @@ static void TestActorTrackOwnership()
         ActorTrack source, copy;
         Check(source.FCreate() && copy.FCreate());
         RouteDistancePoint point = {{BR_SCALAR(3), BR_SCALAR(4), BR_SCALAR(5)}, rZero};
-        Check(source.Route()->FInsert(0, &point));
+        Check(mm_actor_path_insert(source.Route(), 0, &point));
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetSnd;
         ActorEvent::Sound sound = {};
@@ -2174,21 +2174,21 @@ static void TestActorTrackOwnership()
         Check(resource->CactRef() == initialRefs + 4);
         Check(copy.Events() != source.Events() && copy.Route() != source.Route());
         point.xyz.dxr = BR_SCALAR(9);
-        copy.Route()->Put(0, &point);
+        mm_actor_path_put(copy.Route(), 0, &point);
         RouteDistancePoint original;
-        source.Route()->Get(0, &original);
+        mm_actor_path_get(source.Route(), 0, &original);
         Check(original.xyz.dxr == BR_SCALAR(3));
         Check(copy.FCloneFrom(copy));
         Check(resource->CactRef() == initialRefs + 4);
 
         PGeneralGroup sourceEvents = source.Events();
-        PDynamicArray sourceRoute = source.Route();
+        MMActorPath *sourceRoute = source.Route();
 #ifdef DEBUG
         bool failed = false, succeeded = false;
         for (LegacyLong skip = 0; skip < 24; ++skip)
         {
             PGeneralGroup oldEvents = copy.Events();
-            PDynamicArray oldRoute = copy.Route();
+            MMActorPath *oldRoute = copy.Route();
             vmutxMem.Enter();
             vdmglob.dmaglPv.cactDo = vdmglob.dmaglHq.cactDo = vdmglob.dmaglBase.cactDo = skip;
             vdmglob.dmaglPv.cactFail = vdmglob.dmaglHq.cactFail = vdmglob.dmaglBase.cactFail = 1000;
@@ -2278,7 +2278,7 @@ static void TestActorRouteEvaluation()
                                    {{BR_SCALAR(4), BR_SCALAR(4), rZero}, rZero},
                                    {{BR_SCALAR(100), rZero, rZero}, rZero}};
     for (LegacyLong index = 0; index < 4; ++index)
-        Check(track.Route()->FInsert(index, &points[index]));
+        Check(mm_actor_path_insert(track.Route(), index, &points[index]));
     RouteLocation location = {99, BR_SCALAR(99), 99};
     bool end = true;
     advance(track, BR_SCALAR(2), &location, 0, -3, -3, true, &end);
@@ -2380,9 +2380,9 @@ static void TestActorValueEvaluation()
     ActorTrack track;
     Check(track.FCreate());
     RouteDistancePoint point = {{BR_SCALAR(1), BR_SCALAR(2), BR_SCALAR(3)}, BR_SCALAR(4)};
-    Check(track.Route()->FInsert(0, &point));
+    Check(mm_actor_path_insert(track.Route(), 0, &point));
     point = {{BR_SCALAR(5), BR_SCALAR(6), BR_SCALAR(7)}, rZero};
-    Check(track.Route()->FInsert(1, &point));
+    Check(mm_actor_path_insert(track.Route(), 1, &point));
     RoutePoint origin = {BR_SCALAR(10), BR_SCALAR(20), BR_SCALAR(30)};
     RouteLocation eventLocation = {0, BR_SCALAR(2), 3};
     auto apply = [&](LegacyLong type, void *payload, LegacyLong bytes) {
@@ -2677,9 +2677,9 @@ static void TestActorPoseEvaluation()
     ActorTrack track;
     Check(track.FCreate());
     RouteDistancePoint point = {{rZero, rZero, rZero}, BR_SCALAR(4)};
-    Check(track.Route()->FInsert(0, &point));
+    Check(mm_actor_path_insert(track.Route(), 0, &point));
     point = {{BR_SCALAR(4), rZero, rZero}, rZero};
-    Check(track.Route()->FInsert(1, &point));
+    Check(mm_actor_path_insert(track.Route(), 1, &point));
     ActorEvent::Base event = {ActorEvent::aetAdd, 1, {0, rZero, 0}};
     ActorEvent::Add addition = {};
     addition.ya = BR_ANGLE_DEG(45);
@@ -2760,7 +2760,7 @@ static void TestActorPoseEvaluation()
                                       {{BR_SCALAR(4), rZero, BR_SCALAR(4)}, BR_SCALAR(4)},
                                       {{BR_SCALAR(4), rZero, rZero}, rZero}};
         for (LegacyLong index = 0; index < 5; ++index)
-            Check(curved.Route()->FInsert(index, &curve[index]));
+            Check(mm_actor_path_insert(curved.Route(), index, &curve[index]));
         event.rtel.irpt = 1; // Ignore the preceding, unrelated subroute.
         Check(curved.Events()->FInsert(0, sizeof(addition), &addition, &event));
         state.location = {3, BR_SCALAR(2), 0};
@@ -2777,18 +2777,18 @@ static void TestActorPoseEvaluation()
 
     // A single point has no route tangent and leaves the caller's matrix intact.
     point.dwr = rZero;
-    track.Route()->Put(0, &point);
+    mm_actor_path_put(track.Route(), 0, &point);
     state.location = {0, rZero, 0};
     BrMatrix34Identity(&matrix);
     orient(state, track, &matrix, &x, &y, &z, &axes);
     Check(x == aZero && y == aZero && z == aZero && axes == 0 && matrix.m[0][0] == rOne);
-    point={{rZero,rZero,rZero},BR_SCALAR(4)}; track.Route()->Put(0,&point);
+    point={{rZero,rZero,rZero},BR_SCALAR(4)}; mm_actor_path_put(track.Route(), 0,&point);
     // Exact matrices and field records across varied rest/path/scale combinations.
     MMU32 seed=12345;
     auto next=[&]() { seed=seed*1664525u+1013904223u; return seed; };
     for(int i=0;i<256;++i) {
         RouteDistancePoint endpoint={{static_cast<BRS>(next()%0x60000)-0x30000,static_cast<BRS>(next()%0x60000)-0x30000,static_cast<BRS>(next()%0x60000)-0x30000},rZero};
-        track.Route()->Put(1,&endpoint);
+        mm_actor_path_put(track.Route(), 1,&endpoint);
         RoutePoint direction=endpoint.xyz; BrMatrix34Identity(&matrix);
         rotate(i&7,&direction,&matrix,&x,&y,&z,&axes);
         ActorFrameState sample; sample.addEvent=0; sample.actionFlags=i&7; sample.frame=i+2;
@@ -3061,7 +3061,7 @@ static void TestActorFrameSequencing()
         ActorEvent::Base event = {ActorEvent::aetAdd,
                                   index == 2 ? 10 : static_cast<int32_t>(index + 1),
                                   {static_cast<int32_t>(index), rZero, 0}};
-        Check(entrances.Route()->FInsert(index, &point));
+        Check(mm_actor_path_insert(entrances.Route(), index, &point));
         Check(entrances.Events()->FInsert(index, sizeof(addition), &addition, &event));
     }
     ActorFrameState state;
@@ -3092,7 +3092,7 @@ static void TestActorFrameSequencing()
     ActorTrack toggles;
     Check(toggles.FCreate());
     RouteDistancePoint stationary = {{rZero, rZero, rZero}, rZero};
-    Check(toggles.Route()->FInsert(0, &stationary));
+    Check(mm_actor_path_insert(toggles.Route(), 0, &stationary));
     ActorEvent::Base toggleEvent = {ActorEvent::aetFreeze, 1, {0, rZero, 0}};
     int32_t freeze = 1;
     Check(toggles.Events()->FInsert(0, sizeof(freeze), &freeze, &toggleEvent));
@@ -3121,7 +3121,7 @@ static void TestActorFrameSequencing()
     ActorTrack failures;
     Check(failures.FCreate());
     RouteDistancePoint point = {{rZero, rZero, rZero}, rZero};
-    Check(failures.Route()->FInsert(0, &point));
+    Check(mm_actor_path_insert(failures.Route(), 0, &point));
     ActorEvent::Base event = {ActorEvent::aetSize, 1, {0, rZero, 0}};
     BRS scale = BR_SCALAR(2);
     Check(failures.Events()->FInsert(0, sizeof(scale), &scale, &event));
@@ -3267,7 +3267,7 @@ static void TestActorTimeline()
     for (LegacyLong index = 0; index < 4; ++index)
     {
         RouteDistancePoint point = {{BR_SCALAR(index * 4), rZero, rZero}, index == 3 ? rZero : BR_SCALAR(4)};
-        Check(route.Route()->FInsert(index, &point));
+        Check(mm_actor_path_insert(route.Route(), index, &point));
     }
     event = {ActorEvent::aetAdd, 1, {0, rZero, 0}};
     ActorEvent::Add addition = {};
@@ -3326,7 +3326,7 @@ static void TestActorTimeline()
                                    {{rZero, BR_SCALAR(4), rZero}, BR_SCALAR(4)},
                                    {{BR_SCALAR(4), BR_SCALAR(4), rZero}, rZero}};
     for (LegacyLong index = 0; index < 3; ++index)
-        Check(vertical.Route()->FInsert(index, &points[index]));
+        Check(mm_actor_path_insert(vertical.Route(), index, &points[index]));
     Check(vertical.Events()->FInsert(0, sizeof(addition), &addition, &event));
     state = initial;
     state.step = BR_SCALAR(2);
@@ -3513,7 +3513,7 @@ static void TestActorSeekControl()
     for (LegacyLong index = 0; index < 4; ++index)
     {
         RouteDistancePoint point = {{BR_SCALAR(index * 4), rZero, rZero}, index == 3 ? rZero : BR_SCALAR(4)};
-        Check(straight.Route()->FInsert(index, &point));
+        Check(mm_actor_path_insert(straight.Route(), index, &point));
     }
     ActorEvent::Base event = {ActorEvent::aetAdd, 1, {0, rZero, 0}};
     ActorEvent::Add addition = {};
@@ -3551,7 +3551,7 @@ static void TestActorSeekControl()
                                    {{rZero, BR_SCALAR(4), rZero}, BR_SCALAR(4)},
                                    {{BR_SCALAR(4), BR_SCALAR(4), rZero}, rZero}};
     for (LegacyLong index = 0; index < 3; ++index)
-        Check(vertical.Route()->FInsert(index, &points[index]));
+        Check(mm_actor_path_insert(vertical.Route(), index, &points[index]));
     Check(vertical.Events()->FInsert(0, sizeof(addition), &addition, &event));
     event.aet = ActorEvent::aetStep;
     BRS step = BR_SCALAR(2);

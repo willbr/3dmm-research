@@ -3750,8 +3750,12 @@ bytes. No Marcus UI tests were added.
 `actor_track.c` owns the route/event handles in `MMActorTrack`, replacing
 native ownership fields and their lifetime policy. The temporary ActorTrack facade
 exposes typed borrowed table accessors; actor evaluation/editing, preview and test
-fixtures use those accessors. Native services perform primitive allocation, table
-copying/locking and cache retain/release operations.
+fixtures use those accessors. C89 owns each live path's rows, reservations,
+mutations and clone. Studio and Marcus load PATH directly into the same storage.
+Studio's actor saves and Marcus's animation exports write the C89 path using the
+legacy array header and row layout. The standalone archive editor shares the
+layout. Native services supply allocation and block I/O, along with event-group
+operations and tag-cache retain and release.
 
 C creates event tables with 20 fixed bytes, ten initial rows and twenty variable
 bytes, and route tables with 16-byte rows, 32 initial rows and minimum growth 32.
@@ -3766,7 +3770,12 @@ access. Only sid-zero, non-null caches own references. Close clears cache pointe
 in their rows and tolerates repeated calls. Cleanup closes tags before releasing
 event tables, then route tables. Adoption transfers a handle and disposes the old
 table; adopting the current handle is a no-op. Callbacks cannot mutate/re-enter the
-participating tracks. Runtime evaluation/editing and physical table adapters remain.
+participating tracks. Event payloads still use the native group adapter.
+
+The actor route, subroute, stage and recording traces match the previous build
+byte for byte. Sixteen of 128 Debug actor ownership cases change when the
+requested native allocation fault targets the replaced path handle. Cases that
+succeed in both builds produce identical records.
 
 `engine-actor-track-test` covers every event kind, unaligned tags, custom flag
 values, unopened/positive/invalid-source tags, allocation failures, reference and

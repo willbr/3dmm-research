@@ -58,7 +58,7 @@ struct PreviewActor::Host
         s.route = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = h.actor->track.AdoptRoute(ActorData::PglReadRoute(h.file->Pcfl(), n));
+                *out = h.actor->track.AdoptRoute(ActorData::PpathRead(h.file->Pcfl(), n));
                 return *out != nullptr;
             });
         };
@@ -119,7 +119,7 @@ struct PreviewActor::Host
         s.route_insert = [](void *v, void *g, MMI32 i, const MMActorRoutePoint *p) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard(
-                [&] { return static_cast<PDynamicArray>(g)->FInsert(i, const_cast<MMActorRoutePoint *>(p)); });
+                [&] { return mm_actor_path_insert(static_cast<MMActorPath *>(g), i, p); });
         };
         s.event_insert = [](void *v, void *g, MMI32 i, MMU32 n, const void *p, const MMActorEvent *e) -> int {
             auto &h = *static_cast<Host *>(v);

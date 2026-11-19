@@ -3,6 +3,7 @@
 #ifndef ACTOR_TRACK_H
 #define ACTOR_TRACK_H
 #include "actor_data.h"
+#include "mm/actor_path.h"
 #include "mm/actor_track.h"
 
 // Owns authored route/event tables and the embedded resource references in
@@ -21,12 +22,12 @@ class ActorTrack
     {
         return static_cast<PGeneralGroup>(_storage.events);
     }
-    PDynamicArray Route() const
+    MMActorPath *Route() const
     {
-        return static_cast<PDynamicArray>(_storage.route);
+        return static_cast<MMActorPath *>(_storage.route);
     }
     PGeneralGroup AdoptEvents(PGeneralGroup);
-    PDynamicArray AdoptRoute(PDynamicArray);
+    MMActorPath *AdoptRoute(MMActorPath *);
 
     ActorTrack() = default;
     ~ActorTrack();

@@ -2638,6 +2638,16 @@ Studio seek image. Both ports differed from retail in seek pixels and mixed
 PCM, and SDL Studio differed in playback timing. Evidence is in
 `tmp/c89-scene-tracks/`.
 
+Studio and Marcus now use the same C89-owned actor paths for live evaluation
+and editing. A Studio round-trip exercised actor creation and movement, undo
+and redo, forward and backward seeks, and save and reopen. The two builds
+matched all editor observations and all 71 saved chunk payloads and graph
+entries, including the 12 PATH chunks. Retail, SDL Studio and Marcus
+captured the same 60-frame sequence in seek and playback. SDL matched every
+prior SDL seek image. Both ports still differed from retail in seek pixels
+and mixed PCM, and SDL differed in playback timing. Evidence is in
+`tmp/c89-actor-routes/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

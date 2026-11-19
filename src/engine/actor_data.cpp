@@ -46,16 +46,19 @@ namespace
 {
 const MMActorRouteReader kRouteReader = {nullptr,
     [](void *, MMU32 count, void **rows) -> void * {
-        auto route = DynamicArray::PglNew(MM_ACTOR_ROUTE_BYTES);
-        if (!route || !route->FSetIvMac(count))
+        const auto allocator = CollectionAllocator();
+        auto path = mm_actor_path_create(&allocator, 0, DebugShip(1, 0));
+        if (!path)
+            return nullptr;
+        if (mm_array_set_count(&path->rows, count) != MM_STORAGE_OK)
         {
-            ReleasePpo(&route);
+            mm_actor_path_release(path);
             return nullptr;
         }
-        *rows = count ? route->QvGet(0) : nullptr;
-        return route;
+        *rows = path->storage.buffers[0].data;
+        return path;
     },
-    [](void *g) { static_cast<PDynamicArray>(g)->Release(); }};
+    [](void *p) { mm_actor_path_release(static_cast<MMActorPath *>(p)); }};
 } // namespace
 MMActorEventServices ActorData::EventServices()
 {
@@ -96,7 +99,7 @@ bool ActorData::FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta
     const auto io = HeaderIO(file);
     return mm_actor_adjust_id(number, delta, &io) != 0;
 }
-PDynamicArray ActorData::PglReadRoute(PDataBlock block)
+MMActorPath *ActorData::PpathRead(PDataBlock block)
 {
     if (!block->FUnpackData())
         return nullptr;
@@ -104,15 +107,24 @@ PDynamicArray ActorData::PglReadRoute(PDataBlock block)
     void *route;
     if (mm_actor_read_route_stream(&stream, &kRouteReader, &route) != MM_MOVIE_OK)
         return nullptr;
-    return static_cast<PDynamicArray>(route);
+    return static_cast<MMActorPath *>(route);
 }
-PDynamicArray ActorData::PglReadRoute(PChunkyFile file, ChunkNumber actor)
+MMActorPath *ActorData::PpathRead(PChunkyFile file, ChunkNumber actor)
 {
     const auto graph = EngineMovieGraph::FromFile(file);
     void *route;
     if (mm_movie_actor_route(&graph, actor, &kRouteReader, &route) != MM_MOVIE_OK)
         return nullptr;
-    return static_cast<PDynamicArray>(route);
+    return static_cast<MMActorPath *>(route);
+}
+bool ActorData::FWritePath(MMActorPath *path, PDataBlock block)
+{
+    const MMStorageWriter writer = {
+        block, static_cast<MMU32>(block->Cb()),
+        [](void *p, MMU32 offset, const void *data, size_t bytes) -> int {
+            return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), bytes, offset);
+        }};
+    return mm_actor_path_write(path, koskCur, &writer) != 0;
 }
 PGeneralGroup ActorData::PggReadEvents(PDataBlock block)
 {

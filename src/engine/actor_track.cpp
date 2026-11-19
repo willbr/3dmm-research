@@ -10,12 +10,16 @@ MMActorTrackServices Services()
             [](void *, MMU32 fixed, MMU32 entries, MMU32 variable) -> void * {
                 return GeneralGroup::PggNew(fixed, entries, variable);
             },
-            [](void *, MMU32 width, MMU32 entries) -> void * { return DynamicArray::PglNew(width, entries); },
-            [](void *g, MMU32 growth) { static_cast<PDynamicArray>(g)->SetMinGrow(growth); },
+            [](void *, MMU32 width, MMU32 entries) -> void * {
+                Assert(width == MM_ACTOR_ROUTE_BYTES, "invalid actor path width");
+                const auto allocator = CollectionAllocator();
+                return mm_actor_path_create(&allocator, entries, DebugShip(1, 0));
+            },
+            [](void *p, MMU32 growth) { static_cast<MMActorPath *>(p)->storage.min_grow[0] = growth * MM_ACTOR_ROUTE_BYTES; },
             [](void *g) -> void * { return static_cast<PGeneralGroup>(g)->PggDup(); },
-            [](void *g) -> void * { return static_cast<PDynamicArray>(g)->PglDup(); },
+            [](void *g) -> void * { return mm_actor_path_clone(static_cast<const MMActorPath *>(g)); },
             [](void *g) { static_cast<PGeneralGroup>(g)->Release(); },
-            [](void *g) { static_cast<PDynamicArray>(g)->Release(); },
+            [](void *g) { mm_actor_path_release(static_cast<MMActorPath *>(g)); },
             [](void *g) { static_cast<PGeneralGroup>(g)->Lock(); },
             [](void *g) { static_cast<PGeneralGroup>(g)->Unlock(); },
             [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->IvMac(); },
@@ -67,7 +71,7 @@ PGeneralGroup ActorTrack::AdoptEvents(PGeneralGroup events)
     mm_actor_track_adopt_events(&_storage, events, &s);
     return Events();
 }
-PDynamicArray ActorTrack::AdoptRoute(PDynamicArray route)
+MMActorPath *ActorTrack::AdoptRoute(MMActorPath *route)
 {
     const auto s = Services();
     mm_actor_track_adopt_route(&_storage, route, &s);

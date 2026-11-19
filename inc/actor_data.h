@@ -251,6 +251,7 @@ static_assert(sizeof(ActorChunkOnFile) == 44, "ActorChunkOnFile on-disk layout d
 const ByteOrderMask kbomActf = 0x5fffff00;
 
 // Actor persistence without Scene, Movie, World, audio or UI objects.
+struct MMActorPath;
 struct MMActorHeaderIO;
 struct MMActorEventServices;
 struct ActorData
@@ -261,8 +262,9 @@ struct ActorData
     static bool FReadHeader(PChunkyFile file, ChunkNumber actor, void *header);
     static bool FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header);
     static bool FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta);
-    static PDynamicArray PglReadRoute(PDataBlock block);
-    static PDynamicArray PglReadRoute(PChunkyFile file, ChunkNumber actor);
+    static MMActorPath *PpathRead(PDataBlock block);
+    static MMActorPath *PpathRead(PChunkyFile file, ChunkNumber actor);
+    static bool FWritePath(MMActorPath *, PDataBlock);
     // Returned events have runtime-width values with unopened TAGs (pcrf=nil).
     static PGeneralGroup PggReadEvents(PDataBlock block);
     static PGeneralGroup PggReadEvents(PChunkyFile file, ChunkNumber actor);

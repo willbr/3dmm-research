@@ -88,11 +88,17 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
         return 1;
     };
     services.write_track = [](void *p, MMU32 actor, MMU32 type, void *track) -> int {
-        PGroupBase group = type == kctgPath ? static_cast<PGroupBase>(static_cast<PDynamicArray>(track))
-                                          : static_cast<PGroupBase>(static_cast<PGeneralGroup>(track));
+        auto file = static_cast<Host *>(p)->file;
         DataBlock block;
         ChunkNumber number;
-        return static_cast<Host *>(p)->file->FAddChild(kctgActr, actor, 0, group->CbOnFile(), type, &number, &block) &&
+        if (type == kctgPath)
+        {
+            auto path = static_cast<MMActorPath *>(track);
+            return file->FAddChild(kctgActr, actor, 0, mm_actor_path_wire_size(path), type, &number, &block) &&
+                   ActorData::FWritePath(path, &block);
+        }
+        auto group = static_cast<PGeneralGroup>(track);
+        return file->FAddChild(kctgActr, actor, 0, group->CbOnFile(), type, &number, &block) &&
                group->FWrite(&block);
     };
     return mm_actor_store(cnoActr, cnoScene, &header, _track.Route(), _track.Events(), &services) != 0;
@@ -114,7 +120,7 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
         goto LFail;
     if (!pactr->_FReadActor(pcfl, cnoActr))
         goto LFail;
-    if (!pactr->_track.AdoptRoute(ActorData::PglReadRoute(pcfl, cnoActr)))
+    if (!pactr->_track.AdoptRoute(ActorData::PpathRead(pcfl, cnoActr)))
         goto LFail;
     if (!pactr->_track.AdoptEvents(ActorData::PggReadEvents(pcfl, cnoActr)))
         goto LFail;

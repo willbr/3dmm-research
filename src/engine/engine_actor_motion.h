@@ -1,6 +1,7 @@
 /* Temporary native table/value adapters for the C89 actor evaluator. */
 #pragma once
 #include "mm/actor_motion.h"
+#include "mm/actor_path.h"
 #include <cstring>
 #include <cstddef>
 static_assert(BASED_FIXED && sizeof(BRS) == 4, "actor C89 scalar ABI is signed 16.16");
@@ -18,9 +19,11 @@ namespace EngineActorMotion
 {
 inline MMActorMotionServices Services()
 {
-    return {[](void *g) -> MMU32 { return static_cast<PDynamicArray>(g)->CbEntry(); },
-            [](void *g) -> MMI32 { return static_cast<PDynamicArray>(g)->IvMac(); },
-            [](void *g, MMI32 i, MMActorRoutePoint *out) { static_cast<PDynamicArray>(g)->Get(i, out); },
+    return {[](void *p) -> MMU32 { return static_cast<const MMActorPath *>(p)->rows.width; },
+            [](void *p) -> MMI32 { return mm_actor_path_count(static_cast<const MMActorPath *>(p)); },
+            [](void *p, MMI32 i, MMActorRoutePoint *out) {
+                mm_actor_path_get(static_cast<const MMActorPath *>(p), i, out);
+            },
             [](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbFixed(); },
             [](void *g) -> MMI32 { return static_cast<PGeneralGroup>(g)->IvMac(); },
             [](void *g, MMI32 i, MMActorEvent *out) { static_cast<PGeneralGroup>(g)->GetFixed(i, out); },

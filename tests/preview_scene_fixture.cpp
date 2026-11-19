@@ -410,7 +410,7 @@ int main(int argc, char **argv)
         const int distance = movie ? 400 : 40;
         RouteDistancePoint points[] = {{{rZero, rZero, rZero}, BR_SCALAR(distance)},
                                        {{BR_SCALAR(distance), rZero, rZero}, rZero}};
-        if (!track.Route()->FInsert(0, &points[0]) || !track.Route()->FInsert(1, &points[1]))
+        if (!mm_actor_path_insert(track.Route(), 0, &points[0]) || !mm_actor_path_insert(track.Route(), 1, &points[1]))
         {
             ok = false;
             break;
@@ -439,13 +439,13 @@ int main(int argc, char **argv)
             ok = ok && ActorAudioEvents(track, document, actorSounds);
         if (actor == 4)
         {
-            track.Route()->Delete(0, track.Route()->IvMac());
+            mm_array_set_count(&track.Route()->rows, 0);
             while (track.Events()->IvMac())
                 track.Events()->Delete(0);
         }
         ChunkNumber child;
-        ok = ok && file->FAddChild(kctgActr, actorNumber, 0, track.Route()->CbOnFile(), kctgPath, &child, &block) &&
-             track.Route()->FWrite(&block);
+        ok = ok && file->FAddChild(kctgActr, actorNumber, 0, mm_actor_path_wire_size(track.Route()), kctgPath, &child, &block) &&
+             ActorData::FWritePath(track.Route(), &block);
         auto wire = ActorData::PggWriteEvents(track.Events());
         ok = ok && wire && file->FAddChild(kctgActr, actorNumber, 0, wire->CbOnFile(), kctgGgae, &child, &block) &&
              wire->FWrite(&block);
