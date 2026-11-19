@@ -146,6 +146,13 @@ static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
         !file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 0) || !metadata.FCreate(file, scene) ||
         !file->FAdoptChild(kctgScen, *scene, kctgTbox, number, 0))
         return false;
+    if (kind == 10)
+    {
+        ChildChunkIdentification raw;
+        if (!file->FGetKidChidCtg(rich.ctg, rich.cno, 0, kctgText, &raw))
+            return false;
+        file->SetPacked(raw.cki.ctg, raw.cki.cno, true);
+    }
     auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
     auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
     SceneEvent event = {-3, sevtAddTbox};
@@ -240,6 +247,12 @@ int main(int argc, char **argv)
         if (!trace.Caption(ok, out))
             return 1;
     }
+    // Caption TEXT uses its stored bytes. Other caption chunks use decoded payloads.
+    ChunkNumber rawTextScene;
+    MM::PreviewPresentation rawText;
+    if (!Caption(file, 10, &rawTextScene) || !MM::Internal::ReadPresentation(file, rawTextScene, rawText) ||
+        rawText.captions.size() != 1 || rawText.captions.front().text != std::vector<std::uint16_t>{'A', 0, 'B', '\r'})
+        return 1;
     bool ok = file->FSave(kctgSoc);
     ReleasePpo(&file);
     if (!ok || !trace.Finish("media", 1275, 0x1B3D6107U))

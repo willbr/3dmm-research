@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_PREVIEW_MEDIA_H
 #define MM_ENGINE_PREVIEW_MEDIA_H
 #include "preview_metadata.h"
+#include "movie_session.h"
 #include "midi.h"
 #include "sound_resource.h"
 #ifdef __cplusplus
@@ -20,7 +21,7 @@ extern "C"
     } MMPreviewTextProperty;
     typedef struct MMPreviewCaptionServices
     {
-        void *context;
+        void *context, *input;
         const MMStorageAllocator *allocator;
         int (*create)(void *, void **);
         int (*box)(void *, void *, MMU32, MMPreviewCaptionData *);
@@ -38,6 +39,12 @@ extern "C"
         MMU32 (*position)(void *, MMU32 index);
         void (*swap)(void *, MMU32, MMU32);
     } MMPreviewCaptionServices;
+    typedef struct MMPreviewCaptionArchive
+    {
+        const MMMovieSessionGraph *graph;
+        MMMovieGraphBytes text; /* TEXT uses the stored extent, even when flagged packed. */
+        int (*load_font)(void *, const MMReadStream *, MMU32 offset);
+    } MMPreviewCaptionArchive;
     typedef struct MMPreviewAudioServices
     {
         void *context;
@@ -80,6 +87,9 @@ extern "C"
      * scene children precedence over the first movie child and publishes source only
      * after decoding succeeds. Silent cues bypass readiness and source publication. */
     int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *);
+    /* The archive supplies input callbacks. load_font falls back to an empty
+     * name on invalid wire text and reports only hard failures. */
+    int mm_preview_caption_graph(MMU32 number, const MMPreviewCaptionArchive *, const MMPreviewCaptionServices *);
     int mm_preview_audio(MMU32 type, MMU32 number, const MMPreviewAudioServices *);
     int mm_preview_sound(const MMPreviewCue *, int ready, MMU32 current_scene, MMU32 *resolved_number,
                          const MMPreviewSoundServices *);

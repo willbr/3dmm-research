@@ -200,6 +200,7 @@ static void setup(Caption *h)
     h->allocator.resize = resize;
     h->allocator.release = free_buffer;
     s->context = h;
+    s->input = h;
     s->allocator = &h->allocator;
     s->create = create;
     s->box = box;

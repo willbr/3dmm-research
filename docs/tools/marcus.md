@@ -2287,8 +2287,10 @@ applies the seek to the player.
 Playback, timing analysis and the sound sheet read presentation events from
 the live C89 movie graph. Marcus shares the scene and actor wire readers with
 Studio. The readers validate both byte orders before interpreting each group.
-Marcus materializes the rich-text captions and publishes the resulting records
-through its preview API.
+Stored captions use the graph for text-box bounds, rich-text defaults, and
+formatting records. C89 reads TEXT from its stored extent and converts the
+descriptor through the same routine used for edit previews. Marcus supplies
+legacy code-page and font-name conversion and publishes the preview records.
 
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
@@ -2329,6 +2331,13 @@ checks retained the caption, pause, and cue metadata fingerprint. Fresh retail
 captures matched SDL Studio's seek state at all three sampled frames. The
 credits viewport matched exactly. The two actor-sound viewports each differed
 by one pixel out of 169,092. Evidence is in `tmp/c89-presentation-graph/`.
+
+Reading stored captions through the graph preserved 22 render and hit-test
+observations across five movies and three timing snapshots byte for byte.
+The asset-preview checks retained the media and metadata fingerprints and
+verified that TEXT uses its stored bytes even with the packed flag set.
+SDL Studio matched the seek state and viewport pixels in all five retained
+retail caption captures. Evidence is in `tmp/c89-stored-captions/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

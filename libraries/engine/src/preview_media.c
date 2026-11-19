@@ -1,4 +1,7 @@
 #include "mm/preview_media.h"
+#include "movie_session_internal.h"
+#include "mm/text_store.h"
+#include <stdlib.h>
 #include <string.h>
 typedef struct PropertyKey
 {
@@ -128,55 +131,34 @@ static void sort(MMU32 count, const MMPreviewCaptionServices *s)
     }
     mm_storage_dispose(&scratch);
 }
-int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
+static int convert_caption(const MMPreviewCaptionData *data, void *owner, const MMPreviewCaptionServices *s)
 {
     MMCollectionStorage scratch;
-    MMPreviewCaptionData data;
     MMPreviewTextProperty property;
     MMU32 words[2], count, converted, i, index;
     MMI32 bytes;
     unsigned short *output;
     const void *font;
     MMU32 font_bytes;
-    void *owner = 0;
     int r, result = 0, free_entry;
     mm_storage_init(&scratch, s->allocator);
-    memset(&data, 0, sizeof(data));
-    r = s->create(s->context, &owner);
-    if (r <= 0)
-    {
-        result = r ? r : -1;
+    if (data->bytes < 0 || data->bytes > 1024 * 1024)
         goto done;
-    }
-    r = s->box(s->context, owner, number, &data);
-    if (r <= 0)
-    {
-        result = r;
-        goto done;
-    }
-    r = s->rich_text(s->context, owner, &data);
-    if (r <= 0)
-    {
-        result = r;
-        goto done;
-    }
-    if (data.bytes < 0 || data.bytes > 1024 * 1024)
-        goto done;
-    s->publish(s->context, &data);
+    s->publish(s->context, data);
     r = s->font(s->context, owner);
     if (r <= 0)
     {
         result = r;
         goto done;
     }
-    if (mm_storage_resize_exact(&scratch, 0, (MMU32)data.bytes, MM_STORAGE_NORMAL) != MM_STORAGE_OK)
+    if (mm_storage_resize_exact(&scratch, 0, (MMU32)data->bytes, MM_STORAGE_NORMAL) != MM_STORAGE_OK)
     {
         result = -1;
         goto done;
     }
-    if (data.bytes)
+    if (data->bytes)
     {
-        r = s->read_text(s->context, owner, scratch.buffers[0].data, (MMU32)data.bytes);
+        r = s->read_text(s->input, owner, scratch.buffers[0].data, (MMU32)data->bytes);
         if (r <= 0)
         {
             result = r;
@@ -184,13 +166,13 @@ int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
         }
     }
     count = 0;
-    r = s->utf16(s->context, scratch.buffers[0].data, (MMU32)data.bytes, data.encoding, 0, 0, &count);
+    r = s->utf16(s->context, scratch.buffers[0].data, (MMU32)data->bytes, data->encoding, 0, 0, &count);
     if (r <= 0)
     {
         result = r;
         goto done;
     }
-    if (data.bytes && !count)
+    if (data->bytes && !count)
         goto done;
     r = s->text_buffer(s->context, count, &output);
     if (r <= 0)
@@ -201,7 +183,7 @@ int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
     if (count)
     {
         converted = 0;
-        r = s->utf16(s->context, scratch.buffers[0].data, (MMU32)data.bytes, data.encoding, output, count, &converted);
+        r = s->utf16(s->context, scratch.buffers[0].data, (MMU32)data->bytes, data->encoding, output, count, &converted);
         if (r <= 0)
         {
             result = r;
@@ -210,10 +192,10 @@ int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
         if (!converted)
             goto done;
     }
-    for (i = 0; i < data.properties; ++i)
+    for (i = 0; i < data->properties; ++i)
     {
-        s->property(s->context, owner, i, words);
-        if (data.property_swap)
+        s->property(s->input, owner, i, words);
+        if (data->property_swap)
         {
             words[0] = swapped(words[0]);
             words[1] = swapped(words[1]);
@@ -228,9 +210,9 @@ int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
         if (property.kind == 2 && mm_signed_word(property.value) > 0)
         {
             index = property.value - 1;
-            if (!data.has_arguments || index >= data.arguments)
+            if (!data->has_arguments || index >= data->arguments)
                 goto done;
-            s->argument_info(s->context, owner, index, &bytes, &free_entry);
+            s->argument_info(s->input, owner, index, &bytes, &free_entry);
             if (free_entry || bytes < 6)
                 goto done;
             if (mm_storage_resize_exact(&scratch, 1, (MMU32)bytes, MM_STORAGE_NORMAL) != MM_STORAGE_OK)
@@ -238,7 +220,7 @@ int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
                 result = -1;
                 goto done;
             }
-            s->argument(s->context, owner, index, scratch.buffers[1].data);
+            s->argument(s->input, owner, index, scratch.buffers[1].data);
             font = scratch.buffers[1].data + 6;
             font_bytes = (MMU32)bytes - 6;
         }
@@ -249,12 +231,27 @@ int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
             goto done;
         }
     }
-    sort(data.properties, s);
+    sort(data->properties, s);
     result = 1;
 done:
     mm_storage_dispose(&scratch);
+    return result;
+}
+int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
+{
+    MMPreviewCaptionData data = {0};
+    void *owner = NULL;
+    int result = s->create(s->input, &owner);
+    if (!result)
+        result = -1;
+    if (result > 0)
+        result = s->box(s->input, owner, number, &data);
+    if (result > 0)
+        result = s->rich_text(s->input, owner, &data);
+    if (result > 0)
+        result = convert_caption(&data, owner, s);
     if (owner)
-        s->release(s->context, owner);
+        s->release(s->input, owner);
     return result;
 }
 static MMU32 word(const unsigned char *p, int big)
@@ -262,6 +259,178 @@ static MMU32 word(const unsigned char *p, int big)
     return big ? ((MMU32)p[0] << 24) | ((MMU32)p[1] << 16) | ((MMU32)p[2] << 8) | p[3]
                : ((MMU32)p[3] << 24) | ((MMU32)p[2] << 16) | ((MMU32)p[1] << 8) | p[0];
 }
+typedef struct CaptionGroup
+{
+    MMMoviePayload payload;
+    MMCollectionHeader header;
+} CaptionGroup;
+
+typedef struct StoredCaption
+{
+    const MMPreviewCaptionArchive *source;
+    MMMovieArchive archive;
+    MMPreviewCaptionServices services;
+    MMTextBoxState box;
+    MMRichTextDefaults defaults;
+    CaptionGroup properties, arguments;
+    const MMReadStream *text;
+    MMU32 root;
+    int encoding, result;
+} StoredCaption;
+
+static int caption_status(int status)
+{
+    return status == MM_MOVIE_MEMORY ? -1 : 0;
+}
+
+static int read_box(void *context, const MMReadStream *stream)
+{
+    return mm_text_box_decode(stream, (MMTextBoxState *)context) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+static int read_root(void *context, const MMReadStream *stream)
+{
+    StoredCaption *caption = (StoredCaption *)context;
+    if (!mm_rich_text_decode(stream, &caption->defaults))
+        return MM_MOVIE_BAD_FILE;
+    caption->result = caption->source->load_font(caption->services.context, stream, 16);
+    return MM_MOVIE_OK;
+}
+
+static int read_group(StoredCaption *caption, MMU32 type, int allocated, CaptionGroup *group)
+{
+    MMChunkEntry entry;
+    MMU32 position;
+    int status;
+    status = mm_session_child(&caption->archive.access, caption->root, 0, type, &entry, &position);
+    if (status == MM_CHUNK_NOT_FOUND && allocated)
+        return MM_MOVIE_OK;
+    if (status != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    status = mm_session_payload(&caption->archive, &entry, 0, &group->payload);
+    if (status != MM_MOVIE_OK)
+        return status;
+    if (mm_collection_header_read(group->payload.stream, allocated ? MM_COLLECTION_GROUP : MM_COLLECTION_ARRAY,
+                                  allocated, &group->header) != MM_STORAGE_OK ||
+        group->header.width != (allocated ? 4U : 8U))
+        return MM_MOVIE_BAD_FILE;
+    return MM_MOVIE_OK;
+}
+
+static void describe_caption(const StoredCaption *caption, MMPreviewCaptionData *out)
+{
+    const MMTextBoxState *box = &caption->box;
+    const unsigned short one = 1;
+    out->first = box->first;
+    out->end = box->end;
+    out->left = box->left;
+    out->top = box->top;
+    out->right = box->right;
+    out->bottom = box->bottom;
+    out->story = box->story;
+    out->bytes = mm_signed_word(caption->text->length - 2);
+    out->encoding = caption->encoding;
+    out->font_size = caption->defaults.height;
+    out->background = caption->defaults.background;
+    out->properties = caption->properties.header.count;
+    out->property_swap = caption->properties.header.big_endian != (*(const unsigned char *)&one == 0);
+    out->has_arguments = caption->arguments.payload.stream != NULL;
+    out->arguments = caption->arguments.header.count;
+}
+static int stored_read_text(void *context, void *owner, void *out, MMU32 count)
+{
+    (void)context;
+    return mm_read_exact(((const StoredCaption *)owner)->text, 2, out, count);
+}
+static void stored_property(void *context, void *owner, MMU32 i, MMU32 out[2])
+{
+    const CaptionGroup *group = &((const StoredCaption *)owner)->properties;
+    (void)context;
+    memcpy(out, group->payload.decoded + group->header.header_bytes + i * 8, 8);
+}
+static const unsigned char *stored_argument_row(const StoredCaption *caption, MMU32 i, MMI32 *bytes)
+{
+    const CaptionGroup *group = &caption->arguments;
+    const unsigned char *records = group->payload.decoded + group->header.header_bytes;
+    MMU32 offset;
+    if (!mm_collection_group_row(&group->header, records, i, &offset, bytes))
+        return NULL;
+    return records + offset + group->header.width;
+}
+static void stored_argument_info(void *context, void *owner, MMU32 i, MMI32 *bytes, int *free_entry)
+{
+    (void)context;
+    *bytes = 0;
+    *free_entry = stored_argument_row((const StoredCaption *)owner, i, bytes) == NULL;
+}
+static void stored_argument(void *context, void *owner, MMU32 i, void *out)
+{
+    MMI32 bytes;
+    const unsigned char *row = stored_argument_row((const StoredCaption *)owner, i, &bytes);
+    (void)context;
+    if (row)
+        memcpy(out, row, (size_t)bytes);
+}
+
+static int read_stored_text(void *context, const MMReadStream *stream)
+{
+    StoredCaption *caption = (StoredCaption *)context;
+    MMPreviewCaptionData data = {0};
+    unsigned short marker;
+    int status;
+    if (!mm_read_exact(stream, 0, &marker, sizeof(marker)))
+        return MM_MOVIE_BAD_FILE;
+    status = read_group(caption, MM_TEXT_PROPERTIES, 0, &caption->properties);
+    if (status == MM_MOVIE_OK)
+        status = read_group(caption, MM_TEXT_ARGUMENTS, 1, &caption->arguments);
+    if (status != MM_MOVIE_OK)
+        return status;
+    caption->text = stream;
+    caption->encoding = marker < 32768U ? marker : -1 - (int)(65535U - marker);
+    describe_caption(caption, &data);
+    caption->result = convert_caption(&data, caption, &caption->services);
+    return MM_MOVIE_OK;
+}
+
+int mm_preview_caption_graph(MMU32 number, const MMPreviewCaptionArchive *source, const MMPreviewCaptionServices *s)
+{
+    StoredCaption caption = {0};
+    const MMMovieSessionGraph *graph = source->graph;
+    MMChunkEntry entry;
+    MMU32 box, position;
+    int status;
+    caption.source = source;
+    caption.services = *s;
+    caption.services.input = &caption;
+    caption.services.read_text = stored_read_text;
+    caption.services.property = stored_property;
+    caption.services.argument_info = stored_argument_info;
+    caption.services.argument = stored_argument;
+    caption.archive.graph = *graph;
+    graph->access(graph->context, &caption.archive.access);
+    if (mm_chunk_find(&caption.archive.access, MM_TEXT_BOX, number, &box) != MM_CHUNK_OK ||
+        mm_chunk_at(&caption.archive.access, box, &entry) != MM_CHUNK_OK)
+        return 0;
+    status = graph->payload(graph->context, &entry, read_box, &caption.box);
+    if (status != MM_MOVIE_OK)
+        return caption_status(status);
+    if (mm_session_child(&caption.archive.access, box, caption.box.child, MM_TEXT_ROOT, &entry, &caption.root) !=
+        MM_CHUNK_OK)
+        return 0;
+    status = graph->payload(graph->context, &entry, read_root, &caption);
+    if (status != MM_MOVIE_OK)
+        return caption_status(status);
+    if (caption.result <= 0)
+        return caption.result;
+    if (mm_session_child(&caption.archive.access, caption.root, 0, MM_TEXT_BYTES, &entry, &position) != MM_CHUNK_OK)
+        return 0;
+    caption.result = 0;
+    status = source->text(graph->context, &entry, read_stored_text, &caption);
+    free(caption.properties.payload.decoded);
+    free(caption.arguments.payload.decoded);
+    return status == MM_MOVIE_OK ? caption.result : caption_status(status);
+}
+
 int mm_preview_audio(MMU32 type, MMU32 number, const MMPreviewAudioServices *s)
 {
     MMCollectionStorage scratch;

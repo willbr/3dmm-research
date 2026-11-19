@@ -27,13 +27,32 @@ std::string FontName(String &name)
     return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
 }
 #include "preview_media_host.h"
+int ReadStoredText(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    FileLocation location;
+    if (!static_cast<PChunkyFile>(context)->FFindFlo(entry->type, entry->number, &location))
+        return MM_MOVIE_BAD_FILE;
+    const MMReadStream stream{&location, static_cast<MMU32>(location.cb),
+        [](void *v, MMU32 offset, void *bytes, size_t count) -> int {
+            return static_cast<PFileLocation>(v)->FReadRgb(bytes, static_cast<LegacyLong>(count), offset);
+        }};
+    return receive(out, &stream);
+}
+
 bool Caption(PChunkyFile file, ChunkNumber number, PreviewCaption &out)
 {
-    TextBoxData box;
-    ChunkIdentification child;
-    RichTextData text;
-    if (!box.FRead(file, number, &child) || !text.FRead(file, child.ctg, child.cno) ||
-        !ReadCaptionData(box, text, nullptr, out))
+    String font;
+    CaptionOutput output{font, out, {}};
+    const auto graph = EngineMovieGraph::FromFile(file);
+    const MMPreviewCaptionArchive source{&graph, ReadStoredText,
+        [](void *v, const MMReadStream *stream, MMU32 offset) {
+            return static_cast<CaptionOutput *>(v)->LoadFont(*stream, offset);
+        }};
+    const auto services = output.Services();
+    const int result = mm_preview_caption_graph(number, &source, &services);
+    if (output.exception) std::rethrow_exception(output.exception);
+    if (result == -1) throw std::bad_alloc();
+    if (result <= 0)
         return false;
     out.chunk = number;
     return true;
@@ -97,10 +116,11 @@ bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, Previe
 
 bool ReadCaptionData(const TextBoxData &box, RichTextData &text, const std::u16string *words, PreviewCaption &out)
 {
-    Internal::CaptionHost host{box, text, words, out};
+    Internal::CaptionOutput output{text.fontName, out, {}};
+    Internal::CaptionHost host{box, text, words, output};
     auto services = host.Services();
     const int result = mm_preview_caption(0, &services);
-    if (host.exception) std::rethrow_exception(host.exception);
+    if (output.exception) std::rethrow_exception(output.exception);
     if (result == -1) throw std::bad_alloc();
     return result > 0;
 }

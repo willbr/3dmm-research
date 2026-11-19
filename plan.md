@@ -975,8 +975,11 @@ holds in C89. The sound sheet, movie clock, waveform mapping and playback
 resume use that schedule. The preview helper and player adapt decoded cue
 metadata and the matching-build timing snapshot to the C schedule.
 Marcus now reads authored caption links, scene pauses, and scene and actor
-cues directly through the C89 movie graph readers used by Studio. Caption
-materialization and publication into the preview API use host services.
+cues directly through the C89 movie graph readers used by Studio. The graph
+reader also loads stored caption bounds, text and formatting through the
+same wire decoders Studio uses. It preserves the raw TEXT read and shares
+caption conversion with the edit preview. Font conversion and publication
+into the preview API use host services.
 The snapshot codec now runs in C89. It validates scene IDs and frame
 ranges, bounds timing records, and exchanges explicit scene, hold and cue
 fields. The helper and player supply the file stream and commit the
