@@ -107,7 +107,7 @@ void storyboard_editor_draw(MarcusStoryboardEditor *editor, MarcusUI *ui)
                 if (igButton("Frame lights", dialog_vec(120, 28))) command(editor, BOARD_FRAME_LIGHTS, 0);
                 igSameLine(0, 8); if (igButton(s.inspecting ? "Shot view" : "3D light view", dialog_vec(120, 28))) command(editor, BOARD_SHOT_VIEW, 0);
             }
-            igTextWrapped("Hold RMB / WASD + Q E / Shift to move faster / Wheel changes speed.");
+            igTextWrapped("Hold RMB / ESDF + W R / Shift to move faster / Wheel changes speed.");
         }
         igSeparator(); igTextWrapped("Edits join the movie as you work. Save copy / Ctrl+S to keep them.");
         if (s.error[0]) igTextWrapped("%s", s.error);

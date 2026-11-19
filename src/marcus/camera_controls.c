@@ -6,33 +6,34 @@ static double clamp(double value, double low, double high)
 {
     return value < low ? low : value > high ? high : value;
 }
+static const struct
+{
+    SDL_Scancode code;
+    int movement;
+} flight_bindings[] = {
+    {SDL_SCANCODE_E, MARCUS_FLY_FORWARD}, {SDL_SCANCODE_D, MARCUS_FLY_BACK},
+    {SDL_SCANCODE_S, MARCUS_FLY_LEFT}, {SDL_SCANCODE_F, MARCUS_FLY_RIGHT},
+    {SDL_SCANCODE_R, MARCUS_FLY_UP}, {SDL_SCANCODE_W, MARCUS_FLY_DOWN},
+    {SDL_SCANCODE_LSHIFT, MARCUS_FLY_FAST}, {SDL_SCANCODE_RSHIFT, MARCUS_FLY_FAST_RIGHT}
+};
 int marcus_fly_key(SDL_Scancode code)
 {
-    switch (code)
-    {
-    case SDL_SCANCODE_W: return MARCUS_FLY_FORWARD;
-    case SDL_SCANCODE_S: return MARCUS_FLY_BACK;
-    case SDL_SCANCODE_A: return MARCUS_FLY_LEFT;
-    case SDL_SCANCODE_D: return MARCUS_FLY_RIGHT;
-    case SDL_SCANCODE_E: return MARCUS_FLY_UP;
-    case SDL_SCANCODE_Q: return MARCUS_FLY_DOWN;
-    case SDL_SCANCODE_LSHIFT: return MARCUS_FLY_FAST;
-    case SDL_SCANCODE_RSHIFT: return MARCUS_FLY_FAST_RIGHT;
-    default: return 0;
-    }
+    size_t i;
+    for (i = 0; i < SDL_arraysize(flight_bindings); ++i)
+        if (code == flight_bindings[i].code) return flight_bindings[i].movement;
+    return 0;
 }
 int marcus_fly_held_keys(void)
 {
+    SDL_Keymod modifiers;
+    size_t i;
     int keys;
+    modifiers = SDL_GetModState();
     keys = 0;
-    if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_W]) keys |= MARCUS_FLY_FORWARD;
-    if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_S]) keys |= MARCUS_FLY_BACK;
-    if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_A]) keys |= MARCUS_FLY_LEFT;
-    if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_D]) keys |= MARCUS_FLY_RIGHT;
-    if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_E]) keys |= MARCUS_FLY_UP;
-    if (SDL_GetKeyboardState(NULL)[SDL_SCANCODE_Q]) keys |= MARCUS_FLY_DOWN;
-    if (SDL_GetModState() & SDL_KMOD_LSHIFT) keys |= MARCUS_FLY_FAST;
-    if (SDL_GetModState() & SDL_KMOD_RSHIFT) keys |= MARCUS_FLY_FAST_RIGHT;
+    for (i = 0; i < SDL_arraysize(flight_bindings); ++i)
+        if (SDL_GetKeyboardState(NULL)[flight_bindings[i].code]) keys |= flight_bindings[i].movement;
+    if (modifiers & SDL_KMOD_LSHIFT) keys |= MARCUS_FLY_FAST;
+    if (modifiers & SDL_KMOD_RSHIFT) keys |= MARCUS_FLY_FAST_RIGHT;
     return keys;
 }
 int marcus_fly_step(MarcusCamera *camera, int keys, double seconds)

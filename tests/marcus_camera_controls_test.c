@@ -42,7 +42,7 @@ int main(void)
     check(near(a.x, -sqrt(.75)) && near(a.y, -.5) && near(a.z, 0), "Forward follows yaw and pitch");
     a = camera(); a.yaw = 90; a.pitch = 30;
     marcus_fly_step(&a, MARCUS_FLY_UP, .1);
-    check(near(a.y, 1) && near(a.x, 0) && near(a.z, 0), "Q/E use world vertical");
+    check(near(a.y, 1) && near(a.x, 0) && near(a.z, 0), "W/R use world vertical");
     for (i = MARCUS_FLY_FAST; i <= (MARCUS_FLY_FAST | MARCUS_FLY_FAST_RIGHT); i += MARCUS_FLY_FAST)
     {
         a = camera(); marcus_fly_step(&a, MARCUS_FLY_FORWARD | i, .1);
@@ -68,10 +68,11 @@ int main(void)
     check(near(a.move_speed, 10), "Reverse wheel restores speed");
     marcus_fly_speed(&a, 1000); check(near(a.move_speed, 10000), "Maximum flight speed");
     marcus_fly_speed(&a, -1000); check(near(a.move_speed, .1), "Minimum flight speed");
-    check(marcus_fly_key(SDL_SCANCODE_W) == MARCUS_FLY_FORWARD && marcus_fly_key(SDL_SCANCODE_S) == MARCUS_FLY_BACK &&
-        marcus_fly_key(SDL_SCANCODE_A) == MARCUS_FLY_LEFT && marcus_fly_key(SDL_SCANCODE_D) == MARCUS_FLY_RIGHT &&
-        marcus_fly_key(SDL_SCANCODE_Q) == MARCUS_FLY_DOWN && marcus_fly_key(SDL_SCANCODE_E) == MARCUS_FLY_UP &&
+    check(marcus_fly_key(SDL_SCANCODE_E) == MARCUS_FLY_FORWARD && marcus_fly_key(SDL_SCANCODE_D) == MARCUS_FLY_BACK &&
+        marcus_fly_key(SDL_SCANCODE_S) == MARCUS_FLY_LEFT && marcus_fly_key(SDL_SCANCODE_F) == MARCUS_FLY_RIGHT &&
+        marcus_fly_key(SDL_SCANCODE_W) == MARCUS_FLY_DOWN && marcus_fly_key(SDL_SCANCODE_R) == MARCUS_FLY_UP &&
         marcus_fly_key(SDL_SCANCODE_LSHIFT) == MARCUS_FLY_FAST && marcus_fly_key(SDL_SCANCODE_RSHIFT) == MARCUS_FLY_FAST_RIGHT &&
+        marcus_fly_key(SDL_SCANCODE_A) == 0 && marcus_fly_key(SDL_SCANCODE_Q) == 0 &&
         marcus_fly_key(SDL_SCANCODE_SPACE) == 0, "Shared physical key mapping");
     puts("Shared Fly movement, mouse look and speed checks passed.");
     return 0;

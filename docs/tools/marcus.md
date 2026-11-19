@@ -238,7 +238,7 @@ Switch angles using the arrows. In **Camera**, drag numeric values or use their
 minus/plus buttons to change position, yaw, pitch, roll, vertical FOV and clipping
 planes. Shift makes value drags finer. Navigation uses the same controls and mouse
 sensitivity as the main Fly camera: hold the right mouse button over the viewport
-to capture the mouse and look around, with continuous WASD movement and Q/E down/up.
+to capture the mouse and look around, with continuous ESDF movement and W/R down/up.
 Either Shift key gives four times the speed. The wheel adjusts flight speed without
 moving the camera; the sidebar shows the current speed. Releasing right mouse or
 pressing Escape releases capture and commits the camera move as one undo step.
@@ -276,7 +276,7 @@ to one unit or rotations to 15 degrees. Numeric fields stay available for
 precise values and intensity. Releasing a drag commits one movie undo step;
 Escape or Ctrl+Z during a drag restores its starting values.
 **Frame lights** fits the lights, visible objects and shot camera in the inspection
-view. Hold right mouse with WASD and Q/E to inspect, with Shift for faster movement
+view. Hold right mouse with ESDF and W/R to inspect, with Shift for faster movement
 and the wheel to change speed. Inspection never changes the movie's camera.
 **Shot view** previews the active angle; **3D light view** returns to inspection.
 Position, direction and intensity affect 3D actors/props across all angles;
@@ -829,18 +829,19 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Divider between viewports | Drag to resize the movie and work views |
 | Handle above the dope sheets | Drag up/down to change track-area height; both sheets share the height |
 | Left click in a viewport | Select the visible object; empty image space clears selection |
+| W / E / R with an object selected | Switch its gizmo to Move / Rotate / Size |
 | Arrow beside an object track | Expand/collapse Transform, Appearance, Timing and Visibility event lanes |
 | Click an animation event diamond | Select its actor and seek silently to the evaluated event frame |
 | Right drag in Orbit / wheel | Orbit / zoom |
 | Shift + right drag in Orbit | Pan the view |
 | Hold right mouse in Fly | Capture the mouse for first-person look and movement |
-| WASD while holding right mouse | Fly forward/backward and strafe left/right |
-| Q / E while holding right mouse | Move down / up in world space |
+| E / D / S / F while holding right mouse | Fly forward / backward / left / right |
+| W / R while holding right mouse | Move down / up in world space |
 | Shift while flying | Four times normal movement speed |
 | Wheel in Fly | Adjust flight speed |
 | Release right mouse | Release mouse capture and stop flying |
 | Escape | Return from movie-only or fullscreen mode to the windowed editor; otherwise clear selection/camera capture, or pause playback |
-| Reset / R | Match the current movie camera; R also fits the timeline |
+| Reset, or R when the object gizmo is unavailable | Match the current movie camera. R also fits the timeline |
 | Loop | Repeat the current scene from its first frame |
 | Mute / Unmute | Silence output while audio and authored sound waits keep progressing |
 | Click the viewport / Play shortcut during a click wait | Continue the authored pause; the Play button reads Next |
@@ -942,8 +943,8 @@ adapts as you fly closer. The movie camera retains its authored projection.
 This improves precision without moving surfaces or changing their draw order;
 truly coincident faces can still fight. Picking and caption occlusion use the
 same fitted projection as the rendered work view.
-Use Orbit or Fly in the work view; hold its right mouse button and use WASD/QE to
-fly while the movie continues. C switches that work view between Orbit and Fly.
+Choose Fly in the work view, then hold the right mouse button and use ESDF and
+W/R to fly while the movie continues. C switches the work view between Orbit and Fly.
 The **Orbit** button activates the current orbit mode. While Orbit is selected,
 its target dropdown appears underneath, offering **Scene centre** and **Selection**. Scene centre
 fits the scene; Selection fits the selected actor/prop's posed bounds and follows
@@ -1174,8 +1175,9 @@ toggles are saved with the other settings.
 **Apply** activates and saves the edited settings; **Cancel** discards edits.
 **Restore defaults** resets all settings, which still needs Apply to save.
 Each first/previous/next/last action can be bound separately. Reset View defaults
-to R because F is now Next Frame. Arrow/Home/End/Page Up/Page Down remain fallback
-navigation keys. Flight keeps physical WASD/QE movement while right mouse is held.
+to R when the object gizmo is unavailable. Arrow/Home/End/Page Up/Page Down remain
+fallback navigation keys. Flight uses the physical ESDF and W/R keys while right
+mouse is held.
 
 The **Movie camera settings** and **Work camera settings** buttons in Settings
 open rendering controls. Their renderer selector offers **BRender (CPU C)**, **BRender (compute)**, **SDL GPU** and
@@ -1543,7 +1545,8 @@ world XYZ at the playhead. Each edit is one Undo step, and **Save copy** writes
 the action, path and position adjustments into the native movie.
 
 Select a visible actor, prop or 3D text while paused to show its world-axis translation handles.
-The viewport's **Move / Rotate / Size** toolbar chooses the active tool. **Rotate**
+The viewport's **Move / Rotate / Size** toolbar and **W / E / R** choose the active
+tool. **Rotate**
 shows local rotation rings; **Size** shows per-axis handles and a centre handle
 for uniform sizing. Object and storyboard light gizmos use 1.5× scale for
 their handles and grab areas. Rotation and size apply to the whole object track

@@ -20,6 +20,7 @@
 #include "storyboard_editor.h"
 #include "storyboard.h"
 #include "prop_gizmo.h"
+#include "transform_gizmo.h"
 #include "media.h"
 #include <SDL3/SDL_main.h>
 #include <stdio.h>
@@ -1562,6 +1563,36 @@ static void undo_edit(App *app)
                  app->modified ? " (unsaved changes)" : "");
     SDL_SetWindowTitle(app->window, title);
 }
+static int gizmos_enabled(const App *app)
+{
+    return app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
+        !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
+        !text_dialog_visible(app->text_dialog) && !caption_editor_visible(app->caption_editor) &&
+        !animation_editor_recording(app->animation_editor) && !animation_dialog_visible(app->animation_dialog) &&
+        !costume_dialog_visible(app->costume_dialog) && !sound_dialog_visible(app->sound_dialog) &&
+        !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
+        !igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
+        !app->flying && !app->orbiting && !app->panning &&
+        !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging;
+}
+static int object_gizmo_key(App *app, SDL_Keycode key, SDL_Keymod modifiers)
+{
+    MarcusObject object;
+    int mode;
+    switch (key)
+    {
+    case SDLK_W: mode = MARCUS_GIZMO_MOVE; break;
+    case SDLK_E: mode = MARCUS_GIZMO_ROTATE; break;
+    case SDLK_R: mode = MARCUS_GIZMO_SCALE; break;
+    default: return 0;
+    }
+    if (shortcuts_modifiers(modifiers) || app->selected < 0 || !gizmos_enabled(app) ||
+        storyboard_editor_visible(app->storyboard_editor) ||
+        !marcus_object(app->player, app->selected, &object) || !object.visible)
+        return 0;
+    prop_gizmo_set_mode(app->prop_gizmo, mode);
+    return 1;
+}
 static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
 {
     long step;
@@ -1607,6 +1638,8 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
         if (app->loaded) choose_file(app, 4);
         return;
     }
+    if (object_gizmo_key(app, key, modifiers))
+        return;
     action = shortcuts_match(&app->shortcuts, key, modifiers);
     if (action >= 0)
     {
@@ -2433,7 +2466,7 @@ static void draw_view(App *app)
     {
         draw_movie_view(app);
         if (inside_work(app, ui->mouse_x, ui->mouse_y))
-            ui->hint = app->authored == 2 ? "Click to select / hold RMB + WASD to fly / wheel speed"
+            ui->hint = app->authored == 2 ? "Click to select / hold RMB + ESDF and W/R to fly / wheel speed"
                                           : "Click to select / RMB orbit / Shift + RMB pan / wheel zoom";
         if (inside_movie(app, ui->mouse_x, ui->mouse_y))
             ui->hint = "Click an object to select it";
@@ -2509,7 +2542,8 @@ static void draw_object_properties(App *app)
         !app->playing && !app->settings_open && !app->error[0] && !app->prop_interacting &&
         !animation_editor_recording(app->animation_editor));
     igText("Visibility: %s", object.visible ? "On stage" : "Off stage");
-    igSeparatorText(prop_gizmo_mode(app->prop_gizmo) == 1 ? "Rotation (degrees)" : prop_gizmo_mode(app->prop_gizmo) == 2 ? "Size (percent)" : "World position");
+    igSeparatorText(prop_gizmo_mode(app->prop_gizmo) == MARCUS_GIZMO_ROTATE ? "Rotation (degrees)" :
+                    prop_gizmo_mode(app->prop_gizmo) == MARCUS_GIZMO_SCALE ? "Size (percent)" : "World position");
     editable = prop_gizmo_properties(app->prop_gizmo); app->prop_fields = editable;
     if (editable) apply_prop_changes(app);
     else if (object.has_lifetime) igText("X %.3f / Y %.3f / Z %.3f", (double)object.x, (double)object.y, (double)object.z);
@@ -3404,14 +3438,7 @@ static void update_prop_gizmo(App *app)
 {
     SDL_FRect viewport;
     int enabled;
-    enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
-        !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
-        !text_dialog_visible(app->text_dialog) && !caption_editor_visible(app->caption_editor) &&
-        !animation_editor_recording(app->animation_editor) && !animation_dialog_visible(app->animation_dialog) &&
-        !costume_dialog_visible(app->costume_dialog) && !sound_dialog_visible(app->sound_dialog) && !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
-        !igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
-        !app->flying && !app->orbiting && !app->panning &&
-        !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging;
+    enabled = gizmos_enabled(app);
     prop_gizmo_begin(app->prop_gizmo, app->player, app->selected,
         enabled && !storyboard_editor_visible(app->storyboard_editor),
         app->width, app->height);

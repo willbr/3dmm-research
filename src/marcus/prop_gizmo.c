@@ -425,6 +425,10 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
 
 int prop_gizmo_active(const MarcusPropGizmo *gizmo) { return gizmo && gizmo->editing != EDIT_NONE; }
 int prop_gizmo_mode(const MarcusPropGizmo *gizmo) { return gizmo ? gizmo->mode : MARCUS_GIZMO_MOVE; }
+void prop_gizmo_set_mode(MarcusPropGizmo *gizmo, int mode)
+{
+    if (gizmo->editing == EDIT_NONE) gizmo->mode = mode;
+}
 void prop_gizmo_end(MarcusPropGizmo *gizmo)
 {
     igRender();
