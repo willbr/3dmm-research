@@ -638,6 +638,7 @@ namespace IMGUIZMO_NAMESPACE
       ScaleLineCircleSize        = 6.0f;
       HatchedAxisLineThickness   = 6.0f;
       CenterCircleSize           = 6.0f;
+      HandleScale                = 1.0f;
 
       // initialize default colors
       Colors[DIRECTION_X]           = ImVec4(0.666f, 0.000f, 0.000f, 1.000f);
@@ -655,6 +656,19 @@ namespace IMGUIZMO_NAMESPACE
       Colors[HATCHED_AXIS_LINES]    = ImVec4(0.000f, 0.000f, 0.000f, 0.500f);
       Colors[TEXT]                  = ImVec4(1.000f, 1.000f, 1.000f, 1.000f);
       Colors[TEXT_SHADOW]           = ImVec4(0.000f, 0.000f, 0.000f, 1.000f);
+   }
+
+   void Style::ScaleAllSizes(float scale)
+   {
+      TranslationLineThickness *= scale;
+      TranslationLineArrowSize *= scale;
+      RotationLineThickness *= scale;
+      RotationOuterLineThickness *= scale;
+      ScaleLineThickness *= scale;
+      ScaleLineCircleSize *= scale;
+      HatchedAxisLineThickness *= scale;
+      CenterCircleSize *= scale;
+      HandleScale *= scale;
    }
 
    // Per-id state of a ViewManipulate widget, so several view cubes (one per viewport)
@@ -1238,8 +1252,9 @@ namespace IMGUIZMO_NAMESPACE
 
       ImVec2 centerSSpace = worldToPos(makeVect(0.f, 0.f), gContext.mMVP);
       gContext.mScreenSquareCenter = centerSSpace;
-      gContext.mScreenSquareMin = ImVec2(centerSSpace.x - 10.f, centerSSpace.y - 10.f);
-      gContext.mScreenSquareMax = ImVec2(centerSSpace.x + 10.f, centerSSpace.y + 10.f);
+      const float centerHitSize = 10.f * gContext.mStyle.HandleScale;
+      gContext.mScreenSquareMin = centerSSpace - ImVec2(centerHitSize, centerHitSize);
+      gContext.mScreenSquareMax = centerSSpace + ImVec2(centerHitSize, centerHitSize);
 
       ComputeCameraRay(gContext.mRayOrigin, gContext.mRayVector);
    }
@@ -1497,7 +1512,7 @@ namespace IMGUIZMO_NAMESPACE
 
       viewDirNormalized.TransformVector(gContext.mModelInverse);
 
-      gContext.mRadiusSquareCenter = screenRotateSize * gContext.mHeight;
+      gContext.mRadiusSquareCenter = screenRotateSize * gContext.mHeight * gContext.mStyle.HandleScale;
 
       bool hasRSC = Intersects(op, ROTATE_SCREEN);
       for (int axis = 0; axis < 3; axis++)
@@ -1592,6 +1607,11 @@ namespace IMGUIZMO_NAMESPACE
       }
    }
 
+   static float ScaleEndOnRadius(int axis)
+   {
+      return (14.f + axis * 4.f) * gContext.mStyle.HandleScale;
+   }
+
    static void DrawScaleGizmo(OPERATION op, MOVETYPE type)
    {
       ImDrawList* drawList = gContext.mDrawList;
@@ -1631,7 +1651,7 @@ namespace IMGUIZMO_NAMESPACE
             if (TranslationAxisHandle(i, start, end, endOn))
             {
                if (endOn)
-                  drawList->AddCircle(end, 14.f + i * 4.f, colors[i + 1], 32, gContext.mStyle.ScaleLineThickness);
+                  drawList->AddCircle(end, ScaleEndOnRadius(i), colors[i + 1], 32, gContext.mStyle.ScaleLineThickness);
                else
                {
                   drawList->AddLine(start, end, colors[i + 1], gContext.mStyle.ScaleLineThickness);
@@ -1814,9 +1834,10 @@ namespace IMGUIZMO_NAMESPACE
             const bool enlarged = TranslationAxisHandle(i, baseSSpace, worldDirSSpace, endOn);
             if (enlarged && endOn && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)))
             {
-               drawList->AddCircle(origin, 14.f, colors[i + 1], 32, 2.f);
+               const float scale = gContext.mStyle.HandleScale;
+               drawList->AddCircle(origin, 14.f * scale, colors[i + 1], 32, 2.f * scale);
                const char* names[] = { "X", "Y", "Z" };
-               drawList->AddText(origin + ImVec2(17.f, -17.f), colors[i + 1], names[i]);
+               drawList->AddText(origin + ImVec2(17.f, -17.f) * scale, colors[i + 1], names[i]);
             }
             else if ((belowAxisLimit || enlarged) && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)))
             {
@@ -2251,9 +2272,10 @@ namespace IMGUIZMO_NAMESPACE
          bool endOn;
          if (TranslationAxisHandle(i, start, end, endOn))
          {
-            const float distance = endOn ? fabsf(sqrtf(ImLengthSqr(io.MousePos - end)) - (14.f + i * 4.f)) :
+            const float distance = endOn ? fabsf(sqrtf(ImLengthSqr(io.MousePos - end)) - ScaleEndOnRadius(i)) :
                (PointOnSegment(makeVect(io.MousePos), makeVect(start), makeVect(end)) - makeVect(io.MousePos)).Length();
-            if (!isAxisMasked && distance < (endOn ? 2.f : 9.f)) type = static_cast<MOVETYPE>(MT_SCALE_X + i);
+            if (!isAxisMasked && distance < (endOn ? 2.f : 9.f) * gContext.mStyle.HandleScale)
+               type = static_cast<MOVETYPE>(MT_SCALE_X + i);
             continue;
          }
 
@@ -2275,7 +2297,7 @@ namespace IMGUIZMO_NAMESPACE
 
          vec_t closestPointOnAxis = PointOnSegment(makeVect(posOnPlanScreen), makeVect(axisStartOnScreen), makeVect(axisEndOnScreen));
 
-         if ((closestPointOnAxis - makeVect(posOnPlanScreen)).Length() < 12.f) // pixel size
+         if ((closestPointOnAxis - makeVect(posOnPlanScreen)).Length() < 12.f * gContext.mStyle.HandleScale)
          {
             if (!isAxisMasked)
                type = static_cast<MOVETYPE>(MT_SCALE_X + i);
@@ -2336,7 +2358,8 @@ namespace IMGUIZMO_NAMESPACE
 
       vec_t deltaScreen = { io.MousePos.x - gContext.mScreenSquareCenter.x, io.MousePos.y - gContext.mScreenSquareCenter.y, 0.f, 0.f };
       float dist = deltaScreen.Length();
-      if (Intersects(op, ROTATE_SCREEN) && dist >= (gContext.mRadiusSquareCenter - 4.0f) && dist < (gContext.mRadiusSquareCenter + 4.0f))
+      const float ringHitSize = 4.f * gContext.mStyle.HandleScale;
+      if (Intersects(op, ROTATE_SCREEN) && fabsf(dist - gContext.mRadiusSquareCenter) < ringHitSize)
       {
          if (!isNoAxesMasked)
             return MT_NONE;
@@ -2377,7 +2400,7 @@ namespace IMGUIZMO_NAMESPACE
          const ImVec2 distanceOnScreen = idealPosOnCircleScreen - io.MousePos;
 
          const float distance = makeVect(distanceOnScreen).Length();
-         if (distance < 8.f) // pixel size
+         if (distance < 8.f * gContext.mStyle.HandleScale)
          {
             if ((!isAxisMasked || isMultipleAxesMasked) && !isNoAxesMasked)
                break;
@@ -2410,7 +2433,8 @@ namespace IMGUIZMO_NAMESPACE
          if (!Intersects(op, static_cast<OPERATION>(TRANSLATE_X << axis)) ||
              !TranslationAxisHandle(axis, start, end, endOn) || !endOn) continue;
          const float distance = sqrtf(ImLengthSqr(io.MousePos - end));
-         if (distance >= 10.f && distance <= 18.f) return static_cast<MOVETYPE>(MT_MOVE_X + axis);
+         if (fabsf(distance - 14.f * gContext.mStyle.HandleScale) <= 4.f * gContext.mStyle.HandleScale)
+            return static_cast<MOVETYPE>(MT_MOVE_X + axis);
       }
 
       // screen
@@ -2461,7 +2485,8 @@ namespace IMGUIZMO_NAMESPACE
             axisEndOnScreen = handleEnd - ImVec2(gContext.mX, gContext.mY);
          }
          vec_t closestPointOnAxis = PointOnSegment(screenCoord, makeVect(axisStartOnScreen), makeVect(axisEndOnScreen));
-         if (!(enlarged && endOn) && (closestPointOnAxis - screenCoord).Length() < 12.f && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i))) // pixel size
+         if (!(enlarged && endOn) && (closestPointOnAxis - screenCoord).Length() < 12.f * gContext.mStyle.HandleScale &&
+             Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)))
          {
             if (isAxisMasked)
                break;

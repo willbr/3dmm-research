@@ -38,6 +38,9 @@ captured screen-space dragging to avoid unstable ray/plane ratios. Other scale
 handles remain visible during a drag. Ordinary projected axes retain the upstream
 scale solver, with non-finite ratios rejected.
 
+`Style::ScaleAllSizes(scale)` scales handle strokes, end caps and pixel-based
+hit targets together. Marcus also scales the projected axis and plane dimensions.
+
 `SetTranslationDisplayOffset(x, y)` shifts translation handles and the current
 drag endpoint in screen pixels without changing the solver, delta, or fixed
 drag-start marker. The feedback line connects the original marker to the

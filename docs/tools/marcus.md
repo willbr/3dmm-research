@@ -1545,8 +1545,9 @@ the action, path and position adjustments into the native movie.
 Select a visible actor, prop or 3D text while paused to show its world-axis translation handles.
 The viewport's **Move / Rotate / Size** toolbar chooses the active tool. **Rotate**
 shows local rotation rings; **Size** shows per-axis handles and a centre handle
-for uniform sizing. Rotation and size apply to the whole object track while
-preserving its position, path, action/cel timing and lifetime. Size uses positive
+for uniform sizing. Object and storyboard light gizmos use 1.5× scale for
+their handles and grab areas. Rotation and size apply to the whole object track
+while preserving its position, path, action/cel timing and lifetime. Size uses positive
 multipliers from 1% to 1000% of the authored dimensions. Foreshortened scale axes
 keep a minimum projected length; exactly end-on axes use a ring around the centre
 handle and drag vertically. All scale handles remain visible during a drag.

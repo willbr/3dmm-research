@@ -340,6 +340,7 @@ namespace IMGUIZMO_NAMESPACE
    struct Style
    {
       IMGUI_API Style();
+      IMGUI_API void ScaleAllSizes(float scale);
 
       float TranslationLineThickness;   // Thickness of lines for translation gizmo
       float TranslationLineArrowSize;   // Size of arrow at the end of lines for translation gizmo
@@ -349,6 +350,7 @@ namespace IMGUIZMO_NAMESPACE
       float ScaleLineCircleSize;        // Size of circle at the end of lines for scale gizmo
       float HatchedAxisLineThickness;   // Thickness of hatched axis lines
       float CenterCircleSize;           // Size of circle at the center of the translate/scale gizmo
+      float HandleScale;                // Scale of pixel-based picking radii and end-on handles
 
       ImVec4 Colors[COLOR::COUNT];
    };

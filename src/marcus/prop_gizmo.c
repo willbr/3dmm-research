@@ -308,8 +308,8 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
     multiply(rotation, gizmo->right, rotation);
     transform_matrix(rotation, gizmo->mode ? gizmo->shape.scale : unit_scale,
                      gizmo->mode ? gizmo->position : gizmo->value, matrix);
-    inset_x = minimum(.25f, 112.f / rect.w);
-    inset_y = minimum(.25f, 112.f / rect.h);
+    inset_x = minimum(.25f, 112.f * MARCUS_GIZMO_SIZE_MULTIPLIER / rect.w);
+    inset_y = minimum(.25f, 112.f * MARCUS_GIZMO_SIZE_MULTIPLIER / rect.h);
     if (!gizmo->editing)
     {
         if (!camera_gizmo_anchor(&image->projection, matrix + 12, inset_x, inset_y, anchor)) return;

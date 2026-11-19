@@ -10,7 +10,13 @@ int marcus_imgui_sdl_init(SDL_Window *window, SDL_Renderer *renderer)
 {
     if (!IMGUI_CHECKVERSION()) return 0;
     if (!ImGui_ImplSDL3_InitForSDLRenderer(window, renderer)) return 0;
-    if (ImGui_ImplSDLRenderer3_Init(renderer)) return 1;
+    if (ImGui_ImplSDLRenderer3_Init(renderer))
+    {
+        auto &style = ImGuizmo::GetStyle();
+        style = ImGuizmo::Style{};
+        style.ScaleAllSizes(MARCUS_GIZMO_SIZE_MULTIPLIER);
+        return 1;
+    }
     ImGui_ImplSDL3_Shutdown();
     return 0;
 }

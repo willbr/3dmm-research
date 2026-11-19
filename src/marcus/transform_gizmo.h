@@ -9,6 +9,7 @@ extern "C" {
 
 enum { MARCUS_GIZMO_OBJECT = 1, MARCUS_GIZMO_LIGHT = 2 };
 enum { MARCUS_GIZMO_MOVE, MARCUS_GIZMO_ROTATE, MARCUS_GIZMO_SCALE };
+#define MARCUS_GIZMO_SIZE_MULTIPLIER 1.5f
 typedef struct MarcusGizmoResult { int changed, active, over; } MarcusGizmoResult;
 
 void marcus_gizmo_enable(int id, int enabled);
