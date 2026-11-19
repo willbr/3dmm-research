@@ -127,7 +127,7 @@ static int test_caption_layout(void)
 {
     static const unsigned short text[] = {'A', 'B', '\r', '\n', 'C', '\t', 'D'};
     MMCaptionLayoutInput input = {text, 7, 40, 12, {"Base", 4}, 9};
-    MMCaptionLayoutServices services = {NULL, caption_property, caption_set_font, caption_measure, caption_emit};
+    MMCaptionLayoutServices services = {NULL, caption_property, caption_set_font, caption_measure, caption_emit, NULL};
     CaptionRuns runs;
     MMI32 height = -1;
     services.context = &runs;

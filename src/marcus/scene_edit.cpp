@@ -515,53 +515,35 @@ std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::pat
     Require(file && source, "Cannot open the movie or the new animation track.");
     MovieArchiveHost host{file.get(), {}, {}};
     const auto editor = host.Editor();
-    const auto sceneNumber = static_cast<MMU32>(scene);
-    ChunkNumber actor;
-    Require(mm_actor_archive_find(&editor, sceneNumber, actorId, &actor),
-            "Cannot find the selected actor in the working movie.");
     struct Track
     {
         PChunkyFile file, source;
-        const MMMovieArchiveEditor &editor;
-        int last;
         const MarcusTextEdit *text;
         std::exception_ptr failure;
-    } trackEdit{file.get(), source.get(), editor, lastActorFrame, text, {}};
-    const float offset[3] = {};
-    const MMActorArchivePose pose{sceneNumber, actor, offset, shape.rotation, shape.scale, &trackEdit,
-        [](void *p, MMU32 copied) -> int {
-            auto &edit = *static_cast<Track *>(p);
+    } trackEdit{file.get(), source.get(), text, {}};
+    const MMActorArchiveAnimation edit{static_cast<MMU32>(scene), static_cast<MMI32>(actorId),
+        static_cast<MMI32>(previousActorFrame), lastActorFrame, lastEditedFrame,
+        shape.rotation, shape.scale, &trackEdit,
+        [](void *p, MMU32 type, MMU32 number, MMU32 *copied) -> int {
+            auto &track = *static_cast<Track *>(p);
+            try { return track.source->FCopy(type, number, track.file, copied); }
+            catch (...) { track.failure = std::current_exception(); return false; }
+        },
+        [](void *p, MMU32 actor) -> int {
+            auto &track = *static_cast<Track *>(p);
             try
             {
-                ChunkNumber route, events;
-                ChildChunkIdentification oldRoute;
-                DataBlock block;
-                ActorChunkOnFile header;
-                if (!edit.file->FGetKidChidCtg(kctgActr, copied, 0, kctgPath, &oldRoute) ||
-                    !edit.file->FFind(kctgActr, copied, &block) || !ActorData::FReadHeader(&block, &header) ||
-                    !edit.source->FCopy(kctgPath, 0, edit.file, &route) ||
-                    !edit.source->FCopy(kctgGgae, 0, edit.file, &events))
-                    return false;
-                edit.file->DeleteChild(kctgActr, copied, kctgPath, oldRoute.cki.cno, 0);
-                header.nfrmLast = edit.last;
-                if (!edit.file->FAdoptChild(kctgActr, copied, kctgPath, route, 0) ||
-                    mm_actor_archive_link_events(&edit.editor, copied, events) != MM_ACTOR_EDIT_ARCHIVE_OK ||
-                    !ActorData::FWriteHeader(edit.file, copied, &header))
-                    return false;
-                if (edit.text) ApplyText(edit.file, copied, *edit.text);
+                if (track.text) ApplyText(track.file, actor, *track.text);
                 return true;
             }
-            catch (...) { edit.failure = std::current_exception(); return false; }
+            catch (...) { track.failure = std::current_exception(); return false; }
         }};
-    const auto placed = mm_actor_archive_place(&editor, &pose);
+    int sceneResult;
+    const int resultCode = mm_actor_archive_animate(&editor, &edit, &sceneResult);
     if (trackEdit.failure) std::rethrow_exception(trackEdit.failure);
-    CheckActorArchiveEdit(placed);
-    MMSceneState range;
-    Require(mm_scene_archive_read_header(&editor, sceneNumber, &range), "Cannot read the scene range.");
-    if (previousActorFrame <= range.lastFrame)
-        lastEditedFrame = std::max(lastEditedFrame, lastActorFrame);
-    if (lastEditedFrame > range.lastFrame)
-        ApplySceneRange(file.get(), {scene, range.firstFrame, lastEditedFrame});
+    Require(resultCode != MM_ACTOR_EDIT_ARCHIVE_SCENE, "Cannot find the selected actor in the working movie.");
+    CheckActorArchiveEdit(resultCode);
+    CheckSceneFrameEdit(sceneResult);
     Require(file->FSave(kctgSoc), "Cannot save the animation edit.");
     return result;
 }

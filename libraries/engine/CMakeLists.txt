@@ -561,7 +561,7 @@ target_sources(mm-engine-c89 PRIVATE src/actor_route_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_subroute_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_placement.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_stage_edit.c)
-target_sources(mm-engine-c89 PRIVATE src/actor_record.c)
+target_sources(mm-engine-c89 PRIVATE src/actor_record.c src/actor_animation.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_transform_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_owner.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_undo.c)
@@ -1412,6 +1412,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_placement.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_stage_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_record.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_animation.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_transform_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_owner.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_undo.c"

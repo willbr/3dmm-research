@@ -12,8 +12,7 @@
 #include "engine_actor_timeline.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_costume_edit.h"
-#include "mm/actor_record.h"
-#include "mm/actor_transform_edit.h"
+#include "mm/actor_animation.h"
 #include "mm/sound_resource.h"
 #undef size
 #include "preview_cue_view.h"
@@ -333,101 +332,28 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
 bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::string &path,
                                   int &lastActorFrame, int &lastEditedFrame)
 {
-    if (!Visible() || !tmpl || edit.points.size() > 2048) return false;
-    const auto start = Snapshot();
+    if (!Visible() || !tmpl || edit.points.size() > MM_ACTOR_ANIMATION_MAX_POINTS) return false;
+    static_assert(int(PreviewAnimationEdit::Kind::action) == MM_ACTOR_ANIMATION_ACTION &&
+                  int(PreviewAnimationEdit::Kind::record) == MM_ACTOR_ANIMATION_RECORD &&
+                  int(PreviewAnimationEdit::Kind::tweak) == MM_ACTOR_ANIMATION_TWEAK, "animation edit kinds");
+    std::vector<MMActorAnimationPoint> points;
+    points.reserve(edit.points.size());
     for (const auto &point : edit.points)
-        if (!(std::abs(double(start.x) + point.x) <= 32700 && std::abs(double(start.y) + point.y) <= 32700 &&
-              std::abs(double(start.z) + point.z) <= 32700))
-            return false;
+        points.push_back({point.x, point.y, point.z});
+    const MMActorAnimation request{int(edit.kind), edit.freeze, edit.replace, edit.action, edit.cel,
+                                   points.data(), points.size()};
     TrackDraft draft(*this);
     if (!draft.Begin()) return false;
     AnimationHost host(this);
-    auto &state = core.state;
-    auto route = track.Route();
-    auto events = track.Events();
-    auto motion = motionSounds.Core();
-    const auto actor = core.header.actor_id;
     const auto services = host.Record();
-    const auto &tables = services.subroute.timeline.motion;
-    const auto &action = services.subroute.action;
-    const auto &edits = services.subroute.route.edits;
-    const auto first = state.frame;
-    switch (edit.kind)
-    {
-    case PreviewAnimationEdit::Kind::action:
-    {
-        LegacyLong count = 0;
-        if (edit.action < 0 || edit.action >= tmpl->Cactn() || !tmpl->FGetCcelActn(edit.action, &count) ||
-            edit.cel < 0 || edit.cel >= count)
-            return false;
-        if (!host.Result(mm_actor_edit_set_action(&state, motion, events, actor, edit.action, edit.cel,
-                                                  edit.freeze, 0, &tables, &action)))
-            return false;
-        // A standalone action can play in place at the end of an existing route.
-        if (!edit.freeze && state.frozen)
-        {
-            MMI32 enabled = 0;
-            if (!host.Result(CostumeHost::Reserve(edits.context, 1, sizeof(enabled)) &&
-                mm_actor_edit_add_apply(&state, motion, events, actor, MM_ACTOR_FREEZE, sizeof(enabled), &enabled,
-                                        &tables, &edits)))
-                return false;
-        }
-        break;
-    }
-    case PreviewAnimationEdit::Kind::tweak:
-    {
-        if (edit.points.size() != 1) return false;
-        const auto &point = edit.points.front();
-        if (!(std::abs(point.x) <= 32700 && std::abs(point.y) <= 32700 && std::abs(point.z) <= 32700)) return false;
-        const MMActorPoint delta{BrFloatToScalar(point.x), BrFloatToScalar(point.y), BrFloatToScalar(point.z)};
-        MMActorTransformEditServices transform{};
-        transform.subroute = services.subroute;
-        if (!host.Result(mm_actor_transform_tweak(&state, motion, route, events, actor, &delta, 0,
-                                                  &tables, &transform))) return false;
-        break;
-    }
-    case PreviewAnimationEdit::Kind::record:
-    {
-        if (edit.points.empty() || first > 2147483647 - 4096) return false;
-        if (!host.Result(mm_actor_record_begin(&state, &host.record, route, events, edit.replace,
-                                               nullptr, &tables, &services))) return false;
-        if (edit.replace)
-            mm_actor_route_edit_delete_forward(&state, motion, route, events, actor, 0, nullptr,
-                                               -1, &tables, &services.subroute.route);
-        for (const auto &point : edit.points)
-        {
-            for (;;)
-            {
-                const auto current = Snapshot();
-                const double x = double(start.x) + point.x - current.x, y = double(start.y) + point.y - current.y,
-                             z = double(start.z) + point.z - current.z;
-                const double length = std::sqrt(x*x + y*y + z*z);
-                MMI32 step = 0;
-                if (!host.Result(mm_actor_record_step(&state, &step, &services.subroute.timeline))) return false;
-                if (!step) step = mm_fixed_mul(services.stationary_step, state.transform.rScaleStep);
-                if (step <= 0 || length < BrScalarToFloat(step)) break;
-                if (state.frame - first >= 4096) return false;
-                const double fraction = std::min(1., 1024. / length);
-                const MMActorPoint delta{BrFloatToScalar(float(x * fraction)), BrFloatToScalar(float(y * fraction)),
-                                         BrFloatToScalar(float(z * fraction))};
-                MMActorRecordResult result{};
-                if (!host.Result(mm_actor_record_move(&state, &host.record, motion, route, events, actor,
-                    &delta, edit.freeze ? MM_RECORD_FREEZE : 0, 0, &result, nullptr, &tables, &services)))
-                    return false;
-                if (!result.frame) break;
-            }
-        }
-        if (state.frame == first || !host.Result(mm_actor_record_end(&state, &host.record, motion, route, events, actor,
-            edit.replace, nullptr, &tables, &services))) return false;
-        break;
-    }
-    }
-    lastEditedFrame = state.frame;
-    MMI32 last = core.header.last_frame;
-    if (!host.Result(mm_actor_lifetime(route, events, core.header.first_frame, 0, &last, 100000,
-                                      &services.subroute.timeline))) return false;
-    lastActorFrame = std::max(last, lastEditedFrame);
-    return draft.Write(path, true);
+    const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? tmpl->Cactn() : 0;
+    MMActorAnimationRange range;
+    if (!host.Result(mm_actor_animation_edit(&core, motionSounds.Core(), &host.record, &request, actionCount,
+                                             &services, &range)) || !draft.Write(path, true))
+        return false;
+    lastActorFrame = range.actor_last;
+    lastEditedFrame = range.edited_last;
+    return true;
 }
 bool PreviewActor::SetEventTrack(std::int32_t source)
 {

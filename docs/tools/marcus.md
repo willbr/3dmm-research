@@ -1544,6 +1544,15 @@ path. Recording can extend the scene. **Edit path point** adjusts the object's
 world XYZ at the playhead. Each edit is one Undo step, and **Save copy** writes
 the action, path and position adjustments into the native movie.
 
+The C89 engine drives action changes, path sampling and lifetime updates using
+the actor editing primitives shared with Studio. It installs the edited route
+and event chunks on the selected scene's actor and extends the scene when
+required. The animation regression produced the same native movie bytes as
+before the migration. A fresh retail run matched the retained captures at
+frames 1, 2, 25, 75, 125 and 150 pixel for pixel. Rebuilt SDL Studio matched
+retail's scene and actor state and the movie viewport at all six seeks.
+The captures and comparisons are in `tmp/c89-animation/`.
+
 Select a visible actor, prop or 3D text while paused to show its world-axis translation handles.
 The viewport's **Move / Rotate / Size** toolbar and **W / E / R** choose the active
 tool. **Rotate**

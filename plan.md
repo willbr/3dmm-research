@@ -1078,6 +1078,11 @@ retain shared child chunks, install a scene-local actor link and
 invalidate the thumbnail. C89 also rewrites the rotation, stretch and
 3D text material event tracks using the actor codecs and fixed-point
 math shared with Studio.
+Marcus action and path edits now run their draft sequence in C89 using
+Studio's actor action, transform and recording primitives. C89 validates
+targets, samples the path by stride, and computes the edited lifetime.
+It also installs the saved route and events on the selected scene's
+actor, reapplies appearance and shape, and extends the scene as needed.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

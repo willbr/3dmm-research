@@ -3,6 +3,7 @@
 #include "mm/actor_effect.h"
 #include "mm/actor_math.h"
 #include "mm/collections.h"
+#include "mm/scene_data.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -517,4 +518,68 @@ int mm_actor_archive_place(const MMMovieArchiveEditor *editor, const MMActorArch
     if (mm_chunk_link_number(&chunks, SCENE_TYPE, pose->scene, 0, THUMB_TYPE, &thumb) == MM_CHUNK_OK)
         editor->unlink(editor->context, SCENE_TYPE, pose->scene, THUMB_TYPE, thumb, 0);
     return MM_ACTOR_EDIT_ARCHIVE_OK;
+}
+
+typedef struct AnimationTrack
+{
+    const MMMovieArchiveEditor *editor;
+    const MMActorArchiveAnimation *edit;
+} AnimationTrack;
+
+static int install_animation_track(void *context, MMU32 actor)
+{
+    const AnimationTrack *track = (const AnimationTrack *)context;
+    const MMMovieArchiveEditor *editor = track->editor;
+    const MMActorArchiveAnimation *edit = track->edit;
+    MMActorHeader header;
+    MMChunkAccess chunks;
+    MMU32 old_route, route, events;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, ROUTE_TYPE, &old_route) != MM_CHUNK_OK ||
+        !mm_actor_archive_read_actor(editor, actor, &header) ||
+        !edit->copy(edit->context, ROUTE_TYPE, 0, &route) ||
+        !edit->copy(edit->context, EVENTS_TYPE, 0, &events))
+        return 0;
+    editor->unlink(editor->context, ACTOR_TYPE, actor, ROUTE_TYPE, old_route, 0);
+    header.last_frame = edit->actor_last;
+    return editor->adopt(editor->context, ACTOR_TYPE, actor, ROUTE_TYPE, route, 0) &&
+        mm_actor_archive_link_events(editor, actor, events) == MM_ACTOR_EDIT_ARCHIVE_OK &&
+        editor->put(editor->context, ACTOR_TYPE, actor, &header, sizeof(header)) &&
+        (!edit->appearance || edit->appearance(edit->context, actor));
+}
+
+int mm_actor_archive_animate(const MMMovieArchiveEditor *editor, const MMActorArchiveAnimation *edit,
+                             int *scene_result)
+{
+    const float offset[3] = {0};
+    AnimationTrack track;
+    MMActorArchivePose pose;
+    MMSceneState range;
+    MMI32 last;
+    int result;
+    if (!mm_actor_archive_find(editor, edit->scene, edit->actor_id, &pose.actor))
+        return MM_ACTOR_EDIT_ARCHIVE_SCENE;
+    track.editor = editor;
+    track.edit = edit;
+    pose.scene = edit->scene;
+    pose.translation = offset;
+    pose.rotation = edit->rotation;
+    pose.scale = edit->scale;
+    pose.context = &track;
+    pose.appearance = install_animation_track;
+    result = mm_actor_archive_place(editor, &pose);
+    if (result != MM_ACTOR_EDIT_ARCHIVE_OK)
+        return result;
+    if (!mm_scene_archive_read_header(editor, edit->scene, &range))
+    {
+        *scene_result = MM_SCENE_ARCHIVE_EDIT_READ_SCENE;
+        return result;
+    }
+    last = edit->edited_last;
+    if (edit->previous_actor_last <= range.lastFrame && edit->actor_last > last)
+        last = edit->actor_last;
+    *scene_result = last > range.lastFrame
+        ? mm_scene_archive_set_range(editor, edit->scene, range.firstFrame, last)
+        : MM_SCENE_ARCHIVE_EDIT_OK;
+    return result;
 }

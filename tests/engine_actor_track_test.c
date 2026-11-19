@@ -1,4 +1,5 @@
 #include "mm/actor_track.h"
+#include "mm/actor_animation.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -312,11 +313,33 @@ static void adoption(void)
     CHECK(mm_actor_track_clone(&copy, &empty, &services));
     CHECK(!h.live && !h.refs);
 }
+static void reject_invalid_path(void)
+{
+    MMPreviewActor actor = {0};
+    MMActorRecording recording = {0};
+    MMActorRecordServices host = {0};
+    MMActorAnimationPoint point = {3, 0, 0};
+    MMActorAnimation edit = {MM_ACTOR_ANIMATION_TWEAK, 0, 0, 0, 0, NULL, 1};
+    MMActorAnimationRange range = {80, 90};
+    edit.points = &point;
+    actor.tmpl = &actor;
+    actor.state.onStage = 1;
+    actor.state.position.dxr = 32698L * 65536L;
+    CHECK(!mm_actor_animation_edit(&actor, NULL, &recording, &edit, 0, &host, &range));
+    CHECK(actor.state.position.dxr == 32698L * 65536L && range.actor_last == 80 && range.edited_last == 90);
+    actor.state.position.dxr = 0;
+    edit.kind = MM_ACTOR_ANIMATION_RECORD;
+    actor.state.frame = 2147483647L - 4095;
+    CHECK(!mm_actor_animation_edit(&actor, NULL, &recording, &edit, 0, &host, &range));
+    CHECK(!recording.recording && range.actor_last == 80 && range.edited_last == 90);
+}
+
 int main(void)
 {
     transactions();
     tag_acceptance();
     adoption();
+    reject_invalid_path();
     CHECK(h.retains == 2 && h.releases == 8);
     puts("actor track passed");
     return 0;

@@ -176,6 +176,21 @@ int mm_actor_archive_set_material(const MMMovieArchiveEditor *, MMU32 actor, MMU
 /* Install a copied GGAE as the actor's track. */
 int mm_actor_archive_link_events(const MMMovieArchiveEditor *, MMU32 actor, MMU32 events);
 
+typedef struct MMActorArchiveAnimation
+{
+    MMU32 scene;
+    MMI32 actor_id, previous_actor_last, actor_last, edited_last;
+    const float *rotation, *scale;
+    void *context;
+    int (*copy)(void *, MMU32 type, MMU32 number, MMU32 *copied);
+    int (*appearance)(void *, MMU32 copied_actor); /* Optional, before shape. */
+} MMActorArchiveAnimation;
+
+/* Copy PATH/0 and GGAE/0 into the candidate archive and update the actor
+ * and scene lifetimes. If the actor edit succeeds, scene_result receives the
+ * scene edit status. Discard the candidate on failure in either stage. */
+int mm_actor_archive_animate(const MMMovieArchiveEditor *, const MMActorArchiveAnimation *, int *scene_result);
+
 #ifdef __cplusplus
 }
 #endif
