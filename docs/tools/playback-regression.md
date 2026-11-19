@@ -15040,3 +15040,26 @@ from retail by 32.9 ms. Marcus timing remained inconclusive.
 
 The probes, outputs and logs are in `tmp/c89-scene-transaction`.
 The capture database is at `tmp/c89-sound-schedule/capture/playback.sqlite`.
+
+## Marcus generated resource source IDs in C89 (19 November 2026)
+
+The C89 registry owns declared and generated source IDs, retains generated
+archive references, and carries its allocation cursor across internal
+reopens. Storyboards, text, costumes, and sound previews share the allocator.
+Generated sources skip declared IDs and the retail alias, including the
+signed maximum boundary.
+
+The pre-change Marcus build selected the wrong `MSND #0` when the first
+generated source ID was already mounted. The converted build played the
+imported WAV from the same fixture. The regression is covered by the
+headless sound-edit test. The storyboard reload probe also preserved
+the live painting through reload, a subsequent edit, and undo.
+
+All 42 selected Marcus-enabled checks and 12 standalone C-only Release
+checks passed. The three native storyboard controls and both edited sound
+movies were byte-identical. The five storyboard VMM outputs matched after
+normalizing generated names and chunk keys. Marcus and its 32-bit ASM
+worker were rebuilt, and Marcus was relaunched.
+
+The collision and reload probes, output files and test logs are in
+`tmp/c89-live-source-ids`.

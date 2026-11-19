@@ -1,4 +1,5 @@
 #include "mm/source.h"
+#include "mm/movie_source_ids.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -454,11 +455,63 @@ static void build_cases(void)
         finish(&h);
     }
 }
+static int released_archives;
+static void release_archive(void *archive)
+{
+    CHECK(*(int *)archive == 42);
+    ++released_archives;
+}
+
+static void generated_sources(void)
+{
+    MMMovieSourceIds sources, reopened;
+    MMStorageAllocator allocator = {NULL, resize, release_memory};
+    Host h;
+    MMI32 id;
+    int archive = 42, duplicate = 99;
+    void *found;
+    memset(&h, 0, sizeof(h));
+    allocator.context = &h;
+    released_archives = 0;
+    CHECK(mm_movie_source_ids_init(&sources, &allocator));
+    CHECK(mm_movie_source_ids_init(&reopened, NULL));
+    CHECK(mm_movie_source_ids_retail_alias(&sources, &id) && id == 2);
+    h.fail_alloc = 1;
+    CHECK(mm_movie_source_ids_add(&sources, 7, &archive) == MM_MOVIE_SOURCE_ID_MEMORY && !sources.count);
+    CHECK(!mm_movie_source_ids_find(&sources, 7, NULL) && !released_archives);
+    h.fail_alloc = 0;
+    CHECK(mm_movie_source_ids_add(&sources, 7, NULL) == MM_MOVIE_SOURCE_ID_ADDED);
+    CHECK(mm_movie_source_ids_retail_alias(&sources, &id) && id == 8);
+    CHECK(mm_movie_source_ids_add(&sources, 0x7ffffffeL, NULL) == MM_MOVIE_SOURCE_ID_ADDED);
+    CHECK(mm_movie_source_ids_retail_alias(&sources, &id) && id == 0x7fffffffL);
+    CHECK(mm_movie_source_ids_add(&sources, 0x7fffffffL, NULL) == MM_MOVIE_SOURCE_ID_ADDED);
+    CHECK(mm_movie_source_ids_add(&sources, 2, NULL) == MM_MOVIE_SOURCE_ID_ADDED);
+    CHECK(mm_movie_source_ids_retail_alias(&sources, &id) && id == 3);
+    CHECK(mm_movie_source_ids_take(&sources, 0x7ffffffdL, &id) && id == 0x7ffffffcL);
+    CHECK(mm_movie_source_ids_add(&sources, id, &archive) == MM_MOVIE_SOURCE_ID_ADDED);
+    CHECK(mm_movie_source_ids_add(&sources, id, &duplicate) == MM_MOVIE_SOURCE_ID_KNOWN);
+    CHECK(mm_movie_source_ids_find(&sources, id, &found) && found == &archive);
+
+    mm_movie_source_ids_limit(&reopened, sources.next);
+    CHECK(mm_movie_source_ids_take(&reopened, 2, &id) && id == 0x7ffffffbL);
+    mm_movie_source_ids_swap(&sources, &reopened);
+    mm_movie_source_ids_clear(&reopened, release_archive);
+    CHECK(released_archives == 1 && !h.allocations);
+    CHECK(mm_movie_source_ids_take(&sources, 2, &id) && id == 0x7ffffffaL);
+    mm_movie_source_ids_limit(&sources, 4);
+    CHECK(mm_movie_source_ids_add(&sources, 4, NULL) == MM_MOVIE_SOURCE_ID_ADDED);
+    CHECK(!mm_movie_source_ids_take(&sources, 3, &id) && id == 0x7ffffffaL);
+    CHECK(mm_movie_source_ids_take(&sources, 2, &id) && id == 3);
+    mm_movie_source_ids_clear(&sources, release_archive);
+    CHECK(!mm_movie_source_ids_take(&sources, 2, &id) && released_archives == 1);
+}
+
 int main(void)
 {
     lookup_cases();
     paths_cases();
     build_cases();
+    generated_sources();
     puts("source C89 checks passed");
     return 0;
 }

@@ -2,6 +2,7 @@
 #include "mm/movie_data.h"
 #include "mm/movie_publish.h"
 #include "mm/movie_scene.h"
+#include "mm/movie_source_ids.h"
 #include "mm/movie_undo.h"
 #include "mm/scene_edit.h"
 #include "mm/playback.h"
@@ -69,11 +70,20 @@ struct SoundSheet
     std::vector<MarcusSoundTrack> soundTracks;
     std::vector<MM::PreviewSoundCue> soundCues;
 };
+struct MarcusSourceRegistry : MMMovieSourceIds
+{
+    using Archive = std::shared_ptr<MarcusMovieFile>;
+    MarcusSourceRegistry() { mm_movie_source_ids_init(this, nullptr); }
+    MarcusSourceRegistry(const MarcusSourceRegistry &) = delete;
+    MarcusSourceRegistry &operator=(const MarcusSourceRegistry &) = delete;
+    ~MarcusSourceRegistry() { Clear(); }
+    void Clear() { mm_movie_source_ids_clear(this, [](void *archive) { delete static_cast<Archive *>(archive); }); }
+};
 struct MarcusPlayer
 {
     // Destroy the renderer before deleting any private VMM working files.
     std::unique_ptr<MarcusContent> content;
-    std::vector<std::shared_ptr<MarcusMovieFile>> boardFiles;
+    MarcusSourceRegistry sourceIds;
     std::shared_ptr<MarcusMovieFile> asmBoardFile;
     std::unique_ptr<MarcusASMRenderer> asmRenderer;
     MM::Preview preview;
@@ -129,8 +139,6 @@ struct MarcusPlayer
     bool resourcesReady = false, retailPrepared = false;
     std::shared_ptr<const Placements> materializedPlacements;
     std::shared_ptr<MarcusMovieFile> materializedFile;
-    std::set<long> contentSourceIds;
-    long nextBoardSource = 0x7ffffffeL;
     struct UndoState
     {
         std::shared_ptr<const MarcusLiveEdits> edits;
@@ -275,34 +283,46 @@ bool EnsureRetailContent(MarcusPlayer &player, MM::Error &error)
     player.retailPrepared = true;
     return true;
 }
+bool MountGeneratedSource(MarcusPlayer &player, MMI32 id, const MarcusSourceRegistry::Archive &file, MM::Error &error)
+{
+    void *previous;
+    if (mm_movie_source_ids_find(&player.sourceIds, id, &previous))
+    {
+        if (!previous || (*static_cast<const MarcusSourceRegistry::Archive *>(previous))->path != file->path)
+        {
+            error.message = "The generated content source ID already belongs to another archive.";
+            return false;
+        }
+    }
+    else
+    {
+        auto lease = std::make_unique<MarcusSourceRegistry::Archive>(file);
+        if (mm_movie_source_ids_add(&player.sourceIds, id, lease.get()) != MM_MOVIE_SOURCE_ID_ADDED)
+            throw std::bad_alloc();
+        lease.release();
+    }
+    return player.preview.AddContent(id, file->path.u8string(), error);
+}
 bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
 {
     if (!EnsureResources(player, error)) return false;
     const bool retailScene = mm_movie_scene_definitions_uses_source(player.edits->scenes.get(), player.retailSource);
     if ((retailScene || !player.edits->props->empty()) && !EnsureRetailContent(player, error)) return false;
     for (const auto &entry : *player.edits->storyboards)
-        if (entry.second.source)
-        {
-            player.contentSourceIds.insert(entry.second.source);
-            if (!player.preview.AddContent(entry.second.source, entry.second.file->path.u8string(), error)) return false;
-        }
+        if (entry.second.source && !MountGeneratedSource(player, entry.second.source, entry.second.file, error))
+            return false;
     for (const auto &prop : *player.edits->props)
-        if (prop.file)
-        {
-            if (player.contentSourceIds.insert(prop.definition.source).second) player.boardFiles.push_back(prop.file);
-            if (!player.preview.AddContent(prop.definition.source, prop.file->path.u8string(), error)) return false;
-        }
+        if (prop.file && !MountGeneratedSource(player, prop.definition.source, prop.file, error))
+            return false;
     for (const auto &entry : *player.edits->texts)
     {
         const auto &edit = entry.second;
-        if (player.contentSourceIds.insert(edit.source).second) player.boardFiles.push_back(edit.file);
-        if (!player.preview.AddContent(edit.source, edit.file->path.u8string(), error)) return false;
+        if (!MountGeneratedSource(player, edit.source, edit.file, error)) return false;
     }
     for (const auto &entry : *player.edits->costumes)
     {
         const auto &edit = entry.second;
-        if (player.contentSourceIds.insert(edit.source).second) player.boardFiles.push_back(edit.file);
-        if (!player.preview.AddContent(edit.source, edit.file->path.u8string(), error)) return false;
+        if (!MountGeneratedSource(player, edit.source, edit.file, error)) return false;
     }
     const MMPreviewLiveDefinitions definitions{
         &player, player.edits->scenes->count, static_cast<MMU32>(player.edits->props->size()),
@@ -954,7 +974,7 @@ bool OpenEditedBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile>
     KeepHistory history(*player);
     const auto resources = player->timingResources, directory = player->timingContent;
     const auto nextScene = player->nextScene, nextObject = player->nextObject;
-    const auto nextActor = player->nextActorId; const auto nextSource = player->nextBoardSource;
+    const auto nextActor = player->nextActorId;
     struct FramingGuard {
         bool &value; bool before;
         explicit FramingGuard(bool &v) : value(v), before(v) { value = true; }
@@ -981,12 +1001,12 @@ bool OpenEditedBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile>
             player->soundTimeline.Clear(); player->waveforms.Clear(); player->playback.Stop();
             player->soundSheet.sounds.clear(); player->soundSheet.soundCues.clear(); player->soundSheet.soundTracks.clear();
             player->resourcesReady = true; player->retailPrepared = false;
-            player->contentSourceIds.clear(); player->boardFiles.clear();
             player->asmRenderer.reset(); player->asmBoardFile.reset(); player->selected = -1;
+            player->sourceIds.Clear();
         }
     }
     player->nextScene = std::max(nextScene, player->nextScene); player->nextObject = std::max(nextObject, player->nextObject);
-    player->nextActorId = std::max(nextActor, player->nextActorId); player->nextBoardSource = std::min(nextSource, player->nextBoardSource);
+    player->nextActorId = std::max(nextActor, player->nextActorId);
     player->materializedFile.reset(); player->materializedEdits.reset();
     player->materializedPlacements.reset(); player->materializedFrameRanges.reset(); player->movieImageScene = -1;
     return ok;
@@ -1254,10 +1274,10 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
         { error.message = "No scene IDs are available."; return false; }
         if (!player->resourcesReady) { player->timingResources = resources; player->timingContent = content; }
         if (!EnsureResources(*player, error)) return false;
-        while (player->nextBoardSource > 2 && (player->contentSourceIds.count(player->nextBoardSource) || player->nextBoardSource == player->retailSource)) --player->nextBoardSource;
-        if (player->nextBoardSource <= 2) { error.message = "No background source IDs are available."; return false; }
-        const auto resource = MarcusBoardContent(board, player->nextBoardSource--, player->timingResources, player->timingContent);
-        player->boardFiles.push_back(resource.file);
+        MMI32 source;
+        if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &source))
+        { error.message = "No background source IDs are available."; return false; }
+        const auto resource = MarcusBoardContent(board, source, player->timingResources, player->timingContent);
         const auto scene = newScene ? static_cast<unsigned long>(player->nextScene++) : player->scenes[player->selected].number;
         const auto selected = newScene ? static_cast<int>(player->scenes.size()) : player->selected;
         const auto frame = newScene ? 1 : player->preview.Info().currentFrame;
@@ -1885,9 +1905,12 @@ extern "C"
             if (!CancelPropPreviews(player, error)) return false;
             auto file = MarcusCreateEventFile();
             if (!player->preview.WriteObjectCostumes(object, changes, file->path.u8string(), error)) return false;
+            MMI32 source;
+            if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &source))
+            { error.message = "No costume source IDs are available."; return false; }
             auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
             auto costumes = std::make_shared<MarcusLiveEdits::Costumes>(*edits->costumes);
-            (*costumes)[{player->scenes[player->selected].number, selected.chunk}] = {file, player->nextBoardSource--};
+            (*costumes)[{player->scenes[player->selected].number, selected.chunk}] = {file, source};
             edits->costumes = costumes; edits->revision = player->nextEditRevision++;
             EditHistory history(*player); const auto previous = player->edits;
             const auto frame = player->preview.Info().currentFrame;
@@ -1921,12 +1944,11 @@ extern "C"
                 ReadCatalogue(player, player->timingContent.c_str(), 2) < 0) { error.message = player->error; return false; }
             if (std::none_of(player->fonts.begin(), player->fonts.end(), [&](const auto &entry) { return entry.chunk == font; }))
             { error.message = "The selected 3D font is unavailable."; return false; }
-            while (player->nextBoardSource > 2 && (player->contentSourceIds.count(player->nextBoardSource) || player->nextBoardSource == player->retailSource)) --player->nextBoardSource;
-            if (player->nextBoardSource <= 2) { error.message = "No text source IDs are available."; return false; }
             MarcusNamedProp prop;
+            if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &prop.definition.source))
+            { error.message = "No text source IDs are available."; return false; }
             prop.file = MarcusCreateTextTemplate(text, font, player->retailSource, shape);
             prop.name = text;
-            prop.definition.source = player->nextBoardSource--;
             prop.definition.templateNumber = 0;
             MarcusTextEdit initial;
             if (options->appearance.enabled)
@@ -1977,13 +1999,12 @@ extern "C"
             const bool materialChanged = !SameMaterial(text->appearance, current);
             if (sameFont && before.text == text->text && before.shape == text->shape && !materialChanged) return true;
             if (!CancelPropPreviews(player, error)) return false;
-            while (player->nextBoardSource > 2 && (player->contentSourceIds.count(player->nextBoardSource) || player->nextBoardSource == player->retailSource)) --player->nextBoardSource;
-            if (player->nextBoardSource <= 2) { error.message = "No text source IDs are available."; return false; }
             MarcusTextEdit change;
+            if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &change.source))
+            { error.message = "No text source IDs are available."; return false; }
             change.value = {text->text, fontSource, text->shape, static_cast<std::uint32_t>(text->font)};
             change.retailFont = fontSource == player->retailSource;
             change.file = MarcusCreateTextTemplate(text->text, text->font, fontSource, text->shape);
-            change.source = player->nextBoardSource--;
             const auto oldText = player->edits->texts->find({player->scenes[player->selected].number, object.chunk});
             change.hasMaterial = materialChanged || (oldText != player->edits->texts->end() && oldText->second.hasMaterial);
             if (change.hasMaterial)
@@ -2412,22 +2433,29 @@ extern "C"
                 }
             }
             for (const auto &name : names) nextActor = std::max(nextActor, std::int64_t(name.first) + 1);
-            std::int32_t retailSource = 2;
+            MarcusSourceRegistry sourceIds;
+            if (player->internalOpenDepth)
+                mm_movie_source_ids_limit(&sourceIds, player->sourceIds.next);
+            for (const auto &source : sources)
+                if (mm_movie_source_ids_add(&sourceIds, source.id, nullptr) == MM_MOVIE_SOURCE_ID_MEMORY)
+                    throw std::bad_alloc();
+            MMI32 retailSource = 2;
             bool retailPrepared = false;
-            for (const auto &source : sources) retailSource = std::max(retailSource, source.id + 1);
             for (const auto &source : sources)
                 if (MM::Content::SourceKey(source.name) == "3dmovie") { retailSource = source.id; retailPrepared = true; break; }
+            if (!retailPrepared && !mm_movie_source_ids_retail_alias(&sourceIds, &retailSource))
+            { error.message = "No retail source ID is available."; return false; }
             for (const auto &source : sources)
                 content->PrepareSource(source.name);
             auto loadedBoards = MarcusReadBoards(archive, materialized);
-            long nextBoardSource = 0x7ffffffeL;
             for (auto &entry : loadedBoards)
             {
-                while (std::any_of(sources.begin(), sources.end(), [&](const auto &source) { return source.id == nextBoardSource; })) --nextBoardSource;
-                if (nextBoardSource <= 2) { error.message = "No background source IDs are available."; return false; }
+                MMI32 source;
+                if (!mm_movie_source_ids_take(&sourceIds, retailSource, &source))
+                { error.message = "No background source IDs are available."; return false; }
                 // Rebuild from editable pixels, repairing old palettes. Never
                 // treat an outer VMM file as a native chunky resource file.
-                entry.second = MarcusBoardContent(*entry.second.board, nextBoardSource--, resources, directory);
+                entry.second = MarcusBoardContent(*entry.second.board, source, resources, directory);
             }
             if (!player->preview.Open(std::move(archive), resources, error, player->preserveEditFraming))
                 return false;
@@ -2452,10 +2480,8 @@ extern "C"
             auto initialEdits = std::make_shared<MarcusLiveEdits>();
             initialEdits->storyboards = std::make_shared<MarcusStoryboards>(std::move(loadedBoards));
             player->edits = initialEdits;
-            player->contentSourceIds.clear();
-            for (const auto &source : sources) player->contentSourceIds.insert(source.id);
-            player->nextBoardSource = nextBoardSource;
-            player->boardFiles.clear(); player->asmBoardFile.reset();
+            mm_movie_source_ids_swap(&player->sourceIds, &sourceIds);
+            player->asmBoardFile.reset();
             player->materializedEdits.reset();
             player->nextScene = nextScene; player->nextObject = nextObject; player->nextActorId = nextActor;
             player->resourcesReady = true; player->retailPrepared = retailPrepared; player->retailSource = retailSource;
@@ -2486,8 +2512,7 @@ extern "C"
             for (const auto &entry : *player->edits->storyboards)
             {
                 const auto &resource = entry.second;
-                if (!player->preview.AddContent(resource.source, resource.file->path.u8string(), error)) return false;
-                player->contentSourceIds.insert(resource.source);
+                if (!MountGeneratedSource(*player, resource.source, resource.file, error)) return false;
             }
             unsigned flags = MM_MOVIE_SCENE_INITIAL;
             if (player->preserveEditFraming) flags |= MM_MOVIE_SCENE_KEEP_FRAMING;
@@ -2821,9 +2846,10 @@ extern "C"
         return Guard(player, [&](MM::Error &error) {
             if (!path || volume < 0 || volume > 65536) return false;
             auto file = MarcusPrepareSound(path, style);
-            const auto source = player->nextBoardSource--;
-            if (!player->preview.AddContent(source, file->path.u8string(), error)) return false;
-            player->boardFiles.push_back(file); player->contentSourceIds.insert(source);
+            MMI32 source;
+            if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &source))
+            { error.message = "No sound source IDs are available."; return false; }
+            if (!MountGeneratedSource(*player, source, file, error)) return false;
             MM::PreviewSoundCue cue; cue.source = source; cue.sound = {0x4d534e44, 0}; cue.volume = volume; cue.style = style;
             return player->playback.Audition(player->preview, cue, error);
         });

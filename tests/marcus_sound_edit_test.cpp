@@ -60,6 +60,44 @@ void ActorSounds(const std::string &path)
     Require(wire && file->FPut(wire->CbOnFile(), kctgGgae, events.cki.cno, &block) && wire->FWrite(&block) && file->FSave(kctgSoc), "Save actor fixture");
     ReleasePpo(&wire); block.Free(); ReleasePpo(&file);
 }
+Filename NativeFilename(const std::filesystem::path &path)
+{
+    auto bytes = path.u8string();
+    String text;
+    text.SetSzs(bytes.data());
+    Filename name;
+    Require(name.FBuildFromPath(&text), "Build source collision fixture path");
+    return name;
+}
+void ReservePreviewSource(const std::filesystem::path &movie, const std::filesystem::path &collision)
+{
+    auto name = NativeFilename(movie);
+    auto file = ChunkyFile::PcflOpen(&name, fcflWriteEnable);
+    Require(file != nullptr, "Open preview source fixture");
+    ChunkIdentification root;
+    ChildChunkIdentification source;
+    DataBlock block;
+    Require(file->FGetCkiCtg(kctgMvie, 0, &root) && file->FGetKidChidCtg(kctgMvie, root.cno, 1, kctgGst, &source) &&
+        file->FFind(kctgGst, source.cki.cno, &block), "Read source table for the preview fixture");
+    auto table = StringTable_GST::PgstRead(&block);
+    Require(table && table->CbExtra() == sizeof(LegacyLong), "Decode the preview source rows");
+    String title;
+    title.SetSzs(PszLit("3D Movie Maker/3DMOVIE"));
+    LegacyLong reserved = 0x7ffffffeL;
+    Require(table->FAddStn(&title, &reserved) && file->FPut(table->CbOnFile(), kctgGst, source.cki.cno, &block) &&
+        table->FWrite(&block) && file->FSave(kctgSoc), "Declare the first generated source ID");
+    ReleasePpo(&table); block.Free(); ReleasePpo(&file);
+
+    std::filesystem::remove(collision);
+    auto collisionName = NativeFilename(collision);
+    file = ChunkyFile::PcflCreate(&collisionName, fcflWriteEnable);
+    Require(file != nullptr, "Create the occupied source archive");
+    char invalidSound = 0;
+    ChunkNumber number;
+    Require(file->FAddPv(&invalidSound, sizeof(invalidSound), kctgMsnd, &number) && number == 0 &&
+        file->FSave(kctgSoc), "Put an invalid sound at the preview sound's chunk number");
+    ReleasePpo(&file);
+}
 }
 int main(int argc, char **argv)
 {
@@ -72,6 +110,23 @@ int main(int argc, char **argv)
         const auto saved = (dir / "sound.3mm").u8string(), actorMovie = (dir / "actor.3mm").u8string();
         Wave(wave); Midi(midi);
         check(marcus_add_scene(p.get(), 11, argv[1], argv[2]), "New scene");
+        {
+            const auto collision = dir / "reserved-sound-source";
+            std::filesystem::create_directories(collision);
+            const auto content = collision / "content", movie = collision / "movie.3mm";
+            std::filesystem::create_directories(content);
+            std::filesystem::copy_file(std::filesystem::u8path(argv[2]) / "bkgds.3cn", content / "bkgds.3cn",
+                                       std::filesystem::copy_options::overwrite_existing);
+            check(marcus_save_copy(p.get(), movie.u8string().c_str()), "Save a native preview fixture");
+            ReservePreviewSource(movie, content / "occupied.3cn");
+            check(marcus_open(p.get(), movie.u8string().c_str(), argv[1], content.u8string().c_str()),
+                  "Open a movie with the first generated source ID already declared");
+            check(marcus_audition_sound_file(p.get(), wave.c_str(), MARCUS_SOUND_EFFECT, 65536),
+                  "Preview the imported sound using an unused source ID");
+            p.reset();
+            p.reset(marcus_create());
+            check(marcus_add_scene(p.get(), 11, argv[1], argv[2]), "New scene for sound editing");
+        }
         {
             const auto previewPath = (dir / "Preview tone.wav").u8string(); Wave(previewPath, 48000);
             const auto revision = marcus_document(p.get());
