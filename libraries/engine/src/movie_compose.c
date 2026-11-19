@@ -6,78 +6,117 @@
 #include "mm/scene_data.h"
 #include "mm/wide.h"
 #include <string.h>
-int mm_composite_insert_scene(void *list, MMI32 index, const MMComposeScene *scene,
-                                    const MMMovieComposeServices *s)
+int mm_composite_scene(const MMCompositeMovie *state, MMU32 index, MMComposeScene *out)
 {
-    if (!s->insert_scene(list, index, scene))
+    if (index >= state->scene_count)
         return 0;
-    s->retain(scene->thumbnail);
+    memcpy(out, state->rows.buffers[0].data + index * sizeof(*out), sizeof(*out));
     return 1;
 }
-void mm_composite_delete_scene(void *list, MMI32 index, const MMMovieComposeServices *s)
+
+int mm_composite_movie(const MMCompositeMovie *state, MMU32 index, MMComposeMovie *out)
+{
+    if (index >= state->movie_count)
+        return 0;
+    memcpy(out, state->rows.buffers[1].data + index * sizeof(*out), sizeof(*out));
+    return 1;
+}
+
+static MMArray scene_array(MMCompositeMovie *state)
+{
+    MMArray array = {NULL, sizeof(MMComposeScene), 0, -1, 0, 0};
+    array.storage = &state->rows;
+    array.count = state->scene_count;
+    return array;
+}
+
+static void put_scene(MMCompositeMovie *state, MMU32 index, const MMComposeScene *row)
+{
+    memcpy(state->rows.buffers[0].data + index * sizeof(*row), row, sizeof(*row));
+}
+
+int mm_composite_move_scene(MMCompositeMovie *state, MMU32 from, MMU32 before)
+{
+    MMArray array = scene_array(state);
+    return mm_array_move(&array, from, before) == MM_STORAGE_OK;
+}
+
+int mm_composite_remove_scene(MMCompositeMovie *state, MMU32 index)
 {
     MMComposeScene scene;
-    s->scene(list, index, &scene);
-    s->erase(list, index);
-    s->release(scene.thumbnail);
+    if (!mm_composite_scene(state, index, &scene) || scene.deleted ||
+        !mm_composite_move_scene(state, index, state->scene_count))
+        return 0;
+    scene.deleted = 1;
+    put_scene(state, state->scene_count - 1, &scene);
+    return 1;
 }
-void mm_composite_empty(MMCompositeMovie *state, const MMMovieComposeServices *s)
+
+int mm_composite_set_transition(MMCompositeMovie *state, MMU32 index, MMI32 transition)
 {
-    MMI32 i;
+    MMComposeScene scene;
+    if (!mm_composite_scene(state, index, &scene))
+        return 0;
+    scene.transition = transition;
+    put_scene(state, index, &scene);
+    return 1;
+}
+
+void mm_composite_empty(MMCompositeMovie *state, void (*release)(void *))
+{
     MMComposeScene scene;
     MMComposeMovie movie;
-    if (state->scenes)
+    while (state->scene_count)
     {
-        i = s->count(state->scenes);
-        while (i-- > 0)
-        {
-            s->scene(state->scenes, i, &scene);
-            if (scene.thumbnail)
-                s->release(scene.thumbnail);
-        }
-        s->release(state->scenes);
-        state->scenes = 0;
+        mm_composite_scene(state, state->scene_count - 1, &scene);
+        --state->scene_count;
+        release(scene.thumbnail);
     }
-    if (state->movies)
+    while (state->movie_count)
     {
-        i = s->count(state->movies);
-        while (i-- > 0)
-        {
-            s->movie(state->movies, i, &movie);
-            if (movie.resources)
-                s->release(movie.resources);
-        }
-        s->release(state->movies);
-        state->movies = 0;
+        mm_composite_movie(state, state->movie_count - 1, &movie);
+        --state->movie_count;
+        release(movie.resources);
     }
+    if (state->rows.allocator.resize)
+        mm_storage_dispose(&state->rows);
+    memset(state, 0, sizeof(*state));
 }
-int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
-                               const MMMovieComposeServices *s)
+
+static const MMStorageAllocator *compose_allocator(const MMMovieComposeServices *s)
 {
-    MMI32 inserted = 0, index = -1, count = s->data->sceneCount;
-    MMComposeScene scene;
+    return s->allocator.resize || s->allocator.release ? &s->allocator : NULL;
+}
+
+int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
+                         const MMMovieComposeServices *s)
+{
+    MMArray array = scene_array(state);
+    MMI32 inserted = 0, count = s->data->sceneCount;
+    MMU32 position;
+    MMComposeScene scene = {0};
     MMComposeMovie movie;
     void *file;
-    if (s->temporary_before_save && !s->use_temporary(s->context))
-        goto fail;
-    if (!s->autosave(s->context))
-        goto fail;
-    if (!state->scenes && !(state->scenes = s->new_list(0)))
-        goto fail;
-    if (!state->movies && !(state->movies = s->new_list(1)))
+    if (count < 0 || *insertion < 0 || (MMU32)*insertion > state->scene_count ||
+        (MMU32)count > (MM_STORAGE_LIMIT - 1) / sizeof(scene) - state->scene_count ||
+        state->movie_count >= (MM_STORAGE_LIMIT - 1) / sizeof(movie))
+        return 0;
+    if ((s->temporary_before_save && !s->use_temporary(s->context)) || !s->autosave(s->context))
+        return 0;
+    if (!state->rows.allocator.resize && mm_storage_init(&state->rows, compose_allocator(s)) != MM_STORAGE_OK)
+        return 0;
+    if (mm_storage_ensure(&state->rows, (state->scene_count + (MMU32)count) * sizeof(scene),
+                          (state->movie_count + 1) * sizeof(movie), 0) != MM_STORAGE_OK)
         goto fail;
     movie.resources = s->data->resources;
     movie.number = s->data->movieNumber;
     movie.actor_limit = s->data->actorIdLimit;
-    if (!s->append_movie(state->movies, &movie, &index))
-        goto fail;
-    s->retain(movie.resources);
     file = s->file(movie.resources);
-    memset(&scene, 0, sizeof(scene));
-    scene.movie = index;
+    position = (MMU32)*insertion;
+    scene.movie = (MMI32)state->movie_count;
     while (inserted < count)
     {
-        if (!s->scene_child(file, s->data->movieNumber, (MMU32)inserted, &scene.number))
+        if (!s->scene_child(file, movie.number, (MMU32)inserted, &scene.number))
         {
             s->diagnostic(s->context, MM_COMPOSE_MISSING_SCENE);
             goto fail;
@@ -99,37 +138,31 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
                 goto fail;
             s->retain(scene.thumbnail);
         }
-        if (!mm_composite_insert_scene(state->scenes, *insertion, &scene, s))
+        if (mm_array_insert(&array, position + (MMU32)inserted, &scene, 1) != MM_STORAGE_OK)
         {
             s->release(scene.thumbnail);
             goto fail;
         }
-        s->release(scene.thumbnail);
         ++inserted;
-        *insertion = mm_signed_word((MMU32)*insertion + 1U);
     }
+    s->retain(movie.resources);
+    memcpy(state->rows.buffers[1].data + state->movie_count * sizeof(movie), &movie, sizeof(movie));
+    ++state->movie_count;
+    state->scene_count = array.count;
+    *insertion += inserted;
     return 1;
 fail:
-    while (inserted-- > 0)
+    while (inserted > 0)
     {
-        *insertion = mm_signed_word((MMU32)*insertion - 1U);
-        mm_composite_delete_scene(state->scenes, *insertion, s);
+        --inserted;
+        position = (MMU32)(*insertion + inserted);
+        memcpy(&scene, state->rows.buffers[0].data + position * sizeof(scene), sizeof(scene));
+        s->release(scene.thumbnail);
     }
-    if (state->scenes && !s->count(state->scenes))
-    {
-        s->release(state->scenes);
-        state->scenes = 0;
-    }
-    if (index != -1)
-    {
-        s->release(movie.resources);
-        s->erase(state->movies, index);
-    }
-    if (state->movies && !s->count(state->movies))
-    {
-        s->release(state->movies);
-        state->movies = 0;
-    }
+    if (array.count > state->scene_count)
+        mm_array_delete(&array, (MMU32)*insertion, array.count - state->scene_count);
+    if (!state->movie_count)
+        mm_composite_empty(state, s->release);
     return 0;
 }
 typedef struct ComposeReference
@@ -148,13 +181,13 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
     int actor, background;
     void *destination = s->file(s->data->resources);
     int ok = 0;
-    if (mm_storage_init(&visited, &s->allocator) != MM_STORAGE_OK)
+    if (mm_storage_init(&visited, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
     memset(&ids, 0, sizeof(ids));
     ids.storage = &visited;
     ids.width = sizeof(reference);
     ids.free_count = -1;
-    if (mm_chunk_walk_init(&walk, &s->allocator) != MM_CHUNK_OK)
+    if (mm_chunk_walk_init(&walk, compose_allocator(s)) != MM_CHUNK_OK)
         goto storage;
     if (mm_chunk_walk_reset(&walk, &s->graph, 0x4d564945U, movie) != MM_CHUNK_OK)
         goto done;
@@ -246,19 +279,22 @@ int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServic
 }
 int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeServices *s)
 {
-    MMI32 i, copied = 1, movie_count = s->count(state->movies), scene_count = s->count(state->scenes),
-                  old = s->scenes->index, offset = 0;
-    MMU32 slot = 0, number, current_slot;
-    void *resources = s->data->resources, *file = s->file(resources), *movies = s->duplicate_movies(state->movies),
-         *scene;
+    MMCollectionStorage cloned;
+    MMI32 old = s->scenes->index, offset = 0;
+    MMU32 i, copied = 0, slot = 0, number, current_slot, *roots = NULL;
+    void *resources = s->data->resources, *file, *scene;
     MMComposeMovie movie;
     MMComposeScene descriptor;
     int ok = 0;
-    if (!movies)
+    if (!state->movie_count || mm_storage_init(&cloned, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
-    for (i = 0; i < movie_count; ++i)
+    file = s->file(resources);
+    if (mm_storage_ensure(&cloned, (state->movie_count - 1) * sizeof(*roots), 0, 0) != MM_STORAGE_OK)
+        goto done;
+    roots = (MMU32 *)cloned.buffers[0].data;
+    for (i = 0; i < state->movie_count; ++i)
     {
-        s->movie(movies, i, &movie);
+        mm_composite_movie(state, i, &movie);
         if (i > 0)
         {
             void *source = s->file(movie.resources);
@@ -270,24 +306,21 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
                 s->delete_movie(file, movie.number);
                 goto done;
             }
-            movie.resources = resources;
             s->retain(resources);
-            s->put_movie(movies, i, &movie);
-            copied = i + 1;
+            roots[copied++] = movie.number;
         }
         else if (movie.resources != resources || movie.number != s->data->movieNumber)
             s->diagnostic(s->context, MM_COMPOSE_BAD_BASE);
         offset = mm_signed_word((MMU32)offset + (MMU32)movie.actor_limit);
     }
-    for (i = 0; i < scene_count; ++i)
+    for (i = 0; i < state->scene_count; ++i)
     {
-        s->scene(state->scenes, i, &descriptor);
-        s->movie(movies, descriptor.movie, &movie);
+        mm_composite_scene(state, i, &descriptor);
         current_slot = slot;
         number = 0xffffffffU;
         if (descriptor.movie > 0)
         {
-            if (!s->scene_child(file, movie.number, descriptor.child, &number))
+            if (!s->scene_child(file, roots[descriptor.movie - 1], descriptor.child, &number))
                 goto done;
             if (!descriptor.deleted)
             {
@@ -355,12 +388,11 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         s->validate_children(s->context);
     ok = 1;
 done:
-    while (copied-- > 1)
+    while (copied)
     {
-        s->movie(movies, copied, &movie);
-        s->delete_movie(file, movie.number);
-        s->release(movie.resources);
+        s->delete_movie(file, roots[--copied]);
+        s->release(resources);
     }
-    s->release(movies);
+    mm_storage_dispose(&cloned);
     return ok;
 }

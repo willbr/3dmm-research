@@ -1198,9 +1198,10 @@ defaults, camera/pause/transition dispatch, background-driven scene creation and
 common undo registration/notification now also use C89. Movie material insertion,
 3-D text creation/template replacement and caption insertion/removal/hiding/
 visible-index selection transactions now also use C89. Movie composition,
-descriptor lifetime/rollback, imported roll-call ownership and shared/nested
-actor-ID remapping now also use C89. Native descriptor/list representations and
-final host/facade integration still need conversion.
+descriptor storage, reorder, removal, and rollback now also use C89. The
+sorter accesses the same rows that composition reads. C89 also owns imported
+roll-call ownership and shared and nested actor-ID remapping. Final native
+resource and object integration remains.
 Background resource loading/cache/
 light policy and Preview background image/mesh/frame rendering control are now
 C89; Preview picking, camera interaction and guide metadata caching are now C89

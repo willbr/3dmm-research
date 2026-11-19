@@ -48,15 +48,12 @@ static bool TestComposeLiveIndex()
         ok = movie->FAddToCmvi(&composite, &insertion);
     if (ok)
     {
-        SceneDescriptor deleted;
-        composite.pglscend->Get(0, &deleted);
-        deleted.fNuked = true;
-        composite.pglscend->Put(0, &deleted);
+        ok = mm_composite_remove_scene(&composite, 0) && mm_composite_move_scene(&composite, 1, 0);
         auto current = movie->Pscen();
-        ok = movie->FSetCmvi(&composite) && movie->Cscen() == 1 && movie->Iscen() == 0 && movie->Pscen() == current;
+        ok = ok && movie->FSetCmvi(&composite) && movie->Cscen() == 1 && movie->Iscen() == 0 &&
+             movie->Pscen() == current;
     }
-    if (composite.pglscend && composite.pglmvied)
-        composite.Empty();
+    composite.Empty();
     if (movie)
         movie->ClearUndo();
     ReleasePpo(&movie);
@@ -110,34 +107,32 @@ static bool TestMovieCompose()
                                    LegacyLong(client->sceneNuked),
                                    LegacyLong(client->rollcalls),
                                    data->Resources() ? data->Resources()->CactRef() : 0,
-                                   composite.pglscend ? composite.pglscend->IvMac() : -1,
-                                   composite.pglmvied ? composite.pglmvied->IvMac() : -1};
+                                   composite.movie_count ? LegacyLong(composite.scene_count) : -1,
+                                   composite.movie_count ? LegacyLong(composite.movie_count) : -1};
             if (!record(fields, sizeof(fields)) || !record(trace.data(), (trace.size)() * sizeof(trace[0])))
                 return false;
-            if (composite.pglmvied)
-                for (long i = 0; i < composite.pglmvied->IvMac(); ++i)
-                {
-                    MovieDescriptor row;
-                    composite.pglmvied->Get(i, &row);
-                    LegacyLong values[] = {LegacyLong(i),
-                                           row.pcrf == data->Resources() ? 0
-                                           : row.pcrf == external        ? 1
-                                                                         : 2,
-                                           LegacyLong(row.cno), LegacyLong(row.aridLim), row.pcrf->CactRef()};
-                    if (!record(values, sizeof(values)))
-                        return false;
-                }
-            if (composite.pglscend)
-                for (long i = 0; i < composite.pglscend->IvMac(); ++i)
-                {
-                    SceneDescriptor row;
-                    composite.pglscend->Get(i, &row);
-                    LegacyLong values[] = {LegacyLong(i),        LegacyLong(row.imvied), LegacyLong(row.cno),
-                                           LegacyLong(row.chid), LegacyLong(row.trans),  row.fNuked,
-                                           row.pmbmp->CactRef(), row.pmbmp->CbOnFile()};
-                    if (!record(values, sizeof(values)))
-                        return false;
-                }
+            for (MMU32 i = 0; i < composite.movie_count; ++i)
+            {
+                MMComposeMovie row;
+                if (!mm_composite_movie(&composite, i, &row))
+                    return false;
+                auto resources = static_cast<PChunkyResourceFile>(row.resources);
+                LegacyLong values[] = {LegacyLong(i), resources == data->Resources() ? 0 : resources == external ? 1 : 2,
+                                       LegacyLong(row.number), row.actor_limit, resources->CactRef()};
+                if (!record(values, sizeof(values)))
+                    return false;
+            }
+            for (MMU32 i = 0; i < composite.scene_count; ++i)
+            {
+                MMComposeScene row;
+                if (!mm_composite_scene(&composite, i, &row))
+                    return false;
+                auto bitmap = static_cast<PMaskedBitmapMBMP>(row.thumbnail);
+                LegacyLong values[] = {LegacyLong(i), row.movie, LegacyLong(row.number), LegacyLong(row.child),
+                                       row.transition, row.deleted, bitmap->CactRef(), bitmap->CbOnFile()};
+                if (!record(values, sizeof(values)))
+                    return false;
+            }
             if (data->Resources())
                 for (long i = 0; i < movie->Cscen(); ++i)
                 {
@@ -161,35 +156,23 @@ static bool TestMovieCompose()
         {
             if (mode == 1 || mode == 2 || mode == 3 || mode == 4)
             {
-                int index = mode == 2 ? 0 : 1;
-                SceneDescriptor row;
-                composite.pglscend->Get(index, &row);
-                row.fNuked = true;
-                composite.pglscend->Put(index, &row);
-                composite.pglscend->Move(index, composite.pglscend->IvMac());
+                ok = mm_composite_remove_scene(&composite, mode == 2 ? 0 : 1) != 0;
                 if (mode == 3 || mode == 4)
-                {
-                    composite.pglscend->Get(0, &row);
-                    row.fNuked = true;
-                    composite.pglscend->Put(0, &row);
-                    composite.pglscend->Move(0, composite.pglscend->IvMac());
-                }
+                    ok = ok && mm_composite_remove_scene(&composite, 0);
             }
             if (mode == 6)
-                composite.pglscend->Move(2, 1);
+                ok = mm_composite_move_scene(&composite, 2, 1) != 0;
             if (mode == 7)
-                composite.pglscend->Move(1, 0);
-            for (long i = 0; i < composite.pglscend->IvMac(); ++i)
+                ok = mm_composite_move_scene(&composite, 1, 0) != 0;
+            for (MMU32 i = 0; ok && i < composite.scene_count; ++i)
             {
-                SceneDescriptor row;
-                composite.pglscend->Get(i, &row);
-                row.trans = TRANS((row.trans + 1) % transLim);
-                composite.pglscend->Put(i, &row);
+                MMComposeScene row;
+                ok = mm_composite_scene(&composite, i, &row) &&
+                     mm_composite_set_transition(&composite, i, (row.transition + 1) % transLim);
             }
-            ok = state(2) && movie->FSetCmvi(&composite) && state(3);
+            ok = ok && state(2) && movie->FSetCmvi(&composite) && state(3);
         }
-        if (composite.pglscend && composite.pglmvied)
-            composite.Empty();
+        composite.Empty();
         if (ok)
             ok = state(4);
         if (movie)

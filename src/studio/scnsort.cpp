@@ -40,21 +40,13 @@ void SceneSorter::AssertValid(LegacyUlong grf)
 
     /* The CompositeMovie has loose rules about the format of its data structures, but
         it's important to the SceneSorter that we keep things in the right order. */
-    if (_cmvi.pglscend != pvNil)
+    for (MMU32 index = 0; index < _cmvi.scene_count; ++index)
     {
-        long imviedMac;
-
-        AssertPo(_cmvi.pglscend, 0);
-        AssertPo(_cmvi.pglmvied, 0);
-        imviedMac = _cmvi.pglmvied->IvMac();
-        for (long iscend = 0; iscend < _cmvi.pglscend->IvMac(); iscend++)
-        {
-            SceneDescriptor scend;
-
-            _cmvi.pglscend->Get(iscend, &scend);
-            Assert(iscend < _iscenMac ? !scend.fNuked : scend.fNuked, "Bad DynamicArray of SCENDs");
-            Assert(scend.imvied < imviedMac, "Bogus scene entry in pglscend");
-        }
+        MMComposeScene scene;
+        AssertDo(mm_composite_scene(&_cmvi, index, &scene), "Missing scene descriptor");
+        Assert(index < static_cast<MMU32>(_iscenMac) ? !scene.deleted : scene.deleted,
+               "Removed scenes must follow live scenes");
+        Assert(static_cast<MMU32>(scene.movie) < _cmvi.movie_count, "Invalid movie reference");
     }
 }
 
@@ -72,8 +64,6 @@ SceneSorter::SceneSorter(PGraphicsObjectBlock pgcb) : SceneSorter_PAR(pgcb)
 {
     Assert(_pmvie == pvNil, "SceneSorter block not cleared");
     Assert(_pstdio == pvNil, "SceneSorter block not cleared");
-    Assert(_cmvi.pglscend == pvNil, "SceneSorter block not cleared");
-    Assert(_cmvi.pglmvied == pvNil, "SceneSorter block not cleared");
     Assert(_fError == fFalse, "SceneSorter block not cleared");
     Assert(_fInited == fFalse, "SceneSorter block not cleared");
     Assert(_iscenMac == 0, "SceneSorter block not cleared");
@@ -84,8 +74,7 @@ SceneSorter::~SceneSorter(void)
     PGraphicsObject pgob;
 
     /* We might get released on Quit without exiting the Scene Sorter. */
-    if (_cmvi.pglscend != pvNil || _cmvi.pglmvied != pvNil)
-        _cmvi.Empty();
+    _cmvi.Empty();
     if (_pmvie != pvNil)
         ReleasePpo(&_pmvie);
 
@@ -301,7 +290,11 @@ bool SceneSorter::FCmdInsert(PCommand pcmd)
     {
         AssertIn(iscenTo, 0, _iscenMac + 1);
 
-        _cmvi.pglscend->Move(_iscenCur, iscenTo);
+        if (!mm_composite_move_scene(&_cmvi, _iscenCur, iscenTo))
+        {
+            _ErrorExit();
+            return fTrue;
+        }
         if (iscenTo > _iscenCur)
             iscenTo--;
         _iscenCur = iscenTo;
@@ -408,13 +401,11 @@ bool SceneSorter::FCmdNuke(PCommand pcmd)
     AssertThis(0);
     Assert(_iscenMac > 0, "Can't nuke a scene from an empty movie");
 
-    SceneDescriptor scend;
-
-    _cmvi.pglscend->Get(_iscenCur, &scend);
-    Assert(!scend.fNuked, "Nuking an already nuked scene");
-    scend.fNuked = fTrue;
-    _cmvi.pglscend->Put(_iscenCur, &scend);
-    _cmvi.pglscend->Move(_iscenCur, _cmvi.pglscend->IvMac());
+    if (!mm_composite_remove_scene(&_cmvi, _iscenCur))
+    {
+        _ErrorExit();
+        return fTrue;
+    }
     _iscenMac--;
     if (_iscenMac > 0 && _iscenMac == _iscenCur)
         _iscenCur--;
@@ -530,7 +521,6 @@ bool SceneSorter::FCmdTransition(PCommand pcmd)
     Assert(_iscenMac > 0, "Can't set transition when movie is empty");
 
     long iscen = _IscenFromKid(pcmd->rglw[0]);
-    SceneDescriptor scend;
     PKidspaceGraphicObject pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(pcmd->rglw[0]);
 
     if (pgokFrame == pvNil)
@@ -541,11 +531,14 @@ bool SceneSorter::FCmdTransition(PCommand pcmd)
     Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "kid isn't a KidspaceGraphicObject");
 
     AssertIn(iscen, 0, _iscenMac);
-    _cmvi.pglscend->Get(iscen, &scend);
-    scend.trans = _TransFromLw(pcmd->rglw[1] - 1);
-    _cmvi.pglscend->Put(iscen, &scend);
+    TRANS transition = _TransFromLw(pcmd->rglw[1] - 1);
+    if (!mm_composite_set_transition(&_cmvi, iscen, transition))
+    {
+        _ErrorExit();
+        return fTrue;
+    }
 
-    if (_FResetTransition(pgokFrame, scend.trans))
+    if (_FResetTransition(pgokFrame, transition))
         pgokFrame->InvalRc(pvNil);
 
     return fTrue;
@@ -603,7 +596,7 @@ bool SceneSorter::_FResetThumbnails(bool fHideSel)
     long lwSelState = fHideSel ? kstBrowserScrollingSel : kstBrowserSelected;
     PKidspaceGraphicObject pgokFrame;
     PMaskedBitmapGraphicsObject pgomp;
-    SceneDescriptor scend;
+    MMComposeScene scene;
 
     while (cFrame--)
     {
@@ -625,15 +618,16 @@ bool SceneSorter::_FResetThumbnails(bool fHideSel)
         {
             long lwStateNew;
 
-            _cmvi.pglscend->Get(iscen, &scend);
-            pmbmp = scend.pmbmp;
+            if (!mm_composite_scene(&_cmvi, iscen, &scene))
+                goto LFail;
+            pmbmp = static_cast<PMaskedBitmapMBMP>(scene.thumbnail);
             lwStateNew = (iscen == _iscenCur) ? lwSelState : kstBrowserEnabled;
             if (pgokFrame->Sno() != lwStateNew && !pgokFrame->FChangeState(lwStateNew))
             {
                 goto LFail;
             }
 
-            fNewTransition = _FResetTransition(pgokFrame, scend.trans);
+            fNewTransition = _FResetTransition(pgokFrame, TRANS(scene.transition));
             iscen++;
         }
         else
@@ -657,14 +651,15 @@ bool SceneSorter::_FResetThumbnails(bool fHideSel)
         frames. */
     if (_iscenMac > 0)
     {
-        _cmvi.pglscend->Get(_iscenCur, &scend);
+        if (!mm_composite_scene(&_cmvi, _iscenCur, &scene))
+            goto LFail;
         pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameCur);
         Assert(pgokFrame != pvNil, "Selection KidspaceGraphicObject is missing");
         Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
         pgomp = MaskedBitmapGraphicsObject::PgompFromHidScr(kidCur);
         Assert(pgomp != pvNil, "Selection MaskedBitmapGraphicsObject is missing");
-        _FResetTransition(pgokFrame, scend.trans);
-        pgomp->FSetMbmp(scend.pmbmp);
+        _FResetTransition(pgokFrame, TRANS(scene.transition));
+        pgomp->FSetMbmp(static_cast<PMaskedBitmapMBMP>(scene.thumbnail));
     }
 
     _EnableScroll();

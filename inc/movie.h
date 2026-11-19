@@ -546,39 +546,14 @@ class MovieClientCallbacks : public MovieClientCallbacks_PAR
     }
 };
 
-/* A SCENe Descriptor */
-typedef struct _scend
+struct CompositeMovie : MMCompositeMovie
 {
-    /* The first fields are private...the client shouldn't change them, and
-        in fact, generally shouldn't even look at them */
-    long imvied;     // index of the MovieDescriptor for this scene
-    ChunkNumber cno;         // the ChunkNumber of this scene chunk
-    ChildChunkID chid;       // the original ChildChunkID
-    PMaskedBitmapMBMP pmbmp;     // pointer to thumbnail MaskedBitmapMBMP
-                     /* The client can read or write the following fields */
-    TRANS trans;     // the transition that will occur after this scene
-    bool fNuked : 1; // fTrue if this scene has been deleted
-} SceneDescriptor, *PSceneDescriptor;
-
-/* A MoVIE Descriptor */
-typedef struct _mvied
-{
-    PChunkyResourceFile pcrf;    // the file this scene's movie is in
-    ChunkNumber cno;      // ChunkNumber of the Movie chunk
-    long aridLim;         // _data.actorIdLimit from the Movie
-} MovieDescriptor, *PMovieDescriptor;
-
-/* A Composite MoVIe */
-typedef struct _cmvi
-{
-    PDynamicArray pglmvied; // DynamicArray of movie descriptors
-    PDynamicArray pglscend; // DynamicArray of scene descriptors
-
     void Empty(void);
 #ifdef DEBUG
     void MarkMem(void);
 #endif
-} CompositeMovie, *PCompositeMovie;
+};
+typedef CompositeMovie *PCompositeMovie;
 
 //
 //

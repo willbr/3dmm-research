@@ -25,7 +25,8 @@ extern "C"
     } MMComposeMovie;
     typedef struct MMCompositeMovie
     {
-        void *scenes, *movies;
+        MMCollectionStorage rows; /* Scene descriptors in buffer 0, movies in buffer 1. */
+        MMU32 scene_count, movie_count;
     } MMCompositeMovie;
     enum
     {
@@ -44,13 +45,6 @@ extern "C"
         MMChunkGraph graph;
         int temporary_before_save;
         int (*use_temporary)(void *), (*autosave)(void *);
-        void *(*new_list)(int movies), *(*duplicate_movies)(void *list);
-        MMI32 (*count)(void *list);
-        void (*scene)(void *list, MMI32, MMComposeScene *),
-            (*movie)(void *list, MMI32, MMComposeMovie *);
-        int (*insert_scene)(void *list, MMI32, const MMComposeScene *),
-            (*append_movie)(void *list, const MMComposeMovie *, MMI32 *index);
-        void (*put_movie)(void *list, MMI32, const MMComposeMovie *), (*erase)(void *list, MMI32);
         void (*retain)(void *), (*release)(void *);
         void *(*file)(void *resources);
         int (*scene_child)(void *file, MMU32 movie, MMU32 child, MMU32 *number);
@@ -78,10 +72,20 @@ extern "C"
         int (*rebind_actor_materials)(void *source, void *destination, MMU32 actor);
         int (*rebind_scene_backgrounds)(void *source, void *destination, MMU32 scene);
     } MMMovieComposeServices;
-    /* Initialized synchronous services, stable owners and valid descriptor indexes
-     * are required. Callbacks cannot re-enter editing. Lists own one thumbnail/cache
-     * reference per descriptor; duplicate_movies copies borrowed rows without retain.
-     * new_list/read_thumbnail/read_scene return one reference, thumbnail is borrowed.
+    /* Start with a zeroed composite. It owns one thumbnail/cache reference per
+     * descriptor. Accessors copy the row with borrowed reference fields.
+     * Move inserts before the target in the original order. Remove marks the scene
+     * and moves it behind the remaining rows for later application.
+     * Empty releases scene refs, then movie refs in reverse order and frees storage. */
+    int mm_composite_scene(const MMCompositeMovie *, MMU32 index, MMComposeScene *);
+    int mm_composite_movie(const MMCompositeMovie *, MMU32 index, MMComposeMovie *);
+    int mm_composite_move_scene(MMCompositeMovie *, MMU32 from, MMU32 before);
+    int mm_composite_remove_scene(MMCompositeMovie *, MMU32 index);
+    int mm_composite_set_transition(MMCompositeMovie *, MMU32 index, MMI32 transition);
+    void mm_composite_empty(MMCompositeMovie *, void (*release)(void *));
+    /* Initialized synchronous services and stable owners are required. Callbacks
+     * cannot re-enter editing. Read_thumbnail/read_scene return one reference,
+     * thumbnail is borrowed.
      * read_rollcall fills the initialized C table and acquires tags on success.
      * Failure leaves it empty. Table disposal releases storage only.
      * Add requires working resources when temporary_before_save is enabled. On failure
@@ -98,12 +102,7 @@ extern "C"
      * C storage owns the visited-ID set and traversal stack. All actor descendants are
      * walked, matching the native loop's unused skip variable. Traversal error flags
      * retain the native non-fatal policy for ID-only remapping. Visited-set and
-     * actor-write failures abort.
-     * Empty accepts partial/empty state and releases scenes, then movies, in reverse. */
-    int mm_composite_insert_scene(void *list, MMI32, const MMComposeScene *,
-                                        const MMMovieComposeServices *);
-    void mm_composite_delete_scene(void *list, MMI32, const MMMovieComposeServices *);
-    void mm_composite_empty(MMCompositeMovie *, const MMMovieComposeServices *);
+     * actor-write failures abort. */
     int mm_movie_compose_add(MMCompositeMovie *, MMI32 *insertion, const MMMovieComposeServices *);
     int mm_movie_compose_apply(const MMCompositeMovie *, const MMMovieComposeServices *);
     int mm_movie_compose_merge(MMU32 movie, MMI32 actor_offset, const MMMovieComposeServices *);

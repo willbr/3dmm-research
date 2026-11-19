@@ -17,14 +17,10 @@ enum
 {
     TEMP = 1,
     SAVE,
-    NEW_SCENES,
-    NEW_MOVIES,
-    APPEND_MOVIE,
     CHILD,
     READ_TRANS,
     READ_THUMB,
-    INSERT,
-    DUP_LIST,
+    THUMB,
     CLONE,
     DELETE_ROOT,
     READ_TABLE,
@@ -56,13 +52,6 @@ typedef struct Object
     Test *test;
     int id, refs;
 } Object;
-typedef struct List
-{
-    Object object;
-    int movies, count;
-    MMComposeScene scenes[8];
-    MMComposeMovie descriptors[4];
-} List;
 struct Test
 {
     MMMovieComposeServices s;
@@ -70,14 +59,12 @@ struct Test
     MMMovieScenes scenes;
     MMCompositeMovie composite;
     Object resources[3], thumbs[3], open, read, tags[3];
-    List sceneList, movieList, copy;
     int fail, failAt, calls[40], events[256], n, badRef;
     int withActors, actorIds[2], adjusted[8], adjustCount;
     int deleted[8], deletedCount, adopted, removedActors, closed, diagnostic[4];
     int memoryCalls, allocFailAt, blocks, openTransition, fileTransition;
     int readingSource, actorBlocks, closedTags[2], tagCloses;
 };
-static Test *active;
 static void note(Test *t, int operation)
 {
     t->events[t->n++] = operation;
@@ -117,69 +104,6 @@ static int save(void *p)
 {
     return !fails(p, SAVE);
 }
-static void *new_list(int movies)
-{
-    List *l = movies ? &active->movieList : &active->sceneList;
-    if (fails(active, movies ? NEW_MOVIES : NEW_SCENES))
-        return 0;
-    l->object.refs = 1;
-    return l;
-}
-static MMI32 count(void *p)
-{
-    return ((List *)p)->count;
-}
-static void scene_row(void *p, MMI32 i, MMComposeScene *out)
-{
-    *out = ((List *)p)->scenes[i];
-}
-static void movie_row(void *p, MMI32 i, MMComposeMovie *out)
-{
-    *out = ((List *)p)->descriptors[i];
-}
-static int insert(void *p, MMI32 i, const MMComposeScene *row)
-{
-    List *l = p;
-    if (fails(l->object.test, INSERT))
-        return 0;
-    memmove(l->scenes + i + 1, l->scenes + i, (size_t)(l->count - i) * sizeof(*row));
-    l->scenes[i] = *row;
-    ++l->count;
-    return 1;
-}
-static int append_movie(void *p, const MMComposeMovie *row, MMI32 *index)
-{
-    List *l = p;
-    if (fails(l->object.test, APPEND_MOVIE))
-        return 0;
-    *index = l->count;
-    l->descriptors[l->count++] = *row;
-    return 1;
-}
-static void put_movie(void *p, MMI32 i, const MMComposeMovie *row)
-{
-    ((List *)p)->descriptors[i] = *row;
-}
-static void erase(void *p, MMI32 i)
-{
-    List *l = p;
-    --l->count;
-    if (l->movies)
-        memmove(l->descriptors + i, l->descriptors + i + 1, (size_t)(l->count - i) * sizeof(l->descriptors[0]));
-    else
-        memmove(l->scenes + i, l->scenes + i + 1, (size_t)(l->count - i) * sizeof(l->scenes[0]));
-}
-static void *duplicate_movies(void *p)
-{
-    List *l = p;
-    Test *t = l->object.test;
-    if (fails(t, DUP_LIST))
-        return 0;
-    t->copy = *l;
-    t->copy.object.id = 12;
-    t->copy.object.refs = 1;
-    return &t->copy;
-}
 static void *file(void *p)
 {
     return p;
@@ -211,12 +135,13 @@ static void *read_thumbnail(void *p, MMU32 number)
     (void)number;
     if (fails(t, READ_THUMB))
         return 0;
-    t->thumbs[0].refs = 1;
+    ++t->thumbs[0].refs;
     return &t->thumbs[0];
 }
 static void *thumbnail(void *p)
 {
-    return &((Object *)p)->test->thumbs[1];
+    Test *t = ((Object *)p)->test;
+    return fails(t, THUMB) ? NULL : &t->thumbs[1];
 }
 static int clone(void *p, MMU32 number, void *destination, MMU32 *out)
 {
@@ -476,7 +401,6 @@ static void init(Test *t)
     MMStorageAllocator actor_allocator = {NULL, resize_actors, free_actors};
     int i;
     memset(t, 0, sizeof(*t));
-    active = t;
     t->failAt = 1;
     for (i = 0; i < 3; ++i)
     {
@@ -484,9 +408,6 @@ static void init(Test *t)
         object(&t->thumbs[i], t, 4 + i, i == 1);
         object(&t->tags[i], t, 20 + i, i == 2);
     }
-    object(&t->sceneList.object, t, 10, 0);
-    object(&t->movieList.object, t, 11, 0);
-    t->movieList.movies = 1;
     object(&t->open, t, 13, 1);
     object(&t->read, t, 14, 0);
     actor_allocator.context = t;
@@ -509,15 +430,6 @@ static void init(Test *t)
     s->temporary_before_save = 1;
     s->use_temporary = temporary;
     s->autosave = save;
-    s->new_list = new_list;
-    s->duplicate_movies = duplicate_movies;
-    s->count = count;
-    s->scene = scene_row;
-    s->movie = movie_row;
-    s->insert_scene = insert;
-    s->append_movie = append_movie;
-    s->put_movie = put_movie;
-    s->erase = erase;
     s->retain = retain;
     s->release = release;
     s->file = file;
@@ -558,33 +470,37 @@ static void init(Test *t)
     s->allocator.resize = resize;
     s->allocator.release = free_buffer;
 }
-static void apply_setup(Test *t, int external)
+static int add_external(Test *t, MMU32 root, MMI32 scene_count)
 {
-    int i;
-    MMComposeScene row;
-    MMComposeMovie movie;
-    t->composite.scenes = &t->sceneList;
-    t->composite.movies = &t->movieList;
-    t->sceneList.object.refs = t->movieList.object.refs = 1;
-    t->sceneList.count = external ? 3 : 2;
-    t->movieList.count = external ? 2 : 1;
-    memset(&row, 0, sizeof(row));
-    for (i = 0; i < t->sceneList.count; ++i)
-    {
-        row.movie = i == 2 ? 1 : 0;
-        row.number = 100 + (MMU32)i;
-        row.child = i == 2 ? 0 : (MMU32)i;
-        row.transition = 6 + i;
-        t->sceneList.scenes[i] = row;
-    }
-    for (i = 0; i < t->movieList.count; ++i)
-    {
-        movie.resources = &t->resources[i];
-        ++t->resources[i].refs;
-        movie.number = 10 + (MMU32)i * 10;
-        movie.actor_limit = i ? 5 : 10;
-        t->movieList.descriptors[i] = movie;
-    }
+    MMMovieState *data = &t->data;
+    MMI32 index = (MMI32)t->composite.scene_count;
+    int ok;
+    data->resources = &t->resources[1];
+    data->movieNumber = root;
+    data->actorIdLimit = 5;
+    data->sceneCount = scene_count;
+    t->scenes.index = 0;
+    ok = mm_movie_compose_add(&t->composite, &index, &t->s);
+    data->resources = &t->resources[0];
+    data->movieNumber = 10;
+    data->actorIdLimit = 10;
+    data->sceneCount = 2;
+    t->scenes.index = 1;
+    return ok;
+}
+static int apply_setup(Test *t, int external, MMI32 base_limit)
+{
+    MMI32 index = 0;
+    MMU32 i;
+    t->data.actorIdLimit = base_limit;
+    if (!mm_movie_compose_add(&t->composite, &index, &t->s) || (external && !add_external(t, 20, 1)))
+        return 0;
+    for (i = 0; i < t->composite.scene_count; ++i)
+        if (!mm_composite_set_transition(&t->composite, i, 6 + (MMI32)i))
+            return 0;
+    memset(t->calls, 0, sizeof(t->calls));
+    t->n = 0;
+    return 1;
 }
 static int cleanup_tags(Test *t)
 {
@@ -614,10 +530,11 @@ static int seed_destination(Test *t)
 static int adding(void)
 {
     Test t;
+    MMComposeScene scene;
     MMI32 index;
     int i;
-    const int faults[] = {0, TEMP, SAVE, NEW_SCENES, NEW_MOVIES, APPEND_MOVIE, CHILD, READ_TRANS, READ_THUMB, INSERT};
-    for (i = 0; i < 10; ++i)
+    const int faults[] = {0, TEMP, SAVE, CHILD, READ_TRANS, READ_THUMB, THUMB};
+    for (i = 0; i < (int)(sizeof(faults) / sizeof(faults[0])); ++i)
     {
         init(&t);
         t.fail = faults[i];
@@ -626,29 +543,44 @@ static int adding(void)
         CHECK(t.events[0] == TEMP && (i == 1 || t.events[1] == SAVE));
         if (!i)
         {
-            CHECK(index == 2 && t.sceneList.count == 2 && t.movieList.count == 1 && t.resources[0].refs == 2);
-            CHECK(t.thumbs[0].refs == 1 && t.thumbs[1].refs == 2 && t.sceneList.scenes[1].transition == 4);
-            mm_composite_empty(&t.composite, &t.s);
+            CHECK(index == 2 && t.composite.scene_count == 2 && t.composite.movie_count == 1 &&
+                  t.resources[0].refs == 2);
+            CHECK(t.thumbs[0].refs == 1 && t.thumbs[1].refs == 2 &&
+                  mm_composite_scene(&t.composite, 1, &scene) && scene.transition == 4);
+            mm_composite_empty(&t.composite, release);
         }
         else
-            CHECK(index == 0 && !t.composite.scenes && !t.composite.movies);
-        CHECK(t.resources[0].refs == 1 && !t.thumbs[0].refs && t.thumbs[1].refs == 1 && !t.badRef);
+            CHECK(!index && !t.composite.scene_count && !t.composite.movie_count);
+        CHECK(t.resources[0].refs == 1 && !t.thumbs[0].refs && t.thumbs[1].refs == 1 && !t.badRef && !t.blocks);
+    }
+    for (i = 1; i <= 2; ++i)
+    {
+        init(&t);
+        t.allocFailAt = i;
+        index = 0;
+        CHECK(!mm_movie_compose_add(&t.composite, &index, &t.s) && !index && !t.blocks);
+        CHECK(!t.composite.scene_count && !t.composite.movie_count && !t.calls[CHILD] && t.resources[0].refs == 1);
     }
     init(&t);
-    t.fail = INSERT;
-    t.failAt = 2;
-    index = 0;
-    CHECK(!mm_movie_compose_add(&t.composite, &index, &t.s) && index == 0 && !t.thumbs[0].refs &&
-          t.thumbs[1].refs == 1);
-    CHECK(!t.composite.scenes && !t.composite.movies && t.resources[0].refs == 1);
+    CHECK(apply_setup(&t, 0, 10));
+    t.fail = THUMB;
+    index = 1;
+    CHECK(!mm_movie_compose_add(&t.composite, &index, &t.s) && index == 1);
+    CHECK(t.composite.scene_count == 2 && t.composite.movie_count == 1 && t.blocks == 2 &&
+          t.thumbs[0].refs == 1 && t.thumbs[1].refs == 2);
+    CHECK(mm_composite_scene(&t.composite, 0, &scene) && scene.transition == 6);
+    CHECK(mm_composite_scene(&t.composite, 1, &scene) && scene.transition == 7);
+    mm_composite_empty(&t.composite, release);
+    CHECK(!t.blocks);
     init(&t);
     t.s.temporary_before_save = 0;
     t.data.sceneCount = 0;
     index = 0;
     CHECK(mm_movie_compose_add(&t.composite, &index, &t.s) && !index && !t.calls[TEMP] && t.calls[SAVE] == 1);
-    mm_composite_empty(&t.composite, &t.s);
-    mm_composite_empty(&t.composite, &t.s);
-    CHECK(!t.badRef && t.resources[0].refs == 1);
+    CHECK(!t.composite.scene_count && t.composite.movie_count == 1);
+    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release);
+    CHECK(!t.badRef && !t.blocks && t.resources[0].refs == 1);
     return 0;
 }
 static int merging(void)
@@ -716,16 +648,15 @@ static int applying(void)
 {
     Test t;
     int i;
-    const int failures[] = {0, DUP_LIST, CLONE, READ_TABLE, CHILD, ADOPT, SOUNDS, WRITE_TRANS};
-    for (i = 0; i < 8; ++i)
+    const int failures[] = {0, CLONE, READ_TABLE, CHILD, ADOPT, SOUNDS, WRITE_TRANS};
+    for (i = 0; i < (int)(sizeof(failures) / sizeof(failures[0])); ++i)
     {
         init(&t);
-        apply_setup(&t, 1);
+        CHECK(apply_setup(&t, 1, 10));
         t.fail = failures[i];
         CHECK(mm_movie_compose_apply(&t.composite, &t.s) == !i);
-        CHECK(!t.copy.object.refs && t.resources[0].refs == 2 && t.resources[1].refs == 2 && !t.read.refs &&
-              !t.blocks && !t.badRef);
-        CHECK(t.deletedCount == (i == 1 || i == 2 ? 0 : 1));
+        CHECK(t.resources[0].refs == 2 && t.resources[1].refs == 2 && !t.read.refs && t.blocks == 2 && !t.badRef);
+        CHECK(t.deletedCount == (i == 1 ? 0 : 1));
         if (t.deletedCount)
             CHECK(t.deleted[0] == 120);
         if (!i)
@@ -738,101 +669,104 @@ static int applying(void)
         }
         else
             CHECK(t.data.sceneCount == 2 && t.data.actorIdLimit == 10 && !t.calls[DIRTY]);
-        if (i >= 4 && i <= 6)
+        if (i >= 3 && i <= 5)
             CHECK(t.openTransition == 7);
-        if (i == 6)
+        if (i == 5)
             CHECK(t.adopted == 1 && !t.calls[READ_SCENE]);
+        mm_composite_empty(&t.composite, release);
+        CHECK(!t.blocks && t.resources[0].refs == 1 && t.resources[1].refs == 1);
     }
+    init(&t);
+    CHECK(apply_setup(&t, 1, 10));
+    t.allocFailAt = t.memoryCalls + 1;
+    CHECK(!mm_movie_compose_apply(&t.composite, &t.s) && !t.calls[CLONE] && !t.deletedCount && t.blocks == 2);
+    mm_composite_empty(&t.composite, release);
+    CHECK(!t.blocks);
     for (i = 0; i < 2; ++i)
     {
         init(&t);
-        apply_setup(&t, 1);
-        CHECK(seed_destination(&t));
+        CHECK(apply_setup(&t, 1, 0) && seed_destination(&t));
         t.withActors = 1;
-        t.movieList.descriptors[0].actor_limit = 0;
         t.s.rebind_actor_materials = rebind_materials;
         t.fail = i ? REBIND_MATERIALS : 0;
         t.failAt = 2;
         CHECK(mm_movie_compose_apply(&t.composite, &t.s) == !i);
+        mm_composite_empty(&t.composite, release);
         CHECK(t.calls[REBIND_MATERIALS] == 2 && !t.adjustCount && t.deletedCount == 1 && t.deleted[0] == 120);
         CHECK(t.data.actors.count == (i ? 1U : 3U) && t.adopted == !i && !cleanup_tags(&t));
     }
     init(&t);
-    apply_setup(&t, 1);
+    CHECK(apply_setup(&t, 1, 10));
     t.s.link_imported_sounds = link_sounds;
     t.fail = LINK_SOUNDS;
     CHECK(!mm_movie_compose_apply(&t.composite, &t.s));
     CHECK(t.calls[LINK_SOUNDS] == 1 && position(&t, CLONE) < position(&t, LINK_SOUNDS) &&
           position(&t, LINK_SOUNDS) < position(&t, DELETE_ROOT));
     CHECK(!t.calls[READ_TABLE] && !t.adopted && t.deletedCount == 1 && t.deleted[0] == 120);
+    mm_composite_empty(&t.composite, release);
     init(&t);
-    apply_setup(&t, 1);
-    t.movieList.descriptors[0].actor_limit = 2147483647;
+    CHECK(apply_setup(&t, 1, 2147483647));
     CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.data.actorIdLimit == -2147483644);
+    mm_composite_empty(&t.composite, release);
     init(&t);
-    apply_setup(&t, 1);
-    t.movieList.count = 3;
-    t.movieList.descriptors[2] = t.movieList.descriptors[1];
-    t.movieList.descriptors[2].number = 30;
+    CHECK(apply_setup(&t, 1, 10) && add_external(&t, 30, 0));
     t.fail = READ_TABLE;
     t.failAt = 2;
     CHECK(!mm_movie_compose_apply(&t.composite, &t.s) && t.deletedCount == 2 && t.deleted[0] == 130 &&
           t.deleted[1] == 120);
-    CHECK(t.resources[0].refs == 2 && !t.copy.object.refs);
+    CHECK(t.resources[0].refs == 2 && t.resources[1].refs == 3);
+    mm_composite_empty(&t.composite, release);
+    CHECK(!t.blocks && t.resources[0].refs == 1 && t.resources[1].refs == 1);
     for (i = READ_SCENE; i <= ADD_ACTORS; ++i)
     {
         init(&t);
-        apply_setup(&t, 1);
+        CHECK(apply_setup(&t, 1, 10));
         t.fail = i;
         CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.diagnostic[MM_COMPOSE_IMPORT_ACTORS] == 1);
-        CHECK(t.calls[ACTOR_TOOLS] == 1 && t.calls[TEXT_TOOLS] == 1 && !t.read.refs && !t.copy.object.refs);
+        CHECK(t.calls[ACTOR_TOOLS] == 1 && t.calls[TEXT_TOOLS] == 1 && !t.read.refs);
         CHECK(t.calls[ADD_ACTORS] == (i == ADD_ACTORS));
+        mm_composite_empty(&t.composite, release);
     }
     init(&t);
-    apply_setup(&t, 1);
-    t.sceneList.scenes[0].deleted = 1;
+    CHECK(apply_setup(&t, 1, 10));
+    CHECK(mm_composite_remove_scene(&t.composite, 0) && mm_composite_move_scene(&t.composite, 2, 0));
     CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.scenes.index == 0 && t.data.sceneCount == 2 &&
           t.removedActors == 1);
     CHECK(t.calls[DELETE_CHILD] == 1 && t.open.refs == 1);
+    mm_composite_empty(&t.composite, release);
     init(&t);
-    apply_setup(&t, 0);
-    t.sceneList.scenes[0].deleted = t.sceneList.scenes[1].deleted = 1;
+    CHECK(apply_setup(&t, 0, 10));
+    CHECK(mm_composite_remove_scene(&t.composite, 0) && mm_composite_remove_scene(&t.composite, 0));
     t.fail = START;
+    t.allocFailAt = t.memoryCalls + 1; /* A local-only apply needs no clone table. */
     CHECK(mm_movie_compose_apply(&t.composite, &t.s) && !t.data.sceneCount && !t.scenes.open &&
           t.scenes.index == -1);
     CHECK(t.removedActors == 2 && t.diagnostic[MM_COMPOSE_REMOVE_ACTORS] == 1 && t.closed == 1 &&
           t.calls[NUKED] == 1);
     CHECK(!t.open.refs && !t.read.refs && !t.badRef);
+    mm_composite_empty(&t.composite, release);
+    CHECK(!t.blocks);
     return 0;
 }
 static int emptying(void)
 {
     Test t;
     MMComposeScene scene;
-    MMComposeMovie movie;
     int start;
     init(&t);
-    memset(&scene, 0, sizeof(scene));
-    t.sceneList.object.refs = t.movieList.object.refs = 1;
-    t.composite.scenes = &t.sceneList;
-    t.composite.movies = &t.movieList;
-    scene.thumbnail = &t.thumbs[1];
-    CHECK(mm_composite_insert_scene(&t.sceneList, 0, &scene, &t.s) && t.thumbs[1].refs == 2);
-    mm_composite_delete_scene(&t.sceneList, 0, &t.s);
-    CHECK(t.thumbs[1].refs == 1 && !t.sceneList.count);
-    t.sceneList.scenes[0] = scene;
-    t.sceneList.count = 1;
-    movie.resources = &t.resources[0];
-    movie.number = 10;
-    movie.actor_limit = 10;
-    t.movieList.descriptors[0] = movie;
-    t.movieList.count = 1;
+    CHECK(apply_setup(&t, 1, 10));
+    CHECK(mm_composite_move_scene(&t.composite, 0, 3));
+    CHECK(mm_composite_scene(&t.composite, 2, &scene) && scene.number == 100);
+    CHECK(mm_composite_remove_scene(&t.composite, 0) && !mm_composite_remove_scene(&t.composite, 2));
+    CHECK(mm_composite_scene(&t.composite, 2, &scene) && scene.number == 101 && scene.deleted);
+    CHECK(!mm_composite_move_scene(&t.composite, 3, 0) && !mm_composite_set_transition(&t.composite, 3, 0));
     start = t.n;
-    mm_composite_empty(&t.composite, &t.s);
-    CHECK(t.events[start] == 205 && t.events[start + 1] == 210 && t.events[start + 2] == 201 &&
-          t.events[start + 3] == 211);
-    CHECK(!t.composite.scenes && !t.composite.movies && !t.thumbs[1].refs && !t.resources[0].refs && !t.badRef);
-    mm_composite_empty(&t.composite, &t.s);
+    mm_composite_empty(&t.composite, release);
+    CHECK(t.events[start] == 205 && t.events[start + 1] == 204 && t.events[start + 2] == 205 &&
+          t.events[start + 3] == 202 && t.events[start + 4] == 201);
+    CHECK(!t.composite.scene_count && !t.composite.movie_count && t.thumbs[1].refs == 1 &&
+          t.resources[0].refs == 1 && t.resources[1].refs == 1 && !t.badRef && !t.blocks);
+    mm_composite_empty(&t.composite, release);
     return 0;
 }
 int main(void)

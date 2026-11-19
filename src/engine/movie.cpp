@@ -2815,52 +2815,22 @@ bool Movie::FPause(WaitReason wit, long dts)
     return mm_movie_edit_scene(MM_MOVIE_EDIT_PAUSE, &q, &services) != 0;
 }
 
-static SceneDescriptor NativeComposeScene(const MMComposeScene &value)
+static void ReleaseComposeObject(void *object)
 {
-    SceneDescriptor scene = {};
-    scene.imvied=value.movie; scene.cno=value.number; scene.chid=value.child;
-    scene.pmbmp=static_cast<PMaskedBitmapMBMP>(value.thumbnail);
-    scene.trans=TRANS(value.transition); scene.fNuked=value.deleted!=0;
-    return scene;
+    static_cast<BASE *>(object)->Release();
 }
-static MovieDescriptor NativeComposeMovie(const MMComposeMovie &value)
-{
-    return {static_cast<PChunkyResourceFile>(value.resources),value.number,value.actor_limit};
-}
-static MMMovieComposeServices ComposeListServices()
-{
-    MMMovieComposeServices s = {};
-    s.new_list=[](int movies)->void* { return DynamicArray::PglNew(movies?sizeof(MovieDescriptor):sizeof(SceneDescriptor)); };
-    s.duplicate_movies=[](void *p)->void* { return static_cast<PDynamicArray>(p)->PglDup(); };
-    s.count=[](void *p)->MMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
-    s.scene=[](void *p,MMI32 index,MMComposeScene *out) {
-        SceneDescriptor scene; static_cast<PDynamicArray>(p)->Get(index,&scene);
-        *out={static_cast<MMI32>(scene.imvied),scene.cno,scene.chid,scene.pmbmp,scene.trans,scene.fNuked};
-    };
-    s.movie=[](void *p,MMI32 index,MMComposeMovie *out) {
-        MovieDescriptor movie; static_cast<PDynamicArray>(p)->Get(index,&movie);
-        *out={movie.pcrf,movie.cno,static_cast<MMI32>(movie.aridLim)};
-    };
-    s.insert_scene=[](void *p,MMI32 index,const MMComposeScene *value)->int {
-        auto scene=NativeComposeScene(*value); return static_cast<PDynamicArray>(p)->FInsert(index,&scene);
-    };
-    s.append_movie=[](void *p,const MMComposeMovie *value,MMI32 *out)->int {
-        auto movie=NativeComposeMovie(*value); LegacyLong index;
-        bool ok=static_cast<PDynamicArray>(p)->FAdd(&movie,&index); if(ok) *out=index; return ok;
-    };
-    s.put_movie=[](void *p,MMI32 index,const MMComposeMovie *value) {
-        auto movie=NativeComposeMovie(*value); static_cast<PDynamicArray>(p)->Put(index,&movie);
-    };
-    s.erase=[](void *p,MMI32 index) { static_cast<PDynamicArray>(p)->Delete(index); };
-    s.retain=[](void *p) { static_cast<BASE *>(p)->AddRef(); };
-    s.release=[](void *p) { static_cast<BASE *>(p)->Release(); };
-    return s;
-}
+
 MMMovieComposeServices Movie::_ComposeServices()
 {
     static_assert(kctgMvie==0x4d564945U && kctgActr==0x41435452U && cnoNil==0xffffffffU, "Movie composition ABI");
-    auto s=ComposeListServices(); s.context=this; s.data=&_data; s.scenes=&_scenes;
-    s.scene_control=_SceneServices(); s.allocator=CollectionAllocator();
+    MMMovieComposeServices s = {};
+    s.context = this;
+    s.data = &_data;
+    s.scenes = &_scenes;
+    s.scene_control = _SceneServices();
+    s.allocator = CollectionAllocator();
+    s.retain = [](void *object) { static_cast<BASE *>(object)->AddRef(); };
+    s.release = ReleaseComposeObject;
 #ifdef BUG1929
     s.temporary_before_save=1;
 #endif
@@ -2932,7 +2902,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.diagnostic=[](void *,int issue) {
         switch(issue) {
         case MM_COMPOSE_MISSING_SCENE: AssertDo(false,"Not enough scene chunks for movie"); break;
-        case MM_COMPOSE_BAD_BASE: Assert(false,"Invalid DynamicArray of MVIEDs"); break;
+        case MM_COMPOSE_BAD_BASE: Assert(false,"Invalid base movie descriptor"); break;
         case MM_COMPOSE_IMPORT_ACTORS: PushErc(ercSocNoImportRollCall); break;
         case MM_COMPOSE_REMOVE_ACTORS: PushErc(ercSocNoNukeRollCall); break;
         }
@@ -2978,35 +2948,27 @@ MMMovieComposeServices Movie::_ComposeServices()
 ************************************************************ PETED ***********/
 void CompositeMovie::MarkMem(void)
 {
-    long iv, ivMac;
-    MovieDescriptor mvied;
-    SceneDescriptor scend;
-
-    ivMac = pglmvied->IvMac();
-    for (iv = 0; iv < ivMac; iv++)
+    for (MMU32 i = 0; i < movie_count; ++i)
     {
-        pglmvied->Get(iv, &mvied);
-        MarkMemObj(mvied.pcrf);
+        MMComposeMovie movie;
+        mm_composite_movie(this, i, &movie);
+        MarkMemObj(static_cast<PChunkyResourceFile>(movie.resources));
     }
-    MarkMemObj(pglmvied);
-
-    ivMac = pglscend->IvMac();
-    for (iv = 0; iv < ivMac; iv++)
+    for (MMU32 i = 0; i < scene_count; ++i)
     {
-        pglscend->Get(iv, &scend);
-        MarkMemObj(scend.pmbmp);
+        MMComposeScene scene;
+        mm_composite_scene(this, i, &scene);
+        MarkMemObj(static_cast<PMaskedBitmapMBMP>(scene.thumbnail));
     }
-    MarkMemObj(pglscend);
+    MarkPv(rows.buffers[0].data);
+    MarkPv(rows.buffers[1].data);
 }
 #endif // DEBUG
 
 /******************************************************************************
     FAddToCmvi
-        Generates a DynamicArray of SCENDs that describes this movie.  A movie client
-        that wishes to makes wholesale changes to a movie may get this DynamicArray,
-        rearrange it, including inserting references to new movie files, and
-        pass it back to the movie via FSetCmvi to modify the movie.
-        Adds the movie to the DynamicArray of movie descriptors.
+        Adds the movie and its scene descriptors to a composition.
+        The caller can rearrange scenes and add other movies before applying it.
 
     Arguments:
         PCompositeMovie pcmvi     --  the CompositeMovie to add the movie to
@@ -3018,11 +2980,11 @@ void CompositeMovie::MarkMem(void)
 bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
 {
     AssertThis(0); AssertVarMem(pcmvi); AssertVarMem(piscendIns);
-    MMCompositeMovie state={pcmvi->pglscend,pcmvi->pglmvied};
-    MMI32 insertion=*piscendIns; const auto services=_ComposeServices();
-    bool ok=mm_movie_compose_add(&state,&insertion,&services)!=0;
-    pcmvi->pglscend=static_cast<PDynamicArray>(state.scenes); pcmvi->pglmvied=static_cast<PDynamicArray>(state.movies);
-    *piscendIns=insertion; return ok;
+    MMI32 insertion = *piscendIns;
+    const auto services = _ComposeServices();
+    bool ok = mm_movie_compose_add(pcmvi, &insertion, &services) != 0;
+    *piscendIns = insertion;
+    return ok;
 }
 
 /******************************************************************************
@@ -3032,9 +2994,9 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
         refer to a movie file other than this Movie's auto save file are
         copied into this Movie's auto save file.  Scene chunks are given new
         CHIDs reflecting their new position within the movie.  The non-nuked
-        scenes must appear in the DynamicArray in the order that they appear in the
+        scenes must appear in the composition in the order that they appear in the
         movie; other than that, there is no restriction on the order of the
-        scenes (ie, nuked scenes can appear anywhere in the DynamicArray, even though
+        scenes (ie, nuked scenes can appear anywhere in the composition, even though
         currently the only client of this API keeps the nuked scenes at the
         end).
 
@@ -3046,9 +3008,10 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
 ************************************************************ PETED ***********/
 bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 {
-    AssertThis(0); AssertVarMem(pcmvi); AssertPo(pcmvi->pglmvied,0); AssertPo(pcmvi->pglscend,0);
-    const MMCompositeMovie state={pcmvi->pglscend,pcmvi->pglmvied}; const auto services=_ComposeServices();
-    return mm_movie_compose_apply(&state,&services)!=0;
+    AssertThis(0);
+    AssertVarMem(pcmvi);
+    const auto services = _ComposeServices();
+    return mm_movie_compose_apply(pcmvi, &services) != 0;
 }
 
 /******************************************************************************
@@ -3072,22 +3035,12 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 
 /******************************************************************************
     EmptyCmvi
-        Frees up the memory used by the CompositeMovie.  For each scene in the
-        DynamicArray of SCENDs, releases memory that the SceneDescriptor referred to.  Likewise
-        for each MovieDescriptor in the DynamicArray of MVIEDs.
-
-    Arguments:
-        PCompositeMovie pcmvi -- the CompositeMovie to empty
-
-    Returns: Sets the client's pointer to pvNil when finished
+        Releases the retained thumbnails, resources and descriptor storage.
 
 ************************************************************ PETED ***********/
 void CompositeMovie::Empty(void)
 {
-    AssertNilOrPo(pglscend,0); AssertNilOrPo(pglmvied,0);
-    MMCompositeMovie state={pglscend,pglmvied}; const auto services=ComposeListServices();
-    mm_composite_empty(&state,&services);
-    pglscend=static_cast<PDynamicArray>(state.scenes); pglmvied=static_cast<PDynamicArray>(state.movies);
+    mm_composite_empty(this, ReleaseComposeObject);
 }
 
 /***************************************************************************

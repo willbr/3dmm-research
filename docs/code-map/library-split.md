@@ -3639,22 +3639,24 @@ host/facade integration remains. Verification and coverage limits are in
 `movie_compose.c` owns descriptor collection and insertion rollback, thumbnail/
 cache reference transfer, reverse composite disposal, storyboard application,
 temporary imported Movie cleanup, roll-call row ownership transfer and actor-ID
-remapping. C descriptors contain scalar fields and opaque handles. Native services
-marshal the existing SceneDescriptor/MovieDescriptor arrays and provide file,
-thumbnail, Scene, client and list primitives; those representations remain
-temporary adapters. Two unused native descriptor-control helpers were removed.
+remapping. One C collection owns the two descriptor arrays and their counts.
+The Studio sorter reads scene rows and uses C89 to move a row, stage a removal,
+or set a transition. Native services provide file, thumbnail, scene and client
+primitives.
 
 Descriptor collection retains the BUG1929 temporary-file-before-autosave order
 when enabled. Working resources are a precondition for that legacy branch.
 Collection captures the original scene count, reads unopened transitions and
 thumbnails from file, borrows/retains the current thumbnail, and transfers one
-reference into each inserted descriptor. Failed insertion removes only its
-completed descriptor prefix, restores the caller's insertion position, releases
-the Movie descriptor and disposes empty lists, retaining autosave's effects.
+reference into each inserted descriptor. Storage is reserved before descriptor
+collection. A failed add releases the thumbnails it acquired, removes its scene
+prefix, and preserves the prior descriptors and insertion position. Autosave's
+effects are retained.
 
-Application duplicates Movie descriptors without retaining their borrowed rows,
-clones external Movie graphs, merges roll calls, then adopts/renumbers/deletes
-scenes and writes transitions. Imported actor-start/registration errors remain
+Application keeps just the cloned root numbers in temporary C storage. A
+composition of local scenes needs no clone table. The engine clones the external
+Movie graphs and merges their roll calls before adopting, renumbering or deleting
+scenes and writing transitions. Imported actor-start and registration errors remain
 diagnostic and non-fatal; tool notifications and Scene release still occur.
 Current-scene removal uses the C Movie scene-owner helper. Final count/ID-limit,
 dirty, SceneNuked, view and roll-call publication retain their original order.
@@ -3684,8 +3686,8 @@ The headless Movie save/load fixture freezes eight composition scenarios plus
 four native/foreign-order shared/nested actor-remap scenarios before conversion.
 C tests cover collection/apply failure prefixes, cleanup, reference transfer,
 non-fatal imports, wrapped limits, traversal allocation errors and reverse disposal.
-No Marcus UI tests were added. Final native descriptor/list/resource/object facade
-removal and C-only host integration remain. Verification and coverage limits are
+Final native resource and object facade removal and C-only host integration
+remain. Verification and coverage limits are
 in `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence

@@ -2603,6 +2603,19 @@ retail. The embedded fixtures exercise a format extension that stock retail
 cannot load.
 Evidence is in `tmp/c89-compose-background/`.
 
+Studio's scene sorter now keeps its movie and scene descriptors in C89
+storage. Reorder, removal and transition changes operate on the same rows
+used by composition. The headless composition traces matched byte for byte.
+In SDL Studio the before and after builds produced the same scene order
+and reopened viewports after importing a movie, reordering scenes, changing
+a transition and deleting a scene. Cancelling the same operations preserved
+the original movie. All 61 saved chunk payloads, links, names and flags
+matched. Retail, SDL Studio and Marcus agreed on the 60-frame playback
+order and each reproduced its earlier seek images for the retained scenes.
+Both ports still differed from retail in seek pixels and mixed PCM. SDL
+Studio's playback timing also differed. Evidence is in
+`tmp/c89-compose-storage/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 
