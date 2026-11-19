@@ -10,17 +10,10 @@ void mm_actor_track_init(MMActorTrack *t)
 }
 void *mm_actor_event_tag(void *events, MMU32 index, const MMActorTrackServices *s)
 {
-    MMI32 type, custom;
-    unsigned char *data;
+    MMI32 type;
     memcpy(&type, s->fixed(events, index), sizeof(type));
-    if (type == MM_ACTOR_COSTUME)
-    {
-        data = (unsigned char *)s->data(events, index);
-        memcpy(&custom, data + offsetof(MMActorCostume, custom), sizeof(custom));
-        return custom ? NULL : data + offsetof(MMActorCostume, tag);
-    }
-    if (type == MM_ACTOR_SOUND)
-        return (unsigned char *)s->data(events, index) + offsetof(MMActorSound, tag);
+    if (type == MM_ACTOR_COSTUME || type == MM_ACTOR_SOUND)
+        return (void *)mm_actor_payload_tag(type, s->data(events, index));
     return NULL;
 }
 static void tags(MMActorTrack *t, int close, const MMActorTrackServices *s)

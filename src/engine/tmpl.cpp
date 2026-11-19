@@ -425,25 +425,6 @@ Template::~Template(void)
 }
 
 /***************************************************************************
-    Return a list of all tags embedded in this Template.  Note that a
-    return value of pvNil does not mean an error occurred, but simply that
-    this Template has no embedded tags.
-***************************************************************************/
-PDynamicArray Template::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
-{
-    AssertPo(pcfl, 0);
-    AssertVarMem(pfError);
-
-    ChildChunkIdentification kid;
-
-    *pfError = fFalse;
-    if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTdt, &kid))
-        return ThreeDText::PgltagFetch(pcfl, ctg, cno, pfError);
-    else
-        return pvNil; // standard Templates have no embedded tags
-}
-
-/***************************************************************************
     Creates a new tree of body parts (br_actors) based on this template.
     Note: Actor also calls FSetDefaultCost after creating the body, but
     by calling it here, it is guaranteed that the body will have a material

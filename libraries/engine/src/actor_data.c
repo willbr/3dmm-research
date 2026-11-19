@@ -7,6 +7,20 @@
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
+const void *mm_actor_payload_tag(MMI32 kind, const void *payload)
+{
+    const unsigned char *bytes = (const unsigned char *)payload;
+    MMI32 custom;
+    if (kind == MM_ACTOR_COSTUME)
+    {
+        memcpy(&custom, bytes + offsetof(MMActorCostume, custom), sizeof(custom));
+        return custom ? NULL : bytes + offsetof(MMActorCostume, tag);
+    }
+    if (kind == MM_ACTOR_SOUND)
+        return bytes + offsetof(MMActorSound, tag);
+    return NULL;
+}
+
 int mm_actor_template_link(const MMChunkAccess *access, MMU32 actor, MMI32 source, int require_target, MMU32 *number)
 {
     const MMU32 actor_type = 0x41435452UL;

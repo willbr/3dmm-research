@@ -23,21 +23,19 @@ extern "C"
         MMMovieSceneReader read;
         MMSceneSoundPacketServices packets;
         MMU32 camera_type;
-        MMChunkAccess chunks;
-        void *(*actor_tags)(void *, MMU32 number, int *error);
-        MMI32 (*list_count)(void *, void *list);
-        void (*list_tag)(void *, void *list, MMI32 index, MMTag *);
-        void (*release_list)(void *, void *list), (*free_sound)(void *, void *allocation);
+        MMMovieSessionGraph graph;
+        void (*free_sound)(void *, void *allocation);
         int (*insert_tag)(void *, const MMTag *);
         int (*background)(void *, MMTag *);
         int (*insert_child)(void *, const MMTag *, MMU32 child, MMU32 type);
+        void (*actor_diagnostic)(void *, int issue);
         void (*diagnostic)(void *, int start, int missing_background);
     } MMSceneCollectServices;
     /* Collects starts before frames; background callbacks may update their tag, and
      * the last successful background is used for camera children. Caption starts and
      * pauses are ignored. A failing callback retains the previously inserted prefix.
-     * Actor tag lists and decoded sound temporaries are released before their source
-     * wire group. Collected tags borrow cache pointers; sound decode never opens them.
+     * Actor dependencies are validated before publication. Decoded sound temporaries
+     * are released before their source wire group. Sound decode never opens cache pointers.
      * Inputs are private wire groups with eight-byte fixed entries and valid offsets.
      * Unexpected kinds diagnose/skip; wrong fixed-size payloads fail before copying.
      * Synchronous callbacks cannot reenter or change the index or event groups. */

@@ -177,7 +177,6 @@ class Template : public Template_PAR
   public:
     static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     ~Template(void);
-    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
 
     // Template / Body stuff
     void GetName(PString pstn); // default name of actor or text of the ThreeDText

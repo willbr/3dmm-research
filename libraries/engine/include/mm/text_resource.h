@@ -8,6 +8,9 @@
 extern "C" {
 #endif
 typedef struct MMTextDescriptor { MMI32 shape; MMTag font; } MMTextDescriptor;
+/* Decodes the descriptor even when its marker is invalid. The result reports
+ * whether the marker was valid. A bad marker uses the opposite host order. */
+int mm_text_decode_descriptor(const unsigned char bytes[24], int host_big, MMTextDescriptor *);
 typedef struct MMTextNames { void *table; } MMTextNames;
 typedef struct MMTextResourceServices
 {

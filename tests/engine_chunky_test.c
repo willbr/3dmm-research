@@ -506,6 +506,118 @@ static int graph_payload(void *context, const MMChunkEntry *entry, MMMovieReceiv
     return receive(out, &slice.stream);
 }
 
+enum { TAGS_LOCAL, TAGS_EXTERNAL, TAGS_TEMPLATE_FALLBACK, TAGS_BAD_EVENTS, TAGS_SHORT_TEXT };
+
+static MMU32 actor_tags_fixture(unsigned char *out, int big, int scenario)
+{
+    enum { ACTR, GGAE, TDT, TMPL, COUNT };
+    const MMU32 types[] = {0x41435452UL, 0x47474145UL, 0x54445420UL, 0x544d504cUL};
+    const MMU32 numbers[] = {1, 3, 5, 9};
+    MMU32 lengths[] = {44, 204, 28, 0};
+    const MMI32 codecs[COUNT] = {0};
+    MMU32 links[][3] = {{ACTR, GGAE, 0}, {ACTR, TMPL, 0}, {TMPL, TDT, 0}};
+    unsigned char raw[COUNT][FIXTURE_RECORD_BYTES] = {{0}};
+    unsigned char *row = raw[GGAE] + 20;
+    unsigned char *locations = row + 160;
+    put16(raw[ACTR], 1, big);
+    put32(raw[ACTR] + 28, scenario == TAGS_EXTERNAL ? 6 : 0, big);
+    put32(raw[ACTR] + 36, types[TMPL], big);
+    put32(raw[ACTR] + 40, scenario == TAGS_TEMPLATE_FALLBACK ? 9 : 12, big);
+    if (scenario == TAGS_TEMPLATE_FALLBACK)
+        links[1][2] = 1;
+    if (scenario == TAGS_SHORT_TEXT)
+        lengths[TDT] = 23;
+    put16(raw[TDT], 1, big);
+    put32(raw[TDT] + 8, 2, big);
+    put32(raw[TDT] + 16, 0x54444620UL, big);
+    put32(raw[TDT] + 20, 31, big);
+    put16(raw[GGAE], 1, big);
+    group_header(raw[GGAE], 3, 160, MM_ACTOR_EVENT_BYTES, big);
+    put32(row, MM_ACTOR_COSTUME, big);
+    put32(row + 32, 4, big);
+    put32(row + 40, 0x4d54524cUL, big);
+    put32(row + 44, 32, big);
+    put32(row + 48, MM_ACTOR_COSTUME, big);
+    put32(row + 76, 1, big);
+    put32(row + 96, scenario == TAGS_BAD_EVENTS ? 99 : MM_ACTOR_SOUND, big);
+    put32(row + 144, 7, big);
+    put32(row + 152, 0x4d534e44UL, big);
+    put32(row + 156, 33, big);
+    put32(locations + 4, 48, big);
+    put32(locations + 8, 48, big);
+    put32(locations + 12, 48, big);
+    put32(locations + 16, 96, big);
+    put32(locations + 20, 64, big);
+    return write_fixture(out, 1024, big, COUNT, types, numbers, lengths, codecs, raw,
+                         (const MMU32 (*)[3])links, 3);
+}
+
+typedef struct ActorTagTrace
+{
+    MMTag tags[4];
+    int count, reject, diagnostics;
+} ActorTagTrace;
+
+static int visit_actor_tag(void *p, const MMTag *tag)
+{
+    ActorTagTrace *trace = (ActorTagTrace *)p;
+    CHECK(trace->count < 4 && tag->cache == NULL);
+    if (trace->count == trace->reject)
+        return 0;
+    trace->tags[trace->count++] = *tag;
+    return 1;
+}
+
+static void actor_tag_diagnostic(void *p, int issue)
+{
+    CHECK(issue == MM_ACTOR_TAG_TEMPLATE_LINK);
+    ++((ActorTagTrace *)p)->diagnostics;
+}
+
+static void movie_actor_tags(void)
+{
+    const MMChunkPolicy policy = {0, 0, 516};
+    unsigned char bytes[1024];
+    MMMemoryStream memory;
+    MMChunkIndex *index;
+    MMMovieChunkView view;
+    MMMovieSessionGraph graph = {NULL, graph_access, graph_record, graph_payload, NULL};
+    ActorTagTrace trace;
+    int big, scenario, index_offset, status;
+    MMU32 size;
+    graph.context = &view;
+    for (big = 0; big <= 1; ++big)
+        for (scenario = TAGS_LOCAL; scenario <= TAGS_SHORT_TEXT; ++scenario)
+        {
+            size = actor_tags_fixture(bytes, big, scenario);
+            CHECK(mm_memory_stream_init(&memory, bytes, size));
+            CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_OK);
+            view.chunks = mm_chunk_index_access(index);
+            view.context = &memory.stream;
+            memset(&trace, 0, sizeof(trace));
+            trace.reject = -1;
+            status = mm_movie_actor_tags(&graph, 1, &trace, visit_actor_tag, actor_tag_diagnostic);
+            if (scenario == TAGS_BAD_EVENTS || scenario == TAGS_SHORT_TEXT)
+                CHECK(status == MM_MOVIE_BAD_FILE && trace.count == 0);
+            else
+            {
+                index_offset = scenario == TAGS_EXTERNAL ? 0 : 1;
+                CHECK(status == MM_MOVIE_OK && trace.count == 3 + index_offset);
+                CHECK(trace.tags[0].type == 0x544d504cUL && trace.tags[0].number == (index_offset ? 9U : 12U));
+                CHECK(trace.tags[0].sid == (index_offset ? 0 : 6));
+                if (index_offset)
+                    CHECK(trace.tags[1].sid == 2 && trace.tags[1].type == 0x54444620UL && trace.tags[1].number == 31);
+                CHECK(trace.tags[1 + index_offset].sid == 4 && trace.tags[1 + index_offset].number == 32);
+                CHECK(trace.tags[2 + index_offset].sid == 7 && trace.tags[2 + index_offset].number == 33);
+                CHECK(trace.diagnostics == (scenario == TAGS_TEMPLATE_FALLBACK));
+                trace.count = 0;
+                trace.reject = 1;
+                CHECK(mm_movie_actor_tags(&graph, 1, &trace, visit_actor_tag, NULL) == MM_MOVIE_IO && trace.count == 1);
+            }
+            mm_chunk_index_close(index);
+        }
+}
+
 static void movie_directory(void)
 {
     enum { OTHER, MVIE_A, MVIE_B, SCENE_A, SCENE_B, SCENE_C, COUNT };
@@ -1847,6 +1959,7 @@ int main(void)
     movie_sessions();
     movie_camera();
     scene_tag_reader();
+    movie_actor_tags();
     movie_directory();
     movie_actors();
     movie_content();

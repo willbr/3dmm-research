@@ -54,17 +54,22 @@ static MMU32 word(const unsigned char *p,int n,int big)
 { MMU32 v=0; int i; for (i=0;i<n;++i) v=(v<<8)|p[big?i:n-1-i]; return v; }
 static void put(unsigned char *p,int n,MMU32 v,int big)
 { int i; for (i=0;i<n;++i) { p[big?n-1-i:i]=(unsigned char)(v&255U); v>>=8; } }
-static int descriptor(void *file,MMU32 type,MMU32 number,MMTextDescriptor *d,const MMTextResourceServices *s)
+int mm_text_decode_descriptor(const unsigned char b[24], int big, MMTextDescriptor *d)
 {
-    MMU32 child,v; void *block; unsigned char b[24]; int big;
-    if (!s->child(s->context,file,type,number,&child)) return 0;
-    block=s->find(s->context,file,child);
-    if (!block || !s->unpack(s->context,block) || s->block_size(s->context,block)<24 || !s->read(s->context,block,b,24)) return 0;
-    big=s->host_big_endian; if (word(b,2,big)!=1U) big=!big;
-    if (word(b,2,big)!=1U && s->bad_order) s->bad_order(s->context);
+    MMU32 v;
+    if (word(b,2,big)!=1U) big=!big;
     v=word(b+4,4,big); memcpy(&d->shape,&v,4);
     v=word(b+8,4,big); memcpy(&d->font.sid,&v,4); d->font.cache=NULL;
     d->font.type=word(b+16,4,big); d->font.number=word(b+20,4,big);
+    return word(b,2,big)==1U;
+}
+static int descriptor(void *file,MMU32 type,MMU32 number,MMTextDescriptor *d,const MMTextResourceServices *s)
+{
+    MMU32 child; void *block; unsigned char b[24];
+    if (!s->child(s->context,file,type,number,&child)) return 0;
+    block=s->find(s->context,file,child);
+    if (!block || !s->unpack(s->context,block) || s->block_size(s->context,block)<24 || !s->read(s->context,block,b,24)) return 0;
+    if (!mm_text_decode_descriptor(b,s->host_big_endian,d) && s->bad_order) s->bad_order(s->context);
     return 1;
 }
 int mm_text_read(void *object,void *file,MMU32 type,MMU32 number,const MMTextResourceServices *s)

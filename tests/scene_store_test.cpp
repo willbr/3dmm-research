@@ -367,8 +367,8 @@ int main()
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
 #ifdef DEBUG
-        // Scene event buffers use the shared C reader's allocator during tag collection.
-        CHECK(recorded == 164768 && hash == 0x49312809U);
+        // Scene and actor tag scans allocate their temporary buffers in C.
+        CHECK(recorded == 165088 && hash == 0xB8C12A79U);
 #else
         CHECK(recorded == 171264 && hash == 0x2F550AE5U);
 #endif

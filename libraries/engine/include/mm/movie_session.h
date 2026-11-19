@@ -74,6 +74,15 @@ int mm_movie_actor_header(const MMMovieSessionGraph *, MMU32 number, void *heade
 int mm_movie_actor_route(const MMMovieSessionGraph *, MMU32 number, const MMActorRouteReader *, void **out);
 int mm_movie_actor_events(const MMMovieSessionGraph *, MMU32 number, const MMActorEventServices *, void **out);
 
+enum { MM_ACTOR_TAG_TEMPLATE_LINK, MM_ACTOR_TAG_TEXT_ORDER };
+/* Validate the actor dependencies before publishing any tags. Visit the
+ * template, its local 3D text font if present, and event tags in wire order.
+ * Optional diagnostics report a missing local template link or invalid text
+ * byte order, both of which preserve the legacy fallback. A rejected tag
+ * ends the visit with MM_MOVIE_IO and retains the published prefix. */
+int mm_movie_actor_tags(const MMMovieSessionGraph *, MMU32 number, void *context,
+                        int (*visit)(void *, const MMTag *), void (*diagnostic)(void *, int));
+
 typedef struct MMMovieSceneSource
 {
     const MMMovieSession *movie;

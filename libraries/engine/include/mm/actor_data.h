@@ -58,6 +58,8 @@ extern "C"
         MMU32 child;
         MMTag tag;
     } MMActorSound;
+    /* Selects borrowed tag bytes from a validated native event payload. */
+    const void *mm_actor_payload_tag(MMI32 kind, const void *payload);
     /* Caller supplies 44 bytes of native header storage (or MMActorHeader).
      * Accepts 40/44 byte wire records, expands the old layout and swaps scalar bits.
      * Like the legacy reader, failed reads may modify output; invalid byte order

@@ -1,6 +1,7 @@
 #include "movie_session_internal.h"
 #include "mm/background_resource.h"
 #include "mm/scene_data.h"
+#include "mm/text_resource.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -467,6 +468,115 @@ int mm_movie_actor_events(const MMMovieSessionGraph *graph, MMU32 number, const 
         *out = read.value;
     else if (read.value)
         services->release(read.value);
+    return status;
+}
+
+typedef struct ActorFontTag
+{
+    MMTextDescriptor descriptor;
+    int loaded, valid_order;
+} ActorFontTag;
+
+static int receive_actor_font(void *context, const MMReadStream *stream)
+{
+    const unsigned short one = 1;
+    ActorFontTag *font = (ActorFontTag *)context;
+    unsigned char bytes[24];
+    if (font->loaded || stream->length < sizeof(bytes))
+        return MM_MOVIE_BAD_FILE;
+    if (!mm_read_exact(stream, 0, bytes, sizeof(bytes)))
+        return MM_MOVIE_IO;
+    font->valid_order = mm_text_decode_descriptor(bytes, *(const unsigned char *)&one == 0, &font->descriptor);
+    font->loaded = 1;
+    return MM_MOVIE_OK;
+}
+
+static int actor_font(const MMMovieSessionGraph *graph, const MMChunkAccess *chunks,
+                      const MMTag *tmpl, ActorFontTag *font)
+{
+    MMChunkEntry entry;
+    MMU32 parent, position;
+    int status = mm_chunk_find(chunks, tmpl->type, tmpl->number, &parent);
+    if (status == MM_CHUNK_OK)
+        status = mm_session_child(chunks, parent, 0, MM_TDT, &entry, &position);
+    if (status == MM_CHUNK_NOT_FOUND)
+        return MM_MOVIE_OK;
+    if (status != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    status = graph->payload(graph->context, &entry, receive_actor_font, font);
+    return status == MM_MOVIE_OK && !font->loaded ? MM_MOVIE_BAD_FILE : status;
+}
+
+static void *actor_tag_sink(void *context, MMU32 width)
+{
+    (void)width;
+    return context;
+}
+
+static void release_actor_tag_sink(void *group) { (void)group; }
+
+static int append_actor_event_tag(void *group, MMU32 row, MMU32 bytes, const void *data, const void *fixed)
+{
+    MMArray *tags = (MMArray *)group;
+    const void *tag;
+    MMI32 kind;
+    (void)row;
+    (void)bytes;
+    memcpy(&kind, fixed, sizeof(kind));
+    tag = mm_actor_payload_tag(kind, data);
+    return !tag || mm_array_add(tags, tag, NULL) == MM_STORAGE_OK;
+}
+
+int mm_movie_actor_tags(const MMMovieSessionGraph *graph, MMU32 number, void *context,
+                        int (*visit)(void *, const MMTag *), void (*diagnostic)(void *, int))
+{
+    MMActorHeader header;
+    MMChunkAccess chunks;
+    ActorFontTag font = {0};
+    MMTag tmpl, tag;
+    MMCollectionStorage storage;
+    MMArray tags = {0};
+    MMActorEventServices events = {0};
+    MMU32 i;
+    void *sink;
+    int status = mm_movie_actor_header(graph, number, &header);
+    if (status != MM_MOVIE_OK)
+        return status;
+    tmpl.sid = header.source_id;
+    tmpl.cache = NULL;
+    tmpl.type = header.template_type;
+    tmpl.number = header.template_number;
+    if (!tmpl.sid)
+    {
+        graph->access(graph->context, &chunks);
+        if (mm_actor_template_link(&chunks, number, tmpl.sid, 0, &tmpl.number) != MM_CHUNK_OK && diagnostic)
+            diagnostic(context, MM_ACTOR_TAG_TEMPLATE_LINK);
+        status = actor_font(graph, &chunks, &tmpl, &font);
+        if (status != MM_MOVIE_OK)
+            return status;
+        if (font.loaded && !font.valid_order && diagnostic)
+            diagnostic(context, MM_ACTOR_TAG_TEXT_ORDER);
+    }
+
+    if (mm_storage_init(&storage, NULL) != MM_STORAGE_OK)
+        return MM_MOVIE_MEMORY;
+    tags.storage = &storage;
+    tags.width = sizeof(MMTag);
+    tags.free_count = -1;
+    events.context = &tags;
+    events.new_group = actor_tag_sink;
+    events.insert = append_actor_event_tag;
+    events.release = release_actor_tag_sink;
+    status = mm_movie_actor_events(graph, number, &events, &sink);
+    if (status == MM_MOVIE_OK && (!visit(context, &tmpl) || (font.loaded && !visit(context, &font.descriptor.font))))
+        status = MM_MOVIE_IO;
+    for (i = 0; status == MM_MOVIE_OK && i < tags.count; ++i)
+    {
+        memcpy(&tag, storage.buffers[0].data + (size_t)i * sizeof(tag), sizeof(tag));
+        if (!visit(context, &tag))
+            status = MM_MOVIE_IO;
+    }
+    mm_storage_dispose(&storage);
     return status;
 }
 

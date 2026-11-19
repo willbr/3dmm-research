@@ -2859,48 +2859,36 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
 {
     AssertPo(pcfl, 0);
     AssertPo(ptagl, 0);
-    struct Host
-    {
-        PChunkyFile file;
-        PTagList tags;
-    } host = {pcfl, ptagl};
     MMMovieSceneSource source = {nullptr, EngineMovieGraph::FromFile(pcfl)};
     MMSceneCollectServices s = {};
-    s.context = &host;
+    s.context = ptagl;
     s.read = mm_movie_scene_tag_reader(&source);
     s.packets = ScenePacketServices();
     s.camera_type = kctgCam;
-    s.chunks = pcfl->ReadChunkAccess();
-    s.actor_tags = [](void *p, MMU32 n, int *error) -> void * {
-        bool failed;
-        auto tags = Actor::PgltagFetch(static_cast<Host *>(p)->file, n, &failed);
-        *error = failed;
-        return tags;
-    };
-    s.list_count = [](void *, void *p) -> MMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
-    s.list_tag = [](void *, void *p, MMI32 i, MMTag *out) {
-        TAG tag;
-        static_cast<PDynamicArray>(p)->Get(i, &tag);
-        *out = TagToCore(tag);
-    };
-    s.release_list = [](void *, void *p) { static_cast<PDynamicArray>(p)->Release(); };
+    s.graph = source.graph;
     s.free_sound = [](void *, void *p) { FreePpv(&p); };
     s.insert_tag = [](void *p, const MMTag *value) -> int {
         TAG tag;
         TagFromCore(&tag, *value);
-        return static_cast<Host *>(p)->tags->FInsertTag(&tag);
+        return static_cast<PTagList>(p)->FInsertTag(&tag);
     };
     s.background = [](void *p, MMTag *value) -> int {
         TAG tag;
         TagFromCore(&tag, *value);
-        bool ok = Background::FAddTagsToTagl(&tag, static_cast<Host *>(p)->tags);
+        bool ok = Background::FAddTagsToTagl(&tag, static_cast<PTagList>(p));
         *value = TagToCore(tag);
         return ok;
     };
     s.insert_child = [](void *p, const MMTag *value, MMU32 child, MMU32 type) -> int {
         TAG tag;
         TagFromCore(&tag, *value);
-        return static_cast<Host *>(p)->tags->FInsertChild(&tag, child, type);
+        return static_cast<PTagList>(p)->FInsertChild(&tag, child, type);
+    };
+    s.actor_diagnostic = [](void *, int issue) {
+        if (issue == MM_ACTOR_TAG_TEMPLATE_LINK)
+            Bug("where's the child Template?");
+        else
+            Assert(false, "bad ThreeDTextF");
     };
     s.diagnostic = [](void *, int start, int missing) {
         if (missing)

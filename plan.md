@@ -1023,6 +1023,10 @@ when they identify event groups for replacement.
 Studio tag collection also loads its event groups through the shared movie
 session reader. That path checks the wire layout and row bounds before visiting
 events and retains the collector's handling of unknown event kinds.
+Actor dependencies for the scan come directly from the C89 movie graph and
+actor event decoder. The collector resolves imported template links and local
+3D text font tags, then stages costume and sound dependencies before inserting
+any of the actor's tags.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

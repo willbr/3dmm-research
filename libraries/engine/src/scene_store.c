@@ -18,16 +18,17 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
     const int native_big = *(const unsigned char *)&one == 0;
     const MMMovieSceneReader *read = &s->read;
     const MMSceneSoundPacketServices *v = &s->packets;
+    MMChunkAccess chunks;
     MMMovieSceneGroup group;
     MMMovieSceneEvent event;
     MMTag background, tag;
     MMChunkChild link;
     MMSceneSound *sound;
-    void *list;
     MMI32 j;
     MMU32 i, child, scene_row;
-    int start, error, ok;
-    if (mm_chunk_find(&s->chunks, MM_SCENE_CHUNK, scene, &scene_row) != MM_CHUNK_OK)
+    int start, ok;
+    s->graph.access(s->graph.context, &chunks);
+    if (mm_chunk_find(&chunks, MM_SCENE_CHUNK, scene, &scene_row) != MM_CHUNK_OK)
         return 0;
     background.sid = -1;
     for (start = 1; start >= 0; --start)
@@ -42,28 +43,11 @@ int mm_scene_collect_tags(MMU32 scene, const MMSceneCollectServices *s)
                 if (event.bytes != 4)
                     goto fail;
                 child = mm_movie_scene_event_word(&event, 0);
-                if (mm_chunk_child_exact(&s->chunks, scene_row, child, MM_SCENE_ACTOR_CHUNK, &link) != MM_CHUNK_OK)
+                if (mm_chunk_child_exact(&chunks, scene_row, child, MM_SCENE_ACTOR_CHUNK, &link) != MM_CHUNK_OK)
                     goto fail;
-                list = s->actor_tags(s->context, link.number, &error);
-                if (error)
-                {
-                    if (list)
-                        s->release_list(s->context, list);
+                if (mm_movie_actor_tags(&s->graph, link.number, s->context, s->insert_tag, s->actor_diagnostic) !=
+                    MM_MOVIE_OK)
                     goto fail;
-                }
-                if (list)
-                {
-                    for (j = 0; j < s->list_count(s->context, list); ++j)
-                    {
-                        s->list_tag(s->context, list, j, &tag);
-                        if (!s->insert_tag(s->context, &tag))
-                        {
-                            s->release_list(s->context, list);
-                            goto fail;
-                        }
-                    }
-                    s->release_list(s->context, list);
-                }
             }
             else if (start && event.kind == MM_SCENE_SET_BACKGROUND)
             {
