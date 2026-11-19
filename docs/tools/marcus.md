@@ -1098,9 +1098,10 @@ modifier. **Win98 -> XP (1.35805x)** and **XP -> Win98 (0.918485x)** multiply th
 selected rate; Original with a modifier uses six FPS as its base. Uncapped
 ignores the modifier. These historical conversion presets do not emulate an OS.
 
-Apply saves both choices and uses them on the next playback update; Cancel
-discards edits and Restore defaults selects Original/Normal. Older settings files
-also default to Original/Normal. Explicit rates use the same fractional
+The editor status bar has **Frame rate** and **Speed** dropdowns that apply
+and save changes immediately. In Settings, **Apply** saves both choices,
+**Cancel** discards edits, and **Restore defaults** selects Original/Normal.
+Older settings files also default to Original/Normal. Explicit rates use the same fractional
 millisecond frame pacer and rate calculation as Studio. A late update advances
 one authored frame without accumulating catch-up debt; pause/resume preserves
 the remaining interval. Actual throughput still depends on rendering and display

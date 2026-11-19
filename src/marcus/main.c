@@ -54,6 +54,7 @@
 #define MOVIE_SCRUBBER_HEIGHT 32
 #define TIMELINE_MIN_HEIGHT 168
 #define VIEWPORT_MIN_BOTTOM 320
+#define EDITOR_STATUS_HEIGHT 24
 #define SHEET_OBJECTS 0
 #define SHEET_SOUNDS 1
 #define SHEET_BOTH 2
@@ -1260,6 +1261,15 @@ static void cancel_settings(App *app)
     if (app->movie_only)
         movie_activity(app);
 }
+static int save_settings(App *app, const MarcusShortcuts *next)
+{
+    if (!marcus_set_playback_rate(app->player, next->playback_rate, next->playback_modifier))
+        SDL_strlcpy(app->settings_message, marcus_error(app->player), sizeof(app->settings_message));
+    else if (shortcuts_save(app->settings_path, next, app->settings_message, sizeof(app->settings_message)))
+        return 1;
+    marcus_set_playback_rate(app->player, app->shortcuts.playback_rate, app->shortcuts.playback_modifier);
+    return 0;
+}
 static void apply_settings(App *app)
 {
     int rendering_changed, work_changed, i, scale;
@@ -1292,8 +1302,7 @@ static void apply_settings(App *app)
         SDL_strlcpy(app->settings_message, marcus_error(app->player), sizeof(app->settings_message));
         return;
     }
-    if (!shortcuts_save(app->settings_path, &app->edited_shortcuts, app->settings_message,
-                        sizeof(app->settings_message)))
+    if (!save_settings(app, &app->edited_shortcuts))
         return;
     if ((!app->shortcuts.debug_overlay && app->edited_shortcuts.debug_overlay) ||
         (!app->shortcuts.movie_debug_overlay && app->edited_shortcuts.movie_debug_overlay) ||
@@ -1302,11 +1311,6 @@ static void apply_settings(App *app)
         app->movie_dirty = app->dirty = 1;
     }
     app->shortcuts = app->edited_shortcuts;
-    if (!marcus_set_playback_rate(app->player, app->shortcuts.playback_rate, app->shortcuts.playback_modifier))
-    {
-        SDL_strlcpy(app->settings_message, marcus_error(app->player), sizeof(app->settings_message));
-        return;
-    }
     refresh(app);
     if (work_changed)
     {
@@ -2965,10 +2969,11 @@ static void draw_rendering_settings(App *app)
     igPlotLines_FloatPtr("Render time (ms)", history, count, 0, NULL, 0, maximum_ms, dialog_vec(480, 90), sizeof(float));
     igTextDisabled("Captured before opening settings. Playback is paused.");
 }
+static const char *playback_rates[] = {"Original", "6 FPS", "12 FPS", "24 FPS", "Uncapped"};
+static const char *playback_modifiers[] = {"Normal (1x)", "Win98 -> XP (1.35805x)", "XP -> Win98 (0.918485x)"};
+
 static void draw_settings(App *app)
 {
-    static const char *rates[] = {"Original", "6 FPS", "12 FPS", "24 FPS", "Uncapped"};
-    static const char *modifiers[] = {"Normal (1x)", "Win98 -> XP (1.35805x)", "XP -> Win98 (0.918485x)"};
     char binding[128];
     int open, row, cancel, apply;
     open = app->settings_open; cancel = apply = 0;
@@ -3003,8 +3008,12 @@ static void draw_settings(App *app)
             }
             igSeparatorText("Playback");
             dialog_checkbox("Pause playback on focus loss", &app->edited_shortcuts.pause_on_focus_loss);
-            igSetNextItemWidth(300); igCombo_Str_arr("Movie frame rate", &app->edited_shortcuts.playback_rate, rates, 5, -1);
-            igSetNextItemWidth(300); igCombo_Str_arr("Compatibility speed modifier", &app->edited_shortcuts.playback_modifier, modifiers, 3, -1);
+            igSetNextItemWidth(300);
+            igCombo_Str_arr("Movie frame rate", &app->edited_shortcuts.playback_rate,
+                            playback_rates, SDL_arraysize(playback_rates), -1);
+            igSetNextItemWidth(300);
+            igCombo_Str_arr("Compatibility speed modifier", &app->edited_shortcuts.playback_modifier,
+                            playback_modifiers, SDL_arraysize(playback_modifiers), -1);
             igSeparatorText("Rendering");
             if (igButton("Movie camera settings...", dialog_vec(260, 0))) {
                 app->rendering_settings = 1; app->settings_work_camera = 0;
@@ -3168,6 +3177,65 @@ static void draw_debug_overlay(App *app)
     if (app->shortcuts.work_debug_overlay && !app->movie_only && (app->second_view || app->authored != 1))
         draw_debug_panel(app, work_left(app) + 24, y, 1, 0);
 }
+static void draw_editor_status(App *app, const char *hint)
+{
+    const char *status;
+    MarcusShortcuts next;
+    ImVec2 start;
+    float top, frame_height, combo_padding, rate_width, speed_width, status_x, controls_x;
+    int changed;
+    top = (float)app->height - EDITOR_STATUS_HEIGHT;
+    if (ui_panel("Editor status", 0, top, (float)app->width, EDITOR_STATUS_HEIGHT, 1, 0))
+    {
+        status = app->playback.scrolling ? "Scrolling caption" : app->playback.transition ? "Scene transition" :
+            app->playback.wait == 1 ? "Click / Space to continue" : app->playback.wait == 2 ? "Waiting for sound" :
+            app->playback.wait == 3 ? "Timed pause" : app->modified ? "Unsaved movie" : "Movie playback";
+        frame_height = igGetFrameHeight();
+        combo_padding = frame_height + 2 * igGetStyle()->FramePadding.x;
+        rate_width = ui_text_width("Uncapped") + combo_padding;
+        speed_width = ui_text_width("XP -> Win98 (0.918485x)") + combo_padding;
+        status_x = app->width - ui_text_width("Click / Space to continue") - 12;
+        controls_x = status_x - rate_width - speed_width - ui_text_width("Frame rate") - ui_text_width("Speed") - 36;
+        igSetCursorPos(dialog_vec(8, (EDITOR_STATUS_HEIGHT - frame_height) * 0.5f));
+        igAlignTextToFramePadding();
+        start = igGetCursorScreenPos();
+        igPushClipRect(start, dialog_vec(controls_x - 12, (float)app->height), 1);
+        igTextUnformatted(hint, NULL);
+        if (ui_text_width(hint) > controls_x - 12 - start.x)
+            igSetItemTooltip("%s", hint);
+        igPopClipRect();
+
+        next = app->shortcuts;
+        igSameLine(controls_x, 0);
+        igTextUnformatted("Frame rate", NULL);
+        igSameLine(0, 6);
+        igSetNextItemWidth(rate_width);
+        changed = igCombo_Str_arr("##Movie frame rate", &next.playback_rate,
+                                  playback_rates, SDL_arraysize(playback_rates), -1);
+        igSetItemTooltip("Movie frame rate");
+        igSameLine(0, 12);
+        igTextUnformatted("Speed", NULL);
+        igSameLine(0, 6);
+        igSetNextItemWidth(speed_width);
+        changed |= igCombo_Str_arr("##Compatibility speed modifier", &next.playback_modifier,
+                                   playback_modifiers, SDL_arraysize(playback_modifiers), -1);
+        igSetItemTooltip("Compatibility speed modifier");
+        igSameLine(status_x, 0);
+        igTextUnformatted(status, NULL);
+
+        if (changed)
+        {
+            if (save_settings(app, &next))
+            {
+                app->shortcuts = next;
+                refresh(app);
+            }
+            else
+                fail(app, app->settings_message);
+        }
+    }
+    ui_panel_end();
+}
 static void draw(App *app)
 {
     char previous[64], next[64], previous_scene[64], next_scene[64], play[64], view[64], hint[512];
@@ -3209,14 +3277,7 @@ static void draw(App *app)
     if (!storyboard_editor_visible(app->storyboard_editor)) draw_sidebar(app);
     draw_view(app);
 
-    if (ui_panel("Editor status", 0, (float)app->height - 24, (float)app->width, 24, 1, 0)) {
-        igTextUnformatted(app->ui.hint ? app->ui.hint : hint, NULL);
-        igSameLine((float)app->width - 210, -1);
-        igTextUnformatted(app->playback.scrolling ? "Scrolling caption" : app->playback.transition ? "Scene transition" :
-            app->playback.wait == 1 ? "Click / Space to continue" : app->playback.wait == 2 ? "Waiting for sound" :
-            app->playback.wait == 3 ? "Timed pause" : app->modified ? "Unsaved movie" : "Movie playback", NULL);
-    }
-    ui_panel_end();
+    draw_editor_status(app, app->ui.hint ? app->ui.hint : hint);
     draw_debug_overlay(app);
     if (app->settings_open)
         draw_settings(app);
