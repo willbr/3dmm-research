@@ -27,6 +27,7 @@
 #include "preview_actor_tree.h"
 #include "preview_background.h"
 #include "preview_presentation.h"
+#include "preview_audio_output.h"
 #undef size
 #include "preview_cue_view.h"
 ASSERTNAME
@@ -79,7 +80,6 @@ struct Preview::Impl
     struct LiveHost;
     struct AdmissionHost;
     struct SessionHost;
-    struct SoundHost;
     struct Source
     {
         Archive archive;
@@ -209,7 +209,6 @@ struct Preview::Impl
 #include "preview_live_host.h"
 #include "preview_admission_host.h"
 #include "preview_session_host.h"
-#include "preview_sound_host.h"
 Preview::Preview() : _impl(new Impl)
 {
 }
@@ -841,12 +840,35 @@ bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &
 try
 {
     error = {};
-    Impl::SoundHost host = {_impl.get(), &audio};
-    auto services = host.Services();
+    Internal::AudioOutput output{audio, {}};
+    const auto audioServices = output.Services();
+    struct SoundSource
+    {
+        Impl &impl;
+        Internal::AudioOutput &audio;
+    } source{*_impl, output};
+    const MMPreviewSoundServices services{
+        &source,
+        [](void *p, MMI32 sid) { static_cast<SoundSource *>(p)->audio.output.source = sid; },
+        [](void *p, MMI32 sid, MMU32 type, MMU32 number, MMMovieSessionGraph *out) {
+            auto &host = *static_cast<SoundSource *>(p);
+            return host.audio.Guard([&] {
+                const TAGOnFile tag = {sid, 0, type, number};
+                auto file = host.impl.Resolve(tag);
+                if (!file)
+                    return 0;
+                *out = EngineMovieGraph::FromFile(file->Pcfl());
+                return 1;
+            });
+        }};
     const auto input = Internal::PreviewCueCore(cue);
+    MMChunkAccess chunks;
+    if (_impl->cache)
+        chunks = _impl->cache->Pcfl()->ReadChunkAccess();
     MMU32 number;
-    const int result = mm_preview_sound(&input, _impl->live.status.ready, _impl->live.status.asset_number, &number, &services);
-    if (host.exception) std::rethrow_exception(host.exception);
+    const int result = mm_preview_sound(&input, _impl->live.status.ready, _impl->live.status.asset_number,
+                                        _impl->cache ? &chunks : nullptr, &number, &services, &audioServices);
+    if (output.exception) std::rethrow_exception(output.exception);
     if (result > 0) return true;
     if (result == MM_PREVIEW_SOUND_NOT_READY)
         return Fail(error, ErrorCode::invalid_argument, "Select a scene before reading its sounds.");

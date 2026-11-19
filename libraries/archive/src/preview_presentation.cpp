@@ -3,6 +3,7 @@
 #include <locale>
 #include <cstring>
 #include "preview_presentation.h"
+#include "preview_audio_output.h"
 #include "engine_movie_graph.h"
 #include "mm/native_caption.h"
 #include "mm/preview_media.h"
@@ -106,10 +107,11 @@ bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &
 }
 bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, PreviewAudio &out)
 {
-    AudioHost host = {file, &out};
-    auto services = host.Services();
-    const int result = mm_preview_audio(type, number, &services);
-    if (host.exception) std::rethrow_exception(host.exception);
+    AudioOutput output{out, {}};
+    const auto services = output.Services();
+    const auto graph = EngineMovieGraph::FromFile(file);
+    const int result = mm_preview_audio(&graph, type, number, &services);
+    if (output.exception) std::rethrow_exception(output.exception);
     return result > 0;
 }
 } // namespace Internal

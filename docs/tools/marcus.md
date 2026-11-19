@@ -2292,6 +2292,12 @@ formatting records. C89 reads TEXT from its stored extent and converts the
 descriptor through the same routine used for edit previews. Marcus supplies
 legacy code-page and font-name conversion and publishes the preview records.
 
+The graph resolves local sound links against the cue's scene before looking
+for the first matching movie-root link. For each resolved source, C89 reads
+the first slot-zero child of the MSND envelope and streams its decoded data
+into the WAVE buffer or the MIDI parser. Marcus and Studio share the wire
+decoder and retain their handling of invalid markers and flags.
+
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
 movie, keeping ZIP/VMM inputs alive. Engine globals remain isolated in the child
@@ -2338,6 +2344,15 @@ The asset-preview checks retained the media and metadata fingerprints and
 verified that TEXT uses its stored bytes even with the packed flag set.
 SDL Studio matched the seek state and viewport pixels in all five retained
 retail caption captures. Evidence is in `tmp/c89-stored-captions/`.
+
+The sound graph reader retained the media and metadata fingerprints and
+three timing snapshots. The archive tests also decoded a packed WAVE from an
+MSND child. In fresh actor-audio captures, Marcus, SDL Studio and retail
+committed the same 60 frames in each mode and played both fixture tones in
+the first scene only. SDL Studio's sound requests matched retail. Marcus and
+SDL Studio reproduced their prior seek images, with two pixels differing from
+retail in one frame. The mixed PCM still differed from retail in both ports.
+Evidence is in `tmp/c89-sound-graph/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

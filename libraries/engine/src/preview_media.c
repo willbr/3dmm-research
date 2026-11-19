@@ -254,11 +254,6 @@ int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
         s->release(s->input, owner);
     return result;
 }
-static MMU32 word(const unsigned char *p, int big)
-{
-    return big ? ((MMU32)p[0] << 24) | ((MMU32)p[1] << 16) | ((MMU32)p[2] << 8) | p[3]
-               : ((MMU32)p[3] << 24) | ((MMU32)p[2] << 16) | ((MMU32)p[1] << 8) | p[0];
-}
 typedef struct CaptionGroup
 {
     MMMoviePayload payload;
@@ -278,7 +273,7 @@ typedef struct StoredCaption
     int encoding, result;
 } StoredCaption;
 
-static int caption_status(int status)
+static int preview_read_failure(int status)
 {
     return status == MM_MOVIE_MEMORY ? -1 : 0;
 }
@@ -413,13 +408,13 @@ int mm_preview_caption_graph(MMU32 number, const MMPreviewCaptionArchive *source
         return 0;
     status = graph->payload(graph->context, &entry, read_box, &caption.box);
     if (status != MM_MOVIE_OK)
-        return caption_status(status);
+        return preview_read_failure(status);
     if (mm_session_child(&caption.archive.access, box, caption.box.child, MM_TEXT_ROOT, &entry, &caption.root) !=
         MM_CHUNK_OK)
         return 0;
     status = graph->payload(graph->context, &entry, read_root, &caption);
     if (status != MM_MOVIE_OK)
-        return caption_status(status);
+        return preview_read_failure(status);
     if (caption.result <= 0)
         return caption.result;
     if (mm_session_child(&caption.archive.access, caption.root, 0, MM_TEXT_BYTES, &entry, &position) != MM_CHUNK_OK)
@@ -428,127 +423,42 @@ int mm_preview_caption_graph(MMU32 number, const MMPreviewCaptionArchive *source
     status = source->text(graph->context, &entry, read_stored_text, &caption);
     free(caption.properties.payload.decoded);
     free(caption.arguments.payload.decoded);
-    return status == MM_MOVIE_OK ? caption.result : caption_status(status);
+    return status == MM_MOVIE_OK ? caption.result : preview_read_failure(status);
 }
 
-int mm_preview_audio(MMU32 type, MMU32 number, const MMPreviewAudioServices *s)
+typedef struct AudioPayload
+{
+    const MMPreviewAudioServices *services;
+    MMU32 type, number;
+    int result;
+} AudioPayload;
+
+static int read_midi(const MMReadStream *stream, const MMPreviewAudioServices *s)
 {
     MMCollectionStorage scratch;
     MMMidiParser parser;
     MMMidiEvent event;
-    unsigned char header[16], *wave;
-    MMI32 bytes;
     MMU32 events = 0, message;
-    int r, result = 0, big;
+    int r, result = 0;
     mm_storage_init(&scratch, s->allocator);
-    s->reset(s->context);
-    if (type == MM_SOUND_TYPE)
-    {
-        r = s->find(s->context, type, number);
-        if (r <= 0)
-        {
-            result = r;
-            goto done;
-        }
-        r = s->unpack(s->context);
-        if (r <= 0)
-        {
-            result = r;
-            goto done;
-        }
-        if (s->size(s->context) != 16)
-            goto done;
-        r = s->read(s->context, header, 16);
-        if (r <= 0)
-        {
-            result = r;
-            goto done;
-        }
-        if (!((header[0] == 1 && !header[1]) || (!header[0] && header[1] == 1)))
-            goto done;
-        big = header[0] == 0;
-        if (word(header + 12, big))
-        {
-            s->silent(s->context);
-            result = 1;
-            goto done;
-        }
-        r = s->child(s->context, number, &type, &number);
-        if (r < 0)
-        {
-            result = r;
-            goto done;
-        }
-        if (!r)
-        {
-            s->silent(s->context);
-            result = 1;
-            goto done;
-        }
-    }
-    r = s->find(s->context, type, number);
-    if (r <= 0)
-    {
-        result = r;
+    if (mm_storage_resize_exact(&scratch, 0, stream->length, MM_STORAGE_NORMAL) != MM_STORAGE_OK ||
+        !mm_read_exact(stream, 0, scratch.buffers[0].data, stream->length))
         goto done;
-    }
-    r = s->unpack(s->context);
-    if (r <= 0)
+    mm_midi_parser_init(&parser, scratch.buffers[0].data, stream->length, 0, 500000);
+    while (mm_midi_next(&parser, &event, 1))
     {
-        result = r;
-        goto done;
-    }
-    bytes = s->size(s->context);
-    if (bytes < 0 || bytes > 64 * 1024 * 1024)
-        goto done;
-    s->publish(s->context, type, number, type == MM_SOUND_MIDI);
-    if (type == MM_SOUND_MIDI)
-    {
-        if (mm_storage_resize_exact(&scratch, 0, (MMU32)bytes, MM_STORAGE_NORMAL) != MM_STORAGE_OK)
+        if (events >= 1000000 || event.timestamp > 24u * 60 * 60 * 1000)
             goto done;
-        if (bytes)
+        if (event.count > 0 && event.count <= 3 && event.send[0] < 0xf0)
         {
-            r = s->read(s->context, scratch.buffers[0].data, (MMU32)bytes);
+            message = (MMU32)event.send[0] | ((MMU32)event.send[1] << 8) | ((MMU32)event.send[2] << 16);
+            r = s->event(s->context, event.timestamp, message);
             if (r <= 0)
             {
                 result = r;
                 goto done;
             }
-        }
-        mm_midi_parser_init(&parser, scratch.buffers[0].data, (MMU32)bytes, 0, 500000);
-        while (mm_midi_next(&parser, &event, 1))
-        {
-            if (events >= 1000000 || event.timestamp > 24u * 60 * 60 * 1000)
-                goto done;
-            if (event.count > 0 && event.count <= 3 && event.send[0] < 0xf0)
-            {
-                message = (MMU32)event.send[0] | ((MMU32)event.send[1] << 8) | ((MMU32)event.send[2] << 16);
-                r = s->event(s->context, event.timestamp, message);
-                if (r <= 0)
-                {
-                    result = r;
-                    goto done;
-                }
-                ++events;
-            }
-        }
-    }
-    else
-    {
-        r = s->wave_buffer(s->context, (MMU32)bytes, &wave);
-        if (r <= 0)
-        {
-            result = r;
-            goto done;
-        }
-        if (bytes)
-        {
-            r = s->read(s->context, wave, (MMU32)bytes);
-            if (r <= 0)
-            {
-                result = r;
-                goto done;
-            }
+            ++events;
         }
     }
     result = 1;
@@ -556,52 +466,130 @@ done:
     mm_storage_dispose(&scratch);
     return result;
 }
-int mm_preview_sound(const MMPreviewCue *cue, int ready, MMU32 scene, MMU32 *resolved, const MMPreviewSoundServices *s)
+
+static int read_audio_payload(void *context, const MMReadStream *stream)
 {
-    MMU32 i, count, type, number, child;
-    void *file;
-    int r;
+    AudioPayload *payload = (AudioPayload *)context;
+    const MMPreviewAudioServices *s = payload->services;
+    unsigned char *wave;
+    int midi = payload->type == MM_SOUND_MIDI;
+    if (stream->length > 64 * 1024 * 1024)
+        return MM_MOVIE_BAD_FILE;
+    s->publish(s->context, payload->type, payload->number, midi);
+    if (midi)
+        payload->result = read_midi(stream, s);
+    else
+    {
+        payload->result = s->wave_buffer(s->context, stream->length, &wave);
+        if (payload->result > 0)
+            payload->result = mm_read_exact(stream, 0, wave, stream->length);
+    }
+    return MM_MOVIE_OK;
+}
+
+static int read_sound_header(void *context, const MMReadStream *stream)
+{
+    MMSoundHeader *header = (MMSoundHeader *)context;
+    const unsigned short one = 1;
+    unsigned char bytes[MM_SOUND_HEADER_BYTES];
+    int status = mm_movie_read_fixed(stream, bytes, sizeof(bytes));
+    if (status != MM_MOVIE_OK)
+        return status;
+    return mm_sound_decode_header(bytes, *(const unsigned char *)&one == 0, header) ?
+        MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+static int read_audio(const MMMovieSessionGraph *graph, MMU32 type, MMU32 number, const MMPreviewAudioServices *s)
+{
+    MMChunkAccess chunks;
+    MMChunkEntry entry;
+    MMChunkChild child;
+    MMSoundHeader header;
+    AudioPayload payload = {0};
+    MMU32 position;
+    int status;
+    graph->access(graph->context, &chunks);
+    if (mm_chunk_find(&chunks, type, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK)
+        return 0;
+    if (type == MM_SOUND_TYPE)
+    {
+        status = graph->payload(graph->context, &entry, read_sound_header, &header);
+        if (status != MM_MOVIE_OK)
+            return preview_read_failure(status);
+        status = header.invalid || header.reserved_nonzero ? MM_CHUNK_NOT_FOUND :
+                     mm_chunk_child_type(&chunks, position, 0, 0, &child);
+        if (status == MM_CHUNK_NOT_FOUND)
+        {
+            s->silent(s->context);
+            return 1;
+        }
+        if (status != MM_CHUNK_OK || mm_chunk_find(&chunks, child.type, child.number, &position) != MM_CHUNK_OK ||
+            mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK)
+            return 0;
+    }
+    payload.services = s;
+    payload.type = entry.type;
+    payload.number = entry.number;
+    status = graph->payload(graph->context, &entry, read_audio_payload, &payload);
+    return status == MM_MOVIE_OK ? payload.result : preview_read_failure(status);
+}
+
+int mm_preview_audio(const MMMovieSessionGraph *graph, MMU32 type, MMU32 number, const MMPreviewAudioServices *s)
+{
     s->reset(s->context);
+    return read_audio(graph, type, number, s);
+}
+
+static int remap_sound(const MMChunkAccess *movie, MMU32 scene, MMU32 slot, MMU32 *resolved)
+{
+    const MMU32 scene_type = 0x5343454eUL, movie_type = 0x4d564945UL;
+    MMChunkEntry entry;
+    MMChunkChild child;
+    MMU32 ordinal, position;
+    int status = mm_chunk_link_number(movie, scene_type, scene, slot, MM_SOUND_TYPE, resolved);
+    if (status != MM_CHUNK_NOT_FOUND)
+        return status == MM_CHUNK_OK;
+    for (ordinal = 0; ; ++ordinal)
+    {
+        status = mm_chunk_type_at(movie, movie_type, ordinal, &entry, &position);
+        if (status != MM_CHUNK_OK)
+            return status == MM_CHUNK_NOT_FOUND;
+        status = mm_chunk_child_exact(movie, position, slot, MM_SOUND_TYPE, &child);
+        if (status != MM_CHUNK_NOT_FOUND)
+        {
+            if (status == MM_CHUNK_OK)
+                *resolved = child.number;
+            return status == MM_CHUNK_OK;
+        }
+    }
+}
+
+int mm_preview_sound(const MMPreviewCue *cue, int ready, MMU32 scene, const MMChunkAccess *movie,
+                     MMU32 *resolved, const MMPreviewSoundServices *s, const MMPreviewAudioServices *audio)
+{
+    MMMovieSessionGraph graph;
+    int r;
+    audio->reset(audio->context);
     *resolved = cue->number;
     if (cue->silent)
     {
-        s->silent(s->context);
+        audio->silent(audio->context);
         return 1;
     }
     if (!ready)
         return MM_PREVIEW_SOUND_NOT_READY;
-    if (!cue->source)
+    if (!cue->source && movie)
     {
-        if (cue->scene_type == 0x5343454eU)
+        if (cue->scene_type == 0x5343454eUL)
             scene = cue->scene_number;
-        r = s->child(s->context, 0x5343454eU, scene, cue->child, &child);
-        if (r < 0)
-            return r;
-        if (r)
-            *resolved = child;
-        else
-        {
-            count = s->chunks(s->context);
-            for (i = 0; i < count; ++i)
-            {
-                s->chunk(s->context, i, &type, &number);
-                if (type != 0x4d564945U)
-                    continue;
-                r = s->child(s->context, type, number, cue->child, &child);
-                if (r < 0)
-                    return r;
-                if (r)
-                {
-                    *resolved = child;
-                    break;
-                }
-            }
-        }
+        if (!remap_sound(movie, scene, cue->child, resolved))
+            return 0;
     }
-    r = s->resolve(s->context, cue->source, cue->type, *resolved, &file);
+    r = s->resolve(s->context, cue->source, cue->type, *resolved, &graph);
     if (r <= 0)
         return r < 0 ? r : MM_PREVIEW_SOUND_MISSING;
-    r = s->audio(s->context, file, cue->type, *resolved);
+    r = read_audio(&graph, cue->type, *resolved, audio);
     if (r > 0)
         s->source(s->context, cue->source);
     return r;

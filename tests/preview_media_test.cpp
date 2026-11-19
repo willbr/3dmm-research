@@ -231,6 +231,16 @@ int main(int argc, char **argv)
         if (!audio(kctgMsnd, parent, kind != 3 && kind != 4))
             return 1;
     }
+    const std::vector<byte> packedWave(4096, 0x57);
+    ChunkNumber packedNumber, packedParent;
+    std::vector<byte> packedHeader(16, 0);
+    packedHeader[0] = 1;
+    MM::PreviewAudio packedAudio;
+    if (!Add(file, kctgWave, packedWave, &packedNumber) || !file->FPackData(kctgWave, packedNumber) ||
+        !file->FPacked(kctgWave, packedNumber) || !Add(file, kctgMsnd, packedHeader, &packedParent) ||
+        !file->FAdoptChild(kctgMsnd, packedParent, kctgWave, packedNumber, 0) ||
+        !MM::Internal::ReadAudio(file, kctgMsnd, packedParent, packedAudio) || packedAudio.wave != packedWave)
+        return 1;
     for (int kind = 0; kind < 10; ++kind)
     {
         ChunkNumber scene;

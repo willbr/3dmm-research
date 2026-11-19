@@ -50,10 +50,6 @@ extern "C"
         void *context;
         const MMStorageAllocator *allocator;
         void (*reset)(void *), (*silent)(void *);
-        int (*find)(void *, MMU32 type, MMU32 number), (*unpack)(void *);
-        MMI32 (*size)(void *);
-        int (*read)(void *, void *bytes, MMU32 count);
-        int (*child)(void *, MMU32 parent, MMU32 *type, MMU32 *number);
         void (*publish)(void *, MMU32 type, MMU32 number, int midi);
         int (*wave_buffer)(void *, MMU32, unsigned char **);
         int (*event)(void *, MMU32 timestamp, MMU32 message);
@@ -61,12 +57,8 @@ extern "C"
     typedef struct MMPreviewSoundServices
     {
         void *context;
-        void (*reset)(void *), (*silent)(void *), (*source)(void *, MMI32);
-        int (*child)(void *, MMU32 parent_type, MMU32 parent, MMU32 slot, MMU32 *number);
-        MMU32 (*chunks)(void *);
-        void (*chunk)(void *, MMU32 index, MMU32 *type, MMU32 *number);
-        int (*resolve)(void *, MMI32 source, MMU32 type, MMU32 number, void **file);
-        int (*audio)(void *, void *file, MMU32 type, MMU32 number);
+        void (*source)(void *, MMI32);
+        int (*resolve)(void *, MMI32 source, MMU32 type, MMU32 number, MMMovieSessionGraph *);
     } MMPreviewSoundServices;
     enum
     {
@@ -90,9 +82,9 @@ extern "C"
     /* The archive supplies input callbacks. load_font falls back to an empty
      * name on invalid wire text and reports only hard failures. */
     int mm_preview_caption_graph(MMU32 number, const MMPreviewCaptionArchive *, const MMPreviewCaptionServices *);
-    int mm_preview_audio(MMU32 type, MMU32 number, const MMPreviewAudioServices *);
-    int mm_preview_sound(const MMPreviewCue *, int ready, MMU32 current_scene, MMU32 *resolved_number,
-                         const MMPreviewSoundServices *);
+    int mm_preview_audio(const MMMovieSessionGraph *, MMU32 type, MMU32 number, const MMPreviewAudioServices *);
+    int mm_preview_sound(const MMPreviewCue *, int ready, MMU32 current_scene, const MMChunkAccess *movie,
+                         MMU32 *resolved_number, const MMPreviewSoundServices *, const MMPreviewAudioServices *);
 #ifdef __cplusplus
 }
 #endif

@@ -8,6 +8,16 @@
 extern "C" {
 #endif
 enum { MM_SOUND_TYPE=0x4d534e44, MM_SOUND_MIDI=0x4d494453, MM_SOUND_WAVE=0x57415645 };
+enum { MM_SOUND_HEADER_BYTES = 16 };
+typedef struct MMSoundHeader
+{
+    MMI32 style, volume;
+    int invalid, reserved_nonzero;
+} MMSoundHeader;
+/* Style and volume use the caller's native byte order, irrespective of the marker.
+ * The decoded fields are available even when the marker is unrecognized. */
+int mm_sound_decode_header(const unsigned char bytes[MM_SOUND_HEADER_BYTES], int host_big_endian,
+                           MMSoundHeader *);
 typedef struct MMSoundResource
 {
     MMU32 type,number;

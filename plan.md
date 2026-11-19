@@ -995,6 +995,9 @@ loop and queue progression, and MIDI preroll and rendering decisions.
 Marcus and Studio share PCM accumulation and clipping. The Marcus schedule
 and live mixer use the same rule for stopping loops at scene cuts. Device
 access, decoded clip caching and SoundFont synthesis use host services.
+Marcus resolves user-sound links and reads the selected audio payload through
+the C89 movie graph. Its MSND header decoder is shared with Studio. The host
+selects the content source and publishes the decoded audio records.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.
