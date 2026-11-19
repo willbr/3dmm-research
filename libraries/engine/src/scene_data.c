@@ -4,8 +4,11 @@
 #include "mm/collections.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_data.h"
+#include "mm/movie_sound.h"
 #include "mm/scene_edit.h"
+#include "mm/scene_sound.h"
 #include "mm/wide.h"
+#include "sound_archive_internal.h"
 #include <stdlib.h>
 #include <string.h>
 static MMU32 word(const unsigned char *p, int big)
@@ -401,9 +404,8 @@ static void move_opening_camera(void *context, MMI32 index, MMI32 frame)
     }
 }
 
-static int replace_frames(void *context)
+static int publish_frames(SceneFrameEdit *edit, MMGroup *group)
 {
-    SceneFrameEdit *edit = (SceneFrameEdit *)context;
     const MMMovieArchiveEditor *editor = edit->editor;
     MMStorageWriter writer;
     unsigned char header[MM_SCENE_EMPTY_GROUP_BYTES];
@@ -412,15 +414,15 @@ static int replace_frames(void *context)
     if (edit->result != MM_SCENE_ARCHIVE_EDIT_OK)
         return 0;
     edit->result = MM_SCENE_ARCHIVE_EDIT_WRITE_FRAMES;
-    size = sizeof(header) + edit->group.bytes + edit->group.count * 8;
-    if (!encode_group_header(editor->system, edit->big, edit->group.count, edit->group.bytes, header) ||
+    size = sizeof(header) + group->bytes + group->count * 8;
+    if (!encode_group_header(editor->system, edit->big, group->count, group->bytes, header) ||
         !editor->add(editor->context, FRAME_GROUP_TYPE, size, &number, &writer))
         return 0;
     /* The edit owns this group and discards it after writing. */
     if (edit->big != (*(const unsigned char *)&one == 0))
-        mm_group_swap_locations(&edit->group);
-    if (mm_storage_write(&edit->storage, &writer, header, sizeof(header), edit->group.bytes,
-                         edit->group.count * 8) != MM_STORAGE_OK)
+        mm_group_swap_locations(group);
+    if (mm_storage_write(group->storage, &writer, header, sizeof(header), group->bytes,
+                         group->count * 8) != MM_STORAGE_OK)
         return 0;
     editor->unlink(editor->context, SCENE_TYPE, edit->number, FRAME_GROUP_TYPE, edit->previous, 0);
     if (!editor->adopt(editor->context, SCENE_TYPE, edit->number, FRAME_GROUP_TYPE, number, 0))
@@ -430,6 +432,12 @@ static int replace_frames(void *context)
     }
     edit->result = MM_SCENE_ARCHIVE_EDIT_OK;
     return 1;
+}
+
+static int replace_frames(void *context)
+{
+    SceneFrameEdit *edit = (SceneFrameEdit *)context;
+    return publish_frames(edit, &edit->group);
 }
 
 static int drop_frame_thumbnail(void *context)
@@ -456,16 +464,13 @@ static int write_frame_range(void *context)
     return 0;
 }
 
-static int begin_frame_edit(SceneFrameEdit *edit, const MMMovieArchiveEditor *editor, MMU32 scene)
+static void init_frame_edit(SceneFrameEdit *edit, const MMMovieArchiveEditor *editor, MMU32 scene)
 {
     memset(edit, 0, sizeof(*edit));
     edit->editor = editor;
     edit->number = scene;
-    if (!mm_scene_archive_read_header(editor, scene, &edit->scene))
-        return 0;
     mm_storage_init(&edit->storage, NULL);
     edit->group.storage = &edit->storage;
-    return 1;
 }
 
 int mm_scene_archive_set_camera(const MMMovieArchiveEditor *editor, MMU32 scene, MMI32 key, MMU32 camera)
@@ -474,7 +479,8 @@ int mm_scene_archive_set_camera(const MMMovieArchiveEditor *editor, MMU32 scene,
     MMSceneCameraStoreServices services = {
         {NULL, frame_count, frame_event, erase_camera, insert_camera}, open_frames, replace_frames,
         drop_frame_thumbnail};
-    if (!begin_frame_edit(&edit, editor, scene))
+    init_frame_edit(&edit, editor, scene);
+    if (!mm_scene_archive_read_header(editor, scene, &edit.scene))
         return MM_SCENE_ARCHIVE_EDIT_READ_SCENE;
     services.events.context = &edit;
     mm_scene_camera_store(edit.scene.firstFrame, key, camera, &services);
@@ -488,7 +494,8 @@ int mm_scene_archive_set_range(const MMMovieArchiveEditor *editor, MMU32 scene, 
     MMSceneRuntimeServices events = {0};
     MMSceneRangeStoreServices services = {NULL, open_frames, replace_frames, drop_frame_thumbnail, write_frame_range};
     int result;
-    if (!begin_frame_edit(&edit, editor, scene))
+    init_frame_edit(&edit, editor, scene);
+    if (!mm_scene_archive_read_header(editor, scene, &edit.scene))
         return MM_SCENE_ARCHIVE_EDIT_READ_SCENE;
     events.context = &edit;
     events.event_count = frame_count;
@@ -498,6 +505,271 @@ int mm_scene_archive_set_range(const MMMovieArchiveEditor *editor, MMU32 scene, 
     result = mm_scene_range_store(&edit.scene, first, last, &services);
     mm_storage_dispose(&edit.storage);
     return result == MM_SCENE_RANGE_INVALID ? MM_SCENE_ARCHIVE_EDIT_RANGE : edit.result;
+}
+
+typedef struct ArchiveSoundTag
+{
+    MMU32 child;
+    MMTag tag;
+} ArchiveSoundTag;
+
+static void *allocate_packet(void *context, MMI32 bytes)
+{
+    (void)context;
+    return malloc((size_t)bytes);
+}
+static void copy_packet_tag(void *context, void *out, const void *tag)
+{
+    (void)context;
+    memcpy(out, tag, sizeof(ArchiveSoundTag));
+}
+static void retain_packet_tag(void *context, void *tag)
+{
+    (void)context;
+    (void)tag; /* Archive tags have no runtime cache owner. */
+}
+static void read_packet_tag(void *context, const void *record, MMU32 *child, MMTag *tag)
+{
+    const ArchiveSoundTag *entry = (const ArchiveSoundTag *)record;
+    (void)context;
+    *child = entry->child;
+    *tag = entry->tag;
+}
+static void write_packet_tag(void *context, void *record, MMU32 child, const MMTag *tag)
+{
+    ArchiveSoundTag *entry = (ArchiveSoundTag *)record;
+    (void)context;
+    entry->child = child;
+    entry->tag = *tag;
+}
+
+static const MMSceneSoundPacketServices archive_packets = {
+    NULL, sizeof(ArchiveSoundTag), allocate_packet, copy_packet_tag, NULL, retain_packet_tag, NULL,
+    read_packet_tag, write_packet_tag, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+
+typedef struct FrameSoundChange
+{
+    MMU32 row;
+    MMI32 frame, bytes;
+    unsigned char *payload;
+} FrameSoundChange;
+
+static int native_swap(int big)
+{
+    const unsigned short one = 1;
+    return big != (*(const unsigned char *)&one == 0);
+}
+
+static MMSceneSound *decode_packet(const unsigned char *bytes, MMI32 size, int big)
+{
+    MMSceneSound *packet;
+    void *copy = malloc((size_t)size);
+    if (!copy)
+        return NULL;
+    memcpy(copy, bytes, (size_t)size);
+    packet = mm_scene_sound_decode(copy, size, native_swap(big), &archive_packets);
+    free(copy);
+    return packet;
+}
+
+static int store_packet(FrameSoundChange *change, MMSceneSound *packet, int big)
+{
+    MMU32 value;
+    MMI32 i;
+    if (!packet)
+        return MM_SOUND_ARCHIVE_MEMORY;
+    if (!packet->ctagc)
+    {
+        free(packet);
+        return MM_SOUND_ARCHIVE_OK;
+    }
+    change->payload = (unsigned char *)mm_scene_sound_encode(packet, &change->bytes, &archive_packets);
+    free(packet);
+    if (!change->payload)
+        return MM_SOUND_ARCHIVE_PACKET;
+    if (native_swap(big))
+        for (i = 0; i < change->bytes; i += 4)
+        {
+            memcpy(&value, change->payload + i, 4);
+            put(change->payload + i, value, 4, big);
+        }
+    return MM_SOUND_ARCHIVE_OK;
+}
+
+static MMSceneSound *new_sound_packet(const MMMovieSoundArchiveEdit *edit, const ArchiveSoundTag *added)
+{
+    return mm_scene_sound_make(edit->volume, edit->style, edit->loop, 1, added, &archive_packets);
+}
+
+static int select_sound_change(SceneFrameEdit *frames, const MMMovieSoundArchiveEdit *edit, MMU32 child,
+                               FrameSoundChange *change)
+{
+    const MMMovieSoundArchiveCue *cue = edit->cue;
+    ArchiveSoundTag added = {0};
+    ArchiveSoundTag *tags;
+    const unsigned char *row, *payload;
+    MMSceneSound *packet, *next;
+    MMU32 i;
+    MMI32 j, frame, size;
+    added.child = child;
+    added.tag.type = MM_SOUND_CHUNK;
+    if (edit->added)
+        added.tag.number = *edit->added;
+    for (i = 0; i < frames->group.count; ++i)
+    {
+        row = frame_record(frames, i, &size);
+        if (!row)
+            return MM_SOUND_ARCHIVE_INVALID_FRAMES;
+        if (word(row + 4, frames->big) != MM_SCENE_PLAY_SOUND)
+            continue;
+        frame = mm_signed_word(word(row, frames->big));
+        if ((!cue || frame != cue->frame) && (!edit->added || frame != edit->frame))
+            continue;
+        payload = row + MM_SCENE_EVENT_BYTES;
+        if (mm_signed_word(word(payload + 4, frames->big)) != (cue ? cue->style : edit->style))
+            continue;
+        packet = decode_packet(payload, size, frames->big);
+        if (!packet)
+            return MM_SOUND_ARCHIVE_PACKET;
+        tags = (ArchiveSoundTag *)(packet + 1);
+        for (j = 0; cue && j < packet->ctagc; ++j)
+            if (mm_sound_archive_match(cue, &tags[j].tag, tags[j].child, j > 0))
+                break;
+        change->row = i;
+        change->frame = frame;
+        if (cue && j < packet->ctagc)
+        {
+            if (edit->remove)
+            {
+                --packet->ctagc;
+                memmove(tags + j, tags + j + 1, (size_t)(packet->ctagc - j) * sizeof(*tags));
+            }
+            else
+            {
+                packet->vlm = edit->volume;
+                packet->sty = edit->style;
+                packet->fLoop = edit->loop;
+                change->frame = edit->frame;
+            }
+            return store_packet(change, packet, frames->big);
+        }
+        if (edit->added)
+        {
+            next = edit->queue && !edit->loop ? mm_scene_sound_append(packet, &added, &archive_packets)
+                                              : new_sound_packet(edit, &added);
+            free(packet);
+            return store_packet(change, next, frames->big);
+        }
+        free(packet);
+    }
+    if (!edit->added)
+        return MM_SOUND_ARCHIVE_NO_CUE;
+    change->row = frames->group.count;
+    change->frame = edit->frame;
+    return store_packet(change, new_sound_packet(edit, &added), frames->big);
+}
+
+typedef struct SoundRowOrder
+{
+    MMI32 frame;
+    MMU32 row;
+} SoundRowOrder;
+
+static int compare_sound_row(const void *left, const void *right)
+{
+    const SoundRowOrder *a = (const SoundRowOrder *)left, *b = (const SoundRowOrder *)right;
+    if (a->frame != b->frame)
+        return a->frame < b->frame ? -1 : 1;
+    return a->row < b->row ? -1 : a->row != b->row;
+}
+
+static int rebuild_sound_frames(SceneFrameEdit *frames, const FrameSoundChange *change, MMGroup *output)
+{
+    SoundRowOrder *order;
+    MMU32 rows, i;
+    const unsigned char *row, *payload;
+    unsigned char fixed[MM_SCENE_EVENT_BYTES];
+    MMI32 size;
+    int result;
+    rows = frames->group.count + (change->row == frames->group.count);
+    if ((size_t)rows > (size_t)-1 / sizeof(*order))
+        return MM_SOUND_ARCHIVE_MEMORY;
+    order = (SoundRowOrder *)malloc((size_t)rows * sizeof(*order));
+    if (!order)
+        return MM_SOUND_ARCHIVE_MEMORY;
+    result = MM_SOUND_ARCHIVE_INVALID_FRAMES;
+    for (i = 0; i < rows; ++i)
+    {
+        order[i].row = i;
+        if (i == change->row)
+            order[i].frame = change->frame;
+        else
+        {
+            row = frame_record(frames, i, NULL);
+            if (!row)
+                goto done;
+            order[i].frame = mm_signed_word(word(row, frames->big));
+        }
+    }
+    qsort(order, rows, sizeof(*order), compare_sound_row);
+    for (i = 0; i < rows; ++i)
+    {
+        if (order[i].row == change->row)
+        {
+            if (!change->payload)
+                continue;
+            put(fixed, (MMU32)change->frame, 4, frames->big);
+            put(fixed + 4, MM_SCENE_PLAY_SOUND, 4, frames->big);
+            row = fixed;
+            size = change->bytes;
+            payload = change->payload;
+        }
+        else
+        {
+            row = frame_record(frames, order[i].row, &size);
+            if (!row)
+                goto done;
+            payload = row + MM_SCENE_EVENT_BYTES;
+        }
+        if (mm_group_insert(output, output->count, (MMU32)size, payload, row) != MM_STORAGE_OK)
+        {
+            result = MM_SOUND_ARCHIVE_MEMORY;
+            goto done;
+        }
+    }
+    result = MM_SOUND_ARCHIVE_OK;
+done:
+    free(order);
+    return result;
+}
+
+int mm_scene_archive_edit_sound(const MMMovieArchiveEditor *editor, MMU32 scene,
+                                const MMMovieSoundArchiveEdit *edit, MMU32 child)
+{
+    SceneFrameEdit frames;
+    FrameSoundChange change = {0};
+    MMCollectionStorage storage;
+    MMGroup output = {NULL, MM_SCENE_EVENT_BYTES, 0, 0, -1, 0};
+    int result;
+    init_frame_edit(&frames, editor, scene);
+    mm_storage_init(&storage, NULL);
+    output.storage = &storage;
+    if (!open_frames(&frames))
+        result = frames.result == MM_SCENE_ARCHIVE_EDIT_READ_FRAMES ? MM_SOUND_ARCHIVE_READ_FRAMES :
+            MM_SOUND_ARCHIVE_INVALID_FRAMES;
+    else
+    {
+        result = select_sound_change(&frames, edit, child, &change);
+        if (result == MM_SOUND_ARCHIVE_OK)
+            result = rebuild_sound_frames(&frames, &change, &output);
+        if (result == MM_SOUND_ARCHIVE_OK && !publish_frames(&frames, &output))
+            result = frames.result == MM_SCENE_ARCHIVE_EDIT_LINK_FRAMES ? MM_SOUND_ARCHIVE_LINK_FRAMES :
+                MM_SOUND_ARCHIVE_WRITE_FRAMES;
+    }
+    free(change.payload);
+    mm_storage_dispose(&storage);
+    mm_storage_dispose(&frames.storage);
+    return result;
 }
 
 void *mm_scene_read_event_group(int start, int native_big, int *order, const MMSceneReadGroupServices *s)

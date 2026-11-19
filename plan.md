@@ -1011,6 +1011,12 @@ frame-event groups and scene header for saved camera and range edits.
 The archive writer preserves the group byte order and unrelated
 payloads, replaces the frame-group link, and removes thumbnails for
 opening edits.
+Marcus sound archive edits now use C89 for scene packet changes,
+actor binding selection, and imported sound links. Scene changes share
+the camera and range editor's frame-group reader and writer. Actor
+changes preserve route and resource links and replace only the
+selected scene's actor instance. Native audio preparation and archive
+file access remain host services.
 Marcus undo now uses a C89-owned bounded snapshot stack. C89 chooses
 whether to reopen the base movie or restore the scene in place, rebuilds
 derived state in order, and releases the undo entry after a successful

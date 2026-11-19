@@ -1,4 +1,5 @@
 #include "actor_archive_internal.h"
+#include "sound_archive_internal.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_math.h"
 #include "mm/collections.h"
@@ -349,23 +350,42 @@ static int actor_slot(const MMChunkAccess *chunks, MMU32 scene, MMU32 actor, MMU
     return 0;
 }
 
-int mm_actor_archive_find(const MMMovieArchiveEditor *editor, MMU32 scene, MMI32 actor_id, MMU32 *actor)
+static int find_actor_link(const MMMovieArchiveEditor *editor, MMU32 scene, MMI32 actor_id,
+                           int strict, MMChunkChild *link, MMActorHeader *header)
 {
     MMChunkAccess chunks;
     MMChunkChild child;
-    MMActorHeader header;
     MMU32 position, i;
     chunks = editor->chunks(editor->context);
     if (mm_chunk_find(&chunks, SCENE_TYPE, scene, &position) != MM_CHUNK_OK)
-        return 0;
+        return MM_CHUNK_NOT_FOUND;
     for (i = 0; mm_chunk_child_at(&chunks, position, i, &child) == MM_CHUNK_OK; ++i)
-        if (child.type == ACTOR_TYPE && mm_actor_archive_read_actor(editor, child.number, &header) &&
-            header.actor_id == actor_id)
+    {
+        if (child.type != ACTOR_TYPE)
+            continue;
+        if (!mm_actor_archive_read_actor(editor, child.number, header))
         {
-            *actor = child.number;
-            return 1;
+            if (strict)
+                return MM_CHUNK_BAD_FILE;
+            continue;
         }
-    return 0;
+        if (header->actor_id == actor_id)
+        {
+            *link = child;
+            return MM_CHUNK_OK;
+        }
+    }
+    return MM_CHUNK_NOT_FOUND;
+}
+
+int mm_actor_archive_find(const MMMovieArchiveEditor *editor, MMU32 scene, MMI32 actor_id, MMU32 *actor)
+{
+    MMChunkChild link;
+    MMActorHeader header;
+    if (find_actor_link(editor, scene, actor_id, 0, &link, &header) != MM_CHUNK_OK)
+        return 0;
+    *actor = link.number;
+    return 1;
 }
 
 int mm_actor_archive_read_actor(const MMMovieArchiveEditor *editor, MMU32 actor, MMActorHeader *header)
@@ -374,8 +394,8 @@ int mm_actor_archive_read_actor(const MMMovieArchiveEditor *editor, MMU32 actor,
     return editor->read(editor->context, ACTOR_TYPE, actor, &stream) && mm_actor_read_header(&stream, header);
 }
 
-int mm_actor_archive_copy_actor(const MMMovieArchiveEditor *editor, MMU32 actor, const MMActorHeader *header,
-                                int share_track, MMU32 *copy)
+static int copy_actor(const MMMovieArchiveEditor *editor, MMU32 actor, const MMActorHeader *header,
+                      int share_track, const MMU32 *events, MMU32 *copy)
 {
     MMChunkAccess chunks;
     MMChunkChild child;
@@ -394,10 +414,74 @@ int mm_actor_archive_copy_actor(const MMMovieArchiveEditor *editor, MMU32 actor,
             return MM_ACTOR_EDIT_ARCHIVE_CHILD;
         if (!share_track && (child.type == ROUTE_TYPE || child.type == EVENTS_TYPE))
             continue;
+        if (events && child.type == EVENTS_TYPE && child.slot == 0)
+            child.number = *events;
         if (!editor->adopt(editor->context, ACTOR_TYPE, *copy, child.type, child.number, child.slot))
             return MM_ACTOR_EDIT_ARCHIVE_CHILD;
     }
     return MM_ACTOR_EDIT_ARCHIVE_OK;
+}
+
+int mm_actor_archive_copy_actor(const MMMovieArchiveEditor *editor, MMU32 actor, const MMActorHeader *header,
+                                int share_track, MMU32 *copy)
+{
+    return copy_actor(editor, actor, header, share_track, NULL, copy);
+}
+
+static int edit_sound(MMGroup *group, const MMMovieSoundArchiveEdit *edit)
+{
+    const MMMovieSoundArchiveCue *cue = edit->cue;
+    MMActorEvent event;
+    MMActorSound sound;
+    MMU32 row;
+    void *data;
+    for (row = 0; row < group->count; ++row)
+    {
+        memcpy(&event, group_fixed(group, row), sizeof(event));
+        if (event.aet != MM_ACTOR_SOUND || event.nfrm != cue->frame)
+            continue;
+        data = group_data(group, row);
+        memcpy(&sound, data, sizeof(sound));
+        if (sound.style != cue->style || sound.cel != cue->cel ||
+            !mm_sound_archive_match(cue, &sound.tag, sound.child, sound.queue))
+            continue;
+        if (edit->remove)
+            return mm_group_delete(group, row) == MM_STORAGE_OK;
+        sound.volume = edit->volume;
+        sound.loop = edit->loop;
+        sound.queue = edit->queue;
+        memcpy(data, &sound, sizeof(sound));
+        return 1;
+    }
+    return 0;
+}
+
+int mm_actor_archive_edit_sound(const MMMovieArchiveEditor *editor, MMU32 scene, const MMMovieSoundArchiveEdit *edit)
+{
+    MMActorHeader header;
+    MMChunkChild link;
+    MMGroup *group;
+    MMU32 number, copy;
+    int result;
+    result = find_actor_link(editor, scene, edit->cue->actor, 1, &link, &header);
+    if (result != MM_CHUNK_OK)
+        return result == MM_CHUNK_BAD_FILE ? MM_SOUND_ARCHIVE_READ_ACTOR : MM_SOUND_ARCHIVE_READ_TRACK;
+    group = mm_actor_archive_read_event_group(editor, link.number, NULL);
+    if (!group)
+        return MM_SOUND_ARCHIVE_READ_TRACK;
+    result = MM_SOUND_ARCHIVE_OK;
+    if (!edit_sound(group, edit))
+        result = MM_SOUND_ARCHIVE_NO_CUE;
+    else if (!mm_actor_archive_write_event_group(editor, group, &number, NULL))
+        result = MM_SOUND_ARCHIVE_WRITE_TRACK;
+    release_group(group);
+    if (result != MM_SOUND_ARCHIVE_OK)
+        return result;
+    if (copy_actor(editor, link.number, &header, 1, &number, &copy) != MM_ACTOR_EDIT_ARCHIVE_OK)
+        return MM_SOUND_ARCHIVE_COPY_ACTOR;
+    editor->unlink(editor->context, SCENE_TYPE, scene, ACTOR_TYPE, link.number, link.slot);
+    return editor->adopt(editor->context, SCENE_TYPE, scene, ACTOR_TYPE, copy, link.slot)
+        ? MM_SOUND_ARCHIVE_OK : MM_SOUND_ARCHIVE_LINK_ACTOR;
 }
 
 int mm_actor_archive_place(const MMMovieArchiveEditor *editor, const MMActorArchivePose *pose)

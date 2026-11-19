@@ -2,6 +2,7 @@
 #include "mm/actor_effect.h"
 #include "mm/actor_motion.h"
 #include "mm/movie_sound.h"
+#include "mm/movie_sound_archive.h"
 #include "mm/rollcall_storage.h"
 #include "mm/scene_reframe.h"
 #include "mm/scene_data.h"
@@ -45,6 +46,7 @@ typedef struct Fixture
     unsigned char source_events[TRANSFER_WIRE_BYTES], destination_events[TRANSFER_WIRE_BYTES];
     unsigned char descriptor[MM_ACTOR_ARCHIVE_TEXT_BYTES];
     MMU32 copies, writes;
+    int sound_unlinks, sound_scene_links, sound_paths, sound_tracks;
     int big_endian, fail_write;
 } Fixture;
 
@@ -232,6 +234,9 @@ static void read_output_events(Fixture *f)
         if (i < 6)
         {
             CHECK(f->events[i].aet == MM_ACTOR_SOUND && size == 44);
+            memcpy(&f->payloads[i].sound.loop, payload, 4);
+            memcpy(&f->payloads[i].sound.queue, payload + 4, 4);
+            memcpy(&f->payloads[i].sound.volume, payload + 8, 4);
             memcpy(&f->payloads[i].sound.child, payload + 24, 4);
             memcpy(&f->payloads[i].sound.tag.sid, payload + 28, 4);
             memcpy(&f->payloads[i].sound.tag.number, payload + 40, 4);
@@ -949,6 +954,87 @@ static void insertion_transaction(void)
     CHECK(mm_rollcall_table_dispose(&listing) == MM_STORAGE_OK);
 }
 
+static MMChunkAccess sound_scene_graph(void *context)
+{
+    MMChunkAccess chunks = source(context);
+    chunks.count = 3;
+    return chunks;
+}
+static int add_sound_copy(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
+{
+    Fixture *f = (Fixture *)context;
+    if (type == EVENTS)
+    {
+        *number = 20;
+        return replace_events(context, type, *number, size, writer);
+    }
+    CHECK(type == ACTOR && !writer && size == MM_ACTOR_HEADER_BYTES && f->writes == 1);
+    *number = 2;
+    return 1;
+}
+static int adopt_sound_copy(void *context, MMU32 type, MMU32 number, MMU32 child_type, MMU32 child, MMU32 slot)
+{
+    Fixture *f = (Fixture *)context;
+    if (type == ACTOR)
+    {
+        CHECK(number == 2 && slot == 0);
+        if (child_type == ROUTE)
+        {
+            CHECK(child == 12);
+            ++f->sound_paths;
+        }
+        else
+        {
+            CHECK(child_type == EVENTS && child == 20);
+            ++f->sound_tracks;
+        }
+    }
+    else
+    {
+        CHECK(type == MM_SOUND_SCENE && number == 1 && child_type == ACTOR && child == 2 && slot == 0);
+        CHECK(f->sound_unlinks == 1 && f->sound_paths == 1 && f->sound_tracks == 1);
+        ++f->sound_scene_links;
+    }
+    return 1;
+}
+static void unlink_sound_copy(void *context, MMU32 type, MMU32 number, MMU32 child_type, MMU32 child, MMU32 slot)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(type == MM_SOUND_SCENE && number == 1 && child_type == ACTOR && child == 1 && slot == 0);
+    ++f->sound_unlinks;
+}
+
+static void edit_actor_sound(void)
+{
+    Fixture f;
+    const MMMovieSoundArchiveCue cue = {10, 0, 6, 2, 3, 2, 888, 0, 1};
+    MMMovieSoundArchiveEdit edit = {NULL, NULL, 10, 22000, 2, 1, 1, 0};
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, sound_scene_graph, source_read,
+                                   add_sound_copy, adopt_sound_copy, unlink_sound_copy, put,
+                                   NULL, NULL, NULL, NULL};
+    editor.context = &f;
+    edit.cue = &cue;
+    init(&f, 1);
+    append_child(&f.source, 0, ROUTE, 12, 0);
+    f.source.entries[2].type = MM_SOUND_SCENE;
+    f.source.entries[2].number = 3;
+    append_child(&f.source, 2, ACTOR, 1, 0);
+    f.payloads[0].sound.style = 2;
+    f.payloads[0].sound.cel = 2;
+    CHECK(mm_movie_archive_edit_sound(&editor, 1, &edit) == MM_SOUND_ARCHIVE_NO_CUE && !f.writes && !f.sound_unlinks);
+    f.payloads[0].sound.cel = 3;
+    f.fail_write = 1;
+    CHECK(mm_movie_archive_edit_sound(&editor, 1, &edit) == MM_SOUND_ARCHIVE_WRITE_TRACK &&
+          f.writes == 1 && !f.sound_unlinks && !f.sound_tracks);
+    f.writes = f.fail_write = 0;
+    CHECK(mm_movie_archive_edit_sound(&editor, 1, &edit) == MM_SOUND_ARCHIVE_OK);
+    CHECK(f.sound_scene_links == 1 && f.written.actor_id == f.input.actor_id);
+    read_output_events(&f);
+    CHECK(f.events[0].nfrm == 10 && f.events[0].rtel.irpt == 15 && f.payloads[0].sound.child == 2);
+    CHECK(f.payloads[0].sound.volume == 22000 && f.payloads[0].sound.loop == 1 &&
+          f.payloads[0].sound.queue == 1 && f.payloads[1].sound.volume == 0);
+}
+
 int main(void)
 {
     Fixture f;
@@ -1013,5 +1099,6 @@ int main(void)
     placement_transaction();
     reframe_transaction();
     insertion_transaction();
+    edit_actor_sound();
     return 0;
 }

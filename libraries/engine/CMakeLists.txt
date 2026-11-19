@@ -14,7 +14,7 @@ add_library(mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c s
 target_include_directories(mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_sources(mm-engine-c89 PRIVATE src/movie_session.c src/movie_session_actor.c src/movie_session_source.c
                                     src/movie_session_body.c src/movie_session_costume.c src/movie_session_mesh.c
-                                    src/resource_lookup.c src/movie_archive_edit.c)
+                                    src/resource_lookup.c src/movie_archive_edit.c src/movie_sound_archive.c)
 add_library(mm-movie-content STATIC src/movie_content_resolver.c src/movie_portable.c src/movie_source_edit.c
                                     src/movie_actor_edit.c)
 target_link_libraries(mm-movie-content PUBLIC mm-engine-c89 mm-vfs)
@@ -1200,6 +1200,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_source_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_actor_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_archive_edit.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_sound_archive.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_body.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_mesh.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_costume.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime_math.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_runtime_math_test.c"

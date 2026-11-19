@@ -14832,3 +14832,48 @@ edit. Marcus playback timing and continuous pixels remain inconclusive.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The native outputs,
 manifest and logs are in `tmp/c89-insert-archive`.
+
+## Marcus scene and actor sound archive edits in C89 (19 November 2026)
+
+C89 now matches scene and actor sound cues, changes scene packets and
+actor bindings, and assigns the first free sound child slots in the
+scene and movie. The scene writer preserves group byte order and
+keeps equal-frame events in their original order. Actor sound editing
+replaces the selected scene's actor instance and keeps its route and
+other resources. Marcus uses the same native archive adapter for sound
+and other movie edits.
+
+The C fixtures exercise both scene group byte orders, an external sound
+tag, a retime into an existing camera frame, and a queued import into
+gaps in the sound child slots. The actor fixture edits a foreign-order
+motion binding shared between scenes and checks that a failed write
+leaves the old scene link intact. All 41 selected checks passed in the
+Marcus-enabled build, including the C89 syntax gates. All five
+standalone C-only Release checks passed.
+
+The headless sound test and save probe produced nine byte-identical
+native `.3MM` files across the pre-change and converted builds,
+including the retimed scene cue, actor volume and loop changes, an
+actor cue removal and undo saves. Reapplying the retime and actor cue
+removal after undo reproduced the same native files. The retimed scene
+and edited actor movies have SHA-256 hashes
+`36142a1144d4b1721532def970eabdeb7febf927633e5fb590bdb29f133e0b21` and
+`95f895be381c09b3dbb98bfed51893ea16ae0f907c11b3ecf6fb37a6fade08e3`.
+
+Marcus reopened the sound storyboard `.VMM` and retained the audio
+cue and editable painting. The inner movie and embedded resources
+matched after normalizing the exporter's randomized storyboard names
+and chunk keys. A v3dmm runtime was unavailable for a playback capture
+of the bundle.
+
+All 12 captures completed in suite `20261119T053939Z-5be16a51`.
+Retail, SDL Studio and Marcus agreed on all four frame positions
+in each movie in seek and playback. SDL Studio matched retail's two
+sound requests in each movie. Both ports differed from retail by one
+pixel per seek frame, and mixed PCM differed. SDL Studio frame timing
+also differed. Marcus frame timing, sound requests and continuous
+playback pixels remain inconclusive.
+
+The capture database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The native outputs,
+manifest and logs are in `tmp/c89-sound-archive`.

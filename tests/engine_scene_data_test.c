@@ -2,6 +2,8 @@
 #include "mm/collections.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_data.h"
+#include "mm/movie_sound.h"
+#include "mm/movie_sound_archive.h"
 #include "mm/scene_edit.h"
 #include "mm/text.h"
 #include <stdio.h>
@@ -619,22 +621,48 @@ enum { FRAME_WIRE_BYTES = 20 + 68 + 24 };
 typedef struct ArchivedFrames
 {
     MMMemoryStream reader;
-    unsigned char scene[16], frames[FRAME_WIRE_BYTES], output[FRAME_WIRE_BYTES];
+    unsigned char scene[16], frames[FRAME_WIRE_BYTES], output[FRAME_WIRE_BYTES + 20];
+    MMU32 output_size;
     int read_frames, header_written, linked, unlinked, thumbnail_removed, fail_write;
+    int include_movie, linked_scene_sound, linked_movie_sound;
 } ArchivedFrames;
 
 static int scene_entry(void *context, MMU32 i, MMChunkEntry *out)
 {
-    CHECK(context && i == 0);
+    ArchivedFrames *archive = (ArchivedFrames *)context;
+    CHECK(i <= (MMU32)archive->include_movie);
     memset(out, 0, sizeof(*out));
+    if (archive->include_movie && i == 0)
+    {
+        out->type = MM_SOUND_MOVIE;
+        out->number = 2;
+        out->child_count = 1;
+        return 1;
+    }
     out->type = SCEN;
     out->number = 5;
-    out->child_count = 2;
+    out->child_count = archive->include_movie ? 4 : 2;
     return 1;
 }
 static int scene_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
 {
-    CHECK(context && parent == 0 && i < 2);
+    ArchivedFrames *archive = (ArchivedFrames *)context;
+    if (archive->include_movie)
+    {
+        CHECK(parent <= 1);
+        if (parent == 0 || i == 1 || i == 3)
+        {
+            CHECK(parent == 1 || i == 0);
+            out->type = MM_SOUND_CHUNK;
+            out->number = 8;
+            out->slot = parent == 0 ? 1 : i == 1 ? 0 : 3;
+            return 1;
+        }
+        CHECK(i == 0 || i == 2);
+        i /= 2;
+    }
+    else
+        CHECK(parent == 0 && i < 2);
     out->type = i == 0 ? GGFR : THUM;
     out->number = i == 0 ? 10 : 11;
     out->slot = 0;
@@ -644,6 +672,7 @@ static MMChunkAccess scene_chunks(void *context)
 {
     MMChunkAccess chunks = {NULL, 1, scene_entry, scene_child};
     chunks.context = context;
+    chunks.count += ((ArchivedFrames *)context)->include_movie;
     return chunks;
 }
 static int read_archive(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
@@ -671,7 +700,9 @@ static int write_frames(void *context, MMU32 offset, const void *bytes, size_t s
 }
 static int add_frames(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
 {
-    CHECK(type == GGFR && size == FRAME_WIRE_BYTES);
+    ArchivedFrames *archive = (ArchivedFrames *)context;
+    CHECK(type == GGFR && size <= sizeof(archive->output));
+    archive->output_size = size;
     *number = 12;
     writer->context = context;
     writer->length = size;
@@ -696,6 +727,21 @@ static void unlink_archive(void *context, MMU32 type, MMU32 scene, MMU32 child, 
 static int link_frames(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
 {
     ArchivedFrames *archive = (ArchivedFrames *)context;
+    if (child == MM_SOUND_CHUNK)
+    {
+        CHECK(archive->include_movie && number == 9);
+        if (type == SCEN)
+        {
+            CHECK(scene == 5 && slot == 1 && !archive->linked_movie_sound);
+            ++archive->linked_scene_sound;
+        }
+        else
+        {
+            CHECK(type == MM_SOUND_MOVIE && scene == 2 && slot == 0 && archive->linked_scene_sound);
+            ++archive->linked_movie_sound;
+        }
+        return 1;
+    }
     CHECK(type == SCEN && scene == 5 && child == GGFR && number == 12 && slot == 0 && archive->unlinked);
     ++archive->linked;
     return 1;
@@ -751,7 +797,7 @@ static MMU32 saved_frame_row(ArchivedFrames *archive, int big, MMU32 index, MMI3
     MMCollectionHeader header;
     MMU32 offset;
     MMI32 size;
-    CHECK(mm_memory_stream_init(&stream, archive->output, sizeof(archive->output)));
+    CHECK(mm_memory_stream_init(&stream, archive->output, archive->output_size));
     CHECK(mm_collection_header_read(&stream.stream, MM_COLLECTION_GROUP, 0, &header) == MM_STORAGE_OK);
     CHECK(header.big_endian == big && header.system == MM_TEXT_WINDOWS && header.count == 3);
     CHECK(mm_collection_group_row(&header, archive->output + 20, index, &offset, &size) && size == bytes);
@@ -814,6 +860,66 @@ static void edit_archived_frames(void)
     }
 }
 
+static void init_archive_sound(ArchivedFrames *archive, int big)
+{
+    unsigned char *packet;
+    init_archive(archive, big);
+    packet = archive->frames + 40;
+    put32(packet, 32768, big);
+    put32(packet + 4, 2, big);
+    put32(packet + 8, 0, big);
+    put32(packet + 16, 3, big);
+    put32(packet + 20, 4, big);
+    put32(packet + 28, MM_SOUND_CHUNK, big);
+    put32(packet + 32, 8, big);
+}
+
+static void edit_archived_sounds(void)
+{
+    ArchivedFrames archive;
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
+                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL};
+    MMMovieSoundArchiveCue cue = {1, 4, 0, 2, -1, 3, 8, 0, 0};
+    MMMovieSoundArchiveEdit edit = {NULL, NULL, 5, 12000, 1, 1, 0, 0};
+    MMU32 offset, added = 9;
+    unsigned char expected[44], tag[20] = {0};
+    int big;
+    editor.context = &archive;
+    for (big = 0; big <= 1; ++big)
+    {
+        init_archive_sound(&archive, big);
+        edit.cue = &cue;
+        edit.added = NULL;
+        edit.frame = 5; edit.style = 1; edit.loop = 1; edit.queue = 0;
+        cue.number = 800;
+        CHECK(mm_movie_archive_edit_sound(&editor, 5, &edit) == MM_SOUND_ARCHIVE_NO_CUE && !archive.output_size);
+        cue.number = 8;
+        CHECK(mm_movie_archive_edit_sound(&editor, 5, &edit) == MM_SOUND_ARCHIVE_OK);
+        CHECK(archive.linked == 1 && !archive.thumbnail_removed);
+        offset = saved_frame_row(&archive, big, 1, 36);
+        memcpy(expected, archive.frames + 32, sizeof(expected));
+        put32(expected, 5, big);
+        put32(expected + 8, 12000, big);
+        put32(expected + 12, 1, big);
+        put32(expected + 16, 1, big);
+        put32(expected + 32, 0, big);
+        CHECK(offset == 32 && !memcmp(archive.output + offset, expected, sizeof(expected)));
+        offset = saved_frame_row(&archive, big, 2, 4);
+        CHECK(offset == 76 && !memcmp(archive.output + offset, archive.frames + 20, 12));
+
+        init_archive_sound(&archive, big);
+        archive.include_movie = 1;
+        edit.cue = NULL;
+        edit.added = &added;
+        edit.frame = 1; edit.style = 2; edit.loop = 0; edit.queue = 1;
+        CHECK(mm_movie_archive_edit_sound(&editor, 5, &edit) == MM_SOUND_ARCHIVE_OK);
+        CHECK(archive.linked == 1 && archive.linked_scene_sound == 1 && archive.linked_movie_sound == 1);
+        offset = saved_frame_row(&archive, big, 0, 56);
+        put32(tag, 1, big); put32(tag + 12, MM_SOUND_CHUNK, big); put32(tag + 16, 9, big);
+        CHECK(offset == 20 && !memcmp(archive.output + offset + 44, tag, sizeof(tag)));
+    }
+}
+
 int main(void)
 {
     validation();
@@ -823,6 +929,7 @@ int main(void)
     group_reading();
     append_actor();
     edit_archived_frames();
+    edit_archived_sounds();
     puts("scene data passed");
     return 0;
 }
