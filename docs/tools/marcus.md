@@ -695,12 +695,11 @@ selection remains available with an unavailable-thumbnail message. Thumbnails
 show authored frames, rather than extra playback states during scrolling holds
 or transitions between scenes.
 
-The timeline playhead uses a blue ImGui drawing marker; the existing
-movie-wide scrubber uses a green one, including in the expanded movie view.
-The artwork is `frame_slider.svg` and `scene_slider.svg` in the same directory.
-Their locations and seeking behavior are unchanged. No extra sliders sit between
-the frame/scene navigation buttons. The movie track has a recessed groove and
-spaces dense chapter ticks so they cannot obscure the thumb.
+The timeline playhead uses Studio's original frame sprite, including the
+musical-note version for frames with sound cues. The movie-wide scrubber uses
+Studio's original green scene sprite in both the editor and expanded movie
+view. The build uses `fthm.bmp`, `fthms.bmp` and `stmb.bmp` from the Studio
+resources. ImGui handles seeking and keyboard focus for the movie scrubber.
 
 Time spans all scenes and follows seeking, playback and scene looping. It includes
 scrolling text, timed pauses, sound waits and transitions between scenes. Click

@@ -1,9 +1,41 @@
 #include "transport_skin.h"
 #include "dialog_widgets.h"
+#include "transport_sprites.h"
 #include "ui_vectors.h"
 #include <float.h>
 
 static ImFont *label_font, *number_font;
+static SDL_Texture *frame_thumb, *frame_sound_thumb, *scene_thumb;
+
+static SDL_Texture *load_thumb(SDL_Renderer *renderer, const unsigned char *bmp, size_t length)
+{
+    SDL_IOStream *input;
+    SDL_Surface *surface;
+    SDL_Texture *texture;
+    input = SDL_IOFromConstMem(bmp, length);
+    if (!input) return NULL;
+    surface = SDL_LoadBMP_IO(input, 1);
+    if (!surface) return NULL;
+    /* Studio's masked bitmap resources use palette index zero as transparent. */
+    texture = SDL_SetSurfaceColorKey(surface, 1, 0) ? SDL_CreateTextureFromSurface(renderer, surface) : NULL;
+    SDL_DestroySurface(surface);
+    if (texture) SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+    return texture;
+}
+void transport_load_slider_artwork(SDL_Renderer *renderer)
+{
+    frame_thumb = load_thumb(renderer, fthm_bmp, sizeof(fthm_bmp));
+    frame_sound_thumb = load_thumb(renderer, fthms_bmp, sizeof(fthms_bmp));
+    scene_thumb = load_thumb(renderer, stmb_bmp, sizeof(stmb_bmp));
+}
+void transport_destroy_slider_artwork(void)
+{
+    SDL_DestroyTexture(frame_thumb);
+    SDL_DestroyTexture(frame_sound_thumb);
+    SDL_DestroyTexture(scene_thumb);
+    frame_thumb = frame_sound_thumb = scene_thumb = NULL;
+}
+
 static ImFont *installed_font(const char *windows_name, const char *const *fallbacks, float size, ImFontConfig *config)
 {
     SDL_PathInfo info;
@@ -64,6 +96,57 @@ static ImU32 colour(unsigned long rgb, float brightness, int enabled)
     c.x = r * brightness / 255; c.y = g * brightness / 255; c.z = b * brightness / 255;
     c.w = igGetStyle()->Alpha;
     return igColorConvertFloat4ToU32(c);
+}
+static void draw_thumb(ImDrawList *draw, SDL_Texture *texture, float center, float y, ImVec2 size)
+{
+    ImTextureRef ref;
+    float left;
+    left = SDL_roundf(center - size.x * 0.5f);
+    ref._TexData = NULL;
+    ref._TexID = (ImTextureID)(size_t)texture;
+    ImDrawList_AddImage(draw, ref, dialog_vec(left, y), dialog_vec(left + size.x, y + size.y),
+                        dialog_vec(0, 0), dialog_vec(1, 1), colour(0xffffff, 1, 1));
+}
+int transport_frame_thumb(float x, float y, int sound)
+{
+    SDL_Texture *texture;
+    ImVec2 size;
+    texture = sound ? frame_sound_thumb : frame_thumb;
+    if (!texture || !SDL_GetTextureSize(texture, &size.x, &size.y)) return 0;
+    draw_thumb(igGetBackgroundDrawList_Nil(), texture, x, y, size);
+    return 1;
+}
+int transport_movie_slider(const SDL_FRect *rect, double *seconds, double duration)
+{
+    ImVec2 size, left, right;
+    const double low = 0;
+    double fraction;
+    float inset, center;
+    int artwork_ready, changed;
+    artwork_ready = scene_thumb && SDL_GetTextureSize(scene_thumb, &size.x, &size.y) && rect->w >= size.x + 4;
+    if (artwork_ready)
+    {
+        igPushStyleVar_Float(ImGuiStyleVar_GrabMinSize, size.x);
+        igPushStyleColor_U32(ImGuiCol_SliderGrab, 0);
+        igPushStyleColor_U32(ImGuiCol_SliderGrabActive, 0);
+    }
+    igSetCursorScreenPos(dialog_vec(rect->x, rect->y + (rect->h - 20) / 2));
+    igSetNextItemWidth(rect->w);
+    changed = igSliderScalar("##Movie position", ImGuiDataType_Double, seconds, &low, &duration, "",
+                             ImGuiSliderFlags_AlwaysClamp);
+    if (artwork_ready)
+    {
+        igPopStyleColor(2);
+        igPopStyleVar(1);
+        left = igGetItemRectMin();
+        right = igGetItemRectMax();
+        /* Match ImGui's linear grab travel, including its two-pixel end inset. */
+        inset = 2 + size.x * 0.5f;
+        fraction = duration > 0 ? SDL_clamp(*seconds / duration, 0.0, 1.0) : 0;
+        center = left.x + inset + (float)fraction * (right.x - left.x - 2 * inset);
+        draw_thumb(igGetWindowDrawList(), scene_thumb, center, SDL_roundf((left.y + right.y - size.y) * 0.5f), size);
+    }
+    return changed;
 }
 static void artwork(ImDrawList *draw, ImVec2 at, const MarcusVectorVertex *vertices, int count, float brightness, int enabled)
 {

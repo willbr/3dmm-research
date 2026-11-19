@@ -2638,13 +2638,12 @@ static void format_time(char *text, size_t size, double seconds, int hours)
 static void draw_movie_scrubber(App *app, int available)
 {
     SDL_FRect rect;
-    double seconds, low, high;
+    double seconds, high;
     int changed;
-    rect = movie_scrubber_rect(app); low = 0; high = app->movie_time.duration_seconds;
+    rect = movie_scrubber_rect(app); high = app->movie_time.duration_seconds;
     seconds = app->movie_scrubbing ? app->movie_scrub_seconds : app->movie_time.position_seconds;
-    igSetCursorScreenPos(dialog_vec(rect.x, rect.y + (rect.h - 20) / 2)); igSetNextItemWidth(rect.w);
     igBeginDisabled(!available || high <= 0);
-    changed = igSliderScalar("##Movie position", ImGuiDataType_Double, &seconds, &low, &high, "", ImGuiSliderFlags_AlwaysClamp);
+    changed = transport_movie_slider(&rect, &seconds, high);
     if (igIsItemActivated()) { release_camera(app); app->movie_resume = app->playing; app->playing = 0; app->movie_scrubbing = 1; movie_activity(app); }
     if (changed) seek_movie(app, seconds);
     if (igIsItemDeactivated()) finish_movie_scrub(app);
@@ -2761,7 +2760,7 @@ static void draw_timeline(App *app)
     MarcusSound sound;
     SDL_Rect clip;
     char label[320];
-    int row, index, rows, selected_row, lane, kind, scroll, active;
+    int row, index, rows, selected_row, lane, kind, scroll, active, cue;
     float x, y, left;
     double frame, tick, end;
     unsigned long tint;
@@ -2886,11 +2885,11 @@ static void draw_timeline(App *app)
             if (ui_inside(ui->mouse_x, ui->mouse_y, x - 5, y + 48, 12, (float)app->height - y - 80))
                 ui->hint = "End of scene / after the final frame";
         }
-        /* The thumb's one-pixel grip starts four pixels from its left edge.
-         * Snap both grip and marker to the same filled pixel column. */
         x = floorf(frame_x(app, app->info.frame + 0.5));
         ui_fill(ui, x, y + 48, 1, (float)app->height - y - 80, 0x6d77d0);
-        ui_fill(ui, x - 3, y + 48, 7, 18, frame_has_sound(app) ? 0xe4b575 : 0x9c9cff);
+        cue = frame_has_sound(app);
+        if (!transport_frame_thumb(x, y + 48, cue))
+            ui_fill(ui, x - 3, y + 48, 7, 18, cue ? 0xe4b575 : 0x9c9cff);
     }
     ui_unclip();
     ui_line(ui, app->grid_x, y + 48, app->grid_x, (float)app->height - 32, LINE);

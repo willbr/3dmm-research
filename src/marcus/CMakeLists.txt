@@ -42,10 +42,22 @@ target_compile_features(marcus-preview PRIVATE cxx_std_17)
 target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-core)
 kauai_copy_midi_assets(marcus-preview)
 
+# Use the same indexed bitmaps as the original Studio resource scripts.
+set(transport_sprite_code "")
+foreach(name fthm fthms stmb)
+  set(sprite "${PROJECT_SOURCE_DIR}/src/studio/bmp/${name}.bmp")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${sprite}")
+  file(READ "${sprite}" bytes HEX)
+  string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," bytes "${bytes}")
+  string(APPEND transport_sprite_code "static const unsigned char ${name}_bmp[] = { ${bytes} };\n")
+endforeach()
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/transport_sprites.h" CONTENT "${transport_sprite_code}" @ONLY)
+
 add_executable(marcus WIN32 main.c media.cpp ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_fields.c storyboard_view.c transport_skin.c prop_gizmo.c transform_gizmo.c imgui_bindings.cpp movie_browser.c movie_browser_preferences.c movie_browser_worker.cpp scene_organiser.c background_browser.c background_preview.cpp text_dialog.c costume_dialog.c sound_dialog.c camera_picker.c storyboard_editor.c storyboard_editor_backend.cpp)
 add_dependencies(marcus marcus-preview)
 find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)
+target_include_directories(marcus PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(marcus PRIVATE marcus-player cimgui-sdl3 imguizmo SDL3::SDL3-static engine-core MM::Archive mm-v3dmm Threads::Threads)
@@ -176,7 +188,7 @@ if(BUILD_TESTING)
       "-DCOMPILER=${MARCUS_C89_COMPILER}"
       "-DSDL_INCLUDES=$<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>"
       "-DCIMGUI_INCLUDES=${marcus_cimgui_SOURCE_DIR}"
-      -DSOURCE=${PROJECT_SOURCE_DIR} -P ${PROJECT_SOURCE_DIR}/tests/check_marcus_c89.cmake)
+      -DSOURCE=${PROJECT_SOURCE_DIR} "-DGENERATED=${CMAKE_CURRENT_BINARY_DIR}" -P ${PROJECT_SOURCE_DIR}/tests/check_marcus_c89.cmake)
   endif()
   # Headless release latency/cache checks; no application window or UI input.
   add_executable(marcus-prop-move-test EXCLUDE_FROM_ALL ../../tests/marcus_prop_move_test.cpp)

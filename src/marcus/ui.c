@@ -9,7 +9,9 @@ static ImU32 ink(MarcusUI *ui, unsigned long rgb)
 }
 int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 {
-    (void)font_path; memset(ui, 0, sizeof(*ui)); ui->renderer = renderer; ui->opacity = 1; return renderer != NULL;
+    (void)font_path; memset(ui, 0, sizeof(*ui)); ui->renderer = renderer; ui->opacity = 1;
+    if (renderer) transport_load_slider_artwork(renderer);
+    return renderer != NULL;
 }
 void ui_configure(const char *font_path)
 {
@@ -26,7 +28,7 @@ void ui_configure(const char *font_path)
     style->WindowMinSize = dialog_vec(1, 1);
     igGetIO_Nil()->ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
 }
-void ui_destroy(MarcusUI *ui) { (void)ui; }
+void ui_destroy(MarcusUI *ui) { (void)ui; transport_destroy_slider_artwork(); }
 void ui_fill(MarcusUI *ui, float x, float y, float w, float h, unsigned long colour)
 {
     if (w > 0 && h > 0) ImDrawList_AddRectFilled(igGetBackgroundDrawList_Nil(), dialog_vec(x, y), dialog_vec(x + w, y + h), ink(ui, colour), 0, 0);
