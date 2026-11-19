@@ -28,6 +28,10 @@ std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::p
 std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &movie,
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusObjectClipboard &clipboard,
     unsigned long scene, long frame, std::int32_t actorId);
+std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path &movie,
+    const std::shared_ptr<MarcusMovieFile> &origin, unsigned long scene, long frame,
+    const MarcusProjection &work, const MarcusProjection &camera,
+    const std::map<std::int32_t, MM::PreviewTrackPose> &poses);
 // Retail text uses Windows ANSI and at most fifty characters.
 std::string MarcusTextAnsi(const char *utf8);
 std::shared_ptr<MarcusMovieFile> MarcusCreateEventFile();

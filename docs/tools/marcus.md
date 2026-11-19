@@ -232,11 +232,9 @@ single-pixel spacing, keeping the distant grid from merging into a solid band.
 Baked lines remain part of the background.
 **Use work camera** copies the current
 work-view pose and lens into this angle, retaining its drawing.
-The main Orbit and Fly toolbar's **Copy to camera** applies the perspective
+The main Orbit and Fly toolbar's **Set angle** applies the perspective
 work view to the active storyboard angle as one undoable edit. Existing
-drawings, lights, and object positions are retained. The control is available
-for storyboard angles, which have editable cameras. Retail angles use fixed
-camera and background pairs.
+drawings, lights, and object positions are retained.
 
 **Lights** adds, selects, deletes and adjusts up to sixteen directional or point
 lights. Its 3D inspection view shows selectable light widgets and the shot's camera
@@ -1411,6 +1409,13 @@ distance of 30,000 world units, independent of cached actor bounds.
 Y=0 over the work view. It stays aligned to world units as you move and is
 available in both perspective and orthographic work views. It is a viewport
 guide and is omitted from the movie image.
+
+**Copy to camera** moves and reorients all object tracks in the current scene
+so the fixed movie camera sees the object framing from the paused perspective
+work view. It works on retail backgrounds, including Black, and on storyboards.
+The camera, background, lights, and captions stay in place. The edit preserves
+route timing, and saves with the movie. Undo restores the original tracks in one
+step. Moving actors continue to use native path-following after the copied frame.
 
 Orbit and Fly reconstruct the active camera's background as textured scenery
 from its colour image and ZBMP depth, placed using the authored camera transform.

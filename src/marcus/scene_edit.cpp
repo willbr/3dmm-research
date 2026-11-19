@@ -694,6 +694,217 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     Require(destination->FSave(kctgSoc), "Cannot save the pasted object.");
     return result;
 }
+
+namespace
+{
+struct SceneReframe
+{
+    double linear[3][3] = {}, translation[3] = {};
+    BMAT34 rotation = {};
+};
+
+BRS ReframeScalar(double value)
+{
+    Require(std::isfinite(value) && std::abs(value) <= 32700, "The camera transform would move an object out of range.");
+    return BrFloatToScalar(static_cast<float>(value));
+}
+
+SceneReframe CameraReframe(const MarcusProjection &work, const MarcusProjection &camera)
+{
+    const double radians = .008726646259971648;
+    const double magnification = std::tan(camera.vertical_fov * radians) / std::tan(work.vertical_fov * radians);
+    const double scale[] = {magnification * camera.aspect / work.aspect, magnification, 1};
+    Require(std::isfinite(scale[0]) && std::isfinite(scale[1]) && scale[0] > 0 && scale[1] > 0,
+            "The work and movie cameras need valid perspective lenses.");
+    SceneReframe result;
+    for (int col = 0; col < 3; ++col)
+    {
+        result.translation[col] = camera.transform[9 + col];
+        for (int row = 0; row < 3; ++row)
+        {
+            double rotation = 0;
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                const double component = work.transform[axis * 3 + row] * double(camera.transform[axis * 3 + col]);
+                result.linear[row][col] += component * scale[axis];
+                rotation += component;
+            }
+            result.rotation.m[row][col] = ReframeScalar(rotation);
+            result.translation[col] -= work.transform[9 + row] * result.linear[row][col];
+        }
+    }
+    return result;
+}
+
+RoutePoint ReframePoint(const SceneReframe &change, const RoutePoint &point, bool position = false)
+{
+    const BRS input[] = {point.dxr, point.dyr, point.dzr};
+    BRS output[3];
+    for (int col = 0; col < 3; ++col)
+    {
+        double value = position ? change.translation[col] : 0;
+        for (int i = 0; i < 3; ++i) value += BrScalarToFloat(input[i]) * change.linear[i][col];
+        output[col] = ReframeScalar(value);
+    }
+    return {output[0], output[1], output[2]};
+}
+
+BMAT34 ReframeRotation(const SceneReframe &change, const BMAT34 &before)
+{
+    BMAT34 result;
+    for (int row = 0; row < 4; ++row)
+        for (int col = 0; col < 3; ++col)
+        {
+            double value = 0;
+            for (int i = 0; i < 3; ++i) value += BrScalarToFloat(before.m[row][i]) * change.linear[i][col];
+            result.m[row][col] = ReframeScalar(value);
+        }
+    return result;
+}
+
+void ReframeTrack(PChunkyFile file, ChunkNumber actor, ChunkNumber copy, const SceneReframe &change,
+                  const MM::PreviewTrackPose *pose, LegacyLong frame, bool fixedFacing)
+{
+    std::unique_ptr<DynamicArray, Release> route(ActorData::PglReadRoute(file, actor));
+    std::unique_ptr<GeneralGroup, Release> events(ActorData::PggReadEvents(file, actor));
+    Require(route && events, "Cannot read an object track for the camera transform.");
+    for (LegacyLong i = 0; i < route->IvMac(); ++i)
+    {
+        RouteDistancePoint point;
+        route->Get(i, &point);
+        point.xyz = ReframePoint(change, point.xyz);
+        // Keep distances in the authored track's units so rotation and lens changes
+        // retain interpolation, event bindings, and playback timing.
+        route->Put(i, &point);
+    }
+
+    BMAT34 entrance = {}, inverseEntrance = {};
+    bool followsPath = false;
+    for (LegacyLong i = 0; i < events->IvMac(); ++i)
+    {
+        ActorEvent::Base event;
+        events->GetFixed(i, &event);
+        if (event.aet == ActorEvent::aetAdd)
+        {
+            ActorEvent::Add add;
+            RouteDistancePoint point;
+            Require(event.rtel.irpt >= 0 && event.rtel.irpt < route->IvMac(), "Invalid object entrance.");
+            route->Get(event.rtel.irpt, &point);
+            followsPath = !fixedFacing && point.dwr != rZero;
+            events->Get(i, &add);
+            const auto delta = ReframePoint(change, {add.dxr, add.dyr, add.dzr});
+            add.dxr = delta.dxr; add.dyr = delta.dyr; add.dzr = delta.dzr;
+            br_euler angles = {add.xa, add.ya, add.za, BR_EULER_XYZ_S};
+            BrEulerToMatrix34(&entrance, &angles);
+            if (followsPath)
+            {
+                BMAT34 transformed, rotation = change.rotation;
+                BrMatrix34Mul(&transformed, &entrance, &rotation);
+                BrMatrix34ToEuler(&angles, &transformed);
+                add.xa = angles.a; add.ya = angles.b; add.za = angles.c;
+            }
+            events->Put(i, &add);
+            if (!followsPath)
+            {
+                BrMatrix34LPInverse(&inverseEntrance, &entrance);
+                BMAT34 transformed = ReframeRotation(change, entrance), basis;
+                BrMatrix34Mul(&basis, &transformed, &inverseEntrance);
+                event.aet = ActorEvent::aetRotF;
+                Require(events->FInsert(++i, sizeof(basis), &basis, &event), "Cannot rotate the object's entrance.");
+            }
+        }
+        else if (event.aet == ActorEvent::aetMove || event.aet == ActorEvent::aetTweak)
+        {
+            RoutePoint point;
+            events->Get(i, &point);
+            point = ReframePoint(change, point);
+            events->Put(i, &point);
+        }
+        else if (event.aet == ActorEvent::aetRotH || (event.aet == ActorEvent::aetRotF && !followsPath))
+        {
+            BMAT34 before;
+            events->Get(i, &before);
+            if (event.aet == ActorEvent::aetRotF)
+            {
+                BMAT34 withEntrance;
+                BrMatrix34Mul(&withEntrance, &before, &entrance);
+                BMAT34 transformed = ReframeRotation(change, withEntrance);
+                BrMatrix34Mul(&before, &transformed, &inverseEntrance);
+            }
+            else before = ReframeRotation(change, before);
+            events->Put(i, &before);
+        }
+    }
+
+    if (pose && pose->node >= 0 && pose->node < route->IvMac())
+    {
+        // The engine derives facing from the route when a model travels.
+        // Preserve the exact evaluated facing for the copied shot.
+        ActorEvent::Base event = {ActorEvent::aetRotH, frame, {pose->node, pose->offset, pose->routeFrame}};
+        LegacyLong i = 0;
+        for (; i < events->IvMac(); ++i)
+        {
+            ActorEvent::Base next;
+            events->GetFixed(i, &next);
+            if (event.rtel < next.rtel || (next.aet == ActorEvent::aetAdd && next.nfrm > frame)) break;
+        }
+        BMAT34 before = {};
+        for (int axis = 0; axis < 9; ++axis) before.m[axis / 3][axis % 3] = ReframeScalar(pose->rotation[axis]);
+        auto rotation = ReframeRotation(change, before);
+        Require(events->FInsert(i, sizeof(rotation), &rotation, &event), "Cannot preserve the copied object facing.");
+    }
+
+    std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(events.get()));
+    ChunkNumber number;
+    DataBlock block;
+    Require(wire && file->FAddChild(kctgActr, copy, 0, route->CbOnFile(), kctgPath, &number, &block) &&
+            route->FWrite(&block) && file->FAddChild(kctgActr, copy, 0, wire->CbOnFile(), kctgGgae, &number, &block) &&
+            wire->FWrite(&block), "Cannot write the reframed object track.");
+}
+}
+
+std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path &movie,
+    const std::shared_ptr<MarcusMovieFile> &origin, unsigned long scene, long frame,
+    const MarcusProjection &work, const MarcusProjection &camera,
+    const std::map<std::int32_t, MM::PreviewTrackPose> &poses)
+{
+    const auto change = CameraReframe(work, camera);
+    auto result = WorkingCopy(movie, origin);
+    auto path = ObjectFile(result->path);
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&path, fcflWriteEnable));
+    Require(bool(file), "Cannot open the camera transform working copy.");
+    std::vector<ChildChunkIdentification> actors;
+    ChildChunkIdentification child;
+    for (LegacyLong i = 0; file->FGetKid(kctgScen, scene, i, &child); ++i)
+        if (child.cki.ctg == kctgActr) actors.push_back(child);
+    Require(!actors.empty(), "This scene has no objects to transform.");
+    for (const auto &link : actors)
+    {
+        ActorChunkOnFile header;
+        const auto actor = link.cki.cno;
+        Require(ActorData::FReadHeader(file.get(), actor, &header), "Cannot read an object for the camera transform.");
+        header.dxyzFullRte = ReframePoint(change, header.dxyzFullRte, true);
+        ChunkNumber copy;
+        Require(file->FAdd(sizeof(header), kctgActr, &copy) && ActorData::FWriteHeader(file.get(), copy, &header),
+                "Cannot write the new object placement.");
+        for (LegacyLong i = 0; file->FGetKid(kctgActr, actor, i, &child); ++i)
+            if (child.cki.ctg != kctgPath && child.cki.ctg != kctgGgae)
+                Require(file->FAdoptChild(kctgActr, copy, child.cki.ctg, child.cki.cno, child.chid),
+                        "Cannot retain an object's content.");
+        const auto pose = poses.find(header.arid);
+        ChildChunkIdentification model, text;
+        const bool fixedFacing = header.tagTmpl.sid == 0 && file->FGetKidChidCtg(kctgActr, actor, 0, kctgTmpl, &model) &&
+            file->FGetKidChidCtg(kctgTmpl, model.cki.cno, 0, kctgTdt, &text);
+        ReframeTrack(file.get(), actor, copy, change, pose == poses.end() ? nullptr : &pose->second,
+                     static_cast<LegacyLong>(frame), fixedFacing);
+        file->DeleteChild(kctgScen, scene, kctgActr, actor, link.chid);
+        Require(file->FAdoptChild(kctgScen, scene, kctgActr, copy, link.chid), "Cannot link the reframed object.");
+    }
+    if (file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
+        file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
+    Require(file->FSave(kctgSoc), "Cannot save the reframed movie.");
+    return result;
+}
 static void ApplyCostumes(PChunkyFile file, ChunkNumber actor, const MarcusLiveEdits::CostumeEdit &edit)
 {
     String path; Filename filename;

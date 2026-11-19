@@ -121,6 +121,11 @@ struct PreviewObjectShape
     float rotation[9] = {1,0,0, 0,1,0, 0,0,1};
     float scale[3] = {1,1,1};
 };
+struct PreviewTrackPose
+{
+    std::int32_t node = 0, offset = 0, routeFrame = 0;
+    float rotation[9] = {};
+};
 // The legacy name covers inserted actor, prop and generated-text instances.
 struct PreviewPropDefinition
 {
@@ -286,6 +291,7 @@ class Preview
     bool SetObjectOffset(int object, const float offset[3], Error &error);
     bool SetObjectShape(int object, const PreviewObjectShape &, Error &);
     bool ObjectShape(int object, PreviewObjectShape &, float left[9], float right[9], Error &) const;
+    bool ObjectTrackPose(int object, PreviewTrackPose &) const;
     bool ObjectBounds(int object, PreviewBounds &bounds, Error &error);
     // Evaluate a private track copy; leaves live frame, pose and sounds unchanged.
     bool ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error);

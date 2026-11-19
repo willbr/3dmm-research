@@ -268,6 +268,8 @@ extern "C"
     MarcusObjectClipboard *marcus_copy_object(MarcusPlayer *player, int object);
     void marcus_object_clipboard_destroy(MarcusObjectClipboard *clipboard);
     int marcus_paste_object(MarcusPlayer *player, const MarcusObjectClipboard *clipboard);
+    /* Reframe all scene objects under the active, fixed movie camera. */
+    int marcus_copy_to_camera(MarcusPlayer *player, const MarcusImage *work);
     typedef struct MarcusCostume
     {
         int body_set, costume, selected, accessory;

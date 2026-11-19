@@ -457,6 +457,36 @@ void PreviewActor::Shape(PreviewObjectShape &value, float left[9], float right[9
     mm_preview_actor_shape(&core, &shape, left, right, &services);
     std::memcpy(&value, &shape, sizeof(shape));
 }
+bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
+{
+    if (!Visible() || !body || !tmpl) return false;
+    const auto &state = core.state;
+    pose.node = state.location.irpt;
+    pose.offset = state.location.dwrOffset;
+    pose.routeFrame = state.location.dnfrm;
+    BRA angles[3];
+    tmpl->GetRestOrien(angles, angles + 1, angles + 2);
+    MMActorMatrix rest;
+    mm_matrix_identity(&rest);
+    for (int axis = 0; axis < 3; ++axis) mm_matrix_rotate(&rest, axis, angles[axis], 0);
+    const BRS stretch[] = {state.transform.aevpull.rScaleX, state.transform.aevpull.rScaleY, state.transform.aevpull.rScaleZ};
+    const auto &root = body->RootMatrix();
+    // Recover the world rotation after removing rest orientation and authored size.
+    for (int row = 0; row < 3; ++row)
+    {
+        const auto scaled = mm_fixed_mul(mm_fixed_mul(stretch[row], BrFloatToScalar(core.shape.scale[row])),
+                                        state.transform.rScaleStep);
+        if (!scaled) return false;
+        for (int col = 0; col < 3; ++col)
+        {
+            double value = 0;
+            for (int i = 0; i < 3; ++i)
+                value += BrScalarToFloat(rest.m[i][row]) * double(BrScalarToFloat(root.m[i][col]));
+            pose.rotation[row * 3 + col] = static_cast<float>(value / BrScalarToFloat(scaled));
+        }
+    }
+    return true;
+}
 bool PreviewActor::Seek(LegacyLong frame)
 {
     Host host = {this};

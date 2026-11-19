@@ -2013,16 +2013,23 @@ static void record_camera_render(App *app, int work, Uint64 started)
     performance->pending_ms += (double)(SDL_GetTicksNS() - started) / 1000000.0;
     performance->pending_rendered = 1;
 }
-static void copy_work_camera(App *app)
+static void copy_work_camera(App *app, int set_angle)
 {
     char title[2200];
-    if (!marcus_board_copy_camera(app->player, &app->work_image))
+    const int copied = set_angle ? marcus_board_copy_camera(app->player, &app->work_image) :
+                                  marcus_copy_to_camera(app->player, &app->work_image);
+    if (!copied)
     {
         fail(app, marcus_error(app->player));
         return;
     }
     refresh(app);
     app->modified = app->dirty = 1;
+    if (!set_angle)
+    {
+        reset_camera_view(app);
+        if (!app->second_view) view_mode(app, 1);
+    }
     SDL_snprintf(title, sizeof(title), "Marcus - %s (unsaved changes)", app->movie[0] ? app->movie : "Untitled movie");
     SDL_SetWindowTitle(app->window, title);
 }
@@ -2030,7 +2037,7 @@ static void draw_camera_bar(App *app, int movie)
 {
     float left, right, speed;
     int work, storyboard, can_copy;
-    const char *copy_hint;
+    float offset;
     char speed_label[48];
     left = movie ? 0 : work_left(app); right = movie ? app->split_x : view_right(app);
     work = !movie && (app->second_view || app->authored != 1);
@@ -2043,23 +2050,25 @@ static void draw_camera_bar(App *app, int movie)
             if (ui_button_at("Orbit", right - 220, CAMERA_BAR_Y + 2, 72, 26, app->authored == 0, app->loaded, "Orbit camera")) view_mode(app, 0);
             if (ui_button_at("Fly", right - 140, CAMERA_BAR_Y + 2, 60, 26, app->authored == 2, app->loaded, "Fly camera")) view_mode(app, 2);
             if (ui_button_at("Reset", right - 72, CAMERA_BAR_Y + 2, 56, 26, 0, app->loaded, "Match the movie camera")) reset_camera_view(app);
-            if (work && ui_button_at("Ground grid", right - 227, CAMERA_BAR_Y + 31, 90, 22, app->ground_grid,
+            storyboard = app->loaded && marcus_is_storyboard(app->player);
+            offset = storyboard ? 66 : 0;
+            if (work && ui_button_at("Ground grid", right - 204 - offset, CAMERA_BAR_Y + 31, 80, 22, app->ground_grid,
                                      app->loaded, "Show the world ground plane in the work view"))
                 app->ground_grid = !app->ground_grid;
             if (work) {
-                storyboard = app->loaded && marcus_is_storyboard(app->player);
-                can_copy = storyboard && !app->playing && !app->flying && app->picture &&
+                can_copy = app->loaded && !app->playing && !app->flying && app->picture &&
                     app->work_image.projection.valid && !app->work_image.projection.orthographic &&
                     !app->work_image.authored_camera && app->work_image.scene == app->info.scene &&
                     app->work_image.frame == app->info.frame && app->work_image.document == marcus_document(app->player);
-                copy_hint = !storyboard ? "Requires a storyboard scene with an editable camera" :
-                    !can_copy ? "Pause and move the perspective work camera to set a new view" :
-                    "Copy the work view's pose and lens to the active storyboard camera";
-                if (ui_button_at("Copy to camera", right - 132, CAMERA_BAR_Y + 31, 120, 22, 0, can_copy, copy_hint))
-                    copy_work_camera(app);
+                if (ui_button_at("Copy to camera", right - 120 - offset, CAMERA_BAR_Y + 31, 114, 22, 0,
+                    can_copy && app->info.object_count > 0, "Transform scene objects to match this view in the movie camera"))
+                    copy_work_camera(app, 0);
+                if (storyboard && ui_button_at("Set angle", right - 68, CAMERA_BAR_Y + 31, 64, 22, 0, can_copy,
+                    "Copy the work view's pose and lens to the active storyboard camera"))
+                    copy_work_camera(app, 1);
             }
             if (app->loaded && app->authored == 0) {
-                igSetCursorScreenPos(dialog_vec(right - 309, CAMERA_BAR_Y + 32)); igSetNextItemWidth(76);
+                igSetCursorScreenPos(dialog_vec(right - (storyboard ? 326 : 289), CAMERA_BAR_Y + 32)); igSetNextItemWidth(storyboard ? 53 : 76);
                 if (igBeginCombo("##Orbit target", app->orbit_selection ? "Selected" : "Scene", 0)) {
                     if (igSelectable_Bool("Scene centre", !app->orbit_selection, 0, dialog_vec(0, 0))) choose_orbit_mode(app, 0);
                     igBeginDisabled(!orbit_selection_available(app));
@@ -2073,7 +2082,7 @@ static void draw_camera_bar(App *app, int movie)
                 if (app->flying && (app->fly_keys & (MARCUS_FLY_FAST | MARCUS_FLY_FAST_RIGHT))) speed *= 4;
                 if (speed > 0) SDL_snprintf(speed_label, sizeof(speed_label), speed >= 100 ? "%.0f u/s" : "%.1f u/s", (double)speed);
                 else SDL_strlcpy(speed_label, "-- u/s", sizeof(speed_label));
-                igSetCursorScreenPos(dialog_vec(right - 309, CAMERA_BAR_Y + 34)); igTextDisabled("%s", speed_label);
+                igSetCursorScreenPos(dialog_vec(right - (storyboard ? 326 : 289), CAMERA_BAR_Y + 34)); igTextDisabled("%s", speed_label);
                 if (igIsItemHovered(0)) igSetTooltip("Fly speed in world units per second. Wheel changes speed; Shift moves four times faster.");
             }
         }

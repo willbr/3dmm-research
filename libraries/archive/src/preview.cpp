@@ -552,6 +552,11 @@ bool Preview::ObjectShape(int object, PreviewObjectShape &shape, float left[9], 
     _impl->actors[object]->Shape(shape, left, right);
     return true;
 }
+bool Preview::ObjectTrackPose(int object, PreviewTrackPose &pose) const
+{
+    return object >= 0 && static_cast<std::size_t>(object) < _impl->actors.size() &&
+        _impl->actors[object]->TrackPose(pose);
+}
 bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error &error)
 {
     error = {};

@@ -599,6 +599,55 @@ int main(int argc, char **argv)
         MM::V3dmm::Copy(MM::V3dmm::ReadBundle(copiedBundle).movie, extracted);
         MM::Archive ordinary;
         check(ordinary.Open(extracted.u8string(), readError), "Copied VMM contains a native movie rather than another VMM");
+        ordinary.Close();
+
+        player.reset(); player.reset(marcus_create());
+        check(marcus_add_scene(player.get(), 11, argv[1], argv[2]), "Open the retail black background");
+        check(marcus_add_prop(player.get(), prop.chunk) == 0 && marcus_add_prop(player.get(), prop.chunk) == 1,
+            "Add two objects to the black scene");
+        check(marcus_add_frame(player.get(), 1) && marcus_add_prop(player.get(), prop.chunk) == 2,
+            "Add an object entering after the copied frame");
+        MarcusBounds before[3] = {}, after;
+        check(marcus_object_bounds(player.get(), 2, &before[2]) && before[2].valid && marcus_seek(player.get(), 1),
+            "Capture the later entrance before copying the shot");
+        check(marcus_object_bounds(player.get(), 0, &before[0]) && before[0].valid &&
+              marcus_object_bounds(player.get(), 1, &before[1]) && before[1].valid, "Read both visible objects");
+        MarcusProjection fixedCamera;
+        check(marcus_camera_projection(player.get(), 0, &fixedCamera) && marcus_match_camera(player.get(), 544, 306, &flight),
+            "Start from the fixed retail camera");
+        flight.x += 2; flight.y += 1; flight.yaw += 13; flight.pitch += 7;
+        check(marcus_render_fly(player.get(), 544, 306, &flight, &work) && marcus_copy_to_camera(player.get(), &work),
+            "Copy from Fly to the fixed black-background camera");
+        check(!marcus_copy_to_camera(player.get(), &work), "Reject a stale copy request");
+        check(marcus_camera_projection(player.get(), 0, &projection) &&
+            std::equal(projection.transform, projection.transform + 12, fixedCamera.transform) &&
+            projection.vertical_fov == fixedCamera.vertical_fov && !marcus_is_storyboard(player.get()),
+            "Copy keeps the native camera and background");
+        auto project = [](const MarcusProjection &view, const float *point, int axis) {
+            double coord = 0, depth = 0;
+            for (int j = 0; j < 3; ++j) {
+                const double d = point[j] - view.transform[9 + j];
+                coord += d * view.transform[axis * 3 + j];
+                depth -= d * view.transform[6 + j];
+            }
+            return coord / (depth * std::tan(view.vertical_fov * .00872664626) * (axis == 0 ? view.aspect : 1));
+        };
+        auto matchesShot = [&](int index) {
+            check(marcus_object_bounds(player.get(), index, &after) && after.valid, "Read the reframed object");
+            for (int corner = 0; corner < 8; ++corner) for (int axis = 0; axis < 2; ++axis)
+                check(std::abs(project(work.projection, before[index].corners + corner * 3, axis) -
+                               project(projection, after.corners + corner * 3, axis)) < .003,
+                      "The fixed camera sees each object as framed in Fly");
+        };
+        matchesShot(0); matchesShot(1);
+        check(marcus_seek(player.get(), 2), "Seek past the copied frame");
+        matchesShot(2);
+        auto reframedPath = ordinaryPath; reframedPath.replace_filename("reframed-black.3mm");
+        check(marcus_save_copy(player.get(), reframedPath.u8string().c_str()), "Save transformed objects in a native movie");
+        check(marcus_undo(player.get()) && marcus_object_bounds(player.get(), 0, &after) &&
+            std::equal(after.corners, after.corners + 24, before[0].corners), "One undo restores all original object positions");
+        check(marcus_open(player.get(), reframedPath.u8string().c_str(), argv[1], argv[2]), "Reopen the transformed native movie");
+        matchesShot(0); matchesShot(1);
         std::puts("Storyboard strokes, validation, no-depth rendering, cameras, props, undo, reload and native save/reopen passed.");
         return 0;
     }

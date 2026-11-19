@@ -102,6 +102,53 @@ int main(int argc,char **argv)
             check(marcus_undo(player.get()) && !marcus_modified(player.get()) &&
                   marcus_object_shape(player.get(),objectIndex,&invalid,nullptr,nullptr) && invalid.scale[0]==1,"Undo restores object shape");
         };
+        check(marcus_open(player.get(), shapeMovie, argv[2], argv[3]), "Open moving actor for camera copy");
+        MarcusObject poses[2] = {};
+        check(marcus_seek(player.get(), 20) && marcus_object(player.get(), 0, &poses[1]) &&
+              marcus_seek(player.get(), 10) && marcus_object(player.get(), 0, &poses[0]) &&
+              (poses[0].x != poses[1].x || poses[0].y != poses[1].y || poses[0].z != poses[1].z),
+              "Fixture has a changing route position");
+        MarcusCamera fly;
+        MarcusBounds oldBounds, newBounds;
+        check(marcus_match_camera(player.get(), 320, 180, &fly) && marcus_object_bounds(player.get(), 0, &oldBounds) &&
+              oldBounds.valid, "Read the moving actor in the original shot");
+        fly.x += 1; fly.y += 2; fly.yaw += 11; fly.pitch += 9;
+        MarcusImage work;
+        check(marcus_render_fly(player.get(), 320, 180, &fly, &work), "Look at the moving actor from Fly");
+        auto viewPoint = [](const MarcusProjection &view, const float *p, int axis) {
+            double out = 0;
+            for (int j = 0; j < 3; ++j) out += (p[j] - view.transform[9 + j]) * view.transform[axis * 3 + j];
+            return out;
+        };
+        MarcusInfo copyInfo;
+        MarcusProjection fixed;
+        check(marcus_info(player.get(), &copyInfo) && marcus_camera_projection(player.get(), copyInfo.camera, &fixed), "Read the fixed camera");
+        const double lens = std::tan(fixed.vertical_fov * .00872664626) / std::tan(work.projection.vertical_fov * .00872664626);
+        const double scale[] = {lens * fixed.aspect / work.projection.aspect, lens, 1};
+        auto samePoint = [&](const float *before, const float *after, const char *kind) {
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                const auto expected = viewPoint(work.projection, before, axis) * scale[axis];
+                const auto actual = viewPoint(fixed, after, axis);
+                check(std::abs(expected - actual) < .03, (std::string(kind) + " matches in the fixed camera, axis " +
+                    std::to_string(axis) + ": expected " + std::to_string(expected) + ", got " + std::to_string(actual)).c_str());
+            }
+        };
+        check(marcus_copy_to_camera(player.get(), &work) &&
+              marcus_object_bounds(player.get(), 0, &newBounds) && newBounds.valid, "Reframe a moving actor");
+        for (int corner = 0; corner < 8; ++corner)
+            samePoint(oldBounds.corners + corner * 3, newBounds.corners + corner * 3, "Actor corner");
+        for (int i = 0; i < 2; ++i)
+        {
+            check(marcus_seek(player.get(), i ? 20 : 10) && marcus_object(player.get(), 0, &object), "Read the reframed route");
+            const float before[] = {poses[i].x, poses[i].y, poses[i].z}, after[] = {object.x, object.y, object.z};
+            samePoint(before, after, i ? "Later position" : "Copied frame position");
+            check(object.first_frame == poses[i].first_frame && object.last_frame == poses[i].last_frame &&
+                  object.action == poses[i].action && object.cel == poses[i].cel, "Reframing preserves route timing");
+        }
+        check(marcus_undo(player.get()) && marcus_object(player.get(), 0, &object) && object.x == poses[0].x &&
+              object.y == poses[0].y && object.z == poses[0].z, "Camera copy is one undo step");
+
         for (int index : {0,1,3}) exerciseShape(index,MARCUS_RENDERER_BRENDER);
         if (argc==5)
         {

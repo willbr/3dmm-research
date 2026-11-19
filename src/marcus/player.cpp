@@ -1530,6 +1530,32 @@ extern "C"
         });
         return object;
     }
+    int marcus_copy_to_camera(MarcusPlayer *player, const MarcusImage *work)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            const auto &info = player->preview.Info();
+            if (player->selected < 0 || player->objects.empty())
+            { error.message = "This scene has no objects to transform."; return false; }
+            if (!work || work->scene != player->selected || work->frame != info.currentFrame ||
+                work->document != player->document || work->authored_camera || !work->projection.valid || work->projection.orthographic)
+            { error.message = "Use the current perspective work view."; return false; }
+            MarcusProjection camera;
+            if (!marcus_camera_projection(player, info.currentCamera, &camera) || !camera.valid || camera.orthographic)
+            { error.message = "This scene does not have a perspective movie camera."; return false; }
+            if (!CancelPropPreviews(player, error)) return false;
+            std::map<std::int32_t, MM::PreviewTrackPose> poses;
+            for (std::size_t i = 0; i < player->objects.size(); ++i)
+            {
+                MM::PreviewTrackPose pose;
+                if (player->preview.ObjectTrackPose(static_cast<int>(i), pose)) poses.emplace(player->objects[i].actorId, pose);
+            }
+            const auto movie = MaterializedMovie(*player);
+            const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
+            const auto file = MarcusReframeScene(path, movie, player->scenes[player->selected].number, info.currentFrame,
+                work->projection, camera, poses);
+            return ReplaceEditedMovie(player, file, error);
+        });
+    }
     int marcus_costume_count(MarcusPlayer *player, int object)
     {
         int count = -1;
