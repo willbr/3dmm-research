@@ -386,17 +386,17 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
 {
     TimelineHost host = {this, &timeline};
     auto services = host.Services();
-    const int result = mm_preview_actor_timeline(&core, first, last, &services);
+    const int result = mm_preview_actor_timeline(&core, &track.Core(), first, last, &services);
     if (host.exception) std::rethrow_exception(host.exception);
     return result > 0;
 }
-bool PreviewActor::ApplyEvent(MMActorState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
+bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, LegacyLong index, bool metadataOnly,
                               ActorSoundList *motion, std::vector<PreviewSoundCue> *cues) const
 {
     struct Host
     {
         const PreviewActor *actor;
-        const ActorTrack *track;
+        const MMActorTrack *track;
         ActorSoundList *motion;
         std::vector<PreviewSoundCue> *cues;
         BodyCostume costume;
@@ -493,8 +493,8 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const ActorTrack &events, Leg
         {
             MMActorEvent event;
             MMActorSound sound;
-            mm_actor_events_get_fixed(host.track->Events(), command->first, &event);
-            mm_actor_events_get_payload(host.track->Events(), command->first, &sound);
+            mm_actor_events_get_fixed(host.track->events, command->first, &event);
+            mm_actor_events_get_payload(host.track->events, command->first, &sound);
             MMActorSoundServices services = {};
             services.context = &host;
             services.cues_only = 1;
@@ -514,7 +514,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const ActorTrack &events, Leg
     const MMActorPoint origin = {MMI32(core.header.translation[0]), MMI32(core.header.translation[1]),
                                  MMI32(core.header.translation[2])};
     const auto tables = EngineActorMotion::Services();
-    bool success = mm_actor_effect_apply(&value, events.Route(), events.Events(), index, &origin, body != nullptr,
+    bool success = mm_actor_effect_apply(&value, events.route, events.events, index, &origin, body != nullptr,
                                          metadataOnly, &tables, &effects) != 0;
     return success;
 }

@@ -140,7 +140,7 @@ struct PreviewActor::Host
         s.apply = [](void *v, MMI32 index) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                return h.actor->ApplyEvent(h.actor->core.state, h.actor->track, index, false, &h.actor->motionSounds,
+                return h.actor->ApplyEvent(h.actor->core.state, h.actor->track.Core(), index, false, &h.actor->motionSounds,
                                            &h.actor->sounds);
             });
         };

@@ -24,7 +24,7 @@ class PreviewActor
     PTemplate tmpl = nullptr;
     PMaterial_MTRL textMaterial = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
-    bool ApplyEvent(MMActorState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
+    bool ApplyEvent(MMActorState &value, const MMActorTrack &events, LegacyLong index, bool metadataOnly,
                     ActorSoundList *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
     std::string ActionName(LegacyLong action) const;
     ActorSoundList motionSounds;

@@ -3755,8 +3755,10 @@ C89-owned rows. The C tables hold reservations and support mutation and
 cloning. Studio's actor saves and Marcus's animation exports write the
 legacy array and group layouts through the C writers. The standalone
 archive editor shares the PATH layout and uses the same GGAE table and
-writer. Native services supply allocation, block I/O and tag-cache
-references.
+writer. The track owner calls the typed C tables directly for allocation,
+growth, cloning and disposal. Studio and Marcus use one C table reader for
+actor evaluation. The native facade supplies heap and block I/O services
+and retains or releases resource-cache handles on request.
 
 C creates event tables with 20 fixed bytes, ten initial rows and twenty variable
 bytes, and route tables with 16-byte rows, 32 initial rows and minimum growth 32.
@@ -3767,8 +3769,11 @@ Self-clone and self-swap are safe. Empty and partially populated tracks are acce
 
 C identifies Costume tags only when the custom flag is zero, and Sound tags for
 all Sound rows. It copies unaligned tag bytes to aligned local storage before
-access. Only sid-zero, non-null caches own references. Close clears cache pointers
-in their rows and tolerates repeated calls. Cleanup closes tags before releasing
+access. Only sid-zero, non-null caches own references. The reader opens event
+tags in order and closes the completed prefix in reverse on failure. Release
+clears cache pointers in their rows and tolerates repeated close calls.
+Studio and Marcus use the same per-row retain and close operations for
+costume and sound edits. Cleanup closes tags before releasing
 event tables, then route tables. Adoption transfers a handle and disposes the old
 table; adopting the current handle is a no-op. Callbacks cannot mutate/re-enter the
 participating tracks.
@@ -3784,9 +3789,17 @@ sound-edit, route, subroute, stage and recording traces match the prior
 build byte for byte. The all-event persistence fixture exercises both
 byte orders through the C writer and reader.
 
-`engine-actor-track-test` covers every event kind, unaligned tags, custom flag
-values, unopened/positive/invalid-source tags, allocation failures, reference and
-cleanup order, replacement, self operations and partial/empty tracks. Thirty-six
+Marcus derives animation markers and spans from a C track clone held for
+one synchronous metadata replay. C releases the clone on success, allocation
+failure or a failed presentation callback. Source events and live pose stay
+intact. The ownership, creation, all-event persistence, clone, edit, stage
+and recording snapshots match the immediately previous build byte for byte.
+
+`engine-actor-track-test` uses the live C tables and covers every event kind,
+unaligned tags, malformed widths, copy failure and reverse prefix cleanup,
+allocation failures, tag reference order, adoption and partial tracks. The
+preview metadata test uses those same tables to exercise clone allocation
+failures, callback failures and replay limits. Thirty-six
 standalone C checks, forty-nine focused native checks and MSVC AddressSanitizer
 pass. Nineteen binary snapshots and all 51 CLI baselines match, including a new
 192-byte native track/clone snapshot and the prior eighteen snapshots. No Marcus

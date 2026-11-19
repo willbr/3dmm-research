@@ -224,32 +224,7 @@ bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
 
-    long iaev = 0;
-    PTAG ptag;
-
-    if (!TagManager::FOpenTag(&_tagTmpl, pcrf))
-        return fFalse;
-
-    mm_actor_events_lock(_track.Events());
-    for (iaev = 0; iaev < mm_actor_events_count(_track.Events()); iaev++)
-    {
-        if (_FIsIaevTag(_track.Events(), iaev, &ptag))
-        {
-            if (!TagManager::FOpenTag(ptag, pcrf))
-                goto LFail;
-        }
-    }
-    mm_actor_events_unlock(_track.Events());
-    return fTrue;
-LFail:
-    // Close the tags that were opened before failure
-    while (--iaev >= 0)
-    {
-        if (_FIsIaevTag(_track.Events(), iaev, &ptag))
-            TagManager::CloseTag(ptag);
-    }
-    mm_actor_events_unlock(_track.Events());
-    return fFalse;
+    return TagManager::FOpenTag(&_tagTmpl, pcrf) && _track.FOpenTags(pcrf);
 }
 
 /***************************************************************************
@@ -261,13 +236,4 @@ void Actor::_CloseTags(void)
 
     TagManager::CloseTag(&_tagTmpl);
     _track.CloseTags();
-}
-
-/***************************************************************************
-    If the iaev'th event of pggaev has a tag, sets *pptag to point to it.
-    WARNING: unless you locked pggaev, *pptag is a qtag!
-***************************************************************************/
-bool Actor::_FIsIaevTag(MMActorEventTable *events, long iaev, PTAG *pptag, PBase *pqaev)
-{
-    return ActorTrack::FEventTag(events, iaev, pptag, pqaev);
 }

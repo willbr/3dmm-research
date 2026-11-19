@@ -548,8 +548,11 @@ Keep host presentation and device output outside the session.
    Studio and Marcus now load ACTR headers and their slot-zero PATH and GGAE
    tracks through the same graph reader. Both live hosts decode directly into
    C-owned actor path and event tables. Playback, edits, undo and native
-   saves share that storage. The standalone archive editor and live saves
-   share the PATH layout and the GGAE event table and writer.
+   saves share that storage. Track creation, cloning, tag opening and
+   cleanup run directly in C. Marcus reads animation metadata from a
+   private C track copy so replay can update frame caches safely.
+   The standalone archive editor and live saves share the PATH layout
+   and the GGAE event table and writer.
    The standalone evaluator
    and the native template cache share the template header decoder and the
    C-owned ACTN, GGCL cel and GLXF matrix representation. Snapshot seeks load

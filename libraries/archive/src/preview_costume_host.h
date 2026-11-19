@@ -9,12 +9,10 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         MMActorEditServices e = {};
         e.context = this;
         e.close_event_tag = [](void *v, MMI32 i) {
-            auto g = static_cast<CostumeHost *>(v)->actor->track.Events(); PTAG tag;
-            mm_actor_events_lock(g); if (ActorTrack::FEventTag(g, i, &tag)) TagManager::CloseTag(tag); mm_actor_events_unlock(g);
+            static_cast<CostumeHost *>(v)->actor->track.CloseEventTag(i);
         };
         e.duplicate_event_tag = [](void *v, MMI32 i) {
-            auto g = static_cast<CostumeHost *>(v)->actor->track.Events(); PTAG tag;
-            mm_actor_events_lock(g); if (ActorTrack::FEventTag(g, i, &tag)) TagManager::DupTag(tag); mm_actor_events_unlock(g);
+            static_cast<CostumeHost *>(v)->actor->track.RetainEventTag(i);
         };
         e.delete_event = [](void *v, MMI32 i) { mm_actor_events_delete(static_cast<CostumeHost *>(v)->actor->track.Events(), i); };
         e.scene_frame = [](void *v, MMI32 *f) { *f = static_cast<CostumeHost *>(v)->actor->core.state.frame; return 1; };
@@ -31,7 +29,7 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         };
         e.apply_event = [](void *v, MMActorState *state, MMI32 i) -> int {
             auto &h = *static_cast<CostumeHost *>(v);
-            return h.Guard([&] { return int(h.actor->ApplyEvent(*state, h.actor->track, i, false,
+            return h.Guard([&] { return int(h.actor->ApplyEvent(*state, h.actor->track.Core(), i, false,
                                                                &h.actor->motionSounds, &h.actor->sounds)); }) > 0;
         };
         e.dirty = [](void *) {};

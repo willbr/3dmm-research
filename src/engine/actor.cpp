@@ -1371,12 +1371,8 @@ MMActorEditServices Actor::_EventEditServices()
 {
     MMActorEditServices services = {};
     services.context = this;
-    services.close_event_tag = [](void *context, MMI32 index) {
-        auto actor = static_cast<Actor *>(context);
-        PTAG tag;
-        mm_actor_events_lock(actor->_track.Events());
-        if (actor->_FIsIaevTag(actor->_track.Events(), index, &tag)) TagManager::CloseTag(tag);
-        mm_actor_events_unlock(actor->_track.Events());
+    services.close_event_tag = [](void *p, MMI32 index) {
+        static_cast<Actor *>(p)->_track.CloseEventTag(index);
     };
     services.delete_event = [](void *context, MMI32 index) {
         mm_actor_events_delete(static_cast<Actor *>(context)->_track.Events(), index);
@@ -1395,10 +1391,7 @@ MMActorEditServices Actor::_EventEditServices()
         return mm_actor_events_insert(static_cast<Actor *>(p)->_track.Events(), index, bytes, payload, value);
     };
     services.duplicate_event_tag = [](void *p, MMI32 index) {
-        auto actor=static_cast<Actor *>(p); PTAG tag;
-        mm_actor_events_lock(actor->_track.Events());
-        if (actor->_FIsIaevTag(actor->_track.Events(),index,&tag)) TagManager::DupTag(tag);
-        mm_actor_events_unlock(actor->_track.Events());
+        static_cast<Actor *>(p)->_track.RetainEventTag(index);
     };
     services.write_payload = [](void *p, MMI32 index, const void *value) {
         mm_actor_events_set_payload(static_cast<Actor *>(p)->_track.Events(), index, value);
@@ -2313,22 +2306,13 @@ void Actor::AssertValid(LegacyUlong grfobj)
 void Actor::MarkMem(void)
 {
     AssertThis(0);
-    long iaev;
-    Base *paev;
-    Sound *paevsnd;
 
     Actor_PAR::MarkMem();
-    for (iaev = 0; iaev < mm_actor_events_count(_track.Events()); iaev++)
-    {
-        paev = (Base *)mm_actor_events_fixed(_track.Events(), iaev);
-        if (aetSnd == paev->aet)
-        {
-            paevsnd = (Sound *)mm_actor_events_payload(_track.Events(), iaev, nullptr);
-            if (paevsnd->tag.sid == ksidUseCrf)
-                paevsnd->tag.MarkMem();
-        }
-    }
-    auto events = _track.Events();
+    const auto events = _track.Events();
+    MMTag tag;
+    for (MMI32 i = 0; i < mm_actor_events_count(events); ++i)
+        if (mm_actor_track_get_tag(events, i, &tag) && tag.sid == ksidUseCrf && tag.cache)
+            MarkMemObj(static_cast<PChunkyResourceFile>(tag.cache));
     MarkPv(events);
     MarkPv(events->storage.buffers[0].data);
     MarkPv(events->storage.buffers[1].data);

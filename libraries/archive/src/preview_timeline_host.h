@@ -118,22 +118,10 @@ struct PreviewActor::TimelineHost
         };
         s.reset = [](void *v) { *static_cast<TimelineHost *>(v)->output = {}; };
         s.fault = [](void *v) { return static_cast<TimelineHost *>(v)->failure; };
-        s.clone = [](void *v, void **owner, void **route, void **events) -> int {
+        s.tags = &ActorTrack::TagServices();
+        s.apply = [](void *v, MMActorState *state, const MMActorTrack *track, MMI32 index) -> int {
             auto &h = *static_cast<TimelineHost *>(v);
-            return h.Guard([&] {
-                auto copy = new ActorTrack;
-                *owner = copy;
-                if (!copy->FCloneFrom(h.actor->track))
-                    return false;
-                *route = copy->Route();
-                *events = copy->Events();
-                return true;
-            });
-        };
-        s.release = [](void *, void *owner) { delete static_cast<ActorTrack *>(owner); };
-        s.apply = [](void *v, MMActorState *state, void *owner, MMI32 index) -> int {
-            auto &h = *static_cast<TimelineHost *>(v);
-            return h.Guard([&] { return h.actor->ApplyEvent(*state, *static_cast<ActorTrack *>(owner), index, true); });
+            return h.Guard([&] { return h.actor->ApplyEvent(*state, *track, index, true); });
         };
         s.marker = [](void *v, const MMPreviewMarker *e) -> int {
             auto &h = *static_cast<TimelineHost *>(v);

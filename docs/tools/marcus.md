@@ -2659,6 +2659,16 @@ images. Both ports differed from retail in seek pixels and mixed PCM,
 and SDL differed in playback timing. Evidence is in
 `tmp/c89-actor-events/`.
 
+Actor track creation, cloning and tag ownership now run directly in C89.
+Marcus reads animation markers and spans from a C-owned copy of the path
+and event tables. The preview tests exercise allocation failure and
+verify that replay leaves the live actor intact. Studio matched the prior
+build on an actor edit and save/reopen workflow, including all 72 chunk
+payloads and graph entries. SDL and Marcus matched the retained retail
+60-frame seek and playback sequences. Both ports matched all their
+respective seek images from the previous build. Evidence is in
+`tmp/c89-actor-track-owner/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

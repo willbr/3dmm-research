@@ -1,9 +1,9 @@
 #include "mm/actor_track.h"
 #include "mm/actor_animation.h"
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 static void check(int ok, int line)
 {
     if (!ok)
@@ -13,306 +13,314 @@ static void check(int ok, int line)
     }
 }
 #define CHECK(x) check((x), __LINE__)
-typedef struct Table
-{
-    int route, locked;
-    MMU32 count, growth;
-    unsigned char fixed[13][20], payload[13][65];
-} Table;
+
 typedef struct Host
 {
-    int allocations, fail, live, refs, retains, releases;
-    char log[512];
+    int attempts, fail_at, live, refs, copies, fail_copy;
+    char log[64];
     size_t logged;
+    MMU32 published[8];
+    int publish_count;
 } Host;
 static Host h;
+static int source_file, destination_file;
+
 static void log_call(char c)
 {
     CHECK(h.logged + 1 < sizeof(h.log));
     h.log[h.logged++] = c;
     h.log[h.logged] = 0;
 }
+
 static void reset_log(void)
 {
     h.logged = 0;
     h.log[0] = 0;
-    h.allocations = 0;
-    h.fail = 0;
+    h.attempts = h.fail_at = 0;
 }
-static Table *allocate(int route)
+
+static void *resize(void *context, void *data, MMU32 old_bytes, MMU32 bytes, int priority)
 {
-    Table *t;
-    ++h.allocations;
-    if (h.fail == h.allocations)
+    void *out;
+    CHECK(context == &h && (!!data == !!old_bytes));
+    (void)priority;
+    ++h.attempts;
+    if (h.fail_at && h.attempts >= h.fail_at)
         return NULL;
-    t = (Table *)calloc(1, sizeof(*t));
-    CHECK(t != NULL);
-    t->route = route;
-    ++h.live;
-    return t;
-}
-static void *new_events(void *c, MMU32 fixed, MMU32 entries, MMU32 variable)
-{
-    CHECK(c == &h && fixed == 20 && entries == 10 && variable == 20);
-    log_call('E');
-    return allocate(0);
-}
-static void *new_route(void *c, MMU32 width, MMU32 entries)
-{
-    CHECK(c == &h && width == 16 && entries == 32);
-    log_call('R');
-    return allocate(1);
-}
-static void growth(void *p, MMU32 n)
-{
-    Table *t = (Table *)p;
-    CHECK(t->route && n == 32);
-    t->growth = n;
-    log_call('g');
-}
-static void *clone_table(void *p, int route)
-{
-    Table *t = (Table *)p, *out;
-    CHECK(t->route == route && !t->locked);
-    log_call(route ? 'r' : 'e');
-    out = allocate(route);
-    if (out)
-        memcpy(out, t, sizeof(*out));
+    out = realloc(data, bytes);
+    CHECK(out != NULL);
+    if (!old_bytes)
+        ++h.live;
     return out;
 }
-static void *clone_events(void *p)
+
+static void free_bytes(void *context, void *data, MMU32 bytes)
 {
-    return clone_table(p, 0);
-}
-static void *clone_route(void *p)
-{
-    return clone_table(p, 1);
-}
-static void release_events(void *p)
-{
-    Table *t = (Table *)p;
-    CHECK(!t->route && !t->locked);
-    log_call('X');
+    CHECK(context == &h && data && bytes && h.live > 0);
     --h.live;
-    free(t);
+    log_call('x');
+    free(data);
 }
-static void release_route(void *p)
-{
-    Table *t = (Table *)p;
-    CHECK(t->route && !t->locked);
-    log_call('Y');
-    --h.live;
-    free(t);
-}
-static void lock_table(void *p)
-{
-    Table *t = (Table *)p;
-    CHECK(!t->locked);
-    t->locked = 1;
-    log_call('L');
-}
-static void unlock_table(void *p)
-{
-    Table *t = (Table *)p;
-    CHECK(t->locked);
-    t->locked = 0;
-    log_call('U');
-}
-static MMU32 count(void *p)
-{
-    return ((Table *)p)->count;
-}
-static void *fixed(void *p, MMU32 i)
-{
-    Table *t = (Table *)p;
-    CHECK(i < t->count);
-    return t->fixed[i];
-}
-/* Deliberately unaligned: native GG rows only promise byte addresses. */
-static void *data(void *p, MMU32 i)
-{
-    Table *t = (Table *)p;
-    CHECK(i < t->count);
-    return t->payload[i] + 1;
-}
+
 static void retain(void *cache)
 {
     CHECK(cache == &h);
     ++h.refs;
-    ++h.retains;
     log_call('+');
 }
+
 static void release(void *cache)
 {
     CHECK(cache == &h && h.refs > 0);
     --h.refs;
-    ++h.releases;
     log_call('-');
 }
-static MMActorTrackServices services = {&h,          new_events,     new_route,     growth,     clone_events,
-                                             clone_route, release_events, release_route, lock_table, unlock_table,
-                                             count,       fixed,          data,          retain,     release};
-static void row(Table *t, MMU32 i, MMI32 type, MMI32 custom, MMI32 sid, void *cache)
+
+static void *file(void *cache)
 {
-    MMActorCostume costume;
-    MMActorSound sound;
-    if (i >= t->count)
-        t->count = i + 1;
-    memcpy(t->fixed[i], &type, sizeof(type));
-    memset(&costume, 0, sizeof(costume));
-    memset(&sound, 0, sizeof(sound));
+    CHECK(cache == &h);
+    return &destination_file;
+}
+
+static int copy(void *source, MMU32 type, MMU32 number, void *destination, MMU32 *out)
+{
+    CHECK(source == &source_file && destination == &destination_file && type == 123);
+    ++h.copies;
+    log_call('c');
+    if (h.copies == h.fail_copy)
+        return 0;
+    *out = number + 100;
+    return 1;
+}
+
+static void publish(void *context, const MMTag *tag)
+{
+    CHECK(context == &h && h.publish_count < 8);
+    h.published[h.publish_count++] = tag->number;
+}
+
+static const MMStorageAllocator allocator = {&h, resize, free_bytes};
+static const MMTagServices tags = {
+    NULL, NULL, retain, release, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
+static void row(MMActorEventTable *events, MMI32 type, MMI32 custom, MMI32 sid, void *cache, MMU32 number)
+{
+    MMActorCostume costume = {0};
+    MMActorSound sound = {0};
+    MMActorEvent event = {0};
+    const MMU32 sizes[] = {20, 8, 0, 48, 12, 4, 0, 12, 4, 12, 4, 0, 48};
+    const unsigned char payload[48] = {0};
+    const void *data = payload;
+    MMU32 bytes = sizes[type];
+    event.aet = type;
     if (type == MM_ACTOR_COSTUME)
     {
         costume.custom = custom;
         costume.tag.sid = sid;
         costume.tag.cache = cache;
         costume.tag.type = 123;
-        costume.tag.number = 456;
-        memcpy(data(t, i), &costume, sizeof(costume));
+        costume.tag.number = number;
+        data = &costume;
+        bytes = sizeof(costume);
     }
     else if (type == MM_ACTOR_SOUND)
     {
         sound.tag.sid = sid;
         sound.tag.cache = cache;
-        sound.tag.type = 789;
-        sound.tag.number = 987;
-        memcpy(data(t, i), &sound, sizeof(sound));
+        sound.tag.type = 123;
+        sound.tag.number = number;
+        data = &sound;
+        bytes = sizeof(sound);
     }
+    CHECK(mm_actor_events_insert(events, events->rows.count, bytes, data, &event));
 }
+
 static void populate(MMActorTrack *t)
 {
-    Table *e = (Table *)t->events;
-    MMU32 i;
+    MMActorRoutePoint point = {{3, 8, 15}, 0};
+    MMTag tag;
+    int i;
+    CHECK(mm_actor_path_insert(t->route, 0, &point));
     for (i = 0; i < 13; ++i)
-        row(e, i, (MMI32)i, 0, 0, &h);
-    h.refs += 2;
-    CHECK(mm_actor_event_tag(e, MM_ACTOR_COSTUME, &services) ==
-          (unsigned char *)data(e, MM_ACTOR_COSTUME) + offsetof(MMActorCostume, tag));
-    CHECK(mm_actor_event_tag(e, MM_ACTOR_SOUND, &services) != NULL);
-    for (i = 0; i < 13; ++i)
-        if (i != MM_ACTOR_COSTUME && i != MM_ACTOR_SOUND)
-            CHECK(mm_actor_event_tag(e, i, &services) == NULL);
+    {
+        row(t->events, i, 0, 0, &h, 456);
+        if (i == MM_ACTOR_COSTUME || i == MM_ACTOR_SOUND)
+        {
+            CHECK(mm_actor_track_get_tag(t->events, i, &tag));
+            CHECK(tag.cache == &h && tag.sid == 0 && tag.type == 123 && tag.number == 456);
+            ++h.refs;
+        }
+        else
+            CHECK(!mm_actor_track_get_tag(t->events, i, &tag));
+    }
 }
+
 static void transactions(void)
 {
-    MMActorTrack source, target, old;
-    Table *e;
-    int n;
+    MMActorTrack source, target, old, probe;
+    MMActorRoutePoint point;
+    int n, create_attempts, clone_attempts, live;
     mm_actor_track_init(&source);
     mm_actor_track_init(&target);
-    CHECK(mm_actor_track_create(&source, &services));
+    mm_actor_track_init(&probe);
+    reset_log();
+    CHECK(mm_actor_track_create(&source, &allocator, 1, &tags));
+    create_attempts = h.attempts;
+    CHECK(source.route->storage.buffers[0].capacity >= 32 * MM_ACTOR_ROUTE_BYTES);
+    CHECK(source.route->storage.min_grow[0] == 32 * MM_ACTOR_ROUTE_BYTES);
+    CHECK(source.events->storage.buffers[1].capacity >= 10 * sizeof(MMGroupLocation));
     populate(&source);
-    CHECK(mm_actor_track_create(&target, &services));
+    CHECK(mm_actor_track_create(&target, &allocator, 1, &tags));
     populate(&target);
-    CHECK(h.refs == 4 && h.live == 4);
-    for (n = 1; n <= 2; ++n)
+    CHECK(h.refs == 4);
+    reset_log();
+    CHECK(mm_actor_track_clone(&probe, &source, &tags));
+    clone_attempts = h.attempts;
+    mm_actor_track_dispose(&probe, &tags);
+    live = h.live;
+    old = target;
+    for (n = 1; n <= create_attempts; ++n)
     {
-        old = target;
         reset_log();
-        h.fail = n;
-        CHECK(!mm_actor_track_create(&target, &services));
-        CHECK(target.events == old.events && target.route == old.route && h.refs == 4 && h.live == 4);
-        CHECK(strcmp(h.log, n == 1 ? "E" : "ERLUX") == 0);
+        h.fail_at = n;
+        CHECK(!mm_actor_track_create(&target, &allocator, 1, &tags));
+        CHECK(target.events == old.events && target.route == old.route && h.refs == 4 && h.live == live);
+    }
+    for (n = 1; n <= clone_attempts; ++n)
+    {
         reset_log();
-        h.fail = n;
-        CHECK(!mm_actor_track_clone(&target, &source, &services));
-        CHECK(target.events == old.events && target.route == old.route && h.refs == 4 && h.live == 4);
-        CHECK(strcmp(h.log, n == 1 ? "r" : "reY") == 0);
+        h.fail_at = n;
+        CHECK(!mm_actor_track_clone(&target, &source, &tags));
+        CHECK(target.events == old.events && target.route == old.route && h.refs == 4 && h.live == live);
     }
     reset_log();
-    CHECK(mm_actor_track_clone(&target, &source, &services));
-    CHECK(strcmp(h.log, "reL++UL--UXY") == 0);
-    CHECK(target.events != source.events && target.route != source.route && h.refs == 4 && h.live == 4);
-    CHECK(memcmp(target.events, source.events, sizeof(Table)) == 0);
+    CHECK(mm_actor_track_clone(&target, &source, &tags));
+    CHECK(strcmp(h.log, "++--xxxxx") == 0);
+    CHECK(target.events != source.events && target.route != source.route && h.refs == 4 && h.live == live);
+    CHECK(mm_actor_path_get(target.route, 0, &point) && point.xyz.dxr == 3);
+    point.xyz.dxr = 25;
+    CHECK(mm_actor_path_put(target.route, 0, &point));
+    CHECK(mm_actor_path_get(source.route, 0, &point) && point.xyz.dxr == 3);
     reset_log();
-    CHECK(mm_actor_track_clone(&source, &source, &services));
-    CHECK(h.logged == 0);
+    CHECK(mm_actor_track_clone(&source, &source, &tags));
     mm_actor_track_swap(&source, &source);
-    CHECK(h.refs == 4);
+    CHECK(!h.logged && !h.attempts);
     old = source;
     mm_actor_track_swap(&target, &source);
     CHECK(target.events == old.events && target.route == old.route);
     reset_log();
-    mm_actor_track_close_tags(&target, &services);
-    CHECK(strcmp(h.log, "L--U") == 0 && h.refs == 2);
-    e = (Table *)target.events;
-    {
-        MMTag tag;
-        memcpy(&tag, mm_actor_event_tag(e, 2, &services), sizeof(tag));
-        CHECK(!tag.cache && tag.sid == 0 && tag.type == 123 && tag.number == 456);
-    }
+    mm_actor_track_close_tags(&target, &tags);
+    CHECK(strcmp(h.log, "--") == 0 && h.refs == 2);
     reset_log();
-    mm_actor_track_close_tags(&target, &services);
-    CHECK(strcmp(h.log, "LU") == 0 && h.refs == 2);
-    reset_log();
-    mm_actor_track_dispose(&source, &services);
-    CHECK(strcmp(h.log, "L--UXY") == 0);
-    mm_actor_track_dispose(&source, &services);
-    CHECK(!source.events && !source.route && h.refs == 0);
-    CHECK(mm_actor_track_clone(&target, &source, &services));
-    CHECK(!target.events && !target.route && !h.live);
+    mm_actor_track_close_tags(&target, &tags);
+    CHECK(!h.logged && h.refs == 2);
+    mm_actor_track_dispose(&source, &tags);
+    CHECK(strcmp(h.log, "--xxxxx") == 0);
+    mm_actor_track_dispose(&source, &tags);
+    CHECK(mm_actor_track_clone(&target, &source, &tags));
+    CHECK(!target.events && !target.route && !h.live && !h.refs);
 }
+
 static void tag_acceptance(void)
 {
     MMActorTrack t, clone;
-    Table *e;
+    MMActorEvent short_event = {MM_ACTOR_SOUND, 0, {0, 0, 0}};
+    MMI32 short_payload = 0;
+    MMTag tag;
     mm_actor_track_init(&t);
     mm_actor_track_init(&clone);
     reset_log();
-    CHECK(mm_actor_track_create(&t, &services));
-    e = (Table *)t.events;
-    row(e, 0, MM_ACTOR_COSTUME, -1, 0, &h);
-    row(e, 1, MM_ACTOR_COSTUME, 2, 0, &h);
-    row(e, 2, MM_ACTOR_COSTUME, 0, 17, (void *)1);
-    row(e, 3, MM_ACTOR_SOUND, 0, -1, (void *)1);
-    row(e, 4, MM_ACTOR_SOUND, 0, 0, NULL);
-    CHECK(!mm_actor_event_tag(e, 0, &services) && !mm_actor_event_tag(e, 1, &services));
+    CHECK(mm_actor_track_create(&t, &allocator, 1, &tags));
+    row(t.events, MM_ACTOR_COSTUME, -1, 0, &h, 0);
+    row(t.events, MM_ACTOR_COSTUME, 2, 0, &h, 0);
+    row(t.events, MM_ACTOR_COSTUME, 0, 17, (void *)1, 10);
+    row(t.events, MM_ACTOR_SOUND, 0, -1, (void *)1, 20);
+    row(t.events, MM_ACTOR_SOUND, 0, 0, NULL, 30);
+    CHECK(mm_actor_events_insert(t.events, 5, sizeof(short_payload), &short_payload, &short_event));
+    CHECK(!mm_actor_track_get_tag(t.events, 0, &tag) && !mm_actor_track_get_tag(t.events, 1, &tag));
+    CHECK(!mm_actor_track_get_tag(t.events, 5, &tag) && !mm_actor_track_get_tag(t.events, 6, &tag));
     reset_log();
-    CHECK(mm_actor_track_clone(&clone, &t, &services));
-    CHECK(strcmp(h.log, "reLU") == 0);
-    mm_actor_track_dispose(&t, &services);
-    mm_actor_track_dispose(&clone, &services);
-    CHECK(h.refs == 0 && h.live == 0);
+    mm_actor_track_retain_tag(t.events, 4, &tags);
+    mm_actor_track_close_tag(t.events, 4, &tags);
+    CHECK(mm_actor_track_clone(&clone, &t, &tags) && !h.logged && !h.refs);
+    mm_actor_track_dispose(&t, &tags);
+    mm_actor_track_dispose(&clone, &tags);
+    CHECK(!h.refs && !h.live);
 }
+
+static void open_rows(void)
+{
+    MMActorTrack t;
+    MMTag tag;
+    MMTagServices services = tags;
+    const MMU32 order[] = {110, 120, 30, 120, 110};
+    services.context = &h;
+    services.file = file;
+    services.copy = copy;
+    services.publish = publish;
+    reset_log();
+    mm_actor_track_init(&t);
+    CHECK(mm_actor_track_create(&t, &allocator, 1, &tags));
+    row(t.events, MM_ACTOR_COSTUME, 0, 0, NULL, 10);
+    row(t.events, MM_ACTOR_COSTUME, 0, 7, NULL, 50);
+    row(t.events, MM_ACTOR_SOUND, 0, 0, NULL, 20);
+    row(t.events, MM_ACTOR_COSTUME, 0, 0, NULL, 30);
+    h.copies = h.publish_count = 0;
+    h.fail_copy = 3;
+    CHECK(!mm_actor_track_open_tags(&t, &h, &source_file, &services));
+    CHECK(strcmp(h.log, "c+c+c--") == 0 && !h.refs);
+    CHECK(h.publish_count == 5 && !memcmp(h.published, order, sizeof(order)));
+    CHECK(!t.events->storage.buffers[0].locks);
+    CHECK(mm_actor_track_get_tag(t.events, 2, &tag) && !tag.cache && tag.number == 120);
+    reset_log();
+    CHECK(mm_actor_track_open_tags(&t, &h, NULL, &tags));
+    CHECK(strcmp(h.log, "+++") == 0 && h.refs == 3);
+    CHECK(mm_actor_track_get_tag(t.events, 1, &tag) && !tag.cache && tag.number == 50);
+    mm_actor_track_retain_tag(t.events, 0, &tags);
+    CHECK(h.refs == 4);
+    release(&h);
+    mm_actor_track_close_tag(t.events, 0, &tags);
+    mm_actor_track_close_tag(t.events, 0, &tags);
+    CHECK(h.refs == 2);
+    mm_actor_track_dispose(&t, &tags);
+    CHECK(!h.refs && !h.live);
+}
+
 static void adoption(void)
 {
-    MMActorTrack t, empty, copy;
-    void *route, *events;
+    MMActorTrack t, clone;
+    MMActorEventTable *events;
+    MMActorPath *route;
     mm_actor_track_init(&t);
-    mm_actor_track_init(&empty);
-    mm_actor_track_init(&copy);
-    CHECK(mm_actor_track_create(&t, &services));
+    mm_actor_track_init(&clone);
+    reset_log();
+    CHECK(mm_actor_track_create(&t, &allocator, 1, &tags));
     populate(&t);
     reset_log();
-    mm_actor_track_adopt_events(&t, t.events, &services);
-    mm_actor_track_adopt_route(&t, t.route, &services);
+    mm_actor_track_adopt_events(&t, t.events, &tags);
+    mm_actor_track_adopt_route(&t, t.route);
     CHECK(!h.logged && h.refs == 2);
-    events = allocate(0);
-    route = allocate(1);
-    CHECK(events != NULL && route != NULL);
-    reset_log();
-    mm_actor_track_adopt_events(&t, events, &services);
-    CHECK(strcmp(h.log, "L--UX") == 0 && !h.refs);
-    reset_log();
-    mm_actor_track_adopt_route(&t, route, &services);
-    CHECK(strcmp(h.log, "Y") == 0);
-    mm_actor_track_adopt_events(&t, NULL, &services);
-    CHECK(mm_actor_track_clone(&copy, &t, &services));
-    CHECK(!copy.events && copy.route);
-    mm_actor_track_dispose(&copy, &services);
-    mm_actor_track_adopt_route(&t, NULL, &services);
+    events = mm_actor_events_create(NULL, 0, 0);
+    route = mm_actor_path_create(&allocator, 1, 1);
+    CHECK(events && route);
+    mm_actor_track_adopt_events(&t, events, &tags);
+    CHECK(!h.refs && t.events == events);
+    mm_actor_track_adopt_route(&t, route);
+    mm_actor_track_adopt_events(&t, NULL, &tags);
+    CHECK(mm_actor_track_clone(&clone, &t, &tags));
+    CHECK(!clone.events && clone.route && clone.route != route);
+    mm_actor_track_dispose(&clone, &tags);
+    mm_actor_track_adopt_route(&t, NULL);
     CHECK(!h.live);
-    t.events = allocate(0);
-    CHECK(t.events != NULL);
-    CHECK(mm_actor_track_clone(&copy, &t, &services));
-    CHECK(copy.events && !copy.route);
-    CHECK(mm_actor_track_create(&t, &services));
-    CHECK(((Table *)t.route)->growth == 32);
-    mm_actor_track_dispose(&copy, &services);
-    mm_actor_track_dispose(&t, &services);
-    CHECK(mm_actor_track_clone(&copy, &empty, &services));
+    t.events = mm_actor_events_create(NULL, 0, 0);
+    CHECK(t.events && mm_actor_track_clone(&clone, &t, &tags));
+    CHECK(clone.events && !clone.route);
+    mm_actor_track_dispose(&clone, &tags);
+    mm_actor_track_dispose(&t, &tags);
     CHECK(!h.live && !h.refs);
 }
+
 static void reject_invalid_path(void)
 {
     MMPreviewActor actor = {0};
@@ -339,8 +347,8 @@ int main(void)
     transactions();
     tag_acceptance();
     adoption();
+    open_rows();
     reject_invalid_path();
-    CHECK(h.retains == 2 && h.releases == 8);
     puts("actor track passed");
     return 0;
 }

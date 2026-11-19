@@ -70,10 +70,13 @@ static int marker(void *events, MMI32 index, const MMActorEvent *e, const MMActo
     }
     return 1;
 }
-int mm_preview_actor_timeline(const MMPreviewActor *p, MMI32 first, MMI32 last, const MMPreviewTimelineServices *s)
+int mm_preview_actor_timeline(const MMPreviewActor *p, const MMActorTrack *live, MMI32 first, MMI32 last,
+                              const MMPreviewTimelineServices *s)
 {
     const MMActorMotionServices *m = &s->timeline.motion;
-    void *owner = 0, *route = 0, *events = 0;
+    MMActorTrack track;
+    MMActorPath *route;
+    MMActorEventTable *events;
     MMActorState cursor;
     MMActorFrameInputs inputs;
     MMActorFrame sequence;
@@ -90,12 +93,11 @@ int mm_preview_actor_timeline(const MMPreviewActor *p, MMI32 first, MMI32 last, 
         return 1;
     if ((double)last - p->header.first_frame > 100000)
         return 0;
-    r = s->clone(s->context, &owner, &route, &events);
-    if (r <= 0)
-    {
-        result = r;
-        goto done;
-    }
+    mm_actor_track_init(&track);
+    if (!mm_actor_track_clone(&track, live, s->tags))
+        return 0;
+    route = track.route;
+    events = track.events;
     mm_actor_state_init(&cursor);
     mm_actor_state_rewind(&cursor, route, m);
     frame = p->header.first_frame;
@@ -125,7 +127,7 @@ int mm_preview_actor_timeline(const MMPreviewActor *p, MMI32 first, MMI32 last, 
                 r = event.nfrm <= cursor.frame;
             else
             {
-                r = s->apply(s->context, &cursor, owner, command.eventIndex);
+                r = s->apply(s->context, &cursor, &track, command.eventIndex);
                 if (r < 0)
                 {
                     result = r;
@@ -182,8 +184,7 @@ int mm_preview_actor_timeline(const MMPreviewActor *p, MMI32 first, MMI32 last, 
     }
     result = 1;
 done:
-    if (owner)
-        s->release(s->context, owner);
+    mm_actor_track_dispose(&track, s->tags);
     return result;
 }
 void mm_preview_actor_cue(MMPreviewCue *out, const MMActorSound *sound, MMI32 frame, MMI32 actor)

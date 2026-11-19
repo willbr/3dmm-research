@@ -3,8 +3,6 @@
 #ifndef ACTOR_TRACK_H
 #define ACTOR_TRACK_H
 #include "actor_data.h"
-#include "mm/actor_events.h"
-#include "mm/actor_path.h"
 #include "mm/actor_track.h"
 
 // Owns authored route/event tables and the embedded resource references in
@@ -21,11 +19,11 @@ class ActorTrack
   public:
     MMActorEventTable *Events() const
     {
-        return static_cast<MMActorEventTable *>(_storage.events);
+        return _storage.events;
     }
     MMActorPath *Route() const
     {
-        return static_cast<MMActorPath *>(_storage.route);
+        return _storage.route;
     }
     MMActorEventTable *AdoptEvents(MMActorEventTable *);
     MMActorPath *AdoptRoute(MMActorPath *);
@@ -39,9 +37,11 @@ class ActorTrack
     bool FCloneFrom(const ActorTrack &source);
     void Swap(ActorTrack &other);
     void Clear();
+    bool FOpenTags(PChunkyResourceFile);
     void CloseTags();
-    // Legacy byte-address accessor: group rows have four-byte alignment.
-    // Copy the returned TAG to an aligned local before accessing its fields.
-    static bool FEventTag(MMActorEventTable *events, LegacyLong index, PTAG *tag, ActorEvent::PBase *event = pvNil);
+    void RetainEventTag(LegacyLong index);
+    void CloseEventTag(LegacyLong index);
+    const MMActorTrack &Core() const { return _storage; }
+    static const MMTagServices &TagServices();
 };
 #endif

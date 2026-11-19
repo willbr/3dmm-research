@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_PREVIEW_METADATA_H
 #define MM_ENGINE_PREVIEW_METADATA_H
 #include "preview_actor.h"
+#include "actor_track.h"
 #include "collections.h"
 #include "wide.h"
 #ifdef __cplusplus
@@ -37,10 +38,9 @@ extern "C"
     {
         void *context;
         MMActorTimelineServices timeline;
+        const MMTagServices *tags;
         void (*reset)(void *);
-        int (*clone)(void *, void **owner, void **route, void **events);
-        void (*release)(void *, void *owner);
-        int (*apply)(void *, MMActorState *, void *owner, MMI32 index);
+        int (*apply)(void *, MMActorState *, const MMActorTrack *, MMI32 index);
         int (*marker)(void *, const MMPreviewMarker *), (*span)(void *, const MMPreviewSpan *);
         void (*extend)(void *, MMWide end);
         int (*fault)(void *);
@@ -81,7 +81,8 @@ extern "C"
      * allocation-free stable merging after scratch failure. Getters cannot mutate/reenter.
      * Presentation reads the borrowed live graph using the movie's validated
      * scene and actor readers. Output callbacks must not mutate the graph. */
-    int mm_preview_actor_timeline(const MMPreviewActor *, MMI32 first, MMI32 last, const MMPreviewTimelineServices *);
+    int mm_preview_actor_timeline(const MMPreviewActor *, const MMActorTrack *, MMI32 first, MMI32 last,
+                                  const MMPreviewTimelineServices *);
     int mm_preview_presentation(const struct MMMovieSessionGraph *, MMU32 scene, int sound_sheet, int include_captions,
                                 const MMPreviewPresentationServices *);
     void mm_preview_cues_sort(MMU32 scene_type, MMU32 scene_number, const MMPreviewCueOrder *);

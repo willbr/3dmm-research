@@ -17,12 +17,13 @@ typedef struct Track
 typedef struct Timeline
 {
     MMPreviewActor actor;
-    Track live, copy;
+    Track live;
     MMPreviewTimelineServices services;
     MMPreviewMarker markers[16];
     MMPreviewSpan spans[16];
     unsigned marker_count, span_count;
-    int calls, fail_at, failure, fault, owners, released;
+    int calls, fail_at, failure, fault;
+    int allocated, attempts, clone_attempts, fail_clone_at;
 } Timeline;
 static int tl_step(Timeline *h)
 {
@@ -35,70 +36,91 @@ static int tl_step(Timeline *h)
     }
     return 1;
 }
-static MMU32 route_width(void *p)
+static void *allocate(void *p, void *data, MMU32 old_bytes, MMU32 new_bytes, int priority)
 {
-    (void)p;
-    return 16;
+    Timeline *h = (Timeline *)p;
+    void *out;
+    (void)priority;
+    ++h->attempts;
+    if (h->fail_clone_at && h->attempts >= h->fail_clone_at)
+        return NULL;
+    out = realloc(data, new_bytes);
+    if (out && !old_bytes)
+        ++h->allocated;
+    return out;
 }
-static MMI32 route_count(void *p)
+
+static void free_storage(void *p, void *data, MMU32 bytes)
 {
-    return ((Track *)p)->routes;
+    Timeline *h = (Timeline *)p;
+    (void)bytes;
+    assert(h->allocated > 0);
+    --h->allocated;
+    free(data);
 }
-static void point(void *p, MMI32 i, MMActorRoutePoint *out)
-{
-    Track *t = (Track *)p;
-    assert(i >= 0 && i < t->routes);
-    *out = t->route[i];
-}
-static MMU32 event_width(void *p)
-{
-    (void)p;
-    return 20;
-}
-static MMI32 event_count(void *p)
-{
-    return ((Track *)p)->count;
-}
-static void event(void *p, MMI32 i, MMActorEvent *out)
-{
-    Track *t = (Track *)p;
-    assert(i >= 0 && i < t->count);
-    if (!t->many)
-        *out = t->events[i];
-    else
-    {
-        memset(out, 0, sizeof(*out));
-        out->nfrm = 1;
-        out->aet = i == 0 ? MM_ACTOR_ADD : i == t->count - 1 ? MM_ACTOR_SOUND : MM_ACTOR_SIZE;
-    }
-}
-static MMI32 size(void *p, MMI32 i)
-{
-    Track *t = (Track *)p;
-    return t->many ? (i == 0              ? (MMI32)sizeof(MMActorEntrance)
-                      : i == t->count - 1 ? (MMI32)sizeof(MMActorSound)
-                                          : 4)
-                   : t->sizes[i];
-}
-static void payload(void *p, MMI32 i, void *out)
-{
-    Track *t = (Track *)p;
-    if (!t->many)
-        memcpy(out, t->payload[i], (size_t)t->sizes[i]);
-    else if (i == 0)
-        memset(out, 0, sizeof(MMActorEntrance));
-    else
-    {
-        MMI32 one = ONE;
-        memcpy(out, &one, 4);
-    }
-}
+
 static void put(void *p, MMI32 i, const MMActorEvent *e)
 {
-    Track *t = (Track *)p;
-    if (!t->many)
-        t->events[i] = *e;
+    assert(mm_actor_events_set_fixed((MMActorEventTable *)p, i, e));
 }
+
+static void make_rows(const Track *fixture, MMActorTrack *track)
+{
+    MMActorEvent event;
+    MMActorEntrance add = {0};
+    MMActorSound sound = {0};
+    MMI32 one = ONE, i;
+    for (i = 0; i < fixture->routes; ++i)
+        assert(mm_actor_path_insert(track->route, i, &fixture->route[i]));
+    if (!fixture->many)
+    {
+        for (i = 0; i < fixture->count; ++i)
+            assert(mm_actor_events_insert(track->events, i, fixture->sizes[i], fixture->payload[i], &fixture->events[i]));
+        return;
+    }
+    memset(&event, 0, sizeof(event));
+    event.nfrm = 1;
+    event.aet = MM_ACTOR_ADD;
+    assert(mm_actor_events_insert(track->events, 0, sizeof(add), &add, &event));
+    event.aet = MM_ACTOR_SIZE;
+    for (i = 1; i < fixture->count - 1; ++i)
+        assert(mm_actor_events_insert(track->events, i, sizeof(one), &one, &event));
+    event.aet = MM_ACTOR_SOUND;
+    assert(mm_actor_events_insert(track->events, i, sizeof(sound), &sound, &event));
+}
+
+static int read_timeline(Timeline *h, MMI32 first, MMI32 last)
+{
+    MMActorTrack track;
+    MMActorEvent before, after;
+    MMStorageAllocator allocator;
+    MMActorEventFactory factory;
+    int initial_allocated, fail, result;
+    allocator.context = h;
+    allocator.resize = allocate;
+    allocator.release = free_storage;
+    factory.allocator = &allocator;
+    factory.trash_unused = 0;
+    fail = h->fail_clone_at;
+    h->fail_clone_at = 0;
+    track.route = mm_actor_path_create(&allocator, h->live.routes, 0);
+    track.events = mm_actor_events_create(&factory, h->live.count, (MMU32)h->live.count * 4);
+    assert(track.route && track.events);
+    make_rows(&h->live, &track);
+    assert(mm_actor_events_get_fixed(track.events, 1, &before));
+    initial_allocated = h->allocated;
+    h->attempts = 0;
+    h->fail_clone_at = fail;
+    result = mm_preview_actor_timeline(&h->actor, &track, first, last, &h->services);
+    h->clone_attempts = h->attempts;
+    assert(h->allocated == initial_allocated);
+    assert(mm_actor_events_get_fixed(track.events, 1, &after));
+    assert(!memcmp(&before, &after, sizeof(before)));
+    mm_actor_track_dispose(&track, h->services.tags);
+    assert(!h->allocated);
+    return result;
+}
+
 static int resolve(void *p, MMI32 action, MMI32 cel, MMI32 *out)
 {
     Timeline *h = (Timeline *)p;
@@ -111,25 +133,6 @@ static void reset_timeline(void *p)
 {
     Timeline *h = (Timeline *)p;
     h->marker_count = h->span_count = 0;
-}
-static int clone(void *p, void **owner, void **route, void **events)
-{
-    Timeline *h = (Timeline *)p;
-    int r = tl_step(h);
-    if (r >= 0)
-    {
-        h->copy = h->live;
-        *owner = *route = *events = &h->copy;
-        ++h->owners;
-    }
-    return r;
-}
-static void release_track(void *p, void *owner)
-{
-    Timeline *h = (Timeline *)p;
-    assert(owner == &h->copy && h->owners == 1);
-    --h->owners;
-    ++h->released;
 }
 static int tl_fault(void *p)
 {
@@ -171,7 +174,7 @@ static void effect(void *p, const MMActorEffectCommand *c, MMActorEffectReply *r
     r->value = 4;
     r->flags = 0;
 }
-static int apply(void *p, MMActorState *state, void *owner, MMI32 index)
+static int apply(void *p, MMActorState *state, const MMActorTrack *track, MMI32 index)
 {
     Timeline *h = (Timeline *)p;
     MMActorEffectServices effects;
@@ -184,7 +187,7 @@ static int apply(void *p, MMActorState *state, void *owner, MMI32 index)
     effects.context = h;
     effects.run = effect;
     effects.write_event = put;
-    return mm_actor_effect_apply(state, owner, owner, index, &origin, 0, 1, &h->services.timeline.motion, &effects);
+    return mm_actor_effect_apply(state, track->route, track->events, index, &origin, 0, 1, &h->services.timeline.motion, &effects);
 }
 static void tl_setup(Timeline *h)
 {
@@ -219,18 +222,9 @@ static void tl_setup(Timeline *h)
     s->context = h;
     s->timeline.context = h;
     s->timeline.resolve = resolve;
-    s->timeline.motion.route_width = route_width;
-    s->timeline.motion.route_count = route_count;
-    s->timeline.motion.route_point = point;
-    s->timeline.motion.event_width = event_width;
-    s->timeline.motion.event_count = event_count;
-    s->timeline.motion.event = event;
-    s->timeline.motion.event_size = size;
-    s->timeline.motion.payload = payload;
+    s->timeline.motion = mm_actor_track_motion_services();
     s->timeline.put_event = put;
     s->reset = reset_timeline;
-    s->clone = clone;
-    s->release = release_track;
     s->apply = apply;
     s->marker = marker_emit;
     s->span = span_emit;
@@ -242,17 +236,24 @@ static void timeline_tests(void)
     Timeline h;
     Track original;
     MMPreviewActor actor;
-    int i, n, f, r;
+    int i, n, f, r, clone_allocations;
     tl_setup(&h);
     original = h.live;
     actor = h.actor;
-    assert(mm_preview_actor_timeline(&h.actor, 1, 5, &h.services) == 1 && !h.owners && h.released == 1);
+    assert(read_timeline(&h, 1, 5) == 1);
     assert(h.marker_count == 4 && h.span_count == 2 && h.spans[0].first.low == 1 && h.spans[0].end.low == 2 &&
            h.spans[1].first.low == 2 && h.spans[1].end.low == 6 && h.spans[1].frozen);
     assert(h.markers[1].kind == MM_PREVIEW_MARK_ACTION && h.markers[1].frame == 1 &&
            h.markers[3].kind == MM_PREVIEW_MARK_FREEZE && h.markers[3].frame == 2);
     assert(!memcmp(&original, &h.live, sizeof(original)) && !memcmp(&actor, &h.actor, sizeof(actor)));
+    clone_allocations = h.clone_attempts;
     n = h.calls;
+    for (i = 1; i <= clone_allocations; ++i)
+    {
+        tl_setup(&h);
+        h.fail_clone_at = i;
+        assert(read_timeline(&h, 1, 5) == 0 && !h.calls);
+    }
     for (f = -2; f <= 0; ++f)
         for (i = 1; i <= n; ++i)
         {
@@ -261,21 +262,21 @@ static void timeline_tests(void)
             actor = h.actor;
             h.fail_at = i;
             h.failure = f;
-            r = mm_preview_actor_timeline(&h.actor, 1, 5, &h.services);
-            assert(!h.owners && !memcmp(&original, &h.live, sizeof(original)) &&
+            r = read_timeline(&h, 1, 5);
+            assert(!memcmp(&original, &h.live, sizeof(original)) &&
                    !memcmp(&actor, &h.actor, sizeof(actor)));
             if (f < 0)
                 assert(r == f);
         }
     tl_setup(&h);
     h.actor.inactive = 1;
-    assert(mm_preview_actor_timeline(&h.actor, 1, 5, &h.services) == 1 && !h.calls && !h.released);
+    assert(read_timeline(&h, 1, 5) == 1 && !h.calls && !h.clone_attempts);
     tl_setup(&h);
-    assert(mm_preview_actor_timeline(&h.actor, 1, 0, &h.services) == 1 && !h.calls);
+    assert(read_timeline(&h, 1, 0) == 1 && !h.calls);
     tl_setup(&h);
-    assert(mm_preview_actor_timeline(&h.actor, 1, 100002, &h.services) == 0 && !h.calls);
+    assert(read_timeline(&h, 1, 100002) == 0 && !h.calls);
     tl_setup(&h);
-    assert(mm_preview_actor_timeline(&h.actor, 3, 5, &h.services) == 1 && !h.marker_count && h.span_count == 1 &&
+    assert(read_timeline(&h, 3, 5) == 1 && !h.marker_count && h.span_count == 1 &&
            h.spans[0].first.low == 3);
     tl_setup(&h);
     h.actor.header.first_frame = 2147483646;
@@ -284,14 +285,14 @@ static void timeline_tests(void)
     h.live.route[0].dwr = 0;
     h.live.routes = 1;
     memset(h.live.payload[2], 0, 4);
-    assert(mm_preview_actor_timeline(&h.actor, 2147483646, 2147483647, &h.services) == 1 && h.span_count == 1 &&
+    assert(read_timeline(&h, 2147483646, 2147483647) == 1 && h.span_count == 1 &&
            h.spans[0].end.low == 0x80000000U && h.spans[0].end.high == 0);
     tl_setup(&h);
     h.live.many = 1;
     h.live.count = 100001;
     h.live.routes = 1;
     h.live.route[0].dwr = 0;
-    assert(mm_preview_actor_timeline(&h.actor, 1, 1, &h.services) == 0 && h.marker_count == 100000 && !h.owners);
+    assert(read_timeline(&h, 1, 1) == 0 && h.marker_count == 100000);
 }
 #define ACTR 0x41435452UL
 #define GGAE 0x47474145UL
