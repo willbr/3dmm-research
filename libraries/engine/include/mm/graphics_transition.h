@@ -64,6 +64,27 @@ typedef struct MMGraphicsMovieDissolvePalette
     const unsigned char *incoming_indices;   /* Optional raster indices as colour lookup hints. */
 } MMGraphicsMovieDissolvePalette;
 
+typedef enum MMGraphicsMovieIndexedOperation
+{
+    MM_MOVIE_TRANSITION_FILL_BLACK,
+    MM_MOVIE_TRANSITION_SET_PALETTE,
+    MM_MOVIE_TRANSITION_COPY,
+    MM_MOVIE_TRANSITION_DISSOLVE
+} MMGraphicsMovieIndexedOperation;
+
+typedef struct MMGraphicsMoviePaletteSource
+{
+    const void *context;
+    int (*read)(const void *, unsigned char bgrx[1024]);
+    void (*overlay)(const void *, unsigned char bgrx[1024]);
+} MMGraphicsMoviePaletteSource;
+
+typedef struct MMGraphicsMovieSnapshot
+{
+    unsigned short *indices;
+    unsigned char outgoing[1024], incoming[1024], target[1024];
+} MMGraphicsMovieSnapshot;
+
 typedef struct MMGraphicsTransitionServices
 {
     void *context;
@@ -95,6 +116,26 @@ MMU32 mm_graphics_transition_duration(MMU32);
 void mm_graphics_transition_run(const MMGraphicsTransition *, const MMGraphicsTransitionServices *);
 
 MMGraphicsMovieTransition mm_graphics_movie_transition(MMI32 authored_kind);
+/* Run Studio's indexed transition using a prepared palette and drawing port.
+ * Return 1 on success, 0 for an unknown effect, or the host's negative error.
+ * The callback returns zero on success and must not unwind through C. */
+int mm_graphics_movie_transition_indexed(MMI32 authored_kind, int force_cut, void *context,
+                                        int (*draw)(void *, MMGraphicsMovieIndexedOperation,
+                                                    const MMGraphicsMovieTransition *));
+/* Zero-initialize the owning snapshot. A successful prepare replaces it and
+ * remaps the supplied outgoing image in place. Zero means no effect or invalid
+ * image, and -1 means allocation failure. Both leave the snapshot and pixels
+ * alone. Palette-source callbacks are optional and must not unwind through C. */
+int mm_graphics_movie_snapshot_prepare(MMGraphicsMovieSnapshot *, MMI32 authored_kind,
+                                      const MMPixelSurface *outgoing, const unsigned char *outgoing_palette,
+                                      const MMGraphicsMoviePaletteSource *);
+void mm_graphics_movie_snapshot_dispose(MMGraphicsMovieSnapshot *);
+/* The outgoing surface is the same image used by prepare. Incoming indices,
+ * when supplied, are tightly packed in the incoming surface's dimensions. */
+int mm_graphics_movie_snapshot_render(const MMGraphicsMovieSnapshot *, MMI32 authored_kind,
+                                     double elapsed_ms, MMU32 seed, const MMPixelSurface *outgoing,
+                                     const MMPixelSurface *incoming, const unsigned char *incoming_indices);
+
 /* Update an incoming RGBA8 image in place from a separate outgoing image.
  * A stable seed gives the same reveal on repeated presentations. Optional
  * dissolve palette indices are tightly packed in each surface's dimensions. */

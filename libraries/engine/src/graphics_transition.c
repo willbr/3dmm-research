@@ -3,6 +3,7 @@
 #include "mm/graphics_transition.h"
 #include "mm/indexed_display.h"
 #include "mm/wide.h"
+#include <stdlib.h>
 #include <string.h>
 
 #define MM_DISSOLVE_LIMIT 0x07ffffffUL
@@ -261,6 +262,91 @@ MMGraphicsMovieTransition mm_graphics_movie_transition(MMI32 authored_kind)
     if (authored_kind < MM_GRAPHICS_MOVIE_CUT || authored_kind > MM_GRAPHICS_MOVIE_BLACK)
         authored_kind = MM_GRAPHICS_MOVIE_CUT;
     return effects[authored_kind];
+}
+
+int mm_graphics_movie_transition_indexed(MMI32 kind, int force_cut, void *context,
+                                        int (*draw)(void *, MMGraphicsMovieIndexedOperation,
+                                                    const MMGraphicsMovieTransition *))
+{
+    MMGraphicsMovieTransition effect;
+    int status;
+    if (force_cut)
+        kind = MM_GRAPHICS_MOVIE_CUT;
+    if (kind < MM_GRAPHICS_MOVIE_CUT || kind > MM_GRAPHICS_MOVIE_BLACK)
+        return 0;
+    effect = mm_graphics_movie_transition(kind);
+    if (effect.dissolve_phase_ms)
+        status = draw(context, MM_MOVIE_TRANSITION_DISSOLVE, &effect);
+    else
+    {
+        status = draw(context, MM_MOVIE_TRANSITION_FILL_BLACK, &effect);
+        if (status >= 0 && kind == MM_GRAPHICS_MOVIE_CUT)
+        {
+            status = draw(context, MM_MOVIE_TRANSITION_SET_PALETTE, &effect);
+            if (status >= 0)
+                status = draw(context, MM_MOVIE_TRANSITION_COPY, &effect);
+        }
+    }
+    return status < 0 ? status : 1;
+}
+
+void mm_graphics_movie_snapshot_dispose(MMGraphicsMovieSnapshot *snapshot)
+{
+    free(snapshot->indices);
+    snapshot->indices = NULL;
+}
+
+int mm_graphics_movie_snapshot_prepare(MMGraphicsMovieSnapshot *snapshot, MMI32 kind,
+                                      const MMPixelSurface *outgoing, const unsigned char *palette,
+                                      const MMGraphicsMoviePaletteSource *source)
+{
+    const MMGraphicsMovieTransition effect = mm_graphics_movie_transition(kind);
+    MMGraphicsMovieSnapshot next;
+    size_t count;
+    if (!effect.duration_ms || !outgoing || outgoing->depth != 32 || !mm_pixel_surface_valid(outgoing) ||
+        (MMU32)outgoing->height > MM_DISSOLVE_LIMIT / (MMU32)outgoing->width)
+        return 0;
+    memset(&next, 0, sizeof(next));
+    next.indices = NULL;
+    if (palette && effect.dissolve_phase_ms)
+    {
+        if (kind == MM_GRAPHICS_MOVIE_DISSOLVE && source && source->read &&
+            source->read(source->context, next.incoming))
+        {
+            memcpy(next.target, palette, sizeof(next.target));
+            if (source->overlay)
+                source->overlay(source->context, next.target);
+            if (memcmp(palette, next.target, sizeof(next.target)) ||
+                memcmp(next.incoming, next.target, sizeof(next.target)))
+            {
+                count = (size_t)outgoing->width * (size_t)outgoing->height;
+                next.indices = (unsigned short *)malloc(count * sizeof(next.indices[0]));
+                if (!next.indices)
+                    return -1;
+                memcpy(next.outgoing, palette, sizeof(next.outgoing));
+            }
+        }
+        if (!mm_pixel_remap_dissolve_rgba(outgoing, palette, 256, next.indices))
+            mm_graphics_movie_snapshot_dispose(&next);
+    }
+    mm_graphics_movie_snapshot_dispose(snapshot);
+    *snapshot = next;
+    return 1;
+}
+
+int mm_graphics_movie_snapshot_render(const MMGraphicsMovieSnapshot *snapshot, MMI32 kind, double elapsed_ms,
+                                     MMU32 seed, const MMPixelSurface *outgoing, const MMPixelSurface *incoming,
+                                     const unsigned char *incoming_indices)
+{
+    MMGraphicsMovieDissolvePalette palette;
+    if (!snapshot->indices)
+        return mm_graphics_movie_transition_rgba(kind, elapsed_ms, seed, outgoing, incoming, NULL);
+    palette.outgoing = snapshot->outgoing;
+    palette.incoming = snapshot->incoming;
+    palette.target = snapshot->target;
+    palette.outgoing_indices = snapshot->indices;
+    palette.incoming_indices = incoming_indices;
+    return mm_graphics_movie_transition_rgba(kind, elapsed_ms, seed, outgoing, incoming, &palette);
 }
 
 static void show_palette_colour(unsigned char *pixel, const unsigned char *palette, int index)

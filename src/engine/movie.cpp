@@ -27,8 +27,10 @@ Actors, Text boxes, etc.
 ***************************************************************************/
 
 #include <cstdio>
+#include <exception>
 #include "soc.h"
 #include "studio_preferences.h"
+#include "mm/indexed_display.h"
 ASSERTNAME
 
 #define krScaleMouseRecord BR_SCALAR(0.20)
@@ -3421,39 +3423,48 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
     if (pvNil != pglclrSystem && pvNil != pglclrBkgd)
     {
         Assert(pglclrBkgd->IvMac() + iclrMin <= pglclrSystem->IvMac(), "Background palette too large");
-        CopyPb(pglclrBkgd->QvGet(0), pglclrSystem->QvGet(iclrMin), LwMul(size(Color), pglclrBkgd->IvMac()));
+        static_assert(sizeof(Color) == 4, "Transition palettes use BGRX");
+        if (pglclrBkgd->IvMac() && pglclrSystem->IvMac())
+            mm_display_palette_overlay(static_cast<unsigned char *>(pglclrSystem->QvGet(0)), pglclrSystem->IvMac(),
+                                       iclrMin, static_cast<const unsigned char *>(pglclrBkgd->QvGet(0)),
+                                       pglclrBkgd->IvMac());
     }
 
-    switch (_playback.unpaced || CurrentStudioPreferences().cutTransitions ? transCut : _playback.transition)
+    struct TransitionHost
     {
-    case transBlack:
-        pgnvDst->FillRc(prcDst, kacrBlack);
-        break;
-
-    case transFadeToBlack:
-    case transFadeToWhite:
-    case transDissolve:
-    {
-        const auto effect = mm_graphics_movie_transition(static_cast<MMI32>(_playback.transition));
-        const auto shade = static_cast<byte>(effect.fill);
-        const auto fill = effect.fill < 0 ? kacrClear : AbstractColor(shade, shade, shade);
-        pgnvDst->Dissolve(0, 0, fill, pgnvSrc, prcSrc, prcDst, effect.dissolve_phase_ms, pglclrSystem);
-        break;
-    }
-
-    case transCut:
-        pgnvDst->FillRc(prcDst, kacrBlack);
-        GraphicsPort::SetActiveColors(pglclrSystem, fpalIdentity);
-        pgnvDst->CopyPixels(pgnvSrc, prcSrc, prcDst);
-        break;
-
-    default:
+        PGraphicsEnvironment dst, src;
+        RC *dstRect, *srcRect;
+        PDynamicArray palette;
+        std::exception_ptr failure;
+    } host{pgnvDst, pgnvSrc, prcDst, prcSrc, pglclrSystem, {}};
+    const int result = mm_graphics_movie_transition_indexed(
+        static_cast<MMI32>(_playback.transition), _playback.unpaced || CurrentStudioPreferences().cutTransitions, &host,
+        [](void *p, MMGraphicsMovieIndexedOperation op, const MMGraphicsMovieTransition *effect) -> int {
+            auto &h = *static_cast<TransitionHost *>(p);
+            try
+            {
+                switch (op)
+                {
+                case MM_MOVIE_TRANSITION_FILL_BLACK: h.dst->FillRc(h.dstRect, kacrBlack); break;
+                case MM_MOVIE_TRANSITION_SET_PALETTE: GraphicsPort::SetActiveColors(h.palette, fpalIdentity); break;
+                case MM_MOVIE_TRANSITION_COPY: h.dst->CopyPixels(h.src, h.srcRect, h.dstRect); break;
+                case MM_MOVIE_TRANSITION_DISSOLVE:
+                    const auto shade = static_cast<byte>(effect->fill);
+                    const auto fill = effect->fill < 0 ? kacrClear : AbstractColor(shade, shade, shade);
+                    h.dst->Dissolve(0, 0, fill, h.src, h.srcRect, h.dstRect, effect->dissolve_phase_ms, h.palette);
+                    break;
+                }
+                return 0;
+            }
+            catch (...) { h.failure = std::current_exception(); return -1; }
+        });
+    if (!result)
         Bug("bad trans");
-        break;
-    }
 
     ReleasePpo(&pglclrSystem);
     ReleasePpo(&pglclrBkgd);
+    if (host.failure)
+        std::rethrow_exception(host.failure);
 
     _playback.transition = transNil;
 }

@@ -1806,6 +1806,9 @@ Caption layout decodes authored font, style, colour and paragraph changes in
 C89 and uses Studio's C89 rich-text formatter for wrapping and placement.
 The font host measures and rasterizes the UTF-16 runs. Caption scrolling uses
 the height from that same layout pass.
+The C89 transition engine prepares the outgoing movie-camera snapshot and
+stores the dissolve palette indices. Snapshot preparation and Studio's
+indexed transitions use the same authored palette overlay.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and

@@ -1212,6 +1212,50 @@ static void graphics_dissolve(void)
     assert(!memcmp(destination, "\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xa5", sizeof(destination)));
 }
 
+typedef struct MovieIndexedTrace
+{
+    MMGraphicsMovieIndexedOperation steps[3];
+    MMGraphicsMovieTransition effect;
+    int count, fail_at;
+} MovieIndexedTrace;
+
+static int movie_indexed_draw(void *context, MMGraphicsMovieIndexedOperation step,
+                              const MMGraphicsMovieTransition *effect)
+{
+    MovieIndexedTrace *trace = (MovieIndexedTrace *)context;
+    assert(trace->count < 3);
+    trace->steps[trace->count++] = step;
+    trace->effect = *effect;
+    return trace->count == trace->fail_at ? -17 : 0;
+}
+
+static void movie_transition_indexed(void)
+{
+    MovieIndexedTrace trace;
+    int kind;
+    for (kind = MM_GRAPHICS_MOVIE_FADE_BLACK; kind <= MM_GRAPHICS_MOVIE_DISSOLVE; ++kind)
+    {
+        trace.count = trace.fail_at = 0;
+        assert(mm_graphics_movie_transition_indexed(kind, 0, &trace, movie_indexed_draw) == 1);
+        assert(trace.count == 1 && trace.steps[0] == MM_MOVIE_TRANSITION_DISSOLVE);
+        assert(trace.effect.fill == (kind == MM_GRAPHICS_MOVIE_DISSOLVE ? -1 :
+                                      kind == MM_GRAPHICS_MOVIE_FADE_WHITE ? 255 : 0));
+        assert(trace.effect.dissolve_phase_ms == (kind == MM_GRAPHICS_MOVIE_DISSOLVE ? 4000 : 2000));
+    }
+    trace.count = 0;
+    assert(!mm_graphics_movie_transition_indexed(-1, 0, &trace, movie_indexed_draw) && trace.count == 0);
+    assert(mm_graphics_movie_transition_indexed(MM_GRAPHICS_MOVIE_BLACK, 0, &trace, movie_indexed_draw) == 1);
+    assert(trace.count == 1 && trace.steps[0] == MM_MOVIE_TRANSITION_FILL_BLACK);
+    trace.count = 0;
+    assert(mm_graphics_movie_transition_indexed(MM_GRAPHICS_MOVIE_DISSOLVE, 1, &trace, movie_indexed_draw) == 1);
+    assert(trace.count == 3 && trace.steps[0] == MM_MOVIE_TRANSITION_FILL_BLACK &&
+           trace.steps[1] == MM_MOVIE_TRANSITION_SET_PALETTE && trace.steps[2] == MM_MOVIE_TRANSITION_COPY);
+    trace.count = 0;
+    trace.fail_at = 2;
+    assert(mm_graphics_movie_transition_indexed(MM_GRAPHICS_MOVIE_CUT, 0, &trace, movie_indexed_draw) == -17);
+    assert(trace.count == 2);
+}
+
 static void movie_transition_rgba(void)
 {
     static unsigned char old[] = {10, 11, 12, 255, 20, 21, 22, 255, 30, 31, 32, 255, 40, 41, 42, 255};
@@ -1241,6 +1285,25 @@ static void movie_transition_rgba(void)
     assert(next[0] == 60);
 }
 
+typedef struct MoviePaletteFixture
+{
+    const unsigned char *incoming, *authored;
+} MoviePaletteFixture;
+
+static int movie_palette_read(const void *context, unsigned char *palette)
+{
+    const MoviePaletteFixture *data = (const MoviePaletteFixture *)context;
+    memcpy(palette, data->incoming, 1024);
+    return 1;
+}
+
+static void movie_palette_overlay(const void *context, unsigned char *palette)
+{
+    const MoviePaletteFixture *data = (const MoviePaletteFixture *)context;
+    assert(!mm_display_palette_overlay(palette, 256, 255, data->authored, 2));
+    assert(mm_display_palette_overlay(palette, 256, 42, data->authored, 2));
+}
+
 static void movie_transition_palette(void)
 {
     static unsigned char old[] = {10, 20, 30, 255, 10, 20, 30, 255, 1, 2, 3, 128, 10, 20, 30, 255};
@@ -1252,6 +1315,9 @@ static void movie_transition_palette(void)
     MMPixelSurface incoming = {NULL, 4, 1, 16, 32};
     const MMPixelSurface outgoing = {old, 4, 1, 16, 32};
     MMGraphicsMovieDissolvePalette palette = {NULL, NULL, NULL, old_indices, new_indices};
+    MMGraphicsMovieSnapshot snapshot = {0};
+    MoviePaletteFixture fixture;
+    MMGraphicsMoviePaletteSource palette_source = {NULL, movie_palette_read, movie_palette_overlay};
     palette.outgoing = prior;
     palette.incoming = next;
     palette.target = target;
@@ -1268,6 +1334,30 @@ static void movie_transition_palette(void)
     /* The same incoming RGB can animate differently at two palette indices.
      * Pixel 0 has a stale hint. Pixel 2 retains its unlisted RGBA colour. */
     assert(!memcmp(rendered, expected, sizeof(expected)));
+
+    fixture.incoming = next;
+    fixture.authored = target + 4 * 42;
+    palette_source.context = &fixture;
+    assert(mm_graphics_movie_snapshot_prepare(&snapshot, MM_GRAPHICS_MOVIE_DISSOLVE, &outgoing, prior,
+                                              &palette_source) == 1);
+    assert(snapshot.indices && !memcmp(snapshot.indices, old_indices, sizeof(old_indices)));
+    assert(!memcmp(snapshot.target, target, sizeof(target)) && !memcmp(snapshot.incoming, next, sizeof(next)));
+    assert(!mm_graphics_movie_snapshot_prepare(&snapshot, MM_GRAPHICS_MOVIE_CUT, &outgoing, prior, &palette_source));
+    assert(snapshot.indices != NULL);
+    memcpy(rendered, source, sizeof(rendered));
+    assert(mm_graphics_movie_snapshot_render(&snapshot, MM_GRAPHICS_MOVIE_DISSOLVE, 2000, 3,
+                                            &outgoing, &incoming, new_indices));
+    assert(!memcmp(rendered, expected, sizeof(expected)));
+    fixture.incoming = prior;
+    fixture.authored = prior + 4 * 42;
+    assert(mm_graphics_movie_snapshot_prepare(&snapshot, MM_GRAPHICS_MOVIE_DISSOLVE, &outgoing, prior,
+                                              &palette_source) == 1);
+    assert(snapshot.indices == NULL);
+    fixture.incoming = next;
+    assert(mm_graphics_movie_snapshot_prepare(&snapshot, MM_GRAPHICS_MOVIE_FADE_WHITE, &outgoing, prior,
+                                              &palette_source) == 1);
+    assert(snapshot.indices == NULL);
+    mm_graphics_movie_snapshot_dispose(&snapshot);
 }
 
 static void dissolve_snapshot(void)
@@ -1325,6 +1415,7 @@ int main(void)
     graphics_view();
     graphics_transitions();
     graphics_dissolve();
+    movie_transition_indexed();
     movie_transition_rgba();
     movie_transition_palette();
     dissolve_snapshot();

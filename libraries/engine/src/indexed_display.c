@@ -193,3 +193,14 @@ int mm_display_palette_set(unsigned char current[1024], size_t *count, const uns
     *count = updated;
     return MM_DISPLAY_PALETTE_CHANGED;
 }
+
+int mm_display_palette_overlay(unsigned char *base, size_t base_count, size_t first,
+                               const unsigned char *colours, size_t count)
+{
+    if (base_count > 256 || first > base_count || count > base_count - first ||
+        (count && (!base || !colours)))
+        return 0;
+    if (count)
+        memmove(base + 4 * first, colours, 4 * count);
+    return 1;
+}

@@ -14247,3 +14247,38 @@ The baseline suite is `20261119T020454Z-a6a05a7a`. The converted suite
 eight matching retail and SDL Studio runs. The database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`, with the comparison and
 test logs in `tmp/c89-caption-layout`.
+
+## Movie transition dispatch and snapshots in C89 (19 November 2026)
+
+Studio now dispatches cut, black, fade and dissolve drawing through C89.
+Marcus prepares its outgoing RGBA snapshot and owns dissolve palette
+indices in the same transition engine. Both paths use the C89 routine for
+overlaying the raw authored palette range. The hosts supply their drawing
+ports and image surfaces.
+
+The C bitmap checks exercise indexed drawing order, forced cuts, fade
+phase lengths, palette range bounds and snapshot replacement. A
+deterministic comparison with the previous Marcus preparation logic
+matched 512 outgoing snapshots and 5,632 RGBA presentations with fixed
+seeds and elapsed times, including changed palettes and resized views.
+All seven selected CTest checks passed, including engine and Marcus C89
+syntax, the C bitmap tests, and Marcus playback and player integration.
+Studio Release and Marcus Debug built successfully. Marcus was relaunched.
+
+The `dissolve` movie completed six runs per suite across retail, SDL
+Studio and Marcus. Both players matched their previous builds on all 60
+authored frame positions in each capture mode and all 60 seek images
+each. Outside the transition's held incoming frame, each player matched
+59 distinct playback image observations after collapsing adjacent
+duplicates. The settled image on the held frame also matched retail.
+The 60 Hz retail samples spanned 4.001 seconds on that frame. The SDL
+samples spanned 3.969 seconds in both builds, and the Marcus samples
+spanned 3.994 and 4.001 seconds. These spans describe captured samples.
+Retail seek pixel discrepancies, SDL playback timing differences and
+inconclusive continuous transition pixel comparisons persisted.
+
+Baseline `20261119T021841Z-93ca795c` captured all six runs. Converted
+suite `20261119T022413Z-c1d31d33` reuses the two retail runs and contains
+four fresh SDL Studio and Marcus runs. The database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. The probe, comparison
+and test logs are in `tmp/c89-movie-transition`.

@@ -986,6 +986,10 @@ glyph masks and palette colours.
 Marcus caption layout now decodes authored character and paragraph properties
 in C89. It uses the same C rich-text line and run formatter as Studio and
 publishes positioned glyph runs and the total height used by scrolling.
+The shared C89 transition engine dispatches Studio's indexed cut, black,
+fade and dissolve effects. It also prepares Marcus's outgoing dissolve
+snapshot and owns its palette indices. Both players apply authored palette
+ranges through the same C89 overlay routine.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

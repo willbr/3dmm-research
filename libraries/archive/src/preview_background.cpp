@@ -6,6 +6,7 @@
 #include "palette_state.h"
 #include "engine_movie_graph.h"
 #include "mm/background_camera.h"
+#include "mm/indexed_display.h"
 #include <cstring>
 #include <new>
 #undef size
@@ -74,8 +75,7 @@ void PreviewBackground::OverlayAuthoredPalette(unsigned char bgrx[1024]) const
     MMU32 count;
     MMI32 base;
     const auto bytes = mm_background_palette(&resource, &count, &base);
-    if (count)
-        std::memcpy(bgrx + 4 * base, bytes, 4 * count);
+    mm_display_palette_overlay(bgrx, 256, base, bytes, count);
 }
 
 namespace

@@ -41,6 +41,10 @@ enum
  * may alias current entries. Animation limits updates to the current count. */
 int mm_display_palette_set(unsigned char current[1024], size_t *count, const unsigned char *requested,
                            size_t requested_count, MMU32 flags);
+/* Copy an authored BGRX range over the base palette, including the reserved
+ * bytes. Invalid ranges leave the destination alone. */
+int mm_display_palette_overlay(unsigned char *base, size_t base_count, size_t first,
+                               const unsigned char *colours, size_t count);
 
 #ifdef __cplusplus
 }
