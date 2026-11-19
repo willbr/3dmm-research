@@ -221,7 +221,6 @@ class Scene : public Scene_PAR
     //
     // Tag collection
     //
-    static bool FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl);
 
     //
     // Frame functions

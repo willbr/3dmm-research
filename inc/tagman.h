@@ -231,6 +231,7 @@ class TagManager : public TagManager_PAR
 
     bool FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTagOrType ctgChild, PTAG ptagChild);
     bool FCacheTagToHD(PTAG ptag, bool fCacheChildChunks = fTrue);
+    bool FCacheTagList(MMTagList *);
     PBaseCacheableObject PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD = fFalse);
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     void SetMissingTagTestCallback(void (*callback)(PTAG)) { _missingTagTest = callback; }

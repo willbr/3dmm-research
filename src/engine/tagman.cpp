@@ -730,6 +730,25 @@ bool TagManager::FCacheTagToHD(PTAG tag, bool children)
     const MMTag value = {tag->sid, nullptr, 0, 0};
     return mm_tag_cache_file(&value, children) != 0;
 }
+bool TagManager::FCacheTagList(MMTagList *list)
+{
+    const MMTagListServices services = {
+        this,
+        [](void *p, const MMTag *value, int children) -> int {
+            TAG tag;
+            TagFromCore(&tag, *value);
+            return static_cast<PTagManager>(p)->FCacheTagToHD(&tag, children != 0);
+        },
+        [](void *p, const MMTag *value, MMU32 slot, MMU32 type, MMTag *out) -> int {
+            TAG parent, child;
+            TagFromCore(&parent, *value);
+            if (!static_cast<PTagManager>(p)->FBuildChildTag(&parent, slot, type, &child))
+                return 0;
+            *out = TagToCore(child);
+            return 1;
+        }};
+    return mm_tag_list_cache(list, &services) != 0;
+}
 PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, PFNRPO reader, bool useMedia)
 {
     AssertThis(0);

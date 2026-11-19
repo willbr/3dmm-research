@@ -4368,13 +4368,30 @@ static void TestTagOwnershipBaseline()
     tag={};tag.ctg='TAGR';tag.cno=7;Check(TagManager::FOpenTag(&tag,cb,a));observe(8,tag);TagManager::CloseTag(&tag);
     tag.sid=42;tag.pcrf=ca;Check(TagManager::FOpenTag(&tag,cb));Check(TagManager::FSaveTag(&tag,cb,true));
     TagManager::DupTag(&tag);TagManager::CloseTag(&tag);observe(9,tag);
-    auto list=TagList::PtaglNew();Check(list);
+    MMTagList list;
+    const auto allocator=CollectionAllocator();
+    Check(mm_tag_list_init(&list,&allocator)==MM_STORAGE_OK);
     TAG tags[4]={{2,ca,9,3},{1,ca,8,4},{2,cb,9,3},{0,ca,7,1}};
-    for(auto &value:tags)Check(list->FInsertTag(&value,false));
-    Check(list->FInsertTag(tags+2,true)&&list->FInsertChild(tags,2,9)&&list->FInsertChild(tags,1,8)&&list->FInsertChild(tags,2,9));
-    Check(list->Ctag()==3);
-    for(int i=0;i<list->Ctag();++i){TAG value;list->GetTag(i,&value);observe(10+i,value);}
-    Check(TagManager::FcmpCompareTags(tags,tags+2)==fcmpEq);ReleasePpo(&list);
+    for(auto &value:tags)
+    {
+        const auto core=TagToCore(value);
+        Check(mm_tag_list_insert(&list,&core,0)==MM_STORAGE_OK);
+    }
+    const auto first=TagToCore(tags[0]), duplicateTag=TagToCore(tags[2]);
+    Check(mm_tag_list_insert(&list,&duplicateTag,1)==MM_STORAGE_OK &&
+          mm_tag_list_child(&list,&first,2,9)==MM_STORAGE_OK &&
+          mm_tag_list_child(&list,&first,1,8)==MM_STORAGE_OK &&
+          mm_tag_list_child(&list,&first,2,9)==MM_STORAGE_OK);
+    Check(list.count==3);
+    for(MMU32 i=0;i<list.count;++i)
+    {
+        MMTagCached cached;
+        TAG value;
+        Check(mm_tag_list_get(&list,i,&cached)==MM_STORAGE_OK);
+        TagFromCore(&value,cached.tag);
+        observe(10+i,value);
+    }
+    Check(TagManager::FcmpCompareTags(tags,tags+2)==fcmpEq && mm_tag_list_dispose(&list)==MM_STORAGE_OK);
     Check(ca->CactRef()==1&&cb->CactRef()==1);ReleasePpo(&ca);ReleasePpo(&cb);ReleasePpo(&a);ReleasePpo(&b);
     if(snapshot)Check(std::fclose(snapshot)==0);
 }

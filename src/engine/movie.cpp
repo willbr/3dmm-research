@@ -29,6 +29,7 @@ Actors, Text boxes, etc.
 #include <cstdio>
 #include <exception>
 #include "soc.h"
+#include "engine_movie_graph.h"
 #include "studio_preferences.h"
 #include "mm/indexed_display.h"
 ASSERTNAME
@@ -254,13 +255,21 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         Filename path;
         return vptagm && vptagm->SourceArchive(source, kftgContent, 0, &path);
     };
-    s.new_tags = [](void *) -> void * { return TagList::PtaglNew(); };
-    s.scene_tags = [](void *p, MMU32 scene, void *tags) -> int {
-        return Scene::FAddTagsToTagl(static_cast<PChunkyFile>(p), scene, static_cast<PTagList>(tags));
+    s.tag_graph = [](void *p) { return EngineMovieGraph::FromFile(static_cast<PChunkyFile>(p)); };
+    s.actor_tag_issue = [](void *, int issue) {
+        if (issue == MM_ACTOR_TAG_TEMPLATE_LINK)
+            Bug("where's the child Template?");
+        else
+            Assert(false, "bad ThreeDTextF");
     };
-    s.tag_count = [](void *p) -> MMI32 { return static_cast<PTagList>(p)->Ctag(); };
-    s.tag = [](void *p, MMI32 index, MMTag *value) { TAG tag; static_cast<PTagList>(p)->GetTag(index, &tag); *value = TagToCore(tag); };
-    s.release_tags = [](void *p) { auto tags = static_cast<PTagList>(p); ReleasePpo(&tags); };
+    s.scene_tag_issue = [](void *, int start, int missing) {
+        if (missing)
+            Bug("no background event!?");
+        else if (start)
+            Bug("Bad event in start event list");
+        else
+            Bug("Bad event in frame event list");
+    };
     s.toss_cache = [](void *p, MMU32 type, MMU32 number) {
         auto reader = type == kctgMtrl ? Material_MTRL::FReadMtrl : Template::FReadTmpl;
         static_cast<SaveHost *>(p)->movie->_data.Resources()->FSetCrep(crepToss, type, number, reader);
@@ -329,7 +338,6 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
 
     bool fSuccess = fFalse, fBeganLongOp = fFalse;
     PMovie pmvie;
-    TagList *ptagl;
     PChunkyFile pcfl = pvNil;
     Filename containerWorking;
 
@@ -435,24 +443,19 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     vptagm->FMergeMovieSources(pcfl, cno); // Source titles are best-effort.
 
     //
-    // Get all the content tags
+    // Collect and cache the movie's content dependencies.
     //
-    ptagl = pmvie->_PtaglFetch();
-    if (ptagl == pvNil)
     {
-        goto LFail;
+        SaveHost host(pmvie);
+        const auto services = pmvie->_SaveServices(&host);
+        MMTagList tags;
+        if (!mm_movie_save_tags(&tags, &services))
+            goto LFail;
+        bool cached = vptagm->FCacheTagList(&tags);
+        mm_tag_list_dispose(&tags);
+        if (!cached)
+            goto LFail;
     }
-
-    //
-    // Now bring all the tags into cache
-    //
-    if (!ptagl->FCacheTags())
-    {
-        ReleasePpo(&ptagl);
-        goto LFail;
-    }
-
-    ReleasePpo(&ptagl);
 
     //
     // Set the movie title
@@ -671,26 +674,6 @@ void Movie::AssertValid(LegacyUlong grf)
 }
 
 #endif // DEBUG
-
-/***************************************************************************
- *
- * Returns a list of all tags being used by this Movie
- *
- * Parameters:
- *	None.
- *
- * Returns:
- *  A TagList (list of tags that the movie uses)
- *
- **************************************************************************/
-PTagList Movie::_PtaglFetch(void)
-{
-    AssertThis(0);
-    Assert(_data.Resources(), "need pcrfAutosave");
-    SaveHost host(this);
-    auto services = _SaveServices(&host);
-    return static_cast<PTagList>(mm_movie_save_tags(&services));
-}
 
 /****************************************************
  *

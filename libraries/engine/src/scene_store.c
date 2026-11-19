@@ -84,7 +84,8 @@ int mm_scene_collect_tags(MMU32 scene, MMTagList *tags, const MMSceneCollectServ
                 child = mm_movie_scene_event_word(&event, 0);
                 if (background.sid == -1)
                 {
-                    s->diagnostic(s->context, 0, 1);
+                    if (s->diagnostic)
+                        s->diagnostic(s->context, 0, 1);
                     goto fail;
                 }
                 if (mm_tag_list_child(tags, &background, child, MM_BACKGROUND_CAMERA) != MM_STORAGE_OK)
@@ -101,7 +102,8 @@ int mm_scene_collect_tags(MMU32 scene, MMTagList *tags, const MMSceneCollectServ
                         goto fail;
                 }
             }
-            else if (!((start && event.kind == MM_SCENE_ADD_TEXT) || (!start && event.kind == MM_SCENE_PAUSE)))
+            else if (s->diagnostic &&
+                     !((start && event.kind == MM_SCENE_ADD_TEXT) || (!start && event.kind == MM_SCENE_PAUSE)))
                 s->diagnostic(s->context, start, 0);
         }
         read->close(read->context, &group);

@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "engine_movie_graph.h"
 #include "scene_sound.h"
 #undef size
 ASSERTNAME
@@ -71,11 +72,10 @@ static void Reverse(void *p, long bytes)
     }
 }
 
-struct Tags : TagList
+struct Tags
 {
-    static void State(PTagList p)
+    static void State(MMTagList &list)
     {
-        auto &list = p->*&Tags::_list;
         Value(list.count);
         MMGroup group = {&list.storage, sizeof(MMTagCached), list.count, list.bytes, -1, 0};
         for (MMU32 i = 0; i < list.count; ++i)
@@ -281,8 +281,13 @@ int main()
             for (int kind = 0; kind < 3; ++kind)
                 for (int failure = 0; failure <= 22; ++failure)
                 {
-                    auto tags = TagList::PtaglNew();
-                    CHECK(tags);
+                    const auto allocator = CollectionAllocator();
+                    MMTagList tags;
+                    CHECK(mm_tag_list_init(&tags, &allocator) == MM_STORAGE_OK);
+                    MMMovieSceneSource source = {nullptr, EngineMovieGraph::FromFile(file)};
+                    MMSceneCollectServices collect = {};
+                    collect.graph = source.graph;
+                    collect.read = mm_movie_scene_tag_reader(&source);
 #ifdef DEBUG
                     vmutxMem.Enter();
                     auto &a = kind == 0 ? vdmglob.dmaglBase : kind == 1 ? vdmglob.dmaglHq : vdmglob.dmaglPv;
@@ -290,7 +295,7 @@ int main()
                     a.cactFail = failure ? 1 : 0;
                     vmutxMem.Leave();
 #endif
-                    bool ok = Scene::FAddTagsToTagl(file, number, tags);
+                    bool ok = mm_scene_collect_tags(number, &tags, &collect) != 0;
 #ifdef DEBUG
                     vmutxMem.Enter();
                     a.cactDo = a.cactFail = 0;
@@ -298,7 +303,7 @@ int main()
 #endif
                     Value(ok);
                     Tags::State(tags);
-                    ReleasePpo(&tags);
+                    CHECK(mm_tag_list_dispose(&tags) == MM_STORAGE_OK);
                     CHECK(observed->CactRef() == 1);
                     vpers->Clear();
                 }

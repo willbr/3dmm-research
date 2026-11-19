@@ -2,6 +2,7 @@
 #include "mm/movie_save.h"
 #include "mm/movie_sound.h"
 #include "mm/movie_publish.h"
+#include "mm/scene_data.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,7 +32,6 @@ enum
     SAVE,
     FIND,
     UNIQUE,
-    TAGS,
     SCENE_TAGS,
     PACKAGE
 };
@@ -76,7 +76,7 @@ struct Test
     MMU32 rootNumber, savedRootNumber;
     int changeSavedRoot;
     int begins, ends, dirty, updates, titleCalls, undos, packages, packageNull, container, bundled;
-    int sourceArchive, sourceCalls, tagCount, tagReads, tagReleases, sceneTagCalls;
+    int sourceArchive, sourceCalls, tagCount, sceneTagCalls, failTags, failFrames;
     MMU32 lastSceneTagged;
     MMTag tags[12];
     int actorCount, actorRefs[8], actorIds[8], actorsErased, tagsClosed, rollcalls;
@@ -489,31 +489,109 @@ static int source_archive(void *p, MMI32 source)
     ++t->sourceCalls;
     return source == 6 && t->sourceArchive;
 }
-static void *tags(void *p)
-{
-    return succeeds(p, TAGS) ? p : 0;
-}
-static int scene_tags(void *p, MMU32 n, void *list)
-{
-    Test *t = list;
-    (void)p;
-    t->lastSceneTagged = n;
-    ++t->sceneTagCalls;
-    return succeeds(t, SCENE_TAGS);
-}
-static MMI32 tag_count(void *p)
-{
-    return ((Test *)p)->tagCount;
-}
-static void tag(void *p, MMI32 i, MMTag *out)
+static const MMU32 tag_scenes[] = {10, 12, 13};
+
+static int tag_entry(void *p, MMU32 row, MMChunkEntry *out)
 {
     Test *t = p;
-    ++t->tagReads;
-    *out = t->tags[i];
+    memset(out, 0, sizeof(*out));
+    if (row == 0)
+    {
+        out->type = MM_SCENE_FRAME_GROUP;
+        out->number = 1;
+    }
+    else if (row < 4)
+    {
+        out->type = MM_SCENE_START_GROUP;
+        out->number = tag_scenes[row - 1];
+    }
+    else if (row == 4)
+    {
+        out->type = MM_SOUND_MOVIE;
+        out->number = t->rootNumber;
+        out->child_count = t->childCount;
+    }
+    else
+    {
+        out->type = MM_SCENE_CHUNK;
+        out->number = tag_scenes[row - 5];
+        out->child_count = 2;
+    }
+    return 1;
 }
-static void release_tags(void *p)
+
+static int tag_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
 {
-    ++((Test *)p)->tagReleases;
+    Test *t = p;
+    if (row == 4)
+        *out = t->children[i];
+    else if (row >= 5)
+    {
+        out->type = i ? MM_SCENE_START_GROUP : MM_SCENE_FRAME_GROUP;
+        out->number = i ? tag_scenes[row - 5] : 1;
+        out->slot = i;
+    }
+    else
+        return 0;
+    return 1;
+}
+
+static void tag_graph_access(void *p, MMChunkAccess *out)
+{
+    MMChunkAccess access = {NULL, 8, tag_entry, tag_child};
+    access.context = p;
+    *out = access;
+}
+
+static void put_word(unsigned char *bytes, MMU32 word)
+{
+    unsigned i;
+    for (i = 0; i < 4; ++i)
+        bytes[i] = (unsigned char)(word >> (8 * i));
+}
+
+static int tag_graph_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    Test *t = p;
+    unsigned char bytes[20 + 12 * 32];
+    unsigned char *row;
+    MMMemoryStream memory;
+    int count = 0, i;
+    if (entry->type == MM_SCENE_START_GROUP)
+    {
+        t->lastSceneTagged = entry->number;
+        ++t->sceneTagCalls;
+        if (!succeeds(t, SCENE_TAGS))
+            return MM_MOVIE_IO;
+        count = t->tagCount;
+    }
+    else if (t->failFrames)
+        return MM_MOVIE_IO;
+    memset(bytes, 0, sizeof(bytes));
+    bytes[0] = 1;
+    put_word(bytes + 4, count);
+    put_word(bytes + 8, count * 24);
+    put_word(bytes + 12, 0xffffffffUL);
+    put_word(bytes + 16, MM_SCENE_EVENT_BYTES);
+    for (i = 0; i < count; ++i)
+    {
+        row = bytes + 20 + i * 24;
+        put_word(row + 4, MM_SCENE_SET_BACKGROUND);
+        put_word(row + 8, t->tags[i].sid);
+        put_word(row + 16, t->tags[i].type);
+        put_word(row + 20, t->tags[i].number);
+        put_word(bytes + 20 + count * 24 + i * 8, i * 24);
+        put_word(bytes + 24 + count * 24 + i * 8, 24);
+    }
+    mm_memory_stream_init(&memory, bytes, 20 + count * 32);
+    return receive(out, &memory.stream);
+}
+
+static MMMovieSessionGraph tag_graph(void *p)
+{
+    MMMovieSessionGraph graph = {NULL, tag_graph_access, NULL, tag_graph_payload, NULL};
+    graph.context = p;
+    return graph;
 }
 static void toss(void *p, MMU32 type, MMU32 n)
 {
@@ -612,7 +690,7 @@ static void *resize(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priori
     (void)old_bytes;
     (void)priority;
     ++t->allocations;
-    if (t->failAlloc)
+    if (t->failAlloc || t->failTags)
         return 0;
     fresh = realloc(old, bytes);
     if (fresh && !had)
@@ -701,11 +779,7 @@ static void init(Test *t)
     s->is_vmm = vmm;
     s->package = package;
     s->source_archive = source_archive;
-    s->new_tags = tags;
-    s->scene_tags = scene_tags;
-    s->tag_count = tag_count;
-    s->tag = tag;
-    s->release_tags = release_tags;
+    s->tag_graph = tag_graph;
     s->toss_cache = toss;
     s->chunks = chunks;
     s->purge_sounds = purge;
@@ -970,19 +1044,21 @@ static int packaging(void)
     t.tags[2].sid = 7;
     append(&t, MM_SAVE_SCENE, 12, 0);
     append(&t, MM_SAVE_SCENE, 13, 2);
-    CHECK(mm_movie_needs_container(&t.s) && t.tagReads == 3 && t.tagReleases == 1 && !t.savedCalls);
+    CHECK(mm_movie_needs_container(&t.s) && !t.liveAlloc && !t.savedCalls);
     CHECK(t.sceneTagCalls == 1 && t.lastSceneTagged == 10);
-    t.fail = TAGS;
-    t.left = 1;
-    CHECK(mm_movie_needs_container(&t.s));
+    t.tags[1].sid = 5;
+    CHECK(!mm_movie_needs_container(&t.s) && !t.liveAlloc);
+    t.failTags = 1;
+    CHECK(mm_movie_needs_container(&t.s) && !t.liveAlloc);
+    t.failTags = 0;
     t.fail = SCENE_TAGS;
     t.left = 1;
-    CHECK(mm_movie_needs_container(&t.s) && t.tagReleases == 2);
+    CHECK(mm_movie_needs_container(&t.s) && !t.liveAlloc);
     init(&t);
     t.container = t.sourceArchive = 1;
     t.fail = TITLE;
     t.left = 1;
-    CHECK(mm_movie_needs_container(&t.s) && t.begins == 1 && t.ends == 1 && !t.tagReleases);
+    CHECK(mm_movie_needs_container(&t.s) && t.begins == 1 && t.ends == 1 && !t.sceneTagCalls);
     return 0;
 }
 static int collecting(void)
@@ -1004,14 +1080,23 @@ static int collecting(void)
     t.tags[2].sid = 1;
     CHECK(mm_movie_save_assets(&t, &t.s) && t.materialCount == 1 && t.templateCount == 1 && t.materials[0] == 1 &&
           t.templates[0] == 3);
-    CHECK(t.tossed == 2 && t.deletedChunks == 2 && t.tagReleases == 1 && !t.liveAlloc);
+    CHECK(t.tossed == 2 && t.deletedChunks == 2 && !t.liveAlloc);
     CHECK(t.events[0] == DELETE_CHUNK && t.events[1] == CACHE_TOSS && t.events[2] == DELETE_CHUNK &&
           t.events[3] == CACHE_TOSS);
     init(&t);
     t.materials[0] = 1;
     t.materialCount = 1;
+    t.tagCount = 1;
+    t.tags[0].number = 2;
+    t.tags[0].type = MM_SAVE_MATERIAL;
+    t.failFrames = 1;
+    CHECK(mm_movie_save_assets(&t, &t.s) && t.sceneTagCalls == 1 && t.allocations > 0 &&
+          t.materialCount == 1 && !t.deletedChunks && !t.liveAlloc);
+    init(&t);
+    t.materials[0] = 1;
+    t.materialCount = 1;
     t.failAlloc = 1;
-    CHECK(!mm_movie_save_assets(&t, &t.s) && t.materialCount == 1 && !t.deletedChunks && t.tagReleases == 1 &&
+    CHECK(!mm_movie_save_assets(&t, &t.s) && t.materialCount == 1 && !t.deletedChunks &&
           !t.liveAlloc);
     init(&t);
     init(&foreign);

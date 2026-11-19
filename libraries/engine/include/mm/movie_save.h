@@ -6,6 +6,7 @@
 #include "movie_scene.h"
 #include "collections.h"
 #include "chunky_file.h"
+#include "movie_session.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -62,10 +63,8 @@ extern "C"
         void (*update_title)(void *, void *path), (*clear_undo)(void *);
         int (*has_container)(void *), (*bundled)(void *), (*is_vmm)(void *path);
         int (*package)(void *, void *working, void *destination), (*source_archive)(void *, MMI32 source);
-        void *(*new_tags)(void *);
-        int (*scene_tags)(void *file, MMU32 scene, void *tags);
-        MMI32 (*tag_count)(void *tags);
-        void (*tag)(void *tags, MMI32 index, MMTag *), (*release_tags)(void *tags);
+        MMMovieSessionGraph (*tag_graph)(void *file);
+        void (*actor_tag_issue)(void *, int issue), (*scene_tag_issue)(void *, int start, int missing_background);
         void (*toss_cache)(void *, MMU32 type, MMU32 number);
         int (*purge_sounds)(void *);
         void (*bad_child)(void *), (*bad_sound_index)(void *), (*missing_scene)(void *), (*missing_root)(void *);
@@ -79,8 +78,7 @@ extern "C"
      * required: a named VMM save autosaves into its temporary path and may retry.
      * File creation returns one reference, new_resources retains it (zero cache).
      * New resources remain published if their initial autosave fails.
-     * Registry lookup and tag traversal return borrowed values; new_tags owns one
-     * reference. Named saving releases/reacquires a matching saved file even on
+     * Registry lookup returns borrowed values. Named saving releases/reacquires a matching saved file even on
      * save failure; unsuccessful bind retains the old nameValid/readOnly flags.
      * Source-block allocation publishes host scratch consumed by write_sources;
      * release_sources clears it after the long operation ends, including failure,
@@ -102,7 +100,9 @@ extern "C"
     int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices *);
     int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *);
     int mm_movie_needs_container(const MMMovieSaveServices *);
-    void *mm_movie_save_tags(const MMMovieSaveServices *);
+    /* Collect into an uninitialized list. Success transfers the list to the
+     * caller. Failure disposes partial tags. Cache pointers remain borrowed. */
+    int mm_movie_save_tags(MMTagList *, const MMMovieSaveServices *);
     int mm_movie_save_assets(void *file, const MMMovieSaveServices *);
     void mm_movie_save_sounds(int purge_all, const MMMovieSaveServices *);
     int mm_movie_save_gc(void *file, const MMMovieSaveServices *);

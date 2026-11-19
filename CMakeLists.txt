@@ -1209,7 +1209,6 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tagl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tdf.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tdt.cpp"

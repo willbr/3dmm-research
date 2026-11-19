@@ -8,7 +8,6 @@
 #include "bren_core.h"
 #include "socdef.h"
 #include "tagman.h"
-#include "tagl.h"
 #include "modl.h"
 #include "mtrl.h"
 #include "body.h"

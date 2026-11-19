@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_save.h"
 #include "mm/movie_sound.h"
+#include "mm/scene_store.h"
 #include <string.h>
 #define NIL_NUMBER ((MMU32)0xffffffffUL)
 
@@ -289,9 +290,9 @@ int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *s)
 }
 int mm_movie_needs_container(const MMMovieSaveServices *s)
 {
-    void *tags;
-    MMI32 i;
-    MMTag tag;
+    MMTagList tags;
+    MMU32 i;
+    MMTagCached tag;
     int portable = 0;
     if (!s->has_container(s->context))
         return 0;
@@ -301,36 +302,42 @@ int mm_movie_needs_container(const MMMovieSaveServices *s)
         return 0;
     if (!mm_movie_autosave(0, 0, s))
         return 1;
-    tags = mm_movie_save_tags(s);
-    if (!tags)
+    if (!mm_movie_save_tags(&tags, s))
         return 1;
-    for (i = 0; i < s->tag_count(tags); ++i)
+    for (i = 0; i < tags.count; ++i)
     {
-        s->tag(tags, i, &tag);
-        portable |= tag.sid == 6;
+        mm_tag_list_get(&tags, i, &tag);
+        portable |= tag.tag.sid == 6;
     }
-    s->release_tags(tags);
+    mm_tag_list_dispose(&tags);
     return portable;
 }
-void *mm_movie_save_tags(const MMMovieSaveServices *s)
+int mm_movie_save_tags(MMTagList *tags, const MMMovieSaveServices *s)
 {
+    MMMovieSceneSource source;
+    MMSceneCollectServices collect;
     MMChunkAccess chunks;
     MMChunkChild child;
-    void *file, *tags = s->new_tags(s->context);
     MMU32 root, scene = 0;
-    if (!tags)
+    if (mm_tag_list_init(tags, s->allocator.resize || s->allocator.release ? &s->allocator : 0) != MM_STORAGE_OK)
         return 0;
-    file = s->file(s->data->resources);
-    chunks = s->chunks(file);
+    source.movie = NULL;
+    source.graph = s->tag_graph(s->file(s->data->resources));
+    source.graph.access(source.graph.context, &chunks);
     if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, s->data->movieNumber, &root) != MM_CHUNK_OK)
-        return tags;
+        return 1;
+    collect.context = s->context;
+    collect.graph = source.graph;
+    collect.read = mm_movie_scene_tag_reader(&source);
+    collect.actor_diagnostic = s->actor_tag_issue;
+    collect.diagnostic = s->scene_tag_issue;
     while (mm_chunk_child_exact(&chunks, root, scene++, MM_SAVE_SCENE, &child) == MM_CHUNK_OK)
-        if (!s->scene_tags(file, child.number, tags))
+        if (!mm_scene_collect_tags(child.number, tags, &collect))
         {
-            s->release_tags(tags);
+            mm_tag_list_dispose(tags);
             return 0;
         }
-    return tags;
+    return 1;
 }
 int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
 {
@@ -339,18 +346,17 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
     MMChunkEntry entry;
     MMCollectionStorage storage;
     MMArray doomed;
-    MMU32 chunk[2], i, ordinal, row;
+    MMU32 chunk[2], i, ordinal, row, tag_index;
     size_t type;
-    MMI32 tag_index;
-    MMTag tag;
+    MMTagList tags;
+    MMTagCached tag;
     int used, result = 1;
-    void *tags = mm_movie_save_tags(s);
-    if (!tags)
+    if (!mm_movie_save_tags(&tags, s))
         return 1;
     if (mm_storage_init(&storage, s->allocator.resize || s->allocator.release ? &s->allocator : 0) !=
         MM_STORAGE_OK)
     {
-        s->release_tags(tags);
+        mm_tag_list_dispose(&tags);
         return 0;
     }
     memset(&doomed, 0, sizeof(doomed));
@@ -363,12 +369,12 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
         for (ordinal = 0; mm_chunk_type_at(&chunks, types[type], ordinal, &entry, &row) == MM_CHUNK_OK; ++ordinal)
         {
             used = 0;
-            for (tag_index = 0; tag_index < s->tag_count(tags); ++tag_index)
+            for (tag_index = 0; tag_index < tags.count; ++tag_index)
             {
-                s->tag(tags, tag_index, &tag);
-                if (tag.sid != 0)
+                mm_tag_list_get(&tags, tag_index, &tag);
+                if (tag.tag.sid != 0)
                     break;
-                if (tag.type == entry.type && tag.number == entry.number)
+                if (tag.tag.type == entry.type && tag.tag.number == entry.number)
                 {
                     used = 1;
                     break;
@@ -391,7 +397,7 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
             s->toss_cache(s->context, chunk[0], chunk[1]);
     }
 done:
-    s->release_tags(tags);
+    mm_tag_list_dispose(&tags);
     mm_storage_dispose(&storage);
     return result;
 }

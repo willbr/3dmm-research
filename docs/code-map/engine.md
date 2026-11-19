@@ -74,7 +74,7 @@ that embed `TAG`: `Costume`/`CostumeOnFile`, `Sound`/`SoundOnFile`. See
 | File          | Header           | Purpose                                                       |
 |---------------|------------------|---------------------------------------------------------------|
 | `tagman.cpp`  | `inc/tagman.h`   | `TagManager` — resolves `(sid, ctg, cno)` tags to in-memory objects, handles CD prompts, manages HD cache. |
-| `tagl.cpp`    | `inc/tagl.h`     | `TagList` — collected list of tags for batch operations.      |
+| `libraries/engine/src/tag_list.c` | `mm/tag.h` | C89 dependency list for movie open and save. |
 
 `TAG` carries a runtime `PChunkyResourceFile pcrf`; the wire form
 `TAGOnFile` is fixed at 16 bytes. Marshal at every I/O boundary.

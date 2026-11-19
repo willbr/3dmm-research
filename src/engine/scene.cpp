@@ -2843,45 +2843,6 @@ void Scene::SetMvie(PMovie movie)
 
 /****************************************************
  *
- * This routine reads from a chunky file and creates
- * a list of all the tags in the scene.
- *
- * Parameters:
- *  pcfl - Pointer to the chunky file to read from.
- *  cno  - Cno within the chunky file to read.
- *  ptagl - tag list to put tags in
- *
- * Returns:
- *  fFalse if an error occurred, else fTrue
- *
- ****************************************************/
-bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
-{
-    AssertPo(pcfl, 0);
-    AssertPo(ptagl, 0);
-    MMMovieSceneSource source = {nullptr, EngineMovieGraph::FromFile(pcfl)};
-    MMSceneCollectServices s = {};
-    s.read = mm_movie_scene_tag_reader(&source);
-    s.graph = source.graph;
-    s.actor_diagnostic = [](void *, int issue) {
-        if (issue == MM_ACTOR_TAG_TEMPLATE_LINK)
-            Bug("where's the child Template?");
-        else
-            Assert(false, "bad ThreeDTextF");
-    };
-    s.diagnostic = [](void *, int start, int missing) {
-        if (missing)
-            Bug("no background event!?");
-        else if (start)
-            Bug("Bad event in start event list");
-        else
-            Bug("Bad event in frame event list");
-    };
-    return mm_scene_collect_tags(cno, ptagl->Core(), &s) != 0;
-}
-
-/****************************************************
- *
  * This returns the actor in the current scene with
  * the given arid.
  *

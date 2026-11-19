@@ -177,8 +177,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   records. Group-object allocation, mutation, locking, size/flag access and wire
   output no longer require GeneralGroup or native record methods.
 - Tag open/save/duplicate/close, child construction, fetch dispatch and cache
-  clearing now use C89. TagList owns C group storage and preserves legacy sort,
-  duplicate and borrowed-reference behavior.
+  clearing now use C89. The C tag list owns group storage and preserves legacy
+  sort, duplicate and borrowed-reference behavior.
 - The source catalogue now owns C records, path handles and manager references.
   Local/media decisions, cached misses, retry/install sequencing, ordered manager
   construction and file routing use C89. Source names now use owning C storage,
@@ -1030,6 +1030,9 @@ any of the actor's tags.
 The scene collector inserts background, camera, and sound dependencies into
 the C89 tag list. It uses the same wire sound parser as playback admission
 and cue extraction, with the collector's existing trailing-byte tolerance.
+Studio opens, selects a save format, and checks local assets against the same
+C89 movie dependency list. The movie save code owns the list through its
+collection and disposal. Native Studio supplies archive and cache I/O.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

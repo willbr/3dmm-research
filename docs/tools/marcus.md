@@ -2461,6 +2461,18 @@ sequences and reproduced their prior seek images. SDL Studio matched
 retail's sound requests. Mixed PCM differed in both ports, and SDL Studio's
 frame timing differed. Evidence is in `tmp/c89-scene-wire-tags/`.
 
+Studio movie open, save-format selection, and asset cleanup now build and
+dispose of the dependency list in C89. A failed scene scan discards the
+partial list, and asset cleanup skips deletion in that case. Native Debug
+and Release scene, save, and sound traces and saved movies matched their
+prior builds byte for byte. SDL Studio also saved and reopened a storyboard
+VMM with its embedded package, scene state, and viewport pixels intact.
+The native core link and v3dmm format tests passed. Both ports matched
+retail's 60-frame seek and playback sequences and reproduced their prior seek
+images. SDL Studio matched retail's sound requests. Mixed PCM differed in
+both ports, and SDL Studio's frame timing differed. Evidence is in
+`tmp/c89-movie-dependencies/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

@@ -5926,7 +5926,9 @@ use C above; physical directory/drive adapters remain native. C owns cache clear
 media before file reopen, ignore reopen failure, and zero/restore memory budgets.
 File caching remains disabled, matching the previously unconditional return.
 
-`tag_list.c` owns payload/location buffers and replaces TagList's GeneralGroup.
+`tag_list.c` owns the dependency list's payload and location buffers.
+Studio builds the list in C89 during movie open, save-format selection, and
+asset cleanup. The native tag manager supplies cache I/O.
 Tags are borrowed without retaining caches. Sort/dedup uses sid/type/number and
 ignores cache identity; the first tag wins and child-cache flags only become true.
 Children sort by type then slot and retain duplicates. Cache passes stop on the
