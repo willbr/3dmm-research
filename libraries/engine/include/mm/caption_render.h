@@ -20,9 +20,27 @@ typedef struct MMCaptionRow
     MMI32 first, end, scroll;
     size_t previous, next;
     int visible;
+    MMTextBoxBounds bounds;
+    MMU32 chunk;
+    int story;
+    MMI32 overflow;
 } MMCaptionRow;
 typedef struct MMCaptionStack { size_t first, last; } MMCaptionStack;
 void mm_caption_observe(MMCaptionStack *, MMCaptionRow *, size_t count, MMI32 frame);
+int mm_caption_hit(const MMCaptionStack *, const MMCaptionRow *, MMI32 x, MMI32 y, const MMU32 *hidden,
+                   MMU32 *chunk);
+/* Visit from back to front. A draft (row zero) replaces the first visible
+ * hidden box, or follows the stack. A failed callback ends the traversal. */
+int mm_caption_draw_stack(const MMCaptionStack *, const MMCaptionRow *, const MMU32 *hidden, int have_draft,
+                          MMI32 draft_scroll, void *context, int (*draw)(void *, size_t row, MMI32 scroll));
+
+/* Prepare scrolling for all credits beginning on this frame. The host
+ * supplies each layout height by one-based row. Step follows a successful
+ * prepare for this frame and visits the same rows. */
+int mm_caption_measure_scroll(MMCaptionRow *, size_t count, MMI32 frame, int *needs_scroll,
+                              void *context, int (*layout)(void *, size_t row, MMI32 *height));
+void mm_caption_step_scroll(MMCaptionRow *, size_t count, MMI32 frame);
+void mm_caption_reset_scroll(MMCaptionRow *, size_t count);
 MMI32 mm_caption_scroll_overflow(MMI32 layout_height, MMI32 top, MMI32 bottom);
 
 typedef struct MMCaptionCaretStop

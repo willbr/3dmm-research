@@ -42,11 +42,92 @@ void mm_caption_observe(MMCaptionStack *stack, MMCaptionRow *rows, size_t count,
     }
 }
 
+int mm_caption_hit(const MMCaptionStack *stack, const MMCaptionRow *rows, MMI32 x, MMI32 y, const MMU32 *hidden,
+                   MMU32 *chunk)
+{
+    const MMCaptionRow *row;
+    size_t i;
+    for (i = stack->last; i; i = row->previous)
+    {
+        row = &rows[i - 1];
+        if (hidden && row->chunk == *hidden)
+            continue;
+        if (x >= row->bounds.left && x < row->bounds.right && y >= row->bounds.top && y < row->bounds.bottom)
+        {
+            *chunk = row->chunk;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int mm_caption_draw_stack(const MMCaptionStack *stack, const MMCaptionRow *rows, const MMU32 *hidden,
+                          int have_draft, MMI32 draft_scroll, void *context,
+                          int (*draw)(void *, size_t row, MMI32 scroll))
+{
+    const MMCaptionRow *row;
+    size_t i;
+    for (i = stack->first; i; i = row->next)
+    {
+        row = &rows[i - 1];
+        if (hidden && row->chunk == *hidden)
+        {
+            if (have_draft && !draw(context, 0, draft_scroll))
+                return 0;
+            have_draft = 0;
+        }
+        else if (!draw(context, i, row->scroll))
+            return 0;
+    }
+    return !have_draft || draw(context, 0, draft_scroll);
+}
+
 MMI32 mm_caption_scroll_overflow(MMI32 height, MMI32 top, MMI32 bottom)
 {
     double overflow;
     overflow = (double)height - ((double)bottom - top - 10);
     return overflow <= 0 ? 0 : overflow >= 2147483647.0 ? 2147483647 : (MMI32)overflow;
+}
+
+int mm_caption_measure_scroll(MMCaptionRow *rows, size_t count, MMI32 frame, int *needs_scroll,
+                              void *context, int (*layout)(void *, size_t row, MMI32 *height))
+{
+    size_t i;
+    MMCaptionRow *row;
+    MMI32 height;
+    int needs = 0;
+    for (i = 0; i < count; ++i)
+    {
+        row = &rows[i];
+        if (mm_text_box_scroll_frame(row->story, row->first, frame))
+        {
+            if (!layout(context, i + 1, &height))
+                return 0;
+            row->overflow = mm_caption_scroll_overflow(height, row->bounds.top, row->bounds.bottom);
+            needs |= row->scroll < row->overflow;
+        }
+    }
+    *needs_scroll = needs;
+    return 1;
+}
+
+void mm_caption_step_scroll(MMCaptionRow *rows, size_t count, MMI32 frame)
+{
+    size_t i;
+    MMCaptionRow *row;
+    for (i = 0; i < count; ++i)
+    {
+        row = &rows[i];
+        if (mm_text_box_scroll_frame(row->story, row->first, frame) && row->scroll < row->overflow)
+            ++row->scroll;
+    }
+}
+
+void mm_caption_reset_scroll(MMCaptionRow *rows, size_t count)
+{
+    size_t i;
+    for (i = 0; i < count; ++i)
+        rows[i].scroll = 0;
 }
 
 void mm_caption_caret_offsets(const unsigned short *text, MMI32 length, MMI32 *offsets)

@@ -428,6 +428,15 @@ scroll offsets, and five saved movies before and after the change.
 SDL Studio matched retail state and viewport pixels at frame 25 in each
 movie. The results are in `tmp/c89-caption-caret/`.
 
+The C89 presentation stack also controls caption drawing order, hit-testing,
+and draft placement. Credits scroll on their first authored frame using
+the measured height from the same layout used to render them.
+The migration matched 22 rendered-frame checksums and hit results across
+drafts, overlapping boxes, a scrolling hold, and a seek reset. Five saved
+movies matched their prior files byte for byte. SDL Studio matched retail
+state and viewport pixels at the first authored frame of each movie.
+The captures and comparisons are in `tmp/c89-caption-stack/`.
+
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from
 the visual pickers. Each selected font, shape and material has a rendered sample;

@@ -1094,6 +1094,9 @@ character's formatting and argument references when text is inserted there.
 The C89 caption renderer also maps UTF-16 layout offsets to the editor's
 UTF-8 byte positions, publishes caret stops for wrapped lines and tabs,
 and clamps draft scrolling to keep the active caret visible.
+The same presentation stack now drives caption hit-testing, draft
+substitution, and back-to-front drawing in C89. C89 also selects the
+credits that can scroll on each frame and tracks their scroll offsets.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

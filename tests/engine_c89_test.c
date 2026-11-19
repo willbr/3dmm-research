@@ -326,12 +326,38 @@ static void check_frame_sound(void)
     CHECK(offset.high == 0 && offset.low == 1);
 }
 
+typedef struct CaptionPresentation
+{
+    size_t rows[4], count, fail_at;
+    MMI32 scrolls[4];
+} CaptionPresentation;
+
+static int caption_draw(void *context, size_t row, MMI32 scroll)
+{
+    CaptionPresentation *calls = (CaptionPresentation *)context;
+    size_t at = calls->count++;
+    CHECK(at < 4);
+    calls->rows[at] = row;
+    calls->scrolls[at] = scroll;
+    return calls->count != calls->fail_at;
+}
+
+static int caption_height(void *context, size_t row, MMI32 *height)
+{
+    *height = row == 1 ? 32 : 30;
+    return caption_draw(context, row, *height);
+}
+
 static void check_caption_render(void)
 {
     static unsigned char rgba[MM_CAPTION_WIDTH * MM_CAPTION_HEIGHT * 4];
     static const unsigned char source[] = {40, 80, 120, 160};
     static const unsigned char ink[] = {128};
-    MMCaptionRow rows[3] = {{0, 12, 0, 0, 0, 0}, {4, 7, 0, 0, 0, 0}, {3, 10, 0, 0, 0, 0}};
+    MMCaptionRow rows[3] = {
+        {0, 12, 0, 0, 0, 0, {0, 0, 40, 40}, 21, 0, 0},
+        {4, 7, 2, 0, 0, 0, {0, 0, 40, 40}, 21, 0, 0},
+        {3, 10, 0, 0, 0, 0, {0, 0, 40, 40}, 22, 1, 0}
+    };
     const MMTextBoxBounds box = {0, 0, 40, 40};
     const MMCaptionMask from = {-1, -1, 2, 2, 2};
     MMCaptionGlyph glyph = {{0, 0, 1, 1, 1}, ink, NULL, 0, 0, 0, 0, 1, 0, 0xff000000UL, 0xffffffffUL};
@@ -340,15 +366,49 @@ static void check_caption_render(void)
     MMCaptionMask to;
     unsigned char reduced[4];
     unsigned char *pixel;
+    MMU32 hit, hidden;
+    CaptionPresentation calls = {0};
+    int needs;
 
     mm_caption_observe(&stack, rows, 3, 5);
     CHECK(stack.first == 1 && stack.last == 3 && rows[0].next == 2 && rows[1].next == 3);
+    CHECK(mm_caption_hit(&stack, rows, 3, 8, NULL, &hit) && hit == 22);
+    hidden = 22;
+    CHECK(mm_caption_hit(&stack, rows, 3, 8, &hidden, &hit) && hit == 21);
+    CHECK(!mm_caption_hit(&stack, rows, 40, 8, &hidden, &hit) && hit == 21);
+    hidden = 21;
+    CHECK(mm_caption_draw_stack(&stack, rows, &hidden, 1, 9, &calls, caption_draw));
+    CHECK(calls.count == 2 && !calls.rows[0] && calls.scrolls[0] == 9 && calls.rows[1] == 3);
+    calls.count = 0;
+    CHECK(mm_caption_draw_stack(&stack, rows, NULL, 1, 9, &calls, caption_draw));
+    CHECK(calls.count == 4 && calls.rows[0] == 1 && calls.rows[1] == 2 && calls.scrolls[1] == 2 &&
+          calls.rows[2] == 3 && !calls.rows[3]);
+    calls.count = 0;
+    calls.fail_at = 2;
+    CHECK(!mm_caption_draw_stack(&stack, rows, NULL, 1, 9, &calls, caption_draw) && calls.count == 2);
+
     mm_caption_observe(&stack, rows, 3, 8);
     CHECK(stack.first == 1 && stack.last == 3 && rows[0].next == 3 && rows[2].previous == 1);
     mm_caption_observe(&stack, rows, 3, 5);
     CHECK(stack.first == 1 && stack.last == 2 && rows[2].next == 2 && rows[1].previous == 3);
     mm_caption_observe(&stack, rows, 3, 12);
     CHECK(!stack.first && !stack.last);
+    mm_caption_reset_scroll(rows, 3);
+    CHECK(!rows[1].scroll);
+    rows[1].first = rows[2].first = 0;
+    calls.count = 0;
+    needs = -1;
+    CHECK(!mm_caption_measure_scroll(rows, 3, 0, &needs, &calls, caption_height) && needs == -1);
+    CHECK(calls.count == 2 && calls.rows[0] == 1 && calls.rows[1] == 2);
+    calls.count = calls.fail_at = 0;
+    CHECK(mm_caption_measure_scroll(rows, 3, 0, &needs, &calls, caption_height) && needs && calls.count == 2);
+    mm_caption_step_scroll(rows, 3, 0);
+    CHECK(rows[0].scroll == 1 && !rows[1].scroll && !rows[2].scroll);
+    mm_caption_step_scroll(rows, 3, 1);
+    CHECK(rows[0].scroll == 1);
+    mm_caption_step_scroll(rows, 3, 0);
+    mm_caption_step_scroll(rows, 3, 0);
+    CHECK(rows[0].scroll == 2);
 
     CHECK(mm_caption_canvas(&canvas, rgba, sizeof(rgba), MM_CAPTION_WIDTH, MM_CAPTION_HEIGHT,
                             (float)MM_CAPTION_WIDTH / MM_CAPTION_HEIGHT));

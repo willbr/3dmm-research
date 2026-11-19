@@ -395,14 +395,11 @@ struct MarcusPlayback::Impl
     }
     bool EnterFrame(Preview &preview, MMI32 frame, int restoreMusic, double fps, MMPolledFrameWait &wait,
                     Error &error);
-    bool MeasureScroll(MMI32 frame, int &needsScroll, Error &error);
-    void ScrollStep(MMI32 frame);
     void ResetTiming()
     {
         mm_polled_playback_reset(&clock, clock.pacer.fps, clock.was_playing);
         ClearTransition();
-        for (auto &row : captionRows)
-            row.scroll = 0;
+        mm_caption_reset_scroll(captionRows.data(), captionRows.size());
     }
     KauaiFonts::Face *Face(const std::string &font, int pixels, int flags)
     {
@@ -715,7 +712,9 @@ bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserv
     impl->captionRows.reserve(impl->scene.captions.size());
     for (auto &caption : impl->scene.captions)
     {
-        impl->captionRows.push_back({caption.firstFrame, caption.endFrame, 0, 0, 0, 0});
+        impl->captionRows.push_back({caption.firstFrame, caption.endFrame, 0, 0, 0, 0,
+                                     {caption.left, caption.top, caption.right, caption.bottom},
+                                     caption.chunk, caption.story, 0});
         CaptionImage value;
         value.data = std::move(caption);
         impl->captions.push_back(std::move(value));
@@ -867,35 +866,6 @@ bool MarcusPlayback::Impl::EnterFrame(Preview &preview, MMI32 frame, int restore
         std::rethrow_exception(context.failure);
     return ok;
 }
-bool MarcusPlayback::Impl::MeasureScroll(MMI32 frame, int &needsScroll, Error &error)
-{
-    needsScroll = 0;
-    for (std::size_t i = 0; i < captions.size(); ++i)
-    {
-        auto &caption = captions[i];
-        if (mm_text_box_scroll_frame(caption.data.story, caption.data.firstFrame, frame))
-        {
-            if (!Layout(caption, error))
-                return false;
-            const auto overflow = mm_caption_scroll_overflow(caption.height, caption.data.top, caption.data.bottom);
-            needsScroll = needsScroll || captionRows[i].scroll < overflow;
-        }
-    }
-    return true;
-}
-void MarcusPlayback::Impl::ScrollStep(MMI32 frame)
-{
-    for (std::size_t i = 0; i < captions.size(); ++i)
-    {
-        const auto &caption = captions[i];
-        if (mm_text_box_scroll_frame(caption.data.story, caption.data.firstFrame, frame))
-        {
-            const auto overflow = mm_caption_scroll_overflow(caption.height, caption.data.top, caption.data.bottom);
-            if (captionRows[i].scroll < overflow)
-                ++captionRows[i].scroll;
-        }
-    }
-}
 bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, bool click, bool &advance,
                             MM::Error &error)
 {
@@ -924,8 +894,20 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
         },
         [](void *data, int *needsScroll) -> int {
             auto &ctx = *static_cast<Services *>(data);
-            try { return ctx.host.MeasureScroll(ctx.frame, *needsScroll, ctx.error); }
-            catch (...) { ctx.failure = std::current_exception(); return 0; }
+            auto &rows = ctx.host.captionRows;
+            return mm_caption_measure_scroll(rows.data(), rows.size(), ctx.frame, needsScroll, data,
+                [](void *data, std::size_t row, MMI32 *height) -> int {
+                    auto &ctx = *static_cast<Services *>(data);
+                    auto &caption = ctx.host.captions[row - 1];
+                    try
+                    {
+                        if (!ctx.host.Layout(caption, ctx.error))
+                            return false;
+                        *height = caption.height;
+                        return true;
+                    }
+                    catch (...) { ctx.failure = std::current_exception(); return false; }
+                });
         },
         [](void *data, int *pending) -> int {
             auto &ctx = *static_cast<Services *>(data);
@@ -942,24 +924,13 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
         return false;
     }
     if (update.scroll_step)
-        impl->ScrollStep(frame);
+        mm_caption_step_scroll(impl->captionRows.data(), impl->captionRows.size(), frame);
     advance = update.advance != 0;
     return true;
 }
 bool MarcusPlayback::CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const
 {
-    for (auto row = impl->captionStack.last; row; row = impl->captionRows[row - 1].previous)
-    {
-        const auto &box = impl->captions[row - 1].data;
-        if (hiddenCaption && box.chunk == *hiddenCaption)
-            continue;
-        if (x >= box.left && x < box.right && y >= box.top && y < box.bottom)
-        {
-            chunk = box.chunk;
-            return true;
-        }
-    }
-    return false;
+    return mm_caption_hit(&impl->captionStack, impl->captionRows.data(), x, y, hiddenCaption, &chunk) != 0;
 }
 
 void MarcusPlayback::ClearCaptionDraft()
@@ -1085,19 +1056,23 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
         }
         return true;
     };
-    for (auto row = impl->captionStack.first; row; row = impl->captionRows[row - 1].next)
+    struct Paint
     {
-        auto &caption = impl->captions[row - 1];
-        if (hiddenCaption && caption.data.chunk == *hiddenCaption)
-        {
-            if (draft && !draw(*draft, impl->draftScroll))
-                return false;
-            draft = nullptr;
-        }
-        else if (!draw(caption, impl->captionRows[row - 1].scroll))
-            return false;
-    }
-    if (draft && !draw(*draft, impl->draftScroll))
+        const decltype(draw) &draw_one;
+        std::vector<CaptionImage> &captions;
+        CaptionImage *draft;
+        std::exception_ptr failure;
+    } paint{draw, impl->captions, draft, {}};
+    const int drawn = mm_caption_draw_stack(&impl->captionStack, impl->captionRows.data(), hiddenCaption,
+                                           draft != nullptr, impl->draftScroll, &paint,
+        [](void *p, std::size_t row, MMI32 scroll) -> int {
+            auto &paint = *static_cast<Paint *>(p);
+            try { return paint.draw_one(row ? paint.captions[row - 1] : *paint.draft, scroll); }
+            catch (...) { paint.failure = std::current_exception(); return false; }
+        });
+    if (paint.failure)
+        std::rethrow_exception(paint.failure);
+    if (!drawn)
         return false;
     if (!authored)
         marcus_caption_quad(layer, image.sceneCamera, image);
