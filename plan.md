@@ -974,6 +974,10 @@ The Marcus sound timeline now owns its cue spans, active voices and frame
 holds in C89. The sound sheet, movie clock, waveform mapping and playback
 resume use that schedule. The preview helper and player adapt decoded cue
 metadata and the matching-build timing snapshot to the C schedule.
+The snapshot codec now runs in C89. It validates scene IDs and frame
+ranges, bounds timing records, and exchanges explicit scene, hold and cue
+fields. The helper and player supply the file stream and commit the
+decoded schedule after the full snapshot is accepted.
 The C89 engine also owns live Marcus playback voices, track mute and solo,
 loop and queue progression, and MIDI preroll and rendering decisions.
 Marcus and Studio share PCM accumulation and clipping. The Marcus schedule

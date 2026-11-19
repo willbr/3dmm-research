@@ -309,6 +309,9 @@ void RangeScheduling()
     MarcusSoundTimeline cached;
     std::istringstream input(encoded.str(), std::ios::binary);
     CHECK(cached.Read(input, ranges));
+    std::istringstream trailing(encoded.str() + "x", std::ios::binary);
+    CHECK(!cached.Read(trailing, ranges) && cached.Size() == ranges.size() &&
+          cached.Scene(0).info.chunk == ranges[0].chunk);
     for (int edit = 0; edit < 3; ++edit)
     {
         auto changed = ranges;

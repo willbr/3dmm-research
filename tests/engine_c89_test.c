@@ -1,6 +1,7 @@
 #include "mm/playback.h"
 #include "mm/frame_sound.h"
 #include "mm/caption_render.h"
+#include "mm/movie_timing_snapshot.h"
 #include "mm/graphics_transition.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -426,6 +427,135 @@ static void check_caption_render(void)
     CHECK(reduced[0] == 10 && reduced[1] == 20 && reduced[2] == 30 && reduced[3] == 40);
 }
 
+typedef struct TimingBytes
+{
+    unsigned char bytes[157];
+    size_t used, offset, scenes;
+    MMU32 expected_chunk;
+} TimingBytes;
+
+static int timing_write(void *context, const void *bytes, size_t size)
+{
+    TimingBytes *data = (TimingBytes *)context;
+    if (size > sizeof(data->bytes) - data->used)
+        return 0;
+    memcpy(data->bytes + data->used, bytes, size);
+    data->used += size;
+    return 1;
+}
+
+static int timing_read(void *context, void *bytes, size_t size)
+{
+    TimingBytes *data = (TimingBytes *)context;
+    if (size > data->used - data->offset)
+        return 0;
+    memcpy(bytes, data->bytes + data->offset, size);
+    data->offset += size;
+    return 1;
+}
+
+static int timing_at_end(void *context)
+{
+    const TimingBytes *data = (const TimingBytes *)context;
+    return data->used == data->offset;
+}
+
+static int timing_scene(void *context, size_t index, MMMovieTimingScene *out)
+{
+    static const MMMovieTimingScroll scrolls[] = {{-3, .5}, {0, .75}};
+    static const MMMovieTimingPause pauses[] = {{1, MM_PLAYBACK_WAIT_TIME, 1250}};
+    static const MMMovieTimingCue cues[] = {
+        {-4, 2, -1, 1, 65536, 0x4d534e44UL, 17, 0x5343454eUL, 9, 5,
+         MM_TIMING_ACTOR_SOUND | MM_TIMING_LOOP | MM_TIMING_QUEUE | MM_TIMING_SILENT | MM_TIMING_MOTION,
+         -1, 3, 0x57415645UL, 400, -2, 1.5}
+    };
+    (void)context;
+    CHECK(!index);
+    out->range.chunk = 0x01020304UL;
+    out->range.first = -4;
+    out->range.last = 21;
+    out->transition = .25;
+    out->scroll_count = 2; out->pause_count = 1; out->cue_count = 1;
+    out->scrolls = scrolls; out->pauses = pauses; out->cues = cues;
+    return 1;
+}
+
+static int timing_expected(void *context, size_t index, MMMovieTimingRange *range)
+{
+    const TimingBytes *data = (const TimingBytes *)context;
+    CHECK(!index);
+    range->chunk = data->expected_chunk;
+    range->first = -4;
+    range->last = 21;
+    return 1;
+}
+
+static int timing_received(void *context, size_t index, const MMMovieTimingScene *scene)
+{
+    TimingBytes *data = (TimingBytes *)context;
+    const MMMovieTimingCue *cue = scene->cues;
+    CHECK(!index && scene->range.chunk == data->expected_chunk && scene->transition == .25);
+    CHECK(scene->scroll_count == 2 && scene->pause_count == 1 && scene->cue_count == 1);
+    CHECK(scene->scrolls[0].frame == -3 && scene->scrolls[0].seconds == .5 &&
+          scene->scrolls[1].frame == 0 && scene->scrolls[1].seconds == .75);
+    CHECK(scene->pauses[0].frame == 1 && scene->pauses[0].kind == MM_PLAYBACK_WAIT_TIME &&
+          scene->pauses[0].milliseconds == 1250);
+    CHECK(cue->frame == -4 && cue->source == 2 && cue->actor == -1 && cue->style == 1 && cue->volume == 65536);
+    CHECK(cue->sound_type == 0x4d534e44UL && cue->sound_number == 17 &&
+          cue->scene_type == 0x5343454eUL && cue->scene_number == 9 && cue->child == 5);
+    CHECK(cue->flags == 31 && cue->motion_cel == -1 && cue->audio_kind == 3 && cue->resolved_type == 0x57415645UL &&
+          cue->resolved_chunk == 400 && cue->resolved_source == -2 && cue->seconds == 1.5);
+    ++data->scenes;
+    return 1;
+}
+
+static void check_timing_snapshot(void)
+{
+    TimingBytes data = {0};
+    TimingBytes good;
+    MMMovieTimingWriter writer = {NULL, timing_write, timing_scene};
+    MMMovieTimingReader reader = {NULL, timing_read, timing_at_end, timing_expected, timing_received};
+    static const unsigned char header[] = {'M', 'M', 'T', '4', 0, 0, 0, 0, 0, 0, 192, 63, 1, 0, 0, 0,
+                                           4, 3, 2, 1, 252, 255, 255, 255, 21, 0, 0, 0};
+    double frame_seconds = -1;
+    size_t i;
+    writer.context = reader.context = &data;
+    data.expected_chunk = 0x01020304UL;
+    CHECK(mm_movie_timing_snapshot_write(&writer, 1, .125));
+    CHECK(data.used == 156 && !memcmp(data.bytes, header, sizeof(header)));
+    good = data;
+    CHECK(mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && data.scenes == 1 && frame_seconds == .125);
+    for (i = 0; i < good.used; ++i)
+    {
+        data = good;
+        data.used = i;
+        frame_seconds = -1;
+        CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && !data.scenes && frame_seconds == -1);
+    }
+    data = good;
+    ++data.used;
+    CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && frame_seconds == -1);
+    data = good;
+    ++data.expected_chunk;
+    CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && !data.scenes);
+    data = good;
+    memcpy(data.bytes + 60, data.bytes + 48, 4);
+    CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && !data.scenes);
+    data = good;
+    data.bytes[39] = 127;
+    CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && !data.scenes);
+    data = good;
+    data.bytes[76] = 4;
+    CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && !data.scenes);
+    data = good;
+    data.bytes[124] = 32;
+    CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && !data.scenes);
+    data = good;
+    data.bytes[154] = 240;
+    data.bytes[155] = 127;
+    CHECK(!mm_movie_timing_snapshot_read(&reader, 1, &frame_seconds) && !data.scenes);
+}
+
 /* This executable links with the C linker and only the C89 backend. Existing
  * engine-core-link and Marcus regressions cover the host adapters and policy
  * branches. These checks exercise the public C contract independently. */
@@ -510,5 +640,6 @@ int main(void)
     check_polled_movie();
     check_frame_sound();
     check_caption_render();
+    check_timing_snapshot();
     return 0;
 }

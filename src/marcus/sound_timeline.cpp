@@ -1,87 +1,164 @@
 #include "sound_timeline.h"
 #include <algorithm>
-#include <cmath>
+#include "mm/movie_timing_snapshot.h"
+#include <exception>
+#include <limits>
 #include <istream>
 #include <new>
 #include <ostream>
-#include <type_traits>
 
 namespace
 {
-template <typename T> bool Put(std::ostream &out, const T &value)
+bool FitsFrame(long value)
 {
-    static_assert(std::is_trivially_copyable<T>::value, "IPC value must be flat");
-    return bool(out.write(reinterpret_cast<const char *>(&value), sizeof(value)));
+    return value >= (std::numeric_limits<MMI32>::min)() && value <= (std::numeric_limits<MMI32>::max)();
 }
-template <typename T> bool Get(std::istream &in, T &value)
+bool TimingRange(const MarcusScene &scene, MMMovieTimingRange &range)
 {
-    static_assert(std::is_trivially_copyable<T>::value, "IPC value must be flat");
-    return bool(in.read(reinterpret_cast<char *>(&value), sizeof(value)));
+    if (scene.chunk > 0xffffffffUL || !FitsFrame(scene.first_frame) || !FitsFrame(scene.last_frame))
+        return false;
+    range = {MMU32(scene.chunk), MMI32(scene.first_frame), MMI32(scene.last_frame)};
+    return true;
 }
-constexpr std::uint32_t timingMagic = 0x33544d4d; // MMT3, matching-build ephemeral IPC.
+bool TimingCue(const MM::PreviewSoundCue &cue, const MarcusWaveformInfo &audio, MMMovieTimingCue &out)
+{
+    if (audio.resolved_type > 0xffffffffUL || audio.resolved_chunk > 0xffffffffUL ||
+        !FitsFrame(audio.resolved_source))
+        return false;
+    const MMU32 flags = (cue.actorSound ? MM_TIMING_ACTOR_SOUND : 0) | (cue.loop ? MM_TIMING_LOOP : 0) |
+                        (cue.queue ? MM_TIMING_QUEUE : 0) | (cue.silent ? MM_TIMING_SILENT : 0) |
+                        (cue.motion ? MM_TIMING_MOTION : 0);
+    out = {cue.frame, cue.source, cue.actor, cue.style, cue.volume, cue.sound.type, cue.sound.number,
+           cue.scene.type, cue.scene.number, cue.child, flags, cue.motionCel, audio.kind,
+           MMU32(audio.resolved_type), MMU32(audio.resolved_chunk), MMI32(audio.resolved_source), audio.seconds};
+    return true;
+}
 } // namespace
 
 bool MarcusSoundTimeline::Write(std::ostream &out) const
 {
-    const double frameSeconds = marcus_sound_schedule_frame_seconds(schedule.get());
-    if (!Put(out, timingMagic) || !Put(out, frameSeconds) || !Put(out, std::uint32_t(sources.size()))) return false;
-    for (const auto &source : sources)
+    struct Context
     {
-        if (!Put(out, source.info) || !Put(out, source.timing.transition) ||
-            !Put(out, std::uint32_t(source.timing.scrolling.size()))) return false;
-        for (const auto &scroll : source.timing.scrolling)
-            if (!Put(out, scroll.first) || !Put(out, scroll.second)) return false;
-        if (!Put(out, std::uint32_t(source.timing.pauses.size()))) return false;
-        for (const auto &pause : source.timing.pauses)
-            if (!Put(out, pause)) return false;
-        if (!Put(out, std::uint32_t(source.cues.size()))) return false;
-        for (std::size_t cue = 0; cue < source.cues.size(); ++cue)
-            if (!Put(out, source.cues[cue]) || !Put(out, source.audio[cue])) return false;
-    }
-    return bool(out);
+        std::ostream &output;
+        const std::vector<Source> &sources;
+        std::vector<MMMovieTimingScroll> scrolls;
+        std::vector<MMMovieTimingPause> pauses;
+        std::vector<MMMovieTimingCue> cues;
+        std::exception_ptr failure;
+    } context{out, sources, {}, {}, {}, {}};
+    const MMMovieTimingWriter writer{
+        &context,
+        [](void *p, const void *bytes, std::size_t size) -> int {
+            auto &ctx = *static_cast<Context *>(p);
+            try { return bool(ctx.output.write(static_cast<const char *>(bytes), size)); }
+            catch (...) { ctx.failure = std::current_exception(); return false; }
+        },
+        [](void *p, std::size_t index, MMMovieTimingScene *scene) -> int {
+            auto &ctx = *static_cast<Context *>(p);
+            const auto &source = ctx.sources[index];
+            try
+            {
+                if (!TimingRange(source.info, scene->range)) return false;
+                ctx.scrolls.clear();
+                ctx.scrolls.reserve(source.timing.scrolling.size());
+                for (const auto &scroll : source.timing.scrolling)
+                {
+                    if (!FitsFrame(scroll.first)) return false;
+                    ctx.scrolls.push_back({MMI32(scroll.first), scroll.second});
+                }
+                ctx.pauses.clear();
+                ctx.pauses.reserve(source.timing.pauses.size());
+                for (const auto &pause : source.timing.pauses)
+                    ctx.pauses.push_back({pause.frame, pause.kind, pause.milliseconds});
+                ctx.cues.resize(source.cues.size());
+                for (std::size_t i = 0; i < ctx.cues.size(); ++i)
+                    if (!TimingCue(source.cues[i], source.audio[i], ctx.cues[i])) return false;
+                scene->transition = source.timing.transition;
+                scene->scroll_count = ctx.scrolls.size();
+                scene->pause_count = ctx.pauses.size();
+                scene->cue_count = ctx.cues.size();
+                scene->scrolls = ctx.scrolls.data();
+                scene->pauses = ctx.pauses.data();
+                scene->cues = ctx.cues.data();
+                return true;
+            }
+            catch (...) { ctx.failure = std::current_exception(); return false; }
+        }};
+    const int written = mm_movie_timing_snapshot_write(&writer, sources.size(),
+                                                       marcus_sound_schedule_frame_seconds(schedule.get()));
+    if (context.failure) std::rethrow_exception(context.failure);
+    return written != 0;
 }
 
 bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> &expected)
 {
-    std::uint32_t magic = 0, count = 0;
-    double frameSeconds;
-    if (!Get(in, magic) || magic != timingMagic || !Get(in, frameSeconds) ||
-        !std::isfinite(frameSeconds) || frameSeconds <= 0 || !Get(in, count) || count != expected.size()) return false;
-    MarcusSoundTimeline result(frameSeconds);
-    std::size_t records = 0;
-    auto readCount = [&](std::uint32_t &size) {
-        if (!Get(in, size) || size > 1000000 - records) return false;
-        records += size;
-        return true;
-    };
-    for (const auto &info : expected)
+    struct Context
     {
-        MarcusScene stored;
-        Source source;
-        std::uint32_t size = 0;
-        if (!Get(in, stored) || stored.chunk != info.chunk || stored.first_frame != info.first_frame ||
-            stored.last_frame != info.last_frame || !Get(in, source.timing.transition) ||
-            !std::isfinite(source.timing.transition) || source.timing.transition < 0 || !readCount(size)) return false;
-        for (std::uint32_t i = 0; i < size; ++i)
-        {
-            long frame;
-            double seconds;
-            if (!Get(in, frame) || !Get(in, seconds) || !std::isfinite(seconds) || seconds < 0 ||
-                !source.timing.scrolling.emplace(frame, seconds).second) return false;
-        }
-        if (!readCount(size)) return false;
-        source.timing.pauses.resize(size);
-        for (auto &pause : source.timing.pauses)
-            if (!Get(in, pause) || pause.kind < 0 || pause.kind > 3 || pause.milliseconds < 0) return false;
-        if (!readCount(size)) return false;
-        source.cues.resize(size);
-        source.audio.resize(size);
-        for (std::uint32_t i = 0; i < size; ++i)
-            if (!Get(in, source.cues[i]) || !Get(in, source.audio[i]) ||
-                !std::isfinite(source.audio[i].seconds) || source.audio[i].seconds < 0) return false;
-        result.AppendPrepared(info, std::move(source));
-    }
-    if (in.peek() != std::char_traits<char>::eof()) return false;
+        std::istream &input;
+        const std::vector<MarcusScene> &expected;
+        std::vector<Source> sources;
+        std::exception_ptr failure;
+    } context{in, expected, {}, {}};
+    const MMMovieTimingReader reader{
+        &context,
+        [](void *p, void *bytes, std::size_t size) -> int {
+            auto &ctx = *static_cast<Context *>(p);
+            try { return bool(ctx.input.read(static_cast<char *>(bytes), size)); }
+            catch (...) { ctx.failure = std::current_exception(); return false; }
+        },
+        [](void *p) -> int {
+            auto &ctx = *static_cast<Context *>(p);
+            try { return ctx.input.peek() == std::char_traits<char>::eof() && !ctx.input.bad(); }
+            catch (...) { ctx.failure = std::current_exception(); return false; }
+        },
+        [](void *p, std::size_t index, MMMovieTimingRange *range) -> int {
+            return TimingRange(static_cast<Context *>(p)->expected[index], *range);
+        },
+        [](void *p, std::size_t, const MMMovieTimingScene *scene) -> int {
+            auto &ctx = *static_cast<Context *>(p);
+            try
+            {
+                Source source;
+                source.timing.transition = scene->transition;
+                for (std::size_t i = 0; i < scene->scroll_count; ++i)
+                    source.timing.scrolling.emplace_hint(source.timing.scrolling.end(),
+                        scene->scrolls[i].frame, scene->scrolls[i].seconds);
+                source.timing.pauses.reserve(scene->pause_count);
+                for (std::size_t i = 0; i < scene->pause_count; ++i)
+                {
+                    const auto &pause = scene->pauses[i];
+                    source.timing.pauses.push_back({pause.frame, pause.kind, pause.milliseconds});
+                }
+                source.cues.reserve(scene->cue_count);
+                source.audio.resize(scene->cue_count);
+                for (std::size_t i = 0; i < scene->cue_count; ++i)
+                {
+                    const auto &cue = scene->cues[i];
+                    source.cues.push_back({cue.frame, cue.source, cue.actor, cue.style, cue.volume,
+                        {cue.sound_type, cue.sound_number}, {cue.scene_type, cue.scene_number}, cue.child,
+                        bool(cue.flags & MM_TIMING_ACTOR_SOUND), bool(cue.flags & MM_TIMING_LOOP),
+                        bool(cue.flags & MM_TIMING_QUEUE), bool(cue.flags & MM_TIMING_SILENT),
+                        bool(cue.flags & MM_TIMING_MOTION), cue.motion_cel});
+                    auto &audio = source.audio[i];
+                    audio.seconds = cue.seconds;
+                    audio.kind = cue.audio_kind;
+                    audio.resolved_type = cue.resolved_type;
+                    audio.resolved_chunk = cue.resolved_chunk;
+                    audio.resolved_source = cue.resolved_source;
+                }
+                ctx.sources.push_back(std::move(source));
+                return true;
+            }
+            catch (...) { ctx.failure = std::current_exception(); return false; }
+        }};
+    double frameSeconds;
+    const int read = mm_movie_timing_snapshot_read(&reader, expected.size(), &frameSeconds);
+    if (context.failure) std::rethrow_exception(context.failure);
+    if (!read) return false;
+    MarcusSoundTimeline result(frameSeconds);
+    result.sources.reserve(context.sources.size());
+    for (std::size_t i = 0; i < context.sources.size(); ++i)
+        result.AppendPrepared(expected[i], std::move(context.sources[i]));
     *this = std::move(result);
     return true;
 }

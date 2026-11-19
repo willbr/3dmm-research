@@ -2278,13 +2278,23 @@ changes, the player rebuilds the schedule from cached cues and clip lengths.
 The UI starts/polls a timing job instead of calling the synchronous whole-movie
 API. The job launches `marcus-preview --timing` with a lease on the materialized
 movie, keeping ZIP/VMM inputs alive. Engine globals remain isolated in the child
-process. A host worker reads and validates the completed timing snapshot against
-the expected ordered scene IDs/frame ranges; the player adopts it on its owner
-thread, without seeking or restarting audio. Reopening a movie or destroying the
+process. A host worker supplies the file stream to the C89 decoder, which
+validates the snapshot against the expected ordered scene IDs and frame ranges.
+The player adopts the schedule on its owner thread without seeking or
+restarting audio. Reopening a movie or destroying the
 player cancels and joins the old job, preventing stale results from replacing
-another movie's timeline. The helper has a five-minute timeout. Its ephemeral
-matching-build binary snapshot is capped at 64 MiB and one million timing
-records; it is never stored in the movie or read by SDL Studio.
+another movie's timeline. The helper has a five-minute timeout. Its temporary
+MMT4 snapshot uses fixed-width little-endian fields and binary64 durations,
+with limits of 64 MiB and one million timing records. Marcus and its helper
+exchange it between matching builds.
+
+The C89 codec matched the decoded timing of three MMT3 baseline snapshots.
+The five-scene playback fixture retained its 17 cues, five credit scroll
+holds and 15 authored pauses at both 6 and 24 FPS. The snapshot for each
+rate went from 5,952 to 1,640 bytes. The C codec produced identical fixture
+bytes on x86 and x64. Rebuilt SDL Studio matched the retained retail state
+and viewport capture for the credits fixture's opening frame.
+Evidence is in `tmp/c89-timing-snapshot/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
