@@ -14912,3 +14912,29 @@ timing and continuous playback pixels remain inconclusive.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The native and VMM
 outputs, probe and logs are in `tmp/c89-board-archive`.
+
+## Marcus storyboard background generation in C89 (19 November 2026)
+
+Marcus now reads the retail black-scene palette and insertion camera,
+maps editor inks to native palette indices, and writes the linked
+background, light, camera, paint, depth, and muted default-sound resources
+in C89. The host supplies archive I/O and BRender fixed-point transforms.
+
+The painted probe produced byte-identical `.3cn` and `.3mm` files before and
+after the conversion. All five headless VMM outputs matched for dependencies,
+indexed movie data, and embedded payloads and links after normalizing
+generated storyboard names and chunk keys. All 41 selected Marcus-enabled
+checks and nine standalone C-only Release checks passed. The headless
+renderer check reported the 32-bit ASM worker unavailable.
+
+In suite `20261119T060450Z-df42448e`, Marcus matched its previous painted
+probe for all three frame positions and all captured seek and playback
+pixels. Retail timed out and SDL Studio exited before capture, reproducing
+the outcomes from suite `20261119T055454Z-881bbcf8`. For the ordinary
+reframed control, retail and both ports matched all three frame positions,
+seek pixels, and silent playback PCM. The SDL timing comparison passed in
+this run. Marcus timing and continuous playback pixels against retail
+remain inconclusive. A v3dmm runtime was unavailable.
+
+The inputs, outputs and logs are in `tmp/c89-board-resources`. The capture
+database is at `tmp/c89-sound-schedule/capture/playback.sqlite`.

@@ -36,6 +36,11 @@ typedef struct MarcusBoardWire
     MarcusBoardEditValues values;
     const unsigned char *pixels[MARCUS_BOARD_ANGLE_LIMIT];
 } MarcusBoardWire;
+typedef struct MarcusBoardInk
+{
+    unsigned char first, second, amount;
+    unsigned rgb;
+} MarcusBoardInk;
 
 enum
 {
@@ -55,6 +60,8 @@ void marcus_board_light_matrix(const MarcusBoardLightValues *, float matrix[16])
 int marcus_board_light_from_matrix(const MarcusBoardLightValues *, const float matrix[16], int rotate,
                                    MarcusBoardLightValues *);
 void marcus_board_stroke(unsigned char *pixels, int x0, int y0, int x1, int y1, int size, unsigned char colour);
+MarcusBoardInk marcus_board_match_colour(const unsigned palette[256], unsigned rgb);
+unsigned char marcus_board_paint_index(const MarcusBoardInk *, int x, int y);
 /* Existing colour, next unused slot, or -1 when all slots are in use. Each
  * surface borrows MARCUS_BOARD_PIXELS bytes of logical ink indices. */
 int marcus_board_colour_slot(const unsigned *colours, int count, unsigned rgb,

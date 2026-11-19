@@ -57,7 +57,6 @@ std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board);
 MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes);
 MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources, const std::string &content);
 using MarcusBoardPalette = std::array<unsigned, 256>;
-struct MarcusBoardInk { unsigned char first = 0, second = 0, amount = 0; unsigned rgb = 0; };
 using MarcusBoardInks = std::vector<MarcusBoardInk>;
 MarcusBoardInk MarcusBoardMatchColour(const MarcusBoardPalette &palette, unsigned rgb);
 MarcusBoardInks MarcusBoardColourMap(const MarcusBoardPalette &palette, const MarcusBoardPaintColours &colours = MarcusBoardColours);

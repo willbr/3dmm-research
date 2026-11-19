@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include "storyboard_native.h"
 #include "movie_archive_host.h"
-#include "zbmp.h"
+#include "storyboard_resource.h"
 #undef size
 ASSERTNAME
 
@@ -16,16 +16,35 @@ namespace
 struct Release { template<class T> void operator()(T *p) const { if (p) p->Release(); } };
 void Require(bool ok, const char *message) { if (!ok) throw std::runtime_error(message); }
 bool Range(float v, float a, float b) { return std::isfinite(v) && v >= a && v <= b; }
-unsigned short Angle(float degrees) { return static_cast<unsigned short>(static_cast<int>(degrees * (65536.f / 360))); }
-BMAT34 Matrix(float x, float y, float z, float yaw, float pitch, float roll)
-{
-    BMAT34 m;
-    BrMatrix34RotateZ(&m, Angle(roll));
-    BrMatrix34PostRotateX(&m, Angle(-pitch));
-    BrMatrix34PostRotateY(&m, Angle(yaw));
-    m.m[3][0] = BrFloatToScalar(x); m.m[3][1] = BrFloatToScalar(y); m.m[3][2] = BrFloatToScalar(z);
-    return m;
-}
+const MarcusBoardTransforms BoardTransforms = {
+    [](MMActorMatrix *out, float x, float y, float z, unsigned short yaw, unsigned short pitch, unsigned short roll) {
+        BMAT34 matrix;
+        BrMatrix34RotateZ(&matrix, roll);
+        BrMatrix34PostRotateX(&matrix, pitch);
+        BrMatrix34PostRotateY(&matrix, yaw);
+        matrix.m[3][0] = BrFloatToScalar(x);
+        matrix.m[3][1] = BrFloatToScalar(y);
+        matrix.m[3][2] = BrFloatToScalar(z);
+        static_assert(sizeof(matrix) == sizeof(*out));
+        std::memcpy(out, &matrix, sizeof(matrix));
+    },
+    [](MMActorMatrix *out, const MMActorMatrix *in) -> int {
+        BMAT34 matrix, inverse;
+        std::memcpy(&matrix, in, sizeof(matrix));
+        if (!BrMatrix34Inverse(&inverse, &matrix)) return false;
+        std::memcpy(out, &inverse, sizeof(inverse));
+        return true;
+    },
+    [](MMActorPoint *out, const MMActorPoint *in, const MMActorMatrix *transform) {
+        BMAT34 matrix;
+        BVEC3 point, result;
+        static_assert(sizeof(point) == sizeof(*in));
+        std::memcpy(&matrix, transform, sizeof(matrix));
+        std::memcpy(&point, in, sizeof(point));
+        BrMatrix34ApplyP(&result, &point, &matrix);
+        std::memcpy(out, &result, sizeof(result));
+    }
+};
 }
 namespace
 {
@@ -172,53 +191,11 @@ void MarcusBoardBakeGrid(MarcusBoardAngle &a, unsigned char colour)
 }
 unsigned char MarcusBoardPaintIndex(const MarcusBoardInk &ink, int x, int y)
 {
-    static const int pattern[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
-    return pattern[(y & 3) * 4 + (x & 3)] < ink.amount ? ink.second : ink.first;
+    return marcus_board_paint_index(&ink, x, y);
 }
 MarcusBoardInk MarcusBoardMatchColour(const MarcusBoardPalette &palette, unsigned rgb)
 {
-    MarcusBoardInk result;
-    double best = 1e20;
-    for (unsigned index = 10; index < 246; ++index)
-    {
-        unsigned distance = 0;
-        for (int shift : {0, 8, 16})
-        {
-            const int difference = int((palette[index] >> shift) & 255) - int((rgb >> shift) & 255);
-            distance += difference * difference;
-        }
-        if (distance < best)
-        { best = distance; result = {static_cast<unsigned char>(index), static_cast<unsigned char>(index), 0, palette[index]}; }
-    }
-    // Ordered mixtures retain soft hues that a single palette entry loses.
-    // Penalize contrast to favour nearby colours over noisy complementary pairs.
-    for (unsigned a = 10; a < 246 && best > 0; ++a)
-        for (unsigned b = a + 1; b < 246; ++b)
-        {
-            int difference[3], target[3], length = 0, projection = 0;
-            for (int c = 0; c < 3; ++c)
-            {
-                const int shift = c * 8, first = (palette[a] >> shift) & 255;
-                difference[c] = int((palette[b] >> shift) & 255) - first;
-                target[c] = int((rgb >> shift) & 255) - first;
-                length += difference[c] * difference[c]; projection += target[c] * difference[c];
-            }
-            if (!length || projection <= 0 || projection >= length) continue;
-            const int amount = int(std::lround(double(projection) * 16 / length));
-            if (amount <= 0 || amount >= 16) continue;
-            double score = .01 * length * amount * (16 - amount) / 256.;
-            unsigned mixedRgb = 0;
-            for (int c = 0; c < 3; ++c)
-            {
-                const int shift = c * 8, first = (palette[a] >> shift) & 255;
-                const int mixed = (first * 16 + difference[c] * amount + 8) / 16;
-                const int error = mixed - int((rgb >> shift) & 255);
-                score += error * error; mixedRgb |= unsigned(mixed) << shift;
-            }
-            if (score < best)
-            { best = score; result = {static_cast<unsigned char>(a), static_cast<unsigned char>(b), static_cast<unsigned char>(amount), mixedRgb}; }
-        }
-    return result;
+    return marcus_board_match_colour(palette.data(), rgb);
 }
 MarcusBoardInks MarcusBoardColourMap(const MarcusBoardPalette &palette, const MarcusBoardPaintColours &colours)
 {
@@ -261,89 +238,6 @@ int MarcusBoardAddColour(MarcusStoryboard &board, unsigned rgb)
     else if (slot >= 0) board.colours[slot] = rgb;
     return slot;
 }
-static ChunkNumber WriteBoard(PChunkyFile file, const MarcusStoryboard &board, const Color *palette,
-    CameraPosition reference, const std::vector<APOS> &referencePlaces)
-{
-    Require(MarcusBoardValid(board), "Invalid storyboard.");
-    BackgroundFile header = {kboCur, koskCur, 10, 0, 0};
-    ChunkNumber background, number;
-    DataBlock block;
-    Require(file->FAddPv(&header, sizeof(header), kctgBkgd, &background), "Cannot write storyboard background.");
-    String name; name.SetSzs(PszLit("Storyboard"));
-    Require(file->FSetName(kctgBkgd, background, &name), "Cannot name storyboard background.");
-    std::unique_ptr<DynamicArray, Release> colours(DynamicArray::PglNew(sizeof(Color)));
-    Require(bool(colours), "Cannot allocate storyboard colours.");
-    MarcusBoardPalette rgbPalette = {};
-    for (unsigned index = 10; index < 246; ++index)
-    {
-        auto colour = palette[index];
-        rgbPalette[index] = (unsigned(colour.bRed) << 16) | (unsigned(colour.bGreen) << 8) | colour.bBlue;
-        Require(colours->FAdd(&colour), "Cannot add storyboard colour.");
-    }
-    const auto paint = MarcusBoardColourMap(rgbPalette, board.colours);
-    Require(file->FAddChild(kctgBkgd, background, 0, colours->CbOnFile(), kctgColorTable, &number, &block) && colours->FWrite(&block), "Cannot write storyboard colours.");
-    std::unique_ptr<DynamicArray, Release> lights(DynamicArray::PglNew(sizeof(LightPosition)));
-    Require(bool(lights), "Cannot allocate storyboard lights.");
-    for (const auto &l : board.lights)
-    {
-        if (l.intensity == 0) continue;
-        // Retail's rIntensity is BRender's constant attenuation divisor.
-        const float attenuation = std::min(32700.f, 1.f / l.intensity);
-        LightPosition light = {Matrix(l.x, l.y, l.z, l.yaw, l.pitch, 0), BrFloatToScalar(attenuation), l.point ? BR_LIGHT_POINT : BR_LIGHT_DIRECT};
-        Require(lights->FAdd(&light), "Cannot add storyboard light.");
-    }
-    Require(file->FAddChild(kctgBkgd, background, 0, lights->CbOnFile(), kctgGllt, &number, &block) && lights->FWrite(&block), "Cannot write storyboard lights.");
-    std::unique_ptr<ZBMP, Release> depth(ZBMP::PzbmpNew(MarcusBoardWidth, MarcusBoardHeight));
-    Require(bool(depth), "Cannot allocate storyboard depth.");
-    std::memset(depth->Prgb(), 255, depth->CbRow() * MarcusBoardHeight);
-    ChunkNumber z;
-    Require(depth->FWrite(file, kctgZbmp, &z), "Cannot write empty storyboard depth.");
-    BMAT34 inverse;
-    Require(BrMatrix34Inverse(&inverse, &reference.bmat34Cam) != 0, "Invalid black scene camera transform.");
-    std::vector<BVEC3> placements(referencePlaces.size());
-    for (size_t i = 0; i < placements.size(); ++i)
-    {
-        auto point = referencePlaces[i].bvec3Actor;
-        BrMatrix34ApplyP(&placements[i], &point, &inverse);
-        Require(placements[i].v[2] < 0, "Invalid black scene insertion depth.");
-    }
-    for (unsigned index = 0; index < board.angles.size(); ++index)
-    {
-        const auto &a = board.angles[index];
-        CameraPosition camera = {};
-        camera.bo = kboCur; camera.osk = koskCur;
-        camera.zrHither = BrFloatToScalar(a.nearClip); camera.zrYon = BrFloatToScalar(a.farClip); camera.aFov = Angle(a.fov);
-        camera.bmat34Cam = Matrix(a.camera.x, a.camera.y, a.camera.z, a.camera.yaw, a.camera.pitch, a.roll);
-        // Retain all retail insertion anchors in camera space, adapted to each lens.
-        const float lens = std::tan(a.fov * .00872664626f) / std::tan(reference.aFov * (3.14159265358979323846f / 65536));
-        std::vector<APOS> points(placements.size());
-        for (size_t i = 0; i < placements.size(); ++i)
-        {
-            const auto &placement = placements[i];
-            const float originalDistance = -BrScalarToFloat(placement.v[2]);
-            const float distance = std::clamp(originalDistance, a.nearClip + (a.farClip - a.nearClip) * .001f,
-                a.farClip - (a.farClip - a.nearClip) * .001f);
-            const float scale = lens * distance / originalDistance;
-            BVEC3 local = {{BrFloatToScalar(BrScalarToFloat(placement.v[0]) * scale),
-                BrFloatToScalar(BrScalarToFloat(placement.v[1]) * scale), BrFloatToScalar(-distance)}};
-            BrMatrix34ApplyP(&points[i].bvec3Actor, &local, &camera.bmat34Cam);
-        }
-        camera.apos = points[0];
-        std::vector<unsigned char> cameraBytes(sizeof(camera) + (points.size() - 1) * sizeof(APOS));
-        std::memcpy(cameraBytes.data(), &camera, sizeof(camera));
-        if (points.size() > 1) std::memcpy(cameraBytes.data() + sizeof(camera), points.data() + 1, (points.size() - 1) * sizeof(APOS));
-        ChunkNumber cam, image;
-        Require(file->FAddPv(cameraBytes.data(), cameraBytes.size(), kctgCam, &cam) && file->FAdoptChild(kctgBkgd, background, kctgCam, cam, index), "Cannot write storyboard camera.");
-        auto pixels = a.pixels;
-        for (size_t p = 0; p < pixels.size(); ++p)
-            pixels[p] = MarcusBoardPaintIndex(paint[pixels[p]], int(p % MarcusBoardWidth), int(p / MarcusBoardWidth));
-        RC rectangle(0, 0, MarcusBoardWidth, MarcusBoardHeight);
-        std::unique_ptr<MaskedBitmapMBMP, Release> bitmap(MaskedBitmapMBMP::PmbmpNew(pixels.data(), MarcusBoardWidth, MarcusBoardHeight, &rectangle, 0, 0, 255));
-        Require(bitmap && file->FAddChild(kctgCam, cam, 0, bitmap->CbOnFile(), kctgMbmp, &image, &block) && bitmap->FWrite(&block) &&
-            file->FAdoptChild(kctgCam, cam, kctgZbmp, z, 0), "Cannot write storyboard painting.");
-    }
-    return background;
-}
 MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources, const std::string &content)
 {
     auto file = std::make_shared<MarcusMovieFile>(std::filesystem::path{});
@@ -364,45 +258,24 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     resourcePath.SetSzs(const_cast<char *>(resources.c_str()));
     Require(resourceFilename.FBuildFromPath(&resourcePath), "Invalid storyboard resource path.");
     std::unique_ptr<ChunkyFile, Release> resourceFile(ChunkyFile::PcflOpen(&resourceFilename, fcflNil));
-    DataBlock block;
-    Require(resourceFile && resourceFile->FFind(kctgColorTable, 0, &block), "Cannot read the movie palette.");
-    std::unique_ptr<DynamicArray, Release> palette(DynamicArray::PglRead(&block));
-    Require(palette && palette->CbEntry() == sizeof(Color) && palette->IvMac() >= 256, "Invalid movie palette.");
-    // Preserve the retail black scene's shared actor/background palette. The
-    // resource CHK palette is the UI palette, not the scene colour table.
+    Require(bool(resourceFile), "Cannot read the movie palette.");
     String contentPath; Filename contentFilename;
     contentPath.SetSzs(const_cast<char *>((std::filesystem::u8path(content) / "bkgds.3cn").u8string().c_str()));
     Require(contentFilename.FBuildFromPath(&contentPath), "Invalid retail background path.");
     std::unique_ptr<ChunkyFile, Release> backgrounds(ChunkyFile::PcflOpen(&contentFilename, fcflNil));
-    BackgroundFile black = {}; ChildChunkIdentification child;
-    Require(backgrounds && backgrounds->FFind(kctgBkgd, 11, &block) && block.FReadRgb(&black, sizeof(black), 0) &&
-        backgrounds->FGetKidChidCtg(kctgBkgd, 11, 0, kctgColorTable, &child) && backgrounds->FFind(kctgColorTable, child.cki.cno, &block),
-        "Cannot read the retail black scene palette.");
-    std::unique_ptr<DynamicArray, Release> blackColours(DynamicArray::PglRead(&block));
-    Require(black.bIndexBase == 10 && blackColours && blackColours->CbEntry() == sizeof(Color) && blackColours->IvMac() == 236,
-        "Invalid retail black scene palette.");
-    for (LegacyLong i = 0; i < blackColours->IvMac(); ++i) palette->Put(i + black.bIndexBase, blackColours->QvGet(i));
-    CameraPosition reference = {};
-    Require(backgrounds->FGetKidChidCtg(kctgBkgd, 11, 0, kctgCam, &child) && backgrounds->FFind(kctgCam, child.cki.cno, &block) &&
-        block.FUnpackData() && block.FReadRgb(&reference, sizeof(reference), 0), "Cannot read the black scene's insertion camera.");
-    Require((block.Cb() - sizeof(reference)) % sizeof(APOS) == 0, "Invalid black scene insertion point list.");
-    std::vector<APOS> referencePlaces = {reference.apos};
-    for (LegacyLong offset = sizeof(reference); offset < block.Cb(); offset += sizeof(APOS))
-    {
-        APOS point;
-        Require(block.FReadRgb(&point, sizeof(point), offset), "Cannot read an extra black scene insertion point.");
-        referencePlaces.push_back(point);
-    }
-    const auto background = WriteBoard(chunks.get(), board, static_cast<const Color *>(palette->QvGet(0)), reference, referencePlaces);
-    // Retail/v3dmm enumerate this child while collecting a background's tags.
-    // Keep a valid base-content sound reference, muted and absent from the timeline.
-    unsigned char sound[28] = {};
-    Require(backgrounds->FGetKidChidCtg(kctgBkgd, 11, 0, kctgBds, &child) && backgrounds->FFind(kctgBds, child.cki.cno, &block) &&
-        block.FReadRgb(sound, sizeof(sound), 0), "Cannot read the black scene's default sound.");
-    std::memset(sound + 4, 0, 8); // volume and loop flag, in either byte order
-    ChunkNumber defaultSound;
-    Require(chunks->FAddPv(sound, sizeof(sound), kctgBds, &defaultSound) &&
-        chunks->FAdoptChild(kctgBkgd, background, kctgBds, defaultSound, 0), "Cannot write storyboard default sound.");
+    Require(bool(backgrounds), "Cannot read the retail black scene.");
+    MovieArchiveHost resourceHost{resourceFile.get(), {}, {}};
+    MovieArchiveHost retailHost{backgrounds.get(), {}, {}};
+    MovieArchiveHost outputHost{chunks.get(), {}, {}};
+    const auto resourceEditor = resourceHost.Editor();
+    const auto retailEditor = retailHost.Editor();
+    const auto outputEditor = outputHost.Editor();
+    MarcusBoardWire view{};
+    Require(BoardView(board, view), "Invalid storyboard.");
+    ChunkNumber background;
+    const auto error = marcus_board_write_resources(&view, &resourceEditor, &retailEditor, &outputEditor,
+                                                    &BoardTransforms, &background);
+    Require(!error, error);
     Require(chunks->FSave(kctgSoc), "Cannot save storyboard working file.");
     return {std::make_shared<MarcusStoryboard>(board), file, background, source};
 }

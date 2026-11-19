@@ -950,6 +950,10 @@ portable source ID and preserves the table's byte order and string encoding
 when adding its declaration. Scene-start and source-table replacements link
 the new child before removing the old one, so a failed link keeps the old child
 available.
+Marcus generates storyboard backgrounds in C89. The writer reads the retail
+black scene palette and insertion anchors, maps paint inks to indexed pixels,
+and writes the linked palette, lights, depth, cameras, paintings, and muted
+default sound. The host supplies archive I/O and BRender fixed-point transforms.
 Storyboard export now allocates portable chunk numbers and rewrites the
 whole index in C89. The pass checks existing source-6 indexes, reorders
 renumbered rows and child links, and preserves payload bytes and the free map.
