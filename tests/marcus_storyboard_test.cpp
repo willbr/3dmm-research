@@ -605,10 +605,12 @@ int main(int argc, char **argv)
         check(marcus_add_scene(player.get(), 11, argv[1], argv[2]), "Open the retail black background");
         check(marcus_add_prop(player.get(), prop.chunk) == 0 && marcus_add_prop(player.get(), prop.chunk) == 1,
             "Add two objects to the black scene");
-        check(marcus_add_frame(player.get(), 1) && marcus_add_prop(player.get(), prop.chunk) == 2,
+        check(marcus_add_frame(player.get(), 1) && marcus_add_frame(player.get(), 1) &&
+              marcus_add_prop(player.get(), prop.chunk) == 2,
             "Add an object entering after the copied frame");
-        MarcusBounds before[3] = {}, after;
-        check(marcus_object_bounds(player.get(), 2, &before[2]) && before[2].valid && marcus_seek(player.get(), 1),
+        MarcusBounds before[3] = {}, after, earlier;
+        check(marcus_object_bounds(player.get(), 2, &before[2]) && before[2].valid && marcus_seek(player.get(), 1) &&
+              marcus_object_bounds(player.get(), 0, &earlier) && earlier.valid && marcus_seek(player.get(), 2),
             "Capture the later entrance before copying the shot");
         check(marcus_object_bounds(player.get(), 0, &before[0]) && before[0].valid &&
               marcus_object_bounds(player.get(), 1, &before[1]) && before[1].valid, "Read both visible objects");
@@ -640,13 +642,23 @@ int main(int argc, char **argv)
                       "The fixed camera sees each object as framed in Fly");
         };
         matchesShot(0); matchesShot(1);
-        check(marcus_seek(player.get(), 2), "Seek past the copied frame");
+        check(marcus_seek(player.get(), 1) && marcus_object_bounds(player.get(), 0, &after) &&
+              std::equal(after.corners, after.corners + 24, earlier.corners), "Earlier frame retains its exact pose");
+        check(marcus_seek(player.get(), 3), "Seek past the copied frame");
+        matchesShot(2);
+        flight.x -= 3; flight.yaw += 8;
+        MarcusImage later;
+        check(marcus_render_fly(player.get(), 544, 306, &flight, &later) && marcus_copy_to_camera(player.get(), &later) &&
+              marcus_seek(player.get(), 2), "A second copy starts on the next frame");
+        matchesShot(0); matchesShot(1);
+        check(marcus_undo(player.get()) && marcus_seek(player.get(), 3), "Undo only the second copy");
         matchesShot(2);
         auto reframedPath = ordinaryPath; reframedPath.replace_filename("reframed-black.3mm");
         check(marcus_save_copy(player.get(), reframedPath.u8string().c_str()), "Save transformed objects in a native movie");
         check(marcus_undo(player.get()) && marcus_object_bounds(player.get(), 0, &after) &&
             std::equal(after.corners, after.corners + 24, before[0].corners), "One undo restores all original object positions");
-        check(marcus_open(player.get(), reframedPath.u8string().c_str(), argv[1], argv[2]), "Reopen the transformed native movie");
+        check(marcus_open(player.get(), reframedPath.u8string().c_str(), argv[1], argv[2]) && marcus_seek(player.get(), 2),
+              "Reopen the transformed native movie");
         matchesShot(0); matchesShot(1);
         std::puts("Storyboard strokes, validation, no-depth rendering, cameras, props, undo, reload and native save/reopen passed.");
         return 0;

@@ -2025,11 +2025,6 @@ static void copy_work_camera(App *app, int set_angle)
     }
     refresh(app);
     app->modified = app->dirty = 1;
-    if (!set_angle)
-    {
-        reset_camera_view(app);
-        if (!app->second_view) view_mode(app, 1);
-    }
     SDL_snprintf(title, sizeof(title), "Marcus - %s (unsaved changes)", app->movie[0] ? app->movie : "Untitled movie");
     SDL_SetWindowTitle(app->window, title);
 }
@@ -2053,15 +2048,17 @@ static void draw_camera_bar(App *app, int movie)
             storyboard = app->loaded && marcus_is_storyboard(app->player);
             offset = storyboard ? 66 : 0;
             if (work && ui_button_at("Ground grid", right - 204 - offset, CAMERA_BAR_Y + 31, 80, 22, app->ground_grid,
-                                     app->loaded, "Show the world ground plane in the work view"))
+                                     app->loaded, "Show the ground grid behind foreground objects")) {
                 app->ground_grid = !app->ground_grid;
+                app->dirty = 1;
+            }
             if (work) {
                 can_copy = app->loaded && !app->playing && !app->flying && app->picture &&
                     app->work_image.projection.valid && !app->work_image.projection.orthographic &&
                     !app->work_image.authored_camera && app->work_image.scene == app->info.scene &&
                     app->work_image.frame == app->info.frame && app->work_image.document == marcus_document(app->player);
                 if (ui_button_at("Copy to camera", right - 120 - offset, CAMERA_BAR_Y + 31, 114, 22, 0,
-                    can_copy && app->info.object_count > 0, "Transform scene objects to match this view in the movie camera"))
+                    can_copy && app->info.object_count > 0, "Match this view in the movie camera from this frame onward"))
                     copy_work_camera(app, 0);
                 if (storyboard && ui_button_at("Set angle", right - 68, CAMERA_BAR_Y + 31, 64, 22, 0, can_copy,
                     "Copy the work view's pose and lens to the active storyboard camera"))
@@ -2090,24 +2087,6 @@ static void draw_camera_bar(App *app, int movie)
     ui_panel_end();
 }
 
-static void draw_ground_grid(const App *app, const SDL_FRect *destination)
-{
-    MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES];
-    ImDrawList *draw;
-    const MarcusGuideLine *line;
-    int i, count;
-    if (!app->ground_grid || app->authored == 1 || !app->picture) return;
-    count = camera_ground_grid(&app->work_image, lines);
-    draw = igGetBackgroundDrawList_Nil();
-    for (i = 0; i < count; ++i)
-    {
-        line = &lines[i];
-        ImDrawList_AddLine(draw,
-            dialog_vec(destination->x + line->x1 * destination->w, destination->y + line->y1 * destination->h),
-            dialog_vec(destination->x + line->x2 * destination->w, destination->y + line->y2 * destination->h),
-            0x709daeb0U, 1);
-    }
-}
 static void draw_movie_view(App *app)
 {
     const MarcusRenderResolution *resolution;
@@ -2255,6 +2234,7 @@ static void draw_camera_guides(App *app, const SDL_FRect *destination)
 static void draw_view(App *app)
 {
     const MarcusRenderResolution *resolution;
+    MarcusRenderOptions options;
     MarcusImage image;
     SDL_FRect destination;
     int rendered, render_width, render_height, work, target;
@@ -2314,8 +2294,10 @@ static void draw_view(App *app)
     {
         app->dirty = 0;
         started = SDL_GetTicksNS();
+        options = work ? app->shortcuts.work_view : app->shortcuts.movie_view;
+        options.ground_grid = work && app->authored != 1 && app->ground_grid;
         if (!marcus_set_renderer(app->player, work ? app->shortcuts.work_renderer : app->shortcuts.renderer) ||
-            !marcus_set_render_options(app->player, work ? &app->shortcuts.work_view : &app->shortcuts.movie_view))
+            !marcus_set_render_options(app->player, &options))
             rendered = 0;
         else if (app->authored != 1 && (app->work_matched || app->work_needs_match))
         {
@@ -2371,7 +2353,6 @@ static void draw_view(App *app)
     ui_fill(ui, destination.x - 1, destination.y - 1, destination.w + 2, destination.h + 2, 0x111316);
     if (app->picture)
         ui_image(&app->ui, app->picture, &destination);
-    draw_ground_grid(app, &destination);
     draw_camera_guides(app, &destination);
     if (app->picture)
         draw_selection(app, &app->work_image, &destination);

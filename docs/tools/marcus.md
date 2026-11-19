@@ -1407,15 +1407,17 @@ distance of 30,000 world units, independent of cached actor bounds.
 
 **Ground grid** in the Orbit and Fly toolbar projects the world XZ plane at
 Y=0 over the work view. It stays aligned to world units as you move and is
-available in both perspective and orthographic work views. It is a viewport
-guide and is omitted from the movie image.
+available in both perspective and orthographic work views. The grid uses the
+work view's rendered depth buffer, so foreground objects and scenery hide it.
+The movie image is rendered without the guide.
 
-**Copy to camera** moves and reorients all object tracks in the current scene
-so the fixed movie camera sees the object framing from the paused perspective
-work view. It works on retail backgrounds, including Black, and on storyboards.
-The camera, background, lights, and captions stay in place. The edit preserves
-route timing, and saves with the movie. Undo restores the original tracks in one
-step. Moving actors continue to use native path-following after the copied frame.
+**Copy to camera** moves and reorients the current scene's objects from the
+playhead onward so the fixed movie camera sees the framing from the paused
+perspective work view. Earlier frames retain their original composition. The
+toolbar stays in Orbit or Fly, so you can set a different view on the next
+frame and copy again. It works on retail backgrounds, including Black, and on
+storyboards. The camera, background, lights, and captions stay in place. The
+edit retains route timing, saves with the movie, and is one undo step.
 
 Orbit and Fly reconstruct the active camera's background as textured scenery
 from its colour image and ZBMP depth, placed using the authored camera transform.

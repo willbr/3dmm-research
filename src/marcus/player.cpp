@@ -13,6 +13,7 @@
 #include "timing_job.h"
 #include "frame_previews.h"
 #include "scene_edit.h"
+#include "camera_guide.h"
 #include "sound_edit.h"
 #include "live_edits.h"
 #include "mm/preview.h"
@@ -576,7 +577,7 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     if (options.axisView) { options.roll = 0; options.verticalFov = 45; }
     options.rasterizer = player->rasterizers[player->renderer].get();
     if (options.rasterizer) MarcusConfigureGPURenderer(options.rasterizer, settings);
-    options.includeDepth = !view.authoredCamera || view.freeCamera;
+    options.includeDepth = !view.authoredCamera || view.freeCamera || settings.ground_grid;
     options.includePaletteIndices = view.authoredCamera && !view.freeCamera && player->playback.PaletteAnimating();
     if (!image || player->selected < 0)
         return false;
@@ -679,6 +680,9 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     image->frame = player->preview.Info().currentFrame;
     image->authored_camera = view.authoredCamera && !view.freeCamera;
     image->document = player->document;
+    if (settings.ground_grid && !(image->authored_camera && player->playback.Transitioning()) &&
+        player->image.depth.size() == std::size_t(image->width) * image->height)
+        camera_blend_ground_grid(image, player->image.rgba.data(), player->image.depth.data());
     return true;
 }
 template <typename F> int Guard(MarcusPlayer *player, F operation)
@@ -1547,7 +1551,10 @@ extern "C"
             for (std::size_t i = 0; i < player->objects.size(); ++i)
             {
                 MM::PreviewTrackPose pose;
-                if (player->preview.ObjectTrackPose(static_cast<int>(i), pose)) poses.emplace(player->objects[i].actorId, pose);
+                if (!player->objects[i].visible) continue;
+                if (!player->preview.ObjectTrackPose(static_cast<int>(i), pose))
+                { error.message = "Cannot read a visible object's track at the current frame."; return false; }
+                poses.emplace(player->objects[i].actorId, pose);
             }
             const auto movie = MaterializedMovie(*player);
             const auto &path = movie == player->timingInput ? player->content->movie : movie->path;

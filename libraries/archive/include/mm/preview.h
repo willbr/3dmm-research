@@ -124,6 +124,7 @@ struct PreviewObjectShape
 struct PreviewTrackPose
 {
     std::int32_t node = 0, offset = 0, routeFrame = 0;
+    std::int32_t position[3] = {}, translation[3] = {}; // Native 16.16 route values.
     float rotation[9] = {};
 };
 // The legacy name covers inserted actor, prop and generated-text instances.

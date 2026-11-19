@@ -180,6 +180,7 @@ extern "C"
     {
         int display_mode, wire_overlay, antialias, texture_filter;
         int orthographic, axis_view; /* 0 free, 1 front, 2 side, 3 top. */
+        int ground_grid; /* Transient work-view guide, composited using scene depth. */
     } MarcusRenderOptions;
     const char *marcus_display_mode_name(int mode);
     int marcus_render_options_valid(const MarcusRenderOptions *options);
@@ -268,7 +269,7 @@ extern "C"
     MarcusObjectClipboard *marcus_copy_object(MarcusPlayer *player, int object);
     void marcus_object_clipboard_destroy(MarcusObjectClipboard *clipboard);
     int marcus_paste_object(MarcusPlayer *player, const MarcusObjectClipboard *clipboard);
-    /* Reframe all scene objects under the active, fixed movie camera. */
+    /* Reframe scene objects under the fixed movie camera from the current frame onward. */
     int marcus_copy_to_camera(MarcusPlayer *player, const MarcusImage *work);
     typedef struct MarcusCostume
     {

@@ -103,6 +103,8 @@ int main(int argc,char **argv)
                   marcus_object_shape(player.get(),objectIndex,&invalid,nullptr,nullptr) && invalid.scale[0]==1,"Undo restores object shape");
         };
         check(marcus_open(player.get(), shapeMovie, argv[2], argv[3]), "Open moving actor for camera copy");
+        MarcusObject earlier;
+        check(marcus_seek(player.get(), 9) && marcus_object(player.get(), 0, &earlier), "Record the frame before the camera copy");
         MarcusObject poses[2] = {};
         check(marcus_seek(player.get(), 20) && marcus_object(player.get(), 0, &poses[1]) &&
               marcus_seek(player.get(), 10) && marcus_object(player.get(), 0, &poses[0]) &&
@@ -138,6 +140,10 @@ int main(int argc,char **argv)
               marcus_object_bounds(player.get(), 0, &newBounds) && newBounds.valid, "Reframe a moving actor");
         for (int corner = 0; corner < 8; ++corner)
             samePoint(oldBounds.corners + corner * 3, newBounds.corners + corner * 3, "Actor corner");
+        check(marcus_seek(player.get(), 9) && marcus_object(player.get(), 0, &object) &&
+              std::abs(object.x - earlier.x) < .002f && std::abs(object.y - earlier.y) < .002f &&
+              std::abs(object.z - earlier.z) < .002f && object.action == earlier.action && object.cel == earlier.cel,
+              "Reframing starts after the unmodified earlier pose");
         for (int i = 0; i < 2; ++i)
         {
             check(marcus_seek(player.get(), i ? 20 : 10) && marcus_object(player.get(), 0, &object), "Read the reframed route");

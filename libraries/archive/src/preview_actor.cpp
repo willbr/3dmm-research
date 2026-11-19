@@ -464,6 +464,10 @@ bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
     pose.node = state.location.irpt;
     pose.offset = state.location.dwrOffset;
     pose.routeFrame = state.location.dnfrm;
+    const auto &position = state.position;
+    const auto &translation = state.routeTranslation;
+    pose.position[0] = position.dxr; pose.position[1] = position.dyr; pose.position[2] = position.dzr;
+    pose.translation[0] = translation.dxr; pose.translation[1] = translation.dyr; pose.translation[2] = translation.dzr;
     BRA angles[3];
     tmpl->GetRestOrien(angles, angles + 1, angles + 2);
     MMActorMatrix rest;

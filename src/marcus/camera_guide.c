@@ -325,6 +325,68 @@ int camera_ground_grid(const MarcusImage *image, MarcusGuideLine lines[MARCUS_GR
     return count;
 }
 
+void camera_blend_ground_grid(const MarcusImage *image, unsigned char *rgba, const float *depth)
+{
+    static const unsigned char colour[3] = {176, 174, 157};
+    MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES];
+    const MarcusProjection *projection;
+    double left, top, width, height, slope, tx, ty, x0, y0, dx, dy, cx, cy, plane_y, ray_y, distance, scene;
+    int count, i, steps, at, x, y, axis, alpha, beneath;
+    size_t pixel, previous;
+    unsigned char *out;
+    if (!rgba || !depth) return;
+    count = camera_ground_grid(image, lines);
+    if (!count) return;
+    projection = &image->projection;
+    width = image->width;
+    height = image->height;
+    if (image->authored_camera)
+    {
+        if (width / height > projection->aspect) width = floor(height * projection->aspect);
+        else height = floor(width / projection->aspect);
+    }
+    left = floor((image->width - width) * .5);
+    top = floor((image->height - height) * .5);
+    slope = projection->orthographic ? projection->ortho_height * .5 : tan(projection->vertical_fov * .008726646259971648);
+    tx = 2 * slope * projection->aspect / width;
+    ty = 2 * slope / height;
+    for (i = 0; i < count; ++i)
+    {
+        x0 = lines[i].x1 * image->width;
+        y0 = lines[i].y1 * image->height;
+        dx = lines[i].x2 * image->width - x0;
+        dy = lines[i].y2 * image->height - y0;
+        steps = (int)ceil(fabs(dx) > fabs(dy) ? fabs(dx) : fabs(dy));
+        if (!steps) continue;
+        previous = (size_t)-1;
+        for (at = 0; at <= steps; ++at)
+        {
+            x = (int)(x0 + dx * at / steps);
+            y = (int)(y0 + dy * at / steps);
+            if (x < left || x >= left + width || y < top || y >= top + height) continue;
+            pixel = (size_t)y * image->width + x;
+            if (pixel == previous) continue;
+            previous = pixel;
+            cx = (x + .5 - left - width * .5) * tx;
+            cy = (top + height * .5 - y - .5) * ty;
+            plane_y = projection->transform[10];
+            ray_y = -projection->transform[7];
+            if (projection->orthographic) plane_y += projection->transform[1] * cx + projection->transform[4] * cy;
+            else ray_y += projection->transform[1] * cx + projection->transform[4] * cy;
+            if (fabs(ray_y) < 1e-10) continue;
+            distance = -plane_y / ray_y;
+            scene = depth[pixel];
+            if (distance < projection->near_clip || distance > projection->far_clip || distance > scene + .01) continue;
+            out = rgba + pixel * 4;
+            beneath = (out[3] * (255 - 112) + 127) / 255;
+            alpha = 112 + beneath;
+            for (axis = 0; axis < 3; ++axis)
+                out[axis] = (unsigned char)((colour[axis] * 112 + out[axis] * beneath + alpha / 2) / alpha);
+            out[3] = (unsigned char)alpha;
+        }
+    }
+}
+
 int camera_project_point(const MarcusProjection *projection, const float world[3], float image[3])
 {
     GuideView view;

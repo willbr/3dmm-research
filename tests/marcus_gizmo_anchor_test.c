@@ -39,9 +39,11 @@ static void displayed(const MarcusProjection *camera, const float world[3])
 }
 static void ground_grid(void)
 {
+    static unsigned char rgba[400 * 400 * 4];
+    static float depth[400 * 400];
     MarcusImage image;
     MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES];
-    int i, count;
+    int i, count, drawn;
     memset(&image, 0, sizeof(image));
     image.width = image.height = 400;
     image.authored_camera = 1;
@@ -59,9 +61,30 @@ static void ground_grid(void)
     for (i = 0; i < count; ++i)
         check(lines[i].y1 >= .25f && lines[i].y1 <= .75f && lines[i].y2 >= .25f && lines[i].y2 <= .75f,
               "Grid clips to the authored picture inside letterboxing");
+    for (i = 0; i < 400 * 400; ++i) depth[i] = i % 400 < 200 ? 5.f : 40.f;
+    camera_blend_ground_grid(&image, rgba, depth);
+    drawn = 0;
+    for (i = 0; i < 400 * 400; ++i)
+        if (rgba[i * 4 + 3])
+        {
+            check(i % 400 >= 200 && i / 400 >= 100 && i / 400 < 300,
+                  "Foreground depth and letterboxing occlude the grid");
+            ++drawn;
+        }
+    check(drawn > 0, "The grid renders over farther surfaces");
     image.projection.orthographic = 1;
     image.projection.ortho_height = 20;
     check(camera_ground_grid(&image, lines) > 0, "Orthographic view sees the ground grid");
+    memset(rgba, 0, sizeof(rgba));
+    camera_blend_ground_grid(&image, rgba, depth);
+    drawn = 0;
+    for (i = 0; i < 400 * 400; ++i)
+        if (rgba[i * 4 + 3])
+        {
+            check(i % 400 >= 200, "The orthographic grid respects foreground depth");
+            ++drawn;
+        }
+    check(drawn > 0, "The orthographic grid renders over farther surfaces");
     image.projection.transform[5] = 1;
     image.projection.transform[7] = -1;
     check(!camera_ground_grid(&image, lines), "Camera looking up sees no ground grid");

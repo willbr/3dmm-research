@@ -736,14 +736,32 @@ SceneReframe CameraReframe(const MarcusProjection &work, const MarcusProjection 
     return result;
 }
 
-RoutePoint ReframePoint(const SceneReframe &change, const RoutePoint &point, bool position = false)
+RoutePoint ReframePoint(const SceneReframe &change, const RoutePoint &point, const RoutePoint &anchor = {})
 {
     const BRS input[] = {point.dxr, point.dyr, point.dzr};
+    const BRS origin[] = {anchor.dxr, anchor.dyr, anchor.dzr};
     BRS output[3];
     for (int col = 0; col < 3; ++col)
     {
-        double value = position ? change.translation[col] : 0;
-        for (int i = 0; i < 3; ++i) value += BrScalarToFloat(input[i]) * change.linear[i][col];
+        double value = BrScalarToFloat(origin[col]);
+        for (int i = 0; i < 3; ++i)
+            value += (double(BrScalarToFloat(input[i])) - BrScalarToFloat(origin[i])) * change.linear[i][col];
+        output[col] = ReframeScalar(value);
+    }
+    return {output[0], output[1], output[2]};
+}
+
+// Delta for an unchanged point whose world-space position is translation + point.
+RoutePoint ReframeDisplacement(const SceneReframe &change, const RoutePoint &translation, const RoutePoint &point)
+{
+    const double world[] = {double(BrScalarToFloat(translation.dxr)) + BrScalarToFloat(point.dxr),
+                            double(BrScalarToFloat(translation.dyr)) + BrScalarToFloat(point.dyr),
+                            double(BrScalarToFloat(translation.dzr)) + BrScalarToFloat(point.dzr)};
+    BRS output[3];
+    for (int col = 0; col < 3; ++col)
+    {
+        double value = change.translation[col] - world[col];
+        for (int i = 0; i < 3; ++i) value += world[i] * change.linear[i][col];
         output[col] = ReframeScalar(value);
     }
     return {output[0], output[1], output[2]};
@@ -762,40 +780,129 @@ BMAT34 ReframeRotation(const SceneReframe &change, const BMAT34 &before)
     return result;
 }
 
-void ReframeTrack(PChunkyFile file, ChunkNumber actor, ChunkNumber copy, const SceneReframe &change,
-                  const MM::PreviewTrackPose *pose, LegacyLong frame, bool fixedFacing)
+LegacyLong NextEntrance(PGeneralGroup events, LegacyLong i)
 {
-    std::unique_ptr<DynamicArray, Release> route(ActorData::PglReadRoute(file, actor));
-    std::unique_ptr<GeneralGroup, Release> events(ActorData::PggReadEvents(file, actor));
-    Require(route && events, "Cannot read an object track for the camera transform.");
-    for (LegacyLong i = 0; i < route->IvMac(); ++i)
+    for (++i; i < events->IvMac(); ++i)
     {
-        RouteDistancePoint point;
-        route->Get(i, &point);
-        point.xyz = ReframePoint(change, point.xyz);
-        // Keep distances in the authored track's units so rotation and lens changes
-        // retain interpolation, event bindings, and playback timing.
-        route->Put(i, &point);
+        ActorEvent::Base event;
+        events->GetFixed(i, &event);
+        if (event.aet == ActorEvent::aetAdd) break;
     }
+    return i;
+}
 
-    BMAT34 entrance = {}, inverseEntrance = {};
-    bool followsPath = false;
+// Split the current segment at its evaluated point so earlier route points
+// remain in the original coordinate system. Rebase the locations of events.
+RoutePoint SplitReframeSegment(PDynamicArray route, PGeneralGroup events, RouteLocation &cut)
+{
+    Require(cut.irpt >= 0 && cut.irpt < route->IvMac(), "Invalid object position on its track.");
+    RouteDistancePoint point;
+    route->Get(cut.irpt, &point);
+    if (!cut.dwrOffset) return point.xyz;
+    Require(cut.dwrOffset > 0 && cut.dwrOffset <= point.dwr && cut.irpt + 1 < route->IvMac(),
+            "Invalid fractional position on an object track.");
+    RouteDistancePoint next;
+    route->Get(cut.irpt + 1, &next);
+    const auto old = cut;
+    const bool inserted = cut.dwrOffset < point.dwr;
+    RoutePoint pivot = next.xyz;
+    if (inserted)
+    {
+        mm_actor_interpolate(&point.xyz, &next.xyz, mm_fixed_div(cut.dwrOffset, point.dwr), &pivot);
+        RouteDistancePoint split = {pivot, point.dwr - cut.dwrOffset};
+        Require(route->FInsert(cut.irpt + 1, &split), "Cannot split the object track at the copied frame.");
+        point.dwr = cut.dwrOffset;
+        route->Put(cut.irpt, &point);
+    }
     for (LegacyLong i = 0; i < events->IvMac(); ++i)
     {
         ActorEvent::Base event;
         events->GetFixed(i, &event);
-        if (event.aet == ActorEvent::aetAdd)
+        if (event.rtel.irpt == old.irpt && event.rtel.dwrOffset >= old.dwrOffset)
         {
-            ActorEvent::Add add;
+            ++event.rtel.irpt;
+            event.rtel.dwrOffset -= old.dwrOffset;
+        }
+        else if (inserted && event.rtel.irpt > old.irpt) ++event.rtel.irpt;
+        else continue;
+        events->PutFixed(i, &event);
+    }
+    ++cut.irpt;
+    cut.dwrOffset = 0;
+    return pivot;
+}
+
+void ReframeTrack(PChunkyFile file, ChunkNumber actor, ChunkNumber copy, const ActorChunkOnFile &header,
+                  const SceneReframe &change, const MM::PreviewTrackPose *pose, LegacyLong frame, bool fixedFacing)
+{
+    std::unique_ptr<DynamicArray, Release> route(ActorData::PglReadRoute(file, actor));
+    std::unique_ptr<GeneralGroup, Release> events(ActorData::PggReadEvents(file, actor));
+    Require(route && events, "Cannot read an object track for the camera transform.");
+    RouteLocation cut = {};
+    RoutePoint pivot = {};
+    LegacyLong active = -1;
+    if (pose)
+    {
+        cut = {pose->node, pose->offset, pose->routeFrame};
+        for (LegacyLong i = 0; i < events->IvMac(); ++i)
+        {
+            ActorEvent::Base event;
+            events->GetFixed(i, &event);
+            if (event.aet == ActorEvent::aetAdd && event.nfrm <= frame && event.rtel <= cut)
+                active = i;
+        }
+        Require(active >= 0, "Cannot locate the visible object's entrance.");
+        ActorEvent::Base entry;
+        events->GetFixed(active, &entry);
+        if (entry.nfrm < frame) pivot = SplitReframeSegment(route.get(), events.get(), cut);
+    }
+
+    for (LegacyLong start = 0; start < events->IvMac();)
+    {
+        ActorEvent::Base entry;
+        events->GetFixed(start, &entry);
+        Require(entry.aet == ActorEvent::aetAdd && entry.rtel.irpt >= 0 && entry.rtel.irpt < route->IvMac(),
+                "Invalid object entrance.");
+        LegacyLong end = NextEntrance(events.get(), start);
+        const bool partial = start == active && entry.nfrm < frame;
+        if (!partial && entry.nfrm < frame)
+        {
+            start = end;
+            continue;
+        }
+        const auto firstNode = partial ? cut.irpt + 1 : entry.rtel.irpt;
+        auto endNode = route->IvMac();
+        if (end < events->IvMac())
+        {
+            ActorEvent::Base next;
+            events->GetFixed(end, &next);
+            endNode = next.rtel.irpt;
+        }
+        Require(endNode >= firstNode && endNode <= route->IvMac(), "Invalid object subroute.");
+        for (LegacyLong i = firstNode; i < endNode; ++i)
+        {
             RouteDistancePoint point;
-            Require(event.rtel.irpt >= 0 && event.rtel.irpt < route->IvMac(), "Invalid object entrance.");
-            route->Get(event.rtel.irpt, &point);
-            followsPath = !fixedFacing && point.dwr != rZero;
-            events->Get(i, &add);
-            const auto delta = ReframePoint(change, {add.dxr, add.dyr, add.dzr});
-            add.dxr = delta.dxr; add.dyr = delta.dyr; add.dzr = delta.dzr;
-            br_euler angles = {add.xa, add.ya, add.za, BR_EULER_XYZ_S};
-            BrEulerToMatrix34(&entrance, &angles);
+            route->Get(i, &point);
+            point.xyz = ReframePoint(change, point.xyz, partial ? pivot : RoutePoint{});
+            // Preserve the original interpolation distances and event timing.
+            route->Put(i, &point);
+        }
+
+        ActorEvent::Add add;
+        events->Get(start, &add);
+        br_euler angles = {add.xa, add.ya, add.za, BR_EULER_XYZ_S};
+        BMAT34 entrance, inverseEntrance;
+        BrEulerToMatrix34(&entrance, &angles);
+        BrMatrix34LPInverse(&inverseEntrance, &entrance);
+        RouteDistancePoint first;
+        route->Get(entry.rtel.irpt, &first);
+        const bool followsPath = !fixedFacing && first.dwr != rZero;
+        if (!partial)
+        {
+            const auto delta = ReframeDisplacement(change, header.dxyzFullRte, {add.dxr, add.dyr, add.dzr});
+            add.dxr = ReframeScalar(double(BrScalarToFloat(add.dxr)) + BrScalarToFloat(delta.dxr));
+            add.dyr = ReframeScalar(double(BrScalarToFloat(add.dyr)) + BrScalarToFloat(delta.dyr));
+            add.dzr = ReframeScalar(double(BrScalarToFloat(add.dzr)) + BrScalarToFloat(delta.dzr));
             if (followsPath)
             {
                 BMAT34 transformed, rotation = change.rotation;
@@ -803,55 +910,77 @@ void ReframeTrack(PChunkyFile file, ChunkNumber actor, ChunkNumber copy, const S
                 BrMatrix34ToEuler(&angles, &transformed);
                 add.xa = angles.a; add.ya = angles.b; add.za = angles.c;
             }
-            events->Put(i, &add);
-            if (!followsPath)
-            {
-                BrMatrix34LPInverse(&inverseEntrance, &entrance);
-                BMAT34 transformed = ReframeRotation(change, entrance), basis;
-                BrMatrix34Mul(&basis, &transformed, &inverseEntrance);
-                event.aet = ActorEvent::aetRotF;
-                Require(events->FInsert(++i, sizeof(basis), &basis, &event), "Cannot rotate the object's entrance.");
-            }
+            events->Put(start, &add);
         }
-        else if (event.aet == ActorEvent::aetMove || event.aet == ActorEvent::aetTweak)
-        {
-            RoutePoint point;
-            events->Get(i, &point);
-            point = ReframePoint(change, point);
-            events->Put(i, &point);
-        }
-        else if (event.aet == ActorEvent::aetRotH || (event.aet == ActorEvent::aetRotF && !followsPath))
-        {
-            BMAT34 before;
-            events->Get(i, &before);
-            if (event.aet == ActorEvent::aetRotF)
-            {
-                BMAT34 withEntrance;
-                BrMatrix34Mul(&withEntrance, &before, &entrance);
-                BMAT34 transformed = ReframeRotation(change, withEntrance);
-                BrMatrix34Mul(&before, &transformed, &inverseEntrance);
-            }
-            else before = ReframeRotation(change, before);
-            events->Put(i, &before);
-        }
-    }
 
-    if (pose && pose->node >= 0 && pose->node < route->IvMac())
-    {
-        // The engine derives facing from the route when a model travels.
-        // Preserve the exact evaluated facing for the copied shot.
-        ActorEvent::Base event = {ActorEvent::aetRotH, frame, {pose->node, pose->offset, pose->routeFrame}};
-        LegacyLong i = 0;
-        for (; i < events->IvMac(); ++i)
+        LegacyLong at = start + 1;
+        if (!partial && !followsPath)
         {
-            ActorEvent::Base next;
-            events->GetFixed(i, &next);
-            if (event.rtel < next.rtel || (next.aet == ActorEvent::aetAdd && next.nfrm > frame)) break;
+            BMAT34 transformed = ReframeRotation(change, entrance), basis;
+            BrMatrix34Mul(&basis, &transformed, &inverseEntrance);
+            auto event = entry;
+            event.aet = ActorEvent::aetRotF;
+            Require(events->FInsert(at++, sizeof(basis), &basis, &event), "Cannot rotate the object's entrance.");
+            ++end;
         }
-        BMAT34 before = {};
-        for (int axis = 0; axis < 9; ++axis) before.m[axis / 3][axis % 3] = ReframeScalar(pose->rotation[axis]);
-        auto rotation = ReframeRotation(change, before);
-        Require(events->FInsert(i, sizeof(rotation), &rotation, &event), "Cannot preserve the copied object facing.");
+
+        // At the active route location, retain events already evaluated and
+        // apply the transform after them. Later events use the new coordinates.
+        LegacyLong insert = at;
+        for (; at < end; ++at)
+        {
+            ActorEvent::Base event;
+            events->GetFixed(at, &event);
+            if (start == active && event.rtel <= cut) insert = at + 1;
+            if (partial && event.rtel <= cut) continue;
+            if (event.aet == ActorEvent::aetMove || event.aet == ActorEvent::aetTweak)
+            {
+                RoutePoint point;
+                events->Get(at, &point);
+                point = ReframePoint(change, point, partial && event.aet == ActorEvent::aetTweak ? pivot : RoutePoint{});
+                events->Put(at, &point);
+            }
+            else if (event.aet == ActorEvent::aetRotH || (event.aet == ActorEvent::aetRotF && !followsPath))
+            {
+                BMAT34 before;
+                events->Get(at, &before);
+                if (event.aet == ActorEvent::aetRotF)
+                {
+                    BMAT34 withEntrance;
+                    BrMatrix34Mul(&withEntrance, &before, &entrance);
+                    BMAT34 transformed = ReframeRotation(change, withEntrance);
+                    BrMatrix34Mul(&before, &transformed, &inverseEntrance);
+                }
+                else before = ReframeRotation(change, before);
+                events->Put(at, &before);
+            }
+        }
+        if (start == active)
+        {
+            if (partial)
+            {
+                const RoutePoint translation = {pose->translation[0], pose->translation[1], pose->translation[2]};
+                auto delta = ReframeDisplacement(change, translation, pivot);
+                ActorEvent::Base move = {ActorEvent::aetMove, frame, cut};
+                Require(events->FInsert(insert++, sizeof(delta), &delta, &move), "Cannot move the object at the copied frame.");
+                ++end;
+                const RoutePoint evaluated = {pose->position[0], pose->position[1], pose->position[2]};
+                if (evaluated != pivot)
+                {
+                    auto point = ReframePoint(change, evaluated, pivot);
+                    move.aet = ActorEvent::aetTweak;
+                    Require(events->FInsert(insert++, sizeof(point), &point, &move), "Cannot retain the object's exact position.");
+                    ++end;
+                }
+            }
+            BMAT34 before = {};
+            for (int i = 0; i < 9; ++i) before.m[i / 3][i % 3] = ReframeScalar(pose->rotation[i]);
+            auto rotation = ReframeRotation(change, before);
+            ActorEvent::Base turn = {ActorEvent::aetRotH, frame, cut};
+            Require(events->FInsert(insert, sizeof(rotation), &rotation, &turn), "Cannot preserve the copied object facing.");
+            ++end;
+        }
+        start = end;
     }
 
     std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(events.get()));
@@ -861,6 +990,7 @@ void ReframeTrack(PChunkyFile file, ChunkNumber actor, ChunkNumber copy, const S
             route->FWrite(&block) && file->FAddChild(kctgActr, copy, 0, wire->CbOnFile(), kctgGgae, &number, &block) &&
             wire->FWrite(&block), "Cannot write the reframed object track.");
 }
+
 }
 
 std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path &movie,
@@ -883,7 +1013,6 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
         ActorChunkOnFile header;
         const auto actor = link.cki.cno;
         Require(ActorData::FReadHeader(file.get(), actor, &header), "Cannot read an object for the camera transform.");
-        header.dxyzFullRte = ReframePoint(change, header.dxyzFullRte, true);
         ChunkNumber copy;
         Require(file->FAdd(sizeof(header), kctgActr, &copy) && ActorData::FWriteHeader(file.get(), copy, &header),
                 "Cannot write the new object placement.");
@@ -895,7 +1024,7 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
         ChildChunkIdentification model, text;
         const bool fixedFacing = header.tagTmpl.sid == 0 && file->FGetKidChidCtg(kctgActr, actor, 0, kctgTmpl, &model) &&
             file->FGetKidChidCtg(kctgTmpl, model.cki.cno, 0, kctgTdt, &text);
-        ReframeTrack(file.get(), actor, copy, change, pose == poses.end() ? nullptr : &pose->second,
+        ReframeTrack(file.get(), actor, copy, header, change, pose == poses.end() ? nullptr : &pose->second,
                      static_cast<LegacyLong>(frame), fixedFacing);
         file->DeleteChild(kctgScen, scene, kctgActr, actor, link.chid);
         Require(file->FAdoptChild(kctgScen, scene, kctgActr, copy, link.chid), "Cannot link the reframed object.");

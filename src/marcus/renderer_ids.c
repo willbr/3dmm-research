@@ -20,7 +20,8 @@ int marcus_render_options_valid(const MarcusRenderOptions *options)
            options->antialias >= 0 && options->antialias <= 2 &&
            options->texture_filter >= 0 && options->texture_filter <= 1 &&
            options->orthographic >= 0 && options->orthographic <= 1 &&
-           options->axis_view >= 0 && options->axis_view <= 3;
+           options->axis_view >= 0 && options->axis_view <= 3 &&
+           options->ground_grid >= 0 && options->ground_grid <= 1;
 }
 const char *marcus_renderer_name(int renderer)
 {

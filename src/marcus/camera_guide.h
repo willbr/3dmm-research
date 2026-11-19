@@ -33,6 +33,8 @@ void camera_guide_build_image(const MarcusImage *image, const MarcusProjection *
 void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, MarcusCameraGuide *guide);
 /* Project an XZ grid at world Y=0, returning the number of visible segments. */
 int camera_ground_grid(const MarcusImage *image, MarcusGuideLine lines[MARCUS_GROUND_GRID_MAX_LINES]);
+/* Composite ground lines against the renderer's camera-forward depth, one float per pixel. */
+void camera_blend_ground_grid(const MarcusImage *image, unsigned char *rgba, const float *depth);
 /* Column-major view/projection matrices matching the engine camera exactly. */
 int camera_projection_matrices(const MarcusProjection *projection, float view[16], float clip[16]);
 /* Project a visible world point to normalized X/Y and camera-forward depth. */
