@@ -7,7 +7,7 @@ namespace EngineActorTimeline
 struct Host
 {
     const ActorStepSource *steps;
-    ActorFrameState *state = nullptr;
+    MMActorState *state = nullptr;
     BRS *stepOutput = nullptr;
     LegacyLong *lastFrame = nullptr;
 };

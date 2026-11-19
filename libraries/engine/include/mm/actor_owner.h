@@ -25,8 +25,7 @@ typedef struct MMActorOwnerServices
 {
     void *context;
     MMActorMotionServices motion;
-    void (*read)(void *,void *actor,MMActorRuntime *);
-    void (*write)(void *,void *actor,const MMActorRuntime *);
+    MMActorRuntime *(*runtime)(void *,void *actor);
     void *(*create)(void *);
     void (*retain)(void *,void *object);
     void (*release)(void *,void *object);
@@ -44,7 +43,7 @@ typedef struct MMActorOwnerServices
     int (*seek)(void *,void *actor,MMI32 frame);
     void (*invalidate_views)(void *,void *scene);
 } MMActorOwnerServices;
-/* Runtime mirrors are plain values. template_tag owns its opened reference;
+/* Runtime is the actor's live record. template_tag owns its opened reference;
  * sound_tag retains the native borrowed/inactive semantics (no duplicate/close).
  * Copy/restore do not retain resources: compatible body/template owners and the
  * corresponding source references must remain live. BASE identity is untouched.
@@ -52,7 +51,6 @@ typedef struct MMActorOwnerServices
  * Callbacks cannot reenter the transaction. Route services publish state and
  * update dirty/recording flags; seek can update the complete runtime. */
 void mm_actor_runtime_init(MMActorRuntime *);
-void mm_actor_owner_copy(void *destination,void *source,const MMActorOwnerServices *);
 int mm_actor_owner_duplicate(void *source,int reset,MMActorOwnerResult *,const MMActorOwnerServices *);
 void mm_actor_owner_reset(void *actor,const MMActorOwnerServices *);
 void mm_actor_owner_restore(void *actor,void *snapshot,const MMActorOwnerServices *);

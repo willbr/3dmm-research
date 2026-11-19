@@ -4382,10 +4382,11 @@ body/resource implementations and final facade removal remain unfinished.
 ### Actor ownership and restoration
 
 `actor_owner.c` owns runtime initialization/disposal, duplication, reset, value
-copying, track/sound swaps and undo restoration. `MMActorRuntime` is a plain
-C record; the native actor marshals its current representation and supplies
-resource references, C-backed track/sound operations and scene/view primitives.
-The native class is still an intermediate representation, not the final backend.
+copying, track and sound swaps, and undo restoration. `MMActorRuntime` is the
+live record for evaluated state, recording state, lifetime, origin and
+resource handles. Creation, scene binding, paste and undo update it directly.
+The native actor supplies typed access to resources, C-backed track and
+sound operations, and scene and view primitives.
 
 Duplication publishes its output before cloning tables and retains the shared
 body/template and owning template tag only after both clones succeed. Failure
@@ -4400,6 +4401,8 @@ releases the template and disposes sound storage explicitly in C.
 
 `engine-actor-owner-test` checks allocation/clone failure cleanup, output timing,
 resource reference balance, reset, restore swaps and ignored seek failure.
+The twelve native ownership, creation, undo, persistence, edit and
+recording traces match the prior build byte for byte.
 Native traces cover 128 ownership scenarios and 32 real movie/scene undo cases,
 including undo creation, undo/redo replacement, name swapping and removal.
 They establish ownership integration behavior. The undo controller is described
@@ -4588,11 +4591,11 @@ without publishing the locally rewritten sound tag. Earlier frame writes,
 resource transfers and deletions remain; final route translation and dirty
 notification occur only on success.
 
-The plain runtime mirror is refreshed after scene binding and event removal so
-body creation and cursor changes survive later publication. Text transfer
-duplicates before saving, closes the duplicate on save/fetch failure, closes the
-old tag on success and releases the old template before replacing its visible
-pointer. Camera facing queries the replacement template's text flag.
+Paste updates the live runtime record so body creation and cursor changes
+from event removal are visible immediately. Text transfer duplicates before
+saving and closes the duplicate on save or fetch failure. On success it
+closes the old tag and releases the old template before replacing the
+template pointer. Camera facing queries the replacement template's text flag.
 
 The 22,272-byte native-before trace covers 64 cases in private movies with actual
 serialized 3D-text templates, same/cross-resource paste, authored placement,

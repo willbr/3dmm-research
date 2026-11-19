@@ -14,8 +14,6 @@ typedef struct Fixture
     int ensured,saved,fetched,bound,placed,dirty,writes,payload_writes,removed,exists,sounds,children,yaw;
     int diagnostics[4];
 } Fixture;
-static void read_runtime(void *p,MMActorRuntime *r) { *r=((Fixture *)p)->r; }
-static void write_runtime(void *p,const MMActorRuntime *r) { ((Fixture *)p)->r=*r; }
 static int is_text(void *p,void *object)
 { Fixture *f=(Fixture *)p; CHECK(object==&f->old_template || object==&f->new_template); return object==&f->old_template ? f->text : f->new_text; }
 static int ensure(void *p,void *scene,void **cache)
@@ -108,7 +106,7 @@ static void init(Fixture *f)
 {
     MMActorPasteServices *s;
     memset(f,0,sizeof(*f)); s=&f->services; s->context=f;
-    s->read=read_runtime; s->write=write_runtime; s->is_text=is_text; s->ensure_autosave=ensure;
+    s->is_text=is_text; s->ensure_autosave=ensure;
     s->duplicate_tag=duplicate; s->close_tag=close_tag; s->save_template=save_template;
     s->fetch_template=fetch_template; s->release_template=release_template;
     s->bind_scene=bind_scene; s->placement=placement; s->sound_exists=sound_exists;
@@ -134,7 +132,7 @@ static void add_sound(Fixture *f,int number,int sid)
     f->payloads[i].sound.tag.number=(MMU32)number; f->payloads[i].sound.child=55;
 }
 static int paste(Fixture *f,MMI32 frame,int migrate)
-{ return mm_actor_paste(f,f,frame,&f->scene,migrate,&f->motion,&f->services); }
+{ return mm_actor_paste(&f->r,f,f,frame,&f->scene,migrate,&f->motion,&f->services); }
 static void positioned(Fixture *f)
 {
     CHECK(f->r.origin.dxr==95 && f->r.origin.dyr==193 && f->r.origin.dzr==-309);

@@ -32,7 +32,7 @@ MMU32 *Axes(LegacyUlong *native, RoutePoint *vector, MMActorPoint *point, BMAT34
     return fallback;
 }
 } // namespace
-void ActorPoseEvaluator::Update(ActorFrameState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
+void ActorPoseEvaluator::Update(MMActorState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
                                 const RoutePoint *position, BMAT34 *matrix)
 {
     AssertVarMem(matrix);
@@ -40,7 +40,7 @@ void ActorPoseEvaluator::Update(ActorFrameState &state, const ActorTrack &track,
     Update(state, track, inputs, position, &output);
     std::memcpy(matrix, &output, sizeof(output));
 }
-void ActorPoseEvaluator::Update(ActorFrameState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
+void ActorPoseEvaluator::Update(MMActorState &state, const ActorTrack &track, const ActorPoseInputs &inputs,
                                 const RoutePoint *position, MMActorMatrix *matrix)
 {
     AssertVarMem(const_cast<RoutePoint *>(position));
@@ -49,7 +49,7 @@ void ActorPoseEvaluator::Update(ActorFrameState &state, const ActorTrack &track,
     const MMActorPoseInputs in = {inputs.restX, inputs.restY, inputs.restZ, inputs.fixedPathOrientation};
     mm_actor_pose_update(&state, track.Route(), track.Events(), &in, position, matrix, &services);
 }
-void ActorPoseEvaluator::RouteOrientation(const ActorFrameState &state, const ActorTrack &track, BMAT34 *matrix, BRA *x,
+void ActorPoseEvaluator::RouteOrientation(const MMActorState &state, const ActorTrack &track, BMAT34 *matrix, BRA *x,
                                           BRA *y, BRA *z, LegacyUlong *axes)
 {
     AssertNilOrVarMem(matrix);

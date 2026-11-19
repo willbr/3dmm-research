@@ -103,7 +103,7 @@
     FComputeLifetime() guarantees these for all frames, but FComputeLifetime()
     can fail -> the code should not rely on future nfrm values.
 
-    The route is translated by _dxyzFullRte in class Actor.
+    The route is translated by _runtime.origin in class Actor.
     Each subroute is additionally translated by _dxyzSubRte.
     _dxyzRte combines the overall actor translation for efficiency only.
 
@@ -133,7 +133,7 @@ RTCLASS(Actor)
 ***************************************************************************/
 Actor::Actor(void)
 {
-    MMActorRuntime runtime; mm_actor_runtime_init(&runtime); _PublishRuntime(runtime);
+    mm_actor_runtime_init(&_runtime);
 }
 
 /***************************************************************************
@@ -190,7 +190,7 @@ bool Actor::_FInit(TAG *ptagTmpl)
 void Actor::_InitXfrm(void)
 {
     AssertThis(0);
-    _state.InitTransform();
+    mm_actor_state_init_transform(&_runtime.state);
 }
 
 /***************************************************************************
@@ -213,7 +213,7 @@ void Actor::_InitXfrmRot(BMAT34 *pbmat34)
     The actor is not attached to a scene until SetPscen is called.
     The actor will not have an identifiable ID until SetArid is called.
     Note that an actor which is not yet added to a scene is neither
-    grounded in time (_nfrmFirst) nor space (_dxyzFullRte).
+    grounded in time (_runtime.first) nor space (_runtime.origin).
 
 ***************************************************************************/
 PActor Actor::PactrNew(TAG *ptagTmpl)
@@ -253,11 +253,11 @@ void Actor::SetPscen(Scene *pscen)
 void Actor::_InitState(void)
 {
     AssertBaseThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_reset(&state,_track.Route(),&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -268,11 +268,11 @@ void Actor::_InitState(void)
 void Actor::_SetStateRewound(void)
 {
     AssertBaseThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_rewind(&state,_track.Route(),&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -298,47 +298,47 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
     effects.hide = [](void *p) { static_cast<Actor *>(p)->_Hide(); };
     effects.reset_costume = [](void *p) -> int {
         auto actor = static_cast<Actor *>(p);
-        actor->_fModeRecord = false;
-        return actor->_ptmpl->FSetDefaultCost(actor->_pbody);
+        actor->_runtime.recording.recording = false;
+        return actor->_Template()->FSetDefaultCost(actor->_Body());
     };
     effects.prepare = [](void *p, MMActorFrameInputs *inputs) {
         auto actor = static_cast<Actor *>(p);
-        inputs->firstFrame = actor->_nfrmFirst;
-        inputs->recording = actor->_fModeRecord;
-        inputs->rejoining = actor->_fRejoin;
+        inputs->firstFrame = actor->_runtime.first;
+        inputs->recording = actor->_runtime.recording.recording;
+        inputs->rejoining = actor->_runtime.recording.rejoining;
     };
     effects.prepare_entrance = [](void *p, MMI32 index) -> int {
         auto actor = static_cast<Actor *>(p);
         AssertIn(index, 0, mm_actor_events_count(actor->_track.Events()));
-        if (actor->_fLifeDirty && !actor->_FComputeLifetime())
+        if (actor->_runtime.life_dirty && !actor->_FComputeLifetime())
             return 0;
         Assert(mm_actor_events_size(actor->_track.Events(), index) == size(Add), "Corrupt event list");
         return 1;
     };
     effects.apply_event = [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); };
-    effects.last_frame = [](void *p) -> MMI32 { return static_cast<Actor *>(p)->_nfrmLast; };
+    effects.last_frame = [](void *p) -> MMI32 { return static_cast<Actor *>(p)->_runtime.last; };
     effects.suppress_sounds = [](void *p) -> int {
-        return FPure(static_cast<Actor *>(p)->_pscen->GrfScen() & fscenSounds);
+        return FPure(static_cast<Actor *>(p)->_Scene()->GrfScen() & fscenSounds);
     };
     effects.motion_sounds = [](void *p) -> int { return static_cast<Actor *>(p)->_FEnqueueSmmInMsq(); };
     effects.position_body = [](void *p) {
         auto actor = static_cast<Actor *>(p);
-        actor->_PositionBody(&actor->_state.position);
+        actor->_PositionBody(&actor->_runtime.state.position);
     };
     effects.select_cel = [](void *p) -> int {
         auto actor = static_cast<Actor *>(p);
-        return actor->_ptmpl->FSetActnCel(actor->_pbody, actor->_state.action, actor->_state.cel, pvNil);
+        return actor->_Template()->FSetActnCel(actor->_Body(), actor->_runtime.state.action, actor->_runtime.state.cel, pvNil);
     };
     effects.update_pose = [](void *p) {
         auto actor = static_cast<Actor *>(p);
         BMAT34 matrix;
-        actor->_MatrixRotUpdate(&actor->_state.position, &matrix);
+        actor->_MatrixRotUpdate(&actor->_runtime.state.position, &matrix);
     };
     const auto steps = _StepSource();
     EngineActorTimeline::Host timelineHost = {&steps};
     const auto timeline = EngineActorTimeline::Services(&timelineHost);
     int sound = 0;
-    const bool success = mm_actor_playback_seek(&_state, _track.Route(), _track.Events(), _nfrmFirst, _nfrmLast, nfrm,
+    const bool success = mm_actor_playback_seek(&_runtime.state, _track.Route(), _track.Events(), _runtime.first, _runtime.last, nfrm,
                                                 MM_ACTOR_FRAME_STUDIO, &sound, &timeline, &effects) > 0;
     if (pfSoundInFrame && sound)
         *pfSoundInFrame = true;
@@ -349,9 +349,9 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
         if (batch && std::strcmp(batch, "1") == 0)
             std::fprintf(stderr, "BATCH_ACTOR_FRAME_FAILED actor=%ld frame=%ld action=%ld cel=%ld event=%ld "
                                  "template_sid=%ld template_cno=%08lx\n",
-                         _arid, nfrm, static_cast<long>(_state.action), static_cast<long>(_state.cel),
-                         static_cast<long>(_state.nextEvent), static_cast<long>(_tagTmpl.sid),
-                         static_cast<unsigned long>(_tagTmpl.cno));
+                         _runtime.actor, nfrm, static_cast<long>(_runtime.state.action), static_cast<long>(_runtime.state.cel),
+                         static_cast<long>(_runtime.state.nextEvent), static_cast<long>(_runtime.template_tag.sid),
+                         static_cast<unsigned long>(_runtime.template_tag.number));
     }
 #endif
     return success;
@@ -368,7 +368,7 @@ bool Actor::FReplayFrame(long grfscen)
 {
     AssertThis(0);
     const auto motion = EngineActorMotion::Services();
-    return mm_actor_replay_frame_sounds(&_state, _track.Events(), (grfscen & fscenSounds) != 0, &motion, this,
+    return mm_actor_replay_frame_sounds(&_runtime.state, _track.Events(), (grfscen & fscenSounds) != 0, &motion, this,
                                         [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); },
                                         [](void *p) -> int { return static_cast<Actor *>(p)->_FEnqueueSmmInMsq(); }) > 0;
 }
@@ -387,10 +387,10 @@ bool Actor::_FGetStatic(long anid, bool *pfStatic)
 
     LegacyUlong grfactn;
 
-    if (!_ptmpl->FGetGrfactn(anid, &grfactn))
+    if (!_Template()->FGetGrfactn(anid, &grfactn))
         return fFalse;
 
-    if (ivNil == _state.actionEvent)
+    if (ivNil == _runtime.state.actionEvent)
     {
         *pfStatic = fTrue;
         return fTrue;
@@ -423,7 +423,7 @@ bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 ActorStepSource Actor::_StepSource() const
 {
     ActorStepSource source;
-    source.context = _ptmpl;
+    source.context = _Template();
     source.resolve = [](void *context, LegacyLong action, LegacyLong cel, BRS *step) {
         return ((Template *)context)->FGetDwrActnCel(action, cel, step);
     };
@@ -439,7 +439,7 @@ ActorStepSource Actor::_StepSource() const
 bool Actor::_FGetDwrRecord(BRS *pdwr)
 {
     AssertBaseThis(0); AssertVarMem(pdwr);
-    const auto state=EngineActorMotion::Core(_state);
+    const auto state=_runtime.state;
     const auto services=_SubrouteEditServices();
     MMI32 distance=0;
     bool ok=mm_actor_record_step(&state,&distance,&services.timeline)!=0;
@@ -456,11 +456,11 @@ bool Actor::_FDoAevCur(void)
 {
     AssertBaseThis(0);
 
-    if (!_FDoAevCore(_state.nextEvent))
+    if (!_FDoAevCore(_runtime.state.nextEvent))
         return fFalse;
 
-    _state.nextEvent++;
-    Assert(_state.nextEvent <= mm_actor_events_count(_track.Events()), "_state.nextEvent bug");
+    _runtime.state.nextEvent++;
+    Assert(_runtime.state.nextEvent <= mm_actor_events_count(_track.Events()), "_runtime.state.nextEvent bug");
 
     return fTrue;
 }
@@ -496,39 +496,39 @@ bool Actor::_FDoAevCore(long iaev)
             actor->_motionSounds.Clear();
             break;
         case MM_EFFECT_SET_ACTION_CEL:
-            reply->success = actor->_ptmpl->FSetActnCel(actor->_pbody, command->first, command->second);
+            reply->success = actor->_Template()->FSetActnCel(actor->_Body(), command->first, command->second);
             break;
         case MM_EFFECT_CEL_COUNT:
         {
             LegacyLong count = reply->value;
-            reply->success = actor->_ptmpl->FGetCcelActn(command->first, &count);
+            reply->success = actor->_Template()->FGetCcelActn(command->first, &count);
             reply->value = count;
             break;
         }
         case MM_EFFECT_ACTION_FLAGS:
         {
             LegacyUlong flags = 0;
-            reply->success = actor->_ptmpl->FGetGrfactn(command->first, &flags);
+            reply->success = actor->_Template()->FGetGrfactn(command->first, &flags);
             reply->flags = flags;
             break;
         }
         case MM_EFFECT_SAVE_COSTUME:
-            reply->success = host.costume.FGet(actor->_pbody);
+            reply->success = host.costume.FGet(actor->_Body());
             break;
         case MM_EFFECT_DEFAULT_COSTUME:
-            reply->success = actor->_ptmpl->FSetDefaultCost(actor->_pbody);
+            reply->success = actor->_Template()->FSetDefaultCost(actor->_Body());
             break;
         case MM_EFFECT_RESTORE_COSTUME:
-            host.costume.Set(actor->_pbody);
+            host.costume.Set(actor->_Body());
             break;
         case MM_EFFECT_SHOW:
-            actor->_pbody->Show();
+            actor->_Body()->Show();
             break;
         case MM_EFFECT_HIDE:
-            actor->_pbody->Hide();
+            actor->_Body()->Hide();
             break;
         case MM_EFFECT_FETCH_CUSTOM:
-            reply->resource = actor->_ptmpl->PcmtlFetch(command->first);
+            reply->resource = actor->_Template()->PcmtlFetch(command->first);
             break;
         case MM_EFFECT_FETCH_MATERIAL:
         {
@@ -538,10 +538,10 @@ bool Actor::_FDoAevCore(long iaev)
             break;
         }
         case MM_EFFECT_APPLY_CUSTOM:
-            actor->_pbody->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
+            actor->_Body()->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
             break;
         case MM_EFFECT_APPLY_MATERIAL:
-            actor->_pbody->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
+            actor->_Body()->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
             break;
         case MM_EFFECT_RELEASE_CUSTOM:
         {
@@ -561,8 +561,8 @@ bool Actor::_FDoAevCore(long iaev)
         }
     };
     const auto tables = EngineActorMotion::Services();
-    return mm_actor_effect_apply(&_state, _track.Route(), _track.Events(), iaev, &_dxyzFullRte,
-                                 _pbody != pvNil, 0, &tables, &effects) != 0;
+    return mm_actor_effect_apply(&_runtime.state, _track.Route(), _track.Events(), iaev, &_runtime.origin,
+                                 _Body() != pvNil, 0, &tables, &effects) != 0;
 }
 
 /***************************************************************************
@@ -580,16 +580,16 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
 {
     AssertBaseThis(0);
     AssertIn(aetNew, 0, aetLim); AssertIn(cbNew, 0, 100); AssertPvCb(pvVar, cbNew);
-    Assert(_state.onStage || aetNew == aetAdd, "Error! Beginning subroute without Add");
+    Assert(_runtime.state.onStage || aetNew == aetAdd, "Error! Beginning subroute without Add");
 #ifndef BUG1870
 #error C89 actor editing requires the enabled retail BUG1870 policy
 #endif
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto edits=_EventEditServices();
-    bool ok=mm_actor_edit_add_apply(&state,_motionSounds.Core(),_track.Events(),_arid,aetNew,cbNew,pvVar,
+    bool ok=mm_actor_edit_add_apply(&state,_motionSounds.Core(),_track.Events(),_runtime.actor,aetNew,cbNew,pvVar,
                                           &tables,&edits)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     if (ok) AssertThis(fobjAssertFull);
     return ok;
 }
@@ -609,13 +609,13 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
     AssertIn(iaevFirst, 0, mm_actor_events_count(_track.Events()));
     AssertIn(iaevNew, iaevFirst, mm_actor_events_count(_track.Events()));
     AssertNilOrVarMem(piaevRtn);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto edits=_EventEditServices();
     MMI32 result=0;
-    mm_actor_edit_merge(&state,_motionSounds.Core(),_track.Events(),_arid,iaevFirst,iaevNew,
+    mm_actor_edit_merge(&state,_motionSounds.Core(),_track.Events(),_runtime.actor,iaevFirst,iaevNew,
                               piaevRtn ? &result : nullptr,&tables,&edits);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     if (piaevRtn) *piaevRtn=result;
 }
 
@@ -630,10 +630,10 @@ MMActorActionEditServices Actor::_ActionEditServices()
     static_assert(factnStatic==8 && kdwrNil==-65536,"actor action policy ABI");
     MMActorActionEditServices s={}; s.context=this; s.sounds=_SoundEditServices();
     s.action_flags=[](void *p,MMI32 action,MMU32 *flags) {
-        LegacyUlong value=0; bool ok=static_cast<Actor *>(p)->_ptmpl->FGetGrfactn(action,&value); *flags=value; return int(ok);
+        LegacyUlong value=0; bool ok=static_cast<Actor *>(p)->_Template()->FGetGrfactn(action,&value); *flags=value; return int(ok);
     };
-    s.text_template=[](void *p) { return int(static_cast<Actor *>(p)->_ptmpl->FIsTdt()); };
-    s.mark_life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
+    s.text_template=[](void *p) { return int(static_cast<Actor *>(p)->_Template()->FIsTdt()); };
+    s.mark_life_dirty=[](void *p) { static_cast<Actor *>(p)->_runtime.life_dirty=true; };
     return s;
 }
 MMActorSubrouteEditServices Actor::_SubrouteEditServices()
@@ -641,25 +641,25 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
     MMActorSubrouteEditServices s={}; s.route=_RouteEditServices(); s.action=_ActionEditServices();
     s.timeline.motion=EngineActorMotion::Services(); s.timeline.context=this;
     s.timeline.resolve=[](void *p,MMI32 action,MMI32 cel,MMI32 *out) {
-        BRS value=*out; bool ok=static_cast<Actor *>(p)->_ptmpl->FGetDwrActnCel(action,cel,&value); *out=value; return int(ok);
+        BRS value=*out; bool ok=static_cast<Actor *>(p)->_Template()->FGetDwrActnCel(action,cel,&value); *out=value; return int(ok);
     };
     s.timeline.put_event=s.route.write_event;
-    s.timeline.publish_frame=[](void *p,MMI32 frame) { static_cast<Actor *>(p)->_nfrmLast=frame; };
+    s.timeline.publish_frame=[](void *p,MMI32 frame) { static_cast<Actor *>(p)->_runtime.last=frame; };
     s.timeline.diagnostic=[](void *,int fault) { EngineActorTimeline::Diagnostic(nullptr,fault); };
     s.get_flags=[](void *p,MMActorSubrouteFlags *flags) {
-        auto actor=static_cast<Actor *>(p); flags->dirty=actor->_fLifeDirty; flags->recording=actor->_fModeRecord; flags->rejoining=actor->_fRejoin;
+        auto actor=static_cast<Actor *>(p); flags->dirty=actor->_runtime.life_dirty; flags->recording=actor->_runtime.recording.recording; flags->rejoining=actor->_runtime.recording.rejoining;
     };
-    s.set_dirty=[](void *p,int dirty) { static_cast<Actor *>(p)->_fLifeDirty=dirty!=0; };
+    s.set_dirty=[](void *p,int dirty) { static_cast<Actor *>(p)->_runtime.life_dirty=dirty!=0; };
     s.pose_inputs=[](void *p,MMActorPoseInputs *inputs) {
-        auto actor=static_cast<Actor *>(p); actor->_ptmpl->GetRestOrien(&inputs->restX,&inputs->restY,&inputs->restZ);
-        inputs->fixedPathOrientation=actor->_ptmpl->FIsTdt();
+        auto actor=static_cast<Actor *>(p); actor->_Template()->GetRestOrien(&inputs->restX,&inputs->restY,&inputs->restZ);
+        inputs->fixedPathOrientation=actor->_Template()->FIsTdt();
     };
     s.locate_body=[](void *p,const MMActorBodyPose *pose) {
-        static_cast<Actor *>(p)->_pbody->ApplyPose(*pose);
+        static_cast<Actor *>(p)->_Body()->ApplyPose(*pose);
     };
     s.seek=[](void *p,MMActorState *state,MMI32 frame) {
-        auto actor=static_cast<Actor *>(p); EngineActorMotion::Publish(actor->_state,*state);
-        bool ok=actor->FGotoFrame(frame); *state=EngineActorMotion::Core(actor->_state); return int(ok);
+        auto actor=static_cast<Actor *>(p); actor->_runtime.state = *state;
+        bool ok=actor->FGotoFrame(frame); *state=actor->_runtime.state; return int(ok);
     };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
@@ -673,13 +673,13 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
 bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 {
     AssertThis(0); AssertIn(anid,0,klwMax); AssertIn(celn,klwMin,klwMax);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_ActionEditServices();
     ChildChunkID external=0; TrashVar(&external);
-    bool ok=mm_actor_edit_set_action(&state,_motionSounds.Core(),_track.Events(),_arid,anid,celn,fFreeze,
+    bool ok=mm_actor_edit_set_action(&state,_motionSounds.Core(),_track.Events(),_runtime.actor,anid,celn,fFreeze,
                                            external,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     return ok;
 }
 
@@ -692,10 +692,10 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 void Actor::_Hide(void)
 {
     AssertBaseThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto services=_RouteEditServices();
     mm_actor_route_edit_hide(&state,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -718,10 +718,10 @@ MMActorRouteEditServices Actor::_RouteEditServices()
     s.write_event=[](void *p,MMI32 i,const MMActorEvent *v) { mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(p), i, v); };
     s.swap_events=[](void *p,MMI32 a,MMI32 b) { mm_actor_events_swap(static_cast<MMActorEventTable *>(p), a,b); };
     s.reserve_events=[](void *p,MMU32 count,MMU32 bytes) { return int(mm_actor_events_reserve(static_cast<Actor *>(p)->_track.Events(), count,bytes)); };
-    s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
-    s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_fModeRecord=enabled!=0; };
-    s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_pbody) actor->_pbody->Hide(); };
-    s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_ptmpl && actor->_pbody) actor->_ptmpl->FSetDefaultCost(actor->_pbody); };
+    s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_runtime.life_dirty=true; };
+    s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_runtime.recording.recording=enabled!=0; };
+    s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Body()) actor->_Body()->Hide(); };
+    s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Template() && actor->_Body()) actor->_Template()->FSetDefaultCost(actor->_Body()); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
         case MM_ROUTE_BAD_ALIVE: Bug("Invalid fAlive value"); break;
@@ -756,11 +756,11 @@ bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
 bool Actor::FSetStep(BRS dwrStep)
 {
     AssertThis(0); Assert(kdwrNil==dwrStep || rZero<=dwrStep, "Invalid dwrStep argument");
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_SoundEditServices();
-    bool ok=mm_actor_edit_set_step(&state,_motionSounds.Core(),_track.Events(),_arid,dwrStep,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state);
+    bool ok=mm_actor_edit_set_step(&state,_motionSounds.Core(),_track.Events(),_runtime.actor,dwrStep,&tables,&services)!=0;
+    _runtime.state = state;
     return ok;
 }
 
@@ -780,7 +780,7 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
 
     static_assert(kzrDefault == -1638400, "Placement distance ABI");
     BRS x, y, z;
-    _pscen->Pbkgd()->GetActorPlacePoint(&x, &y, &z);
+    _Scene()->Pbkgd()->GetActorPlacePoint(&x, &y, &z);
     MMActorPoint point{x, y, z};
     MMActorPlacementServices services{};
     services.context = this;
@@ -788,13 +788,13 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
         auto *actor = static_cast<Actor *>(context);
         BMAT34 camera;
         BRS nearClip, farClip;
-        actor->_pscen->Pmvie()->Pbwld()->GetCamera(&camera, &nearClip, &farClip);
+        actor->_Scene()->Pmvie()->Pbwld()->GetCamera(&camera, &nearClip, &farClip);
         Assert(nearClip >= 0 && farClip >= 0, "Negative camera values");
         *hither = nearClip;
         *yon = farClip;
         std::memcpy(matrix, &camera, sizeof(camera));
     };
-    mm_actor_placement(&point, _ptmpl->FIsTdt(), &services);
+    mm_actor_placement(&point, _Template()->FIsTdt(), &services);
     *pxr = point.dxr;
     *pyr = point.dyr;
     *pzr = point.dzr;
@@ -821,8 +821,8 @@ MMActorStageEditServices Actor::_StageEditServices()
     s.placement=[](void *p,MMActorPoint *point,MMActorPoint *origin,unsigned short *yaw) {
         auto actor=static_cast<Actor *>(p); BRS x,y,z;
         actor->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
-        std::memcpy(origin,&actor->_dxyzFullRte,sizeof(*origin));
-        *yaw=actor->_pscen->Pbkgd()->BraRotYCamera();
+        std::memcpy(origin,&actor->_runtime.origin,sizeof(*origin));
+        *yaw=actor->_Scene()->Pbkgd()->BraRotYCamera();
     };
     s.diagnostic=[](void *,int fault) { Assert(fault==MM_STAGE_INSERT_FAILED,"Unknown stage edit fault"); Bug("Logic error"); };
     return s;
@@ -830,13 +830,13 @@ MMActorStageEditServices Actor::_StageEditServices()
 bool Actor::FAddOnStageCore(void)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_StageEditServices();
     ChildChunkID external=0; TrashVar(&external);
-    bool ok=mm_actor_stage_add(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_stage_add(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                       external,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     return ok;
 }
 
@@ -854,12 +854,12 @@ bool Actor::FAddOnStageCore(void)
 bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 {
     AssertBaseThis(0); AssertIn(iaevLim,0,mm_actor_events_count(_track.Events())+1);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
-    bool ok=mm_actor_subroute_from_previous(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_subroute_from_previous(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                                   iaevLim,grfaet,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     return ok;
 }
 
@@ -871,14 +871,14 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 ***************************************************************************/
 bool Actor::_FAddAevFromLater(void)
 {
-    AssertBaseThis(0); Assert(_state.nextEvent==1,"_FAddAevFromLater logic error");
-    auto state=EngineActorMotion::Core(_state);
+    AssertBaseThis(0); Assert(_runtime.state.nextEvent==1,"_FAddAevFromLater logic error");
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
     ChildChunkID external=0; TrashVar(&external);
-    bool ok=mm_actor_subroute_from_later(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_subroute_from_later(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                                external,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     return ok;
 }
 
@@ -937,12 +937,12 @@ void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 bool Actor::FRemFromStageCore(void)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_StageEditServices();
-    bool ok=mm_actor_stage_remove(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_stage_remove(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                          &tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     return ok;
 }
 
@@ -955,13 +955,13 @@ bool Actor::FRemFromStageCore(void)
 bool Actor::_FDeleteEntireSubrte(void)
 {
     AssertThis(0);
-    Assert(static_cast<Base *>(mm_actor_events_fixed(_track.Events(), _state.addEvent))->nfrm==_state.frame,
+    Assert(static_cast<Base *>(mm_actor_events_fixed(_track.Events(), _runtime.state.addEvent))->nfrm==_runtime.state.frame,
            "Logic error: trying to delete whole route from the middle");
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
     bool ok=mm_actor_stage_delete_subroute(&state,_track.Route(),_track.Events(),&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     return ok;
 }
 
@@ -973,11 +973,11 @@ bool Actor::_FDeleteEntireSubrte(void)
 void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
 {
     AssertThis(0); AssertIn(iaevAdd,0,iaevLim);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_delete_add(&state,_track.Route(),_track.Events(),iaevAdd,iaevLim,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -990,12 +990,12 @@ bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCm
 {
     AssertThis(0); Assert(fCmtl || ibsetClicked>=0,"Invalid body set"); AssertVarMem(ptag);
     MMTag tag; std::memcpy(&tag,ptag,sizeof(tag));
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_CostumeEditServices();
-    bool ok=mm_actor_edit_set_costume(&state,_motionSounds.Core(),_track.Events(),_arid,ibsetClicked,
+    bool ok=mm_actor_edit_set_costume(&state,_motionSounds.Core(),_track.Events(),_runtime.actor,ibsetClicked,
                                             &tag,cmid,fCmtl,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     return ok;
 }
 
@@ -1041,15 +1041,15 @@ bool Actor::_FUnfreeze(void)
 ***************************************************************************/
 void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz)
 {
-    AssertThis(0); AssertIn(_state.addEvent,0,mm_actor_events_count(_track.Events()));
+    AssertThis(0); AssertIn(_runtime.state.addEvent,0,mm_actor_events_count(_track.Events()));
     static_assert(kdwrFast==196608 && krOriWeightMin==6553,"actor orientation weight ABI");
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto edits=_EventEditServices();
     MMI32 distance=0;
     if (pdxyz) distance=BR_LENGTH3(pdxyz->dxr,pdxyz->dyr,pdxyz->dzr);
     mm_actor_edit_add_orientation(&state,_track.Events(),xa,ya,za,grfbra,pdxyz?&distance:nullptr,&tables,&edits);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1084,18 +1084,18 @@ MMActorTransformEditServices Actor::_TransformEditServices()
     Assert(krScaleMaxFactor==mm_fixed_div(65536,6553) && krPullMax==262144 &&
            krAngleMinRcp==mm_fixed_div(65536,6553),"Actor transform bounds ABI");
     MMActorTransformEditServices s{}; s.subroute=_SubrouteEditServices(); s.fill=_FillEditServices();
-    s.scene_present=[](void *p) { return int(static_cast<Actor *>(p)->_pscen!=nullptr); };
+    s.scene_present=[](void *p) { return int(static_cast<Actor *>(p)->_Scene()!=nullptr); };
     s.normalise=[](void *,MMActorMatrix *value) {
         BMAT34 matrix,normal; std::memcpy(&matrix,value,sizeof(matrix)); BrMatrix34LPNormalise(&normal,&matrix);
         std::memcpy(value,&normal,sizeof(normal));
     };
     s.distance=[](void *,const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
-    s.publish_origin=[](void *p,const MMActorPoint *origin) { std::memcpy(&static_cast<Actor *>(p)->_dxyzFullRte,origin,sizeof(*origin)); };
+    s.publish_origin=[](void *p,const MMActorPoint *origin) { std::memcpy(&static_cast<Actor *>(p)->_runtime.origin,origin,sizeof(*origin)); };
     s.seek_scene=[](void *p,MMActorState *state,MMI32 frame) {
-        auto actor=static_cast<Actor *>(p); bool ok=actor->_pscen->FGotoFrm(frame);
-        *state=EngineActorMotion::Core(actor->_state); return int(ok);
+        auto actor=static_cast<Actor *>(p); bool ok=actor->_Scene()->FGotoFrm(frame);
+        *state=actor->_runtime.state; return int(ok);
     };
-    s.scrollbars=[](void *p) { static_cast<Actor *>(p)->_pscen->Pmvie()->Pmcc()->UpdateScrollbars(); };
+    s.scrollbars=[](void *p) { static_cast<Actor *>(p)->_Scene()->Pmvie()->Pmcc()->UpdateScrollbars(); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
         case MM_TRANSFORM_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
@@ -1108,11 +1108,11 @@ MMActorTransformEditServices Actor::_TransformEditServices()
 bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                              xa,ya,za,fFromHereFwd,0,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); return ok;
+    _runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -1138,11 +1138,11 @@ bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                              xa,ya,za,fFromHereFwd,1,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); return ok;
+    _runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -1155,11 +1155,11 @@ bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 bool Actor::FNormalizeCore(ulong grfnorm)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_normalize(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_normalize(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                                 grfnorm,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); return ok;
+    _runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -1175,11 +1175,11 @@ bool Actor::FNormalizeCore(ulong grfnorm)
 bool Actor::FScale(BRS rScale)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_scale(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_scale(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                             rScale,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); return ok;
+    _runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -1191,10 +1191,10 @@ bool Actor::FScale(BRS rScale)
 bool Actor::FSoonerLater(long dnfrm)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
     bool ok=mm_actor_transform_time(&state,_track.Route(),_track.Events(),dnfrm,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); return ok;
+    _runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -1208,12 +1208,12 @@ bool Actor::FSoonerLater(long dnfrm)
 bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
     const MMActorStretch stretch{rScaleX,rScaleY,rScaleZ};
-    bool ok=mm_actor_transform_pull(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_pull(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                            &stretch,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); return ok;
+    _runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -1228,12 +1228,12 @@ bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
 bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
     const MMActorPoint delta{dxr,dyr,dzr};
-    bool ok=mm_actor_transform_tweak(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_tweak(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                             &delta,grfmaf,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); return ok;
+    _runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -1244,7 +1244,7 @@ bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 void Actor::_UpdateXyzRte(void)
 {
     AssertBaseThis(0);
-    _state.UpdateOrigin(_dxyzFullRte);
+    mm_actor_state_origin(&_runtime.state, &_runtime.origin);
 }
 
 /***************************************************************************
@@ -1256,7 +1256,7 @@ void Actor::_UpdateXyzRte(void)
     If fmafEntireSubrte is set, this does not add an event to the aev list.
     It alters the data in the Add event & _dxyzSubRte.	Return fTrue.
 
-    If fmafEntireScene is set, _dxyzFullRte is modified. Return fTrue.
+    If fmafEntireScene is set, _runtime.origin is modified. Return fTrue.
 
     If !fmafEntireSubrte && !fmafEntireScene, a move event is added
     to the event list. This can therefore fail.
@@ -1268,17 +1268,17 @@ void Actor::_UpdateXyzRte(void)
 bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
     AssertNilOrVarMem(pfMoved);
     const MMActorPoint delta{dxr,dyr,dzr}; MMActorPoint origin;
-    std::memcpy(&origin,&_dxyzFullRte,sizeof(origin));
+    std::memcpy(&origin,&_runtime.origin,sizeof(origin));
     MMActorMoveResult result{}; result.context=pfMoved;
     result.publish=[](void *p,int moved) { if (p) *static_cast<bool *>(p)=moved!=0; };
-    bool ok=mm_actor_transform_move(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_transform_move(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                            &origin,&delta,grfmaf,&result,&tables,&services)!=0;
-    std::memcpy(&_dxyzFullRte,&origin,sizeof(origin));
-    EngineActorMotion::Publish(_state,state); return ok;
+    std::memcpy(&_runtime.origin,&origin,sizeof(origin));
+    _runtime.state = state; return ok;
 }
 
 /***************************************************************************
@@ -1294,9 +1294,9 @@ void Actor::_LoadAddOrien(Add *paevadd, bool fNoReset)
                   "actor entrance ABI");
     MMActorEntrance add;
     std::memcpy(&add, paevadd, sizeof(add));
-    auto state = EngineActorMotion::Core(_state);
+    auto state = _runtime.state;
     mm_actor_add_orientation(&state, &add, fNoReset);
-    EngineActorMotion::Publish(_state, state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1327,11 +1327,11 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
     Assert(aet==aetSize || aet==aetRotF || aet==aetPull, "Illegal fill event");
     AssertPvCb(pvVar,cbVar); AssertIn(cbVar,0,100);
     AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1); AssertIn(iaevCmp,-1,mm_actor_events_count(_track.Events())+1);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_FillEditServices();
     mm_actor_edit_transform_fill(&state,_track.Events(),aet,pvVar,cbVar,iaevMin,iaevCmp,grfaet,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1355,10 +1355,10 @@ bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUp
     AssertIn(iaev, 0, mm_actor_events_count(_track.Events())+1); AssertIn(cbNew, 0, 100);
     AssertPvCb(paev,sizeof(Base));
     MMActorEvent event; std::memcpy(&event,paev,sizeof(event));
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto edits=_EventEditServices();
     bool ok=mm_actor_edit_insert(&state,iaev,cbNew,pvVar,&event,fUpdateState,&edits)!=0;
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     return ok;
 }
 
@@ -1379,13 +1379,13 @@ MMActorEditServices Actor::_EventEditServices()
     };
     services.scene_frame = [](void *context, MMI32 *frame) {
         auto actor = static_cast<Actor *>(context);
-        if (!actor->_pscen) return 0;
-        *frame = actor->_pscen->Nfrm();
+        if (!actor->_Scene()) return 0;
+        *frame = actor->_Scene()->Nfrm();
         return 1;
     };
-    services.update_sound_frame = [](void *context) { static_cast<Actor *>(context)->_pscen->UpdateSndFrame(); };
+    services.update_sound_frame = [](void *context) { static_cast<Actor *>(context)->_Scene()->UpdateSndFrame(); };
     services.publish = [](void *context, const MMActorState *state) {
-        EngineActorMotion::Publish(static_cast<Actor *>(context)->_state, *state);
+        static_cast<Actor *>(context)->_runtime.state = *state;
     };
     services.insert_event = [](void *p, MMI32 index, MMU32 bytes, const void *payload, const MMActorEvent *value) {
         return mm_actor_events_insert(static_cast<Actor *>(p)->_track.Events(), index, bytes, payload, value);
@@ -1402,18 +1402,18 @@ MMActorEditServices Actor::_EventEditServices()
     };
     services.apply_event = [](void *p, MMActorState *state, MMI32 index) {
         auto actor=static_cast<Actor *>(p);
-        EngineActorMotion::Publish(actor->_state,*state);
+        actor->_runtime.state = *state;
         bool ok=actor->_FDoAevCore(index);
-        *state=EngineActorMotion::Core(actor->_state);
+        *state=actor->_runtime.state;
         return int(ok);
     };
-    services.dirty = [](void *p) { static_cast<Actor *>(p)->_pscen->MarkDirty(); };
+    services.dirty = [](void *p) { static_cast<Actor *>(p)->_Scene()->MarkDirty(); };
     services.get_range = [](void *p, MMActorEditRange *range) {
-        auto actor=static_cast<Actor *>(p); range->first=actor->_nfrmFirst; range->last=actor->_nfrmLast;
+        auto actor=static_cast<Actor *>(p); range->first=actor->_runtime.first; range->last=actor->_runtime.last;
     };
-    services.invalidate_range = [](void *p) { static_cast<Actor *>(p)->_pscen->InvalFrmRange(); };
+    services.invalidate_range = [](void *p) { static_cast<Actor *>(p)->_Scene()->InvalFrmRange(); };
     services.publish_range = [](void *p, const MMActorEditRange *range) {
-        auto actor=static_cast<Actor *>(p); actor->_nfrmFirst=range->first; actor->_nfrmLast=range->last;
+        auto actor=static_cast<Actor *>(p); actor->_runtime.first=range->first; actor->_runtime.last=range->last;
     };
     return services;
 }
@@ -1421,11 +1421,11 @@ void Actor::_RemoveAev(long iaev, bool fUpdateState)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, mm_actor_events_count(_track.Events()));
-    auto state = EngineActorMotion::Core(_state);
+    auto state = _runtime.state;
     const auto tables = EngineActorMotion::Services();
     const auto edits = _EventEditServices();
     mm_actor_edit_remove(&state, _track.Events(), iaev, fUpdateState, &tables, &edits);
-    EngineActorMotion::Publish(_state, state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1443,11 +1443,11 @@ void Actor::_RemoveAev(long iaev, bool fUpdateState)
 void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet)
 {
     AssertBaseThis(0); AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_EventEditServices();
     mm_actor_edit_action_fill(&state,_track.Events(),iaevMin,anidPrev,anidNew,grfaet,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1466,7 +1466,7 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
     };
     services.current=[](void *p,MMI32 set,int *custom)->void * {
         bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
-        static_cast<Actor *>(p)->_pbody->GetPartSetMaterial(set,&ordinary,&material,&costume);
+        static_cast<Actor *>(p)->_Body()->GetPartSetMaterial(set,&ordinary,&material,&costume);
         *custom=!ordinary;
         return ordinary ? static_cast<void *>(material) : static_cast<void *>(costume);
     };
@@ -1474,7 +1474,7 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
         TAG tag; std::memcpy(&tag,value,sizeof(tag));
         return vptagm->PbacoFetch(&tag,Material_MTRL::FReadMtrl);
     };
-    services.fetch_custom=[](void *p,MMI32 costume)->void * { return static_cast<Actor *>(p)->_ptmpl->PcmtlFetch(costume); };
+    services.fetch_custom=[](void *p,MMI32 costume)->void * { return static_cast<Actor *>(p)->_Template()->PcmtlFetch(costume); };
     services.body_set=[](void *,void *resource)->MMI32 { return static_cast<PCustomMaterial_CMTL>(resource)->Ibset(); };
     services.release=[](void *,void *resource) { static_cast<PBaseCacheableObject>(resource)->Release(); };
     return services;
@@ -1483,11 +1483,11 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 {
     AssertBaseThis(0); AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1); AssertVarMem(paevcost);
     MMActorCostume costume; std::memcpy(&costume,paevcost,sizeof(costume));
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_CostumeEditServices();
     mm_actor_edit_costume_fill(&state,_track.Events(),iaevMin,&costume,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1512,11 +1512,11 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_track.Route())); AssertIn(iaevMin,0,mm_actor_events_count(_track.Events())+1);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_adjust_delete(&state,_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1533,7 +1533,7 @@ void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 void Actor::_AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
 {
     AssertBaseThis(0);
-    ActorRouteEvaluator::Advance(_track, dwrStep, prtel, iaevCur, nfrmCur, _nfrmFirst, !_fModeRecord && !_fRejoin,
+    ActorRouteEvaluator::Advance(_track, dwrStep, prtel, iaevCur, nfrmCur, _runtime.first, !_runtime.recording.recording && !_runtime.recording.rejoining,
                                  pfEndRoute);
 }
 
@@ -1572,22 +1572,22 @@ void Actor::_PositionBody(RoutePoint *pxyz)
     const auto tables = EngineActorMotion::Services();
     const auto services = _SubrouteEditServices();
     const auto position = *pxyz;
-    mm_actor_subroute_position_body(&_state, _track.Route(), _track.Events(), &position, &tables, &services);
+    mm_actor_subroute_position_body(&_runtime.state, _track.Route(), _track.Events(), &position, &tables, &services);
 }
 
 /***************************************************************************
 
     Update the orientation matrices
-    _state.transform.bmat34Cur must be kept current
+    _runtime.state.transform.bmat34Cur must be kept current
 
 ***************************************************************************/
 void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
 {
     AssertBaseThis(0);
     ActorPoseInputs inputs;
-    _ptmpl->GetRestOrien(&inputs.restX, &inputs.restY, &inputs.restZ);
-    inputs.fixedPathOrientation = _ptmpl->FIsTdt();
-    ActorPoseEvaluator::Update(_state, _track, inputs, pxyz, pbmat34);
+    _Template()->GetRestOrien(&inputs.restX, &inputs.restY, &inputs.restZ);
+    inputs.fixedPathOrientation = _Template()->FIsTdt();
+    ActorPoseEvaluator::Update(_runtime.state, _track, inputs, pxyz, pbmat34);
 }
 
 /***************************************************************************
@@ -1604,7 +1604,7 @@ void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
 void Actor::_ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, LegacyUlong *pgrfbra)
 {
     AssertBaseThis(0);
-    ActorPoseEvaluator::ApplyVectorRotation(_state.actionFlags, pxyz, pbmat34, pxa, pya, pza, pgrfbra);
+    ActorPoseEvaluator::ApplyVectorRotation(_runtime.state.actionFlags, pxyz, pbmat34, pxa, pya, pza, pgrfbra);
 }
 
 /***************************************************************************
@@ -1621,19 +1621,19 @@ bool Actor::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
     AssertNilOrVarMem(pnfrmFirst);
     AssertNilOrVarMem(pnfrmLast);
 
-    if (klwMax == _nfrmFirst)
+    if (klwMax == _runtime.first)
         return fFalse;
 
     if (pvNil != pnfrmFirst)
-        *pnfrmFirst = _nfrmFirst;
+        *pnfrmFirst = _runtime.first;
 
     if (pvNil == pnfrmLast)
         return fTrue;
 
-    if (!_fLifeDirty)
+    if (!_runtime.life_dirty)
     {
-        *pnfrmLast = _nfrmLast;
-        Assert(_nfrmLast >= _nfrmFirst, "fLifeDirty incorrect");
+        *pnfrmLast = _runtime.last;
+        Assert(_runtime.last >= _runtime.first, "fLifeDirty incorrect");
         return fTrue;
     }
 
@@ -1657,7 +1657,7 @@ bool Actor::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
     pnfrmLast may be pvNil
     NOTE: Now that by spec, edits do not cross subroute boundaries,
     performance optimization can be achieved by storing the
-    index if the first aev edited when _fLifeDirty is set.
+    index if the first aev edited when _runtime.life_dirty is set.
 
     Note: There is some amount of redundant checking here now
     that subroutes are now step=0 terminated.  Zero termination implies that
@@ -1711,22 +1711,6 @@ bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
     down to initialize the timing of the recording session
 
 ***************************************************************************/
-MMActorRecording Actor::_RecordingState() const
-{
-    MMActorRecording record{};
-    std::memcpy(&record.insertion,&_rtelInsert,sizeof(record.insertion));
-    std::memcpy(&record.raw,&_dxyzRaw,sizeof(record.raw));
-    record.timestamp=_tsInsert; record.recording=_fModeRecord; record.rejoining=_fRejoin;
-    record.inserted=_fPathInserted; record.gap=_dnfrmGap;
-    return record;
-}
-void Actor::_PublishRecordingState(const MMActorRecording &record)
-{
-    std::memcpy(&_rtelInsert,&record.insertion,sizeof(_rtelInsert));
-    std::memcpy(&_dxyzRaw,&record.raw,sizeof(_dxyzRaw));
-    _tsInsert=record.timestamp; _fModeRecord=record.recording!=0; _fRejoin=record.rejoining!=0;
-    _fPathInserted=record.inserted!=0; _dnfrmGap=record.gap;
-}
 MMActorRecordServices Actor::_RecordServices()
 {
 #if !defined(BUG1961) || !defined(BUG1973)
@@ -1738,14 +1722,14 @@ MMActorRecordServices Actor::_RecordServices()
     MMActorRecordServices s{}; s.subroute=_SubrouteEditServices();
     s.reserve_points=[](void *route,MMU32 count) { return int(mm_array_reserve(&static_cast<MMActorPath *>(route)->rows, count, 0) == MM_STORAGE_OK); };
     s.distance=[](void *,const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
-    s.publish_record=[](void *p,const MMActorRecording *record) { static_cast<Actor *>(p)->_PublishRecordingState(*record); };
+    s.publish_record=[](void *p,const MMActorRecording *record) { static_cast<Actor *>(p)->_runtime.recording = *record; };
     s.restore=[](void *p,void *undo,MMActorState *state,MMActorRecording *record) {
         auto actor=static_cast<Actor *>(p); actor->_RestoreFromUndo(static_cast<PActor>(undo));
-        *state=EngineActorMotion::Core(actor->_state); *record=actor->_RecordingState();
+        *state=actor->_runtime.state; *record=actor->_runtime.recording;
     };
     s.seek_scene=[](void *p,MMActorState *state,MMActorRecording *record,MMI32 frame) {
-        auto actor=static_cast<Actor *>(p); bool ok=actor->_pscen->FGotoFrm(frame);
-        *state=EngineActorMotion::Core(actor->_state); *record=actor->_RecordingState(); return int(ok);
+        auto actor=static_cast<Actor *>(p); bool ok=actor->_Scene()->FGotoFrm(frame);
+        *state=actor->_runtime.state; *record=actor->_runtime.recording; return int(ok);
     };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
@@ -1759,7 +1743,7 @@ MMActorRecordServices Actor::_RecordServices()
 bool Actor::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
 {
     AssertThis(0);
-    const auto record=_RecordingState();
+    const auto record=_runtime.recording;
     const auto services=_RecordServices();
     const MMActorPoint delta{dxr,dyr,dzr};
     return mm_actor_record_valid(&record,&delta,tsCurrent,&services)!=0;
@@ -1775,11 +1759,11 @@ bool Actor::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
 bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
-    (void)tsCurrent; // Native beginning deliberately preserves _tsInsert.
-    auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
+    (void)tsCurrent; // Native beginning deliberately preserves _runtime.recording.timestamp.
+    auto state=_runtime.state; auto record=_runtime.recording;
     const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
     bool ok=mm_actor_record_begin(&state,&record,_track.Route(),_track.Events(),fReplace,pactrRestore,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); _PublishRecordingState(record); return ok;
+    _runtime.state = state; _runtime.recording = record; return ok;
 }
 
 /***************************************************************************
@@ -1799,8 +1783,8 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
                        PActor pactrRestore)
 {
     AssertThis(0); AssertVarMem(pfStepFrm); AssertVarMem(pfStepRte);
-    Assert(_state.onStage,"Recording an actor that wasn't selectable??");
-    auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
+    Assert(_runtime.state.onStage,"Recording an actor that wasn't selectable??");
+    auto state=_runtime.state; auto record=_runtime.recording;
     const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
     const MMActorPoint delta{dxr,dyr,dzr}; MMActorRecordResult result{};
     struct Outputs { bool *frame,*route; } outputs{pfStepFrm,pfStepRte};
@@ -1810,9 +1794,9 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
         if ((changed&1) && out->frame) *out->frame=frame!=0;
         if ((changed&2) && out->route) *out->route=route!=0;
     };
-    bool ok=mm_actor_record_move(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_record_move(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                        &delta,grfmaf,tsCurrent,&result,pactrRestore,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); _PublishRecordingState(record);
+    _runtime.state = state; _runtime.recording = record;
     return ok;
 }
 
@@ -1822,7 +1806,7 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     Insert a freeze event if at the end of the subroute.
 
     Input: fReplace is meaningful only if recording or rerecording (versus
-    motion fill.  _fModeRecord is false on motion fill).
+    motion fill.  _runtime.recording.recording is false on motion fill).
     fReplace = fTrue if recording, ie, if replacing the remaining subroute
 
     Path splicing rule:  Never rejoin across Add events
@@ -1837,16 +1821,16 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     On Failure: The actor is restored from pactrRestore
 ***************************************************************************/
 // REVIEW *****(*****): Ver 2.0 As motion fill is self sufficient,
-// 		FEndRecord() should be able to exit immediately on !_fModeRecord.
+// 		FEndRecord() should be able to exit immediately on !_runtime.recording.recording.
 //   	Also, pactrRestore should be state var _pactrRecordRestore.
 bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
-    auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
+    auto state=_runtime.state; auto record=_runtime.recording;
     const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
-    bool ok=mm_actor_record_end(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    bool ok=mm_actor_record_end(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                       fReplace,pactrRestore,&tables,&services)!=0;
-    EngineActorMotion::Publish(_state,state); _PublishRecordingState(record);
+    _runtime.state = state; _runtime.recording = record;
     if (ok) { AssertThis(fobjAssertFull); }
     return ok;
 }
@@ -1866,12 +1850,12 @@ void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 #ifndef BUG1932
 #error C89 route editing requires the enabled retail BUG1932 policy
 #endif
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     int alive=0;
-    mm_actor_route_edit_delete_forward(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    mm_actor_route_edit_delete_forward(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
+    _runtime.state = state;
     if (pfAlive) *pfAlive=alive!=0;
 }
 
@@ -1879,7 +1863,7 @@ void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 
     Delete the path and events beyond this frame
     **NOTE:  This does not send the actor offstage.	See FRemFromStageCore.
-    NOTE: While _fLifeDirty flags needed lifetime recomputation, scene's
+    NOTE: While _runtime.life_dirty flags needed lifetime recomputation, scene's
     InvalFrmRange() is _not_ called due to the special artifact of the
     frame slider being spec'd to show extensions but not reductions.
 
@@ -1897,12 +1881,12 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 #ifndef BUG1870
 #error C89 route editing requires the enabled retail BUG1870 policy
 #endif
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     int alive=0;
     mm_actor_route_edit_delete_forward_core(&state,_track.Route(),_track.Events(),fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     if (pfAlive) *pfAlive=alive!=0;
 }
 
@@ -1914,11 +1898,11 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 void Actor::_SaveCurPathOrien(void)
 {
     AssertBaseThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
     mm_actor_subroute_save_orientation(&state,_track.Route(),_track.Events(),&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1932,13 +1916,13 @@ void Actor::DeleteBackCore(bool *pfAlive)
 #if !defined(BUG1870) || !defined(BUG1866)
 #error C89 backward deletion requires enabled retail BUG1870/BUG1866 policies
 #endif
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_SubrouteEditServices();
     int alive=0;
-    mm_actor_subroute_delete_back(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+    mm_actor_subroute_delete_back(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_runtime.actor,
                                         pfAlive?&alive:nullptr,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
     if (pfAlive) *pfAlive=alive!=0;
 }
 
@@ -1955,11 +1939,11 @@ void Actor::DeleteBackCore(bool *pfAlive)
 void Actor::_TruncateSubRte(long irptDelLim)
 {
     AssertBaseThis(0);
-    auto state=EngineActorMotion::Core(_state);
+    auto state=_runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_truncate(&state,_track.Route(),_track.Events(),irptDelLim,&tables,&services);
-    EngineActorMotion::Publish(_state,state);
+    _runtime.state = state;
 }
 
 /***************************************************************************
@@ -1972,7 +1956,7 @@ bool Actor::FPtIn(long xp, long yp, long *pibset)
     AssertThis(0);
     AssertVarMem(pibset);
 
-    return BodyWorld::FPtInBody(_pbody, _pscen->Pmvie()->Pbwld(), xp, yp, pibset);
+    return BodyWorld::FPtInBody(_Body(), _Scene()->Pmvie()->Pbwld(), xp, yp, pibset);
 }
 
 /***************************************************************************
@@ -1986,35 +1970,35 @@ bool Actor::FPtIn(long xp, long yp, long *pibset)
 bool Actor::FMustRender(long nfrmRenderLast)
 {
     AssertThis(0);
-    Assert(nfrmRenderLast >= _state.frame, "Invalid argument to FMustRender");
-    Assert(!_fLifeDirty, "FMustRender was called when nfrm values were invalid");
+    Assert(nfrmRenderLast >= _runtime.state.frame, "Invalid argument to FMustRender");
+    Assert(!_runtime.life_dirty, "FMustRender was called when nfrm values were invalid");
 
     Base *paev;
     long iaev;
 
-    if (nfrmRenderLast == _state.frame)
+    if (nfrmRenderLast == _runtime.state.frame)
         goto LStill;
-    if (nfrmRenderLast < _nfrmFirst)
+    if (nfrmRenderLast < _runtime.first)
         goto LStill;
-    if (_state.frame > _nfrmLast)
+    if (_runtime.state.frame > _runtime.last)
         goto LStill;
     if (mm_actor_path_count(_track.Route()) == 0)
         goto LStill;
 
     // Intervening events?	Sounds don't affect rendering.
-    if (_state.nextEvent < mm_actor_events_count(_track.Events()))
+    if (_runtime.state.nextEvent < mm_actor_events_count(_track.Events()))
     {
-        paev = (Base *)mm_actor_events_fixed(_track.Events(), _state.nextEvent);
+        paev = (Base *)mm_actor_events_fixed(_track.Events(), _runtime.state.nextEvent);
         if (paev->nfrm <= nfrmRenderLast)
         {
-            for (iaev = _state.nextEvent; iaev < mm_actor_events_count(_track.Events()); iaev++)
+            for (iaev = _runtime.state.nextEvent; iaev < mm_actor_events_count(_track.Events()); iaev++)
             {
                 paev = (Base *)mm_actor_events_fixed(_track.Events(), iaev);
                 if (paev->nfrm > nfrmRenderLast)
                     break;
                 if (aetSnd == paev->aet)
                     continue;
-                if (paev->nfrm < _nfrmLast)
+                if (paev->nfrm < _runtime.last)
                     goto LMoving;
                 // Freeze and step events affect future frames
                 if (aetFreeze != paev->aet && aetStep != paev->aet)
@@ -2023,11 +2007,11 @@ bool Actor::FMustRender(long nfrmRenderLast)
         }
     }
 
-    if (_state.step != rZero)
+    if (_runtime.state.step != rZero)
         goto LMoving; // moving along path
 
     // Not advancing, but moving in place?
-    if (_state.frozen || _state.celCount == 1)
+    if (_runtime.state.frozen || _runtime.state.celCount == 1)
         goto LStill;
 LMoving:
     return fTrue;
@@ -2046,7 +2030,7 @@ void Actor::GetName(PString pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    if (!_pscen->Pmvie()->FGetName(_arid, pstn))
+    if (!_Scene()->Pmvie()->FGetName(_runtime.actor, pstn))
     {
         Ptmpl()->GetName(pstn);
     }
@@ -2066,14 +2050,14 @@ void Actor::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
 
     RoutePoint xyz;
 
-    _GetXyzFromRtel(&_state.location, &xyz);
+    _GetXyzFromRtel(&_runtime.state.location, &xyz);
 
     if (pvNil != pxr)
-        *pxr = BrsAdd(xyz.dxr, _state.routeTranslation.dxr);
+        *pxr = BrsAdd(xyz.dxr, _runtime.state.routeTranslation.dxr);
     if (pvNil != pyr)
-        *pyr = BrsAdd(xyz.dyr, _state.routeTranslation.dyr);
+        *pyr = BrsAdd(xyz.dyr, _runtime.state.routeTranslation.dyr);
     if (pvNil != pzr)
-        *pzr = BrsAdd(xyz.dzr, _state.routeTranslation.dyr);
+        *pzr = BrsAdd(xyz.dzr, _runtime.state.routeTranslation.dyr);
 }
 
 /***************************************************************************
@@ -2085,15 +2069,15 @@ void Actor::Hilite(void)
 {
     AssertThis(0);
 
-    Body::SetHiliteColor(_fTimeFrozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
-    _pbody->Hilite();
+    Body::SetHiliteColor(_runtime.time_frozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
+    _Body()->Hilite();
 }
 
 /***************************************************************************
 
     Change this actor's template.  This gets called if the actor is based
     on a 3-D Text template and the text gets edited.  In addition to
-    changing the template itself, this function updates _pbody to conform
+    changing the template itself, this function updates _Body() to conform
     to the new template, and removes all costume events on body part sets
     that no longer exist.  For instance, if a three-letter text actor was
     changed to two letters, all costume events on the third letter are
@@ -2116,27 +2100,30 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
         return fFalse;
     if (ptmpl->FIsTdt())
     {
-        if (!((PThreeDText)ptmpl)->FAdjustBody(_pbody))
+        if (!((PThreeDText)ptmpl)->FAdjustBody(_Body()))
         {
             ReleasePpo(&ptmpl);
             return fFalse;
         }
     }
-    if (!ptmpl->FSetActnCel(_pbody, _state.action, _state.cel))
+    if (!ptmpl->FSetActnCel(_Body(), _runtime.state.action, _runtime.state.cel))
         return fFalse;
-    _PositionBody(&_state.position);
-    ReleasePpo(&_ptmpl);
-    _ptmpl = ptmpl;
-    TagManager::CloseTag(&_tagTmpl);
-    _tagTmpl = *ptagTmplNew;
-    TagManager::DupTag(ptagTmplNew);
+    _PositionBody(&_runtime.state.position);
+    if (_Template())
+        _Template()->Release();
+    _runtime.template_object = ptmpl;
+    const auto &tag_services = ActorTrack::TagServices();
+    mm_tag_close(&_runtime.template_tag, &tag_services);
+    const auto &tag = *ptagTmplNew;
+    _runtime.template_tag = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
+    mm_tag_dup(&_runtime.template_tag, &tag_services);
 
     // If the new Template is not a ThreeDText, we're done...although currently this
     // function should only be called with ptagTmplNew being a ThreeDText
     if (!ptmpl->FIsTdt())
         return fTrue;
 
-    cbsetNew = _pbody->Cbset();
+    cbsetNew = _Body()->Cbset();
     // Need to remove any costume events acting on ibset >= cbsetNew
     // Loop backwards to prevent indexing problems since we are deleting
     // events in this actor track as we go
@@ -2165,8 +2152,8 @@ void Actor::AssertValid(LegacyUlong grfobj)
 {
 
     Actor_PAR::AssertValid(fobjAllocated);
-    AssertNilOrPo(_pbody, 0);
-    AssertNilOrPo(_ptmpl, 0);
+    AssertNilOrPo(_Body(), 0);
+    AssertNilOrPo(_Template(), 0);
     Assert(_track.Events(), "missing actor events");
     Assert(_track.Route(), "missing actor path");
     Assert(_motionSounds.Valid(), "invalid C motion sound storage");
@@ -2175,13 +2162,13 @@ void Actor::AssertValid(LegacyUlong grfobj)
     long irptMac = mm_actor_path_count(_track.Route());
     bool fTracing = FPure(grfobj & fobjAssertFull);
 
-    AssertIn(_state.nextEvent, -1, iaevMac + 1);
+    AssertIn(_runtime.state.nextEvent, -1, iaevMac + 1);
     if (irptMac > 0)
-        AssertIn(_state.location.irpt, 0, irptMac);
-    if (ivNil != _state.actionEvent)
-        AssertIn(_state.actionEvent, 0, iaevMac);
-    if (_state.addEvent != ivNil)
-        AssertIn(_state.addEvent, 0, iaevMac);
+        AssertIn(_runtime.state.location.irpt, 0, irptMac);
+    if (ivNil != _runtime.state.actionEvent)
+        AssertIn(_runtime.state.actionEvent, 0, iaevMac);
+    if (_runtime.state.addEvent != ivNil)
+        AssertIn(_runtime.state.addEvent, 0, iaevMac);
 
     if (fTracing)
     {
@@ -2204,7 +2191,7 @@ void Actor::AssertValid(LegacyUlong grfobj)
             mm_actor_path_get(_track.Route(), irpt, &rpt);
         }
 
-        AssertIn(_state.location.irpt, 0, irptMac + 1); // Supply a debug readable view of the event stream
+        AssertIn(_runtime.state.location.irpt, 0, irptMac + 1); // Supply a debug readable view of the event stream
         mm_actor_events_get_fixed(_track.Events(), 0, &aev);
         Assert(aetAdd == aev.aet, "BUG: No add event at front of list");
 
@@ -2321,9 +2308,10 @@ void Actor::MarkMem(void)
         MarkPv(_track.Route());
         MarkPv(_track.Route()->storage.buffers[0].data);
     }
-    MarkMemObj(_pbody);
-    MarkMemObj(_ptmpl);
-    _tagTmpl.MarkMem();
+    MarkMemObj(_Body());
+    MarkMemObj(_Template());
+    if (_runtime.template_tag.sid == ksidUseCrf && _runtime.template_tag.cache)
+        MarkMemObj(static_cast<PChunkyResourceFile>(_runtime.template_tag.cache));
 }
 
 #endif // DEBUG

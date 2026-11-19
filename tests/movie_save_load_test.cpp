@@ -277,31 +277,30 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,number,TrackTestTemplate::FReadSubrouteFixture));
         if (!tmpl) return false;
-        ReleasePpo(&_ptmpl); _ptmpl=tmpl; TagManager::CloseTag(&_tagTmpl);
-        _tagTmpl={ksidUseCrf,resource,kctgTmpl,number}; TagManager::DupTag(&_tagTmpl);
+        if (_Template()) { _Template()->Release(); _runtime.template_object = nullptr; } _runtime.template_object = tmpl; mm_tag_close(&_runtime.template_tag, &ActorTrack::TagServices());
+        _runtime.template_tag={ksidUseCrf,resource,kctgTmpl,number}; mm_tag_dup(&_runtime.template_tag, &ActorTrack::TagServices());
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint first={{rZero,rZero,rZero},BR_SCALAR(10)},last={{BR_SCALAR(10),rZero,rZero},rZero};
         ActorEvent::Base event={aetAdd,1,{0,rZero,0}}; ActorEvent::Add add={}; ActorEvent::Action action={0,0}; LegacyLong step=rOne;
         if (!(mm_array_add(&track.Route()->rows, &first, nullptr) == MM_STORAGE_OK) || !(mm_array_add(&track.Route()->rows, &last, nullptr) == MM_STORAGE_OK) || !mm_actor_events_insert(track.Events(), 0,sizeof(add),&add,&event)) return false;
         event.aet=aetActn; if (!mm_actor_events_insert(track.Events(), 1,sizeof(action),&action,&event)) return false;
         event.aet=aetStep; if (!mm_actor_events_insert(track.Events(), 2,sizeof(step),&step,&event)) return false;
-        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
-        _state.frame=1; _state.nextEvent=3; _state.firstEventInFrame=0; _state.addEvent=0; _state.actionEvent=1;
-        _state.celCount=4; _state.actionFlags=factnRotateY; _nfrmFirst=1; _nfrmLast=10; _fLifeDirty=false;
+        _track.Swap(track); _motionSounds.Clear(); _runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_runtime.state, _track);
+        _runtime.state.frame=1; _runtime.state.nextEvent=3; _runtime.state.firstEventInFrame=0; _runtime.state.addEvent=0; _runtime.state.actionEvent=1;
+        _runtime.state.celCount=4; _runtime.state.actionFlags=factnRotateY; _runtime.first=1; _runtime.last=10; _runtime.life_dirty=false;
         return true;
     }
     static bool RecordClipboardActor(PActor actor,FILE *snapshot)
     {
         using namespace ActorEvent;
-        auto trackMember=&TrackTestActor::_track; auto stateMember=&TrackTestActor::_state;
-        auto firstMember=&TrackTestActor::_nfrmFirst; auto lastMember=&TrackTestActor::_nfrmLast;
-        auto templateMember=&TrackTestActor::_ptmpl; auto tagMember=&TrackTestActor::_tagTmpl;
-        auto &track=actor->*trackMember; const auto &state=actor->*stateMember;
-        const auto &tag=actor->*tagMember;
+        auto trackMember=&TrackTestActor::_track;
+        auto runtimeMember=&TrackTestActor::_runtime;
+        auto &track=actor->*trackMember; const auto &runtime=actor->*runtimeMember; const auto &state=runtime.state;
+        const auto &tag=runtime.template_tag;
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={actor->Arid(),actor->*firstMember,actor->*lastMember,state.frame,state.nextEvent,state.firstEventInFrame,
+        LegacyLong values[]={actor->Arid(),runtime.first,runtime.last,state.frame,state.nextEvent,state.firstEventInFrame,
             state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,state.location.dnfrm,state.step,state.frozen,
-            mm_actor_path_count(track.Route()),mm_actor_events_count(track.Events()),(actor->*templateMember)->CactRef(),tag.pcrf->CactRef()};
+            mm_actor_path_count(track.Route()),mm_actor_events_count(track.Events()),static_cast<PTemplate>(runtime.template_object)->CactRef(),static_cast<PChunkyResourceFile>(tag.cache)->CactRef()};
         bool ok=record(values,sizeof(values)) && record(&state.position,sizeof(state.position)) && record(&state.transform,sizeof(state.transform));
         for (long i=0;ok && i<mm_actor_path_count(track.Route());++i) { RouteDistancePoint point; mm_actor_path_get(track.Route(), i,&point); ok=record(&point,sizeof(point)); }
         for (long i=0;ok && i<mm_actor_events_count(track.Events());++i)
@@ -316,19 +315,19 @@ class TrackTestActor : public Actor
     bool FTestOwner(int mode,FILE *snapshot)
     {
         using namespace ActorEvent;
-        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl);
+        auto tmpl=static_cast<TrackTestTemplate *>(_Template());
         tmpl->FailAfter(0);
         if (!FGotoFrame(2)) return false;
-        if (mode&2) { _Hide(); ReleasePpo(&_pbody); }
+        if (mode&2) { _Hide(); if (_Body()) { _Body()->Release(); _runtime.body = nullptr; } }
         Base soundEvent={aetSnd,100,{2,rZero,5}};
-        Sound sound={}; sound.tag=_tagTmpl; sound.tag.ctg=kctgMsnd;
+        Sound sound={}; TagFromCore(&sound.tag, _runtime.template_tag); sound.tag.ctg=kctgMsnd;
         if (!mm_actor_events_insert(_track.Events(), mm_actor_events_count(_track.Events()),sizeof(sound),&sound,&soundEvent)) return false;
         TagManager::DupTag(&sound.tag);
-        _fLifeDirty=(mode&8)!=0; _fPrerendered=(mode&32)!=0; _fTimeFrozen=true;
-        _fModeRecord=(mode&4)!=0; _fRejoin=(mode&16)!=0; _fPathInserted=true;
-        _rtelInsert={1,123,4}; _tsInsert=0xfffffff0UL; _dnfrmGap=-17; _dxyzRaw={11,-22,33};
-        _dxyzFullRte={BR_SCALAR(1),BR_SCALAR(2),BR_SCALAR(3)}; _nfrmLast=88; _arid=100+mode;
-        _tagSnd.sid=(mode&16)?ksidInvalid:7; _tagSnd.ctg=kctgMsnd; _tagSnd.cno=17;
+        _runtime.life_dirty=(mode&8)!=0; _runtime.prerendered=(mode&32)!=0; _runtime.time_frozen=true;
+        _runtime.recording.recording=(mode&4)!=0; _runtime.recording.rejoining=(mode&16)!=0; _runtime.recording.inserted=true;
+        _runtime.recording.insertion={1,123,4}; _runtime.recording.timestamp=0xfffffff0UL; _runtime.recording.gap=-17; _runtime.recording.raw={11,-22,33};
+        _runtime.origin={BR_SCALAR(1),BR_SCALAR(2),BR_SCALAR(3)}; _runtime.last=88; _runtime.actor=100+mode;
+        _runtime.sound_tag.sid=(mode&16)?ksidInvalid:7; _runtime.sound_tag.type=kctgMsnd; _runtime.sound_tag.number=17;
         const bool reset=(mode&1) && !(mode&2);
         PActor copy=nullptr;
 #ifdef DEBUG
@@ -341,8 +340,8 @@ class TrackTestActor : public Actor
 #ifdef DEBUG
         vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
 #endif
-        bool independent=copy && copy->Pbody()==(reset?nullptr:_pbody) && copy->Pscen()==(reset?nullptr:_pscen);
-        long templateRefs=_ptmpl->CactRef(),bodyRefs=_pbody?_pbody->CactRef():0,cacheRefs=_tagTmpl.pcrf->CactRef();
+        bool independent=copy && copy->Pbody()==(reset?nullptr:_Body()) && copy->Pscen()==(reset?nullptr:_Scene());
+        long templateRefs=_Template()->CactRef(),bodyRefs=_Body()?_Body()->CactRef():0,cacheRefs=static_cast<PChunkyResourceFile>(_runtime.template_tag.cache)->CactRef();
         if (copy)
         {
             if (reset)
@@ -355,14 +354,14 @@ class TrackTestActor : public Actor
         }
         tmpl->FailAfter(0); vpers->Clear(); ReleasePpo(&copy);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,ok,independent,templateRefs,bodyRefs,cacheRefs,_ptmpl->CactRef(),_pbody?_pbody->CactRef():0,
-            _tagTmpl.pcrf->CactRef(),_state.frame,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.onStage,_state.frozen,_state.action,_state.cel,
-            _nfrmFirst,_nfrmLast,_arid,_fLifeDirty,_fPrerendered,_fTimeFrozen,_fModeRecord,_fRejoin,_fPathInserted,
-            _rtelInsert.irpt,_rtelInsert.dwrOffset,_rtelInsert.dnfrm,static_cast<LegacyLong>(_tsInsert),_dnfrmGap,
-            _tagSnd.sid,static_cast<LegacyLong>(_tagSnd.ctg),static_cast<LegacyLong>(_tagSnd.cno),mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
-        bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) &&
-            record(&_state.position,sizeof(_state.position)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte)) && record(&_dxyzRaw,sizeof(_dxyzRaw));
+        LegacyLong values[]={mode,ok,independent,templateRefs,bodyRefs,cacheRefs,_Template()->CactRef(),_Body()?_Body()->CactRef():0,
+            static_cast<PChunkyResourceFile>(_runtime.template_tag.cache)->CactRef(),_runtime.state.frame,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,
+            _runtime.state.location.irpt,_runtime.state.location.dwrOffset,_runtime.state.location.dnfrm,_runtime.state.onStage,_runtime.state.frozen,_runtime.state.action,_runtime.state.cel,
+            _runtime.first,_runtime.last,_runtime.actor,_runtime.life_dirty,_runtime.prerendered,_runtime.time_frozen,_runtime.recording.recording,_runtime.recording.rejoining,_runtime.recording.inserted,
+            _runtime.recording.insertion.irpt,_runtime.recording.insertion.dwrOffset,_runtime.recording.insertion.dnfrm,static_cast<LegacyLong>(_runtime.recording.timestamp),_runtime.recording.gap,
+            _runtime.sound_tag.sid,static_cast<LegacyLong>(_runtime.sound_tag.type),static_cast<LegacyLong>(_runtime.sound_tag.number),mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
+        bool saved=record(values,sizeof(values)) && record(&_runtime.state.transform,sizeof(_runtime.state.transform)) &&
+            record(&_runtime.state.position,sizeof(_runtime.state.position)) && record(&_runtime.origin,sizeof(_runtime.origin)) && record(&_runtime.recording.raw,sizeof(_runtime.recording.raw));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
@@ -382,8 +381,8 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         if (textTemplate)
         {
-            textTemplate->AddRef(); ReleasePpo(&_ptmpl); _ptmpl=textTemplate;
-            TagManager::CloseTag(&_tagTmpl); _tagTmpl={ksidUseCrf,source,kctgTmpl,templateNumber}; TagManager::DupTag(&_tagTmpl);
+            textTemplate->AddRef(); if (_Template()) { _Template()->Release(); _runtime.template_object = nullptr; } _runtime.template_object = textTemplate;
+            mm_tag_close(&_runtime.template_tag, &ActorTrack::TagServices()); _runtime.template_tag={ksidUseCrf,source,kctgTmpl,templateNumber}; mm_tag_dup(&_runtime.template_tag, &ActorTrack::TagServices());
         }
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint point={{BR_SCALAR(7),BR_SCALAR(2),-BR_SCALAR(3)},rZero};
@@ -398,20 +397,20 @@ class TrackTestActor : public Actor
             if (!mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(sound),&sound,&event))
             { TagManager::CloseTag(&sound.tag); return false; }
         }
-        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState();
-        _state.frame=3; _state.nextEvent=3; _state.firstEventInFrame=2; _state.actionEvent=1; _state.addEvent=0;
-        _state.subrouteTranslation={BR_SCALAR(8),BR_SCALAR(9),BR_SCALAR(10)};
-        _state.routeTranslation={BR_SCALAR(20),BR_SCALAR(21),BR_SCALAR(22)};
-        _dxyzFullRte={BR_SCALAR(30),BR_SCALAR(31),BR_SCALAR(32)}; _nfrmFirst=1; _nfrmLast=20; _fLifeDirty=(mode&4)!=0;
+        _track.Swap(track); _motionSounds.Clear(); _runtime.state=ActorFrameState();
+        _runtime.state.frame=3; _runtime.state.nextEvent=3; _runtime.state.firstEventInFrame=2; _runtime.state.actionEvent=1; _runtime.state.addEvent=0;
+        _runtime.state.subrouteTranslation={BR_SCALAR(8),BR_SCALAR(9),BR_SCALAR(10)};
+        _runtime.state.routeTranslation={BR_SCALAR(20),BR_SCALAR(21),BR_SCALAR(22)};
+        _runtime.origin={BR_SCALAR(30),BR_SCALAR(31),BR_SCALAR(32)}; _runtime.first=1; _runtime.last=20; _runtime.life_dirty=(mode&4)!=0;
         if (!scene->TrackActor(this,3)) return false;
         const long frame=(mode%3)==0?1:(mode%3)==1?10:-3;
         bool pasted=FPaste(frame,scene); vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,pasted,_nfrmFirst,_nfrmLast,_fLifeDirty,_state.frame,_state.nextEvent,
-            _state.firstEventInFrame,_state.actionEvent,_state.addEvent,mm_actor_events_count(_track.Events()),
-            _tagTmpl.sid,static_cast<LegacyLong>(_tagTmpl.cno),_tagTmpl.pcrf==target,_ptmpl->FIsTdt(),source->CactRef(),target->CactRef()};
-        bool ok=record(values,sizeof(values)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte)) &&
-            record(&_state.routeTranslation,sizeof(_state.routeTranslation)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation));
+        LegacyLong values[]={mode,pasted,_runtime.first,_runtime.last,_runtime.life_dirty,_runtime.state.frame,_runtime.state.nextEvent,
+            _runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,mm_actor_events_count(_track.Events()),
+            _runtime.template_tag.sid,static_cast<LegacyLong>(_runtime.template_tag.number),_runtime.template_tag.cache==target,_Template()->FIsTdt(),source->CactRef(),target->CactRef()};
+        bool ok=record(values,sizeof(values)) && record(&_runtime.origin,sizeof(_runtime.origin)) &&
+            record(&_runtime.state.routeTranslation,sizeof(_runtime.state.routeTranslation)) && record(&_runtime.state.subrouteTranslation,sizeof(_runtime.state.subrouteTranslation));
         for (long i=0;ok && i<mm_actor_events_count(_track.Events());++i)
         {
             Base header; mm_actor_events_get_fixed(_track.Events(), i,&header); LegacyLong bytes=mm_actor_events_size(_track.Events(), i);
@@ -462,18 +461,18 @@ class TrackTestActor : public Actor
             append(aetCost,3,current) && append(aetSnd,3,current<2?current+1:current) && append(aetStep,4,2);
         if (later) ok=ok && append(aetAdd,8,3) && append(aetActn,8,3) && append(aetCost,8,3) && append(aetSnd,9,4) && append(aetStep,10,4);
         if (!ok) return false;
-        _track.Swap(track); clipboard->_track.Swap(clip); _motionSounds.Clear(); _state=ActorFrameState();
-        _state.frame=3; _state.onStage=true; _state.celCount=4; _state.actionFlags=factnRotateY;
-        _state.addEvent=0; _state.actionEvent=1; _state.nextEvent=_state.firstEventInFrame=4;
-        _state.location={current,(current<2 && (mode&1))?BR_SCALAR(2):rZero,(mode&2)?2:0};
-        _GetXyzFromRtel(&_state.location,&_state.position); _nfrmFirst=1; _nfrmLast=10; _fLifeDirty=(mode&128)!=0;
+        _track.Swap(track); clipboard->_track.Swap(clip); _motionSounds.Clear(); _runtime.state=ActorFrameState();
+        _runtime.state.frame=3; _runtime.state.onStage=true; _runtime.state.celCount=4; _runtime.state.actionFlags=factnRotateY;
+        _runtime.state.addEvent=0; _runtime.state.actionEvent=1; _runtime.state.nextEvent=_runtime.state.firstEventInFrame=4;
+        _runtime.state.location={current,(current<2 && (mode&1))?BR_SCALAR(2):rZero,(mode&2)?2:0};
+        _GetXyzFromRtel(&_runtime.state.location,&_runtime.state.position); _runtime.first=1; _runtime.last=10; _runtime.life_dirty=(mode&128)!=0;
         if (!scene->TrackActor(this,3)) return false;
         bool changed=FPasteRte(clipboard); vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,changed,_state.frame,_state.nextEvent,_state.firstEventInFrame,_state.addEvent,_state.actionEvent,
-            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.step,_state.frozen,
-            _nfrmFirst,_nfrmLast,_fLifeDirty,resource->CactRef(),mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events()),mm_actor_path_count(clipboard->_track.Route())};
-        bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) && record(&_state.transform,sizeof(_state.transform));
+        LegacyLong values[]={mode,changed,_runtime.state.frame,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.addEvent,_runtime.state.actionEvent,
+            _runtime.state.location.irpt,_runtime.state.location.dwrOffset,_runtime.state.location.dnfrm,_runtime.state.step,_runtime.state.frozen,
+            _runtime.first,_runtime.last,_runtime.life_dirty,resource->CactRef(),mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events()),mm_actor_path_count(clipboard->_track.Route())};
+        bool saved=record(values,sizeof(values)) && record(&_runtime.state.position,sizeof(_runtime.state.position)) && record(&_runtime.state.transform,sizeof(_runtime.state.transform));
         for (int source=0;saved && source<2;++source)
         {
             auto route=source?clipboard->_track.Route():_track.Route();
@@ -497,8 +496,8 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadSubrouteFixture));
         if (!tmpl) return false;
-        ReleasePpo(&_ptmpl); _ptmpl=tmpl; TagManager::CloseTag(&_tagTmpl);
-        _tagTmpl={ksidUseCrf,resource,kctgTmpl,templateNumber}; TagManager::DupTag(&_tagTmpl);
+        if (_Template()) { _Template()->Release(); _runtime.template_object = nullptr; } _runtime.template_object = tmpl; mm_tag_close(&_runtime.template_tag, &ActorTrack::TagServices());
+        _runtime.template_tag={ksidUseCrf,resource,kctgTmpl,templateNumber}; mm_tag_dup(&_runtime.template_tag, &ActorTrack::TagServices());
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<5;++i)
         {
@@ -535,12 +534,12 @@ class TrackTestActor : public Actor
             append(aetActn,4,1) && append(aetRem,4,1) && append(aetAdd,8,2) && append(aetActn,8,2) &&
             append(aetSnd,9,3,-1) && append(aetStep,10,4,0) && append(aetFreeze,10,4,1);
         if (!ok) return false;
-        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState();
-        _state.cel=3; _state.celCount=4; _state.action=0; _state.actionFlags=factnRotateY;
-        _state.location={(mode&64)?4:(mode&32)?1:0,(!(mode&96) && (mode&4))?BR_SCALAR(3):rZero,(mode&8)?3:0};
-        _state.addEvent=(mode&64)?18:0; _state.actionEvent=(mode&64)?19:1;
-        _state.nextEvent=(mode&64)?23:16; _state.firstEventInFrame=(mode&64)?21:(mode&16)?13:9;
-        _state.frame=(mode&64)?10:3; _nfrmFirst=1; _nfrmLast=10; _fLifeDirty=false;
+        _track.Swap(track); _motionSounds.Clear(); _runtime.state=ActorFrameState();
+        _runtime.state.cel=3; _runtime.state.celCount=4; _runtime.state.action=0; _runtime.state.actionFlags=factnRotateY;
+        _runtime.state.location={(mode&64)?4:(mode&32)?1:0,(!(mode&96) && (mode&4))?BR_SCALAR(3):rZero,(mode&8)?3:0};
+        _runtime.state.addEvent=(mode&64)?18:0; _runtime.state.actionEvent=(mode&64)?19:1;
+        _runtime.state.nextEvent=(mode&64)?23:16; _runtime.state.firstEventInFrame=(mode&64)?21:(mode&16)?13:9;
+        _runtime.state.frame=(mode&64)?10:3; _runtime.first=1; _runtime.last=10; _runtime.life_dirty=false;
         PActor copy=nullptr;
 #ifdef DEBUG
         if (mode>=128 && mode<256)
@@ -558,16 +557,16 @@ class TrackTestActor : public Actor
         { std::fprintf(stderr,"Copy fixture outcome mismatch mode %d: %d expected %d\n",mode,changed,expected); ReleasePpo(&copy); return false; }
         vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,changed,copy!=nullptr,_ptmpl->CactRef(),resource->CactRef(),_state.frame,_state.cel};
+        LegacyLong values[]={mode,changed,copy!=nullptr,_Template()->CactRef(),resource->CactRef(),_runtime.state.frame,_runtime.state.cel};
         bool saved=record(values,sizeof(values));
-        auto trackMember=&TrackTestActor::_track; auto stateMember=&TrackTestActor::_state;
-        auto firstMember=&TrackTestActor::_nfrmFirst; auto lastMember=&TrackTestActor::_nfrmLast;
+        auto trackMember=&TrackTestActor::_track;
+        auto runtimeMember=&TrackTestActor::_runtime;
         auto dump=[&](PActor actor) {
-            auto &track=actor->*trackMember; auto &state=actor->*stateMember;
+            auto &track=actor->*trackMember; auto &runtime=actor->*runtimeMember; auto &state=runtime.state;
             LegacyLong data[]={mm_actor_path_count(track.Route()),mm_actor_events_count(track.Events()),state.frame,state.nextEvent,
                 state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,
                 state.location.dnfrm,state.position.dxr,state.position.dyr,state.position.dzr,
-                actor->*firstMember,actor->*lastMember,actor->FIsModeRecord(),actor->Pbody()!=nullptr,actor->Pscen()!=nullptr};
+                runtime.first,runtime.last,actor->FIsModeRecord(),actor->Pbody()!=nullptr,actor->Pscen()!=nullptr};
             if (!record(data,sizeof(data))) return false;
             for (long i=0;i<mm_actor_path_count(track.Route());++i)
             { RouteDistancePoint point; mm_actor_path_get(track.Route(), i,&point); if (!record(&point,sizeof(point))) return false; }
@@ -590,7 +589,7 @@ class TrackTestActor : public Actor
     {
         using namespace ActorEvent;
         const int operation=mode/16;
-        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl); tmpl->FailAfter(0);
+        auto tmpl=static_cast<TrackTestTemplate *>(_Template()); tmpl->FailAfter(0);
         long frame=(mode&2)?2:1;
         if (!scene->TrackActor(this,frame) || !FGotoFrame(frame)) return false;
         if (operation==1 && !FScale(BR_SCALAR(1.5))) return false;
@@ -615,11 +614,11 @@ class TrackTestActor : public Actor
         unsigned char aliveByte=0; std::memcpy(&aliveByte,&alive,sizeof(aliveByte));
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,changed,aliveByte,output!=nullptr,output && output->Pbody(),output && output->Pscen(),
-            output?output->CactRef():0,_ptmpl->CactRef(),_pbody?_pbody->CactRef():0,_tagTmpl.pcrf->CactRef(),
-            _state.frame,_state.onStage,_state.action,_state.cel,_state.nextEvent,_state.addEvent,_state.actionEvent,_state.firstEventInFrame,
-            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_nfrmFirst,_nfrmLast,_fLifeDirty,
+            output?output->CactRef():0,_Template()->CactRef(),_Body()?_Body()->CactRef():0,static_cast<PChunkyResourceFile>(_runtime.template_tag.cache)->CactRef(),
+            _runtime.state.frame,_runtime.state.onStage,_runtime.state.action,_runtime.state.cel,_runtime.state.nextEvent,_runtime.state.addEvent,_runtime.state.actionEvent,_runtime.state.firstEventInFrame,
+            _runtime.state.location.irpt,_runtime.state.location.dwrOffset,_runtime.state.location.dnfrm,_runtime.first,_runtime.last,_runtime.life_dirty,
             mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
-        bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) && record(&_state.position,sizeof(_state.position));
+        bool saved=record(values,sizeof(values)) && record(&_runtime.state.transform,sizeof(_runtime.state.transform)) && record(&_runtime.state.position,sizeof(_runtime.state.position));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
@@ -636,8 +635,8 @@ class TrackTestActor : public Actor
     {
         using namespace ActorEvent;
         const int group=mode/128;
-        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl); tmpl->FailAfter(0); tmpl->SetTestText((mode&4)!=0);
-        ReleasePpo(&_pbody); _pbody=_ptmpl->PbodyCreate(); if (!_pbody) return false;
+        auto tmpl=static_cast<TrackTestTemplate *>(_Template()); tmpl->FailAfter(0); tmpl->SetTestText((mode&4)!=0);
+        if (_Body()) { _Body()->Release(); _runtime.body = nullptr; } _runtime.body = _Template()->PbodyCreate(); if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         const int coordinates[]={0,4,10,14,30};
         for (int i=0;i<5;++i)
@@ -662,20 +661,20 @@ class TrackTestActor : public Actor
             !append(aetTweak,20,2,0,0,&tweak,sizeof(tweak)) || !append(aetSize,22,2,2,0,&scale,sizeof(scale)) ||
             !append(aetPull,23,3,0,0,&pull,sizeof(pull)) || !append(aetFreeze,24,3,0,1,&freeze,sizeof(freeze)) ||
             !append(aetAdd,40,4,0,0,&entrance,sizeof(entrance)) || !append(aetActn,40,4,0,0,&action,sizeof(action))) return false;
-        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
-        _state.frame=20; _state.location={2,rZero,0}; _state.position=tweak; _state.onStage=true; _pbody->Show();
-        _state.addEvent=4; _state.actionEvent=5; _state.firstEventInFrame=4; _state.nextEvent=9;
-        _state.celCount=4; _state.actionFlags=(mode&32)?factnRotateX|factnRotateY|factnRotateZ:factnRotateY;
-        std::memcpy(&_state.transform.bmat34Fwd, &forward, sizeof(forward));
-        std::memcpy(&_state.transform.bmat34Cur, &current, sizeof(current));
-        _state.useCurrentRotation=(mode&2)!=0;
-        _state.transform.xaPath=(mode&8)?0:0x1234; _state.transform.yaPath=0x4000; _state.transform.zaPath=(mode&16)?0xFFF0:0;
+        _track.Swap(track); _motionSounds.Clear(); _runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_runtime.state, _track);
+        _runtime.state.frame=20; _runtime.state.location={2,rZero,0}; _runtime.state.position=tweak; _runtime.state.onStage=true; _Body()->Show();
+        _runtime.state.addEvent=4; _runtime.state.actionEvent=5; _runtime.state.firstEventInFrame=4; _runtime.state.nextEvent=9;
+        _runtime.state.celCount=4; _runtime.state.actionFlags=(mode&32)?factnRotateX|factnRotateY|factnRotateZ:factnRotateY;
+        std::memcpy(&_runtime.state.transform.bmat34Fwd, &forward, sizeof(forward));
+        std::memcpy(&_runtime.state.transform.bmat34Cur, &current, sizeof(current));
+        _runtime.state.useCurrentRotation=(mode&2)!=0;
+        _runtime.state.transform.xaPath=(mode&8)?0:0x1234; _runtime.state.transform.yaPath=0x4000; _runtime.state.transform.zaPath=(mode&16)?0xFFF0:0;
         const BRS oldScales[]={rOne,BR_SCALAR(2),krScaleMin,krScaleMax-rEps};
-        _state.transform.rScaleStep=oldScales[(mode/8)%4]; _state.transform.aevpull=pull;
-        _state.routeTranslation={BR_SCALAR(3),rOne,BR_SCALAR(2)}; _dxyzFullRte=_state.routeTranslation;
-        _nfrmFirst=5; _nfrmLast=50; _fLifeDirty=group==8 && (mode&16); _fModeRecord=_fRejoin=false;
-        if (!scene->TrackActor(this,_state.frame)) return false;
-        if (_fLifeDirty && (mode&32)) tmpl->FailAfter(1);
+        _runtime.state.transform.rScaleStep=oldScales[(mode/8)%4]; _runtime.state.transform.aevpull=pull;
+        _runtime.state.routeTranslation={BR_SCALAR(3),rOne,BR_SCALAR(2)}; _runtime.origin=_runtime.state.routeTranslation;
+        _runtime.first=5; _runtime.last=50; _runtime.life_dirty=group==8 && (mode&16); _runtime.recording.recording=_runtime.recording.rejoining=false;
+        if (!scene->TrackActor(this,_runtime.state.frame)) return false;
+        if (_runtime.life_dirty && (mode&32)) tmpl->FailAfter(1);
         const BRA angles[]={0,1,0x1234,0x4000,0x8000,0xFFF0,0x1000,0};
         BRA x=angles[(mode/4)%8],y=angles[(mode/8)%8],z=angles[(mode/16)%8];
         const BRS factors[]={-rOne,0,krScaleMinFactor-1,krScaleMinFactor,krScaleMinFactor+1,rOne,rOneHalf,
@@ -699,13 +698,13 @@ class TrackTestActor : public Actor
         }
         tmpl->FailAfter(0); tmpl->SetTestText(false); vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,ok,moved,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
-            _state.useCurrentRotation,_state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,scene->Nfrm(),
+        LegacyLong values[]={mode,ok,moved,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,
+            _runtime.state.location.irpt,_runtime.state.location.dwrOffset,_runtime.state.location.dnfrm,_runtime.state.frame,_runtime.state.onStage,_runtime.state.frozen,
+            _runtime.state.useCurrentRotation,_runtime.state.action,_runtime.state.cel,_runtime.state.step,_runtime.first,_runtime.last,_runtime.life_dirty,scene->Nfrm(),
             mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
-        bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) &&
-            record(&_state.transform,sizeof(_state.transform)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation)) &&
-            record(&_state.routeTranslation,sizeof(_state.routeTranslation)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte));
+        bool saved=record(values,sizeof(values)) && record(&_runtime.state.position,sizeof(_runtime.state.position)) &&
+            record(&_runtime.state.transform,sizeof(_runtime.state.transform)) && record(&_runtime.state.subrouteTranslation,sizeof(_runtime.state.subrouteTranslation)) &&
+            record(&_runtime.state.routeTranslation,sizeof(_runtime.state.routeTranslation)) && record(&_runtime.origin,sizeof(_runtime.origin));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
@@ -721,9 +720,9 @@ class TrackTestActor : public Actor
     {
         using namespace ActorEvent;
         const int group=mode/128;
-        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl);
+        auto tmpl=static_cast<TrackTestTemplate *>(_Template());
         tmpl->FailAfter(0); tmpl->SetTestText(false);
-        ReleasePpo(&_pbody); _pbody=_ptmpl->PbodyCreate(); if (!_pbody) return false;
+        if (_Body()) { _Body()->Release(); _runtime.body = nullptr; } _runtime.body = _Template()->PbodyCreate(); if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<5;++i)
         {
@@ -750,25 +749,25 @@ class TrackTestActor : public Actor
             Base early; mm_actor_events_get_fixed(track.Events(), 8,&early); early.nfrm=7;
             mm_actor_events_delete(track.Events(), 8); if (!mm_actor_events_insert(track.Events(), 7,0,nullptr,&early)) return false;
         }
-        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
-        _state.frame=3; _state.location={1,rZero,0}; _state.position=tweak;
-        _state.onStage=!(group==2 && (mode&32) && (mode&2)); _state.frozen=(mode&4)!=0;
-        if (_state.onStage) _pbody->Show();
-        _state.action=0; _state.cel=(mode&64)?1:0; _state.celCount=4; _state.actionFlags=factnRotateY;
-        _state.step=(group==2 && (mode&64))?rZero:kdwrNil;
-        _state.addEvent=0; _state.actionEvent=1; _state.firstEventInFrame=3; _state.nextEvent=4;
-        _state.routeTranslation={rZero,rOne,rZero}; _dxyzFullRte={rZero,rOne,rZero};
-        _nfrmFirst=1; _nfrmLast=40; _fLifeDirty=group==0 && (mode&32);
-        _fModeRecord=group==1 ? !(mode&1) : group==2 ? !(mode&2) : false;
-        _fRejoin=!(mode&16); _fPathInserted=!(mode&8); _dnfrmGap=-2;
-        _rtelInsert={0,rZero,0}; _dxyzRaw={3,-5,7}; _tsInsert=(mode&64)?0xffffff00UL:1000;
-        if (group==0 && (mode&2)) _state.location.dwrOffset=BR_SCALAR(2);
+        _track.Swap(track); _motionSounds.Clear(); _runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_runtime.state, _track);
+        _runtime.state.frame=3; _runtime.state.location={1,rZero,0}; _runtime.state.position=tweak;
+        _runtime.state.onStage=!(group==2 && (mode&32) && (mode&2)); _runtime.state.frozen=(mode&4)!=0;
+        if (_runtime.state.onStage) _Body()->Show();
+        _runtime.state.action=0; _runtime.state.cel=(mode&64)?1:0; _runtime.state.celCount=4; _runtime.state.actionFlags=factnRotateY;
+        _runtime.state.step=(group==2 && (mode&64))?rZero:kdwrNil;
+        _runtime.state.addEvent=0; _runtime.state.actionEvent=1; _runtime.state.firstEventInFrame=3; _runtime.state.nextEvent=4;
+        _runtime.state.routeTranslation={rZero,rOne,rZero}; _runtime.origin={rZero,rOne,rZero};
+        _runtime.first=1; _runtime.last=40; _runtime.life_dirty=group==0 && (mode&32);
+        _runtime.recording.recording=group==1 ? !(mode&1) : group==2 ? !(mode&2) : false;
+        _runtime.recording.rejoining=!(mode&16); _runtime.recording.inserted=!(mode&8); _runtime.recording.gap=-2;
+        _runtime.recording.insertion={0,rZero,0}; _runtime.recording.raw={3,-5,7}; _runtime.recording.timestamp=(mode&64)?0xffffff00UL:1000;
+        if (group==0 && (mode&2)) _runtime.state.location.dwrOffset=BR_SCALAR(2);
         if (group==2) { RouteDistancePoint point; mm_actor_path_get(_track.Route(), 1,&point); point.dwr=0; mm_actor_path_put(_track.Route(), 1,&point); }
-        if (!scene->TrackActor(this,_state.frame)) return false;
+        if (!scene->TrackActor(this,_runtime.state.frame)) return false;
         PActor restore=nullptr; if (!FDup(&restore,true)) return false;
         if ((group==0 && (mode&32) && (mode&64)) || (group==1 && (mode&32))) tmpl->FailAfter((mode&64)?2:1);
         bool frame=true,route=true,ok=true;
-        const ulong now=_tsInsert+((mode&16)?750:749);
+        const ulong now=_runtime.recording.timestamp+((mode&16)?750:749);
         const ulong flags=((mode&2)?fmafFreeze:0)|((mode&4)?fmafGround:0);
         BRS dx=(mode&2)?rEps:BR_SCALAR(6),dy=(mode&8)?-BR_SCALAR(9):rZero;
         std::fprintf(stderr,"[record fixture] mode=%d\n",mode);
@@ -784,13 +783,13 @@ class TrackTestActor : public Actor
         }
         tmpl->FailAfter(0); vpers->Clear(); ReleasePpo(&restore);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,ok,frame,route,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
-            _state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,_fRejoin,_fPathInserted,_dnfrmGap,
-            _rtelInsert.irpt,_rtelInsert.dwrOffset,_rtelInsert.dnfrm,static_cast<LegacyLong>(_tsInsert),scene->Nfrm(),
+        LegacyLong values[]={mode,ok,frame,route,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,
+            _runtime.state.location.irpt,_runtime.state.location.dwrOffset,_runtime.state.location.dnfrm,_runtime.state.frame,_runtime.state.onStage,_runtime.state.frozen,
+            _runtime.state.action,_runtime.state.cel,_runtime.state.step,_runtime.first,_runtime.last,_runtime.life_dirty,_runtime.recording.recording,_runtime.recording.rejoining,_runtime.recording.inserted,_runtime.recording.gap,
+            _runtime.recording.insertion.irpt,_runtime.recording.insertion.dwrOffset,_runtime.recording.insertion.dnfrm,static_cast<LegacyLong>(_runtime.recording.timestamp),scene->Nfrm(),
             mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
-        bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) &&
-            record(&_state.transform,sizeof(_state.transform)) && record(&_dxyzRaw,sizeof(_dxyzRaw));
+        bool saved=record(values,sizeof(values)) && record(&_runtime.state.position,sizeof(_runtime.state.position)) &&
+            record(&_runtime.state.transform,sizeof(_runtime.state.transform)) && record(&_runtime.recording.raw,sizeof(_runtime.recording.raw));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
@@ -807,10 +806,10 @@ class TrackTestActor : public Actor
     {
         using namespace ActorEvent;
         const int kind=mode/32;
-        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl);
+        auto tmpl=static_cast<TrackTestTemplate *>(_Template());
         tmpl->FailAfter(0); tmpl->SetTestText((mode&1)!=0);
-        ReleasePpo(&_pbody); _pbody=_ptmpl->PbodyCreate();
-        if (!_pbody) return false;
+        if (_Body()) { _Body()->Release(); _runtime.body = nullptr; } _runtime.body = _Template()->PbodyCreate();
+        if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         auto append=[&](long type,long frame,int node,const void *payload,long bytes) {
             Base event={static_cast<int32_t>(type),static_cast<int32_t>(frame),{node,rZero,0}};
@@ -831,31 +830,31 @@ class TrackTestActor : public Actor
             if (!mm_actor_path_insert(track.Route(), node,&p) || !append(aetAdd,10,node,&addition,sizeof(addition)) ||
                 !append(aetActn,10,node,&action,sizeof(action)) || !append(aetStep,10,node,&step,sizeof(step))) return false;
         }
-        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
-        _state.action=0; _state.celCount=4; _state.actionFlags=factnRotateY;
-        _state.frame=kind==0?3:kind==1?1:kind==2?7:kind==6?1:kind==7?10:3;
-        _state.onStage=kind==3 || kind>=5;
-        if (_state.onStage) _pbody->Show();
-        _state.addEvent=kind<=1?-1:kind==7?((mode&16)?5:4):0;
-        _state.nextEvent=kind<=1?0:kind==7?mm_actor_events_count(_track.Events()):4;
-        _state.firstEventInFrame=kind==7?_state.addEvent:0;
-        _state.actionEvent=kind<=1?-1:kind==7?_state.addEvent+1:1;
-        _state.location.irpt=kind==7?1:0;
-        if (kind==3) _state.location.dwrOffset=BR_SCALAR(1);
-        _state.routeTranslation={BR_SCALAR(2),BR_SCALAR(3),BR_SCALAR(4)};
-        _dxyzFullRte={BR_SCALAR(11),BR_SCALAR(12),BR_SCALAR(13)};
-        _nfrmFirst=(mode&2)?4:1; _nfrmLast=(mode&2)?5:20;
-        _fLifeDirty=false; _fModeRecord=(mode&4)!=0; _fRejoin=false;
+        _track.Swap(track); _motionSounds.Clear(); _runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_runtime.state, _track);
+        _runtime.state.action=0; _runtime.state.celCount=4; _runtime.state.actionFlags=factnRotateY;
+        _runtime.state.frame=kind==0?3:kind==1?1:kind==2?7:kind==6?1:kind==7?10:3;
+        _runtime.state.onStage=kind==3 || kind>=5;
+        if (_runtime.state.onStage) _Body()->Show();
+        _runtime.state.addEvent=kind<=1?-1:kind==7?((mode&16)?5:4):0;
+        _runtime.state.nextEvent=kind<=1?0:kind==7?mm_actor_events_count(_track.Events()):4;
+        _runtime.state.firstEventInFrame=kind==7?_runtime.state.addEvent:0;
+        _runtime.state.actionEvent=kind<=1?-1:kind==7?_runtime.state.addEvent+1:1;
+        _runtime.state.location.irpt=kind==7?1:0;
+        if (kind==3) _runtime.state.location.dwrOffset=BR_SCALAR(1);
+        _runtime.state.routeTranslation={BR_SCALAR(2),BR_SCALAR(3),BR_SCALAR(4)};
+        _runtime.origin={BR_SCALAR(11),BR_SCALAR(12),BR_SCALAR(13)};
+        _runtime.first=(mode&2)?4:1; _runtime.last=(mode&2)?5:20;
+        _runtime.life_dirty=false; _runtime.recording.recording=(mode&4)!=0; _runtime.recording.rejoining=false;
         tmpl->FailAfter((mode&8)?((mode&16)?3:1):0);
         bool ok=kind<4?FAddOnStageCore():FRemFromStageCore();
         tmpl->FailAfter(0); tmpl->SetTestText(false); vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
-            _state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,
+        LegacyLong values[]={mode,ok,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,
+            _runtime.state.location.irpt,_runtime.state.location.dwrOffset,_runtime.state.location.dnfrm,_runtime.state.frame,_runtime.state.onStage,_runtime.state.frozen,
+            _runtime.state.action,_runtime.state.cel,_runtime.state.step,_runtime.first,_runtime.last,_runtime.life_dirty,_runtime.recording.recording,
             mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
-        bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) &&
-            record(&_state.position,sizeof(_state.position)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation));
+        bool saved=record(values,sizeof(values)) && record(&_runtime.state.transform,sizeof(_runtime.state.transform)) &&
+            record(&_runtime.state.position,sizeof(_runtime.state.position)) && record(&_runtime.state.subrouteTranslation,sizeof(_runtime.state.subrouteTranslation));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
@@ -875,15 +874,15 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         auto tmpl=static_cast<TrackTestTemplate *>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadSubrouteFixture));
         if (!tmpl) return false;
-        ReleasePpo(&_ptmpl); _ptmpl=tmpl;
+        if (_Template()) { _Template()->Release(); _runtime.template_object = nullptr; } _runtime.template_object = tmpl;
         auto material=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materialNumber,Material_MTRL::FReadMtrl));
         PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         short parent=-1,set=0;
         bool ok=material && parents && sets && parents->FAdd(&parent) && sets->FAdd(&set);
-        ReleasePpo(&_pbody); _pbody=ok ? Body::PbodyNew(parents,sets) : pvNil;
+        if (_Body()) { _Body()->Release(); _runtime.body = nullptr; } _runtime.body = ok ? Body::PbodyNew(parents,sets) : pvNil;
         ReleasePpo(&parents); ReleasePpo(&sets);
-        if (!_pbody) { ReleasePpo(&material); return false; }
-        _pbody->SetPartSetMtrl(0,material); ReleasePpo(&material);
+        if (!_Body()) { ReleasePpo(&material); return false; }
+        _Body()->SetPartSetMtrl(0,material); ReleasePpo(&material);
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<3;++i)
         {
@@ -930,24 +929,24 @@ class TrackTestActor : public Actor
                append(aetAdd,5,1,0,0) && append(aetStep,6,1,0,1);
         else ok=append(aetAdd,1,0,0,0);
         if (!ok) return false;
-        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
-        _state.onStage=true; _state.action=0; _state.cel=2; _state.celCount=4; _state.actionFlags=factnRotateY;
-        _state.frame=backward?3:previous?5:1; _state.location={0,backward?BR_SCALAR(2):rZero,0};
-        _state.nextEvent=backward?6:previous?8:1; _state.firstEventInFrame=backward?3:previous?7:0;
-        _state.actionEvent=backward?1:previous?5:ivNil; _state.addEvent=previous?7:0;
-        if (previous) _state.location.irpt=1;
-        _state.transform.xaPath=0x1234; _state.transform.yaPath=0x5678; _state.transform.zaPath=0x9ABC;
-        _nfrmFirst=1; _nfrmLast=20; _fLifeDirty=false; _fModeRecord=false; _fRejoin=false;
+        _track.Swap(track); _motionSounds.Clear(); _runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_runtime.state, _track);
+        _runtime.state.onStage=true; _runtime.state.action=0; _runtime.state.cel=2; _runtime.state.celCount=4; _runtime.state.actionFlags=factnRotateY;
+        _runtime.state.frame=backward?3:previous?5:1; _runtime.state.location={0,backward?BR_SCALAR(2):rZero,0};
+        _runtime.state.nextEvent=backward?6:previous?8:1; _runtime.state.firstEventInFrame=backward?3:previous?7:0;
+        _runtime.state.actionEvent=backward?1:previous?5:ivNil; _runtime.state.addEvent=previous?7:0;
+        if (previous) _runtime.state.location.irpt=1;
+        _runtime.state.transform.xaPath=0x1234; _runtime.state.transform.yaPath=0x5678; _runtime.state.transform.zaPath=0x9ABC;
+        _runtime.first=1; _runtime.last=20; _runtime.life_dirty=false; _runtime.recording.recording=false; _runtime.recording.rejoining=false;
         tmpl->SetTestText(backward && (mode&128));
         bool alive=true; LegacyLong averaged=-1;
         if (backward)
         {
-            if (mode&1) _state.location.dwrOffset=rZero;
-            if (mode&2) { _state.location={1,rZero,0}; }
-            if (mode&4) { _state.onStage=false; _state.nextEvent=7; }
-            if (mode&8) _fModeRecord=true;
-            if (mode&16) _fLifeDirty=true;
-            if (mode&32) _state.frame=1;
+            if (mode&1) _runtime.state.location.dwrOffset=rZero;
+            if (mode&2) { _runtime.state.location={1,rZero,0}; }
+            if (mode&4) { _runtime.state.onStage=false; _runtime.state.nextEvent=7; }
+            if (mode&8) _runtime.recording.recording=true;
+            if (mode&16) _runtime.life_dirty=true;
+            if (mode&32) _runtime.state.frame=1;
             tmpl->FailAfter((mode&64)?1:0);
             DeleteBackCore(&alive);
         }
@@ -971,11 +970,11 @@ class TrackTestActor : public Actor
         }
         tmpl->FailAfter(0); tmpl->SetTestText(false); vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,ok,alive,averaged,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
-            _state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,_state.transform.xaPath,_state.transform.yaPath,_state.transform.zaPath,
+        LegacyLong values[]={mode,ok,alive,averaged,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,
+            _runtime.state.location.irpt,_runtime.state.location.dwrOffset,_runtime.state.location.dnfrm,_runtime.state.frame,_runtime.state.onStage,_runtime.state.frozen,
+            _runtime.state.cel,_runtime.state.step,_runtime.first,_runtime.last,_runtime.life_dirty,_runtime.recording.recording,_runtime.state.transform.xaPath,_runtime.state.transform.yaPath,_runtime.state.transform.zaPath,
             mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
-        bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform));
+        bool saved=record(values,sizeof(values)) && record(&_runtime.state.transform,sizeof(_runtime.state.transform));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
         unsigned char payload[100];
@@ -989,7 +988,7 @@ class TrackTestActor : public Actor
             { Sound s; mm_actor_events_get_payload(_track.Events(), i,&s); LegacyLong fields[]={s.celn,s.sty,s.vlm,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
             else { if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_track.Events(), i,payload); saved=saved && record(payload,bytes); }
         }
-        _pbody->Hide(); ReleasePpo(&_pbody); _track.Clear();
+        _Body()->Hide(); if (_Body()) { _Body()->Release(); _runtime.body = nullptr; } _track.Clear();
         return saved;
     }
     bool FTestRouteEdit(int mode,FILE *snapshot)
@@ -1019,10 +1018,10 @@ class TrackTestActor : public Actor
             !append(aetStep,10,4,0,0) || !append(aetRem,11,4,0,1) || !append(aetAdd,15,5,0,0) ||
             !append(aetFreeze,15,5,0,0)) return false;
         _track.Swap(track); _motionSounds.Clear();
-        _state=ActorFrameState(); _state.RewindRoute(_track);
-        _state.frame=3; _state.location={0,BR_SCALAR(2),0}; _state.onStage=true; _state.celCount=4;
-        _state.nextEvent=3; _state.firstEventInFrame=2; _state.actionEvent=1; _state.addEvent=0;
-        _nfrmFirst=1; _nfrmLast=15; _fLifeDirty=false; _fModeRecord=true;
+        _runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_runtime.state, _track);
+        _runtime.state.frame=3; _runtime.state.location={0,BR_SCALAR(2),0}; _runtime.state.onStage=true; _runtime.state.celCount=4;
+        _runtime.state.nextEvent=3; _runtime.state.firstEventInFrame=2; _runtime.state.actionEvent=1; _runtime.state.addEvent=0;
+        _runtime.first=1; _runtime.last=15; _runtime.life_dirty=false; _runtime.recording.recording=true;
         bool ok=true,alive=true; long found=-99;
         RouteDistancePoint supplied={{BR_SCALAR(99),rZero,rZero},rOne};
         if (mode<128)
@@ -1053,13 +1052,13 @@ class TrackTestActor : public Actor
                 e.rtel.irpt=entrance.rtel.irpt-((mode&4)?1:0); e.rtel.dwrOffset=(mode&4)?rOne:rZero;
                 mm_actor_events_set_fixed(_track.Events(), add-1,&e);
             }
-            _state.location.irpt=(mode&8)?5:0;
+            _runtime.state.location.irpt=(mode&8)?5:0;
             _DelAddFrame(add,limit);
         }
         else if (mode<224)
         {
-            _state.location.dwrOffset=(mode&1)?rZero:BR_SCALAR(2);
-            _state.nextEvent=(mode&2)?3:5;
+            _runtime.state.location.dwrOffset=(mode&1)?rZero:BR_SCALAR(2);
+            _runtime.state.nextEvent=(mode&2)?3:5;
             _TruncateSubRte((mode&4)?3:5);
         }
         else if (mode<288)
@@ -1069,9 +1068,9 @@ class TrackTestActor : public Actor
         }
         else if (mode<416)
         {
-            if (mode&1) { _state.location.dwrOffset=rZero; _state.location.irpt=1; }
-            if (mode&2) _state.onStage=false;
-            if (mode&4) { _state.frame=0; _state.nextEvent=0; _state.firstEventInFrame=0; _state.location={0,rZero,0}; }
+            if (mode&1) { _runtime.state.location.dwrOffset=rZero; _runtime.state.location.irpt=1; }
+            if (mode&2) _runtime.state.onStage=false;
+            if (mode&4) { _runtime.state.frame=0; _runtime.state.nextEvent=0; _runtime.state.firstEventInFrame=0; _runtime.state.location={0,rZero,0}; }
             long start=(mode&8)?6:ivNil;
             if (mode<352) _DeleteFwdCore((mode&16)!=0,&alive,start);
             else DeleteFwdCore((mode&16)!=0,&alive,start);
@@ -1082,9 +1081,9 @@ class TrackTestActor : public Actor
             _FindAevLastSub(first,limit,&found);
         }
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong state[]={mode,ok,alive,found,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
-            _state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,supplied.dwr,mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
+        LegacyLong state[]={mode,ok,alive,found,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,
+            _runtime.state.location.irpt,_runtime.state.location.dwrOffset,_runtime.state.location.dnfrm,_runtime.state.frame,_runtime.state.onStage,_runtime.state.frozen,
+            _runtime.state.step,_runtime.first,_runtime.last,_runtime.life_dirty,_runtime.recording.recording,supplied.dwr,mm_actor_path_count(_track.Route()),mm_actor_events_count(_track.Events())};
         bool saved=record(state,sizeof(state));
         for (long i=0;saved && i<mm_actor_path_count(_track.Route());++i)
         { RouteDistancePoint point; mm_actor_path_get(_track.Route(), i,&point); saved=record(&point,sizeof(point)); }
@@ -1098,7 +1097,7 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadCostumeFixture));
         if (!tmpl) return false;
-        ReleasePpo(&_ptmpl); _ptmpl=tmpl;
+        if (_Template()) { _Template()->Release(); _runtime.template_object = nullptr; } _runtime.template_object = tmpl;
         auto a=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materials[0],Material_MTRL::FReadMtrl));
         auto b=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materials[1],Material_MTRL::FReadMtrl));
         auto ca=static_cast<PCustomMaterial_CMTL>(resource->PbacoFetch(kctgCmtl,customs[0],CustomMaterial_CMTL::FReadCmtl));
@@ -1108,11 +1107,11 @@ class TrackTestActor : public Actor
         short parent=-1,set=0;
         bool ok=parents && sets && parents->FAdd(&parent) && sets->FAdd(&set);
         set=1; ok=ok && parents->FAdd(&parent) && sets->FAdd(&set);
-        ReleasePpo(&_pbody); _pbody=ok ? Body::PbodyNew(parents,sets) : pvNil;
+        if (_Body()) { _Body()->Release(); _runtime.body = nullptr; } _runtime.body = ok ? Body::PbodyNew(parents,sets) : pvNil;
         ReleasePpo(&parents); ReleasePpo(&sets);
-        if (!_pbody) return false;
-        _pbody->SetPartSetMtrl(0,a); _pbody->SetPartSetMtrl(1,a);
-        if (mode&4) _pbody->SetPartSetCmtl(ca);
+        if (!_Body()) return false;
+        _Body()->SetPartSetMtrl(0,a); _Body()->SetPartSetMtrl(1,a);
+        if (mode&4) _Body()->SetPartSetCmtl(ca);
         ActorTrack track; ok=track.FCreate();
         RouteDistancePoint point={{rZero,rZero,rZero},rZero};
         Base event={aetAdd,1,{0,rZero,0}}; Add add={};
@@ -1132,17 +1131,17 @@ class TrackTestActor : public Actor
         event={aetAdd,7,{0,rZero,6}};
         ok=ok && mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(add),&add,&event) && append(oldType,0,0,8);
         if (!ok) return false;
-        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState();
-        _state.frame=2; _state.location={0,rZero,1}; _state.onStage=true;
-        _state.firstEventInFrame=_state.nextEvent=1; _state.actionEvent=-1; _state.addEvent=0;
-        _nfrmFirst=1; _nfrmLast=8;
+        _track.Swap(track); _motionSounds.Clear(); _runtime.state=ActorFrameState();
+        _runtime.state.frame=2; _runtime.state.location={0,rZero,1}; _runtime.state.onStage=true;
+        _runtime.state.firstEventInFrame=_runtime.state.nextEvent=1; _runtime.state.actionEvent=-1; _runtime.state.addEvent=0;
+        _runtime.first=1; _runtime.last=8;
         Costume fresh={}; fresh.ibset=(mode&64)?1:0; fresh.fCmtl=static_cast<tribool>(mode%3);
         fresh.cmid=(mode>=128 && (mode&8))?2:1; fresh.tag={ksidUseCrf,resource,kctgMtrl,materials[1]};
         if (mode>=128) ok=transaction ? FSetCostume(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl) :
             FSetCostumeCore(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl);
         else _PrepCostFill(1,&fresh);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong state[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,_nfrmFirst,_nfrmLast,mm_actor_events_count(_track.Events())};
+        LegacyLong state[]={mode,ok,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,_runtime.first,_runtime.last,mm_actor_events_count(_track.Events())};
         bool saved=record(state,sizeof(state));
         for (long i=0;saved && i<mm_actor_events_count(_track.Events());++i)
         {
@@ -1155,10 +1154,10 @@ class TrackTestActor : public Actor
             }
         }
         bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL custom;
-        _pbody->GetPartSetMaterial(0,&ordinary,&material,&custom);
+        _Body()->GetPartSetMaterial(0,&ordinary,&material,&custom);
         LegacyLong body[]={ordinary,ordinary ? (material==a?0:material==b?1:2) : (custom==ca?0:custom==cb?1:2)};
         saved=saved && record(body,sizeof(body));
-        _track.Clear(); ReleasePpo(&_pbody);
+        _track.Clear(); if (_Body()) { _Body()->Release(); _runtime.body = nullptr; }
         LegacyLong refs[]={a->CactRef(),b->CactRef(),ca->CactRef(),cb->CactRef()};
         saved=saved && record(refs,sizeof(refs));
         ReleasePpo(&a); ReleasePpo(&b); ReleasePpo(&ca); ReleasePpo(&cb);
@@ -1200,17 +1199,17 @@ class TrackTestActor : public Actor
                 !append(aetAdd,0,10) || !append(kind,1,10)) return false;
         }
         _track.Swap(track); _motionSounds.Clear();
-        _state=ActorFrameState(); _state.RewindRoute(_track); _state.frame=3; _state.location={0,BR_SCALAR(2),0};
-        _state.onStage=true; _state.action=0; _state.celCount=4; _state.actionFlags=factnRotateY;
-        _state.actionEvent=1; _state.addEvent=0; _state.firstEventInFrame=2; _state.nextEvent=2;
-        _nfrmFirst=1; _nfrmLast=20; _fLifeDirty=false;
+        _runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_runtime.state, _track); _runtime.state.frame=3; _runtime.state.location={0,BR_SCALAR(2),0};
+        _runtime.state.onStage=true; _runtime.state.action=0; _runtime.state.celCount=4; _runtime.state.actionFlags=factnRotateY;
+        _runtime.state.actionEvent=1; _runtime.state.addEvent=0; _runtime.state.firstEventInFrame=2; _runtime.state.nextEvent=2;
+        _runtime.first=1; _runtime.last=20; _runtime.life_dirty=false;
         bool ok=true;
-        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl);
+        auto tmpl=static_cast<TrackTestTemplate *>(_Template());
         if (actionSet)
         {
             int variant=mode-512;
-            if (variant&1) { _state.action=-1; _state.actionEvent=-1; }
-            if (variant&2) _state.location={0,BR_SCALAR(10),0};
+            if (variant&1) { _runtime.state.action=-1; _runtime.state.actionEvent=-1; }
+            if (variant&2) _runtime.state.location={0,BR_SCALAR(10),0};
             tmpl->FailAfter(variant>=8 ? (variant-8)/2+1 : 0);
             ok=FSetActionCore(0,variant%4,(variant&4)!=0);
             tmpl->FailAfter(0);
@@ -1231,8 +1230,8 @@ class TrackTestActor : public Actor
             _PrepXfrmFill(kind,&value,bytes,2,(bits&1)?1:ivNil,flags);
         }
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong state[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.action,_state.cel,_state.frozen,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,mm_actor_events_count(_track.Events())};
+        LegacyLong state[]={mode,ok,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,
+            _runtime.state.action,_runtime.state.cel,_runtime.state.frozen,_runtime.state.step,_runtime.first,_runtime.last,_runtime.life_dirty,mm_actor_events_count(_track.Events())};
         bool saved=record(state,sizeof(state));
         unsigned char data[100];
         for (long i=0; saved && i<mm_actor_events_count(_track.Events()); ++i)
@@ -1245,7 +1244,7 @@ class TrackTestActor : public Actor
     }
     bool FTestCostumeMergeOwnership(PChunkyResourceFile replacement)
     {
-        auto original=_tagTmpl.pcrf;
+        auto original=static_cast<PChunkyResourceFile>(_runtime.template_tag.cache);
         const long originalRefs=original->CactRef(), replacementRefs=replacement->CactRef();
         ActorTrack track;
         if (!track.FCreate()) return false;
@@ -1263,7 +1262,7 @@ class TrackTestActor : public Actor
             { TagManager::CloseTag(&costume.tag); return false; }
         }
         _track.Swap(track); _motionSounds.Clear();
-        _state.firstEventInFrame=1; _state.nextEvent=2; _state.actionEvent=-1; _state.addEvent=0;
+        _runtime.state.firstEventInFrame=1; _runtime.state.nextEvent=2; _runtime.state.actionEvent=-1; _runtime.state.addEvent=0;
         long result=-1; _MergeAev(1,2,&result);
         if (result!=1 || original->CactRef()!=originalRefs || replacement->CactRef()!=replacementRefs+1)
         {
@@ -1327,12 +1326,12 @@ class TrackTestActor : public Actor
             mm_actor_events_set_payload(created.Events(), 1,&old); mm_actor_events_set_payload(created.Events(), 2,&fresh);
         }
         _track.Swap(created); _motionSounds.Clear();
-        _state=ActorFrameState(); _state.RewindRoute(_track);
-        _state.onStage=true; _state.frame=4; _state.firstEventInFrame=1; _state.nextEvent=mm_actor_events_count(_track.Events())-1;
-        _state.actionEvent=-1; _state.addEvent=0; _state.celCount=4;
-        _state.subrouteTranslation={BR_SCALAR(7),BR_SCALAR(8),BR_SCALAR(9)};
-        _state.routeTranslation={BR_SCALAR(42),BR_SCALAR(43),BR_SCALAR(44)};
-        _arid=mode==33 ? 32768 : 23; _nfrmFirst=1; _nfrmLast=30; _fLifeDirty=false;
+        _runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_runtime.state, _track);
+        _runtime.state.onStage=true; _runtime.state.frame=4; _runtime.state.firstEventInFrame=1; _runtime.state.nextEvent=mm_actor_events_count(_track.Events())-1;
+        _runtime.state.actionEvent=-1; _runtime.state.addEvent=0; _runtime.state.celCount=4;
+        _runtime.state.subrouteTranslation={BR_SCALAR(7),BR_SCALAR(8),BR_SCALAR(9)};
+        _runtime.state.routeTranslation={BR_SCALAR(42),BR_SCALAR(43),BR_SCALAR(44)};
+        _runtime.actor=mode==33 ? 32768 : 23; _runtime.first=1; _runtime.last=30; _runtime.life_dirty=false;
         if (oldKind==ActorEvent::aetSnd)
         {
             MMActorMotionSound match;
@@ -1343,28 +1342,28 @@ class TrackTestActor : public Actor
         if (mode>=38 && mode<=40)
         {
             int32_t freeze=1; ActorEvent::Base event={ActorEvent::aetFreeze,4,{0,rZero,0}};
-            _state.actionEvent=1;
+            _runtime.state.actionEvent=1;
             ok=_FInsertAev(1,sizeof(freeze),mode==39 ? pvNil : &freeze,&event,mode!=40);
             if (ok && mode==39) mm_actor_events_set_payload(_track.Events(), 1,&freeze);
         }
         else if (mode>=41)
         {
-            _RemoveAev(_state.nextEvent,false);
+            _RemoveAev(_runtime.state.nextEvent,false);
             if (mode==41) { RoutePoint move={BR_SCALAR(2),BR_SCALAR(3),BR_SCALAR(4)}; ok=_FAddDoAev(ActorEvent::aetMove,sizeof(move),&move); }
             else
             {
                 int32_t scalar=1;
-                if (mode==43) { _state.location.dwrOffset=BR_SCALAR(20); scalar=0; }
-                if (mode==44) { _nfrmFirst=10; _nfrmLast=-5; }
+                if (mode==43) { _runtime.state.location.dwrOffset=BR_SCALAR(20); scalar=0; }
+                if (mode==44) { _runtime.first=10; _runtime.last=-5; }
                 ok=_FAddDoAev(mode==43 ? ActorEvent::aetStep : ActorEvent::aetFreeze,sizeof(scalar),&scalar);
             }
         }
-        else _MergeAev(mode==36 ? _state.nextEvent : 1,_state.nextEvent,mode==37 ? pvNil : &result);
+        else _MergeAev(mode==36 ? _runtime.state.nextEvent : 1,_runtime.state.nextEvent,mode==37 ? pvNil : &result);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong state[]={mode,ok,result,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
-            _state.subrouteTranslation.dxr,_state.subrouteTranslation.dyr,_state.subrouteTranslation.dzr,
-            _state.routeTranslation.dxr,_state.routeTranslation.dyr,_state.routeTranslation.dzr,_state.frozen,
-            _nfrmFirst,_nfrmLast,mm_actor_events_count(_track.Events()),_motionSounds.IvMac()};
+        LegacyLong state[]={mode,ok,result,_runtime.state.nextEvent,_runtime.state.firstEventInFrame,_runtime.state.actionEvent,_runtime.state.addEvent,
+            _runtime.state.subrouteTranslation.dxr,_runtime.state.subrouteTranslation.dyr,_runtime.state.subrouteTranslation.dzr,
+            _runtime.state.routeTranslation.dxr,_runtime.state.routeTranslation.dyr,_runtime.state.routeTranslation.dzr,_runtime.state.frozen,
+            _runtime.first,_runtime.last,mm_actor_events_count(_track.Events()),_motionSounds.IvMac()};
         bool saved=record(state,sizeof(state));
         for (long i=0; i<mm_actor_events_count(_track.Events()); ++i)
         {
@@ -1427,14 +1426,14 @@ class TrackTestActor : public Actor
             mm_actor_events_get_payload(_track.Events(), i,&record.sound);
             if (!mm_actor_sounds_insert(_motionSounds.Core(),&record.event,&record.sound)) return false;
         }
-        _state.frame=4; _state.action=0; _state.cel=5; _state.celCount=4;
-        _nfrmFirst=1; _nfrmLast=30; _fLifeDirty=false;
-        _state.firstEventInFrame=6; _state.nextEvent=9; _state.actionEvent=1; _state.addEvent=0;
+        _runtime.state.frame=4; _runtime.state.action=0; _runtime.state.cel=5; _runtime.state.celCount=4;
+        _runtime.first=1; _runtime.last=30; _runtime.life_dirty=false;
+        _runtime.state.firstEventInFrame=6; _runtime.state.nextEvent=9; _runtime.state.actionEvent=1; _runtime.state.addEvent=0;
         PDynamicArray tags = pvNil;
         LegacyLong volume=12345;
         bool loop=false, ok=false;
-        if (mode == 9) ((TrackTestTemplate *)_ptmpl)->FailAfter(2);
-        if (mode == 10 || mode == 11 || mode == 12) ((TrackTestTemplate *)_ptmpl)->FailNextFetch();
+        if (mode == 9) ((TrackTestTemplate *)_Template())->FailAfter(2);
+        if (mode == 10 || mode == 11 || mode == 12) ((TrackTestTemplate *)_Template())->FailNextFetch();
         switch (mode)
         {
         case 0: ok=FQuerySnd(2,false,&tags,&volume,&loop); break;
@@ -1445,13 +1444,13 @@ class TrackTestActor : public Actor
         case 5: case 9: ok=FDeleteSndCore(2,true); break;
         case 6: ok=_FRemoveAevMm(0); break;
         case 7: ok=FResolveAllSndTags(0); break;
-        case 8: _state.frame=_pscen->Nfrm(); ok=FSoundInFrm(); break;
+        case 8: _runtime.state.frame=_Scene()->Nfrm(); ok=FSoundInFrm(); break;
         case 13: _RemoveAev(3,false); ok=true; break;
         case 14: _RemoveAev(1,true); ok=true; break;
         }
         auto record = [&](const void *p, size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[] = {mode,ok,volume,loop,_state.frame,_state.action,_state.cel,_state.firstEventInFrame,
-            _state.nextEvent,_state.actionEvent,_state.addEvent,mm_actor_events_count(_track.Events()),_motionSounds.IvMac(),
+        LegacyLong values[] = {mode,ok,volume,loop,_runtime.state.frame,_runtime.state.action,_runtime.state.cel,_runtime.state.firstEventInFrame,
+            _runtime.state.nextEvent,_runtime.state.actionEvent,_runtime.state.addEvent,mm_actor_events_count(_track.Events()),_motionSounds.IvMac(),
             tags ? tags->IvMac() : -1};
         bool saved=record(values,sizeof(values));
         for (long i=0; tags && i<tags->IvMac(); ++i)
@@ -1484,71 +1483,71 @@ class TrackTestActor : public Actor
     }
     bool FInitPlayback(PScene scene, PChunkyResourceFile resource)
     {
-        if (!FInit(scene, resource) || !((TrackTestTemplate *)_ptmpl)->FInitAction() ||
+        if (!FInit(scene, resource) || !((TrackTestTemplate *)_Template())->FInitAction() ||
             !ActorFrameTest::FCreateTrack(_track, false))
             return false;
-        _pbody = _ptmpl->PbodyCreate();
-        if (_pbody == pvNil)
+        _runtime.body =  _Template()->PbodyCreate();
+        if (_Body() == pvNil)
             return false;
         _motionSounds.Clear();
-        _state = ActorFrameState();
-        _state.RewindRoute(_track);
-        _state.celCount = 4;
-        _state.actionFlags = factnRotateY;
-        _nfrmFirst = 1;
-        _nfrmLast = 0; // Entrance lookup must refresh lifetime before final effects.
-        _fLifeDirty = true;
+        _runtime.state = ActorFrameState();
+        ActorFrameTest::Rewind(_runtime.state, _track);
+        _runtime.state.celCount = 4;
+        _runtime.state.actionFlags = factnRotateY;
+        _runtime.first = 1;
+        _runtime.last = 0; // Entrance lookup must refresh lifetime before final effects.
+        _runtime.life_dirty = true;
         return true;
     }
-    ActorFrameState State() const
+    MMActorState State() const
     {
-        return _state;
+        return _runtime.state;
     }
     long LastFrame() const
     {
-        return _nfrmLast;
+        return _runtime.last;
     }
     bool FTestTimeline()
     {
         if (!ActorFrameTest::FCreateMetadataTrack(_track, true))
             return false;
-        ActorFrameState before = _state;
-        _nfrmFirst = -2;
-        _fLifeDirty = true;
-        auto tmpl = (TrackTestTemplate *)_ptmpl;
+        MMActorState before = _runtime.state;
+        _runtime.first = -2;
+        _runtime.life_dirty = true;
+        auto tmpl = (TrackTestTemplate *)_Template();
         tmpl->FailNextFetch();
         long reported = 88;
-        if (_FComputeLifetime(&reported) || reported != 88 || _nfrmLast != -1 || !_fLifeDirty ||
-            !ActorFrameTest::SameState(_state, before))
+        if (_FComputeLifetime(&reported) || reported != 88 || _runtime.last != -1 || !_runtime.life_dirty ||
+            !ActorFrameTest::SameState(_runtime.state, before))
             return false;
-        if (!_FComputeLifetime(&reported) || reported != 0 || _nfrmLast != 0 || _fLifeDirty ||
-            !ActorFrameTest::SameState(_state, before))
+        if (!_FComputeLifetime(&reported) || reported != 0 || _runtime.last != 0 || _runtime.life_dirty ||
+            !ActorFrameTest::SameState(_runtime.state, before))
             return false;
-        _fModeRecord = true;
-        _nfrmLast = 42;
+        _runtime.recording.recording = true;
+        _runtime.last = 42;
         tmpl->FailNextFetch();
-        if (!_FComputeLifetime(&reported) || reported != 42 || !_fLifeDirty)
+        if (!_FComputeLifetime(&reported) || reported != 42 || !_runtime.life_dirty)
             return false;
-        _fModeRecord = false;
+        _runtime.recording.recording = false;
         reported = 88;
         // The failure is still pending: recording did not consult the resolver.
-        if (_FComputeLifetime(&reported) || reported != 88 || !_fLifeDirty)
+        if (_FComputeLifetime(&reported) || reported != 88 || !_runtime.life_dirty)
             return false;
-        return _FComputeLifetime(&reported) && reported == 0 && !_fLifeDirty &&
-               ActorFrameTest::SameState(_state, before);
+        return _FComputeLifetime(&reported) && reported == 0 && !_runtime.life_dirty &&
+               ActorFrameTest::SameState(_runtime.state, before);
     }
     bool FInit(PScene scene, PChunkyResourceFile resource)
     {
         auto tmpl = NewObj TrackTestTemplate();
-        _ptmpl = tmpl;
+        _runtime.template_object =  tmpl;
         if (tmpl == pvNil || !tmpl->FInit() || !_FCreateGroups())
             return false;
-        _tagTmpl.sid = ksidUseCrf;
-        _tagTmpl.ctg = kctgTmpl;
-        _tagTmpl.cno = 1;
-        _tagTmpl.pcrf = resource;
-        TagManager::DupTag(&_tagTmpl);
-        _pscen = scene;
+        _runtime.template_tag.sid = ksidUseCrf;
+        _runtime.template_tag.type = kctgTmpl;
+        _runtime.template_tag.number = 1;
+        _runtime.template_tag.cache = resource;
+        mm_tag_dup(&_runtime.template_tag, &ActorTrack::TagServices());
+        _runtime.scene =  scene;
         RouteDistancePoint point = {{BR_SCALAR(3), rZero, rZero}, rZero};
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetAdd;
@@ -1557,7 +1556,7 @@ class TrackTestActor : public Actor
             return false;
         event.aet = ActorEvent::aetSnd;
         ActorEvent::Sound sound = {};
-        sound.tag = _tagTmpl;
+        TagFromCore(&sound.tag, _runtime.template_tag);
         sound.tag.ctg = kctgMsnd;
         if (!mm_actor_events_insert(_track.Events(), 1, sizeof(sound), &sound, &event))
             return false;
@@ -1566,11 +1565,11 @@ class TrackTestActor : public Actor
         if (!mm_actor_sounds_insert(_motionSounds.Core(), &match.event, &match.sound))
             return false;
         _SetStateRewound();
-        _nfrmFirst = _state.frame = 1;
-        _nfrmLast = 8;
-        _arid = 23;
-        _state.nextEvent = 1;
-        _state.transform.rScaleStep = BR_SCALAR(2);
+        _runtime.first = _runtime.state.frame = 1;
+        _runtime.last = 8;
+        _runtime.actor = 23;
+        _runtime.state.nextEvent = 1;
+        _runtime.state.transform.rScaleStep = BR_SCALAR(2);
         return true;
     }
     bool FTestRestore(PActor snapshot)
@@ -1580,15 +1579,15 @@ class TrackTestActor : public Actor
         RouteDistancePoint point = {{BR_SCALAR(99), rZero, rZero}, rZero};
         mm_actor_path_put(_track.Route(), 0, &point);
         mm_actor_events_delete(_track.Events(), 0); // Add has no owned TAG.
-        _state.frame = 7;
-        _arid = 99;
-        _state.transform.rScaleStep = BR_SCALAR(3);
+        _runtime.state.frame = 7;
+        _runtime.actor = 99;
+        _runtime.state.transform.rScaleStep = BR_SCALAR(3);
         const long refs = CactRef();
         Restore(snapshot);
         mm_actor_path_get(_track.Route(), 0, &point);
         return CactRef() == refs && _track.Events() != changedEvents && _track.Route() != changedRoute &&
-               mm_actor_events_count(_track.Events()) == 2 && point.xyz.dxr == BR_SCALAR(3) && _state.frame == 1 && _arid == 23 &&
-               _state.transform.rScaleStep == BR_SCALAR(2) && _state.nextEvent == 1 && _motionSounds.IvMac() == 1;
+               mm_actor_events_count(_track.Events()) == 2 && point.xyz.dxr == BR_SCALAR(3) && _runtime.state.frame == 1 && _runtime.actor == 23 &&
+               _runtime.state.transform.rScaleStep == BR_SCALAR(2) && _runtime.state.nextEvent == 1 && _motionSounds.IvMac() == 1;
     }
     bool FTestRoute()
     {
@@ -1605,8 +1604,8 @@ class TrackTestActor : public Actor
             return false;
         for (long mode = 0; mode < 3; ++mode)
         {
-            _fModeRecord = mode == 1;
-            _fRejoin = mode == 2;
+            _runtime.recording.recording = mode == 1;
+            _runtime.recording.rejoining = mode == 2;
             RouteLocation location = {0, rZero, 0};
             RoutePoint position;
             bool end = true;
@@ -1619,9 +1618,9 @@ class TrackTestActor : public Actor
     }
     bool FTestValueEvents()
     {
-        _dxyzFullRte = {BR_SCALAR(10), BR_SCALAR(20), BR_SCALAR(30)};
-        _state.subrouteTranslation = {};
-        _state.frame = 17;
+        _runtime.origin = {BR_SCALAR(10), BR_SCALAR(20), BR_SCALAR(30)};
+        _runtime.state.subrouteTranslation = {};
+        _runtime.state.frame = 17;
         auto apply = [&](long type, void *payload, long bytes) {
             ActorEvent::Base event = {static_cast<int32_t>(type), -1, {0, BR_SCALAR(2), 3}};
             long index = mm_actor_events_count(_track.Events());
@@ -1636,33 +1635,33 @@ class TrackTestActor : public Actor
         if (!apply(ActorEvent::aetMove, &delta, sizeof(delta)) || !apply(ActorEvent::aetStep, &step, sizeof(step)) ||
             !apply(ActorEvent::aetFreeze, &frozen, sizeof(frozen)))
             return false;
-        if (_state.routeTranslation.dxr != BR_SCALAR(12) || _state.routeTranslation.dyr != BR_SCALAR(23) ||
-            _state.position.dxr != BR_SCALAR(5) || _state.location.dnfrm != 3 || !_state.frozen)
+        if (_runtime.state.routeTranslation.dxr != BR_SCALAR(12) || _runtime.state.routeTranslation.dyr != BR_SCALAR(23) ||
+            _runtime.state.position.dxr != BR_SCALAR(5) || _runtime.state.location.dnfrm != 3 || !_runtime.state.frozen)
             return false;
         PActor snapshot = pvNil;
         if (!FDup(&snapshot, false))
             return false;
-        _state = ActorFrameState();
+        _runtime.state = ActorFrameState();
         Restore(snapshot);
         ReleasePpo(&snapshot);
-        return _state.frame == 17 && _state.routeTranslation.dzr == BR_SCALAR(34) && _state.frozen &&
-               _state.position.dxr == BR_SCALAR(5) && _state.location.dnfrm == 3;
+        return _runtime.state.frame == 17 && _runtime.state.routeTranslation.dzr == BR_SCALAR(34) && _runtime.state.frozen &&
+               _runtime.state.position.dxr == BR_SCALAR(5) && _runtime.state.location.dnfrm == 3;
     }
     bool FTestPose()
     {
-        _state.InitTransform();
-        _state.useCurrentRotation = false;
-        _state.actionFlags = factnRotateY;
-        _state.addEvent = 0;
-        _state.location = {0, BR_SCALAR(2), 0};
+        mm_actor_state_init_transform(&_runtime.state);
+        _runtime.state.useCurrentRotation = false;
+        _runtime.state.actionFlags = factnRotateY;
+        _runtime.state.addEvent = 0;
+        _runtime.state.location = {0, BR_SCALAR(2), 0};
         RoutePoint position = {BR_SCALAR(5), rZero, rZero};
         BMAT34 matrix;
         _MatrixRotUpdate(&position, &matrix);
         // Route yaw is 90 degrees; the template contributes another 90.
-        if (_state.position.dxr != BR_SCALAR(5) || _state.transform.yaPath != static_cast<BRA>(0x4000) ||
+        if (_runtime.state.position.dxr != BR_SCALAR(5) || _runtime.state.transform.yaPath != static_cast<BRA>(0x4000) ||
             BrsAbs(BrsAdd(matrix.m[0][0], rOne)) > BR_SCALAR(0.002) || BrsAbs(matrix.m[0][2]) > BR_SCALAR(0.002))
             return false;
-        _state.actionFlags = factnRotateX;
+        _runtime.state.actionFlags = factnRotateX;
         RoutePoint direction = {rOne, rOne, rZero};
         BRA x = 123, y = 123, z = 123;
         _ApplyRotFromVec(&direction, pvNil, &x, &y, &z);
@@ -1734,7 +1733,7 @@ static bool TestActorFrameRuntime(PScene scene)
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
     PChunkyResourceFile resource = pvNil;
     TrackTestActor *sequential = pvNil, *seeking = pvNil;
-    ActorFrameState expected[14];
+    MMActorState expected[14];
     bool ok = false;
     if (file == pvNil || (resource = ChunkyResourceFile::PcrfNew(file, 0)) == pvNil)
         goto done;

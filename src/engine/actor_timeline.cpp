@@ -29,7 +29,7 @@ bool ActorStepSource::FStep(LegacyLong action, LegacyLong cel, BRS *step) const
     *step = value;
     return ok;
 }
-bool ActorStepSource::FPlaybackStep(const ActorFrameState &state, BRS *step) const
+bool ActorStepSource::FPlaybackStep(const MMActorState &state, BRS *step) const
 {
     AssertVarMem(step);
     *step = rZero;
@@ -69,7 +69,7 @@ bool ActorTimeline::FIsStalled(const ActorTrack &track, LegacyLong first, RouteL
         *last = output;
     return ok;
 }
-bool ActorTimeline::FStepBack(ActorFrameState &state, const ActorTrack &track, const ActorStepSource &steps,
+bool ActorTimeline::FStepBack(MMActorState &state, const ActorTrack &track, const ActorStepSource &steps,
                               RouteLocation *location, bool update)
 {
     AssertVarMem(location);
@@ -85,7 +85,7 @@ bool ActorTimeline::FStepBack(ActorFrameState &state, const ActorTrack &track, c
         std::memcpy(location, &out, sizeof(out));
     return ok;
 }
-ActorQuickSeekResult ActorTimeline::QuickBackup(ActorFrameState &state, const ActorTrack &track, LegacyLong last,
+ActorQuickSeekResult ActorTimeline::QuickBackup(MMActorState &state, const ActorTrack &track, LegacyLong last,
                                                 LegacyLong target, const ActorStepSource &steps)
 {
     Assert(target < state.frame, "Illegal call to _FBackupToFrm");

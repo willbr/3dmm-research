@@ -19,8 +19,7 @@ typedef struct Fixture
     int fail,created,tracks,sounds,tags,closed,cleared,disposed,published,hides,seeks,views;
     MMI32 seek_frame;
 } Fixture;
-static void read_actor(void *p,void *a,MMActorRuntime *r) { (void)p; *r=((Actor *)a)->runtime; }
-static void write_actor(void *p,void *a,const MMActorRuntime *r) { (void)p; ((Actor *)a)->runtime=*r; }
+static MMActorRuntime *runtime(void *p,void *a) { (void)p; return &((Actor *)a)->runtime; }
 static void *create_actor(void *p)
 {
     Fixture *f=(Fixture *)p; ++f->created;
@@ -86,7 +85,7 @@ static void init(Fixture *f)
 {
     MMActorOwnerServices *s;
     memset(f,0,sizeof(*f)); s=&f->services; s->context=f;
-    s->read=read_actor; s->write=write_actor; s->create=create_actor; s->retain=retain; s->release=release;
+    s->runtime=runtime; s->create=create_actor; s->retain=retain; s->release=release;
     s->clone_track=clone_track; s->clone_sounds=clone_sounds; s->swap_track=swap_track; s->swap_sounds=swap_sounds;
     s->duplicate_tag=duplicate_tag; s->close_tag=close_tag; s->close_track_tags=close_track;
     s->clear_track=clear_track; s->dispose_sounds=dispose_sounds; s->route=route; s->route_services=route_services;

@@ -11,8 +11,7 @@ typedef struct Fixture
     int cache,scene,other_scene,fail,created,fetched,duplicated,tracks,sounds,rewound,flags,bodies,bound,releases;
     int closed,cleared,disposed,diagnostics[3];
 } Fixture;
-static void read_actor(void *p,void *a,MMActorRuntime *r) { (void)p; *r=((Actor *)a)->r; }
-static void write_actor(void *p,void *a,const MMActorRuntime *r) { (void)p; ((Actor *)a)->r=*r; }
+static MMActorRuntime *runtime(void *p,void *a) { (void)p; return &((Actor *)a)->r; }
 static void *create(void *p)
 {
     Fixture *f=(Fixture *)p; ++f->created; if (f->fail==1) return NULL;
@@ -93,7 +92,7 @@ static void init(Fixture *f)
     MMActorOwnerServices *o;
     memset(f,0,sizeof(*f)); f->cache=1; f->template_object.kind=2; f->body.kind=3;
     f->tag.sid=0; f->tag.cache=&f->cache; f->tag.type=17; f->tag.number=23;
-    o=&f->s.owner; o->context=f; o->read=read_actor; o->write=write_actor; o->create=create; o->release=release;
+    o=&f->s.owner; o->context=f; o->runtime=runtime; o->create=create; o->release=release;
     o->duplicate_tag=duplicate_tag; o->close_tag=close_tag; o->close_track_tags=close_track;
     o->clear_track=clear_track; o->dispose_sounds=dispose_sounds; o->route=route;
     o->route_services=route_services; o->motion.route_count=route_count;

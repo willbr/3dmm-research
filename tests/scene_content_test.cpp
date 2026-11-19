@@ -252,11 +252,12 @@ class ContentActor : public Actor
             static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl, number, TrackTestTemplate::FReadSubrouteFixture));
         if (!tmpl)
             return false;
-        ReleasePpo(&_ptmpl);
-        _ptmpl = tmpl;
-        TagManager::CloseTag(&_tagTmpl);
-        _tagTmpl = {ksidUseCrf, resource, kctgTmpl, number};
-        TagManager::DupTag(&_tagTmpl);
+        if (_Template())
+            _Template()->Release();
+        _runtime.template_object = tmpl;
+        mm_tag_close(&_runtime.template_tag, &ActorTrack::TagServices());
+        _runtime.template_tag = {ksidUseCrf, resource, kctgTmpl, number};
+        mm_tag_dup(&_runtime.template_tag, &ActorTrack::TagServices());
         ActorTrack track;
         if (!track.FCreate())
             return false;
@@ -277,18 +278,19 @@ class ContentActor : public Actor
             return false;
         _track.Swap(track);
         _motionSounds.Clear();
-        _state = ActorFrameState();
-        _state.RewindRoute(_track);
-        _state.frame = 1;
-        _state.nextEvent = 3;
-        _state.firstEventInFrame = 0;
-        _state.addEvent = 0;
-        _state.actionEvent = 1;
-        _state.celCount = 4;
-        _state.actionFlags = factnRotateY;
-        _nfrmFirst = 1;
-        _nfrmLast = 10;
-        _fLifeDirty = false;
+        _runtime.state = ActorFrameState();
+        const auto motion = mm_actor_track_motion_services();
+        mm_actor_state_rewind(&_runtime.state, _track.Route(), &motion);
+        _runtime.state.frame = 1;
+        _runtime.state.nextEvent = 3;
+        _runtime.state.firstEventInFrame = 0;
+        _runtime.state.addEvent = 0;
+        _runtime.state.actionEvent = 1;
+        _runtime.state.celCount = 4;
+        _runtime.state.actionFlags = factnRotateY;
+        _runtime.first = 1;
+        _runtime.last = 10;
+        _runtime.life_dirty = false;
         return true;
     }
 };

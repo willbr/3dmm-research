@@ -17,8 +17,6 @@ enum MMActorPasteDiagnostic
 typedef struct MMActorPasteServices
 {
     void *context;
-    void (*read)(void *,MMActorRuntime *);
-    void (*write)(void *,const MMActorRuntime *);
     int (*is_text)(void *,void *template_object);
     int (*ensure_autosave)(void *,void *scene,void **cache);
     void (*duplicate_tag)(void *,const MMTag *);
@@ -57,7 +55,7 @@ typedef struct MMActorPasteServices
  * route-translation publication happen only on success. This is a controller,
  * not a declaration that native resource/movie/template adapters are converted.
  */
-int mm_actor_paste(void *route,void *events,MMI32 frame,void *scene,int migrate_text,
+int mm_actor_paste(MMActorRuntime *,void *route,void *events,MMI32 frame,void *scene,int migrate_text,
     const MMActorMotionServices *,const MMActorPasteServices *);
 #ifdef __cplusplus
 }

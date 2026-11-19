@@ -2669,6 +2669,14 @@ payloads and graph entries. SDL and Marcus matched the retained retail
 respective seek images from the previous build. Evidence is in
 `tmp/c89-actor-track-owner/`.
 
+Studio actors now keep evaluated and recording state, lifetime, origin,
+resource handles and template tags in the C89 runtime record. Creation,
+binding, paste and undo operate on that record directly. The actor edit
+and save/reopen workflow matched the prior build across all 72 saved
+chunk payloads and graph entries. SDL and Marcus matched the retained
+retail 60-frame seek and playback sequences and each port's prior seek
+images. Evidence is in `tmp/c89-actor-runtime/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

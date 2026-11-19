@@ -4,7 +4,13 @@
 #include <cstring>
 namespace ActorFrameTest
 {
-inline bool SameState(const ActorFrameState &a, const ActorFrameState &b)
+inline void Rewind(MMActorState &state, const ActorTrack &track)
+{
+    const auto motion = mm_actor_track_motion_services();
+    mm_actor_state_rewind(&state, track.Route(), &motion);
+}
+
+inline bool SameState(const MMActorState &a, const MMActorState &b)
 {
     return std::memcmp(&a.routeTranslation, &b.routeTranslation, sizeof(RoutePoint)) == 0 &&
            std::memcmp(&a.subrouteTranslation, &b.subrouteTranslation, sizeof(RoutePoint)) == 0 &&

@@ -11,7 +11,7 @@ struct ActorStepSource
     void *context = pvNil;
     bool (*resolve)(void *, LegacyLong action, LegacyLong cel, BRS *step) = pvNil;
     bool FStep(LegacyLong action, LegacyLong cel, BRS *step) const;
-    bool FPlaybackStep(const ActorFrameState &state, BRS *step) const;
+    bool FPlaybackStep(const MMActorState &state, BRS *step) const;
 };
 
 struct ActorQuickSeekResult
@@ -34,11 +34,11 @@ struct ActorTimeline
     static bool FIsStalled(const ActorTrack &track, LegacyLong firstEvent, RouteLocation *location, LegacyLong *lastEvent = pvNil);
     // Rolls back the individual step on resolver failure. A read-only probe
     // restores cel/frame/location; its output must not alias state.location.
-    static bool FStepBack(ActorFrameState &state, const ActorTrack &track, const ActorStepSource &steps,
+    static bool FStepBack(MMActorState &state, const ActorTrack &track, const ActorStepSource &steps,
                           RouteLocation *location, bool updateState);
     // Only valid when no events intervene; failure may leave completed earlier
     // backward steps in state, matching runtime recovery semantics.
-    static ActorQuickSeekResult QuickBackup(ActorFrameState &state, const ActorTrack &track, LegacyLong lastFrame,
+    static ActorQuickSeekResult QuickBackup(MMActorState &state, const ActorTrack &track, LegacyLong lastFrame,
                                             LegacyLong targetFrame, const ActorStepSource &steps);
 };
 #endif

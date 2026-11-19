@@ -114,41 +114,14 @@ class Actor : public Actor_PAR
     MARKMEM
 
   protected:
-    // Components of an actor
-    // Note: In addition to these components, any complete actor must
-    // have either fLifeDirty set or _nfrmLast current.
-    // Note: _tagTmpl cannot be derived from _ptmpl
-    ActorTrack _track;    // Authored route/events and their TAG references
-    Template *_ptmpl;     // Actor body & action list template
-    Body *_pbody;     // Actor's body
-    TAG _tagTmpl;     // Note: The sid cannot be queried at save time
-    TAG _tagSnd;      // Sound (played on entrance)
-    Scene *_pscen;     // Underlying scene
-    RoutePoint _dxyzFullRte; // Origin of the route
-    long _nfrmFirst;  // klwMax -or- First frame : Set	when event created
-    long _arid;       // Unique id assigned to this actor.
+    MMActorRuntime _runtime;
+    ActorTrack _track;
+    ActorSoundList _motionSounds;
 
-    ActorFrameState _state; // Core evaluated values
+    PTemplate _Template() const { return static_cast<PTemplate>(_runtime.template_object); }
+    PBody _Body() const { return static_cast<PBody>(_runtime.body); }
+    PScene _Scene() const { return static_cast<PScene>(_runtime.scene); }
 
-    // Runtime caches and sound state
-    bool _fLifeDirty : 1;    // Set if _nfrmLast requires recomputation
-    bool _fPrerendered : 1;  // Set if actor is prerendered
-    LegacyLong _nfrmLast;          // Latest known frame for this actor.
-    ActorSoundList _motionSounds;             // Current action motion match sounds
-
-    // Path Recording State Information
-    RouteLocation _rtelInsert;        // Joining information
-    ulong _tsInsert;         // Starting time of route recording
-    bool _fModeRecord : 1;   // Record a route mode
-    bool _fRejoin : 1;       // Rerecord is extending a subpath from the end
-    bool _fPathInserted : 1; // More path inserted
-    bool _fTimeFrozen : 1;   // Is the actor frozen wrt time?
-    long _dnfrmGap;          // Frames between subroutes
-    RoutePoint _dxyzRaw;            // Raw mouse movement from previous frame
-
-    //
-    //	Protected functions
-    //
     Actor(void);
     bool _FInit(TAG *ptmplTag);         // Constructor allocation & file I/O
     void _InitXfrmRot(BMAT34 *pbmat34); // Initialize rotation only
@@ -174,12 +147,8 @@ class Actor : public Actor_PAR
     MMActorActionEditServices _ActionEditServices();
     MMActorSubrouteEditServices _SubrouteEditServices();
     MMActorStageEditServices _StageEditServices();
-    MMActorRecording _RecordingState() const;
-    void _PublishRecordingState(const MMActorRecording &);
     MMActorRecordServices _RecordServices();
     MMActorTransformEditServices _TransformEditServices();
-    MMActorRuntime _Runtime() const;
-    void _PublishRuntime(const MMActorRuntime &);
     static MMActorOwnerServices _OwnerServices();
     static MMActorCreateServices _CreateServices();
     struct EditContext;
@@ -232,16 +201,14 @@ class Actor : public Actor_PAR
     bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 
     void _RestoreFromUndo(PActor pactrRestore);
-    void _CopyRuntimeStateFrom(const Actor &source);
 
     bool _FWriteTmpl(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadActor(PChunkyFile pcfl, ChunkNumber cno);
     bool _FOpenTags(PChunkyResourceFile pcrf);
-    void _CloseTags(void);
 
   public:
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
-    const ActorFrameState &EvaluatedFrameState() const { return _state; }
+    const MMActorState &EvaluatedFrameState() const { return _runtime.state; }
 #endif
     ~Actor(void);
     static PActor PactrNew(TAG *ptagTmpl);
@@ -249,17 +216,17 @@ class Actor : public Actor_PAR
     void SetArid(long arid)
     {
         AssertBaseThis(0);
-        _arid = arid;
+        _runtime.actor = arid;
     }
     void SetLifeDirty(void)
     {
         AssertBaseThis(0);
-        _fLifeDirty = fTrue;
+        _runtime.life_dirty = fTrue;
     }
     PScene Pscen(void)
     {
         AssertThis(0);
-        return _pscen;
+        return _Scene();
     }
 
     // ActrSave Routines
@@ -272,124 +239,124 @@ class Actor : public Actor_PAR
     void Unhilite(void)
     {
         AssertBaseThis(0);
-        _pbody->Unhilite();
+        _Body()->Unhilite();
     }
     void Hide(void)
     {
         AssertBaseThis(0);
-        _pbody->Hide();
+        _Body()->Hide();
     }
     void Show(void)
     {
         AssertBaseThis(0);
-        _pbody->Show();
+        _Body()->Show();
     }
     bool FIsInView(void)
     {
         AssertBaseThis(0);
-        return _pbody->FIsInView();
+        return _Body()->FIsInView();
     }
     void GetCenter(LegacyLong *pxp, LegacyLong *pyp)
     {
         AssertBaseThis(0);
-        _pbody->GetCenter(pxp, pyp);
+        _Body()->GetCenter(pxp, pyp);
     }
     void GetRcBounds(RC *prc)
     {
         AssertBaseThis(0);
-        _pbody->GetRcBounds(prc);
+        _Body()->GetRcBounds(prc);
     }
     void SetPrerendered(bool fPrerendered)
     {
         AssertBaseThis(0);
-        _fPrerendered = fPrerendered;
+        _runtime.prerendered = fPrerendered;
     }
     bool FPrerendered(void)
     {
         AssertBaseThis(0);
-        return _fPrerendered;
+        return _runtime.prerendered;
     }
 
     // Actor Information
     long Arid(void)
     {
         AssertBaseThis(0);
-        return (_arid);
+        return (_runtime.actor);
     }
     bool FOnStage(void)
     {
         AssertBaseThis(0);
-        return (_state.onStage);
+        return (_runtime.state.onStage);
     }
     bool FIsMyBody(Body *pbody)
     {
         AssertBaseThis(0);
-        return pbody == _pbody;
+        return pbody == _Body();
     }
     bool FIsMyTmpl(Template *ptmpl)
     {
         AssertBaseThis(0);
-        return _ptmpl == ptmpl;
+        return _Template() == ptmpl;
     }
     bool FIsModeRecord(void)
     {
         AssertBaseThis(0);
-        return FPure(_fModeRecord);
+        return FPure(_runtime.recording.recording);
     }
     bool FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent);
     PTemplate Ptmpl(void)
     {
         AssertBaseThis(0);
-        return _ptmpl;
+        return _Template();
     }
     PBody Pbody(void)
     {
         AssertBaseThis(0);
-        return _pbody;
+        return _Body();
     }
     long AnidCur(void)
     {
         AssertBaseThis(0);
-        return _state.action;
+        return _runtime.state.action;
     }
     long CelnCur(void)
     {
         AssertBaseThis(0);
-        return _state.cel;
+        return _runtime.state.cel;
     }
     bool FFrozen(void)
     {
         AssertBaseThis(0);
-        return _state.frozen;
+        return _runtime.state.frozen;
     }
     bool FGetLifetime(long *pnfrmFirst, long *pnfrmLast); // allows nil ptrs
     bool FPtIn(long xp, long yp, long *pibset);
     void GetTagTmpl(PTAG ptag)
     {
         AssertBaseThis(0);
-        *ptag = _tagTmpl;
+        TagFromCore(ptag, _runtime.template_tag);
     }
     void GetName(PString pstn);
     bool FChangeTagTmpl(PTAG ptagTmplNew);
     bool FTimeFrozen(void)
     {
         AssertBaseThis(0);
-        return _fTimeFrozen;
+        return _runtime.time_frozen;
     }
     void SetTimeFreeze(bool fTimeFrozen)
     {
         AssertBaseThis(0);
-        _fTimeFrozen = fTimeFrozen;
+        _runtime.time_frozen = fTimeFrozen;
     }
     bool FIsPropBrws(void)
     {
         AssertThis(0);
-        return FPure(_ptmpl->FIsProp() || _ptmpl->FIsTdt());
+        return FPure(_Template()->FIsProp() || _Template()->FIsTdt());
     }
     bool FIsTdt(void)
     {
         AssertThis(0);
-        return FPure(_ptmpl->FIsTdt());
+        return FPure(_Template()->FIsTdt());
     }
     bool FMustRender(long nfrmRenderLast);
     void GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr);
@@ -449,7 +416,7 @@ class Actor : public Actor_PAR
     void SetTsInsert(ulong tsCurrent)
     {
         AssertBaseThis(0);
-        _tsInsert = tsCurrent;
+        _runtime.recording.timestamp = tsCurrent;
     }
     bool FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore);
     bool FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfLonger, bool *pfStep,

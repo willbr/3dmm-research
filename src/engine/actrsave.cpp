@@ -44,33 +44,33 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
                   kctgPath == MM_ACTOR_ROUTE_CHUNK && kctgGgae == MM_ACTOR_EVENTS_CHUNK &&
                   kctgMsnd == MM_SOUND_CHUNK, "actor archive constants");
 
-    if (knfrmInvalid != _nfrmFirst)
+    if (knfrmInvalid != _runtime.first)
     {
         long first, last;
         if (!FGetLifetime(&first, &last))
             return fFalse;
     }
 #ifdef DEBUG
-    if (knfrmInvalid == _nfrmFirst)
+    if (knfrmInvalid == _runtime.first)
         Warn("Saving an actor who has no first frame number");
 #endif
 
     MMActorHeader header = {};
     header.order = kboCur;
     header.system = koskCur;
-    std::memcpy(header.translation, &_dxyzFullRte, sizeof(header.translation));
-    header.actor_id = _arid;
-    header.first_frame = _nfrmFirst;
-    header.last_frame = _nfrmLast;
-    header.source_id = _tagTmpl.sid;
-    header.template_type = _tagTmpl.ctg;
-    header.template_number = _tagTmpl.cno;
+    std::memcpy(header.translation, &_runtime.origin, sizeof(header.translation));
+    header.actor_id = _runtime.actor;
+    header.first_frame = _runtime.first;
+    header.last_frame = _runtime.last;
+    header.source_id = _runtime.template_tag.sid;
+    header.template_type = _runtime.template_tag.type;
+    header.template_number = _runtime.template_tag.number;
 
     struct Host
     {
         PChunkyFile file;
         PTemplate tmpl;
-    } host = {pcfl, _ptmpl};
+    } host = {pcfl, _Template()};
     MovieEmbeddedArchive materials = {pcfl, nullptr};
     MMActorStoreServices services = {};
     services.context = &host;
@@ -132,11 +132,15 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
         goto LFail;
 
     // Now that the tags are open, fetch the Template
-    pactr->_ptmpl = (PTemplate)vptagm->PbacoFetch(&pactr->_tagTmpl, Template::FReadTmpl);
-    if (pvNil == pactr->_ptmpl)
+    {
+        TAG tag;
+        pactr->GetTagTmpl(&tag);
+        pactr->_runtime.template_object = static_cast<PTemplate>(vptagm->PbacoFetch(&tag, Template::FReadTmpl));
+    }
+    if (!pactr->_runtime.template_object)
         goto LFail;
 
-    if (knfrmInvalid == pactr->_nfrmLast && knfrmInvalid != pactr->_nfrmFirst)
+    if (knfrmInvalid == pactr->_runtime.last && knfrmInvalid != pactr->_runtime.first)
     {
         long nfrmFirst, nfrmLast;
 
@@ -169,19 +173,19 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
         return fFalse;
 
     Assert(kboCur == actf.bo, "bad ActorChunkOnFile");
-    _dxyzFullRte = actf.dxyzFullRte;
-    _arid = actf.arid;
-    _nfrmFirst = actf.nfrmFirst;
-    _nfrmLast = actf.nfrmLast;
-    TagFromOnFile(&_tagTmpl, actf.tagTmpl);
-    _fLifeDirty = (knfrmInvalid == _nfrmFirst) || (knfrmInvalid == _nfrmLast);
+    _runtime.origin = actf.dxyzFullRte;
+    _runtime.actor = actf.arid;
+    _runtime.first = actf.nfrmFirst;
+    _runtime.last = actf.nfrmLast;
+    _runtime.template_tag = {actf.tagTmpl.sid, nullptr, actf.tagTmpl.ctg, actf.tagTmpl.cno};
+    _runtime.life_dirty = (knfrmInvalid == _runtime.first) || (knfrmInvalid == _runtime.last);
 
-    if (_tagTmpl.sid == ksidUseCrf)
+    if (_runtime.template_tag.sid == ksidUseCrf)
     {
         // Actor is a ThreeDText.  Tag might be wrong if this actor was imported,
         // so look for child Template.
         const auto chunks = pcfl->ReadChunkAccess();
-        if (mm_actor_template_link(&chunks, cno, _tagTmpl.sid, 0, &_tagTmpl.cno) != MM_CHUNK_OK)
+        if (mm_actor_template_link(&chunks, cno, _runtime.template_tag.sid, 0, &_runtime.template_tag.number) != MM_CHUNK_OK)
         {
             Bug("where's the child Template?");
             return fTrue; // hope the tag is correct
@@ -224,16 +228,6 @@ bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
 
-    return TagManager::FOpenTag(&_tagTmpl, pcrf) && _track.FOpenTags(pcrf);
-}
-
-/***************************************************************************
-    Close all tags in this actor's event stream
-***************************************************************************/
-void Actor::_CloseTags(void)
-{
-    AssertBaseThis(0); // because destructor calls this function
-
-    TagManager::CloseTag(&_tagTmpl);
-    _track.CloseTags();
+    Assert(_runtime.template_tag.sid >= 0, "Invalid template sid");
+    return mm_tag_open(&_runtime.template_tag, pcrf, nullptr, &ActorTrack::TagServices()) && _track.FOpenTags(pcrf);
 }

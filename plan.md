@@ -280,10 +280,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   shifting is C89 too. Native callbacks retain BRender primitives, scene/body
   operations, cached origin publication and scrollbar notification. Undo,
   remaining actor/movie/scene integration and final facade removal remain.
-- Actor construction/disposal, duplication, reset, runtime copying and undo
-  restoration now execute in C89. The native actor marshals its fields and
-  supplies resource references, C-backed track/sound operations, scene seeking
-  and view invalidation. Actor undo creation, toggle, redo and snapshot ownership
+- Actor construction/disposal, duplication, reset and undo restoration
+  operate on the live C89 runtime record. The record owns evaluated state,
+  recording state, lifetime, origin, resource handles and template tag
+  references. The native actor supplies resource operations, C-backed
+  track and sound access, scene seeking and view invalidation.
+  Actor undo creation, toggle, redo and snapshot ownership
   now execute in C89 too, including name swaps, replacement/removal, failure
   ordering and sound-queue selection. Scene/body/resource implementations
   and remaining edit/clipboard integration still need conversion. Composite

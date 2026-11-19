@@ -27,12 +27,12 @@ inline MMActorMatrix Matrix(const BMAT34 &native)
     std::memcpy(&out, &native, sizeof(out));
     return out;
 }
-inline const MMActorState &Core(const ActorFrameState &native)
+inline const MMActorState &Core(const MMActorState &native)
 {
     return native;
 }
-inline void Publish(ActorFrameState &native, const MMActorState &value)
+inline void Publish(MMActorState &native, const MMActorState &value)
 {
-    static_cast<MMActorState &>(native) = value;
+    native = value;
 }
 } // namespace EngineActorMotion
