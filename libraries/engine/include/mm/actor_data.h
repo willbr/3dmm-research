@@ -137,22 +137,6 @@ extern "C"
     int mm_actor_read_events_stream(const MMReadStream *, const MMActorEventServices *, void **out);
     void *mm_actor_write_events(void *runtime, const MMActorEventServices *);
 
-    /* Attach a document tag's material to the actor and update the borrowed
-     * tag number on success. Any new root that cannot be adopted is discarded. */
-
-    typedef struct MMActorStoreServices
-    {
-        void *context;
-        MMActorHeaderIO header;
-        MMActorEventServices events;
-        MMMovieEmbeddedArchive materials;
-        int (*write_template)(void *, MMU32 type, MMU32 number);
-        int (*write_track)(void *, MMU32 actor, MMU32 type, void *track);
-    } MMActorStoreServices;
-    /* Write into the new ACTR under a candidate scene. On failure the caller
-     * drops the candidate scene and its children. Runtime events are borrowed. */
-    int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorHeader *, void *route, void *events,
-                       const MMActorStoreServices *);
 #ifdef __cplusplus
 }
 #endif

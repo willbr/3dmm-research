@@ -20,10 +20,6 @@ void ActorTrack::Clear()
 {
     mm_actor_track_dispose(&_storage, &TagServices());
 }
-bool ActorTrack::FOpenTags(PChunkyResourceFile cache)
-{
-    return mm_actor_track_open_tags(&_storage, cache, nullptr, &TagServices()) != 0;
-}
 void ActorTrack::CloseTags()
 {
     mm_actor_track_close_tags(&_storage, &TagServices());

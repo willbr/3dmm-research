@@ -13,6 +13,11 @@ extern "C"
         MMCollectionStorage storage;
         MMArray rows;
     } MMActorPath;
+    typedef struct MMActorPathFactory
+    {
+        const MMStorageAllocator *allocator;
+        int trash_unused;
+    } MMActorPathFactory;
     /* Heap-owned path with 16-byte native-order rows. Borrowed rows are
      * invalidated by resize or disposal. */
     MMActorPath *mm_actor_path_create(const MMStorageAllocator *, MMU32 reserve, int trash_unused);
@@ -26,6 +31,8 @@ extern "C"
     int mm_actor_path_layout(MMU32 count, int system, MMCollectionHeader *);
     MMU32 mm_actor_path_wire_size(const MMActorPath *);
     int mm_actor_path_write(MMActorPath *, int system, const MMStorageWriter *);
+    MMActorRouteReader mm_actor_path_reader(const MMActorPathFactory *);
+    MMActorPath *mm_actor_path_read(const MMReadStream *, const MMActorPathFactory *);
 #ifdef __cplusplus
 }
 #endif

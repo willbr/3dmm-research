@@ -2677,6 +2677,14 @@ chunk payloads and graph entries. SDL and Marcus matched the retained
 retail 60-frame seek and playback sequences and each port's prior seek
 images. Evidence is in `tmp/c89-actor-runtime/`.
 
+Studio now loads and saves its live actors through C89. Marcus preview
+shares the track decoders, and archive reframing reads and edits the same
+C path representation. The Studio edit and save/reopen workflow matched
+the prior build across all 72 chunk payloads and graph entries, including
+12 each of ACTR, PATH and GGAE. SDL and Marcus matched the retained retail
+60-frame seek and playback sequences and their respective prior seek
+images. Evidence is in `tmp/c89-actor-persistence/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

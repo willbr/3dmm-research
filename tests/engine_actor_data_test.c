@@ -1,6 +1,8 @@
 #include "mm/actor_data.h"
+#include "mm/actor_persistence.h"
 #include "mm/collections.h"
 #include "mm/movie_data.h"
+#include "mm/template_create.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -588,6 +590,8 @@ typedef struct ActorStore
 {
     HeaderIO header;
     MMChunkChild link;
+    unsigned char path[28], events[132];
+    MMU32 event_bytes;
     int copies, linked, tracks, discarded, reject;
 } ActorStore;
 
@@ -617,21 +621,28 @@ static MMChunkAccess store_chunks(void *p)
     return access;
 }
 
-static int store_track(void *p, MMU32 actor, MMU32 type, void *track)
+static int write_track_bytes(void *p, MMU32 offset, const void *data, size_t bytes)
+{
+    memcpy((unsigned char *)p + offset, data, bytes);
+    return 1;
+}
+
+static int store_track(void *p, MMU32 actor, MMU32 type, MMU32 bytes, MMStorageWriter *writer)
 {
     ActorStore *store = (ActorStore *)p;
-    Group *wire;
-    MMU32 number;
     CHECK(actor == 7);
+    writer->length = bytes;
+    writer->write_at = write_track_bytes;
     if (!store->tracks++)
-        CHECK(type == MM_ACTOR_ROUTE_CHUNK && track == p);
+    {
+        CHECK(type == MM_ACTOR_ROUTE_CHUNK && bytes == sizeof(store->path));
+        writer->context = store->path;
+    }
     else
     {
-        CHECK(type == MM_ACTOR_EVENTS_CHUNK && store->linked);
-        wire = (Group *)track;
-        CHECK(wire->count == 2 && wire->sizes[0] == 28 && wire->sizes[1] == 28);
-        memcpy(&number, wire->data[0] + 24, sizeof(number));
-        CHECK(number == 99 && !memcmp(wire->data[0], wire->data[1], 28));
+        CHECK(type == MM_ACTOR_EVENTS_CHUNK && store->linked && bytes <= sizeof(store->events));
+        store->event_bytes = bytes;
+        writer->context = store->events;
     }
     return 1;
 }
@@ -665,60 +676,236 @@ static void store_discard(void *p, MMU32 type, MMU32 number)
     ++store->discarded;
 }
 
-static void store_actor(void)
+static void store_actor(ActorStore *store)
 {
-    ActorStore store;
     MMActorStoreServices s = {0};
-    MMActorHeader header = {0};
+    MMActorRuntime runtime;
+    MMActorTrack track;
+    MMActorEventFactory factory = {NULL, 0};
+    MMMemoryStream saved;
+    MMActorEventServices services = mm_actor_events_services(&factory);
     MMActorCostume costume = {0};
-    MMI32 type = MM_ACTOR_COSTUME;
-    Host h;
-    Group *source;
+    MMActorCostume decoded;
+    MMActorEvent event = {0};
+    MMActorRoutePoint point = {0};
+    void *out;
     int reject;
-    initialize(&h);
-    s.context = &store;
-    s.header.context = &store.header;
+    s.context = store;
+    s.header.context = &store->header;
     s.header.put = put_header;
-    s.events = services(&h);
-    s.materials.context = &store;
+    s.system = 0;
+    s.materials.context = store;
     s.materials.chunks = store_chunks;
-    s.write_track = store_track;
+    s.add_track = store_track;
     s.materials.copy_reference = store_copy;
     s.materials.adopt = store_adopt;
     s.materials.discard = store_discard;
-    header.source_id = 2;
-    costume.tag.cache = &store;
+    mm_actor_runtime_init(&runtime);
+    runtime.template_tag.sid = 2;
+    runtime.origin.dxr = -65537;
+    runtime.last = 13;
+    runtime.actor = 47;
+    costume.tag.cache = store;
     costume.tag.type = 0x4d54524cUL;
     costume.tag.number = 77;
-    source = new_group_raw(&h, 0);
-    source->count = 2;
-    source->sizes[0] = source->sizes[1] = sizeof(costume);
-    memcpy(source->fixed[0], &type, sizeof(type));
-    memcpy(source->fixed[1], &type, sizeof(type));
-    memcpy(source->data[0], &costume, sizeof(costume));
-    memcpy(source->data[1], &costume, sizeof(costume));
-    for (reject = 0; reject <= 1; ++reject)
+    track.route = mm_actor_path_create(NULL, 0, 0);
+    track.events = mm_actor_events_create(&factory, 0, 0);
+    CHECK(track.route && track.events && mm_actor_path_insert(track.route, 0, &point));
+    event.aet = MM_ACTOR_COSTUME;
+    CHECK(mm_actor_events_insert(track.events, 0, sizeof(costume), &costume, &event));
+    CHECK(mm_actor_events_insert(track.events, 1, sizeof(costume), &costume, &event));
+    for (reject = 1; reject >= 0; --reject)
     {
-        memset(&store, 0, sizeof(store));
-        store.reject = reject;
-        CHECK(mm_actor_store(7, 8, &header, &store, source, &s) == !reject);
-        CHECK(store.header.writes == 1 && store.tracks == 2 - reject && store.copies == 2 - reject &&
-              store.discarded == reject && store.linked == !reject && h.live == 1);
-        CHECK(!memcmp(source->data[0], &costume, sizeof(costume)) &&
-              !memcmp(source->data[1], &costume, sizeof(costume)));
+        memset(store, 0, sizeof(*store));
+        store->header.length = sizeof(store->header.bytes);
+        store->reject = reject;
+        CHECK(mm_actor_store(7, 8, &runtime, &track, &s) == !reject);
+        CHECK(store->header.writes == 1 && store->tracks == 2 - reject && store->copies == 2 - reject &&
+              store->discarded == reject && store->linked == !reject);
+        CHECK(!memcmp(mm_actor_events_payload(track.events, 0, NULL), &costume, sizeof(costume)) &&
+              !memcmp(mm_actor_events_payload(track.events, 1, NULL), &costume, sizeof(costume)));
     }
-    release_group(source);
-    CHECK(!h.live);
+    CHECK(mm_memory_stream_init(&saved, store->events, store->event_bytes));
+    CHECK(mm_actor_read_events_stream(&saved.stream, &services, &out) == MM_MOVIE_OK);
+    CHECK(mm_actor_events_count((MMActorEventTable *)out) == 2);
+    CHECK(mm_actor_events_get_payload((MMActorEventTable *)out, 0, &decoded));
+    CHECK(decoded.tag.number == 99 && !decoded.tag.cache);
+    CHECK(!memcmp(mm_actor_events_payload((MMActorEventTable *)out, 0, NULL),
+                  mm_actor_events_payload((MMActorEventTable *)out, 1, NULL), sizeof(decoded)));
+    mm_actor_events_release((MMActorEventTable *)out);
+    mm_actor_events_release(track.events);
+    mm_actor_path_release(track.route);
+}
+
+typedef struct ActorLoad
+{
+    ActorStore *saved;
+    MMActorRuntime runtime;
+    MMActorTrack track;
+    int legacy, missing_link, fail, stage, refs, released, diagnostics;
+} ActorLoad;
+
+static int load_entry(void *p, MMU32 row, MMChunkEntry *out)
+{
+    static const MMU32 types[] = {MM_ACTOR_CHUNK, MM_ACTOR_EVENTS_CHUNK, MM_ACTOR_ROUTE_CHUNK};
+    ActorLoad *load = (ActorLoad *)p;
+    memset(out, 0, sizeof(*out));
+    out->type = types[row];
+    out->number = row ? 0 : 7;
+    out->child_count = row ? 0 : 3 - load->missing_link;
+    return 1;
+}
+
+static int load_child(void *p, MMU32 row, MMU32 child, MMChunkChild *out)
+{
+    static const MMU32 types[] = {MM_ACTOR_EVENTS_CHUNK, MM_ACTOR_ROUTE_CHUNK, MM_TMPL};
+    (void)p;
+    CHECK(row == 0);
+    out->type = types[child];
+    out->number = child == 2 ? 99 : 0;
+    out->slot = 0;
+    return 1;
+}
+
+static void load_access(void *p, MMChunkAccess *out)
+{
+    MMChunkAccess access = {NULL, 3, load_entry, load_child};
+    *out = access;
+    out->context = p;
+}
+
+static int load_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    ActorLoad *load = (ActorLoad *)p;
+    MMMemoryStream stream;
+    MMActorHeader header;
+    unsigned char old[MM_ACTOR_OLD_HEADER_BYTES];
+    if (entry->type == MM_ACTOR_CHUNK)
+    {
+        memcpy(&header, load->saved->header.bytes, sizeof(header));
+        header.source_id = 0;
+        header.template_type = MM_TMPL;
+        header.template_number = 17;
+        header.first_frame = 4;
+        header.wire_pointer_pad = 0xbad01234UL;
+        if (load->legacy)
+        {
+            memcpy(old, &header, 24);
+            memcpy(old + 24, &header.source_id, 16);
+            CHECK(mm_memory_stream_init(&stream, old, sizeof(old)));
+        }
+        else
+            CHECK(mm_memory_stream_init(&stream, &header, sizeof(header)));
+    }
+    else if (entry->type == MM_ACTOR_ROUTE_CHUNK)
+        CHECK(mm_memory_stream_init(&stream, load->saved->path, sizeof(load->saved->path)));
+    else
+    {
+        if (load->fail == 1)
+            return MM_MOVIE_IO;
+        CHECK(mm_memory_stream_init(&stream, load->saved->events, load->saved->event_bytes));
+    }
+    return receive(out, &stream.stream);
+}
+
+static void retain_cache(void *p) { ++((ActorLoad *)p)->refs; }
+static void release_cache(void *p) { CHECK(--((ActorLoad *)p)->refs >= 0); }
+static const MMTagServices load_tags = {
+    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
+static void *create_loaded_actor(void *p, MMActorRuntime **runtime, MMActorTrack **track)
+{
+    ActorLoad *load = (ActorLoad *)p;
+    mm_actor_runtime_init(&load->runtime);
+    mm_actor_track_init(&load->track);
+    *runtime = &load->runtime;
+    *track = &load->track;
+    return load;
+}
+
+static void release_loaded_actor(void *p, void *actor)
+{
+    ActorLoad *load = (ActorLoad *)p;
+    CHECK(actor == load && !load->released++);
+    CHECK(load->fail != 1 || (load->track.route && !load->track.events && !load->refs));
+    mm_tag_close(&load->runtime.template_tag, &load_tags);
+    mm_actor_track_dispose(&load->track, &load_tags);
+    CHECK(!load->refs);
+}
+
+static int load_sounds(void *p, void *actor)
+{
+    ActorLoad *load = (ActorLoad *)p;
+    MMTag tag;
+    CHECK(actor == load && !load->stage++ && load->refs == 3);
+    CHECK(mm_actor_track_get_tag(load->track.events, 0, &tag) && tag.cache == p && tag.number == 99);
+    return load->fail != 2;
+}
+
+static void *load_template(void *p, const MMTag *tag)
+{
+    ActorLoad *load = (ActorLoad *)p;
+    CHECK(load->stage++ == 1 && tag->cache == p && tag->number == (load->missing_link ? 17U : 99U));
+    return load->fail == 3 ? NULL : p;
+}
+
+static int load_lifetime(void *p, void *actor)
+{
+    ActorLoad *load = (ActorLoad *)p;
+    CHECK(actor == load && load->stage++ == 2 && load->legacy);
+    CHECK(load->runtime.life_dirty && load->runtime.template_object == p);
+    load->runtime.last = 20;
+    return load->fail != 4;
+}
+
+static void load_diagnostic(void *p, int diagnostic)
+{
+    ActorLoad *load = (ActorLoad *)p;
+    CHECK(!load->released);
+    CHECK(diagnostic == MM_ACTOR_LOAD_FAILED || diagnostic == MM_ACTOR_LOAD_TEMPLATE_LINK);
+    load->diagnostics |= 1 << diagnostic;
+}
+
+static void load_actor(ActorStore *saved)
+{
+    ActorLoad load;
+    MMMovieSessionGraph graph = {NULL, load_access, NULL, load_payload, NULL};
+    MMActorLoadServices s = {NULL, &load_tags, NULL, 0, create_loaded_actor, release_loaded_actor,
+                            load_sounds, load_template, load_lifetime, load_diagnostic};
+    int run;
+    graph.context = s.context = &load;
+    for (run = 0; run < 7; ++run)
+    {
+        memset(&load, 0, sizeof(load));
+        load.saved = saved;
+        load.fail = run <= 4 ? run : 0;
+        load.legacy = run == 4 || run == 5;
+        load.missing_link = run == 6;
+        CHECK(mm_actor_load(&graph, 7, &load, &s) == (load.fail ? NULL : &load));
+        CHECK(load.runtime.actor == 47 && load.runtime.origin.dxr == -65537 && load.runtime.first == 4);
+        if (load.fail)
+            CHECK(load.released && load.stage == load.fail - 1 && load.diagnostics == (1 << MM_ACTOR_LOAD_FAILED));
+        else
+        {
+            CHECK(load.refs == 3 && mm_actor_path_count(load.track.route) == 1);
+            CHECK(load.stage == 2 + load.legacy && load.runtime.last == (load.legacy ? 20 : 13));
+            CHECK(load.diagnostics == (load.missing_link << MM_ACTOR_LOAD_TEMPLATE_LINK));
+            release_loaded_actor(&load, &load);
+        }
+    }
 }
 
 int main(void)
 {
+    ActorStore store;
     headers();
     routes();
     route_streams();
     events();
     event_streams();
-    store_actor();
+    store_actor(&store);
+    load_actor(&store);
     puts("actor data passed");
     return 0;
 }

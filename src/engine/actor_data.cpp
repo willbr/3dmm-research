@@ -3,7 +3,7 @@
 #include "soc_core.h"
 #include "engine_movie_graph.h"
 #include "engine_read_stream.h"
-#include "mm/actor_data.h"
+#include "mm/actor_persistence.h"
 #include <cstddef>
 ASSERTNAME
 using namespace ActorEvent;
@@ -42,24 +42,6 @@ MMActorHeaderIO ActorData::HeaderIO(PChunkyFile file)
                 return static_cast<PChunkyFile>(c)->FPutPv(const_cast<void *>(header), bytes, kctgActr, number);
             }};
 }
-namespace
-{
-const MMActorRouteReader kRouteReader = {nullptr,
-    [](void *, MMU32 count, void **rows) -> void * {
-        const auto allocator = CollectionAllocator();
-        auto path = mm_actor_path_create(&allocator, 0, DebugShip(1, 0));
-        if (!path)
-            return nullptr;
-        if (mm_array_set_count(&path->rows, count) != MM_STORAGE_OK)
-        {
-            mm_actor_path_release(path);
-            return nullptr;
-        }
-        *rows = path->storage.buffers[0].data;
-        return path;
-    },
-    [](void *p) { mm_actor_path_release(static_cast<MMActorPath *>(p)); }};
-} // namespace
 bool ActorData::FReadHeader(PDataBlock block, ActorChunkOnFile *header)
 {
     AssertPo(block, 0);
@@ -89,18 +71,16 @@ MMActorPath *ActorData::PpathRead(PDataBlock block)
     if (!block->FUnpackData())
         return nullptr;
     const auto stream = EngineReadStream::FromBlock(*block);
-    void *route;
-    if (mm_actor_read_route_stream(&stream, &kRouteReader, &route) != MM_MOVIE_OK)
-        return nullptr;
-    return static_cast<MMActorPath *>(route);
+    const auto allocator = CollectionAllocator();
+    const MMActorPathFactory factory = {&allocator, DebugShip(1, 0)};
+    return mm_actor_path_read(&stream, &factory);
 }
 MMActorPath *ActorData::PpathRead(PChunkyFile file, ChunkNumber actor)
 {
     const auto graph = EngineMovieGraph::FromFile(file);
-    void *route;
-    if (mm_movie_actor_route(&graph, actor, &kRouteReader, &route) != MM_MOVIE_OK)
-        return nullptr;
-    return static_cast<MMActorPath *>(route);
+    const auto allocator = CollectionAllocator();
+    const MMActorPathFactory factory = {&allocator, DebugShip(1, 0)};
+    return mm_actor_movie_path(&graph, actor, &factory);
 }
 namespace
 {
@@ -136,11 +116,7 @@ MMActorEventTable *ActorData::PeventsRead(PChunkyFile file, ChunkNumber actor)
     const auto graph = EngineMovieGraph::FromFile(file);
     const auto allocator = CollectionAllocator();
     MMActorEventFactory factory = {&allocator, DebugShip(1, 0)};
-    const auto services = mm_actor_events_services(&factory);
-    void *events;
-    if (mm_movie_actor_events(&graph, actor, &services, &events) != MM_MOVIE_OK)
-        return nullptr;
-    return static_cast<MMActorEventTable *>(events);
+    return mm_actor_movie_events(&graph, actor, &factory);
 }
 MMActorEventTable *ActorData::PeventsEncode(MMActorEventTable *events)
 {

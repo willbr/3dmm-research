@@ -153,13 +153,17 @@ Actor::~Actor(void)
     The actor will not yet be grounded to any initial scene frame.
 
 ***************************************************************************/
+void *Actor::_FetchTemplate(void *, const MMTag *value)
+{
+    TAG tag;
+    TagFromCore(&tag, *value);
+    return vptagm->PbacoFetch(&tag, Template::FReadTmpl);
+}
+
 MMActorCreateServices Actor::_CreateServices()
 {
     MMActorCreateServices s{}; s.owner=_OwnerServices();
-    s.fetch_template=[](void *,const MMTag *value)->void * {
-        TAG tag; std::memcpy(&tag,value,sizeof(tag));
-        return static_cast<PTemplate>(vptagm->PbacoFetch(&tag,Template::FReadTmpl));
-    };
+    s.fetch_template = _FetchTemplate;
     s.create_track=[](void *,void *p) { return int(static_cast<PActor>(p)->_track.FCreate()); };
     s.create_sounds=[](void *,void *p) { return int(static_cast<PActor>(p)->_motionSounds.FCreate()); };
     s.action_flags=[](void *,void *p,MMI32 action,MMU32 *flags) {

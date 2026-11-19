@@ -1,4 +1,5 @@
 #include "mm/scene_reframe.h"
+#include "mm/actor_path.h"
 #include "actor_archive_internal.h"
 #include "mm/wide.h"
 #include <float.h>
@@ -21,7 +22,7 @@ typedef struct Reframe
 
 typedef struct Track
 {
-    MMArray route;
+    MMActorPath *route;
     MMActorEventTable *events;
     const Reframe *change;
     const MMSceneReframeHost *host;
@@ -151,11 +152,6 @@ static int location_le(const MMActorLocation *a, const MMActorLocation *b)
     return a->dnfrm <= b->dnfrm;
 }
 
-static void *route_row(MMArray *route, MMU32 row)
-{
-    return route->storage->buffers[0].data + row * route->width;
-}
-
 static void read_event(MMActorEventTable *events, MMU32 row, MMActorEvent *event)
 {
     memcpy(event, mm_actor_events_fixed(events, row), sizeof(*event));
@@ -169,16 +165,16 @@ static int split_segment(Track *track)
     MMU32 i, node;
     int inserted;
     old = track->cut;
-    if (old.irpt < 0 || (MMU32)old.irpt >= track->route.count)
+    if (old.irpt < 0 || (MMU32)old.irpt >= track->route->rows.count)
         return MM_SCENE_REFRAME_LOCATION;
     node = (MMU32)old.irpt;
-    memcpy(&first, route_row(&track->route, node), sizeof(first));
+    mm_actor_path_get(track->route, node, &first);
     track->pivot = first.xyz;
     if (!old.dwrOffset)
         return MM_SCENE_REFRAME_OK;
-    if (old.dwrOffset < 0 || old.dwrOffset > first.dwr || node + 1 >= track->route.count)
+    if (old.dwrOffset < 0 || old.dwrOffset > first.dwr || node + 1 >= track->route->rows.count)
         return MM_SCENE_REFRAME_LOCATION;
-    memcpy(&next, route_row(&track->route, node + 1), sizeof(next));
+    mm_actor_path_get(track->route, node + 1, &next);
     track->pivot = next.xyz;
     inserted = old.dwrOffset < first.dwr;
     if (inserted)
@@ -186,10 +182,10 @@ static int split_segment(Track *track)
         mm_actor_interpolate(&first.xyz, &next.xyz, mm_fixed_div(old.dwrOffset, first.dwr), &track->pivot);
         split.xyz = track->pivot;
         split.dwr = first.dwr - old.dwrOffset;
-        if (mm_array_insert(&track->route, node + 1, &split, 1) != MM_STORAGE_OK)
+        if (!mm_actor_path_insert(track->route, node + 1, &split))
             return MM_SCENE_REFRAME_MEMORY;
         first.dwr = old.dwrOffset;
-        memcpy(route_row(&track->route, node), &first, sizeof(first));
+        mm_actor_path_put(track->route, node, &first);
     }
     for (i = 0; i < track->events->rows.count; ++i)
     {
@@ -345,7 +341,7 @@ static int reframe_subroute(Track *track, MMU32 start, MMU32 *end_out)
     MMU32 end, node, first, last, at, insert;
     int active, partial, follows_path, status;
     read_event(track->events, start, &entry);
-    if (entry.aet != MM_ACTOR_ADD || entry.rtel.irpt < 0 || (MMU32)entry.rtel.irpt >= track->route.count)
+    if (entry.aet != MM_ACTOR_ADD || entry.rtel.irpt < 0 || (MMU32)entry.rtel.irpt >= track->route->rows.count)
         return MM_SCENE_REFRAME_ENTRANCE;
     for (end = start + 1; end < track->events->rows.count; ++end)
     {
@@ -361,21 +357,21 @@ static int reframe_subroute(Track *track, MMU32 start, MMU32 *end_out)
         return MM_SCENE_REFRAME_OK;
     }
     first = partial ? (MMU32)track->cut.irpt + 1 : (MMU32)entry.rtel.irpt;
-    last = end < track->events->rows.count ? (MMU32)event.rtel.irpt : track->route.count;
-    if (last < first || last > track->route.count)
+    last = end < track->events->rows.count ? (MMU32)event.rtel.irpt : track->route->rows.count;
+    if (last < first || last > track->route->rows.count)
         return MM_SCENE_REFRAME_SUBROUTE;
     for (node = first; node < last; ++node)
     {
-        memcpy(&point, route_row(&track->route, node), sizeof(point));
+        mm_actor_path_get(track->route, node, &point);
         if (!point_reframe(track->change, &point.xyz, partial ? &track->pivot : &zero))
             return MM_SCENE_REFRAME_RANGE;
         /* Preserve interpolation distances and timing. */
-        memcpy(route_row(&track->route, node), &point, sizeof(point));
+        mm_actor_path_put(track->route, node, &point);
     }
     memcpy(&add, mm_actor_events_payload(track->events, start, NULL), sizeof(add));
     track->host->from_euler(&add, &entrance);
     inverse_entrance(&entrance, &inverse);
-    memcpy(&point, route_row(&track->route, (MMU32)entry.rtel.irpt), sizeof(point));
+    mm_actor_path_get(track->route, (MMU32)entry.rtel.irpt, &point);
     follows_path = !track->fixed_facing && point.dwr != 0;
     if (!partial && !rewrite_entrance(track, start, &add, &entrance, follows_path))
         return MM_SCENE_REFRAME_RANGE;
@@ -417,33 +413,16 @@ static int reframe_subroute(Track *track, MMU32 start, MMU32 *end_out)
     return MM_SCENE_REFRAME_OK;
 }
 
-static void *route_create(void *context, MMU32 count, void **data)
+static MMActorPath *read_route(const MMMovieArchiveEditor *editor, MMU32 actor)
 {
-    MMArray *route = (MMArray *)context;
-    if (mm_array_set_count(route, count) != MM_STORAGE_OK)
-        return NULL;
-    *data = route->storage->buffers[0].data;
-    return route;
-}
-
-static void route_release(void *route)
-{
-    /* The caller owns the route and its storage on every path. */
-    (void)route;
-}
-
-static int read_route(const MMMovieArchiveEditor *editor, MMU32 actor, MMArray *route)
-{
-    MMActorRouteReader reader = {NULL, route_create, route_release};
-    MMChunkAccess chunks;
+    const MMActorPathFactory factory = {NULL, 0};
+    MMChunkAccess chunks = editor->chunks(editor->context);
     MMReadStream stream;
     MMU32 number;
-    void *loaded;
-    reader.context = route;
-    chunks = editor->chunks(editor->context);
-    return mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, ROUTE_TYPE, &number) == MM_CHUNK_OK &&
-        editor->read(editor->context, ROUTE_TYPE, number, &stream) &&
-        mm_actor_read_route_stream(&stream, &reader, &loaded) == MM_MOVIE_OK;
+    if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, ROUTE_TYPE, &number) != MM_CHUNK_OK ||
+        !editor->read(editor->context, ROUTE_TYPE, number, &stream))
+        return NULL;
+    return mm_actor_path_read(&stream, &factory);
 }
 
 static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const MMChunkChild *link,
@@ -451,7 +430,6 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
 {
     MMActorHeader header;
     MMSceneReframePose pose;
-    MMCollectionStorage route_storage;
     MMChunkAccess chunks;
     Track track;
     MMU32 actor, copy, number, model, text, row;
@@ -474,12 +452,9 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
     track.fixed_facing = header.source_id == 0 &&
         mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, TEMPLATE_TYPE, &model) == MM_CHUNK_OK &&
         mm_chunk_link_number(&chunks, TEMPLATE_TYPE, model, 0, TEXT_TYPE, &text) == MM_CHUNK_OK;
-    mm_storage_init(&route_storage, NULL);
-    track.route.storage = &route_storage;
-    track.route.width = MM_ACTOR_ROUTE_BYTES;
-    track.route.free_count = -1;
     result = MM_SCENE_REFRAME_TRACK;
-    if (!read_route(editor, actor, &track.route))
+    track.route = read_route(editor, actor);
+    if (!track.route)
         goto done;
     track.events = mm_actor_archive_read_event_group(editor, actor, NULL);
     if (!track.events)
@@ -489,7 +464,7 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
         result = reframe_subroute(&track, row, &row);
     if (result != MM_SCENE_REFRAME_OK)
         goto done;
-    if (!mm_actor_archive_write_route(editor, copy, route_storage.buffers[0].data, track.route.count) ||
+    if (!mm_actor_archive_write_route(editor, copy, track.route->storage.buffers[0].data, track.route->rows.count) ||
         !mm_actor_archive_write_event_group(editor, track.events, &number, &copy))
     {
         result = MM_SCENE_REFRAME_WRITE;
@@ -501,7 +476,8 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
 done:
     if (track.events)
         mm_actor_events_release(track.events);
-    mm_storage_dispose(&route_storage);
+    if (track.route)
+        mm_actor_path_release(track.route);
     return result;
 }
 

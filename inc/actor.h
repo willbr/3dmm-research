@@ -151,6 +151,7 @@ class Actor : public Actor_PAR
     MMActorTransformEditServices _TransformEditServices();
     static MMActorOwnerServices _OwnerServices();
     static MMActorCreateServices _CreateServices();
+    static void *_FetchTemplate(void *, const MMTag *);
     struct EditContext;
     static MMActorTransactionServices _TransactionServices(EditContext *);
     static MMActorDeleteServices _DeleteServices(EditContext *);
@@ -201,10 +202,6 @@ class Actor : public Actor_PAR
     bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 
     void _RestoreFromUndo(PActor pactrRestore);
-
-    bool _FWriteTmpl(PChunkyFile pcfl, ChunkNumber cno);
-    bool _FReadActor(PChunkyFile pcfl, ChunkNumber cno);
-    bool _FOpenTags(PChunkyResourceFile pcrf);
 
   public:
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)

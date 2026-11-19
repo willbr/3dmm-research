@@ -37,11 +37,11 @@ class ActorTrack
     bool FCloneFrom(const ActorTrack &source);
     void Swap(ActorTrack &other);
     void Clear();
-    bool FOpenTags(PChunkyResourceFile);
     void CloseTags();
     void RetainEventTag(LegacyLong index);
     void CloseEventTag(LegacyLong index);
     const MMActorTrack &Core() const { return _storage; }
+    MMActorTrack &Core() { return _storage; }
     static const MMTagServices &TagServices();
 };
 #endif

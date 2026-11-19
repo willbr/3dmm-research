@@ -3734,13 +3734,29 @@ Reading consumes wire groups on every outcome, normalizing before allocation and
 releasing wire before partial runtime storage on failure. Writing borrows runtime
 groups and releases only partial output on failure. Tags stay unopened/unretained;
 read sets runtime cache pointers to null, while write zeros wire pointer slots and
-ignores cache identity. Native file/block/group services and typed interfaces remain
-temporary adapters. Track/tag ownership now uses the C state described below;
-actor evaluation/editing remain work.
+ignores cache identity.
+
+`actor_persistence.c` loads the live Studio actor into its C runtime and track.
+It resolves an embedded template's ACTR link with the header tag as fallback,
+loads both tracks before opening tags, opens the template tag before event tags,
+and creates motion sound storage before fetching the template. An older actor
+with a first frame and no stored last frame refreshes its lifetime after the
+template is available. On failure the actor owner releases the partial record.
+Studio and preview share the typed track decoders, and scene reframing uses the
+same C path decoder and storage.
+
+The C store reads the current runtime and C track directly. It refreshes the
+lifetime, writes or links the template, writes ACTR and PATH, encodes and writes
+GGAE with embedded material links, then links available scene sounds. The caller
+owns cleanup of the candidate archive after a partial save. Native services
+supply resource lookups, chunk creation, byte I/O and diagnostics.
 
 `engine-actor-data-test` covers old/current headers, partial failed reads, invalid
 byte-order outputs, ID overflow, empty/foreign routes, all event layouts, Add padding,
-tag fields, and allocation/insertion failures at every row. Thirty-five standalone
+tag fields, allocation/insertion failures at every row, and partial live load
+cleanup after track I/O, sound storage, template fetch and lifetime failures.
+The live load test also covers the embedded-template fallback and 40-byte
+header recovery. Thirty-five standalone
 C checks, forty-eight focused native checks, MSVC AddressSanitizer, eighteen binary
 snapshots and all 51 CLI baselines pass. The new header/all-event snapshot is 2,896
 bytes. No Marcus UI tests were added.

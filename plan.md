@@ -199,10 +199,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   event-layout validation, frame/start child replacement, create sequencing and
   failure cleanup use C89. Native file/group adapters and runtime scene-object,
   playback and editing ownership still remain.
-- Actor header normalization, checked ID adjustment, route validation/swapping and
-  all event layout/marshalling now use C89. The 40/44-byte header forms, mixed-width
-  Add angles, unopened runtime tags and cleanup order are retained. Native table
-  adapters, actor evaluation/editing and final integration remain.
+- Actor persistence now uses C89 from live Studio save and load through header
+  normalization, checked ID adjustment, PATH and GGAE storage, embedded tag
+  opening, template selection, and legacy lifetime recovery. The 40/44-byte
+  headers, mixed-width Add angles, resource order and partial-save behavior are
+  retained. Studio and preview share the typed decoders. Native services
+  supply resource access, chunk creation and byte I/O.
 - Actor track state, table/tag ownership, transactional creation/cloning, tag lookup
   and ordered cleanup now use C89. Native actor and preview code borrow typed
   table handles from this state; physical table implementations remain adapters.

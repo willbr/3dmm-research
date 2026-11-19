@@ -1,0 +1,84 @@
+/* Actor persistence converted from actrsave.cpp.
+ * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#include "mm/actor_persistence.h"
+#include "mm/wide.h"
+
+#define FRAME_INVALID 2147483647L
+
+MMActorPath *mm_actor_movie_path(const MMMovieSessionGraph *graph, MMU32 number, const MMActorPathFactory *factory)
+{
+    MMActorRouteReader reader = mm_actor_path_reader(factory);
+    void *path;
+    return mm_movie_actor_route(graph, number, &reader, &path) == MM_MOVIE_OK ? (MMActorPath *)path : NULL;
+}
+
+MMActorEventTable *mm_actor_movie_events(const MMMovieSessionGraph *graph, MMU32 number, MMActorEventFactory *factory)
+{
+    MMActorEventServices services = mm_actor_events_services(factory);
+    void *events;
+    return mm_movie_actor_events(graph, number, &services, &events) == MM_MOVIE_OK ?
+           (MMActorEventTable *)events : NULL;
+}
+
+static int read_runtime(const MMMovieSessionGraph *graph, MMU32 number, MMActorRuntime *runtime,
+                        const MMActorLoadServices *s)
+{
+    MMActorHeader header;
+    MMChunkAccess chunks;
+    if (mm_movie_actor_header(graph, number, &header) != MM_MOVIE_OK)
+        return 0;
+    runtime->origin.dxr = mm_signed_word(header.translation[0]);
+    runtime->origin.dyr = mm_signed_word(header.translation[1]);
+    runtime->origin.dzr = mm_signed_word(header.translation[2]);
+    runtime->actor = header.actor_id;
+    runtime->first = header.first_frame;
+    runtime->last = header.last_frame;
+    runtime->life_dirty = runtime->first == FRAME_INVALID || runtime->last == FRAME_INVALID;
+    runtime->template_tag.sid = header.source_id;
+    runtime->template_tag.cache = NULL;
+    runtime->template_tag.type = header.template_type;
+    runtime->template_tag.number = header.template_number;
+    if (!header.source_id)
+    {
+        graph->access(graph->context, &chunks);
+        if (mm_actor_template_link(&chunks, number, 0, 0, &runtime->template_tag.number) != MM_CHUNK_OK)
+            s->diagnostic(s->context, MM_ACTOR_LOAD_TEMPLATE_LINK);
+    }
+    return 1;
+}
+
+void *mm_actor_load(const MMMovieSessionGraph *graph, MMU32 number, void *cache, const MMActorLoadServices *s)
+{
+    MMActorPathFactory paths = {NULL, 0};
+    MMActorEventFactory events = {NULL, 0};
+    MMActorRuntime *runtime;
+    MMActorTrack *track;
+    void *actor = s->create(s->context, &runtime, &track);
+    if (!actor || !read_runtime(graph, number, runtime, s))
+        goto fail;
+    paths.allocator = events.allocator = s->allocator;
+    paths.trash_unused = events.trash_unused = s->trash_unused;
+    mm_actor_track_adopt_route(track, mm_actor_movie_path(graph, number, &paths));
+    if (!track->route)
+        goto fail;
+    mm_actor_track_adopt_events(track, mm_actor_movie_events(graph, number, &events), s->tags);
+    if (!track->events)
+        goto fail;
+    if (runtime->template_tag.sid < 0)
+        s->diagnostic(s->context, MM_ACTOR_LOAD_TEMPLATE_SOURCE);
+    if (!mm_tag_open(&runtime->template_tag, cache, NULL, s->tags) ||
+        !mm_actor_track_open_tags(track, cache, NULL, s->tags) || !s->create_sounds(s->context, actor))
+        goto fail;
+    runtime->template_object = s->fetch_template(s->context, &runtime->template_tag);
+    if (!runtime->template_object)
+        goto fail;
+    if (runtime->last == FRAME_INVALID && runtime->first != FRAME_INVALID && !s->lifetime(s->context, actor))
+        goto fail;
+    return actor;
+
+fail:
+    s->diagnostic(s->context, MM_ACTOR_LOAD_FAILED);
+    if (actor)
+        s->release(s->context, actor);
+    return NULL;
+}

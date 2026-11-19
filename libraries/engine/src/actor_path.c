@@ -1,6 +1,7 @@
 /* Actor path storage converted from the engine's native array adapters.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_path.h"
+#include "mm/movie_data.h"
 #include <string.h>
 
 MMActorPath *mm_actor_path_create(const MMStorageAllocator *allocator, MMU32 reserve, int trash_unused)
@@ -115,4 +116,38 @@ int mm_actor_path_write(MMActorPath *path, int system, const MMStorageWriter *wr
     return mm_actor_path_layout(path->rows.count, system, &header) &&
            mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
            mm_storage_write(&path->storage, writer, bytes, header.header_bytes, header.first_bytes, 0) == MM_STORAGE_OK;
+}
+
+static void *create_read_path(void *context, MMU32 count, void **rows)
+{
+    const MMActorPathFactory *factory = (const MMActorPathFactory *)context;
+    MMActorPath *path = mm_actor_path_create(factory->allocator, 0, factory->trash_unused);
+    if (!path)
+        return NULL;
+    if (mm_array_set_count(&path->rows, count) != MM_STORAGE_OK)
+    {
+        mm_actor_path_release(path);
+        return NULL;
+    }
+    *rows = path->storage.buffers[0].data;
+    return path;
+}
+
+static void release_read_path(void *path)
+{
+    mm_actor_path_release((MMActorPath *)path);
+}
+
+MMActorRouteReader mm_actor_path_reader(const MMActorPathFactory *factory)
+{
+    MMActorRouteReader reader = {NULL, create_read_path, release_read_path};
+    reader.context = (void *)factory;
+    return reader;
+}
+
+MMActorPath *mm_actor_path_read(const MMReadStream *stream, const MMActorPathFactory *factory)
+{
+    MMActorRouteReader reader = mm_actor_path_reader(factory);
+    void *path;
+    return mm_actor_read_route_stream(stream, &reader, &path) == MM_MOVIE_OK ? (MMActorPath *)path : NULL;
 }

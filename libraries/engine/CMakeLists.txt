@@ -573,7 +573,7 @@ target_sources(mm-engine-c89 PRIVATE src/actor_route_paste.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_paste.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_archive.c src/actor_archive_edit.c src/scene_reframe.c)
 target_sources(mm-engine-c89 PRIVATE src/actor_clipboard.c)
-target_sources(mm-engine-c89 PRIVATE src/actor_create.c)
+target_sources(mm-engine-c89 PRIVATE src/actor_create.c src/actor_persistence.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_sound.c)
 target_sources(mm-engine-c89 PRIVATE src/body_create.c)
 target_sources(mm-engine-c89 PRIVATE src/part_indices.c)
@@ -1433,6 +1433,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_reframe.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_clipboard.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_create.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_persistence.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_sound.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_create.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/part_indices.c"
