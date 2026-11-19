@@ -9,6 +9,7 @@
 #include <codecvt>
 #include <locale>
 #include "soc_core.h"
+#include "engine_read_stream.h"
 #include "mm/actor_archive.h"
 #include "mm/text.h"
 #include "mm/scene_runtime.h"
@@ -24,10 +25,9 @@ void Require(bool value, const char *message)
 {
     if (!value) throw std::runtime_error(message);
 }
-void AddObjectName(PChunkyFile file, ChunkNumber movie, const ActorChunkOnFile &header,
-                   const std::string &name, int flags);
-void RegisterSceneObject(PChunkyFile file, ChunkNumber sceneNumber, ChunkNumber actor,
-                         LegacyLong firstFrame, bool invalidateThumbnail);
+void UpdateActorListing(PChunkyFile file, ChunkNumber movie, const MMActorArchivePlacement *placement,
+                        const ActorChunkOnFile &header, const std::string &name, MMU32 flags,
+                        bool replaceExisting = false);
 }
 static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin)
@@ -357,9 +357,10 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
     Require(wire && file->FAddChild(kctgActr, actorNumber, 0, track.Route()->CbOnFile(), kctgPath, &childNumber, &block) &&
             track.Route()->FWrite(&block) && file->FAddChild(kctgActr, actorNumber, 0, wire->CbOnFile(), kctgGgae, &childNumber, &block) &&
             wire->FWrite(&block), "Cannot write the prop track.");
-    RegisterSceneObject(file, sceneNumber, actorNumber, scene.firstFrame, frame == scene.firstFrame);
-    AddObjectName(file, root.cno, header, propEdit.file ? MarcusTextAnsi(name) : std::string(name),
-                  propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0);
+    const MMActorArchivePlacement placement{static_cast<MMU32>(sceneNumber), actorNumber, scene.firstFrame,
+                                            frame == scene.firstFrame};
+    UpdateActorListing(file, root.cno, &placement, header, propEdit.file ? MarcusTextAnsi(name) : std::string(name),
+                       propEdit.file ? 2 : (tmpl.grftmpl & ftmplProp) ? 1 : 0);
 }
 
 static void ApplyShape(PChunkyFile file, ChunkNumber actor, const MM::PreviewObjectShape &shape)
@@ -465,73 +466,63 @@ Filename ObjectFile(const std::filesystem::path &path)
     return name;
 }
 
-void AddObjectName(PChunkyFile file, ChunkNumber movie, const ActorChunkOnFile &header,
-                   const std::string &name, int flags)
+void UpdateActorListing(PChunkyFile file, ChunkNumber movie, const MMActorArchivePlacement *placement,
+                        const ActorChunkOnFile &header, const std::string &name, MMU32 flags, bool replaceExisting)
 {
-    ChildChunkIdentification child;
-    DataBlock block;
-    const bool hadRoll = file->FGetKidChidCtg(kctgMvie, movie, 0, kctgGst, &child);
-    std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
-    Require(bool(roll), "Cannot allocate the movie roll call.");
-    if (hadRoll)
+    struct Host
     {
-        int big;
-        Require(file->FFind(kctgGst, child.cki.cno, &block), "Cannot read the movie roll call.");
-        std::unique_ptr<RollCallTable, Release> wire(RollCallTable::Read(&block, &big));
-        Require(wire && wire->CbExtra() == MM_MOVIE_ACTOR_BYTES, "The movie roll call is invalid.");
-        for (LegacyLong i = 0; i < wire->IvMac(); ++i)
-        {
-            unsigned char bytes[MM_MOVIE_ACTOR_BYTES];
-            MMMemoryStream stream;
-            MMMovieActor actor;
-            Require(mm_rollcall_table_extra(&wire->storage, i, bytes) &&
-                    mm_memory_stream_init(&stream, bytes, sizeof(bytes)) &&
-                    mm_movie_read_actor(&stream.stream, big, &actor, nullptr) == MM_MOVIE_OK,
-                    "Cannot decode the movie roll call.");
-            RollCallActorEntry entry = {};
-            entry.arid = actor.actor_id; entry.cactRef = actor.reference_count; entry.grfbrws = actor.browser_flags;
-            entry.tagTmpl = {actor.source_id, nullptr, actor.template_type, actor.template_number};
-            String previous;
-            wire->GetStn(i, &previous);
-            Require(roll->FAddStn(&previous, &entry), "Cannot retain an existing object name.");
+        PChunkyFile file;
+        DataBlock input, output;
+    } context{file, {}, {}};
+    const unsigned short one = 1;
+    const MMActorArchiveEditor editor = {
+        &context, sizeof(achar), koskCur, *reinterpret_cast<const unsigned char *>(&one) == 0,
+        [](void *, const void *bytes, size_t count, int encoding, void *text, size_t capacity) -> size_t {
+            return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(text), capacity);
+        },
+        [](void *value) { return static_cast<Host *>(value)->file->ReadChunkAccess(); },
+        [](void *value, MMU32 type, MMU32 number, MMReadStream *stream) -> int {
+            auto &io = *static_cast<Host *>(value);
+            if (!io.file->FFind(type, number, &io.input) || !io.input.FUnpackData()) return false;
+            *stream = EngineReadStream::FromBlock(io.input);
+            return true;
+        },
+        [](void *value, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer) -> int {
+            auto &io = *static_cast<Host *>(value);
+            if (!io.file->FAdd(bytes, type, number, &io.output)) return false;
+            *writer = {&io.output, bytes, [](void *block, MMU32 offset, const void *data, size_t count) -> int {
+                return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), count, offset);
+            }};
+            return true;
+        },
+        [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) -> int {
+            return static_cast<Host *>(value)->file->FAdoptChild(type, parent, childType, child, slot);
+        },
+        [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) {
+            static_cast<Host *>(value)->file->DeleteChild(type, parent, childType, child, slot);
         }
-    }
+    };
     String caption;
     caption.SetSzs(const_cast<char *>(name.c_str()));
-    RollCallActorEntry entry = {};
-    entry.arid = header.arid; entry.cactRef = 1; entry.grfbrws = flags;
-    entry.tagTmpl = {header.tagTmpl.sid, nullptr, header.tagTmpl.ctg, header.tagTmpl.cno};
-    Require(roll->FAddStn(&caption, &entry), "Cannot name the pasted object.");
-    if (hadRoll) file->DeleteChild(kctgMvie, movie, kctgGst, child.cki.cno, 0);
-    ChunkNumber rollNumber;
-    Require(MovieData::FWriteRollCall(file, movie, roll.get(), &rollNumber), "Cannot write the movie roll call.");
-}
-
-void RegisterSceneObject(PChunkyFile file, ChunkNumber sceneNumber, ChunkNumber actor,
-                         LegacyLong firstFrame, bool invalidateThumbnail)
-{
-    const auto chunks = file->ReadChunkAccess();
-    ChildChunkID slot;
-    Require(mm_actor_archive_next_child(&chunks, kctgScen, sceneNumber, kctgActr, &slot),
-            "No available child slots for the pasted object.");
-    ChildChunkIdentification child;
-    DataBlock block;
-    Require(file->FGetKidChidCtg(kctgScen, sceneNumber, 1, kctgStartGg, &child) &&
-            file->FFind(kctgStartGg, child.cki.cno, &block), "Cannot read the scene's object list.");
-    short order;
-    std::unique_ptr<GeneralGroup, Release> starts(SceneData::PggReadEvents(&block, &order, true));
-    Require(bool(starts), "The scene start events are invalid.");
-    SceneEvent start = {firstFrame, sevtAddActr};
-    auto value = slot;
-    if (order == kboOther) { SwapBytesBom(&start, kbomSev); SwapBytesRglw(&value, 1); }
-    ChunkNumber number;
-    Require(starts->FInsert(starts->IvMac(), sizeof(value), &value, &start) &&
-            file->FAdd(starts->CbOnFile(), kctgStartGg, &number, &block) && starts->FWrite(&block, order) &&
-            file->FAdoptChild(kctgScen, sceneNumber, kctgActr, actor, slot), "Cannot register the pasted object.");
-    file->DeleteChild(kctgScen, sceneNumber, kctgStartGg, child.cki.cno, 1);
-    Require(file->FAdoptChild(kctgScen, sceneNumber, kctgStartGg, number, 1), "Cannot link scene start events.");
-    if (invalidateThumbnail && file->FGetKidChidCtg(kctgScen, sceneNumber, 0, kctgThumbMbmp, &child))
-        file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
+    const MMActorArchiveName entry = {
+        {header.arid, 1, header.tagTmpl.sid, flags, header.tagTmpl.ctg, header.tagTmpl.cno},
+        caption.Prgch(), static_cast<MMU32>(caption.Cch()), replaceExisting
+    };
+    static const char *const messages[] = {
+        nullptr,
+        "No available child slots for the pasted object.",
+        "Cannot read the scene's object list.",
+        "The scene start events are invalid.",
+        "Cannot register the scene object.",
+        "Cannot link scene start events.",
+        "Cannot read the movie roll call.",
+        "The movie roll call is invalid.",
+        "Cannot write the movie roll call.",
+        "Cannot allocate the scene object listing."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_REGISTER_MEMORY + 1, "registration diagnostics");
+    const int status = mm_actor_archive_register(&editor, movie, placement, &entry);
+    Require(status == MM_ACTOR_REGISTER_OK, messages[status]);
 }
 
 ChunkNumber TransferObject(PChunkyFile source, ChunkNumber actor, ChunkNumber sourceScene,
@@ -711,8 +702,8 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     ActorChunkOnFile header;
     const auto actor = TransferObject(source.get(), clipboard.actor, clipboard.sounds, destination.get(),
         sceneNumber, actorId, static_cast<std::int32_t>(clipboard.frame), static_cast<std::int32_t>(frame), sourceId, header);
-    RegisterSceneObject(destination.get(), sceneNumber, actor, scene.firstFrame, true);
-    AddObjectName(destination.get(), root.cno, header, clipboard.name, clipboard.browserFlags);
+    const MMActorArchivePlacement placement{static_cast<MMU32>(sceneNumber), actor, scene.firstFrame, true};
+    UpdateActorListing(destination.get(), root.cno, &placement, header, clipboard.name, clipboard.browserFlags);
     Require(destination->FSave(kctgSoc), "Cannot save the pasted object.");
     return result;
 }
@@ -1134,43 +1125,7 @@ static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTex
         file->DeleteChild(kctgActr, actorNumber, kctgGgae, child.cki.cno, 0);
         Require(file->FAdoptChild(kctgActr, actorNumber, kctgGgae, number, 0), "Cannot link text appearance events.");
     }
-    std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
-    Require(bool(roll), "Cannot create the edited movie roll call.");
-    ChildChunkIdentification rollChild;
-    const bool hadRoll = file->FGetKidChidCtg(kctgMvie, root.cno, 0, kctgGst, &rollChild);
-    bool named = false;
-    String name;
-    const auto ansi = MarcusTextAnsi(edit.value.text.c_str());
-    name.SetSzs(const_cast<char *>(ansi.c_str()));
-    if (hadRoll)
-    {
-        int big;
-        Require(file->FFind(kctgGst, rollChild.cki.cno, &block), "Cannot read the movie roll call.");
-        std::unique_ptr<RollCallTable, Release> wire(RollCallTable::Read(&block, &big));
-        Require(wire && wire->CbExtra() == MM_MOVIE_ACTOR_BYTES, "Invalid movie roll call.");
-        for (LegacyLong i = 0; i < wire->IvMac(); ++i)
-        {
-            unsigned char bytes[MM_MOVIE_ACTOR_BYTES]; MMMemoryStream memory; MMMovieActor actor;
-            Require(mm_rollcall_table_extra(&wire->storage, i, bytes) && mm_memory_stream_init(&memory, bytes, sizeof(bytes)) &&
-                mm_movie_read_actor(&memory.stream, big, &actor, nullptr) == MM_MOVIE_OK, "Cannot decode an existing object name.");
-            RollCallActorEntry entry = {};
-            entry.arid = actor.actor_id; entry.cactRef = actor.reference_count; entry.grfbrws = actor.browser_flags;
-            entry.tagTmpl = {actor.source_id, nullptr, actor.template_type, actor.template_number};
-            String existingName; wire->GetStn(i, &existingName);
-            if (entry.arid == header.arid)
-            { entry.tagTmpl = {0, nullptr, kctgTmpl, textTemplate}; entry.grfbrws = 2; existingName = name; named = true; }
-            Require(roll->FAddStn(&existingName, &entry), "Cannot retain an existing object name.");
-        }
-    }
-    if (!named)
-    {
-        RollCallActorEntry entry = {};
-        entry.arid = header.arid; entry.cactRef = 1; entry.grfbrws = 2; entry.tagTmpl = {0, nullptr, kctgTmpl, textTemplate};
-        Require(roll->FAddStn(&name, &entry), "Cannot name the edited text.");
-    }
-    if (hadRoll) file->DeleteChild(kctgMvie, root.cno, kctgGst, rollChild.cki.cno, 0);
-    ChunkNumber rollNumber;
-    Require(MovieData::FWriteRollCall(file, root.cno, roll.get(), &rollNumber), "Cannot write the edited movie roll call.");
+    UpdateActorListing(file, root.cno, nullptr, header, MarcusTextAnsi(edit.value.text.c_str()), 2, true);
 }
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,

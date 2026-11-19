@@ -1018,9 +1018,11 @@ actor before publishing its selection and recording undo. Sound edits and
 work-view transforms use the same installation and recovery sequence.
 Marcus object copy and paste use C89 to retime the saved track, assign
 the actor ID, remap embedded templates, fonts, costumes and sounds, and
-reuse a scene sound link for repeated cues. The native adapter supplies
-archive access, movie source registration, scene links and roll-call
-writes.
+reuse a scene sound link for repeated cues. C89 also assigns the scene
+child slot, appends the start event, updates the chunk links and writes
+the movie roll call during insertion and paste. 3D text renames use
+the same roll-call writer and keep existing reference counts. Marcus
+provides native archive access and movie source registration.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

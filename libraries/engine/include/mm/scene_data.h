@@ -68,6 +68,11 @@ extern "C"
      * a complete group only if all rows are valid and a background is present. */
     int mm_scene_retarget_start_background(const MMReadStream *, MMI32 source, MMU32 background,
                                             MMByteReceiver, void *context);
+    /* Append an Add Actor row to a validated start group. Keep its byte order
+     * and existing records/locations. Write the supplied output system marker.
+     * Returns a movie read result and propagates a rejected write as IO. */
+    int mm_scene_append_start_actor(const MMReadStream *, int system, MMI32 frame, MMU32 slot,
+                                    MMByteReceiver, void *context);
     enum
     {
         MM_SCENE_GROUP_HEADERS_ONLY = -1,

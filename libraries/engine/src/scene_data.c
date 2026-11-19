@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_data.h"
 #include "mm/collections.h"
+#include "mm/movie_data.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -179,6 +180,58 @@ int mm_scene_retarget_start_background(const MMReadStream *stream, MMI32 source,
     }
     if (found)
         result = receive(context, copy, stream->length);
+done:
+    free(copy);
+    return result;
+}
+int mm_scene_append_start_actor(const MMReadStream *stream, int system, MMI32 frame, MMU32 slot,
+                                MMByteReceiver receive, void *context)
+{
+    enum { payload_bytes = 4, row_bytes = MM_SCENE_EVENT_BYTES + payload_bytes };
+    MMCollectionHeader input, output;
+    unsigned char *copy, *records, *row, *location;
+    MMU32 total, index, offset;
+    MMI32 bytes, type;
+    int result, big;
+    if (mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &input) != MM_STORAGE_OK ||
+        input.width != MM_SCENE_EVENT_BYTES)
+        return MM_MOVIE_BAD_FILE;
+    output = input;
+    output.system = system;
+    output.bytes += row_bytes;
+    ++output.count;
+    if (mm_collection_layout(&output) != MM_STORAGE_OK)
+        return MM_MOVIE_BAD_FILE;
+    total = output.header_bytes + output.first_bytes + output.second_bytes;
+    if ((size_t)total != total)
+        return MM_MOVIE_MEMORY;
+    copy = (unsigned char *)malloc((size_t)total);
+    if (!copy)
+        return MM_MOVIE_MEMORY;
+    records = copy + input.header_bytes;
+    result = MM_MOVIE_BAD_FILE;
+    if (!mm_read_exact(stream, input.header_bytes, records, input.first_bytes + input.second_bytes))
+        goto done;
+    big = input.big_endian;
+    for (index = 0; index < input.count; ++index)
+    {
+        if (!mm_collection_group_row(&input, records, index, &offset, &bytes))
+            goto done;
+        type = mm_signed_word(word(records + offset + 4, big));
+        if (!valid_event(type, bytes, big, 1, NULL))
+            goto done;
+    }
+    if (mm_collection_header_write(&output, copy, output.header_bytes) != MM_STORAGE_OK)
+        goto done;
+    row = records + input.first_bytes;
+    memmove(row + row_bytes, row, input.second_bytes);
+    put(row, (MMU32)frame, 4, big);
+    put(row + 4, MM_SCENE_ADD_ACTOR, 4, big);
+    put(row + MM_SCENE_EVENT_BYTES, slot, payload_bytes, big);
+    location = records + output.first_bytes + input.second_bytes;
+    put(location, input.first_bytes, 4, big);
+    put(location + 4, row_bytes, 4, big);
+    result = receive(context, copy, total) ? MM_MOVIE_OK : MM_MOVIE_IO;
 done:
     free(copy);
     return result;

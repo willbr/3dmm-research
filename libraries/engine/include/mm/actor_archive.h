@@ -1,6 +1,7 @@
 #ifndef MM_ENGINE_ACTOR_ARCHIVE_H
 #define MM_ENGINE_ACTOR_ARCHIVE_H
 #include "actor_data.h"
+#include "movie_data.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -50,10 +51,6 @@ typedef struct MMActorArchiveHost
     MMActorEventServices events;
 } MMActorArchiveHost;
 
-/* The next slot follows the highest slot of the requested type. */
-int mm_actor_archive_next_child(const MMChunkAccess *, MMU32 parent_type, MMU32 parent,
-                                MMU32 type, MMU32 *slot);
-
 /* Copy the complete actor track into a private destination. read_events returns
  * host-owned, writable, decoded native rows as used by mm_actor_read_events.
  * Only count, fixed and data are used from the event services. The destination
@@ -62,6 +59,55 @@ int mm_actor_archive_next_child(const MMChunkAccess *, MMU32 parent_type, MMU32 
  * the candidate archive and its event group. */
 int mm_actor_archive_transfer(const MMActorArchiveRequest *, const MMActorArchiveHost *,
                               MMU32 *actor, MMActorHeader *);
+
+enum MMActorRegistrationResult
+{
+    MM_ACTOR_REGISTER_OK,
+    MM_ACTOR_REGISTER_SLOT,
+    MM_ACTOR_REGISTER_SCENE_READ,
+    MM_ACTOR_REGISTER_SCENE_DATA,
+    MM_ACTOR_REGISTER_SCENE_WRITE,
+    MM_ACTOR_REGISTER_SCENE_LINK,
+    MM_ACTOR_REGISTER_ROLL_READ,
+    MM_ACTOR_REGISTER_ROLL_DATA,
+    MM_ACTOR_REGISTER_ROLL_WRITE,
+    MM_ACTOR_REGISTER_MEMORY
+};
+
+typedef struct MMActorArchivePlacement
+{
+    MMU32 scene, actor;
+    MMI32 first_frame;
+    int invalidate_thumbnail;
+} MMActorArchivePlacement;
+
+typedef struct MMActorArchiveName
+{
+    MMMovieActor actor;
+    const void *text;
+    MMU32 characters;
+    int replace_existing;
+} MMActorArchiveName;
+
+typedef struct MMActorArchiveEditor
+{
+    void *context;
+    unsigned text_unit;
+    int system, big_endian;
+    MMStringConvert convert_text;
+    MMChunkAccess (*chunks)(void *);
+    int (*read)(void *, MMU32 type, MMU32 number, MMReadStream *);
+    int (*add)(void *, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *);
+    int (*adopt)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
+    void (*unlink)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
+} MMActorArchiveEditor;
+
+/* NULL placement updates the roll call only. Matching rows keep their order and
+ * reference counts when replace_existing is set. The host owns the candidate
+ * archive and discards it if any operation fails. The read stream and writer
+ * borrow host storage through the next read and add, respectively. */
+int mm_actor_archive_register(const MMActorArchiveEditor *, MMU32 movie,
+                              const MMActorArchivePlacement *, const MMActorArchiveName *);
 
 #ifdef __cplusplus
 }

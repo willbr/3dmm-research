@@ -1,4 +1,7 @@
 #include "mm/scene_data.h"
+#include "mm/collections.h"
+#include "mm/movie_data.h"
+#include "mm/text.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -537,6 +540,75 @@ static void group_reading(void)
     CHECK(!mm_scene_read_event_group(MM_SCENE_GROUP_HEADERS_ONLY, 0, &order, &s));
     CHECK(order == 77 && h.read_releases == 1);
 }
+typedef struct StartOutput
+{
+    unsigned char bytes[96];
+    MMU32 size;
+    int accept;
+} StartOutput;
+
+static int capture_start(void *context, const unsigned char *bytes, MMU32 size)
+{
+    StartOutput *out = (StartOutput *)context;
+    CHECK(size <= sizeof(out->bytes));
+    memcpy(out->bytes, bytes, size);
+    out->size = size;
+    return out->accept;
+}
+
+static void append_actor(void)
+{
+    unsigned char input[60], row[12];
+    MMCollectionHeader header;
+    MMMemoryStream source, result;
+    StartOutput out;
+    MMU32 offset;
+    MMI32 bytes;
+    int big;
+    for (big = 0; big <= 1; ++big)
+    {
+        memset(&header, 0, sizeof(header));
+        header.kind = MM_COLLECTION_GROUP;
+        header.system = MM_TEXT_MAC;
+        header.big_endian = big;
+        header.width = MM_SCENE_EVENT_BYTES;
+        header.bytes = 24;
+        header.count = 2;
+        header.free_count = -1;
+        memset(input, 0, sizeof(input));
+        CHECK(mm_collection_header_write(&header, input, sizeof(input)) == MM_STORAGE_OK);
+        put32(input + 24, MM_SCENE_CHANGE_CAMERA, big);
+        put32(input + 28, 2, big);
+        put32(input + 36, MM_SCENE_ADD_TEXT, big);
+        put32(input + 40, 3, big);
+        /* The dense group's row order can differ from its physical order. */
+        put32(input + 44, 12, big);
+        put32(input + 48, 12, big);
+        put32(input + 56, 12, big);
+        CHECK(mm_memory_stream_init(&source, input, sizeof(input)));
+        out.accept = 1;
+        CHECK(mm_scene_append_start_actor(&source.stream, MM_TEXT_WINDOWS, -2, 7, capture_start, &out) ==
+              MM_MOVIE_OK);
+        CHECK(out.size == 80 && mm_memory_stream_init(&result, out.bytes, out.size));
+        CHECK(mm_collection_header_read(&result.stream, MM_COLLECTION_GROUP, 0, &header) == MM_STORAGE_OK);
+        CHECK(header.system == MM_TEXT_WINDOWS && header.big_endian == big && header.count == 3);
+        CHECK(!memcmp(input + 20, out.bytes + 20, 24) && !memcmp(input + 44, out.bytes + 56, 16));
+        CHECK(mm_collection_group_row(&header, out.bytes + 20, 2, &offset, &bytes));
+        CHECK(offset == 24 && bytes == 4);
+        put32(row, (MMU32)-2, big);
+        put32(row + 4, MM_SCENE_ADD_ACTOR, big);
+        put32(row + 8, 7, big);
+        CHECK(!memcmp(row, out.bytes + 20 + offset, sizeof(row)));
+        out.accept = 0;
+        CHECK(mm_scene_append_start_actor(&source.stream, MM_TEXT_WINDOWS, -2, 7, capture_start, &out) ==
+              MM_MOVIE_IO);
+        out.size = 0;
+        put32(input + 48, 13, big);
+        CHECK(mm_scene_append_start_actor(&source.stream, MM_TEXT_WINDOWS, -2, 7, capture_start, &out) ==
+              MM_MOVIE_BAD_FILE && out.size == 0);
+    }
+}
+
 int main(void)
 {
     validation();
@@ -544,6 +616,7 @@ int main(void)
     headers();
     creation();
     group_reading();
+    append_actor();
     puts("scene data passed");
     return 0;
 }

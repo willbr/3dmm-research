@@ -14516,3 +14516,36 @@ frame positions in seek and playback. Both ports matched 30 of the
 playback timing remains inconclusive. Capture metadata is in
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The headless probe,
 native movie outputs and logs are in `tmp/c89-actor-transfer`.
+
+## Marcus actor registration and roll-call writes in C89 (19 November 2026)
+
+Actor insertion and paste use the C89 archive editor to assign a scene
+child slot, append an Add Actor start event, link the actor and
+replacement start group, and invalidate the thumbnail when requested.
+The C89 editor reads and writes the GST roll call directly. 3D text
+renames use that writer and retain existing actor reference counts.
+The native adapter supplies unpacked chunk reads, chunk writes, link
+primitives and character conversion.
+
+The start-event regression exercises both byte orders, preserves
+existing records whose logical order differs from their physical order,
+and checks invalid rows and failed writes. The roll-call regression
+renames a big-endian row with three references, retains its neighbor and
+clears the wire pointer field. All 18 selected checks passed, including
+strict C89, native scene and roll-call data, and headless Marcus editing
+and playback.
+
+The headless probe copied at frame 10, pasted at frame 12, saved, undid
+the paste, and saved again.
+Both output pairs were byte-identical to the pre-change outputs. The
+pasted movie has SHA-256
+`51dc19908b98e4c093eb41c823fa5f861d7fe187b2010db37805ff79d2470afe`.
+
+Suite `20261119T035604Z-81ad8d30` compares fresh Marcus seek and playback
+runs with the earlier retail and SDL Studio captures of that same movie.
+All six runs completed and agreed on all 61 authored frame positions in
+both modes. Both ports matched 30 of the 31 retail seek images in the
+edited scene. Full captures still show pixel and mixed PCM differences,
+and Marcus playback timing remains inconclusive. The database is at
+`tmp/c89-sound-schedule/capture/playback.sqlite`. Probe outputs and logs
+are in `tmp/c89-actor-register`.

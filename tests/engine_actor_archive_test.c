@@ -1,7 +1,9 @@
 #include "mm/actor_archive.h"
 #include "mm/actor_motion.h"
 #include "mm/movie_sound.h"
+#include "mm/rollcall_storage.h"
 #include "mm/template_create.h"
+#include "mm/text.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +12,8 @@
 #define ACTOR 0x41435452UL
 #define FONT 0x464f4e54UL
 #define MATERIAL 0x4d54524cUL
+#define MOVIE 0x4d564945UL
+#define ROLLCALL 0x47535420UL
 #define INVALID_FRAME 2147483647L
 
 typedef struct Graph
@@ -189,6 +193,116 @@ static void init(Fixture *f, int big)
     f->events[5].nfrm = INVALID_FRAME;
 }
 
+typedef struct RollEdit
+{
+    Graph graph;
+    MMMemoryStream source;
+    unsigned char output[128];
+    MMU32 size;
+    int step;
+} RollEdit;
+
+static MMChunkAccess movie_chunks(void *context)
+{
+    MMChunkAccess chunks = {NULL, 1, entry, child};
+    chunks.context = &((RollEdit *)context)->graph;
+    return chunks;
+}
+static int open_roll(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    RollEdit *edit = (RollEdit *)context;
+    CHECK(type == ROLLCALL && number == 8 && edit->step == 0);
+    *stream = edit->source.stream;
+    return 1;
+}
+static int write_roll(void *context, MMU32 offset, const void *data, size_t bytes)
+{
+    RollEdit *edit = (RollEdit *)context;
+    CHECK(edit->step == 2 && offset <= edit->size && bytes <= edit->size - offset);
+    memcpy(edit->output + offset, data, bytes);
+    return 1;
+}
+static int add_roll(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
+{
+    RollEdit *edit = (RollEdit *)context;
+    CHECK(type == ROLLCALL && size <= sizeof(edit->output) && edit->step == 1);
+    ++edit->step;
+    edit->size = size;
+    *number = 9;
+    writer->context = edit;
+    writer->length = size;
+    writer->write_at = write_roll;
+    return 1;
+}
+static int adopt_roll(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 child, MMU32 slot)
+{
+    RollEdit *edit = (RollEdit *)context;
+    CHECK(type == MOVIE && parent == 1 && child_type == ROLLCALL && child == 9 && slot == 0);
+    CHECK(edit->step == 2);
+    ++edit->step;
+    return 1;
+}
+static void unlink_roll(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 child, MMU32 slot)
+{
+    RollEdit *edit = (RollEdit *)context;
+    CHECK(type == MOVIE && parent == 1 && child_type == ROLLCALL && child == 8 && slot == 0);
+    CHECK(edit->step == 0);
+    ++edit->step;
+}
+
+static void rename_rollcall(void)
+{
+    RollEdit edit;
+    MMActorArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, movie_chunks,
+                                   open_roll, add_roll, adopt_roll, unlink_roll};
+    MMActorArchiveName name = {{4, 1, 0, 2, MM_TMPL, 19}, "edited", 6, 1};
+    MMMovieActor original = {4, 3, 5, 0, MM_TMPL, 1}, other = {6, 2, 5, 1, MM_TMPL, 2}, actor;
+    MMCollectionHeader header = {0};
+    MMRollCallTable table;
+    MMMemoryStream output, row;
+    unsigned char input[93] = {0}, bytes[MM_MOVIE_ACTOR_BYTES];
+    const void *text;
+    MMU32 characters;
+    int big;
+
+    memset(&edit, 0, sizeof(edit));
+    editor.context = &edit;
+    edit.graph.entries[0].type = MOVIE;
+    edit.graph.entries[0].number = 1;
+    append_child(&edit.graph, 0, ROLLCALL, 8, 0);
+    header.kind = MM_COLLECTION_STRINGS;
+    header.system = MM_TEXT_WINDOWS;
+    header.big_endian = 1;
+    header.width = 32;
+    header.count = 2;
+    header.bytes = 9;
+    header.free_count = -1;
+    CHECK(mm_collection_header_write(&header, input, sizeof(input)) == MM_STORAGE_OK);
+    memcpy(input + 20, "\003old\004kept", 9);
+    mm_movie_write_actor(&original, input + 33, 1);
+    input[64] = 4;
+    mm_movie_write_actor(&other, input + 65, 1);
+    input[81] = 0xba; /* A legacy pointer placeholder has no runtime meaning. */
+    CHECK(mm_memory_stream_init(&edit.source, input, sizeof(input)));
+    CHECK(mm_actor_archive_register(&editor, 1, NULL, &name) == MM_ACTOR_REGISTER_OK && edit.step == 3);
+
+    CHECK(mm_rollcall_table_init(&table, MM_MOVIE_ACTOR_BYTES, 1, MM_TEXT_WINDOWS, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_memory_stream_init(&output, edit.output, edit.size));
+    CHECK(mm_rollcall_table_read(&table, &output.stream, NULL, NULL, &big) == MM_STORAGE_OK);
+    CHECK(big == 0 && table.count == 2);
+    CHECK(mm_rollcall_table_name(&table, 0, &text, &characters) && characters == 6 && !memcmp(text, "edited", 6));
+    CHECK(mm_rollcall_table_extra(&table, 0, bytes) && mm_memory_stream_init(&row, bytes, sizeof(bytes)));
+    CHECK(mm_movie_read_actor(&row.stream, big, &actor, NULL) == MM_MOVIE_OK);
+    CHECK(actor.actor_id == 4 && actor.reference_count == 3 && actor.browser_flags == 2 &&
+          actor.source_id == 0 && actor.template_type == MM_TMPL && actor.template_number == 19);
+    CHECK(mm_rollcall_table_name(&table, 1, &text, &characters) && characters == 4 && !memcmp(text, "kept", 4));
+    CHECK(mm_rollcall_table_extra(&table, 1, bytes));
+    CHECK(mm_movie_read_actor(&row.stream, big, &actor, NULL) == MM_MOVIE_OK);
+    CHECK(actor.actor_id == 6 && actor.reference_count == 2 && actor.source_id == 5 && actor.browser_flags == 1 &&
+          actor.template_number == 2 && bytes[16] == 0 && bytes[17] == 0 && bytes[18] == 0 && bytes[19] == 0);
+    CHECK(mm_rollcall_table_dispose(&table) == MM_STORAGE_OK);
+}
+
 int main(void)
 {
     Fixture f;
@@ -253,5 +367,6 @@ int main(void)
     f.fail_write = 1;
     CHECK(mm_actor_archive_transfer(&request, &host, &actor, &header) == MM_ACTOR_ARCHIVE_WRITE_EVENTS);
     CHECK(actor == 777 && header.actor_id == 888 && f.writes == 1);
+    rename_rollcall();
     return 0;
 }
