@@ -65,7 +65,7 @@ extern "C"
         void *(*read_scene)(void *, void *resources, MMU32 scene);
         int (*start_scene)(void *scene), (*add_actors)(void *scene);
         void (*remove_actors)(void *scene), (*actor_tools)(void *), (*text_tools)(void *);
-        int (*preserve_scene_materials)(void *file, MMU32 scene);
+        int (*preserve_scene_assets)(void *file, MMU32 scene);
         void (*delete_scene_child)(void *file, MMU32 movie, MMU32 scene, MMU32 child),
             (*change_child)(void *file, MMU32 movie, MMU32 scene, MMU32 old_child, MMU32 new_child);
         int (*write_transition)(void *resources, MMU32 scene, MMI32);
@@ -76,6 +76,7 @@ extern "C"
         void (*close_tag)(MMTag *);
         int (*adjust_actor)(void *file, MMU32 actor, MMI32 offset);
         int (*rebind_actor_materials)(void *source, void *destination, MMU32 actor);
+        int (*rebind_scene_backgrounds)(void *source, void *destination, MMU32 scene);
     } MMMovieComposeServices;
     /* Initialized synchronous services, stable owners and valid descriptor indexes
      * are required. Callbacks cannot re-enter editing. Lists own one thumbnail/cache
@@ -88,8 +89,8 @@ extern "C"
      * Apply keeps completed scene/roll-call/file prefixes on failure; copied Movie roots
      * and cache references are temporary and always cleaned, including failed merge.
      * Adds missing imported scene sound links before transferring roll-call rows.
-     * Rebinds each cloned actor's document materials once before adopting scenes,
-     * even when its actor IDs already fit. That import pass aborts on traversal failure.
+     * Rebinds cloned scenes' document backgrounds and actors' document materials
+     * once before adopting scenes. That import pass aborts on traversal failure.
      * Import actor-start/registration failures are diagnosed but do not abort apply.
      * The current scene follows its live child slot, excluding deleted descriptors.
      * Merge transfers loaded tag references to appended rows. Failure removes those

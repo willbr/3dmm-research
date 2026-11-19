@@ -132,19 +132,22 @@ int mm_movie_archive_ensure_empty_rollcall(const MMMovieArchiveEditor *);
  * there is no matching child. */
 int mm_movie_archive_next_child(const MMChunkAccess *, MMU32 parent_type, MMU32 parent,
                                  MMU32 type, MMU32 *slot);
+/* Copy or reuse the source subtree, adopt it once and publish the new number. */
+int mm_movie_archive_embed_tag(const MMMovieEmbeddedArchive *, MMU32 parent_type, MMU32 parent, MMTag *);
 
-/* Before detaching a scene, keep material subtrees that would lose their last
- * parent. Older ACTR records and live undo can still refer to these by number.
- * The callback marks an existing material as a loner without changing index
+/* Before detaching a scene, keep background and material subtrees that would
+ * lose their last parent. Raw tags and undo can still refer to these by number.
+ * The callback marks an existing asset as a loner without changing index
  * positions. No flags are published if the deletion preview fails. */
-int mm_movie_archive_preserve_scene_materials(const MMChunkAccess *, MMU32 scene,
+int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *, MMU32 scene,
                                               const MMStorageAllocator *, void *context,
-                                              void (*keep)(void *, MMU32 material));
+                                              void (*keep)(void *, MMU32 type, MMU32 number));
 
 /* Write and adopt the replacement before unlinking the old child. */
 int mm_movie_archive_replace_child(const MMMovieArchiveEditor *, MMU32 parent_type, MMU32 parent,
                                    const MMChunkChild *, int had_child, const unsigned char *, MMU32 bytes);
 int mm_movie_archive_retarget_background(const MMMovieArchiveEditor *, MMU32 scene, MMI32 source, MMU32 background);
+int mm_movie_archive_rebind_backgrounds(const MMMovieArchiveEditor *, const MMMovieEmbeddedArchive *, MMU32 scene);
 enum { MM_STORYBOARD_CHUNK = 0x53544244UL };
 /* The background graph has already been copied into this private archive. */
 int mm_movie_archive_embed_storyboard(const MMMovieArchiveEditor *, MMU32 scene, MMU32 background,

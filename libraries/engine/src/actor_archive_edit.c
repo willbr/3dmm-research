@@ -215,7 +215,7 @@ int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 
         if (costume.custom || costume.tag.sid != 0 || costume.tag.type != MATERIAL_TYPE)
             continue;
         number = costume.tag.number;
-        if (!mm_actor_store_material(actor, &costume.tag, materials))
+        if (!mm_movie_archive_embed_tag(materials, MM_ACTOR_CHUNK, actor, &costume.tag))
             goto done;
         if (costume.tag.number != number)
         {

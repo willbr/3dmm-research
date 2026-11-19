@@ -29,7 +29,7 @@ typedef struct StoreFixture
     StoreGroup runtime[2], temp[2], wire[2];
     int attempts, fail, created, live, deleted, thumb_deleted, with_thumb, thumb, updated, old_thumb;
     int written, metadata, diagnostics, missing_background, empty_events, actor_error;
-    int missing_actor, missing_frames, list_failure;
+    int missing_actor, missing_frames, list_failure, background_adoption_failed;
     int log[512], used, adopted, adoptions, objects, swap;
     MMU32 actor_id, text_id;
     MMTagList tags;
@@ -221,13 +221,32 @@ static int write_object(void *p, void *value, int kind, MMU32 number, MMU32 scen
     ++f->objects;
     return step(f, 75 + kind);
 }
-static int save_background(void *p, void *g, MMI32 i, MMTag *tag)
+static int read_background(void *p, void *g, MMI32 i, MMTag *tag)
+{
+    (void)p;
+    *tag = ((StoreGroup *)g)->events[i].payload.tag;
+    return 1;
+}
+static int copy_background(void *p, const MMTag *tag, MMU32 *number, int *created)
 {
     StoreFixture *f = (StoreFixture *)p;
-    MMTag *input = &((StoreGroup *)g)->events[i].payload.tag;
-    input->number += 10;
-    *tag = *input;
+    CHECK(tag->sid == 0 && tag->number == 9 && tag->cache == &f->packets && tag->type == MM_BACKGROUND);
+    *number = 19;
+    *created = 1;
     return step(f, 80);
+}
+static int adopt_background(void *p, MMU32 type, MMU32 scene, const MMChunkChild *child, int clear_loner)
+{
+    StoreFixture *f = (StoreFixture *)p;
+    CHECK(type == MM_SCENE_CHUNK && scene == 42 && child->type == MM_BACKGROUND &&
+          child->number == 19 && child->slot == 0 && clear_loner);
+    f->background_adoption_failed = !step(f, 79);
+    return !f->background_adoption_failed;
+}
+static void discard_background(void *p, MMU32 type, MMU32 number)
+{
+    CHECK(type == MM_BACKGROUND && number == 19);
+    note((StoreFixture *)p, 78);
 }
 static int write_events(void *p, MMU32 scene, void *frames, void *starts)
 {
@@ -354,7 +373,12 @@ static void init_store(StoreFixture *f)
     s->add_child = add_child;
     s->object = object;
     s->write_object = write_object;
-    s->save_background = save_background;
+    s->assets.context = f;
+    s->assets.chunks = store_chunks;
+    s->assets.copy_reference = copy_background;
+    s->assets.adopt = adopt_background;
+    s->assets.discard = discard_background;
+    s->read_background = read_background;
     s->write_events = write_events;
     s->update_thumbnail = update_thumbnail;
     s->thumbnail_size = thumbnail_size;
@@ -388,7 +412,7 @@ static void init_store(StoreFixture *f)
     event(&f->runtime[1], 2, &ptr, sizeof(ptr));
     tag.sid = 0;
     tag.cache = &f->packets;
-    tag.type = 23;
+    tag.type = MM_BACKGROUND;
     tag.number = 9;
     event(&f->runtime[1], 4, &tag, sizeof(tag));
     event(&f->runtime[1], 3, &camera, 4);
@@ -406,9 +430,10 @@ static void test_store(void)
 {
     StoreFixture f;
     MMU32 number;
-    int attempts, fail, j, last, background_called;
+    int attempts, fail, j, last;
     init_store(&f);
     CHECK(mm_scene_store(&number, &f.s) && number == 42 && !f.deleted && f.metadata);
+    CHECK(f.runtime[1].events[4].payload.tag.number == 9);
     attempts = f.attempts;
     CHECK(f.log[f.used - 2] == 110 && f.log[f.used - 1] == 111);
     CHECK(f.packets.refs[1] == 2 && f.packets.refs[3] == 2 && f.packets.refs[4] == 2);
@@ -430,11 +455,9 @@ static void test_store(void)
         if (f.thumb_deleted)
             CHECK(f.log[last - 1] == 86);
         CHECK(f.packets.refs[1] == 2 && f.packets.refs[3] == 2 && f.packets.refs[4] == 2);
-        background_called = 0;
-        for (j = 0; j < f.used; ++j)
-            if (f.log[j] == 80)
-                background_called = 1;
-        CHECK(f.runtime[1].events[4].payload.tag.number == (background_called ? 19U : 9U));
+        if (f.background_adoption_failed)
+            CHECK(last > 1 && f.log[last - 2] == 79 && f.log[last - 1] == 78);
+        CHECK(f.runtime[1].events[4].payload.tag.number == 9);
         clean_store(&f);
     }
     init_store(&f);
@@ -671,6 +694,9 @@ static void test_collect(void)
     StoreFixture f;
     int attempts, fail, swap;
     MMU32 child = 7;
+    MMGroup group = {NULL, sizeof(MMTagCached), 0, 0, -1, 0};
+    MMGroupLocation loc;
+    MMTagCached tag;
     for (swap = 0; swap < 2; ++swap)
     {
         init_collect(&f, swap);
@@ -679,6 +705,16 @@ static void test_collect(void)
         attempts = f.attempts;
         CHECK(!f.diagnostics);
         check_collected(&f);
+        clean_collect(&f);
+        init_collect(&f, swap);
+        wire_word(f.wire[1].events[2].payload.bytes, 0, swap);
+        CHECK(mm_scene_collect_tags(42, &f.tags, &f.collect));
+        group.storage = &f.tags.storage;
+        group.count = f.tags.count;
+        group.bytes = f.tags.bytes;
+        CHECK(mm_tag_list_get(&f.tags, 1, &tag) == MM_STORAGE_OK &&
+              tag.tag.sid == 0 && tag.tag.type == MM_BACKGROUND && tag.tag.number == 19);
+        CHECK(mm_group_location(&group, 1, &loc) == MM_STORAGE_OK && loc.bytes == sizeof(tag));
         clean_collect(&f);
         for (fail = 1; fail <= attempts; ++fail)
         {

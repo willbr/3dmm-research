@@ -139,7 +139,6 @@ extern "C"
 
     /* Attach a document tag's material to the actor and update the borrowed
      * tag number on success. Any new root that cannot be adopted is discarded. */
-    int mm_actor_store_material(MMU32 actor, MMTag *, const MMMovieEmbeddedArchive *);
 
     typedef struct MMActorStoreServices
     {

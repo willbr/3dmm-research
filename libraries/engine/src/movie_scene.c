@@ -291,7 +291,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     }
     scene = s->state->open;
     number = s->scene_number(s->context, file, index);
-    if (s->preserve_scene_materials && !s->preserve_scene_materials(file, number))
+    if (s->preserve_scene_assets && !s->preserve_scene_assets(file, number))
     {
         if (old != index)
             mm_movie_scene_switch(old, s);

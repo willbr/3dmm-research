@@ -148,13 +148,13 @@ struct Movie::SaveHost
     explicit SaveHost(PMovie value) : movie(value) {}
 };
 
-static int PreserveSceneMaterials(void *context, MMU32 scene)
+static int PreserveSceneAssets(void *context, MMU32 scene)
 {
     auto file = static_cast<PChunkyFile>(context);
     const auto chunks = file->ReadChunkAccess();
     const auto allocator = CollectionAllocator();
-    return mm_movie_archive_preserve_scene_materials(&chunks, scene, &allocator, file,
-        [](void *p, MMU32 material) { static_cast<PChunkyFile>(p)->SetLoner(kctgMtrl, material, true); });
+    return mm_movie_archive_preserve_scene_assets(&chunks, scene, &allocator, file,
+        [](void *p, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(p)->SetLoner(type, number, true); });
 }
 
 MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
@@ -227,7 +227,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.adopt = [](void *p, MMU32 root, MMU32 type, MMU32 number, MMU32 slot) -> int {
         return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie, root, type, number, slot);
     };
-    s.preserve_scene_materials = PreserveSceneMaterials;
+    s.preserve_scene_assets = PreserveSceneAssets;
     s.delete_child = [](void *p, MMU32 root, MMU32 type, MMU32 number, MMU32 slot) {
         static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie, root, type, number, slot);
     };
@@ -1095,7 +1095,7 @@ MMMovieSceneServices Movie::_SceneServices()
         return static_cast<PChunkyFile>(file)->FAdoptChild(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
             kctgScen, number, index);
     };
-    s.preserve_scene_materials = PreserveSceneMaterials;
+    s.preserve_scene_assets = PreserveSceneAssets;
     s.delete_child = [](void *p, void *file, MMU32 number, MMI32 index) {
         static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
             kctgScen, number, index);
@@ -2892,6 +2892,14 @@ MMMovieComposeServices Movie::_ComposeServices()
         ChunkNumber value; bool ok=static_cast<PChunkyFile>(p)->FClone(kctgMvie,number,static_cast<PChunkyFile>(out),&value);
         if(ok) *copied=value; return ok;
     };
+    s.rebind_scene_backgrounds = [](void *source, void *destination, MMU32 scene) {
+        auto file = static_cast<PChunkyFile>(destination);
+        MovieArchiveHost host{file, {}, {}};
+        MovieEmbeddedArchive assets{file, static_cast<PChunkyFile>(source)};
+        const auto editor = host.Editor();
+        const auto archive = assets.Services();
+        return mm_movie_archive_rebind_backgrounds(&editor, &archive, scene);
+    };
     s.link_imported_sounds = [](void *p, MMU32 movie) {
         auto file = static_cast<PChunkyFile>(p);
         const auto graph = EngineMovieGraph::FromFile(file);
@@ -2912,7 +2920,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.remove_actors=[](void *p) { static_cast<PScene>(p)->RemActrsFromRollCall(true); };
     s.actor_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableActorTools(); };
     s.text_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableTboxTools(); };
-    s.preserve_scene_materials = PreserveSceneMaterials;
+    s.preserve_scene_assets = PreserveSceneAssets;
     s.delete_scene_child=[](void *p,MMU32 movie,MMU32 scene,MMU32 child) { static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie,movie,kctgScen,scene,child); };
     s.change_child=[](void *p,MMU32 movie,MMU32 scene,MMU32 before,MMU32 after) { static_cast<PChunkyFile>(p)->ChangeChid(kctgMvie,movie,kctgScen,scene,before,after); };
     s.write_transition=[](void *p,MMU32 number,MMI32 transition)->int { return Scene::FSetTransOnFile(static_cast<PChunkyResourceFile>(p),number,TRANS(transition)); };

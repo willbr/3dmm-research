@@ -1,6 +1,7 @@
 /* Scene state and persistence converted from engine scene_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_data.h"
+#include "mm/background_resource.h"
 #include "mm/collections.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_data.h"
@@ -176,20 +177,20 @@ int mm_scene_encode_background_group(int system, int big, MMI32 frame, MMI32 sou
     put(row + 4, MM_SCENE_SET_BACKGROUND, 4, big);
     put(row + 8, (MMU32)source, 4, big);
     put(row + 12, 0, 4, big);
-    put(row + 16, 0x424b4744UL, 4, big);
+    put(row + 16, MM_BACKGROUND, 4, big);
     put(row + 20, background, 4, big);
     put(row + row_bytes, 0, 4, big);
     put(row + row_bytes + 4, row_bytes, 4, big);
     return 1;
 }
-int mm_scene_retarget_start_background(const MMReadStream *stream, MMI32 source, MMU32 background,
-                                        MMByteReceiver receive, void *context)
+static int edit_start_backgrounds(const MMReadStream *stream, MMI32 source, MMU32 background,
+                                  int (*map)(void *, MMU32, MMU32 *), MMByteReceiver receive, void *context)
 {
     MMCollectionHeader header;
-    unsigned char *copy, *records, *tag;
-    MMU32 index, offset;
+    unsigned char *copy, *records, *tag, original[4];
+    MMU32 index, offset, number, mapped;
     MMI32 bytes, type;
-    int found = 0, result = 0;
+    int changed = 0, result = 0;
     if (mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &header) != MM_STORAGE_OK ||
         header.width != MM_SCENE_EVENT_BYTES || (size_t)stream->length != stream->length)
         return 0;
@@ -206,21 +207,47 @@ int mm_scene_retarget_start_background(const MMReadStream *stream, MMI32 source,
         type = mm_signed_word(word(records + offset + 4, header.big_endian));
         if (!valid_event(type, bytes, header.big_endian, 1, NULL))
             goto done;
-        if (type == MM_SCENE_SET_BACKGROUND)
+        if (type != MM_SCENE_SET_BACKGROUND)
+            continue;
+        tag = records + offset + MM_SCENE_EVENT_BYTES;
+        if (!map)
         {
-            tag = records + offset + MM_SCENE_EVENT_BYTES;
             put(tag, (MMU32)source, 4, header.big_endian);
             put(tag + 4, 0, 4, header.big_endian);
-            put(tag + 8, 0x424b4744UL, 4, header.big_endian);
+            put(tag + 8, MM_BACKGROUND, 4, header.big_endian);
             put(tag + 12, background, 4, header.big_endian);
-            found = 1;
+            changed = 1;
+        }
+        else if (!word(tag, header.big_endian) && word(tag + 8, header.big_endian) == MM_BACKGROUND)
+        {
+            /* Rows can share a location. Read the original number in that case too. */
+            if (!mm_read_exact(stream, header.header_bytes + offset + MM_SCENE_EVENT_BYTES + 12,
+                               original, sizeof(original)))
+                goto done;
+            number = word(original, header.big_endian);
+            if (!map(context, number, &mapped))
+                goto done;
+            if (number != mapped)
+            {
+                put(tag + 12, mapped, 4, header.big_endian);
+                changed = 1;
+            }
         }
     }
-    if (found)
-        result = receive(context, copy, stream->length);
+    result = changed ? receive(context, copy, stream->length) : map != NULL;
 done:
     free(copy);
     return result;
+}
+int mm_scene_retarget_start_background(const MMReadStream *stream, MMI32 source, MMU32 background,
+                                        MMByteReceiver receive, void *context)
+{
+    return edit_start_backgrounds(stream, source, background, NULL, receive, context);
+}
+int mm_scene_rebind_start_backgrounds(const MMReadStream *stream, int (*map)(void *, MMU32, MMU32 *),
+                                      MMByteReceiver receive, void *context)
+{
+    return edit_start_backgrounds(stream, 0, 0, map, receive, context);
 }
 int mm_scene_append_start_actor(const MMReadStream *stream, int system, MMI32 frame, MMU32 slot,
                                 MMByteReceiver receive, void *context)

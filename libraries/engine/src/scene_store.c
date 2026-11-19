@@ -73,7 +73,9 @@ int mm_scene_collect_tags(MMU32 scene, MMTagList *tags, const MMSceneCollectServ
                 if (event.bytes != 16)
                     goto fail;
                 tag_from_event(&tag, &event);
-                if (!mm_background_tags(tags, &tag))
+                /* The movie already provides local backgrounds and their children. */
+                if (tag.sid ? !mm_background_tags(tags, &tag)
+                            : mm_tag_list_insert(tags, &tag, 0) != MM_STORAGE_OK)
                     goto fail;
                 background = tag;
             }
@@ -88,7 +90,8 @@ int mm_scene_collect_tags(MMU32 scene, MMTagList *tags, const MMSceneCollectServ
                         s->diagnostic(s->context, 0, 1);
                     goto fail;
                 }
-                if (mm_tag_list_child(tags, &background, child, MM_BACKGROUND_CAMERA) != MM_STORAGE_OK)
+                if (background.sid &&
+                    mm_tag_list_child(tags, &background, child, MM_BACKGROUND_CAMERA) != MM_STORAGE_OK)
                     goto fail;
             }
             else if (!start && event.kind == MM_SCENE_PLAY_SOUND)
@@ -210,7 +213,8 @@ int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
         }
         else if (kind == MM_SCENE_SET_BACKGROUND)
         {
-            if (!s->save_background(s->context, group, i, &tag))
+            if (!s->read_background(s->context, group, i, &tag) ||
+                (!tag.sid && !mm_movie_archive_embed_tag(&s->assets, MM_SCENE_CHUNK, *number, &tag)))
                 goto fail;
             memcpy(wire_tag, &tag.sid, 4);
             memset(wire_tag + 4, 0, 4);

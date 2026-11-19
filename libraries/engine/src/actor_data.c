@@ -395,35 +395,6 @@ done:
     return status;
 }
 
-int mm_actor_store_material(MMU32 actor, MMTag *tag, const MMMovieEmbeddedArchive *s)
-{
-    MMChunkAccess chunks;
-    MMChunkChild link, existing;
-    MMU32 row, i;
-    int created;
-    link.type = tag->type;
-    if (!s->copy_reference(s->context, tag, &link.number, &created))
-        return 0;
-    chunks = s->chunks(s->context);
-    if (mm_chunk_find(&chunks, MM_ACTOR_CHUNK, actor, &row) != MM_CHUNK_OK)
-        goto fail;
-    for (i = 0; mm_chunk_child_at(&chunks, row, i, &existing) == MM_CHUNK_OK; ++i)
-        if (existing.type == link.type && existing.number == link.number)
-        {
-            tag->number = link.number;
-            return 1;
-        }
-    if (!mm_movie_archive_next_child(&chunks, MM_ACTOR_CHUNK, actor, link.type, &link.slot) ||
-        !s->adopt(s->context, MM_ACTOR_CHUNK, actor, &link, created))
-        goto fail;
-    tag->number = link.number;
-    return 1;
-fail:
-    if (created)
-        s->discard(s->context, link.type, link.number);
-    return 0;
-}
-
 static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 actor,
                           const MMActorStoreServices *store)
 {
@@ -449,7 +420,7 @@ static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 ac
         {
             memcpy(&costume, data, sizeof(costume));
             if (store && !costume.custom && costume.tag.sid == 0 &&
-                !mm_actor_store_material(actor, &costume.tag, &store->materials))
+                !mm_movie_archive_embed_tag(&store->materials, MM_ACTOR_CHUNK, actor, &costume.tag))
                 goto fail;
             memcpy(bytes, &costume.body_set, 4);
             memcpy(bytes + 4, &costume.costume, 4);

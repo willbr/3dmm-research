@@ -2589,6 +2589,20 @@ tones in the repaired scene. All 270 actor-fixture seek images matched the
 earlier composition. Mixed PCM still differed from retail in both ports.
 Evidence is in `tmp/c89-compose-sounds/`.
 
+Studio now loads embedded background tags against the scene's resource cache.
+The sorter and scene writer use C89 to attach the background and save the
+destination chunk number. Two source fixtures reused the base movie's
+background number and had different camera views. One source linked its
+background to the scene and the other stored it as a standalone chunk. Both
+imports retained their source camera payloads and exact Studio viewport
+pixels after save, reopen, and a frame edit. SDL Studio and Marcus matched
+all four seek images and the playback order of the embedded import. Retail,
+SDL Studio, and Marcus agreed on the three-frame order and seek images of
+the stock-background control. SDL Studio's playback timing differed from
+retail. The embedded fixtures exercise a format extension that stock retail
+cannot load.
+Evidence is in `tmp/c89-compose-background/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

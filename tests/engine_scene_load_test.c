@@ -22,7 +22,7 @@ typedef struct Loader
     MMSceneLoadServices s;
     MMSceneOwner owner;
     MMSceneState metadata;
-    LoadObject wire[2], *scene;
+    LoadObject wire[2], background_cache, *scene;
     int attempt, fail, live, swap, names, published, log[512], used, locks;
     int actor_calls, resolve_calls, actor_fail, resolve_fail, no_thumbnail, bad_kind;
 } Loader;
@@ -249,8 +249,18 @@ static int insert(void *p, void *g, MMI32 i, MMI32 frame, int kind, MMI32 bytes,
 }
 static int insert_tag(void *p, void *g, MMI32 i, MMI32 frame, const MMTag *tag)
 {
-    CHECK(tag->sid == 1 && !tag->cache && tag->type == 23 && tag->number == 9);
+    Loader *f = (Loader *)p;
+    CHECK(tag->sid == 0 && tag->cache == &f->background_cache && tag->type == 23 && tag->number == 9);
     return insert(p, g, i, frame, MM_SCENE_SET_BACKGROUND, sizeof(*tag), tag);
+}
+static void *retain_background_cache(void *p)
+{
+    Loader *f = (Loader *)p;
+    CHECK(!f->background_cache.refs);
+    f->background_cache.type = 103;
+    ++f->background_cache.refs;
+    ++f->live;
+    return &f->background_cache;
 }
 static int open_tag(void *p, MMSceneSound *sound, MMI32 i)
 {
@@ -306,7 +316,7 @@ static void init_loader(Loader *f, int swap)
     MMSceneOwnerServices *o;
     MMSceneLoadServices *s;
     MMU32 sound[] = {80, 2, 0, 3, 1, 0, 0, 23, 1, 2, 3, 0, 23, 2, 3, 0, 0, 23, 3}, camera[] = {0x12345678U},
-               pause[] = {3, 230}, background[] = {1, 999, 23, 9}, id[] = {7};
+               pause[] = {3, 230}, background[] = {0, 999, 23, 9}, id[] = {7};
     memset(f, 0, sizeof(*f));
     init(&f->packets);
     f->swap = swap;
@@ -334,6 +344,7 @@ static void init_loader(Loader *f, int swap)
     s->object = read_object;
     s->insert = insert;
     s->insert_tag = insert_tag;
+    s->retain_background_cache = retain_background_cache;
     s->open_tag = open_tag;
     s->load_name = load_name;
     o = &s->owners;

@@ -2,6 +2,8 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_compose.h"
 #include "mm/movie_rollcall.h"
+#include "mm/actor_data.h"
+#include "mm/scene_data.h"
 #include "mm/wide.h"
 #include <string.h>
 int mm_composite_insert_scene(void *list, MMI32 index, const MMComposeScene *scene,
@@ -130,20 +132,27 @@ fail:
     }
     return 0;
 }
+typedef struct ComposeReference
+{
+    MMU32 type, number;
+} ComposeReference;
+
 static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeServices *s)
 {
     MMChunkWalk walk;
     MMCollectionStorage visited;
     MMArray ids;
     MMChunkChild node, parent;
-    MMU32 flags, i, number;
+    ComposeReference reference;
+    MMU32 flags, i;
+    int actor, background;
     void *destination = s->file(s->data->resources);
     int ok = 0;
     if (mm_storage_init(&visited, &s->allocator) != MM_STORAGE_OK)
         return 0;
     memset(&ids, 0, sizeof(ids));
     ids.storage = &visited;
-    ids.width = 4;
+    ids.width = sizeof(reference);
     ids.free_count = -1;
     if (mm_chunk_walk_init(&walk, &s->allocator) != MM_CHUNK_OK)
         goto storage;
@@ -153,19 +162,25 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
     {
         if (source && (flags & MM_WALK_ERROR))
             goto done;
-        if (!(flags & MM_WALK_PRE) || node.type != 0x41435452U)
+        actor = node.type == MM_ACTOR_CHUNK;
+        background = node.type == MM_SCENE_CHUNK && source && s->rebind_scene_backgrounds;
+        if (!(flags & MM_WALK_PRE) || (!actor && !background))
             continue;
         for (i = 0; i < ids.count; ++i)
         {
-            memcpy(&number, visited.buffers[0].data + (size_t)i * 4, 4);
-            if (number == node.number)
+            memcpy(&reference, visited.buffers[0].data + (size_t)i * sizeof(reference), sizeof(reference));
+            if (reference.type == node.type && reference.number == node.number)
                 break;
         }
         if (i < ids.count)
             continue;
-        if (mm_array_add(&ids, &node.number, 0) != MM_STORAGE_OK ||
-            (offset > 0 && !s->adjust_actor(destination, node.number, offset)) ||
-            (source && !s->rebind_actor_materials(source, destination, node.number)))
+        reference.type = node.type;
+        reference.number = node.number;
+        if (mm_array_add(&ids, &reference, 0) != MM_STORAGE_OK ||
+            (background && !s->rebind_scene_backgrounds(source, destination, node.number)) ||
+            (actor && offset > 0 && !s->adjust_actor(destination, node.number, offset)) ||
+            (actor && source && s->rebind_actor_materials &&
+             !s->rebind_actor_materials(source, destination, node.number)))
             goto done;
     }
     ok = 1;
@@ -250,7 +265,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
             if (!s->clone_movie(source, movie.number, file, &movie.number))
                 goto done;
             if ((s->link_imported_sounds && !s->link_imported_sounds(file, movie.number)) ||
-                !merge(movie.number, offset, s->rebind_actor_materials ? source : NULL, s))
+                !merge(movie.number, offset, s->rebind_actor_materials || s->rebind_scene_backgrounds ? source : NULL, s))
             {
                 s->delete_movie(file, movie.number);
                 goto done;
@@ -291,7 +306,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         }
         else if (descriptor.deleted)
         {
-            if (s->preserve_scene_materials && !s->preserve_scene_materials(file, descriptor.number))
+            if (s->preserve_scene_assets && !s->preserve_scene_assets(file, descriptor.number))
                 goto done;
             if (descriptor.child != (MMU32)old)
             {

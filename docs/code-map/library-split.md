@@ -7121,12 +7121,13 @@ and the live event retains its original tag. Reusing a material preserves its
 loner flag. If a newly copied material cannot be adopted, the C89 writer
 discards it. Dropping a failed candidate scene releases its adopted children.
 
-Before a scene is detached, `mm_movie_archive_preserve_scene_materials`
+Before a scene is detached, `mm_movie_archive_preserve_scene_assets`
 projects which chunk references will be removed. The preview follows a shared
 child only after accounting for all of its parents. Once the preview succeeds,
-Studio marks the endangered material roots as loners. Their textures remain
-reachable for event tags in older scenes and for scene undo. The save sweep
-can still remove unused loners and leaves graph-owned resources attached.
+Studio marks the endangered background and material roots as loners. Their
+subtrees remain reachable for event tags in older scenes and for scene undo.
+The save sweep can still remove unused material loners and leaves graph-owned
+resources attached.
 
 Scene-sorter imports rebind document costume tags while visiting the cloned
 actors for roll-call remapping. The source archive supplies material identity
@@ -7135,6 +7136,15 @@ is outside the cloned graph. C89 adopts the material under the cloned actor
 and writes a replacement track when the number changes. It publishes the new
 track link before releasing the old link, preserving tracks shared by another
 actor. Studio and Marcus use the same native archive adapter.
+
+That traversal also resolves document-owned background tags in cloned scenes.
+The source archive supplies the background subtree, including standalone
+backgrounds outside the cloned movie graph. C89 attaches the subtree to the
+scene and changes the number in the start event when the copy was renumbered.
+Scene saves use the same asset-linking routine. A loaded scene retains its
+resource cache for local background tags. Dependency collection reads external
+background children for precaching and leaves local child resolution to the
+loaded scene.
 
 The scene sorter installs sound links on the cloned scenes before publishing
 them. C89 visits actor and frame cues and attaches a missing scene slot to

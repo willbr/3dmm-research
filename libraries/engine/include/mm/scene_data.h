@@ -80,6 +80,10 @@ extern "C"
      * a complete group only if all rows are valid and a background is present. */
     int mm_scene_retarget_start_background(const MMReadStream *, MMI32 source, MMU32 background,
                                             MMByteReceiver, void *context);
+    /* Map document-owned background numbers. Deliver a replacement only when
+     * a number changes. All other bytes stay in their original wire order. */
+    int mm_scene_rebind_start_backgrounds(const MMReadStream *, int (*map)(void *, MMU32, MMU32 *),
+                                          MMByteReceiver, void *context);
     /* Append an Add Actor row to a validated start group. Keep its byte order
      * and existing records/locations. Write the supplied output system marker.
      * Returns a movie read result and propagates a rejected write as IO. */

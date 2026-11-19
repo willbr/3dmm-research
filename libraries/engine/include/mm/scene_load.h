@@ -22,6 +22,7 @@ extern "C"
         int (*insert)(void *, void *group, MMI32 index, MMI32 frame, int kind, MMI32 bytes,
                       const void *payload);
         int (*insert_tag)(void *, void *group, MMI32 index, MMI32 frame, const MMTag *);
+        void *(*retain_background_cache)(void *); /* Returns one reference to the document's live cache. */
         int (*open_tag)(void *, MMSceneSound *, MMI32 index);
         void (*load_name)(void *, void *scene, MMU32 number);
     } MMSceneLoadServices;
@@ -29,7 +30,8 @@ extern "C"
      * Reads metadata before creating the scene; optional thumbnail failure is ignored.
      * The read group owns its wire bytes. Fixed headers and child/
      * background words are decoded into local values; pause/camera bytes pass through
-     * unchanged, including opposite-order payloads. Sound decoding normalizes its
+     * unchanged, including opposite-order payloads. Document-owned background
+     * tags borrow a cache retained by the scene. Sound decoding normalizes its
      * private wire payload before allocation, as in the packet codec. Insert copies
      * payload bytes and transfers embedded references only on success. Callbacks must
      * not reenter loading, mutate input groups or resize live temporary packets.

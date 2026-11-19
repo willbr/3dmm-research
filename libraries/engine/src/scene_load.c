@@ -65,6 +65,13 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
         {
             tag.sid = mm_signed_word(mm_movie_scene_event_word(&event, 0));
             tag.cache = NULL;
+            if (!tag.sid)
+            {
+                if (!owner->owned[MM_SCENE_BACKGROUND_CACHE])
+                    mm_scene_owner_set(owner, scene, MM_SCENE_BACKGROUND_CACHE,
+                                       s->retain_background_cache(s->context), o);
+                tag.cache = owner->owned[MM_SCENE_BACKGROUND_CACHE];
+            }
             tag.type = mm_movie_scene_event_word(&event, 8);
             tag.number = mm_movie_scene_event_word(&event, 12);
             if (!s->insert_tag(s->context, group, i, event.frame, &tag))

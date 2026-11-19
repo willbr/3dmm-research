@@ -47,6 +47,7 @@
 
 #include "soc.h"
 #include "body_world.h"
+#include "engine_movie_archive.h"
 #include "engine_movie_graph.h"
 #include "scene_sound.h"
 #include "scene_sound_undo.h"
@@ -438,6 +439,7 @@ void Scene::MarkMem(void)
     MarkMemObj(_pglptbox);
     MarkMemObj(_pglpactrSelExtra);
     MarkMemObj(_pmbmp);
+    MarkMemObj(static_cast<PChunkyResourceFile>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
 
     for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
     {
@@ -2296,6 +2298,11 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
         SceneEvent event = {frame, sevtSetBkgd};
         return static_cast<PGeneralGroup>(g)->FInsert(index, sizeof(tag), &tag, &event);
     };
+    s.retain_background_cache = [](void *p) -> void * {
+        auto cache = static_cast<Host *>(p)->resources;
+        cache->AddRef();
+        return cache;
+    };
     s.open_tag = [](void *p, MMSceneSound *sound, MMI32 index) -> int {
         auto h = static_cast<Host *>(p);
         return TagManager::FOpenTag(static_cast<PSceneSoundEvent>(sound)->Ptag(index), h->resources, h->file);
@@ -2378,15 +2385,16 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     struct Host
     {
         PScene scene;
-        PChunkyResourceFile resources;
         PChunkyFile file;
         DataBlock block;
-    } host = {this, pcrf, pcrf->Pcfl()};
+    } host = {this, pcrf->Pcfl()};
+    MovieEmbeddedArchive assets{host.file, nullptr};
     MMSceneStoreServices s = {};
     s.context = &host;
     s.owner = &_owner;
     s.groups = SceneStoreGroups();
     s.values = SceneSoundValues();
+    s.assets = assets.Services();
     s.add_scene = [](void *p, MMU32 *n) -> int { return static_cast<Host *>(p)->file->FAdd(0, kctgScen, n); };
     s.delete_scene = [](void *p, MMU32 n) { static_cast<Host *>(p)->file->Delete(kctgScen, n); };
     s.new_group = [](void *) -> void * { return GeneralGroup::PggNew(sizeof(SceneEvent)); };
@@ -2415,11 +2423,8 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         return kind == MM_SCENE_ADD_ACTOR ? static_cast<PActor>(object)->FWrite(file, n, scene)
                                                 : static_cast<PTBOX>(object)->FWrite(file, n);
     };
-    s.save_background = [](void *p, void *g, MMI32 i, MMTag *out) -> int {
-        auto tag = static_cast<PTAG>(static_cast<PGeneralGroup>(g)->QvGet(i));
-        if (!TagManager::FSaveTag(tag, static_cast<Host *>(p)->resources, false))
-            return 0;
-        *out = TagToCore(*tag);
+    s.read_background = [](void *, void *g, MMI32 i, MMTag *out) -> int {
+        *out = TagToCore(*static_cast<PTAG>(static_cast<PGeneralGroup>(g)->QvGet(i)));
         return 1;
     };
     s.write_events = [](void *p, MMU32 scene, void *frames, void *starts) -> int {

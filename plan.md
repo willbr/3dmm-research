@@ -1056,15 +1056,19 @@ Studio actor saves and scene undo snapshots use C89 to write the ACTR header
 and tracks and attach their embedded templates, costume materials, and scene
 sounds. Costume events store the destination material number and retain the
 material subtree before the old actor is removed.
-C89 also preserves material subtrees that would lose their final parent when
-Studio removes, replaces, or rearranges scenes. Older costume events can then
-resolve the same chunk numbers through edits and undo. Named saves still prune
-unused standalone materials.
+C89 also preserves background and material subtrees that would lose their
+final parent when Studio removes, replaces, or rearranges scenes. Older
+background and costume tags can then resolve the same chunk numbers through
+edits and undo. Named saves still prune unused standalone materials.
 Scene-sorter imports use C89 to bind cloned costume events to destination
 material numbers before publishing any imported scene. The archive adapter
 serves Studio and Marcus.
 The scene-sorter import also uses C89 to link embedded actor and frame sounds
 from the cloned movie's sound bank at their authored scene slots.
+C89 loads document-owned backgrounds against the scene's resource cache.
+Sorter imports and scene saves adopt the background tree and write its
+destination chunk number into the start event. Imports also handle older
+movies that store the background as a standalone chunk.
 Marcus also builds and caches waveform peaks and clip lengths in C89.
 Timeline, asset and recorder previews use the same peak reduction. Timeline
 columns sample the C89 presentation clock with one cache lookup per request.

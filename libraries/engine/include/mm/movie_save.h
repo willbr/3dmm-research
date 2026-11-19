@@ -48,7 +48,7 @@ extern "C"
         void (*long_op)(void *, int begin), (*document_dirty)(void *, int);
         int (*write_scene)(void *, void *scene, MMU32 *);
         int (*adopt)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
-        int (*preserve_scene_materials)(void *file, MMU32 scene);
+        int (*preserve_scene_assets)(void *file, MMU32 scene);
         void (*delete_child)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
         void (*delete_chunk)(void *file, MMU32 type, MMU32 number);
         void (*close_tag)(void *, MMTag *);

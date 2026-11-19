@@ -33,6 +33,14 @@ static void word(unsigned char *bytes, MMU32 value, int big)
     for (i = 0; i < 4; ++i) bytes[big ? 3 - i : i] = (unsigned char)(value >> (8 * i));
 }
 
+static int map_background(void *context, MMU32 number, MMU32 *out)
+{
+    (void)context;
+    assert(number == 14);
+    *out = 21;
+    return 1;
+}
+
 static void start_events(int big)
 {
     MMCollectionHeader header = {0};
@@ -72,9 +80,15 @@ static void start_events(int big)
     assert(mm_scene_retarget_start_background(&stream.stream, 6, 0x87654322UL, receive, &out));
     assert(out.calls == 1 && out.length == sizeof(input) && !memcmp(expected, out.data, sizeof(input)));
     assert(memcmp(out.data, input, sizeof(input)));
+    assert(mm_scene_rebind_start_backgrounds(&stream.stream, map_background, receive, &out) && out.calls == 1);
+    word(records + 44, 0, big);
+    memcpy(expected, input, sizeof(input));
+    word(expected + 76, 21, big);
+    assert(mm_scene_rebind_start_backgrounds(&stream.stream, map_background, receive, &out));
+    assert(out.calls == 2 && !memcmp(expected, out.data, sizeof(input)));
     word(records + 80, 23, big);
     assert(!mm_scene_retarget_start_background(&stream.stream, 6, 0, receive, &out));
-    assert(out.calls == 1);
+    assert(out.calls == 2);
 }
 
 static void sources(int big, int system)

@@ -89,6 +89,51 @@ int mm_movie_archive_retarget_background(const MMMovieArchiveEditor *editor, MMU
         mm_scene_retarget_start_background(&stream, source, background, receive_background, &replacement);
 }
 
+typedef struct BackgroundRebind
+{
+    BackgroundReplacement replacement;
+    const MMMovieEmbeddedArchive *assets;
+} BackgroundRebind;
+
+static int copy_background(void *context, MMU32 number, MMU32 *mapped)
+{
+    const BackgroundRebind *rebind = (const BackgroundRebind *)context;
+    MMTag tag = {0};
+    tag.type = BACKGROUND_TYPE;
+    tag.number = number;
+    if (!mm_movie_archive_embed_tag(rebind->assets, SCENE_TYPE, rebind->replacement.scene, &tag))
+        return 0;
+    *mapped = tag.number;
+    return 1;
+}
+
+static int receive_rebound_backgrounds(void *context, const unsigned char *data, MMU32 bytes)
+{
+    BackgroundRebind *rebind = (BackgroundRebind *)context;
+    return receive_background(&rebind->replacement, data, bytes);
+}
+
+int mm_movie_archive_rebind_backgrounds(const MMMovieArchiveEditor *editor, const MMMovieEmbeddedArchive *assets,
+                                         MMU32 scene)
+{
+    BackgroundRebind rebind;
+    MMChunkAccess chunks;
+    MMReadStream stream;
+    int status;
+    chunks = editor->chunks(editor->context);
+    rebind.replacement.editor = editor;
+    rebind.replacement.scene = scene;
+    rebind.replacement.previous.type = START_GROUP_TYPE;
+    rebind.replacement.previous.slot = 1;
+    rebind.assets = assets;
+    status = mm_chunk_link_number(&chunks, SCENE_TYPE, scene, 1, START_GROUP_TYPE, &rebind.replacement.previous.number);
+    if (status == MM_CHUNK_NOT_FOUND)
+        return 1; /* Legacy scenes may omit the start group. */
+    return status == MM_CHUNK_OK &&
+        editor->read(editor->context, START_GROUP_TYPE, rebind.replacement.previous.number, &stream) &&
+        mm_scene_rebind_start_backgrounds(&stream, copy_background, receive_rebound_backgrounds, &rebind);
+}
+
 static void unlink_scene_child(const MMMovieArchiveEditor *editor, MMU32 scene, MMU32 type)
 {
     MMChunkAccess chunks;
@@ -132,15 +177,44 @@ int mm_movie_archive_next_child(const MMChunkAccess *chunks, MMU32 parent_type, 
     return 1;
 }
 
-typedef struct SceneMaterialGraph
+int mm_movie_archive_embed_tag(const MMMovieEmbeddedArchive *s, MMU32 parent_type, MMU32 parent, MMTag *tag)
+{
+    MMChunkAccess chunks;
+    MMChunkChild link, existing;
+    MMU32 row, i;
+    int created;
+    link.type = tag->type;
+    if (!s->copy_reference(s->context, tag, &link.number, &created))
+        return 0;
+    chunks = s->chunks(s->context);
+    if (mm_chunk_find(&chunks, parent_type, parent, &row) != MM_CHUNK_OK)
+        goto fail;
+    for (i = 0; mm_chunk_child_at(&chunks, row, i, &existing) == MM_CHUNK_OK; ++i)
+        if (existing.type == link.type && existing.number == link.number)
+        {
+            tag->number = link.number;
+            return 1;
+        }
+    if (!mm_movie_archive_next_child(&chunks, parent_type, parent, link.type, &link.slot) ||
+        !s->adopt(s->context, parent_type, parent, &link, created))
+        goto fail;
+    tag->number = link.number;
+    return 1;
+fail:
+    if (created)
+        s->discard(s->context, link.type, link.number);
+    return 0;
+}
+
+typedef struct SceneAssetGraph
 {
     const MMChunkAccess *chunks;
     int failed;
-} SceneMaterialGraph;
+} SceneAssetGraph;
 
 static MMU32 scene_delete_children(void *p, MMU32 type, MMU32 number)
 {
-    SceneMaterialGraph *graph = (SceneMaterialGraph *)p;
+    SceneAssetGraph *graph = (SceneAssetGraph *)p;
     const MMChunkAccess *chunks = graph->chunks;
     MMChunkEntry entry;
     MMU32 row;
@@ -152,7 +226,7 @@ static MMU32 scene_delete_children(void *p, MMU32 type, MMU32 number)
 
 static int scene_delete_child(void *p, MMU32 type, MMU32 number, MMU32 index, MMChunkChild *child)
 {
-    SceneMaterialGraph *graph = (SceneMaterialGraph *)p;
+    SceneAssetGraph *graph = (SceneAssetGraph *)p;
     const MMChunkAccess *chunks = graph->chunks;
     MMU32 row;
     int status = mm_chunk_find(chunks, type, number, &row);
@@ -166,23 +240,31 @@ static int scene_delete_child(void *p, MMU32 type, MMU32 number, MMU32 index, MM
     return 0;
 }
 
-int mm_movie_archive_preserve_scene_materials(const MMChunkAccess *chunks, MMU32 scene,
-                                              const MMStorageAllocator *allocator, void *context,
-                                              void (*keep)(void *, MMU32 material))
+int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *chunks, MMU32 scene,
+                                            const MMStorageAllocator *allocator, void *context,
+                                            void (*keep)(void *, MMU32 type, MMU32 number))
 {
-    SceneMaterialGraph source = {NULL, 0};
+    static const MMU32 types[] = {BACKGROUND_TYPE, MM_MATERIAL_CHUNK};
+    SceneAssetGraph source = {NULL, 0};
     MMChunkGraph graph = {NULL, scene_delete_children, scene_delete_child};
     MMChunkWalk walk;
     MMChunkEntry entry;
     MMChunkChild node;
-    MMU32 row, flags, first_material, kept = 0, *removed;
+    MMU32 row, flags, first[2], kept[2], count = 0, i, j, *removed;
     int status, skip = 0, ok = 0;
     source.chunks = chunks;
     graph.context = &source;
-    status = mm_chunk_type_at(chunks, MM_MATERIAL_CHUNK, 0, &entry, &first_material);
-    if (status == MM_CHUNK_NOT_FOUND)
+    for (i = 0; i < 2; ++i)
+    {
+        status = mm_chunk_type_at(chunks, types[i], 0, &entry, &first[i]);
+        if (status == MM_CHUNK_NOT_FOUND)
+            first[i] = chunks->count;
+        else if (status != MM_CHUNK_OK)
+            return 0;
+    }
+    if (first[0] == chunks->count && first[1] == chunks->count)
         return 1;
-    if (status != MM_CHUNK_OK || mm_chunk_find(chunks, SCENE_TYPE, scene, &row) != MM_CHUNK_OK ||
+    if (mm_chunk_find(chunks, SCENE_TYPE, scene, &row) != MM_CHUNK_OK ||
         mm_chunk_at(chunks, row, &entry) != MM_CHUNK_OK || !entry.parent_count)
         return 0;
     if ((entry.flags & MM_CHUNK_LONER) || entry.parent_count > 1 || !entry.child_count)
@@ -206,21 +288,29 @@ int mm_movie_archive_preserve_scene_materials(const MMChunkAccess *chunks, MMU32
             mm_chunk_at(chunks, row, &entry) != MM_CHUNK_OK || removed[row] >= entry.parent_count)
             goto done;
         ++removed[row];
-        skip = (entry.flags & MM_CHUNK_LONER) || removed[row] < entry.parent_count || node.type == MM_MATERIAL_CHUNK;
+        skip = (entry.flags & MM_CHUNK_LONER) || removed[row] < entry.parent_count ||
+               node.type == BACKGROUND_TYPE || node.type == MM_MATERIAL_CHUNK;
     }
     if (source.failed)
         goto done;
-    for (row = first_material; row < chunks->count; ++row)
+    /* Compact the keep list in index order. Its write position never gets
+     * ahead of the row whose removal count is being read. */
+    for (i = 0; i < 2; ++i)
     {
-        if (mm_chunk_at(chunks, row, &entry) != MM_CHUNK_OK)
-            goto done;
-        if (entry.type != MM_MATERIAL_CHUNK)
-            break;
-        if (removed[row] == entry.parent_count && removed[row] && !(entry.flags & MM_CHUNK_LONER))
-            removed[kept++] = entry.number;
+        for (row = first[i]; row < chunks->count; ++row)
+        {
+            if (mm_chunk_at(chunks, row, &entry) != MM_CHUNK_OK)
+                goto done;
+            if (entry.type != types[i])
+                break;
+            if (removed[row] == entry.parent_count && removed[row] && !(entry.flags & MM_CHUNK_LONER))
+                removed[count++] = entry.number;
+        }
+        kept[i] = count;
     }
-    for (row = 0; row < kept; ++row)
-        keep(context, removed[row]);
+    for (i = 0, j = 0; i < 2; ++i)
+        for (; j < kept[i]; ++j)
+            keep(context, types[i], removed[j]);
     ok = 1;
 done:
     free(removed);

@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_SCENE_STORE_H
 #define MM_ENGINE_SCENE_STORE_H
 #include "movie_session.h"
+#include "movie_archive_edit.h"
 #include "scene_sound_edit.h"
 #ifdef __cplusplus
 extern "C"
@@ -39,6 +40,7 @@ extern "C"
         MMSceneOwner *owner;
         MMSceneStoreGroups groups;
         MMSceneSoundValueServices values;
+        MMMovieEmbeddedArchive assets;
         int (*add_scene)(void *, MMU32 *number);
         void (*delete_scene)(void *, MMU32 number);
         void *(*new_group)(void *);
@@ -49,7 +51,7 @@ extern "C"
         int (*add_child)(void *, MMU32 scene, int kind, MMU32 child, MMU32 *number);
         void *(*object)(void *, void *group, MMI32 index);
         int (*write_object)(void *, void *object, int kind, MMU32 number, MMU32 scene);
-        int (*save_background)(void *, void *group, MMI32 index, MMTag *);
+        int (*read_background)(void *, void *group, MMI32 index, MMTag *);
         int (*write_events)(void *, MMU32 scene, void *frames, void *starts);
         void (*update_thumbnail)(void *);
         MMI32 (*thumbnail_size)(void *, void *thumbnail);
@@ -64,8 +66,9 @@ extern "C"
      * Publishes nil before add_scene and retains its output even on failure. Sounds
      * are independently duplicated/retained, adopted only if absent by child and
      * present by number, encoded, inserted, then released. Actor/text child counters
-     * are independent. Background saving may update the original tag, even if a later
-     * step fails. Events precede thumbnail update/write, then header/name publication.
+     * are independent. Document backgrounds are adopted by the new scene. Only
+     * the wire tag uses the copied number. Events precede thumbnail update/write,
+     * then header/name publication.
      * Failure deletes an unadopted thumbnail explicitly, then the partial scene, then
      * releases start/frame temporary groups. Success releases frame/start groups.
      * Chunk operations, actor/caption serialization and thumbnail generation are

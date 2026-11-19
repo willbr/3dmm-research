@@ -783,7 +783,7 @@ static void init(Test *t)
     s->allocator.resize = resize;
     s->allocator.release = free_storage;
 }
-static int preserve_scene_materials(void *file, MMU32 scene)
+static int preserve_scene_assets(void *file, MMU32 scene)
 {
     Test *t = (Test *)file;
     return scene == 10 && has(t, MM_SAVE_SCENE, scene, 0) && has(t, MM_SAVE_SCENE, 100, 0) &&
@@ -828,7 +828,7 @@ static int autosaving(void)
                 CHECK(!t.liveAlloc);
             }
     init(&t);
-    t.s.preserve_scene_materials = preserve_scene_materials;
+    t.s.preserve_scene_assets = preserve_scene_assets;
     t.fail = PRESERVE_MATERIALS;
     t.left = 1;
     CHECK(!mm_movie_autosave(0, 0, &t.s) && !t.left && !t.savedCalls && !t.titleCalls);
