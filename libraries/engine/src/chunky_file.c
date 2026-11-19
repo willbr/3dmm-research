@@ -387,6 +387,53 @@ static int wire_child(void *context, MMU32 parent, MMU32 position, MMChunkChild 
     child->slot = word32(row + 8, index->big);
     return 1;
 }
+
+typedef struct WireRange
+{
+    MMU32 offset, size;
+} WireRange;
+
+static int compare_wire_offsets(const void *a, const void *b)
+{
+    MMU32 left = ((const WireRange *)a)->offset, right = ((const WireRange *)b)->offset;
+    return left < right ? -1 : left != right;
+}
+
+static int validate_unpadded_rows(const MMChunkIndex *index)
+{
+    WireRange *ranges;
+    const unsigned char *location = index->wire + 20 + index->data_bytes;
+    MMU32 i, limit, end;
+    int result = MM_CHUNK_BAD_FILE;
+    if (!index->count || (size_t)index->count > (size_t)-1 / sizeof(*ranges))
+        return result;
+    ranges = (WireRange *)malloc((size_t)index->count * sizeof(*ranges));
+    if (!ranges)
+        return MM_CHUNK_MEMORY;
+    for (i = 0; i < index->count; ++i, location += 8)
+    {
+        ranges[i].offset = word32(location, index->big);
+        ranges[i].size = word32(location + 4, index->big);
+    }
+    /* The lookup table is ordered by chunk key. Check occupied extents in
+     * physical order so legacy rows can omit padding independently. */
+    qsort(ranges, (size_t)index->count, sizeof(*ranges), compare_wire_offsets);
+    if (ranges[0].offset == 0)
+    {
+        for (i = 0; i < index->count; ++i)
+        {
+            end = ranges[i].offset + ranges[i].size;
+            limit = i + 1 == index->count ? index->data_bytes : ranges[i + 1].offset;
+            if (limit < end || limit - end > ((4U - ranges[i].size) & 3U))
+                break;
+        }
+        if (i == index->count)
+            result = MM_CHUNK_OK;
+    }
+    free(ranges);
+    return result;
+}
+
 int mm_chunk_index_open(const MMReadStream *stream, const MMChunkPolicy *policy,
                               MMChunkIndex **output)
 {
@@ -395,7 +442,7 @@ int mm_chunk_index_open(const MMReadStream *stream, const MMChunkPolicy *policy,
     MMChunkIndex *index;
     MMChunkEntry entry;
     MMU32 i, bytes, occupied = 0;
-    int status;
+    int status, padded = 1;
     if (!policy || !output)
         return MM_CHUNK_BAD_FILE;
     status = mm_chunk_read_header(stream, &header);
@@ -456,11 +503,19 @@ int mm_chunk_index_open(const MMReadStream *stream, const MMChunkPolicy *policy,
         offset = (MMU32)(row - index->wire - 20);
         rounded = (index->stride + variable + 3U) & ~(MMU32)3;
         if (rounded > index->data_bytes - offset || rounded > index->data_bytes - occupied)
-            goto bad;
-        occupied += rounded;
+            padded = 0;
+        else
+            occupied += rounded;
     }
-    if (occupied != index->data_bytes)
-        goto bad;
+    if (!padded || occupied != index->data_bytes)
+    {
+        status = validate_unpadded_rows(index);
+        if (status != MM_CHUNK_OK)
+        {
+            mm_chunk_index_close(index);
+            return status;
+        }
+    }
     *output = index;
     return MM_CHUNK_OK;
 bad:

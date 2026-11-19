@@ -2479,11 +2479,14 @@ field, and cleanup after allocation, chunk write, or adoption failures.
 SDL Studio saved and reopened the two-scene actor-audio fixture with its
 four actor entries, poses, and first viewport intact. The saved roll-call
 chunk was byte-identical to one produced by the earlier Studio writer.
-Retail and SDL Studio played the saved movie with matching 60-frame
-sequences and sound requests. Marcus rejected both Studio saves at archive
-open. All three players completed seek and playback captures of the original
-fixture, with matching 60-frame sequences. Evidence is in
-`tmp/c89-rollcall-write/`.
+
+Marcus initially failed while opening installed v3dmm content referenced by
+both Studio saves. Its GG index omitted some row padding. The shared C89
+reader now accepts that layout and checks physical extents for overlap.
+Marcus opened both saves after the fix. Retail, SDL Studio, and Marcus
+completed seek and playback captures of the new save with matching 60-frame
+sequences. SDL Studio matched retail's sound requests. Both ports differed
+from retail in mixed PCM. Evidence is in `tmp/c89-rollcall-write/`.
 
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:

@@ -83,6 +83,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   and runtime check.
 - The chunky-file slice now reads CHN2 headers and GG indexes in C89 and shares
   live chunk/child lookup, enumeration and graph validation through `kauai-core`.
+  It also accepts GG indexes with unpadded rows, as used by some v3dmm
+  content archives.
   The subsequent slices below migrate writable groups, free maps, writes,
   embedded-forest decoding and stored-name policy.
 - Dense/allocated string-table mutation, searches, packed-string reconstruction,

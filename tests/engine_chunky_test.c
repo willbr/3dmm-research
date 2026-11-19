@@ -1481,6 +1481,41 @@ static void wire_indexes(void)
     CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_BAD_FILE);
 }
 
+static void unpadded_wire_indexes(void)
+{
+    unsigned char bytes[1024];
+    unsigned char *group = bytes + 136, *locations = group + 20 + 99;
+    MMMemoryStream memory;
+    MMChunkPolicy policy = {0, 0, 516};
+    MMChunkIndex *index;
+    MMChunkAccess access;
+    const unsigned char *name;
+    MMU32 name_bytes;
+    size_t length = fixture(bytes, 0, 0, 20, 5) - 1;
+
+    /* Shorten the first name to an odd size and put the following row
+     * directly after it, as seen in third-party content archives. */
+    memmove(group + 20 + 59, group + 20 + 60, length - 136 - 20 - 59);
+    put32(bytes + 16, (MMU32)length, 0);
+    put32(bytes + 24, (MMU32)length - 136, 0);
+    put32(bytes + 28, (MMU32)length, 0);
+    put32(group + 8, 99, 0);
+    put32(locations + 4, 59, 0);
+    put32(locations + 8, 59, 0);
+    put32(locations + 16, 79, 0);
+    CHECK(mm_memory_stream_init(&memory, bytes, length));
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_OK);
+    access = mm_chunk_index_access(index);
+    CHECK(mm_chunk_validate_graph(&access, 65535) == MM_CHUNK_OK);
+    CHECK(mm_chunk_index_name(index, 0, &name, &name_bytes) == MM_CHUNK_OK && name_bytes == 3 &&
+          !memcmp(name, "nam", 3));
+    mm_chunk_index_close(index);
+
+    /* A fourth name byte would overlap the next row. */
+    put32(locations + 4, 60, 0);
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_BAD_FILE);
+}
+
 typedef struct LiveGraph
 {
     MMChunkEntry entries[4];
@@ -1956,6 +1991,7 @@ static void rekey_portable(int big, int stride)
 int main(void)
 {
     wire_indexes();
+    unpadded_wire_indexes();
     movie_sessions();
     movie_camera();
     scene_tag_reader();

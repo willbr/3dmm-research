@@ -83,8 +83,9 @@ extern "C"
     } MMChunkPolicy;
     /* Index owns copied wire bytes; input is borrowed only during open. All output
      * pointers, including index, are unchanged on failure. Policy selects existing
-     * runtime width and expanded-index pre-swap compatibility checks. Names remain
-     * encoded bytes; pre-v3 name conversion stays with the legacy text host. */
+     * runtime width and expanded-index pre-swap compatibility checks. GG index
+     * rows may omit alignment padding. Names remain encoded bytes; pre-v3 name
+     * conversion stays with the legacy text host. */
     int mm_chunk_read_header(const MMReadStream *stream, MMChunkHeader *header);
     typedef struct MMChunkSave
     {
