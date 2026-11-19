@@ -467,6 +467,16 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
     check(0, 0, 0);
     check(2, 255, 0); // Direct seek creates green then red: red is frontmost.
     check(3, 255, 0); // Repeated visibility retains the existing order.
+    {
+        std::unique_ptr<MarcusCaptionList, decltype(&marcus_captions_destroy)> list(
+            marcus_captions(player), marcus_captions_destroy);
+        CHECK(list && marcus_caption_at(player, list.get(), 100, 80) == 1);
+        marcus_caption_preview(player, list.get(), 1);
+        check(3, 0, 255); // The inline edit hides just this rendered box.
+        CHECK(marcus_caption_at(player, list.get(), 100, 80) == 0);
+        marcus_caption_preview(player, nullptr, -1);
+        check(3, 255, 0);
+    }
     CHECK(marcus_seek(player, 0));
     const auto readCaptions = [&] {
         std::unique_ptr<MarcusCaptionList, decltype(&marcus_captions_destroy)> list(

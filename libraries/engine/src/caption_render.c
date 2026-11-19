@@ -64,12 +64,11 @@ void mm_caption_layer_size(MMU32 width, MMU32 height, MMU32 *w, MMU32 *h)
     *h = *w * MM_CAPTION_HEIGHT / MM_CAPTION_WIDTH;
 }
 
-int mm_caption_canvas(MMCaptionCanvas *canvas, unsigned char *rgba, size_t bytes, MMU32 width, MMU32 height,
-                      float aspect)
+int mm_caption_viewport(MMPixelRect *clip, MMU32 width, MMU32 height, float aspect)
 {
     float w, h;
     MMI32 fitted_w, fitted_h;
-    if (!rgba || !rgba_size(bytes, width, height) || width > 4096 || height > 4096 ||
+    if (!width || !height || width > 4096 || height > 4096 ||
         !(aspect > 0 && aspect <= FLT_MAX))
         return 0;
     w = height * aspect;
@@ -78,14 +77,22 @@ int mm_caption_canvas(MMCaptionCanvas *canvas, unsigned char *rgba, size_t bytes
     fitted_h = h < height ? (MMI32)h : (MMI32)height;
     if (!fitted_w || !fitted_h)
         return 0;
+    clip->left = ((MMI32)width - fitted_w) / 2;
+    clip->top = ((MMI32)height - fitted_h) / 2;
+    clip->right = clip->left + fitted_w;
+    clip->bottom = clip->top + fitted_h;
+    return 1;
+}
+
+int mm_caption_canvas(MMCaptionCanvas *canvas, unsigned char *rgba, size_t bytes, MMU32 width, MMU32 height,
+                      float aspect)
+{
+    if (!rgba || !rgba_size(bytes, width, height) || !mm_caption_viewport(&canvas->clip, width, height, aspect))
+        return 0;
     canvas->rgba = rgba;
     canvas->stride = (size_t)width * 4;
-    canvas->clip.left = ((MMI32)width - fitted_w) / 2;
-    canvas->clip.top = ((MMI32)height - fitted_h) / 2;
-    canvas->clip.right = canvas->clip.left + fitted_w;
-    canvas->clip.bottom = canvas->clip.top + fitted_h;
-    canvas->scale_x = (float)fitted_w / MM_CAPTION_WIDTH;
-    canvas->scale_y = (float)fitted_h / MM_CAPTION_HEIGHT;
+    canvas->scale_x = (float)(canvas->clip.right - canvas->clip.left) / MM_CAPTION_WIDTH;
+    canvas->scale_y = (float)(canvas->clip.bottom - canvas->clip.top) / MM_CAPTION_HEIGHT;
     return 1;
 }
 

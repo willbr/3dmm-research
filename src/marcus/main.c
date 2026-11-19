@@ -7,7 +7,7 @@
 #include "scene_organiser.h"
 #include "background_browser.h"
 #include "text_dialog.h"
-#include "caption_dialog.h"
+#include "caption_editor.h"
 #include "costume_dialog.h"
 #include "sound_dialog.h"
 #include "dialog_widgets.h"
@@ -96,7 +96,7 @@ typedef struct App
     MarcusSceneOrganiser *scene_organiser;
     MarcusBackgroundBrowser *background_browser;
     MarcusTextDialog *text_dialog;
-    MarcusCaptionDialog *caption_dialog;
+    MarcusCaptionEditor *caption_editor;
     MarcusCostumeDialog *costume_dialog;
     MarcusSoundDialog *sound_dialog;
     MarcusCameraPicker *camera_picker;
@@ -468,6 +468,16 @@ static void refresh(App *app)
         app->selected_sound = app->selected_sound_track = -1;
         app->sound_scroll = app->both_scroll = 0;
     }
+}
+static void caption_updated(App *app, int result)
+{
+    if (result <= 0) return;
+    app->dirty = app->movie_dirty = 1;
+    if (!(result & CAPTION_COMMITTED)) return;
+    refresh(app);
+    app->modified = marcus_modified(app->player);
+    if (app->modified) SDL_SetWindowTitle(app->window, app->movie[0] ?
+        "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
 }
 
 static void layout(App *app)
@@ -1407,8 +1417,12 @@ static void ribbon_action(App *app, int action)
     {
         app->playing = 0;
         release_camera(app);
-        if (!caption_dialog_show(app->caption_dialog, app->player, &app->info, action == RIBBON_NEW_CAPTION))
+        storyboard_editor_close(app->storyboard_editor);
+        if (!app->second_view && app->authored != 1) view_mode(app, 1);
+        if (!caption_editor_show(app->caption_editor, app->player, &app->info, action == RIBBON_NEW_CAPTION))
             fail(app, marcus_error(app->player));
+        else
+            caption_updated(app, CAPTION_REDRAW);
     }
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
     else if (action == RIBBON_CAMERA_GUIDES)
@@ -1650,6 +1664,31 @@ static void update_flight(App *app, double seconds)
         app->dirty = 1;
     }
 }
+static int caption_event(App *app, const SDL_Event *event)
+{
+    int popup, apply, finish;
+    float x, y;
+    if (!caption_editor_visible(app->caption_editor) || !dialog_input_event(event)) return 0;
+    popup = igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    apply = 1;
+    finish = 0;
+    if (!popup && event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
+    {
+        x = event->button.x;
+        y = event->button.y;
+        finish = !inside_movie(app, x, y) &&
+                 !ui_inside(x, y, app->sidebar, VIEW_TOP, app->width - app->sidebar,
+                            app->height - EDITOR_STATUS_HEIGHT - VIEW_TOP);
+    }
+    if (!popup && event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
+    {
+        apply = event->key.key != SDLK_ESCAPE;
+        finish = !apply || ((event->key.key == SDLK_RETURN || event->key.key == SDLK_KP_ENTER) &&
+                            (event->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)));
+    }
+    if (finish) caption_editor_request_finish(app->caption_editor, apply);
+    return 1;
+}
 static void handle_event(App *app, const SDL_Event *event)
 {
     DialogRequest *request;
@@ -1661,8 +1700,8 @@ static void handle_event(App *app, const SDL_Event *event)
     gizmo_event = prop_gizmo_event(app->prop_gizmo, event);
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
-    else if ((app->error[0] || app->settings_open || app->zip_input || caption_dialog_visible(app->caption_dialog)) &&
-             dialog_input_event(event))
+    else if (caption_event(app, event)) { }
+    else if ((app->error[0] || app->settings_open || app->zip_input) && dialog_input_event(event))
     {
         if (app->settings_open && app->binding_capture >= 0 && event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
         {
@@ -1963,6 +2002,7 @@ static void draw_header(App *app)
     slash = strrchr(name, '\\');
     if (slash) name = slash + 1;
     can_edit = app->loaded && !app->flying && !app->settings_open && !app->error[0] &&
+               !caption_editor_visible(app->caption_editor) &&
                !storyboard_editor_visible(app->storyboard_editor);
     ribbon_action(app, ribbon_draw(&app->ui, app->width, &app->ribbon_tab, name, app->loaded, app->modified, app->muted,
                 app->info.camera_count, app->shortcuts.show_cameras, selected_text(app),
@@ -3248,6 +3288,8 @@ static void draw_editor_status(App *app, const char *hint)
 static void draw(App *app)
 {
     char previous[64], next[64], previous_scene[64], next_scene[64], play[64], view[64], hint[512];
+    SDL_FRect caption_view, caption_inspector;
+    int editing_caption;
     if (app->movie_only)
     {
         ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
@@ -3274,21 +3316,36 @@ static void draw(App *app)
                  previous_scene, next_scene, play, view);
     app->ui.hint = NULL;
     ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, BG);
+    igBeginDisabled(caption_editor_visible(app->caption_editor));
     draw_header(app);
+    igEndDisabled();
+    editing_caption = caption_editor_visible(app->caption_editor);
+    igBeginDisabled(editing_caption);
     if (app->ribbon_tab == 2 && !app->settings_open && !app->zip_input && !app->error[0] &&
         !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
-        !text_dialog_visible(app->text_dialog) && !caption_dialog_visible(app->caption_dialog) &&
+        !text_dialog_visible(app->text_dialog) && !editing_caption &&
         !costume_dialog_visible(app->costume_dialog) &&
         !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !storyboard_editor_visible(app->storyboard_editor))
         sound_dialog_toolbar(app->sound_dialog, app->player, app->window, app->selected_sound,
             464, 78, app->loaded && !app->playing);
     draw_timeline(app);
-    if (!storyboard_editor_visible(app->storyboard_editor)) draw_sidebar(app);
+    if (!storyboard_editor_visible(app->storyboard_editor) && !editing_caption) draw_sidebar(app);
     draw_view(app);
-
-    draw_editor_status(app, app->ui.hint ? app->ui.hint : hint);
+    draw_editor_status(app, editing_caption ? "Drag the border to move   Ctrl+Enter  Done   Esc  Cancel" :
+                       app->ui.hint ? app->ui.hint : hint);
+    igEndDisabled();
     draw_debug_overlay(app);
+    if (editing_caption)
+    {
+        caption_view = viewport_rect(app, app->second_view);
+        caption_inspector.x = app->sidebar;
+        caption_inspector.y = VIEW_TOP;
+        caption_inspector.w = app->width - app->sidebar;
+        caption_inspector.h = app->height - EDITOR_STATUS_HEIGHT - VIEW_TOP;
+        caption_updated(app, caption_editor_draw(app->caption_editor, app->player, &caption_view,
+            app->second_view ? &app->movie_image : &app->work_image, &caption_inspector));
+    }
     if (app->settings_open)
         draw_settings(app);
     if (app->zip_input)
@@ -3297,14 +3354,6 @@ static void draw(App *app)
     browser_draw(app->browser, &app->ui, app->width, app->height);
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
     text_dialog_draw(app->text_dialog, &app->ui, app->width, app->height);
-    if (caption_dialog_draw(app->caption_dialog, app->player, app->width, app->height))
-    {
-        refresh(app);
-        app->modified = marcus_modified(app->player);
-        app->dirty = app->movie_dirty = 1;
-        if (app->modified) SDL_SetWindowTitle(app->window, app->movie[0] ?
-            "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
-    }
     costume_dialog_draw(app->costume_dialog, &app->ui, app->width, app->height);
     sound_dialog_draw(app->sound_dialog, app->player, &app->ui, app->width, app->height);
     camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
@@ -3319,7 +3368,7 @@ static void update_prop_gizmo(App *app)
     int enabled;
     enabled = app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
         !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
-        !text_dialog_visible(app->text_dialog) && !caption_dialog_visible(app->caption_dialog) &&
+        !text_dialog_visible(app->text_dialog) && !caption_editor_visible(app->caption_editor) &&
         !costume_dialog_visible(app->costume_dialog) && !sound_dialog_visible(app->sound_dialog) && !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
         !igIsPopupOpen_Str(NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
         !app->flying && !app->orbiting && !app->panning &&
@@ -3650,8 +3699,8 @@ int main(int argc, char **argv)
         goto cleanup;
     }
     app.text_dialog = text_dialog_create();
-    app.caption_dialog = caption_dialog_create();
-    if (!app.text_dialog || !app.caption_dialog)
+    app.caption_editor = caption_editor_create();
+    if (!app.text_dialog || !app.caption_editor)
     {
         result = 1;
         goto cleanup;
@@ -3922,7 +3971,7 @@ cleanup:
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
     browser_destroy(app.browser);
     text_dialog_destroy(app.text_dialog);
-    caption_dialog_destroy(app.caption_dialog);
+    caption_editor_destroy(app.caption_editor);
     costume_dialog_destroy(app.costume_dialog);
     sound_dialog_destroy(app.sound_dialog);
     background_browser_destroy(app.background_browser);

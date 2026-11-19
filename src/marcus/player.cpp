@@ -161,6 +161,8 @@ struct MarcusPlayer
     char error[1024] = {};
     MMI32 selected = -1;
     unsigned long document = 0;
+    struct CaptionPreview { unsigned long document; int scene; std::uint32_t chunk; };
+    std::optional<CaptionPreview> captionPreview;
     std::shared_ptr<MarcusMovieFile> timingInput;
     std::string timingResources, timingContent;
     bool timingStarted = false, timingFailed = false;
@@ -677,7 +679,10 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
         { player->asmRenderer.reset(); return false; }
     }
     else if (!player->preview.Render(options, player->image, error)) return false;
-    if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error))
+    const auto &caption = player->captionPreview;
+    const auto hide = caption && caption->document == player->document && caption->scene == player->selected
+        ? &caption->chunk : nullptr;
+    if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error, hide))
         return false;
     if (scale > 1)
     {
@@ -1883,13 +1888,35 @@ extern "C"
         if (options) *options = index < 0 ? list->defaults : list->entries[index].options;
         return index < 0 ? "" : list->entries[index].text.c_str();
     }
+    static bool CurrentCaptions(const MarcusPlayer *player, const MarcusCaptionList *list)
+    {
+        return player && list && list->document == player->document && player->selected >= 0 &&
+            std::size_t(player->selected) < player->scenes.size() && list->scene == player->scenes[player->selected].number;
+    }
+    void marcus_caption_preview(MarcusPlayer *player, const MarcusCaptionList *list, int index)
+    {
+        if (!player) return;
+        player->captionPreview.reset();
+        if (CurrentCaptions(player, list) && index >= 0 && index < marcus_caption_count(list))
+            player->captionPreview = MarcusPlayer::CaptionPreview{player->document, player->selected, list->entries[index].chunk};
+    }
+    int marcus_caption_at(const MarcusPlayer *player, const MarcusCaptionList *list, int x, int y)
+    {
+        if (!CurrentCaptions(player, list)) return -1;
+        std::uint32_t chunk;
+        const auto &caption = player->captionPreview;
+        const auto hide = caption && caption->document == player->document && caption->scene == player->selected
+            ? &caption->chunk : nullptr;
+        if (player->playback.CaptionAt(x, y, chunk, hide))
+            for (std::size_t i = 0; i < list->entries.size(); ++i)
+                if (list->entries[i].chunk == chunk) return static_cast<int>(i);
+        return -1;
+    }
     int marcus_edit_caption(MarcusPlayer *player, const MarcusCaptionList *list, int index,
                             const MarcusCaptionOptions *options, const char *text)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (!list || list->document != player->document || player->selected < 0 ||
-                std::size_t(player->selected) >= player->scenes.size() ||
-                list->scene != player->scenes[player->selected].number)
+            if (!CurrentCaptions(player, list))
             { error.message = "Reopen the 2D text editor for the current scene."; return false; }
             if (index < -1 || index >= marcus_caption_count(list) ||
                 (text ? !options || !std::memchr(options->font, 0, sizeof(options->font)) : index < 0))

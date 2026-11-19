@@ -386,17 +386,18 @@ playhead, keeping the track's placement, animation, appearance, and object
 sounds. External content still needs to be available in the destination.
 Undo removes one paste. Focused text fields use normal text copy and paste.
 
-**Words > New 2D text** adds a multiline text box to the current scene. It
-starts at the playhead and stays visible through the end of the scene by
-default. Set its position and size in the 544×306 movie coordinates, choose
-its font, alignment and colours, and enable scrolling for credits. Set a first
-and last scene frame to limit when the box is visible. The last frame is
-inclusive.
+**Words > New 2D text** places an editable box in the movie camera. Type
+directly in the box, drag the top border to move it, and drag the handles to
+resize it. A new box starts at the playhead and stays visible through the end
+of the scene by default. The side panel has font, alignment, colour,
+scrolling and frame-range settings, plus exact position and size in 544×306
+movie coordinates. The last frame is inclusive.
 
-**Words > Edit 2D text** opens the current scene's text boxes. Choose a box
-from the list to edit its wording or properties, or use **Delete box** to
-remove it. Each committed change is one Undo step. **Save copy** writes the
-boxes into the native movie for playback after reopening.
+**Words > Edit 2D text** lets you click visible boxes in the movie camera or
+choose a box in the side panel. **Done**, Ctrl+Enter (Cmd+Enter on macOS), or
+leaving the text tools applies the active box. **Cancel** or Escape discards
+its draft. **Delete box** removes the selection. Each committed change is
+one Undo step. **Save copy** writes the boxes into the native movie.
 
 **Words > New 3D text** opens a text entry dialog. Enter up to 50 characters on
 one line, then choose an original 3D font and one of the ten retail shapes from

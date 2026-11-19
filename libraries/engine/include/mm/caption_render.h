@@ -48,6 +48,7 @@ typedef struct MMCaptionGlyph
 /* Surface and mask storage are borrowed. The RGBA surfaces are tightly
  * packed. Mask planes contain pitch * height bytes when present. */
 void mm_caption_layer_size(MMU32 width, MMU32 height, MMU32 *layer_width, MMU32 *layer_height);
+int mm_caption_viewport(MMPixelRect *, MMU32 width, MMU32 height, float aspect);
 int mm_caption_canvas(MMCaptionCanvas *, unsigned char *, size_t bytes, MMU32 width, MMU32 height, float aspect);
 int mm_caption_box_visible(const MMTextBoxBounds *);
 void mm_caption_box(MMCaptionCanvas *, const MMTextBoxBounds *, MMU32 colour);

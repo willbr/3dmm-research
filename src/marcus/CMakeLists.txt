@@ -53,7 +53,7 @@ foreach(name fthm fthms stmb sscl)
 endforeach()
 file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/transport_sprites.h" CONTENT "${transport_sprite_code}" @ONLY)
 
-add_executable(marcus WIN32 main.c media.cpp ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_fields.c storyboard_view.c transport_skin.c prop_gizmo.c transform_gizmo.c imgui_bindings.cpp movie_browser.c movie_browser_preferences.c movie_browser_worker.cpp scene_organiser.c background_browser.c background_preview.cpp text_dialog.c caption_dialog.c costume_dialog.c sound_dialog.c camera_picker.c storyboard_editor.c storyboard_editor_backend.cpp)
+add_executable(marcus WIN32 main.c media.cpp ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_fields.c storyboard_view.c transport_skin.c prop_gizmo.c transform_gizmo.c imgui_bindings.cpp movie_browser.c movie_browser_preferences.c movie_browser_worker.cpp scene_organiser.c background_browser.c background_preview.cpp text_dialog.c caption_editor.c costume_dialog.c sound_dialog.c camera_picker.c storyboard_editor.c storyboard_editor_backend.cpp)
 add_dependencies(marcus marcus-preview)
 find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)

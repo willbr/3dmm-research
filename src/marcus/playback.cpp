@@ -902,8 +902,24 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
     advance = update.advance != 0;
     return true;
 }
+bool MarcusPlayback::CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const
+{
+    for (auto row = impl->captionStack.last; row; row = impl->captionRows[row - 1].previous)
+    {
+        const auto &box = impl->captions[row - 1].data;
+        if (hiddenCaption && box.chunk == *hiddenCaption)
+            continue;
+        if (x >= box.left && x < box.right && y >= box.top && y < box.bottom)
+        {
+            chunk = box.chunk;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image,
-                               MM::Error &error)
+                               MM::Error &error, const std::uint32_t *hiddenCaption)
 {
     impl->ObserveCaptions(preview.Info().currentFrame);
     if (!impl->captionStack.first || (!authored && !image.sceneCamera.valid))
@@ -930,6 +946,8 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
     {
         auto &caption = impl->captions[row - 1];
         const auto &data = caption.data;
+        if (hiddenCaption && data.chunk == *hiddenCaption)
+            continue;
         const MMTextBoxBounds box = {data.left, data.top, data.right, data.bottom};
         if (!mm_caption_box_visible(&box))
             continue;

@@ -44,7 +44,9 @@ class MarcusPlayback
     int Transition() const;
     void BeginTransition(int kind, MM::PreviewImage previous, const unsigned char *outgoingPalette,
                          const MM::Preview &incoming);
-    bool Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image, MM::Error &error);
+    bool Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image, MM::Error &error,
+                   const std::uint32_t *hiddenCaption = nullptr);
+    bool CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const;
     void CompositeTransition(MM::PreviewImage &image) const;
 };
 #endif

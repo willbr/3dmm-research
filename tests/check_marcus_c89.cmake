@@ -11,7 +11,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "-I${SOURCE}/src/marcus" "-I${GENERATED}" "${SOURCE}/src/marcus/main.c" "${SOURCE}/src/marcus/ui.c"
   "${SOURCE}/src/marcus/settings.c"
   "${SOURCE}/src/marcus/text_dialog.c"
-  "${SOURCE}/src/marcus/caption_dialog.c"
+  "${SOURCE}/src/marcus/caption_editor.c"
   "${SOURCE}/src/marcus/costume_dialog.c"
   "${SOURCE}/src/marcus/sound_dialog.c"
   "${SOURCE}/src/marcus/sound_schedule.c"

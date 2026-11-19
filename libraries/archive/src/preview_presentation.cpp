@@ -32,6 +32,7 @@ bool Caption(PChunkyFile file, ChunkNumber number, PreviewCaption &out)
     const int result = mm_preview_caption(number, &services);
     if (host.exception) std::rethrow_exception(host.exception);
     if (result == -1) throw std::bad_alloc();
+    if (result > 0) out.chunk = number;
     return result > 0;
 }
 

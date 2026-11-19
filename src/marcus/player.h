@@ -333,6 +333,10 @@ extern "C"
     /* -1 adds a box. A null text deletes an existing box. */
     int marcus_edit_caption(MarcusPlayer *player, const MarcusCaptionList *list, int index,
                             const MarcusCaptionOptions *options, const char *text);
+    /* Hide the box under the in-place editor in the live view. A negative
+     * index clears the preview. Hit tests use native movie coordinates. */
+    void marcus_caption_preview(MarcusPlayer *player, const MarcusCaptionList *list, int index);
+    int marcus_caption_at(const MarcusPlayer *player, const MarcusCaptionList *list, int x, int y);
     int marcus_material_count(MarcusPlayer *player, const char *content_directory);
     int marcus_material(const MarcusPlayer *player, int index, MarcusProp *material);
     int marcus_text_material_preset(MarcusPlayer *player, unsigned long chunk, MarcusTextMaterial *material);

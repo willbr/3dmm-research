@@ -202,6 +202,7 @@ struct PreviewCaption
     std::string font;
     std::vector<std::uint16_t> text;
     std::vector<PreviewTextProperty> properties;
+    std::uint32_t chunk = 0;
 };
 struct PreviewSoundCue
 {
