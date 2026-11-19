@@ -2,6 +2,7 @@
 #include "mm/movie_data.h"
 #include "mm/movie_publish.h"
 #include "mm/movie_scene.h"
+#include "mm/scene_edit.h"
 #include "mm/playback.h"
 #include "mm/vmm_dependencies.h"
 #include "content.h"
@@ -313,13 +314,17 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
     UpdateSceneRanges(player);
     return true;
 }
-bool ApplyCameras(MarcusPlayer &player, int index, MM::Error &error)
+bool ApplyCameras(MarcusPlayer &player, int index, const MarcusLiveEdits::Cameras &cameras, MM::Error &error)
 {
     std::vector<MM::PreviewCameraEdit> changes;
     const auto scene = player.scenes[index].number;
-    for (const auto &entry : *player.edits->cameras)
+    for (const auto &entry : cameras)
         if (entry.first.scene == scene) changes.push_back({static_cast<std::int32_t>(entry.first.frame), static_cast<std::uint32_t>(entry.second)});
     return player.preview.SetCameraEdits(changes, error);
+}
+bool ApplyCameras(MarcusPlayer &player, int index, MM::Error &error)
+{
+    return ApplyCameras(player, index, *player.edits->cameras, error);
 }
 bool ApplyPlacements(MarcusPlayer &player, int scene, const MarcusPlayer::Placements &placements, MM::Error &error)
 {
@@ -1127,7 +1132,7 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
         edits->scenes = scenes;
         auto cameras = std::make_shared<MarcusLiveEdits::Cameras>(*edits->cameras);
         const auto first = newScene ? 1 : player->preview.Info().firstFrame;
-        (*cameras)[{scene, frame == first ? std::numeric_limits<std::int32_t>::min() : frame}] = camera;
+        (*cameras)[{scene, mm_scene_camera_key(first, static_cast<MMI32>(frame))}] = camera;
         edits->cameras = cameras; edits->revision = player->nextEditRevision++;
         EditHistory history(*player);
         const auto previous = player->edits;
@@ -2061,22 +2066,56 @@ extern "C"
     int marcus_set_scene_camera(MarcusPlayer *player, unsigned long camera)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (player->selected < 0 || camera >= player->preview.Info().cameraCount)
-            { error.message = "Camera angle is out of range."; return false; }
-            auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
-            auto cameras = std::make_shared<MarcusLiveEdits::Cameras>(*edits->cameras);
-            const auto &info = player->preview.Info();
-            const auto frame = info.currentFrame == info.firstFrame ? std::numeric_limits<std::int32_t>::min() : info.currentFrame;
-            (*cameras)[{player->scenes[player->selected].number, frame}] = camera;
-            edits->cameras = cameras; edits->revision = player->nextEditRevision++;
-            EditHistory history(*player);
-            const auto previous = player->edits;
-            player->edits = edits;
-            if (!ApplyCameras(*player, player->selected, error)) { player->edits = previous; return false; }
-            player->movieImageScene = -1;
-            ++player->document;
-            history.Commit();
-            return true;
+            struct Host
+            {
+                MarcusPlayer &movie;
+                MM::Error &error;
+                std::shared_ptr<MarcusLiveEdits> edits;
+                std::optional<EditHistory> history;
+                std::exception_ptr failure;
+            } host{*player, error, {}, {}, {}};
+            const MMSceneCameraJournalServices services{
+                &host,
+                [](void *p, MMI32 *first, MMI32 *frame, MMU32 *count) {
+                    const auto &info = static_cast<Host *>(p)->movie.preview.Info();
+                    *first = info.firstFrame;
+                    *frame = info.currentFrame;
+                    *count = info.cameraCount;
+                },
+                [](void *p, MMI32 key, MMU32 camera) -> int {
+                    auto &h = *static_cast<Host *>(p);
+                    try
+                    {
+                        auto &movie = h.movie;
+                        h.edits = std::make_shared<MarcusLiveEdits>(*movie.edits);
+                        auto cameras = std::make_shared<MarcusLiveEdits::Cameras>(*h.edits->cameras);
+                        (*cameras)[{movie.scenes[movie.selected].number, key}] = camera;
+                        h.edits->cameras = std::move(cameras);
+                        h.history.emplace(movie);
+                        return 1;
+                    }
+                    catch (...) { h.failure = std::current_exception(); return 0; }
+                },
+                [](void *p) -> int {
+                    auto &h = *static_cast<Host *>(p);
+                    try { return ApplyCameras(h.movie, h.movie.selected, *h.edits->cameras, h.error); }
+                    catch (...) { h.failure = std::current_exception(); return 0; }
+                },
+                [](void *p) {
+                    auto &h = *static_cast<Host *>(p);
+                    auto &movie = h.movie;
+                    h.edits->revision = movie.nextEditRevision++;
+                    movie.edits = std::move(h.edits);
+                    movie.movieImageScene = -1;
+                    ++movie.document;
+                    h.history->Commit();
+                }};
+            const int status = mm_scene_camera_journal(player->selected, camera, &services);
+            if (host.failure)
+                std::rethrow_exception(host.failure);
+            if (status == MM_SCENE_CAMERA_INVALID)
+                error.message = "Camera angle is out of range.";
+            return status == 1;
         });
     }
     int marcus_add_frame(MarcusPlayer *player, int direction)
@@ -2440,7 +2479,8 @@ extern "C"
                     return true;
             for (const auto &camera : *player->edits->cameras)
                 if (camera.first.scene == player->scenes[index].number &&
-                    (camera.first.frame == std::numeric_limits<std::int32_t>::min() || camera.first.frame == player->sceneInfo[index].first_frame))
+                    mm_scene_camera_frame(static_cast<MMI32>(player->sceneInfo[index].first_frame),
+                                          static_cast<MMI32>(camera.first.frame)) == player->sceneInfo[index].first_frame)
                     return true;
             if (player->sceneInfo[index].first_frame != player->baseSceneInfo[index].first_frame) return true;
             if (!player->preview.ReadSceneThumbnail(player->scenes[index], player->thumbnail, error))

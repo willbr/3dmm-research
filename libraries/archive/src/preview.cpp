@@ -1005,8 +1005,11 @@ bool Preview::RenderWithLights(const PreviewView &view, const std::vector<Previe
 bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error &error)
 {
     error = {};
+    Error ignored;
     Impl::LiveHost host = {this, _impl.get(), &error};
+    Impl::LiveHost recovery = {this, _impl.get(), &ignored};
     auto services = host.Services();
+    auto recoveryServices = recovery.Services();
     MMPreviewLiveCameraEdits input = {};
     input.context = const_cast<std::vector<PreviewCameraEdit> *>(&edits);
     input.count = static_cast<MMU32>(edits.size());
@@ -1014,7 +1017,7 @@ bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error 
         const auto &edit = (*static_cast<const std::vector<PreviewCameraEdit> *>(v))[i];
         out->frame = edit.frame; out->camera = edit.camera;
     };
-    const auto result = mm_preview_live_cameras(&_impl->live, &input, &services);
+    const auto result = mm_preview_live_cameras(&_impl->live, &input, &services, &recoveryServices);
     _impl->PublishInfo();
     if (result != MM_PREVIEW_LIVE_SEEK_MEMORY) host.Rethrow(result);
     if (result == MM_PREVIEW_LIVE_SCENE)

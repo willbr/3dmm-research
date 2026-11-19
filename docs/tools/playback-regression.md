@@ -14384,3 +14384,39 @@ costume and storyboard tests. Marcus was rebuilt and relaunched.
 The capture database is at
 `tmp/c89-sound-schedule/capture/playback.sqlite`. The two native outputs,
 probe and build logs are in `tmp/c89-frame-range`.
+
+## Marcus camera edits and native saving in C89 (19 November 2026)
+
+C89 now validates camera edits and coordinates journal and undo publication.
+The live preview and native writer share opening-frame resolution and replace
+all cuts at the edited frame while preserving the order of non-camera events.
+The preview prepares a candidate track and restores the previous one if
+evaluation fails. Recovery reloads the prior camera when a failed read
+may have partially replaced the background.
+
+The headless comparison edited the opening of the second scene, prepended a
+frame, replaced a later camera cut, repeated and undid that edit, then saved
+and reopened the movie. The previous and converted builds reported matching
+ranges, playheads, camera indices and undo states. The saved files are
+byte-identical with SHA-256
+`265a3ee65880e3dcf7751ac125609139e45d873030e140d6bc214238b2e5ae13`.
+
+The C fixtures verify duplicate camera replacement beside sound and pause
+events, opening thumbnail invalidation, and publication after successful
+evaluation. Preview tests exercise allocation failure, restoration after a
+rejected cut, and invalidation if the prior camera cannot be restored.
+All 13 selected checks passed on the final build, including strict
+C89 syntax, the scene and preview tests, and the headless playback
+and authoring tests. Marcus was rebuilt and relaunched.
+
+Retail, SDL Studio and Marcus reopened the native movie in suite
+`20261119T031108Z-ca0f30c8`. All six runs completed, including two fresh
+Marcus captures after the camera recovery change. The players agreed
+on all 61 authored frame positions in seek and playback. The seek
+images at frames 0, 1, 14, 15, 16 and 30 of the edited scene matched
+retail in both SDL Studio and Marcus. Full captures still showed
+retail pixel and mixed PCM differences. Marcus timing and continuous
+image comparisons remained inconclusive.
+
+The capture database is at `tmp/c89-sound-schedule/capture/playback.sqlite`.
+The saved movies, probe, build and test logs are in `tmp/c89-camera-edit`.

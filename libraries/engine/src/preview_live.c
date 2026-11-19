@@ -1,8 +1,8 @@
 #include "mm/preview_live.h"
 #include "mm/movie_session.h"
 #include "mm/scene_runtime.h"
+#include "mm/scene_edit.h"
 #include <string.h>
-#define MIN_FRAME (-2147483647 - 1)
 static void array_init(MMPreviewLiveArray *a, MMU32 width, const MMStorageAllocator *allocator)
 {
     memset(a, 0, sizeof(*a));
@@ -280,50 +280,53 @@ done:
 }
 static MMI32 camera_count(void *v)
 {
-    return (MMI32)((MMPreviewLive *)v)->cameras.count;
+    return (MMI32)((MMPreviewLiveArray *)v)->count;
 }
 static void camera_event(void *v, MMI32 i, MMI32 *frame, int *kind)
 {
-    *frame = ((MMPreviewLiveCamera *)data(&((MMPreviewLive *)v)->cameras))[i].frame;
+    *frame = ((MMPreviewLiveCamera *)data((MMPreviewLiveArray *)v))[i].frame;
     *kind = MM_SCENE_CHANGE_CAMERA;
 }
 static void move_camera(void *v, MMI32 i, MMI32 frame)
 {
-    MMPreviewLiveArray *a = &((MMPreviewLive *)v)->cameras;
+    MMPreviewLiveArray *a = (MMPreviewLiveArray *)v;
     MMArray list = view(a);
     ((MMPreviewLiveCamera *)data(a))[i].frame = frame;
     mm_array_move(&list, (MMU32)i, 0);
 }
-int mm_preview_live_range(MMPreviewLive *p, MMI32 first, MMI32 last)
+static void move_opening_camera(MMPreviewLiveArray *cameras, MMI32 first, MMI32 target)
 {
     MMSceneState scene;
     MMSceneRuntimeServices s;
-    if (!p->status.ready || !p->status.scene ||
-        !mm_scene_range_contains(p->original_first, p->original_last, first, last))
-        return MM_PREVIEW_LIVE_RANGE;
-    if (first == p->status.first && last == p->status.last)
-        return MM_PREVIEW_LIVE_OK;
+    if (target == first)
+        return;
     memset(&scene, 0, sizeof(scene));
     memset(&s, 0, sizeof(s));
-    scene.firstFrame = p->status.first;
-    s.context = p;
+    scene.firstFrame = first;
+    s.context = cameras;
     s.event_count = camera_count;
     s.event = camera_event;
     s.move_camera = move_camera;
-    if (first != p->status.first)
-        mm_scene_move_first(&scene, first, &s);
+    mm_scene_move_first(&scene, target, &s);
+}
+int mm_preview_live_range(MMPreviewLive *p, MMI32 first, MMI32 last)
+{
+    if (!p->status.ready || !p->status.scene ||
+        !mm_scene_range_contains(p->original_first, p->original_last, first, last))
+        return MM_PREVIEW_LIVE_RANGE;
+    move_opening_camera(&p->cameras, p->status.first, first);
     p->status.first = first;
     p->status.last = last;
     return MM_PREVIEW_LIVE_OK;
 }
-static void sort_cameras(MMPreviewLive *p)
+static void sort_cameras(MMPreviewLiveArray *cameras)
 {
     MMPreviewLiveArray scratch;
-    MMPreviewLiveCamera *a = (MMPreviewLiveCamera *)data(&p->cameras), *b, value;
-    MMU32 n = p->cameras.count, width, start, mid, end, i, j, k;
+    MMPreviewLiveCamera *a = (MMPreviewLiveCamera *)data(cameras), *b, value;
+    MMU32 n = cameras->count, width, start, mid, end, i, j, k;
     if (n < 2)
         return;
-    array_init(&scratch, sizeof(value), &p->cameras.storage.allocator);
+    array_init(&scratch, sizeof(value), &cameras->storage.allocator);
     if (!reserve(&scratch, n))
     {
         for (i = 1; i < n; ++i)
@@ -364,48 +367,81 @@ static void sort_cameras(MMPreviewLive *p)
     }
     mm_storage_dispose(&scratch.storage);
 }
-int mm_preview_live_cameras(MMPreviewLive *p, const MMPreviewLiveCameraEdits *edits, const MMPreviewLiveServices *s)
+static void erase_camera(void *v, MMI32 index)
 {
-    MMU32 i, j;
-    MMI32 first = p->status.first, last = p->status.last, frame;
+    erase((MMPreviewLiveArray *)v, (MMU32)index);
+}
+static int insert_camera(void *v, MMI32 index, MMI32 frame, MMU32 camera)
+{
+    MMPreviewLiveArray *a = (MMPreviewLiveArray *)v;
+    MMArray list = view(a);
+    MMPreviewLiveCamera value;
+    int status;
+    value.frame = frame;
+    value.camera = camera;
+    a->storage.min_grow[0] = 8 * a->width;
+    status = mm_array_insert(&list, (MMU32)index, &value, 1);
+    a->count = list.count;
+    return status == MM_STORAGE_OK;
+}
+int mm_preview_live_cameras(MMPreviewLive *p, const MMPreviewLiveCameraEdits *edits,
+                            const MMPreviewLiveServices *s, const MMPreviewLiveServices *recovery)
+{
+    const MMI32 first = p->status.first, last = p->status.last, old_frame = p->status.frame;
+    const MMU32 old_camera = p->status.current_camera;
     MMPreviewLiveCamera edit;
-    int result;
+    MMPreviewLiveArray candidate;
+    MMSceneCameraEvents events = {NULL, camera_count, camera_event, erase_camera, insert_camera};
+    MMI32 frame;
+    MMU32 i;
+    int result = MM_PREVIEW_LIVE_MEMORY;
     if (!p->status.ready || !p->status.scene)
         return MM_PREVIEW_LIVE_SCENE;
+    if (!mm_scene_range_contains(p->original_first, p->original_last, first, last))
+        return MM_PREVIEW_LIVE_RANGE;
     for (i = 0; i < edits->count; ++i)
     {
         edits->get(edits->context, i, &edit);
         if (edit.camera >= p->status.camera_count)
             return MM_PREVIEW_LIVE_CAMERA_INDEX;
     }
-    if (!copy(&p->cameras, &p->original_cameras))
-        return MM_PREVIEW_LIVE_MEMORY;
-    p->status.first = p->original_first;
-    p->status.last = p->original_last;
-    result = mm_preview_live_range(p, first, last);
-    if (result != MM_PREVIEW_LIVE_OK)
-        return result;
+    array_init(&candidate, sizeof(edit), &p->cameras.storage.allocator);
+    if (!copy(&candidate, &p->original_cameras))
+        goto done;
+    move_opening_camera(&candidate, p->original_first, first);
+    events.context = &candidate;
     for (i = 0; i < edits->count; ++i)
     {
         edits->get(edits->context, i, &edit);
-        frame = edit.frame == MIN_FRAME ? first : edit.frame;
-        for (j = 0; j < p->cameras.count;)
-            if (((MMPreviewLiveCamera *)data(&p->cameras))[j].frame == frame)
-                erase(&p->cameras, j);
-            else
-                ++j;
-        edit.frame = frame;
-        if (!add(&p->cameras, &edit))
-        {
-            publish(p, s);
-            return MM_PREVIEW_LIVE_MEMORY;
-        }
+        if (!mm_scene_camera_replace(mm_scene_camera_frame(first, edit.frame), edit.camera, &events))
+            goto done;
     }
-    sort_cameras(p);
-    frame = p->status.frame < last ? p->status.frame : last;
+    sort_cameras(&candidate);
+    frame = old_frame < last ? old_frame : last;
     if (frame < first)
         frame = first;
-    return mm_preview_live_seek(p, frame, s);
+    swap(&candidate, &p->cameras);
+    result = mm_preview_live_seek(p, frame, s);
+    if (result != MM_PREVIEW_LIVE_OK)
+    {
+        swap(&candidate, &p->cameras);
+        if (p->status.ready || result == MM_PREVIEW_LIVE_CAMERA)
+        {
+            p->status.ready = 1;
+            /* A camera read can replace part of the view before failing. */
+            if (p->status.background)
+                p->status.current_camera = p->status.camera_count;
+            if (mm_preview_live_seek(p, old_frame, recovery) != MM_PREVIEW_LIVE_OK)
+            {
+                p->status.current_camera = old_camera;
+                p->status.ready = 0;
+                publish(p, recovery);
+            }
+        }
+    }
+done:
+    mm_storage_dispose(&candidate.storage);
+    return result;
 }
 static void read_camera_change(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
 {

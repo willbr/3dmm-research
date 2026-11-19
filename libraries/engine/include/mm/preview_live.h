@@ -128,7 +128,10 @@ extern "C"
     /* Camera edits replace equal-frame cues in input order; last edit wins. MIN_I32
      * denotes the current first frame. Stable sorting retains remaining equal ties;
      * scratch allocation failure uses an allocation-free stable fallback. */
-    int mm_preview_live_cameras(MMPreviewLive *, const MMPreviewLiveCameraEdits *, const MMPreviewLiveServices *);
+    /* Recovery services preserve the first evaluation error while replaying
+     * the previous camera track. */
+    int mm_preview_live_cameras(MMPreviewLive *, const MMPreviewLiveCameraEdits *, const MMPreviewLiveServices *,
+                                const MMPreviewLiveServices *recovery);
     /* Seek retains completed actor prefixes after failure. Actor read/allocation
      * failure clears ready; camera errors preserve the camera service's ready state.
      * Frame publication and stats occur only after all effects succeed. */

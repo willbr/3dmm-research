@@ -11,6 +11,7 @@
 #include "soc_core.h"
 #include "mm/text.h"
 #include "mm/scene_runtime.h"
+#include "mm/scene_edit.h"
 #include "storyboard_native.h"
 #undef size
 ASSERTNAME
@@ -151,136 +152,139 @@ static void ApplyNewScene(PChunkyFile file, const MM::PreviewSceneDefinition &de
     Require(SceneData::FWriteEvents(file, number, frames.get(), starts.get()) &&
             file->FAdoptChild(kctgMvie, root.cno, kctgScen, number, slot), "Cannot add the new scene to the movie.");
 }
-static void ApplyCamera(PChunkyFile file, unsigned long scene, long frame, unsigned long camera)
+struct SceneFrameEvents
 {
-    ChildChunkIdentification child;
-    DataBlock block;
-    Require(file->FGetKidChidCtg(kctgScen, scene, 0, kctgFrmGg, &child) &&
-            file->FFind(kctgFrmGg, child.cki.cno, &block), "Cannot read scene camera events.");
-    short order;
-    std::unique_ptr<GeneralGroup, Release> frames(SceneData::PggReadEvents(&block, &order, false));
-    Require(bool(frames), "The scene frame events are invalid.");
-    // Preserve all other events and their payload byte order, including opaque
-    // sound records. Replace every camera change at this frame with one choice.
-    for (LegacyLong index = frames->IvMac(); index-- > 0;)
-    {
-        SceneEvent event;
-        frames->GetFixed(index, &event);
-        if (order == kboOther) SwapBytesBom(&event, kbomSev);
-        if (event.nfrm == frame && event.sevt == sevtChngCamera) frames->Delete(index);
-    }
-    LegacyLong insertion = frames->IvMac();
-    for (LegacyLong index = 0; index < frames->IvMac(); ++index)
-    {
-        SceneEvent event;
-        frames->GetFixed(index, &event);
-        if (order == kboOther) SwapBytesBom(&event, kbomSev);
-        if (event.nfrm > frame) { insertion = index; break; }
-    }
-    SceneEvent event = {static_cast<int32_t>(frame), sevtChngCamera};
-    std::uint32_t value = static_cast<std::uint32_t>(camera);
-    if (order == kboOther) { SwapBytesBom(&event, kbomSev); SwapBytesRglw(&value, 1); }
+    PChunkyFile file;
     ChunkNumber number;
-    Require(frames->FInsert(insertion, sizeof(value), &value, &event) &&
-            file->FAdd(frames->CbOnFile(), kctgFrmGg, &number, &block) && frames->FWrite(&block, order),
-            "Cannot write the scene camera change.");
-    file->DeleteChild(kctgScen, scene, kctgFrmGg, child.cki.cno, 0);
-    Require(file->FAdoptChild(kctgScen, scene, kctgFrmGg, number, 0), "Cannot link the scene camera change.");
-    SceneData metadata;
-    Require(metadata.FRead(file, scene), "Cannot read scene metadata.");
-    if (frame == metadata.firstFrame && file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
-        file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
+    SceneData &scene;
+    ChildChunkIdentification child{};
+    DataBlock block;
+    short order = kboCur;
+    std::unique_ptr<GeneralGroup, Release> frames;
+    const char *message = "Cannot edit the scene frame events.";
+    std::exception_ptr failure;
+
+    static int Open(void *p)
+    {
+        auto &h = *static_cast<SceneFrameEvents *>(p);
+        try
+        {
+            h.message = "Cannot read scene frame events.";
+            if (!h.file->FGetKidChidCtg(kctgScen, h.number, 0, kctgFrmGg, &h.child) ||
+                !h.file->FFind(kctgFrmGg, h.child.cki.cno, &h.block))
+                return 0;
+            h.message = "Cannot decode scene frame events.";
+            h.frames.reset(SceneData::PggReadEvents(&h.block, &h.order, false));
+            return bool(h.frames);
+        }
+        catch (...) { h.failure = std::current_exception(); return 0; }
+    }
+
+    static int Replace(void *p)
+    {
+        auto &h = *static_cast<SceneFrameEvents *>(p);
+        try
+        {
+            ChunkNumber number;
+            h.message = "Cannot write the edited scene frame events.";
+            if (!h.file->FAdd(h.frames->CbOnFile(), kctgFrmGg, &number, &h.block) ||
+                !h.frames->FWrite(&h.block, h.order))
+                return 0;
+            h.message = "Cannot link the edited scene frame events.";
+            h.file->DeleteChild(kctgScen, h.number, kctgFrmGg, h.child.cki.cno, 0);
+            return h.file->FAdoptChild(kctgScen, h.number, kctgFrmGg, number, 0);
+        }
+        catch (...) { h.failure = std::current_exception(); return 0; }
+    }
+
+    static int DropThumbnail(void *p)
+    {
+        auto &h = *static_cast<SceneFrameEvents *>(p);
+        try
+        {
+            if (h.file->FGetKidChidCtg(kctgScen, h.number, 0, kctgThumbMbmp, &h.child))
+                h.file->DeleteChild(kctgScen, h.number, kctgThumbMbmp, h.child.cki.cno, 0);
+            return 1;
+        }
+        catch (...) { h.failure = std::current_exception(); return 0; }
+    }
+
+    static MMI32 Count(void *p) { return static_cast<SceneFrameEvents *>(p)->frames->IvMac(); }
+    static void Event(void *p, MMI32 index, MMI32 *frame, int *kind)
+    {
+        auto &h = *static_cast<SceneFrameEvents *>(p);
+        SceneEvent event;
+        h.frames->GetFixed(index, &event);
+        if (h.order == kboOther) SwapBytesBom(&event, kbomSev);
+        *frame = event.nfrm;
+        *kind = event.sevt;
+    }
+    static void MoveOpening(void *p, MMI32 index, MMI32 frame)
+    {
+        auto &h = *static_cast<SceneFrameEvents *>(p);
+        SceneEvent event;
+        h.frames->GetFixed(index, &event);
+        if (h.order == kboOther) SwapBytesBom(&event, kbomSev);
+        event.nfrm = frame;
+        if (h.order == kboOther) SwapBytesBom(&event, kbomSev);
+        h.frames->PutFixed(index, &event);
+        h.frames->Move(index, 0);
+    }
+    static void Erase(void *p, MMI32 index) { static_cast<SceneFrameEvents *>(p)->frames->Delete(index); }
+    static int InsertCamera(void *p, MMI32 index, MMI32 frame, MMU32 camera)
+    {
+        auto &h = *static_cast<SceneFrameEvents *>(p);
+        try
+        {
+            h.message = "Cannot insert the scene camera change.";
+            SceneEvent event = {frame, sevtChngCamera};
+            if (h.order == kboOther) { SwapBytesBom(&event, kbomSev); SwapBytesRglw(&camera, 1); }
+            return h.frames->FInsert(index, sizeof(camera), &camera, &event);
+        }
+        catch (...) { h.failure = std::current_exception(); return 0; }
+    }
+    static int WriteScene(void *p)
+    {
+        auto &h = *static_cast<SceneFrameEvents *>(p);
+        try
+        {
+            h.message = "Cannot write the extended scene.";
+            return h.scene.FWrite(h.file, h.number);
+        }
+        catch (...) { h.failure = std::current_exception(); return 0; }
+    }
+    void Check(int result)
+    {
+        if (failure)
+            std::rethrow_exception(failure);
+        Require(result != MM_SCENE_RANGE_INVALID, "The scene range must retain its original frames.");
+        Require(result != 0, message);
+    }
+};
+
+static void ApplyCamera(PChunkyFile file, unsigned long number, long key, unsigned long camera)
+{
+    SceneData scene;
+    Require(scene.FRead(file, number), "Cannot read scene metadata.");
+    SceneFrameEvents host{file, static_cast<ChunkNumber>(number), scene};
+    const MMSceneCameraStoreServices services{
+        {&host, SceneFrameEvents::Count, SceneFrameEvents::Event, SceneFrameEvents::Erase, SceneFrameEvents::InsertCamera},
+        SceneFrameEvents::Open, SceneFrameEvents::Replace, SceneFrameEvents::DropThumbnail};
+    host.Check(mm_scene_camera_store(scene.firstFrame, static_cast<MMI32>(key), static_cast<MMU32>(camera), &services));
 }
 static void ApplySceneRange(PChunkyFile file, const MarcusSceneRange &range)
 {
     SceneData scene;
     Require(scene.FRead(file, range.scene), "Cannot read the scene frame range.");
-    struct Host
-    {
-        PChunkyFile file;
-        ChunkNumber number;
-        SceneData &scene;
-        ChildChunkIdentification child;
-        DataBlock block;
-        short order;
-        std::unique_ptr<GeneralGroup, Release> frames;
-        const char *message;
-        std::exception_ptr failure;
-    } host{file, static_cast<ChunkNumber>(range.scene), scene, {}, {}, kboCur, {}, nullptr, {}};
+    SceneFrameEvents host{file, static_cast<ChunkNumber>(range.scene), scene};
     MMSceneRuntimeServices events = {};
     events.context = &host;
-    events.event_count = [](void *p) -> MMI32 { return static_cast<Host *>(p)->frames->IvMac(); };
-    events.event = [](void *p, MMI32 index, MMI32 *at, int *kind) {
-        auto &host = *static_cast<Host *>(p);
-        SceneEvent event;
-        host.frames->GetFixed(index, &event);
-        if (host.order == kboOther) SwapBytesBom(&event, kbomSev);
-        *at = event.nfrm;
-        *kind = event.sevt;
-    };
-    events.move_camera = [](void *p, MMI32 index, MMI32 at) {
-        auto &host = *static_cast<Host *>(p);
-        SceneEvent event;
-        host.frames->GetFixed(index, &event);
-        if (host.order == kboOther) SwapBytesBom(&event, kbomSev);
-        event.nfrm = at;
-        if (host.order == kboOther) SwapBytesBom(&event, kbomSev);
-        host.frames->PutFixed(index, &event);
-        host.frames->Move(index, 0);
-    };
-    const MMSceneRangeStoreServices services{
-        &events,
-        [](void *p) -> int {
-            auto &h = *static_cast<Host *>(p);
-            try
-            {
-                h.message = "Cannot read scene frame events.";
-                if (!h.file->FGetKidChidCtg(kctgScen, h.number, 0, kctgFrmGg, &h.child) ||
-                    !h.file->FFind(kctgFrmGg, h.child.cki.cno, &h.block)) return 0;
-                h.message = "Cannot decode scene frame events.";
-                h.frames.reset(SceneData::PggReadEvents(&h.block, &h.order, false));
-                return bool(h.frames);
-            }
-            catch (...) { h.failure = std::current_exception(); return 0; }
-        },
-        [](void *p) -> int {
-            auto &h = *static_cast<Host *>(p);
-            try
-            {
-                ChunkNumber number;
-                h.message = "Cannot write the extended scene frame events.";
-                if (!h.file->FAdd(h.frames->CbOnFile(), kctgFrmGg, &number, &h.block) ||
-                    !h.frames->FWrite(&h.block, h.order)) return 0;
-                h.message = "Cannot link extended scene frame events.";
-                h.file->DeleteChild(kctgScen, h.number, kctgFrmGg, h.child.cki.cno, 0);
-                return h.file->FAdoptChild(kctgScen, h.number, kctgFrmGg, number, 0);
-            }
-            catch (...) { h.failure = std::current_exception(); return 0; }
-        },
-        [](void *p) -> int {
-            auto &h = *static_cast<Host *>(p);
-            try
-            {
-                if (h.file->FGetKidChidCtg(kctgScen, h.number, 0, kctgThumbMbmp, &h.child))
-                    h.file->DeleteChild(kctgScen, h.number, kctgThumbMbmp, h.child.cki.cno, 0);
-                return 1;
-            }
-            catch (...) { h.failure = std::current_exception(); return 0; }
-        },
-        [](void *p) -> int {
-            auto &h = *static_cast<Host *>(p);
-            try
-            {
-                h.message = "Cannot write the extended scene.";
-                return h.scene.FWrite(h.file, h.number);
-            }
-            catch (...) { h.failure = std::current_exception(); return 0; }
-        }};
-    const int status = mm_scene_range_store(&scene, range.first, range.last, &services);
-    if (host.failure)
-        std::rethrow_exception(host.failure);
-    Require(status != MM_SCENE_RANGE_INVALID, "The scene range must retain its original frames.");
-    Require(status != 0, host.message);
+    events.event_count = SceneFrameEvents::Count;
+    events.event = SceneFrameEvents::Event;
+    events.move_camera = SceneFrameEvents::MoveOpening;
+    const MMSceneRangeStoreServices services{&events, SceneFrameEvents::Open, SceneFrameEvents::Replace,
+                                             SceneFrameEvents::DropThumbnail, SceneFrameEvents::WriteScene};
+    host.Check(mm_scene_range_store(&scene, range.first, range.last, &services));
 }
 static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusNamedProp &propEdit)
 {
@@ -1263,16 +1267,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
             file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
     }
     for (const auto &entry : *edits.cameras)
-    {
-        auto frame = entry.first.frame;
-        if (frame == std::numeric_limits<std::int32_t>::min())
-        {
-            SceneData scene;
-            Require(scene.FRead(file.get(), entry.first.scene), "Cannot read the opening camera frame.");
-            frame = scene.firstFrame;
-        }
-        ApplyCamera(file.get(), entry.first.scene, frame, entry.second);
-    }
+        ApplyCamera(file.get(), entry.first.scene, entry.first.frame, entry.second);
     Require(file->FSave(kctgSoc), "Cannot save the object working copy.");
     return result;
 }

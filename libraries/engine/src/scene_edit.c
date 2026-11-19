@@ -141,6 +141,59 @@ static void output_tag(MMTag *out, const MMTag *tag, int first, const MMSceneEdi
     if (s->publish_tag)
         s->publish_tag(s->output_context, tag, first);
 }
+MMI32 mm_scene_camera_key(MMI32 first, MMI32 frame)
+{
+    return frame == first ? (MMI32)MM_SCENE_OPENING_CAMERA_FRAME : frame;
+}
+
+MMI32 mm_scene_camera_frame(MMI32 first, MMI32 key)
+{
+    return key == MM_SCENE_OPENING_CAMERA_FRAME ? first : key;
+}
+
+int mm_scene_camera_replace(MMI32 frame, MMU32 camera, const MMSceneCameraEvents *s)
+{
+    MMI32 index, at, count;
+    int kind;
+    for (index = s->count(s->context); index-- > 0;)
+    {
+        s->event(s->context, index, &at, &kind);
+        if (at == frame && kind == MM_SCENE_CHANGE_CAMERA)
+            s->erase(s->context, index);
+    }
+    count = s->count(s->context);
+    for (index = 0; index < count; ++index)
+    {
+        s->event(s->context, index, &at, &kind);
+        if (at > frame)
+            break;
+    }
+    return s->insert(s->context, index, frame, camera);
+}
+
+int mm_scene_camera_store(MMI32 first, MMI32 key, MMU32 camera, const MMSceneCameraStoreServices *s)
+{
+    MMI32 frame = mm_scene_camera_frame(first, key);
+    void *context = s->events.context;
+    return s->open_events(context) && mm_scene_camera_replace(frame, camera, &s->events) &&
+           s->replace_events(context) && (frame != first || s->drop_thumbnail(context));
+}
+
+int mm_scene_camera_journal(MMI32 scene, unsigned long camera, const MMSceneCameraJournalServices *s)
+{
+    MMI32 first, frame;
+    MMU32 count;
+    if (scene < 0)
+        return MM_SCENE_CAMERA_INVALID;
+    s->position(s->context, &first, &frame, &count);
+    if (camera >= count)
+        return MM_SCENE_CAMERA_INVALID;
+    if (!s->prepare(s->context, mm_scene_camera_key(first, frame), (MMU32)camera) || !s->apply(s->context))
+        return 0;
+    s->publish(s->context);
+    return 1;
+}
+
 int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServices *s)
 {
     const MMSceneEventServices *e = &s->sound.events;

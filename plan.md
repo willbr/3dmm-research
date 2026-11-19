@@ -1002,6 +1002,11 @@ evaluating the new frame. C89 publishes those changes together and restores
 the prior range and frame after failed evaluation. Preview and native save
 share range validation, while the saved opening camera uses Studio's C89
 relocation rule.
+Marcus camera edits now stage the journal and undo entry until C89
+accepts the replacement track. Live preview and native save share
+opening-frame resolution and camera-event replacement. Failed live
+evaluation restores the previous track and replays the old frame when
+the preview can recover.
 Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and

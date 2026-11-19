@@ -18,6 +18,7 @@ typedef struct Host
     MMPreviewLiveScene scenes[4];
     MMPreviewLiveProp props[8];
     Actor actors[64];
+    int reject_camera_once, forced_camera;
     int attempts, fail_at, memory, created, released[64], releases, actor_live, clock;
     int new_fail, create_fail, create_error, creates, seek_fail, seek_error, seeks;
     int camera_result, camera_ready, cameras, published, stats, begins, health, unhealthy;
@@ -128,7 +129,13 @@ static void stats(void *v)
 static int camera(void *v, MMU32 index)
 {
     Host *h = (Host *)v;
-    ++h->cameras;
+    if (h->live.status.current_camera == h->live.status.camera_count)
+        ++h->forced_camera;
+    if (++h->cameras == h->reject_camera_once)
+    {
+        h->live.status.ready = 0;
+        return 0;
+    }
     h->selected = index;
     h->live.status.ready = h->camera_ready;
     return h->camera_result;
@@ -392,6 +399,7 @@ static void camera_tests(void)
     Host h;
     MMPreviewLiveCamera edits[] = {{17, 1}, {MIN_FRAME, 3}, {17, 2}, {9, 1}};
     MMPreviewLiveCamera unsorted[] = {{17, 1}, {9, 0}};
+    MMPreviewLiveCamera rejected = {15, 0};
     MMPreviewLiveCamera many[16], saved[8];
     MMPreviewLiveCameraEdits input;
     MMPreviewLiveStatus status;
@@ -409,7 +417,7 @@ static void camera_tests(void)
     input.count = 4;
     input.get = edit_get;
     h.live.status.frame = 30;
-    assert(mm_preview_live_cameras(&h.live, &input, &h.services) == 0);
+    assert(mm_preview_live_cameras(&h.live, &input, &h.services, &h.services) == 0);
     assert(h.live.status.first == 5 && h.live.status.last == 25 && h.live.status.frame == 25 && h.selected == 2);
     assert(mm_preview_live_seek(&h.live, 16, &h.services) == 0 && h.selected == 3 && h.live.status.current_camera == 3);
     assert(mm_preview_live_seek(&h.live, 17, &h.services) == 0 && h.selected == 2);
@@ -420,19 +428,19 @@ static void camera_tests(void)
     status = h.live.status;
     base = h.begins;
     edits[0].camera = 4;
-    assert(mm_preview_live_cameras(&h.live, &input, &h.services) == MM_PREVIEW_LIVE_CAMERA_INDEX &&
+    assert(mm_preview_live_cameras(&h.live, &input, &h.services, &h.services) == MM_PREVIEW_LIVE_CAMERA_INDEX &&
            !memcmp(saved, cues(&h), 4 * sizeof(*saved)) && !memcmp(&status, &h.live.status, sizeof(status)) &&
            h.begins == base);
     input.count = 0;
-    assert(mm_preview_live_cameras(&h.live, &input, &h.services) == 0 && h.live.cameras.count == 3 && h.selected == 3);
+    assert(mm_preview_live_cameras(&h.live, &input, &h.services, &h.services) == 0 && h.live.cameras.count == 3 && h.selected == 3);
     assert(cues(&h)[0].frame == 5 && cues(&h)[0].camera == 2 && cues(&h)[1].camera == 1);
     dispose(&h);
     /* A failed sort scratch allocation retains stable equal-frame ordering. */
     init(&h);
     input.context = unsorted;
     input.count = 2;
-    h.fail_at = h.attempts + 1;
-    assert(mm_preview_live_cameras(&h.live, &input, &h.services) == 0 && h.attempts >= h.fail_at);
+    h.fail_at = h.attempts + 3;
+    assert(mm_preview_live_cameras(&h.live, &input, &h.services, &h.services) == 0 && h.attempts >= h.fail_at);
     assert(cues(&h)[0].frame == 9 && cues(&h)[1].camera == 1 && cues(&h)[2].camera == 2 && cues(&h)[4].frame == 17);
     dispose(&h);
     init(&h);
@@ -444,15 +452,28 @@ static void camera_tests(void)
     input.context = many;
     input.count = 16;
     h.fail_at = h.attempts + 1;
-    assert(mm_preview_live_cameras(&h.live, &input, &h.services) == MM_PREVIEW_LIVE_MEMORY);
-    assert(!h.begins && !h.seeks && h.live.status.ready && h.live.cameras.count >= 3);
+    assert(mm_preview_live_cameras(&h.live, &input, &h.services, &h.services) == MM_PREVIEW_LIVE_MEMORY);
+    assert(!h.begins && !h.seeks && h.live.status.ready && h.live.cameras.count == 3);
+    dispose(&h);
+    /* Restore the old track and visible camera after a rejected cut. */
+    init(&h);
+    memcpy(saved, cues(&h), 3 * sizeof(*saved));
+    input.context = &rejected;
+    input.count = 1;
+    h.reject_camera_once = h.cameras + 1;
+    assert(mm_preview_live_cameras(&h.live, &input, &h.services, &h.services) == MM_PREVIEW_LIVE_CAMERA);
+    assert(h.begins == 2 && h.stats == 1 && h.live.status.ready && h.selected == 3 && h.forced_camera == 1);
+    assert(h.live.cameras.count == 3 && !memcmp(saved, cues(&h), 3 * sizeof(*saved)));
+    h.camera_result = 0;
+    assert(mm_preview_live_cameras(&h.live, &input, &h.services, &h.services) == MM_PREVIEW_LIVE_CAMERA);
+    assert(!h.live.status.ready && h.live.cameras.count == 3 && !memcmp(saved, cues(&h), 3 * sizeof(*saved)));
     dispose(&h);
     /* Evaluation exceptions remain distinct from camera-edit preparation OOM. */
     init(&h);
     input.count = 0;
     h.seek_fail = 2;
     h.seek_error = -1;
-    assert(mm_preview_live_cameras(&h.live, &input, &h.services) == MM_PREVIEW_LIVE_SEEK_MEMORY);
+    assert(mm_preview_live_cameras(&h.live, &input, &h.services, &h.services) == MM_PREVIEW_LIVE_SEEK_MEMORY);
     assert(h.begins == 1 && !h.live.status.ready && h.live.status.frame == 15 && !h.stats);
     dispose(&h);
     /* Sealing publishes the original actor prefix before snapshot allocation. */

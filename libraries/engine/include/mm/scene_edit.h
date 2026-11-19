@@ -68,6 +68,40 @@ extern "C"
      * Common undo targets/list/object lifetime remain host services. */
     int mm_scene_pause_edit(MMI32 *reason, MMI32 *delay, const MMSceneEditServices *);
     int mm_scene_camera_edit(MMI32 camera, MMI32 *old, const MMSceneEditServices *);
+    /* A journal key for a cut that follows the first frame when prepending. */
+#define MM_SCENE_OPENING_CAMERA_FRAME (-2147483647L - 1L)
+    MMI32 mm_scene_camera_key(MMI32 first, MMI32 frame);
+    MMI32 mm_scene_camera_frame(MMI32 first, MMI32 key);
+    typedef struct MMSceneCameraEvents
+    {
+        void *context;
+        MMI32 (*count)(void *);
+        void (*event)(void *, MMI32 index, MMI32 *frame, int *kind);
+        void (*erase)(void *, MMI32 index);
+        int (*insert)(void *, MMI32 index, MMI32 frame, MMU32 camera);
+    } MMSceneCameraEvents;
+    /* Replace all cuts at the frame, preserving the order of other events. */
+    int mm_scene_camera_replace(MMI32 frame, MMU32 camera, const MMSceneCameraEvents *);
+    typedef struct MMSceneCameraStoreServices
+    {
+        MMSceneCameraEvents events;
+        int (*open_events)(void *);
+        int (*replace_events)(void *);
+        int (*drop_thumbnail)(void *);
+    } MMSceneCameraStoreServices;
+    /* Runs against a private save copy. Services return 1/0 without unwinding. */
+    int mm_scene_camera_store(MMI32 first, MMI32 key, MMU32 camera, const MMSceneCameraStoreServices *);
+    typedef struct MMSceneCameraJournalServices
+    {
+        void *context;
+        void (*position)(void *, MMI32 *first, MMI32 *frame, MMU32 *camera_count);
+        int (*prepare)(void *, MMI32 key, MMU32 camera);
+        int (*apply)(void *);
+        void (*publish)(void *);
+    } MMSceneCameraJournalServices;
+    enum { MM_SCENE_CAMERA_INVALID = -1 };
+    /* Reserve undo in prepare and publish only after applying succeeds. */
+    int mm_scene_camera_journal(MMI32 scene, unsigned long camera, const MMSceneCameraJournalServices *);
     int mm_scene_background_edit(const MMTag *, MMTag *old, const MMSceneEditServices *);
     int mm_scene_is_empty(const MMSceneEditServices *);
     int mm_scene_pause_undo_edit(MMI32 reason, MMI32 delay, const MMSceneEditServices *);

@@ -320,7 +320,9 @@ rendering uses the isolated preview helper and does not alter the live camera.
 Camera choices are authored changes in the same live session as new
 scenes. A choice replaces any camera changes at that exact frame and lasts until
 the next authored camera change. Other frame events and later camera cuts are
-retained. The movie is marked **UNSAVED**; **Save copy** exports these edits.
+retained. A cut at the opening follows the first frame when a frame is
+prepended. A successful edit marks the movie **UNSAVED** and **Save copy**
+exports the cuts.
 
 **Scenes > All cameras / Active only** toggles the other authored camera guides
 in the work view (Orbit/Fly, including the work pane in a split view). The active

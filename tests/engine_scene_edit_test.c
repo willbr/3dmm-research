@@ -824,10 +824,94 @@ static void test_undo(void)
           e.backgrounds[0].camera == 2);
     clean_edit(&e);
 }
+typedef struct CameraFixture
+{
+    MMI32 at[6], kind[6], count, key;
+    MMU32 camera;
+    int opened, stored, dropped, prepared, applied, published, fail;
+} CameraFixture;
+static MMI32 count_camera_events(void *p) { return ((CameraFixture *)p)->count; }
+static void camera_store_event(void *p, MMI32 i, MMI32 *frame, int *kind)
+{
+    CameraFixture *s = p;
+    *frame = s->at[i];
+    *kind = s->kind[i];
+}
+static void camera_store_erase(void *p, MMI32 i)
+{
+    CameraFixture *s = p;
+    --s->count;
+    for (; i < s->count; ++i)
+    {
+        s->at[i] = s->at[i + 1];
+        s->kind[i] = s->kind[i + 1];
+    }
+}
+static int camera_store_insert(void *p, MMI32 i, MMI32 frame, MMU32 camera)
+{
+    CameraFixture *s = p;
+    MMI32 j;
+    CHECK(s->count < 6);
+    for (j = s->count++; j > i; --j)
+    {
+        s->at[j] = s->at[j - 1];
+        s->kind[j] = s->kind[j - 1];
+    }
+    s->at[i] = frame;
+    s->kind[i] = MM_SCENE_CHANGE_CAMERA;
+    s->camera = camera;
+    return 1;
+}
+static int camera_store_open(void *p) { ++((CameraFixture *)p)->opened; return 1; }
+static int camera_store_write(void *p) { ++((CameraFixture *)p)->stored; return 1; }
+static int camera_store_thumb(void *p) { ++((CameraFixture *)p)->dropped; return 1; }
+static void camera_journal_position(void *p, MMI32 *first, MMI32 *frame, MMU32 *count)
+{
+    (void)p;
+    *first = *frame = -5;
+    *count = 4;
+}
+static int camera_journal_prepare(void *p, MMI32 key, MMU32 camera)
+{
+    CameraFixture *s = p;
+    s->key = key;
+    s->camera = camera;
+    ++s->prepared;
+    return 1;
+}
+static int camera_journal_apply(void *p)
+{
+    CameraFixture *s = p;
+    ++s->applied;
+    return !s->fail;
+}
+static void camera_journal_publish(void *p) { ++((CameraFixture *)p)->published; }
+static void test_camera_journal(void)
+{
+    CameraFixture f = {{-5, -5, -5, -5, 13}, {MM_SCENE_CHANGE_CAMERA, MM_SCENE_PAUSE,
+                       MM_SCENE_CHANGE_CAMERA, MM_SCENE_PLAY_SOUND, MM_SCENE_CHANGE_CAMERA},
+                       5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    MMSceneCameraJournalServices j = {NULL, camera_journal_position, camera_journal_prepare, camera_journal_apply,
+                                     camera_journal_publish};
+    MMSceneCameraStoreServices s = {{NULL, count_camera_events, camera_store_event, camera_store_erase,
+                                     camera_store_insert}, camera_store_open, camera_store_write, camera_store_thumb};
+    j.context = s.events.context = &f;
+    CHECK(mm_scene_camera_journal(0, 4, &j) == MM_SCENE_CAMERA_INVALID && !f.prepared);
+    f.fail = 1;
+    CHECK(!mm_scene_camera_journal(0, 2, &j) && f.prepared == 1 && f.applied == 1 && !f.published);
+    f.fail = 0;
+    CHECK(mm_scene_camera_journal(0, 2, &j) == 1 && f.published == 1);
+    CHECK(f.key == MM_SCENE_OPENING_CAMERA_FRAME && mm_scene_camera_frame(-7, f.key) == -7 && f.camera == 2);
+    CHECK(mm_scene_camera_store(-5, f.key, 2, &s) && f.opened == 1 && f.stored == 1 && f.dropped == 1);
+    CHECK(f.count == 4 && f.kind[0] == MM_SCENE_PAUSE && f.kind[1] == MM_SCENE_PLAY_SOUND &&
+          f.kind[2] == MM_SCENE_CHANGE_CAMERA && f.at[2] == -5 && f.at[3] == 13);
+    CHECK(mm_scene_camera_store(-5, 13, 1, &s) && f.dropped == 1 && f.camera == 1);
+}
 int main(void)
 {
     test_pause();
     test_camera();
+    test_camera_journal();
     test_background();
     test_public();
     test_undo();
