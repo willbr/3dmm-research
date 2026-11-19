@@ -85,6 +85,30 @@ cmake --build build/marcus --target marcus
 The executable is `build/marcus/src/marcus/marcus` (`marcus.exe` on Windows).
 The current development build in this workspace uses `build/marcus-x64`.
 
+Marcus uses the original media automatically when it finds
+`dist/3DMOVIE100.iso` in the workspace. It also picks up
+`dist/DORAEMON100.iso` and the community Nickelodeon expansion at
+`expansions/n3dmmexpb1a-1.zip` when present. For a standalone layout, put
+those three files beside the executable. To select files explicitly:
+
+```powershell
+.\build\marcus-x64\src\marcus\marcus.exe --iso .\dist\3DMOVIE100.iso --doraemon-iso .\dist\DORAEMON100.iso --expansion-zip .\expansions\n3dmmexpb1a-1.zip
+```
+
+Marcus uses 7-Zip to read the ten archives inside the community ZIP's NSIS
+payload as data. The installer is never run. To use the reconstructed
+Nickelodeon expansion instead, select the retail disc and matching fixups:
+
+```powershell
+.\build\marcus-x64\src\marcus\marcus.exe --iso .\dist\3DMOVIE100.iso --nick-iso .\dist\NICK3DMM.ISO --nick-fixups .\expansions\nickelodeon-image-fixups.zip
+```
+
+In media mode, the VFS mounts the selected base game and expansion files.
+Marcus prepares a private cache for the legacy seekable
+archive readers and shows the original media files in **Settings**. Source
+files stay read-only. Use `--content-dir` to select the folder-based mode,
+which uses Studio's managed expansions.
+
 SDL 3.4.8 is built from `vendor/SDL3` by the shared dependency module, including
 for Studio and the inspector. Marcus's transform controls use the vendored
 ImGuizmo core in `vendor/ImGuizmo` with the existing pinned Dear ImGui dependency.

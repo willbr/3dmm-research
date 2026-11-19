@@ -237,7 +237,8 @@ std::map<std::string, std::vector<unsigned char>> ReadFiles(const fs::path &imag
     }
     return result;
 }
-Cache Prepare(const fs::path &image, const fs::path &cacheDirectory, const std::vector<Supplement> &supplements)
+Cache Prepare(const fs::path &image, const fs::path &cacheDirectory, const std::vector<Supplement> &supplements,
+              ProductNames names)
 {
     const auto source = fs::canonical(image);
     const auto cache = fs::absolute(cacheDirectory).lexically_normal();
@@ -254,7 +255,7 @@ Cache Prepare(const fs::path &image, const fs::path &cacheDirectory, const std::
             if (file.directory)
                 continue;
             if (kind == "3dmovie" && fs::path(name).extension() != ".exe")
-                file.name = "Microsoft Kids/3D Movie Maker/" + file.name;
+                file.name = "Microsoft Kids/3D Movie Maker/" + (names == ProductNames::Lowercase ? name : file.name);
             else if (kind == "samples" && fs::path(name).extension() == ".3mm")
                 file.name = "Microsoft Kids/Users/Melanie/" + file.name;
             else if (kind == "setup" && (name == "comic.ttf" || name == "comicbd.ttf"))
@@ -277,6 +278,8 @@ Cache Prepare(const fs::path &image, const fs::path &cacheDirectory, const std::
     Hash(hash, source.u8string());
     Hash(hash, std::to_string(fs::file_size(source)));
     Hash(hash, std::to_string(static_cast<long long>(fs::last_write_time(source).time_since_epoch().count())));
+    if (names == ProductNames::Lowercase)
+        Hash(hash, "lowercase-product-names");
     for (const auto &supplement : supplements)
     {
         if (!Relative(supplement.name) || (!supplement.data && supplement.bytes))

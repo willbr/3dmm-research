@@ -83,6 +83,7 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
 {
     impl->input = std::move(input);
     const auto base = baseDirectory.empty() ? fs::path{} : fs::absolute(fs::u8path(baseDirectory));
+    const bool media = !base.empty() && fs::is_regular_file(base / ".marcus-media");
     if (!base.empty() && fs::is_directory(base))
         files.MountDirectory("3dmovie", base);
     auto settings = fs::u8path(StudioSettings::IniPath());
@@ -91,7 +92,7 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
     if (!impl->root.is_absolute())
         throw std::runtime_error("THREEDMM_PACK_DIR must be absolute");
     std::string preferenceText;
-    if (StudioSettings::ReadString("User", "ExpansionPacks", preferenceText) == KauaiSettings::ReadResult::Error)
+    if (!media && StudioSettings::ReadString("User", "ExpansionPacks", preferenceText) == KauaiSettings::ReadResult::Error)
         throw std::runtime_error("Cannot read Studio's expansion preferences");
     const auto preferences = StudioPacks::Parse(preferenceText);
     StudioPacks::Store libraries(impl->root);
@@ -99,6 +100,13 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
     {
         const auto &preference = preferences[i];
         const auto &definition = StudioPacks::Definitions()[i];
+        if (media)
+        {
+            const auto folder = base.parent_path() / definition.sourceTitle;
+            if (fs::is_directory(folder))
+                files.MountDirectory(definition.sourceFolder, folder);
+            continue;
+        }
         if (!preference.enabled || preference.remove)
             continue;
         const auto info = libraries.Inspect(definition.id, preference);

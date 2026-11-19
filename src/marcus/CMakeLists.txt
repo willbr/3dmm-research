@@ -42,13 +42,14 @@ target_compile_features(marcus-preview PRIVATE cxx_std_17)
 target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-core)
 kauai_copy_midi_assets(marcus-preview)
 
-add_executable(marcus WIN32 main.c ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_fields.c storyboard_view.c transport_skin.c prop_gizmo.c transform_gizmo.c imgui_bindings.cpp movie_browser.c movie_browser_preferences.c movie_browser_worker.cpp scene_organiser.c background_browser.c background_preview.cpp text_dialog.c costume_dialog.c sound_dialog.c camera_picker.c storyboard_editor.c storyboard_editor_backend.cpp)
+add_executable(marcus WIN32 main.c media.cpp ribbon.c ui.c settings.c dialog_views.c dialog_widgets.c prop_fields.c storyboard_view.c transport_skin.c prop_gizmo.c transform_gizmo.c imgui_bindings.cpp movie_browser.c movie_browser_preferences.c movie_browser_worker.cpp scene_organiser.c background_browser.c background_preview.cpp text_dialog.c costume_dialog.c sound_dialog.c camera_picker.c storyboard_editor.c storyboard_editor_backend.cpp)
 add_dependencies(marcus marcus-preview)
 find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(marcus PRIVATE marcus-player cimgui-sdl3 imguizmo SDL3::SDL3-static engine-core MM::Archive mm-v3dmm Threads::Threads)
+target_link_libraries(marcus PRIVATE studio-iso-cache studio-pack-store miniz)
 kauai_copy_midi_assets(marcus)
 add_custom_command(TARGET marcus POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different

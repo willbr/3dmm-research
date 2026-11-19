@@ -17,6 +17,7 @@
 #include "storyboard_editor.h"
 #include "storyboard.h"
 #include "prop_gizmo.h"
+#include "media.h"
 #include <SDL3/SDL_main.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -122,6 +123,7 @@ typedef struct App
     char settings_path[1024], settings_message[256];
     int settings_open, rendering_settings, settings_work_camera, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
+    char media_description[4096];
     int running, loaded, blank_movie, playing, loop, selected, authored, dirty, dragging, orbiting, panning;
     int orbit_selection, orbit_target, ground_grid;
     int continue_click, muted;
@@ -2978,10 +2980,14 @@ static void draw_settings(App *app)
         if (app->rendering_settings) draw_rendering_settings(app);
         else {
             igSeparatorText("Content locations");
-            if (igButton("Palette and shading...", dialog_vec(220, 0))) { app->binding_capture = -1; choose_file(app, 1); }
-            igSameLine(0, 10);
-            if (igButton("3DMM content folder...", dialog_vec(220, 0))) { app->binding_capture = -1; choose_file(app, 2); }
-            igTextWrapped("%s", app->resources); igTextWrapped("%s", app->content);
+            if (app->media_description[0])
+                igTextWrapped("%s", app->media_description);
+            else {
+                if (igButton("Palette and shading...", dialog_vec(220, 0))) { app->binding_capture = -1; choose_file(app, 1); }
+                igSameLine(0, 10);
+                if (igButton("3DMM content folder...", dialog_vec(220, 0))) { app->binding_capture = -1; choose_file(app, 2); }
+                igTextWrapped("%s", app->resources); igTextWrapped("%s", app->content);
+            }
             igSeparatorText("Keyboard shortcuts");
             igTextWrapped(app->binding_capture >= 0 ? "Press a key. Escape cancels capture; Backspace clears the binding." : "Choose a binding to change it.");
             if (igBeginTable("Bindings", 2, ImGuiTableFlags_SizingStretchSame, dialog_vec(0, 0), 0)) {
@@ -3310,7 +3316,10 @@ static void initialize_shortcuts(App *app)
 static void usage(void)
 {
     puts("Marcus - 3D Movie Maker player\n"
-         "Usage: marcus [movie.3mm|movie.vmm|movies.zip] [--resources 3dmovie.chk] [--content-dir folder]\n"
+         "Usage: marcus [movie.3mm|movie.vmm|movies.zip] [--iso base.iso | --content-dir folder]\n"
+         "              [--doraemon-iso disc.iso] [--expansion-zip community.zip | --nick-iso disc.iso --nick-fixups fixups.zip]\n"
+         "              [--resources 3dmovie.chk]");
+    puts(
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings] [--sounds|--both] [--second-view]\n"
          "              [--settings-file shortcuts.cfg] [--zip-movie N] [--browse folder-or-zip]\n"
@@ -3330,16 +3339,20 @@ static int number(const char *text, long *output)
 int main(int argc, char **argv)
 {
     App app;
+    MarcusMediaOptions media;
     SDL_Event event;
     const char *input, *font, *capture, *browse;
     int i, result, frames, requested_scene, requested_object, requested_zip, have_frame, show_settings;
     int requested_renderer, browser_entry, chosen_scene;
+    int explicit_content, explicit_resources;
     MarcusMovieInput *browser_input;
     char browser_path[4096];
     long requested_frame, parsed, chosen_frame;
     double now, previous_tick;
     Uint64 frame_tick, completed_tick;
     memset(&app, 0, sizeof(app));
+    memset(&media, 0, sizeof(media));
+    explicit_content = explicit_resources = 0;
     input = font = capture = browse = NULL;
     result = have_frame = show_settings = 0;
     requested_scene = 1;
@@ -3391,9 +3404,25 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--fly"))
             app.authored = 2;
         else if (!strcmp(argv[i], "--resources") && i + 1 < argc)
+        {
             SDL_strlcpy(app.resources, argv[++i], sizeof(app.resources));
+            explicit_resources = 1;
+        }
         else if (!strcmp(argv[i], "--content-dir") && i + 1 < argc)
+        {
             SDL_strlcpy(app.content, argv[++i], sizeof(app.content));
+            explicit_content = 1;
+        }
+        else if (!strcmp(argv[i], "--iso") && i + 1 < argc)
+            media.iso = argv[++i];
+        else if (!strcmp(argv[i], "--doraemon-iso") && i + 1 < argc)
+            media.doraemon_iso = argv[++i];
+        else if (!strcmp(argv[i], "--expansion-zip") && i + 1 < argc)
+            media.expansion_zip = argv[++i];
+        else if (!strcmp(argv[i], "--nick-iso") && i + 1 < argc)
+            media.nick_iso = argv[++i];
+        else if (!strcmp(argv[i], "--nick-fixups") && i + 1 < argc)
+            media.nick_fixups = argv[++i];
         else if (!strcmp(argv[i], "--font") && i + 1 < argc)
             font = argv[++i];
         else if (!strcmp(argv[i], "--screenshot") && i + 1 < argc)
@@ -3439,6 +3468,21 @@ int main(int argc, char **argv)
         }
         else
             input = argv[i];
+    }
+    if (explicit_content && (media.iso || media.doraemon_iso || media.expansion_zip || media.nick_iso || media.nick_fixups))
+    {
+        usage();
+        return 2;
+    }
+    if (!explicit_content &&
+        !marcus_prepare_media(&media, MARCUS_SOURCE_DIR, explicit_resources ? NULL : app.resources, sizeof(app.resources),
+                              app.content, sizeof(app.content), app.media_description, sizeof(app.media_description),
+                              app.error, sizeof(app.error)))
+    {
+        fprintf(stderr, "Marcus media: %s\n", app.error);
+        if (!capture)
+            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Marcus media", app.error, NULL);
+        return 1;
     }
     if (app.second_view && app.authored == 1)
         app.authored = 2;
